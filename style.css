@@ -364,6 +364,36 @@ button, .icon-btn, .prog-section-del, .seq-presets button, .seq-delete-btn {
    de part et d'autre (justify-content: space-between), quel que soit le nombre de boutons. */
 .zoom-header-actions { display: flex; align-items: center; gap: 6px; flex: none; }
 
+/* Onglets Son/Affichage/Fichiers : un seul panneau visible à la fois (voir setSettingsTab dans
+   script.js), pour ne plus faire défiler tout le reste (Fichiers, en particulier, peut être long)
+   juste pour changer un réglage Son. */
+.settings-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 10px 14px 0;
+    border-bottom: 1px solid var(--border);
+    flex: none;
+}
+.settings-tab {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 14px;
+    border: none;
+    border-radius: 8px 8px 0 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+.settings-tab:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.04); }
+.settings-tab[aria-selected="true"] {
+    color: var(--text-main);
+    background: var(--card-bg-2, rgba(255, 255, 255, 0.06));
+    box-shadow: inset 0 -2px 0 var(--accent);
+}
+
 .settings-body {
     display: flex;
     flex: 1;
@@ -376,20 +406,6 @@ button, .icon-btn, .prog-section-del, .seq-presets button, .seq-delete-btn {
     overflow-y: auto;
     padding: 18px 20px;
 }
-
-/* Une seule vue qui défile, sans onglet : chaque section a son titre, puis son contenu */
-.settings-section-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 0 14px;
-    font-size: var(--fs-sm);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--text-muted);
-}
-.settings-section-sep { height: 1px; background: var(--border); margin: 22px 0; }
 
 /* ---- Panneau Fichiers ---- */
 .files-empty { color: var(--text-muted); font-size: var(--fs-sm); text-align: center; padding: 30px 10px; }
@@ -1606,6 +1622,14 @@ button:active { transform: translateY(1px); }
     z-index: 2;
 }
 
+/* Sélection multiple (Ctrl/Cmd+clic, voir toggleGridMultiSelect) : bleu, pour rester distincte de la
+   sélection simple (verte) et de l'édition (ambre) — peut se cumuler avec .selected sur la dernière
+   case touchée, d'où un anneau plutôt qu'un fond plein qui masquerait l'autre état. */
+.grid-cell.multi-selected {
+    box-shadow: inset 0 0 0 2px #2f81f7;
+    z-index: 2;
+}
+
 /* Accord en cours de lecture : vert légèrement plus foncé que la sélection, halo doux plutôt qu'un
    anneau plein — reste distinct de .selected (un peu plus present) sans redevenir criard. */
 .grid-cell.playing {
@@ -1693,6 +1717,35 @@ button:active { transform: translateY(1px); }
 }
 .cell-resize-right { right: 0; }
 .cell-resize-left { left: 0; }
+
+/* Boutons octave (loupe grille uniquement, voir shiftChordOctave) : empilés dans le coin haut-droit,
+   en retrait du bord (occupé par .cell-resize-right) pour ne pas lui voler le clic. */
+.cell-octave {
+    position: absolute;
+    top: 3px;
+    right: 16px;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.cell-octave-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    min-width: 0; /* sinon la règle générique button{min-width:120px} l'emporte sur width */
+    height: 14px;
+    padding: 0;
+    border: 1px solid #3a3a3a;
+    border-radius: 3px;
+    background: rgba(20, 20, 20, 0.75);
+    color: var(--text-muted);
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.cell-octave-btn:hover { background: #262626; color: var(--text-main); border-color: #4a4a4a; }
+.cell-octave-btn .icon { width: 10px; height: 10px; }
 
 /* Repère de mesure À L'INTÉRIEUR d'un accord qui dure plusieurs mesures — même largeur/opacité que
    .grid-cell.bar-start (voir ci-dessus), pour qu'on reconnaisse le même repère de mesure dans les
@@ -2131,6 +2184,17 @@ button:active { transform: translateY(1px); }
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+/* Groupe étirer/raccourcir/déplacer (voir resizeSelectedSeqNote/moveSelectedSeqNotes) : agit sur
+   toute la sélection à la fois, visuellement distinct des boutons Supprimer juste à côté. */
+.seq-selection-actions {
+    display: flex;
+    gap: 4px;
+    align-items: stretch;
+    padding: 2px;
+    border: 1px solid #333;
+    border-radius: 8px;
 }
 
 /* Bouton dédié : supprime uniquement les notes sélectionnées, sans toucher au reste du motif */

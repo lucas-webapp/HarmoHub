@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202607252000">
+    <link rel="stylesheet" href="style.css?v=202607242100">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 </head>
@@ -119,31 +119,25 @@
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
                 </button>
             </div>
+            <div class="settings-tabs" role="tablist">
+                <button type="button" class="settings-tab" data-settings-tab="audio" role="tab" aria-selected="true" aria-controls="settings-panel-audio">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+                    Son
+                </button>
+                <button type="button" class="settings-tab" data-settings-tab="display" role="tab" aria-selected="false" aria-controls="settings-panel-display">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    Affichage
+                </button>
+                <button type="button" class="settings-tab" data-settings-tab="files" role="tab" aria-selected="false" aria-controls="settings-panel-files">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
+                    Fichiers
+                </button>
+            </div>
             <div class="settings-body">
                 <div class="settings-content">
-                    <section class="settings-section">
-                        <h3 class="settings-section-title">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
-                            Son
-                        </h3>
-                        <div id="settings-panel-audio" class="settings-panel"></div>
-                    </section>
-                    <div class="settings-section-sep"></div>
-                    <section class="settings-section">
-                        <h3 class="settings-section-title">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-                            Affichage
-                        </h3>
-                        <div id="settings-panel-display" class="settings-panel"></div>
-                    </section>
-                    <div class="settings-section-sep"></div>
-                    <section class="settings-section">
-                        <h3 class="settings-section-title">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
-                            Fichiers
-                        </h3>
-                        <div id="settings-panel-files" class="settings-panel"></div>
-                    </section>
+                    <div id="settings-panel-audio" class="settings-panel" data-settings-panel="audio"></div>
+                    <div id="settings-panel-display" class="settings-panel" data-settings-panel="display" hidden></div>
+                    <div id="settings-panel-files" class="settings-panel" data-settings-panel="files" hidden></div>
                 </div>
             </div>
         </div>
@@ -300,6 +294,13 @@
                             <option value="bell">Synthé chaud</option>
                         </select>
                         <div class="card-head-actions">
+                            <!-- Applique le son actuellement choisi (menu juste avant) à TOUS les accords déjà
+                                 posés dans le morceau, pas seulement à celui en cours d'édition (voir
+                                 applyInstrumentToSong) — retour utilisateur : changer le son de toute une
+                                 grille déjà remplie obligeait jusqu'ici à rouvrir chaque accord un par un. -->
+                            <button type="button" id="apply-instrument-all" class="icon-btn" title="Appliquer ce son à tout le morceau" aria-label="Appliquer ce son à tout le morceau">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h9"/><path d="M3 12h9"/><path d="M3 18h9"/><path d="m14 12 6 0"/><path d="m17 9 3 3-3 3"/></svg>
+                            </button>
                             <button type="button" id="toggle-sequencer" class="icon-btn" title="Séquenceur" aria-label="Séquenceur">
                                 <!-- Grille de pas façon piano-roll (3 colonnes x 3 rangées, quelques pas "actifs"
                                      en escalier) plutôt qu'un clavier stylisé : trop proche du bouton piano
@@ -596,6 +597,6 @@
          script.js) — vendu en local plutôt qu'hébergé sur un CDN. Projet LAME (lame.sourceforge.net),
          licence LGPL. -->
     <script src="lame.min.js"></script>
-    <script src="script.js?v=202607252000"></script>
+    <script src="script.js?v=202607242100"></script>
 </body>
 </html>

@@ -19,6 +19,7 @@
 // cohérent avec celles écrites en dur dans index.html (même style : viewBox 24, trait 2, coins ronds).
 const ICONS = {
     plus: '<path d="M12 5v14M5 12h14"/>',
+    minus: '<path d="M5 12h14"/>',
     check: '<path d="M20 6 9 17l-5-5"/>',
     close: '<path d="M18 6 6 18"/><path d="M6 6l12 12"/>',
     pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
@@ -32,7 +33,10 @@ const ICONS = {
     'chevron-right': '<path d="m9 18 6-6-6-6"/>',
     loop: '<path d="M17 2 21 6 17 10"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22 3 18 7 14"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
     play: '<path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>',
-    stop: '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/>'
+    stop: '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/>',
+    // « Appliquer partout » (voir applyInstrumentToSong) : trois rangées (le morceau, accord par
+    // accord) convergeant vers une seule note en bout de flèche (le son choisi, propagé à tous).
+    applyAll: '<path d="M3 6h9"/><path d="M3 12h9"/><path d="M3 18h9"/><path d="m14 12 6 0"/><path d="m17 9 3 3-3 3"/>'
 };
 
 // Rendu HTML d'une icône (name doit exister dans ICONS) ; extraClass optionnel pour la taille/marge
@@ -165,14 +169,14 @@ const QUALITY_ALIASES = {
 function parseChordSymbol(input) {
     const s = (input || '').trim();
     if (!s) return null;
-    const m = s.match(/^([A-Ga-g])(#|b)?(.*)$/);
+    const m = s.match(/^([A-Ga-g])(#|b|♭)?(.*)$/);
     if (!m) return null;
     const [, letter, accidental, rawRest] = m;
 
     const BASE_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
     let pc = BASE_PC[letter.toUpperCase()];
     if (accidental === '#') pc += 1;
-    else if (accidental === 'b') pc -= 1;
+    else if (accidental === 'b' || accidental === '♭') pc -= 1;
     pc = ((pc % 12) + 12) % 12;
     const root = NOTES[pc];
 
@@ -186,12 +190,12 @@ function parseChordSymbol(input) {
     if (bassIdx !== -1) {
         const bassStr = rest.slice(bassIdx + 1).trim();
         rest = rest.slice(0, bassIdx).trim();
-        const bm = bassStr.match(/^([A-Ga-g])(#|b)?$/);
+        const bm = bassStr.match(/^([A-Ga-g])(#|b|♭)?$/);
         if (!bm) return null;
         const [, bLetter, bAccidental] = bm;
         let bPc = BASE_PC[bLetter.toUpperCase()];
         if (bAccidental === '#') bPc += 1;
-        else if (bAccidental === 'b') bPc -= 1;
+        else if (bAccidental === 'b' || bAccidental === '♭') bPc -= 1;
         bPc = ((bPc % 12) + 12) % 12;
         bass = NOTES[bPc];
     }
@@ -352,10 +356,12 @@ const VIZ_HIGH = 83;
 // suffisant pour placer correctement les barres de mesure et la durée « 1 mesure ».
 const TIME_SIG_BEATS = { '2/4': 2, '3/4': 3, '4/4': 4, '5/4': 5, '6/8': 6, '7/8': 7, '9/8': 9, '12/8': 12 };
 
-// Nombre de temps affichés par ligne de la grille : un multiple de la mesure proche de 16,
+// Nombre de temps affichés par ligne de la grille : un multiple de la mesure proche de 16 (32 en
+// mode loupe, où la fenêtre est bien plus large — ex. 8 mesures par ligne en 4/4 au lieu de 4),
 // pour garder des lignes de largeur comparable quelle que soit la signature choisie
-function beatsPerRowFor(beatsPerBar) {
-    const bars = Math.max(1, Math.round(16 / beatsPerBar));
+function beatsPerRowFor(beatsPerBar, zoomed = false) {
+    const target = zoomed ? 32 : 16;
+    const bars = Math.max(1, Math.round(target / beatsPerBar));
     return beatsPerBar * bars;
 }
 
@@ -1619,6 +1625,7 @@ class HarmoHubApp {
         this.activeSection = 0;    // partie (couplet/refrain/...) ciblée par les contrôles courants
         this.loopActiveSection = false; // boucle la partie active au lieu de jouer toute la grille (bouton Grille)
         this.selectedIndex = null; // accord sélectionné dans la grille (au sein de la partie active)
+        this.multiSelect = new Set(); // indices en plus de selectedIndex (Ctrl/Cmd+clic, voir toggleGridMultiSelect), toujours au sein de la partie active — vidé au changement de partie
         this.editingIndex = null;  // accord en cours de modification (au sein de la partie active)
         this.drag = null;          // état de glisser-déposer
         this.loopRange = null;     // {startSection, startIndex, endSection, endIndex} : boucle sur une
@@ -1664,6 +1671,7 @@ class HarmoHubApp {
         this.metronomeDuringPlayback = localStorage.getItem(METRONOME_KEY) === '1';
 
         this.settingsOpen = false; // fenêtre Paramètres (Fichiers, et ce qui s'y ajoutera)
+        this.settingsTab = 'audio'; // onglet actif de la fenêtre Paramètres (voir setSettingsTab)
         this.contextMenuTarget = null; // { type: 'song'|'folder', id|name } pendant que le menu contextuel est ouvert
 
         // Historique annuler/rétablir (Ctrl+Z / Ctrl+Y) : piles de copies profondes de `sections`
@@ -1758,7 +1766,15 @@ class HarmoHubApp {
         if (savedInstrument && INSTRUMENT_BANKS[savedInstrument]) {
             document.getElementById('instrument').value = savedInstrument;
         }
-        document.getElementById('instrument').onchange = (e) => localStorage.setItem(INSTRUMENT_KEY, e.target.value);
+        document.getElementById('instrument').onchange = (e) => {
+            localStorage.setItem(INSTRUMENT_KEY, e.target.value);
+            // Fait entendre le nouveau son tout de suite, qu'on modifie un accord déjà posé OU qu'on
+            // soit en train d'en composer un nouveau pas encore ajouté (retour utilisateur : changer de
+            // son restait muet dans les deux cas, contrairement à root/qualité/etc. — voir refreshPreview,
+            // qui ne joue jamais de son lui-même, seulement le bouton Lecture dédié jusqu'ici).
+            this.playCurrent();
+        };
+        document.getElementById('apply-instrument-all').onclick = () => this.applyInstrumentToSong();
 
         // Garder le métronome pendant la lecture de la grille (au-delà du seul décompte)
         const metroBtn = document.getElementById('toggle-metronome');
@@ -1931,6 +1947,9 @@ class HarmoHubApp {
         // en une seule vue qui défile, sans onglet.
         document.getElementById('open-settings').onclick = () => this.openSettings();
         document.getElementById('settings-close').onclick = () => this.closeSettings();
+        document.querySelectorAll('.settings-tab').forEach(btn => {
+            btn.onclick = () => this.setSettingsTab(btn.dataset.settingsTab);
+        });
         document.getElementById('settings-overlay').addEventListener('click', (e) => {
             if (e.target.id === 'settings-overlay') this.closeSettings(); // clic sur le fond, pas la fenêtre
         });
@@ -2912,6 +2931,25 @@ class HarmoHubApp {
         return true;
     }
 
+    // Applique le son actuellement choisi dans le panneau Accord à TOUS les accords déjà posés, dans
+    // toutes les parties du morceau (voir #apply-instrument-all) — un seul pushUndo pour tout annuler
+    // en un coup, comme n'importe quelle autre modification en masse de l'appli.
+    applyInstrumentToSong() {
+        const instrument = document.getElementById('instrument').value;
+        const sections = loadProgressionSections();
+        const total = sections.reduce((n, sec) => n + sec.chords.length, 0);
+        if (total === 0) { this.flashHint('Aucun accord dans le morceau'); return; }
+        this.pushUndo(sections);
+        sections.forEach(sec => sec.chords.forEach(c => { c.instrument = instrument; }));
+        saveProgressionSections(sections);
+        hasUnsavedChanges = true;
+        this.loadProgression();
+        // Si un accord est en cours d'édition, resynchronise le séquenceur épinglé (loupe grille) qui
+        // affiche son style/instrument.
+        if (this.editingIndex != null) this.syncGridZoomPinnedSeq();
+        this.flashHint(`Son appliqué à ${total} accord${total > 1 ? 's' : ''}`);
+    }
+
     // Parse une liste "/" (ex. "CM7/Am7/F6/Bbm7") en tableau d'accords reconnus, ou renvoie null (en
     // affichant lequel a échoué) si un seul symbole n'est pas valide — tout ou rien, un ajout partiel
     // serait déroutant, mieux vaut corriger et retaper la liste entière.
@@ -3322,8 +3360,8 @@ class HarmoHubApp {
     // Découpe la progression en segments (un accord peut être scindé sur plusieurs lignes).
     // barStart se calcule sur la position ABSOLUE (avant repli en lignes), pour que les barres de
     // mesure tombent au bon endroit même quand une ligne ne fait pas un multiple de la mesure.
-    layoutProgression(history, beatsPerBar) {
-        const beatsPerRow = beatsPerRowFor(beatsPerBar);
+    layoutProgression(history, beatsPerBar, zoomed = this.gridZoomOpen) {
+        const beatsPerRow = beatsPerRowFor(beatsPerBar, zoomed);
         let cursor = 0;
         const cells = [];
         history.forEach((h, i) => {
@@ -3376,7 +3414,7 @@ class HarmoHubApp {
             let gridInner, gridStyle = '';
 
             if (history.length === 0) {
-                const beatsPerRow = beatsPerRowFor(beatsPerBar);
+                const beatsPerRow = beatsPerRowFor(beatsPerBar, this.gridZoomOpen);
                 const plusSpan = Math.min(2, beatsPerRow);
                 gridStyle = `grid-template-rows: repeat(1, var(--row-h) var(--measure-row-h)); grid-template-columns: repeat(${beatsPerRow}, 1fr);`;
                 gridInner = this.buildAddCellHtml(si, 1, 0, plusSpan);
@@ -3420,6 +3458,7 @@ class HarmoHubApp {
                     } else {
                         if (isActive && s.index === this.selectedIndex) cls += ' selected';
                         if (isActive && s.index === this.editingIndex) cls += ' editing';
+                        if (isActive && this.multiSelect.has(s.index)) cls += ' multi-selected';
                     }
                     const inLoop = loopRange && s.index >= loopRange.start && s.index <= loopRange.end;
                     if (inLoop) cls += ' in-loop-range';
@@ -3460,13 +3499,24 @@ class HarmoHubApp {
                     const resizeLeftEl = (s.isFirst && s.index > 0 && notDragging)
                         ? `<div class="cell-resize cell-resize-left" data-section="${si}" data-index="${s.index}" data-edge="left" title="Glisser pour changer la durée"></div>` : '';
 
+                    // Octave +/- : uniquement dans la loupe grille (voir shiftChordOctave), où la case
+                    // est assez grande pour les accueillir sans gêner le texte — sur le premier segment
+                    // seulement (un accord étalé sur plusieurs lignes n'a qu'une octave, à ne régler
+                    // qu'une fois).
+                    const octaveEl = (this.gridZoomOpen && s.isFirst && notDragging) ? `
+                        <div class="cell-octave">
+                            <button type="button" class="cell-octave-btn" data-section="${si}" data-index="${s.index}" data-delta="1" title="Octave au-dessus" aria-label="Octave au-dessus">${svgIcon('up')}</button>
+                            <button type="button" class="cell-octave-btn" data-section="${si}" data-index="${s.index}" data-delta="-1" title="Octave en dessous" aria-label="Octave en dessous">${svgIcon('down')}</button>
+                        </div>` : '';
+
                     return `
-                    <div class="${cls}" data-section="${si}" data-index="${s.index}" style="${style}" title="Toucher pour écouter · cliquer le nom pour le modifier · double-clic/double-tap pour l'édition complète · clic droit/appui long pour plus d'options">
-                        <span class="cell-sym">${sym}${contFlag}</span>
+                    <div class="${cls}" data-section="${si}" data-index="${s.index}" style="${style}" title="Toucher pour écouter · cliquer le nom pour le modifier · double-clic/double-tap pour l'édition complète · clic droit/appui long pour plus d'options · Cmd/Ctrl+clic pour sélection multiple (Cmd+clic sur Mac)">
+                        <span class="cell-sym">${flatTight(sym)}${contFlag}</span>
                         ${metaEl}
                         ${ticksEl}
                         ${resizeLeftEl}
                         ${resizeRightEl}
+                        ${octaveEl}
                     </div>`;
                 }).join('') + (showRoman ? cells.filter(s => s.isFirst).map(s => {
                     const h = history[s.index];
@@ -3498,7 +3548,7 @@ class HarmoHubApp {
                     <button type="button" class="icon-btn prog-section-duplicate" data-section="${si}" title="Dupliquer cette partie" aria-label="Dupliquer cette partie">${svgIcon('duplicate')}</button>
                     ${canDelete ? `<button type="button" class="prog-section-del" data-section="${si}" title="Supprimer cette partie" aria-label="Supprimer cette partie">${svgIcon('trash')}</button>` : ''}
                 </div>
-                <div class="chord-grid" data-section="${si}" data-beats-per-row="${beatsPerRowFor(beatsPerBar)}" style="${gridStyle}">${gridInner}</div>
+                <div class="chord-grid" data-section="${si}" data-beats-per-row="${beatsPerRowFor(beatsPerBar, this.gridZoomOpen)}" style="${gridStyle}">${gridInner}</div>
             </div>`;
         }).join('');
 
@@ -3535,6 +3585,14 @@ class HarmoHubApp {
         host.querySelectorAll('.cell-resize').forEach(handle => {
             handle.addEventListener('pointerdown', (e) => this.onResizeStart(e, +handle.dataset.section, +handle.dataset.index, handle.dataset.edge));
         });
+        // Boutons octave (loupe grille uniquement, voir shiftChordOctave) : pointerdown déjà exclu du
+        // glisser-déposer plus haut (onGridPointerDown), il suffit ici d'écouter le clic.
+        host.querySelectorAll('.cell-octave-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.shiftChordOctave(+btn.dataset.section, +btn.dataset.index, +btn.dataset.delta);
+            });
+        });
 
         this.updateSaveButtons();
         this.updateGlobalUndoRedoButtons();
@@ -3569,6 +3627,7 @@ class HarmoHubApp {
         if (this.editingIndex != null) this.exitEditMode();
         this.activeSection = s;
         this.selectedIndex = null;
+        this.multiSelect = new Set();
         this.loadProgression();
     }
 
@@ -3965,9 +4024,9 @@ class HarmoHubApp {
     }
 
     // ---------- Fenêtre Paramètres ----------
-    // Toujours affichée en une seule vue qui défile, sans onglet : Son en premier (le réglage le
-    // plus utilisé), puis Fichiers en dessous. Ajouter une future section = un nouveau <section> +
-    // sa fonction de rendu, appelée ici, rien d'autre à repenser.
+    // Un onglet à la fois (voir setSettingsTab) : Fichiers peut être long (beaucoup de morceaux/
+    // dossiers), inutile de le faire défiler pour changer un simple réglage Son. Ajouter une future
+    // section = un nouveau bouton .settings-tab + panneau + sa fonction de rendu, appelée ici.
     openSettings() {
         this.settingsOpen = true;
         document.getElementById('settings-overlay').hidden = false;
@@ -3975,7 +4034,19 @@ class HarmoHubApp {
         this.renderAudioPanel();
         this.renderDisplayPanel();
         this.renderFilesPanel();
+        this.setSettingsTab(this.settingsTab); // reprend l'onglet quitté la dernière fois (défaut : Son)
         this.updateGlobalUndoRedoButtons(); // le bouton unique repointe vers l'historique Fichiers
+    }
+
+    setSettingsTab(tab) {
+        this.settingsTab = tab;
+        document.querySelectorAll('.settings-tab').forEach(btn => {
+            btn.setAttribute('aria-selected', String(btn.dataset.settingsTab === tab));
+        });
+        document.querySelectorAll('.settings-panel').forEach(panel => {
+            panel.hidden = panel.dataset.settingsPanel !== tab;
+        });
+        document.querySelector('.settings-content')?.scrollTo(0, 0);
     }
 
     closeSettings() {
@@ -4928,7 +4999,7 @@ class HarmoHubApp {
                         <div class="print-chord-above">${directionEl}${romanEl}</div>
                         <div class="print-chord-cell">
                             ${measureEl}
-                            <span class="print-chord-sym">${escapeHtml(sym)}</span>
+                            <span class="print-chord-sym">${flatTight(escapeHtml(sym))}</span>
                             ${voicingEl}
                         </div>
                     </div>`;
@@ -5468,6 +5539,7 @@ class HarmoHubApp {
         if (!gridEl) return;
         if (e.target.closest('.grid-cell-add')) return; // laisse le clic focaliser normalement le champ
         if (e.target.closest('.cell-sym-input')) return; // édition inline en cours (voir startInlineChordSymbolEdit) : laisse le focus/curseur natif faire son travail
+        if (e.target.closest('.cell-octave')) return; // boutons octave (voir shiftChordOctave) : pas de glisser-déposer/écoute sur ce geste
         const section = +gridEl.dataset.section;
 
         const cell = e.target.closest('.grid-cell');
@@ -5572,13 +5644,31 @@ class HarmoHubApp {
         if (d.menuShown && !d.moved) return;
 
         if (!d.moved) {
-            // Dans la loupe grille (outil de modification rapide, voir editChordFromGridZoom) : un
-            // seul clic n'importe où sur la case — y compris pile sur le symbole, qui ouvrirait sinon
-            // son édition inline — charge directement l'accord pour édition, le séquenceur épinglé en
-            // bas devant suivre l'accord touché sans étape intermédiaire. Renommer le symbole se fait
-            // alors depuis le panneau Accord (root/qualité), rechargé du même coup.
-            if (this.gridZoomOpen) {
+            // Ctrl/Cmd+clic (sans glisser réel — un vrai glisser Ctrl reste la copie habituelle, voir
+            // plus bas) : ajoute/retire cette case de la sélection multiple, prioritaire sur tout le
+            // reste (loupe grille comprise) — voir toggleGridMultiSelect/copySelected/pasteChord.
+            if (d.copy) {
                 this._lastTap = null;
+                this.toggleGridMultiSelect(d.section, d.index);
+                return;
+            }
+            // Un clic normal (sans Ctrl/Cmd) ailleurs referme toujours la sélection multiple en cours,
+            // comme dans la plupart des grilles/explorateurs de fichiers.
+            this.multiSelect = new Set();
+            // Dans la loupe grille (outil de modification rapide, voir editChordFromGridZoom) : un
+            // seul clic n'importe où sur la case charge directement l'accord pour édition (+ le fait
+            // entendre) et pousse aussitôt son rythme dans le séquenceur épinglé en bas. Un second clic
+            // rapproché PILE sur le symbole (comme le double-tap normal) ouvre en plus son édition
+            // inline, pour pouvoir retaper le texte sans revenir au panneau Accord.
+            if (this.gridZoomOpen) {
+                const now = Date.now();
+                const isSecondTap = d.symTarget && this._lastTap && this._lastTap.section === d.section && this._lastTap.index === d.index && (now - this._lastTap.time) < 420;
+                if (isSecondTap) {
+                    this._lastTap = null;
+                    this.startInlineChordSymbolEdit(d.section, d.index, d.cell);
+                    return;
+                }
+                this._lastTap = { section: d.section, index: d.index, time: now };
                 this.editChordFromGridZoom(d.section, d.index);
                 return;
             }
@@ -5686,6 +5776,26 @@ class HarmoHubApp {
             if (e.key === 'Enter') { e.preventDefault(); commit(); }
             else if (e.key === 'Escape') { e.preventDefault(); done = true; this.loadProgression(); }
         });
+    }
+
+    // Monte/descend l'accord `index` d'une octave entière (voir boutons .cell-octave, visibles
+    // uniquement dans la loupe grille) — borné à la plage du sélecteur Octave (2 à 5) du panneau
+    // Accord, pour ne jamais produire une case dont l'octave serait ensuite impossible à régler
+    // depuis ce même panneau.
+    shiftChordOctave(section, index, delta) {
+        const sections = loadProgressionSections();
+        const data = sections[section] && sections[section].chords[index];
+        if (!data) return;
+        const next = Math.max(2, Math.min(5, octaveFromData(data) + delta));
+        if (next === octaveFromData(data)) return;
+        this.pushUndo(sections);
+        data.octave = next;
+        saveProgressionSections(sections);
+        hasUnsavedChanges = true;
+        // Si c'est l'accord actuellement en édition, resynchronise le panneau Accord (dont le
+        // sélecteur Octave) plutôt que de le laisser périmé — comme startInlineChordSymbolEdit.
+        if (this.editingIndex === index && this.activeSection === section) this.editChord(section, index);
+        else this.loadProgression();
     }
 
     // ---------- Plage à boucler (glisser sur la ligne des numéros de mesure) ----------
@@ -6439,30 +6549,86 @@ class HarmoHubApp {
         this.renderSequencer();
     }
 
-    // Étire (delta > 0) ou raccourcit (delta < 0) la note sélectionnée d'une croche, depuis sa fin.
-    // N'agit que si UNE SEULE note est sélectionnée (resize au clavier ambigu à plusieurs) ;
-    // pour redimensionner depuis le DÉBUT ou avec plusieurs notes, utiliser les poignées de la souris/du doigt.
+    // Étire (delta > 0) ou raccourcit (delta < 0) TOUTES les notes sélectionnées d'une croche, chacune
+    // depuis sa fin — tout ou rien : si une seule des notes sélectionnées ne peut pas bouger (bord de
+    // grille, ou déjà collée à une autre note de sa voix), aucune n'est modifiée, pour ne jamais
+    // désynchroniser un groupe qu'on étire ensemble. Pour redimensionner depuis le DÉBUT d'une note,
+    // utiliser les poignées de la souris/du doigt (resize à une seule note à la fois).
     resizeSelectedSeqNote(delta) {
-        if (this.seqSelections.length !== 1) return;
-        const sel = this.seqSelections[0];
+        if (this.seqSelections.length === 0) return;
         const chord = this.readChord();
         const { pattern, tie } = this.getLiveSeqPattern(chord);
         const steps = pattern.length;
 
-        if (delta > 0) {
-            const next = sel.end + 1;
-            if (next >= steps || pattern[next].includes(sel.voice)) return; // bord de grille, ou déjà occupé
-            pattern[next].push(sel.voice);
-            tie[next].push(sel.voice); // prolonge la même note tenue
-            sel.end = next;
-        } else {
-            if (sel.end <= sel.start) return; // une seule croche : Suppr pour l'effacer entièrement
-            const last = sel.end;
-            pattern[last].splice(pattern[last].indexOf(sel.voice), 1);
-            const ti = tie[last].indexOf(sel.voice);
-            if (ti >= 0) tie[last].splice(ti, 1);
-            sel.end = last - 1;
+        for (const sel of this.seqSelections) {
+            if (delta > 0) {
+                const next = sel.end + 1;
+                if (next >= steps || pattern[next].includes(sel.voice)) return; // bord de grille, ou déjà occupé
+            } else if (sel.end <= sel.start) {
+                return; // une seule croche : Suppr pour l'effacer entièrement
+            }
         }
+
+        this.seqSelections.forEach(sel => {
+            if (delta > 0) {
+                const next = sel.end + 1;
+                pattern[next].push(sel.voice);
+                tie[next].push(sel.voice); // prolonge la même note tenue
+                sel.end = next;
+            } else {
+                const last = sel.end;
+                pattern[last].splice(pattern[last].indexOf(sel.voice), 1);
+                const ti = tie[last].indexOf(sel.voice);
+                if (ti >= 0) tie[last].splice(ti, 1);
+                sel.end = last - 1;
+            }
+        });
+
+        this.seqTouched = true;
+        this.setLiveSeqPattern(pattern, tie);
+        this.renderSequencer();
+    }
+
+    // Décale TOUTES les notes sélectionnées d'une croche vers la gauche (delta<0) ou la droite
+    // (delta>0), en bloc — tout ou rien, comme resizeSelectedSeqNote : si une seule ne peut pas se
+    // décaler (bord de grille, ou collision avec une note non sélectionnée de sa voix), aucune ne
+    // bouge. Les croches couvertes par la sélection elle-même ne comptent jamais comme un obstacle,
+    // puisqu'elles se libèrent avec ce même geste.
+    moveSelectedSeqNotes(delta) {
+        if (this.seqSelections.length === 0 || delta === 0) return;
+        const chord = this.readChord();
+        const { pattern, tie } = this.getLiveSeqPattern(chord);
+        const steps = pattern.length;
+        const ownStep = (voice, step) => this.seqSelections.some(s => s.voice === voice && step >= s.start && step <= s.end);
+
+        for (const sel of this.seqSelections) {
+            const newStart = sel.start + delta, newEnd = sel.end + delta;
+            if (newStart < 0 || newEnd >= steps) return;
+            for (let s = newStart; s <= newEnd; s++) {
+                if (!ownStep(sel.voice, s) && pattern[s].includes(sel.voice)) return;
+            }
+        }
+
+        // Vide d'abord TOUTES les anciennes positions, puis repeint les nouvelles, en deux passes
+        // séparées : sinon une note du groupe pourrait effacer ce qu'une autre note du MÊME groupe
+        // vient tout juste d'y écrire (ex. deux notes adjacentes qui glissent ensemble).
+        this.seqSelections.forEach(sel => {
+            for (let s = sel.start; s <= sel.end; s++) {
+                const at = pattern[s].indexOf(sel.voice);
+                if (at >= 0) pattern[s].splice(at, 1);
+                const ti = tie[s].indexOf(sel.voice);
+                if (ti >= 0) tie[s].splice(ti, 1);
+            }
+        });
+        this.seqSelections.forEach(sel => {
+            const newStart = sel.start + delta, newEnd = sel.end + delta;
+            for (let s = newStart; s <= newEnd; s++) {
+                pattern[s].push(sel.voice);
+                if (s !== newStart) tie[s].push(sel.voice);
+            }
+            sel.start = newStart;
+            sel.end = newEnd;
+        });
 
         this.seqTouched = true;
         this.setLiveSeqPattern(pattern, tie);
@@ -6530,6 +6696,10 @@ class HarmoHubApp {
         this.applyGridZoomPinnedCollapsed();
         if (this.editingIndex != null) this.pinSequencerHost();
         this.syncGridZoomPinnedSeq();
+        // Re-rendu immédiat : la grille dépend de this.gridZoomOpen (largeur de ligne élargie — voir
+        // beatsPerRowFor — et boutons octave, voir shiftChordOctave), sinon elle resterait mise en page
+        // comme en taille normale jusqu'au prochain clic.
+        this.loadProgression();
     }
 
     // Remet #progression-sections et #add-section à leur place d'origine (juste après la rangée
@@ -6552,6 +6722,7 @@ class HarmoHubApp {
         if (document.getElementById('grid-zoom-pinned-body').contains(seqHost)) {
             document.getElementById('arpPattern').insertAdjacentElement('afterend', seqHost);
         }
+        this.loadProgression(); // revient à la largeur de ligne/aux boutons de la taille normale
     }
 
     // Clic sur un accord DANS la loupe grille (voir onGridPointerUp) : le charge directement pour
@@ -6563,6 +6734,9 @@ class HarmoHubApp {
         this.pinSequencerHost();
         this.editChord(section, index);
         this.syncGridZoomPinnedSeq();
+        // Comme un clic sur la grille normale (voir selectChord) : fait entendre l'accord touché,
+        // sinon la loupe grille resterait muette au clic (retour utilisateur).
+        if (this.autoplaySelect) this.playCurrent();
     }
 
     // Déplace #arp-sequencer dans #grid-zoom-pinned-body s'il n'y est pas déjà (jamais ne le
@@ -6580,7 +6754,7 @@ class HarmoHubApp {
     syncGridZoomPinnedSeq() {
         const editing = this.editingIndex != null;
         const title = document.getElementById('grid-zoom-pinned-title');
-        title.textContent = editing
+        title.innerHTML = editing
             ? flatTight(this.readChord().getLabel(this.useFlatsForRoot(document.getElementById('root').value)))
             : 'Séquenceur';
         document.getElementById('grid-zoom-pinned-placeholder').hidden = editing;
@@ -6857,6 +7031,13 @@ class HarmoHubApp {
             <button type="button" id="seq-loop-play" class="icon-btn seq-icon-btn${this.seqLoopPlay ? ' active' : ''}" title="Rejouer en boucle" aria-label="Rejouer en boucle">${svgIcon('loop')}</button>
             <button type="button" id="seq-add-note" class="icon-btn seq-icon-btn" title="Ajouter une note libre (ex. note de passage)" aria-label="Ajouter une note libre">${svgIcon('plus')}</button>
             <button type="button" data-preset="clear" class="seq-delete-btn">${svgIcon('trash')} tout</button>
+            ${hasSelection ? `
+            <div class="seq-selection-actions" title="Agit sur toute la sélection${countSuffix} à la fois">
+                <button type="button" id="seq-move-left" class="icon-btn seq-icon-btn" title="Déplacer la sélection vers la gauche (Maj+←)" aria-label="Déplacer la sélection vers la gauche">${svgIcon('chevron-left')}</button>
+                <button type="button" id="seq-move-right" class="icon-btn seq-icon-btn" title="Déplacer la sélection vers la droite (Maj+→)" aria-label="Déplacer la sélection vers la droite">${svgIcon('chevron-right')}</button>
+                <button type="button" id="seq-shrink" class="icon-btn seq-icon-btn" title="Raccourcir la sélection (←)" aria-label="Raccourcir la sélection">${svgIcon('minus')}</button>
+                <button type="button" id="seq-grow" class="icon-btn seq-icon-btn" title="Étirer la sélection (→)" aria-label="Étirer la sélection">${svgIcon('plus')}</button>
+            </div>` : ''}
             <button type="button" id="seq-delete-selection" class="seq-delete-btn" ${hasSelection ? '' : 'disabled'}>${svgIcon('trash')}
                 <span class="lbl-full">sélection${countSuffix}</span><span class="lbl-short">Sélect.${countSuffix}</span>
             </button>
@@ -6900,6 +7081,17 @@ class HarmoHubApp {
 
         const delBtn = document.getElementById('seq-delete-selection');
         if (delBtn) delBtn.onclick = () => this.deleteSelectedSeqNote();
+
+        // Agissent sur TOUTE la sélection à la fois (voir resizeSelectedSeqNote/moveSelectedSeqNotes) :
+        // équivalent souris/tactile des raccourcis clavier ← → et Maj+← →.
+        const moveLeftBtn = document.getElementById('seq-move-left');
+        if (moveLeftBtn) moveLeftBtn.onclick = () => this.moveSelectedSeqNotes(-1);
+        const moveRightBtn = document.getElementById('seq-move-right');
+        if (moveRightBtn) moveRightBtn.onclick = () => this.moveSelectedSeqNotes(1);
+        const shrinkBtn = document.getElementById('seq-shrink');
+        if (shrinkBtn) shrinkBtn.onclick = () => this.resizeSelectedSeqNote(-1);
+        const growBtn = document.getElementById('seq-grow');
+        if (growBtn) growBtn.onclick = () => this.resizeSelectedSeqNote(1);
 
         const playBtn = document.getElementById('seq-play');
         if (playBtn) playBtn.onclick = () => this.playCurrent();
@@ -7038,6 +7230,26 @@ class HarmoHubApp {
         this.loadProgression(); // re-render pour afficher la surbrillance
         this.updateGridPlayhead(section, index); // la barre de lecture se pose à gauche de l'accord choisi
         this.playSavedChord(section, index, this.autoplaySelect);
+    }
+
+    // Ctrl/Cmd+clic sur une case (voir onGridPointerUp) : ajoute/retire son index de la sélection
+    // multiple, EN PLUS de la sélection simple habituelle (this.selectedIndex, qui suit toujours le
+    // DERNIER index touché — c'est lui qui sert de point d'insertion pour Coller). Ne joue jamais le
+    // son (contrairement à un clic simple) : Ctrl+clic sert uniquement à composer une sélection avant
+    // une action groupée (copier, bientôt supprimer/déplacer en masse).
+    toggleGridMultiSelect(section, index) {
+        if (section !== this.activeSection) this.setActiveSection(section); // repart d'une sélection vide dans l'autre partie
+        if (this.multiSelect.has(index)) {
+            this.multiSelect.delete(index);
+        } else {
+            // La sélection simple précédente (s'il y en avait une, pas encore dans le Set) rejoint le
+            // groupe : un premier Ctrl+clic sur une DEUXIÈME case doit sélectionner les deux, pas
+            // remplacer la première.
+            if (this.selectedIndex != null) this.multiSelect.add(this.selectedIndex);
+            this.multiSelect.add(index);
+        }
+        this.selectedIndex = index;
+        this.loadProgression();
     }
 
     async playSavedChord(section, index, play = true) {
@@ -7284,11 +7496,11 @@ class HarmoHubApp {
             }
 
             if (mod && (e.key === 'c' || e.key === 'C')) {
-                if (!typing && this.selectedIndex != null) { this.copySelected(); e.preventDefault(); }
+                if (!typing && (this.multiSelect.size > 0 || this.selectedIndex != null)) { this.copySelected(); e.preventDefault(); }
                 return;
             }
             if (mod && (e.key === 'v' || e.key === 'V')) {
-                if (!typing && this.clipboard) { this.pasteChord(); e.preventDefault(); }
+                if (!typing && this.clipboard && this.clipboard.length > 0) { this.pasteChord(); e.preventDefault(); }
                 return;
             }
             // Annuler / Rétablir : Ctrl/Cmd+Z (annuler), Ctrl/Cmd+Y ou Ctrl/Cmd+Shift+Z (rétablir).
@@ -7315,12 +7527,14 @@ class HarmoHubApp {
                 this.saveCurrentSong();
                 return;
             }
-            // Note du séquenceur sélectionnée : Suppr/Retour l'efface, ← → la raccourcit/rallonge
-            // (prioritaire sur la sélection de la grille d'accords, plus locale à l'édition en cours)
+            // Note(s) du séquenceur sélectionnée(s) : Suppr/Retour efface tout le groupe, ← → l'étire/
+            // raccourcit (chacune depuis sa fin), Maj+← → le déplace en bloc — mêmes touches que la
+            // grille d'accords (Maj = geste "structurel"), prioritaire ici sur elle, plus locale à
+            // l'édition en cours.
             if (!typing && this.seqSelections.length > 0) {
                 if (e.key === 'Delete' || e.key === 'Backspace') { this.deleteSelectedSeqNote(); e.preventDefault(); return; }
-                if (e.key === 'ArrowRight') { this.resizeSelectedSeqNote(1); e.preventDefault(); return; }
-                if (e.key === 'ArrowLeft') { this.resizeSelectedSeqNote(-1); e.preventDefault(); return; }
+                if (e.key === 'ArrowRight') { if (e.shiftKey) this.moveSelectedSeqNotes(1); else this.resizeSelectedSeqNote(1); e.preventDefault(); return; }
+                if (e.key === 'ArrowLeft') { if (e.shiftKey) this.moveSelectedSeqNotes(-1); else this.resizeSelectedSeqNote(-1); e.preventDefault(); return; }
             }
 
             // Accord sélectionné dans la grille : Maj+← / Maj+→ raccourcit/rallonge sa case d'un
@@ -7361,26 +7575,43 @@ class HarmoHubApp {
     }
 
     // ---------- Copier / coller / dupliquer (au sein de la partie active) ----------
+    // this.clipboard est TOUJOURS un tableau (un seul élément pour une simple sélection) : uniformise
+    // copySelected/pasteChord, qui n'ont ainsi qu'un seul chemin à gérer, que la sélection multiple
+    // (voir toggleGridMultiSelect) soit utilisée ou non.
     copySelected() {
         const sections = loadProgressionSections();
         const history = sections[this.activeSection].chords;
-        if (this.selectedIndex == null || !history[this.selectedIndex]) return;
-        this.clipboard = { ...history[this.selectedIndex] };
-        this.flashHint('Accord copié — Ctrl/Cmd+V pour coller');
+        // La sélection multiple, si non vide, l'emporte sur la sélection simple — dans l'ORDRE de la
+        // grille (pas celui des clics), pour coller un bloc qui garde le même ordre que l'original.
+        const indices = this.multiSelect.size > 0
+            ? [...this.multiSelect].filter(i => history[i]).sort((a, b) => a - b)
+            : (this.selectedIndex != null && history[this.selectedIndex]) ? [this.selectedIndex] : [];
+        if (indices.length === 0) return;
+        this.clipboard = indices.map(i => ({ ...history[i] }));
+        this.flashHint(indices.length > 1
+            ? `${indices.length} accords copiés — Ctrl/Cmd+V pour coller`
+            : 'Accord copié — Ctrl/Cmd+V pour coller');
     }
 
     pasteChord() {
-        if (!this.clipboard) return;
+        if (!this.clipboard || this.clipboard.length === 0) return;
         const sections = loadProgressionSections();
         this.pushUndo(sections);
         const history = sections[this.activeSection].chords;
-        const at = (this.selectedIndex != null) ? this.selectedIndex + 1 : history.length;
-        history.splice(at, 0, { ...this.clipboard });
+        // Bornée à history.length : this.selectedIndex peut, dans de rares cas, pointer au-delà (ex.
+        // accords supprimés ailleurs entre-temps) — sans cette borne, un collage voulu "à la fin"
+        // pouvait insérer le bloc au mauvais endroit plutôt qu'en toute fin de partie.
+        const at = (this.selectedIndex != null && this.selectedIndex < history.length) ? this.selectedIndex + 1 : history.length;
+        const copies = this.clipboard.map(c => ({ ...c }));
+        history.splice(at, 0, ...copies);
         saveProgressionSections(sections);
-        if (this.editingIndex != null && this.editingIndex >= at) this.editingIndex++;
-        this.selectedIndex = at; // sélectionne l'accord collé
+        if (this.editingIndex != null && this.editingIndex >= at) this.editingIndex += copies.length;
+        this.selectedIndex = at + copies.length - 1; // sélectionne le dernier accord collé
+        // Le bloc collé redevient la sélection multiple courante : pratique pour le recoller ou le
+        // supprimer aussitôt tel quel.
+        this.multiSelect = copies.length > 1 ? new Set(Array.from({ length: copies.length }, (_, i) => at + i)) : new Set();
         this.loadProgression();
-        this.flashHint('Accord collé');
+        this.flashHint(copies.length > 1 ? `${copies.length} accords collés` : 'Accord collé');
     }
 
     // Duplique un accord donné (bouton ⧉) : la copie se place juste après, dans la même partie
