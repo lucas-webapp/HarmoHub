@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202607242100">
+    <link rel="stylesheet" href="style.css?v=202607251600">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 </head>
@@ -100,10 +100,35 @@
                     </div>
                     <div class="unsaved-modal-nameprompt" hidden>
                         <label for="unsaved-nameprompt-input">Nom du morceau</label>
-                        <input type="text" id="unsaved-nameprompt-input" class="compact" placeholder="Nom du morceau…">
+                        <input type="text" id="unsaved-nameprompt-input" class="compact inline-rename-input" placeholder="Nom du morceau…">
                         <div class="unsaved-modal-actions">
                             <button type="button" data-nameprompt-ok class="btn-blue">Enregistrer</button>
                             <button type="button" data-nameprompt-cancel class="btn-sec">Annuler</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nouveau morceau (bouton #song-new) : demande tout de suite titre + dossier, plutôt que de
+         repartir sur un tampon anonyme « — Non enregistré — » qu'il fallait ensuite nommer via
+         Enregistrer et ranger séparément dans Paramètres > Fichiers (voir openNewSongModal). -->
+    <div id="new-song-modal" class="settings-overlay" hidden>
+        <div class="settings-modal unsaved-modal" role="dialog" aria-modal="true" aria-labelledby="new-song-modal-title">
+            <div class="settings-header">
+                <h2 id="new-song-modal-title">Nouveau morceau</h2>
+            </div>
+            <div class="settings-body">
+                <div class="settings-content unsaved-modal-body">
+                    <div class="unsaved-modal-nameprompt">
+                        <label for="new-song-name-input">Titre du morceau</label>
+                        <input type="text" id="new-song-name-input" class="compact inline-rename-input" placeholder="Sans titre" autocomplete="off">
+                        <label for="new-song-folder-select">Dossier</label>
+                        <select id="new-song-folder-select" class="compact"></select>
+                        <div class="unsaved-modal-actions">
+                            <button type="button" id="new-song-create" class="btn-blue">Créer</button>
+                            <button type="button" id="new-song-cancel" class="btn-sec">Annuler</button>
                         </div>
                     </div>
                 </div>
@@ -285,6 +310,11 @@
                 <section class="control-card">
                     <div class="card-head">
                         <h2>Lecture</h2>
+                        <!-- Regroupe le sélecteur de son et les icônes juste après (voir .card-head-right) : sans
+                             ce conteneur commun, justify-content:space-between sur .card-head les écartait l'un
+                             de l'autre comme s'ils étaient chacun un élément à part entière de la ligne, au lieu
+                             de rester collés (retour utilisateur). -->
+                        <div class="card-head-right">
                         <select id="instrument" class="card-head-select" title="Son de l'accord">
                             <option value="piano">Piano</option>
                             <option value="epiano">Piano élec.</option>
@@ -325,6 +355,7 @@
                             <button type="button" id="seq-zoom" class="icon-btn" hidden title="Agrandir le séquenceur" aria-label="Agrandir le séquenceur">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>
                             </button>
+                        </div>
                         </div>
                     </div>
                     <div class="select-group">
@@ -436,12 +467,14 @@
                             <label for="bpm">Tempo : <input type="number" id="bpm-val" class="bpm-val-input" min="60" max="240" value="120" title="Cliquer pour saisir une valeur précise"> BPM</label>
                             <div class="bpm-actions">
                                 <button type="button" id="tap-tempo" class="btn-sec tap-tempo-btn" title="Tap tempo : cliquer plusieurs fois au rythme voulu pour régler le BPM">TAP</button>
+                                <!-- Deux croches reliées (♫), symbole standard sans ambiguïté possible — l'ancien
+                                     dessin (4 points de tailles alternées) était confondu avec des points de
+                                     suspension "..." (retour utilisateur). -->
                                 <button type="button" id="toggle-metronome-subdivision" class="icon-btn" title="Ajouter un clic faible sur le contretemps (croches)" aria-label="Ajouter un clic faible sur le contretemps">
                                     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                        <circle cx="3" cy="12" r="2.4" fill="currentColor"/>
-                                        <circle cx="9" cy="12" r="1.3" fill="currentColor" opacity="0.55"/>
-                                        <circle cx="15" cy="12" r="2.4" fill="currentColor"/>
-                                        <circle cx="21" cy="12" r="1.3" fill="currentColor" opacity="0.55"/>
+                                        <ellipse cx="6" cy="18" rx="3" ry="2.3" fill="currentColor"/>
+                                        <ellipse cx="17" cy="19" rx="3" ry="2.3" fill="currentColor"/>
+                                        <path d="M9 18V6l8 2v11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                     </svg>
                                 </button>
                                 <button type="button" id="toggle-metronome" class="icon-btn" title="Garder le métronome pendant la lecture de la grille" aria-label="Garder le métronome pendant la lecture de la grille">
@@ -597,6 +630,6 @@
          script.js) — vendu en local plutôt qu'hébergé sur un CDN. Projet LAME (lame.sourceforge.net),
          licence LGPL. -->
     <script src="lame.min.js"></script>
-    <script src="script.js?v=202607242100"></script>
+    <script src="script.js?v=202607251600"></script>
 </body>
 </html>

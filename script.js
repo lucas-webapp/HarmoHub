@@ -396,26 +396,39 @@ const DURATION_OPTIONS = [
 
 // Styles de jeu disponibles pour un accord (voir #playStyle, piloté par setupPlayStylePicker) :
 // notation musicale réelle — tête(s) de note reliée(s) par une liaison (lié, son continu entre les
-// reprises) ou marquées d'un point staccato (détaché) — plutôt qu'une seule icône par cadence : à 8
-// reprises/mesure (croche), 8 têtes de note distinctes serait illisible en petit. L'icône ne montre
-// donc TOUJOURS que 2 têtes (juste la nature lié/détaché), et c'est le libellé ("4t", "½t"...) qui
-// porte la cadence exacte — comme DURATION_OPTIONS, où l'icône porte la forme et le libellé le chiffre.
-const TIE_SVG = '<ellipse cx="6" cy="12" rx="3.2" ry="2.3" fill="currentColor"/><ellipse cx="18" cy="12" rx="3.2" ry="2.3" fill="currentColor"/><path d="M6 7 Q12 2 18 7" fill="none" stroke="currentColor" stroke-width="1.6"/>';
-const STACCATO_SVG = '<ellipse cx="6" cy="8" rx="3.2" ry="2.3" fill="currentColor"/><ellipse cx="18" cy="8" rx="3.2" ry="2.3" fill="currentColor"/><circle cx="6" cy="14.3" r="1.4" fill="currentColor"/><circle cx="18" cy="14.3" r="1.4" fill="currentColor"/>';
+// reprises) ou marquées d'un point staccato (détaché). Le nombre de têtes affichées suit désormais la
+// cadence réelle (voir PRESET_PULSE_STEPS : ronde=1 reprise/mesure, blanche=2, noire=4, croche=8) —
+// plafonné à 4 têtes pour rester lisible en petit (croche, la plus rapide, en a réellement le double ;
+// 4 têtes suffisent à la distinguer des 3 autres sans être illisibles) plutôt que l'ancienne icône
+// unique à 2 têtes pour les 4 cadences, jugée trop peu différenciée (retour utilisateur) — le libellé
+// ("4t", "½t"...) reste la seule source exacte, comme pour DURATION_OPTIONS.
+function pulseIconSvg(count, tied) {
+    const positions = { 1: [12], 2: [6, 18], 3: [4, 12, 20], 4: [3, 9, 15, 21] }[count];
+    const r = { 1: 3.5, 2: 3.2, 3: 2.6, 4: 2.2 }[count];
+    const cy = tied ? 12 : 8;
+    const heads = positions.map(cx => `<ellipse cx="${cx}" cy="${cy}" rx="${r}" ry="${r * 0.72}" fill="currentColor"/>`).join('');
+    if (tied && positions.length > 1) {
+        const first = positions[0], last = positions[positions.length - 1];
+        const arcY = cy - 5 - (last - first) * 0.1; // liaison d'autant plus haute que les têtes sont espacées
+        return heads + `<path d="M${first} ${cy - 5} Q${(first + last) / 2} ${arcY} ${last} ${cy - 5}" fill="none" stroke="currentColor" stroke-width="1.6"/>`;
+    }
+    if (!tied) return heads + positions.map(cx => `<circle cx="${cx}" cy="14.3" r="1.4" fill="currentColor"/>`).join('');
+    return heads;
+}
 const PLAYSTYLE_OPTIONS = [
     { value: 'held', label: 'Tenu', name: 'Tenu',
         svg: '<ellipse cx="5" cy="8" rx="3.4" ry="2.4" fill="currentColor"/><rect x="9" y="6.2" width="13" height="3.6" rx="1.6" fill="currentColor" opacity="0.55"/>' },
-    { value: 'ronde_maintenu', label: '4t', name: '4t', group: 'Lié (son continu)', svg: TIE_SVG },
-    { value: 'blanche_maintenu', label: '2t', name: '2t', group: 'Lié (son continu)', svg: TIE_SVG },
-    { value: 'noire_maintenu', label: '1t', name: '1t', group: 'Lié (son continu)', svg: TIE_SVG },
-    { value: 'croche_maintenu', label: '½t', name: '½t', group: 'Lié (son continu)', svg: TIE_SVG },
+    { value: 'ronde_maintenu', label: '4t', name: '4t', group: 'Lié (son continu)', svg: pulseIconSvg(1, true) },
+    { value: 'blanche_maintenu', label: '2t', name: '2t', group: 'Lié (son continu)', svg: pulseIconSvg(2, true) },
+    { value: 'noire_maintenu', label: '1t', name: '1t', group: 'Lié (son continu)', svg: pulseIconSvg(3, true) },
+    { value: 'croche_maintenu', label: '½t', name: '½t', group: 'Lié (son continu)', svg: pulseIconSvg(4, true) },
     // Pas de suffixe "stac." ici (contrairement au libellé compact de la grille, voir styleMap) :
     // l'icône (points isolés, sans liaison) et l'en-tête de groupe "Détaché" le montrent déjà, sur le
     // bouton fermé comme dans le menu — répéter "staccato" à chaque ligne n'apportait rien de plus.
-    { value: 'ronde_staccato', label: '4t', name: '4t', group: 'Détaché (staccato)', svg: STACCATO_SVG },
-    { value: 'blanche_staccato', label: '2t', name: '2t', group: 'Détaché (staccato)', svg: STACCATO_SVG },
-    { value: 'noire_staccato', label: '1t', name: '1t', group: 'Détaché (staccato)', svg: STACCATO_SVG },
-    { value: 'croche_staccato', label: '½t', name: '½t', group: 'Détaché (staccato)', svg: STACCATO_SVG },
+    { value: 'ronde_staccato', label: '4t', name: '4t', group: 'Détaché (staccato)', svg: pulseIconSvg(1, false) },
+    { value: 'blanche_staccato', label: '2t', name: '2t', group: 'Détaché (staccato)', svg: pulseIconSvg(2, false) },
+    { value: 'noire_staccato', label: '1t', name: '1t', group: 'Détaché (staccato)', svg: pulseIconSvg(3, false) },
+    { value: 'croche_staccato', label: '½t', name: '½t', group: 'Détaché (staccato)', svg: pulseIconSvg(4, false) },
     // Crayon (même glyphe que « Renommer » ailleurs dans l'app, juste redimensionné pour tenir dans
     // le même viewBox 0 0 24 16 que les autres icônes de ce menu) : « à toi de le dessiner toi-même ».
     { value: 'arpeggio', label: 'Manuel', name: 'Manuel',
@@ -577,6 +590,17 @@ function loadFolders() {
 }
 function saveFolders(folders) {
     localStorage.setItem('harmohubFolders', JSON.stringify(folders));
+}
+
+// Options <option> pour un <select> de dossier (« Sans dossier » + dossiers existants triés + « +
+// Nouveau dossier… ») — partagé par le panneau Fichiers (déplacer un morceau) et la modale Nouveau
+// morceau (voir openNewSongModal), pour ne pas dupliquer cette liste à deux endroits.
+function buildFolderOptionsHtml(current) {
+    const folders = loadFolders().slice().sort((a, b) => a.localeCompare(b, 'fr'));
+    let opts = `<option value=""${!current ? ' selected' : ''}>Sans dossier</option>`;
+    folders.forEach(f => { opts += `<option value="${escapeHtml(f)}"${f === current ? ' selected' : ''}>${escapeHtml(f)}</option>`; });
+    opts += `<option value="__new__">+ Nouveau dossier…</option>`;
+    return opts;
 }
 
 // Recopie les champs donnés dans le morceau actuellement ouvert (aucun effet si aucun n'est ouvert)
@@ -1923,7 +1947,7 @@ class HarmoHubApp {
         document.getElementById('transpose-song-up').onclick = () => this.transposeSong(1);
 
         document.getElementById('song-select').onchange = (e) => this.onSongSelectChange(e.target.value);
-        document.getElementById('song-new').onclick = () => this.newSong();
+        document.getElementById('song-new').onclick = () => this.openNewSongModal();
         document.getElementById('song-save').onclick = () => this.saveCurrentSong();
 
         // Renommer le morceau ouvert : double-clic (souris) / double-tap (doigt) directement sur son
@@ -1958,6 +1982,11 @@ class HarmoHubApp {
         // fond = comme Annuler, jamais une perte de données silencieuse.
         document.getElementById('unsaved-modal').addEventListener('click', (e) => {
             if (e.target.id === 'unsaved-modal' && this._unsavedModalCancel) this._unsavedModalCancel();
+        });
+
+        // Nouveau morceau (voir openNewSongModal) : clic sur le fond = Annuler, comme Paramètres.
+        document.getElementById('new-song-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'new-song-modal') document.getElementById('new-song-cancel').click();
         });
 
         // Vue agrandie du séquenceur (voir openSeqZoom/closeSeqZoom) : ne fait que déplacer
@@ -3775,11 +3804,14 @@ class HarmoHubApp {
     // direct depuis la boîte "modifications non enregistrées" (voir openUnsavedModal), qui ne peut
     // pas réutiliser ce champ-là : il peut se trouver masqué derrière Paramètres au moment où la
     // boîte s'ouvre (voir openSongFromFiles).
-    createNewSongFromCurrentState(name) {
+    // `folder` (optionnel) : range directement le morceau dans ce dossier, en le créant au passage
+    // s'il n'existe pas encore (voir openNewSongModal) — comme moveSongToFolder.
+    createNewSongFromCurrentState(name, folder) {
         const song = {
             id: 'song_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
             name,
             savedAt: Date.now(),
+            folder: folder || null,
             root: document.getElementById('global-root').value,
             mode: document.getElementById('global-mode').value,
             timeSig: document.getElementById('time-sig').value,
@@ -3790,6 +3822,10 @@ class HarmoHubApp {
         const songs = loadSongs();
         songs.push(song);
         saveSongs(songs);
+        if (folder) {
+            const folders = loadFolders();
+            if (!folders.includes(folder)) { folders.push(folder); saveFolders(folders); }
+        }
         setCurrentSongId(song.id);
         hasUnsavedChanges = false;
         this.refreshSongList();
@@ -3870,6 +3906,68 @@ class HarmoHubApp {
         if (!(await this.confirmDiscardUnsavedIfNeeded())) { this.refreshSongList(); return; }
         if (!id) this.newSong(true);
         else this.loadSong(id);
+    }
+
+    // Bouton « + » du panneau Morceau : contrairement à newSong (qui ne fait que repartir sur un
+    // tampon vierge « — Non enregistré — », utilisé par le select quand on y choisit cette option),
+    // demande tout de suite un titre et un dossier, pour que le morceau soit RÉELLEMENT enregistré
+    // dès sa création — plus besoin de passer ensuite par Enregistrer puis Paramètres > Fichiers
+    // juste pour le nommer et le ranger (retour utilisateur : ce parcours en deux temps prêtait à
+    // confusion, voir aussi createNewSongFromCurrentState qui accepte maintenant un dossier).
+    async openNewSongModal() {
+        if (!(await this.confirmDiscardUnsavedIfNeeded())) return;
+
+        const overlay = document.getElementById('new-song-modal');
+        const nameInput = document.getElementById('new-song-name-input');
+        nameInput.value = '';
+
+        // Repart toujours d'un vrai <select> : un « + Nouveau dossier… » choisi lors d'une ouverture
+        // précédente de cette même modale l'a remplacé par un champ texte (voir plus bas), qui
+        // resterait sinon en place avec sa valeur précédente encore dedans à la prochaine ouverture.
+        let folderSelect = document.getElementById('new-song-folder-select');
+        if (folderSelect.tagName !== 'SELECT') {
+            const fresh = document.createElement('select');
+            fresh.id = 'new-song-folder-select';
+            fresh.className = 'compact';
+            folderSelect.replaceWith(fresh);
+            folderSelect = fresh;
+        }
+        folderSelect.innerHTML = buildFolderOptionsHtml(null);
+        overlay.hidden = false;
+        nameInput.focus();
+
+        // « + Nouveau dossier… » : le select se change lui-même en champ de saisie, comme dans le
+        // panneau Fichiers (voir startInlineNewFolderForSong) — même schéma, pas de prompt() natif.
+        // Même id conservé (le select disparaît du DOM) pour que create() ci-dessous retrouve
+        // toujours le bon champ, qu'il ait basculé ou non, via un seul getElementById.
+        folderSelect.onchange = () => {
+            if (folderSelect.value !== '__new__') return;
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.id = 'new-song-folder-select';
+            input.className = 'compact';
+            input.placeholder = 'Nom du dossier…';
+            folderSelect.replaceWith(input);
+            input.focus();
+        };
+
+        const close = () => { overlay.hidden = true; };
+        const create = () => {
+            const name = nameInput.value.trim() || 'Sans titre';
+            const folderEl = document.getElementById('new-song-folder-select');
+            const folder = folderEl.value.trim();
+            this.newSong(true); // repart d'un tampon vierge (déjà confirmé plus haut, voir newSong)
+            const song = this.createNewSongFromCurrentState(name, folder);
+            close();
+            this.flashHint(`« ${song.name} » créé`);
+        };
+        document.getElementById('new-song-create').onclick = create;
+        document.getElementById('new-song-cancel').onclick = close;
+        overlay.onkeydown = (e) => {
+            e.stopPropagation();
+            if (e.key === 'Enter') { e.preventDefault(); create(); }
+            else if (e.key === 'Escape') { e.preventDefault(); close(); }
+        };
     }
 
     // Repart d'un morceau vierge (tonalité C majeur, 120 BPM, une partie sans titre)

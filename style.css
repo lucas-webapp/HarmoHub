@@ -223,7 +223,11 @@ button, .icon-btn, .prog-section-del, .seq-presets button, .seq-delete-btn {
 .unsaved-modal-actions { display: flex; flex-direction: column; gap: 8px; }
 .unsaved-modal-actions button { width: 100%; }
 .unsaved-modal-nameprompt label { display: block; margin-bottom: 6px; color: var(--text-muted); font-size: var(--fs-sm); }
-.unsaved-modal-nameprompt input { width: 100%; box-sizing: border-box; margin-bottom: 14px; }
+.unsaved-modal-nameprompt input, .unsaved-modal-nameprompt select { width: 100%; box-sizing: border-box; margin-bottom: 14px; }
+/* .inline-rename-input a un padding pensé pour un remplacement en ligne serré (voir plus haut) —
+   ici il remplace un vrai champ de formulaire, à côté d'un <select> classique (padding 14px) : on
+   l'agrandit pour rester visuellement cohérent. */
+.unsaved-modal-nameprompt input.inline-rename-input { padding: 13px 14px; font-size: var(--fs-select); }
 /* Doit passer devant .settings-overlay (z-index 100) : peut s'ouvrir PAR-DESSUS la fenêtre Paramètres
    elle-même (voir openSongFromFiles dans script.js, appelée depuis l'onglet Fichiers). */
 #unsaved-modal { z-index: 200; }
@@ -628,7 +632,7 @@ main {
     gap: 8px;
     flex-wrap: wrap;
 }
-.transport button {
+.transport button, .add-section-btn {
     min-width: 0;
     flex: 1 1 0;
     padding: 13px 12px 13px 8px; /* contenu recentré, voir le commentaire sur le button de base */
@@ -736,6 +740,15 @@ main {
     flex: none;
 }
 
+/* Regroupe un select (ex. #instrument) et .card-head-actions juste après, pour qu'ils restent collés
+   l'un à l'autre — sans lui, justify-content:space-between sur .card-head (3 enfants) les écarterait
+   comme s'ils étaient chacun un élément à part de la ligne (retour utilisateur). */
+.card-head-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
 /* Titre du morceau (#song-select) DANS l'en-tête Morceau — déplié, "Morceau" ET les boutons
    (+/enregistrer/replier) restent ensemble sur la MÊME ligne (comme avant), le titre passant seul en
    pleine largeur sur la ligne suivante (flex-basis:100% + flex-wrap:wrap ci-dessus, order APRÈS les
@@ -755,8 +768,8 @@ main {
 
 .icon-btn {
     flex: none;
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     min-width: 0;
     padding: 0;
     background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0) 50%), #1c2027;
@@ -789,9 +802,6 @@ main {
 .icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .icon-btn:disabled:active { transform: none; box-shadow: 0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03); }
 
-/* Bouton Séquenceur : cible plus large que les autres icon-btn de l'en-tête (28px), pour un usage
-   fréquent — au doigt comme à la souris. */
-#toggle-sequencer { width: 46px; }
 
 .select-group {
     display: flex;
@@ -806,14 +816,16 @@ main {
    reste dans le DOM (masqué, voir index.html) : c'est toujours lui la source de vérité, lu partout
    ailleurs dans le code via document.getElementById('duration').value — ce menu ne fait que le
    piloter (voir setupDurationPicker/syncDurationPicker dans script.js). */
-.duration-dd { position: relative; flex: none; align-self: stretch; }
+/* flex:1 comme .playstyle-dd juste avant (même rangée, voir .select-group) : largeur égale entre les
+   deux plutôt que Durée calée sur son seul contenu (114px) et Style de jeu s'étirant sur tout le
+   reste — l'écart de largeur entre les deux prêtait à confusion (retour utilisateur). */
+.duration-dd { position: relative; flex: 1; min-width: 0; align-self: stretch; }
 .duration-dd-toggle {
     /* height: 100% (pas 28px comme .icon-btn) : égale la hauteur du <select> juste à côté
        (.select-group est en flex, stretch par défaut) — ce réglage n'est pas moins important que
        les autres, il mérite un bouton à la même échelle plutôt qu'une icône réduite. */
     height: 100%;
-    width: auto;
-    min-width: 114px;
+    width: 100%;
     padding: 4px 8px;
     display: flex;
     flex-direction: column;
@@ -958,7 +970,8 @@ main {
     flex: 1 1 auto;
     min-width: 0;
     max-width: 128px;
-    padding: 5px 8px;
+    height: 32px; /* aligné sur les icônes juste à côté (.icon-btn), voir .card-head-right */
+    padding: 0 8px;
     font-size: var(--fs-xs);
 }
 
@@ -1025,11 +1038,14 @@ select:disabled {
     flex: none;
 }
 
-/* Bouton tap tempo : compact, à côté du libellé BPM ; un bref flash confirme chaque tap pris en compte */
+/* Bouton tap tempo : compact, à côté du libellé BPM ; un bref flash confirme chaque tap pris en compte.
+   Hauteur alignée sur ses voisins (icon-btn croche/métronome, 32px) plutôt que sa propre hauteur de
+   contenu — les 3 boutons de .bpm-actions doivent former une seule rangée bien alignée. */
 .tap-tempo-btn {
     flex: none;
     min-width: 0;
-    padding: 5px 10px;
+    height: 32px;
+    padding: 0 10px;
     font-size: var(--fs-xs);
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -1079,7 +1095,7 @@ select:disabled {
        donnait l'impression de deux polices différentes sur la même ligne. */
     white-space: nowrap;
 }
-.transpose-field .icon-btn { width: 26px; height: 26px; }
+.transpose-field .icon-btn { width: 32px; height: 32px; }
 
 /* Valeur du tempo éditable au clavier : se fond dans le texte du libellé tant qu'on n'y touche pas
    (pas de bordure pleine, pas de fond), mais reste clairement un champ de saisie au survol/focus. */
@@ -1294,8 +1310,8 @@ button:active { transform: translateY(1px); }
 }
 .viz-toggle-btn {
     flex: none;
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
 }
 .viz-toggle-btn svg { width: 18px; height: 18px; }
 
@@ -1337,29 +1353,29 @@ button:active { transform: translateY(1px); }
     position: absolute;
     right: 0;
     bottom: 0;
-    width: 30px;
-    height: 30px;
+    width: 26px;
+    height: 26px;
 }
 .export-midi-btn {
     position: absolute;
-    right: 36px;
+    right: 32px;
     bottom: 0;
-    width: 30px;
-    height: 30px;
+    width: 26px;
+    height: 26px;
 }
 .export-audio-btn {
     position: absolute;
-    right: 72px;
+    right: 64px;
     bottom: 0;
-    width: 30px;
-    height: 30px;
+    width: 26px;
+    height: 26px;
 }
 .export-backup-btn {
     position: absolute;
-    right: 108px;
+    right: 96px;
     bottom: 0;
-    width: 30px;
-    height: 30px;
+    width: 26px;
+    height: 26px;
 }
 
 /* ---------- Progression ---------- */
@@ -1476,7 +1492,7 @@ button:active { transform: translateY(1px); }
     white-space: nowrap;
 }
 
-.prog-section-tool, .prog-section-del {
+.prog-section-tool, .prog-section-del, .prog-section-duplicate {
     flex: none;
     width: 26px;
     min-width: 0;
@@ -1489,8 +1505,8 @@ button:active { transform: translateY(1px); }
     line-height: 1;
     cursor: pointer;
 }
-.prog-section-tool .icon, .prog-section-del .icon { width: 13px; height: 13px; }
-.prog-section-tool:hover {
+.prog-section-tool .icon, .prog-section-del .icon, .prog-section-duplicate .icon { width: 13px; height: 13px; }
+.prog-section-tool:hover, .prog-section-duplicate:hover {
     color: var(--text-main);
     border-color: var(--border);
     background: rgba(255, 255, 255, 0.06);
@@ -2166,20 +2182,18 @@ button:active { transform: translateY(1px); }
 .seq-presets button {
     flex: 1;
     min-width: 0;
-    padding: 9px 10px 9px 6px; /* contenu recentré, voir le commentaire sur le button de base */
+    height: 32px; /* niveau 2 : mêmes 32px que les icônes génériques, voir .icon-btn */
+    padding: 0 10px 0 6px; /* contenu recentré, voir le commentaire sur le button de base */
     font-size: var(--fs-sm);
 }
 
 /* Lecture/Stop/Boucle : icône seule (déjà identifiés par leur couleur/forme une fois dans le
    séquenceur), groupés à gauche — le texte "Lecture"/"Stop" prenait trop de place à côté des
-   boutons Supprimer sur mobile. Hauteur ÉTIRÉE (align-self:stretch, l'alignement par défaut de
-   .seq-presets) plutôt que la hauteur fixe 28px d'un .icon-btn ordinaire, pour rester alignés sur
-   les boutons Supprimer juste à côté. */
+   boutons Supprimer sur mobile. Même hauteur fixe que le reste de la rangée (.seq-presets button),
+   pour rester alignés sur les boutons Supprimer juste à côté sans dépendre d'un étirement. */
 .seq-presets .seq-icon-btn {
     flex: none;
     width: 44px;
-    height: auto;
-    align-self: stretch;
     padding: 0;
     display: flex;
     align-items: center;
