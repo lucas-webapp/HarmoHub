@@ -36,7 +36,16 @@ const ICONS = {
     stop: '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/>',
     // « Appliquer partout » (voir applyInstrumentToSong) : trois rangées (le morceau, accord par
     // accord) convergeant vers une seule note en bout de flèche (le son choisi, propagé à tous).
-    applyAll: '<path d="M3 6h9"/><path d="M3 12h9"/><path d="M3 18h9"/><path d="m14 12 6 0"/><path d="m17 9 3 3-3 3"/>'
+    // Porte-voix (haut-parleur + deux ondes) : « diffuser ce son à tout le morceau », voir
+    // #apply-instrument-all — remplace un ancien dessin (lignes + flèche) trop proche des autres
+    // icônes du bandeau et peu compréhensible au premier coup d'œil (retour utilisateur).
+    applyAll: '<path d="M3 10v4a1 1 0 0 0 1 1h2l4 4V6l-4 4H4a1 1 0 0 0-1 1z"/><path d="M14 8.5a4 4 0 0 1 0 7"/><path d="M17 5.5a8 8 0 0 1 0 13"/>',
+    // Bouton clic faible sur le contretemps (voir metronomeSubdivision) : l'icône reflète l'état
+    // ACTUEL (pas l'action au clic) — une noire seule quand désactivé (clics réguliers), deux croches
+    // reliées quand activé (clics subdivisés) — plutôt qu'une icône fixe qui ne montrait jamais que
+    // l'état "activé", peu importe l'état réel (retour utilisateur : confondue avec des "...").
+    quarterNote: '<ellipse cx="9" cy="18" rx="4" ry="3" fill="currentColor"/><path d="M13 18V4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    eighthNotes: '<ellipse cx="6" cy="18" rx="3" ry="2.3" fill="currentColor"/><ellipse cx="17" cy="19" rx="3" ry="2.3" fill="currentColor"/><path d="M9 18V6l8 2v11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
 };
 
 // Rendu HTML d'une icône (name doit exister dans ICONS) ; extraClass optionnel pour la taille/marge
@@ -369,8 +378,10 @@ function beatsPerRowFor(beatsPerBar, zoomed = false) {
 // une pleine mesure en 4/4, mais 2 en 2/4 (deux fois moins de temps chacune) ou 1 seule dès que la
 // mesure est plus longue que 4 temps (5/4, 6/8...) — même largeur visuelle cible qu'une mesure en 4/4,
 // pour ne jamais afficher ni trop peu ni trop de croches d'un coup quelle que soit la signature.
-function seqPageBars(beatsPerBar) {
-    return Math.max(1, Math.round(4 / beatsPerBar));
+// Cible doublée (8 temps) une fois agrandi (fenêtre séquenceur ou loupe grille avec séquenceur épinglé,
+// voir renderSequencer) : beaucoup plus de place, comme beatsPerRowFor pour la grille d'accords.
+function seqPageBars(beatsPerBar, zoomed = false) {
+    return Math.max(1, Math.round((zoomed ? 8 : 4) / beatsPerBar));
 }
 
 // Réglages d'accord : Entrée depuis l'un d'eux ajoute/modifie directement (moins de clics)
@@ -1595,6 +1606,14 @@ function floatTo16BitPCM(f32) {
 
 class HarmoHubApp {
     constructor() {
+        // Réduit la marge de sécurité par défaut de Tone.js (0.1s) avant que tout son programmé ne
+        // soit réellement audible — remise en cause après un retour utilisateur : ce délai, fixe et
+        // systématique, se percevait comme un petit temps mort au lancement de la lecture de la grille,
+        // surtout quand le décompte est désactivé (rien d'autre pour "absorber" ce silence). 0.02s
+        // reste une marge suffisante pour un métronome/accords (contrairement à un player audio
+        // temps réel exigeant), voir playProgression qui aligne son propre pré-roll sur cette valeur.
+        Tone.context.lookAhead = 0.02;
+
         // Volume général : agit APRÈS les deux réglages spécifiques ci-dessous (accords, métronome),
         // sur la sortie audio globale de Tone.js — un vrai « volume maître » qui les multiplie tous
         // les deux ensemble sans changer leur équilibre relatif l'un par rapport à l'autre.
@@ -1735,6 +1754,7 @@ class HarmoHubApp {
             e.preventDefault();
             e.returnValue = '';
         });
+        this.restoreCurrentSongSettingsIfAny();
         this.updateKeyLabels();
         this.updateDurationOptions();
         this.loadProgression();
@@ -1811,10 +1831,14 @@ class HarmoHubApp {
 
         // Clic faible sur le contretemps (croches), en plus du clic normal sur chaque temps
         const metroSubBtn = document.getElementById('toggle-metronome-subdivision');
-        metroSubBtn.classList.toggle('active', this.metronomeSubdivision);
-        metroSubBtn.onclick = (e) => {
+        const syncMetroSubIcon = () => {
+            metroSubBtn.classList.toggle('active', this.metronomeSubdivision);
+            metroSubBtn.innerHTML = svgIcon(this.metronomeSubdivision ? 'eighthNotes' : 'quarterNote');
+        };
+        syncMetroSubIcon();
+        metroSubBtn.onclick = () => {
             this.metronomeSubdivision = !this.metronomeSubdivision;
-            e.currentTarget.classList.toggle('active', this.metronomeSubdivision);
+            syncMetroSubIcon();
             localStorage.setItem(METRONOME_SUBDIVISION_KEY, this.metronomeSubdivision ? '1' : '0');
         };
 
@@ -2016,6 +2040,19 @@ class HarmoHubApp {
         });
         document.getElementById('grid-zoom-in').onclick = () => this.adjustZoom('grid', ZOOM_LEVEL_STEP);
         document.getElementById('grid-zoom-out').onclick = () => this.adjustZoom('grid', -ZOOM_LEVEL_STEP);
+
+        // Accord/Grille/Boucle/Stop dans l'en-tête de la loupe grille (voir index.html) : déclenchent
+        // les VRAIS boutons du pied de colonne (.click()) plutôt que de réécrire leur logique à côté —
+        // un seul endroit à maintenir si elle change. La loupe masquait ce pied de colonne derrière
+        // elle, il fallait la fermer pour lire quoi que ce soit (retour utilisateur).
+        document.getElementById('grid-zoom-play-chord').onclick = () => document.getElementById('play').click();
+        document.getElementById('grid-zoom-play-prog').onclick = () => document.getElementById('play-prog').click();
+        document.getElementById('grid-zoom-stop').onclick = () => document.getElementById('stop').click();
+        const gridZoomLoopBtn = document.getElementById('grid-zoom-loop');
+        gridZoomLoopBtn.onclick = () => {
+            document.getElementById('toggle-loop-section').click();
+            gridZoomLoopBtn.classList.toggle('active', this.loopActiveSection);
+        };
         document.getElementById('grid-zoom-host').addEventListener('wheel', (e) => {
             if (!e.ctrlKey) return;
             e.preventDefault();
@@ -2109,11 +2146,13 @@ class HarmoHubApp {
         document.addEventListener('click', (e) => {
             const inGrid = !!e.target.closest('.chord-grid');
             const inMenu = !!e.target.closest('#context-menu');
-            // .grid-zoom-modal inclus : le séquenceur épinglé et ses boutons (Enregistrer/Annuler/
+            // .grid-zoom-modal ET .seq-zoom-modal inclus : le séquenceur (épinglé dans la loupe grille,
+            // ou dans sa propre vue agrandie, voir openSeqZoom) et ses boutons (Enregistrer/Annuler/
             // replier, poignée de redimensionnement...) y vivent, hors de .chord-grid ET de .col-left —
-            // sans cet ajout, cliquer par exemple le bouton Fermer de la loupe (ni l'un ni l'autre)
-            // sortait silencieusement du mode édition juste avant que ce clic n'atteigne ce bouton.
-            const inEditor = !!e.target.closest('.col-left') || !!e.target.closest('.grid-zoom-modal');
+            // sans cet ajout, ajouter une note ou supprimer une barre dans le séquenceur agrandi (ni
+            // l'un ni l'autre) sortait silencieusement du mode édition en cours, perdant la
+            // modification (retour utilisateur : les boutons Modifier/Annuler disparaissaient).
+            const inEditor = !!e.target.closest('.col-left') || !!e.target.closest('.grid-zoom-modal') || !!e.target.closest('.seq-zoom-modal');
             let changed = false;
             if (!inGrid && !inMenu && this.selectedIndex != null) { this.selectedIndex = null; changed = true; }
             if (!inGrid && !inMenu && !inEditor && this.editingIndex != null) { this.exitEditMode(); changed = true; }
@@ -2485,6 +2524,7 @@ class HarmoHubApp {
     stopAll() {
         Tone.Transport.stop();
         Tone.Transport.cancel();
+        Tone.Transport.loop = false;
         this.instrumentCache.forEach(inst => inst.releaseAll());
         this.clearViz();
         this.clearGuitarViz();
@@ -2678,44 +2718,45 @@ class HarmoHubApp {
 
         const bpm = parseInt(document.getElementById('bpm').value);
         const secPerBeat = 60 / bpm;
-        const start = 0.1;
+        const start = 0.02; // aligné sur Tone.context.lookAhead (voir constructeur)
 
-        // Décompte : un temps par mesure de la signature rythmique, accent sur le temps 1
-        const COUNT_IN = this.beatsPerBar();
+        // Décompte : un temps par mesure de la signature rythmique, accent sur le temps 1 — SAUTÉ
+        // entièrement (pas seulement rendu muet) si metronomeCountIn est désactivé, pour que la grille
+        // démarre tout de suite plutôt que d'attendre en silence la durée d'une mesure entière (retour
+        // utilisateur : ce silence se percevait comme un délai au lancement de la lecture). beatsPerBar
+        // reste séparé de countInBeats : lui seul sert encore plus bas à accentuer le 1er temps de
+        // chaque mesure pendant la lecture (metronomeDuringPlayback), indépendamment du décompte.
+        const beatsPerBar = this.beatsPerBar();
+        const countInBeats = this.metronomeCountIn ? beatsPerBar : 0;
         const disp = document.getElementById('current-chord-display');
-        for (let b = 0; b < COUNT_IN; b++) {
+        for (let b = 0; b < countInBeats; b++) {
             const clickTime = start + b * secPerBeat;
             const accent = (b === 0);
             const label = b + 1;
             Tone.Transport.schedule((t) => {
                 // Un filet à chaque callback programmé sur le transport (voir schedulePlayback) : une
                 // seule exception, n'importe où, bloquait silencieusement tout le reste de la lecture.
-                // metronomeCountIn (Paramètres > Son) ne coupe QUE le son : le décompte visuel et le
-                // délai avant le premier accord restent identiques, pour ne rien changer au timing.
-                if (this.metronomeCountIn) {
-                    try {
-                        this.playMetronomeClick(accent, t);
-                    } catch (e) { console.warn('Clic de décompte ignoré :', e.message); }
-                }
+                try {
+                    this.playMetronomeClick(accent, t);
+                } catch (e) { console.warn('Clic de décompte ignoré :', e.message); }
                 Tone.Draw.schedule(() => {
-                    disp.innerHTML = `Décompte<span class="chord-notes">${label} / ${COUNT_IN}</span>`;
+                    disp.innerHTML = `Décompte<span class="chord-notes">${label} / ${countInBeats}</span>`;
                 }, t);
             }, clickTime);
             // Clic faible sur le contretemps (croche entre ce temps et le suivant), voir metronomeSubdivision
             if (this.metronomeSubdivision) {
                 const subTime = clickTime + secPerBeat / 2;
                 Tone.Transport.schedule((t) => {
-                    if (this.metronomeCountIn) {
-                        try {
-                            this.playMetronomeClick(false, t, true);
-                        } catch (e) { console.warn('Clic de décompte (croche) ignoré :', e.message); }
-                    }
+                    try {
+                        this.playMetronomeClick(false, t, true);
+                    } catch (e) { console.warn('Clic de décompte (croche) ignoré :', e.message); }
                 }, subTime);
             }
         }
 
-        // La progression démarre juste après le décompte
-        let timeOffset = start + COUNT_IN * secPerBeat;
+        // La progression démarre juste après le décompte (immédiatement si sauté, voir ci-dessus)
+        let timeOffset = start + countInBeats * secPerBeat;
+        const loopStartTime = timeOffset; // point de reprise en boucle, voir Tone.Transport.loop plus bas
         this.isPlaying = true;
         let songBeat = 0; // compteur de temps DEPUIS le début de la grille (pas le décompte) : le
                            // premier temps de la grille redevient un « temps 1 » accentué, comme il
@@ -2732,7 +2773,7 @@ class HarmoHubApp {
             // accentué sur le 1er temps de chaque mesure — indépendant des notes de l'accord jouées.
             if (this.metronomeDuringPlayback) {
                 for (let b = 0; b < chord.beats; b++) {
-                    const accent = (songBeat % COUNT_IN === 0);
+                    const accent = (songBeat % beatsPerBar === 0);
                     const clickTime = timeOffset + b * secPerBeat;
                     Tone.Transport.schedule((t) => {
                         try {
@@ -2769,25 +2810,34 @@ class HarmoHubApp {
             timeOffset += chord.beats * secPerBeat;
         });
 
-        Tone.Transport.schedule((t) => {
-            Tone.Draw.schedule(() => {
-                try {
-                    // Boucle encore active et lecture non interrompue entre-temps (bouton Stop) -> on
-                    // relance directement un tour complet (avec son propre décompte) plutôt que de
-                    // s'arrêter ; sinon, comportement habituel de fin de lecture.
-                    if ((this.loopRange || this.loopActiveSection) && this.isPlaying) {
-                        this.playProgression();
-                    } else {
+        if (loop) {
+            // Boucle gérée nativement par l'horloge audio (Tone.Transport.loop) plutôt que par un
+            // rappel JS qui relançait tout playProgression() à chaque tour : cet ancien va-et-vient
+            // (stop/cancel/redémarrage, voir stopAll) réintroduisait à chaque reprise le même petit
+            // pré-roll qu'au tout premier lancement — perceptible comme un décalage à chaque boucle.
+            // Ici, tous les évènements déjà programmés entre loopStartTime et loopEndTime (accords,
+            // surbrillance, métronome pendant la lecture) rejouent d'eux-mêmes, sans aucune coupure.
+            // Le décompte, lui, ne fait bien partie que du tout premier tour (programmé avant
+            // loopStartTime) — comportement plus juste musicalement que l'ancien, qui le répétait
+            // à chaque boucle.
+            Tone.Transport.loop = true;
+            Tone.Transport.loopStart = loopStartTime;
+            Tone.Transport.loopEnd = timeOffset;
+        } else {
+            Tone.Transport.loop = false;
+            Tone.Transport.schedule((t) => {
+                Tone.Draw.schedule(() => {
+                    try {
                         this.clearViz();
                         this.highlightPlaying(null, null);
                         this.isPlaying = false;
+                    } catch (e) {
+                        console.warn('Fin de progression ignorée :', e.message);
+                        this.isPlaying = false;
                     }
-                } catch (e) {
-                    console.warn('Fin de progression ignorée :', e.message);
-                    this.isPlaying = false;
-                }
-            }, t);
-        }, timeOffset);
+                }, t);
+            }, timeOffset);
+        }
 
         // Attend que tous les instruments utilisés dans la grille (Piano notamment : ses sons se
         // chargent depuis internet) soient prêts avant de démarrer le transport — la boucle ci-dessus
@@ -3629,6 +3679,31 @@ class HarmoHubApp {
         // n'est jamais réinsérée dans le gabarit lui-même (voir updateGridPlayhead) — la replacer ici
         // sinon un ré-rendu la ferait simplement disparaître.
         this.updateGridPlayhead(this.playheadSection, this.playheadIndex);
+        this.fitCellSymbols(host);
+    }
+
+    // Rétrécit au besoin le texte d'un accord (ex. "B♭maj7") qui déborde de sa case — plutôt que de le
+    // tronquer en "B…" (arrive surtout en mode loupe, où une case peut représenter une mesure entière
+    // sur une largeur très réduite selon le nombre de mesures par ligne, voir beatsPerRowFor). sz1/sz2
+    // couvrent déjà les cas fréquents (accords courts) via CSS ; ce filet de sécurité gère tout le reste
+    // au pixel près, quel que soit le zoom ou la largeur d'écran.
+    fitCellSymbols(host) {
+        const MIN_PX = 8; // en dessous, "B♭maj7" redeviendrait illisible — mieux vaut le laisser tronquer
+        host.querySelectorAll('.cell-sym').forEach(el => {
+            el.style.fontSize = '';
+            // Un ratio direct (plutôt que retirer 1px à la fois, insuffisant pour les cases très
+            // étroites/symboles longs comme "B♭maj7" en mode loupe très zoomé) converge en 1-2 passes ;
+            // quelques passes de plus rattrapent l'arrondi du navigateur sur la largeur réelle du texte.
+            let attempts = 0;
+            while (el.scrollWidth > el.clientWidth && attempts < 4) {
+                const current = parseFloat(getComputedStyle(el).fontSize);
+                if (current <= MIN_PX) break;
+                const next = Math.max(MIN_PX, Math.floor(current * (el.clientWidth / el.scrollWidth) * 0.97));
+                if (next >= current) break;
+                el.style.fontSize = `${next}px`;
+                attempts++;
+            }
+        });
     }
 
     // Bascule Ajouter / (À la suite + À la fin) / Modifier selon le contexte : un accord sélectionné
@@ -3817,6 +3892,7 @@ class HarmoHubApp {
             timeSig: document.getElementById('time-sig').value,
             groove: document.getElementById('groove').value,
             bpm: parseInt(document.getElementById('bpm').value),
+            instrument: document.getElementById('instrument').value,
             sections: loadProgressionSections()
         };
         const songs = loadSongs();
@@ -3996,10 +4072,14 @@ class HarmoHubApp {
     // Charge un morceau enregistré : il devient le morceau ouvert, mais n'est plus auto-sauvegardé en
     // continu (voir hasUnsavedChanges/saveCurrentSong) — il faut Enregistrer/Ctrl+S pour persister
     // toute modification ultérieure.
-    loadSong(id) {
-        const song = loadSongs().find(s => s.id === id);
-        if (!song) return;
-        setCurrentSongId(id);
+    // Réglages « Morceau » (tonalité, mode, rythme, groove, tempo, instrument par défaut) tels
+    // qu'enregistrés dans ce morceau — partagé entre loadSong (choix dans le sélecteur) et
+    // restoreCurrentSongSettingsIfAny (tout premier rendu de la page, voir constructeur) : avant ça,
+    // seul loadSong les restaurait, si bien qu'un simple rechargement de page (F5) avec un morceau déjà
+    // ouvert retombait sur les valeurs par défaut du HTML pour tout SAUF les accords (myProgression,
+    // restauré séparément) — retour utilisateur : réouvrir un morceau doit retrouver exactement les
+    // réglages de sa dernière sauvegarde.
+    applySongSettingsToDom(song) {
         document.getElementById('global-root').value = song.root || 'C';
         this.revealComplexModeIfNeeded(song.mode || 'maj');
         document.getElementById('global-mode').value = song.mode || 'maj';
@@ -4007,6 +4087,34 @@ class HarmoHubApp {
         document.getElementById('groove').value = song.groove || 'straight';
         document.getElementById('bpm').value = song.bpm || 120;
         document.getElementById('bpm-val').value = String(song.bpm || 120);
+        // Son par défaut pour un NOUVEL accord ajouté à ce morceau (chaque accord déjà posé garde de
+        // toute façon le sien, voir data.instrument) — sans ça, il restait celui du dernier morceau
+        // ouvert plutôt que de retrouver celui utilisé quand celui-ci a été enregistré (retour
+        // utilisateur).
+        if (song.instrument && INSTRUMENT_BANKS[song.instrument]) {
+            document.getElementById('instrument').value = song.instrument;
+            localStorage.setItem(INSTRUMENT_KEY, song.instrument);
+        }
+    }
+
+    // Au tout premier rendu de la page (voir constructeur) : un morceau reste "ouvert" d'une session à
+    // l'autre (currentSongId persiste), mais seuls les accords (myProgression) survivaient jusqu'ici à
+    // un rechargement — tonalité/tempo/rythme/groove/instrument retombaient aux valeurs par défaut du
+    // HTML. N'écrase PAS les accords (déjà corrects via myProgression, qui reflète aussi bien un
+    // morceau tout juste enregistré que des modifications en cours non encore enregistrées).
+    restoreCurrentSongSettingsIfAny() {
+        const id = getCurrentSongId();
+        if (!id) return;
+        const song = loadSongs().find(s => s.id === id);
+        if (!song) return;
+        this.applySongSettingsToDom(song);
+    }
+
+    loadSong(id) {
+        const song = loadSongs().find(s => s.id === id);
+        if (!song) return;
+        setCurrentSongId(id);
+        this.applySongSettingsToDom(song);
         saveProgressionSections(song.sections && song.sections.length ? song.sections : [{ title: '', chords: [] }], false);
         hasUnsavedChanges = false; // tampon tout juste chargé, identique au morceau enregistré
         this.clearHistory(); // changement de morceau : l'historique annuler/rétablir n'a plus de sens
@@ -4035,6 +4143,7 @@ class HarmoHubApp {
             timeSig: document.getElementById('time-sig').value,
             groove: document.getElementById('groove').value,
             bpm: parseInt(document.getElementById('bpm').value),
+            instrument: document.getElementById('instrument').value,
         });
         hasUnsavedChanges = false;
         this.refreshSongList();
@@ -4374,20 +4483,12 @@ class HarmoHubApp {
 
         const currentId = getCurrentSongId();
 
-        // Emplacement des exports locaux (JSON, PDF, MIDI, MP3) : un navigateur ne laisse pas une
-        // page web choisir ni retenir un dossier de destination par défaut (en dehors d'un vrai
-        // sélecteur de dossier à chaque export, jugé trop lourd ici) — seul le réglage du
-        // navigateur lui-même (dossier de téléchargement / « toujours demander où enregistrer »)
-        // en décide. On l'explique plutôt que de proposer un choix qui n'aurait aucun effet réel.
-        const locationInfo = `
-            <p class="files-location-info">
-                Les fichiers exportés (sauvegarde JSON, PDF, MIDI, MP3) sont enregistrés dans le
-                dossier de téléchargement par défaut de ton navigateur. Pour changer cet
-                emplacement (ou choisir à chaque fois), règle-le dans les préférences de
-                téléchargement de ton navigateur.
-            </p>`;
-
-        const toolbar = locationInfo + `
+        // Emplacement des exports locaux (JSON, MIDI, MP3) : réglé par le navigateur lui-même (dossier
+        // de téléchargement / « toujours demander où enregistrer »), pas par l'appli — un paragraphe
+        // l'expliquait ici mais prenait trop de place pour une information secondaire (retour
+        // utilisateur) ; l'info vit maintenant dans le message de succès de chaque export, voir
+        // exportCurrentSong/exportLibrary/exportMidi/exportAudio.
+        const toolbar = `
             <div class="files-toolbar">
                 <button type="button" id="new-folder-btn" class="btn-sec">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M12 11v4M10 13h4"/></svg>
@@ -4691,7 +4792,7 @@ class HarmoHubApp {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        this.flashHint('Bibliothèque exportée');
+        this.flashHint('Bibliothèque exportée → dossier Téléchargements', 2400);
     }
 
     // Importe une sauvegarde : AJOUTE les morceaux du fichier à la bibliothèque actuelle, sans jamais
@@ -5262,6 +5363,7 @@ class HarmoHubApp {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
+        this.flashHint('MIDI téléchargé → dossier Téléchargements', 2400);
     }
 
     // ---------- Export audio (.mp3, encodage LAME embarqué — voir lame.min.js) ----------
@@ -5385,7 +5487,7 @@ class HarmoHubApp {
             a.click();
             a.remove();
             URL.revokeObjectURL(url);
-            this.flashHint('MP3 téléchargé');
+            this.flashHint('MP3 téléchargé → dossier Téléchargements', 2400);
         } catch (err) {
             console.error(err);
             this.flashHint('Échec de l’export MP3');
@@ -5449,7 +5551,7 @@ class HarmoHubApp {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        this.flashHint(`« ${song.name} » sauvegardé en local`);
+        this.flashHint(`« ${song.name} » sauvegardé → dossier Téléchargements`, 2400);
     }
 
     // ---------- Durée de l'accord : bouton fermé + menu déroulant d'icônes ----------
@@ -5825,7 +5927,11 @@ class HarmoHubApp {
     // ("C7/E") et le repère de continuation ("↩") sont retirés du texte proposé : parseChordSymbol ne
     // sait lire qu'un symbole racine+qualité, pas une basse — cohérent avec la saisie rapide existante,
     // où renversement/drop/basse restent réglables uniquement en ouvrant le mode édition complet.
-    startInlineChordSymbolEdit(section, index, cell) {
+    // `initialChar` (optionnel) : au lieu de pré-remplir avec le symbole déjà affiché (tout
+    // sélectionné, prêt à être remplacé), repart d'un champ vidé contenant CE caractère — pour
+    // « taper au clavier » directement sur un accord chargé (loupe grille ou sélection normale, voir
+    // le raccourci clavier dans setupKeyboardShortcuts) sans avoir à double-cliquer d'abord.
+    startInlineChordSymbolEdit(section, index, cell, initialChar) {
         cell = cell || document.querySelector(`.grid-cell[data-section="${section}"][data-index="${index}"]`);
         const symEl = cell && cell.querySelector('.cell-sym');
         if (!symEl || symEl.tagName === 'INPUT') return; // déjà en édition ou case introuvable
@@ -5837,13 +5943,13 @@ class HarmoHubApp {
         const input = document.createElement('input');
         input.type = 'text';
         input.className = 'cell-sym-input';
-        input.value = displayText;
+        input.value = initialChar != null ? initialChar : displayText;
         input.autocomplete = 'off';
         input.autocapitalize = 'off';
         input.spellcheck = false;
         symEl.replaceWith(input);
         input.focus();
-        input.select();
+        if (initialChar == null) input.select(); // sinon curseur laissé après le caractère déjà tapé
 
         let done = false;
         const commit = () => {
@@ -6758,6 +6864,10 @@ class HarmoHubApp {
         host.classList.add('seq-zoomed');
         document.getElementById('seq-zoom-overlay').hidden = false;
         this.applyZoomLevel('seq');
+        // Re-rendu immédiat : la pagination dépend de this.seqZoomOpen (plus de mesures par page une
+        // fois agrandi, voir seqPageBars), sinon elle resterait celle de la vue compacte jusqu'au
+        // prochain changement.
+        this.renderSequencer();
     }
 
     // Remet #arp-sequencer à sa place d'origine dans le volet Lecture (juste après #arpPattern,
@@ -6769,6 +6879,7 @@ class HarmoHubApp {
         const host = document.getElementById('arp-sequencer');
         host.classList.remove('seq-zoomed');
         document.getElementById('arpPattern').insertAdjacentElement('afterend', host);
+        this.renderSequencer();
     }
 
     // Même principe qu'openSeqZoom/closeSeqZoom, pour la grille d'accords cette fois : déplace
@@ -6784,6 +6895,9 @@ class HarmoHubApp {
         dest.appendChild(addBtn);
         document.getElementById('grid-zoom-overlay').hidden = false;
         this.applyZoomLevel('grid');
+        // Reflète l'état actuel de la boucle (a pu être activée avant d'ouvrir la loupe, depuis le
+        // vrai bouton du pied de colonne, voir le bouton dupliqué dans l'en-tête ci-dessus).
+        document.getElementById('grid-zoom-loop').classList.toggle('active', this.loopActiveSection);
 
         // Séquenceur épinglé : toujours affiché une fois la loupe ouverte (masquable ensuite via son
         // propre chevron, voir toggleGridZoomPinnedSeq) — reflète tout de suite un accord déjà en
@@ -6792,7 +6906,7 @@ class HarmoHubApp {
         document.getElementById('grid-zoom-pinned-body').style.height =
             `${parseInt(localStorage.getItem(GRID_ZOOM_SEQ_HEIGHT_KEY)) || GRID_ZOOM_SEQ_HEIGHT_DEFAULT}px`;
         this.applyGridZoomPinnedCollapsed();
-        if (this.editingIndex != null) this.pinSequencerHost();
+        if (this.editingIndex != null) { this.pinSequencerHost(); this.renderSequencer(); }
         this.syncGridZoomPinnedSeq();
         // Re-rendu immédiat : la grille dépend de this.gridZoomOpen (largeur de ligne élargie — voir
         // beatsPerRowFor — et boutons octave, voir shiftChordOctave), sinon elle resterait mise en page
@@ -6821,6 +6935,7 @@ class HarmoHubApp {
             document.getElementById('arpPattern').insertAdjacentElement('afterend', seqHost);
         }
         this.loadProgression(); // revient à la largeur de ligne/aux boutons de la taille normale
+        if (this.editingIndex != null) this.renderSequencer(); // idem pour la pagination du séquenceur
     }
 
     // Clic sur un accord DANS la loupe grille (voir onGridPointerUp) : le charge directement pour
@@ -6973,7 +7088,8 @@ class HarmoHubApp {
         // à nouveau entrer en conflit avec l'étirement.
         const beatsPerBar = this.beatsPerBar();
         const stepsPerBar = beatsPerBar * SEQ_STEPS_PER_BEAT;
-        const stepsPerPage = seqPageBars(beatsPerBar) * stepsPerBar;
+        const seqZoomed = this.seqZoomOpen || this.gridZoomOpen;
+        const stepsPerPage = seqPageBars(beatsPerBar, seqZoomed) * stepsPerBar;
         const totalPages = Math.max(1, Math.ceil(steps / stepsPerPage));
         this.seqPage = Math.min(Math.max(0, this.seqPage), totalPages - 1);
         const pageStart = this.seqPage * stepsPerPage;
@@ -7108,7 +7224,7 @@ class HarmoHubApp {
         // Navigation par page (uniquement si l'accord déborde d'une page) : un vrai saut, jamais du
         // scroll continu — voir le commentaire plus haut sur le conflit avec l'étirement tactile.
         if (totalPages > 1) {
-            const barsPerPage = seqPageBars(beatsPerBar);
+            const barsPerPage = seqPageBars(beatsPerBar, seqZoomed);
             const totalBars = Math.ceil(steps / stepsPerBar);
             const firstBar = this.seqPage * barsPerPage + 1;
             const lastBar = Math.min(totalBars, firstBar + barsPerPage - 1);
@@ -7580,6 +7696,19 @@ class HarmoHubApp {
             if (e.key === 'Escape' && this.settingsOpen) { this.closeSettings(); return; }
             if (e.key === 'Escape' && this.seqZoomOpen) { this.closeSeqZoom(); return; }
             if (e.key === 'Escape' && this.gridZoomOpen) { this.closeGridZoom(); return; }
+
+            // Taper directement une lettre de note (A-G) sur un accord chargé en édition (loupe
+            // grille, ou double-clic en grille normale) ou simplement sélectionné ouvre son édition
+            // inline avec cette lettre déjà tapée — sans avoir à double-cliquer pile sur son texte
+            // d'abord (retour utilisateur : ça ne suffisait pas en pratique, notamment dans la loupe).
+            if (!typing && !mod && !e.altKey && /^[A-Ga-g]$/.test(e.key)) {
+                const idx = this.editingIndex != null ? this.editingIndex : this.selectedIndex;
+                if (idx != null) {
+                    e.preventDefault();
+                    this.startInlineChordSymbolEdit(this.activeSection, idx, null, e.key.toUpperCase());
+                    return;
+                }
+            }
 
             // Barre d'espace : joue/stoppe l'accord courant si le séquenceur est ouvert (pour
             // itérer vite dessus sans la souris), sinon la progression entière. Volontairement PAS

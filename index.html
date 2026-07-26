@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202607251600">
+    <link rel="stylesheet" href="style.css?v=202607252000">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 </head>
@@ -200,7 +200,23 @@
         <div class="seq-zoom-modal grid-zoom-modal" role="dialog" aria-modal="true" aria-labelledby="grid-zoom-title">
             <div class="settings-header">
                 <h2 id="grid-zoom-title">Grille d'accords</h2>
-                <div class="zoom-header-actions">
+                <!-- Accord/Grille/Boucle/Stop, identiques aux vrais boutons du pied de colonne (mêmes
+                     méthodes appelées, jamais dupliquées) — la loupe masque ce pied de colonne derrière
+                     elle, il fallait sinon la fermer pour lire quoi que ce soit (retour utilisateur). -->
+                <div class="zoom-header-actions grid-zoom-transport">
+                    <button type="button" id="grid-zoom-play-chord" class="btn-prog grid-zoom-transport-btn" title="Lire l'accord sélectionné/en édition (comme le bouton Accord)">
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg> Accord
+                    </button>
+                    <button type="button" id="grid-zoom-play-prog" class="btn-prog grid-zoom-transport-btn" title="Lire toute la grille (comme le bouton Grille)">
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg> Grille
+                    </button>
+                    <button type="button" id="grid-zoom-loop" class="icon-btn" title="Boucler la partie active (bouton Grille)" aria-label="Boucler la partie active">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                    </button>
+                    <button type="button" id="grid-zoom-stop" class="btn-stop grid-zoom-transport-btn" title="Stop">
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
+                    </button>
+                    <div class="grid-zoom-transport-sep"></div>
                     <button type="button" id="grid-zoom-out" class="icon-btn" title="Réduire le zoom" aria-label="Réduire le zoom">
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M8 11h6"/></svg>
                     </button>
@@ -329,7 +345,11 @@
                                  applyInstrumentToSong) — retour utilisateur : changer le son de toute une
                                  grille déjà remplie obligeait jusqu'ici à rouvrir chaque accord un par un. -->
                             <button type="button" id="apply-instrument-all" class="icon-btn" title="Appliquer ce son à tout le morceau" aria-label="Appliquer ce son à tout le morceau">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h9"/><path d="M3 12h9"/><path d="M3 18h9"/><path d="m14 12 6 0"/><path d="m17 9 3 3-3 3"/></svg>
+                                <!-- Porte-voix (haut-parleur + ondes) plutôt que le précédent dessin (lignes +
+                                     flèche), trop proche visuellement des autres icônes du bandeau et peu
+                                     compréhensible au premier coup d'œil (retour utilisateur) : se lit comme
+                                     « diffuser ce son partout », voir ICONS.applyAll dans script.js. -->
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10v4a1 1 0 0 0 1 1h2l4 4V6l-4 4H4a1 1 0 0 0-1 1z"/><path d="M14 8.5a4 4 0 0 1 0 7"/><path d="M17 5.5a8 8 0 0 1 0 13"/></svg>
                             </button>
                             <button type="button" id="toggle-sequencer" class="icon-btn" title="Séquenceur" aria-label="Séquenceur">
                                 <!-- Grille de pas façon piano-roll (3 colonnes x 3 rangées, quelques pas "actifs"
@@ -467,14 +487,13 @@
                             <label for="bpm">Tempo : <input type="number" id="bpm-val" class="bpm-val-input" min="60" max="240" value="120" title="Cliquer pour saisir une valeur précise"> BPM</label>
                             <div class="bpm-actions">
                                 <button type="button" id="tap-tempo" class="btn-sec tap-tempo-btn" title="Tap tempo : cliquer plusieurs fois au rythme voulu pour régler le BPM">TAP</button>
-                                <!-- Deux croches reliées (♫), symbole standard sans ambiguïté possible — l'ancien
-                                     dessin (4 points de tailles alternées) était confondu avec des points de
-                                     suspension "..." (retour utilisateur). -->
+                                <!-- Icône reflétant l'état (noire seule = désactivé, deux croches reliées = activé)
+                                     posée ici juste pour l'affichage initial avant JS ; syncMetroSubIcon() la
+                                     réécrit ensuite à chaque changement d'état (voir script.js). -->
                                 <button type="button" id="toggle-metronome-subdivision" class="icon-btn" title="Ajouter un clic faible sur le contretemps (croches)" aria-label="Ajouter un clic faible sur le contretemps">
                                     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                        <ellipse cx="6" cy="18" rx="3" ry="2.3" fill="currentColor"/>
-                                        <ellipse cx="17" cy="19" rx="3" ry="2.3" fill="currentColor"/>
-                                        <path d="M9 18V6l8 2v11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <ellipse cx="9" cy="18" rx="4" ry="3" fill="currentColor"/>
+                                        <path d="M13 18V4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                                     </svg>
                                 </button>
                                 <button type="button" id="toggle-metronome" class="icon-btn" title="Garder le métronome pendant la lecture de la grille" aria-label="Garder le métronome pendant la lecture de la grille">
@@ -630,6 +649,6 @@
          script.js) — vendu en local plutôt qu'hébergé sur un CDN. Projet LAME (lame.sourceforge.net),
          licence LGPL. -->
     <script src="lame.min.js"></script>
-    <script src="script.js?v=202607251600"></script>
+    <script src="script.js?v=202607252001"></script>
 </body>
 </html>

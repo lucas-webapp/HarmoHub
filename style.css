@@ -357,11 +357,27 @@ button, .icon-btn, .prog-section-del, .seq-presets button, .seq-delete-btn {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap; /* la loupe grille y ajoute un transport complet (voir .grid-zoom-transport) :
+                         passe à la ligne plutôt que déborder sur fenêtre étroite */
+    gap: 8px;
     padding: 16px 18px;
     border-bottom: 1px solid var(--border);
     flex: none;
 }
 .settings-header h2 { margin: 0; font-size: var(--fs-lg); }
+
+/* Accord/Grille/Boucle/Stop dans l'en-tête de la loupe grille (voir index.html) : boutons réels,
+   juste redimensionnés pour tenir dans un en-tête — mêmes classes .btn-prog/.btn-stop/.icon-btn que
+   le pied de colonne, donc même couleur/dégradé, seule la taille change. */
+.grid-zoom-transport-btn {
+    height: 32px;
+    padding: 0 10px 0 8px;
+    font-size: var(--fs-xs);
+    min-width: 0;
+    flex: none;
+}
+.grid-zoom-transport-btn .icon { width: 13px; height: 13px; }
+.grid-zoom-transport-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 2px; }
 
 /* Boutons loupe+/loupe-/fermer groupés à droite de l'en-tête (voir seq-zoom-overlay et
    grid-zoom-overlay) : un seul groupe pour que .settings-header garde son simple titre/actions
@@ -413,19 +429,6 @@ button, .icon-btn, .prog-section-del, .seq-presets button, .seq-delete-btn {
 
 /* ---- Panneau Fichiers ---- */
 .files-empty { color: var(--text-muted); font-size: var(--fs-sm); text-align: center; padding: 30px 10px; }
-
-/* Explique où atterrissent les exports (voir renderFilesPanel) : une page web ne peut ni choisir ni
-   retenir un dossier de destination par défaut, seul le réglage du navigateur en décide. */
-.files-location-info {
-    margin: 0 0 14px;
-    padding: 10px 12px;
-    background: var(--bg-soft, rgba(255,255,255,0.04));
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text-muted);
-    font-size: var(--fs-sm);
-    line-height: 1.5;
-}
 
 /* Barre d'outils : créer un dossier à gauche, export/import de la bibliothèque puis annuler/rétablir à droite */
 .files-toolbar {
@@ -493,15 +496,17 @@ button, .icon-btn, .prog-section-del, .seq-presets button, .seq-delete-btn {
 .file-actions .icon-btn { width: 26px; height: 26px; }
 
 /* ---- Panneau Son ---- */
-.settings-slider-row { margin-bottom: 22px; }
+/* Marges resserrées (22px → 12/10px) : les curseurs de volume prenaient trop de place à l'écran
+   pour un simple réglage secondaire (retour utilisateur). */
+.settings-slider-row { margin-bottom: 12px; }
 .settings-slider-row:last-child { margin-bottom: 0; }
-.settings-slider-sep { height: 1px; background: var(--border); margin: 0 0 22px; }
+.settings-slider-sep { height: 1px; background: var(--border); margin: 0 0 12px; }
 .settings-slider-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     font-size: var(--fs-sm);
     font-weight: 600;
     color: var(--text-muted);
@@ -1739,7 +1744,9 @@ button:active { transform: translateY(1px); }
 .cell-octave {
     position: absolute;
     top: 3px;
-    right: 16px;
+    right: 3px; /* collé au bord (au-dessus de la poignée de redimensionnement, voir z-index) : à
+                   16px du bord, il retombait visuellement au milieu de la case sur les zooms serrés
+                   (retour utilisateur) */
     z-index: 4;
     display: flex;
     flex-direction: column;
