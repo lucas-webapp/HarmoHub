@@ -716,20 +716,25 @@ main {
     padding: 13px 12px 13px 8px; /* contenu recentré, voir le commentaire sur le button de base */
     font-size: var(--fs-base);
 }
-/* Bouton « boucler la partie » : reste compact au milieu des boutons de lecture qui, eux, s'étirent */
+/* Bouton « boucler la partie » : reste compact au milieu des boutons de lecture qui, eux, s'étirent —
+   même hauteur qu'eux (52px, voir .transport-icon-btn), juste moins large puisque moins important ;
+   carré (largeur = hauteur) plutôt que de suivre leur largeur. */
 .transport #toggle-loop-section {
     flex: none;
-    width: 44px;
-    height: 44px;
+    width: 52px;
+    height: 52px;
     padding: 0;
 }
 /* Accord/Grille/Stop : logos seuls (sans libellé, voir index.html) pour ne plus surcharger le pied
-   de colonne — carrés compacts et uniformes entre eux comme #toggle-loop-section ci-dessus, plutôt
-   que de s'étirer sur toute la largeur comme avant (ça ne servait qu'à caser le texte). Sélecteur à
-   2 classes (spécificité 0,2,0) : l'emporte sur ".transport button" (0,1,1) ci-dessus. */
+   de colonne. Contrairement à #toggle-loop-section ci-dessus (carré fixe), ceux-ci S'ÉTIRENT
+   (flex: 1 1 0, hérité de ".transport button" — largeur min de sécurité seulement) pour occuper toute
+   la largeur disponible du pied de colonne, aussi bien sur téléphone (pleine largeur de l'écran) que
+   sur ordinateur (largeur fixe de .col-left) : cibles tactiles plus larges plutôt que 3 carrés perdus
+   à gauche avec du vide à droite. Sélecteur à 2 classes (spécificité 0,2,0) : l'emporte sur
+   ".transport button" (0,1,1) ci-dessus. */
 .transport .transport-icon-btn {
-    flex: none;
-    width: 52px;
+    flex: 1 1 0;
+    min-width: 52px;
     height: 52px;
     padding: 0;
 }
