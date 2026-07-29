@@ -383,9 +383,11 @@ function beatsPerRowFor(beatsPerBar, zoomed = false, hZoom = 1) {
 // pour ne jamais afficher ni trop peu ni trop de croches d'un coup quelle que soit la signature.
 // Cible doublée (8 temps) une fois agrandi (fenêtre séquenceur ou loupe grille avec séquenceur épinglé,
 // voir renderSequencer) : beaucoup plus de place, comme beatsPerRowFor pour la grille d'accords.
-// `hZoom` (échelle horizontale de la loupe séquenceur) réduit cette cible d'autant, même principe.
+// `hZoom` (échelle horizontale — loupe séquenceur OU version compacte, voir adjustSeqInlineZoom)
+// réduit cette cible d'autant, même principe, qu'on soit agrandi ou non (hZoom reste à 1 par défaut
+// dans les deux cas, donc sans effet tant qu'on n'y a pas touché).
 function seqPageBars(beatsPerBar, zoomed = false, hZoom = 1) {
-    const target = zoomed ? Math.max(2, 8 / hZoom) : 4;
+    const target = Math.max(2, (zoomed ? 8 : 4) / hZoom);
     return Math.max(1, Math.round(target / beatsPerBar));
 }
 
@@ -1446,9 +1448,19 @@ const SEQ_ZOOM_LEVEL_X_KEY = 'harmohubSeqZoomLevelX';
 const SEQ_ZOOM_LEVEL_Y_KEY = 'harmohubSeqZoomLevelY';
 const GRID_ZOOM_LEVEL_X_KEY = 'harmohubGridZoomLevelX';
 const GRID_ZOOM_LEVEL_Y_KEY = 'harmohubGridZoomLevelY';
+// Échelle horizontale du séquenceur COMPACT (panneau Accord, hors loupe séquenceur/grille) — voir
+// adjustSeqInlineZoom : indépendante de seqZoomLevelX (loupe), 1 par défaut pour garder EXACTEMENT
+// l'affichage actuel tant qu'on n'y touche pas (retour utilisateur).
+const SEQ_INLINE_ZOOM_LEVEL_X_KEY = 'harmohubSeqInlineZoomLevelX';
 const ZOOM_LEVEL_MIN = 0.7;
 const ZOOM_LEVEL_MAX = 2;
 const ZOOM_LEVEL_STEP = 0.1;
+// Borne basse plus large QUE ZOOM_LEVEL_MIN, pour ce seul réglage : la cible de base y est bien
+// plus petite que celle des fenêtres agrandies (4 temps plutôt que 8, voir seqPageBars) — sur une
+// mesure à 4 temps, rester à 0.7 ne suffirait même pas à passer d'1 à 2 mesures par page (le zoom
+// n'aurait litéralement aucun effet visible). Plage volontairement plus large pour que réduire
+// l'échelle affiche vraiment plus de mesures d'un coup.
+const SEQ_INLINE_ZOOM_MIN = 0.3;
 const GRID_ZOOM_SEQ_COLLAPSED_KEY = 'harmohubGridZoomSeqCollapsed';
 const GRID_ZOOM_SEQ_HEIGHT_KEY = 'harmohubGridZoomSeqHeight';
 const GRID_ZOOM_SEQ_HEIGHT_DEFAULT = 240;
@@ -1737,6 +1749,8 @@ class HarmoHubApp {
         this.seqZoomLevelY = parseFloat(localStorage.getItem(SEQ_ZOOM_LEVEL_Y_KEY)) || legacySeq || 1;
         this.gridZoomLevelX = parseFloat(localStorage.getItem(GRID_ZOOM_LEVEL_X_KEY)) || legacyGrid || 1;
         this.gridZoomLevelY = parseFloat(localStorage.getItem(GRID_ZOOM_LEVEL_Y_KEY)) || legacyGrid || 1;
+        // Échelle horizontale du séquenceur COMPACT (hors loupe), voir SEQ_INLINE_ZOOM_LEVEL_X_KEY.
+        this.seqInlineZoomLevelX = parseFloat(localStorage.getItem(SEQ_INLINE_ZOOM_LEVEL_X_KEY)) || 1;
         // Séquenceur épinglé en bas de la loupe grille (voir openGridZoom/toggleGridZoomPinnedSeq) :
         // replié ou non, mémorisé d'une session à l'autre comme le niveau de zoom ci-dessus.
         this.gridZoomSeqCollapsed = localStorage.getItem(GRID_ZOOM_SEQ_COLLAPSED_KEY) === '1';
@@ -7582,6 +7596,17 @@ class HarmoHubApp {
         }
     }
 
+    // Échelle horizontale du séquenceur COMPACT (hors loupe séquenceur/loupe grille, voir
+    // showInlineSeqZoom dans renderSequencer) : même pas que les échelles des fenêtres agrandies
+    // mais bornée plus bas (voir SEQ_INLINE_ZOOM_MIN), mémorisée à part et sans effet tant qu'on
+    // n'y touche pas (1 par défaut, exactement l'affichage actuel — retour utilisateur).
+    adjustSeqInlineZoom(delta) {
+        const next = Math.round(Math.max(SEQ_INLINE_ZOOM_MIN, Math.min(ZOOM_LEVEL_MAX, this.seqInlineZoomLevelX + delta)) * 100) / 100;
+        this.seqInlineZoomLevelX = next;
+        localStorage.setItem(SEQ_INLINE_ZOOM_LEVEL_X_KEY, String(next));
+        this.renderSequencer();
+    }
+
     // Menu contextuel d'un accord de la grille (« Séquenceur ») : le charge dans le panneau Accord
     // (comme Modifier) ET ouvre directement le séquenceur en grand, pour éviter l'aller-retour
     // modifier-puis-ouvrir-le-panneau quand on veut juste peaufiner son rythme.
@@ -7688,6 +7713,12 @@ class HarmoHubApp {
         const beatsPerBar = this.beatsPerBar();
         const stepsPerBar = beatsPerBar * SEQ_STEPS_PER_BEAT;
         const seqZoomed = this.seqZoomOpen || this.gridZoomOpen;
+        // Version compacte (hors loupe séquenceur ET hors vue continue de la loupe grille, voir
+        // plus haut) : seule celle-ci a droit au nouveau réglage d'échelle horizontale dédié
+        // (adjustSeqInlineZoom/showInlineSeqZoom plus bas) — la loupe séquenceur garde le sien
+        // (seqZoomLevelX), la vue continue ne pagine de toute façon jamais (branche ci-dessous).
+        const showInlineSeqZoom = !this.seqZoomOpen && !continuous;
+        const seqHZoom = this.seqZoomOpen ? this.seqZoomLevelX : (showInlineSeqZoom ? this.seqInlineZoomLevelX : 1);
         let pageStart, pageEnd, pageSteps, totalPages;
         if (continuous) {
             // Vue continue (voir plus haut) : plus de pagination par mesure — tout l'accord édité
@@ -7698,7 +7729,7 @@ class HarmoHubApp {
             // garde son touch-action dédié), le reste n'est que lecture seule.
             pageStart = 0; pageEnd = steps; pageSteps = steps; totalPages = 1;
         } else {
-            const stepsPerPage = seqPageBars(beatsPerBar, seqZoomed, this.seqZoomOpen ? this.seqZoomLevelX : 1) * stepsPerBar;
+            const stepsPerPage = seqPageBars(beatsPerBar, seqZoomed, seqHZoom) * stepsPerBar;
             totalPages = Math.max(1, Math.ceil(steps / stepsPerPage));
             this.seqPage = Math.min(Math.max(0, this.seqPage), totalPages - 1);
             pageStart = this.seqPage * stepsPerPage;
@@ -7885,7 +7916,7 @@ class HarmoHubApp {
         // Navigation par page (uniquement si l'accord déborde d'une page) : un vrai saut, jamais du
         // scroll continu — voir le commentaire plus haut sur le conflit avec l'étirement tactile.
         if (totalPages > 1) {
-            const barsPerPage = seqPageBars(beatsPerBar, seqZoomed, this.seqZoomOpen ? this.seqZoomLevelX : 1);
+            const barsPerPage = seqPageBars(beatsPerBar, seqZoomed, seqHZoom);
             const totalBars = Math.ceil(steps / stepsPerBar);
             const firstBar = this.seqPage * barsPerPage + 1;
             const lastBar = Math.min(totalBars, firstBar + barsPerPage - 1);
@@ -7905,6 +7936,12 @@ class HarmoHubApp {
             <button type="button" id="seq-stop" class="btn-stop seq-icon-btn" title="Stop" aria-label="Stop">${svgIcon('stop')}</button>
             <button type="button" id="seq-loop-play" class="icon-btn seq-icon-btn${this.seqLoopPlay ? ' active' : ''}" title="Rejouer en boucle" aria-label="Rejouer en boucle">${svgIcon('loop')}</button>
             <button type="button" id="seq-add-note" class="icon-btn seq-icon-btn" title="Ajouter une note libre (ex. note de passage)" aria-label="Ajouter une note libre">${svgIcon('plus')}</button>
+            ${showInlineSeqZoom ? `
+            <div class="zoom-axis-group" title="Échelle horizontale">
+                <span class="zoom-axis-tag">H</span>
+                <button type="button" id="seq-zoom-out-h-inline" class="icon-btn zoom-axis-btn" title="Réduire l'échelle horizontale" aria-label="Réduire l'échelle horizontale">${svgIcon('minus')}</button>
+                <button type="button" id="seq-zoom-in-h-inline" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">${svgIcon('plus')}</button>
+            </div>` : ''}
             <button type="button" data-preset="clear" class="seq-delete-btn">${svgIcon('trash')} tout</button>
             ${hasSelection ? `
             <div class="seq-selection-actions" title="Agit sur toute la sélection${countSuffix} à la fois">
@@ -8007,6 +8044,10 @@ class HarmoHubApp {
         };
         const addNoteBtn = document.getElementById('seq-add-note');
         if (addNoteBtn) addNoteBtn.onclick = () => this.addSequencerNote();
+        const seqZoomOutHInline = document.getElementById('seq-zoom-out-h-inline');
+        if (seqZoomOutHInline) seqZoomOutHInline.onclick = () => this.adjustSeqInlineZoom(-ZOOM_LEVEL_STEP);
+        const seqZoomInHInline = document.getElementById('seq-zoom-in-h-inline');
+        if (seqZoomInHInline) seqZoomInHInline.onclick = () => this.adjustSeqInlineZoom(ZOOM_LEVEL_STEP);
 
         // Navigation par page : saut direct d'une mesure (ou groupe de mesures) à l'autre, jamais de
         // scroll continu (voir le commentaire plus haut sur le conflit avec l'étirement tactile).

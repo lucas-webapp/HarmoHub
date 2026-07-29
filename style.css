@@ -860,6 +860,17 @@ main {
     border-color: var(--btn-green-border);
 }
 
+/* Bouton « Boucler » (pied de colonne + en-tête loupe grille, mêmes id ci-dessous) : bleu plutôt
+   que le vert générique ci-dessus une fois actif — se distingue des autres bascules (verrouillage
+   guitare, panneau séquenceur...) qui partagent, elles, le même sens "actif = vert". Sélecteur par
+   id (spécificité 1,1,0) : l'emporte sur .icon-btn.active (0,1,0) ci-dessus. */
+#toggle-loop-section.active,
+#grid-zoom-loop.active {
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-blue-1), var(--btn-blue-2) 70%);
+    color: var(--btn-text);
+    border-color: var(--btn-blue-border);
+}
+
 /* Action mise en avant (Enregistrer) : reste verte même au repos */
 .icon-btn-accent {
     background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
@@ -2300,6 +2311,17 @@ button:active { transform: translateY(1px); }
     justify-content: center;
 }
 
+/* Échelle horizontale du séquenceur compact (voir showInlineSeqZoom/adjustSeqInlineZoom dans
+   script.js), même groupe -/+ que les fenêtres agrandies (.zoom-axis-group, voir plus haut) : reste
+   compact au lieu de s'étirer comme ".seq-presets button" ci-dessus le ferait par défaut. */
+.seq-presets .zoom-axis-btn {
+    flex: none;
+    width: 28px;
+    min-width: 0;
+    height: 32px;
+    padding: 0;
+}
+
 /* Groupe étirer/raccourcir/déplacer (voir resizeSelectedSeqNote/moveSelectedSeqNotes) : agit sur
    toute la sélection à la fois, visuellement distinct des boutons Supprimer juste à côté. */
 .seq-selection-actions {
@@ -2468,6 +2490,13 @@ select.song-select-narrow {
     }
     .chord-header-row { flex: none; }
     .viz-wrap { flex: none; }
+    /* Piano et guitare toujours CÔTE À CÔTE sur ordinateur (jamais l'un sous l'autre comme
+       .viz-diagrams le permettrait par défaut avec flex-wrap: wrap, voir plus haut) : la guitare,
+       plus haute que le piano, doublait sinon la hauteur prise par ce bloc au-dessus de la grille —
+       hauteur déjà comptée (col-right a une hauteur fixe sur cet écran, voir overflow:hidden sur
+       body), donc autant de moins pour la grille elle-même. Réservé au bureau (retour utilisateur :
+       la pile verticale reste, elle, très bien adaptée au téléphone, où la largeur manque). */
+    .viz-diagrams { flex-wrap: nowrap; }
     .history-section {
         flex: 1;
         min-height: 0;
