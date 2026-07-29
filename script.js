@@ -1397,6 +1397,15 @@ const INSTRUMENT_BANKS = {
     }
 };
 
+// Tone.Transport.loop (playCurrent/playProgression) ne rejoue jamais un évènement programmé PILE à
+// Tone.Transport.loopStart — vérifié directement : un évènement à cette position ne déclenche qu'une
+// seule fois, quelle que soit sa durée, alors que le même évènement 20ms plus loin se rejoue à chaque
+// tour sans problème (quirk interne à Tone.js, une valeur de 5ms suffisait déjà, 20ms garde une marge
+// large tout en restant totalement inaudible). Régler loopStart LÉGÈREMENT AVANT le premier évènement
+// réellement programmé (jamais l'inverse, qui décalerait ce premier évènement lui-même) évite le cas :
+// voir les deux usages de cette constante.
+const LOOP_START_EPSILON = 0.02;
+
 // Attend que les instruments à échantillons (Piano) aient fini de charger leurs sons depuis internet
 // avant de démarrer une lecture — sans plafond, un réseau absent ou trop lent bloquerait la lecture
 // indéfiniment (elle ne démarrerait jamais) plutôt que de simplement laisser filer en silence les
@@ -2712,9 +2721,12 @@ class HarmoHubApp {
             // rejoue de lui-même à chaque tour, sans aucun aller-retour JS. L'ancienne version relançait
             // playCurrent() en entier à chaque tour (stop/cancel/redémarrage, voir stopAll), ce qui
             // produisait une micro-coupure ET un décalage perceptibles à chaque reprise de la boucle.
+            // Les deux bornes décalées du MÊME epsilon (voir LOOP_START_EPSILON) : la boucle garde
+            // exactement sa durée réelle (sinon, décaler seulement loopStart l'aurait allongée de
+            // cet epsilon à chaque tour — mesuré : un tempo légèrement plus lent qu'annoncé).
             Tone.Transport.loop = true;
-            Tone.Transport.loopStart = start;
-            Tone.Transport.loopEnd = start + duration;
+            Tone.Transport.loopStart = start - LOOP_START_EPSILON;
+            Tone.Transport.loopEnd = start + duration - LOOP_START_EPSILON;
         } else {
             Tone.Transport.loop = false;
             Tone.Transport.schedule((t) => {
@@ -2919,9 +2931,12 @@ class HarmoHubApp {
             // Le décompte, lui, ne fait bien partie que du tout premier tour (programmé avant
             // loopStartTime) — comportement plus juste musicalement que l'ancien, qui le répétait
             // à chaque boucle.
+            // Les deux bornes décalées du MÊME epsilon (voir LOOP_START_EPSILON, et son usage identique
+            // dans playCurrent) : la boucle garde exactement sa durée réelle — le premier accord, lui,
+            // reste programmé pile à loopStartTime, inchangé, seul le point de boucle bouge.
             Tone.Transport.loop = true;
-            Tone.Transport.loopStart = loopStartTime;
-            Tone.Transport.loopEnd = timeOffset;
+            Tone.Transport.loopStart = loopStartTime - LOOP_START_EPSILON;
+            Tone.Transport.loopEnd = timeOffset - LOOP_START_EPSILON;
         } else {
             Tone.Transport.loop = false;
             Tone.Transport.schedule((t) => {
