@@ -361,13 +361,16 @@ body.body-scroll-locked { overflow: hidden !important; }
 }
 .grid-zoom-pinned-body .arp-seq { margin-top: 0; padding-top: 0; border-top: none; }
 /* Cases un cran plus grandes qu'en taille normale, comme dans la fenêtre agrandie du séquenceur :
-   cet emplacement sert justement à modifier vite, autant profiter de cases faciles à viser. */
-.grid-zoom-pinned-body .seq-cell { height: 40px; }
+   cet emplacement sert justement à modifier vite, autant profiter de cases faciles à viser. Mise à
+   l'échelle par --seq-zoom-scale-v (voir pinSequencerHost/applyZoomLevel) comme .seq-zoomed .seq-cell
+   ci-dessus — 1 par défaut, donc identique à avant tant qu'on n'a pas touché aux boutons de zoom
+   dédiés du séquenceur épinglé (zoom-axis-group « -pinned », voir renderSequencer). */
+.grid-zoom-pinned-body .seq-cell { height: calc(40px * var(--seq-zoom-scale-v, 1)); }
 /* Axe en demi-tons continu sur toute la section (voir renderSequencer, gridZoomOpen) : nettement
    plus de lignes qu'une simple voix d'accord (souvent 2-3 octaves), donc plus basses pour tenir sans
    scroll vertical démesuré (retour utilisateur : réduire la hauteur des barres). Sélecteur à 3
    classes pour l'emporter sur la règle ci-dessus (spécificité 0,2,0). */
-.grid-zoom-pinned-body .seq-grid-continuous .seq-cell { height: 16px; }
+.grid-zoom-pinned-body .seq-grid-continuous .seq-cell { height: calc(16px * var(--seq-zoom-scale-v, 1)); }
 .seq-grid-continuous .seq-label,
 .seq-grid-continuous .seq-label-input { font-size: var(--fs-2xs); }
 

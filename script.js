@@ -7743,6 +7743,7 @@ class HarmoHubApp {
         document.getElementById('grid-zoom-pinned-seq').hidden = true;
         const seqHost = document.getElementById('arp-sequencer');
         if (document.getElementById('grid-zoom-pinned-body').contains(seqHost)) {
+            seqHost.classList.remove('seq-zoomed'); // voir pinSequencerHost : ne s'applique qu'épinglé
             document.getElementById('arpPattern').insertAdjacentElement('afterend', seqHost);
         }
         this.loadProgression(); // revient à la largeur de ligne/aux boutons de la taille normale
@@ -7776,6 +7777,13 @@ class HarmoHubApp {
         const body = document.getElementById('grid-zoom-pinned-body');
         const host = document.getElementById('arp-sequencer');
         if (!body.contains(host)) body.appendChild(host);
+        // .seq-zoomed pilote la taille des cases/libellés (voir style.css, même classe qu'openSeqZoom)
+        // — sans elle, les boutons de zoom vertical du séquenceur épinglé (voir renderSequencer,
+        // continuous) n'auraient aucun effet visible. --seq-zoom-scale-v posée directement sur CE nouvel
+        // hôte (jamais déplacé lui-même, contrairement à #arp-sequencer) plutôt que via applyZoomLevel
+        // (qui redéclencherait aussi un rendu ici, déjà fait juste après par l'appelant).
+        host.classList.add('seq-zoomed');
+        body.style.setProperty('--seq-zoom-scale-v', String(this.seqZoomLevelY));
     }
 
     // Reflète l'état courant (accord en édition ou non) dans l'en-tête/le corps du séquenceur
@@ -7903,6 +7911,12 @@ class HarmoHubApp {
         if (kind === 'seq') {
             const host = document.getElementById('seq-zoom-host');
             if (host) host.style.setProperty('--seq-zoom-scale-v', String(this.seqZoomLevelY));
+            // #grid-zoom-pinned-body : autre hôte possible de #arp-sequencer (séquenceur épinglé de la
+            // loupe grille, voir pinSequencerHost) — même réglage partagé (seqZoomLevelY), posé ici
+            // aussi puisque les boutons dédiés de CE panneau (zoom-axis-group « -pinned », voir
+            // renderSequencer) appellent ce même adjustZoom('seq', ...)/applyZoomLevel('seq').
+            const pinnedHost = document.getElementById('grid-zoom-pinned-body');
+            if (pinnedHost) pinnedHost.style.setProperty('--seq-zoom-scale-v', String(this.seqZoomLevelY));
             if (this.seqOpen) this.renderSequencer();
         } else if (kind === 'classicGrid') {
             // .history-section : hôte STABLE de #progression-sections en mode classique (jamais
@@ -8045,11 +8059,12 @@ class HarmoHubApp {
         const stepsPerBar = beatsPerBar * SEQ_STEPS_PER_BEAT;
         const seqZoomed = this.seqZoomOpen || this.gridZoomOpen;
         // Version compacte (hors loupe séquenceur ET hors vue continue de la loupe grille, voir
-        // plus haut) : seule celle-ci a droit au nouveau réglage d'échelle horizontale dédié
-        // (adjustSeqInlineZoom/showInlineSeqZoom plus bas) — la loupe séquenceur garde le sien
-        // (seqZoomLevelX), la vue continue ne pagine de toute façon jamais (branche ci-dessous).
+        // plus haut) : seule celle-ci a droit au réglage d'échelle horizontale dédié
+        // (adjustSeqInlineZoom/showInlineSeqZoom plus bas) — la loupe séquenceur ET la vue continue
+        // (séquenceur épinglé de la loupe grille) partagent le même réglage (seqZoomLevelX, voir
+        // seqZoomed plus haut) : deux hôtes différents pour la même « vue agrandie » du séquenceur.
         const showInlineSeqZoom = !this.seqZoomOpen && !continuous;
-        const seqHZoom = this.seqZoomOpen ? this.seqZoomLevelX : (showInlineSeqZoom ? this.seqInlineZoomLevelX : 1);
+        const seqHZoom = seqZoomed ? this.seqZoomLevelX : (showInlineSeqZoom ? this.seqInlineZoomLevelX : 1);
         let pageStart, pageEnd, pageSteps, totalPages;
         if (continuous) {
             // Vue continue (voir plus haut) : plus de pagination par mesure — tout l'accord édité
@@ -8087,8 +8102,13 @@ class HarmoHubApp {
         const scrollCls = continuous ? ' seq-scroll-continuous' : '';
         const colOffset = continuous ? prevSteps : 0;
         const totalCols = continuous ? (prevSteps + pageSteps + nextSteps) : pageSteps;
+        // Largeur de case FIXE (voir commentaire plus haut) mise à l'échelle par seqHZoom : sans quoi
+        // les boutons de zoom horizontal (zoom-axis-group, voir plus bas) resteraient sans le moindre
+        // effet visible en vue continue — seul mode où ce réglage joue sur une largeur de case en
+        // pixels plutôt que sur le nombre de mesures par page.
+        const continuousColPx = 14 * seqHZoom;
         const colTemplate = continuous
-            ? `max-content repeat(${totalCols}, 14px)`
+            ? `max-content repeat(${totalCols}, ${continuousColPx}px)`
             : `max-content repeat(${pageSteps}, 1fr)`;
         let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" style="grid-template-columns: ${colTemplate};">`;
 
@@ -8287,6 +8307,23 @@ class HarmoHubApp {
                 <button type="button" id="seq-zoom-out-h-inline" class="icon-btn zoom-axis-btn" title="Réduire l'échelle horizontale" aria-label="Réduire l'échelle horizontale">${svgIcon('minus')}</button>
                 <button type="button" id="seq-zoom-in-h-inline" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">${svgIcon('plus')}</button>
             </div>` : ''}
+            ${continuous ? `
+            <!-- Séquenceur ÉPINGLÉ de la loupe grille (vue continue) : aucun bouton de zoom n'y était
+                 jusque-là accessible — ceux de la loupe séquenceur autonome (#seq-zoom-in-h etc., voir
+                 index.html) vivent dans un tout autre hôte (#seq-zoom-host), jamais atteint quand
+                 #arp-sequencer est épinglé dans #grid-zoom-pinned-body à la place (retour utilisateur).
+                 Même réglage partagé que cette loupe autonome (seqZoomLevelX/Y, voir seqZoomed plus
+                 haut) : les deux ne sont que deux hôtes différents pour la même « vue agrandie ». -->
+            <div class="zoom-axis-group" title="Échelle horizontale">
+                <span class="zoom-axis-tag">H</span>
+                <button type="button" id="seq-zoom-out-h-pinned" class="icon-btn zoom-axis-btn" title="Réduire l'échelle horizontale" aria-label="Réduire l'échelle horizontale">${svgIcon('minus')}</button>
+                <button type="button" id="seq-zoom-in-h-pinned" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">${svgIcon('plus')}</button>
+            </div>
+            <div class="zoom-axis-group" title="Échelle verticale">
+                <span class="zoom-axis-tag">V</span>
+                <button type="button" id="seq-zoom-out-v-pinned" class="icon-btn zoom-axis-btn" title="Réduire l'échelle verticale" aria-label="Réduire l'échelle verticale">${svgIcon('minus')}</button>
+                <button type="button" id="seq-zoom-in-v-pinned" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle verticale" aria-label="Agrandir l'échelle verticale">${svgIcon('plus')}</button>
+            </div>` : ''}
             <button type="button" data-preset="clear" class="seq-delete-btn">${svgIcon('trash')} tout</button>
             ${hasSelection ? `
             <div class="seq-selection-actions" title="Agit sur toute la sélection${countSuffix} à la fois">
@@ -8311,7 +8348,7 @@ class HarmoHubApp {
         if (continuous) {
             requestAnimationFrame(() => {
                 const scrollEl = host.querySelector('.seq-scroll');
-                if (scrollEl) scrollEl.scrollLeft = prevScrollLeft != null ? prevScrollLeft : colOffset * 14;
+                if (scrollEl) scrollEl.scrollLeft = prevScrollLeft != null ? prevScrollLeft : colOffset * continuousColPx;
             });
         }
 
@@ -8403,6 +8440,16 @@ class HarmoHubApp {
         if (seqZoomOutHInline) seqZoomOutHInline.onclick = () => this.adjustSeqInlineZoom(-ZOOM_LEVEL_STEP);
         const seqZoomInHInline = document.getElementById('seq-zoom-in-h-inline');
         if (seqZoomInHInline) seqZoomInHInline.onclick = () => this.adjustSeqInlineZoom(ZOOM_LEVEL_STEP);
+        // Séquenceur épinglé de la loupe grille (vue continue) : mêmes seqZoomLevelX/Y que la loupe
+        // séquenceur autonome (voir le commentaire au-dessus de ces boutons, plus haut dans ce rendu).
+        const seqZoomOutHPinned = document.getElementById('seq-zoom-out-h-pinned');
+        if (seqZoomOutHPinned) seqZoomOutHPinned.onclick = () => this.adjustZoom('seq', 'x', -ZOOM_LEVEL_STEP);
+        const seqZoomInHPinned = document.getElementById('seq-zoom-in-h-pinned');
+        if (seqZoomInHPinned) seqZoomInHPinned.onclick = () => this.adjustZoom('seq', 'x', ZOOM_LEVEL_STEP);
+        const seqZoomOutVPinned = document.getElementById('seq-zoom-out-v-pinned');
+        if (seqZoomOutVPinned) seqZoomOutVPinned.onclick = () => this.adjustZoom('seq', 'y', -ZOOM_LEVEL_STEP);
+        const seqZoomInVPinned = document.getElementById('seq-zoom-in-v-pinned');
+        if (seqZoomInVPinned) seqZoomInVPinned.onclick = () => this.adjustZoom('seq', 'y', ZOOM_LEVEL_STEP);
 
         // Navigation par page : saut direct d'une mesure (ou groupe de mesures) à l'autre, jamais de
         // scroll continu (voir le commentaire plus haut sur le conflit avec l'étirement tactile).
