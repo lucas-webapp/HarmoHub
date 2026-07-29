@@ -1689,6 +1689,9 @@ class HarmoHubApp {
         this._lastTap = null;      // pour le double-tap (suppression mobile)
         this.tapTimes = [];        // horodatages du tap tempo (voir handleTapTempo)
         this.isPlaying = false;    // une lecture (accord/progression) est-elle en cours ?
+        this._playGen = 0;        // jeton incrémenté à chaque stopAll() (voir playCurrent/playProgression/
+                                   // playSavedChord) pour qu'un appel resté en attente du chargement d'un
+                                   // instrument abandonne au lieu de redémarrer le transport après un Stop
         this.seqOpen = false;      // panneau séquenceur ouvert ou non (indépendant du style de lecture)
         this.seqZoomOpen = false;  // fenêtre agrandie du séquenceur ouverte ou non (voir openSeqZoom)
         this.gridZoomOpen = false; // fenêtre agrandie de la grille d'accords ouverte ou non (voir openGridZoom)
@@ -2522,6 +2525,7 @@ class HarmoHubApp {
     }
 
     stopAll() {
+        this._playGen++;
         Tone.Transport.stop();
         Tone.Transport.cancel();
         Tone.Transport.loop = false;
@@ -2637,6 +2641,7 @@ class HarmoHubApp {
     async playCurrent() {
         await Tone.start();
         this.stopAll();
+        const myGen = this._playGen;
 
         const chord = this.readChord();
         const notes = chord.getSeqNotes();
@@ -2655,6 +2660,10 @@ class HarmoHubApp {
         // notes le temps du chargement (voir schedulePlayback, qui les ignore désormais proprement,
         // mais autant vraiment les jouer plutôt que de les sauter en silence).
         await waitForAudioReady();
+        // Si un stopAll() (Stop, ou une autre lecture démarrée entre-temps) est survenu pendant cette
+        // attente, ce jeton a changé : abandonner plutôt que redémarrer le transport après coup (voir
+        // stopAll et le commentaire sur this._playGen dans le constructeur).
+        if (myGen !== this._playGen) return;
 
         // Bouton « Boucle » du séquenceur : au lieu de s'arrêter, rejoue aussitôt depuis le début —
         // pratique pour tester un rythme en continu sans avoir à rappuyer sur Lecture. Stop (qui
@@ -2681,6 +2690,7 @@ class HarmoHubApp {
     async playProgression() {
         await Tone.start();
         this.stopAll();
+        const myGen = this._playGen;
 
         const sections = loadProgressionSections();
         // Plage à boucler (glisser sur les numéros de mesure, voir setLoopRange) : prioritaire sur le
@@ -2845,6 +2855,8 @@ class HarmoHubApp {
         // qu'à attendre leur chargement. Sans ça, une note jouée trop tôt échouait silencieusement
         // (voir schedulePlayback, qui l'ignore désormais proprement), mais autant vraiment l'entendre.
         await waitForAudioReady();
+        // Voir playCurrent : abandonne si un stopAll() est survenu pendant cette attente.
+        if (myGen !== this._playGen) return;
 
         Tone.Transport.start();
     }
@@ -5898,6 +5910,10 @@ class HarmoHubApp {
         // La grille est déjà dans l'ordre final ; on répercute le déplacement sur sélection/édition
         this.selectedIndex = this._shiftIndex(this.selectedIndex, d.origIndex, d.index);
         this.editingIndex = this._shiftIndex(this.editingIndex, d.origIndex, d.index);
+        // Idem pour la sélection multiple (Ctrl/Cmd+clic) : sans ça, les cases surlignées glissaient
+        // silencieusement sur d'autres accords après un réordonnancement, et Copier/Dupliquer
+        // agissaient alors sur les mauvaises cases.
+        this.multiSelect = new Set(Array.from(this.multiSelect, (i) => this._shiftIndex(i, d.origIndex, d.index)));
         this.loadProgression();
     }
 
@@ -5915,6 +5931,9 @@ class HarmoHubApp {
         history.splice(insertAt, 0, copy);
         saveProgressionSections(sections);
         if (this.editingIndex != null && this.editingIndex >= insertAt) this.editingIndex++;
+        // Même décalage pour la sélection multiple (voir onGridPointerUp) : sans ça elle continuait à
+        // pointer sur les anciens index, donc sur d'autres accords une fois l'insertion faite.
+        this.multiSelect = new Set(Array.from(this.multiSelect, (i) => (i >= insertAt ? i + 1 : i)));
         this.selectedIndex = insertAt; // sélectionne la copie, comme duplicateChord (menu contextuel)
         this.loadProgression();
     }
@@ -5967,6 +5986,10 @@ class HarmoHubApp {
             this.pushUndo(sections);
             data.root = parsed.root;
             data.quality = parsed.quality;
+            // Un doigté verrouillé (voir toggleGuitarLock) a été calculé pour l'ancien accord : le
+            // garder afficherait un doigté ne jouant plus les notes du nouveau (voir changeChordOctave
+            // pour le même principe appliqué à l'octave).
+            data.guitarLock = null;
             saveProgressionSections(sections);
             hasUnsavedChanges = true;
             // Si c'est l'accord actuellement en mode édition complète, resynchronise le panneau Accord
@@ -5994,6 +6017,8 @@ class HarmoHubApp {
         if (next === octaveFromData(data)) return;
         this.pushUndo(sections);
         data.octave = next;
+        // Voir changeChordOctave : un doigté verrouillé peut ne plus correspondre à la nouvelle octave.
+        data.guitarLock = null;
         saveProgressionSections(sections);
         hasUnsavedChanges = true;
         // Si c'est l'accord actuellement en édition, resynchronise le panneau Accord (dont le
@@ -7410,6 +7435,27 @@ class HarmoHubApp {
                 // masqué (même ordre qu'editChord, qui a le même piège avec la basse différente).
                 this.revealComplexQualityIfNeeded(matched);
                 qualitySelect.value = matched;
+
+                // La qualité gagne une voix (celle qu'on absorbe), qui vient toujours se placer en
+                // DERNIÈRE position du corps de l'accord (CHORD_INTERVALS n'ajoute jamais une extension
+                // qu'à la fin) : décale donc dans le motif déjà peint les voix des notes libres restées
+                // AVANT `i` (qui glissent chacune d'un cran), et fait pointer les cases qui visaient la
+                // note absorbée vers ce nouveau dernier index — sans ce remappage, le rythme peint
+                // continuait à référencer les mêmes numéros de voix qu'avant, qui ne désignaient plus
+                // les mêmes notes une fois le corps de l'accord agrandi (voir reevaluateExtraNoteUpgrades
+                // plus haut : la boucle recalcule tout, mais le motif lui-même doit suivre).
+                {
+                    const { pattern: livePattern, tie: liveTie } = parseSeqPattern(document.getElementById('arpPattern').value);
+                    const remapVoice = (v) => {
+                        if (v < extraStart || v > extraStart + i) return v;
+                        if (v === extraStart + i) return extraStart;
+                        return v + 1;
+                    };
+                    const remappedPattern = livePattern.map(voices => voices.map(remapVoice));
+                    const remappedTie = liveTie.map(tied => tied.map(remapVoice));
+                    this.setLiveSeqPattern(remappedPattern, remappedTie);
+                }
+
                 this.extraNotes.splice(i, 1);
                 const label = QUALITY_LABEL[matched] || '';
                 this.flashHint(`Accord complété : ${document.getElementById('root').value}${label}`);
@@ -7469,6 +7515,7 @@ class HarmoHubApp {
     async playSavedChord(section, index, play = true) {
         await Tone.start();
         this.stopAll();
+        const myGen = this._playGen;
 
         const sections = loadProgressionSections();
         const data = sections[section] && sections[section].chords[index];
@@ -7497,6 +7544,8 @@ class HarmoHubApp {
 
         // Attend que l'instrument soit prêt avant de démarrer le transport (voir playCurrent)
         await waitForAudioReady();
+        // Voir playCurrent : abandonne si un stopAll() est survenu pendant cette attente.
+        if (myGen !== this._playGen) return;
 
         // En fin de lecture, on GARDE l'accord affiché sur le clavier (au lieu de l'effacer)
         Tone.Transport.schedule((t) => {
@@ -7851,6 +7900,8 @@ class HarmoHubApp {
         saveProgressionSections(sections);
         this.activeSection = section;
         if (this.editingIndex != null && this.editingIndex > index) this.editingIndex++;
+        // Voir duplicateChordTo : même décalage pour la sélection multiple.
+        this.multiSelect = new Set(Array.from(this.multiSelect, (i) => (i > index ? i + 1 : i)));
         this.selectedIndex = index + 1; // sélectionne la copie
         this.loadProgression();
     }

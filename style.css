@@ -523,8 +523,6 @@ button, .icon-btn, .prog-section-del, .seq-presets button, .seq-delete-btn {
 .settings-select-row label { font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); }
 .settings-select-row select { flex: none; width: auto; min-width: 160px; padding: 8px 10px; font-size: var(--fs-sm); }
 
-.settings-slider-hint { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 16px; line-height: 1.5; }
-
 .settings-toggle-row {
     display: flex;
     align-items: center;
@@ -709,11 +707,6 @@ main {
     padding: 15px;
     margin-bottom: 15px;
     border: 1px solid var(--border);
-}
-
-.global-key-card {
-    border: 1px solid var(--accent);
-    background: #0f1c14;
 }
 
 .control-card h2 {
@@ -1156,15 +1149,6 @@ button:active { transform: translateY(1px); }
    diagonal doux (radial en haut à gauche) + ombre portée, plutôt qu'un texte/contour dans la couleur
    vive de --accent : la teinte se lit dans la matière du bouton, jamais dans un aplat criard sur fond
    quasi noir. Perd son ombre au clic pour un vrai retour d'appui (voir button:active plus haut). */
-.btn-main {
-    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.14), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
-    color: var(--btn-text);
-    border: 1px solid var(--btn-green-border);
-    box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 3px 8px rgba(0,0,0,0.35);
-}
-.btn-main:hover { background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.2), transparent 55%), linear-gradient(160deg, #2b5540, #1c3a26 70%); border-color: var(--btn-green-border-hover); }
-.btn-main:active { box-shadow: inset 0 1px 4px rgba(0,0,0,0.35); }
-
 .btn-prog {
     background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
     color: var(--btn-text);
@@ -1395,7 +1379,7 @@ button:active { transform: translateY(1px); }
 }
 /* Saisie rapide : ajoute un accord tapé (ex. "Cm7") directement en fin de partie, sans passer par
    les menus déroulants (voir parseChordSymbol/addQuickChord). C'est un <textarea> (pas un <input>) :
-   Entrée y saute juste une ligne (voir autoResizeQuickAdd/setupQuickAdd dans script.js) — plusieurs
+   Entrée y saute juste une ligne (voir autoResizeQuickAdd dans script.js) — plusieurs
    lignes remplissent plusieurs parties d'un coup, d'où align-items:flex-start ci-dessous : le bouton
    "+" doit rester ancré en haut, pas s'étirer sur toute la hauteur au fil des lignes tapées. */
 .quick-add-row {
@@ -1915,7 +1899,7 @@ button:active { transform: translateY(1px); }
 .loop-range-handle-right { margin: 0 -6px 0 -18px; width: calc(100% + 24px); }
 
 /* Le lavis doré des cases couvertes par la plage (.in-loop-range) est désormais composé directement
-   dans buildBeatZebra (script.js) : cette classe pose maintenant TOUJOURS un background-image en
+   dans buildMeasureZebra (script.js) : cette classe pose maintenant TOUJOURS un background-image en
    ligne (zébrure des temps faibles), qui écraserait sinon toute règle CSS sur la même propriété. */
 
 /* Style de jeu (Tenu/Lié/Détaché...) sous le symbole : UNIQUEMENT l'icône (voir styleMetaHtml, mêmes
