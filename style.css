@@ -270,12 +270,14 @@ body.body-scroll-locked { overflow: hidden !important; }
 /* Cases nettement plus grandes une fois dans la fenêtre agrandie — l'intérêt même de cet outil.
    Sélecteur à 2 classes (spécificité 0,2,0) : l'emporte sur .seq-cell seul, y compris la variante
    desktop plus bas (.seq-cell { height:30px } à 900px, spécificité 0,1,0), quel que soit l'ordre
-   dans la feuille. */
-.seq-zoomed .seq-cell { height: 52px; }
-.seq-zoomed .seq-label { font-size: var(--fs-md); padding-right: 8px; }
-.seq-zoomed .seq-beat-label { font-size: var(--fs-sm); }
-.seq-zoomed .seq-note-head { width: 6px; }
-.seq-zoomed .seq-grid { gap: 6px 0; }
+   dans la feuille. --seq-zoom-scale-v : échelle verticale réglable (voir adjustZoom/
+   applyZoomLevel), posée en JS sur #seq-zoom-host — vaut 1 par défaut (taille ci-dessous
+   inchangée) tant que l'utilisateur n'a pas zoomé plus/moins. */
+.seq-zoomed .seq-cell { height: calc(52px * var(--seq-zoom-scale-v, 1)); }
+.seq-zoomed .seq-label { font-size: calc(var(--fs-md) * var(--seq-zoom-scale-v, 1)); padding-right: 8px; }
+.seq-zoomed .seq-beat-label { font-size: calc(var(--fs-sm) * var(--seq-zoom-scale-v, 1)); }
+.seq-zoomed .seq-note-head { width: calc(6px * var(--seq-zoom-scale-v, 1)); }
+.seq-zoomed .seq-grid { gap: calc(6px * var(--seq-zoom-scale-v, 1)) 0; }
 
 /* Fenêtre agrandie de la grille d'accords (voir #grid-zoom-overlay/openGridZoom) : même habillage
    que .seq-zoom-modal (classe partagée dans le HTML), juste plus large (les parties peuvent avoir
@@ -430,6 +432,13 @@ body.body-scroll-locked { overflow: hidden !important; }
    grid-zoom-overlay) : un seul groupe pour que .settings-header garde son simple titre/actions
    de part et d'autre (justify-content: space-between), quel que soit le nombre de boutons. */
 .zoom-header-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+
+/* Groupe -/+ par axe (horizontal/vertical), voir seq-zoom-overlay/grid-zoom-overlay dans
+   index.html et adjustZoom/applyZoomLevel dans script.js : échelle horizontale (accords par
+   ligne/mesures par page) et verticale (hauteur des lignes) réglables indépendamment. */
+.zoom-axis-group { display: flex; align-items: center; gap: 2px; flex: none; }
+.zoom-axis-tag { font-size: var(--fs-2xs); color: var(--text-muted); width: 10px; text-align: center; }
+.zoom-axis-btn .icon { width: 14px; height: 14px; }
 
 /* Onglets Son/Affichage/Fichiers : un seul panneau visible à la fois (voir setSettingsTab dans
    script.js), pour ne plus faire défiler tout le reste (Fichiers, en particulier, peut être long)
@@ -1559,11 +1568,13 @@ button:active { transform: translateY(1px); }
     margin-top: 4px;
 }
 
-/* Grille d'accords façon lead sheet */
+/* Grille d'accords façon lead sheet. --grid-zoom-scale-v : échelle verticale de la loupe grille
+   (voir adjustZoom/applyZoomLevel dans script.js), posée en JS sur #grid-zoom-host ; vaut 1 (donc
+   sans effet) partout ailleurs, y compris la grille compacte hors loupe. */
 .chord-grid {
-    --row-h: 64px;
-    --measure-row-h: 20px;
-    --roman-row-h: 18px;
+    --row-h: calc(64px * var(--grid-zoom-scale-v, 1));
+    --measure-row-h: calc(20px * var(--grid-zoom-scale-v, 1));
+    --roman-row-h: calc(18px * var(--grid-zoom-scale-v, 1));
     display: grid;
     grid-template-columns: repeat(16, 1fr); /* par défaut (grille vide) ; posé dynamiquement en JS sinon,
                                                 selon la signature rythmique du morceau */
@@ -2337,7 +2348,7 @@ select.song-select-narrow {
 .lbl-short { display: none; }
 
 @media (max-width: 480px) {
-    .chord-grid { --row-h: 56px; }
+    .chord-grid { --row-h: calc(56px * var(--grid-zoom-scale-v, 1)); }
     .cell-sym { font-size: var(--fs-md); }
     .seq-cell { height: 30px; }
     .lbl-full { display: none; }
