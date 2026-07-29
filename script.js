@@ -1692,6 +1692,9 @@ class HarmoHubApp {
         this._playGen = 0;        // jeton incrémenté à chaque stopAll() (voir playCurrent/playProgression/
                                    // playSavedChord) pour qu'un appel resté en attente du chargement d'un
                                    // instrument abandonne au lieu de redémarrer le transport après un Stop
+        this._playMode = null;    // 'chord' (playCurrent) ou 'progression' (playProgression) tant que
+                                   // isPlaying est vrai — sert à livePreviewUpdate (voir plus bas) pour
+                                   // savoir QUOI relancer quand on modifie un réglage en cours de lecture
         this.seqOpen = false;      // panneau séquenceur ouvert ou non (indépendant du style de lecture)
         this.seqZoomOpen = false;  // fenêtre agrandie du séquenceur ouverte ou non (voir openSeqZoom)
         this.gridZoomOpen = false; // fenêtre agrandie de la grille d'accords ouverte ou non (voir openGridZoom)
@@ -1818,8 +1821,11 @@ class HarmoHubApp {
             // Fait entendre le nouveau son tout de suite, qu'on modifie un accord déjà posé OU qu'on
             // soit en train d'en composer un nouveau pas encore ajouté (retour utilisateur : changer de
             // son restait muet dans les deux cas, contrairement à root/qualité/etc. — voir refreshPreview,
-            // qui ne joue jamais de son lui-même, seulement le bouton Lecture dédié jusqu'ici).
-            this.playCurrent();
+            // qui ne joue jamais de son lui-même, seulement le bouton Lecture dédié jusqu'ici). Si une
+            // chanson entière est en cours (voir livePreviewUpdate), la relancer ELLE plutôt que de
+            // basculer sur l'audition d'un seul accord, qui volerait la lecture en cours.
+            if (this.isPlaying) this.livePreviewUpdate();
+            else this.playCurrent();
         };
         document.getElementById('apply-instrument-all').onclick = () => this.applyInstrumentToSong();
 
@@ -1950,6 +1956,7 @@ class HarmoHubApp {
                 this.clearSeqHistory(); // l'historique portait sur une autre forme d'accord
                 this.refreshPreview();
                 this.renderSequencer();
+                this.livePreviewUpdate(); // entendre le changement tout de suite si une lecture est en cours
             });
         });
 
@@ -1963,6 +1970,7 @@ class HarmoHubApp {
             this.setLiveSeqPattern(pattern, tie);
             this.renderSequencer();
             this.refreshPreview();
+            this.livePreviewUpdate();
         };
 
         document.getElementById('toggle-sequencer').onclick = () => this.toggleSequencer();
@@ -2534,7 +2542,18 @@ class HarmoHubApp {
         this.clearGuitarViz();
         this.highlightPlaying(null, null);
         this.isPlaying = false;
+        this._playMode = null;
         this.updateSeqPlayhead(null);
+    }
+
+    // Rejoue immédiatement ce qui est en cours (accord seul ou chanson entière, voir this._playMode)
+    // pour refléter un réglage tout juste changé (accord, style de jeu, séquenceur...) — sans ça, il
+    // fallait cliquer Stop puis Lecture pour entendre l'effet d'une modification en cours d'écoute.
+    // Ne fait rien si rien n'est en train de jouer (comportement inchangé en dehors de la lecture).
+    livePreviewUpdate() {
+        if (!this.isPlaying) return;
+        if (this._playMode === 'progression') this.playProgression();
+        else this.playCurrent();
     }
 
     // Instrument Tone.js pour cette banque, construit puis mis en cache au premier accord qui s'en
@@ -2642,6 +2661,7 @@ class HarmoHubApp {
         await Tone.start();
         this.stopAll();
         const myGen = this._playGen;
+        this._playMode = 'chord';
 
         const chord = this.readChord();
         const notes = chord.getSeqNotes();
@@ -2691,6 +2711,7 @@ class HarmoHubApp {
         await Tone.start();
         this.stopAll();
         const myGen = this._playGen;
+        this._playMode = 'progression';
 
         const sections = loadProgressionSections();
         // Plage à boucler (glisser sur les numéros de mesure, voir setLoopRange) : prioritaire sur le
@@ -5257,9 +5278,15 @@ class HarmoHubApp {
         return page1 + page2;
     }
 
-    // Bouton "📄" en bas à droite du piano : passe par l'impression du navigateur (choisir
-    // "Enregistrer en PDF" comme destination) — pas de dépendance externe à charger.
-    exportPdf() {
+    // Bouton "📄" en bas à droite du piano : génère directement un fichier .pdf téléchargeable (via
+    // jsPDF + html2canvas, vendus en local, voir index.html) plutôt que de passer par la boîte
+    // d'impression du navigateur ("Enregistrer en PDF" comme destination) — cette dernière dépend d'un
+    // pilote PDF système qui peut manquer ou être mal configuré (macOS sans imprimante virtuelle),
+    // pour un résultat qui devrait pourtant être aussi simple qu'un "Enregistrer sous". Le HTML/CSS de
+    // buildPrintExportHtml() reste la SEULE source de mise en page (une page = un <div class="print-page">) :
+    // chaque page est rastérisée telle quelle par html2canvas, puis posée dans le PDF par jsPDF, sans
+    // dupliquer la mise en page dans un second moteur de rendu.
+    async exportPdf() {
         // Le morceau doit être enregistré (avec un nom) pour pouvoir nommer le PDF en conséquence
         if (!getCurrentSongId()) {
             this.saveCurrentAsSong('Nomme d\'abord ton morceau pour exporter le PDF');
@@ -5270,13 +5297,45 @@ class HarmoHubApp {
         if (!host) return;
         host.innerHTML = this.buildPrintExportHtml();
 
-        // Le titre du document sert de nom de fichier suggéré par la boîte de dialogue d'impression
-        const prevTitle = document.title;
-        document.title = `${this.getCurrentSongName()} - grille d'accords`;
-        const restoreTitle = () => { document.title = prevTitle; window.removeEventListener('afterprint', restoreTitle); };
-        window.addEventListener('afterprint', restoreTitle);
+        const btn = document.getElementById('export-pdf');
+        btn.disabled = true;
+        this.flashHint('Génération du PDF…', 60000);
 
-        window.print();
+        // .print-export est display:none par défaut (voir style.css), réservé jusqu'ici à l'impression
+        // navigateur (@media print) : html2canvas ne peut rastériser qu'un élément réellement mis en
+        // page, donc affiché hors écran ici plutôt que masqué. Largeur fixe ~ une page A4 à 96dpi.
+        const prevStyle = host.getAttribute('style') || '';
+        host.style.cssText = 'display:block; position:fixed; left:-10000px; top:0; width:794px; background:#fff;';
+
+        try {
+            const pages = host.querySelectorAll('.print-page');
+            if (!pages.length) { this.flashHint('Grille vide — rien à exporter'); return; }
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+            const pageW = pdf.internal.pageSize.getWidth();
+            const pageH = pdf.internal.pageSize.getHeight();
+            const margin = 10;
+            const maxW = pageW - margin * 2, maxH = pageH - margin * 2;
+
+            for (let i = 0; i < pages.length; i++) {
+                const canvas = await window.html2canvas(pages[i], { scale: 2, backgroundColor: '#ffffff' });
+                const ratio = canvas.width / canvas.height;
+                let imgW = maxW, imgH = imgW / ratio;
+                if (imgH > maxH) { imgH = maxH; imgW = imgH * ratio; } // page très longue (grille copieuse) : borne par la hauteur plutôt que la largeur
+                if (i > 0) pdf.addPage();
+                pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, imgW, imgH);
+            }
+
+            pdf.save(`${this.getCurrentSongName().replace(/[\\/:*?"<>|]+/g, '_')} - grille d'accords.pdf`);
+            this.flashHint('PDF téléchargé → dossier Téléchargements', 2400);
+        } catch (err) {
+            console.error(err);
+            this.flashHint('Échec de l’export PDF');
+        } finally {
+            host.setAttribute('style', prevStyle);
+            btn.disabled = false;
+        }
     }
 
     // ---------- Export MIDI (fichier .mid standard, une piste par instrument utilisé) ----------
@@ -6678,6 +6737,7 @@ class HarmoHubApp {
                 this.seqTouched = true;
                 this.seqSelections = [{ voice: d.voice, start: d.curStart, end: d.curEnd }];
                 this.renderSequencer();
+                this.livePreviewUpdate();
                 return;
             }
             // Sinon : simple tap sur le bord d'une note, sans glissé réel -> retombe sur le
@@ -6701,6 +6761,9 @@ class HarmoHubApp {
             else this.selectSeqNoteAt(d.voice, d.startStep);
         }
         this.renderSequencer();
+        // Une seule fois ici, à la fin du geste (voir applySeqCell, appelé en rafale pendant le
+        // glissé lui-même) : pas à chaque case peinte, qui redémarrerait le son en boucle pendant le drag.
+        this.livePreviewUpdate();
     }
 
     // Allume/éteint une case précise (et sa liaison à la précédente) et met à jour le motif stocké,
@@ -6776,6 +6839,7 @@ class HarmoHubApp {
         this.setLiveSeqPattern(pattern, tie);
         this.seqSelections = [];
         this.renderSequencer();
+        this.livePreviewUpdate();
     }
 
     // Étire (delta > 0) ou raccourcit (delta < 0) TOUTES les notes sélectionnées d'une croche, chacune
@@ -6816,6 +6880,7 @@ class HarmoHubApp {
         this.seqTouched = true;
         this.setLiveSeqPattern(pattern, tie);
         this.renderSequencer();
+        this.livePreviewUpdate();
     }
 
     // Décale TOUTES les notes sélectionnées d'une croche vers la gauche (delta<0) ou la droite
@@ -6862,6 +6927,7 @@ class HarmoHubApp {
         this.seqTouched = true;
         this.setLiveSeqPattern(pattern, tie);
         this.renderSequencer();
+        this.livePreviewUpdate();
     }
 
     // Bouton dédié dans le volet Lecture : ouvre/ferme le panneau, indépendamment du style choisi
@@ -7315,6 +7381,7 @@ class HarmoHubApp {
                 const { pattern: p, tie: t } = seqPreset(btn.dataset.preset, voices, steps);
                 this.setLiveSeqPattern(p, t);
                 this.renderSequencer();
+                this.livePreviewUpdate();
             };
         });
 
@@ -7387,6 +7454,7 @@ class HarmoHubApp {
             this.extraNotes.splice(extraIndex, 1);
             this.renderSequencer();
             this.refreshPreview();
+            this.livePreviewUpdate();
             return;
         }
         const parsed = parseNoteNameOctave(trimmed);
@@ -7399,6 +7467,7 @@ class HarmoHubApp {
         this.seqTouched = true;
         this.renderSequencer();
         this.refreshPreview();
+        this.livePreviewUpdate();
     }
 
     // Réévalue, à CHAQUE rendu du séquenceur (peindre/étirer/effacer une case, pas seulement taper le
@@ -7705,6 +7774,7 @@ class HarmoHubApp {
         this.renderSequencer();
         this.updateGlobalUndoRedoButtons();
         this.flashHint('Annulé');
+        this.livePreviewUpdate();
     }
 
     seqRedo() {
@@ -7716,6 +7786,7 @@ class HarmoHubApp {
         this.renderSequencer();
         this.updateGlobalUndoRedoButtons();
         this.flashHint('Rétabli');
+        this.livePreviewUpdate();
     }
 
 

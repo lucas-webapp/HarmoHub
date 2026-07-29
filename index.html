@@ -649,6 +649,12 @@
          script.js) — vendu en local plutôt qu'hébergé sur un CDN. Projet LAME (lame.sourceforge.net),
          licence LGPL. -->
     <script src="lame.min.js"></script>
+    <!-- jsPDF + html2canvas, utilisés uniquement par l'export PDF (voir exportPdf dans script.js) pour
+         générer un vrai fichier .pdf téléchargeable sans dépendre de l'imprimante système ("Enregistrer
+         en PDF" de la boîte d'impression, absente/mal configurée sur certaines machines) — vendus en
+         local comme lame.min.js, tous deux sous licence MIT. -->
+    <script src="html2canvas.min.js"></script>
+    <script src="jspdf.umd.min.js"></script>
     <script src="script.js?v=202607252001"></script>
 </body>
 </html>
