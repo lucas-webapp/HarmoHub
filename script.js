@@ -1079,9 +1079,9 @@ class Chord {
         return map;
     }
 
-    // Suffixe renversement/drop seul (ex. "1er renv. · Drop 2", '' si voicing de base) : séparé de
-    // getLabel() pour que le PDF exporté puisse l'afficher à part, au-dessus du symbole plutôt que
-    // collé à lui (voir buildPrintExportHtml et le réglage Affichage > Renversements/drops PDF).
+    // Suffixe renversement/drop seul (ex. "1er renv. · Drop 2", '' si voicing de base) : version
+    // longue, utilisée par getLabel() (aperçu, séquenceur...) — voir getVoicingBadge pour la notation
+    // compacte du PDF exporté.
     getVoicingSuffix() {
         const parts = [];
         const inv = this.getEffectiveInversion();
@@ -1091,6 +1091,19 @@ class Chord {
         if (this.drop === 'drop2') parts.push('Drop 2');
         if (this.drop === 'drop3') parts.push('Drop 3');
         return parts.join(' · ');
+    }
+
+    // Notation compacte octave/renversement/drop pour le PDF exporté (voir buildPrintExportHtml,
+    // réglage Affichage > Position d'accord PDF) : "O{octave}" toujours présent (l'octave reste une
+    // information utile même en position de base), complété par "-R{n}"/"-D{n}" seulement si l'accord
+    // s'écarte de la position de base — ex. "O3", "O4-R1", "O3-R2-D2".
+    getVoicingBadge() {
+        const parts = [`O${this.octave}`];
+        const inv = this.getEffectiveInversion();
+        if (inv > 0) parts.push(`R${inv}`);
+        if (this.drop === 'drop2') parts.push('D2');
+        if (this.drop === 'drop3') parts.push('D3');
+        return parts.join('-');
     }
 
     // Symbole SANS renversement/drop, ex : "Cmaj7/Ré" — voir getVoicingSuffix pour cette partie à
@@ -1474,8 +1487,9 @@ const METRONOME_SUBDIVISION_KEY = 'harmohubMetronomeSubdivision';
 const SONG_CARD_COLLAPSED_KEY = 'harmohubSongCardCollapsed';
 const SHOW_ROMAN_KEY = 'harmohubShowRomanNumerals';
 const SHOW_STYLE_LABEL_KEY = 'harmohubShowStyleLabel';
+// Notation octave/renversement/drop au-dessus de chaque case (voir Chord.getVoicingBadge) — remplace
+// l'ancienne flèche de sens mélodique ▲/▼ (retour utilisateur), dont le réglage a été retiré.
 const SHOW_VOICING_PDF_KEY = 'harmohubShowVoicingPdf';
-const SHOW_DIRECTION_PDF_KEY = 'harmohubShowDirectionPdf';
 // Échelles horizontale/verticale INDÉPENDANTES des modes loupe (grille/séquenceur) : remplace
 // l'ancien niveau de zoom unique (une seule clé harmohubSeqZoomLevel/harmohubGridZoomLevel) — une
 // valeur toujours reprise comme repli pour les deux axes si trouvée (session précédente), pour ne
@@ -1726,11 +1740,10 @@ class HarmoHubApp {
         // activé par défaut comme le comportement historique.
         this.showStyleLabel = localStorage.getItem(SHOW_STYLE_LABEL_KEY) !== '0';
 
-        // PDF exporté uniquement (rien d'équivalent à l'écran) : renversement/drop en petit au-dessus
-        // de chaque accord (au lieu d'alourdir son symbole, voir Chord.getLabel), et sens mélodique
-        // (▲/▼) par rapport à l'accord précédent — deux réglages indépendants, activés par défaut.
+        // PDF exporté uniquement (rien d'équivalent à l'écran) : notation octave/renversement/drop en
+        // petit au-dessus de chaque accord (voir Chord.getVoicingBadge), au lieu d'alourdir son symbole
+        // (voir Chord.getLabel) — activé par défaut.
         this.showVoicingPdf = localStorage.getItem(SHOW_VOICING_PDF_KEY) !== '0';
-        this.showDirectionPdf = localStorage.getItem(SHOW_DIRECTION_PDF_KEY) !== '0';
 
         // Chaque accord choisit sa propre banque de son (voir data.instrument) : plusieurs
         // instruments Tone.js peuvent donc jouer simultanément. Construits à la demande et mis en
@@ -4687,21 +4700,14 @@ class HarmoHubApp {
             </div>
             <div class="settings-slider-sep"></div>
             <div class="settings-toggle-row">
-                <label for="toggle-show-voicing-pdf" title="Renversement/drop au-dessus de chaque accord, dans le PDF exporté">Renversements/drops (PDF)</label>
-                <button type="button" id="toggle-show-voicing-pdf" class="switch" role="switch" aria-checked="${this.showVoicingPdf}" aria-label="Renversement et drop dans le PDF exporté">
-                    <span class="switch-thumb"></span>
-                </button>
-            </div>
-            <div class="settings-toggle-row">
-                <label for="toggle-show-direction-pdf" title="Flèche indiquant si l'accord est plus aigu ou plus grave que le précédent, dans le PDF exporté">Sens mélodique (PDF)</label>
-                <button type="button" id="toggle-show-direction-pdf" class="switch" role="switch" aria-checked="${this.showDirectionPdf}" aria-label="Sens mélodique dans le PDF exporté">
+                <label for="toggle-show-voicing-pdf" title="Octave, renversement et drop (ex. O3-R1-D2) au-dessus de chaque accord, dans le PDF exporté">Position d'accord (PDF)</label>
+                <button type="button" id="toggle-show-voicing-pdf" class="switch" role="switch" aria-checked="${this.showVoicingPdf}" aria-label="Octave, renversement et drop dans le PDF exporté">
                     <span class="switch-thumb"></span>
                 </button>
             </div>`;
         document.getElementById('toggle-show-roman').onclick = () => this.setShowRomanNumerals(!this.showRomanNumerals);
         document.getElementById('toggle-show-style-label').onclick = () => this.setShowStyleLabel(!this.showStyleLabel);
         document.getElementById('toggle-show-voicing-pdf').onclick = () => this.setShowVoicingPdf(!this.showVoicingPdf);
-        document.getElementById('toggle-show-direction-pdf').onclick = () => this.setShowDirectionPdf(!this.showDirectionPdf);
     }
 
     setShowRomanNumerals(on) {
@@ -4724,13 +4730,6 @@ class HarmoHubApp {
         this.showVoicingPdf = on;
         localStorage.setItem(SHOW_VOICING_PDF_KEY, on ? '1' : '0');
         const btn = document.getElementById('toggle-show-voicing-pdf');
-        if (btn) btn.setAttribute('aria-checked', on);
-    }
-
-    setShowDirectionPdf(on) {
-        this.showDirectionPdf = on;
-        localStorage.setItem(SHOW_DIRECTION_PDF_KEY, on ? '1' : '0');
-        const btn = document.getElementById('toggle-show-direction-pdf');
         if (btn) btn.setAttribute('aria-checked', on);
     }
 
@@ -5497,10 +5496,6 @@ class HarmoHubApp {
         // simple retour à la ligne au gré de la largeur (comme c'était le cas avant).
         const beatsPerBar = this.beatsPerBar();
         const allChords = []; // à plat, dans l'ordre de lecture, pour la page 2
-        // Sens mélodique (▲/▼, voir showDirectionPdf) : compare chaque accord à celui qui le précède
-        // RÉELLEMENT à la lecture, tous morceaux/parties confondus — jamais réinitialisé par section,
-        // sinon le tout premier accord d'une partie perdrait sa comparaison avec la fin de la précédente.
-        let prevChord = null;
         sections.forEach((sec, si) => {
             const title = (sec.title && sec.title.trim()) ? sec.title : `Partie ${si + 1}`;
             const measuresSuffix = sec.chords.length > 0 ? ` <span class="print-section-measures">— ${sectionMeasureCount(sec, beatsPerBar)} mesures</span>` : '';
@@ -5518,27 +5513,28 @@ class HarmoHubApp {
                     const chordUseFlats = useFlatsForChordRoot(NOTES.indexOf(data.root), NOTES.indexOf(gRoot), gMode, useFlats);
                     const sym = chord.getBareLabel(chordUseFlats) + ((s.split && !s.isFirst) ? ' ↩' : '');
                     const roman = (s.isFirst && this.showRomanNumerals) ? this.getRomanNumeral(gRoot, gMode, data.root, data.quality) : '';
-                    const voicing = (s.isFirst && this.showVoicingPdf) ? chord.getVoicingSuffix() : '';
-                    const voicingEl = voicing ? `<span class="print-chord-voicing">${voicing}</span>` : '';
-                    let directionEl = '';
-                    if (s.isFirst && this.showDirectionPdf && prevChord) {
-                        const curLow = Math.min(...chord.getMidiNotes());
-                        const prevLow = Math.min(...prevChord.getMidiNotes());
-                        if (curLow > prevLow) directionEl = '<span class="print-chord-direction up">▲</span>';
-                        else if (curLow < prevLow) directionEl = '<span class="print-chord-direction down">▼</span>';
-                    }
-                    if (s.isFirst) prevChord = chord;
+                    // Notation compacte octave/renversement/drop (voir Chord.getVoicingBadge, réglage
+                    // Affichage > Position d'accord PDF) — au-dessus de la case comme le chiffrage
+                    // romain (retour utilisateur : préfère les deux regroupés là plutôt que le
+                    // renversement/drop dans la case, et l'ancienne flèche de sens mélodique ▲/▼
+                    // supprimée, remplacée par cette notation plus informative).
+                    const voicingBadge = (s.isFirst && this.showVoicingPdf) ? chord.getVoicingBadge() : '';
                     const measureEl = s.barStart ? `<span class="print-chord-measure">${s.barNumber}</span>` : '';
                     const romanEl = roman ? `<span class="print-chord-roman">${roman}</span>` : '';
-                    // Bandeau degré/sens mélodique AU-DESSUS de la case bordée (jamais dedans, voir
+                    const voicingEl = voicingBadge ? `<span class="print-chord-voicing-badge">${voicingBadge}</span>` : '';
+                    const aboveParts = [romanEl, voicingEl].filter(Boolean);
+                    const aboveHtml = aboveParts.join('<span class="print-chord-above-sep">·</span>');
+                    // Bandeau degré/voicing AU-DESSUS de la case bordée (jamais dedans, voir
                     // .print-chord-above) — toujours présent, même vide, pour que toutes les cases
-                    // d'une même ligne démarrent à la même hauteur.
+                    // d'une même ligne démarrent à la même hauteur. La case elle-même ne contient plus
+                    // que le numéro de mesure + le symbole : plus de 2e ligne optionnelle dedans, donc
+                    // plus plus de hauteurs incohérentes d'une case à l'autre sur la même ligne (retour
+                    // utilisateur).
                     page1 += `<div class="print-chord-wrap" style="flex-grow:${s.span};">
-                        <div class="print-chord-above">${directionEl}${romanEl}</div>
+                        <div class="print-chord-above">${aboveHtml}</div>
                         <div class="print-chord-cell">
                             ${measureEl}
                             <span class="print-chord-sym">${flatTight(escapeHtml(sym))}</span>
-                            ${voicingEl}
                         </div>
                     </div>`;
                     if (s.isFirst) allChords.push({ chord, sym });

@@ -2665,8 +2665,12 @@ select.song-select-narrow {
     flex-grow: 1;
     flex-basis: 60px;
 }
-/* Degré (chiffrage romain) + sens mélodique (▲/▼, réglages Affichage), toujours réservé (même vide)
-   pour que toutes les cases bordées d'une même ligne démarrent à la même hauteur. */
+/* Degré (chiffrage romain) + notation octave/renversement/drop (voir Chord.getVoicingBadge, réglage
+   Affichage > Position d'accord PDF), toujours réservé (même vide) pour que toutes les cases bordées
+   d'une même ligne démarrent à la même hauteur — une seule ligne, les deux séparés par un point médian
+   quand les deux sont présents (voir .print-chord-above-sep) plutôt qu'une 2e ligne, pour ne jamais
+   faire varier la hauteur DE LA CASE elle-même (voir .print-chord-cell, retour utilisateur : les
+   cases n'étaient pas toutes à la même hauteur avant que ce badge ne migre au-dessus). */
 .print-chord-above {
     display: flex;
     align-items: center;
@@ -2680,15 +2684,28 @@ select.song-select-narrow {
     color: #00913f;
     font-weight: 700;
 }
-.print-chord-direction {
+.print-chord-voicing-badge {
     font-size: var(--fs-2xs);
+    color: #5566aa;
     font-weight: 700;
+    letter-spacing: 0.2px;
 }
-.print-chord-direction.up { color: #1a7a3c; }
-.print-chord-direction.down { color: #b23b2e; }
+.print-chord-above-sep {
+    font-size: var(--fs-2xs);
+    color: #bbb;
+}
 
+/* Hauteur minimale explicite : la case ne contient plus qu'un numéro de mesure (absolu, hors flux) et
+   le symbole seul (voir plus haut, le renversement/drop est monté dans .print-chord-above) — sans ce
+   plancher, une case dont le symbole tient sur une seule ligne courte rendrait quand même TOUJOURS la
+   même hauteur que ses voisines de la même ligne (retour utilisateur), quelle que soit la largeur
+   attribuée à chacune (voir flex-grow sur .print-chord-wrap). */
 .print-chord-cell {
     position: relative;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     border: 1px solid #999;
     border-radius: 6px;
     padding: 6px 8px;
@@ -2697,25 +2714,16 @@ select.song-select-narrow {
 /* Numéro de mesure : coin haut-droit, une seule fois par mesure (pas à chaque accord) */
 .print-chord-measure {
     position: absolute;
-    top: 2px;
-    right: 5px;
+    top: 4px;
+    right: 6px;
     font-size: var(--fs-2xs);
     font-weight: 700;
-    color: #888;
+    color: #777;
 }
 .print-chord-sym {
     display: block;
     font-size: var(--fs-md);
     font-weight: 700;
-}
-/* Renversement/drop (voir Chord.getVoicingSuffix, réglage Affichage > Renversements/drops PDF) :
-   sous le symbole plutôt qu'accolé à lui, pour rester lisible même sur un accord déjà chargé
-   (basse différente, qualité enrichie...). */
-.print-chord-voicing {
-    display: block;
-    font-size: var(--fs-2xs);
-    color: #777;
-    margin-top: 2px;
 }
 
 .print-piano-grid {
