@@ -8001,32 +8001,42 @@ class HarmoHubApp {
         // accord de référence n'existe pour comparer, on retombe sur l'affichage normal ci-dessous.
         const continuous = this.gridZoomOpen && this.editingIndex != null;
         let prevMidiSet = new Set(), nextMidiSet = new Set();
-        // Accord voisin complet (pas seulement l'ensemble de ses hauteurs) : rythme/motif RÉELS affichés
-        // en lecture seule de part et d'autre de l'accord en édition (voir la boucle de rendu plus bas)
-        // — ce qui permet de faire défiler la section en continu plutôt que de deviner le voicing voisin.
-        let prevMidis = [], nextMidis = [], prevPattern = null, prevTie = null, nextPattern = null, nextTie = null;
+        // TOUS les accords de la partie active, avant/après celui en édition (pas seulement le plus
+        // proche, retour utilisateur : pouvoir défiler/cliquer directement n'importe quel accord de la
+        // grille, pas uniquement son voisin immédiat) — rythme/motif RÉELS de chacun, affichés en
+        // lecture seule de part et d'autre (voir la boucle de rendu plus bas), concaténés dans l'ordre
+        // chronologique de la grille. `colStart` : décalage cumulé (en cases) de CE segment au sein de
+        // son côté (prev ou next), posé une fois ici plutôt que recalculé à chaque ligne/case.
+        let prevSegs = [], nextSegs = [];
         let prevSteps = 0, nextSteps = 0;
         if (continuous) {
             const ctxSections = loadProgressionSections();
             const ctxSec = ctxSections[this.activeSection];
-            const prevData = ctxSec && ctxSec.chords[this.editingIndex - 1];
-            const nextData = ctxSec && ctxSec.chords[this.editingIndex + 1];
-            if (prevData) {
-                const pChord = new Chord(prevData.root, prevData.quality, beatsFromData(prevData), prevData.inversion, prevData.drop, octaveFromData(prevData), prevData.bass, null, prevData.extraNotes);
-                prevMidis = pChord.getSeqMidiNotes();
-                prevMidiSet = new Set(prevMidis);
-                const resolved = this.resolveSeqPatternForData(pChord, prevData);
-                prevPattern = resolved.pattern; prevTie = resolved.tie;
-                prevSteps = pChord.beats * SEQ_STEPS_PER_BEAT;
+            const history = (ctxSec && ctxSec.chords) || [];
+            const buildSeg = (data, index) => {
+                const c = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, null, data.extraNotes);
+                const segMidis = c.getSeqMidiNotes();
+                const resolved = this.resolveSeqPatternForData(c, data);
+                return { data, midis: segMidis, midiSet: new Set(segMidis), pattern: resolved.pattern, tie: resolved.tie, steps: c.beats * SEQ_STEPS_PER_BEAT, index };
+            };
+            let offset = 0;
+            for (let i = 0; i < this.editingIndex; i++) {
+                const seg = buildSeg(history[i], i);
+                seg.colStart = offset;
+                offset += seg.steps;
+                prevSegs.push(seg);
             }
-            if (nextData) {
-                const nChord = new Chord(nextData.root, nextData.quality, beatsFromData(nextData), nextData.inversion, nextData.drop, octaveFromData(nextData), nextData.bass, null, nextData.extraNotes);
-                nextMidis = nChord.getSeqMidiNotes();
-                nextMidiSet = new Set(nextMidis);
-                const resolved = this.resolveSeqPatternForData(nChord, nextData);
-                nextPattern = resolved.pattern; nextTie = resolved.tie;
-                nextSteps = nChord.beats * SEQ_STEPS_PER_BEAT;
+            prevSteps = offset;
+            offset = 0;
+            for (let i = this.editingIndex + 1; i < history.length; i++) {
+                const seg = buildSeg(history[i], i);
+                seg.colStart = offset;
+                offset += seg.steps;
+                nextSegs.push(seg);
             }
+            nextSteps = offset;
+            prevSegs.forEach(seg => seg.midiSet.forEach(m => prevMidiSet.add(m)));
+            nextSegs.forEach(seg => seg.midiSet.forEach(m => nextMidiSet.add(m)));
         }
 
         // Ordre d'AFFICHAGE des lignes (la plus aiguë en haut, comme un piano-roll), à ne jamais
@@ -8131,17 +8141,26 @@ class HarmoHubApp {
         const extraStart = chord.getIntervals().length;
         const extraEnd = extraStart + chord.extraNotes.length;
 
-        // Voix correspondant à CETTE hauteur (row.midi) chez l'accord précédent/suivant, si elle y
-        // existe — sert à peindre son propre rythme (lecture seule) dans les colonnes de contexte,
-        // sur la même ligne (même hauteur absolue) que l'accord en édition. -1 si absente.
-        const ctxCellOn = (pattern2, voice2, s) => voice2 >= 0 && pattern2 && pattern2[s].includes(voice2);
+        // Peint le rythme réel d'UN segment voisin (lecture seule) sur la ligne courante, à sa colonne
+        // (seg.colStart, voir plus haut) — appelé une fois par segment de chaque côté ci-dessous.
+        // Rien n'est rendu pour une croche silencieuse : seule la présence de ce petit repère signale
+        // que ça sonne, pas besoin d'un état "off" visuellement distinct ici.
+        const paintCtxSeg = (seg, row, colBase, rowIndex) => {
+            const segVoice = seg.midis.indexOf(row.midi);
+            if (segVoice < 0) return '';
+            let out = '';
+            for (let s = 0; s < seg.steps; s++) {
+                if (!seg.pattern[s].includes(segVoice)) continue;
+                const beatStart = (s % SEQ_STEPS_PER_BEAT === 0) ? ' beat-start' : '';
+                out += `<div class="seq-ctx-cell${beatStart}" style="grid-row:${rowIndex}; grid-column:${colBase + seg.colStart + s + 2};"></div>`;
+            }
+            return out;
+        };
 
         let rowIndex = 0;
         for (const row of rowOrder) {
             rowIndex++;
             const r = row.voice;
-            const prevVoice = continuous ? prevMidis.indexOf(row.midi) : -1;
-            const nextVoice = continuous ? nextMidis.indexOf(row.midi) : -1;
             // Repère discret (voir style.css .seq-label-echo-*) : cette hauteur est aussi jouée par
             // l'accord précédent/suivant — visible aussi bien sur une ligne de contexte que sur une
             // vraie voix de l'accord en édition, pour situer d'un coup d'œil ce qui reste commun.
@@ -8161,21 +8180,12 @@ class HarmoHubApp {
                 html += `<div class="seq-label${echoCls}" data-voice="${r}" title="Cliquer pour écouter cette note" style="grid-row:${rowIndex}; grid-column:1;">${noteNames[r]}</div>`;
             }
 
-            // Contexte GAUCHE (accord précédent) : rythme réel, lecture seule — jamais de .seq-cell
-            // (classe réservée aux cases éditables, voir onSeqPointerDown qui la cible spécifiquement).
-            // Rien n'est rendu pour une croche silencieuse : seule la présence de ce petit repère
-            // signale que ça sonne, pas besoin d'un état "off" visuellement distinct ici.
-            for (let s = 0; s < prevSteps; s++) {
-                if (!ctxCellOn(prevPattern, prevVoice, s)) continue;
-                const beatStart = (s % SEQ_STEPS_PER_BEAT === 0) ? ' beat-start' : '';
-                html += `<div class="seq-ctx-cell${beatStart}" style="grid-row:${rowIndex}; grid-column:${s + 2};"></div>`;
-            }
-            // Contexte DROIT (accord suivant) : même principe, décalé après l'accord édité.
-            for (let s = 0; s < nextSteps; s++) {
-                if (!ctxCellOn(nextPattern, nextVoice, s)) continue;
-                const beatStart = (s % SEQ_STEPS_PER_BEAT === 0) ? ' beat-start' : '';
-                html += `<div class="seq-ctx-cell${beatStart}" style="grid-row:${rowIndex}; grid-column:${colOffset + pageSteps + s + 2};"></div>`;
-            }
+            // Contexte GAUCHE (TOUS les accords avant celui édité, voir prevSegs plus haut) : rythme
+            // réel de chacun, lecture seule — jamais de .seq-cell (classe réservée aux cases éditables,
+            // voir onSeqPointerDown qui la cible spécifiquement).
+            for (const seg of prevSegs) html += paintCtxSeg(seg, row, 0, rowIndex);
+            // Contexte DROIT (TOUS les accords après) : même principe, décalé après l'accord édité.
+            for (const seg of nextSegs) html += paintCtxSeg(seg, row, colOffset + pageSteps, rowIndex);
 
             if (r < 0) continue; // ligne de contexte pure : rien d'éditable pour l'accord en cours ici
             for (let s = pageStart; s < pageEnd; s++) {
@@ -8264,16 +8274,21 @@ class HarmoHubApp {
 
         // Zones cliquables couvrant TOUT le contexte gauche/droite (accords voisins grisés, voir plus
         // haut) : cliquer n'importe où dedans (pas seulement pile sur une note grisée, souvent fine)
-        // bascule l'édition sur cet accord voisin (voir le câblage plus bas, qui rappelle
+        // bascule l'édition sur CET accord précis (voir le câblage plus bas, qui rappelle
         // editChordFromGridZoom) — le rectangle orangé de la grille suit alors automatiquement,
         // puisque c'est la même méthode que pour un clic direct dans la grille (retour utilisateur :
-        // pouvoir parcourir les accords sans quitter le séquenceur). Toute la hauteur des voix
-        // (comme .seq-playhead), jamais la ligne des temps en dessous.
-        if (continuous && prevSteps > 0) {
-            html += `<div class="seq-ctx-nav seq-ctx-nav-prev" data-target-index="${this.editingIndex - 1}" style="grid-row: 1 / span ${rowCount}; grid-column: 2 / span ${prevSteps};" title="Modifier l'accord précédent"></div>`;
-        }
-        if (continuous && nextSteps > 0) {
-            html += `<div class="seq-ctx-nav seq-ctx-nav-next" data-target-index="${this.editingIndex + 1}" style="grid-row: 1 / span ${rowCount}; grid-column: ${colOffset + pageSteps + 2} / span ${nextSteps};" title="Modifier l'accord suivant"></div>`;
+        // pouvoir défiler/cliquer directement N'IMPORTE QUEL accord de la grille sans quitter le
+        // séquenceur, pas seulement le voisin immédiat — une zone par accord, chacune ciblant son
+        // propre index plutôt qu'une seule grande zone qui ne menait qu'au plus proche). Toute la
+        // hauteur des voix (comme .seq-playhead), jamais la ligne des temps en dessous.
+        const ctxNavLabel = (seg) => `${noteNameForPc(NOTES.indexOf(seg.data.root), this.useFlatsForRoot(seg.data.root))}${QUALITY_LABEL[seg.data.quality] ?? ''}`;
+        if (continuous) {
+            prevSegs.forEach(seg => {
+                html += `<div class="seq-ctx-nav seq-ctx-nav-prev" data-target-index="${seg.index}" style="grid-row: 1 / span ${rowCount}; grid-column: ${seg.colStart + 2} / span ${seg.steps};" title="Modifier ${escapeHtml(ctxNavLabel(seg))}"></div>`;
+            });
+            nextSegs.forEach(seg => {
+                html += `<div class="seq-ctx-nav seq-ctx-nav-next" data-target-index="${seg.index}" style="grid-row: 1 / span ${rowCount}; grid-column: ${colOffset + pageSteps + seg.colStart + 2} / span ${seg.steps};" title="Modifier ${escapeHtml(ctxNavLabel(seg))}"></div>`;
+            });
         }
 
         html += `</div></div>`;
