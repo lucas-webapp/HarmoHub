@@ -5477,7 +5477,10 @@ class HarmoHubApp {
         return svg;
     }
 
-    // Construit le HTML des deux pages imprimées : page 1 = grille d'accords, page 2 = voicings piano
+    // Construit le contenu des DEUX blocs imprimés (grille d'accords, voicings piano/guitare) — SANS
+    // le conteneur <div class="print-page">, ajouté par l'appelant (voir exportPdf) une fois qu'il a
+    // mesuré si les deux tiennent ensemble sur une seule page ou doivent rester deux pages séparées
+    // (retour utilisateur : les regrouper sur une page quand la place le permet).
     buildPrintExportHtml() {
         const sections = loadProgressionSections();
         const gRoot = document.getElementById('global-root').value;
@@ -5487,26 +5490,28 @@ class HarmoHubApp {
         const timeSig = document.getElementById('time-sig').value;
         const songName = this.getCurrentSongName();
 
-        let page1 = `<div class="print-page">
-            <h1 class="print-title">${escapeHtml(songName)}</h1>
+        // Contenu de chaque page SANS le conteneur <div class="print-page"> lui-même (voir exportPdf,
+        // qui mesure chaque bloc séparément pour décider s'ils tiennent ensemble sur une seule page
+        // avant de les envelopper) — gridInner/voicingsInner, jamais page1/page2 directement.
+        let gridInner = `<h1 class="print-title">${escapeHtml(songName)}</h1>
             <div class="print-meta">Tonalité : ${noteNameForPc(NOTES.indexOf(gRoot), useFlats)} ${MODE_LABELS[gMode] || 'majeur'} · ${timeSig} · ${bpm} BPM</div>`;
 
         // Même découpage en lignes/mesures que la grille à l'écran (layoutProgression) : chaque ligne
         // imprimée correspond ainsi à un nombre entier de mesures, avec leur numéro, plutôt qu'un
         // simple retour à la ligne au gré de la largeur (comme c'était le cas avant).
         const beatsPerBar = this.beatsPerBar();
-        const allChords = []; // à plat, dans l'ordre de lecture, pour la page 2
+        const allChords = []; // à plat, dans l'ordre de lecture, pour les voicings
         sections.forEach((sec, si) => {
             const title = (sec.title && sec.title.trim()) ? sec.title : `Partie ${si + 1}`;
             const measuresSuffix = sec.chords.length > 0 ? ` <span class="print-section-measures">— ${sectionMeasureCount(sec, beatsPerBar)} mesures</span>` : '';
-            page1 += `<h2 class="print-section-title">${escapeHtml(title)}${measuresSuffix}</h2>`;
+            gridInner += `<h2 class="print-section-title">${escapeHtml(title)}${measuresSuffix}</h2>`;
             if (!sec.chords.length) {
-                page1 += `<div class="print-empty">—</div>`;
+                gridInner += `<div class="print-empty">—</div>`;
                 return;
             }
             const { cells, rows } = this.layoutProgression(sec.chords, beatsPerBar);
             for (let r = 0; r < rows; r++) {
-                page1 += `<div class="print-chord-row">`;
+                gridInner += `<div class="print-chord-row">`;
                 cells.filter(c => c.row === r).forEach(s => {
                     const data = sec.chords[s.index];
                     const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
@@ -5517,7 +5522,8 @@ class HarmoHubApp {
                     // Affichage > Position d'accord PDF) — au-dessus de la case comme le chiffrage
                     // romain (retour utilisateur : préfère les deux regroupés là plutôt que le
                     // renversement/drop dans la case, et l'ancienne flèche de sens mélodique ▲/▼
-                    // supprimée, remplacée par cette notation plus informative).
+                    // supprimée, remplacée par cette notation plus informative). Même notation
+                    // reprise sur la page voicings (voir plus bas), pour reconnaître le même accord.
                     const voicingBadge = (s.isFirst && this.showVoicingPdf) ? chord.getVoicingBadge() : '';
                     const measureEl = s.barStart ? `<span class="print-chord-measure">${s.barNumber}</span>` : '';
                     const romanEl = roman ? `<span class="print-chord-roman">${roman}</span>` : '';
@@ -5530,7 +5536,7 @@ class HarmoHubApp {
                     // que le numéro de mesure + le symbole : plus de 2e ligne optionnelle dedans, donc
                     // plus plus de hauteurs incohérentes d'une case à l'autre sur la même ligne (retour
                     // utilisateur).
-                    page1 += `<div class="print-chord-wrap" style="flex-grow:${s.span};">
+                    gridInner += `<div class="print-chord-wrap" style="flex-grow:${s.span};">
                         <div class="print-chord-above">${aboveHtml}</div>
                         <div class="print-chord-cell">
                             ${measureEl}
@@ -5539,12 +5545,11 @@ class HarmoHubApp {
                     </div>`;
                     if (s.isFirst) allChords.push({ chord, sym });
                 });
-                page1 += `</div>`;
+                gridInner += `</div>`;
             }
         });
-        page1 += `</div>`;
 
-        // Page 2 : un schéma par voicing DISTINCT seulement (même fondamentale/qualité/renversement/
+        // Voicings : un schéma par voicing DISTINCT seulement (même fondamentale/qualité/renversement/
         // drop/octave -> même disposition de touches), même si l'accord revient plusieurs fois dans
         // le morceau — inutile de répéter le même schéma de piano.
         const seenVoicings = new Set();
@@ -5555,11 +5560,13 @@ class HarmoHubApp {
             return true;
         });
 
-        // Piano et/ou guitare selon les bascules de la vue live (aucune page 2 si les deux sont masquées)
+        // Piano et/ou guitare selon les bascules de la vue live (aucun bloc voicings si les deux sont
+        // masquées, ou si la grille est vide) — voicingsInner vide, exportPdf n'en fait alors pas de
+        // page du tout (ni fusionnée, ni séparée).
         const showPiano = this.showPianoViz(), showGuitar = this.showGuitarViz();
-        let page2 = '';
-        if (showPiano || showGuitar) {
-            page2 = `<div class="print-page"><h1 class="print-title">Voicings</h1><div class="print-piano-grid">`;
+        let voicingsInner = '';
+        if ((showPiano || showGuitar) && uniqueChords.length) {
+            voicingsInner = `<h1 class="print-title">Voicings</h1><div class="print-piano-grid">`;
             uniqueChords.forEach(({ chord, sym }) => {
                 const diagrams = [];
                 if (showPiano) diagrams.push(this.buildPianoDiagramSVG(chord));
@@ -5569,15 +5576,20 @@ class HarmoHubApp {
                         ? this.buildGuitarDiagramSVG(fingerings[0], true)
                         : `<div class="print-guitar-unplayable">Non jouable<br>à la guitare</div>`);
                 }
-                page2 += `<div class="print-piano-item">
-                    <div class="print-piano-label">${escapeHtml(sym)}</div>
+                // Voicing (même notation compacte que la grille, voir plus haut) à côté du nom de
+                // l'accord (retour utilisateur : absent jusque-là de cette page, alors que la case
+                // n'a plus qu'un seul voicing par accord ici, pas plusieurs comme dans la grille).
+                const badge = this.showVoicingPdf ? chord.getVoicingBadge() : '';
+                const labelHtml = badge ? `${escapeHtml(sym)} <span class="print-piano-voicing-badge">${badge}</span>` : escapeHtml(sym);
+                voicingsInner += `<div class="print-piano-item">
+                    <div class="print-piano-label">${labelHtml}</div>
                     <div class="print-diagrams">${diagrams.join('')}</div>
                 </div>`;
             });
-            page2 += `</div></div>`;
+            voicingsInner += `</div>`;
         }
 
-        return page1 + page2;
+        return { gridInner, voicingsInner };
     }
 
     // Bouton "📄" en bas à droite du piano : génère directement un fichier .pdf téléchargeable (via
@@ -5585,8 +5597,9 @@ class HarmoHubApp {
     // d'impression du navigateur ("Enregistrer en PDF" comme destination) — cette dernière dépend d'un
     // pilote PDF système qui peut manquer ou être mal configuré (macOS sans imprimante virtuelle),
     // pour un résultat qui devrait pourtant être aussi simple qu'un "Enregistrer sous". Le HTML/CSS de
-    // buildPrintExportHtml() reste la SEULE source de mise en page (une page = un <div class="print-page">) :
-    // chaque page est rastérisée telle quelle par html2canvas, puis posée dans le PDF par jsPDF, sans
+    // buildPrintExportHtml() reste la SEULE source de mise en page (une page = un <div class="print-page">,
+    // posé ici une fois la fusion grille+voicings décidée, voir plus bas) : chaque page est rastérisée
+    // telle quelle par html2canvas, puis posée dans le PDF par jsPDF, sans
     // dupliquer la mise en page dans un second moteur de rendu.
     async exportPdf() {
         // Le morceau doit être enregistré (avec un nom) pour pouvoir nommer le PDF en conséquence
@@ -5597,7 +5610,7 @@ class HarmoHubApp {
 
         const host = document.getElementById('print-export');
         if (!host) return;
-        host.innerHTML = this.buildPrintExportHtml();
+        const { gridInner, voicingsInner } = this.buildPrintExportHtml();
 
         const btn = document.getElementById('export-pdf');
         btn.disabled = true;
@@ -5610,6 +5623,30 @@ class HarmoHubApp {
         host.style.cssText = 'display:block; position:fixed; left:-10000px; top:0; width:794px; background:#fff;';
 
         try {
+            // A4, mêmes marges que le placement final ci-dessous (voir pdf.addImage) : sert ICI à
+            // décider, AVANT de rastériser quoi que ce soit, si grille et voicings tiennent ensemble
+            // sur UNE SEULE page plutôt que sur deux (retour utilisateur) — mesure la hauteur RÉELLE de
+            // chaque bloc rendu à la largeur cible, comparée à la hauteur qu'occuperait une page
+            // pleine à cette même largeur (le même ratio maxW/maxH que le redimensionnement final).
+            const A4_W_MM = 210, A4_H_MM = 297, margin = 10;
+            const maxWmm = A4_W_MM - margin * 2, maxHmm = A4_H_MM - margin * 2;
+            const renderWidthPx = 794;
+            const onePageHeightPx = renderWidthPx * (maxHmm / maxWmm);
+
+            host.innerHTML = `<div class="print-page" id="__pdf_measure_grid">${gridInner}</div>`
+                + (voicingsInner ? `<div class="print-page" id="__pdf_measure_voicings">${voicingsInner}</div>` : '');
+            const gridHeight = document.getElementById('__pdf_measure_grid').getBoundingClientRect().height;
+            const voicingsHeight = voicingsInner ? document.getElementById('__pdf_measure_voicings').getBoundingClientRect().height : 0;
+            const fitsTogether = voicingsInner && (gridHeight + voicingsHeight) <= onePageHeightPx;
+
+            if (!voicingsInner) {
+                host.innerHTML = `<div class="print-page">${gridInner}</div>`;
+            } else if (fitsTogether) {
+                host.innerHTML = `<div class="print-page">${gridInner}${voicingsInner}</div>`;
+            } else {
+                host.innerHTML = `<div class="print-page">${gridInner}</div><div class="print-page">${voicingsInner}</div>`;
+            }
+
             const pages = host.querySelectorAll('.print-page');
             if (!pages.length) { this.flashHint('Grille vide — rien à exporter'); return; }
 
@@ -5617,7 +5654,6 @@ class HarmoHubApp {
             const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
             const pageW = pdf.internal.pageSize.getWidth();
             const pageH = pdf.internal.pageSize.getHeight();
-            const margin = 10;
             const maxW = pageW - margin * 2, maxH = pageH - margin * 2;
 
             for (let i = 0; i < pages.length; i++) {

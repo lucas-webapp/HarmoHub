@@ -2742,6 +2742,16 @@ select.song-select-narrow {
     font-weight: 700;
     margin-bottom: 6px;
 }
+/* Notation octave/renversement/drop (voir Chord.getVoicingBadge) à côté du nom de l'accord — absente
+   jusque-là de cette page (retour utilisateur), alors qu'un seul voicing y est montré par accord
+   (contrairement à la grille, qui peut répéter le même accord dans des positions différentes). Même
+   couleur/notation que le badge de la grille (.print-chord-voicing-badge), pour reconnaître le même
+   accord d'une page à l'autre. */
+.print-piano-voicing-badge {
+    font-size: var(--fs-2xs);
+    font-weight: 700;
+    color: #5566aa;
+}
 .print-piano-item svg { max-width: 100%; height: auto; }
 .print-diagrams {
     display: flex;
