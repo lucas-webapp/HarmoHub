@@ -4079,6 +4079,7 @@ class HarmoHubApp {
         if (this.loopRange) this.loopRange = null;
 
         this.loadProgression();
+        this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
     }
 
     // Duplique une partie entière (titre + tous ses accords), juste après elle — même esprit que
@@ -4098,6 +4099,7 @@ class HarmoHubApp {
         // (si elle existe) que de tenter de la remapper.
         if (this.loopRange) this.loopRange = null;
         this.loadProgression();
+        this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
     }
 
     // Échange une partie entière avec sa voisine immédiate (haut/bas selon delta = -1/+1) — l'ordre
@@ -4117,6 +4119,7 @@ class HarmoHubApp {
         // elle existe) que de tenter de la remapper après cet échange.
         if (this.loopRange) this.loopRange = null;
         this.loadProgression();
+        this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
     }
 
     // Transpose TOUT le morceau (toutes les parties) de `semitones` demi-tons, et décale la tonalité
@@ -6674,6 +6677,7 @@ class HarmoHubApp {
         if (d && d.mode === 'bar-tap' && !d.moved && this.sectionInLoopRange(d.anchor.section)) {
             this.loopRange = null;
             this.loadProgression();
+            this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
         }
     }
 
@@ -6689,6 +6693,7 @@ class HarmoHubApp {
             && r.endSection === hi.section && r.endIndex === hi.index) return;
         this.loopRange = { startSection: lo.section, startIndex: lo.index, endSection: hi.section, endIndex: hi.index };
         this.loadProgression();
+        this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
     }
 
     // Bande(s) façon barre de cycle (GarageBand) marquant la plage à boucler, sur la ligne des
@@ -8272,7 +8277,7 @@ class HarmoHubApp {
         const hasSelection = this.seqSelections.length > 0;
         const countSuffix = this.seqSelections.length > 1 ? ` (${this.seqSelections.length})` : '';
         html += `<div class="seq-presets">
-            <button type="button" id="seq-play" class="btn-prog seq-icon-btn" title="Lecture" aria-label="Lecture">${svgIcon('play')}</button>
+            <button type="button" id="seq-play" class="btn-prog seq-icon-btn${this.loopRange ? ' btn-loop-range' : ''}" title="${this.loopRange ? 'Lire la plage à boucler' : 'Lecture'}" aria-label="${this.loopRange ? 'Lire la plage à boucler' : 'Lecture'}">${svgIcon('play')}</button>
             <button type="button" id="seq-stop" class="btn-stop seq-icon-btn" title="Stop" aria-label="Stop">${svgIcon('stop')}</button>
             <button type="button" id="seq-loop-play" class="icon-btn seq-icon-btn${this.seqLoopPlay ? ' active' : ''}" title="Rejouer en boucle" aria-label="Rejouer en boucle">${svgIcon('loop')}</button>
             <button type="button" id="seq-add-note" class="icon-btn seq-icon-btn" title="Ajouter une note libre (ex. note de passage)" aria-label="Ajouter une note libre">${svgIcon('plus')}</button>
@@ -8377,7 +8382,11 @@ class HarmoHubApp {
         if (growBtn) growBtn.onclick = () => this.resizeSelectedSeqNote(1);
 
         const playBtn = document.getElementById('seq-play');
-        if (playBtn) playBtn.onclick = () => this.playCurrent();
+        // Une plage à boucler (bande orange/dorée, voir setLoopRange) déjà en place : lire TOUTE la
+        // plage (comme le bouton Grille, voir playProgression, qui la priorise déjà) plutôt que le seul
+        // accord en édition — cohérent avec le recolorage ci-dessus (voir updatePlayButtonsForLoopRange
+        // pour l'équivalent sur les boutons du pied de colonne/de l'en-tête loupe).
+        if (playBtn) playBtn.onclick = () => (this.loopRange ? this.playProgression() : this.playCurrent());
         const stopBtn = document.getElementById('seq-stop');
         if (stopBtn) stopBtn.onclick = () => this.stopAll();
         const loopBtn = document.getElementById('seq-loop-play');
