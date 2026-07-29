@@ -7142,6 +7142,19 @@ class HarmoHubApp {
         this.updateGlobalUndoRedoButtons(); // le bouton unique repointe vers l'historique du séquenceur
     }
 
+    // Verrouille/libère le défilement de la page derrière une fenêtre agrandie ouverte (voir
+    // .body-scroll-locked dans style.css) — compteur plutôt qu'un simple booléen : au cas, même rare,
+    // où la loupe grille et la loupe séquenceur se chevauchent, la première fermée ne doit pas
+    // déverrouiller le défilement tant que l'autre reste ouverte.
+    lockBodyScroll() {
+        this._bodyScrollLocks = (this._bodyScrollLocks || 0) + 1;
+        document.body.classList.add('body-scroll-locked');
+    }
+    unlockBodyScroll() {
+        this._bodyScrollLocks = Math.max(0, (this._bodyScrollLocks || 0) - 1);
+        if (this._bodyScrollLocks === 0) document.body.classList.remove('body-scroll-locked');
+    }
+
     // Déplace #arp-sequencer (jamais ne le duplique) dans la fenêtre agrandie : toutes ses
     // interactions (glisser, étirer, sélectionner...) restent celles du vrai séquenceur, attachées
     // une fois pour toutes dans setupSequencerInteractions — un simple changement de parent ne les
@@ -7153,6 +7166,7 @@ class HarmoHubApp {
         document.getElementById('seq-zoom-host').appendChild(host);
         host.classList.add('seq-zoomed');
         document.getElementById('seq-zoom-overlay').hidden = false;
+        this.lockBodyScroll();
         this.applyZoomLevel('seq');
         // Re-rendu immédiat : la pagination dépend de this.seqZoomOpen (plus de mesures par page une
         // fois agrandi, voir seqPageBars), sinon elle resterait celle de la vue compacte jusqu'au
@@ -7166,6 +7180,7 @@ class HarmoHubApp {
         if (!this.seqZoomOpen) return;
         this.seqZoomOpen = false;
         document.getElementById('seq-zoom-overlay').hidden = true;
+        this.unlockBodyScroll();
         const host = document.getElementById('arp-sequencer');
         host.classList.remove('seq-zoomed');
         document.getElementById('arpPattern').insertAdjacentElement('afterend', host);
@@ -7184,6 +7199,7 @@ class HarmoHubApp {
         dest.appendChild(grid);
         dest.appendChild(addBtn);
         document.getElementById('grid-zoom-overlay').hidden = false;
+        this.lockBodyScroll();
         this.applyZoomLevel('grid');
         // Reflète l'état actuel de la boucle (a pu être activée avant d'ouvrir la loupe, depuis le
         // vrai bouton du pied de colonne, voir le bouton dupliqué dans l'en-tête ci-dessus).
@@ -7210,6 +7226,7 @@ class HarmoHubApp {
         if (!this.gridZoomOpen) return;
         this.gridZoomOpen = false;
         document.getElementById('grid-zoom-overlay').hidden = true;
+        this.unlockBodyScroll();
         const grid = document.getElementById('progression-sections');
         const addBtn = document.getElementById('add-section');
         const anchor = document.querySelector('.quick-add-row');
@@ -7351,6 +7368,16 @@ class HarmoHubApp {
         if (!host) return;
         host.hidden = !this.seqOpen;
         if (!this.seqOpen) return;
+        // Position de défilement horizontal AVANT de reconstruire tout le HTML (voir plus bas, mode
+        // continu) : préservée d'un rendu à l'autre (peindre une note ne doit pas ramener la vue au
+        // début), sinon centrée sur l'accord édité par défaut (ni perdue dans le contexte gauche).
+        // Seulement si le rendu PRÉCÉDENT était LUI AUSSI en mode continu : sinon son scrollLeft (0,
+        // un rendu normal ne débordant jamais) n'a rien à voir avec la position à retrouver ici — voir
+        // le tout premier rendu continu d'un accord (ex. juste ouvert dans la loupe grille), qui
+        // partait par erreur de 0 au lieu du centrage par défaut sur l'accord édité.
+        const prevScrollEl = host.querySelector('.seq-scroll');
+        const wasPrevContinuous = !!(prevScrollEl && prevScrollEl.querySelector('.seq-grid-continuous'));
+        const prevScrollLeft = wasPrevContinuous ? prevScrollEl.scrollLeft : null;
         // Avant toute chose : une note libre jouée assez longtemps depuis le dernier rendu complète-
         // t-elle désormais l'accord (voir reevaluateExtraNoteUpgrades) ? Peut changer la qualité/le
         // nombre de voix, donc AVANT de (re)synchroniser le motif ci-dessous.
@@ -7371,6 +7398,11 @@ class HarmoHubApp {
         // accord de référence n'existe pour comparer, on retombe sur l'affichage normal ci-dessous.
         const continuous = this.gridZoomOpen && this.editingIndex != null;
         let prevMidiSet = new Set(), nextMidiSet = new Set();
+        // Accord voisin complet (pas seulement l'ensemble de ses hauteurs) : rythme/motif RÉELS affichés
+        // en lecture seule de part et d'autre de l'accord en édition (voir la boucle de rendu plus bas)
+        // — ce qui permet de faire défiler la section en continu plutôt que de deviner le voicing voisin.
+        let prevMidis = [], nextMidis = [], prevPattern = null, prevTie = null, nextPattern = null, nextTie = null;
+        let prevSteps = 0, nextSteps = 0;
         if (continuous) {
             const ctxSections = loadProgressionSections();
             const ctxSec = ctxSections[this.activeSection];
@@ -7378,11 +7410,19 @@ class HarmoHubApp {
             const nextData = ctxSec && ctxSec.chords[this.editingIndex + 1];
             if (prevData) {
                 const pChord = new Chord(prevData.root, prevData.quality, beatsFromData(prevData), prevData.inversion, prevData.drop, octaveFromData(prevData), prevData.bass, null, prevData.extraNotes);
-                prevMidiSet = new Set(pChord.getSeqMidiNotes());
+                prevMidis = pChord.getSeqMidiNotes();
+                prevMidiSet = new Set(prevMidis);
+                const resolved = this.resolveSeqPatternForData(pChord, prevData);
+                prevPattern = resolved.pattern; prevTie = resolved.tie;
+                prevSteps = pChord.beats * SEQ_STEPS_PER_BEAT;
             }
             if (nextData) {
                 const nChord = new Chord(nextData.root, nextData.quality, beatsFromData(nextData), nextData.inversion, nextData.drop, octaveFromData(nextData), nextData.bass, null, nextData.extraNotes);
-                nextMidiSet = new Set(nChord.getSeqMidiNotes());
+                nextMidis = nChord.getSeqMidiNotes();
+                nextMidiSet = new Set(nextMidis);
+                const resolved = this.resolveSeqPatternForData(nChord, nextData);
+                nextPattern = resolved.pattern; nextTie = resolved.tie;
+                nextSteps = nChord.beats * SEQ_STEPS_PER_BEAT;
             }
         }
 
@@ -7415,12 +7455,23 @@ class HarmoHubApp {
         const beatsPerBar = this.beatsPerBar();
         const stepsPerBar = beatsPerBar * SEQ_STEPS_PER_BEAT;
         const seqZoomed = this.seqZoomOpen || this.gridZoomOpen;
-        const stepsPerPage = seqPageBars(beatsPerBar, seqZoomed) * stepsPerBar;
-        const totalPages = Math.max(1, Math.ceil(steps / stepsPerPage));
-        this.seqPage = Math.min(Math.max(0, this.seqPage), totalPages - 1);
-        const pageStart = this.seqPage * stepsPerPage;
-        const pageEnd = Math.min(steps, pageStart + stepsPerPage);
-        const pageSteps = pageEnd - pageStart;
+        let pageStart, pageEnd, pageSteps, totalPages;
+        if (continuous) {
+            // Vue continue (voir plus haut) : plus de pagination par mesure — tout l'accord édité
+            // s'affiche d'un coup, encadré du rythme réel des accords voisins, et on fait défiler
+            // HORIZONTALEMENT plutôt que de sauter de page en page (retour utilisateur). Le conflit
+            // scroll/étirement qui justifiait la pagination (voir plus bas) ne se pose plus vraiment
+            // ici : seules les cases de l'accord édité restent éditables (voir plus bas, .seq-cell
+            // garde son touch-action dédié), le reste n'est que lecture seule.
+            pageStart = 0; pageEnd = steps; pageSteps = steps; totalPages = 1;
+        } else {
+            const stepsPerPage = seqPageBars(beatsPerBar, seqZoomed) * stepsPerBar;
+            totalPages = Math.max(1, Math.ceil(steps / stepsPerPage));
+            this.seqPage = Math.min(Math.max(0, this.seqPage), totalPages - 1);
+            pageStart = this.seqPage * stepsPerPage;
+            pageEnd = Math.min(steps, pageStart + stepsPerPage);
+            pageSteps = pageEnd - pageStart;
+        }
 
         // La colonne des noms de voix (max-content) se resserre à la largeur réelle du texte affiché
         // (ex. "C3", "F#3") au lieu d'une largeur fixe généreuse qui laissait un vide à gauche.
@@ -7433,8 +7484,18 @@ class HarmoHubApp {
         // tombe dans la page affichée (et à quelle colonne), sans dupliquer ce calcul côté lecture.
         // .seq-grid-continuous : lignes plus basses (voir style.css) pour laisser tenir les demi-tons
         // supplémentaires du contexte sans faire déborder la loupe grille (retour utilisateur).
+        // Colonnes à largeur FIXE (pas 1fr) dans ce mode : le contexte gauche/droite (accords voisins)
+        // s'ajoute à la largeur totale plutôt que de se répartir dans l'espace visible, d'où le
+        // défilement horizontal voulu (voir .seq-scroll-continuous ci-dessous et dans style.css) —
+        // seule la mesure éditée (au milieu) reste éditable, le contexte n'est que lecture seule.
         const continuousCls = continuous ? ' seq-grid-continuous' : '';
-        let html = `<div class="seq-scroll"><div class="seq-grid${continuousCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" style="grid-template-columns: max-content repeat(${pageSteps}, 1fr);">`;
+        const scrollCls = continuous ? ' seq-scroll-continuous' : '';
+        const colOffset = continuous ? prevSteps : 0;
+        const totalCols = continuous ? (prevSteps + pageSteps + nextSteps) : pageSteps;
+        const colTemplate = continuous
+            ? `max-content repeat(${totalCols}, 14px)`
+            : `max-content repeat(${pageSteps}, 1fr)`;
+        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" style="grid-template-columns: ${colTemplate};">`;
 
         // Cases de la grille : zones de clic/glisser (toujours présentes, sous les notes visuelles).
         // Placement explicite (grid-row/grid-column) sur TOUT le monde : les notes ci-dessous se
@@ -7455,22 +7516,28 @@ class HarmoHubApp {
         const extraStart = chord.getIntervals().length;
         const extraEnd = extraStart + chord.extraNotes.length;
 
+        // Voix correspondant à CETTE hauteur (row.midi) chez l'accord précédent/suivant, si elle y
+        // existe — sert à peindre son propre rythme (lecture seule) dans les colonnes de contexte,
+        // sur la même ligne (même hauteur absolue) que l'accord en édition. -1 si absente.
+        const ctxCellOn = (pattern2, voice2, s) => voice2 >= 0 && pattern2 && pattern2[s].includes(voice2);
+
         let rowIndex = 0;
         for (const row of rowOrder) {
             rowIndex++;
             const r = row.voice;
+            const prevVoice = continuous ? prevMidis.indexOf(row.midi) : -1;
+            const nextVoice = continuous ? nextMidis.indexOf(row.midi) : -1;
             // Repère discret (voir style.css .seq-label-echo-*) : cette hauteur est aussi jouée par
             // l'accord précédent/suivant — visible aussi bien sur une ligne de contexte que sur une
             // vraie voix de l'accord en édition, pour situer d'un coup d'œil ce qui reste commun.
             const echoCls = (prevMidiSet.has(row.midi) ? ' seq-label-echo-prev' : '') + (nextMidiSet.has(row.midi) ? ' seq-label-echo-next' : '');
             if (r < 0) {
                 // Ligne de CONTEXTE : une hauteur jouée par un accord voisin mais pas par celui-ci —
-                // juste le nom de la note, en lecture seule, aucune case ni note éditable dessous.
+                // juste le nom de la note, en lecture seule, aucune case ni note éditable dessous
+                // pour l'accord en édition — mais le rythme du voisin, lui, s'affiche toujours.
                 const ctxName = midiToDisplayName(row.midi, this.useFlatsForRoot(chord.root));
                 html += `<div class="seq-label seq-label-context${echoCls}" style="grid-row:${rowIndex}; grid-column:1;">${ctxName}</div>`;
-                continue;
-            }
-            if (r >= extraStart && r < extraEnd) {
+            } else if (r >= extraStart && r < extraEnd) {
                 const extraIdx = r - extraStart;
                 html += `<div class="seq-label seq-label-extra${echoCls}" style="grid-row:${rowIndex}; grid-column:1;">
                     <input type="text" class="seq-label-input" data-extra-index="${extraIdx}" data-voice="${r}" value="${escapeHtml(noteNames[r])}" title="Note libre : tape une hauteur (ex. E3), ou vide pour la supprimer" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -7478,8 +7545,26 @@ class HarmoHubApp {
             } else {
                 html += `<div class="seq-label${echoCls}" data-voice="${r}" title="Cliquer pour écouter cette note" style="grid-row:${rowIndex}; grid-column:1;">${noteNames[r]}</div>`;
             }
+
+            // Contexte GAUCHE (accord précédent) : rythme réel, lecture seule — jamais de .seq-cell
+            // (classe réservée aux cases éditables, voir onSeqPointerDown qui la cible spécifiquement).
+            // Rien n'est rendu pour une croche silencieuse : seule la présence de ce petit repère
+            // signale que ça sonne, pas besoin d'un état "off" visuellement distinct ici.
+            for (let s = 0; s < prevSteps; s++) {
+                if (!ctxCellOn(prevPattern, prevVoice, s)) continue;
+                const beatStart = (s % SEQ_STEPS_PER_BEAT === 0) ? ' beat-start' : '';
+                html += `<div class="seq-ctx-cell${beatStart}" style="grid-row:${rowIndex}; grid-column:${s + 2};"></div>`;
+            }
+            // Contexte DROIT (accord suivant) : même principe, décalé après l'accord édité.
+            for (let s = 0; s < nextSteps; s++) {
+                if (!ctxCellOn(nextPattern, nextVoice, s)) continue;
+                const beatStart = (s % SEQ_STEPS_PER_BEAT === 0) ? ' beat-start' : '';
+                html += `<div class="seq-ctx-cell${beatStart}" style="grid-row:${rowIndex}; grid-column:${colOffset + pageSteps + s + 2};"></div>`;
+            }
+
+            if (r < 0) continue; // ligne de contexte pure : rien d'éditable pour l'accord en cours ici
             for (let s = pageStart; s < pageEnd; s++) {
-                const col = s - pageStart;
+                const col = colOffset + (s - pageStart);
                 const beatStart = (s % SEQ_STEPS_PER_BEAT === 0) ? ' beat-start' : '';
                 const pairCls = (s % 2 === 0) ? ' seq-cell-a' : ' seq-cell-b';
                 // Croche au début ou à la fin d'une note : indice visuel discret (curseur) qu'un
@@ -7542,7 +7627,7 @@ class HarmoHubApp {
                 // croche isolée, rien à distinguer) dont le début est réellement visible sur cette page
                 // (une note coupée par la page — voir clip-start — n'attaque pas ici, juste continue).
                 const headEl = (shape === 'run' && !clipStart) ? '<span class="seq-note-head"></span>' : '';
-                notesHtml += `<div class="seq-note ${shape} role-${role}${sel}${clipCls}" data-voice="${r}" data-start="${runStart}" data-end="${trueRunEnd}" style="grid-row:${rowIndex}; grid-column:${runStart - pageStart + 2} / span ${runLen};${trimEnd}">${headEl}</div>`;
+                notesHtml += `<div class="seq-note ${shape} role-${role}${sel}${clipCls}" data-voice="${r}" data-start="${runStart}" data-end="${trueRunEnd}" style="grid-row:${rowIndex}; grid-column:${colOffset + runStart - pageStart + 2} / span ${runLen};${trimEnd}">${headEl}</div>`;
             }
         }
         html += notesHtml;
@@ -7554,7 +7639,7 @@ class HarmoHubApp {
         let beatLabelsHtml = '';
         for (let s = pageStart; s < pageEnd; s += SEQ_STEPS_PER_BEAT) {
             const beatNum = (Math.floor(s / SEQ_STEPS_PER_BEAT) % beatsPerBar) + 1;
-            beatLabelsHtml += `<div class="seq-beat-label" style="grid-row:${beatRow}; grid-column:${s - pageStart + 2};">${beatNum}</div>`;
+            beatLabelsHtml += `<div class="seq-beat-label" style="grid-row:${beatRow}; grid-column:${colOffset + s - pageStart + 2};">${beatNum}</div>`;
         }
         html += beatLabelsHtml;
 
@@ -7600,6 +7685,20 @@ class HarmoHubApp {
             </button>
         </div>`;
         host.innerHTML = html;
+
+        // Mode continu : place (ou garde) le défilement horizontal sur l'accord en édition, jamais
+        // perdu dans le contexte gauche par défaut — voir prevScrollLeft capturé plus haut, avant la
+        // reconstruction du HTML ci-dessus. Différé à la frame suivante : au tout premier rendu depuis
+        // la loupe grille (voir editChordFromGridZoom), le conteneur parent (#grid-zoom-pinned-body)
+        // est encore masqué à CET instant précis — il ne l'est plus qu'APRÈS ce rendu, via
+        // syncGridZoomPinnedSeq() appelé juste ensuite — et écrire scrollLeft sur un élément encore
+        // sans mise en page (ancêtre caché) était silencieusement ignoré (retombait à 0).
+        if (continuous) {
+            requestAnimationFrame(() => {
+                const scrollEl = host.querySelector('.seq-scroll');
+                if (scrollEl) scrollEl.scrollLeft = prevScrollLeft != null ? prevScrollLeft : colOffset * 14;
+            });
+        }
 
         // Étiquette éditable d'une note libre (voir addSequencerNote) : Entrée valide (déclenche le
         // blur ci-dessous), Échap annule sans valider — même schéma que les autres renommages en
@@ -7800,9 +7899,10 @@ class HarmoHubApp {
         if (!grid || !ph) return;
         if (step == null) { ph.style.display = 'none'; return; }
         const pageStart = +grid.dataset.pageStart, pageSteps = +grid.dataset.pageSteps;
+        const colOffset = +grid.dataset.colOffset || 0; // voir renderSequencer, mode continu (loupe grille)
         if (step < pageStart || step >= pageStart + pageSteps) { ph.style.display = 'none'; return; }
         ph.style.display = 'block';
-        ph.style.gridColumn = `${step - pageStart + 2} / span 1`;
+        ph.style.gridColumn = `${colOffset + step - pageStart + 2} / span 1`;
     }
 
     // Clic sur une case : sélectionne (surbrillance) + écoute l'accord, sauf si l'utilisateur a

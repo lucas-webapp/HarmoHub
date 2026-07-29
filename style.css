@@ -189,6 +189,14 @@ button, .icon-btn, .prog-section-del, .seq-presets button, .seq-delete-btn {
 .new-folder-inline { display: inline-flex; flex: 1; }
 .new-folder-inline .inline-rename-input { width: 100%; }
 
+/* Verrouille le défilement de la page derrière une fenêtre agrandie ouverte (loupe grille/séquenceur,
+   voir lockBodyScroll/unlockBodyScroll dans script.js) — sans lui, `body { overflow: hidden }` plus
+   bas ne s'applique qu'à partir de 900px de large (voir la disposition responsive en fin de fichier) :
+   sur un écran plus étroit, un défilement dans la fenêtre ouverte remontait à la page en arrière-plan
+   au lieu d'y rester confiné (retour utilisateur). !important : l'emporte à toute largeur d'écran.
+   Priorité absolue au-dessus de la répartition responsive, indépendante du viewport visé. */
+body.body-scroll-locked { overflow: hidden !important; }
+
 .settings-overlay {
     position: fixed;
     inset: 0;
@@ -366,6 +374,28 @@ button, .icon-btn, .prog-section-del, .seq-presets button, .seq-delete-btn {
 /* Ligne de contexte (accord voisin, hors édition) : nom de note seul, sans case ni glissé possible —
    nettement plus discret qu'une vraie voix de l'accord en cours d'édition. */
 .seq-label-context { color: var(--text-muted); opacity: 0.55; font-style: italic; cursor: default; }
+
+/* Mode continu (voir renderSequencer, gridZoomOpen) : le défilement horizontal devient le mode de
+   navigation normal pour voir les accords voisins (retour utilisateur), pas un dernier recours comme
+   pour .seq-scroll ci-dessous — .seq-cell (éditable, uniquement l'accord en édition) garde son
+   touch-action dédié, qui laisse toujours le JS gérer un glissé dessus sans le confondre avec ce
+   défilement natif. */
+.seq-scroll-continuous { touch-action: pan-x pan-y; }
+
+/* Case de CONTEXTE (rythme réel d'un accord voisin, lecture seule — voir renderSequencer, mode
+   continu) : jamais .seq-cell, qui déclencherait le glissé d'édition (voir onSeqPointerDown) — un
+   simple repère plein, plus fin que les cases éditables pour bien signaler "ce n'est pas modifiable ici".
+   Fond neutre plutôt que coloré par rôle : à cette échelle réduite, une vraie pastille par rôle serait
+   surtout illisible ; le rythme lui-même (quand ça sonne) reste la seule information utile ici. */
+.seq-ctx-cell {
+    height: 8px;
+    align-self: center;
+    background: var(--text-muted);
+    opacity: 0.3;
+    border-radius: 2px;
+    pointer-events: none;
+}
+.seq-ctx-cell.beat-start { opacity: 0.45; }
 
 .grid-zoom-pinned-seq.collapsed .grid-zoom-pinned-placeholder,
 .grid-zoom-pinned-seq.collapsed .grid-zoom-pinned-body { display: none; }
