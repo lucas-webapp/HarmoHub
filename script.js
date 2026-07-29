@@ -3515,7 +3515,7 @@ class HarmoHubApp {
         // qualité, elle, reste courante (ex. Cmaj/D) — sinon le réglage resterait invisible.
         if (d.bass) this.activateMoreOptions();
         document.getElementById('quality').value = d.quality;
-        document.getElementById('duration').value = String(beatsFromData(d));
+        this.setDurationField(beatsFromData(d));
         this.syncDurationPicker(); // reflète la nouvelle valeur sur le bouton/menu d'icônes (voir setupDurationPicker)
         this.revealAdvancedIfNeeded(d);
         document.getElementById('octave').value = String(octaveFromData(d));
@@ -5829,6 +5829,26 @@ class HarmoHubApp {
         document.getElementById('duration-dd-toggle').setAttribute('aria-expanded', 'false');
     }
 
+    // Écrit une durée arbitraire dans le <select id="duration"> (voir editChord/onResizeMove) : un
+    // <select> natif ignore silencieusement une valeur sans <option> correspondante (.value retombe à
+    // "", cassant readChord() et tout ce qui en dépend) — or un accord étiré à la souris peut prendre
+    // n'importe quelle durée entière, pas seulement les préréglages du menu (DURATION_OPTIONS). On
+    // réutilise une unique <option> « custom » plutôt que d'en empiler une par appel.
+    setDurationField(beats) {
+        const select = document.getElementById('duration');
+        const value = String(beats);
+        if (!Array.from(select.options).some(o => o.value === value)) {
+            let custom = select.querySelector('option[data-custom]');
+            if (!custom) {
+                custom = document.createElement('option');
+                custom.dataset.custom = '1';
+                select.appendChild(custom);
+            }
+            custom.value = value;
+        }
+        select.value = value;
+    }
+
     // Reflète la durée actuelle du <select> caché sur le bouton/menu d'icônes — à appeler chaque fois
     // que sa valeur change par un autre chemin que ce menu lui-même (voir editChord).
     syncDurationPicker() {
@@ -6031,6 +6051,14 @@ class HarmoHubApp {
             d.moved = true;
             this.pushUndo(loadProgressionSections()); // un seul snapshot pour tout le geste de glisser
             d.ghost = this.createDragGhost(d.cell, d.width, d.height, d.copy ? d.dragIndices.length : 1); // cloner tant que la case est attachée
+            // Instantané de sélection/édition d'AVANT tout glisser (déplacement, pas copie) : sert à
+            // recalculer this.editingIndex/selectedIndex/multiSelect à CHAQUE case survolée ci-dessous
+            // (pas seulement au dépôt final, voir onGridPointerUp) — TOUJOURS depuis ce même instantané
+            // fixe plutôt que depuis leur valeur déjà décalée d'un survol précédent, sinon le décalage
+            // s'accumulerait faux à chaque nouvelle case survolée.
+            d.startEditingIndex = this.editingIndex;
+            d.startSelectedIndex = this.selectedIndex;
+            d.startMultiSelect = new Set(this.multiSelect);
             this.loadProgression();                                    // puis re-rendre (emplacement fantôme)
         }
         e.preventDefault();
@@ -6049,9 +6077,26 @@ class HarmoHubApp {
                 // Copie : l'original reste à sa place jusqu'au dépôt (voir onGridPointerUp,
                 // duplicateChordTo) — seul le repère de case survolée (d.index) avance. Déplacement :
                 // réagencement VIVANT comme avant, la grille se réorganise à chaque case survolée.
-                if (!d.copy) this.moveChordLive(d.section, d.index, targetIndex);
-                else this.loadProgression();
-                d.index = targetIndex;
+                if (!d.copy) {
+                    this.moveChordLive(d.section, d.index, targetIndex);
+                    d.index = targetIndex;
+                    // Recalculé à CHAQUE case survolée depuis l'instantané pris au tout début du
+                    // glisser (d.startEditingIndex etc., voir plus haut) et la position ORIGINALE
+                    // d.origIndex — jamais de façon incrémentale depuis la valeur déjà en place, qui
+                    // accumulerait un décalage faux au fil des cases survolées (voir _shiftIndex : un
+                    // seul calcul « from origIndex à la position actuelle », comme onGridPointerUp au
+                    // dépôt, simplement répété à chaque case plutôt qu'une seule fois à la fin).
+                    this.editingIndex = this._shiftIndex(d.startEditingIndex, d.origIndex, d.index);
+                    this.selectedIndex = this._shiftIndex(d.startSelectedIndex, d.origIndex, d.index);
+                    this.multiSelect = new Set(Array.from(d.startMultiSelect, (i) => this._shiftIndex(i, d.origIndex, d.index)));
+                    // Le séquenceur (loupe grille) doit suivre en direct l'accord qui vient de prendre
+                    // la place de celui en édition, ou le contexte grisé si c'est un voisin qui bouge —
+                    // sans effet si le panneau n'est pas ouvert (voir la garde de renderSequencer).
+                    this.renderSequencer();
+                } else {
+                    this.loadProgression();
+                    d.index = targetIndex;
+                }
             }
         }
     }
@@ -6126,14 +6171,11 @@ class HarmoHubApp {
             else this.duplicateChordTo(d.section, d.origIndex, d.index);
             return;
         }
-        // La grille est déjà dans l'ordre final ; on répercute le déplacement sur sélection/édition
-        this.selectedIndex = this._shiftIndex(this.selectedIndex, d.origIndex, d.index);
-        this.editingIndex = this._shiftIndex(this.editingIndex, d.origIndex, d.index);
-        // Idem pour la sélection multiple (Ctrl/Cmd+clic) : sans ça, les cases surlignées glissaient
-        // silencieusement sur d'autres accords après un réordonnancement, et Copier/Dupliquer
-        // agissaient alors sur les mauvaises cases.
-        this.multiSelect = new Set(Array.from(this.multiSelect, (i) => this._shiftIndex(i, d.origIndex, d.index)));
+        // La grille est déjà dans l'ordre final ; sélection/édition ont déjà été décalées en direct à
+        // chaque case survolée (voir onGridPointerMove) — rien de plus à recalculer ici, un second
+        // décalage sur des valeurs déjà à jour les fausserait (double décalage).
         this.loadProgression();
+        this.renderSequencer(); // au cas où le tout dernier survol n'aurait pas déclenché son propre rendu
     }
 
     // Insère une COPIE de l'accord `fromIndex` à la position `toIndex` (voir onGridPointerUp,
@@ -6639,7 +6681,30 @@ class HarmoHubApp {
             if (prevData) prevData.beats = r.startPrevBeats - delta;
         }
         saveProgressionSections(sections);
+        // Si l'accord actuellement en ÉDITION (panneau Accord, toujours ouvert dessus tant qu'on ne
+        // valide pas) est concerné par ce redimensionnement — lui-même, ou le PRÉCÉDENT si on étire
+        // depuis le bord gauche (voir plus haut, `data`/`prevData`) — son champ Durée doit suivre :
+        // renderSequencer ci-dessous s'appuie sur readChord()/getLiveSeqPattern, qui lisent CE champ,
+        // pas les données qu'on vient de sauvegarder — sans ce ré-alignement, le séquenceur resterait
+        // figé sur l'ancienne durée pendant tout le glissé (l'accord voisin en contexte grisé de la
+        // vue continue, lui, n'a pas ce problème : son rythme est relu directement depuis les données
+        // sauvegardées à chaque rendu, jamais depuis un champ du panneau).
+        if (r.section === this.activeSection) {
+            const editedData = this.editingIndex === r.index ? data
+                : (r.edge === 'left' && this.editingIndex === r.index - 1) ? history[r.index - 1]
+                : null;
+            if (editedData) {
+                this.setDurationField(beatsFromData(editedData));
+                this.syncDurationPicker();
+            }
+        }
         this.loadProgression();
+        // Le séquenceur (loupe grille : séquenceur épinglé/vue continue) doit suivre en direct, pas
+        // seulement une fois le glissé relâché — que ce soit l'accord affiché dedans (sa propre durée
+        // change) ou l'un de ses voisins immédiats (leur rythme réel, affiché en contexte grisé dans
+        // la vue continue, dépend aussi de leur durée — voir renderSequencer). Sans effet si le
+        // panneau n'est pas ouvert (voir la garde tout en haut de renderSequencer).
+        this.renderSequencer();
     }
 
     onResizeEnd() {
