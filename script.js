@@ -3903,6 +3903,42 @@ class HarmoHubApp {
         // sinon un ré-rendu la ferait simplement disparaître.
         this.updateGridPlayhead(this.playheadSection, this.playheadIndex);
         this.fitCellSymbols(host);
+        this.updatePlayButtonsForLoopRange();
+    }
+
+    // Une plage à boucler (bande orange/dorée glissée sur les numéros de mesure, voir setLoopRange)
+    // rend le bouton « Accord » (lire seulement l'accord sélectionné/en édition) redondant à côté du
+    // bouton « Grille », qui lit déjà cette plage en priorité (voir playProgression) : un seul bouton
+    // Lecture suffit alors, recoloré en orange pastel pour rappeler la bande. Rappelée à chaque
+    // reconstruction de la grille (voir loadProgression, seul endroit qui suit TOUTE mutation de
+    // this.loopRange), donc toujours cohérente avec l'état courant sans avoir à la rappeler ailleurs.
+    updatePlayButtonsForLoopRange() {
+        const active = !!this.loopRange;
+        const rangeTitle = 'Lire la plage à boucler';
+        const normalTitle = 'Lire toute la grille';
+
+        const play = document.getElementById('play');
+        if (play) play.hidden = active;
+
+        const playProg = document.getElementById('play-prog');
+        if (playProg) {
+            playProg.classList.toggle('btn-loop-range', active);
+            playProg.title = active ? rangeTitle : normalTitle;
+            playProg.setAttribute('aria-label', active ? rangeTitle : normalTitle);
+        }
+
+        // Boutons jumeaux du transport de la loupe grille (voir index.html, .grid-zoom-transport) :
+        // se contentent de relayer un clic sur #play/#play-prog (voir leur .onclick), donc les cacher/
+        // recolorer pareil ici les garde visuellement cohérents avec le pied de colonne principal.
+        const zoomChord = document.getElementById('grid-zoom-play-chord');
+        if (zoomChord) zoomChord.hidden = active;
+
+        const zoomProg = document.getElementById('grid-zoom-play-prog');
+        if (zoomProg) {
+            zoomProg.classList.toggle('btn-loop-range', active);
+            zoomProg.title = active ? rangeTitle : normalTitle;
+            zoomProg.setAttribute('aria-label', active ? rangeTitle : normalTitle);
+        }
     }
 
     // Rétrécit au besoin le texte d'un accord (ex. "B♭maj7") qui déborde de sa case — plutôt que de le
