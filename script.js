@@ -7669,8 +7669,14 @@ class HarmoHubApp {
         // le tout premier rendu continu d'un accord (ex. juste ouvert dans la loupe grille), qui
         // partait par erreur de 0 au lieu du centrage par défaut sur l'accord édité.
         const prevScrollEl = host.querySelector('.seq-scroll');
-        const wasPrevContinuous = !!(prevScrollEl && prevScrollEl.querySelector('.seq-grid-continuous'));
-        const prevScrollLeft = wasPrevContinuous ? prevScrollEl.scrollLeft : null;
+        const prevGridEl = prevScrollEl ? prevScrollEl.querySelector('.seq-grid-continuous') : null;
+        const wasPrevContinuous = !!prevGridEl;
+        // Idem pour l'accord édité : basculer sur un accord VOISIN (clic sur le contexte grisé, voir
+        // .seq-ctx-nav) doit recentrer la vue sur ce nouvel accord comme à sa toute première ouverture
+        // — conserver le scrollLeft brut de l'ancien montrerait un bout de piste sans rapport (chaque
+        // accord a son propre découpage prev/actuel/next, donc sa propre colonne "centre").
+        const samePreviousChord = wasPrevContinuous && parseInt(prevGridEl.dataset.editingIndex) === this.editingIndex;
+        const prevScrollLeft = samePreviousChord ? prevScrollEl.scrollLeft : null;
         // Avant toute chose : une note libre jouée assez longtemps depuis le dernier rendu complète-
         // t-elle désormais l'accord (voir reevaluateExtraNoteUpgrades) ? Peut changer la qualité/le
         // nombre de voix, donc AVANT de (re)synchroniser le motif ci-dessous.
@@ -7794,7 +7800,7 @@ class HarmoHubApp {
         const colTemplate = continuous
             ? `max-content repeat(${totalCols}, 14px)`
             : `max-content repeat(${pageSteps}, 1fr)`;
-        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" style="grid-template-columns: ${colTemplate};">`;
+        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" style="grid-template-columns: ${colTemplate};">`;
 
         // Cases de la grille : zones de clic/glisser (toujours présentes, sous les notes visuelles).
         // Placement explicite (grid-row/grid-column) sur TOUT le monde : les notes ci-dessous se
@@ -7946,6 +7952,20 @@ class HarmoHubApp {
         // lecture) : ne couvre que les rangées de voix (contexte compris), pas celle des temps en dessous.
         html += `<div class="seq-playhead" style="grid-row: 1 / span ${rowCount}; grid-column: 2 / span 1;"></div>`;
 
+        // Zones cliquables couvrant TOUT le contexte gauche/droite (accords voisins grisés, voir plus
+        // haut) : cliquer n'importe où dedans (pas seulement pile sur une note grisée, souvent fine)
+        // bascule l'édition sur cet accord voisin (voir le câblage plus bas, qui rappelle
+        // editChordFromGridZoom) — le rectangle orangé de la grille suit alors automatiquement,
+        // puisque c'est la même méthode que pour un clic direct dans la grille (retour utilisateur :
+        // pouvoir parcourir les accords sans quitter le séquenceur). Toute la hauteur des voix
+        // (comme .seq-playhead), jamais la ligne des temps en dessous.
+        if (continuous && prevSteps > 0) {
+            html += `<div class="seq-ctx-nav seq-ctx-nav-prev" data-target-index="${this.editingIndex - 1}" style="grid-row: 1 / span ${rowCount}; grid-column: 2 / span ${prevSteps};" title="Modifier l'accord précédent"></div>`;
+        }
+        if (continuous && nextSteps > 0) {
+            html += `<div class="seq-ctx-nav seq-ctx-nav-next" data-target-index="${this.editingIndex + 1}" style="grid-row: 1 / span ${rowCount}; grid-column: ${colOffset + pageSteps + 2} / span ${nextSteps};" title="Modifier l'accord suivant"></div>`;
+        }
+
         html += `</div></div>`;
 
         // Navigation par page (uniquement si l'accord déborde d'une page) : un vrai saut, jamais du
@@ -8035,6 +8055,12 @@ class HarmoHubApp {
         // vérifier une note à l'oreille sans avoir à lancer toute la lecture de l'accord.
         host.querySelectorAll('.seq-label[data-voice]').forEach(label => {
             label.addEventListener('click', () => this.previewSeqNote(+label.dataset.voice));
+        });
+
+        // Zones de contexte gauche/droite (voir plus haut, mode continu) : bascule l'édition sur
+        // l'accord voisin, exactement comme un clic dessus dans la grille (le rectangle orangé suit).
+        host.querySelectorAll('.seq-ctx-nav').forEach(zone => {
+            zone.addEventListener('click', () => this.editChordFromGridZoom(this.activeSection, +zone.dataset.targetIndex));
         });
 
         // Bouton « X tout » (remplace tout le motif par du silence) : ciblé via [data-preset] pour

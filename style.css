@@ -402,6 +402,21 @@ body.body-scroll-locked { overflow: hidden !important; }
 }
 .seq-ctx-cell.beat-start { opacity: 0.45; }
 
+/* Zone cliquable couvrant tout un contexte gauche/droite (voir renderSequencer, mode continu) :
+   basculer l'édition sur l'accord voisin sans quitter le séquenceur (retour utilisateur). Toute la
+   hauteur des voix plutôt que juste les .seq-ctx-cell (fines, lecture seule) qu'elle recouvre sans
+   les gêner (celles-ci ignorent déjà le pointeur, voir plus haut) — plus tolérant qu'un clic pile
+   sur une note fine. Légère surbrillance au survol/tap pour signaler que c'est cliquable. */
+.seq-ctx-nav {
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.1s ease;
+    align-self: stretch; /* .seq-grid impose align-items:center (hauteur au contenu) : sans stretch,
+                             cet élément vide s'écraserait à 0px de haut au lieu de couvrir les voix
+                             (voir le même souci/la même parade sur .seq-playhead ci-dessus) */
+}
+.seq-ctx-nav:hover, .seq-ctx-nav:active { background: rgba(255, 255, 255, 0.06); }
+
 .grid-zoom-pinned-seq.collapsed .grid-zoom-pinned-placeholder,
 .grid-zoom-pinned-seq.collapsed .grid-zoom-pinned-body { display: none; }
 
