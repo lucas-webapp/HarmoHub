@@ -1695,6 +1695,8 @@ class HarmoHubApp {
         this._playMode = null;    // 'chord' (playCurrent) ou 'progression' (playProgression) tant que
                                    // isPlaying est vrai — sert à livePreviewUpdate (voir plus bas) pour
                                    // savoir QUOI relancer quand on modifie un réglage en cours de lecture
+        this._progChordSlots = new Map(); // voir scheduleProgressionChord/liveUpdateProgressionChord :
+                                   // patcher un accord de la chanson en cours de lecture sans redémarrer
         this.seqOpen = false;      // panneau séquenceur ouvert ou non (indépendant du style de lecture)
         this.seqZoomOpen = false;  // fenêtre agrandie du séquenceur ouverte ou non (voir openSeqZoom)
         this.gridZoomOpen = false; // fenêtre agrandie de la grille d'accords ouverte ou non (voir openGridZoom)
@@ -2543,17 +2545,27 @@ class HarmoHubApp {
         this.highlightPlaying(null, null);
         this.isPlaying = false;
         this._playMode = null;
+        this._progChordSlots = new Map();
         this.updateSeqPlayhead(null);
     }
 
-    // Rejoue immédiatement ce qui est en cours (accord seul ou chanson entière, voir this._playMode)
-    // pour refléter un réglage tout juste changé (accord, style de jeu, séquenceur...) — sans ça, il
-    // fallait cliquer Stop puis Lecture pour entendre l'effet d'une modification en cours d'écoute.
-    // Ne fait rien si rien n'est en train de jouer (comportement inchangé en dehors de la lecture).
+    // Reflète un réglage tout juste changé (accord, style de jeu, séquenceur...) pendant qu'on écoute
+    // — sans ça, il fallait cliquer Stop puis Lecture pour en entendre l'effet. Ne fait rien si rien
+    // n'est en train de jouer (comportement inchangé en dehors de la lecture).
+    // - Audition d'un seul accord (this._playMode === 'chord') : rejoué en entier, un bref redémarrage
+    //   étant ici attendu et sans conséquence (bouton Lecture/Boucle dédié, pas la chanson entière).
+    // - Chanson en cours (this._playMode === 'progression') : SEUL l'accord actuellement ouvert dans le
+    //   panneau d'édition (this.activeSection/editingIndex) peut faire partie de ce qui joue — tente un
+    //   patch en direct (voir liveUpdateProgressionChord), sans à-coup ni redémarrage depuis le début,
+    //   sauf si la durée de l'accord a changé (décalage en cascade que patcher en direct ne peut pas
+    //   éviter proprement) ou si l'accord modifié ne fait de toute façon pas partie du passage joué.
     livePreviewUpdate() {
         if (!this.isPlaying) return;
-        if (this._playMode === 'progression') this.playProgression();
-        else this.playCurrent();
+        if (this._playMode !== 'progression') { this.playCurrent(); return; }
+        if (this.activeSection == null || this.editingIndex == null) return;
+        if (this.liveUpdateProgressionChord(this.activeSection, this.editingIndex) === 'needs-restart') {
+            this.playProgression();
+        }
     }
 
     // Instrument Tone.js pour cette banque, construit puis mis en cache au premier accord qui s'en
@@ -2589,7 +2601,12 @@ class HarmoHubApp {
     // même voix en une seule note tenue plutôt que de rejouer une attaque à chaque croche — c'est ce
     // qui permet à un motif « tout allumé » de sonner comme un accord soutenu (Maintenu), tout en
     // restant un motif éditable case par case comme un vrai séquenceur pas-à-pas.
+    // Renvoie la liste des identifiants Tone.Transport (Tone.Transport.schedule) créés pour CET appel
+    // — Tone.Transport.clear(id) permet d'annuler UN SEUL évènement sans toucher au reste du calendrier
+    // ni au transport lui-même (voir liveUpdateProgressionChord, qui patche un accord de la chanson en
+    // cours de lecture en direct, sans à-coup, grâce à cette liste).
     schedulePlayback(notes, midis, seqPattern, seqTie, secPerBeat, timeOffset, roleMap = {}, instrumentKey = 'piano', chord = null, trackPlayhead = false, gridPos = null) {
+        const eventIds = [];
         const instrument = this.getInstrument(instrumentKey);
         const stepDur = secPerBeat / SEQ_STEPS_PER_BEAT;
         const steps = seqPattern.length;
@@ -2604,7 +2621,7 @@ class HarmoHubApp {
         // curseur de lecture du séquenceur, s'il est ouvert sur cet accord.
         for (let s = 0; s < steps; s++) {
             const activeMidis = seqPattern[s].map(v => midis[v]);
-            Tone.Transport.schedule((t) => {
+            eventIds.push(Tone.Transport.schedule((t) => {
                 Tone.Draw.schedule(() => {
                     // Ce bloc tourne à CHAQUE croche de CHAQUE accord pendant la lecture de toute la
                     // grille : une exception ici importe silencieusement TOUT le traitement des
@@ -2620,7 +2637,7 @@ class HarmoHubApp {
                         console.warn('Mise à jour visuelle ignorée (croche', s, ') :', e.message);
                     }
                 }, t);
-            }, stepTime(s));
+            }, stepTime(s)));
         }
 
         // Son : une note tenue par plage de croches liées (une croche active mais NON liée
@@ -2640,7 +2657,7 @@ class HarmoHubApp {
                 const t0 = stepTime(runStart);
                 const runDur = stepTime(runStart + runLen) - t0; // durée réelle de la plage, groove compris
                 const dur = held ? (runDur - 0.1) : Math.max(0.05, runDur - Math.min(0.06, stepDur * 0.2));
-                Tone.Transport.schedule((t) => {
+                eventIds.push(Tone.Transport.schedule((t) => {
                     // Un instrument à échantillons (Piano) peut ne pas encore avoir fini de charger ses
                     // sons (réseau lent, ou lecture démarrée dans la même seconde que le choix de
                     // l'instrument) : sans ce filet, l'exception levée ici interrompait le traitement
@@ -2652,9 +2669,10 @@ class HarmoHubApp {
                     } catch (e) {
                         console.warn('Note ignorée (instrument pas encore prêt) :', e.message);
                     }
-                }, t0);
+                }, t0));
             }
         }
+        return eventIds;
     }
 
     async playCurrent() {
@@ -2672,7 +2690,9 @@ class HarmoHubApp {
         const secPerBeat = 60 / bpm;
         const instrumentKey = document.getElementById('instrument').value;
 
-        this.schedulePlayback(notes, chord.getSeqMidiNotes(), seqPattern, seqTie, secPerBeat, 0.1, chord.getRoleMap(), instrumentKey, chord, true);
+        const start = 0.1;
+        const duration = chord.beats * secPerBeat;
+        this.schedulePlayback(notes, chord.getSeqMidiNotes(), seqPattern, seqTie, secPerBeat, start, chord.getRoleMap(), instrumentKey, chord, true);
         this.isPlaying = true;
 
         // Attend que l'instrument (Piano notamment : ses sons se chargent depuis internet) soit prêt
@@ -2685,23 +2705,105 @@ class HarmoHubApp {
         // stopAll et le commentaire sur this._playGen dans le constructeur).
         if (myGen !== this._playGen) return;
 
-        // Bouton « Boucle » du séquenceur : au lieu de s'arrêter, rejoue aussitôt depuis le début —
-        // pratique pour tester un rythme en continu sans avoir à rappuyer sur Lecture. Stop (qui
-        // annule tout ce qui est programmé sur le transport) coupe la boucle net à tout moment.
-        Tone.Transport.schedule((t) => {
-            Tone.Draw.schedule(() => {
-                try {
-                    this.refreshPreview();
-                    if (this.seqLoopPlay) this.playCurrent();
-                    else { this.isPlaying = false; this.updateSeqPlayhead(null); }
-                } catch (e) {
-                    console.warn('Fin de lecture ignorée :', e.message);
-                    this.isPlaying = false;
-                }
-            }, t);
-        }, 0.1 + (chord.beats * secPerBeat));
+        if (this.seqLoopPlay) {
+            // Bouton « Boucle » : gérée nativement par l'horloge audio (Tone.Transport.loop), exactement
+            // comme playProgression (voir son propre commentaire plus bas) — tout ce qui a déjà été
+            // programmé entre `start` et la fin de l'accord (notes, surbrillance, curseur du séquenceur)
+            // rejoue de lui-même à chaque tour, sans aucun aller-retour JS. L'ancienne version relançait
+            // playCurrent() en entier à chaque tour (stop/cancel/redémarrage, voir stopAll), ce qui
+            // produisait une micro-coupure ET un décalage perceptibles à chaque reprise de la boucle.
+            Tone.Transport.loop = true;
+            Tone.Transport.loopStart = start;
+            Tone.Transport.loopEnd = start + duration;
+        } else {
+            Tone.Transport.loop = false;
+            Tone.Transport.schedule((t) => {
+                Tone.Draw.schedule(() => {
+                    try {
+                        this.isPlaying = false;
+                        this.updateSeqPlayhead(null);
+                    } catch (e) {
+                        console.warn('Fin de lecture ignorée :', e.message);
+                        this.isPlaying = false;
+                    }
+                }, t);
+            }, start + duration);
+        }
 
         Tone.Transport.start();
+    }
+
+    // Programme UN SEUL accord de la chanson (voir playProgression) à l'instant `timeOffset`, et
+    // renvoie sa durée en temps ainsi que les identifiants Tone.Transport créés (notes, métronome,
+    // étiquette/surbrillance) — utilisé aussi bien au lancement de la lecture que pour patcher un
+    // accord en direct sans redémarrer le transport (voir liveUpdateProgressionChord).
+    scheduleProgressionChord(section, index, data, timeOffset, secPerBeat, songBeatAtStart, beatsPerBar, disp) {
+        const beats = beatsFromData(data);
+        const chord = new Chord(data.root, data.quality, beats, data.inversion, data.drop, octaveFromData(data), data.bass, null, data.extraNotes);
+        const notes = chord.getSeqNotes();
+        const { pattern: seqPattern, tie: seqTie } = this.resolveSeqPatternForData(chord, data);
+        const eventIds = this.schedulePlayback(notes, chord.getSeqMidiNotes(), seqPattern, seqTie, secPerBeat, timeOffset, chord.getRoleMap(), data.instrument || 'piano', chord, false, { section, index });
+
+        // Métronome maintenu pendant la lecture (option activée) : un clic par temps de l'accord,
+        // accentué sur le 1er temps de chaque mesure — indépendant des notes de l'accord jouées.
+        if (this.metronomeDuringPlayback) {
+            for (let b = 0; b < beats; b++) {
+                const accent = ((songBeatAtStart + b) % beatsPerBar === 0);
+                const clickTime = timeOffset + b * secPerBeat;
+                eventIds.push(Tone.Transport.schedule((t) => {
+                    try {
+                        this.playMetronomeClick(accent, t);
+                    } catch (e) { console.warn('Clic de métronome ignoré :', e.message); }
+                }, clickTime));
+                // Clic faible sur le contretemps (croche), voir metronomeSubdivision
+                if (this.metronomeSubdivision) {
+                    const subTime = clickTime + secPerBeat / 2;
+                    eventIds.push(Tone.Transport.schedule((t) => {
+                        try {
+                            this.playMetronomeClick(false, t, true);
+                        } catch (e) { console.warn('Clic de métronome (croche) ignoré :', e.message); }
+                    }, subTime));
+                }
+            }
+        }
+
+        // Au début de cet accord : maj de l'indicateur (nom + notes) et surbrillance dans la grille
+        const chordUseFlats = this.useFlatsForRoot(chord.root);
+        const labelHTML = `<span class="chord-title">${flatTight(chord.getLabel(chordUseFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, chordUseFlats)}</span>`;
+        eventIds.push(Tone.Transport.schedule((t) => {
+            Tone.Draw.schedule(() => {
+                try {
+                    disp.innerHTML = labelHTML;
+                    this.highlightPlaying(section, index);
+                } catch (e) {
+                    console.warn('Surbrillance ignorée pour', section, index, ':', e.message);
+                }
+            }, t);
+        }, timeOffset));
+
+        return { beats, eventIds };
+    }
+
+    // Modifie EN PLACE un seul accord de la chanson actuellement en lecture (voir playProgression),
+    // SANS arrêter ni redémarrer le transport : les évènements déjà programmés pour cette case précise
+    // sont annulés (Tone.Transport.clear) et remplacés par des neufs, À LA MÊME position dans le temps
+    // — tout le reste (les autres accords, la boucle, le décompte) continue sans coupure ni décalage.
+    // Renvoie 'patched' (fait), 'not-playing' (cet accord ne fait pas partie du passage actuellement
+    // joué, rien à faire) ou 'needs-restart' (durée changée : tout ce qui suit devrait alors décaler
+    // dans le temps, trop risqué à corriger en direct sans à-coup — voir livePreviewUpdate, qui se
+    // rabat alors sur un redémarrage complet de playProgression()).
+    liveUpdateProgressionChord(section, index) {
+        const slot = this._progChordSlots.get(`${section}:${index}`);
+        if (!slot) return 'not-playing';
+        const sections = loadProgressionSections();
+        const data = sections[section] && sections[section].chords[index];
+        if (!data || beatsFromData(data) !== slot.beats) return 'needs-restart';
+
+        slot.eventIds.forEach(id => Tone.Transport.clear(id));
+        const disp = document.getElementById('current-chord-display');
+        const { eventIds } = this.scheduleProgressionChord(section, index, data, slot.timeOffset, slot.secPerBeat, slot.songBeatAtStart, slot.beatsPerBar, disp);
+        slot.eventIds = eventIds;
+        return 'patched';
     }
 
     // Joue la chanson en entier : toutes les parties (couplet, refrain, ...) mises bout à bout, dans
@@ -2793,52 +2895,18 @@ class HarmoHubApp {
                            // premier temps de la grille redevient un « temps 1 » accentué, comme il
                            // se doit, indépendamment du décompte qui précède.
 
+        // Un accord de la chanson en cours pourra être patché en direct (voir liveUpdateProgressionChord)
+        // sans redémarrer le transport quand on le modifie pendant la lecture — cette table garde, pour
+        // chaque case { section, index } effectivement programmée cette fois-ci, tout ce qu'il faut pour
+        // reproduire exactement le même appel de programmation à la même position dans le temps.
+        this._progChordSlots = new Map();
+
         flat.slice(startPos).forEach(({ section, index, data }) => {
-            const beats = beatsFromData(data);
-            const chord = new Chord(data.root, data.quality, beats, data.inversion, data.drop, octaveFromData(data), data.bass, null, data.extraNotes);
-            const notes = chord.getSeqNotes();
-            const { pattern: seqPattern, tie: seqTie } = this.resolveSeqPatternForData(chord, data);
-            this.schedulePlayback(notes, chord.getSeqMidiNotes(), seqPattern, seqTie, secPerBeat, timeOffset, chord.getRoleMap(), data.instrument || 'piano', chord, false, { section, index });
-
-            // Métronome maintenu pendant la lecture (option activée) : un clic par temps de l'accord,
-            // accentué sur le 1er temps de chaque mesure — indépendant des notes de l'accord jouées.
-            if (this.metronomeDuringPlayback) {
-                for (let b = 0; b < chord.beats; b++) {
-                    const accent = (songBeat % beatsPerBar === 0);
-                    const clickTime = timeOffset + b * secPerBeat;
-                    Tone.Transport.schedule((t) => {
-                        try {
-                            this.playMetronomeClick(accent, t);
-                        } catch (e) { console.warn('Clic de métronome ignoré :', e.message); }
-                    }, clickTime);
-                    // Clic faible sur le contretemps (croche), voir metronomeSubdivision
-                    if (this.metronomeSubdivision) {
-                        const subTime = clickTime + secPerBeat / 2;
-                        Tone.Transport.schedule((t) => {
-                            try {
-                                this.playMetronomeClick(false, t, true);
-                            } catch (e) { console.warn('Clic de métronome (croche) ignoré :', e.message); }
-                        }, subTime);
-                    }
-                    songBeat++;
-                }
-            }
-
-            // Au début de cet accord : maj de l'indicateur (nom + notes) et surbrillance dans la grille
-            const chordUseFlats = this.useFlatsForRoot(chord.root);
-            const labelHTML = `<span class="chord-title">${flatTight(chord.getLabel(chordUseFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, chordUseFlats)}</span>`;
-            Tone.Transport.schedule((t) => {
-                Tone.Draw.schedule(() => {
-                    try {
-                        disp.innerHTML = labelHTML;
-                        this.highlightPlaying(section, index);
-                    } catch (e) {
-                        console.warn('Surbrillance ignorée pour', section, index, ':', e.message);
-                    }
-                }, t);
-            }, timeOffset);
-
-            timeOffset += chord.beats * secPerBeat;
+            const songBeatAtStart = songBeat;
+            const { beats, eventIds } = this.scheduleProgressionChord(section, index, data, timeOffset, secPerBeat, songBeatAtStart, beatsPerBar, disp);
+            this._progChordSlots.set(`${section}:${index}`, { timeOffset, secPerBeat, songBeatAtStart, beatsPerBar, beats, eventIds });
+            songBeat += beats;
+            timeOffset += beats * secPerBeat;
         });
 
         if (loop) {
@@ -7407,6 +7475,9 @@ class HarmoHubApp {
         if (loopBtn) loopBtn.onclick = (e) => {
             this.seqLoopPlay = !this.seqLoopPlay;
             e.currentTarget.classList.toggle('active', this.seqLoopPlay);
+            // Applique tout de suite si un accord est déjà en train de jouer, plutôt que d'attendre la
+            // fin (figée) de la lecture en cours pour en tenir compte (voir playCurrent).
+            if (this.isPlaying) this.livePreviewUpdate();
         };
         const addNoteBtn = document.getElementById('seq-add-note');
         if (addNoteBtn) addNoteBtn.onclick = () => this.addSequencerNote();
