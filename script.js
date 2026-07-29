@@ -1508,6 +1508,10 @@ const GRID_ZOOM_SEQ_COLLAPSED_KEY = 'harmohubGridZoomSeqCollapsed';
 const GRID_ZOOM_SEQ_HEIGHT_KEY = 'harmohubGridZoomSeqHeight';
 const GRID_ZOOM_SEQ_HEIGHT_DEFAULT = 240;
 const GRID_ZOOM_SEQ_HEIGHT_MIN = 140;
+// Panneau de gauche masqué ou non (voir #toggle-sidebar/toggleSidebar) : préférence de l'APPAREIL,
+// pas du morceau (contrairement aux échelles de zoom) — une préférence d'espace d'écran, pas un
+// réglage propre à un morceau donné.
+const SIDEBAR_COLLAPSED_KEY = 'harmohubSidebarCollapsed';
 
 // Curseurs de volume (0-100, plus intuitif qu'une valeur en décibels) : 0 = silence, 100 = 0 dB
 // (plein volume « normal »), avec un plancher à -40 dB pour que même « presque muet » reste audible
@@ -1801,6 +1805,10 @@ class HarmoHubApp {
         // Séquenceur épinglé en bas de la loupe grille (voir openGridZoom/toggleGridZoomPinnedSeq) :
         // replié ou non, mémorisé d'une session à l'autre comme le niveau de zoom ci-dessus.
         this.gridZoomSeqCollapsed = localStorage.getItem(GRID_ZOOM_SEQ_COLLAPSED_KEY) === '1';
+        // Panneau de gauche (voir #toggle-sidebar/toggleSidebar) : masqué ou non, mémorisé comme
+        // ci-dessus — appliqué juste après setupEventListeners (voir plus bas dans le constructeur),
+        // une fois le bouton lui-même câblé.
+        this.sidebarCollapsed = localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
         this.seqTouched = false;   // l'utilisateur a-t-il personnalisé le motif pour l'accord en cours ?
         this.seqLastChordToneVoices = 0; // nombre de voix DU CORPS DE L'ACCORD (chord.getIntervals(),
                                    // jamais notes libres/basse — voir applyNewVoiceDefaults/
@@ -1854,6 +1862,7 @@ class HarmoHubApp {
         this.setupGridCellOctaveFloat();
         this.setupSequencerInteractions();
         this.setupKeyboardShortcuts();
+        this.applySidebarCollapsed(); // reflète l'état mémorisé dès le premier rendu (bouton déjà câblé)
         // Avertissement natif du navigateur si on ferme/recharge la page avec des modifications non
         // enregistrées (voir hasUnsavedChanges/saveCurrentSong) — les navigateurs modernes ignorent le
         // message personnalisé et affichent le leur, mais returnValue déclenche bien la confirmation.
@@ -2107,6 +2116,7 @@ class HarmoHubApp {
         // Fenêtre Paramètres : toutes les sections (Son, Fichiers) se rendent ensemble à l'ouverture,
         // en une seule vue qui défile, sans onglet.
         document.getElementById('open-settings').onclick = () => this.openSettings();
+        document.getElementById('toggle-sidebar').onclick = () => this.toggleSidebar();
         document.getElementById('settings-close').onclick = () => this.closeSettings();
         document.querySelectorAll('.settings-tab').forEach(btn => {
             btn.onclick = () => this.setSettingsTab(btn.dataset.settingsTab);
@@ -7793,6 +7803,39 @@ class HarmoHubApp {
         const btn = document.getElementById('grid-zoom-pinned-toggle');
         btn.setAttribute('aria-pressed', String(!this.gridZoomSeqCollapsed));
         const label = this.gridZoomSeqCollapsed ? 'Afficher le séquenceur' : 'Masquer le séquenceur';
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
+    }
+
+    // Masque/révèle tout le panneau de gauche (Accord/Morceau/Réglages...) — voir #toggle-sidebar :
+    // la grille et les diagrammes (.col-right) profitent alors de toute la largeur, plus simple à
+    // modifier (retour utilisateur). Bureau uniquement (voir style.css @media min-width:900px) : sur
+    // mobile .col-left n'est de toute façon qu'un simple ordre d'affichage (display: contents), rien
+    // à masquer séparément. Préférence d'APPAREIL (pas du morceau), mémorisée d'une session à l'autre.
+    toggleSidebar() {
+        this.sidebarCollapsed = !this.sidebarCollapsed;
+        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, this.sidebarCollapsed ? '1' : '0');
+        this.applySidebarCollapsed();
+    }
+
+    applySidebarCollapsed() {
+        document.body.classList.toggle('sidebar-collapsed', this.sidebarCollapsed);
+        // #footer-dock (Accord/Grille/Boucle/Stop) vit normalement en dernier enfant de .col-left —
+        // le masquer avec le reste du panneau rendrait la lecture/l'arrêt inaccessibles tant que la
+        // grille est en plein écran. Déplacé (jamais dupliqué, même principe qu'openGridZoom/
+        // openSeqZoom) dans .col-right pendant que le panneau est masqué, remis à sa place à la
+        // réouverture. Sans effet sur mobile (col-left n'y est de toute façon qu'un display:contents,
+        // voir le garde-fou de la règle CSS elle-même) mais inoffensif d'y déplacer le nœud quand même.
+        const dock = document.getElementById('footer-dock');
+        if (this.sidebarCollapsed) {
+            document.querySelector('.col-right').appendChild(dock);
+        } else {
+            document.querySelector('.col-left').appendChild(dock);
+        }
+        const btn = document.getElementById('toggle-sidebar');
+        btn.classList.toggle('active', this.sidebarCollapsed);
+        btn.setAttribute('aria-pressed', String(this.sidebarCollapsed));
+        const label = this.sidebarCollapsed ? 'Afficher le panneau de gauche' : 'Masquer le panneau de gauche';
         btn.title = label;
         btn.setAttribute('aria-label', label);
     }

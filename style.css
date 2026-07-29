@@ -2500,6 +2500,14 @@ select.song-select-narrow {
         flex: none;
         min-height: 0;
     }
+    /* Masque tout le panneau de gauche (voir #toggle-sidebar/toggleSidebar dans script.js) : la grille
+       et les diagrammes (.col-right) profitent alors de toute la largeur — bureau uniquement, .col-left
+       n'existant pas telle quelle sur mobile (aplatie en une seule colonne, voir plus haut). */
+    body.sidebar-collapsed .col-left { display: none; }
+    body.sidebar-collapsed main { gap: 0; }
+    /* #footer-dock est alors déplacé dans .col-right (voir applySidebarCollapsed) : son padding-right
+       ne sert plus à s'aligner avec la scrollbar de .panel-controls, disparu avec le reste du panneau. */
+    body.sidebar-collapsed .col-right .dock { padding-right: 0; }
     .panel-controls {
         flex: 1;
         min-height: 0;
