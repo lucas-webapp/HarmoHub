@@ -777,6 +777,48 @@ function resizeSeqPattern(pattern, tie, steps, voices) {
     return { pattern: outP, tie: outT };
 }
 
+// Les `voiceCount` premières voix jouent-elles TOUTES exactement le même schéma (mêmes cases actives,
+// mêmes liaisons) ? Sert à décider comment initialiser une voix qui vient d'apparaître (voir
+// applyNewVoiceDefaults ci-dessous) — ex. min -> min7, la 7te ajoutée n'a par définition aucune case
+// peinte, encore faut-il choisir quoi y mettre par défaut.
+function seqPatternIsUniformAcrossVoices(pattern, tie, voiceCount) {
+    if (voiceCount <= 1) return true;
+    const profileFor = (v) => pattern.map((s, i) => (s.includes(v) ? '1' : '0') + ((tie[i] || []).includes(v) ? '1' : '0')).join('');
+    const first = profileFor(0);
+    for (let v = 1; v < voiceCount; v++) {
+        if (profileFor(v) !== first) return false;
+    }
+    return true;
+}
+
+// Règle fixée par l'utilisateur pour une voix qui vient d'apparaître dans un accord déjà personnalisé
+// (motif peint à la main, pas un simple préréglage — voir syncSeqPatternForCurrentChord) suite à un
+// changement qui ajoute une note (ex. qualité min -> min7, la 7te est neuve) : plutôt que la laisser
+// muette par défaut (ce que ferait resizeSeqPattern seul, qui ne fait QUE filtrer/répéter, jamais
+// inventer une voix) —
+//   - si les voix déjà là jouent toutes exactement le même schéma, la voix ajoutée suit ce même schéma ;
+//   - sinon (rythmes différents d'une voix à l'autre), elle tient une seule note sur toute la durée de
+//     l'accord (plus simple à corriger ensuite qu'un silence total).
+// `prevVoices` : nombre de voix tel qu'il était la dernière fois que ce motif a été synchronisé (voir
+// this.seqLastVoices) — pas de règle à appliquer si les voix n'ont pas grandi depuis (qualité réduite,
+// ou nombre de voix inchangé).
+function applyNewVoiceDefaults(pattern, tie, prevVoices, voices) {
+    if (!(prevVoices > 0) || voices <= prevVoices) return { pattern, tie };
+    const uniform = seqPatternIsUniformAcrossVoices(pattern, tie, prevVoices);
+    const outP = pattern.map(s => s.slice());
+    const outT = tie.map((s, i) => (s || []).slice());
+    for (let v = prevVoices; v < voices; v++) {
+        for (let s = 0; s < outP.length; s++) {
+            const on = uniform ? pattern[s].includes(0) : true;
+            if (!on) continue;
+            outP[s].push(v);
+            const tied = uniform ? (tie[s] || []).includes(0) : (s !== 0);
+            if (tied) outT[s].push(v);
+        }
+    }
+    return { pattern: outP, tie: outT };
+}
+
 // Durée d'une pulsation, en cases (double-croches), pour chaque préréglage rythmique — indépendante
 // de son articulation (maintenu/staccato, voir seqPreset ci-dessous).
 const PRESET_PULSE_STEPS = { ronde: 16, blanche: 8, noire: 4, croche: 2 };
@@ -1749,6 +1791,12 @@ class HarmoHubApp {
         // replié ou non, mémorisé d'une session à l'autre comme le niveau de zoom ci-dessus.
         this.gridZoomSeqCollapsed = localStorage.getItem(GRID_ZOOM_SEQ_COLLAPSED_KEY) === '1';
         this.seqTouched = false;   // l'utilisateur a-t-il personnalisé le motif pour l'accord en cours ?
+        this.seqLastChordToneVoices = 0; // nombre de voix DU CORPS DE L'ACCORD (chord.getIntervals(),
+                                   // jamais notes libres/basse — voir applyNewVoiceDefaults/
+                                   // syncSeqPatternForCurrentChord) lors de la dernière synchro : une
+                                   // voix du corps dont l'index est >= à cette valeur vient d'apparaître
+                                   // (ex. qualité min -> min7). Les notes libres (voir addSequencerNote)
+                                   // doivent rester silencieuses par défaut, jamais concernées ici.
         this.seqSelections = []; // notes du séquenceur sélectionnées : [{ voice, start, end }, ...]
         this.seqDrag = null;       // état de glisser en cours sur le séquenceur
         this.seqPage = 0;          // mesure(s) affichée(s) pour un accord qui en dure plusieurs (voir seqPageBars)
@@ -3533,6 +3581,7 @@ class HarmoHubApp {
         this.clearSeqHistory(); // nouvel accord chargé pour édition : l'historique précédent ne s'applique plus
         const { pattern, tie } = this.resolveSeqPatternForData(chord, d);
         this.setLiveSeqPattern(pattern, tie);
+        this.seqLastChordToneVoices = chord.getIntervals().length; // repère de départ pour applyNewVoiceDefaults
 
         this.editingIndex = index;
         document.getElementById('save').innerHTML = svgIcon('check') + ' Modifier';
@@ -6798,14 +6847,24 @@ class HarmoHubApp {
         const chord = this.readChord();
         const steps = chord.beats * SEQ_STEPS_PER_BEAT;
         const voices = chord.getSeqMidiNotes().length;
+        const chordToneVoices = chord.getIntervals().length; // corps de l'accord seul (jamais notes
+                                                               // libres/basse, voir seqLastChordToneVoices)
         let result;
         if (this.seqTouched) {
             const parsed = parseSeqPattern(document.getElementById('arpPattern').value);
             result = resizeSeqPattern(parsed.pattern, parsed.tie, steps, voices);
+            // Une ou plusieurs voix neuves DANS LE CORPS DE L'ACCORD (ex. qualité min -> min7, la 7te) :
+            // resizeSeqPattern ne fait que filtrer/répéter l'existant, jamais en inventer une — voir
+            // applyNewVoiceDefaults pour la règle (même schéma que les autres voix du corps si elles
+            // concordent toutes, sinon tenue pleine durée). Bornée au corps de l'accord seul : une note
+            // libre qui vient d'être ajoutée (voir addSequencerNote) grandit `voices` de la même façon
+            // mais doit rester silencieuse par défaut (voir ghost_note_test), donc jamais concernée ici.
+            result = applyNewVoiceDefaults(result.pattern, result.tie, this.seqLastChordToneVoices, chordToneVoices);
         } else {
             result = seqPreset(document.getElementById('playStyle').value, voices, steps);
         }
         this.setLiveSeqPattern(result.pattern, result.tie);
+        this.seqLastChordToneVoices = chordToneVoices;
         return chord;
     }
 
