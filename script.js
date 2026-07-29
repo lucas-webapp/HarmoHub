@@ -1403,60 +1403,131 @@ function guitarFingeringsForChord(chord, lockedShape = chord.guitarLock) {
 // (Tone.js) : disponibles instantanément, sans temps de chargement ni bibliothèque à héberger.
 // Timbres choisis pour la pratique d'accords — soutenus/harmoniques plutôt que percussifs, pour
 // bien laisser entendre chaque voix.
+// Compensation de gain PAR INSTRUMENT (dB), mesurée hors-ligne pour égaliser le niveau perçu d'un même
+// geste de jeu d'un instrument à l'autre (voir /tmp/.../instrument_level_calibration.js — rendu Tone.Offline
+// de chaque instrument sur le même accord/durée/vélocité, RMS de la portion tenue ramenée à une cible
+// commune). Piano à 0 dB : référence déjà naturelle (échantillons réels), les synthés sont recalés dessus.
+const INSTRUMENT_TRIM_DB = {
+    piano: 0,
+    epiano: -4,
+    pad: -16,
+    strings: -16,
+    organ: -18,
+    bell: 2,
+};
+
+// Chaque build(masterBus) construit SON PROPRE filtre/effet/volume et se chaîne jusqu'à masterBus
+// (jamais .toDestination() directement, voir getMasterBus) : la sortie de chaque instrument passe donc
+// systématiquement par la même réverbe légère + le même limiteur partagés, ce qui recolle des synthés
+// bruts (carré/dent de scie) au Piano échantillonné plutôt que de les laisser sonner secs/cliniques à
+// côté (retour utilisateur : sons stridents, volumes très inégaux d'un instrument à l'autre). Chaque
+// filtre passe-bas retire les harmoniques aiguës responsables du côté strident d'une onde brute ; les
+// gains de this.instrumentTrimDb (mesurés hors-ligne, voir calibrateInstrumentLevels) égalisent le
+// niveau perçu, tous instruments confondus, pour un même geste de jeu.
 const INSTRUMENT_BANKS = {
     piano: {
         label: 'Piano',
-        build: () => new Tone.Sampler({
-            urls: {
-                "C2": "C2.mp3", "D#2": "Ds2.mp3", "F#2": "Fs2.mp3", "A2": "A2.mp3",
-                "C3": "C3.mp3", "D#3": "Ds3.mp3", "F#3": "Fs3.mp3", "A3": "A3.mp3",
-                "C4": "C4.mp3", "D#4": "Ds4.mp3", "F#4": "Fs4.mp3", "A4": "A4.mp3",
-                "C5": "C5.mp3", "D#5": "Ds5.mp3", "F#5": "Fs5.mp3", "A5": "A5.mp3",
-                "C6": "C6.mp3"
-            },
-            release: 1,
-            baseUrl: "https://tonejs.github.io/audio/salamander/"
-        })
+        build: (masterBus) => {
+            const sampler = new Tone.Sampler({
+                urls: {
+                    "C2": "C2.mp3", "D#2": "Ds2.mp3", "F#2": "Fs2.mp3", "A2": "A2.mp3",
+                    "C3": "C3.mp3", "D#3": "Ds3.mp3", "F#3": "Fs3.mp3", "A3": "A3.mp3",
+                    "C4": "C4.mp3", "D#4": "Ds4.mp3", "F#4": "Fs4.mp3", "A4": "A4.mp3",
+                    "C5": "C5.mp3", "D#5": "Ds5.mp3", "F#5": "Fs5.mp3", "A5": "A5.mp3",
+                    "C6": "C6.mp3"
+                },
+                release: 1,
+                baseUrl: "https://tonejs.github.io/audio/salamander/"
+            });
+            const volume = new Tone.Volume(INSTRUMENT_TRIM_DB.piano);
+            sampler.chain(volume, masterBus);
+            return sampler;
+        }
     },
+    // Ancien réglage : modulationIndex 14 + modulationEnvelope.sustain 1 gardaient l'anche FM à pleine
+    // brillance pendant TOUTE la note tenue (jamais d'assagissement après l'attaque) — le vrai
+    // « clavinet FM » classique s'éclaire seulement au pincement puis s'adoucit vite. sustain: 0.12 (au
+    // lieu de 1) sur l'enveloppe de MODULATION corrige ça ; modulationIndex abaissé à 5 (au lieu de 14)
+    // et modulateur en sinus (au lieu de carré) retirent le côté métallique/strident au pic lui-même.
     epiano: {
         label: 'Piano électrique',
-        build: () => new Tone.PolySynth(Tone.FMSynth, {
-            harmonicity: 3.01, modulationIndex: 14,
-            oscillator: { type: 'sine' },
-            envelope: { attack: 0.01, decay: 1.2, sustain: 0.1, release: 1.2 },
-            modulation: { type: 'square' },
-            modulationEnvelope: { attack: 0.2, decay: 0.01, sustain: 1, release: 0.5 }
-        })
+        build: (masterBus) => {
+            const synth = new Tone.PolySynth(Tone.FMSynth, {
+                harmonicity: 3.01, modulationIndex: 5,
+                oscillator: { type: 'sine' },
+                envelope: { attack: 0.005, decay: 1.4, sustain: 0.08, release: 1.2 },
+                modulation: { type: 'sine' },
+                modulationEnvelope: { attack: 0.002, decay: 0.35, sustain: 0.12, release: 0.5 }
+            });
+            const filter = new Tone.Filter({ type: 'lowpass', frequency: 4500, Q: 0.5 });
+            const volume = new Tone.Volume(INSTRUMENT_TRIM_DB.epiano);
+            synth.chain(filter, volume, masterBus);
+            return synth;
+        }
     },
     pad: {
         label: 'Nappe',
-        build: () => new Tone.PolySynth(Tone.Synth, {
-            oscillator: { type: 'triangle' },
-            envelope: { attack: 0.6, decay: 0.3, sustain: 0.9, release: 2.5 }
-        })
+        build: (masterBus) => {
+            const synth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: 'triangle' },
+                envelope: { attack: 0.6, decay: 0.3, sustain: 0.9, release: 2.5 }
+            });
+            const filter = new Tone.Filter({ type: 'lowpass', frequency: 3500, Q: 0.4 });
+            // Léger chorus (voix détunée en mouvement lent) : donne de l'ampleur à une simple triangle,
+            // comme une vraie nappe analogique plutôt qu'une onde synthé isolée.
+            const chorus = new Tone.Chorus({ frequency: 0.6, delayTime: 4, depth: 0.4, wet: 0.25 }).start();
+            const volume = new Tone.Volume(INSTRUMENT_TRIM_DB.pad);
+            synth.chain(filter, chorus, volume, masterBus);
+            return synth;
+        }
     },
+    // Une dent de scie brute est la source la plus fréquente de « strident » : le filtre passe-bas
+    // retire son mordant aigu, le chorus imite l'« ensemble » (plusieurs pupitres légèrement désaccordés)
+    // des cordes synthé classiques plutôt qu'une seule onde sèche.
     strings: {
         label: 'Cordes synthé',
-        build: () => new Tone.PolySynth(Tone.Synth, {
-            oscillator: { type: 'sawtooth' },
-            envelope: { attack: 0.25, decay: 0.2, sustain: 0.8, release: 1.5 }
-        })
+        build: (masterBus) => {
+            const synth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: 'sawtooth' },
+                envelope: { attack: 0.35, decay: 0.25, sustain: 0.85, release: 1.6 }
+            });
+            const filter = new Tone.Filter({ type: 'lowpass', frequency: 2400, Q: 0.6 });
+            const chorus = new Tone.Chorus({ frequency: 0.8, delayTime: 5, depth: 0.6, wet: 0.35 }).start();
+            const volume = new Tone.Volume(INSTRUMENT_TRIM_DB.strings);
+            synth.chain(filter, chorus, volume, masterBus);
+            return synth;
+        }
     },
+    // Une onde carrée brute (riche en harmoniques impaires) est la seconde grande source de stridence :
+    // même traitement que les cordes (filtre + léger chorus, ici plus rapide façon Leslie d'orgue).
     organ: {
         label: 'Orgue / Lead',
-        build: () => new Tone.PolySynth(Tone.Synth, {
-            oscillator: { type: 'square' },
-            envelope: { attack: 0.02, decay: 0.1, sustain: 1, release: 0.3 }
-        })
+        build: (masterBus) => {
+            const synth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: 'square' },
+                envelope: { attack: 0.02, decay: 0.12, sustain: 0.8, release: 0.3 }
+            });
+            const filter = new Tone.Filter({ type: 'lowpass', frequency: 3000, Q: 0.7 });
+            const chorus = new Tone.Chorus({ frequency: 1.1, delayTime: 3.5, depth: 0.45, wet: 0.25 }).start();
+            const volume = new Tone.Volume(INSTRUMENT_TRIM_DB.organ);
+            synth.chain(filter, chorus, volume, masterBus);
+            return synth;
+        }
     },
     bell: {
         label: 'Synthé chaud',
-        build: () => new Tone.PolySynth(Tone.AMSynth, {
-            harmonicity: 2,
-            oscillator: { type: 'sine' },
-            envelope: { attack: 0.05, decay: 0.3, sustain: 0.4, release: 1 },
-            modulation: { type: 'sine' }
-        })
+        build: (masterBus) => {
+            const synth = new Tone.PolySynth(Tone.AMSynth, {
+                harmonicity: 2,
+                oscillator: { type: 'sine' },
+                envelope: { attack: 0.05, decay: 0.3, sustain: 0.4, release: 1 },
+                modulation: { type: 'sine' }
+            });
+            const filter = new Tone.Filter({ type: 'lowpass', frequency: 4000, Q: 0.5 });
+            const volume = new Tone.Volume(INSTRUMENT_TRIM_DB.bell);
+            synth.chain(filter, volume, masterBus);
+            return synth;
+        }
     }
 };
 
@@ -2757,13 +2828,27 @@ class HarmoHubApp {
         }
     }
 
+    // Bus partagé par TOUS les instruments de la lecture en direct (voir INSTRUMENT_BANKS) : une légère
+    // réverbe (Freeverb, purement algorithmique — pas de temps de génération asynchrone à attendre,
+    // contrairement à Tone.Reverb) donne une même « pièce » à l'ensemble, puis un limiteur absorbe les
+    // pics quand plusieurs voix/instruments s'additionnent (retour utilisateur : sons stridents). Un
+    // rendu hors-ligne (MP3, voir renderProgressionBuffer) a son propre contexte audio et construit donc
+    // sa PROPRE instance équivalente, jamais celle-ci.
+    getMasterBus() {
+        if (!this._masterBus) {
+            const limiter = new Tone.Limiter(-2).toDestination();
+            this._masterBus = new Tone.Freeverb({ roomSize: 0.55, dampening: 3000, wet: 0.15 }).connect(limiter);
+        }
+        return this._masterBus;
+    }
+
     // Instrument Tone.js pour cette banque, construit puis mis en cache au premier accord qui s'en
     // sert (plusieurs peuvent donc jouer en même temps, chaque accord ayant potentiellement la sienne).
     getInstrument(key) {
         if (!INSTRUMENT_BANKS[key]) key = 'piano';
         let inst = this.instrumentCache.get(key);
         if (!inst) {
-            inst = INSTRUMENT_BANKS[key].build().toDestination();
+            inst = INSTRUMENT_BANKS[key].build(this.getMasterBus());
             this.instrumentCache.set(key, inst);
         }
         return inst;
@@ -5838,10 +5923,15 @@ class HarmoHubApp {
 
         return Tone.Offline(async () => {
             Tone.Destination.volume.value = percentToDb(generalVolumePercent);
+            // Même bus partagé (réverbe légère + limiteur) que la lecture live (voir getMasterBus) —
+            // mais sa PROPRE instance : ce contexte hors-ligne est entièrement séparé de celui de la
+            // lecture en direct, rien ne peut s'y connecter depuis l'autre.
+            const limiter = new Tone.Limiter(-2).toDestination();
+            const masterBus = new Tone.Freeverb({ roomSize: 0.55, dampening: 3000, wet: 0.15 }).connect(limiter);
             const instruments = new Map(); // clé instrument -> instance dédiée à ce rendu
             const instrumentFor = (key) => {
                 if (!INSTRUMENT_BANKS[key]) key = 'piano';
-                if (!instruments.has(key)) instruments.set(key, INSTRUMENT_BANKS[key].build().toDestination());
+                if (!instruments.has(key)) instruments.set(key, INSTRUMENT_BANKS[key].build(masterBus));
                 return instruments.get(key);
             };
 
