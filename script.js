@@ -4047,7 +4047,8 @@ class HarmoHubApp {
             groove: document.getElementById('groove').value,
             bpm: parseInt(document.getElementById('bpm').value),
             instrument: document.getElementById('instrument').value,
-            sections: loadProgressionSections()
+            sections: loadProgressionSections(),
+            ...this.zoomSettingsForSong(),
         };
         const songs = loadSongs();
         songs.push(song);
@@ -4223,6 +4224,21 @@ class HarmoHubApp {
         this.refreshSongList();
     }
 
+    // Échelles horizontale/verticale de la loupe grille/séquenceur, telles qu'à conserver DANS le
+    // morceau lui-même (voir createNewSongFromCurrentState/saveCurrentSong) plutôt que dans les seules
+    // préférences de cet appareil (harmohubGridZoomLevelX, etc.) : retour utilisateur — rouvrir ce
+    // morceau sur un autre ordinateur (après export/import du fichier, voir exportCurrentSong) doit
+    // retrouver les derniers réglages de zoom mis en place dessus, pas ceux de l'appareil courant.
+    zoomSettingsForSong() {
+        return {
+            gridZoomLevelX: this.gridZoomLevelX,
+            gridZoomLevelY: this.gridZoomLevelY,
+            seqZoomLevelX: this.seqZoomLevelX,
+            seqZoomLevelY: this.seqZoomLevelY,
+            seqInlineZoomLevelX: this.seqInlineZoomLevelX,
+        };
+    }
+
     // Charge un morceau enregistré : il devient le morceau ouvert, mais n'est plus auto-sauvegardé en
     // continu (voir hasUnsavedChanges/saveCurrentSong) — il faut Enregistrer/Ctrl+S pour persister
     // toute modification ultérieure.
@@ -4249,6 +4265,16 @@ class HarmoHubApp {
             document.getElementById('instrument').value = song.instrument;
             localStorage.setItem(INSTRUMENT_KEY, song.instrument);
         }
+        // Échelles horizontale/verticale des loupes (voir zoomSettingsForSong) : reprises DE CE
+        // MORCEAU (1 par défaut pour un morceau enregistré avant ce réglage, ou jamais zoomé) plutôt
+        // que de laisser trainer celles du morceau précédemment ouvert sur cet appareil, ou de
+        // dépendre de l'appareil courant — retour utilisateur : retrouver les mêmes réglages sur un
+        // autre ordinateur, une fois ce morceau réimporté là-bas.
+        this.gridZoomLevelX = song.gridZoomLevelX || 1;
+        this.gridZoomLevelY = song.gridZoomLevelY || 1;
+        this.seqZoomLevelX = song.seqZoomLevelX || 1;
+        this.seqZoomLevelY = song.seqZoomLevelY || 1;
+        this.seqInlineZoomLevelX = song.seqInlineZoomLevelX || 1;
     }
 
     // Au tout premier rendu de la page (voir constructeur) : un morceau reste "ouvert" d'une session à
@@ -4298,6 +4324,7 @@ class HarmoHubApp {
             groove: document.getElementById('groove').value,
             bpm: parseInt(document.getElementById('bpm').value),
             instrument: document.getElementById('instrument').value,
+            ...this.zoomSettingsForSong(),
         });
         hasUnsavedChanges = false;
         this.refreshSongList();
@@ -6239,12 +6266,14 @@ class HarmoHubApp {
         else this.loadProgression();
     }
 
-    // Chord actuellement ciblé par la pastille octave flottante (voir updateGridCellOctaveFloat) :
-    // l'accord en édition (voir editChordFromGridZoom, le clic normal en loupe grille) prime sur la
-    // simple sélection (this.selectedIndex, surtout pertinente hors loupe) — les deux désignent
-    // presque toujours le même accord une fois en loupe, mais l'édition est celle qui compte vraiment
-    // ici (l'octave modifiée doit se refléter tout de suite dans le panneau Accord déjà ouvert dessus).
-    gridCellOctaveFloatTargetIndex() {
+    // Accord de la grille "actif" pour tout ce qui n'a qu'UNE case à la fois en tête : la pastille
+    // octave flottante (voir updateGridCellOctaveFloat) et les raccourcis clavier (voir
+    // setupKeyboardShortcuts) — l'accord en édition (voir editChordFromGridZoom, le clic normal en
+    // loupe grille) prime sur la simple sélection (this.selectedIndex, surtout pertinente hors
+    // loupe) : les deux désignent presque toujours le même accord une fois en loupe, mais l'édition
+    // est celle qui compte vraiment là où elle existe (ex. l'octave modifiée doit se refléter tout
+    // de suite dans le panneau Accord déjà ouvert dessus).
+    activeGridChordIndex() {
         return this.editingIndex != null ? this.editingIndex : this.selectedIndex;
     }
 
@@ -6253,11 +6282,11 @@ class HarmoHubApp {
     // inutile de re-brancher ses écouteurs à chaque rendu.
     setupGridCellOctaveFloat() {
         document.getElementById('grid-cell-octave-up').onclick = () => {
-            const index = this.gridCellOctaveFloatTargetIndex();
+            const index = this.activeGridChordIndex();
             if (index != null) this.shiftChordOctave(this.activeSection, index, 1);
         };
         document.getElementById('grid-cell-octave-down').onclick = () => {
-            const index = this.gridCellOctaveFloatTargetIndex();
+            const index = this.activeGridChordIndex();
             if (index != null) this.shiftChordOctave(this.activeSection, index, -1);
         };
         // Suit le défilement de la loupe grille (#grid-zoom-host, voir openGridZoom) : la pastille est
@@ -6276,7 +6305,7 @@ class HarmoHubApp {
         const float = document.getElementById('grid-cell-octave-float');
         if (!float) return;
         const hide = () => { float.hidden = true; };
-        const index = this.gridCellOctaveFloatTargetIndex();
+        const index = this.activeGridChordIndex();
         if (!this.gridZoomOpen || index == null) return hide();
         const cell = document.querySelector(
             `#grid-zoom-host .grid-cell[data-section="${this.activeSection}"][data-index="${index}"]`
@@ -6621,14 +6650,16 @@ class HarmoHubApp {
     }
 
     // Équivalent clavier de la poignée d'étirement (voir onResizeStart/onResizeMove ci-dessus) pour
-    // l'accord sélectionné dans la grille (Maj+←/→, voir setupEventListeners) : même pas d'un temps
-    // entier que la souris, borné à 1 temps minimum. Pas de lecture audio ni de déplacement du
+    // l'accord sélectionné dans la grille (Maj+←/→, voir setupKeyboardShortcuts) : même pas d'un
+    // temps entier que la souris, borné à 1 temps minimum. Pas de lecture audio ni de déplacement du
     // playhead ici (contrairement à selectChord) — seule la durée change, l'accord reste sélectionné.
-    resizeSelectedChord(delta) {
-        if (this.selectedIndex == null) return;
+    // `index` : this.selectedIndex par défaut (grille classique), mais l'appelant peut passer
+    // this.activeGridChordIndex() pour suivre l'accord en ÉDITION dans la loupe grille à la place.
+    resizeSelectedChord(delta, index = this.selectedIndex) {
+        if (index == null) return;
         const sections = loadProgressionSections();
         const history = sections[this.activeSection] && sections[this.activeSection].chords;
-        const data = history && history[this.selectedIndex];
+        const data = history && history[index];
         if (!data) return;
         const beats = beatsFromData(data);
         const next = Math.max(1, beats + delta);
@@ -7611,6 +7642,10 @@ class HarmoHubApp {
         this[levelKey] = next;
         localStorage.setItem(storageKey, String(next));
         this.applyZoomLevel(kind);
+        // Ces échelles sont désormais conservées DANS le morceau lui-même (voir zoomSettingsForSong/
+        // saveCurrentSong) : comme les autres réglages "Morceau" (tonalité, tempo...), Enregistrer/
+        // Ctrl+S doit rester le seul moment où ce changement devient permanent.
+        hasUnsavedChanges = true;
     }
 
     // Applique les deux échelles courantes : l'HORIZONTALE joue sur la DENSITÉ (accords par ligne
@@ -7640,6 +7675,7 @@ class HarmoHubApp {
         this.seqInlineZoomLevelX = next;
         localStorage.setItem(SEQ_INLINE_ZOOM_LEVEL_X_KEY, String(next));
         this.renderSequencer();
+        hasUnsavedChanges = true; // voir adjustZoom : conservé dans le morceau, Enregistrer/Ctrl+S le rend permanent
     }
 
     // Menu contextuel d'un accord de la grille (« Séquenceur ») : le charge dans le panneau Accord
@@ -8584,33 +8620,44 @@ class HarmoHubApp {
                 if (e.key === 'ArrowLeft') { if (e.shiftKey) this.moveSelectedSeqNotes(-1); else this.resizeSelectedSeqNote(-1); e.preventDefault(); return; }
             }
 
-            // Accord sélectionné dans la grille : Maj+← / Maj+→ raccourcit/rallonge sa case d'un
-            // temps entier — équivalent clavier de la poignée d'étirement à la souris (voir
-            // onResizeMove/resizeSelectedChord), même pas, même borne à 1 temps minimum. Maj pour ne
-            // pas entrer en conflit avec ← → seuls, qui naviguent déjà d'un accord à l'autre juste
-            // en dessous.
-            if (!typing && this.selectedIndex != null && e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
-                this.resizeSelectedChord(e.key === 'ArrowRight' ? 1 : -1);
+            // Accord ACTIF dans la grille : en loupe grille, cliquer un accord charge son édition
+            // (this.editingIndex) plutôt que la simple sélection verte (this.selectedIndex, jamais
+            // posée là — voir editChordFromGridZoom) ; activeGridChordIndex() suit lequel des deux
+            // compte vraiment ici, pour que ces raccourcis marchent aussi bien en loupe que dans la
+            // grille classique (retour utilisateur).
+            const activeGridIdx = this.activeGridChordIndex();
+
+            // Maj+← / Maj+→ raccourcit/rallonge sa case d'un temps entier — équivalent clavier de la
+            // poignée d'étirement à la souris (voir onResizeMove/resizeSelectedChord), même pas, même
+            // borne à 1 temps minimum. Maj pour ne pas entrer en conflit avec ← → seuls, qui naviguent
+            // déjà d'un accord à l'autre juste en dessous.
+            if (!typing && activeGridIdx != null && e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+                this.resizeSelectedChord(e.key === 'ArrowRight' ? 1 : -1, activeGridIdx);
                 e.preventDefault();
                 return;
             }
 
-            // Accord sélectionné dans la grille : ← → passe au précédent/suivant DANS LA MÊME PARTIE
-            // (s'arrête aux bornes, ne saute pas d'une partie à l'autre) — s'appuie sur selectChord,
-            // donc rejoue aussi l'accord ciblé, comme un clic direct sur sa case.
-            if (!typing && this.selectedIndex != null && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+            // ← → passe au précédent/suivant DANS LA MÊME PARTIE (s'arrête aux bornes, ne saute pas
+            // d'une partie à l'autre) — en loupe grille avec un accord en édition, s'appuie sur
+            // editChordFromGridZoom (le rectangle orangé et le séquenceur épinglé suivent, comme un
+            // clic sur le contexte grisé du séquenceur, voir .seq-ctx-nav) ; sinon sur selectChord
+            // (simple sélection verte, rejoue aussi l'accord ciblé, comme un clic direct sur sa case).
+            if (!typing && activeGridIdx != null && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
                 const sections = loadProgressionSections();
                 const history = sections[this.activeSection] && sections[this.activeSection].chords;
                 if (history && history.length > 0) {
                     const dir = (e.key === 'ArrowRight') ? 1 : -1;
-                    const next = Math.min(history.length - 1, Math.max(0, this.selectedIndex + dir));
-                    if (next !== this.selectedIndex) this.selectChord(this.activeSection, next);
+                    const next = Math.min(history.length - 1, Math.max(0, activeGridIdx + dir));
+                    if (next !== activeGridIdx) {
+                        if (this.gridZoomOpen && this.editingIndex != null) this.editChordFromGridZoom(this.activeSection, next);
+                        else this.selectChord(this.activeSection, next);
+                    }
                     e.preventDefault();
                 }
             }
 
             if (!typing && (e.key === 'Delete' || e.key === 'Backspace')) {
-                if (this.selectedIndex != null) { this.removeChord(this.activeSection, this.selectedIndex); e.preventDefault(); }
+                if (activeGridIdx != null) { this.removeChord(this.activeSection, activeGridIdx); e.preventDefault(); }
             }
 
             // Entrée depuis un réglage d'accord : ajoute/modifie sans avoir à cliquer sur le bouton
