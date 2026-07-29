@@ -1762,6 +1762,11 @@ class HarmoHubApp {
         this.clipboard = null;     // presse-papier (copier/coller d'accords)
         this.pianoWindow = null;   // fenêtre clavier courante
         this.guitarKey = null;     // signature (midis triés) du dernier accord affiché à la guitare
+        this.guitarIdentityKey = null; // signature de CE QUI DÉFINIT VRAIMENT l'accord joué à la guitare
+                                   // (racine/qualité/renversement/drop/octave/basse, PAS les notes
+                                   // libres du séquenceur) — voir ensureGuitarDiagram, décide si le
+                                   // verrou doit sauter, séparément de guitarKey (qui décide si le
+                                   // diagramme entier doit se recalculer).
         this.guitarFingerings = []; // doigtés jouables pour l'accord courant (voir solveGuitarFingerings)
         this.guitarFingeringIndex = 0; // doigté actuellement affiché parmi guitarFingerings
         this.guitarLock = null;    // doigté verrouillé en attente pour l'accord en cours d'édition (voir toggleGuitarLock)
@@ -2304,7 +2309,14 @@ class HarmoHubApp {
             // sans cet ajout, ajouter une note ou supprimer une barre dans le séquenceur agrandi (ni
             // l'un ni l'autre) sortait silencieusement du mode édition en cours, perdant la
             // modification (retour utilisateur : les boutons Modifier/Annuler disparaissaient).
-            const inEditor = inPath('.col-left') || inPath('.grid-zoom-modal') || inPath('.seq-zoom-modal');
+            // .chord-header-row et .viz-wrap (titre + diagrammes piano/guitare) vivent eux aussi hors de
+            // .col-left (dans .col-right, à côté de la grille) : sans eux ici, cycler un doigté ou
+            // verrouiller la guitare (#guitar-next/#guitar-lock-btn) sortait silencieusement du mode
+            // édition — this.editingIndex retombait à null, et Enregistrer AJOUTAIT alors un nouvel
+            // accord au lieu de remplacer celui en cours, perdant le verrou tout juste posé (retour
+            // utilisateur : « le cadenas ne fonctionne plus »).
+            const inEditor = inPath('.col-left') || inPath('.grid-zoom-modal') || inPath('.seq-zoom-modal')
+                || inPath('.chord-header-row') || inPath('.viz-wrap');
             let changed = false;
             if (!inGrid && !inMenu && this.selectedIndex != null) { this.selectedIndex = null; changed = true; }
             if (!inGrid && !inMenu && !inEditor && this.editingIndex != null) { this.exitEditMode(); changed = true; }
@@ -2561,11 +2573,18 @@ class HarmoHubApp {
         const key = `${chord.root}:${chord.quality}:${chord.getMidiNotes().join(',')}`;
         if (this.guitarKey === key) return;
         this.guitarKey = key;
-        // Un changement RÉEL d'accord (racine/qualité/voicing) invalide un verrou existant : la forme
-        // mémorisée (case par corde) ne correspondrait plus aux bonnes notes. Seuls editChord (restaure
-        // le verrou déjà enregistré) et toggleGuitarLock (vient justement de le poser/lever) doivent
-        // survivre à ce recalcul, via ce drapeau à usage unique.
-        if (!this._keepGuitarLockOnce) this.guitarLock = null;
+        // Un changement RÉEL d'accord invalide un verrou existant : la forme mémorisée (case par
+        // corde) ne correspondrait plus aux bonnes notes. « Réel » se juge sur l'IDENTITÉ de l'accord
+        // (racine/qualité/renversement/drop/octave/basse) — jamais sur les notes libres du séquenceur
+        // (extraNotes, voir addSequencerNote), qui ne sont qu'un embellissement mélodique indépendant :
+        // peindre une note de passage ne doit pas faire sauter un doigté verrouillé (retour
+        // utilisateur), même si ça change `key` ci-dessus (basé sur getMidiNotes, qui les inclut) et
+        // donc force quand même un recalcul du diagramme lui-même. Seuls editChord (restaure le verrou
+        // déjà enregistré) et toggleGuitarLock (vient justement de le poser/lever) doivent survivre à
+        // un changement d'identité, via ce drapeau à usage unique.
+        const identityKey = `${chord.root}:${chord.quality}:${chord.getEffectiveInversion()}:${chord.drop}:${chord.octave}:${chord.bass || ''}`;
+        if (!this._keepGuitarLockOnce && this.guitarIdentityKey !== identityKey) this.guitarLock = null;
+        this.guitarIdentityKey = identityKey;
         this._keepGuitarLockOnce = false;
         this.guitarFingerings = guitarFingeringsForChord(chord, this.guitarLock);
         this.guitarFingeringIndex = 0;
@@ -3651,6 +3670,12 @@ class HarmoHubApp {
         // Les notes libres restaurées (voir editChord) étaient propres à CET accord — repartir sans,
         // comme pour un tout nouvel accord, plutôt que les recopier malgré soi sur le suivant.
         this.extraNotes = [];
+        // Idem pour le verrou guitare (voir toggleGuitarLock) : propre à CET accord, jamais à recopier
+        // malgré soi sur le suivant si jamais il partage la même identité (racine/qualité/voicing) —
+        // guitarKey à null force aussi ensureGuitarDiagram à tout recalculer dès le prochain accord.
+        this.guitarLock = null;
+        this.guitarKey = null;
+        this.guitarIdentityKey = null;
     }
 
     // Déplace le bloc Ajouter/À la suite/Annuler entre sa place normale (juste au-dessus de la carte

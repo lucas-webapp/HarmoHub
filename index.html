@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202607300600">
+    <link rel="stylesheet" href="style.css?v=202607300900">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -678,10 +678,10 @@
             </section>
 
             <!-- Titre d'accord + boutons piano/guitare sur la MÊME ligne (voir retour utilisateur : les
-                 boutons prenaient trop de place en pleine largeur) — bascule calée à droite, au niveau
-                 du titre, pour gagner de la hauteur (moins de scroll mobile). -->
+                 boutons prenaient trop de place en pleine largeur) — bascule calée à GAUCHE (retour
+                 utilisateur : rester à gauche, pas suivre le nombre de diagrammes ouverts), titre
+                 centré dans l'espace restant (voir #current-chord-display, flex:1 + text-align:center). -->
             <div class="chord-header-row">
-                <div id="current-chord-display">--</div>
                 <div class="viz-toggle">
                     <button type="button" id="toggle-viz-piano" class="icon-btn viz-toggle-btn" title="Afficher le piano" aria-label="Afficher le piano" aria-pressed="true">
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M8 5v8M12 5v8M16 5v8"/></svg>
@@ -697,6 +697,7 @@
                         </svg>
                     </button>
                 </div>
+                <div id="current-chord-display">--</div>
             </div>
 
             <div class="viz-wrap">
@@ -704,21 +705,29 @@
                     <section id="piano-viz" class="piano-container"></section>
                     <div id="guitar-viz-wrap" class="guitar-viz-wrap">
                         <div id="guitar-viz" class="guitar-container"></div>
-                        <div id="guitar-nav" class="guitar-nav">
-                            <button type="button" id="guitar-prev" class="icon-btn" title="Doigté précédent" aria-label="Doigté précédent">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-                            </button>
-                            <span id="guitar-nav-label" class="guitar-nav-label">1/1</span>
-                            <button type="button" id="guitar-next" class="icon-btn" title="Doigté suivant" aria-label="Doigté suivant">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                        <!-- Flèches de doigté + cadenas sur la MÊME ligne (retour utilisateur : la guitare
+                             prend déjà plus de hauteur que le piano, pas besoin d'une rangée de plus pour
+                             le cadenas, autrefois en dessous). #guitar-nav garde son propre display
+                             indépendant (masqué à doigté unique, voir renderGuitarDiagram) : le cadenas,
+                             lui, reste visible tant qu'il y a au moins un doigté (voir
+                             updateGuitarLockButton), donc pas imbriqué DANS #guitar-nav. -->
+                        <div class="guitar-controls-row">
+                            <div id="guitar-nav" class="guitar-nav">
+                                <button type="button" id="guitar-prev" class="icon-btn" title="Doigté précédent" aria-label="Doigté précédent">
+                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                                </button>
+                                <span id="guitar-nav-label" class="guitar-nav-label">1/1</span>
+                                <button type="button" id="guitar-next" class="icon-btn" title="Doigté suivant" aria-label="Doigté suivant">
+                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                                </button>
+                            </div>
+                            <!-- Verrouille le doigté affiché (voir toggleGuitarLock dans script.js) : reste
+                                 visible même à doigté unique (pas caché avec #guitar-nav), rempli/positionné
+                                 dynamiquement par updateGuitarLockButton. -->
+                            <button type="button" id="guitar-lock-btn" class="icon-btn guitar-lock-btn" title="Verrouiller ce doigté pour cet accord" aria-label="Verrouiller ce doigté pour cet accord" aria-pressed="false" style="display:none">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>
                             </button>
                         </div>
-                        <!-- Verrouille le doigté affiché (voir toggleGuitarLock dans script.js) : reste
-                             visible même à doigté unique (pas caché avec #guitar-nav), rempli/positionné
-                             dynamiquement par updateGuitarLockButton. -->
-                        <button type="button" id="guitar-lock-btn" class="icon-btn guitar-lock-btn" title="Verrouiller ce doigté pour cet accord" aria-label="Verrouiller ce doigté pour cet accord" aria-pressed="false" style="display:none">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>
-                        </button>
                     </div>
                 </div>
                 <div class="piano-legend">
@@ -759,6 +768,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202607300600"></script>
+    <script src="script.js?v=202607300900"></script>
 </body>
 </html>

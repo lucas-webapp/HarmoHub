@@ -1407,7 +1407,16 @@ button:active { transform: translateY(1px); }
     gap: 24px;
     min-width: 0;
 }
-.viz-diagrams .piano-container { flex: 1 1 auto; }
+/* .piano-container tout seul (voir plus bas) se centre via margin:auto — mais des marges auto sur un
+   ÉLÉMENT FLEX absorbent TOUT l'espace libre disponible pour elles-mêmes, avant même que
+   justify-content n'entre en jeu (spec flexbox) : partagée avec la guitare sur la même ligne, le piano
+   « aspirait » ainsi toute la largeur en trop pour ses propres marges gauche/droite, sans plus rien
+   laisser à justify-content:center pour centrer la PAIRE — la guitare se retrouvait donc plaquée à
+   droite sans la moindre marge (retour utilisateur). flex:none (pas flex-grow:1, qui aurait le même
+   souci d'un autre ordre) + marges horizontales à 0 ici : piano et guitare gardent leur taille
+   naturelle, sans rien réclamer pour eux-mêmes, et c'est alors justify-content:center ci-dessus qui
+   centre correctement la paire (ou l'un seul des deux) sur toute la largeur. */
+.viz-diagrams .piano-container { flex: none; margin-left: 0; margin-right: 0; }
 
 /* Boutons de bascule piano/guitare : calés à droite du titre d'accord (voir .chord-header-row),
    compacts (largeur réduite) plutôt qu'en pleine largeur — très utilisés, donc un peu plus grands
@@ -1441,13 +1450,23 @@ button:active { transform: translateY(1px); }
     border: 1px dashed #444;
     border-radius: 8px;
 }
-.guitar-lock-btn { margin-top: 6px; }
-.guitar-nav {
+/* Flèches de doigté (#guitar-nav) + cadenas côte à côte plutôt qu'en 2 rangées empilées (retour
+   utilisateur : la guitare prend déjà plus de hauteur que le piano) — #guitar-nav garde son propre
+   display indépendant (masqué à doigté unique) sans affecter la ligne : le cadenas, lui, reste centré
+   tout seul si #guitar-nav est masqué. */
+.guitar-controls-row {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     margin-top: 6px;
+}
+.guitar-lock-btn { margin-top: 0; }
+.guitar-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
 }
 .guitar-nav-label {
     font-size: var(--fs-xs);
