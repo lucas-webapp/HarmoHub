@@ -1695,6 +1695,9 @@ class HarmoHubApp {
         this.guitarLock = null;    // doigté verrouillé en attente pour l'accord en cours d'édition (voir toggleGuitarLock)
         this._keepGuitarLockOnce = false; // laisse passer guitarLock au PROCHAIN recalcul (voir ensureGuitarDiagram)
         this.extraNotes = [];      // notes libres en attente pour l'accord en cours d'édition (voir addSequencerNote)
+        this.seqRenderGen = 0;     // incrémenté à chaque renderSequencer() (voir plus bas, étiquette éditable
+                                   // d'une note libre) : un blur tardif d'une étiquette d'un rendu déjà
+                                   // remplacé ne doit jamais committer sur l'état (accord) désormais chargé
         this._lastTap = null;      // pour le double-tap (suppression mobile)
         this.tapTimes = [];        // horodatages du tap tempo (voir handleTapTempo)
         this.isPlaying = false;    // une lecture (accord/progression) est-elle en cours ?
@@ -3045,11 +3048,38 @@ class HarmoHubApp {
         bar.style.left = `${fraction * 100}%`;
     }
 
+    // Retire les notes libres devenues totalement silencieuses (plus une seule croche peinte pour
+    // leur voix) au moment de valider : ajoutée puis entièrement effacée, une note libre ne doit pas
+    // rester une voix fantôme de l'accord (sans le moindre son, mais toujours comptée dans son
+    // voicing/ses diagrammes) une fois la modification enregistrée (retour utilisateur).
+    pruneEmptyExtraNotes() {
+        if (!this.extraNotes.length) return;
+        const chord = this.readChord();
+        const { pattern: livePattern, tie: liveTie } = parseSeqPattern(document.getElementById('arpPattern').value);
+        const extraStart = chord.getIntervals().length;
+        const keepFlags = this.extraNotes.map((_, i) => livePattern.some(s => s.includes(extraStart + i)));
+        if (keepFlags.every(Boolean)) return; // rien à retirer
+
+        // Remappe chaque voix libre CONSERVÉE vers son nouvel index (celles de l'accord lui-même,
+        // avant extraStart, ne bougent jamais) — même principe que reevaluateExtraNoteUpgrades.
+        const remap = new Map();
+        let nextIdx = 0;
+        keepFlags.forEach((keep, i) => {
+            if (keep) { remap.set(extraStart + i, extraStart + nextIdx); nextIdx++; }
+        });
+        const remapVoice = (v) => (v < extraStart ? v : remap.get(v)); // undefined = voix retirée
+        const newPattern = livePattern.map(s => s.map(remapVoice).filter(v => v !== undefined));
+        const newTie = liveTie.map(s => s.map(remapVoice).filter(v => v !== undefined));
+        this.setLiveSeqPattern(newPattern, newTie);
+        this.extraNotes = this.extraNotes.filter((_, i) => keepFlags[i]);
+    }
+
     // `insertAfter` (optionnel) : index après lequel insérer le nouvel accord, dans la partie active
     // (bouton « À la suite ») — ignoré en mode modification, et si absent l'accord est ajouté en fin
     // de partie comme avant (bouton « Ajouter »/« À la fin »).
     saveCurrent(insertAfter) {
         this.syncSeqPatternForCurrentChord(); // garantit un arpPattern à jour même si le panneau n'a jamais été ouvert
+        this.pruneEmptyExtraNotes();
         const data = {
             root: document.getElementById('root').value,
             quality: document.getElementById('quality').value,
@@ -7368,6 +7398,7 @@ class HarmoHubApp {
         if (!host) return;
         host.hidden = !this.seqOpen;
         if (!this.seqOpen) return;
+        this.seqRenderGen++; // voir déclaration : identifie ce rendu pour les étiquettes éditables ci-dessous
         // Position de défilement horizontal AVANT de reconstruire tout le HTML (voir plus bas, mode
         // continu) : préservée d'un rendu à l'autre (peindre une note ne doit pas ramener la vue au
         // début), sinon centrée sur l'accord édité par défaut (ni perdue dans le contexte gauche).
@@ -7703,6 +7734,7 @@ class HarmoHubApp {
         // Étiquette éditable d'une note libre (voir addSequencerNote) : Entrée valide (déclenche le
         // blur ci-dessous), Échap annule sans valider — même schéma que les autres renommages en
         // ligne de l'appli (morceau, dossier...).
+        const myRenderGen = this.seqRenderGen; // voir déclaration : capturé PAR rendu, pas par étiquette
         host.querySelectorAll('.seq-label-input').forEach(input => {
             const extraIdx = parseInt(input.dataset.extraIndex);
             input.addEventListener('keydown', (e) => {
@@ -7710,7 +7742,16 @@ class HarmoHubApp {
                 if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
                 else if (e.key === 'Escape') { e.preventDefault(); input.value = input.defaultValue; input.blur(); }
             });
-            input.addEventListener('blur', () => this.commitExtraNoteLabel(extraIdx, input.value));
+            // Un rendu ultérieur (autre accord chargé, ou même accord reconstruit pour une autre raison)
+            // remplace ce champ sans jamais le blurrer explicitement : le navigateur déclenche alors LUI-
+            // MÊME un blur natif au moment où `host.innerHTML` le détache, avec ce même écouteur toujours
+            // branché dessus. Sans le garde-fou ci-dessous, ce commit tardif s'appliquerait à `this.
+            // extraNotes` de l'accord ENTRETEMPS chargé (index de voix redevenu invalide, voire voix
+            // fantôme dupliquée) au lieu de celui pour lequel ce champ existait — voir pruneEmptyExtraNotes.
+            input.addEventListener('blur', () => {
+                if (this.seqRenderGen !== myRenderGen) return;
+                this.commitExtraNoteLabel(extraIdx, input.value);
+            });
             // Écouter la hauteur au clic, comme les étiquettes normales ci-dessous : n'empêche pas le
             // focus/l'édition du texte qui suit ce même clic (pas de preventDefault ici).
             input.addEventListener('click', () => this.previewSeqNote(+input.dataset.voice));
