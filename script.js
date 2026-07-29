@@ -7364,11 +7364,47 @@ class HarmoHubApp {
         const steps = chord.beats * SEQ_STEPS_PER_BEAT;
         const { pattern, tie } = this.getLiveSeqPattern(chord);
 
+        // Loupe grille (voir gridZoomOpen) : axe vertical en demi-tons ABSOLUS plutôt qu'en voix
+        // relatives à CET accord, pour voir d'un coup d'œil comment le voicing se place par rapport
+        // aux accords voisins de la section — repère direct pour l'ajuster (retour utilisateur).
+        // Uniquement quand un accord est réellement en édition (this.editingIndex) : sinon aucun
+        // accord de référence n'existe pour comparer, on retombe sur l'affichage normal ci-dessous.
+        const continuous = this.gridZoomOpen && this.editingIndex != null;
+        let prevMidiSet = new Set(), nextMidiSet = new Set();
+        if (continuous) {
+            const ctxSections = loadProgressionSections();
+            const ctxSec = ctxSections[this.activeSection];
+            const prevData = ctxSec && ctxSec.chords[this.editingIndex - 1];
+            const nextData = ctxSec && ctxSec.chords[this.editingIndex + 1];
+            if (prevData) {
+                const pChord = new Chord(prevData.root, prevData.quality, beatsFromData(prevData), prevData.inversion, prevData.drop, octaveFromData(prevData), prevData.bass, null, prevData.extraNotes);
+                prevMidiSet = new Set(pChord.getSeqMidiNotes());
+            }
+            if (nextData) {
+                const nChord = new Chord(nextData.root, nextData.quality, beatsFromData(nextData), nextData.inversion, nextData.drop, octaveFromData(nextData), nextData.bass, null, nextData.extraNotes);
+                nextMidiSet = new Set(nChord.getSeqMidiNotes());
+            }
+        }
+
         // Ordre d'AFFICHAGE des lignes (la plus aiguë en haut, comme un piano-roll), à ne jamais
-        // confondre avec l'index de voix `r` (identité stable utilisée par le motif/pattern — voir
+        // confondre avec l'index de voix (identité stable utilisée par le motif/pattern — voir
         // getSeqMidiNotes) : la basse, si présente, garde toujours le DERNIER index mais doit
         // s'afficher tout en BAS, pas en haut — d'où ce tri séparé, purement visuel.
-        const rowOrder = Array.from({ length: voices }, (_, i) => i).sort((a, b) => midis[b] - midis[a]);
+        // `rowOrder` : { voice, midi } du plus aigu au plus grave. voice=-1 = ligne de CONTEXTE (une
+        // hauteur jouée par l'accord précédent/suivant mais pas par celui-ci) : affichée en lecture
+        // seule (label + petit repère gauche/droite), sans case ni note éditable.
+        let rowOrder;
+        if (continuous && (prevMidiSet.size || nextMidiSet.size)) {
+            const allMidis = new Set(midis);
+            prevMidiSet.forEach(m => allMidis.add(m));
+            nextMidiSet.forEach(m => allMidis.add(m));
+            rowOrder = Array.from(allMidis).sort((a, b) => b - a).map(midi => ({ voice: midis.indexOf(midi), midi }));
+        } else {
+            rowOrder = Array.from({ length: voices }, (_, i) => i)
+                .sort((a, b) => midis[b] - midis[a])
+                .map(i => ({ voice: i, midi: midis[i] }));
+        }
+        const rowCount = rowOrder.length;
 
         // Un accord qui dure plusieurs mesures ne montre qu'une « page » à la fois (une mesure en
         // 4/4, deux en 2/4, une seule dès que la mesure est plus longue que 4 temps — voir
@@ -7395,7 +7431,10 @@ class HarmoHubApp {
         // recréait exactement le conflit scroll/étirement que la pagination visait à éliminer.
         // data-page-start/steps : lus par updateSeqPlayhead pour savoir si le pas en cours de lecture
         // tombe dans la page affichée (et à quelle colonne), sans dupliquer ce calcul côté lecture.
-        let html = `<div class="seq-scroll"><div class="seq-grid" data-page-start="${pageStart}" data-page-steps="${pageSteps}" style="grid-template-columns: max-content repeat(${pageSteps}, 1fr);">`;
+        // .seq-grid-continuous : lignes plus basses (voir style.css) pour laisser tenir les demi-tons
+        // supplémentaires du contexte sans faire déborder la loupe grille (retour utilisateur).
+        const continuousCls = continuous ? ' seq-grid-continuous' : '';
+        let html = `<div class="seq-scroll"><div class="seq-grid${continuousCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" style="grid-template-columns: max-content repeat(${pageSteps}, 1fr);">`;
 
         // Cases de la grille : zones de clic/glisser (toujours présentes, sous les notes visuelles).
         // Placement explicite (grid-row/grid-column) sur TOUT le monde : les notes ci-dessous se
@@ -7417,15 +7456,27 @@ class HarmoHubApp {
         const extraEnd = extraStart + chord.extraNotes.length;
 
         let rowIndex = 0;
-        for (const r of rowOrder) {
+        for (const row of rowOrder) {
             rowIndex++;
+            const r = row.voice;
+            // Repère discret (voir style.css .seq-label-echo-*) : cette hauteur est aussi jouée par
+            // l'accord précédent/suivant — visible aussi bien sur une ligne de contexte que sur une
+            // vraie voix de l'accord en édition, pour situer d'un coup d'œil ce qui reste commun.
+            const echoCls = (prevMidiSet.has(row.midi) ? ' seq-label-echo-prev' : '') + (nextMidiSet.has(row.midi) ? ' seq-label-echo-next' : '');
+            if (r < 0) {
+                // Ligne de CONTEXTE : une hauteur jouée par un accord voisin mais pas par celui-ci —
+                // juste le nom de la note, en lecture seule, aucune case ni note éditable dessous.
+                const ctxName = midiToDisplayName(row.midi, this.useFlatsForRoot(chord.root));
+                html += `<div class="seq-label seq-label-context${echoCls}" style="grid-row:${rowIndex}; grid-column:1;">${ctxName}</div>`;
+                continue;
+            }
             if (r >= extraStart && r < extraEnd) {
                 const extraIdx = r - extraStart;
-                html += `<div class="seq-label seq-label-extra" style="grid-row:${rowIndex}; grid-column:1;">
+                html += `<div class="seq-label seq-label-extra${echoCls}" style="grid-row:${rowIndex}; grid-column:1;">
                     <input type="text" class="seq-label-input" data-extra-index="${extraIdx}" data-voice="${r}" value="${escapeHtml(noteNames[r])}" title="Note libre : tape une hauteur (ex. E3), ou vide pour la supprimer" autocomplete="off" autocapitalize="off" spellcheck="false">
                 </div>`;
             } else {
-                html += `<div class="seq-label" data-voice="${r}" title="Cliquer pour écouter cette note" style="grid-row:${rowIndex}; grid-column:1;">${noteNames[r]}</div>`;
+                html += `<div class="seq-label${echoCls}" data-voice="${r}" title="Cliquer pour écouter cette note" style="grid-row:${rowIndex}; grid-column:1;">${noteNames[r]}</div>`;
             }
             for (let s = pageStart; s < pageEnd; s++) {
                 const col = s - pageStart;
@@ -7453,8 +7504,10 @@ class HarmoHubApp {
         // depuis ce bord (voir onSeqPointerDown) ; ailleurs, un glissé peint/efface comme avant.
         let notesHtml = '';
         rowIndex = 0;
-        for (const r of rowOrder) {
+        for (const row of rowOrder) {
             rowIndex++;
+            const r = row.voice;
+            if (r < 0) continue; // ligne de contexte : aucune note éditable à dessiner ici
             let s = pageStart;
             while (s < pageEnd) {
                 if (!pattern[s].includes(r)) { s++; continue; }
@@ -7497,7 +7550,7 @@ class HarmoHubApp {
         // Numéros de temps en petit sous la grille (1, 2, 3... à chaque début de temps, recommence à
         // 1 à chaque mesure) : pour repérer d'un coup d'œil où tombe chaque temps, comme les numéros
         // de mesure sous la grille d'accords principale.
-        const beatRow = voices + 1;
+        const beatRow = rowCount + 1;
         let beatLabelsHtml = '';
         for (let s = pageStart; s < pageEnd; s += SEQ_STEPS_PER_BEAT) {
             const beatNum = (Math.floor(s / SEQ_STEPS_PER_BEAT) % beatsPerBar) + 1;
@@ -7506,8 +7559,8 @@ class HarmoHubApp {
         html += beatLabelsHtml;
 
         // Curseur de lecture (masqué par défaut, positionné/affiché par updateSeqPlayhead pendant la
-        // lecture) : ne couvre que les rangées de voix, pas celle des numéros de temps en dessous.
-        html += `<div class="seq-playhead" style="grid-row: 1 / span ${voices}; grid-column: 2 / span 1;"></div>`;
+        // lecture) : ne couvre que les rangées de voix (contexte compris), pas celle des temps en dessous.
+        html += `<div class="seq-playhead" style="grid-row: 1 / span ${rowCount}; grid-column: 2 / span 1;"></div>`;
 
         html += `</div></div>`;
 

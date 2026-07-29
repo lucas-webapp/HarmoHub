@@ -349,6 +349,23 @@ button, .icon-btn, .prog-section-del, .seq-presets button, .seq-delete-btn {
 /* Cases un cran plus grandes qu'en taille normale, comme dans la fenêtre agrandie du séquenceur :
    cet emplacement sert justement à modifier vite, autant profiter de cases faciles à viser. */
 .grid-zoom-pinned-body .seq-cell { height: 40px; }
+/* Axe en demi-tons continu sur toute la section (voir renderSequencer, gridZoomOpen) : nettement
+   plus de lignes qu'une simple voix d'accord (souvent 2-3 octaves), donc plus basses pour tenir sans
+   scroll vertical démesuré (retour utilisateur : réduire la hauteur des barres). Sélecteur à 3
+   classes pour l'emporter sur la règle ci-dessus (spécificité 0,2,0). */
+.grid-zoom-pinned-body .seq-grid-continuous .seq-cell { height: 16px; }
+.seq-grid-continuous .seq-label,
+.seq-grid-continuous .seq-label-input { font-size: var(--fs-2xs); }
+
+/* Repère de continuité (voir prevMidiSet/nextMidiSet dans renderSequencer) : cette hauteur est aussi
+   jouée par l'accord précédent (trait à gauche) et/ou suivant (trait à droite) — les deux peuvent
+   coexister sans se gêner, chacun de son côté. */
+.seq-label-echo-prev { border-left: 2px solid var(--accent); padding-left: 4px; }
+.seq-label-echo-next { border-right: 2px solid var(--accent); padding-right: 4px; }
+
+/* Ligne de contexte (accord voisin, hors édition) : nom de note seul, sans case ni glissé possible —
+   nettement plus discret qu'une vraie voix de l'accord en cours d'édition. */
+.seq-label-context { color: var(--text-muted); opacity: 0.55; font-style: italic; cursor: default; }
 
 .grid-zoom-pinned-seq.collapsed .grid-zoom-pinned-placeholder,
 .grid-zoom-pinned-seq.collapsed .grid-zoom-pinned-body { display: none; }
