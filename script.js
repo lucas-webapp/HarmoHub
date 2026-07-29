@@ -5965,10 +5965,11 @@ class HarmoHubApp {
         const cell = e.target.closest('.grid-cell');
         if (cell) {
             const rect = cell.getBoundingClientRect();
+            const pressedIndex = parseInt(cell.dataset.index);
             this.drag = {
                 section,
-                index: parseInt(cell.dataset.index),   // position vivante de l'accord déplacé
-                origIndex: parseInt(cell.dataset.index),
+                index: pressedIndex,   // position vivante de l'accord déplacé
+                origIndex: pressedIndex,
                 startX: e.clientX, startY: e.clientY,
                 startTime: Date.now(),
                 offsetX: e.clientX - rect.left,        // pour que le fantôme ne saute pas sous le doigt
@@ -5985,6 +5986,14 @@ class HarmoHubApp {
                 // ouvre directement l'édition inline de son texte plutôt que de sélectionner/écouter
                 // l'accord — bien plus rapide que passer par le mode édition complet.
                 symTarget: !!e.target.closest('.cell-sym'),
+                // Le geste démarre sur une case FAISANT PARTIE de la sélection multiple courante (voir
+                // toggleGridMultiSelect) : Ctrl+glisser copiera TOUT le groupe d'un coup (retour
+                // utilisateur), pas seulement la case sous le doigt — sinon un simple [index] comme
+                // avant. Capturé ICI (avant tout glisser) : la sélection ne doit plus bouger pendant
+                // le geste lui-même.
+                dragIndices: (this.multiSelect.size > 1 && this.multiSelect.has(pressedIndex))
+                    ? [...this.multiSelect].sort((a, b) => a - b)
+                    : [pressedIndex],
             };
             this._onMove = (ev) => this.onGridPointerMove(ev);
             this._onUp = (ev) => this.onGridPointerUp(ev);
@@ -6022,7 +6031,7 @@ class HarmoHubApp {
             if (!d.copy && d.pointerType !== 'mouse' && (Date.now() - d.startTime) > 450) d.copy = true;
             d.moved = true;
             this.pushUndo(loadProgressionSections()); // un seul snapshot pour tout le geste de glisser
-            d.ghost = this.createDragGhost(d.cell, d.width, d.height); // cloner tant que la case est attachée
+            d.ghost = this.createDragGhost(d.cell, d.width, d.height, d.copy ? d.dragIndices.length : 1); // cloner tant que la case est attachée
             this.loadProgression();                                    // puis re-rendre (emplacement fantôme)
         }
         e.preventDefault();
@@ -6111,8 +6120,11 @@ class HarmoHubApp {
             return;
         }
         if (d.copy) {
-            // Rien n'a encore bougé (voir onGridPointerMove) : insère la copie à l'endroit déposé.
-            this.duplicateChordTo(d.section, d.origIndex, d.index);
+            // Rien n'a encore bougé (voir onGridPointerMove) : insère la copie à l'endroit déposé —
+            // tout le groupe sélectionné d'un coup si le geste avait démarré dessus (voir
+            // onGridPointerDown/dragIndices), sinon juste la case glissée comme avant.
+            if (d.dragIndices.length > 1) this.duplicateChordsTo(d.section, d.dragIndices, d.index);
+            else this.duplicateChordTo(d.section, d.origIndex, d.index);
             return;
         }
         // La grille est déjà dans l'ordre final ; on répercute le déplacement sur sélection/édition
@@ -6143,6 +6155,26 @@ class HarmoHubApp {
         // pointer sur les anciens index, donc sur d'autres accords une fois l'insertion faite.
         this.multiSelect = new Set(Array.from(this.multiSelect, (i) => (i >= insertAt ? i + 1 : i)));
         this.selectedIndex = insertAt; // sélectionne la copie, comme duplicateChord (menu contextuel)
+        this.loadProgression();
+    }
+
+    // Même principe que duplicateChordTo, mais pour tout un GROUPE d'accords à la fois (voir
+    // onGridPointerDown/dragIndices) : Ctrl+glisser depuis une case faisant partie de la sélection
+    // multiple copie tout le groupe d'un coup, dans son ordre d'origine (pas celui des clics), à
+    // l'endroit déposé — comme pasteChord, la sélection multiple redevient le bloc tout juste copié.
+    duplicateChordsTo(section, fromIndices, toIndex) {
+        const sections = loadProgressionSections();
+        const history = sections[section] && sections[section].chords;
+        if (!history) return;
+        const sorted = fromIndices.filter(i => history[i]).sort((a, b) => a - b);
+        if (!sorted.length) return;
+        const copies = sorted.map(i => ({ ...history[i] }));
+        const insertAt = Math.max(0, Math.min(toIndex, history.length));
+        history.splice(insertAt, 0, ...copies);
+        saveProgressionSections(sections);
+        if (this.editingIndex != null && this.editingIndex >= insertAt) this.editingIndex += copies.length;
+        this.multiSelect = new Set(Array.from({ length: copies.length }, (_, i) => insertAt + i));
+        this.selectedIndex = insertAt + copies.length - 1;
         this.loadProgression();
     }
 
@@ -6564,14 +6596,22 @@ class HarmoHubApp {
         this.loadProgression();
     }
 
-    // Crée un clone flottant de la case en cours de déplacement
-    createDragGhost(cell, width, height) {
+    // Crée un clone flottant de la case en cours de déplacement. `count` > 1 (copie d'un groupe
+    // sélectionné en une fois, voir onGridPointerDown/duplicateChordsTo) : petit badge « ×N » pour
+    // indiquer que tout le groupe suit, alors qu'une seule case est visuellement glissée.
+    createDragGhost(cell, width, height, count = 1) {
         const rect = cell.getBoundingClientRect();
         const ghost = cell.cloneNode(true);
         ghost.classList.add('drag-ghost');
         ghost.classList.remove('selected', 'editing', 'drag-placeholder');
         ghost.style.width = `${width || rect.width}px`;
         ghost.style.height = `${height || rect.height}px`;
+        if (count > 1) {
+            const badge = document.createElement('span');
+            badge.className = 'drag-ghost-badge';
+            badge.textContent = `×${count}`;
+            ghost.appendChild(badge);
+        }
         document.body.appendChild(ghost);
         return ghost;
     }
@@ -6706,12 +6746,20 @@ class HarmoHubApp {
 
         // Ctrl/Cmd enfoncé : le tap (sans glisser) ajoutera/retirera cette note de la sélection au
         // lieu de la remplacer — voir onSeqPointerUp. N'affecte pas le glissé de peinture/effacement.
+        // Réutilisé aussi comme repère « copier » pour un changement de voix (voir beginSeqVoiceDrag) :
+        // Ctrl/Cmd déjà enfoncé à la prise = copie, sinon déplacement, même convention que la grille.
         this.seqDrag = {
             mode: 'paint', voice, wasOn, startStep: step, lastStep: step, moved: false,
             rowCells: null, touched: {}, additive: e.ctrlKey || e.metaKey,
             resize, resizeChanged: false, crossedThreshold: false, multi,
             curStart: resize ? resize.noteStart : null, curEnd: resize ? resize.noteEnd : null,
             noteEl: null, startX: e.clientX, startY: e.clientY,
+            // Bornes de la note sous le doigt (même hors bord, contrairement à resize.noteStart/End
+            // ci-dessus qui ne sont posés QUE si le geste a démarré pile sur un bord) : nécessaires
+            // pour basculer en changement de voix depuis N'IMPORTE quel point de la note (voir
+            // onSeqPointerMove/beginSeqVoiceDrag), pas seulement ses extrémités.
+            noteStart, noteEnd,
+            gestureDecided: false, voiceDrag: null,
         };
 
         this._onSeqMove = (ev) => this.onSeqPointerMove(ev);
@@ -6765,6 +6813,21 @@ class HarmoHubApp {
     onSeqPointerMove(e) {
         const d = this.seqDrag;
         if (!d) return;
+
+        // Démarré SUR une note déjà posée, hors sélection multiple : le sens du tout premier vrai
+        // mouvement (seuil commun aux autres gestes séquenceur) décide si ce glissé change de VOIX —
+        // la barre suit le pointeur vers une autre ligne, copiée/déplacée selon Ctrl/Cmd, voir
+        // beginSeqVoiceDrag — ou reste sur la même ligne (étirement depuis un bord, effacement en
+        // glissant depuis le corps : comportement historique, inchangé). Dominante verticale = change
+        // de voix ; horizontale = comportement habituel — décidé une seule fois pour tout le geste.
+        if (d.wasOn && !d.multi && !d.gestureDecided) {
+            const dx0 = e.clientX - d.startX, dy0 = e.clientY - d.startY;
+            if (Math.hypot(dx0, dy0) < 8) return;
+            d.gestureDecided = true;
+            if (Math.abs(dy0) > Math.abs(dx0)) this.beginSeqVoiceDrag(d);
+        }
+        if (d.voiceDrag) { this.onSeqVoiceDragMove(e, d); return; }
+
         if (d.multi) { this.onSeqMultiDragMove(e, d); return; }
         if (d.resize) { this.onSeqResizeMove(e, d); return; }
 
@@ -6960,6 +7023,108 @@ class HarmoHubApp {
         m.appliedDelta = delta;
     }
 
+    // Bascule un glissé démarré sur une note déjà posée (n'importe où dessus, pas juste un bord) en
+    // changement de VOIX (retour utilisateur : recopier/décaler un motif de jeu — ex. 2 croches
+    // staccato — d'une ligne à l'autre) : la note quitte visuellement sa ligne pour suivre le
+    // pointeur (fantôme flottant), jusqu'au dépôt (voir onSeqVoiceDragMove/finalizeSeqVoiceDrag).
+    // N'affecte QUE l'affichage tant qu'on n'a pas relâché — rien n'est peint avant.
+    beginSeqVoiceDrag(d) {
+        const noteEl = document.querySelector(
+            `.seq-note[data-voice="${d.voice}"][data-start="${d.noteStart}"][data-end="${d.noteEnd}"]`
+        );
+        if (!noteEl) return; // page/scroll a changé entretemps : abandonne, reste un glissé "même ligne"
+        this.pushSeqUndo(); // un seul instantané pour tout le geste, comme les autres gestes séquenceur
+        const rect = noteEl.getBoundingClientRect();
+        const ghost = noteEl.cloneNode(true);
+        ghost.className = noteEl.className.replace(/\bclip-(start|end)\b/g, '').trim(); // forme pleine, jamais coupée, une fois flottante
+        ghost.classList.add('seq-note-ghost');
+        ghost.style.gridColumn = '';
+        ghost.style.gridRow = '';
+        ghost.style.marginRight = '';
+        ghost.style.left = `${rect.left}px`;
+        ghost.style.top = `${rect.top}px`;
+        ghost.style.width = `${rect.width}px`;
+        ghost.style.height = `${rect.height}px`;
+        document.body.appendChild(ghost);
+        noteEl.style.visibility = 'hidden'; // l'original reste en place (annulation = rien à refaire) tant qu'on ne relâche pas
+        d.voiceDrag = {
+            origVoice: d.voice, start: d.noteStart, end: d.noteEnd,
+            targetVoice: d.voice, copy: d.additive,
+            ghost, noteEl,
+            offsetX: d.startX - rect.left, offsetY: d.startY - rect.top,
+        };
+    }
+
+    // Fantôme flottant recoloré selon la voix survolée (voir beginSeqVoiceDrag) : `.seq-cell` étant
+    // la seule case sous le pointeur (les notes elles-mêmes ont pointer-events:none, voir
+    // renderSequencer), elementFromPoint donne directement la voix survolée sans détour.
+    onSeqVoiceDragMove(e, d) {
+        e.preventDefault();
+        const vd = d.voiceDrag;
+        vd.ghost.style.left = `${e.clientX - vd.offsetX}px`;
+        vd.ghost.style.top = `${e.clientY - vd.offsetY}px`;
+
+        const under = document.elementFromPoint(e.clientX, e.clientY);
+        const cell = under && under.closest ? under.closest('.seq-cell') : null;
+        const targetVoice = cell ? +cell.dataset.voice : null;
+        if (targetVoice === vd.targetVoice) return;
+        vd.targetVoice = targetVoice;
+        vd.ghost.classList.toggle('seq-note-ghost-invalid', targetVoice == null);
+        if (targetVoice != null) {
+            const chord = this.readChord();
+            const midis = chord.getSeqMidiNotes();
+            const role = chord.getRoleMap()[midis[targetVoice]] || 'ext';
+            vd.ghost.className = vd.ghost.className.replace(/\brole-\S+/g, '').trim() + ` role-${role}`;
+        }
+    }
+
+    // Éteint entièrement toute note déjà présente sur `voice` qui chevauche (même partiellement) la
+    // plage [start, end] — étendue jusqu'aux bords RÉELS de chaque note trouvée (même logique que
+    // seqNeighborBounds/onSeqPointerDown), pas seulement la portion qui déborde. Sans ça, déposer une
+    // note par-dessus une autre plus longue laisserait un fragment de l'ancienne accroché de part et
+    // d'autre — voir finalizeSeqVoiceDrag.
+    clearSeqRunsOverlapping(voice, start, end) {
+        const chord = this.readChord();
+        const { pattern, tie } = this.getLiveSeqPattern(chord);
+        let lo = null, hi = null;
+        for (let s = start; s <= end; s++) {
+            if (!pattern[s].includes(voice)) continue;
+            let a = s, b = s;
+            while (a > 0 && pattern[a - 1].includes(voice) && tie[a].includes(voice)) a--;
+            while (b + 1 < pattern.length && pattern[b + 1].includes(voice) && tie[b + 1].includes(voice)) b++;
+            lo = lo == null ? a : Math.min(lo, a);
+            hi = hi == null ? b : Math.max(hi, b);
+        }
+        if (lo == null) return;
+        for (let s = lo; s <= hi; s++) this.applySeqCell(voice, s, false);
+    }
+
+    // Dépôt d'un changement de voix (voir beginSeqVoiceDrag/onSeqVoiceDragMove) : peint le même motif
+    // (attaque + tenue, positions temporelles inchangées) sur la voix cible, puis efface l'original
+    // SEULEMENT si ce n'est pas une copie (Ctrl/Cmd déjà enfoncé à la prise, voir d.additive) — sinon
+    // les deux lignes jouent désormais le même motif.
+    finalizeSeqVoiceDrag(d) {
+        const vd = d.voiceDrag;
+        vd.ghost.remove();
+        if (vd.noteEl) vd.noteEl.style.visibility = '';
+
+        if (vd.targetVoice == null || vd.targetVoice === vd.origVoice) {
+            // Déposé hors grille, ou revenu sur sa ligne d'origine : rien à changer.
+            this.renderSequencer();
+            return;
+        }
+
+        const { start, end, origVoice, targetVoice, copy } = vd;
+        this.clearSeqRunsOverlapping(targetVoice, start, end);
+        for (let s = start; s <= end; s++) this.applySeqCell(targetVoice, s, true, s !== start);
+        if (!copy) for (let s = start; s <= end; s++) this.applySeqCell(origVoice, s, false);
+
+        this.seqTouched = true;
+        this.seqSelections = [{ voice: targetVoice, start, end }];
+        this.renderSequencer();
+        this.livePreviewUpdate();
+    }
+
     onSeqPointerUp() {
         window.removeEventListener('pointermove', this._onSeqMove);
         window.removeEventListener('pointerup', this._onSeqUp);
@@ -6967,6 +7132,11 @@ class HarmoHubApp {
         const d = this.seqDrag;
         this.seqDrag = null;
         if (!d) return;
+
+        if (d.voiceDrag) {
+            this.finalizeSeqVoiceDrag(d);
+            return;
+        }
 
         if (d.multi) {
             if (d.moved) {

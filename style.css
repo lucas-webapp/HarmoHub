@@ -1761,6 +1761,22 @@ button:active { transform: translateY(1px); }
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.7);
     border-color: var(--accent);
 }
+/* Badge « ×N » sur le fantôme : Ctrl+glisser depuis une case de la sélection multiple copie tout
+   le groupe d'un coup (voir onGridPointerDown/duplicateChordsTo), une seule case étant glissée
+   visuellement — sans ce repère, rien ne distinguerait ce geste d'une copie simple. */
+.drag-ghost-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: var(--accent);
+    color: #fff;
+    font-size: var(--fs-2xs);
+    font-weight: 700;
+    line-height: 1;
+    padding: 3px 6px;
+    border-radius: 999px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
 
 .cell-cont { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 400; }
 
@@ -2170,6 +2186,26 @@ button:active { transform: translateY(1px); }
    coupure plutôt qu'arrondi, pour montrer qu'elle continue au-delà de ce qui est affiché. */
 .seq-note.clip-start { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .seq-note.clip-end { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+
+/* Fantôme flottant d'un changement de voix (glisser une barre vers une autre ligne, voir
+   beginSeqVoiceDrag/onSeqVoiceDragMove) : suit le pointeur en position fixe, recoloré (role-*, déjà
+   animé par la transition de .seq-note ci-dessus) selon la ligne survolée — retour visuel immédiat
+   du « saut de ligne » demandé. */
+.seq-note.seq-note-ghost {
+    position: fixed;
+    z-index: 999;
+    pointer-events: none;
+    cursor: grabbing;
+    opacity: 0.92;
+    transform: scale(1.05);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.65);
+}
+/* Survole une case hors grille ou non éditable (ligne de contexte) : dépôt ici sans effet — grisé
+   plutôt que coloré pour une voix qui n'existe pas encore. */
+.seq-note.seq-note-ghost-invalid {
+    opacity: 0.45;
+    filter: grayscale(1);
+}
 
 /* Repère d'attaque : fine bande plus claire au tout début d'une pilule tenue, pour distinguer d'un
    coup d'œil où la note est réellement « pincée » de sa partie tenue ensuite (jamais sur une croche
