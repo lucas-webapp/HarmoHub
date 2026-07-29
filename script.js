@@ -27,7 +27,6 @@ const ICONS = {
     trash: '<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
     up: '<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>',
     down: '<path d="M12 5v14"/><path d="m5 12 7 7 7-7"/>',
-    reverse: '<path d="M3 7h13"/><path d="m13 3 4 4-4 4"/><path d="M21 17H8"/><path d="m11 21-4-4 4-4"/>',
     'chevron-down': '<path d="m6 9 6 6 6-6"/>',
     'chevron-left': '<path d="m15 18-6-6 6-6"/>',
     'chevron-right': '<path d="m9 18 6-6-6-6"/>',
@@ -499,11 +498,7 @@ function sectionMeasureCount(sec, beatsPerBar) {
 // cohérente d'un accord à l'autre, y compris scindé sur plusieurs lignes.
 // Fines hachures obliques (repeating-linear-gradient) par-dessus TOUTE la case, très discrètes : un
 // peu de matière/texture plutôt qu'un aplat plat, y compris sur les mesures non mises en valeur.
-// `inLoop` : ajoute le lavis doré de la plage à boucler (voir .in-loop-range en CSS) — désormais
-// composé ICI plutôt que dans la feuille de style, puisque cette fonction pose maintenant TOUJOURS
-// un background-image en ligne sur la case (avant : seulement pour les accords longs), qui
-// écraserait sinon complètement celui de la classe CSS (une déclaration en ligne l'emporte toujours).
-function buildMeasureZebra(s, beatsPerBar, beatsPerRow, inLoop) {
+function buildMeasureZebra(s, beatsPerBar, beatsPerRow) {
     const startAbs = s.row * beatsPerRow + s.col;
     const stops = [];
     for (let i = 0; i < s.span; i++) {
@@ -516,8 +511,7 @@ function buildMeasureZebra(s, beatsPerBar, beatsPerRow, inLoop) {
     const measureBlocks = `linear-gradient(90deg, ${stops.join(', ')})`;
     const hachures = `repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 5px)`;
     const sheen = `linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 55%)`;
-    const loopTint = inLoop ? ', linear-gradient(0deg, rgba(255, 213, 79, 0.1), rgba(255, 213, 79, 0.1))' : '';
-    return `${measureBlocks}, ${hachures}, ${sheen}${loopTint}`;
+    return `${measureBlocks}, ${hachures}, ${sheen}`;
 }
 
 // Octave de base d'un accord (défaut 3 = C3, compatibilité avec les sauvegardes sans octave)
@@ -1798,6 +1792,7 @@ class HarmoHubApp {
         // tout calcul de coordonnées qui suit (repéré en étendant la plage vers une partie inactive).
         this.setupLoopRangeInteractions();
         this.setupGridInteractions();
+        this.setupGridCellOctaveFloat();
         this.setupSequencerInteractions();
         this.setupKeyboardShortcuts();
         // Avertissement natif du navigateur si on ferme/recharge la page avec des modifications non
@@ -3735,8 +3730,6 @@ class HarmoHubApp {
                         if (isActive && s.index === this.editingIndex) cls += ' editing';
                         if (isActive && this.multiSelect.has(s.index)) cls += ' multi-selected';
                     }
-                    const inLoop = loopRange && s.index >= loopRange.start && s.index <= loopRange.end;
-                    if (inLoop) cls += ' in-loop-range';
                     // arrondis / bords de coupe selon la position du segment dans l'accord
                     if (s.split) cls += s.isFirst ? ' seg-first' : (s.isLast ? ' seg-last' : ' seg-mid');
                     // repère de début de mesure (barre de mesure)
@@ -3745,9 +3738,12 @@ class HarmoHubApp {
                     if (s.span === 1) cls += ' sz1'; else if (s.span === 2) cls += ' sz2';
                     // Zébrure d'une mesure sur deux (voir buildMeasureZebra), toujours affichée (y
                     // compris pour un accord court, contrairement à l'ancienne version limitée aux
-                    // accords étalés sur plusieurs mesures).
+                    // accords étalés sur plusieurs mesures). Plus de lavis doré ici pour la plage à
+                    // boucler (voir plus bas .loop-range-bar) : confondu avec l'orange de l'édition
+                    // en cours sur la case elle-même (retour utilisateur) — la bande sous la ligne
+                    // de mesure suffit déjà à montrer la plage, inutile de teinter aussi l'accord.
                     const hasInnerBars = s.innerBars.length > 0;
-                    const zebra = `background-image: ${buildMeasureZebra(s, beatsPerBar, beatsPerRow, inLoop)};`;
+                    const zebra = `background-image: ${buildMeasureZebra(s, beatsPerBar, beatsPerRow)};`;
                     const style = `grid-column: ${s.col + 1} / span ${s.span}; grid-row: ${s.row * rowsPerGroup + chordRowOffset}; ${zebra}`;
 
                     const metaEl = (s.isFirst && this.showStyleLabel) ? `<span class="cell-meta">${styleMetaHtml(h.playStyle)}</span>` : '';
@@ -3774,16 +3770,6 @@ class HarmoHubApp {
                     const resizeLeftEl = (s.isFirst && s.index > 0 && notDragging)
                         ? `<div class="cell-resize cell-resize-left" data-section="${si}" data-index="${s.index}" data-edge="left" title="Glisser pour changer la durée"></div>` : '';
 
-                    // Octave +/- : uniquement dans la loupe grille (voir shiftChordOctave), où la case
-                    // est assez grande pour les accueillir sans gêner le texte — sur le premier segment
-                    // seulement (un accord étalé sur plusieurs lignes n'a qu'une octave, à ne régler
-                    // qu'une fois).
-                    const octaveEl = (this.gridZoomOpen && s.isFirst && notDragging) ? `
-                        <div class="cell-octave">
-                            <button type="button" class="cell-octave-btn" data-section="${si}" data-index="${s.index}" data-delta="1" title="Octave au-dessus" aria-label="Octave au-dessus">${svgIcon('up')}</button>
-                            <button type="button" class="cell-octave-btn" data-section="${si}" data-index="${s.index}" data-delta="-1" title="Octave en dessous" aria-label="Octave en dessous">${svgIcon('down')}</button>
-                        </div>` : '';
-
                     return `
                     <div class="${cls}" data-section="${si}" data-index="${s.index}" style="${style}" title="Toucher pour écouter · cliquer le nom pour le modifier · double-clic/double-tap pour l'édition complète · clic droit/appui long pour plus d'options · Cmd/Ctrl+clic pour sélection multiple (Cmd+clic sur Mac)">
                         <span class="cell-sym">${flatTight(sym)}${contFlag}</span>
@@ -3791,7 +3777,6 @@ class HarmoHubApp {
                         ${ticksEl}
                         ${resizeLeftEl}
                         ${resizeRightEl}
-                        ${octaveEl}
                     </div>`;
                 }).join('') + (showRoman ? cells.filter(s => s.isFirst).map(s => {
                     const h = history[s.index];
@@ -3810,7 +3795,6 @@ class HarmoHubApp {
             const canDelete = sections.length > 1;
             const canMoveUp = si > 0;
             const canMoveDown = si < sections.length - 1;
-            const canReverse = history.length > 1;
             const measureCountEl = history.length > 0 ? `<span class="prog-section-measures">${sectionMeasureCount(sec, beatsPerBar)} mes.</span>` : '';
             return `
             <div class="prog-section">
@@ -3819,7 +3803,6 @@ class HarmoHubApp {
                     ${measureCountEl}
                     ${canMoveUp ? `<button type="button" class="prog-section-tool prog-section-move-up" data-section="${si}" title="Monter cette partie" aria-label="Monter cette partie">${svgIcon('up')}</button>` : ''}
                     ${canMoveDown ? `<button type="button" class="prog-section-tool prog-section-move-down" data-section="${si}" title="Descendre cette partie" aria-label="Descendre cette partie">${svgIcon('down')}</button>` : ''}
-                    ${canReverse ? `<button type="button" class="prog-section-tool prog-section-reverse" data-section="${si}" title="Inverser l'ordre des accords de cette partie" aria-label="Inverser l'ordre des accords de cette partie">${svgIcon('reverse')}</button>` : ''}
                     <button type="button" class="icon-btn prog-section-duplicate" data-section="${si}" title="Dupliquer cette partie" aria-label="Dupliquer cette partie">${svgIcon('duplicate')}</button>
                     ${canDelete ? `<button type="button" class="prog-section-del" data-section="${si}" title="Supprimer cette partie" aria-label="Supprimer cette partie">${svgIcon('trash')}</button>` : ''}
                 </div>
@@ -3837,9 +3820,6 @@ class HarmoHubApp {
         });
         host.querySelectorAll('.prog-section-move-down').forEach(btn => {
             btn.onclick = (e) => { e.stopPropagation(); this.moveSection(+btn.dataset.section, 1); };
-        });
-        host.querySelectorAll('.prog-section-reverse').forEach(btn => {
-            btn.onclick = (e) => { e.stopPropagation(); this.reverseSectionChords(+btn.dataset.section); };
         });
         host.querySelectorAll('.prog-section-del').forEach(btn => {
             btn.onclick = (e) => { e.stopPropagation(); this.deleteSection(+btn.dataset.section); };
@@ -3860,14 +3840,12 @@ class HarmoHubApp {
         host.querySelectorAll('.cell-resize').forEach(handle => {
             handle.addEventListener('pointerdown', (e) => this.onResizeStart(e, +handle.dataset.section, +handle.dataset.index, handle.dataset.edge));
         });
-        // Boutons octave (loupe grille uniquement, voir shiftChordOctave) : pointerdown déjà exclu du
-        // glisser-déposer plus haut (onGridPointerDown), il suffit ici d'écouter le clic.
-        host.querySelectorAll('.cell-octave-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.shiftChordOctave(+btn.dataset.section, +btn.dataset.index, +btn.dataset.delta);
-            });
-        });
+        // Boutons octave (loupe grille uniquement, voir shiftChordOctave) : plus posés sur la case
+        // elle-même (retour utilisateur : gênaient la lecture de l'accord) mais dans une pastille
+        // flottante unique, positionnée au-dessus de l'accord SÉLECTIONNÉ (voir
+        // updateGridCellOctaveFloat) — rien à câbler ici, ses boutons sont déjà branchés une fois pour
+        // toutes (voir setupGridCellOctaveFloat, appelé au démarrage).
+        this.updateGridCellOctaveFloat();
 
         this.updateSaveButtons();
         this.updateGlobalUndoRedoButtons();
@@ -4011,26 +3989,6 @@ class HarmoHubApp {
         this.selectedIndex = null;
         // Comme pour supprimer/dupliquer une partie : plus sûr de redéfinir la plage à boucler (si
         // elle existe) que de tenter de la remapper après cet échange.
-        if (this.loopRange) this.loopRange = null;
-        this.loadProgression();
-    }
-
-    // Inverse l'ordre des accords D'UNE SEULE partie (ex. pour essayer une progression à l'envers) —
-    // ne touche ni son titre, ni les autres parties.
-    reverseSectionChords(s) {
-        const sections = loadProgressionSections();
-        const sec = sections[s];
-        if (!sec || sec.chords.length < 2) return;
-        this.pushUndo(sections);
-        sec.chords.reverse();
-        saveProgressionSections(sections);
-        if (this.activeSection === s) {
-            if (this.editingIndex != null) this.exitEditMode();
-            this.selectedIndex = null;
-        }
-        // Chaque accord garde ses données mais change d'index : une plage à boucler ou une sélection
-        // dans cette partie pointerait sur le mauvais accord après coup — même parti pris que pour
-        // déplacer/supprimer une partie.
         if (this.loopRange) this.loopRange = null;
         this.loadProgression();
     }
@@ -6259,10 +6217,10 @@ class HarmoHubApp {
         });
     }
 
-    // Monte/descend l'accord `index` d'une octave entière (voir boutons .cell-octave, visibles
-    // uniquement dans la loupe grille) — borné à la plage du sélecteur Octave (2 à 5) du panneau
-    // Accord, pour ne jamais produire une case dont l'octave serait ensuite impossible à régler
-    // depuis ce même panneau.
+    // Monte/descend l'accord `index` d'une octave entière (voir la pastille flottante posée par
+    // updateGridCellOctaveFloat, visible uniquement dans la loupe grille) — borné à la plage du
+    // sélecteur Octave (2 à 5) du panneau Accord, pour ne jamais produire une case dont l'octave
+    // serait ensuite impossible à régler depuis ce même panneau.
     shiftChordOctave(section, index, delta) {
         const sections = loadProgressionSections();
         const data = sections[section] && sections[section].chords[index];
@@ -6281,6 +6239,61 @@ class HarmoHubApp {
         else this.loadProgression();
     }
 
+    // Chord actuellement ciblé par la pastille octave flottante (voir updateGridCellOctaveFloat) :
+    // l'accord en édition (voir editChordFromGridZoom, le clic normal en loupe grille) prime sur la
+    // simple sélection (this.selectedIndex, surtout pertinente hors loupe) — les deux désignent
+    // presque toujours le même accord une fois en loupe, mais l'édition est celle qui compte vraiment
+    // ici (l'octave modifiée doit se refléter tout de suite dans le panneau Accord déjà ouvert dessus).
+    gridCellOctaveFloatTargetIndex() {
+        return this.editingIndex != null ? this.editingIndex : this.selectedIndex;
+    }
+
+    // Branche UNE FOIS pour toutes les boutons de la pastille octave flottante (voir index.html) —
+    // contrairement au reste de la grille, cet élément n'est jamais reconstruit par loadProgression,
+    // inutile de re-brancher ses écouteurs à chaque rendu.
+    setupGridCellOctaveFloat() {
+        document.getElementById('grid-cell-octave-up').onclick = () => {
+            const index = this.gridCellOctaveFloatTargetIndex();
+            if (index != null) this.shiftChordOctave(this.activeSection, index, 1);
+        };
+        document.getElementById('grid-cell-octave-down').onclick = () => {
+            const index = this.gridCellOctaveFloatTargetIndex();
+            if (index != null) this.shiftChordOctave(this.activeSection, index, -1);
+        };
+        // Suit le défilement de la loupe grille (#grid-zoom-host, voir openGridZoom) : la pastille est
+        // en position FIXE (voir .cell-octave-float en CSS, pour échapper à l'overflow:hidden de la
+        // grille), donc jamais repositionnée automatiquement par le simple scroll natif — sans cet
+        // écouteur, elle resterait figée à l'écran pendant que la case sélectionnée défile dessous.
+        document.getElementById('grid-zoom-host').addEventListener('scroll', () => this.updateGridCellOctaveFloat(), { passive: true });
+    }
+
+    // Positionne (ou masque) la pastille octave flottante juste au-dessus de la case actuellement
+    // sélectionnée/en édition dans la loupe grille — jamais posée sur la case elle-même comme avant
+    // (gênait la lecture de l'accord, retour utilisateur), et jamais affichée hors de la loupe ni sans
+    // accord ciblé. Appelée après chaque rendu de la grille (voir loadProgression) et à chaque scroll
+    // de la loupe (voir setupGridCellOctaveFloat) : la case ciblée peut se déplacer/disparaître à tout moment.
+    updateGridCellOctaveFloat() {
+        const float = document.getElementById('grid-cell-octave-float');
+        if (!float) return;
+        const hide = () => { float.hidden = true; };
+        const index = this.gridCellOctaveFloatTargetIndex();
+        if (!this.gridZoomOpen || index == null) return hide();
+        const cell = document.querySelector(
+            `#grid-zoom-host .grid-cell[data-section="${this.activeSection}"][data-index="${index}"]`
+        );
+        if (!cell) return hide(); // accord filtré/scrollé hors du DOM, ou plus de sélection valide
+        const rect = cell.getBoundingClientRect();
+        float.hidden = false;
+        // Mesuré APRÈS avoir levé `hidden` (une pastille encore masquée a des dimensions nulles) —
+        // centrée sur la case, juste au-dessus ; jamais au-delà du haut de l'écran (clampée à 4px)
+        // si la case sélectionnée est trop proche du bord pour laisser la place au-dessus.
+        const floatRect = float.getBoundingClientRect();
+        const left = rect.left + rect.width / 2 - floatRect.width / 2;
+        const top = Math.max(4, rect.top - floatRect.height - 6);
+        float.style.left = `${left}px`;
+        float.style.top = `${top}px`;
+    }
+
     // ---------- Plage à boucler (glisser sur la ligne des numéros de mesure) ----------
     // Glisser directement sur les accords sert déjà à les réordonner (voir onGridPointerDown) : on
     // déclenche donc ce geste-ci uniquement depuis la fine ligne de numéros de mesure sous la grille
@@ -6297,19 +6310,28 @@ class HarmoHubApp {
     chordIndexAtPoint(gridEl, section, clientX, clientY) {
         const rect = gridEl.getBoundingClientRect();
         const beatsPerRow = parseInt(gridEl.dataset.beatsPerRow) || 16;
-        const cs = getComputedStyle(gridEl);
-        const rowH = parseFloat(cs.getPropertyValue('--row-h')) || 64;
-        const measureRowH = parseFloat(cs.getPropertyValue('--measure-row-h')) || 15;
-        // Chaque ligne d'ACCORDS occupe 2 ou 3 lignes CSS selon que le chiffrage romain est affiché
-        // au-dessus (voir loadProgression/rowsPerGroup) — sans ce décalage, la ligne des numéros de
-        // mesure d'UNE ligne d'accords tombait dans le calcul de la ligne SUIVANTE dès que le
-        // chiffrage romain (actif par défaut) ajoutait sa propre sous-ligne au-dessus.
-        const romanRowH = this.showRomanNumerals ? (parseFloat(cs.getPropertyValue('--roman-row-h')) || 0) : 0;
         const col = Math.max(0, Math.min(beatsPerRow - 1, Math.floor((clientX - rect.left) / (rect.width / beatsPerRow))));
-        const row = Math.max(0, Math.floor((clientY - rect.top) / (romanRowH + rowH + measureRowH)));
         const history = loadProgressionSections()[section]?.chords;
         if (!history || history.length === 0) return null;
-        const { cells } = this.layoutProgression(history, this.beatsPerBar());
+        const { cells, rows } = this.layoutProgression(history, this.beatsPerBar());
+        // Hauteur RÉELLE d'un groupe de lignes CSS (chiffrage romain éventuel + accord + numéro de
+        // mesure), mesurée dans le DOM (écart entre les VRAIES cases de deux lignes d'accords
+        // consécutives) plutôt que recalculée depuis --row-h/--measure-row-h/--roman-row-h : ces
+        // variables valent désormais un calc() (échelle verticale de la loupe grille, voir
+        // applyZoomLevel), que getComputedStyle ne résout JAMAIS sur une propriété personnalisée —
+        // elle renvoie la chaîne "calc(...)" telle quelle, illisible par parseFloat (NaN), ce qui
+        // décalait complètement le calcul de ligne dès que la grille tenait sur plus d'une ligne.
+        // Une seule ligne de vraies cases : rien à mesurer, row vaut toujours 0.
+        let row = 0;
+        if (rows > 1) {
+            const tops = [...new Set(
+                Array.from(gridEl.querySelectorAll('.grid-cell[data-index]')).map(el => Math.round(el.getBoundingClientRect().top))
+            )].sort((a, b) => a - b);
+            if (tops.length > 1) {
+                const groupH = tops[1] - tops[0];
+                row = Math.max(0, Math.min(rows - 1, Math.floor((clientY - tops[0]) / groupH)));
+            }
+        }
         const seg = cells.find(s => s.row === row && col >= s.col && col < s.col + s.span);
         return seg ? seg.index : null;
     }
@@ -6344,19 +6366,23 @@ class HarmoHubApp {
         };
     }
 
-    // Trois façons de commencer un geste sur la plage à boucler, selon l'élément visé :
+    // Deux façons de commencer un geste sur la plage à boucler, selon l'élément visé :
     //  - une poignée (.loop-range-handle-left/right) : étire CE bord seul, l'autre reste fixe ;
-    //  - le corps d'une bande déjà là (.loop-range-bar) : un simple tap (sans bouger, voir
-    //    onLoopRangeEnd) la SUPPRIME ; un glisser la redéfinit depuis ce point, comme ci-dessous ;
-    //  - la ligne des numéros de mesure ailleurs (.row-measure) : définit une nouvelle plage depuis
-    //    ce point (comportement historique, inchangé).
+    //  - n'importe où ailleurs sur la ligne des numéros de mesure (.loop-range-bar OU .row-measure) :
+    //    décidé GÉOMÉTRIQUEMENT (voir plus bas) selon que ce point tombe DANS la plage existante de
+    //    cette partie ou non, jamais selon l'élément DOM qui a effectivement reçu le clic — .row-
+    //    measure (z-index 2, un début de mesure sur deux seulement) recouvre très souvent .loop-
+    //    range-bar (z-index 1, dessous) au même endroit, et se fiait à closest() pour trancher entre
+    //    « attraper la bande existante » et « en démarrer une nouvelle » rendait ce geste peu fiable
+    //    (retour utilisateur : la bande semblait dure à attraper, un tap dessus recommençait parfois
+    //    une nouvelle plage au lieu de la déplacer/supprimer) dès que la plage démarrait/finissait
+    //    pile sur un début de mesure — le cas le plus courant.
     // La plage peut maintenant traverser plusieurs parties : l'ancre/le bord fixe sont des positions
     // {section, index} (plus de simples index dans UNE section, voir compareChordPos/setLoopRange).
     onLoopRangeStart(e) {
         if (e.button != null && e.button !== 0) return; // clic gauche / toucher uniquement
         const handle = e.target.closest('.loop-range-handle');
-        const bar = e.target.closest('.loop-range-bar');
-        if (!handle && !bar && !e.target.closest('.row-measure')) return;
+        if (!handle && !e.target.closest('.loop-range-bar') && !e.target.closest('.row-measure')) return;
         const gridEl = e.target.closest('.chord-grid');
         if (!gridEl) return;
         e.preventDefault();
@@ -6377,19 +6403,22 @@ class HarmoHubApp {
                 ? { section: range.endSection, index: range.endIndex }
                 : { section: range.startSection, index: range.startIndex };
             this.loopRangeDrag = { mode: edge === 'left' ? 'edge-left' : 'edge-right', fixed, moved: false };
-        } else if (bar) {
-            // Tap sans bouger = supprime (voir onLoopRangeEnd) ; glisser = redéfinit depuis ce point,
-            // exactement comme un glisser démarré ailleurs sur la ligne — seul le tap immobile change
-            // de sens ici, d'où un mode distinct ('bar-tap') malgré une logique de glisser identique.
-            if (!this.sectionInLoopRange(section)) return;
+        } else {
             const anchorIndex = this.chordIndexAtPoint(gridEl, section, e.clientX, e.clientY);
             if (anchorIndex == null) return;
-            this.loopRangeDrag = { mode: 'bar-tap', anchor: { section, index: anchorIndex }, moved: false };
-        } else {
-            const index = this.chordIndexAtPoint(gridEl, section, e.clientX, e.clientY);
-            if (index == null) return;
-            this.loopRangeDrag = { mode: 'new', anchor: { section, index }, moved: false };
-            this.setLoopRange(section, index, section, index);
+            const history = loadProgressionSections()[section]?.chords;
+            const localRange = history ? this.loopRangeForSection(section, history.length) : null;
+            const insideExisting = localRange && anchorIndex >= localRange.start && anchorIndex <= localRange.end;
+            if (insideExisting) {
+                // Tap sans bouger = supprime (voir onLoopRangeEnd) ; glisser = redéfinit depuis ce
+                // point, exactement comme un glisser démarré hors de la plage — seul le tap immobile
+                // change de sens ici, d'où un mode distinct ('bar-tap') malgré une logique de glisser
+                // identique au cas ci-dessous.
+                this.loopRangeDrag = { mode: 'bar-tap', anchor: { section, index: anchorIndex }, moved: false };
+            } else {
+                this.loopRangeDrag = { mode: 'new', anchor: { section, index: anchorIndex }, moved: false };
+                this.setLoopRange(section, anchorIndex, section, anchorIndex);
+            }
         }
 
         this.loopRangeDragStart = { x: e.clientX, y: e.clientY };
@@ -7488,6 +7517,12 @@ class HarmoHubApp {
         this.pinSequencerHost();
         this.editChord(section, index);
         this.syncGridZoomPinnedSeq();
+        // Repositionne la pastille octave flottante APRÈS syncGridZoomPinnedSeq (voir
+        // updateGridCellOctaveFloat) : basculer le panneau épinglé de son message d'attente au
+        // séquenceur (hauteurs différentes) peut redonner à #grid-zoom-host une hauteur disponible
+        // différente, décalant la case juste positionnée par editChord() un peu plus haut — sans ce
+        // second passage, la pastille restait accrochée à sa position d'avant ce dernier décalage.
+        this.updateGridCellOctaveFloat();
         // Comme un clic sur la grille normale (voir selectChord) : fait entendre l'accord touché,
         // sinon la loupe grille resterait muette au clic (retour utilisateur).
         if (this.autoplaySelect) this.playCurrent();

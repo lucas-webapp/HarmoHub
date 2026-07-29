@@ -381,8 +381,11 @@ body.body-scroll-locked { overflow: hidden !important; }
    navigation normal pour voir les accords voisins (retour utilisateur), pas un dernier recours comme
    pour .seq-scroll ci-dessous — .seq-cell (éditable, uniquement l'accord en édition) garde son
    touch-action dédié, qui laisse toujours le JS gérer un glissé dessus sans le confondre avec ce
-   défilement natif. */
-.seq-scroll-continuous { touch-action: pan-x pan-y; }
+   défilement natif. Sélecteur à 2 classes (spécificité 0,2,0) : sans ça, ".seq-scroll" plus bas dans
+   la feuille (même spécificité à une seule classe, 0,1,0) l'emportait par ordre de déclaration et
+   retombait à pan-y seul — le glissé horizontal au doigt semblait alors ne plus répondre du tout
+   (retour utilisateur), bien que le défilement reste possible à la souris/molette. */
+.seq-scroll.seq-scroll-continuous { touch-action: pan-x pan-y; }
 
 /* Case de CONTEXTE (rythme réel d'un accord voisin, lecture seule — voir renderSequencer, mode
    continu) : jamais .seq-cell, qui déclencherait le glissé d'édition (voir onSeqPointerDown) — un
@@ -1823,36 +1826,40 @@ button:active { transform: translateY(1px); }
 .cell-resize-right { right: 0; }
 .cell-resize-left { left: 0; }
 
-/* Boutons octave (loupe grille uniquement, voir shiftChordOctave) : empilés dans le coin haut-droit,
-   en retrait du bord (occupé par .cell-resize-right) pour ne pas lui voler le clic. */
-.cell-octave {
-    position: absolute;
-    top: 3px;
-    right: 3px; /* collé au bord (au-dessus de la poignée de redimensionnement, voir z-index) : à
-                   16px du bord, il retombait visuellement au milieu de la case sur les zooms serrés
-                   (retour utilisateur) */
-    z-index: 4;
+/* Boutons octave (loupe grille uniquement, voir shiftChordOctave/updateGridCellOctaveFloat) : une
+   seule pastille flottante (position fixe, jamais posée sur la case elle-même comme avant — gênait
+   la lecture de l'accord, retour utilisateur), repositionnée en JS juste au-dessus de la case
+   SÉLECTIONNÉE et masquée sinon. Position fixe plutôt qu'absolue : échappe à l'overflow:hidden de
+   .chord-grid/.grid-zoom-host (sinon rognée dès que la case sélectionnée est en tout début de
+   grille), et suit le défilement grâce au repositionnement sur scroll (voir le JS). */
+.cell-octave-float {
+    position: fixed;
+    z-index: 50;
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    gap: 4px;
+    background: rgba(20, 20, 20, 0.9);
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    padding: 3px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
 }
 .cell-octave-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 18px;
+    width: 26px;
     min-width: 0; /* sinon la règle générique button{min-width:120px} l'emporte sur width */
-    height: 14px;
+    height: 22px;
     padding: 0;
     border: 1px solid #3a3a3a;
-    border-radius: 3px;
-    background: rgba(20, 20, 20, 0.75);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.04);
     color: var(--text-muted);
     cursor: pointer;
     touch-action: manipulation;
 }
 .cell-octave-btn:hover { background: #262626; color: var(--text-main); border-color: #4a4a4a; }
-.cell-octave-btn .icon { width: 10px; height: 10px; }
+.cell-octave-btn .icon { width: 14px; height: 14px; }
 
 /* Repère de mesure À L'INTÉRIEUR d'un accord qui dure plusieurs mesures — même largeur/opacité que
    .grid-cell.bar-start (voir ci-dessus), pour qu'on reconnaisse le même repère de mesure dans les
@@ -1997,10 +2004,6 @@ button:active { transform: translateY(1px); }
    grille : là, .chord-grid { overflow: hidden } rognerait cette partie-là de la zone). */
 .loop-range-handle-left { margin: 0 -18px 0 -6px; width: calc(100% + 24px); }
 .loop-range-handle-right { margin: 0 -6px 0 -18px; width: calc(100% + 24px); }
-
-/* Le lavis doré des cases couvertes par la plage (.in-loop-range) est désormais composé directement
-   dans buildMeasureZebra (script.js) : cette classe pose maintenant TOUJOURS un background-image en
-   ligne (zébrure des temps faibles), qui écraserait sinon toute règle CSS sur la même propriété. */
 
 /* Style de jeu (Tenu/Lié/Détaché...) sous le symbole : UNIQUEMENT l'icône (voir styleMetaHtml, mêmes
    pictos que le sélecteur Style de jeu), sans libellé texte — l'œil distingue lié/détaché d'un coup

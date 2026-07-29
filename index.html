@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202607291830">
+    <link rel="stylesheet" href="style.css?v=202607292230">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -260,6 +260,20 @@
                 </div>
             </div>
             <div id="grid-zoom-host" class="seq-zoom-host grid-zoom-host"></div>
+
+            <!-- Boutons octave +/- de l'accord SÉLECTIONNÉ dans la loupe grille (voir
+                 updateGridCellOctaveFloat/shiftChordOctave dans script.js) : une seule pastille
+                 flottante (position fixe, repositionnée en JS au-dessus de la case sélectionnée)
+                 plutôt qu'un bouton posé sur chaque case en permanence — gênait la lecture de
+                 l'accord (retour utilisateur). Masquée tant qu'aucun accord n'est sélectionné. -->
+            <div id="grid-cell-octave-float" class="cell-octave-float" hidden>
+                <button type="button" id="grid-cell-octave-up" class="cell-octave-btn" title="Octave au-dessus" aria-label="Octave au-dessus">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+                </button>
+                <button type="button" id="grid-cell-octave-down" class="cell-octave-btn" title="Octave en dessous" aria-label="Octave en dessous">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m5 12 7 7 7-7"/></svg>
+                </button>
+            </div>
 
             <!-- Séquenceur épinglé (voir editChordFromGridZoom/syncGridZoomPinnedSeq dans script.js) :
                  cliquer un accord dans la grille ci-dessus le charge directement pour édition et
@@ -697,6 +711,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202607291830"></script>
+    <script src="script.js?v=202607292230"></script>
 </body>
 </html>
