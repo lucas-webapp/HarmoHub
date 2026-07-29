@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202607293330">
+    <link rel="stylesheet" href="style.css?v=202607300100">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -602,8 +602,44 @@
                 <div class="card-head">
                     <h2>Grille d'accords</h2>
                     <div class="card-head-actions">
-                        <button type="button" id="grid-zoom" class="icon-btn" title="Agrandir la grille d'accords" aria-label="Agrandir la grille d'accords">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>
+                        <!-- Échelles horizontale/verticale de la grille CLASSIQUE (hors loupe, voir
+                             adjustZoom('classicGrid', ...)/currentGridHZoom dans script.js) : mémorisées
+                             PAR MORCEAU (zoomSettingsForSong), indépendantes de celles de la loupe
+                             ci-dessous — resserrer/agrandir la grille sans avoir à l'ouvrir en grand. -->
+                        <div class="zoom-axis-group" title="Échelle horizontale de la grille">
+                            <span class="zoom-axis-tag">H</span>
+                            <button type="button" id="classic-grid-out-h" class="icon-btn zoom-axis-btn" title="Réduire l'échelle horizontale" aria-label="Réduire l'échelle horizontale">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>
+                            </button>
+                            <button type="button" id="classic-grid-in-h" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                            </button>
+                        </div>
+                        <div class="zoom-axis-group" title="Échelle verticale de la grille">
+                            <span class="zoom-axis-tag">V</span>
+                            <button type="button" id="classic-grid-out-v" class="icon-btn zoom-axis-btn" title="Réduire l'échelle verticale" aria-label="Réduire l'échelle verticale">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>
+                            </button>
+                            <button type="button" id="classic-grid-in-v" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle verticale" aria-label="Agrandir l'échelle verticale">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                            </button>
+                        </div>
+                        <!-- Icône dédiée (barres façon séquenceur, même dessin que #toggle-sequencer) plutôt
+                             qu'une loupe générique : une fois la grille classique elle-même zoomable
+                             ci-dessus, une loupe aurait prêté à confusion avec un simple zoom — ce bouton
+                             ouvre en réalité la vue AGRANDIE avec séquenceur épinglé (voir openGridZoom). -->
+                        <button type="button" id="grid-zoom" class="icon-btn" title="Ouvrir la vue agrandie (grille + séquenceur épinglé)" aria-label="Ouvrir la vue agrandie avec séquenceur épinglé">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="3" y="4" width="4" height="4" rx="1"/>
+                                <rect x="10" y="4" width="4" height="4" rx="1"/>
+                                <rect x="17" y="4" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>
+                                <rect x="3" y="10" width="4" height="4" rx="1"/>
+                                <rect x="10" y="10" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>
+                                <rect x="17" y="10" width="4" height="4" rx="1"/>
+                                <rect x="3" y="16" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>
+                                <rect x="10" y="16" width="4" height="4" rx="1"/>
+                                <rect x="17" y="16" width="4" height="4" rx="1"/>
+                            </svg>
                         </button>
                         <button type="button" id="quick-add-help-btn" class="icon-btn" title="Comment utiliser l'ajout rapide" aria-label="Comment utiliser l'ajout rapide" aria-expanded="false">
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.05V17h6v-2.25c0-.85.4-1.55 1-2.05A7 7 0 0 0 12 2Z"/></svg>
@@ -711,6 +747,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202607293330"></script>
+    <script src="script.js?v=202607300100"></script>
 </body>
 </html>

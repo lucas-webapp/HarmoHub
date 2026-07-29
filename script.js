@@ -371,7 +371,9 @@ const TIME_SIG_BEATS = { '2/4': 2, '3/4': 3, '4/4': 4, '5/4': 5, '6/8': 6, '7/8'
 // d'autant : moins d'accords par ligne, donc chaque case mécaniquement plus large — un zoom réel
 // (vraie mise en page recalculée), pas un simple agrandissement visuel.
 function beatsPerRowFor(beatsPerBar, zoomed = false, hZoom = 1) {
-    const target = zoomed ? Math.max(8, 32 / hZoom) : 16;
+    const base = zoomed ? 32 : 16;
+    const floor = zoomed ? 8 : 4; // grille classique : peut resserrer jusqu'à 1 seule mesure par ligne
+    const target = Math.max(floor, base / hZoom);
     const bars = Math.max(1, Math.round(target / beatsPerBar));
     return beatsPerBar * bars;
 }
@@ -1484,6 +1486,11 @@ const SEQ_ZOOM_LEVEL_X_KEY = 'harmohubSeqZoomLevelX';
 const SEQ_ZOOM_LEVEL_Y_KEY = 'harmohubSeqZoomLevelY';
 const GRID_ZOOM_LEVEL_X_KEY = 'harmohubGridZoomLevelX';
 const GRID_ZOOM_LEVEL_Y_KEY = 'harmohubGridZoomLevelY';
+// Échelles horizontale/verticale de la grille CLASSIQUE (hors loupe, voir gridZoomOpen) — voir
+// adjustZoom('classicGrid', ...) : INDÉPENDANTES de gridZoomLevelX/Y (loupe), pour resserrer/agrandir
+// la grille sans avoir à ouvrir la loupe (retour utilisateur).
+const CLASSIC_GRID_ZOOM_LEVEL_X_KEY = 'harmohubClassicGridZoomLevelX';
+const CLASSIC_GRID_ZOOM_LEVEL_Y_KEY = 'harmohubClassicGridZoomLevelY';
 // Échelle horizontale du séquenceur COMPACT (panneau Accord, hors loupe séquenceur/grille) — voir
 // adjustSeqInlineZoom : indépendante de seqZoomLevelX (loupe), 1 par défaut pour garder EXACTEMENT
 // l'affichage actuel tant qu'on n'y touche pas (retour utilisateur).
@@ -1785,6 +1792,10 @@ class HarmoHubApp {
         this.seqZoomLevelY = parseFloat(localStorage.getItem(SEQ_ZOOM_LEVEL_Y_KEY)) || legacySeq || 1;
         this.gridZoomLevelX = parseFloat(localStorage.getItem(GRID_ZOOM_LEVEL_X_KEY)) || legacyGrid || 1;
         this.gridZoomLevelY = parseFloat(localStorage.getItem(GRID_ZOOM_LEVEL_Y_KEY)) || legacyGrid || 1;
+        // Grille CLASSIQUE (hors loupe) : voir CLASSIC_GRID_ZOOM_LEVEL_X_KEY — indépendante de la loupe,
+        // toujours active (pas de fenêtre à ouvrir), 1 par défaut pour garder l'affichage actuel.
+        this.classicGridZoomLevelX = parseFloat(localStorage.getItem(CLASSIC_GRID_ZOOM_LEVEL_X_KEY)) || 1;
+        this.classicGridZoomLevelY = parseFloat(localStorage.getItem(CLASSIC_GRID_ZOOM_LEVEL_Y_KEY)) || 1;
         // Échelle horizontale du séquenceur COMPACT (hors loupe), voir SEQ_INLINE_ZOOM_LEVEL_X_KEY.
         this.seqInlineZoomLevelX = parseFloat(localStorage.getItem(SEQ_INLINE_ZOOM_LEVEL_X_KEY)) || 1;
         // Séquenceur épinglé en bas de la loupe grille (voir openGridZoom/toggleGridZoomPinnedSeq) :
@@ -1854,7 +1865,7 @@ class HarmoHubApp {
         this.restoreCurrentSongSettingsIfAny();
         this.updateKeyLabels();
         this.updateDurationOptions();
-        this.loadProgression();
+        this.applyZoomLevel('classicGrid'); // pose --grid-zoom-scale-v sur .history-section + 1er rendu
         this.refreshPreview();       // affiche l'accord courant + cadre le clavier dès l'ouverture
         this.renderSequencer();      // prépare le motif (masqué tant que le panneau n'est pas ouvert)
         this.refreshSongList();      // remplit le sélecteur de morceaux enregistrés
@@ -2134,6 +2145,19 @@ class HarmoHubApp {
             if (!e.ctrlKey) return;
             e.preventDefault();
             this.adjustZoom('seq', e.shiftKey ? 'x' : 'y', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
+        }, { passive: false });
+
+        // Échelles horizontale/verticale de la grille CLASSIQUE (hors loupe, voir currentGridHZoom/
+        // applyZoomLevel('classicGrid')) — indépendantes de celles de la loupe ci-dessous.
+        document.getElementById('classic-grid-in-h').onclick = () => this.adjustZoom('classicGrid', 'x', ZOOM_LEVEL_STEP);
+        document.getElementById('classic-grid-out-h').onclick = () => this.adjustZoom('classicGrid', 'x', -ZOOM_LEVEL_STEP);
+        document.getElementById('classic-grid-in-v').onclick = () => this.adjustZoom('classicGrid', 'y', ZOOM_LEVEL_STEP);
+        document.getElementById('classic-grid-out-v').onclick = () => this.adjustZoom('classicGrid', 'y', -ZOOM_LEVEL_STEP);
+        // Ctrl+molette sur la grille elle-même, comme les fenêtres agrandies (Ctrl+Maj = horizontal).
+        document.getElementById('progression-sections').addEventListener('wheel', (e) => {
+            if (!e.ctrlKey || this.gridZoomOpen) return;
+            e.preventDefault();
+            this.adjustZoom('classicGrid', e.shiftKey ? 'x' : 'y', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
         }, { passive: false });
 
         // Vue agrandie de la grille d'accords (voir openGridZoom/closeGridZoom) : même principe,
@@ -3679,8 +3703,15 @@ class HarmoHubApp {
     // Découpe la progression en segments (un accord peut être scindé sur plusieurs lignes).
     // barStart se calcule sur la position ABSOLUE (avant repli en lignes), pour que les barres de
     // mesure tombent au bon endroit même quand une ligne ne fait pas un multiple de la mesure.
+    // Échelle horizontale EFFECTIVE de la grille selon le mode : gridZoomLevelX (loupe) et
+    // classicGridZoomLevelX (grille classique) sont deux réglages INDÉPENDANTS (voir leur
+    // déclaration), jamais mélangés — sert partout où beatsPerRowFor a besoin de cette valeur.
+    currentGridHZoom(zoomed = this.gridZoomOpen) {
+        return zoomed ? this.gridZoomLevelX : this.classicGridZoomLevelX;
+    }
+
     layoutProgression(history, beatsPerBar, zoomed = this.gridZoomOpen) {
-        const beatsPerRow = beatsPerRowFor(beatsPerBar, zoomed, this.gridZoomLevelX);
+        const beatsPerRow = beatsPerRowFor(beatsPerBar, zoomed, this.currentGridHZoom(zoomed));
         let cursor = 0;
         const cells = [];
         history.forEach((h, i) => {
@@ -3733,7 +3764,7 @@ class HarmoHubApp {
             let gridInner, gridStyle = '';
 
             if (history.length === 0) {
-                const beatsPerRow = beatsPerRowFor(beatsPerBar, this.gridZoomOpen, this.gridZoomLevelX);
+                const beatsPerRow = beatsPerRowFor(beatsPerBar, this.gridZoomOpen, this.currentGridHZoom());
                 const plusSpan = Math.min(2, beatsPerRow);
                 gridStyle = `grid-template-rows: repeat(1, var(--row-h) var(--measure-row-h)); grid-template-columns: repeat(${beatsPerRow}, 1fr);`;
                 gridInner = this.buildAddCellHtml(si, 1, 0, plusSpan);
@@ -3855,7 +3886,7 @@ class HarmoHubApp {
                     <button type="button" class="icon-btn prog-section-duplicate" data-section="${si}" title="Dupliquer cette partie" aria-label="Dupliquer cette partie">${svgIcon('duplicate')}</button>
                     ${canDelete ? `<button type="button" class="prog-section-del" data-section="${si}" title="Supprimer cette partie" aria-label="Supprimer cette partie">${svgIcon('trash')}</button>` : ''}
                 </div>
-                <div class="chord-grid" data-section="${si}" data-beats-per-row="${beatsPerRowFor(beatsPerBar, this.gridZoomOpen, this.gridZoomLevelX)}" style="${gridStyle}">${gridInner}</div>
+                <div class="chord-grid" data-section="${si}" data-beats-per-row="${beatsPerRowFor(beatsPerBar, this.gridZoomOpen, this.currentGridHZoom())}" style="${gridStyle}">${gridInner}</div>
             </div>`;
         }).join('');
 
@@ -4318,6 +4349,8 @@ class HarmoHubApp {
         return {
             gridZoomLevelX: this.gridZoomLevelX,
             gridZoomLevelY: this.gridZoomLevelY,
+            classicGridZoomLevelX: this.classicGridZoomLevelX,
+            classicGridZoomLevelY: this.classicGridZoomLevelY,
             seqZoomLevelX: this.seqZoomLevelX,
             seqZoomLevelY: this.seqZoomLevelY,
             seqInlineZoomLevelX: this.seqInlineZoomLevelX,
@@ -4357,6 +4390,8 @@ class HarmoHubApp {
         // autre ordinateur, une fois ce morceau réimporté là-bas.
         this.gridZoomLevelX = song.gridZoomLevelX || 1;
         this.gridZoomLevelY = song.gridZoomLevelY || 1;
+        this.classicGridZoomLevelX = song.classicGridZoomLevelX || 1;
+        this.classicGridZoomLevelY = song.classicGridZoomLevelY || 1;
         this.seqZoomLevelX = song.seqZoomLevelX || 1;
         this.seqZoomLevelY = song.seqZoomLevelY || 1;
         this.seqInlineZoomLevelX = song.seqInlineZoomLevelX || 1;
@@ -4388,7 +4423,7 @@ class HarmoHubApp {
         if (this.editingIndex != null) this.exitEditMode();
         this.updateKeyLabels();
         this.updateDurationOptions();
-        this.loadProgression();
+        this.applyZoomLevel('classicGrid'); // reflète l'échelle verticale DE CE MORCEAU + 1er rendu
         this.refreshPreview();
         this.refreshSongList();
     }
@@ -7797,6 +7832,8 @@ class HarmoHubApp {
         const levelKey = `${kind}ZoomLevel${axis === 'x' ? 'X' : 'Y'}`;
         const storageKey = kind === 'seq'
             ? (axis === 'x' ? SEQ_ZOOM_LEVEL_X_KEY : SEQ_ZOOM_LEVEL_Y_KEY)
+            : kind === 'classicGrid'
+            ? (axis === 'x' ? CLASSIC_GRID_ZOOM_LEVEL_X_KEY : CLASSIC_GRID_ZOOM_LEVEL_Y_KEY)
             : (axis === 'x' ? GRID_ZOOM_LEVEL_X_KEY : GRID_ZOOM_LEVEL_Y_KEY);
         const next = Math.round(Math.max(ZOOM_LEVEL_MIN, Math.min(ZOOM_LEVEL_MAX, this[levelKey] + delta)) * 100) / 100;
         this[levelKey] = next;
@@ -7819,6 +7856,15 @@ class HarmoHubApp {
             const host = document.getElementById('seq-zoom-host');
             if (host) host.style.setProperty('--seq-zoom-scale-v', String(this.seqZoomLevelY));
             if (this.seqOpen) this.renderSequencer();
+        } else if (kind === 'classicGrid') {
+            // .history-section : hôte STABLE de #progression-sections en mode classique (jamais
+            // déplacé, contrairement à la loupe qui le déménage dans #grid-zoom-host) — même variable
+            // CSS que la loupe (--grid-zoom-scale-v, voir style.css), mais posée ici sur un ancêtre
+            // DIFFÉRENT : .chord-grid hérite de celui qui le contient réellement à l'instant, jamais
+            // les deux à la fois.
+            const host = document.querySelector('.history-section');
+            if (host) host.style.setProperty('--grid-zoom-scale-v', String(this.classicGridZoomLevelY));
+            this.loadProgression();
         } else {
             const host = document.getElementById('grid-zoom-host');
             if (host) host.style.setProperty('--grid-zoom-scale-v', String(this.gridZoomLevelY));

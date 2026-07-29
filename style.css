@@ -1631,9 +1631,10 @@ button:active { transform: translateY(1px); }
     margin-top: 4px;
 }
 
-/* Grille d'accords façon lead sheet. --grid-zoom-scale-v : échelle verticale de la loupe grille
-   (voir adjustZoom/applyZoomLevel dans script.js), posée en JS sur #grid-zoom-host ; vaut 1 (donc
-   sans effet) partout ailleurs, y compris la grille compacte hors loupe. */
+/* Grille d'accords façon lead sheet. --grid-zoom-scale-v : échelle verticale, posée en JS (voir
+   adjustZoom/applyZoomLevel) sur l'hôte qui contient RÉELLEMENT #progression-sections à l'instant :
+   #grid-zoom-host en loupe (gridZoomLevelY), .history-section hors loupe (classicGridZoomLevelY) —
+   deux réglages INDÉPENDANTS qui se relaient simplement par héritage CSS, jamais actifs à la fois. */
 .chord-grid {
     --row-h: calc(64px * var(--grid-zoom-scale-v, 1));
     --measure-row-h: calc(20px * var(--grid-zoom-scale-v, 1));
