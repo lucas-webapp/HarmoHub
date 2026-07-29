@@ -33,18 +33,23 @@ const ICONS = {
     loop: '<path d="M17 2 21 6 17 10"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22 3 18 7 14"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
     play: '<path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>',
     stop: '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/>',
-    // « Appliquer partout » (voir applyInstrumentToSong) : trois rangées (le morceau, accord par
-    // accord) convergeant vers une seule note en bout de flèche (le son choisi, propagé à tous).
-    // Porte-voix (haut-parleur + deux ondes) : « diffuser ce son à tout le morceau », voir
-    // #apply-instrument-all — remplace un ancien dessin (lignes + flèche) trop proche des autres
-    // icônes du bandeau et peu compréhensible au premier coup d'œil (retour utilisateur).
-    applyAll: '<path d="M3 10v4a1 1 0 0 0 1 1h2l4 4V6l-4 4H4a1 1 0 0 0-1 1z"/><path d="M14 8.5a4 4 0 0 1 0 7"/><path d="M17 5.5a8 8 0 0 1 0 13"/>',
+    // « Appliquer partout » (voir applyInstrumentToSong) : pot de peinture renversé qui goutte — se
+    // lit comme « remplir/appliquer partout », plus parlant que les deux dessins précédents (une
+    // flèche convergente, puis un porte-voix, tous deux jugés peu compréhensibles au premier coup
+    // d'œil par retour utilisateur). Le seau (anse + corps + ouverture ovale) est un <g> incliné à
+    // 35° — le filet et la goutte, eux, restent hors du groupe : ils représentent la peinture qui
+    // tombe sous son propre poids, pas une partie du seau qui tourne avec lui.
+    applyAll: '<g transform="rotate(35 9 8)"><path d="M5 4a4 3 0 0 1 8 0"/><path d="M4 4h10l-1.4 9.2a1.6 1.6 0 0 1-1.6 1.4H7a1.6 1.6 0 0 1-1.6-1.4L4 4Z"/><ellipse cx="9" cy="4" rx="5" ry="1.4"/></g><path d="M17 16c1.3 1.3 1.3 2.7 0 4"/><circle cx="20" cy="20" r="1.8" fill="currentColor" stroke="none"/>',
     // Bouton clic faible sur le contretemps (voir metronomeSubdivision) : l'icône reflète l'état
     // ACTUEL (pas l'action au clic) — une noire seule quand désactivé (clics réguliers), deux croches
     // reliées quand activé (clics subdivisés) — plutôt qu'une icône fixe qui ne montrait jamais que
     // l'état "activé", peu importe l'état réel (retour utilisateur : confondue avec des "...").
     quarterNote: '<ellipse cx="9" cy="18" rx="4" ry="3" fill="currentColor"/><path d="M13 18V4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-    eighthNotes: '<ellipse cx="6" cy="18" rx="3" ry="2.3" fill="currentColor"/><ellipse cx="17" cy="19" rx="3" ry="2.3" fill="currentColor"/><path d="M9 18V6l8 2v11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+    eighthNotes: '<ellipse cx="6" cy="18" rx="3" ry="2.3" fill="currentColor"/><ellipse cx="17" cy="19" rx="3" ry="2.3" fill="currentColor"/><path d="M9 18V6l8 2v11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    // Bouton « Taper le rythme » (voir startTapRecording) : rond plein dans un anneau, symbole
+    // universel d'enregistrement — se distingue des autres icônes de la rangée (aucune autre n'est
+    // un simple disque plein) et se comprend sans avoir à lire le titre.
+    tapRecord: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>'
 };
 
 // Rendu HTML d'une icône (name doit exister dans ICONS) ; extraClass optionnel pour la taille/marge
@@ -1484,6 +1489,10 @@ const GENERAL_VOLUME_KEY = 'harmohubGeneralVolume';
 const AUTOPLAY_SELECT_KEY = 'harmohubAutoplaySelect';
 const METRONOME_COUNTIN_KEY = 'harmohubMetronomeCountIn';
 const METRONOME_SUBDIVISION_KEY = 'harmohubMetronomeSubdivision';
+// Calage tactile du rythme tapé (voir startTapRecording/registerTapDown) : décalage manuel (ms)
+// soustrait à l'horodatage de chaque appui/relâchement avant quantification, pour compenser un
+// retard systématique (surtout au doigt sur mobile, retour utilisateur anticipé).
+const TAP_LATENCY_OFFSET_KEY = 'harmohubTapLatencyOffsetMs';
 const SONG_CARD_COLLAPSED_KEY = 'harmohubSongCardCollapsed';
 const SHOW_ROMAN_KEY = 'harmohubShowRomanNumerals';
 const SHOW_STYLE_LABEL_KEY = 'harmohubShowStyleLabel';
@@ -1836,6 +1845,13 @@ class HarmoHubApp {
                                    // doivent rester silencieuses par défaut, jamais concernées ici.
         this.seqSelections = []; // notes du séquenceur sélectionnées : [{ voice, start, end }, ...]
         this.seqDrag = null;       // état de glisser en cours sur le séquenceur
+        // Rythme tapé en direct (barre espace/doigt) sur la sélection courante, voir startTapRecording :
+        // null (inactif), 'countin' (décompte en cours, appuis ignorés) ou 'recording' (chaque appui
+        // compte). this._tapRecordState porte tout le reste (fenêtre, appuis capturés, accord ciblé...).
+        this.seqTapPhase = null;
+        this._tapRecordState = null;
+        this._tapArmSeq = 0; // jeton pour ignorer un démarrage périmé si annulé pendant Tone.start()/waitForAudioReady()
+        this.tapLatencyOffsetMs = parseInt(localStorage.getItem(TAP_LATENCY_OFFSET_KEY)) || 0;
         this.seqPage = 0;          // mesure(s) affichée(s) pour un accord qui en dure plusieurs (voir seqPageBars)
         this.seqLoopPlay = false;  // « Lecture » du séquenceur reboucle indéfiniment (voir playCurrent)
         this.playheadSection = null; // partie/index de l'accord marqué par la barre de lecture de la
@@ -2081,6 +2097,7 @@ class HarmoHubApp {
         // Aperçu en direct : nom de l'accord, clavier et séquenceur mis à jour dès qu'on change un réglage
         ['root', 'quality', 'duration', 'inversion', 'drop', 'octave', 'bass'].forEach(id => {
             document.getElementById(id).addEventListener('change', () => {
+                this.cancelTapRecording(); // un rythme en cours de capture ne veut plus rien dire pour un autre accord
                 this.seqSelections = []; // les positions des cases peuvent ne plus correspondre au même accord
                 this.clearSeqHistory(); // l'historique portait sur une autre forme d'accord
                 this.refreshPreview();
@@ -2091,6 +2108,7 @@ class HarmoHubApp {
 
         // Choisir un style de lecture réinitialise le motif sur le point de départ correspondant
         document.getElementById('playStyle').onchange = () => {
+            this.cancelTapRecording(); // un préréglage rythmique remplace tout, une capture en cours n'a plus lieu d'être
             const chord = this.readChord();
             this.seqTouched = true;
             this.seqSelections = [];
@@ -3620,6 +3638,7 @@ class HarmoHubApp {
         const sections = loadProgressionSections();
         const d = sections[section] && sections[section].chords[index];
         if (!d) return;
+        this.cancelTapRecording(); // on change d'accord : une capture de rythme en cours ne s'y applique plus
         this.activeSection = section;
 
         document.getElementById('root').value = d.root;
@@ -4655,6 +4674,14 @@ class HarmoHubApp {
                 <button type="button" id="toggle-metronome-countin" class="switch" role="switch" aria-checked="${this.metronomeCountIn}" aria-label="Clics du décompte avant la lecture de la grille">
                     <span class="switch-thumb"></span>
                 </button>
+            </div>
+            <div class="settings-slider-sep"></div>
+            <div class="settings-slider-row">
+                <div class="settings-slider-head">
+                    <label for="tap-latency-offset" title="Décale les appuis (barre espace ou doigt) du rythme tapé avant de les caler sur la grille — augmente si tes appuis sonnent systématiquement en retard">Avance du rythme tapé (ms)</label>
+                    <span class="val" id="tap-latency-offset-val">${this.tapLatencyOffsetMs}</span>
+                </div>
+                <input type="range" id="tap-latency-offset" min="-200" max="200" step="10" value="${this.tapLatencyOffsetMs}">
             </div>`;
 
         document.getElementById('general-volume').oninput = (e) => this.setGeneralVolume(+e.target.value);
@@ -4662,6 +4689,7 @@ class HarmoHubApp {
         document.getElementById('metronome-sound').onchange = (e) => this.setMetronomeSound(e.target.value);
         document.getElementById('toggle-autoplay-select').onclick = () => this.setAutoplaySelect(!this.autoplaySelect);
         document.getElementById('toggle-metronome-countin').onclick = () => this.setMetronomeCountIn(!this.metronomeCountIn);
+        document.getElementById('tap-latency-offset').oninput = (e) => this.setTapLatencyOffset(+e.target.value);
     }
 
     setAutoplaySelect(on) {
@@ -4676,6 +4704,13 @@ class HarmoHubApp {
         localStorage.setItem(METRONOME_COUNTIN_KEY, on ? '1' : '0');
         const btn = document.getElementById('toggle-metronome-countin');
         if (btn) btn.setAttribute('aria-checked', on);
+    }
+
+    setTapLatencyOffset(ms) {
+        this.tapLatencyOffsetMs = ms;
+        localStorage.setItem(TAP_LATENCY_OFFSET_KEY, String(ms));
+        const val = document.getElementById('tap-latency-offset-val');
+        if (val) val.textContent = ms;
     }
 
     // ---- Panneau Affichage : préférences visuelles de la grille et du PDF exporté. Libellés courts
@@ -7695,10 +7730,206 @@ class HarmoHubApp {
         this.livePreviewUpdate();
     }
 
+    // ---------- Rythme tapé en direct (voir #seq-tap-record, retour utilisateur) ----------
+    // Principe : un décompte métronome (comme playProgression), puis une fenêtre d'enregistrement dont
+    // la durée est exactement celle de la sélection courante (l'union de this.seqSelections, du plus
+    // petit `start` au plus grand `end`) — pendant cette fenêtre, chaque appui (barre espace ou doigt
+    // sur #seq-tap-zone) sonne l'accord en direct et marque une note, le relâchement la termine. Une
+    // fois la fenêtre écoulée, les appuis sont arrondis à la croche la plus proche puis appliqués comme
+    // UN SEUL rythme à TOUTES les voix de la plage (les hauteurs déjà en place ne changent pas) : voir
+    // finishTapRecording. Le métronome continue de cliquer pendant la capture, comme demandé, pour
+    // garder le repère de tempo sans avoir à le deviner.
+    async startTapRecording() {
+        if (this.seqSelections.length === 0) return;
+        if (this.seqTapPhase) { this.cancelTapRecording(); return; }
+
+        const minStart = Math.min(...this.seqSelections.map(s => s.start));
+        const maxEnd = Math.max(...this.seqSelections.map(s => s.end));
+        const chord = this.readChord();
+        const voices = chord.getSeqMidiNotes().length;
+        const notes = chord.getSeqNotes();
+        const instrumentKey = document.getElementById('instrument').value;
+        const editingSection = this.activeSection, editingIndex = this.editingIndex;
+
+        // Jeton d'armement : si l'utilisateur annule (ou relance) pendant l'attente ci-dessous, ce
+        // démarrage-là doit s'abandonner silencieusement plutôt que d'écraser le nouvel état.
+        const token = ++this._tapArmSeq;
+        this.stopAll();
+        await Tone.start();
+        await waitForAudioReady();
+        if (token !== this._tapArmSeq) return;
+
+        const bpm = parseInt(document.getElementById('bpm').value);
+        const secPerBeat = 60 / bpm;
+        const stepDur = secPerBeat / SEQ_STEPS_PER_BEAT;
+        const winSteps = maxEnd - minStart + 1;
+        const beatsPerBar = this.beatsPerBar();
+        const countInBeats = beatsPerBar;
+        const start = 0.02; // aligné sur Tone.context.lookAhead, voir playProgression
+
+        this._tapRecordState = {
+            minStart, maxEnd, winSteps, stepDur,
+            chord, notes, instrumentKey, voices,
+            editingSection, editingIndex,
+            taps: [], curTapStart: null,
+            transportRecordStartSec: start + countInBeats * secPerBeat,
+        };
+        this.seqTapPhase = 'countin';
+        this.renderSequencer();
+
+        const st = this._tapRecordState;
+        for (let b = 0; b < countInBeats; b++) {
+            const clickTime = start + b * secPerBeat;
+            const label = b + 1;
+            Tone.Transport.schedule((t) => {
+                try { this.playMetronomeClick(b === 0, t); } catch (e) { console.warn('Clic de décompte ignoré :', e.message); }
+                Tone.Draw.schedule(() => {
+                    const el = document.getElementById('seq-tap-status');
+                    if (el) el.textContent = `Décompte ${label} / ${countInBeats}`;
+                }, t);
+            }, clickTime);
+            if (this.metronomeSubdivision) {
+                Tone.Transport.schedule((t) => {
+                    try { this.playMetronomeClick(false, t, true); } catch (e) { console.warn('Clic de décompte (croche) ignoré :', e.message); }
+                }, clickTime + secPerBeat / 2);
+            }
+        }
+
+        const recordEnd = st.transportRecordStartSec + winSteps * stepDur;
+        // Le métronome continue de cliquer PENDANT la capture (repère de tempo, demandé explicitement) :
+        // simples clics réguliers, sans reprendre la subdivision croche du décompte (accessoire ici).
+        for (let b = countInBeats; ; b++) {
+            const clickTime = start + b * secPerBeat;
+            if (clickTime >= recordEnd) break;
+            Tone.Transport.schedule((t) => {
+                try { this.playMetronomeClick(b % beatsPerBar === 0, t); } catch (e) { console.warn('Clic ignoré :', e.message); }
+            }, clickTime);
+        }
+
+        Tone.Transport.schedule((t) => {
+            this.seqTapPhase = 'recording';
+            Tone.Draw.schedule(() => {
+                const el = document.getElementById('seq-tap-status');
+                if (el) el.textContent = 'Enregistrement — tape le rythme !';
+                const zone = document.getElementById('seq-tap-zone');
+                if (zone) zone.classList.add('live');
+            }, t);
+        }, st.transportRecordStartSec);
+
+        Tone.Transport.schedule(() => { this.finishTapRecording(); }, recordEnd);
+
+        Tone.Transport.start();
+    }
+
+    // Appui (keydown barre espace, ou pointerdown sur #seq-tap-zone) : ignoré hors de la fenêtre
+    // d'enregistrement (décompte encore en cours, ou déjà terminé) et si une note est déjà en cours
+    // (touche maintenue générant des keydown répétés : voir le garde e.repeat côté appelant clavier).
+    registerTapDown() {
+        if (this.seqTapPhase !== 'recording' || !this._tapRecordState) return;
+        const st = this._tapRecordState;
+        if (st.curTapStart != null) return;
+        st.curTapStart = Tone.Transport.seconds - (this.tapLatencyOffsetMs / 1000);
+        try {
+            this.getInstrument(st.instrumentKey).triggerAttack(st.notes, Tone.now());
+        } catch (e) { console.warn('Aperçu du rythme tapé ignoré (instrument pas encore prêt) :', e.message); }
+    }
+
+    // Relâchement (keyup barre espace, ou pointerup/pointercancel n'importe où — voir le filet posé
+    // dans setupKeyboardShortcuts, qui couvre aussi un doigt qui glisse hors de #seq-tap-zone).
+    registerTapUp() {
+        if (this.seqTapPhase !== 'recording' || !this._tapRecordState) return;
+        const st = this._tapRecordState;
+        if (st.curTapStart == null) return;
+        const end = Math.max(Tone.Transport.seconds - (this.tapLatencyOffsetMs / 1000), st.curTapStart + 0.001);
+        st.taps.push({ start: st.curTapStart, end });
+        st.curTapStart = null;
+        try {
+            this.getInstrument(st.instrumentKey).triggerRelease(st.notes, Tone.now());
+        } catch (e) { console.warn('Relâchement du rythme tapé ignoré :', e.message); }
+    }
+
+    // Fin naturelle de la fenêtre (déclenchée par le Tone.Transport.schedule posé dans
+    // startTapRecording) : quantifie tous les appuis capturés (arrondi mathématique à la croche la
+    // plus proche, pour le début ET la fin de chaque appui, comme demandé) puis les applique comme un
+    // seul rythme à TOUTES les voix de la plage sélectionnée — une seule lecture/écriture du motif,
+    // comme les autres opérations groupées du séquenceur (voir deleteSelectedSeqNote et consorts).
+    finishTapRecording() {
+        const st = this._tapRecordState;
+        if (!st) return; // déjà nettoyé (annulé juste avant que ce callback programmé ne s'exécute)
+
+        // Une note encore maintenue pile à la fin de la fenêtre : on la clôt au bord plutôt que de la
+        // perdre (stopAll ci-dessous coupera de toute façon le son qui n'a pas eu de relâchement propre).
+        if (st.curTapStart != null) {
+            st.taps.push({ start: st.curTapStart, end: st.transportRecordStartSec + st.winSteps * st.stepDur });
+            st.curTapStart = null;
+        }
+
+        // Toujours le MÊME accord que celui pour lequel la capture a démarré : si l'édition a changé
+        // entre-temps (ne devrait pas arriver, mais mieux vaut abandonner proprement qu'écrire au
+        // mauvais endroit), on annule sans rien appliquer.
+        if (this.activeSection !== st.editingSection || this.editingIndex !== st.editingIndex) {
+            this.cancelTapRecording();
+            return;
+        }
+
+        const localOn = new Array(st.winSteps).fill(false);
+        const localTie = new Array(st.winSteps).fill(false);
+        st.taps.forEach(({ start, end }) => {
+            let s0 = Math.round((start - st.transportRecordStartSec) / st.stepDur);
+            let s1 = Math.round((end - st.transportRecordStartSec) / st.stepDur);
+            s0 = Math.max(0, Math.min(st.winSteps - 1, s0));
+            s1 = Math.max(s0 + 1, Math.min(st.winSteps, s1)); // au moins une croche, jamais 0
+            for (let s = s0; s < s1; s++) {
+                localOn[s] = true;
+                if (s > s0) localTie[s] = true; // seule la toute première croche de CET appui est une attaque
+            }
+        });
+
+        this.pushSeqUndo(); // un seul instantané pour toute la capture, juste avant la première mutation réelle
+        const { pattern, tie } = this.getLiveSeqPattern(st.chord);
+        for (let voice = 0; voice < st.voices; voice++) {
+            for (let localStep = 0; localStep < st.winSteps; localStep++) {
+                const step = st.minStart + localStep;
+                const onIdx = pattern[step].indexOf(voice);
+                if (localOn[localStep]) { if (onIdx < 0) pattern[step].push(voice); }
+                else if (onIdx >= 0) pattern[step].splice(onIdx, 1);
+                const tieIdx = tie[step].indexOf(voice);
+                if (localOn[localStep] && localTie[localStep]) { if (tieIdx < 0) tie[step].push(voice); }
+                else if (tieIdx >= 0) tie[step].splice(tieIdx, 1);
+            }
+            // La croche juste après la fenêtre ne peut plus être liée à une croche désormais silencieuse
+            if (st.maxEnd + 1 < tie.length && !pattern[st.maxEnd].includes(voice)) {
+                const nt = tie[st.maxEnd + 1].indexOf(voice);
+                if (nt >= 0) tie[st.maxEnd + 1].splice(nt, 1);
+            }
+        }
+
+        this.seqTouched = true;
+        this.setLiveSeqPattern(pattern, tie);
+        this.seqSelections = [];
+        this._tapRecordState = null;
+        this.seqTapPhase = null;
+        this.stopAll();
+        this.renderSequencer();
+        this.livePreviewUpdate();
+        this.flashHint('Rythme enregistré et appliqué à la sélection');
+    }
+
+    // Annulation (bouton, Échap, ou changement d'accord en cours de capture) : rien n'est appliqué.
+    cancelTapRecording() {
+        if (!this._tapRecordState && !this.seqTapPhase) return;
+        this._tapRecordState = null;
+        this.seqTapPhase = null;
+        this.stopAll(); // Tone.Transport.cancel() y suffit pour effacer décompte/clics/fin programmés
+        this.renderSequencer();
+        this.flashHint('Enregistrement du rythme annulé');
+    }
+
     // Bouton dédié dans le volet Lecture : ouvre/ferme le panneau, indépendamment du style choisi
     toggleSequencer() {
         this.seqOpen = !this.seqOpen;
         if (!this.seqOpen) {
+            this.cancelTapRecording();
             this.seqSelections = [];
             this.closeSeqZoom(); // rien à agrandir une fois le panneau lui-même refermé
         }
@@ -8403,11 +8634,25 @@ class HarmoHubApp {
                 <button type="button" id="seq-move-right" class="icon-btn seq-icon-btn" title="Déplacer la sélection vers la droite (Maj+→)" aria-label="Déplacer la sélection vers la droite">${svgIcon('chevron-right')}</button>
                 <button type="button" id="seq-shrink" class="icon-btn seq-icon-btn" title="Raccourcir la sélection (←)" aria-label="Raccourcir la sélection">${svgIcon('minus')}</button>
                 <button type="button" id="seq-grow" class="icon-btn seq-icon-btn" title="Étirer la sélection (→)" aria-label="Étirer la sélection">${svgIcon('plus')}</button>
-            </div>` : ''}
+            </div>
+            <!-- Enregistre un rythme tapé en direct (espace/doigt) sur la durée de la sélection, et le
+                 réapplique à TOUTES les voix de cette plage (voir startTapRecording) — retour utilisateur :
+                 possibilité de « jouer » le rythme voulu plutôt que de peindre chaque case à la main. -->
+            <button type="button" id="seq-tap-record" class="icon-btn seq-icon-btn${this.seqTapPhase ? ' seq-tap-active' : ''}" title="${this.seqTapPhase ? "Annuler l'enregistrement (Échap)" : 'Taper le rythme de la sélection'}" aria-label="${this.seqTapPhase ? "Annuler l'enregistrement du rythme" : 'Taper le rythme de la sélection'}">${svgIcon('tapRecord')}</button>` : ''}
             <button type="button" id="seq-delete-selection" class="seq-delete-btn" ${hasSelection ? '' : 'disabled'}>${svgIcon('trash')}
                 <span class="lbl-full">sélection${countSuffix}</span><span class="lbl-short">Sélect.${countSuffix}</span>
             </button>
         </div>`;
+
+        // Bandeau décompte/enregistrement (voir startTapRecording) : la grande zone tactile #seq-tap-zone
+        // sert d'équivalent « barre espace » au doigt (mobile), le statut se met à jour directement par
+        // id (pas de renderSequencer() à chaque croche, qui redémarrerait le geste en cours).
+        if (this.seqTapPhase) {
+            html += `<div class="seq-tap-banner">
+                <div class="seq-tap-status" id="seq-tap-status">${this.seqTapPhase === 'countin' ? 'Décompte…' : 'Enregistrement — tape le rythme !'}</div>
+                <div id="seq-tap-zone" class="seq-tap-zone${this.seqTapPhase === 'recording' ? ' live' : ''}">${svgIcon('tapRecord')}<span>Tape ici (ou barre espace)</span></div>
+            </div>`;
+        }
         host.innerHTML = html;
 
         // Mode continu : place (ou garde) le défilement horizontal sur l'accord en édition, jamais
@@ -8489,6 +8734,19 @@ class HarmoHubApp {
         if (shrinkBtn) shrinkBtn.onclick = () => this.resizeSelectedSeqNote(-1);
         const growBtn = document.getElementById('seq-grow');
         if (growBtn) growBtn.onclick = () => this.resizeSelectedSeqNote(1);
+
+        // Démarre/annule la capture d'un rythme tapé en direct sur la sélection (voir
+        // startTapRecording/cancelTapRecording) — un seul bouton fait office des deux, son état
+        // (this.seqTapPhase) décide lequel s'applique.
+        const tapRecordBtn = document.getElementById('seq-tap-record');
+        if (tapRecordBtn) tapRecordBtn.onclick = () => (this.seqTapPhase ? this.cancelTapRecording() : this.startTapRecording());
+        // Zone tactile agrandie (voir #seq-tap-zone dans le rendu ci-dessus) : équivalent au doigt de la
+        // barre espace pendant l'enregistrement — pointerdown/pointerup plutôt que click, pour la même
+        // latence minimale que le reste du séquenceur (voir onSeqPointerDown). Le relâchement, lui, est
+        // couvert par le filet pointerup/pointercancel global posé une seule fois dans setupKeyboardShortcuts,
+        // pas ici : un doigt qui glisse hors de la zone avant de se lever ne doit pas laisser une note collée.
+        const tapZone = document.getElementById('seq-tap-zone');
+        if (tapZone) tapZone.addEventListener('pointerdown', (e) => { e.preventDefault(); this.registerTapDown(); });
 
         const playBtn = document.getElementById('seq-play');
         // Une plage à boucler (bande orange/dorée, voir setLoopRange) déjà en place : lire TOUTE la
@@ -8926,9 +9184,20 @@ class HarmoHubApp {
             if (e.key === 'Escape' && !document.getElementById('unsaved-modal').hidden) { if (this._unsavedModalCancel) this._unsavedModalCancel(); return; }
             if (e.key === 'Escape' && !document.getElementById('duration-dd-menu').hidden) { this.closeDurationMenu(); return; }
             if (e.key === 'Escape' && !document.getElementById('playstyle-dd-menu').hidden) { this.closePlayStyleMenu(); return; }
+            if (e.key === 'Escape' && this.seqTapPhase) { this.cancelTapRecording(); return; }
             if (e.key === 'Escape' && this.settingsOpen) { this.closeSettings(); return; }
             if (e.key === 'Escape' && this.seqZoomOpen) { this.closeSeqZoom(); return; }
             if (e.key === 'Escape' && this.gridZoomOpen) { this.closeGridZoom(); return; }
+
+            // Rythme tapé en direct (voir startTapRecording) : la barre espace devient le déclencheur du
+            // rythme pendant la fenêtre d'enregistrement, AVANT le raccourci lecture/stop ci-dessous (sinon
+            // celui-ci l'intercepterait en premier). e.repeat ignore l'auto-répétition du système quand la
+            // touche reste enfoncée : un seul appui physique ne doit produire qu'une seule note.
+            if (this.seqTapPhase === 'recording' && (e.key === ' ' || e.code === 'Space') && !typing) {
+                e.preventDefault();
+                if (!e.repeat) this.registerTapDown();
+                return;
+            }
 
             // Taper directement une lettre de note (A-G) sur un accord chargé en édition (loupe
             // grille, ou double-clic en grille normale) ou simplement sélectionné ouvre son édition
@@ -9043,6 +9312,21 @@ class HarmoHubApp {
                 this.saveCurrent();
             }
         });
+
+        // Relâchement du rythme tapé (voir startTapRecording) : termine la note en cours, que la barre
+        // espace ait été relâchée (keyup — il n'existait jusque-là aucun listener 'keyup' dans toute
+        // l'appli) ou qu'un doigt/curseur ait quitté #seq-tap-zone n'importe où sur la page, y compris
+        // hors de la zone elle-même (pointerup/pointercancel posés ici une seule fois, au niveau du
+        // document, plutôt que sur la zone : un doigt qui glisse hors de son rectangle avant de se lever
+        // ne doit jamais laisser une note collée indéfiniment).
+        document.addEventListener('keyup', (e) => {
+            if (this.seqTapPhase === 'recording' && (e.key === ' ' || e.code === 'Space')) {
+                e.preventDefault();
+                this.registerTapUp();
+            }
+        });
+        document.addEventListener('pointerup', () => { if (this.seqTapPhase === 'recording') this.registerTapUp(); });
+        document.addEventListener('pointercancel', () => { if (this.seqTapPhase === 'recording') this.registerTapUp(); });
     }
 
     // ---------- Copier / coller / dupliquer (au sein de la partie active) ----------
