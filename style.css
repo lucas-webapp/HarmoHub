@@ -415,17 +415,18 @@ body.body-scroll-locked { overflow: hidden !important; }
 }
 .settings-header h2 { margin: 0; font-size: var(--fs-lg); }
 
-/* Accord/Grille/Boucle/Stop dans l'en-tête de la loupe grille (voir index.html) : boutons réels,
-   juste redimensionnés pour tenir dans un en-tête — mêmes classes .btn-prog/.btn-stop/.icon-btn que
-   le pied de colonne, donc même couleur/dégradé, seule la taille change. */
+/* Accord/Grille/Stop dans l'en-tête de la loupe grille (voir index.html) : boutons réels, juste
+   redimensionnés pour tenir dans un en-tête — mêmes classes .btn-prog/.btn-stop/.icon-btn que le
+   pied de colonne, donc même couleur/dégradé, seule la taille change. Logos seuls (sans libellé,
+   même logique que le pied de colonne ci-dessus) : padding symétrique, plus besoin de caser du texte. */
 .grid-zoom-transport-btn {
     height: 32px;
-    padding: 0 10px 0 8px;
-    font-size: var(--fs-xs);
+    width: 32px;
+    padding: 0;
     min-width: 0;
     flex: none;
 }
-.grid-zoom-transport-btn .icon { width: 13px; height: 13px; }
+.grid-zoom-transport-btn .icon { width: 15px; height: 15px; }
 .grid-zoom-transport-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 2px; }
 
 /* Boutons loupe+/loupe-/fermer groupés à droite de l'en-tête (voir seq-zoom-overlay et
@@ -703,6 +704,20 @@ main {
     width: 44px;
     height: 44px;
     padding: 0;
+}
+/* Accord/Grille/Stop : logos seuls (sans libellé, voir index.html) pour ne plus surcharger le pied
+   de colonne — carrés compacts et uniformes entre eux comme #toggle-loop-section ci-dessus, plutôt
+   que de s'étirer sur toute la largeur comme avant (ça ne servait qu'à caser le texte). Sélecteur à
+   2 classes (spécificité 0,2,0) : l'emporte sur ".transport button" (0,1,1) ci-dessus. */
+.transport .transport-icon-btn {
+    flex: none;
+    width: 52px;
+    height: 52px;
+    padding: 0;
+}
+.transport-icon-btn .transport-icon {
+    width: 22px;
+    height: 22px;
 }
 
 /* Titre d'accord + bascule piano/guitare sur la même ligne (voir retour utilisateur : la bascule en
