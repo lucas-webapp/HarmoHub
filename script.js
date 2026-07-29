@@ -2166,15 +2166,26 @@ class HarmoHubApp {
         // contient aussi bien les réglages BPM/instrument/Grille que le séquenceur) : contrairement à
         // la sélection, y cliquer fait partie de l'édition elle-même, pas un clic « ailleurs ».
         document.addEventListener('click', (e) => {
-            const inGrid = !!e.target.closest('.chord-grid');
-            const inMenu = !!e.target.closest('#context-menu');
+            // e.target.closest(...) suit le DOM ACTUEL, pas celui d'au moment du clic : un bouton du
+            // séquenceur (ex. « + » une note libre, voir addSequencerNote) déclenche souvent un
+            // renderSequencer() synchrone qui remplace tout le HTML du panneau — DONC son propre
+            // bouton — avant même que ce clic ne finisse de remonter jusqu'ici. e.target se retrouve
+            // alors détaché du document, et .closest() ne retombe plus sur rien (retour utilisateur :
+            // ajouter une note libre sortait silencieusement du mode édition, exactement comme l'ancien
+            // bug déjà noté ci-dessous pour le séquenceur agrandi). composedPath() fige au contraire le
+            // chemin de propagation TEL QU'IL ÉTAIT au moment du clic, donc reste fiable même si les
+            // éléments d'origine ont depuis été remplacés.
+            const path = e.composedPath();
+            const inPath = (selector) => path.some(el => el instanceof Element && el.matches(selector));
+            const inGrid = inPath('.chord-grid');
+            const inMenu = inPath('#context-menu');
             // .grid-zoom-modal ET .seq-zoom-modal inclus : le séquenceur (épinglé dans la loupe grille,
             // ou dans sa propre vue agrandie, voir openSeqZoom) et ses boutons (Enregistrer/Annuler/
             // replier, poignée de redimensionnement...) y vivent, hors de .chord-grid ET de .col-left —
             // sans cet ajout, ajouter une note ou supprimer une barre dans le séquenceur agrandi (ni
             // l'un ni l'autre) sortait silencieusement du mode édition en cours, perdant la
             // modification (retour utilisateur : les boutons Modifier/Annuler disparaissaient).
-            const inEditor = !!e.target.closest('.col-left') || !!e.target.closest('.grid-zoom-modal') || !!e.target.closest('.seq-zoom-modal');
+            const inEditor = inPath('.col-left') || inPath('.grid-zoom-modal') || inPath('.seq-zoom-modal');
             let changed = false;
             if (!inGrid && !inMenu && this.selectedIndex != null) { this.selectedIndex = null; changed = true; }
             if (!inGrid && !inMenu && !inEditor && this.editingIndex != null) { this.exitEditMode(); changed = true; }
@@ -6605,31 +6616,47 @@ class HarmoHubApp {
         // simple tap (sans glisser) se contente TOUJOURS de sélectionner, exactement comme au milieu
         // d'une note : cliquer ne modifie jamais rien, seul un vrai glissé le fait.
         let resize = null;
+        let noteStart = null, noteEnd = null, isStart = false, isEnd = false;
         if (wasOn) {
-            let start = step, end = step;
-            while (start > 0 && pattern[start - 1].includes(voice) && tie[start].includes(voice)) start--;
-            while (end + 1 < pattern.length && pattern[end + 1].includes(voice) && tie[end + 1].includes(voice)) end++;
-            const isStart = (step === start), isEnd = (step === end);
+            noteStart = step; noteEnd = step;
+            while (noteStart > 0 && pattern[noteStart - 1].includes(voice) && tie[noteStart].includes(voice)) noteStart--;
+            while (noteEnd + 1 < pattern.length && pattern[noteEnd + 1].includes(voice) && tie[noteEnd + 1].includes(voice)) noteEnd++;
+            isStart = (step === noteStart); isEnd = (step === noteEnd);
             if (isStart || isEnd) {
-                const { minStart, maxEnd } = this.seqNeighborBounds(pattern, voice, start, end);
+                const { minStart, maxEnd } = this.seqNeighborBounds(pattern, voice, noteStart, noteEnd);
                 // 'auto' pour une note d'une seule croche : le sens du tout premier glissé décide du bord
                 const edge = (isStart && isEnd) ? 'auto' : (isStart ? 'start' : 'end');
-                resize = { edge, noteStart: start, noteEnd: end, minStart, maxEnd };
+                resize = { edge, noteStart, noteEnd, minStart, maxEnd };
+            }
+        }
+
+        // Plusieurs notes sélectionnées (Ctrl/Cmd+clic, voir selectSeqNoteAt) ET le geste démarre sur
+        // L'UNE d'entre elles : étirer/déplacer TOUTES les notes sélectionnées ensemble, du même nombre
+        // de croches (voir onSeqMultiDragMove) — plutôt que de ne toucher que celle sous le doigt.
+        // Démarrer sur une note NON sélectionnée retombe sur le comportement habituel (une seule note).
+        let multi = null;
+        if (wasOn && this.seqSelections.length > 1) {
+            const ownSel = this.seqSelections.find(s => s.voice === voice && noteStart === s.start && noteEnd === s.end);
+            if (ownSel) {
+                const edge = resize ? ((isStart && isEnd) ? 'auto' : (isStart ? 'start' : 'end')) : null;
+                multi = {
+                    edge,
+                    startStep: step,
+                    selections: this.seqSelections.map(s => ({ ...s })), // instantané des positions de départ
+                    steps: pattern.length,
+                    appliedDelta: 0,
+                };
             }
         }
 
         // Ctrl/Cmd enfoncé : le tap (sans glisser) ajoutera/retirera cette note de la sélection au
         // lieu de la remplacer — voir onSeqPointerUp. N'affecte pas le glissé de peinture/effacement.
-        // origOnSteps (peinture uniquement) : instantané, AVANT ce geste, des croches actives de cette
-        // voix — sert à détecter qu'on peint juste à côté d'une note déjà là (voir onSeqPointerMove),
-        // pour la prolonger au lieu de créer une seconde note non liée juste accolée à la première.
         this.seqDrag = {
             mode: 'paint', voice, wasOn, startStep: step, lastStep: step, moved: false,
             rowCells: null, touched: {}, additive: e.ctrlKey || e.metaKey,
-            resize, resizeChanged: false, crossedThreshold: false,
+            resize, resizeChanged: false, crossedThreshold: false, multi,
             curStart: resize ? resize.noteStart : null, curEnd: resize ? resize.noteEnd : null,
             noteEl: null, startX: e.clientX, startY: e.clientY,
-            origOnSteps: resize ? null : pattern.map(cell => cell.includes(voice)),
         };
 
         this._onSeqMove = (ev) => this.onSeqPointerMove(ev);
@@ -6683,6 +6710,7 @@ class HarmoHubApp {
     onSeqPointerMove(e) {
         const d = this.seqDrag;
         if (!d) return;
+        if (d.multi) { this.onSeqMultiDragMove(e, d); return; }
         if (d.resize) { this.onSeqResizeMove(e, d); return; }
 
         // Même garde-fou que pour le redimensionnement (voir onSeqResizeMove) : sans lui, le moindre
@@ -6708,24 +6736,14 @@ class HarmoHubApp {
         const paintOn = !d.wasOn;
         const newFrom = Math.min(step, d.startStep), newTo = Math.max(step, d.startStep);
 
-        // Fusionne avec une note déjà là, juste avant ou juste après la zone peinte (état d'AVANT ce
-        // geste, voir origOnSteps), au lieu de toujours attaquer une nouvelle note à l'endroit où le
-        // doigt a touché en premier — sans quoi glisser depuis la case vide juste à côté d'une note
-        // pour l'« étirer » créait une seconde note non liée juste accolée à la première : visuellement
-        // scindée en deux, et seule cette nouvelle partie se sélectionnait ensuite.
-        const mergeLeft = paintOn && newFrom > 0 && d.origOnSteps[newFrom - 1];
-        const mergeRight = paintOn && newTo + 1 < d.origOnSteps.length && d.origOnSteps[newTo + 1];
-
-        // La note existante à droite, si fusion, continue maintenant ce qu'on vient de peindre : sa
-        // toute première croche (hors de [newFrom, newTo]) passe donc aussi sous la responsabilité de
-        // ce geste (suivie/restaurable comme le reste — voir d.touched — si le glissé revient en
-        // arrière avant d'être relâché).
-        const effTo = mergeRight ? newTo + 1 : newTo;
-
+        // Toujours un nouvel appui, MÊME juste à côté d'une note déjà là (jamais fusionnée avec elle,
+        // retour utilisateur : garder deux appuis séparés plutôt qu'une seule note liée) — un geste qui
+        // veut au contraire ÉTENDRE une note existante part de son propre bord (voir onSeqResizeMove),
+        // pas d'une case vide adjacente.
         // Aller-retour du geste : restaure hors de la nouvelle plage les croches déjà modifiées
         if (d.rangeFrom != null) {
             for (let s = d.rangeFrom; s <= d.rangeTo; s++) {
-                if (s < newFrom || s > effTo) {
+                if (s < newFrom || s > newTo) {
                     const orig = d.touched[s];
                     this.applySeqCell(d.voice, s, orig.on, orig.tied);
                 }
@@ -6733,15 +6751,10 @@ class HarmoHubApp {
         }
         for (let s = newFrom; s <= newTo; s++) {
             this.rememberSeqOriginalState(d, s);
-            const isAttack = paintOn && !mergeLeft && s === newFrom;
-            this.applySeqCell(d.voice, s, paintOn, paintOn && !isAttack);
-        }
-        if (mergeRight) {
-            this.rememberSeqOriginalState(d, newTo + 1);
-            this.applySeqCell(d.voice, newTo + 1, true, true);
+            this.applySeqCell(d.voice, s, paintOn, paintOn && s !== newFrom);
         }
         d.rangeFrom = newFrom;
-        d.rangeTo = effTo;
+        d.rangeTo = newTo;
         d.lastStep = step;
     }
 
@@ -6807,6 +6820,91 @@ class HarmoHubApp {
         }
     }
 
+    // Bornes du décalage (en croches, un seul delta partagé par toutes les notes) qui gardent CHAQUE
+    // note de `selections` dans la grille et loin de toute case occupée qui ne fait PAS partie de la
+    // sélection — les autres notes sélectionnées, qui se décalent avec elle, ne comptent jamais comme
+    // un obstacle. `edge` : null (déplacement, les deux bords bougent) | 'start' | 'end' (étirement,
+    // un seul bord bouge, l'autre reste fixe). Voir onSeqMultiDragMove.
+    computeMultiDragDeltaBounds(selections, steps, edge) {
+        const chord = this.readChord();
+        const { pattern } = this.getLiveSeqPattern(chord);
+        const isOwn = (voice, s) => selections.some(sel => sel.voice === voice && s >= sel.start && s <= sel.end);
+        let minDelta = -Infinity, maxDelta = Infinity;
+        selections.forEach(sel => {
+            let lowBound = 0;
+            for (let s = sel.start - 1; s >= 0; s--) {
+                if (pattern[s].includes(sel.voice) && !isOwn(sel.voice, s)) { lowBound = s + 1; break; }
+            }
+            let highBound = steps - 1;
+            for (let s = sel.end + 1; s < steps; s++) {
+                if (pattern[s].includes(sel.voice) && !isOwn(sel.voice, s)) { highBound = s - 1; break; }
+            }
+            if (edge === 'end') {
+                minDelta = Math.max(minDelta, sel.start - sel.end); // jamais moins d'une croche
+                maxDelta = Math.min(maxDelta, highBound - sel.end);
+            } else if (edge === 'start') {
+                minDelta = Math.max(minDelta, lowBound - sel.start);
+                maxDelta = Math.min(maxDelta, sel.end - sel.start); // jamais moins d'une croche
+            } else {
+                minDelta = Math.max(minDelta, lowBound - sel.start);
+                maxDelta = Math.min(maxDelta, highBound - sel.end);
+            }
+        });
+        if (minDelta > maxDelta) { minDelta = 0; maxDelta = 0; }
+        return { minDelta, maxDelta };
+    }
+
+    // Glissé démarré sur l'une des notes d'une sélection multiple (voir onSeqPointerDown) : étire
+    // (depuis le bord touché) ou déplace (depuis le corps de la note) TOUTES les notes sélectionnées
+    // du MÊME nombre de croches à la fois — jamais une seule, contrairement au glissé habituel.
+    onSeqMultiDragMove(e, d) {
+        if (!d.crossedThreshold) {
+            const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
+            if (Math.hypot(dx, dy) < 8) return;
+            d.crossedThreshold = true;
+        }
+
+        const m = d.multi;
+        const step0 = this.findSeqStepAt(d, e.clientX, e.clientY);
+        if (step0 == null) return;
+        // Note d'une seule croche démarrée en 'auto' : le sens du tout premier mouvement décide du bord
+        if (m.edge === 'auto') {
+            if (step0 > m.startStep) m.edge = 'end';
+            else if (step0 < m.startStep) m.edge = 'start';
+            else return;
+        }
+
+        const { minDelta, maxDelta } = this.computeMultiDragDeltaBounds(m.selections, m.steps, m.edge);
+        let delta = step0 - m.startStep;
+        delta = Math.max(minDelta, Math.min(maxDelta, delta));
+        if (delta === m.appliedDelta && d.moved) return;
+
+        e.preventDefault();
+        if (!d.moved) this.pushSeqUndo(); // un seul instantané pour tout le glissé, quel que soit le nombre de notes
+        d.moved = true;
+
+        // Repeint chaque note sélectionnée à sa nouvelle position — toujours calculée depuis sa
+        // position de DÉPART (m.selections) et le delta actuel/précédent, jamais de façon incrémentale :
+        // un aller-retour du pointeur revient ainsi exactement sur ses pas, sans croche orpheline.
+        // edge === null (déplacement) : les DEUX bords suivent le delta. edge === 'start'/'end' :
+        // seul ce bord-là bouge, l'autre reste fixe (étirement).
+        const movesStart = m.edge === 'start' || m.edge === null;
+        const movesEnd = m.edge === 'end' || m.edge === null;
+        m.selections.forEach(sel => {
+            const newStart = movesStart ? sel.start + delta : sel.start;
+            const newEnd = movesEnd ? sel.end + delta : sel.end;
+            const prevStart = movesStart ? sel.start + m.appliedDelta : sel.start;
+            const prevEnd = movesEnd ? sel.end + m.appliedDelta : sel.end;
+            const lo = Math.min(prevStart, newStart);
+            const hi = Math.max(prevEnd, newEnd);
+            for (let s = lo; s <= hi; s++) {
+                const within = s >= newStart && s <= newEnd;
+                this.applySeqCell(sel.voice, s, within, within && s !== newStart);
+            }
+        });
+        m.appliedDelta = delta;
+    }
+
     onSeqPointerUp() {
         window.removeEventListener('pointermove', this._onSeqMove);
         window.removeEventListener('pointerup', this._onSeqUp);
@@ -6814,6 +6912,24 @@ class HarmoHubApp {
         const d = this.seqDrag;
         this.seqDrag = null;
         if (!d) return;
+
+        if (d.multi) {
+            if (d.moved) {
+                const m = d.multi;
+                this.seqTouched = true;
+                // Toutes les notes déplacées/étirées RESTENT sélectionnées (positions mises à jour),
+                // contrairement au redimensionnement d'une seule note qui, lui, réduit la sélection.
+                this.seqSelections = m.selections.map(sel => ({
+                    voice: sel.voice,
+                    start: (m.edge === 'start' || m.edge === null) ? sel.start + m.appliedDelta : sel.start,
+                    end: (m.edge === 'end' || m.edge === null) ? sel.end + m.appliedDelta : sel.end,
+                }));
+                this.renderSequencer();
+                this.livePreviewUpdate();
+                return;
+            }
+            // Sinon : simple tap sans glissé réel -> retombe sur le comportement de sélection habituel.
+        }
 
         if (d.resize) {
             if (d.resizeChanged) {
