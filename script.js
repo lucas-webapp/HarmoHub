@@ -175,10 +175,14 @@ const QUALITY_ALIASES = {
     '13': 'dom13', 'dom13': 'dom13',
 };
 
-// Parse un symbole d'accord tapé au clavier (ex. "Cm7", "F#dim", "Bbadd9", "DM7") en { root, quality
-// } exploitable par Chord, ou null si non reconnu. Toujours en position fondamentale : la saisie
-// rapide sert à poser vite une grille, pas à régler un voicing précis (renversement/drop/basse
-// restent modifiables ensuite en double-cliquant la case, comme n'importe quel accord).
+// Parse un symbole d'accord tapé au clavier (ex. "Cm7", "F#dim", "Bbadd9", "DM7") en { root, quality,
+// bass, octave, inversion, drop } exploitable par Chord, ou null si non reconnu. `octave`/`inversion`/
+// `drop` valent null si non précisés dans le symbole (voir bloc "_" ci-dessous) — à l'appelant de les
+// remplacer par leurs valeurs par défaut (fondamentale/octave classique/sans drop) : un symbole SANS
+// bloc "_" (ex. juste "C") repart donc toujours d'un voicing par défaut plutôt que de garder ce qui
+// était déjà réglé (retour utilisateur : ce qu'on tape doit décrire le voicing ENTIER, pas juste un
+// correctif de racine/qualité — voir buildChordData et startInlineChordSymbolEdit, seuls appelants
+// qui donnent un sens à octave/inversion/drop).
 function parseChordSymbol(input) {
     const s = (input || '').trim();
     if (!s) return null;
@@ -195,33 +199,55 @@ function parseChordSymbol(input) {
 
     let rest = rawRest.trim();
 
-    // Note à la basse, notée avec "_" (ex. "C_E" = do majeur avec mi à la basse) : extraite avant
-    // d'analyser la qualité, pour que "C_E" et "C" partagent le même chemin de reconnaissance.
-    // Volontairement pas "/" (déjà pris par la saisie rapide pour séparer plusieurs accords).
-    let bass = null;
-    const bassIdx = rest.indexOf('_');
-    if (bassIdx !== -1) {
-        const bassStr = rest.slice(bassIdx + 1).trim();
-        rest = rest.slice(0, bassIdx).trim();
-        const bm = bassStr.match(/^([A-Ga-g])(#|b|♭)?$/);
-        if (!bm) return null;
-        const [, bLetter, bAccidental] = bm;
-        let bPc = BASE_PC[bLetter.toUpperCase()];
-        if (bAccidental === '#') bPc += 1;
-        else if (bAccidental === 'b' || bAccidental === '♭') bPc -= 1;
-        bPc = ((bPc % 12) + 12) % 12;
-        bass = NOTES[bPc];
+    // Bloc "_" : basse différente et/ou voicing (octave/renversement/drop), combinables et dans
+    // n'importe quel ordre (ex. "C_E", "C_O4-R1-D2", "C_D2" (partiel), "C_E_O4-D2"). Découpé en
+    // jetons lettre+chiffres — tirets/espaces entre eux ne sont QUE de la ponctuation lisible,
+    // ignorés par ce découpage (matchAll saute tout ce qui ne matche pas). Chaque jeton est ensuite
+    // reconnu par sa FORME, pas sa position : "O"/"R"/"D" + un chiffre = octave/renversement/drop
+    // (même notation que les badges "O4-R1-D2" du PDF/de la grille, voir getVoicingBadge) ; une
+    // simple lettre de note SANS chiffre = basse (seul "D" est ambigu entre les deux — mais jamais
+    // suivi d'un chiffre pour une basse, ce qui les distingue sans équivoque). Volontairement pas
+    // "/" pour la basse (déjà pris par la saisie rapide pour séparer plusieurs accords).
+    let bass = null, octave = null, inversion = null, drop = null;
+    const modIdx = rest.indexOf('_');
+    if (modIdx !== -1) {
+        const modStr = rest.slice(modIdx + 1);
+        rest = rest.slice(0, modIdx).trim();
+        const tokens = modStr.match(/[A-Za-z](?:#|b|♭)?\d*/g);
+        if (!tokens || tokens.length === 0) return null;
+        for (const tok of tokens) {
+            const tm = tok.match(/^([A-Za-z])(#|b|♭)?(\d*)$/);
+            const tLetter = tm[1].toUpperCase();
+            const tAccidental = tm[2];
+            const tDigits = tm[3];
+            if (tDigits) {
+                const n = parseInt(tDigits, 10);
+                if (tLetter === 'O' && n >= 2 && n <= 5) { if (octave != null) return null; octave = n; }
+                else if (tLetter === 'R' && n >= 0 && n <= 3) { if (inversion != null) return null; inversion = n; }
+                else if (tLetter === 'D' && (n === 2 || n === 3)) { if (drop != null) return null; drop = 'drop' + n; }
+                else return null;
+            } else if (BASE_PC[tLetter] != null) {
+                if (bass != null) return null;
+                let bPc = BASE_PC[tLetter];
+                if (tAccidental === '#') bPc += 1;
+                else if (tAccidental === 'b' || tAccidental === '♭') bPc -= 1;
+                bPc = ((bPc % 12) + 12) % 12;
+                bass = NOTES[bPc];
+            } else {
+                return null;
+            }
+        }
     }
 
     // Convention jazz répandue : M/M7/M9 en MAJUSCULE = majeur — vérifié avant la normalisation en
     // minuscules (sinon "M7" serait confondu avec "m7", mineur 7e).
-    if (rest === 'M') return { root, quality: 'maj', bass };
-    if (rest === 'M7') return { root, quality: 'maj7', bass };
-    if (rest === 'M9') return { root, quality: 'maj9', bass };
+    if (rest === 'M') return { root, quality: 'maj', bass, octave, inversion, drop };
+    if (rest === 'M7') return { root, quality: 'maj7', bass, octave, inversion, drop };
+    if (rest === 'M9') return { root, quality: 'maj9', bass, octave, inversion, drop };
 
     const suffix = rest.replace(/\s+/g, '').toLowerCase();
     const quality = QUALITY_ALIASES[suffix];
-    return quality ? { root, quality, bass } : null;
+    return quality ? { root, quality, bass, octave, inversion, drop } : null;
 }
 
 // Tonalités majeures qui s'écrivent conventionnellement avec des bémols (Db, Eb, F, Ab, Bb) :
@@ -3516,21 +3542,25 @@ class HarmoHubApp {
         if (refreshGrid) this.loadProgression();
     }
 
-    // Construit les données d'un accord (fondamentale, sans renversement ni drop — seule la basse
-    // peut être précisée via "_", voir parseChordSymbol) à partir d'un symbole déjà reconnu — partagé
-    // par addChordFromSymbol (un accord) et addChordsFromSymbolList (plusieurs, séparés par "/").
+    // Construit les données d'un accord (fondamentale par défaut ; basse ET voicing — octave/
+    // renversement/drop — précisables via "_", voir parseChordSymbol) à partir d'un symbole déjà
+    // reconnu — partagé par addChordFromSymbol (un accord) et addChordsFromSymbolList (plusieurs,
+    // séparés par "/").
     buildChordData(parsed, beats, playStyle, instrument) {
         const bass = parsed.bass || null;
-        const chord = new Chord(parsed.root, parsed.quality, beats, 0, 'none', 3, bass);
+        const octave = parsed.octave ?? 3;
+        const inversion = parsed.inversion ?? 0;
+        const drop = parsed.drop ?? 'none';
+        const chord = new Chord(parsed.root, parsed.quality, beats, inversion, drop, octave, bass);
         const voices = chord.getMidiNotes().length;
         const { pattern, tie } = seqPreset(playStyle, voices, beats * SEQ_STEPS_PER_BEAT);
         return {
             root: parsed.root,
             quality: parsed.quality,
             beats,
-            octave: 3,
-            inversion: 0,
-            drop: 'none',
+            octave,
+            inversion,
+            drop,
             bass,
             playStyle,
             instrument,
@@ -6875,11 +6905,14 @@ class HarmoHubApp {
     // Édition directe du texte d'un accord déjà en place (voir onGridPointerUp, tap sur .cell-sym) :
     // remplace le symbole affiché par un champ texte pré-rempli avec ce qui est déjà à l'écran (donc
     // déjà correctement orthographié dièses/bémols dans ce contexte), sur le même modèle que la case
-    // "+" (addChordFromSymbol/parseChordSymbol) — seuls racine et qualité changent, tout le reste de
-    // l'accord (durée, style, instrument, renversement/drop/basse) reste inchangé. La basse éventuelle
-    // ("C7/E") et le repère de continuation ("↩") sont retirés du texte proposé : parseChordSymbol ne
-    // sait lire qu'un symbole racine+qualité, pas une basse — cohérent avec la saisie rapide existante,
-    // où renversement/drop/basse restent réglables uniquement en ouvrant le mode édition complet.
+    // "+" (addChordFromSymbol/parseChordSymbol). Durée, style et instrument restent inchangés ; en
+    // revanche octave/renversement/drop/basse sont ENTIÈREMENT redéfinis par ce qui est tapé (voir
+    // parseChordSymbol) — un symbole SANS bloc "_" (ex. juste "C") repart d'un voicing par défaut au
+    // lieu de garder l'ancien, pour rester cohérent avec la saisie rapide : ce qu'on tape EST le
+    // voicing complet, pas un simple correctif de racine/qualité (retour utilisateur : pouvoir modifier
+    // le voicing au clavier, en loupe ou volet gauche fermé, sans repasser par les menus déroulants).
+    // Le repère de continuation ("↩") est retiré du texte proposé (pas la basse, désormais réaffichée
+    // via "_" pour pouvoir la retoucher au même endroit — voir plus bas).
     // `initialChar` (optionnel) : au lieu de pré-remplir avec le symbole déjà affiché (tout
     // sélectionné, prêt à être remplacé), repart d'un champ vidé contenant CE caractère — pour
     // « taper au clavier » directement sur un accord chargé (loupe grille ou sélection normale, voir
@@ -6892,6 +6925,21 @@ class HarmoHubApp {
         let displayText = (symEl.textContent || '').trim();
         displayText = displayText.replace(/↩\s*$/, '').trim();
         displayText = displayText.replace(/\/.*$/, '').trim();
+
+        // Voicing actuel (basse/octave/renversement/drop) réintégré dans le texte proposé via "_",
+        // pour pouvoir le retoucher sans le retaper de mémoire — seules les valeurs qui s'écartent du
+        // défaut apparaissent, même notation compacte que les badges "O4-R1-D2" (voir getVoicingBadge).
+        const sections0 = loadProgressionSections();
+        const data0 = sections0[section] && sections0[section].chords[index];
+        const modParts = [];
+        if (data0) {
+            if (data0.bass) modParts.push(data0.bass);
+            if (data0.octave !== 3) modParts.push(`O${data0.octave}`);
+            if (data0.inversion) modParts.push(`R${data0.inversion}`);
+            if (data0.drop === 'drop2') modParts.push('D2');
+            if (data0.drop === 'drop3') modParts.push('D3');
+        }
+        if (modParts.length) displayText += '_' + modParts.join('-');
 
         const input = document.createElement('input');
         input.type = 'text';
@@ -6920,6 +6968,10 @@ class HarmoHubApp {
             this.pushUndo(sections);
             data.root = parsed.root;
             data.quality = parsed.quality;
+            data.octave = parsed.octave ?? 3;
+            data.inversion = parsed.inversion ?? 0;
+            data.drop = parsed.drop ?? 'none';
+            data.bass = parsed.bass || null;
             // Un doigté verrouillé (voir toggleGuitarLock) a été calculé pour l'ancien accord : le
             // garder afficherait un doigté ne jouant plus les notes du nouveau (voir changeChordOctave
             // pour le même principe appliqué à l'octave).
