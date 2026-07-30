@@ -4928,6 +4928,10 @@ class HarmoHubApp {
         this.settingsOpen = true;
         document.getElementById('settings-overlay').hidden = false;
         document.getElementById('open-settings').classList.add('active');
+        // Comme openGridZoom/openSeqZoom (voir lockBodyScroll) : sans ça, faire défiler le contenu
+        // des Paramètres (l'onglet Fichiers peut être long) faisait aussi défiler l'arrière-plan de
+        // l'appli en dessous, surtout gênant sur téléphone (retour utilisateur).
+        this.lockBodyScroll();
         this.renderAudioPanel();
         this.renderDisplayPanel();
         this.renderFilesPanel();
@@ -4950,6 +4954,7 @@ class HarmoHubApp {
         this.settingsOpen = false;
         document.getElementById('settings-overlay').hidden = true;
         document.getElementById('open-settings').classList.remove('active');
+        this.unlockBodyScroll();
         this.updateGlobalUndoRedoButtons();
         // L'ampoule d'aide de l'ajout rapide vit désormais dans l'onglet Affichage (voir
         // renderDisplayPanel) : sans ça, son popover (position fixe, hors de #settings-overlay)

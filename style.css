@@ -62,17 +62,6 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    /* Corrige la fermeture des volets (menus/popovers/panneaux — voir les nombreux
-       document.addEventListener('click', ...)/'pointerdown' de script.js qui referment au clic EN
-       DEHORS) qui ne marchait qu'au bout de deux appuis sur téléphone (retour utilisateur : "la
-       fermeture ne fonctionne pas sur téléphone, mais ça fonctionne bien sur ordinateur") — bug connu
-       de Safari iOS : un premier tap sur un élément SANS listener de clic qui lui soit propre ne fait
-       que simuler le survol (jamais de vrai clic), un second est alors nécessaire. cursor:pointer sur
-       <body> fait basculer toute la page dans le mode "cliquable" attendu dès le premier tap, sans
-       changement visible (la souris ne montre presque jamais ce curseur ailleurs que sur un vrai
-       bouton/lien dans cette appli, dense en contrôles).
-    */
-    cursor: pointer;
 }
 
 /* Icônes en ligne (SVG trait, currentColor) : une seule taille de base, ajustée au cas par cas via
@@ -492,6 +481,11 @@ body.body-scroll-locked { overflow: hidden !important; }
     padding: 10px 14px 0;
     border-bottom: 1px solid var(--border);
     flex: none;
+    /* Filet de sécurité si les 3 onglets ne tiennent pas dans la largeur du téléphone (voir aussi le
+       resserrement dédié dans @media max-width:640px ci-dessous) : glisser plutôt que de les faire
+       couper net par le overflow:hidden de .settings-modal (retour utilisateur : "Fichiers" à moitié
+       invisible, coupé à droite, sans aucun moyen d'accéder au reste). */
+    overflow-x: auto;
 }
 .settings-tab {
     display: flex;
@@ -664,6 +658,13 @@ body.body-scroll-locked { overflow: hidden !important; }
 @media (max-width: 640px) {
     .file-actions { flex-wrap: wrap; justify-content: flex-end; }
     .file-folder-select { width: 92px; }
+
+    /* Fenêtre Paramètres sur téléphone (retour utilisateur : les 3 onglets Son/Affichage/Fichiers ne
+       tenaient pas dans la largeur, "Fichiers" coupé de moitié) : moins de marge autour de la
+       fenêtre pour lui laisser toute la largeur utile, et des onglets un cran plus compacts. */
+    .settings-overlay { padding: 8px; }
+    .settings-tabs { gap: 2px; padding: 8px 8px 0; }
+    .settings-tab { padding: 8px 10px; gap: 5px; font-size: var(--fs-xs); }
 }
 
 main {
@@ -2711,6 +2712,15 @@ select.song-select-narrow {
 @media (max-width: 899px) {
     .history-section { margin-top: 10px; padding-bottom: 8px; }
     main { padding-bottom: 0; }
+
+    /* Replier la carte Morceau a peu d'intérêt sur petit écran, où elle n'est de toute façon jamais
+       tout en haut d'une longue colonne desktop (retour utilisateur) : cadenas masqué, réglages
+       toujours visibles, quel que soit l'état repli/déplié mémorisé (voir toggle-song-collapse). */
+    #toggle-song-collapse { display: none; }
+    #song-card.collapsed .bpm-group,
+    #song-card.collapsed .groove-group {
+        display: flex;
+    }
 }
 
 @media (min-width: 900px) {
