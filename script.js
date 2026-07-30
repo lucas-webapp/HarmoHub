@@ -6737,9 +6737,11 @@ class HarmoHubApp {
             this.multiSelect = new Set();
             // Dans la loupe grille (outil de modification rapide, voir editChordFromGridZoom) : un
             // seul clic n'importe où sur la case charge directement l'accord pour édition (+ le fait
-            // entendre) et pousse aussitôt son rythme dans le séquenceur épinglé en bas. Un second clic
-            // rapproché PILE sur le symbole (comme le double-tap normal) ouvre en plus son édition
-            // inline, pour pouvoir retaper le texte sans revenir au panneau Accord.
+            // entendre) et pousse aussitôt son rythme dans le séquenceur épinglé en bas — TOUJOURS,
+            // quel que soit le bandeau Ajout/Modification (voir this.appMode) : c'est là tout l'intérêt
+            // de cet outil dédié, contrairement à la grille classique. Un second clic rapproché PILE
+            // sur le symbole (comme le double-tap normal) ouvre en plus son édition inline, pour
+            // pouvoir retaper le texte sans revenir au panneau Accord.
             if (this.gridZoomOpen) {
                 const now = Date.now();
                 const isSecondTapOnSym = d.symTarget && this._lastTap && this._lastTap.section === d.section && this._lastTap.index === d.index && (now - this._lastTap.time) < 420;
@@ -6748,22 +6750,8 @@ class HarmoHubApp {
                     this.startInlineChordSymbolEdit(d.section, d.index, d.cell);
                     return;
                 }
-                // Bandeau Ajout/Modification (voir this.appMode) : en Modification, un simple clic
-                // n'importe où charge directement l'accord, comme avant. En Ajout, un simple clic
-                // se contente de sélectionner/écouter ; il faut un double-clic pour éditer.
-                if (this.appMode === 'edit') {
-                    this._lastTap = { section: d.section, index: d.index, time: now };
-                    this.editChordFromGridZoom(d.section, d.index);
-                    return;
-                }
-                const isSecondTap = this._lastTap && this._lastTap.section === d.section && this._lastTap.index === d.index && (now - this._lastTap.time) < 420;
-                if (isSecondTap) {
-                    this._lastTap = null;
-                    this.editChordFromGridZoom(d.section, d.index);
-                } else {
-                    this._lastTap = { section: d.section, index: d.index, time: now };
-                    this.selectChord(d.section, d.index);
-                }
+                this._lastTap = { section: d.section, index: d.index, time: now };
+                this.editChordFromGridZoom(d.section, d.index);
                 return;
             }
             if (d.symTarget) {
@@ -8257,6 +8245,15 @@ class HarmoHubApp {
         };
         this.seqTapPhase = 'countin';
         this.renderSequencer();
+        // Le bandeau décompte/enregistrement (voir renderSequencer) est un ajout de hauteur imprévu
+        // pour le séquenceur épinglé de la loupe grille (#grid-zoom-pinned-body, hauteur fixe et
+        // redimensionnable, voir pinSequencerHost) : sans ce scroll, #seq-tap-zone pouvait se retrouver
+        // hors de la zone visible/cliquable de ce panneau — un doigt/clic dessus tombait alors dans le
+        // vide (l'arrière-plan de la fenêtre agrandie en dessous), fermant silencieusement l'édition en
+        // cours (retour utilisateur : "l'enregistrement s'arrête au premier tap"). 'nearest' : ne fait
+        // défiler QUE le conteneur qui en a besoin (ce panneau, ou .panel-controls hors loupe), jamais
+        // toute la page si le bandeau est déjà visible.
+        document.getElementById('seq-tap-zone')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
         const st = this._tapRecordState;
         for (let b = 0; b < countInBeats; b++) {
