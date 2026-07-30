@@ -506,10 +506,6 @@ body.body-scroll-locked { overflow: hidden !important; }
     background: var(--card-bg-2, rgba(255, 255, 255, 0.06));
     box-shadow: inset 0 -2px 0 var(--accent);
 }
-/* Config. (tonalité/mode/signature/groove/transpose du morceau ouvert) : gris/bleu pâle plutôt que le
-   vert --accent partagé par les 3 autres onglets — volontairement neutre, ce n'est PAS un mode
-   d'interaction comme le bandeau Ajout/Modification, juste un réglage qu'on fixe une fois. */
-#settings-tab-config[aria-selected="true"] { box-shadow: inset 0 -2px 0 #9db4d1; }
 
 .settings-body {
     display: flex;
@@ -740,6 +736,13 @@ main {
 #app-mode-edit.active {
     color: var(--btn-text);
     background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-orange-1), var(--btn-orange-2) 70%);
+}
+/* Config. (tonalité/mode/signature/groove/transpose) : gris/bleu pâle, volontairement neutre — ce
+   n'est PAS un mode d'interaction comme Ajout/Modification, juste un panneau de réglages qu'on fixe
+   une fois pour toutes (voir #config-card/setLeftPanelTab dans script.js). */
+#app-mode-config.active {
+    color: var(--btn-text);
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, #3c4a58, #262f38 70%);
 }
 
 .panel-controls {

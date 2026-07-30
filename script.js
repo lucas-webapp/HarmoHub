@@ -1891,6 +1891,11 @@ class HarmoHubApp {
         // Un seul instantané Annuler par SESSION d'édition en mode 'edit' (voir commitLiveEdit),
         // jamais un par champ retouché — remis à false à chaque nouvel appel à editChord().
         this._editSessionUndoPushed = false;
+        // Troisième onglet du bandeau (voir setLeftPanelTab) : 'edit' affiche Accord/Lecture (comme
+        // avant), 'config' affiche #config-card (tonalité/mode/signature/groove/transpose) à la
+        // place — INDÉPENDANT de this.appMode (Config. n'est pas un mode d'interaction avec la
+        // grille, juste un panneau de réglages qu'on fixe une fois pour toutes, voir le bandeau).
+        this.leftPanelTab = 'edit';
         this.drag = null;          // état de glisser-déposer
         this.loopRange = null;     // {startSection, startIndex, endSection, endIndex} : boucle sur une
                                     // PLAGE d'accords voisins, qui peut traverser plusieurs parties
@@ -2058,18 +2063,25 @@ class HarmoHubApp {
         document.getElementById('save').onclick = () => this.saveCurrent();
         document.getElementById('save-insert').onclick = () => this.saveCurrent(this.selectedIndex);
 
-        // Bandeau Ajout/Modification : "Ajout" referme une édition en cours (resetMode=true, comportement
-        // par défaut) ; "Modification" arme seulement le mode collant, sans charger d'accord précis —
-        // le prochain clic sur la grille s'en charge (voir onGridPointerUp/editChord).
+        // Bandeau Config./Ajout/Modification : "Config." bascule juste QUELLE carte est affichée (voir
+        // setLeftPanelTab), sans toucher au mode d'interaction en dessous. "Ajout" referme une édition
+        // en cours (resetMode=true, comportement par défaut) ET revient sur la vue Accord/Lecture ;
+        // "Modification" arme le mode collant, sans charger d'accord précis — le prochain clic sur la
+        // grille s'en charge (voir onGridPointerUp/editChord) — et revient aussi sur cette vue.
+        document.getElementById('app-mode-config').onclick = () => {
+            if (this.leftPanelTab === 'config') return;
+            this.setLeftPanelTab('config');
+        };
         document.getElementById('app-mode-add').onclick = () => {
-            if (this.appMode === 'add') return;
+            if (this.appMode === 'add' && this.leftPanelTab === 'edit') return;
             this.exitEditMode();
+            this.setLeftPanelTab('edit');
             this.loadProgression();
         };
         document.getElementById('app-mode-edit').onclick = () => {
-            if (this.appMode === 'edit') return;
+            if (this.appMode === 'edit' && this.leftPanelTab === 'edit') return;
             this.appMode = 'edit';
-            this.updateAppModeBanner();
+            this.setLeftPanelTab('edit'); // appelle déjà updateAppModeBanner()
             this.updateSaveButtons(); // masque Ajouter/À la suite tout de suite, avant même de charger un accord
         };
         document.getElementById('quick-add-btn').onclick = () => this.addQuickChord();
@@ -4357,22 +4369,46 @@ class HarmoHubApp {
         insertBtn.hidden = !canInsert;
     }
 
-    // Bandeau Ajout/Modification (voir this.appMode) : reflète juste l'état courant sur les deux
-    // segments (aria-pressed pour le style actif) — le clic lui-même est câblé une seule fois dans
-    // setupEventListeners, pas ici (appelé à chaque changement de mode/accord). Pose aussi
-    // data-app-mode sur <body> : thème vert/orange discret du mode courant (voir style.css, curseurs
-    // Tempo/Intensité) — un seul attribut, plutôt que de reproduire ce même if/else pour chaque
-    // élément concerné.
+    // Bandeau Config./Ajout/Modification : reflète l'état courant sur les 3 segments (aria-pressed
+    // pour le style actif) — le clic lui-même est câblé une seule fois dans setupEventListeners, pas
+    // ici (appelé à chaque changement de mode/accord/onglet). Pose aussi data-app-mode sur <body> :
+    // thème vert/orange discret du mode courant (voir style.css, curseurs Tempo/Intensité) — un seul
+    // attribut, plutôt que de reproduire ce même if/else pour chaque élément concerné. Config. et
+    // Ajout/Modification sont INDÉPENDANTS (voir this.leftPanelTab/setLeftPanelTab) : Config. actif
+    // n'éteint ni ne change this.appMode, il masque juste Accord/Lecture au profit de #config-card.
     updateAppModeBanner() {
+        const configSeg = document.getElementById('app-mode-config');
         const addSeg = document.getElementById('app-mode-add');
         const editSeg = document.getElementById('app-mode-edit');
         document.body.dataset.appMode = this.appMode;
         if (!addSeg || !editSeg) return;
-        const isEdit = this.appMode === 'edit';
-        addSeg.classList.toggle('active', !isEdit);
-        addSeg.setAttribute('aria-pressed', String(!isEdit));
+        const showingConfig = this.leftPanelTab === 'config';
+        const isEdit = !showingConfig && this.appMode === 'edit';
+        const isAdd = !showingConfig && !isEdit;
+        if (configSeg) {
+            configSeg.classList.toggle('active', showingConfig);
+            configSeg.setAttribute('aria-pressed', String(showingConfig));
+        }
+        addSeg.classList.toggle('active', isAdd);
+        addSeg.setAttribute('aria-pressed', String(isAdd));
         editSeg.classList.toggle('active', isEdit);
         editSeg.setAttribute('aria-pressed', String(isEdit));
+    }
+
+    // Bascule quelle carte le panneau de gauche affiche (voir #app-mode-config/#config-card) : 'edit'
+    // montre Accord/Lecture comme avant (piloté séparément par this.appMode, voir editChord etc.),
+    // 'config' montre la configuration du morceau à la place. Ne touche JAMAIS this.appMode : revenir
+    // sur 'edit' retrouve Ajout ou Modification tel qu'il était avant de consulter Config.
+    setLeftPanelTab(tab) {
+        this.leftPanelTab = tab;
+        const configCard = document.getElementById('config-card');
+        const accordCard = document.getElementById('accord-card');
+        const lectureCard = document.getElementById('lecture-card');
+        const showingConfig = tab === 'config';
+        if (configCard) configCard.hidden = !showingConfig;
+        if (accordCard) accordCard.hidden = showingConfig;
+        if (lectureCard) lectureCard.hidden = showingConfig;
+        this.updateAppModeBanner();
     }
 
     // Rend une partie « active » : c'est elle que ciblent Ajouter/Modifier/Suppr/copier-coller

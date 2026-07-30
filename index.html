@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202607311100">
+    <link rel="stylesheet" href="style.css?v=202607311200">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -184,73 +184,12 @@
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
                     Fichiers
                 </button>
-                <!-- Tonalité/mode, signature rythmique, groove et transpose du morceau ouvert (voir
-                     #song-card dans .col-left, qui ne garde que le titre/Enregistrer/tempo) : réglages
-                     fixés une bonne fois pour toutes puis rarement retouchés, plutôt qu'un mode
-                     d'INTERACTION comme le bandeau Ajout/Modification — teinte gris/bleu pâle dédiée
-                     (voir #settings-tab-config[aria-selected="true"] dans style.css), volontairement
-                     neutre pour ne pas laisser croire à un mode. -->
-                <button type="button" id="settings-tab-config" class="settings-tab" data-settings-tab="config" role="tab" aria-selected="false" aria-controls="settings-panel-config">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></svg>
-                    Config.
-                </button>
             </div>
             <div class="settings-body">
                 <div class="settings-content">
                     <div id="settings-panel-audio" class="settings-panel" data-settings-panel="audio"></div>
                     <div id="settings-panel-display" class="settings-panel" data-settings-panel="display" hidden></div>
                     <div id="settings-panel-files" class="settings-panel" data-settings-panel="files" hidden></div>
-                    <div id="settings-panel-config" class="settings-panel" data-settings-panel="config" hidden>
-                        <div class="song-row">
-                            <select id="global-root" class="compact song-select-narrow" title="Tonalité">
-                                <option value="C">C</option><option value="C#">C#</option><option value="D">D</option><option value="D#">D#</option>
-                                <option value="E">E</option><option value="F">F</option><option value="F#">F#</option><option value="G">G</option>
-                                <option value="G#">G#</option><option value="A">A</option><option value="A#">A#</option><option value="B">B</option>
-                            </select>
-                            <div class="mode-field">
-                                <select id="global-mode" class="compact song-select-narrow" title="Mode">
-                                    <option value="maj">Majeur</option><option value="min">Mineur</option>
-                                    <option value="dorian" class="opt-mode" hidden>Dorien</option>
-                                    <option value="phrygian" class="opt-mode" hidden>Phrygien</option>
-                                    <option value="lydian" class="opt-mode" hidden>Lydien</option>
-                                    <option value="mixolydian" class="opt-mode" hidden>Mixolydien</option>
-                                    <option value="locrian" class="opt-mode" hidden>Locrien</option>
-                                </select>
-                                <button type="button" id="toggle-complex-mode" class="icon-btn" title="Afficher plus de modes (dorien, phrygien, lydien...)" aria-label="Afficher plus de modes">
-                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
-                                </button>
-                            </div>
-                            <select id="time-sig" class="compact song-select-narrow" title="Signature rythmique">
-                                <option value="2/4">2/4</option>
-                                <option value="3/4">3/4</option>
-                                <option value="4/4" selected>4/4</option>
-                                <option value="5/4">5/4</option>
-                                <option value="6/8">6/8</option>
-                                <option value="7/8">7/8</option>
-                                <option value="9/8">9/8</option>
-                                <option value="12/8">12/8</option>
-                            </select>
-                        </div>
-                        <div class="groove-group">
-                            <div class="groove-field">
-                                <label for="groove">Groove</label>
-                                <select id="groove" class="compact">
-                                    <option value="straight" selected>Droit</option>
-                                    <option value="shuffle">Shuffle léger</option>
-                                    <option value="ternary">Ternaire (triolet)</option>
-                                </select>
-                            </div>
-                            <div class="transpose-field">
-                                <span class="transpose-label">Ton</span>
-                                <button type="button" id="transpose-song-down" class="icon-btn" title="Transposer tout le morceau d'un demi-ton vers le bas" aria-label="Transposer tout le morceau vers le bas">
-                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m5 12 7 7 7-7"/></svg>
-                                </button>
-                                <button type="button" id="transpose-song-up" class="icon-btn" title="Transposer tout le morceau d'un demi-ton vers le haut" aria-label="Transposer tout le morceau vers le haut">
-                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -390,13 +329,20 @@
 
     <main>
         <div class="col-left">
-            <!-- Bandeau Ajout/Modification (voir this.appMode dans script.js, retour utilisateur : trop
-                 de clics/erreurs pour modifier un accord). Ajout : un clic sur la grille sélectionne/
-                 écoute seulement, double-clic bascule ici ET charge l'accord pour édition. Modification :
-                 mode COLLANT, chaque clic sur un accord le charge directement (plus besoin de rappuyer),
-                 chaque réglage s'applique tout de suite (voir commitLiveEdit) — Ctrl+Z annule toute une
-                 session d'un coup. -->
-            <div class="app-mode-banner" role="tablist" aria-label="Mode d'édition de la grille">
+            <!-- Bandeau Config./Ajout/Modification (voir this.appMode/this.leftPanelTab dans script.js,
+                 retour utilisateur : trop de clics/erreurs pour modifier un accord). Config. (à gauche,
+                 teinte gris/bleu pâle neutre) : affiche la configuration du morceau (tonalité, signature,
+                 groove, transpose — voir #config-card) à la place d'Accord/Lecture, sans toucher au mode
+                 d'interaction courant. Ajout : un clic sur la grille sélectionne/écoute seulement,
+                 double-clic bascule en Modification ET charge l'accord pour édition. Modification : mode
+                 COLLANT, chaque clic sur un accord le charge directement (plus besoin de rappuyer), chaque
+                 réglage s'applique tout de suite (voir commitLiveEdit) — Ctrl+Z annule toute une session
+                 d'un coup. -->
+            <div class="app-mode-banner" role="tablist" aria-label="Onglets du panneau de gauche">
+                <button type="button" id="app-mode-config" class="app-mode-seg" role="tab" aria-pressed="false" title="Configuration du morceau : tonalité, signature, groove, transpose">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></svg>
+                    Config.
+                </button>
                 <button type="button" id="app-mode-add" class="app-mode-seg active" role="tab" aria-pressed="true" title="Un clic sélectionne/écoute ; double-clic pour modifier un accord">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                     Ajout
@@ -453,7 +399,67 @@
                         <input type="range" id="bpm" min="60" max="240" value="120">
                     </div>
                 </section>
-                <section class="control-card">
+                <!-- Tonalité/mode, signature rythmique, groove et transpose du morceau ouvert : réglages
+                     fixés une bonne fois pour toutes puis rarement retouchés, plutôt qu'un mode
+                     d'INTERACTION comme Ajout/Modif. — troisième onglet dédié dans le bandeau
+                     (#app-mode-config), pas dans les Paramètres (retour utilisateur). Visible
+                     uniquement quand ce troisième onglet est actif (voir setLeftPanelTab dans
+                     script.js), qui masque alors Accord/Lecture à la place. -->
+                <section class="control-card" id="config-card" hidden>
+                    <div class="card-head">
+                        <h2>Configuration</h2>
+                    </div>
+                    <div class="song-row">
+                        <select id="global-root" class="compact song-select-narrow" title="Tonalité">
+                            <option value="C">C</option><option value="C#">C#</option><option value="D">D</option><option value="D#">D#</option>
+                            <option value="E">E</option><option value="F">F</option><option value="F#">F#</option><option value="G">G</option>
+                            <option value="G#">G#</option><option value="A">A</option><option value="A#">A#</option><option value="B">B</option>
+                        </select>
+                        <div class="mode-field">
+                            <select id="global-mode" class="compact song-select-narrow" title="Mode">
+                                <option value="maj">Majeur</option><option value="min">Mineur</option>
+                                <option value="dorian" class="opt-mode" hidden>Dorien</option>
+                                <option value="phrygian" class="opt-mode" hidden>Phrygien</option>
+                                <option value="lydian" class="opt-mode" hidden>Lydien</option>
+                                <option value="mixolydian" class="opt-mode" hidden>Mixolydien</option>
+                                <option value="locrian" class="opt-mode" hidden>Locrien</option>
+                            </select>
+                            <button type="button" id="toggle-complex-mode" class="icon-btn" title="Afficher plus de modes (dorien, phrygien, lydien...)" aria-label="Afficher plus de modes">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
+                            </button>
+                        </div>
+                        <select id="time-sig" class="compact song-select-narrow" title="Signature rythmique">
+                            <option value="2/4">2/4</option>
+                            <option value="3/4">3/4</option>
+                            <option value="4/4" selected>4/4</option>
+                            <option value="5/4">5/4</option>
+                            <option value="6/8">6/8</option>
+                            <option value="7/8">7/8</option>
+                            <option value="9/8">9/8</option>
+                            <option value="12/8">12/8</option>
+                        </select>
+                    </div>
+                    <div class="groove-group">
+                        <div class="groove-field">
+                            <label for="groove">Groove</label>
+                            <select id="groove" class="compact">
+                                <option value="straight" selected>Droit</option>
+                                <option value="shuffle">Shuffle léger</option>
+                                <option value="ternary">Ternaire (triolet)</option>
+                            </select>
+                        </div>
+                        <div class="transpose-field">
+                            <span class="transpose-label">Ton</span>
+                            <button type="button" id="transpose-song-down" class="icon-btn" title="Transposer tout le morceau d'un demi-ton vers le bas" aria-label="Transposer tout le morceau vers le bas">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m5 12 7 7 7-7"/></svg>
+                            </button>
+                            <button type="button" id="transpose-song-up" class="icon-btn" title="Transposer tout le morceau d'un demi-ton vers le haut" aria-label="Transposer tout le morceau vers le haut">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+                <section class="control-card" id="accord-card">
                     <div class="card-head">
                         <h2>Accord</h2>
                         <div class="card-head-actions">
@@ -516,7 +522,7 @@
                     </div>
                 </section>
 
-                <section class="control-card">
+                <section class="control-card" id="lecture-card">
                     <div class="card-head">
                         <h2>Lecture</h2>
                         <!-- Regroupe le sélecteur de son et les icônes juste après (voir .card-head-right) : sans
@@ -822,6 +828,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202607311100"></script>
+    <script src="script.js?v=202607311200"></script>
 </body>
 </html>
