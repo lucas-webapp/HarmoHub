@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202607310600">
+    <link rel="stylesheet" href="style.css?v=202607310800">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -28,12 +28,6 @@
         </button>
         <button type="button" id="global-redo-btn" class="icon-btn" title="Rétablir (Ctrl+Y)" aria-label="Rétablir" disabled>
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
-        </button>
-        <button type="button" id="open-settings" class="icon-btn settings-btn" title="Paramètres" aria-label="Paramètres">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.04.05a2 2 0 1 1-2.83 2.83l-.05-.04a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.05.04a2 2 0 1 1-2.83-2.83l.04-.05a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.04-.05a2 2 0 1 1 2.83-2.83l.05.04a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82.33l.05-.04a2 2 0 1 1 2.83 2.83l-.04.05a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
-            </svg>
         </button>
         <!-- Masque tout le panneau de gauche (Accord/Morceau/Réglages...) pour voir la grille et les
              diagrammes en plein écran, plus simple à modifier (retour utilisateur) — bureau uniquement
@@ -59,6 +53,13 @@
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21V9"/><path d="m7 13 5-5 5 5"/><path d="M5 3h14"/></svg>
         </button>
         <input type="file" id="quick-library-import-input" accept="application/json" hidden>
+        <!-- Juste avant le titre (retour utilisateur), plutôt qu'au tout début de la barre du haut. -->
+        <button type="button" id="open-settings" class="icon-btn settings-btn" title="Paramètres" aria-label="Paramètres">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.04.05a2 2 0 1 1-2.83 2.83l-.05-.04a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.05.04a2 2 0 1 1-2.83-2.83l.04-.05a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.04-.05a2 2 0 1 1 2.83-2.83l.05.04a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82.33l.05-.04a2 2 0 1 1 2.83 2.83l-.04.05a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
+            </svg>
+        </button>
         <a class="logo" href="#" onclick="return false" title="HarmoHub" aria-label="HarmoHub">
             <span class="logo-mark">
                 <svg class="icon" viewBox="0 0 48 48" aria-hidden="true">
@@ -478,7 +479,6 @@
                                 <option value="noire_staccato">1t stac.</option>
                                 <option value="croche_staccato">½t stac.</option>
                             </optgroup>
-                            <option value="arpeggio">Manuel</option>
                         </select>
                         <div class="playstyle-dd" id="playstyle-dd">
                             <button type="button" class="playstyle-dd-toggle" id="playstyle-dd-toggle" title="Style de jeu — combien de fois l'accord est rejoué PENDANT sa durée (réglée à côté), pas sa durée elle-même" aria-haspopup="true" aria-expanded="false">
@@ -525,9 +525,9 @@
                 </section>
 
                 <div class="edit-actions" id="edit-actions">
-                    <button id="save" class="btn-blue"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter</button>
-                    <button id="save-insert" class="btn-blue" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> À la suite</button>
-                    <button id="cancel-edit" class="btn-stop" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg> Annuler</button>
+                    <button id="save" class="btn-green"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter</button>
+                    <button id="save-insert" class="btn-green" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> À la suite</button>
+                    <button id="cancel-edit" class="btn-orange" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg> Annuler</button>
                 </div>
 
                 <section class="control-card" id="song-card">
@@ -548,9 +548,12 @@
                             </button>
                             <!-- Replie/déplie le réglage du morceau (tonalité, tempo, groove) une fois qu'il
                                  est défini une bonne fois pour toutes : le titre (#song-select) et
-                                 Enregistrer restent visibles quoi qu'il arrive, voir toggleSongCardCollapse. -->
+                                 Enregistrer restent visibles quoi qu'il arrive (voir setupEventListeners
+                                 dans script.js). Cadenas ouvert posé ici juste pour l'affichage initial
+                                 avant JS ; syncSongCardCollapseIcon() le corrige ensuite selon l'état
+                                 mémorisé (repli/dépli) au chargement. -->
                             <button type="button" id="toggle-song-collapse" class="icon-btn" title="Replier/déplier les réglages du morceau" aria-label="Replier/déplier les réglages du morceau">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>
                             </button>
                         </div>
                     </div>
@@ -814,6 +817,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202607310700"></script>
+    <script src="script.js?v=202607310800"></script>
 </body>
 </html>

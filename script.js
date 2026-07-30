@@ -49,7 +49,13 @@ const ICONS = {
     // Bouton « Taper le rythme » (voir startTapRecording) : rond plein dans un anneau, symbole
     // universel d'enregistrement — se distingue des autres icônes de la rangée (aucune autre n'est
     // un simple disque plein) et se comprend sans avoir à lire le titre.
-    tapRecord: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>'
+    tapRecord: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>',
+    // Replier/déplier la carte Morceau (voir toggle-song-collapse) : cadenas plutôt qu'un chevron
+    // (retour utilisateur) — fermé quand les réglages sont masqués, ouvert (anse décalée, même dessin
+    // que #guitar-lock-btn) quand ils sont visibles. Se lit comme « verrouillé/déverrouillé » plutôt
+    // que « plié/déplié », mais reste un symbole d'état clair au premier coup d'œil.
+    lockClosed: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    lockOpen: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/>'
 };
 
 // Rendu HTML d'une icône (name doit exister dans ICONS) ; extraClass optionnel pour la taille/marge
@@ -453,10 +459,6 @@ const PLAYSTYLE_OPTIONS = [
     { value: 'blanche_staccato', label: '2t', name: '2t', group: 'Détaché (staccato)', svg: pulseIconSvg(2, false) },
     { value: 'noire_staccato', label: '1t', name: '1t', group: 'Détaché (staccato)', svg: pulseIconSvg(3, false) },
     { value: 'croche_staccato', label: '½t', name: '½t', group: 'Détaché (staccato)', svg: pulseIconSvg(4, false) },
-    // Crayon (même glyphe que « Renommer » ailleurs dans l'app, juste redimensionné pour tenir dans
-    // le même viewBox 0 0 24 16 que les autres icônes de ce menu) : « à toi de le dessiner toi-même ».
-    { value: 'arpeggio', label: 'Manuel', name: 'Manuel',
-        svg: '<g transform="scale(1,0.667)"><path d="M9 20h9" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M13.5 3.5a2.12 2.12 0 0 1 3 3L6 17l-4 1 1-4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>' },
 ];
 const PLAYSTYLE_BY_VALUE = {};
 PLAYSTYLE_OPTIONS.forEach(o => { PLAYSTYLE_BY_VALUE[o.value] = o; });
@@ -2075,6 +2077,7 @@ class HarmoHubApp {
             if (this.appMode === 'edit') return;
             this.appMode = 'edit';
             this.updateAppModeBanner();
+            this.updateSaveButtons(); // masque Ajouter/À la suite tout de suite, avant même de charger un accord
         };
         document.getElementById('quick-add-btn').onclick = () => this.addQuickChord();
         // Entrée = saut de ligne normal (comportement par défaut du <textarea>, donc pas de
@@ -2138,15 +2141,20 @@ class HarmoHubApp {
 
         // Replier/déplier la carte Morceau (tonalité, tempo, groove) une fois le morceau réglé — le
         // titre (#song-select) et Enregistrer restent visibles quoi qu'il arrive (voir CSS #song-card).
+        // Cadenas fermé/ouvert (voir ICONS.lockClosed/lockOpen) plutôt qu'un chevron qui pivotait
+        // (retour utilisateur) : reflète directement l'état plié/déplié, pas de rotation à gérer en CSS.
         const songCard = document.getElementById('song-card');
         const collapseBtn = document.getElementById('toggle-song-collapse');
+        const syncSongCardCollapseIcon = (collapsed) => {
+            collapseBtn.innerHTML = svgIcon(collapsed ? 'lockClosed' : 'lockOpen');
+        };
         const songCardCollapsed = localStorage.getItem(SONG_CARD_COLLAPSED_KEY) === '1';
         songCard.classList.toggle('collapsed', songCardCollapsed);
-        collapseBtn.classList.toggle('collapsed', songCardCollapsed);
+        syncSongCardCollapseIcon(songCardCollapsed);
         collapseBtn.onclick = () => {
             const collapsed = !songCard.classList.contains('collapsed');
             songCard.classList.toggle('collapsed', collapsed);
-            collapseBtn.classList.toggle('collapsed', collapsed);
+            syncSongCardCollapseIcon(collapsed);
             localStorage.setItem(SONG_CARD_COLLAPSED_KEY, collapsed ? '1' : '0');
         };
 
@@ -4353,13 +4361,16 @@ class HarmoHubApp {
         const saveBtn = document.getElementById('save');
         const insertBtn = document.getElementById('save-insert');
         const cancelBtn = document.getElementById('cancel-edit');
-        if (this.editingIndex != null) {
+        if (this.appMode === 'edit') {
             // Mode Modification (voir commitLiveEdit) : chaque champ s'applique déjà tout seul, plus
-            // besoin d'Ajouter/Modifier ici — seul un bouton pour refermer CET accord reste utile
-            // (réétiqueté "Fermer", voir cancelEdit).
+            // besoin d'Ajouter/Modifier ici — inutile même avant d'avoir chargé un accord précis (le
+            // bandeau seul suffit à armer ce mode, voir setupEventListeners), Ajouter n'y aurait
+            // jamais rien à faire (retour utilisateur). Seul un bouton pour refermer CET accord reste
+            // utile une fois qu'il y en a un (réétiqueté "Fermer", voir cancelEdit) — rien à fermer
+            // tant qu'aucun n'est encore chargé.
             saveBtn.hidden = true;
             insertBtn.hidden = true;
-            cancelBtn.hidden = false;
+            cancelBtn.hidden = this.editingIndex == null;
             cancelBtn.innerHTML = svgIcon('close') + ' Fermer';
             return;
         }
@@ -4374,10 +4385,14 @@ class HarmoHubApp {
 
     // Bandeau Ajout/Modification (voir this.appMode) : reflète juste l'état courant sur les deux
     // segments (aria-pressed pour le style actif) — le clic lui-même est câblé une seule fois dans
-    // setupEventListeners, pas ici (appelé à chaque changement de mode/accord).
+    // setupEventListeners, pas ici (appelé à chaque changement de mode/accord). Pose aussi
+    // data-app-mode sur <body> : thème vert/orange discret du mode courant (voir style.css, curseurs
+    // Tempo/Intensité) — un seul attribut, plutôt que de reproduire ce même if/else pour chaque
+    // élément concerné.
     updateAppModeBanner() {
         const addSeg = document.getElementById('app-mode-add');
         const editSeg = document.getElementById('app-mode-edit');
+        document.body.dataset.appMode = this.appMode;
         if (!addSeg || !editSeg) return;
         const isEdit = this.appMode === 'edit';
         addSeg.classList.toggle('active', !isEdit);

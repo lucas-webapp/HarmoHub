@@ -62,6 +62,17 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    /* Corrige la fermeture des volets (menus/popovers/panneaux — voir les nombreux
+       document.addEventListener('click', ...)/'pointerdown' de script.js qui referment au clic EN
+       DEHORS) qui ne marchait qu'au bout de deux appuis sur téléphone (retour utilisateur : "la
+       fermeture ne fonctionne pas sur téléphone, mais ça fonctionne bien sur ordinateur") — bug connu
+       de Safari iOS : un premier tap sur un élément SANS listener de clic qui lui soit propre ne fait
+       que simuler le survol (jamais de vrai clic), un second est alors nécessaire. cursor:pointer sur
+       <body> fait basculer toute la page dans le mode "cliquable" attendu dès le premier tap, sans
+       changement visible (la souris ne montre presque jamais ce curseur ailleurs que sur un vrai
+       bouton/lien dans cette appli, dense en contrôles).
+    */
+    cursor: pointer;
 }
 
 /* Icônes en ligne (SVG trait, currentColor) : une seule taille de base, ajustée au cas par cas via
@@ -705,9 +716,12 @@ main {
     color: var(--btn-text);
     background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
 }
+/* Modification en orange (plutôt que bleu) : même teinte que .btn-loop-range/#seq-play actif, pour
+   que tout le thème vert/orange Ajout/Modification (voir applyAppModeTheme) reste cohérent avec ce
+   qu'utilisait déjà l'appli ailleurs, plutôt qu'une troisième couleur inédite. */
 #app-mode-edit.active {
     color: var(--btn-text);
-    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-blue-1), var(--btn-blue-2) 70%);
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-orange-1), var(--btn-orange-2) 70%);
 }
 
 .panel-controls {
@@ -1312,6 +1326,16 @@ input[type=range] {
     cursor: pointer;
 }
 
+/* Tempo/Intensité (voir #bpm/#intensity) : accent orange en mode Modification (voir this.appMode,
+   updateAppModeBanner dans script.js qui pose data-app-mode sur <body>) — vert (--accent, déjà la
+   couleur par défaut ci-dessus) en mode Ajout, donc rien à surcharger pour ce cas-là. Un écho discret
+   du mode courant sur deux curseurs bien visibles, sans toucher aux autres réglages (volumes...) qui
+   n'ont pas de lien avec l'édition d'un accord. Même orange que .loop-range-bar/#seq-play actif.
+   :is(#bpm, #intensity) : évite de répéter le sélecteur body[data-app-mode="edit"] deux fois. */
+body[data-app-mode="edit"] :is(#bpm, #intensity) {
+    accent-color: #ffb300;
+}
+
 /* (l'ancienne .button-group est remplacée par .transport, voir plus haut) */
 
 button {
@@ -1355,8 +1379,8 @@ button:active { transform: translateY(1px); }
 }
 .btn-loop-range:hover { background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.16), transparent 55%), linear-gradient(160deg, #6b4e2c, #43301a 70%); border-color: var(--btn-orange-border-hover); }
 
-/* Actions d'édition de la grille (Ajouter/À la suite/Modifier) : même traitement que .btn-prog, en
-   bleu plutôt qu'en vert, pour rester distinctes des actions de lecture */
+/* Boutons génériques "Enregistrer/Créer" de confirmation (modales Enregistrer avant de fermer,
+   Nouveau morceau...), sans rapport avec le bandeau Ajout/Modification. */
 .btn-blue {
     background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(160deg, var(--btn-blue-1), var(--btn-blue-2) 70%);
     color: var(--btn-text);
@@ -1365,6 +1389,18 @@ button:active { transform: translateY(1px); }
 }
 .btn-blue:hover { background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.16), transparent 55%), linear-gradient(160deg, #2d4570, #1e304e 70%); border-color: var(--btn-blue-border-hover); }
 .btn-blue:active { box-shadow: inset 0 1px 3px rgba(0,0,0,0.4); }
+
+/* Ajouter/À la suite (grille, mode Ajout uniquement, voir updateSaveButtons) : vert, comme le
+   bandeau Ajout — mêmes teintes que .btn-prog (déjà utilisées pour "Lecture"), déclinées ici sous le
+   nom neutre .btn-green pour ne pas mélanger les deux significations (lecture / mode courant). */
+.btn-green {
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
+    color: var(--btn-text);
+    border: 1px solid var(--btn-green-border);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.07) inset, 0 3px 8px rgba(0,0,0,0.35);
+}
+.btn-green:hover { background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.16), transparent 55%), linear-gradient(160deg, #2b5540, #1c3a26 70%); border-color: var(--btn-green-border-hover); }
+.btn-green:active { box-shadow: inset 0 1px 3px rgba(0,0,0,0.4); }
 
 .btn-sec {
     background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.08), transparent 55%), linear-gradient(160deg, var(--btn-neutral-1), var(--btn-neutral-2) 70%);
@@ -1383,6 +1419,18 @@ button:active { transform: translateY(1px); }
 }
 .btn-stop:hover { background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.16), transparent 55%), linear-gradient(160deg, #6c3830, #452420 70%); border-color: var(--btn-red-border-hover); }
 .btn-stop:active { box-shadow: inset 0 1px 3px rgba(0,0,0,0.4); }
+
+/* Fermer (grille, mode Modification uniquement, voir updateSaveButtons) : orange, comme le bandeau
+   Modification — ce bouton ne défait plus rien depuis le live-apply (chaque réglage s'applique déjà
+   tout seul, voir commitLiveEdit), le rouge "annuler/stop" ne collait donc plus vraiment à son rôle. */
+.btn-orange {
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(160deg, var(--btn-orange-1), var(--btn-orange-2) 70%);
+    color: var(--btn-text);
+    border: 1px solid var(--btn-orange-border);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.07) inset, 0 3px 8px rgba(0,0,0,0.35);
+}
+.btn-orange:hover { background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.16), transparent 55%), linear-gradient(160deg, #6b4e2c, #43301a 70%); border-color: var(--btn-orange-border-hover); }
+.btn-orange:active { box-shadow: inset 0 1px 3px rgba(0,0,0,0.4); }
 
 /* ---------- Clavier ---------- */
 .piano-container {
@@ -2600,9 +2648,6 @@ button:active { transform: translateY(1px); }
     min-width: 40px;
     margin-top: 0;
 }
-#toggle-song-collapse .icon { transition: transform 0.15s ease; }
-#toggle-song-collapse.collapsed .icon { transform: rotate(-90deg); }
-
 /* Tonalité + mode + signature, sur une même ligne compacte dans la carte Morceau */
 .song-row {
     display: flex;
