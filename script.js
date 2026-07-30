@@ -398,7 +398,7 @@ function seqPageBars(beatsPerBar, zoomed = false, hZoom = 1) {
 }
 
 // Réglages d'accord : Entrée depuis l'un d'eux ajoute/modifie directement (moins de clics)
-const CHORD_PARAM_IDS = ['root', 'quality', 'duration', 'inversion', 'drop', 'octave', 'bass', 'playStyle', 'instrument'];
+const CHORD_PARAM_IDS = ['root', 'quality', 'duration', 'inversion', 'drop', 'octave', 'bass', 'playStyle', 'instrument', 'intensity'];
 
 // Durées disponibles pour un accord (voir #duration, piloté par setupDurationPicker) : icône en
 // barre remplie (proportion de la mesure occupée), même langage visuel pour les 5 — noire/blanche
@@ -730,6 +730,27 @@ function grooveStepOffset(step, unitDur, ratio) {
     const eighthStart = eighthIndex === 0 ? 0 : firstEighthDur;
     const eighthDur = eighthIndex === 0 ? firstEighthDur : (SEQ_STEPS_PER_BEAT * unitDur - firstEighthDur);
     return beatStart + eighthStart + withinEighth * eighthDur;
+}
+
+// Intensité par défaut d'un accord (voir data.intensity) : choisie pour représenter EXACTEMENT le
+// comportement automatique déjà existant (tenu=1, temps=0.78-0.88, contretemps=0.6-0.72) sans aucun
+// changement de son sur les accords déjà créés avant cette fonctionnalité (retour utilisateur) — le
+// multiplicateur ci-dessous vaut 1 pile à 75%, jamais une coïncidence.
+const DEFAULT_INTENSITY = 75;
+
+// Vélocité (0-1) d'une note du séquenceur : reprend l'aléa automatique existant (tenue/temps/
+// contretemps, voir schedulePlayback/buildMidiFile/renderProgressionBuffer) comme base, PUIS applique
+// l'intensité choisie par l'utilisateur comme un multiplicateur PAR-DESSUS plutôt qu'un remplacement
+// (retour utilisateur : garder un peu d'aléa "joué" même une fois l'intensité réglée à la main).
+// `intensityPercent` : intensité globale de l'accord (data.intensity, DEFAULT_INTENSITY si absente).
+// `stepOverride` : réglage précis du mode studio pour CETTE croche (data.intensityPerStep[runStart]),
+// prioritaire sur intensityPercent quand présent. Bornée à [0,1] : un accord déjà tenu (base=1) ne
+// peut pas sonner plus fort qu'un accord à vélocité MIDI maximale, quelle que soit l'intensité choisie.
+function computeVelocity(held, onBeat, intensityPercent, stepOverride) {
+    const base = held ? 1 : (onBeat ? 0.78 + Math.random() * 0.1 : 0.6 + Math.random() * 0.12);
+    const percent = (stepOverride != null) ? stepOverride : (intensityPercent != null ? intensityPercent : DEFAULT_INTENSITY);
+    const mult = percent / DEFAULT_INTENSITY;
+    return Math.max(0, Math.min(1, base * mult));
 }
 
 // Motif = tableau (une entrée par case) de listes de voix actives (index dans l'accord, grave=0).
@@ -1873,6 +1894,13 @@ class HarmoHubApp {
         this.guitarLock = null;    // doigté verrouillé en attente pour l'accord en cours d'édition (voir toggleGuitarLock)
         this._keepGuitarLockOnce = false; // laisse passer guitarLock au PROCHAIN recalcul (voir ensureGuitarDiagram)
         this.extraNotes = [];      // notes libres en attente pour l'accord en cours d'édition (voir addSequencerNote)
+        // Intensité (vélocité) de l'accord en cours d'édition, voir computeVelocity/DEFAULT_INTENSITY :
+        // intensityPerStep est un réglage fin PAR CROCHE (mode studio, une valeur par attaque/case
+        // active, partagée par toutes les voix qui y sonnent — jamais par voix), en attente comme
+        // extraNotes/guitarLock jusqu'à l'enregistrement (voir saveCurrent/editChord/exitEditMode).
+        this.intensityPerStep = {};
+        this.studioMode = false;  // affiche la rangée de barres de vélocité sous le séquenceur (voir renderSequencer)
+        this._velDragStep = null; // croche en cours de glissé dans cette rangée (voir setupEventListeners)
         this.seqRenderGen = 0;     // incrémenté à chaque renderSequencer() (voir plus bas, étiquette éditable
                                    // d'une note libre) : un blur tardif d'une étiquette d'un rendu déjà
                                    // remplacé ne doit jamais committer sur l'état (accord) désormais chargé
@@ -2198,6 +2226,38 @@ class HarmoHubApp {
             this.refreshPreview();
             this.livePreviewUpdate();
         };
+
+        // Intensité (voir #intensity/computeVelocity) : pas de renderSequencer() systématique (n'affecte
+        // ni le motif ni les cases, contrairement au bloc ['root','quality',...] ci-dessus) — seulement
+        // si le mode studio est ouvert, dont les barres héritent de cette valeur globale pour les
+        // croches sans réglage propre (voir la rangée de vélocité plus bas dans renderSequencer).
+        document.getElementById('intensity').oninput = (e) => {
+            const val = document.getElementById('intensity-val');
+            if (val) val.textContent = e.target.value;
+            if (this.studioMode) this.renderSequencer();
+            this.livePreviewUpdate();
+        };
+        document.getElementById('toggle-studio-mode').onclick = (e) => {
+            this.studioMode = !this.studioMode;
+            e.currentTarget.classList.toggle('active', this.studioMode);
+            this.renderSequencer();
+        };
+
+        // Glissé sur une barre de vélocité (mode studio, voir renderSequencer) : posés UNE SEULE FOIS ici
+        // (pas à chaque renderSequencer(), qui recrée les barres à chaque rendu) — this._velDragStep
+        // identifie la croche en cours plutôt qu'une référence DOM directe, justement parce que le
+        // séquenceur peut se re-rendre (barre remplacée) pendant un même glissé sans l'interrompre.
+        document.addEventListener('pointermove', (e) => {
+            if (this._velDragStep == null) return;
+            const bar = document.querySelector(`.seq-vel-bar[data-step="${this._velDragStep}"]`);
+            if (bar) this.applyStudioVelocityFromClientY(bar, e.clientY);
+        });
+        document.addEventListener('pointerup', () => {
+            if (this._velDragStep == null) return;
+            this._velDragStep = null;
+            this.seqTouched = true;
+        });
+        document.addEventListener('pointercancel', () => { this._velDragStep = null; });
 
         document.getElementById('toggle-sequencer').onclick = () => this.toggleSequencer();
 
@@ -2887,7 +2947,7 @@ class HarmoHubApp {
     // — Tone.Transport.clear(id) permet d'annuler UN SEUL évènement sans toucher au reste du calendrier
     // ni au transport lui-même (voir liveUpdateProgressionChord, qui patche un accord de la chanson en
     // cours de lecture en direct, sans à-coup, grâce à cette liste).
-    schedulePlayback(notes, midis, seqPattern, seqTie, secPerBeat, timeOffset, roleMap = {}, instrumentKey = 'piano', chord = null, trackPlayhead = false, gridPos = null) {
+    schedulePlayback(notes, midis, seqPattern, seqTie, secPerBeat, timeOffset, roleMap = {}, instrumentKey = 'piano', chord = null, trackPlayhead = false, gridPos = null, intensityPercent = 75, intensityPerStep = null) {
         const eventIds = [];
         const instrument = this.getInstrument(instrumentKey);
         const stepDur = secPerBeat / SEQ_STEPS_PER_BEAT;
@@ -2934,7 +2994,8 @@ class HarmoHubApp {
                 const runLen = s - runStart;
                 const held = (runLen === steps);          // actif du début à la fin -> accord tenu
                 const onBeat = (runStart % SEQ_STEPS_PER_BEAT === 0);
-                const vel = held ? 1 : (onBeat ? 0.78 + Math.random() * 0.1 : 0.6 + Math.random() * 0.12);
+                const stepOverride = intensityPerStep && intensityPerStep[runStart];
+                const vel = computeVelocity(held, onBeat, intensityPercent, stepOverride);
                 const humanize = held ? 0 : Math.random() * 0.02;
                 const t0 = stepTime(runStart);
                 const runDur = stepTime(runStart + runLen) - t0; // durée réelle de la plage, groove compris
@@ -2974,7 +3035,7 @@ class HarmoHubApp {
 
         const start = 0.1;
         const duration = chord.beats * secPerBeat;
-        this.schedulePlayback(notes, chord.getSeqMidiNotes(), seqPattern, seqTie, secPerBeat, start, chord.getRoleMap(), instrumentKey, chord, true);
+        this.schedulePlayback(notes, chord.getSeqMidiNotes(), seqPattern, seqTie, secPerBeat, start, chord.getRoleMap(), instrumentKey, chord, true, null, +document.getElementById('intensity').value, this.intensityPerStep);
         this.isPlaying = true;
 
         // Attend que l'instrument (Piano notamment : ses sons se chargent depuis internet) soit prêt
@@ -3027,7 +3088,7 @@ class HarmoHubApp {
         const chord = new Chord(data.root, data.quality, beats, data.inversion, data.drop, octaveFromData(data), data.bass, null, data.extraNotes);
         const notes = chord.getSeqNotes();
         const { pattern: seqPattern, tie: seqTie } = this.resolveSeqPatternForData(chord, data);
-        const eventIds = this.schedulePlayback(notes, chord.getSeqMidiNotes(), seqPattern, seqTie, secPerBeat, timeOffset, chord.getRoleMap(), data.instrument || 'piano', chord, false, { section, index });
+        const eventIds = this.schedulePlayback(notes, chord.getSeqMidiNotes(), seqPattern, seqTie, secPerBeat, timeOffset, chord.getRoleMap(), data.instrument || 'piano', chord, false, { section, index }, data.intensity, data.intensityPerStep);
 
         // Métronome maintenu pendant la lecture (option activée) : un clic par temps de l'accord,
         // accentué sur le 1er temps de chaque mesure — indépendant des notes de l'accord jouées.
@@ -3352,7 +3413,9 @@ class HarmoHubApp {
             arpPattern: document.getElementById('arpPattern').value,
             seqEdited: true,
             guitarLock: this.guitarLock || null,
-            extraNotes: this.extraNotes.map(x => ({ ...x }))
+            extraNotes: this.extraNotes.map(x => ({ ...x })),
+            intensity: +document.getElementById('intensity').value,
+            intensityPerStep: { ...this.intensityPerStep }
         };
         const sections = loadProgressionSections();
         this.pushUndo(sections);
@@ -3393,6 +3456,8 @@ class HarmoHubApp {
             seqEdited: false,
             guitarLock: null,
             extraNotes: [],
+            intensity: DEFAULT_INTENSITY,
+            intensityPerStep: {},
         };
     }
 
@@ -3751,6 +3816,10 @@ class HarmoHubApp {
         document.getElementById('playStyle').value = d.playStyle || 'held';
         this.syncPlayStylePicker(); // reflète la nouvelle valeur sur le bouton/menu d'icônes (voir setupPlayStylePicker)
         document.getElementById('instrument').value = d.instrument || 'piano';
+        const intensityValue = (d.intensity != null) ? d.intensity : DEFAULT_INTENSITY;
+        document.getElementById('intensity').value = intensityValue;
+        const intensityValEl = document.getElementById('intensity-val');
+        if (intensityValEl) intensityValEl.textContent = intensityValue;
 
         const chord = new Chord(d.root, d.quality, beatsFromData(d), d.inversion, d.drop, octaveFromData(d), d.bass, d.guitarLock, d.extraNotes);
         this.seqTouched = true; // le motif résolu ci-dessous fait autorité, on ne le régénère plus tant qu'on ne touche pas un réglage
@@ -3775,6 +3844,10 @@ class HarmoHubApp {
         // Restaure les notes libres déjà enregistrées pour CET accord (voir addSequencerNote) — clonées
         // pour ne jamais muter directement le tableau stocké dans sections[].chords[].
         this.extraNotes = (d.extraNotes || []).map(x => ({ ...x }));
+        // Restaure les réglages fins d'intensité par croche (mode studio) de CET accord, clonés pour la
+        // même raison — jamais muter directement l'objet stocké dans sections[].chords[].
+        this.intensityPerStep = { ...(d.intensityPerStep || {}) };
+        this.studioMode = false; // repart toujours replié, quel que soit l'accord précédemment édité
         this.refreshPreview();
         this.renderSequencer();
         this.loadProgression();     // met en évidence la case en édition
@@ -3801,6 +3874,12 @@ class HarmoHubApp {
         this.guitarLock = null;
         this.guitarKey = null;
         this.guitarIdentityKey = null;
+        // Idem : réglages fins d'intensité propres à CET accord (voir editChord/computeVelocity).
+        this.intensityPerStep = {};
+        this.studioMode = false;
+        document.getElementById('intensity').value = DEFAULT_INTENSITY;
+        const val = document.getElementById('intensity-val');
+        if (val) val.textContent = DEFAULT_INTENSITY;
     }
 
     // Déplace le bloc Ajouter/À la suite/Annuler entre sa place normale (juste au-dessus de la carte
@@ -5901,7 +5980,8 @@ class HarmoHubApp {
                         const runLen = s - runStart;
                         const held = (runLen === steps);
                         const onBeat = (runStart % SEQ_STEPS_PER_BEAT === 0);
-                        const velocity = held ? 100 : (onBeat ? 96 : 84);
+                        const stepOverride = data.intensityPerStep && data.intensityPerStep[runStart];
+                        const velocity = Math.round(computeVelocity(held, onBeat, data.intensity, stepOverride) * 127);
                         const startTick = tick + Math.round(grooveStepOffset(runStart, ticksPerStep, grooveRatio));
                         const endTick = tick + Math.round(grooveStepOffset(runStart + runLen, ticksPerStep, grooveRatio));
                         const rawDur = endTick - startTick; // durée réelle de la plage, groove compris
@@ -6017,7 +6097,8 @@ class HarmoHubApp {
                             const runLen = s - runStart;
                             const held = (runLen === steps);
                             const onBeat = (runStart % SEQ_STEPS_PER_BEAT === 0);
-                            const vel = held ? 1 : (onBeat ? 0.78 + Math.random() * 0.1 : 0.6 + Math.random() * 0.12);
+                            const stepOverride = data.intensityPerStep && data.intensityPerStep[runStart];
+                            const vel = computeVelocity(held, onBeat, data.intensity, stepOverride);
                             const humanize = held ? 0 : Math.random() * 0.02;
                             const t0 = stepTime(runStart);
                             const runDur = stepTime(runStart + runLen) - t0; // durée réelle, groove compris
@@ -8373,6 +8454,19 @@ class HarmoHubApp {
         hasUnsavedChanges = true; // voir adjustZoom : conservé dans le morceau, Enregistrer/Ctrl+S le rend permanent
     }
 
+    // Position verticale du pointeur -> pourcentage d'intensité (0 en bas, 100 en haut) pour LA croche
+    // de cette barre (voir data-step, mode studio) — mutation directe du fill en cours de glissé plutôt
+    // qu'un renderSequencer() à chaque mouvement (même convention que le reste du séquenceur : un seul
+    // rendu complet à la FIN du geste, pas pendant).
+    applyStudioVelocityFromClientY(bar, clientY) {
+        const rect = bar.getBoundingClientRect();
+        let pct = Math.round(((rect.bottom - clientY) / rect.height) * 100);
+        pct = Math.max(0, Math.min(100, pct));
+        this.intensityPerStep[+bar.dataset.step] = pct;
+        const fill = bar.querySelector('.seq-vel-fill');
+        if (fill) fill.style.height = pct + '%';
+    }
+
     // Menu contextuel d'un accord de la grille (« Séquenceur ») : le charge dans le panneau Accord
     // (comme Modifier) ET ouvre directement le séquenceur en grand, pour éviter l'aller-retour
     // modifier-puis-ouvrir-le-panneau quand on veut juste peaufiner son rythme.
@@ -8695,6 +8789,27 @@ class HarmoHubApp {
         }
         html += beatLabelsHtml;
 
+        // Mode studio (voir #toggle-studio-mode) : une barre de vélocité par croche où AU MOINS une voix
+        // attaque (jamais une simple continuation liée) — une seule valeur par croche, partagée par
+        // toutes les voix qui y sonnent (retour utilisateur : pas de réglage par voix). Glissée
+        // verticalement (voir applyStudioVelocityFromClientY) pour un réglage fin façon GarageBand ;
+        // double-clic efface le réglage propre à cette croche pour revenir à l'intensité globale de
+        // l'accord (#intensity). Mêmes colonnes que .seq-beat-label juste au-dessus, une ligne plus bas.
+        if (this.studioMode) {
+            const velRow = beatRow + 1;
+            const chordIntensity = +document.getElementById('intensity').value;
+            let velHtml = `<div class="seq-vel-lane-label" style="grid-row:${velRow}; grid-column:1;">Studio</div>`;
+            for (let s = pageStart; s < pageEnd; s++) {
+                const hasAttack = pattern[s].some(v => !tie[s].includes(v));
+                if (!hasAttack) continue;
+                const val = (this.intensityPerStep[s] != null) ? this.intensityPerStep[s] : chordIntensity;
+                velHtml += `<div class="seq-vel-bar" data-step="${s}" style="grid-row:${velRow}; grid-column:${colOffset + s - pageStart + 2};" title="Intensité de cette croche — glisser pour régler, double-clic pour revenir à l'intensité de l'accord">
+                    <div class="seq-vel-fill" style="height:${val}%;"></div>
+                </div>`;
+            }
+            html += velHtml;
+        }
+
         // Curseur de lecture (masqué par défaut, positionné/affiché par updateSeqPlayhead pendant la
         // lecture) : ne couvre que les rangées de voix (contexte compris), pas celle des temps en dessous.
         html += `<div class="seq-playhead" style="grid-row: 1 / span ${rowCount}; grid-column: 2 / span 1;"></div>`;
@@ -8886,6 +9001,23 @@ class HarmoHubApp {
         // pas ici : un doigt qui glisse hors de la zone avant de se lever ne doit pas laisser une note collée.
         const tapZone = document.getElementById('seq-tap-zone');
         if (tapZone) tapZone.addEventListener('pointerdown', (e) => { e.preventDefault(); this.registerTapDown(); });
+
+        // Barres de vélocité du mode studio (voir plus haut dans ce rendu) : le pointerdown démarre le
+        // glissé (this._velDragStep, suivi par pointermove/pointerup posés une seule fois dans
+        // setupEventListeners), le double-clic efface le réglage propre à cette croche pour revenir à
+        // l'intensité globale de l'accord.
+        host.querySelectorAll('.seq-vel-bar').forEach(bar => {
+            bar.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                this._velDragStep = +bar.dataset.step;
+                this.applyStudioVelocityFromClientY(bar, e.clientY);
+            });
+            bar.addEventListener('dblclick', (e) => {
+                e.preventDefault();
+                delete this.intensityPerStep[+bar.dataset.step];
+                this.renderSequencer();
+            });
+        });
 
         const playBtn = document.getElementById('seq-play');
         // Une plage à boucler (bande orange/dorée, voir setLoopRange) déjà en place : lire TOUTE la
@@ -9118,7 +9250,7 @@ class HarmoHubApp {
         const bpm = parseInt(document.getElementById('bpm').value);
         const secPerBeat = 60 / bpm;
         const { pattern: seqPattern, tie: seqTie } = this.resolveSeqPatternForData(chord, data);
-        this.schedulePlayback(notes, midis, seqPattern, seqTie, secPerBeat, 0.1, roleMap, data.instrument || 'piano', chord, false, { section, index });
+        this.schedulePlayback(notes, midis, seqPattern, seqTie, secPerBeat, 0.1, roleMap, data.instrument || 'piano', chord, false, { section, index }, data.intensity, data.intensityPerStep);
         this.isPlaying = true;
 
         // Attend que l'instrument soit prêt avant de démarrer le transport (voir playCurrent)

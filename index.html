@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202607302200">
+    <link rel="stylesheet" href="style.css?v=202607310100">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -475,6 +475,23 @@
                             <div class="duration-dd-menu" id="duration-dd-menu" hidden></div>
                         </div>
                     </div>
+                    <!-- Intensité (vélocité) de l'accord : 75% = comportement automatique inchangé (voir
+                         DEFAULT_INTENSITY/computeVelocity dans script.js) — en dessous adoucit, au-dessus
+                         accentue, par-dessus l'aléa existant (temps/contretemps), pas à sa place. Le bouton
+                         mode studio révèle une barre de réglage par croche dans le séquenceur ci-dessous
+                         (retour utilisateur : possibilité d'un réglage précis façon GarageBand). -->
+                    <div class="intensity-row" title="Intensité de l'accord (vélocité) — 75% = comportement actuel inchangé">
+                        <label for="intensity">Intensité</label>
+                        <input type="range" id="intensity" min="0" max="100" step="5" value="75">
+                        <span class="val" id="intensity-val">75</span>
+                        <button type="button" id="toggle-studio-mode" class="icon-btn" title="Mode studio : régler l'intensité croche par croche" aria-label="Mode studio">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M5 21v-6"/><path d="M5 11V3"/><circle cx="5" cy="13" r="2" fill="currentColor" stroke="none"/>
+                                <path d="M12 21v-2"/><path d="M12 15V3"/><circle cx="12" cy="17" r="2" fill="currentColor" stroke="none"/>
+                                <path d="M19 21v-10"/><path d="M19 7V3"/><circle cx="19" cy="9" r="2" fill="currentColor" stroke="none"/>
+                            </svg>
+                        </button>
+                    </div>
                     <input type="hidden" id="arpPattern" value="">
                     <div id="arp-sequencer" class="arp-seq" hidden></div>
                 </section>
@@ -768,6 +785,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202607302200"></script>
+    <script src="script.js?v=202607310100"></script>
 </body>
 </html>

@@ -926,6 +926,35 @@ main {
 }
 .select-group + .select-group { margin-top: 10px; }
 
+/* Intensité de l'accord (voir #intensity/computeVelocity dans script.js) : curseur pleine largeur,
+   valeur courante affichée à droite (même classe .val que les curseurs du panneau Paramètres), bouton
+   mode studio en bout de ligne plutôt que sur sa propre rangée — un seul réglage de plus, pas besoin
+   de plus de place que ça. */
+.intensity-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+}
+.intensity-row label {
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    flex: none;
+}
+.intensity-row input[type="range"] { flex: 1; min-width: 0; }
+.intensity-row .val {
+    font-size: var(--fs-sm);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+    min-width: 2.4em;
+    text-align: right;
+}
+#toggle-studio-mode.active {
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-blue-1), var(--btn-blue-2) 70%);
+    color: var(--btn-text);
+    border-color: var(--btn-blue-border);
+}
+
 /* Durée de l'accord : bouton fermé (icône + libellé compact) qui ouvre un petit menu déroulant
    d'icônes — remplace un <select> texte ("Noire", "1 mesure"...) jugé trop lourd visuellement une
    fois qu'il fallait 5 boutons toujours affichés (essayé avant ce menu). Le <select> d'origine
@@ -2181,6 +2210,37 @@ button:active { transform: translateY(1px); }
     opacity: 0.7;
     padding-top: 3px;
     font-variant-numeric: tabular-nums;
+}
+
+/* Mode studio (voir #toggle-studio-mode/renderSequencer) : une barre de vélocité par croche active,
+   glissée verticalement pour un réglage précis façon GarageBand (retour utilisateur). Même colonnes
+   que .seq-beat-label juste au-dessus, une ligne plus bas. touch-action:none : le glissé vertical
+   règle l'intensité, il ne doit jamais faire défiler la page en même temps sur mobile. */
+.seq-vel-lane-label {
+    font-size: var(--fs-2xs);
+    color: var(--text-muted);
+    opacity: 0.7;
+    padding-top: 6px;
+    white-space: nowrap;
+}
+.seq-vel-bar {
+    position: relative;
+    height: 40px;
+    margin-top: 4px;
+    background: #1c1c1c;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: ns-resize;
+    touch-action: none;
+    overflow: hidden;
+}
+.seq-vel-fill {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(180deg, #4570d6, #2b4a99);
+    transition: height 0.03s linear;
 }
 
 .seq-cell {
