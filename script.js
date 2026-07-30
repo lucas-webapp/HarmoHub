@@ -4019,8 +4019,16 @@ class HarmoHubApp {
         this.refreshPreview();
         this.renderSequencer();
         this.loadProgression();     // met en évidence la case en édition
-        // remonte vers les contrôles pour voir ce qu'on modifie
-        document.getElementById('current-chord-display').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Remonte vers les contrôles pour voir ce qu'on modifie — UNIQUEMENT sur bureau (au-delà du
+        // seuil où .col-left/.col-right redeviennent deux vraies colonnes séparées, voir le même
+        // seuil dans style.css) : en dessous, la grille et #current-chord-display partagent le MÊME
+        // flux de défilement vertical (une seule colonne empilée), donc ce scrollIntoView emportait
+        // toute la page loin de la grille à chaque accord touché (retour utilisateur : "ça scrolle
+        // tout de suite en bas" en Modification, sur téléphone) — sur bureau, ce sont deux panneaux
+        // vraiment distincts, où ça reste utile et sans effet de bord.
+        if (window.innerWidth > 899) {
+            document.getElementById('current-chord-display').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
     }
 
     // Ferme le panneau d'édition SANS quitter le mode Modification collant (voir le bandeau Ajout/
