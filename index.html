@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202607312000">
+    <link rel="stylesheet" href="style.css?v=202607312100">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -107,6 +107,10 @@
     <!-- Rempli dynamiquement (voir openBackupScopeMenu) : demande si la sauvegarde locale porte sur
          le morceau ouvert ou toute la bibliothèque — même style que #section-picker-menu. -->
     <div id="backup-scope-menu" class="context-menu" hidden></div>
+
+    <!-- Rempli dynamiquement (voir openKeySuggestMenu/suggestSongKey) : tonalités candidates classées
+         d'après les accords déjà posés dans la grille — même style que #section-picker-menu. -->
+    <div id="key-suggest-menu" class="context-menu key-suggest-menu" hidden></div>
 
     <!-- Avant de perdre des modifications non enregistrées (changer/fermer/créer un morceau) : propose
          d'enregistrer ou d'exporter en JSON plutôt qu'un simple confirm() natif Annuler/OK — voir
@@ -455,6 +459,12 @@
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
                             </button>
                         </div>
+                        <!-- Aide au choix de la tonalité (voir suggestSongKey/openKeySuggestMenu dans script.js) :
+                             analyse les accords déjà posés dans la grille plutôt que de deviner à l'aveugle
+                             (retour utilisateur). -->
+                        <button type="button" id="key-suggest-btn" class="icon-btn" title="Suggérer une tonalité d'après les accords déjà posés" aria-label="Suggérer une tonalité">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+                        </button>
                         <select id="time-sig" class="compact song-select-narrow" title="Signature rythmique">
                             <option value="2/4">2/4</option>
                             <option value="3/4">3/4</option>
@@ -856,6 +866,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202607312000"></script>
+    <script src="script.js?v=202607312100"></script>
 </body>
 </html>

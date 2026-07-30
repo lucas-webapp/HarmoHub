@@ -178,6 +178,13 @@ button, .icon-btn, .prog-section-del, .seq-presets button, .seq-delete-btn {
 #section-picker-menu button.section-pick-new { color: var(--accent); border-top: 1px solid var(--border); margin-top: 4px; padding-top: 11px; }
 #section-picker-menu button.section-pick-new:hover { background: rgba(0, 230, 118, 0.1); }
 
+/* Suggestions de tonalité (voir openKeySuggestMenu) : nom de la tonalité à gauche, correspondance
+   (%, X/Y accords) à droite plutôt qu'à la suite — un chiffre honnête (nombre d'accords qui
+   collent), pas un score marketing. */
+.key-suggest-menu { min-width: 220px; }
+.key-suggest-menu button { justify-content: space-between; }
+.key-suggest-pct { color: var(--text-muted); font-weight: 400; font-size: var(--fs-xs); }
+
 /* Édition en ligne des titres (morceaux, dossiers) : remplace l'ancien prompt() natif — un simple
    champ texte à la place du nom, dans son contexte d'origine. */
 .inline-rename-input {

@@ -275,6 +275,39 @@ const MODE_SCALES = {
 const MODE_RELATIVE_MAJOR_OFFSET = { maj: 0, dorian: 10, phrygian: 8, lydian: 7, mixolydian: 5, min: 3, locrian: 1 };
 const MODE_LABELS = { maj: 'majeur', min: 'mineur', dorian: 'dorien', phrygian: 'phrygien', lydian: 'lydien', mixolydian: 'mixolydien', locrian: 'locrien' };
 
+// ---------- Aide au choix de la tonalité (voir suggestSongKey) ----------
+// Famille d'accord (tierce/quinte réelles), indépendante des extensions (7e, 9e...) — sert à comparer
+// la qualité d'un accord posé à celle ATTENDUE sur un degré de gamme donné (voir diatonicTriadFamily),
+// sans avoir à énumérer chaque variante enrichie séparément.
+const QUALITY_FAMILY = {
+    maj: 'maj', maj7: 'maj', '6': 'maj', add9: 'maj', add11: 'maj', maj9: 'maj',
+    dom7: 'dom', dom9: 'dom', dom11: 'dom', dom13: 'dom',
+    min: 'min', min7: 'min', m6: 'min', m9: 'min',
+    dim: 'dim', dim7: 'dim', m7b5: 'dim',
+    aug: 'aug', sus2: 'sus', sus4: 'sus',
+};
+
+// Famille d'accord (maj/min/dim/aug) obtenue en empilant deux tierces à partir du degré `degree`
+// (0-6) de la gamme `mode` (voir MODE_SCALES) — l'accord diatonique "naturel" à cette place, avant
+// tout emprunt/altération. Généralisé sur les 7 modes plutôt que codé en dur pour majeur/mineur
+// seuls : chaque mode a sa propre suite de qualités (ex. le degré V est mineur en mode mineur naturel,
+// majeur/dominant en mode majeur).
+function diatonicTriadFamily(mode, degree) {
+    const scale = MODE_SCALES[mode];
+    const d = degree % 7;
+    const root = scale[d];
+    const thirdIdx = d + 2, fifthIdx = d + 4; // jamais plus d'un tour (max 6+4=10 < 14) : un seul +12 possible
+    const thirdNote = scale[thirdIdx % 7] + (thirdIdx >= 7 ? 12 : 0);
+    const fifthNote = scale[fifthIdx % 7] + (fifthIdx >= 7 ? 12 : 0);
+    const third = ((thirdNote - root) % 12 + 12) % 12;
+    const fifth = ((fifthNote - root) % 12 + 12) % 12;
+    if (third === 4 && fifth === 7) return 'maj';
+    if (third === 3 && fifth === 7) return 'min';
+    if (third === 3 && fifth === 6) return 'dim';
+    if (third === 4 && fifth === 8) return 'aug';
+    return null;
+}
+
 // La relative majeure d'un mode emprunte son armure (voir MODE_RELATIVE_MAJOR_OFFSET ci-dessus)
 function useFlatsForKey(rootPc, mode) {
     const majorPc = (rootPc + (MODE_RELATIVE_MAJOR_OFFSET[mode] ?? 0)) % 12;
@@ -2522,6 +2555,11 @@ class HarmoHubApp {
             const menu = document.getElementById('backup-scope-menu');
             if (!menu.hidden && !menu.contains(e.target)) this.closeBackupScopeMenu();
         });
+        // Clic en dehors du popup de suggestion de tonalité (voir openKeySuggestMenu)
+        document.addEventListener('pointerdown', (e) => {
+            const menu = document.getElementById('key-suggest-menu');
+            if (!menu.hidden && !menu.contains(e.target) && e.target.id !== 'key-suggest-btn') this.closeKeySuggestMenu();
+        });
         // Clic en dehors du popover d'aide de l'ajout rapide (voir openQuickAddHelp) — sauf sur le
         // bouton ampoule lui-même, qui gère déjà son propre bascule ouverture/fermeture.
         document.addEventListener('pointerdown', (e) => {
@@ -2578,6 +2616,7 @@ class HarmoHubApp {
         document.getElementById('export-midi').onclick = () => this.exportMidi();
         document.getElementById('export-audio').onclick = () => this.exportAudio();
         document.getElementById('export-backup').onclick = (e) => this.openBackupScopeMenu(e.currentTarget);
+        document.getElementById('key-suggest-btn').onclick = (e) => this.openKeySuggestMenu(e.currentTarget);
 
         // Bascule piano/guitare : indépendantes, les deux peuvent s'afficher côte à côte ou aucune.
         document.getElementById('toggle-viz-piano').onclick = () => {
@@ -4441,10 +4480,16 @@ class HarmoHubApp {
         const configCard = document.getElementById('config-card');
         const accordCard = document.getElementById('accord-card');
         const lectureCard = document.getElementById('lecture-card');
+        // Ajouter/À la suite/Annuler (voir #edit-actions/updateEditActionsDocking) : pas sa place en
+        // Config., qui ne sert qu'à régler le morceau, pas à poser/modifier un accord (retour
+        // utilisateur) — masqué qu'il soit ancré dans le pied de colonne ou dans le panneau, sans
+        // toucher à sa docking ni à l'état individuel de ses boutons, retrouvé tel quel au retour.
+        const editActions = document.getElementById('edit-actions');
         const showingConfig = tab === 'config';
         if (configCard) configCard.hidden = !showingConfig;
         if (accordCard) accordCard.hidden = showingConfig;
         if (lectureCard) lectureCard.hidden = showingConfig;
+        if (editActions) editActions.hidden = showingConfig;
         this.updateAppModeBanner();
     }
 
@@ -6508,6 +6553,93 @@ class HarmoHubApp {
 
     closeBackupScopeMenu() {
         const menu = document.getElementById('backup-scope-menu');
+        if (menu) menu.hidden = true;
+    }
+
+    // Devine la tonalité la plus probable à partir des accords déjà posés dans TOUT le morceau (pas
+    // seulement la partie active), pour aider à choisir tonalité/mode sans avoir à le faire à
+    // l'oreille (retour utilisateur). Ne considère que majeur/mineur (les plus courants) : chaque
+    // candidat est noté sur le nombre d'accords dont la FONDAMENTALE appartient à sa gamme (le chiffre
+    // affiché, honnête et facile à comprendre) — un simple décompte de fondamentales diatoniques ne
+    // distingue pas des relatifs majeur/mineur (mêmes 7 notes, ex. Do majeur / La mineur) : un score
+    // de « qualité attendue » (voir diatonicTriadFamily) sert alors UNIQUEMENT à les départager, avec
+    // un bonus si le tout premier ou dernier accord du morceau (repère de tonique le plus fiable)
+    // correspond à la fondamentale ET à la qualité attendue du degré I/i.
+    suggestSongKey() {
+        const chords = [];
+        loadProgressionSections().forEach(sec => sec.chords.forEach(c => chords.push(c)));
+        if (chords.length === 0) return [];
+
+        const results = [];
+        for (let rootPc = 0; rootPc < 12; rootPc++) {
+            for (const mode of ['maj', 'min']) {
+                const scale = MODE_SCALES[mode];
+                let diatonicCount = 0, tieBreak = 0;
+                chords.forEach((c, idx) => {
+                    const chordPc = NOTES.indexOf(c.root);
+                    const diff = ((chordPc - rootPc) % 12 + 12) % 12;
+                    const degree = scale.indexOf(diff);
+                    if (degree === -1) return; // fondamentale hors gamme (accord emprunté/chromatique) : ignoré, pas exclu
+                    diatonicCount++;
+                    const expected = diatonicTriadFamily(mode, degree);
+                    const actual = QUALITY_FAMILY[c.quality] || null;
+                    if (expected && actual) {
+                        if (actual === expected) tieBreak += 1;
+                        else if (actual === 'dom') tieBreak += 0.7; // dominante : substitut très courant sur presque tout degré
+                    }
+                    if (degree === 0 && (idx === 0 || idx === chords.length - 1) && actual === expected) tieBreak += 3;
+                });
+                results.push({ root: NOTES[rootPc], mode, diatonicCount, total: chords.length, tieBreak });
+            }
+        }
+        results.sort((a, b) => (b.diatonicCount - a.diatonicCount) || (b.tieBreak - a.tieBreak));
+        return results.slice(0, 5);
+    }
+
+    // Popup léger (même style que openBackupScopeMenu) : liste les tonalités candidates (voir
+    // suggestSongKey), chacune applicable d'un clic à #global-root/#global-mode.
+    openKeySuggestMenu(anchorEl) {
+        const menu = document.getElementById('key-suggest-menu');
+        const candidates = this.suggestSongKey();
+        if (candidates.length === 0) {
+            this.flashHint('Pose d\'abord quelques accords dans la grille pour pouvoir analyser la tonalité');
+            return;
+        }
+        menu.innerHTML = candidates.map(c => {
+            const pct = Math.round((c.diatonicCount / c.total) * 100);
+            // Épelé selon la convention dièses/bémols de CE candidat (pas de la tonalité actuelle du
+            // morceau, encore en place tant qu'on n'a pas cliqué) : useFlatsForKey, la fonction
+            // indépendante, plutôt que this.useFlatsForRoot, qui lit toujours la tonalité en cours.
+            const label = `${noteNameForPc(NOTES.indexOf(c.root), useFlatsForKey(NOTES.indexOf(c.root), c.mode))} ${MODE_LABELS[c.mode]}`;
+            return `<button type="button" data-key-root="${c.root}" data-key-mode="${c.mode}">
+                <span class="key-suggest-label">${escapeHtml(label)}</span>
+                <span class="key-suggest-pct">${pct}% (${c.diatonicCount}/${c.total})</span>
+            </button>`;
+        }).join('');
+        menu.querySelectorAll('button').forEach(btn => {
+            btn.onclick = () => {
+                this.closeKeySuggestMenu();
+                document.getElementById('global-root').value = btn.dataset.keyRoot;
+                document.getElementById('global-mode').value = btn.dataset.keyMode;
+                hasUnsavedChanges = true;
+                this.updateKeyLabels();
+                this.loadProgression();
+                this.refreshPreview();
+                this.flashHint(`Tonalité changée : ${btn.querySelector('.key-suggest-label').textContent}`);
+            };
+        });
+
+        const rect = anchorEl.getBoundingClientRect();
+        menu.hidden = false;
+        const pad = 8;
+        const left = Math.min(rect.left, window.innerWidth - menu.offsetWidth - pad);
+        const top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - pad);
+        menu.style.left = `${Math.max(pad, left)}px`;
+        menu.style.top = `${Math.max(pad, top)}px`;
+    }
+
+    closeKeySuggestMenu() {
+        const menu = document.getElementById('key-suggest-menu');
         if (menu) menu.hidden = true;
     }
 
@@ -9907,6 +10039,7 @@ class HarmoHubApp {
             if (e.key === 'Escape' && !document.getElementById('context-menu').hidden) { this.closeContextMenu(); return; }
             if (e.key === 'Escape' && !document.getElementById('section-picker-menu').hidden) { this.closeSectionPicker(); return; }
             if (e.key === 'Escape' && !document.getElementById('backup-scope-menu').hidden) { this.closeBackupScopeMenu(); return; }
+            if (e.key === 'Escape' && !document.getElementById('key-suggest-menu').hidden) { this.closeKeySuggestMenu(); return; }
             if (e.key === 'Escape' && !document.getElementById('quick-add-help').hidden) { this.closeQuickAddHelp(); return; }
             if (e.key === 'Escape' && !document.getElementById('unsaved-modal').hidden) { if (this._unsavedModalCancel) this._unsavedModalCancel(); return; }
             if (e.key === 'Escape' && !document.getElementById('midi-export-modal').hidden) { if (this._midiExportModalCancel) this._midiExportModalCancel(); return; }
