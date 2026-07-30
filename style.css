@@ -682,14 +682,24 @@ body.body-scroll-locked { overflow: hidden !important; }
     /* Même cause, même remède que .settings-tab ci-dessus : le bandeau Config./Ajout/Modif.
        (retour utilisateur, screenshot) dépassait de l'écran sur téléphone car le bouton générique
        (button{} plus haut) impose min-width:120px à chaque segment — 3×120px ne tient jamais dans
-       375px. */
-    .app-mode-seg {
-        padding: 6px 6px;
-        gap: 4px;
+       375px. Sélecteur ".app-mode-banner .app-mode-seg" (pas juste ".app-mode-seg") : une
+       spécificité plus élevée que la règle de base plus bas dans le fichier (même spécificité sinon,
+       et donc silencieusement écrasé par elle vu qu'elle vient après — bug constaté en reproduisant
+       le débordement toujours présent sur iPhone 12 mini malgré ce correctif). */
+    .app-mode-banner .app-mode-seg {
+        padding: 6px 4px;
+        gap: 3px;
         font-size: var(--fs-xs);
         min-width: 0;
         flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
+    /* Icônes décoratives seulement (le libellé suffit) : les enlever sur téléphone récupère juste
+       assez de largeur pour que les 3 segments tiennent sans être coupés (retour utilisateur,
+       constaté sur iPhone 12 mini — plus étroit que les autres iPhone déjà testés). */
+    .app-mode-banner .app-mode-seg .icon { display: none; }
 }
 
 main {
@@ -720,6 +730,9 @@ main {
     background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 9px;
+    /* Filet de sécurité si les 3 segments ne tiennent quand même pas dans la largeur du téléphone
+       (voir le même filet sur .settings-tabs) : glisser plutôt que de se faire couper net. */
+    overflow-x: auto;
 }
 .app-mode-seg {
     flex: 1;
