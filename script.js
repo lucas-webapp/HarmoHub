@@ -462,14 +462,20 @@ const PLAYSTYLE_BY_VALUE = {};
 PLAYSTYLE_OPTIONS.forEach(o => { PLAYSTYLE_BY_VALUE[o.value] = o; });
 PLAYSTYLE_BY_VALUE.pulsed = PLAYSTYLE_BY_VALUE.noire_staccato; // alias historique (voir seqPreset)
 
-// Icône SEULE (pas de libellé texte) affichée sous chaque accord de la grille (option Affichage >
-// Style de jeu, voir showStyleLabel/loadProgression) : mêmes pictos que le sélecteur Style de jeu
-// (PLAYSTYLE_OPTIONS), pour rester cohérent et lisible d'un coup d'œil sans alourdir la case d'un
-// mot. Le nom reste accessible (lecteur d'écran, infobulle) via aria-label/title. Un accord dont le
-// style enregistré n'existe plus retombe sur « Tenu ».
-function styleMetaHtml(playStyle) {
-    const opt = PLAYSTYLE_BY_VALUE[playStyle] || PLAYSTYLE_BY_VALUE.held;
-    return `<svg class="cell-meta-icon" viewBox="0 0 24 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="${opt.name}"><title>${opt.name}</title>${opt.svg}</svg>`;
+// Renversement/drop seuls, en notation compacte (ex. ["R1", "D2"], [] en position de base) — même
+// format que Chord.getVoicingBadge (PDF exporté), mais calculé directement depuis les données brutes
+// de l'accord de la grille (pas besoin d'un Chord complet, juste sa qualité pour borner le
+// renversement à ce que l'accord peut réellement porter, voir Chord.getEffectiveInversion). Utilisé
+// par loadProgression pour le badge "octave/voicing" sous chaque case (options Affichage > Octave /
+// Renversement-drop, voir showGridOctave/showGridVoicing) — remplace l'ancienne icône de style de jeu.
+function gridVoicingParts(h) {
+    const intervalsLen = (CHORD_INTERVALS[h.quality] || CHORD_INTERVALS.maj).length;
+    const inv = Math.min(h.inversion || 0, intervalsLen - 1);
+    const parts = [];
+    if (inv > 0) parts.push(`R${inv}`);
+    if (h.drop === 'drop2') parts.push('D2');
+    if (h.drop === 'drop3') parts.push('D3');
+    return parts;
 }
 
 // Récupère la durée en temps d'un accord sauvegardé (compatibilité : anciens formats en "measures").
@@ -1595,7 +1601,10 @@ const METRONOME_SUBDIVISION_KEY = 'harmohubMetronomeSubdivision';
 const TAP_LATENCY_OFFSET_KEY = 'harmohubTapLatencyOffsetMs';
 const SONG_CARD_COLLAPSED_KEY = 'harmohubSongCardCollapsed';
 const SHOW_ROMAN_KEY = 'harmohubShowRomanNumerals';
-const SHOW_STYLE_LABEL_KEY = 'harmohubShowStyleLabel';
+// Octave / renversement-drop sous chaque accord de la GRILLE (voir gridVoicingParts, Paramètres >
+// Affichage) — remplacent l'ancien réglage unique "Style de jeu" (icône sous la case), retiré.
+const SHOW_GRID_OCTAVE_KEY = 'harmohubShowGridOctave';
+const SHOW_GRID_VOICING_KEY = 'harmohubShowGridVoicing';
 // Notation octave/renversement/drop au-dessus de chaque case (voir Chord.getVoicingBadge) — remplace
 // l'ancienne flèche de sens mélodique ▲/▼ (retour utilisateur), dont le réglage a été retiré.
 const SHOW_VOICING_PDF_KEY = 'harmohubShowVoicingPdf';
@@ -1845,9 +1854,13 @@ class HarmoHubApp {
         // loadProgression et buildPrintExportHtml).
         this.showRomanNumerals = localStorage.getItem(SHOW_ROMAN_KEY) !== '0';
 
-        // Style de jeu (Tenu/Staccato...) sous chaque accord de la grille (voir .cell-meta) —
-        // activé par défaut comme le comportement historique.
-        this.showStyleLabel = localStorage.getItem(SHOW_STYLE_LABEL_KEY) !== '0';
+        // Octave / renversement-drop sous chaque accord de la grille (voir .cell-meta,
+        // gridVoicingParts) — remplace l'ancienne icône de style de jeu (retour utilisateur :
+        // n'apportait plus grand-chose). Deux réglages indépendants, comme demandé : l'octave seule
+        // (toujours présente, ex. "O3") et/ou le renversement/drop seul (ex. "R1-D2", absent en
+        // position de base) — activés par défaut.
+        this.showGridOctave = localStorage.getItem(SHOW_GRID_OCTAVE_KEY) !== '0';
+        this.showGridVoicing = localStorage.getItem(SHOW_GRID_VOICING_KEY) !== '0';
 
         // PDF exporté uniquement (rien d'équivalent à l'écran) : notation octave/renversement/drop en
         // petit au-dessus de chaque accord (voir Chord.getVoicingBadge), au lieu d'alourdir son symbole
@@ -2073,12 +2086,6 @@ class HarmoHubApp {
         });
         document.getElementById('quick-add-input').addEventListener('input', () => this.autoResizeQuickAdd());
 
-        // Ampoule d'aide (voir #quick-add-help) : même logique ouverture/fermeture que les autres
-        // popovers (openBackupScopeMenu...) — clic sur le bouton bascule, clic ailleurs ou Échap ferme.
-        document.getElementById('quick-add-help-btn').onclick = (e) => {
-            const help = document.getElementById('quick-add-help');
-            if (help.hidden) this.openQuickAddHelp(e.currentTarget); else this.closeQuickAddHelp();
-        };
         document.getElementById('play-prog').onclick = () => this.playProgression();
         document.getElementById('stop').onclick = () => this.stopAll();
 
@@ -4163,7 +4170,12 @@ class HarmoHubApp {
                     const zebra = `background-image: ${buildMeasureZebra(s, beatsPerBar, beatsPerRow)};`;
                     const style = `grid-column: ${s.col + 1} / span ${s.span}; grid-row: ${s.row * rowsPerGroup + chordRowOffset}; ${zebra}`;
 
-                    const metaEl = (s.isFirst && this.showStyleLabel) ? `<span class="cell-meta">${styleMetaHtml(h.playStyle)}</span>` : '';
+                    // Octave / renversement-drop (voir gridVoicingParts, options Affichage > Octave /
+                    // Renversement-drop) : même notation compacte que le PDF exporté (ex. "O3-R1-D2").
+                    const badgeParts = [];
+                    if (this.showGridOctave) badgeParts.push(`O${octaveFromData(h)}`);
+                    if (this.showGridVoicing) badgeParts.push(...gridVoicingParts(h));
+                    const metaEl = (s.isFirst && badgeParts.length) ? `<span class="cell-meta">${badgeParts.join('-')}</span>` : '';
                     const contFlag = (s.split && !s.isFirst) ? ' <span class="cell-cont">↩</span>' : '';
                     // Petits traits à chaque limite de mesure interne, positionnés en % de la largeur du
                     // segment (colonnes de largeur égale au sein d'une même grille) — le dégradé qui les
@@ -4924,6 +4936,10 @@ class HarmoHubApp {
         document.getElementById('settings-overlay').hidden = true;
         document.getElementById('open-settings').classList.remove('active');
         this.updateGlobalUndoRedoButtons();
+        // L'ampoule d'aide de l'ajout rapide vit désormais dans l'onglet Affichage (voir
+        // renderDisplayPanel) : sans ça, son popover (position fixe, hors de #settings-overlay)
+        // resterait affiché après coup, sans bouton visible pour le refermer.
+        this.closeQuickAddHelp();
     }
 
     // ---- Panneau Son : volume général (maître), puis volume du métronome ----
@@ -5014,14 +5030,27 @@ class HarmoHubApp {
         if (!host) return;
         host.innerHTML = `
             <div class="settings-toggle-row">
+                <label for="quick-add-help-btn" title="Comment utiliser l'ajout rapide">Aide : ajout rapide</label>
+                <button type="button" id="quick-add-help-btn" class="icon-btn" title="Comment utiliser l'ajout rapide" aria-label="Comment utiliser l'ajout rapide" aria-expanded="false">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.05V17h6v-2.25c0-.85.4-1.55 1-2.05A7 7 0 0 0 12 2Z"/></svg>
+                </button>
+            </div>
+            <div class="settings-slider-sep"></div>
+            <div class="settings-toggle-row">
                 <label for="toggle-show-roman" title="Degrés (I, IV, V7...) dans la grille et le PDF">Degrés</label>
                 <button type="button" id="toggle-show-roman" class="switch" role="switch" aria-checked="${this.showRomanNumerals}" aria-label="Degrés dans la grille et le PDF">
                     <span class="switch-thumb"></span>
                 </button>
             </div>
             <div class="settings-toggle-row">
-                <label for="toggle-show-style-label" title="Style de jeu (Tenu, Staccato...) sous chaque accord de la grille">Style de jeu</label>
-                <button type="button" id="toggle-show-style-label" class="switch" role="switch" aria-checked="${this.showStyleLabel}" aria-label="Style de jeu sous chaque accord de la grille">
+                <label for="toggle-show-grid-octave" title="Octave (ex. O3) sous chaque accord de la grille">Octave</label>
+                <button type="button" id="toggle-show-grid-octave" class="switch" role="switch" aria-checked="${this.showGridOctave}" aria-label="Octave sous chaque accord de la grille">
+                    <span class="switch-thumb"></span>
+                </button>
+            </div>
+            <div class="settings-toggle-row">
+                <label for="toggle-show-grid-voicing" title="Renversement et drop (ex. R1-D2) sous chaque accord de la grille, si l'accord s'écarte de la position de base">Renversement / drop</label>
+                <button type="button" id="toggle-show-grid-voicing" class="switch" role="switch" aria-checked="${this.showGridVoicing}" aria-label="Renversement et drop sous chaque accord de la grille">
                     <span class="switch-thumb"></span>
                 </button>
             </div>
@@ -5032,8 +5061,13 @@ class HarmoHubApp {
                     <span class="switch-thumb"></span>
                 </button>
             </div>`;
+        document.getElementById('quick-add-help-btn').onclick = (e) => {
+            const help = document.getElementById('quick-add-help');
+            if (help.hidden) this.openQuickAddHelp(e.currentTarget); else this.closeQuickAddHelp();
+        };
         document.getElementById('toggle-show-roman').onclick = () => this.setShowRomanNumerals(!this.showRomanNumerals);
-        document.getElementById('toggle-show-style-label').onclick = () => this.setShowStyleLabel(!this.showStyleLabel);
+        document.getElementById('toggle-show-grid-octave').onclick = () => this.setShowGridOctave(!this.showGridOctave);
+        document.getElementById('toggle-show-grid-voicing').onclick = () => this.setShowGridVoicing(!this.showGridVoicing);
         document.getElementById('toggle-show-voicing-pdf').onclick = () => this.setShowVoicingPdf(!this.showVoicingPdf);
     }
 
@@ -5045,10 +5079,18 @@ class HarmoHubApp {
         this.loadProgression();
     }
 
-    setShowStyleLabel(on) {
-        this.showStyleLabel = on;
-        localStorage.setItem(SHOW_STYLE_LABEL_KEY, on ? '1' : '0');
-        const btn = document.getElementById('toggle-show-style-label');
+    setShowGridOctave(on) {
+        this.showGridOctave = on;
+        localStorage.setItem(SHOW_GRID_OCTAVE_KEY, on ? '1' : '0');
+        const btn = document.getElementById('toggle-show-grid-octave');
+        if (btn) btn.setAttribute('aria-checked', on);
+        this.loadProgression();
+    }
+
+    setShowGridVoicing(on) {
+        this.showGridVoicing = on;
+        localStorage.setItem(SHOW_GRID_VOICING_KEY, on ? '1' : '0');
+        const btn = document.getElementById('toggle-show-grid-voicing');
         if (btn) btn.setAttribute('aria-checked', on);
         this.loadProgression();
     }

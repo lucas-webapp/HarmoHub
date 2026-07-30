@@ -584,17 +584,18 @@ body.body-scroll-locked { overflow: hidden !important; }
 .file-actions .icon-btn { width: 26px; height: 26px; }
 
 /* ---- Panneau Son ---- */
-/* Marges resserrées (22px → 12/10px) : les curseurs de volume prenaient trop de place à l'écran
-   pour un simple réglage secondaire (retour utilisateur). */
-.settings-slider-row { margin-bottom: 12px; }
+/* Marges resserrées (22px → 12/10px, puis 12/10px → 8/6px : encore un peu trop de hauteur, retour
+   utilisateur) : les curseurs de volume prenaient trop de place à l'écran pour un simple réglage
+   secondaire. */
+.settings-slider-row { margin-bottom: 8px; }
 .settings-slider-row:last-child { margin-bottom: 0; }
-.settings-slider-sep { height: 1px; background: var(--border); margin: 0 0 12px; }
+.settings-slider-sep { height: 1px; background: var(--border); margin: 0 0 8px; }
 .settings-slider-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     font-size: var(--fs-sm);
     font-weight: 600;
     color: var(--text-muted);
@@ -2136,10 +2137,10 @@ button:active { transform: translateY(1px); }
 .loop-range-handle-left { margin: 0 -18px 0 -6px; width: calc(100% + 24px); }
 .loop-range-handle-right { margin: 0 -6px 0 -18px; width: calc(100% + 24px); }
 
-/* Style de jeu (Tenu/Lié/Détaché...) sous le symbole : UNIQUEMENT l'icône (voir styleMetaHtml, mêmes
-   pictos que le sélecteur Style de jeu), sans libellé texte — l'œil distingue lié/détaché d'un coup
-   d'œil au picto seul, nom repris en aria-label/title pour l'accessibilité. Désactivable dans
-   Paramètres > Affichage (voir showStyleLabel). */
+/* Octave / renversement-drop sous le symbole (ex. "O3-R1-D2", voir gridVoicingParts) — remplace
+   l'ancienne icône de style de jeu, retirée (retour utilisateur : n'apportait plus grand-chose).
+   Désactivable indépendamment (octave / renversement-drop) dans Paramètres > Affichage (voir
+   showGridOctave/showGridVoicing). */
 .cell-meta {
     position: absolute;
     bottom: 3px;
@@ -2151,11 +2152,9 @@ button:active { transform: translateY(1px); }
     color: var(--text-muted);
     overflow: hidden;
     padding: 0 4px;
-}
-.cell-meta-icon {
-    flex: none;
-    width: 22px;
-    height: 15px;
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    letter-spacing: 0.02em;
 }
 
 /* Police réduite pour les segments courts */

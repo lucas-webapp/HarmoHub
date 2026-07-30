@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202607310500">
+    <link rel="stylesheet" href="style.css?v=202607310600">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -698,11 +698,12 @@
                                 <rect x="17" y="16" width="4" height="4" rx="1"/>
                             </svg>
                         </button>
-                        <button type="button" id="quick-add-help-btn" class="icon-btn" title="Comment utiliser l'ajout rapide" aria-label="Comment utiliser l'ajout rapide" aria-expanded="false">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.05V17h6v-2.25c0-.85.4-1.55 1-2.05A7 7 0 0 0 12 2Z"/></svg>
-                        </button>
                     </div>
                 </div>
+                <!-- Bouton d'ouverture déplacé dans Paramètres > Affichage (voir renderDisplayPanel,
+                     retour utilisateur : on ne comprenait pas qu'il appartenait à l'ajout rapide, et il
+                     sert peu) — ce popover, lui, reste ici (position fixe, peu importe où il vit dans
+                     le DOM), rouvert/refermé par ce même bouton désormais dans Paramètres. -->
                 <div id="quick-add-help" class="context-menu quick-add-help" hidden>
                     <ul>
                         <li><code>Cm7</code> : accord seul</li>
@@ -713,7 +714,7 @@
                     </ul>
                 </div>
                 <div class="quick-add-row">
-                    <textarea id="quick-add-input" class="quick-add-input" rows="1" placeholder="Ajout rapide" autocomplete="off" autocapitalize="off" spellcheck="false" title="Un accord seul (ex. Cm7), une basse différente via « _ » (C_E), plusieurs accords séparés par « / » (un par mesure), ou une ligne vide pour démarrer une nouvelle partie — voir l'ampoule d'aide"></textarea>
+                    <textarea id="quick-add-input" class="quick-add-input" rows="1" placeholder="Ajout rapide" autocomplete="off" autocapitalize="off" spellcheck="false" title="Un accord seul (ex. Cm7), une basse différente via « _ » (C_E), plusieurs accords séparés par « / » (un par mesure), ou une ligne vide pour démarrer une nouvelle partie — voir l'aide dans Paramètres > Affichage"></textarea>
                     <button type="button" id="quick-add-btn" class="icon-btn" title="Ajouter à la grille (Ctrl+Entrée) — « _ » pour une basse (C_E), « / » pour plusieurs accords à la suite (C/Am/F/G), ligne vide pour une nouvelle partie" aria-label="Ajouter à la grille">
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                     </button>
@@ -813,6 +814,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202607310500"></script>
+    <script src="script.js?v=202607310600"></script>
 </body>
 </html>
