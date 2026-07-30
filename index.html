@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202607310100">
+    <link rel="stylesheet" href="style.css?v=202607310300">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -47,6 +47,18 @@
                 <rect x="4.5" y="8" width="3" height="8" rx="1" fill="currentColor" stroke="none"/>
             </svg>
         </button>
+        <!-- Accès rapide à l'export/import de TOUTE la bibliothèque (mêmes actions que l'onglet
+             Paramètres > Fichiers, voir exportLibrary/importLibraryFile) : directement dans la barre du
+             haut, pour ne plus avoir à ouvrir Paramètres à chaque sauvegarde/restauration (retour
+             utilisateur : trop de clics). Champ fichier dédié plutôt que celui du panneau Fichiers,
+             qui n'existe dans le DOM qu'une fois ce panneau déjà ouvert au moins une fois. -->
+        <button type="button" id="quick-library-export" class="icon-btn" title="Exporter toute la bibliothèque" aria-label="Exporter toute la bibliothèque">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>
+        </button>
+        <button type="button" id="quick-library-import" class="icon-btn" title="Importer une bibliothèque (restauration)" aria-label="Importer une bibliothèque">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21V9"/><path d="m7 13 5-5 5 5"/><path d="M5 3h14"/></svg>
+        </button>
+        <input type="file" id="quick-library-import-input" accept="application/json" hidden>
         <a class="logo" href="#" onclick="return false" title="HarmoHub" aria-label="HarmoHub">
             <span class="logo-mark">
                 <svg class="icon" viewBox="0 0 48 48" aria-hidden="true">
@@ -785,6 +797,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202607310100"></script>
+    <script src="script.js?v=202607310300"></script>
 </body>
 </html>

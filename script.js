@@ -2292,6 +2292,18 @@ class HarmoHubApp {
         // en une seule vue qui défile, sans onglet.
         document.getElementById('open-settings').onclick = () => this.openSettings();
         document.getElementById('toggle-sidebar').onclick = () => this.toggleSidebar();
+
+        // Accès rapide bibliothèque (voir #quick-library-export/-import dans index.html) : mêmes
+        // méthodes que le panneau Paramètres > Fichiers (exportLibrary/importLibraryFile), juste un
+        // second point d'entrée plus court.
+        document.getElementById('quick-library-export').onclick = () => this.exportLibrary();
+        const quickImportInput = document.getElementById('quick-library-import-input');
+        document.getElementById('quick-library-import').onclick = () => quickImportInput.click();
+        quickImportInput.onchange = () => {
+            const file = quickImportInput.files[0];
+            quickImportInput.value = ''; // permet de resélectionner le même fichier ensuite
+            if (file) this.importLibraryFile(file);
+        };
         document.getElementById('settings-close').onclick = () => this.closeSettings();
         document.querySelectorAll('.settings-tab').forEach(btn => {
             btn.onclick = () => this.setSettingsTab(btn.dataset.settingsTab);
@@ -7158,7 +7170,61 @@ class HarmoHubApp {
         window.removeEventListener('pointermove', this._onResizeMove);
         window.removeEventListener('pointerup', this._onResizeEnd);
         window.removeEventListener('pointercancel', this._onResizeEnd);
+        const r = this.resize;
         this.resize = null;
+        // Une seule fois ici, à la FIN du glissé (pas à chaque onResizeMove) : voir
+        // extendChordPatternToHold. Bord droit uniquement — le bord gauche fait grandir l'accord
+        // courant en repoussant son DÉBUT plus tôt (préfixe, pas suffixe) : cas plus rare, non couvert
+        // ici, laissé au comportement existant (resizeSeqPattern boucle toujours dans ce cas précis).
+        if (r && r.edge !== 'left' && r.lastDelta > 0) {
+            this.extendChordPatternToHold(r.section, r.index, r.startBeats);
+        }
+    }
+
+    // Prolonge le motif d'un accord dont la durée vient de GRANDIR (jamais appelé pour un
+    // rétrécissement, déjà couvert par la troncature de resizeSeqPattern) : la zone AJOUTÉE ne reçoit
+    // QUE des notes tenues (retour utilisateur) — jusque-là, étirer un accord dans la grille laissait
+    // resizeSeqPattern boucler le motif/préréglage d'origine (croches, style rythmique...) sur toute
+    // la zone ajoutée au lieu de la tenir simplement. Le motif d'origine, lui, ne change pas, quel que
+    // soit son propre rythme. Prend `oldBeats` en paramètre plutôt que de le déduire : à cet instant
+    // `data.beats` porte déjà la NOUVELLE valeur (voir les deux appelants).
+    extendChordPatternToHold(section, index, oldBeats) {
+        const sections = loadProgressionSections();
+        const data = sections[section] && sections[section].chords[index];
+        if (!data) return;
+        const newBeats = beatsFromData(data);
+        if (newBeats <= oldBeats) return;
+
+        const oldChord = new Chord(data.root, data.quality, oldBeats, data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
+        const { pattern, tie } = this.resolveSeqPatternForData(oldChord, data);
+        const voices = oldChord.getSeqMidiNotes().length;
+        const oldSteps = pattern.length;
+        const newSteps = newBeats * SEQ_STEPS_PER_BEAT;
+        const boundaryActive = pattern[oldSteps - 1] || [];
+        for (let s = oldSteps; s < newSteps; s++) {
+            const active = [], tied = [];
+            for (let v = 0; v < voices; v++) {
+                active.push(v);
+                // Liée à la croche précédente sauf tout premier pas ajouté pour une voix qui ne
+                // sonnait pas encore juste avant l'étirement (attaque nette à cet instant précis).
+                if (s > oldSteps || boundaryActive.includes(v)) tied.push(v);
+            }
+            pattern.push(active);
+            tie.push(tied);
+        }
+        data.arpPattern = serializeSeqPattern(pattern, tie);
+        data.seqEdited = true;
+        saveProgressionSections(sections);
+
+        // Cet accord est actuellement ouvert dans le panneau d'édition : le champ live doit refléter
+        // le prolongement tout de suite, sinon le séquenceur affiché resterait sur l'ancien motif
+        // bouclé/préréglage jusqu'à la prochaine ouverture de cet accord (getLiveSeqPattern lit
+        // #arpPattern, jamais les données qu'on vient de sauvegarder ci-dessus).
+        if (section === this.activeSection && this.editingIndex === index) {
+            document.getElementById('arpPattern').value = data.arpPattern;
+            this.seqTouched = true;
+            this.renderSequencer();
+        }
     }
 
     // Équivalent clavier de la poignée d'étirement (voir onResizeStart/onResizeMove ci-dessus) pour
@@ -7179,6 +7245,7 @@ class HarmoHubApp {
         this.pushUndo(sections);
         data.beats = next;
         saveProgressionSections(sections);
+        this.extendChordPatternToHold(this.activeSection, index, beats);
         this.loadProgression();
     }
 
@@ -7427,10 +7494,19 @@ class HarmoHubApp {
         if (d.multi) { this.onSeqMultiDragMove(e, d); return; }
         if (d.resize) { this.onSeqResizeMove(e, d); return; }
 
+        // Démarré au MILIEU d'une note existante (ni un bord — sinon d.resize serait posé, voir
+        // onSeqPointerDown — ni un changement de voix, déjà écarté juste au-dessus) : n'efface plus
+        // rien du tout (retour utilisateur : glisser depuis le corps d'une note la scindait en deux
+        // par accident trop souvent, sans le vouloir). Pour raccourcir une note, glisser depuis SON
+        // BORD (voir onSeqResizeMove juste au-dessus) ; pour en reposer une nouvelle juste après,
+        // peindre sur une case vide comme d'habitude — un simple tap, lui, continue de sélectionner
+        // normalement (voir onSeqPointerUp), rien ne change de ce côté.
+        if (d.wasOn) return;
+
         // Même garde-fou que pour le redimensionnement (voir onSeqResizeMove) : sans lui, le moindre
         // tremblement de souris/doigt au clic — surtout sur des cases étroites — peut franchir la
-        // case voisine et être lu comme un glissé, ce qui efface une croche par accident (scindant
-        // une note visuellement) et écrase la sélection au lieu de simplement sélectionner/Ctrl+sélectionner.
+        // case voisine et être lu comme un glissé, ce qui écrase la sélection au lieu de simplement
+        // sélectionner/Ctrl+sélectionner (peindre une note neuve, elle, part toujours d'une case vide).
         if (!d.crossedThreshold) {
             const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
             if (Math.hypot(dx, dy) < 8) return;
