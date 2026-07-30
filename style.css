@@ -664,7 +664,20 @@ body.body-scroll-locked { overflow: hidden !important; }
        fenêtre pour lui laisser toute la largeur utile, et des onglets un cran plus compacts. */
     .settings-overlay { padding: 8px; }
     .settings-tabs { gap: 2px; padding: 8px 8px 0; }
-    .settings-tab { padding: 8px 10px; gap: 5px; font-size: var(--fs-xs); }
+    .settings-tab {
+        padding: 8px 10px;
+        gap: 5px;
+        font-size: var(--fs-xs);
+        /* La VRAIE cause du dépassement : le bouton générique (voir button{} plus haut) impose
+           min-width:120px ET flex:1 à TOUS les boutons, y compris ces onglets — chacun forcé à au
+           moins 120px même pour "Son" (3 lettres), 3×120px dépassant largement la largeur d'un
+           téléphone. Resserrer seul le padding/la police (déjà tenté) ne changeait donc rien tant
+           que cette contrainte-là restait en place. Sur desktop, où il y a largement la place,
+           .settings-tab garde le comportement par défaut (colonnes égales) — ce resserrement ne
+           change rien à ce qui marchait déjà là-bas. */
+        min-width: 0;
+        flex: none;
+    }
 }
 
 main {
