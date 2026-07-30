@@ -678,6 +678,18 @@ body.body-scroll-locked { overflow: hidden !important; }
         min-width: 0;
         flex: none;
     }
+
+    /* Même cause, même remède que .settings-tab ci-dessus : le bandeau Config./Ajout/Modif.
+       (retour utilisateur, screenshot) dépassait de l'écran sur téléphone car le bouton générique
+       (button{} plus haut) impose min-width:120px à chaque segment — 3×120px ne tient jamais dans
+       375px. */
+    .app-mode-seg {
+        padding: 6px 6px;
+        gap: 4px;
+        font-size: var(--fs-xs);
+        min-width: 0;
+        flex: 1;
+    }
 }
 
 main {
