@@ -2886,19 +2886,23 @@ select.song-select-narrow {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end; /* les cases bordées s'alignent en bas, quelle que soit la hauteur de leur bandeau au-dessus (voir .print-chord-above) */
-    gap: 6px;
     margin-bottom: 6px;
 }
 /* Englobe le bandeau degré/sens mélodique ET la case bordée : les deux empilés dans une même
    colonne, le bandeau restant AU-DESSUS de la case (jamais superposé à son contenu, contrairement
-   à avant) — voir buildPrintExportHtml. flex-grow/flex-basis migrés ici depuis .print-chord-cell,
-   pour que le bandeau suive la même largeur que la case en dessous. */
+   à avant) — voir buildPrintExportHtml. Largeur posée en ligne (% exact du nombre de temps, pas de
+   flex-grow/flex-basis : voir buildPrintExportHtml pour pourquoi — la règle graduée juste en dessous
+   doit s'aligner au pixel près). L'espacement visuel entre cases vient d'un padding interne (pas
+   d'un gap sur .print-chord-row, qui grignoterait l'espace dispo pour cette répartition en %) :
+   chaque case garde ainsi EXACTEMENT sa part proportionnelle de la ligne. */
 .print-chord-wrap {
     display: flex;
     flex-direction: column;
-    flex-grow: 1;
-    flex-basis: 60px;
+    box-sizing: border-box;
+    padding: 0 3px;
 }
+.print-chord-wrap:first-child { padding-left: 0; }
+.print-chord-wrap:last-child { padding-right: 0; }
 /* Degré (chiffrage romain) + notation octave/renversement/drop (voir Chord.getVoicingBadge, réglage
    Affichage > Position d'accord PDF), toujours réservé (même vide) pour que toutes les cases bordées
    d'une même ligne démarrent à la même hauteur — une seule ligne, les deux séparés par un point médian
@@ -2960,11 +2964,12 @@ select.song-select-narrow {
     font-weight: 700;
 }
 
-/* Règle graduée sous chaque ligne de la grille (voir buildPrintExportHtml) : un segment flex par
-   mesure (flex-grow proportionnel à son nombre de temps, comme .print-chord-wrap plus haut pour les
-   cases), sans espace entre eux — contrairement aux cases, la règle doit rester une ligne continue.
-   Choix A parmi 5 propositions (retour utilisateur) : trait fin, grande graduation numérotée à
-   chaque mesure, petites graduations aux temps intermédiaires — lecture technique et compacte. */
+/* Règle graduée sous chaque ligne de la grille (voir buildPrintExportHtml) : un segment par mesure,
+   largeur posée en ligne (% exact de son nombre de temps, MÊME dénominateur que .print-chord-wrap
+   plus haut — pixel-exact avec les cases, retour utilisateur), sans espace entre eux : la règle doit
+   rester une ligne continue, contrairement aux cases. Choix A parmi 5 propositions (retour
+   utilisateur) : trait fin, grande graduation numérotée à chaque mesure, petites graduations aux
+   temps intermédiaires — lecture technique et compacte. */
 .print-measure-ruler {
     display: flex;
     margin: 2px 0 10px;

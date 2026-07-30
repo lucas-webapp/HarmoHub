@@ -5960,8 +5960,13 @@ class HarmoHubApp {
             }
             const { cells, rows, beatsPerRow } = this.layoutProgression(sec.chords, beatsPerBar);
             for (let r = 0; r < rows; r++) {
+                const rowCells = cells.filter(c => c.row === r);
+                // Dénominateur commun aux cases ET à la règle graduée en dessous (voir plus bas) :
+                // calculé UNE fois ici, réutilisé tel quel pour les deux, plutôt que recalculé
+                // séparément à chaque endroit (c'était la vraie cause du désalignement, voir plus bas).
+                const rowBeatsUsed = rowCells.reduce((sum, c) => sum + c.span, 0);
                 gridInner += `<div class="print-chord-row">`;
-                cells.filter(c => c.row === r).forEach(s => {
+                rowCells.forEach(s => {
                     const data = sec.chords[s.index];
                     const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
                     const chordUseFlats = useFlatsForChordRoot(NOTES.indexOf(data.root), NOTES.indexOf(gRoot), gMode, useFlats);
@@ -5985,7 +5990,14 @@ class HarmoHubApp {
                     // que le numéro de mesure + le symbole : plus de 2e ligne optionnelle dedans, donc
                     // plus plus de hauteurs incohérentes d'une case à l'autre sur la même ligne (retour
                     // utilisateur).
-                    gridInner += `<div class="print-chord-wrap" style="flex-grow:${s.span};">
+                    // Largeur en % EXACTE du nombre de temps (voir rowBeatsUsed plus haut), pas du
+                    // flex-grow : gap/largeur mini éventuels sur .print-chord-wrap ne réduisent alors
+                    // plus l'espace dispo pour la répartition, contrairement au flex-grow d'avant, qui
+                    // pouvait légèrement désaligner les cases par rapport à la règle graduée en dessous
+                    // (elle, sans gap ni largeur mini) — retour utilisateur, la règle doit coller
+                    // PARFAITEMENT à la largeur des cases.
+                    const wPct = (s.span / rowBeatsUsed * 100).toFixed(4);
+                    gridInner += `<div class="print-chord-wrap" style="width:${wPct}%;">
                         <div class="print-chord-above">${aboveHtml}</div>
                         <div class="print-chord-cell">
                             ${measureEl}
@@ -6000,10 +6012,11 @@ class HarmoHubApp {
                 // la grille) : une grande graduation numérotée par mesure, des petites entre les temps —
                 // recalculée indépendamment de la découpe en cases (un accord peut chevaucher plusieurs
                 // mesures dans une même case, voir innerBars plus haut dans layoutProgression) plutôt que
-                // dérivée des segments eux-mêmes, bien plus simple et fiable ici. Un segment flex par
-                // mesure (comme les cases plus haut), jamais de gap entre eux : la règle doit rester une
-                // ligne continue, contrairement aux cases qui, elles, se distinguent visuellement.
-                const rowBeatsUsed = cells.filter(c => c.row === r).reduce((sum, c) => sum + c.span, 0);
+                // dérivée des segments eux-mêmes, bien plus simple et fiable ici. MÊME dénominateur
+                // (rowBeatsUsed) et MÊME mécanique de largeur (% explicite, pas flex-grow) que les cases
+                // juste au-dessus : les deux lignes doivent s'aligner au pixel près, ce que flex-grow ne
+                // garantissait pas dès que les deux conteneurs n'avaient pas exactement le même espace
+                // disponible (gap/largeur mini des cases, absents ici).
                 const firstBarNumber = Math.floor(r * beatsPerRow / beatsPerBar) + 1;
                 const numBars = Math.ceil(rowBeatsUsed / beatsPerBar);
                 gridInner += `<div class="print-measure-ruler">`;
@@ -6015,7 +6028,8 @@ class HarmoHubApp {
                         ticks += `<span class="ruler-tick" style="left:${(b / barBeats) * 100}%"></span>`;
                     }
                     if (isLastBar) ticks += `<span class="ruler-tick ruler-tick-major" style="left:100%"></span>`;
-                    gridInner += `<div class="ruler-bar" style="flex-grow:${barBeats};">${ticks}<span class="ruler-num">${firstBarNumber + bi}</span></div>`;
+                    const barPct = (barBeats / rowBeatsUsed * 100).toFixed(4);
+                    gridInner += `<div class="ruler-bar" style="width:${barPct}%;">${ticks}<span class="ruler-num">${firstBarNumber + bi}</span></div>`;
                 }
                 gridInner += `</div>`;
             }
