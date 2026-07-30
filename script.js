@@ -2306,12 +2306,14 @@ class HarmoHubApp {
         document.getElementById('song-select').onchange = (e) => this.onSongSelectChange(e.target.value);
         document.getElementById('song-new').onclick = () => this.openNewSongModal();
         document.getElementById('song-save').onclick = () => this.saveCurrentSong();
+        document.getElementById('song-rename').onclick = () => this.startInlineRenameSongMain();
 
         // Renommer le morceau ouvert : double-clic (souris) / double-tap (doigt) directement sur son
-        // titre, plutôt qu'un bouton dédié séparé. Détection manuelle par minuterie sur `pointerdown`
-        // (comme le double-tap d'édition de la grille, voir onGridPointerUp) plutôt que l'événement
-        // natif `dblclick` : sur un <select>, le SECOND appui ouvrirait sinon son menu déroulant natif
-        // avant qu'un dblclick ne puisse être détecté — preventDefault() dès CE pointerdown l'empêche.
+        // titre fait la même chose que le bouton crayon ci-dessus — geste raccourci en plus du bouton,
+        // pas à sa place. Détection manuelle par minuterie sur `pointerdown` (comme le double-tap
+        // d'édition de la grille, voir onGridPointerUp) plutôt que l'événement natif `dblclick` : sur
+        // un <select>, le SECOND appui ouvrirait sinon son menu déroulant natif avant qu'un dblclick ne
+        // puisse être détecté — preventDefault() dès CE pointerdown l'empêche.
         let lastSongTitleTap = 0;
         document.getElementById('song-select').addEventListener('pointerdown', (e) => {
             const now = Date.now();
@@ -4886,9 +4888,9 @@ class HarmoHubApp {
         });
     }
 
-    // Renomme EN PLACE (même id) le morceau actuellement ouvert — double-clic/double-tap sur son
-    // titre (voir wiring dans setupEventListeners), à la place de l'ancien bouton dédié « Enregistrer
-    // sous... ». Ne fait rien si rien n'est encore enregistré : pas de nom à changer, il faut d'abord
+    // Renomme EN PLACE (même id) le morceau actuellement ouvert — bouton crayon #song-rename ou
+    // double-clic/double-tap sur son titre (voir wiring dans setupEventListeners), les deux mènent ici.
+    // Ne fait rien si rien n'est encore enregistré : pas de nom à changer, il faut d'abord
     // « Enregistrer » une première fois (voir saveCurrentAsSong).
     startInlineRenameSongMain() {
         const id = getCurrentSongId();

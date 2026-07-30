@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202607311200">
+    <link rel="stylesheet" href="style.css?v=202607311300">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -353,18 +353,23 @@
                 </button>
             </div>
             <div class="panel-controls">
-                <!-- En premier (retour utilisateur) : identité du morceau ouvert (titre/Enregistrer) et
-                     tempo AVANT de commencer à éditer un accord précis — plus logique que de le
-                     découvrir après coup, en bas du panneau. Tonalité/mode/signature/groove/transpose,
-                     eux, ont déménagé dans Paramètres > Config. (voir #settings-panel-config). -->
+                <!-- En premier (retour utilisateur) : juste l'identité du morceau ouvert (nom/renommer/
+                     nouveau/enregistrer), visible dans TOUS les onglets du volet (Ajout/Modif/Config).
+                     Le tempo/métronome et tonalité/mode/signature/groove/transpose, eux, ne sont gérés
+                     que dans l'onglet Config. (#config-card) — retour utilisateur : pas d'options de
+                     métronome ailleurs que là où on les configure. -->
                 <section class="control-card" id="song-card">
                     <div class="card-head">
                         <h2>Morceau</h2>
-                        <!-- Double-clic/double-tap : renomme le morceau ouvert en place, voir
-                             startInlineRenameSongMain (script.js) — remplace l'ancien bouton dédié.
-                             Pleine largeur, sur sa propre ligne SOUS le titre "Morceau". -->
+                        <!-- Double-clic/double-tap sur le nom fait la même chose que le bouton crayon
+                             ci-dessous (voir startInlineRenameSongMain, script.js) : deux façons d'accéder
+                             au même renommage en place, le bouton rendant le geste visible/découvrable
+                             (retour utilisateur : le double-clic seul était trop caché). -->
                         <select id="song-select" class="compact song-select-full" title="Double-cliquer pour renommer"></select>
                         <div class="card-head-actions">
+                            <button type="button" id="song-rename" class="icon-btn" title="Renommer le morceau" aria-label="Renommer le morceau">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                            </button>
                             <button type="button" id="song-new" class="icon-btn" title="Nouveau morceau" aria-label="Nouveau morceau">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                             </button>
@@ -372,6 +377,17 @@
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
                             </button>
                         </div>
+                    </div>
+                </section>
+                <!-- Tonalité/mode, signature rythmique, groove et transpose du morceau ouvert : réglages
+                     fixés une bonne fois pour toutes puis rarement retouchés, plutôt qu'un mode
+                     d'INTERACTION comme Ajout/Modif. — troisième onglet dédié dans le bandeau
+                     (#app-mode-config), pas dans les Paramètres (retour utilisateur). Visible
+                     uniquement quand ce troisième onglet est actif (voir setLeftPanelTab dans
+                     script.js), qui masque alors Accord/Lecture à la place. -->
+                <section class="control-card" id="config-card" hidden>
+                    <div class="card-head">
+                        <h2>Configuration</h2>
                     </div>
                     <div class="bpm-group">
                         <div class="bpm-head">
@@ -397,17 +413,6 @@
                             </div>
                         </div>
                         <input type="range" id="bpm" min="60" max="240" value="120">
-                    </div>
-                </section>
-                <!-- Tonalité/mode, signature rythmique, groove et transpose du morceau ouvert : réglages
-                     fixés une bonne fois pour toutes puis rarement retouchés, plutôt qu'un mode
-                     d'INTERACTION comme Ajout/Modif. — troisième onglet dédié dans le bandeau
-                     (#app-mode-config), pas dans les Paramètres (retour utilisateur). Visible
-                     uniquement quand ce troisième onglet est actif (voir setLeftPanelTab dans
-                     script.js), qui masque alors Accord/Lecture à la place. -->
-                <section class="control-card" id="config-card" hidden>
-                    <div class="card-head">
-                        <h2>Configuration</h2>
                     </div>
                     <div class="song-row">
                         <select id="global-root" class="compact song-select-narrow" title="Tonalité">
@@ -828,6 +833,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202607311200"></script>
+    <script src="script.js?v=202607311300"></script>
 </body>
 </html>
