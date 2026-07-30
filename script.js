@@ -6736,6 +6736,10 @@ class HarmoHubApp {
             if (this.appMode === 'edit') {
                 this._lastTap = null;
                 this.editChord(d.section, d.index);
+                // Comme un clic en mode Ajout (voir selectChord) : fait entendre l'accord chargé — sans
+                // ça, éditer en mode Modification restait muet (retour utilisateur : "la lecture ne
+                // marche plus", en fait chaque clic éditait au lieu d'écouter, jamais silencieux avant).
+                if (this.autoplaySelect) this.playCurrent();
                 return;
             }
             const now = Date.now();
@@ -6743,6 +6747,7 @@ class HarmoHubApp {
             if (isSecondTap) {
                 this._lastTap = null;
                 this.editChord(d.section, d.index); // double-clic/double-tap = modifier
+                if (this.autoplaySelect) this.playCurrent(); // même retour audio qu'un simple clic (voir ci-dessus)
             } else {
                 this._lastTap = { section: d.section, index: d.index, time: now };
                 this.selectChord(d.section, d.index); // simple tap/clic = écouter
