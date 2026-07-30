@@ -393,6 +393,17 @@ body.body-scroll-locked { overflow: hidden !important; }
    retombait à pan-y seul — le glissé horizontal au doigt semblait alors ne plus répondre du tout
    (retour utilisateur), bien que le défilement reste possible à la souris/molette. */
 .seq-scroll.seq-scroll-continuous { touch-action: pan-x pan-y; }
+/* Échelle de notes/octaves COLLÉE à gauche pendant le défilement horizontal du mode continu (retour
+   utilisateur : repère perdu de vue en glissant une note loin à droite) — un fond opaque (même que
+   .grid-zoom-pinned-seq, seul parent qui compte ici) évite que les cases défilantes ne transparaissent
+   derrière. Sans effet ailleurs (séquenceur compact/paginé) : là, tout tient déjà dans la largeur,
+   rien à faire défiler ni donc à fixer. */
+.seq-scroll-continuous .seq-label {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--card-bg);
+}
 
 /* Case de CONTEXTE (rythme réel d'un accord voisin, lecture seule — voir renderSequencer, mode
    continu) : jamais .seq-cell, qui déclencherait le glissé d'édition (voir onSeqPointerDown) — un

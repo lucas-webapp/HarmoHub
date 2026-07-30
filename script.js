@@ -2387,6 +2387,11 @@ class HarmoHubApp {
             if (e.target.id === 'new-song-modal') document.getElementById('new-song-cancel').click();
         });
 
+        // Choix export MIDI (voir chooseMidiExportMode) : clic sur le fond = Annuler, même principe.
+        document.getElementById('midi-export-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'midi-export-modal' && this._midiExportModalCancel) this._midiExportModalCancel();
+        });
+
         // Vue agrandie du séquenceur (voir openSeqZoom/closeSeqZoom) : ne fait que déplacer
         // #arp-sequencer dans une fenêtre plus grande, jamais le dupliquer.
         document.getElementById('seq-zoom').onclick = () => this.openSeqZoom();
@@ -4668,13 +4673,39 @@ class HarmoHubApp {
         });
     }
 
+    // Regroupé par dossier via <optgroup> (retour utilisateur : pouvoir naviguer entre plusieurs
+    // dossiers de morceaux) — un SEUL menu déroulant reste suffisant tant qu'on ne travaille pas sur
+    // des dizaines de morceaux à la fois (retour utilisateur), plutôt qu'une UI de navigation à
+    // plusieurs niveaux. <optgroup> inutile (liste plate comme avant) si aucun dossier n'est utilisé.
     refreshSongList() {
         const select = document.getElementById('song-select');
         if (!select) return;
-        const songs = loadSongs().slice().sort((a, b) => b.savedAt - a.savedAt);
+        const songs = loadSongs();
         const currentId = getCurrentSongId();
-        select.innerHTML = `<option value="">— Non enregistré —</option>` +
-            songs.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+        const sortRecent = (arr) => arr.slice().sort((a, b) => b.savedAt - a.savedAt);
+
+        const folderNames = loadFolders().slice().sort((a, b) => a.localeCompare(b, 'fr'));
+        const knownNames = new Set(folderNames);
+        // Dossier référencé par un morceau mais absent du registre (cas limite, ex. import) : regroupé
+        // quand même plutôt que silencieusement mélangé à "Sans dossier".
+        const strayNames = [...new Set(songs.map(s => s.folder).filter(f => f && !knownNames.has(f)))].sort((a, b) => a.localeCompare(b, 'fr'));
+        const grouped = [...folderNames, ...strayNames]
+            .map(name => ({ name, songs: songs.filter(s => s.folder === name) }))
+            .filter(g => g.songs.length > 0);
+        const noFolder = songs.filter(s => !s.folder);
+
+        let html = `<option value="">— Non enregistré —</option>`;
+        if (grouped.length > 0) {
+            grouped.forEach(g => {
+                html += `<optgroup label="${escapeHtml(g.name)}">${sortRecent(g.songs).map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</optgroup>`;
+            });
+            if (noFolder.length) {
+                html += `<optgroup label="Sans dossier">${sortRecent(noFolder).map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</optgroup>`;
+            }
+        } else {
+            html += sortRecent(songs).map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+        }
+        select.innerHTML = html;
         select.value = currentId || '';
         document.getElementById('song-save').title = 'Enregistrer (Ctrl+S)';
     }
@@ -6167,7 +6198,9 @@ class HarmoHubApp {
     // de regroupement des croches liées en une note tenue que schedulePlayback) : ce qu'on entend
     // dans l'appli est ce qui se retrouve dans le fichier, sans le décompte ni le métronome (propres
     // à l'écoute in-app, pas au morceau lui-même).
-    buildMidiFile() {
+    // `sectionsOverride` (optionnel) : construit le fichier pour CES parties précises (repart d'une
+    // timeline à 0), au lieu du morceau entier — voir exportMidi, export « un fichier par partie ».
+    buildMidiFile(sectionsOverride) {
         const bpm = parseInt(document.getElementById('bpm').value) || 120;
         const [numerator, denominator] = (document.getElementById('time-sig').value || '4/4').split('/').map(Number);
         const ticksPerStep = MIDI_PPQ / SEQ_STEPS_PER_BEAT;
@@ -6196,8 +6229,14 @@ class HarmoHubApp {
         };
 
         let tick = 0;
-        loadProgressionSections().forEach(sec => {
-            if (sec.title && sec.title.trim()) meta.push(tick, midiTextEvent(0x06, sec.title.trim()));
+        const sections = sectionsOverride || loadProgressionSections();
+        sections.forEach((sec, si) => {
+            // Marqueur MIDI (type 0x06) à CHAQUE partie, même sans titre (repli "Partie N", comme
+            // l'export PDF) — avant, une partie sans titre n'avait aucun marqueur du tout, alors que
+            // c'est justement ce repère qui permet de couper/naviguer par partie dans un DAW (retour
+            // utilisateur), qu'elle soit nommée ou non.
+            const title = (sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${si + 1}`;
+            meta.push(tick, midiTextEvent(0x06, title));
             sec.chords.forEach(data => {
                 const beats = beatsFromData(data);
                 const chord = new Chord(data.root, data.quality, beats, data.inversion, data.drop, octaveFromData(data), data.bass, null, data.extraNotes);
@@ -6242,24 +6281,69 @@ class HarmoHubApp {
         return new Uint8Array(bytes);
     }
 
-    // Bouton à côté de l'export PDF : télécharge le morceau entier en .mid, prêt à être importé
-    // dans un DAW (GarageBand...) pour en changer les sons ou retravailler le séquenceur.
-    exportMidi() {
-        if (!getCurrentSongId()) {
-            this.saveCurrentAsSong('Nomme d\'abord ton morceau pour exporter le MIDI');
-            if (!getCurrentSongId()) return; // enregistrement annulé -> pas d'export
-        }
-        const bytes = this.buildMidiFile();
+    // Télécharge des octets .mid déjà construits sous `filename` — factorisé pour l'export simple ET
+    // l'export par partie (voir exportMidi).
+    downloadMidiBytes(bytes, filename) {
         const blob = new Blob([bytes], { type: 'audio/midi' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${this.getCurrentSongName().replace(/[\\/:*?"<>|]+/g, '_')}.mid`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        this.flashHint('MIDI téléchargé → dossier Téléchargements', 2400);
+    }
+
+    // Boîte "Un seul fichier / Un fichier par partie" (voir #midi-export-modal) : résout à false (un
+    // seul fichier), true (un par partie), ou null (annulé, clic dehors/Échap compris).
+    chooseMidiExportMode() {
+        const overlay = document.getElementById('midi-export-modal');
+        overlay.hidden = false;
+        return new Promise((resolve) => {
+            const close = (result) => {
+                overlay.hidden = true;
+                this._midiExportModalCancel = null;
+                resolve(result);
+            };
+            this._midiExportModalCancel = () => close(null);
+            document.getElementById('midi-export-single').onclick = () => close(false);
+            document.getElementById('midi-export-persection').onclick = () => close(true);
+            document.getElementById('midi-export-cancel').onclick = () => close(null);
+        });
+    }
+
+    // Bouton à côté de l'export PDF : télécharge le morceau en .mid, prêt à être importé dans un DAW
+    // (GarageBand...) pour en changer les sons ou retravailler le séquenceur. Un seul fichier
+    // directement s'il n'y a qu'une seule partie ; sinon demande d'abord si on préfère un fichier PAR
+    // partie (chacune sa propre timeline à 0) plutôt que le morceau entier d'un bloc — retour
+    // utilisateur : un standard .mid ne permet pas de vraies coupures gérables indépendamment DANS un
+    // seul fichier (seulement des marqueurs de repère, voir buildMidiFile), donc pas d'autre choix que
+    // plusieurs fichiers pour un DAW qui doit gérer chaque partie séparément sans les redécouper.
+    async exportMidi() {
+        if (!getCurrentSongId()) {
+            this.saveCurrentAsSong('Nomme d\'abord ton morceau pour exporter le MIDI');
+            if (!getCurrentSongId()) return; // enregistrement annulé -> pas d'export
+        }
+        const sections = loadProgressionSections();
+        const perSection = sections.length > 1 ? await this.chooseMidiExportMode() : false;
+        if (perSection == null) return; // annulé
+
+        const songName = this.getCurrentSongName().replace(/[\\/:*?"<>|]+/g, '_');
+        if (!perSection) {
+            this.downloadMidiBytes(this.buildMidiFile(), `${songName}.mid`);
+            this.flashHint('MIDI téléchargé → dossier Téléchargements', 2400);
+            return;
+        }
+        // Téléchargements décalés d'un petit délai (retour navigateur : plusieurs déclenchés d'un
+        // coup peuvent être bloqués/regroupés) — largement assez pour les laisser tous passer.
+        sections.forEach((sec, si) => {
+            const title = (sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${si + 1}`;
+            setTimeout(() => {
+                this.downloadMidiBytes(this.buildMidiFile([sec]), `${songName} - ${title.replace(/[\\/:*?"<>|]+/g, '_')}.mid`);
+            }, si * 200);
+        });
+        this.flashHint(`${sections.length} fichiers MIDI téléchargés → dossier Téléchargements`, 2400);
     }
 
     // ---------- Export audio (.mp3, encodage LAME embarqué — voir lame.min.js) ----------
@@ -9817,6 +9901,7 @@ class HarmoHubApp {
             if (e.key === 'Escape' && !document.getElementById('backup-scope-menu').hidden) { this.closeBackupScopeMenu(); return; }
             if (e.key === 'Escape' && !document.getElementById('quick-add-help').hidden) { this.closeQuickAddHelp(); return; }
             if (e.key === 'Escape' && !document.getElementById('unsaved-modal').hidden) { if (this._unsavedModalCancel) this._unsavedModalCancel(); return; }
+            if (e.key === 'Escape' && !document.getElementById('midi-export-modal').hidden) { if (this._midiExportModalCancel) this._midiExportModalCancel(); return; }
             if (e.key === 'Escape' && !document.getElementById('duration-dd-menu').hidden) { this.closeDurationMenu(); return; }
             if (e.key === 'Escape' && !document.getElementById('playstyle-dd-menu').hidden) { this.closePlayStyleMenu(); return; }
             if (e.key === 'Escape' && this.seqTapPhase) { this.cancelTapRecording(); return; }

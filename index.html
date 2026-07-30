@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202607311800">
+    <link rel="stylesheet" href="style.css?v=202607311900">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -157,6 +157,28 @@
                             <button type="button" id="new-song-create" class="btn-blue">Créer</button>
                             <button type="button" id="new-song-cancel" class="btn-sec">Annuler</button>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Choix avant export MIDI (voir exportMidi/chooseMidiExportMode) : un seul fichier (comme
+         avant) ou un fichier PAR partie, chacun sa propre timeline à 0 — proposé seulement s'il y a
+         plusieurs parties (retour utilisateur : gérer chaque partie indépendamment dans un DAW sans
+         avoir à les redécouper soi-même après import). -->
+    <div id="midi-export-modal" class="settings-overlay" hidden>
+        <div class="settings-modal unsaved-modal" role="alertdialog" aria-modal="true" aria-labelledby="midi-export-modal-title">
+            <div class="settings-header">
+                <h2 id="midi-export-modal-title">Exporter en MIDI</h2>
+            </div>
+            <div class="settings-body">
+                <div class="settings-content unsaved-modal-body">
+                    <p>Ce morceau a plusieurs parties : un seul fichier MIDI, ou un fichier par partie (chacune sur sa propre timeline, pour les gérer indépendamment dans ton logiciel de musique) ?</p>
+                    <div class="unsaved-modal-actions">
+                        <button type="button" id="midi-export-single" class="btn-blue">Un seul fichier</button>
+                        <button type="button" id="midi-export-persection" class="btn-sec">Un fichier par partie</button>
+                        <button type="button" id="midi-export-cancel" class="btn-sec">Annuler</button>
                     </div>
                 </div>
             </div>
@@ -834,6 +856,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202607311800"></script>
+    <script src="script.js?v=202607311900"></script>
 </body>
 </html>
