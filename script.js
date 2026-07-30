@@ -6797,7 +6797,13 @@ class HarmoHubApp {
         const d = this.drag;
         if (!d) return;
         const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
-        if (!d.moved && Math.hypot(dx, dy) < 6) return; // seuil : distinguer tap et glisser
+        // Seuil distinguant tap et glisser : plus généreux pour un Ctrl/Cmd+clic (d.copy déjà posé au
+        // clic, voir onGridPointerDown) qu'un clic normal — retour utilisateur : un Ctrl+clic voulu
+        // pour la sélection multiple (voir toggleGridMultiSelect) basculait trop facilement en
+        // Ctrl+glisser-copie au moindre tremblement, insérant une copie non voulue au lieu de
+        // simplement sélectionner. Un vrai Ctrl+glisser-copie délibéré, lui, dépasse largement 18px.
+        const threshold = d.copy ? 18 : 10;
+        if (!d.moved && Math.hypot(dx, dy) < threshold) return;
 
         if (d.menuShown) {
             // Le menu contextuel s'est ouvert PENDANT cet appui (voir openContextMenu) mais le doigt
@@ -7307,7 +7313,9 @@ class HarmoHubApp {
         const d = this.loopRangeDrag;
         if (!d) return;
         const start = this.loopRangeDragStart;
-        if (!d.moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 6) return; // seuil : distingue un tap d'un glisser
+        // Même seuil que la grille (voir onGridPointerMove) : 6px était trop sensible au moindre
+        // tremblement, transformant un tap voulu (supprimer/attraper la bande) en un début de glisser.
+        if (!d.moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 10) return;
         d.moved = true;
 
         // Le pointeur peut maintenant survoler N'IMPORTE QUELLE grille (glisser d'une partie à une
@@ -7840,7 +7848,7 @@ class HarmoHubApp {
         // de voix ; horizontale = comportement habituel — décidé une seule fois pour tout le geste.
         if (d.wasOn && !d.multi && !d.gestureDecided) {
             const dx0 = e.clientX - d.startX, dy0 = e.clientY - d.startY;
-            if (Math.hypot(dx0, dy0) < 8) return;
+            if (Math.hypot(dx0, dy0) < 10) return;
             d.gestureDecided = true;
             if (Math.abs(dy0) > Math.abs(dx0)) this.beginSeqVoiceDrag(d);
         }
@@ -7864,7 +7872,7 @@ class HarmoHubApp {
         // sélectionner/Ctrl+sélectionner (peindre une note neuve, elle, part toujours d'une case vide).
         if (!d.crossedThreshold) {
             const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
-            if (Math.hypot(dx, dy) < 8) return;
+            if (Math.hypot(dx, dy) < 10) return;
             d.crossedThreshold = true;
         }
 
@@ -7913,7 +7921,7 @@ class HarmoHubApp {
         // comme une intention de modifier. Tant que ce seuil n'est pas franchi, on ne touche à rien.
         if (!d.crossedThreshold) {
             const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
-            if (Math.hypot(dx, dy) < 8) return;
+            if (Math.hypot(dx, dy) < 10) return;
             d.crossedThreshold = true;
         }
 
@@ -8005,7 +8013,7 @@ class HarmoHubApp {
     onSeqMultiDragMove(e, d) {
         if (!d.crossedThreshold) {
             const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
-            if (Math.hypot(dx, dy) < 8) return;
+            if (Math.hypot(dx, dy) < 10) return;
             d.crossedThreshold = true;
         }
 
