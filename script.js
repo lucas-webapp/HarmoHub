@@ -1661,6 +1661,10 @@ const SHOW_GRID_VOICING_KEY = 'harmohubShowGridVoicing';
 // Notation octave/renversement/drop au-dessus de chaque case (voir Chord.getVoicingBadge) — remplace
 // l'ancienne flèche de sens mélodique ▲/▼ (retour utilisateur), dont le réglage a été retiré.
 const SHOW_VOICING_PDF_KEY = 'harmohubShowVoicingPdf';
+// Fonction harmonique (Tonique/Sous-dominante/Dominante, voir chordFunction) au-dessus de chaque
+// accord — désactivée par défaut (contrairement aux autres badges ci-dessus) : fonctionnalité
+// nouvelle/analytique, pas encore un réflexe attendu par défaut comme les degrés ou l'octave.
+const SHOW_CHORD_FUNCTION_KEY = 'harmohubShowChordFunction';
 // Échelles horizontale/verticale INDÉPENDANTES des modes loupe (grille/séquenceur) : remplace
 // l'ancien niveau de zoom unique (une seule clé harmohubSeqZoomLevel/harmohubGridZoomLevel) — une
 // valeur toujours reprise comme repli pour les deux axes si trouvée (session précédente), pour ne
@@ -1906,6 +1910,9 @@ class HarmoHubApp {
         // dernier reprenant toujours ce qui est affiché à l'écran plutôt qu'un réglage à part (voir
         // loadProgression et buildPrintExportHtml).
         this.showRomanNumerals = localStorage.getItem(SHOW_ROMAN_KEY) !== '0';
+        // Fonction harmonique (T/SD/D, voir chordFunction) partageant la même ligne que le chiffrage
+        // romain — DÉSACTIVÉE par défaut (voir SHOW_CHORD_FUNCTION_KEY), contrairement à celui-ci.
+        this.showChordFunction = localStorage.getItem(SHOW_CHORD_FUNCTION_KEY) === '1';
 
         // Octave / renversement-drop sous chaque accord de la grille (voir .cell-meta,
         // gridVoicingParts) — remplace l'ancienne icône de style de jeu (retour utilisateur :
@@ -4113,6 +4120,47 @@ class HarmoHubApp {
         return numeral;
     }
 
+    // Fonction harmonique (Tonique/Sous-dominante/Dominante) d'un accord, affichée UNIQUEMENT quand
+    // elle est admise sans grande controverse en harmonie fonctionnelle — jamais forcée sur les degrés
+    // où les théoriciens eux-mêmes divergent (retour utilisateur : mieux vaut une zone grise honnête
+    // qu'une étiquette fausse qui a l'air sûre d'elle). Renvoie 'T'/'SD'/'D', ou null (zone grise) :
+    //   - un accord chromatique/emprunté SANS être une dominante secondaire reconnue (fonction alors
+    //     sans ambiguïté : préparer le degré qu'elle tonicise, MÊME MOTIF de détection que
+    //     getRomanNumeral/DOMINANT_SUFFIX ci-dessus, exclu ici en plus sur le Ier degré : un accord de
+    //     dominante posé sur la tonique elle-même — ex. "I7" en blues — est trop dépendant du style/
+    //     genre pour être tranché ici, contrairement à une vraie dominante secondaire) ;
+    //   - le degré iii, dont la fonction (tonique OU dominante affaiblie, selon les auteurs — accord
+    //     partagé à 2 notes avec chacun des deux) est un cas d'école de désaccord théorique documenté
+    //     (Piston, Aldwell/Schachter) ;
+    //   - le degré vi/VI, dont le traitement (substitut de tonique, ou pré-dominante dans certaines
+    //     lectures) varie lui aussi selon les auteurs ;
+    //   - en mode mineur naturel (this.MODE_SCALES.min, sans sensible remontée), le VIIe degré est une
+    //     SOUS-TONIQUE (bVII, accord majeur un ton sous la tonique) — pas le même accord ni la même
+    //     fonction que le vii° (sensible diminuée) du mode majeur, donc PAS un substitut de dominante
+    //     fiable ici (contrairement au mode majeur).
+    chordFunction(globalRoot, globalMode, chordRoot, chordQuality) {
+        const scale = MODE_SCALES[globalMode] || MODE_SCALES.maj;
+        const diff = (NOTES.indexOf(chordRoot) - NOTES.indexOf(globalRoot) + 12) % 12;
+
+        const DOMINANT_QUALITIES = new Set(['dom7', 'dom9', 'dom11', 'dom13']);
+        if (DOMINANT_QUALITIES.has(chordQuality) && diff !== 7) {
+            // Un accord de dominante posé SUR la tonique elle-même (ex. "I7" en blues) : trop dépendant
+            // du style pour trancher ici (zone grise), sans retomber sur la case "Tonique" ci-dessous
+            // juste parce que sa fondamentale coïncide avec le degré I — voir le commentaire de tête.
+            if (diff === 0) return null;
+            const targetDiff = (diff + 5) % 12; // quarte au-dessus = la tonique que cible cette dominante
+            if (scale.includes(targetDiff)) return 'D';
+        }
+
+        const degree = scale.indexOf(diff);
+        if (degree === -1) return null; // chromatique, sans être une dominante secondaire reconnue
+        if (degree === 0) return 'T';                                    // I / i
+        if (degree === 1 || degree === 3) return 'SD';                   // ii(°) / IV, iv
+        if (degree === 4) return 'D';                                    // V (dominante par définition)
+        if (degree === 6 && globalMode === 'maj') return 'D';            // vii° (sensible), majeur seulement
+        return null;                                                     // iii, vi/VI, bVII en mineur : zone grise
+    }
+
     // Découpe la progression en segments (un accord peut être scindé sur plusieurs lignes).
     // barStart se calcule sur la position ABSOLUE (avant repli en lignes), pour que les barres de
     // mesure tombent au bon endroit même quand une ligne ne fait pas un multiple de la mesure.
@@ -4199,9 +4247,13 @@ class HarmoHubApp {
                 // traduisent this.row en ligne CSS partout plus bas dans ce bloc (cellules d'accord,
                 // chiffrage romain, numéros de mesure, plage de boucle, case "+").
                 const showRoman = this.showRomanNumerals;
-                const rowsPerGroup = showRoman ? 3 : 2;
-                const chordRowOffset = showRoman ? 2 : 1;
-                const rowTemplate = showRoman
+                const showFunction = this.showChordFunction;
+                // Degrés et fonction harmonique partagent la MÊME ligne dédiée (voir plus bas) : une
+                // ligne de plus à réserver dès que l'UN des deux est actif, pas une par réglage.
+                const showExtraRow = showRoman || showFunction;
+                const rowsPerGroup = showExtraRow ? 3 : 2;
+                const chordRowOffset = showExtraRow ? 2 : 1;
+                const rowTemplate = showExtraRow
                     ? 'var(--roman-row-h) var(--row-h) var(--measure-row-h)'
                     : 'var(--row-h) var(--measure-row-h)';
                 gridStyle = `grid-template-rows: repeat(${rows}, ${rowTemplate}); grid-template-columns: repeat(${beatsPerRow}, 1fr);`;
@@ -4276,11 +4328,20 @@ class HarmoHubApp {
                         ${resizeLeftEl}
                         ${resizeRightEl}
                     </div>`;
-                }).join('') + (showRoman ? cells.filter(s => s.isFirst).map(s => {
+                }).join('') + (showExtraRow ? cells.filter(s => s.isFirst).map(s => {
                     const h = history[s.index];
-                    const roman = this.getRomanNumeral(gRoot, gMode, h.root, h.quality);
+                    const romanPart = showRoman ? this.getRomanNumeral(gRoot, gMode, h.root, h.quality) : '';
+                    // Fonction harmonique (voir chordFunction) : "?" en zone grise plutôt que rien du
+                    // tout, pour qu'on comprenne qu'elle a bien été examinée mais jugée peu fiable ici
+                    // (retour utilisateur), pas simplement oubliée.
+                    let funcPart = '';
+                    if (showFunction) {
+                        const fn = this.chordFunction(gRoot, gMode, h.root, h.quality);
+                        funcPart = `<span class="row-function${fn ? ' fn-' + fn.toLowerCase() : ' fn-unknown'}" title="${fn ? 'Fonction harmonique' : 'Fonction harmonique incertaine (accord chromatique/degré ambigu)'}">${fn || '?'}</span>`;
+                    }
+                    const sep = (romanPart && funcPart) ? '<span class="row-extra-sep">·</span>' : '';
                     return `
-                    <div class="row-roman" style="grid-column: ${s.col + 1} / span ${s.span}; grid-row: ${s.row * rowsPerGroup + 1};">${roman}</div>`;
+                    <div class="row-roman" style="grid-column: ${s.col + 1} / span ${s.span}; grid-row: ${s.row * rowsPerGroup + 1};">${romanPart}${sep}${funcPart}</div>`;
                 }).join('') : '') + cells.filter(s => s.barStart).map(s => `
                     <div class="row-measure" style="grid-column: ${s.col + 1} / span 1; grid-row: ${s.row * rowsPerGroup + rowsPerGroup};">${s.barNumber}</div>`
                 ).join('') + cells.flatMap(s => s.innerBars.map(ib => `
@@ -5180,6 +5241,12 @@ class HarmoHubApp {
                 </button>
             </div>
             <div class="settings-toggle-row">
+                <label for="toggle-show-function" title="Fonction harmonique (Tonique/Sous-dominante/Dominante) dans la grille et le PDF — affichée seulement quand elle est fiable, un « ? » sinon (voir chordFunction)">Fonction harmonique</label>
+                <button type="button" id="toggle-show-function" class="switch" role="switch" aria-checked="${this.showChordFunction}" aria-label="Fonction harmonique dans la grille et le PDF">
+                    <span class="switch-thumb"></span>
+                </button>
+            </div>
+            <div class="settings-toggle-row">
                 <label for="toggle-show-grid-octave" title="Octave (ex. O3) sous chaque accord de la grille">Octave</label>
                 <button type="button" id="toggle-show-grid-octave" class="switch" role="switch" aria-checked="${this.showGridOctave}" aria-label="Octave sous chaque accord de la grille">
                     <span class="switch-thumb"></span>
@@ -5203,6 +5270,7 @@ class HarmoHubApp {
             if (help.hidden) this.openQuickAddHelp(e.currentTarget); else this.closeQuickAddHelp();
         };
         document.getElementById('toggle-show-roman').onclick = () => this.setShowRomanNumerals(!this.showRomanNumerals);
+        document.getElementById('toggle-show-function').onclick = () => this.setShowChordFunction(!this.showChordFunction);
         document.getElementById('toggle-show-grid-octave').onclick = () => this.setShowGridOctave(!this.showGridOctave);
         document.getElementById('toggle-show-grid-voicing').onclick = () => this.setShowGridVoicing(!this.showGridVoicing);
         document.getElementById('toggle-show-voicing-pdf').onclick = () => this.setShowVoicingPdf(!this.showVoicingPdf);
@@ -5212,6 +5280,14 @@ class HarmoHubApp {
         this.showRomanNumerals = on;
         localStorage.setItem(SHOW_ROMAN_KEY, on ? '1' : '0');
         const btn = document.getElementById('toggle-show-roman');
+        if (btn) btn.setAttribute('aria-checked', on);
+        this.loadProgression();
+    }
+
+    setShowChordFunction(on) {
+        this.showChordFunction = on;
+        localStorage.setItem(SHOW_CHORD_FUNCTION_KEY, on ? '1' : '0');
+        const btn = document.getElementById('toggle-show-function');
         if (btn) btn.setAttribute('aria-checked', on);
         this.loadProgression();
     }
@@ -6054,10 +6130,14 @@ class HarmoHubApp {
                     // supprimée, remplacée par cette notation plus informative). Même notation
                     // reprise sur la page voicings (voir plus bas), pour reconnaître le même accord.
                     const voicingBadge = (s.isFirst && this.showVoicingPdf) ? chord.getVoicingBadge() : '';
+                    // Fonction harmonique (voir chordFunction) : même réglage que la grille à l'écran
+                    // (this.showChordFunction), "?" en zone grise plutôt qu'absente sans explication.
+                    const fn = (s.isFirst && this.showChordFunction) ? this.chordFunction(gRoot, gMode, data.root, data.quality) : null;
                     const measureEl = s.barStart ? `<span class="print-chord-measure">${s.barNumber}</span>` : '';
                     const romanEl = roman ? `<span class="print-chord-roman">${roman}</span>` : '';
                     const voicingEl = voicingBadge ? `<span class="print-chord-voicing-badge">${voicingBadge}</span>` : '';
-                    const aboveParts = [romanEl, voicingEl].filter(Boolean);
+                    const functionEl = this.showChordFunction ? `<span class="print-chord-function${fn ? ' fn-' + fn.toLowerCase() : ' fn-unknown'}">${fn || '?'}</span>` : '';
+                    const aboveParts = [romanEl, voicingEl, functionEl].filter(Boolean);
                     const aboveHtml = aboveParts.join('<span class="print-chord-above-sep">·</span>');
                     // Bandeau degré/voicing AU-DESSUS de la case bordée (jamais dedans, voir
                     // .print-chord-above) — toujours présent, même vide, pour que toutes les cases
@@ -6578,15 +6658,34 @@ class HarmoHubApp {
             if (data.bass) histogram[NOTES.indexOf(data.bass)] += beats;
         });
 
+        // Second signal, INDÉPENDANT du profil de hauteurs ci-dessus : proportion des fondamentales
+        // d'accord qui appartiennent à la gamme de ce candidat (pas de leur DURÉE ni du reste de leurs
+        // notes, juste "cette fondamentale est-elle dans la gamme ?") — plus simple, mais measure autre
+        // chose (la cohérence des FONDAMENTALES jouées, pas la couleur globale des hauteurs). Sert
+        // uniquement à CONFIRMER ou nuancer le classement du profil KS (voir openKeySuggestMenu),
+        // jamais à le remplacer : les deux signaux d'accord renforcent la confiance, leur désaccord la
+        // nuance — plutôt qu'un score unique fusionné qui cacherait ce désaccord éventuel.
         const results = [];
         for (let rootPc = 0; rootPc < 12; rootPc++) {
             // Aligne l'histogramme sur CE candidat (index 0 = sa tonique) avant de corréler : les
             // profils KS sont eux-mêmes exprimés relativement à la tonique (voir leur commentaire).
             const rotated = Array.from({ length: 12 }, (_, i) => histogram[(rootPc + i) % 12]);
-            results.push({ root: NOTES[rootPc], mode: 'maj', score: pearsonCorrelation(rotated, KS_MAJOR_PROFILE) });
-            results.push({ root: NOTES[rootPc], mode: 'min', score: pearsonCorrelation(rotated, KS_MINOR_PROFILE) });
+            for (const mode of ['maj', 'min']) {
+                const scale = MODE_SCALES[mode];
+                const diatonicCount = chords.filter(c => scale.includes(((NOTES.indexOf(c.root) - rootPc) % 12 + 12) % 12)).length;
+                const profile = mode === 'maj' ? KS_MAJOR_PROFILE : KS_MINOR_PROFILE;
+                results.push({
+                    root: NOTES[rootPc], mode,
+                    score: pearsonCorrelation(rotated, profile),
+                    diatonicRatio: diatonicCount / chords.length,
+                });
+            }
         }
         results.sort((a, b) => b.score - a.score);
+        const topByDiatonic = results.reduce((best, r) => (r.diatonicRatio > best.diatonicRatio ? r : best), results[0]);
+        // "Confirmée" = les deux signaux indépendants pointent vers LA MÊME tonalité (voir plus haut) —
+        // affiché tel quel dans le popup plutôt que mélangé dans un score composite.
+        results.forEach(r => { r.confirmed = (r === results[0]) && r.root === topByDiatonic.root && r.mode === topByDiatonic.mode; });
         return results.slice(0, 5);
     }
 
@@ -6602,13 +6701,14 @@ class HarmoHubApp {
         menu.innerHTML = candidates.map(c => {
             // Coefficient de corrélation affiché tel quel (jamais rapporté au meilleur score en %) :
             // une tonalité peu marquée doit pouvoir se lire comme peu sûre, pas comme "100%" juste
-            // parce qu'elle bat les autres candidats d'un rien.
-            const score = c.score.toFixed(2);
+            // parce qu'elle bat les autres candidats d'un rien. "✓" en plus si un second signal
+            // indépendant (fondamentales diatoniques, voir suggestSongKey) confirme ce premier choix.
+            const score = c.score.toFixed(2) + (c.confirmed ? ' ✓' : '');
             // Épelé selon la convention dièses/bémols de CE candidat (pas de la tonalité actuelle du
             // morceau, encore en place tant qu'on n'a pas cliqué) : useFlatsForKey, la fonction
             // indépendante, plutôt que this.useFlatsForRoot, qui lit toujours la tonalité en cours.
             const label = `${noteNameForPc(NOTES.indexOf(c.root), useFlatsForKey(NOTES.indexOf(c.root), c.mode))} ${MODE_LABELS[c.mode]}`;
-            return `<button type="button" data-key-root="${c.root}" data-key-mode="${c.mode}">
+            return `<button type="button" data-key-root="${c.root}" data-key-mode="${c.mode}" title="${c.confirmed ? 'Confirmée par un second signal indépendant (fondamentales diatoniques)' : ''}">
                 <span class="key-suggest-label">${escapeHtml(label)}</span>
                 <span class="key-suggest-pct">${score}</span>
             </button>`;

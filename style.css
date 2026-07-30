@@ -2181,6 +2181,15 @@ button:active { transform: translateY(1px); }
     text-overflow: ellipsis;
     pointer-events: none;
 }
+.row-extra-sep { color: var(--text-muted); opacity: 0.7; margin: 0 2px; }
+/* Fonction harmonique (voir chordFunction/showChordFunction) : un code couleur par fonction plutôt
+   que la couleur unique du chiffrage romain juste avant, pour la distinguer d'un coup d'œil — jamais
+   affichée du tout si elle n'est pas fiable (zone grise), seulement un "?" neutre et en italique
+   (comme .seq-label-context, même convention "incertain" que le reste de l'appli). */
+.fn-t { color: #3fe3a0; }
+.fn-sd { color: #ffc247; }
+.fn-d { color: #ff6f66; }
+.fn-unknown { color: var(--text-muted); opacity: 0.7; font-style: italic; font-weight: 400; }
 
 /* Numéro de mesure : fine ligne dédiée juste sous chaque ligne d'accords (voir gridStyle/loadProgression,
    une ligne de grille sur deux), alignée sur le début de la mesure plutôt que posée sur l'accord lui-même. */
@@ -2950,6 +2959,18 @@ select.song-select-narrow {
     font-size: var(--fs-2xs);
     color: #bbb;
 }
+/* Fonction harmonique (voir chordFunction/showChordFunction) : mêmes teintes (adaptées à un fond
+   blanc) que la grille à l'écran (.fn-t/.fn-sd/.fn-d/.fn-unknown) — "?" en italique grise plutôt
+   qu'absente sans explication quand elle n'est pas fiable (zone grise). */
+.print-chord-function {
+    font-size: var(--fs-2xs);
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+.print-chord-function.fn-t { color: #1a8a4d; }
+.print-chord-function.fn-sd { color: #b8860b; }
+.print-chord-function.fn-d { color: #c0392b; }
+.print-chord-function.fn-unknown { color: #999; font-style: italic; font-weight: 400; }
 
 /* Hauteur minimale explicite : la case ne contient plus qu'un numéro de mesure (absolu, hors flux) et
    le symbole seul (voir plus haut, le renversement/drop est monté dans .print-chord-above) — sans ce
