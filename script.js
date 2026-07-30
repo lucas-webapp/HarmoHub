@@ -276,36 +276,35 @@ const MODE_RELATIVE_MAJOR_OFFSET = { maj: 0, dorian: 10, phrygian: 8, lydian: 7,
 const MODE_LABELS = { maj: 'majeur', min: 'mineur', dorian: 'dorien', phrygian: 'phrygien', lydian: 'lydien', mixolydian: 'mixolydien', locrian: 'locrien' };
 
 // ---------- Aide au choix de la tonalité (voir suggestSongKey) ----------
-// Famille d'accord (tierce/quinte réelles), indépendante des extensions (7e, 9e...) — sert à comparer
-// la qualité d'un accord posé à celle ATTENDUE sur un degré de gamme donné (voir diatonicTriadFamily),
-// sans avoir à énumérer chaque variante enrichie séparément.
-const QUALITY_FAMILY = {
-    maj: 'maj', maj7: 'maj', '6': 'maj', add9: 'maj', add11: 'maj', maj9: 'maj',
-    dom7: 'dom', dom9: 'dom', dom11: 'dom', dom13: 'dom',
-    min: 'min', min7: 'min', m6: 'min', m9: 'min',
-    dim: 'dim', dim7: 'dim', m7b5: 'dim',
-    aug: 'aug', sus2: 'sus', sus4: 'sus',
-};
+// Profils de Krumhansl-Kessler (Krumhansl & Kessler, 1982 — repris tel quel par music21, MuseScore...) :
+// poids relatif de chaque degré (0 = tonique, 1 = 2nde mineure au-dessus, 2 = 2nde majeure, etc.) dans
+// le sentiment de tonalité, mesurés empiriquement auprès d'auditeurs. Algorithme DE RÉFÉRENCE en
+// analyse tonale (Krumhansl-Schmuckler) — préféré à un simple décompte de fondamentales diatoniques
+// (bien plus fragile dès que les accords se compliquent, voir retour utilisateur) : ici, on corrèle la
+// forme du profil réel des hauteurs JOUÉES (toutes les notes de chaque accord — tierce/quinte/7e/9e/
+//11e/13e comprises, pas juste sa fondamentale) à celle de ces 24 profils (12 fondamentales x majeur/
+// mineur), ce qui reste valable quelle que soit la complexité des accords (dominantes secondaires,
+// extensions, altérations...) : chaque note contribue sa propre hauteur, sans règle spéciale par type
+// d'accord à écrire ou tenir à jour.
+const KS_MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
+const KS_MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
 
-// Famille d'accord (maj/min/dim/aug) obtenue en empilant deux tierces à partir du degré `degree`
-// (0-6) de la gamme `mode` (voir MODE_SCALES) — l'accord diatonique "naturel" à cette place, avant
-// tout emprunt/altération. Généralisé sur les 7 modes plutôt que codé en dur pour majeur/mineur
-// seuls : chaque mode a sa propre suite de qualités (ex. le degré V est mineur en mode mineur naturel,
-// majeur/dominant en mode majeur).
-function diatonicTriadFamily(mode, degree) {
-    const scale = MODE_SCALES[mode];
-    const d = degree % 7;
-    const root = scale[d];
-    const thirdIdx = d + 2, fifthIdx = d + 4; // jamais plus d'un tour (max 6+4=10 < 14) : un seul +12 possible
-    const thirdNote = scale[thirdIdx % 7] + (thirdIdx >= 7 ? 12 : 0);
-    const fifthNote = scale[fifthIdx % 7] + (fifthIdx >= 7 ? 12 : 0);
-    const third = ((thirdNote - root) % 12 + 12) % 12;
-    const fifth = ((fifthNote - root) % 12 + 12) % 12;
-    if (third === 4 && fifth === 7) return 'maj';
-    if (third === 3 && fifth === 7) return 'min';
-    if (third === 3 && fifth === 6) return 'dim';
-    if (third === 4 && fifth === 8) return 'aug';
-    return null;
+// Corrélation de Pearson entre deux profils de même longueur : mesure standard de similarité de FORME
+// entre deux distributions (insensible à leur échelle globale, contrairement à un simple produit
+// scalaire) — ce qui compte pour reconnaître une tonalité, c'est que les pics retombent au même
+// endroit, pas l'intensité absolue de l'un ou l'autre profil.
+function pearsonCorrelation(a, b) {
+    const n = a.length;
+    const meanA = a.reduce((s, v) => s + v, 0) / n;
+    const meanB = b.reduce((s, v) => s + v, 0) / n;
+    let num = 0, denA = 0, denB = 0;
+    for (let i = 0; i < n; i++) {
+        const da = a[i] - meanA, db = b[i] - meanB;
+        num += da * db;
+        denA += da * da;
+        denB += db * db;
+    }
+    return (denA === 0 || denB === 0) ? 0 : num / Math.sqrt(denA * denB);
 }
 
 // La relative majeure d'un mode emprunte son armure (voir MODE_RELATIVE_MAJOR_OFFSET ci-dessus)
@@ -6557,42 +6556,37 @@ class HarmoHubApp {
     }
 
     // Devine la tonalité la plus probable à partir des accords déjà posés dans TOUT le morceau (pas
-    // seulement la partie active), pour aider à choisir tonalité/mode sans avoir à le faire à
-    // l'oreille (retour utilisateur). Ne considère que majeur/mineur (les plus courants) : chaque
-    // candidat est noté sur le nombre d'accords dont la FONDAMENTALE appartient à sa gamme (le chiffre
-    // affiché, honnête et facile à comprendre) — un simple décompte de fondamentales diatoniques ne
-    // distingue pas des relatifs majeur/mineur (mêmes 7 notes, ex. Do majeur / La mineur) : un score
-    // de « qualité attendue » (voir diatonicTriadFamily) sert alors UNIQUEMENT à les départager, avec
-    // un bonus si le tout premier ou dernier accord du morceau (repère de tonique le plus fiable)
-    // correspond à la fondamentale ET à la qualité attendue du degré I/i.
+    // seulement la partie active) : algorithme de Krumhansl-Schmuckler (voir KS_MAJOR_PROFILE/
+    // KS_MINOR_PROFILE/pearsonCorrelation plus haut) — bien plus robuste qu'un simple décompte de
+    // fondamentales diatoniques dès que les accords se compliquent (retour utilisateur : accords
+    // enrichis/altérés, dominantes secondaires... courants en jazz). Construit un histogramme des 12
+    // classes de hauteur RÉELLEMENT jouées (toutes les notes de chaque accord — tierce/quinte/7e/9e/
+    // 11e/13e comprises, pas juste sa fondamentale), pondéré par la durée de chaque accord (un accord
+    // tenu 4 mesures pèse plus qu'un simple accord de passage d'un temps), puis corrèle sa FORME à
+    // celle des 24 tonalités possibles (12 fondamentales x majeur/mineur).
     suggestSongKey() {
         const chords = [];
         loadProgressionSections().forEach(sec => sec.chords.forEach(c => chords.push(c)));
         if (chords.length === 0) return [];
 
+        const histogram = new Array(12).fill(0);
+        chords.forEach(data => {
+            const beats = beatsFromData(data);
+            const rootPc = NOTES.indexOf(data.root);
+            const chord = new Chord(data.root, data.quality, beats, 0, 'none', 3, null);
+            chord.getIntervals().forEach(iv => { histogram[(rootPc + iv.semi) % 12] += beats; });
+            if (data.bass) histogram[NOTES.indexOf(data.bass)] += beats;
+        });
+
         const results = [];
         for (let rootPc = 0; rootPc < 12; rootPc++) {
-            for (const mode of ['maj', 'min']) {
-                const scale = MODE_SCALES[mode];
-                let diatonicCount = 0, tieBreak = 0;
-                chords.forEach((c, idx) => {
-                    const chordPc = NOTES.indexOf(c.root);
-                    const diff = ((chordPc - rootPc) % 12 + 12) % 12;
-                    const degree = scale.indexOf(diff);
-                    if (degree === -1) return; // fondamentale hors gamme (accord emprunté/chromatique) : ignoré, pas exclu
-                    diatonicCount++;
-                    const expected = diatonicTriadFamily(mode, degree);
-                    const actual = QUALITY_FAMILY[c.quality] || null;
-                    if (expected && actual) {
-                        if (actual === expected) tieBreak += 1;
-                        else if (actual === 'dom') tieBreak += 0.7; // dominante : substitut très courant sur presque tout degré
-                    }
-                    if (degree === 0 && (idx === 0 || idx === chords.length - 1) && actual === expected) tieBreak += 3;
-                });
-                results.push({ root: NOTES[rootPc], mode, diatonicCount, total: chords.length, tieBreak });
-            }
+            // Aligne l'histogramme sur CE candidat (index 0 = sa tonique) avant de corréler : les
+            // profils KS sont eux-mêmes exprimés relativement à la tonique (voir leur commentaire).
+            const rotated = Array.from({ length: 12 }, (_, i) => histogram[(rootPc + i) % 12]);
+            results.push({ root: NOTES[rootPc], mode: 'maj', score: pearsonCorrelation(rotated, KS_MAJOR_PROFILE) });
+            results.push({ root: NOTES[rootPc], mode: 'min', score: pearsonCorrelation(rotated, KS_MINOR_PROFILE) });
         }
-        results.sort((a, b) => (b.diatonicCount - a.diatonicCount) || (b.tieBreak - a.tieBreak));
+        results.sort((a, b) => b.score - a.score);
         return results.slice(0, 5);
     }
 
@@ -6606,14 +6600,17 @@ class HarmoHubApp {
             return;
         }
         menu.innerHTML = candidates.map(c => {
-            const pct = Math.round((c.diatonicCount / c.total) * 100);
+            // Coefficient de corrélation affiché tel quel (jamais rapporté au meilleur score en %) :
+            // une tonalité peu marquée doit pouvoir se lire comme peu sûre, pas comme "100%" juste
+            // parce qu'elle bat les autres candidats d'un rien.
+            const score = c.score.toFixed(2);
             // Épelé selon la convention dièses/bémols de CE candidat (pas de la tonalité actuelle du
             // morceau, encore en place tant qu'on n'a pas cliqué) : useFlatsForKey, la fonction
             // indépendante, plutôt que this.useFlatsForRoot, qui lit toujours la tonalité en cours.
             const label = `${noteNameForPc(NOTES.indexOf(c.root), useFlatsForKey(NOTES.indexOf(c.root), c.mode))} ${MODE_LABELS[c.mode]}`;
             return `<button type="button" data-key-root="${c.root}" data-key-mode="${c.mode}">
                 <span class="key-suggest-label">${escapeHtml(label)}</span>
-                <span class="key-suggest-pct">${pct}% (${c.diatonicCount}/${c.total})</span>
+                <span class="key-suggest-pct">${score}</span>
             </button>`;
         }).join('');
         menu.querySelectorAll('button').forEach(btn => {
