@@ -1873,6 +1873,16 @@ class HarmoHubApp {
         this.selectedIndex = null; // accord sélectionné dans la grille (au sein de la partie active)
         this.multiSelect = new Set(); // indices en plus de selectedIndex (Ctrl/Cmd+clic, voir toggleGridMultiSelect), toujours au sein de la partie active — vidé au changement de partie
         this.editingIndex = null;  // accord en cours de modification (au sein de la partie active)
+        // Bandeau Ajout/Modification (retour utilisateur : trop de clics/erreurs pour modifier un
+        // accord) — voir updateAppModeBanner/editChord/exitEditMode. 'add' : un clic simple sur la
+        // grille sélectionne/écoute seulement, double-clic bascule en 'edit' ET charge cet accord.
+        // 'edit' : mode COLLANT, un simple clic sur N'IMPORTE quel accord le charge directement pour
+        // édition, jusqu'à repasser en 'add' via le bandeau. editingIndex non nul implique toujours
+        // appMode==='edit' (seul editChord() peut le poser, et il force toujours ce mode).
+        this.appMode = 'add';
+        // Un seul instantané Annuler par SESSION d'édition en mode 'edit' (voir commitLiveEdit),
+        // jamais un par champ retouché — remis à false à chaque nouvel appel à editChord().
+        this._editSessionUndoPushed = false;
         this.drag = null;          // état de glisser-déposer
         this.loopRange = null;     // {startSection, startIndex, endSection, endIndex} : boucle sur une
                                     // PLAGE d'accords voisins, qui peut traverser plusieurs parties
@@ -1991,6 +2001,7 @@ class HarmoHubApp {
         this.filesRedoStack = [];
 
         this.setupEventListeners();
+        this.updateAppModeBanner();
         this.setupDurationPicker();
         this.setupPlayStylePicker();
         // La plage à boucler d'ABORD : les deux écoutent 'pointerdown' sur le même conteneur, et
@@ -2038,6 +2049,20 @@ class HarmoHubApp {
         };
         document.getElementById('save').onclick = () => this.saveCurrent();
         document.getElementById('save-insert').onclick = () => this.saveCurrent(this.selectedIndex);
+
+        // Bandeau Ajout/Modification : "Ajout" referme une édition en cours (resetMode=true, comportement
+        // par défaut) ; "Modification" arme seulement le mode collant, sans charger d'accord précis —
+        // le prochain clic sur la grille s'en charge (voir onGridPointerUp/editChord).
+        document.getElementById('app-mode-add').onclick = () => {
+            if (this.appMode === 'add') return;
+            this.exitEditMode();
+            this.loadProgression();
+        };
+        document.getElementById('app-mode-edit').onclick = () => {
+            if (this.appMode === 'edit') return;
+            this.appMode = 'edit';
+            this.updateAppModeBanner();
+        };
         document.getElementById('quick-add-btn').onclick = () => this.addQuickChord();
         // Entrée = saut de ligne normal (comportement par défaut du <textarea>, donc pas de
         // preventDefault) : les lignes d'un même bloc rejoignent une seule partie, il faut sauter
@@ -2078,6 +2103,7 @@ class HarmoHubApp {
             // basculer sur l'audition d'un seul accord, qui volerait la lecture en cours.
             if (this.isPlaying) this.livePreviewUpdate();
             else this.playCurrent();
+            this.commitLiveEdit(false); // n'affecte pas le symbole affiché dans la case
         };
         document.getElementById('apply-instrument-all').onclick = () => this.applyInstrumentToSong();
 
@@ -2202,6 +2228,12 @@ class HarmoHubApp {
         };
 
         // Aperçu en direct : nom de l'accord, clavier et séquenceur mis à jour dès qu'on change un réglage
+        // — et en mode Modification (voir commitLiveEdit), ce réglage s'écrit tout de suite dans
+        // l'accord édité, pas besoin de cliquer Modifier (retour utilisateur). refreshGrid=true : ces
+        // champs peuvent changer ce qu'affiche la case (symbole...). Appelé explicitement ici plutôt
+        // que de compter sur le seul renderSequencer() juste au-dessus : celui-ci ne fait rien tant que
+        // le panneau séquenceur est refermé (voir sa garde), ce qui n'empêche pourtant pas de changer
+        // l'octave/la fondamentale/etc. avec le séquenceur fermé.
         ['root', 'quality', 'duration', 'inversion', 'drop', 'octave', 'bass'].forEach(id => {
             document.getElementById(id).addEventListener('change', () => {
                 this.cancelTapRecording(); // un rythme en cours de capture ne veut plus rien dire pour un autre accord
@@ -2210,6 +2242,7 @@ class HarmoHubApp {
                 this.refreshPreview();
                 this.renderSequencer();
                 this.livePreviewUpdate(); // entendre le changement tout de suite si une lecture est en cours
+                this.commitLiveEdit(true);
             });
         });
 
@@ -2225,6 +2258,7 @@ class HarmoHubApp {
             this.renderSequencer();
             this.refreshPreview();
             this.livePreviewUpdate();
+            this.commitLiveEdit(true);
         };
 
         // Intensité (voir #intensity/computeVelocity) : pas de renderSequencer() systématique (n'affecte
@@ -2236,6 +2270,7 @@ class HarmoHubApp {
             if (val) val.textContent = e.target.value;
             if (this.studioMode) this.renderSequencer();
             this.livePreviewUpdate();
+            this.commitLiveEdit(false); // n'affecte pas le symbole affiché dans la case
         };
         document.getElementById('toggle-studio-mode').onclick = (e) => {
             this.studioMode = !this.studioMode;
@@ -3406,13 +3441,14 @@ class HarmoHubApp {
         this.extraNotes = this.extraNotes.filter((_, i) => keepFlags[i]);
     }
 
-    // `insertAfter` (optionnel) : index après lequel insérer le nouvel accord, dans la partie active
-    // (bouton « À la suite ») — ignoré en mode modification, et si absent l'accord est ajouté en fin
-    // de partie comme avant (bouton « Ajouter »/« À la fin »).
-    saveCurrent(insertAfter) {
+    // Assemble l'objet accord tel qu'il est ACTUELLEMENT réglé (panneau + séquenceur + notes libres/
+    // verrou guitare/intensité en attente) — partagé par saveCurrent (mode Ajout, ou ancien chemin) et
+    // commitLiveEdit (mode Modification, voir plus bas) : la même « photo » de l'état courant, que
+    // l'appelant écrive en fin de tableau, l'insère, ou remplace l'entrée en cours d'édition.
+    buildLiveChordData() {
         this.syncSeqPatternForCurrentChord(); // garantit un arpPattern à jour même si le panneau n'a jamais été ouvert
         this.pruneEmptyExtraNotes();
-        const data = {
+        return {
             root: document.getElementById('root').value,
             quality: document.getElementById('quality').value,
             beats: document.getElementById('duration').value,
@@ -3429,6 +3465,15 @@ class HarmoHubApp {
             intensity: +document.getElementById('intensity').value,
             intensityPerStep: { ...this.intensityPerStep }
         };
+    }
+
+    // `insertAfter` (optionnel) : index après lequel insérer le nouvel accord, dans la partie active
+    // (bouton « À la suite ») — ignoré en mode modification, et si absent l'accord est ajouté en fin
+    // de partie comme avant (bouton « Ajouter »/« À la fin »). En mode Modification (voir
+    // commitLiveEdit), ce chemin ne sert plus normalement (chaque champ s'applique déjà tout seul) —
+    // gardé pour Ajouter/À la suite, et par défense pour un éventuel appel restant en mode 'edit'.
+    saveCurrent(insertAfter) {
+        const data = this.buildLiveChordData();
         const sections = loadProgressionSections();
         this.pushUndo(sections);
         const history = sections[this.activeSection].chords;
@@ -3444,6 +3489,28 @@ class HarmoHubApp {
         saveProgressionSections(sections);
         this.clearSeqHistory(); // motif validé dans la grille : plus rien à annuler/rétablir en local
         this.loadProgression();
+    }
+
+    // Sauvegarde en direct l'accord en cours d'édition (mode Modification, voir le bandeau Ajout/
+    // Modification) : chaque réglage du panneau/séquenceur s'applique tout de suite, pas besoin de
+    // cliquer Modifier. Un seul instantané Annuler par SESSION d'édition (this._editSessionUndoPushed),
+    // jamais un par champ retouché — Ctrl+Z revient donc en une fois à l'état d'avant l'ouverture de
+    // CET accord, comme l'ancien bouton Annuler (retour utilisateur). `refreshGrid` : false pour les
+    // appels internes au séquenceur (déjà en train de se redessiner depuis renderSequencer — y
+    // rappeler loadProgression() rouvrirait une boucle) ; true pour un champ du panneau, qui peut
+    // changer ce que la case affiche (symbole...).
+    commitLiveEdit(refreshGrid) {
+        if (this.appMode !== 'edit' || this.editingIndex == null) return;
+        const sections = loadProgressionSections();
+        const history = sections[this.activeSection] && sections[this.activeSection].chords;
+        if (!history || !history[this.editingIndex]) return;
+        if (!this._editSessionUndoPushed) {
+            this.pushUndo(sections);
+            this._editSessionUndoPushed = true;
+        }
+        history[this.editingIndex] = this.buildLiveChordData();
+        saveProgressionSections(sections);
+        if (refreshGrid) this.loadProgression();
     }
 
     // Construit les données d'un accord (fondamentale, sans renversement ni drop — seule la basse
@@ -3809,6 +3876,12 @@ class HarmoHubApp {
         const d = sections[section] && sections[section].chords[index];
         if (!d) return;
         this.cancelTapRecording(); // on change d'accord : une capture de rythme en cours ne s'y applique plus
+        // Bascule (ou reste) en mode Modification, quel que soit l'appelant (double-clic depuis le
+        // mode Ajout, ou clic direct déjà en mode Modification collant) — seul editChord() pose
+        // editingIndex, cette invariante simplifie tout le reste (voir commitLiveEdit/updateSaveButtons).
+        this.appMode = 'edit';
+        this.updateAppModeBanner();
+        this._editSessionUndoPushed = false; // nouvelle session : un seul futur instantané Annuler, pour CET accord
         this.activeSection = section;
 
         document.getElementById('root').value = d.root;
@@ -3867,12 +3940,21 @@ class HarmoHubApp {
         document.getElementById('current-chord-display').scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
+    // Ferme le panneau d'édition SANS quitter le mode Modification collant (voir le bandeau Ajout/
+    // Modification) : rien à valider (déjà tout appliqué en direct, voir commitLiveEdit), donc plus
+    // besoin d'un "Annuler" qui défait — Ctrl+Z fait déjà ce travail sur toute la session. Ce bouton
+    // (réétiqueté "Fermer" en mode Modification, voir updateSaveButtons) referme juste CET accord,
+    // prêt à en cliquer un autre directement.
     cancelEdit() {
-        this.exitEditMode();
+        this.exitEditMode(false);
         this.loadProgression();
     }
 
-    exitEditMode() {
+    // `resetMode` (true par défaut) : repasse aussi en mode Ajout — le comportement de TOUJOURS avant
+    // cette fonctionnalité, utilisé partout ailleurs où le contexte change radicalement (suppression du
+    // morceau, changement de partie...). Seul cancelEdit() (bouton Fermer en mode Modification) passe
+    // explicitement false, pour rester prêt à cliquer un autre accord sans repasser par le bandeau.
+    exitEditMode(resetMode = true) {
         this.editingIndex = null;
         document.getElementById('save').innerHTML = svgIcon('plus') + ' Ajouter';
         document.getElementById('cancel-edit').hidden = true;
@@ -3892,6 +3974,10 @@ class HarmoHubApp {
         document.getElementById('intensity').value = DEFAULT_INTENSITY;
         const val = document.getElementById('intensity-val');
         if (val) val.textContent = DEFAULT_INTENSITY;
+        if (resetMode) {
+            this.appMode = 'add';
+            this.updateAppModeBanner();
+        }
     }
 
     // Déplace le bloc Ajouter/À la suite/Annuler entre sa place normale (juste au-dessus de la carte
@@ -4254,16 +4340,38 @@ class HarmoHubApp {
     updateSaveButtons() {
         const saveBtn = document.getElementById('save');
         const insertBtn = document.getElementById('save-insert');
+        const cancelBtn = document.getElementById('cancel-edit');
         if (this.editingIndex != null) {
-            saveBtn.innerHTML = svgIcon('check') + ' Modifier';
+            // Mode Modification (voir commitLiveEdit) : chaque champ s'applique déjà tout seul, plus
+            // besoin d'Ajouter/Modifier ici — seul un bouton pour refermer CET accord reste utile
+            // (réétiqueté "Fermer", voir cancelEdit).
+            saveBtn.hidden = true;
             insertBtn.hidden = true;
+            cancelBtn.hidden = false;
+            cancelBtn.innerHTML = svgIcon('close') + ' Fermer';
             return;
         }
+        saveBtn.hidden = false;
+        cancelBtn.hidden = true;
         const sections = loadProgressionSections();
         const history = sections[this.activeSection] && sections[this.activeSection].chords;
         const canInsert = this.selectedIndex != null && history && this.selectedIndex < history.length - 1;
         saveBtn.innerHTML = svgIcon('plus') + (canInsert ? ' À la fin' : ' Ajouter');
         insertBtn.hidden = !canInsert;
+    }
+
+    // Bandeau Ajout/Modification (voir this.appMode) : reflète juste l'état courant sur les deux
+    // segments (aria-pressed pour le style actif) — le clic lui-même est câblé une seule fois dans
+    // setupEventListeners, pas ici (appelé à chaque changement de mode/accord).
+    updateAppModeBanner() {
+        const addSeg = document.getElementById('app-mode-add');
+        const editSeg = document.getElementById('app-mode-edit');
+        if (!addSeg || !editSeg) return;
+        const isEdit = this.appMode === 'edit';
+        addSeg.classList.toggle('active', !isEdit);
+        addSeg.setAttribute('aria-pressed', String(!isEdit));
+        editSeg.classList.toggle('active', isEdit);
+        editSeg.setAttribute('aria-pressed', String(isEdit));
     }
 
     // Rend une partie « active » : c'est elle que ciblent Ajouter/Modifier/Suppr/copier-coller
@@ -6592,14 +6700,28 @@ class HarmoHubApp {
             // inline, pour pouvoir retaper le texte sans revenir au panneau Accord.
             if (this.gridZoomOpen) {
                 const now = Date.now();
-                const isSecondTap = d.symTarget && this._lastTap && this._lastTap.section === d.section && this._lastTap.index === d.index && (now - this._lastTap.time) < 420;
-                if (isSecondTap) {
+                const isSecondTapOnSym = d.symTarget && this._lastTap && this._lastTap.section === d.section && this._lastTap.index === d.index && (now - this._lastTap.time) < 420;
+                if (isSecondTapOnSym) {
                     this._lastTap = null;
                     this.startInlineChordSymbolEdit(d.section, d.index, d.cell);
                     return;
                 }
-                this._lastTap = { section: d.section, index: d.index, time: now };
-                this.editChordFromGridZoom(d.section, d.index);
+                // Bandeau Ajout/Modification (voir this.appMode) : en Modification, un simple clic
+                // n'importe où charge directement l'accord, comme avant. En Ajout, un simple clic
+                // se contente de sélectionner/écouter ; il faut un double-clic pour éditer.
+                if (this.appMode === 'edit') {
+                    this._lastTap = { section: d.section, index: d.index, time: now };
+                    this.editChordFromGridZoom(d.section, d.index);
+                    return;
+                }
+                const isSecondTap = this._lastTap && this._lastTap.section === d.section && this._lastTap.index === d.index && (now - this._lastTap.time) < 420;
+                if (isSecondTap) {
+                    this._lastTap = null;
+                    this.editChordFromGridZoom(d.section, d.index);
+                } else {
+                    this._lastTap = { section: d.section, index: d.index, time: now };
+                    this.selectChord(d.section, d.index);
+                }
                 return;
             }
             if (d.symTarget) {
@@ -6607,6 +6729,13 @@ class HarmoHubApp {
                 // immédiate, pas de sélection/écoute ni d'attente d'un éventuel second tap.
                 this._lastTap = null;
                 this.startInlineChordSymbolEdit(d.section, d.index, d.cell);
+                return;
+            }
+            // Bandeau Ajout/Modification (voir this.appMode) : en Modification collante, un simple
+            // clic sur n'importe quel accord le charge directement, plus besoin de rappuyer.
+            if (this.appMode === 'edit') {
+                this._lastTap = null;
+                this.editChord(d.section, d.index);
                 return;
             }
             const now = Date.now();
@@ -7245,6 +7374,15 @@ class HarmoHubApp {
         this.pushUndo(sections);
         data.beats = next;
         saveProgressionSections(sections);
+        // Si l'accord redimensionné est celui actuellement en édition, le champ Durée du panneau doit
+        // suivre AVANT tout rendu du séquenceur (voir onResizeMove pour le même besoin au glisser
+        // souris) : renderSequencer ci-dessous (via extendChordPatternToHold) déclenche désormais aussi
+        // commitLiveEdit (voir ce dernier), qui réécrirait sinon `next` avec l'ancienne valeur encore
+        // affichée dans ce champ, annulant le redimensionnement.
+        if (this.editingIndex === index) {
+            this.setDurationField(next);
+            this.syncDurationPicker();
+        }
         this.extendChordPatternToHold(this.activeSection, index, beats);
         this.loadProgression();
     }
@@ -9134,6 +9272,14 @@ class HarmoHubApp {
         if (prevBtn) prevBtn.onclick = () => { this.seqPage--; this.renderSequencer(); };
         const nextBtn = document.getElementById('seq-page-next');
         if (nextBtn) nextBtn.onclick = () => { this.seqPage++; this.renderSequencer(); };
+
+        // Mode Modification (voir commitLiveEdit) : toute mutation du séquenceur (peindre/étirer/
+        // déplacer une note, notes libres, verrou guitare, rythme tapé, barres de vélocité...) appelle
+        // déjà renderSequencer() pour se redessiner — un seul point d'accroche ici couvre donc TOUTES
+        // ces mutations sans avoir à répéter l'appel dans chacune. refreshGrid=false : ces changements
+        // ne modifient jamais ce qu'affiche la case dans la grille (symbole, etc.), et rappeler
+        // loadProgression() (qui peut redéclencher renderSequencer) rouvrirait une boucle.
+        this.commitLiveEdit(false);
     }
 
     // Ajoute une voix "libre" au séquenceur (bouton dédié, voir #seq-add-note) : hauteur de départ
@@ -9653,8 +9799,10 @@ class HarmoHubApp {
                 if (activeGridIdx != null) { this.removeChord(this.activeSection, activeGridIdx); e.preventDefault(); }
             }
 
-            // Entrée depuis un réglage d'accord : ajoute/modifie sans avoir à cliquer sur le bouton
-            if (e.key === 'Enter' && CHORD_PARAM_IDS.includes(document.activeElement && document.activeElement.id)) {
+            // Entrée depuis un réglage d'accord : ajoute sans avoir à cliquer sur le bouton — seulement
+            // en mode Ajout : en mode Modification, chaque champ s'applique déjà tout seul (voir
+            // commitLiveEdit), Entrée n'a plus rien à valider et ne doit pas refermer l'édition en cours.
+            if (e.key === 'Enter' && this.appMode !== 'edit' && CHORD_PARAM_IDS.includes(document.activeElement && document.activeElement.id)) {
                 e.preventDefault();
                 this.saveCurrent();
             }

@@ -670,6 +670,45 @@ main {
 /* Sur mobile, on ignore les conteneurs de colonnes : leurs enfants sont ordonnés dans main */
 .col-left, .col-right { display: contents; }
 
+/* Bandeau Ajout/Modification (voir this.appMode dans script.js) : pilule à deux segments, même
+   dégradé "actif" que les autres bascules de l'appli (vert générique/bleu, voir .icon-btn.active et
+   #toggle-loop-section.active) pour rester cohérent — vert pour Ajout (état par défaut, sûr), bleu
+   pour Modification (état plus engageant, modifie directement au moindre clic). */
+.app-mode-banner {
+    display: flex;
+    gap: 3px;
+    padding: 3px;
+    margin-bottom: 8px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+}
+.app-mode-seg {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    cursor: pointer;
+}
+.app-mode-seg .icon { width: 14px; height: 14px; }
+.app-mode-seg:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.05); }
+#app-mode-add.active {
+    color: var(--btn-text);
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
+}
+#app-mode-edit.active {
+    color: var(--btn-text);
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-blue-1), var(--btn-blue-2) 70%);
+}
+
 .panel-controls {
     display: flex;
     flex-direction: column;
