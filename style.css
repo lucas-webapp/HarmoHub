@@ -506,6 +506,10 @@ body.body-scroll-locked { overflow: hidden !important; }
     background: var(--card-bg-2, rgba(255, 255, 255, 0.06));
     box-shadow: inset 0 -2px 0 var(--accent);
 }
+/* Config. (tonalité/mode/signature/groove/transpose du morceau ouvert) : gris/bleu pâle plutôt que le
+   vert --accent partagé par les 3 autres onglets — volontairement neutre, ce n'est PAS un mode
+   d'interaction comme le bandeau Ajout/Modification, juste un réglage qu'on fixe une fois. */
+#settings-tab-config[aria-selected="true"] { box-shadow: inset 0 -2px 0 #9db4d1; }
 
 .settings-body {
     display: flex;
@@ -922,12 +926,10 @@ main {
     gap: 6px;
 }
 
-/* Titre du morceau (#song-select) DANS l'en-tête Morceau — déplié, "Morceau" ET les boutons
-   (+/enregistrer/replier) restent ensemble sur la MÊME ligne (comme avant), le titre passant seul en
-   pleine largeur sur la ligne suivante (flex-basis:100% + flex-wrap:wrap ci-dessus, order APRÈS les
-   actions pour ne pas les pousser à la ligne avec lui) ; replié (#song-card.collapsed plus bas), le
-   titre revient ENTRE "Morceau" et les boutons sur cette même ligne unique, quitte à se faire
-   tronquer — voir toggleSongCardCollapse. */
+/* Titre du morceau (#song-select) DANS l'en-tête Morceau — "Morceau" ET les boutons (+/enregistrer)
+   restent ensemble sur la MÊME ligne, le titre passant seul en pleine largeur sur la ligne suivante
+   (flex-basis:100% + flex-wrap:wrap ci-dessus, order APRÈS les actions pour ne pas les pousser à la
+   ligne avec lui). */
 #song-card .card-head h2 { flex: none; order: 1; }
 #song-card .card-head-actions { order: 2; }
 #song-card #song-select {
@@ -936,8 +938,6 @@ main {
     min-width: 0;
     margin-top: 8px;
 }
-#song-card.collapsed #song-select { order: 2; }
-#song-card.collapsed .card-head-actions { order: 3; }
 
 .icon-btn {
     flex: none;
@@ -2636,9 +2636,7 @@ button:active { transform: translateY(1px); }
 }
 
 /* Sélecteur de morceau enregistré (actions nouveau/enregistrer/renommer/supprimer : voir .card-head) —
-   troncature propre (ellipsis) si le texte dépasse : nom long, ou repli qui réduit sa largeur
-   disponible (voir #song-card.collapsed plus bas). Largeur/marges pilotées par #song-card #song-select
-   plus haut (pleine largeur dépliée, partage la ligne de l'en-tête repliée), pas ici. */
+   troncature propre (ellipsis) si le texte dépasse (nom long). */
 .song-select-full {
     min-width: 0;
     white-space: nowrap;
@@ -2646,23 +2644,8 @@ button:active { transform: translateY(1px); }
     text-overflow: ellipsis;
 }
 
-/* Repliement de la carte Morceau (voir toggleSongCardCollapse) : masque tonalité/tempo/groove une
-   fois le morceau réglé, garde le titre (#song-select, toujours renommable) et Enregistrer visibles
-   — seul le CONTENU disparaît, jamais l'en-tête ni le titre. Le titre remonte en plus à côté de
-   "Morceau" sur la même ligne (quitte à se tronquer, voir .song-select-full) au lieu de rester seul
-   sur sa ligne pleine largeur juste en dessous. */
-#song-card.collapsed .song-row,
-#song-card.collapsed .bpm-group,
-#song-card.collapsed .groove-group {
-    display: none;
-}
-#song-card.collapsed .card-head { flex-wrap: nowrap; }
-#song-card.collapsed #song-select {
-    flex: 1 1 auto;
-    min-width: 40px;
-    margin-top: 0;
-}
-/* Tonalité + mode + signature, sur une même ligne compacte dans la carte Morceau */
+/* Tonalité + mode + signature, sur une même ligne compacte (Paramètres > Config., voir
+   #settings-panel-config) */
 .song-row {
     display: flex;
     align-items: center;
@@ -2725,15 +2708,6 @@ select.song-select-narrow {
 @media (max-width: 899px) {
     .history-section { margin-top: 10px; padding-bottom: 8px; }
     main { padding-bottom: 0; }
-
-    /* Replier la carte Morceau a peu d'intérêt sur petit écran, où elle n'est de toute façon jamais
-       tout en haut d'une longue colonne desktop (retour utilisateur) : cadenas masqué, réglages
-       toujours visibles, quel que soit l'état repli/déplié mémorisé (voir toggle-song-collapse). */
-    #toggle-song-collapse { display: none; }
-    #song-card.collapsed .bpm-group,
-    #song-card.collapsed .groove-group {
-        display: flex;
-    }
 }
 
 @media (min-width: 900px) {

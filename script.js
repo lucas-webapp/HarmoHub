@@ -49,13 +49,7 @@ const ICONS = {
     // Bouton « Taper le rythme » (voir startTapRecording) : rond plein dans un anneau, symbole
     // universel d'enregistrement — se distingue des autres icônes de la rangée (aucune autre n'est
     // un simple disque plein) et se comprend sans avoir à lire le titre.
-    tapRecord: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>',
-    // Replier/déplier la carte Morceau (voir toggle-song-collapse) : cadenas plutôt qu'un chevron
-    // (retour utilisateur) — fermé quand les réglages sont masqués, ouvert (anse décalée, même dessin
-    // que #guitar-lock-btn) quand ils sont visibles. Se lit comme « verrouillé/déverrouillé » plutôt
-    // que « plié/déplié », mais reste un symbole d'état clair au premier coup d'œil.
-    lockClosed: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
-    lockOpen: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/>'
+    tapRecord: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>'
 };
 
 // Rendu HTML d'une icône (name doit exister dans ICONS) ; extraClass optionnel pour la taille/marge
@@ -1601,7 +1595,6 @@ const METRONOME_SUBDIVISION_KEY = 'harmohubMetronomeSubdivision';
 // soustrait à l'horodatage de chaque appui/relâchement avant quantification, pour compenser un
 // retard systématique (surtout au doigt sur mobile, retour utilisateur anticipé).
 const TAP_LATENCY_OFFSET_KEY = 'harmohubTapLatencyOffsetMs';
-const SONG_CARD_COLLAPSED_KEY = 'harmohubSongCardCollapsed';
 const SHOW_ROMAN_KEY = 'harmohubShowRomanNumerals';
 // Octave / renversement-drop sous chaque accord de la GRILLE (voir gridVoicingParts, Paramètres >
 // Affichage) — remplacent l'ancien réglage unique "Style de jeu" (icône sous la case), retiré.
@@ -2137,25 +2130,6 @@ class HarmoHubApp {
             this.metronomeSubdivision = !this.metronomeSubdivision;
             syncMetroSubIcon();
             localStorage.setItem(METRONOME_SUBDIVISION_KEY, this.metronomeSubdivision ? '1' : '0');
-        };
-
-        // Replier/déplier la carte Morceau (tonalité, tempo, groove) une fois le morceau réglé — le
-        // titre (#song-select) et Enregistrer restent visibles quoi qu'il arrive (voir CSS #song-card).
-        // Cadenas fermé/ouvert (voir ICONS.lockClosed/lockOpen) plutôt qu'un chevron qui pivotait
-        // (retour utilisateur) : reflète directement l'état plié/déplié, pas de rotation à gérer en CSS.
-        const songCard = document.getElementById('song-card');
-        const collapseBtn = document.getElementById('toggle-song-collapse');
-        const syncSongCardCollapseIcon = (collapsed) => {
-            collapseBtn.innerHTML = svgIcon(collapsed ? 'lockClosed' : 'lockOpen');
-        };
-        const songCardCollapsed = localStorage.getItem(SONG_CARD_COLLAPSED_KEY) === '1';
-        songCard.classList.toggle('collapsed', songCardCollapsed);
-        syncSongCardCollapseIcon(songCardCollapsed);
-        collapseBtn.onclick = () => {
-            const collapsed = !songCard.classList.contains('collapsed');
-            songCard.classList.toggle('collapsed', collapsed);
-            syncSongCardCollapseIcon(collapsed);
-            localStorage.setItem(SONG_CARD_COLLAPSED_KEY, collapsed ? '1' : '0');
         };
 
         // Boucle la partie active (bouton Grille) au lieu de jouer toute la grille — pratique
