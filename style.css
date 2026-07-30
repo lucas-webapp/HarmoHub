@@ -696,10 +696,6 @@ body.body-scroll-locked { overflow: hidden !important; }
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    /* Icônes décoratives seulement (le libellé suffit) : les enlever sur téléphone récupère juste
-       assez de largeur pour que les 3 segments tiennent sans être coupés (retour utilisateur,
-       constaté sur iPhone 12 mini — plus étroit que les autres iPhone déjà testés). */
-    .app-mode-banner .app-mode-seg .icon { display: none; }
 }
 
 main {
