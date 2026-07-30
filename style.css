@@ -2796,6 +2796,38 @@ select.song-select-narrow {
     font-weight: 700;
 }
 
+/* Règle graduée sous chaque ligne de la grille (voir buildPrintExportHtml) : un segment flex par
+   mesure (flex-grow proportionnel à son nombre de temps, comme .print-chord-wrap plus haut pour les
+   cases), sans espace entre eux — contrairement aux cases, la règle doit rester une ligne continue.
+   Choix A parmi 5 propositions (retour utilisateur) : trait fin, grande graduation numérotée à
+   chaque mesure, petites graduations aux temps intermédiaires — lecture technique et compacte. */
+.print-measure-ruler {
+    display: flex;
+    margin: 2px 0 10px;
+}
+.ruler-bar {
+    position: relative;
+    height: 14px;
+    border-top: 1px solid #ccc;
+}
+.ruler-tick {
+    position: absolute;
+    top: 0;
+    width: 1px;
+    height: 4px;
+    background: #999;
+    transform: translateX(-0.5px);
+}
+.ruler-tick-major { height: 7px; background: #777; }
+.ruler-num {
+    position: absolute;
+    top: 8px;
+    left: 2px;
+    font-size: var(--fs-2xs);
+    color: #888;
+    font-weight: 700;
+}
+
 .print-piano-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);

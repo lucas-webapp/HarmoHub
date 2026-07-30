@@ -1160,6 +1160,14 @@ let guitarSvgIdSeq = 0; // suffixe unique par diagramme, pour ne jamais duplique
 // (d'autres doigts peuvent presser PAR-DESSUS à une case plus haute sur des cordes intermédiaires,
 // cas réel du Fa en forme de Mi). Fonction autonome, jamais utilisée par le solveur de doigtés
 // lui-même. Renvoie {fret, loString, hiString} ou null.
+// Chemin SVG d'un rectangle aux coins du BAS arrondis, coins du haut carrés (voir buildPianoDiagramSVG) :
+// un simple <rect rx> arrondirait les 4 coins, donnant à chaque touche un air de pastille plutôt que
+// de sortir du clavier — exactement ce qu'évite .key.white/.key.black (border-radius: 0 0 Xpx Xpx)
+// à l'écran, reproduit ici en SVG puisque le PDF n'a pas accès aux classes CSS de l'appli.
+function roundedBottomRectPath(x, y, w, h, r) {
+    return `M${x},${y} H${x + w} V${y + h - r} Q${x + w},${y + h} ${x + w - r},${y + h} H${x + r} Q${x},${y + h} ${x},${y + h - r} Z`;
+}
+
 function detectBarre(byString) {
     const fretted = [];
     byString.forEach((e, s) => { if (e && e.fret > 0) fretted.push({ s, fret: e.fret }); });
@@ -5414,6 +5422,13 @@ class HarmoHubApp {
 
     // Diagramme SVG d'un clavier avec les notes RÉELLEMENT jouées surlignées par fonction
     // (renversement et drop pris en compte, puisqu'on lit directement le voicing calculé)
+    // Clavier PDF calqué sur le rendu à l'écran (.key.white/.key.black dans style.css) : ivoire chaud
+    // plutôt que blanc clinique, coin bas arrondi (via roundedBottomRectPath, un <rect rx> arrondirait
+    // aussi le haut — la touche aurait l'air d'une pastille plutôt que de sortir du clavier), fin
+    // liseré de biseau sur les blanches. Couleurs de rôle en aplat (ROLE_COLOR), jamais en dégradé,
+    // comme buildGuitarDiagramSVG en impression — plus fiable sur papier, et cohérent avec le reste du
+    // PDF (aucune autre pièce n'utilise de dégradé). Retour utilisateur : l'ancien rendu (blanc pur,
+    // coins carrés, liseré gris générique) ne ressemblait pas au clavier de l'appli.
     buildPianoDiagramSVG(chord) {
         const voiced = chord.getVoiced();
         const midis = voiced.map(v => v.midi);
@@ -5423,6 +5438,9 @@ class HarmoHubApp {
 
         const BLACK_PCS = [1, 3, 6, 8, 10];
         const KEY_W = 16, KEY_H = 58, BLACK_W = KEY_W * 0.62, BLACK_H = KEY_H * 0.6;
+        const RADIUS_W = 3, RADIUS_B = 2.5;
+        const IVORY = '#f2ead9';
+        const EBONY = '#171310';
 
         const whiteMidis = [];
         for (let m = low; m <= high; m++) if (!BLACK_PCS.includes(((m % 12) + 12) % 12)) whiteMidis.push(m);
@@ -5430,16 +5448,24 @@ class HarmoHubApp {
 
         let svg = `<svg viewBox="0 0 ${width} ${KEY_H}" width="${width}" height="${KEY_H}" xmlns="http://www.w3.org/2000/svg">`;
         whiteMidis.forEach((m, i) => {
-            const fill = activeByMidi[m] ? ROLE_COLOR[activeByMidi[m]] : '#ffffff';
-            svg += `<rect x="${i * KEY_W}" y="0" width="${KEY_W - 1}" height="${KEY_H}" fill="${fill}" stroke="#888" stroke-width="0.5"/>`;
+            const active = !!activeByMidi[m];
+            const fill = active ? ROLE_COLOR[activeByMidi[m]] : IVORY;
+            const x = i * KEY_W, w = KEY_W - 1;
+            svg += `<path d="${roundedBottomRectPath(x, 0, w, KEY_H, RADIUS_W)}" fill="${fill}" stroke="#2a2a2a" stroke-width="0.7"/>`;
+            // Biseau : fil de lumière à gauche, ombre fine à droite (voir .key.white dans style.css),
+            // seulement sur les touches au repos — une active porte déjà sa propre couleur de rôle.
+            if (!active) {
+                svg += `<rect x="${x + 0.6}" y="1" width="1.1" height="${KEY_H - 2}" fill="#fff" opacity="0.5"/>`;
+                svg += `<rect x="${x + w - 1.6}" y="1" width="1.1" height="${KEY_H - 2}" fill="#000" opacity="0.12"/>`;
+            }
         });
         let whiteSeen = 0;
         for (let m = low; m <= high; m++) {
             const isBlack = BLACK_PCS.includes(((m % 12) + 12) % 12);
             if (!isBlack) { whiteSeen++; continue; }
-            const fill = activeByMidi[m] ? ROLE_COLOR[activeByMidi[m]] : '#1a1a1a';
+            const fill = activeByMidi[m] ? ROLE_COLOR[activeByMidi[m]] : EBONY;
             const x = whiteSeen * KEY_W - BLACK_W / 2;
-            svg += `<rect x="${x}" y="0" width="${BLACK_W}" height="${BLACK_H}" fill="${fill}" stroke="#000" stroke-width="0.5"/>`;
+            svg += `<path d="${roundedBottomRectPath(x, 0, BLACK_W, BLACK_H, RADIUS_B)}" fill="${fill}" stroke="#000" stroke-width="0.6"/>`;
         }
         svg += `</svg>`;
         return svg;
@@ -5629,7 +5655,7 @@ class HarmoHubApp {
                 gridInner += `<div class="print-empty">—</div>`;
                 return;
             }
-            const { cells, rows } = this.layoutProgression(sec.chords, beatsPerBar);
+            const { cells, rows, beatsPerRow } = this.layoutProgression(sec.chords, beatsPerBar);
             for (let r = 0; r < rows; r++) {
                 gridInner += `<div class="print-chord-row">`;
                 cells.filter(c => c.row === r).forEach(s => {
@@ -5665,6 +5691,29 @@ class HarmoHubApp {
                     </div>`;
                     if (s.isFirst) allChords.push({ chord, sym });
                 });
+                gridInner += `</div>`;
+
+                // Règle graduée sous la ligne (retour utilisateur : structurer un peu plus visuellement
+                // la grille) : une grande graduation numérotée par mesure, des petites entre les temps —
+                // recalculée indépendamment de la découpe en cases (un accord peut chevaucher plusieurs
+                // mesures dans une même case, voir innerBars plus haut dans layoutProgression) plutôt que
+                // dérivée des segments eux-mêmes, bien plus simple et fiable ici. Un segment flex par
+                // mesure (comme les cases plus haut), jamais de gap entre eux : la règle doit rester une
+                // ligne continue, contrairement aux cases qui, elles, se distinguent visuellement.
+                const rowBeatsUsed = cells.filter(c => c.row === r).reduce((sum, c) => sum + c.span, 0);
+                const firstBarNumber = Math.floor(r * beatsPerRow / beatsPerBar) + 1;
+                const numBars = Math.ceil(rowBeatsUsed / beatsPerBar);
+                gridInner += `<div class="print-measure-ruler">`;
+                for (let bi = 0; bi < numBars; bi++) {
+                    const barBeats = Math.min(beatsPerBar, rowBeatsUsed - bi * beatsPerBar);
+                    const isLastBar = (bi === numBars - 1);
+                    let ticks = `<span class="ruler-tick ruler-tick-major" style="left:0"></span>`;
+                    for (let b = 1; b < barBeats; b++) {
+                        ticks += `<span class="ruler-tick" style="left:${(b / barBeats) * 100}%"></span>`;
+                    }
+                    if (isLastBar) ticks += `<span class="ruler-tick ruler-tick-major" style="left:100%"></span>`;
+                    gridInner += `<div class="ruler-bar" style="flex-grow:${barBeats};">${ticks}<span class="ruler-num">${firstBarNumber + bi}</span></div>`;
+                }
                 gridInner += `</div>`;
             }
         });
