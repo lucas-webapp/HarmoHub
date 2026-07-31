@@ -5481,6 +5481,9 @@ class HarmoHubApp {
                             <button type="button" class="icon-btn" data-action="rename" title="Renommer" aria-label="Renommer">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                             </button>
+                            <button type="button" class="icon-btn" data-action="export" title="Exporter ce morceau en JSON" aria-label="Exporter ce morceau en JSON">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>
+                            </button>
                             <button type="button" class="icon-btn" data-action="delete" title="Supprimer" aria-label="Supprimer">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
                             </button>
@@ -5492,6 +5495,7 @@ class HarmoHubApp {
             const id = row.dataset.id;
             row.querySelector('[data-action="open"]').onclick = () => this.openSongFromFiles(id);
             row.querySelector('[data-action="rename"]').onclick = () => this.startInlineRenameSong(id);
+            row.querySelector('[data-action="export"]').onclick = () => this.exportSongById(id);
             row.querySelector('[data-action="delete"]').onclick = () => this.deleteSongById(id);
             row.querySelector('.file-folder-select').onchange = (e) => {
                 if (e.target.value === '__new__') this.startInlineNewFolderForSong(id, e.target);
@@ -5726,8 +5730,12 @@ class HarmoHubApp {
     // Importe une sauvegarde : AJOUTE les morceaux du fichier à la bibliothèque actuelle, sans jamais
     // rien supprimer ni écraser (une restauration ne doit jamais faire perdre du travail en cours).
     // Les morceaux dont l'identifiant existe déjà (déjà importés, ou fichier réimporté par erreur)
-    // sont ignorés silencieusement plutôt que dupliqués — importer deux fois le même fichier ne
-    // change donc rien la seconde fois.
+    // sont ignorés PAR DÉFAUT plutôt que dupliqués — importer deux fois le même fichier ne change donc
+    // rien la seconde fois. Si certains sont ignorés, propose ENSUITE (jamais automatiquement, voir
+    // plus bas) de les importer quand même comme COPIES séparées, à id neuf — retour utilisateur :
+    // une sauvegarde plus ancienne peut contenir une version différente (accords depuis retirés/
+    // modifiés) d'un morceau qui existe encore aujourd'hui sous le même id ; « déjà à jour » masquait
+    // sinon cette version-là sans aucun moyen de la retrouver.
     async importLibraryFile(file) {
         let data;
         try {
@@ -5743,26 +5751,47 @@ class HarmoHubApp {
         const existingSongs = loadSongs();
         const existingIds = new Set(existingSongs.map(s => s.id));
         const toAdd = data.songs.filter(s => s && s.id && !existingIds.has(s.id));
-        const skipped = data.songs.length - toAdd.length;
+        const alreadyPresent = data.songs.filter(s => s && s.id && existingIds.has(s.id));
 
         const existingFolders = loadFolders();
         const mergedFolders = Array.isArray(data.folders) ? [...new Set([...existingFolders, ...data.folders])] : existingFolders;
         const foldersChanged = mergedFolders.length !== existingFolders.length;
 
-        if (toAdd.length > 0 || foldersChanged) {
+        // Copies forcées des morceaux déjà présents (même id) : seulement si demandé EXPLICITEMENT
+        // ici, jamais par défaut — sinon réimporter deux fois le même fichier par erreur dupliquerait
+        // systématiquement toute la bibliothèque.
+        let forcedCopies = [];
+        if (alreadyPresent.length > 0) {
+            const n = alreadyPresent.length;
+            const ask = confirm(`${n} morceau${n > 1 ? 'x' : ''} de ce fichier ${n > 1 ? 'existent' : 'existe'} déjà (même identifiant) dans ta bibliothèque actuelle.\n\nImporter quand même une COPIE de chacun ? Utile pour retrouver une ancienne version (ex. des accords depuis retirés ou modifiés).`);
+            if (ask) {
+                const stamp = new Date().toLocaleDateString('fr-FR');
+                forcedCopies = alreadyPresent.map(s => ({
+                    ...s,
+                    id: 'song_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                    name: `${s.name} (import du ${stamp})`,
+                    savedAt: Date.now(),
+                }));
+            }
+        }
+
+        const allToAdd = [...toAdd, ...forcedCopies];
+        const skipped = alreadyPresent.length - forcedCopies.length;
+
+        if (allToAdd.length > 0 || foldersChanged) {
             this.pushFilesUndo(); // un seul pas d'annulation pour tout l'import (morceaux + dossiers)
-            if (toAdd.length > 0) saveSongs([...existingSongs, ...toAdd]);
+            if (allToAdd.length > 0) saveSongs([...existingSongs, ...allToAdd]);
             if (foldersChanged) saveFolders(mergedFolders);
             this.refreshSongList();
             if (this.settingsOpen) this.renderFilesPanel();
         }
 
-        if (toAdd.length === 0) {
+        if (allToAdd.length === 0) {
             this.flashHint(skipped > 0 ? 'Bibliothèque déjà à jour — rien à importer' : 'Aucun morceau dans ce fichier');
         } else if (skipped > 0) {
-            this.flashHint(`${toAdd.length} morceau(x) importé(s), ${skipped} déjà présent(s)`);
+            this.flashHint(`${allToAdd.length} morceau(x) importé(s), ${skipped} déjà présent(s)`);
         } else {
-            this.flashHint(`${toAdd.length} morceau(x) importé(s)`);
+            this.flashHint(`${allToAdd.length} morceau(x) importé(s)`);
         }
     }
 
@@ -6748,16 +6777,10 @@ class HarmoHubApp {
         if (menu) menu.hidden = true;
     }
 
-    // Sauvegarde locale d'UN SEUL morceau (voir exportLibrary pour toute la bibliothèque) — même
-    // enveloppe JSON {app, kind, version, songs, ...}, réimportable par le même bouton "Importer une
-    // bibliothèque" (voir importLibraryFile, qui fusionne par id sans jamais rien écraser).
-    exportCurrentSong() {
-        if (!getCurrentSongId()) {
-            this.saveCurrentAsSong('Nomme d\'abord ton morceau pour le sauvegarder');
-            if (!getCurrentSongId()) return; // enregistrement annulé -> pas de sauvegarde
-        }
-        const song = loadSongs().find(s => s.id === getCurrentSongId());
-        if (!song) return;
+    // Télécharge la sauvegarde JSON d'UN morceau déjà résolu — factorisé pour exportCurrentSong
+    // (morceau actuellement ouvert) ET exportSongById (n'importe quel morceau de la bibliothèque,
+    // voir renderFilesPanel), qui ne construisaient sinon le même fichier qu'à deux endroits.
+    downloadSongBackup(song) {
         const payload = {
             app: 'HarmoHub',
             kind: 'library-backup',
@@ -6775,6 +6798,29 @@ class HarmoHubApp {
         a.remove();
         URL.revokeObjectURL(url);
         this.flashHint(`« ${song.name} » sauvegardé → dossier Téléchargements`, 2400);
+    }
+
+    // Sauvegarde locale d'UN SEUL morceau (voir exportLibrary pour toute la bibliothèque) — même
+    // enveloppe JSON {app, kind, version, songs, ...}, réimportable par le même bouton "Importer une
+    // bibliothèque" (voir importLibraryFile, qui fusionne par id sans jamais rien écraser).
+    exportCurrentSong() {
+        if (!getCurrentSongId()) {
+            this.saveCurrentAsSong('Nomme d\'abord ton morceau pour le sauvegarder');
+            if (!getCurrentSongId()) return; // enregistrement annulé -> pas de sauvegarde
+        }
+        const song = loadSongs().find(s => s.id === getCurrentSongId());
+        if (!song) return;
+        this.downloadSongBackup(song);
+    }
+
+    // Exporte directement un morceau de la bibliothèque SANS avoir à l'ouvrir d'abord (bouton dédié
+    // sur chaque ligne de Paramètres > Fichiers, voir renderFilesPanel) — retour utilisateur : pouvoir
+    // sauvegarder UN morceau précis à la demande, sans passer par toute la bibliothèque (exportLibrary)
+    // ni devoir d'abord le charger juste pour ça (seul moyen jusqu'ici, via exportCurrentSong).
+    exportSongById(id) {
+        const song = loadSongs().find(s => s.id === id);
+        if (!song) return;
+        this.downloadSongBackup(song);
     }
 
     // ---------- Durée de l'accord : bouton fermé + menu déroulant d'icônes ----------
