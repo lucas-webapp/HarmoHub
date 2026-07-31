@@ -482,13 +482,16 @@ body.body-scroll-locked { overflow: hidden !important; }
    ligne/mesures par page) et verticale (hauteur des lignes) réglables indépendamment. Les deux
    boutons -/+ sont empilés verticalement (grille 2 colonnes x 2 lignes, l'étiquette H/V occupant
    les deux lignes de la 1re colonne) plutôt que côte à côte à l'horizontale — plus compact, plus
-   lisible visuellement comme une seule bascule -/+ (retour utilisateur). */
-.zoom-axis-group { display: grid; grid-template-columns: auto auto; grid-template-rows: repeat(2, 1fr); align-items: stretch; gap: 1px 4px; flex: none; }
-.zoom-axis-tag { grid-row: 1 / span 2; align-self: center; font-size: var(--fs-2xs); color: var(--text-muted); width: 10px; text-align: center; }
+   lisible visuellement comme une seule bascule -/+ (retour utilisateur). Boutons agrandis et
+   nettement séparés l'un de l'autre (retour utilisateur : les 24×16px + 1px d'écart d'avant
+   étaient difficiles à attraper précisément, surtout au doigt) — l'étiquette H/V suffit, pas
+   besoin d'un pourcentage affiché en plus. */
+.zoom-axis-group { display: grid; grid-template-columns: auto auto; grid-template-rows: repeat(2, 1fr); align-items: stretch; gap: 4px; flex: none; }
+.zoom-axis-tag { grid-row: 1 / span 2; align-self: center; font-size: var(--fs-xs); font-weight: 700; color: var(--text-muted); width: 12px; text-align: center; }
 /* Spécificité (0,2,0) : l'emporte sur .icon-btn (0,1,0) quel que soit l'ordre des règles dans la
-   feuille, pour réduire la hauteur par rapport au bouton icône générique de 32px. */
-.zoom-axis-group .zoom-axis-btn { width: 24px; height: 16px; border-radius: 4px; }
-.zoom-axis-btn .icon { width: 11px; height: 11px; }
+   feuille, pour ajuster la hauteur par rapport au bouton icône générique de 32px. */
+.zoom-axis-group .zoom-axis-btn { width: 32px; height: 24px; border-radius: 5px; }
+.zoom-axis-btn .icon { width: 13px; height: 13px; }
 
 /* Onglets Son/Affichage/Fichiers : un seul panneau visible à la fois (voir setSettingsTab dans
    script.js), pour ne plus faire défiler tout le reste (Fichiers, en particulier, peut être long)
