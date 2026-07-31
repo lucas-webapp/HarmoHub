@@ -1050,8 +1050,11 @@ main {
 /* Variante élargie SEULEMENT (hauteur inchangée, 32px comme .icon-btn) : les boutons qui ouvrent/
    ferment le séquenceur (#toggle-sequencer, #grid-zoom, retour utilisateur) méritent un peu plus de
    présence horizontale, mais doivent rester alignés en hauteur avec leurs voisins immédiats
-   (#apply-instrument-all, les groupes -/+ H/V) plutôt que dépasser comme .icon-btn-lg. */
-.icon-btn-wide { width: 42px; }
+   (#apply-instrument-all, les groupes -/+ H/V) plutôt que dépasser comme .icon-btn-lg. 44px, PAS
+   42 (retour utilisateur, homogénéisation) : tombe pile sur la même largeur que .seq-icon-btn
+   (Lecture/Stop/Boucle du séquenceur) — un seul chiffre "élargi" dans toute l'appli plutôt que deux
+   valeurs proches mais différentes. */
+.icon-btn-wide { width: 44px; }
 
 /* État "actif" (ex. panneau séquenceur ouvert) */
 .icon-btn.active {
