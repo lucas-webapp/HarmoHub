@@ -479,18 +479,41 @@ body.body-scroll-locked { overflow: hidden !important; }
 
 /* Groupe -/+ par axe (horizontal/vertical), voir seq-zoom-overlay/grid-zoom-overlay dans
    index.html et adjustZoom/applyZoomLevel dans script.js : échelle horizontale (accords par
-   ligne/mesures par page) et verticale (hauteur des lignes) réglables indépendamment. Les deux
-   boutons -/+ sont empilés verticalement (grille 2 colonnes x 2 lignes, l'étiquette H/V occupant
-   les deux lignes de la 1re colonne) plutôt que côte à côte à l'horizontale — plus compact, plus
-   lisible visuellement comme une seule bascule -/+ (retour utilisateur). Boutons agrandis et
-   nettement séparés l'un de l'autre (retour utilisateur : les 24×16px + 1px d'écart d'avant
-   étaient difficiles à attraper précisément, surtout au doigt) — l'étiquette H/V suffit, pas
-   besoin d'un pourcentage affiché en plus. */
-.zoom-axis-group { display: grid; grid-template-columns: auto auto; grid-template-rows: repeat(2, 1fr); align-items: stretch; gap: 4px; flex: none; }
+   ligne/mesures par page) et verticale (hauteur des lignes) réglables indépendamment. Un seul bloc
+   arrondi/bordé (comme UN .icon-btn, mais un cran plus grand) regroupe l'étiquette H/V et les deux
+   flèches -/+ empilées à sa droite (grille 2 colonnes x 2 lignes, l'étiquette occupant les deux
+   lignes de la 1re colonne) — retour utilisateur (choix "option C" parmi 3 propositions) : sans
+   pourcentage affiché, juste l'étiquette. Les flèches elles-mêmes n'ont plus leur propre fond/
+   bordure individuels (contrairement à avant) : c'est TOUT le bloc qui doit se lire comme un seul
+   contrôle, pas deux boutons séparés collés l'un à l'autre. */
+.zoom-axis-group {
+    display: grid;
+    grid-template-columns: auto auto;
+    grid-template-rows: repeat(2, 1fr);
+    align-items: stretch;
+    gap: 4px;
+    flex: none;
+    padding: 3px 7px 3px 10px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0) 50%), #1c2027;
+    border: 1px solid #333;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03);
+}
 .zoom-axis-tag { grid-row: 1 / span 2; align-self: center; font-size: var(--fs-xs); font-weight: 700; color: var(--text-muted); width: 12px; text-align: center; }
 /* Spécificité (0,2,0) : l'emporte sur .icon-btn (0,1,0) quel que soit l'ordre des règles dans la
-   feuille, pour ajuster la hauteur par rapport au bouton icône générique de 32px. */
-.zoom-axis-group .zoom-axis-btn { width: 32px; height: 24px; border-radius: 5px; }
+   feuille — retire le fond/bordure/ombre propres à .icon-btn (déjà posés sur .zoom-axis-group
+   lui-même ci-dessus) pour que les flèches ne ressemblent plus à deux boutons empilés. */
+.zoom-axis-group .zoom-axis-btn {
+    width: 30px;
+    height: 22px;
+    border-radius: 5px;
+    background: none;
+    border: none;
+    box-shadow: none;
+    color: var(--text-muted);
+}
+.zoom-axis-group .zoom-axis-btn:hover { background: rgba(255,255,255,0.09); border: none; color: var(--text-main); }
+.zoom-axis-group .zoom-axis-btn:active { background: rgba(0, 230, 118, 0.16); box-shadow: none; }
 .zoom-axis-btn .icon { width: 13px; height: 13px; }
 
 /* Onglets Son/Affichage/Fichiers : un seul panneau visible à la fois (voir setSettingsTab dans
@@ -2646,17 +2669,17 @@ button:active { transform: translateY(1px); }
 /* Lecture/Stop/Boucle : icône seule (déjà identifiés par leur couleur/forme une fois dans le
    séquenceur), groupés à gauche — le texte "Lecture"/"Stop" prenait trop de place à côté des
    boutons Supprimer sur mobile. Même hauteur fixe que le reste de la rangée (.seq-presets button),
-   pour rester alignés sur les boutons Supprimer juste à côté sans dépendre d'un étirement. */
+   pour rester alignés sur les boutons Supprimer juste à côté sans dépendre d'un étirement. Taille
+   d'origine (44px) : retour utilisateur, seuls les boutons qui OUVRENT/FERMENT le séquenceur
+   (#toggle-sequencer, #grid-zoom) devaient être agrandis, pas ceux-ci. */
 .seq-presets .seq-icon-btn {
     flex: none;
-    width: 52px; /* légèrement élargis (retour utilisateur : Lecture/Stop/Boucle sont les boutons les
-                    plus utilisés du séquenceur, ils méritent un peu plus de présence que les autres) */
+    width: 44px;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
 }
-.seq-presets .seq-icon-btn .icon { width: 18px; height: 18px; }
 
 /* Échelle horizontale du séquenceur compact (voir showInlineSeqZoom/adjustSeqInlineZoom dans
    script.js), même groupe -/+ que les fenêtres agrandies (.zoom-axis-group, voir plus haut) : reste
