@@ -2203,6 +2203,7 @@ button:active { transform: translateY(1px); }
     font-weight: 700;
     color: var(--text-muted);
     opacity: 0.7;
+    text-shadow: 0 0 3px rgba(0,0,0,0.6); /* garde le chiffre lisible même par-dessus .loop-range-bar */
     overflow: hidden;
     cursor: ns-resize; /* indique qu'on peut y glisser pour définir une plage à boucler */
     touch-action: none;
@@ -2222,8 +2223,8 @@ button:active { transform: translateY(1px); }
     margin-top: 2px;
     border-radius: 5px;
     background-image: radial-gradient(120% 160% at 25% 20%, rgba(255,255,255,0.4), transparent 60%), linear-gradient(160deg, #ffd54f, #ffb300 75%);
-    box-shadow: 0 1px 0 rgba(255,255,255,0.3) inset, 0 0 6px rgba(255, 179, 0, 0.4), 0 2px 4px rgba(0,0,0,0.3);
-    opacity: 0.7; /* un peu plus transparente : reste bien visible mais laisse deviner la grille dessous */
+    box-shadow: 0 1px 0 rgba(255,255,255,0.3) inset, 0 0 4px rgba(255, 179, 0, 0.3), 0 2px 4px rgba(0,0,0,0.3);
+    opacity: 0.4; /* assez transparente pour laisser les numéros de mesure (.row-measure) lisibles au-dessus */
     z-index: 1;
     cursor: pointer;
     pointer-events: auto;
@@ -2243,12 +2244,15 @@ button:active { transform: translateY(1px); }
     cursor: ew-resize;
     touch-action: none;
 }
-/* Élargit la zone de préhension bien au-delà d'une seule colonne de grille (souvent trop étroite au
+/* Élargit la zone de préhension au-delà d'une seule colonne de grille (souvent trop étroite au
    doigt) — surtout vers l'INTÉRIEUR de la plage (toujours sûr, jamais rogné) et un peu vers
    l'extérieur (utile sauf quand le bord de la plage est aussi le tout premier/dernier accord de la
-   grille : là, .chord-grid { overflow: hidden } rognerait cette partie-là de la zone). */
-.loop-range-handle-left { margin: 0 -18px 0 -6px; width: calc(100% + 24px); }
-.loop-range-handle-right { margin: 0 -6px 0 -18px; width: calc(100% + 24px); }
+   grille : là, .chord-grid { overflow: hidden } rognerait cette partie-là de la zone). Volontairement
+   étroite (retour utilisateur : à -18px, un tap au centre de la barre pour la supprimer attrapait
+   presque toujours une poignée au lieu de tap-to-delete) : le milieu de la plage doit rester
+   cliquable pour la supprimer sans viser au pixel près. */
+.loop-range-handle-left { margin: 0 -8px 0 -6px; width: calc(100% + 14px); }
+.loop-range-handle-right { margin: 0 -6px 0 -8px; width: calc(100% + 14px); }
 
 /* Octave / renversement-drop sous le symbole (ex. "O3-R1-D2", voir gridVoicingParts) — remplace
    l'ancienne icône de style de jeu, retirée (retour utilisateur : n'apportait plus grand-chose).
@@ -2311,8 +2315,18 @@ button:active { transform: translateY(1px); }
    .seq-cell) : un scroll, même résiduel, se confondait au doigt avec le geste d'étirement d'une
    note. overflow-x reste posé en tout dernier recours (ex. zoom navigateur très élevé), jamais
    comme mécanisme normal de navigation. */
+/* overflow-y EXPLICITE (retour utilisateur, séquenceur qui ne défilait plus jamais en vertical) :
+   poser overflow-x seul suffit, en CSS, à faire calculer l'AUTRE axe en `auto` lui aussi (jamais
+   `visible` dès qu'un axe ne l'est plus) — .seq-scroll devenait ainsi, sans le vouloir, son PROPRE
+   conteneur de défilement vertical (souvent de quelques pixels à peine, sa hauteur suivant tout
+   juste son contenu). La molette posée dessus (ex. sur .seq-ctx-nav, voir renderSequencer) restait
+   alors piégée à l'intérieur au lieu de remonter au VRAI ancêtre censé défiler (.grid-zoom-pinned-
+   body, .seq-zoom-host ou .panel-controls selon le contexte, tous déjà en overflow-y:auto) — hidden
+   ne cache ici aucun contenu réel (.seq-scroll n'a pas de hauteur propre, seulement celle de son
+   contenu), juste ce micro-conteneur accidentel. */
 .seq-scroll {
     overflow-x: auto;
+    overflow-y: hidden;
     touch-action: pan-y;
     padding-bottom: 2px;
 }
@@ -2599,17 +2613,6 @@ button:active { transform: translateY(1px); }
     flex: none;
     min-width: 0;
     padding: 0;
-}
-
-/* Groupe étirer/raccourcir/déplacer (voir resizeSelectedSeqNote/moveSelectedSeqNotes) : agit sur
-   toute la sélection à la fois, visuellement distinct des boutons Supprimer juste à côté. */
-.seq-selection-actions {
-    display: flex;
-    gap: 4px;
-    align-items: stretch;
-    padding: 2px;
-    border: 1px solid #333;
-    border-radius: 8px;
 }
 
 /* Bouton dédié : supprime uniquement les notes sélectionnées, sans toucher au reste du motif */
@@ -3031,6 +3034,17 @@ select.song-select-narrow {
     position: absolute;
     top: 8px;
     left: 2px;
+    font-size: var(--fs-2xs);
+    color: #888;
+    font-weight: 700;
+}
+/* Numéro de fin de ligne (voir buildPrintExportHtml, seulement sur la dernière mesure de chaque
+   ligne) : même style que .ruler-num mais collé au bord DROIT de la mesure plutôt qu'au bord
+   gauche, pour marquer où la ligne se termine. */
+.ruler-num-end {
+    position: absolute;
+    top: 8px;
+    right: 2px;
     font-size: var(--fs-2xs);
     color: #888;
     font-weight: 700;

@@ -1665,6 +1665,11 @@ const SHOW_VOICING_PDF_KEY = 'harmohubShowVoicingPdf';
 // accord — désactivée par défaut (contrairement aux autres badges ci-dessus) : fonctionnalité
 // nouvelle/analytique, pas encore un réflexe attendu par défaut comme les degrés ou l'octave.
 const SHOW_CHORD_FUNCTION_KEY = 'harmohubShowChordFunction';
+// Nombre de mesures par ligne dans la grille du PDF exporté (voir buildPrintExportHtml/
+// layoutProgression, beatsPerRowOverride) — ÉCHELLE FIXE indépendante du zoom horizontal de la
+// grille à l'écran (retour utilisateur : avant, l'échelle du PDF variait ligne par ligne en
+// suivant le zoom écran, une ligne plus courte s'étirait pour remplir la largeur de la page).
+const PDF_MEASURES_PER_LINE_KEY = 'harmohubPdfMeasuresPerLine';
 // Échelles horizontale/verticale INDÉPENDANTES des modes loupe (grille/séquenceur) : remplace
 // l'ancien niveau de zoom unique (une seule clé harmohubSeqZoomLevel/harmohubGridZoomLevel) — une
 // valeur toujours reprise comme repli pour les deux axes si trouvée (session précédente), pour ne
@@ -1927,6 +1932,11 @@ class HarmoHubApp {
         // (voir Chord.getLabel) — activé par défaut.
         this.showVoicingPdf = localStorage.getItem(SHOW_VOICING_PDF_KEY) !== '0';
 
+        // Mesures par ligne dans le PDF exporté (voir PDF_MEASURES_PER_LINE_KEY ci-dessus) — 4 par
+        // défaut, comme demandé.
+        const storedMeasuresPerLine = parseInt(localStorage.getItem(PDF_MEASURES_PER_LINE_KEY), 10);
+        this.pdfMeasuresPerLine = (storedMeasuresPerLine >= 1 && storedMeasuresPerLine <= 8) ? storedMeasuresPerLine : 4;
+
         // Chaque accord choisit sa propre banque de son (voir data.instrument) : plusieurs
         // instruments Tone.js peuvent donc jouer simultanément. Construits à la demande et mis en
         // cache (voir getInstrument) plutôt qu'un seul « activeInstrument » partagé comme avant.
@@ -1945,6 +1955,7 @@ class HarmoHubApp {
         this.loopActiveSection = false; // boucle la partie active au lieu de jouer toute la grille (bouton Grille)
         this.selectedIndex = null; // accord sélectionné dans la grille (au sein de la partie active)
         this.multiSelect = new Set(); // indices en plus de selectedIndex (Ctrl/Cmd+clic, voir toggleGridMultiSelect), toujours au sein de la partie active — vidé au changement de partie
+        this._multiIntensityUndoPushed = false; // voir applyIntensityToSelection : un seul instantané Annuler par sélection multiple, pas un par cran de la barre #intensity
         this.editingIndex = null;  // accord en cours de modification (au sein de la partie active)
         // Bandeau Ajout/Modification (retour utilisateur : trop de clics/erreurs pour modifier un
         // accord) — voir updateAppModeBanner/editChord/exitEditMode. 'add' : un clic simple sur la
@@ -2334,6 +2345,14 @@ class HarmoHubApp {
         document.getElementById('intensity').oninput = (e) => {
             const val = document.getElementById('intensity-val');
             if (val) val.textContent = e.target.value;
+            // Plusieurs accords sélectionnés (Ctrl/Cmd+clic, voir toggleGridMultiSelect) : la barre
+            // règle alors l'intensité de TOUT le groupe d'un coup plutôt que du seul accord en édition
+            // (retour utilisateur) — chemin dédié, la case en édition n'ayant pas forcément de lien
+            // avec cette sélection multiple.
+            if (this.multiSelect.size > 0) {
+                this.applyIntensityToSelection(+e.target.value);
+                return;
+            }
             if (this.studioMode) this.renderSequencer();
             this.livePreviewUpdate();
             this.commitLiveEdit(false); // n'affecte pas le symbole affiché dans la case
@@ -4179,8 +4198,11 @@ class HarmoHubApp {
         return zoomed ? this.gridZoomLevelX : this.classicGridZoomLevelX;
     }
 
-    layoutProgression(history, beatsPerBar, zoomed = this.gridZoomOpen) {
-        const beatsPerRow = beatsPerRowFor(beatsPerBar, zoomed, this.currentGridHZoom(zoomed));
+    // beatsPerRowOverride : échelle FIXE imposée (voir buildPrintExportHtml/pdfMeasuresPerLine) au lieu
+    // de la déduire du zoom écran courant — seul le PDF exporté s'en sert, la grille à l'écran passe
+    // toujours null ici pour garder son comportement habituel (zoom écran).
+    layoutProgression(history, beatsPerBar, zoomed = this.gridZoomOpen, beatsPerRowOverride = null) {
+        const beatsPerRow = beatsPerRowOverride || beatsPerRowFor(beatsPerBar, zoomed, this.currentGridHZoom(zoomed));
         let cursor = 0;
         const cells = [];
         history.forEach((h, i) => {
@@ -5272,6 +5294,12 @@ class HarmoHubApp {
                 <button type="button" id="toggle-show-voicing-pdf" class="switch" role="switch" aria-checked="${this.showVoicingPdf}" aria-label="Octave, renversement et drop dans le PDF exporté">
                     <span class="switch-thumb"></span>
                 </button>
+            </div>
+            <div class="settings-select-row">
+                <label for="pdf-measures-per-line" title="Échelle FIXE de la grille d'accords dans le PDF exporté : toutes les lignes occupent la même largeur par mesure, une ligne plus courte laisse un blanc plutôt que de s'étirer">Mesures par ligne (PDF)</label>
+                <select id="pdf-measures-per-line">
+                    ${[2, 3, 4, 5, 6, 8].map(n => `<option value="${n}"${n === this.pdfMeasuresPerLine ? ' selected' : ''}>${n}</option>`).join('')}
+                </select>
             </div>`;
         document.getElementById('quick-add-help-btn').onclick = (e) => {
             const help = document.getElementById('quick-add-help');
@@ -5282,6 +5310,7 @@ class HarmoHubApp {
         document.getElementById('toggle-show-grid-octave').onclick = () => this.setShowGridOctave(!this.showGridOctave);
         document.getElementById('toggle-show-grid-voicing').onclick = () => this.setShowGridVoicing(!this.showGridVoicing);
         document.getElementById('toggle-show-voicing-pdf').onclick = () => this.setShowVoicingPdf(!this.showVoicingPdf);
+        document.getElementById('pdf-measures-per-line').onchange = (e) => this.setPdfMeasuresPerLine(parseInt(e.target.value, 10));
     }
 
     setShowRomanNumerals(on) {
@@ -5321,6 +5350,11 @@ class HarmoHubApp {
         localStorage.setItem(SHOW_VOICING_PDF_KEY, on ? '1' : '0');
         const btn = document.getElementById('toggle-show-voicing-pdf');
         if (btn) btn.setAttribute('aria-checked', on);
+    }
+
+    setPdfMeasuresPerLine(n) {
+        this.pdfMeasuresPerLine = n;
+        localStorage.setItem(PDF_MEASURES_PER_LINE_KEY, String(n));
     }
 
     setGeneralVolume(percent) {
@@ -6146,13 +6180,21 @@ class HarmoHubApp {
                 gridInner += `<div class="print-empty">—</div>`;
                 return;
             }
-            const { cells, rows, beatsPerRow } = this.layoutProgression(sec.chords, beatsPerBar);
+            // Échelle FIXE (voir pdfMeasuresPerLine, Paramètres > Affichage) : toutes les lignes de
+            // TOUTES les parties du morceau utilisent le même nombre de temps par ligne, plutôt que le
+            // zoom horizontal de la grille à l'écran au moment de l'export (retour utilisateur : avant,
+            // l'échelle du PDF variait ligne par ligne, une ligne plus courte s'étirait pour remplir
+            // toute la largeur de la page — désormais elle laisse un blanc à la place).
+            const pdfBeatsPerRow = beatsPerBar * this.pdfMeasuresPerLine;
+            const { cells, rows, beatsPerRow } = this.layoutProgression(sec.chords, beatsPerBar, this.gridZoomOpen, pdfBeatsPerRow);
             for (let r = 0; r < rows; r++) {
                 const rowCells = cells.filter(c => c.row === r);
                 // Dénominateur commun aux cases ET à la règle graduée en dessous (voir plus bas) :
-                // calculé UNE fois ici, réutilisé tel quel pour les deux, plutôt que recalculé
-                // séparément à chaque endroit (c'était la vraie cause du désalignement, voir plus bas).
+                // c'est désormais le budget FIXE de la ligne (beatsPerRow, ci-dessus), pas les temps
+                // réellement utilisés sur cette ligne précise — une ligne partielle laisse ainsi un
+                // blanc après sa dernière mesure plutôt que d'étirer ses cases pour combler la largeur.
                 const rowBeatsUsed = rowCells.reduce((sum, c) => sum + c.span, 0);
+                const rowBeatsDenom = beatsPerRow;
                 gridInner += `<div class="print-chord-row">`;
                 rowCells.forEach(s => {
                     const data = sec.chords[s.index];
@@ -6188,7 +6230,7 @@ class HarmoHubApp {
                     // pouvait légèrement désaligner les cases par rapport à la règle graduée en dessous
                     // (elle, sans gap ni largeur mini) — retour utilisateur, la règle doit coller
                     // PARFAITEMENT à la largeur des cases.
-                    const wPct = (s.span / rowBeatsUsed * 100).toFixed(4);
+                    const wPct = (s.span / rowBeatsDenom * 100).toFixed(4);
                     gridInner += `<div class="print-chord-wrap" style="width:${wPct}%;">
                         <div class="print-chord-above">${aboveHtml}</div>
                         <div class="print-chord-cell">
@@ -6220,8 +6262,14 @@ class HarmoHubApp {
                         ticks += `<span class="ruler-tick" style="left:${(b / barBeats) * 100}%"></span>`;
                     }
                     if (isLastBar) ticks += `<span class="ruler-tick ruler-tick-major" style="left:100%"></span>`;
-                    const barPct = (barBeats / rowBeatsUsed * 100).toFixed(4);
-                    gridInner += `<div class="ruler-bar" style="width:${barPct}%;">${ticks}<span class="ruler-num">${firstBarNumber + bi}</span></div>`;
+                    const barPct = (barBeats / rowBeatsDenom * 100).toFixed(4);
+                    // Numéro de fin de mesure (retour utilisateur : seul le début de chaque mesure était
+                    // visible jusque-là) — seulement sur la DERNIÈRE mesure de la ligne, positionné à son
+                    // bord droit plutôt qu'au bord gauche comme .ruler-num, pour marquer où elle se
+                    // termine sans dupliquer une info déjà lisible sur les mesures intermédiaires (le
+                    // début de la mesure suivante, juste à droite, y suffit déjà).
+                    const endNumEl = isLastBar ? `<span class="ruler-num-end">${firstBarNumber + bi}</span>` : '';
+                    gridInner += `<div class="ruler-bar" style="width:${barPct}%;">${ticks}<span class="ruler-num">${firstBarNumber + bi}</span>${endNumEl}</div>`;
                 }
                 gridInner += `</div>`;
             }
@@ -9614,12 +9662,6 @@ class HarmoHubApp {
             </div>` : ''}
             <button type="button" data-preset="clear" class="seq-delete-btn">${svgIcon('trash')} tout</button>
             ${hasSelection ? `
-            <div class="seq-selection-actions" title="Agit sur toute la sélection${countSuffix} à la fois">
-                <button type="button" id="seq-move-left" class="icon-btn seq-icon-btn" title="Déplacer la sélection vers la gauche (Maj+←)" aria-label="Déplacer la sélection vers la gauche">${svgIcon('chevron-left')}</button>
-                <button type="button" id="seq-move-right" class="icon-btn seq-icon-btn" title="Déplacer la sélection vers la droite (Maj+→)" aria-label="Déplacer la sélection vers la droite">${svgIcon('chevron-right')}</button>
-                <button type="button" id="seq-shrink" class="icon-btn seq-icon-btn" title="Raccourcir la sélection (←)" aria-label="Raccourcir la sélection">${svgIcon('minus')}</button>
-                <button type="button" id="seq-grow" class="icon-btn seq-icon-btn" title="Étirer la sélection (→)" aria-label="Étirer la sélection">${svgIcon('plus')}</button>
-            </div>
             <!-- Enregistre un rythme tapé en direct (espace/doigt) sur la durée de la sélection, et le
                  réapplique à TOUTES les voix de cette plage (voir startTapRecording) — retour utilisateur :
                  possibilité de « jouer » le rythme voulu plutôt que de peindre chaque case à la main. -->
@@ -9708,17 +9750,6 @@ class HarmoHubApp {
 
         const delBtn = document.getElementById('seq-delete-selection');
         if (delBtn) delBtn.onclick = () => this.deleteSelectedSeqNote();
-
-        // Agissent sur TOUTE la sélection à la fois (voir resizeSelectedSeqNote/moveSelectedSeqNotes) :
-        // équivalent souris/tactile des raccourcis clavier ← → et Maj+← →.
-        const moveLeftBtn = document.getElementById('seq-move-left');
-        if (moveLeftBtn) moveLeftBtn.onclick = () => this.moveSelectedSeqNotes(-1);
-        const moveRightBtn = document.getElementById('seq-move-right');
-        if (moveRightBtn) moveRightBtn.onclick = () => this.moveSelectedSeqNotes(1);
-        const shrinkBtn = document.getElementById('seq-shrink');
-        if (shrinkBtn) shrinkBtn.onclick = () => this.resizeSelectedSeqNote(-1);
-        const growBtn = document.getElementById('seq-grow');
-        if (growBtn) growBtn.onclick = () => this.resizeSelectedSeqNote(1);
 
         // Démarre/annule la capture d'un rythme tapé en direct sur la sélection (voir
         // startTapRecording/cancelTapRecording) — un seul bouton fait office des deux, son état
@@ -9959,7 +9990,29 @@ class HarmoHubApp {
             this.multiSelect.add(index);
         }
         this.selectedIndex = index;
+        // Sélection modifiée : un futur glissé de #intensity sur ce nouveau groupe doit repartir sur son
+        // propre instantané Annuler (voir applyIntensityToSelection), pas réutiliser celui d'un groupe
+        // précédent déjà refermé.
+        this._multiIntensityUndoPushed = false;
         this.loadProgression();
+    }
+
+    // Applique l'intensité `value` à TOUS les accords de la sélection multiple courante (voir
+    // toggleGridMultiSelect/#intensity ci-dessus) — même principe qu'un seul instantané Annuler par
+    // session que commitLiveEdit pour un accord seul (this._multiIntensityUndoPushed, remis à zéro dès
+    // que la sélection change), plutôt qu'un par cran de la barre.
+    applyIntensityToSelection(value) {
+        const sections = loadProgressionSections();
+        const history = sections[this.activeSection] && sections[this.activeSection].chords;
+        if (!history) return;
+        const indices = [...this.multiSelect].filter(i => history[i]);
+        if (indices.length === 0) return;
+        if (!this._multiIntensityUndoPushed) {
+            this.pushUndo(sections);
+            this._multiIntensityUndoPushed = true;
+        }
+        indices.forEach(i => { history[i].intensity = value; });
+        saveProgressionSections(sections);
     }
 
     async playSavedChord(section, index, play = true) {
