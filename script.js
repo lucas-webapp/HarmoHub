@@ -2939,8 +2939,12 @@ class HarmoHubApp {
     // Verrouille/libère le doigté actuellement affiché pour l'accord en cours (voir
     // guitarFingeringsForChord) : verrouillé, il passe en tête de liste et devient celui utilisé par
     // défaut dans la grille et le PDF, jusqu'à ce qu'on le libère ou qu'on change réellement l'accord
-    // (racine/qualité/voicing). Ne persiste dans la grille qu'au prochain Enregistrer/Ajouter (voir
-    // saveCurrent), comme tout autre réglage du panneau.
+    // (racine/qualité/voicing). commitLiveEdit persiste tout de suite en mode Modification, comme
+    // tout autre réglage du panneau (retour utilisateur : sans cet appel, le cadenas semblait se
+    // fermer puis se rouvrir tout seul — il n'écrivait en fait jamais rien dans la grille, puisque
+    // Enregistrer/Ajouter est justement masqué en mode Modification, seule persistance possible
+    // avant cet appel). Sans effet en mode Ajout (commitLiveEdit s'arrête tout de suite si
+    // appMode !== 'edit') : là, saveCurrent capture bien this.guitarLock au moment d'Ajouter.
     toggleGuitarLock() {
         const fingerings = this.guitarFingerings;
         if (!fingerings.length) return;
@@ -2953,6 +2957,7 @@ class HarmoHubApp {
         this._keepGuitarLockOnce = true;
         this.guitarKey = null; // force le recalcul de la liste (racine/qualité inchangées, sinon ignoré)
         this.ensureGuitarDiagram(this.readChord());
+        this.commitLiveEdit(false); // n'affecte pas le symbole affiché dans la case
     }
 
     clearGuitarViz() {
