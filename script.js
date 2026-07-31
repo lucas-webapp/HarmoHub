@@ -2240,7 +2240,10 @@ class HarmoHubApp {
         };
 
         document.getElementById('bpm').oninput = (e) => document.getElementById('bpm-val').value = e.target.value;
-        document.getElementById('bpm').addEventListener('change', () => { hasUnsavedChanges = true; });
+        // 'change' (relâchement du curseur), pas 'input' (à chaque pixel glissé) : un changement de
+        // tempo redémarre toute la lecture en cours (voir liveRestartForGlobalChange), on ne veut pas
+        // le redéclencher en rafale pendant qu'on fait encore glisser le curseur.
+        document.getElementById('bpm').addEventListener('change', () => { hasUnsavedChanges = true; this.liveRestartForGlobalChange(); });
 
         // Valeur du tempo éditable directement au clavier (clic dessus, taper une valeur, Entrée ou
         // clic ailleurs pour valider) — resynchronisée avec le curseur, dans les mêmes bornes (60-240).
@@ -2254,6 +2257,7 @@ class HarmoHubApp {
             bpmValInput.value = v;
             bpmSlider.value = v;
             hasUnsavedChanges = true;
+            this.liveRestartForGlobalChange();
         });
 
         document.getElementById('tap-tempo').onclick = () => this.handleTapTempo();
@@ -2272,12 +2276,15 @@ class HarmoHubApp {
             this.loadProgression();
             this.refreshPreview();
             this.renderSequencer();
+            this.liveRestartForGlobalChange();
         };
         // Le groove ne change rien à l'affichage (la grille du séquenceur reste visuellement droite,
         // comme dans la plupart des séquenceurs/DAW : seul l'instant réel de chaque case se décale à
-        // la lecture/l'export) — pas de re-rendu à déclencher ici, juste la sauvegarde du réglage.
+        // la lecture/l'export) — pas de re-rendu à déclencher ici, juste la sauvegarde du réglage, et
+        // le redémarrage en direct d'une lecture en cours (voir liveRestartForGlobalChange).
         document.getElementById('groove').onchange = () => {
             hasUnsavedChanges = true;
+            this.liveRestartForGlobalChange();
         };
 
         // Aperçu en direct : nom de l'accord, clavier et séquenceur mis à jour dès qu'on change un réglage
@@ -3022,6 +3029,21 @@ class HarmoHubApp {
         }
     }
 
+    // Contrairement à livePreviewUpdate (patch local d'UN accord, voir liveUpdateProgressionChord) :
+    // un changement GLOBAL de minutage — tempo, groove, signature rythmique, plage à boucler — décale
+    // en cascade tout ce qui est déjà programmé sur le Transport (secPerBeat, timeOffset de chaque
+    // accord...), qu'aucun patch local ne peut rattraper proprement. Retour utilisateur : "j'aimerais
+    // que tout se mette à jour automatiquement... sans avoir à stopper et relancer la lecture" —
+    // redémarre donc toujours la lecture en cours EN ENTIER (chanson/plage/accord, selon _playMode),
+    // depuis le début du passage joué, mais SANS action manuelle (pas besoin de cliquer Stop puis
+    // Lecture) : ce redémarrage bref est le même compromis déjà accepté pour l'audition d'un seul
+    // accord (voir livePreviewUpdate ci-dessus).
+    liveRestartForGlobalChange() {
+        if (!this.isPlaying) return;
+        if (this._playMode === 'progression') this.playProgression();
+        else this.playCurrent();
+    }
+
     // Bus partagé par TOUS les instruments de la lecture en direct (voir INSTRUMENT_BANKS) : une légère
     // réverbe (Freeverb, purement algorithmique — pas de temps de génération asynchrone à attendre,
     // contrairement à Tone.Reverb) donne une même « pièce » à l'ensemble, puis un limiteur absorbe les
@@ -3669,6 +3691,15 @@ class HarmoHubApp {
         // Si un accord est en cours d'édition, resynchronise le séquenceur épinglé (loupe grille) qui
         // affiche son style/instrument.
         if (this.editingIndex != null) this.syncGridZoomPinnedSeq();
+        // Répercute tout de suite sur une lecture en cours (voir liveUpdateProgressionChord) : un
+        // patch local par accord DÉJÀ programmé cette lecture-ci suffit, l'instrument ne change ni la
+        // durée ni le minutage de rien.
+        if (this.isPlaying && this._playMode === 'progression') {
+            for (const key of this._progChordSlots.keys()) {
+                const [section, index] = key.split(':').map(Number);
+                this.liveUpdateProgressionChord(section, index);
+            }
+        }
         this.flashHint(`Son appliqué à ${total} accord${total > 1 ? 's' : ''}`);
     }
 
@@ -7793,6 +7824,10 @@ class HarmoHubApp {
             this.loopRange = null;
             this.loadProgression();
             this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
+            // Retire la chanson entière de la boucle : une lecture en cours doit refléter ça tout de
+            // suite (voir liveRestartForGlobalChange), sinon elle continuerait à boucler l'ancienne
+            // plage jusqu'à un Stop manuel.
+            this.liveRestartForGlobalChange();
         }
     }
 
@@ -7809,6 +7844,10 @@ class HarmoHubApp {
         this.loopRange = { startSection: lo.section, startIndex: lo.index, endSection: hi.section, endIndex: hi.index };
         this.loadProgression();
         this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
+        // Une lecture de toute la chanson en cours doit se mettre à boucler cette plage tout de suite
+        // (voir liveRestartForGlobalChange) plutôt que d'attendre un Stop/Lecture manuel — sans effet
+        // sur l'audition d'un seul accord (playCurrent), sans rapport avec cette plage.
+        if (this._playMode === 'progression') this.liveRestartForGlobalChange();
     }
 
     // Bande(s) façon barre de cycle (GarageBand) marquant la plage à boucler, sur la ligne des
@@ -10137,6 +10176,12 @@ class HarmoHubApp {
         }
         indices.forEach(i => { history[i].intensity = value; });
         saveProgressionSections(sections);
+        // Répercute tout de suite sur celles de ces cases qui font partie d'une lecture en cours (voir
+        // liveUpdateProgressionChord) — un patch local par accord touché suffit, sans redémarrer toute
+        // la chanson (l'intensité ne change ni la durée ni le minutage).
+        if (this.isPlaying && this._playMode === 'progression') {
+            indices.forEach(i => this.liveUpdateProgressionChord(this.activeSection, i));
+        }
     }
 
     async playSavedChord(section, index, play = true) {
