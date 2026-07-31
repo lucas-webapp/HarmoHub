@@ -1124,18 +1124,6 @@ class Chord {
         return this.getVoiced().map(v => v.midi);
     }
 
-    getNotes() {
-        return this.getVoiced().map(v => Tone.Frequency(v.midi, "midi").toNote());
-    }
-
-    // Notes lisibles pour l'affichage, orthographiées PAR FONCTION (la tierce d'un Ré s'écrit
-    // toujours Fa#, jamais Sol♭) ; seule la fondamentale suit la convention dièses/bémols de la
-    // tonalité — c'est elle qui sert de point de départ à l'orthographe des autres degrés.
-    getDisplayNotes(useFlats = false, withOctave = true) {
-        const rootPc = NOTES.indexOf(this.root);
-        return this.getVoiced().map(v => spellChordTone(rootPc, useFlats, v.degree, v.midi, withOctave));
-    }
-
     // ---- Variantes « séquenceur » : mêmes notes, ordre STABLE de _computeVoices() (voir plus haut)
     // au lieu de l'ordre trié par hauteur — à utiliser PARTOUT où un index de voix est apparié à un
     // motif du séquenceur (pattern/tie stockés par index), jamais pour un simple affichage isolé.
@@ -2727,7 +2715,7 @@ class HarmoHubApp {
 
     // Convention dièse/bémol pour la fondamentale d'UN accord précis : part de la convention
     // générale du morceau, forcée en bémol pour les degrés chromatiques empruntés (voir
-    // useFlatsForChordRoot). C'est ce choix qui doit être passé à Chord.getLabel/getDisplayNotes,
+    // useFlatsForChordRoot). C'est ce choix qui doit être passé à Chord.getLabel/getSeqDisplayNotes,
     // jamais this.useFlats() directement, sous peine de mal orthographier les accords empruntés.
     useFlatsForRoot(root) {
         const gRootPc = NOTES.indexOf(document.getElementById('global-root').value);
