@@ -8717,20 +8717,20 @@ class HarmoHubApp {
 
     // ---------- Rythme tapé en direct (voir #seq-tap-record, retour utilisateur) ----------
     // Principe : un décompte métronome (comme playProgression), puis une fenêtre d'enregistrement dont
-    // la durée est exactement celle de la sélection courante (l'union de this.seqSelections, du plus
-    // petit `start` au plus grand `end`) — pendant cette fenêtre, chaque appui (barre espace ou doigt
-    // sur #seq-tap-zone) sonne l'accord en direct et marque une note, le relâchement la termine. Une
-    // fois la fenêtre écoulée, les appuis sont arrondis à la croche la plus proche puis appliqués comme
-    // UN SEUL rythme à TOUTES les voix de la plage (les hauteurs déjà en place ne changent pas) : voir
-    // finishTapRecording. Le métronome continue de cliquer pendant la capture, comme demandé, pour
-    // garder le repère de tempo sans avoir à le deviner.
+    // la durée est TOUJOURS celle de l'accord ENTIER en cours d'édition (jamais celle d'une sélection
+    // — retour utilisateur : borner la fenêtre à la sélection courante forçait à répéter la capture
+    // mesure par mesure dès que l'accord dépassait la durée sélectionnée) — pendant cette fenêtre,
+    // chaque appui (barre espace ou doigt sur #seq-tap-zone) sonne l'accord en direct et marque une
+    // note, le relâchement la termine. Une fois la fenêtre écoulée, les appuis sont arrondis à la
+    // croche la plus proche puis appliqués comme UN SEUL rythme à TOUTES les voix de l'accord (les
+    // hauteurs déjà en place ne changent pas) : voir finishTapRecording. Le métronome continue de
+    // cliquer pendant la capture, comme demandé, pour garder le repère de tempo sans avoir à le deviner.
     async startTapRecording() {
-        if (this.seqSelections.length === 0) return;
         if (this.seqTapPhase) { this.cancelTapRecording(); return; }
 
-        const minStart = Math.min(...this.seqSelections.map(s => s.start));
-        const maxEnd = Math.max(...this.seqSelections.map(s => s.end));
         const chord = this.readChord();
+        const minStart = 0;
+        const maxEnd = chord.beats * SEQ_STEPS_PER_BEAT - 1;
         const voices = chord.getSeqMidiNotes().length;
         const notes = chord.getSeqNotes();
         const instrumentKey = document.getElementById('instrument').value;
@@ -8845,8 +8845,8 @@ class HarmoHubApp {
     // Fin naturelle de la fenêtre (déclenchée par le Tone.Transport.schedule posé dans
     // startTapRecording) : quantifie tous les appuis capturés (arrondi mathématique à la croche la
     // plus proche, pour le début ET la fin de chaque appui, comme demandé) puis les applique comme un
-    // seul rythme à TOUTES les voix de la plage sélectionnée — une seule lecture/écriture du motif,
-    // comme les autres opérations groupées du séquenceur (voir deleteSelectedSeqNote et consorts).
+    // seul rythme à TOUTES les voix de l'accord entier — une seule lecture/écriture du motif, comme
+    // les autres opérations groupées du séquenceur (voir deleteSelectedSeqNote et consorts).
     finishTapRecording() {
         const st = this._tapRecordState;
         if (!st) return; // déjà nettoyé (annulé juste avant que ce callback programmé ne s'exécute)
@@ -8906,7 +8906,7 @@ class HarmoHubApp {
         this.stopAll();
         this.renderSequencer();
         this.livePreviewUpdate();
-        this.flashHint('Rythme enregistré et appliqué à la sélection');
+        this.flashHint('Rythme enregistré et appliqué à tout l\'accord');
     }
 
     // Annulation (bouton, Échap, ou changement d'accord en cours de capture) : rien n'est appliqué.
@@ -9656,11 +9656,13 @@ class HarmoHubApp {
                 <button type="button" id="seq-zoom-out-v-pinned" class="icon-btn zoom-axis-btn" title="Réduire l'échelle verticale" aria-label="Réduire l'échelle verticale">${svgIcon('minus')}</button>
             </div>` : ''}
             <button type="button" data-preset="clear" class="seq-delete-btn">${svgIcon('trash')} tout</button>
-            ${hasSelection ? `
-            <!-- Enregistre un rythme tapé en direct (espace/doigt) sur la durée de la sélection, et le
-                 réapplique à TOUTES les voix de cette plage (voir startTapRecording) — retour utilisateur :
-                 possibilité de « jouer » le rythme voulu plutôt que de peindre chaque case à la main. -->
-            <button type="button" id="seq-tap-record" class="icon-btn seq-icon-btn${this.seqTapPhase ? ' seq-tap-active' : ''}" title="${this.seqTapPhase ? "Annuler l'enregistrement (Échap)" : 'Taper le rythme de la sélection'}" aria-label="${this.seqTapPhase ? "Annuler l'enregistrement du rythme" : 'Taper le rythme de la sélection'}">${svgIcon('tapRecord')}</button>` : ''}
+            <!-- Enregistre un rythme tapé en direct (espace/doigt) sur TOUTE la durée de l'accord en
+                 cours d'édition, et le réapplique à TOUTES ses voix (voir startTapRecording) — retour
+                 utilisateur : possibilité de « jouer » le rythme voulu plutôt que de peindre chaque
+                 case à la main. Toujours visible, aucune sélection requise (retour utilisateur :
+                 avant, masqué sans sélection ET limité à sa seule durée — au lieu de tout l'accord,
+                 forçant à répéter l'enregistrement mesure par mesure). -->
+            <button type="button" id="seq-tap-record" class="icon-btn seq-icon-btn${this.seqTapPhase ? ' seq-tap-active' : ''}" title="${this.seqTapPhase ? "Annuler l'enregistrement (Échap)" : "Taper le rythme de l'accord"}" aria-label="${this.seqTapPhase ? "Annuler l'enregistrement du rythme" : "Taper le rythme de l'accord"}">${svgIcon('tapRecord')}</button>
             <button type="button" id="seq-delete-selection" class="seq-delete-btn" ${hasSelection ? '' : 'disabled'}>${svgIcon('trash')}
                 <span class="lbl-full">sélection${countSuffix}</span><span class="lbl-short">Sélect.${countSuffix}</span>
             </button>
