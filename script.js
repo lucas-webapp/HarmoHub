@@ -9642,8 +9642,8 @@ class HarmoHubApp {
             ${showInlineSeqZoom ? `
             <div class="zoom-axis-group" title="Échelle horizontale">
                 <span class="zoom-axis-tag">H</span>
-                <button type="button" id="seq-zoom-out-h-inline" class="icon-btn zoom-axis-btn" title="Réduire l'échelle horizontale" aria-label="Réduire l'échelle horizontale">${svgIcon('minus')}</button>
                 <button type="button" id="seq-zoom-in-h-inline" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">${svgIcon('plus')}</button>
+                <button type="button" id="seq-zoom-out-h-inline" class="icon-btn zoom-axis-btn" title="Réduire l'échelle horizontale" aria-label="Réduire l'échelle horizontale">${svgIcon('minus')}</button>
             </div>` : ''}
             ${continuous ? `
             <!-- Séquenceur ÉPINGLÉ de la loupe grille (vue continue) : aucun bouton de zoom n'y était
@@ -9654,13 +9654,13 @@ class HarmoHubApp {
                  haut) : les deux ne sont que deux hôtes différents pour la même « vue agrandie ». -->
             <div class="zoom-axis-group" title="Échelle horizontale">
                 <span class="zoom-axis-tag">H</span>
-                <button type="button" id="seq-zoom-out-h-pinned" class="icon-btn zoom-axis-btn" title="Réduire l'échelle horizontale" aria-label="Réduire l'échelle horizontale">${svgIcon('minus')}</button>
                 <button type="button" id="seq-zoom-in-h-pinned" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">${svgIcon('plus')}</button>
+                <button type="button" id="seq-zoom-out-h-pinned" class="icon-btn zoom-axis-btn" title="Réduire l'échelle horizontale" aria-label="Réduire l'échelle horizontale">${svgIcon('minus')}</button>
             </div>
             <div class="zoom-axis-group" title="Échelle verticale">
                 <span class="zoom-axis-tag">V</span>
-                <button type="button" id="seq-zoom-out-v-pinned" class="icon-btn zoom-axis-btn" title="Réduire l'échelle verticale" aria-label="Réduire l'échelle verticale">${svgIcon('minus')}</button>
                 <button type="button" id="seq-zoom-in-v-pinned" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle verticale" aria-label="Agrandir l'échelle verticale">${svgIcon('plus')}</button>
+                <button type="button" id="seq-zoom-out-v-pinned" class="icon-btn zoom-axis-btn" title="Réduire l'échelle verticale" aria-label="Réduire l'échelle verticale">${svgIcon('minus')}</button>
             </div>` : ''}
             <button type="button" data-preset="clear" class="seq-delete-btn">${svgIcon('trash')} tout</button>
             ${hasSelection ? `

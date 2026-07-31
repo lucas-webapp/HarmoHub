@@ -514,9 +514,10 @@ body.body-scroll-locked { overflow: hidden !important; }
     box-shadow: none;
     color: var(--text-muted);
 }
-/* Filet discret entre les deux flèches (retour utilisateur) : posé sur la SECONDE (celle du bas, "+"
-   — voir l'ordre dans index.html/script.js, toujours -/+) via :last-of-type, pas un gap qui
-   gonflerait la hauteur totale du bloc. */
+/* Filet discret entre les deux flèches (retour utilisateur) : posé sur la SECONDE (celle du bas, "-"
+   — voir l'ordre dans index.html/script.js, toujours +/- : agrandir en haut, réduire en bas, plus
+   logique — retour utilisateur) via :last-of-type, pas un gap qui gonflerait la hauteur totale du
+   bloc. :last-of-type suit l'ordre du DOM tout seul, quel que soit le symbole qui s'y trouve. */
 .zoom-axis-group .zoom-axis-btn:last-of-type { border-top: 1px solid rgba(255,255,255,0.09); }
 .zoom-axis-group .zoom-axis-btn:hover { background: rgba(255,255,255,0.09); color: var(--text-main); }
 .zoom-axis-group .zoom-axis-btn:active { background: rgba(0, 230, 118, 0.16); box-shadow: none; }
@@ -782,6 +783,13 @@ main {
 }
 .app-mode-seg {
     flex: 1;
+    /* min-width:0 : sans lui, le `button { min-width: 120px }` générique (voir plus haut dans la
+       feuille) l'emporte quand même sur flex:1 (min-width par défaut d'un item flexible = auto,
+       jamais 0) — les 3 segments refusaient alors de rétrécir sous 120px chacun (360px de trop pour
+       les 358px utiles du panneau de gauche en bureau), débordant du bandeau et cachant sa bordure
+       droite (retour utilisateur, capture d'écran) : jusqu'ici seule la variante mobile (média
+       requête plus bas) posait ce correctif, jamais la règle de base utilisée sur ordinateur. */
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: center;
