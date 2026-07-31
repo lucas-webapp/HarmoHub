@@ -1502,7 +1502,6 @@ const INSTRUMENT_TRIM_DB = {
     pad: -16,
     strings: -16,
     organ: -18,
-    bell: 2,
 };
 
 // Chaque build(masterBus) construit SON PROPRE filtre/effet/volume et se chaîne jusqu'à masterBus
@@ -1600,21 +1599,6 @@ const INSTRUMENT_BANKS = {
             const chorus = new Tone.Chorus({ frequency: 1.1, delayTime: 3.5, depth: 0.45, wet: 0.25 }).start();
             const volume = new Tone.Volume(INSTRUMENT_TRIM_DB.organ);
             synth.chain(filter, chorus, volume, masterBus);
-            return synth;
-        }
-    },
-    bell: {
-        label: 'Synthé chaud',
-        build: (masterBus) => {
-            const synth = new Tone.PolySynth(Tone.AMSynth, {
-                harmonicity: 2,
-                oscillator: { type: 'sine' },
-                envelope: { attack: 0.05, decay: 0.3, sustain: 0.4, release: 1 },
-                modulation: { type: 'sine' }
-            });
-            const filter = new Tone.Filter({ type: 'lowpass', frequency: 4000, Q: 0.5 });
-            const volume = new Tone.Volume(INSTRUMENT_TRIM_DB.bell);
-            synth.chain(filter, volume, masterBus);
             return synth;
         }
     }
@@ -1860,7 +1844,7 @@ class MidiTrackBuilder {
 // Correspondance approximative avec les instruments General MIDI (GM) : à l'import dans un DAW, chaque
 // piste charge d'emblée un son du même esprit que celui de l'appli, avant que l'utilisateur ne le
 // remplace par le sien (l'objectif de cet export étant justement de pouvoir changer les sons).
-const GM_PROGRAM = { piano: 0, epiano: 4, pad: 88, strings: 50, organ: 80, bell: 89 };
+const GM_PROGRAM = { piano: 0, epiano: 4, pad: 88, strings: 50, organ: 80 };
 const MIDI_PPQ = 480; // pulsations par noire (doit être divisible par SEQ_STEPS_PER_BEAT)
 
 // Fréquence d'échantillonnage du rendu audio hors-temps réel (export MP3, voir plus bas) : 44,1 kHz,
@@ -2765,7 +2749,7 @@ class HarmoHubApp {
         });
         document.querySelectorAll('#bass option[value]:not([value=""])').forEach(opt => {
             const pc = NOTES.indexOf(opt.value);
-            opt.textContent = 'Basse : ' + noteNameForPc(pc, songFlats); // garde le préfixe (voir index.html)
+            opt.textContent = 'Basse ' + noteNameForPc(pc, songFlats); // garde le préfixe (voir index.html)
         });
     }
 
@@ -6771,7 +6755,11 @@ class HarmoHubApp {
         // "Confirmée" = les deux signaux indépendants pointent vers LA MÊME tonalité (voir plus haut) —
         // affiché tel quel dans le popup plutôt que mélangé dans un score composite.
         results.forEach(r => { r.confirmed = (r === results[0]) && r.root === topByDiatonic.root && r.mode === topByDiatonic.mode; });
-        return results.slice(0, 5);
+        // Seuil de fiabilité (retour utilisateur) : sous 0.6, la corrélation est trop faible pour
+        // qu'une tonalité soit vraiment reconnaissable — mieux vaut n'en proposer AUCUNE (harmonie trop
+        // chromatique/ambiguë) que d'en afficher une peu convaincante. Appliqué APRÈS avoir déterminé
+        // `confirmed` ci-dessus (qui doit comparer TOUS les candidats entre eux, seuil ou non).
+        return results.filter(r => r.score > 0.6).slice(0, 5);
     }
 
     // Popup léger (même style que openBackupScopeMenu) : liste les tonalités candidates (voir
@@ -6780,15 +6768,21 @@ class HarmoHubApp {
         const menu = document.getElementById('key-suggest-menu');
         const candidates = this.suggestSongKey();
         if (candidates.length === 0) {
-            this.flashHint('Pose d\'abord quelques accords dans la grille pour pouvoir analyser la tonalité');
+            // Deux raisons bien distinctes de ne rien avoir à proposer : pas encore d'accords du tout,
+            // ou une grille déjà remplie mais trop ambiguë/chromatique pour dépasser le seuil de
+            // fiabilité (voir suggestSongKey) — deux messages différents plutôt qu'un seul générique.
+            const hasChords = loadProgressionSections().some(sec => sec.chords.length > 0);
+            this.flashHint(hasChords
+                ? 'Aucune tonalité assez fiable à proposer pour cette grille (harmonie trop ambiguë ou chromatique)'
+                : 'Pose d\'abord quelques accords dans la grille pour pouvoir analyser la tonalité');
             return;
         }
         menu.innerHTML = candidates.map(c => {
-            // Coefficient de corrélation affiché tel quel (jamais rapporté au meilleur score en %) :
-            // une tonalité peu marquée doit pouvoir se lire comme peu sûre, pas comme "100%" juste
-            // parce qu'elle bat les autres candidats d'un rien. "✓" en plus si un second signal
-            // indépendant (fondamentales diatoniques, voir suggestSongKey) confirme ce premier choix.
-            const score = c.score.toFixed(2) + (c.confirmed ? ' ✓' : '');
+            // En pourcentage (coefficient de corrélation borné à 1, donc un multiple de 100 lisible
+            // directement comme un taux de confiance) plutôt que le coefficient brut — plus parlant
+            // pour l'utilisateur qu'un nombre entre 0 et 1. "✓" en plus si un second signal indépendant
+            // (fondamentales diatoniques, voir suggestSongKey) confirme ce premier choix.
+            const score = Math.round(c.score * 100) + '%' + (c.confirmed ? ' ✓' : '');
             // Épelé selon la convention dièses/bémols de CE candidat (pas de la tonalité actuelle du
             // morceau, encore en place tant qu'on n'a pas cliqué) : useFlatsForKey, la fonction
             // indépendante, plutôt que this.useFlatsForRoot, qui lit toujours la tonalité en cours.

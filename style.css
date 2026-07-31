@@ -1215,7 +1215,27 @@ main {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
 }
-.accord-grid select { min-width: 0; }
+/* Peu de texte dans chacun de ces menus (une lettre, "Fond.", "Drop 2"...) : le padding généreux/
+   min-width de `select` (pensé pour les menus pleine largeur ailleurs dans l'appli) les rendait bien
+   plus larges que nécessaire (retour utilisateur) — moins de padding + ellipsis (jamais de
+   retour à la ligne) plutôt qu'un menu qui s'étire pour rien, quitte à tronquer une option longue
+   ("Basse : Fond.") dans une colonne étroite : le menu ouvert liste toujours l'option en entier. */
+.accord-grid select, .advanced-grid select {
+    min-width: 0;
+    padding: 10px 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* Les 4 réglages avancés (une seule ligne, voir .advanced-grid) sont nettement plus à l'étroit que
+   racine/qualité juste au-dessus (2 par ligne au lieu de 4) : padding réduit et police un cran plus
+   petite (encore lisible, --fs-xs déjà utilisée ailleurs pour du texte dense) pour que le nombre/la
+   lettre qui distingue chaque option (le "2" de "Drop 2", la note de "Basse D#"...) reste visible le
+   plus souvent possible avant de tomber sur l'ellipsis. */
+.advanced-grid select {
+    padding: 10px 4px;
+    font-size: var(--fs-xs);
+}
 
 /* Sélecteur de son, dans l'en-tête de la carte Lecture (à côté du titre, voir index.html) plutôt que
    dans .select-group : évite un 3e menu déroulant en pleine largeur pour un réglage qu'on change bien
@@ -1238,7 +1258,15 @@ main {
    était auparavant un bouton/sélecteur séparé (toggle-bass) ; elle vit désormais ici, en 4e case,
    son option par défaut « Basse : Fond. » suffisant à faire comprendre son rôle sans étiquette
    dédiée — même esprit que « Fond. »/« Sans drop » pour les autres cases de cette grille. */
-.advanced-grid { margin-top: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* 4 colonnes (au lieu de 2) : les 4 réglages tiennent sur une seule ligne plutôt que deux (retour
+   utilisateur : moins de hauteur prise, donc moins de scroll pour les atteindre sur téléphone) — les
+   selects, déjà rétrécis ci-dessus (min-width:0 + ellipsis), s'y prêtent bien mieux qu'avec le
+   padding/min-width par défaut de `select`. */
+/* Colonnes inégales, calées sur la largeur RÉELLE nécessaire à l'option la plus longue de chaque menu
+   (mesurée : Fond./1er renv. ~75px, Sans drop ~83px, Oct. 2 ~61px, Basse Fond. ~95px, à fs-xs) plutôt
+   que 4 parts égales — Octave (toujours courte : "Oct. X") peut céder de la place à Basse (toujours
+   la plus longue : "Basse " + jusqu'à 2 caractères de note). */
+.advanced-grid { margin-top: 10px; grid-template-columns: 0.85fr 0.9fr 1fr 1.25fr; }
 
 select {
     flex: 1;

@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202607312600">
+    <link rel="stylesheet" href="style.css?v=202607312700">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -540,21 +540,24 @@
                             <option value="none">Sans drop</option><option value="drop2">Drop 2</option><option value="drop3">Drop 3</option>
                         </select>
                         <select id="octave">
-                            <option value="2">Octave 2</option>
-                            <option value="3" selected>Octave 3</option>
-                            <option value="4">Octave 4</option>
-                            <option value="5">Octave 5</option>
+                            <option value="2">Oct. 2</option>
+                            <option value="3" selected>Oct. 3</option>
+                            <option value="4">Oct. 4</option>
+                            <option value="5">Oct. 5</option>
                         </select>
                         <!-- Basse différente (accord « sur » une note, ex. Cmaj7/D) : chaque option préfixée
-                             "Basse : ..." (y compris la valeur par défaut "Fond.") pour se comprendre sans
-                             étiquette dédiée, comme les autres cases de cette grille ("Sans drop", "Octave 3"...).
+                             "Basse ..." (y compris la valeur par défaut "Fond.") pour se comprendre sans
+                             étiquette dédiée, comme les autres cases de cette grille ("Sans drop", "Oct. 3"...).
                              Anciennement un bouton/sélecteur séparé (toggle-bass) ; vit désormais ici,
-                             révélée/masquée avec le reste par le même bouton « … » (voir toggle-complex-quality). -->
+                             révélée/masquée avec le reste par le même bouton « … » (voir toggle-complex-quality).
+                             Pas de ":" (retour utilisateur : menus trop larges sur téléphone, ce caractère en
+                             plus n'apportait rien) — voir aussi updateKeyLabels dans script.js, qui régénère
+                             ce même texte pour chaque option de note (garde CE préfixe, sans ":"). -->
                         <select id="bass" title="Choisir une note de basse différente (accord « sur » une note)">
-                            <option value="">Basse : Fond.</option>
-                            <option value="C">Basse : C</option><option value="C#">Basse : C#</option><option value="D">Basse : D</option><option value="D#">Basse : D#</option>
-                            <option value="E">Basse : E</option><option value="F">Basse : F</option><option value="F#">Basse : F#</option><option value="G">Basse : G</option>
-                            <option value="G#">Basse : G#</option><option value="A">Basse : A</option><option value="A#">Basse : A#</option><option value="B">Basse : B</option>
+                            <option value="">Basse Fond.</option>
+                            <option value="C">Basse C</option><option value="C#">Basse C#</option><option value="D">Basse D</option><option value="D#">Basse D#</option>
+                            <option value="E">Basse E</option><option value="F">Basse F</option><option value="F#">Basse F#</option><option value="G">Basse G</option>
+                            <option value="G#">Basse G#</option><option value="A">Basse A</option><option value="A#">Basse A#</option><option value="B">Basse B</option>
                         </select>
                     </div>
                 </section>
@@ -573,7 +576,6 @@
                             <option value="pad">Nappe</option>
                             <option value="strings">Cordes synth.</option>
                             <option value="organ">Orgue/Lead</option>
-                            <option value="bell">Synthé chaud</option>
                         </select>
                         <div class="card-head-actions">
                             <!-- Applique le son actuellement choisi (menu juste avant) à TOUS les accords déjà
@@ -866,6 +868,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202607312600"></script>
+    <script src="script.js?v=202607312700"></script>
 </body>
 </html>
