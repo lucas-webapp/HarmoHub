@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202607312700">
+    <link rel="stylesheet" href="style.css?v=202607312800">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -405,97 +405,142 @@
                         </div>
                     </div>
                 </section>
+                <!-- Saisie rapide : juste sous Morceau (retour utilisateur : accès immédiat), UNIQUEMENT
+                     dans l'onglet Ajout — inutile en Modification (chaque case s'édite déjà directement
+                     au clic) ni en Config. (voir updateAppModeBanner dans script.js, qui bascule
+                     `hidden` ici selon this.appMode/this.leftPanelTab). Anciennement dans la carte
+                     "Grille d'accords" (colonne de droite), où elle prenait trop de place à demeure. -->
+                <div id="quick-add-panel">
+                    <!-- Bouton d'ouverture déplacé dans Paramètres > Affichage (voir renderDisplayPanel,
+                         retour utilisateur : on ne comprenait pas qu'il appartenait à l'ajout rapide, et il
+                         sert peu) — ce popover, lui, reste ici (position fixe, peu importe où il vit dans
+                         le DOM), rouvert/refermé par ce même bouton désormais dans Paramètres. -->
+                    <div id="quick-add-help" class="context-menu quick-add-help" hidden>
+                        <ul>
+                            <li><code>Cm7</code> : accord seul, voicing par défaut</li>
+                            <li><code>C_E</code> : basse différente</li>
+                            <li><code>C_O4-R1-D2</code> : voicing précis (octave/renversement/drop, même notation que les badges) — combinables et partiels, ex. <code>C_D2</code> = juste un drop 2, ou avec une basse : <code>C_E_O4</code></li>
+                            <li><code>C/Am/F/G</code> : plusieurs accords, 1/mesure</li>
+                            <li>Entrée : ligne — ligne vide : nouvelle partie</li>
+                            <li>Ctrl+Entrée ou « + » : valider</li>
+                        </ul>
+                    </div>
+                    <div class="quick-add-row">
+                        <textarea id="quick-add-input" class="quick-add-input" rows="1" placeholder="Ajout rapide" autocomplete="off" autocapitalize="off" spellcheck="false" title="Un accord seul (ex. Cm7), une basse et/ou un voicing via « _ » (C_E, C_O4-R1-D2, C_D2...), plusieurs accords séparés par « / » (un par mesure), ou une ligne vide pour démarrer une nouvelle partie — voir l'aide dans Paramètres > Affichage"></textarea>
+                        <button type="button" id="quick-add-btn" class="icon-btn" title="Ajouter à la grille (Ctrl+Entrée) — « _ » pour une basse et/ou un voicing (C_E, C_O4-R1-D2), « / » pour plusieurs accords à la suite (C/Am/F/G), ligne vide pour une nouvelle partie" aria-label="Ajouter à la grille">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                        </button>
+                    </div>
+                </div>
                 <!-- Tonalité/mode, signature rythmique, groove et transpose du morceau ouvert : réglages
                      fixés une bonne fois pour toutes puis rarement retouchés, plutôt qu'un mode
                      d'INTERACTION comme Ajout/Modif. — troisième onglet dédié dans le bandeau
                      (#app-mode-config), pas dans les Paramètres (retour utilisateur). Visible
                      uniquement quand ce troisième onglet est actif (voir setLeftPanelTab dans
-                     script.js), qui masque alors Accord/Lecture à la place. -->
-                <section class="control-card" id="config-card" hidden>
-                    <div class="card-head">
-                        <h2>Configuration</h2>
-                    </div>
-                    <div class="bpm-group">
-                        <div class="bpm-head">
-                            <label for="bpm">Tempo : <input type="number" id="bpm-val" class="bpm-val-input" min="60" max="240" value="120" title="Cliquer pour saisir une valeur précise"> BPM</label>
-                            <div class="bpm-actions">
-                                <button type="button" id="tap-tempo" class="btn-sec tap-tempo-btn" title="Tap tempo : cliquer plusieurs fois au rythme voulu pour régler le BPM">TAP</button>
-                                <!-- Icône reflétant l'état (noire seule = désactivé, deux croches reliées = activé)
-                                     posée ici juste pour l'affichage initial avant JS ; syncMetroSubIcon() la
-                                     réécrit ensuite à chaque changement d'état (voir script.js). -->
-                                <button type="button" id="toggle-metronome-subdivision" class="icon-btn" title="Ajouter un clic faible sur le contretemps (croches)" aria-label="Ajouter un clic faible sur le contretemps">
-                                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                        <ellipse cx="9" cy="18" rx="4" ry="3" fill="currentColor"/>
-                                        <path d="M13 18V4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                                    </svg>
-                                </button>
-                                <button type="button" id="toggle-metronome" class="icon-btn" title="Garder le métronome pendant la lecture de la grille" aria-label="Garder le métronome pendant la lecture de la grille">
-                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                        <path d="M7 20h10L14 5h-4L7 20Z"/>
-                                        <path d="M12 15V8"/>
-                                        <circle cx="12" cy="6" r="1" fill="currentColor" stroke="none"/>
-                                    </svg>
-                                </button>
+                     script.js), qui masque alors Accord/Lecture à la place. DEUX cartes séparées
+                     (Tempo/Tonalité) plutôt qu'une seule "Configuration" fourre-tout (retour
+                     utilisateur : maintenant que Config. a son propre onglet, plus besoin de tout
+                     compresser sur une carte unique) — #config-card n'est donc plus lui-même une
+                     .control-card, juste le conteneur qui les affiche/masque toutes les deux ensemble. -->
+                <div id="config-card" hidden>
+                    <section class="control-card">
+                        <div class="card-head">
+                            <h2>Tempo</h2>
+                        </div>
+                        <div class="bpm-group">
+                            <div class="bpm-head">
+                                <label for="bpm">Tempo : <input type="number" id="bpm-val" class="bpm-val-input" min="60" max="240" value="120" title="Cliquer pour saisir une valeur précise"> BPM</label>
+                                <div class="bpm-actions">
+                                    <button type="button" id="tap-tempo" class="btn-sec tap-tempo-btn" title="Tap tempo : cliquer plusieurs fois au rythme voulu pour régler le BPM">TAP</button>
+                                    <!-- Icône reflétant l'état (noire seule = désactivé, deux croches reliées = activé)
+                                         posée ici juste pour l'affichage initial avant JS ; syncMetroSubIcon() la
+                                         réécrit ensuite à chaque changement d'état (voir script.js). -->
+                                    <button type="button" id="toggle-metronome-subdivision" class="icon-btn icon-btn-lg" title="Ajouter un clic faible sur le contretemps (croches)" aria-label="Ajouter un clic faible sur le contretemps">
+                                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                            <ellipse cx="9" cy="18" rx="4" ry="3" fill="currentColor"/>
+                                            <path d="M13 18V4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                        </svg>
+                                    </button>
+                                    <button type="button" id="toggle-metronome" class="icon-btn icon-btn-lg" title="Garder le métronome pendant la lecture de la grille" aria-label="Garder le métronome pendant la lecture de la grille">
+                                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M7 20h10L14 5h-4L7 20Z"/>
+                                            <path d="M12 15V8"/>
+                                            <circle cx="12" cy="6" r="1" fill="currentColor" stroke="none"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <input type="range" id="bpm" min="60" max="240" value="120">
+                        </div>
+                        <!-- Groove et signature rythmique rejoignent le tempo (retour utilisateur : tous
+                             deux relèvent du RYTHME, pas de la tonalité) — même formule de champ (étiquette +
+                             select, voir .groove-field) reprise pour la signature, désormais à côté du
+                             groove plutôt qu'au milieu de tonalité/mode dans .song-row. -->
+                        <div class="groove-group">
+                            <div class="groove-field">
+                                <label for="groove">Groove</label>
+                                <select id="groove" class="compact">
+                                    <option value="straight" selected>Droit</option>
+                                    <option value="shuffle">Shuffle léger</option>
+                                    <option value="ternary">Ternaire (triolet)</option>
+                                </select>
+                            </div>
+                            <div class="groove-field">
+                                <label for="time-sig">Signature</label>
+                                <select id="time-sig" class="compact" title="Signature rythmique">
+                                    <option value="2/4">2/4</option>
+                                    <option value="3/4">3/4</option>
+                                    <option value="4/4" selected>4/4</option>
+                                    <option value="5/4">5/4</option>
+                                    <option value="6/8">6/8</option>
+                                    <option value="7/8">7/8</option>
+                                    <option value="9/8">9/8</option>
+                                    <option value="12/8">12/8</option>
+                                </select>
                             </div>
                         </div>
-                        <input type="range" id="bpm" min="60" max="240" value="120">
-                    </div>
-                    <div class="song-row">
-                        <select id="global-root" class="compact song-select-narrow" title="Tonalité">
-                            <option value="C">C</option><option value="C#">C#</option><option value="D">D</option><option value="D#">D#</option>
-                            <option value="E">E</option><option value="F">F</option><option value="F#">F#</option><option value="G">G</option>
-                            <option value="G#">G#</option><option value="A">A</option><option value="A#">A#</option><option value="B">B</option>
-                        </select>
-                        <div class="mode-field">
-                            <select id="global-mode" class="compact song-select-narrow" title="Mode">
-                                <option value="maj">Majeur</option><option value="min">Mineur</option>
-                                <option value="dorian" class="opt-mode" hidden>Dorien</option>
-                                <option value="phrygian" class="opt-mode" hidden>Phrygien</option>
-                                <option value="lydian" class="opt-mode" hidden>Lydien</option>
-                                <option value="mixolydian" class="opt-mode" hidden>Mixolydien</option>
-                                <option value="locrian" class="opt-mode" hidden>Locrien</option>
-                            </select>
-                            <button type="button" id="toggle-complex-mode" class="icon-btn" title="Afficher plus de modes (dorien, phrygien, lydien...)" aria-label="Afficher plus de modes">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
-                            </button>
+                    </section>
+                    <section class="control-card">
+                        <div class="card-head">
+                            <h2>Tonalité</h2>
                         </div>
-                        <!-- Aide au choix de la tonalité (voir suggestSongKey/openKeySuggestMenu dans script.js) :
-                             analyse les accords déjà posés dans la grille plutôt que de deviner à l'aveugle
-                             (retour utilisateur). -->
-                        <button type="button" id="key-suggest-btn" class="icon-btn" title="Suggérer une tonalité d'après les accords déjà posés" aria-label="Suggérer une tonalité">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
-                        </button>
-                        <select id="time-sig" class="compact song-select-narrow" title="Signature rythmique">
-                            <option value="2/4">2/4</option>
-                            <option value="3/4">3/4</option>
-                            <option value="4/4" selected>4/4</option>
-                            <option value="5/4">5/4</option>
-                            <option value="6/8">6/8</option>
-                            <option value="7/8">7/8</option>
-                            <option value="9/8">9/8</option>
-                            <option value="12/8">12/8</option>
-                        </select>
-                    </div>
-                    <div class="groove-group">
-                        <div class="groove-field">
-                            <label for="groove">Groove</label>
-                            <select id="groove" class="compact">
-                                <option value="straight" selected>Droit</option>
-                                <option value="shuffle">Shuffle léger</option>
-                                <option value="ternary">Ternaire (triolet)</option>
+                        <div class="song-row">
+                            <select id="global-root" class="compact song-select-narrow" title="Tonalité">
+                                <option value="C">C</option><option value="C#">C#</option><option value="D">D</option><option value="D#">D#</option>
+                                <option value="E">E</option><option value="F">F</option><option value="F#">F#</option><option value="G">G</option>
+                                <option value="G#">G#</option><option value="A">A</option><option value="A#">A#</option><option value="B">B</option>
                             </select>
+                            <div class="mode-field">
+                                <select id="global-mode" class="compact song-select-narrow" title="Mode">
+                                    <option value="maj">Majeur</option><option value="min">Mineur</option>
+                                    <option value="dorian" class="opt-mode" hidden>Dorien</option>
+                                    <option value="phrygian" class="opt-mode" hidden>Phrygien</option>
+                                    <option value="lydian" class="opt-mode" hidden>Lydien</option>
+                                    <option value="mixolydian" class="opt-mode" hidden>Mixolydien</option>
+                                    <option value="locrian" class="opt-mode" hidden>Locrien</option>
+                                </select>
+                                <button type="button" id="toggle-complex-mode" class="icon-btn" title="Afficher plus de modes (dorien, phrygien, lydien...)" aria-label="Afficher plus de modes">
+                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
+                                </button>
+                            </div>
+                            <!-- Aide au choix de la tonalité (voir suggestSongKey/openKeySuggestMenu dans script.js) :
+                                 analyse les accords déjà posés dans la grille plutôt que de deviner à l'aveugle
+                                 (retour utilisateur). -->
+                            <button type="button" id="key-suggest-btn" class="icon-btn icon-btn-lg" title="Suggérer une tonalité d'après les accords déjà posés" aria-label="Suggérer une tonalité">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+                            </button>
                         </div>
                         <div class="transpose-field">
-                            <span class="transpose-label">Ton</span>
-                            <button type="button" id="transpose-song-down" class="icon-btn" title="Transposer tout le morceau d'un demi-ton vers le bas" aria-label="Transposer tout le morceau vers le bas">
+                            <span class="transpose-label">Transposer</span>
+                            <button type="button" id="transpose-song-down" class="icon-btn icon-btn-lg" title="Transposer tout le morceau d'un demi-ton vers le bas" aria-label="Transposer tout le morceau vers le bas">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m5 12 7 7 7-7"/></svg>
                             </button>
-                            <button type="button" id="transpose-song-up" class="icon-btn" title="Transposer tout le morceau d'un demi-ton vers le haut" aria-label="Transposer tout le morceau vers le haut">
+                            <button type="button" id="transpose-song-up" class="icon-btn icon-btn-lg" title="Transposer tout le morceau d'un demi-ton vers le haut" aria-label="Transposer tout le morceau vers le haut">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
                             </button>
                         </div>
-                    </div>
-                </section>
+                    </section>
+                </div>
                 <section class="control-card" id="accord-card">
                     <div class="card-head">
                         <h2>Accord</h2>
@@ -753,26 +798,6 @@
                         </button>
                     </div>
                 </div>
-                <!-- Bouton d'ouverture déplacé dans Paramètres > Affichage (voir renderDisplayPanel,
-                     retour utilisateur : on ne comprenait pas qu'il appartenait à l'ajout rapide, et il
-                     sert peu) — ce popover, lui, reste ici (position fixe, peu importe où il vit dans
-                     le DOM), rouvert/refermé par ce même bouton désormais dans Paramètres. -->
-                <div id="quick-add-help" class="context-menu quick-add-help" hidden>
-                    <ul>
-                        <li><code>Cm7</code> : accord seul, voicing par défaut</li>
-                        <li><code>C_E</code> : basse différente</li>
-                        <li><code>C_O4-R1-D2</code> : voicing précis (octave/renversement/drop, même notation que les badges) — combinables et partiels, ex. <code>C_D2</code> = juste un drop 2, ou avec une basse : <code>C_E_O4</code></li>
-                        <li><code>C/Am/F/G</code> : plusieurs accords, 1/mesure</li>
-                        <li>Entrée : ligne — ligne vide : nouvelle partie</li>
-                        <li>Ctrl+Entrée ou « + » : valider</li>
-                    </ul>
-                </div>
-                <div class="quick-add-row">
-                    <textarea id="quick-add-input" class="quick-add-input" rows="1" placeholder="Ajout rapide" autocomplete="off" autocapitalize="off" spellcheck="false" title="Un accord seul (ex. Cm7), une basse et/ou un voicing via « _ » (C_E, C_O4-R1-D2, C_D2...), plusieurs accords séparés par « / » (un par mesure), ou une ligne vide pour démarrer une nouvelle partie — voir l'aide dans Paramètres > Affichage"></textarea>
-                    <button type="button" id="quick-add-btn" class="icon-btn" title="Ajouter à la grille (Ctrl+Entrée) — « _ » pour une basse et/ou un voicing (C_E, C_O4-R1-D2), « / » pour plusieurs accords à la suite (C/Am/F/G), ligne vide pour une nouvelle partie" aria-label="Ajouter à la grille">
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                    </button>
-                </div>
                 <div id="progression-sections"></div>
                 <button type="button" id="add-section" class="btn-sec add-section-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter une partie</button>
             </section>
@@ -868,6 +893,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202607312700"></script>
+    <script src="script.js?v=202607312800"></script>
 </body>
 </html>

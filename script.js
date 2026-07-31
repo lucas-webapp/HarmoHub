@@ -4543,6 +4543,14 @@ class HarmoHubApp {
         addSeg.setAttribute('aria-pressed', String(isAdd));
         editSeg.classList.toggle('active', isEdit);
         editSeg.setAttribute('aria-pressed', String(isEdit));
+        // Saisie rapide (voir #quick-add-panel, sous Morceau) : uniquement utile en Ajout (retour
+        // utilisateur) — en Modification, chaque case de la grille s'édite déjà directement au clic ;
+        // en Config., il n'y a rien à ajouter à la grille depuis là.
+        const quickAddPanel = document.getElementById('quick-add-panel');
+        if (quickAddPanel) {
+            quickAddPanel.hidden = !isAdd;
+            if (!isAdd) this.closeQuickAddHelp();
+        }
     }
 
     // Bascule quelle carte le panneau de gauche affiche (voir #app-mode-config/#config-card) : 'edit'

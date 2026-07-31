@@ -930,6 +930,15 @@ main {
     border: 1px solid var(--border);
 }
 
+/* Onglet Config. (voir index.html) : DEUX .control-card (Tempo/Tonalité) imbriquées dans ce
+   conteneur plutôt que directement enfants de .panel-controls — elles ne profitent donc pas de son
+   gap habituel entre cartes, il faut le reproduire ici entre les deux. */
+#config-card {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
 .control-card h2 {
     margin: 0 0 10px 0;
     font-size: var(--fs-md);
@@ -998,6 +1007,13 @@ main {
 }
 .icon-btn:hover { background: linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0) 50%), #262b33; border-color: #454b54; color: var(--text-main); }
 .icon-btn:active { transform: translateY(1px); box-shadow: inset 0 1px 3px rgba(0,0,0,0.4); }
+
+/* Variante agrandie du même bouton (même fond/bordure/couleurs, juste plus grande) : réservée à la
+   carte Tonalité et au tempo (métronome, transposition, tap tempo...), qui ont maintenant leur
+   propre onglet et donc plus de place — retour utilisateur, garder UN SEUL style de bouton pour
+   toute l'appli plutôt qu'une variante visuellement différente juste pour cette carte. */
+.icon-btn-lg { width: 38px; height: 38px; }
+.icon-btn-lg .icon { width: 17px; height: 17px; }
 
 /* État "actif" (ex. panneau séquenceur ouvert) */
 .icon-btn.active {
@@ -1327,8 +1343,8 @@ select:disabled {
 .tap-tempo-btn {
     flex: none;
     min-width: 0;
-    height: 32px;
-    padding: 0 10px;
+    height: 38px; /* aligné sur .icon-btn-lg juste à côté (métronome/contretemps, voir .bpm-actions) */
+    padding: 0 12px;
     font-size: var(--fs-xs);
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -1378,7 +1394,9 @@ select:disabled {
        donnait l'impression de deux polices différentes sur la même ligne. */
     white-space: nowrap;
 }
-.transpose-field .icon-btn { width: 32px; height: 32px; }
+/* :not(.icon-btn-lg) : la carte Tonalité (voir index.html) pose désormais .icon-btn-lg sur ces deux
+   boutons — cette taille par défaut ne doit alors plus l'emporter sur elle. */
+.transpose-field .icon-btn:not(.icon-btn-lg) { width: 32px; height: 32px; }
 
 /* Valeur du tempo éditable au clavier : se fond dans le texte du libellé tant qu'on n'y touche pas
    (pas de bordure pleine, pas de fond), mais reste clairement un champ de saisie au survol/focus. */
@@ -2623,12 +2641,14 @@ button:active { transform: translateY(1px); }
    pour rester alignés sur les boutons Supprimer juste à côté sans dépendre d'un étirement. */
 .seq-presets .seq-icon-btn {
     flex: none;
-    width: 44px;
+    width: 52px; /* légèrement élargis (retour utilisateur : Lecture/Stop/Boucle sont les boutons les
+                    plus utilisés du séquenceur, ils méritent un peu plus de présence que les autres) */
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
 }
+.seq-presets .seq-icon-btn .icon { width: 18px; height: 18px; }
 
 /* Échelle horizontale du séquenceur compact (voir showInlineSeqZoom/adjustSeqInlineZoom dans
    script.js), même groupe -/+ que les fenêtres agrandies (.zoom-axis-group, voir plus haut) : reste
@@ -2726,8 +2746,8 @@ button:active { transform: translateY(1px); }
     text-overflow: ellipsis;
 }
 
-/* Tonalité + mode + signature, sur une même ligne compacte (Paramètres > Config., voir
-   #settings-panel-config) */
+/* Tonalité + mode (+ bouton de suggestion), sur une même ligne compacte — la signature rythmique a
+   rejoint le groove dans la carte Tempo (voir index.html, plus proche du rythme que de la tonalité). */
 .song-row {
     display: flex;
     align-items: center;
@@ -2740,7 +2760,7 @@ select.compact {
     padding: 9px 10px;
     font-size: var(--fs-select);
 }
-/* Trois select côte à côte (tonalité, mode, signature) : plus étroits qu'un .compact seul.
+/* Tonalité + mode côte à côte : plus étroits qu'un .compact seul.
    Sélecteur "select.song-select-narrow" (et non ".song-select-narrow" seul) : il faut au moins
    la même spécificité que "select.compact" ci-dessus pour que ce padding réduit s'applique
    vraiment (les deux classes sont posées ensemble sur ces select) plutôt que de rester lettre
@@ -2829,6 +2849,7 @@ select.song-select-narrow {
         padding-right: 6px;
         gap: 10px;
     }
+    #config-card { gap: 10px; }
 
     /* Contrôles plus denses : pensés pour la souris, pas pour le doigt — moins de scroll à clic égal */
     .control-card { padding: 12px 14px; }
