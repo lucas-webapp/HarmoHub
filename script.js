@@ -2030,6 +2030,10 @@ class HarmoHubApp {
         this._tapRecordState = null;
         this._tapArmSeq = 0; // jeton pour ignorer un démarrage périmé si annulé pendant Tone.start()/waitForAudioReady()
         this.tapLatencyOffsetMs = parseInt(localStorage.getItem(TAP_LATENCY_OFFSET_KEY)) || 0;
+        // Calibrage automatique de tapLatencyOffsetMs (Paramètres > Son, voir calibrateTapLatency) :
+        // null (inactif) ou 'active' (quelques clics de métronome joués, chaque appui espace/clic capturé).
+        this.tapCalibPhase = null;
+        this._tapCalibState = null;
         this.seqPage = 0;          // mesure(s) affichée(s) pour un accord qui en dure plusieurs (voir seqPageBars)
         this.seqLoopPlay = false;  // « Lecture » du séquenceur reboucle indéfiniment (voir playCurrent)
         this.playheadSection = null; // partie/index de l'accord marqué par la barre de lecture de la
@@ -5144,6 +5148,7 @@ class HarmoHubApp {
     }
 
     closeSettings() {
+        this.cancelTapCalibration(); // pas de clics de calibrage fantômes une fois la fenêtre refermée
         this.settingsOpen = false;
         document.getElementById('settings-overlay').hidden = true;
         document.getElementById('open-settings').classList.remove('active');
@@ -5203,6 +5208,11 @@ class HarmoHubApp {
                     <span class="val" id="tap-latency-offset-val">${this.tapLatencyOffsetMs}</span>
                 </div>
                 <input type="range" id="tap-latency-offset" min="-200" max="200" step="10" value="${this.tapLatencyOffsetMs}">
+                <div class="tap-calib-row">
+                    <button type="button" id="tap-calib-btn" class="btn-sec">${this.tapCalibPhase ? 'Annuler (Échap)' : 'Calibrer avec le métronome'}</button>
+                    <span id="tap-calib-status" class="tap-calib-status" aria-live="polite"></span>
+                </div>
+                <div id="tap-calib-zone" class="tap-calib-zone"${this.tapCalibPhase ? '' : ' hidden'}>Tape ici en rythme (ou barre espace)</div>
             </div>`;
 
         document.getElementById('general-volume').oninput = (e) => this.setGeneralVolume(+e.target.value);
@@ -5211,6 +5221,9 @@ class HarmoHubApp {
         document.getElementById('toggle-autoplay-select').onclick = () => this.setAutoplaySelect(!this.autoplaySelect);
         document.getElementById('toggle-metronome-countin').onclick = () => this.setMetronomeCountIn(!this.metronomeCountIn);
         document.getElementById('tap-latency-offset').oninput = (e) => this.setTapLatencyOffset(+e.target.value);
+        document.getElementById('tap-calib-btn').onclick = () => (this.tapCalibPhase ? this.cancelTapCalibration() : this.calibrateTapLatency());
+        // pointerdown (pas click) : même geste immédiat que #seq-tap-zone, pas d'attente du relâchement.
+        document.getElementById('tap-calib-zone').addEventListener('pointerdown', () => this.registerCalibTap());
     }
 
     setAutoplaySelect(on) {
@@ -5232,6 +5245,104 @@ class HarmoHubApp {
         localStorage.setItem(TAP_LATENCY_OFFSET_KEY, String(ms));
         const val = document.getElementById('tap-latency-offset-val');
         if (val) val.textContent = ms;
+    }
+
+    // Calibrage automatique du curseur ci-dessus (retour utilisateur : plutôt que de tâtonner à la
+    // main, taper quelques fois en rythme avec le métronome et laisser l'appli calculer l'avance). Joue
+    // N temps de clic (tempo courant), capture l'instant de chaque appui espace/clic sur #tap-calib-btn
+    // pendant ce temps, puis règle tapLatencyOffsetMs sur l'écart moyen mesuré (même sens que le calcul
+    // fait en direct dans registerTapDown/registerTapUp : positif si l'appui sonne après le clic).
+    async calibrateTapLatency() {
+        if (this.tapCalibPhase) { this.cancelTapCalibration(); return; }
+        if (this.seqTapPhase) return; // pas de conflit avec un enregistrement de rythme déjà en cours
+
+        const token = ++this._tapArmSeq;
+        this.stopAll();
+        await Tone.start();
+        await waitForAudioReady();
+        if (token !== this._tapArmSeq) return;
+
+        const bpm = parseInt(document.getElementById('bpm').value) || 120;
+        const secPerBeat = 60 / bpm;
+        const CALIB_BEATS = 8;
+        const start = 0.05;
+        const clickTimes = Array.from({ length: CALIB_BEATS }, (_, b) => start + b * secPerBeat);
+
+        this._tapCalibState = { clickTimes, taps: [] };
+        this.tapCalibPhase = 'active';
+        const btn = document.getElementById('tap-calib-btn');
+        if (btn) btn.textContent = 'Annuler (Échap)';
+        document.getElementById('tap-calib-zone')?.removeAttribute('hidden');
+        document.getElementById('tap-calib-zone')?.classList.add('live');
+
+        clickTimes.forEach((clickTime, b) => {
+            Tone.Transport.schedule((t) => {
+                try { this.playMetronomeClick(b === 0, t); } catch (e) { console.warn('Clic de calibrage ignoré :', e.message); }
+                Tone.Draw.schedule(() => {
+                    const el = document.getElementById('tap-calib-status');
+                    if (el) el.textContent = `Tape avec le clic — ${b + 1} / ${CALIB_BEATS}`;
+                }, t);
+            }, clickTime);
+        });
+
+        Tone.Transport.schedule(() => { this.finishTapCalibration(); }, start + CALIB_BEATS * secPerBeat);
+        Tone.Transport.start();
+    }
+
+    // Appui (espace ou clic sur #tap-calib-btn pendant le calibrage) : un seul instant capturé par
+    // appui, pas de durée à mesurer ici (contrairement au rythme tapé, on ne calibre qu'un décalage).
+    registerCalibTap() {
+        if (this.tapCalibPhase !== 'active' || !this._tapCalibState) return;
+        this._tapCalibState.taps.push(Tone.Transport.seconds);
+    }
+
+    // Fin naturelle du calibrage (Tone.Transport.schedule posé dans calibrateTapLatency) : associe
+    // chaque appui capturé au clic le plus proche, moyenne les écarts (positif = appui après le clic,
+    // même convention que tapLatencyOffsetMs) et règle le curseur en conséquence.
+    finishTapCalibration() {
+        const st = this._tapCalibState;
+        this.tapCalibPhase = null;
+        this._tapCalibState = null;
+        this.stopAll();
+        const btn = document.getElementById('tap-calib-btn');
+        if (btn) btn.textContent = 'Calibrer avec le métronome';
+        const zone = document.getElementById('tap-calib-zone');
+        if (zone) { zone.setAttribute('hidden', ''); zone.classList.remove('live'); }
+        const status = document.getElementById('tap-calib-status');
+        if (!st || st.taps.length === 0) {
+            if (status) status.textContent = "Pas d'appui détecté, réessaie";
+            return;
+        }
+        const deltasSec = st.taps.map(tapT => {
+            let nearest = st.clickTimes[0], best = Infinity;
+            for (const c of st.clickTimes) {
+                const d = Math.abs(tapT - c);
+                if (d < best) { best = d; nearest = c; }
+            }
+            return tapT - nearest;
+        });
+        const avgSec = deltasSec.reduce((a, b) => a + b, 0) / deltasSec.length;
+        let ms = Math.round((avgSec * 1000) / 10) * 10;
+        ms = Math.max(-200, Math.min(200, ms));
+        this.setTapLatencyOffset(ms);
+        const slider = document.getElementById('tap-latency-offset');
+        if (slider) slider.value = ms;
+        if (status) status.textContent = `Calé sur ${ms >= 0 ? '+' : ''}${ms} ms (${st.taps.length} appui${st.taps.length > 1 ? 's' : ''})`;
+    }
+
+    // Annulation (bouton, Échap, ou fermeture des Paramètres) : rien n'est appliqué, le curseur garde
+    // sa valeur précédente.
+    cancelTapCalibration() {
+        if (!this.tapCalibPhase) return;
+        this.tapCalibPhase = null;
+        this._tapCalibState = null;
+        this.stopAll();
+        const btn = document.getElementById('tap-calib-btn');
+        if (btn) btn.textContent = 'Calibrer avec le métronome';
+        const zone = document.getElementById('tap-calib-zone');
+        if (zone) { zone.setAttribute('hidden', ''); zone.classList.remove('live'); }
+        const status = document.getElementById('tap-calib-status');
+        if (status) status.textContent = 'Calibrage annulé';
     }
 
     // ---- Panneau Affichage : préférences visuelles de la grille et du PDF exporté. Libellés courts
@@ -8724,7 +8835,9 @@ class HarmoHubApp {
     // note, le relâchement la termine. Une fois la fenêtre écoulée, les appuis sont arrondis à la
     // croche la plus proche puis appliqués comme UN SEUL rythme à TOUTES les voix de l'accord (les
     // hauteurs déjà en place ne changent pas) : voir finishTapRecording. Le métronome continue de
-    // cliquer pendant la capture, comme demandé, pour garder le repère de tempo sans avoir à le deviner.
+    // cliquer pendant la capture, comme demandé, pour garder le repère de tempo sans avoir à le deviner,
+    // complété par un clic discret sur chaque subdivision de la grille de quantification (repère sonore
+    // fin demandé en retour utilisateur pour mieux caler les appuis).
     async startTapRecording() {
         if (this.seqTapPhase) { this.cancelTapRecording(); return; }
 
@@ -8791,13 +8904,27 @@ class HarmoHubApp {
 
         const recordEnd = st.transportRecordStartSec + winSteps * stepDur;
         // Le métronome continue de cliquer PENDANT la capture (repère de tempo, demandé explicitement) :
-        // simples clics réguliers, sans reprendre la subdivision croche du décompte (accessoire ici).
+        // un clic par temps.
         for (let b = countInBeats; ; b++) {
             const clickTime = start + b * secPerBeat;
             if (clickTime >= recordEnd) break;
             Tone.Transport.schedule((t) => {
                 try { this.playMetronomeClick(b % beatsPerBar === 0, t); } catch (e) { console.warn('Clic ignoré :', e.message); }
             }, clickTime);
+        }
+        // Repère sonore fin, UNIQUEMENT pendant la capture (jamais le décompte, superflu tant qu'on ne
+        // tape rien) : un clic discret sur CHAQUE subdivision intermédiaire de la grille de quantification
+        // (voir SEQ_STEPS_PER_BEAT), pas seulement une croche par temps comme metronomeSubdivision —
+        // retour utilisateur : "il est difficile de gérer les décalages", ce repère donne une grille
+        // audible complète pour taper pile dessus plutôt qu'à l'oreille approximative du seul temps.
+        for (let step = countInBeats * SEQ_STEPS_PER_BEAT + 1; ; step++) {
+            const clickTime = start + step * stepDur;
+            if (clickTime >= recordEnd) break;
+            if (step % SEQ_STEPS_PER_BEAT !== 0) {
+                Tone.Transport.schedule((t) => {
+                    try { this.playMetronomeClick(false, t, true); } catch (e) { console.warn('Clic de grille ignoré :', e.message); }
+                }, clickTime);
+            }
         }
 
         Tone.Transport.schedule((t) => {
@@ -10247,6 +10374,7 @@ class HarmoHubApp {
             if (e.key === 'Escape' && !document.getElementById('duration-dd-menu').hidden) { this.closeDurationMenu(); return; }
             if (e.key === 'Escape' && !document.getElementById('playstyle-dd-menu').hidden) { this.closePlayStyleMenu(); return; }
             if (e.key === 'Escape' && this.seqTapPhase) { this.cancelTapRecording(); return; }
+            if (e.key === 'Escape' && this.tapCalibPhase) { this.cancelTapCalibration(); return; }
             if (e.key === 'Escape' && this.settingsOpen) { this.closeSettings(); return; }
             if (e.key === 'Escape' && this.seqZoomOpen) { this.closeSeqZoom(); return; }
             if (e.key === 'Escape' && this.gridZoomOpen) { this.closeGridZoom(); return; }
@@ -10258,6 +10386,15 @@ class HarmoHubApp {
             if (this.seqTapPhase === 'recording' && (e.key === ' ' || e.code === 'Space') && !typing) {
                 e.preventDefault();
                 if (!e.repeat) this.registerTapDown();
+                return;
+            }
+
+            // Calibrage automatique de l'avance du rythme tapé (voir calibrateTapLatency, Paramètres >
+            // Son) : la barre espace vaut aussi appui pendant la capture, comme pour le rythme tapé
+            // lui-même — évite d'avoir à viser précisément #tap-calib-btn à chaque clic.
+            if (this.tapCalibPhase === 'active' && (e.key === ' ' || e.code === 'Space') && !typing) {
+                e.preventDefault();
+                if (!e.repeat) this.registerCalibTap();
                 return;
             }
 

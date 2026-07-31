@@ -658,6 +658,43 @@ body.body-scroll-locked { overflow: hidden !important; }
 }
 .settings-slider-head .val { color: var(--accent); font-weight: 700; min-width: 2.4em; text-align: right; }
 
+/* Calage automatique de tapLatencyOffsetMs (voir calibrateTapLatency) : bouton + retour texte sur la
+   même ligne que le curseur d'avance qu'il ajuste, puis la zone tactile en dessous (masquée hors
+   calibrage), même principe que #seq-tap-zone pour le rythme tapé. */
+.tap-calib-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+}
+.tap-calib-row .btn-sec { flex: none; padding: 8px 12px; font-size: var(--fs-sm); }
+.tap-calib-status {
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+.tap-calib-zone {
+    margin-top: 8px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1px solid var(--btn-neutral-border);
+    background: var(--btn-neutral-1);
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: none;
+}
+.tap-calib-zone.live {
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(160deg, var(--btn-red-1), var(--btn-red-2) 70%);
+    border-color: var(--btn-red-border);
+    color: var(--btn-text);
+}
+
 .settings-select-row {
     display: flex;
     align-items: center;
