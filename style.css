@@ -480,20 +480,22 @@ body.body-scroll-locked { overflow: hidden !important; }
 /* Groupe -/+ par axe (horizontal/vertical), voir seq-zoom-overlay/grid-zoom-overlay dans
    index.html et adjustZoom/applyZoomLevel dans script.js : échelle horizontale (accords par
    ligne/mesures par page) et verticale (hauteur des lignes) réglables indépendamment. Un seul bloc
-   arrondi/bordé (comme UN .icon-btn, mais un cran plus grand) regroupe l'étiquette H/V et les deux
-   flèches -/+ empilées à sa droite (grille 2 colonnes x 2 lignes, l'étiquette occupant les deux
-   lignes de la 1re colonne) — retour utilisateur (choix "option C" parmi 3 propositions) : sans
-   pourcentage affiché, juste l'étiquette. Les flèches elles-mêmes n'ont plus leur propre fond/
-   bordure individuels (contrairement à avant) : c'est TOUT le bloc qui doit se lire comme un seul
-   contrôle, pas deux boutons séparés collés l'un à l'autre. */
+   arrondi/bordé (comme UN .icon-btn) regroupe l'étiquette H/V et les deux flèches -/+ empilées à sa
+   droite (grille 2 colonnes x 2 lignes, l'étiquette occupant les deux lignes de la 1re colonne) —
+   retour utilisateur (choix "option C" parmi 3 propositions) : sans pourcentage affiché, juste
+   l'étiquette. Hauteur TOTALE alignée sur les 32px des autres boutons de l'appli (retour
+   utilisateur : ce bloc dépassait nettement ses voisins) — sans espace entre les deux flèches
+   (qui gonflerait la hauteur), un simple filet fin et estompé les sépare à la place. */
 .zoom-axis-group {
     display: grid;
     grid-template-columns: auto auto;
     grid-template-rows: repeat(2, 1fr);
     align-items: stretch;
-    gap: 4px;
+    gap: 0;
     flex: none;
-    padding: 3px 7px 3px 10px;
+    height: 32px; /* hauteur EXPLICITE (comme .icon-btn) : les deux lignes se partagent l'intérieur via
+                     1fr + stretch, pas besoin de calculer leur hauteur à la main */
+    padding: 0 7px 0 10px;
     background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0) 50%), #1c2027;
     border: 1px solid #333;
     border-radius: 8px;
@@ -505,16 +507,20 @@ body.body-scroll-locked { overflow: hidden !important; }
    lui-même ci-dessus) pour que les flèches ne ressemblent plus à deux boutons empilés. */
 .zoom-axis-group .zoom-axis-btn {
     width: 30px;
-    height: 22px;
-    border-radius: 5px;
+    height: auto;
+    border-radius: 3px;
     background: none;
     border: none;
     box-shadow: none;
     color: var(--text-muted);
 }
-.zoom-axis-group .zoom-axis-btn:hover { background: rgba(255,255,255,0.09); border: none; color: var(--text-main); }
+/* Filet discret entre les deux flèches (retour utilisateur) : posé sur la SECONDE (celle du bas, "+"
+   — voir l'ordre dans index.html/script.js, toujours -/+) via :last-of-type, pas un gap qui
+   gonflerait la hauteur totale du bloc. */
+.zoom-axis-group .zoom-axis-btn:last-of-type { border-top: 1px solid rgba(255,255,255,0.09); }
+.zoom-axis-group .zoom-axis-btn:hover { background: rgba(255,255,255,0.09); color: var(--text-main); }
 .zoom-axis-group .zoom-axis-btn:active { background: rgba(0, 230, 118, 0.16); box-shadow: none; }
-.zoom-axis-btn .icon { width: 13px; height: 13px; }
+.zoom-axis-btn .icon { width: 10px; height: 10px; }
 
 /* Onglets Son/Affichage/Fichiers : un seul panneau visible à la fois (voir setSettingsTab dans
    script.js), pour ne plus faire défiler tout le reste (Fichiers, en particulier, peut être long)
@@ -1040,6 +1046,12 @@ main {
    toute l'appli plutôt qu'une variante visuellement différente juste pour cette carte. */
 .icon-btn-lg { width: 38px; height: 38px; }
 .icon-btn-lg .icon { width: 17px; height: 17px; }
+
+/* Variante élargie SEULEMENT (hauteur inchangée, 32px comme .icon-btn) : les boutons qui ouvrent/
+   ferment le séquenceur (#toggle-sequencer, #grid-zoom, retour utilisateur) méritent un peu plus de
+   présence horizontale, mais doivent rester alignés en hauteur avec leurs voisins immédiats
+   (#apply-instrument-all, les groupes -/+ H/V) plutôt que dépasser comme .icon-btn-lg. */
+.icon-btn-wide { width: 42px; }
 
 /* État "actif" (ex. panneau séquenceur ouvert) */
 .icon-btn.active {
