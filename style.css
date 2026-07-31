@@ -1358,25 +1358,30 @@ select:disabled {
 .groove-group {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
     gap: 8px;
     margin-top: 12px;
     color: var(--text-muted);
     font-weight: 600;
 }
-/* Groove réduit (moins large qu'avant) pour laisser la transposition du morceau (voir
-   .transpose-field) partager la même ligne, plutôt que d'encombrer la ligne tonalité/mode/signature
-   juste au-dessus, déjà dense. */
+/* Groove et Mesure sur la MÊME ligne (retour utilisateur), même sur les téléphones les plus étroits :
+   chaque champ se partage la largeur disponible à parts égales (flex:1) plutôt que de s'étirer selon
+   son contenu — sans ça, "Ternaire (triolet)" à lui seul poussait la ligne à la faute. Le select
+   tronque avec "…" si besoin (jamais de retour à la ligne) : le menu ouvert liste toujours l'option
+   en entier, seul l'état fermé peut se couper. */
 .groove-field {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    flex: 1 1 0;
+    min-width: 0;
 }
 .groove-field select {
-    flex: none;
-    width: auto;
-    min-width: 108px;
+    flex: 1;
+    min-width: 0;
+    width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* Transposition du morceau : "Ton" en toutes lettres plutôt que des flèches seules — on ne comprend
