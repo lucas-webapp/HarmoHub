@@ -2028,6 +2028,9 @@ class HarmoHubApp {
                                    // doivent rester silencieuses par défaut, jamais concernées ici.
         this.seqSelections = []; // notes du séquenceur sélectionnées : [{ voice, start, end }, ...]
         this.seqDrag = null;       // état de glisser en cours sur le séquenceur
+        // Sélection par rectangle (Maj/Shift + glisser depuis une case VIDE, voir beginSeqMarqueeSelect) :
+        // état séparé de this.seqDrag (qui suppose toujours une seule voix de départ), null hors glissé.
+        this.seqMarquee = null;
         // Presse-papier du MOTIF rythmique entier (voir copySeqPattern/pasteSeqPattern) : { pattern,
         // tie, intensityPerStep, steps, voices }, ou null tant que rien n'a été copié. En mémoire
         // seulement (comme this.clipboard pour les accords), pas persisté d'une session à l'autre.
@@ -8214,6 +8217,18 @@ class HarmoHubApp {
 
         const voice = +cell.dataset.voice, step = +cell.dataset.step;
         const wasOn = cell.classList.contains('on');
+
+        // Sélection par rectangle (Maj/Shift + glisser depuis une case VIDE, retour utilisateur :
+        // sélectionner plusieurs notes à la fois, même sur des voix différentes, sans les Ctrl+clic
+        // une par une) : état séparé de this.seqDrag ci-dessous (qui suppose toujours une seule voix
+        // de départ), voir beginSeqMarqueeSelect. Réservé à une case VIDE pour ne rien changer au
+        // glissé normal (peindre/effacer/étirer) qui, lui, ignore Maj. Ctrl/Cmd déjà enfoncé = ajoute
+        // à la sélection existante au lieu de la remplacer, même convention que Ctrl+clic.
+        if (!wasOn && e.shiftKey) {
+            this.beginSeqMarqueeSelect(voice, step, e);
+            return;
+        }
+
         const chord = this.readChord();
         const { pattern, tie } = this.getLiveSeqPattern(chord);
 
@@ -8285,6 +8300,85 @@ class HarmoHubApp {
         window.addEventListener('pointercancel', this._onSeqUp);
     }
 
+    // Amorce une sélection par rectangle (voir onSeqPointerDown) : réutilise les MÊMES écouteurs
+    // fenêtre que this.seqDrag (posés ici, pas dans un doublon) — onSeqPointerMove/onSeqPointerUp
+    // vérifient this.seqMarquee EN PREMIER et s'y branchent avant de toucher this.seqDrag.
+    beginSeqMarqueeSelect(voice, step, e) {
+        this.seqMarquee = {
+            startVoice: voice, startStep: step, startX: e.clientX, startY: e.clientY,
+            curX: e.clientX, curY: e.clientY, moved: false,
+            additive: e.ctrlKey || e.metaKey, el: null,
+        };
+        this._onSeqMove = (ev) => this.onSeqPointerMove(ev);
+        this._onSeqUp = () => this.onSeqPointerUp();
+        window.addEventListener('pointermove', this._onSeqMove, { passive: false });
+        window.addEventListener('pointerup', this._onSeqUp);
+        window.addEventListener('pointercancel', this._onSeqUp);
+    }
+
+    // Glissé du rectangle de sélection (voir beginSeqMarqueeSelect) : un simple rectangle en pixels
+    // (position:fixed), pas calé sur la grille — au contraire du fantôme de duplication (voir
+    // beginSeqDupDrag), il n'a pas besoin de suivre une case précise, seule sa FORME compte pour
+    // savoir quelles notes il touche. Chaque note dont le rectangle DOM (getBoundingClientRect)
+    // chevauche celui du rectangle reçoit une classe transitoire (.marquee-hit) en retour visuel
+    // immédiat ; la sélection réelle (this.seqSelections) n'est posée qu'au relâchement.
+    onSeqMarqueeMove(e) {
+        const m = this.seqMarquee;
+        if (!m.moved) {
+            const dx = e.clientX - m.startX, dy = e.clientY - m.startY;
+            if (Math.hypot(dx, dy) < 10) return; // seuil, comme les autres gestes séquenceur
+            m.moved = true;
+            m.el = document.createElement('div');
+            m.el.className = 'seq-marquee-rect';
+            document.body.appendChild(m.el);
+        }
+        e.preventDefault();
+        m.curX = e.clientX; m.curY = e.clientY;
+        const x1 = Math.min(m.startX, m.curX), x2 = Math.max(m.startX, m.curX);
+        const y1 = Math.min(m.startY, m.curY), y2 = Math.max(m.startY, m.curY);
+        m.el.style.left = `${x1}px`;
+        m.el.style.top = `${y1}px`;
+        m.el.style.width = `${x2 - x1}px`;
+        m.el.style.height = `${y2 - y1}px`;
+
+        document.querySelectorAll('.seq-note').forEach(note => {
+            const r = note.getBoundingClientRect();
+            const hit = r.left < x2 && r.right > x1 && r.top < y2 && r.bottom > y1;
+            note.classList.toggle('marquee-hit', hit);
+        });
+    }
+
+    // Relâchement du rectangle (voir onSeqPointerUp) : les notes actuellement en surbrillance
+    // (.marquee-hit, posée en direct par onSeqMarqueeMove) deviennent la sélection réelle — remplacée
+    // si Ctrl/Cmd n'était pas enfoncé à la prise, sinon ajoutée à celle déjà en place (même convention
+    // que Ctrl+clic sur une seule note, voir selectSeqNoteAt). Un simple Maj+clic SANS glisser ne
+    // sélectionne rien de spécial (repart de la sélection existante, vidée si pas additive).
+    finalizeSeqMarqueeSelect() {
+        const m = this.seqMarquee;
+        this.seqMarquee = null;
+        if (!m.moved) {
+            if (!m.additive) this.seqSelections = [];
+            this.renderSequencer();
+            return;
+        }
+        if (m.el) m.el.remove();
+        const hits = [];
+        document.querySelectorAll('.seq-note.marquee-hit').forEach(note => {
+            hits.push({ voice: +note.dataset.voice, start: +note.dataset.start, end: +note.dataset.end });
+            note.classList.remove('marquee-hit');
+        });
+        if (!m.additive) {
+            this.seqSelections = hits;
+        } else {
+            hits.forEach(h => {
+                if (!this.seqSelections.some(s => s.voice === h.voice && s.start === h.start && s.end === h.end)) {
+                    this.seqSelections.push(h);
+                }
+            });
+        }
+        this.renderSequencer();
+    }
+
     // Bornes dans lesquelles une note peut être étirée sans empiéter sur la note voisine de LA MÊME
     // voix (celle qu'on redimensionne étant elle-même exclue du calcul, puisqu'on cherche la première
     // croche occupée au-delà de ses propres bornes actuelles, dans chaque direction).
@@ -8327,6 +8421,7 @@ class HarmoHubApp {
     }
 
     onSeqPointerMove(e) {
+        if (this.seqMarquee) { this.onSeqMarqueeMove(e); return; }
         const d = this.seqDrag;
         if (!d) return;
 
@@ -8736,6 +8831,7 @@ class HarmoHubApp {
         window.removeEventListener('pointermove', this._onSeqMove);
         window.removeEventListener('pointerup', this._onSeqUp);
         window.removeEventListener('pointercancel', this._onSeqUp);
+        if (this.seqMarquee) { this.finalizeSeqMarqueeSelect(); return; }
         const d = this.seqDrag;
         this.seqDrag = null;
         if (!d) return;

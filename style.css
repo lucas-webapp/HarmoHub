@@ -2636,6 +2636,24 @@ button:active { transform: translateY(1px); }
     box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.7), 0 0 6px rgba(0, 230, 118, 0.35);
 }
 
+/* Rectangle de sélection (Maj/Shift + glisser depuis une case vide, voir beginSeqMarqueeSelect) : un
+   simple cadre en pixels par-dessus la grille, jamais calé sur les cases (contrairement au fantôme
+   de duplication, voir .seq-note-dup-ghost) — seule sa forme compte pour savoir ce qu'il touche. */
+.seq-marquee-rect {
+    position: fixed;
+    z-index: 998;
+    border: 1px dashed var(--accent);
+    background: rgba(0, 230, 118, 0.12);
+    pointer-events: none;
+}
+/* Surbrillance transitoire des notes actuellement touchées par le rectangle EN COURS de glissé (voir
+   onSeqMarqueeMove) — distincte de .selected (posée seulement au relâchement, une fois la sélection
+   réelle décidée) pour ne pas laisser croire que c'est déjà acquis avant de lâcher le bouton. */
+.seq-note.marquee-hit {
+    outline: 2px dashed rgba(255, 255, 255, 0.85);
+    outline-offset: 1px;
+}
+
 /* Note liée à une croche hors-page (mesure précédente/suivante, voir seqPageBars) : bord plat côté
    coupure plutôt qu'arrondi, pour montrer qu'elle continue au-delà de ce qui est affiché. */
 .seq-note.clip-start { border-top-left-radius: 0; border-bottom-left-radius: 0; }
