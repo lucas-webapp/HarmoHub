@@ -3537,7 +3537,10 @@ class HarmoHubApp {
         const chord = this.readChord();
         const { pattern: livePattern, tie: liveTie } = parseSeqPattern(document.getElementById('arpPattern').value);
         const extraStart = chord.getIntervals().length;
-        const keepFlags = this.extraNotes.map((_, i) => livePattern.some(s => s.includes(extraStart + i)));
+        // x._new (voir addSequencerNote) : une voix tout juste créée, JAMAIS peinte une seule fois
+        // depuis, échappe à ce nettoyage — sinon le tout premier rendu suivant sa création (même
+        // avant que le champ éditable n'ait servi à quoi que ce soit) l'effaçait déjà.
+        const keepFlags = this.extraNotes.map((x, i) => x._new || livePattern.some(s => s.includes(extraStart + i)));
         if (keepFlags.every(Boolean)) return; // rien à retirer
 
         // Remappe chaque voix libre CONSERVÉE vers son nouvel index (celles de l'accord lui-même,
@@ -3574,7 +3577,9 @@ class HarmoHubApp {
             arpPattern: document.getElementById('arpPattern').value,
             seqEdited: true,
             guitarLock: this.guitarLock || null,
-            extraNotes: this.extraNotes.map(x => ({ ...x })),
+            // { note, octave } seuls : x._new (voir addSequencerNote/pruneEmptyExtraNotes) n'a de sens
+            // qu'en mémoire pendant l'édition en cours, jamais dans les données sauvegardées.
+            extraNotes: this.extraNotes.map(({ note, octave }) => ({ note, octave })),
             intensity: +document.getElementById('intensity').value,
             intensityPerStep: { ...this.intensityPerStep }
         };
@@ -8912,6 +8917,13 @@ class HarmoHubApp {
             if (!wasOn) pattern[step].push(voice);
             if (tied && !wasTied) tie[step].push(voice);
             if (!tied && wasTied) tie[step].splice(tie[step].indexOf(voice), 1);
+            // Première case peinte pour une voix libre toute neuve (voir addSequencerNote/_new) : lève
+            // sa protection contre pruneEmptyExtraNotes, elle a désormais un vrai rythme à perdre si on
+            // l'efface entièrement plus tard (comportement normal, inchangé, pour toute autre voix).
+            const extraStart = chord.getIntervals().length;
+            if (voice >= extraStart && this.extraNotes[voice - extraStart]) {
+                delete this.extraNotes[voice - extraStart]._new;
+            }
         } else {
             pattern[step].splice(pattern[step].indexOf(voice), 1);
             if (wasTied) tie[step].splice(tie[step].indexOf(voice), 1);
@@ -10214,7 +10226,13 @@ class HarmoHubApp {
         const defaultMidi = highestMidi + 3;
         const pc = ((defaultMidi % 12) + 12) % 12;
         const octave = Math.floor(defaultMidi / 12) - 1;
-        this.extraNotes.push({ note: NOTES[pc], octave });
+        // _new (jamais persisté, voir buildLiveChordData) : protège cette voix de pruneEmptyExtraNotes
+        // tant qu'elle n'a encore JAMAIS été peinte une seule fois — sans lui, en mode Modification, le
+        // renderSequencer() juste en dessous (qui appelle déjà commitLiveEdit -> pruneEmptyExtraNotes à
+        // chaque rendu) supprimait la voix aussitôt créée, avant même que le champ éditable ci-dessous
+        // ait pu servir à quoi que ce soit (retour utilisateur : "impossible d'ajouter une note libre à
+        // un accord déjà enregistré"). Levé dans applySeqCell dès la toute première case peinte.
+        this.extraNotes.push({ note: NOTES[pc], octave, _new: true });
         this.seqTouched = true; // le motif doit garder cette voix (voir syncSeqPatternForCurrentChord)
         this.renderSequencer();
         this.refreshPreview();
@@ -10245,7 +10263,11 @@ class HarmoHubApp {
             this.renderSequencer(); // revient à l'ancienne valeur (le rendu relit this.extraNotes)
             return;
         }
-        this.extraNotes[extraIndex] = { note: parsed.note, octave: parsed.octave };
+        // Conserve _new (voir addSequencerNote/pruneEmptyExtraNotes) si elle y était déjà : valider la
+        // hauteur ne peint toujours aucun rythme, cette voix reste donc à protéger tant qu'aucune case
+        // n'a encore été peinte, exactement comme juste après sa création.
+        const wasNew = this.extraNotes[extraIndex] && this.extraNotes[extraIndex]._new;
+        this.extraNotes[extraIndex] = { note: parsed.note, octave: parsed.octave, ...(wasNew ? { _new: true } : {}) };
         this.seqTouched = true;
         this.renderSequencer();
         this.refreshPreview();
@@ -10285,6 +10307,12 @@ class HarmoHubApp {
         this.pushSeqUndo();
         const { pattern, tie } = resizeSeqPattern(clip.pattern, clip.tie, steps, voices);
         this.setLiveSeqPattern(pattern, tie);
+        // Contourne applySeqCell (qui lève x._new au fil de l'eau, voir addSequencerNote) : si le
+        // motif collé réveille une voix libre encore jamais peinte, la protection n'a plus lieu d'être.
+        const extraStart = chord.getIntervals().length;
+        this.extraNotes.forEach((x, i) => {
+            if (x._new && pattern.some(s => s.includes(extraStart + i))) delete x._new;
+        });
 
         const outIntensity = {};
         for (let i = 0; i < steps; i++) {
