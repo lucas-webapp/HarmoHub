@@ -2661,6 +2661,17 @@ button:active { transform: translateY(1px); }
     filter: grayscale(1);
 }
 
+/* Fantôme de duplication (Alt/Option+glisser depuis le corps d'une note, voir beginSeqDupDrag) :
+   contour en pointillés qui reste dans la grille (grid-row/column, pas un positionnement en pixels
+   comme .seq-note-ghost ci-dessus, qui lui change de VOIX) — se voit comme « pas encore posé »,
+   l'originale restant pleine et inchangée à côté pendant tout le geste. */
+.seq-note.seq-note-dup-ghost {
+    pointer-events: none;
+    opacity: 0.6;
+    background: transparent;
+    border: 2px dashed currentColor;
+}
+
 /* Repère d'attaque : fine bande plus claire au tout début d'une pilule tenue, pour distinguer d'un
    coup d'œil où la note est réellement « pincée » de sa partie tenue ensuite (jamais sur une croche
    isolée, ni sur une note coupée par la page qui n'attaque pas ici — voir renderSequencer). */

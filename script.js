@@ -49,7 +49,12 @@ const ICONS = {
     // Bouton « Taper le rythme » (voir startTapRecording) : rond plein dans un anneau, symbole
     // universel d'enregistrement — se distingue des autres icônes de la rangée (aucune autre n'est
     // un simple disque plein) et se comprend sans avoir à lire le titre.
-    tapRecord: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>'
+    tapRecord: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>',
+    // Copier/coller le MOTIF entier du séquenceur (voir copySeqPattern/pasteSeqPattern) : deux feuilles
+    // superposées (copier) vs une planchette à pince (coller), même paire de symboles que la plupart
+    // des éditeurs — se distinguent d'un coup d'œil l'un de l'autre sans avoir à lire le titre.
+    seqCopy: '<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M4 16V5.5A1.5 1.5 0 0 1 5.5 4H16"/>',
+    seqPaste: '<rect x="5" y="6" width="14" height="15" rx="1.5"/><path d="M9 6V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V6"/><path d="M9 4h6v3H9z"/>'
 };
 
 // Rendu HTML d'une icône (name doit exister dans ICONS) ; extraClass optionnel pour la taille/marge
@@ -2023,6 +2028,10 @@ class HarmoHubApp {
                                    // doivent rester silencieuses par défaut, jamais concernées ici.
         this.seqSelections = []; // notes du séquenceur sélectionnées : [{ voice, start, end }, ...]
         this.seqDrag = null;       // état de glisser en cours sur le séquenceur
+        // Presse-papier du MOTIF rythmique entier (voir copySeqPattern/pasteSeqPattern) : { pattern,
+        // tie, intensityPerStep, steps, voices }, ou null tant que rien n'a été copié. En mémoire
+        // seulement (comme this.clipboard pour les accords), pas persisté d'une session à l'autre.
+        this.seqPatternClipboard = null;
         // Rythme tapé en direct (barre espace/doigt) sur la sélection courante, voir startTapRecording :
         // null (inactif), 'countin' (décompte en cours, appuis ignorés) ou 'recording' (chaque appui
         // compte). this._tapRecordState porte tout le reste (fenêtre, appuis capturés, accord ciblé...).
@@ -8261,7 +8270,12 @@ class HarmoHubApp {
             // pour basculer en changement de voix depuis N'IMPORTE quel point de la note (voir
             // onSeqPointerMove/beginSeqVoiceDrag), pas seulement ses extrémités.
             noteStart, noteEnd,
-            gestureDecided: false, voiceDrag: null,
+            // Alt/Option déjà enfoncée à la prise, sur une note existante : un glissé horizontal
+            // dominant posera une COPIE plus loin sur la MÊME voix au lieu de rien faire (voir
+            // beginSeqDupDrag) — retour utilisateur, geste jusqu'ici sans effet dans ce cas précis
+            // (voir le commentaire "d.wasOn) return;" plus bas), donc sans conflit avec l'existant.
+            altDuplicate: wasOn && e.altKey,
+            gestureDecided: false, voiceDrag: null, dupDrag: null,
         };
 
         this._onSeqMove = (ev) => this.onSeqPointerMove(ev);
@@ -8321,14 +8335,18 @@ class HarmoHubApp {
         // la barre suit le pointeur vers une autre ligne, copiée/déplacée selon Ctrl/Cmd, voir
         // beginSeqVoiceDrag — ou reste sur la même ligne (étirement depuis un bord, effacement en
         // glissant depuis le corps : comportement historique, inchangé). Dominante verticale = change
-        // de voix ; horizontale = comportement habituel — décidé une seule fois pour tout le geste.
+        // de voix ; horizontale ET Alt déjà enfoncée à la prise = duplication sur la même ligne (voir
+        // beginSeqDupDrag) ; horizontale sans Alt = comportement habituel — décidé une seule fois
+        // pour tout le geste, comme le changement de voix.
         if (d.wasOn && !d.multi && !d.gestureDecided) {
             const dx0 = e.clientX - d.startX, dy0 = e.clientY - d.startY;
             if (Math.hypot(dx0, dy0) < 10) return;
             d.gestureDecided = true;
             if (Math.abs(dy0) > Math.abs(dx0)) this.beginSeqVoiceDrag(d);
+            else if (d.altDuplicate) this.beginSeqDupDrag(d);
         }
         if (d.voiceDrag) { this.onSeqVoiceDragMove(e, d); return; }
+        if (d.dupDrag) { this.onSeqDupDragMove(e, d); return; }
 
         if (d.multi) { this.onSeqMultiDragMove(e, d); return; }
         if (d.resize) { this.onSeqResizeMove(e, d); return; }
@@ -8636,6 +8654,84 @@ class HarmoHubApp {
         this.livePreviewUpdate();
     }
 
+    // Bascule un glissé démarré sur le CORPS d'une note (Alt/Option déjà enfoncée à la prise, voir
+    // onSeqPointerDown) en duplication horizontale : une copie fantôme (contour en pointillés, voir
+    // .seq-note-dup-ghost) suit le pointeur sur LA MÊME voix, calée sur la grille — l'originale reste
+    // affichée et inchangée jusqu'au dépôt (voir onSeqDupDragMove/finalizeSeqDupDrag). Contrairement au
+    // changement de voix (beginSeqVoiceDrag), pas besoin de masquer l'original : rien ne le déplace.
+    beginSeqDupDrag(d) {
+        const noteEl = document.querySelector(
+            `.seq-note[data-voice="${d.voice}"][data-start="${d.noteStart}"][data-end="${d.noteEnd}"]`
+        );
+        if (!noteEl) return; // page/scroll a changé entretemps : abandonne, reste un glissé "sur place"
+        this.pushSeqUndo(); // un seul instantané pour tout le geste, comme les autres gestes séquenceur
+        const ghost = noteEl.cloneNode(true);
+        ghost.classList.add('seq-note-dup-ghost');
+        ghost.removeAttribute('data-start'); // pas encore une vraie note posée
+        ghost.removeAttribute('data-end');
+        noteEl.insertAdjacentElement('afterend', ghost); // même grille CSS que l'original (grid-row/column)
+        // Repart de la colonne EXACTE déjà affichée (aucune reformulation du calcul page/décalage,
+        // voir renderSequencer) : seul le premier nombre ("N / span L") bougera avec le glissé.
+        const [colStart] = noteEl.style.gridColumn.split('/').map(s => s.trim());
+        d.dupDrag = {
+            voice: d.voice, origStart: d.noteStart, origEnd: d.noteEnd,
+            colStart: parseInt(colStart, 10), ghost, appliedDelta: 0,
+        };
+    }
+
+    // Fantôme de duplication (voir beginSeqDupDrag) : suit le glissé horizontalement, calé sur la
+    // grille (jamais entre deux cases) et borné à la page actuellement affichée (mêmes limites que
+    // findSeqStepAt, qui ne connaît que les cases réellement visibles) — et ne peut jamais chevaucher
+    // l'originale elle-même (sinon dupliquer une note reviendrait à en effacer un bout, voir
+    // clearSeqRunsOverlapping/finalizeSeqDupDrag) : la zone de chevauchement se traverse sans que le
+    // fantôme n'y bouge, comme une résistance, jusqu'à en ressortir de l'autre côté.
+    onSeqDupDragMove(e, d) {
+        if (!d.crossedThreshold) {
+            const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
+            if (Math.hypot(dx, dy) < 10) return;
+            d.crossedThreshold = true;
+        }
+        const step0 = this.findSeqStepAt(d, e.clientX, e.clientY);
+        if (step0 == null) return;
+
+        const dd = d.dupDrag;
+        const visibleSteps = d.rowCells.map(c => c.step);
+        const minVisible = Math.min(...visibleSteps), maxVisible = Math.max(...visibleSteps);
+        const len = dd.origEnd - dd.origStart + 1;
+        let delta = step0 - d.startStep;
+        delta = Math.max(minVisible - dd.origStart, Math.min(maxVisible - dd.origEnd, delta));
+        if (delta !== 0 && Math.abs(delta) < len) delta = dd.appliedDelta; // zone de chevauchement : ignore
+        if (delta === dd.appliedDelta && d.moved) return;
+
+        e.preventDefault();
+        d.moved = true;
+        dd.appliedDelta = delta;
+        dd.ghost.style.gridColumn = `${dd.colStart + delta} / span ${len}`;
+    }
+
+    // Dépôt d'une duplication (voir beginSeqDupDrag/onSeqDupDragMove) : si le fantôme a bien bougé
+    // (appliedDelta non nul), peint une COPIE du même motif (attaque + tenue, positions inchangées à
+    // l'offset près) à sa nouvelle position sur la MÊME voix — l'originale, elle, n'est jamais touchée
+    // (voir finalizeSeqVoiceDrag pour le changement de voix, qui lui peut effacer l'originale).
+    finalizeSeqDupDrag(d) {
+        const dd = d.dupDrag;
+        dd.ghost.remove();
+        if (!d.moved || dd.appliedDelta === 0) {
+            // Jamais vraiment glissé (ou revenu pile sur l'originale) : rien à dupliquer.
+            this.renderSequencer();
+            return;
+        }
+
+        const newStart = dd.origStart + dd.appliedDelta, newEnd = dd.origEnd + dd.appliedDelta;
+        this.clearSeqRunsOverlapping(dd.voice, newStart, newEnd);
+        for (let s = newStart; s <= newEnd; s++) this.applySeqCell(dd.voice, s, true, s !== newStart);
+
+        this.seqTouched = true;
+        this.seqSelections = [{ voice: dd.voice, start: newStart, end: newEnd }];
+        this.renderSequencer();
+        this.livePreviewUpdate();
+    }
+
     onSeqPointerUp() {
         window.removeEventListener('pointermove', this._onSeqMove);
         window.removeEventListener('pointerup', this._onSeqUp);
@@ -8646,6 +8742,11 @@ class HarmoHubApp {
 
         if (d.voiceDrag) {
             this.finalizeSeqVoiceDrag(d);
+            return;
+        }
+
+        if (d.dupDrag) {
+            this.finalizeSeqDupDrag(d);
             return;
         }
 
@@ -9798,6 +9899,13 @@ class HarmoHubApp {
             <button type="button" id="seq-stop" class="btn-stop seq-icon-btn" title="Stop" aria-label="Stop">${svgIcon('stop')}</button>
             <button type="button" id="seq-loop-play" class="icon-btn seq-icon-btn${this.seqLoopPlay ? ' active' : ''}" title="Rejouer en boucle" aria-label="Rejouer en boucle">${svgIcon('loop')}</button>
             <button type="button" id="seq-add-note" class="icon-btn seq-icon-btn" title="Ajouter une note libre (ex. note de passage)" aria-label="Ajouter une note libre">${svgIcon('plus')}</button>
+            <!-- Copier/coller le motif ENTIER (toutes les voix, voir copySeqPattern/pasteSeqPattern) —
+                 retour utilisateur : recopier un rythme déjà construit vers un autre accord plutôt que
+                 de le repeindre à la main. Coller adapte la longueur (mosaïque/troncature) et le nombre
+                 de voix (correspondance simple par index) à l'accord cible, désactivé tant que rien
+                 n'a été copié. -->
+            <button type="button" id="seq-copy-pattern" class="icon-btn seq-icon-btn" title="Copier le motif de cet accord" aria-label="Copier le motif de cet accord">${svgIcon('seqCopy')}</button>
+            <button type="button" id="seq-paste-pattern" class="icon-btn seq-icon-btn" ${this.seqPatternClipboard ? '' : 'disabled'} title="Coller le motif copié" aria-label="Coller le motif copié">${svgIcon('seqPaste')}</button>
             ${showInlineSeqZoom ? `
             <div class="zoom-axis-group" title="Échelle horizontale">
                 <span class="zoom-axis-tag">H</span>
@@ -9962,6 +10070,10 @@ class HarmoHubApp {
         };
         const addNoteBtn = document.getElementById('seq-add-note');
         if (addNoteBtn) addNoteBtn.onclick = () => this.addSequencerNote();
+        const copyPatternBtn = document.getElementById('seq-copy-pattern');
+        if (copyPatternBtn) copyPatternBtn.onclick = () => this.copySeqPattern();
+        const pastePatternBtn = document.getElementById('seq-paste-pattern');
+        if (pastePatternBtn) pastePatternBtn.onclick = () => this.pasteSeqPattern();
         const seqZoomOutHInline = document.getElementById('seq-zoom-out-h-inline');
         if (seqZoomOutHInline) seqZoomOutHInline.onclick = () => this.adjustSeqInlineZoom(-ZOOM_LEVEL_STEP);
         const seqZoomInHInline = document.getElementById('seq-zoom-in-h-inline');
@@ -10042,6 +10154,55 @@ class HarmoHubApp {
         this.renderSequencer();
         this.refreshPreview();
         this.livePreviewUpdate();
+    }
+
+    // Copie tout le motif rythmique de l'accord en cours d'édition (toutes les voix + les réglages
+    // d'intensité par croche du mode studio) dans un presse-papier en mémoire (voir
+    // this.seqPatternClipboard) — retour utilisateur : recopier un rythme déjà construit vers un
+    // autre accord plutôt que de le repeindre à la main. L'adaptation à l'accord CIBLE (durée, nombre
+    // de voix) se fait au moment de coller (voir pasteSeqPattern), jamais ici.
+    copySeqPattern() {
+        const chord = this.readChord();
+        const { pattern, tie } = this.getLiveSeqPattern(chord);
+        this.seqPatternClipboard = {
+            pattern: pattern.map(voices => voices.slice()),
+            tie: tie.map(voices => voices.slice()),
+            intensityPerStep: { ...this.intensityPerStep },
+            steps: pattern.length,
+        };
+        this.renderSequencer(); // active le bouton Coller, désactivé tant que rien n'a été copié
+        this.flashHint('Motif copié');
+    }
+
+    // Colle le motif copié (voir copySeqPattern) sur l'accord en cours d'édition : adapté à SA durée
+    // (tronqué, ou répété en mosaïque si l'accord copié était plus court — voir resizeSeqPattern) et à
+    // SON nombre de voix (correspondance simple par index ; une voix EN PLUS dans l'accord cible reste
+    // silencieuse, exactement comme pour toute autre resynchronisation de motif, voir
+    // syncSeqPatternForCurrentChord). L'intensité par croche (mode studio) suit la même mosaïque.
+    pasteSeqPattern() {
+        const clip = this.seqPatternClipboard;
+        if (!clip) return;
+        const chord = this.readChord();
+        const steps = chord.beats * SEQ_STEPS_PER_BEAT;
+        const voices = chord.getSeqMidiNotes().length;
+
+        this.pushSeqUndo();
+        const { pattern, tie } = resizeSeqPattern(clip.pattern, clip.tie, steps, voices);
+        this.setLiveSeqPattern(pattern, tie);
+
+        const outIntensity = {};
+        for (let i = 0; i < steps; i++) {
+            const srcIdx = clip.steps > 0 ? (i % clip.steps) : i;
+            if (clip.intensityPerStep[srcIdx] != null) outIntensity[i] = clip.intensityPerStep[srcIdx];
+        }
+        this.intensityPerStep = outIntensity;
+
+        this.seqTouched = true;
+        this.seqSelections = [];
+        this.renderSequencer();
+        this.livePreviewUpdate();
+        this.commitLiveEdit(true);
+        this.flashHint('Motif collé');
     }
 
     // Réévalue, à CHAQUE rendu du séquenceur (peindre/étirer/effacer une case, pas seulement taper le
