@@ -50,13 +50,11 @@ const ICONS = {
     // universel d'enregistrement — se distingue des autres icônes de la rangée (aucune autre n'est
     // un simple disque plein) et se comprend sans avoir à lire le titre.
     tapRecord: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>',
-    // Copier le MOTIF entier du séquenceur (voir copySeqPattern) : deux feuilles superposées, symbole
-    // habituel de copie, distinct du pinceau ci-dessous qui sert lui à le COLLER ailleurs.
-    seqCopy: '<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M4 16V5.5A1.5 1.5 0 0 1 5.5 4H16"/>',
-    // Pinceau (voir toggleSeqPaintbrush/applySeqPatternPaintbrush) : manche en diagonale + touffe de
-    // poils à la pointe — colle le motif copié directement sur un accord de la grille d'un simple clic,
-    // sans avoir à ouvrir son séquenceur (contrairement à l'ancien bouton « coller » dédié, retiré).
-    seqBrush: '<path d="M9.5 14.5 18 6a2.121 2.121 0 0 0-3-3l-8.5 8.5"/><path d="M7 12c-1.5 0-3 1-3.5 3C3 17 2 18 1 18.5c1.2 1 3 1.5 4.5 1 1.8-.6 3-2 3-3.5A2 2 0 0 0 7 12Z"/>'
+    // Pipette de motif (voir toggleSeqPipette/pickSeqPatternFromChord/applySeqPatternToChord) : tube
+    // en diagonale + goutte prélevée à la pointe — un seul et même outil pour prélever le motif d'un
+    // accord de la grille ET le coller sur un autre, sans bouton copier/coller séparé ni avoir à
+    // ouvrir le séquenceur des accords concernés.
+    seqPipette: '<path d="M20 4 4 20"/><path d="M16 4a2.83 2.83 0 0 1 4 4"/><circle cx="6" cy="18" r="2" fill="currentColor" stroke="none"/>'
 };
 
 // Rendu HTML d'une icône (name doit exister dans ICONS) ; extraClass optionnel pour la taille/marge
@@ -2033,15 +2031,17 @@ class HarmoHubApp {
         // Sélection par rectangle (Maj/Shift + glisser depuis une case VIDE, voir beginSeqMarqueeSelect) :
         // état séparé de this.seqDrag (qui suppose toujours une seule voix de départ), null hors glissé.
         this.seqMarquee = null;
-        // Presse-papier du MOTIF rythmique entier (voir copySeqPattern/pasteSeqPattern) : { pattern,
-        // tie, intensityPerStep, steps, voices }, ou null tant que rien n'a été copié. En mémoire
-        // seulement (comme this.clipboard pour les accords), pas persisté d'une session à l'autre.
+        // Presse-papier du MOTIF rythmique entier (voir pickSeqPatternFromChord/applySeqPatternToChord) :
+        // { pattern, tie, intensityPerStep, steps }, ou null tant que rien n'a encore été prélevé à la
+        // pipette. En mémoire seulement (comme this.clipboard pour les accords), pas persisté d'une
+        // session à l'autre.
         this.seqPatternClipboard = null;
-        // Pinceau de motif (voir toggleSeqPaintbrush/applySeqPatternPaintbrush) : une fois activé,
-        // reste actif jusqu'à ce qu'on le désactive soi-même (retour utilisateur : enchaîner plusieurs
-        // accords sans avoir à réactiver à chaque fois) — indépendant du panneau séquenceur, qui peut
-        // rester fermé pendant qu'on peint la grille.
-        this.seqPaintbrushActive = false;
+        // Pipette de motif (voir toggleSeqPipette) : une fois activée, reste active jusqu'à ce qu'on la
+        // désactive soi-même (retour utilisateur : enchaîner plusieurs accords sans avoir à réactiver à
+        // chaque fois) — indépendante du panneau séquenceur, qui peut rester fermé pendant qu'on
+        // prélève/colle directement dans la grille. Simple clic : prélève si rien n'est encore chargé,
+        // sinon colle le motif déjà chargé ; Alt+clic : prélève toujours un nouveau motif.
+        this.seqPipetteActive = false;
         // Rythme tapé en direct (barre espace/doigt) sur la sélection courante, voir startTapRecording :
         // null (inactif), 'countin' (décompte en cours, appuis ignorés) ou 'recording' (chaque appui
         // compte). this._tapRecordState porte tout le reste (fenêtre, appuis capturés, accord ciblé...).
@@ -7241,13 +7241,16 @@ class HarmoHubApp {
         const section = +gridEl.dataset.section;
         const cell = e.target.closest('.grid-cell');
 
-        // Pinceau de motif (voir toggleSeqPaintbrush) : un simple clic sur n'importe quel accord de la
-        // grille lui colle directement le motif copié, à la place du glisser-déposer/sélection
-        // habituels ci-dessous — reste actif jusqu'à ce qu'on le désactive soi-même (voir
-        // applySeqPatternPaintbrush), pour enchaîner plusieurs accords sans repasser par ce bouton.
-        if (this.seqPaintbrushActive && cell) {
+        // Pipette de motif (voir toggleSeqPipette) : un simple clic sur n'importe quel accord de la
+        // grille prélève son motif (rien encore chargé) ou colle celui déjà prélevé (sinon), à la
+        // place du glisser-déposer/sélection habituels ci-dessous — Alt+clic prélève toujours un
+        // NOUVEAU motif, même si un autre était déjà chargé. Reste active jusqu'à ce qu'on la
+        // désactive soi-même, pour enchaîner plusieurs accords sans repasser par le bouton.
+        if (this.seqPipetteActive && cell) {
             e.preventDefault();
-            this.applySeqPatternPaintbrush(section, parseInt(cell.dataset.index));
+            const index = parseInt(cell.dataset.index);
+            if (e.altKey || !this.seqPatternClipboard) this.pickSeqPatternFromChord(section, index);
+            else this.applySeqPatternToChord(section, index);
             return;
         }
 
@@ -10024,17 +10027,15 @@ class HarmoHubApp {
             <button type="button" id="seq-stop" class="btn-stop seq-icon-btn" title="Stop" aria-label="Stop">${svgIcon('stop')}</button>
             <button type="button" id="seq-loop-play" class="icon-btn seq-icon-btn${this.seqLoopPlay ? ' active' : ''}" title="Rejouer en boucle" aria-label="Rejouer en boucle">${svgIcon('loop')}</button>
             <button type="button" id="seq-add-note" class="icon-btn seq-icon-btn" title="Ajouter une note libre (ex. note de passage)" aria-label="Ajouter une note libre">${svgIcon('plus')}</button>
-            <!-- Copier le motif ENTIER (toutes les voix, voir copySeqPattern) puis le pinceau (voir
-                 toggleSeqPaintbrush/applySeqPatternPaintbrush) pour le coller ailleurs — retour
-                 utilisateur : recopier un rythme déjà construit vers un autre accord plutôt que de le
-                 repeindre à la main, SANS avoir à ouvrir le séquenceur de chaque accord cible (contrairement
-                 à l'ancien bouton « coller » dédié, retiré) : une fois activé, le pinceau reste actif
-                 jusqu'à ce qu'on le désactive soi-même, pour enchaîner plusieurs accords cliqués
-                 directement dans la grille. Coller adapte la longueur (mosaïque/troncature) et le
-                 nombre de voix (correspondance simple par index) à chaque accord cible. Pinceau
-                 désactivé tant que rien n'a été copié. -->
-            <button type="button" id="seq-copy-pattern" class="icon-btn seq-icon-btn" title="Copier le motif de cet accord" aria-label="Copier le motif de cet accord">${svgIcon('seqCopy')}</button>
-            <button type="button" id="seq-paintbrush" class="icon-btn seq-icon-btn${this.seqPaintbrushActive ? ' active' : ''}" ${this.seqPatternClipboard ? '' : 'disabled'} title="${this.seqPaintbrushActive ? 'Désactiver le pinceau' : 'Coller le motif copié en cliquant un accord de la grille'}" aria-label="${this.seqPaintbrushActive ? 'Désactiver le pinceau' : 'Coller le motif copié en cliquant un accord de la grille'}">${svgIcon('seqBrush')}</button>
+            <!-- Pipette de motif (voir toggleSeqPipette/pickSeqPatternFromChord/applySeqPatternToChord) :
+                 un seul outil, pas de boutons copier/coller séparés — retour utilisateur : recopier un
+                 rythme déjà construit vers un autre accord plutôt que de le repeindre à la main, SANS
+                 avoir à ouvrir le séquenceur des accords concernés. Une fois activée, reste active
+                 jusqu'à ce qu'on la désactive soi-même (bouton ou Échap), pour enchaîner plusieurs
+                 accords cliqués directement dans la grille : un clic prélève tant que rien n'est encore
+                 chargé, colle sinon (adapté à la durée/au nombre de voix de chaque accord cible) ;
+                 Alt+clic prélève toujours un NOUVEAU motif, même si un autre était déjà chargé. -->
+            <button type="button" id="seq-pipette" class="icon-btn seq-icon-btn${this.seqPipetteActive ? ' active' : ''}" title="${this.seqPipetteActive ? (this.seqPatternClipboard ? 'Clique un accord pour coller (Alt+clic pour prélever un autre motif) — Échap pour désactiver' : 'Clique un accord de la grille pour prélever son motif') : 'Activer la pipette de motif'}" aria-label="${this.seqPipetteActive ? 'Désactiver la pipette de motif' : 'Activer la pipette de motif'}">${svgIcon('seqPipette')}</button>
             ${showInlineSeqZoom ? `
             <div class="zoom-axis-group" title="Échelle horizontale">
                 <span class="zoom-axis-tag">H</span>
@@ -10199,10 +10200,8 @@ class HarmoHubApp {
         };
         const addNoteBtn = document.getElementById('seq-add-note');
         if (addNoteBtn) addNoteBtn.onclick = () => this.addSequencerNote();
-        const copyPatternBtn = document.getElementById('seq-copy-pattern');
-        if (copyPatternBtn) copyPatternBtn.onclick = () => this.copySeqPattern();
-        const paintbrushBtn = document.getElementById('seq-paintbrush');
-        if (paintbrushBtn) paintbrushBtn.onclick = () => this.toggleSeqPaintbrush();
+        const pipetteBtn = document.getElementById('seq-pipette');
+        if (pipetteBtn) pipetteBtn.onclick = () => this.toggleSeqPipette();
         const seqZoomOutHInline = document.getElementById('seq-zoom-out-h-inline');
         if (seqZoomOutHInline) seqZoomOutHInline.onclick = () => this.adjustSeqInlineZoom(-ZOOM_LEVEL_STEP);
         const seqZoomInHInline = document.getElementById('seq-zoom-in-h-inline');
@@ -10295,25 +10294,38 @@ class HarmoHubApp {
         this.livePreviewUpdate();
     }
 
-    // Copie tout le motif rythmique de l'accord en cours d'édition (toutes les voix + les réglages
-    // d'intensité par croche du mode studio) dans un presse-papier en mémoire (voir
-    // this.seqPatternClipboard) — retour utilisateur : recopier un rythme déjà construit vers un
-    // autre accord plutôt que de le repeindre à la main. L'adaptation à l'accord CIBLE (durée, nombre
-    // de voix) se fait au moment de coller (voir pasteSeqPattern), jamais ici.
-    copySeqPattern() {
-        const chord = this.readChord();
-        const { pattern, tie } = this.getLiveSeqPattern(chord);
+    // Prélève (pipette, voir toggleSeqPipette) le motif rythmique entier de l'accord `section`/`index`
+    // (toutes les voix + l'intensité par croche du mode studio) dans this.seqPatternClipboard —
+    // depuis son état EN DIRECT si c'est justement l'accord déjà ouvert dans le panneau (pas encore
+    // forcément enregistré), sinon depuis ses données sauvegardées (voir applySeqPatternToChord, même
+    // distinction dans l'autre sens). L'adaptation à l'accord CIBLE (durée, nombre de voix) se fait au
+    // moment de coller, jamais ici.
+    pickSeqPatternFromChord(section, index) {
+        let pattern, tie, intensityPerStep;
+        if (this.appMode === 'edit' && this.activeSection === section && this.editingIndex === index) {
+            const chord = this.readChord();
+            ({ pattern, tie } = this.getLiveSeqPattern(chord));
+            intensityPerStep = { ...this.intensityPerStep };
+        } else {
+            const sections = loadProgressionSections();
+            const data = sections[section] && sections[section].chords[index];
+            if (!data) return;
+            const beats = beatsFromData(data);
+            const chord = new Chord(data.root, data.quality, beats, data.inversion, data.drop, octaveFromData(data), data.bass, null, data.extraNotes);
+            ({ pattern, tie } = this.resolveSeqPatternForData(chord, data));
+            intensityPerStep = { ...(data.intensityPerStep || {}) };
+        }
         this.seqPatternClipboard = {
             pattern: pattern.map(voices => voices.slice()),
             tie: tie.map(voices => voices.slice()),
-            intensityPerStep: { ...this.intensityPerStep },
+            intensityPerStep,
             steps: pattern.length,
         };
-        this.renderSequencer(); // active le pinceau, désactivé tant que rien n'a été copié
-        this.flashHint('Motif copié');
+        this.renderSequencer(); // resynchronise le titre du bouton (« prélevé » -> « coller »)
+        this.flashHint('Motif prélevé — clique un autre accord pour le coller');
     }
 
-    // Colle le motif copié (voir copySeqPattern) sur l'accord en cours d'édition : adapté à SA durée
+    // Colle le motif prélevé (voir pickSeqPatternFromChord) sur l'accord en cours d'édition : adapté à SA durée
     // (tronqué, ou répété en mosaïque si l'accord copié était plus court — voir resizeSeqPattern) et à
     // SON nombre de voix (correspondance simple par index ; une voix EN PLUS dans l'accord cible reste
     // silencieuse, exactement comme pour toute autre resynchronisation de motif, voir
@@ -10350,28 +10362,30 @@ class HarmoHubApp {
         this.flashHint('Motif collé');
     }
 
-    // Active/désactive le pinceau (voir #seq-paintbrush) : une fois activé, un simple clic sur
-    // N'IMPORTE QUEL accord de la grille principale lui applique directement le motif copié (voir
-    // applySeqPatternPaintbrush, branché depuis onGridPointerDown), sans avoir à ouvrir son
-    // séquenceur — retour utilisateur : l'ancien bouton « coller » dédié, lui, obligeait à rouvrir le
-    // séquenceur de CHAQUE accord cible, bien moins découvrable/rapide. Reste actif jusqu'à ce qu'on
-    // le désactive soi-même (bouton, ou Échap) : pas un geste "un seul coup" qui se désactiverait tout
-    // seul après le premier clic, pour pouvoir enchaîner plusieurs accords à la suite.
-    toggleSeqPaintbrush() {
-        if (!this.seqPaintbrushActive && !this.seqPatternClipboard) return; // rien à coller, bouton désactivé de toute façon
-        this.seqPaintbrushActive = !this.seqPaintbrushActive;
-        document.body.classList.toggle('seq-paintbrush-active', this.seqPaintbrushActive);
+    // Active/désactive la pipette (voir #seq-pipette) : une fois activée, un simple clic sur
+    // N'IMPORTE QUEL accord de la grille principale prélève son motif (rien encore chargé) ou colle
+    // celui déjà prélevé (sinon), sans avoir à ouvrir son séquenceur (voir onGridPointerDown/
+    // pickSeqPatternFromChord/applySeqPatternToChord) — un seul outil, pas de boutons copier/coller
+    // séparés. Reste active jusqu'à ce qu'on la désactive soi-même (bouton, ou Échap) : pas un geste
+    // "un seul coup" qui se désactiverait tout seul après le premier clic, pour pouvoir enchaîner
+    // plusieurs accords à la suite. Désactiver la pipette OUBLIE le motif chargé (repart de zéro à la
+    // prochaine activation), pour ne pas coller par erreur un motif d'une séance précédente sans plus
+    // s'en souvenir.
+    toggleSeqPipette() {
+        this.seqPipetteActive = !this.seqPipetteActive;
+        if (!this.seqPipetteActive) this.seqPatternClipboard = null;
+        document.body.classList.toggle('seq-pipette-active', this.seqPipetteActive);
         this.renderSequencer(); // resynchronise l'état du bouton, même si le panneau est fermé au moment du clic
-        if (this.seqPaintbrushActive) this.flashHint('Pinceau activé : clique un accord de la grille pour lui coller le motif');
+        if (this.seqPipetteActive) this.flashHint('Pipette activée : clique un accord de la grille pour prélever son motif');
     }
 
-    // Dépôt du pinceau sur un accord de la grille (voir onGridPointerDown/toggleSeqPaintbrush) : adapté
+    // Dépôt de la pipette sur un accord de la grille (voir onGridPointerDown/toggleSeqPipette) : adapté
     // à SA durée et à SON nombre de voix, exactement comme pasteSeqPattern — mais si cet accord est
-    // justement celui déjà ouvert dans le panneau, repasse par pasteSeqPattern (même chemin que
-    // l'ancien bouton dédié) plutôt que d'écrire directement dans les données sauvegardées : sinon,
-    // le prochain commitLiveEdit (déclenché par le panneau encore ouvert sur cet accord, voir
-    // renderSequencer) écraserait ce qu'on vient de coller ici avec l'état encore affiché à l'écran.
-    applySeqPatternPaintbrush(section, index) {
+    // justement celui déjà ouvert dans le panneau, repasse par pasteSeqPattern plutôt que d'écrire
+    // directement dans les données sauvegardées : sinon, le prochain commitLiveEdit (déclenché par le
+    // panneau encore ouvert sur cet accord, voir renderSequencer) écraserait ce qu'on vient de coller
+    // ici avec l'état encore affiché à l'écran.
+    applySeqPatternToChord(section, index) {
         const clip = this.seqPatternClipboard;
         if (!clip) return;
         if (this.appMode === 'edit' && this.activeSection === section && this.editingIndex === index) {
@@ -10785,7 +10799,7 @@ class HarmoHubApp {
             if (e.key === 'Escape' && !document.getElementById('playstyle-dd-menu').hidden) { this.closePlayStyleMenu(); return; }
             if (e.key === 'Escape' && this.seqTapPhase) { this.cancelTapRecording(); return; }
             if (e.key === 'Escape' && this.tapCalibPhase) { this.cancelTapCalibration(); return; }
-            if (e.key === 'Escape' && this.seqPaintbrushActive) { this.toggleSeqPaintbrush(); return; }
+            if (e.key === 'Escape' && this.seqPipetteActive) { this.toggleSeqPipette(); return; }
             if (e.key === 'Escape' && this.settingsOpen) { this.closeSettings(); return; }
             if (e.key === 'Escape' && this.seqZoomOpen) { this.closeSeqZoom(); return; }
             if (e.key === 'Escape' && this.gridZoomOpen) { this.closeGridZoom(); return; }

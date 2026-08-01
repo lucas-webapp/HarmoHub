@@ -1973,13 +1973,13 @@ button:active { transform: translateY(1px); }
    adjustZoom/applyZoomLevel) sur l'hôte qui contient RÉELLEMENT #progression-sections à l'instant :
    #grid-zoom-host en loupe (gridZoomLevelY), .history-section hors loupe (classicGridZoomLevelY) —
    deux réglages INDÉPENDANTS qui se relaient simplement par héritage CSS, jamais actifs à la fois. */
-/* Pinceau de motif actif (voir toggleSeqPaintbrush) : curseur dédié + léger surlignage au survol de
+/* Pipette de motif active (voir toggleSeqPipette) : curseur dédié + léger surlignage au survol de
    chaque accord, pour que la grille se lise comme « prête à recevoir un clic », tant qu'on ne l'a pas
-   désactivé (bouton ou Échap). */
-body.seq-paintbrush-active .chord-grid .grid-cell {
+   désactivée (bouton ou Échap). */
+body.seq-pipette-active .chord-grid .grid-cell {
     cursor: crosshair;
 }
-body.seq-paintbrush-active .chord-grid .grid-cell:hover {
+body.seq-pipette-active .chord-grid .grid-cell:hover {
     outline: 2px dashed var(--accent);
     outline-offset: -2px;
 }
