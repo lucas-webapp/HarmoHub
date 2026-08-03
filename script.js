@@ -2163,6 +2163,17 @@ class HarmoHubApp {
         this.refreshSongList();      // remplit le sélecteur de morceaux enregistrés
         this.updateGlobalUndoRedoButtons();
         this.updateGlobalUndoRedoButtons();
+        // Précharge le Piano (seul instrument À ÉCHANTILLONS, voir INSTRUMENT_BANKS) dès l'ouverture de
+        // l'appli plutôt qu'au premier accord joué : construire son Tone.Sampler démarre aussitôt le
+        // téléchargement de ses fichiers depuis internet en arrière-plan (voir waitForAudioReady, qui
+        // attend justement CE chargement avant de jouer). Sans ce préchargement, tout ce temps de
+        // téléchargement (mesuré : plus d'une seconde) retombait entièrement sur le tout premier accord
+        // écouté dans la session — perçu comme un délai avant la lecture (retour utilisateur), alors
+        // qu'il ne s'agit que d'un chargement qui aurait de toute façon fini par arriver. Sans risque
+        // avant le premier geste utilisateur : construire l'instrument ne joue aucun son tant que rien
+        // ne l'appelle, et ne nécessite pas d'avoir déjà "débloqué" l'AudioContext (seul
+        // triggerAttackRelease en a besoin, voir Tone.start() dans playCurrent/playProgression).
+        this.getInstrument('piano');
     }
 
     setupEventListeners() {
