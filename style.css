@@ -2069,14 +2069,25 @@ button:active { transform: translateY(1px); }
 .voice-leading-keys {
     flex: none;
 }
-.voice-leading-keys svg { display: block; }
+/* --vl-zoom-scale-x/-y (voir applyZoomLevel) : retour visuel INSTANTANÉ pendant un pincer-zoomer —
+   contrairement à la grille/au séquenceur (CSS calc() sur des dimensions réelles, voir
+   --grid-zoom-scale-v/--seq-zoom-scale-v), ce panneau est un SVG dont les coordonnées sont figées à la
+   construction (voir buildVoiceLeadingPanelHtml) : un simple transform: scale() relatif à la DERNIÈRE
+   construction réelle (jamais 1:1 avec l'échelle absolue) donne un agrandissement fluide en continu
+   entre deux reconstructions différées (~150ms, voir _startZoomPinchFlushLoop) — sans lui, le panneau
+   restait visuellement figé tout du long puis sautait d'un coup, perçu comme saccadé et lent (retour
+   utilisateur). Colonne des touches : Y seulement (sa largeur reste fixe, ce n'est pas elle qu'on
+   étire horizontalement) — transform-origin en haut à gauche des deux côtés pour rester synchronisées
+   entre elles pendant le geste.
+*/
+.voice-leading-keys svg { display: block; transform: scaleY(var(--vl-zoom-scale-y, 1)); transform-origin: top left; }
 .voice-leading-scroll {
     flex: 1;
     min-width: 0;
     overflow-x: auto;
     border-radius: 0 8px 8px 0;
 }
-.voice-leading-scroll svg { display: block; }
+.voice-leading-scroll svg { display: block; transform: scale(var(--vl-zoom-scale-x, 1), var(--vl-zoom-scale-y, 1)); transform-origin: top left; }
 
 .add-section-btn {
     width: 100%;

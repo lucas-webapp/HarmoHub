@@ -2039,6 +2039,12 @@ class HarmoHubApp {
         // Panneau "Conduite de voix" (voir VOICE_LEADING_ZOOM_LEVEL_X_KEY) : mémorisé comme les autres.
         this.voiceLeadingZoomLevelX = parseFloat(localStorage.getItem(VOICE_LEADING_ZOOM_LEVEL_X_KEY)) || 1;
         this.voiceLeadingZoomLevelY = parseFloat(localStorage.getItem(VOICE_LEADING_ZOOM_LEVEL_Y_KEY)) || 1;
+        // Échelle EFFECTIVEMENT posée dans les coordonnées SVG lors de la DERNIÈRE construction réelle
+        // du panneau (voir buildVoiceLeadingPanelHtml/applyZoomLevel) : sert de référence pendant un
+        // pincer-zoomer pour un transform: scale() de secours instantané (--vl-zoom-scale-x/-y, voir
+        // style.css), tant que la vraie reconstruction (~150ms) n'a pas rattrapé l'échelle ci-dessus.
+        this._voiceLeadingBuiltZoomX = this.voiceLeadingZoomLevelX;
+        this._voiceLeadingBuiltZoomY = this.voiceLeadingZoomLevelY;
         // Échelle horizontale du séquenceur COMPACT (hors loupe), voir SEQ_INLINE_ZOOM_LEVEL_X_KEY.
         this.seqInlineZoomLevelX = parseFloat(localStorage.getItem(SEQ_INLINE_ZOOM_LEVEL_X_KEY)) || 1;
         // Séquenceur épinglé en bas de la loupe grille (voir openGridZoom/toggleGridZoomPinnedSeq) :
@@ -4756,6 +4762,11 @@ class HarmoHubApp {
     // de l'accord le plus fourni restent sans trait — approximation simple mais correcte dans
     // l'immense majorité des cas.
     buildVoiceLeadingPanelHtml(si, history, gRoot, gMode, useFlats) {
+        // Cette construction reflète exactement l'échelle courante : le transform de secours pendant
+        // un pincement (--vl-zoom-scale-x/-y, voir applyZoomLevel/style.css) repart donc de 1 jusqu'au
+        // prochain cran de zoom.
+        this._voiceLeadingBuiltZoomX = this.voiceLeadingZoomLevelX;
+        this._voiceLeadingBuiltZoomY = this.voiceLeadingZoomLevelY;
         const PX_PER_BEAT = 56 * this.voiceLeadingZoomLevelX, ROW_H = 18 * this.voiceLeadingZoomLevelY;
         const KEY_GUTTER = 34, PAD_TOP = 30, PAD_BOTTOM = 14;
         const ROLE_GRADIENT = {
@@ -10254,12 +10265,26 @@ class HarmoHubApp {
             if (this._zoomPinchActive) this._gridZoomRenderPending = true;
             else this.loadProgression();
         } else if (kind === 'voiceLeading') {
-            // Contrairement aux deux cas ci-dessus, PAS de variable CSS ici : le panneau est un SVG,
-            // ses dimensions (largeur/hauteur des cases) sont calculées et posées une fois pour toutes
-            // à la construction (voir buildVoiceLeadingPanelHtml) — les deux axes ont donc besoin d'un
-            // vrai nouveau rendu, jamais d'un simple redimensionnement visuel après coup.
-            if (this._zoomPinchActive) this._voiceLeadingZoomRenderPending = true;
-            else this.loadProgression();
+            // Contrairement aux deux cas ci-dessus, PAS de calc() CSS direct sur les dimensions ici :
+            // le panneau est un SVG, ses coordonnées sont calculées et posées une fois pour toutes à
+            // la construction (voir buildVoiceLeadingPanelHtml) — les deux axes ont donc besoin d'un
+            // vrai nouveau rendu, jamais d'un simple redimensionnement de calc(). Pendant un pincement,
+            // ce vrai rendu reste différé (~150ms, voir _startZoomPinchFlushLoop) : sans retour visuel
+            // intermédiaire, le panneau restait figé tout du long puis sautait d'un coup, perçu comme
+            // saccadé et lent (retour utilisateur). --vl-zoom-scale-x/-y (voir style.css) applique un
+            // transform: scale() de secours, relatif à la DERNIÈRE construction réelle
+            // (_voiceLeadingBuiltZoomX/Y) plutôt qu'à l'échelle absolue — fluide en continu, la vraie
+            // reconstruction repart de 1 (voir buildVoiceLeadingPanelHtml).
+            if (this._zoomPinchActive) {
+                this._voiceLeadingZoomRenderPending = true;
+                const panel = document.querySelector('.voice-leading-panel');
+                if (panel) {
+                    panel.style.setProperty('--vl-zoom-scale-x', String(this.voiceLeadingZoomLevelX / this._voiceLeadingBuiltZoomX));
+                    panel.style.setProperty('--vl-zoom-scale-y', String(this.voiceLeadingZoomLevelY / this._voiceLeadingBuiltZoomY));
+                }
+            } else {
+                this.loadProgression();
+            }
         } else {
             const host = document.getElementById('grid-zoom-host');
             if (host) host.style.setProperty('--grid-zoom-scale-v', String(this.gridZoomLevelY));
