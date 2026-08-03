@@ -287,6 +287,18 @@
                         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
                     </button>
                     <div class="grid-zoom-transport-sep"></div>
+                    <!-- Annuler/Rétablir (voir global-undo-btn/global-redo-btn ci-dessus, tout en haut de
+                         l'appli) : relayés ici de la même façon que Accord/Grille/Boucle/Stop plus haut —
+                         la loupe grille masque le bandeau du haut derrière elle, sans ce relais impossible
+                         de corriger une erreur sans clavier (Ctrl+Z), donc jamais sur téléphone (retour
+                         utilisateur : "j'ai eu un problème... je n'ai jamais pu corriger cette erreur"). -->
+                    <button type="button" id="grid-zoom-undo" class="icon-btn" title="Annuler (Ctrl+Z)" aria-label="Annuler" disabled>
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+                    </button>
+                    <button type="button" id="grid-zoom-redo" class="icon-btn" title="Rétablir (Ctrl+Y)" aria-label="Rétablir" disabled>
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
+                    </button>
+                    <div class="grid-zoom-transport-sep"></div>
                     <div class="zoom-axis-group" title="Échelle horizontale (accords par ligne)">
                         <span class="zoom-axis-tag">H</span>
                         <button type="button" id="grid-zoom-in-h" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">
@@ -893,6 +905,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608030839"></script>
+    <script src="script.js?v=202608030919"></script>
 </body>
 </html>

@@ -2039,6 +2039,12 @@ class HarmoHubApp {
         // en même temps sur un téléphone réel (retour utilisateur : "l'agrandissement... ne fonctionne
         // pas bien"). Vidé au relâchement de CHAQUE doigt, où qu'il se lève (voir setupSequencerInteractions).
         this._seqActiveTouchIds = new Set();
+        // Même garde-fou que ci-dessus, mais pour le glisser-réordonner de la grille d'accords (voir
+        // onGridPointerDown/setupGridInteractions) : un pincer-zoomer sur la loupe grille (voir
+        // #grid-zoom-host/setupPinchZoom) partage le MÊME conteneur que la grille elle-même, donc le
+        // même risque de conflit entre les deux doigts d'une pince et un glisser de case démarré par
+        // erreur sur l'un d'eux.
+        this._gridActiveTouchIds = new Set();
         // Pincer-zoomer en cours (voir setupPinchZoom) sur N'IMPORTE lequel des 3 hôtes concernés
         // (séquenceur ou grille) : tant qu'il l'est, applyZoomLevel n'y déclenche PAS de reconstruction
         // complète du DOM (renderSequencer/loadProgression) à chaque pas, seulement au relâchement des
@@ -2535,6 +2541,12 @@ class HarmoHubApp {
             document.getElementById('toggle-loop-section').click();
             gridZoomLoopBtn.classList.toggle('active', this.loopActiveSection);
         };
+        // Annuler/Rétablir (voir global-undo-btn/global-redo-btn) : même relais, pour pouvoir corriger
+        // une erreur sur la grille sans quitter la loupe (retour utilisateur, notamment sur téléphone
+        // où Ctrl+Z n'existe pas) — voir aussi updateGlobalUndoRedoButtons, qui synchronise leur état
+        // désactivé/activé en même temps que les boutons d'origine.
+        document.getElementById('grid-zoom-undo').onclick = () => document.getElementById('global-undo-btn').click();
+        document.getElementById('grid-zoom-redo').onclick = () => document.getElementById('global-redo-btn').click();
         document.getElementById('grid-zoom-host').addEventListener('wheel', (e) => {
             if (!e.ctrlKey) return;
             e.preventDefault();
@@ -4312,6 +4324,11 @@ class HarmoHubApp {
     // contrôles (Ajouter/Modifier), Suppr, copier/coller, etc.
     loadProgression() {
         const host = document.getElementById('progression-sections');
+        // Toute reconstruction de la grille rend caduque le suivi des doigts actifs par case (voir
+        // this._gridActiveTouchIds/onGridPointerDown), même raison que this._seqActiveTouchIds côté
+        // séquenceur (voir renderSequencer) : évite qu'un id resté bloqué ne fasse à tort passer le
+        // PROCHAIN tap à un seul doigt pour un second doigt de pince.
+        this._gridActiveTouchIds.clear();
         const sections = loadProgressionSections();
         if (this.activeSection >= sections.length) this.activeSection = sections.length - 1;
 
@@ -7228,6 +7245,11 @@ class HarmoHubApp {
     setupGridInteractions() {
         const host = document.getElementById('progression-sections');
         host.addEventListener('pointerdown', (e) => this.onGridPointerDown(e));
+        // Nettoyage du suivi des doigts actifs sur la grille (voir this._gridActiveTouchIds/
+        // onGridPointerDown), même principe que this._seqActiveTouchIds pour le séquenceur : posé sur
+        // window pour retirer un doigt même s'il se lève hors de la grille.
+        window.addEventListener('pointerup', (e) => { if (e.pointerType === 'touch') this._gridActiveTouchIds.delete(e.pointerId); });
+        window.addEventListener('pointercancel', (e) => { if (e.pointerType === 'touch') this._gridActiveTouchIds.delete(e.pointerId); });
         // Case "+" en bout de grille (voir buildAddCellHtml) : Entrée ajoute l'accord tapé. Échap vide
         // le champ. Sur certains claviers virtuels (mobile), la touche « Entrée »/« Aller » ne déclenche
         // pas toujours un vrai `keydown` détecté ici : on ajoute donc aussi un ajout au relâchement du
@@ -7269,6 +7291,20 @@ class HarmoHubApp {
 
     onGridPointerDown(e) {
         if (e.button != null && e.button !== 0) return; // clic gauche / touch uniquement
+
+        // Second doigt qui se pose (voir this._gridActiveTouchIds) : un pincer-zoomer démarre (voir
+        // setupPinchZoom, posé sur #grid-zoom-host — un ancêtre de #progression-sections dans la loupe
+        // grille — qui reçoit LE MÊME évènement par bouillonnement) — abandonne tout glisser déjà
+        // amorcé par le premier doigt plutôt que de laisser les deux se disputer la même case (retour
+        // utilisateur : le pincer-zoomer de la grille ne fonctionne pas bien sur téléphone).
+        if (e.pointerType === 'touch') {
+            this._gridActiveTouchIds.add(e.pointerId);
+            if (this._gridActiveTouchIds.size > 1) {
+                this.cancelGridGestureForPinch();
+                return;
+            }
+        }
+
         const gridEl = e.target.closest('.chord-grid');
         if (!gridEl) return;
         if (e.target.closest('.grid-cell-add')) return; // laisse le clic focaliser normalement le champ
@@ -7330,7 +7366,13 @@ class HarmoHubApp {
         // pour la sélection multiple (voir toggleGridMultiSelect) basculait trop facilement en
         // Ctrl+glisser-copie au moindre tremblement, insérant une copie non voulue au lieu de
         // simplement sélectionner. Un vrai Ctrl+glisser-copie délibéré, lui, dépasse largement 18px.
-        const threshold = d.copy ? 18 : 10;
+        let threshold = d.copy ? 18 : 10;
+        // Doigt (pas souris) DANS la loupe grille (voir gridZoomOpen) : seuil un peu plus généreux —
+        // les deux doigts d'un pincer-zoomer (voir setupPinchZoom sur #grid-zoom-host) se posent
+        // rarement au même instant exact, et le premier peut facilement dépasser les 10px habituels
+        // avant même que le second ne touche l'écran, démarrant par erreur un glisser-réordonner.
+        // Seulement en loupe (retour utilisateur : ne pas toucher au comportement de la grille classique).
+        if (!d.copy && this.gridZoomOpen && d.pointerType !== 'mouse') threshold = 24;
         if (!d.moved && Math.hypot(dx, dy) < threshold) return;
 
         if (d.menuShown) {
@@ -7400,6 +7442,24 @@ class HarmoHubApp {
                 }
             }
         }
+    }
+
+    // Abandonne le glisser-réordonner en cours SANS le finaliser — voir onGridPointerDown, appelé
+    // quand un second doigt se pose pendant qu'un pincer-zoomer démarre (voir setupPinchZoom sur
+    // #grid-zoom-host, ancêtre de #progression-sections). Si le glisser avait déjà bougé (d.moved),
+    // un réordonnancement réel a déjà été appliqué (voir onGridPointerMove, qui pousse un instantané
+    // ET redessine la grille dès le premier mouvement) : this.undo() le défait proprement — l'appel
+    // est sûr même en pleine pince, puisque le pincer-zoomer (plus haut dans le bouillonnement) ne
+    // dépend que des coordonnées et d'un conteneur stable, jamais d'une .grid-cell précise.
+    cancelGridGestureForPinch() {
+        window.removeEventListener('pointermove', this._onMove);
+        window.removeEventListener('pointerup', this._onUp);
+        window.removeEventListener('pointercancel', this._onUp);
+        const d = this.drag;
+        this.drag = null;
+        if (!d) return;
+        if (d.ghost) d.ghost.remove();
+        if (d.moved) this.undo();
     }
 
     onGridPointerUp() {
@@ -9640,15 +9700,15 @@ class HarmoHubApp {
     // Pincer-zoomer à 2 doigts (retour utilisateur : équivalent tactile du Ctrl+molette existant, qui
     // ne marche pas au doigt — ni Ctrl ni molette sur mobile). Suit les deux pointeurs tactiles actifs
     // sur `el` via leur pointerId (peu importe lesquels des doigts posés, même si d'autres traînent
-    // sur l'écran ailleurs) ; l'écart entre eux grandit -> zoom avant, rétrécit -> zoom arrière — un
-    // cran (ZOOM_LEVEL_STEP) tous les PINCH_STEP_PX de variation, pas un vrai zoom continu (même
-    // granularité que les boutons +/- dédiés, plus simple à faire cohabiter avec adjustZoom). Zoome
-    // les DEUX axes à la fois (contrairement au Ctrl+molette, qui choisit un seul axe à la fois selon
-    // Maj) : un geste de pince n'a pas d'équivalent naturel à une touche Maj à mi-pince.
+    // sur l'écran ailleurs). Zoom CONTINU (le ratio écart-actuel/écart-de-départ s'applique directement
+    // à l'échelle de départ, à chaque pointermove) plutôt que par crans fixes tous les N pixels — un
+    // premier essai par crans se sentait « à-coups » (retour utilisateur), loin du geste natif auquel
+    // les doigts s'attendent. Zoome les DEUX axes à la fois (contrairement au Ctrl+molette, qui choisit
+    // un seul axe à la fois selon Maj) : un geste de pince n'a pas d'équivalent naturel à une touche
+    // Maj à mi-pince.
     setupPinchZoom(el, kind) {
-        const PINCH_STEP_PX = 32;
         const pointers = new Map();
-        let lastDist = null;
+        let baseDist = null, baseZoomX = null, baseZoomY = null;
         const dist = () => {
             const pts = [...pointers.values()];
             return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
@@ -9657,33 +9717,38 @@ class HarmoHubApp {
             if (e.pointerType !== 'touch') return;
             pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             // Capture explicite sur `el` (stable, jamais reconstruit) plutôt que de laisser le doigt
-            // capturé implicitement sur la .seq-cell tactée (norme Pointer Events pour tout doigt) :
-            // un pas de zoom en cours de pincement redessine la grille (renderSequencer, voir
-            // applyZoomLevel), qui détruit/reconstruit CES cases précises — sans cette capture
-            // explicite, les pointermove/pointerup suivants de CE doigt se seraient perdus dans le
-            // vide (plus aucun ancêtre à traverser depuis une case retirée du DOM), coupant le
-            // pincement net après le tout premier cran (retour utilisateur : "l'agrandissement avec
-            // les doigts ne fonctionne pas bien"). try/catch défensif : ignoré si le navigateur ne
-            // considère pas encore ce pointeur comme actif (jamais le cas pour un vrai doigt).
+            // capturé implicitement sur la case tactée (norme Pointer Events pour tout doigt) : un pas
+            // de zoom horizontal en cours de pincement redessine la grille/le séquenceur (mise en page
+            // recalculée, voir applyZoomLevel), qui détruit/reconstruit CES cases précises — sans
+            // cette capture explicite, les pointermove/pointerup suivants de CE doigt se seraient
+            // perdus dans le vide (plus aucun ancêtre à traverser depuis une case retirée du DOM),
+            // coupant le pincement net (retour utilisateur : "l'agrandissement avec les doigts ne
+            // fonctionne pas bien"). try/catch défensif : ignoré si le navigateur ne considère pas
+            // encore ce pointeur comme actif (jamais le cas pour un vrai doigt).
             try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignoré, voir commentaire ci-dessus */ }
-            if (pointers.size === 2) { lastDist = dist(); this._zoomPinchActive = true; }
+            if (pointers.size === 2) {
+                // Écart et échelle de DÉPART du pincement : toute la suite du geste s'exprime en
+                // ratio de cet écart initial, jamais en delta cumulé depuis le dernier mouvement (qui
+                // dériverait/s'accumulerait faux si un pointermove venait à manquer).
+                baseDist = dist();
+                baseZoomX = this[`${kind}ZoomLevelX`];
+                baseZoomY = this[`${kind}ZoomLevelY`];
+                this._zoomPinchActive = true;
+            }
         });
         el.addEventListener('pointermove', (e) => {
             if (!pointers.has(e.pointerId)) return;
             pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-            if (pointers.size !== 2) return;
+            if (pointers.size !== 2 || baseDist == null || baseDist < 1) return;
             e.preventDefault(); // empêche le navigateur de zoomer la PAGE entière avec la même pince
-            const d = dist();
-            if (lastDist == null) { lastDist = d; return; }
-            const diff = d - lastDist;
-            if (Math.abs(diff) < PINCH_STEP_PX) return;
-            this.adjustZoomBothAxes(kind, diff > 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
-            lastDist = d;
+            const ratio = dist() / baseDist;
+            this.setZoomLevel(kind, 'x', baseZoomX * ratio);
+            this.setZoomLevel(kind, 'y', baseZoomY * ratio);
         }, { passive: false });
         const release = (e) => {
             pointers.delete(e.pointerId);
             if (pointers.size < 2) {
-                lastDist = null;
+                baseDist = null;
                 // Un doigt se lève, il n'en reste plus 2 : le pincement est terminé — rattrape
                 // maintenant la reconstruction complète différée pendant le geste (voir applyZoomLevel/
                 // _seqZoomRenderPending/_gridZoomRenderPending ci-dessus).
@@ -9717,12 +9782,22 @@ class HarmoHubApp {
     // fenêtre, voir les écouteurs "wheel" plus haut) — mémorisé d'une session à l'autre.
     adjustZoom(kind, axis, delta) {
         const levelKey = `${kind}ZoomLevel${axis === 'x' ? 'X' : 'Y'}`;
+        this.setZoomLevel(kind, axis, this[levelKey] + delta);
+    }
+
+    // Pose une échelle ABSOLUE (pas relative comme adjustZoom ci-dessus) : utilisé par le pincer-zoomer
+    // (voir setupPinchZoom), qui suit en continu le ratio d'écartement des doigts plutôt que d'avancer
+    // par crans — sinon le zoom au doigt semblait saccadé/à-coups (retour utilisateur), un cran entier
+    // d'un coup au lieu de suivre le geste en direct.
+    setZoomLevel(kind, axis, value) {
+        const levelKey = `${kind}ZoomLevel${axis === 'x' ? 'X' : 'Y'}`;
         const storageKey = kind === 'seq'
             ? (axis === 'x' ? SEQ_ZOOM_LEVEL_X_KEY : SEQ_ZOOM_LEVEL_Y_KEY)
             : kind === 'classicGrid'
             ? (axis === 'x' ? CLASSIC_GRID_ZOOM_LEVEL_X_KEY : CLASSIC_GRID_ZOOM_LEVEL_Y_KEY)
             : (axis === 'x' ? GRID_ZOOM_LEVEL_X_KEY : GRID_ZOOM_LEVEL_Y_KEY);
-        const next = Math.round(Math.max(ZOOM_LEVEL_MIN, Math.min(ZOOM_LEVEL_MAX, this[levelKey] + delta)) * 100) / 100;
+        const next = Math.round(Math.max(ZOOM_LEVEL_MIN, Math.min(ZOOM_LEVEL_MAX, value)) * 100) / 100;
+        if (next === this[levelKey]) return; // évite un applyZoomLevel (donc un rendu) inutile
         this[levelKey] = next;
         localStorage.setItem(storageKey, String(next));
         this.applyZoomLevel(kind);
@@ -10885,6 +10960,12 @@ class HarmoHubApp {
         else { undoStack = this.undoStack; redoStack = this.redoStack; }
         undoBtn.disabled = undoStack.length === 0;
         redoBtn.disabled = redoStack.length === 0;
+        // Relais dans l'en-tête de la loupe grille (voir grid-zoom-undo/grid-zoom-redo) : même état
+        // désactivé/activé que les boutons d'origine, sinon .click() dessus ne ferait jamais rien.
+        const gridZoomUndoBtn = document.getElementById('grid-zoom-undo');
+        const gridZoomRedoBtn = document.getElementById('grid-zoom-redo');
+        if (gridZoomUndoBtn) gridZoomUndoBtn.disabled = undoBtn.disabled;
+        if (gridZoomRedoBtn) gridZoomRedoBtn.disabled = redoBtn.disabled;
     }
 
     // Vide l'historique annuler/rétablir (appelé lors d'un changement de morceau : undo/redo
