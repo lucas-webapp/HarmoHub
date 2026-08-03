@@ -487,8 +487,26 @@ body.body-scroll-locked { overflow: hidden !important; }
 
 /* Boutons loupe+/loupe-/fermer groupés à droite de l'en-tête (voir seq-zoom-overlay et
    grid-zoom-overlay) : un seul groupe pour que .settings-header garde son simple titre/actions
-   de part et d'autre (justify-content: space-between), quel que soit le nombre de boutons. */
-.zoom-header-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+   de part et d'autre (justify-content: space-between), quel que soit le nombre de boutons.
+   flex-wrap (voir grid-zoom-transport, le plus fourni des deux avec Accord/Grille/Boucle/Stop +
+   Annuler/Rétablir + zoom H/V + fermer) : sur téléphone, ce groupe à lui seul dépasse déjà la
+   largeur de l'écran — sans passer les boutons en trop à la ligne, ils restaient purement coupés/
+   invisibles au-delà du bord (retour utilisateur, capture à l'appui : le bouton fermer et le zoom V
+   disparaissaient entièrement). .settings-header (voir plus haut) ne fait, lui, que déplacer ce
+   groupe ENTIER sous le titre s'il ne tient pas à côté — insuffisant seul si le groupe est encore
+   trop large une fois sur sa propre ligne. */
+.zoom-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    /* flex-shrink autorisé (1, pas 0 comme "none") + min-width:0 : sinon ce groupe refuse de jamais
+       se réduire sous sa largeur de contenu, quel que soit le flex-wrap ci-dessous — il déborderait
+       toujours de l'en-tête au lieu de vraiment passer ses boutons en trop à la ligne. */
+    flex: 0 1 auto;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
 
 /* Groupe -/+ par axe (horizontal/vertical), voir seq-zoom-overlay/grid-zoom-overlay dans
    index.html et adjustZoom/applyZoomLevel dans script.js : échelle horizontale (accords par
