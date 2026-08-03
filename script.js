@@ -1670,6 +1670,11 @@ const CLASSIC_GRID_ZOOM_LEVEL_Y_KEY = 'harmohubClassicGridZoomLevelY';
 // adjustSeqInlineZoom : indépendante de seqZoomLevelX (loupe), 1 par défaut pour garder EXACTEMENT
 // l'affichage actuel tant qu'on n'y touche pas (retour utilisateur).
 const SEQ_INLINE_ZOOM_LEVEL_X_KEY = 'harmohubSeqInlineZoomLevelX';
+// Échelles horizontale/verticale du panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) —
+// mêmes bornes/pas que les autres (ZOOM_LEVEL_MIN/MAX/STEP ci-dessous), un seul réglage GLOBAL
+// (pas par partie, comme voiceLeadingOpen) puisqu'un seul panneau est jamais affiché à la fois.
+const VOICE_LEADING_ZOOM_LEVEL_X_KEY = 'harmohubVoiceLeadingZoomLevelX';
+const VOICE_LEADING_ZOOM_LEVEL_Y_KEY = 'harmohubVoiceLeadingZoomLevelY';
 const ZOOM_LEVEL_MIN = 0.7;
 const ZOOM_LEVEL_MAX = 2;
 const ZOOM_LEVEL_STEP = 0.1;
@@ -1998,11 +2003,12 @@ class HarmoHubApp {
         this.seqOpen = false;      // panneau séquenceur ouvert ou non (indépendant du style de lecture)
         this.seqZoomOpen = false;  // fenêtre agrandie du séquenceur ouverte ou non (voir openSeqZoom)
         this.gridZoomOpen = false; // fenêtre agrandie de la grille d'accords ouverte ou non (voir openGridZoom)
-        // Panneaux "Conduite de voix" ouverts (voir toggleVoiceLeadingPanel/buildVoiceLeadingPanelHtml) —
-        // un Set d'index de PARTIES (pas un booléen unique) : chaque partie a le sien, indépendamment des
-        // autres. Volontairement pas persisté (comme gridZoomOpen/seqOpen) : état d'affichage de la
-        // session, pas une donnée du morceau.
-        this.voiceLeadingOpen = new Set();
+        // Panneau "Conduite de voix" ouvert ou non (voir toggleVoiceLeadingPanel/buildVoiceLeadingPanelHtml)
+        // — un seul bouton global (#toggle-voice-leading, à côté de #grid-zoom), pas un par partie : le
+        // panneau affiché suit simplement la partie ACTIVE (this.activeSection) à chaque rendu. Comme
+        // gridZoomOpen/seqOpen, volontairement pas persisté : état d'affichage de la session, pas une
+        // donnée du morceau.
+        this.voiceLeadingOpen = false;
         // Échelles horizontale/verticale (1 = taille normale), INDÉPENDANTES l'une de l'autre, des deux
         // fenêtres agrandies ci-dessus — réglables une fois ouvertes via les boutons dédiés ou
         // Ctrl+molette/Ctrl+Maj+molette (voir adjustZoom) — mémorisées d'une session à l'autre comme
@@ -2019,6 +2025,9 @@ class HarmoHubApp {
         // toujours active (pas de fenêtre à ouvrir), 1 par défaut pour garder l'affichage actuel.
         this.classicGridZoomLevelX = parseFloat(localStorage.getItem(CLASSIC_GRID_ZOOM_LEVEL_X_KEY)) || 1;
         this.classicGridZoomLevelY = parseFloat(localStorage.getItem(CLASSIC_GRID_ZOOM_LEVEL_Y_KEY)) || 1;
+        // Panneau "Conduite de voix" (voir VOICE_LEADING_ZOOM_LEVEL_X_KEY) : mémorisé comme les autres.
+        this.voiceLeadingZoomLevelX = parseFloat(localStorage.getItem(VOICE_LEADING_ZOOM_LEVEL_X_KEY)) || 1;
+        this.voiceLeadingZoomLevelY = parseFloat(localStorage.getItem(VOICE_LEADING_ZOOM_LEVEL_Y_KEY)) || 1;
         // Échelle horizontale du séquenceur COMPACT (hors loupe), voir SEQ_INLINE_ZOOM_LEVEL_X_KEY.
         this.seqInlineZoomLevelX = parseFloat(localStorage.getItem(SEQ_INLINE_ZOOM_LEVEL_X_KEY)) || 1;
         // Séquenceur épinglé en bas de la loupe grille (voir openGridZoom/toggleGridZoomPinnedSeq) :
@@ -2526,6 +2535,8 @@ class HarmoHubApp {
             e.preventDefault();
             this.adjustZoomBothAxes('classicGrid', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
         }, { passive: false });
+
+        document.getElementById('toggle-voice-leading').onclick = () => this.toggleVoiceLeadingPanel();
 
         // Vue agrandie de la grille d'accords (voir openGridZoom/closeGridZoom) : même principe,
         // déplace #progression-sections + le bouton "Ajouter une partie" plutôt que de les dupliquer.
@@ -4492,14 +4503,11 @@ class HarmoHubApp {
             const canMoveUp = si > 0;
             const canMoveDown = si < sections.length - 1;
             const measureCountEl = history.length > 0 ? `<span class="prog-section-measures">${sectionMeasureCount(sec, beatsPerBar)} mes.</span>` : '';
-            // Conduite de voix : un panneau par partie (pas un seul global), inutile en dessous de 2
-            // accords (rien à enchaîner) — voir buildVoiceLeadingPanelHtml/toggleVoiceLeadingPanel.
-            const voiceLeadingAvailable = history.length >= 2;
-            const voiceLeadingIsOpen = this.voiceLeadingOpen.has(si);
-            const voiceLeadingBtn = voiceLeadingAvailable
-                ? `<button type="button" class="prog-section-tool prog-section-voice-leading${voiceLeadingIsOpen ? ' active' : ''}" data-section="${si}" title="Conduite de voix" aria-label="Conduite de voix" aria-pressed="${voiceLeadingIsOpen}">${svgIcon('voiceLeading')}</button>`
-                : '';
-            const voiceLeadingPanel = (voiceLeadingAvailable && voiceLeadingIsOpen)
+            // Conduite de voix : un seul bouton global (voir #toggle-voice-leading, à côté de
+            // #grid-zoom) plutôt qu'un par partie — mais le panneau lui-même reste posé ICI, juste
+            // sous la partie ACTIVE (this.activeSection), pas ailleurs : suit donc automatiquement la
+            // partie sur laquelle on travaille, sans bouton à rechercher à chaque fois.
+            const voiceLeadingPanel = (si === this.activeSection && this.voiceLeadingOpen && history.length >= 2)
                 ? this.buildVoiceLeadingPanelHtml(si, history, gRoot, gMode, useFlats)
                 : '';
             return `
@@ -4507,7 +4515,6 @@ class HarmoHubApp {
                 <div class="prog-section-head">
                     <input type="text" class="prog-title" data-section="${si}" placeholder="Section" value="${titleVal}">
                     ${measureCountEl}
-                    ${voiceLeadingBtn}
                     ${canMoveUp ? `<button type="button" class="prog-section-tool prog-section-move-up" data-section="${si}" title="Monter cette partie" aria-label="Monter cette partie">${svgIcon('up')}</button>` : ''}
                     ${canMoveDown ? `<button type="button" class="prog-section-tool prog-section-move-down" data-section="${si}" title="Descendre cette partie" aria-label="Descendre cette partie">${svgIcon('down')}</button>` : ''}
                     <button type="button" class="icon-btn prog-section-duplicate" data-section="${si}" title="Dupliquer cette partie" aria-label="Dupliquer cette partie">${svgIcon('duplicate')}</button>
@@ -4517,6 +4524,45 @@ class HarmoHubApp {
                 ${voiceLeadingPanel}
             </div>`;
         }).join('');
+
+        // Bouton global (voir index.html, à côté de #grid-zoom) : reflète l'état ouvert/fermé et se
+        // désactive si la partie ACTIVE a moins de 2 accords (rien à enchaîner) — jamais retiré du DOM
+        // (contrairement au panneau lui-même), donc mis à jour ici plutôt que dans le gabarit ci-dessus.
+        const toggleVoiceLeadingBtn = document.getElementById('toggle-voice-leading');
+        if (toggleVoiceLeadingBtn) {
+            const activeSec = sections[this.activeSection];
+            const available = !!activeSec && activeSec.chords.length >= 2;
+            toggleVoiceLeadingBtn.disabled = !available;
+            toggleVoiceLeadingBtn.classList.toggle('active', this.voiceLeadingOpen && available);
+            toggleVoiceLeadingBtn.setAttribute('aria-pressed', String(this.voiceLeadingOpen && available));
+        }
+
+        // Zoom H/V + pincer-zoomer du panneau "Conduite de voix" — un seul panneau possible à la fois
+        // (voir buildVoiceLeadingPanelHtml), donc pas besoin de data-section ici comme pour les autres
+        // boutons de cette rangée : this.activeSection suffit déjà à savoir de quelle partie il s'agit.
+        const voiceLeadingPanelEl = host.querySelector('.voice-leading-panel');
+        if (voiceLeadingPanelEl) {
+            const inH = voiceLeadingPanelEl.querySelector('.voice-leading-zoom-in-h');
+            const outH = voiceLeadingPanelEl.querySelector('.voice-leading-zoom-out-h');
+            const inV = voiceLeadingPanelEl.querySelector('.voice-leading-zoom-in-v');
+            const outV = voiceLeadingPanelEl.querySelector('.voice-leading-zoom-out-v');
+            if (inH) inH.onclick = (e) => { e.stopPropagation(); this.adjustZoom('voiceLeading', 'x', ZOOM_LEVEL_STEP); };
+            if (outH) outH.onclick = (e) => { e.stopPropagation(); this.adjustZoom('voiceLeading', 'x', -ZOOM_LEVEL_STEP); };
+            if (inV) inV.onclick = (e) => { e.stopPropagation(); this.adjustZoom('voiceLeading', 'y', ZOOM_LEVEL_STEP); };
+            if (outV) outV.onclick = (e) => { e.stopPropagation(); this.adjustZoom('voiceLeading', 'y', -ZOOM_LEVEL_STEP); };
+            // Ctrl+molette : zoome les deux axes à la fois, comme les autres fenêtres zoomables de
+            // l'appli (voir adjustZoomBothAxes) — posé sur le corps du panneau (touches + notes), pas
+            // seulement la zone qui défile, pour rester cohérent même quand la souris est sur les touches.
+            const body = voiceLeadingPanelEl.querySelector('.voice-leading-body');
+            if (body) {
+                body.addEventListener('wheel', (e) => {
+                    if (!e.ctrlKey) return;
+                    e.preventDefault();
+                    this.adjustZoomBothAxes('voiceLeading', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
+                }, { passive: false });
+                this.setupPinchZoom(body, 'voiceLeading');
+            }
+        }
 
         host.querySelectorAll('.prog-title').forEach(input => {
             input.addEventListener('focus', () => this.setActiveSection(+input.dataset.section));
@@ -4534,9 +4580,6 @@ class HarmoHubApp {
         });
         host.querySelectorAll('.prog-section-duplicate').forEach(btn => {
             btn.onclick = (e) => { e.stopPropagation(); this.duplicateSection(+btn.dataset.section); };
-        });
-        host.querySelectorAll('.prog-section-voice-leading').forEach(btn => {
-            btn.onclick = (e) => { e.stopPropagation(); this.toggleVoiceLeadingPanel(+btn.dataset.section); };
         });
         // Clic droit (ordinateur) / appui long (tactile) sur un accord : menu Modifier/Dupliquer/
         // Supprimer — remplace les petits boutons ✎/⧉ jusque-là superposés à la case (illisibles et
@@ -4568,14 +4611,11 @@ class HarmoHubApp {
         this.updatePlayButtonsForLoopRange();
     }
 
-    // Ouvre/ferme le panneau "Conduite de voix" d'UNE partie (voir buildVoiceLeadingPanelHtml). Simple
-    // bascule d'état + rappel de loadProgression : le panneau n'existe dans le HTML QUE quand il est
-    // ouvert (voir voiceLeadingPanel dans loadProgression), donc pas besoin d'un mécanisme séparé pour
-    // masquer/afficher — un ré-rendu complet de la grille est de toute façon déjà ce que fait tout
-    // autre bouton de cette rangée (dupliquer/monter/descendre une partie).
-    toggleVoiceLeadingPanel(si) {
-        if (this.voiceLeadingOpen.has(si)) this.voiceLeadingOpen.delete(si);
-        else this.voiceLeadingOpen.add(si);
+    // Ouvre/ferme le panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) — un seul bouton
+    // global (#toggle-voice-leading), le panneau affiché suit toujours this.activeSection tout seul
+    // (voir loadProgression), donc rien à cibler ici : un simple booléen + rappel de loadProgression.
+    toggleVoiceLeadingPanel() {
+        this.voiceLeadingOpen = !this.voiceLeadingOpen;
         this.loadProgression();
     }
 
@@ -4591,7 +4631,8 @@ class HarmoHubApp {
     // de l'accord le plus fourni restent sans trait — approximation simple mais correcte dans
     // l'immense majorité des cas.
     buildVoiceLeadingPanelHtml(si, history, gRoot, gMode, useFlats) {
-        const PX_PER_BEAT = 56, ROW_H = 18, KEY_GUTTER = 40, PAD_TOP = 30, PAD_BOTTOM = 14;
+        const PX_PER_BEAT = 56 * this.voiceLeadingZoomLevelX, ROW_H = 18 * this.voiceLeadingZoomLevelY;
+        const KEY_GUTTER = 34, PAD_TOP = 30, PAD_BOTTOM = 14;
         const ROLE_GRADIENT = {
             root: ['#3fe3a0', '#00a855'], third: ['#5b98f0', '#1f5fc0'],
             fifth: ['#ff6f66', '#d42a20'], seventh: ['#ffc247', '#cc8f00'], ext: ['#dba8ee', '#c48ce6'],
@@ -4613,7 +4654,7 @@ class HarmoHubApp {
         if (allMidis.length === 0) return '';
         const minMidi = Math.min(...allMidis) - 1, maxMidi = Math.max(...allMidis) + 1;
         const rows = maxMidi - minMidi + 1;
-        const totalWidth = KEY_GUTTER + chordsInfo.reduce((sum, c) => sum + c.width, 0);
+        const totalWidth = chordsInfo.reduce((sum, c) => sum + c.width, 0);
         const height = PAD_TOP + rows * ROW_H + PAD_BOTTOM;
         const yFor = (midi) => PAD_TOP + (maxMidi - midi) * ROW_H;
         const gid = (role) => `vlg-${si}-${role}`; // ids UNIQUES par partie : plusieurs panneaux peuvent
@@ -4621,23 +4662,31 @@ class HarmoHubApp {
                                                      // maquette — des ids d'SVG dupliqués cassent le
                                                      // rendu des dégradés dès qu'une copie est masquée).
 
+        // Colonne des touches de piano SÉPARÉE de la zone défilante (jamais dans le même <svg>, voir
+        // .voice-leading-keys/.voice-leading-scroll dans style.css) : reste fixe pendant que la partie
+        // notes défile horizontalement — retour utilisateur, l'ancienne version (touches DANS le même
+        // SVG que les notes) défilait avec le reste, perdant le repère de hauteur dès qu'on avançait
+        // dans une partie longue. Ivoire/noir IDENTIQUES à .key.white/.key.black (voir style.css) — pas
+        // les gris presque indiscernables d'avant (retour utilisateur : "elles sont toutes foncées").
+        let keysSvg = `<svg viewBox="0 0 ${KEY_GUTTER} ${height}" width="${KEY_GUTTER}" height="${height}" role="img" aria-hidden="true">`;
+        for (let m = minMidi; m <= maxMidi; m++) {
+            const isBlack = [1, 3, 6, 8, 10].includes(((m % 12) + 12) % 12);
+            keysSvg += `<rect x="0" y="${yFor(m)}" width="${KEY_GUTTER}" height="${ROW_H}" fill="${isBlack ? '#171310' : '#ece1cd'}" stroke="${isBlack ? '#000' : '#2a2a2a'}" stroke-width="1"/>`;
+            if (m % 12 === 0) keysSvg += `<text x="${KEY_GUTTER - 5}" y="${yFor(m) + ROW_H / 2 + 3}" font-size="9" fill="#2a2a2a" text-anchor="end" font-family="ui-monospace, monospace" font-weight="700">C${Math.floor(m / 12) - 1}</text>`;
+        }
+        keysSvg += `</svg>`;
+
         let svg = `<svg viewBox="0 0 ${totalWidth} ${height}" width="${totalWidth}" height="${height}" role="img" aria-label="Conduite de voix">`;
         svg += `<defs>${Object.entries(ROLE_GRADIENT).map(([role, [c1, c2]]) => `
             <linearGradient id="${gid(role)}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient>`).join('')}</defs>`;
 
-        // touches de piano en repère (fond alterné + étiquette sur les Do)
         for (let m = minMidi; m <= maxMidi; m++) {
-            const isBlack = [1, 3, 6, 8, 10].includes(((m % 12) + 12) % 12);
-            svg += `<rect x="0" y="${yFor(m)}" width="${KEY_GUTTER}" height="${ROW_H}" fill="${isBlack ? '#111' : '#1b1b1b'}" stroke="#0a0a0a" stroke-width="0.5"/>`;
-            if (m % 12 === 0) svg += `<text x="${KEY_GUTTER - 6}" y="${yFor(m) + ROW_H / 2 + 3}" font-size="9" fill="#7a7a7a" text-anchor="end" font-family="ui-monospace, monospace">C${Math.floor(m / 12) - 1}</text>`;
-        }
-        for (let m = minMidi; m <= maxMidi; m++) {
-            svg += `<rect x="${KEY_GUTTER}" y="${yFor(m)}" width="${totalWidth - KEY_GUTTER}" height="${ROW_H}" fill="${m % 12 === 0 ? '#161616' : 'transparent'}"/>`;
-            svg += `<line x1="${KEY_GUTTER}" x2="${totalWidth}" y1="${yFor(m)}" y2="${yFor(m)}" stroke="#232323" stroke-width="1"/>`;
+            svg += `<rect x="0" y="${yFor(m)}" width="${totalWidth}" height="${ROW_H}" fill="${m % 12 === 0 ? '#161616' : 'transparent'}"/>`;
+            svg += `<line x1="0" x2="${totalWidth}" y1="${yFor(m)}" y2="${yFor(m)}" stroke="#232323" stroke-width="1"/>`;
         }
 
         // en-têtes d'accord + séparateurs
-        let x = KEY_GUTTER;
+        let x = 0;
         chordsInfo.forEach((c, i) => {
             svg += `<line x1="${x}" x2="${x}" y1="6" y2="${height - PAD_BOTTOM}" stroke="#2c2c2c" stroke-width="${i === 0 ? 0 : 1}"/>`;
             svg += `<text x="${x + c.width / 2}" y="16" font-size="12.5" font-weight="800" fill="#e0e0e0" text-anchor="middle">${escapeHtml(c.symbol)}</text>`;
@@ -4647,7 +4696,7 @@ class HarmoHubApp {
         svg += `<line x1="${x}" x2="${x}" y1="6" y2="${height - PAD_BOTTOM}" stroke="#2c2c2c" stroke-width="1"/>`;
 
         // lignes de conduite de voix
-        x = KEY_GUTTER;
+        x = 0;
         for (let i = 0; i < chordsInfo.length - 1; i++) {
             const a = chordsInfo[i].voiced, b = chordsInfo[i + 1].voiced;
             const xEnd = x + chordsInfo[i].width - 4, xStart = x + chordsInfo[i].width + 4;
@@ -4660,7 +4709,7 @@ class HarmoHubApp {
         }
 
         // notes (par-dessus les lignes de conduite)
-        x = KEY_GUTTER;
+        x = 0;
         chordsInfo.forEach(c => {
             c.voiced.forEach(v => {
                 svg += `<rect x="${x + 3}" y="${yFor(v.midi) + 2}" width="${c.width - 6}" height="${ROW_H - 4}" rx="5" fill="url(#${gid(v.role)})" stroke="rgba(0,0,0,0.35)"/>`;
@@ -4672,14 +4721,31 @@ class HarmoHubApp {
 
         return `
         <div class="voice-leading-panel" data-section="${si}">
-            <div class="piano-legend voice-leading-legend">
-                <span class="lg"><span class="dot dot-root"></span>1</span>
-                <span class="lg"><span class="dot dot-third"></span>3</span>
-                <span class="lg"><span class="dot dot-fifth"></span>5</span>
-                <span class="lg"><span class="dot dot-seventh"></span>7</span>
-                <span class="lg"><span class="dot dot-ext"></span>Autres</span>
+            <div class="voice-leading-toolbar">
+                <div class="piano-legend voice-leading-legend">
+                    <span class="lg"><span class="dot dot-root"></span>1</span>
+                    <span class="lg"><span class="dot dot-third"></span>3</span>
+                    <span class="lg"><span class="dot dot-fifth"></span>5</span>
+                    <span class="lg"><span class="dot dot-seventh"></span>7</span>
+                    <span class="lg"><span class="dot dot-ext"></span>Autres</span>
+                </div>
+                <div class="btn-wrap-group">
+                    <div class="zoom-axis-group" title="Échelle horizontale">
+                        <span class="zoom-axis-tag">H</span>
+                        <button type="button" class="icon-btn zoom-axis-btn voice-leading-zoom-in-h" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">${svgIcon('plus')}</button>
+                        <button type="button" class="icon-btn zoom-axis-btn voice-leading-zoom-out-h" title="Réduire l'échelle horizontale" aria-label="Réduire l'échelle horizontale">${svgIcon('minus')}</button>
+                    </div>
+                    <div class="zoom-axis-group" title="Échelle verticale">
+                        <span class="zoom-axis-tag">V</span>
+                        <button type="button" class="icon-btn zoom-axis-btn voice-leading-zoom-in-v" title="Agrandir l'échelle verticale" aria-label="Agrandir l'échelle verticale">${svgIcon('plus')}</button>
+                        <button type="button" class="icon-btn zoom-axis-btn voice-leading-zoom-out-v" title="Réduire l'échelle verticale" aria-label="Réduire l'échelle verticale">${svgIcon('minus')}</button>
+                    </div>
+                </div>
             </div>
-            <div class="voice-leading-scroll">${svg}</div>
+            <div class="voice-leading-body">
+                <div class="voice-leading-keys">${keysSvg}</div>
+                <div class="voice-leading-scroll">${svg}</div>
+            </div>
         </div>`;
     }
 
@@ -4878,11 +4944,8 @@ class HarmoHubApp {
         else if (this.activeSection > s) this.activeSection--;
         this.selectedIndex = null;
         // Une partie supprimée décale les index des suivantes : plus sûr de redéfinir la plage à
-        // boucler (si elle existe) que de tenter de la remapper. Même raisonnement pour les panneaux
-        // "Conduite de voix" ouverts (indexés par partie, voir voiceLeadingOpen) : les refermer tous
-        // plutôt que risquer d'en laisser un ouvert sur la MAUVAISE partie après le décalage.
+        // boucler (si elle existe) que de tenter de la remapper.
         if (this.loopRange) this.loopRange = null;
-        this.voiceLeadingOpen.clear();
 
         this.loadProgression();
         this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
@@ -4902,10 +4965,8 @@ class HarmoHubApp {
         this.activeSection = s + 1;
         this.selectedIndex = null;
         // Une partie insérée décale les index des suivantes : plus sûr de redéfinir la plage à boucler
-        // (si elle existe) que de tenter de la remapper — même chose pour les panneaux "Conduite de
-        // voix" ouverts (voir deleteSection).
+        // (si elle existe) que de tenter de la remapper.
         if (this.loopRange) this.loopRange = null;
-        this.voiceLeadingOpen.clear();
         this.loadProgression();
         this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
     }
@@ -4924,14 +4985,8 @@ class HarmoHubApp {
         else if (this.activeSection === t) this.activeSection = s;
         this.selectedIndex = null;
         // Comme pour supprimer/dupliquer une partie : plus sûr de redéfinir la plage à boucler (si
-        // elle existe) que de tenter de la remapper après cet échange. Panneaux "Conduite de voix" :
-        // un simple échange d'index suffit à les garder cohérents (contrairement à insérer/supprimer,
-        // ici aucune autre partie n'est décalée).
+        // elle existe) que de tenter de la remapper après cet échange.
         if (this.loopRange) this.loopRange = null;
-        const hadS = this.voiceLeadingOpen.has(s), hadT = this.voiceLeadingOpen.has(t);
-        this.voiceLeadingOpen.delete(s); this.voiceLeadingOpen.delete(t);
-        if (hadS) this.voiceLeadingOpen.add(t);
-        if (hadT) this.voiceLeadingOpen.add(s);
         this.loadProgression();
         this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
     }
@@ -9984,6 +10039,10 @@ class HarmoHubApp {
             this._gridZoomRenderPending = false;
             this.loadProgression();
         }
+        if (this._voiceLeadingZoomRenderPending) {
+            this._voiceLeadingZoomRenderPending = false;
+            this.loadProgression();
+        }
     }
 
     // Zoome les DEUX axes en même temps, d'un cran (voir adjustZoom ci-dessous pour chacun) — utilisé
@@ -10014,6 +10073,8 @@ class HarmoHubApp {
             ? (axis === 'x' ? SEQ_ZOOM_LEVEL_X_KEY : SEQ_ZOOM_LEVEL_Y_KEY)
             : kind === 'classicGrid'
             ? (axis === 'x' ? CLASSIC_GRID_ZOOM_LEVEL_X_KEY : CLASSIC_GRID_ZOOM_LEVEL_Y_KEY)
+            : kind === 'voiceLeading'
+            ? (axis === 'x' ? VOICE_LEADING_ZOOM_LEVEL_X_KEY : VOICE_LEADING_ZOOM_LEVEL_Y_KEY)
             : (axis === 'x' ? GRID_ZOOM_LEVEL_X_KEY : GRID_ZOOM_LEVEL_Y_KEY);
         const next = Math.round(Math.max(ZOOM_LEVEL_MIN, Math.min(ZOOM_LEVEL_MAX, value)) * 100) / 100;
         if (next === this[levelKey]) return; // évite un applyZoomLevel (donc un rendu) inutile
@@ -10059,6 +10120,13 @@ class HarmoHubApp {
             const host = document.querySelector('.history-section');
             if (host) host.style.setProperty('--grid-zoom-scale-v', String(this.classicGridZoomLevelY));
             if (this._zoomPinchActive) this._gridZoomRenderPending = true;
+            else this.loadProgression();
+        } else if (kind === 'voiceLeading') {
+            // Contrairement aux deux cas ci-dessus, PAS de variable CSS ici : le panneau est un SVG,
+            // ses dimensions (largeur/hauteur des cases) sont calculées et posées une fois pour toutes
+            // à la construction (voir buildVoiceLeadingPanelHtml) — les deux axes ont donc besoin d'un
+            // vrai nouveau rendu, jamais d'un simple redimensionnement visuel après coup.
+            if (this._zoomPinchActive) this._voiceLeadingZoomRenderPending = true;
             else this.loadProgression();
         } else {
             const host = document.getElementById('grid-zoom-host');

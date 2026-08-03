@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608031558">
+    <link rel="stylesheet" href="style.css?v=202608031623">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -808,6 +808,14 @@
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>
                             </button>
                         </div>
+                        <!-- Bouton global "Conduite de voix" (voir toggleVoiceLeadingPanel dans script.js) :
+                             affiche/masque un piano-roll continu de la partie ACTIVE sous la grille. Un
+                             seul bouton ici plutôt qu'un par partie (retour utilisateur, "plus de logique"
+                             à côté des autres vues de la grille) — désactivé tant que la partie active a
+                             moins de 2 accords (rien à enchaîner), voir loadProgression. -->
+                        <button type="button" id="toggle-voice-leading" class="icon-btn icon-btn-wide" title="Conduite de voix" aria-label="Conduite de voix" aria-pressed="false">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18V6M9 18V3M14 18v-9M19 18v-5"/></svg>
+                        </button>
                         <!-- Icône dédiée (barres façon séquenceur, même dessin que #toggle-sequencer) plutôt
                              qu'une loupe générique : une fois la grille classique elle-même zoomable
                              ci-dessus, une loupe aurait prêté à confusion avec un simple zoom — ce bouton
@@ -922,6 +930,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608031558"></script>
+    <script src="script.js?v=202608031623"></script>
 </body>
 </html>

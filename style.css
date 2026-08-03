@@ -2005,18 +2005,6 @@ button:active { transform: translateY(1px); }
     background: rgba(255, 90, 80, 0.1);
 }
 
-/* État "ouvert" du panneau Conduite de voix (voir toggleVoiceLeadingPanel) : même vert "actif" que
-   .icon-btn.active ailleurs dans l'appli (panneau séquenceur, verrouillage guitare...), pour rester
-   cohérent malgré le style plat propre à cette rangée (.prog-section-tool). */
-.prog-section-voice-leading.active {
-    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
-    color: var(--btn-text);
-    border-color: var(--btn-green-border);
-}
-.prog-section-voice-leading.active:hover {
-    border-color: var(--btn-green-border-hover);
-}
-
 /* Panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) : piano-roll continu de toute la
    partie, sous la grille elle-même (jamais au-dessus, pour ne pas déplacer la grille qu'on est en
    train de modifier à chaque ouverture/fermeture — retour utilisateur sur la maquette). */
@@ -2027,15 +2015,38 @@ button:active { transform: translateY(1px); }
     border: 1px solid var(--border);
     border-radius: var(--radius);
 }
+.voice-leading-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+}
 /* Reprend .piano-legend (même légende 1/3/5/7/Autres que sous le clavier) mais alignée à gauche,
    pas centrée : ce panneau n'est pas sous un clavier centré, juste au-dessus d'un piano-roll. */
 .voice-leading-legend {
     justify-content: flex-start;
     margin-top: 0;
 }
+/* Colonne des touches (voir .voice-leading-keys) HORS de la zone qui défile : reste fixe pendant
+   qu'on avance dans la partie, contrairement à l'ancienne version (touches dans le même SVG que les
+   notes, qui défilaient donc AVEC elles — retour utilisateur : perdait tout repère de hauteur dès
+   qu'on avançait). Un simple flex row règle ça sans recourir à position:sticky : la colonne des
+   touches n'appartient tout simplement PAS au conteneur overflow-x, donc rien à fixer. */
+.voice-leading-body {
+    display: flex;
+    align-items: flex-start;
+}
+.voice-leading-keys {
+    flex: none;
+}
+.voice-leading-keys svg { display: block; }
 .voice-leading-scroll {
+    flex: 1;
+    min-width: 0;
     overflow-x: auto;
-    border-radius: 8px;
+    border-radius: 0 8px 8px 0;
 }
 .voice-leading-scroll svg { display: block; }
 
