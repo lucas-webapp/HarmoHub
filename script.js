@@ -10612,8 +10612,14 @@ class HarmoHubApp {
         // utilisateur : au milieu, ça coupait la suite logique des actions en deux). Le zoom est un
         // réglage d'AFFICHAGE, pas une action sur le motif — même place (tout à droite de sa rangée)
         // que partout ailleurs dans l'appli (en-tête de la grille, panneau Conduite de voix).
+        // #seq-play ne priorise une plage à boucler (voir plus bas) qu'EN LOUPE (grille ou séquenceur) :
+        // là, on navigue vraiment dans le contexte de toute la grille, la plage a donc un sens. Le
+        // séquenceur COMPACT (hors loupe) reste toujours lié au seul accord en édition, quelle que soit
+        // une plage définie par ailleurs sur la grille (retour utilisateur : le bouton lecture du petit
+        // séquenceur se retrouvait à tort à jouer toute la grille).
+        const seqLoopRangeActive = !!this.loopRange && (this.gridZoomOpen || this.seqZoomOpen);
         html += `<div class="seq-presets">
-            <button type="button" id="seq-play" class="btn-prog seq-icon-btn${this.loopRange ? ' btn-loop-range' : ''}" title="${this.loopRange ? 'Lire la plage à boucler' : 'Lecture'}" aria-label="${this.loopRange ? 'Lire la plage à boucler' : 'Lecture'}">${svgIcon('play')}</button>
+            <button type="button" id="seq-play" class="btn-prog seq-icon-btn${seqLoopRangeActive ? ' btn-loop-range' : ''}" title="${seqLoopRangeActive ? 'Lire la plage à boucler' : 'Lecture'}" aria-label="${seqLoopRangeActive ? 'Lire la plage à boucler' : 'Lecture'}">${svgIcon('play')}</button>
             <button type="button" id="seq-stop" class="btn-stop seq-icon-btn" title="Stop" aria-label="Stop">${svgIcon('stop')}</button>
             <button type="button" id="seq-loop-play" class="icon-btn seq-icon-btn${this.seqLoopPlay ? ' active' : ''}" title="Rejouer en boucle" aria-label="Rejouer en boucle">${svgIcon('loop')}</button>
             <button type="button" id="seq-add-note" class="icon-btn seq-icon-btn" title="Ajouter une note libre (ex. note de passage)" aria-label="Ajouter une note libre">${svgIcon('plus')}</button>
@@ -10778,11 +10784,13 @@ class HarmoHubApp {
         });
 
         const playBtn = document.getElementById('seq-play');
-        // Une plage à boucler (bande orange/dorée, voir setLoopRange) déjà en place : lire TOUTE la
-        // plage (comme le bouton Grille, voir playProgression, qui la priorise déjà) plutôt que le seul
-        // accord en édition — cohérent avec le recolorage ci-dessus (voir updatePlayButtonsForLoopRange
-        // pour l'équivalent sur les boutons du pied de colonne/de l'en-tête loupe).
-        if (playBtn) playBtn.onclick = () => (this.loopRange ? this.playProgression() : this.playCurrent());
+        // Une plage à boucler (bande orange/dorée, voir setLoopRange) déjà en place ET on est EN LOUPE
+        // (grille ou séquenceur, voir seqLoopRangeActive ci-dessus) : lire TOUTE la plage (comme le
+        // bouton Grille, voir playProgression, qui la priorise déjà) plutôt que le seul accord en
+        // édition — cohérent avec le recolorage ci-dessus (voir updatePlayButtonsForLoopRange pour
+        // l'équivalent sur les boutons du pied de colonne/de l'en-tête loupe). Hors loupe, ce bouton
+        // reste toujours lié au seul accord en cours, quelle que soit une plage définie ailleurs.
+        if (playBtn) playBtn.onclick = () => (seqLoopRangeActive ? this.playProgression() : this.playCurrent());
         const stopBtn = document.getElementById('seq-stop');
         if (stopBtn) stopBtn.onclick = () => this.stopAll();
         const loopBtn = document.getElementById('seq-loop-play');
