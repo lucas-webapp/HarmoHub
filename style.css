@@ -485,6 +485,15 @@ body.body-scroll-locked { overflow: hidden !important; }
 .grid-zoom-transport-btn .icon { width: 15px; height: 15px; }
 .grid-zoom-transport-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 2px; }
 
+/* Sous-groupe qui ne doit JAMAIS se scinder au retour à la ligne (voir seq-zoom-overlay/
+   grid-zoom-overlay dans index.html) : zoom H+V ensemble, Annuler/Rétablir/Fermer ensemble — un
+   seul bloc flex, donc un seul élément aux yeux du flex-wrap de .zoom-header-actions (qui, lui,
+   passe CE bloc entier à la ligne si besoin, jamais un de ses boutons isolément). Sans ça, deux
+   boutons d'un même groupe pouvaient se retrouver chacun sur une ligne différente selon l'endroit
+   pile où le retour à la ligne tombait (retour utilisateur : "le réarrangement en cas de double
+   ligne n'est pas du tout optimal... voir les zooms à côté et les undo redo et fermer à côté"). */
+.grid-zoom-btn-group { display: flex; align-items: center; gap: 6px; }
+
 /* Boutons loupe+/loupe-/fermer groupés à droite de l'en-tête (voir seq-zoom-overlay et
    grid-zoom-overlay) : un seul groupe pour que .settings-header garde son simple titre/actions
    de part et d'autre (justify-content: space-between), quel que soit le nombre de boutons.
