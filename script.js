@@ -55,10 +55,11 @@ const ICONS = {
     // en dessous — plus explicite que l'ancienne icône de pipette/goutte (retour utilisateur : "je
     // n'aime pas ce logo, pas assez compréhensible").
     seqRowPipette: '<rect x="2" y="5" width="11" height="4" rx="1" fill="currentColor" stroke="none"/><path d="M19 7v10"/><path d="m16 14 3 3 3-3"/><rect x="2" y="16" width="11" height="4" rx="1" stroke-dasharray="2 2"/>',
-    // Bouton "Conduite de voix" (voir toggleVoiceLeadingPanel) : 4 barres de hauteurs différentes,
-    // façon piano-roll — se lit comme "plusieurs voix empilées dans le temps", cohérent avec ce que
-    // le panneau affiche une fois ouvert.
-    voiceLeading: '<path d="M4 18V6M9 18V3M14 18v-9M19 18v-5"/>'
+    // Bouton "Conduite de voix" (voir toggleVoiceLeadingPanel) : deux paires de notes (barres
+    // horizontales, façon piano-roll) reliées par des pointillés, chaque paire bougeant en sens
+    // contraire — se lit comme "plusieurs voix qui bougent", pas un simple réglage de volume (l'ancien
+    // dessin, 4 barres verticales de hauteurs croissantes, y ressemblait trop — retour utilisateur).
+    voiceLeading: '<rect x="2" y="4" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><rect x="10" y="7.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M8 5.3 10 8.8" stroke-width="1.5" stroke-dasharray="1.5 1.5"/><rect x="3" y="15.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><rect x="13" y="11.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M9 16.8 13 12.8" stroke-width="1.5" stroke-dasharray="1.5 1.5"/>'
 };
 
 // Rendu HTML d'une icône (name doit exister dans ICONS) ; extraClass optionnel pour la taille/marge

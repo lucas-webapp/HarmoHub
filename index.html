@@ -812,9 +812,12 @@
                              affiche/masque un piano-roll continu de la partie ACTIVE sous la grille. Un
                              seul bouton ici plutôt qu'un par partie (retour utilisateur, "plus de logique"
                              à côté des autres vues de la grille) — désactivé tant que la partie active a
-                             moins de 2 accords (rien à enchaîner), voir loadProgression. -->
+                             moins de 2 accords (rien à enchaîner), voir loadProgression. Icône : deux
+                             paires de notes reliées par des pointillés, chacune bougeant en sens contraire
+                             (voir ICONS.voiceLeading) — pas des barres verticales, confondues avec un
+                             réglage de volume (retour utilisateur sur le premier dessin). -->
                         <button type="button" id="toggle-voice-leading" class="icon-btn icon-btn-wide" title="Conduite de voix" aria-label="Conduite de voix" aria-pressed="false">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18V6M9 18V3M14 18v-9M19 18v-5"/></svg>
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><rect x="10" y="7.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M8 5.3 10 8.8" stroke-width="1.5" stroke-dasharray="1.5 1.5"/><rect x="3" y="15.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><rect x="13" y="11.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M9 16.8 13 12.8" stroke-width="1.5" stroke-dasharray="1.5 1.5"/></svg>
                         </button>
                         <!-- Icône dédiée (barres façon séquenceur, même dessin que #toggle-sequencer) plutôt
                              qu'une loupe générique : une fois la grille classique elle-même zoomable
@@ -930,6 +933,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608031623"></script>
+    <script src="script.js?v=202608031703"></script>
 </body>
 </html>
