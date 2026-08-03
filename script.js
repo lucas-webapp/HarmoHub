@@ -9784,7 +9784,14 @@ class HarmoHubApp {
         this.unlockBodyScroll();
         const grid = document.getElementById('progression-sections');
         const addBtn = document.getElementById('add-section');
-        const anchor = document.querySelector('.quick-add-row');
+        // Place d'ORIGINE réelle (voir index.html) : juste après l'en-tête "Grille d'accords" dans
+        // .history-section (col-right) — PAS .quick-add-row, qui vit désormais dans l'onglet Ajout de
+        // la colonne de GAUCHE depuis son déplacement (voir tâche "Move quick-add grid to Ajout tab
+        // only") sans que cet ancrage n'ait été mis à jour en même temps. Bug resté latent jusqu'à ce
+        // qu'on ouvre PUIS referme la loupe grille : la grille entière atterrissait alors dans la
+        // colonne de gauche à la fermeture, plutôt que de revenir sous son propre en-tête à droite
+        // (retour utilisateur : "la grille et tout le reste change de place").
+        const anchor = document.querySelector('.history-section .card-head');
         anchor.insertAdjacentElement('afterend', grid);
         grid.insertAdjacentElement('afterend', addBtn);
 
