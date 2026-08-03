@@ -2056,6 +2056,7 @@ class HarmoHubApp {
         this._zoomPinchActive = false;
         this._seqZoomRenderPending = false;
         this._gridZoomRenderPending = false;
+        this._zoomPinchFlushRAF = null; // id requestAnimationFrame du rattrapage périodique, voir _startZoomPinchFlushLoop
         // Presse-papier du MOTIF rythmique entier (voir copySeqPattern/pasteSeqPattern, Ctrl+C/Ctrl+V
         // quand le séquenceur est ouvert) : { pattern, tie, intensityPerStep, steps }, ou null tant que
         // rien n'a encore été copié. En mémoire seulement (comme this.clipboard pour les accords), pas
@@ -9537,8 +9538,27 @@ class HarmoHubApp {
         document.getElementById('grid-zoom-pinned-body').style.height =
             `${parseInt(localStorage.getItem(GRID_ZOOM_SEQ_HEIGHT_KEY)) || GRID_ZOOM_SEQ_HEIGHT_DEFAULT}px`;
         this.applyGridZoomPinnedCollapsed();
-        if (this.editingIndex != null) { this.pinSequencerHost(); this.renderSequencer(); }
+        // Un accord était déjà SÉLECTIONNÉ dans la grille (simple clic, sans être passé par "Modifier")
+        // avant d'ouvrir la loupe : le charge directement pour édition, exactement comme un clic dessus
+        // une fois la loupe déjà ouverte (voir editChordFromGridZoom) — sinon la loupe et le séquenceur
+        // épinglé s'ouvraient sans rien montrer (retour utilisateur), obligeant à recliquer l'accord une
+        // seconde fois une fois dedans.
+        if (this.editingIndex == null && this.selectedIndex != null) {
+            this.editChordFromGridZoom(this.activeSection, this.selectedIndex);
+        } else if (this.editingIndex != null) {
+            this.pinSequencerHost();
+            this.renderSequencer();
+        }
         this.syncGridZoomPinnedSeq();
+        // Centre la vue de la grille elle-même sur l'accord en édition (voir editChordFromGridZoom
+        // ci-dessus, ou déjà en édition avant l'ouverture) — sinon la loupe pouvait s'ouvrir avec cet
+        // accord hors champ, tout en montrant pourtant déjà son rythme dans le séquenceur épinglé.
+        if (this.editingIndex != null) {
+            requestAnimationFrame(() => {
+                const cell = document.querySelector(`#grid-zoom-host .grid-cell[data-section="${this.activeSection}"][data-index="${this.editingIndex}"]`);
+                if (cell) cell.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'center' });
+            });
+        }
     }
 
     // Remet #progression-sections et #add-section à leur place d'origine (juste après la rangée
@@ -9734,6 +9754,7 @@ class HarmoHubApp {
                 baseZoomX = this[`${kind}ZoomLevelX`];
                 baseZoomY = this[`${kind}ZoomLevelY`];
                 this._zoomPinchActive = true;
+                this._startZoomPinchFlushLoop();
             }
         });
         el.addEventListener('pointermove', (e) => {
@@ -9749,22 +9770,62 @@ class HarmoHubApp {
             pointers.delete(e.pointerId);
             if (pointers.size < 2) {
                 baseDist = null;
-                // Un doigt se lève, il n'en reste plus 2 : le pincement est terminé — rattrape
-                // maintenant la reconstruction complète différée pendant le geste (voir applyZoomLevel/
-                // _seqZoomRenderPending/_gridZoomRenderPending ci-dessus).
+                // Un doigt se lève, il n'en reste plus 2 : le pincement est terminé — arrête la boucle
+                // de rattrapage périodique et applique un dernier rattrapage immédiat (voir
+                // _startZoomPinchFlushLoop/_flushZoomPinchRender), pour être certain de finir sur la
+                // toute dernière valeur de zoom, pas celle du dernier rattrapage périodique.
                 this._zoomPinchActive = false;
-                if (this._seqZoomRenderPending) {
-                    this._seqZoomRenderPending = false;
-                    if (this.seqOpen) this.renderSequencer();
-                }
-                if (this._gridZoomRenderPending) {
-                    this._gridZoomRenderPending = false;
-                    this.loadProgression();
-                }
+                this._stopZoomPinchFlushLoop();
+                this._flushZoomPinchRender();
             }
         };
         el.addEventListener('pointerup', release);
         el.addEventListener('pointercancel', release);
+    }
+
+    // Pendant un pincer-zoomer, rattrape périodiquement (toutes les ~150ms, pas à chaque pointermove)
+    // la reconstruction complète différée par applyZoomLevel (voir _seqZoomRenderPending/
+    // _gridZoomRenderPending) : un cran d'échelle HORIZONTALE change la mise en page (mesures par page/
+    // accords par ligne), donc redessine réellement la grille/le séquenceur — le faire à CHAQUE
+    // pointermove détruirait sans arrêt les cases sous les doigts (voir setPointerCapture plus haut,
+    // qui protège déjà ce risque, mais autant limiter la fréquence). Ne jamais rattraper DU TOUT avant
+    // la fin du geste (comme avant) rendait le zoom horizontal visuellement figé pendant tout le
+    // pincement puis sautait d'un coup à la fin — perçu comme saccadé, et la position centrée sur
+    // l'accord en cours d'édition (recalculée par renderSequencer/loadProgression à CHAQUE rendu à
+    // partir de l'état actuel) ne suivait plus qu'une seule fois, trop tard (retour utilisateur : "la
+    // fenêtre n'est plus centrée sur l'accord"). Rattraper à intervalles réguliers réapplique cette
+    // même logique de centrage en continu, comme les boutons +/- dédiés (jamais différés, eux).
+    _startZoomPinchFlushLoop() {
+        if (this._zoomPinchFlushRAF) return;
+        let lastFlush = 0;
+        const ZOOM_PINCH_FLUSH_MS = 150;
+        const step = (ts) => {
+            if (!this._zoomPinchActive) { this._zoomPinchFlushRAF = null; return; }
+            if (ts - lastFlush >= ZOOM_PINCH_FLUSH_MS) {
+                lastFlush = ts;
+                this._flushZoomPinchRender();
+            }
+            this._zoomPinchFlushRAF = requestAnimationFrame(step);
+        };
+        this._zoomPinchFlushRAF = requestAnimationFrame(step);
+    }
+
+    _stopZoomPinchFlushLoop() {
+        if (this._zoomPinchFlushRAF) {
+            cancelAnimationFrame(this._zoomPinchFlushRAF);
+            this._zoomPinchFlushRAF = null;
+        }
+    }
+
+    _flushZoomPinchRender() {
+        if (this._seqZoomRenderPending) {
+            this._seqZoomRenderPending = false;
+            if (this.seqOpen) this.renderSequencer();
+        }
+        if (this._gridZoomRenderPending) {
+            this._gridZoomRenderPending = false;
+            this.loadProgression();
+        }
     }
 
     // Zoome les DEUX axes en même temps, d'un cran (voir adjustZoom ci-dessous pour chacun) — utilisé
