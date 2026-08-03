@@ -10341,8 +10341,14 @@ class HarmoHubApp {
         // Largeur de case FIXE (voir commentaire plus haut) mise à l'échelle par seqHZoom : sans quoi
         // les boutons de zoom horizontal (zoom-axis-group, voir plus bas) resteraient sans le moindre
         // effet visible en vue continue — seul mode où ce réglage joue sur une largeur de case en
-        // pixels plutôt que sur le nombre de mesures par page.
-        const continuousColPx = 14 * seqHZoom;
+        // pixels plutôt que sur le nombre de mesures par page. Base doublée sur ordinateur (retour
+        // utilisateur : la loupe grille est bien plus large qu'un téléphone, une base fixe unique
+        // laissait tout le côté droit vide dès qu'un accord n'avait que peu de temps) — même seuil
+        // (900px) que .col-left/.col-right en CSS et les autres bascules bureau/mobile du script.
+        // window.innerWidth (pas un média CSS) : cette largeur de case est un NOMBRE consommé par
+        // scrollLeft juste plus bas (colOffset * continuousColPx), pas seulement injecté dans le HTML.
+        const continuousColBase = window.innerWidth > 899 ? 28 : 14;
+        const continuousColPx = continuousColBase * seqHZoom;
         const colTemplate = continuous
             ? `max-content repeat(${totalCols}, ${continuousColPx}px)`
             : `max-content repeat(${pageSteps}, 1fr)`;
@@ -10558,11 +10564,33 @@ class HarmoHubApp {
         // menu déroulant Lecture ; cette rangée ne garde que l'écoute directe et le nettoyage.
         const hasSelection = this.seqSelections.length > 0;
         const countSuffix = this.seqSelections.length > 1 ? ` (${this.seqSelections.length})` : '';
+        // Ordre : transport (lecture/stop/boucle) -> actions sur le motif (ajouter/tout supprimer/
+        // taper le rythme/pipette/supprimer la sélection) -> zoom H/V en TOUT DERNIER (retour
+        // utilisateur : au milieu, ça coupait la suite logique des actions en deux). Le zoom est un
+        // réglage d'AFFICHAGE, pas une action sur le motif — même place (tout à droite de sa rangée)
+        // que partout ailleurs dans l'appli (en-tête de la grille, panneau Conduite de voix).
         html += `<div class="seq-presets">
             <button type="button" id="seq-play" class="btn-prog seq-icon-btn${this.loopRange ? ' btn-loop-range' : ''}" title="${this.loopRange ? 'Lire la plage à boucler' : 'Lecture'}" aria-label="${this.loopRange ? 'Lire la plage à boucler' : 'Lecture'}">${svgIcon('play')}</button>
             <button type="button" id="seq-stop" class="btn-stop seq-icon-btn" title="Stop" aria-label="Stop">${svgIcon('stop')}</button>
             <button type="button" id="seq-loop-play" class="icon-btn seq-icon-btn${this.seqLoopPlay ? ' active' : ''}" title="Rejouer en boucle" aria-label="Rejouer en boucle">${svgIcon('loop')}</button>
             <button type="button" id="seq-add-note" class="icon-btn seq-icon-btn" title="Ajouter une note libre (ex. note de passage)" aria-label="Ajouter une note libre">${svgIcon('plus')}</button>
+            <button type="button" data-preset="clear" class="seq-delete-btn">${svgIcon('trash')} tout</button>
+            <!-- Enregistre un rythme tapé en direct (espace/doigt) sur TOUTE la durée de l'accord en
+                 cours d'édition, et le réapplique à TOUTES ses voix (voir startTapRecording) — retour
+                 utilisateur : possibilité de « jouer » le rythme voulu plutôt que de peindre chaque
+                 case à la main. Toujours visible, aucune sélection requise (retour utilisateur :
+                 avant, masqué sans sélection ET limité à sa seule durée — au lieu de tout l'accord,
+                 forçant à répéter l'enregistrement mesure par mesure). -->
+            <button type="button" id="seq-tap-record" class="icon-btn seq-icon-btn${this.seqTapPhase ? ' seq-tap-active' : ''}" title="${this.seqTapPhase ? "Annuler l'enregistrement (Échap)" : "Taper le rythme de l'accord"}" aria-label="${this.seqTapPhase ? "Annuler l'enregistrement du rythme" : "Taper le rythme de l'accord"}">${svgIcon('tapRecord')}</button>
+            <!-- Pipette de motif ENTRE VOIES du même accord (retour utilisateur : sélectionner une ou
+                 plusieurs notes/barres, voir seqSelections, puis les appliquer sur une AUTRE ligne du
+                 même séquenceur) — voir toggleSeqRowPipette/applySeqRowPipette. Distincte de Ctrl+C/V
+                 (copySeqPattern/pasteSeqPattern, tout le motif entre ACCORDS) : ici on ne touche jamais
+                 qu'une partie du motif, vers une autre voix du MÊME accord. -->
+            <button type="button" id="seq-row-pipette" class="icon-btn seq-icon-btn${this.seqRowPipette ? ' active' : ''}" ${(hasSelection || this.seqRowPipette) ? '' : 'disabled'} title="${this.seqRowPipette ? 'Clique une ligne pour y appliquer le motif prélevé (Échap pour annuler)' : 'Prélever le motif sélectionné pour le coller sur une autre ligne'}" aria-label="${this.seqRowPipette ? 'Appliquer le motif prélevé sur une ligne' : 'Prélever le motif sélectionné'}">${svgIcon('seqRowPipette')}</button>
+            <button type="button" id="seq-delete-selection" class="seq-delete-btn" ${hasSelection ? '' : 'disabled'}>${svgIcon('trash')}
+                <span class="lbl-full">sélection${countSuffix}</span><span class="lbl-short">Sélect.${countSuffix}</span>
+            </button>
             ${showInlineSeqZoom ? `
             <div class="zoom-axis-group" title="Échelle horizontale">
                 <span class="zoom-axis-tag">H</span>
@@ -10591,23 +10619,6 @@ class HarmoHubApp {
                     <button type="button" id="seq-zoom-out-v-pinned" class="icon-btn zoom-axis-btn" title="Réduire l'échelle verticale" aria-label="Réduire l'échelle verticale">${svgIcon('minus')}</button>
                 </div>
             </div>` : ''}
-            <button type="button" data-preset="clear" class="seq-delete-btn">${svgIcon('trash')} tout</button>
-            <!-- Enregistre un rythme tapé en direct (espace/doigt) sur TOUTE la durée de l'accord en
-                 cours d'édition, et le réapplique à TOUTES ses voix (voir startTapRecording) — retour
-                 utilisateur : possibilité de « jouer » le rythme voulu plutôt que de peindre chaque
-                 case à la main. Toujours visible, aucune sélection requise (retour utilisateur :
-                 avant, masqué sans sélection ET limité à sa seule durée — au lieu de tout l'accord,
-                 forçant à répéter l'enregistrement mesure par mesure). -->
-            <button type="button" id="seq-tap-record" class="icon-btn seq-icon-btn${this.seqTapPhase ? ' seq-tap-active' : ''}" title="${this.seqTapPhase ? "Annuler l'enregistrement (Échap)" : "Taper le rythme de l'accord"}" aria-label="${this.seqTapPhase ? "Annuler l'enregistrement du rythme" : "Taper le rythme de l'accord"}">${svgIcon('tapRecord')}</button>
-            <!-- Pipette de motif ENTRE VOIES du même accord (retour utilisateur : sélectionner une ou
-                 plusieurs notes/barres, voir seqSelections, puis les appliquer sur une AUTRE ligne du
-                 même séquenceur) — voir toggleSeqRowPipette/applySeqRowPipette. Distincte de Ctrl+C/V
-                 (copySeqPattern/pasteSeqPattern, tout le motif entre ACCORDS) : ici on ne touche jamais
-                 qu'une partie du motif, vers une autre voix du MÊME accord. -->
-            <button type="button" id="seq-row-pipette" class="icon-btn seq-icon-btn${this.seqRowPipette ? ' active' : ''}" ${(hasSelection || this.seqRowPipette) ? '' : 'disabled'} title="${this.seqRowPipette ? 'Clique une ligne pour y appliquer le motif prélevé (Échap pour annuler)' : 'Prélever le motif sélectionné pour le coller sur une autre ligne'}" aria-label="${this.seqRowPipette ? 'Appliquer le motif prélevé sur une ligne' : 'Prélever le motif sélectionné'}">${svgIcon('seqRowPipette')}</button>
-            <button type="button" id="seq-delete-selection" class="seq-delete-btn" ${hasSelection ? '' : 'disabled'}>${svgIcon('trash')}
-                <span class="lbl-full">sélection${countSuffix}</span><span class="lbl-short">Sélect.${countSuffix}</span>
-            </button>
         </div>`;
 
         // Bandeau décompte/enregistrement (voir startTapRecording) : la grande zone tactile #seq-tap-zone

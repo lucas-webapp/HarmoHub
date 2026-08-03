@@ -394,6 +394,22 @@ body.body-scroll-locked { overflow: hidden !important; }
 .seq-grid-continuous .seq-label,
 .seq-grid-continuous .seq-label-input { font-size: var(--fs-2xs); }
 
+/* Rangée de boutons (.seq-presets) fixée en bas de CE conteneur défilant (.grid-zoom-pinned-body,
+   seul ancêtre avec overflow:auto ici) plutôt que de simplement suivre le flux du contenu : en
+   réduisant la hauteur de la fenêtre épinglée (poignée .grid-zoom-pinned-resize), ces boutons se
+   retrouvaient en dessous de la zone visible, invisibles sans faire défiler manuellement — retour
+   utilisateur, "ils disparaissent". Fond opaque needed (sinon la grille défilante transparaîtrait
+   derrière une fois collée) + léger filet du haut pour la distinguer du contenu qui défile sous elle. */
+.grid-zoom-pinned-body .seq-presets {
+    position: sticky;
+    bottom: 0;
+    background: var(--card-bg);
+    padding-top: 8px;
+    padding-bottom: 2px;
+    border-top: 1px solid var(--border);
+    z-index: 3;
+}
+
 /* Repère de continuité (voir prevMidiSet/nextMidiSet dans renderSequencer) : cette hauteur est aussi
    jouée par l'accord précédent (trait à gauche) et/ou suivant (trait à droite) — les deux peuvent
    coexister sans se gêner, chacun de son côté. */
