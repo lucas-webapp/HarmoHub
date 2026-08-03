@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608031101">
+    <link rel="stylesheet" href="style.css?v=202608031125">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -230,7 +230,7 @@
             <div class="settings-header">
                 <h2 id="seq-zoom-title">Séquenceur</h2>
                 <div class="zoom-header-actions">
-                    <div class="grid-zoom-btn-group">
+                    <div class="btn-wrap-group">
                         <div class="zoom-axis-group" title="Échelle horizontale">
                             <span class="zoom-axis-tag">H</span>
                             <button type="button" id="seq-zoom-in-h" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">
@@ -288,7 +288,7 @@
                     <button type="button" id="grid-zoom-stop" class="btn-stop grid-zoom-transport-btn" title="Stop" aria-label="Stop">
                         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
                     </button>
-                    <!-- Échelles H/V groupées ensemble (voir .grid-zoom-btn-group) : sur téléphone, le
+                    <!-- Échelles H/V groupées ensemble (voir .btn-wrap-group) : sur téléphone, le
                        groupe passe à la ligne EN BLOC si besoin plutôt que de séparer H et V l'un de
                        l'autre au hasard du retour à la ligne (retour utilisateur : réarrangement pas
                        optimal, "je pense qu'il faudrait voir les zooms à côté"). Le séparateur qui
@@ -297,7 +297,7 @@
                        ligne suivante, décalant le bord droit visible du groupe par rapport à celui de la
                        ligne du dessous (retour utilisateur : "un petit décalage qui n'est pas joli" entre
                        le bord droit de V et celui de Fermer). -->
-                    <div class="grid-zoom-btn-group">
+                    <div class="btn-wrap-group">
                         <div class="grid-zoom-transport-sep"></div>
                         <div class="zoom-axis-group" title="Échelle horizontale (accords par ligne)">
                             <span class="zoom-axis-tag">H</span>
@@ -318,14 +318,14 @@
                             </button>
                         </div>
                     </div>
-                    <!-- Annuler/Rétablir/Fermer groupés ensemble (voir .grid-zoom-btn-group, même
+                    <!-- Annuler/Rétablir/Fermer groupés ensemble (voir .btn-wrap-group, même
                        principe que le groupe H/V ci-dessus) : Annuler/Rétablir vivaient jusque-là
                        loin de Fermer (séparés par le groupe de zoom), se retrouvant coupés l'un de
                        l'autre par le retour à la ligne (retour utilisateur : "les undo redo et fermer
                        à côté"). Relayés vers global-undo-btn/global-redo-btn — voir script.js. Le
                        séparateur qui introduit ce groupe vit dedans, même raison que pour le groupe H/V
                        ci-dessus (bord droit aligné d'une ligne à l'autre). -->
-                    <div class="grid-zoom-btn-group">
+                    <div class="btn-wrap-group">
                         <div class="grid-zoom-transport-sep"></div>
                         <button type="button" id="grid-zoom-undo" class="icon-btn" title="Annuler (Ctrl+Z)" aria-label="Annuler" disabled>
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
@@ -922,6 +922,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608031051"></script>
+    <script src="script.js?v=202608031125"></script>
 </body>
 </html>
