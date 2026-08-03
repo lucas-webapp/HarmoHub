@@ -50,9 +50,11 @@ const ICONS = {
     // universel d'enregistrement — se distingue des autres icônes de la rangée (aucune autre n'est
     // un simple disque plein) et se comprend sans avoir à lire le titre.
     tapRecord: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>',
-    // Pipette de motif ENTRE VOIES (voir toggleSeqRowPipette) : reprend le même dessin que l'ancienne
-    // pipette de motif de grille (retirée, voir historique) — geste familier, portée différente.
-    seqRowPipette: '<path d="M20 4 4 20"/><path d="M16 4a2.83 2.83 0 0 1 4 4"/><circle cx="6" cy="18" r="2" fill="currentColor" stroke="none"/>'
+    // Pipette de motif ENTRE VOIES (voir toggleSeqRowPipette) : une barre pleine (la note prélevée)
+    // au-dessus, une flèche vers le bas, une barre en pointillés (la ligne cible qui va la recevoir)
+    // en dessous — plus explicite que l'ancienne icône de pipette/goutte (retour utilisateur : "je
+    // n'aime pas ce logo, pas assez compréhensible").
+    seqRowPipette: '<rect x="2" y="5" width="11" height="4" rx="1" fill="currentColor" stroke="none"/><path d="M19 7v10"/><path d="m16 14 3 3 3-3"/><rect x="2" y="16" width="11" height="4" rx="1" stroke-dasharray="2 2"/>'
 };
 
 // Rendu HTML d'une icône (name doit exister dans ICONS) ; extraClass optionnel pour la taille/marge
@@ -2029,6 +2031,25 @@ class HarmoHubApp {
         // Sélection par rectangle (Maj/Shift + glisser depuis une case VIDE, voir beginSeqMarqueeSelect) :
         // état séparé de this.seqDrag (qui suppose toujours une seule voix de départ), null hors glissé.
         this.seqMarquee = null;
+        // Doigts actuellement posés sur le séquenceur (voir onSeqPointerDown/setupPinchZoom) : un second
+        // doigt qui se pose alors qu'un premier peint/glisse déjà signale un pincer-zoomer en train de
+        // démarrer (voir #grid-zoom-pinned-body/#seq-zoom-host, tous deux ancêtres de #arp-sequencer —
+        // le MÊME pointerdown déclenche à la fois onSeqPointerDown ici ET le pincer-zoomer par
+        // bouillonnement) — sans ce garde-fou, peindre/effacer une case et zoomer se marchaient dessus
+        // en même temps sur un téléphone réel (retour utilisateur : "l'agrandissement... ne fonctionne
+        // pas bien"). Vidé au relâchement de CHAQUE doigt, où qu'il se lève (voir setupSequencerInteractions).
+        this._seqActiveTouchIds = new Set();
+        // Pincer-zoomer en cours (voir setupPinchZoom) sur N'IMPORTE lequel des 3 hôtes concernés
+        // (séquenceur ou grille) : tant qu'il l'est, applyZoomLevel n'y déclenche PAS de reconstruction
+        // complète du DOM (renderSequencer/loadProgression) à chaque pas, seulement au relâchement des
+        // doigts (voir _seqZoomRenderPending/_gridZoomRenderPending) — sinon la toute première case
+        // reconstruite au premier cran de zoom perd son doigt tactile en cours de route (plus aucun
+        // ancêtre DOM à traverser pour ses pointermove/pointerup suivants), coupant le geste net (retour
+        // utilisateur : "l'agrandissement avec les doigts ne fonctionne pas bien"). L'échelle verticale
+        // (simple variable CSS, jamais une reconstruction) continue elle de suivre les doigts en direct.
+        this._zoomPinchActive = false;
+        this._seqZoomRenderPending = false;
+        this._gridZoomRenderPending = false;
         // Presse-papier du MOTIF rythmique entier (voir copySeqPattern/pasteSeqPattern, Ctrl+C/Ctrl+V
         // quand le séquenceur est ouvert) : { pattern, tie, intensityPerStep, steps }, ou null tant que
         // rien n'a encore été copié. En mémoire seulement (comme this.clipboard pour les accords), pas
@@ -2465,12 +2486,13 @@ class HarmoHubApp {
         document.getElementById('seq-zoom-out-v').onclick = () => this.adjustZoom('seq', 'y', -ZOOM_LEVEL_STEP);
         // Ctrl+molette : ne zoome qu'une fois la fenêtre agrandie déjà ouverte (elle seule reçoit
         // l'évènement, cachée sinon) — jamais sur le séquenceur "en place" dans le panneau Lecture.
-        // Ctrl+Maj+molette = axe horizontal, Ctrl seul = axe vertical (comme les boutons dédiés).
+        // Zoome les deux axes à la fois (voir adjustZoomBothAxes) — retour utilisateur, plus simple
+        // et plus prévisible qu'un axe séparé selon Maj.
         // preventDefault (écouteur non-passive) : sans lui, le navigateur zoomerait la PAGE entière.
         document.getElementById('seq-zoom-host').addEventListener('wheel', (e) => {
             if (!e.ctrlKey) return;
             e.preventDefault();
-            this.adjustZoom('seq', e.shiftKey ? 'x' : 'y', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
+            this.adjustZoomBothAxes('seq', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
         }, { passive: false });
         // Pincer-zoomer (2 doigts, voir setupPinchZoom) : équivalent tactile du Ctrl+molette ci-dessus,
         // pour mobile où ni Ctrl ni molette n'existent (retour utilisateur).
@@ -2482,11 +2504,11 @@ class HarmoHubApp {
         document.getElementById('classic-grid-out-h').onclick = () => this.adjustZoom('classicGrid', 'x', -ZOOM_LEVEL_STEP);
         document.getElementById('classic-grid-in-v').onclick = () => this.adjustZoom('classicGrid', 'y', ZOOM_LEVEL_STEP);
         document.getElementById('classic-grid-out-v').onclick = () => this.adjustZoom('classicGrid', 'y', -ZOOM_LEVEL_STEP);
-        // Ctrl+molette sur la grille elle-même, comme les fenêtres agrandies (Ctrl+Maj = horizontal).
+        // Ctrl+molette sur la grille elle-même, comme les fenêtres agrandies (voir adjustZoomBothAxes).
         document.getElementById('progression-sections').addEventListener('wheel', (e) => {
             if (!e.ctrlKey || this.gridZoomOpen) return;
             e.preventDefault();
-            this.adjustZoom('classicGrid', e.shiftKey ? 'x' : 'y', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
+            this.adjustZoomBothAxes('classicGrid', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
         }, { passive: false });
 
         // Vue agrandie de la grille d'accords (voir openGridZoom/closeGridZoom) : même principe,
@@ -2516,7 +2538,7 @@ class HarmoHubApp {
         document.getElementById('grid-zoom-host').addEventListener('wheel', (e) => {
             if (!e.ctrlKey) return;
             e.preventDefault();
-            this.adjustZoom('grid', e.shiftKey ? 'x' : 'y', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
+            this.adjustZoomBothAxes('grid', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
         }, { passive: false });
         this.setupPinchZoom(document.getElementById('grid-zoom-host'), 'grid');
 
@@ -2535,7 +2557,7 @@ class HarmoHubApp {
         document.getElementById('grid-zoom-pinned-body').addEventListener('wheel', (e) => {
             if (!e.ctrlKey) return;
             e.preventDefault();
-            this.adjustZoom('seq', e.shiftKey ? 'x' : 'y', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
+            this.adjustZoomBothAxes('seq', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
         }, { passive: false });
         this.setupPinchZoom(document.getElementById('grid-zoom-pinned-body'), 'seq');
 
@@ -8230,6 +8252,11 @@ class HarmoHubApp {
     setupSequencerInteractions() {
         const host = document.getElementById('arp-sequencer');
         host.addEventListener('pointerdown', (e) => this.onSeqPointerDown(e));
+        // Nettoyage du suivi des doigts actifs (voir this._seqActiveTouchIds/onSeqPointerDown) : posé
+        // sur window, pas sur `host`, pour retirer un doigt même s'il se lève hors du séquenceur (glissé
+        // qui sort de la zone pendant un pincer-zoomer, par exemple).
+        window.addEventListener('pointerup', (e) => { if (e.pointerType === 'touch') this._seqActiveTouchIds.delete(e.pointerId); });
+        window.addEventListener('pointercancel', (e) => { if (e.pointerType === 'touch') this._seqActiveTouchIds.delete(e.pointerId); });
     }
 
     // Le geste n'est appliqué qu'à la fin (voir onSeqPointerUp) : un simple tap sur une note déjà
@@ -8237,6 +8264,18 @@ class HarmoHubApp {
     // détecté) qui peint/efface plusieurs croches d'affilée.
     onSeqPointerDown(e) {
         if (e.button != null && e.button !== 0) return; // clic gauche / toucher uniquement
+
+        // Second doigt qui se pose (voir this._seqActiveTouchIds) : un pincer-zoomer démarre (voir
+        // setupPinchZoom, posé sur un ancêtre — #seq-zoom-host/#grid-zoom-pinned-body — qui reçoit LE
+        // MÊME évènement par bouillonnement) — abandonne proprement tout peindre/glisser/rectangle déjà
+        // amorcé par le premier doigt plutôt que de laisser les deux se disputer la même case.
+        if (e.pointerType === 'touch') {
+            this._seqActiveTouchIds.add(e.pointerId);
+            if (this._seqActiveTouchIds.size > 1) {
+                this.cancelSeqGestureForPinch();
+                return;
+            }
+        }
 
         const cell = e.target.closest('.seq-cell');
         if (!cell) return;
@@ -8860,6 +8899,37 @@ class HarmoHubApp {
         this.seqSelections = [{ voice: dd.voice, start: newStart, end: newEnd }];
         this.renderSequencer();
         this.livePreviewUpdate();
+    }
+
+    // Abandonne le glisser/rectangle en cours SANS le finaliser (contrairement à onSeqPointerUp, qui
+    // sélectionne/peint une note isolée pour un simple tap) — voir onSeqPointerDown, appelé quand un
+    // second doigt se pose pendant qu'un pincer-zoomer démarre. Restaure les croches déjà peintes par
+    // ce début de glissé (voir rememberSeqOriginalState/d.touched) si le geste avait déjà bougé ; sinon
+    // (cas le plus courant : les deux doigts d'une pince se posent avant tout mouvement réel) il n'y a
+    // rien à défaire — et surtout PAS de renderSequencer() dans ce cas : reconstruire les .seq-cell
+    // ici détacherait du DOM celle qu'un doigt tactile a implicitement capturée (voir spec Pointer
+    // Events), coupant net la réception de ses pointermove/pointerup suivants — cassant justement le
+    // pincer-zoomer qu'on cherche à laisser continuer tranquillement.
+    cancelSeqGestureForPinch() {
+        window.removeEventListener('pointermove', this._onSeqMove);
+        window.removeEventListener('pointerup', this._onSeqUp);
+        window.removeEventListener('pointercancel', this._onSeqUp);
+        const d = this.seqDrag;
+        this.seqDrag = null;
+        let painted = false;
+        if (d && d.moved && d.touched && d.mode === 'paint' && !d.voiceDrag && !d.dupDrag) {
+            Object.keys(d.touched).forEach(key => {
+                const orig = d.touched[key];
+                this.applySeqCell(d.voice, +key, orig.on, orig.tied);
+            });
+            painted = true;
+        }
+        if (this.seqMarquee) {
+            if (this.seqMarquee.el) this.seqMarquee.el.remove();
+            document.querySelectorAll('.seq-note.marquee-hit').forEach(n => n.classList.remove('marquee-hit'));
+            this.seqMarquee = null;
+        }
+        if (painted) this.renderSequencer();
     }
 
     onSeqPointerUp() {
@@ -9586,7 +9656,17 @@ class HarmoHubApp {
         el.addEventListener('pointerdown', (e) => {
             if (e.pointerType !== 'touch') return;
             pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-            if (pointers.size === 2) lastDist = dist();
+            // Capture explicite sur `el` (stable, jamais reconstruit) plutôt que de laisser le doigt
+            // capturé implicitement sur la .seq-cell tactée (norme Pointer Events pour tout doigt) :
+            // un pas de zoom en cours de pincement redessine la grille (renderSequencer, voir
+            // applyZoomLevel), qui détruit/reconstruit CES cases précises — sans cette capture
+            // explicite, les pointermove/pointerup suivants de CE doigt se seraient perdus dans le
+            // vide (plus aucun ancêtre à traverser depuis une case retirée du DOM), coupant le
+            // pincement net après le tout premier cran (retour utilisateur : "l'agrandissement avec
+            // les doigts ne fonctionne pas bien"). try/catch défensif : ignoré si le navigateur ne
+            // considère pas encore ce pointeur comme actif (jamais le cas pour un vrai doigt).
+            try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignoré, voir commentaire ci-dessus */ }
+            if (pointers.size === 2) { lastDist = dist(); this._zoomPinchActive = true; }
         });
         el.addEventListener('pointermove', (e) => {
             if (!pointers.has(e.pointerId)) return;
@@ -9597,17 +9677,38 @@ class HarmoHubApp {
             if (lastDist == null) { lastDist = d; return; }
             const diff = d - lastDist;
             if (Math.abs(diff) < PINCH_STEP_PX) return;
-            const delta = diff > 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP;
-            this.adjustZoom(kind, 'x', delta);
-            this.adjustZoom(kind, 'y', delta);
+            this.adjustZoomBothAxes(kind, diff > 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
             lastDist = d;
         }, { passive: false });
         const release = (e) => {
             pointers.delete(e.pointerId);
-            if (pointers.size < 2) lastDist = null;
+            if (pointers.size < 2) {
+                lastDist = null;
+                // Un doigt se lève, il n'en reste plus 2 : le pincement est terminé — rattrape
+                // maintenant la reconstruction complète différée pendant le geste (voir applyZoomLevel/
+                // _seqZoomRenderPending/_gridZoomRenderPending ci-dessus).
+                this._zoomPinchActive = false;
+                if (this._seqZoomRenderPending) {
+                    this._seqZoomRenderPending = false;
+                    if (this.seqOpen) this.renderSequencer();
+                }
+                if (this._gridZoomRenderPending) {
+                    this._gridZoomRenderPending = false;
+                    this.loadProgression();
+                }
+            }
         };
         el.addEventListener('pointerup', release);
         el.addEventListener('pointercancel', release);
+    }
+
+    // Zoome les DEUX axes en même temps, d'un cran (voir adjustZoom ci-dessous pour chacun) — utilisé
+    // par Ctrl+molette et le pincer-zoomer (voir setupPinchZoom) : retour utilisateur, le zoom séparé
+    // par axe (Ctrl+molette = V, Ctrl+Maj+molette = H) ne se sentait pas fiable/prévisible ; zoomer les
+    // deux à la fois est plus simple et correspond à l'intuition d'un geste de pince à deux doigts.
+    adjustZoomBothAxes(kind, delta) {
+        this.adjustZoom(kind, 'x', delta);
+        this.adjustZoom(kind, 'y', delta);
     }
 
     // Règle l'échelle horizontale (axis 'x') ou verticale (axis 'y') — INDÉPENDANTES l'une de
@@ -9647,7 +9748,14 @@ class HarmoHubApp {
             // renderSequencer) appellent ce même adjustZoom('seq', ...)/applyZoomLevel('seq').
             const pinnedHost = document.getElementById('grid-zoom-pinned-body');
             if (pinnedHost) pinnedHost.style.setProperty('--seq-zoom-scale-v', String(this.seqZoomLevelY));
-            if (this.seqOpen) this.renderSequencer();
+            if (this.seqOpen) {
+                // Pincer-zoomer en cours (voir this._zoomPinchActive/setupPinchZoom) : reporte la
+                // reconstruction complète (qui détruirait les .seq-cell actuellement sous les doigts,
+                // coupant le geste) au relâchement — l'échelle verticale ci-dessus, elle, suit déjà les
+                // doigts en direct via la variable CSS.
+                if (this._zoomPinchActive) this._seqZoomRenderPending = true;
+                else this.renderSequencer();
+            }
         } else if (kind === 'classicGrid') {
             // .history-section : hôte STABLE de #progression-sections en mode classique (jamais
             // déplacé, contrairement à la loupe qui le déménage dans #grid-zoom-host) — même variable
@@ -9656,11 +9764,13 @@ class HarmoHubApp {
             // les deux à la fois.
             const host = document.querySelector('.history-section');
             if (host) host.style.setProperty('--grid-zoom-scale-v', String(this.classicGridZoomLevelY));
-            this.loadProgression();
+            if (this._zoomPinchActive) this._gridZoomRenderPending = true;
+            else this.loadProgression();
         } else {
             const host = document.getElementById('grid-zoom-host');
             if (host) host.style.setProperty('--grid-zoom-scale-v', String(this.gridZoomLevelY));
-            this.loadProgression();
+            if (this._zoomPinchActive) this._gridZoomRenderPending = true;
+            else this.loadProgression();
         }
     }
 
@@ -9710,6 +9820,12 @@ class HarmoHubApp {
         // (voir toggleSeqRowPipette) : posé ici, pas dans toggleSeqRowPipette/applySeqRowPipette
         // eux-mêmes, pour rester synchronisé à CHAQUE rendu quelle que soit la méthode qui l'a déclenché.
         host.classList.toggle('seq-row-pipette-active', !!this.seqRowPipette);
+        // Toute reconstruction des .seq-cell rend caduque le suivi des doigts actifs par élément (voir
+        // this._seqActiveTouchIds/onSeqPointerDown) : un doigt encore posé pendant un pincer-zoomer (voir
+        // setupPinchZoom) peut perdre son pointerup/pointercancel si sa case a été détruite entretemps
+        // (plus aucun ancêtre DOM à traverser) — sans ce nettoyage, son id resterait bloqué dans le
+        // suivi, faisant à tort passer le PROCHAIN tap à un seul doigt pour un second doigt de pince.
+        this._seqActiveTouchIds.clear();
         if (!this.seqOpen) return;
         this.seqRenderGen++; // voir déclaration : identifie ce rendu pour les étiquettes éditables ci-dessous
         // Position de défilement horizontal AVANT de reconstruire tout le HTML (voir plus bas, mode
@@ -10426,26 +10542,21 @@ class HarmoHubApp {
     // Dépose le motif prélevé (voir toggleSeqRowPipette) sur `targetVoice`, une autre voix du MÊME
     // accord en cours d'édition — jamais de changement de durée/nombre de voix à gérer ici (contrairement
     // à pasteSeqPattern, qui traverse les accords) : les positions de croches captées restent valables
-    // telles quelles. Remplace entièrement le contenu de la voix cible sur la plage couverte par le
-    // motif (comme deleteSelectedSeqNote), pour ne jamais laisser un reste de son ancien rythme entre
-    // deux notes collées. Reste armée après coup (voir toggleSeqRowPipette) pour enchaîner d'autres lignes.
+    // telles quelles. Vide TOUTE la ligne cible au préalable (pas seulement la plage couverte par le
+    // motif, retour utilisateur : les anciennes croches avant/après restaient sinon en place), pour que
+    // seul le motif collé subsiste sur cette voix. Reste armée après coup (voir toggleSeqRowPipette)
+    // pour enchaîner d'autres lignes.
     applySeqRowPipette(targetVoice) {
         const motif = this.seqRowPipette;
         if (!motif || motif.length === 0) return;
         this.pushSeqUndo();
         const chord = this.readChord();
         const { pattern, tie } = this.getLiveSeqPattern(chord);
-        const lo = Math.min(...motif.map(m => m.start));
-        const hi = Math.max(...motif.map(m => m.end));
-        for (let s = lo; s <= hi; s++) {
+        for (let s = 0; s < pattern.length; s++) {
             const at = pattern[s].indexOf(targetVoice);
             if (at >= 0) pattern[s].splice(at, 1);
             const ti = tie[s].indexOf(targetVoice);
             if (ti >= 0) tie[s].splice(ti, 1);
-        }
-        if (hi + 1 < tie.length) {
-            const nt = tie[hi + 1].indexOf(targetVoice);
-            if (nt >= 0) tie[hi + 1].splice(nt, 1);
         }
         motif.forEach(m => {
             for (let s = m.start; s <= m.end; s++) {
