@@ -2141,6 +2141,27 @@ class HarmoHubApp {
         this.filesUndoStack = [];
         this.filesRedoStack = [];
 
+        // Débloque l'AudioContext au tout PREMIER geste tactile où qu'il tombe sur la page, pas
+        // seulement sur un contrôle qui appelle lui-même Tone.start() (Lecture, un accord...) : Safari
+        // iOS n'autorise la création/reprise de l'AudioContext que si elle survient DANS la pile d'appel
+        // d'un vrai geste utilisateur, et seulement la toute première fois qu'on la sollicite — un
+        // premier tap sur un contrôle qui ne joue rien lui-même (ex. juste survoler/sélectionner sans
+        // audition automatique, un menu, un champ) « consommait » ce tout premier geste sans jamais
+        // débloquer l'audio, et toute lecture réclamée ensuite restait silencieuse jusqu'au rechargement
+        // de la page (retour utilisateur : aucun son du tout sur iPhone, alors que la même appli
+        // fonctionne sur ordinateur — desktop n'a pas cette restriction). 'pointerdown'/'touchend' :
+        // les deux évènements les plus tôt disponibles d'un tap, sans dépendre du contrôle précis visé.
+        let audioUnlockedOnce = false;
+        const unlockAudioOnce = () => {
+            if (audioUnlockedOnce) return;
+            audioUnlockedOnce = true;
+            Tone.start().catch(() => {});
+            document.removeEventListener('pointerdown', unlockAudioOnce);
+            document.removeEventListener('touchend', unlockAudioOnce);
+        };
+        document.addEventListener('pointerdown', unlockAudioOnce, { passive: true });
+        document.addEventListener('touchend', unlockAudioOnce, { passive: true });
+
         this.setupEventListeners();
         this.updateAppModeBanner();
         this.setupDurationPicker();
