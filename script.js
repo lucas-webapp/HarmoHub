@@ -1495,7 +1495,7 @@ const INSTRUMENT_TRIM_DB = {
     pad: -16,
     strings: -16,
     organ: -18,
-    guitarSynth: -6,
+    guitarSynth: -7.5,
 };
 
 // Pincement de corde physiquement modélisé (Karplus-Strong : une salve de bruit excite une ligne à
@@ -1593,28 +1593,42 @@ class GuitarPluckPool {
         return eligible[0];
     }
 
+    // Une vraie corde ne vibre jamais dans un seul plan parfait : le point d'appui (chevalet/sillet/
+    // doigt) n'est jamais parfaitement symétrique, donc la corde vibre dans DEUX plans légèrement
+    // désaccordés l'un de l'autre, qui battent doucement l'un contre l'autre pendant que la note sonne.
+    // C'est ce battement/scintillement (pas la couleur du timbre) qui signe le plus une "vraie" corde
+    // à l'oreille par rapport à un simple oscillateur/Karplus-Strong unique, qui sonne "propre" au sens
+    // synthétique du terme. Deux voix physiques par note (au lieu d'une), très légèrement désaccordées,
+    // reproduisent ce battement — PluckSynth.triggerAttack accepte une fréquence brute en Hz (pas
+    // seulement un nom de note), ce qui permet ce micro-désaccord en dessous du demi-ton.
     _attackOne(note, time, velocity = 1) {
-        const v = this._voices[this._pickVoice(this._voices, '_stealCursor', time)];
+        const baseFreq = Tone.Frequency(note).toFrequency();
         const p = this._physicalParamsForNote(note);
-        v.synth.dampening = p.dampening;
-        v.synth.resonance = p.resonance;
-        v.synth.attackNoise = p.attackNoise;
-        v.synth.release = p.release;
-        // PluckSynth.triggerAttack (voir tone.min.js) ignore la vélocité qu'on lui passe : c'est ce
-        // volume par voix, réglé juste avant, qui restitue la dynamique du jeu (grave doigt/pincement).
-        const peakDb = -18 + Math.max(0, Math.min(1, velocity)) * 18;
-        v.gain.volume.cancelScheduledValues(time);
-        v.gain.volume.setValueAtTime(peakDb, time);
-        // La décroissance audible pendant que la note sonne : le Karplus-Strong seul (resonance)
-        // ne suffisait pas à la rendre nette à l'oreille, voir commentaire de classe.
-        v.gain.volume.linearRampToValueAtTime(peakDb - p.fadeDb, time + p.decayTime);
-        v.synth.triggerAttack(note, time);
-        v.activeNote = note;
-        v.lastAttackTime = time;
-        v._peakDb = peakDb;
-        v._fadeDb = p.fadeDb;
-        v._decayTime = p.decayTime;
-        v._release = p.release;
+        const detuneCents = 4 + Math.random() * 3; // 4 à 7 cents : subtil mais audible en tenue, pas un chorus
+        [1, Math.pow(2, detuneCents / 1200)].forEach((ratio, polarization) => {
+            const v = this._voices[this._pickVoice(this._voices, '_stealCursor', time)];
+            v.synth.dampening = p.dampening;
+            v.synth.resonance = p.resonance;
+            v.synth.attackNoise = p.attackNoise;
+            v.synth.release = p.release;
+            // PluckSynth.triggerAttack (voir tone.min.js) ignore la vélocité qu'on lui passe : c'est ce
+            // volume par voix, réglé juste avant, qui restitue la dynamique du jeu (grave doigt/pincement).
+            // La 2e polarisation est réglée un peu en retrait (jamais à égalité), sinon le battement
+            // sonnerait comme deux notes plaquées plutôt qu'une seule corde qui vibre en deux plans.
+            const peakDb = -18 + Math.max(0, Math.min(1, velocity)) * 18 - (polarization === 0 ? 0 : 3.5);
+            v.gain.volume.cancelScheduledValues(time);
+            v.gain.volume.setValueAtTime(peakDb, time);
+            // La décroissance audible pendant que la note sonne : le Karplus-Strong seul (resonance)
+            // ne suffisait pas à la rendre nette à l'oreille, voir commentaire de classe.
+            v.gain.volume.linearRampToValueAtTime(peakDb - p.fadeDb, time + p.decayTime);
+            v.synth.triggerAttack(baseFreq * ratio, time);
+            v.activeNote = note; // les deux polarisations partagent la même étiquette logique pour le release
+            v.lastAttackTime = time;
+            v._peakDb = peakDb;
+            v._fadeDb = p.fadeDb;
+            v._decayTime = p.decayTime;
+            v._release = p.release;
+        });
         this._attackHarmonics(note, time, velocity);
     }
 
@@ -1658,14 +1672,15 @@ class GuitarPluckPool {
         v.gain.volume.linearRampToValueAtTime(-70, time + (v._release || 1));
     }
 
+    // Ne s'arrête pas à la première voix trouvée : chaque note occupe maintenant DEUX voix (les deux
+    // polarisations désaccordées, voir _attackOne), les deux doivent être relâchées ensemble.
     _releaseOne(note, time) {
         for (let i = this._voices.length - 1; i >= 0; i--) {
-            if (this._voices[i].activeNote === note) {
-                const v = this._voices[i];
+            const v = this._voices[i];
+            if (v.activeNote === note) {
                 v.synth.triggerRelease(time);
                 this._scheduleReleaseFade(v, time);
                 v.activeNote = null;
-                return;
             }
         }
     }
@@ -1809,21 +1824,24 @@ const INSTRUMENT_BANKS = {
     guitarSynth: {
         label: 'Guitare (synthé)',
         build: (masterBus) => {
-            const VOICE_COUNT = 12; // au-delà des 6 cordes : marge pour accords étendus/notes liées qui se chevauchent
+            const VOICE_COUNT = 24; // chaque note utilise 2 voix (2 polarisations désaccordées, voir GuitarPluckPool._attackOne)
             const HARMONIC_VOICE_COUNT = 16; // 1-2 harmoniques par note d'un accord dense, pool dédié (voir GuitarPluckPool)
             // Bus commun À TOUTES les voix, fondamentales ET harmoniques (comme filter/chorus/volume des
-            // autres instruments) : un passe-bas modéré adoucit le côté "numérique" du Karplus-Strong brut,
-            // un léger creux/bosse façon caisse de résonance (bas médium chaleureux, sans excès) rappelle
-            // le corps d'une guitare — beaucoup plus discret qu'un vrai chorus, volontairement.
+            // autres instruments). Deux bosses de résonance plutôt qu'une seule généraliste : une vraie
+            // caisse de guitare a (au moins) deux résonances marquées — la résonance "air"/Helmholtz du
+            // volume intérieur (~100Hz) et le mode principal de vibration de la table (~200-250Hz) — les
+            // reprendre approximativement donne un grain plus "boîte en bois" qu'un simple creux/bosse
+            // générique. Le passe-bas final adoucit ensuite le côté "numérique" du Karplus-Strong brut.
+            const bodyAir = new Tone.Filter({ type: 'peaking', frequency: 100, Q: 1.2, gain: 4 });
+            const bodyTop = new Tone.Filter({ type: 'peaking', frequency: 220, Q: 1.1, gain: 3 });
             const bodyLowpass = new Tone.Filter({ type: 'lowpass', frequency: 6500, Q: 0.5 });
-            const bodyWarmth = new Tone.Filter({ type: 'peaking', frequency: 150, Q: 1, gain: 3 });
             const volume = new Tone.Volume(INSTRUMENT_TRIM_DB.guitarSynth);
-            bodyLowpass.chain(bodyWarmth, volume, masterBus);
+            bodyAir.chain(bodyTop, bodyLowpass, volume, masterBus);
             const makeVoice = () => {
                 const synth = new Tone.PluckSynth();
                 const gain = new Tone.Volume(0); // vélocité par voix, voir GuitarPluckPool._attackOne
                 synth.connect(gain);
-                gain.connect(bodyLowpass);
+                gain.connect(bodyAir);
                 return { synth, gain, activeNote: null, lastAttackTime: null };
             };
             const voices = Array.from({ length: VOICE_COUNT }, makeVoice);
