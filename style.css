@@ -259,6 +259,15 @@ body.body-scroll-locked { overflow: hidden !important; }
     max-width: 1100px;
     max-height: 90vh; /* hauteur au contenu (peu de mesures/voix -> fenêtre compacte), plafonnée pour
                           les accords qui en ont beaucoup (.seq-zoom-host défile alors en interne) */
+    /* dvh (hauteur de viewport DYNAMIQUE, en second pour rester compatible ailleurs) : sur mobile,
+       vh se cale sur la hauteur MAXIMALE du viewport (barre d'adresse rétractée), plus grande que
+       ce qui est réellement visible tant qu'on n'a pas fait défiler — la fenêtre (et donc le
+       séquenceur épinglé de la loupe grille en dessous, voir .grid-zoom-pinned-seq) pouvait déborder
+       hors de l'écran réellement visible, entre autres pendant un redimensionnement au doigt (retour
+       utilisateur : contenu de la grille qui semble passer au-dessus du séquenceur). Sans effet sur
+       desktop, où vh et dvh coïncident déjà.
+    */
+    max-height: 90dvh;
     background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -315,10 +324,13 @@ body.body-scroll-locked { overflow: hidden !important; }
     border-top: 1px solid var(--border);
     background: var(--card-bg);
 }
+/* Zone tactile de 10px -> 26px (retour utilisateur : difficile à attraper au doigt sur téléphone,
+   sous les ~24px habituellement recommandés pour une cible tactile) — le trait visuel lui-même
+   (::after, 3px) reste fin et centré dans cette zone agrandie, rien ne change à l'œil. */
 .grid-zoom-pinned-resize {
     flex: none;
-    height: 10px;
-    width: 64px;
+    height: 26px;
+    width: 88px;
     margin: 0 auto;
     cursor: ns-resize;
     position: relative;
@@ -327,8 +339,9 @@ body.body-scroll-locked { overflow: hidden !important; }
 .grid-zoom-pinned-resize::after {
     content: '';
     position: absolute;
-    top: 4px; left: 0; right: 0;
+    top: 50%; left: 0; right: 0;
     height: 3px;
+    margin-top: -1.5px;
     border-radius: 3px;
     background: var(--border);
 }
@@ -2557,6 +2570,12 @@ button:active { transform: translateY(1px); }
     touch-action: pan-y;
     user-select: none;
     -webkit-user-select: none;
+}
+
+/* Pipette de motif entre voies armée (voir toggleSeqRowPipette dans script.js) : curseur "copier"
+   sur toute case du séquenceur, pour signaler qu'un clic dépose le motif prélevé sur cette ligne. */
+#arp-sequencer.seq-row-pipette-active .seq-cell {
+    cursor: copy;
 }
 
 /* Chaque rectangle de croche est en réalité deux cases (double-croches) collées l'une à l'autre :

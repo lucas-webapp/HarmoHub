@@ -49,7 +49,10 @@ const ICONS = {
     // Bouton « Taper le rythme » (voir startTapRecording) : rond plein dans un anneau, symbole
     // universel d'enregistrement — se distingue des autres icônes de la rangée (aucune autre n'est
     // un simple disque plein) et se comprend sans avoir à lire le titre.
-    tapRecord: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>'
+    tapRecord: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>',
+    // Pipette de motif ENTRE VOIES (voir toggleSeqRowPipette) : reprend le même dessin que l'ancienne
+    // pipette de motif de grille (retirée, voir historique) — geste familier, portée différente.
+    seqRowPipette: '<path d="M20 4 4 20"/><path d="M16 4a2.83 2.83 0 0 1 4 4"/><circle cx="6" cy="18" r="2" fill="currentColor" stroke="none"/>'
 };
 
 // Rendu HTML d'une icône (name doit exister dans ICONS) ; extraClass optionnel pour la taille/marge
@@ -2031,6 +2034,14 @@ class HarmoHubApp {
         // rien n'a encore été copié. En mémoire seulement (comme this.clipboard pour les accords), pas
         // persisté d'une session à l'autre.
         this.seqPatternClipboard = null;
+        // Pipette de motif ENTRE VOIES du même accord (retour utilisateur : sélectionner une ou
+        // plusieurs notes du séquenceur — clic, Ctrl+clic, ou rectangle, voir seqSelections/
+        // finalizeSeqMarqueeSelect — puis appliquer ce même rythme sur une AUTRE ligne/voix, sans
+        // affecter la grille ni les autres accords, contrairement à this.seqPatternClipboard ci-dessus).
+        // null (inactive) ou tableau de { start, end } (positions absolues de croches, voir
+        // toggleSeqRowPipette) tant qu'elle reste chargée — armée jusqu'à ce qu'on la désactive
+        // soi-même (bouton, Échap), pour pouvoir l'appliquer sur plusieurs lignes à la suite.
+        this.seqRowPipette = null;
         // Rythme tapé en direct (barre espace/doigt) sur la sélection courante, voir startTapRecording :
         // null (inactif), 'countin' (décompte en cours, appuis ignorés) ou 'recording' (chaque appui
         // compte). this._tapRecordState porte tout le reste (fenêtre, appuis capturés, accord ciblé...).
@@ -2461,6 +2472,9 @@ class HarmoHubApp {
             e.preventDefault();
             this.adjustZoom('seq', e.shiftKey ? 'x' : 'y', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
         }, { passive: false });
+        // Pincer-zoomer (2 doigts, voir setupPinchZoom) : équivalent tactile du Ctrl+molette ci-dessus,
+        // pour mobile où ni Ctrl ni molette n'existent (retour utilisateur).
+        this.setupPinchZoom(document.getElementById('seq-zoom-host'), 'seq');
 
         // Échelles horizontale/verticale de la grille CLASSIQUE (hors loupe, voir currentGridHZoom/
         // applyZoomLevel('classicGrid')) — indépendantes de celles de la loupe ci-dessous.
@@ -2504,6 +2518,7 @@ class HarmoHubApp {
             e.preventDefault();
             this.adjustZoom('grid', e.shiftKey ? 'x' : 'y', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
         }, { passive: false });
+        this.setupPinchZoom(document.getElementById('grid-zoom-host'), 'grid');
 
         // Séquenceur épinglé en bas de la loupe grille (voir editChordFromGridZoom/
         // syncGridZoomPinnedSeq) : Enregistrer/Annuler réutilisent tels quels saveCurrent/cancelEdit
@@ -2513,6 +2528,16 @@ class HarmoHubApp {
         document.getElementById('grid-zoom-pinned-cancel').onclick = () => { this.cancelEdit(); this.syncGridZoomPinnedSeq(); };
         document.getElementById('grid-zoom-pinned-toggle').onclick = () => this.toggleGridZoomPinnedSeq();
         this.setupGridZoomPinnedResize();
+        // Ctrl+molette/pincer-zoomer sur le séquenceur ÉPINGLÉ de la loupe grille aussi (voir
+        // pinSequencerHost/applyZoomLevel('seq'), qui partage déjà le même réglage que #seq-zoom-host
+        // ci-dessus) — jusqu'ici seule la loupe séquenceur AUTONOME les avait, pas ce mode épinglé,
+        // pourtant le plus utilisé sur mobile (retour utilisateur).
+        document.getElementById('grid-zoom-pinned-body').addEventListener('wheel', (e) => {
+            if (!e.ctrlKey) return;
+            e.preventDefault();
+            this.adjustZoom('seq', e.shiftKey ? 'x' : 'y', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
+        }, { passive: false });
+        this.setupPinchZoom(document.getElementById('grid-zoom-pinned-body'), 'seq');
 
         // Menu contextuel (clic droit / appui long) : Renommer/Modifier, Dupliquer (accords
         // uniquement), Supprimer — réutilisé pour les morceaux, les dossiers ET les accords de la
@@ -8219,6 +8244,15 @@ class HarmoHubApp {
         const voice = +cell.dataset.voice, step = +cell.dataset.step;
         const wasOn = cell.classList.contains('on');
 
+        // Pipette de motif armée (voir toggleSeqRowPipette) : n'importe quel clic sur cette ligne
+        // dépose le motif prélevé dessus, au lieu de peindre/étirer/sélectionner normalement — reste
+        // armée pour enchaîner d'autres lignes (voir applySeqRowPipette).
+        if (this.seqRowPipette) {
+            e.preventDefault();
+            this.applySeqRowPipette(voice);
+            return;
+        }
+
         // Sélection par rectangle (Maj/Shift + glisser depuis une case VIDE, retour utilisateur :
         // sélectionner plusieurs notes à la fois, même sur des voix différentes, sans les Ctrl+clic
         // une par une) : état séparé de this.seqDrag ci-dessous (qui suppose toujours une seule voix
@@ -9533,6 +9567,49 @@ class HarmoHubApp {
         });
     }
 
+    // Pincer-zoomer à 2 doigts (retour utilisateur : équivalent tactile du Ctrl+molette existant, qui
+    // ne marche pas au doigt — ni Ctrl ni molette sur mobile). Suit les deux pointeurs tactiles actifs
+    // sur `el` via leur pointerId (peu importe lesquels des doigts posés, même si d'autres traînent
+    // sur l'écran ailleurs) ; l'écart entre eux grandit -> zoom avant, rétrécit -> zoom arrière — un
+    // cran (ZOOM_LEVEL_STEP) tous les PINCH_STEP_PX de variation, pas un vrai zoom continu (même
+    // granularité que les boutons +/- dédiés, plus simple à faire cohabiter avec adjustZoom). Zoome
+    // les DEUX axes à la fois (contrairement au Ctrl+molette, qui choisit un seul axe à la fois selon
+    // Maj) : un geste de pince n'a pas d'équivalent naturel à une touche Maj à mi-pince.
+    setupPinchZoom(el, kind) {
+        const PINCH_STEP_PX = 32;
+        const pointers = new Map();
+        let lastDist = null;
+        const dist = () => {
+            const pts = [...pointers.values()];
+            return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        };
+        el.addEventListener('pointerdown', (e) => {
+            if (e.pointerType !== 'touch') return;
+            pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (pointers.size === 2) lastDist = dist();
+        });
+        el.addEventListener('pointermove', (e) => {
+            if (!pointers.has(e.pointerId)) return;
+            pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (pointers.size !== 2) return;
+            e.preventDefault(); // empêche le navigateur de zoomer la PAGE entière avec la même pince
+            const d = dist();
+            if (lastDist == null) { lastDist = d; return; }
+            const diff = d - lastDist;
+            if (Math.abs(diff) < PINCH_STEP_PX) return;
+            const delta = diff > 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP;
+            this.adjustZoom(kind, 'x', delta);
+            this.adjustZoom(kind, 'y', delta);
+            lastDist = d;
+        }, { passive: false });
+        const release = (e) => {
+            pointers.delete(e.pointerId);
+            if (pointers.size < 2) lastDist = null;
+        };
+        el.addEventListener('pointerup', release);
+        el.addEventListener('pointercancel', release);
+    }
+
     // Règle l'échelle horizontale (axis 'x') ou verticale (axis 'y') — INDÉPENDANTES l'une de
     // l'autre — du séquenceur ou de la grille d'accords d'un cran, une fois la fenêtre agrandie
     // correspondante déjà ouverte (boutons dédiés ou Ctrl+molette/Ctrl+Maj+molette dans cette
@@ -9629,6 +9706,10 @@ class HarmoHubApp {
         const host = document.getElementById('arp-sequencer');
         if (!host) return;
         host.hidden = !this.seqOpen;
+        // Retour visuel (curseur, voir style.css) tant que la pipette de motif entre voies reste armée
+        // (voir toggleSeqRowPipette) : posé ici, pas dans toggleSeqRowPipette/applySeqRowPipette
+        // eux-mêmes, pour rester synchronisé à CHAQUE rendu quelle que soit la méthode qui l'a déclenché.
+        host.classList.toggle('seq-row-pipette-active', !!this.seqRowPipette);
         if (!this.seqOpen) return;
         this.seqRenderGen++; // voir déclaration : identifie ce rendu pour les étiquettes éditables ci-dessous
         // Position de défilement horizontal AVANT de reconstruire tout le HTML (voir plus bas, mode
@@ -10034,6 +10115,12 @@ class HarmoHubApp {
                  avant, masqué sans sélection ET limité à sa seule durée — au lieu de tout l'accord,
                  forçant à répéter l'enregistrement mesure par mesure). -->
             <button type="button" id="seq-tap-record" class="icon-btn seq-icon-btn${this.seqTapPhase ? ' seq-tap-active' : ''}" title="${this.seqTapPhase ? "Annuler l'enregistrement (Échap)" : "Taper le rythme de l'accord"}" aria-label="${this.seqTapPhase ? "Annuler l'enregistrement du rythme" : "Taper le rythme de l'accord"}">${svgIcon('tapRecord')}</button>
+            <!-- Pipette de motif ENTRE VOIES du même accord (retour utilisateur : sélectionner une ou
+                 plusieurs notes/barres, voir seqSelections, puis les appliquer sur une AUTRE ligne du
+                 même séquenceur) — voir toggleSeqRowPipette/applySeqRowPipette. Distincte de Ctrl+C/V
+                 (copySeqPattern/pasteSeqPattern, tout le motif entre ACCORDS) : ici on ne touche jamais
+                 qu'une partie du motif, vers une autre voix du MÊME accord. -->
+            <button type="button" id="seq-row-pipette" class="icon-btn seq-icon-btn${this.seqRowPipette ? ' active' : ''}" ${(hasSelection || this.seqRowPipette) ? '' : 'disabled'} title="${this.seqRowPipette ? 'Clique une ligne pour y appliquer le motif prélevé (Échap pour annuler)' : 'Prélever le motif sélectionné pour le coller sur une autre ligne'}" aria-label="${this.seqRowPipette ? 'Appliquer le motif prélevé sur une ligne' : 'Prélever le motif sélectionné'}">${svgIcon('seqRowPipette')}</button>
             <button type="button" id="seq-delete-selection" class="seq-delete-btn" ${hasSelection ? '' : 'disabled'}>${svgIcon('trash')}
                 <span class="lbl-full">sélection${countSuffix}</span><span class="lbl-short">Sélect.${countSuffix}</span>
             </button>
@@ -10118,6 +10205,9 @@ class HarmoHubApp {
 
         const delBtn = document.getElementById('seq-delete-selection');
         if (delBtn) delBtn.onclick = () => this.deleteSelectedSeqNote();
+
+        const rowPipetteBtn = document.getElementById('seq-row-pipette');
+        if (rowPipetteBtn) rowPipetteBtn.onclick = () => this.toggleSeqRowPipette();
 
         // Démarre/annule la capture d'un rythme tapé en direct sur la sélection (voir
         // startTapRecording/cancelTapRecording) — un seul bouton fait office des deux, son état
@@ -10310,6 +10400,75 @@ class HarmoHubApp {
         this.livePreviewUpdate();
         this.commitLiveEdit(true);
         this.flashHint('Motif collé');
+    }
+
+    // Active/désactive la pipette de motif ENTRE VOIES (voir #seq-row-pipette, this.seqRowPipette) :
+    // prélève d'abord la sélection courante (this.seqSelections — clic, Ctrl+clic ou rectangle, voir
+    // finalizeSeqMarqueeSelect) sous forme de positions de croches ABSOLUES { start, end }, puis reste
+    // armée jusqu'à ce qu'on la désactive (re-clic sur ce bouton, ou Échap — voir onSeqPointerDown pour
+    // l'application elle-même) : permet d'appliquer le même motif sur plusieurs lignes à la suite sans
+    // avoir à ressélectionner à chaque fois. Un clic alors qu'aucune note n'est sélectionnée n'arme rien.
+    toggleSeqRowPipette() {
+        if (this.seqRowPipette) {
+            this.seqRowPipette = null;
+            this.renderSequencer();
+            return;
+        }
+        if (this.seqSelections.length === 0) {
+            this.flashHint("Sélectionne d'abord une ou plusieurs notes à prélever");
+            return;
+        }
+        this.seqRowPipette = this.seqSelections.map(s => ({ start: s.start, end: s.end }));
+        this.renderSequencer();
+        this.flashHint('Motif prélevé — clique une ligne du séquenceur pour l\'y appliquer (Échap pour annuler)');
+    }
+
+    // Dépose le motif prélevé (voir toggleSeqRowPipette) sur `targetVoice`, une autre voix du MÊME
+    // accord en cours d'édition — jamais de changement de durée/nombre de voix à gérer ici (contrairement
+    // à pasteSeqPattern, qui traverse les accords) : les positions de croches captées restent valables
+    // telles quelles. Remplace entièrement le contenu de la voix cible sur la plage couverte par le
+    // motif (comme deleteSelectedSeqNote), pour ne jamais laisser un reste de son ancien rythme entre
+    // deux notes collées. Reste armée après coup (voir toggleSeqRowPipette) pour enchaîner d'autres lignes.
+    applySeqRowPipette(targetVoice) {
+        const motif = this.seqRowPipette;
+        if (!motif || motif.length === 0) return;
+        this.pushSeqUndo();
+        const chord = this.readChord();
+        const { pattern, tie } = this.getLiveSeqPattern(chord);
+        const lo = Math.min(...motif.map(m => m.start));
+        const hi = Math.max(...motif.map(m => m.end));
+        for (let s = lo; s <= hi; s++) {
+            const at = pattern[s].indexOf(targetVoice);
+            if (at >= 0) pattern[s].splice(at, 1);
+            const ti = tie[s].indexOf(targetVoice);
+            if (ti >= 0) tie[s].splice(ti, 1);
+        }
+        if (hi + 1 < tie.length) {
+            const nt = tie[hi + 1].indexOf(targetVoice);
+            if (nt >= 0) tie[hi + 1].splice(nt, 1);
+        }
+        motif.forEach(m => {
+            for (let s = m.start; s <= m.end; s++) {
+                pattern[s].push(targetVoice);
+                if (s !== m.start) tie[s].push(targetVoice);
+            }
+        });
+        this.seqTouched = true;
+        this.setLiveSeqPattern(pattern, tie);
+        // Lève la protection _new (voir applySeqCell/addSequencerNote) si la voix ciblée était une note
+        // libre encore jamais peinte : elle a désormais un vrai rythme à perdre si on l'efface plus tard.
+        const extraStart = chord.getIntervals().length;
+        if (targetVoice >= extraStart && this.extraNotes[targetVoice - extraStart]) {
+            delete this.extraNotes[targetVoice - extraStart]._new;
+        }
+        // Pas de resélection sur la voix cible : le motif prélevé peut contenir plusieurs notes
+        // séparées par du silence (plusieurs entrées dans this.seqRowPipette), qu'une seule sélection
+        // { start: lo, end: hi } représenterait à tort comme UNE SEULE note continue (voir
+        // resizeSelectedSeqNote/moveSelectedSeqNotes, qui supposent une plage réellement contiguë).
+        this.seqSelections = [];
+        this.renderSequencer();
+        this.livePreviewUpdate();
+        this.flashHint('Motif appliqué sur cette ligne');
     }
 
     // Réévalue, à CHAQUE rendu du séquenceur (peindre/étirer/effacer une case, pas seulement taper le
@@ -10686,6 +10845,7 @@ class HarmoHubApp {
             if (e.key === 'Escape' && !document.getElementById('midi-export-modal').hidden) { if (this._midiExportModalCancel) this._midiExportModalCancel(); return; }
             if (e.key === 'Escape' && !document.getElementById('duration-dd-menu').hidden) { this.closeDurationMenu(); return; }
             if (e.key === 'Escape' && !document.getElementById('playstyle-dd-menu').hidden) { this.closePlayStyleMenu(); return; }
+            if (e.key === 'Escape' && this.seqRowPipette) { this.seqRowPipette = null; this.renderSequencer(); return; }
             if (e.key === 'Escape' && this.seqTapPhase) { this.cancelTapRecording(); return; }
             if (e.key === 'Escape' && this.tapCalibPhase) { this.cancelTapCalibration(); return; }
             if (e.key === 'Escape' && this.settingsOpen) { this.closeSettings(); return; }
