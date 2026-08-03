@@ -300,9 +300,21 @@ body.body-scroll-locked { overflow: hidden !important; }
 .seq-zoomed .seq-grid { gap: calc(6px * var(--seq-zoom-scale-v, 1)) 0; }
 
 /* Fenêtre agrandie de la grille d'accords (voir #grid-zoom-overlay/openGridZoom) : même habillage
-   que .seq-zoom-modal (classe partagée dans le HTML), juste plus large (les parties peuvent avoir
-   beaucoup d'accords par ligne). */
-.grid-zoom-modal { max-width: 1400px; }
+   que .seq-zoom-modal (classe partagée dans le HTML), mais toujours PLEIN ÉCRAN plutôt que plafonnée
+   à une taille maximale — c'est l'outil principal pour travailler grille + séquenceur ensemble, il ne
+   doit jamais se retrouver plus petit que nécessaire (retour utilisateur : la fenêtre se rétrécissait
+   sur un grand écran/peu d'accords, au lieu de rester en plein écran). width/height à 100% (pas
+   seulement max-*) : .seq-zoom-modal ne fixe qu'un max-height, donc une hauteur qui suit le CONTENU
+   jusqu'à ce plafond plutôt que de toujours remplir — ici on veut la remplir systématiquement, quel
+   que soit le contenu. Le padding de 20px de .settings-overlay (fixe, jamais touché ici) est ce qui
+   laisse un léger cadre visible tout autour, jamais un vrai bord-à-bord total ; 100% de la boîte de
+   contenu déjà réduite par ce padding suffit à paraître plein écran. */
+.grid-zoom-modal {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+}
 
 /* Niveau de zoom réglable (boutons loupe+/loupe- ou Ctrl+molette, voir adjustZoom dans script.js) :
    piloté par la propriété `zoom` (recalcule vraiment la mise en page, contrairement à
