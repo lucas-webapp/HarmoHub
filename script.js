@@ -1979,6 +1979,7 @@ class HarmoHubApp {
         this.guitarFingeringIndex = 0; // doigté actuellement affiché parmi guitarFingerings
         this.guitarLock = null;    // doigté verrouillé en attente pour l'accord en cours d'édition (voir toggleGuitarLock)
         this._keepGuitarLockOnce = false; // laisse passer guitarLock au PROCHAIN recalcul (voir ensureGuitarDiagram)
+        this.guitarDisplayLock = null; // verrou du diagramme RÉELLEMENT affiché (édition ou simple aperçu, voir ensureGuitarDiagram/updateGuitarLockButton)
         this.extraNotes = [];      // notes libres en attente pour l'accord en cours d'édition (voir addSequencerNote)
         // Intensité (vélocité) de l'accord en cours d'édition, voir computeVelocity/DEFAULT_INTENSITY :
         // intensityPerStep est un réglage fin PAR CROCHE (mode studio, une valeur par attaque/case
@@ -2974,25 +2975,41 @@ class HarmoHubApp {
     // (pas juste ses notes) : à la guitare, les doigts restent posés sur tout l'accord du début à la
     // fin (contrairement au piano), et le ton/qualité sont nécessaires pour choisir une forme
     // communément enseignée plutôt que le voicing brut (voir guitarFingeringsForChord).
-    ensureGuitarDiagram(chord) {
+    // `useLiveLock` (true par défaut) : this.guitarLock est le verrou EN COURS D'ÉDITION (panneau
+    // Accord, lu/écrit par toggleGuitarLock/editChord) — juste pour readChord(), qui ne porte jamais
+    // ce champ (voir plus haut). Faux pour un simple aperçu en LECTURE SEULE d'un accord déjà enregistré
+    // (playSavedChord/scheduleProgressionChord, lecture de toute la grille) : là, `chord` porte déjà
+    // SON PROPRE verrou (chord.guitarLock, restauré depuis les données), qu'il faut afficher tel quel
+    // — jamais celui, sans rapport, resté en mémoire depuis une précédente session d'édition (bug
+    // corrigé : le cadenas semblait « ne plus se bloquer » dès qu'on refermait l'édition et qu'on se
+    // contentait d'écouter l'accord, cf. #guitar-lock-btn resté désaccordé de l'accord réellement
+    // affiché).
+    ensureGuitarDiagram(chord, useLiveLock = true) {
         if (!this.showGuitarViz()) return;
-        const key = `${chord.root}:${chord.quality}:${chord.getMidiNotes().join(',')}`;
+        // Un changement RÉEL d'accord invalide un verrou EN COURS D'ÉDITION : la forme mémorisée (case
+        // par corde) ne correspondrait plus aux bonnes notes. « Réel » se juge sur l'IDENTITÉ de
+        // l'accord (racine/qualité/renversement/drop/octave/basse) — jamais sur les notes libres du
+        // séquenceur (extraNotes, voir addSequencerNote), qui ne sont qu'un embellissement mélodique
+        // indépendant : peindre une note de passage ne doit pas faire sauter un doigté verrouillé
+        // (retour utilisateur). Seuls editChord (restaure le verrou déjà enregistré) et toggleGuitarLock
+        // (vient justement de le poser/lever) doivent survivre à un changement d'identité, via ce
+        // drapeau à usage unique. Sans objet en lecture seule (chord.guitarLock est déjà exactement
+        // celui de CET accord, jamais périmé).
+        if (useLiveLock) {
+            const identityKey = `${chord.root}:${chord.quality}:${chord.getEffectiveInversion()}:${chord.drop}:${chord.octave}:${chord.bass || ''}`;
+            if (!this._keepGuitarLockOnce && this.guitarIdentityKey !== identityKey) this.guitarLock = null;
+            this.guitarIdentityKey = identityKey;
+            this._keepGuitarLockOnce = false;
+        }
+        const lockedShape = useLiveLock ? this.guitarLock : (chord.guitarLock || null);
+        // Le verrou effectif fait partie de la clé : deux accords de mêmes notes mais verrouillés
+        // différemment (ou un aperçu en lecture seule juste après une édition en direct) ne doivent pas
+        // se retrouver à tort avec le même diagramme figé en cache.
+        const key = `${chord.root}:${chord.quality}:${chord.getMidiNotes().join(',')}:${useLiveLock ? 'L' : 'D'}:${JSON.stringify(lockedShape)}`;
         if (this.guitarKey === key) return;
         this.guitarKey = key;
-        // Un changement RÉEL d'accord invalide un verrou existant : la forme mémorisée (case par
-        // corde) ne correspondrait plus aux bonnes notes. « Réel » se juge sur l'IDENTITÉ de l'accord
-        // (racine/qualité/renversement/drop/octave/basse) — jamais sur les notes libres du séquenceur
-        // (extraNotes, voir addSequencerNote), qui ne sont qu'un embellissement mélodique indépendant :
-        // peindre une note de passage ne doit pas faire sauter un doigté verrouillé (retour
-        // utilisateur), même si ça change `key` ci-dessus (basé sur getMidiNotes, qui les inclut) et
-        // donc force quand même un recalcul du diagramme lui-même. Seuls editChord (restaure le verrou
-        // déjà enregistré) et toggleGuitarLock (vient justement de le poser/lever) doivent survivre à
-        // un changement d'identité, via ce drapeau à usage unique.
-        const identityKey = `${chord.root}:${chord.quality}:${chord.getEffectiveInversion()}:${chord.drop}:${chord.octave}:${chord.bass || ''}`;
-        if (!this._keepGuitarLockOnce && this.guitarIdentityKey !== identityKey) this.guitarLock = null;
-        this.guitarIdentityKey = identityKey;
-        this._keepGuitarLockOnce = false;
-        this.guitarFingerings = guitarFingeringsForChord(chord, this.guitarLock);
+        this.guitarDisplayLock = lockedShape; // voir updateGuitarLockButton : reflète TOUJOURS le diagramme réellement affiché
+        this.guitarFingerings = guitarFingeringsForChord(chord, lockedShape);
         this.guitarFingeringIndex = 0;
         this.renderGuitarDiagram();
     }
@@ -3022,11 +3039,14 @@ class HarmoHubApp {
     // Reflète l'état verrouillé/libre sur le bouton cadenas : cadenas fermé + surligné si CET accord
     // a un doigté verrouillé, ouvert sinon — indépendant du doigté actuellement PRÉVISUALISÉ (on peut
     // naviguer parmi les autres sans perdre le verrou, voir cycleGuitarFingering/toggleGuitarLock).
+    // this.guitarDisplayLock (voir ensureGuitarDiagram) plutôt que this.guitarLock : ce dernier ne
+    // porte que le verrou EN COURS D'ÉDITION, jamais celui d'un accord simplement écouté/prévisualisé
+    // (useLiveLock=false) — sinon le cadenas semblait éteint dès qu'on refermait l'édition.
     updateGuitarLockButton() {
         const btn = document.getElementById('guitar-lock-btn');
         if (!btn) return;
         btn.style.display = this.guitarFingerings.length ? '' : 'none';
-        const locked = !!this.guitarLock;
+        const locked = !!this.guitarDisplayLock;
         btn.classList.toggle('active', locked);
         btn.setAttribute('aria-pressed', locked);
         btn.title = locked ? 'Doigté verrouillé pour cet accord (cliquer pour libérer)' : 'Verrouiller ce doigté pour cet accord';
@@ -3072,6 +3092,7 @@ class HarmoHubApp {
         this.guitarFingerings = [];
         this.guitarFingeringIndex = 0;
         this.guitarLock = null;
+        this.guitarDisplayLock = null;
         const viz = document.getElementById('guitar-viz');
         if (viz) viz.innerHTML = '';
         const nav = document.getElementById('guitar-nav');
@@ -3228,7 +3249,11 @@ class HarmoHubApp {
                     // quel que soit l'état du réseau ou de l'instrument. Un filet, comme pour le son.
                     try {
                         this.ensurePianoWindow(midis); this.updateViz(activeMidis, roleMap);
-                        if (chord) this.ensureGuitarDiagram(chord);
+                        // trackPlayhead distingue déjà playCurrent (panneau EN COURS D'ÉDITION, chord =
+                        // readChord()) de la lecture d'un accord déjà enregistré (scheduleProgressionChord/
+                        // playSavedChord, chord porte son PROPRE verrou, voir ensureGuitarDiagram) : même
+                        // signal, pas besoin d'un paramètre séparé.
+                        if (chord) this.ensureGuitarDiagram(chord, trackPlayhead);
                         if (trackPlayhead) this.updateSeqPlayhead(s);
                         if (gridPos && chord) this.setGridPlayheadProgress(gridPos.section, gridPos.index, s / SEQ_STEPS_PER_BEAT, chord.beats);
                     } catch (e) {
@@ -3341,7 +3366,7 @@ class HarmoHubApp {
     // accord en direct sans redémarrer le transport (voir liveUpdateProgressionChord).
     scheduleProgressionChord(section, index, data, timeOffset, secPerBeat, songBeatAtStart, beatsPerBar, disp) {
         const beats = beatsFromData(data);
-        const chord = new Chord(data.root, data.quality, beats, data.inversion, data.drop, octaveFromData(data), data.bass, null, data.extraNotes);
+        const chord = new Chord(data.root, data.quality, beats, data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
         const notes = chord.getSeqNotes();
         const { pattern: seqPattern, tie: seqTie } = this.resolveSeqPatternForData(chord, data);
         const eventIds = this.schedulePlayback(notes, chord.getSeqMidiNotes(), seqPattern, seqTie, secPerBeat, timeOffset, chord.getRoleMap(), data.instrument || 'piano', chord, false, { section, index }, data.intensity, data.intensityPerStep);
@@ -11128,7 +11153,7 @@ class HarmoHubApp {
         const data = sections[section] && sections[section].chords[index];
         if (!data) return;
 
-        const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, null, data.extraNotes);
+        const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
         const notes = chord.getSeqNotes();
         const midis = chord.getSeqMidiNotes();
         const roleMap = chord.getRoleMap();
@@ -11138,7 +11163,10 @@ class HarmoHubApp {
         const disp = document.getElementById('current-chord-display');
         disp.innerHTML = `<span class="chord-title">${flatTight(chord.getLabel(useFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, useFlats)}</span>`;
         this.ensurePianoWindow(midis);
-        this.ensureGuitarDiagram(chord);
+        // Lecture seule (simple clic pour écouter, PAS d'édition en cours) : affiche le verrou PROPRE
+        // à cet accord (chord.guitarLock, ci-dessus) plutôt que le this.guitarLock resté en mémoire
+        // d'une précédente session d'édition, sans rapport (voir ensureGuitarDiagram).
+        this.ensureGuitarDiagram(chord, false);
         this.updateViz(midis, roleMap);
 
         if (!play) return; // aperçu silencieux seulement : le clavier/la guitare restent affichés
@@ -11158,7 +11186,7 @@ class HarmoHubApp {
         Tone.Transport.schedule((t) => {
             Tone.Draw.schedule(() => {
                 try {
-                    this.ensurePianoWindow(midis); this.updateViz(midis, roleMap); this.ensureGuitarDiagram(chord);
+                    this.ensurePianoWindow(midis); this.updateViz(midis, roleMap); this.ensureGuitarDiagram(chord, false);
                 } catch (e) {
                     console.warn('Affichage de fin ignoré :', e.message);
                 }
