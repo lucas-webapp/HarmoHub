@@ -3036,17 +3036,23 @@ class HarmoHubApp {
         this.updateGuitarLockButton();
     }
 
-    // Reflète l'état verrouillé/libre sur le bouton cadenas : cadenas fermé + surligné si CET accord
-    // a un doigté verrouillé, ouvert sinon — indépendant du doigté actuellement PRÉVISUALISÉ (on peut
-    // naviguer parmi les autres sans perdre le verrou, voir cycleGuitarFingering/toggleGuitarLock).
-    // this.guitarDisplayLock (voir ensureGuitarDiagram) plutôt que this.guitarLock : ce dernier ne
-    // porte que le verrou EN COURS D'ÉDITION, jamais celui d'un accord simplement écouté/prévisualisé
-    // (useLiveLock=false) — sinon le cadenas semblait éteint dès qu'on refermait l'édition.
+    // Reflète l'état verrouillé/libre sur le bouton cadenas, relatif au doigté ACTUELLEMENT AFFICHÉ
+    // (this.guitarFingeringIndex) — pas juste « CET ACCORD a-t-il UN verrou quelque part » : naviguer
+    // vers un AUTRE doigté (cycleGuitarFingering) pendant qu'un verrou existe ailleurs doit rouvrir
+    // visuellement le cadenas, sinon il restait affiché fermé sur un doigté qui n'est PAS le verrouillé
+    // (retour utilisateur : « le cadenas saute », un clic dessus libérait alors le verrou D'UN AUTRE
+    // doigté invisible à l'écran au lieu de verrouiller celui réellement affiché — voir toggleGuitarLock
+    // pour le même principe côté clic). this.guitarDisplayLock (voir ensureGuitarDiagram) plutôt que
+    // this.guitarLock : ce dernier ne porte que le verrou EN COURS D'ÉDITION, jamais celui d'un accord
+    // simplement écouté/prévisualisé (useLiveLock=false) — sinon le cadenas semblait éteint dès qu'on
+    // refermait l'édition.
     updateGuitarLockButton() {
         const btn = document.getElementById('guitar-lock-btn');
         if (!btn) return;
         btn.style.display = this.guitarFingerings.length ? '' : 'none';
-        const locked = !!this.guitarDisplayLock;
+        const shown = this.guitarFingerings[this.guitarFingeringIndex];
+        const shownShape = shown ? shown.map(f => f ? f.fret : null) : null;
+        const locked = !!this.guitarDisplayLock && !!shownShape && JSON.stringify(this.guitarDisplayLock) === JSON.stringify(shownShape);
         btn.classList.toggle('active', locked);
         btn.setAttribute('aria-pressed', locked);
         btn.title = locked ? 'Doigté verrouillé pour cet accord (cliquer pour libérer)' : 'Verrouiller ce doigté pour cet accord';
@@ -3063,24 +3069,26 @@ class HarmoHubApp {
         this.renderGuitarDiagram();
     }
 
-    // Verrouille/libère le doigté actuellement affiché pour l'accord en cours (voir
-    // guitarFingeringsForChord) : verrouillé, il passe en tête de liste et devient celui utilisé par
-    // défaut dans la grille et le PDF, jusqu'à ce qu'on le libère ou qu'on change réellement l'accord
-    // (racine/qualité/voicing). commitLiveEdit persiste tout de suite en mode Modification, comme
-    // tout autre réglage du panneau (retour utilisateur : sans cet appel, le cadenas semblait se
-    // fermer puis se rouvrir tout seul — il n'écrivait en fait jamais rien dans la grille, puisque
-    // Enregistrer/Ajouter est justement masqué en mode Modification, seule persistance possible
-    // avant cet appel). Sans effet en mode Ajout (commitLiveEdit s'arrête tout de suite si
-    // appMode !== 'edit') : là, saveCurrent capture bien this.guitarLock au moment d'Ajouter.
+    // Verrouille/libère le doigté ACTUELLEMENT AFFICHÉ (this.guitarFingeringIndex) pour l'accord en
+    // cours (voir guitarFingeringsForChord) : verrouillé, il passe en tête de liste et devient celui
+    // utilisé par défaut dans la grille et le PDF, jusqu'à ce qu'on le libère ou qu'on change réellement
+    // l'accord (racine/qualité/voicing). Compare au doigté AFFICHÉ, pas juste à « un verrou existe-t-il
+    // déjà » : sinon, verrouiller le doigté 1, naviguer vers le doigté 2 (voir cycleGuitarFingering) puis
+    // cliquer de nouveau libérait à tort le verrou du doigté 1 (invisible à l'écran) au lieu de
+    // verrouiller celui réellement affiché — retour utilisateur, « le cadenas saute ». commitLiveEdit
+    // persiste tout de suite en mode Modification, comme tout autre réglage du panneau (retour
+    // utilisateur : sans cet appel, le cadenas semblait se fermer puis se rouvrir tout seul — il
+    // n'écrivait en fait jamais rien dans la grille, puisque Enregistrer/Ajouter est justement masqué en
+    // mode Modification, seule persistance possible avant cet appel). Sans effet en mode Ajout
+    // (commitLiveEdit s'arrête tout de suite si appMode !== 'edit') : là, saveCurrent capture bien
+    // this.guitarLock au moment d'Ajouter.
     toggleGuitarLock() {
         const fingerings = this.guitarFingerings;
         if (!fingerings.length) return;
-        if (this.guitarLock) {
-            this.guitarLock = null;
-        } else {
-            const current = fingerings[this.guitarFingeringIndex];
-            this.guitarLock = current.map(f => f ? f.fret : null);
-        }
+        const current = fingerings[this.guitarFingeringIndex];
+        const currentShape = current.map(f => f ? f.fret : null);
+        const shownIsLocked = this.guitarLock && JSON.stringify(this.guitarLock) === JSON.stringify(currentShape);
+        this.guitarLock = shownIsLocked ? null : currentShape;
         this._keepGuitarLockOnce = true;
         this.guitarKey = null; // force le recalcul de la liste (racine/qualité inchangées, sinon ignoré)
         this.ensureGuitarDiagram(this.readChord());
