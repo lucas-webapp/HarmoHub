@@ -1495,7 +1495,7 @@ const INSTRUMENT_TRIM_DB = {
     pad: -16,
     strings: -16,
     organ: -18,
-    guitarSynth: -7.5,
+    guitarSynth: -5,
 };
 
 // Pincement de corde physiquement modélisé (Karplus-Strong : une salve de bruit excite une ligne à
@@ -1527,11 +1527,13 @@ const INSTRUMENT_TRIM_DB = {
 const GUITAR_HARMONIC_INTERVALS = [12, 19]; // octave, puis octave+quinte (2e et 3e partiels)
 
 class GuitarPluckPool {
-    constructor(voices, harmonics) {
-        this._voices = voices; // [{ synth: Tone.PluckSynth, gain: Tone.Volume, activeNote }, ...]
+    constructor(voices, harmonics, pick) {
+        this._voices = voices; // [{ synth: Tone.PluckSynth, gain: Tone.Volume, panner, activeNote }, ...]
         this._harmonics = harmonics; // pool séparé et dédié aux harmoniques (jamais volé aux vraies notes)
+        this._pick = pick; // pool séparé et dédié au "tick" d'attaque (médiator/ongle), voir _attackPickNoise
         this._stealCursor = 0;
         this._harmCursor = 0;
+        this._pickCursor = 0;
     }
 
     // Aucune notion de corde/manche à ce niveau (schedulePlayback ne travaille que sur des noms de
@@ -1561,6 +1563,11 @@ class GuitarPluckPool {
             decayTime: sustainSeconds,    // durée de la décroissance de volume pendant que ça sonne
             fadeDb: 8 + t * 3,            // léger creux SUPPLÉMENTAIRE sur cette durée (l'essentiel de la
                                             // décroissance vient déjà de resonance ci-dessus, pas de ce fondu)
+            // Une vraie prise de son de guitare est en stéréo : les cordes graves et aiguës occupent des
+            // positions différentes sur le manche, donc une image stéréo légèrement répartie plutôt que
+            // tout au centre (mono) est un des indices qui trahit le plus vite une synthèse "plate".
+            // Écart modeste (±0.3) : une vraie prise stéréo ne bascule jamais complètement d'un côté.
+            pan: -0.3 + t * 0.6,
         };
     }
 
@@ -1621,6 +1628,7 @@ class GuitarPluckPool {
             // La décroissance audible pendant que la note sonne : le Karplus-Strong seul (resonance)
             // ne suffisait pas à la rendre nette à l'oreille, voir commentaire de classe.
             v.gain.volume.linearRampToValueAtTime(peakDb - p.fadeDb, time + p.decayTime);
+            v.panner.pan.setValueAtTime(p.pan, time);
             v.synth.triggerAttack(baseFreq * ratio, time);
             v.activeNote = note; // les deux polarisations partagent la même étiquette logique pour le release
             v.lastAttackTime = time;
@@ -1629,14 +1637,15 @@ class GuitarPluckPool {
             v._decayTime = p.decayTime;
             v._release = p.release;
         });
-        this._attackHarmonics(note, time, velocity);
+        this._attackHarmonics(note, time, velocity, p.pan);
+        this._attackPickNoise(time, velocity, p.pan);
     }
 
     // Amas de fréquences parasites (harmoniques + sympathie des cordes voisines) sur un pool séparé,
     // volume faible, amortissement d'autant plus rapide que l'harmonique est haute — voir commentaire
     // de classe. Purement décoratif : une voix d'harmonique indisponible (accords très denses) est
     // simplement sautée, jamais critique pour la note réellement jouée.
-    _attackHarmonics(note, time, velocity) {
+    _attackHarmonics(note, time, velocity, pan) {
         const midi = Tone.Frequency(note).toMidi();
         GUITAR_HARMONIC_INTERVALS.forEach((interval, idx) => {
             const hMidi = midi + interval;
@@ -1652,11 +1661,25 @@ class GuitarPluckPool {
             h.gain.volume.cancelScheduledValues(time);
             h.gain.volume.setValueAtTime(peakDb, time);
             h.gain.volume.linearRampToValueAtTime(-70, time + fadeTime);
+            h.panner.pan.setValueAtTime(pan, time); // même position stéréo que la fondamentale qui la porte
             try {
                 h.synth.triggerAttack(hNote, time);
                 h.lastAttackTime = time;
             } catch (e) { /* voix d'harmonique indisponible : tant pis, effet décoratif seulement */ }
         });
+    }
+
+    // Le bruit d'excitation interne de Tone.PluckSynth est déjà façonné par le filtre en peigne (donc
+    // "accordé" sur la note) : il manque le grain plus large-bande et indépendant de la hauteur qu'un
+    // vrai médiator/ongle produit au contact de la corde, avant même que celle-ci ne se mette à vibrer.
+    // Un très bref "tick" filtré, séparé de la corde elle-même, ajoute ce piquant d'attaque réaliste.
+    _attackPickNoise(time, velocity, pan) {
+        const p = this._pick[this._pickCursor];
+        this._pickCursor = (this._pickCursor + 1) % this._pick.length;
+        const peakDb = -32 + Math.max(0, Math.min(1, velocity)) * 12;
+        p.gain.volume.setValueAtTime(peakDb, time);
+        p.panner.pan.setValueAtTime(pan, time);
+        try { p.noise.triggerAttackRelease(0.015, time); } catch (e) { /* décoratif seulement */ }
     }
 
     // Calcule où en est déjà la rampe de décroissance démarrée à l'attaque (on ne peut pas lire un
@@ -1832,21 +1855,36 @@ const INSTRUMENT_BANKS = {
             // volume intérieur (~100Hz) et le mode principal de vibration de la table (~200-250Hz) — les
             // reprendre approximativement donne un grain plus "boîte en bois" qu'un simple creux/bosse
             // générique. Le passe-bas final adoucit ensuite le côté "numérique" du Karplus-Strong brut.
+            const PICK_VOICE_COUNT = 8; // "tick" d'attaque très bref, un pool séparé suffit largement
             const bodyAir = new Tone.Filter({ type: 'peaking', frequency: 100, Q: 1.2, gain: 4 });
             const bodyTop = new Tone.Filter({ type: 'peaking', frequency: 220, Q: 1.1, gain: 3 });
             const bodyLowpass = new Tone.Filter({ type: 'lowpass', frequency: 6500, Q: 0.5 });
             const volume = new Tone.Volume(INSTRUMENT_TRIM_DB.guitarSynth);
             bodyAir.chain(bodyTop, bodyLowpass, volume, masterBus);
+            // Panoramique par voix (pas un simple bus mono) : une vraie prise de son de guitare répartit
+            // les cordes dans l'image stéréo plutôt que de tout coller au centre (voir _physicalParamsForNote).
             const makeVoice = () => {
                 const synth = new Tone.PluckSynth();
                 const gain = new Tone.Volume(0); // vélocité par voix, voir GuitarPluckPool._attackOne
-                synth.connect(gain);
-                gain.connect(bodyAir);
-                return { synth, gain, activeNote: null, lastAttackTime: null };
+                const panner = new Tone.Panner(0);
+                synth.chain(gain, panner, bodyAir);
+                return { synth, gain, panner, activeNote: null, lastAttackTime: null };
+            };
+            const makePickVoice = () => {
+                const noise = new Tone.NoiseSynth({
+                    noise: { type: 'white' },
+                    envelope: { attack: 0.001, decay: 0.012, sustain: 0, release: 0.01 },
+                });
+                const filter = new Tone.Filter({ type: 'bandpass', frequency: 4000, Q: 0.7 });
+                const gain = new Tone.Volume(0);
+                const panner = new Tone.Panner(0);
+                noise.chain(filter, gain, panner, bodyAir);
+                return { noise, gain, panner };
             };
             const voices = Array.from({ length: VOICE_COUNT }, makeVoice);
             const harmonics = Array.from({ length: HARMONIC_VOICE_COUNT }, makeVoice);
-            return new GuitarPluckPool(voices, harmonics);
+            const pick = Array.from({ length: PICK_VOICE_COUNT }, makePickVoice);
+            return new GuitarPluckPool(voices, harmonics, pick);
         }
     }
 };
