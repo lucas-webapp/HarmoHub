@@ -1495,7 +1495,119 @@ const INSTRUMENT_TRIM_DB = {
     pad: -16,
     strings: -16,
     organ: -18,
+    guitarSynth: -4,
 };
+
+// Pincement de corde physiquement modélisé (Karplus-Strong : une salve de bruit excite une ligne à
+// retard bouclée sur elle-même à travers un filtre passe-bas, exactement le principe physique d'une
+// corde pincée qui vibre puis s'amortit) — voir Tone.PluckSynth ci-dessous, retour utilisateur :
+// "essaye de recréer au plus proche ce qu'il se passe réellement au pincement d'une corde".
+//
+// Tone.PluckSynth NE PEUT PAS être confié à Tone.PolySynth (qui exige une voix "Monophonic" ; PluckSynth
+// n'en hérite pas — vérifié dans tone.min.js, `new Tone.PolySynth(Tone.PluckSynth)` lève "Voice must
+// extend Monophonic class" au premier déclenchement). Cette classe reproduit donc à la main la même
+// idée qu'un PolySynth : un petit pool de cordes (PluckSynth) physiques, chacune avec son propre volume
+// (pour la vélocité, que PluckSynth.triggerAttack ignore nativement), qu'on s'attribue à la demande —
+// une voix libre en priorité, sinon la plus ancienne (vol classique), comme le ferait un vrai PolySynth.
+class GuitarPluckPool {
+    constructor(voices) {
+        this._voices = voices; // [{ synth: Tone.PluckSynth, gain: Tone.Volume, activeNote }, ...]
+        this._stealCursor = 0;
+    }
+
+    // Aucune notion de corde/manche à ce niveau (schedulePlayback ne travaille que sur des noms de
+    // note à plat, voir son commentaire plus haut) : approxime plutôt le comportement d'une VRAIE
+    // guitare par la hauteur jouée — les cordes graves (filées, plus lourdes) amortissent moins vite
+    // et sonnent plus mates, les cordes aiguës (plus fines) s'éteignent plus vite mais plus clair à
+    // l'attaque. Coefficients calés à l'oreille sur l'ambitus courant d'un accord (E2~E6).
+    _physicalParamsForNote(note) {
+        const midi = Tone.Frequency(note).toMidi();
+        const t = Math.max(0, Math.min(1, (midi - 40) / (88 - 40))); // 0 = grave (E2), 1 = aigu (E6)
+        return {
+            dampening: 3200 + t * 5800,   // grave = plus mat (peu d'aigus), aigu = plus clair/brillant
+            resonance: 0.965 - t * 0.11,  // grave = sustain plus long, aigu = s'éteint plus vite
+            attackNoise: 1.25 - t * 0.45, // grave = attaque (bruit d'excitation) un peu plus longue
+        };
+    }
+
+    // `time` (l'instant de CETTE nouvelle attaque) compte autant que activeNote==null pour décider
+    // si une voix est vraiment disponible : Tone.PluckSynth redéclenche son bruit d'excitation à
+    // CHAQUE triggerAttack sur la MÊME instance (voir tone.min.js, Tone.Noise en dessous), qui exige
+    // un instant STRICTEMENT croissant d'un déclenchement à l'autre — rejouer la MÊME corde physique
+    // au MÊME instant (ou plus tôt) lève une erreur Tone.js. Ça arrivait précisément avec un accord
+    // plaqué : chaque voix du séquenceur appelle triggerAttackRelease séparément au MÊME instant `t`,
+    // et _releaseOne (ci-dessous) libérait activeNote SYNCHRONEMENT avant même que ce même instant
+    // `t` soit entièrement traité, laissant une voix tout juste utilisée se faire piquer par la note
+    // suivante du même accord — d'où ce garde-fou sur lastAttackTime, pas seulement activeNote.
+    _freeVoiceIndex(time) {
+        const eligible = this._voices
+            .map((v, i) => i)
+            .filter(i => this._voices[i].lastAttackTime == null || this._voices[i].lastAttackTime < time);
+        if (eligible.length === 0) {
+            // Polyphonie extrême (plus de voix que de cordes disponibles au MÊME instant) : force la
+            // plus ancienne malgré tout — Tone.js lèvera son erreur, attrapée plus haut par
+            // schedulePlayback (cette seule note manquera, sans interrompre le reste de la lecture),
+            // exactement comme un vrai PolySynth arrivé à sa polyphonie max perdrait une note.
+            const i = this._stealCursor;
+            this._stealCursor = (this._stealCursor + 1) % this._voices.length;
+            return i;
+        }
+        const free = eligible.find(i => this._voices[i].activeNote == null);
+        if (free != null) return free;
+        eligible.sort((a, b) => this._voices[a].lastAttackTime - this._voices[b].lastAttackTime);
+        return eligible[0];
+    }
+
+    _attackOne(note, time, velocity = 1) {
+        const v = this._voices[this._freeVoiceIndex(time)];
+        const p = this._physicalParamsForNote(note);
+        v.synth.dampening = p.dampening;
+        v.synth.resonance = p.resonance;
+        v.synth.attackNoise = p.attackNoise;
+        // PluckSynth.triggerAttack (voir tone.min.js) ignore la vélocité qu'on lui passe : c'est ce
+        // volume par voix, réglé juste avant, qui restitue la dynamique du jeu (grave doigt/pincement).
+        v.gain.volume.setValueAtTime(-18 + Math.max(0, Math.min(1, velocity)) * 18, time);
+        v.synth.triggerAttack(note, time);
+        v.activeNote = note;
+        v.lastAttackTime = time;
+    }
+
+    _releaseOne(note, time) {
+        for (let i = this._voices.length - 1; i >= 0; i--) {
+            if (this._voices[i].activeNote === note) {
+                this._voices[i].synth.triggerRelease(time);
+                this._voices[i].activeNote = null;
+                return;
+            }
+        }
+    }
+
+    // Même surface que Tone.PolySynth (voir schedulePlayback/registerTapDown-Up/previewSeqNote) :
+    // note(s) unique(s) ou tableau, jamais distingué ailleurs dans le code appelant.
+    triggerAttack(notes, time, velocity) {
+        (Array.isArray(notes) ? notes : [notes]).forEach(n => this._attackOne(n, time, velocity));
+        return this;
+    }
+
+    triggerRelease(notes, time) {
+        (Array.isArray(notes) ? notes : [notes]).forEach(n => this._releaseOne(n, time));
+        return this;
+    }
+
+    triggerAttackRelease(notes, duration, time, velocity) {
+        (Array.isArray(notes) ? notes : [notes]).forEach(n => {
+            this._attackOne(n, time, velocity);
+            this._releaseOne(n, time + duration);
+        });
+        return this;
+    }
+
+    releaseAll(time) {
+        const t = time != null ? time : Tone.now();
+        this._voices.forEach(v => { if (v.activeNote != null) { v.synth.triggerRelease(t); v.activeNote = null; } });
+        return this;
+    }
+}
 
 // Chaque build(masterBus) construit SON PROPRE filtre/effet/volume et se chaîne jusqu'à masterBus
 // (jamais .toDestination() directement, voir getMasterBus) : la sortie de chaque instrument passe donc
@@ -1593,6 +1705,34 @@ const INSTRUMENT_BANKS = {
             const volume = new Tone.Volume(INSTRUMENT_TRIM_DB.organ);
             synth.chain(filter, chorus, volume, masterBus);
             return synth;
+        }
+    },
+    // Guitare synthétisée (voir GuitarPluckPool ci-dessus) : chaque voix EST une corde physiquement
+    // modélisée (Karplus-Strong), pas un simple oscillateur filtré comme les 3 instruments ci-dessus —
+    // approche différente, volontairement plus proche du geste réel (pincement + amortissement d'une
+    // corde) que d'un synthé classique. Pas de chorus (contrairement à Nappe/Cordes/Orgue) : une
+    // guitare non traitée n'en a pas, en ajouter aurait cassé l'effet "instrument acoustique sec".
+    guitarSynth: {
+        label: 'Guitare (synthé)',
+        build: (masterBus) => {
+            const VOICE_COUNT = 12; // au-delà des 6 cordes : marge pour accords étendus/notes liées qui se chevauchent
+            const voices = [];
+            for (let i = 0; i < VOICE_COUNT; i++) {
+                const synth = new Tone.PluckSynth();
+                const gain = new Tone.Volume(0); // vélocité par voix, voir GuitarPluckPool._attackOne
+                synth.connect(gain);
+                voices.push({ synth, gain, activeNote: null, lastAttackTime: null });
+            }
+            // Bus commun À TOUTES les voix (comme filter/chorus/volume des autres instruments) : un
+            // passe-bas modéré adoucit le côté "numérique" du Karplus-Strong brut, un léger creux/bosse
+            // façon caisse de résonance (bas médium chaleureux, sans excès) rappelle le corps d'une
+            // guitare — beaucoup plus discret qu'un vrai chorus, volontairement.
+            const bodyLowpass = new Tone.Filter({ type: 'lowpass', frequency: 6500, Q: 0.5 });
+            const bodyWarmth = new Tone.Filter({ type: 'peaking', frequency: 150, Q: 1, gain: 3 });
+            const volume = new Tone.Volume(INSTRUMENT_TRIM_DB.guitarSynth);
+            bodyLowpass.chain(bodyWarmth, volume, masterBus);
+            voices.forEach(v => v.gain.connect(bodyLowpass));
+            return new GuitarPluckPool(voices);
         }
     }
 };
