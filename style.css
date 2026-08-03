@@ -2110,11 +2110,16 @@ button:active { transform: translateY(1px); }
 }
 
 /* Fond en rgba (pas un aplat marron distinct) : reste un simple voile translucide sur la case, quel
-   que soit son fond d'origine — cohérent avec le contour, déjà en rgba, et moins "lourd" à l'œil. */
+   que soit son fond d'origine — cohérent avec le contour, déjà en rgba, et moins "lourd" à l'œil.
+   Opacité relevée (0.075 -> 0.16) et anneau épaissi (1px -> 2px) : la version précédente, trop
+   discrète, ne se voyait quasiment plus une fois l'accord ouvert directement dans la loupe grille
+   (voir openGridZoom) sans être AUSSI sélectionné (.selected, vert, plein) — retour utilisateur :
+   "je ne sais pas lequel je suis en train de regarder". Reste un voile translucide (jamais un aplat
+   plein comme .selected), juste assez appuyé pour rester repérable seul. */
 .grid-cell.editing {
-    background-color: rgba(255, 179, 0, 0.075);
-    border-color: rgba(255, 179, 0, 0.5);
-    box-shadow: inset 0 0 0 1px rgba(255, 179, 0, 0.32), 0 0 7px rgba(255, 179, 0, 0.14);
+    background-color: rgba(255, 179, 0, 0.16);
+    border-color: rgba(255, 179, 0, 0.75);
+    box-shadow: inset 0 0 0 2px rgba(255, 179, 0, 0.5), 0 0 10px rgba(255, 179, 0, 0.2);
     z-index: 2;
 }
 
