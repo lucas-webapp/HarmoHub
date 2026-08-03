@@ -54,7 +54,11 @@ const ICONS = {
     // au-dessus, une flèche vers le bas, une barre en pointillés (la ligne cible qui va la recevoir)
     // en dessous — plus explicite que l'ancienne icône de pipette/goutte (retour utilisateur : "je
     // n'aime pas ce logo, pas assez compréhensible").
-    seqRowPipette: '<rect x="2" y="5" width="11" height="4" rx="1" fill="currentColor" stroke="none"/><path d="M19 7v10"/><path d="m16 14 3 3 3-3"/><rect x="2" y="16" width="11" height="4" rx="1" stroke-dasharray="2 2"/>'
+    seqRowPipette: '<rect x="2" y="5" width="11" height="4" rx="1" fill="currentColor" stroke="none"/><path d="M19 7v10"/><path d="m16 14 3 3 3-3"/><rect x="2" y="16" width="11" height="4" rx="1" stroke-dasharray="2 2"/>',
+    // Bouton "Conduite de voix" (voir toggleVoiceLeadingPanel) : 4 barres de hauteurs différentes,
+    // façon piano-roll — se lit comme "plusieurs voix empilées dans le temps", cohérent avec ce que
+    // le panneau affiche une fois ouvert.
+    voiceLeading: '<path d="M4 18V6M9 18V3M14 18v-9M19 18v-5"/>'
 };
 
 // Rendu HTML d'une icône (name doit exister dans ICONS) ; extraClass optionnel pour la taille/marge
@@ -1994,6 +1998,11 @@ class HarmoHubApp {
         this.seqOpen = false;      // panneau séquenceur ouvert ou non (indépendant du style de lecture)
         this.seqZoomOpen = false;  // fenêtre agrandie du séquenceur ouverte ou non (voir openSeqZoom)
         this.gridZoomOpen = false; // fenêtre agrandie de la grille d'accords ouverte ou non (voir openGridZoom)
+        // Panneaux "Conduite de voix" ouverts (voir toggleVoiceLeadingPanel/buildVoiceLeadingPanelHtml) —
+        // un Set d'index de PARTIES (pas un booléen unique) : chaque partie a le sien, indépendamment des
+        // autres. Volontairement pas persisté (comme gridZoomOpen/seqOpen) : état d'affichage de la
+        // session, pas une donnée du morceau.
+        this.voiceLeadingOpen = new Set();
         // Échelles horizontale/verticale (1 = taille normale), INDÉPENDANTES l'une de l'autre, des deux
         // fenêtres agrandies ci-dessus — réglables une fois ouvertes via les boutons dédiés ou
         // Ctrl+molette/Ctrl+Maj+molette (voir adjustZoom) — mémorisées d'une session à l'autre comme
@@ -4483,17 +4492,29 @@ class HarmoHubApp {
             const canMoveUp = si > 0;
             const canMoveDown = si < sections.length - 1;
             const measureCountEl = history.length > 0 ? `<span class="prog-section-measures">${sectionMeasureCount(sec, beatsPerBar)} mes.</span>` : '';
+            // Conduite de voix : un panneau par partie (pas un seul global), inutile en dessous de 2
+            // accords (rien à enchaîner) — voir buildVoiceLeadingPanelHtml/toggleVoiceLeadingPanel.
+            const voiceLeadingAvailable = history.length >= 2;
+            const voiceLeadingIsOpen = this.voiceLeadingOpen.has(si);
+            const voiceLeadingBtn = voiceLeadingAvailable
+                ? `<button type="button" class="prog-section-tool prog-section-voice-leading${voiceLeadingIsOpen ? ' active' : ''}" data-section="${si}" title="Conduite de voix" aria-label="Conduite de voix" aria-pressed="${voiceLeadingIsOpen}">${svgIcon('voiceLeading')}</button>`
+                : '';
+            const voiceLeadingPanel = (voiceLeadingAvailable && voiceLeadingIsOpen)
+                ? this.buildVoiceLeadingPanelHtml(si, history, gRoot, gMode, useFlats)
+                : '';
             return `
             <div class="prog-section">
                 <div class="prog-section-head">
                     <input type="text" class="prog-title" data-section="${si}" placeholder="Section" value="${titleVal}">
                     ${measureCountEl}
+                    ${voiceLeadingBtn}
                     ${canMoveUp ? `<button type="button" class="prog-section-tool prog-section-move-up" data-section="${si}" title="Monter cette partie" aria-label="Monter cette partie">${svgIcon('up')}</button>` : ''}
                     ${canMoveDown ? `<button type="button" class="prog-section-tool prog-section-move-down" data-section="${si}" title="Descendre cette partie" aria-label="Descendre cette partie">${svgIcon('down')}</button>` : ''}
                     <button type="button" class="icon-btn prog-section-duplicate" data-section="${si}" title="Dupliquer cette partie" aria-label="Dupliquer cette partie">${svgIcon('duplicate')}</button>
                     ${canDelete ? `<button type="button" class="prog-section-del" data-section="${si}" title="Supprimer cette partie" aria-label="Supprimer cette partie">${svgIcon('trash')}</button>` : ''}
                 </div>
                 <div class="chord-grid" data-section="${si}" data-beats-per-row="${beatsPerRowFor(beatsPerBar, this.gridZoomOpen, this.currentGridHZoom())}" style="${gridStyle}">${gridInner}</div>
+                ${voiceLeadingPanel}
             </div>`;
         }).join('');
 
@@ -4513,6 +4534,9 @@ class HarmoHubApp {
         });
         host.querySelectorAll('.prog-section-duplicate').forEach(btn => {
             btn.onclick = (e) => { e.stopPropagation(); this.duplicateSection(+btn.dataset.section); };
+        });
+        host.querySelectorAll('.prog-section-voice-leading').forEach(btn => {
+            btn.onclick = (e) => { e.stopPropagation(); this.toggleVoiceLeadingPanel(+btn.dataset.section); };
         });
         // Clic droit (ordinateur) / appui long (tactile) sur un accord : menu Modifier/Dupliquer/
         // Supprimer — remplace les petits boutons ✎/⧉ jusque-là superposés à la case (illisibles et
@@ -4542,6 +4566,121 @@ class HarmoHubApp {
         this.updateGridPlayhead(this.playheadSection, this.playheadIndex);
         this.fitCellSymbols(host);
         this.updatePlayButtonsForLoopRange();
+    }
+
+    // Ouvre/ferme le panneau "Conduite de voix" d'UNE partie (voir buildVoiceLeadingPanelHtml). Simple
+    // bascule d'état + rappel de loadProgression : le panneau n'existe dans le HTML QUE quand il est
+    // ouvert (voir voiceLeadingPanel dans loadProgression), donc pas besoin d'un mécanisme séparé pour
+    // masquer/afficher — un ré-rendu complet de la grille est de toute façon déjà ce que fait tout
+    // autre bouton de cette rangée (dupliquer/monter/descendre une partie).
+    toggleVoiceLeadingPanel(si) {
+        if (this.voiceLeadingOpen.has(si)) this.voiceLeadingOpen.delete(si);
+        else this.voiceLeadingOpen.add(si);
+        this.loadProgression();
+    }
+
+    // Piano-roll continu de TOUTE une partie (pas accord par accord comme le séquenceur) : chaque
+    // accord de `history` est voisé (Chord.getVoiced(), triée du grave à l'aigu, mêmes rôles/couleurs
+    // que le clavier/le PDF) et posé côte à côte, largeur proportionnelle à sa durée réelle (h.beats).
+    // Des traits relient chaque voix à la voix de même rang (après tri par hauteur) de l'accord
+    // suivant — une ligne PLEINE et épaisse marque une note commune tenue (aucun mouvement), une ligne
+    // fine en pointillés un déplacement. Objectif : rendre visible d'un coup d'œil ce qui, dans la
+    // grille elle-même, ne se voit qu'accord par accord — notes tenues, mouvements parallèles, sauts.
+    // Accords de tailles différentes (triade à côté d'une 7e, extensions, basse séparée...) : relie
+    // seulement jusqu'au plus petit des deux nombres de voix (en partant du grave), les voix en trop
+    // de l'accord le plus fourni restent sans trait — approximation simple mais correcte dans
+    // l'immense majorité des cas.
+    buildVoiceLeadingPanelHtml(si, history, gRoot, gMode, useFlats) {
+        const PX_PER_BEAT = 56, ROW_H = 18, KEY_GUTTER = 40, PAD_TOP = 30, PAD_BOTTOM = 14;
+        const ROLE_GRADIENT = {
+            root: ['#3fe3a0', '#00a855'], third: ['#5b98f0', '#1f5fc0'],
+            fifth: ['#ff6f66', '#d42a20'], seventh: ['#ffc247', '#cc8f00'], ext: ['#dba8ee', '#c48ce6'],
+        };
+
+        const chordsInfo = history.map(h => {
+            const beats = beatsFromData(h);
+            const chord = new Chord(h.root, h.quality, beats, h.inversion, h.drop, octaveFromData(h), h.bass, h.guitarLock, h.extraNotes);
+            const chordUseFlats = useFlatsForChordRoot(NOTES.indexOf(h.root), NOTES.indexOf(gRoot), gMode, useFlats);
+            let symbol = noteNameForPc(NOTES.indexOf(h.root), chordUseFlats) + (QUALITY_LABEL[h.quality] ?? '');
+            if (h.bass) symbol += '/' + noteNameForPc(NOTES.indexOf(h.bass), chordUseFlats);
+            const roman = this.getRomanNumeral(gRoot, gMode, h.root, h.quality);
+            const voiced = chord.getVoiced(); // déjà triée du grave à l'aigu
+            const labeled = voiced.map(v => ({ ...v, label: spellChordTone(NOTES.indexOf(h.root), chordUseFlats, v.degree, v.midi, false) }));
+            return { beats, width: beats * PX_PER_BEAT, symbol, roman, voiced: labeled };
+        });
+
+        const allMidis = chordsInfo.flatMap(c => c.voiced.map(v => v.midi));
+        if (allMidis.length === 0) return '';
+        const minMidi = Math.min(...allMidis) - 1, maxMidi = Math.max(...allMidis) + 1;
+        const rows = maxMidi - minMidi + 1;
+        const totalWidth = KEY_GUTTER + chordsInfo.reduce((sum, c) => sum + c.width, 0);
+        const height = PAD_TOP + rows * ROW_H + PAD_BOTTOM;
+        const yFor = (midi) => PAD_TOP + (maxMidi - midi) * ROW_H;
+        const gid = (role) => `vlg-${si}-${role}`; // ids UNIQUES par partie : plusieurs panneaux peuvent
+                                                     // coexister dans le DOM (voir le bug corrigé sur la
+                                                     // maquette — des ids d'SVG dupliqués cassent le
+                                                     // rendu des dégradés dès qu'une copie est masquée).
+
+        let svg = `<svg viewBox="0 0 ${totalWidth} ${height}" width="${totalWidth}" height="${height}" role="img" aria-label="Conduite de voix">`;
+        svg += `<defs>${Object.entries(ROLE_GRADIENT).map(([role, [c1, c2]]) => `
+            <linearGradient id="${gid(role)}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient>`).join('')}</defs>`;
+
+        // touches de piano en repère (fond alterné + étiquette sur les Do)
+        for (let m = minMidi; m <= maxMidi; m++) {
+            const isBlack = [1, 3, 6, 8, 10].includes(((m % 12) + 12) % 12);
+            svg += `<rect x="0" y="${yFor(m)}" width="${KEY_GUTTER}" height="${ROW_H}" fill="${isBlack ? '#111' : '#1b1b1b'}" stroke="#0a0a0a" stroke-width="0.5"/>`;
+            if (m % 12 === 0) svg += `<text x="${KEY_GUTTER - 6}" y="${yFor(m) + ROW_H / 2 + 3}" font-size="9" fill="#7a7a7a" text-anchor="end" font-family="ui-monospace, monospace">C${Math.floor(m / 12) - 1}</text>`;
+        }
+        for (let m = minMidi; m <= maxMidi; m++) {
+            svg += `<rect x="${KEY_GUTTER}" y="${yFor(m)}" width="${totalWidth - KEY_GUTTER}" height="${ROW_H}" fill="${m % 12 === 0 ? '#161616' : 'transparent'}"/>`;
+            svg += `<line x1="${KEY_GUTTER}" x2="${totalWidth}" y1="${yFor(m)}" y2="${yFor(m)}" stroke="#232323" stroke-width="1"/>`;
+        }
+
+        // en-têtes d'accord + séparateurs
+        let x = KEY_GUTTER;
+        chordsInfo.forEach((c, i) => {
+            svg += `<line x1="${x}" x2="${x}" y1="6" y2="${height - PAD_BOTTOM}" stroke="#2c2c2c" stroke-width="${i === 0 ? 0 : 1}"/>`;
+            svg += `<text x="${x + c.width / 2}" y="16" font-size="12.5" font-weight="800" fill="#e0e0e0" text-anchor="middle">${escapeHtml(c.symbol)}</text>`;
+            if (c.roman) svg += `<text x="${x + c.width / 2}" y="27" font-size="9" font-weight="700" fill="#6b6b6b" text-anchor="middle">${escapeHtml(c.roman)}</text>`;
+            x += c.width;
+        });
+        svg += `<line x1="${x}" x2="${x}" y1="6" y2="${height - PAD_BOTTOM}" stroke="#2c2c2c" stroke-width="1"/>`;
+
+        // lignes de conduite de voix
+        x = KEY_GUTTER;
+        for (let i = 0; i < chordsInfo.length - 1; i++) {
+            const a = chordsInfo[i].voiced, b = chordsInfo[i + 1].voiced;
+            const xEnd = x + chordsInfo[i].width - 4, xStart = x + chordsInfo[i].width + 4;
+            for (let v = 0; v < Math.min(a.length, b.length); v++) {
+                const y1 = yFor(a[v].midi) + ROW_H / 2, y2 = yFor(b[v].midi) + ROW_H / 2;
+                const flat = a[v].midi === b[v].midi;
+                svg += `<line x1="${xEnd}" y1="${y1}" x2="${xStart}" y2="${y2}" stroke="${flat ? '#4a4a4a' : '#5a5a5a'}" stroke-width="${flat ? 2.5 : 1.6}" stroke-dasharray="${flat ? 'none' : '3,2'}"/>`;
+            }
+            x += chordsInfo[i].width;
+        }
+
+        // notes (par-dessus les lignes de conduite)
+        x = KEY_GUTTER;
+        chordsInfo.forEach(c => {
+            c.voiced.forEach(v => {
+                svg += `<rect x="${x + 3}" y="${yFor(v.midi) + 2}" width="${c.width - 6}" height="${ROW_H - 4}" rx="5" fill="url(#${gid(v.role)})" stroke="rgba(0,0,0,0.35)"/>`;
+                svg += `<text x="${x + 10}" y="${yFor(v.midi) + ROW_H / 2 + 3.5}" font-size="9.5" font-weight="700" fill="#06170f" font-family="ui-monospace, monospace">${escapeHtml(v.label)}</text>`;
+            });
+            x += c.width;
+        });
+        svg += `</svg>`;
+
+        return `
+        <div class="voice-leading-panel" data-section="${si}">
+            <div class="piano-legend voice-leading-legend">
+                <span class="lg"><span class="dot dot-root"></span>1</span>
+                <span class="lg"><span class="dot dot-third"></span>3</span>
+                <span class="lg"><span class="dot dot-fifth"></span>5</span>
+                <span class="lg"><span class="dot dot-seventh"></span>7</span>
+                <span class="lg"><span class="dot dot-ext"></span>Autres</span>
+            </div>
+            <div class="voice-leading-scroll">${svg}</div>
+        </div>`;
     }
 
     // Une plage à boucler (bande orange/dorée glissée sur les numéros de mesure, voir setLoopRange)
@@ -4739,8 +4878,11 @@ class HarmoHubApp {
         else if (this.activeSection > s) this.activeSection--;
         this.selectedIndex = null;
         // Une partie supprimée décale les index des suivantes : plus sûr de redéfinir la plage à
-        // boucler (si elle existe) que de tenter de la remapper.
+        // boucler (si elle existe) que de tenter de la remapper. Même raisonnement pour les panneaux
+        // "Conduite de voix" ouverts (indexés par partie, voir voiceLeadingOpen) : les refermer tous
+        // plutôt que risquer d'en laisser un ouvert sur la MAUVAISE partie après le décalage.
         if (this.loopRange) this.loopRange = null;
+        this.voiceLeadingOpen.clear();
 
         this.loadProgression();
         this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
@@ -4760,8 +4902,10 @@ class HarmoHubApp {
         this.activeSection = s + 1;
         this.selectedIndex = null;
         // Une partie insérée décale les index des suivantes : plus sûr de redéfinir la plage à boucler
-        // (si elle existe) que de tenter de la remapper.
+        // (si elle existe) que de tenter de la remapper — même chose pour les panneaux "Conduite de
+        // voix" ouverts (voir deleteSection).
         if (this.loopRange) this.loopRange = null;
+        this.voiceLeadingOpen.clear();
         this.loadProgression();
         this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
     }
@@ -4780,8 +4924,14 @@ class HarmoHubApp {
         else if (this.activeSection === t) this.activeSection = s;
         this.selectedIndex = null;
         // Comme pour supprimer/dupliquer une partie : plus sûr de redéfinir la plage à boucler (si
-        // elle existe) que de tenter de la remapper après cet échange.
+        // elle existe) que de tenter de la remapper après cet échange. Panneaux "Conduite de voix" :
+        // un simple échange d'index suffit à les garder cohérents (contrairement à insérer/supprimer,
+        // ici aucune autre partie n'est décalée).
         if (this.loopRange) this.loopRange = null;
+        const hadS = this.voiceLeadingOpen.has(s), hadT = this.voiceLeadingOpen.has(t);
+        this.voiceLeadingOpen.delete(s); this.voiceLeadingOpen.delete(t);
+        if (hadS) this.voiceLeadingOpen.add(t);
+        if (hadT) this.voiceLeadingOpen.add(s);
         this.loadProgression();
         this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
     }

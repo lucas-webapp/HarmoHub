@@ -2005,6 +2005,40 @@ button:active { transform: translateY(1px); }
     background: rgba(255, 90, 80, 0.1);
 }
 
+/* État "ouvert" du panneau Conduite de voix (voir toggleVoiceLeadingPanel) : même vert "actif" que
+   .icon-btn.active ailleurs dans l'appli (panneau séquenceur, verrouillage guitare...), pour rester
+   cohérent malgré le style plat propre à cette rangée (.prog-section-tool). */
+.prog-section-voice-leading.active {
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
+    color: var(--btn-text);
+    border-color: var(--btn-green-border);
+}
+.prog-section-voice-leading.active:hover {
+    border-color: var(--btn-green-border-hover);
+}
+
+/* Panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) : piano-roll continu de toute la
+   partie, sous la grille elle-même (jamais au-dessus, pour ne pas déplacer la grille qu'on est en
+   train de modifier à chaque ouverture/fermeture — retour utilisateur sur la maquette). */
+.voice-leading-panel {
+    margin-top: 10px;
+    padding: 10px 12px 12px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+/* Reprend .piano-legend (même légende 1/3/5/7/Autres que sous le clavier) mais alignée à gauche,
+   pas centrée : ce panneau n'est pas sous un clavier centré, juste au-dessus d'un piano-roll. */
+.voice-leading-legend {
+    justify-content: flex-start;
+    margin-top: 0;
+}
+.voice-leading-scroll {
+    overflow-x: auto;
+    border-radius: 8px;
+}
+.voice-leading-scroll svg { display: block; }
+
 .add-section-btn {
     width: 100%;
     margin-top: 4px;
