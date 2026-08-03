@@ -3087,11 +3087,18 @@ class HarmoHubApp {
         this.commitLiveEdit(false); // n'affecte pas le symbole affiché dans la case
     }
 
+    // Appelée UNIQUEMENT par stopAll() — donc à CHAQUE lecture (avant même de démarrer la suivante,
+    // pas seulement sur un vrai clic Stop, voir playCurrent/playSavedChord/playProgression) : efface
+    // juste l'AFFICHAGE (redessiné juste après par le ensureGuitarDiagram qui suit systématiquement,
+    // même principe que clearViz() pour le clavier), jamais this.guitarLock lui-même — ce dernier est
+    // l'état de l'ÉDITION EN COURS (propre à exitEditMode, seul à décider quand il n'a plus lieu
+    // d'être), pas un sous-produit de la lecture. Bug corrigé : remettre ici this.guitarLock à null
+    // l'effaçait juste après chaque restauration par editChord (elle-même suivie d'un aperçu audio
+    // automatique, donc d'un stopAll()), rendant le cadenas visuellement inopérant dans l'usage réel.
     clearGuitarViz() {
         this.guitarKey = null;
         this.guitarFingerings = [];
         this.guitarFingeringIndex = 0;
-        this.guitarLock = null;
         this.guitarDisplayLock = null;
         const viz = document.getElementById('guitar-viz');
         if (viz) viz.innerHTML = '';
