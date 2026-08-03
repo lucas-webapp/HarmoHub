@@ -10685,7 +10685,7 @@ class HarmoHubApp {
         }
         this.seqRowPipette = this.seqSelections.map(s => ({ start: s.start, end: s.end }));
         this.renderSequencer();
-        this.flashHint('Motif prélevé — clique une ligne du séquenceur pour l\'y appliquer (Échap pour annuler)');
+        this.flashHint('Motif copié');
     }
 
     // Dépose le motif prélevé (voir toggleSeqRowPipette) sur `targetVoice`, une autre voix du MÊME
