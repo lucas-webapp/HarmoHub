@@ -2682,9 +2682,17 @@ class HarmoHubApp {
             // utilisateur : « le cadenas ne fonctionne plus »).
             const inEditor = inPath('.col-left') || inPath('.grid-zoom-modal') || inPath('.seq-zoom-modal')
                 || inPath('.chord-header-row') || inPath('.viz-wrap');
+            // Boutons qui OUVRENT une vue agrandie depuis l'accord déjà sélectionné/en édition (voir
+            // openGridZoom/openSeqZoom, appelés par LEUR PROPRE onclick avant que ce même clic ne
+            // remonte jusqu'ici) : #grid-zoom-modal/#seq-zoom-modal n'existent pas encore dans le
+            // chemin du clic à cet instant (le bouton qui les ouvre vit EN DEHORS, jamais dedans), donc
+            // inEditor ci-dessus ne les reconnaît pas — sans cette exception, ce même clic désélectionnait
+            // aussitôt l'accord ET refermait l'édition tout juste rouverte par ce bouton (retour
+            // utilisateur : "je ne vois plus la surbrillance" après avoir ouvert la loupe).
+            const opensZoomView = inPath('#grid-zoom') || inPath('#seq-zoom');
             let changed = false;
-            if (!inGrid && !inMenu && this.selectedIndex != null) { this.selectedIndex = null; changed = true; }
-            if (!inGrid && !inMenu && !inEditor && this.editingIndex != null) { this.exitEditMode(); changed = true; }
+            if (!opensZoomView && !inGrid && !inMenu && this.selectedIndex != null) { this.selectedIndex = null; changed = true; }
+            if (!opensZoomView && !inGrid && !inMenu && !inEditor && this.editingIndex != null) { this.exitEditMode(); changed = true; }
             if (changed) this.loadProgression();
         });
 
