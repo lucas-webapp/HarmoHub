@@ -1495,7 +1495,7 @@ const INSTRUMENT_TRIM_DB = {
     pad: -16,
     strings: -16,
     organ: -18,
-    guitarSynth: -4,
+    guitarSynth: -6,
 };
 
 // Pincement de corde physiquement modélisé (Karplus-Strong : une salve de bruit excite une ligne à
@@ -1509,10 +1509,29 @@ const INSTRUMENT_TRIM_DB = {
 // idée qu'un PolySynth : un petit pool de cordes (PluckSynth) physiques, chacune avec son propre volume
 // (pour la vélocité, que PluckSynth.triggerAttack ignore nativement), qu'on s'attribue à la demande —
 // une voix libre en priorité, sinon la plus ancienne (vol classique), comme le ferait un vrai PolySynth.
+//
+// Deux retouches suite au retour "le son doit s'atténuer au cours du temps" + "ajoute les fréquences
+// parasites comme une vraie guitare (un amas de notes jouées mais faible)" :
+// 1) Une rampe de volume (v.gain) démarrée à CHAQUE attaque fait décroître le niveau pendant que la
+//    note sonne — le paramètre "resonance" du Karplus-Strong seul seul ne suffisait pas à rendre cette
+//    décroissance clairement audible sur la durée d'une note tenue, elle sonnait presque "plate" jusqu'à
+//    la coupure. _releaseOne calcule où cette rampe en est rendue (impossible de lire un Tone.Param
+//    "dans le futur" avec .value) pour repartir de LÀ plutôt que du pic, cohérent avec l'endroit où
+//    le son est déjà rendu.
+// 2) _attackHarmonics déclenche, en plus de la fondamentale, 1-2 harmoniques (octave, octave+quinte)
+//    très faibles sur un pool SÉPARÉ et dédié : une vraie corde pincée vibre aussi sur ses harmoniques
+//    et fait vibrer un peu les cordes voisines par sympathie, d'où ce léger "amas" de fréquences
+//    autour de la fondamentale plutôt qu'un ton pur synthétique. Amortissement plus rapide pour les
+//    harmoniques les plus hautes (l'amortissement réel d'une corde augmente avec la fréquence — c'est
+//    d'ailleurs ce qui rend le timbre d'une corde pincée plus "chaud" à mesure qu'elle s'éteint).
+const GUITAR_HARMONIC_INTERVALS = [12, 19]; // octave, puis octave+quinte (2e et 3e partiels)
+
 class GuitarPluckPool {
-    constructor(voices) {
+    constructor(voices, harmonics) {
         this._voices = voices; // [{ synth: Tone.PluckSynth, gain: Tone.Volume, activeNote }, ...]
+        this._harmonics = harmonics; // pool séparé et dédié aux harmoniques (jamais volé aux vraies notes)
         this._stealCursor = 0;
+        this._harmCursor = 0;
     }
 
     // Aucune notion de corde/manche à ce niveau (schedulePlayback ne travaille que sur des noms de
@@ -1523,10 +1542,25 @@ class GuitarPluckPool {
     _physicalParamsForNote(note) {
         const midi = Tone.Frequency(note).toMidi();
         const t = Math.max(0, Math.min(1, (midi - 40) / (88 - 40))); // 0 = grave (E2), 1 = aigu (E6)
+        const freq = Tone.Frequency(note).toFrequency();
+        // Karplus-Strong : la ligne à retard rebalaie sa boucle de rétroaction "resonance" une fois par
+        // PÉRIODE du son (donc ~f fois par seconde) — pour une même durée réelle d'extinction, une corde
+        // grave (peu d'allers-retours par seconde) a donc besoin d'un "resonance" encore PLUS proche de 1
+        // qu'une corde aiguë, pas moins (contre-intuitif, vérifié empiriquement : resonance=0.95 tue déjà
+        // une corde en ~0.5s, bien avant même que le premier retour d'utilisateur — "ça ne s'atténue pas
+        // dans le temps" — ait eu la moindre chance de s'appliquer à une extinction trop brutale). On vise
+        // ici un sustain réel de ~3.5s (grave) à ~1.3s (aigu) avant de retomber à -40dB, en résolvant
+        // resonance^(f·T) = 10^(-2) pour chaque hauteur.
+        const sustainSeconds = 3.5 - t * 2.2;
+        const resonance = Math.pow(10, -2 / (freq * sustainSeconds));
         return {
             dampening: 3200 + t * 5800,   // grave = plus mat (peu d'aigus), aigu = plus clair/brillant
-            resonance: 0.965 - t * 0.11,  // grave = sustain plus long, aigu = s'éteint plus vite
+            resonance,                     // voir calcul ci-dessus : grave sustain plus long qu'aigu
             attackNoise: 1.25 - t * 0.45, // grave = attaque (bruit d'excitation) un peu plus longue
+            release: 1.3 - t * 0.7,       // relâché : grave s'éteint plus lentement qu'aigu
+            decayTime: sustainSeconds,    // durée de la décroissance de volume pendant que ça sonne
+            fadeDb: 8 + t * 3,            // léger creux SUPPLÉMENTAIRE sur cette durée (l'essentiel de la
+                                            // décroissance vient déjà de resonance ci-dessus, pas de ce fondu)
         };
     }
 
@@ -1539,44 +1573,98 @@ class GuitarPluckPool {
     // et _releaseOne (ci-dessous) libérait activeNote SYNCHRONEMENT avant même que ce même instant
     // `t` soit entièrement traité, laissant une voix tout juste utilisée se faire piquer par la note
     // suivante du même accord — d'où ce garde-fou sur lastAttackTime, pas seulement activeNote.
-    _freeVoiceIndex(time) {
-        const eligible = this._voices
+    // Partagé par le pool principal ET le pool d'harmoniques (mêmes contraintes Tone.js pour les deux).
+    _pickVoice(pool, cursorKey, time) {
+        const eligible = pool
             .map((v, i) => i)
-            .filter(i => this._voices[i].lastAttackTime == null || this._voices[i].lastAttackTime < time);
+            .filter(i => pool[i].lastAttackTime == null || pool[i].lastAttackTime < time);
         if (eligible.length === 0) {
             // Polyphonie extrême (plus de voix que de cordes disponibles au MÊME instant) : force la
             // plus ancienne malgré tout — Tone.js lèvera son erreur, attrapée plus haut par
             // schedulePlayback (cette seule note manquera, sans interrompre le reste de la lecture),
             // exactement comme un vrai PolySynth arrivé à sa polyphonie max perdrait une note.
-            const i = this._stealCursor;
-            this._stealCursor = (this._stealCursor + 1) % this._voices.length;
+            const i = this[cursorKey];
+            this[cursorKey] = (this[cursorKey] + 1) % pool.length;
             return i;
         }
-        const free = eligible.find(i => this._voices[i].activeNote == null);
+        const free = eligible.find(i => pool[i].activeNote == null);
         if (free != null) return free;
-        eligible.sort((a, b) => this._voices[a].lastAttackTime - this._voices[b].lastAttackTime);
+        eligible.sort((a, b) => pool[a].lastAttackTime - pool[b].lastAttackTime);
         return eligible[0];
     }
 
     _attackOne(note, time, velocity = 1) {
-        const v = this._voices[this._freeVoiceIndex(time)];
+        const v = this._voices[this._pickVoice(this._voices, '_stealCursor', time)];
         const p = this._physicalParamsForNote(note);
         v.synth.dampening = p.dampening;
         v.synth.resonance = p.resonance;
         v.synth.attackNoise = p.attackNoise;
+        v.synth.release = p.release;
         // PluckSynth.triggerAttack (voir tone.min.js) ignore la vélocité qu'on lui passe : c'est ce
         // volume par voix, réglé juste avant, qui restitue la dynamique du jeu (grave doigt/pincement).
-        v.gain.volume.setValueAtTime(-18 + Math.max(0, Math.min(1, velocity)) * 18, time);
+        const peakDb = -18 + Math.max(0, Math.min(1, velocity)) * 18;
+        v.gain.volume.cancelScheduledValues(time);
+        v.gain.volume.setValueAtTime(peakDb, time);
+        // La décroissance audible pendant que la note sonne : le Karplus-Strong seul (resonance)
+        // ne suffisait pas à la rendre nette à l'oreille, voir commentaire de classe.
+        v.gain.volume.linearRampToValueAtTime(peakDb - p.fadeDb, time + p.decayTime);
         v.synth.triggerAttack(note, time);
         v.activeNote = note;
         v.lastAttackTime = time;
+        v._peakDb = peakDb;
+        v._fadeDb = p.fadeDb;
+        v._decayTime = p.decayTime;
+        v._release = p.release;
+        this._attackHarmonics(note, time, velocity);
+    }
+
+    // Amas de fréquences parasites (harmoniques + sympathie des cordes voisines) sur un pool séparé,
+    // volume faible, amortissement d'autant plus rapide que l'harmonique est haute — voir commentaire
+    // de classe. Purement décoratif : une voix d'harmonique indisponible (accords très denses) est
+    // simplement sautée, jamais critique pour la note réellement jouée.
+    _attackHarmonics(note, time, velocity) {
+        const midi = Tone.Frequency(note).toMidi();
+        GUITAR_HARMONIC_INTERVALS.forEach((interval, idx) => {
+            const hMidi = midi + interval;
+            if (hMidi > 108) return; // hors du registre utile, inaudible/parasite pour rien
+            const hNote = Tone.Frequency(hMidi, 'midi').toNote();
+            const h = this._harmonics[this._pickVoice(this._harmonics, '_harmCursor', time)];
+            h.synth.dampening = 5200 + idx * 1400;
+            h.synth.resonance = 0.7 - idx * 0.12;
+            h.synth.attackNoise = 0.55;
+            h.synth.release = 0.5;
+            const fadeTime = 0.55 - idx * 0.15;
+            const peakDb = -30 - idx * 7 + Math.max(0, Math.min(1, velocity)) * 10;
+            h.gain.volume.cancelScheduledValues(time);
+            h.gain.volume.setValueAtTime(peakDb, time);
+            h.gain.volume.linearRampToValueAtTime(-70, time + fadeTime);
+            try {
+                h.synth.triggerAttack(hNote, time);
+                h.lastAttackTime = time;
+            } catch (e) { /* voix d'harmonique indisponible : tant pis, effet décoratif seulement */ }
+        });
+    }
+
+    // Calcule où en est déjà la rampe de décroissance démarrée à l'attaque (on ne peut pas lire un
+    // Tone.Param "dans le futur" avec .value) pour amorcer l'extinction depuis LÀ, pas depuis le pic —
+    // sinon relâcher une note déjà bien décrue la ferait repartir plus fort just avant de s'éteindre.
+    _scheduleReleaseFade(v, time) {
+        if (v._peakDb == null) return;
+        const elapsed = Math.max(0, time - (v.lastAttackTime != null ? v.lastAttackTime : time));
+        const frac = v._decayTime ? Math.min(1, elapsed / v._decayTime) : 1;
+        const currentDb = v._peakDb - v._fadeDb * frac;
+        v.gain.volume.cancelScheduledValues(time);
+        v.gain.volume.setValueAtTime(currentDb, time);
+        v.gain.volume.linearRampToValueAtTime(-70, time + (v._release || 1));
     }
 
     _releaseOne(note, time) {
         for (let i = this._voices.length - 1; i >= 0; i--) {
             if (this._voices[i].activeNote === note) {
-                this._voices[i].synth.triggerRelease(time);
-                this._voices[i].activeNote = null;
+                const v = this._voices[i];
+                v.synth.triggerRelease(time);
+                this._scheduleReleaseFade(v, time);
+                v.activeNote = null;
                 return;
             }
         }
@@ -1604,7 +1692,13 @@ class GuitarPluckPool {
 
     releaseAll(time) {
         const t = time != null ? time : Tone.now();
-        this._voices.forEach(v => { if (v.activeNote != null) { v.synth.triggerRelease(t); v.activeNote = null; } });
+        this._voices.forEach(v => {
+            if (v.activeNote != null) {
+                v.synth.triggerRelease(t);
+                this._scheduleReleaseFade(v, t);
+                v.activeNote = null;
+            }
+        });
         return this;
     }
 }
@@ -1716,23 +1810,25 @@ const INSTRUMENT_BANKS = {
         label: 'Guitare (synthé)',
         build: (masterBus) => {
             const VOICE_COUNT = 12; // au-delà des 6 cordes : marge pour accords étendus/notes liées qui se chevauchent
-            const voices = [];
-            for (let i = 0; i < VOICE_COUNT; i++) {
-                const synth = new Tone.PluckSynth();
-                const gain = new Tone.Volume(0); // vélocité par voix, voir GuitarPluckPool._attackOne
-                synth.connect(gain);
-                voices.push({ synth, gain, activeNote: null, lastAttackTime: null });
-            }
-            // Bus commun À TOUTES les voix (comme filter/chorus/volume des autres instruments) : un
-            // passe-bas modéré adoucit le côté "numérique" du Karplus-Strong brut, un léger creux/bosse
-            // façon caisse de résonance (bas médium chaleureux, sans excès) rappelle le corps d'une
-            // guitare — beaucoup plus discret qu'un vrai chorus, volontairement.
+            const HARMONIC_VOICE_COUNT = 16; // 1-2 harmoniques par note d'un accord dense, pool dédié (voir GuitarPluckPool)
+            // Bus commun À TOUTES les voix, fondamentales ET harmoniques (comme filter/chorus/volume des
+            // autres instruments) : un passe-bas modéré adoucit le côté "numérique" du Karplus-Strong brut,
+            // un léger creux/bosse façon caisse de résonance (bas médium chaleureux, sans excès) rappelle
+            // le corps d'une guitare — beaucoup plus discret qu'un vrai chorus, volontairement.
             const bodyLowpass = new Tone.Filter({ type: 'lowpass', frequency: 6500, Q: 0.5 });
             const bodyWarmth = new Tone.Filter({ type: 'peaking', frequency: 150, Q: 1, gain: 3 });
             const volume = new Tone.Volume(INSTRUMENT_TRIM_DB.guitarSynth);
             bodyLowpass.chain(bodyWarmth, volume, masterBus);
-            voices.forEach(v => v.gain.connect(bodyLowpass));
-            return new GuitarPluckPool(voices);
+            const makeVoice = () => {
+                const synth = new Tone.PluckSynth();
+                const gain = new Tone.Volume(0); // vélocité par voix, voir GuitarPluckPool._attackOne
+                synth.connect(gain);
+                gain.connect(bodyLowpass);
+                return { synth, gain, activeNote: null, lastAttackTime: null };
+            };
+            const voices = Array.from({ length: VOICE_COUNT }, makeVoice);
+            const harmonics = Array.from({ length: HARMONIC_VOICE_COUNT }, makeVoice);
+            return new GuitarPluckPool(voices, harmonics);
         }
     }
 };
