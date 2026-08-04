@@ -1644,6 +1644,10 @@ const SHOW_CHORD_FUNCTION_KEY = 'harmohubShowChordFunction';
 // grille à l'écran (retour utilisateur : avant, l'échelle du PDF variait ligne par ligne en
 // suivant le zoom écran, une ligne plus courte s'étirait pour remplir la largeur de la page).
 const PDF_MEASURES_PER_LINE_KEY = 'harmohubPdfMeasuresPerLine';
+// Mode studio (voir this.studioMode/#toggle-studio-mode) : réglage global de l'appareil, mémorisé
+// d'une session à l'autre — pas remis à zéro à chaque accord édité, pour ne pas avoir à le
+// rallumer sans cesse (retour utilisateur : « alléger l'appli », voir aussi le mode simple/studio).
+const STUDIO_MODE_KEY = 'harmohubStudioMode';
 // Échelles horizontale/verticale INDÉPENDANTES des modes loupe (grille/séquenceur) : remplace
 // l'ancien niveau de zoom unique (une seule clé harmohubSeqZoomLevel/harmohubGridZoomLevel) — une
 // valeur toujours reprise comme repli pour les deux axes si trouvée (session précédente), pour ne
@@ -1987,7 +1991,9 @@ class HarmoHubApp {
         // active, partagée par toutes les voix qui y sonnent — jamais par voix), en attente comme
         // extraNotes/guitarLock jusqu'à l'enregistrement (voir saveCurrent/editChord/exitEditMode).
         this.intensityPerStep = {};
-        this.studioMode = false;  // affiche la rangée de barres de vélocité sous le séquenceur (voir renderSequencer)
+        // Affiche la rangée de barres de vélocité sous le séquenceur (voir renderSequencer) — réglage
+        // global de l'appareil, mémorisé (voir STUDIO_MODE_KEY), pas remis à zéro à chaque accord édité.
+        this.studioMode = localStorage.getItem(STUDIO_MODE_KEY) === '1';
         this._velDragStep = null; // croche en cours de glissé dans cette rangée (voir setupEventListeners)
         this.seqRenderGen = 0;     // incrémenté à chaque renderSequencer() (voir plus bas, étiquette éditable
                                    // d'une note libre) : un blur tardif d'une étiquette d'un rendu déjà
@@ -2435,6 +2441,7 @@ class HarmoHubApp {
         };
         document.getElementById('toggle-studio-mode').onclick = (e) => {
             this.studioMode = !this.studioMode;
+            localStorage.setItem(STUDIO_MODE_KEY, this.studioMode ? '1' : '0');
             e.currentTarget.classList.toggle('active', this.studioMode);
             this.renderSequencer();
         };
@@ -2533,36 +2540,21 @@ class HarmoHubApp {
         document.getElementById('seq-zoom-overlay').addEventListener('click', (e) => {
             if (e.target.id === 'seq-zoom-overlay') this.closeSeqZoom(); // clic sur le fond, pas la fenêtre
         });
-        document.getElementById('seq-zoom-in-h').onclick = () => this.adjustZoom('seq', 'x', ZOOM_LEVEL_STEP);
-        document.getElementById('seq-zoom-out-h').onclick = () => this.adjustZoom('seq', 'x', -ZOOM_LEVEL_STEP);
-        document.getElementById('seq-zoom-in-v').onclick = () => this.adjustZoom('seq', 'y', ZOOM_LEVEL_STEP);
-        document.getElementById('seq-zoom-out-v').onclick = () => this.adjustZoom('seq', 'y', -ZOOM_LEVEL_STEP);
+        this._bindZoomButtons('seq', { inH: 'seq-zoom-in-h', outH: 'seq-zoom-out-h', inV: 'seq-zoom-in-v', outV: 'seq-zoom-out-v' });
         // Ctrl+molette : ne zoome qu'une fois la fenêtre agrandie déjà ouverte (elle seule reçoit
         // l'évènement, cachée sinon) — jamais sur le séquenceur "en place" dans le panneau Lecture.
         // Zoome les deux axes à la fois (voir adjustZoomBothAxes) — retour utilisateur, plus simple
         // et plus prévisible qu'un axe séparé selon Maj.
-        // preventDefault (écouteur non-passive) : sans lui, le navigateur zoomerait la PAGE entière.
-        document.getElementById('seq-zoom-host').addEventListener('wheel', (e) => {
-            if (!e.ctrlKey) return;
-            e.preventDefault();
-            this.adjustZoomBothAxes('seq', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
-        }, { passive: false });
+        this._bindCtrlWheelZoom('seq-zoom-host', 'seq');
         // Pincer-zoomer (2 doigts, voir setupPinchZoom) : équivalent tactile du Ctrl+molette ci-dessus,
         // pour mobile où ni Ctrl ni molette n'existent (retour utilisateur).
         this.setupPinchZoom(document.getElementById('seq-zoom-host'), 'seq');
 
         // Échelles horizontale/verticale de la grille CLASSIQUE (hors loupe, voir currentGridHZoom/
         // applyZoomLevel('classicGrid')) — indépendantes de celles de la loupe ci-dessous.
-        document.getElementById('classic-grid-in-h').onclick = () => this.adjustZoom('classicGrid', 'x', ZOOM_LEVEL_STEP);
-        document.getElementById('classic-grid-out-h').onclick = () => this.adjustZoom('classicGrid', 'x', -ZOOM_LEVEL_STEP);
-        document.getElementById('classic-grid-in-v').onclick = () => this.adjustZoom('classicGrid', 'y', ZOOM_LEVEL_STEP);
-        document.getElementById('classic-grid-out-v').onclick = () => this.adjustZoom('classicGrid', 'y', -ZOOM_LEVEL_STEP);
+        this._bindZoomButtons('classicGrid', { inH: 'classic-grid-in-h', outH: 'classic-grid-out-h', inV: 'classic-grid-in-v', outV: 'classic-grid-out-v' });
         // Ctrl+molette sur la grille elle-même, comme les fenêtres agrandies (voir adjustZoomBothAxes).
-        document.getElementById('progression-sections').addEventListener('wheel', (e) => {
-            if (!e.ctrlKey || this.gridZoomOpen) return;
-            e.preventDefault();
-            this.adjustZoomBothAxes('classicGrid', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
-        }, { passive: false });
+        this._bindCtrlWheelZoom('progression-sections', 'classicGrid', () => this.gridZoomOpen);
 
         document.getElementById('toggle-voice-leading').onclick = () => this.toggleVoiceLeadingPanel();
 
@@ -2573,10 +2565,7 @@ class HarmoHubApp {
         document.getElementById('grid-zoom-overlay').addEventListener('click', (e) => {
             if (e.target.id === 'grid-zoom-overlay') this.closeGridZoom();
         });
-        document.getElementById('grid-zoom-in-h').onclick = () => this.adjustZoom('grid', 'x', ZOOM_LEVEL_STEP);
-        document.getElementById('grid-zoom-out-h').onclick = () => this.adjustZoom('grid', 'x', -ZOOM_LEVEL_STEP);
-        document.getElementById('grid-zoom-in-v').onclick = () => this.adjustZoom('grid', 'y', ZOOM_LEVEL_STEP);
-        document.getElementById('grid-zoom-out-v').onclick = () => this.adjustZoom('grid', 'y', -ZOOM_LEVEL_STEP);
+        this._bindZoomButtons('grid', { inH: 'grid-zoom-in-h', outH: 'grid-zoom-out-h', inV: 'grid-zoom-in-v', outV: 'grid-zoom-out-v' });
 
         // Accord/Grille/Boucle/Stop dans l'en-tête de la loupe grille (voir index.html) : déclenchent
         // les VRAIS boutons du pied de colonne (.click()) plutôt que de réécrire leur logique à côté —
@@ -2596,11 +2585,7 @@ class HarmoHubApp {
         // désactivé/activé en même temps que les boutons d'origine.
         document.getElementById('grid-zoom-undo').onclick = () => document.getElementById('global-undo-btn').click();
         document.getElementById('grid-zoom-redo').onclick = () => document.getElementById('global-redo-btn').click();
-        document.getElementById('grid-zoom-host').addEventListener('wheel', (e) => {
-            if (!e.ctrlKey) return;
-            e.preventDefault();
-            this.adjustZoomBothAxes('grid', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
-        }, { passive: false });
+        this._bindCtrlWheelZoom('grid-zoom-host', 'grid');
         this.setupPinchZoom(document.getElementById('grid-zoom-host'), 'grid');
 
         // Séquenceur épinglé en bas de la loupe grille (voir editChordFromGridZoom/
@@ -2615,11 +2600,7 @@ class HarmoHubApp {
         // pinSequencerHost/applyZoomLevel('seq'), qui partage déjà le même réglage que #seq-zoom-host
         // ci-dessus) — jusqu'ici seule la loupe séquenceur AUTONOME les avait, pas ce mode épinglé,
         // pourtant le plus utilisé sur mobile (retour utilisateur).
-        document.getElementById('grid-zoom-pinned-body').addEventListener('wheel', (e) => {
-            if (!e.ctrlKey) return;
-            e.preventDefault();
-            this.adjustZoomBothAxes('seq', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
-        }, { passive: false });
+        this._bindCtrlWheelZoom('grid-zoom-pinned-body', 'seq');
         this.setupPinchZoom(document.getElementById('grid-zoom-pinned-body'), 'seq');
 
         // Menu contextuel (clic droit / appui long) : Renommer/Modifier, Dupliquer (accords
@@ -4256,7 +4237,8 @@ class HarmoHubApp {
         // Restaure les réglages fins d'intensité par croche (mode studio) de CET accord, clonés pour la
         // même raison — jamais muter directement l'objet stocké dans sections[].chords[].
         this.intensityPerStep = { ...(d.intensityPerStep || {}) };
-        this.studioMode = false; // repart toujours replié, quel que soit l'accord précédemment édité
+        // this.studioMode N'EST PLUS remis à zéro ici (voir STUDIO_MODE_KEY) : réglage global de
+        // l'appareil désormais, pas un état propre à CET accord.
         this.refreshPreview();
         this.renderSequencer();
         this.loadProgression();     // met en évidence la case en édition
@@ -4302,7 +4284,8 @@ class HarmoHubApp {
         this.guitarIdentityKey = null;
         // Idem : réglages fins d'intensité propres à CET accord (voir editChord/computeVelocity).
         this.intensityPerStep = {};
-        this.studioMode = false;
+        // this.studioMode N'EST PLUS remis à zéro ici (voir STUDIO_MODE_KEY) : réglage global de
+        // l'appareil désormais, pas un état propre à CET accord.
         document.getElementById('intensity').value = DEFAULT_INTENSITY;
         const val = document.getElementById('intensity-val');
         if (val) val.textContent = DEFAULT_INTENSITY;
@@ -4651,24 +4634,18 @@ class HarmoHubApp {
         // boutons de cette rangée : this.activeSection suffit déjà à savoir de quelle partie il s'agit.
         const voiceLeadingPanelEl = host.querySelector('.voice-leading-panel');
         if (voiceLeadingPanelEl) {
-            const inH = voiceLeadingPanelEl.querySelector('.voice-leading-zoom-in-h');
-            const outH = voiceLeadingPanelEl.querySelector('.voice-leading-zoom-out-h');
-            const inV = voiceLeadingPanelEl.querySelector('.voice-leading-zoom-in-v');
-            const outV = voiceLeadingPanelEl.querySelector('.voice-leading-zoom-out-v');
-            if (inH) inH.onclick = (e) => { e.stopPropagation(); this.adjustZoom('voiceLeading', 'x', ZOOM_LEVEL_STEP); };
-            if (outH) outH.onclick = (e) => { e.stopPropagation(); this.adjustZoom('voiceLeading', 'x', -ZOOM_LEVEL_STEP); };
-            if (inV) inV.onclick = (e) => { e.stopPropagation(); this.adjustZoom('voiceLeading', 'y', ZOOM_LEVEL_STEP); };
-            if (outV) outV.onclick = (e) => { e.stopPropagation(); this.adjustZoom('voiceLeading', 'y', -ZOOM_LEVEL_STEP); };
+            this._bindZoomButtons('voiceLeading', {
+                inH: voiceLeadingPanelEl.querySelector('.voice-leading-zoom-in-h'),
+                outH: voiceLeadingPanelEl.querySelector('.voice-leading-zoom-out-h'),
+                inV: voiceLeadingPanelEl.querySelector('.voice-leading-zoom-in-v'),
+                outV: voiceLeadingPanelEl.querySelector('.voice-leading-zoom-out-v'),
+            }, { stopPropagation: true });
             // Ctrl+molette : zoome les deux axes à la fois, comme les autres fenêtres zoomables de
             // l'appli (voir adjustZoomBothAxes) — posé sur le corps du panneau (touches + notes), pas
             // seulement la zone qui défile, pour rester cohérent même quand la souris est sur les touches.
             const body = voiceLeadingPanelEl.querySelector('.voice-leading-body');
             if (body) {
-                body.addEventListener('wheel', (e) => {
-                    if (!e.ctrlKey) return;
-                    e.preventDefault();
-                    this.adjustZoomBothAxes('voiceLeading', e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
-                }, { passive: false });
+                this._bindCtrlWheelZoom(body, 'voiceLeading');
                 this.setupPinchZoom(body, 'voiceLeading');
             }
         }
@@ -9831,6 +9808,38 @@ class HarmoHubApp {
         this.adjustZoom(kind, 'y', delta);
     }
 
+    // Câble les 4 boutons +/- H/V d'un panneau zoomable vers adjustZoom(kind, axis, ±STEP) — factorisé
+    // ici car le même câblage se répétait à l'identique pour chaque panneau (loupe séquenceur, grille
+    // classique, loupe grille, séquenceur épinglé, Conduite de voix) : un seul endroit à corriger si
+    // ce câblage doit changer, plutôt que cinq blocs à faire évoluer en parallèle. `group` accepte des
+    // ids (string) ou des éléments déjà résolus (ex. querySelector sur un panneau reconstruit).
+    _bindZoomButtons(kind, { inH, outH, inV, outV } = {}, { stopPropagation = false } = {}) {
+        const resolve = (ref) => (typeof ref === 'string') ? document.getElementById(ref) : ref;
+        const bind = (ref, axis, delta) => {
+            const el = resolve(ref);
+            if (!el) return;
+            el.onclick = (e) => { if (stopPropagation) e.stopPropagation(); this.adjustZoom(kind, axis, delta); };
+        };
+        bind(inH, 'x', ZOOM_LEVEL_STEP);
+        bind(outH, 'x', -ZOOM_LEVEL_STEP);
+        bind(inV, 'y', ZOOM_LEVEL_STEP);
+        bind(outV, 'y', -ZOOM_LEVEL_STEP);
+    }
+
+    // Câble Ctrl+molette vers adjustZoomBothAxes(kind, ±STEP) sur un élément donné — même logique
+    // (preventDefault pour ne pas zoomer la PAGE entière) répétée pour chaque fenêtre zoomable.
+    // `guard`, si fourni, annule le zoom quand il renvoie vrai (ex. loupe déjà ouverte par-dessus).
+    _bindCtrlWheelZoom(target, kind, guard) {
+        const el = (typeof target === 'string') ? document.getElementById(target) : target;
+        if (!el) return;
+        el.addEventListener('wheel', (e) => {
+            if (!e.ctrlKey) return;
+            if (guard && guard()) return;
+            e.preventDefault();
+            this.adjustZoomBothAxes(kind, e.deltaY < 0 ? ZOOM_LEVEL_STEP : -ZOOM_LEVEL_STEP);
+        }, { passive: false });
+    }
+
     // Règle l'échelle horizontale (axis 'x') ou verticale (axis 'y') — INDÉPENDANTES l'une de
     // l'autre — du séquenceur ou de la grille d'accords d'un cran, une fois la fenêtre agrandie
     // correspondante déjà ouverte (boutons dédiés ou Ctrl+molette/Ctrl+Maj+molette dans cette
@@ -9973,6 +9982,11 @@ class HarmoHubApp {
         // (voir toggleSeqRowPipette) : posé ici, pas dans toggleSeqRowPipette/applySeqRowPipette
         // eux-mêmes, pour rester synchronisé à CHAQUE rendu quelle que soit la méthode qui l'a déclenché.
         host.classList.toggle('seq-row-pipette-active', !!this.seqRowPipette);
+        // Mode studio (voir #toggle-studio-mode) : réglage global mémorisé (this.studioMode), pas remis
+        // à zéro à chaque accord édité — resynchronise l'apparence du bouton à CHAQUE rendu, quelle que
+        // soit la méthode qui l'a déclenché (comme seq-row-pipette-active juste au-dessus).
+        const studioModeBtn = document.getElementById('toggle-studio-mode');
+        if (studioModeBtn) studioModeBtn.classList.toggle('active', this.studioMode);
         // Toute reconstruction des .seq-cell rend caduque le suivi des doigts actifs par élément (voir
         // this._seqActiveTouchIds/onSeqPointerDown) : un doigt encore posé pendant un pincer-zoomer (voir
         // setupPinchZoom) peut perdre son pointerup/pointercancel si sa case a été détruite entretemps
@@ -10528,14 +10542,7 @@ class HarmoHubApp {
         if (seqZoomInHInline) seqZoomInHInline.onclick = () => this.adjustSeqInlineZoom(ZOOM_LEVEL_STEP);
         // Séquenceur épinglé de la loupe grille (vue continue) : mêmes seqZoomLevelX/Y que la loupe
         // séquenceur autonome (voir le commentaire au-dessus de ces boutons, plus haut dans ce rendu).
-        const seqZoomOutHPinned = document.getElementById('seq-zoom-out-h-pinned');
-        if (seqZoomOutHPinned) seqZoomOutHPinned.onclick = () => this.adjustZoom('seq', 'x', -ZOOM_LEVEL_STEP);
-        const seqZoomInHPinned = document.getElementById('seq-zoom-in-h-pinned');
-        if (seqZoomInHPinned) seqZoomInHPinned.onclick = () => this.adjustZoom('seq', 'x', ZOOM_LEVEL_STEP);
-        const seqZoomOutVPinned = document.getElementById('seq-zoom-out-v-pinned');
-        if (seqZoomOutVPinned) seqZoomOutVPinned.onclick = () => this.adjustZoom('seq', 'y', -ZOOM_LEVEL_STEP);
-        const seqZoomInVPinned = document.getElementById('seq-zoom-in-v-pinned');
-        if (seqZoomInVPinned) seqZoomInVPinned.onclick = () => this.adjustZoom('seq', 'y', ZOOM_LEVEL_STEP);
+        this._bindZoomButtons('seq', { inH: 'seq-zoom-in-h-pinned', outH: 'seq-zoom-out-h-pinned', inV: 'seq-zoom-in-v-pinned', outV: 'seq-zoom-out-v-pinned' });
 
         // Navigation par page : saut direct d'une mesure (ou groupe de mesures) à l'autre, jamais de
         // scroll continu (voir le commentaire plus haut sur le conflit avec l'étirement tactile).
