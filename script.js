@@ -8727,6 +8727,51 @@ class HarmoHubApp {
         return best ? best.step : null;
     }
 
+    // Défilement automatique de la bande séquenceur (voir renderSequencer, wideCompact/continu)
+    // pendant peindre/étirer/déplacer/dupliquer une note, dès que le pointeur approche du bord gauche
+    // ou droit de .seq-scroll (retour utilisateur : sinon impossible d'étirer une note jusque sur la
+    // mesure suivante sans d'abord zoomer arrière pour la voir). `d.scrollEl` mis en cache sur le
+    // geste (comme d.rowCells), retrouvé une seule fois. N'agit que s'il y a réellement de quoi
+    // défiler : sans effet en dehors de wideCompact/continu (page qui tient déjà entière).
+    _updateSeqAutoScroll(d) {
+        if (d.scrollEl === undefined) d.scrollEl = document.querySelector('#arp-sequencer .seq-scroll');
+        const el = d.scrollEl;
+        if (!el || el.scrollWidth <= el.clientWidth + 1) { this._stopSeqAutoScroll(d); return; }
+        const rect = el.getBoundingClientRect();
+        const EDGE = 36, MAX_SPEED = 16;
+        const x = d._lastClientX;
+        let dir = 0, dist = 0;
+        if (x < rect.left + EDGE) { dir = -1; dist = (rect.left + EDGE) - x; }
+        else if (x > rect.right - EDGE) { dir = 1; dist = x - (rect.right - EDGE); }
+        const atStart = el.scrollLeft <= 0;
+        const atEnd = el.scrollLeft >= el.scrollWidth - el.clientWidth - 1;
+        if (dir === 0 || (dir < 0 && atStart) || (dir > 0 && atEnd)) { this._stopSeqAutoScroll(d); return; }
+        d._autoScrollDir = dir;
+        d._autoScrollSpeed = Math.min(MAX_SPEED, 4 + dist * 0.35);
+        if (!d._autoScrollRAF) this._runSeqAutoScrollTick(d);
+    }
+
+    _stopSeqAutoScroll(d) {
+        if (d._autoScrollRAF) { cancelAnimationFrame(d._autoScrollRAF); d._autoScrollRAF = null; }
+    }
+
+    // Avance le défilement d'un cran et REJOUE le geste en cours à la même position écran : le
+    // contenu a bougé dessous, donc la croche visée change même si le doigt/la souris, eux, n'ont pas
+    // bougé pendant que la vue défile — sans ce rejeu, rien ne suivrait tant qu'un vrai mouvement du
+    // pointeur ne serait pas détecté. d.rowCells invalidé À CHAQUE défilement : ses rects mis en cache
+    // (voir findSeqStepAt) deviennent faux dès que .seq-scroll bouge sous eux.
+    _runSeqAutoScrollTick(d) {
+        if (this.seqDrag !== d) { this._stopSeqAutoScroll(d); return; } // le geste s'est terminé entretemps
+        const el = d.scrollEl;
+        el.scrollLeft += d._autoScrollDir * d._autoScrollSpeed;
+        d.rowCells = null;
+        const fakeEvent = { clientX: d._lastClientX, clientY: d._lastClientY, preventDefault() {} };
+        d._autoScrollRAF = requestAnimationFrame(() => {
+            d._autoScrollRAF = null;
+            this.onSeqPointerMove(fakeEvent);
+        });
+    }
+
     // Mémorise l'état d'origine (avant ce glissé) d'une croche la première fois qu'elle est touchée,
     // pour pouvoir la restaurer fidèlement si le geste revient en arrière et la sort de la plage.
     rememberSeqOriginalState(d, step) {
@@ -8740,6 +8785,15 @@ class HarmoHubApp {
         if (this.seqMarquee) { this.onSeqMarqueeMove(e); return; }
         const d = this.seqDrag;
         if (!d) return;
+
+        // Défilement automatique près du bord gauche/droit (voir _updateSeqAutoScroll) : posé tout en
+        // haut, avant même le routage ci-dessous, pour couvrir peindre/étirer/déplacer/dupliquer d'un
+        // même geste — retour utilisateur, un accord qui déborde d'une page (voir wideCompact dans
+        // renderSequencer) ne doit plus obliger à zoomer arrière pour étirer une note jusque sur la
+        // mesure suivante : glisser jusqu'au bord suffit désormais, la vue défile toute seule.
+        d._lastClientX = e.clientX;
+        d._lastClientY = e.clientY;
+        this._updateSeqAutoScroll(d);
 
         // Démarré SUR une note déjà posée, hors sélection multiple : le sens du tout premier vrai
         // mouvement (seuil commun aux autres gestes séquenceur) décide si ce glissé change de VOIX —
@@ -9158,6 +9212,7 @@ class HarmoHubApp {
         window.removeEventListener('pointercancel', this._onSeqUp);
         const d = this.seqDrag;
         this.seqDrag = null;
+        if (d) this._stopSeqAutoScroll(d);
         let painted = false;
         if (d && d.moved && d.touched && d.mode === 'paint' && !d.voiceDrag && !d.dupDrag) {
             Object.keys(d.touched).forEach(key => {
@@ -9182,6 +9237,7 @@ class HarmoHubApp {
         const d = this.seqDrag;
         this.seqDrag = null;
         if (!d) return;
+        this._stopSeqAutoScroll(d);
 
         if (d.voiceDrag) {
             this.finalizeSeqVoiceDrag(d);
@@ -10007,8 +10063,11 @@ class HarmoHubApp {
         // un rendu normal ne débordant jamais) n'a rien à voir avec la position à retrouver ici — voir
         // le tout premier rendu continu d'un accord (ex. juste ouvert dans la loupe grille), qui
         // partait par erreur de 0 au lieu du centrage par défaut sur l'accord édité.
+        // .seq-grid-continuous OU .seq-grid-wide (voir wideCompact plus bas) : les deux débordent et
+        // défilent, donc les deux méritent cette préservation — seul .seq-grid-continuous change en
+        // plus la hauteur des lignes (contexte voisin), .seq-grid-wide n'est qu'un simple repère.
         const prevScrollEl = host.querySelector('.seq-scroll');
-        const prevGridEl = prevScrollEl ? prevScrollEl.querySelector('.seq-grid-continuous') : null;
+        const prevGridEl = prevScrollEl ? prevScrollEl.querySelector('.seq-grid-continuous, .seq-grid-wide') : null;
         const wasPrevContinuous = !!prevGridEl;
         // Idem pour l'accord édité : basculer sur un accord VOISIN (clic sur le contexte grisé, voir
         // .seq-ctx-nav) doit recentrer la vue sur ce nouvel accord comme à sa toute première ouverture
@@ -10094,12 +10153,16 @@ class HarmoHubApp {
         }
         const rowCount = rowOrder.length;
 
-        // Un accord qui dure plusieurs mesures ne montre qu'une « page » à la fois (une mesure en
+        // Un accord qui dure plusieurs mesures dépassait la largeur d'une « page » (une mesure en
         // 4/4, deux en 2/4, une seule dès que la mesure est plus longue que 4 temps — voir
-        // seqPageBars) plutôt que tout défiler d'un coup : sur mobile, un glissé pour étirer une
-        // note se confondait avec le geste de scroll natif du navigateur. Naviguer d'une page à
-        // l'autre se fait par un vrai saut (boutons ‹ ›), jamais par un scroll continu qui pourrait
-        // à nouveau entrer en conflit avec l'étirement.
+        // seqPageBars) : sur mobile, un glissé pour étirer une note se confondait avec le geste de
+        // scroll natif du navigateur, d'où historiquement un vrai SAUT de page (boutons ‹ ›) plutôt
+        // qu'un scroll continu. Même geste réglé depuis pour la vue continue de la loupe grille
+        // ci-dessous (colonnes à largeur fixe + touch-action dédié par élément éditable) : réutilisé
+        // ici (voir wideCompact) pour un accord compact qui déborde d'une page — retour utilisateur :
+        // il fallait sinon zoomer arrière (H-) juste pour voir la mesure suivante avant d'y étirer
+        // une note, alors qu'un vrai défilement (à la molette, au doigt, ou auto pendant le glissé
+        // près du bord — voir _updateSeqAutoScroll) est bien plus direct.
         const beatsPerBar = this.beatsPerBar();
         const stepsPerBar = beatsPerBar * SEQ_STEPS_PER_BEAT;
         const seqZoomed = this.seqZoomOpen || this.gridZoomOpen;
@@ -10110,58 +10173,58 @@ class HarmoHubApp {
         // seqZoomed plus haut) : deux hôtes différents pour la même « vue agrandie » du séquenceur.
         const showInlineSeqZoom = !this.seqZoomOpen && !continuous;
         const seqHZoom = seqZoomed ? this.seqZoomLevelX : (showInlineSeqZoom ? this.seqInlineZoomLevelX : 1);
-        let pageStart, pageEnd, pageSteps, totalPages;
-        if (continuous) {
-            // Vue continue (voir plus haut) : plus de pagination par mesure — tout l'accord édité
-            // s'affiche d'un coup, encadré du rythme réel des accords voisins, et on fait défiler
-            // HORIZONTALEMENT plutôt que de sauter de page en page (retour utilisateur). Le conflit
-            // scroll/étirement qui justifiait la pagination (voir plus bas) ne se pose plus vraiment
-            // ici : seules les cases de l'accord édité restent éditables (voir plus bas, .seq-cell
-            // garde son touch-action dédié), le reste n'est que lecture seule.
-            pageStart = 0; pageEnd = steps; pageSteps = steps; totalPages = 1;
-        } else {
-            const stepsPerPage = seqPageBars(beatsPerBar, seqZoomed, seqHZoom) * stepsPerBar;
-            totalPages = Math.max(1, Math.ceil(steps / stepsPerPage));
-            this.seqPage = Math.min(Math.max(0, this.seqPage), totalPages - 1);
-            pageStart = this.seqPage * stepsPerPage;
-            pageEnd = Math.min(steps, pageStart + stepsPerPage);
-            pageSteps = pageEnd - pageStart;
-        }
+        const stepsPerPage = seqPageBars(beatsPerBar, seqZoomed, seqHZoom) * stepsPerBar;
+        const totalPages = continuous ? 1 : Math.max(1, Math.ceil(steps / stepsPerPage));
+        // Version compacte qui déborde d'une page : affiche tout l'accord d'un coup (comme la vue
+        // continue), scrollable, plutôt qu'une seule page à la fois — voir le commentaire plus haut.
+        const wideCompact = !continuous && totalPages > 1;
+        this.seqPage = Math.min(Math.max(0, this.seqPage), totalPages - 1);
+        // pageStart/pageEnd ne servent plus qu'à borner la fenêtre affichée pour une page COMPACTE qui
+        // tient déjà en entier (cas normal, majoritaire) : dès que le contenu déborde (continu ou
+        // wideCompact), tout s'affiche d'un coup et c'est le défilement qui fait le reste.
+        const pageStart = (continuous || wideCompact) ? 0 : this.seqPage * stepsPerPage;
+        const pageEnd = (continuous || wideCompact) ? steps : Math.min(steps, pageStart + stepsPerPage);
+        const pageSteps = pageEnd - pageStart;
 
         // La colonne des noms de voix (max-content) se resserre à la largeur réelle du texte affiché
         // (ex. "C3", "F#3") au lieu d'une largeur fixe généreuse qui laissait un vide à gauche.
-        // Colonnes de pas en 1fr PUR, sans largeur plancher (contrairement à avant la pagination) :
-        // une page doit TOUJOURS tenir sans le moindre débordement horizontal, quelle que soit la
-        // largeur d'écran — un plancher, même modeste, suffisait à forcer un débordement (et donc un
-        // vrai scroll tactile) sur les téléphones étroits pour une simple mesure en 4/4, ce qui
-        // recréait exactement le conflit scroll/étirement que la pagination visait à éliminer.
+        // Colonnes de pas en 1fr PUR, sans largeur plancher, UNIQUEMENT quand tout tient déjà dans une
+        // page (cas normal) : une page doit alors TOUJOURS tenir sans le moindre débordement, quelle
+        // que soit la largeur d'écran — un plancher, même modeste, suffisait à forcer un débordement
+        // (et donc un vrai scroll tactile) sur les téléphones étroits pour une simple mesure en 4/4.
         // data-page-start/steps : lus par updateSeqPlayhead pour savoir si le pas en cours de lecture
         // tombe dans la page affichée (et à quelle colonne), sans dupliquer ce calcul côté lecture.
         // .seq-grid-continuous : lignes plus basses (voir style.css) pour laisser tenir les demi-tons
-        // supplémentaires du contexte sans faire déborder la loupe grille (retour utilisateur).
-        // Colonnes à largeur FIXE (pas 1fr) dans ce mode : le contexte gauche/droite (accords voisins)
+        // supplémentaires du contexte sans faire déborder la loupe grille (retour utilisateur) —
+        // wideCompact n'a pas de contexte voisin à faire tenir, garde donc la hauteur de ligne normale.
+        // Colonnes à largeur FIXE (pas 1fr) dès que ça déborde (continu OU wideCompact) : le contenu
         // s'ajoute à la largeur totale plutôt que de se répartir dans l'espace visible, d'où le
-        // défilement horizontal voulu (voir .seq-scroll-continuous ci-dessous et dans style.css) —
-        // seule la mesure éditée (au milieu) reste éditable, le contexte n'est que lecture seule.
+        // défilement horizontal voulu (voir .seq-scroll-continuous/.seq-scroll-wide ci-dessous et dans
+        // style.css) — en continu, seule la mesure éditée (au milieu) reste éditable, le contexte n'est
+        // que lecture seule ; en wideCompact, tout l'accord affiché reste éditable (pas de contexte).
         const continuousCls = continuous ? ' seq-grid-continuous' : '';
-        const scrollCls = continuous ? ' seq-scroll-continuous' : '';
+        // .seq-grid-wide : pas de style propre (contrairement à .seq-grid-continuous, qui resserre la
+        // hauteur des lignes) — juste un repère pour retrouver ce rendu au prochain (voir
+        // prevGridEl/wasPrevScrollable plus haut dans ce rendu) et préserver son défilement.
+        const wideCls = wideCompact ? ' seq-grid-wide' : '';
+        const scrollCls = continuous ? ' seq-scroll-continuous' : (wideCompact ? ' seq-scroll-wide' : '');
         const colOffset = continuous ? prevSteps : 0;
         const totalCols = continuous ? (prevSteps + pageSteps + nextSteps) : pageSteps;
         // Largeur de case FIXE (voir commentaire plus haut) mise à l'échelle par seqHZoom : sans quoi
         // les boutons de zoom horizontal (zoom-axis-group, voir plus bas) resteraient sans le moindre
-        // effet visible en vue continue — seul mode où ce réglage joue sur une largeur de case en
-        // pixels plutôt que sur le nombre de mesures par page. Base doublée sur ordinateur (retour
-        // utilisateur : la loupe grille est bien plus large qu'un téléphone, une base fixe unique
-        // laissait tout le côté droit vide dès qu'un accord n'avait que peu de temps) — même seuil
-        // (900px) que .col-left/.col-right en CSS et les autres bascules bureau/mobile du script.
+        // effet visible en vue continue/wideCompact — seuls modes où ce réglage joue sur une largeur
+        // de case en pixels plutôt que sur le nombre de mesures par page. Base doublée sur ordinateur
+        // (retour utilisateur : la loupe grille est bien plus large qu'un téléphone, une base fixe
+        // unique laissait tout le côté droit vide dès qu'un accord n'avait que peu de temps) — même
+        // seuil (900px) que .col-left/.col-right en CSS et les autres bascules bureau/mobile du script.
         // window.innerWidth (pas un média CSS) : cette largeur de case est un NOMBRE consommé par
         // scrollLeft juste plus bas (colOffset * continuousColPx), pas seulement injecté dans le HTML.
         const continuousColBase = window.innerWidth > 899 ? 28 : 14;
         const continuousColPx = continuousColBase * seqHZoom;
-        const colTemplate = continuous
+        const colTemplate = (continuous || wideCompact)
             ? `max-content repeat(${totalCols}, ${continuousColPx}px)`
             : `max-content repeat(${pageSteps}, 1fr)`;
-        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" style="grid-template-columns: ${colTemplate};">`;
+        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" style="grid-template-columns: ${colTemplate};">`;
 
         // Cases de la grille : zones de clic/glisser (toujours présentes, sous les notes visuelles).
         // Placement explicite (grid-row/grid-column) sur TOUT le monde : les notes ci-dessous se
@@ -10356,18 +10419,16 @@ class HarmoHubApp {
 
         html += `</div></div>`;
 
-        // Navigation par page (uniquement si l'accord déborde d'une page) : un vrai saut, jamais du
-        // scroll continu — voir le commentaire plus haut sur le conflit avec l'étirement tactile.
+        // Navigation par page (uniquement si l'accord déborde d'une page, voir wideCompact) : un vrai
+        // défilement désormais, pas un saut avec reconstruction — voir le câblage plus bas
+        // (updatePageNav), qui corrige l'étiquette et l'état désactivé juste après le montage, à
+        // partir de la position RÉELLE de défilement plutôt que d'un index de page.
         if (totalPages > 1) {
-            const barsPerPage = seqPageBars(beatsPerBar, seqZoomed, seqHZoom);
             const totalBars = Math.ceil(steps / stepsPerBar);
-            const firstBar = this.seqPage * barsPerPage + 1;
-            const lastBar = Math.min(totalBars, firstBar + barsPerPage - 1);
-            const label = (firstBar === lastBar) ? `Mesure ${firstBar} / ${totalBars}` : `Mesures ${firstBar}-${lastBar} / ${totalBars}`;
             html += `<div class="seq-page-nav">
-                <button type="button" id="seq-page-prev" class="icon-btn" ${this.seqPage === 0 ? 'disabled' : ''} title="Mesure précédente" aria-label="Mesure précédente">${svgIcon('chevron-left')}</button>
-                <span class="seq-page-label">${label}</span>
-                <button type="button" id="seq-page-next" class="icon-btn" ${this.seqPage === totalPages - 1 ? 'disabled' : ''} title="Mesure suivante" aria-label="Mesure suivante">${svgIcon('chevron-right')}</button>
+                <button type="button" id="seq-page-prev" class="icon-btn" title="Mesure précédente" aria-label="Mesure précédente">${svgIcon('chevron-left')}</button>
+                <span class="seq-page-label" id="seq-page-label">Mesure 1 / ${totalBars}</span>
+                <button type="button" id="seq-page-next" class="icon-btn" title="Mesure suivante" aria-label="Mesure suivante">${svgIcon('chevron-right')}</button>
             </div>`;
         }
         // Les préréglages rythmiques (Tenu, Noire...) se choisissent désormais uniquement via le
@@ -10440,11 +10501,32 @@ class HarmoHubApp {
         // est encore masqué à CET instant précis — il ne l'est plus qu'APRÈS ce rendu, via
         // syncGridZoomPinnedSeq() appelé juste ensuite — et écrire scrollLeft sur un élément encore
         // sans mise en page (ancêtre caché) était silencieusement ignoré (retombait à 0).
-        if (continuous) {
+        // wideCompact (voir plus haut) : même préservation qu'en continu — un accord compact qui
+        // déborde d'une page ne doit pas revenir au tout début à chaque repeinture (ex. juste après
+        // l'auto-scroll d'un étirement près du bord, voir _updateSeqAutoScroll) ; colOffset y vaut
+        // toujours 0 (pas de contexte voisin), donc le repli par défaut est bien le tout début.
+        if (continuous || wideCompact) {
             requestAnimationFrame(() => {
                 const scrollEl = host.querySelector('.seq-scroll');
                 if (scrollEl) scrollEl.scrollLeft = prevScrollLeft != null ? prevScrollLeft : colOffset * continuousColPx;
             });
+        }
+
+        // Molette SANS Ctrl (Ctrl+molette reste le zoom, voir _bindCtrlWheelZoom) : convertit le
+        // défilement vertical natif de la molette en défilement HORIZONTAL sur cette bande — pratique
+        // à la souris (pas de trackpad/Maj+molette) pour rejoindre la mesure suivante (retour
+        // utilisateur). N'agit que s'il y a réellement de quoi défiler (wideCompact/continu), sinon la
+        // molette continue de faire défiler la page normalement (preventDefault jamais posé).
+        {
+            const wheelScrollEl = host.querySelector('.seq-scroll');
+            if (wheelScrollEl) {
+                wheelScrollEl.addEventListener('wheel', (e) => {
+                    if (e.ctrlKey) return;
+                    if (wheelScrollEl.scrollWidth <= wheelScrollEl.clientWidth) return;
+                    e.preventDefault();
+                    wheelScrollEl.scrollLeft += e.deltaY;
+                }, { passive: false });
+            }
         }
 
         // Étiquette éditable d'une note libre (voir addSequencerNote) : Entrée valide (déclenche le
@@ -10550,12 +10632,38 @@ class HarmoHubApp {
         // séquenceur autonome (voir le commentaire au-dessus de ces boutons, plus haut dans ce rendu).
         this._bindZoomButtons('seq', { inH: 'seq-zoom-in-h-pinned', outH: 'seq-zoom-out-h-pinned', inV: 'seq-zoom-in-v-pinned', outV: 'seq-zoom-out-v-pinned' });
 
-        // Navigation par page : saut direct d'une mesure (ou groupe de mesures) à l'autre, jamais de
-        // scroll continu (voir le commentaire plus haut sur le conflit avec l'étirement tactile).
+        // Navigation par page (seulement en wideCompact, voir plus haut — jamais en continu, qui n'a
+        // pas ce bloc) : un vrai défilement fluide d'une mesure (ou groupe de mesures), pas un saut
+        // avec reconstruction complète — le contenu est déjà tout affiché (voir wideCompact), scroller
+        // suffit. L'étiquette et l'état désactivé des boutons suivent la position réelle de défilement,
+        // pas un index de page qui n'existe plus vraiment ici (this.seqPage n'est plus utilisé que
+        // comme repli initial, voir prevScrollLeft/colOffset plus haut dans ce rendu).
         const prevBtn = document.getElementById('seq-page-prev');
-        if (prevBtn) prevBtn.onclick = () => { this.seqPage--; this.renderSequencer(); };
         const nextBtn = document.getElementById('seq-page-next');
-        if (nextBtn) nextBtn.onclick = () => { this.seqPage++; this.renderSequencer(); };
+        if (wideCompact && (prevBtn || nextBtn)) {
+            const pageNavScrollEl = host.querySelector('.seq-scroll');
+            const pageNavLabel = document.getElementById('seq-page-label');
+            const totalBars = Math.ceil(steps / stepsPerBar);
+            const pagePx = stepsPerPage * continuousColPx;
+            // Mesure RÉELLEMENT visible (bornes gauche ET droite de la fenêtre de défilement), pas un
+            // simple index de page multiplié par stepsPerPage : quand le débordement est modeste (peu
+            // de croches qui dépassent), les deux mesures peuvent déjà être quasi entièrement visibles
+            // à la fois même tout au bout du défilement — un calcul par page fixe restait alors bloqué
+            // sur "Mesure 1" malgré un vrai défilement jusqu'au bout (repéré en testant ce câblage).
+            const updatePageNav = () => {
+                if (!pageNavScrollEl) return;
+                const maxScroll = Math.max(0, pageNavScrollEl.scrollWidth - pageNavScrollEl.clientWidth);
+                const firstBar = Math.floor(pageNavScrollEl.scrollLeft / continuousColPx / stepsPerBar) + 1;
+                const lastBar = Math.min(totalBars, Math.ceil((pageNavScrollEl.scrollLeft + pageNavScrollEl.clientWidth) / continuousColPx / stepsPerBar));
+                if (pageNavLabel) pageNavLabel.textContent = (firstBar >= lastBar) ? `Mesure ${firstBar} / ${totalBars}` : `Mesures ${firstBar}-${lastBar} / ${totalBars}`;
+                if (prevBtn) prevBtn.disabled = pageNavScrollEl.scrollLeft <= 1;
+                if (nextBtn) nextBtn.disabled = pageNavScrollEl.scrollLeft >= maxScroll - 1;
+            };
+            if (pageNavScrollEl) pageNavScrollEl.addEventListener('scroll', updatePageNav, { passive: true });
+            if (prevBtn) prevBtn.onclick = () => pageNavScrollEl && pageNavScrollEl.scrollBy({ left: -pagePx, behavior: 'smooth' });
+            if (nextBtn) nextBtn.onclick = () => pageNavScrollEl && pageNavScrollEl.scrollBy({ left: pagePx, behavior: 'smooth' });
+            requestAnimationFrame(updatePageNav); // après le positionnement initial du scroll (voir plus haut)
+        }
 
         // Mode Modification (voir commitLiveEdit) : toute mutation du séquenceur (peindre/étirer/
         // déplacer une note, notes libres, verrou guitare, rythme tapé, barres de vélocité...) appelle

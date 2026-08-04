@@ -441,12 +441,18 @@ body.body-scroll-locked { overflow: hidden !important; }
    retombait à pan-y seul — le glissé horizontal au doigt semblait alors ne plus répondre du tout
    (retour utilisateur), bien que le défilement reste possible à la souris/molette. */
 .seq-scroll.seq-scroll-continuous { touch-action: pan-x pan-y; }
-/* Échelle de notes/octaves COLLÉE à gauche pendant le défilement horizontal du mode continu (retour
-   utilisateur : repère perdu de vue en glissant une note loin à droite) — un fond opaque (même que
-   .grid-zoom-pinned-seq, seul parent qui compte ici) évite que les cases défilantes ne transparaissent
-   derrière. Sans effet ailleurs (séquenceur compact/paginé) : là, tout tient déjà dans la largeur,
-   rien à faire défiler ni donc à fixer. */
-.seq-scroll-continuous .seq-label {
+/* .seq-scroll-wide (voir renderSequencer, wideCompact) : même principe pour un accord COMPACT qui
+   déborde d'une page — un accord de plusieurs mesures affiche désormais tout d'un coup sur une bande
+   qui défile, plutôt que de sauter d'une page à l'autre (retour utilisateur : il fallait sinon
+   zoomer arrière juste pour voir la mesure suivante avant d'y étirer une note). Même garde-fou
+   défilement/étirement que .seq-scroll-continuous ci-dessus, pour la même raison. */
+.seq-scroll.seq-scroll-wide { touch-action: pan-x pan-y; }
+/* Échelle de notes/octaves COLLÉE à gauche pendant le défilement horizontal (mode continu OU
+   wideCompact, voir ci-dessus — retour utilisateur : repère perdu de vue en glissant une note loin à
+   droite) — un fond opaque (même que .grid-zoom-pinned-seq, seul parent qui compte en continu) évite
+   que les cases défilantes ne transparaissent derrière. Sans effet ailleurs (page qui tient déjà
+   entière dans la largeur) : rien à faire défiler ni donc à fixer. */
+.seq-scroll-continuous .seq-label, .seq-scroll-wide .seq-label {
     position: sticky;
     left: 0;
     z-index: 2;
@@ -2549,14 +2555,15 @@ button:active { transform: translateY(1px); }
     border-top: 1px solid var(--border);
 }
 
-/* Un accord qui dure plusieurs mesures n'affiche plus qu'une page à la fois (voir seqPageBars/
-   renderSequencer et .seq-page-nav), et les colonnes de pas sont en 1fr PUR (pas de largeur
-   plancher) : la page occupe TOUJOURS exactement la largeur disponible, jamais plus — aucun
-   débordement possible, donc rien à scroller, même au doigt sur un petit téléphone. touch-action
-   coupe court à toute tentative du navigateur de faire défiler ce conteneur nativement (comme
-   .seq-cell) : un scroll, même résiduel, se confondait au doigt avec le geste d'étirement d'une
-   note. overflow-x reste posé en tout dernier recours (ex. zoom navigateur très élevé), jamais
-   comme mécanisme normal de navigation. */
+/* Tant qu'un accord tient dans une page (voir seqPageBars/renderSequencer), les colonnes de pas
+   restent en 1fr PUR (pas de largeur plancher) : la page occupe TOUJOURS exactement la largeur
+   disponible, jamais plus — aucun débordement possible dans ce cas, donc rien à scroller, même au
+   doigt sur un petit téléphone. touch-action:pan-y (base, sans déborder) coupe court à toute
+   tentative du navigateur de faire défiler ce conteneur nativement (comme .seq-cell) : un scroll,
+   même résiduel, se confondait au doigt avec le geste d'étirement d'une note. Dès que ça déborde
+   (mode continu OU wideCompact, voir .seq-scroll-continuous/.seq-scroll-wide plus haut), pan-x
+   s'ajoute : le défilement devient alors le mécanisme normal de navigation, jamais un dernier
+   recours — chaque élément éditable garde son propre touch-action:none pour ne pas s'y confondre. */
 /* overflow-y EXPLICITE (retour utilisateur, séquenceur qui ne défilait plus jamais en vertical) :
    poser overflow-x seul suffit, en CSS, à faire calculer l'AUTRE axe en `auto` lui aussi (jamais
    `visible` dès qu'un axe ne l'est plus) — .seq-scroll devenait ainsi, sans le vouloir, son PROPRE
