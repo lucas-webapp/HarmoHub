@@ -1588,13 +1588,18 @@ input[type=range] {
     cursor: pointer;
 }
 
-/* Tempo/Intensité (voir #bpm/#intensity) : accent orange en mode Modification (voir this.appMode,
-   updateAppModeBanner dans script.js qui pose data-app-mode sur <body>) — vert (--accent, déjà la
-   couleur par défaut ci-dessus) en mode Ajout, donc rien à surcharger pour ce cas-là. Un écho discret
-   du mode courant sur deux curseurs bien visibles, sans toucher aux autres réglages (volumes...) qui
-   n'ont pas de lien avec l'édition d'un accord. Même orange que .loop-range-bar/#seq-play actif.
-   :is(#bpm, #intensity) : évite de répéter le sélecteur body[data-app-mode="edit"] deux fois. */
-body[data-app-mode="edit"] :is(#bpm, #intensity) {
+/* Intensité (voir #intensity, dans le panneau Accord des onglets Ajout/Modif) : accent orange en mode
+   Modification (voir this.appMode, updateAppModeBanner dans script.js qui pose data-app-mode sur
+   <body>) — vert (--accent, déjà la couleur par défaut ci-dessus) en mode Ajout, donc rien à
+   surcharger pour ce cas-là. Un écho discret du mode courant, sans toucher aux autres réglages
+   (volumes...) qui n'ont pas de lien avec l'édition d'un accord. Même orange que .loop-range-bar/
+   #seq-play actif. #bpm (onglet Config., voir #app-mode-config.active ci-dessus) délibérément
+   EXCLU : la barre de tempo est un réglage global du morceau, sans rapport avec Ajout/Modification
+   — elle vivait jusqu'ici derrière un tab bar volontairement neutre (gris/bleu pâle), mais gardait
+   quand même l'orange dès qu'un accord restait ouvert en Modification ailleurs, même en étant
+   revenu sur Config. : incohérent avec ce tab neutre (retour utilisateur). Toujours vert (--accent),
+   comme le code couleur Ajout par défaut, quel que soit le mode d'édition en cours ailleurs. */
+body[data-app-mode="edit"] #intensity {
     accent-color: #ffb300;
 }
 
