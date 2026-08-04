@@ -1545,79 +1545,38 @@ select:disabled {
     margin: 0;
 }
 
-/* Rails/curseurs de tous les réglages en glissière (tempo, intensité, volumes...) : rendu personnalisé
-   (rail + curseur) plutôt que le rendu natif — sur téléphone, le curseur natif reste minuscule (quelques
-   pixels) malgré accent-color, difficile à attraper précisément du doigt (retour utilisateur : "difficile
-   à attraper sur téléphone"). Zone tactile RÉELLE agrandie via un padding vertical transparent autour du
-   rail visuel (fine ligne), pas juste un curseur redessiné plus gros posé sur un élément toujours aussi
-   fin à viser en dessous.
-   ::-webkit-slider-thumb/::-moz-range-thumb : couleur définie séparément pour chaque bascule, voir la
-   règle #intensity ci-dessous. */
 input[type=range] {
     width: 100%;
+    accent-color: var(--accent);
     cursor: pointer;
-    -webkit-appearance: none;
-    appearance: none;
-    background: transparent;
-    height: 28px;
-    padding: 12px 0;
-    box-sizing: content-box;
-}
-input[type=range]::-webkit-slider-runnable-track {
-    height: 4px;
-    border-radius: 2px;
-    background: var(--btn-neutral-1);
-}
-input[type=range]::-moz-range-track {
-    height: 4px;
-    border-radius: 2px;
-    background: var(--btn-neutral-1);
-}
-input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--accent);
-    border: 2px solid var(--bg);
-    margin-top: -7px; /* centre le curseur (18px) sur le rail (4px) : (18 - 4) / 2 */
-    cursor: pointer;
-}
-input[type=range]::-moz-range-thumb {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--accent);
-    border: 2px solid var(--bg);
-    cursor: pointer;
-}
-/* Doigt plutôt que souris (voir la media query "pointer: coarse", vraie détection du type de pointeur —
-   pas juste la largeur d'écran, valable aussi sur un ordinateur tactile) : rail et curseur nettement
-   plus grands, zone tactile élargie d'autant. La précision d'un réglage fin (tempo ±1 bpm, intensité
-   ±5 %...) dépend directement de la largeur RÉELLE du rail sous le doigt, pas seulement de la taille du
-   curseur — d'où aussi un rail plus épais, pas seulement un curseur plus gros. */
-@media (pointer: coarse) {
-    input[type=range] { height: 36px; padding: 16px 0; }
-    input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; }
-    input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; }
-    input[type=range]::-webkit-slider-thumb { width: 28px; height: 28px; margin-top: -11px; }
-    input[type=range]::-moz-range-thumb { width: 28px; height: 28px; }
 }
 
-/* Intensité (voir #intensity, dans le panneau Accord des onglets Ajout/Modif) : curseur orange en mode
+/* Zone tactile agrandie sur pointeur "grossier" (doigt, voir la media query — pas juste une largeur
+   d'écran, valable aussi sur un ordinateur tactile), SANS changer le rendu natif du curseur lui-même
+   (retour utilisateur : préfère l'ancien affichage, juste plus facile à attraper). Un padding vertical
+   transparent suffit : un input[type=range] natif reste réactif au toucher sur toute sa boîte, pas
+   seulement les quelques pixels du curseur visible (vérifié : un tap en haut de cette zone, loin du
+   trait visible, saisit quand même le curseur à la bonne position) — donc pas besoin de redessiner le
+   curseur en plus gros pour améliorer sa prise, contrairement à une tentative précédente (rendu
+   personnalisé complet, retiré : préférence pour l'apparence native). */
+@media (pointer: coarse) {
+    input[type=range] { padding: 14px 0; }
+}
+
+/* Intensité (voir #intensity, dans le panneau Accord des onglets Ajout/Modif) : accent orange en mode
    Modification (voir this.appMode, updateAppModeBanner dans script.js qui pose data-app-mode sur
-   <body>) — vert (--accent, la couleur par défaut ci-dessus) en mode Ajout, donc rien à surcharger pour
-   ce cas-là. Un écho discret du mode courant, sans toucher aux autres réglages (volumes...) qui n'ont
-   pas de lien avec l'édition d'un accord. Même orange que .loop-range-bar/#seq-play actif. #bpm (onglet
-   Config., voir #app-mode-config.active ci-dessus) délibérément EXCLU : la barre de tempo est un
-   réglage global du morceau, sans rapport avec Ajout/Modification — elle vivait jusqu'ici derrière un
-   tab bar volontairement neutre (gris/bleu pâle), mais gardait quand même l'orange dès qu'un accord
-   restait ouvert en Modification ailleurs, même en étant revenu sur Config. : incohérent avec ce tab
-   neutre (retour utilisateur). Toujours vert (--accent), comme le code couleur Ajout par défaut, quel
-   que soit le mode d'édition en cours ailleurs. */
-body[data-app-mode="edit"] #intensity::-webkit-slider-thumb { background: #ffb300; }
-body[data-app-mode="edit"] #intensity::-moz-range-thumb { background: #ffb300; }
+   <body>) — vert (--accent, déjà la couleur par défaut ci-dessus) en mode Ajout, donc rien à
+   surcharger pour ce cas-là. Un écho discret du mode courant, sans toucher aux autres réglages
+   (volumes...) qui n'ont pas de lien avec l'édition d'un accord. Même orange que .loop-range-bar/
+   #seq-play actif. #bpm (onglet Config., voir #app-mode-config.active ci-dessus) délibérément
+   EXCLU : la barre de tempo est un réglage global du morceau, sans rapport avec Ajout/Modification
+   — elle vivait jusqu'ici derrière un tab bar volontairement neutre (gris/bleu pâle), mais gardait
+   quand même l'orange dès qu'un accord restait ouvert en Modification ailleurs, même en étant
+   revenu sur Config. : incohérent avec ce tab neutre (retour utilisateur). Toujours vert (--accent),
+   comme le code couleur Ajout par défaut, quel que soit le mode d'édition en cours ailleurs. */
+body[data-app-mode="edit"] #intensity {
+    accent-color: #ffb300;
+}
 
 /* (l'ancienne .button-group est remplacée par .transport, voir plus haut) */
 
