@@ -9959,6 +9959,11 @@ class HarmoHubApp {
         this.intensityPerStep[+bar.dataset.step] = pct;
         const fill = bar.querySelector('.seq-vel-fill');
         if (fill) fill.style.height = pct + '%';
+        // Valeur chiffrée affichée EN PLUS de la hauteur du remplissage (retour utilisateur : la
+        // hauteur seule manque de précision pour repérer la valeur exacte) — mise à jour en direct
+        // pendant le glissé, comme le remplissage juste au-dessus.
+        const valueEl = bar.querySelector('.seq-vel-value span');
+        if (valueEl) valueEl.textContent = pct + '%';
     }
 
     // Menu contextuel d'un accord de la grille (« Séquenceur ») : le charge dans le panneau Accord
@@ -10320,6 +10325,7 @@ class HarmoHubApp {
                 const val = (this.intensityPerStep[s] != null) ? this.intensityPerStep[s] : chordIntensity;
                 velHtml += `<div class="seq-vel-bar" data-step="${s}" style="grid-row:${velRow}; grid-column:${colOffset + s - pageStart + 2};" title="Intensité de cette croche — glisser pour régler, double-clic pour revenir à l'intensité de l'accord">
                     <div class="seq-vel-fill" style="height:${val}%;"></div>
+                    <div class="seq-vel-value"><span>${val}%</span></div>
                 </div>`;
             }
             html += velHtml;

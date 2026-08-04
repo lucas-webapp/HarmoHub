@@ -2649,6 +2649,27 @@ button:active { transform: translateY(1px); }
     background: linear-gradient(180deg, #4570d6, #2b4a99);
     transition: height 0.03s linear;
 }
+/* Valeur chiffrée EN VERTICAL par-dessus la barre (retour utilisateur : la hauteur seule du
+   remplissage manque de précision) — pivotée plutôt qu'horizontale, la colonne est bien trop
+   étroite pour "100%" en travers. text-shadow au lieu d'un fond plein : reste lisible aussi bien
+   sur le fond sombre vide que sur le dégradé bleu du remplissage, quel que soit son niveau. */
+.seq-vel-value {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+.seq-vel-value span {
+    display: inline-block;
+    transform: rotate(-90deg);
+    white-space: nowrap;
+    font-size: 9px;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 0 0 2px #000, 0 0 4px #000;
+}
 
 .seq-cell {
     height: 26px;
