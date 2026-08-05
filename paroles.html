@@ -10,11 +10,17 @@
      principale — ni son moteur harmonique, ni son séquenceur, ni sa grille à largeur de temps fixe
      (voir paroles.js pour le pourquoi de ce découplage : la largeur d'une mesure ne correspond jamais
      à la largeur d'un mot, inutile de forcer les deux outils à partager la même contrainte). -->
-<link rel="stylesheet" href="paroles.css?v=1">
+<link rel="stylesheet" href="paroles.css?v=2">
 </head>
 <body>
     <header class="top-bar">
-        <h1>🎤 Paroles</h1>
+        <div class="top-left">
+            <!-- Simple lien de retour (pas window.close()) : marche que cette page ait été ouverte
+                 depuis HarmoHub (nouvel onglet, voir exportLyricsData) OU directement (favori, URL
+                 tapée à la main) — un onglet qui ne vient pas d'un script ne se fermerait pas. -->
+            <a href="index.html" class="btn-back" title="Retourner à HarmoHub">← HarmoHub</a>
+            <h1>🎤 Paroles</h1>
+        </div>
         <div class="top-actions">
             <span id="song-name" class="song-name" hidden></span>
             <button type="button" id="btn-import" class="btn-primary">Importer un fichier</button>
@@ -37,6 +43,6 @@
         <div id="sections"></div>
     </main>
 
-    <script src="paroles.js?v=1"></script>
+    <script src="paroles.js?v=2"></script>
 </body>
 </html>

@@ -36,12 +36,36 @@ html, body {
     padding: 14px 20px;
     border-bottom: 1px solid var(--border);
     flex-wrap: wrap;
+    /* Toujours atteignable, même tout en bas d'une longue page de paroles (retour utilisateur : "des
+       boutons pour pouvoir revenir facilement à HarmoHub") — z-index au-dessus de .toolbar, elle-même
+       déjà sticky juste en dessous. */
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    background: var(--bg);
+}
+.top-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
 }
 .top-bar h1 {
     font-size: 1.1rem;
     margin: 0;
     font-weight: 700;
 }
+.btn-back {
+    font-family: var(--font);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+.btn-back:hover { border-color: #4a4a4a; color: var(--text-main); }
 .top-actions {
     display: flex;
     align-items: center;
@@ -94,7 +118,7 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     margin-bottom: 18px;
     flex-wrap: wrap;
     position: sticky;
-    top: 0;
+    top: 58px; /* juste sous .top-bar (elle-même sticky, voir plus haut) : jamais l'une sur l'autre */
     background: var(--bg);
     padding: 8px 0;
     z-index: 5;

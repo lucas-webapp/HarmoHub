@@ -104,6 +104,22 @@ document.getElementById('file-input').addEventListener('change', (e) => {
 });
 document.getElementById('btn-print').addEventListener('click', () => window.print());
 
+// ---------- Récupération automatique depuis HarmoHub (même navigateur) ----------
+// Voir exportLyricsData dans script.js : en plus du fichier téléchargé (utile pour partager/changer
+// d'appareil), les mêmes données sont déposées ici — évite de repasser par "Importer un fichier" à
+// chaque export (retour utilisateur : "il faut réimporter un morceau ensuite"). Consommé une seule
+// fois (retiré aussitôt lu) : une visite ultérieure de cette page (favori, retour en arrière) retombe
+// normalement sur le morceau déjà ouvert dans CETTE page, pas sur un réimport fantôme.
+const PENDING_IMPORT_KEY = 'harmohub_lyrics_pending_import';
+(function tryAutoImportFromHarmoHub() {
+    try {
+        const raw = localStorage.getItem(PENDING_IMPORT_KEY);
+        if (!raw) return;
+        localStorage.removeItem(PENDING_IMPORT_KEY);
+        loadSong(JSON.parse(raw));
+    } catch (e) { console.error('Récupération automatique depuis HarmoHub impossible :', e); }
+})();
+
 // ---------- Construction du DOM (une seule fois par import) ----------
 
 function buildSectionsDOM() {

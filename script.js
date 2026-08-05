@@ -7060,14 +7060,18 @@ class HarmoHubApp {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
+        // Dépose aussi les mêmes données dans un coin de localStorage PARTAGÉ (même origine) : paroles.js
+        // les récupère toutes seules à l'ouverture et affiche direct les accords du morceau, sans repasser
+        // par "Importer un fichier" (retour utilisateur : "il faut réimporter un morceau ensuite" — plus
+        // maintenant, sur ce même navigateur). Le fichier .json reste téléchargé en plus : utile pour
+        // partager le morceau ou l'ouvrir depuis un autre appareil/navigateur, là où ce dépôt local ne
+        // suit pas.
+        try { localStorage.setItem('harmohub_lyrics_pending_import', JSON.stringify(data)); }
+        catch (e) { console.error('Transfert vers Paroles impossible :', e); }
         // Ouvre directement l'outil Paroles dans un nouvel onglet, juste après le téléchargement (même
-        // geste utilisateur, donc pas bloqué comme pop-up) : sur mobile, taper le fichier téléchargé
-        // depuis les téléchargements/le partage ferait proposer "avec quelle appli l'ouvrir ?" (un
-        // .json n'est associé à rien) — en atterrissant direct sur paroles.html, il suffit d'y utiliser
-        // SON propre bouton "Importer un fichier" (un vrai sélecteur, pas une tentative d'ouverture
-        // système) pour aller chercher ce même téléchargement.
+        // geste utilisateur, donc pas bloqué comme pop-up).
         window.open('paroles.html', '_blank');
-        this.flashHint('Fichier téléchargé — ouvre-le depuis l\'outil Paroles (bouton "Importer un fichier")', 3200);
+        this.flashHint('Paroles ouvert avec les accords de ce morceau', 2400);
     }
 
     // ---------- Export audio (.mp3, encodage LAME embarqué — voir lame.min.js) ----------
