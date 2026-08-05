@@ -2682,24 +2682,23 @@ button:active { transform: translateY(1px); }
     font-variant-numeric: tabular-nums;
     touch-action: none; /* voir .seq-cell plus bas : même raison */
     transition: color 0.1s ease, opacity 0.1s ease;
-    position: relative; /* ancre .seq-beat-num, voir plus bas */
-    overflow: visible; /* le chiffre peut déborder un peu à gauche de sa propre case, voir .seq-beat-num */
 }
 /* Centre le CHIFFRE lui-même sur le vrai début du temps (le bord gauche de cette case, qui EST cette
    frontière) plutôt que de le laisser posé tel quel (calé à gauche, s'étirant vers la droite) : même
    principe que le trait de contretemps (.seq-beat-offbeat), qui lui est déjà centré sur SA frontière
-   (retour utilisateur : "les traits sont centrés, mais plus les numéros — asymétrie"). top explicite
-   (au lieu du padding-top ci-dessus, qui ne s'appliquerait pas à un enfant absolu) : même décalage
-   vertical qu'avant. -2px : EXACTEMENT la même compensation que .seq-beat-offbeat (voir son
-   commentaire) — une frontière entre temps est composée des 2 mêmes types de colonnes (la dernière
-   croche du temps précédent, case "b" avec margin-right:4px, puis la 1ère croche "a" du temps
-   suivant), donc soumise à la MÊME asymétrie qu'une frontière interne au milieu d'un temps. Sans
-   cette compensation ici aussi, l'écart numéro->trait et trait->numéro suivant différaient de 4px
-   (2x la compensation manquante), recréant la même asymétrie visible qu'avant. */
+   (retour utilisateur : "les traits sont centrés, mais plus les numéros — asymétrie"). PURE transform
+   (pas position:absolute) : un enfant absolu sort du flux, donc ne contribue plus à la hauteur de
+   .seq-beat-label — sur mobile, où cette ligne dépend de la hauteur RÉELLE de son propre contenu
+   (pas d'une hauteur de ligne de grille fixe comme testé sur desktop), la ligne s'écrasait alors
+   quasiment à rien et le chiffre débordait bien plus bas, coupé par ce qui suit (retour utilisateur :
+   "je ne vois plus les chiffres, ils sont trop bas"). display:inline-block : donne au span une boîte
+   propre dont translateX(-50%) peut se baser sur la largeur, tout en restant dans le flux normal.
+   -2px : EXACTEMENT la même compensation que .seq-beat-offbeat (voir son commentaire) — une frontière
+   entre temps est composée des 2 mêmes types de colonnes (la dernière croche du temps précédent, case
+   "b" avec margin-right:4px, puis la 1ère croche "a" du temps suivant), donc soumise à la MÊME
+   asymétrie qu'une frontière interne au milieu d'un temps. */
 .seq-beat-num {
-    position: absolute;
-    top: 3px;
-    left: 0;
+    display: inline-block;
     transform: translateX(calc(-50% - 2px));
 }
 /* Mis en évidence pendant un étirement/peindre en cours (voir _highlightSeqBeatLabel dans script.js) :
