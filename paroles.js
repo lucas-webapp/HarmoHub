@@ -825,6 +825,20 @@ function resolvedLineIndex(pl, lines, text) {
 // (retour utilisateur, capture d'écran à l'appui : deux pastilles "Em" fondues en un bloc illisible).
 const PILL_MIN_GAP = 5;
 
+// Centre Y du VRAI blanc disponible entre deux lignes (le bas de la ligne précédente et le haut de la
+// ligne visée — ou le haut de la zone pour la 1ère ligne), plutôt qu'un décalage fixe en pixels depuis
+// "line.top" : ce dernier ne suivait ni la taille de police (réglable, voir #opt-font-size) ni
+// l'interligne réel, et pouvait faire déborder une pastille sur le texte de la ligne DU DESSUS (retour
+// utilisateur, capture à l'appui : "le placement des accords est encore beaucoup trop aléatoire").
+// Basé sur les rectangles RÉELLEMENT mesurés (voir getVisualLines) : robuste à tout changement de
+// taille de police ou d'interligne, sans recalcul à la main.
+function verticalSlotCenter(lines, lineIndex, wrapRect) {
+    const line = lines[lineIndex];
+    if (!line) return wrapRect.top;
+    const prevBottom = lineIndex > 0 ? lines[lineIndex - 1].bottom : wrapRect.top;
+    return (prevBottom + line.top) / 2;
+}
+
 function renderPills(si) {
     const sec = state.song.sections[si];
     const { wrap, text } = state.sectionEls[si];
@@ -837,8 +851,9 @@ function renderPills(si) {
     const lines = getVisualLines(text);
 
     // Passe 1 : construit chaque pastille et sa position BRUTE (avant anti-chevauchement), mais ne la
-    // positionne pas encore — il faut d'abord la mesurer une fois posée dans le DOM (largeur réelle,
-    // variable selon le symbole) pour savoir de combien l'écarter d'une voisine trop proche.
+    // positionne pas encore — il faut d'abord la mesurer une fois posée dans le DOM (largeur ET hauteur
+    // réelles, variables selon le symbole/la taille de police) pour l'écarter d'une voisine trop proche
+    // et la centrer verticalement dans l'espace réservé (voir verticalSlotCenter).
     const built = [];
     (sec._placements || []).forEach(pl => {
         const chord = sec.chords[pl.chordIndex];
@@ -861,19 +876,18 @@ function renderPills(si) {
             // ligne) : tous les accords d'une même ligne s'alignent ainsi exactement à la même hauteur
             // (retour utilisateur : "aligner les accords au-dessus du texte verticalement").
             const li = lineIndexForRect(lines, rect);
-            lineTop = li >= 0 ? lines[li].top : rect.top;
+            lineTop = li >= 0 ? verticalSlotCenter(lines, li, wrapRect) : rect.top;
         } else {
             // Mode libre : horizontal libre (xPct, % de la largeur totale de la zone), mais la hauteur
             // est TOUJOURS celle d'UNE ligne entière (lineIndex), jamais une position Y arbitraire
             // (retour utilisateur : "laisser libre uniquement en horizontal, forcer sur une ligne
             // au-dessus de chaque ligne de texte").
             const lineIndex = clamp(pl.lineIndex ?? 0, 0, Math.max(0, lines.length - 1));
-            const line = lines[lineIndex];
             x = wrapRect.left + (pl.xPct / 100) * wrapRect.width;
-            lineTop = line ? line.top : wrapRect.top;
+            lineTop = lines[lineIndex] ? verticalSlotCenter(lines, lineIndex, wrapRect) : wrapRect.top;
         }
 
-        wrap.appendChild(pill); // pas encore positionnée : juste pour pouvoir mesurer sa largeur réelle
+        wrap.appendChild(pill); // pas encore positionnée : juste pour pouvoir mesurer sa taille réelle
         built.push({ pl, pill, x, lineTop });
     });
 
@@ -901,7 +915,9 @@ function renderPills(si) {
 
     built.forEach(b => {
         b.pill.style.left = (b.finalX - wrapRect.left) + 'px';
-        b.pill.style.top = (b.lineTop - wrapRect.top - 20) + 'px';
+        // `lineTop` est désormais le CENTRE Y de l'espace réservé (voir verticalSlotCenter) : on centre
+        // donc la pastille dessus via sa hauteur réelle, pas un simple décalage fixe.
+        b.pill.style.top = (b.lineTop - wrapRect.top - b.pill.offsetHeight / 2) + 'px';
     });
 
     renderLineDividers(lines, wrapRect, wrap);
@@ -948,8 +964,9 @@ function renderLineMeasureNumbers(si, lines, wrapRect) {
         const badge = document.createElement('div');
         badge.className = 'line-measure-num';
         badge.textContent = measureNum;
-        badge.style.top = (lines[lineIndex].top - wrapRect.top - 20) + 'px';
-        wrap.appendChild(badge);
+        wrap.appendChild(badge); // posé avant d'être positionné : pour mesurer sa hauteur réelle
+        const centerY = verticalSlotCenter(lines, lineIndex, wrapRect);
+        badge.style.top = (centerY - wrapRect.top - badge.offsetHeight / 2) + 'px';
     });
 }
 

@@ -406,7 +406,11 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     min-height: 60px;
     outline: none;
     font-size: var(--lyrics-fs, 1rem); /* réglable, voir #opt-font-size dans paroles.js */
-    line-height: 2.1; /* espace vertical généreux : laisse respirer les pastilles au-dessus de chaque ligne */
+    /* Interligne généreux : laisse un vrai blanc entre deux lignes pour les pastilles au-dessus de
+       chacune (voir renderPills/verticalSlotCenter dans paroles.js, qui centre chaque pastille dans cet
+       espace) — augmenté encore (2.1 -> 2.8) suite au retour utilisateur, capture à l'appui : "il faut
+       laisser de la place entre les lignes", les accords empiétant sur le texte de la ligne au-dessus. */
+    line-height: 2.8;
     white-space: pre-wrap;
     word-wrap: break-word;
     color: var(--text-main);
