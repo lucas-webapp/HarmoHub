@@ -7,8 +7,12 @@
 //   - "syllabe" (par défaut) : accroché au caractère le plus proche du clic (via caretRangeFromPoint),
 //     donc précis à la syllabe près et STABLE si le texte se redispose ensuite (contrairement à des
 //     coordonnées pixel figées) ;
-//   - "libre" : position relative (%) dans la zone de texte, pour les cas sans caractère à accrocher
-//     (fin de ligne, ligne encore vide).
+//   - "libre" : position horizontale libre (%), pour les cas sans caractère à accrocher (fin de ligne,
+//     ligne encore vide) — mais la position VERTICALE n'est jamais libre, dans AUCUN des deux modes :
+//     elle se verrouille toujours sur la ligne de texte visée (voir getVisualLines/renderPills), pour
+//     que tous les accords d'une même ligne s'alignent pile à la même hauteur (retour utilisateur :
+//     "aligner les accords au-dessus du texte verticalement... forcer sur une ligne au-dessus de
+//     chaque ligne de texte").
 // Persistance en localStorage (voir STORAGE_PREFIX/storageKeyForSong) : ce fichier ne dépend d'aucun
 // serveur, comme le reste de HarmoHub. L'enregistrement est visible (voir #save-status) plutôt que
 // silencieux : retour utilisateur "assure-toi que les enregistrements sont bien réalisés, avec
@@ -23,9 +27,61 @@ const state = {
     sectionEls: [],       // [{ pool, wrap, text }] par section, remplis une seule fois par buildSectionsDOM
 };
 
+// Pile d'annulation (voir pushUndoSnapshot/undo/redo plus bas) : déclarée ICI, tout en haut, et pas
+// juste avant son usage — resetUndoHistory() est appelée dès l'import automatique au chargement de la
+// page (voir tryAutoImportFromHarmoHub), qui s'exécute AVANT tout code de plus bas dans ce fichier ;
+// un "let" déclaré plus loin resterait dans sa zone morte temporelle à ce moment-là (ReferenceError).
+const UNDO_GROUP_WINDOW = 1000; // ms : au-delà, la frappe suivante ouvre une NOUVELLE étape
+const MAX_UNDO = 100;
+let undoStack = [];
+let redoStack = [];
+
 function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+
+// ---------- Préférences d'affichage (globales, pas liées à un morceau précis) ----------
+
+const PREFS_KEY = 'harmohub_lyrics_prefs';
+const prefs = { fontSize: 1, showMeasureNumbers: false };
+(function loadPrefs() {
+    try {
+        const raw = localStorage.getItem(PREFS_KEY);
+        if (raw) Object.assign(prefs, JSON.parse(raw));
+    } catch (e) { console.error('Préférences Paroles illisibles :', e); }
+})();
+
+function savePrefs() {
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); }
+    catch (e) { console.error('Impossible d\'enregistrer les préférences Paroles :', e); }
+}
+
+function applyPrefs() {
+    document.documentElement.style.setProperty('--lyrics-fs', prefs.fontSize + 'rem');
+    document.getElementById('opt-font-size').value = prefs.fontSize;
+    document.getElementById('opt-font-size-value').textContent = Math.round(prefs.fontSize * 100) + '%';
+    document.getElementById('opt-show-measure-numbers').checked = prefs.showMeasureNumbers;
+    // La taille de police change la disposition du texte (retours à la ligne) et le réglage des
+    // numéros de mesure change la marge réservée à gauche : les deux demandent de refaire le rendu des
+    // pastilles/numéros pour rester alignés avec le texte tel qu'il s'affiche maintenant.
+    if (state.song) refreshAllPoolsAndPills();
+}
+applyPrefs();
+
+document.getElementById('btn-options').addEventListener('click', () => {
+    const panel = document.getElementById('options-panel');
+    panel.hidden = !panel.hidden;
+});
+document.getElementById('opt-font-size').addEventListener('input', (e) => {
+    prefs.fontSize = parseFloat(e.target.value);
+    savePrefs();
+    applyPrefs();
+});
+document.getElementById('opt-show-measure-numbers').addEventListener('change', (e) => {
+    prefs.showMeasureNumbers = e.target.checked;
+    savePrefs();
+    applyPrefs();
+});
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
@@ -160,6 +216,7 @@ function loadSong(data) {
     });
     state.song = data;
     state.armed = null;
+    resetUndoHistory(); // l'historique d'annulation d'un AUTRE morceau n'a pas de sens ici
 
     document.getElementById('empty-state').hidden = true;
     document.getElementById('toolbar').hidden = false;
@@ -264,7 +321,8 @@ function buildSectionsDOM() {
         resetBtn.title = 'Efface les paroles et les accords posés de cette partie (les accords eux-mêmes restent disponibles dans la réserve)';
         resetBtn.addEventListener('click', () => {
             const label = sec.title || `Partie ${si + 1}`;
-            if (!confirm(`Effacer les paroles et tous les accords posés de « ${label} » ? Cette action ne peut pas être annulée.`)) return;
+            if (!confirm(`Effacer les paroles et tous les accords posés de « ${label} » ? (Ctrl+Z pour annuler si besoin.)`)) return;
+            pushUndoSnapshot();
             sec._lyricsHtml = '';
             sec._placements = [];
             state.sectionEls[si].text.innerHTML = '';
@@ -303,6 +361,12 @@ function buildSectionsDOM() {
 
         // --- Écouteurs (posés une seule fois, jamais reconstruits) ---
         text.addEventListener('input', () => {
+            // Regroupe les frappes rapprochées en UNE SEULE étape d'annulation (voir UNDO_GROUP_WINDOW) :
+            // la photo est prise AVANT de mettre à jour sec._lyricsHtml, donc elle capture bien le texte
+            // tel qu'il était juste avant CETTE frappe (la première du groupe).
+            const now = Date.now();
+            if (now - (sec._lastEditAt || 0) > UNDO_GROUP_WINDOW) pushUndoSnapshot();
+            sec._lastEditAt = now;
             sec._lyricsHtml = text.innerHTML;
             saveSession();
             renderPills(si); // le texte a pu se redisposer : les pastilles ancrées à un caractère suivent
@@ -351,11 +415,82 @@ function renderPool(si) {
     });
 }
 
+// ---------- Annuler / rétablir ----------
+// Pile de "photos" de l'état complet (paroles + accords posés de TOUTES les parties), pas un journal
+// d'actions détaillé — plus simple et fiable à restaurer d'un coup, même logique que l'annuler/rétablir
+// de HarmoHub lui-même côté grille d'accords. Les frappes de texte sont REGROUPÉES (voir
+// UNDO_GROUP_WINDOW) : sans ça, chaque caractère tapé ouvrirait sa propre étape, illisible à l'usage.
+// (undoStack/redoStack/UNDO_GROUP_WINDOW/MAX_UNDO déclarés tout en haut du fichier, avec `state` : le
+// "let" ci-dessous n'est PAS hissé comme une fonction — resetUndoHistory() est appelée dès l'import
+// automatique au chargement de la page, voir tryAutoImportFromHarmoHub, qui s'exécute AVANT d'arriver
+// jusqu'ici dans le fichier si ces variables étaient déclarées à cet endroit.)
+
+function snapshotSections() {
+    return state.song.sections.map(sec => ({
+        lyricsHtml: sec._lyricsHtml || '',
+        placements: JSON.parse(JSON.stringify(sec._placements || [])),
+    }));
+}
+
+function pushUndoSnapshot() {
+    if (!state.song) return;
+    undoStack.push(snapshotSections());
+    if (undoStack.length > MAX_UNDO) undoStack.shift();
+    redoStack = [];
+    updateUndoRedoUI();
+}
+
+function resetUndoHistory() {
+    undoStack = [];
+    redoStack = [];
+    updateUndoRedoUI();
+}
+
+function restoreSnapshot(snap) {
+    state.song.sections.forEach((sec, si) => {
+        const s = snap[si] || { lyricsHtml: '', placements: [] };
+        sec._lyricsHtml = s.lyricsHtml;
+        sec._placements = s.placements;
+        state.sectionEls[si].text.innerHTML = sec._lyricsHtml;
+    });
+    state.armed = null;
+    refreshAllPoolsAndPills();
+    updateModeUI();
+    saveSession();
+}
+
+function undo() {
+    if (!undoStack.length) return;
+    redoStack.push(snapshotSections());
+    restoreSnapshot(undoStack.pop());
+    updateUndoRedoUI();
+}
+
+function redo() {
+    if (!redoStack.length) return;
+    undoStack.push(snapshotSections());
+    restoreSnapshot(redoStack.pop());
+    updateUndoRedoUI();
+}
+
+function updateUndoRedoUI() {
+    const u = document.getElementById('btn-undo');
+    const r = document.getElementById('btn-redo');
+    if (u) u.disabled = undoStack.length === 0;
+    if (r) r.disabled = redoStack.length === 0;
+}
+
+document.getElementById('btn-undo').addEventListener('click', undo);
+document.getElementById('btn-redo').addEventListener('click', redo);
+
 // ---------- Armement / pose ----------
 
 function armChord(si, ci) {
     const sec = state.song.sections[si];
     // "Ramasse" un éventuel ancien emplacement de CE MÊME accord : on le repositionne, pas de doublon.
+    // Une vraie étape d'annulation à part entière : sans ça, armer par erreur un accord déjà posé puis
+    // faire Échap le ferait disparaître pour de bon (aucun moyen de le récupérer autrement qu'Annuler).
+    pushUndoSnapshot();
     sec._placements = (sec._placements || []).filter(p => p.chordIndex !== ci);
     state.armed = { si, ci };
     saveSession();
@@ -370,6 +505,7 @@ function disarm() {
 }
 
 function removePlacement(si, ci) {
+    pushUndoSnapshot();
     const sec = state.song.sections[si];
     sec._placements = (sec._placements || []).filter(p => p.chordIndex !== ci);
     if (state.armed && state.armed.si === si && state.armed.ci === ci) state.armed = null;
@@ -391,11 +527,20 @@ function placeArmedAt(si, e) {
         if (charIndex != null) placement = { chordIndex: ci, type: 'char', charIndex };
     }
     if (!placement) {
+        // Mode libre : seule la position HORIZONTALE reste libre — la verticale se verrouille sur la
+        // ligne de texte la plus proche du clic (retour utilisateur : "forcer sur une ligne au-dessus
+        // de chaque ligne de texte"), jamais une position Y arbitraire. Section encore sans texte :
+        // ligne 0 par défaut (rien à mesurer, voir renderPills qui alors se rabat sur le haut de la zone).
+        const lines = getVisualLines(text);
+        const lineIndex = lines.length ? nearestLineIndex(lines, e.clientY) : 0;
         const xPct = ((e.clientX - wrapRect.left) / wrapRect.width) * 100;
-        const yPct = ((e.clientY - wrapRect.top) / wrapRect.height) * 100;
-        placement = { chordIndex: ci, type: 'free', xPct: clamp(xPct, 0, 100), yPct: clamp(yPct, 0, 100) };
+        placement = { chordIndex: ci, type: 'free', lineIndex, xPct: clamp(xPct, 0, 100) };
     }
 
+    // L'armement (voir armChord) a déjà ouvert une étape d'annulation pour CET accord (retrait de son
+    // ancien emplacement) : la pose ici n'a donc PAS besoin d'en ouvrir une seconde, sans quoi un
+    // simple "déplacer cet accord" (armer -> reposer) prendrait deux Ctrl+Z pour être annulé au lieu
+    // d'un seul — contre-intuitif. Voir pushUndoSnapshot dans armChord.
     sec._placements = (sec._placements || []).filter(p => p.chordIndex !== ci);
     sec._placements.push(placement);
     state.armed = null;
@@ -461,13 +606,96 @@ function caretOffsetFromPoint(container, x, y) {
     return globalOffsetFromRange(container, range);
 }
 
+// ---------- Lignes visuelles du texte (pour verrouiller la hauteur des accords, voir plus bas) ----------
+// Un rectangle par ligne VISUELLE (retour tapé OU habillage automatique dû à la largeur), quelle que
+// soit la structure DOM en dessous (un <div> par ligne, des <br>, du texte brut...) — Range.
+// getClientRects() les distingue déjà tout seul pour un contenu multi-lignes, bien plus robuste que
+// d'interpréter la structure HTML nous-mêmes (qui varie d'un navigateur à l'autre).
+function getVisualLines(textEl) {
+    if (!textEl.firstChild) return [];
+    // UNE range par enfant DIRECT du contenteditable, jamais une seule range couvrant tout le bloc :
+    // une range qui traverse la frontière entre deux éléments de bloc (les <div> qu'un navigateur
+    // insère à chaque Entrée) peut renvoyer un rectangle FANTÔME représentant la boîte du bloc entier
+    // (pleine largeur du conteneur), pas le texte réel qu'il contient — faussant complètement le
+    // regroupement par ligne juste en dessous. Mesurer chaque enfant à part l'évite d'emblée.
+    const rects = [];
+    Array.from(textEl.childNodes).forEach(node => {
+        if (node.nodeName === 'BR') return;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const nodeRects = Array.from(range.getClientRects()).filter(r => r.width > 0 || r.height > 0);
+        if (nodeRects.length) {
+            rects.push(...nodeRects);
+        } else if (node.nodeType !== Node.TEXT_NODE) {
+            // Ligne vide (ex. un <div> ne contenant qu'un <br>, ou rien) : rien à mesurer dans son
+            // CONTENU, mais sa propre boîte reste dimensionnée par la hauteur de ligne — sert
+            // d'approximation pour ne pas perdre cette ligne (vide) du décompte.
+            const rect = node.getBoundingClientRect();
+            if (rect.height > 0) rects.push(rect);
+        }
+    });
+    if (!rects.length) return [];
+    const lines = [];
+    rects.forEach(r => {
+        // Un même mot/noeud peut être scindé en plusieurs rects sur une même ligne (ex. à cheval sur
+        // deux éléments DOM) : fusionne tout ce qui partage sensiblement la même bande verticale.
+        const existing = lines.find(l => Math.abs(l.top - r.top) < 2);
+        if (existing) {
+            existing.left = Math.min(existing.left, r.left);
+            existing.right = Math.max(existing.right, r.right);
+            existing.bottom = Math.max(existing.bottom, r.bottom);
+        } else {
+            lines.push({ top: r.top, bottom: r.bottom, left: r.left, right: r.right });
+        }
+    });
+    lines.sort((a, b) => a.top - b.top);
+    return lines;
+}
+
+// Ligne la plus proche d'une position Y (coordonnées écran) — sert au clic en mode libre : seule la
+// position HORIZONTALE reste libre, la ligne visée elle-même se déduit du point cliqué le plus proche.
+function nearestLineIndex(lines, clientY) {
+    if (!lines.length) return -1;
+    let best = 0, bestDist = Infinity;
+    lines.forEach((l, i) => {
+        const dist = Math.abs(clientY - (l.top + l.bottom) / 2);
+        if (dist < bestDist) { bestDist = dist; best = i; }
+    });
+    return best;
+}
+
 // ---------- Rendu des pastilles posées ----------
+
+// Index de la ligne (dans `lines`, voir getVisualLines) qui CONTIENT un rectangle donné — factorisé
+// car utilisé à la fois pour poser une pastille (renderPills) et pour retrouver la ligne d'un accord
+// "syllabe" lors du calcul des numéros de mesure (renderLineMeasureNumbers).
+function lineIndexForRect(lines, rect) {
+    const idx = lines.findIndex(l => rect.top >= l.top - 2 && rect.top <= l.bottom + 2);
+    if (idx >= 0) return idx;
+    return lines.length ? lines.length - 1 : -1;
+}
+
+// Ligne résolue pour UN placement donné, quel que soit son type — "syllabe" retrouve sa ligne via la
+// position réelle du caractère ancré ; "libre" a déjà sa ligne enregistrée directement (lineIndex).
+function resolvedLineIndex(pl, lines, text) {
+    if (pl.type === 'free') return lines.length ? clamp(pl.lineIndex ?? 0, 0, lines.length - 1) : -1;
+    const range = rangeFromGlobalOffset(text, pl.charIndex);
+    if (!range) return -1;
+    const rects = range.getClientRects();
+    const rect = (rects && rects[0]) || range.getBoundingClientRect();
+    return lineIndexForRect(lines, rect);
+}
 
 function renderPills(si) {
     const sec = state.song.sections[si];
     const { wrap, text } = state.sectionEls[si];
-    wrap.querySelectorAll('.lyric-pill').forEach(p => p.remove());
+    // AVANT toute mesure (getBoundingClientRect/getVisualLines) : cette classe change le padding de la
+    // zone (voir .lyrics-wrap.show-line-numbers en CSS), donc la disposition du texte elle-même — la
+    // basculer après aurait mesuré l'ancienne mise en page.
+    wrap.classList.toggle('show-line-numbers', !!prefs.showMeasureNumbers);
+    wrap.querySelectorAll('.lyric-pill, .line-measure-num').forEach(p => p.remove());
     const wrapRect = wrap.getBoundingClientRect();
+    const lines = getVisualLines(text);
 
     (sec._placements || []).forEach(pl => {
         const chord = sec.chords[pl.chordIndex];
@@ -477,18 +705,66 @@ function renderPills(si) {
         pill.dataset.chordIndex = pl.chordIndex;
         pill.innerHTML = `${escapeHtml(chord.symbol)}<span class="pill-del" data-del="1" title="Retirer">×</span>`;
 
+        let x, lineTop;
         if (pl.type === 'char') {
             const range = rangeFromGlobalOffset(text, pl.charIndex);
             if (!range) return;
             const rects = range.getClientRects();
             const rect = (rects && rects[0]) || range.getBoundingClientRect();
-            pill.style.left = (rect.left - wrapRect.left) + 'px';
-            pill.style.top = (rect.top - wrapRect.top - 20) + 'px';
+            x = rect.left;
+            // Verrouille la HAUTEUR sur la ligne qui CONTIENT ce caractère (pas le rect du caractère
+            // lui-même, qui peut dévier de quelques sous-pixels d'un caractère à l'autre sur la même
+            // ligne) : tous les accords d'une même ligne s'alignent ainsi exactement à la même hauteur
+            // (retour utilisateur : "aligner les accords au-dessus du texte verticalement").
+            const li = lineIndexForRect(lines, rect);
+            lineTop = li >= 0 ? lines[li].top : rect.top;
         } else {
-            pill.style.left = pl.xPct + '%';
-            pill.style.top = pl.yPct + '%';
+            // Mode libre : horizontal libre (xPct, % de la largeur totale de la zone), mais la hauteur
+            // est TOUJOURS celle d'UNE ligne entière (lineIndex), jamais une position Y arbitraire
+            // (retour utilisateur : "laisser libre uniquement en horizontal, forcer sur une ligne
+            // au-dessus de chaque ligne de texte").
+            const lineIndex = clamp(pl.lineIndex ?? 0, 0, Math.max(0, lines.length - 1));
+            const line = lines[lineIndex];
+            x = wrapRect.left + (pl.xPct / 100) * wrapRect.width;
+            lineTop = line ? line.top : wrapRect.top;
         }
+
+        pill.style.left = (x - wrapRect.left) + 'px';
+        pill.style.top = (lineTop - wrapRect.top - 20) + 'px';
         wrap.appendChild(pill);
+    });
+
+    renderLineMeasureNumbers(si, lines, wrapRect);
+}
+
+// ---------- Numéro de mesure en début de chaque ligne (voir #opt-show-measure-numbers) ----------
+// Pour chaque ligne qui porte au moins un accord posé, affiche le numéro de la mesure où tombe le
+// PREMIER de ces accords dans l'ordre du morceau (le plus petit chordIndex) — déduit du cumul des
+// temps des accords qui le précèdent dans CETTE partie (chaque partie renumérote depuis 1, comme la
+// grille d'accords de HarmoHub elle-même). Une ligne sans aucun accord posé n'a rien à en déduire :
+// pas de numéro affiché plutôt qu'une valeur inventée.
+function renderLineMeasureNumbers(si, lines, wrapRect) {
+    if (!prefs.showMeasureNumbers || !lines.length) return;
+    const sec = state.song.sections[si];
+    const { wrap, text } = state.sectionEls[si];
+    const beatsPerBar = (state.song.beatsPerBar) || 4;
+
+    const firstChordIndexByLine = new Map();
+    (sec._placements || []).forEach(pl => {
+        const li = resolvedLineIndex(pl, lines, text);
+        if (li < 0) return;
+        const cur = firstChordIndexByLine.get(li);
+        if (cur === undefined || pl.chordIndex < cur) firstChordIndexByLine.set(li, pl.chordIndex);
+    });
+
+    firstChordIndexByLine.forEach((chordIndex, lineIndex) => {
+        const beatsBefore = sec.chords.slice(0, chordIndex).reduce((sum, c) => sum + (c.beats || 0), 0);
+        const measureNum = Math.floor(beatsBefore / beatsPerBar) + 1;
+        const badge = document.createElement('div');
+        badge.className = 'line-measure-num';
+        badge.textContent = measureNum;
+        badge.style.top = (lines[lineIndex].top - wrapRect.top - 20) + 'px';
+        wrap.appendChild(badge);
     });
 }
 
@@ -522,7 +798,15 @@ function updateModeUI() {
 }
 
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && state.armed) disarm();
+    if (e.key === 'Escape' && state.armed) { disarm(); return; }
+    // Intercepte Ctrl/Cmd+Z même quand le focus est DANS la zone de paroles (contenteditable) : sans
+    // preventDefault ici, le navigateur déclencherait EN PLUS son propre "annuler" natif du champ, qui
+    // ne connaît rien de nos accords posés — deux historiques divergents plutôt qu'un seul cohérent.
+    const mod = e.ctrlKey || e.metaKey;
+    if (!mod) return;
+    const k = e.key.toLowerCase();
+    if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redo(); }
 });
 
 // ---------- Utilitaire ----------

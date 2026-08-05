@@ -10,7 +10,7 @@
      principale — ni son moteur harmonique, ni son séquenceur, ni sa grille à largeur de temps fixe
      (voir paroles.js pour le pourquoi de ce découplage : la largeur d'une mesure ne correspond jamais
      à la largeur d'un mot, inutile de forcer les deux outils à partager la même contrainte). -->
-<link rel="stylesheet" href="paroles.css?v=4">
+<link rel="stylesheet" href="paroles.css?v=8">
 </head>
 <body>
     <header class="top-bar">
@@ -38,15 +38,33 @@
             <p>Importe le fichier téléchargé depuis HarmoHub (bouton <strong>« Exporter pour paroles »</strong>, à côté des exports PDF/MIDI/MP3) pour commencer.</p>
         </div>
         <div id="toolbar" class="toolbar" hidden>
-            <div class="mode-toggle">
-                <button type="button" id="mode-syllable" class="mode-btn active" title="Les accords s'accrochent au caractère le plus proche (syllabe) — reste aligné même si le texte se redispose">Syllabe</button>
-                <button type="button" id="mode-free" class="mode-btn" title="Pose l'accord n'importe où, sans accrochage — utile en fin de ligne ou dans un blanc">Libre</button>
+            <div class="toolbar-left">
+                <div class="mode-toggle">
+                    <button type="button" id="mode-syllable" class="mode-btn active" title="Les accords s'accrochent au caractère le plus proche (syllabe) — reste aligné même si le texte se redispose">Syllabe</button>
+                    <button type="button" id="mode-free" class="mode-btn" title="Position horizontale libre, sans accrochage à un caractère — la hauteur reste toujours celle de la ligne visée">Libre</button>
+                </div>
+                <div class="history-controls">
+                    <button type="button" id="btn-undo" class="mode-btn" disabled title="Annuler (Ctrl+Z)">↶</button>
+                    <button type="button" id="btn-redo" class="mode-btn" disabled title="Rétablir (Ctrl+Maj+Z)">↷</button>
+                </div>
             </div>
             <div id="armed-hint" class="armed-hint" hidden></div>
+            <button type="button" id="btn-options" class="mode-btn" title="Options d'affichage">⚙ Options</button>
+        </div>
+        <div id="options-panel" class="options-panel" hidden>
+            <label class="option-row">
+                <span>Taille du texte</span>
+                <input type="range" id="opt-font-size" min="0.8" max="1.6" step="0.1" value="1">
+                <span id="opt-font-size-value" class="option-value">100%</span>
+            </label>
+            <label class="option-row option-row-checkbox">
+                <input type="checkbox" id="opt-show-measure-numbers">
+                <span>Numéro de mesure au début de chaque ligne</span>
+            </label>
         </div>
         <div id="sections"></div>
     </main>
 
-    <script src="paroles.js?v=4"></script>
+    <script src="paroles.js?v=8"></script>
 </body>
 </html>

@@ -170,7 +170,13 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     padding: 8px 0;
     z-index: 5;
 }
-.mode-toggle {
+.toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.mode-toggle, .history-controls {
     display: inline-flex;
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -189,6 +195,8 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     background: #17301f;
     color: #e9f3ec;
 }
+.mode-btn:disabled { opacity: 0.35; cursor: default; }
+.history-controls .mode-btn { padding: 6px 12px; font-size: 0.95rem; }
 .armed-hint {
     font-size: 0.82rem;
     color: var(--accent);
@@ -197,6 +205,31 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     border-radius: 8px;
     padding: 5px 12px;
 }
+
+/* Panneau d'options (voir #btn-options) : replié par défaut, posé juste sous la barre d'outils. */
+.options-panel {
+    max-width: 900px;
+    margin: -10px auto 18px;
+    padding: 14px 16px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.option-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+    color: var(--text-main);
+    cursor: default;
+}
+.option-row input[type="range"] { flex: 1; max-width: 220px; }
+.option-value { color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 3.5ch; }
+.option-row-checkbox { cursor: pointer; }
+.option-row-checkbox input { cursor: pointer; }
 
 .section-block {
     background: var(--card-bg);
@@ -276,7 +309,7 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
 .lyrics-text {
     min-height: 60px;
     outline: none;
-    font-size: 1rem;
+    font-size: var(--lyrics-fs, 1rem); /* réglable, voir #opt-font-size dans paroles.js */
     line-height: 2.1; /* espace vertical généreux : laisse respirer les pastilles au-dessus de chaque ligne */
     white-space: pre-wrap;
     word-wrap: break-word;
@@ -289,6 +322,22 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     font-style: italic;
 }
 .lyrics-wrap.armable .lyrics-text { cursor: crosshair; }
+
+/* Numéro de mesure en début de ligne (voir #opt-show-measure-numbers) : une petite marge réservée à
+   gauche du texte, jamais superposée dessus. */
+.lyrics-wrap.show-line-numbers { padding-left: 30px; }
+.line-measure-num {
+    position: absolute;
+    left: 0;
+    width: 24px;
+    text-align: right;
+    padding-right: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+    pointer-events: none;
+}
 
 .lyric-pill {
     position: absolute;
