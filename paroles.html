@@ -20,7 +20,7 @@
      boutons, logo, icônes SVG plutôt qu'émojis) est repris à la main de style.css pour que ça reste
      visiblement le MÊME produit (retour utilisateur : "optimise le design pour que ça colle au design
      HarmoHub, utilisation de logos, couleurs pastel"). -->
-<link rel="stylesheet" href="paroles.css?v=10">
+<link rel="stylesheet" href="paroles.css?v=11">
 </head>
 <body>
     <header class="top-bar">
@@ -50,18 +50,19 @@
         <div class="top-actions">
             <span id="save-status" class="save-status"></span>
             <span id="song-name" class="song-name" hidden></span>
-            <button type="button" id="btn-import" class="btn-primary">
+            <!-- Icône seule (retour utilisateur : "les boutons import export etc sont trop gros, il
+                 faut les mettre en haut à droite avec logos uniquement") — le libellé reste en
+                 title/aria-label pour l'info-bulle et les lecteurs d'écran, comme les boutons d'export
+                 de HarmoHub lui-même (PDF/MIDI/MP3, voir index.html). -->
+            <button type="button" id="btn-import" class="btn-primary header-icon-btn" title="Importer un fichier" aria-label="Importer un fichier">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21V9"/><path d="m7 13 5-5 5 5"/><path d="M5 3h14"/></svg>
-                Importer un fichier
             </button>
             <input type="file" id="file-input" accept="application/json,.json" hidden>
-            <button type="button" id="btn-export-text" class="btn-secondary" hidden title="Télécharge un fichier texte (accords au-dessus des paroles), lisible partout">
+            <button type="button" id="btn-export-text" class="btn-secondary header-icon-btn" hidden title="Exporter en texte — télécharge un fichier texte (accords au-dessus des paroles), lisible partout" aria-label="Exporter en texte">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>
-                Exporter en texte
             </button>
-            <button type="button" id="btn-print" class="btn-secondary" hidden title="Imprimer / exporter en PDF via la boîte d'impression du navigateur">
+            <button type="button" id="btn-print" class="btn-secondary header-icon-btn" hidden title="Imprimer / exporter en PDF via la boîte d'impression du navigateur" aria-label="Imprimer">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                Imprimer
             </button>
         </div>
     </header>

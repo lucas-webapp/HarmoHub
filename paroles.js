@@ -389,7 +389,68 @@ function buildSectionsDOM() {
             renderPills(si); // le texte a pu se redisposer : les pastilles ancrées à un caractère suivent
         });
 
+        // Glisser-déposer une pastille déjà posée (retour utilisateur : "je dois pouvoir déplacer
+        // l'accord si je l'ai mal placé sur la ligne") : en plus du clic (reprendre puis reposer
+        // ailleurs, voir pickUpPlacement/placeArmedAt), on peut désormais la faire glisser directement
+        // d'un seul geste. `dragState` suit le pointeur en cours ; `suppressNextClick` évite que le
+        // `click` que le navigateur envoie juste après un pointerup ne déclenche AUSSI la logique de
+        // reprise-au-clic ci-dessous pour ce même geste.
+        let dragState = null;
+        let suppressNextClick = false;
+        const DRAG_THRESHOLD = 6; // px : en-deçà, on considère que c'est un simple clic, pas un glisser
+
+        wrap.addEventListener('pointerdown', (e) => {
+            const pill = e.target.closest('.lyric-pill');
+            if (!pill || e.target.dataset.del) return;
+            dragState = {
+                placementId: pill.dataset.placementId,
+                pointerId: e.pointerId,
+                startX: e.clientX,
+                startY: e.clientY,
+                moved: false,
+            };
+            pill.setPointerCapture(e.pointerId);
+        });
+
+        wrap.addEventListener('pointermove', (e) => {
+            if (!dragState || dragState.pointerId !== e.pointerId) return;
+            const dx = e.clientX - dragState.startX;
+            const dy = e.clientY - dragState.startY;
+            if (!dragState.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+            dragState.moved = true;
+            const pill = wrap.querySelector(`.lyric-pill[data-placement-id="${dragState.placementId}"]`);
+            if (!pill) return;
+            pill.classList.add('dragging');
+            // Aperçu en direct : suit le pointeur en X, se cale sur la ligne de texte la plus proche en
+            // Y (même verrouillage qu'à la pose, voir placeArmedAt) — l'utilisateur voit tout de suite
+            // sur quelle ligne l'accord va retomber avant même de relâcher.
+            const wrapRect = wrap.getBoundingClientRect();
+            const lines = getVisualLines(text);
+            const lineIdx = lines.length ? nearestLineIndex(lines, e.clientY) : 0;
+            const lineTop = lines[lineIdx] ? lines[lineIdx].top : wrapRect.top;
+            const xClamped = clamp(e.clientX, wrapRect.left, wrapRect.right);
+            pill.style.left = (xClamped - wrapRect.left) + 'px';
+            pill.style.top = (lineTop - wrapRect.top - 20) + 'px';
+        });
+
+        wrap.addEventListener('pointerup', (e) => {
+            if (!dragState || dragState.pointerId !== e.pointerId) return;
+            const { placementId, moved } = dragState;
+            dragState = null;
+            if (!moved) return; // pas un glisser : laisse le gestionnaire "click" ci-dessous s'en charger
+            suppressNextClick = true;
+            // Filet de sécurité : movePlacementTo() reconstruit la pastille (renderPills), donc l'élément
+            // qui a reçu ce pointerup est DÉTACHÉ du DOM avant même que le "click" de suivi du navigateur
+            // ne se déclenche — cet événement ne remonte alors JAMAIS jusqu'au gestionnaire ci-dessous
+            // pour remettre le drapeau à false, qui resterait bloqué à `true` et avalerait silencieusement
+            // le TOUT PROCHAIN clic sur une pastille. On le retombe donc aussi tout seul peu après, que le
+            // "click" ait été reçu ou non (s'il l'a été, il l'aura déjà remis à false entre-temps).
+            setTimeout(() => { suppressNextClick = false; }, 400);
+            movePlacementTo(si, placementId, e.clientX, e.clientY);
+        });
+
         wrap.addEventListener('click', (e) => {
+            if (suppressNextClick) { suppressNextClick = false; return; }
             const pill = e.target.closest('.lyric-pill');
             if (pill) {
                 e.stopPropagation();
@@ -419,23 +480,19 @@ function renderPool(si) {
         const chip = document.createElement('button');
         chip.type = 'button';
         chip.className = 'chord-chip';
-        // Un même accord peut désormais être posé plusieurs fois (retour utilisateur : "utiliser
-        // autant de fois que je veux le même accord dans une section") : on compte les exemplaires
-        // posés plutôt que de tester une simple présence, et on l'affiche ("×N") sur le chip.
+        // Un même accord peut être posé plusieurs fois (voir armChord/placeArmedAt), mais le NOMBRE
+        // d'exemplaires ne s'affiche plus sur le chip (retour utilisateur : "je n'ai pas besoin du
+        // nombre de fois que j'ai utilisé un accord") — seul l'état "déjà posé au moins une fois"
+        // reste visible (classe .placed, chip estompé).
         const placedCount = (sec._placements || []).filter(p => p.chordIndex === ci).length;
         const isArmed = state.armed && state.armed.si === si && state.armed.ci === ci;
         if (placedCount > 0) chip.classList.add('placed');
         if (isArmed) chip.classList.add('armed');
-        // Le compteur d'exemplaires est un petit badge à part (ton pastel doré, voir .chip-count dans
-        // paroles.css) plutôt qu'un simple "×N" collé au texte — plus lisible, et cohérent avec les
-        // badges déjà utilisés ailleurs dans HarmoHub (ex. voicing sur la grille).
-        chip.innerHTML = placedCount > 0
-            ? `${escapeHtml(chord.symbol)}<span class="chip-count">×${placedCount}</span>`
-            : escapeHtml(chord.symbol);
+        chip.textContent = chord.symbol;
         chip.title = isArmed
             ? 'Armé — clique dans le texte pour poser un exemplaire (reste armé pour en poser d\'autres), ou reclique ici pour désarmer'
             : (placedCount > 0
-                ? `Déjà posé ${placedCount} fois — cliquer pour en poser un exemplaire de plus (clique une pastille existante pour la reprendre et la déplacer)`
+                ? 'Déjà posé — cliquer pour en poser un exemplaire de plus (glisse une pastille existante pour la déplacer)'
                 : 'Cliquer puis clique dans le texte pour le poser');
         chip.addEventListener('click', () => {
             if (isArmed) disarm();
@@ -558,28 +615,34 @@ function pickUpPlacement(si, ci, placementId) {
     updateModeUI();
 }
 
-function placeArmedAt(si, e) {
-    const sec = state.song.sections[si];
-    const ci = state.armed.ci;
+// Résout où doit tomber un accord posé/déplacé à ce point (clientX/clientY) — partagé entre
+// placeArmedAt (nouvelle pose) et movePlacementTo (glisser une pastille existante, voir plus bas) pour
+// ne pas dupliquer la logique d'ancrage (syllabe vs libre, verrouillage de ligne). Retourne un objet de
+// position SANS chordIndex ni id : à l'appelant de les compléter selon son cas d'usage.
+function resolvePositionAt(si, clientX, clientY) {
     const { wrap, text } = state.sectionEls[si];
     const wrapRect = wrap.getBoundingClientRect();
     const noText = text.textContent.trim().length === 0;
 
-    let placement = null;
     if (!state.freeMode && !noText) {
-        const charIndex = caretOffsetFromPoint(text, e.clientX, e.clientY);
-        if (charIndex != null) placement = { chordIndex: ci, type: 'char', charIndex };
+        const charIndex = caretOffsetFromPoint(text, clientX, clientY);
+        if (charIndex != null) return { type: 'char', charIndex };
     }
-    if (!placement) {
-        // Mode libre : seule la position HORIZONTALE reste libre — la verticale se verrouille sur la
-        // ligne de texte la plus proche du clic (retour utilisateur : "forcer sur une ligne au-dessus
-        // de chaque ligne de texte"), jamais une position Y arbitraire. Section encore sans texte :
-        // ligne 0 par défaut (rien à mesurer, voir renderPills qui alors se rabat sur le haut de la zone).
-        const lines = getVisualLines(text);
-        const lineIndex = lines.length ? nearestLineIndex(lines, e.clientY) : 0;
-        const xPct = ((e.clientX - wrapRect.left) / wrapRect.width) * 100;
-        placement = { chordIndex: ci, type: 'free', lineIndex, xPct: clamp(xPct, 0, 100) };
-    }
+    // Mode libre : seule la position HORIZONTALE reste libre — la verticale se verrouille sur la ligne
+    // de texte la plus proche du point visé (retour utilisateur : "forcer sur une ligne au-dessus de
+    // chaque ligne de texte"), jamais une position Y arbitraire. Section encore sans texte : ligne 0
+    // par défaut (rien à mesurer, voir renderPills qui alors se rabat sur le haut de la zone).
+    const lines = getVisualLines(text);
+    const lineIndex = lines.length ? nearestLineIndex(lines, clientY) : 0;
+    const xPct = ((clientX - wrapRect.left) / wrapRect.width) * 100;
+    return { type: 'free', lineIndex, xPct: clamp(xPct, 0, 100) };
+}
+
+function placeArmedAt(si, e) {
+    const sec = state.song.sections[si];
+    const ci = state.armed.ci;
+    const placement = resolvePositionAt(si, e.clientX, e.clientY);
+    placement.chordIndex = ci;
     placement.id = nextPlacementId();
 
     // Cette pose ouvre sa propre étape d'annulation (armer ne le fait plus, voir armChord) : une pose
@@ -592,6 +655,28 @@ function placeArmedAt(si, e) {
     // même accord ailleurs sans avoir à recliquer sur son chip à chaque fois (retour utilisateur :
     // "utiliser autant de fois que je veux le même accord"). Un clic sur le chip déjà armé (ou Échap)
     // le désarme explicitement quand l'utilisateur a fini.
+    saveSession();
+    refreshAllPoolsAndPills();
+    updateModeUI();
+}
+
+// Glisser-déposer une pastille déjà posée (voir pointerup dans buildSectionsDOM) : repositionne CET
+// exemplaire précis (même id, même chordIndex) sans repasser par armer/pickUpPlacement — un seul geste
+// plutôt que "reprendre au clic PUIS cliquer ailleurs" (retour utilisateur : "je dois pouvoir déplacer
+// l'accord si je l'ai mal placé sur la ligne").
+function movePlacementTo(si, placementId, clientX, clientY) {
+    const sec = state.song.sections[si];
+    const pl = (sec._placements || []).find(p => p.id === placementId);
+    if (!pl) return;
+
+    pushUndoSnapshot();
+    const resolved = resolvePositionAt(si, clientX, clientY);
+    // Efface les anciens champs de position avant d'appliquer les nouveaux — évite qu'un ancien
+    // "charIndex" ou "lineIndex/xPct" traîne si le type d'ancrage change entre-temps (ex. glissé en
+    // mode syllabe après avoir été posé libre). chordIndex + id (identité de l'exemplaire) restent.
+    delete pl.type; delete pl.charIndex; delete pl.lineIndex; delete pl.xPct;
+    Object.assign(pl, resolved);
+
     saveSession();
     refreshAllPoolsAndPills();
     updateModeUI();
@@ -734,6 +819,12 @@ function resolvedLineIndex(pl, lines, text) {
     return lineIndexForRect(lines, rect);
 }
 
+// Écart minimal (px) entre deux pastilles voisines sur une même ligne (voir la passe d'anti-
+// chevauchement plus bas) : évite que deux accords posés au même endroit (ou très proches — le mode
+// "tampon", voir placeArmedAt, le permet désormais) se retrouvent totalement superposés et illisibles
+// (retour utilisateur, capture d'écran à l'appui : deux pastilles "Em" fondues en un bloc illisible).
+const PILL_MIN_GAP = 5;
+
 function renderPills(si) {
     const sec = state.song.sections[si];
     const { wrap, text } = state.sectionEls[si];
@@ -741,10 +832,14 @@ function renderPills(si) {
     // zone (voir .lyrics-wrap.show-line-numbers en CSS), donc la disposition du texte elle-même — la
     // basculer après aurait mesuré l'ancienne mise en page.
     wrap.classList.toggle('show-line-numbers', !!prefs.showMeasureNumbers);
-    wrap.querySelectorAll('.lyric-pill, .line-measure-num').forEach(p => p.remove());
+    wrap.querySelectorAll('.lyric-pill, .line-measure-num, .line-divider').forEach(p => p.remove());
     const wrapRect = wrap.getBoundingClientRect();
     const lines = getVisualLines(text);
 
+    // Passe 1 : construit chaque pastille et sa position BRUTE (avant anti-chevauchement), mais ne la
+    // positionne pas encore — il faut d'abord la mesurer une fois posée dans le DOM (largeur réelle,
+    // variable selon le symbole) pour savoir de combien l'écarter d'une voisine trop proche.
+    const built = [];
     (sec._placements || []).forEach(pl => {
         const chord = sec.chords[pl.chordIndex];
         if (!chord) return;
@@ -778,12 +873,53 @@ function renderPills(si) {
             lineTop = line ? line.top : wrapRect.top;
         }
 
-        pill.style.left = (x - wrapRect.left) + 'px';
-        pill.style.top = (lineTop - wrapRect.top - 20) + 'px';
-        wrap.appendChild(pill);
+        wrap.appendChild(pill); // pas encore positionnée : juste pour pouvoir mesurer sa largeur réelle
+        built.push({ pl, pill, x, lineTop });
     });
 
+    // Passe 2 : anti-chevauchement, ligne par ligne (regroupées par leur "lineTop" exact — deux
+    // pastilles de la même ligne visuelle partagent TOUJOURS la même valeur, verrouillée juste
+    // au-dessus). À largeur/symbole égal, l'ordre de POSE (celui du tableau _placements) l'emporte :
+    // la pastille posée en premier garde sa position brute, celles qui suivent et la chevaucheraient
+    // sont décalées vers la droite d'une par une plutôt que de rester empilées.
+    const byLine = new Map();
+    built.forEach(b => {
+        const key = Math.round(b.lineTop);
+        if (!byLine.has(key)) byLine.set(key, []);
+        byLine.get(key).push(b);
+    });
+    byLine.forEach(group => {
+        group.sort((a, b) => a.x - b.x);
+        let prevRightEdge = -Infinity;
+        group.forEach(b => {
+            const halfWidth = b.pill.offsetWidth / 2;
+            const minX = prevRightEdge + halfWidth + PILL_MIN_GAP;
+            b.finalX = Math.max(b.x, minX);
+            prevRightEdge = b.finalX + halfWidth;
+        });
+    });
+
+    built.forEach(b => {
+        b.pill.style.left = (b.finalX - wrapRect.left) + 'px';
+        b.pill.style.top = (b.lineTop - wrapRect.top - 20) + 'px';
+    });
+
+    renderLineDividers(lines, wrapRect, wrap);
     renderLineMeasureNumbers(si, lines, wrapRect);
+}
+
+// ---------- Séparation ligne d'accords / ligne de texte (retour utilisateur : "il faut différencier
+// une ligne texte et une ligne accords, séparation discrète et fine") ----------
+// Un simple filet fin, juste au-dessus de chaque ligne de texte détectée : marque clairement la
+// frontière entre la zone réservée aux accords (au-dessus) et le texte lui-même (en dessous), plutôt
+// que de laisser les deux zones se fondre visuellement l'une dans l'autre.
+function renderLineDividers(lines, wrapRect, wrap) {
+    lines.forEach(line => {
+        const divider = document.createElement('div');
+        divider.className = 'line-divider';
+        divider.style.top = (line.top - wrapRect.top - 3) + 'px';
+        wrap.appendChild(divider);
+    });
 }
 
 // ---------- Numéro de mesure en début de chaque ligne (voir #opt-show-measure-numbers) ----------
