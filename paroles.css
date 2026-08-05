@@ -12,12 +12,38 @@
     --border: #333;
     --radius: 12px;
     --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+
+    /* Palette des boutons pleins, reprise À LA MAIN de style.css (voir le commentaire "pierre
+       précieuse" là-bas) : une teinte profonde et désaturée par famille, jamais le vert/bleu vif de
+       --accent directement en fond — pour que Paroles se sente visiblement le MÊME produit que
+       HarmoHub plutôt qu'un outil tiers (retour utilisateur : "optimise le design pour que ça colle
+       au design HarmoHub"). Aucun lien de code avec style.css (voir plus haut, découplage voulu) :
+       ces valeurs sont dupliquées à la main, pas importées. */
+    --btn-green-1: #234534; --btn-green-2: #17301f; --btn-green-border: #2f5b40; --btn-green-border-hover: #3d7a54;
+    --btn-neutral-1: #262626; --btn-neutral-2: #1a1a1a; --btn-neutral-border: #3a3a3a; --btn-neutral-border-hover: #4a4a4a;
+    --btn-text: #e9f3ec;
+
+    /* Couleurs "pastel" des rôles de note du piano/guitare de HarmoHub (.role-root/.role-seventh...) —
+       mêmes teintes exactes, réutilisées ici pour le badge de comptage d'exemplaires posés (.chip-count)
+       plutôt qu'une couleur inventée : même langage visuel que l'appli principale. */
+    --pastel-gold: #e0c48a;
+    --pastel-mint: #8fd6b8;
 }
 
 /* L'attribut [hidden] natif est de faible spécificité (règle du navigateur) : une règle d'auteur avec
    "display" sur la MÊME classe (ex. .toolbar { display: flex }) l'emporterait sinon et réafficherait
    l'élément malgré [hidden] — d'où cette règle explicite, jamais dépendante de l'ordre du CSS. */
 [hidden] { display: none !important; }
+
+/* Icônes SVG en ligne : mêmes dimensions que .icon dans style.css, pour rester à la même échelle que
+   les boutons de HarmoHub — remplacent les émojis utilisés jusqu'ici (🎤, ⚙, 📄, 🖨️, ↶, ↷, voir
+   paroles.html/paroles.js) qui ne faisaient pas partie du vocabulaire visuel de l'appli. */
+.icon {
+    width: 15px;
+    height: 15px;
+    flex: none;
+    vertical-align: -3px;
+}
 
 * { box-sizing: border-box; }
 html, body {
@@ -50,19 +76,42 @@ html, body {
     gap: 14px;
 }
 .top-bar h1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 1.1rem;
     margin: 0;
     font-weight: 700;
 }
+/* Même logo « grille en dégradé » que le coin haut-droit de HarmoHub (voir .logo-mark dans
+   index.html/style.css, repris à la main) : posé ici juste devant "Paroles" plutôt que dans un lien
+   cliquable séparé — il signale la filiation avec HarmoHub sans dupliquer le lien de retour, déjà
+   assuré par .btn-back juste à côté. */
+.logo-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+    background: var(--bg);
+    color: var(--accent);
+    line-height: 1;
+}
+.logo-mark .icon { width: 15px; height: 15px; vertical-align: 0; }
 .btn-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     font-family: var(--font);
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--text-muted);
     text-decoration: none;
-    padding: 6px 10px;
-    border-radius: 8px;
+    padding: 6px 10px 6px 8px;
+    border-radius: 999px;
     border: 1px solid var(--border);
+    background: rgba(22, 22, 22, 0.7);
     transition: border-color 0.15s ease, color 0.15s ease;
 }
 .btn-back:hover { border-color: #4a4a4a; color: var(--text-main); }
@@ -124,7 +173,13 @@ html, body {
 }
 .banner-close:hover { opacity: 1; }
 
+/* Même recette de dégradé que .btn-prog/.btn-sec dans style.css : un reflet radial en haut à gauche +
+   un dégradé sombre linéaire en dessous, la couleur se lisant dans la MATIÈRE du bouton plutôt que
+   dans un aplat uni (retour utilisateur : coller au design HarmoHub). */
 .btn-primary, .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-family: var(--font);
     font-size: 0.85rem;
     font-weight: 600;
@@ -132,19 +187,28 @@ html, body {
     padding: 8px 14px;
     cursor: pointer;
     border: 1px solid var(--border);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.07) inset, 0 3px 8px rgba(0,0,0,0.35);
     transition: border-color 0.15s ease, background 0.15s ease;
 }
 .btn-primary {
-    background: #17301f;
-    border-color: #2f5b40;
-    color: #e9f3ec;
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
+    border-color: var(--btn-green-border);
+    color: var(--btn-text);
 }
-.btn-primary:hover { border-color: #3d7a54; }
+.btn-primary:hover {
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.16), transparent 55%), linear-gradient(160deg, #2b5540, #1c3a26 70%);
+    border-color: var(--btn-green-border-hover);
+}
 .btn-secondary {
-    background: #1a1a1a;
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.08), transparent 55%), linear-gradient(160deg, var(--btn-neutral-1), var(--btn-neutral-2) 70%);
+    border-color: var(--btn-neutral-border);
     color: var(--text-main);
 }
-.btn-secondary:hover { border-color: #4a4a4a; }
+.btn-secondary:hover {
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, #2d2d2d, #202020 70%);
+    border-color: var(--btn-neutral-border-hover);
+}
+.btn-primary:active, .btn-secondary:active { box-shadow: inset 0 1px 3px rgba(0,0,0,0.4); }
 
 main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
 
@@ -183,20 +247,30 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     overflow: hidden;
 }
 .mode-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     font-family: var(--font);
     font-size: 0.8rem;
     padding: 6px 14px;
-    background: #1a1a1a;
+    background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0) 50%), #1c2027;
     color: var(--text-muted);
     border: none;
     cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease;
 }
+.mode-btn:hover { background: linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0) 50%), #262b33; color: var(--text-main); }
+/* Même dégradé vert "actif" que .icon-btn.active/.btn-prog dans style.css : "actif" a toujours cette
+   même couleur dans toute l'appli, jamais une autre juste parce qu'on est dans Paroles. */
 .mode-btn.active {
-    background: #17301f;
-    color: #e9f3ec;
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
+    color: var(--btn-text);
 }
 .mode-btn:disabled { opacity: 0.35; cursor: default; }
 .history-controls .mode-btn { padding: 6px 12px; font-size: 0.95rem; }
+/* Boutons icône seule (Annuler/Rétablir) : carrés, sans texte à caser — même logique que .icon-btn
+   dans style.css. */
+.mode-btn.icon-only { padding: 6px 10px; }
 .armed-hint {
     font-size: 0.82rem;
     color: var(--accent);
@@ -231,12 +305,14 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
 .option-row-checkbox { cursor: pointer; }
 .option-row-checkbox input { cursor: pointer; }
 
+/* Même carte que .control-card dans style.css (fond, rayon, marge) : les sections de Paroles doivent
+   se lire comme les cartes Accord/Morceau/Séquenceur de HarmoHub, pas comme un composant distinct. */
 .section-block {
     background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 16px;
-    margin-bottom: 20px;
+    padding: 15px;
+    margin-bottom: 15px;
 }
 .section-title-row {
     display: flex;
@@ -245,13 +321,20 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     gap: 10px;
     margin-bottom: 10px;
 }
+/* Même traitement que .control-card h2 (majuscules, gris, espacées) : un titre de section de partie
+   est visuellement la même chose qu'un titre de carte dans HarmoHub. */
 .section-title {
-    font-size: 0.95rem;
+    font-size: 0.8rem;
     font-weight: 700;
-    color: var(--text-main);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
-.section-title .section-empty-label { color: var(--text-muted); font-weight: 400; font-style: italic; }
+.section-title .section-empty-label { font-weight: 400; font-style: italic; text-transform: none; letter-spacing: normal; }
 .btn-reset-section {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font-family: var(--font);
     font-size: 0.72rem;
     color: var(--text-muted);
@@ -262,6 +345,7 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     cursor: pointer;
     transition: border-color 0.15s ease, color 0.15s ease;
 }
+.btn-reset-section .icon { width: 12px; height: 12px; }
 .btn-reset-section:hover { border-color: #7c443c; color: #ffb3ac; }
 
 .chord-pool {
@@ -270,28 +354,46 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     gap: 6px;
     margin-bottom: 12px;
 }
+/* Même recette de dégradé que les autres boutons de l'appli (voir .btn-secondary ci-dessus/.btn-sec
+   dans style.css) au repos, plutôt que l'aplat uni d'origine — matière cohérente avec le reste de
+   HarmoHub même pour un composant qui n'existe QUE dans Paroles. */
 .chord-chip {
     font-family: var(--font);
     font-size: 0.82rem;
     font-weight: 700;
     padding: 5px 11px;
     border-radius: 999px;
-    border: 1px solid var(--border);
-    background: #1e1e1e;
+    border: 1px solid var(--btn-neutral-border);
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.08), transparent 55%), linear-gradient(160deg, var(--btn-neutral-1), var(--btn-neutral-2) 70%);
     color: var(--text-main);
     cursor: pointer;
     transition: border-color 0.12s ease, background 0.12s ease, opacity 0.12s ease;
 }
-.chord-chip:hover { border-color: #4a4a4a; }
+.chord-chip:hover { border-color: var(--btn-neutral-border-hover); }
 .chord-chip.placed {
-    opacity: 0.4;
-    background: #161616;
+    opacity: 0.55;
 }
+/* Même dégradé vert "actif" que .icon-btn.active/.mode-btn.active ci-dessus : "armé" est une forme
+   d'état actif, il porte donc la même couleur que partout ailleurs dans l'appli. */
 .chord-chip.armed {
-    background: #234534;
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.14), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
     border-color: var(--accent);
-    color: var(--accent);
+    color: var(--btn-text);
     box-shadow: 0 0 0 1px var(--accent);
+    opacity: 1;
+}
+/* Badge de comptage ("×3", voir renderPool dans paroles.js) : ton pastel doré (même valeur exacte que
+   .role-seventh sur le piano/guitare de HarmoHub, voir --pastel-gold) plutôt qu'un simple texte
+   collé — visible d'un coup d'œil sans dominer le symbole de l'accord. */
+.chip-count {
+    display: inline-block;
+    margin-left: 5px;
+    padding: 0 5px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    background: rgba(224, 196, 138, 0.16);
+    color: var(--pastel-gold);
 }
 .no-chords-note {
     color: var(--text-muted);

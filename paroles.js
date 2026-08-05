@@ -331,7 +331,10 @@ function buildSectionsDOM() {
         const resetBtn = document.createElement('button');
         resetBtn.type = 'button';
         resetBtn.className = 'btn-reset-section';
-        resetBtn.textContent = 'Réinitialiser';
+        // Icône "rotate-ccw" (même famille que les flèches Annuler/Rétablir de la barre d'outils, voir
+        // paroles.html) plutôt qu'une simple corbeille : cette action ne SUPPRIME rien pour de bon
+        // (Ctrl+Z la défait), elle "revient en arrière" comme un vrai reset, pas une suppression.
+        resetBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg> Réinitialiser';
         resetBtn.title = 'Efface les paroles et les accords posés de cette partie (les accords eux-mêmes restent disponibles dans la réserve)';
         resetBtn.addEventListener('click', () => {
             const label = sec.title || `Partie ${si + 1}`;
@@ -423,7 +426,12 @@ function renderPool(si) {
         const isArmed = state.armed && state.armed.si === si && state.armed.ci === ci;
         if (placedCount > 0) chip.classList.add('placed');
         if (isArmed) chip.classList.add('armed');
-        chip.textContent = placedCount > 0 ? `${chord.symbol} ×${placedCount}` : chord.symbol;
+        // Le compteur d'exemplaires est un petit badge à part (ton pastel doré, voir .chip-count dans
+        // paroles.css) plutôt qu'un simple "×N" collé au texte — plus lisible, et cohérent avec les
+        // badges déjà utilisés ailleurs dans HarmoHub (ex. voicing sur la grille).
+        chip.innerHTML = placedCount > 0
+            ? `${escapeHtml(chord.symbol)}<span class="chip-count">×${placedCount}</span>`
+            : escapeHtml(chord.symbol);
         chip.title = isArmed
             ? 'Armé — clique dans le texte pour poser un exemplaire (reste armé pour en poser d\'autres), ou reclique ici pour désarmer'
             : (placedCount > 0

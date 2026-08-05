@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608061500">
+    <link rel="stylesheet" href="style.css?v=202608061501">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -922,14 +922,15 @@
                 <!-- Export pour l'outil compagnon de paroles (voir paroles.html) : un petit JSON (parties +
                      symboles d'accords + durées, pas les voicings complets) plutôt qu'un format déjà utilisé
                      ailleurs — ce fichier n'a qu'un seul usage, se lit d'un coup d'œil, et reste indépendant
-                     si la structure de sauvegarde du morceau change un jour. -->
-                <button type="button" id="export-lyrics" class="icon-btn export-lyrics-btn" title="Exporter pour l'outil Paroles" aria-label="Exporter pour l'outil Paroles">
+                     si la structure de sauvegarde du morceau change un jour. Bouton élargi ET étiqueté
+                     "Lyrics" (retour utilisateur : le simple pictogramme, trop proche visuellement de celui
+                     du MIDI, "n'était pas assez parlant") — icône micro (le seul export qui mène vers un
+                     AUTRE outil, pas un simple fichier à télécharger, mérite de s'en distinguer clairement). -->
+                <button type="button" id="export-lyrics" class="icon-btn export-lyrics-btn" title="Exporter vers l'outil Paroles" aria-label="Exporter vers l'outil Paroles">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M4 6h9"/><path d="M4 12h9"/><path d="M4 18h6"/>
-                        <path d="M17 16V4l4-1v10"/>
-                        <circle cx="15.5" cy="16.3" r="1.7" fill="currentColor" stroke="none"/>
-                        <circle cx="19.5" cy="14.8" r="1.7" fill="currentColor" stroke="none"/>
+                        <rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5"/><path d="M8 22h8"/>
                     </svg>
+                    <span class="btn-label">Lyrics</span>
                 </button>
             </div>
         </div>

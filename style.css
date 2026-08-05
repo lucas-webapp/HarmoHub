@@ -1879,13 +1879,27 @@ button:active { transform: translateY(1px); }
     width: 26px;
     height: 26px;
 }
+/* Élargi (largeur automatique, texte "Lyrics" visible) ET teinté vert — se distingue nettement des 4
+   exports voisins ci-dessus, restés en pictogramme seul (retour utilisateur : "pas assez parlant").
+   Même famille de dégradé que .icon-btn-accent/.btn-prog (vert "pierre précieuse" de l'appli, voir
+   --btn-green-*), pas une couleur inédite : ce bouton ouvre un AUTRE outil (paroles.html), pas un
+   simple téléchargement comme ses voisins, il mérite de s'en démarquer sans sortir de la palette. */
 .export-lyrics-btn {
     position: absolute;
     right: 128px;
     bottom: 0;
-    width: 26px;
+    width: auto;
     height: 26px;
+    padding: 0 10px 0 7px;
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
+    color: var(--btn-text);
+    border-color: var(--btn-green-border);
 }
+.export-lyrics-btn:hover {
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.16), transparent 55%), linear-gradient(160deg, #2b5540, #1c3a26 70%);
+    border-color: var(--btn-green-border-hover);
+}
+.export-lyrics-btn .btn-label { font-size: var(--fs-xs); font-weight: 700; }
 
 /* ---------- Progression ---------- */
 .history-section { margin-top: 30px; }
