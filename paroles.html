@@ -20,7 +20,7 @@
      boutons, logo, icônes SVG plutôt qu'émojis) est repris à la main de style.css pour que ça reste
      visiblement le MÊME produit (retour utilisateur : "optimise le design pour que ça colle au design
      HarmoHub, utilisation de logos, couleurs pastel"). -->
-<link rel="stylesheet" href="paroles.css?v=12">
+<link rel="stylesheet" href="paroles.css?v=14">
 </head>
 <body>
     <header class="top-bar">
@@ -61,8 +61,12 @@
             <button type="button" id="btn-export-text" class="btn-secondary header-icon-btn" hidden title="Exporter en texte — télécharge un fichier texte (accords au-dessus des paroles), lisible partout" aria-label="Exporter en texte">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>
             </button>
-            <button type="button" id="btn-print" class="btn-secondary header-icon-btn" hidden title="Imprimer / exporter en PDF via la boîte d'impression du navigateur" aria-label="Imprimer">
-                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            <!-- Vrai PDF téléchargeable (jsPDF + html2canvas, même recette que exportPdf dans
+                 script.js de HarmoHub — voir plus bas) plutôt que la seule boîte d'impression du
+                 navigateur : retour utilisateur, les accords (pastilles positionnées) n'en ressortaient
+                 pas correctement, "je vois que le texte". Même icône que l'export PDF de HarmoHub. -->
+            <button type="button" id="btn-export-pdf" class="btn-secondary header-icon-btn" hidden title="Enregistrer en PDF" aria-label="Enregistrer en PDF">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
             </button>
         </div>
     </header>
@@ -107,14 +111,15 @@
                 <input type="range" id="opt-font-size" min="0.8" max="1.6" step="0.1" value="1">
                 <span id="opt-font-size-value" class="option-value">100%</span>
             </label>
-            <label class="option-row option-row-checkbox">
-                <input type="checkbox" id="opt-show-measure-numbers">
-                <span>Numéro de mesure au début de chaque ligne</span>
-            </label>
         </div>
         <div id="sections"></div>
     </main>
 
-    <script src="paroles.js?v=9"></script>
+    <!-- jsPDF + html2canvas, vendus en local comme dans HarmoHub (voir script.js) — utilisés
+         uniquement par l'export PDF (voir exportLyricsPdf dans paroles.js). Licences MIT/dérivées,
+         mêmes fichiers que ceux de l'appli principale, réutilisés à l'identique. -->
+    <script src="html2canvas.min.js"></script>
+    <script src="jspdf.umd.min.js"></script>
+    <script src="paroles.js?v=14"></script>
 </body>
 </html>

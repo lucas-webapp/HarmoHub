@@ -204,7 +204,7 @@ html, body {
 }
 .btn-primary:active, .btn-secondary:active { box-shadow: inset 0 1px 3px rgba(0,0,0,0.4); }
 
-/* Icône seule, sans libellé visible (voir #btn-import/#btn-export-text/#btn-print dans paroles.html) :
+/* Icône seule, sans libellé visible (voir #btn-import/#btn-export-text/#btn-export-pdf dans paroles.html) :
    même gabarit compact que .icon-btn dans HarmoHub (32px, carré) plutôt que le bouton large avec texte
    — retour utilisateur : "les boutons import export etc sont trop gros ... avec logos uniquement". Le
    libellé reste accessible via title/aria-label sur le bouton. Nom distinct de ".icon-only" (déjà pris
@@ -309,8 +309,6 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
 }
 .option-row input[type="range"] { flex: 1; max-width: 220px; }
 .option-value { color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 3.5ch; }
-.option-row-checkbox { cursor: pointer; }
-.option-row-checkbox input { cursor: pointer; }
 
 /* Même carte que .control-card dans style.css (fond, rayon, marge) : les sections de Paroles doivent
    se lire comme les cartes Accord/Morceau/Séquenceur de HarmoHub, pas comme un composant distinct. */
@@ -326,7 +324,7 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    margin-bottom: 10px;
+    margin-bottom: 4px;
 }
 /* Même traitement que .control-card h2 (majuscules, gris, espacées) : un titre de section de partie
    est visuellement la même chose qu'un titre de carte dans HarmoHub. */
@@ -338,6 +336,52 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     letter-spacing: 0.03em;
 }
 .section-title .section-empty-label { font-weight: 400; font-style: italic; text-transform: none; letter-spacing: normal; }
+
+/* Métadonnées de section (retour utilisateur : remplace le numéro de mesure par ligne, retiré) — le
+   nombre total de mesures de la grille, et un petit compteur de répétitions éditable ("× N", voir
+   buildSectionMeta dans paroles.js). Présentation sobre : texte discret, pas de cadre ni de fond, un
+   simple point-séparateur entre les deux informations. */
+.section-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+.section-repeat {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    /* Point-séparateur discret avant le compteur, plutôt qu'un second bloc visuellement détaché. */
+    padding-left: 8px;
+    border-left: 1px solid var(--border);
+}
+.repeat-value {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--text-main);
+    min-width: 2.2em;
+    text-align: center;
+}
+.repeat-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+.repeat-btn:hover:not(:disabled) { border-color: var(--btn-neutral-border-hover); color: var(--text-main); }
+.repeat-btn:disabled { opacity: 0.3; cursor: default; }
 .btn-reset-section {
     display: inline-flex;
     align-items: center;
@@ -423,22 +467,6 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
 }
 .lyrics-wrap.armable .lyrics-text { cursor: crosshair; }
 
-/* Numéro de mesure en début de ligne (voir #opt-show-measure-numbers) : une petite marge réservée à
-   gauche du texte, jamais superposée dessus. */
-.lyrics-wrap.show-line-numbers { padding-left: 30px; }
-.line-measure-num {
-    position: absolute;
-    left: 0;
-    width: 24px;
-    text-align: right;
-    padding-right: 4px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    color: var(--text-muted);
-    pointer-events: none;
-}
-
 /* Filet fin entre la zone des accords et le texte (voir renderLineDividers dans paroles.js) : discret
    (opacité faible, 1px) mais présent sur CHAQUE ligne détectée, même sans accord posé — retour
    utilisateur : "il faut différencier une ligne texte et une ligne accords, séparation discrète et
@@ -496,16 +524,30 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     line-height: 1.5;
 }
 
-@media print {
-    .top-bar, .toolbar, .chord-pool, .no-chords-note, .hint-banner, .banners, #btn-print, .btn-reset-section { display: none !important; }
-    body { background: #fff; color: #000; }
-    .section-block { background: #fff; border-color: #ccc; break-inside: avoid; }
-    .section-title { color: #000; }
-    .lyrics-text { color: #000; }
-    .lyric-pill { color: #000; background: none; border: none; padding: 0; }
-    .lyric-pill .pill-del { display: none; }
-    .line-divider { display: none; }
-}
+/* Mode "impression/PDF" — factorisé en une classe plutôt qu'un simple @media print : notre propre
+   export PDF (jsPDF + html2canvas, voir exportLyricsPdf dans paroles.js) rastérise le DOM tel qu'il
+   est RÉELLEMENT affiché à l'écran, html2canvas ne connaissant rien de la règle @media print du
+   navigateur — cette classe, posée par JS aussi bien pour une vraie impression (beforeprint/afterprint)
+   que pour l'export PDF, sert donc de source unique aux deux plutôt que de dupliquer les règles. */
+body.pdf-export-mode .top-bar,
+body.pdf-export-mode .toolbar,
+body.pdf-export-mode .chord-pool,
+body.pdf-export-mode .no-chords-note,
+body.pdf-export-mode .hint-banner,
+body.pdf-export-mode .banners,
+body.pdf-export-mode #btn-export-pdf,
+body.pdf-export-mode .btn-reset-section { display: none !important; }
+body.pdf-export-mode { background: #fff; color: #000; }
+body.pdf-export-mode .section-block { background: #fff; border-color: #ccc; break-inside: avoid; }
+body.pdf-export-mode .section-title { color: #000; }
+/* Le nombre de mesures et de répétitions reste utile sur la version imprimée/PDF (repère de lecture)
+   — seuls les boutons +/- d'édition, inutiles hors écran, sont masqués. */
+body.pdf-export-mode .section-meta { color: #444; }
+body.pdf-export-mode .repeat-btn { display: none; }
+body.pdf-export-mode .lyrics-text { color: #000; }
+body.pdf-export-mode .lyric-pill { color: #000; background: none; border: none; padding: 0; }
+body.pdf-export-mode .lyric-pill .pill-del { display: none; }
+body.pdf-export-mode .line-divider { display: none; }
 
 @media (max-width: 700px) {
     main { padding: 16px 12px 80px; }

@@ -53,7 +53,7 @@ function escapeHtml(s) {
 // ---------- Préférences d'affichage (globales, pas liées à un morceau précis) ----------
 
 const PREFS_KEY = 'harmohub_lyrics_prefs';
-const prefs = { fontSize: 1, showMeasureNumbers: false };
+const prefs = { fontSize: 1 };
 (function loadPrefs() {
     try {
         const raw = localStorage.getItem(PREFS_KEY);
@@ -70,10 +70,8 @@ function applyPrefs() {
     document.documentElement.style.setProperty('--lyrics-fs', prefs.fontSize + 'rem');
     document.getElementById('opt-font-size').value = prefs.fontSize;
     document.getElementById('opt-font-size-value').textContent = Math.round(prefs.fontSize * 100) + '%';
-    document.getElementById('opt-show-measure-numbers').checked = prefs.showMeasureNumbers;
-    // La taille de police change la disposition du texte (retours à la ligne) et le réglage des
-    // numéros de mesure change la marge réservée à gauche : les deux demandent de refaire le rendu des
-    // pastilles/numéros pour rester alignés avec le texte tel qu'il s'affiche maintenant.
+    // La taille de police change la disposition du texte (retours à la ligne) : il faut refaire le
+    // rendu des pastilles pour rester alignées avec le texte tel qu'il s'affiche maintenant.
     if (state.song) refreshAllPoolsAndPills();
 }
 applyPrefs();
@@ -87,12 +85,6 @@ document.getElementById('opt-font-size').addEventListener('input', (e) => {
     savePrefs();
     applyPrefs();
 });
-document.getElementById('opt-show-measure-numbers').addEventListener('change', (e) => {
-    prefs.showMeasureNumbers = e.target.checked;
-    savePrefs();
-    applyPrefs();
-});
-
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
 function slugForSong(name) {
@@ -156,6 +148,7 @@ function writeSessionNow() {
         sections: state.song.sections.map(sec => ({
             lyricsHtml: sec._lyricsHtml || '',
             placements: sec._placements || [],
+            repeatCount: sec._repeatCount || 1,
         })),
     };
     try {
@@ -227,6 +220,9 @@ function loadSong(data) {
         // complète ici pour que retrait/déplacement par id fonctionnent aussi sur d'anciennes données.
         sec._placements.forEach(p => { if (!p.id) p.id = nextPlacementId(); });
         droppedPlacements += rawPlacements.length - sec._placements.length;
+        // Nombre de répétitions d'affilée (voir buildSectionMeta) : propre à Paroles, absent des
+        // anciennes sessions enregistrées avant cet ajout — 1 par défaut (aucune répétition en plus).
+        sec._repeatCount = (savedSec && savedSec.repeatCount) || 1;
     });
     state.song = data;
     state.armed = null;
@@ -234,7 +230,7 @@ function loadSong(data) {
 
     document.getElementById('empty-state').hidden = true;
     document.getElementById('toolbar').hidden = false;
-    document.getElementById('btn-print').hidden = false;
+    document.getElementById('btn-export-pdf').hidden = false;
     document.getElementById('btn-export-text').hidden = false;
     const nameEl = document.getElementById('song-name');
     nameEl.hidden = false;
@@ -264,7 +260,72 @@ document.getElementById('file-input').addEventListener('change', (e) => {
     reader.readAsText(file);
     e.target.value = ''; // permet de réimporter le même fichier plusieurs fois de suite
 });
-document.getElementById('btn-print').addEventListener('click', () => window.print());
+// Bascule le mode "impression/PDF" (voir la classe .pdf-export-mode dans paroles.css) : une VRAIE
+// impression navigateur (Ctrl+P, ou l'imprimante système) reste possible en secours, et partage les
+// mêmes règles de mise en forme que notre propre export PDF ci-dessous plutôt que deux jeux dupliqués.
+window.addEventListener('beforeprint', () => document.body.classList.add('pdf-export-mode'));
+window.addEventListener('afterprint', () => document.body.classList.remove('pdf-export-mode'));
+
+// Export PDF réel (jsPDF + html2canvas, même recette que exportPdf dans script.js de HarmoHub) —
+// remplace l'ancien bouton "Imprimer" qui ne faisait qu'ouvrir la boîte d'impression du navigateur :
+// retour utilisateur, "les accords ne ressortent pas sur le PDF actuellement, je vois que le texte"
+// (les pastilles, positionnées en absolu, se perdaient selon la pagination du navigateur). html2canvas
+// rastérise le DOM tel qu'il est RÉELLEMENT affiché à l'écran (mode .pdf-export-mode activé juste
+// avant) : les pastilles s'y retrouvent forcément, quel que soit le navigateur.
+async function exportLyricsPdf() {
+    if (!state.song) return;
+    const btn = document.getElementById('btn-export-pdf');
+    const blocks = Array.from(document.querySelectorAll('#sections .section-block'));
+    if (!blocks.length) { showBanner('Rien à exporter — importe un morceau avant.', 'warning'); return; }
+
+    btn.disabled = true;
+    document.body.classList.add('pdf-export-mode');
+    // Rastériser plusieurs sections prend quelques secondes (voir la boucle html2canvas plus bas) :
+    // un bandeau visible plutôt qu'un bouton silencieusement désactivé, pour ne pas laisser croire que
+    // rien ne se passe (même esprit que "assure-toi que les enregistrements sont bien réalisés, avec
+    // messages d'erreur si nécessaire" d'un retour précédent).
+    const pendingBanner = showBanner('Génération du PDF…', 'info');
+    try {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+        const margin = 10;
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const maxW = pageW - margin * 2, maxH = pageH - margin * 2;
+
+        // Un canvas par SECTION (pas un seul pour tout le morceau) : chacune saute proprement à la
+        // page suivante si elle ne tient plus dans le reste de la page courante, sans jamais être
+        // coupée en plein milieu entre deux pages.
+        let cursorYmm = margin;
+        let isFirstBlock = true;
+        for (const block of blocks) {
+            const canvas = await window.html2canvas(block, { scale: 2, backgroundColor: '#ffffff' });
+            const ratio = canvas.width / canvas.height;
+            let imgW = maxW, imgH = imgW / ratio;
+            if (imgH > maxH) { imgH = maxH; imgW = imgH * ratio; } // section très longue : bornée par la hauteur de page
+
+            if (!isFirstBlock && cursorYmm + imgH > margin + maxH) {
+                pdf.addPage();
+                cursorYmm = margin;
+            }
+            isFirstBlock = false;
+            pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, cursorYmm, imgW, imgH);
+            cursorYmm += imgH + 6; // petit espace entre deux sections sur la même page
+        }
+
+        const title = state.song.song || 'Sans titre';
+        pdf.save(`${title.replace(/[\\/:*?"<>|]+/g, '_')} - paroles.pdf`);
+        pendingBanner.remove();
+    } catch (err) {
+        console.error('Export PDF Paroles impossible :', err);
+        pendingBanner.remove();
+        showBanner("Échec de l'export PDF — réessaie, ou utilise Ctrl+P (Imprimer) en secours.", 'error');
+    } finally {
+        document.body.classList.remove('pdf-export-mode');
+        btn.disabled = false;
+    }
+}
+document.getElementById('btn-export-pdf').addEventListener('click', () => exportLyricsPdf());
 
 // Export texte brut : lisible n'importe où (éditeur de texte, mail, autre appareil), pas seulement
 // dans un navigateur — contrairement à Imprimer/PDF. Liste les accords de chaque partie PUIS ses
@@ -351,6 +412,8 @@ function buildSectionsDOM() {
         });
         titleRow.appendChild(resetBtn);
         block.appendChild(titleRow);
+        const meta = buildSectionMeta(sec);
+        block.appendChild(meta);
 
         const pool = document.createElement('div');
         pool.className = 'chord-pool';
@@ -374,7 +437,7 @@ function buildSectionsDOM() {
         block.appendChild(wrap);
 
         host.appendChild(block);
-        state.sectionEls[si] = { pool, wrap, text };
+        state.sectionEls[si] = { pool, wrap, text, meta };
 
         // --- Écouteurs (posés une seule fois, jamais reconstruits) ---
         text.addEventListener('input', () => {
@@ -470,6 +533,73 @@ function buildSectionsDOM() {
     });
 }
 
+// Ligne de métadonnées sous le titre de chaque section (retour utilisateur : "je ne veux plus le
+// numéro de mesure en début de phrase" — remplacé par des informations plus utiles au niveau de la
+// section elle-même) : le nombre total de mesures de la grille, et le nombre de fois où l'on rejoue
+// cette section d'affilée (répétition purement indicative, propre à Paroles — HarmoHub n'a pas cette
+// notion, voir _repeatCount, saisie et enregistrée ici). Présentation volontairement sobre : un simple
+// texte "N mesures" et un petit compteur "× N" à côté, pas de tableau ni d'icônes superflues.
+function buildSectionMeta(sec) {
+    const meta = document.createElement('div');
+    meta.className = 'section-meta';
+    meta.refreshRepeatUI = () => {}; // remplacé plus bas s'il y a un compteur de répétitions à afficher
+
+    const beatsPerBar = state.song.beatsPerBar || 4;
+    const totalBeats = sec.chords.reduce((sum, c) => sum + (c.beats || 0), 0);
+    const totalMeasures = Math.round(totalBeats / beatsPerBar);
+
+    const measuresEl = document.createElement('span');
+    measuresEl.className = 'section-measures';
+    measuresEl.textContent = totalMeasures > 0
+        ? `${totalMeasures} mesure${totalMeasures > 1 ? 's' : ''}`
+        : 'Aucun accord';
+    meta.appendChild(measuresEl);
+
+    if (totalMeasures > 0) {
+        const repeatWrap = document.createElement('div');
+        repeatWrap.className = 'section-repeat';
+        repeatWrap.title = 'Nombre de fois où cette partie est rejouée d\'affilée (repère purement indicatif)';
+
+        const minusBtn = document.createElement('button');
+        minusBtn.type = 'button';
+        minusBtn.className = 'repeat-btn';
+        minusBtn.textContent = '−';
+        minusBtn.setAttribute('aria-label', 'Une répétition de moins');
+
+        const valueEl = document.createElement('span');
+        valueEl.className = 'repeat-value';
+
+        const plusBtn = document.createElement('button');
+        plusBtn.type = 'button';
+        plusBtn.className = 'repeat-btn';
+        plusBtn.textContent = '+';
+        plusBtn.setAttribute('aria-label', 'Une répétition de plus');
+
+        const refreshRepeatUI = () => {
+            valueEl.textContent = `× ${sec._repeatCount}`;
+            minusBtn.disabled = sec._repeatCount <= 1;
+        };
+        refreshRepeatUI();
+        meta.refreshRepeatUI = refreshRepeatUI; // pour resynchroniser l'affichage après un Annuler/Rétablir
+
+        const changeRepeat = (delta) => {
+            pushUndoSnapshot();
+            sec._repeatCount = clamp((sec._repeatCount || 1) + delta, 1, 99);
+            refreshRepeatUI();
+            saveSession();
+        };
+        minusBtn.addEventListener('click', () => changeRepeat(-1));
+        plusBtn.addEventListener('click', () => changeRepeat(1));
+
+        repeatWrap.appendChild(minusBtn);
+        repeatWrap.appendChild(valueEl);
+        repeatWrap.appendChild(plusBtn);
+        meta.appendChild(repeatWrap);
+    }
+
+    return meta;
+}
+
 // ---------- Réserve d'accords (pastilles cliquables, une par occurrence) ----------
 
 function renderPool(si) {
@@ -516,6 +646,7 @@ function snapshotSections() {
     return state.song.sections.map(sec => ({
         lyricsHtml: sec._lyricsHtml || '',
         placements: JSON.parse(JSON.stringify(sec._placements || [])),
+        repeatCount: sec._repeatCount || 1,
     }));
 }
 
@@ -535,10 +666,12 @@ function resetUndoHistory() {
 
 function restoreSnapshot(snap) {
     state.song.sections.forEach((sec, si) => {
-        const s = snap[si] || { lyricsHtml: '', placements: [] };
+        const s = snap[si] || { lyricsHtml: '', placements: [], repeatCount: 1 };
         sec._lyricsHtml = s.lyricsHtml;
         sec._placements = s.placements;
+        sec._repeatCount = s.repeatCount || 1;
         state.sectionEls[si].text.innerHTML = sec._lyricsHtml;
+        state.sectionEls[si].meta.refreshRepeatUI();
     });
     state.armed = null;
     refreshAllPoolsAndPills();
@@ -799,24 +932,12 @@ function nearestLineIndex(lines, clientY) {
 
 // ---------- Rendu des pastilles posées ----------
 
-// Index de la ligne (dans `lines`, voir getVisualLines) qui CONTIENT un rectangle donné — factorisé
-// car utilisé à la fois pour poser une pastille (renderPills) et pour retrouver la ligne d'un accord
-// "syllabe" lors du calcul des numéros de mesure (renderLineMeasureNumbers).
+// Index de la ligne (dans `lines`, voir getVisualLines) qui CONTIENT un rectangle donné — utilisé pour
+// poser une pastille en mode "syllabe" (renderPills).
 function lineIndexForRect(lines, rect) {
     const idx = lines.findIndex(l => rect.top >= l.top - 2 && rect.top <= l.bottom + 2);
     if (idx >= 0) return idx;
     return lines.length ? lines.length - 1 : -1;
-}
-
-// Ligne résolue pour UN placement donné, quel que soit son type — "syllabe" retrouve sa ligne via la
-// position réelle du caractère ancré ; "libre" a déjà sa ligne enregistrée directement (lineIndex).
-function resolvedLineIndex(pl, lines, text) {
-    if (pl.type === 'free') return lines.length ? clamp(pl.lineIndex ?? 0, 0, lines.length - 1) : -1;
-    const range = rangeFromGlobalOffset(text, pl.charIndex);
-    if (!range) return -1;
-    const rects = range.getClientRects();
-    const rect = (rects && rects[0]) || range.getBoundingClientRect();
-    return lineIndexForRect(lines, rect);
 }
 
 // Écart minimal (px) entre deux pastilles voisines sur une même ligne (voir la passe d'anti-
@@ -842,11 +963,7 @@ function verticalSlotCenter(lines, lineIndex, wrapRect) {
 function renderPills(si) {
     const sec = state.song.sections[si];
     const { wrap, text } = state.sectionEls[si];
-    // AVANT toute mesure (getBoundingClientRect/getVisualLines) : cette classe change le padding de la
-    // zone (voir .lyrics-wrap.show-line-numbers en CSS), donc la disposition du texte elle-même — la
-    // basculer après aurait mesuré l'ancienne mise en page.
-    wrap.classList.toggle('show-line-numbers', !!prefs.showMeasureNumbers);
-    wrap.querySelectorAll('.lyric-pill, .line-measure-num, .line-divider').forEach(p => p.remove());
+    wrap.querySelectorAll('.lyric-pill, .line-divider').forEach(p => p.remove());
     const wrapRect = wrap.getBoundingClientRect();
     const lines = getVisualLines(text);
 
@@ -921,7 +1038,6 @@ function renderPills(si) {
     });
 
     renderLineDividers(lines, wrapRect, wrap);
-    renderLineMeasureNumbers(si, lines, wrapRect);
 }
 
 // ---------- Séparation ligne d'accords / ligne de texte (retour utilisateur : "il faut différencier
@@ -935,38 +1051,6 @@ function renderLineDividers(lines, wrapRect, wrap) {
         divider.className = 'line-divider';
         divider.style.top = (line.top - wrapRect.top - 3) + 'px';
         wrap.appendChild(divider);
-    });
-}
-
-// ---------- Numéro de mesure en début de chaque ligne (voir #opt-show-measure-numbers) ----------
-// Pour chaque ligne qui porte au moins un accord posé, affiche le numéro de la mesure où tombe le
-// PREMIER de ces accords dans l'ordre du morceau (le plus petit chordIndex) — déduit du cumul des
-// temps des accords qui le précèdent dans CETTE partie (chaque partie renumérote depuis 1, comme la
-// grille d'accords de HarmoHub elle-même). Une ligne sans aucun accord posé n'a rien à en déduire :
-// pas de numéro affiché plutôt qu'une valeur inventée.
-function renderLineMeasureNumbers(si, lines, wrapRect) {
-    if (!prefs.showMeasureNumbers || !lines.length) return;
-    const sec = state.song.sections[si];
-    const { wrap, text } = state.sectionEls[si];
-    const beatsPerBar = (state.song.beatsPerBar) || 4;
-
-    const firstChordIndexByLine = new Map();
-    (sec._placements || []).forEach(pl => {
-        const li = resolvedLineIndex(pl, lines, text);
-        if (li < 0) return;
-        const cur = firstChordIndexByLine.get(li);
-        if (cur === undefined || pl.chordIndex < cur) firstChordIndexByLine.set(li, pl.chordIndex);
-    });
-
-    firstChordIndexByLine.forEach((chordIndex, lineIndex) => {
-        const beatsBefore = sec.chords.slice(0, chordIndex).reduce((sum, c) => sum + (c.beats || 0), 0);
-        const measureNum = Math.floor(beatsBefore / beatsPerBar) + 1;
-        const badge = document.createElement('div');
-        badge.className = 'line-measure-num';
-        badge.textContent = measureNum;
-        wrap.appendChild(badge); // posé avant d'être positionné : pour mesurer sa hauteur réelle
-        const centerY = verticalSlotCenter(lines, lineIndex, wrapRect);
-        badge.style.top = (centerY - wrapRect.top - badge.offsetHeight / 2) + 'px';
     });
 }
 
