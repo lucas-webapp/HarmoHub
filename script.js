@@ -2549,6 +2549,16 @@ class HarmoHubApp {
         // Pincer-zoomer (2 doigts, voir setupPinchZoom) : équivalent tactile du Ctrl+molette ci-dessus,
         // pour mobile où ni Ctrl ni molette n'existent (retour utilisateur).
         this.setupPinchZoom(document.getElementById('seq-zoom-host'), 'seq');
+        // Glisser à DEUX doigts pour faire défiler le séquenceur (voir setupPinchZoom/pan) SANS jamais
+        // risquer de peindre/étirer une note par erreur — retour utilisateur : "éviter les
+        // modifications non voulues, un déplacement juste après le clic pourrait ressembler à un
+        // scroll". Posé UNE FOIS sur #arp-sequencer (stable, jamais reconstruit ni dupliqué — voir
+        // renderSequencer/openSeqZoom/pinSequencerHost) plutôt que sur chacun de ses hôtes possibles :
+        // il reste actif tel quel qu'on édite en place (compact), dans la loupe séquenceur, ou dans le
+        // séquenceur épinglé de la loupe grille, sans rien câbler de plus à ces deux derniers — zoom:
+        // false ici, le pincement à 2 doigts POSÉ SUR CET ÉLÉMENT ne fait donc jamais double emploi
+        // avec le zoom (lui aussi actif, séparément) des hôtes agrandis ci-dessus/plus bas.
+        this.setupPinchZoom(document.getElementById('arp-sequencer'), 'seq', { zoom: false, pan: true });
 
         // Échelles horizontale/verticale de la grille CLASSIQUE (hors loupe, voir currentGridHZoom/
         // applyZoomLevel('classicGrid')) — indépendantes de celles de la loupe ci-dessous.
@@ -9749,13 +9759,38 @@ class HarmoHubApp {
     // les doigts s'attendent. Zoome les DEUX axes à la fois (contrairement au Ctrl+molette, qui choisit
     // un seul axe à la fois selon Maj) : un geste de pince n'a pas d'équivalent naturel à une touche
     // Maj à mi-pince.
-    setupPinchZoom(el, kind) {
+    // `pan` (retour utilisateur : « éviter les modifications non voulues dans le séquenceur, un
+    // déplacement juste après le clic pourrait ressembler à un scroll ») : un glissé à UN seul doigt
+    // sur une case reste TOUJOURS une édition (peindre/étirer/sélectionner), jamais un défilement —
+    // aucune ambiguïté possible, contrairement à un doigt seul où les deux gestes se ressemblent trop
+    // pour être devinés. Faire défiler sans risquer une édition demande donc DEUX doigts qui glissent
+    // ENSEMBLE (comme naviguer dans GarageBand/FL Studio Mobile) : suit ici le déplacement du point
+    // milieu entre les deux doigts, EN PLUS (pas à la place) du ratio d'écart déjà utilisé pour le
+    // zoom — les deux se combinent naturellement dans un seul geste, sans code séparé pour les
+    // distinguer. `zoom`/`pan` activables indépendamment : le séquenceur COMPACT (hors loupe) n'a pas
+    // de zoom au pincement (son échelle horizontale dédiée, voir adjustSeqInlineZoom, reste
+    // volontairement indépendante de seqZoomLevelX/Y — retour utilisateur antérieur), seulement le
+    // défilement ; les fenêtres agrandies gardent zoom+pan tous les deux.
+    setupPinchZoom(el, kind, { zoom = true, pan = false } = {}) {
         const pointers = new Map();
         let baseDist = null, baseZoomX = null, baseZoomY = null;
+        let prevMidX = null; // pan : delta d'un mouvement à l'autre, pas un ratio depuis un point de
+                              // départ fixe comme le zoom — le défilement n'a pas de "valeur de
+                              // départ" à retrouver, juste à suivre les doigts en direct.
         const dist = () => {
             const pts = [...pointers.values()];
             return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
         };
+        const midX = () => {
+            const pts = [...pointers.values()];
+            return (pts[0].x + pts[1].x) / 2;
+        };
+        // Cible du défilement : #arp-sequencer se déplace entre plusieurs hôtes (compact, loupe
+        // séquenceur, loupe grille épinglée, voir openSeqZoom/pinSequencerHost) sans jamais être
+        // dupliqué — retrouvée à CHAQUE geste plutôt que mise en cache, pour rester valide même après
+        // un rendu qui a reconstruit .seq-scroll entretemps (un vrai zoom pinch redessine, voir
+        // _flushZoomPinchRender ; un pan seul, lui, ne redessine jamais rien).
+        const panTarget = () => (kind === 'seq') ? document.querySelector('#arp-sequencer .seq-scroll') : el;
         el.addEventListener('pointerdown', (e) => {
             if (e.pointerType !== 'touch') return;
             pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -9770,36 +9805,55 @@ class HarmoHubApp {
             // encore ce pointeur comme actif (jamais le cas pour un vrai doigt).
             try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignoré, voir commentaire ci-dessus */ }
             if (pointers.size === 2) {
-                // Écart et échelle de DÉPART du pincement : toute la suite du geste s'exprime en
-                // ratio de cet écart initial, jamais en delta cumulé depuis le dernier mouvement (qui
-                // dériverait/s'accumulerait faux si un pointermove venait à manquer).
-                baseDist = dist();
-                baseZoomX = this[`${kind}ZoomLevelX`];
-                baseZoomY = this[`${kind}ZoomLevelY`];
-                this._zoomPinchActive = true;
-                this._startZoomPinchFlushLoop();
+                if (zoom) {
+                    // Écart et échelle de DÉPART du pincement : toute la suite du geste s'exprime en
+                    // ratio de cet écart initial, jamais en delta cumulé depuis le dernier mouvement
+                    // (qui dériverait/s'accumulerait faux si un pointermove venait à manquer).
+                    baseDist = dist();
+                    baseZoomX = this[`${kind}ZoomLevelX`];
+                    baseZoomY = this[`${kind}ZoomLevelY`];
+                    this._zoomPinchActive = true;
+                    this._startZoomPinchFlushLoop();
+                }
+                if (pan) prevMidX = midX();
             }
         });
         el.addEventListener('pointermove', (e) => {
             if (!pointers.has(e.pointerId)) return;
             pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-            if (pointers.size !== 2 || baseDist == null || baseDist < 1) return;
-            e.preventDefault(); // empêche le navigateur de zoomer la PAGE entière avec la même pince
-            const ratio = dist() / baseDist;
-            this.setZoomLevel(kind, 'x', baseZoomX * ratio);
-            this.setZoomLevel(kind, 'y', baseZoomY * ratio);
+            if (pointers.size !== 2) return;
+            let handled = false;
+            if (zoom && baseDist != null && baseDist >= 1) {
+                const ratio = dist() / baseDist;
+                this.setZoomLevel(kind, 'x', baseZoomX * ratio);
+                this.setZoomLevel(kind, 'y', baseZoomY * ratio);
+                handled = true;
+            }
+            if (pan && prevMidX != null) {
+                const m = midX();
+                const target = panTarget();
+                // Doigts qui glissent vers la droite -> le contenu doit suivre vers la droite -> moins
+                // reste caché à gauche (scrollLeft diminue) : même sens qu'un glissé tactile natif.
+                if (target) target.scrollLeft -= (m - prevMidX);
+                prevMidX = m;
+                handled = true;
+            }
+            if (handled) e.preventDefault(); // empêche le navigateur de zoomer/défiler la PAGE entière avec la même pince
         }, { passive: false });
         const release = (e) => {
             pointers.delete(e.pointerId);
             if (pointers.size < 2) {
                 baseDist = null;
+                prevMidX = null;
                 // Un doigt se lève, il n'en reste plus 2 : le pincement est terminé — arrête la boucle
                 // de rattrapage périodique et applique un dernier rattrapage immédiat (voir
                 // _startZoomPinchFlushLoop/_flushZoomPinchRender), pour être certain de finir sur la
                 // toute dernière valeur de zoom, pas celle du dernier rattrapage périodique.
-                this._zoomPinchActive = false;
-                this._stopZoomPinchFlushLoop();
-                this._flushZoomPinchRender();
+                if (zoom) {
+                    this._zoomPinchActive = false;
+                    this._stopZoomPinchFlushLoop();
+                    this._flushZoomPinchRender();
+                }
             }
         };
         el.addEventListener('pointerup', release);
