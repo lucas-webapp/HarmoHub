@@ -1964,6 +1964,7 @@ class HarmoHubApp {
                                     // TOUTE la partie active, bouton dédié) : quand définie, elle est
                                     // prioritaire sur celui-ci.
         this.clipboard = null;     // presse-papier (copier/coller d'accords)
+        this.voicingClipboard = null; // presse-papier du VOICING seul (voir copyChordVoicing/pasteChordVoicing) — pipette du menu contextuel, distincte de this.clipboard
         this.pianoWindow = null;   // fenêtre clavier courante
         this.guitarKey = null;     // signature (midis triés) du dernier accord affiché à la guitare
         this.guitarIdentityKey = null; // signature de CE QUI DÉFINIT VRAIMENT l'accord joué à la guitare
@@ -2643,6 +2644,20 @@ class HarmoHubApp {
             const t = this.contextMenuTarget;
             this.closeContextMenu();
             if (t && t.type === 'chord') this.openSequencerFor(t.section, t.index);
+        };
+        // Pipette de voicing (retour utilisateur : "une pipette un pinceau pour copier/coller l'accord
+        // et son voicing à un autre accord directement dans la grille") — voir copyChordVoicing/
+        // pasteChordVoicing : contrairement à Ctrl+C/Ctrl+V (this.clipboard) qui DUPLIQUENT un accord
+        // en une NOUVELLE case, ceci applique le voicing d'un accord à un accord EXISTANT différent.
+        document.querySelector('[data-ctx-action="copy-voicing"]').onclick = () => {
+            const t = this.contextMenuTarget;
+            this.closeContextMenu();
+            if (t && t.type === 'chord') this.copyChordVoicing(t.section, t.index);
+        };
+        document.querySelector('[data-ctx-action="paste-voicing"]').onclick = () => {
+            const t = this.contextMenuTarget;
+            this.closeContextMenu();
+            if (t && t.type === 'chord') this.pasteChordVoicing(t.section, t.index);
         };
         document.querySelector('[data-ctx-action="delete"]').onclick = () => {
             const t = this.contextMenuTarget;
@@ -6348,6 +6363,11 @@ class HarmoHubApp {
         menu.querySelector('[data-ctx-action="octave-up"]').hidden = !isChord;
         menu.querySelector('[data-ctx-action="octave-down"]').hidden = !isChord;
         menu.querySelector('[data-ctx-action="sequencer"]').hidden = !isChord;
+        menu.querySelector('[data-ctx-action="copy-voicing"]').hidden = !isChord;
+        // "Coller le voicing" n'a de sens qu'une fois qu'un voicing a déjà été prélevé quelque part
+        // (voir copyChordVoicing) — invisible tant que this.voicingClipboard est vide, plutôt qu'un
+        // bouton toujours présent mais qui ne ferait rien.
+        menu.querySelector('[data-ctx-action="paste-voicing"]').hidden = !isChord || !this.voicingClipboard;
         menu.hidden = false;
         const pad = 8;
         const left = Math.min(x, window.innerWidth - menu.offsetWidth - pad);
@@ -11757,6 +11777,61 @@ class HarmoHubApp {
         this.multiSelect = copies.length > 1 ? new Set(Array.from({ length: copies.length }, (_, i) => at + i)) : new Set();
         this.loadProgression();
         this.flashHint(copies.length > 1 ? `${copies.length} accords collés` : 'Accord collé');
+    }
+
+    // ---------- Pipette de voicing (menu contextuel d'un accord, copier/coller le voicing) ----------
+    // Contrairement à copySelected/pasteChord (Ctrl+C/Ctrl+V, this.clipboard) qui DUPLIQUENT un accord
+    // ENTIER comme une NOUVELLE case dans la grille, ceci applique le voicing d'un accord (qualité,
+    // renversement, drop, octave, basse, style de jeu, instrument, notes libres, intensité, doigté
+    // guitare verrouillé) à un accord EXISTANT DIFFÉRENT, en gardant SA propre fondamentale/durée/
+    // rythme intacts — retour utilisateur : "une pipette un pinceau pour copier/coller l'accord et son
+    // voicing à un autre accord directement dans la grille". Volontairement SANS arpPattern/seqEdited/
+    // intensityPerStep (le rythme du séquenceur reste propre à chaque accord, déjà couvert par sa
+    // propre pipette dédiée, voir toggleSeqRowPipette/copySeqPattern).
+    copyChordVoicing(section, index) {
+        const sections = loadProgressionSections();
+        const chord = sections[section] && sections[section].chords[index];
+        if (!chord) return;
+        this.voicingClipboard = {
+            quality: chord.quality,
+            octave: chord.octave,
+            inversion: chord.inversion,
+            drop: chord.drop,
+            bass: chord.bass,
+            playStyle: chord.playStyle,
+            instrument: chord.instrument,
+            extraNotes: (chord.extraNotes || []).map(n => ({ ...n })),
+            intensity: chord.intensity,
+            guitarLock: chord.guitarLock ? { ...chord.guitarLock } : null,
+        };
+        this.flashHint('Voicing prélevé — clic droit sur un autre accord puis « Coller le voicing »');
+    }
+
+    pasteChordVoicing(section, index) {
+        if (!this.voicingClipboard) return;
+        const sections = loadProgressionSections();
+        const chord = sections[section] && sections[section].chords[index];
+        if (!chord) return;
+        this.pushUndo(sections);
+        Object.assign(chord, {
+            quality: this.voicingClipboard.quality,
+            octave: this.voicingClipboard.octave,
+            inversion: this.voicingClipboard.inversion,
+            drop: this.voicingClipboard.drop,
+            bass: this.voicingClipboard.bass,
+            playStyle: this.voicingClipboard.playStyle,
+            instrument: this.voicingClipboard.instrument,
+            extraNotes: this.voicingClipboard.extraNotes.map(n => ({ ...n })),
+            intensity: this.voicingClipboard.intensity,
+            guitarLock: this.voicingClipboard.guitarLock ? { ...this.voicingClipboard.guitarLock } : null,
+        });
+        saveProgressionSections(sections);
+        // Si CET accord est celui actuellement ouvert dans le panneau Accord, le refléter aussitôt
+        // plutôt que de laisser le panneau périmé sur l'ancien voicing (même principe que l'édition
+        // rapide du symbole sur la case, voir plus haut).
+        if (this.editingIndex === index && this.activeSection === section) this.editChord(section, index);
+        else this.loadProgression();
+        this.flashHint('Voicing appliqué à cet accord');
     }
 
     // Duplique un accord donné (bouton ⧉) : la copie se place juste après, dans la même partie
