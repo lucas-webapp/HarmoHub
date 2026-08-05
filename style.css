@@ -2366,6 +2366,22 @@ button:active { transform: translateY(1px); }
         rgba(255, 255, 255, 0.55) 100%);
 }
 
+/* Repère de TEMPS (pas de mesure) à l'intérieur d'un accord EN COURS d'étirement (voir
+   onResizeMove/loadProgression, resizeReachedBar/beatTicksEl) — retour utilisateur : "je veux faire
+   pareil [que le séquenceur] pour les étirements des accords de la grille". Nettement plus discret
+   que .cell-tick (mesure) juste au-dessus : moitié moins large/haut, pour rester lisible comme repère
+   secondaire — n'apparaît que PENDANT le geste, jamais posé en permanence (la grille resterait bien
+   trop chargée avec un trait par temps affiché en continu). */
+.cell-beat-tick {
+    position: absolute;
+    top: 22%;
+    bottom: 22%;
+    width: 1px;
+    transform: translateX(-50%);
+    pointer-events: none;
+    background: rgba(255, 255, 255, 0.32);
+}
+
 .cell-sym {
     font-size: var(--fs-lg);
     font-weight: 700;
@@ -2453,9 +2469,17 @@ button:active { transform: translateY(1px); }
     color: var(--text-muted);
     opacity: 0.7;
     text-shadow: 0 0 3px rgba(0,0,0,0.6); /* garde le chiffre lisible même par-dessus .loop-range-bar */
+    transition: color 0.1s ease, opacity 0.1s ease;
     overflow: hidden;
     cursor: ns-resize; /* indique qu'on peut y glisser pour définir une plage à boucler */
     touch-action: none;
+}
+/* Mesure ATTEINTE par un étirement de durée d'accord en cours (voir onResizeMove/loadProgression,
+   resizeReachedBar) — même traitement que .seq-beat-label.seq-beat-reached côté séquenceur (retour
+   utilisateur : "je veux faire pareil pour les étirements des accords de la grille"). */
+.row-measure.row-measure-reached {
+    color: var(--accent);
+    opacity: 1;
 }
 
 /* Plage d'accords à boucler (glisser sur la ligne des numéros de mesure, voir
@@ -2642,10 +2666,11 @@ button:active { transform: translateY(1px); }
    discret que .seq-beat-label — un repère à avoir en coin d'œil, pas une deuxième ligne de chiffres
    à lire (retour utilisateur : "je voudrais voir les contretemps, discrètement"). */
 .seq-beat-offbeat {
-    font-size: var(--fs-2xs);
+    font-size: var(--fs-xs);
+    line-height: 1;
     color: var(--text-muted);
-    opacity: 0.35;
-    padding-top: 3px;
+    opacity: 0.6; /* retour utilisateur : le point d'origine (0.35, taille 2xs) était invisible en usage réel */
+    padding-top: 4px;
     text-align: center;
     touch-action: none; /* voir .seq-cell plus bas : même raison */
 }

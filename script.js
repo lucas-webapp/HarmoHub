@@ -4508,6 +4508,22 @@ class HarmoHubApp {
                     : 'var(--row-h) var(--measure-row-h)';
                 gridStyle = `grid-template-rows: repeat(${rows}, ${rowTemplate}); grid-template-columns: repeat(${beatsPerRow}, 1fr);`;
                 const loopRange = this.loopRangeForSection(si, history.length);
+                // Mesure ATTEINTE par un étirement de durée d'accord EN COURS (voir onResizeStart/
+                // onResizeMove) : même principe que _highlightSeqBeatLabel pour le séquenceur (retour
+                // utilisateur : "je veux faire pareil pour les étirements des accords de la grille") —
+                // le numéro de mesure existant (.row-measure) s'allume au lieu d'ajouter un repère en
+                // plus. Calculée ici (pas en JS séparé) : ce rendu est déjà rejoué à CHAQUE pas du
+                // glissé (voir onResizeMove -> loadProgression), donc déjà à jour sans code à part.
+                let resizeReachedBar = null;
+                if (this.resize && this.resize.section === si) {
+                    const segs = cells.filter(s => s.index === this.resize.index);
+                    if (segs.length) {
+                        const edgeSeg = this.resize.edge === 'left' ? segs[0] : segs[segs.length - 1];
+                        const absBeat = edgeSeg.row * beatsPerRow + edgeSeg.col
+                            + (this.resize.edge === 'left' ? 0 : edgeSeg.span - 1);
+                        resizeReachedBar = Math.floor(absBeat / beatsPerBar) + 1;
+                    }
+                }
                 gridInner = cells.map(s => {
                     const h = history[s.index];
                     const chordUseFlats = useFlatsForChordRoot(NOTES.indexOf(h.root), NOTES.indexOf(gRoot), gMode, useFlats);
@@ -4554,6 +4570,17 @@ class HarmoHubApp {
                     const ticksEl = hasInnerBars
                         ? s.innerBars.map(ib => `<span class="cell-tick" style="left: ${(ib.offset / s.span) * 100}%;"></span>`).join('')
                         : '';
+                    // Traits de TEMPS (pas seulement de mesure) sur l'accord EN COURS d'étirement — voir
+                    // resizeReachedBar plus haut, même retour utilisateur. Seulement pendant le geste
+                    // (this.resize), jamais en permanence : la grille montre déjà les mesures via
+                    // .cell-tick/bar-start, un trait par temps posé en continu serait bien trop chargé
+                    // pour le repère "discret" demandé — colonnes de largeur égale (1 temps = 1
+                    // colonne, voir layoutProgression), donc en % réguliers du segment, comme ticksEl.
+                    const isResizingThisChord = this.resize && this.resize.section === si && s.index === this.resize.index;
+                    const beatTicksEl = (isResizingThisChord && s.span > 1)
+                        ? Array.from({ length: s.span - 1 }, (_, k) => k + 1)
+                            .map(k => `<span class="cell-beat-tick" style="left: ${(k / s.span) * 100}%;"></span>`).join('')
+                        : '';
                     // Poignées d'étirement (durée) : bord droit sur le DERNIER segment (change la fin
                     // de l'accord) — mais AUSSI sur tout segment coupé de ligne qui n'est pas le
                     // dernier (s.split && !s.isLast) : son bord droit tombe alors pile en fin de ligne
@@ -4575,6 +4602,7 @@ class HarmoHubApp {
                         <span class="cell-sym">${flatTight(sym)}${contFlag}</span>
                         ${metaEl}
                         ${ticksEl}
+                        ${beatTicksEl}
                         ${resizeLeftEl}
                         ${resizeRightEl}
                     </div>`;
@@ -4593,9 +4621,9 @@ class HarmoHubApp {
                     return `
                     <div class="row-roman" style="grid-column: ${s.col + 1} / span ${s.span}; grid-row: ${s.row * rowsPerGroup + 1};">${romanPart}${sep}${funcPart}</div>`;
                 }).join('') : '') + cells.filter(s => s.barStart).map(s => `
-                    <div class="row-measure" style="grid-column: ${s.col + 1} / span 1; grid-row: ${s.row * rowsPerGroup + rowsPerGroup};">${s.barNumber}</div>`
+                    <div class="row-measure${resizeReachedBar === s.barNumber ? ' row-measure-reached' : ''}" style="grid-column: ${s.col + 1} / span 1; grid-row: ${s.row * rowsPerGroup + rowsPerGroup};">${s.barNumber}</div>`
                 ).join('') + cells.flatMap(s => s.innerBars.map(ib => `
-                    <div class="row-measure" style="grid-column: ${s.col + ib.offset + 1} / span 1; grid-row: ${s.row * rowsPerGroup + rowsPerGroup};">${ib.barNumber}</div>`)
+                    <div class="row-measure${resizeReachedBar === ib.barNumber ? ' row-measure-reached' : ''}" style="grid-column: ${s.col + ib.offset + 1} / span 1; grid-row: ${s.row * rowsPerGroup + rowsPerGroup};">${ib.barNumber}</div>`)
                 ).join('') + this.buildLoopRangeBars(cells, loopRange, rowsPerGroup)
                 + this.buildAddCellHtml(si, plusRow * rowsPerGroup + chordRowOffset, plusCol, plusSpan);
             }
@@ -8321,6 +8349,11 @@ class HarmoHubApp {
         if (r && r.edge !== 'left' && r.lastDelta > 0) {
             this.extendChordPatternToHold(r.section, r.index, r.startBeats);
         }
+        // Redessine la grille pour effacer les repères propres AU GESTE (mesure atteinte/traits de
+        // temps, voir resizeReachedBar/beatTicksEl dans loadProgression) — sans ça, ils resteraient
+        // affichés indéfiniment : ni extendChordPatternToHold ni rien d'autre ici ne redessine la
+        // grille (seul onResizeMove le faisait, systématiquement, jusqu'ici PENDANT le geste).
+        if (r) this.loadProgression();
     }
 
     // Prolonge le motif d'un accord dont la durée vient de GRANDIR (jamais appelé pour un
@@ -10569,7 +10602,7 @@ class HarmoHubApp {
             // utilisateur : repère discret, pas une nouvelle ligne de chiffres à lire).
             const offbeatStep = s + SEQ_STEPS_PER_BEAT / 2;
             if (offbeatStep < pageEnd) {
-                beatLabelsHtml += `<div class="seq-beat-offbeat" style="grid-row:${beatRow}; grid-column:${colOffset + offbeatStep - pageStart + 2};">·</div>`;
+                beatLabelsHtml += `<div class="seq-beat-offbeat" style="grid-row:${beatRow}; grid-column:${colOffset + offbeatStep - pageStart + 2};">•</div>`;
             }
         }
         html += beatLabelsHtml;
