@@ -4524,6 +4524,21 @@ class HarmoHubApp {
                         resizeReachedBar = Math.floor(absBeat / beatsPerBar) + 1;
                     }
                 }
+                // Repère de contretemps (milieu de CHAQUE temps, pas seulement de chaque mesure comme
+                // .row-measure) : permanent, sur la même ligne que les numéros de mesure — même principe
+                // que .seq-beat-offbeat côté séquenceur (retour utilisateur : "je veux un repère de
+                // contretemps discret sous la grille d'accords également"). Une colonne de la grille =
+                // un temps entier (voir layoutProgression) : le trait est donc simplement centré dans
+                // CETTE colonne, sans calcul de fraction de temps. Généré indépendamment des cases
+                // d'accords (0..cursor, pas cells) pour ne rater aucun temps même sur un accord étalé
+                // sur plusieurs mesures. Décoratif seul (pointer-events:none en CSS) : ne doit jamais
+                // intercepter le glisser qui définit une plage à boucler sur cette même ligne.
+                let offbeatTicksHtml = '';
+                for (let b = 0; b < cursor; b++) {
+                    const r = Math.floor(b / beatsPerRow);
+                    const c = b % beatsPerRow;
+                    offbeatTicksHtml += `<div class="row-offbeat" style="grid-column: ${c + 1} / span 1; grid-row: ${r * rowsPerGroup + rowsPerGroup};"><span class="offbeat-dash"></span></div>`;
+                }
                 gridInner = cells.map(s => {
                     const h = history[s.index];
                     const chordUseFlats = useFlatsForChordRoot(NOTES.indexOf(h.root), NOTES.indexOf(gRoot), gMode, useFlats);
@@ -4624,7 +4639,7 @@ class HarmoHubApp {
                     <div class="row-measure${resizeReachedBar === s.barNumber ? ' row-measure-reached' : ''}" style="grid-column: ${s.col + 1} / span 1; grid-row: ${s.row * rowsPerGroup + rowsPerGroup};">${s.barNumber}</div>`
                 ).join('') + cells.flatMap(s => s.innerBars.map(ib => `
                     <div class="row-measure${resizeReachedBar === ib.barNumber ? ' row-measure-reached' : ''}" style="grid-column: ${s.col + ib.offset + 1} / span 1; grid-row: ${s.row * rowsPerGroup + rowsPerGroup};">${ib.barNumber}</div>`)
-                ).join('') + this.buildLoopRangeBars(cells, loopRange, rowsPerGroup)
+                ).join('') + offbeatTicksHtml + this.buildLoopRangeBars(cells, loopRange, rowsPerGroup)
                 + this.buildAddCellHtml(si, plusRow * rowsPerGroup + chordRowOffset, plusCol, plusSpan);
             }
 
@@ -6684,6 +6699,13 @@ class HarmoHubApp {
                     let ticks = `<span class="ruler-tick ruler-tick-major" style="left:0"></span>`;
                     for (let b = 1; b < barBeats; b++) {
                         ticks += `<span class="ruler-tick" style="left:${(b / barBeats) * 100}%"></span>`;
+                    }
+                    // Contretemps (milieu de CHAQUE temps) : même repère estompé que la grille à l'écran
+                    // (voir .row-offbeat/offbeat-dash), reproduit ici comme une graduation encore plus
+                    // fine que les temps eux-mêmes plutôt qu'un nouvel élément hors de la règle (retour
+                    // utilisateur : "à mettre dans le PDF aussi").
+                    for (let b = 0; b < barBeats; b++) {
+                        ticks += `<span class="ruler-tick ruler-tick-offbeat" style="left:${((b + 0.5) / barBeats) * 100}%"></span>`;
                     }
                     if (isLastBar) ticks += `<span class="ruler-tick ruler-tick-major" style="left:100%"></span>`;
                     const barPct = (barBeats / rowBeatsDenom * 100).toFixed(4);
@@ -10597,12 +10619,17 @@ class HarmoHubApp {
             const beatIndex = Math.floor(s / SEQ_STEPS_PER_BEAT);
             const beatNum = (beatIndex % beatsPerBar) + 1;
             beatLabelsHtml += `<div class="seq-beat-label" data-beat-index="${beatIndex}" style="grid-row:${beatRow}; grid-column:${colOffset + s - pageStart + 2};">${beatNum}</div>`;
-            // Contretemps (le "et" du temps, 2e croche — voir SEQ_STEPS_PER_BEAT) : simple point,
+            // Contretemps (le "et" du temps, 2e croche — voir SEQ_STEPS_PER_BEAT) : petit trait estompé,
             // jamais un chiffre, pour rester bien plus discret que le numéro de temps lui-même (retour
-            // utilisateur : repère discret, pas une nouvelle ligne de chiffres à lire).
+            // utilisateur : repère discret, pas une nouvelle ligne de chiffres à lire). Centré sur la
+            // frontière RÉELLE entre les deux croches du temps (le vrai milieu) plutôt que calé dans la
+            // seule colonne de la 2e croche : la case s'étend sur les deux colonnes qui encadrent cette
+            // frontière (offbeatStep-1 et offbeatStep) et le trait est centré dans cette case à deux
+            // colonnes — sans ça, le repère paraît décalé vers la 2e croche au lieu d'être pile au
+            // milieu (retour utilisateur : "pas aligné... pas à la moitié").
             const offbeatStep = s + SEQ_STEPS_PER_BEAT / 2;
             if (offbeatStep < pageEnd) {
-                beatLabelsHtml += `<div class="seq-beat-offbeat" style="grid-row:${beatRow}; grid-column:${colOffset + offbeatStep - pageStart + 2};">•</div>`;
+                beatLabelsHtml += `<div class="seq-beat-offbeat" style="grid-row:${beatRow}; grid-column:${colOffset + offbeatStep - pageStart + 1} / span 2;"><span class="offbeat-dash"></span></div>`;
             }
         }
         html += beatLabelsHtml;

@@ -2482,6 +2482,22 @@ button:active { transform: translateY(1px); }
     opacity: 1;
 }
 
+/* Repère de contretemps (milieu de CHAQUE temps, pas seulement de chaque mesure comme .row-measure
+   ci-dessus) sous la grille d'accords, permanent — même ligne, un par temps (voir loadProgression,
+   retour utilisateur : "je veux un repère de contretemps discret sous la grille d'accords également.
+   Bien centrer ces repères"). Une colonne de grille = un temps entier (voir layoutProgression), donc
+   simplement centré dans sa colonne. Purement décoratif : pointer-events:none pour ne jamais
+   intercepter le glisser qui définit une plage à boucler sur cette même ligne (voir .row-measure/
+   .loop-range-bar, dont le clic cherche closest('.row-measure')). */
+.row-offbeat {
+    position: relative;
+    height: var(--measure-row-h);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
 /* Plage d'accords à boucler (glisser sur la ligne des numéros de mesure, voir
    setupLoopRangeInteractions/setLoopRange) — inspirée de la barre de cycle jaune de GarageBand. Un
    jaune/doré distinct du vert (sélection/lecture) et de l'orange (édition) pour ne pas s'y confondre.
@@ -2662,17 +2678,29 @@ button:active { transform: translateY(1px); }
     opacity: 1;
     font-weight: 700;
 }
-/* Contretemps (voir renderSequencer/SEQ_STEPS_PER_BEAT) : un simple point, sciemment beaucoup plus
-   discret que .seq-beat-label — un repère à avoir en coin d'œil, pas une deuxième ligne de chiffres
-   à lire (retour utilisateur : "je voudrais voir les contretemps, discrètement"). */
+/* Contretemps (voir renderSequencer/SEQ_STEPS_PER_BEAT) : un petit trait estompé, sciemment beaucoup
+   plus discret que .seq-beat-label — un repère à avoir en coin d'œil, pas une deuxième ligne de
+   chiffres à lire (retour utilisateur : "je voudrais voir les contretemps, discrètement" puis "à la
+   place d'un point, un petit trait estompé et stylisé"). Case étendue sur 2 colonnes (voir
+   renderSequencer) centrée avec flex, plutôt qu'un simple texte centré dans 1 colonne : le trait tombe
+   ainsi pile sur la frontière réelle entre les deux croches du temps (retour utilisateur : "pas aligné
+   comme il faut... pas à la moitié"). */
 .seq-beat-offbeat {
-    font-size: var(--fs-xs);
-    line-height: 1;
-    color: var(--text-muted);
-    opacity: 0.6; /* retour utilisateur : le point d'origine (0.35, taille 2xs) était invisible en usage réel */
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding-top: 4px;
-    text-align: center;
     touch-action: none; /* voir .seq-cell plus bas : même raison */
+}
+/* Trait du repère de contretemps, partagé entre le séquenceur (.seq-beat-offbeat) et la grille
+   d'accords (.row-offbeat/loadProgression) et repris en esprit dans le PDF (.ruler-tick-offbeat) :
+   même style discret partout, pour rester reconnaissable d'une vue à l'autre. */
+.offbeat-dash {
+    width: 7px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--text-muted);
+    opacity: 0.55;
 }
 
 /* Mode studio (voir #toggle-studio-mode/renderSequencer) : une barre de vélocité par croche active,
@@ -3342,6 +3370,10 @@ select.song-select-narrow {
     transform: translateX(-0.5px);
 }
 .ruler-tick-major { height: 7px; background: #777; }
+/* Contretemps (milieu de chaque temps) : même esprit que .row-offbeat/.offbeat-dash à l'écran, reproduit
+   ici comme une graduation encore plus fine et estompée que les temps eux-mêmes (retour utilisateur :
+   "à mettre dans le PDF aussi"). */
+.ruler-tick-offbeat { height: 2px; top: 1px; background: #bbb; opacity: 0.6; }
 .ruler-num {
     position: absolute;
     top: 8px;
