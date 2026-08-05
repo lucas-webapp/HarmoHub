@@ -7060,7 +7060,14 @@ class HarmoHubApp {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        this.flashHint('Fichier pour l\'outil Paroles téléchargé', 2400);
+        // Ouvre directement l'outil Paroles dans un nouvel onglet, juste après le téléchargement (même
+        // geste utilisateur, donc pas bloqué comme pop-up) : sur mobile, taper le fichier téléchargé
+        // depuis les téléchargements/le partage ferait proposer "avec quelle appli l'ouvrir ?" (un
+        // .json n'est associé à rien) — en atterrissant direct sur paroles.html, il suffit d'y utiliser
+        // SON propre bouton "Importer un fichier" (un vrai sélecteur, pas une tentative d'ouverture
+        // système) pour aller chercher ce même téléchargement.
+        window.open('paroles.html', '_blank');
+        this.flashHint('Fichier téléchargé — ouvre-le depuis l\'outil Paroles (bouton "Importer un fichier")', 3200);
     }
 
     // ---------- Export audio (.mp3, encodage LAME embarqué — voir lame.min.js) ----------
