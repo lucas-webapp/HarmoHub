@@ -7041,6 +7041,11 @@ class HarmoHubApp {
         const data = {
             version: 1,
             song: this.getCurrentSongName(),
+            // Identifiant STABLE du morceau (voir getCurrentSongId) : sert de clé de session côté
+            // Paroles, plutôt que le seul nom affiché — deux morceaux différents peuvent porter le
+            // même nom (ou être renommés), le nom seul ferait alors collisionner leurs paroles/accords
+            // déjà posés d'un morceau sur l'autre.
+            songId: getCurrentSongId(),
             beatsPerBar: this.beatsPerBar(),
             sections: sections.map(sec => ({
                 title: (sec.title || '').trim(),

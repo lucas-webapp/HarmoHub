@@ -77,6 +77,53 @@ html, body {
     font-size: 0.85rem;
 }
 
+/* État d'enregistrement (voir setSaveStatus dans paroles.js) : visible en permanence, pas une bulle
+   qui disparaît — retour utilisateur : "assure-toi que les enregistrements sont bien réalisés". */
+.save-status {
+    font-size: 0.78rem;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+}
+.save-status:empty { display: none; }
+.save-status.save-pending { color: var(--text-muted); border-color: var(--border); }
+.save-status.save-ok { color: var(--accent); border-color: #2f5b40; background: rgba(0, 230, 118, 0.08); }
+.save-status.save-error { color: #ff6f66; border-color: #7c443c; background: rgba(255, 111, 102, 0.1); cursor: help; }
+
+/* Bandeaux d'avertissement/erreur (voir showBanner) : jamais silencieux — remplace un simple
+   console.error par quelque chose que l'utilisateur voit vraiment et peut fermer une fois lu. */
+.banners {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+.banner {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-top: 14px;
+}
+.banner-error { background: rgba(255, 111, 102, 0.12); border: 1px solid #7c443c; color: #ffb3ac; }
+.banner-warning { background: rgba(255, 179, 0, 0.1); border: 1px solid #7c5c34; color: #ffcf7a; }
+.banner-info { background: rgba(0, 230, 118, 0.08); border: 1px solid #2f5b40; color: #a8e6c0; }
+.banner-close {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 1rem;
+    cursor: pointer;
+    opacity: 0.7;
+    line-height: 1;
+    padding: 0;
+}
+.banner-close:hover { opacity: 1; }
+
 .btn-primary, .btn-secondary {
     font-family: var(--font);
     font-size: 0.85rem;
@@ -158,13 +205,31 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     padding: 16px;
     margin-bottom: 20px;
 }
+.section-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
 .section-title {
     font-size: 0.95rem;
     font-weight: 700;
     color: var(--text-main);
-    margin-bottom: 10px;
 }
 .section-title .section-empty-label { color: var(--text-muted); font-weight: 400; font-style: italic; }
+.btn-reset-section {
+    font-family: var(--font);
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+.btn-reset-section:hover { border-color: #7c443c; color: #ffb3ac; }
 
 .chord-pool {
     display: flex;
@@ -256,7 +321,7 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
 }
 
 @media print {
-    .top-bar, .toolbar, .chord-pool, .no-chords-note, .hint-banner, #btn-print { display: none !important; }
+    .top-bar, .toolbar, .chord-pool, .no-chords-note, .hint-banner, .banners, #btn-print, .btn-reset-section { display: none !important; }
     body { background: #fff; color: #000; }
     .section-block { background: #fff; border-color: #ccc; break-inside: avoid; }
     .section-title { color: #000; }

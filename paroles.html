@@ -10,7 +10,7 @@
      principale — ni son moteur harmonique, ni son séquenceur, ni sa grille à largeur de temps fixe
      (voir paroles.js pour le pourquoi de ce découplage : la largeur d'une mesure ne correspond jamais
      à la largeur d'un mot, inutile de forcer les deux outils à partager la même contrainte). -->
-<link rel="stylesheet" href="paroles.css?v=2">
+<link rel="stylesheet" href="paroles.css?v=4">
 </head>
 <body>
     <header class="top-bar">
@@ -22,12 +22,16 @@
             <h1>🎤 Paroles</h1>
         </div>
         <div class="top-actions">
+            <span id="save-status" class="save-status"></span>
             <span id="song-name" class="song-name" hidden></span>
             <button type="button" id="btn-import" class="btn-primary">Importer un fichier</button>
             <input type="file" id="file-input" accept="application/json,.json" hidden>
+            <button type="button" id="btn-export-text" class="btn-secondary" hidden title="Télécharge un fichier texte (accords au-dessus des paroles), lisible partout">📄 Exporter en texte</button>
             <button type="button" id="btn-print" class="btn-secondary" hidden title="Imprimer / exporter en PDF via la boîte d'impression du navigateur">🖨️ Imprimer</button>
         </div>
     </header>
+
+    <div id="banners" class="banners"></div>
 
     <main id="app-main">
         <div id="empty-state" class="empty-state">
@@ -43,6 +47,6 @@
         <div id="sections"></div>
     </main>
 
-    <script src="paroles.js?v=2"></script>
+    <script src="paroles.js?v=4"></script>
 </body>
 </html>

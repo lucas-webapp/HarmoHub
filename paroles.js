@@ -9,13 +9,15 @@
 //     coordonnées pixel figées) ;
 //   - "libre" : position relative (%) dans la zone de texte, pour les cas sans caractère à accrocher
 //     (fin de ligne, ligne encore vide).
-// Persistance en localStorage, par nom de morceau (voir STORAGE_PREFIX) : ce fichier ne dépend d'aucun
-// serveur, comme le reste de HarmoHub.
+// Persistance en localStorage (voir STORAGE_PREFIX/storageKeyForSong) : ce fichier ne dépend d'aucun
+// serveur, comme le reste de HarmoHub. L'enregistrement est visible (voir #save-status) plutôt que
+// silencieux : retour utilisateur "assure-toi que les enregistrements sont bien réalisés, avec
+// messages d'erreur si nécessaire".
 
 const STORAGE_PREFIX = 'harmohub_lyrics_v1_';
 
 const state = {
-    song: null,          // { version, song, beatsPerBar, sections: [{ title, chords: [{symbol,beats}], _placements }] }
+    song: null,          // { version, song, songId, beatsPerBar, sections: [{ title, chords: [{symbol,beats}], _placements }] }
     armed: null,         // { si, ci } | null — accord actuellement "en main", prêt à être posé
     freeMode: false,
     sectionEls: [],       // [{ pool, wrap, text }] par section, remplis une seule fois par buildSectionsDOM
@@ -31,31 +33,108 @@ function slugForSong(name) {
     return (name || 'Sans titre').trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
 }
 
+// Clé de session : préfère l'identifiant STABLE du morceau (songId, voir exportLyricsData dans
+// script.js) au seul nom affiché — deux morceaux de même nom (ou renommés depuis) ne doivent jamais
+// se marcher dessus. Repli sur le nom seul pour un fichier exporté avant l'ajout de songId (vieux
+// export encore sur le disque de l'utilisateur).
+function storageKeyForSong(song) {
+    return song.songId ? `${STORAGE_PREFIX}id-${song.songId}` : `${STORAGE_PREFIX}name-${slugForSong(song.song)}`;
+}
+
+// ---------- Bandeaux de notification (avertissements/erreurs visibles, pas juste la console) ----------
+
+function showBanner(text, kind = 'info') {
+    const host = document.getElementById('banners');
+    const el = document.createElement('div');
+    el.className = `banner banner-${kind}`;
+    el.innerHTML = `<span>${escapeHtml(text)}</span><button type="button" class="banner-close" aria-label="Fermer">×</button>`;
+    el.querySelector('.banner-close').addEventListener('click', () => el.remove());
+    host.appendChild(el);
+    return el;
+}
+
+// ---------- État d'enregistrement (voir #save-status) ----------
+
+function setSaveStatus(kind, detail) {
+    const el = document.getElementById('save-status');
+    if (!el) return;
+    el.classList.remove('save-pending', 'save-ok', 'save-error');
+    if (kind === 'pending') {
+        el.textContent = 'Enregistrement…';
+        el.classList.add('save-pending');
+        el.title = '';
+    } else if (kind === 'ok') {
+        const t = new Date();
+        el.textContent = `Enregistré ✓ ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+        el.classList.add('save-ok');
+        el.title = '';
+    } else {
+        el.textContent = '⚠ Échec de l\'enregistrement';
+        el.classList.add('save-error');
+        el.title = detail || '';
+    }
+}
+
 // ---------- Persistance ----------
 
 let saveTimer = null;
-function saveSession() {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-        if (!state.song) return;
-        const payload = {
-            songName: state.song.song,
-            sections: state.song.sections.map(sec => ({
-                lyricsHtml: sec._lyricsHtml || '',
-                placements: sec._placements || [],
-            })),
-        };
-        try {
-            localStorage.setItem(STORAGE_PREFIX + slugForSong(state.song.song), JSON.stringify(payload));
-        } catch (e) { console.error('Sauvegarde paroles impossible :', e); }
-    }, 350);
+
+// Écriture proprement dite, factorisée pour être appelable soit après le délai anti-rebond normal
+// (voir saveSession), soit IMMÉDIATEMENT (voir "beforeunload" plus bas) — sans ça, fermer l'onglet ou
+// naviguer moins de 350ms après une dernière frappe perdrait cette toute dernière modification, jamais
+// écrite (retour utilisateur : "assure-toi que les enregistrements sont bien réalisés").
+function writeSessionNow() {
+    if (!state.song) return;
+    const payload = {
+        songName: state.song.song,
+        sections: state.song.sections.map(sec => ({
+            lyricsHtml: sec._lyricsHtml || '',
+            placements: sec._placements || [],
+        })),
+    };
+    try {
+        localStorage.setItem(storageKeyForSong(state.song), JSON.stringify(payload));
+        setSaveStatus('ok');
+    } catch (e) {
+        // Ex. quota localStorage dépassé, ou navigation privée qui bloque l'écriture — retour
+        // utilisateur explicite : "assure-toi que les enregistrements sont bien réalisés, avec
+        // messages d'erreur si nécessaire", pas juste une trace dans la console que personne ne
+        // regarde.
+        console.error('Sauvegarde paroles impossible :', e);
+        setSaveStatus('error', e && e.message);
+        showBanner(
+            "Échec de l'enregistrement des paroles (stockage plein, ou navigation privée ?). Tes dernières modifications ne sont peut-être pas conservées — exporte/imprime par précaution avant de fermer cet onglet.",
+            'error'
+        );
+    }
 }
 
-function loadSavedSession(songName) {
+function saveSession() {
+    if (!state.song) return;
+    setSaveStatus('pending');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(writeSessionNow, 350);
+}
+
+// Filet de sécurité : si une écriture est encore en attente (dans les 350ms) au moment de fermer
+// l'onglet/naviguer ailleurs, on la force IMMÉDIATEMENT plutôt que de la laisser expirer dans le vide.
+window.addEventListener('beforeunload', () => {
+    if (saveTimer) { clearTimeout(saveTimer); writeSessionNow(); }
+});
+
+function loadSavedSession(song) {
+    const key = storageKeyForSong(song);
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
     try {
-        const raw = localStorage.getItem(STORAGE_PREFIX + slugForSong(songName));
-        return raw ? JSON.parse(raw) : null;
-    } catch (e) { return null; }
+        return JSON.parse(raw);
+    } catch (e) {
+        // Session illisible (localStorage corrompu/tronqué) : le signale plutôt que de repartir de
+        // zéro sans un mot — l'utilisateur pourrait croire que ses paroles n'ont jamais été perdues.
+        console.error('Session paroles illisible :', e);
+        showBanner("La session précédente de ce morceau était illisible (données corrompues) — on repart d'une page vierge pour ne pas bloquer, mais tes anciennes paroles n'ont pas pu être récupérées.", 'error');
+        return null;
+    }
 }
 
 // ---------- Import ----------
@@ -65,16 +144,19 @@ function loadSong(data) {
         alert("Fichier invalide — utilise le fichier téléchargé depuis le bouton « Exporter pour paroles » de HarmoHub.");
         return;
     }
-    const saved = loadSavedSession(data.song);
+    document.getElementById('banners').innerHTML = '';
+    const saved = loadSavedSession(data);
+    let droppedPlacements = 0;
     data.sections.forEach((sec, si) => {
         const savedSec = saved && saved.sections && saved.sections[si];
         sec._lyricsHtml = savedSec ? (savedSec.lyricsHtml || '') : '';
         // Défensif : ignore un emplacement dont l'accord référencé n'existe plus (le morceau a pu
         // changer côté HarmoHub depuis le dernier export) — plutôt que de planter ou d'afficher une
-        // pastille orpheline.
-        sec._placements = savedSec
-            ? (savedSec.placements || []).filter(p => p.chordIndex < sec.chords.length)
-            : [];
+        // pastille orpheline. Compté pour prévenir l'utilisateur (voir plus bas), pas juste ignoré en
+        // silence.
+        const rawPlacements = savedSec ? (savedSec.placements || []) : [];
+        sec._placements = rawPlacements.filter(p => p.chordIndex < sec.chords.length);
+        droppedPlacements += rawPlacements.length - sec._placements.length;
     });
     state.song = data;
     state.armed = null;
@@ -82,12 +164,21 @@ function loadSong(data) {
     document.getElementById('empty-state').hidden = true;
     document.getElementById('toolbar').hidden = false;
     document.getElementById('btn-print').hidden = false;
+    document.getElementById('btn-export-text').hidden = false;
     const nameEl = document.getElementById('song-name');
     nameEl.hidden = false;
     nameEl.textContent = data.song;
 
     buildSectionsDOM();
     updateModeUI();
+
+    if (droppedPlacements > 0) {
+        showBanner(
+            `Le morceau a changé dans HarmoHub depuis ta dernière session ici : ${droppedPlacements} accord(s) posé(s) référençaient des accords qui n'existent plus et ont été retiré(s). Vérifie le placement de tes accords.`,
+            'warning'
+        );
+    }
+    setSaveStatus('ok'); // la session vient d'être chargée telle quelle : rien à réécrire pour l'instant
 }
 
 document.getElementById('btn-import').addEventListener('click', () => document.getElementById('file-input').click());
@@ -103,6 +194,34 @@ document.getElementById('file-input').addEventListener('change', (e) => {
     e.target.value = ''; // permet de réimporter le même fichier plusieurs fois de suite
 });
 document.getElementById('btn-print').addEventListener('click', () => window.print());
+
+// Export texte brut : lisible n'importe où (éditeur de texte, mail, autre appareil), pas seulement
+// dans un navigateur — contrairement à Imprimer/PDF. Liste les accords de chaque partie PUIS ses
+// paroles telles quelles, sans tenter de reproduire au caractère près le placement visuel (une
+// reconstruction fiable en ASCII demanderait de rejouer toute la mise en page du texte — bien plus
+// fragile que de laisser le navigateur l'afficher lui-même, voir les pastilles à l'écran/à
+// l'impression) : ce fichier sert de sauvegarde/référence portable, pas de copie exacte de la vue.
+document.getElementById('btn-export-text').addEventListener('click', () => {
+    if (!state.song) return;
+    const title = state.song.song || 'Sans titre';
+    let out = `${title}\n${'='.repeat(title.length)}\n\n`;
+    state.song.sections.forEach((sec, si) => {
+        const secTitle = sec.title || `Partie ${si + 1}`;
+        out += `[${secTitle}]\n`;
+        if (sec.chords.length) out += `Accords : ${sec.chords.map(c => c.symbol).join(', ')}\n`;
+        const lyrics = (state.sectionEls[si].text.innerText || '').trim();
+        out += lyrics ? `\n${lyrics}\n\n` : '\n';
+    });
+    const blob = new Blob([out], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title.replace(/[\\/:*?"<>|]+/g, '_')} - paroles.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+});
 
 // ---------- Récupération automatique depuis HarmoHub (même navigateur) ----------
 // Voir exportLyricsData dans script.js : en plus du fichier téléchargé (utile pour partager/changer
@@ -131,10 +250,32 @@ function buildSectionsDOM() {
         const block = document.createElement('div');
         block.className = 'section-block';
 
+        const titleRow = document.createElement('div');
+        titleRow.className = 'section-title-row';
         const title = document.createElement('div');
         title.className = 'section-title';
         title.textContent = sec.title || `Partie ${si + 1}`;
-        block.appendChild(title);
+        titleRow.appendChild(title);
+
+        const resetBtn = document.createElement('button');
+        resetBtn.type = 'button';
+        resetBtn.className = 'btn-reset-section';
+        resetBtn.textContent = 'Réinitialiser';
+        resetBtn.title = 'Efface les paroles et les accords posés de cette partie (les accords eux-mêmes restent disponibles dans la réserve)';
+        resetBtn.addEventListener('click', () => {
+            const label = sec.title || `Partie ${si + 1}`;
+            if (!confirm(`Effacer les paroles et tous les accords posés de « ${label} » ? Cette action ne peut pas être annulée.`)) return;
+            sec._lyricsHtml = '';
+            sec._placements = [];
+            state.sectionEls[si].text.innerHTML = '';
+            if (state.armed && state.armed.si === si) state.armed = null;
+            saveSession();
+            renderPool(si);
+            renderPills(si);
+            updateModeUI();
+        });
+        titleRow.appendChild(resetBtn);
+        block.appendChild(titleRow);
 
         const pool = document.createElement('div');
         pool.className = 'chord-pool';
