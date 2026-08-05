@@ -4548,6 +4548,18 @@ class HarmoHubApp {
                     const gridCol = onBoundary ? `${colFloor} / span 2` : `${colFloor + 1} / span 1`;
                     offbeatTicksHtml += `<div class="row-offbeat" style="grid-column: ${gridCol}; grid-row: ${r * rowsPerGroup + rowsPerGroup};"><span class="offbeat-dot"></span></div>`;
                 }
+                // Numéro de mesure à la FIN de la grille (juste avant la case "+", même position/ligne
+                // qu'elle — voir plusRow/plusCol plus haut) : jusqu'ici, ce numéro n'apparaissait que si
+                // on prolongeait un accord jusque-là (son propre .row-measure de départ) — retour
+                // utilisateur : "je devrais voir le 4 sous la grille à la fin. Je le vois uniquement si
+                // je prolonge encore l'accord. Je veux voir le numéro de mesure à la fin de la grille."
+                // N'apparaît que si le contenu s'arrête PILE sur une frontière de mesure (sinon aucun
+                // numéro propre à afficher) ; décoratif (pointer-events:none en CSS) — ce n'est qu'un
+                // aperçu de la mesure suivante, pas encore un vrai accord sur lequel on pourrait glisser
+                // pour définir une plage à boucler.
+                const endMeasureHtml = (cursor > 0 && cursor % beatsPerBar === 0)
+                    ? `<div class="row-measure row-measure-end" style="grid-column: ${plusCol + 1} / span 1; grid-row: ${plusRow * rowsPerGroup + rowsPerGroup};">${cursor / beatsPerBar + 1}</div>`
+                    : '';
                 gridInner = cells.map(s => {
                     const h = history[s.index];
                     const chordUseFlats = useFlatsForChordRoot(NOTES.indexOf(h.root), NOTES.indexOf(gRoot), gMode, useFlats);
@@ -4648,7 +4660,7 @@ class HarmoHubApp {
                     <div class="row-measure${resizeReachedBar === s.barNumber ? ' row-measure-reached' : ''}" style="grid-column: ${s.col + 1} / span 1; grid-row: ${s.row * rowsPerGroup + rowsPerGroup};">${s.barNumber}</div>`
                 ).join('') + cells.flatMap(s => s.innerBars.map(ib => `
                     <div class="row-measure${resizeReachedBar === ib.barNumber ? ' row-measure-reached' : ''}" style="grid-column: ${s.col + ib.offset + 1} / span 1; grid-row: ${s.row * rowsPerGroup + rowsPerGroup};">${ib.barNumber}</div>`)
-                ).join('') + offbeatTicksHtml + this.buildLoopRangeBars(cells, loopRange, rowsPerGroup)
+                ).join('') + offbeatTicksHtml + endMeasureHtml + this.buildLoopRangeBars(cells, loopRange, rowsPerGroup)
                 + this.buildAddCellHtml(si, plusRow * rowsPerGroup + chordRowOffset, plusCol, plusSpan);
             }
 
@@ -10628,7 +10640,12 @@ class HarmoHubApp {
         for (let s = pageStart; s < pageEnd; s += SEQ_STEPS_PER_BEAT) {
             const beatIndex = Math.floor(s / SEQ_STEPS_PER_BEAT);
             const beatNum = (beatIndex % beatsPerBar) + 1;
-            beatLabelsHtml += `<div class="seq-beat-label" data-beat-index="${beatIndex}" style="grid-row:${beatRow}; grid-column:${colOffset + s - pageStart + 2};">${beatNum}</div>`;
+            // Le chiffre est dans un <span> à part, centré sur le VRAI début du temps (voir .seq-beat-num
+            // en CSS) plutôt que posé tel quel dans sa case (qui l'aurait calé à GAUCHE du repère, son
+            // texte partant de là et s'étirant vers la droite) : à côté du trait de contretemps, lui
+            // bien centré, ce calage à gauche donnait une impression d'asymétrie (retour utilisateur :
+            // "les traits sont centrés, mais plus les numéros").
+            beatLabelsHtml += `<div class="seq-beat-label" data-beat-index="${beatIndex}" style="grid-row:${beatRow}; grid-column:${colOffset + s - pageStart + 2};"><span class="seq-beat-num">${beatNum}</span></div>`;
             // Contretemps (le "et" du temps, 2e croche — voir SEQ_STEPS_PER_BEAT) : petit trait estompé,
             // jamais un chiffre, pour rester bien plus discret que le numéro de temps lui-même (retour
             // utilisateur : repère discret, pas une nouvelle ligne de chiffres à lire). Centré sur la
