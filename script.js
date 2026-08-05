@@ -9774,16 +9774,9 @@ class HarmoHubApp {
     setupPinchZoom(el, kind, { zoom = true, pan = false } = {}) {
         const pointers = new Map();
         let baseDist = null, baseZoomX = null, baseZoomY = null;
-        let prevMidX = null; // pan : delta d'un mouvement à l'autre, pas un ratio depuis un point de
-                              // départ fixe comme le zoom — le défilement n'a pas de "valeur de
-                              // départ" à retrouver, juste à suivre les doigts en direct.
         const dist = () => {
             const pts = [...pointers.values()];
             return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-        };
-        const midX = () => {
-            const pts = [...pointers.values()];
-            return (pts[0].x + pts[1].x) / 2;
         };
         // Cible du défilement : #arp-sequencer se déplace entre plusieurs hôtes (compact, loupe
         // séquenceur, loupe grille épinglée, voir openSeqZoom/pinSequencerHost) sans jamais être
@@ -9804,22 +9797,27 @@ class HarmoHubApp {
             // fonctionne pas bien"). try/catch défensif : ignoré si le navigateur ne considère pas
             // encore ce pointeur comme actif (jamais le cas pour un vrai doigt).
             try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignoré, voir commentaire ci-dessus */ }
-            if (pointers.size === 2) {
-                if (zoom) {
-                    // Écart et échelle de DÉPART du pincement : toute la suite du geste s'exprime en
-                    // ratio de cet écart initial, jamais en delta cumulé depuis le dernier mouvement
-                    // (qui dériverait/s'accumulerait faux si un pointermove venait à manquer).
-                    baseDist = dist();
-                    baseZoomX = this[`${kind}ZoomLevelX`];
-                    baseZoomY = this[`${kind}ZoomLevelY`];
-                    this._zoomPinchActive = true;
-                    this._startZoomPinchFlushLoop();
-                }
-                if (pan) prevMidX = midX();
+            if (pointers.size === 2 && zoom) {
+                // Écart et échelle de DÉPART du pincement : toute la suite du geste s'exprime en
+                // ratio de cet écart initial, jamais en delta cumulé depuis le dernier mouvement
+                // (qui dériverait/s'accumulerait faux si un pointermove venait à manquer).
+                baseDist = dist();
+                baseZoomX = this[`${kind}ZoomLevelX`];
+                baseZoomY = this[`${kind}ZoomLevelY`];
+                this._zoomPinchActive = true;
+                this._startZoomPinchFlushLoop();
             }
         });
         el.addEventListener('pointermove', (e) => {
-            if (!pointers.has(e.pointerId)) return;
+            const prevPos = pointers.get(e.pointerId);
+            if (!prevPos) return;
+            // dxRaw AVANT d'écraser la position mémorisée : delta du SEUL doigt qui vient de bouger
+            // (voir plus bas, pan) — jamais recalculé depuis un point milieu des DEUX doigts, qui
+            // mélangerait la position toute fraîche de celui-ci avec celle de l'autre doigt, restée à
+            // sa dernière valeur reçue un tick plus tôt (les deux doigts arrivent presque toujours par
+            // évènements séparés, jamais parfaitement synchronisés) — cette lecture décalée était
+            // exactement la source des petits à-coups au lieu d'un glissé fluide (retour utilisateur).
+            const dxRaw = e.clientX - prevPos.x;
             pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             if (pointers.size !== 2) return;
             let handled = false;
@@ -9829,13 +9827,15 @@ class HarmoHubApp {
                 this.setZoomLevel(kind, 'y', baseZoomY * ratio);
                 handled = true;
             }
-            if (pan && prevMidX != null) {
-                const m = midX();
+            if (pan) {
                 const target = panTarget();
+                // Moitié du delta de CE seul doigt (2 doigts qui glissent ensemble se partagent le
+                // déplacement perçu — voir le commentaire plus haut) : additionné aux évènements de
+                // l'autre doigt au fil du geste, retrouve la même distance totale qu'un vrai suivi du
+                // point milieu, sans jamais mélanger deux échantillons pris à des instants différents.
                 // Doigts qui glissent vers la droite -> le contenu doit suivre vers la droite -> moins
                 // reste caché à gauche (scrollLeft diminue) : même sens qu'un glissé tactile natif.
-                if (target) target.scrollLeft -= (m - prevMidX);
-                prevMidX = m;
+                if (target) target.scrollLeft -= dxRaw / 2;
                 handled = true;
             }
             if (handled) e.preventDefault(); // empêche le navigateur de zoomer/défiler la PAGE entière avec la même pince
@@ -9844,7 +9844,6 @@ class HarmoHubApp {
             pointers.delete(e.pointerId);
             if (pointers.size < 2) {
                 baseDist = null;
-                prevMidX = null;
                 // Un doigt se lève, il n'en reste plus 2 : le pincement est terminé — arrête la boucle
                 // de rattrapage périodique et applique un dernier rattrapage immédiat (voir
                 // _startZoomPinchFlushLoop/_flushZoomPinchRender), pour être certain de finir sur la

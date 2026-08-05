@@ -486,6 +486,7 @@ body.body-scroll-locked { overflow: hidden !important; }
     align-self: stretch; /* .seq-grid impose align-items:center (hauteur au contenu) : sans stretch,
                              cet élément vide s'écraserait à 0px de haut au lieu de couvrir les voix
                              (voir le même souci/la même parade sur .seq-playhead ci-dessus) */
+    touch-action: pan-y; /* voir .seq-label (renderSequencer/setupPinchZoom) : même raison */
 }
 .seq-ctx-nav:hover, .seq-ctx-nav:active { background: rgba(255, 255, 255, 0.06); }
 
@@ -2594,6 +2595,14 @@ button:active { transform: translateY(1px); }
     padding-right: 4px;
     white-space: nowrap;
     cursor: pointer; /* clic = écouter cette hauteur, voir previewSeqNote dans script.js */
+    /* Même touch-action que .seq-cell (voir plus bas) : sans ça, un des deux doigts d'un glissé à 2
+       doigts (voir setupPinchZoom/pan) qui atterrit pile sur cette étiquette plutôt qu'une case laisse
+       le NAVIGATEUR décider unilatéralement de défiler nativement pour CE doigt — geste alors disputé
+       entre le défilement natif et le JS selon l'endroit exact où chaque doigt se pose, perçu comme
+       tantôt un vrai scroll, tantôt les petits à-coups du JS (retour utilisateur). Uniforme sur toute
+       la surface tactile du séquenceur, le JS garde toujours la main, quel que soit l'élément touché.
+    */
+    touch-action: pan-y;
 }
 .seq-label:hover { color: var(--text-main); }
 
@@ -2624,6 +2633,7 @@ button:active { transform: translateY(1px); }
     opacity: 0.7;
     padding-top: 3px;
     font-variant-numeric: tabular-nums;
+    touch-action: pan-y; /* voir .seq-label juste au-dessus : même raison */
 }
 
 /* Mode studio (voir #toggle-studio-mode/renderSequencer) : une barre de vélocité par croche active,
@@ -2636,6 +2646,7 @@ button:active { transform: translateY(1px); }
     opacity: 0.7;
     padding-top: 6px;
     white-space: nowrap;
+    touch-action: pan-y; /* voir .seq-label plus haut : même raison */
 }
 .seq-vel-bar {
     position: relative;
