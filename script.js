@@ -8765,6 +8765,32 @@ class HarmoHubApp {
         if (d._autoScrollRAF) { cancelAnimationFrame(d._autoScrollRAF); d._autoScrollRAF = null; }
     }
 
+    // Ancêtre RÉELLEMENT défilant verticalement autour de #arp-sequencer, retrouvé en remontant le DOM
+    // plutôt que ciblé par id fixe : #arp-sequencer se déplace entre plusieurs hôtes sans être dupliqué
+    // (panneau compact -> .panel-controls, loupe séquenceur -> #seq-zoom-host, loupe grille épinglée ->
+    // #grid-zoom-pinned-body, voir openSeqZoom/pinSequencerHost), chacun son propre ancêtre défilant.
+    // Utilisé pour reproduire en JS le défilement vertical qu'un doigt sur une case faisait avant
+    // nativement (voir .seq-cell/touch-action:none en CSS, retiré pour laisser le pan à 2 doigts, voir
+    // setupPinchZoom, garder un contrôle fiable sur cet axe aussi).
+    _scrollableSeqAncestor() {
+        let el = document.getElementById('arp-sequencer');
+        while (el && el !== document.body) {
+            el = el.parentElement;
+            if (!el) break;
+            const style = getComputedStyle(el);
+            if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight) {
+                return el;
+            }
+        }
+        // Aucun ancêtre en overflow-y:auto trouvé avant le <body> : c'est la PAGE elle-même qui défile
+        // (mise en page mobile — .panel-controls ne devient son propre conteneur défilant qu'à partir
+        // de 900px, voir style.css) — scrollingElement (<html>, ou <body> en quirks mode) est alors le
+        // bon repli, avec le même scrollTop assignable que n'importe quel autre conteneur défilant.
+        const page = document.scrollingElement || document.documentElement;
+        if (page && page.scrollHeight > page.clientHeight) return page;
+        return null;
+    }
+
     // Avance le défilement d'un cran et REJOUE le geste en cours à la même position écran : le
     // contenu a bougé dessous, donc la croche visée change même si le doigt/la souris, eux, n'ont pas
     // bougé pendant que la vue défile — sans ce rejeu, rien ne suivrait tant qu'un vrai mouvement du
@@ -8804,6 +8830,27 @@ class HarmoHubApp {
         d._lastClientX = e.clientX;
         d._lastClientY = e.clientY;
         this._updateSeqAutoScroll(d);
+
+        // Défilement vertical à UN SEUL doigt (voir .seq-cell/touch-action:none en CSS — retiré pour
+        // laisser le pan à 2 doigts, voir setupPinchZoom, garder la main de façon fiable) : décidé une
+        // seule fois, au tout premier vrai mouvement de CE geste, UNIQUEMENT pour étirer (d.resize) et
+        // peindre sur une case vide (!d.wasOn) — les deux seuls cas qui n'avaient pas déjà un sens pour
+        // une dominante verticale. Un geste démarré sur le CORPS d'une note existante garde le SIEN
+        // (changer de voix, voir juste plus bas), jamais détourné vers un défilement.
+        if (!d.axisDecided && (d.resize || !d.wasOn)) {
+            const dx0 = e.clientX - d.startX, dy0 = e.clientY - d.startY;
+            if (Math.hypot(dx0, dy0) < 10) return;
+            d.axisDecided = true;
+            if (Math.abs(dy0) > Math.abs(dx0)) { d.verticalScroll = true; d._vScrollLastY = e.clientY; }
+        }
+        if (d.verticalScroll) {
+            const dy = e.clientY - d._vScrollLastY;
+            d._vScrollLastY = e.clientY;
+            const target = this._scrollableSeqAncestor();
+            if (target) target.scrollTop -= dy;
+            e.preventDefault();
+            return;
+        }
 
         // Démarré SUR une note déjà posée, hors sélection multiple : le sens du tout premier vrai
         // mouvement (seuil commun aux autres gestes séquenceur) décide si ce glissé change de VOIX —
@@ -9224,12 +9271,67 @@ class HarmoHubApp {
         this.seqDrag = null;
         if (d) this._stopSeqAutoScroll(d);
         let painted = false;
-        if (d && d.moved && d.touched && d.mode === 'paint' && !d.voiceDrag && !d.dupDrag) {
-            Object.keys(d.touched).forEach(key => {
-                const orig = d.touched[key];
-                this.applySeqCell(d.voice, +key, orig.on, orig.tied);
-            });
-            painted = true;
+        // Restaure EXACTEMENT l'état d'avant ce début de geste, quel que soit son type — un 2e doigt
+        // qui se pose (typiquement pour le pan à 2 doigts, voir setupPinchZoom) peut survenir APRÈS
+        // que le 1er doigt a déjà légèrement bougé (les deux doigts d'une vraie pince ne se posent
+        // jamais parfaitement en même temps) : sans un rattrapage complet ici, ce tout petit geste
+        // resterait appliqué à moitié — une note laissée dans un état intermédiaire incohérent avec
+        // les autres voix du même accord (retour utilisateur : bug visible après un geste à 2 doigts).
+        if (d) {
+            // d.moved N'EST posé que par la queue "peindre" et onSeqMultiDragMove — jamais par
+            // onSeqResizeMove, qui a son PROPRE indicateur (d.resizeChanged) : chaque branche vérifie
+            // donc la sienne, plutôt qu'un seul garde-fou commun qui aurait sauté le redimensionnement.
+            if (d.moved && d.touched && !d.resize && !d.multi && !d.voiceDrag && !d.dupDrag) {
+                // Peindre/effacer (voir onSeqPointerMove, queue "paint") : chaque croche touchée est
+                // déjà mémorisée avant sa toute première modification.
+                Object.keys(d.touched).forEach(key => {
+                    const orig = d.touched[key];
+                    this.applySeqCell(d.voice, +key, orig.on, orig.tied);
+                });
+                painted = true;
+            } else if (d.resize && d.resizeChanged) {
+                // Étirement (voir onSeqResizeMove) : d.resize.noteStart/noteEnd gardent les bornes
+                // D'ORIGINE de la note (jamais mises à jour pendant le geste, contrairement à
+                // d.curStart/curEnd) — remet tout ce que le geste a pu toucher entre les deux dans son
+                // état d'origine (note d'origine SEULE allumée sur cette plage).
+                const lo = Math.min(d.curStart, d.resize.noteStart);
+                const hi = Math.max(d.curEnd, d.resize.noteEnd);
+                for (let s = lo; s <= hi; s++) {
+                    const within = s >= d.resize.noteStart && s <= d.resize.noteEnd;
+                    this.applySeqCell(d.voice, s, within, within && s !== d.resize.noteStart);
+                }
+                painted = true;
+            } else if (d.multi) {
+                // Étirement/déplacement de plusieurs notes sélectionnées (voir onSeqMultiDragMove) :
+                // d.multi.selections garde un instantané des positions de DÉPART de chacune, jamais
+                // muté pendant le geste — remet chaque note exactement là où elle était.
+                const m = d.multi;
+                const movesStart = m.edge === 'start' || m.edge === null;
+                const movesEnd = m.edge === 'end' || m.edge === null;
+                m.selections.forEach(sel => {
+                    const curStart = movesStart ? sel.start + m.appliedDelta : sel.start;
+                    const curEnd = movesEnd ? sel.end + m.appliedDelta : sel.end;
+                    const lo = Math.min(sel.start, curStart), hi = Math.max(sel.end, curEnd);
+                    for (let s = lo; s <= hi; s++) {
+                        const within = s >= sel.start && s <= sel.end;
+                        this.applySeqCell(sel.voice, s, within, within && s !== sel.start);
+                    }
+                });
+                painted = true;
+            }
+        }
+        // Changement de voix / duplication (voir beginSeqVoiceDrag/beginSeqDupDrag) : rien n'est
+        // encore écrit dans les données à ce stade (seul un fantôme visuel suit le doigt, voir
+        // finalizeSeqVoiceDrag/finalizeSeqDupDrag pour l'écriture réelle, jamais atteinte ici) — mais
+        // le fantôme lui-même, posé dans le DOM en dehors du rendu normal, doit être retiré, et la
+        // note d'origine (masquée pendant un changement de voix) redevenue visible, sans quoi elle
+        // resterait invisible jusqu'au prochain rendu sans rapport (même bug visuel que ci-dessus).
+        if (d && d.voiceDrag) {
+            d.voiceDrag.ghost.remove();
+            if (d.voiceDrag.noteEl) d.voiceDrag.noteEl.style.visibility = '';
+        }
+        if (d && d.dupDrag) {
+            d.dupDrag.ghost.remove();
         }
         if (this.seqMarquee) {
             if (this.seqMarquee.el) this.seqMarquee.el.remove();
@@ -9248,6 +9350,12 @@ class HarmoHubApp {
         this.seqDrag = null;
         if (!d) return;
         this._stopSeqAutoScroll(d);
+
+        // Défilement vertical (voir onSeqPointerMove) : jamais une modification, rien à valider ici —
+        // sans ce retour anticipé, une case vide (!d.wasOn) jamais peinte serait lue comme un simple
+        // tap au relâchement (voir plus bas, "!d.moved") et peindrait une note isolée non voulue là où
+        // le geste a commencé, alors qu'on cherchait juste à faire défiler la page verticalement.
+        if (d.verticalScroll) return;
 
         if (d.voiceDrag) {
             this.finalizeSeqVoiceDrag(d);
