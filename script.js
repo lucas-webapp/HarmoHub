@@ -7648,7 +7648,28 @@ class HarmoHubApp {
         const gridEl = e.target.closest('.chord-grid');
         if (!gridEl) return;
         if (e.target.closest('.grid-cell-add')) return; // laisse le clic focaliser normalement le champ
-        if (e.target.closest('.cell-sym-input')) return; // édition inline en cours (voir startInlineChordSymbolEdit) : laisse le focus/curseur natif faire son travail
+        const symInputEl = e.target.closest('.cell-sym-input');
+        if (symInputEl) {
+            // Un clic PILE sur le symbole ouvre l'édition inline INSTANTANÉMENT (voir plus bas,
+            // d.symTarget) — donc un vrai double-clic sur le symbole voit son second clic atterrir sur
+            // ce champ <input>, pas sur la case elle-même : sans ce rattrapage, il ne déclenchait rien
+            // de plus qu'un positionnement de curseur, laissant l'appli en Ajout (retour utilisateur :
+            // "la fenêtre modification ne s'est pas affichée tout de suite, je suis resté en Ajout").
+            // Un second clic RAPPROCHÉ (même fenêtre que this._lastTap, armé par le premier clic — voir
+            // plus bas) sur CETTE MÊME case ouvre donc directement le panneau Modification complet ;
+            // sinon, on laisse le focus/curseur natif faire son travail comme avant (retape en cours).
+            const cellEl = symInputEl.closest('.grid-cell');
+            const sec = cellEl ? +cellEl.dataset.section : null;
+            const idx = cellEl ? +cellEl.dataset.index : null;
+            const now = Date.now();
+            if (this._lastTap && this._lastTap.section === sec && this._lastTap.index === idx && (now - this._lastTap.time) < 420) {
+                this._lastTap = null;
+                e.preventDefault();
+                this.editChord(sec, idx); // reconstruit la grille (loadProgression), l'input orphelin disparaît avec
+                if (this.autoplaySelect) this.playCurrent();
+            }
+            return;
+        }
         if (e.target.closest('.cell-octave')) return; // boutons octave (voir shiftChordOctave) : pas de glisser-déposer/écoute sur ce geste
         const section = +gridEl.dataset.section;
         const cell = e.target.closest('.grid-cell');
@@ -7849,9 +7870,13 @@ class HarmoHubApp {
                 return;
             }
             if (d.symTarget) {
-                // Tap/clic pile sur le texte de l'accord (voir onGridPointerDown) : édition inline
-                // immédiate, pas de sélection/écoute ni d'attente d'un éventuel second tap.
-                this._lastTap = null;
+                // Tap/clic pile sur le texte de l'accord : édition inline immédiate, pas d'attente
+                // avant de l'ouvrir (retour utilisateur, doit rester rapide) — mais ARME quand même le
+                // repère de double-clic (this._lastTap) au lieu de le vider : un second clic RAPPROCHÉ
+                // atterrit sur l'<input> que cette édition inline vient de poser, pas sur la case
+                // elle-même (voir onGridPointerDown, guard .cell-sym-input) — c'est LÀ, pas ici, qu'il
+                // est reconnu comme un double-clic voulant le panneau Modification complet.
+                this._lastTap = { section: d.section, index: d.index, time: Date.now() };
                 this.startInlineChordSymbolEdit(d.section, d.index, d.cell);
                 return;
             }
@@ -11753,9 +11778,17 @@ class HarmoHubApp {
             : (this.selectedIndex != null && history[this.selectedIndex]) ? [this.selectedIndex] : [];
         if (indices.length === 0) return;
         this.clipboard = indices.map(i => ({ ...history[i] }));
+        // Désélectionne APRÈS la copie (retour utilisateur : "l'accord que je colle se place juste
+        // derrière l'accord copié" — this.selectedIndex, qui sert aussi de point d'insertion à
+        // pasteChord, restait sur l'accord qu'on venait de copier). Sans sélection active, pasteChord
+        // retombe sur son propre repli "fin de la partie" — le comportement par défaut voulu. Cliquer
+        // un autre accord ENSUITE (avant de coller) redonne un point d'insertion précis, comme prévu.
+        this.selectedIndex = null;
+        this.multiSelect = new Set();
+        this.loadProgression();
         this.flashHint(indices.length > 1
-            ? `${indices.length} accords copiés — Ctrl/Cmd+V pour coller`
-            : 'Accord copié — Ctrl/Cmd+V pour coller');
+            ? `${indices.length} accords copiés — Ctrl/Cmd+V pour coller (à la fin de la partie, ou derrière l'accord cliqué)`
+            : 'Accord copié — Ctrl/Cmd+V pour coller (à la fin de la partie, ou derrière l\'accord cliqué)');
     }
 
     pasteChord() {
