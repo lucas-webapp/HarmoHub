@@ -2738,6 +2738,7 @@ class HarmoHubApp {
         document.getElementById('export-pdf').onclick = () => this.exportPdf();
         document.getElementById('export-midi').onclick = () => this.exportMidi();
         document.getElementById('export-audio').onclick = () => this.exportAudio();
+        document.getElementById('export-lyrics').onclick = () => this.exportLyricsData();
         document.getElementById('export-backup').onclick = (e) => this.openBackupScopeMenu(e.currentTarget);
         document.getElementById('key-suggest-btn').onclick = (e) => this.openKeySuggestMenu(e.currentTarget);
 
@@ -7021,6 +7022,45 @@ class HarmoHubApp {
             }, si * 200);
         });
         this.flashHint(`${sections.length} fichiers MIDI téléchargés → dossier Téléchargements`, 2400);
+    }
+
+    // ---------- Export pour l'outil compagnon Paroles (voir paroles.html) ----------
+    // Juste de quoi placer des accords sur du texte : le symbole déjà résolu (tonalité/dièses-bémols,
+    // renversement/basse) + la durée en temps, par partie, dans l'ordre — aucun voicing ni instrument,
+    // cet outil n'en a pas besoin. Format à part (pas la sauvegarde du morceau elle-même) : ne casse
+    // jamais si la structure de sauvegarde évolue, et se lit d'un coup d'œil.
+    exportLyricsData() {
+        if (!getCurrentSongId()) {
+            this.saveCurrentAsSong('Nomme d\'abord ton morceau pour exporter les accords');
+            if (!getCurrentSongId()) return; // enregistrement annulé -> pas d'export
+        }
+        const sections = loadProgressionSections();
+        const gRoot = document.getElementById('global-root').value;
+        const gMode = document.getElementById('global-mode').value;
+        const useFlats = useFlatsForKey(NOTES.indexOf(gRoot), gMode);
+        const data = {
+            version: 1,
+            song: this.getCurrentSongName(),
+            beatsPerBar: this.beatsPerBar(),
+            sections: sections.map(sec => ({
+                title: (sec.title || '').trim(),
+                chords: sec.chords.map(h => {
+                    const chordUseFlats = useFlatsForChordRoot(NOTES.indexOf(h.root), NOTES.indexOf(gRoot), gMode, useFlats);
+                    const chord = new Chord(h.root, h.quality, beatsFromData(h), h.inversion, h.drop, octaveFromData(h), h.bass, h.guitarLock, h.extraNotes);
+                    return { symbol: chord.getBareLabel(chordUseFlats), beats: beatsFromData(h) };
+                }),
+            })),
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${this.getCurrentSongName().replace(/[\\/:*?"<>|]+/g, '_')} - paroles.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        this.flashHint('Fichier pour l\'outil Paroles téléchargé', 2400);
     }
 
     // ---------- Export audio (.mp3, encodage LAME embarqué — voir lame.min.js) ----------

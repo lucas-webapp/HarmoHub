@@ -1,0 +1,247 @@
+/* Paroles — HarmoHub : feuille de style à part (voir paroles.html pour le pourquoi du découplage).
+   Même famille de couleurs que l'appli principale (repris à la main depuis style.css :root) pour ne
+   pas dépayser, mais aucune règle en commun — cette page n'a besoin que d'une poignée de composants
+   (pastilles d'accords, texte éditable, étiquettes posées dessus). */
+:root {
+    --bg: #0a0a0a;
+    --card-bg: #161616;
+    --text-main: #e0e0e0;
+    --text-muted: #a0a0a0;
+    --accent: #00e676;
+    --accent-hover: #00c853;
+    --border: #333;
+    --radius: 12px;
+    --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* L'attribut [hidden] natif est de faible spécificité (règle du navigateur) : une règle d'auteur avec
+   "display" sur la MÊME classe (ex. .toolbar { display: flex }) l'emporterait sinon et réafficherait
+   l'élément malgré [hidden] — d'où cette règle explicite, jamais dépendante de l'ordre du CSS. */
+[hidden] { display: none !important; }
+
+* { box-sizing: border-box; }
+html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text-main);
+    font-family: var(--font);
+}
+
+.top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+.top-bar h1 {
+    font-size: 1.1rem;
+    margin: 0;
+    font-weight: 700;
+}
+.top-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.song-name {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.btn-primary, .btn-secondary {
+    font-family: var(--font);
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+.btn-primary {
+    background: #17301f;
+    border-color: #2f5b40;
+    color: #e9f3ec;
+}
+.btn-primary:hover { border-color: #3d7a54; }
+.btn-secondary {
+    background: #1a1a1a;
+    color: var(--text-main);
+}
+.btn-secondary:hover { border-color: #4a4a4a; }
+
+main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
+
+.empty-state {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 60px 20px;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+.empty-state strong { color: var(--text-main); }
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    padding: 8px 0;
+    z-index: 5;
+}
+.mode-toggle {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+.mode-btn {
+    font-family: var(--font);
+    font-size: 0.8rem;
+    padding: 6px 14px;
+    background: #1a1a1a;
+    color: var(--text-muted);
+    border: none;
+    cursor: pointer;
+}
+.mode-btn.active {
+    background: #17301f;
+    color: #e9f3ec;
+}
+.armed-hint {
+    font-size: 0.82rem;
+    color: var(--accent);
+    background: #17301f;
+    border: 1px solid #2f5b40;
+    border-radius: 8px;
+    padding: 5px 12px;
+}
+
+.section-block {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 20px;
+}
+.section-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 10px;
+}
+.section-title .section-empty-label { color: var(--text-muted); font-weight: 400; font-style: italic; }
+
+.chord-pool {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+.chord-chip {
+    font-family: var(--font);
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 5px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: #1e1e1e;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: border-color 0.12s ease, background 0.12s ease, opacity 0.12s ease;
+}
+.chord-chip:hover { border-color: #4a4a4a; }
+.chord-chip.placed {
+    opacity: 0.4;
+    background: #161616;
+}
+.chord-chip.armed {
+    background: #234534;
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+}
+.no-chords-note {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-style: italic;
+    margin-bottom: 12px;
+}
+
+.lyrics-wrap {
+    position: relative;
+    /* De la place pour les pastilles d'accords posées au-dessus du texte (voir .lyric-pill) sans
+       jamais chevaucher la ligne juste au-dessus. */
+    padding-top: 22px;
+}
+.lyrics-text {
+    min-height: 60px;
+    outline: none;
+    font-size: 1rem;
+    line-height: 2.1; /* espace vertical généreux : laisse respirer les pastilles au-dessus de chaque ligne */
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: var(--text-main);
+    cursor: text;
+}
+.lyrics-text:empty::before {
+    content: 'Clique ici pour écrire les paroles de cette partie…';
+    color: var(--text-muted);
+    font-style: italic;
+}
+.lyrics-wrap.armable .lyrics-text { cursor: crosshair; }
+
+.lyric-pill {
+    position: absolute;
+    transform: translate(-50%, 0);
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--accent);
+    background: rgba(0, 230, 118, 0.12);
+    border: 1px solid var(--accent);
+    border-radius: 5px;
+    padding: 1px 6px;
+    white-space: nowrap;
+    cursor: pointer;
+    line-height: 1.4;
+    user-select: none;
+}
+.lyric-pill:hover { background: rgba(0, 230, 118, 0.22); }
+.lyric-pill .pill-del {
+    margin-left: 4px;
+    opacity: 0.6;
+    font-weight: 400;
+}
+.lyric-pill .pill-del:hover { opacity: 1; }
+
+.hint-banner {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin: -8px 0 18px;
+    line-height: 1.5;
+}
+
+@media print {
+    .top-bar, .toolbar, .chord-pool, .no-chords-note, .hint-banner, #btn-print { display: none !important; }
+    body { background: #fff; color: #000; }
+    .section-block { background: #fff; border-color: #ccc; break-inside: avoid; }
+    .section-title { color: #000; }
+    .lyrics-text { color: #000; }
+    .lyric-pill { color: #000; background: none; border: none; padding: 0; }
+    .lyric-pill .pill-del { display: none; }
+}
+
+@media (max-width: 700px) {
+    main { padding: 16px 12px 80px; }
+    .top-bar { padding: 12px; }
+}
