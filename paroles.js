@@ -36,6 +36,16 @@ const MAX_UNDO = 100;
 let undoStack = [];
 let redoStack = [];
 
+// Identifiant unique par emplacement posé (voir placeArmedAt) : un même accord (chordIndex) peut
+// désormais être posé plusieurs fois dans une section (retour utilisateur : "utiliser autant de fois
+// que je veux le même accord dans une section") — chordIndex seul ne suffit donc plus à distinguer un
+// exemplaire posé d'un autre pour le retirer/repositionner.
+let placementIdCounter = 0;
+function nextPlacementId() {
+    placementIdCounter += 1;
+    return `pl-${Date.now().toString(36)}-${placementIdCounter}`;
+}
+
 function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -212,6 +222,10 @@ function loadSong(data) {
         // silence.
         const rawPlacements = savedSec ? (savedSec.placements || []) : [];
         sec._placements = rawPlacements.filter(p => p.chordIndex < sec.chords.length);
+        // Compatibilité ascendante : une session enregistrée avant l'ajout du "tampon" (accord posé
+        // plusieurs fois, voir armChord/placeArmedAt) n'a pas d'id unique par emplacement — on le
+        // complète ici pour que retrait/déplacement par id fonctionnent aussi sur d'anciennes données.
+        sec._placements.forEach(p => { if (!p.id) p.id = nextPlacementId(); });
         droppedPlacements += rawPlacements.length - sec._placements.length;
     });
     state.song = data;
@@ -377,8 +391,9 @@ function buildSectionsDOM() {
             if (pill) {
                 e.stopPropagation();
                 const ci = +pill.dataset.chordIndex;
-                if (e.target.dataset.del) removePlacement(si, ci);
-                else armChord(si, ci); // reprend l'accord posé pour le repositionner ailleurs
+                const placementId = pill.dataset.placementId;
+                if (e.target.dataset.del) removePlacement(si, placementId);
+                else pickUpPlacement(si, ci, placementId); // reprend CET exemplaire précis pour le replacer
                 return;
             }
             if (state.armed && state.armed.si === si) placeArmedAt(si, e);
@@ -401,12 +416,19 @@ function renderPool(si) {
         const chip = document.createElement('button');
         chip.type = 'button';
         chip.className = 'chord-chip';
-        const isPlaced = (sec._placements || []).some(p => p.chordIndex === ci);
+        // Un même accord peut désormais être posé plusieurs fois (retour utilisateur : "utiliser
+        // autant de fois que je veux le même accord dans une section") : on compte les exemplaires
+        // posés plutôt que de tester une simple présence, et on l'affiche ("×N") sur le chip.
+        const placedCount = (sec._placements || []).filter(p => p.chordIndex === ci).length;
         const isArmed = state.armed && state.armed.si === si && state.armed.ci === ci;
-        if (isPlaced) chip.classList.add('placed');
+        if (placedCount > 0) chip.classList.add('placed');
         if (isArmed) chip.classList.add('armed');
-        chip.textContent = chord.symbol;
-        chip.title = isPlaced ? 'Déjà posé — cliquer pour le reprendre et le replacer' : 'Cliquer puis clique dans le texte pour le poser';
+        chip.textContent = placedCount > 0 ? `${chord.symbol} ×${placedCount}` : chord.symbol;
+        chip.title = isArmed
+            ? 'Armé — clique dans le texte pour poser un exemplaire (reste armé pour en poser d\'autres), ou reclique ici pour désarmer'
+            : (placedCount > 0
+                ? `Déjà posé ${placedCount} fois — cliquer pour en poser un exemplaire de plus (clique une pastille existante pour la reprendre et la déplacer)`
+                : 'Cliquer puis clique dans le texte pour le poser');
         chip.addEventListener('click', () => {
             if (isArmed) disarm();
             else armChord(si, ci);
@@ -486,16 +508,15 @@ document.getElementById('btn-redo').addEventListener('click', redo);
 // ---------- Armement / pose ----------
 
 function armChord(si, ci) {
-    const sec = state.song.sections[si];
-    // "Ramasse" un éventuel ancien emplacement de CE MÊME accord : on le repositionne, pas de doublon.
-    // Une vraie étape d'annulation à part entière : sans ça, armer par erreur un accord déjà posé puis
-    // faire Échap le ferait disparaître pour de bon (aucun moyen de le récupérer autrement qu'Annuler).
-    pushUndoSnapshot();
-    sec._placements = (sec._placements || []).filter(p => p.chordIndex !== ci);
+    // Armer ne touche plus à un éventuel emplacement déjà posé de CE MÊME accord : un accord peut
+    // désormais être posé plusieurs fois dans la section (retour utilisateur : "utiliser autant de
+    // fois que je veux le même accord dans une section"), donc l'armement n'a plus à en "ramasser" un
+    // pour éviter un doublon — au contraire, on veut pouvoir en ajouter d'autres. Reprendre un
+    // exemplaire déjà posé pour le déplacer se fait maintenant en cliquant DIRECTEMENT sur sa pastille
+    // (voir pickUpPlacement), pas en ré-armant le chip de la réserve.
     state.armed = { si, ci };
-    saveSession();
-    refreshAllPoolsAndPills();
     updateModeUI();
+    refreshAllPoolsAndPills();
 }
 
 function disarm() {
@@ -504,11 +525,26 @@ function disarm() {
     refreshAllPoolsAndPills();
 }
 
-function removePlacement(si, ci) {
+// Retire UN exemplaire précis (par id unique), pas "l'emplacement de cet accord" — plusieurs
+// exemplaires du même accord peuvent coexister dans la section (voir armChord).
+function removePlacement(si, placementId) {
     pushUndoSnapshot();
     const sec = state.song.sections[si];
-    sec._placements = (sec._placements || []).filter(p => p.chordIndex !== ci);
-    if (state.armed && state.armed.si === si && state.armed.ci === ci) state.armed = null;
+    sec._placements = (sec._placements || []).filter(p => p.id !== placementId);
+    saveSession();
+    refreshAllPoolsAndPills();
+    updateModeUI();
+}
+
+// Clic sur le CORPS d'une pastille déjà posée (pas sa croix) : retire cet exemplaire précis et réarme
+// le même accord pour le repositionner ailleurs — remplace l'ancien comportement où armer le chip de
+// la réserve faisait ce "ramassage" (impossible désormais, puisqu'armer un chip ne doit plus faire
+// disparaître les exemplaires déjà posés).
+function pickUpPlacement(si, ci, placementId) {
+    pushUndoSnapshot();
+    const sec = state.song.sections[si];
+    sec._placements = (sec._placements || []).filter(p => p.id !== placementId);
+    state.armed = { si, ci };
     saveSession();
     refreshAllPoolsAndPills();
     updateModeUI();
@@ -536,14 +572,18 @@ function placeArmedAt(si, e) {
         const xPct = ((e.clientX - wrapRect.left) / wrapRect.width) * 100;
         placement = { chordIndex: ci, type: 'free', lineIndex, xPct: clamp(xPct, 0, 100) };
     }
+    placement.id = nextPlacementId();
 
-    // L'armement (voir armChord) a déjà ouvert une étape d'annulation pour CET accord (retrait de son
-    // ancien emplacement) : la pose ici n'a donc PAS besoin d'en ouvrir une seconde, sans quoi un
-    // simple "déplacer cet accord" (armer -> reposer) prendrait deux Ctrl+Z pour être annulé au lieu
-    // d'un seul — contre-intuitif. Voir pushUndoSnapshot dans armChord.
-    sec._placements = (sec._placements || []).filter(p => p.chordIndex !== ci);
+    // Cette pose ouvre sa propre étape d'annulation (armer ne le fait plus, voir armChord) : une pose
+    // = une étape, indépendante de l'éventuel "ramassage" qui a précédé (voir pickUpPlacement, qui a
+    // déjà sa propre étape).
+    pushUndoSnapshot();
+    sec._placements = sec._placements || [];
     sec._placements.push(placement);
-    state.armed = null;
+    // Reste armé ("mode tampon") : ne PAS désarmer ici, pour pouvoir reposer d'autres exemplaires du
+    // même accord ailleurs sans avoir à recliquer sur son chip à chaque fois (retour utilisateur :
+    // "utiliser autant de fois que je veux le même accord"). Un clic sur le chip déjà armé (ou Échap)
+    // le désarme explicitement quand l'utilisateur a fini.
     saveSession();
     refreshAllPoolsAndPills();
     updateModeUI();
@@ -703,6 +743,7 @@ function renderPills(si) {
         const pill = document.createElement('div');
         pill.className = 'lyric-pill';
         pill.dataset.chordIndex = pl.chordIndex;
+        pill.dataset.placementId = pl.id;
         pill.innerHTML = `${escapeHtml(chord.symbol)}<span class="pill-del" data-del="1" title="Retirer">×</span>`;
 
         let x, lineTop;
