@@ -2691,6 +2691,13 @@ button:active { transform: translateY(1px); }
     justify-content: center;
     padding-top: 4px;
     touch-action: none; /* voir .seq-cell plus bas : même raison */
+    /* Compense .seq-cell-b { margin-right: 4px } (voir plus bas) : les deux croches d'un même temps ne
+       forment PAS deux pistes de largeur identique visuellement — la 1ère (case "b", 2e croche du
+       binôme) recule de 4px pour laisser le vrai espacement avant la paire suivante, donc le vrai
+       INTERSTICE visuel entre les deux paires tombe 2px avant la frontière brute des colonnes de
+       grille, sur laquelle le trait est centré par défaut (retour utilisateur : "le tiret n'est pas
+       complètement centré... très légèrement à droite"). */
+    transform: translateX(-2px);
 }
 /* Trait du repère de contretemps, partagé entre le séquenceur (.seq-beat-offbeat) et la grille
    d'accords (.row-offbeat/loadProgression) et repris en esprit dans le PDF (.ruler-tick-offbeat) :
