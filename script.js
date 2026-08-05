@@ -4524,20 +4524,29 @@ class HarmoHubApp {
                         resizeReachedBar = Math.floor(absBeat / beatsPerBar) + 1;
                     }
                 }
-                // Repère de contretemps (milieu de CHAQUE temps, pas seulement de chaque mesure comme
-                // .row-measure) : permanent, sur la même ligne que les numéros de mesure — même principe
-                // que .seq-beat-offbeat côté séquenceur (retour utilisateur : "je veux un repère de
-                // contretemps discret sous la grille d'accords également"). Une colonne de la grille =
-                // un temps entier (voir layoutProgression) : le trait est donc simplement centré dans
-                // CETTE colonne, sans calcul de fraction de temps. Généré indépendamment des cases
-                // d'accords (0..cursor, pas cells) pour ne rater aucun temps même sur un accord étalé
-                // sur plusieurs mesures. Décoratif seul (pointer-events:none en CSS) : ne doit jamais
-                // intercepter le glisser qui définit une plage à boucler sur cette même ligne.
+                // Repère de contretemps sous la grille : UN SEUL trait par MESURE, posé pile en son
+                // milieu (pas un par temps comme au tout premier essai — bien trop chargé avec une
+                // colonne de grille = un temps entier, retour utilisateur : "je veux seulement des
+                // tirets au niveau des milieux de mesure, un seul tiret entre mesures 1 et 2 par
+                // exemple"). Position = barStart + beatsPerBar/2, en temps ABSOLUS (pas cells) pour ne
+                // rater aucune mesure même sur un accord étalé sur plusieurs mesures. Chiffrage pair
+                // (ex 4/4, milieu = temps 2 pile) : la frontière tombe exactement entre deux colonnes ->
+                // case à cheval sur les deux (span 2), centrée dessus, même principe que le repère du
+                // séquenceur. Chiffrage impair (ex 3/4, milieu = temps 1 et demi) : le milieu tombe en
+                // plein milieu d'UNE SEULE colonne -> case span 1 centrée dedans. Décoratif seul
+                // (pointer-events:none en CSS) : ne doit jamais intercepter le glisser qui définit une
+                // plage à boucler sur cette même ligne.
                 let offbeatTicksHtml = '';
-                for (let b = 0; b < cursor; b++) {
-                    const r = Math.floor(b / beatsPerRow);
-                    const c = b % beatsPerRow;
-                    offbeatTicksHtml += `<div class="row-offbeat" style="grid-column: ${c + 1} / span 1; grid-row: ${r * rowsPerGroup + rowsPerGroup};"><span class="offbeat-dash"></span></div>`;
+                const totalBars = Math.ceil(cursor / beatsPerBar);
+                for (let barIdx = 0; barIdx < totalBars; barIdx++) {
+                    const pos = barIdx * beatsPerBar + beatsPerBar / 2;
+                    if (pos >= cursor) continue; // dernière mesure trop courte pour avoir un milieu affiché
+                    const r = Math.floor(pos / beatsPerRow);
+                    const colFloat = pos % beatsPerRow;
+                    const colFloor = Math.floor(colFloat);
+                    const onBoundary = Math.abs(colFloat - colFloor) < 1e-9 && colFloor > 0;
+                    const gridCol = onBoundary ? `${colFloor} / span 2` : `${colFloor + 1} / span 1`;
+                    offbeatTicksHtml += `<div class="row-offbeat" style="grid-column: ${gridCol}; grid-row: ${r * rowsPerGroup + rowsPerGroup};"><span class="offbeat-dash"></span></div>`;
                 }
                 gridInner = cells.map(s => {
                     const h = history[s.index];
@@ -6700,13 +6709,12 @@ class HarmoHubApp {
                     for (let b = 1; b < barBeats; b++) {
                         ticks += `<span class="ruler-tick" style="left:${(b / barBeats) * 100}%"></span>`;
                     }
-                    // Contretemps (milieu de CHAQUE temps) : même repère estompé que la grille à l'écran
-                    // (voir .row-offbeat/offbeat-dash), reproduit ici comme une graduation encore plus
-                    // fine que les temps eux-mêmes plutôt qu'un nouvel élément hors de la règle (retour
-                    // utilisateur : "à mettre dans le PDF aussi").
-                    for (let b = 0; b < barBeats; b++) {
-                        ticks += `<span class="ruler-tick ruler-tick-offbeat" style="left:${((b + 0.5) / barBeats) * 100}%"></span>`;
-                    }
+                    // Contretemps : UN SEUL repère par mesure, pile en son milieu — même repère estompé
+                    // que la grille à l'écran (voir .row-offbeat/offbeat-dash), même densité réduite
+                    // (retour utilisateur : "seulement des tirets au niveau des milieux de mesure").
+                    // Le milieu d'une mesure tombe toujours à 50% de sa largeur, quel que soit son
+                    // nombre de temps (barBeats) : pas besoin de connaître le chiffrage ici.
+                    ticks += `<span class="ruler-tick ruler-tick-offbeat" style="left:50%"></span>`;
                     if (isLastBar) ticks += `<span class="ruler-tick ruler-tick-major" style="left:100%"></span>`;
                     const barPct = (barBeats / rowBeatsDenom * 100).toFixed(4);
                     // Numéro de fin de mesure (retour utilisateur : seul le début de chaque mesure était

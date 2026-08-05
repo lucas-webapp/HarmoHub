@@ -2696,8 +2696,8 @@ button:active { transform: translateY(1px); }
    d'accords (.row-offbeat/loadProgression) et repris en esprit dans le PDF (.ruler-tick-offbeat) :
    même style discret partout, pour rester reconnaissable d'une vue à l'autre. */
 .offbeat-dash {
-    width: 7px;
-    height: 2px;
+    width: 2px;
+    height: 9px;
     border-radius: 1px;
     background: var(--text-muted);
     opacity: 0.55;
