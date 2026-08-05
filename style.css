@@ -2627,6 +2627,27 @@ button:active { transform: translateY(1px); }
     padding-top: 3px;
     font-variant-numeric: tabular-nums;
     touch-action: none; /* voir .seq-cell plus bas : même raison */
+    transition: color 0.1s ease, opacity 0.1s ease;
+}
+/* Mis en évidence pendant un étirement/peindre en cours (voir _highlightSeqBeatLabel dans script.js) :
+   le temps que le geste vient d'atteindre ressort nettement, pour répondre au retour utilisateur "je
+   ne vois pas exactement où est le temps 4" pendant un glissé — jamais posé en dur, juste ce chiffre
+   déjà présent qui s'allume tour à tour au fil du geste. */
+.seq-beat-label.seq-beat-reached {
+    color: var(--accent);
+    opacity: 1;
+    font-weight: 700;
+}
+/* Contretemps (voir renderSequencer/SEQ_STEPS_PER_BEAT) : un simple point, sciemment beaucoup plus
+   discret que .seq-beat-label — un repère à avoir en coin d'œil, pas une deuxième ligne de chiffres
+   à lire (retour utilisateur : "je voudrais voir les contretemps, discrètement"). */
+.seq-beat-offbeat {
+    font-size: var(--fs-2xs);
+    color: var(--text-muted);
+    opacity: 0.35;
+    padding-top: 3px;
+    text-align: center;
+    touch-action: none; /* voir .seq-cell plus bas : même raison */
 }
 
 /* Mode studio (voir #toggle-studio-mode/renderSequencer) : une barre de vélocité par croche active,

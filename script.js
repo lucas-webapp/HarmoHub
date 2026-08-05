@@ -8791,6 +8791,21 @@ class HarmoHubApp {
         return null;
     }
 
+    // Met en évidence, dans la ligne de temps sous la grille (voir renderSequencer/.seq-beat-label),
+    // le chiffre du temps JUSTE ATTEINT par un étirement/peindre/étirement multiple en cours — retour
+    // utilisateur : "je ne vois pas exactement où est le temps 4" pendant un glissé. `step` peut être
+    // null pour tout éteindre (fin/annulation du geste, voir onSeqPointerUp/cancelSeqGestureForPinch).
+    // Un seul chiffre allumé à la fois (pas de traînée) : le repère le plus lisible reste "où j'en
+    // suis maintenant", pas l'historique du geste.
+    _highlightSeqBeatLabel(step) {
+        const prev = document.querySelector('.seq-beat-label.seq-beat-reached');
+        if (prev) prev.classList.remove('seq-beat-reached');
+        if (step == null) return;
+        const beatIndex = Math.floor(step / SEQ_STEPS_PER_BEAT);
+        const label = document.querySelector(`.seq-beat-label[data-beat-index="${beatIndex}"]`);
+        if (label) label.classList.add('seq-beat-reached');
+    }
+
     // Avance le défilement d'un cran et REJOUE le geste en cours à la même position écran : le
     // contenu a bougé dessous, donc la croche visée change même si le doigt/la souris, eux, n'ont pas
     // bougé pendant que la vue défile — sans ce rejeu, rien ne suivrait tant qu'un vrai mouvement du
@@ -8894,6 +8909,11 @@ class HarmoHubApp {
 
         const step = this.findSeqStepAt(d, e.clientX, e.clientY);
         if (step == null) return;
+        // Retour utilisateur : "je ne vois pas exactement où est le temps 4" pendant un glissé — voir
+        // le même repère sur onSeqResizeMove ; ici avant le "pas bougé depuis, rien à faire" pour
+        // rester à jour même si on revient pile sur le même pas (le repère ne doit jamais rester figé
+        // sur une valeur périmée pendant qu'on hésite/ajuste).
+        this._highlightSeqBeatLabel(step);
         if (step === d.lastStep && d.moved) return;
 
         e.preventDefault(); // glissé horizontal reconnu -> on empêche le scroll de page de le voler
@@ -8957,6 +8977,10 @@ class HarmoHubApp {
         } else {
             newStart = Math.min(d.resize.noteEnd, Math.max(step, d.resize.minStart));
         }
+        // Retour utilisateur : "je ne vois pas exactement où est le temps 4" pendant un glissé — le
+        // bord qui bouge réellement (borné par minStart/maxEnd, pas le doigt brut) décide du temps
+        // mis en évidence, avant même de savoir si ce mouvement change quoi que ce soit de plus.
+        this._highlightSeqBeatLabel(d.resize.edge === 'end' ? newEnd : newStart);
         if (newStart === d.curStart && newEnd === d.curEnd) return;
 
         e.preventDefault();
@@ -9036,6 +9060,10 @@ class HarmoHubApp {
         const m = d.multi;
         const step0 = this.findSeqStepAt(d, e.clientX, e.clientY);
         if (step0 == null) return;
+        // Retour utilisateur : "je ne vois pas exactement où est le temps 4" pendant un glissé — voir
+        // le même repère sur onSeqResizeMove/la queue "peindre" ; basé sur le pas sous le doigt, pas
+        // sur la position finale (bornée) de chaque note, qui peut différer d'une sélection à l'autre.
+        this._highlightSeqBeatLabel(step0);
         // Note d'une seule croche démarrée en 'auto' : le sens du tout premier mouvement décide du bord
         if (m.edge === 'auto') {
             if (step0 > m.startStep) m.edge = 'end';
@@ -9270,6 +9298,7 @@ class HarmoHubApp {
         const d = this.seqDrag;
         this.seqDrag = null;
         if (d) this._stopSeqAutoScroll(d);
+        this._highlightSeqBeatLabel(null); // éteint le repère de temps (voir onSeqResizeMove/paint), geste annulé
         let painted = false;
         // Restaure EXACTEMENT l'état d'avant ce début de geste, quel que soit son type — un 2e doigt
         // qui se pose (typiquement pour le pan à 2 doigts, voir setupPinchZoom) peut survenir APRÈS
@@ -9350,6 +9379,7 @@ class HarmoHubApp {
         this.seqDrag = null;
         if (!d) return;
         this._stopSeqAutoScroll(d);
+        this._highlightSeqBeatLabel(null); // éteint le repère de temps (voir onSeqResizeMove/paint), geste terminé
 
         // Défilement vertical (voir onSeqPointerMove) : jamais une modification, rien à valider ici —
         // sans ce retour anticipé, une case vide (!d.wasOn) jamais peinte serait lue comme un simple
@@ -10524,12 +10554,23 @@ class HarmoHubApp {
 
         // Numéros de temps en petit sous la grille (1, 2, 3... à chaque début de temps, recommence à
         // 1 à chaque mesure) : pour repérer d'un coup d'œil où tombe chaque temps, comme les numéros
-        // de mesure sous la grille d'accords principale.
+        // de mesure sous la grille d'accords principale. data-beat-index : repère stable (indépendant
+        // de la page/du décalage affiché) pour _highlightSeqBeatLabel, qui met ce chiffre en évidence
+        // au fur et à mesure qu'un étirement/peindre en cours l'atteint (retour utilisateur : "je ne
+        // vois pas exactement où est le temps 4" pendant un glissé).
         const beatRow = rowCount + 1;
         let beatLabelsHtml = '';
         for (let s = pageStart; s < pageEnd; s += SEQ_STEPS_PER_BEAT) {
-            const beatNum = (Math.floor(s / SEQ_STEPS_PER_BEAT) % beatsPerBar) + 1;
-            beatLabelsHtml += `<div class="seq-beat-label" style="grid-row:${beatRow}; grid-column:${colOffset + s - pageStart + 2};">${beatNum}</div>`;
+            const beatIndex = Math.floor(s / SEQ_STEPS_PER_BEAT);
+            const beatNum = (beatIndex % beatsPerBar) + 1;
+            beatLabelsHtml += `<div class="seq-beat-label" data-beat-index="${beatIndex}" style="grid-row:${beatRow}; grid-column:${colOffset + s - pageStart + 2};">${beatNum}</div>`;
+            // Contretemps (le "et" du temps, 2e croche — voir SEQ_STEPS_PER_BEAT) : simple point,
+            // jamais un chiffre, pour rester bien plus discret que le numéro de temps lui-même (retour
+            // utilisateur : repère discret, pas une nouvelle ligne de chiffres à lire).
+            const offbeatStep = s + SEQ_STEPS_PER_BEAT / 2;
+            if (offbeatStep < pageEnd) {
+                beatLabelsHtml += `<div class="seq-beat-offbeat" style="grid-row:${beatRow}; grid-column:${colOffset + offbeatStep - pageStart + 2};">·</div>`;
+            }
         }
         html += beatLabelsHtml;
 
