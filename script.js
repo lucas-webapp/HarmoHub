@@ -4546,7 +4546,7 @@ class HarmoHubApp {
                     const colFloor = Math.floor(colFloat);
                     const onBoundary = Math.abs(colFloat - colFloor) < 1e-9 && colFloor > 0;
                     const gridCol = onBoundary ? `${colFloor} / span 2` : `${colFloor + 1} / span 1`;
-                    offbeatTicksHtml += `<div class="row-offbeat" style="grid-column: ${gridCol}; grid-row: ${r * rowsPerGroup + rowsPerGroup};"><span class="offbeat-dash"></span></div>`;
+                    offbeatTicksHtml += `<div class="row-offbeat" style="grid-column: ${gridCol}; grid-row: ${r * rowsPerGroup + rowsPerGroup};"><span class="offbeat-dot"></span></div>`;
                 }
                 gridInner = cells.map(s => {
                     const h = history[s.index];
@@ -6709,8 +6709,10 @@ class HarmoHubApp {
                     for (let b = 1; b < barBeats; b++) {
                         ticks += `<span class="ruler-tick" style="left:${(b / barBeats) * 100}%"></span>`;
                     }
-                    // Contretemps : UN SEUL repère par mesure, pile en son milieu — même repère estompé
-                    // que la grille à l'écran (voir .row-offbeat/offbeat-dash), même densité réduite
+                    // Contretemps : UN SEUL repère par mesure, pile en son milieu — même densité réduite
+                    // que la grille à l'écran (voir .row-offbeat/offbeat-dot), même esprit estompé,
+                    // mais gardé en trait ici (pas un point) pour rester cohérent avec les autres
+                    // graduations de CETTE règle, elles-mêmes toutes des traits (.ruler-tick)
                     // (retour utilisateur : "seulement des tirets au niveau des milieux de mesure").
                     // Le milieu d'une mesure tombe toujours à 50% de sa largeur, quel que soit son
                     // nombre de temps (barBeats) : pas besoin de connaître le chiffrage ici.

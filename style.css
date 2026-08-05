@@ -2464,10 +2464,13 @@ button:active { transform: translateY(1px); }
     height: var(--measure-row-h);
     line-height: var(--measure-row-h);
     padding: 0 0 0 2px;
-    font-size: var(--fs-2xs);
-    font-weight: 700;
+    /* Plus mis en valeur que le point de contretemps juste à côté (voir .offbeat-dot) : c'est LUI le
+       repère principal de cette ligne (retour utilisateur : "je veux mettre plus en valeur les numéros
+       de temps que les tirets"). */
+    font-size: calc(var(--fs-2xs) * 1.15);
+    font-weight: 800;
     color: var(--text-muted);
-    opacity: 0.7;
+    opacity: 0.85;
     text-shadow: 0 0 3px rgba(0,0,0,0.6); /* garde le chiffre lisible même par-dessus .loop-range-bar */
     transition: color 0.1s ease, opacity 0.1s ease;
     overflow: hidden;
@@ -2661,9 +2664,13 @@ button:active { transform: translateY(1px); }
 /* Numéro de temps sous la grille (recommence à 1 à chaque mesure) : repère discret, aligné sur le
    début du temps plutôt que posé au milieu — même esprit que .row-measure dans la grille d'accords. */
 .seq-beat-label {
-    font-size: var(--fs-2xs);
+    /* Plus mis en valeur que le trait de contretemps juste à côté (voir .offbeat-dash) : c'est LUI le
+       repère principal de cette ligne (retour utilisateur : "je veux mettre plus en valeur les numéros
+       de temps que les tirets"). */
+    font-size: calc(var(--fs-2xs) * 1.1);
+    font-weight: 700;
     color: var(--text-muted);
-    opacity: 0.7;
+    opacity: 0.85;
     padding-top: 3px;
     font-variant-numeric: tabular-nums;
     touch-action: none; /* voir .seq-cell plus bas : même raison */
@@ -2699,15 +2706,26 @@ button:active { transform: translateY(1px); }
        complètement centré... très légèrement à droite"). */
     transform: translateX(-2px);
 }
-/* Trait du repère de contretemps, partagé entre le séquenceur (.seq-beat-offbeat) et la grille
-   d'accords (.row-offbeat/loadProgression) et repris en esprit dans le PDF (.ruler-tick-offbeat) :
-   même style discret partout, pour rester reconnaissable d'une vue à l'autre. */
+/* Trait du repère de contretemps du SÉQUENCEUR (voir .seq-beat-offbeat) : un temps a 4 cases (voir
+   SEQ_STEPS_PER_BEAT), un trait vertical y reste lisible comme repère de position fine. */
 .offbeat-dash {
     width: 2px;
     height: 9px;
     border-radius: 1px;
     background: var(--text-muted);
     opacity: 0.55;
+}
+/* Repère de contretemps de la GRILLE D'ACCORDS (voir .row-offbeat/loadProgression) : petit point rond,
+   pas un trait — choisi par l'utilisateur parmi 5 propositions ("j'aime bien le petit rond pour la
+   grille d'accords, mais laisse un tiret pour le séquenceur"), moins voyant qu'un trait sur cette vue
+   où .row-measure (le numéro de mesure, juste à côté) doit rester le repère principal — voir son
+   opacité/graisse augmentées ci-dessous pour le mettre bien plus en valeur que ce point. */
+.offbeat-dot {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    opacity: 0.35;
 }
 
 /* Mode studio (voir #toggle-studio-mode/renderSequencer) : une barre de vélocité par croche active,
