@@ -2374,6 +2374,23 @@ function analyzeSegmentHarmony(segment) {
 // notes réellement jouées qu'on entendra. Volontairement haut — voir le commentaire d'en-tête.
 const MIDI_CHORD_MIN_CONFIDENCE = 0.62;
 
+// Fusionne les mesures voisines RIGOUREUSEMENT identiques en une seule case plus longue. Un accord
+// tenu quatre mesures se lit alors comme un seul accord de quatre mesures, et non comme quatre cases
+// à la queue leu leu — ce qu'on écrirait à la main. La condition est stricte (mêmes notes, même
+// rythme, même voicing) : le motif se répétant à l'identique sur la durée allongée (voir
+// resizeSeqPattern), la fusion ne change absolument rien à ce qu'on entend.
+function mergeIdenticalImportedChords(chords) {
+    const out = [];
+    // Tout sauf la durée : c'est justement ce qu'on additionne.
+    const shape = (c) => JSON.stringify({ ...c, beats: 0 });
+    for (const c of chords) {
+        const prev = out[out.length - 1];
+        if (prev && shape(prev) === shape(c)) prev.beats += c.beats;
+        else out.push({ ...c });
+    }
+    return out;
+}
+
 // ---------- Import MIDI, étape 4 : rendre au séquenceur le rythme réellement joué ----------
 // Reconnaître l'accord ne suffit pas : ce qui fait qu'un import « sonne comme l'original », c'est le
 // RYTHME. Chaque note du fichier est donc reportée sur la grille de croches du séquenceur, à sa
@@ -3501,6 +3518,17 @@ class HarmoHubApp {
 
         document.getElementById('export-pdf').onclick = () => this.exportPdf();
         document.getElementById('export-midi').onclick = () => this.exportMidi();
+        // Le champ de fichier reste caché : c'est le bouton qui le déclenche, pour garder l'aspect
+        // des autres boutons de la rangée (un champ de fichier natif ne se met pas au même style).
+        const midiInput = document.getElementById('import-midi-input');
+        document.getElementById('import-midi').onclick = () => midiInput.click();
+        midiInput.onchange = () => {
+            const file = midiInput.files && midiInput.files[0];
+            // Remis à zéro tout de suite : sans ça, réimporter DEUX FOIS LE MÊME fichier ne déclenche
+            // aucun événement la seconde fois (la valeur du champ n'a pas changé).
+            midiInput.value = '';
+            if (file) this.importMidiFromFile(file);
+        };
         document.getElementById('export-audio').onclick = () => this.exportAudio();
         document.getElementById('export-lyrics').onclick = () => this.exportLyricsData();
         document.getElementById('export-backup').onclick = (e) => this.openBackupScopeMenu(e.currentTarget);
@@ -7966,6 +7994,94 @@ class HarmoHubApp {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
+    }
+
+    // ---------- Import MIDI, étape 6 : assembler le tout ----------
+    // Relie les cinq briques précédentes : lire le fichier, le découper en mesures, y reconnaître des
+    // accords, et en faire une PARTIE de la grille. Rien n'est écrasé : le morceau en cours garde
+    // tout ce qu'il contient, l'import s'ajoute à la suite — la seule manière de ne jamais faire
+    // perdre un travail à quelqu'un qui se serait trompé de fichier.
+    importMidiChords(bytes, fileName) {
+        const parsed = parseMidiFile(bytes); // lève une MidiParseError si le fichier n'est pas lisible
+        const seg = segmentMidiNotes(parsed);
+        const instrument = document.getElementById('instrument').value || 'piano';
+        const beats = seg.stepsPerBar / SEQ_STEPS_PER_BEAT;
+
+        const chords = [];
+        let named = 0;
+        seg.bars.forEach(bar => {
+            if (!bar.sounding.length) {
+                // Mesure entièrement muette au milieu du morceau : on garde la place (sinon tout ce
+                // qui suit remonterait d'une mesure et le morceau ne tomberait plus juste), sous la
+                // forme d'une case vide « à nommer » — voir buildImportedChordData.
+                chords.push(buildImportedChordData({ ...bar, sounding: [] }, null, { beats, stepsPerBar: seg.stepsPerBar, instrument }));
+                return;
+            }
+            const analysis = analyzeSegmentHarmony(bar);
+            const data = buildImportedChordData(bar, analysis, { beats, stepsPerBar: seg.stepsPerBar, instrument });
+            if (!data.unnamed) named++;
+            chords.push(data);
+        });
+
+        const merged = mergeIdenticalImportedChords(chords);
+        const title = (fileName || 'Import').replace(/\.mid[i]?$/i, '').slice(0, 40);
+
+        const sections = loadProgressionSections();
+        this.pushUndo(sections);
+        // Morceau encore vierge : on adopte le tempo et la mesure du fichier, puisque rien ne s'y
+        // oppose. Sinon on n'y touche pas — changer le tempo d'un morceau existant pour accommoder
+        // un import déréglerait tout ce qui était déjà en place — et on le signale plutôt que de
+        // laisser l'import sonner à un tempo qui n'est pas le sien sans rien dire.
+        const songEmpty = sections.every(s => !s.chords.length);
+        if (songEmpty) {
+            document.getElementById('bpm').value = seg.bpm;
+            document.getElementById('time-sig').value = seg.timeSig;
+            document.getElementById('bpm').dispatchEvent(new Event('change'));
+            document.getElementById('time-sig').dispatchEvent(new Event('change'));
+        } else {
+            const bpmNow = parseInt(document.getElementById('bpm').value) || 120;
+            const sigNow = document.getElementById('time-sig').value;
+            if (bpmNow !== seg.bpm) seg.warnings.push(`Fichier à ${seg.bpm} BPM, morceau conservé à ${bpmNow}`);
+            if (sigNow !== seg.timeSig) seg.warnings.push(`Fichier en ${seg.timeSig}, morceau conservé en ${sigNow}`);
+        }
+
+        // Partie vide et seule (morceau tout neuf) : on la remplit au lieu d'en ajouter une seconde,
+        // qui laisserait une partie vide en tête de grille.
+        if (sections.length === 1 && !sections[0].chords.length) {
+            sections[0] = { title, chords: merged };
+            this.activeSection = 0;
+        } else {
+            sections.push({ title, chords: merged });
+            this.activeSection = sections.length - 1;
+        }
+        saveProgressionSections(sections);
+        hasUnsavedChanges = true;
+        if (this.editingIndex != null) this.exitEditMode();
+        this.selectedIndex = null;
+        this.loadProgression();
+
+        return { bars: seg.bars.length, cells: merged.length, named, unnamed: merged.length - named, warnings: seg.warnings };
+    }
+
+    // Bouton d'import (voir #import-midi) : lit le fichier choisi et rend compte de ce qui en est
+    // sorti. Le compte rendu n'est pas décoratif — savoir COMBIEN de mesures restent à nommer, c'est
+    // savoir ce qu'il reste à faire, et un fichier illisible doit le dire au lieu de ne rien faire.
+    async importMidiFromFile(file) {
+        try {
+            const bytes = new Uint8Array(await file.arrayBuffer());
+            const report = this.importMidiChords(bytes, file.name);
+            const parts = [`${report.bars} mesure${report.bars > 1 ? 's' : ''} importée${report.bars > 1 ? 's' : ''}`];
+            if (report.named) parts.push(`${report.named} accord${report.named > 1 ? 's' : ''} reconnu${report.named > 1 ? 's' : ''}`);
+            if (report.unnamed) parts.push(`${report.unnamed} à nommer`);
+            const warn = report.warnings.length ? ' · ' + report.warnings.join(' · ') : '';
+            this.flashHint(parts.join(' · ') + warn, report.warnings.length ? 6000 : 4000);
+        } catch (e) {
+            // Un fichier qu'on ne sait pas lire doit le DIRE : les messages de parseMidiFile sont
+            // écrits pour être montrés tels quels (voir MidiParseError).
+            const why = (e instanceof MidiParseError) ? e.message : 'fichier illisible';
+            this.flashHint(`Import MIDI impossible : ${why}`, 5000);
+            console.warn('Import MIDI :', e);
+        }
     }
 
     // Boîte "Un seul fichier / Un fichier par partie" (voir #midi-export-modal) : résout à false (un

@@ -2050,7 +2050,11 @@ button:active { transform: translateY(1px); }
 }
 .guitar-override-input:focus { outline: none; }
 
-/* Bouton d'export PDF, ancré en bas à droite du bloc piano */
+/* Rangée d'échange de fichiers, ancrée en bas à droite du bloc piano. Chaque bouton est posé à son
+   propre décalage depuis le bord droit, de 32 en 32 (26px de bouton + 6px d'écart) ; l'ordre visuel,
+   de gauche à droite, est donc l'INVERSE des valeurs ci-dessous : Lyrics, sauvegarde, MP3, MIDI
+   sortant, MIDI entrant, PDF. Ajouter un bouton au milieu oblige à décaler tous ceux de sa gauche —
+   c'est ce qui a été fait pour l'import MIDI. */
 .viz-wrap {
     position: relative;
     padding-bottom: 34px;
@@ -2062,23 +2066,42 @@ button:active { transform: translateY(1px); }
     width: 26px;
     height: 26px;
 }
-.export-midi-btn {
+/* Import MIDI, collé à l'export MIDI : les deux sens d'un même format se trouvent au même endroit.
+   Teinté bleu là où ses voisins d'export restent neutres — deux boutons voisins au pictogramme très
+   proche et à l'effet OPPOSÉ (l'un télécharge, l'autre remplit la grille) sont exactement le genre de
+   paire où l'on se trompe de cible ; la couleur lève le doute avant le clic, comme le vert du bouton
+   Lyrics signale déjà qu'il mène ailleurs. */
+.import-midi-btn {
     position: absolute;
     right: 32px;
     bottom: 0;
     width: 26px;
     height: 26px;
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255, 255, 255, 0.10), transparent 55%), linear-gradient(160deg, var(--btn-blue-1), var(--btn-blue-2) 70%);
+    color: var(--btn-text);
+    border-color: var(--btn-blue-border);
 }
-.export-audio-btn {
+.import-midi-btn:hover {
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255, 255, 255, 0.16), transparent 55%), linear-gradient(160deg, #2d4670, #1e2e4e 70%);
+    border-color: var(--btn-blue-border-hover);
+}
+.export-midi-btn {
     position: absolute;
     right: 64px;
     bottom: 0;
     width: 26px;
     height: 26px;
 }
-.export-backup-btn {
+.export-audio-btn {
     position: absolute;
     right: 96px;
+    bottom: 0;
+    width: 26px;
+    height: 26px;
+}
+.export-backup-btn {
+    position: absolute;
+    right: 128px;
     bottom: 0;
     width: 26px;
     height: 26px;
@@ -2090,7 +2113,7 @@ button:active { transform: translateY(1px); }
    simple téléchargement comme ses voisins, il mérite de s'en démarquer sans sortir de la palette. */
 .export-lyrics-btn {
     position: absolute;
-    right: 128px;
+    right: 160px;
     bottom: 0;
     width: auto;
     height: 26px;
