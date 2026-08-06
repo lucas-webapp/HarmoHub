@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608062701">
+    <link rel="stylesheet" href="style.css?v=202608062801">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -888,6 +888,14 @@
                 <button type="button" id="add-section" class="btn-sec add-section-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter une partie</button>
             </section>
 
+            <!-- Accueil du séquenceur SUR ORDINATEUR (voir placeSequencer dans script.js) : #arp-sequencer
+                 y est DÉPLACÉ (jamais dupliqué, comme pour les loupes) dès qu'il s'ouvre, au lieu de
+                 rester comprimé dans les 360px du panneau de gauche — retour utilisateur : l'outil le
+                 plus fin de l'appli occupait l'endroit le plus étroit de l'écran, pendant qu'une large
+                 bande restait vide à droite. Reste vide (et sans hauteur, voir :empty en CSS) sur
+                 téléphone, où le séquenceur garde sa place d'origine dans la colonne unique. -->
+            <div id="seq-dock-host" class="seq-dock-host"></div>
+
             <!-- Titre d'accord + boutons piano/guitare sur la MÊME ligne (voir retour utilisateur : les
                  boutons prenaient trop de place en pleine largeur) — bascule calée à GAUCHE (retour
                  utilisateur : rester à gauche, pas suivre le nombre de diagrammes ouverts), titre
@@ -1010,6 +1018,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608062701"></script>
+    <script src="script.js?v=202608062801"></script>
 </body>
 </html>

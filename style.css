@@ -890,7 +890,10 @@ body.body-scroll-locked { overflow: hidden !important; }
 main {
     flex: 1;
     width: 100%;
-    max-width: 1180px;
+    /* Plafond relevé de 1180px : sur un écran large, la grille était bridée à ~744px et deux bandes
+       vides d'environ 150px restaient de chaque côté, alors que c'est justement l'espace dont la
+       grille et le séquenceur ont besoin (retour utilisateur sur la répartition de l'écran). */
+    max-width: 1600px;
     margin: 0 auto;
     padding: 56px 20px 20px;   /* marge du haut dégagée pour ne jamais passer sous le logo fixe */
     min-height: 0;
@@ -900,7 +903,13 @@ main {
     gap: 15px;
 }
 
-/* Sur mobile, on ignore les conteneurs de colonnes : leurs enfants sont ordonnés dans main */
+/* Sur mobile, on ignore les conteneurs de colonnes : leurs enfants sont ordonnés dans main.
+   .panel-controls est aplati pour la même raison — ses trois cartes deviennent alors des éléments de
+   `main` à part entière, ordonnables une par une (voir les `order` plus bas). Sans cet aplatissement,
+   tout le bloc de réglages ne pouvait se placer que d'un seul tenant, ce qui reléguait la grille
+   d'accords sous 855px de contrôles : on ouvrait l'appli sur des réglages, sans voir la moindre
+   musique (retour utilisateur). Rétabli en `flex` sur ordinateur, où il redevient une vraie colonne
+   défilante (voir la requête min-width:900px). */
 .col-left, .col-right { display: contents; }
 
 /* Bandeau Ajout/Modification (voir this.appMode dans script.js) : pilule à deux segments, même
@@ -963,7 +972,14 @@ main {
 }
 
 .panel-controls {
-    display: flex;
+    /* Aplati sur téléphone (voir .col-left/.col-right juste au-dessus, même principe) : ses trois
+       cartes deviennent des éléments de `main` à part entière, ordonnables une par une autour de la
+       grille — voir les `order` plus bas. Sans cela, tout le bloc de réglages ne pouvait se placer
+       que d'un seul tenant, ce qui reléguait la grille sous ~870px de contrôles : on ouvrait l'appli
+       sur des réglages, sans voir la moindre musique (retour utilisateur).
+       flex-direction/gap ne servent qu'une fois `display: flex` rétabli sur ordinateur (voir la
+       requête min-width:900px), où le panneau redevient une vraie colonne défilante. */
+    display: contents;
     flex-direction: column;
     gap: 15px;
 }
@@ -989,11 +1005,32 @@ main {
 /* Ordre : réglages → grille → titre d'accord + bascule piano/guitare (même ligne) → piano →
    (pied ancré : édition + lecture). .chord-header-row est un enfant DIRECT de .col-right (pas de
    .viz-wrap) pour pouvoir s'intercaler ici, juste sous "Ajouter une partie" — voir index.html. */
-.panel-controls { order: 1; }
+/* Ordre sur TÉLÉPHONE (une seule colonne). La règle : ce qu'on regarde en composant passe avant ce
+   qu'on règle. L'ajout rapide d'abord — une seule rangée, et c'est LE geste de saisie principal —
+   puis la grille, immédiatement visible sans rien faire défiler. Les réglages de l'accord et les
+   diagrammes viennent après, et la carte Morceau (enregistrer/charger, qu'on ouvre une fois par
+   séance) en dernier. Auparavant, tout le panneau de réglages précédait la grille en bloc. */
+#quick-add-panel { order: 1; }
 .history-section { order: 2; }
-.chord-header-row { order: 3; }
-.viz-wrap { order: 4; }
-.dock { order: 5; }
+/* Juste SOUS la grille (voir #seq-dock-host/placeSequencer) : sans `order` explicite il vaudrait 0 et
+   passerait devant tout le reste — le séquenceur s'affichait alors au-dessus de la grille. Masqué et
+   sans effet tant qu'il est vide, c'est-à-dire toujours sur téléphone. */
+.seq-dock-host { order: 3; }
+.seq-dock-host:empty { display: none; }
+/* Toutes les cartes de réglages au MÊME rang, juste après la grille et le séquenceur. #config-card
+   n'est qu'un conteneur (celui de l'onglet Config.) : les cartes Accord/Lecture et la rangée
+   Modifier/Annuler sont ses FRÈRES, pas ses enfants. Sans `order` explicite elles valaient donc 0 et
+   remontaient devant tout, y compris devant la grille — c'est ce qui la laissait encore à ~490px du
+   haut malgré le reste du réagencement. */
+#config-card,
+#accord-card,
+#lecture-card,
+#edit-empty-hint,
+#edit-actions { order: 4; }
+.chord-header-row { order: 5; }
+.viz-wrap { order: 6; }
+#song-card { order: 7; }
+.dock { order: 8; }
 
 /* Pied de colonne collant : contient la barre de lecture, et .edit-actions quand on édite un accord
    (voir commentaire ci-dessus). Colonne verticale pour empiler les deux rangées de boutons. */
@@ -3496,6 +3533,20 @@ select.song-select-narrow {
     /* Les colonnes redeviennent de vrais conteneurs (fin de l'aplatissement mobile) */
     .col-left, .col-right { display: flex; }
 
+    /* Accueil du séquenceur sous la grille (voir placeSequencer/#seq-dock-host) : il n'existe QUE sur
+       ordinateur, et seulement une fois le séquenceur ouvert — :empty le fait disparaître entièrement
+       le reste du temps, sans laisser d'espace ni de marge derrière lui. */
+    /* Pas de marge propre : l'espacement vient du gap de .col-right, et le display:none posé plus haut
+       (voir .seq-dock-host:empty) le retire quand l'accueil est vide — un élément masqué ne compte pas
+       dans un gap flex. */
+    .seq-dock-host {
+        flex: none;
+        min-width: 0;
+    }
+    /* Le séquenceur occupe alors toute la largeur de la colonne, et peut défiler seul en hauteur
+       plutôt que de pousser la grille hors de l'écran quand il y a beaucoup de voix. */
+    .seq-dock-host .arp-seq { width: 100%; max-height: 42vh; overflow-y: auto; }
+
     .col-left {
         flex-direction: column;
         width: 360px;
@@ -3511,6 +3562,9 @@ select.song-select-narrow {
        ne sert plus à s'aligner avec la scrollbar de .panel-controls, disparu avec le reste du panneau. */
     body.sidebar-collapsed .col-right .dock { padding-right: 0; }
     .panel-controls {
+        /* Redevient une vraie colonne : sur téléphone il est aplati (display:contents) pour que ses
+           cartes s'ordonnent une par une autour de la grille — voir le commentaire là-bas. */
+        display: flex;
         flex: 1;
         min-height: 0;
         overflow-y: auto;       /* si les réglages dépassent, seul ce panneau défile */

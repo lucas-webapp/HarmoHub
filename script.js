@@ -1652,6 +1652,10 @@ const AUTOPLAY_SELECT_KEY = 'harmohubAutoplaySelect';
 const METRONOME_COUNTIN_KEY = 'harmohubMetronomeCountIn';
 const SEQ_EDIT_AUDIO_KEY = 'harmohubSeqEditAudio';
 const SEQ_SNAP_KEY = 'harmohubSeqSnap';
+// Seuil ordinateur/téléphone, tenu en UN SEUL endroit côté JS pour rester aligné sur la requête média
+// équivalente en CSS (min-width: 900px) : c'est lui qui décide où vit le séquenceur (voir
+// placeSequencer/#seq-dock-host) autant que la mise en page à une ou deux colonnes.
+const SEQ_DOCK_MEDIA = '(min-width: 900px)';
 // Pas d'aimantation proposés, EN CROCHES de la grille du séquenceur (SEQ_STEPS_PER_BEAT = 4 croches
 // par temps) : 4 = le temps entier, 2 = la demi-mesure du temps, 1 = la croche elle-même, c'est-à-dire
 // aucune aimantation (comportement historique, valeur par défaut — rien ne change tant qu'on n'y
@@ -2240,6 +2244,7 @@ class HarmoHubApp {
         this.setupGridInteractions();
         this.setupGridCellOctaveFloat();
         this.setupSequencerInteractions();
+        this.setupSequencerPlacement();
         this.setupKeyboardShortcuts();
         this.applySidebarCollapsed(); // reflète l'état mémorisé dès le premier rendu (bouton déjà câblé)
         // Avertissement natif du navigateur si on ferme/recharge la page avec des modifications non
@@ -2846,8 +2851,16 @@ class HarmoHubApp {
             // édition — this.editingIndex retombait à null, et Enregistrer AJOUTAIT alors un nouvel
             // accord au lieu de remplacer celui en cours, perdant le verrou tout juste posé (retour
             // utilisateur : « le cadenas ne fonctionne plus »).
+            // #arp-sequencer désigné par SON PROPRE identifiant, et non par l'endroit où il se trouve :
+            // il est DÉPLACÉ selon le contexte (panneau de gauche, accueil pleine largeur sous la grille
+            // sur ordinateur — voir placeSequencer —, loupe séquenceur, loupe grille épinglée). C'est la
+            // TROISIÈME fois que cette liste laisse échapper un élément d'édition ayant déménagé hors de
+            // .col-left (voir les deux paragraphes ci-dessus, mêmes symptômes) : le viser par son id rend
+            // la règle indépendante de sa place, une bonne fois pour toutes. Sans cela, le moindre clic
+            // sur un bouton du séquenceur sorti du panneau sortait silencieusement du mode édition —
+            // this.editingIndex retombait à null et exitEditMode vidait les notes libres en cours.
             const inEditor = inPath('.col-left') || inPath('.grid-zoom-modal') || inPath('.seq-zoom-modal')
-                || inPath('.chord-header-row') || inPath('.viz-wrap');
+                || inPath('.chord-header-row') || inPath('.viz-wrap') || inPath('#arp-sequencer');
             // Boutons qui OUVRENT une vue agrandie depuis l'accord déjà sélectionné/en édition (voir
             // openGridZoom/openSeqZoom, appelés par LEUR PROPRE onclick avant que ce même clic ne
             // remonte jusqu'ici) : #grid-zoom-modal/#seq-zoom-modal n'existent pas encore dans le
@@ -10441,6 +10454,46 @@ class HarmoHubApp {
         this.applyZoomLevel('seq');
     }
 
+    // Place #arp-sequencer là où il a le plus de sens selon la largeur d'écran. Sur ORDINATEUR, il
+    // rejoint #seq-dock-host, sous la grille et sur toute la largeur de la colonne de droite — il
+    // restait sinon comprimé dans les 360px du panneau de gauche, au point d'être rogné en bas de
+    // fenêtre, pendant qu'une large bande vide s'étalait à droite (retour utilisateur sur la
+    // répartition de l'écran). Sur TÉLÉPHONE, il retourne à sa place d'origine, juste après
+    // #arpPattern : la mise en page n'y a qu'une colonne, et il doit rester au contact des réglages
+    // Lecture auxquels il appartient.
+    // Ne touche à rien tant qu'une loupe est ouverte : ces deux modes gèrent déjà leur propre hôte
+    // (voir openSeqZoom/pinSequencerHost) et reprendront la main à leur fermeture.
+    // Déplacement, jamais duplication — même principe que les loupes : toutes les interactions déjà
+    // câblées sur l'élément (glisser, étirer, pincer...) le suivent sans rien avoir à recâbler.
+    placeSequencer() {
+        if (this.seqZoomOpen || this.gridZoomOpen) return;
+        const seq = document.getElementById('arp-sequencer');
+        const dock = document.getElementById('seq-dock-host');
+        if (!seq || !dock) return;
+        const wide = window.matchMedia(SEQ_DOCK_MEDIA).matches;
+        if (wide && this.seqOpen) {
+            if (seq.parentElement !== dock) dock.appendChild(seq);
+        } else if (seq.parentElement === dock) {
+            document.getElementById('arpPattern').insertAdjacentElement('afterend', seq);
+        }
+    }
+
+    // Suit le franchissement du seuil ordinateur/téléphone pour replacer le séquenceur (voir
+    // placeSequencer) : redimensionner la fenêtre, faire pivoter un téléphone ou ouvrir les outils de
+    // développement peut basculer d'une mise en page à l'autre sans qu'aucun rendu ne soit déclenché.
+    // Un écouteur sur la MEDIA QUERY plutôt que sur 'resize' : il ne se déclenche qu'au franchissement
+    // réel du seuil, pas à chaque pixel d'un redimensionnement. Le rendu qui suit est nécessaire — le
+    // nombre de mesures par page dépend de la largeur disponible (voir seqPageBars/wideCompact).
+    setupSequencerPlacement() {
+        const mq = window.matchMedia(SEQ_DOCK_MEDIA);
+        const onChange = () => {
+            this.placeSequencer();
+            if (this.seqOpen) this.renderSequencer();
+        };
+        if (mq.addEventListener) mq.addEventListener('change', onChange);
+        else mq.addListener(onChange); // Safari < 14
+    }
+
     // Remet #arp-sequencer à sa place d'origine dans le volet Lecture (juste après #arpPattern,
     // voir index.html) — sans effet si la fenêtre agrandie n'était pas ouverte.
     closeSeqZoom() {
@@ -11077,6 +11130,10 @@ class HarmoHubApp {
         const host = document.getElementById('arp-sequencer');
         if (!host) return;
         host.hidden = !this.seqOpen;
+        // Avant tout calcul de mise en page : le séquenceur doit d'abord être AU BON ENDROIT (colonne
+        // large sur ordinateur, colonne unique sur téléphone — voir placeSequencer), car la largeur
+        // disponible décide du nombre de mesures par page (voir seqPageBars/wideCompact plus bas).
+        this.placeSequencer();
         // Échelle verticale : posée/retirée à chaque rendu selon qu'on est en compact ou en fenêtre
         // agrandie (voir _applySeqVerticalScale) — le séquenceur passe de l'un à l'autre sans être
         // recréé (openSeqZoom/pinSequencerHost), donc c'est le rendu qui doit retrancher la bonne.
@@ -12416,6 +12473,7 @@ class HarmoHubApp {
             const mod = e.ctrlKey || e.metaKey;
 
             if (e.key === 'Escape' && !document.getElementById('context-menu').hidden) { this.closeContextMenu(); return; }
+
             if (e.key === 'Escape' && !document.getElementById('section-picker-menu').hidden) { this.closeSectionPicker(); return; }
             if (e.key === 'Escape' && !document.getElementById('backup-scope-menu').hidden) { this.closeBackupScopeMenu(); return; }
             if (e.key === 'Escape' && !document.getElementById('key-suggest-menu').hidden) { this.closeKeySuggestMenu(); return; }
