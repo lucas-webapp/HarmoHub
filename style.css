@@ -3059,15 +3059,27 @@ button:active { transform: translateY(1px); }
     filter: grayscale(1);
 }
 
-/* Fantôme de duplication (Alt/Option+glisser depuis le corps d'une note, voir beginSeqDupDrag) :
-   contour en pointillés qui reste dans la grille (grid-row/column, pas un positionnement en pixels
-   comme .seq-note-ghost ci-dessus, qui lui change de VOIX) — se voit comme « pas encore posé »,
-   l'originale restant pleine et inchangée à côté pendant tout le geste. */
+/* Fantôme de duplication (Alt/Option+glisser depuis le corps d'une note, voir beginSeqHDrag appelé
+   avec `copy`) : contour en pointillés qui reste dans la grille (grid-row/column, pas un
+   positionnement en pixels comme .seq-note-ghost ci-dessus, qui lui change de VOIX) — se voit comme
+   « pas encore posé », l'originale restant pleine et inchangée à côté pendant tout le geste. */
 .seq-note.seq-note-dup-ghost {
     pointer-events: none;
     opacity: 0.6;
     background: transparent;
     border: 2px dashed currentColor;
+}
+
+/* Fantôme de DÉPLACEMENT (glisser horizontal depuis le corps d'une note, sans Alt — voir
+   beginSeqHDrag) : volontairement PLEIN et non pointillé, au contraire du fantôme de duplication
+   juste au-dessus. Rien n'est « en plus » ici : l'originale est masquée pendant le geste, donc cette
+   barre EST la note, simplement en train de suivre le doigt — la montrer en pointillés laisserait
+   croire qu'une seconde note va apparaître. Légèrement éclaircie + halo, pour qu'on la distingue
+   quand même des notes voisines réellement posées, et qu'on voie qu'un geste est en cours. */
+.seq-note.seq-note-move-ghost {
+    pointer-events: none;
+    opacity: 0.9;
+    box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.75), 0 2px 10px rgba(0, 0, 0, 0.45);
 }
 
 /* Repère d'attaque : fine bande plus claire au tout début d'une pilule tenue, pour distinguer d'un

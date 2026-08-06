@@ -1646,6 +1646,7 @@ const METRONOME_SOUND_KEY = 'harmohubMetronomeSound';
 const GENERAL_VOLUME_KEY = 'harmohubGeneralVolume';
 const AUTOPLAY_SELECT_KEY = 'harmohubAutoplaySelect';
 const METRONOME_COUNTIN_KEY = 'harmohubMetronomeCountIn';
+const SEQ_EDIT_AUDIO_KEY = 'harmohubSeqEditAudio';
 const METRONOME_SUBDIVISION_KEY = 'harmohubMetronomeSubdivision';
 const SHOW_ROMAN_KEY = 'harmohubShowRomanNumerals';
 // Octave / renversement-drop sous chaque accord de la GRILLE (voir gridVoicingParts, Paramètres >
@@ -1907,6 +1908,15 @@ class HarmoHubApp {
         // distinct du métronome PENDANT la lecture (this.metronomeDuringPlayback, bouton dédié) :
         // désactivable séparément dans Paramètres > Son (voir playProgression).
         this.metronomeCountIn = localStorage.getItem(METRONOME_COUNTIN_KEY) !== '0';
+
+        // Retour sonore pendant l'ÉDITION du séquenceur, lecture à l'arrêt (activé par défaut) : poser,
+        // sélectionner, déplacer ou changer de voix une note la fait entendre aussitôt (voir
+        // seqEditFeedback). Sans lui, toute l'édition à l'arrêt était muette — une note posée sur la
+        // mauvaise ligne ne se découvrait qu'au lancement de la lecture (retour utilisateur : bien plus
+        // d'erreurs de saisie qu'avec un séquenceur type GarageBand, qui fait entendre chaque note
+        // touchée). Ne se déclenche jamais PENDANT la lecture : livePreviewUpdate s'en charge déjà, un
+        // bip en plus ne ferait que doubler ce qu'on entend.
+        this.seqEditAudio = localStorage.getItem(SEQ_EDIT_AUDIO_KEY) !== '0';
 
         // Clic faible additionnel sur le contretemps (croches, "et" de chaque temps) — désactivé par
         // défaut pour ne rien changer au comportement existant (bouton dédié, voir toggle-metronome-
@@ -3476,6 +3486,22 @@ class HarmoHubApp {
         } catch (e) {
             console.warn('Aperçu de note ignoré (instrument pas encore prêt) :', e.message);
         }
+    }
+
+    // Retour sonore d'édition (voir this.seqEditAudio) : fait entendre la note de CETTE voix dès qu'on
+    // la pose, la sélectionne, la déplace ou la change de ligne — uniquement à l'ARRÊT. Pendant la
+    // lecture, livePreviewUpdate reboucle déjà l'accord modifié : ajouter un bip par-dessus ne ferait
+    // que doubler ce qu'on entend au lieu de renseigner. S'appuie sur previewSeqNote (une note isolée,
+    // qui n'interrompt rien) ; volontairement silencieux si la voix demandée n'existe pas/plus, pour
+    // qu'un geste sur une ligne qui vient de disparaître ne lève jamais d'erreur au milieu d'un glissé.
+    seqEditFeedback(voiceIndex) {
+        if (!this.seqEditAudio || this.isPlaying || voiceIndex == null) return;
+        // .catch explicite : previewSeqNote attend Tone.start(), qui rejette tant que le navigateur
+        // n'a pas encore débloqué l'audio. Sur un simple clic isolé (étiquette de voix) ce rejet
+        // passait inaperçu ; ici le retour est branché sur CHAQUE geste d'édition, donc un rejet non
+        // capturé remonterait en boucle dans la console — et casserait les tests, qui échouent sur
+        // toute erreur de page. Un retour sonore muet est sans conséquence : ce n'est qu'un confort.
+        this.previewSeqNote(voiceIndex).catch(() => {});
     }
 
     // Joue un motif de séquenceur (résolution croche) : regroupe les cases actives contiguës d'une
@@ -5946,6 +5972,12 @@ class HarmoHubApp {
                 <button type="button" id="toggle-metronome-countin" class="switch" role="switch" aria-checked="${this.metronomeCountIn}" aria-label="Clics du décompte avant la lecture de la grille">
                     <span class="switch-thumb"></span>
                 </button>
+            </div>
+            <div class="settings-toggle-row">
+                <label for="toggle-seq-edit-audio" title="Faire entendre une note du séquenceur dès qu'on la pose, la sélectionne ou la déplace (lecture à l'arrêt)">Écouter en éditant</label>
+                <button type="button" id="toggle-seq-edit-audio" class="switch" role="switch" aria-checked="${this.seqEditAudio}" aria-label="Faire entendre une note du séquenceur dès qu'on la pose, la sélectionne ou la déplace">
+                    <span class="switch-thumb"></span>
+                </button>
             </div>`;
 
         document.getElementById('general-volume').oninput = (e) => this.setGeneralVolume(+e.target.value);
@@ -5953,6 +5985,14 @@ class HarmoHubApp {
         document.getElementById('metronome-sound').onchange = (e) => this.setMetronomeSound(e.target.value);
         document.getElementById('toggle-autoplay-select').onclick = () => this.setAutoplaySelect(!this.autoplaySelect);
         document.getElementById('toggle-metronome-countin').onclick = () => this.setMetronomeCountIn(!this.metronomeCountIn);
+        document.getElementById('toggle-seq-edit-audio').onclick = () => this.setSeqEditAudio(!this.seqEditAudio);
+    }
+
+    setSeqEditAudio(on) {
+        this.seqEditAudio = on;
+        localStorage.setItem(SEQ_EDIT_AUDIO_KEY, on ? '1' : '0');
+        const btn = document.getElementById('toggle-seq-edit-audio');
+        if (btn) btn.setAttribute('aria-checked', on);
     }
 
     setAutoplaySelect(on) {
@@ -7982,6 +8022,42 @@ class HarmoHubApp {
         // avant même que le second ne touche l'écran, démarrant par erreur un glisser-réordonner.
         // Seulement en loupe (retour utilisateur : ne pas toucher au comportement de la grille classique).
         if (!d.copy && this.gridZoomOpen && d.pointerType !== 'mouse') threshold = 24;
+
+        // Défilement vertical de la page à UN SEUL doigt, décidé une seule fois au tout premier vrai
+        // mouvement de CE geste (même principe que le séquenceur, voir onSeqPointerMove/axisDecided).
+        // Les cases sont en touch-action:none (voir .grid-cell en CSS, indispensable pour que le JS
+        // garde la main sur le glisser-réordonner et l'appui long) : sans ce rattrapage, poser le doigt
+        // sur un accord pour simplement faire défiler la page ne défilait pas — ça DÉPLAÇAIT l'accord
+        // (retour utilisateur). Uniquement au doigt : à la souris, la molette fait déjà défiler et un
+        // glissé vers le bas est toujours une intention de réordonner, rien ne change de ce côté.
+        //
+        // Deux garde-fous pour ne PAS voler un vrai réordonnancement, la grille se repliant sur
+        // plusieurs lignes (déplacer un accord vers la ligne du dessous est un geste vertical légitime) :
+        //   - franchement vertical (|dy| > 1,5 × |dx|) : une diagonale vers une autre ligne reste un
+        //     déplacement ;
+        //   - amorcé TÔT (moins de 300 ms après la pose) : un balayage de défilement part aussitôt,
+        //     alors qu'attraper une case pour la déplacer demande de la viser d'abord. Marquer un
+        //     temps d'arrêt avant de glisser force donc toujours le réordonnancement, dans n'importe
+        //     quelle direction.
+        if (!d.axisDecided && d.pointerType !== 'mouse') {
+            if (Math.hypot(dx, dy) < threshold) return;
+            d.axisDecided = true;
+            // (Rien à annuler côté menu contextuel : son minuteur est à 550 ms — voir
+            // attachContextMenuTrigger — donc jamais échu à ce stade, et son propre touchmove
+            // l'annule de toute façon dès 10 px parcourus.)
+            if ((Date.now() - d.startTime) < 300 && Math.abs(dy) > Math.abs(dx) * 1.5) {
+                d.verticalScroll = true;
+                d._vScrollLastY = e.clientY;
+            }
+        }
+        if (d.verticalScroll) {
+            const target = this._scrollableAncestorOf(d.cell);
+            if (target) target.scrollTop -= (e.clientY - d._vScrollLastY);
+            d._vScrollLastY = e.clientY;
+            e.preventDefault();
+            return;
+        }
+
         if (!d.moved && Math.hypot(dx, dy) < threshold) return;
 
         if (d.menuShown) {
@@ -8080,6 +8156,12 @@ class HarmoHubApp {
         if (!d) return;
 
         if (d.ghost) d.ghost.remove();
+
+        // Défilement vertical de la page (voir onGridPointerMove) : jamais une sélection ni une
+        // modification, rien à valider ici. Sans ce retour anticipé, le relâchement serait lu comme un
+        // simple tap (d.moved reste faux pendant tout un défilement) et sélectionnerait/jouerait
+        // l'accord sur lequel le doigt s'est posé — exactement ce qu'on cherche à éviter.
+        if (d.verticalScroll) return;
 
         // Relâché sans bouger APRÈS que le menu contextuel s'est ouvert sur ce même appui (voir
         // openContextMenu/onGridPointerMove) : rien de plus à faire, pas de tap-sélection, le menu
@@ -9038,11 +9120,10 @@ class HarmoHubApp {
             // onSeqPointerMove/beginSeqVoiceDrag), pas seulement ses extrémités.
             noteStart, noteEnd,
             // Alt/Option déjà enfoncée à la prise, sur une note existante : un glissé horizontal
-            // dominant posera une COPIE plus loin sur la MÊME voix au lieu de rien faire (voir
-            // beginSeqDupDrag) — retour utilisateur, geste jusqu'ici sans effet dans ce cas précis
-            // (voir le commentaire "d.wasOn) return;" plus bas), donc sans conflit avec l'existant.
+            // dominant posera une COPIE plus loin sur la MÊME voix, au lieu de DÉPLACER la note comme
+            // le fait désormais le même geste sans Alt (voir beginSeqHDrag, appelé avec `copy`).
             altDuplicate: wasOn && e.altKey,
-            gestureDecided: false, voiceDrag: null, dupDrag: null,
+            gestureDecided: false, voiceDrag: null, hDrag: null,
         };
 
         this._onSeqMove = (ev) => this.onSeqPointerMove(ev);
@@ -9070,7 +9151,7 @@ class HarmoHubApp {
 
     // Glissé du rectangle de sélection (voir beginSeqMarqueeSelect) : un simple rectangle en pixels
     // (position:fixed), pas calé sur la grille — au contraire du fantôme de duplication (voir
-    // beginSeqDupDrag), il n'a pas besoin de suivre une case précise, seule sa FORME compte pour
+    // beginSeqHDrag), il n'a pas besoin de suivre une case précise, seule sa FORME compte pour
     // savoir quelles notes il touche. Chaque note dont le rectangle DOM (getBoundingClientRect)
     // chevauche celui du rectangle reçoit une classe transitoire (.marquee-hit) en retour visuel
     // immédiat ; la sélection réelle (this.seqSelections) n'est posée qu'au relâchement.
@@ -9199,7 +9280,15 @@ class HarmoHubApp {
     // nativement (voir .seq-cell/touch-action:none en CSS, retiré pour laisser le pan à 2 doigts, voir
     // setupPinchZoom, garder un contrôle fiable sur cet axe aussi).
     _scrollableSeqAncestor() {
-        let el = document.getElementById('arp-sequencer');
+        return this._scrollableAncestorOf(document.getElementById('arp-sequencer'));
+    }
+
+    // Même recherche, pour n'importe quel point de départ : la grille d'accords en a besoin elle aussi
+    // (voir onGridPointerMove — ses cases sont en touch-action:none, donc le défilement vertical au
+    // doigt doit y être reproduit en JS exactement comme dans le séquenceur), et elle vit tantôt dans
+    // la page, tantôt dans la loupe (#grid-zoom-host), chacune avec son propre ancêtre défilant.
+    _scrollableAncestorOf(start) {
+        let el = start;
         while (el && el !== document.body) {
             el = el.parentElement;
             if (!el) break;
@@ -9294,33 +9383,36 @@ class HarmoHubApp {
         }
 
         // Démarré SUR une note déjà posée, hors sélection multiple : le sens du tout premier vrai
-        // mouvement (seuil commun aux autres gestes séquenceur) décide si ce glissé change de VOIX —
-        // la barre suit le pointeur vers une autre ligne, copiée/déplacée selon Ctrl/Cmd, voir
-        // beginSeqVoiceDrag — ou reste sur la même ligne (étirement depuis un bord, effacement en
-        // glissant depuis le corps : comportement historique, inchangé). Dominante verticale = change
-        // de voix ; horizontale ET Alt déjà enfoncée à la prise = duplication sur la même ligne (voir
-        // beginSeqDupDrag) ; horizontale sans Alt = comportement habituel — décidé une seule fois
-        // pour tout le geste, comme le changement de voix.
+        // mouvement (seuil commun aux autres gestes séquenceur) décide de la nature du glissé.
+        // Dominante VERTICALE = change de voix (la barre suit le pointeur vers une autre ligne,
+        // copiée/déplacée selon Ctrl/Cmd, voir beginSeqVoiceDrag). Dominante HORIZONTALE : depuis un
+        // BORD de la note, on étire comme avant (d.resize, traité plus bas) ; depuis son CORPS, on la
+        // DÉPLACE dans le temps (voir beginSeqHDrag) — retour utilisateur : c'est le geste de base
+        // d'un séquenceur type GarageBand, et il ne faisait jusqu'ici strictement rien ici (il fallait
+        // effacer puis redessiner la note, ou passer par Maj+←/→). Alt/Option déjà enfoncée à la prise
+        // en fait une DUPLICATION plutôt qu'un déplacement, comme avant. Décidé une seule fois pour
+        // tout le geste, comme le changement de voix.
         if (d.wasOn && !d.multi && !d.gestureDecided) {
             const dx0 = e.clientX - d.startX, dy0 = e.clientY - d.startY;
             if (Math.hypot(dx0, dy0) < 10) return;
             d.gestureDecided = true;
             if (Math.abs(dy0) > Math.abs(dx0)) this.beginSeqVoiceDrag(d);
-            else if (d.altDuplicate) this.beginSeqDupDrag(d);
+            else if (d.altDuplicate) this.beginSeqHDrag(d, true);
+            else if (!d.resize) this.beginSeqHDrag(d, false);
         }
         if (d.voiceDrag) { this.onSeqVoiceDragMove(e, d); return; }
-        if (d.dupDrag) { this.onSeqDupDragMove(e, d); return; }
+        if (d.hDrag) { this.onSeqHDragMove(e, d); return; }
 
         if (d.multi) { this.onSeqMultiDragMove(e, d); return; }
         if (d.resize) { this.onSeqResizeMove(e, d); return; }
 
-        // Démarré au MILIEU d'une note existante (ni un bord — sinon d.resize serait posé, voir
-        // onSeqPointerDown — ni un changement de voix, déjà écarté juste au-dessus) : n'efface plus
-        // rien du tout (retour utilisateur : glisser depuis le corps d'une note la scindait en deux
-        // par accident trop souvent, sans le vouloir). Pour raccourcir une note, glisser depuis SON
-        // BORD (voir onSeqResizeMove juste au-dessus) ; pour en reposer une nouvelle juste après,
-        // peindre sur une case vide comme d'habitude — un simple tap, lui, continue de sélectionner
-        // normalement (voir onSeqPointerUp), rien ne change de ce côté.
+        // Filet de sécurité : un glissé démarré sur une note existante a normalement déjà été routé
+        // plus haut (changement de voix, déplacement/duplication horizontale, étirement depuis un
+        // bord). On n'arrive ici que si beginSeqHDrag a renoncé (barre introuvable dans le DOM : page
+        // du séquenceur changée entretemps). Surtout ne rien peindre/effacer dans ce cas — retour
+        // utilisateur d'origine : glisser depuis le corps d'une note la scindait en deux par accident
+        // bien trop souvent. Un simple tap, lui, continue de sélectionner normalement (voir
+        // onSeqPointerUp).
         if (d.wasOn) return;
 
         // Même garde-fou que pour le redimensionnement (voir onSeqResizeMove) : sans lui, le moindre
@@ -9627,41 +9719,49 @@ class HarmoHubApp {
         this.seqTouched = true;
         this.seqSelections = [{ voice: targetVoice, start, end }];
         this.renderSequencer();
+        this.seqEditFeedback(targetVoice); // la hauteur a changé : la faire entendre (voir seqEditFeedback)
         this.livePreviewUpdate();
     }
 
-    // Bascule un glissé démarré sur le CORPS d'une note (Alt/Option déjà enfoncée à la prise, voir
-    // onSeqPointerDown) en duplication horizontale : une copie fantôme (contour en pointillés, voir
-    // .seq-note-dup-ghost) suit le pointeur sur LA MÊME voix, calée sur la grille — l'originale reste
-    // affichée et inchangée jusqu'au dépôt (voir onSeqDupDragMove/finalizeSeqDupDrag). Contrairement au
-    // changement de voix (beginSeqVoiceDrag), pas besoin de masquer l'original : rien ne le déplace.
-    beginSeqDupDrag(d) {
+    // Bascule un glissé horizontal démarré sur le CORPS d'une note (voir onSeqPointerMove) en
+    // DÉPLACEMENT dans le temps (`copy` faux, le cas courant) ou en DUPLICATION (`copy` vrai, Alt/
+    // Option déjà enfoncée à la prise). Les deux partagent toute la mécanique — un fantôme calé sur
+    // la grille suit le pointeur sur LA MÊME voix jusqu'au dépôt (voir onSeqHDragMove/
+    // finalizeSeqHDrag) — et ne diffèrent que sur deux points, portés par `copy` :
+    //   - déplacement : l'originale est masquée pendant le geste (la barre a l'air de suivre le
+    //     doigt, comme dans un séquenceur classique) et effacée au dépôt ;
+    //   - duplication : l'originale reste affichée et intacte, le fantôme est en pointillés (voir
+    //     .seq-note-dup-ghost) pour bien montrer qu'une SECONDE note va être posée.
+    beginSeqHDrag(d, copy) {
         const noteEl = document.querySelector(
             `.seq-note[data-voice="${d.voice}"][data-start="${d.noteStart}"][data-end="${d.noteEnd}"]`
         );
         if (!noteEl) return; // page/scroll a changé entretemps : abandonne, reste un glissé "sur place"
         this.pushSeqUndo(); // un seul instantané pour tout le geste, comme les autres gestes séquenceur
         const ghost = noteEl.cloneNode(true);
-        ghost.classList.add('seq-note-dup-ghost');
+        ghost.classList.add(copy ? 'seq-note-dup-ghost' : 'seq-note-move-ghost');
         ghost.removeAttribute('data-start'); // pas encore une vraie note posée
         ghost.removeAttribute('data-end');
         noteEl.insertAdjacentElement('afterend', ghost); // même grille CSS que l'original (grid-row/column)
+        if (!copy) noteEl.style.visibility = 'hidden'; // déplacement : une seule barre à l'écran, celle qui suit le doigt
         // Repart de la colonne EXACTE déjà affichée (aucune reformulation du calcul page/décalage,
         // voir renderSequencer) : seul le premier nombre ("N / span L") bougera avec le glissé.
         const [colStart] = noteEl.style.gridColumn.split('/').map(s => s.trim());
-        d.dupDrag = {
+        d.hDrag = {
             voice: d.voice, origStart: d.noteStart, origEnd: d.noteEnd,
-            colStart: parseInt(colStart, 10), ghost, appliedDelta: 0,
+            colStart: parseInt(colStart, 10), ghost, noteEl, copy, appliedDelta: 0,
         };
     }
 
-    // Fantôme de duplication (voir beginSeqDupDrag) : suit le glissé horizontalement, calé sur la
-    // grille (jamais entre deux cases) et borné à la page actuellement affichée (mêmes limites que
-    // findSeqStepAt, qui ne connaît que les cases réellement visibles) — et ne peut jamais chevaucher
-    // l'originale elle-même (sinon dupliquer une note reviendrait à en effacer un bout, voir
-    // clearSeqRunsOverlapping/finalizeSeqDupDrag) : la zone de chevauchement se traverse sans que le
-    // fantôme n'y bouge, comme une résistance, jusqu'à en ressortir de l'autre côté.
-    onSeqDupDragMove(e, d) {
+    // Fantôme du glissé horizontal (voir beginSeqHDrag) : suit le pointeur, calé sur la grille (jamais
+    // entre deux cases) et borné à la page actuellement affichée (mêmes limites que findSeqStepAt, qui
+    // ne connaît que les cases réellement visibles).
+    // Une DUPLICATION ne peut jamais chevaucher l'originale (sinon dupliquer une note reviendrait à en
+    // effacer un bout, voir clearSeqRunsOverlapping/finalizeSeqHDrag) : la zone de chevauchement se
+    // traverse sans que le fantôme n'y bouge, comme une résistance, jusqu'à en ressortir de l'autre
+    // côté. Un DÉPLACEMENT, lui, n'a pas cette contrainte — la note quitte sa position d'origine, se
+    // chevaucher elle-même n'a aucun sens : décaler d'une seule croche doit rester possible.
+    onSeqHDragMove(e, d) {
         if (!d.crossedThreshold) {
             const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
             if (Math.hypot(dx, dy) < 10) return;
@@ -9670,41 +9770,50 @@ class HarmoHubApp {
         const step0 = this.findSeqStepAt(d, e.clientX, e.clientY);
         if (step0 == null) return;
 
-        const dd = d.dupDrag;
+        const hd = d.hDrag;
         const visibleSteps = d.rowCells.map(c => c.step);
         const minVisible = Math.min(...visibleSteps), maxVisible = Math.max(...visibleSteps);
-        const len = dd.origEnd - dd.origStart + 1;
+        const len = hd.origEnd - hd.origStart + 1;
         let delta = step0 - d.startStep;
-        delta = Math.max(minVisible - dd.origStart, Math.min(maxVisible - dd.origEnd, delta));
-        if (delta !== 0 && Math.abs(delta) < len) delta = dd.appliedDelta; // zone de chevauchement : ignore
-        if (delta === dd.appliedDelta && d.moved) return;
+        delta = Math.max(minVisible - hd.origStart, Math.min(maxVisible - hd.origEnd, delta));
+        if (hd.copy && delta !== 0 && Math.abs(delta) < len) delta = hd.appliedDelta; // chevauchement : ignoré
+        if (delta === hd.appliedDelta && d.moved) return;
 
         e.preventDefault();
         d.moved = true;
-        dd.appliedDelta = delta;
-        dd.ghost.style.gridColumn = `${dd.colStart + delta} / span ${len}`;
+        hd.appliedDelta = delta;
+        hd.ghost.style.gridColumn = `${hd.colStart + delta} / span ${len}`;
+        // Même repère que l'étirement/la peinture (voir _highlightSeqBeatLabel) : le temps que le
+        // DÉBUT de la note vient d'atteindre s'allume sous la grille, pour viser sans compter les cases.
+        this._highlightSeqBeatLabel(hd.origStart + delta);
     }
 
-    // Dépôt d'une duplication (voir beginSeqDupDrag/onSeqDupDragMove) : si le fantôme a bien bougé
-    // (appliedDelta non nul), peint une COPIE du même motif (attaque + tenue, positions inchangées à
-    // l'offset près) à sa nouvelle position sur la MÊME voix — l'originale, elle, n'est jamais touchée
-    // (voir finalizeSeqVoiceDrag pour le changement de voix, qui lui peut effacer l'originale).
-    finalizeSeqDupDrag(d) {
-        const dd = d.dupDrag;
-        dd.ghost.remove();
-        if (!d.moved || dd.appliedDelta === 0) {
-            // Jamais vraiment glissé (ou revenu pile sur l'originale) : rien à dupliquer.
+    // Dépôt d'un glissé horizontal (voir beginSeqHDrag/onSeqHDragMove) : si le fantôme a bien bougé,
+    // repeint le même motif (attaque + tenue, longueur inchangée) à sa nouvelle position sur la MÊME
+    // voix. Pour un DÉPLACEMENT, l'originale est effacée D'ABORD — avant clearSeqRunsOverlapping, sans
+    // quoi une note déplacée de moins que sa propre longueur (chevauchement avec elle-même) se ferait
+    // effacer par le nettoyage de sa propre destination. Pour une DUPLICATION, l'originale n'est jamais
+    // touchée (voir finalizeSeqVoiceDrag pour le changement de voix, qui lui peut l'effacer).
+    finalizeSeqHDrag(d) {
+        const hd = d.hDrag;
+        hd.ghost.remove();
+        if (hd.noteEl) hd.noteEl.style.visibility = '';
+        this._highlightSeqBeatLabel(null);
+        if (!d.moved || hd.appliedDelta === 0) {
+            // Jamais vraiment glissé (ou revenu pile sur sa position de départ) : rien à écrire.
             this.renderSequencer();
             return;
         }
 
-        const newStart = dd.origStart + dd.appliedDelta, newEnd = dd.origEnd + dd.appliedDelta;
-        this.clearSeqRunsOverlapping(dd.voice, newStart, newEnd);
-        for (let s = newStart; s <= newEnd; s++) this.applySeqCell(dd.voice, s, true, s !== newStart);
+        const newStart = hd.origStart + hd.appliedDelta, newEnd = hd.origEnd + hd.appliedDelta;
+        if (!hd.copy) for (let s = hd.origStart; s <= hd.origEnd; s++) this.applySeqCell(hd.voice, s, false);
+        this.clearSeqRunsOverlapping(hd.voice, newStart, newEnd);
+        for (let s = newStart; s <= newEnd; s++) this.applySeqCell(hd.voice, s, true, s !== newStart);
 
         this.seqTouched = true;
-        this.seqSelections = [{ voice: dd.voice, start: newStart, end: newEnd }];
+        this.seqSelections = [{ voice: hd.voice, start: newStart, end: newEnd }];
         this.renderSequencer();
+        this.seqEditFeedback(hd.voice);
         this.livePreviewUpdate();
     }
 
@@ -9736,7 +9845,7 @@ class HarmoHubApp {
             // d.moved N'EST posé que par la queue "peindre" et onSeqMultiDragMove — jamais par
             // onSeqResizeMove, qui a son PROPRE indicateur (d.resizeChanged) : chaque branche vérifie
             // donc la sienne, plutôt qu'un seul garde-fou commun qui aurait sauté le redimensionnement.
-            if (d.moved && d.touched && !d.resize && !d.multi && !d.voiceDrag && !d.dupDrag) {
+            if (d.moved && d.touched && !d.resize && !d.multi && !d.voiceDrag && !d.hDrag) {
                 // Peindre/effacer (voir onSeqPointerMove, queue "paint") : chaque croche touchée est
                 // déjà mémorisée avant sa toute première modification.
                 Object.keys(d.touched).forEach(key => {
@@ -9775,18 +9884,20 @@ class HarmoHubApp {
                 painted = true;
             }
         }
-        // Changement de voix / duplication (voir beginSeqVoiceDrag/beginSeqDupDrag) : rien n'est
-        // encore écrit dans les données à ce stade (seul un fantôme visuel suit le doigt, voir
-        // finalizeSeqVoiceDrag/finalizeSeqDupDrag pour l'écriture réelle, jamais atteinte ici) — mais
+        // Changement de voix / déplacement / duplication (voir beginSeqVoiceDrag/beginSeqHDrag) : rien
+        // n'est encore écrit dans les données à ce stade (seul un fantôme visuel suit le doigt, voir
+        // finalizeSeqVoiceDrag/finalizeSeqHDrag pour l'écriture réelle, jamais atteinte ici) — mais
         // le fantôme lui-même, posé dans le DOM en dehors du rendu normal, doit être retiré, et la
-        // note d'origine (masquée pendant un changement de voix) redevenue visible, sans quoi elle
-        // resterait invisible jusqu'au prochain rendu sans rapport (même bug visuel que ci-dessus).
+        // note d'origine (masquée pendant un changement de voix ou un déplacement) redevenue visible,
+        // sans quoi elle resterait invisible jusqu'au prochain rendu sans rapport (même bug visuel
+        // que ci-dessus).
         if (d && d.voiceDrag) {
             d.voiceDrag.ghost.remove();
             if (d.voiceDrag.noteEl) d.voiceDrag.noteEl.style.visibility = '';
         }
-        if (d && d.dupDrag) {
-            d.dupDrag.ghost.remove();
+        if (d && d.hDrag) {
+            d.hDrag.ghost.remove();
+            if (d.hDrag.noteEl) d.hDrag.noteEl.style.visibility = '';
         }
         if (this.seqMarquee) {
             if (this.seqMarquee.el) this.seqMarquee.el.remove();
@@ -9818,8 +9929,8 @@ class HarmoHubApp {
             return;
         }
 
-        if (d.dupDrag) {
-            this.finalizeSeqDupDrag(d);
+        if (d.hDrag) {
+            this.finalizeSeqHDrag(d);
             return;
         }
 
@@ -9858,16 +9969,18 @@ class HarmoHubApp {
             // Simple tap, sans glisser
             if (d.wasOn) {
                 this.selectSeqNoteAt(d.voice, d.startStep, d.additive); // sélectionne (ou ajoute/retire si Ctrl), ne la touche pas
+                this.seqEditFeedback(d.voice); // fait entendre la ligne touchée (voir seqEditFeedback)
             } else if (!d.additive) {
                 // Ctrl/Cmd enfoncé sur une case vide : ne peint rien (Ctrl sert uniquement à sélectionner)
                 this.pushSeqUndo();
                 this.applySeqCell(d.voice, d.startStep, true, false); // nouvelle note isolée, rejouée
                 this.selectSeqNoteAt(d.voice, d.startStep);
+                this.seqEditFeedback(d.voice);
             }
         } else {
             // Glissé terminé : sélectionne la note qui vient d'être dessinée, ou rien si on a effacé
             if (d.wasOn) this.seqSelections = [];
-            else this.selectSeqNoteAt(d.voice, d.startStep);
+            else { this.selectSeqNoteAt(d.voice, d.startStep); this.seqEditFeedback(d.voice); }
         }
         this.renderSequencer();
         // Une seule fois ici, à la fin du geste (voir applySeqCell, appelé en rafale pendant le
