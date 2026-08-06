@@ -1886,6 +1886,288 @@ class MidiTrackBuilder {
 const GM_PROGRAM = { piano: 0, epiano: 4, pad: 88, strings: 50, organ: 80 };
 const MIDI_PPQ = 480; // pulsations par noire (doit être divisible par SEQ_STEPS_PER_BEAT)
 
+// ---------- Décodage MIDI (lire un .mid venu d'un DAW, ex. GarageBand) ----------
+// Miroir exact de l'encodeur ci-dessus, écrit à la main pour la même raison (le format SMF est assez
+// simple pour ne pas justifier une dépendance à héberger). Cette brique ne fait QUE lire le fichier :
+// « quelles notes, de quand à quand, à quel tempo ». Y reconnaître des accords est un travail séparé,
+// pour que celui-ci reste vérifiable sur son seul terrain.
+
+class MidiParseError extends Error {}
+
+// Curseur de lecture sur les octets : centralise les contrôles de dépassement, pour qu'un fichier
+// tronqué donne un message clair au lieu d'un `undefined` qui se propagerait en silence jusqu'à
+// produire une grille d'accords absurde.
+class MidiReader {
+    constructor(bytes, pos = 0, end = bytes.length) { this.b = bytes; this.pos = pos; this.end = end; }
+    get left() { return this.end - this.pos; }
+    need(n, what) { if (this.left < n) throw new MidiParseError(`fichier MIDI tronqué (${what})`); }
+    u8(what = 'octet') { this.need(1, what); return this.b[this.pos++]; }
+    u16(what) { this.need(2, what); return (this.b[this.pos++] << 8) | this.b[this.pos++]; }
+    u32(what) {
+        this.need(4, what);
+        return ((this.b[this.pos++] << 24) >>> 0) + (this.b[this.pos++] << 16) + (this.b[this.pos++] << 8) + this.b[this.pos++];
+    }
+    // Inverse exact de midiVarLen : 7 bits utiles par octet, bit de poids fort = « encore un octet ».
+    // Plafonné à 4 octets comme la norme SMF : au-delà, c'est qu'on lit des octets qui ne sont pas
+    // une durée (fichier corrompu ou désynchronisé), et mieux vaut s'arrêter là que boucler.
+    varLen(what = 'durée') {
+        let value = 0;
+        for (let i = 0; i < 4; i++) {
+            const byte = this.u8(what);
+            value = (value << 7) | (byte & 0x7f);
+            if (!(byte & 0x80)) return value;
+        }
+        throw new MidiParseError('quantité de longueur variable invalide');
+    }
+    bytes(n, what) { this.need(n, what); const out = this.b.subarray(this.pos, this.pos + n); this.pos += n; return out; }
+    ascii(n, what) { return String.fromCharCode(...this.bytes(n, what)); }
+}
+
+// Nombre d'octets de données d'un message de canal, status compris dans `status`.
+function midiChannelEventLength(status) {
+    const kind = status & 0xf0;
+    return (kind === 0xc0 || kind === 0xd0) ? 1 : 2; // program change / pression de canal : 1 seul
+}
+
+// Lit UNE piste (contenu du chunk MTrk, sans son en-tête) et empile ses notes dans `notes`.
+// Les instants sont convertis en ticks ABSOLUS depuis le début de la piste — les delta-times du
+// fichier ne servent qu'à ça, exactement comme MidiTrackBuilder.toBytes fait l'inverse à l'écriture.
+function parseMidiTrack(r, trackIndex, out) {
+    let tick = 0;
+    let status = 0; // « running status » : un message peut omettre son octet de status et reprendre
+                    // celui du précédent. Très répandu (c'est ce qui rend les fichiers compacts), donc
+                    // indispensable à gérer — sans ça on lit des octets de données comme des status.
+    // Notes commencées mais pas encore relâchées, par (canal, hauteur). Une file (et non une seule
+    // valeur) : une même hauteur peut être rejouée avant d'être relâchée, et c'est alors le note-off
+    // le plus ancien qui ferme l'attaque la plus ancienne.
+    const pending = new Map();
+    const keyOf = (channel, pitch) => channel * 128 + pitch;
+
+    while (r.left > 0) {
+        tick += r.varLen('delta-time');
+        let byte = r.u8('événement');
+        if (byte === 0xff) {
+            status = 0; // un méta-événement annule le running status (norme SMF)
+            const type = r.u8('type de méta-événement');
+            const len = r.varLen('longueur de méta-événement');
+            const data = r.bytes(len, 'contenu de méta-événement');
+            if (type === 0x2f) break;                                  // fin de piste
+            if (type === 0x51 && len === 3) {
+                const usPerQuarter = (data[0] << 16) | (data[1] << 8) | data[2];
+                if (usPerQuarter > 0) out.tempoMap.push({ tick, usPerQuarter, bpm: 60000000 / usPerQuarter });
+            } else if (type === 0x58 && len >= 2) {
+                out.timeSignatures.push({ tick, numerator: data[0], denominator: Math.pow(2, data[1]) });
+            } else if (type === 0x03 && len > 0) {
+                out.trackNames.push({ track: trackIndex, name: new TextDecoder().decode(data) });
+            }
+            continue;
+        }
+        if (byte === 0xf0 || byte === 0xf7) { // SysEx : on saute son contenu, mais pas son horodatage
+            status = 0;
+            r.bytes(r.varLen('longueur SysEx'), 'contenu SysEx');
+            continue;
+        }
+        let data1;
+        if (byte & 0x80) {
+            status = byte;
+            data1 = r.u8('donnée');
+        } else {
+            if (!status) throw new MidiParseError('donnée MIDI sans événement de référence');
+            data1 = byte; // running status : l'octet lu est DÉJÀ la 1re donnée
+        }
+        const kind = status & 0xf0;
+        const channel = status & 0x0f;
+        const data2 = midiChannelEventLength(status) === 2 ? r.u8('donnée') : 0;
+
+        // Un note-on de vélocité 0 est un note-off déguisé — c'est justement ce que produit le running
+        // status (une seule série de 0x9n pour les attaques ET les relâchements), donc le cas normal.
+        const isOff = (kind === 0x80) || (kind === 0x90 && data2 === 0);
+        if (kind === 0x90 && !isOff) {
+            const note = { midi: data1, startTicks: tick, endTicks: null, velocity: data2, channel, track: trackIndex };
+            out.notes.push(note);
+            const key = keyOf(channel, data1);
+            if (!pending.has(key)) pending.set(key, []);
+            pending.get(key).push(note);
+        } else if (isOff) {
+            const queue = pending.get(keyOf(channel, data1));
+            if (queue && queue.length) queue.shift().endTicks = tick;
+        }
+    }
+
+    // Notes laissées ouvertes (fin de piste manquante ou note-off absent) : on les ferme à la fin de
+    // la piste plutôt que de les jeter — une note tenue jusqu'au bout reste une vraie note.
+    for (const queue of pending.values()) for (const note of queue) note.endTicks = tick;
+    out.endTicks = Math.max(out.endTicks, tick);
+}
+
+// Lit un fichier .mid complet et rend sa matière brute :
+//   { format, ticksPerQuarter, endTicks,
+//     tempoMap: [{tick, bpm, usPerQuarter}], timeSignatures: [{tick, numerator, denominator}],
+//     trackNames: [{track, name}],
+//     notes: [{midi, startTicks, endTicks, velocity, channel, track}] }
+// Toutes les pistes sont FUSIONNÉES dans `notes`, triées par instant d'attaque : à l'import, ce qu'on
+// cherche est la matière musicale, pas le découpage en pistes du DAW d'origine.
+function parseMidiFile(buffer) {
+    const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    const r = new MidiReader(bytes);
+    if (r.left < 14 || r.ascii(4, 'en-tête') !== 'MThd') {
+        throw new MidiParseError('ce fichier n\'est pas un MIDI (en-tête « MThd » absent)');
+    }
+    const headerLen = r.u32('longueur d\'en-tête');
+    const headerEnd = r.pos + headerLen;
+    const format = r.u16('format');
+    r.u16('nombre de pistes'); // annoncé dans l'en-tête, mais on lit les chunks réellement présents
+    const division = r.u16('division');
+    r.pos = headerEnd; // en-tête plus long que 6 octets : le surplus est réservé, la norme dit de le sauter
+
+    if (division & 0x8000) {
+        throw new MidiParseError('division SMPTE (images par seconde) non gérée — réexporte le fichier en division métrique');
+    }
+    if (!division) throw new MidiParseError('division nulle dans l\'en-tête MIDI');
+    if (format === 2) {
+        // Format 2 = pistes indépendantes, chacune son propre morceau : les fusionner sur une seule
+        // timeline superposerait des morceaux distincts. Aucun DAW courant n'en produit ; plutôt que
+        // d'inventer une interprétation, on le dit.
+        throw new MidiParseError('MIDI de format 2 (pistes indépendantes) non géré');
+    }
+
+    const out = {
+        format, ticksPerQuarter: division, endTicks: 0,
+        tempoMap: [], timeSignatures: [], trackNames: [], notes: [],
+    };
+    let trackIndex = 0;
+    // Reste de moins de 8 octets : trop court pour un en-tête de chunk. On le laisse passer en silence
+    // (certains logiciels complètent le fichier de quelques octets de bourrage), là où un chunk qui
+    // annonce PLUS d'octets qu'il n'en reste est, lui, une vraie troncature — voir ci-dessous.
+    while (r.left >= 8) {
+        const type = r.ascii(4, 'type de chunk');
+        const len = r.u32('longueur de chunk');
+        if (len > r.left) {
+            // Le fichier est incomplet. On pourrait lire ce qui est là, mais silencieusement : mieux
+            // vaut le dire que d'importer la moitié d'un morceau sans que personne ne le remarque.
+            throw new MidiParseError(`fichier MIDI tronqué (chunk ${type} incomplet)`);
+        }
+        const end = r.pos + len;
+        // Tout chunk d'un type inconnu est sauté sans broncher (la norme SMF l'exige explicitement) :
+        // c'est ce qui permet à un fichier enrichi par un DAW de rester lisible ici.
+        if (type === 'MTrk') parseMidiTrack(new MidiReader(bytes, r.pos, end), trackIndex++, out);
+        r.pos = end;
+    }
+    if (!out.notes.length) throw new MidiParseError('aucune note trouvée dans ce fichier MIDI');
+
+    out.notes.sort((a, b) => (a.startTicks - b.startTicks) || (a.midi - b.midi));
+    out.tempoMap.sort((a, b) => a.tick - b.tick);
+    out.timeSignatures.sort((a, b) => a.tick - b.tick);
+    // Boucle plutôt que Math.max(...tableau) : un morceau un peu long dépasse vite la limite du
+    // nombre d'arguments d'un appel, et l'import se casserait précisément sur les gros fichiers.
+    out.endTicks = out.notes.reduce((max, n) => Math.max(max, n.endTicks), out.endTicks);
+    return out;
+}
+
+// ---------- Import MIDI, étape 2 : du temps en ticks au temps musical de l'appli ----------
+// Traduit la sortie brute du parseur en positions sur la grille de croches du séquenceur
+// (SEQ_STEPS_PER_BEAT), en se réglant sur le tempo et la signature DU FICHIER, puis découpe le tout
+// en mesures. C'est cette découpe que l'étape suivante interrogera pour reconnaître des accords.
+
+// Signature du fichier -> ce que la grille de l'appli peut en faire.
+// L'appli compte toujours ses temps en NOIRES (voir beatsPerBar/buildMidiFile : un temps = MIDI_PPQ
+// ticks, quelle que soit la signature choisie). Pour les signatures en /4, la correspondance est
+// exacte. Pour les autres (6/8...), on garde la DURÉE RÉELLE de la mesure plutôt que son étiquette :
+// une mesure de 6/8 vaut trois noires, donc trois temps ici. Les barres de mesure tombent alors au
+// bon endroit — ce qui compte pour découper des accords — même si l'étiquette affichée dira 3/4.
+function midiTimeSignatureToGrid(numerator, denominator) {
+    if (denominator === 4 && TIME_SIG_BEATS[`${numerator}/4`]) {
+        return { beatsPerBar: numerator, label: `${numerator}/4`, exact: true };
+    }
+    const beats = Math.max(1, Math.round(numerator * 4 / denominator));
+    const label = TIME_SIG_BEATS[`${beats}/4`] ? `${beats}/4` : '4/4';
+    return { beatsPerBar: TIME_SIG_BEATS[label], label, exact: false };
+}
+
+// `parsed` : sortie de parseMidiFile. Retour :
+//   { bpm, timeSig, beatsPerBar, stepsPerBar, totalSteps, notes, bars, warnings }
+//   notes : [{midi, startStep, endStep, velocity}] alignées sur la grille de croches, décalées pour
+//           que la première mesure qui contient quelque chose devienne la mesure 0.
+//   bars  : [{index, startStep, endStep, attacks, sounding}] — `sounding` liste les notes qui RÉSONNENT
+//           pendant la mesure (une blanche tenue par-dessus la barre y figure des deux côtés), avec
+//           leur durée effective à l'intérieur : exactement ce qu'il faut pour peser les hauteurs.
+function segmentMidiNotes(parsed) {
+    const warnings = [];
+    const sig = parsed.timeSignatures.length ? parsed.timeSignatures[0] : { numerator: 4, denominator: 4 };
+    const grid = midiTimeSignatureToGrid(sig.numerator, sig.denominator);
+    if (!grid.exact) {
+        warnings.push(`Mesure ${sig.numerator}/${sig.denominator} lue comme ${grid.label} (durée de mesure identique)`);
+    }
+    if (parsed.timeSignatures.length > 1) {
+        warnings.push('Changements de mesure ignorés : tout le morceau est lu en ' + grid.label);
+    }
+
+    const bpm = parsed.tempoMap.length ? Math.round(parsed.tempoMap[0].bpm) : 120;
+    if (parsed.tempoMap.length > 1) warnings.push(`Changements de tempo ignorés : tout le morceau est lu à ${bpm} BPM`);
+
+    const stepsPerBar = grid.beatsPerBar * SEQ_STEPS_PER_BEAT;
+    const ticksPerStep = parsed.ticksPerQuarter / SEQ_STEPS_PER_BEAT;
+
+    // Aimantation sur la grille de croches : au plus proche pour l'attaque, au plus proche aussi pour
+    // la fin, mais jamais en dessous d'une croche — sinon les notes très brèves (attaques jouées au
+    // clavier, ornements) disparaîtraient purement et simplement au lieu d'être entendues.
+    let notes = parsed.notes.map(n => {
+        const startStep = Math.round(n.startTicks / ticksPerStep);
+        return {
+            midi: n.midi,
+            velocity: n.velocity,
+            startStep,
+            endStep: Math.max(startStep + 1, Math.round(n.endTicks / ticksPerStep)),
+        };
+    });
+
+    // Doublons exacts (même hauteur, même instant) : un DAW en produit dès qu'une piste est doublée
+    // ou qu'un accord est copié sur lui-même. Les laisser fausserait le poids des hauteurs à l'étape
+    // suivante — un do compté deux fois pèserait deux fois plus lourd sans rien ajouter musicalement.
+    const seen = new Map();
+    for (const n of notes) {
+        const key = n.midi + ':' + n.startStep;
+        const prev = seen.get(key);
+        if (!prev) seen.set(key, n);
+        else if (n.endStep > prev.endStep) prev.endStep = n.endStep; // on garde la plus longue
+    }
+    const removed = notes.length - seen.size;
+    notes = Array.from(seen.values()).sort((a, b) => (a.startStep - b.startStep) || (a.midi - b.midi));
+    if (removed > 0) warnings.push(`${removed} note(s) en double ignorée(s)`);
+
+    // Mesures vides du DÉBUT : on les enlève pour que le morceau commence à la première mesure qui
+    // sonne, plutôt que d'importer quatre cases muettes. On décale d'un nombre entier de MESURES,
+    // jamais de croches : les temps forts restent là où le musicien les a joués (une levée reste une
+    // levée). Idem à la fin.
+    const firstBar = Math.floor(Math.min(...notes.map(n => n.startStep)) / stepsPerBar);
+    const shift = firstBar * stepsPerBar;
+    if (shift) notes.forEach(n => { n.startStep -= shift; n.endStep -= shift; });
+    const lastStep = notes.reduce((max, n) => Math.max(max, n.endStep), 0);
+    const barCount = Math.max(1, Math.ceil(lastStep / stepsPerBar));
+    const totalSteps = barCount * stepsPerBar;
+
+    const bars = [];
+    for (let i = 0; i < barCount; i++) {
+        const startStep = i * stepsPerBar;
+        const endStep = startStep + stepsPerBar;
+        const sounding = [];
+        for (const n of notes) {
+            if (n.startStep >= endStep) break; // notes triées par attaque : plus rien ne peut suivre
+            if (n.endStep <= startStep) continue;
+            const from = Math.max(n.startStep, startStep);
+            const to = Math.min(n.endStep, endStep);
+            sounding.push({ note: n, fromStep: from, toStep: to, steps: to - from });
+        }
+        bars.push({
+            index: i, startStep, endStep,
+            attacks: sounding.filter(s => s.note.startStep >= startStep).map(s => s.note),
+            sounding,
+        });
+    }
+
+    return { bpm, timeSig: grid.label, beatsPerBar: grid.beatsPerBar, stepsPerBar, totalSteps, notes, bars, warnings };
+}
+
 // Fréquence d'échantillonnage du rendu audio hors-temps réel (export MP3, voir plus bas) : 44,1 kHz,
 // standard universel, largement suffisant pour des accords/nappes (pas de contenu ultrasonique à capter).
 const MP3_SAMPLE_RATE = 44100;
