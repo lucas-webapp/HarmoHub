@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608062501">
+    <link rel="stylesheet" href="style.css?v=202608062601">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -266,7 +266,7 @@
                 <h2 id="seq-zoom-title">Séquenceur</h2>
                 <div class="zoom-header-actions">
                     <div class="btn-wrap-group">
-                        <div class="zoom-axis-group" title="Échelle horizontale">
+                        <div class="zoom-axis-group" data-zoom-kind="seq" data-zoom-axis="x" title="Échelle horizontale">
                             <span class="zoom-axis-tag">H</span>
                             <button type="button" id="seq-zoom-in-h" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -275,7 +275,7 @@
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>
                             </button>
                         </div>
-                        <div class="zoom-axis-group" title="Échelle verticale">
+                        <div class="zoom-axis-group" data-zoom-kind="seq" data-zoom-axis="y" title="Échelle verticale">
                             <span class="zoom-axis-tag">V</span>
                             <button type="button" id="seq-zoom-in-v" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle verticale" aria-label="Agrandir l'échelle verticale">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -334,7 +334,7 @@
                        le bord droit de V et celui de Fermer). -->
                     <div class="btn-wrap-group">
                         <div class="grid-zoom-transport-sep"></div>
-                        <div class="zoom-axis-group" title="Échelle horizontale (accords par ligne)">
+                        <div class="zoom-axis-group" data-zoom-kind="grid" data-zoom-axis="x" title="Échelle horizontale (accords par ligne)">
                             <span class="zoom-axis-tag">H</span>
                             <button type="button" id="grid-zoom-in-h" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -343,7 +343,7 @@
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>
                             </button>
                         </div>
-                        <div class="zoom-axis-group" title="Échelle verticale">
+                        <div class="zoom-axis-group" data-zoom-kind="grid" data-zoom-axis="y" title="Échelle verticale">
                             <span class="zoom-axis-tag">V</span>
                             <button type="button" id="grid-zoom-in-v" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle verticale" aria-label="Agrandir l'échelle verticale">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -836,7 +836,7 @@
                              adjustZoom('classicGrid', ...)/currentGridHZoom dans script.js) : mémorisées
                              PAR MORCEAU (zoomSettingsForSong), indépendantes de celles de la loupe
                              ci-dessous — resserrer/agrandir la grille sans avoir à l'ouvrir en grand. -->
-                        <div class="zoom-axis-group" title="Échelle horizontale de la grille">
+                        <div class="zoom-axis-group" data-zoom-kind="classicGrid" data-zoom-axis="x" title="Échelle horizontale de la grille">
                             <span class="zoom-axis-tag">H</span>
                             <button type="button" id="classic-grid-in-h" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -845,7 +845,7 @@
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>
                             </button>
                         </div>
-                        <div class="zoom-axis-group" title="Échelle verticale de la grille">
+                        <div class="zoom-axis-group" data-zoom-kind="classicGrid" data-zoom-axis="y" title="Échelle verticale de la grille">
                             <span class="zoom-axis-tag">V</span>
                             <button type="button" id="classic-grid-in-v" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle verticale" aria-label="Agrandir l'échelle verticale">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -1010,6 +1010,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608062501"></script>
+    <script src="script.js?v=202608062601"></script>
 </body>
 </html>

@@ -578,6 +578,17 @@ body.body-scroll-locked { overflow: hidden !important; }
     box-shadow: 0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03);
 }
 .zoom-axis-tag { grid-row: 1 / span 2; align-self: center; font-size: var(--fs-xs); font-weight: 700; color: var(--text-muted); width: 12px; text-align: center; }
+/* L'étiquette H/V est aussi le bouton « revenir à 100 % » (voir updateZoomControls). Teintée en
+   accent dès que l'échelle s'écarte de 100 % : c'est le seul indice permanent qu'un zoom est en
+   cours sur CE panneau — le niveau exact, lui, est dans l'infobulle, faute de place pour l'écrire
+   dans 12px de large. */
+.zoom-axis-group .zoom-axis-tag { cursor: pointer; border-radius: 3px; }
+.zoom-axis-group .zoom-axis-tag:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.09); }
+.zoom-axis-group .zoom-axis-tag-off { color: var(--accent); }
+/* Borne atteinte : le bouton reste en place (pas de saut de mise en page) mais devient inerte et
+   visiblement inactif — avant, on continuait de cliquer sans que rien ne bouge, sans savoir pourquoi. */
+.zoom-axis-group .zoom-axis-btn:disabled { opacity: 0.3; cursor: default; }
+.zoom-axis-group .zoom-axis-btn:disabled:hover { background: none; color: var(--text-muted); }
 /* Spécificité (0,2,0) : l'emporte sur .icon-btn (0,1,0) quel que soit l'ordre des règles dans la
    feuille — retire le fond/bordure/ombre propres à .icon-btn (déjà posés sur .zoom-axis-group
    lui-même ci-dessus) pour que les flèches ne ressemblent plus à deux boutons empilés. */
@@ -2875,7 +2886,9 @@ button:active { transform: translateY(1px); }
 
 .seq-grid {
     display: grid;
-    gap: 4px 0; /* espacement vertical normal ; l'horizontal est géré case par case (voir .seq-cell-b) */
+    /* Espacement vertical, suivant la même échelle que la hauteur des cases (voir .seq-cell) pour que
+       les lignes ne se collent pas en réduisant ; l'horizontal est géré case par case (.seq-cell-b). */
+    gap: calc(4px * var(--seq-zoom-scale-v, 1)) 0;
     align-items: center;
     width: 100%;
 }
@@ -3049,7 +3062,12 @@ button:active { transform: translateY(1px); }
 }
 
 .seq-cell {
-    height: 26px;
+    /* --seq-zoom-scale-v vaut 1 tant qu'on n'a pas touché à l'échelle verticale du séquenceur COMPACT
+       (voir _applySeqVerticalScale, qui la pose sur #arp-sequencer lui-même) : hauteur inchangée par
+       défaut. Les deux fenêtres agrandies ont leurs propres règles, plus spécifiques, avec leur propre
+       hauteur de base (voir .seq-zoomed .seq-cell et .grid-zoom-pinned-body .seq-cell) — et la
+       variable est retirée d'#arp-sequencer dès qu'on y passe, pour ne pas masquer la leur. */
+    height: calc(26px * var(--seq-zoom-scale-v, 1));
     background: #202020;
     border: 1px solid var(--border);
     border-radius: 5px;
