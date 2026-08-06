@@ -9086,8 +9086,10 @@ class HarmoHubApp {
             // resizeSeqPattern ne fait que filtrer/répéter l'existant, jamais en inventer une — voir
             // applyNewVoiceDefaults pour la règle (même schéma que les autres voix du corps si elles
             // concordent toutes, sinon tenue pleine durée). Bornée au corps de l'accord seul : une note
-            // libre qui vient d'être ajoutée (voir addSequencerNote) grandit `voices` de la même façon
-            // mais doit rester silencieuse par défaut (voir ghost_note_test), donc jamais concernée ici.
+            // libre qui vient d'être ajoutée (voir addSequencerNote) grandit `voices` de la même façon,
+            // mais reçoit son rythme ailleurs et plus tard — à la validation de sa hauteur seulement
+            // (voir paintDefaultRhythmForExtraNote), la hauteur proposée à la création n'étant qu'un
+            // espace réservé. Elle n'est donc jamais concernée ici.
             result = applyNewVoiceDefaults(result.pattern, result.tie, this.seqLastChordToneVoices, chordToneVoices);
         } else {
             result = seqPreset(document.getElementById('playStyle').value, voices, steps);
@@ -11815,15 +11817,60 @@ class HarmoHubApp {
             this.renderSequencer(); // revient à l'ancienne valeur (le rendu relit this.extraNotes)
             return;
         }
-        // Conserve _new (voir addSequencerNote/pruneEmptyExtraNotes) si elle y était déjà : valider la
-        // hauteur ne peint toujours aucun rythme, cette voix reste donc à protéger tant qu'aucune case
-        // n'a encore été peinte, exactement comme juste après sa création.
+        // Note libre encore JAMAIS jouée (voir addSequencerNote/_new) : c'est ICI, et pas à sa
+        // création, qu'on lui donne enfin un rythme — sans quoi elle restait muette jusqu'à ce qu'on
+        // pense à peindre ses cases à la main (retour utilisateur : « souvent elle reste non jouée de
+        // base »). Une fois posé, ce rythme n'est plus jamais réécrit : reprendre la hauteur d'une note
+        // déjà jouée ne doit pas balayer le rythme qu'on lui a donné entretemps.
         const wasNew = this.extraNotes[extraIndex] && this.extraNotes[extraIndex]._new;
-        this.extraNotes[extraIndex] = { note: parsed.note, octave: parsed.octave, ...(wasNew ? { _new: true } : {}) };
+        this.extraNotes[extraIndex] = { note: parsed.note, octave: parsed.octave };
         this.seqTouched = true;
+        // `_new` n'est levé que si un rythme a VRAIMENT pu être posé : dans le cas contraire (corps de
+        // l'accord entièrement muet, par exemple) la note reste protégée, sans quoi elle serait élaguée
+        // au rendu suivant faute de la moindre case peinte.
+        if (wasNew && !this.paintDefaultRhythmForExtraNote(extraIndex)) this.extraNotes[extraIndex]._new = true;
         this.renderSequencer();
         this.refreshPreview();
         this.livePreviewUpdate();
+    }
+
+    // Donne son rythme de départ à une note libre tout juste nommée (voir commitExtraNoteLabel).
+    // MÊME RÈGLE que pour une voix neuve du corps de l'accord (voir applyNewVoiceDefaults, à qui elle
+    // était jusqu'ici volontairement refusée) : si toutes les voix du corps jouent EXACTEMENT le même
+    // rythme, la nouvelle le copie — accord tenu, note tenue ; accord battu à la noire, note à la
+    // noire. Sinon (arpège, voix désynchronisées) elle est TENUE sur toute la durée : c'est le seul
+    // choix qui garantit qu'on l'entende, quel que soit le motif en place.
+    //
+    // Pourquoi ici et pas dans addSequencerNote : au clic sur « + », la hauteur n'est qu'un espace
+    // réservé (plus haute note + 3 demi-tons — sur un do majeur, cela donne un Si bémol). Peindre un
+    // rythme dès cet instant l'aurait rendue assez présente pour franchir les seuils de
+    // reevaluateExtraNoteUpgrades, qui aurait renommé l'accord en C7 AVANT même qu'on ait tapé quoi
+    // que ce soit. On attend donc de connaître la vraie note.
+    // Renvoie vrai si un rythme a réellement été posé — l'appelant garde alors la protection `_new`
+    // en cas d'échec, sans quoi une note laissée sans rythme ET sans protection disparaîtrait
+    // silencieusement au rendu suivant (voir pruneEmptyExtraNotes).
+    paintDefaultRhythmForExtraNote(extraIndex) {
+        const chord = this.readChord();
+        const bodyVoices = chord.getIntervals().length;
+        const voice = bodyVoices + extraIndex; // même mappage que applySeqCell
+        if (voice >= chord.getSeqMidiNotes().length) return false; // voix pas (ou plus) dans le motif
+        const { pattern, tie } = this.getLiveSeqPattern(chord);
+        if (!pattern.length) return false;
+        const uniform = bodyVoices > 0 && seqPatternIsUniformAcrossVoices(pattern, tie, bodyVoices);
+        let painted = false;
+        for (let s = 0; s < pattern.length; s++) {
+            // `uniform` : on recopie la voix 0, qui vaut alors pour toutes. Sinon : tenue pleine durée
+            // (active partout, liée sauf la toute première croche, qui porte l'attaque).
+            const on = uniform ? pattern[s].includes(0) : true;
+            if (!on) continue;
+            if (!tie[s]) tie[s] = [];
+            if (!pattern[s].includes(voice)) { pattern[s].push(voice); painted = true; }
+            const tied = uniform ? (tie[s] || []).includes(0) : (s !== 0);
+            if (tied && !tie[s].includes(voice)) tie[s].push(voice);
+        }
+        if (!painted) return false; // le corps de l'accord est lui-même entièrement muet : rien à copier
+        this.setLiveSeqPattern(pattern, tie);
+        return true;
     }
 
     // Copie (Ctrl+C, voir setupKeyboardShortcuts — actif quand le séquenceur est ouvert) tout le motif
