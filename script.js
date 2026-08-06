@@ -2191,9 +2191,11 @@ const MIDI_ATTACK_WEIGHT = 2;
 const MIDI_DOWNBEAT_WEIGHT = 3;
 
 // Ce qu'on retire du poids d'une note pendant qu'elle est la plus AIGUË du moment : c'est très
-// souvent la mélodie, et une mélodie ne doit pas rebaptiser l'accord qu'elle survole. Une remise, pas
-// un effacement : si la note du dessus appartient à l'accord, rien ne change (elle reste comptée
-// comme présente) — cet ajustement ne joue que dans les mesures MÊLÉES, jamais sur un accord plaqué.
+// souvent la mélodie, et une mélodie ne doit pas rebaptiser l'accord qu'elle survole.
+// La remise ne vise QUE les notes qui bougent pendant que les autres tiennent — être en haut ne
+// suffit pas. Un accord plaqué a bien une note du dessus, elle aussi, et la déprécier suffisait à
+// changer l'accord reconnu : un mi-sol-si♭-do (do 7 avec la tierce à la basse) devenait un mi
+// diminué, parce que le do qui lui donne son nom se trouvait être la note du haut.
 const MIDI_TOP_VOICE_DISCOUNT = 0.4;
 
 // Chute de confiance quand il manque un degré ESSENTIEL, c'est-à-dire un degré qui donne son nom à
@@ -2269,13 +2271,20 @@ function analyzeSegmentHarmony(segment) {
 
     // Poids de chaque classe de hauteur : durée réelle, prime d'attaque, prime de premier temps,
     // remise sur la voix du dessus (voir les constantes ci-dessus).
+    // Ce qui distingue une mélodie d'une voix d'accord, ce n'est pas d'être en haut, c'est de BOUGER
+    // pendant que le reste tient. On ne déprécie donc la voix du dessus que si elle est plus brève
+    // que la note la plus longue du passage : dans un accord plaqué, toutes durent autant, et aucune
+    // n'est dépréciée.
+    const longestSteps = sounding.reduce((max, s) => Math.max(max, s.steps), 0);
     const weightByPc = new Array(12).fill(0);
     let totalWeight = 0;
     let lowestMidi = Infinity;
     for (const s of sounding) {
         let topSteps = 0;
-        for (let st = s.fromStep - startStep; st < s.toStep - startStep; st++) {
-            if (st >= 0 && st < spanSteps && topAtStep[st] === s.note.midi) topSteps++;
+        if (s.steps < longestSteps) {
+            for (let st = s.fromStep - startStep; st < s.toStep - startStep; st++) {
+                if (st >= 0 && st < spanSteps && topAtStep[st] === s.note.midi) topSteps++;
+            }
         }
         const attacked = s.note.startStep >= startStep;
         const onDownbeat = s.fromStep === startStep;
@@ -2346,6 +2355,137 @@ function analyzeSegmentHarmony(segment) {
 // En dessous de ce seuil, on refuse de nommer l'accord : la case devient « à nommer » et ce sont les
 // notes réellement jouées qu'on entendra. Volontairement haut — voir le commentaire d'en-tête.
 const MIDI_CHORD_MIN_CONFIDENCE = 0.62;
+
+// ---------- Import MIDI, étape 4 : rendre au séquenceur le rythme réellement joué ----------
+// Reconnaître l'accord ne suffit pas : ce qui fait qu'un import « sonne comme l'original », c'est le
+// RYTHME. Chaque note du fichier est donc reportée sur la grille de croches du séquenceur, à sa
+// place et pour sa durée, plutôt que remplacée par un motif tout fait.
+
+// Les octaves proposées par l'appli (voir #octave).
+const MIDI_OCTAVE_RANGE = [2, 3, 4, 5];
+
+// Cherche l'octave ET le renversement qui font tomber les voix de l'accord sur les hauteurs
+// RÉELLEMENT jouées. C'est ce qui décide de la lisibilité du résultat : quand le voicing tombe juste,
+// les notes du fichier se rangent dans les voix de l'accord et le séquenceur ressemble à ce qu'on a
+// joué. Quand il tombe à côté (un accord en 1er renversement importé en position fondamentale),
+// chaque note devient une ligne libre par-dessus trois voix muettes — même son, mais séquenceur
+// illisible. Vingt combinaisons à essayer, c'est gratuit ; s'en passer coûte cher.
+function chooseImportVoicing(root, quality, beats, playedMidis) {
+    const played = new Set(playedMidis);
+    const lowest = Math.min(...playedMidis);
+    const voiceCount = (CHORD_INTERVALS[quality] || CHORD_INTERVALS.maj).length;
+    let best = null;
+    for (const octave of MIDI_OCTAVE_RANGE) {
+        for (let inversion = 0; inversion < voiceCount; inversion++) {
+            const midis = new Chord(root, quality, beats, inversion, 'none', octave).getSeqMidiNotes();
+            const hits = midis.filter(m => played.has(m)).length;
+            // À nombre égal de voix qui tombent juste, on garde celle dont la note la plus grave est
+            // la plus proche de la basse jouée : le registre reste celui du morceau.
+            const gap = Math.abs(Math.min(...midis) - lowest);
+            if (!best || hits > best.hits || (hits === best.hits && gap < best.gap)) {
+                best = { octave, inversion, hits, gap };
+            }
+        }
+    }
+    return best;
+}
+
+// Construit la case de grille (l'objet « données d'accord » que le reste de l'appli sait déjà lire)
+// correspondant à UNE mesure du fichier.
+// `analysis` : sortie de analyzeSegmentHarmony, ou null//en dessous du seuil -> aucun accord n'est
+// nommé et TOUTES les notes jouées deviennent des notes libres, pour qu'on entende exactement ce qui
+// a été joué (voir l'étape 5).
+// `opts` : { beats, stepsPerBar, instrument }.
+function buildImportedChordData(bar, analysis, opts) {
+    const { beats, stepsPerBar, instrument } = opts;
+    const named = analysis && analysis.confidence >= MIDI_CHORD_MIN_CONFIDENCE;
+
+    const root = named ? analysis.root : 'C';
+    const quality = named ? analysis.quality : 'maj';
+    const playedMidis = bar.sounding.map(s => s.note.midi);
+    const voicing = named
+        ? chooseImportVoicing(root, quality, beats, playedMidis)
+        : { octave: chooseImportVoicing('C', 'maj', beats, playedMidis).octave, inversion: 0 };
+    const { octave, inversion } = voicing;
+
+    // Voix du CORPS de l'accord, dans l'ordre stable qu'utilise le séquenceur pour indexer ses motifs.
+    // Toujours calculées, même quand l'accord n'est pas nommé : les notes libres s'indexent APRÈS le
+    // corps (voir _computeVoices), donc leur numérotation dépend de ce nombre de voix même si aucune
+    // d'elles ne joue. L'oublier ferait jouer les notes libres sur les voix du corps — un accord de do
+    // parasite par-dessus le passage qu'on voulait justement laisser tel quel.
+    const bodyMidis = new Chord(root, quality, beats, inversion, 'none', octave).getSeqMidiNotes();
+    // ...mais on ne cherche à y rattacher les notes jouées que si l'accord est reconnu : sur une case
+    // « à nommer », tout doit rester note libre, à la hauteur exacte de l'original.
+    const matchable = named ? bodyMidis : [];
+
+    // Une note jouée rejoint une voix de l'accord si elle est EXACTEMENT à sa hauteur — jamais à
+    // l'octave près. La tentation était grande de replier les octaves sur leur voix pour éviter des
+    // lignes en double, mais c'est faux : quand l'accord tient déjà un do, la note de mélodie do
+    // jouée une octave au-dessus disparaissait purement et simplement, absorbée dans une voix qui
+    // sonnait déjà. Le reste devient une note libre à sa hauteur exacte — c'est ce qui garantit qu'on
+    // réentend ce qui a été joué, ce que demandait précisément l'import.
+    const extraNotes = [];
+    const extraIndexByMidi = new Map();
+    const voiceOf = (midi) => {
+        const exact = matchable.indexOf(midi);
+        if (exact >= 0) return exact;
+        if (extraIndexByMidi.has(midi)) return extraIndexByMidi.get(midi);
+        const index = bodyMidis.length + extraNotes.length;
+        extraNotes.push({ note: NOTES[((midi % 12) + 12) % 12], octave: Math.floor(midi / 12) - 1 });
+        extraIndexByMidi.set(midi, index);
+        return index;
+    };
+
+    // Première passe : attribuer sa voix à chaque note, ce qui fixe le nombre total de lignes. Il
+    // faut la faire AVANT d'allouer les tableaux ci-dessous, puisque c'est elle qui crée les notes
+    // libres — les dimensionner avant reviendrait à parier sur leur nombre.
+    const placed = bar.sounding.map(s => ({ s, voice: voiceOf(s.note.midi) }));
+    const totalVoices = bodyMidis.length + extraNotes.length;
+
+    // Seconde passe : « cette voix sonne-t-elle ici, est-elle attaquée ici », puis on en déduit motif
+    // et liaisons. Passer directement par pattern/tie obligerait à gérer à la main les notes qui se
+    // rejoignent sur une même voix (une octave repliée sur sa voix, deux notes successives de même
+    // hauteur), et c'est exactement là que naissent les doublons.
+    const on = Array.from({ length: totalVoices }, () => new Array(stepsPerBar).fill(false));
+    const attack = Array.from({ length: totalVoices }, () => new Array(stepsPerBar).fill(false));
+    for (const { s, voice } of placed) {
+        for (let st = s.fromStep - bar.startStep; st < s.toStep - bar.startStep; st++) {
+            if (st < 0 || st >= stepsPerBar) continue;
+            on[voice][st] = true;
+        }
+        // Une note qui vient d'avant la barre de mesure est réattaquée au premier temps : le motif du
+        // séquenceur ne connaît pas de liaison qui traverse une case de la grille.
+        const first = Math.max(0, s.fromStep - bar.startStep);
+        if (first < stepsPerBar) attack[voice][first] = true;
+    }
+
+    const pattern = [], tie = [];
+    for (let st = 0; st < stepsPerBar; st++) {
+        const voices = [], tied = [];
+        for (let v = 0; v < totalVoices; v++) {
+            if (!on[v][st]) continue;
+            voices.push(v);
+            if (st > 0 && on[v][st - 1] && !attack[v][st]) tied.push(v);
+        }
+        pattern.push(voices);
+        tie.push(tied);
+    }
+
+    return {
+        root, quality, beats, octave, inversion,
+        drop: 'none', bass: null,
+        playStyle: 'held',
+        instrument: instrument || 'piano',
+        arpPattern: serializeSeqPattern(pattern, tie),
+        // Le motif vient du fichier, pas d'un style de jeu : il doit être repris tel quel et jamais
+        // recalculé à partir de playStyle (voir resolveSeqPatternForData).
+        seqEdited: true,
+        guitarLock: null,
+        extraNotes,
+        intensity: DEFAULT_INTENSITY,
+        intensityPerStep: {},
+    };
+}
 
 // Fréquence d'échantillonnage du rendu audio hors-temps réel (export MP3, voir plus bas) : 44,1 kHz,
 // standard universel, largement suffisant pour des accords/nappes (pas de contenu ultrasonique à capter).
