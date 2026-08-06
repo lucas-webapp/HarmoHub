@@ -2964,7 +2964,7 @@ class HarmoHubApp {
         const midis = chord.getMidiNotes();
         const useFlats = this.useFlatsForRoot(chord.root);
         const disp = document.getElementById('current-chord-display');
-        disp.innerHTML = `<span class="chord-title">${flatTight(chord.getLabel(useFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, useFlats)}</span>`;
+        disp.innerHTML = `<span class="chord-chip"><span class="chord-title">${flatTight(chord.getLabel(useFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, useFlats)}</span></span>`;
         this.ensurePianoWindow(midis);
         this.updateViz(midis, chord.getRoleMap());
         // Substitut à la guitare éventuel (voir #guitar-override-btn/guitarChordFor) : le diagramme
@@ -3314,7 +3314,11 @@ class HarmoHubApp {
     // ensureGuitarDiagram, qui fournit `override` explicitement selon le contexte live/lecture seule) :
     // rien si aucun substitut n'est défini pour CET accord précis — comportement d'avant cette
     // fonctionnalité, un seul accord noté pour piano + guitare (retour utilisateur, point 3) — sinon
-    // son nom et ses notes, pour voir tout de suite que la guitare diffère du piano.
+    // son nom et ses notes, pour voir tout de suite que la guitare diffère du piano. Même "chip"
+    // (.chord-chip) que #current-chord-display au-dessus du piano (retour utilisateur : "j'aime bien
+    // le visuel... peux-tu l'appliquer au piano également"), en plus petit (.chord-chip-sm) — et la
+    // croix qui referme le substitut délibérément HORS du cadre, à sa droite (retour utilisateur,
+    // point 2), plutôt que collée dedans avec le nom/les notes.
     renderGuitarOverrideRow(override = this.guitarOverride) {
         const row = document.getElementById('guitar-override-row');
         const btn = document.getElementById('guitar-override-btn');
@@ -3328,7 +3332,7 @@ class HarmoHubApp {
         const chord = new Chord(override.root, override.quality, 4, override.inversion, override.drop, override.octave, override.bass);
         const useFlats = this.useFlatsForRoot(override.root);
         row.hidden = false;
-        row.innerHTML = `<span class="guitar-override-label">${flatTight(chord.getLabel(useFlats))}</span><span class="guitar-override-notes">${chordNotesHtml(chord, useFlats)}</span><button type="button" id="guitar-override-clear" class="icon-btn" title="Revenir à l'accord réellement joué à la guitare" aria-label="Revenir à l'accord réellement joué à la guitare"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>`;
+        row.innerHTML = `<span class="chord-chip chord-chip-sm"><span class="chord-title">${flatTight(chord.getLabel(useFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, useFlats)}</span></span><button type="button" id="guitar-override-clear" class="icon-btn" title="Revenir à l'accord réellement joué à la guitare" aria-label="Revenir à l'accord réellement joué à la guitare"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>`;
         document.getElementById('guitar-override-clear').onclick = () => this.clearGuitarOverride();
         if (btn) { btn.classList.add('active'); btn.setAttribute('aria-pressed', 'true'); }
     }
@@ -3688,7 +3692,7 @@ class HarmoHubApp {
 
         // Au début de cet accord : maj de l'indicateur (nom + notes) et surbrillance dans la grille
         const chordUseFlats = this.useFlatsForRoot(chord.root);
-        const labelHTML = `<span class="chord-title">${flatTight(chord.getLabel(chordUseFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, chordUseFlats)}</span>`;
+        const labelHTML = `<span class="chord-chip"><span class="chord-title">${flatTight(chord.getLabel(chordUseFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, chordUseFlats)}</span></span>`;
         eventIds.push(Tone.Transport.schedule((t) => {
             Tone.Draw.schedule(() => {
                 try {
@@ -3792,7 +3796,7 @@ class HarmoHubApp {
                     this.playMetronomeClick(accent, t);
                 } catch (e) { console.warn('Clic de décompte ignoré :', e.message); }
                 Tone.Draw.schedule(() => {
-                    disp.innerHTML = `Décompte<span class="chord-notes">${label} / ${countInBeats}</span>`;
+                    disp.innerHTML = `<span class="chord-chip"><span class="chord-title">Décompte</span><span class="chord-notes">${label} / ${countInBeats}</span></span>`;
                 }, t);
             }, clickTime);
             // Clic faible sur le contretemps (croche entre ce temps et le suivant), voir metronomeSubdivision
@@ -11646,7 +11650,7 @@ class HarmoHubApp {
 
         // Affiche l'accord sélectionné dans le grand titre + cadre le clavier
         const disp = document.getElementById('current-chord-display');
-        disp.innerHTML = `<span class="chord-title">${flatTight(chord.getLabel(useFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, useFlats)}</span>`;
+        disp.innerHTML = `<span class="chord-chip"><span class="chord-title">${flatTight(chord.getLabel(useFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, useFlats)}</span></span>`;
         this.ensurePianoWindow(midis);
         // Lecture seule (simple clic pour écouter, PAS d'édition en cours) : affiche le verrou PROPRE
         // à cet accord (chord.guitarLock, ci-dessus) plutôt que le this.guitarLock resté en mémoire

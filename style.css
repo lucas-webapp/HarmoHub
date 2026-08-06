@@ -995,35 +995,62 @@ main {
     margin-bottom: 14px;
 }
 
+/* Le grand titre d'origine (fs-2xl, empilé nom/notes) prenait beaucoup de place — retour utilisateur,
+   qui a préféré le petit bandeau compact posé au-dessus du diagramme guitare (voir
+   #guitar-override-row/.chord-chip-sm plus bas) et a demandé de reprendre CE visuel ici aussi : un
+   seul "chip" bordé, nom + notes CÔTE À CÔTE plutôt qu'empilés. #current-chord-display reste le simple
+   conteneur qui centre ce chip dans .chord-header-row (voir flex:1 ci-dessous) ; c'est .chord-chip
+   lui-même qui porte le cadre. */
 #current-chord-display {
     flex: 1;
     min-width: 0;
-    text-align: center;
-    font-size: var(--fs-2xl);
-    font-weight: 700;
-    margin-bottom: 0;
-    min-height: 48px;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+}
+
+/* "Chip" partagé par le titre piano (#current-chord-display) ET le bandeau de substitution guitare
+   (#guitar-override-row, voir renderGuitarOverrideRow) — même cadre, même fond discret. Un seul
+   modificateur (.chord-chip-sm) réduit la taille de police pour la guitare : le titre piano reste
+   la référence PRINCIPALE (retour utilisateur, point 1 : "police légèrement plus grosse que la
+   police accord modifié" — .chord-chip seul, sans le modificateur, sert donc de taille "normale" au
+   piano ; .chord-chip-sm, un cran en dessous, à la guitare). */
+.chord-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 14px;
+    background: rgba(0, 230, 118, 0.08);
+    border: 1px solid rgba(0, 230, 118, 0.25);
+    border-radius: 8px;
+    max-width: 100%;
 }
 /* Gris clair homogène avec le reste de l'appli (même ton que le texte courant) plutôt que l'accent
    vert, qui accaparait trop l'attention pour un simple nom d'accord — voir retour utilisateur. */
-.chord-title { color: var(--text-main); }
+.chord-chip .chord-title {
+    color: var(--text-main);
+    font-size: var(--fs-md);
+    font-weight: 700;
+    white-space: nowrap;
+}
+.chord-chip-sm .chord-title { font-size: var(--fs-sm); }
 
 /* Chaque note est son propre "chip" : l'espace généreux (gap) ne sépare QUE les notes entre elles,
    jamais les caractères à l'intérieur d'une même note (le ♭ doit rester collé à sa lettre) — d'où
-   l'abandon du letter-spacing, qui espaçait tout uniformément. */
-.chord-notes {
+   l'abandon du letter-spacing, qui espaçait tout uniformément. Séparateur (bordure gauche, retour
+   utilisateur, point 3 : "une petite séparation entre le nom de l'accord et les notes jouées") plutôt
+   qu'un simple espace : bien plus net entre les deux groupes, à cette taille compacte. */
+.chord-chip .chord-notes {
     display: inline-flex;
     flex-wrap: wrap;
-    justify-content: center;
-    gap: 4px 14px;
-    font-size: var(--fs-md);
+    align-items: center;
+    gap: 4px 10px;
+    font-size: var(--fs-sm);
     font-weight: 400;
+    padding-left: 10px;
+    border-left: 1px solid rgba(255, 255, 255, 0.18);
 }
+.chord-chip-sm .chord-notes { font-size: var(--fs-xs); }
 .chord-note { white-space: nowrap; }
 /* Même code couleur que le clavier/la légende (voir .key.active.role-*/.dot-*), en pâle pour rester
    discret à cette taille de texte plutôt que reprendre les teintes vives du clavier. */
@@ -1864,33 +1891,18 @@ button:active { transform: translateY(1px); }
 
 /* Accord de substitution à la guitare (voir #guitar-override-btn/renderGuitarOverrideRow dans
    script.js) : petit bandeau discret au-dessus du diagramme, masqué tant qu'aucun substitut n'est
-   défini — même code couleur que #current-chord-display (.chord-note.role-*) pour rester cohérent,
-   mais nettement plus petit : c'est une annotation secondaire, pas le titre principal. */
+   défini. Le cadre/fond eux-mêmes vivent désormais sur .chord-chip (voir plus haut, partagé avec
+   #current-chord-display) : cette rangée ne fait plus que centrer CE chip + la croix qui le referme,
+   délibérément HORS du cadre à sa droite (retour utilisateur, point 2 : "sortir la croix... du
+   rectangle") plutôt que collée dedans avec le nom/les notes. */
 .guitar-override-row {
     display: flex;
     align-items: center;
     justify-content: center;
     flex-wrap: wrap;
-    gap: 4px 10px;
+    gap: 6px;
     margin-bottom: 6px;
-    padding: 4px 10px;
-    background: rgba(0, 230, 118, 0.08);
-    border: 1px solid rgba(0, 230, 118, 0.25);
-    border-radius: 8px;
     max-width: 100%;
-}
-.guitar-override-label {
-    font-size: var(--fs-sm);
-    font-weight: 700;
-    color: var(--text-main);
-    white-space: nowrap;
-}
-.guitar-override-notes {
-    display: inline-flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 2px 8px;
-    font-size: var(--fs-xs);
 }
 .guitar-override-row .icon-btn {
     width: 22px;
