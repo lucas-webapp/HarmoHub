@@ -2168,6 +2168,185 @@ function segmentMidiNotes(parsed) {
     return { bpm, timeSig: grid.label, beatsPerBar: grid.beatsPerBar, stepsPerBar, totalSteps, notes, bars, warnings };
 }
 
+// ---------- Import MIDI, étape 3 : reconnaître un accord dans un passage ----------
+// Le travail inverse de l'appli : au lieu de dérouler un accord en notes, retrouver l'accord à partir
+// des notes. On ne cherche pas seulement LEQUEL, mais aussi À QUEL POINT on en est sûr : c'est cet
+// indice de confiance qui décidera, plus loin, si la case reçoit un vrai nom d'accord ou la mention
+// « à nommer ». Se tromper de nom coûte cher (l'utilisateur doit défaire), avouer son ignorance ne
+// coûte presque rien (il nomme lui-même, et les vraies notes continuent de sonner) : tout le réglage
+// penche donc volontairement du côté prudent.
+
+// Poids de chaque degré dans le « est-ce que l'accord est vraiment là ». La tierce vaut autant que la
+// fondamentale (c'est elle qui fait majeur ou mineur) ; la quinte est la note la plus facilement
+// omise par un pianiste, donc son absence ne doit presque pas pénaliser.
+const CHORD_ROLE_WEIGHT = { root: 3, third: 3, seventh: 2, ext: 2, fifth: 1 };
+
+// Une attaque compte comme ce nombre de croches de présence, en plus de la durée réelle. Sans ça,
+// trois accords brefs et répétés (2 croches chacun) pèseraient moins qu'une seule note de mélodie
+// tenue toute la mesure, et c'est la mélodie qui donnerait son nom à l'accord.
+const MIDI_ATTACK_WEIGHT = 2;
+
+// Prime aux notes déjà présentes sur le premier temps du passage : c'est là qu'on plaque l'accord,
+// et c'est ce qu'on entend en premier qui donne sa couleur à la mesure.
+const MIDI_DOWNBEAT_WEIGHT = 3;
+
+// Ce qu'on retire du poids d'une note pendant qu'elle est la plus AIGUË du moment : c'est très
+// souvent la mélodie, et une mélodie ne doit pas rebaptiser l'accord qu'elle survole. Une remise, pas
+// un effacement : si la note du dessus appartient à l'accord, rien ne change (elle reste comptée
+// comme présente) — cet ajustement ne joue que dans les mesures MÊLÉES, jamais sur un accord plaqué.
+const MIDI_TOP_VOICE_DISCOUNT = 0.4;
+
+// Chute de confiance quand il manque un degré ESSENTIEL, c'est-à-dire un degré qui donne son nom à
+// l'accord (fondamentale, tierce, septième, ou la note suspendue d'un sus2/sus4 — tout ce qui pèse
+// au moins 2 dans CHORD_ROLE_WEIGHT). Sans tierce, majeur et mineur sonnent pareil : une quinte à
+// vide ne dit rien de l'accord. Plutôt que de trancher à pile ou face, on avoue l'ignorance — la
+// case deviendra « à nommer » et les notes réellement jouées se feront entendre telles quelles.
+// La quinte, elle, ne compte pas comme essentielle : c'est la note qu'un pianiste omet le plus
+// volontiers, et un do-mi-si reste sans hésitation un do maj7.
+const MIDI_ESSENTIAL_ROLE_WEIGHT = 2;
+const MIDI_MISSING_ESSENTIAL_PENALTY = 0.55;
+
+// Deux hauteurs différentes ne font pas un accord, quoi qu'on en dise : do + sol se lit aussi bien
+// comme un do, un do mineur, ou le fa d'un sol suspendu. Il en faut trois pour qu'un nom veuille dire
+// quelque chose. (C'est bien le nombre de notes de l'accord ENTENDUES qui compte, pas le nombre de
+// notes jouées : un unisson doublé à l'octave reste une seule hauteur.)
+const MIDI_MIN_CHORD_TONES = 3;
+const MIDI_SPARSE_PENALTY = 0.6;
+
+// Légère préférence pour l'accord le plus simple, par note supplémentaire au-delà de la triade. Une
+// mélodie qui traverse la sixte ne doit pas transformer un fa majeur en fa 6 pour si peu : à
+// explication presque égale, on nomme l'accord le plus sobre. Volontairement faible — une vraie
+// septième, elle, gagne très largement et n'est pas concernée.
+const MIDI_SIMPLICITY_BIAS = 0.04;
+
+// Classes de hauteur d'une qualité, avec le poids de chaque degré. Mémorisé une fois pour toutes :
+// la reconnaissance essaie 12 fondamentales × une vingtaine de qualités pour CHAQUE mesure.
+const CHORD_QUALITY_PROFILES = Object.keys(CHORD_INTERVALS).map(quality => {
+    const weights = new Map();
+    for (const iv of CHORD_INTERVALS[quality]) {
+        const pc = ((iv.semi % 12) + 12) % 12;
+        const w = CHORD_ROLE_WEIGHT[iv.role] || 1;
+        weights.set(pc, Math.max(weights.get(pc) || 0, w));
+    }
+    let total = 0;
+    for (const w of weights.values()) total += w;
+    const essentialPcs = [...weights.entries()]
+        .filter(([, w]) => w >= MIDI_ESSENTIAL_ROLE_WEIGHT)
+        .map(([pc]) => pc);
+    return { quality, weights, totalWeight: total, size: weights.size, essentialPcs };
+});
+
+// Analyse un passage (une mesure, ou n'importe quelle tranche) et rend l'accord le plus probable.
+// `segment` : { startStep, endStep, sounding } tel que produit par segmentMidiNotes — la fonction
+// travaille sur n'importe quelle tranche, ce qui permettra plus tard de découper une mesure en deux
+// si elle contient deux accords.
+// Retour : null si le passage est muet, sinon
+//   { root, quality, rootPc, bassPc, confidence, explained, completeness, bassScore,
+//     avgSimultaneous, pitchClasses, alternatives }
+function analyzeSegmentHarmony(segment) {
+    const { startStep, endStep, sounding } = segment;
+    if (!sounding || !sounding.length) return null;
+    const spanSteps = endStep - startStep;
+
+    // Une passe préalable sur la durée du passage : combien de notes sonnent à chaque croche, et
+    // laquelle est la plus aiguë. Sert à deux choses très différentes — mesurer la polyphonie, et
+    // repérer la voix du dessus (la mélodie, le plus souvent).
+    const perStep = new Array(spanSteps).fill(0);
+    const topAtStep = new Array(spanSteps).fill(-1);
+    for (const s of sounding) {
+        for (let st = s.fromStep - startStep; st < s.toStep - startStep; st++) {
+            if (st < 0 || st >= spanSteps) continue;
+            perStep[st]++;
+            if (s.note.midi > topAtStep[st]) topAtStep[st] = s.note.midi;
+        }
+    }
+    // Combien de notes sonnent EN MÊME TEMPS, en moyenne, sur les croches où l'on entend quelque
+    // chose. C'est le meilleur indice pour séparer un accord plaqué (3-4 notes ensemble) d'une
+    // mélodie (1 note à la fois) — bien plus fiable que le contenu en hauteurs, qui peut être
+    // trompeur : une gamme de do majeur ne fait pas un accord de do majeur.
+    const busy = perStep.filter(c => c > 0);
+    const avgSimultaneous = busy.length ? busy.reduce((a, b) => a + b, 0) / busy.length : 0;
+
+    // Poids de chaque classe de hauteur : durée réelle, prime d'attaque, prime de premier temps,
+    // remise sur la voix du dessus (voir les constantes ci-dessus).
+    const weightByPc = new Array(12).fill(0);
+    let totalWeight = 0;
+    let lowestMidi = Infinity;
+    for (const s of sounding) {
+        let topSteps = 0;
+        for (let st = s.fromStep - startStep; st < s.toStep - startStep; st++) {
+            if (st >= 0 && st < spanSteps && topAtStep[st] === s.note.midi) topSteps++;
+        }
+        const attacked = s.note.startStep >= startStep;
+        const onDownbeat = s.fromStep === startStep;
+        const raw = s.steps + (attacked ? MIDI_ATTACK_WEIGHT : 0) + (onDownbeat ? MIDI_DOWNBEAT_WEIGHT : 0);
+        const w = raw * (1 - MIDI_TOP_VOICE_DISCOUNT * (s.steps ? topSteps / s.steps : 0));
+        weightByPc[s.note.midi % 12] += w;
+        totalWeight += w;
+        if (s.note.midi < lowestMidi) lowestMidi = s.note.midi;
+    }
+    if (!totalWeight) return null;
+    const bassPc = lowestMidi % 12;
+
+    let best = null;
+    const scored = [];
+    for (let rootPc = 0; rootPc < 12; rootPc++) {
+        for (const profile of CHORD_QUALITY_PROFILES) {
+            let covered = 0, present = 0, heardTones = 0;
+            for (const [pc, roleWeight] of profile.weights) {
+                const w = weightByPc[(rootPc + pc) % 12];
+                if (w > 0) { covered += w; present += roleWeight; heardTones++; }
+            }
+            // Part du passage réellement expliquée par cet accord (le reste, ce sont des notes
+            // étrangères : mélodie, passage, broderie).
+            const explained = covered / totalWeight;
+            // Part de l'accord réellement entendue : un accord dont il manque la fondamentale ET la
+            // tierce n'est pas cet accord, même si tout ce qu'on entend lui appartient.
+            const completeness = present / profile.totalWeight;
+            const bassScore = (bassPc === rootPc) ? 1
+                : (profile.weights.has(((bassPc - rootPc) % 12 + 12) % 12) ? 0.6 : 0.15);
+            // Voir MIDI_MISSING_ESSENTIAL_PENALTY : un degré qui donne son nom à l'accord et qu'on
+            // n'entend pas, c'est un accord qu'on ne peut pas nommer.
+            const essentialsHeard = profile.essentialPcs.every(pc => weightByPc[(rootPc + pc) % 12] > 0);
+            const harmonic = (0.5 * explained + 0.3 * completeness + 0.2 * bassScore)
+                * (essentialsHeard ? 1 : MIDI_MISSING_ESSENTIAL_PENALTY);
+
+            // Deux façons d'être crédible : soit les notes sonnent ENSEMBLE (accord plaqué), soit
+            // elles forment exactement l'accord et rien d'autre (arpège). Une mélodie ne remplit ni
+            // l'une ni l'autre, et c'est précisément ce qu'on veut voir retomber sur « à nommer ».
+            // Comparaisons à 0.999 et non à 1 : `explained` est un rapport de sommes de flottants,
+            // qui vaut 0,9999999999999999 aussi souvent que 1 — un test d'égalité stricte faisait
+            // silencieusement rater les arpèges les mieux formés.
+            const polyphony = Math.max(0, Math.min(1, (avgSimultaneous - 1) / 2));
+            const pure = (explained >= 0.999 && completeness >= 0.999) ? 0.8 : 0;
+            const support = Math.max(polyphony, pure);
+            const simplicity = 1 - MIDI_SIMPLICITY_BIAS * Math.max(0, profile.size - 3);
+            const sparse = heardTones >= MIDI_MIN_CHORD_TONES ? 1 : MIDI_SPARSE_PENALTY;
+            const confidence = harmonic * (0.5 + 0.5 * support) * simplicity * sparse;
+
+            const cand = {
+                rootPc, root: NOTES[rootPc], quality: profile.quality,
+                confidence, explained, completeness, bassScore,
+            };
+            scored.push(cand);
+            if (!best || cand.confidence > best.confidence) best = cand;
+        }
+    }
+
+    scored.sort((a, b) => b.confidence - a.confidence);
+    return {
+        ...best,
+        bassPc,
+        avgSimultaneous,
+        pitchClasses: weightByPc.map((w, pc) => (w > 0 ? pc : -1)).filter(pc => pc >= 0),
+        alternatives: scored.slice(1, 4).map(c => ({ root: c.root, quality: c.quality, confidence: c.confidence })),
+    };
+}
+
+// En dessous de ce seuil, on refuse de nommer l'accord : la case devient « à nommer » et ce sont les
+// notes réellement jouées qu'on entendra. Volontairement haut — voir le commentaire d'en-tête.
+const MIDI_CHORD_MIN_CONFIDENCE = 0.62;
+
 // Fréquence d'échantillonnage du rendu audio hors-temps réel (export MP3, voir plus bas) : 44,1 kHz,
 // standard universel, largement suffisant pour des accords/nappes (pas de contenu ultrasonique à capter).
 const MP3_SAMPLE_RATE = 44100;
