@@ -1966,6 +1966,7 @@ class HarmoHubApp {
         this.clipboard = null;     // presse-papier (copier/coller d'accords)
         this.chordClipboard = null; // presse-papier NOM + VOICING seuls (voir copyChordIdentity/pasteChordIdentity) — pipette du menu contextuel, distincte de this.clipboard
         this.rhythmClipboard = null; // presse-papier RYTHME + DURÉE seuls (voir copyChordRhythm/pasteChordRhythm) — pipette complémentaire, jamais les notes de l'accord
+        this.chordAllClipboard = null; // presse-papier de l'accord ENTIER (voir copyChordAll/pasteChordAll) — écrase une case EXISTANTE en place, contrairement à this.clipboard qui en insère une NOUVELLE
         this.pianoWindow = null;   // fenêtre clavier courante
         this.guitarKey = null;     // signature (midis triés) du dernier accord affiché à la guitare
         this.guitarIdentityKey = null; // signature de CE QUI DÉFINIT VRAIMENT l'accord joué à la guitare
@@ -2675,6 +2676,16 @@ class HarmoHubApp {
             const t = this.contextMenuTarget;
             this.closeContextMenu();
             if (t && t.type === 'chord') this.pasteChordRhythm(t.section, t.index);
+        };
+        document.querySelector('[data-ctx-action="copy-all"]').onclick = () => {
+            const t = this.contextMenuTarget;
+            this.closeContextMenu();
+            if (t && t.type === 'chord') this.copyChordAll(t.section, t.index);
+        };
+        document.querySelector('[data-ctx-action="paste-all"]').onclick = () => {
+            const t = this.contextMenuTarget;
+            this.closeContextMenu();
+            if (t && t.type === 'chord') this.pasteChordAll(t.section, t.index);
         };
         document.querySelector('[data-ctx-action="delete"]').onclick = () => {
             const t = this.contextMenuTarget;
@@ -6414,6 +6425,8 @@ class HarmoHubApp {
         menu.querySelector('[data-ctx-action="paste-identity"]').hidden = !isChord || !this.chordClipboard;
         menu.querySelector('[data-ctx-action="copy-rhythm"]').hidden = !isChord;
         menu.querySelector('[data-ctx-action="paste-rhythm"]').hidden = !isChord || !this.rhythmClipboard;
+        menu.querySelector('[data-ctx-action="copy-all"]').hidden = !isChord;
+        menu.querySelector('[data-ctx-action="paste-all"]').hidden = !isChord || !this.chordAllClipboard;
         menu.hidden = false;
         const pad = 8;
         const left = Math.min(x, window.innerWidth - menu.offsetWidth - pad);
@@ -11974,6 +11987,40 @@ class HarmoHubApp {
         if (this.editingIndex === index && this.activeSection === section) this.editChord(section, index);
         else this.loadProgression();
         this.flashHint('Rythme appliqué à cet accord');
+    }
+
+    // ---------- Pipette « tout » (menu contextuel, copier/coller l'accord dans son intégralité) ----------
+    // Réunit les deux pipettes ci-dessus en une seule (retour utilisateur : "je veux bien une pipette
+    // tout") : fondamentale + voicing + durée + rythme, absolument tout ce qui définit l'accord source,
+    // appliqué à un accord EXISTANT DIFFÉRENT — à sa PLACE dans la grille (position/index inchangés).
+    // Différent de Ctrl+C/Ctrl+V (this.clipboard, copySelected/pasteChord) qui DUPLIQUENT l'accord source
+    // comme une NOUVELLE case : ceci écrase entièrement une case déjà là, pratique pour remplacer un
+    // accord sans avoir à retoucher sa position ni à en supprimer un autre à côté. Un simple clone
+    // profond du champ brut, RIEN à adapter (contrairement à la pipette de rythme) : la fondamentale/
+    // qualité/voicing voyagent avec le rythme, donc l'arpPattern recopié reste valide tel quel pour le
+    // nombre de voix de CET accord.
+    copyChordAll(section, index) {
+        const sections = loadProgressionSections();
+        const data = sections[section] && sections[section].chords[index];
+        if (!data) return;
+        this.chordAllClipboard = JSON.parse(JSON.stringify(data));
+        this.flashHint('Accord entier prélevé — clic droit sur un autre accord puis « Coller tout »');
+    }
+
+    pasteChordAll(section, index) {
+        const clip = this.chordAllClipboard;
+        if (!clip) return;
+        const sections = loadProgressionSections();
+        const history = sections[section] && sections[section].chords;
+        if (!history || !history[index]) return;
+        this.pushUndo(sections);
+        history[index] = JSON.parse(JSON.stringify(clip));
+        saveProgressionSections(sections);
+        // Si CET accord est celui actuellement ouvert dans le panneau Accord, le refléter aussitôt
+        // plutôt que de laisser le panneau/séquenceur périmés sur l'ancien accord.
+        if (this.editingIndex === index && this.activeSection === section) this.editChord(section, index);
+        else this.loadProgression();
+        this.flashHint('Accord entier appliqué à cette case');
     }
 
     // Duplique un accord donné (bouton ⧉) : la copie se place juste après, dans la même partie

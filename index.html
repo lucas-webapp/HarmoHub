@@ -121,6 +121,18 @@
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 10 14"/><path d="M10 14c-3 0-5 2-5 5 0 1-1 1-1 1s3 1 5-1c2-2 2-3 2-3"/><path d="M16 9v1.6"/><path d="M19 6v4.6"/><path d="M22 3v7.6"/></svg>
             <span class="ctx-label">Coller le rythme</span>
         </button>
+        <!-- Pipette « tout » — voir copyChordAll/pasteChordAll dans script.js. Retour utilisateur : "je
+             veux bien une pipette tout" (réunit accord+voicing+durée+rythme, écrase la case ciblée EN
+             PLACE). Icône provisoire (étoile au bout de la pipette/pinceau = "tout") — à remplacer une
+             fois le style choisi parmi les propositions. -->
+        <button type="button" data-ctx-action="copy-all" hidden>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 8 8 17"/><path d="m8 17-2 5 5-2"/><path d="M20 2l.8 1.7L22.5 4.5l-1.7.8L20 7l-.8-1.7L17.5 4.5l1.7-.8Z"/></svg>
+            <span class="ctx-label">Copier tout</span>
+        </button>
+        <button type="button" data-ctx-action="paste-all" hidden>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 8 9 16"/><path d="M9 16c-3 0-5 2-5 5 0 1-1 1-1 1s3 1 5-1c2-2 2-3 2-3"/><path d="M20 2l.8 1.7L22.5 4.5l-1.7.8L20 7l-.8-1.7L17.5 4.5l1.7-.8Z"/></svg>
+            <span class="ctx-label">Coller tout</span>
+        </button>
         <button type="button" data-ctx-action="delete">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
             <span class="ctx-label">Supprimer</span>
@@ -984,6 +996,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608061701"></script>
+    <script src="script.js?v=202608061801"></script>
 </body>
 </html>
