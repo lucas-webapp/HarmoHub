@@ -94,43 +94,39 @@
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20v-6"/><path d="M10 20V6"/><path d="M16 20v-9"/><path d="M20 20v-4"/></svg>
             <span class="ctx-label">Séquenceur</span>
         </button>
-        <!-- Pipette d'accord (nom + voicing) — voir copyChordIdentity/pasteChordIdentity dans script.js.
-             Retour utilisateur, en deux temps : d'abord "une pipette pour copier/coller l'accord et son
-             voicing", puis "pipette nom de l'accord... mieux que pipette voicing actuelle qui n'est pas
-             très utile" — recopie donc aussi la fondamentale désormais (pas seulement qualité/voicing),
-             jamais la durée ni le rythme du séquenceur (voir la pipette dédiée juste en dessous). Icône
-             pipette (cercle = « la couleur prélevée ») / pinceau qui l'applique. -->
+        <!-- Les 3 pipettes de la grille (Accord/Rythme/Tout, voir copyChordIdentity/copyChordRhythm/
+             copyChordAll dans script.js) partagent toutes le MÊME pinceau (virole à rainure, poils en
+             bas au bord irrégulier — dessiné d'après une photo de référence fournie par l'utilisateur,
+             en contour comme le reste du menu, ni pipette-goutte ni badge arbitraire : ces versions-là
+             ont été jugées peu parlantes). Seule la matière sous les poils change, et porte tout le sens
+             (retour utilisateur : "ça n'a pas de cohérence avec ce que fait vraiment le pinceau") :
+               - Accord (fondamentale + voicing) : la lettre d'un nom d'accord (« C » = Do).
+               - Rythme (motif du séquenceur + durée) : des blocs, comme les pas du séquenceur.
+               - Tout : la trace pleine, d'un seul bloc.
+             Copier et Coller réutilisent volontairement la même icône dans chaque paire : le libellé
+             suffit à les distinguer, sans ajouter un langage visuel de plus. -->
         <button type="button" data-ctx-action="copy-identity" hidden>
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 4 8 16"/><path d="m8 16-2 5 5-2"/><circle cx="20" cy="4" r="2"/></svg>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.95 3.5a1.05 1.05 0 0 1 2.1 0l.2 4.35h-2.5z"/><path d="M8.6 7.85h6.8v3.5H8.6z"/><path d="M8.6 9.6h6.8"/><path d="M8.6 11.35h6.8v3.5l-1.15 1.6-1.1-1.35-1.15 1.5-1.1-1.4-1.15 1.45-1.15-1.45z"/><text x="12" y="22.3" text-anchor="middle" font-size="8.6" font-weight="700" font-family="Arial, sans-serif" fill="currentColor" stroke="none">C</text></svg>
             <span class="ctx-label">Copier l'accord</span>
         </button>
         <button type="button" data-ctx-action="paste-identity" hidden>
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 4 10 14"/><path d="M10 14c-3 0-5 2-5 5 0 1-1 1-1 1s3 1 5-1c2-2 2-3 2-3"/></svg>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.95 3.5a1.05 1.05 0 0 1 2.1 0l.2 4.35h-2.5z"/><path d="M8.6 7.85h6.8v3.5H8.6z"/><path d="M8.6 9.6h6.8"/><path d="M8.6 11.35h6.8v3.5l-1.15 1.6-1.1-1.35-1.15 1.5-1.1-1.4-1.15 1.45-1.15-1.45z"/><text x="12" y="22.3" text-anchor="middle" font-size="8.6" font-weight="700" font-family="Arial, sans-serif" fill="currentColor" stroke="none">C</text></svg>
             <span class="ctx-label">Coller l'accord</span>
         </button>
-        <!-- Pipette de rythme — voir copyChordRhythm/pasteChordRhythm dans script.js. Retour
-             utilisateur : "une pipette rythme : recopie le rythme du séquenceur et la durée de l'accord
-             à un autre accord, sans changer les notes". Même silhouette pipette/pinceau que ci-dessus
-             (même famille d'action), mais 3 petits bâtons façon pouls/égaliseur au lieu du cercle : ce
-             qui est prélevé cette fois, c'est un RYTHME, pas une couleur/identité. -->
         <button type="button" data-ctx-action="copy-rhythm" hidden>
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 8 16"/><path d="m8 16-2 5 5-2"/><path d="M16 9v1.6"/><path d="M19 6v4.6"/><path d="M22 3v7.6"/></svg>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.95 3.5a1.05 1.05 0 0 1 2.1 0l.2 4.35h-2.5z"/><path d="M8.6 7.85h6.8v3.5H8.6z"/><path d="M8.6 9.6h6.8"/><path d="M8.6 11.35h6.8v3.5l-1.15 1.6-1.1-1.35-1.15 1.5-1.1-1.4-1.15 1.45-1.15-1.45z"/><rect x="3.4" y="19.5" width="5.2" height="2.3" rx="1.15" fill="currentColor" stroke="none"/><rect x="10.1" y="19.5" width="2.5" height="2.3" rx="1.15" fill="currentColor" stroke="none"/><rect x="14.1" y="19.5" width="6.5" height="2.3" rx="1.15" fill="currentColor" stroke="none"/></svg>
             <span class="ctx-label">Copier le rythme</span>
         </button>
         <button type="button" data-ctx-action="paste-rhythm" hidden>
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 10 14"/><path d="M10 14c-3 0-5 2-5 5 0 1-1 1-1 1s3 1 5-1c2-2 2-3 2-3"/><path d="M16 9v1.6"/><path d="M19 6v4.6"/><path d="M22 3v7.6"/></svg>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.95 3.5a1.05 1.05 0 0 1 2.1 0l.2 4.35h-2.5z"/><path d="M8.6 7.85h6.8v3.5H8.6z"/><path d="M8.6 9.6h6.8"/><path d="M8.6 11.35h6.8v3.5l-1.15 1.6-1.1-1.35-1.15 1.5-1.1-1.4-1.15 1.45-1.15-1.45z"/><rect x="3.4" y="19.5" width="5.2" height="2.3" rx="1.15" fill="currentColor" stroke="none"/><rect x="10.1" y="19.5" width="2.5" height="2.3" rx="1.15" fill="currentColor" stroke="none"/><rect x="14.1" y="19.5" width="6.5" height="2.3" rx="1.15" fill="currentColor" stroke="none"/></svg>
             <span class="ctx-label">Coller le rythme</span>
         </button>
-        <!-- Pipette « tout » — voir copyChordAll/pasteChordAll dans script.js. Retour utilisateur : "je
-             veux bien une pipette tout" (réunit accord+voicing+durée+rythme, écrase la case ciblée EN
-             PLACE). Icône provisoire (étoile au bout de la pipette/pinceau = "tout") — à remplacer une
-             fois le style choisi parmi les propositions. -->
         <button type="button" data-ctx-action="copy-all" hidden>
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 8 8 17"/><path d="m8 17-2 5 5-2"/><path d="M20 2l.8 1.7L22.5 4.5l-1.7.8L20 7l-.8-1.7L17.5 4.5l1.7-.8Z"/></svg>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.95 3.5a1.05 1.05 0 0 1 2.1 0l.2 4.35h-2.5z"/><path d="M8.6 7.85h6.8v3.5H8.6z"/><path d="M8.6 9.6h6.8"/><path d="M8.6 11.35h6.8v3.5l-1.15 1.6-1.1-1.35-1.15 1.5-1.1-1.4-1.15 1.45-1.15-1.45z"/><rect x="3.4" y="19.2" width="17.2" height="2.9" rx="1.45" fill="currentColor" stroke="none"/></svg>
             <span class="ctx-label">Copier tout</span>
         </button>
         <button type="button" data-ctx-action="paste-all" hidden>
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 8 9 16"/><path d="M9 16c-3 0-5 2-5 5 0 1-1 1-1 1s3 1 5-1c2-2 2-3 2-3"/><path d="M20 2l.8 1.7L22.5 4.5l-1.7.8L20 7l-.8-1.7L17.5 4.5l1.7-.8Z"/></svg>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.95 3.5a1.05 1.05 0 0 1 2.1 0l.2 4.35h-2.5z"/><path d="M8.6 7.85h6.8v3.5H8.6z"/><path d="M8.6 9.6h6.8"/><path d="M8.6 11.35h6.8v3.5l-1.15 1.6-1.1-1.35-1.15 1.5-1.1-1.4-1.15 1.45-1.15-1.45z"/><rect x="3.4" y="19.2" width="17.2" height="2.9" rx="1.45" fill="currentColor" stroke="none"/></svg>
             <span class="ctx-label">Coller tout</span>
         </button>
         <button type="button" data-ctx-action="delete">
