@@ -329,6 +329,22 @@ function noteNameForPc(pc, useFlats) {
     return (useFlats ? NOTES_FLAT : NOTES)[i];
 }
 
+// Ce qu'affiche une case dont l'accord n'a pas pu être reconnu à l'import d'un fichier MIDI (voir
+// buildImportedChordData). Le passage continue de sonner exactement comme il a été joué — c'est
+// seulement son NOM qui manque, et l'inventer coûterait plus cher que l'avouer.
+const UNNAMED_CHORD_LABEL = 'à nommer';
+
+// Symbole affiché d'une case de la grille. UNIQUE endroit où se décide ce qu'on lit sur un accord :
+// grille classique, loupe, PDF, export vers Paroles et infobulles du séquenceur passent tous par ici,
+// pour qu'une case « à nommer » le reste partout et ne réapparaisse jamais sous un nom inventé dans
+// un coin de l'appli qu'on aurait oublié de mettre à jour.
+function chordSymbolForData(data, useFlats) {
+    if (data.unnamed) return UNNAMED_CHORD_LABEL;
+    let sym = noteNameForPc(NOTES.indexOf(data.root), useFlats) + (QUALITY_LABEL[data.quality] ?? '');
+    if (data.bass) sym += '/' + noteNameForPc(NOTES.indexOf(data.bass), useFlats);
+    return sym;
+}
+
 // Nom de note affichable (avec octave) pour un numéro MIDI, selon la tonalité
 function midiToDisplayName(midi, useFlats) {
     const pc = ((midi % 12) + 12) % 12;
@@ -1192,6 +1208,8 @@ class Chord {
 
     // Symbole SANS renversement/drop, ex : "Cmaj7/Ré" — voir getVoicingSuffix pour cette partie à
     // part, et getLabel() qui recombine les deux pour l'affichage habituel (aperçu, séquenceur...).
+    // Voir chordSymbolForData : le label BRUT de l'accord, sans tenir compte du drapeau « à nommer »
+    // (qui vit sur les données de la case, pas sur l'accord lui-même).
     getBareLabel(useFlats = false) {
         let sym = noteNameForPc(NOTES.indexOf(this.root), useFlats) + (QUALITY_LABEL[this.quality] ?? '');
         if (this.bass) sym += '/' + noteNameForPc(NOTES.indexOf(this.bass), useFlats);
@@ -2474,6 +2492,11 @@ function buildImportedChordData(bar, analysis, opts) {
     return {
         root, quality, beats, octave, inversion,
         drop: 'none', bass: null,
+        // Case dont l'accord n'a pas pu être reconnu : elle affichera « à nommer » partout (voir
+        // chordSymbolForData) au lieu du do majeur de remplissage qui lui sert de support. Ce do ne
+        // sonne jamais — aucune de ses voix n'est active dans le motif ci-dessus — et le drapeau
+        // disparaît de lui-même dès que l'utilisateur donne un nom à la case.
+        unnamed: !named,
         playStyle: 'held',
         instrument: instrument || 'piano',
         arpPattern: serializeSeqPattern(pattern, tie),
@@ -5492,8 +5515,7 @@ class HarmoHubApp {
                 gridInner = cells.map(s => {
                     const h = history[s.index];
                     const chordUseFlats = useFlatsForChordRoot(NOTES.indexOf(h.root), NOTES.indexOf(gRoot), gMode, useFlats);
-                    let sym = noteNameForPc(NOTES.indexOf(h.root), chordUseFlats) + (QUALITY_LABEL[h.quality] ?? '');
-                    if (h.bass) sym += '/' + noteNameForPc(NOTES.indexOf(h.bass), chordUseFlats);
+                    const sym = chordSymbolForData(h, chordUseFlats);
 
                     let cls = 'grid-cell';
                     if (dragging && this.drag.section === si && s.index === this.drag.index) {
@@ -5512,6 +5534,10 @@ class HarmoHubApp {
                     if (s.barStart) cls += ' bar-start';
                     // police réduite pour les segments courts (peu de temps)
                     if (s.span === 1) cls += ' sz1'; else if (s.span === 2) cls += ' sz2';
+                    // Case importée dont l'accord n'a pas été reconnu : elle se lit d'un coup d'œil
+                    // comme un travail à finir, pas comme un accord de la grille (voir
+                    // chordSymbolForData). Les notes jouées, elles, sonnent normalement.
+                    if (h.unnamed) cls += ' cell-unnamed';
                     // Zébrure d'une mesure sur deux (voir buildMeasureZebra), toujours affichée (y
                     // compris pour un accord court, contrairement à l'ancienne version limitée aux
                     // accords étalés sur plusieurs mesures). Plus de lavis doré ici pour la plage à
@@ -5736,8 +5762,7 @@ class HarmoHubApp {
             const beats = beatsFromData(h);
             const chord = new Chord(h.root, h.quality, beats, h.inversion, h.drop, octaveFromData(h), h.bass, h.guitarLock, h.extraNotes);
             const chordUseFlats = useFlatsForChordRoot(NOTES.indexOf(h.root), NOTES.indexOf(gRoot), gMode, useFlats);
-            let symbol = noteNameForPc(NOTES.indexOf(h.root), chordUseFlats) + (QUALITY_LABEL[h.quality] ?? '');
-            if (h.bass) symbol += '/' + noteNameForPc(NOTES.indexOf(h.bass), chordUseFlats);
+            const symbol = chordSymbolForData(h, chordUseFlats);
             const roman = this.getRomanNumeral(gRoot, gMode, h.root, h.quality);
             const voiced = chord.getVoiced(); // déjà triée du grave à l'aigu
             const labeled = voiced.map(v => ({ ...v, label: spellChordTone(NOTES.indexOf(h.root), chordUseFlats, v.degree, v.midi, false) }));
@@ -7631,7 +7656,7 @@ class HarmoHubApp {
                     const data = sec.chords[s.index];
                     const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
                     const chordUseFlats = useFlatsForChordRoot(NOTES.indexOf(data.root), NOTES.indexOf(gRoot), gMode, useFlats);
-                    const sym = chord.getBareLabel(chordUseFlats) + ((s.split && !s.isFirst) ? ' ↩' : '');
+                    const sym = chordSymbolForData(data, chordUseFlats) + ((s.split && !s.isFirst) ? ' ↩' : '');
                     const roman = (s.isFirst && this.showRomanNumerals) ? this.getRomanNumeral(gRoot, gMode, data.root, data.quality) : '';
                     // Notation compacte octave/renversement/drop (voir Chord.getVoicingBadge, réglage
                     // Affichage > Position d'accord PDF) — au-dessus de la case comme le chiffrage
@@ -8022,7 +8047,7 @@ class HarmoHubApp {
                 chords: sec.chords.map(h => {
                     const chordUseFlats = useFlatsForChordRoot(NOTES.indexOf(h.root), NOTES.indexOf(gRoot), gMode, useFlats);
                     const chord = new Chord(h.root, h.quality, beatsFromData(h), h.inversion, h.drop, octaveFromData(h), h.bass, h.guitarLock, h.extraNotes);
-                    return { symbol: chord.getBareLabel(chordUseFlats), beats: beatsFromData(h) };
+                    return { symbol: chordSymbolForData(h, chordUseFlats), beats: beatsFromData(h) };
                 }),
             })),
         };
@@ -9071,6 +9096,9 @@ class HarmoHubApp {
             // garder afficherait un doigté ne jouant plus les notes du nouveau (voir changeChordOctave
             // pour le même principe appliqué à l'octave).
             data.guitarLock = null;
+            // Une case importée « à nommer » vient d'être nommée : c'est exactement ce qu'on lui
+            // demandait, le repère n'a plus lieu d'être (voir chordSymbolForData).
+            delete data.unnamed;
             saveProgressionSections(sections);
             hasUnsavedChanges = true;
             // Si c'est l'accord actuellement en mode édition complète, resynchronise le panneau Accord
@@ -12133,7 +12161,7 @@ class HarmoHubApp {
         // séquenceur, pas seulement le voisin immédiat — une zone par accord, chacune ciblant son
         // propre index plutôt qu'une seule grande zone qui ne menait qu'au plus proche). Toute la
         // hauteur des voix (comme .seq-playhead), jamais la ligne des temps en dessous.
-        const ctxNavLabel = (seg) => `${noteNameForPc(NOTES.indexOf(seg.data.root), this.useFlatsForRoot(seg.data.root))}${QUALITY_LABEL[seg.data.quality] ?? ''}`;
+        const ctxNavLabel = (seg) => chordSymbolForData(seg.data, this.useFlatsForRoot(seg.data.root));
         if (continuous) {
             prevSegs.forEach(seg => {
                 html += `<div class="seq-ctx-nav seq-ctx-nav-prev" data-target-index="${seg.index}" style="grid-row: 1 / span ${rowCount}; grid-column: ${seg.colStart + 2} / span ${seg.steps};" title="Modifier ${escapeHtml(ctxNavLabel(seg))}"></div>`;
@@ -13316,6 +13344,9 @@ class HarmoHubApp {
             intensity: clip.intensity,
             guitarLock: clip.guitarLock ? { ...clip.guitarLock } : null,
         });
+        // La case reçoit une identité d'accord complète : si elle était encore « à nommer » après un
+        // import, elle ne l'est plus (voir chordSymbolForData).
+        delete chord.unnamed;
         saveProgressionSections(sections);
         // Si CET accord est celui actuellement ouvert dans le panneau Accord, le refléter aussitôt
         // plutôt que de laisser le panneau périmé sur l'ancien accord (même principe que l'édition
