@@ -236,7 +236,11 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     margin-bottom: 18px;
     flex-wrap: wrap;
     position: sticky;
-    top: 58px; /* juste sous .top-bar (elle-même sticky, voir plus haut) : jamais l'une sur l'autre */
+    /* Juste sous .top-bar, dont la hauteur est MESURÉE (voir syncStickyOffsets dans paroles.js) et non
+       supposée : elle passe sur deux lignes dès que l'écran se rétrécit, et la valeur fixe de 58 px
+       qu'on lisait ici y faisait glisser toute la barre d'outils DERRIÈRE l'en-tête — sur téléphone,
+       Annuler/Rétablir et le choix du mode étaient hors d'atteinte dès qu'on faisait défiler. */
+    top: var(--sticky-top-bar, 58px);
     background: var(--bg);
     padding: 8px 0;
     z-index: 5;
@@ -279,12 +283,32 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
    dans style.css. */
 .mode-btn.icon-only { padding: 6px 10px; }
 .armed-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
     font-size: 0.82rem;
     color: var(--accent);
     background: #17301f;
     border: 1px solid #2f5b40;
     border-radius: 8px;
-    padding: 5px 12px;
+    padding: 5px 6px 5px 12px;
+}
+/* Sortie explicite du mode « pose » — voir updateModeUI : la seule qui existe au doigt, puisque
+   Échap n'est pas une touche qu'on a sous la main sur un téléphone. */
+.hint-stop {
+    font-family: var(--font);
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-main);
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid #2f5b40;
+    border-radius: 6px;
+    padding: 3px 9px;
+    cursor: pointer;
+}
+.hint-stop:hover { background: rgba(0, 0, 0, 0.45); border-color: var(--accent); }
+@media (pointer: coarse) {
+    .hint-stop { min-height: 32px; padding: 6px 12px; }
 }
 
 /* Panneau d'options (voir #btn-options) : replié par défaut, posé juste sous la barre d'outils. */
@@ -309,6 +333,31 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
 }
 .option-row input[type="range"] { flex: 1; max-width: 220px; }
 .option-value { color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 3.5ch; }
+/* Réglage à cocher (voir #opt-chain) : la case et son libellé sur la première ligne, l'explication en
+   dessous — un réglage qui change la façon de travailler mérite d'être expliqué là où il se règle,
+   plutôt que dans une info-bulle qu'on ne verra jamais au doigt. */
+.option-row-check {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 10px;
+    align-items: center;
+    cursor: pointer;
+}
+.option-row-check input[type="checkbox"] {
+    width: 17px;
+    height: 17px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+.option-row-check .option-help {
+    grid-column: 2;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+}
+/* Accord qui viendra APRÈS celui qu'on tient (voir updateModeUI) : lisible mais en retrait, il
+   renseigne sans détourner l'œil de l'accord en cours. */
+.hint-next { opacity: 0.62; font-size: 0.95em; }
 
 /* Même carte que .control-card dans style.css (fond, rayon, marge) : les sections de Paroles doivent
    se lire comme les cartes Accord/Morceau/Séquenceur de HarmoHub, pas comme un composant distinct. */
@@ -399,11 +448,24 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
 .btn-reset-section .icon { width: 12px; height: 12px; }
 .btn-reset-section:hover { border-color: #7c443c; color: #ffb3ac; }
 
+/* La réserve d'accords SUIT le défilement à l'intérieur de sa partie. Mesuré avant correction : sur
+   une partie de 24 lignes, arrivé en bas du texte la réserve était 347 px au-dessus de l'écran — il
+   fallait remonter la chercher, cliquer un accord, puis redescendre, à chaque accord posé. Or c'est
+   l'outil de travail : il doit rester sous la main tant qu'on est dans cette partie, et disparaître
+   avec elle quand on passe à la suivante — ce que `sticky` fait exactement, sans un ligne de JS.
+   Le fond opaque et le trait du bas sont indispensables : sans eux, les paroles défileraient
+   visiblement sous les pastilles. */
 .chord-pool {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
     margin-bottom: 12px;
+    position: sticky;
+    top: var(--sticky-pool, 104px); /* sous l'en-tête ET la barre d'outils, hauteurs réelles mesurées */
+    z-index: 4;
+    background: var(--bg);
+    padding: 8px 0 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 /* Même recette de dégradé que les autres boutons de l'appli (voir .btn-secondary ci-dessus/.btn-sec
    dans style.css) au repos, plutôt que l'aplat uni d'origine — matière cohérente avec le reste de
@@ -552,4 +614,27 @@ body.pdf-export-mode .line-divider { display: none; }
 @media (max-width: 700px) {
     main { padding: 16px 12px 80px; }
     .top-bar { padding: 12px; }
+}
+
+/* Au doigt, les cibles s'agrandissent. Mesuré avant correction : les pastilles de la réserve faisaient
+   33 × 27 px et les boutons Annuler/Rétablir 35 × 27 — sous le seuil de confort tactile, alors que ce
+   sont précisément les commandes qu'on utilise le plus ici. On n'agrandit QUE sur pointeur grossier :
+   à la souris, la compacité actuelle est un atout, pas un défaut. */
+@media (pointer: coarse) {
+    .chord-chip {
+        min-height: 38px;
+        padding: 8px 15px;
+        font-size: 0.9rem;
+    }
+    .mode-btn { min-height: 38px; }
+    .mode-btn.icon-only { min-width: 42px; }
+    /* La croix de retrait d'une pastille posée : élargie elle aussi, mais sans grossir la pastille —
+       c'est sa ZONE tactile qu'on étend (par un pseudo-élément débordant), pas son dessin, sinon les
+       accords deviendraient des blocs qui masqueraient les paroles. */
+    .pill-del { position: relative; }
+    .pill-del::after {
+        content: '';
+        position: absolute;
+        top: -9px; right: -9px; bottom: -9px; left: -6px;
+    }
 }

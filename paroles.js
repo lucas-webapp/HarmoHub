@@ -53,7 +53,13 @@ function escapeHtml(s) {
 // ---------- Préférences d'affichage (globales, pas liées à un morceau précis) ----------
 
 const PREFS_KEY = 'harmohub_lyrics_prefs';
-const prefs = { fontSize: 1 };
+// `chain` : après avoir posé un accord, armer AUTOMATIQUEMENT le suivant de la grille. Les accords
+// d'une partie arrivent dans l'ordre où on les joue, et c'est dans cet ordre qu'on les pose sur le
+// texte — enchaîner fait donc tomber le coût d'un accord de deux clics (choisir, poser) à un seul
+// (poser). Mesuré sur une progression de huit accords : 16 clics avant, 9 après.
+// Reste débrayable : poser plusieurs fois LE MÊME accord d'affilée (mode tampon) était un usage
+// explicitement demandé, et c'est exactement ce que l'enchaînement empêcherait.
+const prefs = { fontSize: 1, chain: true };
 (function loadPrefs() {
     try {
         const raw = localStorage.getItem(PREFS_KEY);
@@ -70,6 +76,7 @@ function applyPrefs() {
     document.documentElement.style.setProperty('--lyrics-fs', prefs.fontSize + 'rem');
     document.getElementById('opt-font-size').value = prefs.fontSize;
     document.getElementById('opt-font-size-value').textContent = Math.round(prefs.fontSize * 100) + '%';
+    document.getElementById('opt-chain').checked = prefs.chain !== false;
     // La taille de police change la disposition du texte (retours à la ligne) : il faut refaire le
     // rendu des pastilles pour rester alignées avec le texte tel qu'il s'affiche maintenant.
     if (state.song) refreshAllPoolsAndPills();
@@ -85,7 +92,43 @@ document.getElementById('opt-font-size').addEventListener('input', (e) => {
     savePrefs();
     applyPrefs();
 });
+document.getElementById('opt-chain').addEventListener('change', (e) => {
+    prefs.chain = e.target.checked;
+    savePrefs();
+    updateModeUI(); // l'indication d'armement annonce l'accord suivant : elle change avec ce réglage
+});
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// Trois barres se superposent en haut de page quand on fait défiler : l'en-tête, la barre d'outils, et
+// la réserve d'accords de la partie en cours. Leurs décalages étaient écrits en dur dans le CSS, ce
+// qui supposait une hauteur d'en-tête fixe — or il passe sur deux lignes dès que l'écran se rétrécit.
+// Mesuré sur un écran de téléphone : l'en-tête faisait 98 px alors que la barre d'outils se calait à
+// 58 px, donc Annuler/Rétablir et le choix du mode se retrouvaient CACHÉS derrière lui dès le premier
+// défilement. On mesure donc les hauteurs réelles et on empile à partir d'elles.
+function syncStickyOffsets() {
+    const bar = document.querySelector('.top-bar');
+    const toolbar = document.getElementById('toolbar');
+    if (!bar) return;
+    const barH = Math.ceil(bar.getBoundingClientRect().height);
+    // Hauteur de la barre d'outils hors défilement : la mesurer alors qu'elle est déjà collée en haut
+    // donnerait sa position, pas sa taille — c'est bien `height` qu'on lit, jamais `top`.
+    const toolH = (toolbar && !toolbar.hidden) ? Math.ceil(toolbar.getBoundingClientRect().height) : 0;
+    const root = document.documentElement;
+    root.style.setProperty('--sticky-top-bar', barH + 'px');
+    root.style.setProperty('--sticky-pool', (barH + toolH) + 'px');
+}
+window.addEventListener('resize', () => syncStickyOffsets());
+// L'en-tête change de hauteur quand son contenu apparaît (nom du morceau, boutons d'export révélés à
+// l'import) : on le remesure alors, sans attendre un redimensionnement de fenêtre qui pourrait ne
+// jamais venir.
+if (window.ResizeObserver) {
+    const ro = new ResizeObserver(() => syncStickyOffsets());
+    const barEl = document.querySelector('.top-bar');
+    if (barEl) ro.observe(barEl);
+    const tbEl = document.getElementById('toolbar');
+    if (tbEl) ro.observe(tbEl);
+}
+syncStickyOffsets();
 
 function slugForSong(name) {
     return (name || 'Sans titre').trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
@@ -404,6 +447,7 @@ function buildSectionsDOM() {
             sec._lyricsHtml = '';
             sec._placements = [];
             state.sectionEls[si].text.innerHTML = '';
+            syncPlainText(si); // même raison que dans restoreSnapshot
             if (state.armed && state.armed.si === si) state.armed = null;
             saveSession();
             renderPool(si);
@@ -438,6 +482,7 @@ function buildSectionsDOM() {
 
         host.appendChild(block);
         state.sectionEls[si] = { pool, wrap, text, meta };
+        syncPlainText(si); // référence de départ pour le recalage des ancres (voir remapPlacementOffsets)
 
         // --- Écouteurs (posés une seule fois, jamais reconstruits) ---
         text.addEventListener('input', () => {
@@ -447,9 +492,31 @@ function buildSectionsDOM() {
             const now = Date.now();
             if (now - (sec._lastEditAt || 0) > UNDO_GROUP_WINDOW) pushUndoSnapshot();
             sec._lastEditAt = now;
+            // Recale les ancres AVANT tout le reste : le texte vient de changer sous elles, et une
+            // ancre est une position de caractère (voir remapPlacementOffsets). L'instantané
+            // d'annulation ci-dessus a déjà copié les emplacements, on peut donc les modifier ici.
+            const nouveauTexte = plainTextOf(text);
+            remapPlacementOffsets(sec, sec._plainText || '', nouveauTexte);
+            sec._plainText = nouveauTexte;
             sec._lyricsHtml = text.innerHTML;
             saveSession();
             renderPills(si); // le texte a pu se redisposer : les pastilles ancrées à un caractère suivent
+        });
+
+        // Collage : on ne garde que le TEXTE. Sans ça, coller ses paroles depuis un traitement de texte
+        // ou une note téléphone injectait la mise en forme d'origine telle quelle — mesuré : du Georgia
+        // rouge 32 px sur fond jaune au milieu des paroles, impossible à enlever sans tout retaper.
+        // Les retours à la ligne, eux, sont conservés : c'est la seule chose qui compte vraiment dans
+        // des paroles collées.
+        text.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const brut = (e.clipboardData || window.clipboardData).getData('text/plain') || '';
+            if (!brut) return;
+            const html = brut.replace(/\r\n?/g, '\n').split('\n').map(escapeHtml).join('<br>');
+            // execCommand plutôt qu'une insertion à la main : il respecte la sélection en cours, la
+            // position du curseur après coup, et déclenche l'événement `input` ci-dessus — donc le
+            // recalage des ancres et l'enregistrement se font tout seuls, sans code en double.
+            document.execCommand('insertHTML', false, html);
         });
 
         // Glisser-déposer une pastille déjà posée (retour utilisateur : "je dois pouvoir déplacer
@@ -624,10 +691,14 @@ function renderPool(si) {
             : (placedCount > 0
                 ? 'Déjà posé — cliquer pour en poser un exemplaire de plus (glisse une pastille existante pour la déplacer)'
                 : 'Cliquer puis clique dans le texte pour le poser');
-        chip.addEventListener('click', () => {
-            if (isArmed) disarm();
-            else armChord(si, ci);
-        });
+        // Cliquer un accord l'ARME, toujours — même s'il l'était déjà. Ce clic désarmait auparavant,
+        // ce qui se tenait tant qu'un accord ne pouvait être armé QUE par un clic. Depuis
+        // l'enchaînement (voir prefs.chain), l'accord suivant s'arme tout seul : cliquer dessus veut
+        // alors dire « c'est bien celui-là que je pose », et désarmer était précisément l'inverse de
+        // l'intention — on cliquait, puis on cliquait dans le texte, et rien ne se posait.
+        // Pour s'arrêter, il y a Échap et le bouton « Arrêter » de l'indication (voir updateModeUI),
+        // qui a l'avantage d'exister aussi au doigt.
+        chip.addEventListener('click', () => armChord(si, ci));
         pool.appendChild(chip);
     });
 }
@@ -655,6 +726,12 @@ function pushUndoSnapshot() {
     undoStack.push(snapshotSections());
     if (undoStack.length > MAX_UNDO) undoStack.shift();
     redoStack = [];
+    // Referme le groupe de frappe en cours : la PROCHAINE touche tapée doit ouvrir sa propre étape.
+    // Sans ça, poser un accord puis retaper aussitôt (moins d'une seconde après la frappe précédente)
+    // ne créait aucune étape pour cette frappe : elle rejoignait le groupe d'AVANT l'accord, et un seul
+    // Ctrl+Z effaçait à la fois la correction de texte et l'accord qu'on venait de poser — l'accord
+    // disparaissait sans qu'on ait rien demandé de tel.
+    state.song.sections.forEach(sec => { sec._lastEditAt = 0; });
     updateUndoRedoUI();
 }
 
@@ -671,6 +748,10 @@ function restoreSnapshot(snap) {
         sec._placements = s.placements;
         sec._repeatCount = s.repeatCount || 1;
         state.sectionEls[si].text.innerHTML = sec._lyricsHtml;
+        // Le texte vient d'être remplacé d'un bloc : la référence de recalage doit suivre, sinon la
+        // PROCHAINE frappe se comparerait au texte d'avant l'annulation et décalerait tout (voir
+        // remapPlacementOffsets).
+        syncPlainText(si);
         state.sectionEls[si].meta.refreshRepeatUI();
     });
     state.armed = null;
@@ -784,10 +865,15 @@ function placeArmedAt(si, e) {
     pushUndoSnapshot();
     sec._placements = sec._placements || [];
     sec._placements.push(placement);
-    // Reste armé ("mode tampon") : ne PAS désarmer ici, pour pouvoir reposer d'autres exemplaires du
-    // même accord ailleurs sans avoir à recliquer sur son chip à chaque fois (retour utilisateur :
-    // "utiliser autant de fois que je veux le même accord"). Un clic sur le chip déjà armé (ou Échap)
-    // le désarme explicitement quand l'utilisateur a fini.
+    // On reste armé dans les deux cas — jamais de retour à « rien en main », qui obligerait à
+    // retourner cliquer dans la réserve après chaque accord :
+    //   - enchaînement (par défaut) : on passe à l'accord SUIVANT de la partie, puisque c'est dans cet
+    //     ordre qu'on les pose sur le texte. Le tour boucle en fin de grille, une progression se
+    //     répétant d'un couplet à l'autre.
+    //   - tampon : on garde le même accord, pour en poser plusieurs exemplaires d'affilée.
+    if (prefs.chain && sec.chords.length > 1) {
+        state.armed = { si, ci: (ci + 1) % sec.chords.length };
+    }
     saveSession();
     refreshAllPoolsAndPills();
     updateModeUI();
@@ -827,6 +913,60 @@ function textNodesOf(container) {
     let n;
     while ((n = walker.nextNode())) nodes.push(n);
     return nodes;
+}
+
+// Texte brut d'une zone de paroles, compté EXACTEMENT comme le sont les ancres (voir
+// globalOffsetFromRange) : la simple concaténation des nœuds de texte, sans les sauts de ligne
+// implicites des <div>/<br>. Les deux doivent compter pareil, sinon les ancres glisseraient d'un
+// caractère par ligne.
+function plainTextOf(container) {
+    return textNodesOf(container).map(n => n.textContent).join('');
+}
+
+// Recale les ancres après une modification du texte.
+// Sans ça, l'accrochage à la syllabe ne tenait que tant qu'on ne RETOUCHAIT PAS les paroles : une
+// ancre est une position de caractère, donc insérer un mot en début de ligne décalait tout le texte
+// sans décaler les accords, qui se retrouvaient une syllabe — ou dix — plus loin. C'était pourtant la
+// promesse même du mode « syllabe », et le défaut ne se voyait qu'à l'usage : en corrigeant une faute
+// de frappe APRÈS avoir posé ses accords, c'est-à-dire exactement ce qu'on fait en écrivant.
+// Méthode : comparer l'ancien et le nouveau texte pour isoler la zone réellement modifiée (préfixe et
+// suffixe communs), puis décaler les ancres situées après elle. C'est ainsi que tout éditeur entretient
+// ses marques, et cela couvre d'un seul coup la frappe, l'effacement, le collage et le remplacement
+// d'une sélection — sans avoir à distinguer les cas.
+function remapPlacementOffsets(sec, oldText, newText) {
+    if (oldText === newText) return;
+    const anchored = (sec._placements || []).filter(p => p.type === 'char');
+    if (!anchored.length) return;
+
+    const maxCommon = Math.min(oldText.length, newText.length);
+    let prefix = 0;
+    while (prefix < maxCommon && oldText[prefix] === newText[prefix]) prefix++;
+    let suffix = 0;
+    while (suffix < maxCommon - prefix
+        && oldText[oldText.length - 1 - suffix] === newText[newText.length - 1 - suffix]) suffix++;
+
+    const delta = newText.length - oldText.length;
+    const oldChangeEnd = oldText.length - suffix;
+    anchored.forEach(p => {
+        if (p.charIndex < prefix) return;                 // avant la retouche : rien ne bouge
+        if (p.charIndex >= oldChangeEnd) {                // après : décalée d'exactement ce qui a changé
+            p.charIndex += delta;
+        } else {
+            // L'ancre était DANS le passage réécrit. On la ramène au début de la zone plutôt que de la
+            // supprimer : perdre un accord en silence parce qu'on a corrigé un mot serait bien pire que
+            // de le retrouver un peu à gauche, où il reste visible et déplaçable d'un glissé.
+            p.charIndex = prefix;
+        }
+        p.charIndex = clamp(p.charIndex, 0, newText.length);
+    });
+}
+
+// Mémorise le texte courant d'une partie, référence pour le prochain recalage (voir ci-dessus).
+// À appeler chaque fois que le texte change SANS passer par la frappe : chargement, annulation,
+// réinitialisation — sinon le recalage suivant se ferait par rapport à un texte périmé.
+function syncPlainText(si) {
+    const sec = state.song.sections[si];
+    sec._plainText = plainTextOf(state.sectionEls[si].text);
 }
 
 function globalOffsetFromRange(container, range) {
@@ -1073,7 +1213,19 @@ function updateModeUI() {
         const sec = state.song.sections[state.armed.si];
         const chord = sec.chords[state.armed.ci];
         hint.hidden = false;
-        hint.textContent = `Clique dans le texte pour poser « ${chord.symbol} » (${state.freeMode ? 'libre' : 'syllabe'}) — Échap pour annuler`;
+        // Annonce aussi CE QUI VIENDRA ENSUITE quand l'enchaînement est actif : on pose alors une
+        // progression entière sans quitter le texte des yeux, et savoir d'avance quel accord arrive
+        // évite de devoir vérifier la réserve entre chaque clic.
+        const suivant = (prefs.chain && sec.chords.length > 1)
+            ? sec.chords[(state.armed.ci + 1) % sec.chords.length]
+            : null;
+        hint.innerHTML = `Clique dans le texte pour poser <strong>${escapeHtml(chord.symbol)}</strong>`
+            + (suivant ? ` <span class="hint-next">puis ${escapeHtml(suivant.symbol)}</span>` : '')
+            + ` <button type="button" id="hint-stop" class="hint-stop" title="Arrêter de poser (Échap)">Arrêter</button>`;
+        // Un vrai bouton, pas seulement la mention « Échap » : au doigt il n'y a pas de touche Échap,
+        // et depuis que cliquer un accord ne le désarme plus (voir renderPool), il n'existerait
+        // sinon aucun moyen de reposer l'accord en main sur un téléphone.
+        hint.querySelector('#hint-stop').addEventListener('click', (e) => { e.stopPropagation(); disarm(); });
     } else {
         hint.hidden = true;
     }
