@@ -1862,6 +1862,63 @@ button:active { transform: translateY(1px); }
     min-width: 26px;
 }
 
+/* Accord de substitution à la guitare (voir #guitar-override-btn/renderGuitarOverrideRow dans
+   script.js) : petit bandeau discret au-dessus du diagramme, masqué tant qu'aucun substitut n'est
+   défini — même code couleur que #current-chord-display (.chord-note.role-*) pour rester cohérent,
+   mais nettement plus petit : c'est une annotation secondaire, pas le titre principal. */
+.guitar-override-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin-bottom: 6px;
+    padding: 4px 10px;
+    background: rgba(0, 230, 118, 0.08);
+    border: 1px solid rgba(0, 230, 118, 0.25);
+    border-radius: 8px;
+    max-width: 100%;
+}
+.guitar-override-label {
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+.guitar-override-notes {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2px 8px;
+    font-size: var(--fs-xs);
+}
+.guitar-override-row .icon-btn {
+    width: 22px;
+    height: 22px;
+    flex: none;
+}
+.guitar-override-row .icon-btn svg { width: 13px; height: 13px; }
+
+/* Saisie au clavier du nom de substitution (voir startGuitarOverrideEdit) : même habillage que
+   .cell-sym-input (édition inline du symbole d'une case de la grille), compacte pour tenir dans ce
+   bandeau étroit. JAMAIS en dessous de 16px (voir .cell-sym-input) : Safari iOS zoome sinon toute la
+   page au focus. */
+.guitar-override-input {
+    font: inherit;
+    font-size: max(16px, var(--fs-sm));
+    font-weight: 700;
+    color: var(--text-main);
+    text-align: center;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 3px 8px;
+    width: 140px;
+    max-width: 100%;
+    min-width: 0;
+}
+.guitar-override-input:focus { outline: none; }
+
 /* Bouton d'export PDF, ancré en bas à droite du bloc piano */
 .viz-wrap {
     position: relative;
