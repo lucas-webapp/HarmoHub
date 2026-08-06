@@ -3462,9 +3462,17 @@ class HarmoHubApp {
                         this.playMetronomeClick(accent, t);
                     } catch (e) { console.warn('Clic de métronome ignoré :', e.message); }
                 }, clickTime));
-                // Clic faible sur le contretemps (croche), voir metronomeSubdivision
+                // Clic faible sur le contretemps (croche), voir metronomeSubdivision — retombe sur le
+                // groove actif (this.grooveRatio(), voir GROOVE_RATIOS/grooveStepOffset) au lieu d'un
+                // milieu de temps FIXE : sinon ce clic tombait toujours pile à la moitié du temps même
+                // en shuffle/ternaire, alors que les notes réellement jouées (voir schedulePlayback,
+                // juste au-dessus) suivent bien le groove — le clic du métronome contredisait alors la
+                // croche pointée qu'on entendait par ailleurs (retour utilisateur : "shuffle qui ne
+                // fonctionnait pas au niveau du rythme, pas de sensation de croche pointée"). Le calcul
+                // équivaut exactement à grooveStepOffset(2e croche du temps) : au ratio "droit" (0.5),
+                // c'est très exactement l'ancien comportement, inchangé.
                 if (this.metronomeSubdivision) {
-                    const subTime = clickTime + secPerBeat / 2;
+                    const subTime = clickTime + this.grooveRatio() * secPerBeat;
                     eventIds.push(Tone.Transport.schedule((t) => {
                         try {
                             this.playMetronomeClick(false, t, true);
