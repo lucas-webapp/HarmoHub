@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608061501">
+    <link rel="stylesheet" href="style.css?v=202608061602">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -761,6 +761,17 @@
                     <div id="arp-sequencer" class="arp-seq" hidden></div>
                 </section>
 
+                <!-- Mode Modification SANS accord chargé (bandeau "Modification" cliqué avant de toucher
+                     la grille, ou accord fermé via "Fermer" sans en rouvrir un autre) : Accord/Lecture
+                     (juste au-dessus) restaient affichées avec les réglages du DERNIER accord touché,
+                     comme si on pouvait encore le modifier alors que rien n'est sélectionné (retour
+                     utilisateur : "tous les modules restent ouverts, ce n'est pas cohérent"). Cette carte
+                     les remplace le temps qu'aucun accord ne soit chargé (voir updateEditCardsVisibility
+                     dans script.js) — masquée dès qu'on touche une case de la grille. -->
+                <section class="control-card edit-empty-hint" id="edit-empty-hint" hidden>
+                    <p>Touchez un accord de la grille pour le modifier.</p>
+                </section>
+
                 <div class="edit-actions" id="edit-actions">
                     <button id="save" class="btn-green"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter</button>
                     <button id="save-insert" class="btn-green" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> À la suite</button>
@@ -957,6 +968,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608061504"></script>
+    <script src="script.js?v=202608061602"></script>
 </body>
 </html>

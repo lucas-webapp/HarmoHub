@@ -1064,6 +1064,22 @@ main {
     letter-spacing: 0.03em;
 }
 
+/* Remplace Accord/Lecture en mode Modification tant qu'aucun accord n'est chargé (voir
+   updateEditCardsVisibility dans script.js) — même carte que les autres, texte centré et discret
+   plutôt qu'un vrai contenu, pour bien lire "il n'y a rien à régler ici pour l'instant". */
+.edit-empty-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 72px;
+    text-align: center;
+}
+.edit-empty-hint p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
+}
+
 /* En-tête de carte avec actions compactes à droite du titre (séquenceur, morceau...). flex-wrap:
    wrap sert uniquement à la carte Morceau (voir #song-card ci-dessous, dont le titre du morceau vit
    dans cet en-tête) : les deux items des autres cartes tiennent toujours sur une ligne, donc rien

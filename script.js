@@ -5005,6 +5005,7 @@ class HarmoHubApp {
         const saveBtn = document.getElementById('save');
         const insertBtn = document.getElementById('save-insert');
         const cancelBtn = document.getElementById('cancel-edit');
+        this.updateEditCardsVisibility(); // Accord/Lecture vs #edit-empty-hint (voir plus haut)
         if (this.appMode === 'edit') {
             // Mode Modification (voir commitLiveEdit) : chaque champ s'applique déjà tout seul, plus
             // besoin d'Ajouter/Modifier ici — inutile même avant d'avoir chargé un accord précis (le
@@ -5068,8 +5069,6 @@ class HarmoHubApp {
     setLeftPanelTab(tab) {
         this.leftPanelTab = tab;
         const configCard = document.getElementById('config-card');
-        const accordCard = document.getElementById('accord-card');
-        const lectureCard = document.getElementById('lecture-card');
         // Ajouter/À la suite/Annuler (voir #edit-actions/updateEditActionsDocking) : pas sa place en
         // Config., qui ne sert qu'à régler le morceau, pas à poser/modifier un accord (retour
         // utilisateur) — masqué qu'il soit ancré dans le pied de colonne ou dans le panneau, sans
@@ -5077,10 +5076,30 @@ class HarmoHubApp {
         const editActions = document.getElementById('edit-actions');
         const showingConfig = tab === 'config';
         if (configCard) configCard.hidden = !showingConfig;
-        if (accordCard) accordCard.hidden = showingConfig;
-        if (lectureCard) lectureCard.hidden = showingConfig;
         if (editActions) editActions.hidden = showingConfig;
+        this.updateEditCardsVisibility(); // Accord/Lecture, voir plus bas — dépend aussi de showingConfig
         this.updateAppModeBanner();
+    }
+
+    // Accord/Lecture affichées seulement quand il y a effectivement un accord à régler : en Ajout,
+    // c'est toujours celui qu'on est en train de préparer ; en Modification, seulement une fois qu'on
+    // en a chargé un précis (this.editingIndex, voir editChord). Tant qu'on est en Modification SANS
+    // rien avoir encore cliqué dans la grille (bandeau "Modification" tout juste choisi, ou "Fermer"
+    // sans rouvrir un autre accord juste après, voir cancelEdit), ces deux cartes restaient affichées
+    // avec les réglages du DERNIER accord touché, comme s'il restait éditable (retour utilisateur :
+    // "tous les modules restent ouverts, ce n'est pas cohérent") — #edit-empty-hint les remplace le
+    // temps qu'aucun accord ne soit chargé. Appelée à chaque fois que appMode/editingIndex/
+    // leftPanelTab peuvent avoir changé (voir updateSaveButtons, appelée à chaque loadProgression) —
+    // pas seulement depuis setLeftPanelTab, qui ne couvre pas un simple clic sur une case de la grille.
+    updateEditCardsVisibility() {
+        const accordCard = document.getElementById('accord-card');
+        const lectureCard = document.getElementById('lecture-card');
+        const emptyHint = document.getElementById('edit-empty-hint');
+        const showingConfig = this.leftPanelTab === 'config';
+        const noChordToEdit = !showingConfig && this.appMode === 'edit' && this.editingIndex == null;
+        if (accordCard) accordCard.hidden = showingConfig || noChordToEdit;
+        if (lectureCard) lectureCard.hidden = showingConfig || noChordToEdit;
+        if (emptyHint) emptyHint.hidden = !noChordToEdit;
     }
 
     // Rend une partie « active » : c'est elle que ciblent Ajouter/Modifier/Suppr/copier-coller
