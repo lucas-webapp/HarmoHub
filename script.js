@@ -1964,7 +1964,8 @@ class HarmoHubApp {
                                     // TOUTE la partie active, bouton dédié) : quand définie, elle est
                                     // prioritaire sur celui-ci.
         this.clipboard = null;     // presse-papier (copier/coller d'accords)
-        this.voicingClipboard = null; // presse-papier du VOICING seul (voir copyChordVoicing/pasteChordVoicing) — pipette du menu contextuel, distincte de this.clipboard
+        this.chordClipboard = null; // presse-papier NOM + VOICING seuls (voir copyChordIdentity/pasteChordIdentity) — pipette du menu contextuel, distincte de this.clipboard
+        this.rhythmClipboard = null; // presse-papier RYTHME + DURÉE seuls (voir copyChordRhythm/pasteChordRhythm) — pipette complémentaire, jamais les notes de l'accord
         this.pianoWindow = null;   // fenêtre clavier courante
         this.guitarKey = null;     // signature (midis triés) du dernier accord affiché à la guitare
         this.guitarIdentityKey = null; // signature de CE QUI DÉFINIT VRAIMENT l'accord joué à la guitare
@@ -2645,19 +2646,35 @@ class HarmoHubApp {
             this.closeContextMenu();
             if (t && t.type === 'chord') this.openSequencerFor(t.section, t.index);
         };
-        // Pipette de voicing (retour utilisateur : "une pipette un pinceau pour copier/coller l'accord
-        // et son voicing à un autre accord directement dans la grille") — voir copyChordVoicing/
-        // pasteChordVoicing : contrairement à Ctrl+C/Ctrl+V (this.clipboard) qui DUPLIQUENT un accord
-        // en une NOUVELLE case, ceci applique le voicing d'un accord à un accord EXISTANT différent.
-        document.querySelector('[data-ctx-action="copy-voicing"]').onclick = () => {
+        // Pipettes de la grille (retour utilisateur : "une pipette un pinceau pour copier/coller l'accord
+        // et son voicing à un autre accord directement dans la grille", puis "une pipette rythme" et
+        // "une pipette nom de l'accord... sans changer la durée ni le rythme") — deux pipettes
+        // complémentaires et mutuellement exclusives sur ce qu'elles touchent :
+        //   - Accord (copyChordIdentity/pasteChordIdentity) : fondamentale + voicing complet, jamais la
+        //     durée ni le rythme du séquenceur.
+        //   - Rythme (copyChordRhythm/pasteChordRhythm) : motif du séquenceur + durée, jamais la
+        //     fondamentale/qualité/voicing (« sans changer les notes »).
+        // Contrairement à Ctrl+C/Ctrl+V (this.clipboard) qui DUPLIQUENT un accord en une NOUVELLE case,
+        // ces deux-là appliquent une PARTIE d'un accord à un accord EXISTANT différent.
+        document.querySelector('[data-ctx-action="copy-identity"]').onclick = () => {
             const t = this.contextMenuTarget;
             this.closeContextMenu();
-            if (t && t.type === 'chord') this.copyChordVoicing(t.section, t.index);
+            if (t && t.type === 'chord') this.copyChordIdentity(t.section, t.index);
         };
-        document.querySelector('[data-ctx-action="paste-voicing"]').onclick = () => {
+        document.querySelector('[data-ctx-action="paste-identity"]').onclick = () => {
             const t = this.contextMenuTarget;
             this.closeContextMenu();
-            if (t && t.type === 'chord') this.pasteChordVoicing(t.section, t.index);
+            if (t && t.type === 'chord') this.pasteChordIdentity(t.section, t.index);
+        };
+        document.querySelector('[data-ctx-action="copy-rhythm"]').onclick = () => {
+            const t = this.contextMenuTarget;
+            this.closeContextMenu();
+            if (t && t.type === 'chord') this.copyChordRhythm(t.section, t.index);
+        };
+        document.querySelector('[data-ctx-action="paste-rhythm"]').onclick = () => {
+            const t = this.contextMenuTarget;
+            this.closeContextMenu();
+            if (t && t.type === 'chord') this.pasteChordRhythm(t.section, t.index);
         };
         document.querySelector('[data-ctx-action="delete"]').onclick = () => {
             const t = this.contextMenuTarget;
@@ -6390,11 +6407,13 @@ class HarmoHubApp {
         menu.querySelector('[data-ctx-action="octave-up"]').hidden = !isChord;
         menu.querySelector('[data-ctx-action="octave-down"]').hidden = !isChord;
         menu.querySelector('[data-ctx-action="sequencer"]').hidden = !isChord;
-        menu.querySelector('[data-ctx-action="copy-voicing"]').hidden = !isChord;
-        // "Coller le voicing" n'a de sens qu'une fois qu'un voicing a déjà été prélevé quelque part
-        // (voir copyChordVoicing) — invisible tant que this.voicingClipboard est vide, plutôt qu'un
-        // bouton toujours présent mais qui ne ferait rien.
-        menu.querySelector('[data-ctx-action="paste-voicing"]').hidden = !isChord || !this.voicingClipboard;
+        menu.querySelector('[data-ctx-action="copy-identity"]').hidden = !isChord;
+        // "Coller l'accord"/"Coller le rythme" n'ont de sens qu'une fois qu'une pipette a déjà prélevé
+        // quelque chose (voir copyChordIdentity/copyChordRhythm) — invisibles tant que le presse-papier
+        // correspondant est vide, plutôt que des boutons toujours présents mais qui ne feraient rien.
+        menu.querySelector('[data-ctx-action="paste-identity"]').hidden = !isChord || !this.chordClipboard;
+        menu.querySelector('[data-ctx-action="copy-rhythm"]').hidden = !isChord;
+        menu.querySelector('[data-ctx-action="paste-rhythm"]').hidden = !isChord || !this.rhythmClipboard;
         menu.hidden = false;
         const pad = 8;
         const left = Math.min(x, window.innerWidth - menu.offsetWidth - pad);
@@ -11839,20 +11858,25 @@ class HarmoHubApp {
         this.flashHint(copies.length > 1 ? `${copies.length} accords collés` : 'Accord collé');
     }
 
-    // ---------- Pipette de voicing (menu contextuel d'un accord, copier/coller le voicing) ----------
+    // ---------- Pipette d'accord (menu contextuel, copier/coller la fondamentale + le voicing) ----------
     // Contrairement à copySelected/pasteChord (Ctrl+C/Ctrl+V, this.clipboard) qui DUPLIQUENT un accord
-    // ENTIER comme une NOUVELLE case dans la grille, ceci applique le voicing d'un accord (qualité,
-    // renversement, drop, octave, basse, style de jeu, instrument, notes libres, intensité, doigté
-    // guitare verrouillé) à un accord EXISTANT DIFFÉRENT, en gardant SA propre fondamentale/durée/
-    // rythme intacts — retour utilisateur : "une pipette un pinceau pour copier/coller l'accord et son
-    // voicing à un autre accord directement dans la grille". Volontairement SANS arpPattern/seqEdited/
-    // intensityPerStep (le rythme du séquenceur reste propre à chaque accord, déjà couvert par sa
-    // propre pipette dédiée, voir toggleSeqRowPipette/copySeqPattern).
-    copyChordVoicing(section, index) {
+    // ENTIER comme une NOUVELLE case dans la grille, ceci applique la fondamentale ET le voicing d'un
+    // accord (qualité, renversement, drop, octave, basse, style de jeu, instrument, notes libres,
+    // intensité, doigté guitare verrouillé) à un accord EXISTANT DIFFÉRENT, en gardant SA propre durée/
+    // rythme de séquenceur intacts — retour utilisateur, en deux temps : d'abord "une pipette pour
+    // copier/coller l'accord et son voicing", PUIS "pipette nom de l'accord : recopie l'accord et le
+    // voicing, sans changer la durée ni le rythme (mieux que la pipette voicing actuelle qui n'est pas
+    // très utile)" — la version d'origine gardait volontairement la fondamentale d'ORIGINE (change juste
+    // le voicing d'UN accord sur place), ce qui s'est révélé peu utile en pratique ; celle-ci recopie
+    // l'IDENTITÉ complète de l'accord (nom + voicing), le cas le plus demandé. Volontairement SANS
+    // arpPattern/seqEdited/intensityPerStep/beats (durée+rythme restent propres à chaque accord,
+    // couverts par leur propre pipette dédiée juste en dessous, voir copyChordRhythm).
+    copyChordIdentity(section, index) {
         const sections = loadProgressionSections();
         const chord = sections[section] && sections[section].chords[index];
         if (!chord) return;
-        this.voicingClipboard = {
+        this.chordClipboard = {
+            root: chord.root,
             quality: chord.quality,
             octave: chord.octave,
             inversion: chord.inversion,
@@ -11864,34 +11888,92 @@ class HarmoHubApp {
             intensity: chord.intensity,
             guitarLock: chord.guitarLock ? { ...chord.guitarLock } : null,
         };
-        this.flashHint('Voicing prélevé — clic droit sur un autre accord puis « Coller le voicing »');
+        this.flashHint('Accord prélevé — clic droit sur un autre accord puis « Coller l\'accord »');
     }
 
-    pasteChordVoicing(section, index) {
-        if (!this.voicingClipboard) return;
+    pasteChordIdentity(section, index) {
+        const clip = this.chordClipboard;
+        if (!clip) return;
         const sections = loadProgressionSections();
         const chord = sections[section] && sections[section].chords[index];
         if (!chord) return;
         this.pushUndo(sections);
         Object.assign(chord, {
-            quality: this.voicingClipboard.quality,
-            octave: this.voicingClipboard.octave,
-            inversion: this.voicingClipboard.inversion,
-            drop: this.voicingClipboard.drop,
-            bass: this.voicingClipboard.bass,
-            playStyle: this.voicingClipboard.playStyle,
-            instrument: this.voicingClipboard.instrument,
-            extraNotes: this.voicingClipboard.extraNotes.map(n => ({ ...n })),
-            intensity: this.voicingClipboard.intensity,
-            guitarLock: this.voicingClipboard.guitarLock ? { ...this.voicingClipboard.guitarLock } : null,
+            root: clip.root,
+            quality: clip.quality,
+            octave: clip.octave,
+            inversion: clip.inversion,
+            drop: clip.drop,
+            bass: clip.bass,
+            playStyle: clip.playStyle,
+            instrument: clip.instrument,
+            extraNotes: clip.extraNotes.map(n => ({ ...n })),
+            intensity: clip.intensity,
+            guitarLock: clip.guitarLock ? { ...clip.guitarLock } : null,
         });
         saveProgressionSections(sections);
         // Si CET accord est celui actuellement ouvert dans le panneau Accord, le refléter aussitôt
-        // plutôt que de laisser le panneau périmé sur l'ancien voicing (même principe que l'édition
+        // plutôt que de laisser le panneau périmé sur l'ancien accord (même principe que l'édition
         // rapide du symbole sur la case, voir plus haut).
         if (this.editingIndex === index && this.activeSection === section) this.editChord(section, index);
         else this.loadProgression();
-        this.flashHint('Voicing appliqué à cet accord');
+        this.flashHint('Accord appliqué à cette case');
+    }
+
+    // ---------- Pipette de rythme (menu contextuel, copier/coller le motif du séquenceur + la durée) ----------
+    // Complète la pipette d'accord ci-dessus dans l'autre sens : reprend le RYTHME (motif du séquenceur
+    // pas à pas, mode studio inclus) ET la durée d'un accord, sans jamais toucher à sa fondamentale/
+    // qualité/voicing — retour utilisateur : "une pipette rythme : recopie le rythme du séquenceur et la
+    // durée de l'accord à un autre accord, sans changer les notes". Passe par resolveSeqPatternForData
+    // (motif TEL QUE JOUÉ, pas l'arpPattern brut) : un style de lecture encore jamais personnalisé
+    // (seqEdited=false) se recopie donc lui aussi correctement, comme s'il avait été édité à la main.
+    copyChordRhythm(section, index) {
+        const sections = loadProgressionSections();
+        const data = sections[section] && sections[section].chords[index];
+        if (!data) return;
+        const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
+        const { pattern, tie } = this.resolveSeqPatternForData(chord, data);
+        this.rhythmClipboard = {
+            beats: beatsFromData(data),
+            pattern: pattern.map(voices => voices.slice()),
+            tie: tie.map(voices => voices.slice()),
+            intensityPerStep: { ...(data.intensityPerStep || {}) },
+            steps: pattern.length,
+        };
+        this.flashHint('Rythme prélevé — clic droit sur un autre accord puis « Coller le rythme »');
+    }
+
+    pasteChordRhythm(section, index) {
+        const clip = this.rhythmClipboard;
+        if (!clip) return;
+        const sections = loadProgressionSections();
+        const data = sections[section] && sections[section].chords[index];
+        if (!data) return;
+        this.pushUndo(sections);
+        data.beats = clip.beats;
+        // Reconstruit l'accord CIBLE avec sa nouvelle durée (fondamentale/qualité/voicing inchangés,
+        // « sans changer les notes ») pour adapter le motif copié à SON nombre de voix — même logique
+        // que pasteSeqPattern (motif entre accords) : une voix en plus/moins reste juste silencieuse/
+        // ignorée plutôt que de planter. La dimension durée, elle, est déjà identique à la source
+        // (recopiée juste au-dessus), donc jamais tronquée/répétée ici.
+        const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
+        const steps = chord.beats * SEQ_STEPS_PER_BEAT;
+        const voices = chord.getSeqMidiNotes().length;
+        const { pattern, tie } = resizeSeqPattern(clip.pattern, clip.tie, steps, voices);
+        data.arpPattern = serializeSeqPattern(pattern, tie);
+        data.seqEdited = true;
+        const outIntensity = {};
+        for (let i = 0; i < steps; i++) {
+            const srcIdx = clip.steps > 0 ? (i % clip.steps) : i;
+            if (clip.intensityPerStep[srcIdx] != null) outIntensity[i] = clip.intensityPerStep[srcIdx];
+        }
+        data.intensityPerStep = outIntensity;
+        saveProgressionSections(sections);
+        // Si CET accord est celui actuellement ouvert dans le panneau Accord, le refléter aussitôt
+        // plutôt que de laisser le panneau/séquenceur périmés sur l'ancien rythme.
+        if (this.editingIndex === index && this.activeSection === section) this.editChord(section, index);
+        else this.loadProgression();
+        this.flashHint('Rythme appliqué à cet accord');
     }
 
     // Duplique un accord donné (bouton ⧉) : la copie se place juste après, dans la même partie
