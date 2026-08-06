@@ -8093,6 +8093,9 @@ class HarmoHubApp {
             this.closeContextMenu();
             d.menuShown = false;
             d.copy = true;
+            // Le fantôme existe peut-être déjà (glissé commencé avant que le menu ne se referme) :
+            // son étiquette doit suivre ce basculement, sinon elle annoncerait encore « Déplacer ».
+            this.updateDragGhostMode(d.ghost, d.dragIndices.length, true);
         }
 
         if (!d.moved) {
@@ -8104,7 +8107,9 @@ class HarmoHubApp {
             if (!d.copy && d.pointerType !== 'mouse' && (Date.now() - d.startTime) > 450) d.copy = true;
             d.moved = true;
             this.pushUndo(loadProgressionSections()); // un seul snapshot pour tout le geste de glisser
-            d.ghost = this.createDragGhost(d.cell, d.width, d.height, d.copy ? d.dragIndices.length : 1); // cloner tant que la case est attachée
+            // cloner tant que la case est attachée. Le nombre n'a de sens qu'en copie (un déplacement
+            // ne porte jamais que la case saisie, voir dragIndices/duplicateChordsTo).
+            d.ghost = this.createDragGhost(d.cell, d.width, d.height, d.copy ? d.dragIndices.length : 1, d.copy);
             // Instantané de sélection/édition d'AVANT tout glisser (déplacement, pas copie) : sert à
             // recalculer this.editingIndex/selectedIndex/multiSelect à CHAQUE case survolée ci-dessous
             // (pas seulement au dépôt final, voir onGridPointerUp) — TOUJOURS depuis ce même instantané
@@ -8937,21 +8942,32 @@ class HarmoHubApp {
     // Crée un clone flottant de la case en cours de déplacement. `count` > 1 (copie d'un groupe
     // sélectionné en une fois, voir onGridPointerDown/duplicateChordsTo) : petit badge « ×N » pour
     // indiquer que tout le groupe suit, alors qu'une seule case est visuellement glissée.
-    createDragGhost(cell, width, height, count = 1) {
+    createDragGhost(cell, width, height, count = 1, copy = false) {
         const rect = cell.getBoundingClientRect();
         const ghost = cell.cloneNode(true);
         ghost.classList.add('drag-ghost');
         ghost.classList.remove('selected', 'editing', 'drag-placeholder');
         ghost.style.width = `${width || rect.width}px`;
         ghost.style.height = `${height || rect.height}px`;
-        if (count > 1) {
-            const badge = document.createElement('span');
-            badge.className = 'drag-ghost-badge';
-            badge.textContent = `×${count}`;
-            ghost.appendChild(badge);
-        }
+        const badge = document.createElement('span');
+        badge.className = 'drag-ghost-badge';
+        ghost.appendChild(badge);
         document.body.appendChild(ghost);
+        this.updateDragGhostMode(ghost, count, copy);
         return ghost;
+    }
+
+    // Dit NOIR SUR BLANC ce que le dépôt va faire — copier ou déplacer. Au doigt, c'est la DURÉE de
+    // l'appui avant de glisser qui tranche (voir onGridPointerMove, seuil de 450 ms), un basculement
+    // que rien ne signalait : on croyait déplacer un accord et on s'en retrouvait avec deux (retour
+    // utilisateur sur les erreurs de manipulation). Appelé à la création du fantôme ET à chaque fois
+    // que le mode change en cours de geste — la bascule peut survenir bien après (menu contextuel
+    // refermé par un début de glissé, voir onGridPointerMove).
+    updateDragGhostMode(ghost, count, copy) {
+        if (!ghost) return;
+        ghost.classList.toggle('drag-ghost-copy', !!copy);
+        const badge = ghost.querySelector('.drag-ghost-badge');
+        if (badge) badge.textContent = copy ? (count > 1 ? `Copier ×${count}` : 'Copier') : 'Déplacer';
     }
 
     // Déplace l'accord `from` -> `to` en direct, au sein d'une même partie (écrit et re-rend,
@@ -9038,6 +9054,15 @@ class HarmoHubApp {
     setupSequencerInteractions() {
         const host = document.getElementById('arp-sequencer');
         host.addEventListener('pointerdown', (e) => this.onSeqPointerDown(e));
+        // Fin du retour visuel « case par case » propre au glissé (voir .seq-live en CSS et
+        // onSeqPointerDown) : retiré au relâchement QUEL QUE SOIT le pointeur et où qu'il se lève —
+        // y compris hors du séquenceur, et y compris sur les chemins de sortie anticipée de
+        // onSeqPointerDown (pipette armée, second doigt d'un pincer-zoomer...), qui ne passent jamais
+        // par onSeqPointerUp. #arp-sequencer étant déplacé mais jamais recréé (voir openSeqZoom/
+        // pinSequencerHost), la classe posée dessus survit aux re-rendus, qui ne touchent que ses enfants.
+        const endLive = () => host.classList.remove('seq-live');
+        window.addEventListener('pointerup', endLive);
+        window.addEventListener('pointercancel', endLive);
         // Nettoyage du suivi des doigts actifs (voir this._seqActiveTouchIds/onSeqPointerDown) : posé
         // sur window, pas sur `host`, pour retirer un doigt même s'il se lève hors du séquenceur (glissé
         // qui sort de la zone pendant un pincer-zoomer, par exemple).
@@ -9065,6 +9090,10 @@ class HarmoHubApp {
 
         const cell = e.target.closest('.seq-cell');
         if (!cell) return;
+
+        // Le geste commence : les cases peuvent de nouveau s'allumer une à une pour suivre le doigt en
+        // direct (voir .seq-live en CSS/applySeqCell). Retiré au relâchement, voir setupSequencerInteractions.
+        e.currentTarget.classList.add('seq-live');
 
         const voice = +cell.dataset.voice, step = +cell.dataset.step;
         const wasOn = cell.classList.contains('on');
@@ -11170,16 +11199,21 @@ class HarmoHubApp {
                 const col = colOffset + (s - pageStart);
                 const beatStart = (s % SEQ_STEPS_PER_BEAT === 0) ? ' beat-start' : '';
                 const pairCls = (s % 2 === 0) ? ' seq-cell-a' : ' seq-cell-b';
-                // Croche au début ou à la fin d'une note : indice visuel discret (curseur) qu'un
-                // glissé depuis là peut étirer/raccourcir la note (pas de poignée visible séparée).
-                // Se base sur le motif COMPLET (pas la page) : une note qui continue sur la page
-                // suivante n'affiche jamais ce curseur à la coupure, seul son vrai bord le fait.
-                const isEdge = pattern[s].includes(r) && (
-                    !(s > 0 && pattern[s - 1].includes(r) && tie[s].includes(r)) ||
-                    !(s + 1 < steps && pattern[s + 1].includes(r) && tie[s + 1].includes(r))
-                );
-                const edgeCls = isEdge ? ' seq-cell-edge' : '';
-                const onCls = pattern[s].includes(r) ? ' on' : '';
+                // Croche au début ou à la fin d'une note : un glissé depuis là étire/raccourcit la note,
+                // alors que depuis son CORPS il la déplace dans le temps (voir beginSeqHDrag). Les deux
+                // bords sont distingués (…-edge-start/…-edge-end) pour pouvoir poser le repère visuel
+                // du BON côté au survol, et le curseur qui va avec (voir style.css). Se base sur le
+                // motif COMPLET (pas la page) : une note qui continue sur la page suivante n'affiche
+                // jamais de bord à la coupure, seul son vrai début/sa vraie fin en portent un.
+                const isOn = pattern[s].includes(r);
+                const contPrev = s > 0 && pattern[s - 1].includes(r) && tie[s].includes(r);
+                const contNext = s + 1 < steps && pattern[s + 1].includes(r) && tie[s + 1].includes(r);
+                const isStartEdge = isOn && !contPrev;
+                const isEndEdge = isOn && !contNext;
+                const edgeCls = (isStartEdge || isEndEdge)
+                    ? ` seq-cell-edge${isStartEdge ? ' seq-cell-edge-start' : ''}${isEndEdge ? ' seq-cell-edge-end' : ''}`
+                    : '';
+                const onCls = isOn ? ' on' : '';
                 html += `<div class="seq-cell${pairCls}${beatStart}${edgeCls}${onCls}" data-step="${s}" data-voice="${r}" style="grid-row:${rowIndex}; grid-column:${col + 2};"></div>`;
             }
         }

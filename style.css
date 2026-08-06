@@ -2430,23 +2430,46 @@ button:active { transform: translateY(1px); }
     border-radius: 6px;
     transform: scale(1.03);
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.7);
-    border-color: var(--accent);
+    /* Bord NEUTRE : l'accent vert est réservé au mode copie (voir .drag-ghost-copy), pour que les deux
+       modes se distinguent d'un coup d'œil — un fantôme vert dans les deux cas ne disait rien. */
+    border-color: rgba(255, 255, 255, 0.6);
+    /* .grid-cell est en overflow:hidden (pour rogner un symbole trop long) : hérité tel quel par le
+       clone, il rognait l'étiquette ci-dessous, volontairement débordante en haut à droite. */
+    overflow: visible;
 }
-/* Badge « ×N » sur le fantôme : Ctrl+glisser depuis une case de la sélection multiple copie tout
-   le groupe d'un coup (voir onGridPointerDown/duplicateChordsTo), une seule case étant glissée
-   visuellement — sans ce repère, rien ne distinguerait ce geste d'une copie simple. */
+/* Étiquette « Copier »/« Déplacer » du fantôme de glissé (voir updateDragGhostMode). Posée AU-DESSUS
+   du fantôme (top négatif) et en nowrap : elle doit rester lisible en entier même sur un accord d'un
+   temps, dont la case fait à peine quelques dizaines de pixels de large sur téléphone. Le « ×N »
+   qu'elle porte en copie compte les accords emportés : Ctrl+glisser depuis une case de la sélection
+   multiple copie tout le groupe d'un coup (voir onGridPointerDown/duplicateChordsTo) alors qu'une
+   seule case est glissée visuellement — sans ce compte, rien ne distinguerait ce geste d'une copie
+   simple. */
 .drag-ghost-badge {
     position: absolute;
-    top: -8px;
+    top: -10px;
     right: -8px;
-    background: var(--accent);
+    background: #4a4f57;
     color: #fff;
     font-size: var(--fs-2xs);
     font-weight: 700;
     line-height: 1;
+    white-space: nowrap;
     padding: 3px 6px;
     border-radius: 999px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+/* La COPIE, elle, est mise en avant (accent vert + liseré sur le fantôme) : c'est le mode inattendu,
+   celui qu'on déclenche parfois sans le vouloir. Un déplacement reste neutre — c'est le geste normal,
+   il n'a pas à crier. */
+/* La COPIE est mise en avant (accent vert sur l'étiquette ET sur le cadre) : c'est le mode inattendu,
+   celui qu'on déclenche parfois sans le vouloir en tenant l'appui un peu trop longtemps. Un
+   déplacement reste neutre — c'est le geste normal, il n'a pas à crier.
+   Sélecteur en (0,2,0), comme .grid-cell.drag-ghost : sans ça, le box-shadow/border de ce dernier
+   l'emportait quel que soit l'ordre des règles, et le cadre restait identique dans les deux modes. */
+.drag-ghost-copy .drag-ghost-badge { background: var(--accent); }
+.grid-cell.drag-ghost-copy {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent), 0 12px 30px rgba(0, 0, 0, 0.7);
 }
 
 .cell-cont { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 400; }
@@ -2467,6 +2490,40 @@ button:active { transform: translateY(1px); }
 }
 .cell-resize-right { right: 0; }
 .cell-resize-left { left: 0; }
+
+/* La poignée était purement invisible : un curseur col-resize et rien d'autre. Sur ordinateur on
+   finissait par la trouver au hasard du survol ; au doigt, où il n'y a NI curseur NI survol, elle
+   était introuvable — d'où des durées réglées au panneau Accord faute de mieux. Deux barres verticales
+   apparaissent donc au survol de la case, et RESTENT visibles sur la case sélectionnée/en édition, seul
+   canal utilisable au doigt. */
+.cell-resize::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 42%;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.55);
+    opacity: 0;
+    transition: opacity 0.12s ease;
+}
+.cell-resize-right::after { right: 3px; }
+.cell-resize-left::after { left: 3px; }
+.grid-cell:hover .cell-resize::after,
+.grid-cell.selected .cell-resize::after,
+.grid-cell.editing .cell-resize::after { opacity: 1; }
+.cell-resize:hover::after { background: var(--accent); height: 60%; }
+
+/* Pointeur grossier (doigt) : zone de saisie nettement plus large — 14px, c'est en dessous de tout
+   repère d'ergonomie tactile, et cette poignée borde une case qui, elle, réagit au tap et au glissé,
+   donc la rater ne fait pas « rien » : ça sélectionne ou déplace l'accord. Le repère visuel, lui,
+   reste fin : c'est la CIBLE qui grandit, pas le dessin. Même correctif que celui déjà appliqué à la
+   poignée du séquenceur épinglé. */
+@media (hover: none), (pointer: coarse) {
+    .cell-resize { width: 22px; }
+    .cell-resize::after { opacity: 1; background: rgba(255, 255, 255, 0.4); }
+}
 
 /* Boutons octave (loupe grille uniquement, voir shiftChordOctave/updateGridCellOctaveFloat) : une
    seule pastille flottante (position fixe, jamais posée sur la case elle-même comme avant — gênait
@@ -3001,12 +3058,44 @@ button:active { transform: translateY(1px); }
 
 .seq-cell:hover { background: #2c2c2c; }
 
-/* Croche de bord d'une note existante : curseur discret indiquant qu'un glissé depuis là
-   étire/raccourcit la note (pas de poignée visible séparée, juste cet indice au survol). */
+/* Trois gestes différents partent des cases d'une note, et rien ne les distinguait à l'œil : depuis un
+   BORD on étire, depuis le CORPS on déplace la note dans le temps (voir beginSeqHDrag), depuis une case
+   VIDE on dessine. Chacun a donc désormais son curseur — le seul retour possible avant d'appuyer, sur
+   ordinateur. (Au doigt, où il n'y a pas de survol, c'est la note SÉLECTIONNÉE qui montre ses poignées,
+   voir .seq-note.selected plus bas : même information, par un autre canal.) */
 .seq-cell-edge:hover { cursor: ew-resize; }
+.seq-cell.on:not(.seq-cell-edge):hover { cursor: grab; }
+.seq-cell.on:not(.seq-cell-edge):active { cursor: grabbing; }
 
-/* État transitoire pendant un glissé (avant que renderSequencer() ne redessine la forme finale) */
-.seq-cell.on {
+/* Repère VISIBLE du bord survolé, en plus du curseur : un liseré clair du bon côté de la case, qui
+   montre exactement d'où part l'étirement. position:relative posé ici uniquement pour ancrer ce
+   pseudo-élément — sans effet sur le placement en grille, qui reste piloté par grid-row/grid-column. */
+.seq-cell-edge { position: relative; }
+.seq-cell-edge-start:hover::before,
+.seq-cell-edge-end:hover::after {
+    content: '';
+    position: absolute;
+    top: 15%;
+    bottom: 15%;
+    width: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.9);
+    pointer-events: none;
+    z-index: 4; /* au-dessus de la note posée (voir .seq-note), sinon masqué par elle */
+}
+.seq-cell-edge-start:hover::before { left: 1px; }
+.seq-cell-edge-end:hover::after { right: 1px; }
+
+/* Retour visuel immédiat PENDANT un glissé, le temps que renderSequencer() redessine la forme finale
+   (voir applySeqCell, qui allume/éteint les cases une à une sans reconstruire toute la grille).
+   Volontairement limité à la durée du geste (classe .seq-live posée sur #arp-sequencer, voir
+   onSeqPointerDown) : une fois le rendu fait, c'est la BARRE (.seq-note) qui représente la note, et
+   elle seule. Laisser en plus les cases allumées en dessous repeignait du vert par-dessus le sien —
+   l'intérieur des cases ressortait plus clair que les 4px qui les séparent (voir .seq-cell-b), si
+   bien qu'une note tenue de 6 croches se lisait comme TROIS notes collées. Impossible, dans ces
+   conditions, de voir d'un coup d'œil où une note commence et finit — donc de savoir où saisir pour
+   étirer plutôt que déplacer. */
+.seq-live .seq-cell.on {
     background: rgba(0, 230, 118, 0.38);
     border-color: rgba(0, 230, 118, 0.85);
     box-shadow: 0 0 8px rgba(0, 230, 118, 0.3);
@@ -3089,6 +3178,29 @@ button:active { transform: translateY(1px); }
    coupure plutôt qu'arrondi, pour montrer qu'elle continue au-delà de ce qui est affiché. */
 .seq-note.clip-start { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .seq-note.clip-end { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+
+/* Poignées d'étirement de la note SÉLECTIONNÉE : deux petites barres à ses extrémités. C'est
+   l'équivalent tactile du liseré au survol (voir .seq-cell-edge-start/-end plus haut) — au doigt il
+   n'y a pas de survol, donc rien n'indiquait où saisir pour étirer plutôt que déplacer. Sélectionner
+   une note d'un tap fait apparaître ses poignées : l'information devient atteignable sans souris.
+   Portées par .seq-note (qui, lui, connaît l'état sélectionné) plutôt que par les cases en dessous.
+   Masquées du côté où la note est COUPÉE par la page (clip-start/clip-end ci-dessus) : ce bord-là
+   n'est pas un vrai bord, on n'y étire rien. */
+.seq-note.selected::before,
+.seq-note.selected::after {
+    content: '';
+    position: absolute;
+    top: 22%;
+    bottom: 22%;
+    width: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.92);
+    pointer-events: none;
+}
+.seq-note.selected::before { left: 2px; }
+.seq-note.selected::after { right: 2px; }
+.seq-note.selected.clip-start::before { content: none; }
+.seq-note.selected.clip-end::after { content: none; }
 
 /* Fantôme flottant d'un changement de voix (glisser une barre vers une autre ligne, voir
    beginSeqVoiceDrag/onSeqVoiceDragMove) : suit le pointeur en position fixe, recoloré (role-*, déjà
