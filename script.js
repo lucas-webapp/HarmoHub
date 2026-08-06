@@ -8010,7 +8010,7 @@ class HarmoHubApp {
                 // Clic pile sur le symbole affiché (voir onGridPointerUp) : un tap sans glisser dessus
                 // ouvre directement l'édition inline de son texte plutôt que de sélectionner/écouter
                 // l'accord — bien plus rapide que passer par le mode édition complet.
-                symTarget: !!e.target.closest('.cell-sym'),
+                symTarget: this._isSymbolHit(cell, e.clientX, e.clientY),
                 // Le geste démarre sur une case FAISANT PARTIE de la sélection multiple courante (voir
                 // toggleGridMultiSelect) : Ctrl+glisser copiera TOUT le groupe d'un coup (retour
                 // utilisateur), pas seulement la case sous le doigt — sinon un simple [index] comme
@@ -8030,6 +8030,28 @@ class HarmoHubApp {
         // Change la partie active APRÈS avoir capturé les infos du geste ci-dessus (un re-rendu
         // détacherait `cell` du DOM et fausserait ses coordonnées)
         if (section !== this.activeSection) this.setActiveSection(section);
+    }
+
+    // Le clic est-il assez proche du symbole pour vouloir l'ÉDITER (plutôt que sélectionner/écouter
+    // l'accord) ? Test géométrique, avec une tolérance autour du texte, plutôt qu'un simple
+    // e.target.closest('.cell-sym') : ce texte mesure ~12x17px, soit 2% de la case (mesuré) — et
+    // moins encore une fois les cases resserrées, où il rapetisse (voir .sz1/.sz2 en CSS). Il fallait
+    // donc le viser au pixel près, et le rater ne faisait pas « rien » : ça sélectionnait et jouait
+    // l'accord. Une zone d'au moins 46x34px (52x38 au doigt, sans curseur pour aider à viser) rend la
+    // cible atteignable sans pour autant avaler la case entière, dont le reste doit continuer à
+    // sélectionner/écouter. Le rendu visuel de cette zone est posé en CSS (voir .cell-sym au survol).
+    // Fait en JS et non en CSS : .cell-sym est en overflow:hidden pour l'ellipse des symboles longs,
+    // ce qui rogne tout pseudo-élément censé élargir sa zone de clic.
+    _isSymbolHit(cell, clientX, clientY) {
+        const sym = cell.querySelector('.cell-sym');
+        if (!sym) return false;
+        const r = sym.getBoundingClientRect();
+        if (!r.width) return false;
+        const coarse = window.matchMedia('(hover: none), (pointer: coarse)').matches;
+        const padX = Math.max(14, ((coarse ? 52 : 46) - r.width) / 2);
+        const padY = Math.max(9, ((coarse ? 38 : 34) - r.height) / 2);
+        return clientX >= r.left - padX && clientX <= r.right + padX
+            && clientY >= r.top - padY && clientY <= r.bottom + padY;
     }
 
     onGridPointerMove(e) {
@@ -8366,6 +8388,11 @@ class HarmoHubApp {
         input.autocomplete = 'off';
         input.autocapitalize = 'off';
         input.spellcheck = false;
+        // Le champ se valide en perdant le focus (voir commit/blur plus bas) — filet indispensable sur
+        // mobile, où la touche « Entrée » du clavier virtuel ne déclenche pas toujours de keydown.
+        // Conséquence : toucher ailleurs pour RENONCER valide quand même. Échap, lui, annule vraiment ;
+        // encore faut-il le savoir, d'où ce rappel.
+        input.title = 'Entrée pour valider — Échap pour annuler';
         symEl.replaceWith(input);
         input.focus();
         if (initialChar == null) input.select(); // sinon curseur laissé après le caractère déjà tapé
@@ -8383,6 +8410,20 @@ class HarmoHubApp {
             const sections = loadProgressionSections();
             const data = sections[section] && sections[section].chords[index];
             if (!data) { this.loadProgression(); return; }
+            // Rien n'a changé (le champ se valide au blur — voir plus bas — donc cliquer un symbole
+            // puis cliquer ailleurs passe TOUJOURS par ici, sans qu'on ait rien tapé) : ne rien écrire
+            // du tout. Sans ce garde-fou, ce simple aller-retour poussait une entrée d'annulation
+            // vide — un Ctrl+Z plus tard semblait alors « ne rien faire » alors qu'il défaisait bien
+            // quelque chose : ce non-changement — et marquait le morceau comme modifié, réclamant un
+            // enregistrement pour rien. Le verrou de doigté (remis à zéro plus bas) n'a pas non plus
+            // à sauter quand l'accord est resté identique.
+            const unchanged = data.root === parsed.root
+                && data.quality === parsed.quality
+                && octaveFromData(data) === (parsed.octave ?? 3)
+                && (data.inversion ?? 0) === (parsed.inversion ?? 0)
+                && (data.drop ?? 'none') === (parsed.drop ?? 'none')
+                && (data.bass || null) === (parsed.bass || null);
+            if (unchanged) { this.loadProgression(); return; }
             this.pushUndo(sections);
             data.root = parsed.root;
             data.quality = parsed.quality;
@@ -12032,6 +12073,35 @@ class HarmoHubApp {
         this.loadProgression();
     }
 
+    // Supprime TOUS les accords actuellement sélectionnés (voir toggleGridMultiSelect), en un seul
+    // Annuler. Jusqu'ici, Suppr passait par removeChord sur activeGridChordIndex(), qui ne connaît que
+    // selectedIndex : avec trois accords en surbrillance, un seul disparaissait — et multiSelect
+    // gardait ses trois index d'origine, désormais décalés, donc pointant sur d'AUTRES accords que
+    // ceux affichés en surbrillance. Ctrl+C, lui, respectait déjà le groupe (voir copySelected) : la
+    // même sélection voulait donc dire deux choses selon la touche.
+    // Suppression de la fin vers le début : retirer l'accord 0 en premier décalerait tous les index
+    // suivants, et on effacerait ensuite les mauvais.
+    removeSelectedChords() {
+        const indices = [...this.multiSelect].sort((a, b) => b - a);
+        if (indices.length === 0) return;
+        const sections = loadProgressionSections();
+        const history = sections[this.activeSection] && sections[this.activeSection].chords;
+        if (!history) return;
+        this.pushUndo(sections);
+        indices.forEach(i => { if (history[i]) history.splice(i, 1); });
+        saveProgressionSections(sections);
+        // Plus rien de ce qui était sélectionné n'existe : on repart d'une sélection vide plutôt que
+        // de laisser des index périmés derrière (c'était précisément le défaut corrigé ici).
+        this.multiSelect = new Set();
+        this.selectedIndex = null;
+        if (this.editingIndex != null && indices.includes(this.editingIndex)) this.exitEditMode();
+        else if (this.editingIndex != null) {
+            this.editingIndex -= indices.filter(i => i < this.editingIndex).length;
+        }
+        hasUnsavedChanges = true;
+        this.loadProgression();
+    }
+
     // ---------- Annuler / Rétablir (undo/redo) ----------
     // Chaque appel qui modifie la grille (ajout, suppression, modification, déplacement,
     // copier-coller, parties) capture l'état AVANT mutation via pushUndo(), avant d'appeler
@@ -12314,7 +12384,10 @@ class HarmoHubApp {
             }
 
             if (!typing && (e.key === 'Delete' || e.key === 'Backspace')) {
-                if (activeGridIdx != null) { this.removeChord(this.activeSection, activeGridIdx); e.preventDefault(); }
+                // Sélection multiple en cours : efface TOUT le groupe, comme Ctrl+C le copie déjà en
+                // entier (voir removeSelectedChords/copySelected). N'efface qu'un seul accord sinon.
+                if (this.multiSelect.size > 0) { this.removeSelectedChords(); e.preventDefault(); }
+                else if (activeGridIdx != null) { this.removeChord(this.activeSection, activeGridIdx); e.preventDefault(); }
             }
 
             // Entrée depuis un réglage d'accord : ajoute sans avoir à cliquer sur le bouton — seulement

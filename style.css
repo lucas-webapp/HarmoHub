@@ -2606,6 +2606,34 @@ button:active { transform: translateY(1px); }
     text-overflow: ellipsis;
     max-width: 100%;
     cursor: text; /* distingue du grab du reste de la case : cliquer ici modifie le texte directement */
+    position: relative;
+    border-radius: 4px;
+    transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+/* Le texte seul mesurait ~12x17px, soit 2% de la case (mesuré) : pour renommer un accord il fallait
+   le viser au pixel près, et le rater déclenchait autre chose (sélection + lecture de l'accord). Ce
+   pseudo-élément élargit la seule ZONE DE CLIC, sans toucher à la mise en page — le texte garde sa
+   taille et sa position.
+   Taille MINIMALE absolue (min-width/min-height), pas une simple marge autour du texte : le symbole
+   rétrécit quand les cases se resserrent (voir .sz1/.sz2 plus bas, qui ne touchent QUE .cell-sym),
+   si bien qu'une marge relative rendait la cible d'autant plus PETITE que le texte l'était déjà —
+   l'inverse du besoin. Elle grandit en revanche avec un symbole long (calc sur 100%).
+   Volontairement pas étendue à toute la case : le reste doit continuer à sélectionner/écouter, et
+   les poignées de durée (.cell-resize, z-index 3) restent prioritaires là où elles se recouvrent. */
+/* Dire que le symbole est éditable AVANT de cliquer, et montrer une zone à la mesure de ce qui est
+   réellement cliquable (voir _isSymbolHit dans script.js, qui élargit la cible autour du texte).
+   Dessinée à l'OMBRE PORTÉE plutôt qu'avec un pseudo-élément ou du padding : .cell-sym est en
+   overflow:hidden — indispensable pour l'ellipse des symboles longs — ce qui rognait tout
+   pseudo-élément débordant sur le texte lui-même (donc sans aucun effet), tandis qu'une ombre est
+   peinte HORS de la boîte et échappe à ce rognage ; et contrairement à du padding, elle ne décale
+   rien dans la mise en page au survol. Visible au survol sur ordinateur, et en permanence sur la
+   case active — seul canal au doigt, où le curseur texte n'existe pas. */
+.grid-cell:hover .cell-sym,
+.grid-cell.selected .cell-sym,
+.grid-cell.editing .cell-sym {
+    background: rgba(255, 255, 255, 0.07);
+    box-shadow: 0 0 0 11px rgba(255, 255, 255, 0.07), 0 0 0 12px rgba(255, 255, 255, 0.16);
 }
 
 .grid-cell.selected .cell-sym { color: var(--accent); }
