@@ -1160,28 +1160,14 @@ main {
    « AM » — un accord majeur au lieu d'un mineur. Un symbole d'accord n'est pas du texte décoratif. */
 #accord-title-sym { text-transform: none; }
 
-/* Ligne qui SITUE le sujet du panneau d'accord : « Mesure 2 · Couplet » pour un accord déjà posé,
-   « Sera ajouté à la fin de… » pour celui qu'on prépare (voir updateChordSubject). Discrète — elle
-   répond à une question qu'on ne se pose qu'au moment où l'on doute, elle ne doit pas rivaliser avec
-   les réglages eux-mêmes. La couleur suit le SUJET, pas un mode caché : vert = un accord qui va être
-   ajouté, ambre = un accord existant qui change sous les yeux. C'est la même paire que les cases de
-   la grille (.grid-cell.selected / .grid-cell.editing), pour que les deux bouts du fil s'accordent. */
-.chord-subject-where {
-    margin: -4px 0 10px;
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    color: var(--accent);
-}
-#accord-card.subject-existing .chord-subject-where { color: #ffb300; }
-#accord-card.subject-existing #accord-title::before {
-    content: '';
-    display: inline-block;
-    width: 7px; height: 7px;
-    margin-right: 7px;
-    border-radius: 50%;
-    background: #ffb300;
-    vertical-align: 0.1em;
-}
+/* Le TITRE lui-même porte la couleur du sujet : vert pour un accord qui va être ajouté, ambre pour
+   un accord existant qui change sous les yeux. Même paire que les cases de la grille
+   (.grid-cell.selected / .grid-cell.editing), pour que les deux bouts du fil s'accordent.
+   Une ligne détaillée sous le titre (« Sera ajouté à la fin de Couplet · mesure 5 ») a été essayée
+   puis retirée : trop de texte pour une information qu'on a déjà sous les yeux dans la grille
+   (retour utilisateur). Deux ou trois mots colorés suffisent à dire de quoi parle le panneau. */
+#accord-title { color: var(--accent); }
+#accord-card.subject-existing #accord-title { color: #ffb300; }
 
 /* Clignotement de la case ramenée à l'écran par #accord-goto : deux battements francs, puis plus
    rien — il s'agit de dire « c'est celle-ci », pas d'installer un état de plus dans la grille. */
@@ -2426,7 +2412,7 @@ button:active { transform: translateY(1px); }
    mode « Ajout » qui, lui, changeait le sens du clic sur les accords EXISTANTS, et donc l'ambiguïté
    d'origine (« j'ajoute ou je modifie ? »). Une fois cette case franchement visible, ajouter et
    modifier visent deux endroits différents et il n'y a plus rien à désambiguïser. Teinte verte, la
-   même que le sujet « Nouvel accord » du panneau (voir .chord-subject-where). */
+   même que le titre « Nouvel accord » du panneau (voir #accord-title). */
 .grid-cell-add {
     border-style: dashed;
     border-color: rgba(0, 230, 118, 0.38);

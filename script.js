@@ -6131,18 +6131,7 @@ class HarmoHubApp {
         document.body.dataset.appMode = this.appMode;
     }
 
-    // Numéro de la mesure où COMMENCE l'accord d'indice `index` dans `chords` — la même arithmétique
-    // que layoutProgression (cumul des durées, divisé par la mesure), extraite ici pour que le
-    // panneau puisse situer son sujet sans avoir à refaire toute la mise en page de la grille.
-    // `index` peut valoir chords.length : on obtient alors la mesure du PROCHAIN accord ajouté.
-    measureOfChordIndex(chords, index) {
-        const beatsPerBar = this.beatsPerBar();
-        let beats = 0;
-        for (let i = 0; i < Math.min(index, chords.length); i++) beats += beatsFromData(chords[i]);
-        return Math.floor(beats / beatsPerBar) + 1;
-    }
-
-    // ---------- Sujet du panneau d'accord (voir #accord-title/#accord-where) ----------
+    // ---------- Sujet du panneau d'accord (voir #accord-title) ----------
     // Dit NOIR SUR BLANC de quoi parlent les réglages en dessous : un accord qu'on prépare, ou un
     // accord déjà posé dans la grille. C'est l'information que l'ancien système d'onglets demandait
     // de retenir de tête ; ici elle est écrite à l'endroit qu'on regarde déjà.
@@ -6151,15 +6140,11 @@ class HarmoHubApp {
     updateChordSubject(sectionsDejaLues = null) {
         const titre = document.getElementById('accord-title-label');
         const titreSym = document.getElementById('accord-title-sym');
-        const ou = document.getElementById('accord-where');
         const goto = document.getElementById('accord-goto');
-        if (!titre || !ou) return;
+        if (!titre || !titreSym) return;
         const carte = document.getElementById('accord-card');
         const sections = sectionsDejaLues || loadProgressionSections();
         const partie = sections[this.activeSection];
-        // Une partie sans nom (cas par défaut) ne doit pas produire « Mesure 2 · la partie » : on
-        // omet alors la mention plutôt que d'inventer un libellé qui n'apprend rien.
-        const nomPartie = (partie && partie.title && partie.title.trim()) ? partie.title.trim() : null;
         const chords = (partie && partie.chords) || [];
         const existant = this.editingIndex != null && !!chords[this.editingIndex];
         // La teinte suit le SUJET, pas un mode caché — c'est tout l'objet du chantier. Posée ici, sur
@@ -6174,21 +6159,12 @@ class HarmoHubApp {
             // import MIDI.
             titre.textContent = 'Modifier · ';
             titreSym.textContent = chordSymbolForData(d, this.useFlatsForRoot(d.root));
-            const mesure = `Mesure ${this.measureOfChordIndex(chords, this.editingIndex)}`;
-            ou.textContent = nomPartie ? `${mesure} · ${nomPartie}` : mesure;
             if (goto) goto.hidden = false;
             return;
         }
 
         titre.textContent = 'Nouvel accord';
         titreSym.textContent = '';
-        // Destination du bouton « Ajouter » : toujours la FIN de la partie active (voir
-        // updateSaveButtons) — on annonce donc la mesure où l'accord préparé atterrira réellement,
-        // plutôt qu'un vague « il sera ajouté quelque part ».
-        const mesure = `mesure ${this.measureOfChordIndex(chords, chords.length)}`;
-        ou.textContent = nomPartie
-            ? `Sera ajouté à la fin de ${nomPartie} · ${mesure}`
-            : `Sera ajouté à la fin de la grille · ${mesure}`;
         if (goto) goto.hidden = true;
     }
 
