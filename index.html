@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608073010">
+    <link rel="stylesheet" href="style.css?v=202608073110">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -571,22 +571,12 @@
                 </section>
                 </div>
             </section>
-            <div class="app-mode-banner" role="tablist" aria-label="Mode d'interaction avec la grille">
-                <button type="button" id="app-mode-add" class="app-mode-seg active" role="tab" aria-pressed="true" title="Un clic sélectionne/écoute ; double-clic pour modifier un accord">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                    Ajout
-                </button>
-                <button type="button" id="app-mode-edit" class="app-mode-seg" role="tab" aria-pressed="false" title="Modification — chaque clic sur un accord le modifie directement, sans rien valider">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                    Modif
-                </button>
-            </div>
             <div class="panel-controls">
-                <!-- Saisie rapide : en tête du panneau, UNIQUEMENT en mode Ajout — inutile en
-                     Modification, où chaque case s'édite déjà directement au clic (voir
-                     updateAppModeBanner dans script.js, qui bascule `hidden` ici selon this.appMode).
-                     Anciennement dans la carte "Grille d'accords" (colonne de droite), où elle prenait
-                     trop de place à demeure. -->
+                <!-- Saisie rapide : en tête du panneau. Elle était autrefois réservée au mode Ajout — inutile en
+                     Modification. Elle ne se masque PLUS : c'est une cible d'ajout, et une cible qui
+                     disparaît dès qu'on touche un accord ne peut pas servir de repère (voir
+                     applyAppModeTheme). Anciennement dans la carte "Grille d'accords" (colonne de
+                     droite), où elle prenait trop de place à demeure. -->
                 <div id="quick-add-panel">
                     <!-- Bouton d'ouverture déplacé dans Paramètres > Affichage (voir renderDisplayPanel,
                          retour utilisateur : on ne comprenait pas qu'il appartenait à l'ajout rapide, et il
@@ -609,15 +599,33 @@
                         </button>
                     </div>
                 </div>
+                <!-- Le titre de cette carte NOMME SON SUJET plutôt que sa catégorie (« Accord »).
+                     Elle règle en effet deux choses très différentes selon le moment : un accord
+                     FANTÔME qu'on prépare et qui n'existe encore nulle part dans la grille, ou un
+                     accord RÉEL déjà posé. Rien ne le disait, et c'était la vraie source du « je ne
+                     sais pas si j'ajoute ou si je modifie » (retour utilisateur d'origine, à
+                     l'époque résolu par des onglets — qui demandaient de s'en souvenir au lieu de le
+                     dire). Voir updateChordSubject dans script.js. -->
                 <section class="control-card" id="accord-card">
                     <div class="card-head">
-                        <h2>Accord</h2>
+                        <!-- Le symbole d'accord est dans un élément à part : les titres de carte
+                             sont mis en capitales par le CSS (.control-card h2), ce qui transformait
+                             « Am » en « AM » — deux accords différents. Il garde donc sa casse. -->
+                        <h2 id="accord-title"><span id="accord-title-label">Nouvel accord</span><span id="accord-title-sym"></span></h2>
                         <div class="card-head-actions">
+                            <!-- Le lien panneau → grille, qui manquait : la case savait qu'elle était
+                                 en édition (.grid-cell.editing), le panneau ne disait jamais QUELLE
+                                 case il pilotait. Sur téléphone les deux sont à ~600 px l'un de
+                                 l'autre (mesuré). Voir goToEditedChord. -->
+                            <button type="button" id="accord-goto" class="icon-btn" hidden title="Montrer cet accord dans la grille" aria-label="Montrer cet accord dans la grille">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/></svg>
+                            </button>
                             <button type="button" id="toggle-complex-quality" class="icon-btn" title="Afficher plus d'options (accords enrichis, renversement, drop, octave, basse différente...)" aria-label="Afficher plus d'options">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
                             </button>
                         </div>
                     </div>
+                    <p id="accord-where" class="chord-subject-where"></p>
                     <div class="accord-grid">
                         <select id="root">
                             <option value="C">C</option><option value="C#">C#</option><option value="D">D</option><option value="D#">D#</option>
@@ -789,16 +797,6 @@
                     <div id="arp-sequencer" class="arp-seq" hidden></div>
                 </section>
 
-                <!-- Mode Modification SANS accord chargé (bandeau "Modification" cliqué avant de toucher
-                     la grille, ou accord fermé via "Fermer" sans en rouvrir un autre) : Accord/Lecture
-                     (juste au-dessus) restaient affichées avec les réglages du DERNIER accord touché,
-                     comme si on pouvait encore le modifier alors que rien n'est sélectionné (retour
-                     utilisateur : "tous les modules restent ouverts, ce n'est pas cohérent"). Cette carte
-                     les remplace le temps qu'aucun accord ne soit chargé (voir updateEditCardsVisibility
-                     dans script.js) — masquée dès qu'on touche une case de la grille. -->
-                <section class="control-card edit-empty-hint" id="edit-empty-hint" hidden>
-                    <p>Touchez un accord de la grille pour le modifier.</p>
-                </section>
 
                 <div class="edit-actions" id="edit-actions">
                     <button id="save" class="btn-green"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter</button>
@@ -1038,6 +1036,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608073010"></script>
+    <script src="script.js?v=202608073110"></script>
 </body>
 </html>

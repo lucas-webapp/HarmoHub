@@ -1787,6 +1787,11 @@ const PDF_MEASURES_PER_LINE_KEY = 'harmohubPdfMeasuresPerLine';
 // d'une session à l'autre — pas remis à zéro à chaque accord édité, pour ne pas avoir à le
 // rallumer sans cesse (retour utilisateur : « alléger l'appli », voir aussi le mode simple/studio).
 const STUDIO_MODE_KEY = 'harmohubStudioMode';
+// Ce qu'un clic sur un accord de la grille déclenche (voir this.gridClickEdits). Ce qui restait du
+// bandeau Ajout/Modification une fois que le panneau nomme son sujet et que l'ajout a ses propres
+// cibles : une PRÉFÉRENCE — prudent (clic = écouter, double-clic = modifier) contre rapide (clic =
+// modifier) — et non plus un état à surveiller en permanence.
+const GRID_CLICK_EDITS_KEY = 'harmohubGridClickEdits';
 // Échelles horizontale/verticale INDÉPENDANTES des modes loupe (grille/séquenceur) : remplace
 // l'ancien niveau de zoom unique (une seule clé harmohubSeqZoomLevel/harmohubGridZoomLevel) — une
 // valeur toujours reprise comme repli pour les deux axes si trouvée (session précédente), pour ne
@@ -2724,13 +2729,12 @@ class HarmoHubApp {
         this.multiSelect = new Set(); // indices en plus de selectedIndex (Ctrl/Cmd+clic, voir toggleGridMultiSelect), toujours au sein de la partie active — vidé au changement de partie
         this._multiIntensityUndoPushed = false; // voir applyIntensityToSelection : un seul instantané Annuler par sélection multiple, pas un par cran de la barre #intensity
         this.editingIndex = null;  // accord en cours de modification (au sein de la partie active)
-        // Bandeau Ajout/Modification (retour utilisateur : trop de clics/erreurs pour modifier un
-        // accord) — voir updateAppModeBanner/editChord/exitEditMode. 'add' : un clic simple sur la
-        // grille sélectionne/écoute seulement, double-clic bascule en 'edit' ET charge cet accord.
-        // 'edit' : mode COLLANT, un simple clic sur N'IMPORTE quel accord le charge directement pour
-        // édition, jusqu'à repasser en 'add' via le bandeau. editingIndex non nul implique toujours
-        // appMode==='edit' (seul editChord() peut le poser, et il force toujours ce mode).
-        this.appMode = 'add';
+        // Un clic sur un accord de la grille le CHARGE-t-il directement pour édition ? Réglage
+        // d'appareil (voir renderDisplayPanel), plus un mode à basculer trente fois par séance.
+        // Faux (défaut) : un clic sélectionne/écoute, un double-clic modifie. Vrai : un clic modifie
+        // tout de suite — le comportement de l'ancien mode « Modification » collant, pour qui le
+        // préférait. Voir onGridPointerUp.
+        this.gridClickEdits = localStorage.getItem(GRID_CLICK_EDITS_KEY) === '1';
         // Un seul instantané Annuler par SESSION d'édition en mode 'edit' (voir commitLiveEdit),
         // jamais un par champ retouché — remis à false à chaque nouvel appel à editChord().
         this._editSessionUndoPushed = false;
@@ -2969,7 +2973,7 @@ class HarmoHubApp {
         });
 
         this.setupEventListeners();
-        this.updateAppModeBanner();
+        this.applyAppModeTheme();
         this.applySongSettingsOpen(); // bloc Morceau : déplié ou non, tel qu'on l'avait laissé
         this.updateSongSummary();
         this.setupDurationPicker();
@@ -3032,22 +3036,15 @@ class HarmoHubApp {
         document.getElementById('save').onclick = () => this.saveCurrent();
         document.getElementById('save-insert').onclick = () => this.saveCurrent(this.selectedIndex);
 
-        // Bandeau Ajout/Modification : deux modes d'INTERACTION, rien d'autre. "Ajout" referme une
-        // édition en cours (resetMode=true, comportement par défaut) ; "Modification" arme le mode
-        // collant, sans charger d'accord précis — le prochain clic sur la grille s'en charge (voir
-        // onGridPointerUp/editChord).
-        document.getElementById('app-mode-add').onclick = () => {
-            if (this.appMode === 'add') return;
-            this.exitEditMode();
-            this.loadProgression();
-        };
-        document.getElementById('app-mode-edit').onclick = () => {
-            if (this.appMode === 'edit') return;
-            this.appMode = 'edit';
-            this.updateAppModeBanner();
-            this.updateEditCardsVisibility();
-            this.updateSaveButtons(); // masque Ajouter/À la suite tout de suite, avant même de charger un accord
-        };
+        // Engager l'ajout rapide = « j'AJOUTE » : même règle que la case « + » de la grille (voir
+        // setupGridInteractions), pour que le panneau cesse d'annoncer « Modifier · Am » pendant
+        // qu'on tape un tout autre accord. Ce champ n'est plus masqué pendant une édition : une
+        // cible d'ajout doit rester au même endroit, toujours.
+        document.getElementById('quick-add-input').addEventListener('focus', () => {
+            if (this.editingIndex != null) { this.leaveEditForNewChord(); this.loadProgression(); }
+        });
+        // Le lien panneau → grille (voir goToEditedChord/#accord-goto).
+        document.getElementById('accord-goto').onclick = () => this.goToEditedChord();
         // Bloc « Morceau » : la ligne de résumé déplie/replie les réglages du morceau.
         document.getElementById('song-summary').onclick = () => this.toggleSongSettings();
         // Un seul écouteur pour TOUS les réglages du bloc, par délégation : ajouter un réglage demain
@@ -3712,6 +3709,14 @@ class HarmoHubApp {
     // Lit les réglages de l'interface et renvoie un Chord. Le doigté guitare verrouillé (voir
     // toggleGuitarLock) n'est PAS passé ici : ensureGuitarDiagram le fournit explicitement à
     // guitarFingeringsForChord (ce Chord est reconstruit à chaque frappe, il ne le porte jamais).
+    // « Modifie-t-on un accord existant ? » — DÉDUIT de l'état réel, jamais choisi à part. C'était
+    // une variable cachée qu'il fallait tenir à jour à la main, et qu'on pouvait donc contredire :
+    // le bandeau pouvait annoncer « Modification » alors qu'aucun accord n'était chargé, et rester
+    // sur « Modification » après avoir refermé le dernier (état constaté). Un accord est ouvert, ou
+    // il ne l'est pas — il n'y a rien d'autre à savoir. Lecture seule : tout se pilote par
+    // editChord()/exitEditMode(), les deux seuls endroits qui posent editingIndex.
+    get appMode() { return this.editingIndex != null ? 'edit' : 'add'; }
+
     readChord() {
         return new Chord(
             document.getElementById('root').value,
@@ -4905,7 +4910,10 @@ class HarmoHubApp {
         }
         history[this.editingIndex] = this.buildLiveChordData();
         saveProgressionSections(sections);
-        if (refreshGrid) this.loadProgression();
+        if (refreshGrid) this.loadProgression(); // qui repose le sujet du panneau (updateSaveButtons)
+        // Réglage sans effet sur la grille (refreshGrid faux) : le titre doit quand même suivre, une
+        // durée modifiée déplace par exemple la mesure annoncée. On lui passe les sections déjà lues.
+        else this.updateChordSubject(sections);
     }
 
     // Construit les données d'un accord (fondamentale par défaut ; basse ET voicing — octave/
@@ -5283,11 +5291,6 @@ class HarmoHubApp {
         const sections = loadProgressionSections();
         const d = sections[section] && sections[section].chords[index];
         if (!d) return;
-        // Bascule (ou reste) en mode Modification, quel que soit l'appelant (double-clic depuis le
-        // mode Ajout, ou clic direct déjà en mode Modification collant) — seul editChord() pose
-        // editingIndex, cette invariante simplifie tout le reste (voir commitLiveEdit/updateSaveButtons).
-        this.appMode = 'edit';
-        this.updateAppModeBanner();
         this._editSessionUndoPushed = false; // nouvelle session : un seul futur instantané Annuler, pour CET accord
         this.activeSection = section;
 
@@ -5322,7 +5325,10 @@ class HarmoHubApp {
         this.setLiveSeqPattern(pattern, tie);
         this.seqLastChordToneVoices = chord.getIntervals().length; // repère de départ pour applyNewVoiceDefaults
 
+        // C'est CETTE ligne qui fait désormais basculer tout le reste en « modification » : appMode
+        // en est déduit (voir son getter), plus rien à tenir à jour à côté. Le thème suit juste après.
         this.editingIndex = index;
+        this.applyAppModeTheme();
         document.getElementById('save').innerHTML = svgIcon('check') + ' Modifier';
         document.getElementById('cancel-edit').hidden = false;
         this.updateEditActionsDocking();
@@ -5359,21 +5365,18 @@ class HarmoHubApp {
         }
     }
 
-    // Ferme le panneau d'édition SANS quitter le mode Modification collant (voir le bandeau Ajout/
-    // Modification) : rien à valider (déjà tout appliqué en direct, voir commitLiveEdit), donc plus
-    // besoin d'un "Annuler" qui défait — Ctrl+Z fait déjà ce travail sur toute la session. Ce bouton
-    // (réétiqueté "Fermer" en mode Modification, voir updateSaveButtons) referme juste CET accord,
-    // prêt à en cliquer un autre directement.
+    // Bouton « Fermer » : referme CET accord. Rien à valider (tout est déjà appliqué en direct, voir
+    // commitLiveEdit) — Ctrl+Z fait le travail d'un « Annuler ». Le panneau repasse aussitôt sur
+    // « Nouvel accord », prêt soit à en préparer un, soit à en cliquer un autre dans la grille.
     cancelEdit() {
-        this.exitEditMode(false);
+        this.exitEditMode();
         this.loadProgression();
     }
 
-    // `resetMode` (true par défaut) : repasse aussi en mode Ajout — le comportement de TOUJOURS avant
-    // cette fonctionnalité, utilisé partout ailleurs où le contexte change radicalement (suppression du
-    // morceau, changement de partie...). Seul cancelEdit() (bouton Fermer en mode Modification) passe
-    // explicitement false, pour rester prêt à cliquer un autre accord sans repasser par le bandeau.
-    exitEditMode(resetMode = true) {
+    // Referme l'accord en cours d'édition. Le paramètre `resetMode` d'autrefois a disparu avec le
+    // bandeau : il n'y a plus de mode collant à quitter ou à conserver — appMode se déduit désormais
+    // de editingIndex (voir son getter), et cette fonction est le seul endroit qui le remet à null.
+    exitEditMode() {
         this.editingIndex = null;
         document.getElementById('save').innerHTML = svgIcon('plus') + ' Ajouter';
         document.getElementById('cancel-edit').hidden = true;
@@ -5397,10 +5400,7 @@ class HarmoHubApp {
         document.getElementById('intensity').value = DEFAULT_INTENSITY;
         const val = document.getElementById('intensity-val');
         if (val) val.textContent = DEFAULT_INTENSITY;
-        if (resetMode) {
-            this.appMode = 'add';
-            this.updateAppModeBanner();
-        }
+        this.applyAppModeTheme(); // editingIndex vient de retomber à null : le thème repasse en « ajout »
     }
 
     // Déplace le bloc Ajouter/À la suite/Annuler entre sa place normale (juste au-dessus de la carte
@@ -5870,6 +5870,11 @@ class HarmoHubApp {
         this.updateGridPlayhead(this.playheadSection, this.playheadIndex);
         this.fitCellSymbols(host);
         this.updatePlayButtonsForLoopRange();
+        // Les cases viennent d'être reconstruites : repose le clignotement s'il est encore en cours
+        // (voir applyCellFlash). Sans ça, « montrer cet accord » ne montrait rien du tout — le clic
+        // sur un bouton du panneau désélectionne (voir le pointerdown global) et reconstruit la
+        // grille dans la foulée, emportant la classe à peine posée.
+        this.applyCellFlash();
     }
 
     // Ouvre/ferme le panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) — un seul bouton
@@ -6071,6 +6076,16 @@ class HarmoHubApp {
                 attempts++;
             }
         });
+        // Case « + » : « + Accord » dit ce qu'elle ajoute, mais elle ne fait que 44 px de large sur
+        // téléphone (contre 120 sur ordinateur, mesuré) et le libellé s'y coupait en « + Ac ». On
+        // MESURE plutôt que de deviner d'après la taille de l'écran — la largeur dépend aussi du
+        // zoom de la grille et de la signature. Trop juste : on retombe sur le « + » seul, que la
+        // teinte verte en pointillés suffit à faire lire comme la cible d'ajout.
+        host.querySelectorAll('.cell-add-input').forEach(el => {
+            const large = el.getBoundingClientRect().width >= 84;
+            const voulu = large ? '+ Accord' : '+';
+            if (el.placeholder !== voulu) el.placeholder = voulu;
+        });
     }
 
     // Bascule Ajouter / (À la suite + À la fin) / Modifier selon le contexte : un accord sélectionné
@@ -6081,7 +6096,9 @@ class HarmoHubApp {
         const saveBtn = document.getElementById('save');
         const insertBtn = document.getElementById('save-insert');
         const cancelBtn = document.getElementById('cancel-edit');
-        this.updateEditCardsVisibility(); // Accord/Lecture vs #edit-empty-hint (voir plus haut)
+        // Le titre du panneau suit le même point de passage que ses boutons : tout ce qui peut
+        // changer « Ajouter » en « Modifier » change aussi le sujet annoncé au-dessus.
+        this.updateChordSubject();
         if (this.appMode === 'edit') {
             // Mode Modification (voir commitLiveEdit) : chaque champ s'applique déjà tout seul, plus
             // besoin d'Ajouter/Modifier ici — inutile même avant d'avoir chargé un accord précis (le
@@ -6104,28 +6121,116 @@ class HarmoHubApp {
         insertBtn.hidden = !canInsert;
     }
 
-    // Bandeau Config./Ajout/Modification : reflète l'état courant sur les 3 segments (aria-pressed
-    // pour le style actif) — le clic lui-même est câblé une seule fois dans setupEventListeners, pas
-    // ici (appelé à chaque changement de mode/accord/onglet). Pose aussi data-app-mode sur <body> :
-    // thème vert/orange discret du mode courant (voir style.css, curseurs Tempo/Intensité) — un seul
-    // attribut, plutôt que de reproduire ce même if/else pour chaque élément concerné. Config. et
-    updateAppModeBanner() {
-        const addSeg = document.getElementById('app-mode-add');
-        const editSeg = document.getElementById('app-mode-edit');
+    // Pose data-app-mode sur <body> : la teinte discrète (curseur d'intensité) du contexte courant —
+    // un seul attribut, plutôt que de reproduire le même if/else sur chaque élément concerné.
+    // Ne pilote plus AUCUN bandeau : celui-ci a disparu (voir GRID_CLICK_EDITS_KEY). Ce qu'il montrait
+    // est désormais dit par le titre du panneau (updateChordSubject), et ce qu'il commandait est
+    // devenu un réglage d'appareil. L'ajout rapide, lui, ne se masque plus : c'est une CIBLE D'AJOUT,
+    // et une cible qui disparaît dès qu'on touche un accord ne peut pas servir de repère stable.
+    applyAppModeTheme() {
         document.body.dataset.appMode = this.appMode;
-        if (!addSeg || !editSeg) return;
-        const isEdit = this.appMode === 'edit';
-        addSeg.classList.toggle('active', !isEdit);
-        addSeg.setAttribute('aria-pressed', String(!isEdit));
-        editSeg.classList.toggle('active', isEdit);
-        editSeg.setAttribute('aria-pressed', String(isEdit));
-        // Saisie rapide (voir #quick-add-panel) : uniquement utile en Ajout (retour utilisateur) —
-        // en Modification, chaque case de la grille s'édite déjà directement au clic.
-        const quickAddPanel = document.getElementById('quick-add-panel');
-        if (quickAddPanel) {
-            quickAddPanel.hidden = isEdit;
-            if (isEdit) this.closeQuickAddHelp();
+    }
+
+    // Numéro de la mesure où COMMENCE l'accord d'indice `index` dans `chords` — la même arithmétique
+    // que layoutProgression (cumul des durées, divisé par la mesure), extraite ici pour que le
+    // panneau puisse situer son sujet sans avoir à refaire toute la mise en page de la grille.
+    // `index` peut valoir chords.length : on obtient alors la mesure du PROCHAIN accord ajouté.
+    measureOfChordIndex(chords, index) {
+        const beatsPerBar = this.beatsPerBar();
+        let beats = 0;
+        for (let i = 0; i < Math.min(index, chords.length); i++) beats += beatsFromData(chords[i]);
+        return Math.floor(beats / beatsPerBar) + 1;
+    }
+
+    // ---------- Sujet du panneau d'accord (voir #accord-title/#accord-where) ----------
+    // Dit NOIR SUR BLANC de quoi parlent les réglages en dessous : un accord qu'on prépare, ou un
+    // accord déjà posé dans la grille. C'est l'information que l'ancien système d'onglets demandait
+    // de retenir de tête ; ici elle est écrite à l'endroit qu'on regarde déjà.
+    // `sectionsDejaLues` : évite de relire/reparser tout le morceau depuis localStorage quand
+    // l'appelant l'a déjà en main (voir commitLiveEdit, qui passe ici à chaque frappe).
+    updateChordSubject(sectionsDejaLues = null) {
+        const titre = document.getElementById('accord-title-label');
+        const titreSym = document.getElementById('accord-title-sym');
+        const ou = document.getElementById('accord-where');
+        const goto = document.getElementById('accord-goto');
+        if (!titre || !ou) return;
+        const carte = document.getElementById('accord-card');
+        const sections = sectionsDejaLues || loadProgressionSections();
+        const partie = sections[this.activeSection];
+        // Une partie sans nom (cas par défaut) ne doit pas produire « Mesure 2 · la partie » : on
+        // omet alors la mention plutôt que d'inventer un libellé qui n'apprend rien.
+        const nomPartie = (partie && partie.title && partie.title.trim()) ? partie.title.trim() : null;
+        const chords = (partie && partie.chords) || [];
+        const existant = this.editingIndex != null && !!chords[this.editingIndex];
+        // La teinte suit le SUJET, pas un mode caché — c'est tout l'objet du chantier. Posée ici, sur
+        // la carte elle-même, plutôt que déduite de data-app-mode : le panneau peut annoncer « Nouvel
+        // accord » alors que le mode d'interaction, lui, n'a pas encore changé.
+        if (carte) carte.classList.toggle('subject-existing', existant);
+
+        if (existant) {
+            const d = chords[this.editingIndex];
+            // Le symbole vient de la MÊME fonction que la grille (voir chordSymbolForData) : le titre
+            // et la case doivent dire exactement la même chose, y compris « à nommer » après un
+            // import MIDI.
+            titre.textContent = 'Modifier · ';
+            titreSym.textContent = chordSymbolForData(d, this.useFlatsForRoot(d.root));
+            const mesure = `Mesure ${this.measureOfChordIndex(chords, this.editingIndex)}`;
+            ou.textContent = nomPartie ? `${mesure} · ${nomPartie}` : mesure;
+            if (goto) goto.hidden = false;
+            return;
         }
+
+        titre.textContent = 'Nouvel accord';
+        titreSym.textContent = '';
+        // Destination du bouton « Ajouter » : toujours la FIN de la partie active (voir
+        // updateSaveButtons) — on annonce donc la mesure où l'accord préparé atterrira réellement,
+        // plutôt qu'un vague « il sera ajouté quelque part ».
+        const mesure = `mesure ${this.measureOfChordIndex(chords, chords.length)}`;
+        ou.textContent = nomPartie
+            ? `Sera ajouté à la fin de ${nomPartie} · ${mesure}`
+            : `Sera ajouté à la fin de la grille · ${mesure}`;
+        if (goto) goto.hidden = true;
+    }
+
+    // Ramène la grille sur l'accord en cours d'édition et le fait clignoter — voir #accord-goto.
+    goToEditedChord() {
+        if (this.editingIndex == null) return;
+        const cell = this.gridCellEl(this.activeSection, this.editingIndex);
+        if (!cell) return;
+        cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        // On retient la CASE VISÉE (partie + indice) et jusqu'à quand, pas l'élément : la grille est
+        // reconstruite à la moindre occasion — y compris par le clic qui déclenche ce geste, qui
+        // désélectionne l'accord au passage (voir le pointerdown global). Voir applyCellFlash, rappelé
+        // à la fin de chaque loadProgression.
+        this._cellFlash = { section: this.activeSection, index: this.editingIndex, until: Date.now() + 1200 };
+        this.applyCellFlash();
+        setTimeout(() => { this._cellFlash = null; this.applyCellFlash(); }, 1200);
+    }
+
+    // La case réellement À L'ÉCRAN pour (partie, indice) : la loupe de grille, quand elle est ouverte,
+    // a sa PROPRE copie de la grille — viser la mauvaise ferait défiler vers une case invisible.
+    gridCellEl(section, index) {
+        const sel = `.grid-cell[data-section="${section}"][data-index="${index}"]`;
+        return (this.gridZoomOpen ? document.querySelector(`#grid-zoom-host ${sel}`) : null)
+            || document.querySelector(sel);
+    }
+
+    // Referme l'accord en cours d'édition parce qu'on vient d'engager une CIBLE D'AJOUT (case « + »,
+    // ajout rapide) : le panneau repasse sur « Nouvel accord ». Volontairement SANS loadProgression()
+    // — elle reconstruirait la grille, donc le champ qui vient tout juste de prendre le focus, et la
+    // frappe partirait dans le vide. On retire donc la mise en évidence à la main.
+    leaveEditForNewChord() {
+        this.exitEditMode();
+        document.querySelectorAll('.grid-cell.editing').forEach(c => c.classList.remove('editing'));
+        this.updateSaveButtons();
+    }
+
+    applyCellFlash() {
+        const f = this._cellFlash;
+        document.querySelectorAll('.grid-cell.cell-flash').forEach(c => c.classList.remove('cell-flash'));
+        if (!f || Date.now() >= f.until) return;
+        const cell = this.gridCellEl(f.section, f.index);
+        if (cell) cell.classList.add('cell-flash');
     }
 
     // ---------- Bloc « Morceau » (voir #song-card) ----------
@@ -6176,24 +6281,12 @@ class HarmoHubApp {
         }
     }
 
-    // Accord/Lecture affichées seulement quand il y a effectivement un accord à régler : en Ajout,
-    // c'est toujours celui qu'on est en train de préparer ; en Modification, seulement une fois qu'on
-    // en a chargé un précis (this.editingIndex, voir editChord). Tant qu'on est en Modification SANS
-    // rien avoir encore cliqué dans la grille (bandeau "Modification" tout juste choisi, ou "Fermer"
-    // sans rouvrir un autre accord juste après, voir cancelEdit), ces deux cartes restaient affichées
-    // avec les réglages du DERNIER accord touché, comme s'il restait éditable (retour utilisateur :
-    // "tous les modules restent ouverts, ce n'est pas cohérent") — #edit-empty-hint les remplace le
-    // temps qu'aucun accord ne soit chargé. Appelée à chaque fois que appMode/editingIndex peuvent
-    // avoir changé (voir updateSaveButtons, appelée à chaque loadProgression).
-    updateEditCardsVisibility() {
-        const accordCard = document.getElementById('accord-card');
-        const lectureCard = document.getElementById('lecture-card');
-        const emptyHint = document.getElementById('edit-empty-hint');
-        const noChordToEdit = this.appMode === 'edit' && this.editingIndex == null;
-        if (accordCard) accordCard.hidden = noChordToEdit;
-        if (lectureCard) lectureCard.hidden = noChordToEdit;
-        if (emptyHint) emptyHint.hidden = !noChordToEdit;
-    }
+    // (updateEditCardsVisibility a disparu.) Elle masquait Accord/Lecture au profit d'un message
+    // « Touchez un accord de la grille » dans l'unique cas « mode Modification armé, mais aucun
+    // accord chargé » — un état que seul le bandeau pouvait produire, et qui n'existe plus : appMode
+    // se déduit de editingIndex, donc « en modification » et « aucun accord ouvert » sont désormais
+    // contradictoires. Les deux cartes sont toujours affichées, et leur titre dit sur quoi elles
+    // portent (voir updateChordSubject).
 
     // Rend une partie « active » : c'est elle que ciblent Ajouter/Modifier/Suppr/copier-coller
     setActiveSection(s) {
@@ -6874,6 +6967,18 @@ class HarmoHubApp {
                 </button>
             </div>
             <div class="settings-slider-sep"></div>
+            <!-- Ce qui restait de l'ancien bandeau Ajout/Modification : une PRÉFÉRENCE, pas un état à
+                 surveiller. Le panneau dit désormais lui-même sur quel accord il porte, et l'ajout a
+                 ses propres cibles (case « + », ajout rapide) — il ne reste donc qu'une divergence de
+                 goût, et on la règle une fois. -->
+            <div class="settings-select-row">
+                <label for="grid-click-action" title="Ce que déclenche un simple clic sur un accord de la grille">Un clic sur un accord</label>
+                <select id="grid-click-action">
+                    <option value="listen"${this.gridClickEdits ? '' : ' selected'}>L'écouter (double-clic pour modifier)</option>
+                    <option value="edit"${this.gridClickEdits ? ' selected' : ''}>Le modifier</option>
+                </select>
+            </div>
+            <div class="settings-slider-sep"></div>
             <div class="settings-toggle-row">
                 <label for="toggle-show-roman" title="Degrés (I, IV, V7...) dans la grille et le PDF">Degrés</label>
                 <button type="button" id="toggle-show-roman" class="switch" role="switch" aria-checked="${this.showRomanNumerals}" aria-label="Degrés dans la grille et le PDF">
@@ -6914,6 +7019,10 @@ class HarmoHubApp {
         document.getElementById('quick-add-help-btn').onclick = (e) => {
             const help = document.getElementById('quick-add-help');
             if (help.hidden) this.openQuickAddHelp(e.currentTarget); else this.closeQuickAddHelp();
+        };
+        document.getElementById('grid-click-action').onchange = (e) => {
+            this.gridClickEdits = e.target.value === 'edit';
+            localStorage.setItem(GRID_CLICK_EDITS_KEY, this.gridClickEdits ? '1' : '0');
         };
         document.getElementById('toggle-show-roman').onclick = () => this.setShowRomanNumerals(!this.showRomanNumerals);
         document.getElementById('toggle-show-function').onclick = () => this.setShowChordFunction(!this.showChordFunction);
@@ -8816,6 +8925,14 @@ class HarmoHubApp {
         // window pour retirer un doigt même s'il se lève hors de la grille.
         window.addEventListener('pointerup', (e) => { if (e.pointerType === 'touch') this._gridActiveTouchIds.delete(e.pointerId); });
         window.addEventListener('pointercancel', (e) => { if (e.pointerType === 'touch') this._gridActiveTouchIds.delete(e.pointerId); });
+        // Engager la case "+" = « je suis en train d'AJOUTER » : le panneau doit le dire tout de suite,
+        // au lieu de continuer à annoncer « Modifier · Am » pendant qu'on tape un tout autre accord.
+        // C'est la contrepartie de l'étape précédente : le panneau nomme son sujet, encore faut-il que
+        // ce sujet change quand on change de cible.
+        host.addEventListener('focusin', (e) => {
+            if (!e.target.matches('.cell-add-input') || this.editingIndex == null) return;
+            this.leaveEditForNewChord();
+        });
         // Case "+" en bout de grille (voir buildAddCellHtml) : Entrée ajoute l'accord tapé. Échap vide
         // le champ. Sur certains claviers virtuels (mobile), la touche « Entrée »/« Aller » ne déclenche
         // pas toujours un vrai `keydown` détecté ici : on ajoute donc aussi un ajout au relâchement du
@@ -9175,9 +9292,10 @@ class HarmoHubApp {
                 this.startInlineChordSymbolEdit(d.section, d.index, d.cell);
                 return;
             }
-            // Bandeau Ajout/Modification (voir this.appMode) : en Modification collante, un simple
-            // clic sur n'importe quel accord le charge directement, plus besoin de rappuyer.
-            if (this.appMode === 'edit') {
+            // Réglage « Un clic sur un accord » (voir GRID_CLICK_EDITS_KEY) : réglé sur « le
+            // modifier », un simple clic charge l'accord directement, sans rappuyer. C'est tout ce
+            // qui restait de l'ancien mode Modification collant — une préférence, plus un état.
+            if (this.gridClickEdits) {
                 this._lastTap = null;
                 this.editChord(d.section, d.index);
                 // Comme un clic en mode Ajout (voir selectChord) : fait entendre l'accord chargé — sans
@@ -9700,7 +9818,7 @@ class HarmoHubApp {
     buildAddCellHtml(section, gridRow, col, span) {
         return `
                     <div class="grid-cell grid-cell-add" style="grid-column: ${col + 1} / span ${span}; grid-row: ${gridRow};">
-                        <input type="text" class="cell-add-input" data-section="${section}" placeholder="+" autocomplete="off" autocapitalize="off" spellcheck="false" title="Un accord seul (ex. Cm7), avec une basse via « _ » (ex. C_E = do avec mi à la basse), ou plusieurs accords séparés par « / » : un par mesure, sans renversement ni drop">
+                        <input type="text" class="cell-add-input" data-section="${section}" placeholder="+ Accord" aria-label="Ajouter un accord à la fin de cette partie" autocomplete="off" autocapitalize="off" spellcheck="false" title="Ajouter un accord à la fin de cette partie — un accord seul (ex. Cm7), avec une basse via « _ » (ex. C_E = do avec mi à la basse), ou plusieurs accords séparés par « / » : un par mesure, sans renversement ni drop">
                     </div>`;
     }
 

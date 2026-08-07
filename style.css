@@ -888,23 +888,6 @@ body.body-scroll-locked { overflow: hidden !important; }
         flex: none;
     }
 
-    /* Même cause, même remède que .settings-tab ci-dessus : le bandeau Config./Ajout/Modif.
-       (retour utilisateur, screenshot) dépassait de l'écran sur téléphone car le bouton générique
-       (button{} plus haut) impose min-width:120px à chaque segment — 3×120px ne tient jamais dans
-       375px. Sélecteur ".app-mode-banner .app-mode-seg" (pas juste ".app-mode-seg") : une
-       spécificité plus élevée que la règle de base plus bas dans le fichier (même spécificité sinon,
-       et donc silencieusement écrasé par elle vu qu'elle vient après — bug constaté en reproduisant
-       le débordement toujours présent sur iPhone 12 mini malgré ce correctif). */
-    .app-mode-banner .app-mode-seg {
-        padding: 6px 4px;
-        gap: 3px;
-        font-size: var(--fs-xs);
-        min-width: 0;
-        flex: 1;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
 }
 
 main {
@@ -932,57 +915,6 @@ main {
    défilante (voir la requête min-width:900px). */
 .col-left, .col-right { display: contents; }
 
-/* Bandeau Ajout/Modification (voir this.appMode dans script.js) : pilule à deux segments, même
-   dégradé "actif" que les autres bascules de l'appli (vert générique/bleu, voir .icon-btn.active et
-   #toggle-loop-section.active) pour rester cohérent — vert pour Ajout (état par défaut, sûr), bleu
-   pour Modification (état plus engageant, modifie directement au moindre clic). */
-.app-mode-banner {
-    display: flex;
-    gap: 3px;
-    padding: 3px;
-    margin-bottom: 8px;
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    /* Filet de sécurité si les 3 segments ne tiennent quand même pas dans la largeur du téléphone
-       (voir le même filet sur .settings-tabs) : glisser plutôt que de se faire couper net. */
-    overflow-x: auto;
-}
-.app-mode-seg {
-    flex: 1;
-    /* min-width:0 : sans lui, le `button { min-width: 120px }` générique (voir plus haut dans la
-       feuille) l'emporte quand même sur flex:1 (min-width par défaut d'un item flexible = auto,
-       jamais 0) — les 3 segments refusaient alors de rétrécir sous 120px chacun (360px de trop pour
-       les 358px utiles du panneau de gauche en bureau), débordant du bandeau et cachant sa bordure
-       droite (retour utilisateur, capture d'écran) : jusqu'ici seule la variante mobile (média
-       requête plus bas) posait ce correctif, jamais la règle de base utilisée sur ordinateur. */
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 6px 10px;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--text-muted);
-    font-size: var(--fs-sm);
-    font-weight: 700;
-    cursor: pointer;
-}
-.app-mode-seg .icon { width: 14px; height: 14px; }
-.app-mode-seg:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.05); }
-#app-mode-add.active {
-    color: var(--btn-text);
-    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
-}
-/* Modification en orange (plutôt que bleu) : même teinte que .btn-loop-range/#seq-play actif, pour
-   que tout le thème vert/orange Ajout/Modification (voir applyAppModeTheme) reste cohérent avec ce
-   qu'utilisait déjà l'appli ailleurs, plutôt qu'une troisième couleur inédite. */
-#app-mode-edit.active {
-    color: var(--btn-text);
-    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-orange-1), var(--btn-orange-2) 70%);
-}
 
 .panel-controls {
     /* Aplati sur téléphone (voir .col-left/.col-right juste au-dessus, même principe) : ses trois
@@ -1040,7 +972,6 @@ main {
    haut malgré le reste du réagencement. */
 #accord-card,
 #lecture-card,
-#edit-empty-hint,
 #edit-actions { order: 4; }
 .chord-header-row { order: 5; }
 .viz-wrap { order: 6; }
@@ -1204,21 +1135,6 @@ main {
     letter-spacing: 0.03em;
 }
 
-/* Remplace Accord/Lecture en mode Modification tant qu'aucun accord n'est chargé (voir
-   updateEditCardsVisibility dans script.js) — même carte que les autres, texte centré et discret
-   plutôt qu'un vrai contenu, pour bien lire "il n'y a rien à régler ici pour l'instant". */
-.edit-empty-hint {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 72px;
-    text-align: center;
-}
-.edit-empty-hint p {
-    margin: 0;
-    color: var(--text-muted);
-    font-size: var(--fs-sm);
-}
 
 /* En-tête de carte avec actions compactes à droite du titre (séquenceur, morceau...). flex-wrap:
    wrap sert uniquement à la carte Morceau (voir #song-card ci-dessous, dont le titre du morceau vit
@@ -1238,6 +1154,47 @@ main {
     display: flex;
     gap: 6px;
     flex: none;
+}
+
+/* Le symbole garde sa casse : .control-card h2 met les titres en capitales, et « Am » y devenait
+   « AM » — un accord majeur au lieu d'un mineur. Un symbole d'accord n'est pas du texte décoratif. */
+#accord-title-sym { text-transform: none; }
+
+/* Ligne qui SITUE le sujet du panneau d'accord : « Mesure 2 · Couplet » pour un accord déjà posé,
+   « Sera ajouté à la fin de… » pour celui qu'on prépare (voir updateChordSubject). Discrète — elle
+   répond à une question qu'on ne se pose qu'au moment où l'on doute, elle ne doit pas rivaliser avec
+   les réglages eux-mêmes. La couleur suit le SUJET, pas un mode caché : vert = un accord qui va être
+   ajouté, ambre = un accord existant qui change sous les yeux. C'est la même paire que les cases de
+   la grille (.grid-cell.selected / .grid-cell.editing), pour que les deux bouts du fil s'accordent. */
+.chord-subject-where {
+    margin: -4px 0 10px;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: var(--accent);
+}
+#accord-card.subject-existing .chord-subject-where { color: #ffb300; }
+#accord-card.subject-existing #accord-title::before {
+    content: '';
+    display: inline-block;
+    width: 7px; height: 7px;
+    margin-right: 7px;
+    border-radius: 50%;
+    background: #ffb300;
+    vertical-align: 0.1em;
+}
+
+/* Clignotement de la case ramenée à l'écran par #accord-goto : deux battements francs, puis plus
+   rien — il s'agit de dire « c'est celle-ci », pas d'installer un état de plus dans la grille. */
+@keyframes cell-flash {
+    0%, 100% { box-shadow: inset 0 0 0 1px rgba(255, 179, 0, 0.32), 0 0 7px rgba(255, 179, 0, 0.14); }
+    25%, 75% { box-shadow: inset 0 0 0 3px rgba(255, 179, 0, 0.95), 0 0 18px rgba(255, 179, 0, 0.5); }
+}
+.grid-cell.cell-flash {
+    animation: cell-flash 0.55s ease-in-out 2;
+    z-index: 3;
+}
+@media (prefers-reduced-motion: reduce) {
+    .grid-cell.cell-flash { animation: none; box-shadow: inset 0 0 0 3px rgba(255, 179, 0, 0.95); }
 }
 
 /* Regroupe un select (ex. #instrument) et .card-head-actions juste après, pour qu'ils restent collés
@@ -1790,7 +1747,7 @@ input[type=range] {
 }
 
 /* Intensité (voir #intensity, dans le panneau Accord des onglets Ajout/Modif) : accent orange en mode
-   Modification (voir this.appMode, updateAppModeBanner dans script.js qui pose data-app-mode sur
+   Modification (voir this.appMode, applyAppModeTheme dans script.js qui pose data-app-mode sur
    <body>) — vert (--accent, déjà la couleur par défaut ci-dessus) en mode Ajout, donc rien à
    surcharger pour ce cas-là. Un écho discret du mode courant, sans toucher aux autres réglages
    (volumes...) qui n'ont pas de lien avec l'édition d'un accord. Même orange que .loop-range-bar/
@@ -2464,12 +2421,22 @@ button:active { transform: translateY(1px); }
 /* Case "+" en bout de grille (voir buildAddCellHtml) : bord en pointillés (jamais confondue avec un
    vrai accord), discrète tant qu'on n'y tape rien — le champ occupe toute la case, son placeholder
    "+" centré en tient lieu d'étiquette. */
+/* LA cible d'ajout de la grille. Elle existait déjà, mais si discrète (un champ vide avec « + » pour
+   seule marque) qu'elle ne se lisait pas comme le point d'entrée de l'ajout — d'où la nécessité d'un
+   mode « Ajout » qui, lui, changeait le sens du clic sur les accords EXISTANTS, et donc l'ambiguïté
+   d'origine (« j'ajoute ou je modifie ? »). Une fois cette case franchement visible, ajouter et
+   modifier visent deux endroits différents et il n'y a plus rien à désambiguïser. Teinte verte, la
+   même que le sujet « Nouvel accord » du panneau (voir .chord-subject-where). */
 .grid-cell-add {
     border-style: dashed;
-    border-color: #3a3a3a;
+    border-color: rgba(0, 230, 118, 0.38);
+    background-color: rgba(0, 230, 118, 0.035);
     cursor: text;
 }
-.grid-cell-add:hover { border-color: #666; }
+.grid-cell-add:hover {
+    border-color: rgba(0, 230, 118, 0.75);
+    background-color: rgba(0, 230, 118, 0.08);
+}
 .cell-add-input {
     width: 100%;
     height: 100%;
@@ -2484,7 +2451,9 @@ button:active { transform: translateY(1px); }
     font-size: max(16px, var(--fs-md));
     font-weight: 600;
 }
-.cell-add-input::placeholder { color: var(--text-muted); opacity: 0.6; font-size: var(--fs-xl); }
+/* « + Accord » plutôt qu'un « + » seul : le signe seul n'annonçait pas CE qu'il ajoute, et rien ne
+   le distinguait d'un bouton de zoom ou d'ajout de partie. Vert, comme la case qui le porte. */
+.cell-add-input::placeholder { color: rgba(0, 230, 118, 0.72); opacity: 1; font-size: var(--fs-md); font-weight: 700; }
 .cell-add-input:focus { outline: none; }
 .grid-cell-add:focus-within { border-style: solid; border-color: var(--accent); background-color: #0f1c14; }
 
