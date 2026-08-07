@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608073310">
+    <link rel="stylesheet" href="style.css?v=202608073410">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -572,33 +572,6 @@
                 </div>
             </section>
             <div class="panel-controls">
-                <!-- Saisie rapide : en tête du panneau. Elle était autrefois réservée au mode Ajout — inutile en
-                     Modification. Elle ne se masque PLUS : c'est une cible d'ajout, et une cible qui
-                     disparaît dès qu'on touche un accord ne peut pas servir de repère (voir
-                     applyAppModeTheme). Anciennement dans la carte "Grille d'accords" (colonne de
-                     droite), où elle prenait trop de place à demeure. -->
-                <div id="quick-add-panel">
-                    <!-- Bouton d'ouverture déplacé dans Paramètres > Affichage (voir renderDisplayPanel,
-                         retour utilisateur : on ne comprenait pas qu'il appartenait à l'ajout rapide, et il
-                         sert peu) — ce popover, lui, reste ici (position fixe, peu importe où il vit dans
-                         le DOM), rouvert/refermé par ce même bouton désormais dans Paramètres. -->
-                    <div id="quick-add-help" class="context-menu quick-add-help" hidden>
-                        <ul>
-                            <li><code>Cm7</code> : accord seul, voicing par défaut</li>
-                            <li><code>C_E</code> : basse différente</li>
-                            <li><code>C_O4-R1-D2</code> : voicing précis (octave/renversement/drop, même notation que les badges) — combinables et partiels, ex. <code>C_D2</code> = juste un drop 2, ou avec une basse : <code>C_E_O4</code></li>
-                            <li><code>C/Am/F/G</code> : plusieurs accords, 1/mesure</li>
-                            <li>Entrée : ligne — ligne vide : nouvelle partie</li>
-                            <li>Ctrl+Entrée ou « + » : valider</li>
-                        </ul>
-                    </div>
-                    <div class="quick-add-row">
-                        <textarea id="quick-add-input" class="quick-add-input" rows="1" placeholder="Ajout rapide" autocomplete="off" autocapitalize="off" spellcheck="false" title="Un accord seul (ex. Cm7), une basse et/ou un voicing via « _ » (C_E, C_O4-R1-D2, C_D2...), plusieurs accords séparés par « / » (un par mesure), ou une ligne vide pour démarrer une nouvelle partie — voir l'aide dans Paramètres > Affichage"></textarea>
-                        <button type="button" id="quick-add-btn" class="icon-btn" title="Ajouter à la grille (Ctrl+Entrée) — « _ » pour une basse et/ou un voicing (C_E, C_O4-R1-D2), « / » pour plusieurs accords à la suite (C/Am/F/G), ligne vide pour une nouvelle partie" aria-label="Ajouter à la grille">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                        </button>
-                    </div>
-                </div>
                 <!-- Le titre de cette carte NOMME SON SUJET plutôt que sa catégorie (« Accord »).
                      Elle règle en effet deux choses très différentes selon le moment : un accord
                      FANTÔME qu'on prépare et qui n'existe encore nulle part dans la grille, ou un
@@ -885,6 +858,34 @@
                         </button>
                     </div>
                 </div>
+                <!-- Saisie rapide : ajoute un accord tapé directement en fin de partie. Elle vit
+                     SOUS LE TITRE DE LA GRILLE, avec ce qu'elle alimente — elle était auparavant en
+                     tête du panneau de réglages d'accord, à l'autre bout de l'écran sur téléphone, ce
+                     qui ne se justifiait par rien (retour utilisateur : « sa position n'est pas
+                     logique »). Elle forme désormais une paire évidente avec la case « + » en bout de
+                     grille : les deux cibles d'ajout, au même endroit que la grille. -->
+                <div id="quick-add-panel">
+                    <!-- Bouton d'ouverture déplacé dans Paramètres > Affichage (voir renderDisplayPanel,
+                         retour utilisateur : on ne comprenait pas qu'il appartenait à l'ajout rapide, et il
+                         sert peu) — ce popover, lui, reste ici (position fixe, peu importe où il vit dans
+                         le DOM), rouvert/refermé par ce même bouton désormais dans Paramètres. -->
+                    <div id="quick-add-help" class="context-menu quick-add-help" hidden>
+                        <ul>
+                            <li><code>Cm7</code> : accord seul, voicing par défaut</li>
+                            <li><code>C_E</code> : basse différente</li>
+                            <li><code>C_O4-R1-D2</code> : voicing précis (octave/renversement/drop, même notation que les badges) — combinables et partiels, ex. <code>C_D2</code> = juste un drop 2, ou avec une basse : <code>C_E_O4</code></li>
+                            <li><code>C/Am/F/G</code> : plusieurs accords, 1/mesure</li>
+                            <li>Entrée : ligne — ligne vide : nouvelle partie</li>
+                            <li>Ctrl+Entrée ou « + » : valider</li>
+                        </ul>
+                    </div>
+                    <div class="quick-add-row">
+                        <textarea id="quick-add-input" class="quick-add-input" rows="1" placeholder="Ajout rapide" autocomplete="off" autocapitalize="off" spellcheck="false" title="Un accord seul (ex. Cm7), une basse et/ou un voicing via « _ » (C_E, C_O4-R1-D2, C_D2...), plusieurs accords séparés par « / » (un par mesure), ou une ligne vide pour démarrer une nouvelle partie — voir l'aide dans Paramètres > Affichage"></textarea>
+                        <button type="button" id="quick-add-btn" class="icon-btn" title="Ajouter à la grille (Ctrl+Entrée) — « _ » pour une basse et/ou un voicing (C_E, C_O4-R1-D2), « / » pour plusieurs accords à la suite (C/Am/F/G), ligne vide pour une nouvelle partie" aria-label="Ajouter à la grille">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                        </button>
+                    </div>
+                </div>
                 <div id="progression-sections"></div>
                 <button type="button" id="add-section" class="btn-sec add-section-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter une partie</button>
             </section>
@@ -1035,6 +1036,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608073310"></script>
+    <script src="script.js?v=202608073410"></script>
 </body>
 </html>

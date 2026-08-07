@@ -959,7 +959,8 @@ main {
    désormais le résumé tempo · mesure · tonalité, et le reléguer tout en bas rendrait ces trois
    valeurs — et les réglages qu'elles déplient — moins accessibles qu'ils ne l'étaient dans l'onglet
    qu'on vient justement de supprimer. Replié, il ne coûte qu'une centaine de pixels avant la grille. */
-#quick-add-panel { order: 1; }
+/* (#quick-add-panel n'a plus d'`order` : il vit désormais DANS .history-section, sous le titre de la
+   grille, donc il n'est plus un frère aplati de la colonne — il suit la carte qui le contient.) */
 .history-section { order: 2; }
 /* Juste SOUS la grille (voir #seq-dock-host/placeSequencer) : sans `order` explicite il vaudrait 0 et
    passerait devant tout le reste — le séquenceur s'affichait alors au-dessus de la grille. Masqué et
@@ -1148,7 +1149,12 @@ main {
     gap: 10px;
     margin-bottom: 10px;
 }
-.card-head h2 { margin-bottom: 0; }
+/* `margin: 0` et non le seul `margin-bottom` d'avant : un <h2> porte AUSSI une marge HAUTE par
+   défaut (0.83em, soit ~13px ici) qu'aucune règle ne neutralisait. En bloc elle se fusionnait avec
+   celle du conteneur et ne se voyait pas ; dans un .card-head, qui est un flex, les marges ne
+   fusionnent pas — elle poussait donc chaque titre de carte 13px vers le bas, et autant tout le
+   contenu en dessous. Mesuré au-dessus du titre de la grille (retour utilisateur). */
+.card-head h2 { margin: 0; }
 
 .card-head-actions {
     display: flex;
@@ -2130,13 +2136,16 @@ button:active { transform: translateY(1px); }
 
 /* ---------- Progression ---------- */
 .history-section { margin-top: 30px; }
+/* Pas de margin-bottom ici : ce titre vit dans un .card-head, qui gère déjà l'espacement sous
+   l'en-tête. Il en portait une de 15px qui, à spécificité égale mais déclarée plus loin dans le
+   fichier, écrasait silencieusement le `.card-head h2 { margin-bottom: 0 }` prévu pour ça — 15px
+   de vide en trop, à quoi s'ajoutait le décalage qu'ils créaient dans l'alignement du bandeau. */
 .history-section h2 {
      color: var(--text-muted);
      font-size: var(--fs-md);
      font-weight: 700;
      text-transform: uppercase;
      letter-spacing: 0.03em;
-     margin-bottom: 15px;
 }
 /* Saisie rapide : ajoute un accord tapé (ex. "Cm7") directement en fin de partie, sans passer par
    les menus déroulants (voir parseChordSymbol/addQuickChord). C'est un <textarea> (pas un <input>) :
@@ -3653,7 +3662,19 @@ select.song-select-narrow {
 
 /* Dégagement pour que la grille ne passe pas sous la barre collante sur mobile */
 @media (max-width: 899px) {
-    .history-section { margin-top: 10px; padding-bottom: 8px; }
+    .history-section { margin-top: 4px; padding-bottom: 8px; }
+    /* En-tête de la grille EMPILÉ sur téléphone : le titre et les quatre outils (échelles H/V,
+       conduite de voix, vue agrandie) n'y tiennent jamais sur une seule ligne, ils passaient donc à
+       la ligne via flex-wrap — ce qui gaspillait 22px : 13 de vide au-dessus du titre plus le
+       row-gap, mesurés. En colonne, l'empilement est le même à l'œil mais sans ces reliquats :
+       l'en-tête passe de 77 à 61px, et la grille remonte d'autant (retour utilisateur : « optimise
+       l'espace au-dessus du titre »). Réservé à .history-section : les autres cartes ont un en-tête
+       qui tient sur une ligne, où le space-between garde tout son sens. */
+    .history-section .card-head {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
     main { padding-bottom: 0; }
 }
 
