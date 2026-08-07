@@ -2652,11 +2652,11 @@ class HarmoHubApp {
         // Un seul instantané Annuler par SESSION d'édition en mode 'edit' (voir commitLiveEdit),
         // jamais un par champ retouché — remis à false à chaque nouvel appel à editChord().
         this._editSessionUndoPushed = false;
-        // Troisième onglet du bandeau (voir setLeftPanelTab) : 'edit' affiche Accord/Lecture (comme
-        // avant), 'config' affiche #config-card (tonalité/mode/signature/groove/transpose) à la
-        // place — INDÉPENDANT de this.appMode (Config. n'est pas un mode d'interaction avec la
-        // grille, juste un panneau de réglages qu'on fixe une fois pour toutes, voir le bandeau).
-        this.leftPanelTab = 'edit';
+        // Réglages du morceau (tempo/tonalité/mesure/groove/transpose) dépliés ou non — voir
+        // #song-card/toggleSongSettings. Simple état d'affichage d'un bloc autonome, retenu d'une
+        // session à l'autre : ce n'était plus un onglet à choisir face à Ajout/Modif., et consulter
+        // le tempo ne masque plus l'accord en cours d'édition.
+        this.songSettingsOpen = localStorage.getItem('songSettingsOpen') === '1';
         this.drag = null;          // état de glisser-déposer
         this.loopRange = null;     // {startSection, startIndex, endSection, endIndex} : boucle sur une
                                     // PLAGE d'accords voisins, qui peut traverser plusieurs parties
@@ -2874,6 +2874,8 @@ class HarmoHubApp {
 
         this.setupEventListeners();
         this.updateAppModeBanner();
+        this.applySongSettingsOpen(); // bloc Morceau : déplié ou non, tel qu'on l'avait laissé
+        this.updateSongSummary();
         this.setupDurationPicker();
         this.setupPlayStylePicker();
         // La plage à boucler d'ABORD : les deux écoutent 'pointerdown' sur le même conteneur, et
@@ -2934,27 +2936,29 @@ class HarmoHubApp {
         document.getElementById('save').onclick = () => this.saveCurrent();
         document.getElementById('save-insert').onclick = () => this.saveCurrent(this.selectedIndex);
 
-        // Bandeau Config./Ajout/Modification : "Config." bascule juste QUELLE carte est affichée (voir
-        // setLeftPanelTab), sans toucher au mode d'interaction en dessous. "Ajout" referme une édition
-        // en cours (resetMode=true, comportement par défaut) ET revient sur la vue Accord/Lecture ;
-        // "Modification" arme le mode collant, sans charger d'accord précis — le prochain clic sur la
-        // grille s'en charge (voir onGridPointerUp/editChord) — et revient aussi sur cette vue.
-        document.getElementById('app-mode-config').onclick = () => {
-            if (this.leftPanelTab === 'config') return;
-            this.setLeftPanelTab('config');
-        };
+        // Bandeau Ajout/Modification : deux modes d'INTERACTION, rien d'autre. "Ajout" referme une
+        // édition en cours (resetMode=true, comportement par défaut) ; "Modification" arme le mode
+        // collant, sans charger d'accord précis — le prochain clic sur la grille s'en charge (voir
+        // onGridPointerUp/editChord).
         document.getElementById('app-mode-add').onclick = () => {
-            if (this.appMode === 'add' && this.leftPanelTab === 'edit') return;
+            if (this.appMode === 'add') return;
             this.exitEditMode();
-            this.setLeftPanelTab('edit');
             this.loadProgression();
         };
         document.getElementById('app-mode-edit').onclick = () => {
-            if (this.appMode === 'edit' && this.leftPanelTab === 'edit') return;
+            if (this.appMode === 'edit') return;
             this.appMode = 'edit';
-            this.setLeftPanelTab('edit'); // appelle déjà updateAppModeBanner()
+            this.updateAppModeBanner();
+            this.updateEditCardsVisibility();
             this.updateSaveButtons(); // masque Ajouter/À la suite tout de suite, avant même de charger un accord
         };
+        // Bloc « Morceau » : la ligne de résumé déplie/replie les réglages du morceau.
+        document.getElementById('song-summary').onclick = () => this.toggleSongSettings();
+        // Un seul écouteur pour TOUS les réglages du bloc, par délégation : ajouter un réglage demain
+        // n'obligera pas à penser à brancher aussi le résumé. `input` couvre le curseur de tempo qu'on
+        // fait glisser, `change` les listes déroulantes.
+        const songSettings = document.getElementById('song-settings');
+        ['input', 'change'].forEach(evt => songSettings.addEventListener(evt, () => this.updateSongSummary()));
         document.getElementById('quick-add-btn').onclick = () => this.addQuickChord();
         // Entrée = saut de ligne normal (comportement par défaut du <textarea>, donc pas de
         // preventDefault) : les lignes d'un même bloc rejoignent une seule partie, il faut sauter
@@ -3659,6 +3663,10 @@ class HarmoHubApp {
             const pc = NOTES.indexOf(opt.value);
             opt.textContent = 'Basse ' + noteNameForPc(pc, songFlats); // garde le préfixe (voir index.html)
         });
+        // Point de passage obligé de tout changement de tonalité (choix direct, chargement d'un
+        // morceau, transposition) : le résumé du bloc Morceau s'y raccroche plutôt que d'être remis à
+        // jour depuis chacun de ces endroits, où l'un finirait tôt ou tard par être oublié.
+        this.updateSongSummary();
     }
 
     // Temps par mesure de la signature rythmique du morceau (4/4 par défaut)
@@ -5991,52 +5999,71 @@ class HarmoHubApp {
     // ici (appelé à chaque changement de mode/accord/onglet). Pose aussi data-app-mode sur <body> :
     // thème vert/orange discret du mode courant (voir style.css, curseurs Tempo/Intensité) — un seul
     // attribut, plutôt que de reproduire ce même if/else pour chaque élément concerné. Config. et
-    // Ajout/Modification sont INDÉPENDANTS (voir this.leftPanelTab/setLeftPanelTab) : Config. actif
-    // n'éteint ni ne change this.appMode, il masque juste Accord/Lecture au profit de #config-card.
     updateAppModeBanner() {
-        const configSeg = document.getElementById('app-mode-config');
         const addSeg = document.getElementById('app-mode-add');
         const editSeg = document.getElementById('app-mode-edit');
         document.body.dataset.appMode = this.appMode;
         if (!addSeg || !editSeg) return;
-        const showingConfig = this.leftPanelTab === 'config';
-        const isEdit = !showingConfig && this.appMode === 'edit';
-        const isAdd = !showingConfig && !isEdit;
-        if (configSeg) {
-            configSeg.classList.toggle('active', showingConfig);
-            configSeg.setAttribute('aria-pressed', String(showingConfig));
-        }
-        addSeg.classList.toggle('active', isAdd);
-        addSeg.setAttribute('aria-pressed', String(isAdd));
+        const isEdit = this.appMode === 'edit';
+        addSeg.classList.toggle('active', !isEdit);
+        addSeg.setAttribute('aria-pressed', String(!isEdit));
         editSeg.classList.toggle('active', isEdit);
         editSeg.setAttribute('aria-pressed', String(isEdit));
-        // Saisie rapide (voir #quick-add-panel, sous Morceau) : uniquement utile en Ajout (retour
-        // utilisateur) — en Modification, chaque case de la grille s'édite déjà directement au clic ;
-        // en Config., il n'y a rien à ajouter à la grille depuis là.
+        // Saisie rapide (voir #quick-add-panel) : uniquement utile en Ajout (retour utilisateur) —
+        // en Modification, chaque case de la grille s'édite déjà directement au clic.
         const quickAddPanel = document.getElementById('quick-add-panel');
         if (quickAddPanel) {
-            quickAddPanel.hidden = !isAdd;
-            if (!isAdd) this.closeQuickAddHelp();
+            quickAddPanel.hidden = isEdit;
+            if (isEdit) this.closeQuickAddHelp();
         }
     }
 
-    // Bascule quelle carte le panneau de gauche affiche (voir #app-mode-config/#config-card) : 'edit'
-    // montre Accord/Lecture comme avant (piloté séparément par this.appMode, voir editChord etc.),
-    // 'config' montre la configuration du morceau à la place. Ne touche JAMAIS this.appMode : revenir
-    // sur 'edit' retrouve Ajout ou Modification tel qu'il était avant de consulter Config.
-    setLeftPanelTab(tab) {
-        this.leftPanelTab = tab;
-        const configCard = document.getElementById('config-card');
-        // Ajouter/À la suite/Annuler (voir #edit-actions/updateEditActionsDocking) : pas sa place en
-        // Config., qui ne sert qu'à régler le morceau, pas à poser/modifier un accord (retour
-        // utilisateur) — masqué qu'il soit ancré dans le pied de colonne ou dans le panneau, sans
-        // toucher à sa docking ni à l'état individuel de ses boutons, retrouvé tel quel au retour.
-        const editActions = document.getElementById('edit-actions');
-        const showingConfig = tab === 'config';
-        if (configCard) configCard.hidden = !showingConfig;
-        if (editActions) editActions.hidden = showingConfig;
-        this.updateEditCardsVisibility(); // Accord/Lecture, voir plus bas — dépend aussi de showingConfig
-        this.updateAppModeBanner();
+    // ---------- Bloc « Morceau » (voir #song-card) ----------
+    // Déplie/replie les réglages du morceau. Ce n'est plus un onglet à choisir face à Ajout/Modif. :
+    // le résumé (tempo · mesure · tonalité) reste lisible en permanence, et le dépliage ne masque
+    // plus rien — on peut régler le tempo sans perdre de vue l'accord qu'on est en train d'éditer.
+    toggleSongSettings(force) {
+        this.songSettingsOpen = (force != null) ? force : !this.songSettingsOpen;
+        localStorage.setItem('songSettingsOpen', this.songSettingsOpen ? '1' : '0');
+        this.applySongSettingsOpen();
+    }
+
+    applySongSettingsOpen() {
+        const body = document.getElementById('song-settings');
+        const summary = document.getElementById('song-summary');
+        if (!body || !summary) return;
+        body.hidden = !this.songSettingsOpen;
+        summary.setAttribute('aria-expanded', String(this.songSettingsOpen));
+        summary.classList.toggle('open', this.songSettingsOpen);
+    }
+
+    // Tempo, mesure et tonalité tels qu'affichés sur la ligne de résumé. Appelée depuis TOUS les
+    // réglages qu'elle résume : un résumé qui retarde sur la valeur réelle est pire que pas de résumé.
+    updateSongSummary() {
+        const bpm = document.getElementById('bpm');
+        const sig = document.getElementById('time-sig');
+        const root = document.getElementById('global-root');
+        const mode = document.getElementById('global-mode');
+        const groove = document.getElementById('groove');
+        const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+        if (bpm) set('song-summary-bpm', bpm.value);
+        if (sig) set('song-summary-sig', sig.value);
+        if (root && mode) {
+            // Même orthographe que la grille (dièses ou bémols selon la tonalité, voir useFlatsForKey)
+            // et le mode en toutes lettres : c'est le libellé que le musicien lit, pas une valeur brute.
+            const pc = NOTES.indexOf(root.value);
+            const nom = noteNameForPc(pc, useFlatsForKey(pc, mode.value));
+            const modeLabel = (mode.options[mode.selectedIndex] || {}).text || mode.value;
+            set('song-summary-key', `${nom} ${modeLabel.toLowerCase()}`);
+        }
+        // Le groove n'apparaît que s'il n'est PAS droit : une mention « Droit » sur tous les morceaux
+        // n'apprendrait rien et allongerait la ligne pour rien.
+        const grooveEl = document.getElementById('song-summary-groove');
+        if (groove && grooveEl) {
+            const droit = !groove.value || groove.value === 'straight' || groove.value === 'none';
+            grooveEl.hidden = droit;
+            if (!droit) grooveEl.textContent = '· ' + ((groove.options[groove.selectedIndex] || {}).text || groove.value);
+        }
     }
 
     // Accord/Lecture affichées seulement quand il y a effectivement un accord à régler : en Ajout,
@@ -6046,17 +6073,15 @@ class HarmoHubApp {
     // sans rouvrir un autre accord juste après, voir cancelEdit), ces deux cartes restaient affichées
     // avec les réglages du DERNIER accord touché, comme s'il restait éditable (retour utilisateur :
     // "tous les modules restent ouverts, ce n'est pas cohérent") — #edit-empty-hint les remplace le
-    // temps qu'aucun accord ne soit chargé. Appelée à chaque fois que appMode/editingIndex/
-    // leftPanelTab peuvent avoir changé (voir updateSaveButtons, appelée à chaque loadProgression) —
-    // pas seulement depuis setLeftPanelTab, qui ne couvre pas un simple clic sur une case de la grille.
+    // temps qu'aucun accord ne soit chargé. Appelée à chaque fois que appMode/editingIndex peuvent
+    // avoir changé (voir updateSaveButtons, appelée à chaque loadProgression).
     updateEditCardsVisibility() {
         const accordCard = document.getElementById('accord-card');
         const lectureCard = document.getElementById('lecture-card');
         const emptyHint = document.getElementById('edit-empty-hint');
-        const showingConfig = this.leftPanelTab === 'config';
-        const noChordToEdit = !showingConfig && this.appMode === 'edit' && this.editingIndex == null;
-        if (accordCard) accordCard.hidden = showingConfig || noChordToEdit;
-        if (lectureCard) lectureCard.hidden = showingConfig || noChordToEdit;
+        const noChordToEdit = this.appMode === 'edit' && this.editingIndex == null;
+        if (accordCard) accordCard.hidden = noChordToEdit;
+        if (lectureCard) lectureCard.hidden = noChordToEdit;
         if (emptyHint) emptyHint.hidden = !noChordToEdit;
     }
 

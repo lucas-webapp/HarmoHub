@@ -983,13 +983,6 @@ main {
     color: var(--btn-text);
     background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-orange-1), var(--btn-orange-2) 70%);
 }
-/* Config. (tonalité/mode/signature/groove/transpose) : gris/bleu pâle, volontairement neutre — ce
-   n'est PAS un mode d'interaction comme Ajout/Modification, juste un panneau de réglages qu'on fixe
-   une fois pour toutes (voir #config-card/setLeftPanelTab dans script.js). */
-#app-mode-config.active {
-    color: var(--btn-text);
-    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, #3c4a58, #262f38 70%);
-}
 
 .panel-controls {
     /* Aplati sur téléphone (voir .col-left/.col-right juste au-dessus, même principe) : ses trois
@@ -1028,8 +1021,12 @@ main {
 /* Ordre sur TÉLÉPHONE (une seule colonne). La règle : ce qu'on regarde en composant passe avant ce
    qu'on règle. L'ajout rapide d'abord — une seule rangée, et c'est LE geste de saisie principal —
    puis la grille, immédiatement visible sans rien faire défiler. Les réglages de l'accord et les
-   diagrammes viennent après, et la carte Morceau (enregistrer/charger, qu'on ouvre une fois par
-   séance) en dernier. Auparavant, tout le panneau de réglages précédait la grille en bloc. */
+   diagrammes viennent après. Auparavant, tout le panneau de réglages précédait la grille en bloc.
+   Le bloc Morceau, lui, garde son `order` naturel (0) : il ouvre la colonne, sur téléphone comme sur
+   ordinateur. Il fermait la marche du temps où il ne contenait que nom/enregistrer ; il porte
+   désormais le résumé tempo · mesure · tonalité, et le reléguer tout en bas rendrait ces trois
+   valeurs — et les réglages qu'elles déplient — moins accessibles qu'ils ne l'étaient dans l'onglet
+   qu'on vient justement de supprimer. Replié, il ne coûte qu'une centaine de pixels avant la grille. */
 #quick-add-panel { order: 1; }
 .history-section { order: 2; }
 /* Juste SOUS la grille (voir #seq-dock-host/placeSequencer) : sans `order` explicite il vaudrait 0 et
@@ -1037,19 +1034,16 @@ main {
    sans effet tant qu'il est vide, c'est-à-dire toujours sur téléphone. */
 .seq-dock-host { order: 3; }
 .seq-dock-host:empty { display: none; }
-/* Toutes les cartes de réglages au MÊME rang, juste après la grille et le séquenceur. #config-card
-   n'est qu'un conteneur (celui de l'onglet Config.) : les cartes Accord/Lecture et la rangée
-   Modifier/Annuler sont ses FRÈRES, pas ses enfants. Sans `order` explicite elles valaient donc 0 et
-   remontaient devant tout, y compris devant la grille — c'est ce qui la laissait encore à ~490px du
+/* Toutes les cartes de réglages au MÊME rang, juste après la grille et le séquenceur : elles sont
+   FRÈRES les unes des autres dans .panel-controls aplatie, et sans `order` explicite elles vaudraient
+   0 et remonteraient devant tout, y compris devant la grille — c'est ce qui la laissait à ~490px du
    haut malgré le reste du réagencement. */
-#config-card,
 #accord-card,
 #lecture-card,
 #edit-empty-hint,
 #edit-actions { order: 4; }
 .chord-header-row { order: 5; }
 .viz-wrap { order: 6; }
-#song-card { order: 7; }
 .dock { order: 8; }
 
 /* Pied de colonne collant : contient la barre de lecture, et .edit-actions quand on édite un accord
@@ -1192,10 +1186,10 @@ main {
     border: 1px solid var(--border);
 }
 
-/* Onglet Config. (voir index.html) : DEUX .control-card (Tempo/Tonalité) imbriquées dans ce
-   conteneur plutôt que directement enfants de .panel-controls — elles ne profitent donc pas de son
-   gap habituel entre cartes, il faut le reproduire ici entre les deux. */
-#config-card {
+/* Réglages du morceau dépliés (voir #song-card dans index.html) : DEUX .control-card
+   (Tempo/Tonalité) imbriquées dans ce conteneur, elles ne profitent donc pas du gap habituel entre
+   cartes de .panel-controls — il faut le reproduire ici entre les deux. */
+.song-settings {
     display: flex;
     flex-direction: column;
     gap: 15px;
@@ -1266,6 +1260,69 @@ main {
     flex: 1 1 100%;
     min-width: 0;
     margin-top: 8px;
+}
+
+/* Bloc Morceau : posé au-dessus du bandeau Ajout/Modif., d'où sa marge basse — il n'est plus dans
+   .panel-controls et ne profite donc plus de son `gap`. */
+.song-panel { margin-bottom: 10px; }
+
+/* Ligne de résumé : tempo · mesure · tonalité, lisibles SANS un clic — c'est tout l'intérêt d'avoir
+   sorti ces réglages d'un onglet, où ils n'apparaissaient qu'une fois l'onglet choisi (et au prix de
+   masquer l'accord en cours d'édition). Toute la ligne est le bouton de dépliage : viser la valeur
+   qu'on veut changer est le geste le plus court possible. */
+.song-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    margin-top: 10px;
+    padding: 7px 10px;
+    font-family: var(--font);
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    text-align: left;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
+}
+.song-summary:hover { background: rgba(255, 255, 255, 0.07); border-color: var(--btn-neutral-border-hover); }
+.song-summary.open { border-color: var(--btn-neutral-border-hover); }
+.song-summary-items {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0 6px;
+    min-width: 0;
+}
+/* Les VALEURS en pleine lumière, les unités et séparateurs en retrait : c'est « 120 » qu'on cherche
+   d'un coup d'œil, pas « BPM ». */
+.song-summary-item { color: var(--text-main); }
+.song-summary-item strong { color: var(--accent); font-weight: 800; }
+.song-summary-sep { color: var(--text-muted); opacity: 0.55; }
+.song-summary-groove { color: var(--text-muted); font-style: italic; }
+.song-summary-chevron {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    opacity: 0.7;
+    transition: transform 0.15s ease;
+}
+.song-summary.open .song-summary-chevron { transform: rotate(180deg); }
+.song-settings { margin-top: 12px; }
+/* Les deux cartes de réglages sont DANS la carte Morceau : sans allègement, on empilerait trois
+   cadres identiques les uns dans les autres. Elles gardent leur titre et leur espacement, mais
+   perdent leur propre fond et leur bordure — c'est le bloc Morceau qui porte le cadre. */
+.song-settings .control-card {
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+}
+@media (pointer: coarse) {
+    .song-summary { padding: 10px; }
 }
 
 .icon-btn {
@@ -1737,10 +1794,10 @@ input[type=range] {
    <body>) — vert (--accent, déjà la couleur par défaut ci-dessus) en mode Ajout, donc rien à
    surcharger pour ce cas-là. Un écho discret du mode courant, sans toucher aux autres réglages
    (volumes...) qui n'ont pas de lien avec l'édition d'un accord. Même orange que .loop-range-bar/
-   #seq-play actif. #bpm (onglet Config., voir #app-mode-config.active ci-dessus) délibérément
+   #seq-play actif. #bpm (bloc Morceau, voir #song-card) délibérément
    EXCLU : la barre de tempo est un réglage global du morceau, sans rapport avec Ajout/Modification
-   — elle vivait jusqu'ici derrière un tab bar volontairement neutre (gris/bleu pâle), mais gardait
-   quand même l'orange dès qu'un accord restait ouvert en Modification ailleurs, même en étant
+   — elle prenait quand même l'orange dès qu'un accord restait ouvert en Modification ailleurs, alors
+   qu'elle appartient au morceau entier et non à l'accord en cours ; elle gardait cette teinte en étant
    revenu sur Config. : incohérent avec ce tab neutre (retour utilisateur). Toujours vert (--accent),
    comme le code couleur Ajout par défaut, quel que soit le mode d'édition en cours ailleurs. */
 body[data-app-mode="edit"] #intensity {
@@ -3639,7 +3696,7 @@ select.song-select-narrow {
         padding-right: 6px;
         gap: 10px;
     }
-    #config-card { gap: 10px; }
+    .song-settings { gap: 10px; }
 
     /* Contrôles plus denses : pensés pour la souris, pas pour le doigt — moins de scroll à clic égal */
     .control-card { padding: 12px 14px; }
