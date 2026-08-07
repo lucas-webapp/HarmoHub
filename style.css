@@ -2756,12 +2756,18 @@ button:active { transform: translateY(1px); }
    pseudo-élément débordant sur le texte lui-même (donc sans aucun effet), tandis qu'une ombre est
    peinte HORS de la boîte et échappe à ce rognage ; et contrairement à du padding, elle ne décale
    rien dans la mise en page au survol. Visible au survol sur ordinateur, et en permanence sur la
-   case active — seul canal au doigt, où le curseur texte n'existe pas. */
+   case active — seul canal au doigt, où le curseur texte n'existe pas.
+   Étalement ramené de 11/12 px à 6/7 px : la pastille couvrait 43 % de l'aire d'une case de
+   téléphone (83x56 px, mesuré), ne laissant que 15 px de marge sur les côtés et 9 px en haut et en
+   bas — trop peu pour viser la case elle-même (retour utilisateur : « j'ai du mal à cliquer
+   autour »). Elle en couvre 24 % désormais. Ces valeurs doivent rester accordées à celles de
+   _isSymbolHit dans script.js, qui décide de la zone RÉELLEMENT cliquable : un repère visuel plus
+   large que la cible ferait rater des clics, plus étroit en gaspillerait. */
 .grid-cell:hover .cell-sym,
 .grid-cell.selected .cell-sym,
 .grid-cell.editing .cell-sym {
     background: rgba(255, 255, 255, 0.07);
-    box-shadow: 0 0 0 11px rgba(255, 255, 255, 0.07), 0 0 0 12px rgba(255, 255, 255, 0.16);
+    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.07), 0 0 0 7px rgba(255, 255, 255, 0.16);
 }
 
 .grid-cell.selected .cell-sym { color: var(--accent); }

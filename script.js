@@ -9042,9 +9042,13 @@ class HarmoHubApp {
     // e.target.closest('.cell-sym') : ce texte mesure ~12x17px, soit 2% de la case (mesuré) — et
     // moins encore une fois les cases resserrées, où il rapetisse (voir .sz1/.sz2 en CSS). Il fallait
     // donc le viser au pixel près, et le rater ne faisait pas « rien » : ça sélectionnait et jouait
-    // l'accord. Une zone d'au moins 46x34px (52x38 au doigt, sans curseur pour aider à viser) rend la
+    // l'accord. Une zone d'au moins 36x26px (40x28 au doigt, sans curseur pour aider à viser) rend la
     // cible atteignable sans pour autant avaler la case entière, dont le reste doit continuer à
-    // sélectionner/écouter. Le rendu visuel de cette zone est posé en CSS (voir .cell-sym au survol).
+    // sélectionner/écouter. Ces valeurs ont d'abord été trop généreuses (46x34 / 52x38) : sur une
+    // case de téléphone (83x56px, mesuré) la zone couvrait 43 % de l'aire, ne laissant que 15px de
+    // marge sur les côtés et 9px en haut et en bas — retour utilisateur, « j'ai du mal à cliquer
+    // autour ». Elle en couvre 24 % désormais, la case reste largement visable.
+    // Le rendu visuel de cette zone est posé en CSS (voir .cell-sym au survol).
     // Fait en JS et non en CSS : .cell-sym est en overflow:hidden pour l'ellipse des symboles longs,
     // ce qui rogne tout pseudo-élément censé élargir sa zone de clic.
     _isSymbolHit(cell, clientX, clientY) {
@@ -9053,8 +9057,10 @@ class HarmoHubApp {
         const r = sym.getBoundingClientRect();
         if (!r.width) return false;
         const coarse = window.matchMedia('(hover: none), (pointer: coarse)').matches;
-        const padX = Math.max(14, ((coarse ? 52 : 46) - r.width) / 2);
-        const padY = Math.max(9, ((coarse ? 38 : 34) - r.height) / 2);
+        // Ces quatre nombres doivent rester accordés au halo de .cell-sym en CSS : le repère visuel
+        // et la zone réellement cliquable ne peuvent pas dire deux choses différentes.
+        const padX = Math.max(7, ((coarse ? 40 : 36) - r.width) / 2);
+        const padY = Math.max(5, ((coarse ? 28 : 26) - r.height) / 2);
         return clientX >= r.left - padX && clientX <= r.right + padX
             && clientY >= r.top - padY && clientY <= r.bottom + padY;
     }
