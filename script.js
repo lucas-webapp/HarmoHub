@@ -1539,6 +1539,10 @@ const INSTRUMENT_TRIM_DB = {
     strings: -16,
     organ: -18,
 };
+// Doublure synthétisée du Piano (voir INSTRUMENT_BANKS.piano) : elle n'a pas sa place dans le tableau
+// ci-dessus, qui est indexé par instrument CHOISISSABLE — celle-ci n'apparaît nulle part dans
+// l'interface, elle remplace le Piano en coulisses quand ses échantillons manquent.
+const PIANO_FALLBACK_TRIM_DB = -7;
 
 // Chaque build(masterBus) construit SON PROPRE filtre/effet/volume et se chaîne jusqu'à masterBus
 // (jamais .toDestination() directement, voir getMasterBus) : la sortie de chaque instrument passe donc
@@ -1549,6 +1553,15 @@ const INSTRUMENT_TRIM_DB = {
 // gains de this.instrumentTrimDb (mesurés hors-ligne, voir calibrateInstrumentLevels) égalisent le
 // niveau perçu, tous instruments confondus, pour un même geste de jeu.
 const INSTRUMENT_BANKS = {
+    // Le Piano est le SEUL instrument à échantillons : ses 17 fichiers viennent d'un site externe.
+    // C'est aussi l'instrument par défaut — donc, sur un téléphone hors couverture, en 4G faible ou
+    // dans le métro, l'appli par défaut ne jouait tout simplement RIEN : le transport tournait, le
+    // curseur avançait, et chaque note était silencieusement abandonnée faute d'échantillon (voir le
+    // try/catch de schedulePlayback). Aucun son, aucun message — juste une appli qui a l'air en panne.
+    // On construit donc une doublure SYNTHÉTISÉE, entièrement locale, à côté de l'échantillonneur :
+    // tant que les fichiers ne sont pas là, c'est elle qui joue. Le son est moins beau, mais il EXISTE,
+    // et le musicien peut travailler. Dès que les fichiers arrivent, l'échantillonneur reprend la main
+    // tout seul, sans rien à faire.
     piano: {
         label: 'Piano',
         build: (masterBus) => {
@@ -1561,11 +1574,49 @@ const INSTRUMENT_BANKS = {
                     "C6": "C6.mp3"
                 },
                 release: 1,
-                baseUrl: "https://tonejs.github.io/audio/salamander/"
+                baseUrl: "https://tonejs.github.io/audio/salamander/",
+                // Un échec de téléchargement ne doit surtout pas remonter en erreur non gérée : il est
+                // ATTENDU hors ligne, et la doublure ci-dessous s'en charge.
+                onerror: () => {},
             });
             const volume = new Tone.Volume(INSTRUMENT_TRIM_DB.piano);
             sampler.chain(volume, masterBus);
-            return sampler;
+
+            // Doublure : attaque franche puis longue décroissance, la silhouette d'une corde frappée.
+            // Filtre passe-bas comme les autres synthés de cette banque, pour ne pas détonner à côté.
+            const fallback = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: 'triangle' },
+                envelope: { attack: 0.004, decay: 1.8, sustain: 0.04, release: 1.1 },
+            });
+            const fbFilter = new Tone.Filter({ type: 'lowpass', frequency: 4200, Q: 0.4 });
+            // PAS le trim du Piano (0 dB) : celui-là est la référence d'échantillons RÉELS, déjà
+            // enregistrés à un niveau raisonnable. Une onde brute au même geste sort bien plus fort —
+            // mesuré sur un accord de trois notes : crête 0,998 (soit à la limite de la saturation) et
+            // RMS supérieur à TOUS les autres instruments de la banque. On la recale donc comme les
+            // synthés qu'elle est, au même protocole que INSTRUMENT_TRIM_DB (RMS de la portion tenue).
+            const fbVolume = new Tone.Volume(PIANO_FALLBACK_TRIM_DB);
+            fallback.chain(fbFilter, fbVolume, masterBus);
+
+            // Enveloppe unique exposant la même interface qu'un instrument Tone : tous les appelants
+            // (lecture, écoute d'une note, export MP3) continuent de l'utiliser sans rien savoir de
+            // ce qui se joue derrière.
+            return {
+                get loaded() { return sampler.loaded; },
+                usingFallback() { return !sampler.loaded; },
+                triggerAttackRelease(...args) {
+                    (sampler.loaded ? sampler : fallback).triggerAttackRelease(...args);
+                    return this;
+                },
+                releaseAll() {
+                    try { sampler.releaseAll(); } catch (e) { /* pas encore chargé : rien à relâcher */ }
+                    fallback.releaseAll();
+                    return this;
+                },
+                dispose() {
+                    [sampler, volume, fallback, fbFilter, fbVolume].forEach(n => { try { n.dispose(); } catch (e) {} });
+                    return this;
+                },
+            };
         }
     },
     // Ancien réglage : modulationIndex 14 + modulationEnvelope.sustain 1 gardaient l'anche FM à pleine
@@ -1649,12 +1700,16 @@ const INSTRUMENT_BANKS = {
 // voir les deux usages de cette constante.
 const LOOP_START_EPSILON = 0.02;
 
-// Attend que les instruments à échantillons (Piano) aient fini de charger leurs sons depuis internet
-// avant de démarrer une lecture — sans plafond, un réseau absent ou trop lent bloquerait la lecture
-// indéfiniment (elle ne démarrerait jamais) plutôt que de simplement laisser filer en silence les
-// quelques notes concernées (voir schedulePlayback). Le plafond n'empêche pas le chargement de se
-// terminer en arrière-plan ensuite, pour les lectures suivantes.
-function waitForAudioReady(timeoutMs = 4000) {
+// Laisse au Piano une chance de finir de charger ses échantillons avant de démarrer une lecture, sans
+// jamais la retarder longtemps. Le plafond était de 4 s : sur un réseau faible, appuyer sur Lecture
+// ne produisait donc RIEN pendant quatre secondes — délai pendant lequel on rappuie, ce qui annule la
+// lecture en attente et en relance une autre (voir this._playGen), d'où l'impression que la lecture
+// « part au hasard ». 1,2 s suffit largement sur un réseau normal (chargement mesuré à un peu plus
+// d'une seconde, et lancé dès l'ouverture de l'appli, bien avant le premier appui) ; au-delà, mieux
+// vaut démarrer tout de suite avec la doublure synthétisée du Piano (voir INSTRUMENT_BANKS.piano) que
+// de faire attendre devant une appli qui semble ne rien faire. Le chargement se poursuit en
+// arrière-plan et l'échantillonneur reprend la main dès qu'il est prêt.
+function waitForAudioReady(timeoutMs = 1200) {
     return Promise.race([
         Tone.loaded().catch(() => {}), // un échec de chargement ne doit jamais empêcher la lecture
         new Promise(resolve => setTimeout(resolve, timeoutMs)),
@@ -2861,16 +2916,30 @@ class HarmoHubApp {
         // de la page (retour utilisateur : aucun son du tout sur iPhone, alors que la même appli
         // fonctionne sur ordinateur — desktop n'a pas cette restriction). 'pointerdown'/'touchend' :
         // les deux évènements les plus tôt disponibles d'un tap, sans dépendre du contrôle précis visé.
-        let audioUnlockedOnce = false;
-        const unlockAudioOnce = () => {
-            if (audioUnlockedOnce) return;
-            audioUnlockedOnce = true;
-            Tone.start().catch(() => {});
-            document.removeEventListener('pointerdown', unlockAudioOnce);
-            document.removeEventListener('touchend', unlockAudioOnce);
+        // On NE retire PLUS ces écouteurs après le premier geste, et on ne retient plus « c'est fait ».
+        // L'ancienne version posait son drapeau et se débranchait dès le tout premier geste, SANS
+        // vérifier que le déblocage avait réussi — Tone.start() rend une promesse, dont l'échec était
+        // avalé. Deux conséquences, toutes deux vécues sur téléphone :
+        //   - si ce tout premier geste ne débloquait pas (Safari est capricieux sur ce qu'il accepte),
+        //     plus RIEN ne réessayait : l'appli restait muette jusqu'au rechargement de la page ;
+        //   - surtout, iOS SUSPEND l'AudioContext dès qu'on quitte l'appli, qu'un appel arrive ou que
+        //     l'écran se verrouille — ce qui arrive sans arrêt sur un téléphone. Au retour, il fallait
+        //     le reprendre sur un nouveau geste, et personne ne le faisait plus.
+        // Désormais : à chaque geste, si le contexte n'est pas en marche, on le relance. C'est
+        // quasiment gratuit (une comparaison de chaîne) et ça se répare tout seul.
+        const resumeAudioIfNeeded = () => {
+            try {
+                if (Tone.getContext().rawContext.state !== 'running') Tone.start().catch(() => {});
+            } catch (e) { /* contexte pas encore créé : le prochain geste réessaiera */ }
         };
-        document.addEventListener('pointerdown', unlockAudioOnce, { passive: true });
-        document.addEventListener('touchend', unlockAudioOnce, { passive: true });
+        document.addEventListener('pointerdown', resumeAudioIfNeeded, { passive: true });
+        document.addEventListener('touchend', resumeAudioIfNeeded, { passive: true });
+        // Retour dans l'appli après l'avoir quittée : on tente la reprise sans attendre un geste. iOS
+        // peut la refuser hors geste utilisateur — le prochain toucher s'en chargera alors — mais
+        // quand elle passe, la lecture remarche sans que l'utilisateur ait rien à comprendre.
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) resumeAudioIfNeeded();
+        });
 
         this.setupEventListeners();
         this.updateAppModeBanner();
@@ -4192,6 +4261,18 @@ class HarmoHubApp {
         return inst;
     }
 
+    // Prévient UNE FOIS par session que le Piano joue sa doublure synthétisée faute d'avoir pu
+    // télécharger ses échantillons. Sans ce mot, on entend un son différent de d'habitude sans
+    // comprendre pourquoi — et surtout, avant la doublure, on n'entendait rien du tout et il n'y
+    // avait aucun moyen de savoir que le problème venait du réseau.
+    warnIfFallbackInstrument() {
+        if (this._fallbackWarned) return;
+        const piano = this.instrumentCache.get('piano');
+        if (!piano || !piano.usingFallback || !piano.usingFallback()) return;
+        this._fallbackWarned = true;
+        this.flashHint('Sons du piano pas encore chargés (réseau) — son de secours en attendant', 4200);
+    }
+
     // Écoute rapide d'une seule voix du séquenceur (clic sur son étiquette à gauche) : ne coupe pas
     // une lecture en cours (contrairement à playCurrent/playSavedChord, pas de stopAll ici) — juste
     // une note isolée, pour vérifier une hauteur à l'oreille sans interrompre le reste.
@@ -4356,6 +4437,7 @@ class HarmoHubApp {
         // notes le temps du chargement (voir schedulePlayback, qui les ignore désormais proprement,
         // mais autant vraiment les jouer plutôt que de les sauter en silence).
         await waitForAudioReady();
+        this.warnIfFallbackInstrument(); // le Piano joue-t-il sa doublure faute d'échantillons ?
         // Si un stopAll() (Stop, ou une autre lecture démarrée entre-temps) est survenu pendant cette
         // attente, ce jeton a changé : abandonner plutôt que redémarrer le transport après coup (voir
         // stopAll et le commentaire sur this._playGen dans le constructeur).
@@ -4617,6 +4699,7 @@ class HarmoHubApp {
         // qu'à attendre leur chargement. Sans ça, une note jouée trop tôt échouait silencieusement
         // (voir schedulePlayback, qui l'ignore désormais proprement), mais autant vraiment l'entendre.
         await waitForAudioReady();
+        this.warnIfFallbackInstrument(); // le Piano joue-t-il sa doublure faute d'échantillons ?
         // Voir playCurrent : abandonne si un stopAll() est survenu pendant cette attente.
         if (myGen !== this._playGen) return;
 
@@ -13005,6 +13088,7 @@ class HarmoHubApp {
 
         // Attend que l'instrument soit prêt avant de démarrer le transport (voir playCurrent)
         await waitForAudioReady();
+        this.warnIfFallbackInstrument(); // le Piano joue-t-il sa doublure faute d'échantillons ?
         // Voir playCurrent : abandonne si un stopAll() est survenu pendant cette attente.
         if (myGen !== this._playGen) return;
 
