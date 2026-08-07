@@ -1738,6 +1738,17 @@ const SEQ_SNAP_CHOICES = [
     { steps: 2, label: '1/8', title: 'Aimanter à la croche (demi-temps)' },
     { steps: 1, label: '1/16', title: 'Aucune aimantation : réglage à la double-croche près' },
 ];
+// Durée d'une note du séquenceur, dite en TEMPS — le vocabulaire du reste de l'appli (durée d'accord,
+// numéros de mesure, signature). Les quarts de temps s'écrivent en fractions plutôt qu'en décimales :
+// « 1 temps ½ » se lit d'un coup d'œil, « 1,5 temps » demande une conversion mentale.
+const SEQ_FRACTION_LABEL = ['', '¼', '½', '¾'];
+function seqLengthLabel(steps) {
+    const whole = Math.floor(steps / SEQ_STEPS_PER_BEAT);
+    const frac = SEQ_FRACTION_LABEL[steps % SEQ_STEPS_PER_BEAT];
+    if (!whole) return `${frac} temps`;
+    return frac ? `${whole} ${frac} temps` : `${whole} temps`;
+}
+
 const METRONOME_SUBDIVISION_KEY = 'harmohubMetronomeSubdivision';
 const SHOW_ROMAN_KEY = 'harmohubShowRomanNumerals';
 // Octave / renversement-drop sous chaque accord de la GRILLE (voir gridVoicingParts, Paramètres >
@@ -9991,9 +10002,26 @@ class HarmoHubApp {
         // onSeqPointerDown (pipette armée, second doigt d'un pincer-zoomer...), qui ne passent jamais
         // par onSeqPointerUp. #arp-sequencer étant déplacé mais jamais recréé (voir openSeqZoom/
         // pinSequencerHost), la classe posée dessus survit aux re-rendus, qui ne touchent que ses enfants.
-        const endLive = () => host.classList.remove('seq-live');
+        const endLive = () => { host.classList.remove('seq-live'); this.seqHideLengthTag(); };
         window.addEventListener('pointerup', endLive);
         window.addEventListener('pointercancel', endLive);
+
+        // Survol : met en évidence la note ENTIÈRE qu'on s'apprête à toucher, pas seulement la case
+        // sous le pointeur. Le curseur (ew-resize/grab) dit déjà QUEL geste partira d'ici, mais pas
+        // SUR QUOI — et entre deux notes voisines et courtes, c'est justement là qu'on se trompe de
+        // cible. Voir aussi le liseré du bord survolé, qui dit de quel côté part l'étirement : les
+        // trois signaux répondent à trois questions différentes (quel geste, quel bord, quelle note).
+        // Réservé au pointeur fin : au doigt il n'y a pas de survol, c'est la note SÉLECTIONNÉE qui
+        // montre ses poignées (voir .seq-note.selected).
+        host.addEventListener('pointerover', (e) => {
+            if (e.pointerType === 'touch') return;
+            const cell = e.target.closest('.seq-cell.on');
+            this.setSeqHoveredNote(cell ? cell : null);
+        });
+        host.addEventListener('pointerout', (e) => {
+            if (e.pointerType === 'touch') return;
+            if (!e.relatedTarget || !host.contains(e.relatedTarget)) this.setSeqHoveredNote(null);
+        });
         // Nettoyage du suivi des doigts actifs (voir this._seqActiveTouchIds/onSeqPointerDown) : posé
         // sur window, pas sur `host`, pour retirer un doigt même s'il se lève hors du séquenceur (glissé
         // qui sort de la zone pendant un pincer-zoomer, par exemple).
@@ -10004,6 +10032,55 @@ class HarmoHubApp {
     // Le geste n'est appliqué qu'à la fin (voir onSeqPointerUp) : un simple tap sur une note déjà
     // posée la SÉLECTIONNE au lieu de l'effacer immédiatement ; ce n'est qu'un vrai glissé (mouvement
     // détecté) qui peint/efface plusieurs croches d'affilée.
+    // Met en évidence la barre de note qui couvre `cell` (null = plus rien de survolé). La barre est
+    // un élément à part, posé PAR-DESSUS les cases (voir .seq-note dans renderSequencer) : c'est donc
+    // en JS qu'on fait le lien, un sélecteur CSS ne pouvant pas remonter d'une case à la barre qui la
+    // recouvre.
+    setSeqHoveredNote(cell) {
+        // On retient la CASE survolée (voix + croche), pas la barre trouvée : les barres sont
+        // reconstruites à chaque renderSequencer(), et garder une référence à l'ancienne perdait le
+        // surlignage jusqu'au prochain mouvement de souris — le pointeur restait pourtant au même
+        // endroit, ce qui donnait l'impression que l'appli avait cessé de suivre.
+        this._seqHover = cell ? { voice: +cell.dataset.voice, step: +cell.dataset.step } : null;
+        this.applySeqHoverHighlight();
+    }
+
+    // Repose la mise en évidence sur la barre qui couvre la case survolée. Appelée au survol ET à la
+    // fin de chaque rendu du séquenceur, pour que le surlignage survive à une reconstruction.
+    applySeqHoverHighlight() {
+        const cible = this._seqHover
+            ? Array.from(document.querySelectorAll(`.seq-note[data-voice="${this._seqHover.voice}"]`))
+                .find(n => this._seqHover.step >= +n.dataset.start && this._seqHover.step <= +n.dataset.end) || null
+            : null;
+        document.querySelectorAll('.seq-note.hovered').forEach(n => { if (n !== cible) n.classList.remove('hovered'); });
+        if (cible) cible.classList.add('hovered');
+    }
+
+    // Étiquette flottante annonçant la durée qui RÉSULTERA de l'étirement en cours. Le curseur et le
+    // liseré disent qu'on tient bien la poignée ; celle-ci dit ce qu'on est en train d'en faire —
+    // c'est la seule des trois qui évite de devoir relâcher pour compter les croches obtenues.
+    seqShowLengthTag(steps, clientX, clientY) {
+        let tag = this._seqLengthTag;
+        if (!tag) {
+            tag = document.createElement('div');
+            tag.className = 'seq-length-tag';
+            document.body.appendChild(tag);
+            this._seqLengthTag = tag;
+        }
+        tag.textContent = seqLengthLabel(steps);
+        // Décalée au-dessus à droite du pointeur, et repliée à gauche près du bord droit de la
+        // fenêtre pour ne jamais sortir de l'écran.
+        const largeur = tag.offsetWidth || 70;
+        const x = Math.min(clientX + 14, window.innerWidth - largeur - 8);
+        tag.style.left = `${Math.max(8, x)}px`;
+        tag.style.top = `${Math.max(8, clientY - 34)}px`;
+        tag.classList.add('show');
+    }
+
+    seqHideLengthTag() {
+        if (this._seqLengthTag) this._seqLengthTag.classList.remove('show');
+    }
+
     onSeqPointerDown(e) {
         if (e.button != null && e.button !== 0) return; // clic gauche / toucher uniquement
 
@@ -10562,6 +10639,10 @@ class HarmoHubApp {
         // bord qui bouge réellement (borné par minStart/maxEnd, pas le doigt brut) décide du temps
         // mis en évidence, avant même de savoir si ce mouvement change quoi que ce soit de plus.
         this._highlightSeqBeatLabel(d.resize.edge === 'end' ? newEnd : newStart);
+        // Étiquette de durée : posée AVANT la sortie anticipée ci-dessous, pour qu'elle suive le
+        // pointeur même quand le geste ne change (encore) rien — sinon elle se figerait dès qu'on
+        // atteint une borne, en donnant l'impression que l'appli ne suit plus.
+        this.seqShowLengthTag(newEnd - newStart + 1, e.clientX, e.clientY);
         if (newStart === d.curStart && newEnd === d.curEnd) return;
 
         e.preventDefault();
@@ -12490,6 +12571,12 @@ class HarmoHubApp {
         </div>`;
 
         host.innerHTML = html;
+
+        // Les barres de notes viennent d'être reconstruites : on repose le surlignage de survol sur la
+        // nouvelle barre qui couvre la case encore sous le pointeur (voir applySeqHoverHighlight).
+        // Sans ça, la mise en évidence disparaissait à chaque repeinture — pendant un étirement, par
+        // exemple — alors que la souris n'avait pas bougé d'un pixel.
+        this.applySeqHoverHighlight();
 
         // Mode continu : place (ou garde) le défilement horizontal sur l'accord en édition, jamais
         // perdu dans le contexte gauche par défaut — voir prevScrollLeft capturé plus haut, avant la

@@ -3294,6 +3294,42 @@ button:active { transform: translateY(1px); }
 .seq-cell-edge-start:hover::before { left: 1px; }
 .seq-cell-edge-end:hover::after { right: 1px; }
 
+/* La note ENTIÈRE que l'on s'apprête à toucher s'éclaire au survol (classe posée par
+   setSeqHoveredNote). Le curseur dit quel geste partira d'ici, le liseré de quel bord — mais ni l'un
+   ni l'autre ne disait SUR QUELLE NOTE il allait s'appliquer, et c'est entre deux notes voisines et
+   courtes qu'on se trompe de cible. Un simple éclaircissement, pas un changement de couleur : la
+   couleur de la pilule porte déjà une information (le rôle de la note dans l'accord). */
+.seq-note.hovered {
+    filter: brightness(1.35);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+/* Les poignées elles-mêmes sont celles de la note SÉLECTIONNÉE, réutilisées telles quelles au survol
+   (voir .seq-note.selected::before plus bas) : même dessin pour la même chose, plutôt qu'une seconde
+   poignée légèrement différente selon qu'on survole ou qu'on a sélectionné. */
+
+/* Durée qui résultera de l'étirement, suivant le pointeur (voir seqShowLengthTag). Le curseur et le
+   liseré confirment qu'on tient la poignée ; celle-ci dit ce qu'on en fait — sans avoir à relâcher
+   pour compter les croches obtenues. position:fixed et pointer-events:none : elle survole tout sans
+   jamais intercepter le geste en cours. */
+.seq-length-tag {
+    position: fixed;
+    z-index: 90;
+    padding: 3px 9px;
+    font-family: var(--font);
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--btn-text);
+    background: rgba(10, 10, 10, 0.92);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+}
+.seq-length-tag.show { opacity: 1; }
+
 /* Retour visuel immédiat PENDANT un glissé, le temps que renderSequencer() redessine la forme finale
    (voir applySeqCell, qui allume/éteint les cases une à une sans reconstruire toute la grille).
    Volontairement limité à la durée du geste (classe .seq-live posée sur #arp-sequencer, voir
@@ -3395,7 +3431,9 @@ button:active { transform: translateY(1px); }
    Masquées du côté où la note est COUPÉE par la page (clip-start/clip-end ci-dessus) : ce bord-là
    n'est pas un vrai bord, on n'y étire rien. */
 .seq-note.selected::before,
-.seq-note.selected::after {
+.seq-note.selected::after,
+.seq-note.hovered::before,
+.seq-note.hovered::after {
     content: '';
     position: absolute;
     top: 22%;
@@ -3405,10 +3443,16 @@ button:active { transform: translateY(1px); }
     background: rgba(255, 255, 255, 0.92);
     pointer-events: none;
 }
-.seq-note.selected::before { left: 2px; }
-.seq-note.selected::after { right: 2px; }
-.seq-note.selected.clip-start::before { content: none; }
-.seq-note.selected.clip-end::after { content: none; }
+.seq-note.selected::before,
+.seq-note.hovered::before { left: 2px; }
+.seq-note.selected::after,
+.seq-note.hovered::after { right: 2px; }
+/* Bord coupé par la page : ce n'est pas une vraie extrémité (voir clip-start/clip-end dans
+   renderSequencer), on n'y étire rien — donc pas de poignée qu'on ne pourrait pas attraper. */
+.seq-note.selected.clip-start::before,
+.seq-note.hovered.clip-start::before { content: none; }
+.seq-note.selected.clip-end::after,
+.seq-note.hovered.clip-end::after { content: none; }
 
 /* Fantôme flottant d'un changement de voix (glisser une barre vers une autre ligne, voir
    beginSeqVoiceDrag/onSeqVoiceDragMove) : suit le pointeur en position fixe, recoloré (role-*, déjà
