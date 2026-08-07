@@ -3663,18 +3663,26 @@ select.song-select-narrow {
 /* Dégagement pour que la grille ne passe pas sous la barre collante sur mobile */
 @media (max-width: 899px) {
     .history-section { margin-top: 4px; padding-bottom: 8px; }
-    /* En-tête de la grille EMPILÉ sur téléphone : le titre et les quatre outils (échelles H/V,
-       conduite de voix, vue agrandie) n'y tiennent jamais sur une seule ligne, ils passaient donc à
-       la ligne via flex-wrap — ce qui gaspillait 22px : 13 de vide au-dessus du titre plus le
-       row-gap, mesurés. En colonne, l'empilement est le même à l'œil mais sans ces reliquats :
-       l'en-tête passe de 77 à 61px, et la grille remonte d'autant (retour utilisateur : « optimise
-       l'espace au-dessus du titre »). Réservé à .history-section : les autres cartes ont un en-tête
-       qui tient sur une ligne, où le space-between garde tout son sens. */
-    .history-section .card-head {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 6px;
-    }
+    /* En-tête de la grille APLATI sur téléphone. Le titre et les quatre outils (échelles H/V,
+       conduite de voix, vue agrandie) n'y tiennent jamais sur une seule ligne : ils passaient à la
+       ligne via flex-wrap, ce qui gaspillait 22px (13 de vide au-dessus du titre plus le row-gap,
+       mesurés). `display: contents` fait disparaître la BOÎTE de l'en-tête sans toucher au HTML :
+       ses deux enfants deviennent frères de l'ajout rapide, et les trois s'ordonnent librement.
+       C'est ce qui permet d'intercaler la barre d'ajout ENTRE le titre et les outils (retour
+       utilisateur) — impossible autrement, l'un étant dans l'en-tête et l'autre dehors.
+       Sur ordinateur, rien de tout ça : le titre et les outils partagent une ligne, la barre reste
+       dessous, et « au-dessus des boutons » n'y voudrait rien dire. */
+    .history-section { display: flex; flex-direction: column; }
+    .history-section .card-head { display: contents; }
+    .history-section h2 { order: 1; margin-bottom: 8px; }
+    #quick-add-panel { order: 2; margin-bottom: 8px; }
+    /* Devenu élément flex, #quick-add-panel est une racine de contexte de bloc : la marge basse de
+       16px de sa rangée ne s'échappe plus par fusion comme avant, elle s'ajoutait donc à la marge
+       ci-dessus. C'est le panneau qui gère son écart ici, la rangée n'a plus à en porter. */
+    .history-section .quick-add-row { margin-bottom: 0; }
+    .history-section .card-head-actions { order: 3; margin-bottom: 10px; }
+    #progression-sections { order: 4; }
+    .history-section .add-section-btn { order: 5; }
     main { padding-bottom: 0; }
 }
 
