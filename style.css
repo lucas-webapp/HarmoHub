@@ -3294,6 +3294,16 @@ button:active { transform: translateY(1px); }
 .seq-cell-edge-start:hover::before { left: 1px; }
 .seq-cell-edge-end:hover::after { right: 1px; }
 
+/* Milieu d'une note COURTE (1 ou 2 croches) : ses cases sont toutes des bords, donc le CSS ci-dessus
+   y annoncerait un étirement alors qu'on peut désormais l'y prendre et la déplacer. La classe est
+   posée en JS (voir applySeqHoverHighlight), seul endroit qui sache OÙ dans la case est le pointeur —
+   une règle :hover ne le sait pas. Elle rétablit le curseur « main » et efface le liseré de bord, pour
+   que les deux signaux disent la même chose que ce qui se passera vraiment. */
+.seq-cell-edge.seq-zone-body:hover { cursor: grab; }
+.seq-cell-edge.seq-zone-body:active { cursor: grabbing; }
+.seq-cell-edge-start.seq-zone-body:hover::before,
+.seq-cell-edge-end.seq-zone-body:hover::after { display: none; }
+
 /* La note ENTIÈRE que l'on s'apprête à toucher s'éclaire au survol (classe posée par
    setSeqHoveredNote). Le curseur dit quel geste partira d'ici, le liseré de quel bord — mais ni l'un
    ni l'autre ne disait SUR QUELLE NOTE il allait s'appliquer, et c'est entre deux notes voisines et

@@ -1741,6 +1741,22 @@ const SEQ_SNAP_CHOICES = [
 // Durée d'une note du séquenceur, dite en TEMPS — le vocabulaire du reste de l'appli (durée d'accord,
 // numéros de mesure, signature). Les quarts de temps s'écrivent en fractions plutôt qu'en décimales :
 // « 1 temps ½ » se lit d'un coup d'œil, « 1,5 temps » demande une conversion mentale.
+// Une note d'UNE ou DEUX croches n'a que des bords : toutes ses cases sont « début » ou « fin », il
+// n'en restait donc aucune pour la saisir et la déplacer — on ne pouvait que l'étirer. On la découpe
+// alors en trois zones au pixel près, comme le fait un séquenceur de DAW : une poignée à chaque
+// extrémité, le milieu pour la prendre. Les notes de trois croches ou plus gardent leur découpe PAR
+// CASE (toute la première case est la poignée de début, toute la dernière celle de fin) : elle est
+// plus généreuse, et il n'y a aucune raison de la rétrécir là où le problème ne se pose pas.
+// La poignée vaut 30 % de la note, bornée : jamais moins de 9 px (introuvable en dessous), jamais
+// plus de 18 px (au-delà elle mangerait le milieu sans rien apporter).
+const SEQ_ZONE_HANDLE_MIN_PX = 9;
+const SEQ_ZONE_HANDLE_MAX_PX = 18;
+// En dessous de cette largeur restante, on renonce aux zones et on garde le comportement d'avant :
+// mieux vaut une note qu'on ne peut qu'étirer qu'un milieu de quelques pixels que personne
+// n'atteindrait. C'est ce seuil — et non le type d'appareil — qui décide : une case fait 59 px sur
+// ordinateur (le milieu y est confortable) contre 18,7 px sur téléphone (il n'y tient pas).
+const SEQ_ZONE_MIN_BODY_PX = 16;
+
 const SEQ_FRACTION_LABEL = ['', '¼', '½', '¾'];
 function seqLengthLabel(steps) {
     const whole = Math.floor(steps / SEQ_STEPS_PER_BEAT);
@@ -10016,7 +10032,15 @@ class HarmoHubApp {
         host.addEventListener('pointerover', (e) => {
             if (e.pointerType === 'touch') return;
             const cell = e.target.closest('.seq-cell.on');
-            this.setSeqHoveredNote(cell ? cell : null);
+            this.setSeqHoveredNote(cell ? cell : null, e.clientX);
+        });
+        // Sur une note COURTE, le geste ne dépend plus de la case survolée mais de l'endroit PRÉCIS où
+        // l'on est dans la note (voir seqShortNoteZone) : il faut donc suivre le pointeur À L'INTÉRIEUR
+        // d'une même case, ce que pointerover ne fait pas (il ne se déclenche qu'au changement de case).
+        host.addEventListener('pointermove', (e) => {
+            if (e.pointerType === 'touch' || this.seqDrag || this.seqMarquee) return;
+            const cell = e.target.closest('.seq-cell.on');
+            this.setSeqHoveredNote(cell ? cell : null, e.clientX);
         });
         host.addEventListener('pointerout', (e) => {
             if (e.pointerType === 'touch') return;
@@ -10032,16 +10056,46 @@ class HarmoHubApp {
     // Le geste n'est appliqué qu'à la fin (voir onSeqPointerUp) : un simple tap sur une note déjà
     // posée la SÉLECTIONNE au lieu de l'effacer immédiatement ; ce n'est qu'un vrai glissé (mouvement
     // détecté) qui peint/efface plusieurs croches d'affilée.
+    // Zone d'une note COURTE (1 ou 2 croches) sous un point donné : 'start' | 'end' | 'body', ou null
+    // si la note est trop étroite pour qu'un milieu soit visable — auquel cas l'appelant garde le
+    // comportement historique (toute la note est une poignée). Voir SEQ_ZONE_* pour le pourquoi.
+    seqShortNoteZone(voice, noteStart, noteEnd, clientX) {
+        if (noteEnd - noteStart + 1 > 2) return null; // assez longue : elle a déjà des cases de corps
+        const bar = document.querySelector(
+            `.seq-note[data-voice="${voice}"][data-start="${noteStart}"][data-end="${noteEnd}"]`
+        );
+        if (!bar) return null; // barre introuvable (note coupée par la page) : on ne devine rien
+        const r = bar.getBoundingClientRect();
+        const handle = Math.min(SEQ_ZONE_HANDLE_MAX_PX, Math.max(SEQ_ZONE_HANDLE_MIN_PX, r.width * 0.3));
+        if (r.width - 2 * handle < SEQ_ZONE_MIN_BODY_PX) return null;
+        if (clientX < r.left + handle) return 'start';
+        if (clientX > r.right - handle) return 'end';
+        return 'body';
+    }
+
+    // Bornes de la note qui couvre (voice, step) dans `pattern`, ou null si la case est vide.
+    // Extrait pour être utilisé aussi bien à la prise du geste qu'au simple survol, sans dupliquer
+    // les deux boucles de remontée le long des croches liées.
+    seqNoteBoundsAt(pattern, tie, voice, step) {
+        if (!pattern[step] || !pattern[step].includes(voice)) return null;
+        let start = step, end = step;
+        while (start > 0 && pattern[start - 1].includes(voice) && tie[start].includes(voice)) start--;
+        while (end + 1 < pattern.length && pattern[end + 1].includes(voice) && tie[end + 1].includes(voice)) end++;
+        return { start, end };
+    }
+
     // Met en évidence la barre de note qui couvre `cell` (null = plus rien de survolé). La barre est
     // un élément à part, posé PAR-DESSUS les cases (voir .seq-note dans renderSequencer) : c'est donc
     // en JS qu'on fait le lien, un sélecteur CSS ne pouvant pas remonter d'une case à la barre qui la
     // recouvre.
-    setSeqHoveredNote(cell) {
+    setSeqHoveredNote(cell, clientX = null) {
         // On retient la CASE survolée (voix + croche), pas la barre trouvée : les barres sont
         // reconstruites à chaque renderSequencer(), et garder une référence à l'ancienne perdait le
         // surlignage jusqu'au prochain mouvement de souris — le pointeur restait pourtant au même
-        // endroit, ce qui donnait l'impression que l'appli avait cessé de suivre.
-        this._seqHover = cell ? { voice: +cell.dataset.voice, step: +cell.dataset.step } : null;
+        // endroit, ce qui donnait l'impression que l'appli avait cessé de suivre. On retient aussi
+        // l'abscisse du pointeur, seule façon de savoir dans quelle ZONE d'une note courte on se
+        // trouve (voir seqShortNoteZone) — l'information n'est pas dans la case.
+        this._seqHover = cell ? { voice: +cell.dataset.voice, step: +cell.dataset.step, x: clientX } : null;
         this.applySeqHoverHighlight();
     }
 
@@ -10054,6 +10108,26 @@ class HarmoHubApp {
             : null;
         document.querySelectorAll('.seq-note.hovered').forEach(n => { if (n !== cible) n.classList.remove('hovered'); });
         if (cible) cible.classList.add('hovered');
+
+        // Zone d'une note courte : le CSS ne peut pas la déduire (il ne sait que « la souris est sur
+        // cette case », pas OÙ dans la case), donc c'est ici qu'on marque les cases dont le milieu est
+        // survolé — pour que le curseur y annonce un déplacement (main) et non un étirement, et que le
+        // liseré de bord s'efface. Signature comparée avant d'écrire : pointermove tire à chaque pixel,
+        // et repeindre le DOM en continu pour un résultat identique serait du gaspillage pur.
+        const corps = (cible && this._seqHover.x != null
+            && this.seqShortNoteZone(+cible.dataset.voice, +cible.dataset.start, +cible.dataset.end, this._seqHover.x) === 'body')
+            ? { voice: +cible.dataset.voice, start: +cible.dataset.start, end: +cible.dataset.end }
+            : null;
+        const signature = corps ? `${corps.voice}:${corps.start}-${corps.end}` : '';
+        if (signature === this._seqBodyZoneSig) return;
+        this._seqBodyZoneSig = signature;
+        document.querySelectorAll('.seq-cell.seq-zone-body').forEach(c => c.classList.remove('seq-zone-body'));
+        if (corps) {
+            for (let s = corps.start; s <= corps.end; s++) {
+                document.querySelectorAll(`.seq-cell[data-voice="${corps.voice}"][data-step="${s}"]`)
+                    .forEach(c => c.classList.add('seq-zone-body'));
+            }
+        }
     }
 
     // Étiquette flottante annonçant la durée qui RÉSULTERA de l'étirement en cours. Le curseur et le
@@ -10136,15 +10210,22 @@ class HarmoHubApp {
         let resize = null;
         let noteStart = null, noteEnd = null, isStart = false, isEnd = false;
         if (wasOn) {
-            noteStart = step; noteEnd = step;
-            while (noteStart > 0 && pattern[noteStart - 1].includes(voice) && tie[noteStart].includes(voice)) noteStart--;
-            while (noteEnd + 1 < pattern.length && pattern[noteEnd + 1].includes(voice) && tie[noteEnd + 1].includes(voice)) noteEnd++;
+            const bounds = this.seqNoteBoundsAt(pattern, tie, voice, step);
+            noteStart = bounds.start; noteEnd = bounds.end;
             isStart = (step === noteStart); isEnd = (step === noteEnd);
             if (isStart || isEnd) {
                 const { minStart, maxEnd } = this.seqNeighborBounds(pattern, voice, noteStart, noteEnd);
                 // 'auto' pour une note d'une seule croche : le sens du tout premier glissé décide du bord
                 const edge = (isStart && isEnd) ? 'auto' : (isStart ? 'start' : 'end');
-                resize = { edge, noteStart, noteEnd, minStart, maxEnd };
+                // Note courte (1 ou 2 croches) assez large pour être découpée au pixel : son MILIEU
+                // devient un corps (on la prend et on la déplace), ses extrémités restent des poignées.
+                // Avant, toutes ses cases étant des bords, elle n'avait aucun corps : on ne pouvait que
+                // l'étirer, jamais la déplacer par glissé. On ne touche QU'À ÇA : quel bord est saisi
+                // reste décidé comme avant (par la case, ou 'auto' pour une note d'une seule croche),
+                // et sous le seuil de largeur seqShortNoteZone rend null — rien ne change du tout.
+                if (this.seqShortNoteZone(voice, noteStart, noteEnd, e.clientX) !== 'body') {
+                    resize = { edge, noteStart, noteEnd, minStart, maxEnd };
+                }
             }
         }
 
@@ -10156,7 +10237,9 @@ class HarmoHubApp {
         if (wasOn && this.seqSelections.length > 1) {
             const ownSel = this.seqSelections.find(s => s.voice === voice && noteStart === s.start && noteEnd === s.end);
             if (ownSel) {
-                const edge = resize ? ((isStart && isEnd) ? 'auto' : (isStart ? 'start' : 'end')) : null;
+                // Reprend le bord décidé ci-dessus plutôt que de le recalculer : sans ça, une note
+                // courte saisie par son CORPS (resize null) retomberait ici sur un étirement.
+                const edge = resize ? resize.edge : null;
                 multi = {
                     edge,
                     startStep: step,
@@ -12575,7 +12658,10 @@ class HarmoHubApp {
         // Les barres de notes viennent d'être reconstruites : on repose le surlignage de survol sur la
         // nouvelle barre qui couvre la case encore sous le pointeur (voir applySeqHoverHighlight).
         // Sans ça, la mise en évidence disparaissait à chaque repeinture — pendant un étirement, par
-        // exemple — alors que la souris n'avait pas bougé d'un pixel.
+        // exemple — alors que la souris n'avait pas bougé d'un pixel. Le repère de zone (voir la
+        // signature dans applySeqHoverHighlight) est invalidé d'abord : les cases sont neuves, donc
+        // même identique il faut le reposer sur elles.
+        this._seqBodyZoneSig = null;
         this.applySeqHoverHighlight();
 
         // Mode continu : place (ou garde) le défilement horizontal sur l'accord en édition, jamais
