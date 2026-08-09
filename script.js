@@ -3525,32 +3525,32 @@ class HarmoHubApp {
             // évite qu'un appui long malheureux n'efface un accord sans qu'on s'en rende compte.
             else if (t.type === 'chord') { if (confirm('Supprimer cet accord ?')) this.removeChord(t.section, t.index); }
         };
+        // Tous les popups se referment de la même manière : un clic à côté, ou Échap. C'était écrit
+        // six fois — six écouteurs 'pointerdown' quasi jumeaux ici, six lignes Échap quasi jumelles
+        // dans le gestionnaire clavier — et chaque nouveau menu recopiait le motif. Une seule table
+        // les décrit désormais, lue à deux endroits (voir la boucle Échap) : ajouter un menu ne
+        // demande plus qu'une ligne, et on ne peut plus en oublier la moitié.
+        // `ancre` = le bouton qui OUVRE le popup. Il faut l'exclure, sinon le clic d'ouverture le
+        // refermerait dans la foulée — ou, pour les boutons qui gèrent leur propre bascule, ferait
+        // le travail deux fois.
+        this._popups = [
+            { id: 'context-menu', close: () => this.closeContextMenu() },
+            { id: 'section-picker-menu', close: () => this.closeSectionPicker() },       // « où insérer ? »
+            { id: 'backup-scope-menu', close: () => this.closeBackupScopeMenu() },       // « ce morceau / toute la bibliothèque ? »
+            { id: 'file-menu', ancre: '#file-menu-btn', close: () => this.closeFileMenu() },
+            { id: 'key-suggest-menu', ancre: '#key-suggest-btn', close: () => this.closeKeySuggestMenu() },
+            { id: 'quick-add-help', ancre: '#quick-add-help-btn', close: () => this.closeQuickAddHelp() },
+        ];
         document.addEventListener('pointerdown', (e) => {
-            const menu = document.getElementById('context-menu');
-            if (!menu.hidden && !menu.contains(e.target)) this.closeContextMenu();
-        });
-        // Clic en dehors du popup « où insérer ? » (voir openSectionPicker) : referme sans rien
-        // ajouter, comme le menu contextuel ci-dessus.
-        document.addEventListener('pointerdown', (e) => {
-            const picker = document.getElementById('section-picker-menu');
-            if (!picker.hidden && !picker.contains(e.target)) this.closeSectionPicker();
-        });
-        // Clic en dehors du popup « ce morceau / toute la bibliothèque ? » (voir openBackupScopeMenu)
-        document.addEventListener('pointerdown', (e) => {
-            const menu = document.getElementById('backup-scope-menu');
-            if (!menu.hidden && !menu.contains(e.target)) this.closeBackupScopeMenu();
-        });
-        // Clic en dehors du popup de suggestion de tonalité (voir openKeySuggestMenu)
-        document.addEventListener('pointerdown', (e) => {
-            const menu = document.getElementById('key-suggest-menu');
-            if (!menu.hidden && !menu.contains(e.target) && e.target.id !== 'key-suggest-btn') this.closeKeySuggestMenu();
-        });
-        // Clic en dehors du popover d'aide de l'ajout rapide (voir openQuickAddHelp) — sauf sur le
-        // bouton ampoule lui-même, qui gère déjà son propre bascule ouverture/fermeture.
-        document.addEventListener('pointerdown', (e) => {
-            const help = document.getElementById('quick-add-help');
-            const btn = document.getElementById('quick-add-help-btn');
-            if (!help.hidden && !help.contains(e.target) && !btn.contains(e.target)) this.closeQuickAddHelp();
+            for (const p of this._popups) {
+                const el = document.getElementById(p.id);
+                if (!el || el.hidden || el.contains(e.target)) continue;
+                // `closest` et non `e.target.id` : un clic tombe le plus souvent sur l'icône DANS le
+                // bouton, pas sur le bouton lui-même — la suggestion de tonalité se refermait puis se
+                // rouvrait aussitôt pour cette seule raison.
+                if (p.ancre && e.target.closest(p.ancre)) continue;
+                p.close();
+            }
         });
 
         // Désélectionne l'accord de la grille dès qu'on clique en dehors de la grille et du menu
@@ -13667,12 +13667,15 @@ class HarmoHubApp {
                 && !document.activeElement.value;
             const bloqueAnnulation = typing && !ajoutRapideVide;
 
-            if (e.key === 'Escape' && !document.getElementById('context-menu').hidden) { this.closeContextMenu(); return; }
-
-            if (e.key === 'Escape' && !document.getElementById('section-picker-menu').hidden) { this.closeSectionPicker(); return; }
-            if (e.key === 'Escape' && !document.getElementById('backup-scope-menu').hidden) { this.closeBackupScopeMenu(); return; }
-            if (e.key === 'Escape' && !document.getElementById('key-suggest-menu').hidden) { this.closeKeySuggestMenu(); return; }
-            if (e.key === 'Escape' && !document.getElementById('quick-add-help').hidden) { this.closeQuickAddHelp(); return; }
+            // Même table que le clic-à-côté (voir this._popups) : les deux façons de renoncer à un
+            // popup restent forcément d'accord, au lieu de deux listes à tenir à jour en parallèle.
+            if (e.key === 'Escape') {
+                const ouvert = this._popups.find(p => {
+                    const el = document.getElementById(p.id);
+                    return el && !el.hidden;
+                });
+                if (ouvert) { ouvert.close(); return; }
+            }
             if (e.key === 'Escape' && !document.getElementById('unsaved-modal').hidden) { if (this._unsavedModalCancel) this._unsavedModalCancel(); return; }
             if (e.key === 'Escape' && !document.getElementById('midi-export-modal').hidden) { if (this._midiExportModalCancel) this._midiExportModalCancel(); return; }
             if (e.key === 'Escape' && !document.getElementById('duration-dd-menu').hidden) { this.closeDurationMenu(); return; }
