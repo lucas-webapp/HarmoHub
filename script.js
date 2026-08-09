@@ -6596,6 +6596,7 @@ class HarmoHubApp {
     async newSong(skipConfirm) {
         if (!skipConfirm && !(await this.confirmDiscardUnsavedIfNeeded())) return;
         setCurrentSongId(null);
+        this.resetChordPanel(); // même raison que dans loadSong : un morceau vierge ne garde pas l'accord du précédent
         document.getElementById('global-root').value = 'C';
         document.getElementById('global-mode').value = 'maj';
         document.getElementById('time-sig').value = '4/4';
@@ -6612,6 +6613,7 @@ class HarmoHubApp {
         this.updateDurationOptions();
         this.loadProgression();
         this.refreshPreview();
+        this.renderSequencer(); // même raison que dans loadSong : la vue doit suivre le panneau remis à neuf
         this.refreshSongList();
     }
 
@@ -6632,9 +6634,49 @@ class HarmoHubApp {
         };
     }
 
-    // Charge un morceau enregistré : il devient le morceau ouvert, mais n'est plus auto-sauvegardé en
-    // continu (voir hasUnsavedChanges/saveCurrentSong) — il faut Enregistrer/Ctrl+S pour persister
-    // toute modification ultérieure.
+    // Rend au panneau Accord l'état que la page livre à l'ouverture. Appelé quand on CHANGE DE
+    // MORCEAU (voir loadSong/newSong) : sans ça, le panneau gardait l'accord du morceau précédent, et
+    // le séquenceur — qui n'est qu'une vue de cet accord-là — affichait donc les notes d'un accord
+    // n'appartenant plus au morceau ouvert, sans moyen évident de s'en débarrasser (retour
+    // utilisateur, capture à l'appui : trois rangées A#3/D#3/F#2 sous une grille de Dm7/F/Em7).
+    // Ne pas confondre avec exitEditMode, qui garde volontairement l'accord sous la main pour
+    // enchaîner une variante : là on reste dans le MÊME morceau, ce qui n'a rien d'incohérent.
+    // Les valeurs sont relues du HTML (option marquée `selected`, sinon la première ; defaultValue
+    // pour un champ) plutôt qu'écrites en dur ici : une liste recopiée finirait par mentir dès qu'on
+    // toucherait aux <option>. CHORD_PARAM_IDS est déjà la liste de ce qui FAIT un accord.
+    resetChordPanel() {
+        for (const id of CHORD_PARAM_IDS) {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            // `instrument` est délibérément laissé de côté : c'est un réglage DU MORCEAU, que
+            // applySongSettingsToDom pose juste après nous avec la valeur enregistrée dans celui
+            // qu'on ouvre. Le remettre à zéro ici ne ferait que se faire écraser — ou pire, écraser.
+            if (id === 'instrument') continue;
+            if (el.tagName === 'SELECT') {
+                const parDefaut = el.querySelector('option[selected]') || el.options[0];
+                if (parDefaut) el.value = parDefaut.value;
+            } else {
+                el.value = el.defaultValue;
+            }
+        }
+        const intensiteAffichee = document.getElementById('intensity-val');
+        if (intensiteAffichee) intensiteAffichee.textContent = document.getElementById('intensity').value;
+        // Motif rythmique : remis à vide ET seqTouched à false, pour qu'il soit RECALCULÉ d'après le
+        // style de jeu au premier rendu. Le garder ferait suivre au nouveau morceau un rythme dessiné
+        // à la main pour un accord d'un autre morceau.
+        document.getElementById('arpPattern').value = '';
+        this.seqTouched = false;
+        this.seqSelections = [];
+        // Mêmes états propres à UN accord que ceux qu'exitEditMode remet à zéro — ils n'ont pas plus
+        // de sens d'un morceau à l'autre que d'un accord à l'autre.
+        this.extraNotes = [];
+        this.guitarLock = null;
+        this.guitarKey = null;
+        this.guitarIdentityKey = null;
+        this.guitarOverride = null;
+        this.intensityPerStep = {};
+    }
+
     // Réglages « Morceau » (tonalité, mode, rythme, groove, tempo, instrument par défaut) tels
     // qu'enregistrés dans ce morceau — partagé entre loadSong (choix dans le sélecteur) et
     // restoreCurrentSongSettingsIfAny (tout premier rendu de la page, voir constructeur) : avant ça,
@@ -6685,10 +6727,16 @@ class HarmoHubApp {
         this.applySongSettingsToDom(song);
     }
 
+    // Charge un morceau enregistré : il devient le morceau ouvert, mais n'est plus auto-sauvegardé en
+    // continu (voir hasUnsavedChanges/saveCurrentSong) — il faut Enregistrer/Ctrl+S pour persister
+    // toute modification ultérieure.
     loadSong(id) {
         const song = loadSongs().find(s => s.id === id);
         if (!song) return;
         setCurrentSongId(id);
+        // AVANT applySongSettingsToDom : celui-ci pose ensuite ce que le morceau ouvert définit
+        // vraiment (instrument, tonalité...), et a donc le dernier mot sur ce qui le concerne.
+        this.resetChordPanel();
         this.applySongSettingsToDom(song);
         saveProgressionSections(song.sections && song.sections.length ? song.sections : [{ title: '', chords: [] }], false);
         hasUnsavedChanges = false; // tampon tout juste chargé, identique au morceau enregistré
@@ -6700,6 +6748,12 @@ class HarmoHubApp {
         this.updateDurationOptions();
         this.applyZoomLevel('classicGrid'); // reflète l'échelle verticale DE CE MORCEAU + 1er rendu
         this.refreshPreview();
+        // Le séquenceur est une vue du panneau Accord, et rien ne le redessine tout seul : les
+        // <select> viennent d'être remis à neuf en JS (voir resetChordPanel), ce qui ne déclenche
+        // aucun `change`, et refreshPreview ne s'occupe que du piano et de la guitare. Sans cette
+        // ligne, un séquenceur ouvert restait figé sur les notes du morceau PRÉCÉDENT. Ici, à la fin :
+        // le motif et la pagination dépendent de la grille et de editingIndex, tous deux à jour.
+        this.renderSequencer();
         this.refreshSongList();
     }
 
