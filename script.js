@@ -6081,16 +6081,11 @@ class HarmoHubApp {
                 attempts++;
             }
         });
-        // Case « + » : « + Accord » dit ce qu'elle ajoute, mais elle ne fait que 44 px de large sur
-        // téléphone (contre 120 sur ordinateur, mesuré) et le libellé s'y coupait en « + Ac ». On
-        // MESURE plutôt que de deviner d'après la taille de l'écran — la largeur dépend aussi du
-        // zoom de la grille et de la signature. Trop juste : on retombe sur le « + » seul, que la
-        // teinte verte en pointillés suffit à faire lire comme la cible d'ajout.
-        host.querySelectorAll('.cell-add-input').forEach(el => {
-            const large = el.getBoundingClientRect().width >= 84;
-            const voulu = large ? '+ Accord' : '+';
-            if (el.placeholder !== voulu) el.placeholder = voulu;
-        });
+        // Il y avait ici un ajustement de la case « + » : elle affichait « + Accord » quand elle
+        // était assez large, et retombait sur « + » seul en dessous de 84px, sinon le libellé se
+        // coupait en « + Ac ». Le « + » seul est devenu la règle partout (retour utilisateur :
+        // « un "+" suffit à comprendre »), et la case est désormais carrée — cette mesure au rendu
+        // n'avait donc plus rien à décider.
     }
 
     // Bascule Ajouter / (À la suite + À la fin) / Modifier selon le contexte : un accord sélectionné
@@ -9900,7 +9895,7 @@ class HarmoHubApp {
     buildAddCellHtml(section, gridRow, col, span) {
         return `
                     <div class="grid-cell grid-cell-add" style="grid-column: ${col + 1} / span ${span}; grid-row: ${gridRow};">
-                        <input type="text" class="cell-add-input" data-section="${section}" placeholder="+ Accord" aria-label="Ajouter un accord à la fin de cette partie" autocomplete="off" autocapitalize="off" spellcheck="false" title="Ajouter un accord à la fin de cette partie — un accord seul (ex. Cm7), avec une basse via « _ » (ex. C_E = do avec mi à la basse), ou plusieurs accords séparés par « / » : un par mesure, sans renversement ni drop">
+                        <input type="text" class="cell-add-input" data-section="${section}" placeholder="+" aria-label="Ajouter un accord à la fin de cette partie" autocomplete="off" autocapitalize="off" spellcheck="false" title="Ajouter un accord à la fin de cette partie — un accord seul (ex. Cm7), avec une basse via « _ » (ex. C_E = do avec mi à la basse), ou plusieurs accords séparés par « / » : un par mesure, sans renversement ni drop">
                     </div>`;
     }
 

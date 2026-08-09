@@ -2387,11 +2387,20 @@ button:active { transform: translateY(1px); }
    d'origine (« j'ajoute ou je modifie ? »). Une fois cette case franchement visible, ajouter et
    modifier visent deux endroits différents et il n'y a plus rien à désambiguïser. Teinte verte, la
    même que le titre « Nouvel accord » du panneau (voir #accord-title). */
+/* Carrée, et rangée contre le dernier accord. Elle occupait 2 temps pleins, soit 125px de large
+   sur ordinateur (mesuré) pour un « + » — bien plus que nécessaire pour la viser (retour
+   utilisateur : « je n'ai pas besoin de toute cette largeur pour cliquer »).
+   Le plafond est --row-h, c'est-à-dire la HAUTEUR d'une case : la cible devient un carré, et elle
+   suit toute seule le zoom vertical au lieu d'un nombre figé qui s'en décrocherait. C'est un
+   PLAFOND, jamais un plancher : au téléphone la piste ne fait que 44px de large (mesuré) et la
+   case y garde donc ses 44px — la cible tactile recommandée — sans jamais déborder de sa piste. */
 .grid-cell-add {
     border-style: dashed;
     border-color: rgba(0, 230, 118, 0.38);
     background-color: rgba(0, 230, 118, 0.035);
     cursor: text;
+    justify-self: start;
+    max-width: var(--row-h);
 }
 .grid-cell-add:hover {
     border-color: rgba(0, 230, 118, 0.75);
@@ -2411,8 +2420,11 @@ button:active { transform: translateY(1px); }
     font-size: max(16px, var(--fs-md));
     font-weight: 600;
 }
-/* « + Accord » plutôt qu'un « + » seul : le signe seul n'annonçait pas CE qu'il ajoute, et rien ne
-   le distinguait d'un bouton de zoom ou d'ajout de partie. Vert, comme la case qui le porte. */
+/* CONTRAT INVERSÉ : on affichait « + Accord », au motif que le signe seul n'annonçait pas CE qu'il
+   ajoute. À l'usage, le doute n'existe pas — la case est verte, en pointillés, et posée juste après
+   le dernier accord de la grille (retour utilisateur : « un "+" suffit à comprendre »). Le libellé
+   complet reste dans l'aria-label et le title, donc rien n'est perdu au lecteur d'écran ni au
+   survol. Vert, comme la case qui le porte. */
 .cell-add-input::placeholder { color: rgba(0, 230, 118, 0.72); opacity: 1; font-size: var(--fs-md); font-weight: 700; }
 .cell-add-input:focus { outline: none; }
 .grid-cell-add:focus-within { border-style: solid; border-color: var(--accent); background-color: #0f1c14; }
