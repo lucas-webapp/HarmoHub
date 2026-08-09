@@ -5771,7 +5771,15 @@ class HarmoHubApp {
             // #grid-zoom) plutôt qu'un par partie — mais le panneau lui-même reste posé ICI, juste
             // sous la partie ACTIVE (this.activeSection), pas ailleurs : suit donc automatiquement la
             // partie sur laquelle on travaille, sans bouton à rechercher à chaque fois.
-            const voiceLeadingPanel = (si === this.activeSection && this.voiceLeadingOpen && history.length >= 2)
+            // `!this.gridZoomOpen` : dans la loupe grille, le séquenceur épinglé tient déjà ce rôle —
+            // il montre les mêmes voix, en plus fin, et sur l'accord qu'on travaille. Les barres de
+            // conduite de voix y faisaient donc doublon, et surtout on ne pouvait plus les retirer :
+            // le panneau vit à l'intérieur de #progression-sections, qui est DÉPLACÉ en entier dans la
+            // loupe (voir openGridZoom), tandis que le bouton #toggle-voice-leading reste derrière
+            // l'en-tête de la loupe, hors d'atteinte (mesuré : le clic tombe sur .settings-header).
+            // On masque, on n'éteint pas : voiceLeadingOpen reste vrai et les barres reviennent
+            // d'elles-mêmes en refermant la loupe — un réglage ne se perd pas en changeant de vue.
+            const voiceLeadingPanel = (si === this.activeSection && this.voiceLeadingOpen && history.length >= 2 && !this.gridZoomOpen)
                 ? this.buildVoiceLeadingPanelHtml(si, history, gRoot, gMode, useFlats)
                 : '';
             return `
