@@ -11911,7 +11911,15 @@ class HarmoHubApp {
         // dupliqué — retrouvée à CHAQUE geste plutôt que mise en cache, pour rester valide même après
         // un rendu qui a reconstruit .seq-scroll entretemps (un vrai zoom pinch redessine, voir
         // _flushZoomPinchRender ; un pan seul, lui, ne redessine jamais rien).
-        const panTarget = () => (kind === 'seq') ? document.querySelector('#arp-sequencer .seq-scroll') : el;
+        // 'seqInline' AUTANT que 'seq' : le séquenceur compact est le SEUL hôte à demander pan:true,
+        // et c'est précisément celui que ce test laissait de côté. Il s'appelait 'seq' à l'origine ;
+        // renommé quand les six panneaux ont été alignés sur les mêmes règles de zoom (26385cd), il
+        // est depuis retombé sur `el`, c'est-à-dire #arp-sequencer — qui ne défile pas. Le glissé à
+        // deux doigts ne faisait donc plus rien du tout, en silence : scrollLeft était bien modifié,
+        // mais sur un élément sans débordement.
+        const panTarget = () => (kind === 'seq' || kind === 'seqInline')
+            ? document.querySelector('#arp-sequencer .seq-scroll')
+            : el;
         el.addEventListener('pointerdown', (e) => {
             if (e.pointerType !== 'touch') return;
             pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -12327,7 +12335,17 @@ class HarmoHubApp {
         // .seq-ctx-nav) doit recentrer la vue sur ce nouvel accord comme à sa toute première ouverture
         // — conserver le scrollLeft brut de l'ancien montrerait un bout de piste sans rapport (chaque
         // accord a son propre découpage prev/actuel/next, donc sa propre colonne "centre").
-        const samePreviousChord = wasPrevContinuous && parseInt(prevGridEl.dataset.editingIndex) === this.editingIndex;
+        // Le repère d'accord ne vaut QUE pour le mode continu, où chaque accord a son propre découpage
+        // prev/actuel/next. En compact large (.seq-grid-wide) il n'y a pas de contexte voisin —
+        // colOffset y vaut toujours 0 —, donc rien à recentrer : la position doit être gardée telle
+        // quelle, ce que dit déjà le commentaire de la restauration plus bas. Elle ne l'était pas :
+        // sans accord ouvert dans le panneau, data-editing-index vaut la chaîne "null", parseInt en
+        // fait NaN, et NaN n'égale jamais rien — la condition était donc TOUJOURS fausse ici. Un
+        // glissé à deux doigts défilait bien, puis revenait au tout début à la repeinture suivante
+        // (déclenchée par la fin du geste elle-même, voir _flushZoomPinchRender).
+        const wasPrevWide = !!(prevScrollEl && prevScrollEl.querySelector('.seq-grid-wide'));
+        const samePreviousChord = wasPrevContinuous
+            && (wasPrevWide || parseInt(prevGridEl.dataset.editingIndex) === this.editingIndex);
         const prevScrollLeft = samePreviousChord ? prevScrollEl.scrollLeft : null;
         // Avant toute chose : une note libre jouée assez longtemps depuis le dernier rendu complète-
         // t-elle désormais l'accord (voir reevaluateExtraNoteUpgrades) ? Peut changer la qualité/le
