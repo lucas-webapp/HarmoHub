@@ -8967,28 +8967,14 @@ class HarmoHubApp {
         const gridEl = e.target.closest('.chord-grid');
         if (!gridEl) return;
         if (e.target.closest('.grid-cell-add')) return; // laisse le clic focaliser normalement le champ
-        const symInputEl = e.target.closest('.cell-sym-input');
-        if (symInputEl) {
-            // Un clic PILE sur le symbole ouvre l'édition inline INSTANTANÉMENT (voir plus bas,
-            // d.symTarget) — donc un vrai double-clic sur le symbole voit son second clic atterrir sur
-            // ce champ <input>, pas sur la case elle-même : sans ce rattrapage, il ne déclenchait rien
-            // de plus qu'un positionnement de curseur, laissant l'appli en Ajout (retour utilisateur :
-            // "la fenêtre modification ne s'est pas affichée tout de suite, je suis resté en Ajout").
-            // Un second clic RAPPROCHÉ (même fenêtre que this._lastTap, armé par le premier clic — voir
-            // plus bas) sur CETTE MÊME case ouvre donc directement le panneau Modification complet ;
-            // sinon, on laisse le focus/curseur natif faire son travail comme avant (retape en cours).
-            const cellEl = symInputEl.closest('.grid-cell');
-            const sec = cellEl ? +cellEl.dataset.section : null;
-            const idx = cellEl ? +cellEl.dataset.index : null;
-            const now = Date.now();
-            if (this._lastTap && this._lastTap.section === sec && this._lastTap.index === idx && (now - this._lastTap.time) < 420) {
-                this._lastTap = null;
-                e.preventDefault();
-                this.editChord(sec, idx); // reconstruit la grille (loadProgression), l'input orphelin disparaît avec
-                if (this.autoplaySelect) this.playCurrent();
-            }
-            return;
-        }
+        // Retape du symbole en cours : on ne s'en mêle pas, le champ fait son travail (curseur,
+        // sélection d'un mot au double-clic, etc.).
+        // Il y avait ici un rattrapage : du temps où le PREMIER clic sur le symbole ouvrait déjà ce
+        // champ, le second clic d'un vrai double-clic atterrissait dessus et non sur la case, et ce
+        // rattrapage ouvrait alors le panneau Modification à sa place. Le premier clic sélectionne
+        // désormais (voir onGridPointerUp) : le champ n'existe plus à ce moment-là, le rattrapage n'a
+        // plus d'objet — et il volait le double-clic « sélectionner un mot » pendant la retape.
+        if (e.target.closest('.cell-sym-input')) return;
         if (e.target.closest('.cell-octave')) return; // boutons octave (voir shiftChordOctave) : pas de glisser-déposer/écoute sur ce geste
         const section = +gridEl.dataset.section;
         const cell = e.target.closest('.grid-cell');
@@ -9263,37 +9249,37 @@ class HarmoHubApp {
                 this.editChordFromGridZoom(d.section, d.index);
                 return;
             }
-            if (d.symTarget) {
-                // Tap/clic pile sur le texte de l'accord : édition inline immédiate, pas d'attente
-                // avant de l'ouvrir (retour utilisateur, doit rester rapide) — mais ARME quand même le
-                // repère de double-clic (this._lastTap) au lieu de le vider : un second clic RAPPROCHÉ
-                // atterrit sur l'<input> que cette édition inline vient de poser, pas sur la case
-                // elle-même (voir onGridPointerDown, guard .cell-sym-input) — c'est LÀ, pas ici, qu'il
-                // est reconnu comme un double-clic voulant le panneau Modification complet.
-                this._lastTap = { section: d.section, index: d.index, time: Date.now() };
-                this.startInlineChordSymbolEdit(d.section, d.index, d.cell);
-                return;
-            }
-            // Réglage « Un clic sur un accord » (voir GRID_CLICK_EDITS_KEY) : réglé sur « le
-            // modifier », un simple clic charge l'accord directement, sans rappuyer. C'est tout ce
-            // qui restait de l'ancien mode Modification collant — une préférence, plus un état.
-            if (this.gridClickEdits) {
-                this._lastTap = null;
-                this.editChord(d.section, d.index);
-                // Comme un clic en mode Ajout (voir selectChord) : fait entendre l'accord chargé — sans
-                // ça, éditer en mode Modification restait muet (retour utilisateur : "la lecture ne
-                // marche plus", en fait chaque clic éditait au lieu d'écouter, jamais silencieux avant).
-                if (this.autoplaySelect) this.playCurrent();
-                return;
-            }
+            // UN SEUL sens pour le premier clic, où qu'il tombe dans la case. Le symbole ouvrait
+            // auparavant la retape de son texte dès le PREMIER clic : trois gestes différents
+            // cohabitaient donc dans une case de 83x56px au téléphone — renommer au centre, changer
+            // la durée sur les bords, sélectionner dans ce qui restait — et il fallait viser pour
+            // obtenir le geste voulu. Désormais : premier clic = sélectionner (ou modifier, selon le
+            // réglage), partout ; second clic rapproché = renommer si l'on a visé le symbole, ouvrir
+            // le panneau sinon. Le geste fréquent devient uniforme, le rare reste ciblé — c'est déjà
+            // le modèle de la loupe grille juste au-dessus.
             const now = Date.now();
             const isSecondTap = this._lastTap && this._lastTap.section === d.section && this._lastTap.index === d.index && (now - this._lastTap.time) < 420;
             if (isSecondTap) {
                 this._lastTap = null;
-                this.editChord(d.section, d.index); // double-clic/double-tap = modifier
-                if (this.autoplaySelect) this.playCurrent(); // même retour audio qu'un simple clic (voir ci-dessus)
+                if (d.symTarget) {
+                    this.startInlineChordSymbolEdit(d.section, d.index, d.cell);
+                } else {
+                    this.editChord(d.section, d.index); // double-clic/double-tap = modifier
+                    if (this.autoplaySelect) this.playCurrent(); // même retour audio qu'un simple clic
+                }
+                return;
+            }
+            this._lastTap = { section: d.section, index: d.index, time: now };
+            // Réglage « Un clic sur un accord » (voir GRID_CLICK_EDITS_KEY) : réglé sur « le
+            // modifier », le premier clic charge déjà l'accord. C'est tout ce qui restait de l'ancien
+            // mode Modification collant — une préférence, plus un état.
+            if (this.gridClickEdits) {
+                this.editChord(d.section, d.index);
+                // Comme un clic simple (voir selectChord) : fait entendre l'accord chargé — sans ça,
+                // ce réglage rendait la grille muette (retour utilisateur : "la lecture ne marche
+                // plus", en fait chaque clic éditait au lieu d'écouter).
+                if (this.autoplaySelect) this.playCurrent();
             } else {
-                this._lastTap = { section: d.section, index: d.index, time: now };
                 this.selectChord(d.section, d.index); // simple tap/clic = écouter
             }
             return;
