@@ -3613,12 +3613,12 @@ class HarmoHubApp {
             if (changed) this.loadProgression();
         });
 
-        document.getElementById('export-pdf').onclick = () => this.exportPdf();
-        document.getElementById('export-midi').onclick = () => this.exportMidi();
-        // Le champ de fichier reste caché : c'est le bouton qui le déclenche, pour garder l'aspect
-        // des autres boutons de la rangée (un champ de fichier natif ne se met pas au même style).
+        // Tout ce qui entre ou sort de l'appli passe par un seul menu (voir openFileMenu).
+        document.getElementById('file-menu-btn').onclick = (e) => this.openFileMenu(e.currentTarget);
+        // Le champ de fichier reste caché : c'est une entrée de menu qui le déclenche, un champ de
+        // fichier natif ne se mettant pas au style du reste.
         const midiInput = document.getElementById('import-midi-input');
-        document.getElementById('import-midi').onclick = () => midiInput.click();
+        this._midiInput = midiInput;
         midiInput.onchange = () => {
             const file = midiInput.files && midiInput.files[0];
             // Remis à zéro tout de suite : sans ça, réimporter DEUX FOIS LE MÊME fichier ne déclenche
@@ -3626,9 +3626,6 @@ class HarmoHubApp {
             midiInput.value = '';
             if (file) this.importMidiFromFile(file);
         };
-        document.getElementById('export-audio').onclick = () => this.exportAudio();
-        document.getElementById('export-lyrics').onclick = () => this.exportLyricsData();
-        document.getElementById('export-backup').onclick = (e) => this.openBackupScopeMenu(e.currentTarget);
         document.getElementById('key-suggest-btn').onclick = (e) => this.openKeySuggestMenu(e.currentTarget);
 
         // Bascule piano/guitare : indépendantes, les deux peuvent s'afficher côte à côte ou aucune.
@@ -8050,7 +8047,9 @@ class HarmoHubApp {
         if (!host) return;
         const { gridInner, voicingsInner } = this.buildPrintExportHtml();
 
-        const btn = document.getElementById('export-pdf');
+        // Le bouton désactivé pendant la génération est désormais celui du menu Fichier, seul
+        // point d'entrée : sans ça on pouvait relancer un second export par-dessus le premier.
+        const btn = document.getElementById('file-menu-btn');
         btn.disabled = true;
         this.flashHint('Génération du PDF…', 60000);
 
@@ -8522,7 +8521,7 @@ class HarmoHubApp {
             this.saveCurrentAsSong('Nomme d\'abord ton morceau pour exporter le MP3');
             if (!getCurrentSongId()) return; // enregistrement annulé -> pas d'export
         }
-        const btn = document.getElementById('export-audio');
+        const btn = document.getElementById('file-menu-btn'); // voir exportPdf : même verrou
         btn.disabled = true;
         this.flashHint('Génération du MP3…', 60000);
         try {
@@ -8548,6 +8547,65 @@ class HarmoHubApp {
 
     // Popup léger (même style que openSectionPicker) : demande si la sauvegarde locale porte sur le
     // morceau ouvert ou toute la bibliothèque, avant de déclencher le téléchargement correspondant.
+    // ---------- Menu Fichier (voir #file-menu-btn) ----------
+    // Tout ce qui entre ou sort de l'appli, en un seul endroit et avec de vrais libellés. Ces six
+    // actions vivaient dans une rangée de pictogrammes de 26x26px, dont deux presque identiques et
+    // de sens OPPOSÉS (importer/exporter du MIDI) : le genre de paire où l'on se trompe de cible.
+    // Ce sont des gestes qu'on fait une fois par séance — leur place est derrière un menu, pas en
+    // permanence à l'écran. Séparateur entre ce qui SORT et ce qui ENTRE : les deux sens ne doivent
+    // plus se mélanger.
+    openFileMenu(anchorEl) {
+        const menu = document.getElementById('file-menu');
+        const entrees = [
+            { id: 'pdf', label: 'Exporter en PDF', hint: 'Grille imprimable' },
+            { id: 'midi', label: 'Exporter en MIDI', hint: 'Pour un DAW (GarageBand…)' },
+            { id: 'audio', label: 'Exporter en MP3', hint: 'Rendu audio du morceau' },
+            { id: 'lyrics', label: 'Ouvrir dans Paroles', hint: 'Placer les accords sur un texte' },
+            { id: 'backup', label: 'Sauvegarder en local', hint: 'Ce morceau ou la bibliothèque' },
+            { sep: true },
+            { id: 'import-midi', label: 'Importer un MIDI', hint: 'En déduire une grille d\'accords' },
+        ];
+        menu.innerHTML = entrees.map(e => e.sep
+            ? '<div class="file-menu-sep"></div>'
+            : `<button type="button" data-file-action="${e.id}"><span class="file-menu-label">${e.label}</span><span class="file-menu-hint">${e.hint}</span></button>`
+        ).join('');
+        menu.querySelectorAll('button').forEach(btn => {
+            btn.onclick = () => {
+                const action = btn.dataset.fileAction;
+                this.closeFileMenu();
+                if (action === 'pdf') this.exportPdf();
+                else if (action === 'midi') this.exportMidi();
+                else if (action === 'audio') this.exportAudio();
+                else if (action === 'lyrics') this.exportLyricsData();
+                // La portée de la sauvegarde (ce morceau / toute la bibliothèque) reste un second
+                // choix, ancré sur le bouton du menu : on ne devine pas à la place de l'utilisateur.
+                else if (action === 'backup') this.openBackupScopeMenu(anchorEl);
+                else if (action === 'import-midi') this._midiInput.click();
+            };
+        });
+        anchorEl.setAttribute('aria-expanded', 'true');
+        this.placeMenuNear(menu, anchorEl);
+    }
+
+    closeFileMenu() {
+        const menu = document.getElementById('file-menu');
+        if (menu) menu.hidden = true;
+        const btn = document.getElementById('file-menu-btn');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+
+    // Place un menu contextuel sous son bouton, sans jamais sortir de l'écran. Extrait de
+    // openBackupScopeMenu, qui faisait exactement ça : deux copies de ce calcul divergeraient.
+    placeMenuNear(menu, anchorEl) {
+        const rect = anchorEl.getBoundingClientRect();
+        menu.hidden = false;
+        const pad = 8;
+        const left = Math.min(rect.left, window.innerWidth - menu.offsetWidth - pad);
+        const top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - pad);
+        menu.style.left = `${Math.max(pad, left)}px`;
+        menu.style.top = `${Math.max(pad, top)}px`;
+    }
+
     openBackupScopeMenu(anchorEl) {
         const menu = document.getElementById('backup-scope-menu');
         menu.innerHTML =
@@ -8561,13 +8619,7 @@ class HarmoHubApp {
             };
         });
 
-        const rect = anchorEl.getBoundingClientRect();
-        menu.hidden = false;
-        const pad = 8;
-        const left = Math.min(rect.left, window.innerWidth - menu.offsetWidth - pad);
-        const top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - pad);
-        menu.style.left = `${Math.max(pad, left)}px`;
-        menu.style.top = `${Math.max(pad, top)}px`;
+        this.placeMenuNear(menu, anchorEl);
     }
 
     closeBackupScopeMenu() {

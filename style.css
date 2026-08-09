@@ -2056,83 +2056,48 @@ button:active { transform: translateY(1px); }
 }
 .guitar-override-input:focus { outline: none; }
 
-/* Rangée d'échange de fichiers, ancrée en bas à droite du bloc piano. Chaque bouton est posé à son
-   propre décalage depuis le bord droit, de 32 en 32 (26px de bouton + 6px d'écart) ; l'ordre visuel,
-   de gauche à droite, est donc l'INVERSE des valeurs ci-dessous : Lyrics, sauvegarde, MP3, MIDI
-   sortant, MIDI entrant, PDF. Ajouter un bouton au milieu oblige à décaler tous ceux de sa gauche —
-   c'est ce qui a été fait pour l'import MIDI. */
+/* Un SEUL bouton d'échange de fichiers, ancré en bas à droite du bloc piano. Il y avait ici six
+   boutons posés chacun à un décalage fixe depuis le bord droit (0, 32, 64, 96, 128, 160) : illisible
+   — six pictogrammes voisins dont deux quasi identiques et de sens opposés (les deux MIDI) —,
+   coûteux à maintenir (ajouter un bouton obligeait à décaler tous ses voisins) et injouable au doigt
+   (26x26px mesurés, contre 44 recommandés). Tout est passé derrière un menu à libellés, voir
+   openFileMenu. Étiqueté, comme l'était le bouton Lyrics : un pictogramme seul ne dit pas assez. */
 .viz-wrap {
     position: relative;
     padding-bottom: 34px;
 }
-.export-pdf-btn {
+.file-menu-btn {
     position: absolute;
     right: 0;
-    bottom: 0;
-    width: 26px;
-    height: 26px;
-}
-/* Import MIDI, collé à l'export MIDI : les deux sens d'un même format se trouvent au même endroit.
-   Teinté bleu là où ses voisins d'export restent neutres — deux boutons voisins au pictogramme très
-   proche et à l'effet OPPOSÉ (l'un télécharge, l'autre remplit la grille) sont exactement le genre de
-   paire où l'on se trompe de cible ; la couleur lève le doute avant le clic, comme le vert du bouton
-   Lyrics signale déjà qu'il mène ailleurs. */
-.import-midi-btn {
-    position: absolute;
-    right: 32px;
-    bottom: 0;
-    width: 26px;
-    height: 26px;
-    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255, 255, 255, 0.10), transparent 55%), linear-gradient(160deg, var(--btn-blue-1), var(--btn-blue-2) 70%);
-    color: var(--btn-text);
-    border-color: var(--btn-blue-border);
-}
-.import-midi-btn:hover {
-    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255, 255, 255, 0.16), transparent 55%), linear-gradient(160deg, #2d4670, #1e2e4e 70%);
-    border-color: var(--btn-blue-border-hover);
-}
-.export-midi-btn {
-    position: absolute;
-    right: 64px;
-    bottom: 0;
-    width: 26px;
-    height: 26px;
-}
-.export-audio-btn {
-    position: absolute;
-    right: 96px;
-    bottom: 0;
-    width: 26px;
-    height: 26px;
-}
-.export-backup-btn {
-    position: absolute;
-    right: 128px;
-    bottom: 0;
-    width: 26px;
-    height: 26px;
-}
-/* Élargi (largeur automatique, texte "Lyrics" visible) ET teinté vert — se distingue nettement des 4
-   exports voisins ci-dessus, restés en pictogramme seul (retour utilisateur : "pas assez parlant").
-   Même famille de dégradé que .icon-btn-accent/.btn-prog (vert "pierre précieuse" de l'appli, voir
-   --btn-green-*), pas une couleur inédite : ce bouton ouvre un AUTRE outil (paroles.html), pas un
-   simple téléchargement comme ses voisins, il mérite de s'en démarquer sans sortir de la palette. */
-.export-lyrics-btn {
-    position: absolute;
-    right: 160px;
     bottom: 0;
     width: auto;
     height: 26px;
     padding: 0 10px 0 7px;
-    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
-    color: var(--btn-text);
-    border-color: var(--btn-green-border);
+    gap: 5px;
 }
-.export-lyrics-btn:hover {
-    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.16), transparent 55%), linear-gradient(160deg, #2b5540, #1c3a26 70%);
-    border-color: var(--btn-green-border-hover);
+.file-menu-btn .btn-label { font-size: var(--fs-xs); font-weight: 700; }
+
+/* Entrées du menu Fichier : libellé + précision en dessous. Une ligne pleine largeur se vise sans
+   effort au doigt, là où les pictogrammes de 26px ne s'atteignaient pas. */
+.file-menu button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    width: 100%;
+    min-width: 0;
+    padding: 8px 12px;
+    text-align: left;
 }
-.export-lyrics-btn .btn-label { font-size: var(--fs-xs); font-weight: 700; }
+.file-menu-label { font-size: var(--fs-sm); font-weight: 700; }
+.file-menu-hint { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 500; }
+/* Ce qui SORT de l'appli au-dessus, ce qui y ENTRE en dessous : c'est la confusion entre les deux
+   sens du MIDI qui rendait l'ancienne rangée piégeuse. */
+.file-menu-sep {
+    height: 1px;
+    margin: 5px 8px;
+    background: var(--border);
+}
 
 /* ---------- Progression ---------- */
 .history-section { margin-top: 30px; }
