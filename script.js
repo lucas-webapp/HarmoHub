@@ -13598,6 +13598,18 @@ class HarmoHubApp {
             const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(tag)
                 || (document.activeElement && document.activeElement.isContentEditable);
             const mod = e.ctrlKey || e.metaKey;
+            // Le champ d'ajout rapide se VIDE après un ajout réussi mais GARDE le focus, pour pouvoir
+            // enchaîner. Un Ctrl+Z dans la foulée — le réflexe même quand on vient de se tromper —
+            // partait donc dans l'annulation de texte du navigateur, sur un champ vide : il ne se
+            // passait rien du tout, et il fallait d'abord cliquer ailleurs pour que l'annulation de
+            // l'appli reprenne la main (constaté en test). Un champ vide n'a rien à annuler : on rend
+            // donc la main à l'appli, mais UNIQUEMENT pour annuler/rétablir (voir plus bas). Les
+            // autres raccourcis gardent le garde-fou `typing` complet — l'espace, par exemple, doit
+            // rester une espace tant que le curseur est dans un champ de saisie.
+            const ajoutRapideVide = document.activeElement
+                && document.activeElement.id === 'quick-add-input'
+                && !document.activeElement.value;
+            const bloqueAnnulation = typing && !ajoutRapideVide;
 
             if (e.key === 'Escape' && !document.getElementById('context-menu').hidden) { this.closeContextMenu(); return; }
 
@@ -13657,14 +13669,14 @@ class HarmoHubApp {
             // Annuler / Rétablir : Ctrl/Cmd+Z (annuler), Ctrl/Cmd+Y ou Ctrl/Cmd+Shift+Z (rétablir).
             // Trois historiques distincts, chacun actif seulement dans son propre contexte visible :
             // fenêtre Fichiers ouverte > séquenceur ouvert > grille d'accords par défaut.
-            if (mod && !typing && (e.key === 'z' || e.key === 'Z')) {
+            if (mod && !bloqueAnnulation && (e.key === 'z' || e.key === 'Z')) {
                 e.preventDefault();
                 if (this.settingsOpen) { if (e.shiftKey) this.filesRedo(); else this.filesUndo(); }
                 else if (this.seqOpen) { if (e.shiftKey) this.seqRedo(); else this.seqUndo(); }
                 else { if (e.shiftKey) this.redo(); else this.undo(); }
                 return;
             }
-            if (mod && !typing && (e.key === 'y' || e.key === 'Y')) {
+            if (mod && !bloqueAnnulation && (e.key === 'y' || e.key === 'Y')) {
                 e.preventDefault();
                 if (this.settingsOpen) this.filesRedo();
                 else if (this.seqOpen) this.seqRedo();
