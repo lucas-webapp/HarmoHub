@@ -3801,10 +3801,19 @@ select.song-select-narrow {
     @page { margin: 14mm; }
 }
 
+/* Les 4px latéraux sont la place que réclament les chiffres de la règle, désormais CENTRÉS sur leur
+   trait de mesure (voir .ruler-num) : le premier d'une ligne et celui de fin dépassent chacun d'une
+   demi-largeur de chiffre, soit 3px mesurés. Sans eux la page débordait et le rendu PDF, qui
+   rastérise cet élément à largeur fixe, rognait le « 1 » par la moitié.
+   Un padding sur la PAGE plutôt qu'un décalage de la règle seule : les cases d'accords et la règle
+   doivent rester alignées au pixel près (voir buildPrintExportHtml), donc tout ce qui les décale
+   doit les décaler ENSEMBLE. Les marges du PDF lui-même sont ajoutées après, à la mise en page
+   (voir exportPdf) — celles-ci ne s'y substituent pas. */
 .print-page {
     background: #fff;
     color: #111;
     font-family: var(--font);
+    padding: 0 4px;
     break-after: page;
 }
 .print-page:last-child { break-after: auto; }
@@ -3951,21 +3960,27 @@ select.song-select-narrow {
    ici comme une graduation encore plus fine et estompée que les temps eux-mêmes (retour utilisateur :
    "à mettre dans le PDF aussi"). */
 .ruler-tick-offbeat { height: 2px; top: 1px; background: #bbb; opacity: 0.6; }
+/* CENTRÉ sur le trait de mesure, pas posé à côté. `left: 2px` collait le chiffre au bord gauche de
+   la mesure : son centre tombait 5px à DROITE du trait majeur (mesuré, identique sur les 8 mesures),
+   assez pour qu'il ne se lise plus comme appartenant au temps 1 (retour utilisateur : « les chiffres
+   ne sont pas bien centrés sous le temps 1 »). left:0 + translateX(-50%) le pose pile dessus. */
 .ruler-num {
     position: absolute;
     top: 8px;
-    left: 2px;
+    left: 0;
+    transform: translateX(-50%);
     font-size: var(--fs-2xs);
     color: #888;
     font-weight: 700;
 }
 /* Numéro de fin de ligne (voir buildPrintExportHtml, seulement sur la dernière mesure de chaque
-   ligne) : même style que .ruler-num mais collé au bord DROIT de la mesure plutôt qu'au bord
-   gauche, pour marquer où la ligne se termine. */
+   ligne) : même style que .ruler-num, centré de la même façon mais sur le trait de FIN de la mesure
+   — c'est la même frontière, vue de l'autre côté, donc la même règle de centrage. */
 .ruler-num-end {
     position: absolute;
     top: 8px;
-    right: 2px;
+    right: 0;
+    transform: translateX(50%);
     font-size: var(--fs-2xs);
     color: #888;
     font-weight: 700;

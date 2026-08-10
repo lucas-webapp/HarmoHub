@@ -8029,12 +8029,16 @@ class HarmoHubApp {
                     ticks += `<span class="ruler-tick ruler-tick-offbeat" style="left:50%"></span>`;
                     if (isLastBar) ticks += `<span class="ruler-tick ruler-tick-major" style="left:100%"></span>`;
                     const barPct = (barBeats / rowBeatsDenom * 100).toFixed(4);
-                    // Numéro de fin de mesure (retour utilisateur : seul le début de chaque mesure était
-                    // visible jusque-là) — seulement sur la DERNIÈRE mesure de la ligne, positionné à son
-                    // bord droit plutôt qu'au bord gauche comme .ruler-num, pour marquer où elle se
-                    // termine sans dupliquer une info déjà lisible sur les mesures intermédiaires (le
-                    // début de la mesure suivante, juste à droite, y suffit déjà).
-                    const endNumEl = isLastBar ? `<span class="ruler-num-end">${firstBarNumber + bi}</span>` : '';
+                    // Numéro de fin de ligne (retour utilisateur : seul le début de chaque mesure était
+                    // visible jusque-là) — seulement sur la DERNIÈRE mesure de la ligne, à son bord
+                    // droit. Il annonce la mesure SUIVANTE (donc + 1), comme le repère de fin de grille
+                    // à l'écran (voir row-measure-end, `cursor / beatsPerBar + 1`) : le trait de droite
+                    // est la frontière où commence la mesure d'après, c'est CE numéro qui a un sens là.
+                    // Il affichait `firstBarNumber + bi`, c'est-à-dire exactement le même nombre que le
+                    // .ruler-num de cette mesure : une ligne finissant sur la mesure 4 portait « 4 » aux
+                    // deux bouts, au lieu d'annoncer 5 (retour utilisateur : « il devrait y avoir 5 et 9
+                    // en fin de lignes, là on a à nouveau 4 et 8 »).
+                    const endNumEl = isLastBar ? `<span class="ruler-num-end">${firstBarNumber + bi + 1}</span>` : '';
                     gridInner += `<div class="ruler-bar" style="width:${barPct}%;">${ticks}<span class="ruler-num">${firstBarNumber + bi}</span>${endNumEl}</div>`;
                 }
                 gridInner += `</div>`;
