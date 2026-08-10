@@ -484,6 +484,27 @@ body.body-scroll-locked { overflow: hidden !important; }
    simple repère plein, plus fin que les cases éditables pour bien signaler "ce n'est pas modifiable ici".
    Fond neutre plutôt que coloré par rôle : à cette échelle réduite, une vraie pastille par rôle serait
    surtout illisible ; le rythme lui-même (quand ça sonne) reste la seule information utile ici. */
+/* Repère flottant pendant un glissé de séquenceur (voir showSeqDragReadout) : dit ce qu'on est en
+   train de régler — la note visée, la position dans la mesure, la longueur obtenue. Posé sur <body>
+   en position fixe, donc au-dessus de tout et insensible au défilement/reconstruction de la grille.
+   pointer-events:none : il suit le doigt, il ne doit jamais l'intercepter ni fausser
+   elementFromPoint, dont dépend justement la ligne visée (voir onSeqVoiceDragMove). */
+.seq-drag-readout {
+    position: fixed;
+    z-index: 3000;
+    pointer-events: none;
+    padding: 4px 9px;
+    border-radius: 6px;
+    background: rgba(10, 10, 10, 0.92);
+    border: 1px solid var(--accent);
+    color: var(--text-main);
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+}
+.seq-drag-readout[hidden] { display: none; }
+
 .seq-ctx-cell {
     height: 8px;
     align-self: center;
@@ -493,6 +514,25 @@ body.body-scroll-locked { overflow: hidden !important; }
     pointer-events: none;
 }
 .seq-ctx-cell.beat-start { opacity: 0.45; }
+/* CONTRAT INVERSÉ : ces repères étaient volontairement neutres, au motif qu'une pastille par rôle
+   serait illisible à cette échelle. Elle l'est, en effet, si on reprend les couleurs pleines des
+   barres éditables — mais pas en aplat sourd. Et le gris uniforme coûtait cher : on voyait QUAND
+   l'accord voisin sonne, jamais QUOI, alors que c'est exactement ce qu'on vient chercher ici
+   (retour utilisateur : suivre une note commune, repérer un mouvement de voix).
+   Mêmes teintes que .seq-note.role-* pour que l'œil fasse le lien d'une barre à l'autre, mais sans
+   dégradé, sans bordure et sans halo : le contexte doit rester en retrait de ce qu'on édite.
+   L'opacité est calée pour rester SOUS l'accord édité : 0.30 x 0.9 d'alpha donne ~0.27 de teinte
+   effective, contre 0.38 pour le remplissage d'une barre éditable — qui porte en plus un dégradé,
+   une bordure et un halo. Un premier essai à 0.42 mettait les deux au même niveau : c'était coloré,
+   ce n'était plus discret. */
+.seq-ctx-cell.seq-ctx-role-root { background: rgba(0, 230, 118, 0.9); opacity: 0.3; }
+.seq-ctx-cell.seq-ctx-role-third { background: rgba(47, 129, 247, 0.9); opacity: 0.3; }
+.seq-ctx-cell.seq-ctx-role-fifth { background: rgba(255, 59, 48, 0.9); opacity: 0.3; }
+.seq-ctx-cell.seq-ctx-role-seventh { background: rgba(255, 179, 0, 0.9); opacity: 0.3; }
+.seq-ctx-cell.seq-ctx-role-ext { background: rgba(224, 176, 255, 0.9); opacity: 0.3; }
+/* Le premier temps reste un cran plus net que les croches qui suivent, comme pour le repère neutre
+   ci-dessus : c'est ce qui laisse lire la pulsation dans le contexte. */
+.seq-ctx-cell[class*="seq-ctx-role-"].beat-start { opacity: 0.42; }
 
 /* Zone cliquable couvrant tout un contexte gauche/droite (voir renderSequencer, mode continu) :
    basculer l'édition sur l'accord voisin sans quitter le séquenceur (retour utilisateur). Toute la

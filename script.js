@@ -10948,6 +10948,13 @@ class HarmoHubApp {
         }
         d.curStart = newStart;
         d.curEnd = newEnd;
+        // Ce qu'on est en train de régler, écrit à côté du doigt (voir showSeqDragReadout) : la
+        // longueur obtenue, et où s'arrête la note. Le repère de temps surligné dit déjà OÙ on est
+        // dans la mesure, pas COMBIEN on vient de prendre.
+        const croches = newEnd - newStart + 1;
+        const temps = croches / SEQ_STEPS_PER_BEAT;
+        const duree = Number.isInteger(temps) ? `${temps} temps` : `${croches} croches`;
+        this.showSeqDragReadout(`${duree} · fin ${this.seqStepLabel(newEnd)}`, e.clientX, e.clientY);
 
         // Étire/déplace la pilule visuelle EN DIRECT, sans attendre le renderSequencer() final
         // (les cases en dessous, elles, sont déjà mises à jour case par case via applySeqCell ci-dessus)
@@ -11095,6 +11102,15 @@ class HarmoHubApp {
         const under = document.elementFromPoint(e.clientX, e.clientY);
         const cell = under && under.closest ? under.closest('.seq-cell') : null;
         const targetVoice = cell ? +cell.dataset.voice : null;
+        // Le repère suit le doigt à CHAQUE mouvement, même quand la ligne visée n'a pas changé :
+        // sinon il resterait figé loin derrière pendant qu'on longe une ligne.
+        if (targetVoice != null) {
+            const chord = this.readChord();
+            const noms = chord.getSeqDisplayNotes(this.useFlatsForRoot(chord.root));
+            this.showSeqDragReadout(noms[targetVoice] || '', e.clientX, e.clientY);
+        } else {
+            this.hideSeqDragReadout(); // hors grille : rien à annoncer, le fantôme dit déjà « invalide »
+        }
         if (targetVoice === vd.targetVoice) return;
         vd.targetVoice = targetVoice;
         vd.ghost.classList.toggle('seq-note-ghost-invalid', targetVoice == null);
@@ -11103,6 +11119,11 @@ class HarmoHubApp {
             const midis = chord.getSeqMidiNotes();
             const role = chord.getRoleMap()[midis[targetVoice]] || 'ext';
             vd.ghost.className = vd.ghost.className.replace(/\brole-\S+/g, '').trim() + ` role-${role}`;
+            // La hauteur visée vient de changer : la faire ENTENDRE tout de suite, sans attendre le
+            // dépôt. C'est le geste de GarageBand — on cherche une note à l'oreille en glissant, pas
+            // en lâchant puis en réécoutant. Ce test d'égalité juste au-dessus garantit un seul son
+            // par ligne traversée, pas un par pixel parcouru.
+            this.seqEditFeedback(targetVoice);
         }
     }
 
@@ -11125,6 +11146,48 @@ class HarmoHubApp {
         }
         if (lo == null) return;
         for (let s = lo; s <= hi; s++) this.applySeqCell(voice, s, false);
+    }
+
+    // ---------- Repère flottant pendant un glissé de séquenceur ----------
+    // Ce qu'on est en train de régler, écrit noir sur blanc à côté du doigt : la note visée quand on
+    // change de hauteur, la position (mesure · temps) quand on déplace dans le temps, la longueur
+    // quand on étire. Le fantôme suivait bien le pointeur, mais il fallait deviner SUR QUOI on
+    // tombait — retour utilisateur : « voir exactement la note où je déplace les barres (son + grille
+    // lors du déplacement, comme GarageBand) ». Un seul repère réutilisé pour les trois gestes, posé
+    // sur <body> (position fixe) : la grille du séquenceur défile et se reconstruit pendant le geste,
+    // un enfant y serait emporté au premier rendu.
+    showSeqDragReadout(texte, clientX, clientY) {
+        let el = this._seqDragReadout;
+        if (!el) {
+            el = document.createElement('div');
+            el.className = 'seq-drag-readout';
+            document.body.appendChild(el);
+            this._seqDragReadout = el;
+        }
+        el.textContent = texte;
+        // Au-DESSUS du doigt et légèrement à droite : au doigt, la main masque tout ce qui est en
+        // dessous, et c'est précisément l'endroit qu'on regarde.
+        el.style.left = `${clientX + 14}px`;
+        el.style.top = `${clientY - 34}px`;
+        el.hidden = false;
+    }
+
+    hideSeqDragReadout() {
+        if (this._seqDragReadout) this._seqDragReadout.hidden = true;
+    }
+
+    // « mes. 2 · temps 3 » à partir d'un numéro de croche, pour le repère ci-dessus. Compté depuis le
+    // début de l'ACCORD édité (pas du morceau) : c'est la seule référence qu'on ait sous les yeux dans
+    // le séquenceur, et celle qui rend la position lisible sans calcul mental.
+    seqStepLabel(step) {
+        const parTemps = SEQ_STEPS_PER_BEAT;
+        const parMesure = this.beatsPerBar() * parTemps;
+        const mesure = Math.floor(step / parMesure) + 1;
+        const temps = Math.floor((step % parMesure) / parTemps) + 1;
+        const croche = (step % parTemps) + 1;
+        // La subdivision n'est affichée que si l'on n'est PAS pile sur le temps : sinon elle
+        // n'apprend rien et allonge le repère pour rien.
+        return croche === 1 ? `mes. ${mesure} · temps ${temps}` : `mes. ${mesure} · temps ${temps}.${croche}`;
     }
 
     // Dépôt d'un changement de voix (voir beginSeqVoiceDrag/onSeqVoiceDragMove) : peint le même motif
@@ -11217,6 +11280,9 @@ class HarmoHubApp {
 
         e.preventDefault();
         d.moved = true;
+        // Même repère que pour l'étirement : la position VISÉE, pendant qu'on y va (voir
+        // showSeqDragReadout). Sans lui il fallait lâcher pour savoir où la note était tombée.
+        this.showSeqDragReadout(this.seqStepLabel(hd.origStart + delta), e.clientX, e.clientY);
         hd.appliedDelta = delta;
         hd.ghost.style.gridColumn = `${hd.colStart + delta} / span ${len}`;
         // Même repère que l'étirement/la peinture (voir _highlightSeqBeatLabel) : le temps que le
@@ -11327,6 +11393,10 @@ class HarmoHubApp {
         // note d'origine (masquée pendant un changement de voix ou un déplacement) redevenue visible,
         // sans quoi elle resterait invisible jusqu'au prochain rendu sans rapport (même bug visuel
         // que ci-dessus).
+        // Le repère flottant (voir showSeqDragReadout) disparaît avec le geste, quel qu'il soit et
+        // quelle qu'en soit l'issue — ici, dans le nettoyage COMMUN à tous les glissés : c'est le seul
+        // endroit par lequel ils passent tous, y compris ceux qu'on annule en sortant de la grille.
+        this.hideSeqDragReadout();
         if (d && d.voiceDrag) {
             d.voiceDrag.ghost.remove();
             if (d.voiceDrag.noteEl) d.voiceDrag.noteEl.style.visibility = '';
@@ -11347,6 +11417,9 @@ class HarmoHubApp {
         window.removeEventListener('pointermove', this._onSeqMove);
         window.removeEventListener('pointerup', this._onSeqUp);
         window.removeEventListener('pointercancel', this._onSeqUp);
+        // Le repère flottant (voir showSeqDragReadout) s'éteint AVANT tout retour anticipé : le geste
+        // est fini quoi qu'il advienne ensuite, y compris quand on sort d'ici sans rien appliquer.
+        this.hideSeqDragReadout();
         if (this.seqMarquee) { this.finalizeSeqMarqueeSelect(); return; }
         const d = this.seqDrag;
         this.seqDrag = null;
@@ -12444,7 +12517,11 @@ class HarmoHubApp {
                 const c = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, null, data.extraNotes);
                 const segMidis = c.getSeqMidiNotes();
                 const resolved = this.resolveSeqPatternForData(c, data);
-                return { data, midis: segMidis, midiSet: new Set(segMidis), pattern: resolved.pattern, tie: resolved.tie, steps: c.beats * SEQ_STEPS_PER_BEAT, index };
+                // roleMap : rôle (fondamentale/tierce/quinte/septième/extension) de chaque hauteur DANS
+                // CET accord voisin — c'est ce qui permet de teinter son rythme comme les barres de
+                // l'accord édité, au lieu d'un gris uniforme (voir .seq-ctx-cell). Calculé ici, une
+                // fois par segment, plutôt qu'à chaque case peinte.
+                return { data, midis: segMidis, midiSet: new Set(segMidis), roleMap: c.getRoleMap(), pattern: resolved.pattern, tie: resolved.tie, steps: c.beats * SEQ_STEPS_PER_BEAT, index };
             };
             let offset = 0;
             for (let i = 0; i < this.editingIndex; i++) {
@@ -12585,11 +12662,19 @@ class HarmoHubApp {
         const paintCtxSeg = (seg, row, colBase, rowIndex) => {
             const segVoice = seg.midis.indexOf(row.midi);
             if (segVoice < 0) return '';
+            // Teinté par rôle, comme les barres de l'accord édité — en beaucoup plus sourd (voir
+            // .seq-ctx-role-* dans style.css). Le gris uniforme d'avant rendait le contexte illisible
+            // dès qu'on cherchait une note commune ou un mouvement de voix : on voyait QUAND ça sonne,
+            // jamais QUOI (retour utilisateur : « laisser en couleurs plus discrètes les barres des
+            // accords à côté, au lieu de les griser complètement »). Le rôle vient de l'accord VOISIN,
+            // pas de celui qu'on édite : une même hauteur peut être la tierce ici et la quinte à côté,
+            // et c'est précisément ce qui se lit dans une conduite de voix.
+            const role = seg.roleMap[row.midi] || 'ext';
             let out = '';
             for (let s = 0; s < seg.steps; s++) {
                 if (!seg.pattern[s].includes(segVoice)) continue;
                 const beatStart = (s % SEQ_STEPS_PER_BEAT === 0) ? ' beat-start' : '';
-                out += `<div class="seq-ctx-cell${beatStart}" style="grid-row:${rowIndex}; grid-column:${colBase + seg.colStart + s + 2};"></div>`;
+                out += `<div class="seq-ctx-cell seq-ctx-role-${role}${beatStart}" style="grid-row:${rowIndex}; grid-column:${colBase + seg.colStart + s + 2};"></div>`;
             }
             return out;
         };
