@@ -479,11 +479,45 @@ body.body-scroll-locked { overflow: hidden !important; }
     background: var(--card-bg);
 }
 
-/* Case de CONTEXTE (rythme réel d'un accord voisin, lecture seule — voir renderSequencer, mode
-   continu) : jamais .seq-cell, qui déclencherait le glissé d'édition (voir onSeqPointerDown) — un
-   simple repère plein, plus fin que les cases éditables pour bien signaler "ce n'est pas modifiable ici".
-   Fond neutre plutôt que coloré par rôle : à cette échelle réduite, une vraie pastille par rôle serait
-   surtout illisible ; le rythme lui-même (quand ça sonne) reste la seule information utile ici. */
+/* Clavier de repérage à gauche du séquenceur continu (voir toucheCls dans renderSequencer) :
+   chaque étiquette de ligne prend l'aspect de SA touche. L'œil retrouve le motif 2+3 des touches
+   noires et situe une hauteur sans lire le nom — même service que le piano fixe de la conduite de
+   voix, d'où la demande. Ne s'applique qu'en vue continue, seule vue où les lignes sont
+   chromatiques : sur des lignes trouées, les touches mentiraient sur les écarts réels.
+   Les couleurs sont volontairement sourdes : c'est un repère, pas un instrument à jouer — le
+   clavier cliquable de l'appli vit dans le panneau Accord. */
+.seq-label.seq-key {
+    padding-right: 6px;
+    border-radius: 0 3px 3px 0;
+    /* Filet de séparation en ombre INTERNE, pas en border-right : la bordure droite est déjà prise
+       par .seq-label-echo-next (repère de note commune avec l'accord suivant), et une règle à deux
+       classes l'aurait écrasée sans bruit. */
+    box-shadow: inset -2px 0 0 rgba(255, 255, 255, 0.12);
+    text-align: right;
+}
+/* Deux couches de fond, l'aplat de touche PAR-DESSUS var(--card-bg) opaque, jamais une teinte
+   translucide seule : cette colonne est collée à gauche pendant le défilement horizontal (voir
+   .seq-scroll-continuous .seq-label) et doit rester opaque, sinon les cases défilantes
+   transparaissent au travers des touches. */
+.seq-label.seq-key-white {
+    background: linear-gradient(rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.10)), var(--card-bg);
+    color: var(--text-main);
+}
+.seq-label.seq-key-black {
+    /* Légèrement en retrait, comme une touche noire plus courte qu'une blanche sur un vrai clavier :
+       c'est ce décrochement, plus que la couleur, qui fait lire le motif 2+3 d'un coup d'œil. Obtenu
+       par un dégradé à seuil net plutôt qu'une marge : la marge aurait laissé 10px transparents à
+       gauche, donc un filet par lequel la grille défilante réapparaît. */
+    background: linear-gradient(to right, transparent 10px, rgba(0, 0, 0, 0.55) 10px), var(--card-bg);
+    color: var(--text-muted);
+}
+
+/* Ligne d'une hauteur que l'accord ne joue pas encore (voir .seq-cell-free/renderSequencer) : une
+   case cliquable, mais sans le fond des cases éditables — elle doit se lire comme une place LIBRE,
+   pas comme une note éteinte. Le survol l'annonce comme cliquable. */
+.seq-cell.seq-cell-free { background: transparent; }
+.seq-cell.seq-cell-free:hover { background: rgba(0, 230, 118, 0.14); }
+
 /* Repère flottant pendant un glissé de séquenceur (voir showSeqDragReadout) : dit ce qu'on est en
    train de régler — la note visée, la position dans la mesure, la longueur obtenue. Posé sur <body>
    en position fixe, donc au-dessus de tout et insensible au défilement/reconstruction de la grille.
@@ -505,6 +539,12 @@ body.body-scroll-locked { overflow: hidden !important; }
 }
 .seq-drag-readout[hidden] { display: none; }
 
+/* Case de CONTEXTE (rythme réel d'un accord voisin, lecture seule — voir renderSequencer, mode
+   continu) : jamais .seq-cell, qui déclencherait le glissé d'édition (voir onSeqPointerDown) — un
+   simple repère plein, plus fin que les cases éditables pour bien signaler "ce n'est pas modifiable ici".
+   Fond neutre plutôt que coloré par rôle : à cette échelle réduite, une vraie pastille par rôle serait
+   surtout illisible ; le rythme lui-même (quand ça sonne) reste la seule information utile ici.
+   (Contrat révisé plus bas, voir .seq-ctx-cell.seq-ctx-role-*.) */
 .seq-ctx-cell {
     height: 8px;
     align-self: center;

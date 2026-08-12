@@ -10379,6 +10379,39 @@ class HarmoHubApp {
         const voice = +cell.dataset.voice, step = +cell.dataset.step;
         const wasOn = cell.classList.contains('on');
 
+        // Ligne d'une hauteur que l'accord ne joue pas encore (voir renderSequencer, .seq-cell-free) :
+        // le clic la CRÉE comme note libre à cette hauteur exacte, puis la peint. Avant, il fallait
+        // presser « + » — qui pose la note trois demi-tons au-dessus de la plus aiguë — puis retaper
+        // la hauteur voulue à la main. Ici on clique la note qu'on voit, à sa place sur le clavier.
+        // Le geste s'arrête là (pas de glissé enchaîné) : le rendu qui suit reconstruit toute la
+        // grille, y compris la case sous le doigt, et poursuivre un glissé sur un nœud détaché ne
+        // mènerait à rien. La longueur est celle mémorisée du dernier dessin (voir seqNewNoteLen),
+        // comme n'importe quelle note créée d'un simple clic.
+        if (voice < 0 && cell.dataset.midi) {
+            // Maj+glisser garde son sens habituel : un rectangle de sélection part aussi bien d'ici que
+            // de n'importe quelle case vide (voir beginSeqMarqueeSelect, qui ne se sert de la voix de
+            // départ que comme repère). Pipette de motif armée : cette ligne n'est pas une voix, il n'y
+            // a rien à y coller — on ne fait rien plutôt que de créer une note à contretemps du geste
+            // demandé (voir applySeqRowPipette, qui attend un index de voix réel).
+            if (e.shiftKey) { this.beginSeqMarqueeSelect(voice, step, e); return; }
+            if (this.seqRowPipette) return;
+            e.preventDefault();
+            const midi = +cell.dataset.midi;
+            this.pushSeqUndo();
+            const pc = ((midi % 12) + 12) % 12;
+            this.extraNotes.push({ note: NOTES[pc], octave: Math.floor(midi / 12) - 1 });
+            this.seqTouched = true; // le motif doit garder cette voix (voir syncSeqPatternForCurrentChord)
+            // La voix de la note qu'on vient d'ajouter est la DERNIÈRE des notes libres, elles-mêmes
+            // placées juste après les voix de la qualité (voir _computeVoices/extraStart).
+            const chordApres = this.readChord();
+            const voixCreee = chordApres.getIntervals().length + this.extraNotes.length - 1;
+            this.paintNewSeqNoteAt(voixCreee, step);
+            this.renderSequencer();
+            this.seqEditFeedback(voixCreee);
+            this.livePreviewUpdate();
+            return;
+        }
+
         // Pipette de motif armée (voir toggleSeqRowPipette) : n'importe quel clic sur cette ligne
         // dépose le motif prélevé dessus, au lieu de peindre/étirer/sélectionner normalement — reste
         // armée pour enchaîner d'autres lignes (voir applySeqRowPipette).
@@ -12551,11 +12584,22 @@ class HarmoHubApp {
         // hauteur jouée par l'accord précédent/suivant mais pas par celui-ci) : affichée en lecture
         // seule (label + petit repère gauche/droite), sans case ni note éditable.
         let rowOrder;
-        if (continuous && (prevMidiSet.size || nextMidiSet.size)) {
-            const allMidis = new Set(midis);
-            prevMidiSet.forEach(m => allMidis.add(m));
-            nextMidiSet.forEach(m => allMidis.add(m));
-            rowOrder = Array.from(allMidis).sort((a, b) => b - a).map(midi => ({ voice: midis.indexOf(midi), midi }));
+        if (continuous) {
+            // TOUS les demi-tons de l'étendue, pas seulement ceux qui sonnent. Les hauteurs inutilisées
+            // n'apparaissaient nulle part : pour poser une note hors de l'accord il fallait passer par
+            // le bouton « + », qui la crée trois demi-tons au-dessus de la plus aiguë puis demande de
+            // la renommer à la main — on ne VOYAIT jamais la note qu'on visait (retour utilisateur :
+            // « voir toutes les notes possibles, pour le moment les notes non utilisées ne sont pas
+            // présentées »). Une ligne par demi-ton, c'est aussi ce qui rend un clavier en regard
+            // honnête : sans demi-tons manquants, chaque touche fait bien face à SA ligne.
+            // Mesuré : 20 lignes au lieu de 11 sur un cas courant, soit 320px pour 265 visibles — d'où
+            // le défilement vertical, déjà en place (voir .seq-scroll).
+            const sonnantes = new Set(midis);
+            prevMidiSet.forEach(m => sonnantes.add(m));
+            nextMidiSet.forEach(m => sonnantes.add(m));
+            const bas = Math.min(...sonnantes), haut = Math.max(...sonnantes);
+            rowOrder = [];
+            for (let m = haut; m >= bas; m--) rowOrder.push({ voice: midis.indexOf(m), midi: m });
         } else {
             rowOrder = Array.from({ length: voices }, (_, i) => i)
                 .sort((a, b) => midis[b] - midis[a])
@@ -12679,6 +12723,19 @@ class HarmoHubApp {
             return out;
         };
 
+        // Clavier de repérage à gauche (point demandé : « m'aider à l'aide d'un diagramme de piano à
+        // gauche pour mieux me repérer, faire comme pour le voice leading »). Chaque étiquette prend
+        // l'aspect de SA touche — blanche ou noire selon la classe de hauteur — au lieu d'un simple
+        // texte : l'œil retrouve alors le motif 2+3 des touches noires et situe une hauteur sans lire
+        // le nom. N'a de sens qu'avec des lignes CHROMATIQUES (voir rowOrder en vue continue) : sur
+        // des lignes trouées, des touches se feraient face sans respecter l'écart réel, et le repère
+        // mentirait. Hors vue continue, on garde donc l'étiquette texte telle quelle.
+        const PC_NOIRES = new Set([1, 3, 6, 8, 10]);
+        const toucheCls = (midi) => {
+            if (!continuous) return '';
+            return PC_NOIRES.has(((midi % 12) + 12) % 12) ? ' seq-key seq-key-black' : ' seq-key seq-key-white';
+        };
+
         let rowIndex = 0;
         for (const row of rowOrder) {
             rowIndex++;
@@ -12692,14 +12749,17 @@ class HarmoHubApp {
                 // juste le nom de la note, en lecture seule, aucune case ni note éditable dessous
                 // pour l'accord en édition — mais le rythme du voisin, lui, s'affiche toujours.
                 const ctxName = midiToDisplayName(row.midi, this.useFlatsForRoot(chord.root));
-                html += `<div class="seq-label seq-label-context${echoCls}" style="grid-row:${rowIndex}; grid-column:1;">${ctxName}</div>`;
+                html += `<div class="seq-label seq-label-context${toucheCls(row.midi)}${echoCls}" style="grid-row:${rowIndex}; grid-column:1;">${ctxName}</div>`;
             } else if (r >= extraStart && r < extraEnd) {
                 const extraIdx = r - extraStart;
-                html += `<div class="seq-label seq-label-extra${echoCls}" style="grid-row:${rowIndex}; grid-column:1;">
+                // La touche est peinte AUSSI sous une note libre (dont l'étiquette est un champ de
+                // saisie) : sans elle, le clavier de repérage se trouerait exactement là où l'on vient
+                // de poser une note — l'endroit qu'on regarde.
+                html += `<div class="seq-label seq-label-extra${toucheCls(row.midi)}${echoCls}" style="grid-row:${rowIndex}; grid-column:1;">
                     <input type="text" class="seq-label-input" data-extra-index="${extraIdx}" data-voice="${r}" value="${escapeHtml(noteNames[r])}" title="Note libre : tape une hauteur (ex. E3), ou vide pour la supprimer" autocomplete="off" autocapitalize="off" spellcheck="false">
                 </div>`;
             } else {
-                html += `<div class="seq-label${echoCls}" data-voice="${r}" title="Cliquer pour écouter cette note" style="grid-row:${rowIndex}; grid-column:1;">${noteNames[r]}</div>`;
+                html += `<div class="seq-label${toucheCls(row.midi)}${echoCls}" data-voice="${r}" title="Cliquer pour écouter cette note" style="grid-row:${rowIndex}; grid-column:1;">${noteNames[r]}</div>`;
             }
 
             // Contexte GAUCHE (TOUS les accords avant celui édité, voir prevSegs plus haut) : rythme
@@ -12709,7 +12769,25 @@ class HarmoHubApp {
             // Contexte DROIT (TOUS les accords après) : même principe, décalé après l'accord édité.
             for (const seg of nextSegs) html += paintCtxSeg(seg, row, colOffset + pageSteps, rowIndex);
 
-            if (r < 0) continue; // ligne de contexte pure : rien d'éditable pour l'accord en cours ici
+            if (r < 0) {
+                // Hauteur que l'accord édité ne joue pas ENCORE. En vue continue, elle reste cliquable :
+                // un clic y crée la note libre correspondante (voir onSeqPointerDown, branche
+                // `voice < 0`) et la peint aussitôt — c'est le geste d'un piano-roll, et ça remplace
+                // le détour par le bouton « + » suivi d'un renommage à la main.
+                // `data-voice="-1"` + `data-midi` : la voix n'existe pas encore, c'est la HAUTEUR qui
+                // identifie la ligne. Hors vue continue on ne change rien (lignes non chromatiques :
+                // une case libre y désignerait un demi-ton absent de la colonne, donc un clic sans
+                // repère visuel en face).
+                if (continuous) {
+                    for (let s = pageStart; s < pageEnd; s++) {
+                        const col = colOffset + (s - pageStart);
+                        const beatStart = (s % SEQ_STEPS_PER_BEAT === 0) ? ' beat-start' : '';
+                        const pairCls = (s % 2 === 0) ? ' seq-cell-a' : ' seq-cell-b';
+                        html += `<div class="seq-cell seq-cell-free${pairCls}${beatStart}" data-voice="-1" data-midi="${row.midi}" data-step="${s}" style="grid-row:${rowIndex}; grid-column:${col + 2};"></div>`;
+                    }
+                }
+                continue;
+            }
             for (let s = pageStart; s < pageEnd; s++) {
                 const col = colOffset + (s - pageStart);
                 const beatStart = (s % SEQ_STEPS_PER_BEAT === 0) ? ' beat-start' : '';
