@@ -1058,8 +1058,9 @@ main {
 .viz-wrap { order: 6; }
 .dock { order: 8; }
 
-/* Pied de colonne collant : ne contient plus que .edit-actions quand on édite un accord (la lecture a
-   déménagé dans #global-transport, voir plus bas) — reste sticky pour les mêmes raisons qu'avant :
+/* Pied de colonne collant : sur ORDINATEUR il ne contient plus que .edit-actions quand on édite un
+   accord (la lecture vit dans l'en-tête de la grille, voir plus bas) ; sur TÉLÉPHONE il porte les
+   deux. Reste sticky pour les mêmes raisons qu'avant :
    ces boutons doivent rester visibles pendant l'édition, sans avoir à remonter le panneau qui peut
    défiler. */
 .dock {
@@ -1079,47 +1080,71 @@ main {
 
 /* Transport de lecture (Lecture/Boucle/Stop) : DEUX hôtes possibles pour le même nœud, jamais dupliqué
    (voir placeGlobalTransport dans script.js — même principe que placeSequencer). Sur TÉLÉPHONE, une
-   seule colonne à l'écran : il reste ancré dans .dock, pied de colonne collant comme avant (règles ci-
-   dessus). Sur ORDINATEUR (voir la media query plus bas), il déménage dans #global-transport, colonne
-   verticale flottante sur le bord DROIT plutôt qu'en bas de l'écran comme un premier essai : retour
-   utilisateur, « j'ai besoin de place en hauteur pour bien voir la grille et séquenceur » — une barre
-   en bas, même flottante, mange en permanence une bande de hauteur, la ressource la plus rare ici (voir
-   aussi la fenêtre épinglée du séquenceur, où la place verticale est déjà comptée). Une colonne sur le
-   bord ne coûte que de la LARGEUR, nettement moins disputée sur un écran d'ordinateur — et RÉSERVÉE
-   (voir main{padding-right} plus bas) : jamais posée par-dessus un vrai contrôle.
-   Pourquoi pas la même chose au téléphone ? Mesuré : centrée verticalement sur un écran de 390×780,
-   la boîte tombait pile sur #quick-add-btn ET le logo du bandeau du haut, les deux rendant
-   inatteignables (bug qui a fait planter Playwright). Sur un écran déjà étroit, il n'y a pas de bord à
-   réserver sans mordre sur le contenu — le pied de colonne collant, éprouvé, reste donc la solution
-   sur téléphone. */
-.global-transport {
-    position: fixed;
-    right: 14px;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 45;
-    background: rgba(10, 10, 10, 0.95);
-    backdrop-filter: blur(6px);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+   seule colonne à l'écran : il reste ancré dans .dock, pied de colonne collant (règles ci-dessus).
+   Sur ORDINATEUR, il vit dans l'en-tête de la grille (voir .grid-head-sticky/.grid-head-transport-host
+   plus bas), avec les autres commandes de la grille (zoom, loupe).
+   Deux emplacements ont été essayés avant : une barre flottante en bas — abandonnée, elle mangeait en
+   permanence une bande de HAUTEUR, la ressource la plus rare ici (retour utilisateur : « j'ai besoin
+   de place en hauteur pour bien voir la grille et séquenceur ») — puis une colonne flottante sur le
+   bord droit, abandonnée à son tour : « les boutons de lecture / stop n'ont pas de cohérence là où ils
+   sont positionnés sur ordi (tout à droite) ». L'en-tête de la grille ne coûte, lui, aucune ligne
+   nouvelle : elle existait déjà.
+   Pourquoi pas le même en-tête au téléphone ? Il y devient vite trop étroit pour porter titre, zoom ET
+   transport ; et un transport centré sur un écran de 390×780 recouvrait, mesuré, #quick-add-btn et le
+   logo du bandeau du haut. Le pied de colonne collant, éprouvé, reste la solution sur téléphone. */
+/* L'ancienne colonne flottante du bord droit n'existe plus (retour utilisateur : "les boutons de
+   lecture / stop n'ont pas de cohérence là où ils sont positionnés sur ordi (tout à droite)"). Ce
+   conteneur ne sert plus que de point de repli au repos, jamais affiché : placeGlobalTransport en
+   sort le transport dès le chargement, vers l'en-tête de la grille ou le pied de colonne. */
+.global-transport { display: none; }
+
+/* En-tête de la grille rendu COLLANT : il porte désormais le transport (voir
+   #grid-head-transport-host) en plus du titre et des commandes de zoom. Sans sticky, cette ligne
+   défile avec la page et les boutons de lecture disparaîtraient dès qu'on descend dans une grille
+   longue — c'est le seul vrai coût de cet emplacement, et il se paie ici. Le fond opaque est
+   obligatoire : les cases d'accords passeraient sinon en transparence derrière le titre. */
+.grid-head-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: var(--bg);
+    padding-top: 4px;
 }
+/* Hôte du transport dans cet en-tête (rempli par placeGlobalTransport sur ordinateur uniquement) :
+   sans hauteur propre quand il est vide, pour ne rien coûter sur téléphone. */
+.grid-head-transport-host {
+    display: flex;
+    align-items: center;
+    flex: none;
+}
+.grid-head-transport-host:empty { display: none; }
+/* Dans l'en-tête, le transport reste une RANGÉE compacte (le défaut de .transport), mais ses boutons
+   se calent sur la hauteur des autres commandes de la ligne (zoom, loupe : 32px) plutôt que sur les
+   52px pleine largeur du pied de colonne tactile — sinon cette ligne, désormais permanente, doublerait
+   de hauteur et mangerait la place gagnée ailleurs. */
+.grid-head-transport-host .transport { gap: 6px; flex-wrap: nowrap; }
+.grid-head-transport-host .transport .transport-icon-btn,
+.grid-head-transport-host .transport #toggle-loop-section {
+    flex: none;
+    width: 38px;
+    min-width: 0;
+    height: 32px;
+    padding: 0;
+}
+
 /* Masqué pendant qu'une fenêtre plein écran est ouverte (loupe grille/séquenceur, Paramètres...) :
-   celles-ci gardent leur propre transport dupliqué dans leur en-tête (voir .grid-zoom-transport),
-   déjà nécessaire puisqu'elles recouvrent tout l'écran — deux transports visibles en même temps
-   prêterait à confusion. body.body-scroll-locked (voir lockBodyScroll/unlockBodyScroll) est déjà posé
-   à chaque ouverture de ce genre de fenêtre : même signal, pas de plomberie neuve. */
-body.body-scroll-locked .global-transport { display: none; }
-/* Rangée HORIZONTALE par défaut : c'est la forme voulue dans .dock, sur téléphone (une colonne pleine
-   largeur, mêmes proportions qu'avant). #global-transport (ordinateur) la passe en colonne verticale
-   ci-dessous, seul contexte où .transport change de sens. */
+   celles-ci gardent leur propre transport dupliqué dans leur en-tête (voir .grid-zoom-transport), déjà
+   nécessaire puisqu'elles recouvrent tout l'écran — deux transports visibles en même temps prêterait à
+   confusion. body.body-scroll-locked (voir lockBodyScroll/unlockBodyScroll) est déjà posé à chaque
+   ouverture de ce genre de fenêtre : même signal, pas de plomberie neuve. */
+body.body-scroll-locked .grid-head-transport-host { display: none; }
+/* Rangée HORIZONTALE, dans les deux hôtes : pleine largeur dans .dock (téléphone), compacte dans
+   l'en-tête de la grille (ordinateur, voir .grid-head-transport-host). */
 .transport {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
 }
-.global-transport .transport { flex-direction: column; flex-wrap: nowrap; }
 .transport button, .add-section-btn {
     min-width: 0;
     flex: 1 1 0;
@@ -1136,19 +1161,14 @@ body.body-scroll-locked .global-transport { display: none; }
 }
 /* Lecture/Stop : logos seuls (sans libellé, voir index.html). Dans .dock (téléphone), ils S'ÉTIRENT
    (flex: 1 1 0, hérité de ".transport button" ci-dessus) pour occuper toute la largeur de l'écran :
-   cibles tactiles plus larges plutôt que des carrés perdus avec du vide à côté. Dans #global-transport
-   (ordinateur), la boîte flottante se dimensionne à son propre contenu (voir .global-transport
-   ci-dessus) : plus de raison de s'étirer, une taille fixe carrée suffit — d'où le second sélecteur,
-   plus spécifique, qui l'emporte uniquement dans ce second contexte. */
+   cibles tactiles plus larges plutôt que des carrés perdus avec du vide à côté. Dans l'en-tête de la
+   grille (ordinateur), ils reprennent une taille fixe et compacte — voir
+   .grid-head-transport-host .transport, plus spécifique, qui l'emporte dans ce seul contexte. */
 .transport .transport-icon-btn {
     flex: 1 1 0;
     min-width: 52px;
     height: 52px;
     padding: 0;
-}
-.global-transport .transport .transport-icon-btn {
-    flex: none;
-    width: 52px;
 }
 .transport-icon-btn .transport-icon {
     width: 22px;
@@ -2349,9 +2369,14 @@ button:active { transform: translateY(1px); }
     font-size: 0.9em;
 }
 
-/* Une partie de la chanson (couplet, refrain, ...) : titre éditable + sa propre grille. */
+/* Une partie de la chanson (couplet, refrain, ...) : titre éditable + sa propre grille.
+   22px -> 14px : c'est CET écart qui sépare la grille d'une partie du titre de la SUIVANTE (retour
+   utilisateur : « diminue légèrement l'espace au-dessus des titres de sections, entre le titre de la
+   section et la grille d'accords au-dessus » — objectif : gagner de la hauteur pour mieux voir la
+   grille). 8px récupérés par partie, soit une rangée d'accords entière dès 4 parties, sans coller les
+   blocs au point de ne plus distinguer où finit une partie et où commence l'autre. */
 .prog-section {
-    margin-bottom: 22px;
+    margin-bottom: 14px;
 }
 
 .prog-section-head {
@@ -3109,10 +3134,22 @@ button:active { transform: translateY(1px); }
     letter-spacing: 0.02em;
 }
 
+/* Le badge est en position:absolute (voir .cell-meta) pour ne PAS décaler le symbole quand il est
+   absent — mais du coup il ne pousse rien non plus quand il est là, et recouvrait le symbole dès que
+   la case rétrécissait : mesuré, chevauchement sur TOUTES les cases à 56px de haut (rangées sur
+   téléphone), le symbole étant centré sur la hauteur ENTIÈRE de la case (flex align-items:center)
+   pendant que le badge restait collé en bas — retour utilisateur : « le voicing (O3, R1...) est mal
+   positionné ou trop gros dans la grille, l'écriture est coupée ». Une réserve de place sous le
+   symbole, posée seulement quand un badge existe (classe .has-meta, voir loadProgression) : le
+   symbole se centre alors dans l'espace RESTANT, au-dessus du badge, à toute hauteur de case. */
+.grid-cell.has-meta { padding-bottom: 20px; }
+
 /* Police réduite pour les segments courts */
 .grid-cell.sz2 .cell-sym { font-size: var(--fs-base); }
 .grid-cell.sz1 .cell-sym { font-size: var(--fs-xs); }
-.grid-cell.sz1 .cell-meta { display: none; } /* trop étroit : on masque les annexes */
+/* trop étroit : on masque les annexes — donc plus rien à réserver non plus sous le symbole */
+.grid-cell.sz1 .cell-meta { display: none; }
+.grid-cell.sz1.has-meta { padding-bottom: 4px; }
 
 /* Toast (copier / coller) */
 .toast {
@@ -3848,14 +3885,9 @@ select.song-select-narrow {
         min-height: 0;
         overflow: hidden;
         padding-bottom: 20px;
-        /* Réservé pour #global-transport (bord droit, voir plus bas) : sans cette marge, un élément
-           pleine largeur de la grille (ex. .add-section-btn) pouvait passer PILE sous le transport
-           flottant, à la hauteur qui dépend de la longueur du morceau — mesuré, avec seulement 3
-           accords. Réserver la largeur (100px, la boîte fait ~70px + sa marge de 14px du bord) rend
-           l'absence de recouvrement garantie, quelle que soit la hauteur de contenu — sans toucher à
-           la HAUTEUR disponible pour la grille/le séquenceur (retour utilisateur : « j'ai besoin de
-           place en hauteur »), seule la largeur, bien moins disputée ici, est concernée. */
-        padding-right: 100px;
+        /* Plus de marge droite réservée : elle protégeait l'ancienne colonne de transport flottante
+           du bord droit, retirée depuis (le transport vit dans l'en-tête de la grille, voir
+           .grid-head-sticky) — 100px de largeur rendus à la grille. */
     }
 
     /* Les colonnes redeviennent de vrais conteneurs (fin de l'aplatissement mobile) */
@@ -4120,13 +4152,23 @@ select.song-select-narrow {
    rester une ligne continue, contrairement aux cases. Choix A parmi 5 propositions (retour
    utilisateur) : trait fin, grande graduation numérotée à chaque mesure, petites graduations aux
    temps intermédiaires — lecture technique et compacte. */
+/* La hauteur doit CONTENIR les numéros (.ruler-num/.ruler-num-end, en position:absolute sous le
+   trait), pas seulement le trait lui-même : un élément absolu ne compte pas dans la hauteur de son
+   parent, et la marge basse de la dernière règle s'échappe par fusion des marges (margin collapse)
+   hors de .print-page. Résultat mesuré : sous la DERNIÈRE ligne de la grille, les numéros dépassaient
+   de 10,84px le bas de la page — html2canvas, qui rastérise exactement la boîte de .print-page, les
+   coupait donc net (retour utilisateur : "on ne voit pas les numéros de mesures sous la dernière
+   ligne... ça fonctionne si j'affiche des diagrammes" — les diagrammes ajoutaient du contenu en
+   dessous, ce qui repoussait le bas de la page et masquait le défaut). Hauteur portée à 25px (8px de
+   décalage du numéro + sa propre hauteur) et marge basse retirée d'autant : même espacement visuel
+   qu'avant entre deux lignes, mais réservé DANS la boîte plutôt qu'en débordement. */
 .print-measure-ruler {
     display: flex;
-    margin: 2px 0 10px;
+    margin: 2px 0 0;
 }
 .ruler-bar {
     position: relative;
-    height: 14px;
+    height: 25px;
     border-top: 1px solid #ccc;
 }
 .ruler-tick {

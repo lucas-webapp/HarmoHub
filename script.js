@@ -5744,7 +5744,15 @@ class HarmoHubApp {
                     const badgeParts = [];
                     if (this.showGridOctave) badgeParts.push(`O${octaveFromData(h)}`);
                     if (this.showGridVoicing) badgeParts.push(...gridVoicingParts(h));
-                    const metaEl = (s.isFirst && badgeParts.length) ? `<span class="cell-meta">${badgeParts.join('-')}</span>` : '';
+                    const hasMeta = !!(s.isFirst && badgeParts.length);
+                    const metaEl = hasMeta ? `<span class="cell-meta">${badgeParts.join('-')}</span>` : '';
+                    // .has-meta réserve, en CSS, la hauteur du badge sous le symbole (voir style.css) :
+                    // le badge est en position:absolute (il ne doit pas décaler le symbole quand il est
+                    // ABSENT), donc il ne pousse rien tout seul et finissait par recouvrir le symbole
+                    // dès que la case rétrécissait — mesuré : chevauchement sur TOUTES les cases dès
+                    // 56px de haut (rangées sur téléphone), retour utilisateur « le voicing est mal
+                    // positionné... l'écriture est coupée ».
+                    if (hasMeta) cls += ' has-meta';
                     const contFlag = (s.split && !s.isFirst) ? ' <span class="cell-cont">↩</span>' : '';
                     // Petits traits à chaque limite de mesure interne, positionnés en % de la largeur du
                     // segment (colonnes de largeur égale au sein d'une même grille) — le dégradé qui les
@@ -11865,18 +11873,22 @@ class HarmoHubApp {
 
     // Même principe que placeSequencer ci-dessus, pour le transport de lecture (Lecture/Boucle/Stop) :
     // un seul nœud, déplacé (jamais dupliqué) entre .dock (téléphone, pied de colonne collant) et
-    // #global-transport (ordinateur, colonne flottante sur le bord droit — voir style.css). Mesuré :
-    // centrer cette colonne sur un écran de téléphone la posait pile sur #quick-add-btn et le logo du
-    // bandeau du haut, tous deux rendus inatteignables — d'où ce partage plutôt qu'un seul habillage
-    // pour les deux tailles d'écran.
+    // #grid-head-transport-host (ordinateur, dans l'en-tête COLLANT de la grille — voir index.html).
+    // Il a d'abord été une colonne flottante isolée sur le bord droit de l'écran ; retour utilisateur :
+    // "les boutons de lecture / stop n'ont pas de cohérence là où ils sont positionnés sur ordi (tout
+    // à droite)" — ils rejoignent donc les autres commandes de la grille (zoom, loupe) dans son
+    // en-tête. Cet en-tête est rendu collant (voir .grid-head-sticky) précisément parce qu'il défile
+    // sinon avec la page : sur une grille longue, les boutons auraient disparu dès qu'on descend.
+    // Le partage téléphone/ordinateur reste indispensable : mesuré, centrer un transport sur un écran
+    // de téléphone recouvrait #quick-add-btn et le logo du bandeau du haut.
     placeGlobalTransport() {
         const transport = document.querySelector('.transport');
         const dock = document.getElementById('footer-dock');
-        const floating = document.getElementById('global-transport');
-        if (!transport || !dock || !floating) return;
+        const gridHead = document.getElementById('grid-head-transport-host');
+        if (!transport || !dock || !gridHead) return;
         const wide = window.matchMedia(SEQ_DOCK_MEDIA).matches;
         if (wide) {
-            if (transport.parentElement !== floating) floating.appendChild(transport);
+            if (transport.parentElement !== gridHead) gridHead.appendChild(transport);
         } else if (transport.parentElement !== dock) {
             // En dernier enfant de .dock : édition en cours ou non, updateEditActionsDocking (voir
             // plus haut) sait déjà placer .edit-actions AVANT ce nœud repère quand il faut l'insérer.

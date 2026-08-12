@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608122115">
+    <link rel="stylesheet" href="style.css?v=202608122200">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -788,8 +788,17 @@
 
         <div class="col-right">
             <section class="history-section">
-                <div class="card-head">
+                <!-- .grid-head-sticky : cet en-tête accueille désormais AUSSI le transport de lecture
+                     sur ordinateur (voir placeGlobalTransport dans script.js) et reste collé en haut
+                     au défilement — retour utilisateur : la colonne flottante isolée sur le bord droit
+                     n'avait "aucune cohérence" avec le reste, les commandes de la grille vivent ici.
+                     Collant justement PARCE QUE cette ligne défile sinon avec la page : sur une grille
+                     longue, les boutons de lecture auraient disparu dès qu'on descend. -->
+                <div class="card-head grid-head-sticky">
                     <h2>Grille d'accords</h2>
+                    <!-- Hôte du transport sur ordinateur (rempli par placeGlobalTransport ; vide et
+                         sans hauteur sur téléphone, où le transport reste dans #footer-dock). -->
+                    <div id="grid-head-transport-host" class="grid-head-transport-host"></div>
                     <div class="card-head-actions">
                         <!-- Échelles horizontale/verticale de la grille CLASSIQUE (hors loupe, voir
                              adjustZoom('classicGrid', ...)/currentGridHZoom dans script.js) : mémorisées
@@ -1016,7 +1025,13 @@
          simple triangle. Entendre UN SEUL accord en cours d'édition reste possible : bouton Lecture du
          séquenceur (#seq-play, déjà équivalent quand aucune plage n'est à boucler) si le séquenceur
          est ouvert, ou barre d'espace dans tous les cas (voir setupKeyboardShortcuts). -->
-    <div id="global-transport" class="global-transport">
+    <!-- Le transport de lecture (Lecture / Boucle / Stop) vit ici uniquement au repos : il est
+         DÉPLACÉ (jamais dupliqué, voir placeGlobalTransport dans script.js) vers l'en-tête collant de
+         la grille sur ordinateur, ou vers #footer-dock sur téléphone. Il a d'abord été une colonne
+         flottante sur le bord droit de l'écran ; retour utilisateur : "les boutons de lecture / stop
+         n'ont pas de cohérence là où ils sont positionnés sur ordi (tout à droite)" — ils sont
+         désormais groupés avec les autres commandes de la grille, dans son en-tête. -->
+    <div id="global-transport" class="global-transport" hidden>
         <div class="transport">
             <button id="play-prog" class="btn-prog transport-icon-btn" title="Lecture" aria-label="Lecture">
                 <svg class="icon transport-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
@@ -1039,6 +1054,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608122115"></script>
+    <script src="script.js?v=202608122200"></script>
 </body>
 </html>
