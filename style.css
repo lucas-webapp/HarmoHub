@@ -3327,6 +3327,16 @@ button:active { transform: translateY(1px); }
     background: var(--text-muted);
     opacity: 0.35;
 }
+/* Mode « tous les temps » (voir showAllBeats/applyAllBeatsClass) : le point devient un TIRET vertical,
+   comme dans le séquenceur (.offbeat-dash). À un repère par temps, une file de points ronds ne se lit
+   plus — retour utilisateur : « place des tirets plutôt que des points dans ce cas, sinon ça sera peu
+   compréhensible ». Un peu plus visible aussi (opacité), sinon la ligne paraît vide à cette finesse. */
+body.all-beats .offbeat-dot {
+    width: 1px;
+    height: 6px;
+    border-radius: 0;
+    opacity: 0.45;
+}
 
 /* Mode studio (voir #toggle-studio-mode/renderSequencer) : une barre de vélocité par croche active,
    glissée verticalement pour un réglage précis façon GarageBand (retour utilisateur). Même colonnes

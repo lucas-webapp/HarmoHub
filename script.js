@@ -1770,6 +1770,12 @@ const SHOW_ROMAN_KEY = 'harmohubShowRomanNumerals';
 // Octave / renversement-drop sous chaque accord de la GRILLE (voir gridVoicingParts, Paramètres >
 // Affichage) — remplacent l'ancien réglage unique "Style de jeu" (icône sous la case), retiré.
 const SHOW_GRID_OCTAVE_KEY = 'harmohubShowGridOctave';
+// Repères de temps sous la grille : « épuré » (défaut, un seul tiret au MILIEU de chaque mesure) ou
+// « tous les temps » (un tiret à chaque temps sans numéro) — retour utilisateur, qui veut pouvoir
+// « visualiser tous les temps dans la barre sous la grille d'accords ». Des tirets et non des points
+// dans les deux cas : à cette densité, une file de points ronds ne se lit plus (« sinon ça sera peu
+// compréhensible »).
+const SHOW_ALL_BEATS_KEY = 'harmohubShowAllBeats';
 const SHOW_GRID_VOICING_KEY = 'harmohubShowGridVoicing';
 // Notation octave/renversement/drop au-dessus de chaque case (voir Chord.getVoicingBadge) — remplace
 // l'ancienne flèche de sens mélodique ▲/▼ (retour utilisateur), dont le réglage a été retiré.
@@ -2697,6 +2703,8 @@ class HarmoHubApp {
         // (toujours présente, ex. "O3") et/ou le renversement/drop seul (ex. "R1-D2", absent en
         // position de base) — activés par défaut.
         this.showGridOctave = localStorage.getItem(SHOW_GRID_OCTAVE_KEY) !== '0';
+        this.showAllBeats = localStorage.getItem(SHOW_ALL_BEATS_KEY) === '1'; // défaut : version épurée
+        document.body.classList.toggle('all-beats', this.showAllBeats);
         this.showGridVoicing = localStorage.getItem(SHOW_GRID_VOICING_KEY) !== '0';
 
         // PDF exporté uniquement (rien d'équivalent à l'écran) : notation octave/renversement/drop en
@@ -3314,15 +3322,22 @@ class HarmoHubApp {
         document.getElementById('open-settings').onclick = () => this.openSettings();
         document.getElementById('toggle-sidebar').onclick = () => this.toggleSidebar();
 
-        // Accès rapide bibliothèque (voir #quick-library-export/-import dans index.html) : mêmes
-        // méthodes que le panneau Paramètres > Fichiers (exportLibrary/importLibraryFile), juste un
-        // second point d'entrée plus court.
-        document.getElementById('quick-library-export').onclick = () => this.exportLibrary();
-        const quickImportInput = document.getElementById('quick-library-import-input');
-        document.getElementById('quick-library-import').onclick = () => quickImportInput.click();
-        quickImportInput.onchange = () => {
-            const file = quickImportInput.files[0];
-            quickImportInput.value = ''; // permet de resélectionner le même fichier ensuite
+        // Import/export ancrés sur le module Morceau (voir #song-export/#song-import dans index.html).
+        // Ils remplacent DEUX anciens points d'entrée retirés — les flèches de la barre du haut et
+        // l'entrée « Sauvegarder en local » du menu Fichier — qui faisaient exactement la même chose à
+        // trois endroits différents (retour utilisateur : « plusieurs options se recroisent »). Restent
+        // donc ces flèches-ci et le panneau Paramètres > Fichiers, volontairement conservé.
+        // L'EXPORT demande d'abord la portée (ce morceau / toute la bibliothèque), les deux servant
+        // régulièrement. L'IMPORT, lui, ne la demande pas : le fichier la porte déjà — un export de
+        // morceau et un export de bibliothèque partagent la même enveloppe {app, kind, songs[]} (voir
+        // downloadSongBackup/exportLibrary) et importLibraryFile fusionne par id quel qu'en soit le
+        // nombre. Poser la question serait la poser sur une information qu'on a déjà.
+        document.getElementById('song-export').onclick = (e) => this.openTransferScopeMenu(e.currentTarget);
+        const songImportInput = document.getElementById('song-import-input');
+        document.getElementById('song-import').onclick = () => songImportInput.click();
+        songImportInput.onchange = () => {
+            const file = songImportInput.files[0];
+            songImportInput.value = ''; // permet de resélectionner le même fichier ensuite
             if (file) this.importLibraryFile(file);
         };
         document.getElementById('settings-close').onclick = () => this.closeSettings();
@@ -3401,7 +3416,13 @@ class HarmoHubApp {
 
         // Vue agrandie de la grille d'accords (voir openGridZoom/closeGridZoom) : même principe,
         // déplace #progression-sections + le bouton "Ajouter une partie" plutôt que de les dupliquer.
-        document.getElementById('grid-zoom').onclick = () => this.openGridZoom();
+        // Ce bouton ouvrait la VUE AGRANDIE plein écran (grille + séquenceur épinglé). Retour
+        // utilisateur : « les boutons "masquer panneau de gauche" et "mode séquenceur grille" font
+        // tous les deux quasiment pareil = ils agrandissent la grille » — deux chemins pour le même
+        // résultat, dont un qui recouvre tout l'écran. Il ouvre désormais simplement le SÉQUENCEUR,
+        // en place. openGridZoom() reste appelable (double-clic sur la grille, raccourcis) mais n'a
+        // plus de bouton dédié dans cette barre.
+        document.getElementById('grid-zoom').onclick = () => this.toggleSequencer();
         document.getElementById('grid-zoom-close').onclick = () => this.closeGridZoom();
         document.getElementById('grid-zoom-overlay').addEventListener('click', (e) => {
             if (e.target.id === 'grid-zoom-overlay') this.closeGridZoom();
@@ -3537,7 +3558,7 @@ class HarmoHubApp {
         this._popups = [
             { id: 'context-menu', close: () => this.closeContextMenu() },
             { id: 'section-picker-menu', close: () => this.closeSectionPicker() },       // « où insérer ? »
-            { id: 'backup-scope-menu', close: () => this.closeBackupScopeMenu() },       // « ce morceau / toute la bibliothèque ? »
+            { id: 'backup-scope-menu', close: () => this.closeTransferScopeMenu() },       // « ce morceau / toute la bibliothèque ? »
             { id: 'file-menu', ancre: '#file-menu-btn', close: () => this.closeFileMenu() },
             { id: 'key-suggest-menu', ancre: '#key-suggest-btn', close: () => this.closeKeySuggestMenu() },
             { id: 'quick-add-help', ancre: '#quick-add-help-btn', close: () => this.closeQuickAddHelp() },
@@ -5274,7 +5295,7 @@ class HarmoHubApp {
     }
 
     // Ampoule d'aide de l'ajout rapide (voir #quick-add-help dans index.html) : popover explicatif,
-    // même positionnement que les autres popovers (openBackupScopeMenu...).
+    // même positionnement que les autres popovers (openTransferScopeMenu...).
     openQuickAddHelp(anchorEl) {
         const help = document.getElementById('quick-add-help');
         help.hidden = false;
@@ -5679,11 +5700,30 @@ class HarmoHubApp {
                 // plein milieu d'UNE SEULE colonne -> case span 1 centrée dedans. Décoratif seul
                 // (pointer-events:none en CSS) : ne doit jamais intercepter le glisser qui définit une
                 // plage à boucler sur cette même ligne.
+                // Deux densités possibles (voir showAllBeats / Paramètres > Affichage) :
+                //  - épuré (défaut) : UN seul repère par mesure, à son milieu ;
+                //  - tous les temps : un repère à CHAQUE temps qui ne porte pas déjà son numéro de
+                //    mesure (les débuts de mesure en ont un, voir .row-measure — y ajouter un tiret
+                //    ferait doublon). Les demi-temps ne sont pas repris ici : la grille compte une
+                //    colonne PAR TEMPS, il n'y a pas de colonne où les poser.
+                // Toujours des tirets, dans les deux cas (retour utilisateur : à cette densité, des
+                // points ronds ne se lisent plus).
                 let offbeatTicksHtml = '';
-                const totalBars = Math.ceil(cursor / beatsPerBar);
-                for (let barIdx = 0; barIdx < totalBars; barIdx++) {
-                    const pos = barIdx * beatsPerBar + beatsPerBar / 2;
-                    if (pos >= cursor) continue; // dernière mesure trop courte pour avoir un milieu affiché
+                const positionsReperes = [];
+                if (this.showAllBeats) {
+                    for (let pos = 1; pos < cursor; pos++) {
+                        if (pos % beatsPerBar === 0) continue; // début de mesure : déjà numéroté
+                        positionsReperes.push(pos);
+                    }
+                } else {
+                    const totalBars = Math.ceil(cursor / beatsPerBar);
+                    for (let barIdx = 0; barIdx < totalBars; barIdx++) {
+                        const pos = barIdx * beatsPerBar + beatsPerBar / 2;
+                        if (pos >= cursor) continue; // dernière mesure trop courte pour avoir un milieu affiché
+                        positionsReperes.push(pos);
+                    }
+                }
+                for (const pos of positionsReperes) {
                     const r = Math.floor(pos / beatsPerRow);
                     const colFloat = pos % beatsPerRow;
                     const colFloor = Math.floor(colFloat);
@@ -5943,6 +5983,21 @@ class HarmoHubApp {
     // (voir loadProgression), donc rien à cibler ici : un simple booléen + rappel de loadProgression.
     toggleVoiceLeadingPanel() {
         this.voiceLeadingOpen = !this.voiceLeadingOpen;
+        // Symétrique de toggleSequencer (voir son commentaire) : les deux panneaux partagent la même
+        // zone, on n'en montre jamais deux à la fois. On referme le séquenceur SANS repasser par
+        // toggleSequencer() : celle-ci ne rappelle que renderSequencer(), pas loadProgression() — le
+        // panneau de conduite de voix, lui, n'est construit QUE par loadProgression (voir
+        // buildVoiceLeadingPanelHtml), et restait donc invisible. Un seul loadProgression() à la fin
+        // redessine correctement les deux.
+        if (this.voiceLeadingOpen && this.seqOpen) {
+            this.seqOpen = false;
+            this.seqSelections = [];
+            this.closeSeqZoom();
+            document.getElementById('toggle-sequencer').classList.remove('active');
+            document.getElementById('seq-zoom').hidden = true;
+            this.renderSequencer();
+            this.updateGlobalUndoRedoButtons();
+        }
         this.loadProgression();
     }
 
@@ -7086,6 +7141,12 @@ class HarmoHubApp {
                     <span class="switch-thumb"></span>
                 </button>
             </div>
+            <div class="settings-toggle-row">
+                <label for="toggle-show-all-beats" title="Un repère à chaque temps sous la grille, au lieu d'un seul au milieu de chaque mesure">Tous les temps sous la grille</label>
+                <button type="button" id="toggle-show-all-beats" class="switch" role="switch" aria-checked="${this.showAllBeats}" aria-label="Un repère à chaque temps sous la grille">
+                    <span class="switch-thumb"></span>
+                </button>
+            </div>
             <div class="settings-slider-sep"></div>
             <div class="settings-toggle-row">
                 <label for="toggle-show-voicing-pdf" title="Octave, renversement et drop (ex. O3-R1-D2) au-dessus de chaque accord, dans le PDF exporté">Position d'accord (PDF)</label>
@@ -7110,6 +7171,7 @@ class HarmoHubApp {
         document.getElementById('toggle-show-roman').onclick = () => this.setShowRomanNumerals(!this.showRomanNumerals);
         document.getElementById('toggle-show-function').onclick = () => this.setShowChordFunction(!this.showChordFunction);
         document.getElementById('toggle-show-grid-octave').onclick = () => this.setShowGridOctave(!this.showGridOctave);
+        document.getElementById('toggle-show-all-beats').onclick = () => this.setShowAllBeats(!this.showAllBeats);
         document.getElementById('toggle-show-grid-voicing').onclick = () => this.setShowGridVoicing(!this.showGridVoicing);
         document.getElementById('toggle-show-voicing-pdf').onclick = () => this.setShowVoicingPdf(!this.showVoicingPdf);
         document.getElementById('pdf-measures-per-line').onchange = (e) => this.setPdfMeasuresPerLine(parseInt(e.target.value, 10));
@@ -7137,6 +7199,24 @@ class HarmoHubApp {
         const btn = document.getElementById('toggle-show-grid-octave');
         if (btn) btn.setAttribute('aria-checked', on);
         this.loadProgression();
+    }
+
+    setShowAllBeats(on) {
+        this.showAllBeats = on;
+        localStorage.setItem(SHOW_ALL_BEATS_KEY, on ? '1' : '0');
+        const btn = document.getElementById('toggle-show-all-beats');
+        if (btn) btn.setAttribute('aria-checked', on);
+        this.applyAllBeatsClass();
+        this.loadProgression();
+    }
+
+    // Le repère reste un petit POINT rond en mode épuré (choisi par l'utilisateur parmi 5
+    // propositions : « j'aime bien le petit rond pour la grille d'accords ») mais devient un TIRET
+    // quand on les affiche tous — à cette densité, une file de points ronds ne se lit plus (« place
+    // des tirets plutôt que des points dans ce cas, sinon ça sera peu compréhensible »). Une classe
+    // sur <body> plutôt qu'un attribut par repère : c'est un réglage global, comme sidebar-collapsed.
+    applyAllBeatsClass() {
+        document.body.classList.toggle('all-beats', !!this.showAllBeats);
     }
 
     setShowGridVoicing(on) {
@@ -8678,7 +8758,6 @@ class HarmoHubApp {
             { id: 'pdf', label: 'Exporter en PDF', hint: 'Grille imprimable' },
             { id: 'midi', label: 'Exporter en MIDI', hint: 'Pour un DAW (GarageBand…)' },
             { id: 'audio', label: 'Exporter en MP3', hint: 'Rendu audio du morceau' },
-            { id: 'backup', label: 'Sauvegarder en local', hint: 'Ce morceau ou la bibliothèque' },
             { sep: true },
             { id: 'import-midi', label: 'Importer un MIDI', hint: 'En déduire une grille d\'accords' },
         ];
@@ -8693,9 +8772,6 @@ class HarmoHubApp {
                 if (action === 'pdf') this.exportPdf();
                 else if (action === 'midi') this.exportMidi();
                 else if (action === 'audio') this.exportAudio();
-                // La portée de la sauvegarde (ce morceau / toute la bibliothèque) reste un second
-                // choix, ancré sur le bouton du menu : on ne devine pas à la place de l'utilisateur.
-                else if (action === 'backup') this.openBackupScopeMenu(anchorEl);
                 else if (action === 'import-midi') this._midiInput.click();
             };
         });
@@ -8711,7 +8787,7 @@ class HarmoHubApp {
     }
 
     // Place un menu contextuel sous son bouton, sans jamais sortir de l'écran. Extrait de
-    // openBackupScopeMenu, qui faisait exactement ça : deux copies de ce calcul divergeraient.
+    // openTransferScopeMenu, qui faisait exactement ça : deux copies de ce calcul divergeraient.
     placeMenuNear(menu, anchorEl) {
         const rect = anchorEl.getBoundingClientRect();
         menu.hidden = false;
@@ -8722,14 +8798,14 @@ class HarmoHubApp {
         menu.style.top = `${Math.max(pad, top)}px`;
     }
 
-    openBackupScopeMenu(anchorEl) {
+    openTransferScopeMenu(anchorEl) {
         const menu = document.getElementById('backup-scope-menu');
         menu.innerHTML =
             `<button type="button" data-backup-scope="song">Ce morceau</button>` +
             `<button type="button" data-backup-scope="library">Toute la bibliothèque</button>`;
         menu.querySelectorAll('button').forEach(btn => {
             btn.onclick = () => {
-                this.closeBackupScopeMenu();
+                this.closeTransferScopeMenu();
                 if (btn.dataset.backupScope === 'song') this.exportCurrentSong();
                 else this.exportLibrary();
             };
@@ -8738,7 +8814,7 @@ class HarmoHubApp {
         this.placeMenuNear(menu, anchorEl);
     }
 
-    closeBackupScopeMenu() {
+    closeTransferScopeMenu() {
         const menu = document.getElementById('backup-scope-menu');
         if (menu) menu.hidden = true;
     }
@@ -8801,7 +8877,7 @@ class HarmoHubApp {
         return results.filter(r => r.score > 0.6).slice(0, 5);
     }
 
-    // Popup léger (même style que openBackupScopeMenu) : liste les tonalités candidates (voir
+    // Popup léger (même style que openTransferScopeMenu) : liste les tonalités candidates (voir
     // suggestSongKey), chacune applicable d'un clic à #global-root/#global-mode.
     openKeySuggestMenu(anchorEl) {
         const menu = document.getElementById('key-suggest-menu');
@@ -11788,14 +11864,24 @@ class HarmoHubApp {
     }
 
     // Bouton dédié dans le volet Lecture : ouvre/ferme le panneau, indépendamment du style choisi
+    // Séquenceur et conduite de voix occupent la MÊME zone sous la grille : ouvrir l'un referme donc
+    // l'autre (retour utilisateur : « le bouton voicing d'accords remplacera le séquenceur si je
+    // clique dessus, et vice-versa »). Deux panneaux empilés au même endroit se disputaient sinon la
+    // hauteur, la ressource la plus rare de cette vue.
     toggleSequencer() {
         this.seqOpen = !this.seqOpen;
+        // Le panneau de conduite de voix n'est construit QUE par loadProgression (voir
+        // buildVoiceLeadingPanelHtml) : le refermer ici sans redessiner le laisserait affiché alors
+        // qu'il est logiquement fermé — mesuré. D'où ce drapeau, honoré en fin de méthode.
+        const vlVientDEtreFerme = this.seqOpen && this.voiceLeadingOpen;
+        if (vlVientDEtreFerme) this.voiceLeadingOpen = false;
         if (!this.seqOpen) {
             this.seqSelections = [];
             this.closeSeqZoom(); // rien à agrandir une fois le panneau lui-même refermé
         }
         document.getElementById('toggle-sequencer').classList.toggle('active', this.seqOpen);
         document.getElementById('seq-zoom').hidden = !this.seqOpen;
+        if (vlVientDEtreFerme) this.loadProgression(); // retire pour de bon le panneau de conduite de voix
         this.renderSequencer();
         this.updateGlobalUndoRedoButtons(); // le bouton unique repointe vers l'historique du séquenceur
     }
@@ -12961,15 +13047,35 @@ class HarmoHubApp {
         // vois pas exactement où est le temps 4" pendant un glissé).
         const beatRow = rowCount + 1;
         let beatLabelsHtml = '';
-        for (let s = pageStart; s < pageEnd; s += SEQ_STEPS_PER_BEAT) {
-            const beatIndex = Math.floor(s / SEQ_STEPS_PER_BEAT);
-            const beatNum = (beatIndex % beatsPerBar) + 1;
+        // En vue CONTINUE, la barre de temps couvre TOUTE la grille affichée (accords précédents +
+        // accord édité + accords suivants), pas seulement la tranche de l'accord en cours d'édition —
+        // retour utilisateur : « je veux voir la barre de décompte des mesures en entier, pas
+        // uniquement sous l'accord que je suis en train de modifier... si un accord commence sur un
+        // contre-temps de la mesure n°6, je pourrai donc le voir ». Les numéros sont alors ABSOLUS
+        // dans la partie (position réelle depuis son début), et non plus relatifs à l'accord édité :
+        // c'est justement ce qui permet de situer un départ décalé par rapport aux mesures voisines.
+        // `deltaColonne` réaligne la colonne de grille : en continu, la colonne 0 correspond au tout
+        // premier pas affiché (prevSteps pas AVANT l'accord édité), pas à pageStart.
+        const barreStart = continuous ? -prevSteps : pageStart;
+        const barreEnd = continuous ? pageSteps + nextSteps : pageEnd;
+        const deltaColonne = continuous ? colOffset : colOffset - pageStart;
+        // Décalage absolu de l'accord édité depuis le début de la partie, en pas : sans lui, tout
+        // repartirait de la mesure 1 sous l'accord édité, quel que soit son vrai rang.
+        let pasAvantAccordEdite = 0;
+        if (continuous) {
+            const secCourante = loadProgressionSections()[this.activeSection];
+            const accords = (secCourante && secCourante.chords) || [];
+            for (let i = 0; i < this.editingIndex; i++) pasAvantAccordEdite += beatsFromData(accords[i]) * SEQ_STEPS_PER_BEAT;
+        }
+        for (let s = barreStart; s < barreEnd; s += SEQ_STEPS_PER_BEAT) {
+            const beatIndex = Math.floor((s + pasAvantAccordEdite) / SEQ_STEPS_PER_BEAT);
+            const beatNum = ((beatIndex % beatsPerBar) + beatsPerBar) % beatsPerBar + 1;
             // Le chiffre est dans un <span> à part, centré sur le VRAI début du temps (voir .seq-beat-num
             // en CSS) plutôt que posé tel quel dans sa case (qui l'aurait calé à GAUCHE du repère, son
             // texte partant de là et s'étirant vers la droite) : à côté du trait de contretemps, lui
             // bien centré, ce calage à gauche donnait une impression d'asymétrie (retour utilisateur :
             // "les traits sont centrés, mais plus les numéros").
-            beatLabelsHtml += `<div class="seq-beat-label" data-beat-index="${beatIndex}" style="grid-row:${beatRow}; grid-column:${colOffset + s - pageStart + 2};"><span class="seq-beat-num">${beatNum}</span></div>`;
+            beatLabelsHtml += `<div class="seq-beat-label" data-beat-index="${beatIndex}" style="grid-row:${beatRow}; grid-column:${deltaColonne + s + 2};"><span class="seq-beat-num">${beatNum}</span></div>`;
             // Contretemps (le "et" du temps, 2e croche — voir SEQ_STEPS_PER_BEAT) : petit trait estompé,
             // jamais un chiffre, pour rester bien plus discret que le numéro de temps lui-même (retour
             // utilisateur : repère discret, pas une nouvelle ligne de chiffres à lire). Centré sur la
@@ -12979,8 +13085,8 @@ class HarmoHubApp {
             // colonnes — sans ça, le repère paraît décalé vers la 2e croche au lieu d'être pile au
             // milieu (retour utilisateur : "pas aligné... pas à la moitié").
             const offbeatStep = s + SEQ_STEPS_PER_BEAT / 2;
-            if (offbeatStep < pageEnd) {
-                beatLabelsHtml += `<div class="seq-beat-offbeat" style="grid-row:${beatRow}; grid-column:${colOffset + offbeatStep - pageStart + 1} / span 2;"><span class="offbeat-dash"></span></div>`;
+            if (offbeatStep < barreEnd) {
+                beatLabelsHtml += `<div class="seq-beat-offbeat" style="grid-row:${beatRow}; grid-column:${deltaColonne + offbeatStep + 1} / span 2;"><span class="offbeat-dash"></span></div>`;
             }
         }
         html += beatLabelsHtml;

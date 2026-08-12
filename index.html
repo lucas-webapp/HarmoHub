@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608122200">
+    <link rel="stylesheet" href="style.css?v=202608122340">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -41,18 +41,6 @@
                 <rect x="4.5" y="8" width="3" height="8" rx="1" fill="currentColor" stroke="none"/>
             </svg>
         </button>
-        <!-- Accès rapide à l'export/import de TOUTE la bibliothèque (mêmes actions que l'onglet
-             Paramètres > Fichiers, voir exportLibrary/importLibraryFile) : directement dans la barre du
-             haut, pour ne plus avoir à ouvrir Paramètres à chaque sauvegarde/restauration (retour
-             utilisateur : trop de clics). Champ fichier dédié plutôt que celui du panneau Fichiers,
-             qui n'existe dans le DOM qu'une fois ce panneau déjà ouvert au moins une fois. -->
-        <button type="button" id="quick-library-export" class="icon-btn" title="Exporter toute la bibliothèque" aria-label="Exporter toute la bibliothèque">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>
-        </button>
-        <button type="button" id="quick-library-import" class="icon-btn" title="Importer une bibliothèque (restauration)" aria-label="Importer une bibliothèque">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21V9"/><path d="m7 13 5-5 5 5"/><path d="M5 3h14"/></svg>
-        </button>
-        <input type="file" id="quick-library-import-input" accept="application/json" hidden>
         <!-- Juste avant le titre (retour utilisateur), plutôt qu'au tout début de la barre du haut. -->
         <button type="button" id="open-settings" class="icon-btn settings-btn" title="Paramètres" aria-label="Paramètres">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -451,6 +439,20 @@
                         <button type="button" id="song-new" class="icon-btn" title="Nouveau morceau" aria-label="Nouveau morceau">
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                         </button>
+                        <!-- Import/export au niveau du module Morceau, juste à gauche d'Enregistrer
+                             (retour utilisateur : plusieurs points d'entrée se recroisaient — flèches
+                             de la barre du haut, entrée « Sauvegarder » du menu Fichier, panneau
+                             Paramètres). Les deux premiers ont été retirés ; il ne reste que ces
+                             flèches-ci et le panneau Paramètres > Fichiers. Chacune demande d'abord la
+                             PORTÉE — ce morceau ou toute la bibliothèque — les deux servant
+                             régulièrement (voir openTransferScopeMenu dans script.js). -->
+                        <button type="button" id="song-export" class="icon-btn" title="Exporter (ce morceau ou toute la bibliothèque)" aria-label="Exporter un morceau ou la bibliothèque" aria-haspopup="menu">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>
+                        </button>
+                        <button type="button" id="song-import" class="icon-btn" title="Importer (un morceau ou toute la bibliothèque)" aria-label="Importer un morceau ou la bibliothèque" aria-haspopup="menu">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21V9"/><path d="m7 13 5-5 5 5"/><path d="M5 3h14"/></svg>
+                        </button>
+                        <input type="file" id="song-import-input" accept="application/json,.json" hidden>
                         <button type="button" id="song-save" class="icon-btn icon-btn-accent" title="Enregistrer (Ctrl+S)" aria-label="Enregistrer">
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
                         </button>
@@ -837,7 +839,7 @@
                              qu'une loupe générique : une fois la grille classique elle-même zoomable
                              ci-dessus, une loupe aurait prêté à confusion avec un simple zoom — ce bouton
                              ouvre en réalité la vue AGRANDIE avec séquenceur épinglé (voir openGridZoom). -->
-                        <button type="button" id="grid-zoom" class="icon-btn icon-btn-wide" title="Ouvrir la vue agrandie (grille + séquenceur épinglé)" aria-label="Ouvrir la vue agrandie avec séquenceur épinglé">
+                        <button type="button" id="grid-zoom" class="icon-btn icon-btn-wide" title="Séquenceur" aria-label="Ouvrir le séquenceur">
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <rect x="3" y="4" width="4" height="4" rx="1"/>
                                 <rect x="10" y="4" width="4" height="4" rx="1"/>
@@ -1054,6 +1056,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608122200"></script>
+    <script src="script.js?v=202608122340"></script>
 </body>
 </html>
