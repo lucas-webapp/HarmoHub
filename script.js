@@ -1789,15 +1789,15 @@ const SHOW_CHORD_FUNCTION_KEY = 'harmohubShowChordFunction';
 // grille à l'écran (retour utilisateur : avant, l'échelle du PDF variait ligne par ligne en
 // suivant le zoom écran, une ligne plus courte s'étirait pour remplir la largeur de la page).
 const PDF_MEASURES_PER_LINE_KEY = 'harmohubPdfMeasuresPerLine';
+// Diagrammes (clavier/manche) sur le PDF exporté. Nouveau : ils étaient toujours inclus, sans moyen
+// de les retirer — or une grille à lire sur un pupitre n'en a pas besoin, contrairement à celle qu'on
+// donne à quelqu'un qui découvre le morceau. Réglé dans la boîte d'export (voir openPdfExportDialog),
+// pas dans les Paramètres.
+const PDF_DIAGRAMS_KEY = 'harmohubPdfDiagrams';
 // Mode studio (voir this.studioMode/#toggle-studio-mode) : réglage global de l'appareil, mémorisé
 // d'une session à l'autre — pas remis à zéro à chaque accord édité, pour ne pas avoir à le
 // rallumer sans cesse (retour utilisateur : « alléger l'appli », voir aussi le mode simple/studio).
 const STUDIO_MODE_KEY = 'harmohubStudioMode';
-// Ce qu'un clic sur un accord de la grille déclenche (voir this.gridClickEdits). Ce qui restait du
-// bandeau Ajout/Modification une fois que le panneau nomme son sujet et que l'ajout a ses propres
-// cibles : une PRÉFÉRENCE — prudent (clic = écouter, double-clic = modifier) contre rapide (clic =
-// modifier) — et non plus un état à surveiller en permanence.
-const GRID_CLICK_EDITS_KEY = 'harmohubGridClickEdits';
 // Échelles horizontale/verticale INDÉPENDANTES des modes loupe (grille/séquenceur) : remplace
 // l'ancien niveau de zoom unique (une seule clé harmohubSeqZoomLevel/harmohubGridZoomLevel) — une
 // valeur toujours reprise comme repli pour les deux axes si trouvée (session précédente), pour ne
@@ -2711,6 +2711,7 @@ class HarmoHubApp {
         // petit au-dessus de chaque accord (voir Chord.getVoicingBadge), au lieu d'alourdir son symbole
         // (voir Chord.getLabel) — activé par défaut.
         this.showVoicingPdf = localStorage.getItem(SHOW_VOICING_PDF_KEY) !== '0';
+        this.pdfDiagrams = localStorage.getItem(PDF_DIAGRAMS_KEY) !== '0'; // inclus par défaut, comme avant ce réglage
 
         // Mesures par ligne dans le PDF exporté (voir PDF_MEASURES_PER_LINE_KEY ci-dessus) — 4 par
         // défaut, comme demandé.
@@ -2742,7 +2743,6 @@ class HarmoHubApp {
         // Faux (défaut) : un clic sélectionne/écoute, un double-clic modifie. Vrai : un clic modifie
         // tout de suite — le comportement de l'ancien mode « Modification » collant, pour qui le
         // préférait. Voir onGridPointerUp.
-        this.gridClickEdits = localStorage.getItem(GRID_CLICK_EDITS_KEY) === '1';
         // Un seul instantané Annuler par SESSION d'édition en mode 'edit' (voir commitLiveEdit),
         // jamais un par champ retouché — remis à false à chaque nouvel appel à editChord().
         this._editSessionUndoPushed = false;
@@ -2925,7 +2925,6 @@ class HarmoHubApp {
         this.metronomeDuringPlayback = localStorage.getItem(METRONOME_KEY) === '1';
 
         this.settingsOpen = false; // fenêtre Paramètres (Fichiers, et ce qui s'y ajoutera)
-        this.settingsTab = 'audio'; // onglet actif de la fenêtre Paramètres (voir setSettingsTab)
         this.contextMenuTarget = null; // { type: 'song'|'folder', id|name } pendant que le menu contextuel est ouvert
 
         // Historique annuler/rétablir (Ctrl+Z / Ctrl+Y) : piles de copies profondes de `sections`
@@ -3341,9 +3340,6 @@ class HarmoHubApp {
             if (file) this.importLibraryFile(file);
         };
         document.getElementById('settings-close').onclick = () => this.closeSettings();
-        document.querySelectorAll('.settings-tab').forEach(btn => {
-            btn.onclick = () => this.setSettingsTab(btn.dataset.settingsTab);
-        });
         document.getElementById('settings-overlay').addEventListener('click', (e) => {
             if (e.target.id === 'settings-overlay') this.closeSettings(); // clic sur le fond, pas la fenêtre
         });
@@ -3357,6 +3353,11 @@ class HarmoHubApp {
         // Nouveau morceau (voir openNewSongModal) : clic sur le fond = Annuler, comme Paramètres.
         document.getElementById('new-song-modal').addEventListener('click', (e) => {
             if (e.target.id === 'new-song-modal') document.getElementById('new-song-cancel').click();
+        });
+
+        // Options d'export PDF (voir openPdfExportDialog) : clic sur le fond = Annuler, comme les autres.
+        document.getElementById('pdf-export-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'pdf-export-modal' && this._pdfDialogCancel) this._pdfDialogCancel();
         });
 
         // Choix export MIDI (voir chooseMidiExportMode) : clic sur le fond = Annuler, même principe.
@@ -3634,6 +3635,13 @@ class HarmoHubApp {
             if (!opensZoomView && !inGrid && !inMenu && !inEditor && this.editingIndex != null) { this.exitEditMode(); changed = true; }
             if (changed) this.loadProgression();
         });
+
+        // Aide de l'ajout rapide, désormais déclenchée depuis le champ lui-même (voir index.html)
+        // plutôt que depuis les Paramètres : une aide n'est pas un réglage.
+        document.getElementById('quick-add-help-btn').onclick = (e) => {
+            const help = document.getElementById('quick-add-help');
+            if (help.hidden) this.openQuickAddHelp(e.currentTarget); else this.closeQuickAddHelp();
+        };
 
         // Tout ce qui entre ou sort de l'appli passe par un seul menu (voir openFileMenu) — SAUF
         // Paroles, ressorti dans son propre bouton juste à côté (retour utilisateur : "il n'a pas
@@ -6231,9 +6239,10 @@ class HarmoHubApp {
 
     // Pose data-app-mode sur <body> : la teinte discrète (curseur d'intensité) du contexte courant —
     // un seul attribut, plutôt que de reproduire le même if/else sur chaque élément concerné.
-    // Ne pilote plus AUCUN bandeau : celui-ci a disparu (voir GRID_CLICK_EDITS_KEY). Ce qu'il montrait
-    // est désormais dit par le titre du panneau (updateChordSubject), et ce qu'il commandait est
-    // devenu un réglage d'appareil. L'ajout rapide, lui, ne se masque plus : c'est une CIBLE D'AJOUT,
+    // Ne pilote plus AUCUN bandeau : celui-ci a disparu. Ce qu'il montrait est désormais dit par le
+    // titre du panneau (updateChordSubject), et ce qu'il commandait s'est réduit à une seule règle
+    // fixe (clic = écouter, double-clic = modifier, voir onGridPointerUp). L'ajout rapide, lui, ne se
+    // masque plus : c'est une CIBLE D'AJOUT,
     // et une cible qui disparaît dès qu'on touche un accord ne peut pas servir de repère stable.
     applyAppModeTheme() {
         document.body.dataset.appMode = this.appMode;
@@ -6980,25 +6989,13 @@ class HarmoHubApp {
         document.getElementById('settings-overlay').hidden = false;
         document.getElementById('open-settings').classList.add('active');
         // Comme openGridZoom/openSeqZoom (voir lockBodyScroll) : sans ça, faire défiler le contenu
-        // des Paramètres (l'onglet Fichiers peut être long) faisait aussi défiler l'arrière-plan de
-        // l'appli en dessous, surtout gênant sur téléphone (retour utilisateur).
+        // des Paramètres (la liste des morceaux peut être longue) faisait aussi défiler l'arrière-plan
+        // de l'appli en dessous, surtout gênant sur téléphone (retour utilisateur).
         this.lockBodyScroll();
         this.renderAudioPanel();
         this.renderDisplayPanel();
         this.renderFilesPanel();
-        this.setSettingsTab(this.settingsTab); // reprend l'onglet quitté la dernière fois (défaut : Son)
         this.updateGlobalUndoRedoButtons(); // le bouton unique repointe vers l'historique Fichiers
-    }
-
-    setSettingsTab(tab) {
-        this.settingsTab = tab;
-        document.querySelectorAll('.settings-tab').forEach(btn => {
-            btn.setAttribute('aria-selected', String(btn.dataset.settingsTab === tab));
-        });
-        document.querySelectorAll('.settings-panel').forEach(panel => {
-            panel.hidden = panel.dataset.settingsPanel !== tab;
-        });
-        document.querySelector('.settings-content')?.scrollTo(0, 0);
     }
 
     closeSettings() {
@@ -7014,6 +7011,12 @@ class HarmoHubApp {
     }
 
     // ---- Panneau Son : volume général (maître), puis volume du métronome ----
+    // Un repli « Options avancées » en fin de groupe (retour utilisateur : « certaines options
+    // peuvent être optimisées dans des paramètres plus poussés ») : y descendent les réglages qu'on
+    // choisit UNE fois et qu'on ne revoit plus (la sonorité du clic), ou qui ne concernent qu'un
+    // outil précis (l'écoute pendant l'édition du séquenceur). Replié par nature — un <details>
+    // natif plutôt qu'un état à mémoriser : à chaque ouverture des Paramètres, la page montre
+    // d'abord le courant, et le rare reste à un clic sans jamais encombrer.
     renderAudioPanel() {
         const host = document.getElementById('settings-panel-audio');
         if (!host) return;
@@ -7033,14 +7036,6 @@ class HarmoHubApp {
                 </div>
                 <input type="range" id="metronome-volume" min="0" max="100" value="${this.metronomeVolumePercent}">
             </div>
-            <div class="settings-select-row">
-                <label for="metronome-sound">Son du métronome</label>
-                <select id="metronome-sound">
-                    ${Object.entries(METRONOME_SOUNDS).map(([key, s]) =>
-                        `<option value="${key}"${key === this.metronomeSoundKey ? ' selected' : ''}>${s.label}</option>`
-                    ).join('')}
-                </select>
-            </div>
             <div class="settings-slider-sep"></div>
             <div class="settings-toggle-row">
                 <label for="toggle-autoplay-select" title="Jouer l'accord en le sélectionnant dans la grille">Jouer à la sélection</label>
@@ -7054,12 +7049,25 @@ class HarmoHubApp {
                     <span class="switch-thumb"></span>
                 </button>
             </div>
-            <div class="settings-toggle-row">
-                <label for="toggle-seq-edit-audio" title="Faire entendre une note du séquenceur dès qu'on la pose, la sélectionne ou la déplace (lecture à l'arrêt)">Écouter en éditant</label>
-                <button type="button" id="toggle-seq-edit-audio" class="switch" role="switch" aria-checked="${this.seqEditAudio}" aria-label="Faire entendre une note du séquenceur dès qu'on la pose, la sélectionne ou la déplace">
-                    <span class="switch-thumb"></span>
-                </button>
-            </div>`;
+            <details class="settings-advanced">
+                <summary>Options avancées</summary>
+                <div class="settings-advanced-body">
+                    <div class="settings-select-row">
+                        <label for="metronome-sound" title="Sonorité du clic : on l'essaie une fois, on n'y revient plus">Son du métronome</label>
+                        <select id="metronome-sound">
+                            ${Object.entries(METRONOME_SOUNDS).map(([key, s]) =>
+                                `<option value="${key}"${key === this.metronomeSoundKey ? ' selected' : ''}>${s.label}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    <div class="settings-toggle-row">
+                        <label for="toggle-seq-edit-audio" title="Faire entendre une note du séquenceur dès qu'on la pose, la sélectionne ou la déplace (lecture à l'arrêt)">Écouter en éditant</label>
+                        <button type="button" id="toggle-seq-edit-audio" class="switch" role="switch" aria-checked="${this.seqEditAudio}" aria-label="Faire entendre une note du séquenceur dès qu'on la pose, la sélectionne ou la déplace">
+                            <span class="switch-thumb"></span>
+                        </button>
+                    </div>
+                </div>
+            </details>`;
 
         document.getElementById('general-volume').oninput = (e) => this.setGeneralVolume(+e.target.value);
         document.getElementById('metronome-volume').oninput = (e) => this.setMetronomeVolume(+e.target.value);
@@ -7094,87 +7102,67 @@ class HarmoHubApp {
     // à dessein (le détail va dans title/aria-label, pas dans le texte visible) — l'un des deux
     // réglages PDF (renversement/drop, sens mélodique) n'a pas d'équivalent à l'écran, contrairement
     // au chiffrage romain qui, lui, vaut pour les deux (voir buildPrintExportHtml/loadProgression). ----
+    // Panneau « Affichage » : uniquement ce qui change ce qu'on VOIT dans la grille, rien d'autre.
+    // Retiré d'ici (retour utilisateur : « certaines options ne servent à rien... certaines sont
+    // quasiment identiques... l'export PDF prend trop de place dans les paramètres ») :
+    //  - « Un clic sur un accord » : le double-clic pour modifier est désormais le SEUL comportement
+    //    (voir onGridPointerUp) — l'utilisateur n'en veut qu'un, une préférence pour ça n'était que
+    //    du choix à faire pour rien.
+    //  - les deux réglages PDF : ils sont demandés au moment de l'export, dans sa propre boîte (voir
+    //    openPdfExportDialog) — c'est là qu'on se pose la question, pas trois écrans plus loin.
+    //  - « Aide : ajout rapide » : une aide n'est pas un réglage ; elle est atteignable depuis le
+    //    champ d'ajout rapide lui-même.
+    // Les deux bascules Octave et Renversement/drop, qui pilotaient le MÊME badge sous l'accord, sont
+    // fondues en un seul choix ordonné : personne ne veut le renversement SANS l'octave.
+    // Descendus dans « Options avancées » (même repli que le panneau Son) : la fonction harmonique,
+    // qui est une lecture d'analyse et non un confort quotidien, et la densité des repères de temps,
+    // qu'on règle une fois pour toutes. Restent en tête les deux réglages qu'on bascule vraiment en
+    // travaillant : les degrés et la position d'accord.
     renderDisplayPanel() {
         const host = document.getElementById('settings-panel-display');
         if (!host) return;
+        const positionValeur = !this.showGridOctave ? 'aucune' : (this.showGridVoicing ? 'complete' : 'octave');
         host.innerHTML = `
             <div class="settings-toggle-row">
-                <label for="quick-add-help-btn" title="Comment utiliser l'ajout rapide">Aide : ajout rapide</label>
-                <button type="button" id="quick-add-help-btn" class="icon-btn" title="Comment utiliser l'ajout rapide" aria-label="Comment utiliser l'ajout rapide" aria-expanded="false">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.05V17h6v-2.25c0-.85.4-1.55 1-2.05A7 7 0 0 0 12 2Z"/></svg>
-                </button>
-            </div>
-            <div class="settings-slider-sep"></div>
-            <!-- Ce qui restait de l'ancien bandeau Ajout/Modification : une PRÉFÉRENCE, pas un état à
-                 surveiller. Le panneau dit désormais lui-même sur quel accord il porte, et l'ajout a
-                 ses propres cibles (case « + », ajout rapide) — il ne reste donc qu'une divergence de
-                 goût, et on la règle une fois. -->
-            <div class="settings-select-row">
-                <label for="grid-click-action" title="Ce que déclenche un simple clic sur un accord de la grille">Un clic sur un accord</label>
-                <select id="grid-click-action">
-                    <option value="listen"${this.gridClickEdits ? '' : ' selected'}>L'écouter (double-clic pour modifier)</option>
-                    <option value="edit"${this.gridClickEdits ? ' selected' : ''}>Le modifier</option>
-                </select>
-            </div>
-            <div class="settings-slider-sep"></div>
-            <div class="settings-toggle-row">
-                <label for="toggle-show-roman" title="Degrés (I, IV, V7...) dans la grille et le PDF">Degrés</label>
-                <button type="button" id="toggle-show-roman" class="switch" role="switch" aria-checked="${this.showRomanNumerals}" aria-label="Degrés dans la grille et le PDF">
-                    <span class="switch-thumb"></span>
-                </button>
-            </div>
-            <div class="settings-toggle-row">
-                <label for="toggle-show-function" title="Fonction harmonique (Tonique/Sous-dominante/Dominante) dans la grille et le PDF — affichée seulement quand elle est fiable, un « ? » sinon (voir chordFunction)">Fonction harmonique</label>
-                <button type="button" id="toggle-show-function" class="switch" role="switch" aria-checked="${this.showChordFunction}" aria-label="Fonction harmonique dans la grille et le PDF">
-                    <span class="switch-thumb"></span>
-                </button>
-            </div>
-            <div class="settings-toggle-row">
-                <label for="toggle-show-grid-octave" title="Octave (ex. O3) sous chaque accord de la grille">Octave</label>
-                <button type="button" id="toggle-show-grid-octave" class="switch" role="switch" aria-checked="${this.showGridOctave}" aria-label="Octave sous chaque accord de la grille">
-                    <span class="switch-thumb"></span>
-                </button>
-            </div>
-            <div class="settings-toggle-row">
-                <label for="toggle-show-grid-voicing" title="Renversement et drop (ex. R1-D2) sous chaque accord de la grille, si l'accord s'écarte de la position de base">Renversement / drop</label>
-                <button type="button" id="toggle-show-grid-voicing" class="switch" role="switch" aria-checked="${this.showGridVoicing}" aria-label="Renversement et drop sous chaque accord de la grille">
-                    <span class="switch-thumb"></span>
-                </button>
-            </div>
-            <div class="settings-toggle-row">
-                <label for="toggle-show-all-beats" title="Un repère à chaque temps sous la grille, au lieu d'un seul au milieu de chaque mesure">Tous les temps sous la grille</label>
-                <button type="button" id="toggle-show-all-beats" class="switch" role="switch" aria-checked="${this.showAllBeats}" aria-label="Un repère à chaque temps sous la grille">
-                    <span class="switch-thumb"></span>
-                </button>
-            </div>
-            <div class="settings-slider-sep"></div>
-            <div class="settings-toggle-row">
-                <label for="toggle-show-voicing-pdf" title="Octave, renversement et drop (ex. O3-R1-D2) au-dessus de chaque accord, dans le PDF exporté">Position d'accord (PDF)</label>
-                <button type="button" id="toggle-show-voicing-pdf" class="switch" role="switch" aria-checked="${this.showVoicingPdf}" aria-label="Octave, renversement et drop dans le PDF exporté">
+                <label for="toggle-show-roman" title="Chiffrage en degrés (I, IV, V7…) au-dessus de chaque accord">Degrés</label>
+                <button type="button" id="toggle-show-roman" class="switch" role="switch" aria-checked="${this.showRomanNumerals}" aria-label="Degrés au-dessus de chaque accord">
                     <span class="switch-thumb"></span>
                 </button>
             </div>
             <div class="settings-select-row">
-                <label for="pdf-measures-per-line" title="Échelle FIXE de la grille d'accords dans le PDF exporté : toutes les lignes occupent la même largeur par mesure, une ligne plus courte laisse un blanc plutôt que de s'étirer">Mesures par ligne (PDF)</label>
-                <select id="pdf-measures-per-line">
-                    ${[2, 3, 4, 5, 6, 8].map(n => `<option value="${n}"${n === this.pdfMeasuresPerLine ? ' selected' : ''}>${n}</option>`).join('')}
+                <label for="grid-voicing-badge" title="Petite mention sous chaque accord : son octave, et son renversement/drop s'il en a un">Position d'accord</label>
+                <select id="grid-voicing-badge">
+                    <option value="aucune"${positionValeur === 'aucune' ? ' selected' : ''}>Masquée</option>
+                    <option value="octave"${positionValeur === 'octave' ? ' selected' : ''}>Octave seule (O3)</option>
+                    <option value="complete"${positionValeur === 'complete' ? ' selected' : ''}>Octave + renversement (O3-R1)</option>
                 </select>
-            </div>`;
-        document.getElementById('quick-add-help-btn').onclick = (e) => {
-            const help = document.getElementById('quick-add-help');
-            if (help.hidden) this.openQuickAddHelp(e.currentTarget); else this.closeQuickAddHelp();
-        };
-        document.getElementById('grid-click-action').onchange = (e) => {
-            this.gridClickEdits = e.target.value === 'edit';
-            localStorage.setItem(GRID_CLICK_EDITS_KEY, this.gridClickEdits ? '1' : '0');
-        };
+            </div>
+            <details class="settings-advanced">
+                <summary>Options avancées</summary>
+                <div class="settings-advanced-body">
+                    <div class="settings-toggle-row">
+                        <label for="toggle-show-function" title="Tonique, sous-dominante ou dominante — affichée seulement quand elle est sûre, « ? » sinon">Fonction harmonique</label>
+                        <button type="button" id="toggle-show-function" class="switch" role="switch" aria-checked="${this.showChordFunction}" aria-label="Fonction harmonique au-dessus de chaque accord">
+                            <span class="switch-thumb"></span>
+                        </button>
+                    </div>
+                    <div class="settings-select-row">
+                        <label for="grid-beat-marks" title="Petits repères sur la règle sous la grille : un seul au milieu de chaque mesure, ou un par temps">Repères de temps</label>
+                        <select id="grid-beat-marks">
+                            <option value="milieu"${this.showAllBeats ? '' : ' selected'}>Milieu de mesure</option>
+                            <option value="tous"${this.showAllBeats ? ' selected' : ''}>Tous les temps</option>
+                        </select>
+                    </div>
+                </div>
+            </details>`;
         document.getElementById('toggle-show-roman').onclick = () => this.setShowRomanNumerals(!this.showRomanNumerals);
         document.getElementById('toggle-show-function').onclick = () => this.setShowChordFunction(!this.showChordFunction);
-        document.getElementById('toggle-show-grid-octave').onclick = () => this.setShowGridOctave(!this.showGridOctave);
-        document.getElementById('toggle-show-all-beats').onclick = () => this.setShowAllBeats(!this.showAllBeats);
-        document.getElementById('toggle-show-grid-voicing').onclick = () => this.setShowGridVoicing(!this.showGridVoicing);
-        document.getElementById('toggle-show-voicing-pdf').onclick = () => this.setShowVoicingPdf(!this.showVoicingPdf);
-        document.getElementById('pdf-measures-per-line').onchange = (e) => this.setPdfMeasuresPerLine(parseInt(e.target.value, 10));
+        document.getElementById('grid-voicing-badge').onchange = (e) => {
+            const v = e.target.value;
+            this.setShowGridOctave(v !== 'aucune');
+            this.setShowGridVoicing(v === 'complete');
+        };
+        document.getElementById('grid-beat-marks').onchange = (e) => this.setShowAllBeats(e.target.value === 'tous');
     }
 
     setShowRomanNumerals(on) {
@@ -7364,7 +7352,22 @@ class HarmoHubApp {
             return opts;
         };
 
-        const fmtDate = (ts) => new Date(ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+        // Date ET HEURE (retour utilisateur : « mettre en place des dates et heures pour la version
+        // des fichiers me semble être une bonne idée, notamment suite à l'import de morceaux pour
+        // savoir lequel est le plus récent ») — deux versions d'un même morceau importées le même jour
+        // étaient jusque-là indistinguables. Les enregistrements du jour affichent « Aujourd'hui
+        // 14:32 » plutôt que la date complète : c'est le cas le plus fréquent, et c'est l'heure qui
+        // départage. La liste est déjà triée du plus récent au plus ancien (voir songs, plus haut).
+        const fmtDate = (ts) => {
+            const d = new Date(ts);
+            const heure = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            const auj = new Date();
+            const memeJour = d.toDateString() === auj.toDateString();
+            if (memeJour) return `Aujourd'hui ${heure}`;
+            const hier = new Date(auj); hier.setDate(auj.getDate() - 1);
+            if (d.toDateString() === hier.toDateString()) return `Hier ${heure}`;
+            return `${d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })} ${heure}`;
+        };
         const chordCount = (song) => (song.sections || []).reduce((n, sec) => n + (sec.chords ? sec.chords.length : 0), 0);
 
         host.innerHTML = toolbar + groups.filter(g => g.name !== null || g.songs.length > 0).map(g => `
@@ -8218,6 +8221,9 @@ class HarmoHubApp {
             voicingsInner += `</div>`;
         }
 
+        // Diagrammes désactivés dans la boîte d'export : on renvoie une page de voicings VIDE, ce qui
+        // évite aussi la seconde page du PDF (voir exportPdf, qui ne l'ajoute que si elle a du contenu).
+        if (!this.pdfDiagrams) voicingsInner = '';
         return { gridInner, voicingsInner };
     }
 
@@ -8230,6 +8236,38 @@ class HarmoHubApp {
     // posé ici une fois la fusion grille+voicings décidée, voir plus bas) : chaque page est rastérisée
     // telle quelle par html2canvas, puis posée dans le PDF par jsPDF, sans
     // dupliquer la mise en page dans un second moteur de rendu.
+    // Demande ce qui doit figurer sur le PDF, puis exporte. Ces trois réglages vivaient dans les
+    // Paramètres : ils y prenaient de la place pour une question qu'on ne se pose qu'au moment
+    // d'exporter, et dont la réponse change d'une fois sur l'autre (retour utilisateur). Les choix
+    // sont mémorisés, donc réexporter à l'identique reste un aller simple.
+    async openPdfExportDialog() {
+        const modal = document.getElementById('pdf-export-modal');
+        if (!modal) return this.exportPdf();
+        const bascule = (id, valeur) => {
+            const b = document.getElementById(id);
+            b.setAttribute('aria-checked', String(valeur));
+            b.onclick = () => b.setAttribute('aria-checked', String(b.getAttribute('aria-checked') !== 'true'));
+        };
+        bascule('pdf-opt-voicing', this.showVoicingPdf);
+        bascule('pdf-opt-diagrams', this.pdfDiagrams);
+        const sel = document.getElementById('pdf-opt-measures');
+        sel.innerHTML = [2, 3, 4, 5, 6, 8].map(n => `<option value="${n}"${n === this.pdfMeasuresPerLine ? ' selected' : ''}>${n}</option>`).join('');
+        modal.hidden = false;
+        this.lockBodyScroll();
+
+        const fermer = () => { modal.hidden = true; this.unlockBodyScroll(); this._pdfDialogCancel = null; };
+        this._pdfDialogCancel = fermer;
+        document.getElementById('pdf-export-cancel').onclick = fermer;
+        document.getElementById('pdf-export-go').onclick = () => {
+            this.setShowVoicingPdf(document.getElementById('pdf-opt-voicing').getAttribute('aria-checked') === 'true');
+            this.pdfDiagrams = document.getElementById('pdf-opt-diagrams').getAttribute('aria-checked') === 'true';
+            localStorage.setItem(PDF_DIAGRAMS_KEY, this.pdfDiagrams ? '1' : '0');
+            this.setPdfMeasuresPerLine(parseInt(sel.value, 10));
+            fermer();
+            this.exportPdf();
+        };
+    }
+
     async exportPdf() {
         // Le morceau doit être enregistré (avec un nom) pour pouvoir nommer le PDF en conséquence
         if (!getCurrentSongId()) {
@@ -8769,7 +8807,7 @@ class HarmoHubApp {
             btn.onclick = () => {
                 const action = btn.dataset.fileAction;
                 this.closeFileMenu();
-                if (action === 'pdf') this.exportPdf();
+                if (action === 'pdf') this.openPdfExportDialog();
                 else if (action === 'midi') this.exportMidi();
                 else if (action === 'audio') this.exportAudio();
                 else if (action === 'import-midi') this._midiInput.click();
@@ -9514,18 +9552,12 @@ class HarmoHubApp {
                 return;
             }
             this._lastTap = { section: d.section, index: d.index, time: now };
-            // Réglage « Un clic sur un accord » (voir GRID_CLICK_EDITS_KEY) : réglé sur « le
-            // modifier », le premier clic charge déjà l'accord. C'est tout ce qui restait de l'ancien
-            // mode Modification collant — une préférence, plus un état.
-            if (this.gridClickEdits) {
-                this.editChord(d.section, d.index);
-                // Comme un clic simple (voir selectChord) : fait entendre l'accord chargé — sans ça,
-                // ce réglage rendait la grille muette (retour utilisateur : "la lecture ne marche
-                // plus", en fait chaque clic éditait au lieu d'écouter).
-                if (this.autoplaySelect) this.playCurrent();
-            } else {
-                this.selectChord(d.section, d.index); // simple tap/clic = écouter
-            }
+            // UN SEUL comportement, sans réglage : simple clic = écouter, double-clic = modifier
+            // (voir plus haut). Un réglage « un clic sur un accord » proposait auparavant d'éditer dès
+            // le premier clic — retiré (retour utilisateur : « je veux une seule possibilité : double
+            // clic pour modifier »). Une préférence qui n'a qu'une bonne réponse n'est pas une
+            // préférence, c'est un choix à faire pour rien.
+            this.selectChord(d.section, d.index);
             return;
         }
         if (d.copy) {

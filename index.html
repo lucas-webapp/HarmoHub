@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608122340">
+    <link rel="stylesheet" href="style.css?v=202608130010">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -217,6 +217,45 @@
         </div>
     </div>
 
+    <!-- Ce qui doit figurer sur le PDF, demandé AU MOMENT de l'export (voir openPdfExportDialog dans
+         script.js) plutôt que réglé dans les Paramètres — retour utilisateur : « demander après clic
+         sur le bouton ce que je veux voir apparaître sur le pdf... ça prend trop de place dans les
+         paramètres ». C'est aussi la seule question qui change d'une fois sur l'autre : la grille pour
+         répéter n'a pas besoin des mêmes détails que celle qu'on donne à quelqu'un d'autre. Les choix
+         sont mémorisés d'un export au suivant, donc réexporter à l'identique reste un simple aller. -->
+    <div id="pdf-export-modal" class="settings-overlay" hidden>
+        <div class="settings-modal unsaved-modal" role="dialog" aria-modal="true" aria-labelledby="pdf-export-modal-title">
+            <div class="settings-header">
+                <h2 id="pdf-export-modal-title">Exporter en PDF</h2>
+            </div>
+            <div class="settings-body">
+                <div class="settings-content unsaved-modal-body">
+                    <p>Que faire figurer sur le PDF&nbsp;?</p>
+                    <div class="settings-toggle-row">
+                        <label for="pdf-opt-voicing">Position d'accord (O3-R1)</label>
+                        <button type="button" id="pdf-opt-voicing" class="switch" role="switch" aria-checked="false" aria-label="Position d'accord sur le PDF">
+                            <span class="switch-thumb"></span>
+                        </button>
+                    </div>
+                    <div class="settings-toggle-row">
+                        <label for="pdf-opt-diagrams">Diagrammes des accords</label>
+                        <button type="button" id="pdf-opt-diagrams" class="switch" role="switch" aria-checked="true" aria-label="Diagrammes des accords sur le PDF">
+                            <span class="switch-thumb"></span>
+                        </button>
+                    </div>
+                    <div class="settings-select-row">
+                        <label for="pdf-opt-measures">Mesures par ligne</label>
+                        <select id="pdf-opt-measures"></select>
+                    </div>
+                    <div class="unsaved-modal-actions">
+                        <button type="button" id="pdf-export-go" class="btn-blue">Exporter</button>
+                        <button type="button" id="pdf-export-cancel" class="btn-sec">Annuler</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="settings-overlay" class="settings-overlay" hidden>
         <div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
             <div class="settings-header">
@@ -225,25 +264,19 @@
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
                 </button>
             </div>
-            <div class="settings-tabs" role="tablist">
-                <button type="button" class="settings-tab" data-settings-tab="audio" role="tab" aria-selected="true" aria-controls="settings-panel-audio">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
-                    Son
-                </button>
-                <button type="button" class="settings-tab" data-settings-tab="display" role="tab" aria-selected="false" aria-controls="settings-panel-display">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-                    Affichage
-                </button>
-                <button type="button" class="settings-tab" data-settings-tab="files" role="tab" aria-selected="false" aria-controls="settings-panel-files">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
-                    Fichiers
-                </button>
-            </div>
+            <!-- Plus d'onglets (retour utilisateur : « j'aime bien la présentation en onglets, mais
+                 vu qu'il y a peu de paramètres, c'est peut-être pas nécessaire ») : trois onglets pour
+                 une dizaine de réglages obligeaient à deviner dans lequel se trouve celui qu'on cherche,
+                 alors que le tout tient en une page. Une seule colonne qui défile, un titre par
+                 groupe : on VOIT tout d'un coup, il n'y a plus rien à parcourir. -->
             <div class="settings-body">
                 <div class="settings-content">
+                    <h3 class="settings-group-title">Son</h3>
                     <div id="settings-panel-audio" class="settings-panel" data-settings-panel="audio"></div>
-                    <div id="settings-panel-display" class="settings-panel" data-settings-panel="display" hidden></div>
-                    <div id="settings-panel-files" class="settings-panel" data-settings-panel="files" hidden></div>
+                    <h3 class="settings-group-title">Affichage de la grille</h3>
+                    <div id="settings-panel-display" class="settings-panel" data-settings-panel="display"></div>
+                    <h3 class="settings-group-title">Mes morceaux</h3>
+                    <div id="settings-panel-files" class="settings-panel" data-settings-panel="files"></div>
                 </div>
             </div>
         </div>
@@ -876,7 +909,14 @@
                         </ul>
                     </div>
                     <div class="quick-add-row">
-                        <textarea id="quick-add-input" class="quick-add-input" rows="1" placeholder="Ajout rapide" autocomplete="off" autocapitalize="off" spellcheck="false" title="Un accord seul (ex. Cm7), une basse et/ou un voicing via « _ » (C_E, C_O4-R1-D2, C_D2...), plusieurs accords séparés par « / » (un par mesure), ou une ligne vide pour démarrer une nouvelle partie — voir l'aide dans Paramètres > Affichage"></textarea>
+                        <textarea id="quick-add-input" class="quick-add-input" rows="1" placeholder="Ajout rapide" autocomplete="off" autocapitalize="off" spellcheck="false" title="Un accord seul (ex. Cm7), une basse et/ou un voicing via « _ » (C_E, C_O4-R1-D2, C_D2...), plusieurs accords séparés par « / » (un par mesure), ou une ligne vide pour démarrer une nouvelle partie (voir le bouton d'aide à côté)"></textarea>
+                        <!-- L'aide de l'ajout rapide vivait dans Paramètres > Affichage : une aide n'est
+                             pas un réglage, et on la cherche ICI, au moment où on tape (retour
+                             utilisateur sur le rangement des paramètres). Même popover, juste déclenché
+                             depuis le champ qu'il explique. -->
+                        <button type="button" id="quick-add-help-btn" class="icon-btn" title="Comment utiliser l'ajout rapide" aria-label="Comment utiliser l'ajout rapide" aria-expanded="false">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.05V17h6v-2.25c0-.85.4-1.55 1-2.05A7 7 0 0 0 12 2Z"/></svg>
+                        </button>
                         <button type="button" id="quick-add-btn" class="icon-btn" title="Ajouter à la grille (Ctrl+Entrée) — « _ » pour une basse et/ou un voicing (C_E, C_O4-R1-D2), « / » pour plusieurs accords à la suite (C/Am/F/G), ligne vide pour une nouvelle partie" aria-label="Ajouter à la grille">
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                         </button>
@@ -1056,6 +1096,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608122340"></script>
+    <script src="script.js?v=202608130010"></script>
 </body>
 </html>

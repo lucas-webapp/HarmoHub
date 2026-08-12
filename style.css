@@ -764,37 +764,25 @@ body.body-scroll-locked { overflow: hidden !important; }
 /* Onglets Son/Affichage/Fichiers : un seul panneau visible à la fois (voir setSettingsTab dans
    script.js), pour ne plus faire défiler tout le reste (Fichiers, en particulier, peut être long)
    juste pour changer un réglage Son. */
-.settings-tabs {
-    display: flex;
-    gap: 4px;
-    padding: 10px 14px 0;
-    border-bottom: 1px solid var(--border);
-    flex: none;
-    /* Filet de sécurité si les 3 onglets ne tiennent pas dans la largeur du téléphone (voir aussi le
-       resserrement dédié dans @media max-width:640px ci-dessous) : glisser plutôt que de les faire
-       couper net par le overflow:hidden de .settings-modal (retour utilisateur : "Fichiers" à moitié
-       invisible, coupé à droite, sans aucun moyen d'accéder au reste). */
-    overflow-x: auto;
-}
-.settings-tab {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 9px 14px;
-    border: none;
-    border-radius: 8px 8px 0 0;
-    background: transparent;
+/* Titre de groupe dans la fenêtre Paramètres, en remplacement des trois onglets (voir index.html) :
+   Son / Affichage de la grille / Mes morceaux. Une dizaine de réglages tiennent en une page — un
+   onglet coûtait un clic ET une devinette pour chaque réglage cherché. Collant en haut du défilement
+   pour qu'on sache toujours dans quel groupe on se trouve quand la liste des morceaux est longue. */
+.settings-group-title {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    margin: 22px 0 10px;
+    padding: 6px 0;
+    background: var(--card-bg, #141414);
+    font-size: var(--fs-xs);
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
     color: var(--text-muted);
-    font-size: var(--fs-sm);
-    font-weight: 600;
-    cursor: pointer;
+    border-bottom: 1px solid var(--border);
 }
-.settings-tab:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.04); }
-.settings-tab[aria-selected="true"] {
-    color: var(--text-main);
-    background: var(--card-bg-2, rgba(255, 255, 255, 0.06));
-    box-shadow: inset 0 -2px 0 var(--accent);
-}
+.settings-content > .settings-group-title:first-child { margin-top: 0; }
 
 .settings-body {
     display: flex;
@@ -915,6 +903,50 @@ body.body-scroll-locked { overflow: hidden !important; }
 }
 .settings-toggle-row label { font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); }
 
+/* Repli « Options avancées », en fin de groupe Son et de groupe Affichage (retour utilisateur :
+   « certaines options peuvent être optimisées dans des paramètres plus poussés »). Un <details>
+   natif : replié à chaque ouverture des Paramètres, donc la page ne montre d'emblée que les
+   réglages courants, et le rare reste à un clic. Volontairement discret — c'est une porte, pas un
+   réglage : pas de fond de carte, juste un liseré au-dessus qui le sépare du groupe. */
+.settings-advanced {
+    margin: 0 0 22px;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+}
+.settings-advanced > summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    list-style: none;
+    /* 40px de haut : c'est une cible à toucher au doigt, pas seulement à cliquer — le texte seul
+       ne faisait que 27px sur téléphone. */
+    min-height: 40px;
+    padding: 4px 0;
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    color: var(--text-muted);
+    opacity: 0.8;
+    user-select: none;
+}
+.settings-advanced > summary::-webkit-details-marker { display: none; }
+/* Chevron dessiné en CSS (pas d'icône à charger) : il pivote vers le bas une fois déplié. */
+.settings-advanced > summary::before {
+    content: '';
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform 0.15s ease;
+}
+.settings-advanced[open] > summary::before { transform: rotate(45deg); }
+.settings-advanced > summary:hover { opacity: 1; color: var(--text); }
+.settings-advanced-body { padding-top: 14px; }
+/* Le dernier réglage du repli ne doit pas rajouter sa marge sous le liseré du groupe suivant. */
+.settings-advanced-body > *:last-child { margin-bottom: 0; }
+
 /* Interrupteur on/off générique (Paramètres) */
 .switch {
     position: relative;
@@ -948,26 +980,11 @@ body.body-scroll-locked { overflow: hidden !important; }
     .file-actions { flex-wrap: wrap; justify-content: flex-end; }
     .file-folder-select { width: 92px; }
 
-    /* Fenêtre Paramètres sur téléphone (retour utilisateur : les 3 onglets Son/Affichage/Fichiers ne
-       tenaient pas dans la largeur, "Fichiers" coupé de moitié) : moins de marge autour de la
-       fenêtre pour lui laisser toute la largeur utile, et des onglets un cran plus compacts. */
+    /* Fenêtre Paramètres sur téléphone : moins de marge autour pour lui laisser toute la largeur
+       utile. Les trois onglets Son/Affichage/Fichiers, qui ne tenaient pas dans cette largeur
+       ("Fichiers" coupé de moitié), n'existent plus — une seule page qui défile les remplace, voir
+       .settings-group-title. */
     .settings-overlay { padding: 8px; }
-    .settings-tabs { gap: 2px; padding: 8px 8px 0; }
-    .settings-tab {
-        padding: 8px 10px;
-        gap: 5px;
-        font-size: var(--fs-xs);
-        /* La VRAIE cause du dépassement : le bouton générique (voir button{} plus haut) impose
-           min-width:120px ET flex:1 à TOUS les boutons, y compris ces onglets — chacun forcé à au
-           moins 120px même pour "Son" (3 lettres), 3×120px dépassant largement la largeur d'un
-           téléphone. Resserrer seul le padding/la police (déjà tenté) ne changeait donc rien tant
-           que cette contrainte-là restait en place. Sur desktop, où il y a largement la place,
-           .settings-tab garde le comportement par défaut (colonnes égales) — ce resserrement ne
-           change rien à ce qui marchait déjà là-bas. */
-        min-width: 0;
-        flex: none;
-    }
-
 }
 
 main {
