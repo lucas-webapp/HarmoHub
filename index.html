@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608121306">
+    <link rel="stylesheet" href="style.css?v=202608121706">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -307,22 +307,16 @@
         <div class="seq-zoom-modal grid-zoom-modal" role="dialog" aria-modal="true" aria-labelledby="grid-zoom-title">
             <div class="settings-header">
                 <h2 id="grid-zoom-title">Grille d'accords</h2>
-                <!-- Accord/Grille/Boucle/Stop, identiques aux vrais boutons du pied de colonne (mêmes
-                     méthodes appelées, jamais dupliquées) — la loupe masque ce pied de colonne derrière
-                     elle, il fallait sinon la fermer pour lire quoi que ce soit (retour utilisateur). -->
+                <!-- Grille/Boucle/Stop, identiques aux vrais boutons du transport global (mêmes
+                     méthodes appelées, jamais dupliquées) — la loupe masque #global-transport derrière
+                     elle (voir body.body-scroll-locked en CSS), il fallait sinon la fermer pour lire
+                     quoi que ce soit (retour utilisateur). Plus de bouton « Accord » ici non plus
+                     (retour utilisateur, voir #global-transport) — icône simplifiée au passage. -->
                 <div class="zoom-header-actions grid-zoom-transport">
-                    <button type="button" id="grid-zoom-play-chord" class="btn-prog grid-zoom-transport-btn" title="Lire l'accord sélectionné/en édition (comme le bouton Accord)" aria-label="Lire l'accord sélectionné/en édition">
+                    <button type="button" id="grid-zoom-play-prog" class="btn-prog grid-zoom-transport-btn" title="Lecture" aria-label="Lecture">
                         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
                     </button>
-                    <button type="button" id="grid-zoom-play-prog" class="btn-prog grid-zoom-transport-btn" title="Lire toute la grille (comme le bouton Grille)" aria-label="Lire toute la grille">
-                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M2 5v14l8-7z" fill="currentColor"/>
-                            <rect x="13" y="6" width="9" height="2.8" rx="1.4" fill="currentColor"/>
-                            <rect x="13" y="10.9" width="9" height="2.8" rx="1.4" fill="currentColor"/>
-                            <rect x="13" y="15.8" width="9" height="2.8" rx="1.4" fill="currentColor"/>
-                        </svg>
-                    </button>
-                    <button type="button" id="grid-zoom-loop" class="icon-btn" title="Boucler la partie active (bouton Grille)" aria-label="Boucler la partie active">
+                    <button type="button" id="grid-zoom-loop" class="icon-btn" title="Boucler la partie active" aria-label="Boucler la partie active">
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
                     </button>
                     <button type="button" id="grid-zoom-stop" class="btn-stop grid-zoom-transport-btn" title="Stop" aria-label="Stop">
@@ -783,26 +777,12 @@
 
             </div>
 
+            <!-- Ne contient plus que Ajouter/À la suite/Annuler (voir updateEditActionsDocking) : la
+                 lecture a déménagé dans #global-transport, une barre flottante commune à toute la page
+                 plutôt qu'ancrée au bas de CETTE colonne (retour utilisateur : « je dois trop déplacer
+                 la souris pour cliquer » — en cliquant dans la grille à droite, atteindre un bouton
+                 ancré tout en bas du panneau de gauche demandait un vrai trajet). -->
             <div class="dock" id="footer-dock">
-                <div class="transport">
-                    <button id="play" class="btn-prog transport-icon-btn" title="Lire l'accord sélectionné/en édition" aria-label="Lire l'accord sélectionné/en édition">
-                        <svg class="icon transport-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
-                    </button>
-                    <button id="play-prog" class="btn-prog transport-icon-btn" title="Lire toute la grille" aria-label="Lire toute la grille">
-                        <svg class="icon transport-icon" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M2 5v14l8-7z" fill="currentColor"/>
-                            <rect x="13" y="6" width="9" height="2.8" rx="1.4" fill="currentColor"/>
-                            <rect x="13" y="10.9" width="9" height="2.8" rx="1.4" fill="currentColor"/>
-                            <rect x="13" y="15.8" width="9" height="2.8" rx="1.4" fill="currentColor"/>
-                        </svg>
-                    </button>
-                    <button type="button" id="toggle-loop-section" class="icon-btn" title="Boucler la partie active (bouton Grille)" aria-label="Boucler la partie active">
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-                    </button>
-                    <button id="stop" class="btn-stop transport-icon-btn" title="Stop" aria-label="Stop">
-                        <svg class="icon transport-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
-                    </button>
-                </div>
             </div>
         </div>
 
@@ -998,6 +978,35 @@
         </div>
     </main>
     <div id="print-export" class="print-export"></div>
+
+    <!-- Transport GLOBAL, flottant en colonne verticale sur le bord DROIT de l'écran (retour
+         utilisateur : « je dois trop déplacer la souris pour cliquer », comme le transport fixe d'un
+         logiciel de MAO — puis, sur un premier essai posé en bas : « j'ai besoin de place en hauteur
+         pour bien voir la grille et séquenceur », d'où la colonne sur le bord plutôt qu'une barre en
+         bas, qui aurait mangé en permanence de la hauteur). Hors de .col-left/.col-right exprès, pour
+         rester au même endroit quel que soit l'endroit où l'on travaille (panneau de réglages à gauche
+         ou grille à droite) et quel que soit le défilement de l'une ou l'autre colonne. Masqué pendant
+         qu'une fenêtre plein écran est ouverte (loupe grille/séquenceur, Paramètres...), voir
+         body.body-scroll-locked en CSS : celles-ci gardent leur propre transport dupliqué dans leur
+         en-tête (voir .grid-zoom-transport), déjà nécessaire puisqu'elles recouvrent tout l'écran.
+         Un seul bouton de lecture (retour utilisateur : « le bouton lecture accord ne sert pas à
+         grand chose ») — plus besoin de le distinguer d'un second bouton, d'où l'icône simplifiée à un
+         simple triangle. Entendre UN SEUL accord en cours d'édition reste possible : bouton Lecture du
+         séquenceur (#seq-play, déjà équivalent quand aucune plage n'est à boucler) si le séquenceur
+         est ouvert, ou barre d'espace dans tous les cas (voir setupKeyboardShortcuts). -->
+    <div id="global-transport" class="global-transport">
+        <div class="transport">
+            <button id="play-prog" class="btn-prog transport-icon-btn" title="Lecture" aria-label="Lecture">
+                <svg class="icon transport-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+            </button>
+            <button type="button" id="toggle-loop-section" class="icon-btn" title="Boucler la partie active" aria-label="Boucler la partie active">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            </button>
+            <button id="stop" class="btn-stop transport-icon-btn" title="Stop" aria-label="Stop">
+                <svg class="icon transport-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
+            </button>
+        </div>
+    </div>
     <!-- Encodeur MP3 pur JS (LAME), utilisé uniquement par l'export audio (voir exportAudio dans
          script.js) — vendu en local plutôt qu'hébergé sur un CDN. Projet LAME (lame.sourceforge.net),
          licence LGPL. -->
@@ -1008,6 +1017,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608121306"></script>
+    <script src="script.js?v=202608121706"></script>
 </body>
 </html>

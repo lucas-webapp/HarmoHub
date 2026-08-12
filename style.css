@@ -1058,8 +1058,10 @@ main {
 .viz-wrap { order: 6; }
 .dock { order: 8; }
 
-/* Pied de colonne collant : contient la barre de lecture, et .edit-actions quand on édite un accord
-   (voir commentaire ci-dessus). Colonne verticale pour empiler les deux rangées de boutons. */
+/* Pied de colonne collant : ne contient plus que .edit-actions quand on édite un accord (la lecture a
+   déménagé dans #global-transport, voir plus bas) — reste sticky pour les mêmes raisons qu'avant :
+   ces boutons doivent rester visibles pendant l'édition, sans avoir à remonter le panneau qui peut
+   défiler. */
 .dock {
     position: sticky;
     bottom: 0;
@@ -1073,38 +1075,80 @@ main {
     backdrop-filter: blur(6px);
     border-top: 1px solid var(--border);
 }
+.dock:empty { display: none; } /* rien à afficher hors édition : pas de filet vide en bas du panneau */
+
+/* Transport de lecture (Lecture/Boucle/Stop) : DEUX hôtes possibles pour le même nœud, jamais dupliqué
+   (voir placeGlobalTransport dans script.js — même principe que placeSequencer). Sur TÉLÉPHONE, une
+   seule colonne à l'écran : il reste ancré dans .dock, pied de colonne collant comme avant (règles ci-
+   dessus). Sur ORDINATEUR (voir la media query plus bas), il déménage dans #global-transport, colonne
+   verticale flottante sur le bord DROIT plutôt qu'en bas de l'écran comme un premier essai : retour
+   utilisateur, « j'ai besoin de place en hauteur pour bien voir la grille et séquenceur » — une barre
+   en bas, même flottante, mange en permanence une bande de hauteur, la ressource la plus rare ici (voir
+   aussi la fenêtre épinglée du séquenceur, où la place verticale est déjà comptée). Une colonne sur le
+   bord ne coûte que de la LARGEUR, nettement moins disputée sur un écran d'ordinateur — et RÉSERVÉE
+   (voir main{padding-right} plus bas) : jamais posée par-dessus un vrai contrôle.
+   Pourquoi pas la même chose au téléphone ? Mesuré : centrée verticalement sur un écran de 390×780,
+   la boîte tombait pile sur #quick-add-btn ET le logo du bandeau du haut, les deux rendant
+   inatteignables (bug qui a fait planter Playwright). Sur un écran déjà étroit, il n'y a pas de bord à
+   réserver sans mordre sur le contenu — le pied de colonne collant, éprouvé, reste donc la solution
+   sur téléphone. */
+.global-transport {
+    position: fixed;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 45;
+    background: rgba(10, 10, 10, 0.95);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+/* Masqué pendant qu'une fenêtre plein écran est ouverte (loupe grille/séquenceur, Paramètres...) :
+   celles-ci gardent leur propre transport dupliqué dans leur en-tête (voir .grid-zoom-transport),
+   déjà nécessaire puisqu'elles recouvrent tout l'écran — deux transports visibles en même temps
+   prêterait à confusion. body.body-scroll-locked (voir lockBodyScroll/unlockBodyScroll) est déjà posé
+   à chaque ouverture de ce genre de fenêtre : même signal, pas de plomberie neuve. */
+body.body-scroll-locked .global-transport { display: none; }
+/* Rangée HORIZONTALE par défaut : c'est la forme voulue dans .dock, sur téléphone (une colonne pleine
+   largeur, mêmes proportions qu'avant). #global-transport (ordinateur) la passe en colonne verticale
+   ci-dessous, seul contexte où .transport change de sens. */
 .transport {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
 }
+.global-transport .transport { flex-direction: column; flex-wrap: nowrap; }
 .transport button, .add-section-btn {
     min-width: 0;
     flex: 1 1 0;
     padding: 13px 12px 13px 8px; /* contenu recentré, voir le commentaire sur le button de base */
     font-size: var(--fs-base);
 }
-/* Bouton « boucler la partie » : reste compact au milieu des boutons de lecture qui, eux, s'étirent —
-   même hauteur qu'eux (52px, voir .transport-icon-btn), juste moins large puisque moins important ;
-   carré (largeur = hauteur) plutôt que de suivre leur largeur. */
+/* Bouton « boucler la partie » : reste compact à côté du bouton Lecture, même hauteur que lui
+   (52px, voir .transport-icon-btn), carré plutôt qu'étiré. */
 .transport #toggle-loop-section {
     flex: none;
     width: 52px;
     height: 52px;
     padding: 0;
 }
-/* Accord/Grille/Stop : logos seuls (sans libellé, voir index.html) pour ne plus surcharger le pied
-   de colonne. Contrairement à #toggle-loop-section ci-dessus (carré fixe), ceux-ci S'ÉTIRENT
-   (flex: 1 1 0, hérité de ".transport button" — largeur min de sécurité seulement) pour occuper toute
-   la largeur disponible du pied de colonne, aussi bien sur téléphone (pleine largeur de l'écran) que
-   sur ordinateur (largeur fixe de .col-left) : cibles tactiles plus larges plutôt que 3 carrés perdus
-   à gauche avec du vide à droite. Sélecteur à 2 classes (spécificité 0,2,0) : l'emporte sur
-   ".transport button" (0,1,1) ci-dessus. */
+/* Lecture/Stop : logos seuls (sans libellé, voir index.html). Dans .dock (téléphone), ils S'ÉTIRENT
+   (flex: 1 1 0, hérité de ".transport button" ci-dessus) pour occuper toute la largeur de l'écran :
+   cibles tactiles plus larges plutôt que des carrés perdus avec du vide à côté. Dans #global-transport
+   (ordinateur), la boîte flottante se dimensionne à son propre contenu (voir .global-transport
+   ci-dessus) : plus de raison de s'étirer, une taille fixe carrée suffit — d'où le second sélecteur,
+   plus spécifique, qui l'emporte uniquement dans ce second contexte. */
 .transport .transport-icon-btn {
     flex: 1 1 0;
     min-width: 52px;
     height: 52px;
     padding: 0;
+}
+.global-transport .transport .transport-icon-btn {
+    flex: none;
+    width: 52px;
 }
 .transport-icon-btn .transport-icon {
     width: 22px;
@@ -3754,6 +3798,14 @@ select.song-select-narrow {
         min-height: 0;
         overflow: hidden;
         padding-bottom: 20px;
+        /* Réservé pour #global-transport (bord droit, voir plus bas) : sans cette marge, un élément
+           pleine largeur de la grille (ex. .add-section-btn) pouvait passer PILE sous le transport
+           flottant, à la hauteur qui dépend de la longueur du morceau — mesuré, avec seulement 3
+           accords. Réserver la largeur (100px, la boîte fait ~70px + sa marge de 14px du bord) rend
+           l'absence de recouvrement garantie, quelle que soit la hauteur de contenu — sans toucher à
+           la HAUTEUR disponible pour la grille/le séquenceur (retour utilisateur : « j'ai besoin de
+           place en hauteur »), seule la largeur, bien moins disputée ici, est concernée. */
+        padding-right: 100px;
     }
 
     /* Les colonnes redeviennent de vrais conteneurs (fin de l'aplatissement mobile) */

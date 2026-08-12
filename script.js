@@ -2988,6 +2988,12 @@ class HarmoHubApp {
         this.setupGridCellOctaveFloat();
         this.setupSequencerInteractions();
         this.setupSequencerPlacement();
+        // Placement initial (voir placeGlobalTransport) : contrairement au séquenceur, replacé à
+        // chaque renderSequencer(), le transport n'a pas de cycle de rendu propre — sans cet appel ici,
+        // il resterait à sa position de départ dans le HTML (.dock) même sur ordinateur, jusqu'au
+        // premier franchissement du seuil ordinateur/téléphone.
+        this.placeGlobalTransport();
+        this.setupGlobalTransportPlacement();
         this.setupKeyboardShortcuts();
         this.applySidebarCollapsed(); // reflète l'état mémorisé dès le premier rendu (bouton déjà câblé)
         // Avertissement natif du navigateur si on ferme/recharge la page avec des modifications non
@@ -3021,18 +3027,13 @@ class HarmoHubApp {
     }
 
     setupEventListeners() {
-        // Bouton « Accord » : tant qu'un accord de la grille est SÉLECTIONNÉ (simple clic) sans être
-        // EN COURS DE MODIFICATION (double-clic), on veut entendre CELUI-LÀ — pas l'accord « en train
-        // d'être défini » dans le panneau (readChord(), qui peut dater d'une modification précédente
-        // sans rapport). Dès qu'on modifie réellement (editingIndex non nul), le panneau redevient
-        // prioritaire : on y prévisualise les changements non enregistrés (voir editChord/playCurrent).
-        document.getElementById('play').onclick = () => {
-            if (this.editingIndex == null && this.selectedIndex != null) {
-                this.playSavedChord(this.activeSection, this.selectedIndex);
-            } else {
-                this.playCurrent();
-            }
-        };
+        // Ancien bouton « Accord » (lire seulement l'accord sélectionné/en édition) retiré du
+        // transport (retour utilisateur : « ne sert pas à grand chose », et l'appli le traitait déjà
+        // comme redondant dans un cas — voir updatePlayButtonsForLoopRange, qui le masquait déjà quand
+        // une plage à boucler rendait "Grille" équivalent). Ce que ce bouton faisait reste accessible :
+        // le bouton Lecture du séquenceur (#seq-play) joue déjà l'accord en cours d'édition quand
+        // aucune plage n'est à boucler, et la barre d'espace (voir setupKeyboardShortcuts) fait de même
+        // partout, sans bouton dédié à caser dans le transport.
         document.getElementById('save').onclick = () => this.saveCurrent();
         document.getElementById('save-insert').onclick = () => this.saveCurrent(this.selectedIndex);
 
@@ -3407,11 +3408,11 @@ class HarmoHubApp {
         });
         this._bindZoomButtons('grid', { inH: 'grid-zoom-in-h', outH: 'grid-zoom-out-h', inV: 'grid-zoom-in-v', outV: 'grid-zoom-out-v' });
 
-        // Accord/Grille/Boucle/Stop dans l'en-tête de la loupe grille (voir index.html) : déclenchent
-        // les VRAIS boutons du pied de colonne (.click()) plutôt que de réécrire leur logique à côté —
-        // un seul endroit à maintenir si elle change. La loupe masquait ce pied de colonne derrière
-        // elle, il fallait la fermer pour lire quoi que ce soit (retour utilisateur).
-        document.getElementById('grid-zoom-play-chord').onclick = () => document.getElementById('play').click();
+        // Grille/Boucle/Stop dans l'en-tête de la loupe grille (voir index.html) : déclenchent les
+        // VRAIS boutons du transport global (.click()) plutôt que de réécrire leur logique à côté — un
+        // seul endroit à maintenir si elle change. La loupe masque ce transport derrière elle (voir
+        // body.body-scroll-locked en CSS), il fallait la fermer pour lire quoi que ce soit (retour
+        // utilisateur).
         document.getElementById('grid-zoom-play-prog').onclick = () => document.getElementById('play-prog').click();
         document.getElementById('grid-zoom-stop').onclick = () => document.getElementById('stop').click();
         const gridZoomLoopBtn = document.getElementById('grid-zoom-loop');
@@ -5405,13 +5406,18 @@ class HarmoHubApp {
     // en train de modifier un accord existant ou non — pour que ces boutons restent toujours visibles
     // pendant l'édition, sans avoir à remonter le panneau de réglages qui peut défiler. Le nœud DOM lui-
     // même est déplacé (pas dupliqué) : un seul jeu de boutons, mêmes ids, mêmes écouteurs.
+    // `.dock` peut ou non contenir le transport de lecture selon la largeur d'écran (voir
+    // placeGlobalTransport) : sur ordinateur, il vit ailleurs (#global-transport) et .dock ne reçoit
+    // que ce bloc — simple ajout en dernier enfant. Sur téléphone, le transport reste dans .dock : on
+    // insère alors AVANT lui pour garder l'ordre d'origine (Ajouter/Annuler au-dessus de Lecture).
     updateEditActionsDocking() {
         const editActions = document.getElementById('edit-actions');
         const dock = document.getElementById('footer-dock');
-        const transport = dock && dock.querySelector('.transport');
-        if (!editActions || !dock || !transport) return;
+        if (!editActions || !dock) return;
         if (this.editingIndex != null) {
-            dock.insertBefore(editActions, transport);
+            const transportInDock = dock.querySelector('.transport');
+            if (transportInDock) dock.insertBefore(editActions, transportInDock);
+            else dock.appendChild(editActions);
         } else {
             const panelControls = document.querySelector('.panel-controls');
             panelControls.insertBefore(editActions, panelControls.lastElementChild);
@@ -6030,13 +6036,13 @@ class HarmoHubApp {
     // Lecture suffit alors, recoloré en orange pastel pour rappeler la bande. Rappelée à chaque
     // reconstruction de la grille (voir loadProgression, seul endroit qui suit TOUTE mutation de
     // this.loopRange), donc toujours cohérente avec l'état courant sans avoir à la rappeler ailleurs.
+    // Depuis le retrait du bouton « Accord » (un seul bouton Lecture désormais, voir
+    // #global-transport), il n'y a plus qu'UN bouton par transport à recolorer — mais la fonction
+    // garde son nom et son rôle : annoncer la plage à boucler sur le bouton Lecture lui-même.
     updatePlayButtonsForLoopRange() {
         const active = !!this.loopRange;
         const rangeTitle = 'Lire la plage à boucler';
-        const normalTitle = 'Lire toute la grille';
-
-        const play = document.getElementById('play');
-        if (play) play.hidden = active;
+        const normalTitle = 'Lecture';
 
         const playProg = document.getElementById('play-prog');
         if (playProg) {
@@ -6045,12 +6051,9 @@ class HarmoHubApp {
             playProg.setAttribute('aria-label', active ? rangeTitle : normalTitle);
         }
 
-        // Boutons jumeaux du transport de la loupe grille (voir index.html, .grid-zoom-transport) :
-        // se contentent de relayer un clic sur #play/#play-prog (voir leur .onclick), donc les cacher/
-        // recolorer pareil ici les garde visuellement cohérents avec le pied de colonne principal.
-        const zoomChord = document.getElementById('grid-zoom-play-chord');
-        if (zoomChord) zoomChord.hidden = active;
-
+        // Bouton jumeau du transport de la loupe grille (voir index.html, .grid-zoom-transport) : se
+        // contente de relayer un clic sur #play-prog (voir son .onclick), donc le recolorer pareil ici
+        // le garde visuellement cohérent avec le transport global.
         const zoomProg = document.getElementById('grid-zoom-play-prog');
         if (zoomProg) {
             zoomProg.classList.toggle('btn-loop-range', active);
@@ -11816,6 +11819,37 @@ class HarmoHubApp {
         else mq.addListener(onChange); // Safari < 14
     }
 
+    // Même principe que placeSequencer ci-dessus, pour le transport de lecture (Lecture/Boucle/Stop) :
+    // un seul nœud, déplacé (jamais dupliqué) entre .dock (téléphone, pied de colonne collant) et
+    // #global-transport (ordinateur, colonne flottante sur le bord droit — voir style.css). Mesuré :
+    // centrer cette colonne sur un écran de téléphone la posait pile sur #quick-add-btn et le logo du
+    // bandeau du haut, tous deux rendus inatteignables — d'où ce partage plutôt qu'un seul habillage
+    // pour les deux tailles d'écran.
+    placeGlobalTransport() {
+        const transport = document.querySelector('.transport');
+        const dock = document.getElementById('footer-dock');
+        const floating = document.getElementById('global-transport');
+        if (!transport || !dock || !floating) return;
+        const wide = window.matchMedia(SEQ_DOCK_MEDIA).matches;
+        if (wide) {
+            if (transport.parentElement !== floating) floating.appendChild(transport);
+        } else if (transport.parentElement !== dock) {
+            // En dernier enfant de .dock : édition en cours ou non, updateEditActionsDocking (voir
+            // plus haut) sait déjà placer .edit-actions AVANT ce nœud repère quand il faut l'insérer.
+            dock.appendChild(transport);
+        }
+    }
+
+    // Suit le franchissement du seuil ordinateur/téléphone pour replacer le transport (voir
+    // placeGlobalTransport) — même raison que setupSequencerPlacement ci-dessus : redimensionner la
+    // fenêtre peut basculer d'une mise en page à l'autre sans qu'aucun rendu ne soit déclenché.
+    setupGlobalTransportPlacement() {
+        const mq = window.matchMedia(SEQ_DOCK_MEDIA);
+        const onChange = () => this.placeGlobalTransport();
+        if (mq.addEventListener) mq.addEventListener('change', onChange);
+        else mq.addListener(onChange); // Safari < 14
+    }
+
     // Remet #arp-sequencer à sa place d'origine dans le volet Lecture (juste après #arpPattern,
     // voir index.html) — sans effet si la fenêtre agrandie n'était pas ouverte.
     closeSeqZoom() {
@@ -11993,9 +12027,10 @@ class HarmoHubApp {
 
     applySidebarCollapsed() {
         document.body.classList.toggle('sidebar-collapsed', this.sidebarCollapsed);
-        // #footer-dock (Accord/Grille/Boucle/Stop) vit normalement en dernier enfant de .col-left —
-        // le masquer avec le reste du panneau rendrait la lecture/l'arrêt inaccessibles tant que la
-        // grille est en plein écran. Déplacé (jamais dupliqué, même principe qu'openGridZoom/
+        // #footer-dock (Ajouter/À la suite/Annuler pendant une édition — la lecture, elle, vit dans
+        // #global-transport, hors colonne, toujours accessible) vit normalement en dernier enfant de
+        // .col-left — le masquer avec le reste du panneau rendrait ces actions inaccessibles tant que
+        // la grille est en plein écran. Déplacé (jamais dupliqué, même principe qu'openGridZoom/
         // openSeqZoom) dans .col-right pendant que le panneau est masqué, remis à sa place à la
         // réouverture. Sans effet sur mobile (col-left n'y est de toute façon qu'un display:contents,
         // voir le garde-fou de la règle CSS elle-même) mais inoffensif d'y déplacer le nœud quand même.
