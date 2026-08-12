@@ -2198,26 +2198,33 @@ button:active { transform: translateY(1px); }
 }
 .guitar-override-input:focus { outline: none; }
 
-/* Un SEUL bouton d'échange de fichiers, ancré en bas à droite du bloc piano. Il y avait ici six
-   boutons posés chacun à un décalage fixe depuis le bord droit (0, 32, 64, 96, 128, 160) : illisible
-   — six pictogrammes voisins dont deux quasi identiques et de sens opposés (les deux MIDI) —,
-   coûteux à maintenir (ajouter un bouton obligeait à décaler tous ses voisins) et injouable au doigt
-   (26x26px mesurés, contre 44 recommandés). Tout est passé derrière un menu à libellés, voir
-   openFileMenu. Étiqueté, comme l'était le bouton Lyrics : un pictogramme seul ne dit pas assez. */
+/* Le bouton d'échange de fichiers, ancré en bas à droite du bloc piano. Il y avait ici six boutons
+   posés chacun à un décalage fixe depuis le bord droit (0, 32, 64, 96, 128, 160) : illisible — six
+   pictogrammes voisins dont deux quasi identiques et de sens opposés (les deux MIDI) —, coûteux à
+   maintenir (ajouter un bouton obligeait à décaler tous ses voisins) et injouable au doigt (26x26px
+   mesurés, contre 44 recommandés). Tout est passé derrière un menu à libellés, voir openFileMenu.
+   Étiqueté : un pictogramme seul ne dit pas assez. #lyrics-btn (Paroles, retour utilisateur : "sortir
+   Paroles du bouton fichiers") vit maintenant À CÔTÉ, dans le même conteneur — flex plutôt que deux
+   positions absolues codées en dur, pour que la largeur de chaque bouton (variable avec sa police)
+   ne fasse jamais chevaucher l'autre. */
 .viz-wrap {
     position: relative;
     padding-bottom: 34px;
 }
-.file-menu-btn {
+.viz-export-actions {
     position: absolute;
     right: 0;
     bottom: 0;
+    display: flex;
+    gap: 8px;
+}
+.file-menu-btn, .lyrics-btn {
     width: auto;
     height: 26px;
     padding: 0 10px 0 7px;
     gap: 5px;
 }
-.file-menu-btn .btn-label { font-size: var(--fs-xs); font-weight: 700; }
+.file-menu-btn .btn-label, .lyrics-btn .btn-label { font-size: var(--fs-xs); font-weight: 700; }
 
 /* Entrées du menu Fichier : libellé + précision en dessous. Une ligne pleine largeur se vise sans
    effort au doigt, là où les pictogrammes de 26px ne s'atteignaient pas. */

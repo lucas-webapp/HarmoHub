@@ -275,6 +275,7 @@ function loadSong(data) {
     document.getElementById('toolbar').hidden = false;
     document.getElementById('btn-export-pdf').hidden = false;
     document.getElementById('btn-export-text').hidden = false;
+    document.getElementById('btn-copy-text').hidden = false;
     const nameEl = document.getElementById('song-name');
     nameEl.hidden = false;
     nameEl.textContent = data.song;
@@ -370,14 +371,17 @@ async function exportLyricsPdf() {
 }
 document.getElementById('btn-export-pdf').addEventListener('click', () => exportLyricsPdf());
 
-// Export texte brut : lisible n'importe où (éditeur de texte, mail, autre appareil), pas seulement
-// dans un navigateur — contrairement à Imprimer/PDF. Liste les accords de chaque partie PUIS ses
-// paroles telles quelles, sans tenter de reproduire au caractère près le placement visuel (une
-// reconstruction fiable en ASCII demanderait de rejouer toute la mise en page du texte — bien plus
-// fragile que de laisser le navigateur l'afficher lui-même, voir les pastilles à l'écran/à
-// l'impression) : ce fichier sert de sauvegarde/référence portable, pas de copie exacte de la vue.
-document.getElementById('btn-export-text').addEventListener('click', () => {
-    if (!state.song) return;
+// Texte brut, lisible n'importe où (éditeur de texte, mail, autre appareil), pas seulement dans un
+// navigateur — contrairement à Imprimer/PDF. Liste les accords de chaque partie PUIS ses paroles
+// telles quelles, sans tenter de reproduire au caractère près le placement visuel (une reconstruction
+// fiable en ASCII demanderait de rejouer toute la mise en page du texte — bien plus fragile que de
+// laisser le navigateur l'afficher lui-même, voir les pastilles à l'écran/à l'impression) : ce texte
+// sert de sauvegarde/référence portable, pas de copie exacte de la vue. Extrait en fonction : partagé
+// entre le téléchargement (#btn-export-text) et le copier-coller rapide (#btn-copy-text, retour
+// utilisateur : "je voudrais copier le texte écrit dans ce module, si je veux le mettre dans un Word
+// à part") — même contenu, seule la destination change.
+function buildPlainTextExport() {
+    if (!state.song) return '';
     const title = state.song.song || 'Sans titre';
     let out = `${title}\n${'='.repeat(title.length)}\n\n`;
     state.song.sections.forEach((sec, si) => {
@@ -387,7 +391,13 @@ document.getElementById('btn-export-text').addEventListener('click', () => {
         const lyrics = (state.sectionEls[si].text.innerText || '').trim();
         out += lyrics ? `\n${lyrics}\n\n` : '\n';
     });
-    const blob = new Blob([out], { type: 'text/plain;charset=utf-8' });
+    return out;
+}
+
+document.getElementById('btn-export-text').addEventListener('click', () => {
+    if (!state.song) return;
+    const title = state.song.song || 'Sans titre';
+    const blob = new Blob([buildPlainTextExport()], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -396,6 +406,35 @@ document.getElementById('btn-export-text').addEventListener('click', () => {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+});
+
+// Copie directement dans le presse-papiers (navigator.clipboard, HTTPS/localhost uniquement — voir
+// repli ci-dessous) : plus rapide qu'ouvrir le fichier téléchargé pour le recoller ailleurs (Word,
+// mail...). Même contenu que le fichier .txt, juste une autre destination.
+document.getElementById('btn-copy-text').addEventListener('click', async (e) => {
+    if (!state.song) return;
+    const texte = buildPlainTextExport();
+    const btn = e.currentTarget;
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(texte);
+        } else {
+            // Repli pour les contextes sans l'API Clipboard (ex. HTTP non sécurisé) : un <textarea>
+            // hors-écran, sélectionné puis copié via la commande legacy — fonctionne partout.
+            const ta = document.createElement('textarea');
+            ta.value = texte;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+        }
+        showBanner('Texte copié dans le presse-papiers.', 'info'); // pas de variante "success" définie (voir showBanner/.banner-*) — "info" (teinte verte) est déjà la bonne connotation ici
+    } catch (err) {
+        console.error('Copie dans le presse-papiers impossible :', err);
+        showBanner('Copie impossible — le bouton "Exporter en texte" reste disponible en secours.', 'error');
+    }
 });
 
 // ---------- Récupération automatique depuis HarmoHub (même navigateur) ----------

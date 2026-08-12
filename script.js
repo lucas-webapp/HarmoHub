@@ -3614,8 +3614,11 @@ class HarmoHubApp {
             if (changed) this.loadProgression();
         });
 
-        // Tout ce qui entre ou sort de l'appli passe par un seul menu (voir openFileMenu).
+        // Tout ce qui entre ou sort de l'appli passe par un seul menu (voir openFileMenu) — SAUF
+        // Paroles, ressorti dans son propre bouton juste à côté (retour utilisateur : "il n'a pas
+        // trop sa place dans le bouton fichiers").
         document.getElementById('file-menu-btn').onclick = (e) => this.openFileMenu(e.currentTarget);
+        document.getElementById('lyrics-btn').onclick = () => this.exportLyricsData();
         // Le champ de fichier reste caché : c'est une entrée de menu qui le déclenche, un champ de
         // fichier natif ne se mettant pas au style du reste.
         const midiInput = document.getElementById('import-midi-input');
@@ -8623,11 +8626,14 @@ class HarmoHubApp {
     // plus se mélanger.
     openFileMenu(anchorEl) {
         const menu = document.getElementById('file-menu');
+        // 'lyrics' (Ouvrir dans Paroles) ressorti d'ici dans son propre bouton (#lyrics-btn, voir
+        // setupEventListeners) — retour utilisateur : "il n'a pas trop sa place dans le bouton
+        // fichiers", le seul export d'ici qui mène vers un AUTRE outil plutôt qu'un simple fichier
+        // téléchargé.
         const entrees = [
             { id: 'pdf', label: 'Exporter en PDF', hint: 'Grille imprimable' },
             { id: 'midi', label: 'Exporter en MIDI', hint: 'Pour un DAW (GarageBand…)' },
             { id: 'audio', label: 'Exporter en MP3', hint: 'Rendu audio du morceau' },
-            { id: 'lyrics', label: 'Ouvrir dans Paroles', hint: 'Placer les accords sur un texte' },
             { id: 'backup', label: 'Sauvegarder en local', hint: 'Ce morceau ou la bibliothèque' },
             { sep: true },
             { id: 'import-midi', label: 'Importer un MIDI', hint: 'En déduire une grille d\'accords' },
@@ -8643,7 +8649,6 @@ class HarmoHubApp {
                 if (action === 'pdf') this.exportPdf();
                 else if (action === 'midi') this.exportMidi();
                 else if (action === 'audio') this.exportAudio();
-                else if (action === 'lyrics') this.exportLyricsData();
                 // La portée de la sauvegarde (ce morceau / toute la bibliothèque) reste un second
                 // choix, ancré sur le bouton du menu : on ne devine pas à la place de l'utilisateur.
                 else if (action === 'backup') this.openBackupScopeMenu(anchorEl);
