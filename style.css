@@ -1156,18 +1156,22 @@ body.body-scroll-locked .global-transport { display: none; }
 }
 
 /* Titre d'accord + bascule piano/guitare sur la même ligne (voir retour utilisateur : la bascule en
-   pleine largeur prenait trop de place) — bascule calée à droite, hauteur au contenu. */
+   pleine largeur prenait trop de place) — bascule calée à droite, hauteur au contenu. flex-wrap :
+   #guitar-override-row (accord de substitution manuel, voir plus bas) vit maintenant ICI, à côté de
+   #current-chord-display — un écran étroit doit pouvoir le laisser passer à la ligne plutôt que tout
+   compresser sur une seule. */
 .chord-header-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 10px;
     margin-bottom: 14px;
 }
 
 /* Le grand titre d'origine (fs-2xl, empilé nom/notes) prenait beaucoup de place — retour utilisateur,
-   qui a préféré le petit bandeau compact posé au-dessus du diagramme guitare (voir
-   #guitar-override-row/.chord-chip-sm plus bas) et a demandé de reprendre CE visuel ici aussi : un
-   seul "chip" bordé, nom + notes CÔTE À CÔTE plutôt qu'empilés. #current-chord-display reste le simple
+   qui a préféré le petit bandeau compact posé à l'origine au-dessus du diagramme guitare (voir
+   #guitar-override-row plus bas) et a demandé de reprendre CE visuel ici aussi : un seul "chip"
+   bordé, nom + notes CÔTE À CÔTE plutôt qu'empilés. #current-chord-display reste le simple
    conteneur qui centre ce chip dans .chord-header-row (voir flex:1 ci-dessous) ; c'est .chord-chip
    lui-même qui porte le cadre. */
 #current-chord-display {
@@ -1179,11 +1183,11 @@ body.body-scroll-locked .global-transport { display: none; }
 }
 
 /* "Chip" partagé par le titre piano (#current-chord-display) ET le bandeau de substitution guitare
-   (#guitar-override-row, voir renderGuitarOverrideRow) — même cadre, même fond discret. Un seul
-   modificateur (.chord-chip-sm) réduit la taille de police pour la guitare : le titre piano reste
-   la référence PRINCIPALE (retour utilisateur, point 1 : "police légèrement plus grosse que la
-   police accord modifié" — .chord-chip seul, sans le modificateur, sert donc de taille "normale" au
-   piano ; .chord-chip-sm, un cran en dessous, à la guitare). */
+   (#guitar-override-row, voir renderGuitarOverrideRow) — même cadre, même fond discret, et depuis peu
+   la MÊME taille de police (l'ancien modificateur .chord-chip-sm, qui réduisait celle de la guitare,
+   a été retiré — retour utilisateur : "le titre... n'est pas de la même taille que le nom de l'accord
+   au piano"). Les deux "chips" vivent maintenant côte à côte dans .chord-header-row (voir index.html),
+   d'où l'alignement gratuit une fois la taille identique. */
 .chord-chip {
     display: inline-flex;
     align-items: center;
@@ -1202,7 +1206,6 @@ body.body-scroll-locked .global-transport { display: none; }
     font-weight: 700;
     white-space: nowrap;
 }
-.chord-chip-sm .chord-title { font-size: var(--fs-sm); }
 
 /* Chaque note est son propre "chip" : l'espace généreux (gap) ne sépare QUE les notes entre elles,
    jamais les caractères à l'intérieur d'une même note (le ♭ doit rester collé à sa lettre) — d'où
@@ -1219,7 +1222,6 @@ body.body-scroll-locked .global-transport { display: none; }
     padding-left: 10px;
     border-left: 1px solid rgba(255, 255, 255, 0.18);
 }
-.chord-chip-sm .chord-notes { font-size: var(--fs-xs); }
 .chord-note { white-space: nowrap; }
 /* Même code couleur que le clavier/la légende (voir .key.active.role-*/.dot-*), en pâle pour rester
    discret à cette taille de texte plutôt que reprendre les teintes vives du clavier. */
@@ -2063,11 +2065,18 @@ button:active { transform: translateY(1px); }
 .dot-seventh { background: linear-gradient(180deg, #ffc247, #cc8f00); }
 .dot-ext     { background: linear-gradient(180deg, #dba8ee, #c48ce6); }
 
+/* align-items:center (pas flex-start) : le clavier (48px de haut, volontairement réduit — voir
+   .piano-container) est bien plus bas que le diagramme guitare (~105px). Calés en haut, le clavier
+   flottait tout seul contre le bord supérieur avec un grand vide en dessous, pendant que la guitare
+   occupait tout le reste — une paire déséquilibrée plutôt que deux diagrammes "côte à côte" (retour
+   utilisateur : mauvaise répartition sur ordinateur). Centrés sur leur axe commun, l'écart de hauteur
+   se répartit également au-dessus et en dessous du plus petit des deux : la paire se lit enfin comme
+   un vrai groupe. */
 .viz-diagrams {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    align-items: flex-start;
+    align-items: center;
     gap: 24px;
     min-width: 0;
 }
@@ -2139,18 +2148,27 @@ button:active { transform: translateY(1px); }
 }
 
 /* Accord de substitution à la guitare (voir #guitar-override-btn/renderGuitarOverrideRow dans
-   script.js) : petit bandeau discret au-dessus du diagramme, masqué tant qu'aucun substitut n'est
-   défini. Le cadre/fond eux-mêmes vivent désormais sur .chord-chip (voir plus haut, partagé avec
-   #current-chord-display) : cette rangée ne fait plus que centrer CE chip + la croix qui le referme,
-   délibérément HORS du cadre à sa droite (retour utilisateur, point 2 : "sortir la croix... du
-   rectangle") plutôt que collée dedans avec le nom/les notes. */
+   script.js), masqué tant qu'aucun substitut n'est défini. Le cadre/fond eux-mêmes vivent désormais
+   sur .chord-chip (voir plus haut, partagé avec #current-chord-display) : cette rangée ne fait plus
+   que centrer CE chip + la croix qui le referme, délibérément HORS du cadre à sa droite (retour
+   utilisateur, point 2 : "sortir la croix... du rectangle") plutôt que collée dedans avec le nom/les
+   notes. Vit désormais dans .chord-header-row, à côté de #current-chord-display (retour utilisateur :
+   posé au-dessus du seul diagramme guitare, ce titre n'était "ni aligné, ni de la même taille" que
+   celui du piano) — flex-basis:100% ici (téléphone) : partager la ligne du titre piano SUR UN ÉCRAN
+   ÉTROIT écrasait #current-chord-display (flex:1) au point de faire retomber ses notes en colonne
+   (plus assez de place pour C E G B côte à côte) ; passer systématiquement à la ligne du dessous garde
+   les DEUX chips lisibles, toujours "alignés" l'un sous l'autre plutôt que perdus l'un dans l'autre.
+   Réservé au mobile : repasse sur la même ligne dès qu'il y a la place, voir @media(min-width:900px)
+   plus bas. */
 .guitar-override-row {
     display: flex;
     align-items: center;
     justify-content: center;
+    flex: none;
+    flex-basis: 100%;
+    margin-top: 4px;
     flex-wrap: wrap;
     gap: 6px;
-    margin-bottom: 6px;
     max-width: 100%;
 }
 .guitar-override-row .icon-btn {
@@ -3870,6 +3888,10 @@ select.song-select-narrow {
         gap: 16px;
     }
     .chord-header-row { flex: none; }
+    /* Assez de largeur ici pour que #guitar-override-row reste sur la MÊME ligne que le titre piano
+       (voir base mobile plus haut, qui le fait passer à la ligne faute de place) : flex-basis:auto
+       annule le 100% du mobile, la ligne partagée redevient possible sans écraser le titre piano. */
+    .guitar-override-row { flex-basis: auto; margin-top: 0; }
     .viz-wrap { flex: none; }
     /* Piano et guitare toujours CÔTE À CÔTE sur ordinateur (jamais l'un sous l'autre comme
        .viz-diagrams le permettrait par défaut avec flex-wrap: wrap, voir plus haut) : la guitare,

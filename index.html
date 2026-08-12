@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608121706">
+    <link rel="stylesheet" href="style.css?v=202608121915">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -886,7 +886,16 @@
             <!-- Titre d'accord + boutons piano/guitare sur la MÊME ligne (voir retour utilisateur : les
                  boutons prenaient trop de place en pleine largeur) — bascule calée à GAUCHE (retour
                  utilisateur : rester à gauche, pas suivre le nombre de diagrammes ouverts), titre
-                 centré dans l'espace restant (voir #current-chord-display, flex:1 + text-align:center). -->
+                 centré dans l'espace restant (voir #current-chord-display, flex:1 + text-align:center).
+                 #guitar-override-row (accord de substitution manuel à la guitare, voir plus bas) vit
+                 ICI aussi, juste après #current-chord-display, plutôt que posé au-dessus du seul
+                 diagramme guitare : retour utilisateur, le titre de substitution n'était "ni aligné, ni
+                 de la même taille" que le nom de l'accord au piano — les deux titres partagent
+                 désormais la MÊME ligne, le MÊME "chip" (.chord-chip, sans le modificateur -sm, voir
+                 renderGuitarOverrideRow) : ils se lisent comme une vraie paire ("piano : X / guitare :
+                 Y"), plus comme un titre principal et une légende secondaire. flex-wrap ci-dessous
+                 (voir CSS) permet à ce second chip de passer à la ligne sur un écran étroit plutôt que
+                 de tout compresser. -->
             <div class="chord-header-row">
                 <div class="viz-toggle">
                     <button type="button" id="toggle-viz-piano" class="icon-btn viz-toggle-btn" title="Afficher le piano" aria-label="Afficher le piano" aria-pressed="true">
@@ -904,20 +913,15 @@
                     </button>
                 </div>
                 <div id="current-chord-display">--</div>
+                <!-- Rempli dynamiquement par renderGuitarOverrideRow (script.js) ; masqué tant qu'aucun
+                     substitut n'est défini pour l'accord affiché. -->
+                <div id="guitar-override-row" class="guitar-override-row" hidden></div>
             </div>
 
             <div class="viz-wrap">
                 <div class="viz-diagrams">
                     <section id="piano-viz" class="piano-container"></section>
                     <div id="guitar-viz-wrap" class="guitar-viz-wrap">
-                        <!-- Accord de substitution à la guitare (voir #guitar-override-btn/
-                             startGuitarOverrideEdit dans script.js) : rempli dynamiquement, masqué tant
-                             qu'aucun substitut n'est défini pour l'accord affiché — un seul accord noté
-                             pour piano + guitare, comme avant cette fonctionnalité (retour utilisateur,
-                             point 3 : "le nom de l'accord et notes associées doivent être inscrits
-                             au-dessus du diagramme guitare", uniquement "dans le cas d'une modification
-                             manuelle"). -->
-                        <div id="guitar-override-row" class="guitar-override-row" hidden></div>
                         <div id="guitar-viz" class="guitar-container"></div>
                         <!-- Flèches de doigté + cadenas + crayon de substitution sur la MÊME ligne (retour
                              utilisateur : la guitare prend déjà plus de hauteur que le piano, pas besoin
@@ -1017,6 +1021,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608121706"></script>
+    <script src="script.js?v=202608121915"></script>
 </body>
 </html>

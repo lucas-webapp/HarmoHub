@@ -4145,10 +4145,13 @@ class HarmoHubApp {
     // rien si aucun substitut n'est défini pour CET accord précis — comportement d'avant cette
     // fonctionnalité, un seul accord noté pour piano + guitare (retour utilisateur, point 3) — sinon
     // son nom et ses notes, pour voir tout de suite que la guitare diffère du piano. Même "chip"
-    // (.chord-chip) que #current-chord-display au-dessus du piano (retour utilisateur : "j'aime bien
-    // le visuel... peux-tu l'appliquer au piano également"), en plus petit (.chord-chip-sm) — et la
-    // croix qui referme le substitut délibérément HORS du cadre, à sa droite (retour utilisateur,
-    // point 2), plutôt que collée dedans avec le nom/les notes.
+    // (.chord-chip) que #current-chord-display, MÊME taille désormais — plus de modificateur -sm : le
+    // titre vivait avant au-dessus du seul diagramme guitare, plus petit et décalé plus bas que
+    // #current-chord-display, "ni aligné, ni de la même taille" (retour utilisateur) — les deux "chips"
+    // partagent maintenant la même ligne dans .chord-header-row (voir index.html), donc littéralement
+    // la même taille de police résout aussi l'alignement. La croix qui referme le substitut reste
+    // délibérément HORS du cadre, à sa droite (retour utilisateur, point 2), plutôt que collée dedans
+    // avec le nom/les notes.
     renderGuitarOverrideRow(override = this.guitarOverride) {
         const row = document.getElementById('guitar-override-row');
         const btn = document.getElementById('guitar-override-btn');
@@ -4162,7 +4165,7 @@ class HarmoHubApp {
         const chord = new Chord(override.root, override.quality, 4, override.inversion, override.drop, override.octave, override.bass);
         const useFlats = this.useFlatsForRoot(override.root);
         row.hidden = false;
-        row.innerHTML = `<span class="chord-chip chord-chip-sm"><span class="chord-title">${flatTight(chord.getLabel(useFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, useFlats)}</span></span><button type="button" id="guitar-override-clear" class="icon-btn" title="Revenir à l'accord réellement joué à la guitare" aria-label="Revenir à l'accord réellement joué à la guitare"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>`;
+        row.innerHTML = `<span class="chord-chip"><span class="chord-title">${flatTight(chord.getLabel(useFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, useFlats)}</span></span><button type="button" id="guitar-override-clear" class="icon-btn" title="Revenir à l'accord réellement joué à la guitare" aria-label="Revenir à l'accord réellement joué à la guitare"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>`;
         document.getElementById('guitar-override-clear').onclick = () => this.clearGuitarOverride();
         if (btn) { btn.classList.add('active'); btn.setAttribute('aria-pressed', 'true'); }
     }
