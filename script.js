@@ -3846,8 +3846,15 @@ class HarmoHubApp {
         const totalWhite = whiteMidis.length;
         // Largeur cible d'une blanche (≈17px, 50% de la taille d'origine pour mettre en valeur la
         // grille d'accords) -> le clavier ne s'étire pas sur les grands écrans, et reste réaliste ;
-        // sur mobile il rétrécit (width: 100%).
-        viz.style.maxWidth = `${totalWhite * 17}px`;
+        // sur mobile il rétrécit (width: 100%). Reportée aussi sur #piano-col (voir CSS, .piano-col) :
+        // #piano-viz n'est plus l'enfant flex DIRECT de .viz-diagrams depuis que #piano-col s'intercale
+        // entre les deux (pour accueillir le titre au-dessus, voir placeChordTitle) — sans cette même
+        // largeur posée ICI aussi, #piano-viz n'aurait plus rien de déterminé contre quoi résoudre son
+        // propre width:100%, et s'écraserait à son min-content (un clavier réduit à une lamelle).
+        const maxWidthPx = `${totalWhite * 17}px`;
+        viz.style.maxWidth = maxWidthPx;
+        const pianoCol = document.getElementById('piano-col');
+        if (pianoCol) pianoCol.style.maxWidth = maxWidthPx;
 
         // 2) Touches noires : largeur ≈62% d'une blanche, centrées sur la frontière (tout en %)
         const unit = 100 / totalWhite;      // largeur d'une blanche en % du clavier
@@ -4148,13 +4155,13 @@ class HarmoHubApp {
     // rien si aucun substitut n'est défini pour CET accord précis — comportement d'avant cette
     // fonctionnalité, un seul accord noté pour piano + guitare (retour utilisateur, point 3) — sinon
     // son nom et ses notes, pour voir tout de suite que la guitare diffère du piano. Même "chip"
-    // (.chord-chip) que #current-chord-display, MÊME taille désormais — plus de modificateur -sm : le
-    // titre vivait avant au-dessus du seul diagramme guitare, plus petit et décalé plus bas que
-    // #current-chord-display, "ni aligné, ni de la même taille" (retour utilisateur) — les deux "chips"
-    // partagent maintenant la même ligne dans .chord-header-row (voir index.html), donc littéralement
-    // la même taille de police résout aussi l'alignement. La croix qui referme le substitut reste
-    // délibérément HORS du cadre, à sa droite (retour utilisateur, point 2), plutôt que collée dedans
-    // avec le nom/les notes.
+    // (.chord-chip) que #current-chord-display, MÊME taille — plus de modificateur -sm (retour
+    // utilisateur : "le titre... n'est pas de la même taille que le nom de l'accord au piano"). La
+    // croix qui referme le substitut reste délibérément HORS du cadre, à sa droite (retour
+    // utilisateur, point 2), plutôt que collée dedans avec le nom/les notes — voir CSS,
+    // position:absolute pour qu'elle ne décale pas le CENTRAGE du chip lui-même.
+    // placeChordTitle() (voir plus bas) écoute indirectement cet état via row.hidden : appelée à
+    // chaque rendu pour décider si le titre piano doit descendre à côté de celui-ci.
     renderGuitarOverrideRow(override = this.guitarOverride) {
         const row = document.getElementById('guitar-override-row');
         const btn = document.getElementById('guitar-override-btn');
@@ -4163,6 +4170,7 @@ class HarmoHubApp {
             row.hidden = true;
             row.innerHTML = '';
             if (btn) { btn.classList.remove('active'); btn.setAttribute('aria-pressed', 'false'); }
+            this.placeChordTitle();
             return;
         }
         const chord = new Chord(override.root, override.quality, 4, override.inversion, override.drop, override.octave, override.bass);
@@ -4171,6 +4179,30 @@ class HarmoHubApp {
         row.innerHTML = `<span class="chord-chip"><span class="chord-title">${flatTight(chord.getLabel(useFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, useFlats)}</span></span><button type="button" id="guitar-override-clear" class="icon-btn" title="Revenir à l'accord réellement joué à la guitare" aria-label="Revenir à l'accord réellement joué à la guitare"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>`;
         document.getElementById('guitar-override-clear').onclick = () => this.clearGuitarOverride();
         if (btn) { btn.classList.add('active'); btn.setAttribute('aria-pressed', 'true'); }
+        this.placeChordTitle();
+    }
+
+    // Déplace #current-chord-display (jamais dupliqué, même principe que placeSequencer/
+    // placeGlobalTransport) entre .chord-header-row (par défaut, un seul titre partagé tout en haut)
+    // et #piano-col (au-dessus du diagramme piano) — retour utilisateur, ordinateur : "la disposition
+    // n'est pas logique... centre le nom de l'accord sur le diagramme : si accord de guitare en mode
+    // libre, décale le nom de l'accord du piano au-dessus du diagramme piano et centré". Un titre
+    // unique en haut n'a de sens que tant que piano ET guitare jouent le MÊME accord ; dès qu'un
+    // substitut sépare les deux (et que les deux diagrammes sont visibles pour comparer), chaque titre
+    // doit rester au-dessus de SON diagramme — #guitar-override-row vit déjà au-dessus de #guitar-viz
+    // (voir index.html), il ne reste qu'à faire pareil pour le piano.
+    placeChordTitle() {
+        const disp = document.getElementById('current-chord-display');
+        const pianoCol = document.getElementById('piano-col');
+        const headerRow = document.querySelector('.chord-header-row');
+        const overrideRow = document.getElementById('guitar-override-row');
+        if (!disp || !pianoCol || !headerRow || !overrideRow) return;
+        const split = !overrideRow.hidden && this.showPianoViz() && this.showGuitarViz();
+        if (split) {
+            if (disp.parentElement !== pianoCol) pianoCol.insertBefore(disp, pianoCol.firstChild);
+        } else if (disp.parentElement !== headerRow) {
+            headerRow.appendChild(disp);
+        }
     }
 
     // Appelée UNIQUEMENT par stopAll() — donc à CHAQUE lecture (avant même de démarrer la suivante,
@@ -4220,6 +4252,10 @@ class HarmoHubApp {
         if (disp) disp.style.display = (showPiano || showGuitar) ? '' : 'none';
         if (tPiano) { tPiano.classList.toggle('active', showPiano); tPiano.setAttribute('aria-pressed', showPiano); }
         if (tGuitar) { tGuitar.classList.toggle('active', showGuitar); tGuitar.setAttribute('aria-pressed', showGuitar); }
+        // Basculer piano/guitare change les conditions du partage de titre (voir placeChordTitle) :
+        // masquer l'un des deux diagrammes doit ramener le titre en haut, il n'y a plus rien à
+        // comparer avec le sien.
+        this.placeChordTitle();
     }
 
     stopAll() {
