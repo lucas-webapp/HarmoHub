@@ -6996,52 +6996,27 @@ class HarmoHubApp {
         this.settingsOpen = true;
         document.getElementById('settings-overlay').hidden = false;
         document.getElementById('open-settings').classList.add('active');
-        // Garantit que le panneau Fichiers est bien revenu ici (il vit temporairement dans la
-        // fenêtre « Mes morceaux » quand celle-ci est ouverte, voir placeFilesPanel).
-        this.placeFilesPanel();
         // Comme openGridZoom/openSeqZoom (voir lockBodyScroll) : sans ça, faire défiler le contenu
-        // des Paramètres (la liste des morceaux peut être longue) faisait aussi défiler l'arrière-plan
-        // de l'appli en dessous, surtout gênant sur téléphone (retour utilisateur).
+        // des Paramètres faisait aussi défiler l'arrière-plan de l'appli en dessous, surtout gênant
+        // sur téléphone (retour utilisateur).
         this.lockBodyScroll();
+        // Deux panneaux seulement : les Paramètres ne contiennent plus que des préférences, le
+        // gestionnaire de fichiers a sa propre fenêtre (voir openFilesWindow).
         this.renderAudioPanel();
         this.renderDisplayPanel();
-        this.renderFilesPanel();
-        this.updateGlobalUndoRedoButtons(); // le bouton unique repointe vers l'historique Fichiers
     }
 
-    // Le panneau Fichiers est visible depuis DEUX portes — les Paramètres, et la fenêtre « Mes
-    // morceaux » du module Morceau — mais c'est le même et unique panneau, simplement déplacé
-    // (voir placeFilesPanel). Tout ce qui doit réagir « quand la liste des fichiers est à l'écran »
-    // (re-rendu après un renommage, historique annuler/rétablir des fichiers...) interroge donc ceci
-    // plutôt que this.settingsOpen seul, sinon la fenêtre afficherait une liste figée.
-    get filesContextOpen() {
-        return this.settingsOpen || this.filesOpen;
-    }
-
-    // Déplace #settings-panel-files entre son emplacement d'origine (Paramètres) et la fenêtre
-    // « Mes morceaux ». DÉPLACÉ, jamais dupliqué : une seule liste, un seul câblage d'événements —
-    // deux copies auraient tôt fait de diverger (même principe que le séquenceur en vue agrandie).
-    placeFilesPanel() {
-        const panel = document.getElementById('settings-panel-files');
-        const fenetre = document.getElementById('files-window-host');
-        const origine = document.getElementById('settings-files-slot');
-        const titre = document.getElementById('files-group-title');
-        if (!panel || !fenetre || !origine) return;
-        const hote = this.filesOpen ? fenetre : origine;
-        if (panel.parentElement !== hote) hote.appendChild(panel);
-        // Sans ça, les Paramètres garderaient un intertitre « MES MORCEAUX » sans rien dessous
-        // pendant que le panneau est parti dans l'autre fenêtre.
-        if (titre) titre.hidden = this.filesOpen;
-    }
-
+    // Le gestionnaire de fichiers a QUITTÉ les Paramètres (retour utilisateur : « enlever les options
+    // de fichiers dans les paramètres maintenant qu'on a le bouton »). Un gestionnaire de fichiers
+    // n'est pas un réglage, et le garder aux deux endroits n'était qu'une seconde porte vers la même
+    // chose — le motif signalé deux fois (« plusieurs options se recroisent »). Il vit donc
+    // uniquement dans #files-overlay, ce qui a permis de supprimer tout l'aller-retour du panneau
+    // entre les deux fenêtres. Les Paramètres ne contiennent plus que des préférences.
     openFilesWindow() {
-        // Jamais les deux à la fois : la fenêtre emprunte le panneau des Paramètres.
-        if (this.settingsOpen) this.closeSettings();
         this.filesOpen = true;
         document.getElementById('files-overlay').hidden = false;
         document.getElementById('song-files').classList.add('active');
         this.lockBodyScroll();
-        this.placeFilesPanel();
         this.renderFilesPanel();
         this.updateGlobalUndoRedoButtons(); // le bouton unique repointe vers l'historique Fichiers
     }
@@ -7051,15 +7026,7 @@ class HarmoHubApp {
         document.getElementById('files-overlay').hidden = true;
         document.getElementById('song-files').classList.remove('active');
         this.unlockBodyScroll();
-        this.placeFilesPanel(); // le panneau retourne dans les Paramètres
         this.updateGlobalUndoRedoButtons();
-    }
-
-    // Referme la porte par laquelle la liste des fichiers est affichée, quelle qu'elle soit — utilisé
-    // par les actions qui quittent forcément la liste (ouvrir un morceau, par exemple).
-    closeFilesContext() {
-        if (this.filesOpen) this.closeFilesWindow();
-        else if (this.settingsOpen) this.closeSettings();
     }
 
     closeSettings() {
@@ -7522,10 +7489,10 @@ class HarmoHubApp {
     }
 
     async openSongFromFiles(id) {
-        if (id === (getCurrentSongId() || '')) { this.closeFilesContext(); return; }
+        if (id === (getCurrentSongId() || '')) { this.closeFilesWindow(); return; }
         if (!(await this.confirmDiscardUnsavedIfNeeded())) return;
         this.loadSong(id);
-        this.closeFilesContext();
+        this.closeFilesWindow();
     }
 
     // Édition en ligne du nom d'un morceau (au lieu d'un prompt() natif) : le texte devient un champ
@@ -7569,7 +7536,7 @@ class HarmoHubApp {
         saveSongs(songs.filter(s => s.id !== id));
         if (getCurrentSongId() === id) setCurrentSongId(null);
         this.refreshSongList();
-        if (this.filesContextOpen) this.renderFilesPanel();
+        if (this.filesOpen) this.renderFilesPanel();
     }
 
     moveSongToFolder(id, folder) {
@@ -7766,7 +7733,7 @@ class HarmoHubApp {
             if (allToAdd.length > 0) saveSongs([...existingSongs, ...allToAdd]);
             if (foldersChanged) saveFolders(mergedFolders);
             this.refreshSongList();
-            if (this.filesContextOpen) this.renderFilesPanel();
+            if (this.filesOpen) this.renderFilesPanel();
         }
 
         if (allToAdd.length === 0) {
@@ -7876,7 +7843,7 @@ class HarmoHubApp {
         saveFolders(prev.folders);
         saveSongs(prev.songs);
         this.refreshSongList();
-        if (this.filesContextOpen) this.renderFilesPanel();
+        if (this.filesOpen) this.renderFilesPanel();
         this.updateGlobalUndoRedoButtons();
         this.flashHint('Annulé');
     }
@@ -7888,7 +7855,7 @@ class HarmoHubApp {
         saveFolders(next.folders);
         saveSongs(next.songs);
         this.refreshSongList();
-        if (this.filesContextOpen) this.renderFilesPanel();
+        if (this.filesOpen) this.renderFilesPanel();
         this.updateGlobalUndoRedoButtons();
         this.flashHint('Rétabli');
     }
@@ -14079,13 +14046,13 @@ class HarmoHubApp {
     // Ctrl+Z/Ctrl+Y (voir setupKeyboardShortcuts) : fenêtre Fichiers ouverte > séquenceur ouvert >
     // grille par défaut.
     globalUndo() {
-        if (this.filesContextOpen) this.filesUndo();
+        if (this.filesOpen) this.filesUndo();
         else if (this.seqOpen) this.seqUndo();
         else this.undo();
     }
 
     globalRedo() {
-        if (this.filesContextOpen) this.filesRedo();
+        if (this.filesOpen) this.filesRedo();
         else if (this.seqOpen) this.seqRedo();
         else this.redo();
     }
@@ -14099,7 +14066,7 @@ class HarmoHubApp {
         const redoBtn = document.getElementById('global-redo-btn');
         if (!undoBtn || !redoBtn) return;
         let undoStack, redoStack;
-        if (this.filesContextOpen) { undoStack = this.filesUndoStack; redoStack = this.filesRedoStack; }
+        if (this.filesOpen) { undoStack = this.filesUndoStack; redoStack = this.filesRedoStack; }
         else if (this.seqOpen) { undoStack = this.seqUndoStack; redoStack = this.seqRedoStack; }
         else { undoStack = this.undoStack; redoStack = this.redoStack; }
         undoBtn.disabled = undoStack.length === 0;
@@ -14248,14 +14215,14 @@ class HarmoHubApp {
             // fenêtre Fichiers ouverte > séquenceur ouvert > grille d'accords par défaut.
             if (mod && !bloqueAnnulation && (e.key === 'z' || e.key === 'Z')) {
                 e.preventDefault();
-                if (this.filesContextOpen) { if (e.shiftKey) this.filesRedo(); else this.filesUndo(); }
+                if (this.filesOpen) { if (e.shiftKey) this.filesRedo(); else this.filesUndo(); }
                 else if (this.seqOpen) { if (e.shiftKey) this.seqRedo(); else this.seqUndo(); }
                 else { if (e.shiftKey) this.redo(); else this.undo(); }
                 return;
             }
             if (mod && !bloqueAnnulation && (e.key === 'y' || e.key === 'Y')) {
                 e.preventDefault();
-                if (this.filesContextOpen) this.filesRedo();
+                if (this.filesOpen) this.filesRedo();
                 else if (this.seqOpen) this.seqRedo();
                 else this.redo();
                 return;
