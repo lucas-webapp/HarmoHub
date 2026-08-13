@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608130400">
+    <link rel="stylesheet" href="style.css?v=202608130500">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -353,119 +353,14 @@
     <!-- Vue agrandie de la grille d'accords (voir openGridZoom/closeGridZoom dans script.js) : même
          principe que la vue agrandie du séquenceur ci-dessus — #progression-sections et le bouton
          "Ajouter une partie" sont DÉPLACÉS ici (jamais dupliqués) le temps que la fenêtre est
-         ouverte, puis remis à leur place d'origine à la fermeture. -->
-    <div id="grid-zoom-overlay" class="settings-overlay" hidden>
-        <div class="seq-zoom-modal grid-zoom-modal" role="dialog" aria-modal="true" aria-labelledby="grid-zoom-title">
-            <div class="settings-header">
-                <h2 id="grid-zoom-title">Grille d'accords</h2>
-                <!-- Grille/Boucle/Stop, identiques aux vrais boutons du transport global (mêmes
-                     méthodes appelées, jamais dupliquées) — la loupe masque #global-transport derrière
-                     elle (voir body.body-scroll-locked en CSS), il fallait sinon la fermer pour lire
-                     quoi que ce soit (retour utilisateur). Plus de bouton « Accord » ici non plus
-                     (retour utilisateur, voir #global-transport) — icône simplifiée au passage. -->
-                <div class="zoom-header-actions grid-zoom-transport">
-                    <button type="button" id="grid-zoom-play-prog" class="btn-prog grid-zoom-transport-btn" title="Lecture" aria-label="Lecture">
-                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
-                    </button>
-                    <button type="button" id="grid-zoom-loop" class="icon-btn" title="Boucler la partie active" aria-label="Boucler la partie active">
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-                    </button>
-                    <button type="button" id="grid-zoom-stop" class="btn-stop grid-zoom-transport-btn" title="Stop" aria-label="Stop">
-                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
-                    </button>
-                    <!-- Échelles H/V groupées ensemble (voir .btn-wrap-group) : sur téléphone, le
-                       groupe passe à la ligne EN BLOC si besoin plutôt que de séparer H et V l'un de
-                       l'autre au hasard du retour à la ligne (retour utilisateur : réarrangement pas
-                       optimal, "je pense qu'il faudrait voir les zooms à côté"). Le séparateur qui
-                       introduit ce groupe vit DEDANS (premier enfant), pas juste avant en dehors : sinon
-                       il reste seul en bout de la ligne PRÉCÉDENTE une fois le groupe entier passé à la
-                       ligne suivante, décalant le bord droit visible du groupe par rapport à celui de la
-                       ligne du dessous (retour utilisateur : "un petit décalage qui n'est pas joli" entre
-                       le bord droit de V et celui de Fermer). -->
-                    <div class="btn-wrap-group">
-                        <div class="grid-zoom-transport-sep"></div>
-                        <div class="zoom-axis-group" data-zoom-kind="grid" data-zoom-axis="x" title="Échelle horizontale (accords par ligne)">
-                            <span class="zoom-axis-tag">H</span>
-                            <button type="button" id="grid-zoom-in-h" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                            </button>
-                            <button type="button" id="grid-zoom-out-h" class="icon-btn zoom-axis-btn" title="Réduire l'échelle horizontale" aria-label="Réduire l'échelle horizontale">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>
-                            </button>
-                        </div>
-                        <div class="zoom-axis-group" data-zoom-kind="grid" data-zoom-axis="y" title="Échelle verticale">
-                            <span class="zoom-axis-tag">V</span>
-                            <button type="button" id="grid-zoom-in-v" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle verticale" aria-label="Agrandir l'échelle verticale">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                            </button>
-                            <button type="button" id="grid-zoom-out-v" class="icon-btn zoom-axis-btn" title="Réduire l'échelle verticale" aria-label="Réduire l'échelle verticale">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>
-                            </button>
-                        </div>
-                    </div>
-                    <!-- Annuler/Rétablir/Fermer groupés ensemble (voir .btn-wrap-group, même
-                       principe que le groupe H/V ci-dessus) : Annuler/Rétablir vivaient jusque-là
-                       loin de Fermer (séparés par le groupe de zoom), se retrouvant coupés l'un de
-                       l'autre par le retour à la ligne (retour utilisateur : "les undo redo et fermer
-                       à côté"). Relayés vers global-undo-btn/global-redo-btn — voir script.js. Le
-                       séparateur qui introduit ce groupe vit dedans, même raison que pour le groupe H/V
-                       ci-dessus (bord droit aligné d'une ligne à l'autre). -->
-                    <div class="btn-wrap-group">
-                        <div class="grid-zoom-transport-sep"></div>
-                        <button type="button" id="grid-zoom-undo" class="icon-btn" title="Annuler (Ctrl+Z)" aria-label="Annuler" disabled>
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
-                        </button>
-                        <button type="button" id="grid-zoom-redo" class="icon-btn" title="Rétablir (Ctrl+Y)" aria-label="Rétablir" disabled>
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
-                        </button>
-                        <button type="button" id="grid-zoom-close" class="icon-btn" title="Fermer" aria-label="Fermer">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div id="grid-zoom-host" class="seq-zoom-host grid-zoom-host"></div>
+    <!-- La vue AGRANDIE plein écran de la grille (avec séquenceur épinglé) vivait ici. Retirée
+         (retour utilisateur : « les boutons masquer panneau de gauche et mode séquenceur grille font
+         tous les deux quasiment pareil = ils agrandissent la grille »). Son seul point d'entrée avait
+         déjà été recâblé vers le séquenceur, la laissant inatteignable ; masquer le volet de gauche
+         donne la même largeur sans recouvrir l'appli. Ce qu'elle apportait d'unique — la vue continue
+         du séquenceur — appartient désormais au séquenceur ordinaire (voir `continuous` dans
+         renderSequencer). -->
 
-            <!-- Boutons octave +/- de l'accord SÉLECTIONNÉ dans la loupe grille (voir
-                 updateGridCellOctaveFloat/shiftChordOctave dans script.js) : une seule pastille
-                 flottante (position fixe, repositionnée en JS au-dessus de la case sélectionnée)
-                 plutôt qu'un bouton posé sur chaque case en permanence — gênait la lecture de
-                 l'accord (retour utilisateur). Masquée tant qu'aucun accord n'est sélectionné. -->
-            <div id="grid-cell-octave-float" class="cell-octave-float" hidden>
-                <button type="button" id="grid-cell-octave-up" class="cell-octave-btn" title="Octave au-dessus" aria-label="Octave au-dessus">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
-                </button>
-                <button type="button" id="grid-cell-octave-down" class="cell-octave-btn" title="Octave en dessous" aria-label="Octave en dessous">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m5 12 7 7 7-7"/></svg>
-                </button>
-            </div>
-
-            <!-- Séquenceur épinglé (voir editChordFromGridZoom/syncGridZoomPinnedSeq dans script.js) :
-                 cliquer un accord dans la grille ci-dessus le charge directement pour édition et
-                 affiche/édite son rythme ici, sans quitter la loupe. #arp-sequencer y est DÉPLACÉ
-                 (jamais dupliqué) tant qu'un accord y est en édition. Redimensionnable (poignée du
-                 haut) et masquable (chevron), état mémorisé d'une session à l'autre. -->
-            <div id="grid-zoom-pinned-seq" class="grid-zoom-pinned-seq" hidden>
-                <div id="grid-zoom-pinned-resize" class="grid-zoom-pinned-resize" title="Glisser pour redimensionner"></div>
-                <div class="grid-zoom-pinned-head">
-                    <span id="grid-zoom-pinned-title" class="grid-zoom-pinned-title">Séquenceur</span>
-                    <div class="grid-zoom-pinned-actions">
-                        <button type="button" id="grid-zoom-pinned-cancel" class="icon-btn" hidden title="Annuler" aria-label="Annuler">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
-                        </button>
-                        <button type="button" id="grid-zoom-pinned-save" class="icon-btn" hidden title="Enregistrer" aria-label="Enregistrer">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
-                        </button>
-                        <button type="button" id="grid-zoom-pinned-toggle" class="icon-btn" title="Masquer le séquenceur" aria-label="Masquer le séquenceur" aria-pressed="true">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-                        </button>
-                    </div>
-                </div>
-                <p id="grid-zoom-pinned-placeholder" class="grid-zoom-pinned-placeholder">Clique un accord dans la grille pour éditer son rythme ici.</p>
-                <div id="grid-zoom-pinned-body" class="grid-zoom-pinned-body" hidden></div>
-            </div>
-        </div>
-    </div>
 
     <main>
         <div class="col-left">
@@ -907,11 +802,12 @@
                         <button type="button" id="toggle-voice-leading" class="icon-btn icon-btn-wide" title="Conduite de voix" aria-label="Conduite de voix" aria-pressed="false">
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><rect x="10" y="7.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M8 5.3 10 8.8" stroke-width="1.5" stroke-dasharray="1.5 1.5"/><rect x="3" y="15.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><rect x="13" y="11.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M9 16.8 13 12.8" stroke-width="1.5" stroke-dasharray="1.5 1.5"/></svg>
                         </button>
-                        <!-- Icône dédiée (barres façon séquenceur, même dessin que #toggle-sequencer) plutôt
-                             qu'une loupe générique : une fois la grille classique elle-même zoomable
-                             ci-dessus, une loupe aurait prêté à confusion avec un simple zoom — ce bouton
-                             ouvre en réalité la vue AGRANDIE avec séquenceur épinglé (voir openGridZoom). -->
-                        <button type="button" id="grid-zoom" class="icon-btn icon-btn-wide" title="Séquenceur" aria-label="Ouvrir le séquenceur">
+                        <!-- Même dessin que #toggle-sequencer (barres façon séquenceur) : les deux ouvrent
+                             le même panneau, depuis la barre de la grille pour celui-ci et depuis le volet
+                             Lecture pour l'autre. Il s'appelait #grid-zoom du temps où il ouvrait la vue
+                             agrandie plein écran ; ce nom aurait menti depuis qu'il ouvre le séquenceur,
+                             et plus encore depuis que cette vue n'existe plus. -->
+                        <button type="button" id="grid-seq-toggle" class="icon-btn icon-btn-wide" title="Séquenceur" aria-label="Ouvrir le séquenceur">
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <rect x="3" y="4" width="4" height="4" rx="1"/>
                                 <rect x="10" y="4" width="4" height="4" rx="1"/>
@@ -1098,9 +994,9 @@
          bas, qui aurait mangé en permanence de la hauteur). Hors de .col-left/.col-right exprès, pour
          rester au même endroit quel que soit l'endroit où l'on travaille (panneau de réglages à gauche
          ou grille à droite) et quel que soit le défilement de l'une ou l'autre colonne. Masqué pendant
-         qu'une fenêtre plein écran est ouverte (loupe grille/séquenceur, Paramètres...), voir
-         body.body-scroll-locked en CSS : celles-ci gardent leur propre transport dupliqué dans leur
-         en-tête (voir .grid-zoom-transport), déjà nécessaire puisqu'elles recouvrent tout l'écran.
+         qu'une fenêtre plein écran est ouverte (loupe séquenceur, Paramètres, Mes morceaux...), voir
+         body.body-scroll-locked en CSS : celles-ci gardent leur propre transport dans leur en-tête,
+         déjà nécessaire puisqu'elles recouvrent tout l'écran.
          Un seul bouton de lecture (retour utilisateur : « le bouton lecture accord ne sert pas à
          grand chose ») — plus besoin de le distinguer d'un second bouton, d'où l'icône simplifiée à un
          simple triangle. Entendre UN SEUL accord en cours d'édition reste possible : bouton Lecture du
@@ -1135,6 +1031,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608130400"></script>
+    <script src="script.js?v=202608130500"></script>
 </body>
 </html>

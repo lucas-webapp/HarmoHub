@@ -288,7 +288,7 @@ body.body-scroll-locked { overflow: hidden !important; }
     /* dvh (hauteur de viewport DYNAMIQUE, en second pour rester compatible ailleurs) : sur mobile,
        vh se cale sur la hauteur MAXIMALE du viewport (barre d'adresse rétractée), plus grande que
        ce qui est réellement visible tant qu'on n'a pas fait défiler — la fenêtre (et donc le
-       séquenceur épinglé de la loupe grille en dessous, voir .grid-zoom-pinned-seq) pouvait déborder
+       séquenceur en dessous) pouvait déborder
        hors de l'écran réellement visible, entre autres pendant un redimensionnement au doigt (retour
        utilisateur : contenu de la grille qui semble passer au-dessus du séquenceur). Sans effet sur
        desktop, où vh et dvh coïncident déjà.
@@ -325,128 +325,10 @@ body.body-scroll-locked { overflow: hidden !important; }
 .seq-zoomed .seq-note-head { width: calc(6px * var(--seq-zoom-scale-v, 1)); }
 .seq-zoomed .seq-grid { gap: calc(6px * var(--seq-zoom-scale-v, 1)) 0; }
 
-/* Fenêtre agrandie de la grille d'accords (voir #grid-zoom-overlay/openGridZoom) : même habillage
-   que .seq-zoom-modal (classe partagée dans le HTML), mais toujours PLEIN ÉCRAN plutôt que plafonnée
-   à une taille maximale — c'est l'outil principal pour travailler grille + séquenceur ensemble, il ne
-   doit jamais se retrouver plus petit que nécessaire (retour utilisateur : la fenêtre se rétrécissait
-   sur un grand écran/peu d'accords, au lieu de rester en plein écran). width/height à 100% (pas
-   seulement max-*) : .seq-zoom-modal ne fixe qu'un max-height, donc une hauteur qui suit le CONTENU
-   jusqu'à ce plafond plutôt que de toujours remplir — ici on veut la remplir systématiquement, quel
-   que soit le contenu. Le padding de 20px de .settings-overlay (fixe, jamais touché ici) est ce qui
-   laisse un léger cadre visible tout autour, jamais un vrai bord-à-bord total ; 100% de la boîte de
-   contenu déjà réduite par ce padding suffit à paraître plein écran. */
-.grid-zoom-modal {
-    width: 100%;
-    height: 100%;
-    max-width: none;
-    max-height: none;
-}
-
-/* Niveau de zoom réglable (boutons loupe+/loupe- ou Ctrl+molette, voir adjustZoom dans script.js) :
-   piloté par la propriété `zoom` (recalcule vraiment la mise en page, contrairement à
-   transform:scale qui aurait demandé de recalculer soi-même les dimensions/le défilement). Valeur
-   posée en style inline par applyZoomLevel ; overflow:auto (au lieu du overflow-y seul plus haut)
-   pour aussi défiler horizontalement une fois la grille agrandie au-delà de la largeur disponible. */
-.seq-zoom-host, .grid-zoom-host { overflow: auto; }
-
-/* Séquenceur épinglé en bas de la loupe grille (voir #grid-zoom-pinned-seq et
-   editChordFromGridZoom/syncGridZoomPinnedSeq dans script.js) : outil de modification rapide — un
-   clic sur un accord de la grille agrandie le charge ici pour éditer son rythme sans rouvrir de
-   fenêtre séparée. Hauteur non fixée sur le conteneur lui-même (seul .grid-zoom-pinned-body a une
-   hauteur, réglée par la poignée de redimensionnement) : replié, le conteneur retombe à la hauteur
-   de son seul en-tête, sans transition brusque à gérer côté script. */
-.grid-zoom-pinned-seq {
-    flex: none;
-    display: flex;
-    flex-direction: column;
-    border-top: 1px solid var(--border);
-    background: var(--card-bg);
-}
-/* Zone tactile de 10px -> 26px (retour utilisateur : difficile à attraper au doigt sur téléphone,
-   sous les ~24px habituellement recommandés pour une cible tactile) — le trait visuel lui-même
-   (::after, 3px) reste fin et centré dans cette zone agrandie, rien ne change à l'œil. */
-.grid-zoom-pinned-resize {
-    flex: none;
-    height: 26px;
-    width: 88px;
-    margin: 0 auto;
-    cursor: ns-resize;
-    position: relative;
-    touch-action: none;
-}
-.grid-zoom-pinned-resize::after {
-    content: '';
-    position: absolute;
-    top: 50%; left: 0; right: 0;
-    height: 3px;
-    margin-top: -1.5px;
-    border-radius: 3px;
-    background: var(--border);
-}
-.grid-zoom-pinned-resize:hover::after { background: var(--text-muted); }
-.grid-zoom-pinned-seq.collapsed .grid-zoom-pinned-resize { visibility: hidden; }
-
-.grid-zoom-pinned-head {
-    flex: none;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 2px 20px 10px;
-}
-.grid-zoom-pinned-title {
-    font-size: var(--fs-sm);
-    font-weight: 600;
-    color: var(--text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.grid-zoom-pinned-actions { flex: none; display: flex; align-items: center; gap: 6px; }
-#grid-zoom-pinned-toggle .icon { transition: transform 0.15s ease; }
-.grid-zoom-pinned-seq.collapsed #grid-zoom-pinned-toggle .icon { transform: rotate(-90deg); }
-
-.grid-zoom-pinned-placeholder {
-    margin: 0;
-    padding: 0 20px 20px;
-    color: var(--text-muted);
-    font-size: var(--fs-sm);
-    text-align: center;
-}
-.grid-zoom-pinned-body {
-    overflow: auto;
-    padding: 0 20px 18px;
-}
-.grid-zoom-pinned-body .arp-seq { margin-top: 0; padding-top: 0; border-top: none; }
-/* Cases un cran plus grandes qu'en taille normale, comme dans la fenêtre agrandie du séquenceur :
-   cet emplacement sert justement à modifier vite, autant profiter de cases faciles à viser. Mise à
-   l'échelle par --seq-zoom-scale-v (voir pinSequencerHost/applyZoomLevel) comme .seq-zoomed .seq-cell
-   ci-dessus — 1 par défaut, donc identique à avant tant qu'on n'a pas touché aux boutons de zoom
-   dédiés du séquenceur épinglé (zoom-axis-group « -pinned », voir renderSequencer). */
-.grid-zoom-pinned-body .seq-cell { height: calc(40px * var(--seq-zoom-scale-v, 1)); }
-/* Axe en demi-tons continu sur toute la section (voir renderSequencer, gridZoomOpen) : nettement
-   plus de lignes qu'une simple voix d'accord (souvent 2-3 octaves), donc plus basses pour tenir sans
-   scroll vertical démesuré (retour utilisateur : réduire la hauteur des barres). Sélecteur à 3
-   classes pour l'emporter sur la règle ci-dessus (spécificité 0,2,0). */
-.grid-zoom-pinned-body .seq-grid-continuous .seq-cell { height: calc(16px * var(--seq-zoom-scale-v, 1)); }
-.seq-grid-continuous .seq-label,
-.seq-grid-continuous .seq-label-input { font-size: var(--fs-2xs); }
-
-/* Rangée de boutons (.seq-presets) fixée en bas de CE conteneur défilant (.grid-zoom-pinned-body,
-   seul ancêtre avec overflow:auto ici) plutôt que de simplement suivre le flux du contenu : en
-   réduisant la hauteur de la fenêtre épinglée (poignée .grid-zoom-pinned-resize), ces boutons se
-   retrouvaient en dessous de la zone visible, invisibles sans faire défiler manuellement — retour
-   utilisateur, "ils disparaissent". Fond opaque needed (sinon la grille défilante transparaîtrait
-   derrière une fois collée) + léger filet du haut pour la distinguer du contenu qui défile sous elle. */
-.grid-zoom-pinned-body .seq-presets {
-    position: sticky;
-    bottom: 0;
-    background: var(--card-bg);
-    padding-top: 8px;
-    padding-bottom: 2px;
-    border-top: 1px solid var(--border);
-    z-index: 3;
-}
+/* La fenêtre agrandie plein écran de la grille (et son séquenceur épinglé, sa poignée de
+   redimensionnement, son transport dupliqué) était habillée ici. Retirée : masquer le volet de gauche
+   donne la même largeur sans recouvrir l'appli (voir index.html). */
+.seq-zoom-host { overflow: auto; }
 
 /* Repère de continuité (voir prevMidiSet/nextMidiSet dans renderSequencer) : cette hauteur est aussi
    jouée par l'accord précédent (trait à gauche) et/ou suivant (trait à droite) — les deux peuvent
@@ -475,7 +357,7 @@ body.body-scroll-locked { overflow: hidden !important; }
 .seq-scroll.seq-scroll-wide { touch-action: pan-x pan-y; }
 /* Échelle de notes/octaves COLLÉE à gauche pendant le défilement horizontal (mode continu OU
    wideCompact, voir ci-dessus — retour utilisateur : repère perdu de vue en glissant une note loin à
-   droite) — un fond opaque (même que .grid-zoom-pinned-seq, seul parent qui compte en continu) évite
+   droite) — un fond opaque évite
    que les cases défilantes ne transparaissent derrière. Sans effet ailleurs (page qui tient déjà
    entière dans la largeur) : rien à faire défiler ni donc à fixer. */
 .seq-scroll-continuous .seq-label, .seq-scroll-wide .seq-label {
@@ -596,14 +478,12 @@ body.body-scroll-locked { overflow: hidden !important; }
 }
 .seq-ctx-nav:hover, .seq-ctx-nav:active { background: rgba(255, 255, 255, 0.06); }
 
-.grid-zoom-pinned-seq.collapsed .grid-zoom-pinned-placeholder,
-.grid-zoom-pinned-seq.collapsed .grid-zoom-pinned-body { display: none; }
 
 .settings-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    flex-wrap: wrap; /* la loupe grille y ajoute un transport complet (voir .grid-zoom-transport) :
+    flex-wrap: wrap; /* la rangée peut devenir longue :
                          passe à la ligne plutôt que déborder sur fenêtre étroite */
     gap: 8px;
     padding: 16px 18px;
@@ -612,22 +492,8 @@ body.body-scroll-locked { overflow: hidden !important; }
 }
 .settings-header h2 { margin: 0; font-size: var(--fs-lg); }
 
-/* Accord/Grille/Stop dans l'en-tête de la loupe grille (voir index.html) : boutons réels, juste
-   redimensionnés pour tenir dans un en-tête — mêmes classes .btn-prog/.btn-stop/.icon-btn que le
-   pied de colonne, donc même couleur/dégradé, seule la taille change. Logos seuls (sans libellé,
-   même logique que le pied de colonne ci-dessus) : padding symétrique, plus besoin de caser du texte. */
-.grid-zoom-transport-btn {
-    height: 32px;
-    width: 32px;
-    padding: 0;
-    min-width: 0;
-    flex: none;
-}
-.grid-zoom-transport-btn .icon { width: 15px; height: 15px; }
-.grid-zoom-transport-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 2px; }
-
-/* Sous-groupe qui ne doit JAMAIS se scinder au retour à la ligne (voir seq-zoom-overlay/
-   grid-zoom-overlay ET .seq-presets dans index.html/script.js) : zoom H+V ensemble, Annuler/
+/* Sous-groupe qui ne doit JAMAIS se scinder au retour à la ligne (voir seq-zoom-overlay ET
+   .seq-presets dans index.html/script.js) : zoom H+V ensemble, Annuler/
    Rétablir/Fermer ensemble — un seul bloc flex, donc un seul élément aux yeux du flex-wrap qui le
    contient (qui, lui, passe CE bloc entier à la ligne si besoin, jamais un de ses boutons
    isolément). Sans ça, deux boutons d'un même groupe pouvaient se retrouver chacun sur une ligne
@@ -637,9 +503,9 @@ body.body-scroll-locked { overflow: hidden !important; }
 .btn-wrap-group { display: flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; }
 
 /* Boutons loupe+/loupe-/fermer groupés à droite de l'en-tête (voir seq-zoom-overlay et
-   grid-zoom-overlay) : un seul groupe pour que .settings-header garde son simple titre/actions
+   seq-zoom-overlay) : un seul groupe pour que .settings-header garde son simple titre/actions
    de part et d'autre (justify-content: space-between), quel que soit le nombre de boutons.
-   flex-wrap (voir grid-zoom-transport, le plus fourni des deux avec Accord/Grille/Boucle/Stop +
+   flex-wrap (l'en-tête le plus fourni, avec Accord/Grille/Boucle/Stop +
    Annuler/Rétablir + zoom H/V + fermer) : sur téléphone, ce groupe à lui seul dépasse déjà la
    largeur de l'écran — sans passer les boutons en trop à la ligne, ils restaient purement coupés/
    invisibles au-delà du bord (retour utilisateur, capture à l'appui : le bouton fermer et le zoom V
@@ -659,7 +525,7 @@ body.body-scroll-locked { overflow: hidden !important; }
     justify-content: flex-end;
 }
 
-/* Groupe -/+ par axe (horizontal/vertical), voir seq-zoom-overlay/grid-zoom-overlay dans
+/* Groupe -/+ par axe (horizontal/vertical), voir seq-zoom-overlay dans
    index.html et adjustZoom/applyZoomLevel dans script.js : échelle horizontale (accords par
    ligne/mesures par page) et verticale (hauteur des lignes) réglables indépendamment. Un seul bloc
    arrondi/bordé (comme UN .icon-btn) regroupe l'étiquette H/V et les deux flèches -/+ empilées à sa
@@ -1162,7 +1028,7 @@ main {
 }
 
 /* Masqué pendant qu'une fenêtre plein écran est ouverte (loupe grille/séquenceur, Paramètres...) :
-   celles-ci gardent leur propre transport dupliqué dans leur en-tête (voir .grid-zoom-transport), déjà
+   celles-ci gardent leur propre transport dans leur en-tête, déjà
    nécessaire puisqu'elles recouvrent tout l'écran — deux transports visibles en même temps prêterait à
    confusion. body.body-scroll-locked (voir lockBodyScroll/unlockBodyScroll) est déjà posé à chaque
    ouverture de ce genre de fenêtre : même signal, pas de plomberie neuve. */
@@ -1482,7 +1348,7 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
 .icon-btn-lg .icon { width: 17px; height: 17px; }
 
 /* Variante élargie SEULEMENT (hauteur inchangée, 32px comme .icon-btn) : les boutons qui ouvrent/
-   ferment le séquenceur (#toggle-sequencer, #grid-zoom, retour utilisateur) méritent un peu plus de
+   ferment le séquenceur (#toggle-sequencer, #grid-seq-toggle, retour utilisateur) méritent un peu plus de
    présence horizontale, mais doivent rester alignés en hauteur avec leurs voisins immédiats
    (#apply-instrument-all, les groupes -/+ H/V) plutôt que dépasser comme .icon-btn-lg. 44px, PAS
    42 (retour utilisateur, homogénéisation) : tombe pile sur la même largeur que .seq-icon-btn
@@ -1501,8 +1367,7 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
    que le vert générique ci-dessus une fois actif — se distingue des autres bascules (verrouillage
    guitare, panneau séquenceur...) qui partagent, elles, le même sens "actif = vert". Sélecteur par
    id (spécificité 1,1,0) : l'emporte sur .icon-btn.active (0,1,0) ci-dessus. */
-#toggle-loop-section.active,
-#grid-zoom-loop.active {
+#toggle-loop-section.active {
     background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-blue-1), var(--btn-blue-2) 70%);
     color: var(--btn-text);
     border-color: var(--btn-blue-border);
@@ -2533,7 +2398,7 @@ button:active { transform: translateY(1px); }
 
 /* Grille d'accords façon lead sheet. --grid-zoom-scale-v : échelle verticale, posée en JS (voir
    adjustZoom/applyZoomLevel) sur l'hôte qui contient RÉELLEMENT #progression-sections à l'instant :
-   #grid-zoom-host en loupe (gridZoomLevelY), .history-section hors loupe (classicGridZoomLevelY) —
+   .history-section (classicGridZoomLevelY) —
    deux réglages INDÉPENDANTS qui se relaient simplement par héritage CSS, jamais actifs à la fois. */
 .chord-grid {
     --row-h: calc(64px * var(--grid-zoom-scale-v, 1));
@@ -2871,7 +2736,7 @@ button:active { transform: translateY(1px); }
    seule pastille flottante (position fixe, jamais posée sur la case elle-même comme avant — gênait
    la lecture de l'accord, retour utilisateur), repositionnée en JS juste au-dessus de la case
    SÉLECTIONNÉE et masquée sinon. Position fixe plutôt qu'absolue : échappe à l'overflow:hidden de
-   .chord-grid/.grid-zoom-host (sinon rognée dès que la case sélectionnée est en tout début de
+   .chord-grid (sinon rognée dès que la case sélectionnée est en tout début de
    grille), et suit le défilement grâce au repositionnement sur scroll (voir le JS). */
 .cell-octave-float {
     position: fixed;
@@ -3222,7 +3087,7 @@ button:active { transform: translateY(1px); }
    `visible` dès qu'un axe ne l'est plus) — .seq-scroll devenait ainsi, sans le vouloir, son PROPRE
    conteneur de défilement vertical (souvent de quelques pixels à peine, sa hauteur suivant tout
    juste son contenu). La molette posée dessus (ex. sur .seq-ctx-nav, voir renderSequencer) restait
-   alors piégée à l'intérieur au lieu de remonter au VRAI ancêtre censé défiler (.grid-zoom-pinned-
+   alors piégée à l'intérieur au lieu de remonter au VRAI ancêtre censé défiler (le conteneur du
    body, .seq-zoom-host ou .panel-controls selon le contexte, tous déjà en overflow-y:auto) — hidden
    ne cache ici aucun contenu réel (.seq-scroll n'a pas de hauteur propre, seulement celle de son
    contenu), juste ce micro-conteneur accidentel. */
@@ -3424,7 +3289,7 @@ body.all-beats .offbeat-dot {
     /* --seq-zoom-scale-v vaut 1 tant qu'on n'a pas touché à l'échelle verticale du séquenceur COMPACT
        (voir _applySeqVerticalScale, qui la pose sur #arp-sequencer lui-même) : hauteur inchangée par
        défaut. Les deux fenêtres agrandies ont leurs propres règles, plus spécifiques, avec leur propre
-       hauteur de base (voir .seq-zoomed .seq-cell et .grid-zoom-pinned-body .seq-cell) — et la
+       hauteur de base (voir .seq-zoomed .seq-cell) — et la
        variable est retirée d'#arp-sequencer dès qu'on y passe, pour ne pas masquer la leur. */
     height: calc(26px * var(--seq-zoom-scale-v, 1));
     background: #202020;
@@ -3774,7 +3639,7 @@ body.all-beats .offbeat-dot {
    boutons Supprimer sur mobile. Même hauteur fixe que le reste de la rangée (.seq-presets button),
    pour rester alignés sur les boutons Supprimer juste à côté sans dépendre d'un étirement. Taille
    d'origine (44px) : retour utilisateur, seuls les boutons qui OUVRENT/FERMENT le séquenceur
-   (#toggle-sequencer, #grid-zoom) devaient être agrandis, pas ceux-ci. */
+   (#toggle-sequencer, #grid-seq-toggle) devaient être agrandis, pas ceux-ci. */
 .seq-presets .seq-icon-btn {
     flex: none;
     width: 44px;
