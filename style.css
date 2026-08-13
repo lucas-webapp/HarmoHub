@@ -4599,3 +4599,42 @@ select.song-select-narrow {
 }
 .seq-grid-continuous .seq-beat-label:active,
 .seq-grid-continuous .seq-label:active { cursor: grabbing; }
+
+
+/* ============================================================================
+   ESPACE PERDU SOUS LE SÉQUENCEUR + AMAS DE BOUTONS EN HAUT À DROITE
+   Retour utilisateur : « il y a beaucoup trop d'espace perdu en bas de la page sous le séquenceur...
+   les diagrammes peuvent être optimisés également lorsqu'ils sont ouverts, ils sont trop hauts » et
+   « il y a un amas de boutons en haut à droite de l'écran ».
+   ============================================================================ */
+
+/* Mesuré avant : 153px de vide sous le dernier élément utile de la colonne, plus 32px entre les
+   boutons de diagrammes et les diagrammes eux-mêmes. La colonne s'étirait sur toute la hauteur
+   disponible et distribuait le surplus entre ses blocs. Elle s'arrête maintenant à son contenu. */
+/* PAS de justify-content ici : .history-section est en `flex: 1 1 0` et occupe déjà tout le reste,
+   si bien que la répartition ne change rien — mais elle prendrait le pas sur cette souplesse le jour
+   où un bloc deviendrait rigide, et la grille se retrouverait rognée sans qu'on sache pourquoi. Le
+   vide venait des marges, traitées juste en dessous. */
+.col-right > .viz-wrap { margin-top: 4px; margin-bottom: 4px; }
+.col-right > .chord-header-row { margin-bottom: 2px; }
+
+/* Les diagrammes ouverts prennent la place qu'il leur faut, pas davantage : plafond explicite plutôt
+   qu'une hauteur qui suit le conteneur. Au-delà, on ne lit pas mieux un manche de guitare ou deux
+   octaves de piano — on repousse juste le reste de la page hors de l'écran. */
+.viz-diagrams { max-height: 190px; }
+.viz-diagrams .piano-container,
+.viz-diagrams .guitar-container { max-height: 170px; }
+.viz-diagrams .guitar-container svg,
+.viz-diagrams .piano-container svg { max-height: 170px; }
+
+/* Les boutons de diagrammes, désormais sous les diagrammes (voir index.html), se centrent avec eux
+   plutôt que de rester collés à gauche d'une ligne de titre qui n'existe plus pour eux. */
+.col-right > .viz-toggle { justify-content: center; margin: 2px 0 0; }
+
+/* AMAS EN HAUT À DROITE. Les commandes de la GRILLE (échelles H/V, conduite de voix, séquenceur
+   continu) étaient alignées à droite, juste sous les commandes de l'APPLICATION (annuler/refaire,
+   volet, réglages) : deux rangées de boutons superposées dans le même coin, sans rien pour dire
+   lesquels vont ensemble. Elles rejoignent le titre « Grille d'accords », contre ce qu'elles
+   commandent — la place s'est libérée quand les transports sont partis à gauche. Le coin haut droit
+   ne garde que ce qui vaut pour toute l'application. */
+.grid-head-sticky .card-head-actions { margin-right: auto; }
