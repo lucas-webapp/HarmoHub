@@ -5045,9 +5045,12 @@ class HarmoHubApp {
         saveProgressionSections(sections);
         hasUnsavedChanges = true;
         this.loadProgression();
-        // Si un accord est en cours d'édition, resynchronise le séquenceur épinglé (loupe grille) qui
-        // affiche son style/instrument.
-        if (this.editingIndex != null) this.syncGridZoomPinnedSeq();
+        // Si un accord est en cours d'édition, redessine le séquenceur, qui affiche son style et son
+        // instrument. Appelait syncGridZoomPinnedSeq, méthode partie avec la vue plein écran de la
+        // grille : « Appliquer à tout le morceau » levait donc une TypeError juste après avoir écrit
+        // les données — l'instrument était bien changé, mais la suite de la méthode (report sur une
+        // lecture en cours, voir juste en dessous) ne s'exécutait jamais.
+        if (this.editingIndex != null) this.renderSequencer();
         // Répercute tout de suite sur une lecture en cours (voir liveUpdateProgressionChord) : un
         // patch local par accord DÉJÀ programmé cette lecture-ci suffit, l'instrument ne change ni la
         // durée ni le minutage de rien.
@@ -5339,6 +5342,24 @@ class HarmoHubApp {
     closeSectionPicker() {
         const menu = document.getElementById('section-picker-menu');
         if (menu) menu.hidden = true;
+    }
+
+    // Bascule l'édition sur un accord voisin depuis le SÉQUENCEUR CONTINU (voir les zones
+    // .seq-ctx-nav dans renderSequencer) — la navigation d'accord en accord sans quitter le
+    // séquenceur, demandée par l'utilisateur.
+    // Remplace editChordFromGridZoom, supprimé avec la vue plein écran de la grille : son APPEL, lui,
+    // était resté ici. Un clic sur un accord voisin levait donc « editChordFromGridZoom is not a
+    // function » et ne faisait rien du tout. Les bancs d'essai qui couvraient ce chemin appelaient
+    // eux-mêmes la méthode disparue pour préparer leur scène : ils échouaient à la mise en place,
+    // avant d'atteindre l'assertion — le défaut restait invisible derrière une erreur d'outillage.
+    // Rien à épingler ni à ouvrir ici, contrairement à l'ancienne version : le volet est déjà là
+    // quand on clique. Changer d'accord suffit — renderSequencer recentre ensuite la vue sur lui
+    // (voir centrerSurAccordEdite).
+    editChordFromSequencer(section, index) {
+        this.editChord(section, index);
+        // Comme un clic sur la grille normale (voir selectChord) : fait entendre l'accord touché,
+        // sinon la navigation d'un accord à l'autre resterait muette.
+        if (this.autoplaySelect) this.playCurrent();
     }
 
     // Passe les contrôles en mode « modification » d'un accord existant
@@ -13307,7 +13328,7 @@ class HarmoHubApp {
         // Zones de contexte gauche/droite (voir plus haut, mode continu) : bascule l'édition sur
         // l'accord voisin, exactement comme un clic dessus dans la grille (le rectangle orangé suit).
         host.querySelectorAll('.seq-ctx-nav').forEach(zone => {
-            zone.addEventListener('click', () => this.editChordFromGridZoom(this.activeSection, +zone.dataset.targetIndex));
+            zone.addEventListener('click', () => this.editChordFromSequencer(this.activeSection, +zone.dataset.targetIndex));
         });
 
         // Bouton « X tout » (remplace tout le motif par du silence) : ciblé via [data-preset] pour
