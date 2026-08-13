@@ -10614,6 +10614,11 @@ class HarmoHubApp {
             gestureDecided: false, voiceDrag: null, hDrag: null,
         };
 
+        // Dès la prise, pas seulement au premier mouvement : ajouter une note d'un simple appui est un
+        // geste complet à lui seul, et c'est là qu'on veut lire sur quelle note on tombe (voir
+        // _revelerToucheSeq).
+        this._revelerToucheSeq(voice);
+
         this._onSeqMove = (ev) => this.onSeqPointerMove(ev);
         this._onSeqUp = () => this.onSeqPointerUp();
         window.addEventListener('pointermove', this._onSeqMove, { passive: false });
@@ -10874,6 +10879,24 @@ class HarmoHubApp {
         if (label) label.classList.add('seq-beat-reached');
     }
 
+    // Allume le nom de la note sur la touche de gauche, le temps d'un geste. Les noms sont masqués au
+    // repos — seul le DO garde le sien (voir toucheCls/.seq-key-name) parce qu'une colonne de vingt
+    // noms mangeait la gouttière (retour utilisateur : « le nom des notes prend trop de place sur les
+    // touches »). Mais au moment PRÉCIS où l'on pose ou déplace une barre, c'est l'information qu'on
+    // cherche : « quand je déplace ou ajoute une barre dans l'accord, tu dois faire apparaître la note
+    // sur la gauche, même pendant le déplacement pour pouvoir poser la note au bon endroit sans faire
+    // d'erreur ». Le nom apparaît donc pendant le geste, à hauteur de la ligne visée, et s'éteint au
+    // relâchement. Appelé à CHAQUE mouvement (pas seulement au changement de ligne) : la grille peut
+    // se reconstruire en cours de geste (défilement automatique), ce qui effacerait la classe.
+    _revelerToucheSeq(voice) {
+        const precedent = document.querySelector('.seq-label.seq-key-reveal');
+        const cible = (voice == null || voice < 0) ? null
+            : document.querySelector(`.seq-label[data-row-voice="${voice}"]`);
+        if (precedent === cible) return;
+        if (precedent) precedent.classList.remove('seq-key-reveal');
+        if (cible) cible.classList.add('seq-key-reveal');
+    }
+
     // Avance le défilement d'un cran et REJOUE le geste en cours à la même position écran : le
     // contenu a bougé dessous, donc la croche visée change même si le doigt/la souris, eux, n'ont pas
     // bougé pendant que la vue défile — sans ce rejeu, rien ne suivrait tant qu'un vrai mouvement du
@@ -10913,6 +10936,11 @@ class HarmoHubApp {
         d._lastClientX = e.clientX;
         d._lastClientY = e.clientY;
         this._updateSeqAutoScroll(d);
+        // Nom de la note écrit sur sa touche pendant tout le geste (voir _revelerToucheSeq). Posé ici,
+        // en amont du routage, pour couvrir d'un coup peindre / étirer / déplacer dans le temps ; un
+        // changement de LIGNE, lui, le repose sur la ligne visée (voir onSeqVoiceDragMove, appelé
+        // après et qui l'emporte donc).
+        this._revelerToucheSeq(d.voice);
 
         // Défilement vertical à UN SEUL doigt (voir .seq-cell/touch-action:none en CSS — retiré pour
         // laisser le pan à 2 doigts, voir setupPinchZoom, garder la main de façon fiable) : décidé une
@@ -11249,6 +11277,11 @@ class HarmoHubApp {
         const targetVoice = cell ? +cell.dataset.voice : null;
         // Le repère suit le doigt à CHAQUE mouvement, même quand la ligne visée n'a pas changé :
         // sinon il resterait figé loin derrière pendant qu'on longe une ligne.
+        // Le nom s'écrit à DEUX endroits pendant ce geste, et ce n'est pas un doublon : à côté du doigt
+        // (repère flottant) pour lire sans quitter la barre des yeux, et sur la touche de gauche (voir
+        // _revelerToucheSeq) pour la situer sur le clavier — c'est ce second repère qui dit « je suis
+        // bien sur la bonne ligne » avant de lâcher.
+        this._revelerToucheSeq(targetVoice);
         if (targetVoice != null) {
             const chord = this.readChord();
             const noms = chord.getSeqDisplayNotes(this.useFlatsForRoot(chord.root));
@@ -11565,6 +11598,7 @@ class HarmoHubApp {
         // Le repère flottant (voir showSeqDragReadout) s'éteint AVANT tout retour anticipé : le geste
         // est fini quoi qu'il advienne ensuite, y compris quand on sort d'ici sans rien appliquer.
         this.hideSeqDragReadout();
+        this._revelerToucheSeq(null); // le nom de la note se rétracte : le geste est fini (voir _revelerToucheSeq)
         if (this.seqMarquee) { this.finalizeSeqMarqueeSelect(); return; }
         const d = this.seqDrag;
         this.seqDrag = null;
@@ -12896,7 +12930,15 @@ class HarmoHubApp {
         const PC_NOIRES = new Set([1, 3, 6, 8, 10]);
         const toucheCls = (midi) => {
             if (!continuous) return '';
-            return PC_NOIRES.has(((midi % 12) + 12) % 12) ? ' seq-key seq-key-black' : ' seq-key seq-key-white';
+            const pc = ((midi % 12) + 12) % 12;
+            // Le DO porte en plus sa propre classe : c'est la seule touche dont le nom reste écrit en
+            // permanence (voir .seq-key-name en CSS). Un nom sur chacune des vingt et quelques lignes
+            // mangeait toute la gouttière et se lisait comme un mur de texte (retour utilisateur :
+            // « le nom des notes prend trop de place sur les touches, laisser uniquement le Do avec
+            // son octave ») ; un DO tous les douze demi-tons suffit à se situer, exactement comme on
+            // repère une octave sur un vrai clavier.
+            const cls = PC_NOIRES.has(pc) ? ' seq-key seq-key-black' : ' seq-key seq-key-white';
+            return pc === 0 ? cls + ' seq-key-c' : cls;
         };
 
         // La règle de mesure occupe la ligne 1 (voir beatRow) : les hauteurs commencent donc à 2.
@@ -12916,17 +12958,22 @@ class HarmoHubApp {
                 // juste le nom de la note, en lecture seule, aucune case ni note éditable dessous
                 // pour l'accord en édition — mais le rythme du voisin, lui, s'affiche toujours.
                 const ctxName = midiToDisplayName(row.midi, this.useFlatsForRoot(chord.root));
-                html += `<div class="seq-label seq-label-context${toucheCls(row.midi)}${echoCls}" style="grid-row:${rowIndex}; grid-column:1;">${ctxName}</div>`;
+                html += `<div class="seq-label seq-label-context${toucheCls(row.midi)}${echoCls}" data-row-voice="${r}" data-row-midi="${row.midi}" style="grid-row:${rowIndex}; grid-column:1;"><span class="seq-key-name">${ctxName}</span></div>`;
             } else if (r >= extraStart && r < extraEnd) {
                 const extraIdx = r - extraStart;
                 // La touche est peinte AUSSI sous une note libre (dont l'étiquette est un champ de
                 // saisie) : sans elle, le clavier de repérage se trouerait exactement là où l'on vient
                 // de poser une note — l'endroit qu'on regarde.
-                html += `<div class="seq-label seq-label-extra${toucheCls(row.midi)}${echoCls}" style="grid-row:${rowIndex}; grid-column:1;">
+                html += `<div class="seq-label seq-label-extra${toucheCls(row.midi)}${echoCls}" data-row-voice="${r}" data-row-midi="${row.midi}" style="grid-row:${rowIndex}; grid-column:1;">
                     <input type="text" class="seq-label-input" data-extra-index="${extraIdx}" data-voice="${r}" value="${escapeHtml(noteNames[r])}" title="Note libre : tape une hauteur (ex. E3), ou vide pour la supprimer" autocomplete="off" autocapitalize="off" spellcheck="false">
                 </div>`;
             } else {
-                html += `<div class="seq-label${toucheCls(row.midi)}${echoCls}" data-voice="${r}" title="Cliquer pour écouter cette note" style="grid-row:${rowIndex}; grid-column:1;">${noteNames[r]}</div>`;
+                // `data-row-voice` en plus de `data-voice` : le premier sert à RETROUVER la ligne (voir
+                // _revelerToucheSeq, qui allume le nom de la note pendant qu'on la déplace), le second
+                // à la faire ENTENDRE au clic. Deux attributs et non un seul parce qu'une note libre
+                // porte `data-voice` sur son champ de saisie, pas sur l'étiquette : lui en poser un
+                // second déclencherait l'écoute au moindre clic dans le champ.
+                html += `<div class="seq-label${toucheCls(row.midi)}${echoCls}" data-voice="${r}" data-row-voice="${r}" data-row-midi="${row.midi}" title="Cliquer pour écouter cette note" style="grid-row:${rowIndex}; grid-column:1;"><span class="seq-key-name">${noteNames[r]}</span></div>`;
             }
 
             // Contexte GAUCHE (TOUS les accords avant celui édité, voir prevSegs plus haut) : rythme

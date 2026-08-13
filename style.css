@@ -383,21 +383,57 @@ body.body-scroll-locked { overflow: hidden !important; }
     box-shadow: inset -2px 0 0 rgba(255, 255, 255, 0.12);
     text-align: right;
 }
-/* Deux couches de fond, l'aplat de touche PAR-DESSUS var(--card-bg) opaque, jamais une teinte
-   translucide seule : cette colonne est collée à gauche pendant le défilement horizontal (voir
-   .seq-scroll-continuous .seq-label) et doit rester opaque, sinon les cases défilantes
-   transparaissent au travers des touches. */
+/* VRAIES COULEURS DE TOUCHES (retour utilisateur : « mettre la vraie couleur des touches de piano
+   (blanc-beige et noir) »). Les teintes étaient de simples voiles clair/sombre posés sur le fond de
+   carte : le clavier se devinait plus qu'il ne se lisait. Ce sont maintenant EXACTEMENT l'ivoire et
+   le noir du clavier de l'appli (voir .key.white/.key.black) — deux repères qui montrent la même
+   chose ne doivent pas avoir deux couleurs.
+   L'aplat reste posé PAR-DESSUS var(--card-bg) opaque, jamais une teinte translucide seule : cette
+   colonne est collée à gauche pendant le défilement horizontal (voir .seq-scroll-continuous
+   .seq-label) et doit rester opaque, sinon les cases défilantes transparaissent au travers. */
 .seq-label.seq-key-white {
-    background: linear-gradient(rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.10)), var(--card-bg);
-    color: var(--text-main);
+    background: linear-gradient(180deg, #f3ede0 0%, #e7dcc4 100%), var(--card-bg);
+    color: #2a2a2a;
 }
 .seq-label.seq-key-black {
     /* Légèrement en retrait, comme une touche noire plus courte qu'une blanche sur un vrai clavier :
        c'est ce décrochement, plus que la couleur, qui fait lire le motif 2+3 d'un coup d'œil. Obtenu
        par un dégradé à seuil net plutôt qu'une marge : la marge aurait laissé 10px transparents à
-       gauche, donc un filet par lequel la grille défilante réapparaît. */
-    background: linear-gradient(to right, transparent 10px, rgba(0, 0, 0, 0.55) 10px), var(--card-bg);
-    color: var(--text-muted);
+       gauche, donc un filet par lequel la grille défilante réapparaît. Le segment de gauche n'est plus
+       transparent mais ivoire : une vraie touche noire est POSÉE sur les blanches, elle ne laisse pas
+       voir le fond de l'écran derrière elle. */
+    background: linear-gradient(to right, #e7dcc4 10px, #171310 10px), var(--card-bg);
+    color: #e4e0d8;
+}
+
+/* UN SEUL NOM ÉCRIT EN PERMANENCE : celui du DO, avec son octave. Vingt et quelques noms empilés
+   remplissaient la gouttière d'un mur de texte à travers lequel on ne voyait plus le clavier (retour
+   utilisateur : « le nom des notes prend trop de place sur les touches, laisser uniquement le Do avec
+   son octave »). Un DO par octave suffit à se repérer — c'est ce qu'on fait sur un vrai clavier.
+   `visibility` et non `display:none` : le nom garde sa place, donc la largeur de la gouttière ne
+   bouge pas quand un nom apparaît en cours de geste (voir .seq-key-reveal juste en dessous) — sinon
+   toute la grille se décalerait au moment précis où l'on vise une note. */
+.seq-label.seq-key .seq-key-name { visibility: hidden; }
+.seq-label.seq-key-c .seq-key-name { visibility: visible; font-weight: 700; }
+
+/* ...sauf le temps d'un geste : poser ou déplacer une barre rallume le nom de la ligne visée (voir
+   _revelerToucheSeq dans script.js) — « quand je déplace ou ajoute une barre dans l'accord, tu dois
+   faire apparaître la note sur la gauche, même pendant le déplacement pour pouvoir poser la note au
+   bon endroit sans faire d'erreur ». La touche s'éclaire en même temps que son nom : sur une colonne
+   de vingt lignes de 14px, un texte seul se repère mal — c'est le contraste de la touche entière qui
+   ramène l'œil au bon endroit. */
+.seq-label.seq-key.seq-key-reveal .seq-key-name {
+    visibility: visible;
+    font-weight: 700;
+}
+.seq-label.seq-key-white.seq-key-reveal {
+    background: linear-gradient(180deg, #ffffff 0%, #f6f0e2 100%), var(--card-bg);
+    box-shadow: inset -2px 0 0 var(--accent), 0 0 6px rgba(0, 230, 118, 0.45);
+}
+.seq-label.seq-key-black.seq-key-reveal {
+    background: linear-gradient(to right, #f6f0e2 10px, #3a332c 10px), var(--card-bg);
+    box-shadow: inset -2px 0 0 var(--accent), 0 0 6px rgba(0, 230, 118, 0.45);
+    color: #ffffff;
 }
 
 /* Ligne d'une hauteur que l'accord ne joue pas encore (voir .seq-cell-free/renderSequencer) : une
