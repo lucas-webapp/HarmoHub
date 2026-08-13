@@ -11815,6 +11815,26 @@ class HarmoHubApp {
         if (vlVientDEtreFerme) this.loadProgression(); // retire pour de bon le panneau de conduite de voix
         this.renderSequencer();
         this.updateGlobalUndoRedoButtons(); // le bouton unique repointe vers l'historique du séquenceur
+        // Sur téléphone, le séquenceur vit dans la carte Lecture, bien plus bas que le bouton de la
+        // barre de grille qui vient de l'ouvrir : mesuré à ~560px sous un écran de 844px, donc
+        // totalement invisible. Le bouton paraissait ne RIEN faire (retour utilisateur : « le
+        // séquenceur ne veut pas s'ouvrir avec le bouton au-dessus de la grille »). On l'amène donc à
+        // l'écran s'il n'y est pas déjà — sans effet sur ordinateur, où il est ancré juste sous la
+        // grille et déjà visible.
+        if (this.seqOpen) this.defilerVersSequenceur();
+    }
+
+    // Amène le séquenceur dans le champ de vision s'il en est sorti. Volontairement conditionnel :
+    // faire défiler alors qu'il est déjà visible déplacerait la page sous les doigts sans raison.
+    defilerVersSequenceur() {
+        const seq = document.getElementById('arp-sequencer');
+        if (!seq) return;
+        requestAnimationFrame(() => {
+            const r = seq.getBoundingClientRect();
+            if (r.height === 0) return; // rien à montrer
+            const dejaVisible = r.top >= 0 && r.top < window.innerHeight * 0.9;
+            if (!dejaVisible) seq.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
     }
 
     // Verrouille/libère le défilement de la page derrière une fenêtre agrandie ouverte (voir
@@ -12454,15 +12474,17 @@ class HarmoHubApp {
         // Vue CONTINUE : axe vertical en demi-tons ABSOLUS plutôt qu'en voix relatives à CET accord,
         // et toute la partie affichée côte à côte (barre de temps comprise), pour voir d'un coup
         // d'œil comment le voicing et le rythme se placent par rapport aux accords voisins.
-        // Elle était réservée à la vue plein écran, qui lui donnait sa largeur. Cette vue a été
-        // retirée (retour utilisateur : « je veux garder une vue continue du séquenceur si je clique
-        // sur le bouton dédié ; si je veux l'afficher en plein écran comme avant, je pourrai alors
-        // masquer le volet de gauche, ainsi le séquenceur prendra toute la largeur ») — la vue
-        // continue est donc désormais celle du séquenceur ordinaire, et c'est le masquage du panneau
-        // de gauche qui lui donne la place, sans fenêtre par-dessus l'appli.
+        // Réservée à la VUE AGRANDIE du séquenceur (voir openSeqZoom/#seq-zoom). Le petit séquenceur
+        // du panneau Accord garde son affichage d'origine : la seule durée de l'accord, et uniquement
+        // les notes réellement jouées — retour utilisateur : « ça n'était pas le but de ce séquenceur,
+        // je voulais le garder comme avant : pas de séquenceur continu mais seulement durée de
+        // l'accord, afficher uniquement les notes jouées... il était plus précis pour les petites
+        // modifications. Le séquenceur continu en grand permettra un réglage à l'échelle du morceau
+        // en grand écran. » Deux outils, deux usages : retouche rapide d'un accord ici, réglage à
+        // l'échelle du morceau là.
         // Uniquement quand un accord est réellement en édition (this.editingIndex) : sinon aucun
         // accord de référence n'existe pour comparer, on retombe sur l'affichage normal ci-dessous.
-        const continuous = this.editingIndex != null;
+        const continuous = this.seqZoomOpen && this.editingIndex != null;
         let prevMidiSet = new Set(), nextMidiSet = new Set();
         // TOUS les accords de la partie active, avant/après celui en édition (pas seulement le plus
         // proche, retour utilisateur : pouvoir défiler/cliquer directement n'importe quel accord de la
@@ -12550,10 +12572,9 @@ class HarmoHubApp {
         const beatsPerBar = this.beatsPerBar();
         const stepsPerBar = beatsPerBar * SEQ_STEPS_PER_BEAT;
         const seqZoomed = this.seqZoomOpen;
-        // Tout ce qui n'est PAS la loupe séquenceur a droit au réglage d'échelle horizontale dédié
-        // (kind 'seqInline'/showInlineSeqZoom plus bas). La vue continue en faisait exception tant
-        // qu'elle vivait dans la fenêtre plein écran, qui avait son propre zoom ; maintenant qu'elle
-        // est celle du séquenceur ordinaire, l'en priver reviendrait à supprimer son zoom.
+        // Tout ce qui n'est PAS la vue agrandie a droit au réglage d'échelle horizontale dédié
+        // (kind 'seqInline'/showInlineSeqZoom plus bas) ; la vue agrandie a le sien (seqZoomLevelX).
+        // La vue continue vivant exclusivement dans cette vue agrandie, tester seqZoomOpen suffit.
         const showInlineSeqZoom = !this.seqZoomOpen;
         const seqHZoom = seqZoomed ? this.seqZoomLevelX : (showInlineSeqZoom ? this.seqInlineZoomLevelX : 1);
         const stepsPerPage = seqPageBars(beatsPerBar, seqZoomed, seqHZoom) * stepsPerBar;
@@ -12911,13 +12932,12 @@ class HarmoHubApp {
         // utilisateur : au milieu, ça coupait la suite logique des actions en deux). Le zoom est un
         // réglage d'AFFICHAGE, pas une action sur le motif — même place (tout à droite de sa rangée)
         // que partout ailleurs dans l'appli (en-tête de la grille, panneau Conduite de voix).
-        // #seq-play ne priorise une plage à boucler (voir plus bas) que lorsque le séquenceur montre
-        // VRAIMENT toute la grille : là, on navigue dans son contexte entier, la plage a donc un sens.
-        // Réduit au seul accord en édition (vue non continue), il reste lié à cet accord quelle que
-        // soit une plage définie par ailleurs (retour utilisateur : le bouton lecture du petit
-        // séquenceur se retrouvait à tort à jouer toute la grille). Le critère est donc `continuous`,
-        // et non plus « est-on en fenêtre agrandie » — c'est ce qu'on VOIT qui doit décider.
-        const seqLoopRangeActive = !!this.loopRange && (continuous || this.seqZoomOpen);
+        // #seq-play ne priorise une plage à boucler (voir plus bas) qu'en VUE AGRANDIE : là, le
+        // séquenceur montre toute la grille, on navigue dans son contexte entier, la plage a donc un
+        // sens. Le petit séquenceur reste lié au seul accord en édition, quelle que soit une plage
+        // définie par ailleurs (retour utilisateur : son bouton lecture se retrouvait à tort à jouer
+        // toute la grille).
+        const seqLoopRangeActive = !!this.loopRange && this.seqZoomOpen;
         html += `<div class="seq-presets">
             <button type="button" id="seq-play" class="btn-prog seq-icon-btn${seqLoopRangeActive ? ' btn-loop-range' : ''}" title="${seqLoopRangeActive ? 'Lire la plage à boucler' : 'Lecture'}" aria-label="${seqLoopRangeActive ? 'Lire la plage à boucler' : 'Lecture'}">${svgIcon('play')}</button>
             <button type="button" id="seq-stop" class="btn-stop seq-icon-btn" title="Stop" aria-label="Stop">${svgIcon('stop')}</button>
