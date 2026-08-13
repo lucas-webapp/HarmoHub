@@ -3247,6 +3247,12 @@ class HarmoHubApp {
         document.getElementById('groove').onchange = () => {
             hasUnsavedChanges = true;
             this.liveRestartForGlobalChange();
+            // Le séquenceur affiche le groove en cours dans le coin de sa règle (voir .seq-groove-tag) :
+            // sans ce rendu, le repère n'apparaissait/ne disparaissait qu'au prochain geste sur une
+            // note — on changeait de groove et rien ne bougeait, ce qui est exactement l'inverse de ce
+            // que ce repère est censé faire. Sans effet quand le panneau est fermé (garde de
+            // renderSequencer).
+            this.renderSequencer();
         };
 
         // Aperçu en direct : nom de l'accord, clavier et séquenceur mis à jour dès qu'on change un réglage
