@@ -4389,6 +4389,31 @@ select.song-select-narrow {
    seconde règle de même spécificité l'écrasait et la gouttière repartait avec le défilement. */
 .seq-grid-continuous .seq-beat-label { z-index: 7; }
 
+/* Repère de groove, coin haut-gauche de la règle (voir renderSequencer/GROOVE_RATIOS). Il occupe le
+   seul rectangle vide de l'en-tête — au-dessus de la gouttière des touches —, donc il n'ajoute ni
+   bouton ni rangée. Discret par construction : c'est un rappel, pas une commande. Collé comme le
+   reste de la règle, et au même z-index que les étiquettes pour rester au-dessus des notes qui
+   défilent dessous. */
+.seq-grid-continuous .seq-groove-tag {
+    position: sticky;
+    left: 0;
+    top: 0;
+    z-index: 8;
+    width: var(--seq-label-w, 40px);
+    height: var(--seq-ruler-h, 24px);
+    justify-self: start;
+    align-self: start;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--accent);
+    cursor: help;
+    pointer-events: auto;
+}
+
 /* BANDEAU DE LA RÈGLE : un seul élément couvrant toute la partie (grid-column: 1 / -1, voir
    renderSequencer). Avant, la règle n'existait QUE là où il y avait un chiffre — une étiquette d'une
    colonne par temps, chacune avec son propre fond — et le quadrillage se voyait dans tous les

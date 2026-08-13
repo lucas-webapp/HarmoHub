@@ -11116,7 +11116,18 @@ class HarmoHubApp {
         // qu'après un appui maintenu — c'est-à-dire quand l'utilisateur a explicitement demandé à
         // éditer. Le détourner alors vers un défilement serait précisément le hasard qu'on vient
         // d'éliminer (retour utilisateur : « c'est trop aléatoire »).
-        if (!d.axisDecided && d.pointerType !== 'touch' && (d.resize || !d.wasOn)) {
+        // La condition portait `(d.resize || !d.wasOn)`, en croyant dire « étirement ou case vide ».
+        // Elle disait en réalité tout autre chose sur les notes COURTES : une note d'une ou deux
+        // doubles croches n'a que des bords (voir isStartEdge/isEndEdge dans renderSequencer), donc
+        // d.resize y est vrai partout — et ce bloc-ci passant AVANT l'arbitrage du geste, un glissé
+        // vertical y partait toujours en défilement. Résultat mesuré : une note de deux croches ne
+        // pouvait PAS être déplacée sur une autre hauteur, jamais, alors qu'une note de trois croches
+        // ou plus le pouvait depuis son milieu. C'est le défaut que reproduit seq_voicedrag_test.js
+        // (sa note fait exactement deux croches) — vérifié identique sur a25163a, donc antérieur à ce
+        // travail. La règle voulue est celle qu'énonce déjà le commentaire ci-dessus : un geste parti
+        // d'une note EXISTANTE garde le sien (changer de voix), le défilement de secours ne concerne
+        // que les cases vides.
+        if (!d.axisDecided && d.pointerType !== 'touch' && !d.wasOn) {
             const dx0 = e.clientX - d.startX, dy0 = e.clientY - d.startY;
             if (Math.hypot(dx0, dy0) < 10) return;
             d.axisDecided = true;
@@ -12221,7 +12232,12 @@ class HarmoHubApp {
         // prises sur le même élément que celui qu'on va écrire, sinon on compare deux boîtes
         // différentes et la hauteur dérive à chaque rendu.
         const hote = document.getElementById('seq-dock-host');
-        if (grille && hote) {
+        // Hauteur réglée à la POIGNÉE : elle prime, on ne la rabote pas. Quelqu'un qui s'est donné la
+        // peine de tirer le volet à la taille voulue veut cette taille-là, même si l'accord du moment
+        // n'a que trois notes à y montrer — le prochain en aura peut-être vingt, et le volet ne doit
+        // pas changer de taille sous ses yeux d'un accord à l'autre. Le plafond ne concerne que la
+        // hauteur AUTOMATIQUE.
+        if (grille && hote && !this.seqDockHeight) {
             const bande = grille.parentElement;
             // Ce que le volet ajoute AUTOUR de la bande défilante : rangée de boutons, poignée, marges.
             // Mesuré sur la mise en page ACTUELLE (volet - bande), pas déduit de la hauteur qu'on est en
@@ -13361,6 +13377,29 @@ class HarmoHubApp {
         let beatLabelsHtml = continuous
             ? `<div class="seq-ruler-band" style="grid-row:${beatRow}; grid-column: 1 / -1;"></div>`
             : '';
+        // CE QU'ON VOIT N'EST PAS CE QU'ON ENTEND, et jusqu'ici rien ne le disait. En shuffle ou en
+        // ternaire, la grille reste dessinée DROITE (quatre colonnes égales par temps — c'est le choix
+        // de presque toutes les stations audio, et il est bon : on édite des positions, pas des durées
+        // réelles), mais la lecture, le métronome et l'export MIDI décalent bel et bien la 2e croche
+        // de chaque temps (voir GROOVE_RATIOS/grooveStepOffset). Une note posée pile sur une case ne
+        // tombe donc pas là où l'œil l'attend, sans que rien à l'écran ne l'explique — de quoi croire
+        // à un défaut de calage. Le repère est posé dans le coin haut-gauche de la règle, au-dessus de
+        // la gouttière des touches : le seul rectangle de l'en-tête qui était vide, donc aucun bouton
+        // de plus à caser (retour utilisateur sur « l'amas de boutons »). Rien d'affiché en droit,
+        // qui est le cas courant et n'a rien à signaler.
+        const grooveActif = document.getElementById('groove').value;
+        if (continuous && grooveActif && grooveActif !== 'straight') {
+            const libelle = grooveActif === 'ternary' ? 'Ter.' : 'Sh.';
+            const titre = grooveActif === 'ternary'
+                ? 'Groove ternaire : la grille reste droite, mais la 2e croche de chaque temps est jouée plus tard'
+                : 'Groove shuffle : la grille reste droite, mais la 2e croche de chaque temps est jouée plus tard';
+            // `grid-column: 1 / -1` et non `1`, pour la MÊME raison que .seq-label (voir son bloc CSS) :
+            // un élément de grille collant est confiné à sa propre case, et une case d'une seule colonne
+            // ne lui laisse nulle part où tenir — il repartirait avec le défilement horizontal dès la
+            // première mesure. Il couvre donc toutes les colonnes, sa largeur explicite (--seq-label-w)
+            // le gardant visuellement dans le coin.
+            beatLabelsHtml += `<div class="seq-groove-tag" title="${titre}" style="grid-row:${beatRow}; grid-column: 1 / -1;">${libelle}</div>`;
+        }
         // En vue CONTINUE, la barre de temps couvre TOUTE la grille affichée (accords précédents +
         // accord édité + accords suivants), pas seulement la tranche de l'accord en cours d'édition —
         // retour utilisateur : « je veux voir la barre de décompte des mesures en entier, pas
