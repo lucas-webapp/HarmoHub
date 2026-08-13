@@ -1835,6 +1835,9 @@ const VOICE_LEADING_ZOOM_LEVEL_X_KEY = 'harmohubVoiceLeadingZoomLevelX';
 const VOICE_LEADING_ZOOM_LEVEL_Y_KEY = 'harmohubVoiceLeadingZoomLevelY';
 const ZOOM_LEVEL_MIN = 0.7;
 const ZOOM_LEVEL_MAX = 2;
+// Plafond propre à l'axe horizontal du séquenceur (voir zoomMaxFor) : 4 fois la base, soit ~112px la
+// double croche, de quoi placer une note au pixel près sans deviner.
+const SEQ_ZOOM_X_MAX = 4;
 const ZOOM_LEVEL_STEP = 0.1;
 // Borne basse plus large QUE ZOOM_LEVEL_MIN, pour ce seul réglage : la cible de base y est bien
 // plus petite que celle des fenêtres agrandies (4 temps plutôt que 8, voir seqPageBars) — sur une
@@ -4451,7 +4454,14 @@ class HarmoHubApp {
                             displayChord = guitarChordFor(chord, this.guitarOverride);
                         }
                         if (displayChord) this.ensureGuitarDiagram(displayChord, trackPlayhead);
+                        // Écoute de l'accord seul : la croche est déjà comptée depuis l'accord édité.
+                        // Lecture de toute la grille : elle est comptée depuis l'accord QUI SONNE, qui
+                        // n'est pas forcément celui qu'on édite — d'où la conversion (voir
+                        // updateSeqPlayheadDepuisGrille). Sans cette seconde branche, le curseur du
+                        // séquenceur et la barre orange de sa règle ne bougeaient jamais quand on
+                        // lançait la grille.
                         if (trackPlayhead) this.updateSeqPlayhead(s);
+                        else if (gridPos) this.updateSeqPlayheadDepuisGrille(gridPos.section, gridPos.index, s);
                         if (gridPos && chord) this.setGridPlayheadProgress(gridPos.section, gridPos.index, s / SEQ_STEPS_PER_BEAT, chord.beats);
                     } catch (e) {
                         console.warn('Mise à jour visuelle ignorée (croche', s, ') :', e.message);
@@ -12138,9 +12148,32 @@ class HarmoHubApp {
 
     // Hauteur d'ouverture du volet : celle réglée à la main si elle existe, sinon une part de l'écran.
     hauteurVoletSequenceur() {
-        if (this.seqDockHeight) return this.seqDockHeight;
-        return Math.round(Math.max(SEQ_DOCK_HEIGHT_AUTO_MIN,
+        // Le zoom VERTICAL agit ici, sur la hauteur du volet — plus sur la hauteur des barres.
+        // Il grossissait chaque ligne (14px x niveau) : au-delà de deux crans, une même note n'avait
+        // plus la même tête d'un réglage à l'autre et on perdait ses repères (retour utilisateur :
+        // « comme sur GarageBand, laisser une unique hauteur de barres. Juste éloigner la vue pour
+        // voir plus de notes. On se perd avec le grossissement vertical des barres et ça enlève de la
+        // fluidité »). Les barres gardent donc une taille unique, et V+/V− font ce qu'on leur demande
+        // vraiment : montrer plus ou moins de demi-tons à la fois.
+        const base = this.seqDockHeight || Math.round(Math.max(SEQ_DOCK_HEIGHT_AUTO_MIN,
             Math.min(SEQ_DOCK_HEIGHT_AUTO_MAX, window.innerHeight * SEQ_DOCK_HEIGHT_RATIO)));
+        // Jamais plus haut que l'écran : passé là, le volet pousserait les boutons hors de vue.
+        // `seqInlineZoomLevelY` : le niveau que pilotent les boutons V DU VOLET (kind 'seqInline',
+        // voir setupZoomControls) — pas celui de la grille d'accords, qui a les siens en haut.
+        let h = Math.max(140, Math.min(window.innerHeight * 0.8, base * (this.seqInlineZoomLevelY || 1)));
+        // ...mais jamais plus haut que ce qu'il y a RÉELLEMENT à montrer. Sans ce plafond, agrandir la
+        // vue sur un accord de vingt demi-tons n'ajouterait que du vide sous les notes — exactement le
+        // reproche fait par ailleurs (« beaucoup trop d'espace perdu en bas de la page »). Le zoom
+        // vertical ne sert donc à quelque chose que lorsqu'il reste des hauteurs hors champ.
+        const grille = document.querySelector('#arp-sequencer .seq-grid-continuous');
+        if (grille) {
+            const bande = grille.parentElement;
+            // Hauteur de contenu + ce que le volet ajoute autour de la bande (rangée de boutons,
+            // poignée, marges) : mesuré plutôt que deviné, ces chrome-là bougent avec la mise en page.
+            const autour = this.seqDockHeight ? 0 : Math.max(0, h - (bande ? bande.clientHeight : h));
+            h = Math.min(h, grille.scrollHeight + autour + 8);
+        }
+        return Math.round(h);
     }
 
     // Largeur d'une colonne (une croche) à l'échelle 1, déduite de la place réellement disponible
@@ -12524,7 +12557,9 @@ class HarmoHubApp {
             }
             const btns = group.querySelectorAll('.zoom-axis-btn');
             // Ordre fixé par le gabarit : agrandir d'abord, réduire ensuite (voir index.html).
-            if (btns[0]) btns[0].disabled = level >= ZOOM_LEVEL_MAX - 0.001;
+            // Le plafond n'est plus le même partout (voir zoomMaxFor) : le lire, sinon le bouton
+            // « + » du séquenceur se griserait dès x2 alors qu'il peut monter bien plus haut.
+            if (btns[0]) btns[0].disabled = level >= this.zoomMaxFor(kind, axis) - 0.001;
             if (btns[1]) btns[1].disabled = level <= min + 0.001;
         });
     }
@@ -12558,7 +12593,21 @@ class HarmoHubApp {
     // si bien qu'à 0,7 le réglage n'aurait littéralement aucun effet visible — voir SEQ_INLINE_ZOOM_MIN.
     // Exception isolée ICI plutôt que dispersée, pour que tout le reste partage vraiment les mêmes règles.
     zoomMinFor(kind, axis) {
-        return (kind === 'seqInline' && axis === 'x') ? SEQ_INLINE_ZOOM_MIN : ZOOM_LEVEL_MIN;
+        // Séquenceur, axe HORIZONTAL : plancher remonté à 1. Descendre plus bas ne servait à rien —
+        // sous l'échelle 1 les doubles croches deviennent illisibles et intouchables (retour
+        // utilisateur : « voir trop petit ne me sert à rien »). L'échelle 1 montre déjà six mesures
+        // d'un coup. SEQ_INLINE_ZOOM_MIN (0,3), qui autorisait ce dézoom inutile, n'a plus d'emploi.
+        if (axis === 'x' && (kind === 'seq' || kind === 'seqInline')) return 1;
+        return ZOOM_LEVEL_MIN;
+    }
+
+    // Borne haute, symétrique de zoomMinFor. Le plafond commun (x2) arrivait bien trop vite sur l'axe
+    // horizontal du séquenceur : à 28px de base, une double croche plafonnait à 56px, soit une mesure
+    // et demie à l'écran alors qu'on veut pouvoir travailler une croche de près (retour utilisateur :
+    // « le zoom horizontal est vite plafonné, je veux pouvoir voir plus gros »).
+    zoomMaxFor(kind, axis) {
+        if (axis === 'x' && (kind === 'seq' || kind === 'seqInline')) return SEQ_ZOOM_X_MAX;
+        return ZOOM_LEVEL_MAX;
     }
 
     // Pose une échelle ABSOLUE (pas relative comme adjustZoom ci-dessus) : utilisé par le pincer-zoomer
@@ -12574,7 +12623,7 @@ class HarmoHubApp {
             : kind === 'classicGrid'
             ? (axis === 'x' ? CLASSIC_GRID_ZOOM_LEVEL_X_KEY : CLASSIC_GRID_ZOOM_LEVEL_Y_KEY)
             : (axis === 'x' ? VOICE_LEADING_ZOOM_LEVEL_X_KEY : VOICE_LEADING_ZOOM_LEVEL_Y_KEY);
-        const next = Math.round(Math.max(this.zoomMinFor(kind, axis), Math.min(ZOOM_LEVEL_MAX, value)) * 100) / 100;
+        const next = Math.round(Math.max(this.zoomMinFor(kind, axis), Math.min(this.zoomMaxFor(kind, axis), value)) * 100) / 100;
         if (next === this[levelKey]) return; // évite un applyZoomLevel (donc un rendu) inutile
         this[levelKey] = next;
         localStorage.setItem(storageKey, String(next));
@@ -12606,6 +12655,11 @@ class HarmoHubApp {
                 else this.renderSequencer();
             }
         } else if (kind === 'seqInline') {
+            // Le zoom vertical de cette vue agit sur la hauteur du VOLET (voir hauteurVoletSequenceur,
+            // et le retour utilisateur sur la hauteur unique des barres) : sans ce rafraîchissement,
+            // le nouveau niveau ne s'appliquerait qu'au prochain ouvrir/fermer du volet.
+            const volet = document.getElementById('seq-dock-panel');
+            if (volet && !volet.hidden) volet.style.height = `${this.hauteurVoletSequenceur()}px`;
             // Séquenceur COMPACT/CONTINU : la verticale passe par la même variable CSS que la vue
             // agrandie (voir _applySeqVerticalScale), l'horizontale par _appliquerEchelleHorizontale —
             // les deux en place, sans reconstruire. Le rendu complet ne reste nécessaire que si aucune
@@ -12969,7 +13023,7 @@ class HarmoHubApp {
             ? `${labelW}px repeat(${totalCols}, var(--seq-col-w))`
             : (wideCompact ? `max-content repeat(${totalCols}, var(--seq-col-w))`
                            : `max-content repeat(${pageSteps}, 1fr)`);
-        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" data-col-px="${continuousColPx}" style="grid-template-columns: ${colTemplate}; --seq-col-w: ${continuousColPx}px; --seq-steps-per-bar: ${beatsPerBar * SEQ_STEPS_PER_BEAT}; --seq-bar-w: ${continuousColPx * beatsPerBar * SEQ_STEPS_PER_BEAT}px; --seq-beat-w: ${continuousColPx * SEQ_STEPS_PER_BEAT}px; --seq-label-w: ${labelW}px;">`;
+        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" data-col-px="${continuousColPx}" data-total-cols="${totalCols}" style="grid-template-columns: ${colTemplate}; --seq-col-w: ${continuousColPx}px; --seq-steps-per-bar: ${beatsPerBar * SEQ_STEPS_PER_BEAT}; --seq-bar-w: ${continuousColPx * beatsPerBar * SEQ_STEPS_PER_BEAT}px; --seq-beat-w: ${continuousColPx * SEQ_STEPS_PER_BEAT}px; --seq-label-w: ${labelW}px;">`;
 
         // Cases de la grille : zones de clic/glisser (toujours présentes, sous les notes visuelles).
         // Placement explicite (grid-row/grid-column) sur TOUT le monde : les notes ci-dessous se
@@ -13044,7 +13098,13 @@ class HarmoHubApp {
         // des lignes trouées, des touches se feraient face sans respecter l'écart réel, et le repère
         // mentirait. Hors vue continue, on garde donc l'étiquette texte telle quelle.
         const PC_NOIRES = new Set([1, 3, 6, 8, 10]);
-        const toucheCls = (midi) => {
+        // `role` : passé seulement pour les hauteurs que l'accord JOUE vraiment. Le clavier de gauche
+        // montrait bien où l'on est, jamais ce qui sonne — il fallait relire les barres pour retrouver
+        // l'accord (retour utilisateur : « les notes présentes dans l'accord ne restent pas affichées
+        // sur le piano »). La touche prend donc la couleur de sa fonction, exactement celles du clavier
+        // et de la légende de l'appli (1 vert, 3 bleu, 5 rouge, 7 orange, autres violet) : un seul code
+        // couleur d'un bout à l'autre.
+        const toucheCls = (midi, role) => {
             if (!continuous) return '';
             const pc = ((midi % 12) + 12) % 12;
             // Le DO porte en plus sa propre classe : c'est la seule touche dont le nom reste écrit en
@@ -13053,8 +13113,10 @@ class HarmoHubApp {
             // « le nom des notes prend trop de place sur les touches, laisser uniquement le Do avec
             // son octave ») ; un DO tous les douze demi-tons suffit à se situer, exactement comme on
             // repère une octave sur un vrai clavier.
-            const cls = PC_NOIRES.has(pc) ? ' seq-key seq-key-black' : ' seq-key seq-key-white';
-            return pc === 0 ? cls + ' seq-key-c' : cls;
+            let cls = PC_NOIRES.has(pc) ? ' seq-key seq-key-black' : ' seq-key seq-key-white';
+            if (pc === 0) cls += ' seq-key-c';
+            if (role) cls += ` seq-key-jouee seq-key-role-${role}`;
+            return cls;
         };
 
         // La règle de mesure occupe la ligne 1 (voir beatRow) : les hauteurs commencent donc à 2.
@@ -13074,13 +13136,13 @@ class HarmoHubApp {
                 // juste le nom de la note, en lecture seule, aucune case ni note éditable dessous
                 // pour l'accord en édition — mais le rythme du voisin, lui, s'affiche toujours.
                 const ctxName = midiToDisplayName(row.midi, this.useFlatsForRoot(chord.root));
-                html += `<div class="seq-label seq-label-context${toucheCls(row.midi)}${echoCls}" data-row-voice="${r}" data-row-midi="${row.midi}" style="grid-row:${rowIndex}; grid-column:1;"><span class="seq-key-name">${ctxName}</span></div>`;
+                html += `<div class="seq-label seq-label-context${toucheCls(row.midi, null)}${echoCls}" data-row-voice="${r}" data-row-midi="${row.midi}" style="grid-row:${rowIndex}; grid-column:1;"><span class="seq-key-name">${ctxName}</span></div>`;
             } else if (r >= extraStart && r < extraEnd) {
                 const extraIdx = r - extraStart;
                 // La touche est peinte AUSSI sous une note libre (dont l'étiquette est un champ de
                 // saisie) : sans elle, le clavier de repérage se trouerait exactement là où l'on vient
                 // de poser une note — l'endroit qu'on regarde.
-                html += `<div class="seq-label seq-label-extra${toucheCls(row.midi)}${echoCls}" data-row-voice="${r}" data-row-midi="${row.midi}" style="grid-row:${rowIndex}; grid-column:1;">
+                html += `<div class="seq-label seq-label-extra${toucheCls(row.midi, roleMap[row.midi] || 'ext')}${echoCls}" data-row-voice="${r}" data-row-midi="${row.midi}" style="grid-row:${rowIndex}; grid-column:1;">
                     <input type="text" class="seq-label-input" data-extra-index="${extraIdx}" data-voice="${r}" value="${escapeHtml(noteNames[r])}" title="Note libre : tape une hauteur (ex. E3), ou vide pour la supprimer" autocomplete="off" autocapitalize="off" spellcheck="false">
                 </div>`;
             } else {
@@ -13089,7 +13151,7 @@ class HarmoHubApp {
                 // à la faire ENTENDRE au clic. Deux attributs et non un seul parce qu'une note libre
                 // porte `data-voice` sur son champ de saisie, pas sur l'étiquette : lui en poser un
                 // second déclencherait l'écoute au moindre clic dans le champ.
-                html += `<div class="seq-label${toucheCls(row.midi)}${echoCls}" data-voice="${r}" data-row-voice="${r}" data-row-midi="${row.midi}" title="Cliquer pour écouter cette note" style="grid-row:${rowIndex}; grid-column:1;"><span class="seq-key-name">${noteNames[r]}</span></div>`;
+                html += `<div class="seq-label${toucheCls(row.midi, roleMap[row.midi] || 'ext')}${echoCls}" data-voice="${r}" data-row-voice="${r}" data-row-midi="${row.midi}" title="Cliquer pour écouter cette note" style="grid-row:${rowIndex}; grid-column:1;"><span class="seq-key-name">${noteNames[r]}</span></div>`;
             }
 
             // Contexte GAUCHE (TOUS les accords avant celui édité, voir prevSegs plus haut) : rythme
@@ -13918,11 +13980,42 @@ class HarmoHubApp {
         if (step == null) return cacher();
         const pageStart = +grid.dataset.pageStart, pageSteps = +grid.dataset.pageSteps;
         const colOffset = +grid.dataset.colOffset || 0; // voir renderSequencer, mode continu
-        if (step < pageStart || step >= pageStart + pageSteps) return cacher();
+        const colonneVisee = colOffset + step - pageStart + 2;
+        // En vue CONTINUE, la grille affiche toute la partie : le curseur a le droit de sortir de
+        // l'accord édité, et c'est même tout l'intérêt pendant la lecture de la grille entière (voir
+        // updateSeqPlayheadDepuisGrille). Le bornage se fait alors sur les colonnes réellement
+        // dessinées, pas sur les pas du seul accord en cours de modification.
+        if (grid.classList.contains('seq-grid-continuous')) {
+            const totalCols = +grid.dataset.totalCols || (colOffset + pageSteps);
+            if (colonneVisee < 2 || colonneVisee > totalCols + 1) return cacher();
+        } else if (step < pageStart || step >= pageStart + pageSteps) {
+            return cacher();
+        }
         ph.style.display = 'block';
-        const colonne = `${colOffset + step - pageStart + 2} / span 1`;
+        const colonne = `${colonneVisee} / span 1`;
         ph.style.gridColumn = colonne;
         if (tete) { tete.hidden = false; tete.style.gridColumn = colonne; }
+    }
+
+    // Curseur de lecture pendant la lecture de TOUTE la grille (voir schedulePlayback/gridPos).
+    // Il ne bougeait pas du tout : updateSeqPlayhead n'était appelé que pour `trackPlayhead`,
+    // c'est-à-dire l'écoute de l'accord SEUL. En lançant la grille, la barre orange de la règle
+    // restait donc invisible (retour utilisateur : « la barre de lecture orange n'apparaît pas dans
+    // la règle de mesure du séquenceur comme demandé avant »). La vue continue montrant la partie
+    // entière, le curseur doit la traverser d'un accord à l'autre : on convertit la croche `step` de
+    // l'accord JOUÉ en croche comptée depuis l'accord ÉDITÉ, seul repère que connaisse la grille.
+    updateSeqPlayheadDepuisGrille(section, index, step) {
+        if (section !== this.activeSection || this.editingIndex == null) return;
+        // Vue compacte : elle ne montre que l'accord édité, un curseur venu d'ailleurs n'y aurait
+        // aucun sens — updateSeqPlayhead le masquerait de toute façon, autant s'arrêter ici.
+        if (!document.querySelector('#arp-sequencer .seq-grid-continuous')) return;
+        const accords = (loadProgressionSections()[section] || {}).chords || [];
+        const pasAvant = (i) => {
+            let n = 0;
+            for (let k = 0; k < i && k < accords.length; k++) n += beatsFromData(accords[k]) * SEQ_STEPS_PER_BEAT;
+            return n;
+        };
+        this.updateSeqPlayhead(pasAvant(index) - pasAvant(this.editingIndex) + step);
     }
 
     // Clic sur une case : sélectionne (surbrillance) + écoute l'accord, sauf si l'utilisateur a

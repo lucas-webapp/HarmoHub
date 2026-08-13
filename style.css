@@ -406,6 +406,33 @@ body.body-scroll-locked { overflow: hidden !important; }
     color: #e4e0d8;
 }
 
+/* LES NOTES DE L'ACCORD RESTENT ALLUMÉES SUR LE CLAVIER (retour utilisateur : « les notes présentes
+   dans l'accord ne restent pas affichées sur le piano »). Le clavier de gauche disait où l'on est,
+   jamais ce qui sonne : pour retrouver l'accord, il fallait relire les barres. Chaque touche jouée
+   prend donc la couleur de sa FONCTION — exactement celles du clavier fixe et de la légende (voir
+   .key.active.role-*/.dot-*), pour n'avoir qu'un seul code couleur à retenir dans toute l'appli.
+   Un dégradé satiné plutôt qu'un aplat : c'est ce qui distingue une touche enfoncée d'un simple
+   surlignage, et c'est déjà le traitement des touches actives ailleurs. */
+.seq-label.seq-key-jouee { color: #10231a; font-weight: 700; }
+.seq-label.seq-key-jouee.seq-key-role-root    { background: linear-gradient(180deg, #3fe3a0 0%, #00a855 100%), var(--card-bg); }
+.seq-label.seq-key-jouee.seq-key-role-third   { background: linear-gradient(180deg, #5b98f0 0%, #1f5fc0 100%), var(--card-bg); }
+.seq-label.seq-key-jouee.seq-key-role-fifth   { background: linear-gradient(180deg, #ff6f66 0%, #d42a20 100%), var(--card-bg); }
+.seq-label.seq-key-jouee.seq-key-role-seventh { background: linear-gradient(180deg, #ffc247 0%, #cc8f00 100%), var(--card-bg); }
+.seq-label.seq-key-jouee.seq-key-role-ext     { background: linear-gradient(180deg, #dba8ee 0%, #c48ce6 100%), var(--card-bg); }
+/* Une touche NOIRE jouée garde son décrochement : sans lui, la colonne perdrait le motif 2+3 juste
+   là où elle est la plus colorée, donc la plus regardée. Le liseré ivoire des 10 premiers pixels est
+   redessiné par-dessus le dégradé de rôle. */
+.seq-label.seq-key-black.seq-key-jouee {
+    background-image:
+        linear-gradient(to right, #e7dcc4 10px, transparent 10px),
+        var(--seq-touche-role, linear-gradient(180deg, #3fe3a0 0%, #00a855 100%));
+}
+.seq-label.seq-key-black.seq-key-jouee.seq-key-role-root    { --seq-touche-role: linear-gradient(180deg, #3fe3a0 0%, #00a855 100%); }
+.seq-label.seq-key-black.seq-key-jouee.seq-key-role-third   { --seq-touche-role: linear-gradient(180deg, #5b98f0 0%, #1f5fc0 100%); }
+.seq-label.seq-key-black.seq-key-jouee.seq-key-role-fifth   { --seq-touche-role: linear-gradient(180deg, #ff6f66 0%, #d42a20 100%); }
+.seq-label.seq-key-black.seq-key-jouee.seq-key-role-seventh { --seq-touche-role: linear-gradient(180deg, #ffc247 0%, #cc8f00 100%); }
+.seq-label.seq-key-black.seq-key-jouee.seq-key-role-ext     { --seq-touche-role: linear-gradient(180deg, #dba8ee 0%, #c48ce6 100%); }
+
 /* UN SEUL NOM ÉCRIT EN PERMANENCE : celui du DO, avec son octave. Vingt et quelques noms empilés
    remplissaient la gouttière d'un mur de texte à travers lequel on ne voyait plus le clavier (retour
    utilisateur : « le nom des notes prend trop de place sur les touches, laisser uniquement le Do avec
@@ -4243,8 +4270,13 @@ select.song-select-narrow {
     width: max-content;
     min-width: 100%;
 }
+/* UNE SEULE HAUTEUR DE BARRE, définitivement (retour utilisateur : « comme sur GarageBand, en zoom
+   vertical, laisser une unique hauteur de barres. Juste éloigner la vue pour voir plus de notes »).
+   La hauteur suivait le zoom vertical (14px x niveau) : une même note changeait de tête d'un réglage
+   à l'autre, et l'œil perdait ses repères. Le zoom vertical agit maintenant sur la HAUTEUR DU VOLET
+   (voir hauteurVoletSequenceur) : on voit plus ou moins de demi-tons, jamais des barres plus grosses. */
 .seq-grid-continuous .seq-cell,
-.seq-grid-continuous .seq-label { height: calc(14px * var(--seq-zoom-scale-v, 1)); }
+.seq-grid-continuous .seq-label { height: 14px; }
 /* EXACTEMENT le gabarit des barres éditables : ni hauteur propre, ni marge — la barre remplit sa
    ligne, comme .seq-note. Un reste de l'époque des fins repères de contexte lui donnait 14px de haut
    plus 2px de marge en haut et en bas : mesuré, la barre voisine faisait 14px là où celle qu'on édite
