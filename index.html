@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608130500">
+    <link rel="stylesheet" href="style.css?v=202608130600">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -804,10 +804,16 @@
                         </button>
                         <!-- Même dessin que #toggle-sequencer (barres façon séquenceur) : les deux ouvrent
                              le même panneau, depuis la barre de la grille pour celui-ci et depuis le volet
-                             Lecture pour l'autre. Il s'appelait #grid-zoom du temps où il ouvrait la vue
-                             agrandie plein écran ; ce nom aurait menti depuis qu'il ouvre le séquenceur,
-                             et plus encore depuis que cette vue n'existe plus. -->
-                        <button type="button" id="grid-seq-toggle" class="icon-btn icon-btn-wide" title="Séquenceur" aria-label="Ouvrir le séquenceur">
+                             Lecture pour l'autre.
+                             L'id garde son nom historique (#grid-zoom, du temps où il ouvrait la vue
+                             agrandie plein écran) alors qu'il ouvre le séquenceur. Il avait été renommé
+                             pour ne plus mentir : renommer l'a rendu INTROUVABLE pour tout navigateur
+                             servant un index.html en cache, et script.js mourait alors sur un
+                             getElementById null AVANT de construire l'appli — page entièrement figée,
+                             pas seulement ce bouton (reproduit). index.html ne porte pas de ?v= sur
+                             lui-même : renommer un id y est donc une opération à risque pour un gain
+                             purement cosmétique. -->
+                        <button type="button" id="grid-zoom" class="icon-btn icon-btn-wide" title="Séquenceur" aria-label="Ouvrir le séquenceur">
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <rect x="3" y="4" width="4" height="4" rx="1"/>
                                 <rect x="10" y="4" width="4" height="4" rx="1"/>
@@ -1031,6 +1037,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608130500"></script>
+    <script src="script.js?v=202608130600"></script>
 </body>
 </html>

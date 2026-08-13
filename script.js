@@ -2809,7 +2809,7 @@ class HarmoHubApp {
         this.seqOpen = false;      // panneau séquenceur ouvert ou non (indépendant du style de lecture)
         this.seqZoomOpen = false;  // fenêtre agrandie du séquenceur ouverte ou non (voir openSeqZoom)
         // Panneau "Conduite de voix" ouvert ou non (voir toggleVoiceLeadingPanel/buildVoiceLeadingPanelHtml)
-        // — un seul bouton global (#toggle-voice-leading, à côté de #grid-seq-toggle), pas un par partie : le
+        // — un seul bouton global (#toggle-voice-leading, à côté de #grid-zoom), pas un par partie : le
         // panneau affiché suit simplement la partie ACTIVE (this.activeSection) à chaque rendu. Comme
         // seqOpen, volontairement pas persisté : état d'affichage de la session, pas une
         // donnée du morceau.
@@ -3016,6 +3016,16 @@ class HarmoHubApp {
         // ne l'appelle, et ne nécessite pas d'avoir déjà "débloqué" l'AudioContext (seul
         // triggerAttackRelease en a besoin, voir Tone.start() dans playCurrent/playProgression).
         this.getInstrument('piano');
+    }
+
+    // Attache un écouteur SI l'élément existe. Réservé aux éléments récemment ajoutés au HTML :
+    // index.html n'ayant pas de ?v= sur lui-même, un navigateur peut en servir une version antérieure
+    // avec le script.js à jour. Un getElementById null interrompt alors setupEventListeners et l'appli
+    // ne démarre pas du tout. Volontairement PAS généralisé à tout le fichier : pour les éléments
+    // installés de longue date, une absence est un vrai bug qu'il vaut mieux voir échouer bruyamment.
+    _cabler(id, evenement, gestionnaire) {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener(evenement, gestionnaire);
     }
 
     setupEventListeners() {
@@ -3316,9 +3326,15 @@ class HarmoHubApp {
         // morceau et un export de bibliothèque partagent la même enveloppe {app, kind, songs[]} (voir
         // downloadSongBackup/exportLibrary) et importLibraryFile fusionne par id quel qu'en soit le
         // nombre. Poser la question serait la poser sur une information qu'on a déjà.
-        document.getElementById('song-export').onclick = (e) => this.openTransferScopeMenu(e.currentTarget);
+        // Câblage TOLÉRANT pour tout élément ajouté récemment (voir _cabler ci-dessous) : index.html
+        // ne porte pas de ?v= sur lui-même, un navigateur peut donc servir une version en cache qui ne
+        // contient pas encore ces éléments. Sans garde, le getElementById null lève ici même et
+        // setupEventListeners s'interrompt : l'appli ne démarre plus DU TOUT, page figée — pas
+        // seulement le bouton concerné (reproduit après le renommage de #grid-zoom). Une fonction qui
+        // manque vaut mieux qu'une appli morte, et le prochain rechargement rétablit tout.
+        this._cabler('song-export', 'click', (e) => this.openTransferScopeMenu(e.currentTarget));
         const songImportInput = document.getElementById('song-import-input');
-        document.getElementById('song-import').onclick = () => songImportInput.click();
+        this._cabler('song-import', 'click', () => songImportInput && songImportInput.click());
         songImportInput.onchange = () => {
             const file = songImportInput.files[0];
             songImportInput.value = ''; // permet de resélectionner le même fichier ensuite
@@ -3327,9 +3343,9 @@ class HarmoHubApp {
         document.getElementById('settings-close').onclick = () => this.closeSettings();
         // Fenêtre « Mes morceaux » : mêmes gestes de fermeture que les Paramètres (croix, clic sur
         // le fond, Échap — voir setupKeyboardShortcuts).
-        document.getElementById('song-files').onclick = () => this.openFilesWindow();
-        document.getElementById('files-close').onclick = () => this.closeFilesWindow();
-        document.getElementById('files-overlay').addEventListener('click', (e) => {
+        this._cabler('song-files', 'click', () => this.openFilesWindow());
+        this._cabler('files-close', 'click', () => this.closeFilesWindow());
+        this._cabler('files-overlay', 'click', (e) => {
             if (e.target.id === 'files-overlay') this.closeFilesWindow();
         });
         document.getElementById('settings-overlay').addEventListener('click', (e) => {
@@ -3348,7 +3364,7 @@ class HarmoHubApp {
         });
 
         // Options d'export PDF (voir openPdfExportDialog) : clic sur le fond = Annuler, comme les autres.
-        document.getElementById('pdf-export-modal').addEventListener('click', (e) => {
+        this._cabler('pdf-export-modal', 'click', (e) => {
             if (e.target.id === 'pdf-export-modal' && this._pdfDialogCancel) this._pdfDialogCancel();
         });
 
@@ -3408,7 +3424,7 @@ class HarmoHubApp {
         // simplement le SÉQUENCEUR, en place ; la vue agrandie et tout son attirail (transport dupliqué,
         // annuler/rétablir relayés, zoom H/V propre, séquenceur épinglé redimensionnable) ont été
         // supprimés — masquer le volet de gauche donne la même largeur sans recouvrir l'appli.
-        document.getElementById('grid-seq-toggle').onclick = () => this.toggleSequencer();
+        document.getElementById('grid-zoom').onclick = () => this.toggleSequencer();
 
         // Menu contextuel (clic droit / appui long) : Renommer/Modifier, Dupliquer (accords
         // uniquement), Supprimer — réutilisé pour les morceaux, les dossiers ET les accords de la
@@ -3573,7 +3589,7 @@ class HarmoHubApp {
             // pas — sans cette exception, ce même clic désélectionnait aussitôt l'accord ET refermait
             // l'édition tout juste rouverte par ce bouton (retour utilisateur : « je ne vois plus la
             // surbrillance »).
-            const opensZoomView = inPath('#grid-seq-toggle') || inPath('#seq-zoom');
+            const opensZoomView = inPath('#grid-zoom') || inPath('#seq-zoom');
             let changed = false;
             if (!opensZoomView && !inGrid && !inMenu && this.selectedIndex != null) { this.selectedIndex = null; changed = true; }
             if (!opensZoomView && !inGrid && !inMenu && !inEditor && this.editingIndex != null) { this.exitEditMode(); changed = true; }
@@ -5817,7 +5833,7 @@ class HarmoHubApp {
             const canMoveDown = si < sections.length - 1;
             const measureCountEl = history.length > 0 ? `<span class="prog-section-measures">${sectionMeasureCount(sec, beatsPerBar)} mes.</span>` : '';
             // Conduite de voix : un seul bouton global (voir #toggle-voice-leading, à côté de
-            // #grid-seq-toggle) plutôt qu'un par partie — mais le panneau lui-même reste posé ICI, juste
+            // #grid-zoom) plutôt qu'un par partie — mais le panneau lui-même reste posé ICI, juste
             // sous la partie ACTIVE (this.activeSection), pas ailleurs : suit donc automatiquement la
             // partie sur laquelle on travaille, sans bouton à rechercher à chaque fois.
             // On masque, on n'éteint pas : voiceLeadingOpen reste vrai et les barres reviennent
@@ -5840,7 +5856,7 @@ class HarmoHubApp {
             </div>`;
         }).join('');
 
-        // Bouton global (voir index.html, à côté de #grid-seq-toggle) : reflète l'état ouvert/fermé et se
+        // Bouton global (voir index.html, à côté de #grid-zoom) : reflète l'état ouvert/fermé et se
         // désactive si la partie ACTIVE a moins de 2 accords (rien à enchaîner) — jamais retiré du DOM
         // (contrairement au panneau lui-même), donc mis à jour ici plutôt que dans le gabarit ci-dessus.
         const toggleVoiceLeadingBtn = document.getElementById('toggle-voice-leading');
@@ -6927,8 +6943,10 @@ class HarmoHubApp {
     // entre les deux fenêtres. Les Paramètres ne contiennent plus que des préférences.
     openFilesWindow() {
         this.filesOpen = true;
-        document.getElementById('files-overlay').hidden = false;
-        document.getElementById('song-files').classList.add('active');
+        const overlay = document.getElementById('files-overlay');
+        if (!overlay) return; // index.html en cache : mieux vaut ne rien faire que lever
+        overlay.hidden = false;
+        document.getElementById('song-files')?.classList.add('active');
         this.lockBodyScroll();
         this.renderFilesPanel();
         this.updateGlobalUndoRedoButtons(); // le bouton unique repointe vers l'historique Fichiers
@@ -6936,8 +6954,9 @@ class HarmoHubApp {
 
     closeFilesWindow() {
         this.filesOpen = false;
-        document.getElementById('files-overlay').hidden = true;
-        document.getElementById('song-files').classList.remove('active');
+        const overlay = document.getElementById('files-overlay');
+        if (overlay) overlay.hidden = true;
+        document.getElementById('song-files')?.classList.remove('active');
         this.unlockBodyScroll();
         this.updateGlobalUndoRedoButtons();
     }

@@ -1348,7 +1348,7 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
 .icon-btn-lg .icon { width: 17px; height: 17px; }
 
 /* Variante élargie SEULEMENT (hauteur inchangée, 32px comme .icon-btn) : les boutons qui ouvrent/
-   ferment le séquenceur (#toggle-sequencer, #grid-seq-toggle, retour utilisateur) méritent un peu plus de
+   ferment le séquenceur (#toggle-sequencer, #grid-zoom, retour utilisateur) méritent un peu plus de
    présence horizontale, mais doivent rester alignés en hauteur avec leurs voisins immédiats
    (#apply-instrument-all, les groupes -/+ H/V) plutôt que dépasser comme .icon-btn-lg. 44px, PAS
    42 (retour utilisateur, homogénéisation) : tombe pile sur la même largeur que .seq-icon-btn
@@ -3639,7 +3639,7 @@ body.all-beats .offbeat-dot {
    boutons Supprimer sur mobile. Même hauteur fixe que le reste de la rangée (.seq-presets button),
    pour rester alignés sur les boutons Supprimer juste à côté sans dépendre d'un étirement. Taille
    d'origine (44px) : retour utilisateur, seuls les boutons qui OUVRENT/FERMENT le séquenceur
-   (#toggle-sequencer, #grid-seq-toggle) devaient être agrandis, pas ceux-ci. */
+   (#toggle-sequencer, #grid-zoom) devaient être agrandis, pas ceux-ci. */
 .seq-presets .seq-icon-btn {
     flex: none;
     width: 44px;
