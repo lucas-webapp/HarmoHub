@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608132100">
+    <link rel="stylesheet" href="style.css?v=202608132200">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -564,6 +564,16 @@
                             <button type="button" id="toggle-complex-quality" class="icon-btn" title="Afficher plus d'options (accords enrichis, renversement, drop, octave, basse différente...)" aria-label="Afficher plus d'options">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
                             </button>
+                            <!-- Fin de la modification. Elle vivait dans un large bouton « Fermer »
+                                 ancré tout en bas de la colonne, loin de ce qu'il fermait (retour
+                                 utilisateur : « ne sert à rien et est mal placé »). Ici, elle borde le
+                                 titre du panneau qu'elle referme — et surtout PAS la case d'accord de
+                                 la grille : sur une case, une croix se lit d'abord « supprimer cet
+                                 accord », geste destructeur à un pixel du geste courant. Elle ne
+                                 s'affiche qu'en modification (voir updateChordSubject). -->
+                            <button type="button" id="accord-close" class="icon-btn" hidden title="Terminer la modification" aria-label="Terminer la modification">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
+                            </button>
                         </div>
                     </div>
                     <div class="accord-grid">
@@ -1043,6 +1053,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608132100"></script>
+    <script src="script.js?v=202608132200"></script>
 </body>
 </html>

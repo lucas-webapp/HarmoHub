@@ -3475,6 +3475,24 @@ body.all-beats .offbeat-dot {
 }
 .seq-length-tag.show { opacity: 1; }
 
+/* TRANSPORTS DE LA GRILLE, ancrés en bas de la colonne de gauche (voir placeGlobalTransport).
+   Ils étaient au centre de l'en-tête de la grille, en petit (retour utilisateur : « les boutons de
+   lecture grille ne sont pas assez gros... remets-les en bas du volet à gauche, mais juste sous le
+   module »). Ils occupent maintenant toute la largeur de la colonne, à trois parts égales : c'est la
+   commande qu'on cherche le plus souvent, elle mérite la cible la plus facile à viser. */
+.dock .transport {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+}
+.dock .transport > button {
+    flex: 1 1 0;
+    height: 52px;
+    border-radius: 10px;
+}
+.dock .transport .transport-icon { width: 26px; height: 26px; }
+.dock .transport .icon { width: 24px; height: 24px; }
+
 /* Retour visuel immédiat PENDANT un glissé, le temps que renderSequencer() redessine la forme finale
    (voir applySeqCell, qui allume/éteint les cases une à une sans reconstruire toute la grille).
    Volontairement limité à la durée du geste (classe .seq-live posée sur #arp-sequencer, voir

@@ -3312,6 +3312,8 @@ class HarmoHubApp {
         document.getElementById('toggle-sequencer').onclick = () => this.toggleSequencer('compact');
 
         document.getElementById('cancel-edit').onclick = () => this.cancelEdit();
+        this._cabler('accord-close', 'click', () => this.cancelEdit());
+        this.setupSortieEditionAuClic();
 
         document.getElementById('add-section').onclick = () => this.addSection();
         document.getElementById('transpose-song-down').onclick = () => this.transposeSong(-1);
@@ -6216,6 +6218,9 @@ class HarmoHubApp {
         // Le titre du panneau suit le même point de passage que ses boutons : tout ce qui peut
         // changer « Ajouter » en « Modifier » change aussi le sujet annoncé au-dessus.
         this.updateChordSubject();
+        // Croix de l'en-tête : visible seulement quand il y a vraiment une modification à terminer.
+        const croix = document.getElementById('accord-close');
+        if (croix) croix.hidden = !(this.appMode === 'edit' && this.editingIndex != null);
         if (this.appMode === 'edit') {
             // Mode Modification (voir commitLiveEdit) : chaque champ s'applique déjà tout seul, plus
             // besoin d'Ajouter/Modifier ici — inutile même avant d'avoir chargé un accord précis (le
@@ -6225,8 +6230,12 @@ class HarmoHubApp {
             // tant qu'aucun n'est encore chargé.
             saveBtn.hidden = true;
             insertBtn.hidden = true;
-            cancelBtn.hidden = this.editingIndex == null;
-            cancelBtn.innerHTML = svgIcon('close') + ' Fermer';
+            // Le large bouton « Fermer » ancré en bas de colonne a disparu : il était loin de ce
+            // qu'il fermait et n'apportait rien qu'un clic ailleurs ne fasse déjà (retour utilisateur :
+            // « ne sert à rien et est mal placé »). Sa fonction vit maintenant dans la croix de
+            // l'en-tête du panneau (#accord-close, voir updateChordSubject) et dans le clic hors zone
+            // d'édition (voir setupSortieEditionAuClic).
+            cancelBtn.hidden = true;
             return;
         }
         saveBtn.hidden = false;
@@ -10743,6 +10752,35 @@ class HarmoHubApp {
         window.addEventListener('pointercancel', this._onSeqUp);
     }
 
+    // FIN DE MODIFICATION PAR CLIC AILLEURS (retour utilisateur : « la fin de la modification prendra
+    // lieu quand je cliquerai ailleurs dans l'application »). Le geste remplace le gros bouton
+    // « Fermer » supprimé du bas de colonne ; la croix de l'en-tête (#accord-close) reste pour ceux
+    // qui préfèrent viser une cible.
+    // La difficulté n'est pas de détecter le clic, c'est de définir « ailleurs ». Tout ce qui SERT à
+    // modifier doit être neutre, sinon la modification se refermerait sous les doigts au premier
+    // réglage : le panneau lui-même, le séquenceur et son volet, les cartes de lecture, les
+    // transports, les diagrammes, les fenêtres superposées. Un accord de la grille est neutre aussi —
+    // mais pour une autre raison : cliquer dessus BASCULE l'édition sur lui (voir onGridPointerUp),
+    // ce qui serait absurde à faire suivre d'une fermeture. Reste ce qui est vraiment « ailleurs » :
+    // le fond de page, les en-têtes, les marges.
+    setupSortieEditionAuClic() {
+        const NEUTRES = [
+            '.control-card', '#arp-sequencer', '.seq-dock-panel', '.transport', '.dock',
+            '.grid-cell', '.cell-add', '.section-head', '.grid-head-sticky', '.viz-diagrams',
+            '.viz-toggle', '.overlay', '.modal', '.settings-overlay', '#files-overlay',
+            'button', 'input', 'select', 'textarea', 'label', 'a', '[role="button"]',
+        ].join(',');
+        document.addEventListener('pointerdown', (e) => {
+            if (this.appMode !== 'edit' || this.editingIndex == null) return;
+            if (e.button != null && e.button !== 0) return;
+            // Un geste du séquenceur en cours (peindre, étirer, rectangle) part parfois d'un élément
+            // qui n'est plus dans le DOM au moment où l'on regarde : ne jamais fermer pendant.
+            if (this.seqDrag || this.seqMarquee || this.gridDrag) return;
+            if (e.target.closest && e.target.closest(NEUTRES)) return;
+            this.cancelEdit();
+        }, true);
+    }
+
     // Amorce une sélection par rectangle (voir onSeqPointerDown) : réutilise les MÊMES écouteurs
     // fenêtre que this.seqDrag (posés ici, pas dans un doublon) — onSeqPointerMove/onSeqPointerUp
     // vérifient this.seqMarquee EN PREMIER et s'y branchent avant de toucher this.seqDrag.
@@ -12248,7 +12286,15 @@ class HarmoHubApp {
         const dock = document.getElementById('footer-dock');
         const gridHead = document.getElementById('grid-head-transport-host');
         if (!transport || !dock || !gridHead) return;
-        const wide = window.matchMedia(SEQ_DOCK_MEDIA).matches;
+        // ANCRÉS EN BAS DE LA COLONNE DE GAUCHE, sur ordinateur comme sur téléphone (retour
+        // utilisateur : « remets-les en bas du volet à gauche, mais juste sous le module (sous la
+        // barre intensité, mais en dehors du module) » — puis, sur question : « les boutons de
+        // transport doivent rester ancrés »). #footer-dock est précisément ce point : dernier enfant
+        // de .col-left, hors des cartes, et toujours présent quel que soit le mode — la lecture de la
+        // grille ne disparaît donc plus quand on referme une modification.
+        // `gridHead` (l'en-tête de la grille) n'accueille plus rien : conservé comme point d'ancrage
+        // vide, il ne coûte rien et évite de casser le gabarit de l'en-tête collant.
+        const wide = false;
         if (wide) {
             if (transport.parentElement !== gridHead) gridHead.appendChild(transport);
         } else if (transport.parentElement !== dock) {
