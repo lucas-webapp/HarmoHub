@@ -3840,7 +3840,11 @@ select.song-select-narrow {
     }
     /* Le séquenceur occupe alors toute la largeur de la colonne, et peut défiler seul en hauteur
        plutôt que de pousser la grille hors de l'écran quand il y a beaucoup de voix. */
-    .seq-dock-host .arp-seq { width: 100%; max-height: 42vh; overflow-y: auto; }
+    /* max-height:42vh a été retiré : il datait du temps où le séquenceur n'avait pas de volet à lui.
+       Depuis, c'est #seq-dock-panel qui fixe la hauteur (réglable à la poignée, mémorisée), et ce
+       plafond la contredisait — le séquenceur s'arrêtait 30px avant le bas du volet, laissant une
+       bande morte sous la rangée de boutons. Le défilement, lui, vit dans .seq-scroll. */
+    .seq-dock-host .arp-seq { width: 100%; }
 
     .col-left {
         flex-direction: column;
@@ -4304,11 +4308,20 @@ select.song-select-narrow {
    volet n'est pas ce qui défile (c'est .seq-scroll à l'intérieur) : il suffit que la bande défilante
    prenne la place restante (flex:1) et que la rangée garde la sienne (flex:none). Avec `sticky`, la
    rangée se superposait au bas de la bande et se retrouvait coupée. */
-.seq-dock-panel .arp-seq {
+/* Sélecteur avec l'id (spécificité 1,1,0) : une règle #arp-sequencer ailleurs dans la feuille
+   l'emportait sur .seq-dock-panel .arp-seq (0,2,0) et laissait le panneau 30px plus court que son
+   hôte — d'où une bande morte sous la rangée de boutons. */
+/* L'hôte devient lui-même une colonne flex : le séquenceur s'y étire par flex plutôt que par
+   height:100%, qui laissait 30px morts sous la rangée de boutons. */
+/* overflow:hidden : c'est .seq-scroll à l'intérieur qui défile désormais dans les deux sens. En
+   laissant `auto` ici, l'hôte réservait la place d'une barre de défilement horizontale qu'il
+   n'utilisait jamais — 30px morts sous la rangée de boutons. */
+.seq-dock-panel #seq-dock-host { display: flex; flex-direction: column; overflow: hidden; }
+.seq-dock-panel #arp-sequencer {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    height: 100%;
+    flex: 1 1 auto;
     margin: 0;
     padding: 0;
     border-top: none;

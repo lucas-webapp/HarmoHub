@@ -1732,8 +1732,23 @@ const SEQ_DOCK_MEDIA = '(min-width: 900px)';
 // Volet du séquenceur continu sous la grille (voir #seq-dock-panel/setupSeqDockResize) : hauteur
 // ajustable à la poignée, mémorisée par appareil comme les niveaux de zoom.
 const SEQ_DOCK_HEIGHT_KEY = 'harmohubSeqDockHeight';
-const SEQ_DOCK_HEIGHT_DEFAULT = 300;
 const SEQ_DOCK_HEIGHT_MIN = 140;
+// Hauteur d'ouverture du volet quand l'utilisateur ne l'a jamais réglé : une PART de l'écran, pas une
+// valeur fixe. 300px partout était calibré pour un téléphone — sur un écran de 1080px, ça laissait
+// 222px inutilisés juste sous le volet et coupait 3 des 20 lignes chromatiques (mesuré).
+const SEQ_DOCK_HEIGHT_RATIO = 0.45;
+const SEQ_DOCK_HEIGHT_AUTO_MIN = 300;  // jamais moins que l'ancienne valeur : rien ne rétrécit
+const SEQ_DOCK_HEIGHT_AUTO_MAX = 700;  // au-delà, le volet mangerait la grille d'accords au-dessus
+// Nombre de mesures qu'on cherche à faire tenir dans la vue continue à l'échelle 1. La largeur de
+// colonne était fixe (28px sur ordinateur), ce qui ne montrait que 2,5 mesures sur un écran de
+// 1920px — l'inverse de ce qu'on attend d'une vue « à l'échelle du morceau ». Elle se déduit
+// désormais de la place disponible.
+const SEQ_MESURES_VISIBLES_CIBLE = 6;
+// Bornes de la largeur de colonne. 14px est la valeur historique du téléphone : plus fin, une croche
+// n'est plus atteignable au doigt — c'est donc le plancher, y compris sur un grand écran étroit.
+// 28px était la valeur historique de l'ordinateur : au-delà, on ne gagne plus rien en lisibilité.
+const SEQ_COL_PX_MIN = 14;
+const SEQ_COL_PX_MAX = 28;
 // Pas d'aimantation proposés, EN CROCHES de la grille du séquenceur (SEQ_STEPS_PER_BEAT = 4 croches
 // par temps) : 4 = le temps entier, 2 = la demi-mesure du temps, 1 = la croche elle-même, c'est-à-dire
 // aucune aimantation (comportement historique, valeur par défaut — rien ne change tant qu'on n'y
@@ -2821,7 +2836,9 @@ class HarmoHubApp {
         this.seqMode = null;       // null | 'compact' | 'continu'
         this.seqOpen = false;      // panneau séquenceur ouvert ou non (indépendant du style de lecture)
         // Hauteur du volet continu, ajustée à la poignée et mémorisée d'une session à l'autre.
-        this.seqDockHeight = parseInt(localStorage.getItem(SEQ_DOCK_HEIGHT_KEY)) || SEQ_DOCK_HEIGHT_DEFAULT;
+        // 0 = jamais réglé à la main : la hauteur suit alors l'écran (voir hauteurVoletSequenceur).
+        // Dès que l'utilisateur touche la poignée, sa valeur est mémorisée et l'emporte pour de bon.
+        this.seqDockHeight = parseInt(localStorage.getItem(SEQ_DOCK_HEIGHT_KEY)) || 0;
         this.seqZoomOpen = false;  // fenêtre agrandie du séquenceur ouverte ou non (voir openSeqZoom)
         // Panneau "Conduite de voix" ouvert ou non (voir toggleVoiceLeadingPanel/buildVoiceLeadingPanelHtml)
         // — un seul bouton global (#toggle-voice-leading, à côté de #grid-zoom), pas un par partie : le
@@ -11947,10 +11964,29 @@ class HarmoHubApp {
         panneau.hidden = !enVolet;
         if (enVolet) {
             if (seq.parentElement !== dock) dock.appendChild(seq);
-            dock.style.height = `${this.seqDockHeight}px`;
+            dock.style.height = `${this.hauteurVoletSequenceur()}px`;
         } else if (seq.parentElement === dock) {
             document.getElementById('arpPattern').insertAdjacentElement('afterend', seq);
         }
+    }
+
+    // Hauteur d'ouverture du volet : celle réglée à la main si elle existe, sinon une part de l'écran.
+    hauteurVoletSequenceur() {
+        if (this.seqDockHeight) return this.seqDockHeight;
+        return Math.round(Math.max(SEQ_DOCK_HEIGHT_AUTO_MIN,
+            Math.min(SEQ_DOCK_HEIGHT_AUTO_MAX, window.innerHeight * SEQ_DOCK_HEIGHT_RATIO)));
+    }
+
+    // Largeur d'une colonne (une croche) à l'échelle 1, déduite de la place réellement disponible
+    // pour y faire tenir SEQ_MESURES_VISIBLES_CIBLE mesures. Bornée : sous SEQ_COL_PX_MIN une croche
+    // n'est plus atteignable au doigt, au-dessus de SEQ_COL_PX_MAX on ne gagne plus en lisibilité.
+    // Le zoom de l'utilisateur (seqInlineZoomLevelX) multiplie ensuite cette base, comme avant.
+    largeurColonneBase() {
+        const hote = document.querySelector('.seq-scroll') || document.getElementById('arp-sequencer');
+        const dispo = (hote && hote.clientWidth) ? hote.clientWidth : window.innerWidth;
+        const pasParMesure = this.beatsPerBar() * SEQ_STEPS_PER_BEAT;
+        const cible = (dispo - 40) / (SEQ_MESURES_VISIBLES_CIBLE * pasParMesure); // 40 = gouttière des notes
+        return Math.max(SEQ_COL_PX_MIN, Math.min(SEQ_COL_PX_MAX, cible));
     }
 
     // Poignée en HAUT du volet : la tirer vers le haut l'agrandit (elle borde le côté qui grandit).
@@ -12463,8 +12499,7 @@ class HarmoHubApp {
     _appliquerEchelleHorizontale(zoomH) {
         const grille = document.querySelector('.seq-grid-continuous, .seq-grid-wide');
         if (!grille) return false;
-        const base = window.innerWidth > 899 ? 28 : 14;
-        const colPx = base * zoomH;
+        const colPx = this.largeurColonneBase() * zoomH;
         const pasParMesure = this.beatsPerBar() * SEQ_STEPS_PER_BEAT;
         grille.style.setProperty('--seq-col-w', `${colPx}px`);
         grille.style.setProperty('--seq-bar-w', `${colPx * pasParMesure}px`);
@@ -12750,8 +12785,7 @@ class HarmoHubApp {
         // seuil (900px) que .col-left/.col-right en CSS et les autres bascules bureau/mobile du script.
         // window.innerWidth (pas un média CSS) : cette largeur de case est un NOMBRE consommé par
         // scrollLeft juste plus bas (colOffset * continuousColPx), pas seulement injecté dans le HTML.
-        const continuousColBase = window.innerWidth > 899 ? 28 : 14;
-        const continuousColPx = continuousColBase * seqHZoom;
+        const continuousColPx = this.largeurColonneBase() * seqHZoom;
         // Largeur de colonne posée en VARIABLE CSS plutôt qu'en dur dans le gabarit : changer
         // l'échelle horizontale devient alors l'écriture d'une seule variable, sans reconstruire le
         // HTML. C'est ce qui rend le zoom continu et non plus saccadé (retour utilisateur : « le
