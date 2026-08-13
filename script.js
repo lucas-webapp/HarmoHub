@@ -1729,6 +1729,11 @@ const SEQ_SNAP_KEY = 'harmohubSeqSnap';
 // équivalente en CSS (min-width: 900px) : c'est lui qui décide où vit le séquenceur (voir
 // placeSequencer/#seq-dock-host) autant que la mise en page à une ou deux colonnes.
 const SEQ_DOCK_MEDIA = '(min-width: 900px)';
+// Volet du séquenceur continu sous la grille (voir #seq-dock-panel/setupSeqDockResize) : hauteur
+// ajustable à la poignée, mémorisée par appareil comme les niveaux de zoom.
+const SEQ_DOCK_HEIGHT_KEY = 'harmohubSeqDockHeight';
+const SEQ_DOCK_HEIGHT_DEFAULT = 300;
+const SEQ_DOCK_HEIGHT_MIN = 140;
 // Pas d'aimantation proposés, EN CROCHES de la grille du séquenceur (SEQ_STEPS_PER_BEAT = 4 croches
 // par temps) : 4 = le temps entier, 2 = la demi-mesure du temps, 1 = la croche elle-même, c'est-à-dire
 // aucune aimantation (comportement historique, valeur par défaut — rien ne change tant qu'on n'y
@@ -2806,7 +2811,17 @@ class HarmoHubApp {
                                    // savoir QUOI relancer quand on modifie un réglage en cours de lecture
         this._progChordSlots = new Map(); // voir scheduleProgressionChord/liveUpdateProgressionChord :
                                    // patcher un accord de la chanson en cours de lecture sans redémarrer
+        // Deux boutons, deux séquenceurs (retour utilisateur : « il faut différencier les 2 boutons
+        // séquenceurs »). Un seul #arp-sequencer, DÉPLACÉ de l'un à l'autre, jamais dupliqué :
+        //   'compact' — bouton du module Ajouter/Modifier : séquenceur simplifié, DANS le module,
+        //               une ligne par voix jouée, la seule durée de l'accord ;
+        //   'continu' — bouton de la barre de grille : volet sous la grille, hauteur ajustable,
+        //               toute la partie côte à côte en demi-tons absolus.
+        // seqOpen reste le booléen « un séquenceur est ouvert » dont dépend tout le reste du fichier.
+        this.seqMode = null;       // null | 'compact' | 'continu'
         this.seqOpen = false;      // panneau séquenceur ouvert ou non (indépendant du style de lecture)
+        // Hauteur du volet continu, ajustée à la poignée et mémorisée d'une session à l'autre.
+        this.seqDockHeight = parseInt(localStorage.getItem(SEQ_DOCK_HEIGHT_KEY)) || SEQ_DOCK_HEIGHT_DEFAULT;
         this.seqZoomOpen = false;  // fenêtre agrandie du séquenceur ouverte ou non (voir openSeqZoom)
         // Panneau "Conduite de voix" ouvert ou non (voir toggleVoiceLeadingPanel/buildVoiceLeadingPanelHtml)
         // — un seul bouton global (#toggle-voice-leading, à côté de #grid-zoom), pas un par partie : le
@@ -2980,6 +2995,7 @@ class HarmoHubApp {
         this.setupGridInteractions();
         this.setupSequencerInteractions();
         this.setupSequencerPlacement();
+        this.setupSeqDockResize(); // poignée de hauteur du volet continu sous la grille
         // Placement initial (voir placeGlobalTransport) : contrairement au séquenceur, replacé à
         // chaque renderSequencer(), le transport n'a pas de cycle de rendu propre — sans cet appel ici,
         // il resterait à sa position de départ dans le HTML (.dock) même sur ordinateur, jusqu'au
@@ -3280,7 +3296,7 @@ class HarmoHubApp {
         });
         document.addEventListener('pointercancel', () => { this._velDragStep = null; });
 
-        document.getElementById('toggle-sequencer').onclick = () => this.toggleSequencer();
+        document.getElementById('toggle-sequencer').onclick = () => this.toggleSequencer('compact');
 
         document.getElementById('cancel-edit').onclick = () => this.cancelEdit();
 
@@ -3424,7 +3440,7 @@ class HarmoHubApp {
         // simplement le SÉQUENCEUR, en place ; la vue agrandie et tout son attirail (transport dupliqué,
         // annuler/rétablir relayés, zoom H/V propre, séquenceur épinglé redimensionnable) ont été
         // supprimés — masquer le volet de gauche donne la même largeur sans recouvrir l'appli.
-        document.getElementById('grid-zoom').onclick = () => this.toggleSequencer();
+        document.getElementById('grid-zoom').onclick = () => this.toggleSequencer('continu');
 
         // Menu contextuel (clic droit / appui long) : Renommer/Modifier, Dupliquer (accords
         // uniquement), Supprimer — réutilisé pour les morceaux, les dossiers ET les accords de la
@@ -5952,6 +5968,7 @@ class HarmoHubApp {
         // redessine correctement les deux.
         if (this.voiceLeadingOpen && this.seqOpen) {
             this.seqOpen = false;
+            this.seqMode = null;
             this.seqSelections = [];
             this.closeSeqZoom();
             document.getElementById('toggle-sequencer').classList.remove('active');
@@ -11799,8 +11816,11 @@ class HarmoHubApp {
     // l'autre (retour utilisateur : « le bouton voicing d'accords remplacera le séquenceur si je
     // clique dessus, et vice-versa »). Deux panneaux empilés au même endroit se disputaient sinon la
     // hauteur, la ressource la plus rare de cette vue.
-    toggleSequencer() {
-        this.seqOpen = !this.seqOpen;
+    toggleSequencer(mode = 'compact') {
+        // Même bouton = on referme ; autre bouton = on bascule de mode sans refermer, pour passer du
+        // réglage fin d'un accord à la vue d'ensemble (et retour) d'un seul geste.
+        this.seqMode = (this.seqMode === mode) ? null : mode;
+        this.seqOpen = this.seqMode !== null;
         // Le panneau de conduite de voix n'est construit QUE par loadProgression (voir
         // buildVoiceLeadingPanelHtml) : le refermer ici sans redessiner le laisserait affiché alors
         // qu'il est logiquement fermé — mesuré. D'où ce drapeau, honoré en fin de méthode.
@@ -11810,7 +11830,8 @@ class HarmoHubApp {
             this.seqSelections = [];
             this.closeSeqZoom(); // rien à agrandir une fois le panneau lui-même refermé
         }
-        document.getElementById('toggle-sequencer').classList.toggle('active', this.seqOpen);
+        document.getElementById('toggle-sequencer').classList.toggle('active', this.seqMode === 'compact');
+        document.getElementById('grid-zoom').classList.toggle('active', this.seqMode === 'continu');
         document.getElementById('seq-zoom').hidden = !this.seqOpen;
         if (vlVientDEtreFerme) this.loadProgression(); // retire pour de bon le panneau de conduite de voix
         this.renderSequencer();
@@ -11883,13 +11904,50 @@ class HarmoHubApp {
         if (this.seqZoomOpen) return;
         const seq = document.getElementById('arp-sequencer');
         const dock = document.getElementById('seq-dock-host');
-        if (!seq || !dock) return;
-        const wide = window.matchMedia(SEQ_DOCK_MEDIA).matches;
-        if (wide && this.seqOpen) {
+        const panneau = document.getElementById('seq-dock-panel');
+        if (!seq || !dock || !panneau) return;
+        // C'est le MODE choisi qui décide, plus la largeur de l'écran : le bouton de la barre de
+        // grille envoie le séquenceur dans son volet sous la grille, celui du module le garde dans le
+        // module. L'ancien placement au seuil 900px faisait qu'un tap sur téléphone ouvrait le
+        // séquenceur dans la carte Lecture, à 600px sous le bouton — donc invisible (retour
+        // utilisateur : « le séquenceur ne veut pas s'ouvrir avec le bouton au-dessus de la grille »).
+        const enVolet = this.seqMode === 'continu';
+        panneau.hidden = !enVolet;
+        if (enVolet) {
             if (seq.parentElement !== dock) dock.appendChild(seq);
+            dock.style.height = `${this.seqDockHeight}px`;
         } else if (seq.parentElement === dock) {
             document.getElementById('arpPattern').insertAdjacentElement('afterend', seq);
         }
+    }
+
+    // Poignée en HAUT du volet : la tirer vers le haut l'agrandit (elle borde le côté qui grandit).
+    // Reprend le geste du séquenceur épinglé de l'ancienne vue plein écran, que l'utilisateur veut
+    // retrouver (« avec volet ajustable en hauteur, comme il faisait avant dans le mode loupe »).
+    setupSeqDockResize() {
+        const poignee = document.getElementById('seq-dock-resize');
+        const dock = document.getElementById('seq-dock-host');
+        if (!poignee || !dock) return;
+        let departY = 0, departH = 0;
+        const bouger = (e) => {
+            const max = Math.round(window.innerHeight * 0.75);
+            const suivant = Math.max(SEQ_DOCK_HEIGHT_MIN, Math.min(max, departH - (e.clientY - departY)));
+            this.seqDockHeight = suivant;
+            dock.style.height = `${suivant}px`;
+        };
+        const lacher = () => {
+            window.removeEventListener('pointermove', bouger);
+            window.removeEventListener('pointerup', lacher);
+            localStorage.setItem(SEQ_DOCK_HEIGHT_KEY, String(this.seqDockHeight));
+            this.renderSequencer(); // la hauteur change le nombre de voix visibles
+        };
+        poignee.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            departY = e.clientY;
+            departH = dock.getBoundingClientRect().height;
+            window.addEventListener('pointermove', bouger);
+            window.addEventListener('pointerup', lacher);
+        });
     }
 
     // Suit le franchissement du seuil ordinateur/téléphone pour replacer le séquenceur (voir
@@ -12393,6 +12451,7 @@ class HarmoHubApp {
     openSequencerFor(section, index) {
         this.editChord(section, index);
         this.seqOpen = true;
+        if (!this.seqMode) this.seqMode = 'compact';
         document.getElementById('toggle-sequencer').classList.add('active');
         document.getElementById('seq-zoom').hidden = false;
         this.renderSequencer();
@@ -12484,7 +12543,7 @@ class HarmoHubApp {
         // l'échelle du morceau là.
         // Uniquement quand un accord est réellement en édition (this.editingIndex) : sinon aucun
         // accord de référence n'existe pour comparer, on retombe sur l'affichage normal ci-dessous.
-        const continuous = this.seqZoomOpen && this.editingIndex != null;
+        const continuous = (this.seqMode === 'continu' || this.seqZoomOpen) && this.editingIndex != null;
         let prevMidiSet = new Set(), nextMidiSet = new Set();
         // TOUS les accords de la partie active, avant/après celui en édition (pas seulement le plus
         // proche, retour utilisateur : pouvoir défiler/cliquer directement n'importe quel accord de la
@@ -12937,7 +12996,7 @@ class HarmoHubApp {
         // sens. Le petit séquenceur reste lié au seul accord en édition, quelle que soit une plage
         // définie par ailleurs (retour utilisateur : son bouton lecture se retrouvait à tort à jouer
         // toute la grille).
-        const seqLoopRangeActive = !!this.loopRange && this.seqZoomOpen;
+        const seqLoopRangeActive = !!this.loopRange && (this.seqMode === 'continu' || this.seqZoomOpen);
         html += `<div class="seq-presets">
             <button type="button" id="seq-play" class="btn-prog seq-icon-btn${seqLoopRangeActive ? ' btn-loop-range' : ''}" title="${seqLoopRangeActive ? 'Lire la plage à boucler' : 'Lecture'}" aria-label="${seqLoopRangeActive ? 'Lire la plage à boucler' : 'Lecture'}">${svgIcon('play')}</button>
             <button type="button" id="seq-stop" class="btn-stop seq-icon-btn" title="Stop" aria-label="Stop">${svgIcon('stop')}</button>

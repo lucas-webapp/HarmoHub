@@ -937,11 +937,42 @@ main {
 /* (#quick-add-panel n'a plus d'`order` : il vit désormais DANS .history-section, sous le titre de la
    grille, donc il n'est plus un frère aplati de la colonne — il suit la carte qui le contient.) */
 .history-section { order: 2; }
-/* Juste SOUS la grille (voir #seq-dock-host/placeSequencer) : sans `order` explicite il vaudrait 0 et
-   passerait devant tout le reste — le séquenceur s'affichait alors au-dessus de la grille. Masqué et
-   sans effet tant qu'il est vide, c'est-à-dire toujours sur téléphone. */
-.seq-dock-host { order: 3; }
-.seq-dock-host:empty { display: none; }
+/* Volet du séquenceur CONTINU, juste SOUS la grille (voir #seq-dock-panel/placeSequencer) : sans
+   `order` explicite il vaudrait 0 et passerait devant tout le reste — le séquenceur s'afficherait
+   alors au-dessus de la grille. Masqué par [hidden] tant que ce mode n'est pas celui choisi. */
+.seq-dock-panel {
+    order: 3;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--card-bg);
+    overflow: hidden;
+}
+.seq-dock-panel[hidden] { display: none; }
+/* Hauteur pilotée en JS (seqDockHeight, mémorisée) ; c'est LUI qui défile, pas le volet. */
+.seq-dock-host { overflow: auto; min-height: 0; }
+
+/* Poignée en haut du volet : la tirer vers le haut agrandit (voir setupSeqDockResize). Zone de
+   préhension généreuse (14px) pour le doigt, trait fin centré comme seul repère visuel. */
+.seq-dock-resize {
+    flex: none;
+    height: 14px;
+    cursor: ns-resize;
+    touch-action: none; /* sinon le geste part en défilement de page avant d'atteindre pointermove */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.seq-dock-resize::after {
+    content: '';
+    width: 40px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--border);
+}
+.seq-dock-resize:hover::after { background: var(--text-muted); }
 /* Toutes les cartes de réglages au MÊME rang, juste après la grille et le séquenceur : elles sont
    FRÈRES les unes des autres dans .panel-controls aplatie, et sans `order` explicite elles vaudraient
    0 et remonteraient devant tout, y compris devant la grille — c'est ce qui la laissait à ~490px du
