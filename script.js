@@ -10331,6 +10331,22 @@ class HarmoHubApp {
         window.addEventListener('pointerup', endLive);
         window.addEventListener('pointercancel', endLive);
 
+        // Le navigateur fait défiler la grille nativement au doigt (voir touch-action sur .seq-cell,
+        // et l'appui long dans onSeqPointerDown qui décide entre défiler et éditer). Deux moments où
+        // il faut au contraire lui retirer la main, et un seul écouteur suffit pour les deux :
+        //   - une édition est engagée (appui long tenu) : la vue ne doit surtout pas glisser sous le
+        //     doigt pendant qu'on dessine. Le navigateur n'a alors PAS encore commencé à défiler
+        //     (l'appui a été maintenu immobile), donc preventDefault est encore honoré ;
+        //   - deux doigts ou plus sont posés : c'est un pincer-zoomer (voir setupPinchZoom), et un pan
+        //     natif à 2 doigts venait s'y ajouter au petit bonheur selon l'endroit exact où chaque
+        //     doigt tombait — perçu tantôt comme un défilement parasite, tantôt comme des à-coups
+        //     (retour utilisateur d'alors). C'est ce cas précis qui avait motivé touch-action:none sur
+        //     toute la surface ; le viser directement rend le défilement à un doigt sans le ramener.
+        // `passive: false` : sans lui, preventDefault serait ignoré.
+        host.addEventListener('touchmove', (e) => {
+            if (this.seqDrag || this.seqMarquee || (e.touches && e.touches.length > 1)) e.preventDefault();
+        }, { passive: false });
+
         // Survol : met en évidence la note ENTIÈRE qu'on s'apprête à toucher, pas seulement la case
         // sous le pointeur. Le curseur (ew-resize/grab) dit déjà QUEL geste partira d'ici, mais pas
         // SUR QUOI — et entre deux notes voisines et courtes, c'est justement là qu'on se trompe de
@@ -10475,6 +10491,7 @@ class HarmoHubApp {
             this._seqActiveTouchIds.add(e.pointerId);
             if (this._seqActiveTouchIds.size > 1) {
                 this.cancelSeqGestureForPinch();
+                this._annulerAppuiLongSeq();
                 return;
             }
         }
@@ -10482,9 +10499,99 @@ class HarmoHubApp {
         const cell = e.target.closest('.seq-cell');
         if (!cell) return;
 
+        // AU DOIGT, RIEN NE COMMENCE TOUT DE SUITE. Un glissé sur la grille servait à peindre, jamais à
+        // faire défiler : sur téléphone, la moindre tentative de se déplacer dans le morceau créait une
+        // note ou en déformait une (retour utilisateur : « à chaque fois que je veux scroller, je crée
+        // une note non voulue ou je modifie une note sans faire exprès... c'est trop aléatoire »). Le
+        // partage se fait maintenant par la DURÉE de l'appui, pas par l'endroit touché :
+        //   - glissé immédiat  -> défilement, natif, avec sa barre et son inertie (voir touch-action
+        //     sur .seq-cell) ; le navigateur nous retire alors le pointeur (pointercancel) ;
+        //   - appui maintenu (SEQ_APPUI_LONG_MS) sans bouger -> l'édition prend la main ;
+        //   - appui bref -> tap, exactement comme avant (poser une note, sélectionner la voisine).
+        // Souris et stylet ne sont pas concernés : ils ont molette et barres de défilement, et un
+        // glissé y est sans ambiguïté une édition.
+        if (e.pointerType === 'touch') { this._armerAppuiLongSeq(e, cell); return; }
+        this._demarrerGesteSeq(e, cell);
+    }
+
+    // Attente avant qu'un appui tactile ne devienne une édition (voir onSeqPointerDown) : assez long
+    // pour qu'un vrai départ de défilement ait le temps de se déclarer, assez court pour ne pas se
+    // faire remarquer quand on vient réellement dessiner.
+    static get SEQ_APPUI_LONG_MS() { return 260; }
+    // Tremblement admis pendant cette attente. Au-delà, c'est un glissé : on rend la main au
+    // navigateur, qui fait défiler.
+    static get SEQ_APPUI_TOLERANCE_PX() { return 10; }
+
+    _armerAppuiLongSeq(e, cell) {
+        this._annulerAppuiLongSeq();
+        // Instantané de l'évènement : `_demarrerGesteSeq` s'exécutera plus tard (minuterie) ou après
+        // coup (tap), quand l'évènement d'origine n'est plus réutilisable. Aucune touche de clavier au
+        // doigt, d'où les modificateurs tous à faux.
+        const instant = {
+            clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, pointerType: 'touch',
+            shiftKey: false, ctrlKey: false, metaKey: false, altKey: false,
+            target: cell, preventDefault() {},
+        };
+        const a = { instant, cell, x: e.clientX, y: e.clientY, engage: false, minuterie: null };
+        this._seqAppuiLong = a;
+
+        a.minuterie = setTimeout(() => {
+            a.minuterie = null;
+            if (this._seqAppuiLong !== a) return;
+            // Les écouteurs d'attente cèdent la place à ceux du geste lui-même (posés par
+            // _demarrerGesteSeq) : sans ça, le relâchement serait traité deux fois.
+            this._detacherEcouteursAppuiSeq(a);
+            this._seqAppuiLong = null;
+            a.engage = true;
+            this._demarrerGesteSeq(instant, cell);
+            // Le doigt masque la case : sans signal, on ne sait pas que l'édition a pris la main et on
+            // dessine à l'aveugle. Liseré sur la grille + petite vibration, comme un « attrapé ».
+            const hote = document.getElementById('arp-sequencer');
+            if (hote) hote.classList.add('seq-edition-armee');
+            if (navigator.vibrate) { try { navigator.vibrate(12); } catch (_) { /* refus du navigateur : sans conséquence */ } }
+        }, HarmoHubApp.SEQ_APPUI_LONG_MS);
+
+        a.surMove = (ev) => {
+            if (ev.pointerId !== a.instant.pointerId || a.engage) return;
+            if (Math.hypot(ev.clientX - a.x, ev.clientY - a.y) > HarmoHubApp.SEQ_APPUI_TOLERANCE_PX) {
+                this._annulerAppuiLongSeq(); // c'est un défilement : le navigateur s'en charge, on s'efface
+            }
+        };
+        a.surUp = (ev) => {
+            if (ev.pointerId !== a.instant.pointerId) return;
+            const bref = !a.engage;
+            this._annulerAppuiLongSeq();
+            // Appui bref sans glissé = tap. On rejoue le geste complet en accéléré (ouverture puis
+            // fermeture immédiate) plutôt que de dupliquer ici la logique du tap : poser une note,
+            // sélectionner la note voisine, (dé)sélectionner... tout cela vit dans onSeqPointerUp et
+            // doit continuer d'y vivre à un seul endroit.
+            if (bref) { this._demarrerGesteSeq(instant, cell); this.onSeqPointerUp(); }
+        };
+        a.surCancel = (ev) => { if (ev.pointerId === a.instant.pointerId) this._annulerAppuiLongSeq(); };
+        window.addEventListener('pointermove', a.surMove, { passive: true });
+        window.addEventListener('pointerup', a.surUp);
+        window.addEventListener('pointercancel', a.surCancel);
+    }
+
+    _detacherEcouteursAppuiSeq(a) {
+        window.removeEventListener('pointermove', a.surMove);
+        window.removeEventListener('pointerup', a.surUp);
+        window.removeEventListener('pointercancel', a.surCancel);
+    }
+
+    _annulerAppuiLongSeq() {
+        const a = this._seqAppuiLong;
+        if (!a) return;
+        this._seqAppuiLong = null;
+        if (a.minuterie) clearTimeout(a.minuterie);
+        this._detacherEcouteursAppuiSeq(a);
+    }
+
+    _demarrerGesteSeq(e, cell) {
         // Le geste commence : les cases peuvent de nouveau s'allumer une à une pour suivre le doigt en
         // direct (voir .seq-live en CSS/applySeqCell). Retiré au relâchement, voir setupSequencerInteractions.
-        e.currentTarget.classList.add('seq-live');
+        const hote = document.getElementById('arp-sequencer');
+        if (hote) hote.classList.add('seq-live');
 
         const voice = +cell.dataset.voice, step = +cell.dataset.step;
         const wasOn = cell.classList.contains('on');
@@ -10601,7 +10708,7 @@ class HarmoHubApp {
             rowCells: null, touched: {}, additive: e.ctrlKey || e.metaKey,
             resize, resizeChanged: false, crossedThreshold: false, multi,
             curStart: resize ? resize.noteStart : null, curEnd: resize ? resize.noteEnd : null,
-            noteEl: null, startX: e.clientX, startY: e.clientY,
+            noteEl: null, startX: e.clientX, startY: e.clientY, pointerType: e.pointerType,
             // Bornes de la note sous le doigt (même hors bord, contrairement à resize.noteStart/End
             // ci-dessus qui ne sont posés QUE si le geste a démarré pile sur un bord) : nécessaires
             // pour basculer en changement de voix depuis N'IMPORTE quel point de la note (voir
@@ -10942,13 +11049,17 @@ class HarmoHubApp {
         // après et qui l'emporte donc).
         this._revelerToucheSeq(d.voice);
 
-        // Défilement vertical à UN SEUL doigt (voir .seq-cell/touch-action:none en CSS — retiré pour
-        // laisser le pan à 2 doigts, voir setupPinchZoom, garder la main de façon fiable) : décidé une
-        // seule fois, au tout premier vrai mouvement de CE geste, UNIQUEMENT pour étirer (d.resize) et
-        // peindre sur une case vide (!d.wasOn) — les deux seuls cas qui n'avaient pas déjà un sens pour
-        // une dominante verticale. Un geste démarré sur le CORPS d'une note existante garde le SIEN
-        // (changer de voix, voir juste plus bas), jamais détourné vers un défilement.
-        if (!d.axisDecided && (d.resize || !d.wasOn)) {
+        // Défilement vertical de secours, À LA SOURIS UNIQUEMENT : décidé une seule fois, au tout
+        // premier vrai mouvement de CE geste, et seulement pour étirer (d.resize) ou peindre sur une
+        // case vide (!d.wasOn) — les deux seuls cas qui n'avaient pas déjà un sens pour une dominante
+        // verticale. Un geste démarré sur le CORPS d'une note existante garde le SIEN (changer de voix,
+        // voir juste plus bas), jamais détourné vers un défilement.
+        // Plus jamais au DOIGT : le défilement tactile est redevenu natif (voir touch-action sur
+        // .seq-cell et l'appui long dans onSeqPointerDown), et un geste tactile n'arrive plus jusqu'ici
+        // qu'après un appui maintenu — c'est-à-dire quand l'utilisateur a explicitement demandé à
+        // éditer. Le détourner alors vers un défilement serait précisément le hasard qu'on vient
+        // d'éliminer (retour utilisateur : « c'est trop aléatoire »).
+        if (!d.axisDecided && d.pointerType !== 'touch' && (d.resize || !d.wasOn)) {
             const dx0 = e.clientX - d.startX, dy0 = e.clientY - d.startY;
             if (Math.hypot(dx0, dy0) < 10) return;
             d.axisDecided = true;
@@ -11510,6 +11621,8 @@ class HarmoHubApp {
         window.removeEventListener('pointermove', this._onSeqMove);
         window.removeEventListener('pointerup', this._onSeqUp);
         window.removeEventListener('pointercancel', this._onSeqUp);
+        const hotePince = document.getElementById('arp-sequencer');
+        if (hotePince) hotePince.classList.remove('seq-edition-armee');
         const d = this.seqDrag;
         this.seqDrag = null;
         if (d) this._stopSeqAutoScroll(d);
@@ -11595,6 +11708,9 @@ class HarmoHubApp {
         window.removeEventListener('pointermove', this._onSeqMove);
         window.removeEventListener('pointerup', this._onSeqUp);
         window.removeEventListener('pointercancel', this._onSeqUp);
+        // Le liseré « l'édition a la main » s'éteint avec le geste (voir _armerAppuiLongSeq).
+        const hoteSeq = document.getElementById('arp-sequencer');
+        if (hoteSeq) hoteSeq.classList.remove('seq-edition-armee');
         // Le repère flottant (voir showSeqDragReadout) s'éteint AVANT tout retour anticipé : le geste
         // est fini quoi qu'il advienne ensuite, y compris quand on sort d'ici sans rien appliquer.
         this.hideSeqDragReadout();
@@ -13323,19 +13439,30 @@ class HarmoHubApp {
             });
         }
 
-        // Molette SANS Ctrl (Ctrl+molette reste le zoom, voir _bindCtrlWheelZoom) : convertit le
-        // défilement vertical natif de la molette en défilement HORIZONTAL sur cette bande — pratique
-        // à la souris (pas de trackpad/Maj+molette) pour rejoindre la mesure suivante (retour
-        // utilisateur). N'agit que s'il y a réellement de quoi défiler (wideCompact/continu), sinon la
-        // molette continue de faire défiler la page normalement (preventDefault jamais posé).
+        // Molette SANS Ctrl (Ctrl+molette reste le zoom, voir _bindCtrlWheelZoom). Trois axes d'entrée
+        // possibles, un seul comportement par cas, et jamais de preventDefault s'il n'y a rien à faire
+        // défiler — sinon la page cesserait de bouger sous la souris sans raison.
+        //   - deltaX (pavé tactile à deux doigts, molette inclinable) -> défilement horizontal, tel
+        //     quel. Il était purement et simplement IGNORÉ, alors même que le preventDefault ci-dessous
+        //     coupait le défilement natif qui l'aurait fait : à deux doigts sur un pavé tactile, la
+        //     bande restait donc figée.
+        //   - Maj+molette -> horizontal, convention universelle.
+        //   - molette seule -> les hauteurs si la bande déborde verticalement (zoom vertical poussé :
+        //     c'est alors la seule façon de les atteindre à la molette, l'ancien code envoyait TOUT en
+        //     horizontal), sinon la molette avance dans le morceau — le cas courant, et celui qui
+        //     avait été demandé (« rejoindre la mesure suivante à la souris »).
         {
             const wheelScrollEl = host.querySelector('.seq-scroll');
             if (wheelScrollEl) {
                 wheelScrollEl.addEventListener('wheel', (e) => {
                     if (e.ctrlKey) return;
-                    if (wheelScrollEl.scrollWidth <= wheelScrollEl.clientWidth) return;
-                    e.preventDefault();
-                    wheelScrollEl.scrollLeft += e.deltaY;
+                    const peutH = wheelScrollEl.scrollWidth > wheelScrollEl.clientWidth;
+                    const peutV = wheelScrollEl.scrollHeight > wheelScrollEl.clientHeight;
+                    if (e.deltaX && peutH) { e.preventDefault(); wheelScrollEl.scrollLeft += e.deltaX; return; }
+                    if (!e.deltaY) return;
+                    if (e.shiftKey && peutH) { e.preventDefault(); wheelScrollEl.scrollLeft += e.deltaY; return; }
+                    if (peutV) { e.preventDefault(); wheelScrollEl.scrollTop += e.deltaY; return; }
+                    if (peutH) { e.preventDefault(); wheelScrollEl.scrollLeft += e.deltaY; }
                 }, { passive: false });
             }
         }

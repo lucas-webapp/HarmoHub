@@ -521,7 +521,12 @@ body.body-scroll-locked { overflow: hidden !important; }
     align-self: stretch; /* .seq-grid impose align-items:center (hauteur au contenu) : sans stretch,
                              cet élément vide s'écraserait à 0px de haut au lieu de couvrir les voix
                              (voir le même souci/la même parade sur .seq-playhead ci-dessus) */
-    touch-action: none; /* voir .seq-cell (renderSequencer/setupPinchZoom) : même raison */
+    /* Cette zone couvre TOUS les accords voisins, soit la plus grande partie de la vue continue :
+       la laisser en touch-action:none revenait à interdire le défilement au doigt presque partout
+       (voir .seq-cell, même correction). Elle n'écoute qu'un `click`, et un navigateur n'émet pas de
+       clic au bout d'un geste qu'il a interprété comme un défilement : glisser fait donc défiler,
+       taper change toujours d'accord. */
+    touch-action: pan-x pan-y;
 }
 .seq-ctx-nav:hover, .seq-ctx-nav:active { background: rgba(255, 255, 255, 0.06); }
 
@@ -3331,16 +3336,23 @@ body.all-beats .offbeat-dot {
     border-radius: 5px;
     cursor: pointer;
     transition: background 0.1s ease, box-shadow 0.1s ease;
-    /* touch-action:none (plutôt que pan-y comme avant) : un navigateur qui autorise le scroll
-       vertical NATIF sur UN doigt l'autorise en fait aussi pour un geste à 2 doigts qui atterrit en
-       partie ici (voir setupPinchZoom/pan) — au choix du navigateur selon l'endroit EXACT où chaque
-       doigt se pose, perçu comme tantôt un vrai scroll parasite, tantôt de petits à-coups selon quel
-       doigt le navigateur a repris (retour utilisateur, sur téléphone). Le JS reprend maintenant
-       ENTIÈREMENT la main sur cette surface, y compris pour faire défiler la page verticalement à UN
-       seul doigt (voir _scrollSeqAncestorVertically dans script.js) : rien n'est perdu, juste déplacé
-       du natif vers le JS pour rester fiable à 2 doigts aussi.
-    */
-    touch-action: none;
+    /* LE DÉFILEMENT TACTILE REDEVIENT NATIF, dans les deux axes.
+       Historique : c'était `touch-action: none`, pour empêcher le navigateur de s'emparer d'un geste
+       à 2 doigts destiné au pincer-zoomer (voir setupPinchZoom) — il le prenait ou non selon
+       l'endroit exact où chaque doigt tombait, d'où des à-coups. Mais tout retirer au navigateur a
+       coûté bien plus cher que ça ne rapportait : plus AUCUN glissé sur la grille ne faisait défiler,
+       et comme la grille EST la quasi-totalité de la surface, se déplacer dans le morceau au doigt
+       créait une note ou en déformait une à chaque tentative (retour utilisateur : « à chaque fois
+       que je veux scroller, je crée une note non voulue ou je modifie une note sans faire exprès...
+       des fois ça fonctionne bien et la barre de défilement apparaît. C'est trop aléatoire » — ça
+       fonctionnait quand le doigt tombait par chance sur la règle ou la gouttière, seules zones
+       restées en pan-x pan-y).
+       Le partage se fait donc maintenant par la DURÉE de l'appui et non par l'endroit touché (voir
+       onSeqPointerDown/_armerAppuiLongSeq) : glissé immédiat = défilement natif, appui maintenu =
+       édition. Le cas des 2 doigts, lui, est traité là où il se pose vraiment — un preventDefault
+       ciblé sur touchmove quand il y a plus d'un doigt (voir setupSequencerInteractions) — au lieu
+       de sacrifier tout le défilement à un doigt pour lui. */
+    touch-action: pan-x pan-y;
     user-select: none;
     -webkit-user-select: none;
 }
@@ -3449,6 +3461,16 @@ body.all-beats .offbeat-dot {
     background: rgba(0, 230, 118, 0.38);
     border-color: rgba(0, 230, 118, 0.85);
     box-shadow: 0 0 8px rgba(0, 230, 118, 0.3);
+}
+
+/* L'ÉDITION A PRIS LA MAIN, après un appui maintenu au doigt (voir _armerAppuiLongSeq dans
+   script.js). Sans signal, rien ne distingue « je viens de basculer en édition » de « il ne s'est
+   rien passé » : le doigt masque la case qu'il touche, et on dessinerait à l'aveugle. Un liseré vert
+   tout autour de la bande — visible du coin de l'œil, sans rien recouvrir de la musique. Il double
+   la petite vibration, qui n'existe pas sur tous les appareils. */
+#arp-sequencer.seq-edition-armee .seq-scroll {
+    box-shadow: inset 0 0 0 2px rgba(0, 230, 118, 0.65);
+    border-radius: 4px;
 }
 
 /* Note posée sur la grille (au-dessus des cases, qui restent les zones de clic/glisser en dessous).
@@ -4237,7 +4259,20 @@ select.song-select-narrow {
     border: 0;
     border-radius: 0;
     background: transparent;
+    /* Une case sur deux (.seq-cell-b) recule de 4px pour creuser l'écart visible entre deux paires de
+       doubles croches. Utile là où les cases ont un fond — dans le petit séquenceur. Ici elles sont
+       transparentes : ce retrait ne se voyait pas, mais il laissait une bande MORTE de 4px toutes les
+       28px, où rien ne répond au toucher (mesuré : elementFromPoint y renvoie la grille elle-même,
+       aucun geste ne démarre). Sur téléphone, une case sur sept qui ne réagit pas ressemble beaucoup à
+       « c'est aléatoire ». Les cases redeviennent donc jointives ; l'écart visuel entre notes vient
+       des barres elles-mêmes, qui gardent leur propre retrait de fin (voir trimEnd/.seq-note). */
+    margin-right: 0;
 }
+/* Le décalage de 2px des repères de la règle compensait exactement ce retrait de 4px (voir
+   .seq-beat-offbeat/.seq-beat-num) : sans retrait, plus de compensation à faire — sinon les traits
+   tomberaient 2px à côté de la frontière qu'ils désignent. */
+.seq-grid-continuous .seq-beat-offbeat { transform: none; }
+.seq-grid-continuous .seq-beat-label .seq-beat-num { transform: translateX(-50%); }
 .seq-grid-continuous .seq-cell:hover { background: rgba(255, 255, 255, 0.07); }
 /* 2. CLAVIER ET NOMS DE NOTES TOUJOURS VISIBLES À GAUCHE (retour utilisateur : « il faut laisser les
    notes + piano visibles sur la gauche pour que je me repère »).
