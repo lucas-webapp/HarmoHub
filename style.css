@@ -4621,7 +4621,13 @@ select.song-select-narrow {
 /* Les diagrammes ouverts prennent la place qu'il leur faut, pas davantage : plafond explicite plutôt
    qu'une hauteur qui suit le conteneur. Au-delà, on ne lit pas mieux un manche de guitare ou deux
    octaves de piano — on repousse juste le reste de la page hors de l'écran. */
-.viz-diagrams { max-height: 190px; }
+/* PAS de plafond sur le CONTENEUR, seulement sur les DESSINS. Le bloc guitare ne contient pas qu'un
+   manche : sa rangée de commandes (doigté précédent/suivant, édition, cadenas) vit SOUS lui. Plafonner
+   la boîte entière la rognait donc par le bas, là où sont justement les boutons — d'autant plus tôt
+   que la fenêtre est courte. Borner le dessin, lui, le fait rétrécir sans rien couper.
+   (Une suspicion de régression du cadenas m'avait mis sur cette piste ; elle n'a PAS été confirmée —
+   glock_full_real_ui_test.js rend 29 à 33 réussites sur du code identique. Le risque de rognage,
+   lui, est réel et se lit sur la géométrie, indépendamment de ce banc.) */
 .viz-diagrams .piano-container,
 .viz-diagrams .guitar-container { max-height: 170px; }
 .viz-diagrams .guitar-container svg,
