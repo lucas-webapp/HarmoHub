@@ -11596,9 +11596,22 @@ class HarmoHubApp {
                 this.seqEditFeedback(d.voice); // fait entendre la ligne touchée (voir seqEditFeedback)
             } else if (!d.additive) {
                 // Ctrl/Cmd enfoncé sur une case vide : ne peint rien (Ctrl sert uniquement à sélectionner)
-                this.pushSeqUndo();
-                this.paintNewSeqNoteAt(d.voice, d.startStep);
-                this.seqEditFeedback(d.voice);
+                // Clic JUSTE À CÔTÉ d'une note existante : on sélectionne cette note plutôt que d'en
+                // créer une seconde collée à elle (retour utilisateur : « si tu vois que je fais un
+                // simple clic juste à côté d'une note existante, il faut sélectionner cette note.
+                // Actuellement ça crée une double croche juste à côté, c'est assez rare que je veuille
+                // faire cela »). Viser à une croche près à cette échelle est une erreur bien plus
+                // probable qu'une intention. Un vrai GLISSÉ, lui, dessine toujours : c'est ce qui
+                // permet quand même de poser une note collée à une autre quand on le veut vraiment.
+                const voisine = this._noteSeqVoisine(d.voice, d.startStep);
+                if (voisine) {
+                    this.selectSeqNoteAt(d.voice, voisine.start, false);
+                    this.seqEditFeedback(d.voice);
+                } else {
+                    this.pushSeqUndo();
+                    this.paintNewSeqNoteAt(d.voice, d.startStep);
+                    this.seqEditFeedback(d.voice);
+                }
             }
         } else {
             // Glissé terminé : sélectionne la note qui vient d'être dessinée, ou rien si on a effacé
@@ -11615,6 +11628,25 @@ class HarmoHubApp {
         // Une seule fois ici, à la fin du geste (voir applySeqCell, appelé en rafale pendant le
         // glissé lui-même) : pas à chaque case peinte, qui redémarrerait le son en boucle pendant le drag.
         this.livePreviewUpdate();
+    }
+
+    // Note collée à cette croche sur la MÊME voix, à gauche ou à droite — ses bornes, ou null.
+    // Sert au clic sur case vide (voir onSeqPointerUp) : à côté d'une note, on la sélectionne au lieu
+    // d'en créer une nouvelle. Tolérance d'UNE croche seulement, volontairement : au-delà, l'intention
+    // de créer redevient la plus probable. La droite est examinée en premier — cliquer juste après la
+    // fin d'une note est le geste le plus courant, et c'est cette note-là qu'on visait.
+    _noteSeqVoisine(voice, step) {
+        const chord = this.readChord();
+        const { pattern, tie } = this.getLiveSeqPattern(chord);
+        if (!pattern || !pattern.length) return null;
+        for (const delta of [-1, 1]) {
+            const s = step + delta;
+            if (s < 0 || s >= pattern.length) continue;
+            if (pattern[s] && pattern[s].includes(voice)) {
+                return this.seqNoteBoundsAt(pattern, tie, voice, s);
+            }
+        }
+        return null;
     }
 
     // Allume/éteint une case précise (et sa liaison à la précédente) et met à jour le motif stocké,
@@ -12726,10 +12758,18 @@ class HarmoHubApp {
         // déplacement et zoom/dézoom de l'affichage est saccadé, je veux quelque chose de complètement
         // fluide, comme sur les daw classiques ») — les notes étant placées par grid-column, elles
         // suivent l'échelle toutes seules, sans un seul recalcul JS.
-        const colTemplate = (continuous || wideCompact)
-            ? `max-content repeat(${totalCols}, var(--seq-col-w))`
-            : `max-content repeat(${pageSteps}, 1fr)`;
-        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" data-col-px="${continuousColPx}" style="grid-template-columns: ${colTemplate}; --seq-col-w: ${continuousColPx}px; --seq-steps-per-bar: ${beatsPerBar * SEQ_STEPS_PER_BEAT}; --seq-bar-w: ${continuousColPx * beatsPerBar * SEQ_STEPS_PER_BEAT}px; --seq-beat-w: ${continuousColPx * SEQ_STEPS_PER_BEAT}px;">`;
+        // Gouttière des noms de notes : largeur EXPLICITE plutôt que max-content. Deux raisons —
+        // le quadrillage de fond doit savoir où commence réellement la musique pour s'y caler (sinon
+        // toutes ses lignes tombent une gouttière trop tôt, mesuré à 32px de décalage), et la
+        // gouttière doit garder sa place quand ses étiquettes deviennent collantes (voir style.css,
+        // .seq-grid-continuous .seq-label : elles couvrent alors toutes les colonnes pour pouvoir
+        // rester accrochées à gauche, et ne dimensionnent donc plus la piste elles-mêmes).
+        const labelW = continuous ? 40 : 0;
+        const colTemplate = continuous
+            ? `${labelW}px repeat(${totalCols}, var(--seq-col-w))`
+            : (wideCompact ? `max-content repeat(${totalCols}, var(--seq-col-w))`
+                           : `max-content repeat(${pageSteps}, 1fr)`);
+        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" data-col-px="${continuousColPx}" style="grid-template-columns: ${colTemplate}; --seq-col-w: ${continuousColPx}px; --seq-steps-per-bar: ${beatsPerBar * SEQ_STEPS_PER_BEAT}; --seq-bar-w: ${continuousColPx * beatsPerBar * SEQ_STEPS_PER_BEAT}px; --seq-beat-w: ${continuousColPx * SEQ_STEPS_PER_BEAT}px; --seq-label-w: ${labelW}px;">`;
 
         // Cases de la grille : zones de clic/glisser (toujours présentes, sous les notes visuelles).
         // Placement explicite (grid-row/grid-column) sur TOUT le monde : les notes ci-dessous se

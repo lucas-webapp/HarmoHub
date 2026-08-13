@@ -4200,7 +4200,16 @@ select.song-select-narrow {
    « trop d'espace entre les notes chromatiques, il faut resserrer les barres verticalement »).
    14px de base, comme un piano-roll de station audio, et AUCUN écart vertical : ce sont les traits
    du quadrillage (point 4) qui séparent les lignes, pas du vide. */
-.seq-grid-continuous { gap: 0 !important; }
+.seq-grid-continuous {
+    gap: 0 !important;
+    /* Largeur au CONTENU, pas au conteneur. Sans ça, la grille est un bloc large comme la bande et
+       ses colonnes débordent : `grid-column: 1 / -1` ne couvre alors que la largeur visible, et la
+       gouttière collante (voir plus bas) s'arrêtait au bout d'un écran — mesuré, elle décrochait
+       après 1022px et repartait avec le défilement. Avec max-content, l'étendue des colonnes EST la
+       largeur de la grille : la gouttière tient sur toute la longueur du morceau. */
+    width: max-content;
+    min-width: 100%;
+}
 .seq-grid-continuous .seq-cell,
 .seq-grid-continuous .seq-label,
 .seq-grid-continuous .seq-ctx-cell { height: calc(14px * var(--seq-zoom-scale-v, 1)); }
@@ -4213,10 +4222,28 @@ select.song-select-narrow {
     background: transparent;
 }
 .seq-grid-continuous .seq-cell:hover { background: rgba(255, 255, 255, 0.07); }
+/* 2. CLAVIER ET NOMS DE NOTES TOUJOURS VISIBLES À GAUCHE (retour utilisateur : « il faut laisser les
+   notes + piano visibles sur la gauche pour que je me repère »).
+   Ils étaient déjà `sticky left:0` — mais un élément de grille collant est confiné à SA propre case :
+   celle-ci ne fait que la largeur de la gouttière, si bien qu'il n'avait nulle part où coller et
+   partait avec le défilement (mesuré à 1351px hors de la bande). La parade : faire couvrir à
+   l'étiquette TOUTES les colonnes (grid-column: 1 / -1) tout en lui gardant la largeur de la
+   gouttière. Son bloc conteneur s'étend alors sur toute la grille, et `sticky` a enfin de quoi la
+   retenir sur toute la longueur du morceau. La piste, elle, garde sa place grâce à la largeur
+   explicite posée par renderSequencer (--seq-label-w). */
 .seq-grid-continuous .seq-label {
+    grid-column: 1 / -1 !important;
+    width: var(--seq-label-w, 40px);
+    justify-self: start;
+    position: sticky;
+    left: 0;
+    z-index: 6;
     font-size: 10px;
     line-height: calc(14px * var(--seq-zoom-scale-v, 1));
-    padding: 0 6px 0 4px;
+    padding: 0 4px;
+    box-sizing: border-box;
+    box-shadow: inset -1px 0 0 var(--border);
+    overflow: hidden;
 }
 
 /* 4. QUADRILLAGE DE MESURE dessiné au FOND de la grille plutôt qu'avec un élément par case : trois
@@ -4230,11 +4257,14 @@ select.song-select-narrow {
 .seq-grid-continuous {
     background-color: rgba(0, 0, 0, 0.18);
     background-image:
-        repeating-linear-gradient(90deg, rgba(255,255,255,0.028) 0 var(--seq-bar-w), transparent var(--seq-bar-w) calc(var(--seq-bar-w) * 2)),
-        repeating-linear-gradient(90deg, rgba(255,255,255,0.30) 0 1px, transparent 1px var(--seq-bar-w)),
-        repeating-linear-gradient(90deg, rgba(255,255,255,0.11) 0 1px, transparent 1px var(--seq-beat-w)),
-        repeating-linear-gradient(90deg, rgba(255,255,255,0.05) 0 1px, transparent 1px calc(var(--seq-beat-w) / 2));
-    background-position: var(--seq-label-w, 0) 0;
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.045) 0 var(--seq-bar-w), transparent var(--seq-bar-w) calc(var(--seq-bar-w) * 2)),
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.55) 0 2px, transparent 2px var(--seq-bar-w)),
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.20) 0 1px, transparent 1px var(--seq-beat-w)),
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.085) 0 1px, transparent 1px calc(var(--seq-beat-w) / 2));
+    /* Décalé de la gouttière : sans ça, chaque trait de mesure tombait une gouttière trop tôt et le
+       quadrillage ne disait plus rien du temps réel (retour utilisateur : « il faut que je puisse me
+       repérer dans le temps »). --seq-label-w est posée par renderSequencer. */
+    background-position: var(--seq-label-w, 0px) 0;
     background-repeat: repeat;
 }
 /* Lignes horizontales : un filet par demi-ton, un peu plus marqué au changement d'octave (les
@@ -4255,10 +4285,11 @@ select.song-select-narrow {
     align-self: start;
     box-shadow: inset 0 -1px 0 var(--border);
 }
-/* Le coin haut-gauche croise la règle (collée en haut) et l'échelle de notes (collée à gauche) :
-   il doit passer devant les deux, sinon l'une ou l'autre lui glisse par-dessus. */
-.seq-grid-continuous .seq-label { z-index: 2; }
-.seq-grid-continuous .seq-beat-label { z-index: 4; }
+/* Règle (collée en haut) et gouttière de notes (collée à gauche) se croisent : la règle passe
+   devant, sinon la gouttière lui glisse par-dessus au coin haut-gauche. Le z-index de la gouttière
+   est posé plus haut avec le reste de ses propriétés collantes — ne pas le redéfinir ici, une
+   seconde règle de même spécificité l'écrasait et la gouttière repartait avec le défilement. */
+.seq-grid-continuous .seq-beat-label { z-index: 7; }
 
 /* La bande défile désormais dans les DEUX sens : c'est ce qui permet à la règle de rester collée en
    haut ET à l'échelle de notes de rester collée à gauche, chacune dans le même conteneur — un
