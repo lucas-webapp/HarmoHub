@@ -767,13 +767,14 @@ body.body-scroll-locked { overflow: hidden !important; }
     box-shadow: inset 0 0 0 1px rgba(0, 230, 118, 0.35);
 }
 
-/* Onglets Son/Affichage/Fichiers : un seul panneau visible à la fois (voir setSettingsTab dans
-   script.js), pour ne plus faire défiler tout le reste (Fichiers, en particulier, peut être long)
-   juste pour changer un réglage Son. */
-/* Titre de groupe dans la fenêtre Paramètres, en remplacement des trois onglets (voir index.html) :
-   Son / Affichage de la grille / Mes morceaux. Une dizaine de réglages tiennent en une page — un
-   onglet coûtait un clic ET une devinette pour chaque réglage cherché. Collant en haut du défilement
-   pour qu'on sache toujours dans quel groupe on se trouve quand la liste des morceaux est longue. */
+/* Titre de groupe dans la fenêtre Paramètres, en remplacement des anciens onglets (voir index.html) :
+   Son, puis Affichage. Une dizaine de réglages tiennent en une page — un onglet coûtait un clic ET
+   une devinette pour chaque réglage cherché. Collant en haut du défilement pour qu'on sache toujours
+   dans quel groupe on se trouve.
+   Écrit en CLAIR, contrairement aux libellés des réglages qui restent en gris (--text-muted) : au
+   même gris, le titre du groupe se noyait dans la liste qu'il coiffe et ne séparait plus rien
+   (retour utilisateur : « une couleur plus claire pour bien les différencier »). C'est le seul
+   contraste qui distingue une en-tête d'une ligne de réglage, la taille étant volontairement petite. */
 .settings-group-title {
     position: sticky;
     top: 0;
@@ -785,7 +786,7 @@ body.body-scroll-locked { overflow: hidden !important; }
     font-weight: 800;
     letter-spacing: 0.09em;
     text-transform: uppercase;
-    color: var(--text-muted);
+    color: var(--text-main);
     border-bottom: 1px solid var(--border);
 }
 .settings-content > .settings-group-title:first-child { margin-top: 0; }
