@@ -12517,6 +12517,13 @@ class HarmoHubApp {
         const samePreviousChord = wasPrevContinuous
             && (wasPrevWide || parseInt(prevGridEl.dataset.editingIndex) === this.editingIndex);
         const prevScrollLeft = samePreviousChord ? prevScrollEl.scrollLeft : null;
+        // Largeur d'une colonne au rendu PRÉCÉDENT. Restaurer un scrollLeft en PIXELS n'a de sens que
+        // si cette largeur n'a pas changé : détailler ou resserrer la vue continue (Ctrl+molette,
+        // pincement, boutons H) change l'échelle, et les mêmes pixels désignent alors un tout autre
+        // endroit de la partie — on se retrouvait ailleurs sans savoir où (retour utilisateur :
+        // « lorsque je détaille le séquenceur continu, la vue doit rester centrée sur l'accord en
+        // cours de modification, sinon je me perds rapidement en horizontal »).
+        const prevColPx = prevGridEl ? parseFloat(prevGridEl.dataset.colPx) : NaN;
         // Avant toute chose : une note libre jouée assez longtemps depuis le dernier rendu complète-
         // t-elle désormais l'accord (voir reevaluateExtraNoteUpgrades) ? Peut changer la qualité/le
         // nombre de voix, donc AVANT de (re)synchroniser le motif ci-dessous.
@@ -12687,7 +12694,7 @@ class HarmoHubApp {
         const colTemplate = (continuous || wideCompact)
             ? `max-content repeat(${totalCols}, ${continuousColPx}px)`
             : `max-content repeat(${pageSteps}, 1fr)`;
-        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" style="grid-template-columns: ${colTemplate};">`;
+        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" data-col-px="${continuousColPx}" style="grid-template-columns: ${colTemplate};">`;
 
         // Cases de la grille : zones de clic/glisser (toujours présentes, sous les notes visuelles).
         // Placement explicite (grid-row/grid-column) sur TOUT le monde : les notes ci-dessous se
@@ -13061,9 +13068,23 @@ class HarmoHubApp {
         // l'auto-scroll d'un étirement près du bord, voir _updateSeqAutoScroll) ; colOffset y vaut
         // toujours 0 (pas de contexte voisin), donc le repli par défaut est bien le tout début.
         if (continuous || wideCompact) {
+            // L'échelle a-t-elle changé depuis le rendu précédent ? (Comparaison tolérante : ces
+            // largeurs sont des flottants issus d'un produit, jamais strictement égales.)
+            const echelleChangee = !isNaN(prevColPx) && Math.abs(prevColPx - continuousColPx) > 0.01;
             requestAnimationFrame(() => {
                 const scrollEl = host.querySelector('.seq-scroll');
-                if (scrollEl) scrollEl.scrollLeft = prevScrollLeft != null ? prevScrollLeft : colOffset * continuousColPx;
+                if (!scrollEl) return;
+                // Centre l'accord en édition dans la largeur visible. Utilisé au premier affichage
+                // (aucune position antérieure) ET à chaque changement d'échelle : c'est le seul repère
+                // qui garde un sens quand les pixels, eux, n'en ont plus.
+                const centrerSurAccordEdite = () => {
+                    const largeurAccord = steps * continuousColPx;
+                    const centreAccord = colOffset * continuousColPx + largeurAccord / 2;
+                    const cible = centreAccord - scrollEl.clientWidth / 2;
+                    scrollEl.scrollLeft = Math.max(0, cible);
+                };
+                if (prevScrollLeft == null || echelleChangee) centrerSurAccordEdite();
+                else scrollEl.scrollLeft = prevScrollLeft; // simple repeinture : on ne bouge pas sous les doigts
             });
         }
 
