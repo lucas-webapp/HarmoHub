@@ -3429,8 +3429,12 @@ class HarmoHubApp {
         // utilisateur : « les boutons "masquer panneau de gauche" et "mode séquenceur grille" font
         // tous les deux quasiment pareil = ils agrandissent la grille » — deux chemins pour le même
         // résultat, dont un qui recouvre tout l'écran. Il ouvre désormais simplement le SÉQUENCEUR,
-        // en place. openGridZoom() reste appelable (double-clic sur la grille, raccourcis) mais n'a
-        // plus de bouton dédié dans cette barre.
+        // en place.
+        // ATTENTION : ce bouton était le SEUL point d'entrée de la vue plein écran. openGridZoom()
+        // reste parfaitement fonctionnelle, mais plus rien ne l'appelle — ni double-clic, ni
+        // raccourci clavier (vérifié). La vue agrandie est donc du code vivant mais inatteignable,
+        // en attente d'une décision : lui redonner une entrée, ou la supprimer avec tout ce qui en
+        // dépend (séquenceur épinglé, zoom H/V de la loupe, navigation d'accord à accord...).
         document.getElementById('grid-zoom').onclick = () => this.toggleSequencer();
         document.getElementById('grid-zoom-close').onclick = () => this.closeGridZoom();
         document.getElementById('grid-zoom-overlay').addEventListener('click', (e) => {
