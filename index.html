@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608130010">
+    <link rel="stylesheet" href="style.css?v=202608130120">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -275,9 +275,35 @@
                     <div id="settings-panel-audio" class="settings-panel" data-settings-panel="audio"></div>
                     <h3 class="settings-group-title">Affichage de la grille</h3>
                     <div id="settings-panel-display" class="settings-panel" data-settings-panel="display"></div>
-                    <h3 class="settings-group-title">Mes morceaux</h3>
-                    <div id="settings-panel-files" class="settings-panel" data-settings-panel="files"></div>
+                    <h3 class="settings-group-title" id="files-group-title">Mes morceaux</h3>
+                    <!-- Emplacement d'origine du panneau Fichiers. Il part vivre dans #files-overlay
+                         quand on ouvre la fenêtre depuis le bouton du module Morceau, puis revient
+                         ici en la refermant (voir placeFilesPanel) — le titre ci-dessus se masque
+                         pendant ce temps, pour ne pas laisser un intertitre sans rien dessous. -->
+                    <div id="settings-files-slot">
+                        <div id="settings-panel-files" class="settings-panel" data-settings-panel="files"></div>
+                    </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fenêtre « Mes morceaux », ouverte par le bouton dossier du module Morceau (voir
+         openFilesWindow/closeFilesWindow dans script.js). Elle n'a AUCUN contenu propre : le panneau
+         Fichiers (#settings-panel-files) y est déplacé le temps qu'elle est ouverte, puis remis dans
+         les Paramètres à la fermeture — même principe que la vue agrandie du séquenceur ci-dessous.
+         Plus large que les Paramètres : c'est une liste de fichiers à parcourir, pas une colonne de
+         réglages. -->
+    <div id="files-overlay" class="settings-overlay" hidden>
+        <div class="settings-modal files-modal" role="dialog" aria-modal="true" aria-labelledby="files-window-title">
+            <div class="settings-header">
+                <h2 id="files-window-title">Mes morceaux</h2>
+                <button type="button" id="files-close" class="icon-btn" title="Fermer" aria-label="Fermer">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="settings-body">
+                <div class="settings-content" id="files-window-host"></div>
             </div>
         </div>
     </div>
@@ -471,6 +497,16 @@
                         </button>
                         <button type="button" id="song-new" class="icon-btn" title="Nouveau morceau" aria-label="Nouveau morceau">
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                        </button>
+                        <!-- « Mes morceaux » à portée de clic depuis le titre du morceau, au lieu
+                             d'être au fond des Paramètres (retour utilisateur : « à droite du titre du
+                             morceau, un bouton fichiers, qui permet d'ouvrir un lecteur de fichiers avec
+                             possibilité de modification »). C'est le MÊME panneau dans les deux endroits :
+                             il est DÉPLACÉ dans la fenêtre le temps qu'elle est ouverte, jamais dupliqué
+                             (voir placeFilesPanel dans script.js) — une seule liste, un seul câblage,
+                             donc aucune chance de les voir diverger. -->
+                        <button type="button" id="song-files" class="icon-btn" title="Mes morceaux : ouvrir, renommer, ranger, supprimer" aria-label="Mes morceaux">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
                         </button>
                         <!-- Import/export au niveau du module Morceau, juste à gauche d'Enregistrer
                              (retour utilisateur : plusieurs points d'entrée se recroisaient — flèches
@@ -1096,6 +1132,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608130010"></script>
+    <script src="script.js?v=202608130120"></script>
 </body>
 </html>

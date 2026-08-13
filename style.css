@@ -263,6 +263,12 @@ body.body-scroll-locked { overflow: hidden !important; }
 .unsaved-modal-actions button { width: 100%; }
 .unsaved-modal-nameprompt label { display: block; margin-bottom: 6px; color: var(--text-muted); font-size: var(--fs-sm); }
 .unsaved-modal-nameprompt input, .unsaved-modal-nameprompt select { width: 100%; box-sizing: border-box; margin-bottom: 14px; }
+/* Fenêtre « Mes morceaux » (voir openFilesWindow dans script.js) : elle réutilise .settings-modal,
+   mais plus large et plus haute — on y parcourt une liste de fichiers avec, sur chaque ligne, un nom,
+   une date et cinq actions, là où les Paramètres n'alignent qu'une colonne de réglages. À 640px les
+   actions se tassaient contre le nom. */
+.files-modal { max-width: 820px; max-height: 88vh; }
+
 /* .inline-rename-input a un padding pensé pour un remplacement en ligne serré (voir plus haut) —
    ici il remplace un vrai champ de formulaire, à côté d'un <select> classique (padding 14px) : on
    l'agrandit pour rester visuellement cohérent. */
@@ -977,6 +983,11 @@ body.body-scroll-locked { overflow: hidden !important; }
 .switch[aria-checked="true"] .switch-thumb { transform: translateX(18px); background: var(--accent); }
 
 @media (max-width: 640px) {
+    /* Sur téléphone, nom et actions se disputaient la même ligne : le nom tombait à ~150px et se
+       coupait dès le troisième mot (« Un morce… »), alors que c'est justement ce qu'on lit pour
+       choisir un fichier. On empile — le nom et sa date prennent toute la largeur, les actions
+       passent dessous, alignées à droite. */
+    .file-row { flex-direction: column; align-items: stretch; gap: 6px; padding-left: 14px; }
     .file-actions { flex-wrap: wrap; justify-content: flex-end; }
     .file-folder-select { width: 92px; }
 
