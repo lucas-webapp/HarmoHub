@@ -12372,10 +12372,12 @@ class HarmoHubApp {
                 else this.renderSequencer();
             }
         } else if (kind === 'seqInline') {
-            // Séquenceur COMPACT : l'échelle horizontale est relue par renderSequencer (voir seqHZoom),
-            // la verticale passe par la même variable CSS que les fenêtres agrandies, posée ici sur
-            // #arp-sequencer lui-même (voir _applySeqVerticalScale).
+            // Séquenceur COMPACT/CONTINU : la verticale passe par la même variable CSS que la vue
+            // agrandie (voir _applySeqVerticalScale), l'horizontale par _appliquerEchelleHorizontale —
+            // les deux en place, sans reconstruire. Le rendu complet ne reste nécessaire que si aucune
+            // grille défilante n'est à l'écran (vue paginée, qui répartit ses colonnes en 1fr).
             this._applySeqVerticalScale();
+            if (this.seqOpen && this._appliquerEchelleHorizontale(this.seqInlineZoomLevelX)) return;
             if (this.seqOpen) {
                 if (this._zoomPinchActive) this._seqZoomRenderPending = true;
                 else this.renderSequencer();
@@ -12420,6 +12422,33 @@ class HarmoHubApp {
     // openSeqZoom/pinSequencerHost) et non recopié, une variable laissée sur lui masquerait celle de
     // l'hôte — l'élément le plus proche l'emporte à l'héritage — et le zoom vertical de la loupe
     // n'aurait soudain plus aucun effet. D'où le retrait explicite dès qu'on est en fenêtre agrandie.
+    // Applique l'échelle HORIZONTALE en place, sans reconstruire le HTML : une largeur de colonne
+    // est une variable CSS (voir renderSequencer/colTemplate), les notes étant placées par
+    // grid-column suivent toutes seules. C'est ce qui rend le zoom fluide plutôt que saccadé — la
+    // reconstruction, elle, ne sert plus qu'à changer ce que la grille CONTIENT. Recentre dans la
+    // foulée sur l'accord édité : à échelle changée, un défilement en pixels ne désigne plus rien.
+    // Renvoie false si aucune grille continue n'est à l'écran (l'appelant retombe alors sur un rendu).
+    _appliquerEchelleHorizontale(zoomH) {
+        const grille = document.querySelector('.seq-grid-continuous, .seq-grid-wide');
+        if (!grille) return false;
+        const base = window.innerWidth > 899 ? 28 : 14;
+        const colPx = base * zoomH;
+        const pasParMesure = this.beatsPerBar() * SEQ_STEPS_PER_BEAT;
+        grille.style.setProperty('--seq-col-w', `${colPx}px`);
+        grille.style.setProperty('--seq-bar-w', `${colPx * pasParMesure}px`);
+        grille.style.setProperty('--seq-beat-w', `${colPx * SEQ_STEPS_PER_BEAT}px`);
+        grille.dataset.colPx = String(colPx);
+        const sc = grille.closest('.seq-scroll');
+        if (sc) {
+            const colOffset = +grille.dataset.colOffset || 0;
+            const pas = new Set([...grille.querySelectorAll('.seq-cell')]
+                .map(e => parseInt((e.style.gridColumn || '').split('/')[0], 10)).filter(n => !isNaN(n))).size;
+            const centre = colOffset * colPx + (pas * colPx) / 2;
+            sc.scrollLeft = Math.max(0, centre - sc.clientWidth / 2);
+        }
+        return true;
+    }
+
     _applySeqVerticalScale() {
         const seq = document.getElementById('arp-sequencer');
         if (!seq) return;
@@ -12691,10 +12720,16 @@ class HarmoHubApp {
         // scrollLeft juste plus bas (colOffset * continuousColPx), pas seulement injecté dans le HTML.
         const continuousColBase = window.innerWidth > 899 ? 28 : 14;
         const continuousColPx = continuousColBase * seqHZoom;
+        // Largeur de colonne posée en VARIABLE CSS plutôt qu'en dur dans le gabarit : changer
+        // l'échelle horizontale devient alors l'écriture d'une seule variable, sans reconstruire le
+        // HTML. C'est ce qui rend le zoom continu et non plus saccadé (retour utilisateur : « le
+        // déplacement et zoom/dézoom de l'affichage est saccadé, je veux quelque chose de complètement
+        // fluide, comme sur les daw classiques ») — les notes étant placées par grid-column, elles
+        // suivent l'échelle toutes seules, sans un seul recalcul JS.
         const colTemplate = (continuous || wideCompact)
-            ? `max-content repeat(${totalCols}, ${continuousColPx}px)`
+            ? `max-content repeat(${totalCols}, var(--seq-col-w))`
             : `max-content repeat(${pageSteps}, 1fr)`;
-        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" data-col-px="${continuousColPx}" style="grid-template-columns: ${colTemplate};">`;
+        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" data-col-px="${continuousColPx}" style="grid-template-columns: ${colTemplate}; --seq-col-w: ${continuousColPx}px; --seq-steps-per-bar: ${beatsPerBar * SEQ_STEPS_PER_BEAT}; --seq-bar-w: ${continuousColPx * beatsPerBar * SEQ_STEPS_PER_BEAT}px; --seq-beat-w: ${continuousColPx * SEQ_STEPS_PER_BEAT}px;">`;
 
         // Cases de la grille : zones de clic/glisser (toujours présentes, sous les notes visuelles).
         // Placement explicite (grid-row/grid-column) sur TOUT le monde : les notes ci-dessous se
@@ -12752,7 +12787,11 @@ class HarmoHubApp {
             return PC_NOIRES.has(((midi % 12) + 12) % 12) ? ' seq-key seq-key-black' : ' seq-key seq-key-white';
         };
 
-        let rowIndex = 0;
+        // La règle de mesure occupe la ligne 1 (voir beatRow) : les hauteurs commencent donc à 2.
+        // Elle était en bas, sous les notes ; en haut, elle se lit comme sur n'importe quel séquenceur
+        // et peut rester collée en défilant (retour utilisateur : « les boutons et règle de mesure ne
+        // restent pas visibles si je scroll vers le haut, il faut l'attacher sur la vue »).
+        let rowIndex = 1;
         for (const row of rowOrder) {
             rowIndex++;
             const r = row.voice;
@@ -12834,7 +12873,7 @@ class HarmoHubApp {
         // gère le clic. Un glissé démarré sur sa première ou dernière croche l'étire/la raccourcit
         // depuis ce bord (voir onSeqPointerDown) ; ailleurs, un glissé peint/efface comme avant.
         let notesHtml = '';
-        rowIndex = 0;
+        rowIndex = 1; // même décalage que ci-dessus : la ligne 1 est la règle de mesure
         for (const row of rowOrder) {
             rowIndex++;
             const r = row.voice;
@@ -12884,7 +12923,7 @@ class HarmoHubApp {
         // de la page/du décalage affiché) pour _highlightSeqBeatLabel, qui met ce chiffre en évidence
         // au fur et à mesure qu'un étirement/peindre en cours l'atteint (retour utilisateur : "je ne
         // vois pas exactement où est le temps 4" pendant un glissé).
-        const beatRow = rowCount + 1;
+        const beatRow = 1; // tout en haut, et collée (voir .seq-beat-label en CSS)
         let beatLabelsHtml = '';
         // En vue CONTINUE, la barre de temps couvre TOUTE la grille affichée (accords précédents +
         // accord édité + accords suivants), pas seulement la tranche de l'accord en cours d'édition —
@@ -12937,7 +12976,7 @@ class HarmoHubApp {
         // double-clic efface le réglage propre à cette croche pour revenir à l'intensité globale de
         // l'accord (#intensity). Mêmes colonnes que .seq-beat-label juste au-dessus, une ligne plus bas.
         if (this.studioMode) {
-            const velRow = beatRow + 1;
+            const velRow = rowCount + 2; // sous les hauteurs, la règle occupant désormais la ligne 1
             const chordIntensity = +document.getElementById('intensity').value;
             let velHtml = `<div class="seq-vel-lane-label" style="grid-row:${velRow}; grid-column:1;">Studio</div>`;
             for (let s = pageStart; s < pageEnd; s++) {

@@ -4187,3 +4187,106 @@ select.song-select-narrow {
     padding: 6px 8px;
     line-height: 1.3;
 }
+
+/* ============================================================================
+   SÉQUENCEUR CONTINU — densité, quadrillage et éléments collants
+   Retour utilisateur : « j'aimerais atteindre une réelle fluidité pour ne pas faire d'erreurs. Sur
+   GarageBand j'y arrive sans problème et avec précision. » Les cinq points traités ci-dessous.
+   ============================================================================ */
+
+/* 1. LIGNES CHROMATIQUES RESSERRÉES. Elles héritaient de la taille des vues « agrandies » (52px de
+   base + 6px d'écart), pensée pour 4 voix — appliquée à une vingtaine de demi-tons, ça donnait un
+   séquenceur trois fois trop haut où l'œil ne relie plus une note à sa voisine (retour utilisateur :
+   « trop d'espace entre les notes chromatiques, il faut resserrer les barres verticalement »).
+   14px de base, comme un piano-roll de station audio, et AUCUN écart vertical : ce sont les traits
+   du quadrillage (point 4) qui séparent les lignes, pas du vide. */
+.seq-grid-continuous { gap: 0 !important; }
+.seq-grid-continuous .seq-cell,
+.seq-grid-continuous .seq-label,
+.seq-grid-continuous .seq-ctx-cell { height: calc(14px * var(--seq-zoom-scale-v, 1)); }
+.seq-grid-continuous .seq-ctx-cell { align-self: stretch; border-radius: 0; }
+/* Cases plates : arrondis et bordures leur donnaient l'aspect de boutons alignés. Une case de
+   piano-roll n'est qu'une zone de clic — ce qu'on doit voir, c'est le quadrillage et les notes. */
+.seq-grid-continuous .seq-cell {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+.seq-grid-continuous .seq-cell:hover { background: rgba(255, 255, 255, 0.07); }
+.seq-grid-continuous .seq-label {
+    font-size: 10px;
+    line-height: calc(14px * var(--seq-zoom-scale-v, 1));
+    padding: 0 6px 0 4px;
+}
+
+/* 4. QUADRILLAGE DE MESURE dessiné au FOND de la grille plutôt qu'avec un élément par case : trois
+   dégradés répétés superposés (mesure / temps / croche), calés sur les variables d'échelle posées
+   par renderSequencer. Coût nul au défilement, et la densité suit le zoom toute seule.
+   L'ancien affichage — un rectangle sombre par temps — ne disait ni où tombe la mesure ni où tombe
+   la croche (retour utilisateur : « l'affichage des temps est trop simpliste et trop grossier »).
+   Hiérarchie à trois niveaux, comme partout ailleurs : trait net à la mesure, moyen au temps,
+   à peine visible à la croche. Plus un aplat une mesure sur deux, qui donne le rythme à l'œil sans
+   qu'il ait à compter. */
+.seq-grid-continuous {
+    background-color: rgba(0, 0, 0, 0.18);
+    background-image:
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.028) 0 var(--seq-bar-w), transparent var(--seq-bar-w) calc(var(--seq-bar-w) * 2)),
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.30) 0 1px, transparent 1px var(--seq-bar-w)),
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.11) 0 1px, transparent 1px var(--seq-beat-w)),
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.05) 0 1px, transparent 1px calc(var(--seq-beat-w) / 2));
+    background-position: var(--seq-label-w, 0) 0;
+    background-repeat: repeat;
+}
+/* Lignes horizontales : un filet par demi-ton, un peu plus marqué au changement d'octave (les
+   touches noires étant déjà teintées par .seq-key-black, l'octave se repère sans compter). */
+.seq-grid-continuous .seq-cell,
+.seq-grid-continuous .seq-ctx-cell { box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.045); }
+
+/* 5. RÈGLE DE MESURE ET BOUTONS COLLÉS À LA VUE. La règle est passée en ligne 1 (voir beatRow dans
+   renderSequencer) et s'y accroche : on la lit toujours, quelle que soit la hauteur qu'on regarde.
+   Fond opaque obligatoire — les notes défilent dessous. */
+.seq-grid-continuous .seq-beat-label,
+.seq-grid-continuous .seq-beat-offbeat {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--card-bg);
+    height: 18px;
+    align-self: start;
+    box-shadow: inset 0 -1px 0 var(--border);
+}
+/* Le coin haut-gauche croise la règle (collée en haut) et l'échelle de notes (collée à gauche) :
+   il doit passer devant les deux, sinon l'une ou l'autre lui glisse par-dessus. */
+.seq-grid-continuous .seq-label { z-index: 2; }
+.seq-grid-continuous .seq-beat-label { z-index: 4; }
+
+/* La bande défile désormais dans les DEUX sens : c'est ce qui permet à la règle de rester collée en
+   haut ET à l'échelle de notes de rester collée à gauche, chacune dans le même conteneur — un
+   élément collant ne s'accroche qu'à un conteneur qui défile dans l'axe concerné. */
+.seq-scroll.seq-scroll-continuous {
+    overflow: auto;
+    max-height: 100%;
+    overscroll-behavior: contain; /* le geste ne remonte pas à la page une fois en butée */
+}
+/* Rangée de boutons ancrée en BAS du volet : elle sortait du champ dès qu'on descendait dans les
+   hauteurs, alors que c'est là que vivent Lecture, aimantation et échelles. Pas de `sticky` ici — le
+   volet n'est pas ce qui défile (c'est .seq-scroll à l'intérieur) : il suffit que la bande défilante
+   prenne la place restante (flex:1) et que la rangée garde la sienne (flex:none). Avec `sticky`, la
+   rangée se superposait au bas de la bande et se retrouvait coupée. */
+.seq-dock-panel .arp-seq {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border-top: none;
+}
+.seq-dock-panel .seq-scroll { flex: 1 1 auto; min-height: 0; }
+.seq-dock-panel .seq-presets {
+    flex: none;
+    margin: 0;
+    padding: 6px 8px;
+    background: var(--card-bg);
+    box-shadow: inset 0 1px 0 var(--border);
+}
