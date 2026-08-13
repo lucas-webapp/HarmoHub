@@ -25,7 +25,7 @@ const ICONS = {
     pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
     duplicate: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
     trash: '<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
-    // Aimant en fer à cheval, branches vers le HAUT (voir .seq-snap-group) : contour extérieur, contour
+    // Aimant en fer à cheval, branches vers le HAUT : contour extérieur, contour
     // intérieur, puis les deux pôles refermés en haut. Dessiné en creux plutôt qu'en U plein — un
     // simple U fermé se lit comme une gélule une fois réduit à ~14px, ce qui ne veut plus rien dire.
     magnet: '<path d="M5 3v8a7 7 0 0 0 14 0V3"/><path d="M10 3v8a2 2 0 0 0 4 0V3"/><path d="M5 3h5"/><path d="M14 3h5"/>',
@@ -1724,7 +1724,6 @@ const GENERAL_VOLUME_KEY = 'harmohubGeneralVolume';
 const AUTOPLAY_SELECT_KEY = 'harmohubAutoplaySelect';
 const METRONOME_COUNTIN_KEY = 'harmohubMetronomeCountIn';
 const SEQ_EDIT_AUDIO_KEY = 'harmohubSeqEditAudio';
-const SEQ_SNAP_KEY = 'harmohubSeqSnap';
 // Seuil ordinateur/téléphone, tenu en UN SEUL endroit côté JS pour rester aligné sur la requête média
 // équivalente en CSS (min-width: 900px) : c'est lui qui décide où vit le séquenceur (voir
 // placeSequencer/#seq-dock-host) autant que la mise en page à une ou deux colonnes.
@@ -1753,11 +1752,6 @@ const SEQ_COL_PX_MAX = 28;
 // par temps) : 4 = le temps entier, 2 = la demi-mesure du temps, 1 = la croche elle-même, c'est-à-dire
 // aucune aimantation (comportement historique, valeur par défaut — rien ne change tant qu'on n'y
 // touche pas). Les libellés parlent en fractions de ronde, comme partout ailleurs en musique.
-const SEQ_SNAP_CHOICES = [
-    { steps: 4, label: '1/4', title: 'Aimanter au temps (noire)' },
-    { steps: 2, label: '1/8', title: 'Aimanter à la croche (demi-temps)' },
-    { steps: 1, label: '1/16', title: 'Aucune aimantation : réglage à la double-croche près' },
-];
 // Durée d'une note du séquenceur, dite en TEMPS — le vocabulaire du reste de l'appli (durée d'accord,
 // numéros de mesure, signature). Les quarts de temps s'écrivent en fractions plutôt qu'en décimales :
 // « 1 temps ½ » se lit d'un coup d'œil, « 1,5 temps » demande une conversion mentale.
@@ -2683,16 +2677,15 @@ class HarmoHubApp {
         // bip en plus ne ferait que doubler ce qu'on entend.
         this.seqEditAudio = localStorage.getItem(SEQ_EDIT_AUDIO_KEY) !== '0';
 
-        // Aimantation du séquenceur (voir SEQ_SNAP_CHOICES/seqSnap) : 1 croche par défaut, donc AUCUNE
         // aimantation — comportement historique strictement inchangé tant qu'on ne choisit pas 1/8 ou
         // 1/4. Retour utilisateur : viser une case de quelques pixels au doigt est la première source
         // d'imprécision ; à la souris, ça évite les fins de note à une double-croche près sans le vouloir.
-        this.seqSnapSteps = Math.max(1, parseInt(localStorage.getItem(SEQ_SNAP_KEY), 10) || 1);
 
-        // Durée « collante » des nouvelles notes (voir seqNewNoteLen) : longueur, en croches, de la
-        // dernière note réellement dessinée ou étirée. null = pas encore de référence, on retombe alors
-        // sur le pas d'aimantation courant. Volontairement NON persistée : une nouvelle session repart
-        // du réglage d'aimantation visible à l'écran, plutôt que d'une longueur invisible héritée d'hier.
+
+        // Durée « collante » des nouvelles notes (voir seqNewNoteLen) : longueur, en doubles croches,
+        // de la dernière note réellement dessinée ou étirée. null = pas encore de référence, on pose
+        // alors une croche. Volontairement NON persistée : une nouvelle session repart d'une durée
+        // prévisible plutôt que d'une longueur invisible héritée d'hier.
         this.seqStickyLen = null;
 
         // Clic faible additionnel sur le contretemps (croches, "et" de chaque temps) — désactivé par
@@ -10686,12 +10679,29 @@ class HarmoHubApp {
         this.renderSequencer();
     }
 
-    // ---------- Aimantation (voir SEQ_SNAP_CHOICES/#seq-snap-group) ----------
+    // ---------- Aimantation ----------
     // Pas d'aimantation courant, en croches. Toujours >= 1 : 1 signifie « aucune aimantation », et
     // toutes les fonctions ci-dessous deviennent alors l'identité — c'est ce qui garantit que le
     // comportement historique est rigoureusement conservé tant qu'on n'a rien changé.
+    // Aimantation FIXE à la double croche : une case de la grille EST une double croche
+    // (SEQ_STEPS_PER_BEAT = 4), donc « se caler sur la case » ne restreint rien — c'est la précision
+    // maximale que la vue permet. Le sélecteur qui proposait 1/4 et 1/8 a été retiré (retour
+    // utilisateur) : il fallait le régler avant de dessiner, et l'oublier posait des notes au mauvais
+    // endroit. Le penchant pour la croche vit dans snapSeqBoundary, pas ici.
     seqSnap() {
-        return Math.max(1, this.seqSnapSteps || 1);
+        return 1;
+    }
+
+    // Léger AIMANT sur les croches (voir snapSeqBoundary/onSeqPointerMove) : quand la position tombe
+    // pile sur un début de croche, on l'y garde ; sinon on reste à la double croche visée. Concrètement
+    // la croche gagne un peu de « poids » sans jamais empêcher d'atteindre une double croche — retour
+    // utilisateur : « si tu penses qu'il faut renforcer légèrement l'accrochage sur les croches par
+    // rapport à l'accrochage en double croche, tu peux mettre cela en place ». 0.3 : on ne bascule sur
+    // la croche que dans le tiers de case qui la borde, la majorité de la case restant à elle-même.
+    _aimantCroche(posFractionnaire) {
+        const PAS_CROCHE = 2; // 2 doubles croches = 1 croche
+        const croche = Math.round(posFractionnaire / PAS_CROCHE) * PAS_CROCHE;
+        return Math.abs(posFractionnaire - croche) <= 0.3 ? croche : Math.round(posFractionnaire);
     }
 
     // DÉBUT d'une note : arrondi vers le BAS, au cran qui CONTIENT ce pas. On vise une zone et la note
@@ -10716,17 +10726,15 @@ class HarmoHubApp {
     // cran le plus proche, qui est ici le bon compromis — la note suit le pointeur au plus près sans
     // jamais se poser de travers.
     snapSeqBoundary(pos) {
-        const n = this.seqSnap();
-        return Math.round(pos / n) * n;
+        return this._aimantCroche(pos);
     }
 
-    // Longueur, en croches, d'une note créée par un simple clic/tap : celle de la dernière note
-    // réellement dessinée ou étirée (voir this.seqStickyLen — même principe que GarageBand/Logic, qui
-    // réutilisent la dernière durée éditée), à défaut le pas d'aimantation courant. Le sélecteur
-    // d'aimantation sert donc aussi de « durée par défaut » tant qu'on n'a rien dessiné : choisir 1/4
-    // et taper pose directement des noires, au lieu d'enchaîner quatre doubles-croches à la main.
+    // Longueur, en doubles croches, d'une note créée par un simple clic/tap : celle de la dernière
+    // note réellement dessinée ou étirée (voir this.seqStickyLen — même principe que GarageBand/Logic,
+    // qui réutilisent la dernière durée éditée). À défaut, une CROCHE : c'est la durée la plus
+    // courante, et l'ancien repli (le pas d'aimantation) n'existe plus depuis que celui-ci est fixe.
     seqNewNoteLen() {
-        return Math.max(1, this.seqStickyLen || this.seqSnap());
+        return Math.max(1, this.seqStickyLen || 2);
     }
 
     // Mémorise la longueur d'une note qu'on vient de dessiner/étirer, pour que la SUIVANTE créée d'un
@@ -10734,19 +10742,6 @@ class HarmoHubApp {
     // moins une croche).
     rememberSeqNoteLen(len) {
         if (len >= 1) this.seqStickyLen = len;
-    }
-
-    // Change le pas d'aimantation (boutons de la barre du séquenceur). Remet aussi la durée collante à
-    // zéro : choisir « 1/4 » doit se traduire tout de suite par des noires au clic, sans traîner la
-    // longueur d'une note dessinée sous l'ancien réglage (voir seqNewNoteLen, qui retombe alors sur le
-    // pas d'aimantation). Re-rendu complet : c'est lui qui remet les boutons dans le bon état.
-    setSeqSnap(steps) {
-        const n = Math.max(1, steps || 1);
-        if (n === this.seqSnapSteps) return;
-        this.seqSnapSteps = n;
-        this.seqStickyLen = null;
-        localStorage.setItem(SEQ_SNAP_KEY, String(n));
-        this.renderSequencer();
     }
 
     // Bornes dans lesquelles une note peut être étirée sans empiéter sur la note voisine de LA MÊME
@@ -13027,7 +13022,13 @@ class HarmoHubApp {
             // texte partant de là et s'étirant vers la droite) : à côté du trait de contretemps, lui
             // bien centré, ce calage à gauche donnait une impression d'asymétrie (retour utilisateur :
             // "les traits sont centrés, mais plus les numéros").
-            beatLabelsHtml += `<div class="seq-beat-label" data-beat-index="${beatIndex}" style="grid-row:${beatRow}; grid-column:${deltaColonne + s + 2};"><span class="seq-beat-num">${beatNum}</span></div>`;
+            // Premier temps d'une mesure : on affiche son NUMÉRO DE MESURE, en clair, avec une
+            // graduation pleine (voir .seq-beat-label[data-mesure] en CSS) ; les autres temps gardent
+            // leur petit chiffre estompé. On lit la structure d'abord, le détail ensuite — une rangée
+            // de chiffres tous identiques ne disait pas où l'on est dans le morceau.
+            const debutMesure = beatNum === 1;
+            const noMesure = Math.floor(beatIndex / beatsPerBar) + 1;
+            beatLabelsHtml += `<div class="seq-beat-label" data-beat-index="${beatIndex}"${debutMesure ? ' data-mesure="' + noMesure + '"' : ''} style="grid-row:${beatRow}; grid-column:${deltaColonne + s + 2};"><span class="seq-beat-num">${debutMesure ? noMesure : beatNum}</span></div>`;
             // Contretemps (le "et" du temps, 2e croche — voir SEQ_STEPS_PER_BEAT) : petit trait estompé,
             // jamais un chiffre, pour rester bien plus discret que le numéro de temps lui-même (retour
             // utilisateur : repère discret, pas une nouvelle ligne de chiffres à lire). Centré sur la
@@ -13068,6 +13069,11 @@ class HarmoHubApp {
         // Curseur de lecture (masqué par défaut, positionné/affiché par updateSeqPlayhead pendant la
         // lecture) : ne couvre que les rangées de voix (contexte compris), pas celle des temps en dessous.
         html += `<div class="seq-playhead" style="grid-row: 1 / span ${rowCount}; grid-column: 2 / span 1;"></div>`;
+        // Repère de lecture reporté DANS la règle (voir .seq-ruler-head) : sur une station audio,
+        // c'est là qu'on suit la position, pas seulement sur la barre qui traverse les notes.
+        // Déplacé par le même code que la barre (voir updateSeqPlayhead), donc toujours d'accord
+        // avec elle. Masqué à l'arrêt, comme elle.
+        if (continuous) html += `<div class="seq-ruler-head" hidden style="grid-row:${beatRow}; grid-column: 2 / span 1;"></div>`;
 
         // Zones cliquables couvrant TOUT le contexte gauche/droite (accords voisins grisés, voir plus
         // haut) : cliquer n'importe où dedans (pas seulement pile sur une note grisée, souvent fine)
@@ -13133,14 +13139,12 @@ class HarmoHubApp {
             <button type="button" id="seq-delete-selection" class="seq-delete-btn" ${hasSelection ? '' : 'disabled'}>${svgIcon('trash')}
                 <span class="lbl-full">sélection${countSuffix}</span><span class="lbl-short">Sélect.${countSuffix}</span>
             </button>
-            <!-- Aimantation (voir SEQ_SNAP_CHOICES/seqSnap) : réglage d'ÉDITION, pas d'affichage —
-                 placé juste avant les réglages d'échelle, qui eux ne touchent jamais au motif. Trois
-                 crans seulement, en toutes lettres plutôt qu'en icône : « 1/4 » se lit d'un coup d'œil
-                 et se vise du doigt aussi bien qu'à la souris. 1/16 = aucune aimantation (défaut). -->
-            <div class="seq-snap-group" title="Aimantation : à quoi se calent les notes qu'on dessine, étire ou déplace">
-                <span class="zoom-axis-tag">${svgIcon('magnet')}</span>
-                ${SEQ_SNAP_CHOICES.map(c => `<button type="button" class="seq-snap-btn${this.seqSnap() === c.steps ? ' active' : ''}" data-snap="${c.steps}" title="${c.title}" aria-pressed="${this.seqSnap() === c.steps}">${c.label}</button>`).join('')}
-            </div>
+            <!-- Le sélecteur d'aimantation (1/4, 1/8, 1/16) vivait ici. Retiré (retour utilisateur :
+                 « il faut enlever le bouton du choix d'aimantation, il faut que les notes s'accrochent
+                 à la double croche automatiquement ») : c'était un réglage à comprendre et à maintenir
+                 pour un choix que la grille rend déjà évident — une case EST une double croche. Voir
+                 snapSeqBoundary : l'aimantation est désormais fixe, avec un léger penchant pour la
+                 croche quand on en passe tout près. -->
             ${showInlineSeqZoom ? `
             <!-- Séquenceur COMPACT : il n'avait qu'un réglage horizontal, là où toutes les autres
                  fenêtres ont H ET V — d'où une bonne part de l'impression d'incohérence. Il a
@@ -13276,9 +13280,6 @@ class HarmoHubApp {
         const rowPipetteBtn = document.getElementById('seq-row-pipette');
         if (rowPipetteBtn) rowPipetteBtn.onclick = () => this.toggleSeqRowPipette();
 
-        host.querySelectorAll('.seq-snap-btn').forEach(btn => {
-            btn.onclick = () => this.setSeqSnap(+btn.dataset.snap);
-        });
 
         // Barres de vélocité du mode studio (voir plus haut dans ce rendu) : le pointerdown démarre le
         // glissé (this._velDragStep, suivi par pointermove/pointerup posés une seule fois dans
@@ -13665,12 +13666,18 @@ class HarmoHubApp {
         const grid = host.querySelector('.seq-grid');
         const ph = host.querySelector('.seq-playhead');
         if (!grid || !ph) return;
-        if (step == null) { ph.style.display = 'none'; return; }
+        // Repère jumeau dans la règle de mesure (voir .seq-ruler-head) : même position, même
+        // visibilité — piloté ici plutôt qu'ailleurs, sinon les deux finiraient par se contredire.
+        const tete = host.querySelector('.seq-ruler-head');
+        const cacher = () => { ph.style.display = 'none'; if (tete) tete.hidden = true; };
+        if (step == null) return cacher();
         const pageStart = +grid.dataset.pageStart, pageSteps = +grid.dataset.pageSteps;
-        const colOffset = +grid.dataset.colOffset || 0; // voir renderSequencer, mode continu (loupe grille)
-        if (step < pageStart || step >= pageStart + pageSteps) { ph.style.display = 'none'; return; }
+        const colOffset = +grid.dataset.colOffset || 0; // voir renderSequencer, mode continu
+        if (step < pageStart || step >= pageStart + pageSteps) return cacher();
         ph.style.display = 'block';
-        ph.style.gridColumn = `${colOffset + step - pageStart + 2} / span 1`;
+        const colonne = `${colOffset + step - pageStart + 2} / span 1`;
+        ph.style.gridColumn = colonne;
+        if (tete) { tete.hidden = false; tete.style.gridColumn = colonne; }
     }
 
     // Clic sur une case : sélectionne (surbrillance) + écoute l'accord, sauf si l'utilisateur a

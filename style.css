@@ -453,11 +453,37 @@ body.body-scroll-locked { overflow: hidden !important; }
    effective, contre 0.38 pour le remplissage d'une barre éditable — qui porte en plus un dégradé,
    une bordure et un halo. Un premier essai à 0.42 mettait les deux au même niveau : c'était coloré,
    ce n'était plus discret. */
-.seq-ctx-cell.seq-ctx-role-root { background: rgba(0, 230, 118, 0.9); opacity: 0.3; }
-.seq-ctx-cell.seq-ctx-role-third { background: rgba(47, 129, 247, 0.9); opacity: 0.3; }
-.seq-ctx-cell.seq-ctx-role-fifth { background: rgba(255, 59, 48, 0.9); opacity: 0.3; }
-.seq-ctx-cell.seq-ctx-role-seventh { background: rgba(255, 179, 0, 0.9); opacity: 0.3; }
-.seq-ctx-cell.seq-ctx-role-ext { background: rgba(224, 176, 255, 0.9); opacity: 0.3; }
+/* MÊME FORME que les notes qu'on édite, seulement plus pâles (retour utilisateur : « laisse la même
+   forme que l'accord que je suis en train de modifier, juste des couleurs plus pâles comme c'est le
+   cas actuellement »). Les repères de contexte étaient de fins traits plats, d'un tout autre langage
+   visuel que les barres éditables : l'œil devait traduire d'une forme à l'autre pour suivre une même
+   voix d'un accord au suivant. Ils reprennent donc le dégradé, la bordure et l'arrondi de .seq-note,
+   à teinte et opacité réduites — c'est la PÂLEUR qui dit « pas modifiable ici », pas la forme. */
+.seq-ctx-cell[class*="seq-ctx-role-"] {
+    border-radius: 4px;
+    border: 1px solid;
+    opacity: 0.45;
+}
+.seq-ctx-cell.seq-ctx-role-root {
+    background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%), rgba(0, 230, 118, 0.30);
+    border-color: rgba(0, 230, 118, 0.55);
+}
+.seq-ctx-cell.seq-ctx-role-third {
+    background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%), rgba(47, 129, 247, 0.30);
+    border-color: rgba(47, 129, 247, 0.55);
+}
+.seq-ctx-cell.seq-ctx-role-fifth {
+    background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%), rgba(255, 59, 48, 0.30);
+    border-color: rgba(255, 59, 48, 0.55);
+}
+.seq-ctx-cell.seq-ctx-role-seventh {
+    background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%), rgba(255, 179, 0, 0.30);
+    border-color: rgba(255, 179, 0, 0.55);
+}
+.seq-ctx-cell.seq-ctx-role-ext {
+    background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%), rgba(224, 176, 255, 0.30);
+    border-color: rgba(224, 176, 255, 0.55);
+}
 /* Le premier temps reste un cran plus net que les croches qui suivent, comme pour le repère neutre
    ci-dessus : c'est ce qui laisse lire la pulsation dans le contexte. */
 .seq-ctx-cell[class*="seq-ctx-role-"].beat-start { opacity: 0.42; }
@@ -586,52 +612,8 @@ body.body-scroll-locked { overflow: hidden !important; }
    groupe d'échelle ci-dessus — c'est un réglage persistant de la même barre, pas une action ponctuelle
    — mais en UNE seule rangée de trois crans mutuellement exclusifs, façon segmenté. Hauteur/fond/bord
    repris à l'identique de .zoom-axis-group pour que les deux groupes s'alignent parfaitement côte à
-   côte, quelle que soit la largeur d'écran. */
-.seq-snap-group {
-    display: flex;
-    align-items: stretch;
-    gap: 0;
-    flex: none;
-    height: 32px;
-    padding: 0 4px 0 8px;
-    background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0) 50%), #1c2027;
-    border: 1px solid #333;
-    border-radius: 8px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03);
-}
-.seq-snap-group .zoom-axis-tag {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    margin-right: 3px;
-}
-.seq-snap-group .zoom-axis-tag .icon { width: 15px; height: 15px; stroke-width: 1.8; }
-/* Libellés en toutes lettres (« 1/4 »), pas des icônes : la fraction se lit d'un coup d'œil et reste
-   sans ambiguïté. min-width + padding : cible confortable au doigt (>= 30px de large) tout en restant
-   compacte à la souris — même bouton pour les deux, aucun mode « tactile » séparé à maintenir. */
-.seq-snap-btn {
-    min-width: 32px;
-    padding: 0 5px;
-    border: none;
-    background: none;
-    box-shadow: none;
-    border-radius: 4px;
-    color: var(--text-muted);
-    font-size: var(--fs-xs);
-    font-weight: 700;
-    font-family: inherit;
-    cursor: pointer;
-    line-height: 1;
-}
-.seq-snap-btn:hover { background: rgba(255,255,255,0.09); color: var(--text-main); }
-/* Cran actif : fond teinté accent plutôt qu'un simple gras — à trois crans côte à côte, il faut voir
-   lequel est armé sans avoir à comparer les épaisseurs de trait. */
-.seq-snap-btn.active {
-    background: rgba(0, 230, 118, 0.18);
-    color: var(--accent);
-    box-shadow: inset 0 0 0 1px rgba(0, 230, 118, 0.35);
-}
+/* Le sélecteur d'aimantation (aimant + 1/4, 1/8, 1/16) était habillé ici. Retiré : l'aimantation est
+   désormais fixe à la double croche, avec un léger penchant pour la croche (voir snapSeqBoundary). */
 
 /* Titre de groupe dans la fenêtre Paramètres, en remplacement des anciens onglets (voir index.html) :
    Son, puis Affichage. Une dizaine de réglages tiennent en une page — un onglet coûtait un clic ET
@@ -4217,7 +4199,9 @@ select.song-select-narrow {
 .seq-grid-continuous .seq-cell,
 .seq-grid-continuous .seq-label,
 .seq-grid-continuous .seq-ctx-cell { height: calc(14px * var(--seq-zoom-scale-v, 1)); }
-.seq-grid-continuous .seq-ctx-cell { align-self: stretch; border-radius: 0; }
+/* Même gabarit vertical que les barres éditables : c'est ce qui fait qu'une voix se suit à l'œil
+   d'un accord au suivant sans changer de langage visuel. */
+.seq-grid-continuous .seq-ctx-cell { align-self: stretch; margin: 2px 0; }
 /* Cases plates : arrondis et bordures leur donnaient l'aspect de boutons alignés. Une case de
    piano-roll n'est qu'une zone de clic — ce qu'on doit voir, c'est le quadrillage et les notes. */
 .seq-grid-continuous .seq-cell {
@@ -4264,7 +4248,10 @@ select.song-select-narrow {
         repeating-linear-gradient(90deg, rgba(255,255,255,0.045) 0 var(--seq-bar-w), transparent var(--seq-bar-w) calc(var(--seq-bar-w) * 2)),
         repeating-linear-gradient(90deg, rgba(255,255,255,0.55) 0 2px, transparent 2px var(--seq-bar-w)),
         repeating-linear-gradient(90deg, rgba(255,255,255,0.20) 0 1px, transparent 1px var(--seq-beat-w)),
-        repeating-linear-gradient(90deg, rgba(255,255,255,0.085) 0 1px, transparent 1px calc(var(--seq-beat-w) / 2));
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.085) 0 1px, transparent 1px calc(var(--seq-beat-w) / 2)),
+        /* Doubles croches : c'est l'unité d'aimantation, on doit voir où elles tombent — mais à peine,
+           sinon la grille devient une trame et on ne lit plus la pulsation par-dessus. */
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.035) 0 1px, transparent 1px var(--seq-col-w));
     /* Décalé de la gouttière : sans ça, chaque trait de mesure tombait une gouttière trop tôt et le
        quadrillage ne disait plus rien du temps réel (retour utilisateur : « il faut que je puisse me
        repérer dans le temps »). --seq-label-w est posée par renderSequencer. */
@@ -4334,3 +4321,122 @@ select.song-select-narrow {
     background: var(--card-bg);
     box-shadow: inset 0 1px 0 var(--border);
 }
+
+
+/* ---------------------------------------------------------------------------
+   RÈGLE DE MESURE (vue continue) — retour utilisateur : « le style de la règle est basique et n'est
+   pas très beau... pour que le visuel soit plus pro et agréable ? Comme sur GarageBand, tu pourrais
+   aussi représenter la barre de lecture orange dans cette règle (en restant discret). »
+   --------------------------------------------------------------------------- */
+
+/* Bandeau plein plutôt qu'une rangée de chiffres flottants : un fond légèrement plus clair que la
+   grille, un filet net en dessous, et des graduations qui descendent du haut comme sur une vraie
+   règle. C'est le filet et les graduations qui donnent l'impression d'un instrument de mesure —
+   les chiffres seuls faisaient liste. */
+.seq-grid-continuous .seq-beat-label {
+    background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.015));
+    box-shadow: inset 0 -1px 0 rgba(255,255,255,0.22);
+    height: 22px;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums; /* les chiffres ne dansent plus d'un temps à l'autre */
+    letter-spacing: 0.02em;
+    color: var(--text-muted);
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 2px;
+}
+/* Graduation : un trait qui descend du HAUT de la règle, à gauche de son chiffre. Court sur un temps
+   ordinaire, plein sur un début de mesure — la hiérarchie se lit sans compter les chiffres. */
+.seq-grid-continuous .seq-beat-label::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 6px;
+    background: rgba(255,255,255,0.28);
+}
+.seq-grid-continuous .seq-beat-label[data-mesure]::before {
+    height: 13px;
+    width: 2px;
+    background: rgba(255,255,255,0.65);
+}
+/* Le premier temps de chaque mesure porte le NUMÉRO DE MESURE, en clair et en gras ; les autres temps
+   gardent leur petit chiffre estompé. On lit la structure d'abord, le détail ensuite. */
+.seq-grid-continuous .seq-beat-label[data-mesure] .seq-beat-num {
+    color: var(--text-main);
+    font-weight: 700;
+    font-size: 11px;
+}
+/* Les temps ORDINAIRES redeviennent légers : une règle ailleurs dans la feuille met .seq-beat-num en
+   gras, ce qui mettait mesures et temps au même niveau — la hiérarchie ne se lisait plus. */
+.seq-grid-continuous .seq-beat-label:not([data-mesure]) .seq-beat-num {
+    font-weight: 500;
+    opacity: 0.75;
+}
+.seq-grid-continuous .seq-beat-offbeat { background: transparent; box-shadow: none; height: 22px; }
+
+/* Tête de lecture reportée DANS la règle (repère orange, comme sur une station audio) : un curseur
+   fin posé sur la graduation courante, plus lisible que la seule barre verticale traversant les
+   notes. Discret par construction — 2px de large, et rien du tout à l'arrêt. */
+.seq-ruler-head {
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    align-self: start;
+    height: 22px;
+    width: 2px;
+    justify-self: start;
+    background: var(--btn-orange-1, #ff9f1c);
+    box-shadow: 0 0 6px rgba(255, 159, 28, 0.55);
+    pointer-events: none;
+}
+/* Petit triangle en tête, comme le curseur d'une règle de station audio. */
+.seq-ruler-head::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -3px;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid var(--btn-orange-1, #ff9f1c);
+}
+
+
+/* ---------------------------------------------------------------------------
+   DÉFILEMENT DE LA VUE CONTINUE — retour utilisateur : « une fois zoomé, la barre de déplacement
+   horizontal disparaît. Avec mon téléphone, je n'arrive plus à scroller en horizontal ou vertical
+   sans toucher par erreur aux notes présentes dans le séquenceur. »
+   Deux réponses complémentaires : des barres de défilement qui RESTENT là, et deux surfaces où l'on
+   peut glisser sans jamais toucher une note.
+   --------------------------------------------------------------------------- */
+
+/* Barres toujours visibles et assez épaisses pour le doigt. Les barres « overlay » du système
+   s'effacent après une seconde et ne se rattrapent plus au toucher ; en les stylant, on force des
+   barres classiques, qui occupent leur place et restent saisissables. */
+.seq-scroll-continuous { scrollbar-width: auto; scrollbar-color: rgba(255,255,255,0.3) rgba(0,0,0,0.25); }
+.seq-scroll-continuous::-webkit-scrollbar { width: 14px; height: 14px; }
+.seq-scroll-continuous::-webkit-scrollbar-track { background: rgba(0,0,0,0.28); }
+.seq-scroll-continuous::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.30);
+    border-radius: 7px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+}
+.seq-scroll-continuous::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.48); background-clip: padding-box; }
+.seq-scroll-continuous::-webkit-scrollbar-corner { background: transparent; }
+
+/* Deux surfaces de PRÉHENSION où glisser fait défiler, jamais éditer : la règle de mesure en haut et
+   la gouttière des notes à gauche. Elles bordent déjà la zone de travail sur ses deux axes, donc le
+   geste est à portée sans viser. `pan-x pan-y` laisse le navigateur faire défiler nativement — c'est
+   plus fluide que n'importe quel calcul en JS, et ça n'enlève rien au tap (jouer la note d'une ligne
+   marche toujours, seul un vrai glissé fait défiler). Les cases, elles, gardent `touch-action: none`
+   pour que dessiner reste possible. */
+.seq-grid-continuous .seq-beat-label,
+.seq-grid-continuous .seq-beat-offbeat,
+.seq-grid-continuous .seq-label {
+    touch-action: pan-x pan-y;
+    cursor: grab;
+}
+.seq-grid-continuous .seq-beat-label:active,
+.seq-grid-continuous .seq-label:active { cursor: grabbing; }
