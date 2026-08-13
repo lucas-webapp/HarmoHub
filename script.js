@@ -12661,7 +12661,7 @@ class HarmoHubApp {
                 const resolved = this.resolveSeqPatternForData(c, data);
                 // roleMap : rôle (fondamentale/tierce/quinte/septième/extension) de chaque hauteur DANS
                 // CET accord voisin — c'est ce qui permet de teinter son rythme comme les barres de
-                // l'accord édité, au lieu d'un gris uniforme (voir .seq-ctx-cell). Calculé ici, une
+                // l'accord édité, au lieu d'un gris uniforme (voir .seq-ctx-note). Calculé ici, une
                 // fois par segment, plutôt qu'à chaque case peinte.
                 return { data, midis: segMidis, midiSet: new Set(segMidis), roleMap: c.getRoleMap(), pattern: resolved.pattern, tie: resolved.tie, steps: c.beats * SEQ_STEPS_PER_BEAT, index };
             };
@@ -12821,13 +12821,20 @@ class HarmoHubApp {
 
         // Peint le rythme réel d'UN segment voisin (lecture seule) sur la ligne courante, à sa colonne
         // (seg.colStart, voir plus haut) — appelé une fois par segment de chaque côté ci-dessous.
-        // Rien n'est rendu pour une croche silencieuse : seule la présence de ce petit repère signale
-        // que ça sonne, pas besoin d'un état "off" visuellement distinct ici.
+        // Rien n'est rendu pour une croche silencieuse : c'est la présence d'une barre qui signale que
+        // ça sonne, pas besoin d'un état "off" visuellement distinct ici.
+        // MÊME DÉCOUPAGE EN NOTES que l'accord édité (voir notesHtml plus bas) : les croches actives et
+        // LIÉES d'une même voix ne forment qu'une seule barre continue, deux attaques séparées restent
+        // deux barres. Avant, chaque croche était peinte séparément : une blanche tenue apparaissait en
+        // chapelet de quatre pastilles, ce qui ne ressemblait plus du tout au séquenceur de l'accord
+        // qu'on modifie (retour utilisateur : « je n'aime pas trop la représentation des accords
+        // voisins sous forme de petites barres. Garder le séquenceur réel des accords à proximité »).
+        // On lit donc les vraies durées des voisins, exactement comme celles qu'on édite.
         const paintCtxSeg = (seg, row, colBase, rowIndex) => {
             const segVoice = seg.midis.indexOf(row.midi);
             if (segVoice < 0) return '';
             // Teinté par rôle, comme les barres de l'accord édité — en beaucoup plus sourd (voir
-            // .seq-ctx-role-* dans style.css). Le gris uniforme d'avant rendait le contexte illisible
+            // .seq-ctx-note dans style.css). Le gris uniforme d'avant rendait le contexte illisible
             // dès qu'on cherchait une note commune ou un mouvement de voix : on voyait QUAND ça sonne,
             // jamais QUOI (retour utilisateur : « laisser en couleurs plus discrètes les barres des
             // accords à côté, au lieu de les griser complètement »). Le rôle vient de l'accord VOISIN,
@@ -12835,10 +12842,25 @@ class HarmoHubApp {
             // et c'est précisément ce qui se lit dans une conduite de voix.
             const role = seg.roleMap[row.midi] || 'ext';
             let out = '';
-            for (let s = 0; s < seg.steps; s++) {
-                if (!seg.pattern[s].includes(segVoice)) continue;
-                const beatStart = (s % SEQ_STEPS_PER_BEAT === 0) ? ' beat-start' : '';
-                out += `<div class="seq-ctx-cell seq-ctx-role-${role}${beatStart}" style="grid-row:${rowIndex}; grid-column:${colBase + seg.colStart + s + 2};"></div>`;
+            let s = 0;
+            while (s < seg.steps) {
+                if (!seg.pattern[s].includes(segVoice)) { s++; continue; }
+                const runStart = s;
+                s++;
+                // `tie` : cette croche PROLONGE la précédente au lieu de réattaquer. Sans ce test, deux
+                // notes répétées à la suite fusionneraient en une seule longue barre et le rythme du
+                // voisin serait faux (même règle que pour l'accord édité).
+                while (s < seg.steps && seg.pattern[s].includes(segVoice) && seg.tie[s].includes(segVoice)) s++;
+                const runLen = s - runStart;
+                // Même retrait de fin que pour une barre éditable (voir trimEnd plus bas) : une note
+                // qui s'arrête sur la 2e moitié d'un rectangle laisse 4px avant la paire suivante. Sans
+                // lui, la MÊME note changerait de largeur selon qu'on l'édite ou qu'on la regarde
+                // depuis l'accord voisin.
+                const trimEnd = (s - 1) % 2 === 1 ? ' margin-right:4px;' : '';
+                // Jamais la classe .seq-note elle-même : le rectangle de sélection la cherche sans
+                // qualificatif (voir onSeqMarqueeMove/finalizeSeqMarqueeSelect) et happerait alors des
+                // barres de contexte, qui n'appartiennent pas à l'accord en cours d'édition.
+                out += `<div class="seq-ctx-note ${runLen > 1 ? 'run' : 'single'} seq-ctx-role-${role}" style="grid-row:${rowIndex}; grid-column:${colBase + seg.colStart + runStart + 2} / span ${runLen};${trimEnd}"></div>`;
             }
             return out;
         };
@@ -12986,14 +13008,26 @@ class HarmoHubApp {
         }
         html += notesHtml;
 
-        // Numéros de temps en petit sous la grille (1, 2, 3... à chaque début de temps, recommence à
-        // 1 à chaque mesure) : pour repérer d'un coup d'œil où tombe chaque temps, comme les numéros
-        // de mesure sous la grille d'accords principale. data-beat-index : repère stable (indépendant
-        // de la page/du décalage affiché) pour _highlightSeqBeatLabel, qui met ce chiffre en évidence
-        // au fur et à mesure qu'un étirement/peindre en cours l'atteint (retour utilisateur : "je ne
-        // vois pas exactement où est le temps 4" pendant un glissé).
+        // RÈGLE DE MESURE, en haut de la grille : une graduation à chaque début de temps, et un chiffre
+        // dont la nature dépend de la vue — numéro de MESURE en vue continue (qui court sur toute la
+        // partie), numéro de TEMPS dans le petit séquenceur (qui ne couvre qu'un accord). Voir le détail
+        // au moment où le chiffre est choisi, plus bas.
+        // data-beat-index : repère stable (indépendant de la page/du décalage affiché) pour
+        // _highlightSeqBeatLabel, qui met ce chiffre en évidence au fur et à mesure qu'un étirement/
+        // peindre en cours l'atteint (retour utilisateur : "je ne vois pas exactement où est le temps 4"
+        // pendant un glissé).
         const beatRow = 1; // tout en haut, et collée (voir .seq-beat-label en CSS)
-        let beatLabelsHtml = '';
+        // Bandeau PLEIN sous la règle, d'un bout à l'autre de la partie (grid-column: 1 / -1) : la règle
+        // n'était qu'une suite de petites étiquettes d'une colonne chacune, avec le quadrillage visible
+        // dans les trous — d'où une bande hachée qui se confondait avec la grille (retour utilisateur :
+        // « la règle de mesure doit être en dehors du quadrillage pour mieux la voir (cf. autres DAW) »
+        // et « elle doit suivre la section de grille en entier »). Le quadrillage, lui, ne commence
+        // maintenant qu'EN DESSOUS de ce bandeau (voir --seq-ruler-h et background-position/size dans
+        // style.css) : la règle est bien posée hors de la grille, comme sur une station audio.
+        // Émis AVANT les étiquettes pour rester derrière elles (même z-index, l'ordre du DOM tranche).
+        let beatLabelsHtml = continuous
+            ? `<div class="seq-ruler-band" style="grid-row:${beatRow}; grid-column: 1 / -1;"></div>`
+            : '';
         // En vue CONTINUE, la barre de temps couvre TOUTE la grille affichée (accords précédents +
         // accord édité + accords suivants), pas seulement la tranche de l'accord en cours d'édition —
         // retour utilisateur : « je veux voir la barre de décompte des mesures en entier, pas
@@ -13022,13 +13056,22 @@ class HarmoHubApp {
             // texte partant de là et s'étirant vers la droite) : à côté du trait de contretemps, lui
             // bien centré, ce calage à gauche donnait une impression d'asymétrie (retour utilisateur :
             // "les traits sont centrés, mais plus les numéros").
-            // Premier temps d'une mesure : on affiche son NUMÉRO DE MESURE, en clair, avec une
-            // graduation pleine (voir .seq-beat-label[data-mesure] en CSS) ; les autres temps gardent
-            // leur petit chiffre estompé. On lit la structure d'abord, le détail ensuite — une rangée
-            // de chiffres tous identiques ne disait pas où l'on est dans le morceau.
+            // UNE RÈGLE DE MESURE NUMÉROTE DES MESURES, rien d'autre. L'essai précédent affichait le
+            // numéro de MESURE au 1er temps et le numéro de TEMPS aux autres : la rangée se lisait
+            // « 1 2 3 4 2 2 3 4 3 », deux séries de chiffres entremêlées qu'aucun œil ne démêle
+            // (retour utilisateur : « la règle de mesure est complètement incohérente »). En vue
+            // continue, seuls les débuts de mesure portent donc un chiffre — 1, 2, 3, 4, 5 d'un bout à
+            // l'autre de la partie —, les autres temps se contentant d'une graduation, comme sur
+            // n'importe quelle station audio. Le chiffre du temps n'est pas perdu pour autant : il
+            // réapparaît le temps d'un geste sur le temps atteint (voir .seq-beat-reached en CSS et
+            // _highlightSeqBeatLabel), ce qui répondait au retour « je ne vois pas exactement où est le
+            // temps 4 » pendant un étirement.
+            // Le petit séquenceur, lui, ne couvre qu'un accord : ses chiffres restent des NUMÉROS DE
+            // TEMPS (1 2 3 4), seule lecture qui ait un sens à cette échelle.
             const debutMesure = beatNum === 1;
             const noMesure = Math.floor(beatIndex / beatsPerBar) + 1;
-            beatLabelsHtml += `<div class="seq-beat-label" data-beat-index="${beatIndex}"${debutMesure ? ' data-mesure="' + noMesure + '"' : ''} style="grid-row:${beatRow}; grid-column:${deltaColonne + s + 2};"><span class="seq-beat-num">${debutMesure ? noMesure : beatNum}</span></div>`;
+            const chiffre = (continuous && debutMesure) ? noMesure : beatNum;
+            beatLabelsHtml += `<div class="seq-beat-label" data-beat-index="${beatIndex}"${debutMesure ? ' data-mesure="' + noMesure + '"' : ''} style="grid-row:${beatRow}; grid-column:${deltaColonne + s + 2};"><span class="seq-beat-num">${chiffre}</span></div>`;
             // Contretemps (le "et" du temps, 2e croche — voir SEQ_STEPS_PER_BEAT) : petit trait estompé,
             // jamais un chiffre, pour rester bien plus discret que le numéro de temps lui-même (retour
             // utilisateur : repère discret, pas une nouvelle ligne de chiffres à lire). Centré sur la
@@ -13067,8 +13110,12 @@ class HarmoHubApp {
         }
 
         // Curseur de lecture (masqué par défaut, positionné/affiché par updateSeqPlayhead pendant la
-        // lecture) : ne couvre que les rangées de voix (contexte compris), pas celle des temps en dessous.
-        html += `<div class="seq-playhead" style="grid-row: 1 / span ${rowCount}; grid-column: 2 / span 1;"></div>`;
+        // lecture) : ne couvre que les rangées de voix (contexte compris), jamais la règle de mesure.
+        // Départ à la ligne 2, pas 1 : la règle a pris la ligne 1 (voir beatRow) et les hauteurs
+        // commencent donc à 2 — la barre débordait sur la règle et s'arrêtait une voix trop tôt,
+        // laissant la ligne la plus grave sans curseur. Le repère de la règle, lui, est un élément à
+        // part (.seq-ruler-head, juste en dessous).
+        html += `<div class="seq-playhead" style="grid-row: 2 / span ${rowCount}; grid-column: 2 / span 1;"></div>`;
         // Repère de lecture reporté DANS la règle (voir .seq-ruler-head) : sur une station audio,
         // c'est là qu'on suit la position, pas seulement sur la barre qui traverse les notes.
         // Déplacé par le même code que la barre (voir updateSeqPlayhead), donc toujours d'accord
@@ -13083,14 +13130,17 @@ class HarmoHubApp {
         // pouvoir défiler/cliquer directement N'IMPORTE QUEL accord de la grille sans quitter le
         // séquenceur, pas seulement le voisin immédiat — une zone par accord, chacune ciblant son
         // propre index plutôt qu'une seule grande zone qui ne menait qu'au plus proche). Toute la
-        // hauteur des voix (comme .seq-playhead), jamais la ligne des temps en dessous.
+        // hauteur des voix (comme .seq-playhead), jamais la règle de mesure : elle occupe la ligne 1
+        // (voir beatRow) et sert justement de surface où GLISSER pour défiler (voir touch-action sur
+        // .seq-beat-label) — une zone de navigation posée par-dessus y transformait le moindre appui en
+        // changement d'accord. Les hauteurs commencent donc à la ligne 2, comme le curseur de lecture.
         const ctxNavLabel = (seg) => chordSymbolForData(seg.data, this.useFlatsForRoot(seg.data.root));
         if (continuous) {
             prevSegs.forEach(seg => {
-                html += `<div class="seq-ctx-nav seq-ctx-nav-prev" data-target-index="${seg.index}" style="grid-row: 1 / span ${rowCount}; grid-column: ${seg.colStart + 2} / span ${seg.steps};" title="Modifier ${escapeHtml(ctxNavLabel(seg))}"></div>`;
+                html += `<div class="seq-ctx-nav seq-ctx-nav-prev" data-target-index="${seg.index}" style="grid-row: 2 / span ${rowCount}; grid-column: ${seg.colStart + 2} / span ${seg.steps};" title="Modifier ${escapeHtml(ctxNavLabel(seg))}"></div>`;
             });
             nextSegs.forEach(seg => {
-                html += `<div class="seq-ctx-nav seq-ctx-nav-next" data-target-index="${seg.index}" style="grid-row: 1 / span ${rowCount}; grid-column: ${colOffset + pageSteps + seg.colStart + 2} / span ${seg.steps};" title="Modifier ${escapeHtml(ctxNavLabel(seg))}"></div>`;
+                html += `<div class="seq-ctx-nav seq-ctx-nav-next" data-target-index="${seg.index}" style="grid-row: 2 / span ${rowCount}; grid-column: ${colOffset + pageSteps + seg.colStart + 2} / span ${seg.steps};" title="Modifier ${escapeHtml(ctxNavLabel(seg))}"></div>`;
             });
         }
 

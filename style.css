@@ -427,70 +427,55 @@ body.body-scroll-locked { overflow: hidden !important; }
 }
 .seq-drag-readout[hidden] { display: none; }
 
-/* Case de CONTEXTE (rythme réel d'un accord voisin, lecture seule — voir renderSequencer, mode
-   continu) : jamais .seq-cell, qui déclencherait le glissé d'édition (voir onSeqPointerDown) — un
-   simple repère plein, plus fin que les cases éditables pour bien signaler "ce n'est pas modifiable ici".
-   Fond neutre plutôt que coloré par rôle : à cette échelle réduite, une vraie pastille par rôle serait
-   surtout illisible ; le rythme lui-même (quand ça sonne) reste la seule information utile ici.
-   (Contrat révisé plus bas, voir .seq-ctx-cell.seq-ctx-role-*.) */
-.seq-ctx-cell {
-    height: 8px;
-    align-self: center;
-    background: var(--text-muted);
-    opacity: 0.3;
-    border-radius: 2px;
+/* Note de CONTEXTE : le séquenceur RÉEL d'un accord voisin, en lecture seule (voir renderSequencer/
+   paintCtxSeg, mode continu). Jamais .seq-cell — qui déclencherait le glissé d'édition (voir
+   onSeqPointerDown) — ni .seq-note, que le rectangle de sélection cherche sans qualificatif.
+   HISTORIQUE DU CONTRAT, en deux corrections successives :
+   1. Fond neutre, un fin trait gris par croche. On voyait QUAND l'accord voisin sonne, jamais QUOI —
+      or c'est exactement ce qu'on vient y chercher (suivre une note commune, lire un mouvement de
+      voix). D'où les teintes par rôle ci-dessous, mêmes couleurs que .seq-note.role-*.
+   2. Une pastille PAR CROCHE. Une blanche tenue apparaissait alors en chapelet de quatre pastilles :
+      le rythme du voisin était illisible et ne ressemblait plus au séquenceur qu'on modifie (retour
+      utilisateur : « je n'aime pas trop la représentation des accords voisins sous forme de petites
+      barres. Garder le séquenceur réel des accords à proximité »). Les croches liées sont donc
+      fusionnées en UNE barre côté rendu, exactement comme pour l'accord édité.
+   Reste la même forme que les barres éditables — dégradé, bordure, arrondi — à teinte et opacité
+   réduites : c'est la PÂLEUR qui dit « pas modifiable ici », pas la forme (retour utilisateur :
+   « laisse la même forme que l'accord que je suis en train de modifier, juste des couleurs plus
+   pâles »). L'opacité est calée pour rester SOUS l'accord édité : 0.45 x 0.30 d'alpha donne ~0.14 de
+   teinte effective, contre 0.38 pour une barre éditable — qui porte en plus un halo. */
+.seq-ctx-note {
+    position: relative;
+    align-self: stretch;
     pointer-events: none;
-}
-.seq-ctx-cell.beat-start { opacity: 0.45; }
-/* CONTRAT INVERSÉ : ces repères étaient volontairement neutres, au motif qu'une pastille par rôle
-   serait illisible à cette échelle. Elle l'est, en effet, si on reprend les couleurs pleines des
-   barres éditables — mais pas en aplat sourd. Et le gris uniforme coûtait cher : on voyait QUAND
-   l'accord voisin sonne, jamais QUOI, alors que c'est exactement ce qu'on vient chercher ici
-   (retour utilisateur : suivre une note commune, repérer un mouvement de voix).
-   Mêmes teintes que .seq-note.role-* pour que l'œil fasse le lien d'une barre à l'autre, mais sans
-   dégradé, sans bordure et sans halo : le contexte doit rester en retrait de ce qu'on édite.
-   L'opacité est calée pour rester SOUS l'accord édité : 0.30 x 0.9 d'alpha donne ~0.27 de teinte
-   effective, contre 0.38 pour le remplissage d'une barre éditable — qui porte en plus un dégradé,
-   une bordure et un halo. Un premier essai à 0.42 mettait les deux au même niveau : c'était coloré,
-   ce n'était plus discret. */
-/* MÊME FORME que les notes qu'on édite, seulement plus pâles (retour utilisateur : « laisse la même
-   forme que l'accord que je suis en train de modifier, juste des couleurs plus pâles comme c'est le
-   cas actuellement »). Les repères de contexte étaient de fins traits plats, d'un tout autre langage
-   visuel que les barres éditables : l'œil devait traduire d'une forme à l'autre pour suivre une même
-   voix d'un accord au suivant. Ils reprennent donc le dégradé, la bordure et l'arrondi de .seq-note,
-   à teinte et opacité réduites — c'est la PÂLEUR qui dit « pas modifiable ici », pas la forme. */
-.seq-ctx-cell[class*="seq-ctx-role-"] {
     border-radius: 4px;
     border: 1px solid;
     opacity: 0.45;
 }
-.seq-ctx-cell.seq-ctx-role-root {
+.seq-ctx-note.seq-ctx-role-root {
     background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%), rgba(0, 230, 118, 0.30);
     border-color: rgba(0, 230, 118, 0.55);
 }
-.seq-ctx-cell.seq-ctx-role-third {
+.seq-ctx-note.seq-ctx-role-third {
     background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%), rgba(47, 129, 247, 0.30);
     border-color: rgba(47, 129, 247, 0.55);
 }
-.seq-ctx-cell.seq-ctx-role-fifth {
+.seq-ctx-note.seq-ctx-role-fifth {
     background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%), rgba(255, 59, 48, 0.30);
     border-color: rgba(255, 59, 48, 0.55);
 }
-.seq-ctx-cell.seq-ctx-role-seventh {
+.seq-ctx-note.seq-ctx-role-seventh {
     background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%), rgba(255, 179, 0, 0.30);
     border-color: rgba(255, 179, 0, 0.55);
 }
-.seq-ctx-cell.seq-ctx-role-ext {
+.seq-ctx-note.seq-ctx-role-ext {
     background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%), rgba(224, 176, 255, 0.30);
     border-color: rgba(224, 176, 255, 0.55);
 }
-/* Le premier temps reste un cran plus net que les croches qui suivent, comme pour le repère neutre
-   ci-dessus : c'est ce qui laisse lire la pulsation dans le contexte. */
-.seq-ctx-cell[class*="seq-ctx-role-"].beat-start { opacity: 0.42; }
 
 /* Zone cliquable couvrant tout un contexte gauche/droite (voir renderSequencer, mode continu) :
    basculer l'édition sur l'accord voisin sans quitter le séquenceur (retour utilisateur). Toute la
-   hauteur des voix plutôt que juste les .seq-ctx-cell (fines, lecture seule) qu'elle recouvre sans
+   hauteur des voix plutôt que juste les .seq-ctx-note (lecture seule) qu'elle recouvre sans
    les gêner (celles-ci ignorent déjà le pointeur, voir plus haut) — plus tolérant qu'un clic pile
    sur une note fine. Légère surbrillance au survol/tap pour signaler que c'est cliquable. */
 .seq-ctx-nav {
@@ -4188,6 +4173,10 @@ select.song-select-narrow {
    du quadrillage (point 4) qui séparent les lignes, pas du vide. */
 .seq-grid-continuous {
     gap: 0 !important;
+    /* Hauteur de la règle de mesure (ligne 1). Posée une seule fois ici parce que TROIS choses doivent
+       s'accorder dessus : la hauteur du bandeau et de ses étiquettes, celle du repère de lecture, et
+       surtout le point de départ vertical du quadrillage — qui commence sous elle (voir plus bas). */
+    --seq-ruler-h: 24px;
     /* Largeur au CONTENU, pas au conteneur. Sans ça, la grille est un bloc large comme la bande et
        ses colonnes débordent : `grid-column: 1 / -1` ne couvre alors que la largeur visible, et la
        gouttière collante (voir plus bas) s'arrêtait au bout d'un écran — mesuré, elle décrochait
@@ -4197,11 +4186,15 @@ select.song-select-narrow {
     min-width: 100%;
 }
 .seq-grid-continuous .seq-cell,
-.seq-grid-continuous .seq-label,
-.seq-grid-continuous .seq-ctx-cell { height: calc(14px * var(--seq-zoom-scale-v, 1)); }
-/* Même gabarit vertical que les barres éditables : c'est ce qui fait qu'une voix se suit à l'œil
-   d'un accord au suivant sans changer de langage visuel. */
-.seq-grid-continuous .seq-ctx-cell { align-self: stretch; margin: 2px 0; }
+.seq-grid-continuous .seq-label { height: calc(14px * var(--seq-zoom-scale-v, 1)); }
+/* EXACTEMENT le gabarit des barres éditables : ni hauteur propre, ni marge — la barre remplit sa
+   ligne, comme .seq-note. Un reste de l'époque des fins repères de contexte lui donnait 14px de haut
+   plus 2px de marge en haut et en bas : mesuré, la barre voisine faisait 14px là où celle qu'on édite
+   en faisait 18 sur la MÊME ligne, décalée de 2px vers le bas — et cette marge gonflait au passage la
+   hauteur des lignes, contre le resserrement obtenu par ailleurs. Deux formes différentes pour la même
+   note selon qu'on l'édite ou qu'on la regarde : l'œil ne pouvait plus la suivre d'un accord au
+   suivant (retour utilisateur : « garder le séquenceur réel des accords à proximité »). */
+.seq-grid-continuous .seq-ctx-note { align-self: stretch; }
 /* Cases plates : arrondis et bordures leur donnaient l'aspect de boutons alignés. Une case de
    piano-roll n'est qu'une zone de clic — ce qu'on doit voir, c'est le quadrillage et les notes. */
 .seq-grid-continuous .seq-cell {
@@ -4254,14 +4247,23 @@ select.song-select-narrow {
         repeating-linear-gradient(90deg, rgba(255,255,255,0.035) 0 1px, transparent 1px var(--seq-col-w));
     /* Décalé de la gouttière : sans ça, chaque trait de mesure tombait une gouttière trop tôt et le
        quadrillage ne disait plus rien du temps réel (retour utilisateur : « il faut que je puisse me
-       repérer dans le temps »). --seq-label-w est posée par renderSequencer. */
-    background-position: var(--seq-label-w, 0px) 0;
-    background-repeat: repeat;
+       repérer dans le temps »). --seq-label-w est posée par renderSequencer.
+       Décalé AUSSI vers le bas de la hauteur de la règle : le quadrillage montait jusqu'en haut de la
+       grille, donc traversait la règle de part en part — celle-ci se confondait avec la zone de travail
+       au lieu de la surplomber (retour utilisateur : « la règle de mesure doit être en dehors du
+       quadrillage pour mieux la voir (cf. autres DAW) »). Le quadrillage commence maintenant sous elle,
+       exactement comme sur une station audio. `repeat-x` et non `repeat` : la taille verticale imposée
+       ci-dessous n'a de sens que si le motif ne se recopie pas au-dessus. */
+    background-position: var(--seq-label-w, 0px) var(--seq-ruler-h, 24px);
+    background-size: 100% calc(100% - var(--seq-ruler-h, 24px));
+    background-repeat: repeat-x;
 }
 /* Lignes horizontales : un filet par demi-ton, un peu plus marqué au changement d'octave (les
-   touches noires étant déjà teintées par .seq-key-black, l'octave se repère sans compter). */
-.seq-grid-continuous .seq-cell,
-.seq-grid-continuous .seq-ctx-cell { box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.045); }
+   touches noires étant déjà teintées par .seq-key-black, l'octave se repère sans compter).
+   Uniquement sur les CASES : porté aussi par les barres de contexte, ce filet leur dessinait un trait
+   sombre en bas que les barres éditables n'ont pas — encore une différence de forme entre la même note
+   selon qu'on l'édite ou qu'on la regarde de côté. */
+.seq-grid-continuous .seq-cell { box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.045); }
 
 /* 5. RÈGLE DE MESURE ET BOUTONS COLLÉS À LA VUE. La règle est passée en ligne 1 (voir beatRow dans
    renderSequencer) et s'y accroche : on la lit toujours, quelle que soit la hauteur qu'on regarde.
@@ -4271,16 +4273,39 @@ select.song-select-narrow {
     position: sticky;
     top: 0;
     z-index: 3;
-    background: var(--card-bg);
-    height: 18px;
+    height: var(--seq-ruler-h, 24px);
     align-self: start;
-    box-shadow: inset 0 -1px 0 var(--border);
 }
 /* Règle (collée en haut) et gouttière de notes (collée à gauche) se croisent : la règle passe
    devant, sinon la gouttière lui glisse par-dessus au coin haut-gauche. Le z-index de la gouttière
    est posé plus haut avec le reste de ses propriétés collantes — ne pas le redéfinir ici, une
    seconde règle de même spécificité l'écrasait et la gouttière repartait avec le défilement. */
 .seq-grid-continuous .seq-beat-label { z-index: 7; }
+
+/* BANDEAU DE LA RÈGLE : un seul élément couvrant toute la partie (grid-column: 1 / -1, voir
+   renderSequencer). Avant, la règle n'existait QUE là où il y avait un chiffre — une étiquette d'une
+   colonne par temps, chacune avec son propre fond — et le quadrillage se voyait dans tous les
+   intervalles : au lieu d'une règle, une rangée de vignettes hachées posée sur la grille (retour
+   utilisateur : « la règle de mesure est complètement incohérente » / « elle doit suivre la section de
+   grille en entier »). Ce bandeau lui donne enfin un corps continu d'un bout à l'autre, y compris
+   au-dessus de la gouttière des noms de notes, et le sépare nettement de la zone de travail : plus
+   clair que le fond, filet net en bas, ombre portée sur les notes qui défilent dessous.
+   Même z-index que les étiquettes, émis AVANT elles : l'ordre du DOM les laisse par-dessus. Il doit
+   en revanche passer DEVANT la gouttière (z-index 6), qui défile verticalement sous lui. */
+.seq-ruler-band {
+    position: sticky;
+    top: 0;
+    z-index: 7;
+    align-self: start;
+    height: var(--seq-ruler-h, 24px);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03)),
+        var(--card-bg);
+    box-shadow:
+        inset 0 -1px 0 var(--border),
+        0 2px 5px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+}
 
 /* La bande défile désormais dans les DEUX sens : c'est ce qui permet à la règle de rester collée en
    haut ET à l'échelle de notes de rester collée à gauche, chacune dans le même conteneur — un
@@ -4329,14 +4354,12 @@ select.song-select-narrow {
    aussi représenter la barre de lecture orange dans cette règle (en restant discret). »
    --------------------------------------------------------------------------- */
 
-/* Bandeau plein plutôt qu'une rangée de chiffres flottants : un fond légèrement plus clair que la
-   grille, un filet net en dessous, et des graduations qui descendent du haut comme sur une vraie
-   règle. C'est le filet et les graduations qui donnent l'impression d'un instrument de mesure —
-   les chiffres seuls faisaient liste. */
+/* Les étiquettes ne portent plus de fond : c'est .seq-ruler-band (voir plus haut) qui fait corps de
+   règle, d'un bout à l'autre de la partie. Chacune n'apporte plus que sa graduation et son chiffre —
+   posés PAR-DESSUS le bandeau, sans coutures entre deux temps. */
 .seq-grid-continuous .seq-beat-label {
-    background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.015));
-    box-shadow: inset 0 -1px 0 rgba(255,255,255,0.22);
-    height: 22px;
+    background: transparent;
+    box-shadow: none;
     font-size: 10px;
     font-variant-numeric: tabular-nums; /* les chiffres ne dansent plus d'un temps à l'autre */
     letter-spacing: 0.02em;
@@ -4345,36 +4368,51 @@ select.song-select-narrow {
     align-items: flex-end;
     padding-bottom: 2px;
 }
-/* Graduation : un trait qui descend du HAUT de la règle, à gauche de son chiffre. Court sur un temps
-   ordinaire, plein sur un début de mesure — la hiérarchie se lit sans compter les chiffres. */
+/* Graduation : un trait qui descend du HAUT de la règle. Court sur un temps ordinaire, pleine hauteur
+   sur un début de mesure — c'est LA hiérarchie de la règle, celle qui se lit sans rien déchiffrer.
+   Les temps n'ayant plus de chiffre au repos (voir plus bas), ces traits portent seuls le repérage
+   fin : ils sont donc un peu plus nets qu'avant. */
 .seq-grid-continuous .seq-beat-label::before {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
     width: 1px;
-    height: 6px;
-    background: rgba(255,255,255,0.28);
+    height: 7px;
+    background: rgba(255,255,255,0.34);
 }
 .seq-grid-continuous .seq-beat-label[data-mesure]::before {
-    height: 13px;
+    height: 100%;
     width: 2px;
-    background: rgba(255,255,255,0.65);
+    background: rgba(255,255,255,0.70);
 }
-/* Le premier temps de chaque mesure porte le NUMÉRO DE MESURE, en clair et en gras ; les autres temps
-   gardent leur petit chiffre estompé. On lit la structure d'abord, le détail ensuite. */
+/* UNE RÈGLE DE MESURE NE NUMÉROTE QUE DES MESURES. Chiffres de mesure et chiffres de temps se
+   partageaient la même rangée, dans la même taille : la ligne se lisait « 1 2 3 4 2 2 3 4 3 », deux
+   séries entremêlées impossibles à démêler (retour utilisateur : « la règle de mesure est complètement
+   incohérente »). Seuls les débuts de mesure gardent donc un chiffre — 1, 2, 3, 4, 5 d'un bout à
+   l'autre —, calé JUSTE À DROITE de sa barre comme sur toutes les stations audio (le décalage de
+   centrage général de .seq-beat-num est annulé ici : un numéro de mesure appartient à la mesure qui
+   commence, pas à la frontière). */
 .seq-grid-continuous .seq-beat-label[data-mesure] .seq-beat-num {
     color: var(--text-main);
     font-weight: 700;
     font-size: 11px;
+    transform: translateX(3px);
 }
-/* Les temps ORDINAIRES redeviennent légers : une règle ailleurs dans la feuille met .seq-beat-num en
-   gras, ce qui mettait mesures et temps au même niveau — la hiérarchie ne se lisait plus. */
+/* Les temps ordinaires n'affichent plus rien au repos : leur graduation suffit. Le chiffre n'est pas
+   perdu pour autant — il réapparaît sur le temps que le geste vient d'atteindre (voir
+   _highlightSeqBeatLabel), ce qui répondait au retour « je ne vois pas exactement où est le temps 4 »
+   pendant un étirement. Précisément là où on le cherche, et nulle part ailleurs. */
 .seq-grid-continuous .seq-beat-label:not([data-mesure]) .seq-beat-num {
-    font-weight: 500;
-    opacity: 0.75;
+    opacity: 0;
+    font-weight: 600;
+    transition: opacity 0.1s ease;
 }
-.seq-grid-continuous .seq-beat-offbeat { background: transparent; box-shadow: none; height: 22px; }
+.seq-grid-continuous .seq-beat-label.seq-beat-reached:not([data-mesure]) .seq-beat-num {
+    opacity: 1;
+    color: var(--accent);
+}
+.seq-grid-continuous .seq-beat-offbeat { background: transparent; box-shadow: none; }
 
 /* Tête de lecture reportée DANS la règle (repère orange, comme sur une station audio) : un curseur
    fin posé sur la graduation courante, plus lisible que la seule barre verticale traversant les
@@ -4384,7 +4422,7 @@ select.song-select-narrow {
     top: 0;
     z-index: 8;
     align-self: start;
-    height: 22px;
+    height: var(--seq-ruler-h, 24px);
     width: 2px;
     justify-self: start;
     background: var(--btn-orange-1, #ff9f1c);
