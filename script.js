@@ -3611,8 +3611,16 @@ class HarmoHubApp {
             // la règle indépendante de sa place, une bonne fois pour toutes. Sans cela, le moindre clic
             // sur un bouton du séquenceur sorti du panneau sortait silencieusement du mode édition —
             // this.editingIndex retombait à null et exitEditMode vidait les notes libres en cours.
+            // QUATRIÈME fois, et pour la même raison que les trois précédentes : .viz-toggle (les deux
+            // boutons piano/guitare) a été DÉPLACÉ sous les diagrammes, hors de .chord-header-row qui
+            // le couvrait jusque-là. Résultat mesuré : afficher/masquer la guitare sortait
+            // silencieusement du mode édition, et le verrou de doigté posé juste avant était perdu —
+            // exactement le symptôme déjà rencontré avec #guitar-lock-btn. Il est donc visé par SA
+            // PROPRE classe, comme #arp-sequencer l'est par son id : la règle ne dépend plus de
+            // l'endroit où l'élément se trouve.
             const inEditor = inPath('.col-left') || inPath('.seq-zoom-modal')
-                || inPath('.chord-header-row') || inPath('.viz-wrap') || inPath('#arp-sequencer');
+                || inPath('.chord-header-row') || inPath('.viz-wrap') || inPath('.viz-toggle')
+                || inPath('#arp-sequencer');
             // Boutons qui OUVRENT le séquenceur ou sa vue agrandie depuis l'accord déjà
             // sélectionné/en édition (appelés par LEUR PROPRE onclick avant que ce même clic ne remonte
             // jusqu'ici) : .seq-zoom-modal n'existe pas encore dans le chemin du clic à cet instant (le
