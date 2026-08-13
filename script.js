@@ -861,6 +861,15 @@ function parseSeqPattern(str) {
             const isTied = tok.endsWith('t');
             const v = parseInt(isTied ? tok.slice(0, -1) : tok, 10);
             if (isNaN(v)) return;
+            // UNE VOIX AU PLUS UNE FOIS PAR CASE. C'est l'invariant sur lequel tout le reste s'appuie
+            // sans jamais le vérifier : applySeqCell efface une voix par `splice(indexOf(v), 1)`, qui
+            // n'en retire qu'UNE occurrence — un doublon rendait donc la barre INEFFAÇABLE (on cliquait,
+            // rien ne se passait). Repéré sur le chemin du renommage : ajouter un si bémol à un do
+            // majeur le renomme bien en C7, mais écrivait « 0,1,2,3,3 » et la septième obtenue ne
+            // pouvait plus être retirée. La cause est corrigée en amont (voir applyNewVoiceDefaults et
+            // reevaluateExtraNoteUpgrades) ; ce filtre-ci répare EN PLUS les motifs déjà enregistrés
+            // avec le doublon, qu'aucune correction en amont ne peut plus atteindre.
+            if (voices.includes(v)) return;
             voices.push(v);
             if (isTied) tied.push(v);
         });
@@ -925,6 +934,12 @@ function applyNewVoiceDefaults(pattern, tie, prevVoices, voices) {
         for (let s = 0; s < outP.length; s++) {
             const on = uniform ? pattern[s].includes(0) : true;
             if (!on) continue;
+            // Une voix « neuve » peut déjà avoir des cases peintes : c'est le cas quand elle vient
+            // d'être ABSORBÉE depuis une note libre (voir reevaluateExtraNoteUpgrades — le si bémol
+            // qui transforme un do majeur en C7 garde le rythme qu'on lui avait donné). Sans ce test,
+            // elle était réécrite une seconde fois dans la même case et devenait ineffaçable (voir
+            // parseSeqPattern). On ne touche donc qu'aux cases où elle manque vraiment.
+            if (outP[s].includes(v)) continue;
             outP[s].push(v);
             const tied = uniform ? (tie[s] || []).includes(0) : (s !== 0);
             if (tied) outT[s].push(v);
@@ -1771,14 +1786,6 @@ const SEQ_ZONE_HANDLE_MAX_PX = 18;
 // ordinateur (le milieu y est confortable) contre 18,7 px sur téléphone (il n'y tient pas).
 const SEQ_ZONE_MIN_BODY_PX = 16;
 
-const SEQ_FRACTION_LABEL = ['', '¼', '½', '¾'];
-function seqLengthLabel(steps) {
-    const whole = Math.floor(steps / SEQ_STEPS_PER_BEAT);
-    const frac = SEQ_FRACTION_LABEL[steps % SEQ_STEPS_PER_BEAT];
-    if (!whole) return `${frac} temps`;
-    return frac ? `${whole} ${frac} temps` : `${whole} temps`;
-}
-
 const METRONOME_SUBDIVISION_KEY = 'harmohubMetronomeSubdivision';
 const SHOW_ROMAN_KEY = 'harmohubShowRomanNumerals';
 // Octave / renversement-drop sous chaque accord de la GRILLE (voir gridVoicingParts, Paramètres >
@@ -1838,7 +1845,14 @@ const ZOOM_LEVEL_MAX = 2;
 // Plafond propre à l'axe horizontal du séquenceur (voir zoomMaxFor) : 4 fois la base, soit ~112px la
 // double croche, de quoi placer une note au pixel près sans deviner.
 const SEQ_ZOOM_X_MAX = 4;
+// Le SIGNE seul de cette constante est encore lu (boutons et Ctrl+molette disent « plus » ou
+// « moins ») ; son amplitude, elle, ne sert plus — un cran vaut désormais une PROPORTION, voir
+// ZOOM_LEVEL_RATIO et adjustZoom.
 const ZOOM_LEVEL_STEP = 0.1;
+// +25 % par cran : sept crans couvrent 1 -> 4 (plafond horizontal du séquenceur) comme 1 -> 0,7
+// (plancher commun), et chaque clic se voit autant que le précédent, quelle que soit l'échelle
+// atteinte. C'est le pas habituel des stations audio.
+const ZOOM_LEVEL_RATIO = 1.25;
 // Borne basse plus large QUE ZOOM_LEVEL_MIN, pour ce seul réglage : la cible de base y est bien
 // plus petite que celle des fenêtres agrandies (4 temps plutôt que 8, voir seqPageBars) — sur une
 // mesure à 4 temps, rester à 0.7 ne suffirait même pas à passer d'1 à 2 mesures par page (le zoom
@@ -3618,9 +3632,21 @@ class HarmoHubApp {
             // exactement le symptôme déjà rencontré avec #guitar-lock-btn. Il est donc visé par SA
             // PROPRE classe, comme #arp-sequencer l'est par son id : la règle ne dépend plus de
             // l'endroit où l'élément se trouve.
+            // CINQUIÈME fois, et cette fois sans déménagement : #global-undo-btn/#global-redo-btn
+            // vivent dans la barre du haut depuis toujours, donc hors de toutes les zones ci-dessus.
+            // Or ces deux boutons agissent SUR l'édition en cours (voir globalUndo : séquenceur ouvert
+            // -> seqUndo) : ils sont, par définition, « partie prenante » du travail en cours. Mesuré :
+            // étirer une note puis cliquer sur Annuler défaisait bien l'étirement, PUIS sortait du mode
+            // Modification — this.editingIndex retombait à null et tout ce qu'on faisait ensuite (y
+            // compris renommer l'accord en ajoutant une note libre) n'était plus écrit nulle part. Ce
+            // n'est pas une régression du jour : vérifié identique sur le commit a25163a, avant ce
+            // travail. Visés par leur id, comme #arp-sequencer, plutôt que par la barre qui les
+            // contient : les autres boutons de cette barre (Paramètres, morceau…) doivent, eux,
+            // continuer à fermer l'édition.
             const inEditor = inPath('.col-left') || inPath('.seq-zoom-modal')
                 || inPath('.chord-header-row') || inPath('.viz-wrap') || inPath('.viz-toggle')
-                || inPath('#arp-sequencer');
+                || inPath('#arp-sequencer')
+                || inPath('#global-undo-btn') || inPath('#global-redo-btn');
             // Boutons qui OUVRENT le séquenceur ou sa vue agrandie depuis l'accord déjà
             // sélectionné/en édition (appelés par LEUR PROPRE onclick avant que ce même clic ne remonte
             // jusqu'ici) : .seq-zoom-modal n'existe pas encore dans le chemin du clic à cet instant (le
@@ -10354,7 +10380,7 @@ class HarmoHubApp {
         // onSeqPointerDown (pipette armée, second doigt d'un pincer-zoomer...), qui ne passent jamais
         // par onSeqPointerUp. #arp-sequencer étant déplacé mais jamais recréé (voir openSeqZoom/
         // pinSequencerHost), la classe posée dessus survit aux re-rendus, qui ne touchent que ses enfants.
-        const endLive = () => { host.classList.remove('seq-live'); this.seqHideLengthTag(); };
+        const endLive = () => { host.classList.remove('seq-live'); };
         window.addEventListener('pointerup', endLive);
         window.addEventListener('pointercancel', endLive);
 
@@ -10480,31 +10506,6 @@ class HarmoHubApp {
                     .forEach(c => c.classList.add('seq-zone-body'));
             }
         }
-    }
-
-    // Étiquette flottante annonçant la durée qui RÉSULTERA de l'étirement en cours. Le curseur et le
-    // liseré disent qu'on tient bien la poignée ; celle-ci dit ce qu'on est en train d'en faire —
-    // c'est la seule des trois qui évite de devoir relâcher pour compter les croches obtenues.
-    seqShowLengthTag(steps, clientX, clientY) {
-        let tag = this._seqLengthTag;
-        if (!tag) {
-            tag = document.createElement('div');
-            tag.className = 'seq-length-tag';
-            document.body.appendChild(tag);
-            this._seqLengthTag = tag;
-        }
-        tag.textContent = seqLengthLabel(steps);
-        // Décalée au-dessus à droite du pointeur, et repliée à gauche près du bord droit de la
-        // fenêtre pour ne jamais sortir de l'écran.
-        const largeur = tag.offsetWidth || 70;
-        const x = Math.min(clientX + 14, window.innerWidth - largeur - 8);
-        tag.style.left = `${Math.max(8, x)}px`;
-        tag.style.top = `${Math.max(8, clientY - 34)}px`;
-        tag.classList.add('show');
-    }
-
-    seqHideLengthTag() {
-        if (this._seqLengthTag) this._seqLengthTag.classList.remove('show');
     }
 
     onSeqPointerDown(e) {
@@ -11261,10 +11262,12 @@ class HarmoHubApp {
         // bord qui bouge réellement (borné par minStart/maxEnd, pas le doigt brut) décide du temps
         // mis en évidence, avant même de savoir si ce mouvement change quoi que ce soit de plus.
         this._highlightSeqBeatLabel(d.resize.edge === 'end' ? newEnd : newStart);
-        // Étiquette de durée : posée AVANT la sortie anticipée ci-dessous, pour qu'elle suive le
-        // pointeur même quand le geste ne change (encore) rien — sinon elle se figerait dès qu'on
-        // atteint une borne, en donnant l'impression que l'appli ne suit plus.
-        this.seqShowLengthTag(newEnd - newStart + 1, e.clientX, e.clientY);
+        // Plus d'étiquette flottante annonçant la durée obtenue (retour utilisateur : « lorsque
+        // j'étire une note, je n'ai pas besoin de voir écrit dans une fenêtre la longueur de la note
+        // pendant l'étirement »). Elle disait en chiffres ce que la barre elle-même montre déjà en
+        // s'allongeant contre la règle de mesure — et elle le disait SOUS le pointeur, donc juste
+        // par-dessus l'endroit qu'on est en train de viser. Le repère de temps mis en évidence
+        // ci-dessus suffit : il dit où l'on s'arrête, sans rien recouvrir.
         if (newStart === d.curStart && newEnd === d.curEnd) return;
 
         e.preventDefault();
@@ -12212,11 +12215,22 @@ class HarmoHubApp {
         // reproche fait par ailleurs (« beaucoup trop d'espace perdu en bas de la page »). Le zoom
         // vertical ne sert donc à quelque chose que lorsqu'il reste des hauteurs hors champ.
         const grille = document.querySelector('#arp-sequencer .seq-grid-continuous');
-        if (grille) {
+        // L'élément dont cette fonction calcule la hauteur est #seq-dock-host, jamais le panneau qui
+        // l'entoure : c'est lui qu'écrivent placeSeqHost ET la poignée de redimensionnement, et le
+        // panneau se contente d'ajouter sa poignée par-dessus. Les mesures ci-dessous doivent donc être
+        // prises sur le même élément que celui qu'on va écrire, sinon on compare deux boîtes
+        // différentes et la hauteur dérive à chaque rendu.
+        const hote = document.getElementById('seq-dock-host');
+        if (grille && hote) {
             const bande = grille.parentElement;
-            // Hauteur de contenu + ce que le volet ajoute autour de la bande (rangée de boutons,
-            // poignée, marges) : mesuré plutôt que deviné, ces chrome-là bougent avec la mise en page.
-            const autour = this.seqDockHeight ? 0 : Math.max(0, h - (bande ? bande.clientHeight : h));
+            // Ce que le volet ajoute AUTOUR de la bande défilante : rangée de boutons, poignée, marges.
+            // Mesuré sur la mise en page ACTUELLE (volet - bande), pas déduit de la hauteur qu'on est en
+            // train de calculer. La version précédente écrivait `h - bande.clientHeight`, ce qui rendait
+            // le plafond inopérant : plus `h` était grand, plus `autour` grandissait avec lui, et
+            // `min(h, contenu + autour)` revalait toujours `h`. Mesuré : V+ huit fois donnait un volet
+            // de 628px pour 234px de notes — le zoom vertical ne faisait qu'ajouter du noir sous la
+            // dernière ligne, exactement ce que le plafond devait empêcher.
+            const autour = Math.max(0, hote.clientHeight - (bande ? bande.clientHeight : hote.clientHeight));
             h = Math.min(h, grille.scrollHeight + autour + 8);
         }
         return Math.round(h);
@@ -12636,9 +12650,18 @@ class HarmoHubApp {
     // l'autre — du séquenceur ou de la grille d'accords d'un cran, une fois la fenêtre agrandie
     // correspondante déjà ouverte (boutons dédiés ou Ctrl+molette/Ctrl+Maj+molette dans cette
     // fenêtre, voir les écouteurs "wheel" plus haut) — mémorisé d'une session à l'autre.
+    // UN CRAN EST UNE PROPORTION, PAS UNE CONSTANTE. Le pas était additif (±0,1 quelle que soit
+    // l'échelle en cours) : partant de 1, atteindre le plafond horizontal du séquenceur (x4) demandait
+    // TRENTE clics. Le plafond avait bien été relevé sur le retour « le zoom horizontal est vite
+    // plafonné », mais il en devenait injoignable à la main — le défaut avait seulement changé de
+    // forme. Un pas additif est de toute façon mal réglé par construction : +0,1 fait +10 % au départ
+    // et +2,5 % arrivé à 4, donc le zoom ralentit exactement là où il reste le plus de chemin. Un cran
+    // multiplicatif avance du même MONTANT VISIBLE partout : ~7 crans d'un bout à l'autre, dans les
+    // deux sens, comme sur n'importe quelle station audio.
     adjustZoom(kind, axis, delta) {
         const levelKey = `${kind}ZoomLevel${axis === 'x' ? 'X' : 'Y'}`;
-        this.setZoomLevel(kind, axis, this[levelKey] + delta);
+        const facteur = delta > 0 ? ZOOM_LEVEL_RATIO : 1 / ZOOM_LEVEL_RATIO;
+        this.setZoomLevel(kind, axis, this[levelKey] * facteur);
     }
 
     // Borne basse : la même partout (ZOOM_LEVEL_MIN), SAUF l'échelle horizontale du séquenceur
@@ -12712,8 +12735,12 @@ class HarmoHubApp {
             // Le zoom vertical de cette vue agit sur la hauteur du VOLET (voir hauteurVoletSequenceur,
             // et le retour utilisateur sur la hauteur unique des barres) : sans ce rafraîchissement,
             // le nouveau niveau ne s'appliquerait qu'au prochain ouvrir/fermer du volet.
+            // Écrit sur #seq-dock-host, comme placeSeqHost et la poignée : ce bloc visait auparavant
+            // #seq-dock-panel, si bien que deux hauteurs en ligne se contredisaient sur deux éléments
+            // imbriqués — la bande défilante finissait par déborder du panneau qui la porte.
             const volet = document.getElementById('seq-dock-panel');
-            if (volet && !volet.hidden) volet.style.height = `${this.hauteurVoletSequenceur()}px`;
+            const hote = document.getElementById('seq-dock-host');
+            if (volet && !volet.hidden && hote) hote.style.height = `${this.hauteurVoletSequenceur()}px`;
             // Séquenceur COMPACT/CONTINU : la verticale passe par la même variable CSS que la vue
             // agrandie (voir _applySeqVerticalScale), l'horizontale par _appliquerEchelleHorizontale —
             // les deux en place, sans reconstruire. Le rendu complet ne reste nécessaire que si aucune
@@ -12897,7 +12924,13 @@ class HarmoHubApp {
         // Avant toute chose : une note libre jouée assez longtemps depuis le dernier rendu complète-
         // t-elle désormais l'accord (voir reevaluateExtraNoteUpgrades) ? Peut changer la qualité/le
         // nombre de voix, donc AVANT de (re)synchroniser le motif ci-dessous.
-        this.reevaluateExtraNoteUpgrades();
+        // Deux façons pour le symbole de changer pendant un rendu du séquenceur : le renommage
+        // automatique par note libre, et une annulation/rétablissement qui restaure une autre qualité
+        // (voir restaurerInstantaneSeq). Les deux doivent rafraîchir la grille — voir commitLiveEdit
+        // tout en bas.
+        const symboleRestaure = this._seqSymboleAChange;
+        this._seqSymboleAChange = false;
+        const accordRenomme = this.reevaluateExtraNoteUpgrades() || symboleRestaure;
         const chord = this.syncSeqPatternForCurrentChord();
 
         const midis = chord.getSeqMidiNotes();
@@ -13728,7 +13761,35 @@ class HarmoHubApp {
         // ces mutations sans avoir à répéter l'appel dans chacune. refreshGrid=false : ces changements
         // ne modifient jamais ce qu'affiche la case dans la grille (symbole, etc.), et rappeler
         // loadProgression() (qui peut redéclencher renderSequencer) rouvrirait une boucle.
-        this.commitLiveEdit(false);
+        // UNE SEULE EXCEPTION : le renommage automatique par note libre (voir
+        // reevaluateExtraNoteUpgrades). Là, le symbole CHANGE — ajouter un si bémol tenu à un do majeur
+        // en fait un C7 —, donc l'hypothèse ci-dessus tombe précisément dans ce cas. Sans ce
+        // rafraîchissement, le panneau annonçait « C7 » pendant que la case de la grille juste au-dessus
+        // continuait d'afficher « C », et il fallait sortir puis revenir dans l'accord pour que les deux
+        // se rejoignent. La boucle redoutée n'a pas lieu : `accordRenomme` n'est vrai qu'au rendu qui
+        // renomme, et le rendu déclenché par loadProgression trouve la note libre déjà absorbée.
+        this.commitLiveEdit(!!accordRenomme);
+        this.ajusterHauteurVoletAuContenu();
+    }
+
+    // Recale la hauteur du volet sur ce qu'il y a VRAIMENT à montrer, une fois la grille dessinée.
+    // hauteurVoletSequenceur sait déjà ne pas dépasser le contenu, mais placeSeqHost l'appelle AVANT
+    // le rendu : à ce moment la grille est vide ou périmée, le plafond ne s'applique donc à rien et le
+    // volet s'ouvre à sa hauteur d'écran par défaut. Mesuré à l'ouverture : 384px de volet pour 234px
+    // de notes, soit 150px de noir sous la dernière ligne — précisément le reproche « il y a beaucoup
+    // trop d'espace perdu en bas de la page sous le séquenceur », qui survivait au correctif précédent
+    // parce que celui-ci ne se déclenchait qu'en zoomant. Jamais quand l'utilisateur a réglé la hauteur
+    // à la main (seqDockHeight) : c'est son choix, il prime.
+    ajusterHauteurVoletAuContenu() {
+        if (this.seqDockHeight) return;
+        const volet = document.getElementById('seq-dock-panel');
+        const hote = document.getElementById('seq-dock-host');
+        if (!volet || volet.hidden || !hote) return;
+        const voulue = `${this.hauteurVoletSequenceur()}px`;
+        // Comparé avant d'écrire : ce recalage suit CHAQUE rendu du séquenceur, y compris ceux qui
+        // tombent en plein glissé — réécrire une hauteur identique y déclencherait une remise en page
+        // à chaque pixel parcouru.
+        if (hote.style.height !== voulue) hote.style.height = voulue;
     }
 
     // Ajoute une voix "libre" au séquenceur (bouton dédié, voir #seq-add-note) : hauteur de départ
@@ -13738,6 +13799,13 @@ class HarmoHubApp {
     // extraNotes : sa position d'AFFICHAGE dans le séquenceur (triée par hauteur) se corrige d'elle-
     // même dès que sa vraie hauteur est validée (voir commitExtraNoteLabel).
     addSequencerNote() {
+        // Un seul instantané pour TOUTE l'affaire « note libre » : la voix créée ici, la hauteur qu'on
+        // va taper dans la foulée, le rythme posé par défaut, et jusqu'au renommage automatique de
+        // l'accord si elle finit par le compléter (voir reevaluateExtraNoteUpgrades). Pris ICI, avant
+        // la première mutation, pour qu'un seul Annuler ramène à l'accord d'avant — plutôt que trois ou
+        // quatre, qui obligeraient à défaire à l'aveugle une transformation qu'on n'a jamais demandée
+        // explicitement.
+        this.pushSeqUndo();
         const chord = this.readChord();
         const midis = chord.getSeqMidiNotes();
         const highestMidi = midis.length ? Math.max(...midis) : 57; // La3 à défaut de tout accord jouable
@@ -13962,7 +14030,10 @@ class HarmoHubApp {
     // durée réellement jouée décide désormais, jamais la hauteur seule (retour utilisateur).
     // Rappelée en boucle tant qu'une note se qualifie : en fusionner une décale les index des
     // suivantes (voir _computeVoices), plus sûr de tout recalculer depuis le début à chaque fois.
+    // Renvoie vrai si l'accord a VRAIMENT été renommé — l'appelant doit alors rafraîchir la grille,
+    // qui affiche encore l'ancien symbole (voir renderSequencer/commitLiveEdit).
     reevaluateExtraNoteUpgrades() {
+        let renomme = false;
         let again = this.extraNotes.length > 0;
         while (again) {
             again = false;
@@ -14010,12 +14081,21 @@ class HarmoHubApp {
                 }
 
                 this.extraNotes.splice(i, 1);
+                // La voix absorbée fait maintenant partie du CORPS de l'accord, et elle arrive avec le
+                // rythme qu'on lui a peint. Sans cette mise à jour, la synchro suivante la voyait comme
+                // une voix « qui vient d'apparaître » et lui appliquait le rythme par défaut
+                // (applyNewVoiceDefaults) : une septième jouée seulement sur les temps 1 et 3 se
+                // retrouvait tenue du début à la fin, c'est-à-dire exactement le rythme qu'on venait de
+                // refuser en la peignant à la main.
+                this.seqLastChordToneVoices = (CHORD_INTERVALS[matched] || CHORD_INTERVALS.maj).length;
                 const label = QUALITY_LABEL[matched] || '';
                 this.flashHint(`Accord complété : ${document.getElementById('root').value}${label}`);
+                renomme = true;
                 again = this.extraNotes.length > 0;
                 break; // état changé (qualité + extraNotes) : on recommence le for depuis le début
             }
         }
+        return renomme;
     }
 
     // Déplace le curseur de lecture (petite ligne verticale) du séquenceur au pas `step` en cours ;
@@ -14363,8 +14443,47 @@ class HarmoHubApp {
     // Historique SÉPARÉ de celui de la grille d'accords : il porte sur le motif de l'accord en cours
     // d'édition (l'input caché #arpPattern), pas encore « Ajouté »/« Modifié » dans la progression.
     // Une simple chaîne suffit comme instantané, puisque c'est déjà la représentation complète du motif.
+    // L'INSTANTANÉ NE PEUT PAS SE LIMITER AU MOTIF. Il ne contenait que la chaîne #arpPattern, ce qui
+    // suffit tant qu'on peint ou qu'on étire — mais deux gestes du séquenceur changent l'accord
+    // LUI-MÊME : ajouter une note libre (voir addSequencerNote), et le renommage automatique qu'elle
+    // déclenche une fois jouée assez longtemps (voir reevaluateExtraNoteUpgrades, qui fait d'un do
+    // majeur un C7). Mesuré : après avoir ajouté une note libre, la pile du séquenceur restait vide et
+    // le bouton Annuler grisé — le geste qui change le plus de choses était le seul qu'on ne pouvait
+    // pas défaire, et il fallait remettre la qualité à la main puis effacer la voix. La qualité et les
+    // notes libres font donc partie de l'instantané.
+    instantaneSeq() {
+        return {
+            motif: document.getElementById('arpPattern').value,
+            quality: document.getElementById('quality').value,
+            extraNotes: JSON.stringify(this.extraNotes),
+        };
+    }
+
+    restaurerInstantaneSeq(snap) {
+        document.getElementById('arpPattern').value = snap.motif;
+        const qualitySelect = document.getElementById('quality');
+        if (snap.quality && qualitySelect.value !== snap.quality) {
+            // Même ordre qu'ailleurs (voir reevaluateExtraNoteUpgrades/editChord) : révéler d'abord la
+            // famille d'accords concernée, sinon l'option visée n'existe pas encore dans le <select> et
+            // l'affectation est silencieusement perdue.
+            this.revealComplexQualityIfNeeded(snap.quality);
+            qualitySelect.value = snap.quality;
+            // Le SYMBOLE de l'accord change : la case de la grille doit être redessinée, comme lors du
+            // renommage automatique. Sans ce drapeau, annuler l'ajout d'une note libre ramenait bien
+            // « C » dans le panneau mais laissait « C7 » écrit dans la grille — l'inverse exact du
+            // défaut qu'on vient de corriger, et tout aussi déroutant. Consommé par le renderSequencer
+            // qui suit immédiatement (voir plus bas).
+            this._seqSymboleAChange = true;
+        }
+        this.extraNotes = JSON.parse(snap.extraNotes || '[]');
+        // Le corps de l'accord vient peut-être de rétrécir (C7 redevenu C) : sans ce repère remis à
+        // jour, la synchro suivante croirait à des voix « neuves » et leur repeindrait un rythme par
+        // défaut (voir applyNewVoiceDefaults).
+        this.seqLastChordToneVoices = (CHORD_INTERVALS[qualitySelect.value] || CHORD_INTERVALS.maj).length;
+    }
+
     pushSeqUndo() {
-        this.seqUndoStack.push(document.getElementById('arpPattern').value);
+        this.seqUndoStack.push(this.instantaneSeq());
         if (this.seqUndoStack.length > this.undoLimit) this.seqUndoStack.shift();
         this.seqRedoStack = [];
         this.updateGlobalUndoRedoButtons();
@@ -14372,11 +14491,12 @@ class HarmoHubApp {
 
     seqUndo() {
         if (this.seqUndoStack.length === 0) { this.flashHint('Rien à annuler dans le séquenceur'); return; }
-        this.seqRedoStack.push(document.getElementById('arpPattern').value);
-        document.getElementById('arpPattern').value = this.seqUndoStack.pop();
+        this.seqRedoStack.push(this.instantaneSeq());
+        this.restaurerInstantaneSeq(this.seqUndoStack.pop());
         this.seqTouched = true;
         this.seqSelections = [];
         this.renderSequencer();
+        this.refreshPreview();     // la qualité a pu changer : clavier, diagrammes et titre doivent suivre
         this.updateGlobalUndoRedoButtons();
         this.flashHint('Annulé');
         this.livePreviewUpdate();
@@ -14384,11 +14504,12 @@ class HarmoHubApp {
 
     seqRedo() {
         if (this.seqRedoStack.length === 0) { this.flashHint('Rien à rétablir dans le séquenceur'); return; }
-        this.seqUndoStack.push(document.getElementById('arpPattern').value);
-        document.getElementById('arpPattern').value = this.seqRedoStack.pop();
+        this.seqUndoStack.push(this.instantaneSeq());
+        this.restaurerInstantaneSeq(this.seqRedoStack.pop());
         this.seqTouched = true;
         this.seqSelections = [];
         this.renderSequencer();
+        this.refreshPreview();
         this.updateGlobalUndoRedoButtons();
         this.flashHint('Rétabli');
         this.livePreviewUpdate();

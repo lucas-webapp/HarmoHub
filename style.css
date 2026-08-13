@@ -442,6 +442,15 @@ body.body-scroll-locked { overflow: hidden !important; }
    toute la grille se décalerait au moment précis où l'on vise une note. */
 .seq-label.seq-key .seq-key-name { visibility: hidden; }
 .seq-label.seq-key-c .seq-key-name { visibility: visible; font-weight: 700; }
+/* ...ET le nom de chaque touche COLORÉE, c'est-à-dire de chaque note que l'accord joue vraiment
+   (retour utilisateur : « on ne voit plus toujours le nom des notes avec les touches colorées »).
+   Cacher tous les noms sauf le DO répondait au bon problème — le mur de texte — mais l'a réglé trop
+   largement : les seules lignes dont on cherche VRAIMENT le nom sont celles qui sonnent, et ce sont
+   précisément celles qu'on avait rendues muettes. Les compter à partir du DO le plus proche, sur une
+   gouttière de 14px par demi-ton, est exactement le calcul mental qu'un nom écrit doit épargner.
+   Le compromis tient parce que ces noms-là sont peu nombreux (3 à 5 par accord) et posés sur un fond
+   coloré : ils se lisent comme l'étiquette de la touche, pas comme une colonne de texte. */
+.seq-label.seq-key-jouee .seq-key-name { visibility: visible; }
 
 /* ...sauf le temps d'un geste : poser ou déplacer une barre rallume le nom de la ligne visée (voir
    _revelerToucheSeq dans script.js) — « quand je déplace ou ajoute une barre dans l'accord, tu dois
@@ -3451,29 +3460,6 @@ body.all-beats .offbeat-dot {
 /* Les poignées elles-mêmes sont celles de la note SÉLECTIONNÉE, réutilisées telles quelles au survol
    (voir .seq-note.selected::before plus bas) : même dessin pour la même chose, plutôt qu'une seconde
    poignée légèrement différente selon qu'on survole ou qu'on a sélectionné. */
-
-/* Durée qui résultera de l'étirement, suivant le pointeur (voir seqShowLengthTag). Le curseur et le
-   liseré confirment qu'on tient la poignée ; celle-ci dit ce qu'on en fait — sans avoir à relâcher
-   pour compter les croches obtenues. position:fixed et pointer-events:none : elle survole tout sans
-   jamais intercepter le geste en cours. */
-.seq-length-tag {
-    position: fixed;
-    z-index: 90;
-    padding: 3px 9px;
-    font-family: var(--font);
-    font-size: var(--fs-xs);
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    color: var(--btn-text);
-    background: rgba(10, 10, 10, 0.92);
-    border: 1px solid var(--accent);
-    border-radius: 6px;
-    white-space: nowrap;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.1s ease;
-}
-.seq-length-tag.show { opacity: 1; }
 
 /* TRANSPORTS DE LA GRILLE, ancrés en bas de la colonne de gauche (voir placeGlobalTransport).
    Ils étaient au centre de l'en-tête de la grille, en petit (retour utilisateur : « les boutons de
