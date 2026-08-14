@@ -3610,6 +3610,27 @@ class HarmoHubApp {
             }
         });
 
+        // Repère un vrai geste de défilement au doigt (même seuil de 10px que le menu contextuel plus
+        // haut) pour ne pas le confondre, juste en dessous, avec un tap « à côté » qui sortirait du
+        // mode Modification — retour utilisateur (sur téléphone) : « le mode modifier s'enlève dès que
+        // je veux scroller, il y a un problème de sensibilité du toucher à côté ». Certains navigateurs
+        // mobiles laissent quand même passer un clic de synthèse après un léger défilement (page ou
+        // grille, dont les cases sont volontairement en touch-action:none, voir .grid-cell) ; ce clic-là
+        // ne doit alors PAS compter comme un clic « ailleurs ». Écouteurs passifs : on ne fait que
+        // mesurer, jamais preventDefault, donc aucun effet sur le défilement natif lui-même.
+        let touchMoved = false, touchStartX = 0, touchStartY = 0;
+        document.addEventListener('touchstart', (e) => {
+            if (e.touches.length !== 1) return; // pincement à 2 doigts : autre logique, voir setupPinchZoom
+            touchMoved = false;
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+        document.addEventListener('touchmove', (e) => {
+            if (touchMoved || e.touches.length !== 1) return;
+            const dx = e.touches[0].clientX - touchStartX, dy = e.touches[0].clientY - touchStartY;
+            if (Math.hypot(dx, dy) > 10) touchMoved = true;
+        }, { passive: true });
+
         // Désélectionne l'accord de la grille dès qu'on clique en dehors de la grille et du menu
         // contextuel — évite l'ambiguïté entre l'accord SÉLECTIONNÉ (voir bouton « Accord » ci-
         // dessus) et l'accord affiché dans le panneau, une fois qu'on est passé à autre chose.
@@ -3621,6 +3642,9 @@ class HarmoHubApp {
         // contient aussi bien les réglages BPM/instrument/Grille que le séquenceur) : contrairement à
         // la sélection, y cliquer fait partie de l'édition elle-même, pas un clic « ailleurs ».
         document.addEventListener('click', (e) => {
+            // Un défilement tout juste terminé : ce clic est un artefact du geste, pas une intention
+            // de cliquer « ailleurs ». Consommé ici (remis à zéro) pour ne pas gêner le PROCHAIN clic.
+            if (touchMoved) { touchMoved = false; return; }
             // e.target.closest(...) suit le DOM ACTUEL, pas celui d'au moment du clic : un bouton du
             // séquenceur (ex. « + » une note libre, voir addSequencerNote) déclenche souvent un
             // renderSequencer() synchrone qui remplace tout le HTML du panneau — DONC son propre
