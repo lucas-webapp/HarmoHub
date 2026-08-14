@@ -1,15 +1,20 @@
 const { chromium, devices } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 // Retour utilisateur (sur téléphone) : « le mode modifier s'enlève dès que je veux scroller. Il y a
-// un problème de sensibilité du "toucher à côté pour basculer hors du mode modification". » —
-// certains navigateurs mobiles laissent passer un clic de synthèse même après un léger défilement
-// (page ou grille, dont les cases sont volontairement en touch-action:none, voir .grid-cell) ; ce
-// clic-fantôme tombait hors du panneau Accord/séquenceur et sortait silencieusement du mode
-// Modification (editingIndex retombait à null), exactement le symptôme déjà documenté pour les douze
-// contrôles échappés à la garde `inEditor` (voir sortie_edition_involontaire_test.js) — sauf qu'ici
-// rien n'échappe à la garde : c'est le CLIC LUI-MÊME qui n'aurait jamais dû compter.
-// Fix : setupEventListeners repère un vrai geste de défilement (>10px entre touchstart et touchmove,
-// même seuil que le menu contextuel, voir attachContextMenuTrigger) et ignore le clic qui suit.
+// un problème de sensibilité du "toucher à côté pour basculer hors du mode modification". », répété
+// TROIS fois malgré deux correctifs successifs (« toujours le problème », « je n'arrive toujours pas
+// à le faire fonctionner »).
+// Les deux premiers correctifs (touchmove > 10px, puis un vrai `scroll` récent) protégeaient le clic
+// 'click' de setupEventListeners contre un clic-fantôme après un léger défilement — nécessaires, mais
+// pas suffisants : LA VRAIE CAUSE, trouvée par instrumentation, était un SECOND mécanisme totalement
+// indépendant, setupSortieEditionAuClic, sur 'pointerdown' EN PHASE DE CAPTURE — donc AU TOUT DÉBUT
+// du geste, avant le moindre mouvement, invisible à toute détection de défilement construite après
+// coup. Sa propre liste de zones neutres (NEUTRES) avait dérivé de celle de l'autre mécanisme
+// (inEditor) : aucun des douze correctifs déjà appliqués à inEditor (voir
+// sortie_edition_involontaire_test.js) ne s'y était répercuté. Fix définitif : au DOIGT, ce second
+// mécanisme ne décide plus rien du tout (il ne peut pas savoir si le geste deviendra un défilement) —
+// seul le clic 'click', qui attend la fin du geste, ferme l'édition sur tactile. Les deux mécanismes
+// partagent maintenant une seule liste de zones neutres (ZONE_EDITION_SELECTEURS).
 let PASS = 0, FAIL = 0;
 const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { FAIL++; console.log('FAIL - ' + l); } };
 
@@ -118,6 +123,48 @@ const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { 
     await page.waitForTimeout(150);
     etat = await page.evaluate(() => window.app.editingIndex);
     check(etat === null, `sans toucher préalable, un clic « ailleurs » sort bien de l'édition même juste après un scroll — editingIndex=${etat}`);
+
+    // LA VRAIE CAUSE, trouvée après coup par instrumentation (retour utilisateur, un TROISIÈME
+    // signalement malgré les deux correctifs précédents : « toujours le problème », « je n'arrive
+    // toujours pas à le faire fonctionner ») : un SECOND mécanisme de sortie, setupSortieEditionAuClic,
+    // sur 'pointerdown' EN PHASE DE CAPTURE — donc AVANT le moindre mouvement, avant que touchmove et
+    // scroll ci-dessus n'aient la moindre chance d'agir. Ci-dessous : un simple pointerdown tactile
+    // (le tout début d'un geste, avant de savoir s'il deviendra un défilement) sur une zone qui
+    // n'était couverte par AUCUNE des deux anciennes listes séparées (NEUTRES vs inEditor).
+    console.log('--- Un simple pointerdown tactile (le début d\'un geste, avant tout mouvement) ne sort PAS de l\'édition ---');
+    await page.waitForTimeout(700); // hors de la fenêtre "toucher récent" des cas précédents
+    await page.evaluate(() => window.app.editChord(0, 1));
+    await page.waitForTimeout(150);
+    await page.evaluate(({ x, y }) => {
+        const el = document.elementFromPoint(x, y) || document.body;
+        el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, pointerType: 'touch' }));
+    }, { x: 200, y: 620 });
+    await page.waitForTimeout(150);
+    etat = await page.evaluate(() => window.app.editingIndex);
+    check(etat === 1, `un pointerdown tactile seul (sans clic derrière) ne ferme pas l'édition — editingIndex=${etat}`);
+
+    console.log('--- ...mais un VRAI tap complet (pointerdown + pointerup + clic tactile) sort toujours de l\'édition ---');
+    await page.evaluate(({ x, y }) => {
+        const el = document.elementFromPoint(x, y) || document.body;
+        const opts = { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, pointerType: 'touch' };
+        el.dispatchEvent(new PointerEvent('pointerdown', opts));
+        el.dispatchEvent(new PointerEvent('pointerup', opts));
+        el.dispatchEvent(new MouseEvent('click', opts));
+    }, { x: 200, y: 620 });
+    await page.waitForTimeout(150);
+    etat = await page.evaluate(() => window.app.editingIndex);
+    check(etat === null, `un vrai tap (pointerdown+pointerup+clic, sans défilement) ferme toujours l'édition — editingIndex=${etat}`);
+
+    console.log('--- Contrôle : à la SOURIS (ordinateur), un pointerdown seul ferme toujours immédiatement (pas de conflit de défilement à gérer) ---');
+    await page.evaluate(() => window.app.editChord(0, 1));
+    await page.waitForTimeout(150);
+    await page.evaluate(({ x, y }) => {
+        const el = document.elementFromPoint(x, y) || document.body;
+        el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, pointerType: 'mouse' }));
+    }, { x: 200, y: 620 });
+    await page.waitForTimeout(150);
+    etat = await page.evaluate(() => window.app.editingIndex);
+    check(etat === null, `à la souris, un pointerdown seul ferme toujours immédiatement — editingIndex=${etat}`);
 
     check(errors.length === 0, 'aucune erreur JavaScript — ' + JSON.stringify(errors));
     console.log(`\n=== Bilan : ${PASS} PASS / ${FAIL} FAIL ===`);

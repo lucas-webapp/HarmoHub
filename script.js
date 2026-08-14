@@ -1851,6 +1851,25 @@ const CLASSIC_GRID_ZOOM_LEVEL_Y_KEY = 'harmohubClassicGridZoomLevelY';
 // pour la même raison que le retrait du V+/V- de la vue continue : « laisser une unique hauteur de
 // barres » (retour utilisateur, repris ensuite pour le petit séquenceur : « bloquer la hauteur des
 // barres du petit séquenceur, et supprimer le V+/- »).
+// Zone « neutre/éditeur » unique, lue par les DEUX mécanismes qui peuvent sortir du mode
+// Modification (le clic « ailleurs » sur 'click', et setupSortieEditionAuClic sur 'pointerdown') —
+// CAUSE RÉELLE, trouvée par instrumentation, du signalement répété « le mode modifier s'enlève dès
+// que je veux scroller, sur téléphone » qui a résisté à deux correctifs de minutage (touchmove puis
+// scroll) : ces deux correctifs protégeaient le clic 'click', pendant que setupSortieEditionAuClic,
+// sur 'pointerdown' EN PHASE DE CAPTURE, sortait déjà de l'édition dès le tout premier contact du
+// doigt — AVANT le moindre mouvement, donc invisible à toute détection de défilement. Sa propre
+// liste (NEUTRES, voir plus bas) avait dérivé de celle-ci : aucun des douze correctifs déjà
+// appliqués à l'AUTRE liste (#toggle-sidebar, .zoom-axis-group, #footer-dock, .chord-header-row,
+// .viz-wrap...) ne s'y était répercuté. Une seule liste désormais, lue aux deux endroits : plus
+// jamais de dérive entre les deux à l'avenir.
+const ZONE_EDITION_SELECTEURS = [
+    '.col-left', '.control-card', '.seq-zoom-modal', '.chord-header-row', '.viz-wrap', '.viz-toggle',
+    '#arp-sequencer', '.seq-dock-panel', '#global-undo-btn', '#global-redo-btn', '.zoom-axis-group',
+    '#toggle-sidebar', '#toggle-voice-leading', '#footer-dock', '.transport', '.dock',
+    '#quick-add-help-btn', '#quick-add-help', '.chord-grid', '.grid-cell', '.cell-add',
+    '.section-head', '.grid-head-sticky', '#context-menu', '.overlay', '.modal', '.settings-overlay',
+    '#files-overlay', 'button', 'input', 'select', 'textarea', 'label', 'a', '[role="button"]',
+].join(',');
 const SEQ_INLINE_ZOOM_LEVEL_X_KEY = 'harmohubSeqInlineZoomLevelX';
 // Échelles horizontale/verticale du panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) —
 // mêmes bornes/pas que les autres (ZOOM_LEVEL_MIN/MAX/STEP ci-dessous), un seul réglage GLOBAL
@@ -3751,17 +3770,16 @@ class HarmoHubApp {
             // travail. Visés par leur id, comme #arp-sequencer, plutôt que par la barre qui les
             // contient : les autres boutons de cette barre (Paramètres, morceau…) doivent, eux,
             // continuer à fermer l'édition.
-            const inEditor = inPath('.col-left') || inPath('.seq-zoom-modal')
-                || inPath('.chord-header-row') || inPath('.viz-wrap') || inPath('.viz-toggle')
-                || inPath('#arp-sequencer') || inPath('.seq-dock-panel')
-                || inPath('#global-undo-btn') || inPath('#global-redo-btn')
-                || inPath('.zoom-axis-group')
-                || inPath('#toggle-sidebar') || inPath('#toggle-voice-leading')
-                || inPath('#footer-dock') || inPath('.transport')
-                // DOUZIÈME : le bouton d'aide de l'ajout rapide et l'encart qu'il ouvre. Consulter une
-                // aide est le geste de quelqu'un qui est EN TRAIN de travailler ; la lui faire payer
-                // par la perte de sa modification est le contraire du service rendu.
-                || inPath('#quick-add-help-btn') || inPath('#quick-add-help');
+            // DOUZIÈME : le bouton d'aide de l'ajout rapide et l'encart qu'il ouvre. Consulter une
+            // aide est le geste de quelqu'un qui est EN TRAIN de travailler ; la lui faire payer par
+            // la perte de sa modification est le contraire du service rendu.
+            // TREIZIÈME, ET C'ÉTAIT EN RÉALITÉ LA CAUSE DU « ça saute en scrollant sur téléphone » :
+            // cette liste, construite ici au fil des douze cas ci-dessus, n'était LUE que par CE
+            // clic-ci — un second mécanisme de sortie (setupSortieEditionAuClic, sur pointerdown,
+            // AVANT le moindre clic) avait sa PROPRE liste, jamais mise à jour par aucun des douze
+            // correctifs précédents. Voir ZONE_EDITION_SELECTEURS (tout en haut du fichier), désormais
+            // la SEULE liste, lue par les deux mécanismes — plus jamais de dérive entre les deux.
+            const inEditor = path.some(el => el instanceof Element && el.matches(ZONE_EDITION_SELECTEURS));
             // Boutons qui OUVRENT le séquenceur ou sa vue agrandie depuis l'accord déjà
             // sélectionné/en édition (appelés par LEUR PROPRE onclick avant que ce même clic ne remonte
             // jusqu'ici) : .seq-zoom-modal n'existe pas encore dans le chemin du clic à cet instant (le
@@ -10891,20 +10909,31 @@ class HarmoHubApp {
     // mais pour une autre raison : cliquer dessus BASCULE l'édition sur lui (voir onGridPointerUp),
     // ce qui serait absurde à faire suivre d'une fermeture. Reste ce qui est vraiment « ailleurs » :
     // le fond de page, les en-têtes, les marges.
+    // ZONE_EDITION_SELECTEURS (tout en haut du fichier), PAS une liste locale : ce mécanisme avait
+    // longtemps sa PROPRE liste (NEUTRES), jamais mise à jour par aucun des douze correctifs déjà
+    // appliqués à l'autre mécanisme de sortie (voir setupEventListeners/inEditor) — #toggle-sidebar,
+    // .zoom-axis-group, #footer-dock, .chord-header-row, .viz-wrap... en étaient tous absents. Sur
+    // pointerdown, EN PHASE DE CAPTURE, AVANT le moindre mouvement du doigt : c'est ce qui expliquait
+    // « le mode modifier s'enlève dès que je veux scroller » — deux correctifs bâtis autour du
+    // défilement (touchmove, puis scroll) ne pouvaient rien contre une sortie décidée avant même que
+    // le geste commence. composedPath(), comme l'autre mécanisme, plutôt que closest() : même
+    // fiabilité si un geste (peindre une note...) reconstruit le DOM entre la prise et la lecture.
     setupSortieEditionAuClic() {
-        const NEUTRES = [
-            '.control-card', '#arp-sequencer', '.seq-dock-panel', '.transport', '.dock',
-            '.grid-cell', '.cell-add', '.section-head', '.grid-head-sticky', '.viz-diagrams',
-            '.viz-toggle', '.overlay', '.modal', '.settings-overlay', '#files-overlay',
-            'button', 'input', 'select', 'textarea', 'label', 'a', '[role="button"]',
-        ].join(',');
         document.addEventListener('pointerdown', (e) => {
             if (this.appMode !== 'edit' || this.editingIndex == null) return;
             if (e.button != null && e.button !== 0) return;
+            // AU DOIGT, ne jamais décider ICI : pointerdown tombe au tout DÉBUT du geste, avant même de
+            // savoir s'il va devenir un défilement — décider si tôt revenait à sortir de l'édition au
+            // premier contact du doigt, quelle que soit la suite (retour utilisateur, la vraie cause
+            // du « le mode modifier s'enlève dès que je veux scroller » : ce mécanisme-ci fermait déjà
+            // AVANT que les repères de défilement du clic ci-dessous — touchmove, puis scroll — aient
+            // la moindre chance d'agir). Le clic 'click' plus haut, LUI, attend la fin du geste et sait
+            // déjà distinguer un vrai clic d'un défilement : au doigt, c'est donc le seul qui décide.
+            if (e.pointerType === 'touch') return;
             // Un geste du séquenceur en cours (peindre, étirer, rectangle) part parfois d'un élément
             // qui n'est plus dans le DOM au moment où l'on regarde : ne jamais fermer pendant.
             if (this.seqDrag || this.seqMarquee || this.gridDrag) return;
-            if (e.target.closest && e.target.closest(NEUTRES)) return;
+            if (e.composedPath().some(el => el instanceof Element && el.matches(ZONE_EDITION_SELECTEURS))) return;
             this.cancelEdit();
         }, true);
     }
