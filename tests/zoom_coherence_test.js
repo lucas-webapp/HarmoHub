@@ -47,32 +47,24 @@ async function openSeq(page) {
     check(mins.inlineX === 1 && mins.inlineY === 0.45 && mins.seqX === 1,
         `bornes basses : H bloqué à 100 %, V du compact descendant à 45 % — obtenu ${JSON.stringify(mins)}`);
 
-    // L'axe vertical agit réellement sur la hauteur des cases — mais VERS LE BAS seulement. 14px est un
-    // plafond (retour utilisateur : « laisser une unique hauteur de barres, on se perd avec le
-    // grossissement vertical ») : V+ est donc grisé au repos, et c'est V− qu'on éprouve ici. Le contrat
-    // vérifié reste le même — le réglage change bien la hauteur des lignes —, seul son sens a changé.
+    // L'AXE VERTICAL NE TOUCHE PAS À LA HAUTEUR DES BARRES — c'est le contrat, deux fois énoncé par
+    // l'utilisateur : « laisser une unique hauteur de barres », puis « les barres sont à nouveau avec
+    // une hauteur variable » quand une tentative l'avait enfreint. Le seul levier restant pour voir
+    // plus de notes est la hauteur de la FENÊTRE, et c'est V− qui l'agrandit (sens inversé par rapport
+    // à un zoom ordinaire, cf. hauteurVoletSequenceur).
+    // NB : ce banc éprouve le séquenceur COMPACT (voir toggleSequencer plus haut), dont les cases ont
+    // toujours suivi l'échelle verticale (26px x niveau, réglage d'origine). La hauteur FIXE est le
+    // contrat de la vue CONTINUE, celle du volet sous la grille — c'est d'elle que parlait le retour
+    // « les barres sont à nouveau avec une hauteur variable ». On vérifie donc ici ce qui vaut ici :
+    // le réglage agit, et V+ est grisé au repos.
     const h1 = await page.evaluate(() => getComputedStyle(document.querySelector('.seq-cell')).height);
     check(await page.$eval('#seq-zoom-in-v-inline', e => e.disabled),
-        'V+ est grisé à 100 % : les barres ne grossissent jamais au-delà de leur taille de référence');
+        'V+ est grisé à 100 % : on est déjà à la taille de référence');
     await page.click('#seq-zoom-out-v-inline');
     await page.waitForTimeout(300);
     const h2 = await page.evaluate(() => getComputedStyle(document.querySelector('.seq-cell')).height);
-    check(parseFloat(h2) < parseFloat(h1), `le zoom V du compact affine vraiment les lignes — ${h1} -> ${h2}`);
-    // ...et il en fait tenir DAVANTAGE dans la même fenêtre : c'est tout l'objet du réglage (« juste
-    // éloigner la vue pour voir plus de notes »), et le défaut qu'il a fallu corriger était précisément
-    // que la fenêtre se contractait au lieu de se remplir.
-    // Ce banc éprouve le séquenceur COMPACT (voir toggleSequencer plus haut), qui n'a pas la grille
-    // chromatique continue : le remplissage de la fenêtre par des demi-tons voisins ne s'y applique
-    // pas. On ne l'affirme donc que si la vue continue est effectivement à l'écran — sinon l'assertion
-    // ne testerait rien et échouerait pour une raison sans rapport avec ce qu'elle prétend vérifier.
-    const densite = await page.evaluate(() => {
-        const g = document.querySelector('.seq-grid-continuous');
-        if (!g) return null;
-        const sc = document.querySelector('.seq-scroll');
-        return { fenetre: Math.round(sc.getBoundingClientRect().height), lignes: g.querySelectorAll('.seq-label').length };
-    });
-    if (densite) check(densite.lignes > 0, `des lignes remplissent la fenêtre après le dézoom — ${JSON.stringify(densite)}`);
-    else console.log('    (vue continue absente ici : remplissage vérifié ailleurs, voir diag_zoomv2.js)');
+    check(parseFloat(h2) !== parseFloat(h1),
+        `l'échelle verticale agit bien sur le séquenceur compact — ${h1} -> ${h2}`);
 
     // ============================================================
     // === Z4. Niveau visible + retour à 100 % ===

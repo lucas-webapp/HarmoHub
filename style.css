@@ -4287,13 +4287,7 @@ select.song-select-narrow {
    C'est donc la hauteur des LIGNES qui suit le zoom, la fenêtre gardant la sienne : à échelle 0,5, une
    ligne fait 7px et il en tient deux fois plus à l'écran — le comportement d'une station audio. */
 .seq-grid-continuous .seq-cell,
-.seq-grid-continuous .seq-label { height: calc(14px * var(--seq-zoom-scale-v, 1)); }
-/* Sous une certaine finesse, le nom écrit sur la touche ne tient plus dans sa ligne et se réduit à une
-   bouillie de pixels qui salit la gouttière. On le retire alors : la COULEUR de la touche (fonction
-   dans l'accord) reste lisible à n'importe quelle hauteur, et c'est elle qui porte l'information quand
-   on prend du recul. Les noms reviennent seuls dès qu'on remonte l'échelle. La classe est posée par
-   _applySeqVerticalScale — le CSS seul ne sait pas comparer une variable à un seuil. */
-#arp-sequencer.seq-lignes-fines .seq-grid-continuous .seq-label .seq-key-name { visibility: hidden; }
+.seq-grid-continuous .seq-label { height: 14px; }
 /* EXACTEMENT le gabarit des barres éditables : ni hauteur propre, ni marge — la barre remplit sa
    ligne, comme .seq-note. Un reste de l'époque des fins repères de contexte lui donnait 14px de haut
    plus 2px de marge en haut et en bas : mesuré, la barre voisine faisait 14px là où celle qu'on édite

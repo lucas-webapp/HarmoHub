@@ -3648,6 +3648,34 @@ class HarmoHubApp {
             // exactement le symptôme déjà rencontré avec #guitar-lock-btn. Il est donc visé par SA
             // PROPRE classe, comme #arp-sequencer l'est par son id : la règle ne dépend plus de
             // l'endroit où l'élément se trouve.
+            // ONZIÈME, ET C'EST CELLE QUI EXPLIQUE LE « DES FOIS » : le TRANSPORT (Lecture/Boucle/Stop).
+            // placeGlobalTransport le déménage selon la mise en page — dans .col-left quand le panneau
+            // de gauche est ouvert, dans .col-right quand il est replié. Ouvert, il était couvert par
+            // .col-left et tout allait bien ; REPLIÉ, il tombait hors de toute zone d'édition et
+            // cliquer Lecture sortait de la modification, d'où un séquenceur qui « saute et redevient
+            // sommaire »... une fois sur deux, selon l'état du panneau. C'est exactement le
+            // « des fois ça saute » signalé, et la raison pour laquelle deux de mes propres sondes se
+            // contredisaient : l'une avait replié le panneau au cas précédent.
+            // Visé par #footer-dock ET .transport — son accueil et lui-même —, donc indépendamment de
+            // l'endroit où il est posé. C'est la leçon des dix fois précédentes, appliquée d'avance.
+            // NEUVIÈME et DIXIÈME : #toggle-sidebar (replier le panneau de gauche) et
+            // #toggle-voice-leading (ouvrir la conduite de voix). Deux bascules de VUE, comme les
+            // échelles ci-dessous : regarder son travail autrement n'est pas le quitter. Le panneau de
+            // gauche héberge justement le module d'édition — le replier en cours de modification pour
+            // gagner de la place est un geste normal, qui perdait tout.
+            // SEPTIÈME et HUITIÈME fois, trouvées d'un coup en balayant TOUS les boutons visibles
+            // plutôt qu'en attendant le prochain signalement : les six groupes d'échelle
+            // (.zoom-axis-group — H/V de la grille comme du séquenceur) faisaient sortir de l'édition.
+            // Régler une ÉCHELLE D'AFFICHAGE n'est jamais quitter son travail : c'est le regarder
+            // autrement. Visés par leur classe commune, donc valables où qu'ils soient placés.
+            // SIXIÈME fois : .seq-dock-panel. #arp-sequencer ne couvre que le séquenceur lui-même, pas
+            // le VOLET qui l'accueille sous la grille — or ce volet a sa propre poignée de hauteur
+            // (#seq-dock-resize), en dehors. Mesuré : tirer cette poignée en cours de modification
+            // faisait retomber editingIndex à null, et le rendu suivant repassait le séquenceur en vue
+            // sommaire, puisque la vue continue exige editingIndex != null (voir `continuous` dans
+            // renderSequencer). C'est le « des fois le séquenceur saute et redevient un séquenceur
+            // sommaire » signalé par l'utilisateur. Le volet entier est visé, pas la seule poignée :
+            // tout ce que le volet ajoutera autour du séquenceur relève du même travail en cours.
             // CINQUIÈME fois, et cette fois sans déménagement : #global-undo-btn/#global-redo-btn
             // vivent dans la barre du haut depuis toujours, donc hors de toutes les zones ci-dessus.
             // Or ces deux boutons agissent SUR l'édition en cours (voir globalUndo : séquenceur ouvert
@@ -3661,8 +3689,11 @@ class HarmoHubApp {
             // continuer à fermer l'édition.
             const inEditor = inPath('.col-left') || inPath('.seq-zoom-modal')
                 || inPath('.chord-header-row') || inPath('.viz-wrap') || inPath('.viz-toggle')
-                || inPath('#arp-sequencer')
-                || inPath('#global-undo-btn') || inPath('#global-redo-btn');
+                || inPath('#arp-sequencer') || inPath('.seq-dock-panel')
+                || inPath('#global-undo-btn') || inPath('#global-redo-btn')
+                || inPath('.zoom-axis-group')
+                || inPath('#toggle-sidebar') || inPath('#toggle-voice-leading')
+                || inPath('#footer-dock') || inPath('.transport');
             // Boutons qui OUVRENT le séquenceur ou sa vue agrandie depuis l'accord déjà
             // sélectionné/en édition (appelés par LEUR PROPRE onclick avant que ce même clic ne remonte
             // jusqu'ici) : .seq-zoom-modal n'existe pas encore dans le chemin du clic à cet instant (le
@@ -12236,12 +12267,17 @@ class HarmoHubApp {
         // Jamais plus haut que l'écran : passé là, le volet pousserait les boutons hors de vue.
         // `seqInlineZoomLevelY` : le niveau que pilotent les boutons V DU VOLET (kind 'seqInline',
         // voir setupZoomControls) — pas celui de la grille d'accords, qui a les siens en haut.
-        // Plus AUCUN facteur de zoom ici. Le zoom vertical agit sur la hauteur des LIGNES (voir
-        // .seq-grid-continuous .seq-cell en CSS), pas sur celle de la fenêtre : la faire varier revenait
-        // à rétrécir la vue quand on demandait à en voir plus (« lorsque je dézoome avec V−, la fenêtre
-        // du séquenceur se contracte, au lieu de pouvoir voir plus de notes »). La fenêtre garde donc sa
-        // taille — automatique ici, ou celle réglée à la poignée — et c'est la densité qui change.
-        let h = Math.max(140, Math.min(window.innerHeight * 0.8, base));
+        // LE SENS DU RÉGLAGE EST INVERSÉ PAR RAPPORT À UN ZOOM ORDINAIRE, et c'est voulu. La hauteur
+        // de barre est FIXE (14px, voir .seq-grid-continuous .seq-cell) : « laisser une unique hauteur
+        // de barres ». Le seul levier qui reste pour « voir plus de notes » est donc la hauteur de la
+        // FENÊTRE — et c'est V− qu'on presse quand on veut en voir plus. Diviser par le niveau donne
+        // exactement ça : V− (niveau qui descend) agrandit le volet, V+ le resserre.
+        // L'essai précédent faisait l'inverse (multiplier), d'où « lorsque je dézoome avec V−, la
+        // fenêtre du séquenceur se contracte, au lieu de pouvoir voir plus de notes ». Et l'essai
+        // d'après faisait varier la hauteur des LIGNES, ce qui donnait des barres de taille variable —
+        // le reproche d'origine. Fenêtre variable + barres fixes est la seule combinaison qui satisfasse
+        // les deux à la fois.
+        let h = Math.max(140, Math.min(window.innerHeight * 0.8, base / (this.seqInlineZoomLevelY || 1)));
         // ...mais jamais plus haut que ce qu'il y a RÉELLEMENT à montrer. Sans ce plafond, agrandir la
         // vue sur un accord de vingt demi-tons n'ajouterait que du vide sous les notes — exactement le
         // reproche fait par ailleurs (« beaucoup trop d'espace perdu en bas de la page »). Le zoom
@@ -12278,12 +12314,9 @@ class HarmoHubApp {
             //   - le même, divisé par l'échelle : scrollHeight est plafonné par le conteneur dès que le
             //     contenu y tient, si bien que la division le SURESTIME et la fenêtre enflait — 383px
             //     pour 167px de notes, le retour du vide qu'on venait d'éliminer.
-            // Compter les lignes ne dépend, lui, d'aucune échelle. On prend l'étendue NATURELLE posée
-            // par renderSequencer (les demi-tons qui sonnent), pas les étiquettes présentes dans le
-            // DOM : celles-ci incluent les lignes de remplissage ajoutées au dézoom, qui existent
-            // justement PARCE QUE la fenêtre fait cette taille — les compter ici ferait grandir la
-            // fenêtre, qui redemanderait des lignes, sans point fixe.
-            const nbLignes = this._seqLignesNaturelles || grille.querySelectorAll('.seq-label').length;
+            // Une ligne par demi-ton affiché, à 14px : le contenu ne dépend plus d'aucune échelle
+            // depuis que la hauteur de barre est fixe.
+            const nbLignes = grille.querySelectorAll('.seq-label').length;
             const contenuEchelle1 = SEQ_RULER_PX + nbLignes * SEQ_LIGNE_PX;
             h = Math.min(h, contenuEchelle1 + autour + 8);
         }
@@ -12812,19 +12845,6 @@ class HarmoHubApp {
             // les deux en place, sans reconstruire. Le rendu complet ne reste nécessaire que si aucune
             // grille défilante n'est à l'écran (vue paginée, qui répartit ses colonnes en 1fr).
             this._applySeqVerticalScale();
-            // L'échelle VERTICALE, elle, ne peut pas se contenter d'une variable CSS : elle change le
-            // NOMBRE de lignes à dessiner (des demi-tons voisins viennent occuper la place libérée, voir
-            // rowOrder dans renderSequencer). Il faut donc reconstruire, alors que le raccourci
-            // ci-dessous — prévu pour l'axe horizontal, où seule la largeur des colonnes bouge — sort
-            // avant tout rendu. Sans ce test, V− amincissait les lignes sans jamais en ajouter, et le
-            // bas de la fenêtre restait noir.
-            const vChange = this._seqDerniereEchelleV !== this.seqInlineZoomLevelY;
-            this._seqDerniereEchelleV = this.seqInlineZoomLevelY;
-            if (vChange && this.seqOpen) {
-                if (this._zoomPinchActive) this._seqZoomRenderPending = true;
-                else this.renderSequencer();
-                return;
-            }
             if (this.seqOpen && this._appliquerEchelleHorizontale(this.seqInlineZoomLevelX)) return;
             if (this.seqOpen) {
                 if (this._zoomPinchActive) this._seqZoomRenderPending = true;
@@ -12901,10 +12921,6 @@ class HarmoHubApp {
         if (!seq) return;
         if (this.seqZoomOpen) seq.style.removeProperty('--seq-zoom-scale-v');
         else seq.style.setProperty('--seq-zoom-scale-v', String(this.seqInlineZoomLevelY));
-        // Lignes devenues trop fines pour porter un texte lisible : on masque les noms de notes plutôt
-        // que de les laisser s'écraser (voir .seq-lignes-fines en CSS). 0,75 x 14px ≈ 10px, soit la
-        // taille de la police elle-même : en dessous, le nom ne tient plus dans sa ligne.
-        seq.classList.toggle('seq-lignes-fines', !this.seqZoomOpen && this.seqInlineZoomLevelY < 0.75);
     }
 
     // Position verticale du pointeur -> pourcentage d'intensité (0 en bas, 100 en haut) pour LA croche
@@ -13101,34 +13117,7 @@ class HarmoHubApp {
             const sonnantes = new Set(midis);
             prevMidiSet.forEach(m => sonnantes.add(m));
             nextMidiSet.forEach(m => sonnantes.add(m));
-            let bas = Math.min(...sonnantes), haut = Math.max(...sonnantes);
-            // Étendue NATURELLE (ce que l'accord et ses voisins font sonner), mémorisée avant tout
-            // remplissage : c'est ELLE qui décide de la hauteur de la fenêtre (voir
-            // hauteurVoletSequenceur). Les lignes ajoutées juste en dessous ne servent qu'à occuper la
-            // place libérée par un dézoom — les compter ferait grandir la fenêtre, donc redemanderait
-            // des lignes, et ainsi de suite : les deux calculs se poursuivraient sans jamais se poser.
-            this._seqLignesNaturelles = haut - bas + 1;
-            // DÉZOOMER VERTICALEMENT DOIT MONTRER PLUS DE CLAVIER, pas seulement des lignes plus fines.
-            // Sans ce complément, V− amincissait bien les lignes mais laissait leur NOMBRE inchangé :
-            // le contenu se tassait dans le haut de la fenêtre et le bas devenait un rectangle noir —
-            // on voyait la même chose en plus petit, ce qui ne sert à rien. On complète donc l'étendue
-            // qui sonne par les demi-tons voisins, jusqu'à remplir la hauteur disponible. À l'échelle 1
-            // le compte tombe pile sur l'étendue de l'accord (la fenêtre est calée dessus, voir
-            // hauteurVoletSequenceur) : aucun ajout, rien ne change pour qui ne touche pas au zoom.
-            // Réparti des deux côtés, l'accord restant centré — c'est sa position dans le clavier qu'on
-            // vient regarder de plus loin.
-            const bande = document.querySelector('#arp-sequencer .seq-scroll');
-            const dispo = bande ? bande.clientHeight : 0;
-            const hauteurLigne = SEQ_LIGNE_PX * (this.seqInlineZoomLevelY || 1);
-            if (dispo > 0 && hauteurLigne > 0) {
-                const tiennent = Math.floor((dispo - SEQ_RULER_PX) / hauteurLigne);
-                let manque = tiennent - (haut - bas + 1);
-                // Bornes MIDI réelles : inutile de dessiner des lignes qu'aucun instrument ne joue.
-                while (manque > 0 && (haut < 108 || bas > 21)) {
-                    if (haut < 108) { haut++; manque--; }
-                    if (manque > 0 && bas > 21) { bas--; manque--; }
-                }
-            }
+            const bas = Math.min(...sonnantes), haut = Math.max(...sonnantes);
             rowOrder = [];
             for (let m = haut; m >= bas; m--) rowOrder.push({ voice: midis.indexOf(m), midi: m });
         } else {
