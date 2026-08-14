@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608141500">
+    <link rel="stylesheet" href="style.css?v=202608141530">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -764,11 +764,12 @@
         </div>
         <!-- Étiquette de repli, accrochée au bord du panneau plutôt que perdue en haut à droite parmi
              Annuler/Rétablir/Paramètres (retour utilisateur : « l'emplacement du bouton pour masquer le
-             volet de gauche n'est pas instinctif »). Hauteur et position calées sur le premier bouton
-             du panneau (voir #song-card .card-head-actions .icon-btn : même 32px de haut, même
-             13px depuis le haut — bordure + padding de la première carte) pour qu'elle se lise comme
-             en prolongement de ce bouton plutôt que flottant au hasard. Simple chevron, sans texte : des
-             trois habillages proposés, c'est celui-ci qui a été retenu (« ça prendra moins de place »). -->
+             volet de gauche n'est pas instinctif »). Hauteur et position calées sur l'EN-TÊTE du panneau
+             (voir #song-card .card-head : du haut du premier bouton jusqu'au bas du sélecteur de titre
+             du morceau, #song-select — retour utilisateur, deuxième passe : « trop petit en hauteur,
+             étire-le jusqu'en bas du bouton du titre du morceau ») plutôt que flottant au hasard sur
+             toute la colonne. Simple chevron, sans texte : des trois habillages proposés, c'est celui-ci
+             qui a été retenu (« ça prendra moins de place »). -->
         <button type="button" id="toggle-sidebar" class="sidebar-tab" title="Masquer le panneau de gauche" aria-label="Masquer le panneau de gauche" aria-pressed="false">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
         </button>
@@ -1066,6 +1067,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608141500"></script>
+    <script src="script.js?v=202608141530"></script>
 </body>
 </html>

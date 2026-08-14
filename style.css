@@ -3973,23 +3973,34 @@ select.song-select-narrow {
        16px ; 20px lui laisse tout juste la place, avec 4px de respiration, tout en rendant quand même
        8px de plus à la grille que l'ancien gap de 28px. */
     body.sidebar-collapsed main { gap: 20px; }
+    /* Repliée, l'étiquette garde le haut/bas calés sur #song-card — retour utilisateur : « le bouton
+       n'est pas beau en haut à gauche, son affichage n'est pas logique ». Mesuré : une fois le panneau
+       parti, ces 86px ne correspondaient plus à rien à côté d'elle — juste une longue barre flottant
+       sans lien avec le reste. Repliée, ce qui reste à sa hauteur est l'en-tête de la GRILLE
+       (.grid-head-sticky, 36px, même haut que .sidebar-frame — les deux colonnes partent du même point
+       via align-items:stretch) : elle s'y cale à sa place, comme un onglet accolé à ce bandeau plutôt
+       qu'une réglette perdue dans le vide. */
+    body.sidebar-collapsed .sidebar-tab {
+        top: 0;
+        height: 36px;
+    }
 
     /* Étiquette de repli : accrochée au bord de .sidebar-frame (voir index.html + le commentaire plus
-       haut sur ce même bloc), pas au milieu de sa hauteur mais calée sur le PREMIER bouton du panneau
-       (#song-card .card-head-actions .icon-btn, 32px de haut) pour que les deux se lisent comme une
-       seule ligne — retour utilisateur : « ajuste sa hauteur pour qu'il y ait une cohérence [...] base
-       du chevron = base ou haut d'un bouton du volet ». 13px = bordure (1px) + padding-top (12px) de
-       #song-card, la première .control-card de la colonne (voir .control-card ci-dessous) : haut ET
-       bas de l'étiquette coïncident ainsi avec haut et bas de ce premier bouton. right:-16px la fait
-       déborder du panneau dans la marge qui le sépare de la grille (28px de gap, voir `main` plus
-       haut), sans jamais toucher .col-right. */
+       haut sur ce même bloc), pas au milieu de sa hauteur mais calée sur l'EN-TÊTE du panneau — retour
+       utilisateur, deux passes : d'abord haut/bas sur le seul premier bouton (32px), puis « trop petit
+       en hauteur, étire-le jusqu'en bas du bouton du titre du morceau ». Elle court donc du haut de
+       #song-card .card-head (13px = bordure + padding-top de #song-card) jusqu'au bas de #song-select
+       (le sélecteur de titre, dans ce même .card-head — voir #song-card #song-select ci-dessous, qui
+       l'y range en enfant à largeur pleine plutôt qu'en dessous) : 86px, mesuré, = la hauteur exacte de
+       ce .card-head en entier. right:-16px la fait déborder du panneau dans la marge qui le sépare de
+       la grille (28px de gap, voir `main` plus haut), sans jamais toucher .col-right. */
     .sidebar-tab {
         display: flex;
         position: absolute;
         top: 13px;
         right: -16px;
         width: 16px;
-        height: 32px;
+        height: 86px;
     }
     /* #footer-dock est alors déplacé dans .col-right (voir applySidebarCollapsed) : son padding-right
        ne sert plus à s'aligner avec la scrollbar de .panel-controls, disparu avec le reste du panneau. */
