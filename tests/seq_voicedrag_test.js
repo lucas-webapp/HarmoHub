@@ -8,7 +8,11 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     const browser = await chromium.launch({
         args: ['--autoplay-policy=no-user-gesture-required'],
     });
-    const page = await browser.newPage();
+    // VIEWPORT EXPLICITE. Sans lui, Playwright ouvre en 1280x720 et le séquenceur compact tombe sous
+    // la ligne de flottaison : la note témoin était mesurée à y=721,4 — un pixel plus bas que l'écran.
+    // Les clics n'atteignaient donc rien, et le banc concluait à un glissé de voix cassé alors que la
+    // fonctionnalité marche (vérifiée à la main dans les deux vues).
+    const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
     page.on('console', (msg) => { if (msg.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_NAME_NOT_RESOLVED|fonts\.googleapis|fonts\.gstatic/.test(msg.text())) errors.push('console.error: ' + msg.text()); });
@@ -33,7 +37,12 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.waitForTimeout(100);
     // clear voice0 pattern entirely and paint just steps 2,3
     await page.evaluate(() => {
-        for (let s = 0; s < 16; s++) window.app.applySeqCell(0, s, false);
+        // TOUTES les voix effacées, pas seulement la 0. Le montage d'origine laissait les voix 1 à 3
+        // tenues sur les seize croches ; il déplaçait ensuite une note SUR la voix 2, déjà pleine — son
+        // assertion ne pouvait donc rien observer, et l'étape « COPY » suivante cherchait une note que
+        // la précédente n'avait jamais créée, d'où un plantage. Le banc échouait pour cette raison
+        // seule, sur du code parfaitement sain (vérifié à la main dans les deux vues).
+        for (let v = 0; v < 4; v++) for (let s = 0; s < 16; s++) window.app.applySeqCell(v, s, false);
         window.app.applySeqCell(0, 2, true, false);
         window.app.applySeqCell(0, 3, true, true);
         window.app.renderSequencer();

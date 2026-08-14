@@ -1776,15 +1776,28 @@ const SEQ_COL_PX_MAX = 28;
 // extrémité, le milieu pour la prendre. Les notes de trois croches ou plus gardent leur découpe PAR
 // CASE (toute la première case est la poignée de début, toute la dernière celle de fin) : elle est
 // plus généreuse, et il n'y a aucune raison de la rétrécir là où le problème ne se pose pas.
-// La poignée vaut 30 % de la note, bornée : jamais moins de 9 px (introuvable en dessous), jamais
-// plus de 18 px (au-delà elle mangerait le milieu sans rien apporter).
-const SEQ_ZONE_HANDLE_MIN_PX = 9;
+// LA POIGNÉE EST UNE FRACTION DE LA NOTE, ET LE CORPS NE DISPARAÎT JAMAIS. Les seuils étaient
+// absolus (9 à 18 px de poignée, 16 px de corps minimum) et réglés du temps où une case faisait
+// 59 px. Dans la vue continue une colonne en fait 14 : une note de deux doubles croches mesure 28 px,
+// dont 18 mangés par les deux poignées — il restait 10 px, sous le seuil de 16, donc AUCUN corps.
+// Mesuré : une telle note ne pouvait pas être déplacée dans le temps, elle s'étirait toujours
+// (4-5 -> 5-5), alors qu'une note de quatre croches se déplaçait normalement.
+// C'est le même défaut de raisonnement que pour le glissé vertical : un seuil en pixels absolus dans
+// une vue dont l'échelle varie du simple au quadruple.
+//
+// Modèle repris de GarageBand/Logic : de petites poignées AUX BORDS, tout le reste déplace, et la
+// précision vient du zoom horizontal — pas d'une zone plus fine. Deux conséquences tenues ici :
+//   - la poignée vaut 25 % de la note, plafonnée à 18 px (au-delà elle mangerait le milieu pour rien)
+//     et plancher à 5 px (en dessous elle serait invisible à la souris) ;
+//   - si la note est si étroite que deux poignées ne laisseraient pas de milieu, on ne renonce plus au
+//     corps : on partage en DEUX — la moitié gauche déplace, la moitié droite étire par la fin. C'est
+//     le geste utile sur une note d'une seule croche (l'allonger), et déplacer reste toujours possible.
+const SEQ_ZONE_HANDLE_RATIO = 0.25;
+const SEQ_ZONE_HANDLE_MIN_PX = 5;
 const SEQ_ZONE_HANDLE_MAX_PX = 18;
-// En dessous de cette largeur restante, on renonce aux zones et on garde le comportement d'avant :
-// mieux vaut une note qu'on ne peut qu'étirer qu'un milieu de quelques pixels que personne
-// n'atteindrait. C'est ce seuil — et non le type d'appareil — qui décide : une case fait 59 px sur
-// ordinateur (le milieu y est confortable) contre 18,7 px sur téléphone (il n'y tient pas).
-const SEQ_ZONE_MIN_BODY_PX = 16;
+// En dessous de cette largeur de corps, on bascule sur le partage en deux décrit ci-dessus plutôt que
+// de rendre la note inéplaçable.
+const SEQ_ZONE_MIN_BODY_PX = 6;
 
 const METRONOME_SUBDIVISION_KEY = 'harmohubMetronomeSubdivision';
 const SHOW_ROMAN_KEY = 'harmohubShowRomanNumerals';
@@ -10495,8 +10508,12 @@ class HarmoHubApp {
         );
         if (!bar) return null; // barre introuvable (note coupée par la page) : on ne devine rien
         const r = bar.getBoundingClientRect();
-        const handle = Math.min(SEQ_ZONE_HANDLE_MAX_PX, Math.max(SEQ_ZONE_HANDLE_MIN_PX, r.width * 0.3));
-        if (r.width - 2 * handle < SEQ_ZONE_MIN_BODY_PX) return null;
+        const handle = Math.min(SEQ_ZONE_HANDLE_MAX_PX, Math.max(SEQ_ZONE_HANDLE_MIN_PX, r.width * SEQ_ZONE_HANDLE_RATIO));
+        // Note trop étroite pour trois zones : deux suffisent, et le corps passe devant. On ne renvoie
+        // plus null — c'était condamner la note à ne jamais pouvoir être déplacée.
+        if (r.width - 2 * handle < SEQ_ZONE_MIN_BODY_PX) {
+            return clientX > r.left + r.width * 0.6 ? 'end' : 'body';
+        }
         if (clientX < r.left + handle) return 'start';
         if (clientX > r.right - handle) return 'end';
         return 'body';
@@ -12271,17 +12288,10 @@ class HarmoHubApp {
         // Jamais plus haut que l'écran : passé là, le volet pousserait les boutons hors de vue.
         // `seqInlineZoomLevelY` : le niveau que pilotent les boutons V DU VOLET (kind 'seqInline',
         // voir setupZoomControls) — pas celui de la grille d'accords, qui a les siens en haut.
-        // LE SENS DU RÉGLAGE EST INVERSÉ PAR RAPPORT À UN ZOOM ORDINAIRE, et c'est voulu. La hauteur
-        // de barre est FIXE (14px, voir .seq-grid-continuous .seq-cell) : « laisser une unique hauteur
-        // de barres ». Le seul levier qui reste pour « voir plus de notes » est donc la hauteur de la
-        // FENÊTRE — et c'est V− qu'on presse quand on veut en voir plus. Diviser par le niveau donne
-        // exactement ça : V− (niveau qui descend) agrandit le volet, V+ le resserre.
-        // L'essai précédent faisait l'inverse (multiplier), d'où « lorsque je dézoome avec V−, la
-        // fenêtre du séquenceur se contracte, au lieu de pouvoir voir plus de notes ». Et l'essai
-        // d'après faisait varier la hauteur des LIGNES, ce qui donnait des barres de taille variable —
-        // le reproche d'origine. Fenêtre variable + barres fixes est la seule combinaison qui satisfasse
-        // les deux à la fois.
-        let h = Math.max(140, Math.min(window.innerHeight * 0.8, base / (this.seqInlineZoomLevelY || 1)));
+        // Hauteur AUTOMATIQUE seulement : une part de l'écran, plafonnée par ce qu'il y a à montrer.
+        // Aucun facteur de zoom — la paire V+/V− a été retirée, la poignée du volet rendant le même
+        // service plus directement (voir _bindZoomButtons).
+        let h = Math.max(140, Math.min(window.innerHeight * 0.8, base));
         // ...mais jamais plus haut que ce qu'il y a RÉELLEMENT à montrer. Sans ce plafond, agrandir la
         // vue sur un accord de vingt demi-tons n'ajouterait que du vide sous les notes — exactement le
         // reproche fait par ailleurs (« beaucoup trop d'espace perdu en bas de la page »). Le zoom
@@ -13665,11 +13675,6 @@ class HarmoHubApp {
                     <button type="button" id="seq-zoom-in-h-inline" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">${svgIcon('plus')}</button>
                     <button type="button" id="seq-zoom-out-h-inline" class="icon-btn zoom-axis-btn" title="Réduire l'échelle horizontale" aria-label="Réduire l'échelle horizontale">${svgIcon('minus')}</button>
                 </div>
-                <div class="zoom-axis-group" data-zoom-kind="seqInline" data-zoom-axis="y" title="Échelle verticale">
-                    <span class="zoom-axis-tag">V</span>
-                    <button type="button" id="seq-zoom-in-v-inline" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle verticale" aria-label="Agrandir l'échelle verticale">${svgIcon('plus')}</button>
-                    <button type="button" id="seq-zoom-out-v-inline" class="icon-btn zoom-axis-btn" title="Réduire l'échelle verticale" aria-label="Réduire l'échelle verticale">${svgIcon('minus')}</button>
-                </div>
             </div>` : ''}
         </div>`;
 
@@ -13842,7 +13847,6 @@ class HarmoHubApp {
         // _bindZoomButtons/setZoomLevel, kind 'seqInline') — il avait jusque-là ses propres fonctions.
         this._bindZoomButtons('seqInline', {
             inH: 'seq-zoom-in-h-inline', outH: 'seq-zoom-out-h-inline',
-            inV: 'seq-zoom-in-v-inline', outV: 'seq-zoom-out-v-inline',
         });
         // Séquenceur épinglé de la loupe grille (vue continue) : mêmes seqZoomLevelX/Y que la loupe
         // séquenceur autonome (voir le commentaire au-dessus de ces boutons, plus haut dans ce rendu).

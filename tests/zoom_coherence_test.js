@@ -27,84 +27,86 @@ async function openSeq(page) {
     // ============================================================
     // === Z3. Le séquenceur compact a deux axes et passe par l'API commune ===
     // ============================================================
-    check(await page.evaluate(() => typeof window.app.seqInlineZoomLevelY === 'number'),
-        'le séquenceur compact a désormais une échelle VERTICALE, comme tous les autres panneaux');
     check(await page.evaluate(() => window.app.adjustSeqInlineZoom === undefined),
         'ses fonctions de zoom séparées ont disparu au profit de l\'API commune (setZoomLevel)');
-    check(await page.isVisible('.zoom-axis-group[data-zoom-kind="seqInline"][data-zoom-axis="y"]'),
-        'ses boutons V sont bien présents dans la barre du séquenceur');
+    // Le groupe V du séquenceur a été RETIRÉ : avec une hauteur de barre fixe il faisait double emploi
+    // avec la poignée du volet, en moins direct. L'assertion d'origine exigeait sa présence — elle
+    // décrivait une étape intermédiaire de la conception, pas le besoin.
+    check(!(await page.$('.zoom-axis-group[data-zoom-kind="seqInline"][data-zoom-axis="y"]')),
+        'le groupe V du séquenceur a bien disparu (la poignée du volet le remplace)');
 
     // La borne basse propre à son axe H (0.3) est conservée, celle de V est la commune (0.7).
     const mins = await page.evaluate(() => ({
         inlineX: window.app.zoomMinFor('seqInline', 'x'),
-        inlineY: window.app.zoomMinFor('seqInline', 'y'),
         seqX: window.app.zoomMinFor('seq', 'x'),
     }));
     // Bornes basses D'AUJOURD'HUI (l'assertion d'origine décrivait un réglage abandonné depuis) :
     //   - axe H du séquenceur : plancher remonté à 1, « voir trop petit ne me sert à rien » ;
     //   - axe V du séquenceur compact : descendu à 0,45, parce que c'est devenu le seul sens utile de
     //     ce réglage — 14px de ligne étant un plafond, tout l'intérêt est d'en voir plus d'un coup.
-    check(mins.inlineX === 1 && mins.inlineY === 0.45 && mins.seqX === 1,
-        `bornes basses : H bloqué à 100 %, V du compact descendant à 45 % — obtenu ${JSON.stringify(mins)}`);
+    check(mins.inlineX === 1 && mins.seqX === 1,
+        `bornes basses : les axes H du séquenceur sont bloqués à 100 % — obtenu ${JSON.stringify(mins)}`);
 
     // L'AXE VERTICAL NE TOUCHE PAS À LA HAUTEUR DES BARRES — c'est le contrat, deux fois énoncé par
     // l'utilisateur : « laisser une unique hauteur de barres », puis « les barres sont à nouveau avec
     // une hauteur variable » quand une tentative l'avait enfreint. Le seul levier restant pour voir
     // plus de notes est la hauteur de la FENÊTRE, et c'est V− qui l'agrandit (sens inversé par rapport
     // à un zoom ordinaire, cf. hauteurVoletSequenceur).
-    // NB : ce banc éprouve le séquenceur COMPACT (voir toggleSequencer plus haut), dont les cases ont
-    // toujours suivi l'échelle verticale (26px x niveau, réglage d'origine). La hauteur FIXE est le
-    // contrat de la vue CONTINUE, celle du volet sous la grille — c'est d'elle que parlait le retour
-    // « les barres sont à nouveau avec une hauteur variable ». On vérifie donc ici ce qui vaut ici :
-    // le réglage agit, et V+ est grisé au repos.
-    const h1 = await page.evaluate(() => getComputedStyle(document.querySelector('.seq-cell')).height);
-    check(await page.$eval('#seq-zoom-in-v-inline', e => e.disabled),
-        'V+ est grisé à 100 % : on est déjà à la taille de référence');
-    await page.click('#seq-zoom-out-v-inline');
-    await page.waitForTimeout(300);
-    const h2 = await page.evaluate(() => getComputedStyle(document.querySelector('.seq-cell')).height);
-    check(parseFloat(h2) !== parseFloat(h1),
-        `l'échelle verticale agit bien sur le séquenceur compact — ${h1} -> ${h2}`);
+    // LA PAIRE V DU SÉQUENCEUR N'EXISTE PLUS. Avec une hauteur de barre fixe, elle ne pouvait que
+    // redimensionner la fenêtre — ce que la poignée du volet fait déjà, d'un seul geste et sans sens
+    // inversé (retour utilisateur : « il n'a peut-être plus de sens, surtout si la poignée de scroll
+    // fonctionne bien »). On vérifie donc l'inverse de ce qu'affirmait ce bloc : elle est bien absente,
+    // et l'axe horizontal, lui, est resté.
+    check(!(await page.$('#seq-zoom-in-v-inline')) && !(await page.$('#seq-zoom-out-v-inline')),
+        'la paire V du séquenceur a bien été retirée (la poignée du volet la remplace)');
+    check(!!(await page.$('#seq-zoom-in-h-inline')),
+        'l\'axe horizontal du séquenceur, lui, est conservé — il change vraiment l\'échelle du temps');
 
     // ============================================================
     // === Z4. Niveau visible + retour à 100 % ===
     // ============================================================
-    const tagState = await page.evaluate(() => {
-        const tag = document.querySelector('.zoom-axis-group[data-zoom-kind="seqInline"][data-zoom-axis="y"] .zoom-axis-tag');
+    // Éprouvé sur l'axe HORIZONTAL du séquenceur : c'est celui qui reste depuis le retrait de la paire
+    // V. Le contrat vérifié est inchangé (étiquette qui s'allume, niveau exact annoncé, retour à 100 %
+    // au clic, boutons grisés aux bornes) — seul l'axe qui le porte a changé.
+    const AXE_H = '.zoom-axis-group[data-zoom-kind="seqInline"][data-zoom-axis="x"]';
+    await page.click('#seq-zoom-in-h-inline');
+    await page.waitForTimeout(300);
+    const tagState = await page.evaluate((sel) => {
+        const tag = document.querySelector(sel + ' .zoom-axis-tag');
         return { off: tag.classList.contains('zoom-axis-tag-off'), title: tag.title, role: tag.getAttribute('role') };
-    });
+    }, AXE_H);
     check(tagState.off, 'l\'étiquette s\'allume dès que l\'échelle s\'écarte de 100 %');
-    // 80 % et non 110 % : un cran vaut une PROPORTION (x1,25 — donc /1,25 en dézoom, voir
-    // ZOOM_LEVEL_RATIO/adjustZoom) et non plus +0,1. Le contrat vérifié ici — « l'infobulle annonce
-    // le niveau exact » — n'a pas changé, seule la valeur attendue après UN clic.
-    check(/80\s*%/.test(tagState.title), `l'infobulle annonce le niveau exact — obtenu "${tagState.title}"`);
+    // 125 % : un cran vaut une PROPORTION (x1,25, voir ZOOM_LEVEL_RATIO/adjustZoom) et non plus +0,1 —
+    // le plafond x4, relevé à la demande, demandait sinon trente clics.
+    check(/125\s*%/.test(tagState.title), `l'infobulle annonce le niveau exact — obtenu "${tagState.title}"`);
     check(tagState.role === 'button', 'l\'étiquette est annoncée comme un bouton (atteignable au clavier)');
 
-    await page.click('.zoom-axis-group[data-zoom-kind="seqInline"][data-zoom-axis="y"] .zoom-axis-tag');
+    await page.click(AXE_H + ' .zoom-axis-tag');
     await page.waitForTimeout(300);
-    const afterReset = await page.evaluate(() => ({
-        level: window.app.seqInlineZoomLevelY,
-        off: document.querySelector('.zoom-axis-group[data-zoom-kind="seqInline"][data-zoom-axis="y"] .zoom-axis-tag').classList.contains('zoom-axis-tag-off'),
-    }));
+    const afterReset = await page.evaluate((sel) => ({
+        level: window.app.seqInlineZoomLevelX,
+        off: document.querySelector(sel + ' .zoom-axis-tag').classList.contains('zoom-axis-tag-off'),
+    }), AXE_H);
     check(afterReset.level === 1 && !afterReset.off,
         `cliquer l'étiquette ramène l'échelle à 100 % — obtenu ${JSON.stringify(afterReset)}`);
 
-    // Boutons désactivés une fois la borne atteinte.
-    await page.evaluate(() => window.app.setZoomLevel('seqInline', 'y', 2));
+    // Boutons désactivés une fois la borne atteinte (plafond x4 sur cet axe).
+    await page.evaluate(() => window.app.setZoomLevel('seqInline', 'x', 4));
     await page.waitForTimeout(300);
-    const atMax = await page.evaluate(() => {
-        const g = document.querySelector('.zoom-axis-group[data-zoom-kind="seqInline"][data-zoom-axis="y"]');
-        const b = g.querySelectorAll('.zoom-axis-btn');
+    const atMax = await page.evaluate((sel) => {
+        const b = document.querySelector(sel).querySelectorAll('.zoom-axis-btn');
         return { plus: b[0].disabled, minus: b[1].disabled };
-    });
+    }, AXE_H);
     check(atMax.plus && !atMax.minus, `à la borne haute, « + » est désactivé et « - » reste actif — obtenu ${JSON.stringify(atMax)}`);
-    await page.evaluate(() => window.app.setZoomLevel('seqInline', 'y', 1));
+    await page.evaluate(() => window.app.setZoomLevel('seqInline', 'x', 1));
     await page.waitForTimeout(200);
 
-    // Les six groupes d'index.html sont bien annotés et pris en charge.
+    // Groupes réellement déclarés aujourd'hui. « grid/x » et « grid/y » ont disparu avec la vue plein
+    // écran de la grille, « seqInline/y » avec la paire V : les exiger revenait à réclamer le retour de
+    // fonctionnalités supprimées à la demande.
     const groups = await page.evaluate(() => [...document.querySelectorAll('.zoom-axis-group[data-zoom-kind]')]
         .map(g => `${g.dataset.zoomKind}/${g.dataset.zoomAxis}`));
-    for (const expected of ['seq/x', 'seq/y', 'grid/x', 'grid/y', 'classicGrid/x', 'classicGrid/y', 'seqInline/x', 'seqInline/y']) {
+    for (const expected of ['seq/x', 'seq/y', 'classicGrid/x', 'classicGrid/y', 'seqInline/x']) {
         check(groups.includes(expected), `le groupe ${expected} est déclaré et pris en charge par updateZoomControls`);
     }
 
