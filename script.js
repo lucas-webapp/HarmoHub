@@ -3379,9 +3379,6 @@ class HarmoHubApp {
         this.setupSortieEditionAuClic();
 
         document.getElementById('add-section').onclick = () => this.addSection();
-        // Même geste, juste accessible sans descendre jusqu'en bas d'une longue grille (voir
-        // index.html, retour utilisateur sur #add-section-head).
-        document.getElementById('add-section-head').onclick = () => this.addSection();
         document.getElementById('transpose-song-down').onclick = () => this.transposeSong(-1);
         document.getElementById('transpose-song-up').onclick = () => this.transposeSong(1);
 
@@ -6571,7 +6568,8 @@ class HarmoHubApp {
         this.loadProgression();
     }
 
-    // Bouton « + Ajouter une partie » : nouvelle partie vide, aussitôt active, prête à être nommée
+    // Bouton « + Ajouter section » (libellé raccourci — retour utilisateur, voir index.html) :
+    // nouvelle partie vide, aussitôt active, prête à être nommée.
     addSection() {
         const sections = loadProgressionSections();
         this.pushUndo(sections);

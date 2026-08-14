@@ -1127,15 +1127,6 @@ main {
     flex: none;
 }
 .grid-head-transport-host:empty { display: none; }
-/* Titre + bouton "Ajouter une partie" (voir index.html) : groupés dans leur propre flex pour rester
-   collés l'un à l'autre malgré le justify-content:space-between de .card-head (même besoin que
-   .card-head-right, voir plus haut). */
-.grid-head-title-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.add-section-head-btn { flex: none; }
 /* Dans l'en-tête, le transport reste une RANGÉE compacte (le défaut de .transport), mais ses boutons
    se calent sur la hauteur des autres commandes de la ligne (zoom, loupe : 32px) plutôt que sur les
    52px pleine largeur du pied de colonne tactile — sinon cette ligne, désormais permanente, doublerait
@@ -2530,10 +2521,10 @@ button:active { transform: translateY(1px); }
 .voice-leading-scroll svg { display: block; transform: scale(var(--vl-zoom-scale-x, 1), var(--vl-zoom-scale-y, 1)); transform-origin: top left; }
 
 /* Réduit (retour utilisateur : « Réduis le bouton "Ajouter une partie" qui prend trop de place » —
-   l'ajout d'une section se fait désormais surtout via #add-section-head, juste sous le titre de la
-   grille, voir index.html). Reste ici, discret, pour qui vient de finir de lire toute la grille sans
-   remonter jusqu'au titre — mais n'a plus besoin de peser autant : largeur au contenu (pas 100%),
-   padding standard plutôt que celui, généreux, des boutons du transport. */
+   libellé raccourci en « Ajouter section » au même endroit) : largeur au contenu (pas 100%), padding
+   standard plutôt que celui, généreux, des boutons du transport. Un second bouton dupliquant ce même
+   geste a été essayé en tête de grille, à côté du titre, puis retiré (retour utilisateur : « qui fait
+   la même chose que le bouton "ajouter une partie" ») — un seul point d'entrée suffit. */
 .add-section-btn {
     flex: none;
     width: auto;
@@ -3961,7 +3952,7 @@ select.song-select-narrow {
        dessous, et « au-dessus des boutons » n'y voudrait rien dire. */
     .history-section { display: flex; flex-direction: column; }
     .history-section .card-head { display: contents; }
-    .history-section .grid-head-title-row { order: 1; margin-bottom: 8px; }
+    .history-section h2 { order: 1; margin-bottom: 8px; }
     #quick-add-panel { order: 2; margin-bottom: 8px; }
     /* Devenu élément flex, #quick-add-panel est une racine de contexte de bloc : la marge basse de
        16px de sa rangée ne s'échappe plus par fusion comme avant, elle s'ajoutait donc à la marge
@@ -4073,8 +4064,21 @@ select.song-select-narrow {
         height: 86px;
     }
     /* #footer-dock est alors déplacé dans .col-right (voir applySidebarCollapsed) : son padding-right
-       ne sert plus à s'aligner avec la scrollbar de .panel-controls, disparu avec le reste du panneau. */
-    body.sidebar-collapsed .col-right .dock { padding-right: 0; }
+       ne sert plus à s'aligner avec la scrollbar de .panel-controls, disparu avec le reste du panneau.
+       .col-right est aussi bien plus large que l'ancienne colonne de gauche (360px, voir
+       .sidebar-frame) — sans les deux règles suivantes, align-items:stretch (défaut de .col-right,
+       display:flex en colonne) étire les boutons Lecture/Boucle/Stop (.transport button, flex:1 1 0)
+       sur toute cette largeur, disproportionnés (retour utilisateur : « En mode volet de gauche
+       masqué, les boutons de lecture sont trop larges. Limite leur largeur pour que ça reste joli. »).
+       Repris à la même largeur qu'avant le repli plutôt qu'une valeur arbitraire, pour qu'ils gardent
+       exactement leur proportion habituelle ; align-self les cale à gauche (là où vivait la colonne)
+       plutôt que de les laisser stretch centrés par défaut. */
+    body.sidebar-collapsed .col-right .dock {
+        padding-right: 0;
+        align-self: flex-start;
+        width: 360px;
+        max-width: 100%;
+    }
     .panel-controls {
         /* Redevient une vraie colonne : sur téléphone il est aplati (display:contents) pour que ses
            cartes s'ordonnent une par une autour de la grille — voir le commentaire là-bas. */

@@ -25,7 +25,6 @@ const SORTIES_LEGITIMES = new Set([
     'save',              // Ajouter/Modifier : valide et referme
     'song-new', 'song-files', 'song-import', 'song-export', 'song-rename', 'song-save',
     'open-settings', 'file-menu-btn', 'lyrics-btn', 'quick-add-btn', 'add-section',
-    'add-section-head', // même geste qu'#add-section, juste accessible depuis l'en-tête de la grille
 ]);
 
 (async () => {

@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608142020">
+    <link rel="stylesheet" href="style.css?v=202608142040">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -790,20 +790,7 @@
                      Collant justement PARCE QUE cette ligne défile sinon avec la page : sur une grille
                      longue, les boutons de lecture auraient disparu dès qu'on descend. -->
                 <div class="card-head grid-head-sticky">
-                    <!-- Titre + bouton d'ajout groupés (comme .card-head-right ailleurs) : sans ce
-                         groupe, justify-content:space-between sur .card-head répartirait l'espace ENTRE
-                         eux comme s'ils étaient chacun un élément à part de la ligne, éloignant le
-                         bouton du titre auquel il doit rester collé. Ajoute une partie depuis l'en-tête,
-                         sans avoir à descendre jusqu'au bouton en bas de grille (voir #add-section, même
-                         geste, addSection dans script.js) — retour utilisateur : « Réduis le bouton
-                         "Ajouter une partie" qui prend trop de place. Un bouton en tête vers le titre
-                         "Grille d'accords" me suffit pour ajouter une section. » -->
-                    <div class="grid-head-title-row">
-                        <h2>Grille d'accords</h2>
-                        <button type="button" id="add-section-head" class="icon-btn add-section-head-btn" title="Ajouter une partie" aria-label="Ajouter une partie">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                        </button>
-                    </div>
+                    <h2>Grille d'accords</h2>
                     <!-- Hôte du transport sur ordinateur (rempli par placeGlobalTransport ; vide et
                          sans hauteur sur téléphone, où le transport reste dans #footer-dock). -->
                     <div id="grid-head-transport-host" class="grid-head-transport-host"></div>
@@ -903,7 +890,7 @@
                     </div>
                 </div>
                 <div id="progression-sections"></div>
-                <button type="button" id="add-section" class="btn-sec add-section-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter une partie</button>
+                <button type="button" id="add-section" class="btn-sec add-section-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter section</button>
             </section>
 
             <!-- Volet du séquenceur CONTINU, sous la grille (voir placeSequencer dans script.js).
@@ -1083,6 +1070,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608142020"></script>
+    <script src="script.js?v=202608142040"></script>
 </body>
 </html>
