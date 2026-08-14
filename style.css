@@ -3398,13 +3398,45 @@ body.all-beats .offbeat-dot {
     text-shadow: 0 0 2px #000, 0 0 4px #000;
 }
 
+/* Accueil de #seq-zoom (voir index.html) : un simple `display:flex` aligné à droite — sans hauteur
+   propre tant que son unique enfant est caché ([hidden] passe en display:none, un conteneur flex à
+   0 enfant visible s'écrase alors tout seul à 0px), donc aucun espace réservé quand le séquenceur
+   compact n'est pas ouvert. */
+.seq-inline-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+}
+/* Étiquette + icône plutôt qu'une simple icône parmi d'autres (retour utilisateur : « difficile à
+   voir ») — pilule au lieu d'un carré .icon-btn, pour bien la distinguer des boutons d'action
+   habituels : ce n'est pas une action sur l'accord, juste une autre façon de REGARDER le même
+   séquenceur. Mêmes couleurs/dégradé que .icon-btn pour rester dans la même famille visuelle. */
+.seq-zoom-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px 5px 10px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0) 50%), #1c2027;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03);
+}
+.seq-zoom-btn:hover { color: var(--accent); border-color: var(--accent); background: linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0) 50%), #262b33; }
+.seq-zoom-btn:active { transform: translateY(1px); }
+.seq-zoom-btn .icon { width: 13px; height: 13px; }
+
 .seq-cell {
-    /* --seq-zoom-scale-v vaut 1 tant qu'on n'a pas touché à l'échelle verticale du séquenceur COMPACT
-       (voir _applySeqVerticalScale, qui la pose sur #arp-sequencer lui-même) : hauteur inchangée par
-       défaut. Les deux fenêtres agrandies ont leurs propres règles, plus spécifiques, avec leur propre
-       hauteur de base (voir .seq-zoomed .seq-cell) — et la
-       variable est retirée d'#arp-sequencer dès qu'on y passe, pour ne pas masquer la leur. */
-    height: calc(26px * var(--seq-zoom-scale-v, 1));
+    /* Hauteur FIXE, jamais réglable : même principe que .seq-grid-continuous .seq-cell (14px, plus
+       bas) — retour utilisateur, deux fois : « comme sur GarageBand, laisser une unique hauteur de
+       barres » pour la vue continue, puis « bloquer la hauteur des barres du petit séquenceur, et
+       supprimer le V+/- » pour celui-ci. La fenêtre AGRANDIE (loupe) garde sa propre échelle, plus
+       spécifique (voir .seq-zoomed .seq-cell) — c'est la SEULE des trois vues du séquenceur où
+       « voir plus gros » a encore un sens réglable. */
+    height: 26px;
     background: #202020;
     border: 1px solid var(--border);
     border-radius: 5px;

@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608141600">
+    <link rel="stylesheet" href="style.css?v=202608141700">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -675,13 +675,6 @@
                                     <rect x="17" y="16" width="4" height="4" rx="1"/>
                                 </svg>
                             </button>
-                            <!-- N'a de sens que séquenceur ouvert : masqué par défaut, révélé/masqué avec lui
-                                 (voir toggleSequencer/openSequencerFor). Déplace #arp-sequencer dans une
-                                 fenêtre plus grande (voir openSeqZoom) plutôt que de le dupliquer, pour
-                                 garder telles quelles toutes ses interactions (glisser, étirer...). -->
-                            <button type="button" id="seq-zoom" class="icon-btn" hidden title="Agrandir le séquenceur" aria-label="Agrandir le séquenceur">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>
-                            </button>
                         </div>
                         </div>
                     </div>
@@ -742,6 +735,19 @@
                         </button>
                     </div>
                     <input type="hidden" id="arpPattern" value="">
+                    <!-- Juste au-dessus du séquenceur qu'elle agrandit, plutôt que perdue parmi 4 icônes
+                         de l'en-tête Lecture, sans lien visuel avec ce qu'elle fait (retour utilisateur :
+                         « la loupe n'est pas vraiment au bon endroit, difficile à voir »). Un mot, pas
+                         seulement une icône : ce qu'elle fait n'était pas devinable au survol d'une simple
+                         loupe entre d'autres pictogrammes. N'a de sens que séquenceur ouvert : masquée par
+                         défaut, révélée/masquée avec lui (voir toggleSequencer) — le conteneur n'a pas
+                         besoin de son propre hidden, un unique enfant caché suffit à le réduire à rien. -->
+                    <div class="seq-inline-toolbar">
+                        <button type="button" id="seq-zoom" class="seq-zoom-btn" hidden title="Agrandir le séquenceur" aria-label="Agrandir le séquenceur">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>
+                            <span>Agrandir</span>
+                        </button>
+                    </div>
                     <div id="arp-sequencer" class="arp-seq" hidden></div>
                 </section>
 
@@ -1067,6 +1073,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608141600"></script>
+    <script src="script.js?v=202608141700"></script>
 </body>
 </html>

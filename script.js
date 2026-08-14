@@ -1846,8 +1846,12 @@ const CLASSIC_GRID_ZOOM_LEVEL_Y_KEY = 'harmohubClassicGridZoomLevelY';
 // Échelle horizontale du séquenceur COMPACT (panneau Accord, hors loupe séquenceur/grille) — voir
 // Séquenceur compact (kind 'seqInline') : indépendant de seqZoomLevelX (loupe), 1 par défaut pour garder EXACTEMENT
 // l'affichage actuel tant qu'on n'y touche pas (retour utilisateur).
+// PAS d'axe vertical ici (contrairement aux autres échelles ci-dessous, qui en ont toutes deux) :
+// retiré avec ses boutons — puis son dernier levier (Ctrl+molette/pincement, voir setZoomLevel) —
+// pour la même raison que le retrait du V+/V- de la vue continue : « laisser une unique hauteur de
+// barres » (retour utilisateur, repris ensuite pour le petit séquenceur : « bloquer la hauteur des
+// barres du petit séquenceur, et supprimer le V+/- »).
 const SEQ_INLINE_ZOOM_LEVEL_X_KEY = 'harmohubSeqInlineZoomLevelX';
-const SEQ_INLINE_ZOOM_LEVEL_Y_KEY = 'harmohubSeqInlineZoomLevelY';
 // Échelles horizontale/verticale du panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) —
 // mêmes bornes/pas que les autres (ZOOM_LEVEL_MIN/MAX/STEP ci-dessous), un seul réglage GLOBAL
 // (pas par partie, comme voiceLeadingOpen) puisqu'un seul panneau est jamais affiché à la fois.
@@ -2897,18 +2901,15 @@ class HarmoHubApp {
         // style.css), tant que la vraie reconstruction (~150ms) n'a pas rattrapé l'échelle ci-dessus.
         this._voiceLeadingBuiltZoomX = this.voiceLeadingZoomLevelX;
         this._voiceLeadingBuiltZoomY = this.voiceLeadingZoomLevelY;
-        // Échelles du séquenceur COMPACT (hors loupe), voir SEQ_INLINE_ZOOM_LEVEL_X_KEY. Réglage
-        // distinct de celui des fenêtres agrandies (seqZoomLevelX/Y), mais désormais géré par la MÊME
-        // API que tous les autres (kind 'seqInline' dans setZoomLevel/applyZoomLevel) : c'était le seul
-        // à vivre à part, avec un unique axe et ses propres fonctions — d'où une bonne part de
-        // l'impression de bazar. Il a maintenant lui aussi un axe vertical, les mêmes boutons, la même
-        // molette et le même pincement que les autres.
+        // Échelle du séquenceur COMPACT (hors loupe), voir SEQ_INLINE_ZOOM_LEVEL_X_KEY. Réglage
+        // distinct de celui des fenêtres agrandies (seqZoomLevelX/Y), géré par la MÊME API que les
+        // autres (kind 'seqInline' dans setZoomLevel/applyZoomLevel). UN SEUL axe, l'horizontal :
+        // l'axe vertical (hauteur des barres) a existé puis a été retiré, comme celui de la vue
+        // continue — « bloquer la hauteur des barres du petit séquenceur, et supprimer le V+/- »
+        // (retour utilisateur). Pas de seqInlineZoomLevelY ici : setZoomLevel refuse maintenant
+        // d'écrire sur cet axe pour ce kind, quel que soit l'appelant (bouton disparu depuis un
+        // moment déjà, mais Ctrl+molette/pincement pouvaient encore le faire varier en silence).
         this.seqInlineZoomLevelX = parseFloat(localStorage.getItem(SEQ_INLINE_ZOOM_LEVEL_X_KEY)) || 1;
-        // Ramené sous le plafond de 1 : une session antérieure a pu mémoriser un niveau supérieur, du
-        // temps où l'axe vertical montait jusqu'à x2 (il agissait alors sur la hauteur du volet, pas sur
-        // celle des lignes). Sans ce garde-fou, rouvrir l'appli aurait ressorti des barres deux fois
-        // trop grosses — exactement ce que le plafond est censé interdire.
-        this.seqInlineZoomLevelY = Math.min(1, parseFloat(localStorage.getItem(SEQ_INLINE_ZOOM_LEVEL_Y_KEY)) || 1);
         // Panneau de gauche (voir #toggle-sidebar/toggleSidebar) : masqué ou non, mémorisé comme
         // ci-dessus — appliqué juste après setupEventListeners (voir plus bas dans le constructeur),
         // une fois le bouton lui-même câblé.
@@ -12300,21 +12301,17 @@ class HarmoHubApp {
 
     // Hauteur d'ouverture du volet : celle réglée à la main si elle existe, sinon une part de l'écran.
     hauteurVoletSequenceur() {
-        // Le zoom VERTICAL agit ici, sur la hauteur du volet — plus sur la hauteur des barres.
-        // Il grossissait chaque ligne (14px x niveau) : au-delà de deux crans, une même note n'avait
-        // plus la même tête d'un réglage à l'autre et on perdait ses repères (retour utilisateur :
-        // « comme sur GarageBand, laisser une unique hauteur de barres. Juste éloigner la vue pour
-        // voir plus de notes. On se perd avec le grossissement vertical des barres et ça enlève de la
-        // fluidité »). Les barres gardent donc une taille unique, et V+/V− font ce qu'on leur demande
-        // vraiment : montrer plus ou moins de demi-tons à la fois.
+        // AUCUN facteur de zoom n'entre plus dans ce calcul — la paire V+/V− qui agissait ici a été
+        // retirée, la poignée du volet (#seq-dock-resize) rendant le même service plus directement
+        // (voir _bindZoomButtons). Et les barres, elles, gardent de toute façon une hauteur UNIQUE et
+        // fixe, aussi bien ici que dans le séquenceur compact (voir style.css .seq-cell) — retour
+        // utilisateur : « comme sur GarageBand, laisser une unique hauteur de barres. Juste éloigner
+        // la vue pour voir plus de notes. On se perd avec le grossissement vertical des barres et ça
+        // enlève de la fluidité », repris ensuite pour le petit séquenceur : « bloquer la hauteur des
+        // barres du petit séquenceur, et supprimer le V+/- ».
         const base = this.seqDockHeight || Math.round(Math.max(SEQ_DOCK_HEIGHT_AUTO_MIN,
             Math.min(SEQ_DOCK_HEIGHT_AUTO_MAX, window.innerHeight * SEQ_DOCK_HEIGHT_RATIO)));
-        // Jamais plus haut que l'écran : passé là, le volet pousserait les boutons hors de vue.
-        // `seqInlineZoomLevelY` : le niveau que pilotent les boutons V DU VOLET (kind 'seqInline',
-        // voir setupZoomControls) — pas celui de la grille d'accords, qui a les siens en haut.
         // Hauteur AUTOMATIQUE seulement : une part de l'écran, plafonnée par ce qu'il y a à montrer.
-        // Aucun facteur de zoom — la paire V+/V− a été retirée, la poignée du volet rendant le même
-        // service plus directement (voir _bindZoomButtons).
         let h = Math.max(140, Math.min(window.innerHeight * 0.8, base));
         // ...mais jamais plus haut que ce qu'il y a RÉELLEMENT à montrer. Sans ce plafond, agrandir la
         // vue sur un accord de vingt demi-tons n'ajouterait que du vide sous les notes — exactement le
@@ -12800,12 +12797,6 @@ class HarmoHubApp {
         // utilisateur : « voir trop petit ne me sert à rien »). L'échelle 1 montre déjà six mesures
         // d'un coup. SEQ_INLINE_ZOOM_MIN (0,3), qui autorisait ce dézoom inutile, n'a plus d'emploi.
         if (axis === 'x' && (kind === 'seq' || kind === 'seqInline')) return 1;
-        // Axe VERTICAL du séquenceur compact : on descend plus bas que le plancher commun (0,7), parce
-        // que c'est désormais le SEUL sens utile de ce réglage — 14px de ligne étant un plafond, tout
-        // l'intérêt est d'en voir plus d'un coup. 0,45 fait des lignes de ~6px : trois octaves tiennent
-        // dans la hauteur qui en montrait une et demie, ce qui est la limite avant que deux demi-tons
-        // voisins ne deviennent impossibles à distinguer à l'œil.
-        if (axis === 'y' && kind === 'seqInline') return 0.45;
         return ZOOM_LEVEL_MIN;
     }
 
@@ -12815,12 +12806,6 @@ class HarmoHubApp {
     // « le zoom horizontal est vite plafonné, je veux pouvoir voir plus gros »).
     zoomMaxFor(kind, axis) {
         if (axis === 'x' && (kind === 'seq' || kind === 'seqInline')) return SEQ_ZOOM_X_MAX;
-        // Axe VERTICAL du séquenceur compact : plafond à 1, c'est-à-dire à la hauteur de barre de
-        // référence (14px). Ce n'est pas une limite technique mais la demande elle-même — « laisser une
-        // unique hauteur de barres... on se perd avec le grossissement vertical des barres ». V+ ne
-        // grossit donc jamais rien : il ne fait que remonter vers la taille normale après un V−. Le
-        // bouton est logiquement grisé tant qu'on n'a pas dézoomé, ce qui dit exactement cela.
-        if (axis === 'y' && kind === 'seqInline') return 1;
         return ZOOM_LEVEL_MAX;
     }
 
@@ -12829,11 +12814,20 @@ class HarmoHubApp {
     // par crans — sinon le zoom au doigt semblait saccadé/à-coups (retour utilisateur), un cran entier
     // d'un coup au lieu de suivre le geste en direct.
     setZoomLevel(kind, axis, value) {
+        // Le séquenceur compact n'a PAS d'axe vertical (voir SEQ_INLINE_ZOOM_LEVEL_X_KEY) : ses barres
+        // gardent une hauteur unique, comme celles de la vue continue (même retour utilisateur, « une
+        // unique hauteur de barres »). Un seul garde-fou ICI protège tous les appelants d'un coup — les
+        // boutons dédiés ont disparu depuis un moment déjà, mais Ctrl+molette (adjustZoomBothAxes) et le
+        // pincement à 2 doigts (setupPinchZoom) zooment encore les DEUX axes sans discernement pour tous
+        // les autres réglages ; sans ce retour anticipé, ils auraient continué à faire varier une
+        // hauteur de barre en silence, sans plus aucun bouton pour la ramener à 1 (mesuré : c'est
+        // exactement ce qui se produisait avant ce correctif).
+        if (kind === 'seqInline' && axis === 'y') return;
         const levelKey = `${kind}ZoomLevel${axis === 'x' ? 'X' : 'Y'}`;
         const storageKey = kind === 'seq'
             ? (axis === 'x' ? SEQ_ZOOM_LEVEL_X_KEY : SEQ_ZOOM_LEVEL_Y_KEY)
             : kind === 'seqInline'
-            ? (axis === 'x' ? SEQ_INLINE_ZOOM_LEVEL_X_KEY : SEQ_INLINE_ZOOM_LEVEL_Y_KEY)
+            ? SEQ_INLINE_ZOOM_LEVEL_X_KEY // seul l'axe x existe pour ce kind, voir le garde-fou ci-dessus
             : kind === 'classicGrid'
             ? (axis === 'x' ? CLASSIC_GRID_ZOOM_LEVEL_X_KEY : CLASSIC_GRID_ZOOM_LEVEL_Y_KEY)
             : (axis === 'x' ? VOICE_LEADING_ZOOM_LEVEL_X_KEY : VOICE_LEADING_ZOOM_LEVEL_Y_KEY);
@@ -12869,19 +12863,12 @@ class HarmoHubApp {
                 else this.renderSequencer();
             }
         } else if (kind === 'seqInline') {
-            // Le zoom vertical de cette vue agit sur la hauteur du VOLET (voir hauteurVoletSequenceur,
-            // et le retour utilisateur sur la hauteur unique des barres) : sans ce rafraîchissement,
-            // le nouveau niveau ne s'appliquerait qu'au prochain ouvrir/fermer du volet.
-            // Écrit sur #seq-dock-host, comme placeSeqHost et la poignée : ce bloc visait auparavant
-            // #seq-dock-panel, si bien que deux hauteurs en ligne se contredisaient sur deux éléments
-            // imbriqués — la bande défilante finissait par déborder du panneau qui la porte.
-            const volet = document.getElementById('seq-dock-panel');
-            const hote = document.getElementById('seq-dock-host');
-            if (volet && !volet.hidden && hote) hote.style.height = `${this.hauteurVoletSequenceur()}px`;
-            // Séquenceur COMPACT/CONTINU : la verticale passe par la même variable CSS que la vue
-            // agrandie (voir _applySeqVerticalScale), l'horizontale par _appliquerEchelleHorizontale —
-            // les deux en place, sans reconstruire. Le rendu complet ne reste nécessaire que si aucune
-            // grille défilante n'est à l'écran (vue paginée, qui répartit ses colonnes en 1fr).
+            // Séquenceur COMPACT/CONTINU : seule l'HORIZONTALE reste réglable (_appliquerEchelleHorizontale
+            // ci-dessous), sans reconstruire — une largeur de colonne est une variable CSS (voir
+            // renderSequencer/colTemplate), les notes suivent toutes seules. Plus de recalcul de la
+            // hauteur du volet ici : ça datait d'un temps où l'axe vertical de ce kind agissait dessus
+            // (hauteurVoletSequenceur ne dépend plus d'aucun zoom, voir son propre commentaire — « la
+            // paire V+/V− a été retirée, la poignée du volet rendant le même service plus directement »).
             this._applySeqVerticalScale();
             if (this.seqOpen && this._appliquerEchelleHorizontale(this.seqInlineZoomLevelX)) return;
             if (this.seqOpen) {
@@ -12920,14 +12907,15 @@ class HarmoHubApp {
         }
     }
 
-    // Échelle VERTICALE du séquenceur : une seule variable CSS (--seq-zoom-scale-v) pour deux
-    // réglages distincts selon le contexte — celui de la fenêtre agrandie (seqZoomLevelY), posé sur
-    // son hôte (#seq-zoom-host), et celui du séquenceur compact
-    // (seqInlineZoomLevelY), posé ici sur #arp-sequencer lui-même.
-    // Les deux ne doivent JAMAIS coexister : #arp-sequencer étant DÉPLACÉ dans l'hôte agrandi (voir
-    // openSeqZoom/pinSequencerHost) et non recopié, une variable laissée sur lui masquerait celle de
-    // l'hôte — l'élément le plus proche l'emporte à l'héritage — et le zoom vertical de la loupe
-    // n'aurait soudain plus aucun effet. D'où le retrait explicite dès qu'on est en fenêtre agrandie.
+    // Échelle VERTICALE du séquenceur : --seq-zoom-scale-v n'a plus qu'un seul réglage possible,
+    // celui de la fenêtre AGRANDIE (seqZoomLevelY), posé sur son hôte (#seq-zoom-host) par
+    // applyZoomLevel — jamais ici. Ni le compact ni le volet continu n'en ont plus besoin : les deux
+    // gardent une hauteur de barre unique et fixe (voir style.css .seq-cell), même principe que le
+    // retrait du V+/V− (retour utilisateur : « bloquer la hauteur des barres du petit séquenceur »).
+    // Le retrait explicite ci-dessous reste indispensable : #arp-sequencer est DÉPLACÉ dans l'hôte
+    // agrandi (voir openSeqZoom/pinSequencerHost), jamais recopié — une variable laissée dessus
+    // masquerait celle de l'hôte par héritage (l'élément le plus proche l'emporte), et le zoom
+    // vertical de la loupe n'aurait plus aucun effet.
     // Applique l'échelle HORIZONTALE en place, sans reconstruire le HTML : une largeur de colonne
     // est une variable CSS (voir renderSequencer/colTemplate), les notes étant placées par
     // grid-column suivent toutes seules. C'est ce qui rend le zoom fluide plutôt que saccadé — la
@@ -12957,8 +12945,7 @@ class HarmoHubApp {
     _applySeqVerticalScale() {
         const seq = document.getElementById('arp-sequencer');
         if (!seq) return;
-        if (this.seqZoomOpen) seq.style.removeProperty('--seq-zoom-scale-v');
-        else seq.style.setProperty('--seq-zoom-scale-v', String(this.seqInlineZoomLevelY));
+        seq.style.removeProperty('--seq-zoom-scale-v');
     }
 
     // Position verticale du pointeur -> pourcentage d'intensité (0 en bas, 100 en haut) pour LA croche
@@ -13088,9 +13075,17 @@ class HarmoHubApp {
         // modifications. Le séquenceur continu en grand permettra un réglage à l'échelle du morceau
         // en grand écran. » Deux outils, deux usages : retouche rapide d'un accord ici, réglage à
         // l'échelle du morceau là.
-        // Uniquement quand un accord est réellement en édition (this.editingIndex) : sinon aucun
-        // accord de référence n'existe pour comparer, on retombe sur l'affichage normal ci-dessous.
-        const continuous = (this.seqMode === 'continu' || this.seqZoomOpen) && this.editingIndex != null;
+        // Réservée à la vue agrandie (seqZoomOpen) ou au séquenceur en volet (seqMode==='continu') —
+        // PLUS à un accord déjà présent dans la grille (this.editingIndex != null). Un accord en cours
+        // d'AJOUT (pas encore posé) restait bloqué sur l'affichage sommaire même agrandi, alors que la
+        // grille détaillée elle-même n'a besoin de rien de plus que l'accord en cours de composition
+        // (retour utilisateur : « le visuel est trop différent du grand séquenceur en continu » —
+        // mesuré : agrandir le petit séquenceur en Ajout ne changeait RIEN, contrairement à
+        // Modification, où ça donnait déjà le rendu détaillé). Seul le CONTEXTE voisin (accords
+        // avant/après, voir prevSegs/nextSegs juste en dessous) a réellement besoin d'une position dans
+        // la grille pour exister — lui seul reste donc gardé par editingIndex != null ci-dessous, pas la
+        // grille détaillée elle-même.
+        const continuous = (this.seqMode === 'continu' || this.seqZoomOpen);
         let prevMidiSet = new Set(), nextMidiSet = new Set();
         // TOUS les accords de la partie active, avant/après celui en édition (pas seulement le plus
         // proche, retour utilisateur : pouvoir défiler/cliquer directement n'importe quel accord de la
@@ -13100,7 +13095,11 @@ class HarmoHubApp {
         // son côté (prev ou next), posé une fois ici plutôt que recalculé à chaque ligne/case.
         let prevSegs = [], nextSegs = [];
         let prevSteps = 0, nextSteps = 0;
-        if (continuous) {
+        // this.editingIndex != null EN PLUS de `continuous` : un accord en Ajout n'a pas encore de
+        // position dans la grille, donc aucun voisin à afficher — prevSegs/nextSegs restent vides (voir
+        // leurs valeurs par défaut juste au-dessus), la grille détaillée de CET accord s'affiche quand
+        // même, simplement sans accords voisins de part et d'autre.
+        if (continuous && this.editingIndex != null) {
             const ctxSections = loadProgressionSections();
             const ctxSec = ctxSections[this.activeSection];
             const history = (ctxSec && ctxSec.chords) || [];
@@ -13534,9 +13533,11 @@ class HarmoHubApp {
         const barreEnd = continuous ? pageSteps + nextSteps : pageEnd;
         const deltaColonne = continuous ? colOffset : colOffset - pageStart;
         // Décalage absolu de l'accord édité depuis le début de la partie, en pas : sans lui, tout
-        // repartirait de la mesure 1 sous l'accord édité, quel que soit son vrai rang.
+        // repartirait de la mesure 1 sous l'accord édité, quel que soit son vrai rang. Comme plus haut :
+        // sans position dans la grille (Ajout), rien à décaler — reste à 0, la règle numérote alors
+        // depuis le tout début de CET accord, seul affiché.
         let pasAvantAccordEdite = 0;
-        if (continuous) {
+        if (continuous && this.editingIndex != null) {
             const secCourante = loadProgressionSections()[this.activeSection];
             const accords = (secCourante && secCourante.chords) || [];
             for (let i = 0; i < this.editingIndex; i++) pasAvantAccordEdite += beatsFromData(accords[i]) * SEQ_STEPS_PER_BEAT;
