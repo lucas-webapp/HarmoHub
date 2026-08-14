@@ -4274,13 +4274,26 @@ select.song-select-narrow {
     width: max-content;
     min-width: 100%;
 }
-/* UNE SEULE HAUTEUR DE BARRE, définitivement (retour utilisateur : « comme sur GarageBand, en zoom
-   vertical, laisser une unique hauteur de barres. Juste éloigner la vue pour voir plus de notes »).
-   La hauteur suivait le zoom vertical (14px x niveau) : une même note changeait de tête d'un réglage
-   à l'autre, et l'œil perdait ses repères. Le zoom vertical agit maintenant sur la HAUTEUR DU VOLET
-   (voir hauteurVoletSequenceur) : on voit plus ou moins de demi-tons, jamais des barres plus grosses. */
+/* 14px EST LE PLAFOND DE LA HAUTEUR DE BARRE, ET LE ZOOM VERTICAL NE PEUT QUE DESCENDRE EN DESSOUS.
+   Deux retours utilisateur à satisfaire ENSEMBLE, et c'est là que la première tentative s'était
+   trompée de dimension :
+     - « laisser une unique hauteur de barres, on se perd avec le grossissement vertical » : une barre
+       ne doit JAMAIS devenir plus grosse que sa taille de référence. D'où le plafond à l'échelle 1
+       (voir zoomMaxFor, axe Y du séquenceur compact) : V+ ne fait que revenir vers 14px.
+     - « juste éloigner la vue pour voir plus de notes » : dézoomer doit faire tenir PLUS de demi-tons
+       dans la fenêtre. La tentative précédente faisait varier la hauteur du VOLET, ce qui donne
+       exactement l'inverse — « lorsque je dézoome avec V−, la fenêtre du séquenceur se contracte, au
+       lieu de pouvoir voir plus de notes ». Rétrécir la fenêtre ne montre jamais rien de plus.
+   C'est donc la hauteur des LIGNES qui suit le zoom, la fenêtre gardant la sienne : à échelle 0,5, une
+   ligne fait 7px et il en tient deux fois plus à l'écran — le comportement d'une station audio. */
 .seq-grid-continuous .seq-cell,
-.seq-grid-continuous .seq-label { height: 14px; }
+.seq-grid-continuous .seq-label { height: calc(14px * var(--seq-zoom-scale-v, 1)); }
+/* Sous une certaine finesse, le nom écrit sur la touche ne tient plus dans sa ligne et se réduit à une
+   bouillie de pixels qui salit la gouttière. On le retire alors : la COULEUR de la touche (fonction
+   dans l'accord) reste lisible à n'importe quelle hauteur, et c'est elle qui porte l'information quand
+   on prend du recul. Les noms reviennent seuls dès qu'on remonte l'échelle. La classe est posée par
+   _applySeqVerticalScale — le CSS seul ne sait pas comparer une variable à un seuil. */
+#arp-sequencer.seq-lignes-fines .seq-grid-continuous .seq-label .seq-key-name { visibility: hidden; }
 /* EXACTEMENT le gabarit des barres éditables : ni hauteur propre, ni marge — la barre remplit sa
    ligne, comme .seq-note. Un reste de l'époque des fins repères de contexte lui donnait 14px de haut
    plus 2px de marge en haut et en bas : mesuré, la barre voisine faisait 14px là où celle qu'on édite
