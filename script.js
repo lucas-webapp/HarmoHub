@@ -3619,18 +3619,39 @@ class HarmoHubApp {
         // grille, dont les cases sont volontairement en touch-action:none, voir .grid-cell) ; ce clic-là
         // ne doit alors PAS compter comme un clic « ailleurs ». Écouteurs passifs : on ne fait que
         // mesurer, jamais preventDefault, donc aucun effet sur le défilement natif lui-même.
-        let touchMoved = false, touchStartX = 0, touchStartY = 0;
+        let touchMoved = false, touchStartX = 0, touchStartY = 0, toucheActiveJusqua = 0;
         document.addEventListener('touchstart', (e) => {
             if (e.touches.length !== 1) return; // pincement à 2 doigts : autre logique, voir setupPinchZoom
             touchMoved = false;
             touchStartX = e.touches[0].clientX;
             touchStartY = e.touches[0].clientY;
+            // Fenêtre large (voir dernierDefilementA plus bas) : un défilement au doigt peut continuer
+            // sur son ÉLAN bien après ce touchstart (webkit-overflow-scrolling), donc rester « d'origine
+            // tactile » un moment après que le doigt a quitté l'écran.
+            toucheActiveJusqua = Date.now() + 600;
         }, { passive: true });
         document.addEventListener('touchmove', (e) => {
             if (touchMoved || e.touches.length !== 1) return;
             const dx = e.touches[0].clientX - touchStartX, dy = e.touches[0].clientY - touchStartY;
             if (Math.hypot(dx, dy) > 10) touchMoved = true;
         }, { passive: true });
+        // DEUXIÈME garde-fou, indépendant du premier : le signalement est revenu après le premier
+        // correctif (touchmove > 10px), donc ce seul repère ne suffisait pas — un défilement peut
+        // continuer sur son ÉLAN après le lever du doigt (webkit-overflow-scrolling), ou un tap qui
+        // arrête net ce défilement en cours (geste courant sur iOS) peut lui-même déclencher un clic,
+        // dans les deux cas sans plus aucun touchmove pour le repérer. Ici, un vrai `scroll` — qui ne
+        // ment jamais, contrairement à un déplacement du doigt qui ne fait pas toujours défiler quoi
+        // que ce soit — retarde d'une fenêtre courte le prochain clic « ailleurs ». En PHASE DE
+        // CAPTURE (3e argument `true`) : un `scroll` ne remonte pas (bulle) comme les autres
+        // évènements, donc un défilement à l'intérieur d'un conteneur imbriqué (la grille, le
+        // séquenceur...) resterait invisible ici sans elle — la capture, elle, redescend depuis
+        // document quel que soit l'élément qui défile réellement. Conditionné à toucheActiveJusqua :
+        // sur ordinateur, où ce bug n'existe pas, un défilement à la molette ne doit RIEN changer au
+        // clic qui suit (retour utilisateur historique : cliquer ailleurs doit fermer l'édition).
+        let dernierDefilementA = 0;
+        document.addEventListener('scroll', () => {
+            if (Date.now() < toucheActiveJusqua) dernierDefilementA = Date.now();
+        }, { capture: true, passive: true });
 
         // Désélectionne l'accord de la grille dès qu'on clique en dehors de la grille et du menu
         // contextuel — évite l'ambiguïté entre l'accord SÉLECTIONNÉ (voir bouton « Accord » ci-
@@ -3646,6 +3667,11 @@ class HarmoHubApp {
             // Un défilement tout juste terminé : ce clic est un artefact du geste, pas une intention
             // de cliquer « ailleurs ». Consommé ici (remis à zéro) pour ne pas gêner le PROCHAIN clic.
             if (touchMoved) { touchMoved = false; return; }
+            // Deuxième repère (voir dernierDefilementA plus haut) : un `scroll` très récent, même sans
+            // le touchmove attendu (élan post-lever du doigt, ou tap qui l'arrête net). 350ms couvre
+            // large l'écart mesuré entre la fin d'un défilement et un clic-fantôme qui le suit, sans
+            // pour autant retarder perceptiblement un vrai clic juste après un vrai petit défilement.
+            if (Date.now() - dernierDefilementA < 350) return;
             // e.target.closest(...) suit le DOM ACTUEL, pas celui d'au moment du clic : un bouton du
             // séquenceur (ex. « + » une note libre, voir addSequencerNote) déclenche souvent un
             // renderSequencer() synchrone qui remplace tout le HTML du panneau — DONC son propre

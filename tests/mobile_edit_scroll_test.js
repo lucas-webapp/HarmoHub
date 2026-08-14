@@ -77,6 +77,48 @@ const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { 
     etat = await page.evaluate(() => window.app.editingIndex);
     check(etat === null, `un tap sous le seuil (3px) sort toujours de l'édition comme un vrai clic — editingIndex=${etat}`);
 
+    // Persiste après le premier correctif (retour utilisateur, à nouveau) : un défilement qui continue
+    // sur son ÉLAN après le lever du doigt (webkit-overflow-scrolling), ou un tap qui l'arrête net —
+    // geste courant sur iOS — ne laisse plus AUCUN touchmove à mesurer, seulement un vrai `scroll`.
+    console.log("--- Un défilement sur son ÉLAN (scroll réel, sans touchmove notable) après un tap tactile ne sort pas non plus ---");
+    await page.evaluate(() => window.app.editChord(0, 1));
+    await page.waitForTimeout(150);
+    await page.evaluate(({ x, y }) => {
+        const mk = (type, cx, cy) => {
+            const t = new Touch({ identifier: 1, target: document.body, clientX: cx, clientY: cy });
+            return new TouchEvent(type, { touches: type === 'touchend' ? [] : [t], targetTouches: type === 'touchend' ? [] : [t], changedTouches: [t], bubbles: true, cancelable: true });
+        };
+        document.dispatchEvent(mk('touchstart', x, y));
+        document.dispatchEvent(mk('touchend', x, y)); // relâché tout de suite, sans bouger
+        // Cible = document, comme un vrai défilement de PAGE (voir le commentaire de dernierDefilementA
+        // dans script.js) : window.dispatchEvent aurait ciblé `window`, jamais vu par un écouteur posé
+        // sur `document`, même en phase de capture — ça aurait fait échouer ce test pour la mauvaise
+        // raison (le geste réel qu'il décrit, lui, cible bien document).
+        document.dispatchEvent(new Event('scroll')); // l'élan continue après le lever du doigt
+        const el = document.elementFromPoint(x, y) || document.body;
+        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+    }, { x: 200, y: 620 });
+    await page.waitForTimeout(150);
+    etat = await page.evaluate(() => window.app.editingIndex);
+    check(etat === 1, `l'édition reste active après un défilement sur son élan — editingIndex=${etat}`);
+
+    console.log('--- Contrôle : un vrai défilement SANS aucun toucher (molette, ordinateur) ne bloque pas le clic qui suit ---');
+    // Attente > 600ms (la fenêtre « toucher récent », voir toucheActiveJusqua dans script.js) : sans
+    // elle, le touchstart du cas précédent restait « actif » et faussait CE cas-ci pour la mauvaise
+    // raison — même piège que documenté dans sortie_edition_involontaire_test.js (un cas contamine le
+    // suivant), pas un vrai défaut du correctif.
+    await page.waitForTimeout(700);
+    await page.evaluate(() => window.app.editChord(0, 1));
+    await page.waitForTimeout(150);
+    await page.evaluate(({ x, y }) => {
+        document.dispatchEvent(new Event('scroll')); // aucun touchstart avant : geste souris, pas doigt
+        const el = document.elementFromPoint(x, y) || document.body;
+        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+    }, { x: 200, y: 620 });
+    await page.waitForTimeout(150);
+    etat = await page.evaluate(() => window.app.editingIndex);
+    check(etat === null, `sans toucher préalable, un clic « ailleurs » sort bien de l'édition même juste après un scroll — editingIndex=${etat}`);
+
     check(errors.length === 0, 'aucune erreur JavaScript — ' + JSON.stringify(errors));
     console.log(`\n=== Bilan : ${PASS} PASS / ${FAIL} FAIL ===`);
     await browser.close();
