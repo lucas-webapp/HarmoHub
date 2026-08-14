@@ -3693,7 +3693,11 @@ class HarmoHubApp {
                 || inPath('#global-undo-btn') || inPath('#global-redo-btn')
                 || inPath('.zoom-axis-group')
                 || inPath('#toggle-sidebar') || inPath('#toggle-voice-leading')
-                || inPath('#footer-dock') || inPath('.transport');
+                || inPath('#footer-dock') || inPath('.transport')
+                // DOUZIÈME : le bouton d'aide de l'ajout rapide et l'encart qu'il ouvre. Consulter une
+                // aide est le geste de quelqu'un qui est EN TRAIN de travailler ; la lui faire payer
+                // par la perte de sa modification est le contraire du service rendu.
+                || inPath('#quick-add-help-btn') || inPath('#quick-add-help');
             // Boutons qui OUVRENT le séquenceur ou sa vue agrandie depuis l'accord déjà
             // sélectionné/en édition (appelés par LEUR PROPRE onclick avant que ce même clic ne remonte
             // jusqu'ici) : .seq-zoom-modal n'existe pas encore dans le chemin du clic à cet instant (le

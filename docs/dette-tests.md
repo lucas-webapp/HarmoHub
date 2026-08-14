@@ -300,3 +300,40 @@ viser le PID.
 À RETENIR SUR LES DÉLAIS : dans cet environnement, un `page.goto` + `reload` coûte ~26s à lui seul.
 `probe_defilement_tactile_test.js` en fait deux (ordinateur puis téléphone) plus une série de gestes :
 elle a besoin de plus de 175s. Un `timeout` trop court la fait passer pour bloquée. Elle rend 23/23.
+
+## 15. Le 14/08 (suite) — la garde `inEditor` a laissé échapper QUATRE contrôles de plus
+
+Retour utilisateur : « des fois le séquenceur saute et redevient un séquenceur sommaire ». La vue
+continue exige `editingIndex != null` (voir `continuous` dans renderSequencer) : tout ce qui fait
+sortir du mode Modification la fait donc retomber en vue sommaire. Les fuites trouvées :
+la poignée du volet (#seq-dock-resize), les six groupes d'échelle (.zoom-axis-group), #toggle-sidebar,
+#toggle-voice-leading, le bouton d'aide de l'ajout rapide, et surtout LE TRANSPORT.
+
+LE TRANSPORT EXPLIQUE LE « DES FOIS ». placeGlobalTransport le déménage : .col-left quand le panneau
+de gauche est ouvert, .col-right quand il est replié. Ouvert, .col-left le couvrait et tout allait
+bien ; replié, cliquer Lecture sortait de la modification. Le défaut dépendait donc d'un réglage
+d'affichage sans rapport apparent — d'où l'intermittence, et d'où l'impossibilité de le reproduire
+« à volonté » tant qu'on ne pensait pas à replier le panneau.
+
+Nouveau banc : `sortie_edition_involontaire_test.js`. Il ne vérifie AUCUNE liste de contrôles connus :
+il balaie tout ce qui est cliquable et visible pendant une modification. C'est ce qui a permis d'en
+trouver quatre d'un coup au lieu d'attendre le prochain signalement.
+
+DEUX VERSIONS DE CE BANC ONT DÛ ÊTRE JETÉES AVANT D'ÊTRE CRUES, et c'est le plus instructif :
+  1. La première fabriquait ses évènements (`new PointerEvent('pointerdown')` puis `.click()`).
+     Verdict : six fautifs. Un vrai `page.click()` en donnait trois de moins.
+  2. La seconde faisait de vrais clics mais réutilisait la MÊME PAGE d'un contrôle au suivant. Or le
+     premier fautif rencontré (#toggle-sidebar) repliait le panneau — et le repli est mémorisé dans
+     localStorage. Tous les verdicts suivants étaient donc rendus dans un état contaminé, ce qui
+     accusait #play-prog, #stop et #toggle-loop-section, parfaitement sains sur une page neuve.
+Deux de mes propres sondes se sont ainsi contredites sur le même bouton. La règle à retenir : quand
+deux mesures divergent, ce n'est pas « l'une des deux est bruitée », c'est qu'elles ne mesurent pas la
+même chose — et l'écart lui-même est l'indice. Ici il désignait le repli du panneau, c'est-à-dire la
+cause du bug signalé par l'utilisateur. Le banc recharge désormais la page dès qu'un contrôle a cassé
+l'état.
+
+Enfin, sur le zoom vertical : la hauteur de barre est FIXE (14px) et le doit rester (« laisser une
+unique hauteur de barres », puis « les barres sont à nouveau avec une hauteur variable » quand une
+tentative l'a enfreint). Le seul levier pour voir plus de notes est donc la hauteur de la fenêtre, et
+c'est V− qui l'agrandit — sens inversé par rapport à un zoom ordinaire, assumé et commenté dans
+hauteurVoletSequenceur. zoom_coherence_test.js a été mis à jour en conséquence.
