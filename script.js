@@ -4429,18 +4429,27 @@ class HarmoHubApp {
         const showPiano = this.showPianoViz(), showGuitar = this.showGuitarViz();
         const pianoEl = document.getElementById('piano-viz');
         const guitarWrap = document.getElementById('guitar-viz-wrap');
-        const legend = document.querySelector('.piano-legend');
         const disp = document.getElementById('current-chord-display');
         const tPiano = document.getElementById('toggle-viz-piano');
         const tGuitar = document.getElementById('toggle-viz-guitar');
         if (pianoEl) pianoEl.style.display = showPiano ? '' : 'none';
         if (guitarWrap) guitarWrap.style.display = showGuitar ? 'flex' : 'none';
-        if (legend) legend.style.display = (showPiano || showGuitar) ? '' : 'none';
+        // La légende de couleurs sous les diagrammes a été retirée d'ici (retour utilisateur, voir
+        // index.html) — .piano-legend ne désigne plus QUE .voice-leading-legend (panneau Conduite de
+        // voix, sans rapport avec l'affichage piano/guitare) : la cibler ici l'aurait masquée/affichée
+        // à tort au gré de CE toggle, sur un panneau totalement différent.
         // Sans aucun diagramme affiché, le nom d'accord + ses notes n'ont plus rien à accompagner —
         // les masquer plutôt que les laisser flotter seuls au-dessus d'un bloc vide.
         if (disp) disp.style.display = (showPiano || showGuitar) ? '' : 'none';
         if (tPiano) { tPiano.classList.toggle('active', showPiano); tPiano.setAttribute('aria-pressed', showPiano); }
         if (tGuitar) { tGuitar.classList.toggle('active', showGuitar); tGuitar.setAttribute('aria-pressed', showGuitar); }
+        // Sans aucun diagramme à afficher, la place qu'ils libèrent doit profiter au séquenceur continu
+        // plutôt que de rester perdue à mi-hauteur (retour utilisateur : « le séquenceur continu doit
+        // prendre le maximum de place en vertical » quand les diagrammes sont masqués) — voir
+        // #seq-dock-panel dans style.css (media min-width:900px), qui ne partage sa hauteur avec la
+        // grille que sous cette classe.
+        const colRight = document.querySelector('.col-right');
+        if (colRight) colRight.classList.toggle('diagrams-hidden', !showPiano && !showGuitar);
         // Basculer piano/guitare change les conditions du partage de titre (voir placeChordTitle) :
         // masquer l'un des deux diagrammes doit ramener le titre en haut, il n'y a plus rien à
         // comparer avec le sien.

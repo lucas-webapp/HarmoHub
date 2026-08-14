@@ -4124,6 +4124,23 @@ select.song-select-narrow {
         margin-top: 0;
         overflow-y: auto;       /* la grille défile de son côté */
     }
+    /* Aucun diagramme affiché (voir .diagrams-hidden, posée par applyVizVisibility) : #seq-dock-panel
+       n'est normalement PAS flex — sa hauteur suit seulement la poignée .seq-dock-resize (voir plus
+       bas, seqDockHeight) — la place qu'aurait libérée .viz-wrap restait donc perdue à mi-hauteur,
+       .history-section (seule flex:1 de la colonne) l'absorbant toute pour elle-même sans que le
+       séquenceur en profite (retour utilisateur : « le séquenceur continu doit prendre le maximum de
+       place en vertical »). flex:1 ici aussi, à côté de .history-section ci-dessus : les deux se
+       partagent alors l'espace disponible plutôt que la grille seule — la grille reste utilisable
+       (accords toujours cliquables), le séquenceur n'est plus figé à sa dernière hauteur réglée.
+       :not([hidden]) : sans lui, cette règle donnerait AUSSI une hauteur flex au panneau MASQUÉ (mode
+       grille classique, sans séquenceur ouvert), qui n'en a pas besoin et n'en a jamais eu jusqu'ici. */
+    .col-right.diagrams-hidden #seq-dock-panel:not([hidden]) { flex: 1; min-height: 0; }
+    /* #seq-dock-host CIBLÉ EN PLUS DU PANNEAU : c'est LUI, pas #seq-dock-panel, que placeSequencer/
+       hauteurVoletSequenceur (script.js) mesurent et redimensionnent en JS (height:Xpx en ligne,
+       seqDockHeight) — flex:1 (flex-basis:0) l'emporte sur ce height inline pour la mise en page, sans
+       avoir à toucher au JS : le panneau grandit, ET ce qu'il affiche vraiment grandit avec lui, au
+       lieu de laisser un panneau plus grand mais un contenu resté à sa taille d'avant. */
+    .col-right.diagrams-hidden #seq-dock-panel:not([hidden]) #seq-dock-host { flex: 1; min-height: 0; }
 
     /* Pied de colonne ancré en bas de la colonne de gauche (plus besoin de "collant"). Même
        padding-right que .panel-controls (réservé à sa scrollbar) pour que ses boutons s'alignent
