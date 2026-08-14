@@ -408,30 +408,26 @@ body.body-scroll-locked { overflow: hidden !important; }
 
 /* LES NOTES DE L'ACCORD RESTENT ALLUMÉES SUR LE CLAVIER (retour utilisateur : « les notes présentes
    dans l'accord ne restent pas affichées sur le piano »). Le clavier de gauche disait où l'on est,
-   jamais ce qui sonne : pour retrouver l'accord, il fallait relire les barres. Chaque touche jouée
-   prend donc la couleur de sa FONCTION — exactement celles du clavier fixe et de la légende (voir
-   .key.active.role-*/.dot-*), pour n'avoir qu'un seul code couleur à retenir dans toute l'appli.
-   Un dégradé satiné plutôt qu'un aplat : c'est ce qui distingue une touche enfoncée d'un simple
-   surlignage, et c'est déjà le traitement des touches actives ailleurs. */
-.seq-label.seq-key-jouee { color: #10231a; font-weight: 700; }
-.seq-label.seq-key-jouee.seq-key-role-root    { background: linear-gradient(180deg, #3fe3a0 0%, #00a855 100%), var(--card-bg); }
-.seq-label.seq-key-jouee.seq-key-role-third   { background: linear-gradient(180deg, #5b98f0 0%, #1f5fc0 100%), var(--card-bg); }
-.seq-label.seq-key-jouee.seq-key-role-fifth   { background: linear-gradient(180deg, #ff6f66 0%, #d42a20 100%), var(--card-bg); }
-.seq-label.seq-key-jouee.seq-key-role-seventh { background: linear-gradient(180deg, #ffc247 0%, #cc8f00 100%), var(--card-bg); }
-.seq-label.seq-key-jouee.seq-key-role-ext     { background: linear-gradient(180deg, #dba8ee 0%, #c48ce6 100%), var(--card-bg); }
-/* Une touche NOIRE jouée garde son décrochement : sans lui, la colonne perdrait le motif 2+3 juste
-   là où elle est la plus colorée, donc la plus regardée. Le liseré ivoire des 10 premiers pixels est
-   redessiné par-dessus le dégradé de rôle. */
-.seq-label.seq-key-black.seq-key-jouee {
-    background-image:
-        linear-gradient(to right, #e7dcc4 10px, transparent 10px),
-        var(--seq-touche-role, linear-gradient(180deg, #3fe3a0 0%, #00a855 100%));
+   jamais ce qui sonne : pour retrouver l'accord, il fallait relire les barres.
+   Une SEULE surbrillance, plus de couleur par rôle (retour utilisateur : « je ne vois pas la note que
+   je suis en train d'entrer... éclairer uniquement via une surbrillance, et enlève les couleurs sur
+   les touches. Il faut écrire en blanc sur touches noires et en noir sur touches blanches » — le code
+   couleur par rôle vit déjà ailleurs dans l'appli, barres du séquenceur/clavier fixe/légende. Même halo accent que
+   .seq-key-reveal juste plus bas, dont ce traitement reprend le langage — reveal, plus intense, reste
+   au-dessus en cascade pour qu'on sente la DIFFÉRENCE entre « fait partie de l'accord » et « c'est
+   CETTE touche-ci qu'on vise là, maintenant ». Le texte, lui, reprend simplement la couleur de BASE de
+   la touche (color hérité de .seq-key-white/.seq-key-black juste au-dessus) plutôt qu'une teinte
+   propre au rôle : noir sur blanche, blanc sur noire, quelle que soit la fonction. */
+.seq-label.seq-key-jouee { font-weight: 700; }
+.seq-label.seq-key-white.seq-key-jouee {
+    background: linear-gradient(180deg, #ffffff 0%, #f6f0e2 100%), var(--card-bg);
+    box-shadow: inset -2px 0 0 var(--accent), 0 0 4px rgba(0, 230, 118, 0.3);
 }
-.seq-label.seq-key-black.seq-key-jouee.seq-key-role-root    { --seq-touche-role: linear-gradient(180deg, #3fe3a0 0%, #00a855 100%); }
-.seq-label.seq-key-black.seq-key-jouee.seq-key-role-third   { --seq-touche-role: linear-gradient(180deg, #5b98f0 0%, #1f5fc0 100%); }
-.seq-label.seq-key-black.seq-key-jouee.seq-key-role-fifth   { --seq-touche-role: linear-gradient(180deg, #ff6f66 0%, #d42a20 100%); }
-.seq-label.seq-key-black.seq-key-jouee.seq-key-role-seventh { --seq-touche-role: linear-gradient(180deg, #ffc247 0%, #cc8f00 100%); }
-.seq-label.seq-key-black.seq-key-jouee.seq-key-role-ext     { --seq-touche-role: linear-gradient(180deg, #dba8ee 0%, #c48ce6 100%); }
+.seq-label.seq-key-black.seq-key-jouee {
+    background: linear-gradient(to right, #e7dcc4 10px, #171310 10px), var(--card-bg);
+    box-shadow: inset -2px 0 0 var(--accent), 0 0 4px rgba(0, 230, 118, 0.3);
+    color: #ffffff;
+}
 
 /* UN SEUL NOM ÉCRIT EN PERMANENCE : celui du DO, avec son octave. Vingt et quelques noms empilés
    remplissaient la gouttière d'un mur de texte à travers lequel on ne voyait plus le clavier (retour

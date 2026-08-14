@@ -1887,6 +1887,18 @@ const SEQ_ZOOM_X_MAX = 4;
 // hauteurVoletSequenceur).
 const SEQ_LIGNE_PX = 14;
 const SEQ_RULER_PX = 24;
+// Plage TOUJOURS visible en vue continue (grille de fond + clavier de repère), même si aucune note de
+// l'accord ni de son contexte ne s'y trouve — retour utilisateur : « La grille en fond et le piano
+// doivent toujours être visibles jusqu'à l'octave 1, et au-dessus jusqu'à l'octave 5... comme ça je
+// peux directement ajouter des notes à la souris, graves ou aigües. » Avant, la fenêtre se bornait
+// strictement aux demi-tons SONNANTS (accord + contexte voisin) : cliquer une hauteur grave ou aiguë
+// absente de tout ça obligeait à passer par le bouton « + » (case au hasard, à renommer à la main).
+// C1 à B5 (MIDI 24-83, même convention d'octave que le reste de l'appli — voir computePianoWindow,
+// « C3..C5 par défaut » pour MIDI 48-72) : cinq octaves pleines, un compromis entre « toujours
+// atteignable direct » et une grille trop haute par défaut. Un accord/contexte qui déborde de cette
+// plage l'étend quand même au-delà (voir rowOrder plus bas) : ce plancher ne RÉDUIT jamais rien.
+const SEQ_MIDI_TOUJOURS_VISIBLE_MIN = 24;  // C1
+const SEQ_MIDI_TOUJOURS_VISIBLE_MAX = 83;  // B5
 // Le SIGNE seul de cette constante est encore lu (boutons et Ctrl+molette disent « plus » ou
 // « moins ») ; son amplitude, elle, ne sert plus — un cran vaut désormais une PROPORTION, voir
 // ZOOM_LEVEL_RATIO et adjustZoom.
@@ -10804,6 +10816,14 @@ class HarmoHubApp {
             this.renderSequencer();
             this.seqEditFeedback(voixCreee);
             this.livePreviewUpdate();
+            // Éclaire la touche de repère à gauche, comme pendant un glissé (voir _revelerToucheSeq) —
+            // retour utilisateur : « Lorsque j'ajoute une nouvelle note, je ne vois pas la note que je
+            // suis en train d'entrer ». Ce geste-ci s'arrête au clic (pas de glissé enchaîné, voir plus
+            // haut) : rien n'appelle _revelerToucheSeq(null) au relâchement comme pour un vrai glissé —
+            // un court délai éteint la surbrillance à sa place.
+            this._revelerToucheSeq(voixCreee);
+            clearTimeout(this._seqRevealNewNoteTimer);
+            this._seqRevealNewNoteTimer = setTimeout(() => this._revelerToucheSeq(null), 700);
             return;
         }
 
@@ -11213,10 +11233,16 @@ class HarmoHubApp {
     // d'erreur ». Le nom apparaît donc pendant le geste, à hauteur de la ligne visée, et s'éteint au
     // relâchement. Appelé à CHAQUE mouvement (pas seulement au changement de ligne) : la grille peut
     // se reconstruire en cours de geste (défilement automatique), ce qui effacerait la classe.
-    _revelerToucheSeq(voice) {
+    // `midi` (optionnel) : repli quand `voice` ne désigne aucune voix RÉELLE (null/-1) mais qu'une
+    // hauteur précise est quand même visée — cas d'un changement de voix vertical déposé sur une ligne
+    // encore libre (voir onSeqVoiceDragMove) : -1 y vaut pour TOUTES les cases seq-cell-free à la fois
+    // (voir data-voice dans renderSequencer), donc pas un repère utilisable pour retrouver LA bonne
+    // étiquette — data-row-midi, lui, est unique par ligne (une seule hauteur par ligne).
+    _revelerToucheSeq(voice, midi = null) {
         const precedent = document.querySelector('.seq-label.seq-key-reveal');
-        const cible = (voice == null || voice < 0) ? null
-            : document.querySelector(`.seq-label[data-row-voice="${voice}"]`);
+        let cible = null;
+        if (voice != null && voice >= 0) cible = document.querySelector(`.seq-label[data-row-voice="${voice}"]`);
+        else if (midi != null) cible = document.querySelector(`.seq-label[data-row-midi="${midi}"]`);
         if (precedent === cible) return;
         if (precedent) precedent.classList.remove('seq-key-reveal');
         if (cible) cible.classList.add('seq-key-reveal');
@@ -11599,7 +11625,10 @@ class HarmoHubApp {
         noteEl.style.visibility = 'hidden'; // l'original reste en place (annulation = rien à refaire) tant qu'on ne relâche pas
         d.voiceDrag = {
             origVoice: d.voice, start: d.noteStart, end: d.noteEnd,
-            targetVoice: d.voice, copy: d.additive,
+            // targetMidi initialisé à la hauteur d'ORIGINE (pas juste targetVoice) : c'est maintenant
+            // LUI la référence pour détecter un vrai changement de cible (voir onSeqVoiceDragMove), une
+            // ligne libre n'ayant pas de voix propre pour s'en charger seule.
+            targetVoice: d.voice, targetMidi: this.readChord().getSeqMidiNotes()[d.voice], copy: d.additive,
             ghost, noteEl,
             offsetX: d.startX - rect.left, offsetY: d.startY - rect.top,
         };
@@ -11616,34 +11645,46 @@ class HarmoHubApp {
 
         const under = document.elementFromPoint(e.clientX, e.clientY);
         const cell = under && under.closest ? under.closest('.seq-cell') : null;
-        const targetVoice = cell ? +cell.dataset.voice : null;
+        const cellVoice = cell ? +cell.dataset.voice : null;
+        // Case sur une voix EXISTANTE (>= 0) OU sur une ligne encore LIBRE (-1, .seq-cell-free, voir
+        // renderSequencer) : les deux sont désormais des cibles valides, depuis que la plage TOUJOURS
+        // visible dépasse largement les seules voix déjà posées (voir
+        // SEQ_MIDI_TOUJOURS_VISIBLE_MIN/MAX) — retour utilisateur : « perte de la note en cours de
+        // déplacement » en glissant vers une ligne qui n'appartenait encore à aucune voix, parce que
+        // -1 (une case libre PARMI D'AUTRES, pas une identité unique) finissait traité comme un
+        // vrai index de voix par la suite du code. targetMidi, pas targetVoice, est maintenant la
+        // vraie référence de CE geste : une voix existante ou une hauteur encore libre s'y ramènent
+        // toutes les deux à UNE hauteur, ce que le dépôt sait déjà traiter (voir finalizeSeqVoiceDrag).
+        const targetVoice = (cellVoice != null && cellVoice >= 0) ? cellVoice : null;
+        const chord = this.readChord();
+        const midis = chord.getSeqMidiNotes();
+        const targetMidi = !cell ? null : (targetVoice != null ? midis[targetVoice] : +cell.dataset.midi);
         // Le repère suit le doigt à CHAQUE mouvement, même quand la ligne visée n'a pas changé :
         // sinon il resterait figé loin derrière pendant qu'on longe une ligne.
         // Le nom s'écrit à DEUX endroits pendant ce geste, et ce n'est pas un doublon : à côté du doigt
         // (repère flottant) pour lire sans quitter la barre des yeux, et sur la touche de gauche (voir
         // _revelerToucheSeq) pour la situer sur le clavier — c'est ce second repère qui dit « je suis
         // bien sur la bonne ligne » avant de lâcher.
-        this._revelerToucheSeq(targetVoice);
-        if (targetVoice != null) {
-            const chord = this.readChord();
-            const noms = chord.getSeqDisplayNotes(this.useFlatsForRoot(chord.root));
-            this.showSeqDragReadout(noms[targetVoice] || '', e.clientX, e.clientY);
+        this._revelerToucheSeq(targetVoice, targetMidi);
+        if (targetMidi != null) {
+            this.showSeqDragReadout(midiToDisplayName(targetMidi, this.useFlatsForRoot(chord.root)), e.clientX, e.clientY);
         } else {
             this.hideSeqDragReadout(); // hors grille : rien à annoncer, le fantôme dit déjà « invalide »
         }
-        if (targetVoice === vd.targetVoice) return;
+        if (targetMidi === vd.targetMidi) return;
         vd.targetVoice = targetVoice;
-        vd.ghost.classList.toggle('seq-note-ghost-invalid', targetVoice == null);
-        if (targetVoice != null) {
-            const chord = this.readChord();
-            const midis = chord.getSeqMidiNotes();
-            const role = chord.getRoleMap()[midis[targetVoice]] || 'ext';
+        vd.targetMidi = targetMidi;
+        vd.ghost.classList.toggle('seq-note-ghost-invalid', targetMidi == null);
+        if (targetMidi != null) {
+            const role = chord.getRoleMap()[targetMidi] || 'ext';
             vd.ghost.className = vd.ghost.className.replace(/\brole-\S+/g, '').trim() + ` role-${role}`;
             // La hauteur visée vient de changer : la faire ENTENDRE tout de suite, sans attendre le
             // dépôt. C'est le geste de GarageBand — on cherche une note à l'oreille en glissant, pas
             // en lâchant puis en réécoutant. Ce test d'égalité juste au-dessus garantit un seul son
-            // par ligne traversée, pas un par pixel parcouru.
-            this.seqEditFeedback(targetVoice);
+            // par ligne traversée, pas un par pixel parcouru. Silencieux sur une ligne encore libre
+            // (targetVoice null) : previewSeqNote ne sait faire entendre qu'une voix déjà posée dans
+            // l'accord, pas une hauteur qui n'existe pas encore — le repère visuel suffit à la situer.
+            if (targetVoice != null) this.seqEditFeedback(targetVoice);
         }
     }
 
@@ -11719,13 +11760,26 @@ class HarmoHubApp {
         vd.ghost.remove();
         if (vd.noteEl) vd.noteEl.style.visibility = '';
 
-        if (vd.targetVoice == null || vd.targetVoice === vd.origVoice) {
+        if (vd.targetMidi == null || vd.targetVoice === vd.origVoice) {
             // Déposé hors grille, ou revenu sur sa ligne d'origine : rien à changer.
             this.renderSequencer();
             return;
         }
 
-        const { start, end, origVoice, targetVoice, copy } = vd;
+        const { start, end, origVoice, copy } = vd;
+        let targetVoice = vd.targetVoice;
+        if (targetVoice == null) {
+            // Déposé sur une ligne encore LIBRE (voir onSeqVoiceDragMove) : crée la voix manquante à
+            // cette hauteur précise — même geste qu'un simple clic sur une case seq-cell-free (voir
+            // onSeqPointerDown) — au lieu de peindre à tort sur la voix -1 (retour utilisateur :
+            // « perte de la note en cours de déplacement », la note glissée s'évaporait quand la ligne
+            // visée n'avait encore aucune voix propre à elle).
+            const midi = vd.targetMidi;
+            const pc = ((midi % 12) + 12) % 12;
+            this.extraNotes.push({ note: NOTES[pc], octave: Math.floor(midi / 12) - 1 });
+            const chordApres = this.readChord();
+            targetVoice = chordApres.getIntervals().length + this.extraNotes.length - 1;
+        }
         this.clearSeqRunsOverlapping(targetVoice, start, end);
         for (let s = start; s <= end; s++) this.applySeqCell(targetVoice, s, true, s !== start);
         if (!copy) for (let s = start; s <= end; s++) this.applySeqCell(origVoice, s, false);
@@ -13222,7 +13276,11 @@ class HarmoHubApp {
             const sonnantes = new Set(midis);
             prevMidiSet.forEach(m => sonnantes.add(m));
             nextMidiSet.forEach(m => sonnantes.add(m));
-            const bas = Math.min(...sonnantes), haut = Math.max(...sonnantes);
+            // Plancher/plafond TOUJOURS visibles (voir SEQ_MIDI_TOUJOURS_VISIBLE_MIN/MAX) : n'ÉLARGIT
+            // jamais que vers l'extérieur, un accord/contexte qui déborde de octave 1-5 reste montré
+            // en entier comme avant.
+            const bas = Math.min(SEQ_MIDI_TOUJOURS_VISIBLE_MIN, ...sonnantes);
+            const haut = Math.max(SEQ_MIDI_TOUJOURS_VISIBLE_MAX, ...sonnantes);
             rowOrder = [];
             for (let m = haut; m >= bas; m--) rowOrder.push({ voice: midis.indexOf(m), midi: m });
         } else {
@@ -13389,12 +13447,11 @@ class HarmoHubApp {
         // des lignes trouées, des touches se feraient face sans respecter l'écart réel, et le repère
         // mentirait. Hors vue continue, on garde donc l'étiquette texte telle quelle.
         const PC_NOIRES = new Set([1, 3, 6, 8, 10]);
-        // `role` : passé seulement pour les hauteurs que l'accord JOUE vraiment. Le clavier de gauche
-        // montrait bien où l'on est, jamais ce qui sonne — il fallait relire les barres pour retrouver
-        // l'accord (retour utilisateur : « les notes présentes dans l'accord ne restent pas affichées
-        // sur le piano »). La touche prend donc la couleur de sa fonction, exactement celles du clavier
-        // et de la légende de l'appli (1 vert, 3 bleu, 5 rouge, 7 orange, autres violet) : un seul code
-        // couleur d'un bout à l'autre.
+        // `role` : passé seulement pour les hauteurs que l'accord JOUE vraiment (une valeur de rôle
+        // quelconque, ou null sinon) — sert ici uniquement de déclencheur booléen. La touche jouée
+        // n'emprunte plus la couleur du rôle (retour utilisateur : « éclairer uniquement via une
+        // surbrillance, et enlève les couleurs sur les touches » — le code couleur par rôle reste,
+        // lui, sur les barres du séquenceur/le clavier fixe/la légende, voir .seq-key-jouee en CSS).
         const toucheCls = (midi, role) => {
             if (!continuous) return '';
             const pc = ((midi % 12) + 12) % 12;
@@ -13406,7 +13463,7 @@ class HarmoHubApp {
             // repère une octave sur un vrai clavier.
             let cls = PC_NOIRES.has(pc) ? ' seq-key seq-key-black' : ' seq-key seq-key-white';
             if (pc === 0) cls += ' seq-key-c';
-            if (role) cls += ` seq-key-jouee seq-key-role-${role}`;
+            if (role) cls += ' seq-key-jouee';
             return cls;
         };
 
