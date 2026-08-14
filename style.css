@@ -933,6 +933,44 @@ main {
    musique (retour utilisateur). Rétabli en `flex` sur ordinateur, où il redevient une vraie colonne
    défilante (voir la requête min-width:900px). */
 .col-left, .col-right { display: contents; }
+/* .sidebar-frame (voir index.html) ne fait qu'envelopper .col-left + son étiquette de repli — sur
+   mobile, il n'existe pas de repli du tout (voir .sidebar-tab plus bas), donc l'enveloppe doit rester
+   aussi transparente pour la mise en page que .col-left seul l'était déjà. */
+.sidebar-frame { display: contents; }
+
+/* Étiquette de repli du panneau de gauche (#toggle-sidebar) : bureau uniquement — la colonne de gauche
+   n'existe pas telle quelle sur mobile (aplatie ci-dessus), rien à replier séparément. Repositionnée
+   ici (retour utilisateur : « l'emplacement du bouton pour masquer le volet de gauche n'est pas
+   instinctif ») contre le bord du panneau plutôt que dans la barre du haut ; voir la requête
+   min-width:900px pour son positionnement réel (elle a besoin de .sidebar-frame en position:relative,
+   qui n'existe qu'à cette largeur). Dessinée comme .icon-btn (même dégradé/bordure/couleurs) mais
+   asymétrique : arrondie seulement du côté qui pointe vers la grille, sans bordure du côté qui touche
+   le panneau. */
+.sidebar-tab {
+    display: none;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    /* Sans ça, la règle générique `button { min-width: 120px; }` (bouton pleine largeur mobile)
+       l'emportait quand même : `width` perd face à `min-width` s'il est plus grand, quelle que soit
+       la spécificité — mesuré, l'étiquette faisait 120px de large au lieu des 16px voulus. Même
+       correctif que .icon-btn (min-width: 0), qui a le même problème avec la même règle générique. */
+    min-width: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0) 50%), #1c2027;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-left: none;
+    border-radius: 0 7px 7px 0;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03);
+}
+.sidebar-tab:hover { background: linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0) 50%), #262b33; border-color: var(--accent); color: var(--accent); }
+.sidebar-tab:active { transform: translateY(1px); }
+.sidebar-tab .icon { width: 13px; height: 13px; transition: transform 0.2s ease; }
+/* Repliée, la flèche s'inverse (pointe vers le panneau absent, prête à le ramener) — même classe
+   .active que tous les autres boutons à bascule de l'appli (voir applySidebarCollapsed). */
+.sidebar-tab.active .icon { transform: rotate(180deg); }
 
 
 .panel-controls {
@@ -3881,8 +3919,10 @@ select.song-select-narrow {
            .grid-head-sticky) — 100px de largeur rendus à la grille. */
     }
 
-    /* Les colonnes redeviennent de vrais conteneurs (fin de l'aplatissement mobile) */
-    .col-left, .col-right { display: flex; }
+    /* Les colonnes redeviennent de vrais conteneurs (fin de l'aplatissement mobile). .col-left reste
+       flex lui aussi : c'est .sidebar-frame, son enveloppe, qui porte maintenant largeur/flex-basis
+       (voir plus bas) — .col-left n'a plus qu'à remplir cette enveloppe. */
+    .sidebar-frame, .col-left, .col-right { display: flex; }
 
     /* Accueil du séquenceur sous la grille (voir placeSequencer/#seq-dock-host) : il n'existe QUE sur
        ordinateur, et seulement une fois le séquenceur ouvert — :empty le fait disparaître entièrement
@@ -3902,17 +3942,55 @@ select.song-select-narrow {
        bande morte sous la rangée de boutons. Le défilement, lui, vit dans .seq-scroll. */
     .seq-dock-host .arp-seq { width: 100%; }
 
-    .col-left {
+    /* Largeur/flex-basis du panneau vivent ici, sur l'enveloppe, pas sur .col-left (voir juste en
+       dessous) : c'est ELLE qui doit garder sa boîte — et donc sa position — quand .col-left, dedans,
+       passe en display:none, sans quoi l'étiquette de repli (positionnée par rapport à elle, voir
+       .sidebar-tab) perdrait toute référence pour se placer une fois le panneau masqué. */
+    .sidebar-frame {
+        position: relative;
         flex-direction: column;
         width: 360px;
         flex: none;
         min-height: 0;
     }
+    /* .col-left n'a plus qu'à occuper toute l'enveloppe — mêmes réglages qu'avant, juste déplacés d'un
+       niveau. */
+    .col-left {
+        flex-direction: column;
+        flex: 1;
+        width: 100%;
+        min-height: 0;
+    }
     /* Masque tout le panneau de gauche (voir #toggle-sidebar/toggleSidebar dans script.js) : la grille
        et les diagrammes (.col-right) profitent alors de toute la largeur — bureau uniquement, .col-left
-       n'existant pas telle quelle sur mobile (aplatie en une seule colonne, voir plus haut). */
+       n'existant pas telle quelle sur mobile (aplatie en une seule colonne, voir plus haut). L'enveloppe
+       (.sidebar-frame) tombe à 0 avec lui — display:none ferait aussi disparaître l'étiquette qu'elle
+       héberge, or c'est justement ELLE qui doit rester cliquable pour rouvrir le panneau. */
     body.sidebar-collapsed .col-left { display: none; }
-    body.sidebar-collapsed main { gap: 0; }
+    body.sidebar-collapsed .sidebar-frame { width: 0; }
+    /* Gap ramené à 20px (pas 0) : l'étiquette (16px de large, right:-16px) vit dans cet espace, entre
+       .sidebar-frame tombée à 0 et .col-right. Un gap à 0 la ferait chevaucher le bord de la grille de
+       16px ; 20px lui laisse tout juste la place, avec 4px de respiration, tout en rendant quand même
+       8px de plus à la grille que l'ancien gap de 28px. */
+    body.sidebar-collapsed main { gap: 20px; }
+
+    /* Étiquette de repli : accrochée au bord de .sidebar-frame (voir index.html + le commentaire plus
+       haut sur ce même bloc), pas au milieu de sa hauteur mais calée sur le PREMIER bouton du panneau
+       (#song-card .card-head-actions .icon-btn, 32px de haut) pour que les deux se lisent comme une
+       seule ligne — retour utilisateur : « ajuste sa hauteur pour qu'il y ait une cohérence [...] base
+       du chevron = base ou haut d'un bouton du volet ». 13px = bordure (1px) + padding-top (12px) de
+       #song-card, la première .control-card de la colonne (voir .control-card ci-dessous) : haut ET
+       bas de l'étiquette coïncident ainsi avec haut et bas de ce premier bouton. right:-16px la fait
+       déborder du panneau dans la marge qui le sépare de la grille (28px de gap, voir `main` plus
+       haut), sans jamais toucher .col-right. */
+    .sidebar-tab {
+        display: flex;
+        position: absolute;
+        top: 13px;
+        right: -16px;
+        width: 16px;
+        height: 32px;
+    }
     /* #footer-dock est alors déplacé dans .col-right (voir applySidebarCollapsed) : son padding-right
        ne sert plus à s'aligner avec la scrollbar de .panel-controls, disparu avec le reste du panneau. */
     body.sidebar-collapsed .col-right .dock { padding-right: 0; }

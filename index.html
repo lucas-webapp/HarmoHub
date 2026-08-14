@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608141000">
+    <link rel="stylesheet" href="style.css?v=202608141500">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -28,18 +28,6 @@
         </button>
         <button type="button" id="global-redo-btn" class="icon-btn" title="Rétablir (Ctrl+Y)" aria-label="Rétablir" disabled>
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
-        </button>
-        <!-- Masque tout le panneau de gauche (Accord/Morceau/Réglages...) pour voir la grille et les
-             diagrammes en plein écran, plus simple à modifier (retour utilisateur) — bureau uniquement
-             (voir toggleSidebar/style.css @media min-width:900px), la colonne de gauche n'existant pas
-             telle quelle sur mobile (déjà aplatie en une seule colonne, voir .col-left { display:
-             contents }). État mémorisé d'une session à l'autre comme les autres préférences d'affichage. -->
-        <button type="button" id="toggle-sidebar" class="icon-btn" title="Masquer le panneau de gauche" aria-label="Masquer le panneau de gauche" aria-pressed="false">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="4" width="18" height="16" rx="2"/>
-                <path d="M9 4v16"/>
-                <rect x="4.5" y="8" width="3" height="8" rx="1" fill="currentColor" stroke="none"/>
-            </svg>
         </button>
         <!-- Juste avant le titre (retour utilisateur), plutôt qu'au tout début de la barre du haut. -->
         <button type="button" id="open-settings" class="icon-btn settings-btn" title="Paramètres" aria-label="Paramètres">
@@ -363,6 +351,16 @@
 
 
     <main>
+        <!-- .sidebar-frame enveloppe .col-left ET l'étiquette de repli (#toggle-sidebar) : elle seule a
+             besoin de rester visible quand .col-left passe en display:none (voir plus bas), pour qu'on
+             puisse encore cliquer pour réafficher le panneau. Sans cette enveloppe, l'étiquette aurait
+             dû vivre soit DANS .col-left (et disparaître avec lui, impossible à rouvrir), soit ailleurs
+             dans la page avec une position calculée à la main (fragile). Ici elle se positionne par
+             rapport à .sidebar-frame (voir style.css @media min-width:900px), qui garde sa propre boîte
+             même quand .col-left, à l'intérieur, disparaît. Bureau uniquement, comme le repli lui-même :
+             display:contents en dessous de 900px (voir style.css), aussi transparente pour la mise en
+             page mobile que .col-left/.col-right l'étaient déjà seuls. -->
+        <div class="sidebar-frame">
         <div class="col-left">
             <!-- Bandeau Ajout/Modification (voir this.appMode dans script.js, retour utilisateur : trop
                  de clics/erreurs pour modifier un accord). Ces deux-là, et RIEN d'autre : ce bandeau ne
@@ -764,6 +762,17 @@
             <div class="dock" id="footer-dock">
             </div>
         </div>
+        <!-- Étiquette de repli, accrochée au bord du panneau plutôt que perdue en haut à droite parmi
+             Annuler/Rétablir/Paramètres (retour utilisateur : « l'emplacement du bouton pour masquer le
+             volet de gauche n'est pas instinctif »). Hauteur et position calées sur le premier bouton
+             du panneau (voir #song-card .card-head-actions .icon-btn : même 32px de haut, même
+             13px depuis le haut — bordure + padding de la première carte) pour qu'elle se lise comme
+             en prolongement de ce bouton plutôt que flottant au hasard. Simple chevron, sans texte : des
+             trois habillages proposés, c'est celui-ci qui a été retenu (« ça prendra moins de place »). -->
+        <button type="button" id="toggle-sidebar" class="sidebar-tab" title="Masquer le panneau de gauche" aria-label="Masquer le panneau de gauche" aria-pressed="false">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        </div>
 
         <div class="col-right">
             <section class="history-section">
@@ -1057,6 +1066,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608141000"></script>
+    <script src="script.js?v=202608141500"></script>
 </body>
 </html>
