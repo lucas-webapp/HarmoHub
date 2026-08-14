@@ -9,8 +9,12 @@
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
-const HANDLE_MIN = 9, HANDLE_MAX = 18, MIN_BODY = 16; // mêmes constantes que SEQ_ZONE_* dans script.js
-const zonesAttendues = (w) => (Math.min(HANDLE_MAX, Math.max(HANDLE_MIN, w * 0.3)) * 2 <= w - MIN_BODY);
+// Mêmes constantes que SEQ_ZONE_* dans script.js — recopiées ici plutôt qu'importées ; avaient dérivé
+// (9/18/16 avec un ratio de 0.3) après un réglage des seuils vers des poignées plus généreuses au
+// toucher (SEQ_ZONE_HANDLE_MIN_PX/MIN_BODY_PX abaissés), ce qui faussait ce banc pour la mauvaise
+// raison — il prédisait « pas de corps » là où l'appli, avec ses vrais seuils, en offre bien un.
+const HANDLE_RATIO = 0.25, HANDLE_MIN = 5, HANDLE_MAX = 18, MIN_BODY = 6;
+const zonesAttendues = (w) => (Math.min(HANDLE_MAX, Math.max(HANDLE_MIN, w * HANDLE_RATIO)) * 2 <= w - MIN_BODY);
 
 let PASS = 0, FAIL = 0;
 function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label); } else { FAIL++; console.log('FAIL - ' + label); } }

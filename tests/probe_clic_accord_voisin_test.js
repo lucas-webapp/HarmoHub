@@ -7,7 +7,7 @@ const { chromium } = require('playwright');
 // Ce banc-ci ne passe QUE par l'interface : un vrai clic, et rien d'autre.
 let PASS = 0, FAIL = 0;
 const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { FAIL++; console.log('FAIL - ' + l); } };
-const BASE = process.env.BASE || `${BASE}`;
+const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
 (async () => {
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
