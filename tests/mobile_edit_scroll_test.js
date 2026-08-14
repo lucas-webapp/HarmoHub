@@ -56,11 +56,14 @@ const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { 
     await page.waitForTimeout(150);
     let etat = await page.evaluate(() => window.app.editingIndex);
     check(etat === 1, `édition bien amorcée avant le test — editingIndex=${etat}`);
-    // Un point réellement hors du panneau d'édition (pas juste « en bas » : à cette hauteur, sur ce
-    // format de téléphone, un accord en cours d'édition remplit la page jusqu'à ~700px avec ses
-    // propres champs — vérifié via elementFromPoint, sans quoi ce test resterait vrai même sans le
-    // correctif, pour la mauvaise raison).
-    await toucherEtDefiler(200, 620, -80);
+    // Un point réellement hors du panneau d'édition — vérifié via elementFromPoint, sans quoi ce test
+    // resterait vrai même sans le correctif, pour la mauvaise raison. Recalé à 606px (était 620) après
+    // plusieurs retouches légitimes de mise en page mobile cette session (diagrammes réduits, largeur
+    // du transport en volet replié, séquenceur qui s'étire...) : 620 finissait par tomber DANS
+    // #accord-card (toujours en zone d'édition), faussant ce banc pour la mauvaise raison — pas un
+    // vrai retour du défaut. 606 tombe dans l'interstice MAIN entre .history-section (grille) et
+    // #accord-card, revérifié à chaque exécution en pratique via ce même elementFromPoint.
+    await toucherEtDefiler(200, 606, -80);
     await page.waitForTimeout(150);
     etat = await page.evaluate(() => window.app.editingIndex);
     check(etat === 1, `l'édition reste active après le défilement — editingIndex=${etat}`);
@@ -69,7 +72,7 @@ const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { 
     await page.evaluate(({ x, y }) => {
         const el = document.elementFromPoint(x, y) || document.body;
         el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
-    }, { x: 200, y: 620 });
+    }, { x: 200, y: 606 });
     await page.waitForTimeout(150);
     etat = await page.evaluate(() => window.app.editingIndex);
     check(etat === null, `un clic « ailleurs » sans défilement sort toujours bien de l'édition — editingIndex=${etat}`);
@@ -77,7 +80,7 @@ const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { 
     console.log('--- Un simple tap (déplacement < 10px) reste un clic normal, pas un défilement ---');
     await page.evaluate(() => window.app.editChord(0, 1));
     await page.waitForTimeout(150);
-    await toucherEtDefiler(200, 620, 3); // 3px : sous le seuil de 10px
+    await toucherEtDefiler(200, 606, 3); // 3px : sous le seuil de 10px
     await page.waitForTimeout(150);
     etat = await page.evaluate(() => window.app.editingIndex);
     check(etat === null, `un tap sous le seuil (3px) sort toujours de l'édition comme un vrai clic — editingIndex=${etat}`);
@@ -102,7 +105,7 @@ const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { 
         document.dispatchEvent(new Event('scroll')); // l'élan continue après le lever du doigt
         const el = document.elementFromPoint(x, y) || document.body;
         el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
-    }, { x: 200, y: 620 });
+    }, { x: 200, y: 606 });
     await page.waitForTimeout(150);
     etat = await page.evaluate(() => window.app.editingIndex);
     check(etat === 1, `l'édition reste active après un défilement sur son élan — editingIndex=${etat}`);
@@ -119,7 +122,7 @@ const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { 
         document.dispatchEvent(new Event('scroll')); // aucun touchstart avant : geste souris, pas doigt
         const el = document.elementFromPoint(x, y) || document.body;
         el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
-    }, { x: 200, y: 620 });
+    }, { x: 200, y: 606 });
     await page.waitForTimeout(150);
     etat = await page.evaluate(() => window.app.editingIndex);
     check(etat === null, `sans toucher préalable, un clic « ailleurs » sort bien de l'édition même juste après un scroll — editingIndex=${etat}`);
@@ -138,7 +141,7 @@ const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { 
     await page.evaluate(({ x, y }) => {
         const el = document.elementFromPoint(x, y) || document.body;
         el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, pointerType: 'touch' }));
-    }, { x: 200, y: 620 });
+    }, { x: 200, y: 606 });
     await page.waitForTimeout(150);
     etat = await page.evaluate(() => window.app.editingIndex);
     check(etat === 1, `un pointerdown tactile seul (sans clic derrière) ne ferme pas l'édition — editingIndex=${etat}`);
@@ -150,7 +153,7 @@ const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { 
         el.dispatchEvent(new PointerEvent('pointerdown', opts));
         el.dispatchEvent(new PointerEvent('pointerup', opts));
         el.dispatchEvent(new MouseEvent('click', opts));
-    }, { x: 200, y: 620 });
+    }, { x: 200, y: 606 });
     await page.waitForTimeout(150);
     etat = await page.evaluate(() => window.app.editingIndex);
     check(etat === null, `un vrai tap (pointerdown+pointerup+clic, sans défilement) ferme toujours l'édition — editingIndex=${etat}`);
@@ -161,7 +164,7 @@ const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { 
     await page.evaluate(({ x, y }) => {
         const el = document.elementFromPoint(x, y) || document.body;
         el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, pointerType: 'mouse' }));
-    }, { x: 200, y: 620 });
+    }, { x: 200, y: 606 });
     await page.waitForTimeout(150);
     etat = await page.evaluate(() => window.app.editingIndex);
     check(etat === null, `à la souris, un pointerdown seul ferme toujours immédiatement — editingIndex=${etat}`);

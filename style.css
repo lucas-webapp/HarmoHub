@@ -2147,10 +2147,31 @@ button:active { transform: translateY(1px); }
     width: 100%;
 }
 
-/* Boutons de bascule piano/guitare : calés à droite du titre d'accord (voir .chord-header-row),
-   compacts (largeur réduite) plutôt qu'en pleine largeur — très utilisés, donc un peu plus grands
-   que les icon-btn habituels quand même (icon-btn pour le style visuel, .active = même surbrillance
-   verte que les autres boutons à bascule de l'appli). */
+/* Cadre regroupant le(s) diagramme(s) et leur bascule piano/guitare en un seul bloc visuel cohérent,
+   toujours centré sous le contenu qu'il contient (voir index.html, retour utilisateur : « les boutons
+   de diagrammes sont positionnés aléatoirement, sans cohérence »). width:fit-content + margin:auto :
+   sans ça, ce div hériterait la pleine largeur de .viz-wrap (comme .viz-toggle avant lui), un cadre
+   bien plus large que son contenu centré à l'intérieur — pas franchement plus cohérent qu'avant.
+   align-items:center (pas stretch, le défaut d'une colonne flex) laisse .viz-diagrams ET .viz-toggle
+   prendre chacun leur propre largeur de contenu, empilés et centrés sur le même axe. Même habillage
+   que .control-card (fond/bordure/rayon) pour rester visuellement de la même famille que les autres
+   cartes de l'appli plutôt que des icônes nues sur le fond noir. */
+.viz-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 12px 16px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+/* Compacts (largeur réduite) plutôt qu'en pleine largeur — très utilisés, donc un peu plus grands que
+   les icon-btn habituels quand même (icon-btn pour le style visuel, .active = même surbrillance verte
+   que les autres boutons à bascule de l'appli). */
 .viz-toggle {
     display: flex;
     flex-direction: row;
@@ -2516,11 +2537,13 @@ button:active { transform: translateY(1px); }
 }
 .voice-leading-scroll svg { display: block; transform: scale(var(--vl-zoom-scale-x, 1), var(--vl-zoom-scale-y, 1)); transform-origin: top left; }
 
-/* Réduit (retour utilisateur : « Réduis le bouton "Ajouter une partie" qui prend trop de place » —
-   libellé raccourci en « Ajouter section » au même endroit) : largeur au contenu (pas 100%), padding
-   standard plutôt que celui, généreux, des boutons du transport. Un second bouton dupliquant ce même
-   geste a été essayé en tête de grille, à côté du titre, puis retiré (retour utilisateur : « qui fait
-   la même chose que le bouton "ajouter une partie" ») — un seul point d'entrée suffit. */
+/* Réduit (retour utilisateur : « Réduis le bouton "Ajouter une partie" qui prend trop de place ») :
+   largeur au contenu (pas 100%), padding standard plutôt que celui, généreux, des boutons du
+   transport. Un second bouton dupliquant ce même geste a été essayé en tête de grille, à côté du
+   titre, puis retiré (retour utilisateur : « qui fait la même chose que le bouton "ajouter une
+   partie" ») — un seul point d'entrée suffit. Vert (.btn-green) et son libellé complet repris ensuite
+   (retour utilisateur : « Je préfère le bouton vert avec écriture "ajouter une partie" plutôt que le
+   + uniquement » — un raccourcissement précédent l'avait réduit à « Ajouter section » en gris). */
 .add-section-btn {
     flex: none;
     width: auto;
@@ -4831,9 +4854,13 @@ select.song-select-narrow {
    FRET_GAP...), qui servent aussi à l'export PDF (forPrint=true, hors de ce sélecteur). */
 .viz-diagrams .guitar-container svg { width: 119px; height: auto; }
 
-/* Les boutons de diagrammes, désormais sous les diagrammes (voir index.html), se centrent avec eux
-   plutôt que de rester collés à gauche d'une ligne de titre qui n'existe plus pour eux. */
-.col-right > .viz-toggle { justify-content: center; margin: 2px 0 0; }
+/* Le centrage de la bascule sous les diagrammes se fait maintenant via .viz-card (voir plus haut) :
+   cette règle-ci ne correspondait en réalité à RIEN dans le DOM (.viz-toggle n'a jamais été un enfant
+   DIRECT de .col-right, mais de .viz-wrap) — elle ne s'appliquait donc jamais, et la bascule restait
+   collée à gauche même une fois la colonne repliée, contrairement à l'intention du commentaire
+   d'origine. Retirée plutôt que corrigée sur place : .viz-card règle le même besoin correctement.
+   Voir retour utilisateur sur .viz-card ci-dessus (« boutons de diagrammes positionnés
+   aléatoirement »). */
 
 /* AMAS EN HAUT À DROITE. Les commandes de la GRILLE (échelles H/V, conduite de voix, séquenceur
    continu) étaient alignées à droite, juste sous les commandes de l'APPLICATION (annuler/refaire,

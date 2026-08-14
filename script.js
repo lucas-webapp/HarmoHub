@@ -1862,11 +1862,18 @@ const CLASSIC_GRID_ZOOM_LEVEL_Y_KEY = 'harmohubClassicGridZoomLevelY';
 // appliqués à l'AUTRE liste (#toggle-sidebar, .zoom-axis-group, #footer-dock, .chord-header-row,
 // .viz-wrap...) ne s'y était répercuté. Une seule liste désormais, lue aux deux endroits : plus
 // jamais de dérive entre les deux à l'avenir.
+// .chord-grid (le conteneur, pas ses cases) volontairement ABSENT d'ici : il couvrait tout le fond
+// vide de la grille — au-delà de la dernière rangée, entre les cases — comme s'il s'agissait d'une
+// case elle-même, empêchant d'y sortir de l'édition en cliquant dans le vide (retour utilisateur :
+// « Je voudrais sortir du mode modification lorsque je clique dans un endroit vide dans la grille
+// d'accords. Pour le moment je dois cliquer en dehors de la grille. »). .grid-cell/.cell-add/
+// .section-head, eux, restent listés : cliquer une VRAIE case, le bouton d'ajout ou l'en-tête d'une
+// partie fait toujours partie du travail en cours.
 const ZONE_EDITION_SELECTEURS = [
     '.col-left', '.control-card', '.seq-zoom-modal', '.chord-header-row', '.viz-wrap', '.viz-toggle',
     '#arp-sequencer', '.seq-dock-panel', '#global-undo-btn', '#global-redo-btn', '.zoom-axis-group',
     '#toggle-sidebar', '#toggle-voice-leading', '#footer-dock', '.transport', '.dock',
-    '#quick-add-help-btn', '#quick-add-help', '.chord-grid', '.grid-cell', '.cell-add',
+    '#quick-add-help-btn', '#quick-add-help', '.grid-cell', '.cell-add',
     '.section-head', '.grid-head-sticky', '#context-menu', '.overlay', '.modal', '.settings-overlay',
     '#files-overlay', 'button', 'input', 'select', 'textarea', 'label', 'a', '[role="button"]',
 ].join(',');
@@ -3714,7 +3721,11 @@ class HarmoHubApp {
             // éléments d'origine ont depuis été remplacés.
             const path = e.composedPath();
             const inPath = (selector) => path.some(el => el instanceof Element && el.matches(selector));
-            const inGrid = inPath('.chord-grid');
+            // .grid-cell/.cell-add/.section-head, pas .chord-grid (le conteneur) : sinon TOUT clic dans
+            // le fond vide de la grille (au-delà de la dernière rangée, entre les cases) comptait comme
+            // « dans la grille » et ne désélectionnait/ne sortait jamais de l'édition — retour
+            // utilisateur, voir ZONE_EDITION_SELECTEURS plus haut, même correctif.
+            const inGrid = inPath('.grid-cell, .cell-add, .section-head');
             const inMenu = inPath('#context-menu');
             // .seq-zoom-modal inclus : le séquenceur (déplacé dans la loupe séquenceur,
             // ou dans sa propre vue agrandie, voir openSeqZoom) et ses boutons (Enregistrer/Annuler/
@@ -6589,8 +6600,7 @@ class HarmoHubApp {
         this.loadProgression();
     }
 
-    // Bouton « + Ajouter section » (libellé raccourci — retour utilisateur, voir index.html) :
-    // nouvelle partie vide, aussitôt active, prête à être nommée.
+    // Bouton « + Ajouter une partie » : nouvelle partie vide, aussitôt active, prête à être nommée.
     addSection() {
         const sections = loadProgressionSections();
         this.pushUndo(sections);
