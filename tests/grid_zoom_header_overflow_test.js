@@ -1,0 +1,59 @@
+const { chromium } = require('playwright')
+const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
+
+let PASS = 0, FAIL = 0;
+function check(cond, label) {
+    if (cond) { PASS++; console.log('PASS - ' + label); }
+    else { FAIL++; console.log('FAIL - ' + label); }
+}
+
+(async () => {
+    const browser = await chromium.launch();
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+    page.on('console', (msg) => { if (msg.type() === 'error' && !msg.text().includes('CONNECTION')) errors.push('console.error: ' + msg.text()); });
+
+    await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
+    await page.waitForTimeout(200);
+    await page.evaluate(() => {
+        localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Couplet', chords: [
+            { root: 'G', quality: 'maj', beats: 4, inversion: 0, drop: 'none', octave: 4, bass: null, playStyle: 'held' },
+            { root: 'D', quality: 'maj', beats: 4, inversion: 0, drop: 'none', octave: 4, bass: null, playStyle: 'held' },
+        ] }] }));
+    });
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForTimeout(200);
+    await page.evaluate(() => window.app.openGridZoom());
+    await page.waitForTimeout(200);
+
+    const info = await page.evaluate(() => {
+        const viewportWidth = window.innerWidth;
+        // grid-zoom-play-chord retiré : le bouton « Accord » a disparu de tous les transports (retour
+        // utilisateur, voir global_transport_test.js) — un seul bouton Lecture désormais.
+        const ids = ['grid-zoom-play-prog', 'grid-zoom-loop', 'grid-zoom-stop',
+            'grid-zoom-undo', 'grid-zoom-redo', 'grid-zoom-in-h', 'grid-zoom-out-h',
+            'grid-zoom-in-v', 'grid-zoom-out-v', 'grid-zoom-close'];
+        const results = {};
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) { results[id] = 'MISSING'; return; }
+            const r = el.getBoundingClientRect();
+            results[id] = {
+                withinViewport: r.left >= 0 && r.right <= viewportWidth + 1 && r.width > 0 && r.height > 0,
+                rect: { left: Math.round(r.left), right: Math.round(r.right), top: Math.round(r.top) },
+            };
+        });
+        return { viewportWidth, results };
+    });
+    console.log(JSON.stringify(info, null, 2));
+
+    Object.entries(info.results).forEach(([id, res]) => {
+        check(res !== 'MISSING' && res.withinViewport, `${id} est entièrement visible dans la largeur de l'écran (390px)`);
+    });
+
+    console.log('\n=== Bilan : ' + PASS + ' PASS / ' + FAIL + ' FAIL ===');
+    console.log('Errors:', JSON.stringify(errors));
+    await browser.close();
+    process.exit(FAIL > 0 ? 1 : 0);
+})().catch((e) => { console.error('FATAL', e); process.exit(2); });
