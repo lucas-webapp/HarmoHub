@@ -638,13 +638,14 @@ body.body-scroll-locked { overflow: hidden !important; }
     box-shadow: 0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03);
 }
 .zoom-axis-tag { grid-row: 1 / span 2; align-self: center; font-size: var(--fs-xs); font-weight: 700; color: var(--text-muted); width: 12px; text-align: center; }
-/* L'étiquette H/V est aussi le bouton « revenir à 100 % » (voir updateZoomControls). Teintée en
-   accent dès que l'échelle s'écarte de 100 % : c'est le seul indice permanent qu'un zoom est en
-   cours sur CE panneau — le niveau exact, lui, est dans l'infobulle, faute de place pour l'écrire
-   dans 12px de large. */
+/* L'étiquette H/V est aussi le bouton « revenir à 100 % » (voir updateZoomControls) : ce rôle
+   cliquable reste actif quelle que soit l'échelle. Elle ne change plus de couleur pour autant
+   (retour utilisateur : « les H+/- et V+/- sont parfois représentés en vert... enlève cette option,
+   ça ne me sert pas ») — le niveau exact reste consultable dans l'infobulle au survol. La classe
+   .zoom-axis-tag-off continue d'être posée par updateZoomControls (elle sert aussi de repère pour
+   d'autres lecteurs du DOM/tests) mais n'a plus aucune règle de couleur ici. */
 .zoom-axis-group .zoom-axis-tag { cursor: pointer; border-radius: 3px; }
 .zoom-axis-group .zoom-axis-tag:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.09); }
-.zoom-axis-group .zoom-axis-tag-off { color: var(--accent); }
 /* Borne atteinte : le bouton reste en place (pas de saut de mise en page) mais devient inerte et
    visiblement inactif — avant, on continuait de cliquer sans que rien ne bouge, sans savoir pourquoi. */
 .zoom-axis-group .zoom-axis-btn:disabled { opacity: 0.3; cursor: default; }
@@ -1126,6 +1127,15 @@ main {
     flex: none;
 }
 .grid-head-transport-host:empty { display: none; }
+/* Titre + bouton "Ajouter une partie" (voir index.html) : groupés dans leur propre flex pour rester
+   collés l'un à l'autre malgré le justify-content:space-between de .card-head (même besoin que
+   .card-head-right, voir plus haut). */
+.grid-head-title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.add-section-head-btn { flex: none; }
 /* Dans l'en-tête, le transport reste une RANGÉE compacte (le défaut de .transport), mais ses boutons
    se calent sur la hauteur des autres commandes de la ligne (zoom, loupe : 32px) plutôt que sur les
    52px pleine largeur du pied de colonne tactile — sinon cette ligne, désormais permanente, doublerait
@@ -1153,7 +1163,7 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
     gap: 8px;
     flex-wrap: wrap;
 }
-.transport button, .add-section-btn {
+.transport button {
     min-width: 0;
     flex: 1 1 0;
     padding: 13px 12px 13px 8px; /* contenu recentré, voir le commentaire sur le button de base */
@@ -2016,7 +2026,10 @@ button:active { transform: translateY(1px); }
     justify-content: flex-start;
     margin: 8px auto 0;
     width: 100%;          /* max-width posé dynamiquement en JS pour des touches réalistes */
-    height: 48px;         /* 50% de la taille d'origine (96px), pour mettre en valeur la grille d'accords */
+    /* 32px = encore les 2/3 d'une précédente passe à 48px (retour utilisateur : « Je n'ai pas besoin
+       de diagrammes piano / guitare aussi gros... environ 2/3 de la taille me suffit... La grille
+       d'accords est plus importante »). */
+    height: 32px;
     padding: 0;
     user-select: none;
 }
@@ -2360,6 +2373,18 @@ button:active { transform: translateY(1px); }
     border-color: var(--btn-blue-border-hover);
 }
 
+/* Ampoule d'aide : hauteur alignée sur la barre, comme #quick-add-btn juste au-dessus (jusque-là
+   restée à 32px, la taille .icon-btn par défaut, contre 44px pour la textarea et le bouton "+" —
+   décalage visuel qui la faisait paraître flottante) mais largeur étroite plutôt que carrée : c'est
+   une aide secondaire, pas l'action principale de la rangée. Retour utilisateur : « La petite ampoule
+   pour comprendre les options d'ajout rapide d'accords est mal placée. Insère la dans la barre
+   d'ajout (à droite, hauteur égale à celle de la barre, largeur faible) ». */
+#quick-add-help-btn {
+    height: 44px;
+    align-self: flex-start;
+    width: 26px;
+}
+
 /* Popover d'aide de l'ajout rapide (voir #quick-add-help-btn) : même habillage que .context-menu,
    liste très courte plutôt que des phrases — au plus court, pas une notice à lire. */
 .quick-add-help {
@@ -2504,9 +2529,22 @@ button:active { transform: translateY(1px); }
 }
 .voice-leading-scroll svg { display: block; transform: scale(var(--vl-zoom-scale-x, 1), var(--vl-zoom-scale-y, 1)); transform-origin: top left; }
 
+/* Réduit (retour utilisateur : « Réduis le bouton "Ajouter une partie" qui prend trop de place » —
+   l'ajout d'une section se fait désormais surtout via #add-section-head, juste sous le titre de la
+   grille, voir index.html). Reste ici, discret, pour qui vient de finir de lire toute la grille sans
+   remonter jusqu'au titre — mais n'a plus besoin de peser autant : largeur au contenu (pas 100%),
+   padding standard plutôt que celui, généreux, des boutons du transport. */
 .add-section-btn {
-    width: 100%;
-    margin-top: 4px;
+    flex: none;
+    width: auto;
+    min-width: 0;
+    margin-top: 8px;
+    padding: 7px 14px 7px 10px;
+    font-size: var(--fs-sm);
+    /* Sur téléphone, .history-section est en colonne flex (voir plus bas, media max-width:899px) :
+       align-items:stretch, son défaut, étirerait sinon ce bouton à toute la largeur de la colonne
+       malgré width:auto ci-dessus (stretch porte sur l'axe transverse, pas la largeur intrinsèque). */
+    align-self: flex-start;
 }
 
 /* Grille d'accords façon lead sheet. --grid-zoom-scale-v : échelle verticale, posée en JS (voir
@@ -3923,7 +3961,7 @@ select.song-select-narrow {
        dessous, et « au-dessus des boutons » n'y voudrait rien dire. */
     .history-section { display: flex; flex-direction: column; }
     .history-section .card-head { display: contents; }
-    .history-section h2 { order: 1; margin-bottom: 8px; }
+    .history-section .grid-head-title-row { order: 1; margin-bottom: 8px; }
     #quick-add-panel { order: 2; margin-bottom: 8px; }
     /* Devenu élément flex, #quick-add-panel est une racine de contexte de bloc : la marge basse de
        16px de sa rangée ne s'échappe plus par fusion comme avant, elle s'ajoutait donc à la marge
@@ -4768,9 +4806,13 @@ select.song-select-narrow {
    glock_full_real_ui_test.js rend 29 à 33 réussites sur du code identique. Le risque de rognage,
    lui, est réel et se lit sur la géométrie, indépendamment de ce banc.) */
 .viz-diagrams .piano-container,
-.viz-diagrams .guitar-container { max-height: 170px; }
+.viz-diagrams .guitar-container { max-height: 113px; } /* 2/3 de l'ancien plafond 170px, voir .piano-container */
 .viz-diagrams .guitar-container svg,
-.viz-diagrams .piano-container svg { max-height: 170px; }
+.viz-diagrams .piano-container svg { max-height: 113px; }
+/* Diagramme guitare : géométrie fixe (voir buildGuitarDiagramSVG), ~178x105px à l'origine — ramené
+   ici aux mêmes 2/3 que le clavier plutôt que de toucher aux constantes de tracé (STRING_GAP,
+   FRET_GAP...), qui servent aussi à l'export PDF (forPrint=true, hors de ce sélecteur). */
+.viz-diagrams .guitar-container svg { width: 119px; height: auto; }
 
 /* Les boutons de diagrammes, désormais sous les diagrammes (voir index.html), se centrent avec eux
    plutôt que de rester collés à gauche d'une ligne de titre qui n'existe plus pour eux. */

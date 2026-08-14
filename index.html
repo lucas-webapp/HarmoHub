@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608141900">
+    <link rel="stylesheet" href="style.css?v=202608142020">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -790,7 +790,20 @@
                      Collant justement PARCE QUE cette ligne défile sinon avec la page : sur une grille
                      longue, les boutons de lecture auraient disparu dès qu'on descend. -->
                 <div class="card-head grid-head-sticky">
-                    <h2>Grille d'accords</h2>
+                    <!-- Titre + bouton d'ajout groupés (comme .card-head-right ailleurs) : sans ce
+                         groupe, justify-content:space-between sur .card-head répartirait l'espace ENTRE
+                         eux comme s'ils étaient chacun un élément à part de la ligne, éloignant le
+                         bouton du titre auquel il doit rester collé. Ajoute une partie depuis l'en-tête,
+                         sans avoir à descendre jusqu'au bouton en bas de grille (voir #add-section, même
+                         geste, addSection dans script.js) — retour utilisateur : « Réduis le bouton
+                         "Ajouter une partie" qui prend trop de place. Un bouton en tête vers le titre
+                         "Grille d'accords" me suffit pour ajouter une section. » -->
+                    <div class="grid-head-title-row">
+                        <h2>Grille d'accords</h2>
+                        <button type="button" id="add-section-head" class="icon-btn add-section-head-btn" title="Ajouter une partie" aria-label="Ajouter une partie">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                        </button>
+                    </div>
                     <!-- Hôte du transport sur ordinateur (rempli par placeGlobalTransport ; vide et
                          sans hauteur sur téléphone, où le transport reste dans #footer-dock). -->
                     <div id="grid-head-transport-host" class="grid-head-transport-host"></div>
@@ -992,13 +1005,10 @@
                         </svg>
                     </button>
                 </div>
-                <div class="piano-legend">
-                    <span class="lg"><span class="dot dot-root"></span>1</span>
-                    <span class="lg"><span class="dot dot-third"></span>3</span>
-                    <span class="lg"><span class="dot dot-fifth"></span>5</span>
-                    <span class="lg"><span class="dot dot-seventh"></span>7</span>
-                    <span class="lg"><span class="dot dot-ext"></span>Autres</span>
-                </div>
+                <!-- Légende des couleurs (1/3/5/7/Autres) retirée d'ici (retour utilisateur : « Supprime
+                     la légende des couleurs sous les diagrammes », pour gagner de la place — la grille
+                     d'accords est plus importante). Reste disponible dans le panneau Conduite de voix,
+                     voir .voice-leading-legend dans style.css, qui réutilise la même classe .piano-legend. -->
                 <!-- UN SEUL point d'entrée pour tout ce qui entre ou sort de l'appli (PDF, MIDI, MP3,
                      sauvegarde). Il y avait ici six boutons en échelle, chacun posé à un décalage fixe
                      depuis le bord droit : illisible — six pictogrammes voisins dont deux quasi
@@ -1073,6 +1083,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608141900"></script>
+    <script src="script.js?v=202608142020"></script>
 </body>
 </html>

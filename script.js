@@ -3379,6 +3379,9 @@ class HarmoHubApp {
         this.setupSortieEditionAuClic();
 
         document.getElementById('add-section').onclick = () => this.addSection();
+        // Même geste, juste accessible sans descendre jusqu'en bas d'une longue grille (voir
+        // index.html, retour utilisateur sur #add-section-head).
+        document.getElementById('add-section-head').onclick = () => this.addSection();
         document.getElementById('transpose-song-down').onclick = () => this.transposeSong(-1);
         document.getElementById('transpose-song-up').onclick = () => this.transposeSong(1);
 
@@ -4031,14 +4034,16 @@ class HarmoHubApp {
         });
 
         const totalWhite = whiteMidis.length;
-        // Largeur cible d'une blanche (≈17px, 50% de la taille d'origine pour mettre en valeur la
-        // grille d'accords) -> le clavier ne s'étire pas sur les grands écrans, et reste réaliste ;
-        // sur mobile il rétrécit (width: 100%). Reportée aussi sur #piano-col (voir CSS, .piano-col) :
-        // #piano-viz n'est plus l'enfant flex DIRECT de .viz-diagrams depuis que #piano-col s'intercale
-        // entre les deux (pour accueillir le titre au-dessus, voir placeChordTitle) — sans cette même
-        // largeur posée ICI aussi, #piano-viz n'aurait plus rien de déterminé contre quoi résoudre son
-        // propre width:100%, et s'écraserait à son min-content (un clavier réduit à une lamelle).
-        const maxWidthPx = `${totalWhite * 17}px`;
+        // Largeur cible d'une blanche (≈11px, encore réduite aux 2/3 d'une précédente passe à 17px —
+        // retour utilisateur : « Je n'ai pas besoin de diagrammes piano / guitare aussi gros... environ
+        // 2/3 de la taille me suffit... La grille d'accords est plus importante ») -> le clavier ne
+        // s'étire pas sur les grands écrans, et reste réaliste ; sur mobile il rétrécit (width: 100%).
+        // Reportée aussi sur #piano-col (voir CSS, .piano-col) : #piano-viz n'est plus l'enfant flex
+        // DIRECT de .viz-diagrams depuis que #piano-col s'intercale entre les deux (pour accueillir le
+        // titre au-dessus, voir placeChordTitle) — sans cette même largeur posée ICI aussi, #piano-viz
+        // n'aurait plus rien de déterminé contre quoi résoudre son propre width:100%, et s'écraserait à
+        // son min-content (un clavier réduit à une lamelle).
+        const maxWidthPx = `${totalWhite * 11}px`;
         viz.style.maxWidth = maxWidthPx;
         const pianoCol = document.getElementById('piano-col');
         if (pianoCol) pianoCol.style.maxWidth = maxWidthPx;
@@ -7201,9 +7206,10 @@ class HarmoHubApp {
         document.getElementById('open-settings').classList.remove('active');
         this.unlockBodyScroll();
         this.updateGlobalUndoRedoButtons();
-        // L'ampoule d'aide de l'ajout rapide vit désormais dans l'onglet Affichage (voir
-        // renderDisplayPanel) : sans ça, son popover (position fixe, hors de #settings-overlay)
-        // resterait affiché après coup, sans bouton visible pour le refermer.
+        // L'ampoule d'aide de l'ajout rapide vit dans la barre d'ajout rapide elle-même (voir
+        // #quick-add-help-btn dans index.html), mais son popover est en position fixe, donc hors de
+        // #settings-overlay : sans cet appel, il resterait affiché après la fermeture des Paramètres,
+        // sans bouton visible pour le refermer.
         this.closeQuickAddHelp();
     }
 
