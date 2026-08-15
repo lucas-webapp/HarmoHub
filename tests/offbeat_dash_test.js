@@ -39,7 +39,15 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
         const cell2 = document.querySelector('.seq-cell[data-voice="0"][data-step="2"]');
         const cell3 = document.querySelector('.seq-cell[data-voice="0"][data-step="3"]');
         const r0 = cell0.getBoundingClientRect(), r3 = cell3.getBoundingClientRect();
-        const beatLeft = r0.left, beatRight = r3.right;
+        // Bord droit VISIBLE du temps, pas le bord de la boîte. L'écart de 4px après la 2e croche d'un
+        // binôme se fait par une bordure transparente (voir .seq-cell-b : elle remplace une marge, qui
+        // laissait une bande morte non cliquable). Le rectangle englobe donc cette bordure, alors que
+        // le fond — ce que l'œil voit, et ce dont parlait le retour utilisateur « le tiret n'est pas
+        // complètement centré, très légèrement à droite » — s'arrête 4px avant. Mesurer r3.right
+        // brut déplacerait la référence de 2px et accuserait le trait d'un décalage qu'il n'a pas :
+        // c'est précisément l'interstice VISUEL que compense le translateX(-2px) de .seq-beat-offbeat.
+        const bordD = parseFloat(getComputedStyle(cell3).borderRightWidth) || 0;
+        const beatLeft = r0.left, beatRight = r3.right - bordD;
         const trueMid = (beatLeft + beatRight) / 2;
         return {
             text: off.textContent,
