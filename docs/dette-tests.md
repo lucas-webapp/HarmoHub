@@ -395,3 +395,34 @@ calcul de delta par doigt du pan, qui n'existe plus.
 La leçon est la même qu'en section 3, et vaut d'être répétée : **un banc rouge n'est une accusation
 recevable que si l'on a vérifié qu'il mesure bien ce qu'il prétend.** Ici, quatre bancs sur cinq
 visaient à côté — et le cinquième, lui, décrivait un défaut réel que personne n'avait su nommer.
+
+## 9. Une bande morte de 4px entre les cases du petit séquenceur
+
+Trouvée en rebranchant un bloc de banc qui ne s'exécutait plus.
+
+`avant_seq_short_note_body_test` annonce éprouver TROIS vues. Sa troisième cherchait le séquenceur
+dans `#grid-zoom-pinned-body` — l'hôte de la vue plein écran de la grille, supprimée depuis au profit
+du volet ancré (`#seq-dock-host`). La vérification échouait donc, et tout le bloc était sauté par un
+`if (epingle) { ... }` : **une vue entière n'était plus testée, sans que rien ne l'annonce**. Un banc
+qui renonce en silence est pire qu'un banc rouge — il compte comme une couverture qu'on n'a pas.
+
+Une fois la vue rebranchée, un VRAI défaut est apparu, et il touchait en réalité la vue COMPACTE :
+
+`.seq-cell-b { margin-right: 4px }` creusait l'écart visuel entre deux paires de doubles croches. Une
+marge, cependant, RETIRE ces 4px de l'élément : il restait une bande morte où `elementFromPoint`
+renvoyait `.seq-grid` et où aucun geste ne démarrait. Conséquence concrète, mesurée : viser le corps
+d'une note de 2 croches pour la DÉPLACER tombait une fois sur deux dans ce trou — précisément le geste
+que ce fichier de bancs a été écrit pour garantir.
+
+Le même défaut avait déjà été trouvé et corrigé pour la vue continue (`.seq-grid-continuous .seq-cell
+{ margin-right: 0 }`), avec ce constat en commentaire : « sur téléphone, une case sur sept qui ne
+réagit pas ressemble beaucoup à *c'est aléatoire* ». Il n'avait pas été reporté sur la vue compacte
+parce que là, contrairement à la vue continue, l'écart SE VOIT (les cases y ont un fond) et sert
+vraiment à séparer les paires.
+
+Correctif qui garde les deux : l'écart passe de `margin-right` à `border-right: 4px solid transparent`
++ `background-clip: padding-box`. La case garde toute sa largeur cliquable, son fond s'arrête 4px
+avant. Vérifié : géométrie des notes inchangée au pixel (aucun décalage de mise en page), écart visuel
+identique à l'écran, et `elementFromPoint` renvoie désormais la case sur toute la largeur.
+
+Bilan du fichier : **35 PASS / 7 FAIL → 56 PASS / 0 FAIL**, une vue de plus réellement couverte.

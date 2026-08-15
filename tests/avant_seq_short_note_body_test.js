@@ -2,10 +2,17 @@
 // Une note d'une ou deux croches n'avait que des bords : toutes ses cases étaient « début » ou
 // « fin », il n'en restait aucune pour la saisir — on ne pouvait que l'étirer, jamais la déplacer.
 // Elle se découpe désormais au pixel : poignée / corps / poignée (voir seqShortNoteZone).
-// Et comme demandé, on vérifie que les TROIS vues du séquenceur (compacte, loupe séquenceur, épinglée
-// dans la loupe de grille) se comportent pareil — sachant que leurs cases n'ont PAS la même largeur,
+// Et comme demandé, on vérifie que les TROIS vues du séquenceur (compacte, loupe séquenceur, volet
+// continu sous la grille) se comportent pareil — sachant que leurs cases n'ont PAS la même largeur,
 // et que c'est justement la largeur, non la vue, qui décide si un corps est offert. Chaque attente
 // est donc calculée à partir de la géométrie MESURÉE, jamais d'une valeur écrite en dur.
+//
+// La troisième vue s'appelait « épinglée dans la loupe de grille » et se cherchait dans
+// #grid-zoom-pinned-body : cet hôte a disparu avec la vue plein écran de la grille, remplacée par le
+// volet ancré (#seq-dock-host). Le bloc échouait donc à sa toute première vérification et RENONÇAIT
+// silencieusement à tout le reste — une vue entière n'était plus éprouvée du tout. C'est en la
+// rebranchant qu'un vrai défaut est apparu (bande morte de 4px entre deux cases, voir .seq-cell-b
+// dans style.css) : un banc qui abandonne en silence ne protège rien.
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
@@ -40,6 +47,14 @@ const notes = (page) => page.evaluate(() => [...document.querySelectorAll('.seq-
 const boite = (page, start, end) => page.evaluate(([s, e]) => {
     const n = document.querySelector(`.seq-note[data-voice="0"][data-start="${s}"][data-end="${e}"]`);
     if (!n) return null;
+    // AMENER LA NOTE DANS LA BANDE avant de relever ses coordonnées. La vue continue affiche tout
+    // l'ambitus (60 lignes chromatiques) dans un volet bien plus court, et se recentre en plus sur
+    // l'accord édité : la ligne de la voix 0 se retrouvait à y=776 alors que la bande s'arrête à
+    // y=616. Les coordonnées restaient « valides » — le rectangle existe — mais elementFromPoint y
+    // renvoyait .viz-wrap, la carte des diagrammes SOUS le séquenceur : tous les gestes de cette vue
+    // partaient donc dans le vide, sans que rien ne le signale. Un rectangle n'est pas une garantie
+    // d'atteignabilité ; c'est la leçon déjà tirée pour caseTouchable dans probe_defilement_tactile.
+    n.scrollIntoView({ block: 'center', inline: 'center' });
     const r = n.getBoundingClientRect();
     return { left: r.left, right: r.right, w: r.width, y: r.top + r.height / 2, cell: r.width / (e - s + 1) };
 }, [start, end]);
@@ -73,6 +88,15 @@ async function glisser(page, x, y, dx) {
     await page.waitForTimeout(350);
 }
 
+// CONTRAT. Une note trop étroite pour trois zones ne renvoie PLUS `null` partout : seqShortNoteZone
+// la partage en DEUX (60 % à gauche pour la déplacer, 40 % à droite pour l'allonger). Renvoyer null
+// revenait à « condamner la note à ne jamais pouvoir être déplacée » — c'est écrit tel quel dans
+// script.js, et c'est le défaut que ce partage corrige. Au niveau module : la section « téléphone »
+// s'en sert aussi, hors de serieDeVue.
+const attendu = (ok) => JSON.stringify(ok
+    ? { gauche: 'start', milieu: 'body', droite: 'end' }
+    : { gauche: 'body', milieu: 'body', droite: 'end' });
+
 async function serieDeVue(page, nomVue) {
     console.log(`\n--- ${nomVue} ---`);
     const b1 = await boite(page, 0, 0);
@@ -85,12 +109,16 @@ async function serieDeVue(page, nomVue) {
     console.log(`    (case ${b1.cell.toFixed(1)} px — corps offert : 1 croche ${corps1 ? 'oui' : 'non'}, 2 croches ${corps2 ? 'oui' : 'non'})`);
 
     // 1. Découpage : trois zones sur les notes courtes ASSEZ LARGES, rien ailleurs
-    const attendu = (ok) => JSON.stringify(ok ? { gauche: 'start', milieu: 'body', droite: 'end' } : { gauche: null, milieu: null, droite: null });
     check(JSON.stringify(await zones(page, 0, 0)) === attendu(corps1),
         `${nomVue} : note d'1 croche — ${corps1 ? 'découpée en début / corps / fin' : 'trop étroite, comportement d\'avant conservé'}`);
     check(JSON.stringify(await zones(page, 3, 4)) === attendu(corps2),
         `${nomVue} : note de 2 croches — ${corps2 ? 'découpée en début / corps / fin' : 'trop étroite, comportement d\'avant conservé'}`);
-    check(JSON.stringify(await zones(page, 8, 11)) === attendu(false),
+    // Une note LONGUE (> 2 croches) renvoie null partout, et pour une raison qui n'a rien à voir avec
+    // l'étroitesse : elle possède déjà de vraies cases de corps, le découpage au pixel ne la concerne
+    // pas (voir seqShortNoteZone, tout premier test). À ne pas confondre avec `attendu(false)`, qui
+    // décrit une note TROP ÉTROITE — celle-ci est partagée en deux, pas laissée sans zone.
+    const AUCUNE_ZONE = JSON.stringify({ gauche: null, milieu: null, droite: null });
+    check(JSON.stringify(await zones(page, 8, 11)) === AUCUNE_ZONE,
         `${nomVue} : note de 4 croches jamais découpée au pixel (elle a déjà des cases de corps)`);
 
     // 2. Le CORPS déplace la note — c'est tout l'objet du chantier
@@ -236,30 +264,43 @@ async function serieDeVue(page, nomVue) {
     await page.waitForTimeout(500);
 
     // ============================================================
-    // D. Séquenceur ÉPINGLÉ dans la loupe de grille (vue continue)
+    // D. Séquenceur CONTINU, dans son volet sous la grille (vue continue)
+    // Ce bloc visait #grid-zoom-pinned-body, l'hôte de la vue plein écran de la grille — supprimée
+    // depuis, remplacée par le volet ancré sous la grille (#seq-dock-host, voir placeSequencer). Le
+    // bouton, lui, n'a pas changé de nom (#grid-zoom garde son id historique, renommer étant risqué
+    // pour un index.html servi en cache — voir son commentaire). La TROISIÈME vue existe donc
+    // toujours ; seul son hôte a changé, et le banc le cherchait au mauvais endroit.
     // ============================================================
     await page.evaluate(() => window.app.editChord && window.app.editChord(window.app.activeSection, 0));
     await page.waitForTimeout(300);
     await page.click('#grid-zoom');
     await page.waitForTimeout(900);
     const epingle = await page.evaluate(() =>
-        !!document.getElementById('grid-zoom-pinned-body')?.contains(document.getElementById('arp-sequencer')));
-    check(epingle, 'le séquenceur est bien épinglé dans la loupe de grille');
+        !!document.getElementById('seq-dock-host')?.contains(document.getElementById('arp-sequencer')));
+    check(epingle, 'le séquenceur est bien dans son volet continu sous la grille');
     if (epingle) {
         await poserMotif(page);
         // Cette vue montre toute la progression d'un coup : ses cases sont plus étroites que celles de
         // la vue compacte. C'est le SEUIL de largeur qui décide, pas la vue — serieDeVue le vérifie en
         // recalculant ses attentes sur la géométrie mesurée. On l'affirme explicitement ici.
         const p1 = await boite(page, 0, 0);
-        check(p1.cell < 40, `épinglé : cases plus étroites qu'en vue compacte (${p1.cell.toFixed(1)} px)`);
-        await serieDeVue(page, 'épinglé (loupe grille)');
+        check(p1.cell < 40, `volet continu : cases plus étroites qu'en vue compacte (${p1.cell.toFixed(1)} px)`);
+        await serieDeVue(page, 'volet continu');
     }
-    await page.click('#grid-zoom-close').catch(() => {});
+    await page.click('#grid-zoom').catch(() => {}); // même bouton pour refermer (bascule)
     await page.waitForTimeout(400);
     await page.close();
 
     // ============================================================
-    // E. Téléphone : les cases sont trop étroites, on garde l'ancien comportement
+    // E. Téléphone : mêmes règles, appliquées à des cases plus étroites
+    // Ce bloc affirmait « les cases sont trop étroites, on garde l'ancien comportement » (aucune zone
+    // du tout). Deux choses l'ont périmé : les seuils SEQ_ZONE_* ont été abaissés (poignée à 25 % de
+    // la note, plancher 5px, corps minimum 6px), si bien qu'une note de 2 croches — 37px ici — obtient
+    // désormais bel et bien ses trois zones ; et une note VRAIMENT trop étroite n'est plus laissée
+    // sans zone, elle est partagée en deux (voir `attendu` plus haut). On applique donc ici la MÊME
+    // attente calculée depuis la géométrie mesurée que sur les autres vues, conformément au principe
+    // annoncé en tête de ce fichier — plutôt qu'un comportement écrit en dur qui redevient faux au
+    // prochain réglage de seuil.
     // ============================================================
     console.log('\n--- téléphone (repli) ---');
     page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -269,12 +310,12 @@ async function serieDeVue(page, nomVue) {
     await preparer(page);
     const m1 = await boite(page, 0, 0);
     const m2 = await boite(page, 3, 4);
-    check(m1 && m1.w < 25, `téléphone : une croche fait ${m1 ? m1.w.toFixed(1) : '?'} px — trop étroite pour un corps visable`);
-    check(!zonesAttendues(m1.w) && !zonesAttendues(m2.w), 'téléphone : les deux notes courtes sont sous le seuil de largeur');
-    check(JSON.stringify(await zones(page, 0, 0)) === JSON.stringify({ gauche: null, milieu: null, droite: null }),
-        'téléphone : aucune zone sur la note d\'1 croche — comportement d\'avant conservé');
-    check(JSON.stringify(await zones(page, 3, 4)) === JSON.stringify({ gauche: null, milieu: null, droite: null }),
-        `téléphone : aucune zone sur la note de 2 croches (${m2 ? m2.w.toFixed(1) : '?'} px)`);
+    check(m1 && m1.w < 25, `téléphone : une croche fait ${m1 ? m1.w.toFixed(1) : '?'} px — la plus étroite des trois vues`);
+    const mCorps1 = zonesAttendues(m1.w), mCorps2 = zonesAttendues(m2.w);
+    check(JSON.stringify(await zones(page, 0, 0)) === attendu(mCorps1),
+        `téléphone : note d'1 croche (${m1.w.toFixed(1)}px) — ${mCorps1 ? 'découpée en début / corps / fin' : 'partagée en deux (déplacer / allonger)'}`);
+    check(JSON.stringify(await zones(page, 3, 4)) === attendu(mCorps2),
+        `téléphone : note de 2 croches (${m2.w.toFixed(1)}px) — ${mCorps2 ? 'découpée en début / corps / fin' : 'partagée en deux (déplacer / allonger)'}`);
     await page.touchscreen.tap(m1.left + m1.w / 2, m1.y);
     await page.waitForTimeout(300);
     check((await notes(page)).includes('0-0'), 'téléphone : un tap au milieu d\'une note courte ne la modifie toujours pas');

@@ -3521,7 +3521,22 @@ body.all-beats .offbeat-dot {
    pas de bordure/arrondi entre les deux, pas de gap non plus (repoussé après la 2e moitié) — pour
    qu'elles se lisent comme UN SEUL rectangle tant qu'une note n'utilise pas cette finesse. */
 .seq-cell-a { border-right: none; border-top-right-radius: 0; border-bottom-right-radius: 0; }
-.seq-cell-b { border-left: none; border-top-left-radius: 0; border-bottom-left-radius: 0; margin-right: 4px; }
+/* L'écart de 4px après la seconde moitié se fait par une BORDURE TRANSPARENTE, plus par une marge.
+   Les deux se voient pareil ; la différence est qu'une marge RETIRE ces 4px de l'élément, laissant
+   une bande MORTE entre deux paires de doubles croches — mesuré : elementFromPoint y renvoyait
+   .seq-grid, aucun geste ne démarrait, et viser le corps d'une note de 2 croches pour la déplacer
+   tombait précisément dedans une fois sur deux. C'est le même défaut que celui déjà corrigé pour la
+   vue continue (voir .seq-grid-continuous .seq-cell) ; il n'avait pas été reporté ici parce que ces
+   cases-ci, elles, ont un fond visible et que l'écart y sert vraiment à quelque chose. Avec une
+   bordure, la case garde toute sa largeur cliquable ET son fond s'arrête 4px avant (background-clip:
+   padding-box) : l'écart reste exactement aussi lisible, sans trou. */
+.seq-cell-b {
+    border-left: none;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-right: 4px solid transparent;
+    background-clip: padding-box;
+}
 
 /* Repère visuel du début de chaque temps (4 double-croches) */
 .seq-cell.beat-start { border-left: 2px solid #3a3a3a; }
