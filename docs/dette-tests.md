@@ -337,3 +337,61 @@ unique hauteur de barres », puis « les barres sont à nouveau avec une hauteur
 tentative l'a enfreint). Le seul levier pour voir plus de notes est donc la hauteur de la fenêtre, et
 c'est V− qui l'agrandit — sens inversé par rapport à un zoom ordinaire, assumé et commenté dans
 hauteurVoletSequenceur. zoom_coherence_test.js a été mis à jour en conséquence.
+
+## 8. Gestes tactiles du séquenceur — un vrai défaut, et cinq bancs qui mesuraient mal
+
+Signalé après une campagne complète : quatre bancs de gestes étaient rouges alors que la section 3
+ci-dessus les donnait verts. Un seul décrivait un VRAI défaut ; les quatre autres se trompaient de
+mesure, chacun à sa façon. Le tri a demandé d'instrumenter l'appli plutôt que de relire les bancs.
+
+### Le vrai défaut : deux doigts se battaient contre eux-mêmes
+
+Deux doigts faisaient à la fois DÉFILER (`pan`) et ZOOMER. À chaque `pointermove`, le cran de zoom
+appelait `_appliquerEchelleHorizontale`, dont le recentrage sur l'accord édité réécrivait `scrollLeft`
+JUSTE AVANT que le pan n'ajoute son pas. Relevé en traçant les écritures de `scrollLeft` : la valeur
+oscillait entre deux positions fixes (20, 59, 25, 59, 25...) au lieu d'avancer. Le geste était donc
+inutilisable, ce qui explique le « je ne les avais peut-être pas bien utilisés » de l'utilisateur.
+
+Correctif, et c'est un choix de conception autant qu'une réparation :
+- **Le pan à deux doigts est retiré.** Le défilement à UN doigt est déjà natif (`touch-action: pan-x
+  pan-y`) — mesuré avec de vrais évènements tactiles (CDP `Input.dispatchTouchEvent`) : la bande
+  défile, le motif ne bouge pas. Une émulation JS ne pouvait qu'être moins bonne (ni inertie, ni
+  rebond). Et deux doigts qui glissent ensemble changent toujours un peu leur écart : « défiler » et
+  « zoomer » n'étaient pas départageables. Deux doigts = zoom, un doigt = défilement. Un sens par geste.
+- **Le zoom au pincement est désormais ANCRÉ sous les doigts** (`_ancrageZoomH`), comme toute carte ou
+  photo : le point visé au début du geste reste sous le même endroit de l'écran. Le recentrage sur
+  l'accord édité reste le bon comportement pour les boutons +/−, et lui seul.
+
+`seq_twofinger_pan_test.js` devient `seq_twofinger_zoom_test.js` (nouveau contrat, éprouvé avec de
+VRAIS évènements tactiles) ; `seq_twofinger_jitter_test.js` est supprimé — il n'éprouvait que le
+calcul de delta par doigt du pan, qui n'existe plus.
+
+### Quatre bancs qui mesuraient autre chose que ce qu'ils annonçaient
+
+- **`seq_repere_glisse_test` (0/9)** — amenait la bande à l'écran verticalement, jamais
+  HORIZONTALEMENT. Or elle est déjà défilée sur l'accord édité : la case visée sortait du cadre
+  (x≈11px), le clic partait à côté, `seqDrag` restait `null` et les neuf contrôles tombaient. À
+  `scrollLeft = 0` : 9/9, le repère affiche bien « G3 » et le son part. Le geste n'a jamais été cassé.
+- **`seq_vscroll_and_cancel_test`** — exigeait un défilement ÉMULÉ EN JS qui n'existe plus au doigt
+  (la bascule est gardée par `d.pointerType !== 'touch'`, elle ne sert qu'à la souris). On vérifie
+  maintenant le MÉCANISME (`touch-action` laisse passer l'axe vertical) et le fait que l'appli ne
+  s'empare pas du geste. Son dernier contrôle exigeait qu'un glissé vertical immédiat change la voix :
+  c'est précisément ce que le partage par la DURÉE de l'appui a retiré, et pour la raison écrite dans
+  `script.js` (« à chaque fois que je veux scroller, je crée une note non voulue »). Il éprouve
+  désormais LES DEUX moitiés — sans appui long, pas d'édition ; après appui long, édition.
+- **`probe_defilement_tactile_test`** — deux erreurs cumulées. (1) Il relevait l'empreinte du motif
+  AVANT un `touchscreen.tap` sur la case testée : ce tap pose une note, exactement comme il le doit,
+  et le banc l'imputait ensuite au GLISSÉ — il accusait donc l'appli du reproche d'origine pour un
+  geste qu'il avait lui-même produit. (2) Son `glisser` émettait chaque évènement par un
+  `page.evaluate` séparé : chaque aller-retour CDP coûtant plus que les 260 ms de
+  `SEQ_APPUI_LONG_MS`, le geste « immédiat » déclenchait en réalité l'appui long. 24/24 une fois les
+  deux corrigés.
+- **`probe_defilement_tactile_test`, point 5** — visait « la première case venue », qui depuis
+  l'affichage de tout l'ambitus chromatique est presque toujours une case LIBRE (`data-voice="-1"`,
+  la voix n'existe pas encore). On y ajoute une note d'un CLIC, on n'y peint pas au glissé : aucun
+  glissé d'édition ne s'y ouvre, et c'est voulu. Le banc en concluait que « la souris attendait ».
+  Il vise désormais une case de voix réelle (`caseVoixReelle`).
+
+La leçon est la même qu'en section 3, et vaut d'être répétée : **un banc rouge n'est une accusation
+recevable que si l'on a vérifié qu'il mesure bien ce qu'il prétend.** Ici, quatre bancs sur cinq
+visaient à côté — et le cinquième, lui, décrivait un défaut réel que personne n'avait su nommer.

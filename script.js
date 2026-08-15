@@ -3502,10 +3502,17 @@ class HarmoHubApp {
         // Pincer-zoomer (2 doigts, voir setupPinchZoom) : équivalent tactile du Ctrl+molette ci-dessus,
         // pour mobile où ni Ctrl ni molette n'existent (retour utilisateur).
         this.setupPinchZoom(document.getElementById('seq-zoom-host'), 'seq');
-        // Glisser à DEUX doigts pour faire défiler le séquenceur (voir setupPinchZoom/pan) SANS jamais
-        // risquer de peindre/étirer une note par erreur — retour utilisateur : "éviter les
-        // modifications non voulues, un déplacement juste après le clic pourrait ressembler à un
-        // scroll". Posé UNE FOIS sur #arp-sequencer (stable, jamais reconstruit ni dupliqué — voir
+        // DEUX DOIGTS = ZOOM, ET RIEN D'AUTRE. Ils faisaient AUSSI défiler (option `pan`), retirée :
+        // le défilement à un doigt est déjà assuré NATIVEMENT par le navigateur (touch-action:
+        // pan-x pan-y sur la bande et ses cases, voir style.css) — mesuré, un vrai glissé à un doigt
+        // fait bien défiler la bande sans jamais toucher au motif. Une émulation en JS ne pouvait donc
+        // qu'être moins bonne que l'originale (ni inertie, ni effet de rebond, ni cohérence avec le
+        // reste du système), et surtout elle se battait avec le zoom du même geste : chaque pointermove
+        // appliquait un cran de zoom, dont le recentrage réécrivait scrollLeft juste avant que le pan
+        // n'ajoute son pas — le défilement oscillait entre deux valeurs au lieu d'avancer (mesuré). En
+        // prime, deux doigts qui glissent ensemble modifient toujours un peu leur écart : impossible de
+        // deviner « il voulait défiler, pas zoomer ». Un seul sens par geste, plus rien à départager.
+        // Posé UNE FOIS sur #arp-sequencer (stable, jamais reconstruit ni dupliqué — voir
         // renderSequencer/openSeqZoom/pinSequencerHost) plutôt que sur chacun de ses hôtes possibles :
         // il reste actif tel quel qu'on édite en place (compact), dans la loupe séquenceur, ou dans le
         // séquenceur épinglé de la loupe grille, sans rien câbler de plus à ces deux derniers.
@@ -3515,7 +3522,7 @@ class HarmoHubApp {
         // et laisse la main à l'hôte agrandi (#seq-zoom-host ci-dessus et plus
         // bas), qui zooment 'seq' : sans lui, un même pincement zoomerait les deux réglages à la fois.
         this.setupPinchZoom(document.getElementById('arp-sequencer'), 'seqInline', {
-            zoom: true, pan: true, guard: () => this.seqZoomOpen,
+            zoom: true, guard: () => this.seqZoomOpen,
         });
         // Ctrl+molette sur le séquenceur compact, même garde-fou et même raison.
         this._bindCtrlWheelZoom('arp-sequencer', 'seqInline', () => this.seqZoomOpen);
@@ -12672,27 +12679,38 @@ class HarmoHubApp {
     // #arp-sequencer passe dans #seq-zoom-host en loupe séquenceur : sans garde-fou, le même
     // pincement remonterait aux DEUX écouteurs et
     // zoomerait deux réglages à la fois. Le pan, lui, n'est jamais bloqué : il reste utile partout.
-    setupPinchZoom(el, kind, { zoom = true, pan = false, guard = null } = {}) {
+    setupPinchZoom(el, kind, { zoom = true, guard = null } = {}) {
         const pointers = new Map();
         let baseDist = null, baseZoomX = null, baseZoomY = null;
         const dist = () => {
             const pts = [...pointers.values()];
             return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
         };
-        // Cible du défilement : #arp-sequencer se déplace entre plusieurs hôtes (compact, loupe
+        // Conteneur qui DÉFILE réellement (celui dont on lit/écrit scrollLeft pour ancrer le zoom,
+        // voir ancrageSousLesDoigts) : #arp-sequencer se déplace entre plusieurs hôtes (compact, loupe
         // séquenceur, loupe grille épinglée, voir openSeqZoom/pinSequencerHost) sans jamais être
-        // dupliqué — retrouvée à CHAQUE geste plutôt que mise en cache, pour rester valide même après
-        // un rendu qui a reconstruit .seq-scroll entretemps (un vrai zoom pinch redessine, voir
-        // _flushZoomPinchRender ; un pan seul, lui, ne redessine jamais rien).
-        // 'seqInline' AUTANT que 'seq' : le séquenceur compact est le SEUL hôte à demander pan:true,
-        // et c'est précisément celui que ce test laissait de côté. Il s'appelait 'seq' à l'origine ;
-        // renommé quand les six panneaux ont été alignés sur les mêmes règles de zoom (26385cd), il
-        // est depuis retombé sur `el`, c'est-à-dire #arp-sequencer — qui ne défile pas. Le glissé à
-        // deux doigts ne faisait donc plus rien du tout, en silence : scrollLeft était bien modifié,
-        // mais sur un élément sans débordement.
-        const panTarget = () => (kind === 'seq' || kind === 'seqInline')
+        // dupliqué — retrouvé à CHAQUE geste plutôt que mis en cache, pour rester valide même après
+        // un rendu qui a reconstruit .seq-scroll entretemps (un zoom pincé redessine, voir
+        // _flushZoomPinchRender). C'est .seq-scroll qui déborde, jamais #arp-sequencer lui-même.
+        const conteneurDefilant = () => (kind === 'seq' || kind === 'seqInline')
             ? document.querySelector('#arp-sequencer .seq-scroll')
             : el;
+        // Point de contenu visé par le MILIEU des deux doigts, au début du pincement — exprimé en
+        // COLONNES (et non en pixels) pour rester valable à toute échelle, puisque c'est justement
+        // l'échelle qu'on s'apprête à changer. Relu par _appliquerEchelleHorizontale à chaque cran
+        // pour remettre ce même point sous le même endroit de l'écran : la musique ne glisse plus
+        // sous les doigts pendant qu'on zoome.
+        const ancrageSousLesDoigts = () => {
+            const sc = conteneurDefilant();
+            const grille = sc && sc.querySelector('.seq-grid-continuous, .seq-grid-wide');
+            if (!sc || !grille) return null;
+            const colPx = +grille.dataset.colPx || this.largeurColonneBase() * this[`${kind}ZoomLevelX`];
+            if (!(colPx > 0)) return null;
+            const pts = [...pointers.values()];
+            const milieuX = (pts[0].x + pts[1].x) / 2;
+            const ecranX = milieuX - sc.getBoundingClientRect().left;
+            return { colonne: (sc.scrollLeft + ecranX) / colPx, ecranX };
+        };
         el.addEventListener('pointerdown', (e) => {
             if (e.pointerType !== 'touch') return;
             pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -12713,6 +12731,7 @@ class HarmoHubApp {
                 baseDist = dist();
                 baseZoomX = this[`${kind}ZoomLevelX`];
                 baseZoomY = this[`${kind}ZoomLevelY`];
+                this._ancrageZoomH = ancrageSousLesDoigts();
                 this._zoomPinchActive = true;
                 this._startZoomPinchFlushLoop();
             }
@@ -12720,13 +12739,6 @@ class HarmoHubApp {
         el.addEventListener('pointermove', (e) => {
             const prevPos = pointers.get(e.pointerId);
             if (!prevPos) return;
-            // dxRaw AVANT d'écraser la position mémorisée : delta du SEUL doigt qui vient de bouger
-            // (voir plus bas, pan) — jamais recalculé depuis un point milieu des DEUX doigts, qui
-            // mélangerait la position toute fraîche de celui-ci avec celle de l'autre doigt, restée à
-            // sa dernière valeur reçue un tick plus tôt (les deux doigts arrivent presque toujours par
-            // évènements séparés, jamais parfaitement synchronisés) — cette lecture décalée était
-            // exactement la source des petits à-coups au lieu d'un glissé fluide (retour utilisateur).
-            const dxRaw = e.clientX - prevPos.x;
             pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             if (pointers.size !== 2) return;
             let handled = false;
@@ -12736,23 +12748,15 @@ class HarmoHubApp {
                 this.setZoomLevel(kind, 'y', baseZoomY * ratio);
                 handled = true;
             }
-            if (pan) {
-                const target = panTarget();
-                // Moitié du delta de CE seul doigt (2 doigts qui glissent ensemble se partagent le
-                // déplacement perçu — voir le commentaire plus haut) : additionné aux évènements de
-                // l'autre doigt au fil du geste, retrouve la même distance totale qu'un vrai suivi du
-                // point milieu, sans jamais mélanger deux échantillons pris à des instants différents.
-                // Doigts qui glissent vers la droite -> le contenu doit suivre vers la droite -> moins
-                // reste caché à gauche (scrollLeft diminue) : même sens qu'un glissé tactile natif.
-                if (target) target.scrollLeft -= dxRaw / 2;
-                handled = true;
-            }
             if (handled) e.preventDefault(); // empêche le navigateur de zoomer/défiler la PAGE entière avec la même pince
         }, { passive: false });
         const release = (e) => {
             pointers.delete(e.pointerId);
             if (pointers.size < 2) {
                 baseDist = null;
+                // Le pincement est fini : les boutons +/− et les rendus suivants doivent retrouver
+                // leur recentrage habituel sur l'accord édité (voir _appliquerEchelleHorizontale).
+                this._ancrageZoomH = null;
                 // Un doigt se lève, il n'en reste plus 2 : le pincement est terminé — arrête la boucle
                 // de rattrapage périodique et applique un dernier rattrapage immédiat (voir
                 // _startZoomPinchFlushLoop/_flushZoomPinchRender), pour être certain de finir sur la
@@ -13065,11 +13069,25 @@ class HarmoHubApp {
         grille.dataset.colPx = String(colPx);
         const sc = grille.closest('.seq-scroll');
         if (sc) {
-            const colOffset = +grille.dataset.colOffset || 0;
-            const pas = new Set([...grille.querySelectorAll('.seq-cell')]
-                .map(e => parseInt((e.style.gridColumn || '').split('/')[0], 10)).filter(n => !isNaN(n))).size;
-            const centre = colOffset * colPx + (pas * colPx) / 2;
-            sc.scrollLeft = Math.max(0, centre - sc.clientWidth / 2);
+            // ANCRAGE SOUS LES DOIGTS pendant un pincement (voir setupPinchZoom, _ancrageZoomH) : ce
+            // recentrage-ci vise l'accord ÉDITÉ, ce qu'il faut bien pour les boutons +/− (à échelle
+            // changée, un défilement en pixels ne désigne plus rien) mais jamais pour un pincement —
+            // il ramenait la vue sur l'accord édité à CHAQUE pointermove, donc arrachait la musique
+            // de sous les doigts en continu. Mesuré : le défilement oscillait entre deux valeurs
+            // fixes au lieu d'avancer, le recentrage réécrivant scrollLeft juste avant chaque pas.
+            // Comme toute carte ou photo sur téléphone, ce qui est sous les doigts doit y rester :
+            // on mémorise le point de contenu visé au début du geste (en COLONNES, indépendant de
+            // l'échelle) et on le remet sous le même point de l'écran à chaque cran.
+            const ancre = this._ancrageZoomH;
+            if (ancre) {
+                sc.scrollLeft = Math.max(0, ancre.colonne * colPx - ancre.ecranX);
+            } else {
+                const colOffset = +grille.dataset.colOffset || 0;
+                const pas = new Set([...grille.querySelectorAll('.seq-cell')]
+                    .map(e => parseInt((e.style.gridColumn || '').split('/')[0], 10)).filter(n => !isNaN(n))).size;
+                const centre = colOffset * colPx + (pas * colPx) / 2;
+                sc.scrollLeft = Math.max(0, centre - sc.clientWidth / 2);
+            }
         }
         return true;
     }

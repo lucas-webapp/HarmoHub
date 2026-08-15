@@ -68,9 +68,22 @@ function fireTouch(el, type, id, x, y) {
         return pattern.map(v => v.includes(0));
     });
     console.log('page scrollTop avant/après glissé vertical sur case vide:', startPageScroll, afterPageScroll);
-    // Le doigt descend (clientY croissant) -> le contenu suit le doigt -> scrollTop DIMINUE (on
-    // remonte vers le haut de la page), convention tactile standard.
-    check(afterPageScroll < startPageScroll, "un glissé vertical à 1 doigt sur une case VIDE fait défiler la page (fallback JS)");
+    // CONTRAT MIS À JOUR. Ce banc exigeait un défilement émulé en JS ; il n'existe plus AU DOIGT,
+    // volontairement (voir onSeqPointerMove : la bascule `verticalScroll` est gardée par
+    // `d.pointerType !== 'touch'`, elle ne sert plus qu'à la souris). Au doigt, c'est le NAVIGATEUR
+    // qui défile, via touch-action: pan-x pan-y posé sur la bande et ses cases — avec inertie et
+    // rebond, ce qu'aucune émulation JS ne rend. Un évènement de synthèse ne peut par construction
+    // pas déclencher un défilement natif : mesurer scrollTop ici ne prouverait donc rien.
+    // Ce qui RESTE vérifiable, et qui est le vrai contrat : le MÉCANISME qui rend ce défilement
+    // possible (touch-action laisse passer l'axe vertical), et le fait que l'appli ne s'approprie pas
+    // le geste — elle ne peint rien et n'arme aucun glissé (les deux contrôles suivants).
+    const tactileOk = await page.evaluate(() => {
+        const c = document.querySelector('.seq-cell[data-voice="0"]');
+        const sc = document.querySelector('#arp-sequencer .seq-scroll');
+        const permetY = (el) => { const t = getComputedStyle(el).touchAction; return t === 'auto' || /pan-y/.test(t); };
+        return c && sc && permetY(c) && permetY(sc);
+    });
+    check(tactileOk, "la bande et ses cases laissent le navigateur défiler verticalement (touch-action: pan-y)");
     check(JSON.stringify(patternBeforeV) === JSON.stringify(patternAfterV), "ce même glissé vertical n'a peint AUCUNE note");
     check(!(await page.evaluate(() => app.seqDrag)), "aucun glissé d'édition ne reste armé après ce glissé vertical");
 
@@ -104,26 +117,52 @@ function fireTouch(el, type, id, x, y) {
         return pattern.map(v => v.includes(0));
     });
     console.log('page scrollTop avant/après glissé vertical sur bord de note:', scrollBeforeR, scrollAfterR);
-    check(scrollAfterR < scrollBeforeR, "un glissé vertical démarré sur le BORD d'une note fait aussi défiler");
+    // Même contrat mis à jour qu'au cas précédent : au doigt le défilement est natif, on vérifie donc
+    // que l'appli ne détourne pas le geste plutôt qu'un scrollTop qu'un évènement de synthèse ne peut
+    // pas produire. Ce qui compte ici, et qui est testé juste en dessous : la note n'est PAS étirée.
+    check(!(await page.evaluate(() => !!(app.seqDrag && app.seqDrag.resize))),
+        "un glissé vertical démarré sur le BORD d'une note n'arme pas d'étirement (il reste au navigateur)");
     check(JSON.stringify(patternBeforeR) === JSON.stringify(patternAfterR), "la note n'a PAS été redimensionnée par ce glissé vertical");
 
     await page.evaluate(() => document.getElementById('arp-sequencer').scrollIntoView({ block: 'center' }));
+    // ...et la bande à son début HORIZONTAL : elle est défilée sur l'accord édité
+    // (_appliquerEchelleHorizontale la recentre dessus), si bien que la croche 1 visée juste en
+    // dessous tombait hors du cadre — la case renvoyait x≈11px, le clic partait à côté, seqDrag
+    // restait null et le changement de voix semblait cassé alors qu'il fonctionne (vérifié à
+    // scrollLeft=0). Faux négatif de banc, même famille que « Élément sous la ligne de flottaison »
+    // dans docs/dette-tests.md.
+    await page.evaluate(() => { document.querySelector('#arp-sequencer .seq-scroll').scrollLeft = 0; });
     await page.waitForTimeout(100);
 
-    // === Test 3 (non-régression) : glissé vertical démarré sur le CORPS d'une note déclenche
-    // toujours le changement de voix (comportement existant, ne doit pas être détourné vers un scroll). ===
+    // === Test 3 : au DOIGT, c'est la DURÉE de l'appui qui départage défilement et édition (voir
+    // onSeqPointerDown/_armerAppuiLongSeq, SEQ_APPUI_LONG_MS) — pas l'endroit touché. Ce banc exigeait
+    // auparavant qu'un glissé vertical immédiat sur le corps d'une note change la voix ; c'est
+    // précisément ce que le partage par la durée a retiré, et pour une raison écrite noir sur blanc
+    // dans script.js (retour utilisateur : « à chaque fois que je veux scroller, je crée une note non
+    // voulue ou je modifie une note sans faire exprès... c'est trop aléatoire »). On vérifie donc
+    // maintenant LES DEUX MOITIÉS du vrai contrat, ce qui est plus solide que l'ancienne assertion. ===
     const midCell = await page.$('.seq-cell[data-voice="0"][data-step="1"]');
     const boxMid = await midCell.boundingBox();
-    await page.evaluate(({ x, y }) => {
-        const el = document.elementFromPoint(x, y);
-        const fire = (type, cy) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 53, pointerType: 'touch', clientX: x, clientY: cy, isPrimary: true }));
-        fire('pointerdown', y);
-        for (let i = 1; i <= 3; i++) fire('pointermove', y + i * 15);
-    }, { x: boxMid.x + boxMid.width / 2, y: boxMid.y + boxMid.height / 2 });
-    await page.waitForTimeout(100);
-    const voiceDragActive = await page.evaluate(() => !!(app.seqDrag && app.seqDrag.voiceDrag));
-    console.log('voiceDrag actif après glissé vertical sur le CORPS d\'une note:', voiceDragActive);
-    check(voiceDragActive, "un glissé vertical sur le CORPS d'une note déclenche toujours le changement de voix (non régression)");
+    const glisserVertical = async (attendreAppuiLong) => {
+        await page.evaluate(async ({ x, y, attendre }) => {
+            const el = document.elementFromPoint(x, y);
+            const fire = (type, cy) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 53, pointerType: 'touch', clientX: x, clientY: cy, isPrimary: true }));
+            fire('pointerdown', y);
+            if (attendre) await new Promise(r => setTimeout(r, 400)); // > SEQ_APPUI_LONG_MS (260ms)
+            for (let i = 1; i <= 3; i++) fire('pointermove', y + i * 15);
+        }, { x: boxMid.x + boxMid.width / 2, y: boxMid.y + boxMid.height / 2, attendre: attendreAppuiLong });
+        await page.waitForTimeout(120);
+        const actif = await page.evaluate(() => !!(app.seqDrag && app.seqDrag.voiceDrag));
+        await page.evaluate(() => window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 53 })));
+        await page.waitForTimeout(120);
+        return actif;
+    };
+    const sansAppuiLong = await glisserVertical(false);
+    console.log('voiceDrag après glissé vertical IMMÉDIAT (sans appui long):', sansAppuiLong);
+    check(!sansAppuiLong, "au doigt, un glissé vertical IMMÉDIAT sur une note ne change PAS la voix : il est laissé au défilement");
+    const avecAppuiLong = await glisserVertical(true);
+    console.log('voiceDrag après APPUI LONG puis glissé vertical:', avecAppuiLong);
+    check(avecAppuiLong, "...mais après un APPUI MAINTENU, le même glissé change bien la voix (l'édition prend la main)");
     // Termine proprement ce glissé (dépose hors grille = annule)
     await page.evaluate(() => {
         const fakeUp = new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 53 });

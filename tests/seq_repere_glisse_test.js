@@ -28,6 +28,14 @@ const mk = (root, q) => ({ root, quality: q, beats: 8, inversion: 0, drop: 'none
     });
     await p.waitForTimeout(400);
     await p.evaluate(() => document.querySelector('.seq-scroll').scrollIntoView({ block: 'center' }));
+    // ...ET horizontalement. scrollIntoView ne règle que la position de la BANDE dans la page ; à
+    // l'intérieur, la bande est déjà défilée sur l'accord édité (_appliquerEchelleHorizontale la
+    // recentre dessus), et sur un accord de 8 temps les croches 0-3 visées plus bas se retrouvent
+    // hors du cadre. Mesuré : la case renvoyait alors x≈11px, le clic tombait à côté de la bande,
+    // seqDrag restait null et TOUT le banc échouait — sans qu'aucun des gestes testés soit en cause
+    // (vérifié : à scrollLeft=0, le repère affiche bien « G3 » et le son part). Même famille de faux
+    // négatif que « Élément sous la ligne de flottaison », voir docs/dette-tests.md.
+    await p.evaluate(() => { document.querySelector('.seq-scroll').scrollLeft = 0; });
     await p.waitForTimeout(300);
 
     // Les notes qu'on écoute pendant le geste : on instrumente seqEditFeedback plutôt que l'audio,

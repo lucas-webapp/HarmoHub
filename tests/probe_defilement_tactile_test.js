@@ -45,6 +45,24 @@ const caseTouchable = (page, selecteur = '.seq-cell') => page.evaluate((sel) => 
     return null;
 }, selecteur);
 const caseCentrale = (page) => caseTouchable(page, '.seq-cell');
+// Case appartenant à une VRAIE voix de l'accord (data-voice >= 0). Depuis que le séquenceur affiche
+// tout l'ambitus chromatique (voir renderSequencer, .seq-cell-free), la grande majorité des cases
+// portent data-voice="-1" : la voix n'y existe pas encore, c'est la HAUTEUR (data-midi) qui compte, et
+// on y AJOUTE une note d'un clic — on n'y peint pas au glissé. Prendre la première case venue tombait
+// donc sur une case libre, où aucun glissé d'édition ne s'ouvre (vérifié : c'est voulu), et le banc en
+// concluait à tort que la souris « attendait ». Là où l'on veut éprouver le glissé d'édition lui-même,
+// c'est une case de voix réelle qu'il faut viser.
+const caseVoixReelle = (page) => page.evaluate(() => {
+    for (const e of document.querySelectorAll('.seq-cell')) {
+        if (!(+e.dataset.voice >= 0)) continue;
+        const r = e.getBoundingClientRect();
+        if (r.width < 3 || r.height < 3) continue;
+        const x = Math.round(r.left + r.width / 2), y = Math.round(r.top + r.height / 2);
+        if (x < 4 || y < 4 || x > window.innerWidth - 4 || y > window.innerHeight - 4) continue;
+        if (document.elementFromPoint(x, y) === e) return { x, y, voix: e.dataset.voice, pas: e.dataset.step };
+    }
+    return null;
+});
 
 // Empreinte du motif : toute création/modification involontaire la change.
 const empreinte = (page) => page.evaluate(() => {
@@ -115,7 +133,6 @@ const etatDefil = (page) => page.evaluate(() => {
     console.log('--- 1. Un glissé au doigt FAIT DÉFILER, et ne touche à aucune note ---');
     const c1 = await caseCentrale(mob);
     check(c1 != null, 'un cas de test a été trouvé (case au centre de la bande)');
-    const avant = await empreinte(mob);
     const defAvant = await etatDefil(mob);
     // Glissé horizontal franc, comme on se déplace dans le morceau.
     await mob.touchscreen.tap(1, 1).catch(() => {});
@@ -130,8 +147,27 @@ const etatDefil = (page) => page.evaluate(() => {
     }, c1);
     await mob.touchscreen.tap(c1.x, c1.y).catch(() => {});
     await mob.waitForTimeout(50);
+    // EMPREINTE PRISE ICI, pas avant le tap ci-dessus. Ce tap est un VRAI appui bref sur la case
+    // testée : il pose donc une note, exactement comme il le doit (voir _armerAppuiLongSeq, « appui
+    // bref -> tap »). Relevée trop tôt, la référence incluait cette note dans le « changement »
+    // qu'on impute ensuite au GLISSÉ — le banc accusait l'appli du reproche d'origine (« je crée une
+    // note en voulant défiler ») pour un geste qu'il avait lui-même produit juste avant. La question
+    // posée ici est : que fait le GLISSÉ, et rien d'autre.
+    const avant = await empreinte(mob);
 
     // Geste : poser, glisser tout de suite, relever — sans jamais s'arrêter.
+    // DEUX aller-retours seulement, et les mouvements émis d'un bloc SANS attente entre eux.
+    // Une version précédente envoyait chaque évènement par un page.evaluate séparé, entrecoupé d'un
+    // waitForTimeout(12) : chaque appel coûtant un aller-retour CDP, le geste « immédiat » s'étalait en
+    // réalité bien au-delà des 260 ms de SEQ_APPUI_LONG_MS — l'appui long s'engageait donc AVANT que le
+    // premier mouvement n'arrive, et le glissé peignait légitimement. Le banc imputait alors à l'appli
+    // le reproche d'origine (« je crée une note en voulant défiler ») pour un délai qu'il avait
+    // lui-même introduit. Vérifié par ailleurs avec de VRAIS évènements tactiles (CDP
+    // Input.dispatchTouchEvent, voir seq_twofinger_zoom_test) : la bande défile, le motif ne bouge pas.
+    // La pause volontaire (`pauseAvant`, pour éprouver l'appui MAINTENU) reste côté Node, entre les
+    // deux appels — jamais à l'intérieur d'un evaluate : une attente longue dans la page se fait
+    // détruire son contexte si un rechargement survient entretemps (ouvrir(), appelé entre deux
+    // points de contrôle), ce qui faisait échouer le banc sur une erreur d'outillage.
     const glisser = async (page, x, y, dx, dy, pas = 10, pauseAvant = 0) => {
         await page.evaluate(({ x, y }) => {
             const el = document.elementFromPoint(x, y);
@@ -139,17 +175,15 @@ const etatDefil = (page) => page.evaluate(() => {
                 clientX: x, clientY: y, bubbles: true, isPrimary: true }));
         }, { x, y });
         if (pauseAvant) await page.waitForTimeout(pauseAvant);
-        for (let i = 1; i <= pas; i++) {
-            await page.evaluate(({ x, y }) => {
+        await page.evaluate(({ x, y, dx, dy, pas }) => {
+            for (let i = 1; i <= pas; i++) {
                 window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, pointerType: 'touch',
-                    clientX: x, clientY: y, bubbles: true, isPrimary: true }));
-            }, { x: Math.round(x + dx * i / pas), y: Math.round(y + dy * i / pas) });
-            await page.waitForTimeout(12);
-        }
-        await page.evaluate(({ x, y }) => {
+                    clientX: Math.round(x + dx * i / pas), clientY: Math.round(y + dy * i / pas),
+                    bubbles: true, isPrimary: true }));
+            }
             window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, pointerType: 'touch',
-                clientX: x, clientY: y, bubbles: true, isPrimary: true }));
-        }, { x: Math.round(x + dx), y: Math.round(y + dy) });
+                clientX: Math.round(x + dx), clientY: Math.round(y + dy), bubbles: true, isPrimary: true }));
+        }, { x, y, dx, dy, pas });
     };
 
     await glisser(mob, c1.x, c1.y, -120, 0);
@@ -278,7 +312,8 @@ const etatDefil = (page) => page.evaluate(() => {
         `aucun pixel sans case sur toute une ligne — ${mortesOrdi ? mortesOrdi.vides : '?'} vides sur ${mortesOrdi ? mortesOrdi.total : '?'}px`);
 
     console.log('--- 5. La souris n\'attend pas : un glissé dessine tout de suite ---');
-    const c5 = await caseCentrale(page);
+    const c5 = await caseVoixReelle(page); // voix réelle : c'est le glissé d'ÉDITION qu'on éprouve ici
+    check(c5 != null, 'un cas de test a été trouvé (case de voix réelle)');
     const emp5 = await empreinte(page);
     await page.mouse.move(c5.x, c5.y);
     await page.mouse.down();
