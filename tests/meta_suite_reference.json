@@ -125,38 +125,6 @@
     "offbeat_dash_test.js": [
       "grid-zoom-close"
     ],
-    "paroles_copy_paste_test.js": [
-      "btn-copy-text",
-      "btn-export-text"
-    ],
-    "paroles_fixes_test.js": [
-      "armed-hint",
-      "btn-options",
-      "opt-chain"
-    ],
-    "paroles_hardening_test.js": [
-      "btn-export-text"
-    ],
-    "paroles_line_lock_test.js": [
-      "mode-free"
-    ],
-    "paroles_options_test.js": [
-      "btn-options"
-    ],
-    "paroles_pdf_test.js": [
-      "btn-export-pdf"
-    ],
-    "paroles_repeat_test.js": [
-      "btn-options"
-    ],
-    "paroles_test.js": [
-      "hint-stop",
-      "mode-free"
-    ],
-    "paroles_undo_test.js": [
-      "btn-redo",
-      "btn-undo"
-    ],
     "pdf_export_test.js": [
       "pdf-measures-per-line",
       "toggle-show-direction-pdf"

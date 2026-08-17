@@ -23,8 +23,16 @@ const path = require('path');
 
 const RACINE = path.join(__dirname, '..');
 const REFERENCE = path.join(__dirname, 'meta_suite_reference.json');
-const source = fs.readFileSync(path.join(RACINE, 'script.js'), 'utf8');
-const html = fs.readFileSync(path.join(RACINE, 'index.html'), 'utf8');
+// TOUTES les sources de l'appli, pas seulement la page principale. Une première version ne lisait que
+// index.html + script.js et accusait donc les dix bancs de la page Paroles de viser des boutons
+// « disparus » — alors qu'ils vivent dans paroles.html/paroles.js. Un outil qui traque les faux
+// positifs ne peut pas se permettre d'en produire : il perdrait toute autorité, et on prendrait
+// l'habitude d'ignorer ce qu'il dit. Symétriquement, ne pas lire ces fichiers laissait passer un vrai
+// bouton mort côté Paroles sans rien dire.
+const SOURCES = ['script.js', 'paroles.js'];
+const PAGES = ['index.html', 'paroles.html'];
+const source = SOURCES.map(f => fs.readFileSync(path.join(RACINE, f), 'utf8')).join('\n');
+const html = PAGES.map(f => fs.readFileSync(path.join(RACINE, f), 'utf8')).join('\n');
 const fichiers = fs.readdirSync(__dirname).filter(f => f.endsWith('_test.js') && f !== 'meta_suite_test.js');
 
 // Une méthode est-elle DÉFINIE dans script.js ? On cherche une définition (`  nom(...) {`,
