@@ -10,6 +10,20 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // donc plus rien à cacher/montrer selon this.loopRange. Ce qui reste à vérifier : le bouton UNIQUE
 // se recolore/se retitre correctement selon qu'une plage est active ou non — même logique
 // qu'avant, juste sur un seul bouton au lieu de deux.
+//
+// DEUXIÈME RÉÉCRITURE. La fin du banc éprouvait le « bouton jumeau de la loupe grille »
+// (#grid-zoom-play-prog / #grid-zoom-play-chord) : la vue plein écran dupliquait le transport dans son
+// en-tête, et il fallait vérifier que la copie suivait la même règle que l'original. La vue a été
+// supprimée, ces identifiants ont zéro occurrence dans l'appli, et le banc mourait sur un
+// `zp.classList` avec zp à null — après quoi sa dernière vérification, « le bouton unique joue bien la
+// PLAGE », n'était plus jamais atteinte. Il n'y a plus qu'UN transport, ancré en bas de la colonne de
+// gauche (voir placeGlobalTransport) : il n'y a plus de jumeau à comparer, et c'est sur lui que se
+// termine désormais le scénario.
+//
+// C'était aussi un faux banc : ses six verdicts s'écrivaient en console.log sans compteur ni code de
+// sortie, et il finissait sur process.exit(0) — un échec n'avait donc aucun effet.
+const { check, exiger, plan, bilan } = require('./_harness')('plage à boucler et bouton unique');
+plan(6);
 
 (async () => {
     const browser = await chromium.launch({
@@ -32,7 +46,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
     console.log('--- Plus de bouton « Accord » du tout, à aucun moment ---');
     let r = await page.evaluate(() => !!document.getElementById('play'));
-    console.log((!r) ? 'PASS (#play absent du DOM)' : 'FAIL');
+    check(!r, "le bouton « Accord » (#play) est absent du DOM, à aucun moment il n'existe");
 
     console.log('--- Baseline (pas de plage à boucler) : titre normal, pas de teinte orange ---');
     r = await page.evaluate(() => {
@@ -40,7 +54,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         return { hasOrange: playProg.classList.contains('btn-loop-range'), title: playProg.title };
     });
     console.log(JSON.stringify(r));
-    console.log((!r.hasOrange && r.title === 'Lecture') ? 'PASS (baseline: pas de teinte, titre normal)' : 'FAIL');
+    check(!r.hasOrange && r.title === 'Lecture', `sans plage à boucler : pas de teinte, titre « ${r.title} »`);
 
     console.log('--- Une plage à boucler définie : le bouton se recolore et se retitre ---');
     await page.evaluate(() => window.app.setLoopRange(0, 0, 0, 2)); // accords 0..2 de la partie 0
@@ -50,7 +64,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         return { hasOrange: playProg.classList.contains('btn-loop-range'), title: playProg.title };
     });
     console.log(JSON.stringify(r));
-    console.log((r.hasOrange && r.title === 'Lire la plage à boucler') ? 'PASS (plage active : orange + titre à jour)' : 'FAIL');
+    check(r.hasOrange && r.title === 'Lire la plage à boucler', `plage active : le bouton se recolore et se retitre — « ${r.title} »`);
 
     console.log('--- Plage effacée : retour à la normale ---');
     await page.evaluate(() => { window.app.loopRange = null; window.app.loadProgression(); });
@@ -60,31 +74,20 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         return { hasOrange: playProg.classList.contains('btn-loop-range'), title: playProg.title };
     });
     console.log(JSON.stringify(r));
-    console.log((!r.hasOrange && r.title === 'Lecture') ? 'PASS (effacée : plus de teinte, titre normal)' : 'FAIL');
-
-    console.log('--- Le bouton jumeau de la loupe grille suit la même règle ---');
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(150);
-    const zoomChordGone = await page.evaluate(() => !document.getElementById('grid-zoom-play-chord'));
-    console.log(zoomChordGone ? 'PASS (jumeau « Accord » de la loupe absent lui aussi)' : 'FAIL');
-    await page.evaluate(() => window.app.setLoopRange(0, 0, 0, 1));
-    await page.waitForTimeout(150);
-    r = await page.evaluate(() => {
-        const zp = document.getElementById('grid-zoom-play-prog');
-        return { zoomProgOrange: zp.classList.contains('btn-loop-range') };
-    });
-    console.log(JSON.stringify(r));
-    console.log(r.zoomProgOrange ? 'PASS (jumeau de la loupe suit la même règle)' : 'FAIL');
+    check(!r.hasOrange && r.title === 'Lecture', `plage effacée : retour à la normale — « ${r.title} »`);
 
     console.log('--- Cliquer le bouton unique joue bien la PLAGE seule (chemin playProgression) ---');
-    await page.click('#grid-zoom-play-prog');
+    await page.evaluate(() => window.app.setLoopRange(0, 0, 0, 1));
     await page.waitForTimeout(200);
-    r = await page.evaluate(() => ({ playMode: window.app._playMode }));
-    console.log(JSON.stringify(r));
-    console.log((r.playMode === 'progression') ? 'PASS (le bouton unique joue la progression/plage)' : 'FAIL');
+    await page.click('#play-prog');
+    await page.waitForTimeout(300);
+    const mode = await page.evaluate(() => ({ playMode: window.app._playMode }));
+    console.log(JSON.stringify(mode));
+    check(mode.playMode === 'progression', `le bouton unique joue la progression/plage — mode « ${mode.playMode} »`);
     await page.evaluate(() => window.app.stopAll());
 
     console.log('Errors:', JSON.stringify(errors));
+    check(errors.length === 0, 'aucune erreur JavaScript pendant tout le scénario');
     await browser.close();
-    process.exit(0);
+    bilan();
 })().catch((e) => { console.error('FATAL', e); process.exit(2); });

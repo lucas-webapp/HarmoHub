@@ -4500,8 +4500,17 @@ select.song-select-narrow {
        lieu de pouvoir voir plus de notes ». Rétrécir la fenêtre ne montre jamais rien de plus.
    C'est donc la hauteur des LIGNES qui suit le zoom, la fenêtre gardant la sienne : à échelle 0,5, une
    ligne fait 7px et il en tient deux fois plus à l'écran — le comportement d'une station audio. */
+/* La hauteur porte bien le facteur d'échelle : sans lui, tout ce qui précède restait une intention.
+   Mesuré : dans la fenêtre AGRANDIE, V+ et V− faisaient monter seqZoomLevelY jusqu'à 1,95 et posaient
+   --seq-zoom-scale-v sur l'hôte, sans que la moindre ligne ne bouge — les deux boutons ne servaient à
+   rien. La règle .seq-zoomed .seq-cell (plus haut) prévoyait pourtant le réglage, mais elle a la même
+   spécificité que celle-ci (0,2,0) et se trouve AVANT dans la feuille : c'est donc ce « 14px » nu qui
+   l'emportait, par simple ordre de déclaration. Le voisin immédiat trahissait l'oubli — la
+   line-height du même libellé, quelques règles plus bas, multiplie DÉJÀ ses 14px par cette variable.
+   Hors fenêtre agrandie la variable n'est jamais posée : elle retombe sur 1, et la ligne fait 14px
+   comme avant, partout. */
 .seq-grid-continuous .seq-cell,
-.seq-grid-continuous .seq-label { height: 14px; }
+.seq-grid-continuous .seq-label { height: calc(14px * var(--seq-zoom-scale-v, 1)); }
 /* EXACTEMENT le gabarit des barres éditables : ni hauteur propre, ni marge — la barre remplit sa
    ligne, comme .seq-note. Un reste de l'époque des fins repères de contexte lui donnait 14px de haut
    plus 2px de marge en haut et en bas : mesuré, la barre voisine faisait 14px là où celle qu'on édite

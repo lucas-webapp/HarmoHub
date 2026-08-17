@@ -1,8 +1,13 @@
 const { chromium } = require('playwright')
-const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
-
-let PASS = 0, FAIL = 0;
-function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label); } else { FAIL++; console.log('FAIL - ' + label); } }
+const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
+// La section « loupe grille » de ce banc est SUPPRIMÉE, pas rebranchée : elle refaisait exactement les
+// mêmes deux vérifications que la section 1, sur les mêmes cases, au seul motif qu'elles vivaient alors
+// dans #grid-zoom-host. La grille ne déménage plus nulle part (voir retour_a_sa_place_test) : rejouer le
+// scénario une seconde fois n'éprouverait plus rien de nouveau. Le banc mourait dessus sur un
+// `cellsZoom[0]` undefined, et sa section 3 — la seule qui reste vraiment distincte, le repère de temps
+// dans la vue AGRANDIE du séquenceur — n'était donc jamais atteinte.
+const { check, exiger, plan, bilan } = require('./_harness')('repères de mesure et de temps');
+plan(8);
 
 (async () => {
     const browser = await chromium.launch();
@@ -88,35 +93,8 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     check(afterGridResize.reached === false, "le repère de mesure s'éteint bien une fois l'étirement de grille terminé");
     check(afterGridResize.beatTicks === 0, "les traits de temps disparaissent bien une fois l'étirement de grille terminé");
 
-    // === 2. Même vérification en LOUPE GRILLE ===
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(300);
-    const cellsZoom = await page.$$('#grid-zoom-host .grid-cell');
-    const firstCellZoom = cellsZoom[0];
-    const handleZoom = await firstCellZoom.$('.cell-resize-right');
-    const handleZoomBox = await handleZoom.boundingBox();
-
-    await page.mouse.move(handleZoomBox.x + handleZoomBox.width / 2, handleZoomBox.y + handleZoomBox.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(handleZoomBox.x + 150, handleZoomBox.y + handleZoomBox.height / 2, { steps: 6 });
-    await page.waitForTimeout(150);
-
-    const duringLoupeResize = await page.evaluate(() => {
-        const reached = document.querySelector('#grid-zoom-host .row-measure.row-measure-reached');
-        const beatTicks = document.querySelectorAll('#grid-zoom-host .cell-beat-tick').length;
-        return { reachedText: reached ? reached.textContent : null, beatTicks };
-    });
-    console.log('pendant l\'étirement (loupe grille):', JSON.stringify(duringLoupeResize));
-    check(duringLoupeResize.reachedText !== null, "le repère de mesure fonctionne aussi en LOUPE GRILLE pendant l'étirement");
-    check(duringLoupeResize.beatTicks > 0, "les traits de temps fonctionnent aussi en LOUPE GRILLE pendant l'étirement");
-
-    await page.mouse.up();
-    await page.waitForTimeout(250);
-    await page.click('#grid-zoom-close');
-    await page.waitForTimeout(200);
-
-    // === 3. Vérifie que le repère de temps du SÉQUENCEUR fonctionne aussi en LOUPE SÉQUENCEUR ===
-    // Édite le 1er accord, ouvre la loupe séquenceur, isole une note courte, étire son bord.
+    // === 2. Le repère de temps du SÉQUENCEUR, dans sa vue AGRANDIE ===
+    // Édite le 1er accord, ouvre la vue agrandie du séquenceur, isole une note courte, étire son bord.
     const gridCellsNow = await page.$$('.grid-cell');
     await gridCellsNow[0].dblclick();
     await page.waitForTimeout(300);
@@ -141,7 +119,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
         const r = cell.getBoundingClientRect();
         return { x: r.x, y: r.y, width: r.width, height: r.height };
     });
-    if (noteEndBox) {
+    if (exiger(!!noteEndBox, 'la note à étirer est bien atteignable dans la vue agrandie')) {
         const sx = noteEndBox.x + noteEndBox.width - 2, sy = noteEndBox.y + noteEndBox.height / 2;
         await page.mouse.move(sx, sy);
         await page.mouse.down();
@@ -152,15 +130,13 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
             return el ? el.textContent : null;
         });
         console.log('temps allumé en loupe séquenceur:', reachedInLoupeSeq);
-        check(reachedInLoupeSeq !== null, "le repère de temps du séquenceur fonctionne aussi en LOUPE SÉQUENCEUR");
+        check(reachedInLoupeSeq !== null, "le repère de temps du séquenceur fonctionne aussi dans la VUE AGRANDIE");
         await page.mouse.up();
         await page.waitForTimeout(200);
-    } else {
-        check(false, 'note introuvable en loupe séquenceur pour le test');
     }
 
-    console.log('=== Bilan :', PASS, 'PASS /', FAIL, 'FAIL ===');
     console.log('Errors:', JSON.stringify(errors));
+    check(errors.length === 0, 'aucune erreur JavaScript pendant tout le scénario');
     await browser.close();
-    process.exit(FAIL > 0 ? 1 : 0);
+    bilan();
 })();

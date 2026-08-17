@@ -3,7 +3,8 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // Le volet et l'échelle par défaut étaient les mêmes partout, calibrés pour un téléphone : sur un
 // écran de 1080px, 222px restaient inutilisés sous le volet et seules 2,5 mesures tenaient dans la
 // vue continue — l'inverse de ce qu'on attend d'un « réglage à l'échelle du morceau en grand écran ».
-let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;console.log('FAIL - '+l);} };
+const { check: ck, plan, bilan } = require('./_harness')('volet adaptatif');
+plan(12);
 (async () => {
     const b = await chromium.launch({args:['--autoplay-policy=no-user-gesture-required']});
     const mesures = {};
@@ -54,7 +55,15 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
     ck(o.voletH > 400, `ordinateur : le volet s'ouvre à sa vraie taille — ${o.voletH}px (300px avant)`);
     ck(o.voletEntierVisible, 'ordinateur : le volet agrandi tient entier dans l\'écran');
     ck(o.debordePage <= 0, `...sans faire déborder la page — ${o.debordePage}px de dépassement`);
-    ck(o.lignesVisibles >= o.lignesTotales, `...toutes les lignes chromatiques tiennent — ${o.lignesVisibles}/${o.lignesTotales}`);
+    // ASSERTION CORRIGÉE. Elle exigeait que les 60 lignes chromatiques tiennent toutes dans le volet,
+    // ce que la conception REFUSE explicitement : la hauteur automatique est plafonnée à
+    // SEQ_DOCK_HEIGHT_AUTO_MAX = 700px, « au-delà, le volet mangerait la grille d'accords au-dessus ».
+    // Soixante lignes de 14px en demandent 840. Le banc réclamait donc quelque chose que personne n'a
+    // promis, et rougissait à chaque campagne sans rien apprendre — la meilleure façon de le faire
+    // ignorer. Ce qui est vraiment promis, et vérifié ici : le plafond est respecté, et un grand écran
+    // montre bel et bien plus de hauteurs qu'un téléphone.
+    ck(o.voletH <= 700 + 40, `ordinateur : la hauteur automatique respecte son plafond — ${o.voletH}px (700px + habillage)`);
+    ck(o.lignesVisibles > t.lignesVisibles, `...et un grand écran montre plus de hauteurs qu'un téléphone — ${o.lignesVisibles} contre ${t.lignesVisibles} lignes sur ${o.lignesTotales}`);
     ck(o.mesuresVisibles >= 4.5, `ordinateur : on voit la structure du morceau — ${o.mesuresVisibles} mesures (2,5 avant)`);
     ck(pt.mesuresVisibles > 3, `portable : idem à sa mesure — ${pt.mesuresVisibles} mesures (2 avant)`);
     ck(t.voletH === 300 || t.voletH < 400, `téléphone : le volet garde une taille raisonnable — ${t.voletH}px`);
@@ -76,7 +85,6 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
     ck(Math.abs(h-380) < 6, `la hauteur réglée à la main est respectée — ${h}px pour 380 mémorisés`);
     await ctx2.close();
 
-    console.log('\n=== Bilan :', P, 'PASS /', F, 'FAIL ===');
     await b.close();
-    process.exit(F>0?1:0);
+    bilan();
 })().catch(e=>{console.error('FATAL',e);process.exit(2);});
