@@ -44,9 +44,6 @@
       "edit-empty-hint",
       "grid-click-action"
     ],
-    "classic_grid_zoom_test.js": [
-      "grid-zoom-close"
-    ],
     "global_transport_test.js": [
       "grid-zoom-close",
       "grid-zoom-play-chord",
@@ -62,9 +59,6 @@
     "loop_range_buttons_test.js": [
       "grid-zoom-play-chord",
       "grid-zoom-play-prog"
-    ],
-    "offbeat_dash_test.js": [
-      "grid-zoom-close"
     ],
     "pdf_export_test.js": [
       "pdf-measures-per-line",
@@ -99,11 +93,6 @@
     "song_panel_test.js": [
       "app-mode-config",
       "config-card"
-    ],
-    "song_zoom_persist_test.js": [
-      "grid-zoom-close",
-      "grid-zoom-in-h",
-      "grid-zoom-in-v"
     ],
     "three_fixes_test.js": [
       "quick-library-export",
@@ -150,7 +139,6 @@
     "avant_seq_snap_sticky_test.js",
     "case_plus_test.js",
     "chord_function_test.js",
-    "classic_grid_zoom_test.js",
     "click_away_still_works_test.js",
     "config_improvements_test.js",
     "ctrl_click_decouple_test.js",
@@ -204,7 +192,6 @@
     "multi_intensity_test.js",
     "multirow_loop_test.js",
     "new_voice_rule_test.js",
-    "offbeat_dash_test.js",
     "paroles_autoload_back_test.js",
     "paroles_copy_paste_test.js",
     "paroles_drag_test.js",
@@ -271,7 +258,6 @@
     "slider_revert_test.js",
     "smoke_test.js",
     "song_panel_test.js",
-    "song_zoom_persist_test.js",
     "sortie_edition_involontaire_test.js",
     "tap_removal_test.js",
     "three_fixes_test.js",
@@ -289,7 +275,6 @@
     "glock_full_real_ui_test.js": 1,
     "grid_beat_highlight_test.js": 1,
     "metronome_groove_test.js": 1,
-    "offbeat_dash_test.js": 1,
     "popups_close_test.js": 1,
     "probe_clic_accord_voisin_test.js": 1,
     "seq_beat_highlight_test.js": 1,

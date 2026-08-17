@@ -1,8 +1,10 @@
 const { chromium } = require('playwright')
-const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
-
-let PASS = 0, FAIL = 0;
-function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label); } else { FAIL++; console.log('FAIL - ' + label); } }
+const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
+// plan() n'est pas décoratif ici : ce banc a longtemps expiré au milieu de sa section 3, sur un clic
+// #grid-zoom-close disparu, et sa section 4 n'était plus jamais atteinte — sans que rien ne le dise,
+// puisqu'il affichait des PASS jusque-là. Le plancher déclaré rend désormais cet abandon bruyant.
+const { check, exiger, plan, bilan } = require('./_harness')('repères de contretemps');
+plan(15);
 
 (async () => {
     const browser = await chromium.launch();
@@ -119,7 +121,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     });
     console.log('gridCheck:', JSON.stringify(gridCheck), 'expectedBars:', expectedBars);
     check(gridCheck.count === expectedBars, `exactement ${expectedBars} repère(s) de contretemps (1 par mesure, pas 1 par temps) — obtenu ${gridCheck.count}`);
-    if (gridCheck.results) {
+    if (exiger(!!gridCheck.results, 'les repères de la grille sont mesurables (grid-column lisible sur chacun)')) {
         const allCentered = gridCheck.results.every(r => Math.abs(r.markCenter - r.expectedCenter) <= 2);
         check(allCentered, `chaque repère est bien centré sur le milieu RÉEL de sa mesure (écarts: ${gridCheck.results.map(r => Math.abs(r.markCenter - r.expectedCenter).toFixed(1)).join(', ')}px)`);
         const allDots = gridCheck.results.every(r => r.hasDot && r.dotW === r.dotH && r.borderRadius !== '0px');
@@ -144,14 +146,25 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     check(prominence.rowMeasureOpacity > prominence.offbeatDotOpacity, `le numéro de mesure (opacité ${prominence.rowMeasureOpacity}) est plus visible que le point de contretemps (opacité ${prominence.offbeatDotOpacity})`);
     check(prominence.seqBeatLabelOpacity > prominence.offbeatDashOpacity, `le numéro de temps du séquenceur (opacité ${prominence.seqBeatLabelOpacity}) est plus visible que son trait de contretemps (opacité ${prominence.offbeatDashOpacity})`);
 
-    // === 3. Loupe grille : même repère présent ===
+    // === 3. Les repères survivent à l'ouverture ET à la fermeture du volet du séquenceur ===
+    // Cette section visait la LOUPE GRILLE : elle comptait les repères dans #grid-zoom-host puis
+    // cliquait #grid-zoom-close. Ces deux identifiants ont zéro occurrence dans l'appli depuis la
+    // suppression de la vue plein écran — le clic expirait donc sur un bouton qui n'arriverait jamais,
+    // et la section 4 ci-dessous n'était plus jamais atteinte.
+    // La grille ne déménage plus dans une fenêtre : ce qui reste à vérifier, c'est qu'ouvrir puis
+    // refermer le volet (qui provoque un rendu complet, voir renderSequencer/loadProgression) ne fait
+    // pas disparaître ses repères en route.
+    const reperesAvant = await page.evaluate(() => document.querySelectorAll('.chord-grid .row-offbeat').length);
     await page.click('#grid-zoom');
-    await page.waitForTimeout(300);
-    const loupeCount = await page.evaluate(() => document.querySelectorAll('#grid-zoom-host .row-offbeat').length);
-    console.log('loupeCount:', loupeCount);
-    check(loupeCount > 0, 'les repères .row-offbeat sont aussi présents en LOUPE GRILLE');
-    await page.click('#grid-zoom-close');
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(500);
+    const reperesVoletOuvert = await page.evaluate(() => document.querySelectorAll('.chord-grid .row-offbeat').length);
+    console.log('repères — avant:', reperesAvant, '| volet ouvert:', reperesVoletOuvert);
+    check(reperesVoletOuvert === reperesAvant, `les repères de la grille survivent à l'ouverture du volet (${reperesAvant} -> ${reperesVoletOuvert})`);
+    await page.click('#grid-zoom');   // même bouton = referme (voir toggleSequencer)
+    await page.waitForTimeout(400);
+    const reperesApres = await page.evaluate(() => document.querySelectorAll('.chord-grid .row-offbeat').length);
+    console.log('| volet refermé:', reperesApres);
+    check(reperesApres === reperesAvant, `et à sa fermeture (${reperesApres})`);
 
     // === 4. Vérifie que le glisser sur la ligne des numéros de mesure fonctionne toujours (loop range) ===
     const loopDragOk = await page.evaluate(() => {
@@ -166,8 +179,8 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // relâche proprement
     await page.mouse.up().catch(() => {});
 
-    console.log('=== Bilan :', PASS, 'PASS /', FAIL, 'FAIL ===');
     console.log('Errors:', JSON.stringify(errors));
+    check(errors.length === 0, 'aucune erreur JavaScript pendant tout le scénario');
     await browser.close();
-    process.exit(FAIL > 0 ? 1 : 0);
+    bilan();
 })();
