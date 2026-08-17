@@ -6,15 +6,6 @@
     "grid_loupe_pinch_undo_test.js": [
       "openGridZoom"
     ],
-    "grid_zoom_close_restore_test.js": [
-      "closeGridZoom",
-      "editChordFromGridZoom",
-      "openGridZoom"
-    ],
-    "highlight_diagnostic_test.js": [
-      "closeGridZoom",
-      "openGridZoom"
-    ],
     "items2345_test.js": [
       "editChordFromGridZoom"
     ],
@@ -31,6 +22,9 @@
     ],
     "pinned_seq_toolbar_test.js": [
       "editChordFromGridZoom",
+      "openGridZoom"
+    ],
+    "retour_a_sa_place_test.js": [
       "openGridZoom"
     ],
     "seq_row_pipette_test.js": [
@@ -174,7 +168,6 @@
     "classic_grid_zoom_test.js",
     "click_away_still_works_test.js",
     "config_improvements_test.js",
-    "continuous_scroll_test.js",
     "ctrl_click_decouple_test.js",
     "ctx_nav_scroll_test.js",
     "ctx_nav_test.js",
@@ -198,11 +191,9 @@
     "grid_multidrag_test.js",
     "grid_pipettes_test.js",
     "grid_scroll_axis_test.js",
-    "grid_zoom_close_restore_test.js",
     "guitar_lock_click_test.js",
     "guitar_lock_test.js",
     "guitar_override_test.js",
-    "highlight_diagnostic_test.js",
     "instrument_playback_test.js",
     "instrument_stress_test.js",
     "intensity_test.js",
@@ -291,7 +282,6 @@
     "seq_voicedrag_test.js",
     "seq_vscroll_and_cancel_test.js",
     "seq_zoom_header_overflow_test.js",
-    "seqplay_looprange_test.js",
     "seqplay_orange_test.js",
     "settings_improvements_test.js",
     "sidebar_collapse_test.js",
