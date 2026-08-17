@@ -17,7 +17,7 @@
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('hauteur du volet et en-têtes de partie');
-plan(20);
+plan(26);
 
 const partie = (titre) => {
     const mk = (r, q) => ({ root: r, quality: q, beats: 4, inversion: 0, drop: 0, octave: 3, bass: null, playStyle: 'held' });
@@ -53,11 +53,21 @@ const partie = (titre) => {
             grille: bo('.history-section').h,
             memo: window.app.seqDockHeight,
             max: window.app.hauteurMaxVoletSequenceur(),
+            maxAuto: window.app.hauteurAutoVoletSequenceur(),
+            barre: (() => { const e = document.querySelector('.history-section .grid-head-sticky'); return e ? Math.round(e.getBoundingClientRect().height) : 0; })(),
+            uneCaseVisible: (() => {
+                const c = document.querySelector('.chord-grid .grid-cell');
+                const g = document.querySelector('.history-section');
+                if (!c || !g) return false;
+                const rc = c.getBoundingClientRect(), rg = g.getBoundingClientRect();
+                return rc.top >= rg.top - 1 && rc.bottom <= rg.bottom + 1;
+            })(),
             classeCachee: document.querySelector('.col-right').classList.contains('diagrams-hidden'),
             vizWrap: bo('.viz-wrap').h,
             carte: bo('.viz-card'),
             exp: bo('.viz-export-actions'),
             enteteGrille: bo('.viz-wrap'),
+            ecartSousVolet: Math.round(bo('.viz-wrap').t - bo('#seq-dock-panel').b),
         };
     });
 
@@ -86,12 +96,27 @@ const partie = (titre) => {
 
         // La marge des deux côtés : c'est elle qui rend la poignée utile dans les DEUX sens.
         check(repos.hote < repos.max, `${nom} : le volet s'ouvre EN DESSOUS de son maximum, il reste de quoi agrandir (${repos.hote} < ${repos.max})`);
+        // DEUX plafonds distincts, et c'est le fond de l'affaire : la poignée peut monter jusqu'au titre,
+        // l'OUVERTURE s'arrête bien avant. Sans cette séparation, le volet s'ouvrait par-dessus la grille,
+        // qui disparaissait de l'écran — alors que l'utilisateur venait de demander à en voir plus.
+        check(repos.maxAuto < repos.max,
+            `${nom} : le plafond d'OUVERTURE est plus bas que celui de la poignée (${repos.maxAuto} < ${repos.max})`);
+        check(repos.uneCaseVisible || diagrammes,
+            `${nom} : sans diagramme, une rangée d'accords entière reste visible à l'ouverture (${repos.grille}px de grille)`);
 
-        const agrandi = await tirer(page, -250);
-        console.log('  agrandi :', JSON.stringify({ hote: agrandi.hote, grille: agrandi.grille, memo: agrandi.memo }));
+        const agrandi = await tirer(page, -400);
+        console.log('  agrandi :', JSON.stringify({ hote: agrandi.hote, grille: agrandi.grille, memo: agrandi.memo, barre: agrandi.barre }));
         check(agrandi.hote > repos.hote, `${nom} : tirer la poignée vers le haut AGRANDIT vraiment le volet (${repos.hote} -> ${agrandi.hote}px)`);
         check(agrandi.memo === agrandi.hote, `${nom} : la hauteur obtenue est bien celle mémorisée (${agrandi.memo})`);
-        check(agrandi.grille >= 140, `${nom} : la grille d'accords garde une hauteur utilisable même volet tiré à fond (${agrandi.grille}px)`);
+        // CONTRAT CHANGÉ, et volontairement : le banc exigeait auparavant que la grille garde 140px même
+        // volet tiré à fond. L'utilisateur a demandé l'inverse — « tu peux me permettre d'étirer la
+        // poignée jusqu'en haut si j'ai envie [...] si ça me pose problème lors de l'édition, je
+        // baisserai la poignée ». Ce qui reste garanti est le strict nécessaire : la barre de titre
+        // collante, qui porte le bouton refermant le volet. Sans elle on serait enfermé dedans.
+        check(agrandi.barre > 0,
+            `${nom} : la barre de titre de la grille survit au volet tiré à fond, la sortie reste atteignable (${agrandi.barre}px)`);
+        check(agrandi.grille <= repos.grille,
+            `${nom} : la grille a bien cédé sa place au volet (${repos.grille} -> ${agrandi.grille}px)`);
 
         const reduit = await tirer(page, 200);
         console.log('  réduit  :', JSON.stringify({ hote: reduit.hote, grille: reduit.grille }));
@@ -117,6 +142,11 @@ const partie = (titre) => {
             `centrés horizontalement dans la colonne (écart ${Math.round(Math.abs(centreCarte - centreBande))}px)`);
         check(bas.carte.r < bas.exp.l, `sans recouvrir Paroles/Fichier (fin à ${bas.carte.r}, qui commencent à ${bas.exp.l})`);
         check(bas.vizWrap <= 40, `la bande des diagrammes ne coûte plus qu'une hauteur de boutons (${bas.vizWrap}px, contre 142 avant)`);
+        // Retour utilisateur : « il reste encore de la place optimisable entre le séquenceur et les
+        // boutons diagrammes ». Elle venait de deux enfants de colonne à 0px de haut qui consommaient
+        // quand même leur interligne de 16px chacun.
+        check(bas.ecartSousVolet <= 24,
+            `l'écart entre le bas du volet et la bande des boutons est resserré (${bas.ecartSousVolet}px, 38 avant)`);
     }
     await page.close();
 

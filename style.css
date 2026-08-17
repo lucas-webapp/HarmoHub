@@ -2136,6 +2136,13 @@ button:active { transform: translateY(1px); }
    en une lamelle). En donnant ICI la même paire width:100%/max-width qu'à #piano-viz, #piano-col
    obtient une largeur déterminée (contre .viz-diagrams, qui EN a une) ; #piano-viz peut alors résoudre
    SON PROPRE 100% correctement, contre ce nouveau parent. */
+/* Largeur au CONTENU, et non `width: 100%`. C'était l'autre moitié du défaut d'affichage des
+   diagrammes : cette colonne est un enfant flex de .viz-diagrams, elle-même dans une carte en
+   `width: fit-content`. Un pourcentage contre un conteneur qui se dimensionne d'après son contenu est
+   une dépendance circulaire — le navigateur mesure la carte en ignorant le contenu réel du piano, puis
+   fait tenir le piano dans 100 % de cette largeur trop petite. Mesuré : piano réduit à 30px de large
+   quand il est seul, et avec les deux diagrammes une carte de 274px pour 375px de contenu, les deux
+   colonnes débordant de part et d'autre. */
 .piano-col {
     display: flex;
     flex-direction: column;
@@ -2144,7 +2151,6 @@ button:active { transform: translateY(1px); }
     flex: none;
     margin-left: 0;
     margin-right: 0;
-    width: 100%;
 }
 
 /* Cadre regroupant le(s) diagramme(s) et leur bascule piano/guitare en un seul bloc visuel cohérent,
@@ -2201,6 +2207,13 @@ button:active { transform: translateY(1px); }
    ajoutait les 10px de `gap` de la carte, qui décalaient les boutons de 10px au-dessus de la ligne de
    Paroles/Fichier au lieu de les aligner dessus. Mesuré : carte de 42px pour 32px de boutons. */
 .col-right.diagrams-hidden .viz-diagrams { display: none; }
+/* Même raison, un cran plus haut : la rangée du nom d'accord n'a plus rien à annoncer sans diagramme
+   (applyVizVisibility masque déjà #current-chord-display), mais elle restait un enfant de la colonne à
+   0px de haut — et un enfant à 0px consomme quand même son `gap` de 16px. Mesuré : le volet s'arrêtait à
+   804 quand la bande des boutons commençait à 842, 38px de vide pour deux éléments sans contenu (retour
+   utilisateur : « il reste encore de la place optimisable entre le séquenceur et les boutons
+   diagrammes »). La retirer du flux rend cet interligne au séquenceur. */
+.col-right.diagrams-hidden .chord-header-row { display: none; }
 /* Compacts (largeur réduite) plutôt qu'en pleine largeur — très utilisés, donc un peu plus grands que
    les icon-btn habituels quand même (icon-btn pour le style visuel, .active = même surbrillance verte
    que les autres boutons à bascule de l'appli). */

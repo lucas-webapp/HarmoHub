@@ -1761,11 +1761,16 @@ const SEQ_DOCK_HEIGHT_RATIO = 0.45;          // téléphone/tablette, une seule 
 const SEQ_DOCK_HEIGHT_RATIO_LARGE = 0.55;    // ordinateur, deux colonnes
 const SEQ_DOCK_HEIGHT_AUTO_MIN = 300;  // jamais moins que l'ancienne valeur : rien ne rétrécit
 const SEQ_DOCK_HEIGHT_AUTO_MAX = 700;  // au-delà, le volet mangerait la grille d'accords au-dessus
-// Ce que le volet laisse OBLIGATOIREMENT à la grille d'accords au-dessus de lui, même tiré à fond :
-// son en-tête collant, la saisie rapide, un titre de partie et une rangée d'accords. Sans ce plancher,
-// tirer la poignée jusqu'en haut écrasait la grille à 0px de haut — mesuré : elle disparaissait
-// complètement de l'écran, ce qu'aucun geste de redimensionnement ne devrait pouvoir faire.
-const SEQ_DOCK_RESERVE_GRILLE = 190;
+// DEUX réserves, parce qu'il y a deux plafonds distincts (voir hauteurMaxVoletSequenceur et
+// hauteurAutoVoletSequenceur) :
+//   - à la POIGNÉE, l'utilisateur peut monter jusqu'au titre de la grille, seule la barre collante est
+//     préservée — elle porte le bouton qui referme le volet, sans elle on serait enfermé. Sa hauteur est
+//     mesurée sur place, cette constante n'est qu'un repli si la mesure échoue.
+//   - à l'OUVERTURE, l'appli s'arrête bien avant : de quoi travailler dans la grille (barre de titre,
+//     saisie rapide, un titre de partie, une rangée d'accords). Écraser la grille est un choix qui
+//     revient à l'utilisateur, pas un défaut imposé.
+const SEQ_DOCK_RESERVE_REPLI = 48;
+const SEQ_DOCK_RESERVE_CONFORT = 190;
 // Part de la place disponible que la hauteur AUTOMATIQUE s'autorise. Volontairement inférieure à 1 :
 // un volet ouvert d'emblée à son maximum ne pourrait plus que rétrécir, et tirer la poignée vers le
 // haut ne ferait toujours rien — exactement le symptôme qu'on vient de corriger, avec une autre cause.
@@ -4091,7 +4096,18 @@ class HarmoHubApp {
         const maxWidthPx = `${totalWhite * 11}px`;
         viz.style.maxWidth = maxWidthPx;
         const pianoCol = document.getElementById('piano-col');
-        if (pianoCol) pianoCol.style.maxWidth = maxWidthPx;
+        if (pianoCol) {
+            // LARGEUR DÉFINIE, pas seulement un plafond. Le commentaire ci-dessus avait vu juste sur le
+            // risque mais pas sur le remède : `max-width` est un PLAFOND, il ne pousse jamais une largeur
+            // vers le haut. Le `width: 100%` de #piano-viz se résolvait donc contre une chaîne
+            // entièrement indéfinie (#piano-col au contenu, .viz-diagrams au contenu, .viz-card en
+            // fit-content) et s'écrasait à son min-content — la « lamelle » annoncée : mesuré, un clavier
+            // de 30px pour quinze blanches de 2px, alors que les touches actives et leurs rôles étaient
+            // correctement posés. C'est le défaut d'affichage des diagrammes signalé.
+            // max-width: 100% en plus, pour que le clavier rétrécisse quand même sur un écran étroit.
+            pianoCol.style.width = maxWidthPx;
+            pianoCol.style.maxWidth = '100%';
+        }
 
         // 2) Touches noires : largeur ≈62% d'une blanche, centrées sur la frontière (tout en %)
         const unit = 100 / totalWhite;      // largeur d'une blanche en % du clavier
@@ -4480,7 +4496,14 @@ class HarmoHubApp {
         const disp = document.getElementById('current-chord-display');
         const tPiano = document.getElementById('toggle-viz-piano');
         const tGuitar = document.getElementById('toggle-viz-guitar');
+        // La COLONNE du piano quitte le flux, pas seulement le piano lui-même. Masquer #piano-viz seul
+        // laissait #piano-col dans la rangée flex avec sa `width: 100%` : mesuré, 165px de large pour
+        // 0px de haut, qui poussaient le diagramme de guitare vers la droite jusqu'à le faire DÉBORDER
+        // de sa carte (carte 1029→1273, guitare 1152→1338). C'est le défaut d'affichage signalé —
+        // diagramme décentré et coupé à droite dès qu'on affiche la guitare seule.
+        const pianoCol = document.getElementById('piano-col');
         if (pianoEl) pianoEl.style.display = showPiano ? '' : 'none';
+        if (pianoCol) pianoCol.style.display = showPiano ? 'flex' : 'none';
         if (guitarWrap) guitarWrap.style.display = showGuitar ? 'flex' : 'none';
         // La légende de couleurs sous les diagrammes a été retirée d'ici (retour utilisateur, voir
         // index.html) — .piano-legend ne désigne plus QUE .voice-leading-legend (panneau Conduite de
@@ -12470,12 +12493,12 @@ class HarmoHubApp {
         }
     }
 
-    // Hauteur MAXIMALE que le volet peut prendre : la place réellement libre dans la colonne, moins ce
-    // qu'on réserve à la grille. Mesurée, jamais déduite d'un ratio d'écran — c'est ce qui fait que
-    // masquer les diagrammes profite au séquenceur : .viz-wrap rétrécit, la place libérée entre
-    // d'elle-même dans ce calcul, sans qu'aucune règle CSS n'ait à court-circuiter la hauteur réglée à
-    // la main (voir setupSeqDockResize, et le commentaire de .seq-dock-host dans style.css).
-    hauteurMaxVoletSequenceur() {
+    // Place libre dans la colonne de droite pour le volet, une fois `reserve` pixels laissés à la grille.
+    // Mesurée, jamais déduite d'un ratio d'écran — c'est ce qui fait que masquer les diagrammes profite
+    // au séquenceur : .viz-wrap rétrécit, la place libérée entre d'elle-même dans ce calcul, sans
+    // qu'aucune règle CSS n'ait à court-circuiter la hauteur réglée à la main (voir setupSeqDockResize,
+    // et le commentaire de .seq-dock-host dans style.css).
+    placeLibreDansLaColonne(reserve) {
         const colonne = document.querySelector('.col-right');
         const panneau = document.getElementById('seq-dock-panel');
         const grille = document.querySelector('.history-section');
@@ -12485,16 +12508,49 @@ class HarmoHubApp {
             return Math.round(window.innerHeight * 0.75);
         }
         // On somme les frères SAUF la grille : c'est elle, seule flex:1 de la colonne, qui cède la
-        // place au volet — sa hauteur du moment n'apprend donc rien sur celle qui est disponible.
-        let occupe = 0;
+        // place au volet — sa hauteur du moment n'apprend donc rien sur celle qui est disponible. Les
+        // frères de hauteur nulle (une rangée vidée par un réglage) sont sautés : ils ne prennent pas de
+        // place, mais leur interligne, lui, en prendrait une — voir le décompte ci-dessous.
+        let occupe = 0, visibles = 0;
         for (const enfant of colonne.children) {
+            const h = enfant.getBoundingClientRect().height;
+            if (h > 0) visibles++;
             if (enfant === panneau || enfant === grille || enfant.hidden) continue;
-            occupe += enfant.getBoundingClientRect().height;
+            occupe += h;
         }
         const styles = getComputedStyle(colonne);
-        const interlignes = (parseFloat(styles.rowGap) || 0) * Math.max(0, colonne.children.length - 1);
-        const dispo = colonne.clientHeight - occupe - interlignes - SEQ_DOCK_RESERVE_GRILLE;
+        // Un interligne par ESPACE entre frères visibles, pas un par frère : compter les invisibles
+        // retirait ici jusqu'à 32px que le volet aurait pu prendre.
+        const interlignes = (parseFloat(styles.rowGap) || 0) * Math.max(0, visibles - 1);
+        // La valeur rendue sert de hauteur à l'HÔTE (#seq-dock-host), alors que la colonne, elle, voit
+        // le PANNEAU — plus haut de sa poignée et de ses bordures. Sans retirer cet écart, la réserve
+        // était systématiquement rognée d'autant : mesuré, 164px laissés à la grille pour 190 demandés.
+        const panneauEnPlus = Math.max(0, Math.round(panneau.getBoundingClientRect().height
+            - (document.getElementById('seq-dock-host') || panneau).getBoundingClientRect().height));
+        const dispo = colonne.clientHeight - occupe - interlignes - reserve - panneauEnPlus;
         return Math.max(SEQ_DOCK_HEIGHT_MIN, Math.round(dispo));
+    }
+
+    // PLAFOND DE LA POIGNÉE : jusqu'où l'utilisateur peut tirer, s'il le veut. Ne préserve que la barre
+    // de titre collante de la grille — pas un confort, une nécessité : elle porte le bouton qui referme
+    // le volet, et la laisser disparaître enfermerait l'utilisateur dans un volet plein écran sans porte
+    // de sortie (retour utilisateur : « tu peux me permettre d'étirer la poignée du séquenceur jusqu'en
+    // haut si j'ai envie. Jusqu'au titre "Grille d'accords" par exemple. Si ça me pose problème lors de
+    // l'édition, je baisserai la poignée »). Hauteur de la barre MESURÉE, pour la suivre si elle change.
+    hauteurMaxVoletSequenceur() {
+        const barre = document.querySelector('.history-section .grid-head-sticky');
+        const reserve = (barre && Math.round(barre.getBoundingClientRect().height)) || SEQ_DOCK_RESERVE_REPLI;
+        return this.placeLibreDansLaColonne(reserve);
+    }
+
+    // PLAFOND DE LA HAUTEUR AUTOMATIQUE : nettement plus bas que celui de la poignée, et c'est voulu.
+    // Écraser la grille est un choix que l'utilisateur fait à la poignée ; l'appli ne doit pas le faire
+    // pour lui à l'ouverture. Mesuré sans cette distinction : le volet s'ouvrait par-dessus la grille,
+    // qui disparaissait entièrement de l'écran alors que l'utilisateur venait justement de demander à
+    // en voir PLUS (en resserrant les en-têtes de partie). La réserve couvre ici de quoi travailler :
+    // barre de titre, saisie rapide, un titre de partie et une rangée d'accords.
+    hauteurAutoVoletSequenceur() {
+        return this.placeLibreDansLaColonne(SEQ_DOCK_RESERVE_CONFORT);
     }
 
     // Hauteur d'ouverture du volet : celle réglée à la main si elle existe, sinon une part de l'écran.
@@ -12511,9 +12567,10 @@ class HarmoHubApp {
         // donner. Volontairement PLUS PETITE que ce maximum, pour que la poignée garde de la marge dans
         // les deux sens — un volet ouvert d'emblée au maximum ne pourrait plus que rétrécir, et
         // paraîtrait à nouveau bloqué en tirant vers le haut.
-        const dispo = this.hauteurMaxVoletSequenceur();
+        const dispo = this.hauteurMaxVoletSequenceur();       // ce que la POIGNÉE autorise
+        const dispoAuto = this.hauteurAutoVoletSequenceur();  // ce que l'OUVERTURE s'autorise
         const ratio = window.matchMedia(SEQ_DOCK_MEDIA).matches ? SEQ_DOCK_HEIGHT_RATIO_LARGE : SEQ_DOCK_HEIGHT_RATIO;
-        const auto = Math.round(Math.min(dispo * SEQ_DOCK_MARGE_POIGNEE, Math.max(SEQ_DOCK_HEIGHT_AUTO_MIN,
+        const auto = Math.round(Math.min(dispoAuto, Math.max(SEQ_DOCK_HEIGHT_AUTO_MIN,
             Math.min(SEQ_DOCK_HEIGHT_AUTO_MAX, window.innerHeight * ratio))));
         const base = this.seqDockHeight || auto;
         // Le plafond n'est plus un ratio d'écran mais la place libre mesurée : un volet plus grand que
@@ -13965,7 +14022,35 @@ class HarmoHubApp {
                     const cible = centreAccord - scrollEl.clientWidth / 2;
                     scrollEl.scrollLeft = Math.max(0, cible);
                 };
-                if (prevScrollLeft == null || echelleChangee) centrerSurAccordEdite();
+                // MÊME SERVICE SUR L'AXE VERTICAL, qui n'en avait aucun : la vue affiche toujours les
+                // soixante demi-tons de l'étendue (voir .seq-cell-free), dont la moitié seulement tient
+                // à l'écran, et scrollTop restait à 0 — c'est-à-dire tout en haut, sur les notes les plus
+                // AIGUËS. Un accord joué en octave 3 se retrouvait donc collé au bas de la bande, parfois
+                // à demi coupé (mesuré : barre à 66 % de la hauteur, scrollTop à 0) — « elle n'est pas du
+                // tout centrée dans le séquenceur, mais elle apparaît à la base du séquenceur ».
+                // On centre sur le MILIEU des hauteurs réellement jouées par l'accord édité, pas sur le
+                // milieu de l'étendue : c'est ce qu'on regarde, et deux accords d'octaves différentes ne
+                // doivent pas donner la même vue.
+                const centrerHauteursEditees = () => {
+                    const barres = [...scrollEl.querySelectorAll('.seq-note, .seq-cell[data-voice]:not([data-voice="-1"])')]
+                        .filter(e => e.classList.contains('seq-note'));
+                    // À défaut de barre posée (accord vide, rythme entièrement effacé), on se rabat sur
+                    // les libellés de voix de l'accord : ils occupent les mêmes lignes.
+                    const reperes = barres.length ? barres
+                        : [...scrollEl.querySelectorAll('.seq-label:not(.seq-label-context)')];
+                    if (!reperes.length) return;
+                    const rs = scrollEl.getBoundingClientRect();
+                    let haut = Infinity, bas = -Infinity;
+                    for (const el of reperes) {
+                        const r = el.getBoundingClientRect();
+                        haut = Math.min(haut, r.top - rs.top + scrollEl.scrollTop);
+                        bas = Math.max(bas, r.bottom - rs.top + scrollEl.scrollTop);
+                    }
+                    if (!isFinite(haut) || !isFinite(bas)) return;
+                    const cible = (haut + bas) / 2 - scrollEl.clientHeight / 2;
+                    scrollEl.scrollTop = Math.max(0, Math.min(scrollEl.scrollHeight - scrollEl.clientHeight, cible));
+                };
+                if (prevScrollLeft == null || echelleChangee) { centrerSurAccordEdite(); centrerHauteursEditees(); }
                 else scrollEl.scrollLeft = prevScrollLeft; // simple repeinture : on ne bouge pas sous les doigts
             });
         }
@@ -13992,7 +14077,15 @@ class HarmoHubApp {
                     if (e.deltaX && peutH) { e.preventDefault(); wheelScrollEl.scrollLeft += e.deltaX; return; }
                     if (!e.deltaY) return;
                     if (e.shiftKey && peutH) { e.preventDefault(); wheelScrollEl.scrollLeft += e.deltaY; return; }
-                    if (peutV) { e.preventDefault(); wheelScrollEl.scrollTop += e.deltaY; return; }
+                    // VERTICAL : on ne touche à RIEN, et c'est tout l'intérêt. Ce cas faisait
+                    // `preventDefault()` puis `scrollTop += e.deltaY`, ce qui remplace le défilement
+                    // natif — animé, avec inertie sur pavé tactile — par un saut sec de la valeur brute
+                    // du cran de molette, ~100px d'un coup sur Windows. D'où le « défilement par
+                    // à-coups, pas très fluide » signalé, et l'écart avec GarageBand : ce n'était pas un
+                    // manque d'animation à ajouter, c'était l'animation du navigateur qu'on lui retirait.
+                    // Laisser passer l'événement suffit : la bande déborde verticalement, le navigateur
+                    // la fait donc défiler lui-même, avec sa propre courbe.
+                    if (peutV) return;
                     if (peutH) { e.preventDefault(); wheelScrollEl.scrollLeft += e.deltaY; }
                 }, { passive: false });
             }

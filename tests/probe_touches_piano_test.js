@@ -37,9 +37,10 @@ async function ouvrir(page) {
     console.log('--- 1. Vraies couleurs de touches, les mêmes que le clavier de l\'appli ---');
     const couleurs = await page.evaluate(() => {
         const g = document.querySelector('.seq-grid-continuous');
-        // `:not(.seq-key-jouee)` : une touche jouée porte maintenant la couleur de sa FONCTION (voir
-        // le retour « les notes présentes dans l'accord ne restent pas affichées sur le piano »).
-        // Pour contrôler l'ivoire et le noir, il faut donc une touche que l'accord ne joue pas.
+        // `:not(.seq-key-jouee)` : une touche jouée reçoit une SURBRILLANCE qui remplace son fond (voir
+        // le retour « les notes présentes dans l'accord ne restent pas affichées sur le piano », puis
+        // « éclairer uniquement via une surbrillance, et enlève les couleurs sur les touches »). Pour
+        // contrôler l'ivoire et le noir de base, il faut donc une touche que l'accord ne joue PAS.
         const b = g.querySelector('.seq-label.seq-key-white:not(.seq-key-jouee)');
         const n = g.querySelector('.seq-label.seq-key-black:not(.seq-key-jouee)');
         // Le clavier fixe de l'appli, référence de teinte.
@@ -60,11 +61,21 @@ async function ouvrir(page) {
             couleurTexteNoire: n && getComputedStyle(n).color,
             nbBlanches: g.querySelectorAll('.seq-label.seq-key-white').length,
             nbNoires: g.querySelectorAll('.seq-label.seq-key-black').length,
-            // Les notes de l'accord, allumées et teintées par leur fonction.
-            jouees: [...g.querySelectorAll('.seq-label.seq-key-jouee')].map(l => ({
-                note: l.querySelector('.seq-key-name').textContent,
-                role: (l.className.match(/seq-key-role-(\w+)/) || [])[1],
-            })),
+            // Les notes de l'accord, allumées. PLUS de teinte par fonction : elle a été retirée sur
+            // retour utilisateur (« éclairer uniquement via une surbrillance, et enlève les couleurs sur
+            // les touches ») — le code couleur par rôle vit désormais sur les barres du séquenceur, le
+            // clavier fixe et la légende, plus sur les touches. On relève donc ce qui EST là : la
+            // surbrillance, et le nom rendu visible avec elle.
+            jouees: [...g.querySelectorAll('.seq-label.seq-key-jouee')].map(l => {
+                const nom = l.querySelector('.seq-key-name');
+                return {
+                    note: nom.textContent,
+                    nomVisible: getComputedStyle(nom).visibility === 'visible',
+                    halo: getComputedStyle(l).boxShadow,
+                    // Aucune classe de rôle ne doit subsister : ce serait le retour de la couleur retirée.
+                    roleResiduel: (l.className.match(/seq-key-role-(\w+)/) || [])[1] || null,
+                };
+            }),
         };
     });
     console.log(JSON.stringify(couleurs));
@@ -81,11 +92,21 @@ async function ouvrir(page) {
         'le décrochement à gauche de la touche noire est ivoire, pas transparent');
     check(couleurs.nbBlanches > 0 && couleurs.nbNoires > 0,
         `les deux sortes de touches sont présentes — ${couleurs.nbBlanches} blanches, ${couleurs.nbNoires} noires`);
-    // Am7 = A (fondamentale) C (tierce) E (quinte) G (septième) : une couleur par fonction, les mêmes
-    // que la légende de l'appli.
-    const roles = couleurs.jouees.map(j => `${j.note}=${j.role}`).join(' ');
-    check(couleurs.jouees.length === 4 && new Set(couleurs.jouees.map(j => j.role)).size === 4,
-        `les notes de l'accord restent allumées, chacune à la couleur de sa fonction — ${roles}`);
+    // ATTENTE CORRIGÉE. Le banc exigeait « une couleur par fonction » sur les touches — exactement ce
+    // que l'utilisateur a fait RETIRER (« éclairer uniquement via une surbrillance, et enlève les
+    // couleurs sur les touches »). Il réclamait donc le contraire d'une décision prise, et rougissait à
+    // chaque campagne sans qu'aucun défaut n'existe. Ce qui est promis aujourd'hui : les quatre notes de
+    // Am7 sont mises en surbrillance, leur nom devient lisible, et aucune classe de rôle ne subsiste.
+    const jouees = couleurs.jouees;
+    console.log('touches jouées :', JSON.stringify(jouees));
+    check(jouees.length === 4,
+        `les quatre notes de Am7 sont allumées — ${jouees.map(j => j.note).join(', ')}`);
+    check(jouees.every(j => j.nomVisible),
+        'et leur nom est rendu lisible avec la surbrillance, pas seulement celui du DO');
+    check(jouees.every(j => /inset/.test(j.halo) && j.halo !== 'none'),
+        `chacune porte bien le halo de surbrillance — ${jouees[0] ? jouees[0].halo : 'aucune'}`);
+    check(jouees.every(j => j.roleResiduel === null),
+        `aucune couleur par fonction n'est revenue sur les touches — ${JSON.stringify(jouees.map(j => j.roleResiduel))}`);
 
     console.log('--- 2. Un seul nom écrit : le DO, avec son octave ---');
     const noms = await page.evaluate(() => {
