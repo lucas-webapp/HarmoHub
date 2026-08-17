@@ -486,3 +486,72 @@ seulement inventoriés et empêchés de se multiplier. Leur reprise (recibler ou
 par fichier) est le chantier suivant. La règle à tenir : un recibleage n'est acquis que s'il exerce
 RÉELLEMENT la fonctionnalité. La preuve que ça vaut le coup : recibler cette vue-là a fait apparaître
 un vrai défaut d'application au lieu de le masquer (§9).
+
+## 11. Reprise des 30 bancs de la vue plein écran — le chantier annoncé en §10
+
+Le §10 laissait 35 bancs inventoriés mais non réparés, en posant la règle : « un reciblage n'est
+acquis que s'il exerce RÉELLEMENT la fonctionnalité ». Ce chantier est terminé. Répartis en quatre
+familles, traités fichier par fichier, jamais en remplacement de masse — et la règle a payé.
+
+### Ce que la campagne a fait remonter
+
+**Trois défauts d'application**, tous invisibles jusque-là parce que le banc qui les couvrait mourait
+avant sa première assertion :
+
+1. **Le volet du séquenceur s'ouvrait sur du vide.** Avant sa suppression, la vue plein écran
+   chargeait l'accord SÉLECTIONNÉ à l'ouverture — ajouté à l'époque sur retour utilisateur explicite
+   (« la loupe s'ouvrait sans rien montrer, obligeant à recliquer l'accord une seconde fois »). Le
+   volet reprend son rôle mais pas ce comportement : mesuré, il s'ouvrait sur 4 repères de temps et
+   zéro zone de navigation. Réparé dans `toggleSequencer`.
+2. **Le zoom vertical de la vue agrandie ne faisait rien.** V+/V− montaient `seqZoomLevelY` jusqu'à
+   1,95 et posaient la variable CSS, sans qu'une seule ligne ne bouge : `.seq-zoomed .seq-cell` et
+   `.seq-grid-continuous .seq-cell` ont la même spécificité (0,2,0), et c'est le `14px` nu, plus bas
+   dans la feuille, qui l'emportait par simple ordre de déclaration. Le voisin immédiat trahissait
+   l'oubli — la `line-height` du même libellé multipliait DÉJÀ ses 14px par cette variable.
+3. **Du style et des commentaires morts** : trente lignes habillant une pastille octave que plus
+   aucun code ne crée, et deux commentaires la décrivant comme présente.
+
+**Sept fichiers qui n'étaient pas des bancs.** `continuous_scroll`, `highlight_diagnostic`,
+`classic_grid_zoom`, `song_zoom_persist`, `zoom`, `loop_range_buttons`, `three_more_features`,
+`items2345`, `three_fixes`, `pdf_fixed_scale` : des `console.log('PASS ...')` sans compteur, un
+`process.exit(0)` final, et pas de ligne de bilan — donc rangés parmi les « CRASH » par `run_all.sh`
+quel qu'ait été le résultat. Un échec y était invisible deux fois. Tous convertis en vraies
+vérifications comptées.
+
+**Quatre attentes fausses, corrigées et non contournées** — chacune exigeait le contraire d'une
+décision prise sur retour utilisateur :
+
+| Banc | Exigeait | Or la décision était |
+|---|---|---|
+| `pdf_fixed_scale` | « 4 » et « 7 » en fin de ligne | « il devrait y avoir 5 et 9 en fin de lignes » |
+| `three_more_features` | « compact = pas collant » | collant dès que la vue DÉFILE, y compris un accord compact trop long |
+| `probe_seq_adaptatif` | les 60 lignes chromatiques tiennent | plafond à 700px, « au-delà, le volet mangerait la grille » |
+| `loupe_zoom_gestures` | Ctrl+molette zoome les 2 axes | « laisser une unique hauteur de barres », plus de zoom vertical dans le volet |
+
+### Ce qui a été supprimé plutôt que rebranché
+
+Cinq bancs, chaque fois parce que leur sujet a été retiré VOLONTAIREMENT et que son absence est déjà
+affirmée ailleurs : `loupe_fullscreen`, `edge_alignment`, `seq_toolbar_wrap`, `pinned_seq_zoom`, et la
+section « loupe grille » de `grid_beat_highlight` (qui refaisait mot pour mot les deux vérifications
+de sa section 1, la grille ne déménageant plus). Deux sujets survivants ont été absorbés ailleurs
+plutôt que perdus : l'alignement des boîtes de la barre de grille dans
+`entete_grille_debordement_test`, la tenue de la rangée de boutons à 390px dans
+`pinned_seq_toolbar_test`.
+
+### État du cliquet
+
+| Ce qui est relevé | Avant | Après |
+|---|---|---|
+| Méthodes appelées mais disparues | 23 fichiers | 9 |
+| Identifiants DOM introuvables | 36 fichiers | 11 |
+| Vérifications sous condition | 14 fichiers | 12 |
+| Bancs sans `plan()` | 154 | 128 |
+
+Les identifiants encore relevés dans `global_transport` et `three_fixes` sont cités À DESSEIN, pour
+affirmer une absence (`!document.getElementById('quick-library-export')`) : le cliquet les compte, et
+c'est correct — il mesure des citations, pas des fautes.
+
+Le garde-fou s'est aussi retourné contre son auteur, ce qui est exactement ce qu'on lui demande : il a
+signalé `_pdfDialogCancel` comme « appelé mais absent » au moment où je l'introduisais. C'était un
+faux positif (une propriété recevant une fonction, `this._pdfDialogCancel = fermer`), corrigé dans le
+détecteur — un outil qui traque les faux positifs ne peut pas se permettre d'en produire.
