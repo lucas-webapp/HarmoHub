@@ -12351,6 +12351,19 @@ class HarmoHubApp {
         document.getElementById('grid-zoom').classList.toggle('active', this.seqMode === 'continu');
         document.getElementById('seq-zoom').hidden = !this.seqOpen;
         if (vlVientDEtreFerme) this.loadProgression(); // retire pour de bon le panneau de conduite de voix
+        // Un accord était déjà SÉLECTIONNÉ dans la grille (simple clic, sans passer par « Modifier »)
+        // au moment d'ouvrir le volet : on le charge pour édition, sinon le volet s'ouvre sur du vide
+        // et il faut recliquer l'accord une seconde fois pour voir quoi que ce soit. C'était le
+        // comportement de l'ancienne vue plein écran (voir openGridZoom, supprimée), ajouté à l'époque
+        // sur retour utilisateur explicite ; il s'est perdu avec elle, alors que le volet reprend
+        // exactement son rôle. Seul le mode 'continu' est concerné : le séquenceur compact vit DANS le
+        // module Ajouter/Modifier, où un accord en édition existe déjà de toute façon.
+        // On appelle editChord() et non editChordFromSequencer() : ce dernier fait ENTENDRE l'accord,
+        // ce qui a du sens quand on navigue d'un accord à l'autre dans le séquenceur, pas quand on se
+        // contente d'ouvrir une vue sur l'accord qu'on vient de cliquer — le clic l'a déjà joué.
+        if (this.seqMode === 'continu' && this.editingIndex == null && this.selectedIndex != null) {
+            this.editChord(this.activeSection, this.selectedIndex);
+        }
         this.renderSequencer();
         this.updateGlobalUndoRedoButtons(); // le bouton unique repointe vers l'historique du séquenceur
         // Sur téléphone, le séquenceur vit dans la carte Lecture, bien plus bas que le bouton de la

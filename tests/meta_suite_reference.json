@@ -3,9 +3,6 @@
     "continuous_scroll_test.js": [
       "closeGridZoom"
     ],
-    "edge_alignment_test.js": [
-      "openGridZoom"
-    ],
     "grid_loupe_pinch_undo_test.js": [
       "openGridZoom"
     ],
@@ -14,22 +11,12 @@
       "editChordFromGridZoom",
       "openGridZoom"
     ],
-    "grid_zoom_header_overflow_test.js": [
-      "openGridZoom"
-    ],
     "highlight_diagnostic_test.js": [
       "closeGridZoom",
       "openGridZoom"
     ],
     "items2345_test.js": [
       "editChordFromGridZoom"
-    ],
-    "loupe_fullscreen_test.js": [
-      "openGridZoom"
-    ],
-    "loupe_open_selected_chord_test.js": [
-      "closeGridZoom",
-      "openGridZoom"
     ],
     "loupe_zoom_gestures_test.js": [
       "editChordFromGridZoom",
@@ -48,10 +35,6 @@
     ],
     "seq_row_pipette_test.js": [
       "setMode"
-    ],
-    "seq_toolbar_wrap_test.js": [
-      "editChordFromGridZoom",
-      "openGridZoom"
     ],
     "seqplay_looprange_test.js": [
       "editChordFromGridZoom",
@@ -74,9 +57,6 @@
     "classic_grid_zoom_test.js": [
       "grid-zoom-close"
     ],
-    "edge_alignment_test.js": [
-      "grid-zoom-out-v"
-    ],
     "global_transport_test.js": [
       "grid-zoom-close",
       "grid-zoom-play-chord",
@@ -97,10 +77,6 @@
       "grid-zoom-play-chord",
       "grid-zoom-play-prog"
     ],
-    "loupe_open_selected_chord_test.js": [
-      "grid-zoom-pinned-body",
-      "grid-zoom-pinned-seq"
-    ],
     "loupe_zoom_gestures_test.js": [
       "grid-zoom-pinned-body"
     ],
@@ -116,9 +92,6 @@
     ],
     "pinch_smoothness_centering_test.js": [
       "grid-zoom-host",
-      "grid-zoom-pinned-body"
-    ],
-    "pinned_seq_toolbar_test.js": [
       "grid-zoom-pinned-body"
     ],
     "probe_suppression_pleinecran_test.js": [
@@ -206,7 +179,6 @@
     "ctx_nav_scroll_test.js",
     "ctx_nav_test.js",
     "detune_test.js",
-    "edge_alignment_test.js",
     "export_lyrics_opens_tab_test.js",
     "export_lyrics_test.js",
     "extra_note_rhythm_test.js",
@@ -227,7 +199,6 @@
     "grid_pipettes_test.js",
     "grid_scroll_axis_test.js",
     "grid_zoom_close_restore_test.js",
-    "grid_zoom_header_overflow_test.js",
     "guitar_lock_click_test.js",
     "guitar_lock_test.js",
     "guitar_override_test.js",
@@ -243,9 +214,7 @@
     "live_loop_update_test.js",
     "loop_range_buttons_test.js",
     "loupe_and_tap_fix_test.js",
-    "loupe_fullscreen_test.js",
     "loupe_keyboard_test.js",
-    "loupe_open_selected_chord_test.js",
     "loupe_zoom_gestures_test.js",
     "metronome_groove_test.js",
     "midi_chord_detect_test.js",
@@ -283,7 +252,6 @@
     "pdf_regle_numeros_test.js",
     "pdf_ruler_align_test.js",
     "pinch_smoothness_centering_test.js",
-    "pinned_seq_toolbar_test.js",
     "pipette_all_test.js",
     "popups_close_test.js",
     "preload_no_error_test.js",
@@ -319,7 +287,6 @@
     "seq_row_pipette_clear_test.js",
     "seq_row_pipette_test.js",
     "seq_short_note_body_test.js",
-    "seq_toolbar_wrap_test.js",
     "seq_twofinger_zoom_test.js",
     "seq_voicedrag_test.js",
     "seq_vscroll_and_cancel_test.js",
