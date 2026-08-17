@@ -41,7 +41,11 @@ const prep = async (p, chords) => {
 const ouvrirLoupe = async (p, i) => {
     await p.click('#grid-zoom');
     await p.waitForTimeout(700);
-    await p.evaluate((idx) => window.app.editChordFromGridZoom(0, idx), i);
+    // editChord remplace editChordFromGridZoom, supprimée avec la vue plein écran de la grille (voir
+    // le commentaire d'editChord dans script.js). L'appel à la méthode disparue faisait échouer la
+    // MISE EN PLACE de ce banc, qui mourait donc avant sa première assertion : il ne surveillait plus
+    // rien, sans le dire.
+    await p.evaluate((idx) => window.app.editChord(0, idx), i);
     await p.waitForTimeout(800);
 };
 
@@ -156,7 +160,7 @@ const relever = (p) => p.evaluate(() => {
         'et la voix libre a disparu avec elle — sinon il resterait une ligne muette impossible à enlever');
 
     console.log('\n=== E. Rien ne change en vue COMPACTE (lignes = voix, pas demi-tons) ===');
-    await p.click('#grid-zoom-close');
+    await p.click('#grid-zoom') // même bouton pour refermer : #grid-zoom est une bascule;
     await p.waitForTimeout(700);
     await p.evaluate(() => window.app.editChord(0, 1));
     await p.waitForTimeout(500);
@@ -202,22 +206,28 @@ const relever = (p) => p.evaluate(() => {
     check(vm && vm.continu && vm.nbCasesLibres > 0, 'lignes chromatiques et cases libres au téléphone aussi');
     check(vm.lignes.every(l => l.touche !== null), 'le clavier y est complet');
     const cibleM = vm.midisLibres[Math.floor(vm.midisLibres.length / 2)];
-    // La rangée de transport (.seq-presets) reste collée en BAS de la fenêtre épinglée pendant qu'on
-    // défile (voir style.css) : au téléphone, elle occupe à elle seule plus de la moitié de la
-    // hauteur visible (mesuré : 123px sur 240px). `scrollIntoView({block:'center'})` vise le milieu
-    // de la fenêtre, or ce milieu tombe justement SOUS la rangée collée — pas un bug de clic, un
-    // point de défilement mal choisi par le test. Un vrai doigt viserait plutôt le HAUT de la zone
-    // libre en scrollant juste assez ; `block:'start'` fait la même chose et dégage systématiquement
-    // la case, quelle que soit sa position dans la liste (vérifié : `elementFromPoint` retombe bien
-    // dessus, alors que centrer ou aller au bout du défilement échouaient tous les deux ici).
+    // ON NE SUPPOSE PLUS UNE STRATÉGIE DE DÉFILEMENT, ON VÉRIFIE LE RÉSULTAT.
+    // Ce banc codait `block:'start'` en dur, avec un commentaire expliquant que centrer échouait parce
+    // que la rangée de transport collée en bas mangeait la moitié de la hauteur visible. C'était vrai
+    // de la fenêtre épinglée plein écran ; depuis que le séquenceur vit dans un volet ANCRÉ sous la
+    // grille, la géométrie s'est inversée — mesuré : 'start' remonte désormais la case derrière
+    // .top-bar (y=7) et échoue, tandis que 'center' et 'nearest' tombent juste. Coder l'un ou l'autre
+    // en dur revient à parier sur une mise en page, et le pari se reperd au prochain changement.
+    // On essaie donc les quatre points d'ancrage et on garde le premier réellement atteignable, ce
+    // qu'on vérifie par elementFromPoint — même leçon que caseTouchable dans
+    // probe_defilement_tactile : un rectangle n'est pas une garantie d'atteignabilité.
     const pos = await m.evaluate((midi) => {
         const c = document.querySelector(`.seq-cell-free[data-midi="${midi}"]`);
-        c.scrollIntoView({ block: 'start' });
+        for (const block of ['nearest', 'center', 'start', 'end']) {
+            c.scrollIntoView({ block });
+            const b = c.getBoundingClientRect();
+            const x = b.left + b.width / 2, y = b.top + b.height / 2;
+            if (document.elementFromPoint(x, y) === c) return { x, y, atteignable: true, block };
+        }
         const b = c.getBoundingClientRect();
-        const x = b.left + b.width / 2, y = b.top + b.height / 2;
-        return { x, y, atteignable: document.elementFromPoint(x, y) === c };
+        return { x: b.left + b.width / 2, y: b.top + b.height / 2, atteignable: false, block: null };
     }, cibleM);
-    check(pos.atteignable, 'la case visée est bien la cible du point qu\'on va toucher (pas cachée par la barre collée)');
+    check(pos.atteignable, `la case visée est bien la cible du point qu'on va toucher (ancrage retenu : ${pos.block})`);
     await m.touchscreen.tap(pos.x, pos.y);
     await m.waitForTimeout(700);
     check(await m.evaluate((midi) => window.app.readChord().getSeqMidiNotes().includes(midi), cibleM),

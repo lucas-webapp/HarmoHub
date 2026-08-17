@@ -27,9 +27,6 @@
     "loupe_fullscreen_test.js": [
       "openGridZoom"
     ],
-    "loupe_keyboard_test.js": [
-      "editChordFromGridZoom"
-    ],
     "loupe_open_selected_chord_test.js": [
       "closeGridZoom",
       "openGridZoom"
@@ -49,15 +46,6 @@
       "editChordFromGridZoom",
       "openGridZoom"
     ],
-    "pinned_seq_zoom_test.js": [
-      "editChordFromGridZoom"
-    ],
-    "seq_buttons_removed_test.js": [
-      "editChordFromGridZoom"
-    ],
-    "seq_notes_libres_clavier_test.js": [
-      "editChordFromGridZoom"
-    ],
     "seq_row_pipette_test.js": [
       "setMode"
     ],
@@ -69,16 +57,10 @@
       "editChordFromGridZoom",
       "openGridZoom"
     ],
-    "seqplay_orange_test.js": [
-      "editChordFromGridZoom"
-    ],
     "three_more_features_test.js": [
       "closeGridZoom",
       "editChordFromGridZoom",
       "openGridZoom"
-    ],
-    "vl_loupe_test.js": [
-      "editChordFromGridZoom"
     ]
   },
   "id_disparu": {
@@ -139,9 +121,6 @@
     "pinned_seq_toolbar_test.js": [
       "grid-zoom-pinned-body"
     ],
-    "pinned_seq_zoom_test.js": [
-      "grid-zoom-close"
-    ],
     "probe_suppression_pleinecran_test.js": [
       "grid-zoom-overlay"
     ],
@@ -151,9 +130,6 @@
       "seq-move-right",
       "seq-shrink",
       "seq-tap-record"
-    ],
-    "seq_notes_libres_clavier_test.js": [
-      "grid-zoom-close"
     ],
     "seq_pattern_kbd_test.js": [
       "seq-copy-pattern",
@@ -181,9 +157,6 @@
       "quick-library-export",
       "quick-library-import",
       "quick-library-import-input"
-    ],
-    "vl_loupe_test.js": [
-      "grid-zoom-close"
     ],
     "zoom_test.js": [
       "grid-zoom-close",
@@ -311,7 +284,6 @@
     "pdf_ruler_align_test.js",
     "pinch_smoothness_centering_test.js",
     "pinned_seq_toolbar_test.js",
-    "pinned_seq_zoom_test.js",
     "pipette_all_test.js",
     "popups_close_test.js",
     "preload_no_error_test.js",
