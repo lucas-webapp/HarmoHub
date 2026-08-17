@@ -9,10 +9,6 @@
     "items2345_test.js": [
       "editChordFromGridZoom"
     ],
-    "loupe_zoom_gestures_test.js": [
-      "editChordFromGridZoom",
-      "openGridZoom"
-    ],
     "new_voice_rule_test.js": [
       "closeGridZoom"
     ],
@@ -59,10 +55,6 @@
     "grid_beat_highlight_test.js": [
       "grid-zoom-close"
     ],
-    "grid_loupe_pinch_undo_test.js": [
-      "grid-zoom-redo",
-      "grid-zoom-undo"
-    ],
     "items2345_test.js": [
       "grid-cell-octave-float",
       "grid-cell-octave-up"
@@ -70,9 +62,6 @@
     "loop_range_buttons_test.js": [
       "grid-zoom-play-chord",
       "grid-zoom-play-prog"
-    ],
-    "loupe_zoom_gestures_test.js": [
-      "grid-zoom-pinned-body"
     ],
     "offbeat_dash_test.js": [
       "grid-zoom-close"
@@ -83,10 +72,6 @@
     ],
     "pdf_fixed_scale_test.js": [
       "pdf-measures-per-line"
-    ],
-    "pinch_smoothness_centering_test.js": [
-      "grid-zoom-host",
-      "grid-zoom-pinned-body"
     ],
     "probe_suppression_pleinecran_test.js": [
       "grid-zoom-overlay"
@@ -187,7 +172,6 @@
     "grid_beat_highlight_test.js",
     "grid_dblclick_test.js",
     "grid_errors_test.js",
-    "grid_loupe_pinch_undo_test.js",
     "grid_multidrag_test.js",
     "grid_pipettes_test.js",
     "grid_scroll_axis_test.js",
@@ -206,7 +190,6 @@
     "loop_range_buttons_test.js",
     "loupe_and_tap_fix_test.js",
     "loupe_keyboard_test.js",
-    "loupe_zoom_gestures_test.js",
     "metronome_groove_test.js",
     "midi_chord_detect_test.js",
     "midi_import_e2e_test.js",
@@ -242,7 +225,6 @@
     "pdf_offbeat_test.js",
     "pdf_regle_numeros_test.js",
     "pdf_ruler_align_test.js",
-    "pinch_smoothness_centering_test.js",
     "pipette_all_test.js",
     "popups_close_test.js",
     "preload_no_error_test.js",
@@ -293,7 +275,6 @@
     "sortie_edition_involontaire_test.js",
     "tap_removal_test.js",
     "three_fixes_test.js",
-    "three_more_features_test.js",
     "undo_ajout_rapide_test.js",
     "vl_loupe_test.js",
     "vl_pinch_test.js",

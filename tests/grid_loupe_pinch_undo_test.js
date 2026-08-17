@@ -1,11 +1,20 @@
+// Deux sujets qui vivaient dans l'en-tête de l'ancienne vue plein écran de la grille et qui ont
+// simplement changé d'adresse :
+//   1. Annuler / Rétablir doivent s'activer après une modification de la grille et faire leur travail.
+//      L'en-tête plein écran portait ses propres #grid-zoom-undo / #grid-zoom-redo ; il n'y a plus
+//      qu'UNE paire, globale, dans la barre du haut (#global-undo-btn / #global-redo-btn).
+//   2. Pincer à deux doigts sur de VRAIES cases de la grille doit zoomer, jamais déclencher un
+//      glisser-réordonner parasite. Ce défaut-là est indépendant de toute loupe : il vient du fait que
+//      les cases sont à la fois zoomables et déplaçables. Le pincement s'applique à la grille classique
+//      (voir setupPinchZoom(#progression-sections, 'classicGrid')), donc aux niveaux
+//      classicGridZoomLevelX/Y — l'ancien banc lisait gridZoomLevelX/Y, l'échelle de la vue supprimée,
+//      qui n'existe plus : ses deux assertions de zoom lisaient `undefined > undefined`, toujours faux.
+//
+// Il montait sa scène par app.openGridZoom(), disparue : il mourait avant tout le reste.
 const { chromium } = require('playwright')
-const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
-
-let PASS = 0, FAIL = 0;
-function check(cond, label) {
-    if (cond) { PASS++; console.log('PASS - ' + label); }
-    else { FAIL++; console.log('FAIL - ' + label); }
-}
+const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
+const { check, exiger, plan, bilan } = require('./_harness')('annuler/rétablir + pincer la grille');
+plan(12);
 
 (async () => {
     const browser = await chromium.launch({
@@ -24,76 +33,91 @@ function check(cond, label) {
             { root: 'F', quality: 'maj', beats: 4, inversion: 0, drop: 'none', octave: 4, bass: null, playStyle: 'held' },
             { root: 'G', quality: 'maj', beats: 4, inversion: 0, drop: 'none', octave: 4, bass: null, playStyle: 'held' },
         ] }] }));
+        // Échelles remises à 1 : elles sont mémorisées par appareil, une campagne précédente aurait
+        // sinon laissé la grille déjà zoomée au maximum, où un pincement ne peut plus rien changer.
+        localStorage.removeItem('harmohubClassicGridZoomLevelX');
+        localStorage.removeItem('harmohubClassicGridZoomLevelY');
     });
     await page.reload({ waitUntil: 'load' });
-    await page.waitForTimeout(200);
-    await page.evaluate(() => window.app.openGridZoom());
-    await page.waitForTimeout(150);
+    await page.waitForTimeout(400);
 
-    console.log('=== Undo/Redo relayés dans l\'en-tête de la loupe grille ===');
-    const btnsExist = await page.evaluate(() => ({
-        undo: !!document.getElementById('grid-zoom-undo'),
-        redo: !!document.getElementById('grid-zoom-redo'),
-        undoDisabledInitially: document.getElementById('grid-zoom-undo').disabled,
+    console.log('=== 1. Annuler / Rétablir globaux après une modification de la grille ===');
+    const boutons = () => page.evaluate(() => ({
+        annulerLa: !!document.getElementById('global-undo-btn'),
+        retablirLa: !!document.getElementById('global-redo-btn'),
+        annulerEteint: document.getElementById('global-undo-btn').disabled,
+        retablirEteint: document.getElementById('global-redo-btn').disabled,
+        cases: document.querySelectorAll('#progression-sections .grid-cell').length,
     }));
-    check(btnsExist.undo && btnsExist.redo, 'les boutons annuler/rétablir existent dans la loupe grille');
-    check(btnsExist.undoDisabledInitially === true, 'annuler désactivé au départ (aucun historique)');
 
-    const beforeCount = await page.evaluate(() => document.querySelectorAll('.grid-cell').length);
+    const depart = await boutons();
+    console.log(JSON.stringify(depart));
+    if (!exiger(depart.annulerLa && depart.retablirLa, 'les boutons annuler/rétablir existent bien dans la barre du haut')) bilan();
+    check(depart.annulerEteint === true, 'annuler est désactivé au départ (aucun historique)');
+    const nbDepart = depart.cases;
+
     await page.evaluate(() => window.app.removeChord(0, 0)); // vraie modif de grille -> peuple l'historique
-    await page.waitForTimeout(80);
-    const afterDeleteCount = await page.evaluate(() => document.querySelectorAll('.grid-cell').length);
-    const afterUndoBtnState = await page.evaluate(() => document.getElementById('grid-zoom-undo').disabled);
-    console.log('cells before/after delete:', beforeCount, afterDeleteCount, 'undoDisabled after edit:', afterUndoBtnState);
-    check(afterDeleteCount === beforeCount - 1, 'removeChord a bien supprimé un accord de la grille');
-    check(afterUndoBtnState === false, "le bouton annuler de la loupe s'active bien après une modification de la grille");
+    await page.waitForTimeout(250);
+    const apresSuppr = await boutons();
+    console.log('après suppression :', JSON.stringify(apresSuppr));
+    check(apresSuppr.cases === nbDepart - 1, `removeChord a bien retiré un accord de la grille (${nbDepart} -> ${apresSuppr.cases})`);
+    check(apresSuppr.annulerEteint === false, "annuler s'active bien après une modification de la grille");
 
-    await page.evaluate(() => document.getElementById('grid-zoom-undo').click());
-    await page.waitForTimeout(80);
-    const afterUndoCount = await page.evaluate(() => document.querySelectorAll('.grid-cell').length);
-    check(afterUndoCount === beforeCount, "cliquer sur « Annuler » dans la loupe restaure bien l'accord supprimé");
+    await page.click('#global-undo-btn');
+    await page.waitForTimeout(300);
+    const apresAnnuler = await boutons();
+    console.log('après annuler :', JSON.stringify(apresAnnuler));
+    check(apresAnnuler.cases === nbDepart, "« Annuler » restaure bien l'accord supprimé");
+    check(apresAnnuler.retablirEteint === false, "rétablir s'active bien après un annuler");
 
-    const redoDisabledAfterUndo = await page.evaluate(() => document.getElementById('grid-zoom-redo').disabled);
-    check(redoDisabledAfterUndo === false, "le bouton rétablir de la loupe s'active bien après un annuler");
-    await page.evaluate(() => document.getElementById('grid-zoom-redo').click());
-    await page.waitForTimeout(80);
-    const afterRedoCount = await page.evaluate(() => document.querySelectorAll('.grid-cell').length);
-    check(afterRedoCount === beforeCount - 1, "cliquer sur « Rétablir » dans la loupe réapplique bien la suppression");
-    // Remet dans l'état d'origine pour la suite du test (pincement)
-    await page.evaluate(() => document.getElementById('grid-zoom-undo').click());
-    await page.waitForTimeout(80);
+    await page.click('#global-redo-btn');
+    await page.waitForTimeout(300);
+    const apresRetablir = await boutons();
+    console.log('après rétablir :', JSON.stringify(apresRetablir));
+    check(apresRetablir.cases === nbDepart - 1, "« Rétablir » réapplique bien la suppression");
+    await page.click('#global-undo-btn'); // remet l'état d'origine pour la suite
+    await page.waitForTimeout(300);
 
-    console.log('=== Pincer-zoomer (2 doigts) sur de VRAIES .grid-cell dans la loupe grille : pas de réordonnancement parasite ===');
-    const beforeOrder = await page.evaluate(() => Array.from(document.querySelectorAll('.grid-cell .cell-sym')).map(e => e.textContent.trim()));
-    const beforeZoom = await page.evaluate(() => ({ x: window.app.gridZoomLevelX, y: window.app.gridZoomLevelY }));
-    const pinchResult = await page.evaluate(() => {
-        const cells = document.querySelectorAll('.grid-cell');
-        const cellA = cells[0], cellB = cells[1];
-        const rA = cellA.getBoundingClientRect(), rB = cellB.getBoundingClientRect();
-        const mk = (type, id, r, dx=0, dy=0) => new PointerEvent(type, {
-            pointerId: id, pointerType: 'touch', clientX: r.left + r.width/2 + dx, clientY: r.top + r.height/2 + dy, bubbles: true, cancelable: true,
+    console.log('=== 2. Pincer à deux doigts sur de VRAIES cases : zoome, ne réordonne pas ===');
+    const ordreAvant = await page.evaluate(() => [...document.querySelectorAll('#progression-sections .grid-cell .cell-sym')].map(e => e.textContent.trim()));
+    const zoomAvant = await page.evaluate(() => ({ x: window.app.classicGridZoomLevelX, y: window.app.classicGridZoomLevelY }));
+    exiger(typeof zoomAvant.x === 'number' && typeof zoomAvant.y === 'number',
+        `les deux échelles de la grille classique sont bien lisibles — ${JSON.stringify(zoomAvant)}`);
+
+    const pincement = await page.evaluate(() => {
+        const cases = document.querySelectorAll('#progression-sections .grid-cell');
+        const a = cases[0], b = cases[1];
+        const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+        const ev = (type, id, r, dx = 0, dy = 0) => new PointerEvent(type, {
+            pointerId: id, pointerType: 'touch', clientX: r.left + r.width / 2 + dx, clientY: r.top + r.height / 2 + dy, bubbles: true, cancelable: true,
         });
-        cellA.dispatchEvent(mk('pointerdown', 1, rA));
-        cellB.dispatchEvent(mk('pointerdown', 2, rB));
-        cellA.dispatchEvent(mk('pointermove', 1, rA, -30, 0));
-        cellB.dispatchEvent(mk('pointermove', 2, rB, 30, 0));
-        cellA.dispatchEvent(mk('pointermove', 1, rA, -60, 0));
-        cellB.dispatchEvent(mk('pointermove', 2, rB, 60, 0));
-        cellA.dispatchEvent(mk('pointerup', 1, rA));
-        cellB.dispatchEvent(mk('pointerup', 2, rB));
-        return { zoomX: window.app.gridZoomLevelX, zoomY: window.app.gridZoomLevelY, drag: window.app.drag, activeTouches: [...window.app._gridActiveTouchIds] };
+        a.dispatchEvent(ev('pointerdown', 1, ra));
+        b.dispatchEvent(ev('pointerdown', 2, rb));
+        // Écarte les deux doigts par paliers largement supérieurs au pas de zoom.
+        a.dispatchEvent(ev('pointermove', 1, ra, -30, 0));
+        b.dispatchEvent(ev('pointermove', 2, rb, 30, 0));
+        a.dispatchEvent(ev('pointermove', 1, ra, -60, 0));
+        b.dispatchEvent(ev('pointermove', 2, rb, 60, 0));
+        a.dispatchEvent(ev('pointerup', 1, ra));
+        b.dispatchEvent(ev('pointerup', 2, rb));
+        return {
+            x: window.app.classicGridZoomLevelX, y: window.app.classicGridZoomLevelY,
+            glisser: window.app.drag, doigtsActifs: [...window.app._gridActiveTouchIds],
+        };
     });
-    await page.waitForTimeout(80);
-    const afterOrder = await page.evaluate(() => Array.from(document.querySelectorAll('.grid-cell .cell-sym')).map(e => e.textContent.trim()));
-    console.log(JSON.stringify({ beforeOrder, afterOrder, beforeZoom, pinchResult }));
+    await page.waitForTimeout(250);
+    const ordreApres = await page.evaluate(() => [...document.querySelectorAll('#progression-sections .grid-cell .cell-sym')].map(e => e.textContent.trim()));
+    console.log(JSON.stringify({ ordreAvant, ordreApres, zoomAvant, pincement }));
 
-    check(JSON.stringify(beforeOrder) === JSON.stringify(afterOrder), "l'ordre des accords n'a PAS changé pendant le pincement (pas de glisser-réordonner parasite)");
-    check(pinchResult.zoomX > beforeZoom.x && pinchResult.zoomY > beforeZoom.y, 'le pincement a bien zoomé les 2 axes (H et V) sur la grille en loupe');
-    check(pinchResult.drag === null, "aucun glisser de case ne reste actif après le pincement");
-    check(pinchResult.activeTouches.length === 0, 'plus aucun doigt suivi comme actif après le relâchement des deux');
+    check(JSON.stringify(ordreAvant) === JSON.stringify(ordreApres),
+        `l'ordre des accords n'a PAS changé pendant le pincement — ${JSON.stringify(ordreApres)}`);
+    check(pincement.x > zoomAvant.x && pincement.y > zoomAvant.y,
+        `le pincement a bien zoomé les 2 axes de la grille (${zoomAvant.x} -> ${pincement.x} en H, ${zoomAvant.y} -> ${pincement.y} en V)`);
+    check(pincement.glisser === null, 'aucun glisser de case ne reste actif après le pincement');
+    check(pincement.doigtsActifs.length === 0, 'plus aucun doigt suivi comme actif après le relâchement des deux');
 
-    console.log('\n=== Bilan : ' + PASS + ' PASS / ' + FAIL + ' FAIL ===');
     console.log('Errors:', JSON.stringify(errors));
+    check(errors.length === 0, 'aucune erreur JavaScript pendant tout le scénario');
     await browser.close();
-    process.exit(FAIL > 0 ? 1 : 0);
+    bilan();
 })().catch((e) => { console.error('FATAL', e); process.exit(2); });
