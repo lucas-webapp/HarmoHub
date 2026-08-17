@@ -426,3 +426,63 @@ avant. Vérifié : géométrie des notes inchangée au pixel (aucun décalage de
 identique à l'écran, et `elementFromPoint` renvoie désormais la case sur toute la largeur.
 
 Bilan du fichier : **35 PASS / 7 FAIL → 56 PASS / 0 FAIL**, une vue de plus réellement couverte.
+
+## 10. Deux garde-fous pour que ça ne recommence pas
+
+Les sections 8 et 9 ont un point commun qui compte plus que les défauts eux-mêmes : **rien, dans
+l'outillage, ne signalait qu'un banc avait cessé de couvrir ce qu'il annonçait.** Il a fallu qu'un
+humain relise. Deux mécanismes le disent désormais tout seuls.
+
+### `tests/_harness.js` — un banc ne peut plus mentir sur sa couverture
+
+Chaque banc comptait ses PASS/FAIL localement. Ce compteur mesure ce qui S'EST EXÉCUTÉ, jamais ce qui
+AURAIT DÛ l'être : un banc qui perd la moitié de ses vérifications affiche « 12 PASS / 0 FAIL » et
+paraît en MEILLEURE santé qu'avant. Le harnais ajoute :
+
+- **`plan(n)`** — le banc déclare son nombre MINIMUM de vérifications. Si la campagne s'arrête avant,
+  échec explicite : « COUVERTURE INCOMPLÈTE : 45 attendues, 12 exécutées ». C'est le mécanisme `plan`
+  de TAP. Un PLANCHER et non un compte exact : certains bancs font légitimement varier leur nombre de
+  vérifications selon la géométrie mesurée, et un compte exact y produirait de faux rouges.
+- **`exiger(cond, libellé)`** — une précondition dont dépend la suite. Elle échoue BRUYAMMENT au lieu
+  de faire sauter un bloc en silence, et le bilan rappelle laquelle a lâché. À utiliser partout où
+  l'on écrivait `if (condition) { ...vérifications... }`.
+- **un filet de sortie de processus** — un banc qui MEURT en route (exception, timeout Playwright)
+  n'atteint jamais son bilan. Le harnais rend compte quand même, à la sortie du processus.
+
+Éprouvé sur le cas réel : en remettant l'adresse morte dans `avant_seq_short_note_body_test`, le banc
+passe de « 56 PASS / 0 FAIL » à « 43 PASS / 2 FAIL » avec le motif exact. Avant, la même perte ne
+produisait aucun signal distinctif.
+
+### `tests/meta_suite_test.js` — un cliquet sur la dette
+
+Analyse statique de la suite (aucun navigateur, quelques secondes), qui relève cinq choses : méthodes
+appelées mais absentes de `script.js`, identifiants DOM introuvables, erreurs d'interaction avalées
+par `.catch(() => {})`, bancs sans `plan()`, vérifications enfermées dans un `if`.
+
+État figé dans `meta_suite_reference.json` :
+
+| Ce qui est relevé | Fichiers | Occurrences |
+|---|---|---|
+| Méthodes appelées mais disparues | 23 | 34 |
+| Identifiants DOM introuvables | 36 | 68 |
+| Erreurs d'interaction avalées | 25 | 55 |
+| Vérifications sous condition | 14 | 18 |
+| Bancs sans `plan()` | 154 | — |
+
+**Le banc n'échoue que si la dette AUGMENTE.** Interdire tout net aurait fait échouer la campagne
+entière, et le garde-fou aurait été désactivé le lendemain — le sort habituel des règles trop
+ambitieuses. Ici la dette ne peut plus que décroître. Et quand elle décroît, le banc échoue aussi, en
+demandant `node tests/meta_suite_test.js --maj` : sans ça la référence se périmerait, et un banc
+réparé laisserait une place libre pour un banc cassé.
+
+Vérifié dans les deux sens : ajouter un appel à `openGridZoom()` dans un banc sain le fait passer au
+rouge en nommant le fichier et le symbole ; retirer un `.catch(() => {})` le fait rouge aussi, en
+réclamant la mise à jour de la référence.
+
+### Ce qui reste
+
+Les 35 bancs qui visent la vue plein écran supprimée ne sont PAS réparés — ils sont désormais
+seulement inventoriés et empêchés de se multiplier. Leur reprise (recibler ou supprimer, un jugement
+par fichier) est le chantier suivant. La règle à tenir : un recibleage n'est acquis que s'il exerce
+RÉELLEMENT la fonctionnalité. La preuve que ça vaut le coup : recibler cette vue-là a fait apparaître
+un vrai défaut d'application au lieu de le masquer (§9).

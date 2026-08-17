@@ -23,8 +23,15 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 const HANDLE_RATIO = 0.25, HANDLE_MIN = 5, HANDLE_MAX = 18, MIN_BODY = 6;
 const zonesAttendues = (w) => (Math.min(HANDLE_MAX, Math.max(HANDLE_MIN, w * HANDLE_RATIO)) * 2 <= w - MIN_BODY);
 
-let PASS = 0, FAIL = 0;
-function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label); } else { FAIL++; console.log('FAIL - ' + label); } }
+// Compteurs et bilan délégués au harnais commun (voir tests/_harness.js) : c'est lui qui porte
+// `plan`, le garde-fou contre les vérifications qui disparaissent en silence — le défaut que ce
+// fichier précis a subi (voir son en-tête, la troisième vue n'était plus éprouvée du tout).
+const { check, exiger, plan, bilan } = require('./_harness')('corps des notes courtes');
+// PLANCHER, pas un compte exact : le nombre de vérifications varie légitimement avec la géométrie
+// MESURÉE (une note assez large reçoit trois zones, une note étroite deux — voir `attendu`). 45
+// laisse cette marge tout en rendant impossible la perte d'une VUE entière (~13 vérifications
+// chacune, sur les 56 que rend ce banc au complet).
+plan(45);
 
 // note 1 croche en 0 ; note 2 croches en 3-4 ; note 4 croches en 8-11 (témoin : elle a déjà un corps)
 async function poserMotif(page) {
@@ -277,7 +284,7 @@ async function serieDeVue(page, nomVue) {
     await page.waitForTimeout(900);
     const epingle = await page.evaluate(() =>
         !!document.getElementById('seq-dock-host')?.contains(document.getElementById('arp-sequencer')));
-    check(epingle, 'le séquenceur est bien dans son volet continu sous la grille');
+    exiger(epingle, 'le séquenceur est bien dans son volet continu sous la grille');
     if (epingle) {
         await poserMotif(page);
         // Cette vue montre toute la progression d'un coup : ses cases sont plus étroites que celles de
@@ -331,6 +338,5 @@ async function serieDeVue(page, nomVue) {
     await browser.close();
     console.log('\nErreurs page : ' + (errors.length ? errors.join(' | ') : 'aucune'));
     check(errors.length === 0, 'aucune erreur JavaScript');
-    console.log(`\n=== ${PASS} PASS / ${FAIL} FAIL ===`);
-    process.exit(FAIL ? 1 : 0);
+    bilan();
 })();
