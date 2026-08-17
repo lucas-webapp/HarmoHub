@@ -6,9 +6,6 @@
     "grid_loupe_pinch_undo_test.js": [
       "openGridZoom"
     ],
-    "items2345_test.js": [
-      "editChordFromGridZoom"
-    ],
     "new_voice_rule_test.js": [
       "closeGridZoom"
     ],
@@ -45,18 +42,6 @@
       "grid-click-action"
     ],
     "global_transport_test.js": [
-      "grid-zoom-close",
-      "grid-zoom-play-chord",
-      "grid-zoom-play-prog"
-    ],
-    "grid_beat_highlight_test.js": [
-      "grid-zoom-close"
-    ],
-    "items2345_test.js": [
-      "grid-cell-octave-float",
-      "grid-cell-octave-up"
-    ],
-    "loop_range_buttons_test.js": [
       "grid-zoom-play-chord",
       "grid-zoom-play-prog"
     ],
@@ -96,13 +81,7 @@
     ],
     "three_fixes_test.js": [
       "quick-library-export",
-      "quick-library-import",
-      "quick-library-import-input"
-    ],
-    "zoom_test.js": [
-      "grid-zoom-close",
-      "grid-zoom-in-h",
-      "grid-zoom-in-v"
+      "quick-library-import"
     ]
   },
   "erreurs_avalees": {
@@ -149,7 +128,6 @@
     "export_lyrics_test.js",
     "extra_note_rhythm_test.js",
     "ghost_note_test.js",
-    "global_transport_test.js",
     "glock_cycle_then_lock_test.js",
     "glock_delayed_deactivate_test.js",
     "glock_exhaustive_test.js",
@@ -157,7 +135,6 @@
     "glock_playprogression_test.js",
     "glock_preview_only_lock_test.js",
     "glock_unlock_and_switch_test.js",
-    "grid_beat_highlight_test.js",
     "grid_dblclick_test.js",
     "grid_errors_test.js",
     "grid_multidrag_test.js",
@@ -171,11 +148,9 @@
     "intensity_test.js",
     "item1_2_test.js",
     "item1_hzoom_out_test.js",
-    "items2345_test.js",
     "key_suggest_ks_test.js",
     "library_test.js",
     "live_loop_update_test.js",
-    "loop_range_buttons_test.js",
     "loupe_and_tap_fix_test.js",
     "loupe_keyboard_test.js",
     "metronome_groove_test.js",
@@ -207,7 +182,6 @@
     "paroles_undo_test.js",
     "paste_anchor_test.js",
     "pdf_export_test.js",
-    "pdf_fixed_scale_test.js",
     "pdf_merge_test.js",
     "pdf_offbeat_test.js",
     "pdf_regle_numeros_test.js",
@@ -224,7 +198,6 @@
     "probe_instrument_tout_test.js",
     "probe_mobile_seq_visible_test.js",
     "probe_regle_voisins_test.js",
-    "probe_seq_adaptatif_test.js",
     "probe_seq_continu_daw_test.js",
     "probe_seq_finitions_test.js",
     "probe_seq_reperes_test.js",
@@ -260,20 +233,17 @@
     "song_panel_test.js",
     "sortie_edition_involontaire_test.js",
     "tap_removal_test.js",
-    "three_fixes_test.js",
     "undo_ajout_rapide_test.js",
     "vl_loupe_test.js",
     "vl_pinch_test.js",
     "voice_leading_section_ops_test.js",
     "voice_leading_test.js",
     "voicing_syntax_test.js",
-    "zoom_coherence_test.js",
-    "zoom_test.js"
+    "zoom_coherence_test.js"
   ],
   "verifications_conditionnelles": {
     "avant_seq_short_note_body_test.js": 3,
     "glock_full_real_ui_test.js": 1,
-    "grid_beat_highlight_test.js": 1,
     "metronome_groove_test.js": 1,
     "popups_close_test.js": 1,
     "probe_clic_accord_voisin_test.js": 1,

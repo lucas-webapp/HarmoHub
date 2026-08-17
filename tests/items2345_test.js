@@ -3,6 +3,18 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // La police est chargée depuis Google Fonts : injoignable derrière le proxy du bac à sable,
 // jamais un problème chez l'utilisateur. Ces échecs réseau sont donc filtrés — sinon ils font
 // échouer « aucune erreur console » et masquent les vraies erreurs au milieu du bruit.
+//
+// CE FICHIER N'ÉTAIT PAS UN BANC : ses cinq verdicts s'écrivaient en console.log sans compteur, et il
+// finissait sur process.exit(0) — aucun échec ne pouvait remonter.
+//
+// SON « ITEM 5 » EST SUPPRIMÉ, pas rebranché. Il éprouvait la pastille octave flottante
+// (#grid-cell-octave-float, deux boutons posés au-dessus de la case sélectionnée), qui n'existait QUE
+// dans la vue plein écran de la grille : elle a disparu avec elle, plus aucun code ne la crée, et le
+// banc mourait sur un `.hidden` de null — après quoi rien ne s'exécutait. Ce qui reste vrai et
+// vérifiable de ce sujet, c'est que l'octave d'un accord reste LISIBLE sur sa case : le badge
+// .cell-meta. C'est ce qui le remplace ci-dessous.
+const { check, exiger, plan, bilan } = require('./_harness')('items 2 à 5');
+plan(6);
 
 (async () => {
     const browser = await chromium.launch({
@@ -29,12 +41,12 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         hasReverseMethod: typeof window.app.reverseSectionChords,
     }));
     console.log(JSON.stringify(r));
-    console.log((!r.hasReverseBtn && r.hasReverseMethod === 'undefined') ? 'PASS (removed)' : 'FAIL');
+    check(!r.hasReverseBtn && r.hasReverseMethod === 'undefined',
+        `le bouton « inverser la partie » a bien disparu, méthode comprise — bouton ${r.hasReverseBtn}, reverseSectionChords « ${r.hasReverseMethod} »`);
 
-    console.log('--- Item 4: no orange/gold cell tint when loop range is set ---');
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(150);
-    // Define a loop range spanning chords 0-2 (drag on the measure-number row)
+    console.log('--- Item 4 : aucune teinte dorée sur la case quand une plage à boucler est définie ---');
+    // (Le banc ouvrait ici la vue plein écran de la grille. Elle n'existe plus, et la teinte se juge de
+    // toute façon sur la case de la grille elle-même, qui ne déménage plus.)
     await page.evaluate(() => window.app.setLoopRange(0, 0, 0, 2));
     await page.waitForTimeout(100);
     r = await page.evaluate(() => {
@@ -43,9 +55,9 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         return { hasGoldTint: bg.includes('255, 213, 79') || bg.includes('rgba(255,213,79'), bg };
     });
     console.log(JSON.stringify(r));
-    console.log(!r.hasGoldTint ? 'PASS (no gold tint on cell)' : 'FAIL');
+    check(!r.hasGoldTint, `aucune teinte dorée posée sur la case pendant qu'une plage est active — fond « ${r.bg || 'aucun'} »`);
 
-    console.log('--- Item 3: clicking an EXISTING loop range at a bar-start position grabs it (not "new") ---');
+    console.log('--- Item 3 : taper une plage EXISTANTE en début de mesure la supprime, ne la redéfinit pas ---');
     r = await page.evaluate(() => {
         // range is 0..2; find the row-measure or bar for chord index 1 (a bar-start, likely overlapped
         // by both .row-measure and .loop-range-bar at the same grid cell)
@@ -60,41 +72,27 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.waitForTimeout(100);
     r = await page.evaluate(() => ({ loopRange: window.app.loopRange }));
     console.log('after tap on existing range:', JSON.stringify(r));
-    console.log(r.loopRange === null ? 'PASS (tap on existing range deleted it, not redefined to a single chord)' : 'FAIL');
+    check(r.loopRange === null,
+        `taper sur une plage existante la SUPPRIME au lieu de la redéfinir sur un seul accord — ${JSON.stringify(r.loopRange)}`);
 
-    console.log('--- Item 5: octave float hidden by default, appears above selected/editing chord ---');
-    r = await page.evaluate(() => ({
-        hiddenByDefault: document.getElementById('grid-cell-octave-float').hidden,
-        hasPerCellOctaveBtn: !!document.querySelector('.grid-cell .cell-octave-btn'),
-    }));
-    console.log(JSON.stringify(r));
-    await page.evaluate(() => window.app.editChordFromGridZoom(0, 2));
-    await page.waitForTimeout(150);
-    r = await page.evaluate(() => {
-        const float = document.getElementById('grid-cell-octave-float');
+    console.log('--- Item 5 : l\'octave reste LISIBLE sur la case, dans son badge ---');
+    // Remplace l'ancienne pastille flottante de la vue plein écran (voir l'en-tête du fichier).
+    await page.evaluate(() => window.app.editChordFromSequencer(0, 2));
+    await page.waitForTimeout(300);
+    const badge = await page.evaluate(() => {
         const cell = document.querySelector('.grid-cell[data-section="0"][data-index="2"]');
-        const cellRect = cell.getBoundingClientRect();
-        const floatRect = float.getBoundingClientRect();
-        return {
-            visible: !float.hidden,
-            aboveCell: floatRect.bottom <= cellRect.top + 2, // roughly above
-            horizontallyAligned: Math.abs((floatRect.left + floatRect.width/2) - (cellRect.left + cellRect.width/2)) < 5,
-        };
+        const meta = cell && cell.querySelector('.cell-meta');
+        const octaveDonnee = JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[2].octave;
+        return { texte: meta ? meta.textContent.trim() : null, octaveDonnee, dansLaCase: !!meta };
     });
-    console.log(JSON.stringify(r));
-    console.log((r.visible && r.aboveCell) ? 'PASS (float shown above editing chord)' : 'FAIL');
-
-    // test the up/down buttons actually work
-    r = await page.evaluate(() => {
-        const before = JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[2].octave;
-        document.getElementById('grid-cell-octave-up').click();
-        const after = JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[2].octave;
-        return { before, after };
-    });
-    console.log('octave up click:', JSON.stringify(r));
-    console.log((r.after === (r.before||3) + 1) ? 'PASS (octave button works)' : 'FAIL');
+    console.log(JSON.stringify(badge));
+    if (exiger(badge.dansLaCase, 'la case porte bien son badge .cell-meta')) {
+        check(badge.texte.includes('O' + badge.octaveDonnee),
+            `le badge annonce l'octave réelle de l'accord — « ${badge.texte} » pour une octave ${badge.octaveDonnee}`);
+    }
 
     console.log('Errors collected:', JSON.stringify(errors, null, 2));
+    check(errors.length === 0, 'aucune erreur JavaScript pendant tout le scénario');
     await browser.close();
-    process.exit(0);
+    bilan();
 })().catch((e) => { console.error('FATAL', e); process.exit(2); });

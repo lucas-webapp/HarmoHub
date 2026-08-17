@@ -6186,10 +6186,8 @@ class HarmoHubApp {
         host.querySelectorAll('.cell-resize').forEach(handle => {
             handle.addEventListener('pointerdown', (e) => this.onResizeStart(e, +handle.dataset.section, +handle.dataset.index, handle.dataset.edge));
         });
-        // Boutons octave (loupe grille uniquement, voir shiftChordOctave) : plus posés sur la case
-        // elle-même (retour utilisateur : gênaient la lecture de l'accord) mais dans une pastille
-        // flottante unique, positionnée au-dessus de l'accord SÉLECTIONNÉ (voir
-        // updateGridCellOctaveFloat) — rien à câbler ici, ses boutons sont déjà branchés une fois pour
+        // (La pastille octave flottante qui se câblait ici a disparu avec la vue plein écran de la
+        // grille : plus rien ne la crée. Voir shiftChordOctave, qui n'a plus d'appelant.)
 
         this.updateSaveButtons();
         this.updateGlobalUndoRedoButtons();
@@ -9496,7 +9494,6 @@ class HarmoHubApp {
         // désormais (voir onGridPointerUp) : le champ n'existe plus à ce moment-là, le rattrapage n'a
         // plus d'objet — et il volait le double-clic « sélectionner un mot » pendant la retape.
         if (e.target.closest('.cell-sym-input')) return;
-        if (e.target.closest('.cell-octave')) return; // boutons octave (voir shiftChordOctave) : pas de glisser-déposer/écoute sur ce geste
         const section = +gridEl.dataset.section;
         const cell = e.target.closest('.grid-cell');
 
@@ -9940,10 +9937,14 @@ class HarmoHubApp {
         });
     }
 
-    // Monte/descend l'accord `index` d'une octave entière (voir la pastille flottante posée par
-    // updateGridCellOctaveFloat, visible uniquement dans la loupe grille) — borné à la plage du
-    // sélecteur Octave (2 à 5) du panneau Accord, pour ne jamais produire une case dont l'octave
-    // serait ensuite impossible à régler depuis ce même panneau.
+    // Monte/descend l'accord `index` d'une octave entière — borné à la plage du sélecteur Octave
+    // (2 à 5) du panneau Accord, pour ne jamais produire une case dont l'octave serait ensuite
+    // impossible à régler depuis ce même panneau.
+    // SANS APPELANT AUJOURD'HUI. Son seul déclencheur était la pastille flottante de la vue plein
+    // écran de la grille, supprimée avec elle. La méthode est conservée telle quelle plutôt que
+    // retirée : elle implémente un geste que l'utilisateur peut vouloir retrouver (monter un accord
+    // d'une octave depuis la grille, sans ouvrir le panneau Accord), et lui redonner un bouton est une
+    // décision de produit, pas un nettoyage. Ce commentaire existe pour qu'on ne la croie pas branchée.
     shiftChordOctave(section, index, delta) {
         const sections = loadProgressionSections();
         const data = sections[section] && sections[section].chords[index];

@@ -38,8 +38,16 @@ const fichiers = fs.readdirSync(__dirname).filter(f => f.endsWith('_test.js') &&
 // Une méthode est-elle DÉFINIE dans script.js ? On cherche une définition (`  nom(...) {`,
 // `async nom(...)`, `nom: (…) =>`), jamais une simple mention : openGridZoom est cité neuf fois dans
 // des COMMENTAIRES alors que la méthode a disparu — c'est précisément le piège à éviter.
+// La dernière alternative (`this.nom =`) couvre les propriétés qui reçoivent une fonction sans être
+// écrites comme des méthodes : `this._pdfDialogCancel = fermer;`. Sans elle, ce banc signalait
+// _pdfDialogCancel comme « appelé mais absent », alors qu'il est bel et bien posé — un faux positif,
+// et sur l'outil chargé justement d'en traquer. Elle accepte aussi `this.x = null` comme une
+// définition : c'en est une, la propriété existe, et la question posée ici est seulement « ce nom
+// existe-t-il quelque part dans l'appli ».
 const estDefinie = (nom) => new RegExp(
-    `(^|\\n)\\s*(static\\s+)?(async\\s+)?(get\\s+)?${nom}\\s*\\(|\\b${nom}\\s*[:=]\\s*(async\\s*)?(function|\\()`
+    `(^|\\n)\\s*(static\\s+)?(async\\s+)?(get\\s+)?${nom}\\s*\\(`
+    + `|\\b${nom}\\s*[:=]\\s*(async\\s*)?(function|\\()`
+    + `|\\bthis\\.${nom}\\s*=`
 ).test(source);
 
 // Un identifiant DOM existe-t-il ? Il peut être écrit dans index.html ou fabriqué par script.js

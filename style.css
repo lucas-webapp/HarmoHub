@@ -2893,40 +2893,12 @@ button:active { transform: translateY(1px); }
     .grid-cell.editing .cell-resize::after { background: rgba(255, 255, 255, 0.55); }
 }
 
-/* Boutons octave (loupe grille uniquement, voir shiftChordOctave/updateGridCellOctaveFloat) : une
-   seule pastille flottante (position fixe, jamais posée sur la case elle-même comme avant — gênait
-   la lecture de l'accord, retour utilisateur), repositionnée en JS juste au-dessus de la case
-   SÉLECTIONNÉE et masquée sinon. Position fixe plutôt qu'absolue : échappe à l'overflow:hidden de
-   .chord-grid (sinon rognée dès que la case sélectionnée est en tout début de
-   grille), et suit le défilement grâce au repositionnement sur scroll (voir le JS). */
-.cell-octave-float {
-    position: fixed;
-    z-index: 50;
-    display: flex;
-    gap: 4px;
-    background: rgba(20, 20, 20, 0.9);
-    border: 1px solid #3a3a3a;
-    border-radius: 6px;
-    padding: 3px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
-}
-.cell-octave-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    min-width: 0; /* sinon la règle générique button{min-width:120px} l'emporte sur width */
-    height: 22px;
-    padding: 0;
-    border: 1px solid #3a3a3a;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.04);
-    color: var(--text-muted);
-    cursor: pointer;
-    touch-action: manipulation;
-}
-.cell-octave-btn:hover { background: #262626; color: var(--text-main); border-color: #4a4a4a; }
-.cell-octave-btn .icon { width: 14px; height: 14px; }
+/* La pastille octave flottante (.cell-octave-float / .cell-octave-btn) vivait ici : deux boutons
+   posés au-dessus de la case sélectionnée, dans la vue plein écran de la grille UNIQUEMENT. Cette vue
+   a été supprimée, et sa pastille avec : plus aucun code ne crée ces éléments (#grid-cell-octave-float
+   a zéro occurrence dans l'appli), les trente lignes de style qui les habillaient ne s'appliquaient
+   donc plus à rien. L'octave d'un accord reste lisible sur sa case, dans le badge .cell-meta, et
+   réglable dans le panneau Accord. */
 
 /* Repère de mesure À L'INTÉRIEUR d'un accord qui dure plusieurs mesures — même largeur/opacité que
    .grid-cell.bar-start (voir ci-dessus), pour qu'on reconnaisse le même repère de mesure dans les

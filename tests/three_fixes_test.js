@@ -3,6 +3,19 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // La police est chargée depuis Google Fonts : injoignable derrière le proxy du bac à sable,
 // jamais un problème chez l'utilisateur. Ces échecs réseau sont donc filtrés — sinon ils font
 // échouer « aucune erreur console » et masquent les vraies erreurs au milieu du bruit.
+//
+// CE FICHIER N'ÉTAIT PAS UN BANC : neuf verdicts en console.log, sans compteur ni code de sortie.
+//
+// SA SECTION 1 VISAIT DES BOUTONS DISPARUS. L'export/import de bibliothèque avait deux boutons
+// dédiés dans le bandeau du haut (#quick-library-export / #quick-library-import) : zéro occurrence
+// dans l'appli aujourd'hui. Ils ont été fondus dans les boutons du module Morceau — #song-export
+// ouvre un petit menu « Ce morceau / Toute la bibliothèque » (voir openTransferScopeMenu), #song-import
+// déclenche le même choix de fichier. C'était le motif signalé par l'utilisateur (« plusieurs options
+// se recroisent ») : deux portes vers exactement la même chose. Le banc attendait donc un
+// téléchargement déclenché par un bouton inexistant, expirait au bout de dix secondes, et ses sept
+// verdicts suivants — sections 2 et 3, sans aucun rapport — n'étaient jamais atteints.
+const { check, exiger, plan, bilan } = require('./_harness')('trois correctifs');
+plan(14);
 
 (async () => {
     const browser = await chromium.launch({
@@ -16,42 +29,55 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
     await page.waitForTimeout(200);
 
-    console.log('=== 1. Quick library export/import buttons in the top bar ===');
+    console.log('=== 1. Export/import de la bibliothèque, depuis le module Morceau ===');
     let r = await page.evaluate(() => ({
-        exportBtn: !!document.getElementById('quick-library-export'),
-        importBtn: !!document.getElementById('quick-library-import'),
-        input: !!document.getElementById('quick-library-import-input'),
+        exportBtn: !!document.getElementById('song-export'),
+        importBtn: !!document.getElementById('song-import'),
+        input: !!document.getElementById('song-import-input'),
+        anciensBoutons: !!document.getElementById('quick-library-export') || !!document.getElementById('quick-library-import'),
     }));
     console.log(JSON.stringify(r));
-    console.log((r.exportBtn && r.importBtn && r.input) ? 'PASS (buttons present in top bar)' : 'FAIL');
+    if (!exiger(r.exportBtn && r.importBtn && r.input, 'les boutons export/import et leur champ de fichier caché sont bien là')) bilan();
+    check(!r.anciensBoutons, "et les anciens boutons du bandeau du haut ne subsistent pas en double");
 
     await page.evaluate(() => {
         const mk = (root, quality, beats) => ({ root, quality, beats, inversion: 0, drop: 'none', octave: 4, bass: null, playStyle: 'held' });
         localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Test', chords: [mk('C', 'maj', 4)] }] }));
     });
     await page.reload({ waitUntil: 'load' });
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(300);
     await page.evaluate(() => window.app.createNewSongFromCurrentState('Quick Export Test'));
-    await page.waitForTimeout(150);
+    await page.waitForTimeout(250);
+
+    // #song-export ouvre d'abord un choix de portée : un clic ne télécharge donc plus directement.
+    await page.click('#song-export');
+    await page.waitForTimeout(300);
+    const menu = await page.evaluate(() => {
+        const m = document.getElementById('backup-scope-menu');
+        return { visible: m && !m.hidden, portees: m ? [...m.querySelectorAll('button')].map(b => b.dataset.backupScope) : [] };
+    });
+    console.log(JSON.stringify(menu));
+    check(menu.visible && menu.portees.join(',') === 'song,library',
+        `le bouton propose bien les deux portées avant d'exporter — ${JSON.stringify(menu.portees)}`);
 
     const [download] = await Promise.all([
         page.waitForEvent('download', { timeout: 10000 }),
-        page.click('#quick-library-export'),
+        page.click('#backup-scope-menu button[data-backup-scope="library"]'),
     ]);
-    console.log('quick export downloaded:', download.suggestedFilename());
-    console.log(download.suggestedFilename().endsWith('.json') ? 'PASS (quick export button triggers a JSON download)' : 'FAIL');
+    console.log('export téléchargé :', download.suggestedFilename());
+    check(download.suggestedFilename().endsWith('.json'),
+        `« Toute la bibliothèque » déclenche bien un téléchargement JSON — ${download.suggestedFilename()}`);
 
-    r = await page.evaluate(() => {
-        const input = document.getElementById('quick-library-import-input');
-        let clicked = false;
+    const importCable = await page.evaluate(() => {
+        const input = document.getElementById('song-import-input');
+        let clique = false;
         const orig = input.click;
-        input.click = () => { clicked = true; };
-        document.getElementById('quick-library-import').click();
+        input.click = () => { clique = true; };
+        document.getElementById('song-import').click();
         input.click = orig;
-        return clicked;
+        return clique;
     });
-    console.log('import button triggers hidden file input click:', r);
-    console.log(r ? 'PASS (quick import button wired to the hidden file input)' : 'FAIL');
+    check(importCable, "le bouton d'import déclenche bien le champ de fichier caché");
 
     console.log('=== 2. Resizing a chord in the grid extends with HELD notes, not the looped preset ===');
     await page.evaluate(() => {
@@ -84,10 +110,10 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         };
     });
     console.log(JSON.stringify(r));
-    console.log(r.beforeHadRhythm ? 'PASS (original 1-measure pattern was genuinely rhythmic, not already fully held)' : 'FAIL (test setup invalid)');
-    console.log((r.beatsAfter === 16) ? 'PASS (chord resized to 4 measures)' : 'FAIL');
-    console.log(r.addedZoneAllOn ? 'PASS (added zone is fully ON, no silences/croches)' : 'FAIL');
-    console.log(r.originalZoneUnchanged ? 'PASS (original 1-measure rhythm left untouched)' : 'FAIL');
+    if (!exiger(r.beforeHadRhythm, "le motif d'origine est bien RYTHMIQUE et non déjà tenu de bout en bout (sans quoi la suite ne prouverait rien)")) bilan();
+    check(r.beatsAfter === 16, `l'accord est bien passé à 4 mesures — ${r.beatsAfter} temps`);
+    check(r.addedZoneAllOn, 'la zone AJOUTÉE est entièrement tenue : ni silence ni croches recopiées du préréglage');
+    check(r.originalZoneUnchanged, "et le rythme de la première mesure n'a pas été touché au passage");
 
     console.log('--- Same check via the mouse-drag resize path (onResizeEnd) ---');
     await page.evaluate(() => {
@@ -111,7 +137,8 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         return { beatsAfter: dataAfter.beats, addedZoneAllOn: after.pattern.slice(16).every(s => s.length > 0) };
     });
     console.log(JSON.stringify(r));
-    console.log((r.beatsAfter === 12 && r.addedZoneAllOn) ? 'PASS (mouse-drag resize path also extends with held notes)' : 'FAIL');
+    check(r.beatsAfter === 12 && r.addedZoneAllOn,
+        `le chemin du glissé à la souris étend lui aussi en notes tenues — ${r.beatsAfter} temps, zone ajoutée tenue : ${r.addedZoneAllOn}`);
 
     console.log('=== 3. Dragging from the MIDDLE of an existing note no longer splits it ===');
     await page.evaluate(() => {
@@ -146,8 +173,8 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         const { pattern } = app.getLiveSeqPattern(app.readChord());
         return JSON.stringify(pattern);
     });
-    console.log('unchanged:', patternBefore === patternAfter);
-    console.log((patternBefore === patternAfter) ? 'PASS (mid-note drag no longer erases/splits the note)' : 'FAIL');
+    check(patternBefore === patternAfter,
+        "glisser depuis le MILIEU d'une note ne la coupe plus ni ne l'efface : le motif est identique avant/après");
 
     console.log('--- Regression: dragging from an EDGE still resizes normally ---');
     const edgeCell = await page.$('.seq-cell[data-voice="0"][data-step="0"]');
@@ -165,17 +192,33 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         return pattern.slice(0, 4).map(s => s.includes(0));
     });
     console.log('voice0 on for steps 0-3 after edge-drag shrink (start moved to step 3):', JSON.stringify(r));
-    console.log((JSON.stringify(r) === JSON.stringify([false, false, false, true])) ? 'PASS (edge drag still resizes/shrinks as before, new start at step 3)' : 'FAIL');
+    check(JSON.stringify(r) === JSON.stringify([false, false, false, true]),
+        `glisser depuis un BORD redimensionne toujours normalement — voix 0 sur les pas 0 à 3 : ${JSON.stringify(r)}, attendu [false,false,false,true]`);
 
-    console.log('--- Regression: painting on an empty cell still works ---');
+    console.log('--- Non-régression : poser une note sur une case VIDE marche toujours ---');
+    // Le banc se contentait de vérifier que la case existait, et n'appelait cela « ok » que dans un
+    // console.log — il ne posait aucune note. On peint pour de vrai, et on regarde le résultat.
+    // On vise la voix 0 au pas 0 : la vérification précédente vient d'établir qu'elle est VIDE (le
+    // glissé depuis le bord a ramené le début de la note au pas 3). La voix 1, elle, est tenue de bout
+    // en bout sur cet accord — la case n'y est jamais vide, et peindre dessus ne prouverait rien.
     r = await page.evaluate(() => {
         const app = window.app;
-        const cell = document.querySelector('.seq-cell[data-voice="1"][data-step="0"]');
-        return !!cell;
+        const avant = app.getLiveSeqPattern(app.readChord()).pattern.map(s => s.includes(0));
+        const cell = document.querySelector('.seq-cell[data-voice="0"][data-step="0"]');
+        if (!cell) return null;
+        const b = cell.getBoundingClientRect();
+        const ev = (type) => new PointerEvent(type, { pointerId: 9, pointerType: 'mouse', bubbles: true, cancelable: true, clientX: b.left + b.width / 2, clientY: b.top + b.height / 2 });
+        cell.dispatchEvent(ev('pointerdown'));
+        cell.dispatchEvent(ev('pointerup'));
+        const apres = app.getLiveSeqPattern(app.readChord()).pattern.map(s => s.includes(0));
+        return { avant: avant[0], apres: apres[0] };
     });
-    console.log('empty-cell paint check setup ok:', r);
+    console.log(JSON.stringify(r));
+    check(r && r.avant === false && r.apres === true,
+        `poser une note sur une case VIDE la remplit bien — voix 0, pas 0 : ${r ? r.avant + ' -> ' + r.apres : 'case introuvable'}`);
 
     console.log('Errors:', JSON.stringify(errors));
+    check(errors.length === 0, 'aucune erreur JavaScript pendant tout le scénario');
     await browser.close();
-    process.exit(0);
+    bilan();
 })().catch((e) => { console.error('FATAL', e); process.exit(2); });
