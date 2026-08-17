@@ -2,3 +2,8 @@
 _Old/
 _local_backup_pre_git/
 .claude/
+
+# Captures d'écran produites par les bancs d'essai (probe_touches_piano, loupe_fullscreen...) :
+# des artefacts de diagnostic régénérés à chaque exécution, jamais du code. Quatre d'entre elles se
+# sont retrouvées suivies par un `git add -A` de trop — cette règle évite que ça se reproduise.
+tests/*.png
