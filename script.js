@@ -1750,9 +1750,27 @@ const SEQ_DOCK_HEIGHT_MIN = 140;
 // Hauteur d'ouverture du volet quand l'utilisateur ne l'a jamais réglé : une PART de l'écran, pas une
 // valeur fixe. 300px partout était calibré pour un téléphone — sur un écran de 1080px, ça laissait
 // 222px inutilisés juste sous le volet et coupait 3 des 20 lignes chromatiques (mesuré).
-const SEQ_DOCK_HEIGHT_RATIO = 0.45;
+// Deux ratios, et pas un seul : « la hauteur de base du séquenceur est insuffisante » a été dit de la
+// vue PLEIN ÉCRAN sur ordinateur, où la colonne de droite a de la place à donner. Appliquer les mêmes
+// 0,55 sur un téléphone donnait un volet de 480px sur un écran de 844 — plus de la moitié de la hauteur
+// pour le seul séquenceur, dans une mise en page à une colonne où tout le reste défile en dessous
+// (mesuré, et attrapé par probe_seq_adaptatif_test, qui exige justement « une taille raisonnable » là).
+// La borne réelle reste dans les deux cas la place libre mesurée (voir hauteurMaxVoletSequenceur) : ces
+// ratios ne décident que de la part qu'on prend quand il y a de la marge.
+const SEQ_DOCK_HEIGHT_RATIO = 0.45;          // téléphone/tablette, une seule colonne
+const SEQ_DOCK_HEIGHT_RATIO_LARGE = 0.55;    // ordinateur, deux colonnes
 const SEQ_DOCK_HEIGHT_AUTO_MIN = 300;  // jamais moins que l'ancienne valeur : rien ne rétrécit
 const SEQ_DOCK_HEIGHT_AUTO_MAX = 700;  // au-delà, le volet mangerait la grille d'accords au-dessus
+// Ce que le volet laisse OBLIGATOIREMENT à la grille d'accords au-dessus de lui, même tiré à fond :
+// son en-tête collant, la saisie rapide, un titre de partie et une rangée d'accords. Sans ce plancher,
+// tirer la poignée jusqu'en haut écrasait la grille à 0px de haut — mesuré : elle disparaissait
+// complètement de l'écran, ce qu'aucun geste de redimensionnement ne devrait pouvoir faire.
+const SEQ_DOCK_RESERVE_GRILLE = 190;
+// Part de la place disponible que la hauteur AUTOMATIQUE s'autorise. Volontairement inférieure à 1 :
+// un volet ouvert d'emblée à son maximum ne pourrait plus que rétrécir, et tirer la poignée vers le
+// haut ne ferait toujours rien — exactement le symptôme qu'on vient de corriger, avec une autre cause.
+// Ces 12 % de marge garantissent que la poignée répond dans les DEUX sens, diagrammes affichés ou non.
+const SEQ_DOCK_MARGE_POIGNEE = 0.88;
 // Nombre de mesures qu'on cherche à faire tenir dans la vue continue à l'échelle 1. La largeur de
 // colonne était fixe (28px sur ordinateur), ce qui ne montrait que 2,5 mesures sur un écran de
 // 1920px — l'inverse de ce qu'on attend d'une vue « à l'échelle du morceau ». Elle se déduit
@@ -12452,6 +12470,33 @@ class HarmoHubApp {
         }
     }
 
+    // Hauteur MAXIMALE que le volet peut prendre : la place réellement libre dans la colonne, moins ce
+    // qu'on réserve à la grille. Mesurée, jamais déduite d'un ratio d'écran — c'est ce qui fait que
+    // masquer les diagrammes profite au séquenceur : .viz-wrap rétrécit, la place libérée entre
+    // d'elle-même dans ce calcul, sans qu'aucune règle CSS n'ait à court-circuiter la hauteur réglée à
+    // la main (voir setupSeqDockResize, et le commentaire de .seq-dock-host dans style.css).
+    hauteurMaxVoletSequenceur() {
+        const colonne = document.querySelector('.col-right');
+        const panneau = document.getElementById('seq-dock-panel');
+        const grille = document.querySelector('.history-section');
+        // Hors mise en page à deux colonnes (téléphone), le volet ne partage rien avec personne : on
+        // retombe sur une part de l'écran, comme avant.
+        if (!colonne || !panneau || !grille || !window.matchMedia(SEQ_DOCK_MEDIA).matches) {
+            return Math.round(window.innerHeight * 0.75);
+        }
+        // On somme les frères SAUF la grille : c'est elle, seule flex:1 de la colonne, qui cède la
+        // place au volet — sa hauteur du moment n'apprend donc rien sur celle qui est disponible.
+        let occupe = 0;
+        for (const enfant of colonne.children) {
+            if (enfant === panneau || enfant === grille || enfant.hidden) continue;
+            occupe += enfant.getBoundingClientRect().height;
+        }
+        const styles = getComputedStyle(colonne);
+        const interlignes = (parseFloat(styles.rowGap) || 0) * Math.max(0, colonne.children.length - 1);
+        const dispo = colonne.clientHeight - occupe - interlignes - SEQ_DOCK_RESERVE_GRILLE;
+        return Math.max(SEQ_DOCK_HEIGHT_MIN, Math.round(dispo));
+    }
+
     // Hauteur d'ouverture du volet : celle réglée à la main si elle existe, sinon une part de l'écran.
     hauteurVoletSequenceur() {
         // AUCUN facteur de zoom n'entre plus dans ce calcul — la paire V+/V− qui agissait ici a été
@@ -12462,10 +12507,20 @@ class HarmoHubApp {
         // la vue pour voir plus de notes. On se perd avec le grossissement vertical des barres et ça
         // enlève de la fluidité », repris ensuite pour le petit séquenceur : « bloquer la hauteur des
         // barres du petit séquenceur, et supprimer le V+/- ».
-        const base = this.seqDockHeight || Math.round(Math.max(SEQ_DOCK_HEIGHT_AUTO_MIN,
-            Math.min(SEQ_DOCK_HEIGHT_AUTO_MAX, window.innerHeight * SEQ_DOCK_HEIGHT_RATIO)));
-        // Hauteur AUTOMATIQUE seulement : une part de l'écran, plafonnée par ce qu'il y a à montrer.
-        let h = Math.max(140, Math.min(window.innerHeight * 0.8, base));
+        // Hauteur automatique : une part de l'écran, bornée par ce que la colonne peut réellement
+        // donner. Volontairement PLUS PETITE que ce maximum, pour que la poignée garde de la marge dans
+        // les deux sens — un volet ouvert d'emblée au maximum ne pourrait plus que rétrécir, et
+        // paraîtrait à nouveau bloqué en tirant vers le haut.
+        const dispo = this.hauteurMaxVoletSequenceur();
+        const ratio = window.matchMedia(SEQ_DOCK_MEDIA).matches ? SEQ_DOCK_HEIGHT_RATIO_LARGE : SEQ_DOCK_HEIGHT_RATIO;
+        const auto = Math.round(Math.min(dispo * SEQ_DOCK_MARGE_POIGNEE, Math.max(SEQ_DOCK_HEIGHT_AUTO_MIN,
+            Math.min(SEQ_DOCK_HEIGHT_AUTO_MAX, window.innerHeight * ratio))));
+        const base = this.seqDockHeight || auto;
+        // Le plafond n'est plus un ratio d'écran mais la place libre mesurée : un volet plus grand que
+        // ça déborderait de la colonne et serait rogné en silence — c'est exactement ce qui faisait
+        // paraître la poignée inopérante (elle écrivait une hauteur que la mise en page ne pouvait pas
+        // honorer).
+        let h = Math.max(SEQ_DOCK_HEIGHT_MIN, Math.min(dispo, base));
         // ...mais jamais plus haut que ce qu'il y a RÉELLEMENT à montrer. Sans ce plafond, agrandir la
         // vue sur un accord de vingt demi-tons n'ajouterait que du vide sous les notes — exactement le
         // reproche fait par ailleurs (« beaucoup trop d'espace perdu en bas de la page »). Le zoom
@@ -12530,10 +12585,13 @@ class HarmoHubApp {
         const poignee = document.getElementById('seq-dock-resize');
         const dock = document.getElementById('seq-dock-host');
         if (!poignee || !dock) return;
-        let departY = 0, departH = 0;
+        let departY = 0, departH = 0, maxGeste = 0;
         const bouger = (e) => {
-            const max = Math.round(window.innerHeight * 0.75);
-            const suivant = Math.max(SEQ_DOCK_HEIGHT_MIN, Math.min(max, departH - (e.clientY - departY)));
+            // Plafond MESURÉ au début du geste, pas un ratio d'écran : au-delà de la place libre dans la
+            // colonne, la hauteur écrite était rognée par le panneau (overflow:hidden) et le geste
+            // paraissait ne rien faire passé un certain point. Figé au pointerdown pour que le plafond ne
+            // bouge pas sous les doigts pendant qu'on tire (la grille rétrécit en même temps).
+            const suivant = Math.max(SEQ_DOCK_HEIGHT_MIN, Math.min(maxGeste, departH - (e.clientY - departY)));
             this.seqDockHeight = suivant;
             dock.style.height = `${suivant}px`;
         };
@@ -12547,6 +12605,7 @@ class HarmoHubApp {
             e.preventDefault();
             departY = e.clientY;
             departH = dock.getBoundingClientRect().height;
+            maxGeste = this.hauteurMaxVoletSequenceur();
             window.addEventListener('pointermove', bouger);
             window.addEventListener('pointerup', lacher);
         });

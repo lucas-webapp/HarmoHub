@@ -2169,6 +2169,38 @@ button:active { transform: translateY(1px); }
     border: 1px solid var(--border);
     border-radius: var(--radius);
 }
+/* AUCUN DIAGRAMME AFFICHÉ : la carte n'a plus que ses deux boutons à montrer, et occupait pourtant
+   toute une bande à mi-hauteur — un cadre autour de deux icônes, au-dessus de rien (retour
+   utilisateur : « la hauteur de base du séquenceur est insuffisante : il faut gagner de la place en
+   bas. Les boutons pour afficher les diagrammes peuvent être positionnés tout en bas de la fenêtre
+   lorsque les diagrammes ne sont pas affichés »). Elle descend donc sur la MÊME LIGNE que Paroles et
+   Fichier, qui occupent déjà le bas de .viz-wrap (voir .viz-export-actions, en position absolue à
+   droite) : centrée horizontalement, alignée verticalement sur eux. La bande qu'elle laisse est rendue
+   au séquenceur par hauteurMaxVoletSequenceur(), qui mesure la place libre.
+   Le cadre disparaît avec ce déplacement : encadrer deux icônes posées au milieu d'un grand vide avait
+   un sens, en border une paire de boutons alignée avec deux autres boutons nus n'en a plus. */
+/* SEULEMENT en mise en page à deux colonnes (même seuil que le volet du séquenceur, voir
+   SEQ_DOCK_MEDIA) : le gain de hauteur visé n'a de sens que là, et sur un téléphone la carte centrée
+   RECOUVRAIT « Paroles » — mesuré à 390px : carte de 160 à 230, boutons d'export de 205 à 370. Sous ce
+   seuil elle reste donc dans le flux, comme avant. */
+@media (min-width: 900px) {
+    .col-right.diagrams-hidden .viz-card {
+        position: absolute;
+        left: 50%;
+        bottom: 0;
+        transform: translateX(-50%);
+        margin: 0;
+        padding: 0;
+        gap: 0;
+        background: none;
+        border: none;
+    }
+}
+/* Le conteneur des diagrammes RETIRÉ du flux, pas seulement vidé. Ses deux enfants sont déjà masqués un
+   par un en JS (voir applyVizVisibility), mais lui restait, à 0px de haut — et sa seule présence
+   ajoutait les 10px de `gap` de la carte, qui décalaient les boutons de 10px au-dessus de la ligne de
+   Paroles/Fichier au lieu de les aligner dessus. Mesuré : carte de 42px pour 32px de boutons. */
+.col-right.diagrams-hidden .viz-diagrams { display: none; }
 /* Compacts (largeur réduite) plutôt qu'en pleine largeur — très utilisés, donc un peu plus grands que
    les icon-btn habituels quand même (icon-btn pour le style visuel, .active = même surbrillance verte
    que les autres boutons à bascule de l'appli). */
@@ -2415,15 +2447,21 @@ button:active { transform: translateY(1px); }
    section et la grille d'accords au-dessus » — objectif : gagner de la hauteur pour mieux voir la
    grille). 8px récupérés par partie, soit une rangée d'accords entière dès 4 parties, sans coller les
    blocs au point de ne plus distinguer où finit une partie et où commence l'autre. */
+/* SECOND RESSERREMENT (retour utilisateur : « pour mieux voir la grille lorsqu'il y a plusieurs
+   sections, diminuer les espacements verticaux entre le titre de la section et la grille [...] même si
+   c'est léger ça sera mieux »). Trois pincées de 4px, à trois endroits différents plutôt que 12px pris
+   au même : l'espace ENTRE deux parties reste lisible comme une séparation, et le titre reste attaché
+   à la grille qu'il nomme. Total mesuré : ~15px par partie avec la police réduite ci-dessous, soit
+   60px sur un morceau de quatre parties — une rangée d'accords entière. */
 .prog-section {
-    margin-bottom: 14px;
+    margin-bottom: 10px;
 }
 
 .prog-section-head {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
 }
 
 .prog-title {
@@ -2437,7 +2475,20 @@ button:active { transform: translateY(1px); }
     /* >= 16px : sous ce seuil, Safari iOS zoome toute la page au focus (voir .cell-sym-input) */
     font-size: max(16px, var(--fs-md));
     font-weight: 600;
-    padding: 4px 2px;
+    padding: 2px 2px;   /* 4px avant : 4px récupérés par partie, sans que le champ devienne étroit à cliquer */
+}
+/* Titre de partie un cran plus petit — mais SEULEMENT là où le plancher de 16px ne protège de rien.
+   Ce plancher existe contre Safari iOS, qui zoome toute la page dès qu'on donne le focus à un champ de
+   moins de 16px. Le seuil de largeur ne suffit pas à écarter ce cas : un iPad en paysage dépasse 900px
+   et reste Safari iOS. On exige donc en plus un vrai pointeur (`hover: hover` + `pointer: fine`), que
+   les tablettes tactiles ne déclarent pas — la réduction ne s'applique alors qu'aux écrans où personne
+   ne peut se faire zoomer la page (retour utilisateur : « on peut également réduire d'un point ou deux
+   le titre de la section »). */
+@media (min-width: 900px) and (hover: hover) and (pointer: fine) {
+    /* --fs-base (~14px) et non --fs-sm (~12,8px) : deux points de moins que les 16px imposés, ce que
+       demandait le retour — plus bas, un titre de partie se lirait moins bien que les badges de ses
+       propres cases. */
+    .prog-title { font-size: var(--fs-base); }
 }
 .prog-title::placeholder { color: var(--text-muted); font-weight: 400; }
 .prog-title:hover { border-bottom-color: var(--border); }
@@ -4130,23 +4181,20 @@ select.song-select-narrow {
         margin-top: 0;
         overflow-y: auto;       /* la grille défile de son côté */
     }
-    /* Aucun diagramme affiché (voir .diagrams-hidden, posée par applyVizVisibility) : #seq-dock-panel
-       n'est normalement PAS flex — sa hauteur suit seulement la poignée .seq-dock-resize (voir plus
-       bas, seqDockHeight) — la place qu'aurait libérée .viz-wrap restait donc perdue à mi-hauteur,
-       .history-section (seule flex:1 de la colonne) l'absorbant toute pour elle-même sans que le
-       séquenceur en profite (retour utilisateur : « le séquenceur continu doit prendre le maximum de
-       place en vertical »). flex:1 ici aussi, à côté de .history-section ci-dessus : les deux se
-       partagent alors l'espace disponible plutôt que la grille seule — la grille reste utilisable
-       (accords toujours cliquables), le séquenceur n'est plus figé à sa dernière hauteur réglée.
-       :not([hidden]) : sans lui, cette règle donnerait AUSSI une hauteur flex au panneau MASQUÉ (mode
-       grille classique, sans séquenceur ouvert), qui n'en a pas besoin et n'en a jamais eu jusqu'ici. */
-    .col-right.diagrams-hidden #seq-dock-panel:not([hidden]) { flex: 1; min-height: 0; }
-    /* #seq-dock-host CIBLÉ EN PLUS DU PANNEAU : c'est LUI, pas #seq-dock-panel, que placeSequencer/
-       hauteurVoletSequenceur (script.js) mesurent et redimensionnent en JS (height:Xpx en ligne,
-       seqDockHeight) — flex:1 (flex-basis:0) l'emporte sur ce height inline pour la mise en page, sans
-       avoir à toucher au JS : le panneau grandit, ET ce qu'il affiche vraiment grandit avec lui, au
-       lieu de laisser un panneau plus grand mais un contenu resté à sa taille d'avant. */
-    .col-right.diagrams-hidden #seq-dock-panel:not([hidden]) #seq-dock-host { flex: 1; min-height: 0; }
+    /* CES DEUX RÈGLES ONT ÉTÉ RETIRÉES, ET C'ÉTAIT LE DÉFAUT :
+           .col-right.diagrams-hidden #seq-dock-panel:not([hidden])            { flex: 1; min-height: 0; }
+           .col-right.diagrams-hidden #seq-dock-panel:not([hidden]) #seq-dock-host { flex: 1; min-height: 0; }
+       Elles voulaient rendre au séquenceur la place libérée par les diagrammes masqués (retour
+       utilisateur : « le séquenceur continu doit prendre le maximum de place en vertical »), et le
+       faisaient en s'appuyant sur le fait que `flex:1` (donc flex-basis:0) l'emporte sur le `height`
+       posé en ligne par le JS. C'est précisément ce qui tuait la poignée : dans cet état — le plus
+       courant, diagrammes masqués — tirer .seq-dock-resize écrivait bien une nouvelle hauteur, mais la
+       mise en page l'ignorait entièrement. Mesuré : la hauteur mémorisée passait de 0 à 497px sans
+       qu'un seul pixel ne bouge à l'écran (retour utilisateur : « la poignée pour agrandir/réduire la
+       hauteur du séquenceur ne fonctionne pas »).
+       Le besoin est maintenant couvert par le JS, du bon côté : hauteurMaxVoletSequenceur() MESURE la
+       place libre dans la colonne, donc masquer les diagrammes l'augmente d'elle-même, et la hauteur
+       réglée à la main reste la seule autorité sur la taille du volet. */
 
     /* Pied de colonne ancré en bas de la colonne de gauche (plus besoin de "collant"). Même
        padding-right que .panel-controls (réservé à sa scrollbar) pour que ses boutons s'alignent
