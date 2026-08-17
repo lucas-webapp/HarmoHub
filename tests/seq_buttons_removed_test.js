@@ -29,7 +29,11 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     // compact du panneau : c'est là qu'il faut regarder pour dire si un bouton a survécu ou non.
     await page.click('#grid-zoom');
     await page.waitForTimeout(300);
-    await page.evaluate(() => window.app.editChordFromGridZoom(0, 0));
+    // editChord remplace editChordFromGridZoom, supprimée avec la vue plein écran de la grille (voir
+    // le commentaire d'editChord dans script.js). L'appel à la méthode disparue faisait échouer la
+    // MISE EN PLACE de ce banc, qui mourait donc avant sa première assertion : il ne surveillait plus
+    // rien, sans le dire.
+    await page.evaluate(() => window.app.editChord(0, 0));
     await page.waitForTimeout(300);
     // Une sélection se pousse SOUS LA FORME que l'appli utilise : {voice, start, end}, pas
     // {voice, step}. L'ancienne forme faisait planter le rendu (« Cannot read properties of

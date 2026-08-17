@@ -23,9 +23,13 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(200);
 
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(150);
-    await page.evaluate(() => window.app.editChordFromGridZoom(0, 1)); // editing A min7
+    await page.click('#grid-zoom'); // ouvre le volet du séquenceur continu sous la grille
+    await page.waitForTimeout(400);
+    // editChord remplace editChordFromGridZoom, supprimée avec la vue plein écran de la grille (voir
+    // le commentaire d'editChord dans script.js). L'appel à la méthode disparue faisait échouer la
+    // MISE EN PLACE de ce banc : il mourait avant sa première assertion, donc ne surveillait plus rien
+    // — et c'est bien la navigation au clavier, toujours présente, qu'il est censé éprouver.
+    await page.evaluate(() => window.app.editChord(0, 1)); // on édite A min7
     await page.waitForTimeout(150);
 
     console.log('--- Arrow Right: should move editing to chord 2 (F maj7), grid highlight follows ---');

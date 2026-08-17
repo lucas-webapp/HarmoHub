@@ -14026,9 +14026,13 @@ class HarmoHubApp {
         this._bindZoomButtons('seqInline', {
             inH: 'seq-zoom-in-h-inline', outH: 'seq-zoom-out-h-inline',
         });
-        // Séquenceur épinglé de la loupe grille (vue continue) : mêmes seqZoomLevelX/Y que la loupe
-        // séquenceur autonome (voir le commentaire au-dessus de ces boutons, plus haut dans ce rendu).
-        this._bindZoomButtons('seq', { inH: 'seq-zoom-in-h-pinned', outH: 'seq-zoom-out-h-pinned', inV: 'seq-zoom-in-v-pinned', outV: 'seq-zoom-out-v-pinned' });
+        // (Ici se trouvait le câblage des boutons de zoom du séquenceur ÉPINGLÉ de la loupe grille :
+        // seq-zoom-in-h-pinned & co. Ces boutons ne sont plus produits par aucun rendu depuis la
+        // suppression de la vue plein écran de la grille — _bindZoomButtons ignorant silencieusement
+        // un id introuvable, l'appel ne faisait plus rien tout en laissant croire, à la lecture, que
+        // cette barre existait encore. Le volet continu n'a qu'un zoom HORIZONTAL, câblé juste
+        // au-dessus sous le kind 'seqInline' ; le vertical a été retiré volontairement, voir
+        // setZoomLevel qui sort d'emblée pour seqInline/axe y.)
 
         // Navigation par page (seulement en wideCompact, voir plus haut — jamais en continu, qui n'a
         // pas ce bloc) : un vrai défilement fluide d'une mesure (ou groupe de mesures), pas un saut
