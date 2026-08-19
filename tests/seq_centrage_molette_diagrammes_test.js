@@ -131,21 +131,36 @@ const mk = (root, quality, octave) => ({ root, quality, beats: 4, inversion: 0, 
             const visibles = [...document.querySelectorAll('.viz-diagrams > *')]
                 .filter(e => e.getBoundingClientRect().width > 0)
                 .map(e => ({ q: e.id, ...e.getBoundingClientRect().toJSON() }));
+            // La BASCULE compte dans le contenu de la carte : depuis qu'elle est passée à côté des
+            // diagrammes (voir plus bas), c'est l'ensemble des deux qui doit être centré.
+            const bascule = [...document.querySelectorAll('.viz-toggle')]
+                .filter(e => e.getBoundingClientRect().width > 0)
+                .map(e => ({ q: 'viz-toggle', ...e.getBoundingClientRect().toJSON() }));
+            const contenu = visibles.concat(bascule);
             return {
                 carte,
                 visibles: visibles.map(v => ({ q: v.q, l: Math.round(v.left), r: Math.round(v.right) })),
+                bascule: bascule.map(v => ({ l: Math.round(v.left), r: Math.round(v.right) })),
                 // Aucune colonne de diagramme masquée ne doit garder de largeur : c'était la cause.
                 debordent: visibles.filter(v => v.left < carte.l - 1 || v.right > carte.r + 1).map(v => v.q),
-                ecartCentre: visibles.length
-                    ? Math.round(Math.abs((Math.min(...visibles.map(v => v.left)) + Math.max(...visibles.map(v => v.right))) / 2 - (carte.l + carte.r) / 2))
+                ecartCentre: contenu.length
+                    ? Math.round(Math.abs((Math.min(...contenu.map(v => v.left)) + Math.max(...contenu.map(v => v.right))) / 2 - (carte.l + carte.r) / 2))
                     : null,
             };
         });
         console.log(nom.padEnd(14), JSON.stringify(d));
         check(d.debordent.length === 0,
             `${nom} : aucun diagramme ne déborde de sa carte — fautifs ${JSON.stringify(d.debordent)}`);
+        // CETTE MESURE PORTAIT SUR LES SEULS DIAGRAMMES, ET ELLE EST DEVENUE FAUSSE — pas parce que
+        // l'appli s'est cassée, mais parce que la disposition qu'elle décrivait a changé sur demande :
+        // la bascule piano/guitare, autrefois EMPILÉE sous les diagrammes (donc sans effet sur le
+        // centrage horizontal), est passée À CÔTÉ d'eux pour rendre 42px de hauteur au séquenceur
+        // (« les diagrammes d'accords ouverts prennent trop de place en hauteur »). Les diagrammes
+        // seuls sont donc désormais décalés de (70px de bascule + 14px de gap) / 2 = 42px vers la
+        // gauche du centre de la carte — mesuré : exactement 42px dans les trois cas, ce qui confirme
+        // que rien d'autre n'a bougé. Ce qui doit rester centré, c'est le CONTENU de la carte.
         check(d.ecartCentre !== null && d.ecartCentre <= 3,
-            `${nom} : l'ensemble des diagrammes est centré dans la carte (écart ${d.ecartCentre}px)`);
+            `${nom} : l'ensemble diagrammes + bascule est centré dans la carte (écart ${d.ecartCentre}px)`);
         await p.close();
     }
 
