@@ -3018,6 +3018,27 @@ class HarmoHubApp {
         // actuellement choisi — voir selectGuitarDrawCandidate.
         this.guitarDrawRecognition = null;
         this.guitarDrawSelectedIndex = 0;
+        // ---------- Notes fantômes (Lot 6, bonus) ----------
+        // Retour utilisateur : « il serait intéressant d'ajouter des ghost notes, mais c'est pas
+        // l'essentiel ». Deux sens distincts, les DEUX demandés : un aperçu translucide au survol
+        // AVANT de cliquer (confort de saisie, jamais mémorisé) et une frappe percussive/étouffée,
+        // sans hauteur définie, qu'on peut poser sur une corde comme une vraie note (sens guitare
+        // classique — feeling rythmique). Volontairement SESSION UNIQUEMENT (jamais écrit dans
+        // guitarLock/le morceau, remis à zéro à chaque ouverture de la fenêtre comme guitarDrawShape
+        // l'était avant le Lot 4) : c'est une aide à la composition du doigté, pas un attribut
+        // permanent de l'accord — la recevoir à chaque réouverture ajouterait un champ de plus à
+        // faire survivre partout (verrou, substitut, PDF...) pour un gain hors de proportion avec la
+        // priorité annoncée.
+        // Position survolée par la souris (desktop uniquement, pas de survol tactile) : voir
+        // renderGuitarDrawOverlay, qui en tire l'aperçu.
+        this.guitarDrawHoverPos = null;
+        // Cases marquées « fantôme » (percussion étouffée), une par corde comme guitarDrawShape —
+        // une corde ne peut sonner qu'UNE chose à la fois, les deux tableaux sont donc mutuellement
+        // exclusifs (voir onGuitarNeckClick).
+        this.guitarDrawGhostStrings = new Array(6).fill(null);
+        // Le clic sur le manche pose-t-il une note normale ou une note fantôme ? Voir
+        // #guitar-draw-ghost-toggle.
+        this.guitarDrawGhostMode = false;
         // Accord de substitution à la guitare, en attente pour l'accord en cours d'édition (voir
         // toggleGuitarLock ci-dessus pour le même principe, et guitarChordFor/startGuitarOverrideEdit/
         // applyGuitarOverride) : { root, quality, bass, octave, inversion, drop } déjà normalisé (jamais
@@ -4027,8 +4048,13 @@ class HarmoHubApp {
         // Clic/tap sur le manche large : actif uniquement sur l'onglet Dessiner (voir
         // onGuitarNeckClick, qui se filtre lui-même sur this.guitarEditTab).
         document.getElementById('guitar-edit-neck').addEventListener('click', (e) => this.onGuitarNeckClick(e));
+        // Aperçu fantôme au survol (Lot 6, souris uniquement — aucun équivalent tactile ne fait
+        // sens ici, un doigt ne « survole » rien avant de toucher l'écran).
+        document.getElementById('guitar-edit-neck').addEventListener('mousemove', (e) => this.onGuitarNeckHover(e));
+        document.getElementById('guitar-edit-neck').addEventListener('mouseleave', () => this.onGuitarNeckLeave());
         document.getElementById('guitar-draw-play').onclick = () => this.playGuitarDrawChord();
         document.getElementById('guitar-draw-validate').onclick = () => this.validateGuitarDrawnChord();
+        document.getElementById('guitar-draw-ghost-toggle').onclick = () => this.toggleGuitarDrawGhostMode();
         this.setGuitarEditTab(this.guitarEditTab); // reflète l'onglet par défaut dès le chargement
         this.applyVizVisibility();
     }
@@ -4421,6 +4447,12 @@ class HarmoHubApp {
         this.syncGuitarDrawShapeFromLock();
         this.guitarDrawRecognition = null;
         this.guitarDrawSelectedIndex = 0;
+        // Notes fantômes (Lot 6) : toujours remises à zéro à l'ouverture — c'est une aide de saisie
+        // SESSION UNIQUE, jamais mémorisée (voir le constructeur pour le pourquoi).
+        this.guitarDrawGhostStrings = new Array(6).fill(null);
+        this.guitarDrawGhostMode = false;
+        this.guitarDrawHoverPos = null;
+        this.updateGuitarGhostToggleButton();
         if (this.guitarEditTab === 'draw') this.renderGuitarDrawNeck();
         this.renderGuitarDrawResult();
     }
@@ -4461,11 +4493,70 @@ class HarmoHubApp {
         if (!wideViz) return;
         const byString = this.guitarDrawShape.map((fret, s) => (fret == null ? null : { fret, midi: GUITAR_OPEN_MIDI[s] + fret, role: 'neutral' }));
         wideViz.innerHTML = this.buildGuitarDiagramSVG(byString, false, true);
+        this.renderGuitarDrawOverlay(wideViz); // notes fantômes posées + aperçu au survol (Lot 6)
+        const hasGhosts = this.guitarDrawGhostStrings.some(f => f != null);
         const hasNotes = this.guitarDrawShape.some(f => f != null);
         const playBtn = document.getElementById('guitar-draw-play');
-        if (playBtn) playBtn.disabled = !hasNotes;
+        if (playBtn) playBtn.disabled = !hasNotes && !hasGhosts;
+        // Valider (reconnaissance, Lot 3) reste gaté sur les VRAIES notes uniquement : une note
+        // fantôme n'a par définition aucune hauteur, elle ne peut jamais faire pencher un accord d'un
+        // côté ou de l'autre.
         const validateBtn = document.getElementById('guitar-draw-validate');
         if (validateBtn) validateBtn.disabled = !hasNotes;
+    }
+
+    // Ajoute par-dessus le manche fraîchement dessiné (voir renderGuitarDrawNeck) : les notes
+    // fantômes déjà posées (petite « × » grise, sans dégradé de rôle puisqu'aucune fonction
+    // harmonique ne leur correspond) et l'aperçu translucide de ce que le PROCHAIN clic posera à
+    // l'endroit survolé (souris uniquement — pas de survol tactile, voir onGuitarNeckHover). Un
+    // simple ajout SVG après coup plutôt qu'un paramètre de plus dans buildGuitarDiagramSVG : ce
+    // dernier reste ainsi inchangé pour tous ses autres appelants (petit diagramme, PDF), qui n'ont
+    // jamais affaire à des notes fantômes (voir le constructeur : jamais persistées).
+    renderGuitarDrawOverlay(wideViz) {
+        const svg = wideViz.querySelector('svg');
+        if (!svg) return;
+        const { stringGap, fretGap, marginLeft, marginTop } = GUITAR_SVG_LAYOUT;
+        const stringY = s => marginTop + (5 - s) * stringGap;
+        const xFor = fret => (fret === 0 ? marginLeft - 9 : marginLeft + (fret - 0.5) * fretGap);
+        let extra = '';
+        this.guitarDrawGhostStrings.forEach((fret, s) => {
+            if (fret == null) return;
+            extra += `<text x="${xFor(fret)}" y="${stringY(s) + 3}" font-size="10" font-weight="700" fill="${ROLE_COLOR.neutral}" text-anchor="middle">×</text>`;
+        });
+        if (this.guitarDrawHoverPos) {
+            const { string, fret } = this.guitarDrawHoverPos;
+            // Rien à prévisualiser sur une case déjà occupée (note ou fantôme) — le prochain clic la
+            // RETIRERAIT, pas la poserait, l'aperçu induirait alors en erreur.
+            if (this.guitarDrawShape[string] !== fret && this.guitarDrawGhostStrings[string] !== fret) {
+                const x = xFor(fret), y = stringY(string);
+                extra += this.guitarDrawGhostMode
+                    ? `<text x="${x}" y="${y + 3}" font-size="10" font-weight="700" fill="${ROLE_COLOR.neutral}" opacity="0.45" text-anchor="middle">×</text>`
+                    : `<circle cx="${x}" cy="${y}" r="4.6" fill="${ROLE_COLOR.neutral}" opacity="0.4"/>`;
+            }
+        }
+        if (extra) svg.insertAdjacentHTML('beforeend', extra);
+    }
+
+    // Survol du manche large (souris, voir setupEventListeners) : montre à l'avance où tombera le
+    // prochain clic — retour utilisateur, aperçu façon glisser-fantôme du séquenceur (voir
+    // Alt+glisser dans le séquenceur, même principe). Ignoré hors de l'onglet Dessiner, comme
+    // onGuitarNeckClick.
+    onGuitarNeckHover(e) {
+        if (this.guitarEditTab !== 'draw') return;
+        const pos = this.guitarDrawPositionAt(e.clientX, e.clientY);
+        const prev = this.guitarDrawHoverPos;
+        // Ne redessine que si la case survolée a réellement changé — un mousemove tire des dizaines
+        // d'évènements par seconde, redessiner tout le manche SVG à chacun serait pur gaspillage.
+        if ((!pos && !prev) || (pos && prev && pos.string === prev.string && pos.fret === prev.fret)) return;
+        this.guitarDrawHoverPos = pos;
+        this.renderGuitarDrawNeck();
+    }
+
+    // Le pointeur quitte le manche (ou la fenêtre se ferme dessous) : plus rien à prévisualiser.
+    onGuitarNeckLeave() {
+        if (!this.guitarDrawHoverPos) return;
+        this.guitarDrawHoverPos = null;
+        this.renderGuitarDrawNeck();
     }
 
     // Convertit un point d'écran (clic/tap) en { string, fret } sur le manche large actuellement
@@ -4500,12 +4591,26 @@ class HarmoHubApp {
         const pos = this.guitarDrawPositionAt(e.clientX, e.clientY);
         if (!pos) return;
         const { string, fret } = pos;
-        const removed = this.guitarDrawShape[string] === fret;
-        this.guitarDrawShape[string] = removed ? null : fret;
         // Dès la première modification manuelle, plus question d'écraser ce dessin en revenant sur cet
         // onglet (voir syncGuitarDrawShapeFromLock, Lot 5) : c'est désormais un brouillon en cours,
-        // distinct de ce qui est verrouillé/substitué par ailleurs.
+        // distinct de ce qui est verrouillé/substitué par ailleurs. Vrai que le clic pose une note
+        // normale ou une note fantôme (Lot 6) — les deux changent ce qui est réellement dessiné.
         this.guitarDrawDirty = true;
+        let placedNote = false, placedGhost = false;
+        if (this.guitarDrawGhostMode) {
+            // Note fantôme (Lot 6) : une corde ne peut sonner qu'UNE chose à la fois, exactement comme
+            // pour une vraie note (voir plus bas) — en poser une ici retire donc une éventuelle vraie
+            // note déjà présente sur cette même corde.
+            const removed = this.guitarDrawGhostStrings[string] === fret;
+            this.guitarDrawGhostStrings[string] = removed ? null : fret;
+            placedGhost = !removed;
+            if (placedGhost) this.guitarDrawShape[string] = null;
+        } else {
+            const removed = this.guitarDrawShape[string] === fret;
+            this.guitarDrawShape[string] = removed ? null : fret;
+            placedNote = !removed;
+            if (placedNote) this.guitarDrawGhostStrings[string] = null;
+        }
         // Toute reconnaissance affichée décrivait le dessin D'AVANT ce clic : plus valable une fois le
         // dessin changé, il faut revalider (retour utilisateur, Lot 3 : reconnaissance sur demande,
         // jamais silencieusement périmée).
@@ -4513,7 +4618,8 @@ class HarmoHubApp {
         this.guitarDrawSelectedIndex = 0;
         this.renderGuitarDrawNeck();
         this.renderGuitarDrawResult();
-        if (!removed) this.previewGuitarDrawNote(GUITAR_OPEN_MIDI[string] + fret);
+        if (placedNote) this.previewGuitarDrawNote(GUITAR_OPEN_MIDI[string] + fret);
+        else if (placedGhost) this.previewGuitarGhostNote(string, fret);
     }
 
     // Écoute d'UNE note posée sur le manche — même principe que previewSeqNote (séquenceur) : ne
@@ -4529,17 +4635,52 @@ class HarmoHubApp {
         }
     }
 
+    // Écoute d'UNE note fantôme posée sur le manche (Lot 6) : très courte et sourde plutôt qu'une
+    // vraie attaque — évoque le geste percussif étouffé plutôt qu'une hauteur définie (la hauteur de
+    // la corde à vide sert juste de source sonore, elle n'a musicalement aucun sens ici).
+    async previewGuitarGhostNote(string, fret) {
+        await Tone.start();
+        const instrumentKey = document.getElementById('instrument').value;
+        const inst = this.getInstrument(instrumentKey);
+        try {
+            inst.triggerAttackRelease(Tone.Frequency(GUITAR_OPEN_MIDI[string] + fret, 'midi').toNote(), 0.06, Tone.now(), 0.35);
+        } catch (e) {
+            console.warn('Aperçu de note fantôme ignoré (instrument pas encore prêt) :', e.message);
+        }
+    }
+
+    // Bascule si le clic sur le manche pose une note normale ou une note fantôme (percussive,
+    // étouffée) — voir #guitar-draw-ghost-toggle et onGuitarNeckClick.
+    toggleGuitarDrawGhostMode() {
+        this.guitarDrawGhostMode = !this.guitarDrawGhostMode;
+        this.updateGuitarGhostToggleButton();
+        // L'aperçu au survol (voir renderGuitarDrawOverlay) dépend du mode courant (puce colorée vs
+        // « × » pâle) : le redessiner tout de suite évite d'attendre le prochain mouvement de souris
+        // pour refléter le changement.
+        this.renderGuitarDrawNeck();
+    }
+
+    updateGuitarGhostToggleButton() {
+        const btn = document.getElementById('guitar-draw-ghost-toggle');
+        if (!btn) return;
+        btn.classList.toggle('active', this.guitarDrawGhostMode);
+        btn.setAttribute('aria-pressed', this.guitarDrawGhostMode);
+    }
+
     // Joue TOUTES les notes actuellement posées sur le manche, ensemble — pour entendre l'accord en
-    // cours de construction, même incomplet (retour utilisateur, point 2).
+    // cours de construction, même incomplet (retour utilisateur, point 2). Les notes fantômes (Lot 6)
+    // sonnent aussi, en frappe courte et sourde — pour entendre l'ensemble tel qu'il sera vraiment joué.
     async playGuitarDrawChord() {
         const midis = this.guitarDrawShape.map((fret, s) => (fret == null ? null : GUITAR_OPEN_MIDI[s] + fret)).filter(m => m != null);
-        if (!midis.length) return;
+        const ghostMidis = this.guitarDrawGhostStrings.map((fret, s) => (fret == null ? null : GUITAR_OPEN_MIDI[s] + fret)).filter(m => m != null);
+        if (!midis.length && !ghostMidis.length) return;
         await Tone.start();
         const instrumentKey = document.getElementById('instrument').value;
         const inst = this.getInstrument(instrumentKey);
         const t = Tone.now();
         try {
             midis.forEach(midi => inst.triggerAttackRelease(Tone.Frequency(midi, 'midi').toNote(), 0.8, t, 0.85));
+            ghostMidis.forEach(midi => inst.triggerAttackRelease(Tone.Frequency(midi, 'midi').toNote(), 0.06, t, 0.3));
         } catch (e) {
             console.warn('Lecture de l\'accord (manche) ignorée (instrument pas encore prêt) :', e.message);
         }
