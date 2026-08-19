@@ -337,8 +337,10 @@ body.body-scroll-locked { overflow: hidden !important; }
 .seq-label-echo-next { border-right: 2px solid var(--accent); padding-right: 4px; }
 
 /* Ligne de contexte (accord voisin, hors édition) : nom de note seul, sans case ni glissé possible —
-   nettement plus discret qu'une vraie voix de l'accord en cours d'édition. */
-.seq-label-context { color: var(--text-muted); opacity: 0.55; font-style: italic; cursor: default; }
+   nettement plus discret qu'une vraie voix de l'accord en cours d'édition. 0.55 -> 0.7 (retour
+   utilisateur : « les accords non sélectionnés en transparence, je ne les vois pas assez, à rendre un
+   tout petit peu plus opaques »). */
+.seq-label-context { color: var(--text-muted); opacity: 0.7; font-style: italic; cursor: default; }
 
 /* Mode continu (voir renderSequencer, gridZoomOpen) : le défilement horizontal devient le mode de
    navigation normal pour voir les accords voisins (retour utilisateur), pas un dernier recours comme
@@ -510,15 +512,17 @@ body.body-scroll-locked { overflow: hidden !important; }
    Reste la même forme que les barres éditables — dégradé, bordure, arrondi — à teinte et opacité
    réduites : c'est la PÂLEUR qui dit « pas modifiable ici », pas la forme (retour utilisateur :
    « laisse la même forme que l'accord que je suis en train de modifier, juste des couleurs plus
-   pâles »). L'opacité est calée pour rester SOUS l'accord édité : 0.45 x 0.30 d'alpha donne ~0.14 de
-   teinte effective, contre 0.38 pour une barre éditable — qui porte en plus un halo. */
+   pâles »). L'opacité reste SOUS l'accord édité : 0.6 x 0.30 d'alpha donne ~0.18 de teinte effective,
+   contre 0.38 pour une barre éditable — qui porte en plus un halo. Remontée depuis 0.45 (~0.14
+   effectif, retour utilisateur : « les accords non sélectionnés en transparence, je ne les vois pas
+   assez, à rendre un tout petit peu plus opaques »). */
 .seq-ctx-note {
     position: relative;
     align-self: stretch;
     pointer-events: none;
     border-radius: 4px;
     border: 1px solid;
-    opacity: 0.45;
+    opacity: 0.6;
 }
 .seq-ctx-note.seq-ctx-role-root {
     background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%), rgba(0, 230, 118, 0.30);
@@ -4885,6 +4889,11 @@ select.song-select-narrow {
 }
 .seq-scroll-continuous::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.48); background-clip: padding-box; }
 .seq-scroll-continuous::-webkit-scrollbar-corner { background: transparent; }
+/* Curseur "main qui attrape", posé le temps du glisser au clic molette (voir renderSequencer,
+   listener 'pointerdown' bouton 1) : mêmes deux états qu'un vrai outil main de station audio.
+   user-select:none évite qu'un déplacement de souris bouton enfoncé sélectionne du texte au passage
+   (les libellés de note, notamment) pendant qu'on ne fait que défiler. */
+.seq-scroll-panning, .seq-scroll-panning * { cursor: grabbing !important; user-select: none; }
 
 /* Deux surfaces de PRÉHENSION où glisser fait défiler, jamais éditer : la règle de mesure en haut et
    la gouttière des notes à gauche. Elles bordent déjà la zone de travail sur ses deux axes, donc le

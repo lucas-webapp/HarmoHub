@@ -4456,6 +4456,76 @@ class HarmoHubApp {
         } else if (disp.parentElement !== headerRow) {
             headerRow.appendChild(disp);
         }
+        this.alignPianoOnGuitarDiagram();
+        this.observerAlignementPiano();
+    }
+
+    // Piano et guitare vivent côte à côte dans .viz-diagrams (align-items:center, voir style.css),
+    // mais ce centrage porte sur #guitar-viz-wrap TOUT ENTIER — le diagramme ET la rangée de boutons
+    // sous lui (doigté précédent/suivant, substitut, cadenas) — jamais sur le SEUL diagramme. Le
+    // piano se retrouvait donc centré sur un bloc plus grand que ce qu'on compare réellement, et
+    // paraissait décalé vers le bas par rapport au manche de la guitare (retour utilisateur : « la
+    // mise en page des diagrammes n'est pas logique. Il faut remonter un peu le piano pour le centrer
+    // avec le diagramme de la guitare »).
+    // Décalage MESURÉ directement entre les deux CENTRES réels après mise en page — pas déduit d'une
+    // hypothèse sur ce qui entoure le diagramme guitare (rangée de boutons, substitut...), ce qui
+    // aurait cassé dès qu'un titre d'accord vient aussi se glisser AU-DESSUS du piano (voir
+    // placeChordTitle, cas où un substitut sépare piano et guitare) : ce titre déplace alors le piano
+    // à l'intérieur de #piano-col sans rien changer côté guitare, et un calcul fondé sur #piano-col
+    // dans son ensemble retombait faux (mesuré : 23px d'écart résiduel avec ce titre affiché). Comparer
+    // #piano-viz lui-même à #guitar-viz reste juste dans tous les cas, quoi que contienne #piano-col
+    // par ailleurs.
+    // this.style.transform REMIS À VIDE AVANT DE MESURER, ET C'EST OBLIGATOIRE : getBoundingClientRect()
+    // renvoie la position APRÈS transform, pas la position de mise en page brute. Sans cette remise à
+    // zéro, un appel qui retrouve le piano déjà correctement placé (grâce au translateY posé au tour
+    // précédent) mesurait un écart de 0 — et effaçait donc le translateY responsable de ce zéro,
+    // annulant sa propre correction à chaque second appel (piano qui oscille entre aligné et décalé
+    // d'un rendu à l'autre, mesuré en traçant les appels).
+    // GARDE-FOU CÔTE-À-CÔTE : .viz-diagrams passe en flex-wrap (voir style.css) quand la carte manque
+    // de place, et piano/guitare s'empilent alors au lieu de se partager la même ligne — plus rien à
+    // corriger dans ce cas, chacun se centre déjà seul sur SA ligne. Sans cette garde, un translateY
+    // calculé pour la disposition côte-à-côte restait figé après un redimensionnement de fenêtre (rien
+    // ne rappelle cette fonction sur un simple resize) et poussait le piano hors du cadre une fois la
+    // carte empilée — trouvé par mon propre banc, mesuré : 14px de débordement en haut à 400px de
+    // large. Détecté en comparant les étendues VERTICALES des deux blocs plutôt qu'un seuil de largeur
+    // arbitraire : côte à côte, elles se chevauchent (même ligne) ; empilés, elles ne se touchent plus.
+    alignPianoOnGuitarDiagram() {
+        const piano = document.getElementById('piano-viz');
+        if (!piano) return;
+        const pianoCol = document.getElementById('piano-col');
+        const guitarWrap = document.getElementById('guitar-viz-wrap');
+        const diagramme = document.getElementById('guitar-viz');
+        if (!guitarWrap || !diagramme || !pianoCol
+            || guitarWrap.style.display === 'none' || pianoCol.style.display === 'none') {
+            piano.style.transform = '';
+            return;
+        }
+        piano.style.transform = '';
+        const rPianoCol = pianoCol.getBoundingClientRect();
+        const rGuitarWrap = guitarWrap.getBoundingClientRect();
+        const coteACote = rPianoCol.top < rGuitarWrap.bottom && rGuitarWrap.top < rPianoCol.bottom;
+        if (!coteACote) return;
+        const rPiano = piano.getBoundingClientRect();
+        const rDiag = diagramme.getBoundingClientRect();
+        if (!rPiano.height || !rDiag.height) return;
+        const decalage = Math.round(((rDiag.top + rDiag.bottom) - (rPiano.top + rPiano.bottom)) / 2);
+        if (decalage) piano.style.transform = `translateY(${decalage}px)`;
+    }
+
+    // Rattrape les cas où RIEN ne redessine les diagrammes mais où la place disponible change quand
+    // même — un redimensionnement de fenêtre au premier chef, mais aussi ce qui a révélé le problème :
+    // un banc qui réduit .viz-wrap par CSS sans passer par un nouveau rendu. ResizeObserver plutôt
+    // qu'un listener 'resize' sur window : il réagit à TOUTE variation de la taille RÉELLE de
+    // .viz-diagrams, quelle qu'en soit la cause (fenêtre, repli de la colonne de gauche, volet du
+    // séquenceur qui grandit et grignote la largeur...), sans avoir à deviner laquelle surveiller.
+    // Posé une seule fois (drapeau _pianoAlignObserverPret) : .viz-diagrams est un conteneur STATIQUE
+    // du HTML, jamais recréé par un rendu — l'observer reste donc valide pour toute la session.
+    observerAlignementPiano() {
+        if (this._pianoAlignObserverPret) return;
+        const cible = document.querySelector('.viz-diagrams');
+        if (!cible || typeof ResizeObserver === 'undefined') return;
+        this._pianoAlignObserverPret = true;
+        new ResizeObserver(() => this.alignPianoOnGuitarDiagram()).observe(cible);
     }
 
     // Appelée UNIQUEMENT par stopAll() — donc à CHAQUE lecture (avant même de démarrer la suivante,
@@ -14111,6 +14181,43 @@ class HarmoHubApp {
                     if (peutV) return;
                     if (peutH) { e.preventDefault(); wheelScrollEl.scrollLeft += e.deltaY; }
                 }, { passive: false });
+
+                // Glisser au bouton du MILIEU de la souris (comme l'outil « main » d'une station audio :
+                // GarageBand, Logic...) : maintenir le bouton enfoncé et déplacer la souris fait défiler
+                // la bande dans les deux sens, sans avoir à viser une fine poignée (retour utilisateur :
+                // « j'aimerais pouvoir scroller en laissant cliquée la molette et en allant vers la
+                // droite ou la gauche avec la souris »). preventDefault() dès l'appui coupe le geste
+                // natif de Chrome/Windows/Linux (l'icône de défilement automatique qui apparaît sinon au
+                // clic molette et suit la souris SANS qu'on ait besoin de maintenir le bouton) : les deux
+                // modes se seraient sinon superposés et gênés l'un l'autre.
+                let glissePointeurId = null, glisseDepartX = 0, glisseDepartY = 0, glisseScrollL = 0, glisseScrollT = 0;
+                wheelScrollEl.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
+                wheelScrollEl.addEventListener('pointerdown', (e) => {
+                    if (e.button !== 1) return;
+                    e.preventDefault();
+                    glissePointeurId = e.pointerId;
+                    glisseDepartX = e.clientX; glisseDepartY = e.clientY;
+                    glisseScrollL = wheelScrollEl.scrollLeft; glisseScrollT = wheelScrollEl.scrollTop;
+                    // Capture explicite : le geste doit continuer à défiler même si la souris sort de la
+                    // bande pendant le glissé (même raison que le pincement tactile, voir plus haut).
+                    try { wheelScrollEl.setPointerCapture(e.pointerId); } catch (err) { /* ignoré, voir commentaire du pincement tactile plus haut */ }
+                    wheelScrollEl.classList.add('seq-scroll-panning');
+                });
+                wheelScrollEl.addEventListener('pointermove', (e) => {
+                    if (e.pointerId !== glissePointeurId) return;
+                    e.preventDefault();
+                    // Glisser vers la DROITE révèle ce qui est à GAUCHE (on « tire » le contenu vers
+                    // soi) : le scroll diminue quand la souris avance, d'où le signe moins.
+                    wheelScrollEl.scrollLeft = glisseScrollL - (e.clientX - glisseDepartX);
+                    wheelScrollEl.scrollTop = glisseScrollT - (e.clientY - glisseDepartY);
+                });
+                const finGlissePointeur = (e) => {
+                    if (e.pointerId !== glissePointeurId) return;
+                    glissePointeurId = null;
+                    wheelScrollEl.classList.remove('seq-scroll-panning');
+                };
+                wheelScrollEl.addEventListener('pointerup', finGlissePointeur);
+                wheelScrollEl.addEventListener('pointercancel', finGlissePointeur);
             }
         }
 
