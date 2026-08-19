@@ -3658,7 +3658,18 @@ body.all-beats .offbeat-dot {
     background: #202020;
     border: 1px solid var(--border);
     border-radius: 5px;
-    cursor: pointer;
+    /* Réticule fin, retour utilisateur : « j'ai besoin de quelque chose de fin pour le séquenceur...
+       main trop imprécise » — la flèche/main par défaut du système ne dit pas assez précisément quel
+       pixel/quelle case elle désigne dans une grille aussi dense. Halo sombre (3px, épais) DERRIÈRE un
+       trait clair (1.2px, fin) : même principe que le contour des « O »/« X » du manche guitare
+       (paint-order:stroke) — reste lisible quel que soit le fond survolé, pas seulement sur le fond
+       très sombre des cases. Espace vide EXACTEMENT au centre (façon viseur photo) : rien ne cache
+       jamais le pixel visé, contrairement à un simple point plein. Seulement ICI (case vide = "je vais
+       dessiner une note", le 3e des trois gestes documentés juste plus bas) — bord/corps d'une note
+       gardent leurs propres curseurs déjà en place (ew-resize/grab), plus parlants pour CES gestes-là.
+       `pointer` en secours si l'image personnalisée ne charge pas, pour ne jamais perdre ce curseur
+       cliquable de base. */
+    cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDMyIDMyIj4gPGcgc3Ryb2tlPSIjMDAwIiBzdHJva2Utd2lkdGg9IjMiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgb3BhY2l0eT0iMC41NSI+IDxsaW5lIHgxPSIxNiIgeTE9IjQiIHgyPSIxNiIgeTI9IjEyIi8+PGxpbmUgeDE9IjE2IiB5MT0iMjAiIHgyPSIxNiIgeTI9IjI4Ii8+IDxsaW5lIHgxPSI0IiB5MT0iMTYiIHgyPSIxMiIgeTI9IjE2Ii8+PGxpbmUgeDE9IjIwIiB5MT0iMTYiIHgyPSIyOCIgeTI9IjE2Ii8+IDwvZz4gPGcgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjEuMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4gPGxpbmUgeDE9IjE2IiB5MT0iNCIgeDI9IjE2IiB5Mj0iMTIiLz48bGluZSB4MT0iMTYiIHkxPSIyMCIgeDI9IjE2IiB5Mj0iMjgiLz4gPGxpbmUgeDE9IjQiIHkxPSIxNiIgeDI9IjEyIiB5Mj0iMTYiLz48bGluZSB4MT0iMjAiIHkxPSIxNiIgeDI9IjI4IiB5Mj0iMTYiLz4gPC9nPiA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxIiBmaWxsPSIjZmZmIiBzdHJva2U9IiMwMDAiIHN0cm9rZS13aWR0aD0iMC40Ii8+IDwvc3ZnPg==") 16 16, pointer;
     transition: background 0.1s ease, box-shadow 0.1s ease;
     /* LE DÉFILEMENT TACTILE REDEVIENT NATIF, dans les deux axes.
        Historique : c'était `touch-action: none`, pour empêcher le navigateur de s'emparer d'un geste
