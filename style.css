@@ -3566,6 +3566,12 @@ body.all-beats .offbeat-dot {
     touch-action: pan-x pan-y;
     user-select: none;
     -webkit-user-select: none;
+    /* Sans ça, Safari iOS peut quand même faire apparaître sa propre bulle de sélection/loupe native
+       après un appui un peu long — exactement le geste que l'appli utilise elle-même pour armer
+       l'édition (voir SEQ_APPUI_LONG_MS) — et cette bulle intercepte alors le tap SUIVANT au lieu de
+       le laisser atteindre le bouton visé juste après (retour utilisateur : « je ne peux pas cliquer
+       sur "supprimer sélection" » juste après avoir sélectionné une note). */
+    -webkit-touch-callout: none;
 }
 
 /* Pipette de motif entre voies armée (voir toggleSeqRowPipette dans script.js) : curseur "copier"

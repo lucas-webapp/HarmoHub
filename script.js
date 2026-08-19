@@ -12200,7 +12200,7 @@ class HarmoHubApp {
                 // faire cela »). Viser à une croche près à cette échelle est une erreur bien plus
                 // probable qu'une intention. Un vrai GLISSÉ, lui, dessine toujours : c'est ce qui
                 // permet quand même de poser une note collée à une autre quand on le veut vraiment.
-                const voisine = this._noteSeqVoisine(d.voice, d.startStep);
+                const voisine = this._noteSeqVoisine(d.voice, d.startStep, d.startX);
                 if (voisine) {
                     this.selectSeqNoteAt(d.voice, voisine.start, false);
                     this.seqEditFeedback(d.voice);
@@ -12227,15 +12227,48 @@ class HarmoHubApp {
         this.livePreviewUpdate();
     }
 
-    // Note collée à cette croche sur la MÊME voix, à gauche ou à droite — ses bornes, ou null.
-    // Sert au clic sur case vide (voir onSeqPointerUp) : à côté d'une note, on la sélectionne au lieu
-    // d'en créer une nouvelle. Tolérance d'UNE croche seulement, volontairement : au-delà, l'intention
-    // de créer redevient la plus probable. La droite est examinée en premier — cliquer juste après la
-    // fin d'une note est le geste le plus courant, et c'est cette note-là qu'on visait.
-    _noteSeqVoisine(voice, step) {
+    // Distance minimale garantie autour d'une note pour ce repêchage (voir _noteSeqVoisine), quel
+    // que soit le zoom horizontal. PLANCHER, pas remplacement : une croche large la dépasse déjà et
+    // le comportement d'avant est inchangé — elle ne change quelque chose qu'en dessous.
+    static get SEQ_TAP_TOLERANCE_MIN_PX() { return 16; }
+
+    // Note collée à cette croche sur la MÊME voix — ses bornes, ou null. Sert au clic sur case vide
+    // (voir onSeqPointerUp) : à côté d'une note, on la sélectionne au lieu d'en créer une nouvelle.
+    // Tolérance d'ENVIRON une croche, volontairement : au-delà, l'intention de créer redevient la
+    // plus probable (retour utilisateur d'origine : « si je fais un simple clic juste à côté d'une
+    // note existante, il faut sélectionner cette note »).
+    // MESURÉE EN PIXELS RÉELLEMENT RENDUS désormais, plus en nombre de croches : à un zoom serré,
+    // une croche peut ne faire que 14px de large à l'écran, bien en dessous des ~44px recommandés au
+    // doigt (Apple/Google) — un tap qui ratait la barre d'un rien tombait alors hors de portée du
+    // voisin, et rien n'était jamais sélectionné (retour utilisateur : « lorsqu'une petite barre est
+    // sélectionnée, je ne peux pas cliquer sur "supprimer sélection" » — mesuré : le tap manquait
+    // réellement la barre, elle n'était jamais sélectionnée du tout, malgré ce qu'on croyait avoir
+    // touché). `clientX` (position RÉELLE du tap, voir d.startX) remplace donc `step±1` : plus juste
+    // dans tous les cas, sans plus dépendre d'un simple compte de croches. Choisit la note la plus
+    // PROCHE, pas la première trouvée à droite : plus juste dans les cas ambigus, et sans perdre le
+    // cas courant (juste après la fin d'une note) qu'un simple ±1 croche couvrait déjà.
+    _noteSeqVoisine(voice, step, clientX = null) {
         const chord = this.readChord();
         const { pattern, tie } = this.getLiveSeqPattern(chord);
         if (!pattern || !pattern.length) return null;
+        if (clientX != null) {
+            let meilleure = null, meilleureDist = Infinity;
+            document.querySelectorAll(`.seq-note[data-voice="${voice}"]`).forEach(bar => {
+                const r = bar.getBoundingClientRect();
+                const debut = +bar.dataset.start, fin = +bar.dataset.end;
+                // Largeur d'UNE croche déduite de CETTE barre elle-même (sa largeur totale sur son
+                // nombre de croches) : pas besoin d'aller mesurer une case à part, et ça reste juste
+                // même sur une note liée à cheval sur deux doubles-croches.
+                const colPx = r.width / Math.max(1, fin - debut + 1);
+                const tolerance = Math.max(colPx, HarmoHubApp.SEQ_TAP_TOLERANCE_MIN_PX);
+                const dist = clientX < r.left ? r.left - clientX : clientX > r.right ? clientX - r.right : 0;
+                if (dist <= tolerance && dist < meilleureDist) {
+                    meilleureDist = dist;
+                    meilleure = { start: debut, end: fin };
+                }
+            });
+            return meilleure;
+        }
         for (const delta of [-1, 1]) {
             const s = step + delta;
             if (s < 0 || s >= pattern.length) continue;
