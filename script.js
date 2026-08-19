@@ -1242,7 +1242,11 @@ class Chord {
 // Couleurs par fonction, partagées entre le clavier et les diagrammes (piano/guitare) exportés en
 // PDF — mêmes rôles que .key.active.role-* dans le CSS (repris ici en dur car ce fichier n'a pas
 // accès aux styles calculés pour construire du SVG à l'export).
-const ROLE_COLOR = { root: '#00c853', third: '#2f81f7', fifth: '#e53922', seventh: '#ff9800', ext: '#8bd6a8' };
+// 'neutral' : couleur des notes posées à la main sur le manche AVANT reconnaissance (voir
+// #guitar-edit-tab-draw dans script.js — retour utilisateur, point 2 : « au début, les notes seront
+// donc de couleur neutre ») — un gris qui ne préjuge d'aucune fonction, contrairement aux 5 couleurs
+// ci-dessus qui SONT chacune la fonction d'une note dans un accord déjà identifié.
+const ROLE_COLOR = { root: '#00c853', third: '#2f81f7', fifth: '#e53922', seventh: '#ff9800', ext: '#8bd6a8', neutral: '#9e9e9e' };
 
 // Dégradés « perlés » (clair -> teinte -> foncé) des points de doigté guitare EN DIRECT (voir
 // buildGuitarDiagramSVG) — même principe que les touches actives du piano (.key.active.role-* dans
@@ -1254,6 +1258,7 @@ const ROLE_GRADIENT_STOPS = {
     fifth:   ['#ff8f87', '#ff3b30', '#d42a20'],
     seventh: ['#ffd166', '#ffb300', '#cc8f00'],
     ext:     ['#f0d4ff', '#e0b0ff', '#c48ce6'],
+    neutral: ['#e4e4e4', '#9e9e9e', '#6e6e6e'],
 };
 let guitarSvgIdSeq = 0; // suffixe unique par diagramme, pour ne jamais dupliquer un id de <radialGradient> quand plusieurs schémas cohabitent dans la page (ex. export PDF, plusieurs doigtés)
 
@@ -1304,6 +1309,10 @@ const GUITAR_MAX_FRET = 15;   // au-delà, une position n'est plus vraiment util
 // ci-dessus qui borne les SUGGESTIONS automatiques du solveur (une position à la case 20 n'est
 // presque jamais praticable pour un doigté proposé) : deux usages différents, deux bornes différentes.
 const GUITAR_NECK_DISPLAY_FRETS = 24;
+// Géométrie du diagramme SVG (voir buildGuitarDiagramSVG) — sortie du corps de la fonction pour que
+// guitarDrawPositionAt (clic sur le manche en mode « Dessiner », voir #guitar-edit-tab-draw) reste
+// TOUJOURS d'accord avec ce qui est réellement dessiné, sans dupliquer ces nombres à deux endroits.
+const GUITAR_SVG_LAYOUT = { stringGap: 16, fretGap: 30, marginLeft: 20, marginTop: 8 };
 const GUITAR_MAX_SPAN = 4;    // écart max (en cases) entre la case la plus basse et la plus haute jouées
 const GUITAR_MAX_FINGERS = 4; // 4 doigts disponibles ; une case commune à plusieurs cordes ne compte
                                // que pour un seul doigt (barré)
@@ -2913,9 +2922,15 @@ class HarmoHubApp {
         // panneau live (édition ou Ajout) reprend la main, voir ensureGuitarDiagram(useLiveLock=true).
         this.guitarPreviewPos = null;
         this.guitarEditOpen = false; // fenêtre d'édition manuelle du manche ouverte ou non (voir openGuitarEditor)
-        // Onglet actif dans cette fenêtre (voir setGuitarEditTab) : « name » par défaut — c'est le seul
-        // pleinement fonctionnel tant que le Lot 2 (dessin au clic) n'est pas en place.
+        // Onglet actif dans cette fenêtre (voir setGuitarEditTab) : « name » par défaut.
         this.guitarEditTab = 'name';
+        // Forme en cours de dessin au clic (voir #guitar-edit-tab-draw/guitarDrawPositionAt) : une
+        // case par corde, `null` = pas encore touchée (retour utilisateur, point « X par défaut » :
+        // « les notes non jouées manuellement seront considérées non jouées avec le X en bout de
+        // manche »— pas d'état intermédiaire « indéfini », donc pas de troisième valeur possible ici).
+        // Remise à zéro à chaque ouverture de la fenêtre (voir openGuitarEditor) : rien n'est encore
+        // enregistré à ce stade (Lot 4), donc rien à restaurer d'une fois sur l'autre.
+        this.guitarDrawShape = new Array(6).fill(null);
         // Accord de substitution à la guitare, en attente pour l'accord en cours d'édition (voir
         // toggleGuitarLock ci-dessus pour le même principe, et guitarChordFor/startGuitarOverrideEdit/
         // applyGuitarOverride) : { root, quality, bass, octave, inversion, drop } déjà normalisé (jamais
@@ -3922,6 +3937,10 @@ class HarmoHubApp {
         });
         document.getElementById('guitar-edit-tab-draw').onclick = () => this.setGuitarEditTab('draw');
         document.getElementById('guitar-edit-tab-name').onclick = () => this.setGuitarEditTab('name');
+        // Clic/tap sur le manche large : actif uniquement sur l'onglet Dessiner (voir
+        // onGuitarNeckClick, qui se filtre lui-même sur this.guitarEditTab).
+        document.getElementById('guitar-edit-neck').addEventListener('click', (e) => this.onGuitarNeckClick(e));
+        document.getElementById('guitar-draw-play').onclick = () => this.playGuitarDrawChord();
         this.setGuitarEditTab(this.guitarEditTab); // reflète l'onglet par défaut dès le chargement
         this.applyVizVisibility();
     }
@@ -3939,6 +3958,11 @@ class HarmoHubApp {
         tabName.setAttribute('aria-selected', tab === 'name' ? 'true' : 'false');
         document.getElementById('guitar-edit-pane-draw').hidden = tab !== 'draw';
         document.getElementById('guitar-edit-pane-name').hidden = tab !== 'name';
+        // Le manche large change de propriétaire selon l'onglet (voir renderGuitarDiagram/
+        // renderGuitarDrawNeck) : ce bouton-poussoir affiche celui à qui le manche appartient
+        // désormais, sans attendre le prochain rendu déclenché par autre chose.
+        if (tab === 'draw') this.renderGuitarDrawNeck();
+        else this.renderGuitarDiagram();
     }
 
     // Bascule la visibilité de certaines <option> d'un <select> en les retirant/réinsérant réellement
@@ -4254,8 +4278,10 @@ class HarmoHubApp {
         // Manche complet de la fenêtre d'édition manuelle (voir openGuitarEditor) : reste synchronisé
         // en PERMANENCE avec le petit diagramme, même fenêtre fermée — sinon la première ouverture
         // afficherait un instant l'ancien contenu (ou rien) avant le prochain changement d'accord.
-        // Élément absent tant que le Lot 1 n'est pas en place (index.html) : simple no-op alors.
-        const wideViz = document.getElementById('guitar-edit-neck');
+        // SAUF sur l'onglet « Dessiner » (voir renderGuitarDrawNeck) : ce manche-là appartient alors
+        // à la forme en cours de dessin (this.guitarDrawShape), pas au doigté résolu — l'écraser ici
+        // effacerait le dessin en cours à chaque frappe dans le panneau Accord.
+        const wideViz = this.guitarEditTab === 'draw' ? null : document.getElementById('guitar-edit-neck');
         const editBtn = document.getElementById('guitar-edit-btn');
         if (!fingerings.length) {
             viz.innerHTML = `<div class="guitar-unplayable">Non jouable à la guitare</div>`;
@@ -4283,13 +4309,17 @@ class HarmoHubApp {
     // utilisateur : « j'ai déjà beaucoup de boutons » — flèches de doigté + substitut + cadenas, toutes
     // relocalisées telles quelles À L'INTÉRIEUR (voir index.html) plutôt que réécrites — même logique,
     // mêmes id, pour ne rien casser de ce qui marche déjà. Le manche complet (#guitar-edit-neck) est
-    // déjà à jour en permanence (voir renderGuitarDiagram), rien à recalculer à l'ouverture.
+    // déjà à jour en permanence (voir renderGuitarDiagram), rien à recalculer à l'ouverture — sauf le
+    // dessin au clic (Lot 2), reparti à zéro à chaque ouverture (rien n'est encore enregistré avant le
+    // Lot 4, donc rien à restaurer d'une fois sur l'autre).
     openGuitarEditor() {
         const overlay = document.getElementById('guitar-edit-overlay');
         if (!overlay) return;
         this.guitarEditOpen = true;
         overlay.hidden = false;
         this.lockBodyScroll();
+        this.guitarDrawShape = new Array(6).fill(null);
+        if (this.guitarEditTab === 'draw') this.renderGuitarDrawNeck();
     }
 
     closeGuitarEditor() {
@@ -4297,6 +4327,92 @@ class HarmoHubApp {
         this.guitarEditOpen = false;
         if (overlay) overlay.hidden = true;
         this.unlockBodyScroll();
+    }
+
+    // ---------- Onglet « Dessiner sur le manche » (Lot 2) ----------
+    // Retour utilisateur : « pour placer les notes, je pourrai cliquer directement sur les frettes de
+    // la guitare, une à une... les notes seront donc de couleur neutre... je dois pouvoir entendre les
+    // notes à l'oreille, et je dois pouvoir jouer l'accord que je suis en train d'éditer ».
+
+    // Reconstruit le manche large depuis this.guitarDrawShape : chaque corde touchée devient une
+    // note NEUTRE (voir ROLE_COLOR.neutral) — aucune fonction ne peut encore lui être attribuée tant
+    // que l'accord n'a pas été reconnu (Lot 3). Une corde jamais touchée reste `null`, dessinée par
+    // buildGuitarDiagramSVG comme une corde étouffée (X) — pas de 3e état, conformément au retour
+    // utilisateur (« les notes non jouées manuellement seront considérées non jouées »).
+    renderGuitarDrawNeck() {
+        const wideViz = document.getElementById('guitar-edit-neck');
+        if (!wideViz) return;
+        const byString = this.guitarDrawShape.map((fret, s) => (fret == null ? null : { fret, midi: GUITAR_OPEN_MIDI[s] + fret, role: 'neutral' }));
+        wideViz.innerHTML = this.buildGuitarDiagramSVG(byString, false, true);
+        const playBtn = document.getElementById('guitar-draw-play');
+        if (playBtn) playBtn.disabled = !this.guitarDrawShape.some(f => f != null);
+    }
+
+    // Convertit un point d'écran (clic/tap) en { string, fret } sur le manche large actuellement
+    // affiché — géométrie strictement identique à celle posée par buildGuitarDiagramSVG (voir
+    // GUITAR_SVG_LAYOUT), donc toujours d'accord avec ce qui est réellement dessiné à l'écran, quel
+    // que soit le zoom du navigateur (mesuré via le rectangle RÉEL du <svg>, pas une taille supposée).
+    // `null` si le clic tombe hors du manche (au-delà de la dernière case, par exemple).
+    guitarDrawPositionAt(clientX, clientY) {
+        const svg = document.querySelector('#guitar-edit-neck svg');
+        if (!svg) return null;
+        const rect = svg.getBoundingClientRect();
+        const viewBox = svg.viewBox.baseVal;
+        if (!rect.width || !rect.height || !viewBox.width || !viewBox.height) return null;
+        const scaleX = rect.width / viewBox.width, scaleY = rect.height / viewBox.height;
+        const x = (clientX - rect.left) / scaleX, y = (clientY - rect.top) / scaleY;
+        const { stringGap, fretGap, marginLeft, marginTop } = GUITAR_SVG_LAYOUT;
+        const string = 5 - Math.round((y - marginTop) / stringGap);
+        // Centre d'une case de frette N (N>=1) : marginLeft + (N-0.5)*fretGap (voir buildGuitarDiagramSVG)
+        // -> N = (x-marginLeft)/fretGap + 0.5, arrondi. En dessous de la case 1, c'est la zone corde à
+        // vide (case 0, avant le sillet) — voir le "-9" du repère "O" dans buildGuitarDiagramSVG.
+        const fret = Math.round((x - marginLeft) / fretGap + 0.5);
+        if (string < 0 || string > 5) return null;
+        if (fret < 0 || fret > GUITAR_NECK_DISPLAY_FRETS) return null;
+        return { string, fret: Math.max(0, fret) };
+    }
+
+    // Clic/tap sur le manche large, actif UNIQUEMENT sur l'onglet « Dessiner » (voir setGuitarEditTab)
+    // — même case reclicquée -> retire la note (retour au X) ; case différente sur la même corde ->
+    // la déplace (une corde ne peut sonner qu'UNE note à la fois, exactement comme une vraie corde).
+    onGuitarNeckClick(e) {
+        if (this.guitarEditTab !== 'draw') return;
+        const pos = this.guitarDrawPositionAt(e.clientX, e.clientY);
+        if (!pos) return;
+        const { string, fret } = pos;
+        const removed = this.guitarDrawShape[string] === fret;
+        this.guitarDrawShape[string] = removed ? null : fret;
+        this.renderGuitarDrawNeck();
+        if (!removed) this.previewGuitarDrawNote(GUITAR_OPEN_MIDI[string] + fret);
+    }
+
+    // Écoute d'UNE note posée sur le manche — même principe que previewSeqNote (séquenceur) : ne
+    // coupe pas une lecture en cours, juste un aperçu isolé.
+    async previewGuitarDrawNote(midi) {
+        await Tone.start();
+        const instrumentKey = document.getElementById('instrument').value;
+        const inst = this.getInstrument(instrumentKey);
+        try {
+            inst.triggerAttackRelease(Tone.Frequency(midi, 'midi').toNote(), 0.5, Tone.now(), 0.85);
+        } catch (e) {
+            console.warn('Aperçu de note (manche) ignoré (instrument pas encore prêt) :', e.message);
+        }
+    }
+
+    // Joue TOUTES les notes actuellement posées sur le manche, ensemble — pour entendre l'accord en
+    // cours de construction, même incomplet (retour utilisateur, point 2).
+    async playGuitarDrawChord() {
+        const midis = this.guitarDrawShape.map((fret, s) => (fret == null ? null : GUITAR_OPEN_MIDI[s] + fret)).filter(m => m != null);
+        if (!midis.length) return;
+        await Tone.start();
+        const instrumentKey = document.getElementById('instrument').value;
+        const inst = this.getInstrument(instrumentKey);
+        const t = Tone.now();
+        try {
+            midis.forEach(midi => inst.triggerAttackRelease(Tone.Frequency(midi, 'midi').toNote(), 0.8, t, 0.85));
+        } catch (e) {
+            console.warn('Lecture de l\'accord (manche) ignorée (instrument pas encore prêt) :', e.message);
+        }
     }
 
     // Reflète l'état verrouillé/libre sur le bouton cadenas, relatif au doigté ACTUELLEMENT AFFICHÉ
@@ -8335,7 +8451,10 @@ class HarmoHubApp {
         const FRET_WINDOW = wide ? GUITAR_NECK_DISPLAY_FRETS : 5; // nombre de cases visibles
         const SINGLE_MARKERS = [3, 5, 7, 9, 15, 17, 19, 21];
         const DOUBLE_MARKERS = [12, 24];
-        const STRING_GAP = 16, FRET_GAP = 30, MARGIN_LEFT = 20, MARGIN_TOP = 8, LABEL_ROW_H = 13;
+        // Géométrie partagée avec guitarDrawPositionAt (voir GUITAR_SVG_LAYOUT) : le clic en mode
+        // « Dessiner » doit toujours retomber pile sur ce qui est réellement dessiné ici.
+        const { stringGap: STRING_GAP, fretGap: FRET_GAP, marginLeft: MARGIN_LEFT, marginTop: MARGIN_TOP } = GUITAR_SVG_LAYOUT;
+        const LABEL_ROW_H = 13;
         const lineColor = forPrint ? '#555' : '#888';
         const nutColor = forPrint ? '#1a1a1a' : '#e8e8e8';
         const openColor = forPrint ? '#333' : '#ccc';

@@ -2370,14 +2370,17 @@ button:active { transform: translateY(1px); }
     cursor: pointer;
 }
 .guitar-edit-tab.active { color: var(--text-main); border-bottom-color: var(--accent); }
-.guitar-edit-pane .guitar-controls-row { margin-top: 4px; }
-.guitar-edit-soon {
+.guitar-edit-pane .guitar-controls-row { margin-top: 4px; justify-content: center; }
+.guitar-edit-hint {
     font-size: var(--fs-sm);
     color: var(--text-muted);
     text-align: center;
-    padding: 24px 10px;
-    margin: 0;
+    margin: 4px 0 0;
 }
+/* Curseur croix (pas la flèche par défaut) : signale que le manche est cliquable UNIQUEMENT quand
+   l'onglet Dessiner est actif (voir setGuitarEditTab dans script.js) — sur l'onglet Taper le nom, le
+   manche affiche le doigté résolu et n'a rien à faire avec un clic dessus. */
+.guitar-edit-content:has(#guitar-edit-tab-draw.active) .guitar-edit-neck { cursor: crosshair; }
 @media (max-width: 600px) {
     .guitar-edit-modal { max-width: 100%; }
 }

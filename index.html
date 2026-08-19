@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608201000">
+    <link rel="stylesheet" href="style.css?v=202608201400">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -272,7 +272,18 @@
                         <button type="button" id="guitar-edit-tab-name" class="guitar-edit-tab" role="tab" aria-selected="false">Taper le nom</button>
                     </div>
                     <div id="guitar-edit-pane-draw" class="guitar-edit-pane" hidden>
-                        <p class="guitar-edit-soon">Bientôt disponible : clique directement sur une frette du manche ci-dessus pour poser une note.</p>
+                        <!-- Clic direct sur une frette du manche ci-dessus (voir onGuitarNeckClick dans
+                             script.js — retour utilisateur, point 1 : « je pourrai cliquer directement
+                             sur les frettes de la guitare, une à une ») pose une note neutre (retour
+                             utilisateur : « au début, les notes seront donc de couleur neutre »).
+                             Reconnaissance automatique de l'accord : Lot 3, pas encore ici. -->
+                        <p class="guitar-edit-hint">Clique sur une frette pour poser une note, reclique pour la retirer.</p>
+                        <div class="guitar-controls-row">
+                            <button type="button" id="guitar-draw-play" class="btn-sec" disabled>
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                                Jouer
+                            </button>
+                        </div>
                     </div>
                     <div id="guitar-edit-pane-name" class="guitar-edit-pane" hidden>
                         <!-- Crayon de substitut manuscrit, RELOCALISÉ tel quel depuis l'ancienne
@@ -1130,6 +1141,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608201000"></script>
+    <script src="script.js?v=202608201400"></script>
 </body>
 </html>

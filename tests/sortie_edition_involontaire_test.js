@@ -70,7 +70,7 @@ const SORTIES_LEGITIMES = new Set([
     // CONTROLES_SOUS_MANCHE plus bas). Flèches de doigté et cadenas, eux, sont RESTÉS hors de la
     // fenêtre (retour utilisateur : « je les utilise souvent pour les accords simples ») : le
     // balayage générique les voit donc déjà tout seul, comme avant — pas besoin de les y ajouter.
-    const CONTROLES_SOUS_MANCHE = ['guitar-edit-close', 'guitar-edit-tab-draw', 'guitar-edit-tab-name', 'guitar-override-btn'];
+    const CONTROLES_SOUS_MANCHE = ['guitar-edit-close', 'guitar-edit-tab-draw', 'guitar-edit-tab-name', 'guitar-override-btn', 'guitar-draw-play'];
     cibles.push(...CONTROLES_SOUS_MANCHE);
     console.log(`${cibles.length} contrôles visibles à éprouver`);
 
@@ -93,14 +93,20 @@ const SORTIES_LEGITIMES = new Set([
         if (arme !== 'edit/1') { await preparer(); }
         // Rouvre la fenêtre d'édition manuelle du manche JUSTE avant de chercher un de SES contrôles
         // (voir CONTROLES_SOUS_MANCHE) — jamais laissée ouverte pour les autres, sous peine de masquer
-        // tout le reste de la page derrière elle pour le reste du balayage. L'onglet « Taper le nom »
-        // est réaffirmé à chaque fois : sans ça, un passage antérieur sur guitar-edit-tab-draw
-        // laisserait guitar-override-btn/guitar-lock-btn masqués (dans l'autre onglet) selon l'ordre
-        // de passage — l'inventaire doit rester le même quel que soit cet ordre.
+        // tout le reste de la page derrière elle pour le reste du balayage. L'onglet est réaffirmé à
+        // chaque fois : sans ça, un passage antérieur sur l'autre onglet laisserait guitar-override-btn
+        // masqué selon l'ordre de passage — l'inventaire doit rester le même quel que soit cet ordre.
+        // guitar-draw-play est désactivé tant que le manche est vide (voir renderGuitarDrawNeck) : une
+        // note y est posée directement en JS pour l'atteindre, sans dépendre d'un clic-souris précis
+        // sur le manche (déjà testé pour lui-même dans manche_edition_lot2_test.js).
         if (CONTROLES_SOUS_MANCHE.includes(nom)) {
             await page.click('#guitar-edit-btn').catch(() => {});
             await page.waitForTimeout(80);
-            await page.click('#guitar-edit-tab-name').catch(() => {});
+            const onDrawTab = nom === 'guitar-edit-tab-draw' || nom === 'guitar-draw-play';
+            await page.click(onDrawTab ? '#guitar-edit-tab-draw' : '#guitar-edit-tab-name').catch(() => {});
+            if (nom === 'guitar-draw-play') {
+                await page.evaluate(() => { window.app.guitarDrawShape[0] = 0; window.app.renderGuitarDrawNeck(); });
+            }
             await page.waitForTimeout(80);
         }
         // VRAI clic de souris, jamais un évènement fabriqué. Une première version dispatchait
