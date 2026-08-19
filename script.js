@@ -13569,6 +13569,19 @@ class HarmoHubApp {
         const label = this.sidebarCollapsed ? 'Afficher le panneau de gauche' : 'Masquer le panneau de gauche';
         btn.title = label;
         btn.setAttribute('aria-label', label);
+        // La hauteur AUTOMATIQUE du volet séquenceur (voir hauteurVoletSequenceur/
+        // placeLibreDansLaColonne) est calculée une fois, à l'ouverture, à partir de ce qu'il reste de
+        // place dans .col-right À CE MOMENT-LÀ — jamais recalculée toute seule ensuite (aucun écouteur
+        // resize, voir renderSequencer/placeSequencer, qui sont les seuls à la redéclencher). Or
+        // .col-right change bel et bien de largeur ici (elle récupère celle de tout le panneau masqué),
+        // ce qui peut aussi changer sa hauteur DISPONIBLE (les diagrammes piano/guitare, côte à côte
+        // tant qu'ils tiennent, peuvent s'empiler différemment à une largeur différente). Sans ce
+        // rendu, le volet restait bloqué à la hauteur qu'il avait avant le repli, alors que la grille,
+        // elle (flex:1), profitait seule de la largeur regagnée — retour utilisateur : « je perds de la
+        // place sur le séquenceur » en repliant le panneau de gauche. Sans effet si le séquenceur est
+        // fermé, ou si sa hauteur a été réglée à la main (seqDockHeight, voir
+        // ajusterHauteurVoletAuContenu) : ce choix-là reste prioritaire, comme partout ailleurs.
+        this.renderSequencer();
     }
 
     // Pincer-zoomer à 2 doigts (retour utilisateur : équivalent tactile du Ctrl+molette existant, qui
