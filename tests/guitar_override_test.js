@@ -47,6 +47,11 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     check(pianoChipInfo.isSmall === false, "le chip piano N'A PAS le modificateur .chord-chip-sm (police plus grosse que la guitare)");
     check(pianoChipInfo.notesHasBorderLeft === true, 'une séparation (bordure) sépare bien le nom de l\'accord et ses notes, dans le chip piano');
 
+    // Le crayon/cadenas/flèches de doigté vivent maintenant dans la fenêtre d'édition manuelle (voir
+    // #guitar-edit-btn/openGuitarEditor dans script.js — retour utilisateur : « j'ai déjà beaucoup de
+    // boutons ») : il faut l'ouvrir avant d'y toucher, comme dans la vraie interface.
+    await page.click('#guitar-edit-btn');
+    await page.waitForTimeout(150);
     await page.click('#guitar-override-btn');
     await page.waitForTimeout(150);
     const inputVisible = await page.isVisible('.guitar-override-input');
@@ -114,6 +119,11 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     const lockActive = await page.evaluate(() => document.getElementById('guitar-lock-btn').classList.contains('active'));
     check(lockActive, 'le cadenas se verrouille bien sur le doigté affiché (celui du substitut)');
 
+    // Referme la fenêtre d'édition (fenêtre modale : le reste de la page, dont #save, n'est pas
+    // cliquable tant qu'elle reste ouverte).
+    await page.click('#guitar-edit-close');
+    await page.waitForTimeout(150);
+
     // ============================================================
     // === C. Ajoute l'accord dans la grille, vérifie la persistance ===
     // ============================================================
@@ -165,6 +175,8 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // ============================================================
     // === F. Accord non reconnu : message d'erreur, pas de substitut appliqué ===
     // ============================================================
+    await page.click('#guitar-edit-btn');
+    await page.waitForTimeout(150);
     await page.click('#guitar-override-btn');
     await page.waitForTimeout(150);
     await page.fill('.guitar-override-input', 'XyzNotAChord');

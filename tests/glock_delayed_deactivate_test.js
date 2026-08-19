@@ -35,6 +35,11 @@ async function dblclickCellSafe(page, section, index) {
     await dblclickCellSafe(page, 0, 2);
     await page.waitForTimeout(100);
 
+    // Le cadenas vit maintenant dans la fenêtre d'édition manuelle (voir #guitar-edit-btn) : ouverture
+    // minimale AVANT le clic "immédiat" ci-dessous, pour ne pas fausser le timing testé (verrou posé
+    // pendant qu'un aperçu automatique est peut-être encore programmé).
+    await page.click('#guitar-edit-btn');
+
     // Lock IMMEDIATELY (soon after entering edit, while the auto-preview from the click might still be scheduled)
     await page.click('#guitar-lock-btn');
     await page.waitForTimeout(100);

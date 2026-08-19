@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608192200">
+    <link rel="stylesheet" href="style.css?v=202608192300">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -238,6 +238,70 @@
                     <div class="unsaved-modal-actions">
                         <button type="button" id="pdf-export-go" class="btn-blue">Exporter</button>
                         <button type="button" id="pdf-export-cancel" class="btn-sec">Annuler</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Édition manuelle de l'accord à la guitare (voir #guitar-edit-btn/openGuitarEditor dans
+         script.js) — un seul bouton sous les diagrammes (retour utilisateur : « j'ai déjà beaucoup de
+         boutons ») ouvre cette fenêtre, qui réunit le manche complet ET les deux façons de définir
+         l'accord : « Dessiner sur le manche » (clic direct sur les frettes, pas encore actif) et
+         « Taper le nom » (reprend TEL QUEL le flux existant — saisie clavier, défilement entre
+         doigtés, cadenas — simplement déplacé ici, mêmes id, pour ne rien changer à ce qui marche
+         déjà). -->
+    <div id="guitar-edit-overlay" class="settings-overlay" hidden>
+        <div class="settings-modal guitar-edit-modal" role="dialog" aria-modal="true" aria-labelledby="guitar-edit-title">
+            <div class="settings-header">
+                <h2 id="guitar-edit-title">Édition manuelle — Guitare</h2>
+                <button type="button" id="guitar-edit-close" class="icon-btn" title="Fermer" aria-label="Fermer">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="settings-body">
+                <div class="settings-content guitar-edit-content">
+                    <!-- Manche complet (voir buildGuitarDiagramSVG, paramètre `wide`) : reflète en
+                         permanence le doigté actuellement prévisualisé, qu'il vienne du dessin au clic
+                         ou de la saisie du nom + défilement (onglet « Taper le nom » ci-dessous). Défile
+                         horizontalement sur les écrans étroits (24 cases, ça ne tient pas sur un
+                         téléphone) — voir .guitar-edit-neck dans style.css. -->
+                    <div id="guitar-edit-neck" class="guitar-edit-neck"></div>
+                    <div class="guitar-edit-tabs" role="tablist">
+                        <button type="button" id="guitar-edit-tab-draw" class="guitar-edit-tab" role="tab" aria-selected="false">Dessiner sur le manche</button>
+                        <button type="button" id="guitar-edit-tab-name" class="guitar-edit-tab" role="tab" aria-selected="false">Taper le nom</button>
+                    </div>
+                    <div id="guitar-edit-pane-draw" class="guitar-edit-pane" hidden>
+                        <p class="guitar-edit-soon">Bientôt disponible : clique directement sur une frette du manche ci-dessus pour poser une note.</p>
+                    </div>
+                    <div id="guitar-edit-pane-name" class="guitar-edit-pane" hidden>
+                        <!-- Flèches de doigté + cadenas + crayon de substitution, RELOCALISÉS tels
+                             quels depuis l'ancienne .guitar-controls-row sous le petit diagramme (voir
+                             #guitar-viz-wrap plus haut) : mêmes id, donc tout le câblage JS existant
+                             (startGuitarOverrideEdit, toggleGuitarLock, cycleGuitarFingering) continue
+                             de fonctionner sans y toucher. -->
+                        <div class="guitar-controls-row">
+                            <div id="guitar-nav" class="guitar-nav">
+                                <button type="button" id="guitar-prev" class="icon-btn" title="Doigté précédent" aria-label="Doigté précédent">
+                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                                </button>
+                                <span id="guitar-nav-label" class="guitar-nav-label">1/1</span>
+                                <button type="button" id="guitar-next" class="icon-btn" title="Doigté suivant" aria-label="Doigté suivant">
+                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                                </button>
+                            </div>
+                            <!-- Ouvre la saisie au clavier d'un accord différent pour la guitare (voir
+                                 startGuitarOverrideEdit dans script.js — retour utilisateur : "je joue des
+                                 accords au piano mais je ne fais pas les mêmes à la guitare... définir
+                                 manuellement les accords à la guitare, au clavier uniquement"). -->
+                            <button type="button" id="guitar-override-btn" class="icon-btn" title="Accord différent à la guitare" aria-label="Définir un accord différent à la guitare" aria-pressed="false">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                            </button>
+                            <!-- Verrouille le doigté affiché (voir toggleGuitarLock dans script.js). -->
+                            <button type="button" id="guitar-lock-btn" class="icon-btn guitar-lock-btn" title="Verrouiller ce doigté pour cet accord" aria-label="Verrouiller ce doigté pour cet accord" aria-pressed="false" style="display:none">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -947,40 +1011,21 @@
                     <div id="guitar-viz-wrap" class="guitar-viz-wrap">
                         <!-- Accord de substitution à la guitare (voir #guitar-override-btn/
                              renderGuitarOverrideRow dans script.js) : rempli dynamiquement, masqué tant
-                             qu'aucun substitut n'est défini pour l'accord affiché. -->
+                             qu'aucun substitut n'est défini pour l'accord affiché. Reste ICI (et non
+                             dans #guitar-edit-overlay, plus bas dans la page) : c'est la seule info
+                             qu'on doit voir d'un coup d'œil SANS ouvrir la fenêtre d'édition. -->
                         <div id="guitar-override-row" class="guitar-override-row" hidden></div>
                         <div id="guitar-viz" class="guitar-container"></div>
-                        <!-- Flèches de doigté + cadenas + crayon de substitution sur la MÊME ligne (retour
-                             utilisateur : la guitare prend déjà plus de hauteur que le piano, pas besoin
-                             d'une rangée de plus pour le cadenas, autrefois en dessous). #guitar-nav garde
-                             son propre display indépendant (masqué à doigté unique, voir
-                             renderGuitarDiagram) : le cadenas et le crayon, eux, restent visibles tant
-                             qu'il y a au moins un doigté (voir updateGuitarLockButton), donc pas imbriqués
-                             DANS #guitar-nav. -->
+                        <!-- Un seul bouton sous le diagramme (retour utilisateur : « j'ai déjà beaucoup
+                             de boutons »), qui ouvre la fenêtre d'édition manuelle (#guitar-edit-overlay,
+                             voir openGuitarEditor dans script.js) — flèches de doigté, substitut
+                             manuscrit et cadenas y vivent maintenant TOUS, aux côtés du manche complet.
+                             Désactivé quand l'accord n'est pas jouable à la guitare (voir
+                             renderGuitarDiagram) : rien à éditer dans ce cas. -->
                         <div class="guitar-controls-row">
-                            <div id="guitar-nav" class="guitar-nav">
-                                <button type="button" id="guitar-prev" class="icon-btn" title="Doigté précédent" aria-label="Doigté précédent">
-                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-                                </button>
-                                <span id="guitar-nav-label" class="guitar-nav-label">1/1</span>
-                                <button type="button" id="guitar-next" class="icon-btn" title="Doigté suivant" aria-label="Doigté suivant">
-                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
-                                </button>
-                            </div>
-                            <!-- Ouvre la saisie au clavier d'un accord différent pour la guitare (voir
-                                 startGuitarOverrideEdit dans script.js — retour utilisateur : "je joue des
-                                 accords au piano mais je ne fais pas les mêmes à la guitare... définir
-                                 manuellement les accords à la guitare, au clavier uniquement"). Actif
-                                 (surligné) tant qu'un substitut est défini pour l'accord affiché, voir
-                                 renderGuitarOverrideRow. -->
-                            <button type="button" id="guitar-override-btn" class="icon-btn" title="Accord différent à la guitare" aria-label="Définir un accord différent à la guitare" aria-pressed="false">
+                            <button type="button" id="guitar-edit-btn" class="btn-sec guitar-edit-btn" title="Édition manuelle de l'accord à la guitare" aria-label="Édition manuelle de l'accord à la guitare">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                            </button>
-                            <!-- Verrouille le doigté affiché (voir toggleGuitarLock dans script.js) : reste
-                                 visible même à doigté unique (pas caché avec #guitar-nav), rempli/positionné
-                                 dynamiquement par updateGuitarLockButton. -->
-                            <button type="button" id="guitar-lock-btn" class="icon-btn guitar-lock-btn" title="Verrouiller ce doigté pour cet accord" aria-label="Verrouiller ce doigté pour cet accord" aria-pressed="false" style="display:none">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>
+                                Édition manuelle
                             </button>
                         </div>
                     </div>
@@ -1083,6 +1128,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608192200"></script>
+    <script src="script.js?v=202608192300"></script>
 </body>
 </html>

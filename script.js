@@ -1299,6 +1299,11 @@ function detectBarre(byString) {
 // Accordage standard, du 6e (Mi grave) au 1er (Mi aigu), en numéros MIDI
 const GUITAR_OPEN_MIDI = [40, 45, 50, 55, 59, 64];
 const GUITAR_MAX_FRET = 15;   // au-delà, une position n'est plus vraiment utilisée en pratique
+// Nombre de cases du manche COMPLET affiché en édition manuelle (voir buildGuitarDiagramSVG `wide`,
+// openGuitarEditor) — une guitare "normale" en compte environ 24, contrairement à GUITAR_MAX_FRET
+// ci-dessus qui borne les SUGGESTIONS automatiques du solveur (une position à la case 20 n'est
+// presque jamais praticable pour un doigté proposé) : deux usages différents, deux bornes différentes.
+const GUITAR_NECK_DISPLAY_FRETS = 24;
 const GUITAR_MAX_SPAN = 4;    // écart max (en cases) entre la case la plus basse et la plus haute jouées
 const GUITAR_MAX_FINGERS = 4; // 4 doigts disponibles ; une case commune à plusieurs cordes ne compte
                                // que pour un seul doigt (barré)
@@ -2890,6 +2895,10 @@ class HarmoHubApp {
         // l'accord précédemment édité ou l'accord vierge par défaut). Remis à null dès qu'un vrai
         // panneau live (édition ou Ajout) reprend la main, voir ensureGuitarDiagram(useLiveLock=true).
         this.guitarPreviewPos = null;
+        this.guitarEditOpen = false; // fenêtre d'édition manuelle du manche ouverte ou non (voir openGuitarEditor)
+        // Onglet actif dans cette fenêtre (voir setGuitarEditTab) : « name » par défaut — c'est le seul
+        // pleinement fonctionnel tant que le Lot 2 (dessin au clic) n'est pas en place.
+        this.guitarEditTab = 'name';
         // Accord de substitution à la guitare, en attente pour l'accord en cours d'édition (voir
         // toggleGuitarLock ci-dessus pour le même principe, et guitarChordFor/startGuitarOverrideEdit/
         // applyGuitarOverride) : { root, quality, bass, octave, inversion, drop } déjà normalisé (jamais
@@ -3887,7 +3896,32 @@ class HarmoHubApp {
         document.getElementById('guitar-next').onclick = () => this.cycleGuitarFingering(1);
         document.getElementById('guitar-lock-btn').onclick = () => this.toggleGuitarLock();
         document.getElementById('guitar-override-btn').onclick = () => this.startGuitarOverrideEdit();
+        // Fenêtre d'édition manuelle du manche (voir openGuitarEditor) : même principe d'ouverture/
+        // fermeture que les autres fenêtres agrandies (fond cliquable, croix, Échap — voir plus bas).
+        document.getElementById('guitar-edit-btn').onclick = () => this.openGuitarEditor();
+        document.getElementById('guitar-edit-close').onclick = () => this.closeGuitarEditor();
+        document.getElementById('guitar-edit-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'guitar-edit-overlay') this.closeGuitarEditor(); // clic sur le fond, pas la fenêtre
+        });
+        document.getElementById('guitar-edit-tab-draw').onclick = () => this.setGuitarEditTab('draw');
+        document.getElementById('guitar-edit-tab-name').onclick = () => this.setGuitarEditTab('name');
+        this.setGuitarEditTab(this.guitarEditTab); // reflète l'onglet par défaut dès le chargement
         this.applyVizVisibility();
+    }
+
+    // Bascule entre les deux façons de définir l'accord à la guitare, À L'INTÉRIEUR de la fenêtre
+    // d'édition manuelle (voir openGuitarEditor) : « Dessiner sur le manche » (Lot 2, pas encore actif)
+    // et « Taper le nom » (reprend tel quel le flux existant — saisie clavier + défilement + cadenas).
+    setGuitarEditTab(tab) {
+        this.guitarEditTab = tab;
+        const tabDraw = document.getElementById('guitar-edit-tab-draw');
+        const tabName = document.getElementById('guitar-edit-tab-name');
+        tabDraw.classList.toggle('active', tab === 'draw');
+        tabDraw.setAttribute('aria-selected', tab === 'draw' ? 'true' : 'false');
+        tabName.classList.toggle('active', tab === 'name');
+        tabName.setAttribute('aria-selected', tab === 'name' ? 'true' : 'false');
+        document.getElementById('guitar-edit-pane-draw').hidden = tab !== 'draw';
+        document.getElementById('guitar-edit-pane-name').hidden = tab !== 'name';
     }
 
     // Bascule la visibilité de certaines <option> d'un <select> en les retirant/réinsérant réellement
@@ -4200,21 +4234,52 @@ class HarmoHubApp {
         if (!viz) return;
         const fingerings = this.guitarFingerings;
         const nav = document.getElementById('guitar-nav');
+        // Manche complet de la fenêtre d'édition manuelle (voir openGuitarEditor) : reste synchronisé
+        // en PERMANENCE avec le petit diagramme, même fenêtre fermée — sinon la première ouverture
+        // afficherait un instant l'ancien contenu (ou rien) avant le prochain changement d'accord.
+        // Élément absent tant que le Lot 1 n'est pas en place (index.html) : simple no-op alors.
+        const wideViz = document.getElementById('guitar-edit-neck');
+        const editBtn = document.getElementById('guitar-edit-btn');
         if (!fingerings.length) {
             viz.innerHTML = `<div class="guitar-unplayable">Non jouable à la guitare</div>`;
+            if (wideViz) wideViz.innerHTML = `<div class="guitar-unplayable">Non jouable à la guitare</div>`;
             if (nav) nav.style.display = 'none';
+            if (editBtn) editBtn.disabled = true;
             this.updateGuitarLockButton();
             return;
         }
+        if (editBtn) editBtn.disabled = false;
         const idx = Math.min(this.guitarFingeringIndex, fingerings.length - 1);
         this.guitarFingeringIndex = idx;
         viz.innerHTML = this.buildGuitarDiagramSVG(fingerings[idx]);
+        if (wideViz) wideViz.innerHTML = this.buildGuitarDiagramSVG(fingerings[idx], false, true);
         if (nav) {
             nav.style.display = fingerings.length > 1 ? '' : 'none';
             const label = document.getElementById('guitar-nav-label');
             if (label) label.textContent = `${idx + 1}/${fingerings.length}`;
         }
         this.updateGuitarLockButton();
+    }
+
+    // Ouvre/ferme la fenêtre d'édition manuelle de l'accord à la guitare (voir #guitar-edit-btn) :
+    // regroupe en un seul bouton ce qui occupait trois commandes séparées sous les diagrammes (retour
+    // utilisateur : « j'ai déjà beaucoup de boutons » — flèches de doigté + substitut + cadenas, toutes
+    // relocalisées telles quelles À L'INTÉRIEUR (voir index.html) plutôt que réécrites — même logique,
+    // mêmes id, pour ne rien casser de ce qui marche déjà. Le manche complet (#guitar-edit-neck) est
+    // déjà à jour en permanence (voir renderGuitarDiagram), rien à recalculer à l'ouverture.
+    openGuitarEditor() {
+        const overlay = document.getElementById('guitar-edit-overlay');
+        if (!overlay) return;
+        this.guitarEditOpen = true;
+        overlay.hidden = false;
+        this.lockBodyScroll();
+    }
+
+    closeGuitarEditor() {
+        const overlay = document.getElementById('guitar-edit-overlay');
+        this.guitarEditOpen = false;
+        if (overlay) overlay.hidden = true;
+        this.unlockBodyScroll();
     }
 
     // Reflète l'état verrouillé/libre sur le bouton cadenas, relatif au doigté ACTUELLEMENT AFFICHÉ
@@ -8245,9 +8310,12 @@ class HarmoHubApp {
     // tous les diagrammes aient la même taille, avec les repères habituels du manche (points
     // d'incrustation aux cases 3, 5, 7, 9, 15, 17..., double point à la 12) quand ils sont dans la
     // fenêtre affichée. `forPrint` bascule vers des couleurs sombres (encre sur papier blanc) au lieu
-    // des couleurs claires utilisées en direct sur fond sombre.
-    buildGuitarDiagramSVG(byString, forPrint = false) {
-        const FRET_WINDOW = 5; // nombre de cases visibles, identique pour tous les accords
+    // des couleurs claires utilisées en direct sur fond sombre. `wide` (voir #guitar-edit-neck,
+    // openGuitarEditor) affiche le manche COMPLET depuis le sillet plutôt qu'une fenêtre glissante de
+    // 5 cases centrée sur le doigté : c'est la vue d'édition manuelle, où il faut voir tout le manche
+    // pour y cliquer, pas seulement les quelques cases utiles au doigté déjà choisi.
+    buildGuitarDiagramSVG(byString, forPrint = false, wide = false) {
+        const FRET_WINDOW = wide ? GUITAR_NECK_DISPLAY_FRETS : 5; // nombre de cases visibles
         const SINGLE_MARKERS = [3, 5, 7, 9, 15, 17, 19, 21];
         const DOUBLE_MARKERS = [12, 24];
         const STRING_GAP = 16, FRET_GAP = 30, MARGIN_LEFT = 20, MARGIN_TOP = 8, LABEL_ROW_H = 13;
@@ -8269,9 +8337,11 @@ class HarmoHubApp {
         // corde ouverte et doit afficher un repère de position ("1") plutôt qu'un sillet, sinon on le
         // confondrait avec un accord en position ouverte ; et une corde à vide isolée alors que le
         // reste de l'accord est loin sur le manche ne doit pas forcer la fenêtre à revenir à la case 0
-        // (les notes réellement jouées deviendraient invisibles, hors fenêtre).
+        // (les notes réellement jouées deviendraient invisibles, hors fenêtre). En vue large, la
+        // fenêtre part TOUJOURS du sillet (case 0) : il n'y a rien à faire défiler, tout le manche
+        // est déjà affiché.
         const hasOpenString = byString.some(e => e && e.fret === 0);
-        const showNut = fretted.length === 0 || (hasOpenString && maxFret <= FRET_WINDOW);
+        const showNut = wide || fretted.length === 0 || (hasOpenString && maxFret <= FRET_WINDOW);
         const baseFret = showNut ? 0 : (minFret - 1); // n° de case juste avant la 1ère colonne dessinée
 
         const stringsSpan = STRING_GAP * 5;
@@ -15202,6 +15272,7 @@ class HarmoHubApp {
             if (e.key === 'Escape' && this.filesOpen) { this.closeFilesWindow(); return; }
             if (e.key === 'Escape' && this.settingsOpen) { this.closeSettings(); return; }
             if (e.key === 'Escape' && this.seqZoomOpen) { this.closeSeqZoom(); return; }
+            if (e.key === 'Escape' && this.guitarEditOpen) { this.closeGuitarEditor(); return; }
 
             // Taper directement une lettre de note (A-G) sur un accord chargé en édition (loupe
             // grille, ou double-clic en grille normale) ou simplement sélectionné ouvre son édition

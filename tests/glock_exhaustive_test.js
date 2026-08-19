@@ -17,6 +17,11 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     const roots = ['C', 'C#', 'D', 'E', 'F#', 'G', 'A', 'Bb'];
     const qualities = ['maj', 'min', 'dom7', 'maj7', 'min7', 'sus2', 'sus4'];
 
+    // Le cadenas vit maintenant dans la fenêtre d'édition manuelle (voir #guitar-edit-btn) : ouverte
+    // une fois pour toute la boucle, rien d'autre n'est cliqué en dehors d'elle ensuite.
+    await page.click('#guitar-edit-btn');
+    await page.waitForTimeout(150);
+
     for (const root of roots) {
         for (const quality of qualities) {
             await page.evaluate(({ root, quality }) => {

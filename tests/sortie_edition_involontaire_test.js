@@ -60,6 +60,16 @@ const SORTIES_LEGITIMES = new Set([
         });
         return vus;
     }, [...SORTIES_LEGITIMES]);
+    // Flèches de doigté, crayon de substitution et cadenas vivent maintenant DANS la fenêtre d'édition
+    // manuelle du manche (voir #guitar-edit-btn/openGuitarEditor) : masqués par défaut, l'inventaire
+    // générique ci-dessus ne les voit donc jamais (offsetParent nul tant que la fenêtre est fermée).
+    // Ajoutés ici explicitement plutôt que balayés en aveugle : le balayage générique clique un
+    // contrôle À LA FOIS derrière tout le reste de la page, et ouvrir cette fenêtre masquerait TOUS
+    // les autres contrôles derrière elle si elle restait ouverte pour le reste du balayage — la
+    // boucle rouvre donc CETTE fenêtre juste avant de chercher un de CES contrôles précis, jamais pour
+    // les autres (voir CONTROLES_SOUS_MANCHE plus bas).
+    const CONTROLES_SOUS_MANCHE = ['guitar-edit-close', 'guitar-edit-tab-draw', 'guitar-edit-tab-name', 'guitar-prev', 'guitar-next', 'guitar-override-btn', 'guitar-lock-btn'];
+    cibles.push(...CONTROLES_SOUS_MANCHE);
     console.log(`${cibles.length} contrôles visibles à éprouver`);
 
     // Une seule page pour les 31 contrôles tant que rien ne casse — un `goto`+`reload` coûte ~26s dans
@@ -79,6 +89,18 @@ const SORTIES_LEGITIMES = new Set([
         await page.waitForTimeout(80);
         const arme = await page.evaluate(() => window.app.appMode + '/' + window.app.editingIndex);
         if (arme !== 'edit/1') { await preparer(); }
+        // Rouvre la fenêtre d'édition manuelle du manche JUSTE avant de chercher un de SES contrôles
+        // (voir CONTROLES_SOUS_MANCHE) — jamais laissée ouverte pour les autres, sous peine de masquer
+        // tout le reste de la page derrière elle pour le reste du balayage. L'onglet « Taper le nom »
+        // est réaffirmé à chaque fois : sans ça, un passage antérieur sur guitar-edit-tab-draw
+        // laisserait guitar-override-btn/guitar-lock-btn masqués (dans l'autre onglet) selon l'ordre
+        // de passage — l'inventaire doit rester le même quel que soit cet ordre.
+        if (CONTROLES_SOUS_MANCHE.includes(nom)) {
+            await page.click('#guitar-edit-btn').catch(() => {});
+            await page.waitForTimeout(80);
+            await page.click('#guitar-edit-tab-name').catch(() => {});
+            await page.waitForTimeout(80);
+        }
         // VRAI clic de souris, jamais un évènement fabriqué. Une première version dispatchait
         // `new PointerEvent('pointerdown')` puis `.click()` : elle accusait six contrôles, dont trois
         // (#play-prog, #stop, #toggle-loop-section) qu'un balayage à vrais clics venait de déclarer

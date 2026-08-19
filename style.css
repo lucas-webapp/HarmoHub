@@ -2317,6 +2317,71 @@ button:active { transform: translateY(1px); }
 }
 .guitar-override-row .icon-btn svg { width: 13px; height: 13px; }
 
+/* Bouton unique sous le diagramme (voir #guitar-edit-btn/openGuitarEditor dans script.js — retour
+   utilisateur : « j'ai déjà beaucoup de boutons »), qui remplace l'ancienne rangée flèches+cadenas+
+   crayon. Petit et discret comme le diagramme qu'il commande, texte + icône pour rester lisible seul
+   (contrairement aux .icon-btn qu'il remplace, toujours groupés à plusieurs). */
+.guitar-edit-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    font-size: var(--fs-xs);
+    border-radius: 999px;
+}
+.guitar-edit-btn svg { width: 14px; height: 14px; flex: none; }
+.guitar-edit-btn:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
+
+/* Fenêtre d'édition manuelle (voir #guitar-edit-overlay) : même habillage que .settings-modal, mais
+   assez large pour un manche de 24 cases (voir .guitar-edit-neck) sans que la fenêtre elle-même ne
+   déborde à l'écran — c'est le contenu défilant à l'intérieur, pas la fenêtre. */
+.guitar-edit-modal { max-width: 780px; }
+.guitar-edit-content {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+/* Manche complet : défile horizontalement plutôt que de forcer la fenêtre à s'élargir (24 cases à
+   FRET_GAP=30 ~= 750px, plus large que bien des téléphones) — un padding généreux évite que le
+   défilement ne rogne le sillet/la dernière case tout au bord. */
+.guitar-edit-neck {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 2px 8px;
+    -webkit-overflow-scrolling: touch;
+}
+.guitar-edit-neck svg { display: block; height: auto; }
+/* Bascule entre les deux façons de définir l'accord (voir setGuitarEditTab) : mêmes tokens que le
+   reste de l'appli, pas de composant "onglet" préexistant à reprendre ici. */
+.guitar-edit-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+}
+.guitar-edit-tab {
+    flex: 1;
+    padding: 8px 10px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: var(--fs-sm);
+    cursor: pointer;
+}
+.guitar-edit-tab.active { color: var(--text-main); border-bottom-color: var(--accent); }
+.guitar-edit-pane .guitar-controls-row { margin-top: 4px; }
+.guitar-edit-soon {
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    text-align: center;
+    padding: 24px 10px;
+    margin: 0;
+}
+@media (max-width: 600px) {
+    .guitar-edit-modal { max-width: 100%; }
+}
+
 /* Saisie au clavier du nom de substitution (voir startGuitarOverrideEdit) : même habillage que
    .cell-sym-input (édition inline du symbole d'une case de la grille), compacte pour tenir dans ce
    bandeau étroit. JAMAIS en dessous de 16px (voir .cell-sym-input) : Safari iOS zoome sinon toute la
