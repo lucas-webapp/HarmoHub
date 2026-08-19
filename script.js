@@ -3001,9 +3001,16 @@ class HarmoHubApp {
         // case par corde, `null` = pas encore touchée (retour utilisateur, point « X par défaut » :
         // « les notes non jouées manuellement seront considérées non jouées avec le X en bout de
         // manche »— pas d'état intermédiaire « indéfini », donc pas de troisième valeur possible ici).
-        // Remise à zéro à chaque ouverture de la fenêtre (voir openGuitarEditor) : rien n'est encore
-        // enregistré à ce stade (Lot 4), donc rien à restaurer d'une fois sur l'autre.
+        // Rechargée à chaque ouverture de la fenêtre depuis un éventuel verrou déjà posé (voir
+        // openGuitarEditor/syncGuitarDrawShapeFromLock, Lot 4/5), manche vierge sinon.
         this.guitarDrawShape = new Array(6).fill(null);
+        // Un dessin non encore verrouillé a-t-il été touché depuis la dernière synchronisation avec le
+        // verrou affiché ? Tant que non, revenir sur l'onglet Dessiner (voir setGuitarEditTab) peut
+        // sans risque recharger la forme depuis le verrou COURANT — utile quand un nouveau substitut
+        // vient d'être tapé sur l'autre onglet (voir applyGuitarOverride, Lot 5). Dès la première
+        // modification manuelle (voir onGuitarNeckClick), ce brouillon devient prioritaire et plus rien
+        // ne doit l'écraser silencieusement, même si le verrou change ailleurs entre-temps.
+        this.guitarDrawDirty = false;
         // Résultat de la dernière reconnaissance (voir validateGuitarDrawnChord/analyzeGuitarDrawnChord,
         // Lot 3) : null tant qu'on n'a pas validé, ou après le moindre changement du dessin (voir
         // onGuitarNeckClick) — une liste de candidats ne doit jamais survivre à un dessin qu'elle ne
@@ -4042,8 +4049,15 @@ class HarmoHubApp {
         // Le manche large change de propriétaire selon l'onglet (voir renderGuitarDiagram/
         // renderGuitarDrawNeck) : ce bouton-poussoir affiche celui à qui le manche appartient
         // désormais, sans attendre le prochain rendu déclenché par autre chose.
-        if (tab === 'draw') this.renderGuitarDrawNeck();
-        else this.renderGuitarDiagram();
+        if (tab === 'draw') {
+            // Revenir sur cet onglet après avoir tapé un NOUVEAU substitut sur l'autre (voir
+            // applyGuitarOverride) doit refléter CE changement, pas laisser affiché un dessin devenu
+            // périmé — sauf s'il s'agit d'un dessin en cours (voir syncGuitarDrawShapeFromLock, Lot 5).
+            this.syncGuitarDrawShapeFromLock();
+            this.renderGuitarDrawNeck();
+        } else {
+            this.renderGuitarDiagram();
+        }
     }
 
     // Bascule la visibilité de certaines <option> d'un <select> en les retirant/réinsérant réellement
@@ -4403,11 +4417,26 @@ class HarmoHubApp {
         this.guitarEditOpen = true;
         overlay.hidden = false;
         this.lockBodyScroll();
-        this.guitarDrawShape = this.guitarDisplayLock ? this.guitarDisplayLock.slice() : new Array(6).fill(null);
+        this.guitarDrawDirty = false; // aucune modification manuelle depuis l'ouverture (voir syncGuitarDrawShapeFromLock)
+        this.syncGuitarDrawShapeFromLock();
         this.guitarDrawRecognition = null;
         this.guitarDrawSelectedIndex = 0;
         if (this.guitarEditTab === 'draw') this.renderGuitarDrawNeck();
         this.renderGuitarDrawResult();
+    }
+
+    // Recharge this.guitarDrawShape depuis le verrou actuellement affiché (this.guitarDisplayLock),
+    // mais SEULEMENT si rien n'a encore été dessiné à la main depuis la dernière synchronisation
+    // (this.guitarDrawDirty, posé par onGuitarNeckClick) — sinon un aller-retour vers l'onglet
+    // « Taper le nom » (Lot 5 : cohabitation dessin/manuscrit) écraserait silencieusement un dessin en
+    // cours dès qu'on y tape un nouveau substitut. Bug trouvé par ce même raisonnement en sens
+    // inverse : sans ce garde-fou, taper un NOUVEAU substitut manuscrit (qui réinitialise le verrou,
+    // voir applyGuitarOverride) laissait l'onglet Dessiner afficher l'ANCIENNE forme verrouillée —
+    // périmée, mais jamais effacée puisque rien ne revenait plus jamais lire this.guitarDisplayLock
+    // une fois la fenêtre déjà ouverte.
+    syncGuitarDrawShapeFromLock() {
+        if (this.guitarDrawDirty) return;
+        this.guitarDrawShape = this.guitarDisplayLock ? this.guitarDisplayLock.slice() : new Array(6).fill(null);
     }
 
     closeGuitarEditor() {
@@ -4473,6 +4502,10 @@ class HarmoHubApp {
         const { string, fret } = pos;
         const removed = this.guitarDrawShape[string] === fret;
         this.guitarDrawShape[string] = removed ? null : fret;
+        // Dès la première modification manuelle, plus question d'écraser ce dessin en revenant sur cet
+        // onglet (voir syncGuitarDrawShapeFromLock, Lot 5) : c'est désormais un brouillon en cours,
+        // distinct de ce qui est verrouillé/substitué par ailleurs.
+        this.guitarDrawDirty = true;
         // Toute reconnaissance affichée décrivait le dessin D'AVANT ce clic : plus valable une fois le
         // dessin changé, il faut revalider (retour utilisateur, Lot 3 : reconnaissance sur demande,
         // jamais silencieusement périmée).
