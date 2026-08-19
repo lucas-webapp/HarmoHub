@@ -2381,6 +2381,42 @@ button:active { transform: translateY(1px); }
    l'onglet Dessiner est actif (voir setGuitarEditTab dans script.js) — sur l'onglet Taper le nom, le
    manche affiche le doigté résolu et n'a rien à faire avec un clic dessus. */
 .guitar-edit-content:has(#guitar-edit-tab-draw.active) .guitar-edit-neck { cursor: crosshair; }
+
+/* Résultat de la reconnaissance (voir renderGuitarDrawResult dans script.js, Lot 3) : masqué tant que
+   rien n'a été validé. Un léger cadre le sépare des boutons juste au-dessus, sans reprendre le fond
+   plein d'une carte — ce n'est qu'un complément local à l'onglet, pas un bloc à part dans la page. */
+.guitar-draw-result {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+}
+.guitar-draw-unrecognized { color: var(--text-muted); }
+.guitar-draw-candidates {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 6px;
+}
+/* Même famille visuelle que .chord-chip (nom d'accord ailleurs dans l'appli) : un candidat EST un
+   nom d'accord, pas une commande — le bouton-poussoir classique (.icon-btn/.btn-sec) ne convient pas
+   ici. Le candidat choisi (voir selectGuitarDrawCandidate) se distingue par l'accent, comme un onglet
+   actif — cohérent avec .guitar-edit-tab.active juste au-dessus dans ce même fichier. */
+.guitar-draw-candidate {
+    font: inherit;
+    font-size: var(--fs-sm);
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    cursor: pointer;
+}
+.guitar-draw-candidate.active {
+    background: rgba(0, 230, 118, 0.12);
+    border-color: var(--accent);
+    color: var(--accent);
+}
 @media (max-width: 600px) {
     .guitar-edit-modal { max-width: 100%; }
 }

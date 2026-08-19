@@ -2605,6 +2605,79 @@ function analyzeSegmentHarmony(segment) {
 // notes réellement jouées qu'on entendra. Volontairement haut — voir le commentaire d'en-tête.
 const MIDI_CHORD_MIN_CONFIDENCE = 0.62;
 
+// Reconnaissance d'un accord dessiné à la main sur le manche (Lot 3 de l'édition manuelle, voir
+// validateGuitarDrawnChord) — retour utilisateur, point 3 : « le logiciel doit reconnaître lui-même
+// le ou les accords dessinés... il peut y en avoir plusieurs avec les mêmes notes, proposer les plus
+// cohérents en premier » ; point 4 : « quand l'accord ne peut pas être reconnu, ne pas afficher de nom
+// côté guitare ». Réutilise le CŒUR du moteur ci-dessus (CHORD_QUALITY_PROFILES, pénalité de degré
+// essentiel manquant, biais de simplicité, pénalité accord trop clairsemé) : même vocabulaire
+// harmonique, mêmes réglages déjà éprouvés sur l'import MIDI. Ce qui EST écarté, en revanche, c'est
+// tout ce qui suppose une durée : attaque, temps fort, dépréciation de la voix du dessus, polyphonie
+// mesurée dans le temps (voir `support` dans analyzeSegmentHarmony) — sans objet ici, puisque sur un
+// manche réel, les notes posées sonnent TOUJOURS ensemble, par construction. `support` vaut donc
+// toujours son maximum plutôt que d'être mesuré.
+// `guitarDrawShape` : tableau de 6 cases (grave -> aigu, voir GUITAR_OPEN_MIDI), chacune un numéro de
+// frette ou `null` (corde non jouée manuellement — voir onGuitarNeckClick). Retour : null si rien
+// n'est encore posé, sinon { root, quality, confidence, bassPc, pitchClasses, alternatives } — même
+// forme que analyzeSegmentHarmony, sans les champs propres au rythme.
+function analyzeGuitarDrawnChord(guitarDrawShape) {
+    const midis = guitarDrawShape
+        .map((fret, s) => (fret == null ? null : GUITAR_OPEN_MIDI[s] + fret))
+        .filter(m => m != null);
+    if (!midis.length) return null;
+
+    // Poids uniforme par classe de hauteur entendue : pas de durée à départager entre elles, une
+    // note posée à la main compte exactement comme les autres, une seule fois (les octaves doublées
+    // d'une même classe de hauteur — deux cordes accordées à la même note — n'ajoutent rien de plus
+    // à départager non plus).
+    const weightByPc = new Array(12).fill(0);
+    for (const midi of midis) weightByPc[midi % 12] = 1;
+    const totalWeight = weightByPc.reduce((a, b) => a + b, 0);
+    const bassPc = Math.min(...midis) % 12; // la corde la plus grave jouée EST la basse, sur un manche réel
+
+    let best = null;
+    const scored = [];
+    for (let rootPc = 0; rootPc < 12; rootPc++) {
+        for (const profile of CHORD_QUALITY_PROFILES) {
+            let covered = 0, present = 0, heardTones = 0;
+            for (const [pc, roleWeight] of profile.weights) {
+                const w = weightByPc[(rootPc + pc) % 12];
+                if (w > 0) { covered += w; present += roleWeight; heardTones++; }
+            }
+            const explained = covered / totalWeight;
+            const completeness = present / profile.totalWeight;
+            const bassScore = (bassPc === rootPc) ? 1
+                : (profile.weights.has(((bassPc - rootPc) % 12 + 12) % 12) ? 0.6 : 0.15);
+            const essentialsHeard = profile.essentialPcs.every(pc => weightByPc[(rootPc + pc) % 12] > 0);
+            const harmonic = (0.5 * explained + 0.3 * completeness + 0.2 * bassScore)
+                * (essentialsHeard ? 1 : MIDI_MISSING_ESSENTIAL_PENALTY);
+            const simplicity = 1 - MIDI_SIMPLICITY_BIAS * Math.max(0, profile.size - 3);
+            const sparse = heardTones >= MIDI_MIN_CHORD_TONES ? 1 : MIDI_SPARSE_PENALTY;
+            // support toujours maximal (voir le commentaire d'en-tête) : (0.5 + 0.5*1) = 1, omis du calcul.
+            const confidence = harmonic * simplicity * sparse;
+
+            const cand = { rootPc, root: NOTES[rootPc], quality: profile.quality, confidence, explained, completeness, bassScore };
+            scored.push(cand);
+            if (!best || cand.confidence > best.confidence) best = cand;
+        }
+    }
+
+    scored.sort((a, b) => b.confidence - a.confidence);
+    return {
+        ...best,
+        bassPc,
+        pitchClasses: weightByPc.map((w, pc) => (w > 0 ? pc : -1)).filter(pc => pc >= 0),
+        alternatives: scored.slice(1, 4).map(c => ({ root: c.root, quality: c.quality, confidence: c.confidence })),
+    };
+}
+
+// Même seuil que l'import MIDI (voir MIDI_CHORD_MIN_CONFIDENCE) : point de départ raisonnable, à
+// affiner séparément si l'usage le montre — `support` n'étant plus mesuré mais toujours maximal (voir
+// analyzeGuitarDrawnChord), les accords manuscrits atteignent naturellement une confiance plus haute
+// qu'un passage MIDI de clarté équivalente ; les deux seuils n'ont donc pas vocation à rester égaux
+// indéfiniment, d'où une constante séparée plutôt qu'un partage direct.
+const GUITAR_DRAW_MIN_CONFIDENCE = 0.62;
+
 // Fusionne les mesures voisines RIGOUREUSEMENT identiques en une seule case plus longue. Un accord
 // tenu quatre mesures se lit alors comme un seul accord de quatre mesures, et non comme quatre cases
 // à la queue leu leu — ce qu'on écrirait à la main. La condition est stricte (mêmes notes, même
@@ -2931,6 +3004,13 @@ class HarmoHubApp {
         // Remise à zéro à chaque ouverture de la fenêtre (voir openGuitarEditor) : rien n'est encore
         // enregistré à ce stade (Lot 4), donc rien à restaurer d'une fois sur l'autre.
         this.guitarDrawShape = new Array(6).fill(null);
+        // Résultat de la dernière reconnaissance (voir validateGuitarDrawnChord/analyzeGuitarDrawnChord,
+        // Lot 3) : null tant qu'on n'a pas validé, ou après le moindre changement du dessin (voir
+        // onGuitarNeckClick) — une liste de candidats ne doit jamais survivre à un dessin qu'elle ne
+        // décrit plus. guitarDrawSelectedIndex : lequel des candidats (0 = le meilleur) est
+        // actuellement choisi — voir selectGuitarDrawCandidate.
+        this.guitarDrawRecognition = null;
+        this.guitarDrawSelectedIndex = 0;
         // Accord de substitution à la guitare, en attente pour l'accord en cours d'édition (voir
         // toggleGuitarLock ci-dessus pour le même principe, et guitarChordFor/startGuitarOverrideEdit/
         // applyGuitarOverride) : { root, quality, bass, octave, inversion, drop } déjà normalisé (jamais
@@ -3941,6 +4021,7 @@ class HarmoHubApp {
         // onGuitarNeckClick, qui se filtre lui-même sur this.guitarEditTab).
         document.getElementById('guitar-edit-neck').addEventListener('click', (e) => this.onGuitarNeckClick(e));
         document.getElementById('guitar-draw-play').onclick = () => this.playGuitarDrawChord();
+        document.getElementById('guitar-draw-validate').onclick = () => this.validateGuitarDrawnChord();
         this.setGuitarEditTab(this.guitarEditTab); // reflète l'onglet par défaut dès le chargement
         this.applyVizVisibility();
     }
@@ -4319,7 +4400,10 @@ class HarmoHubApp {
         overlay.hidden = false;
         this.lockBodyScroll();
         this.guitarDrawShape = new Array(6).fill(null);
+        this.guitarDrawRecognition = null;
+        this.guitarDrawSelectedIndex = 0;
         if (this.guitarEditTab === 'draw') this.renderGuitarDrawNeck();
+        this.renderGuitarDrawResult();
     }
 
     closeGuitarEditor() {
@@ -4344,8 +4428,11 @@ class HarmoHubApp {
         if (!wideViz) return;
         const byString = this.guitarDrawShape.map((fret, s) => (fret == null ? null : { fret, midi: GUITAR_OPEN_MIDI[s] + fret, role: 'neutral' }));
         wideViz.innerHTML = this.buildGuitarDiagramSVG(byString, false, true);
+        const hasNotes = this.guitarDrawShape.some(f => f != null);
         const playBtn = document.getElementById('guitar-draw-play');
-        if (playBtn) playBtn.disabled = !this.guitarDrawShape.some(f => f != null);
+        if (playBtn) playBtn.disabled = !hasNotes;
+        const validateBtn = document.getElementById('guitar-draw-validate');
+        if (validateBtn) validateBtn.disabled = !hasNotes;
     }
 
     // Convertit un point d'écran (clic/tap) en { string, fret } sur le manche large actuellement
@@ -4382,7 +4469,13 @@ class HarmoHubApp {
         const { string, fret } = pos;
         const removed = this.guitarDrawShape[string] === fret;
         this.guitarDrawShape[string] = removed ? null : fret;
+        // Toute reconnaissance affichée décrivait le dessin D'AVANT ce clic : plus valable une fois le
+        // dessin changé, il faut revalider (retour utilisateur, Lot 3 : reconnaissance sur demande,
+        // jamais silencieusement périmée).
+        this.guitarDrawRecognition = null;
+        this.guitarDrawSelectedIndex = 0;
         this.renderGuitarDrawNeck();
+        this.renderGuitarDrawResult();
         if (!removed) this.previewGuitarDrawNote(GUITAR_OPEN_MIDI[string] + fret);
     }
 
@@ -4413,6 +4506,53 @@ class HarmoHubApp {
         } catch (e) {
             console.warn('Lecture de l\'accord (manche) ignorée (instrument pas encore prêt) :', e.message);
         }
+    }
+
+    // ---------- Reconnaissance de l'accord dessiné (Lot 3) ----------
+    // Retour utilisateur, point 3 : « une fois la saisie des notes terminée et validée, le logiciel
+    // doit ensuite reconnaître lui-même le ou les accords dessinés » — geste explicite (voir
+    // #guitar-draw-validate), pas une reconnaissance en continu à chaque clic : la case reste stable
+    // pendant qu'on pose les notes, elle ne changerait pas de nom entre deux clics.
+    validateGuitarDrawnChord() {
+        this.guitarDrawRecognition = analyzeGuitarDrawnChord(this.guitarDrawShape);
+        this.guitarDrawSelectedIndex = 0; // le meilleur candidat, toujours en tête (voir analyzeGuitarDrawnChord)
+        this.renderGuitarDrawResult();
+    }
+
+    // Reflète l'état de la reconnaissance dans le panneau de résultat : rien tant que rien n'a été
+    // validé (ou après un changement du dessin, voir onGuitarNeckClick) ; un message clair si l'accord
+    // n'a pas pu être reconnu (retour utilisateur, point 4 : « ne pas afficher de nom d'accord au-
+    // dessus du diagramme guitare... laisser celui du piano uniquement ») ; sinon la liste des
+    // candidats — TOUJOURS affichée, même s'il n'y en a qu'un (choix acté : « toujours demander »),
+    // classée du plus cohérent au moins cohérent, celui actuellement choisi mis en évidence.
+    renderGuitarDrawResult() {
+        const box = document.getElementById('guitar-draw-result');
+        if (!box) return;
+        const r = this.guitarDrawRecognition;
+        if (!r) { box.hidden = true; box.innerHTML = ''; return; }
+        box.hidden = false;
+        if (r.confidence < GUITAR_DRAW_MIN_CONFIDENCE) {
+            box.innerHTML = `<p class="guitar-edit-hint guitar-draw-unrecognized">Accord non reconnu — pas assez de notes, ou il manque un degré essentiel (la tierce, par exemple). Seul le nom du piano restera affiché pour cet accord.</p>`;
+            return;
+        }
+        const candidates = [r, ...r.alternatives];
+        const label = c => escapeHtml(noteNameForPc(c.rootPc ?? NOTES.indexOf(c.root), false) + (QUALITY_LABEL[c.quality] ?? ''));
+        box.innerHTML = `
+            <p class="guitar-edit-hint">Accord reconnu — choisis celui qui convient :</p>
+            <div class="guitar-draw-candidates">${candidates.map((c, i) =>
+                `<button type="button" class="guitar-draw-candidate${i === this.guitarDrawSelectedIndex ? ' active' : ''}" data-index="${i}">${label(c)}</button>`
+            ).join('')}</div>`;
+        box.querySelectorAll('.guitar-draw-candidate').forEach(btn => {
+            btn.onclick = () => this.selectGuitarDrawCandidate(+btn.dataset.index);
+        });
+    }
+
+    // Choisit un candidat parmi ceux proposés (retour utilisateur, point 3 : « je vais devoir choisir
+    // moi-même si besoin ») — se contente pour l'instant de changer la mise en évidence ; écrire ce
+    // choix dans le morceau (cadenas/substitut, coloration des notes) est le Lot 4.
+    selectGuitarDrawCandidate(index) {
+        this.guitarDrawSelectedIndex = index;
+        this.renderGuitarDrawResult();
     }
 
     // Reflète l'état verrouillé/libre sur le bouton cadenas, relatif au doigté ACTUELLEMENT AFFICHÉ
