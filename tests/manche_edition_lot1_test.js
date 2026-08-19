@@ -1,14 +1,16 @@
 // Lot 1 de l'édition manuelle du manche (retour utilisateur : « j'ai déjà beaucoup de boutons... un
-// seul bouton d'édition manuelle sous les diagrammes »). Ce lot ne fait QUE relocaliser l'existant
-// (flèches de doigté, substitut manuscrit, cadenas) dans une fenêtre agrandie qui montre en plus le
-// manche COMPLET (24 cases, toujours depuis le sillet — voir GUITAR_NECK_DISPLAY_FRETS et
-// buildGuitarDiagramSVG `wide`), synchronisé en permanence avec le doigté prévisualisé. Aucune
-// nouvelle logique de dessin/reconnaissance ici (Lots suivants) : seulement la coquille, testée
-// desktop ET mobile, avec le flux "Taper le nom" existant vérifié bout en bout à son nouvel endroit.
+// seul bouton d'édition manuelle sous les diagrammes »). Un seul bouton ouvre une fenêtre agrandie
+// qui montre le manche COMPLET (24 cases, toujours depuis le sillet — voir GUITAR_NECK_DISPLAY_FRETS
+// et buildGuitarDiagramSVG `wide`), synchronisé en permanence avec le doigté prévisualisé, et le
+// crayon de substitut manuscrit (flux existant, inchangé). Flèches de doigté et cadenas, EUX,
+// restent sous le petit diagramme comme avant (retour utilisateur, deuxième passage : « laisse les
+// flèches et le cadenas hors du bouton éditer, je l'utilise souvent pour les accords simples ») —
+// pas relocalisés, pas dupliqués. Aucune nouvelle logique de dessin/reconnaissance ici (Lots
+// suivants) : seulement la coquille, testée desktop ET mobile.
 const { chromium, devices } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, plan, bilan } = require('./_harness')('manche : Lot 1 (bouton unique + fenêtre agrandie)');
-plan(20);
+plan(22);
 
 (async () => {
     const browser = await chromium.launch();
@@ -25,9 +27,11 @@ plan(20);
     }
     await page.waitForTimeout(200);
 
-    check(await page.locator('#guitar-edit-btn').count() === 1, "le bouton unique #guitar-edit-btn existe sous les diagrammes");
-    check(await page.locator('.guitar-viz-wrap > .guitar-controls-row #guitar-nav').count() === 0, "les flèches de doigté ne sont plus dans la zone principale (relocalisées)");
-    check(await page.locator('.guitar-viz-wrap > .guitar-controls-row #guitar-lock-btn').count() === 0, "le cadenas n'est plus dans la zone principale (relocalisé)");
+    check(await page.locator('#guitar-edit-btn').count() === 1, "le bouton d'édition manuelle existe sous le diagramme");
+    check(await page.locator('.guitar-viz-wrap #guitar-nav').count() === 1, "les flèches de doigté sont bien restées sous le petit diagramme");
+    check(await page.locator('.guitar-viz-wrap #guitar-lock-btn').count() === 1, "le cadenas est bien resté sous le petit diagramme");
+    check(await page.locator('#guitar-edit-overlay #guitar-nav').count() === 0, "les flèches ne sont PAS dupliquées dans la fenêtre d'édition");
+    check(await page.locator('#guitar-edit-overlay #guitar-lock-btn').count() === 0, "le cadenas n'est PAS dupliqué dans la fenêtre d'édition");
 
     check(await page.isHidden('#guitar-edit-overlay'), "la fenêtre d'édition est fermée au départ");
     await page.click('#guitar-edit-btn');
@@ -40,8 +44,7 @@ plan(20);
 
     check(await page.locator('#guitar-edit-pane-name').isVisible(), "l'onglet « Taper le nom » est actif par défaut");
     check(await page.locator('#guitar-edit-pane-draw').isHidden(), "l'onglet « Dessiner » est masqué par défaut");
-    check(await page.locator('#guitar-edit-pane-name #guitar-nav').count() === 1, "les flèches de doigté sont bien dans l'onglet « Taper le nom »");
-    check(await page.locator('#guitar-edit-pane-name #guitar-lock-btn').count() === 1, "le cadenas est bien dans l'onglet « Taper le nom »");
+    check(await page.locator('#guitar-edit-pane-name #guitar-override-btn').count() === 1, "le crayon de substitut est bien dans l'onglet « Taper le nom »");
 
     await page.click('#guitar-edit-tab-draw');
     await page.waitForTimeout(100);
@@ -61,17 +64,21 @@ plan(20);
     check(overrideRowText.includes('Em'), `le substitut tapé DANS la fenêtre s'applique bien (bandeau: ${JSON.stringify(overrideRowText)})`);
     check(await page.isVisible('#guitar-override-row'), "le bandeau substitut (hors fenêtre) reflète bien le nouveau substitut");
 
-    if (await page.isVisible('#guitar-lock-btn')) {
-        await page.click('#guitar-lock-btn');
-        await page.waitForTimeout(200);
-        check(await page.getAttribute('#guitar-lock-btn', 'aria-pressed') === 'true', "le cadenas se ferme bien au clic depuis la fenêtre");
-    } else {
-        check(true, "(cadenas non pertinent pour ce doigté, ignoré)");
-    }
-
     await page.click('#guitar-edit-close');
     await page.waitForTimeout(150);
     check(await page.isHidden('#guitar-edit-overlay'), "la fenêtre se ferme au clic sur la croix");
+
+    // Le cadenas, resté hors fenêtre, doit rester utilisable SANS rien ouvrir — c'est tout le point
+    // du retour utilisateur qui a motivé ce réagencement.
+    if (await page.isVisible('#guitar-lock-btn')) {
+        await page.click('#guitar-lock-btn');
+        await page.waitForTimeout(200);
+        check(await page.getAttribute('#guitar-lock-btn', 'aria-pressed') === 'true', "le cadenas se verrouille bien SANS ouvrir la fenêtre d'édition");
+        await page.click('#guitar-lock-btn'); // déverrouille pour laisser un état propre
+        await page.waitForTimeout(150);
+    } else {
+        check(true, "(cadenas non pertinent pour ce doigté, ignoré)");
+    }
 
     await page.click('#guitar-edit-btn');
     await page.waitForTimeout(150);

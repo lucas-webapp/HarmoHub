@@ -36,11 +36,6 @@ async function dblclickCellSafe(page, section, index) {
     console.log('D#m fingerings:', nFingerings);
     check(nFingerings >= 2, "au moins 2 doigtés pour tester la navigation");
 
-    // Le cadenas/les flèches vivent maintenant dans la fenêtre d'édition manuelle (voir
-    // #guitar-edit-btn/openGuitarEditor).
-    await page.click('#guitar-edit-btn');
-    await page.waitForTimeout(150);
-
     // Lock fingering #0 (the one shown by default)
     const shape0 = await page.evaluate(() => window.app.guitarFingerings[0].map(f => f ? f.fret : null));
     await page.click('#guitar-lock-btn');

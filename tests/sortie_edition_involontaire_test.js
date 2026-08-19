@@ -60,15 +60,17 @@ const SORTIES_LEGITIMES = new Set([
         });
         return vus;
     }, [...SORTIES_LEGITIMES]);
-    // Flèches de doigté, crayon de substitution et cadenas vivent maintenant DANS la fenêtre d'édition
-    // manuelle du manche (voir #guitar-edit-btn/openGuitarEditor) : masqués par défaut, l'inventaire
-    // générique ci-dessus ne les voit donc jamais (offsetParent nul tant que la fenêtre est fermée).
-    // Ajoutés ici explicitement plutôt que balayés en aveugle : le balayage générique clique un
-    // contrôle À LA FOIS derrière tout le reste de la page, et ouvrir cette fenêtre masquerait TOUS
-    // les autres contrôles derrière elle si elle restait ouverte pour le reste du balayage — la
-    // boucle rouvre donc CETTE fenêtre juste avant de chercher un de CES contrôles précis, jamais pour
-    // les autres (voir CONTROLES_SOUS_MANCHE plus bas).
-    const CONTROLES_SOUS_MANCHE = ['guitar-edit-close', 'guitar-edit-tab-draw', 'guitar-edit-tab-name', 'guitar-prev', 'guitar-next', 'guitar-override-btn', 'guitar-lock-btn'];
+    // Le crayon de substitut manuscrit vit maintenant DANS la fenêtre d'édition manuelle du manche
+    // (voir #guitar-edit-btn/openGuitarEditor) : masqué par défaut, l'inventaire générique ci-dessus
+    // ne le voit donc jamais (offsetParent nul tant que la fenêtre est fermée). Ajouté ici
+    // explicitement plutôt que balayé en aveugle : le balayage générique clique un contrôle À LA FOIS
+    // derrière tout le reste de la page, et ouvrir cette fenêtre masquerait TOUS les autres contrôles
+    // derrière elle si elle restait ouverte pour le reste du balayage — la boucle rouvre donc CETTE
+    // fenêtre juste avant de chercher un de CES contrôles précis, jamais pour les autres (voir
+    // CONTROLES_SOUS_MANCHE plus bas). Flèches de doigté et cadenas, eux, sont RESTÉS hors de la
+    // fenêtre (retour utilisateur : « je les utilise souvent pour les accords simples ») : le
+    // balayage générique les voit donc déjà tout seul, comme avant — pas besoin de les y ajouter.
+    const CONTROLES_SOUS_MANCHE = ['guitar-edit-close', 'guitar-edit-tab-draw', 'guitar-edit-tab-name', 'guitar-override-btn'];
     cibles.push(...CONTROLES_SOUS_MANCHE);
     console.log(`${cibles.length} contrôles visibles à éprouver`);
 

@@ -27,12 +27,6 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.evaluate(() => window.app.editChord(0, 0));
     await page.waitForTimeout(200);
 
-    // Flèches de doigté + cadenas vivent maintenant dans la fenêtre d'édition manuelle (voir
-    // #guitar-edit-btn/openGuitarEditor) : ouverte une fois, elle reste ouverte pour tout ce test
-    // (rien d'autre n'est cliqué en dehors de la fenêtre avant le prochain rechargement de page).
-    await page.click('#guitar-edit-btn');
-    await page.waitForTimeout(150);
-
     console.log('--- Cycle to a non-default fingering, then lock it ---');
     await page.click('#guitar-next');
     await page.waitForTimeout(100);
@@ -116,8 +110,6 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     if (!(await page.evaluate(() => window.app.showGuitarViz()))) await page.click('#toggle-viz-guitar');
     await page.waitForTimeout(200);
     await page.evaluate(() => window.app.editChord(0, 0));
-    await page.waitForTimeout(150);
-    await page.click('#guitar-edit-btn'); // rechargée : la fenêtre d'édition repart fermée
     await page.waitForTimeout(150);
     await page.click('#guitar-next');
     await page.waitForTimeout(100);

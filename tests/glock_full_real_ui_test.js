@@ -72,10 +72,6 @@ async function clickCellSafe(page, section, index) {
         console.log(`  accord ${i} : ${nFingerings} doigtés disponibles`);
         check(nFingerings > 0, `accord ${i} : au moins un doigté de guitare proposé`);
 
-        // Flèches/cadenas vivent maintenant dans la fenêtre d'édition manuelle (voir #guitar-edit-btn).
-        await page.click('#guitar-edit-btn');
-        await page.waitForTimeout(150);
-
         // Cycle to fingering #1 (or last one) via a REAL click on guitar-next, if more than 1 available
         if (nFingerings > 1) {
             const navVisible = await page.isVisible('#guitar-next');
@@ -101,11 +97,6 @@ async function clickCellSafe(page, section, index) {
         console.log(`  accord ${i} : verrou sauvegardé =`, JSON.stringify(savedLock));
         check(!!savedLock, `accord ${i} : verrou bien écrit dans localStorage`);
         lockedShapes[i] = savedLock;
-
-        // Referme la fenêtre d'édition manuelle (fenêtre modale : "Fermer" du panneau, juste en
-        // dessous, n'est pas cliquable tant qu'elle reste ouverte).
-        await page.click('#guitar-edit-close');
-        await page.waitForTimeout(120);
 
         // Close edit via real click on "Fermer"
         await page.click('#accord-close');

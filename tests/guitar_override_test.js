@@ -47,9 +47,11 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     check(pianoChipInfo.isSmall === false, "le chip piano N'A PAS le modificateur .chord-chip-sm (police plus grosse que la guitare)");
     check(pianoChipInfo.notesHasBorderLeft === true, 'une séparation (bordure) sépare bien le nom de l\'accord et ses notes, dans le chip piano');
 
-    // Le crayon/cadenas/flèches de doigté vivent maintenant dans la fenêtre d'édition manuelle (voir
+    // Le crayon de substitut manuscrit vit maintenant dans la fenêtre d'édition manuelle (voir
     // #guitar-edit-btn/openGuitarEditor dans script.js — retour utilisateur : « j'ai déjà beaucoup de
-    // boutons ») : il faut l'ouvrir avant d'y toucher, comme dans la vraie interface.
+    // boutons ») : il faut l'ouvrir avant d'y toucher, comme dans la vraie interface. Flèches de
+    // doigté et cadenas, eux, sont RESTÉS hors de cette fenêtre (retour utilisateur : « je les
+    // utilise souvent pour les accords simples »).
     await page.click('#guitar-edit-btn');
     await page.waitForTimeout(150);
     await page.click('#guitar-override-btn');
@@ -109,6 +111,11 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     const btnActive = await page.evaluate(() => document.getElementById('guitar-override-btn').classList.contains('active'));
     check(btnActive, 'le bouton crayon est bien mis en évidence (actif) une fois un substitut défini');
 
+    // Referme la fenêtre d'édition (fenêtre modale : le reste de la page — dont le cadenas, RESTÉ hors
+    // fenêtre — n'est pas cliquable tant qu'elle reste ouverte).
+    await page.click('#guitar-edit-close');
+    await page.waitForTimeout(150);
+
     // ============================================================
     // === B. Le cadenas (même principe qu'avant) verrouille le doigté DU SUBSTITUT ===
     // ============================================================
@@ -118,11 +125,6 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     await page.waitForTimeout(150);
     const lockActive = await page.evaluate(() => document.getElementById('guitar-lock-btn').classList.contains('active'));
     check(lockActive, 'le cadenas se verrouille bien sur le doigté affiché (celui du substitut)');
-
-    // Referme la fenêtre d'édition (fenêtre modale : le reste de la page, dont #save, n'est pas
-    // cliquable tant qu'elle reste ouverte).
-    await page.click('#guitar-edit-close');
-    await page.waitForTimeout(150);
 
     // ============================================================
     // === C. Ajoute l'accord dans la grille, vérifie la persistance ===

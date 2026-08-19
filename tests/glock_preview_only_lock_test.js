@@ -48,12 +48,6 @@ async function clickCellSafe(page, section, index) {
     const nFingerings = await page.evaluate(() => window.app.guitarFingerings.length);
     console.log('fingerings shown:', nFingerings);
 
-    // Le cadenas vit maintenant dans la fenêtre d'édition manuelle (voir #guitar-edit-btn) : l'ouvrir
-    // n'affecte pas this.guitarPreviewPos (ensureGuitarDiagram ne le remet à null qu'en LIVE, pas en
-    // simple aperçu) — le scénario testé ici (clic cadenas EN APERÇU) reste donc intact.
-    await page.click('#guitar-edit-btn');
-    await page.waitForTimeout(120);
-
     // Now click the lock button WHILE merely previewing (not editing) -- this is the suspected buggy path
     await page.click('#guitar-lock-btn');
     await page.waitForTimeout(200);

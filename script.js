@@ -1430,6 +1430,18 @@ const OPEN_SHAPES = {
 // (barré) déduit de la tonique demandée. `null` = corde étouffée, nombre = décalage depuis le barré
 // (0 = à la hauteur du barré). Dérivées directement des accords ouverts E/Em/E7/Emaj7/Em7 et
 // A/Am/A7/Amaj7/Am7 (mêmes décalages, vérifiés note à note), donc fiables pour n'importe quel ton.
+//
+// 6/m6/dom9 ajoutés (retour utilisateur : « aucun accord n'est proposé pour Am6, il est bien jouable
+// à la guitare ») : le solveur exact (solveGuitarFingerings, seul recours pour une qualité absente
+// d'ici) exige la voix EXACTE que produit le voicing par défaut (empilement de tierces à l'octave 3),
+// et cette voix précise n'a tout simplement pas de doigté tenable (GUITAR_MAX_SPAN/GUITAR_MAX_FINGERS)
+// pour une bonne moitié des tons — pas un accord réellement injouable, juste CETTE disposition précise
+// des notes qui l'est. Les formes ci-dessous sont les vraies formes de barré enseignées pour ces
+// accords (Em6/Am6/E6/A6 « à vide » archi-connues ; E9 = la forme funk classique) : mêmes notes,
+// vérifiées une à une contre CHORD_INTERVALS (root/tierce/quinte/6e ou 9e), juste redistribuées sur
+// le manche pour rester jouables. Pas de forme A pour dom9 : aucune forme simple et fiable à
+// proposer sans risquer d'omettre la tierce (qui donne son caractère « dominant » à l'accord) — mieux
+// vaut laisser le solveur exact tenter sa chance que proposer une forme fausse.
 const BARRE_TEMPLATES = {
     E: {
         openPc: NOTES.indexOf('E'),
@@ -1438,6 +1450,9 @@ const BARRE_TEMPLATES = {
         dom7: [0, 2, 0, 1, 0, 0],
         maj7: [0, 2, 1, 1, 0, 0],
         min7: [0, 2, 0, 0, 0, 0],
+        '6':  [0, 2, 2, 1, 2, 0],
+        m6:   [0, 2, 2, 0, 2, 0],
+        dom9: [0, 2, 0, 1, 0, 2],
     },
     A: {
         openPc: NOTES.indexOf('A'),
@@ -1446,9 +1461,11 @@ const BARRE_TEMPLATES = {
         dom7: [null, 0, 2, 0, 2, 0],
         maj7: [null, 0, 2, 1, 2, 0],
         min7: [null, 0, 2, 0, 1, 0],
+        '6':  [null, 0, 2, 2, 2, 2],
+        m6:   [null, 0, 2, 2, 1, 2],
     }
 };
-const BARRE_QUALITIES = ['maj', 'min', 'dom7', 'maj7', 'min7'];
+const BARRE_QUALITIES = ['maj', 'min', 'dom7', 'maj7', 'min7', '6', 'm6', 'dom9'];
 
 // Formes « communément enseignées » pour un ton/qualité donné (ouverte quand elle existe, puis
 // gabarits de barré E et A décalés) — triées de la plus courante (position la plus basse) à la plus
