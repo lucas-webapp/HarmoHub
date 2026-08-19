@@ -70,7 +70,7 @@ const SORTIES_LEGITIMES = new Set([
     // CONTROLES_SOUS_MANCHE plus bas). Flèches de doigté et cadenas, eux, sont RESTÉS hors de la
     // fenêtre (retour utilisateur : « je les utilise souvent pour les accords simples ») : le
     // balayage générique les voit donc déjà tout seul, comme avant — pas besoin de les y ajouter.
-    const CONTROLES_SOUS_MANCHE = ['guitar-edit-close', 'guitar-edit-tab-draw', 'guitar-edit-tab-name', 'guitar-override-btn', 'guitar-draw-play', 'guitar-draw-validate'];
+    const CONTROLES_SOUS_MANCHE = ['guitar-edit-close', 'guitar-edit-tab-draw', 'guitar-edit-tab-name', 'guitar-override-btn', 'guitar-draw-play', 'guitar-draw-validate', 'guitar-draw-lock'];
     cibles.push(...CONTROLES_SOUS_MANCHE);
     console.log(`${cibles.length} contrôles visibles à éprouver`);
 
@@ -98,14 +98,25 @@ const SORTIES_LEGITIMES = new Set([
         // masqué selon l'ordre de passage — l'inventaire doit rester le même quel que soit cet ordre.
         // guitar-draw-play est désactivé tant que le manche est vide (voir renderGuitarDrawNeck) : une
         // note y est posée directement en JS pour l'atteindre, sans dépendre d'un clic-souris précis
-        // sur le manche (déjà testé pour lui-même dans manche_edition_lot2_test.js).
+        // sur le manche (déjà testé pour lui-même dans manche_edition_lot2_test.js). guitar-draw-lock
+        // (Lot 4) n'existe qu'une fois un accord reconnu affiché (voir renderGuitarDrawResult) — posé
+        // ici aussi directement en JS, peu importe que la forme dessinée soit musicalement cohérente :
+        // seul compte, pour CE banc, que le clic sur ce bouton précis ne fasse pas sortir de l'édition.
         if (CONTROLES_SOUS_MANCHE.includes(nom)) {
             await page.click('#guitar-edit-btn').catch(() => {});
             await page.waitForTimeout(80);
-            const onDrawTab = ['guitar-edit-tab-draw', 'guitar-draw-play', 'guitar-draw-validate'].includes(nom);
+            const onDrawTab = ['guitar-edit-tab-draw', 'guitar-draw-play', 'guitar-draw-validate', 'guitar-draw-lock'].includes(nom);
             await page.click(onDrawTab ? '#guitar-edit-tab-draw' : '#guitar-edit-tab-name').catch(() => {});
             if (nom === 'guitar-draw-play' || nom === 'guitar-draw-validate') {
                 await page.evaluate(() => { window.app.guitarDrawShape[0] = 0; window.app.renderGuitarDrawNeck(); });
+            }
+            if (nom === 'guitar-draw-lock') {
+                await page.evaluate(() => {
+                    window.app.guitarDrawShape[0] = 0;
+                    window.app.guitarDrawRecognition = { rootPc: 0, root: 'C', quality: 'maj', confidence: 1, alternatives: [] };
+                    window.app.guitarDrawSelectedIndex = 0;
+                    window.app.renderGuitarDrawResult();
+                });
             }
             await page.waitForTimeout(80);
         }

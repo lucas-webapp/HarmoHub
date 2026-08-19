@@ -2417,6 +2417,15 @@ button:active { transform: translateY(1px); }
     border-color: var(--accent);
     color: var(--accent);
 }
+/* Bouton « Verrouiller »/« Utiliser comme substitut » (voir lockGuitarDrawnChord, Lot 4) : pleine
+   largeur et nettement séparé des puces candidats juste au-dessus — c'est l'action qui ÉCRIT dans le
+   morceau, pas une simple mise en évidence comme un clic sur une puce, elle mérite d'être visuellement
+   distincte plutôt que noyée dans .guitar-controls-row avec Jouer/Valider. */
+.guitar-draw-lock {
+    display: flex;
+    width: 100%;
+    margin-top: 14px;
+}
 @media (max-width: 600px) {
     .guitar-edit-modal { max-width: 100%; }
 }

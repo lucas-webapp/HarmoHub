@@ -4391,15 +4391,19 @@ class HarmoHubApp {
     // relocalisées telles quelles À L'INTÉRIEUR (voir index.html) plutôt que réécrites — même logique,
     // mêmes id, pour ne rien casser de ce qui marche déjà. Le manche complet (#guitar-edit-neck) est
     // déjà à jour en permanence (voir renderGuitarDiagram), rien à recalculer à l'ouverture — sauf le
-    // dessin au clic (Lot 2), reparti à zéro à chaque ouverture (rien n'est encore enregistré avant le
-    // Lot 4, donc rien à restaurer d'une fois sur l'autre).
+    // dessin au clic (Lot 2/4) : reparti du verrou déjà posé pour CET accord s'il y en a un
+    // (this.guitarDisplayLock — voir ensureGuitarDiagram, reflète TOUJOURS le diagramme réellement
+    // affiché, verrouillé ou non), manche vierge sinon. Rouvrir la fenêtre sur un accord déjà
+    // verrouillé (dessiné à la main OU tapé au clavier puis verrouillé) ne doit jamais donner
+    // l'impression d'avoir perdu ce qui était déjà défini — retour utilisateur, « ne jamais perdre le
+    // substitut/verrou existant » — et permet aussi de reprendre un doigté déjà posé pour l'ajuster.
     openGuitarEditor() {
         const overlay = document.getElementById('guitar-edit-overlay');
         if (!overlay) return;
         this.guitarEditOpen = true;
         overlay.hidden = false;
         this.lockBodyScroll();
-        this.guitarDrawShape = new Array(6).fill(null);
+        this.guitarDrawShape = this.guitarDisplayLock ? this.guitarDisplayLock.slice() : new Array(6).fill(null);
         this.guitarDrawRecognition = null;
         this.guitarDrawSelectedIndex = 0;
         if (this.guitarEditTab === 'draw') this.renderGuitarDrawNeck();
@@ -4537,22 +4541,100 @@ class HarmoHubApp {
         }
         const candidates = [r, ...r.alternatives];
         const label = c => escapeHtml(noteNameForPc(c.rootPc ?? NOTES.indexOf(c.root), false) + (QUALITY_LABEL[c.quality] ?? ''));
+        // Le bouton annonce à l'avance ce qu'il va faire (Lot 4) : « Verrouiller » si le candidat
+        // choisi EST l'accord joué au piano (racine + qualité identiques, même mécanisme que le
+        // cadenas), « Utiliser comme substitut » sinon (même mécanisme que le crayon manuscrit) —
+        // pas de surprise au clic sur ce qui va être écrit dans le morceau.
+        const chosen = candidates[this.guitarDrawSelectedIndex] || r;
+        const pianoIdentity = this._currentPianoChordIdentity();
+        const samePiano = !!pianoIdentity && pianoIdentity.root === chosen.root && pianoIdentity.quality === chosen.quality;
         box.innerHTML = `
             <p class="guitar-edit-hint">Accord reconnu — choisis celui qui convient :</p>
             <div class="guitar-draw-candidates">${candidates.map((c, i) =>
                 `<button type="button" class="guitar-draw-candidate${i === this.guitarDrawSelectedIndex ? ' active' : ''}" data-index="${i}">${label(c)}</button>`
-            ).join('')}</div>`;
+            ).join('')}</div>
+            <button type="button" id="guitar-draw-lock" class="btn-blue guitar-draw-lock">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                ${samePiano ? 'Verrouiller ce doigté' : 'Utiliser comme substitut guitare'}
+            </button>`;
         box.querySelectorAll('.guitar-draw-candidate').forEach(btn => {
             btn.onclick = () => this.selectGuitarDrawCandidate(+btn.dataset.index);
         });
+        box.querySelector('#guitar-draw-lock').onclick = () => this.lockGuitarDrawnChord();
     }
 
     // Choisit un candidat parmi ceux proposés (retour utilisateur, point 3 : « je vais devoir choisir
-    // moi-même si besoin ») — se contente pour l'instant de changer la mise en évidence ; écrire ce
-    // choix dans le morceau (cadenas/substitut, coloration des notes) est le Lot 4.
+    // moi-même si besoin ») — change juste la mise en évidence ; écrire ce choix dans le morceau se
+    // fait au clic sur « Verrouiller » (voir lockGuitarDrawnChord, Lot 4), jamais tout seul ici — le
+    // survol des candidats doit rester sans conséquence.
     selectGuitarDrawCandidate(index) {
         this.guitarDrawSelectedIndex = index;
         this.renderGuitarDrawResult();
+    }
+
+    // ---------- Verrouillage de l'accord dessiné dans le morceau (Lot 4) ----------
+
+    // Identité (racine + qualité) de l'accord PIANO actuellement affiché — pour décider si le
+    // candidat choisi sur le manche EST cet accord (verrou simple) ou en diffère (substitut). Même
+    // ciblage que toggleGuitarLock/applyGuitarOverride : this.guitarPreviewPos (simple écoute d'un
+    // accord précis de la grille, panneau PAS synchronisé dessus, voir readChord) prime sur le
+    // panneau live.
+    _currentPianoChordIdentity() {
+        if (this.guitarPreviewPos) {
+            const { section, index } = this.guitarPreviewPos;
+            const data = loadProgressionSections()[section]?.chords[index];
+            return data ? { root: data.root, quality: data.quality } : null;
+        }
+        const chord = this.readChord();
+        return { root: chord.root, quality: chord.quality };
+    }
+
+    // Verrouille dans le morceau le candidat actuellement choisi (voir renderGuitarDrawResult) —
+    // bouton « Verrouiller » du panneau de résultat. Réutilise TEL QUEL le mécanisme déjà en place
+    // pour les accords simples (cadenas/substitut, voir toggleGuitarLock/applyGuitarOverride) : un
+    // seul et même verrou/substitut par accord, jamais un second mécanisme parallèle qui pourrait le
+    // contredire (retour utilisateur : « ne jamais perdre le substitut manuscrit existant »). Si le
+    // candidat choisi EST l'accord joué au piano (même racine, même qualité), seul le doigté est
+    // verrouillé — comme le cadenas aujourd'hui. Sinon, c'est un substitut — comme le crayon
+    // manuscrit — mais verrouillé sur EXACTEMENT la forme dessinée plutôt que sur une forme
+    // communément enseignée recalculée : le musicien a lui-même posé ce doigté sur le manche, ce
+    // doit être précisément celui-là qui reste affiché (et qui survit à la navigation entre doigtés,
+    // voir guitarFingeringsForChord — le verrou passe toujours en tête de liste).
+    lockGuitarDrawnChord() {
+        const r = this.guitarDrawRecognition;
+        if (!r || r.confidence < GUITAR_DRAW_MIN_CONFIDENCE) return;
+        const candidates = [r, ...r.alternatives];
+        const chosen = candidates[this.guitarDrawSelectedIndex] || r;
+        const shape = this.guitarDrawShape.slice();
+
+        const pianoIdentity = this._currentPianoChordIdentity();
+        const samePiano = !!pianoIdentity && pianoIdentity.root === chosen.root && pianoIdentity.quality === chosen.quality;
+        const override = samePiano ? null : { root: chosen.root, quality: chosen.quality, bass: null, octave: 3, inversion: 0, drop: 'none' };
+
+        if (this.guitarPreviewPos) {
+            const { section, index } = this.guitarPreviewPos;
+            const sections = loadProgressionSections();
+            const data = sections[section] && sections[section].chords[index];
+            if (!data) return;
+            this.pushUndo(sections);
+            data.guitarOverride = override;
+            data.guitarLock = shape;
+            saveProgressionSections(sections);
+            hasUnsavedChanges = true;
+            const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
+            this.guitarKey = null;
+            this.ensureGuitarDiagram(guitarChordFor(chord, data.guitarOverride), false);
+            this.loadProgression();
+        } else {
+            this.guitarOverride = override;
+            this.guitarLock = shape;
+            this._keepGuitarLockOnce = true;
+            this.guitarKey = null;
+            this.ensureGuitarDiagram(guitarChordFor(this.readChord(), this.guitarOverride));
+            this.commitLiveEdit(false); // n'affecte pas le symbole affiché dans la case
+        }
+        this.flashHint(samePiano ? 'Doigté verrouillé pour cet accord' : 'Substitut guitare verrouillé sur ce doigté');
+        this.closeGuitarEditor();
     }
 
     // Reflète l'état verrouillé/libre sur le bouton cadenas, relatif au doigté ACTUELLEMENT AFFICHÉ
