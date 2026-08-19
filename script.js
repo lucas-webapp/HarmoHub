@@ -11551,17 +11551,27 @@ class HarmoHubApp {
         const hote = document.getElementById('arp-sequencer');
         if (hote) hote.classList.add('seq-live');
 
-        const voice = +cell.dataset.voice, step = +cell.dataset.step;
+        let voice = +cell.dataset.voice, step = +cell.dataset.step;
         const wasOn = cell.classList.contains('on');
+        // Posé UNIQUEMENT dans la branche voix<0 ci-dessous : un seul instantané d'annulation doit
+        // couvrir À LA FOIS la création de la ligne ET la note qui la peint, sinon `seqUndo()` ne
+        // ferait reculer que la moitié du geste (voir le garde-fou `d.undoPushed` plus bas, sur les
+        // deux points où le geste générique appelle normalement pushSeqUndo() lui-même).
+        let voixLibreUndoDejaPousse = false;
 
         // Ligne d'une hauteur que l'accord ne joue pas encore (voir renderSequencer, .seq-cell-free) :
-        // le clic la CRÉE comme note libre à cette hauteur exacte, puis la peint. Avant, il fallait
-        // presser « + » — qui pose la note trois demi-tons au-dessus de la plus aiguë — puis retaper
-        // la hauteur voulue à la main. Ici on clique la note qu'on voit, à sa place sur le clavier.
-        // Le geste s'arrête là (pas de glissé enchaîné) : le rendu qui suit reconstruit toute la
-        // grille, y compris la case sous le doigt, et poursuivre un glissé sur un nœud détaché ne
-        // mènerait à rien. La longueur est celle mémorisée du dernier dessin (voir seqNewNoteLen),
-        // comme n'importe quelle note créée d'un simple clic.
+        // le clic la CRÉE comme note libre à cette hauteur exacte. Avant, il fallait presser « + » —
+        // qui pose la note trois demi-tons au-dessus de la plus aiguë — puis retaper la hauteur voulue
+        // à la main. Ici on clique la note qu'on voit, à sa place sur le clavier.
+        // On ne peint PLUS rien ici, contrairement à avant (retour utilisateur : « la note se crée
+        // directement au clic, alors que je veux cliquer, puis définir sa longueur en glissant » — un
+        // simple appui posait aussitôt la longueur collante, et le glissé qui suivait ne faisait plus
+        // rien : ce geste-ci se terminait au clic, avant même le premier mouvement). On crée seulement
+        // la VOIX (la ligne) ici, puis `voice` est réassigné vers elle : le reste de la fonction, plus
+        // bas, retombe alors sur EXACTEMENT le même geste générique qu'une case vide de n'importe quelle
+        // autre voix — un simple clic peint la longueur collante au relâchement (voir onSeqPointerUp),
+        // un vrai glissé dessine la longueur voulue (voir onSeqPointerMove) : la note libre en profite
+        // enfin comme toutes les autres, sans code dédié.
         if (voice < 0 && cell.dataset.midi) {
             // Maj+glisser garde son sens habituel : un rectangle de sélection part aussi bien d'ici que
             // de n'importe quelle case vide (voir beginSeqMarqueeSelect, qui ne se sert de la voix de
@@ -11573,26 +11583,20 @@ class HarmoHubApp {
             e.preventDefault();
             const midi = +cell.dataset.midi;
             this.pushSeqUndo();
+            voixLibreUndoDejaPousse = true;
             const pc = ((midi % 12) + 12) % 12;
-            this.extraNotes.push({ note: NOTES[pc], octave: Math.floor(midi / 12) - 1 });
+            // _new (voir addSequencerNote/pruneEmptyExtraNotes) : cette voix n'a encore AUCUNE croche
+            // peinte — sans ce drapeau, la moindre synchronisation live (commitLiveEdit) intervenant
+            // entre la prise et le relâchement du geste la jugerait « note libre jamais utilisée » et
+            // la supprimerait aussitôt. applySeqCell lève ce drapeau tout seul dès la première case
+            // peinte (glissé ou clic simple, voir plus bas).
+            this.extraNotes.push({ note: NOTES[pc], octave: Math.floor(midi / 12) - 1, _new: true });
             this.seqTouched = true; // le motif doit garder cette voix (voir syncSeqPatternForCurrentChord)
             // La voix de la note qu'on vient d'ajouter est la DERNIÈRE des notes libres, elles-mêmes
             // placées juste après les voix de la qualité (voir _computeVoices/extraStart).
             const chordApres = this.readChord();
-            const voixCreee = chordApres.getIntervals().length + this.extraNotes.length - 1;
-            this.paintNewSeqNoteAt(voixCreee, step);
+            voice = chordApres.getIntervals().length + this.extraNotes.length - 1;
             this.renderSequencer();
-            this.seqEditFeedback(voixCreee);
-            this.livePreviewUpdate();
-            // Éclaire la touche de repère à gauche, comme pendant un glissé (voir _revelerToucheSeq) —
-            // retour utilisateur : « Lorsque j'ajoute une nouvelle note, je ne vois pas la note que je
-            // suis en train d'entrer ». Ce geste-ci s'arrête au clic (pas de glissé enchaîné, voir plus
-            // haut) : rien n'appelle _revelerToucheSeq(null) au relâchement comme pour un vrai glissé —
-            // un court délai éteint la surbrillance à sa place.
-            this._revelerToucheSeq(voixCreee);
-            clearTimeout(this._seqRevealNewNoteTimer);
-            this._seqRevealNewNoteTimer = setTimeout(() => this._revelerToucheSeq(null), 700);
-            return;
         }
 
         // Pipette de motif armée (voir toggleSeqRowPipette) : n'importe quel clic sur cette ligne
@@ -11685,6 +11689,10 @@ class HarmoHubApp {
             // le fait désormais le même geste sans Alt (voir beginSeqHDrag, appelé avec `copy`).
             altDuplicate: wasOn && e.altKey,
             gestureDecided: false, voiceDrag: null, hDrag: null,
+            // Voir le commentaire sur voixLibreUndoDejaPousse plus haut : uniquement vrai quand ce
+            // geste vient de créer une ligne de note libre (pushSeqUndo() déjà appelé une fois pour
+            // TOUT le geste), faux dans tous les autres cas — comportement inchangé partout ailleurs.
+            undoPushed: voixLibreUndoDejaPousse,
         };
 
         // Dès la prise, pas seulement au premier mouvement : ajouter une note d'un simple appui est un
@@ -12150,7 +12158,10 @@ class HarmoHubApp {
         if (step === d.lastStep && d.moved) return;
 
         e.preventDefault(); // glissé horizontal reconnu -> on empêche le scroll de page de le voler
-        this.pushSeqUndo(); // un seul instantané pour tout le glissé, pas un par croche traversée
+        // Un seul instantané pour tout le glissé, pas un par croche traversée — et pas un second si la
+        // ligne de note libre a déjà posé le sien à la prise (voir voixLibreUndoDejaPousse/d.undoPushed
+        // dans _demarrerGesteSeq) : sinon `seqUndo()` ne ferait reculer que la moitié du geste.
+        if (!d.undoPushed) { this.pushSeqUndo(); d.undoPushed = true; }
         d.moved = true;
 
         // Le point de départ décide : geste commencé sur une case éteinte -> on peint (note tenue,
@@ -12844,7 +12855,9 @@ class HarmoHubApp {
                     this.selectSeqNoteAt(d.voice, voisine.start, false);
                     this.seqEditFeedback(d.voice);
                 } else {
-                    this.pushSeqUndo();
+                    // Idem : pas de second instantané si la ligne de note libre a déjà posé le sien à
+                    // la prise (voir d.undoPushed dans _demarrerGesteSeq).
+                    if (!d.undoPushed) { this.pushSeqUndo(); d.undoPushed = true; }
                     this.paintNewSeqNoteAt(d.voice, d.startStep);
                     this.seqEditFeedback(d.voice);
                 }

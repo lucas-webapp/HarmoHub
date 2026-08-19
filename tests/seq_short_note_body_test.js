@@ -192,7 +192,12 @@ async function serieDeVue(page, nomVue) {
     await page.waitForTimeout(200);
     let e2 = await etatCase();
     check(e2.corps, 'survol du corps : la case est marquée « corps »');
-    check(e2.curseur === 'grab', `survol du corps : curseur « main » et non étirement (${e2.curseur})`);
+    // Le curseur « main » (grab/grabbing) a été retiré du corps d'une note (voir
+    // sequencer_reticle_cursor_test.js) : retour utilisateur, « le curseur change de forme (main)
+    // lorsque je suis sur une barre... il faut garder le curseur que tu viens de mettre en place » —
+    // le réticule fin reste affiché partout dans le séquenceur, y compris sur le corps d'une note.
+    // Seul compte ici ce que ce banc-ci garantit vraiment : PAS de curseur d'étirement sur le corps.
+    check(e2.curseur !== 'ew-resize', `survol du corps : pas de curseur d'étirement, contrairement au bord (${e2.curseur})`);
     check(e2.avant === 'none' && e2.apres === 'none', 'survol du corps : les liserés de bord s\'effacent');
 
     await page.mouse.move(b1.right - 2, b1.y);
