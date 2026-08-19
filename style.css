@@ -9,6 +9,12 @@
     --radius: 12px;
     --font: 'Plus Jakarta Sans', sans-serif;
 
+    /* Réticule de précision du séquenceur (voir .seq-cell plus bas) — variable plutôt que répété à
+       chaque endroit où il s'applique : un seul curseur à ajuster, jamais deux copies qui pourraient
+       diverger. Halo sombre (3px) derrière un trait clair (1.2px), espace vide au centre (façon viseur
+       photo) : reste lisible quel que soit le fond, sans jamais cacher le pixel visé. */
+    --seq-cursor-reticle: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDMyIDMyIj4gPGcgc3Ryb2tlPSIjMDAwIiBzdHJva2Utd2lkdGg9IjMiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgb3BhY2l0eT0iMC41NSI+IDxsaW5lIHgxPSIxNiIgeTE9IjQiIHgyPSIxNiIgeTI9IjEyIi8+PGxpbmUgeDE9IjE2IiB5MT0iMjAiIHgyPSIxNiIgeTI9IjI4Ii8+IDxsaW5lIHgxPSI0IiB5MT0iMTYiIHgyPSIxMiIgeTI9IjE2Ii8+PGxpbmUgeDE9IjIwIiB5MT0iMTYiIHgyPSIyOCIgeTI9IjE2Ii8+IDwvZz4gPGcgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjEuMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4gPGxpbmUgeDE9IjE2IiB5MT0iNCIgeDI9IjE2IiB5Mj0iMTIiLz48bGluZSB4MT0iMTYiIHkxPSIyMCIgeDI9IjE2IiB5Mj0iMjgiLz4gPGxpbmUgeDE9IjQiIHkxPSIxNiIgeDI9IjEyIiB5Mj0iMTYiLz48bGluZSB4MT0iMjAiIHkxPSIxNiIgeDI9IjI4IiB5Mj0iMTYiLz4gPC9nPiA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxIiBmaWxsPSIjZmZmIiBzdHJva2U9IiMwMDAiIHN0cm9rZS13aWR0aD0iMC40Ii8+IDwvc3ZnPg==") 16 16;
+
     /* Palette « pierre précieuse » foncée des boutons pleins (voir .btn-prog/.btn-blue/.btn-stop/
        .btn-sec) : une teinte profonde et désaturée par famille plutôt que le vert/bleu/rouge vif de
        --accent directement en texte/contour sur fond quasi noir — trop "flashy" à l'usage. La couleur
@@ -3660,16 +3666,13 @@ body.all-beats .offbeat-dot {
     border-radius: 5px;
     /* Réticule fin, retour utilisateur : « j'ai besoin de quelque chose de fin pour le séquenceur...
        main trop imprécise » — la flèche/main par défaut du système ne dit pas assez précisément quel
-       pixel/quelle case elle désigne dans une grille aussi dense. Halo sombre (3px, épais) DERRIÈRE un
-       trait clair (1.2px, fin) : même principe que le contour des « O »/« X » du manche guitare
-       (paint-order:stroke) — reste lisible quel que soit le fond survolé, pas seulement sur le fond
-       très sombre des cases. Espace vide EXACTEMENT au centre (façon viseur photo) : rien ne cache
-       jamais le pixel visé, contrairement à un simple point plein. Seulement ICI (case vide = "je vais
-       dessiner une note", le 3e des trois gestes documentés juste plus bas) — bord/corps d'une note
-       gardent leurs propres curseurs déjà en place (ew-resize/grab), plus parlants pour CES gestes-là.
-       `pointer` en secours si l'image personnalisée ne charge pas, pour ne jamais perdre ce curseur
-       cliquable de base. */
-    cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDMyIDMyIj4gPGcgc3Ryb2tlPSIjMDAwIiBzdHJva2Utd2lkdGg9IjMiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgb3BhY2l0eT0iMC41NSI+IDxsaW5lIHgxPSIxNiIgeTE9IjQiIHgyPSIxNiIgeTI9IjEyIi8+PGxpbmUgeDE9IjE2IiB5MT0iMjAiIHgyPSIxNiIgeTI9IjI4Ii8+IDxsaW5lIHgxPSI0IiB5MT0iMTYiIHgyPSIxMiIgeTI9IjE2Ii8+PGxpbmUgeDE9IjIwIiB5MT0iMTYiIHgyPSIyOCIgeTI9IjE2Ii8+IDwvZz4gPGcgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjEuMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4gPGxpbmUgeDE9IjE2IiB5MT0iNCIgeDI9IjE2IiB5Mj0iMTIiLz48bGluZSB4MT0iMTYiIHkxPSIyMCIgeDI9IjE2IiB5Mj0iMjgiLz4gPGxpbmUgeDE9IjQiIHkxPSIxNiIgeDI9IjEyIiB5Mj0iMTYiLz48bGluZSB4MT0iMjAiIHkxPSIxNiIgeDI9IjI4IiB5Mj0iMTYiLz4gPC9nPiA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxIiBmaWxsPSIjZmZmIiBzdHJva2U9IiMwMDAiIHN0cm9rZS13aWR0aD0iMC40Ii8+IDwvc3ZnPg==") 16 16, pointer;
+       pixel/quelle case elle désigne dans une grille aussi dense. Base de TOUTE la grille : posé ici,
+       jamais écrasé par le survol d'une note existante (voir .seq-cell.on ci-dessous) — second retour
+       utilisateur, une fois la 1re version livrée : « le curseur change de forme (main) lorsque je
+       suis sur une barre... il faut garder le curseur que tu viens de mettre en place ». Seul le
+       BORD garde encore son propre curseur (ew-resize, plus bas) : direction d'un étirement, une
+       information que le réticule ne porte pas. `pointer` en secours si l'image ne charge pas. */
+    cursor: var(--seq-cursor-reticle), pointer;
     transition: background 0.1s ease, box-shadow 0.1s ease;
     /* LE DÉFILEMENT TACTILE REDEVIENT NATIF, dans les deux axes.
        Historique : c'était `touch-action: none`, pour empêcher le navigateur de s'emparer d'un geste
@@ -3730,14 +3733,16 @@ body.all-beats .offbeat-dot {
 
 .seq-cell:hover { background: #2c2c2c; }
 
-/* Trois gestes différents partent des cases d'une note, et rien ne les distinguait à l'œil : depuis un
-   BORD on étire, depuis le CORPS on déplace la note dans le temps (voir beginSeqHDrag), depuis une case
-   VIDE on dessine. Chacun a donc désormais son curseur — le seul retour possible avant d'appuyer, sur
-   ordinateur. (Au doigt, où il n'y a pas de survol, c'est la note SÉLECTIONNÉE qui montre ses poignées,
-   voir .seq-note.selected plus bas : même information, par un autre canal.) */
+/* Trois gestes différents partent des cases d'une note : depuis un BORD on étire, depuis le CORPS on
+   déplace la note dans le temps (voir beginSeqHDrag), depuis une case VIDE on dessine. Seul le BORD
+   garde son propre curseur (ew-resize, la SEULE de ces trois informations que le réticule ne porte
+   pas — la direction de l'étirement) ; corps et case vide gardent tous deux le réticule de base posé
+   sur .seq-cell (retour utilisateur, une fois la « main » livrée pour le corps : « le curseur change
+   de forme (main) lorsque je suis sur une barre pour la sélectionner... il faut garder le curseur que
+   tu viens de mettre en place »). Le liseré de bord (juste plus bas) reste, lui, le signal QUEL bord
+   sera étiré. (Au doigt, où il n'y a pas de survol, c'est la note SÉLECTIONNÉE qui montre ses
+   poignées, voir .seq-note.selected plus bas : même information, par un autre canal.) */
 .seq-cell-edge:hover { cursor: ew-resize; }
-.seq-cell.on:not(.seq-cell-edge):hover { cursor: grab; }
-.seq-cell.on:not(.seq-cell-edge):active { cursor: grabbing; }
 
 /* Repère VISIBLE du bord survolé, en plus du curseur : un liseré clair du bon côté de la case, qui
    montre exactement d'où part l'étirement. position:relative posé ici uniquement pour ancrer ce
@@ -3761,10 +3766,12 @@ body.all-beats .offbeat-dot {
 /* Milieu d'une note COURTE (1 ou 2 croches) : ses cases sont toutes des bords, donc le CSS ci-dessus
    y annoncerait un étirement alors qu'on peut désormais l'y prendre et la déplacer. La classe est
    posée en JS (voir applySeqHoverHighlight), seul endroit qui sache OÙ dans la case est le pointeur —
-   une règle :hover ne le sait pas. Elle rétablit le curseur « main » et efface le liseré de bord, pour
-   que les deux signaux disent la même chose que ce qui se passera vraiment. */
-.seq-cell-edge.seq-zone-body:hover { cursor: grab; }
-.seq-cell-edge.seq-zone-body:active { cursor: grabbing; }
+   une règle :hover ne le sait pas. Efface le liseré de bord — rétablir le curseur ne lui est en
+   revanche plus nécessaire : le réticule de .seq-cell (voir plus haut) n'est de toute façon jamais
+   remplacé ici non plus, `ew-resize` posé par .seq-cell-edge:hover ci-dessus est la seule chose à
+   neutraliser. */
+.seq-cell-edge.seq-zone-body:hover,
+.seq-cell-edge.seq-zone-body:active { cursor: var(--seq-cursor-reticle), pointer; }
 .seq-cell-edge-start.seq-zone-body:hover::before,
 .seq-cell-edge-end.seq-zone-body:hover::after { display: none; }
 

@@ -1,19 +1,21 @@
 // Curseur de précision du séquenceur — retour utilisateur : « j'arrive mal à gérer les séquenceurs
 // et clics, je pense que ça peut être à cause de la forme des pointeurs souris... j'ai besoin de
 // quelque chose de fin pour le séquenceur ». Choix fait après essai en direct de 5 candidats
-// (artifact de comparaison) : le réticule à espace central (voir .seq-cell dans style.css), scopé
-// UNIQUEMENT au séquenceur — retour utilisateur explicite : « je veux ce curseur uniquement dans le
-// séquenceur » (pas le manche guitare, pas la grille d'accords, envisagés puis écartés). Second
-// retour, pris en compte AVANT de livrer : « il faut bien que ça reste visible sur le séquenceur » —
-// vérifié en composant le curseur réellement rendu par-dessus une vraie capture du séquenceur (case
-// vide, séparateur de temps, ET directement sur une note colorée) avant de considérer ce point réglé ;
-// ce banc verrouille seulement la partie automatisable (la règle CSS s'applique bien, et seulement là
-// où elle doit).
+// (artifact de comparaison) : le réticule à espace central (voir --seq-cursor-reticle dans
+// style.css), scopé UNIQUEMENT au séquenceur — retour utilisateur explicite : « je veux ce curseur
+// uniquement dans le séquenceur » (pas le manche guitare, pas la grille d'accords, envisagés puis
+// écartés). Second retour, pris en compte AVANT de livrer : « il faut bien que ça reste visible sur
+// le séquenceur » — vérifié en composant le curseur réellement rendu par-dessus une vraie capture du
+// séquenceur (case vide, séparateur de temps, ET directement sur une note colorée) avant de
+// considérer ce point réglé ; ce banc verrouille seulement la partie automatisable (la règle CSS
+// s'applique bien, et seulement là où elle doit).
 //
-// Remplace le `cursor: pointer` de base de .seq-cell — donc UNIQUEMENT la case VIDE (le 3e des trois
-// gestes documentés dans style.css : bord = ew-resize, corps d'une note = grab, case vide = dessiner).
-// Ce banc vérifie donc autant que la règle s'applique QUE les deux curseurs sémantiques déjà en place
-// (grab sur une note existante, ew-resize sur son bord) restent, eux, intacts.
+// TROISIÈME retour, une fois la 1re version (réticule sur case vide, "main" grab sur une note
+// existante) livrée : « le curseur change de forme (main) lorsque je suis sur une barre pour la
+// sélectionner. Il faut garder le curseur que tu viens de mettre en place. » — le réticule couvre
+// donc maintenant AUSSI le corps d'une note existante (survol ET pendant le glissé), pas seulement
+// la case vide. Seul le BORD garde encore son propre curseur ew-resize (direction de l'étirement,
+// une information que le réticule ne porte pas).
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, plan, bilan } = require('./_harness')('séquenceur : curseur de précision (réticule)');
@@ -38,28 +40,38 @@ plan(6);
     await page.click('#grid-zoom');
     await page.waitForTimeout(400);
 
+    const isReticle = cur => !!cur && cur.startsWith('url("data:image/svg+xml;base64,') && cur.endsWith('pointer');
+
     // Case VIDE : porte bien le réticule personnalisé (pas le pointer/flèche par défaut).
     const emptyCursor = await page.evaluate(() => {
         const cell = document.querySelector('#arp-sequencer .seq-cell:not(.on)');
         return cell ? getComputedStyle(cell).cursor : null;
     });
     check(!!emptyCursor, "une case vide du séquenceur est bien trouvée");
-    check(!!emptyCursor && emptyCursor.startsWith('url("data:image/svg+xml;base64,'), `la case vide porte le réticule personnalisé — obtenu ${JSON.stringify(emptyCursor)}`);
-    check(!!emptyCursor && emptyCursor.endsWith('pointer'), "le mot-clé pointer reste en secours si l'image ne charge pas");
+    check(isReticle(emptyCursor), `la case vide porte le réticule personnalisé — obtenu ${JSON.stringify(emptyCursor)}`);
 
-    // Note EXISTANTE (corps) : garde son curseur grab au survol, inchangé.
+    // Note EXISTANTE (corps) : garde AUSSI le réticule au survol — retour utilisateur, ne DOIT PLUS
+    // basculer sur la "main" (grab) comme dans la première version.
     const onCell = await page.$('#arp-sequencer .seq-cell.on:not(.seq-cell-edge)');
     if (onCell) {
         const box = await onCell.boundingBox();
         await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
         await page.waitForTimeout(120);
-        const cur = await page.evaluate(el => getComputedStyle(el).cursor, onCell);
-        check(cur === 'grab', `une note existante garde bien son curseur "grab" au survol — obtenu ${cur}`);
+        const curHover = await page.evaluate(el => getComputedStyle(el).cursor, onCell);
+        check(isReticle(curHover), `une note existante garde le réticule au survol (plus de "main") — obtenu ${JSON.stringify(curHover)}`);
+
+        // Pendant le glissé (mousedown maintenu) aussi, pas seulement au survol.
+        await page.mouse.down();
+        await page.waitForTimeout(80);
+        const curActive = await page.evaluate(el => getComputedStyle(el).cursor, onCell);
+        await page.mouse.up();
+        check(isReticle(curActive), `le réticule reste aussi pendant le glissé d'une note (plus de "grabbing") — obtenu ${JSON.stringify(curActive)}`);
     } else {
-        check(false, "aucune case notée trouvée pour vérifier le curseur grab (motif inattendu)");
+        check(false, "aucune case notée trouvée pour vérifier le curseur (motif inattendu)");
+        check(false, "aucune case notée trouvée pour vérifier le curseur pendant le glissé (motif inattendu)");
     }
 
-    // Bord d'une note : garde son curseur ew-resize, inchangé.
+    // Bord d'une note : garde son curseur ew-resize, inchangé — seule info que le réticule ne porte pas.
     const edgeCell = await page.$('#arp-sequencer .seq-cell-edge');
     if (edgeCell) {
         const box = await edgeCell.boundingBox();
