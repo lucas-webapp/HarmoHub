@@ -3437,11 +3437,33 @@ class HarmoHubApp {
             btn.classList.toggle('active', show);
         };
 
+        // Les 5 contrôles ci-dessous (tempo, tonalité, mode, mesure, groove) doivent eux aussi entrer
+        // dans l'historique annuler/rétablir (voir pushUndo/captureGlobalSnapshot plus bas) — retour
+        // utilisateur : « mon CTRL+Z ne garde pas toujours en mémoire TOUS mes changements... quand je
+        // modifie... le tempo ». armGlobalSettingUndo() capture l'état AVANT tout changement, posé à la
+        // fois sur 'pointerdown' ET 'focus' (armGlobalSettingUndo() est idempotent : le premier des deux
+        // à se déclencher gagne). 'focus' seul suffit au clavier (Tab puis flèches), mais PAS à la
+        // souris sur le curseur de tempo (#bpm) : cliquer directement sur le rail — pas la poignée —
+        // déplace DÉJÀ la valeur en réponse au mousedown natif, et 'focus' n'arrive qu'ENSUITE. Mesuré :
+        // sans 'pointerdown', un clic-glissé de 120 à 226 BPM ne s'annulait que jusqu'à 93 (la valeur
+        // déjà sautée au clic initial), jamais jusqu'aux 120 de départ. 'pointerdown' précède toujours
+        // ce saut natif (l'action par défaut d'un évènement s'exécute après ses écouteurs). Sur
+        // 'change' (où la valeur est déjà la NOUVELLE — trop tard pour photographier l'ancienne),
+        // commitGlobalSettingUndo() clôt le geste : un seul instantané par geste (curseur tenu puis
+        // relâché ne doit produire qu'UNE entrée, pas une par pixel glissé), et rien du tout si la
+        // valeur est en fait revenue à l'identique.
+        const armes = ['global-root', 'global-mode', 'bpm', 'bpm-val', 'time-sig', 'groove'];
+        armes.forEach(id => {
+            const el = document.getElementById(id);
+            el.addEventListener('pointerdown', () => this.armGlobalSettingUndo());
+            el.addEventListener('focus', () => this.armGlobalSettingUndo());
+        });
+
         document.getElementById('bpm').oninput = (e) => document.getElementById('bpm-val').value = e.target.value;
         // 'change' (relâchement du curseur), pas 'input' (à chaque pixel glissé) : un changement de
         // tempo redémarre toute la lecture en cours (voir liveRestartForGlobalChange), on ne veut pas
         // le redéclencher en rafale pendant qu'on fait encore glisser le curseur.
-        document.getElementById('bpm').addEventListener('change', () => { hasUnsavedChanges = true; this.liveRestartForGlobalChange(); });
+        document.getElementById('bpm').addEventListener('change', () => { this.commitGlobalSettingUndo(); hasUnsavedChanges = true; this.liveRestartForGlobalChange(); });
 
         // Valeur du tempo éditable directement au clavier (clic dessus, taper une valeur, Entrée ou
         // clic ailleurs pour valider) — resynchronisée avec le curseur, dans les mêmes bornes (60-240).
@@ -3449,6 +3471,7 @@ class HarmoHubApp {
         const bpmValInput = document.getElementById('bpm-val');
         bpmValInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') bpmValInput.blur(); });
         bpmValInput.addEventListener('change', () => {
+            this.commitGlobalSettingUndo();
             let v = parseInt(bpmValInput.value);
             if (isNaN(v)) v = parseInt(bpmSlider.value);
             v = Math.min(240, Math.max(60, v));
@@ -3461,14 +3484,17 @@ class HarmoHubApp {
         document.getElementById('tap-tempo').onclick = () => this.handleTapTempo();
 
         document.getElementById('global-root').onchange = () => {
+            this.commitGlobalSettingUndo();
             hasUnsavedChanges = true;
             this.updateKeyLabels(); this.loadProgression(); this.refreshPreview();
         };
         document.getElementById('global-mode').onchange = () => {
+            this.commitGlobalSettingUndo();
             hasUnsavedChanges = true;
             this.updateKeyLabels(); this.loadProgression(); this.refreshPreview();
         };
         document.getElementById('time-sig').onchange = () => {
+            this.commitGlobalSettingUndo();
             hasUnsavedChanges = true;
             this.updateDurationOptions();
             this.loadProgression();
@@ -3481,6 +3507,7 @@ class HarmoHubApp {
         // la lecture/l'export) — pas de re-rendu à déclencher ici, juste la sauvegarde du réglage, et
         // le redémarrage en direct d'une lecture en cours (voir liveRestartForGlobalChange).
         document.getElementById('groove').onchange = () => {
+            this.commitGlobalSettingUndo();
             hasUnsavedChanges = true;
             this.liveRestartForGlobalChange();
             // Le séquenceur affiche le groove en cours dans le coin de sa règle (voir .seq-groove-tag) :
@@ -7917,7 +7944,13 @@ class HarmoHubApp {
             done = true;
             const val = input.value.trim();
             if (val && val !== song.name) {
-                this.pushFilesUndo();
+                // pushFilesUndo() irait dans un historique que Ctrl+Z ne lit QUE fenêtre Fichiers
+                // ouverte (voir globalUndo) — or ce renommage se fait depuis le panneau principal, pas
+                // depuis cette fenêtre. pushUndo() met le nom dans le MÊME instantané que les accords
+                // et les réglages du morceau (voir captureGlobalSnapshot) : Ctrl+Z le retrouve donc
+                // quel que soit le panneau ouvert au moment où on l'appuie (retour utilisateur : « mon
+                // CTRL+Z ne garde pas toujours en mémoire TOUS mes changements... le nom des fichiers »).
+                this.pushUndo(loadProgressionSections());
                 song.name = val;
                 saveSongs(songs);
             }
@@ -15642,42 +15675,123 @@ class HarmoHubApp {
     // la transposition de tout le morceau (transposeSong) la modifie EN MÊME TEMPS que les accords —
     // sans ça, un Ctrl+Z après une transposition remettrait les accords dans l'ancienne tonalité tout
     // en laissant affichée la nouvelle, un état incohérent que l'utilisateur n'a jamais demandé.
-    pushUndo(sections) {
-        const root = document.getElementById('global-root').value;
-        this.undoStack.push(JSON.stringify({ sections, root }));
+    // Capture/valide un geste sur un des 5 réglages globaux (tempo, tonalité, mode, mesure, groove) —
+    // voir leur wiring dans setupEventListeners. Séparé de pushUndo() (qui capture toujours l'état
+    // ACTUEL, correct pour une action déclenchée en code) parce qu'ici la capture doit se faire AVANT
+    // que l'utilisateur ne touche au contrôle, sur 'focus', bien avant le 'change' qui la valide.
+    armGlobalSettingUndo() {
+        if (this._pendingSettingUndo) return; // déjà armé pour ce geste (ex. plusieurs focus successifs)
+        this._pendingSettingUndo = this.captureGlobalSnapshot();
+    }
+
+    commitGlobalSettingUndo() {
+        const snap = this._pendingSettingUndo;
+        this._pendingSettingUndo = null;
+        if (!snap) return;
+        // Rien à empiler si la valeur est en fait revenue à l'identique (ex. curseur relâché pile sur
+        // son point de départ) : une entrée qui ne changerait rien encoderait un Ctrl+Z sans effet
+        // visible, juste une case perdue dans l'historique.
+        if (JSON.stringify(snap) === JSON.stringify(this.captureGlobalSnapshot())) return;
+        this.undoStack.push(JSON.stringify(snap));
         if (this.undoStack.length > this.undoLimit) this.undoStack.shift();
         this.redoStack = [];
         this.updateGlobalUndoRedoButtons();
     }
 
-    // Restaure la tonalité globale mémorisée dans une entrée d'historique si elle diffère de
-    // l'actuelle (no-op sinon) — voir le commentaire de pushUndo.
-    restoreHistoryRoot(root) {
+    pushUndo(sections) {
+        this.undoStack.push(JSON.stringify(this.captureGlobalSnapshot(sections)));
+        if (this.undoStack.length > this.undoLimit) this.undoStack.shift();
+        this.redoStack = [];
+        this.updateGlobalUndoRedoButtons();
+    }
+
+    // Photo de TOUT ce qu'un Ctrl+Z doit pouvoir restaurer d'un coup : les accords (sections), les
+    // réglages globaux du morceau (tonalité, mode, tempo, mesure, groove), et le nom du morceau
+    // actuellement ouvert. Retour utilisateur : « mon CTRL+Z ne garde pas toujours en mémoire TOUS mes
+    // changements... quand je modifie... le nom des fichiers, le tempo ». Avant ce correctif,
+    // pushUndo() ne capturait que `sections` + `root` : changer le tempo, la mesure, le groove ou le
+    // mode SANS toucher aux accords ne laissait absolument aucune trace dans l'historique, quel que
+    // soit le nombre de Ctrl+Z pressés ensuite — ces réglages n'avaient tout simplement AUCUN appel à
+    // pushUndo() nulle part (voir setupEventListeners, leurs 'change' se contentaient de
+    // hasUnsavedChanges + re-rendu). Le nom du morceau ouvert a le même problème mais pour une raison
+    // différente : renommer EN PLACE (voir startInlineRenameSongMain) appelait bien pushFilesUndo(),
+    // mais CET historique n'est lu par Ctrl+Z QUE fenêtre Fichiers ouverte (voir globalUndo) — hors de
+    // cette fenêtre, où vit le bouton crayon de renommage, l'action devenait invisible pour Ctrl+Z.
+    // Le nom suit donc désormais ce même instantané, comme n'importe quel autre réglage du morceau.
+    captureGlobalSnapshot(sections) {
+        const songId = getCurrentSongId();
+        const song = songId ? loadSongs().find(s => s.id === songId) : null;
+        return {
+            sections: sections !== undefined ? sections : loadProgressionSections(),
+            root: document.getElementById('global-root').value,
+            mode: document.getElementById('global-mode').value,
+            bpm: document.getElementById('bpm').value,
+            timeSig: document.getElementById('time-sig').value,
+            groove: document.getElementById('groove').value,
+            songId,
+            songName: song ? song.name : null,
+        };
+    }
+
+    // Restaure les réglages globaux mémorisés dans une entrée d'historique (voir captureGlobalSnapshot)
+    // — chacun en no-op s'il est déjà à la bonne valeur, pour ne redéclencher que les effets de bord
+    // (recalcul des durées, rendu du séquenceur, redémarrage de la lecture...) réellement nécessaires.
+    restoreHistorySettings(snap) {
+        let toucheCle = false, toucheMesure = false, toucheAutre = false;
         const rootSel = document.getElementById('global-root');
-        if (!root || root === rootSel.value) return;
-        rootSel.value = root;
-        hasUnsavedChanges = true;
-        this.updateKeyLabels();
+        if (snap.root && snap.root !== rootSel.value) { rootSel.value = snap.root; toucheCle = true; }
+        const modeSel = document.getElementById('global-mode');
+        if (snap.mode && snap.mode !== modeSel.value) { modeSel.value = snap.mode; toucheCle = true; }
+        const bpmSlider = document.getElementById('bpm');
+        if (snap.bpm && snap.bpm !== bpmSlider.value) {
+            bpmSlider.value = snap.bpm;
+            document.getElementById('bpm-val').value = snap.bpm;
+            toucheAutre = true;
+        }
+        const timeSigSel = document.getElementById('time-sig');
+        if (snap.timeSig && snap.timeSig !== timeSigSel.value) { timeSigSel.value = snap.timeSig; toucheMesure = true; }
+        const grooveSel = document.getElementById('groove');
+        if (snap.groove && snap.groove !== grooveSel.value) { grooveSel.value = snap.groove; toucheAutre = true; }
+
+        if (toucheCle) this.updateKeyLabels();
+        if (toucheMesure) this.updateDurationOptions();
+        if (toucheCle || toucheMesure || toucheAutre) {
+            hasUnsavedChanges = true;
+            if (this.seqOpen) this.renderSequencer(); // affiche le nouveau groove/la nouvelle mesure
+            this.liveRestartForGlobalChange();
+        }
+
+        // Nom du morceau : seulement si c'est TOUJOURS le même morceau qui est ouvert (un undo ne doit
+        // jamais renommer un AUTRE morceau que celui visé au moment du pushUndo — changer de morceau
+        // entre-temps vide de toute façon l'historique, voir clearHistory, mais mieux vaut ce garde-fou
+        // explicite qu'une confiance aveugle dans cet invariant).
+        if (snap.songId && snap.songId === getCurrentSongId() && snap.songName != null) {
+            const songs = loadSongs();
+            const song = songs.find(s => s.id === snap.songId);
+            if (song && song.name !== snap.songName) {
+                song.name = snap.songName;
+                saveSongs(songs);
+                this.refreshSongList();
+            }
+        }
     }
 
     undo() {
         if (this.undoStack.length === 0) { this.flashHint('Rien à annuler'); return; }
-        const current = { sections: loadProgressionSections(), root: document.getElementById('global-root').value };
-        this.redoStack.push(JSON.stringify(current));
+        this.redoStack.push(JSON.stringify(this.captureGlobalSnapshot()));
         const prev = JSON.parse(this.undoStack.pop());
         saveProgressionSections(prev.sections);
-        this.restoreHistoryRoot(prev.root);
+        this.restoreHistorySettings(prev);
         this.afterHistoryRestore(prev.sections);
         this.flashHint('Annulé');
     }
 
     redo() {
         if (this.redoStack.length === 0) { this.flashHint('Rien à rétablir'); return; }
-        const current = { sections: loadProgressionSections(), root: document.getElementById('global-root').value };
-        this.undoStack.push(JSON.stringify(current));
+        this.undoStack.push(JSON.stringify(this.captureGlobalSnapshot()));
         const next = JSON.parse(this.redoStack.pop());
         saveProgressionSections(next.sections);
-        this.restoreHistoryRoot(next.root);
+        this.restoreHistorySettings(next);
         this.afterHistoryRestore(next.sections);
         this.flashHint('Rétabli');
     }
@@ -15835,7 +15949,19 @@ class HarmoHubApp {
             const ajoutRapideVide = document.activeElement
                 && document.activeElement.id === 'quick-add-input'
                 && !document.activeElement.value;
-            const bloqueAnnulation = typing && !ajoutRapideVide;
+            // Même symptôme, même remède, pour les 5 réglages globaux du morceau (tempo, tonalité,
+            // mode, mesure, groove — voir captureGlobalSnapshot) : un <select> ou un curseur GARDE le
+            // focus une fois choisi, et n'a de toute façon rien qu'un navigateur puisse « annuler » —
+            // contrairement à un vrai champ de texte encore en cours de frappe. Bloquer Ctrl+Z tant que
+            // l'un d'eux a le focus reproduisait donc le défaut déjà corrigé pour #quick-add-input :
+            // « je viens de changer le tempo, Ctrl+Z ne fait rien tant que je n'ai pas cliqué ailleurs »
+            // (retour utilisateur : « mon CTRL+Z ne garde pas toujours en mémoire TOUS mes
+            // changements... quand je modifie... le tempo »). `bpm-val`, LUI, reste un vrai champ de
+            // texte tapable (on y saisit un nombre au clavier) : il garde le garde-fou complet, comme
+            // #quick-add-input non vide.
+            const surReglageGlobal = document.activeElement
+                && ['global-root', 'global-mode', 'bpm', 'time-sig', 'groove'].includes(document.activeElement.id);
+            const bloqueAnnulation = typing && !ajoutRapideVide && !surReglageGlobal;
 
             // Même table que le clic-à-côté (voir this._popups) : les deux façons de renoncer à un
             // popup restent forcément d'accord, au lieu de deux listes à tenir à jour en parallèle.
