@@ -2201,6 +2201,23 @@ button:active { transform: translateY(1px); }
         background: none;
         border: none;
     }
+    /* DIAGRAMMES AFFICHÉS : la bascule passe À CÔTÉ d'eux au lieu d'être EN DESSOUS. Empilée, elle
+       coûtait 42px de hauteur à elle seule (10px de gap + 32px de boutons) dans une colonne où la
+       hauteur est la ressource rare — alors que la largeur, elle, est disponible en abondance (carte
+       de 409px mesurée dans une colonne de 1164px). Sur la même ligne, la carte n'est plus haute que
+       de son plus grand diagramme : 176 -> 128px mesurés avec piano ET guitare, 108 -> 60px avec le
+       piano seul, et tout ce qui est libéré revient au séquenceur (voir hauteurMaxVoletSequenceur, qui
+       MESURE la place libre). Retour utilisateur : « les diagrammes d'accords ouverts prennent trop de
+       place en hauteur. Les boutons diagrammes peuvent facilement être décalés j'ai l'impression, et
+       tout l'ensemble peut facilement être décalé vers le bas ».
+       flex-wrap: wrap quand même : si la carte venait à manquer de largeur, la bascule redescend sous
+       les diagrammes au lieu de sortir du cadre. */
+    .col-right:not(.diagrams-hidden) .viz-card {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 14px;
+    }
 }
 /* Le conteneur des diagrammes RETIRÉ du flux, pas seulement vidé. Ses deux enfants sont déjà masqués un
    par un en JS (voir applyVizVisibility), mais lui restait, à 0px de haut — et sa seule présence
@@ -4181,13 +4198,23 @@ select.song-select-narrow {
     }
     .chord-header-row { flex: none; }
     .viz-wrap { flex: none; }
-    /* Piano et guitare toujours CÔTE À CÔTE sur ordinateur (jamais l'un sous l'autre comme
-       .viz-diagrams le permettrait par défaut avec flex-wrap: wrap, voir plus haut) : la guitare,
-       plus haute que le piano, doublait sinon la hauteur prise par ce bloc au-dessus de la grille —
-       hauteur déjà comptée (col-right a une hauteur fixe sur cet écran, voir overflow:hidden sur
-       body), donc autant de moins pour la grille elle-même. Réservé au bureau (retour utilisateur :
-       la pile verticale reste, elle, très bien adaptée au téléphone, où la largeur manque). */
-    .viz-diagrams { flex-wrap: nowrap; }
+    /* Piano et guitare CÔTE À CÔTE sur ordinateur tant qu'ils tiennent (la guitare, plus haute que le
+       piano, doublerait sinon la hauteur prise par ce bloc au-dessus de la grille — hauteur déjà
+       comptée, col-right a une hauteur fixe sur cet écran, voir overflow:hidden sur body). Sur
+       téléphone la pile verticale reste très bien adaptée, où la largeur manque (retour utilisateur).
+       LA RÈGLE QUI L'IMPOSAIT — flex-wrap: nowrap — A ÉTÉ RETIRÉE ICI, ET C'ÉTAIT LE DÉFAUT SIGNALÉ (« le contour rectangulaire de
+       l'ensemble des diagrammes est une bonne idée, par contre les diagrammes dépassent du cadre »).
+       .viz-card est en width:fit-content MAIS max-width:100% : dès que la colonne devient plus étroite
+       que le contenu, le cadre s'arrête à 100 % pendant que ses enfants, en flex:none et interdits de
+       passer à la ligne, gardent leur taille — ils sortaient donc du cadre des DEUX côtés. Mesuré en
+       réduisant la place disponible : à 400px, .viz-diagrams dépasse de 4px à gauche ET à droite ; à
+       240px, de 84px de chaque côté.
+       `wrap` (la valeur de base, plus haut) ne les empile PAS tant qu'ils tiennent côte à côte : c'est
+       exactement la règle voulue ici — côte à côte sur ordinateur, empilés seulement quand il n'y a
+       plus le choix. La raison d'origine du nowrap (« la guitare, plus haute que le piano, doublait la
+       hauteur prise ») venait en réalité du `width: 100%` que portait alors le piano : chaque colonne
+       réclamait 100 % de la ligne, donc elles se renvoyaient systématiquement à la ligne, quelle que
+       soit la place. Ce width:100% a été retiré depuis (voir .piano-col), le nowrap n'a plus d'objet. */
     .history-section {
         flex: 1;
         min-height: 0;
@@ -4889,8 +4916,10 @@ select.song-select-narrow {
    si bien que la répartition ne change rien — mais elle prendrait le pas sur cette souplesse le jour
    où un bloc deviendrait rigide, et la grille se retrouverait rognée sans qu'on sache pourquoi. Le
    vide venait des marges, traitées juste en dessous. */
-.col-right > .viz-wrap { margin-top: 4px; margin-bottom: 4px; }
-.col-right > .chord-header-row { margin-bottom: 2px; }
+/* Marges resserrées : 4+4+2 px de vide autour de blocs qui n'en demandaient pas, dans la colonne où la
+   hauteur est comptée (« il reste encore de la place optimisable »). */
+.col-right > .viz-wrap { margin-top: 2px; margin-bottom: 0; }
+.col-right > .chord-header-row { margin-bottom: 0; }
 
 /* Les diagrammes ouverts prennent la place qu'il leur faut, pas davantage : plafond explicite plutôt
    qu'une hauteur qui suit le conteneur. Au-delà, on ne lit pas mieux un manche de guitare ou deux

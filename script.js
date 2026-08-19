@@ -13318,6 +13318,20 @@ class HarmoHubApp {
         const samePreviousChord = wasPrevContinuous
             && (wasPrevWide || parseInt(prevGridEl.dataset.editingIndex) === this.editingIndex);
         const prevScrollLeft = samePreviousChord ? prevScrollEl.scrollLeft : null;
+        // MÊME CHOSE SUR L'AXE VERTICAL, qui n'était préservé nulle part. Mesuré : après un simple clic
+        // sur une barre, scrollTop passait de 203 à 0 — la bande sautait tout en haut de l'étendue à
+        // chaque sélection, alors que scrollLeft, lui, était bien rendu à sa place. D'où le retour
+        // utilisateur : « le centrage de la barre sélectionnée était une mauvaise idée [...] ça va me
+        // gêner pour sélectionner plusieurs barres en même temps ». Ce n'était pas le centrage qu'il
+        // fallait retirer, c'était l'absence de préservation qu'il fallait combler : comme dans
+        // GarageBand, sélectionner ne déplace RIEN, ni en vertical ni en horizontal.
+        const prevScrollTop = samePreviousChord ? prevScrollEl.scrollTop : null;
+        // Hauteur d'une ligne au rendu PRÉCÉDENT, pendant vertical de prevColPx ci-dessous : restaurer
+        // un scrollTop en PIXELS n'a de sens que si les lignes font toujours la même hauteur (le zoom
+        // vertical de la vue agrandie la change, voir --seq-zoom-scale-v). Mesurée sur l'élément plutôt
+        // que recalculée depuis la formule CSS : c'est la hauteur réelle qui compte.
+        const prevRowEl = prevScrollEl && prevScrollEl.querySelector('.seq-cell, .seq-label');
+        const prevRowPx = prevRowEl ? prevRowEl.getBoundingClientRect().height : NaN;
         // Largeur d'une colonne au rendu PRÉCÉDENT. Restaurer un scrollLeft en PIXELS n'a de sens que
         // si cette largeur n'a pas changé : détailler ou resserrer la vue continue (Ctrl+molette,
         // pincement, boutons H) change l'échelle, et les mêmes pixels désignent alors un tout autre
@@ -14050,8 +14064,17 @@ class HarmoHubApp {
                     const cible = (haut + bas) / 2 - scrollEl.clientHeight / 2;
                     scrollEl.scrollTop = Math.max(0, Math.min(scrollEl.scrollHeight - scrollEl.clientHeight, cible));
                 };
-                if (prevScrollLeft == null || echelleChangee) { centrerSurAccordEdite(); centrerHauteursEditees(); }
+                // Les deux axes sont décidés SÉPARÉMENT : chacun se recentre quand sa propre échelle a
+                // changé, et se contente de reprendre sa position sinon. Les mélanger faisait recentrer
+                // la hauteur pour une raison purement horizontale — « la barre se recentre également en
+                // horizontal, ce que je ne voulais pas produire » vaut aussi dans l'autre sens.
+                const rowEl = scrollEl.querySelector('.seq-cell, .seq-label');
+                const rowPx = rowEl ? rowEl.getBoundingClientRect().height : NaN;
+                const echelleVChangee = !isNaN(prevRowPx) && !isNaN(rowPx) && Math.abs(prevRowPx - rowPx) > 0.01;
+                if (prevScrollLeft == null || echelleChangee) centrerSurAccordEdite();
                 else scrollEl.scrollLeft = prevScrollLeft; // simple repeinture : on ne bouge pas sous les doigts
+                if (prevScrollTop == null || echelleVChangee) centrerHauteursEditees();
+                else scrollEl.scrollTop = prevScrollTop;
             });
         }
 
