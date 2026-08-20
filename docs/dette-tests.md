@@ -891,3 +891,56 @@ le code à leur obéir :
 3. Une vérification de rétablissement qui repartait de l'état laissé par la famille précédente : un
    « rien n'a changé » y passait pour un rétablissement réussi. Elle part maintenant d'une session
    neuve et d'une valeur franche.
+
+---
+
+## Lot 4 bis-B : le petit séquenceur en tiroir flottant, sur téléphone seulement
+
+Idée de l'utilisateur : « J'ai bien envie de garder l'idée du "Petit séquenceur"... Il est plus simple
+à utiliser que le grand séquenceur qui demande un grand écran », puis « Le séquenceur pourrait
+apparaitre dans un popover également, non ? »
+
+### La mesure a restreint le lot à un seul format
+
+| | grille avant ouverture | après ouverture |
+|---|---|---|
+| **Ordinateur** | 162px, 236px visibles | **inchangé — il ne coûte rien** |
+| **Téléphone** | 345px, 230px visibles | **0px de grille visible** (la page filait à -455px) |
+
+Sur ordinateur, le petit séquenceur vit dans la colonne de gauche, juste sous les commandes de
+l'accord, et n'enlève rien à la grille : l'y faire flotter par-dessus serait une régression pure. Le
+banc l'exige explicitement, pour que personne ne « complète » le lot en l'étendant au grand écran.
+
+### L'arithmétique de l'écran, faite avant de dessiner
+
+Sur un iPhone 13 (664px) : 345 au-dessus de la grille + 230 de grille + 221 de séquenceur + 81 de
+barre de lecture = **877px à loger dans 664**. Il manque 213px, et aucune disposition ne montrera la
+grille ENTIÈRE et le rythme ensemble. L'objectif retenu n'est donc pas celui-là : c'est de voir
+**l'accord qu'on travaille** et son rythme. Le défilement vise désormais la case éditée au lieu de
+centrer le séquenceur.
+
+Le résultat mesuré dépasse la prévision : la page défile de 250px, la carte Morceau s'efface, et
+**230px de grille** — sa hauteur entière — tiennent au-dessus du tiroir.
+
+### Ce que le tiroir ne fait pas, et c'est voulu
+
+- il ne rejoint **pas** la table `_popups` : un clic sur la grille ne doit pas le refermer, on
+  travaille le rythme d'un accord puis d'un autre (« il reste ouvert ») ;
+- il n'appelle **pas** `lockBodyScroll()` : ce n'est pas une fenêtre modale ;
+- il ne détourne ni Ctrl+Z ni la barre d'espace — c'est l'objet du lot 4 bis-A, fait avant lui
+  précisément pour ça.
+
+Conséquence assumée : sans clic-à-côté pour le fermer, **son bouton doit vraiment marcher dans les
+deux sens**, sinon il n'y a plus de sortie. Le banc l'éprouve.
+
+### Deux pièges désamorcés à la source
+
+1. `placeSequencer()` reste le SEUL endroit qui décide où vit `#arp-sequencer`. Poser la classe
+   ailleurs aurait recréé la dérive « deux endroits qui déplacent le même nœud ».
+2. La hauteur de la barre de lecture est **mesurée**, jamais devinée : elle change selon ce qu'elle
+   contient (le bloc Ajouter/Annuler y descend en mode Modification). Un nombre en dur aurait laissé
+   le tiroir flotter au-dessus d'un vide, ou recouvrir le bouton Lecture.
+3. Le rang d'empilement est choisi dans le paysage existant : au-dessus de l'en-tête collant de la
+   grille (30), qui sinon couperait la première ligne de cases sans qu'aucune mesure de rectangle ne
+   le voie — le banc pose donc la question au navigateur (`elementFromPoint`) plutôt qu'aux
+   coordonnées.

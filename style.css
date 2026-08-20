@@ -1375,6 +1375,68 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
 #accord-card.subject-existing #accord-title { color: #ffb300; }
 
 /* ============================================================
+   PETIT SÉQUENCEUR EN TIROIR FLOTTANT (téléphone) — Lot 4 bis de la refonte
+   ============================================================
+   IDÉE DE L'UTILISATEUR : « J'ai bien envie de garder l'idée du "Petit séquenceur" pour l'ajout ou la
+   modification d'un accord... Il est plus simple à utiliser que le grand séquenceur qui demande un
+   grand écran », puis « Le séquenceur pourrait apparaitre dans un popover également, non ? »
+
+   MESURÉ D'ABORD, ET LA MESURE A RESTREINT LE LOT À UN SEUL FORMAT :
+     - Sur ORDINATEUR, ouvrir le petit séquenceur ne coûte RIEN : la grille reste à 162px avec ses
+       236px visibles, le séquenceur vivant dans la colonne de gauche, juste sous les commandes de
+       l'accord. Le faire flotter par-dessus la grille y serait une régression pure. On n'y touche pas.
+     - Sur TÉLÉPHONE, l'ouvrir laisse 0px de grille visible : le séquenceur vit tout en bas de la
+       colonne empilée, et le défilement automatique qui l'amène à l'écran emporte la grille à -455px.
+
+   L'ARITHMÉTIQUE DIT CE QU'ON PEUT ESPÉRER. Sur un iPhone 13 (664px) : 345px au-dessus de la grille,
+   230px de grille, 221px de séquenceur, 81px de barre de lecture — soit 877px à loger dans 664. Il
+   manque 213px, et aucune disposition ne montrera jamais la grille ENTIÈRE et le rythme en même
+   temps. L'objectif n'est donc pas celui-là : c'est de voir L'ACCORD QU'ON TRAVAILLE et son rythme.
+   Le tiroir laisse 362px de fenêtre au-dessus de lui, et le défilement vise désormais la case de
+   l'accord édité au lieu de centrer le séquenceur (voir defilerVersSequenceur dans script.js).
+
+   CE QU'IL NE FAIT PAS, ET C'EST VOULU :
+     - il ne rejoint PAS la table this._popups : un clic sur la grille ne doit pas le refermer, on
+       travaille le rythme d'un accord puis d'un autre sans le rouvrir à chaque fois (« il reste
+       ouvert » quand on change d'accord) ;
+     - il n'appelle PAS lockBodyScroll() : ce n'est pas une fenêtre modale, la page continue de
+       défiler derrière lui ;
+     - il ne détourne ni Ctrl+Z ni la barre d'espace — c'est tout l'objet du lot précédent. */
+@media (max-width: 899px) {
+    .arp-seq.seq-tiroir {
+        position: fixed;
+        left: 6px;
+        right: 6px;
+        /* Posé SUR la barre de lecture, jamais par-dessus : sa hauteur est mesurée puis passée ici
+           par placeSequencer — la barre change de hauteur selon ce qu'elle contient (le bloc
+           Ajouter/Annuler y descend en mode Modification, voir updateEditActionsDocking). */
+        bottom: calc(var(--tiroir-bas, 84px) + 6px);
+        z-index: 25; /* au-dessus de la grille et de son en-tête collant (30 ? non : voir plus bas) */
+        margin: 0;
+        padding: 8px 8px 6px;
+        /* 45 % de la fenêtre au plus : sur un écran très bas, le tiroir doit céder avant la grille.
+           Le contenu défile alors en lui-même (.seq-scroll a déjà son propre défilement). */
+        max-height: 45vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        background: #14171c;
+        border: 1px solid var(--btn-neutral-border-hover);
+        border-radius: 12px;
+        box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.55);
+    }
+    /* z-index 35 et non 25 : l'en-tête collant de la grille est à 30 et passerait devant le tiroir,
+       coupant sa première ligne de cases. Sous la barre de lecture (.dock, 20) il n'y a rien à
+       craindre — c'est le tiroir qui doit passer devant elle, d'où un rang plus haut que les deux.
+       Reste bien SOUS les fenêtres pleine page (100) et les menus contextuels (200). */
+    .arp-seq.seq-tiroir { z-index: 35; }
+    .arp-seq.seq-tiroir .seq-scroll { flex: 1 1 auto; min-height: 0; }
+    /* La barre d'outils du séquenceur ne défile pas avec les cases : lecture, stop et effacement
+       doivent rester sous le pouce quoi qu'il arrive. */
+    .arp-seq.seq-tiroir .seq-presets { flex: none; }
+}
+
+/* ============================================================
    COMMANDES DIRECTES DE VOICING — Lot 4 de la refonte
    ============================================================
    RETOUR UTILISATEUR : « Lorsque je suis en mode édition, je veux pouvoir rapidement changer une

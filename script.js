@@ -13441,6 +13441,28 @@ class HarmoHubApp {
         requestAnimationFrame(() => {
             const r = seq.getBoundingClientRect();
             if (r.height === 0) return; // rien à montrer
+
+            // TIROIR FLOTTANT : il est déjà à l'écran par construction — le faire défiler vers soi
+            // n'aurait aucun sens (on ne défile pas vers un élément en position fixe). Ce qu'il faut
+            // amener à la vue, c'est L'ACCORD QU'ON TRAVAILLE, dans la bande de fenêtre laissée
+            // libre au-dessus du tiroir. Mesuré : sans ça, ouvrir le rythme sur un téléphone laissait
+            // 0px de grille visible — le défilement « centrer le séquenceur » emportait la grille à
+            // -455px. L'arithmétique interdit de tout montrer (877px à loger dans 664), mais rien
+            // n'oblige à perdre justement l'accord dont on règle le rythme.
+            if (seq.classList.contains('seq-tiroir')) {
+                const cell = this.editingIndex != null ? this.gridCellEl(this.activeSection, this.editingIndex) : null;
+                if (!cell) return;
+                const c = cell.getBoundingClientRect();
+                const hautLibre = r.top - 8;            // bord supérieur du tiroir
+                if (c.top >= 8 && c.bottom <= hautLibre) return; // déjà dans la bande libre
+                // On vise le MILIEU de la bande libre plutôt que son bord : la case reste lisible même
+                // si la barre du haut ou l'en-tête collant mordent un peu dessus.
+                const page = document.scrollingElement || document.documentElement;
+                const vise = page.scrollTop + c.top - Math.max(8, (hautLibre - c.height) / 2);
+                page.scrollTo({ top: Math.max(0, vise), behavior: 'smooth' });
+                return;
+            }
+
             const dejaVisible = r.top >= 0 && r.top < window.innerHeight * 0.9;
             if (!dejaVisible) seq.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
@@ -13507,6 +13529,29 @@ class HarmoHubApp {
         } else if (seq.parentElement === dock) {
             document.getElementById('arpPattern').insertAdjacentElement('afterend', seq);
         }
+        this.appliquerTiroirSequenceur();
+    }
+
+    // TIROIR FLOTTANT DU PETIT SÉQUENCEUR, sur téléphone seulement (voir .arp-seq.seq-tiroir dans
+    // style.css). Posé ici, dans placeSequencer, parce que c'est LE seul endroit qui décide d'où vit
+    // #arp-sequencer — en ajouter un second aurait recréé la dérive « deux endroits qui déplacent le
+    // même nœud » que ce fichier connaît déjà trop bien.
+    // Le seuil est le MÊME que celui du CSS : au-delà, la colonne de gauche existe pour de bon et le
+    // séquenceur y tient sans rien coûter à la grille (mesuré : 0px de perte sur ordinateur).
+    appliquerTiroirSequenceur() {
+        const seq = document.getElementById('arp-sequencer');
+        if (!seq) return;
+        const enTiroir = this.seqOpen && this.seqMode === 'compact'
+            && window.matchMedia('(max-width: 899px)').matches && !this.seqZoomOpen;
+        seq.classList.toggle('seq-tiroir', enTiroir);
+        if (!enTiroir) { document.documentElement.style.removeProperty('--tiroir-bas'); return; }
+        // Hauteur de la barre de lecture MESURÉE, jamais devinée : elle change selon ce qu'elle
+        // contient (le bloc Ajouter/Annuler y descend en mode Modification, voir
+        // updateEditActionsDocking). Un nombre en dur laisserait le tiroir flotter au-dessus d'un
+        // vide, ou recouvrir le bouton Lecture.
+        const barre = document.querySelector('.dock');
+        const h = barre ? Math.round(barre.getBoundingClientRect().height) : 0;
+        document.documentElement.style.setProperty('--tiroir-bas', `${h}px`);
     }
 
     // Place libre dans la colonne de droite pour le volet, une fois `reserve` pixels laissés à la grille.
