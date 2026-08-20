@@ -10371,6 +10371,11 @@ class HarmoHubApp {
             if (menu.hidden) this.openPlayStyleMenu(); else this.closePlayStyleMenu();
         });
         document.addEventListener('click', (e) => {
+            // Le raccourci du tiroir est EXCLU au même titre que le bouton d'origine : sans ça, le
+            // clic qui ouvre le menu le refermerait dans la foulée, puisqu'il tombe hors de
+            // #playstyle-dd. C'est exactement le piège que la table this._popups résout ailleurs avec
+            // son champ `ancre` — même correctif, même raison.
+            if (e.target.closest('#seq-playstyle-btn')) return;
             if (!document.getElementById('playstyle-dd').contains(e.target)) this.closePlayStyleMenu();
         });
 
@@ -10387,11 +10392,15 @@ class HarmoHubApp {
         this.syncPlayStylePicker();
     }
 
-    openPlayStyleMenu() {
-        const toggle = document.getElementById('playstyle-dd-toggle');
+    // `ancre` : le bouton sous lequel poser le menu. Par défaut celui du module Lecture, mais le
+    // tiroir du séquenceur en a un second (voir renderSequencer) — sur téléphone, celui du module se
+    // retrouve hors écran dès que le tiroir est ouvert (mesuré : à 630px sur une fenêtre de 664),
+    // c'est-à-dire inatteignable au moment précis où l'on travaille le rythme.
+    openPlayStyleMenu(ancre = null) {
+        const toggle = ancre || document.getElementById('playstyle-dd-toggle');
         const menu = document.getElementById('playstyle-dd-menu');
         menu.hidden = false;
-        toggle.setAttribute('aria-expanded', 'true');
+        document.getElementById('playstyle-dd-toggle').setAttribute('aria-expanded', 'true');
         const rect = toggle.getBoundingClientRect();
         const pad = 8;
         const left = Math.min(rect.left, window.innerWidth - menu.offsetWidth - pad);
@@ -13538,11 +13547,19 @@ class HarmoHubApp {
     // même nœud » que ce fichier connaît déjà trop bien.
     // Le seuil est le MÊME que celui du CSS : au-delà, la colonne de gauche existe pour de bon et le
     // séquenceur y tient sans rien coûter à la grille (mesuré : 0px de perte sur ordinateur).
+    // UNE SEULE définition de « le petit séquenceur est-il en tiroir ? ». Elle est lue par le
+    // placement (ci-dessous) ET par la barre d'outils du séquenceur (voir renderSequencer, qui n'y
+    // ajoute le raccourci de motif que dans ce cas). La recopier aurait suffi à les faire diverger —
+    // ce fichier en a déjà payé le prix plus d'une fois.
+    estSequenceurEnTiroir() {
+        return this.seqOpen && this.seqMode === 'compact'
+            && window.matchMedia('(max-width: 899px)').matches && !this.seqZoomOpen;
+    }
+
     appliquerTiroirSequenceur() {
         const seq = document.getElementById('arp-sequencer');
         if (!seq) return;
-        const enTiroir = this.seqOpen && this.seqMode === 'compact'
-            && window.matchMedia('(max-width: 899px)').matches && !this.seqZoomOpen;
+        const enTiroir = this.estSequenceurEnTiroir();
         seq.classList.toggle('seq-tiroir', enTiroir);
         if (!enTiroir) { document.documentElement.style.removeProperty('--tiroir-bas'); return; }
         // Hauteur de la barre de lecture MESURÉE, jamais devinée : elle change selon ce qu'elle
@@ -15043,6 +15060,19 @@ class HarmoHubApp {
             <button type="button" id="seq-stop" class="btn-stop seq-icon-btn" title="Stop" aria-label="Stop">${svgIcon('stop')}</button>
             <button type="button" id="seq-loop-play" class="icon-btn seq-icon-btn${this.seqLoopPlay ? ' active' : ''}" title="Rejouer en boucle" aria-label="Rejouer en boucle">${svgIcon('loop')}</button>
             <button type="button" id="seq-add-note" class="icon-btn seq-icon-btn" title="Ajouter une note libre (ex. note de passage)" aria-label="Ajouter une note libre">${svgIcon('plus')}</button>
+            ${this.estSequenceurEnTiroir() ? (() => {
+                // RACCOURCI VERS LES MOTIFS RYTHMIQUES, dans le tiroir seulement.
+                // Ce n'est PAS une seconde rangée de motifs : ce serait recopier les neuf mêmes choix
+                // déjà offerts par le sélecteur de style de jeu (PLAYSTYLE_OPTIONS, qui EST la liste
+                // des motifs de seqPreset), et retomber dans le reproche « j'ai l'impression d'avoir
+                // fait une machine à clics ». C'est le MÊME menu, ouvert depuis un second endroit.
+                // Pourquoi ici : mesuré sur iPhone 13, le bouton d'origine se retrouve à 630px sur une
+                // fenêtre de 664 dès que le tiroir est ouvert — donc hors d'atteinte au moment précis
+                // où l'on règle le rythme. L'icône reprend celle du style courant, pour qu'on lise
+                // d'un coup d'œil sur quel motif on est.
+                const o = PLAYSTYLE_BY_VALUE[document.getElementById('playStyle').value] || PLAYSTYLE_OPTIONS[0];
+                return `<button type="button" id="seq-playstyle-btn" class="icon-btn seq-icon-btn" title="Motif rythmique : ${o.name}" aria-label="Choisir le motif rythmique — actuellement ${o.name}" aria-haspopup="menu"><svg class="icon" viewBox="0 0 24 16" aria-hidden="true">${o.svg}</svg></button>`;
+            })() : ''}
             <!-- Pipette de motif ENTRE VOIES du même accord (retour utilisateur : sélectionner une ou
                  plusieurs notes/barres, voir seqSelections, puis les appliquer sur une AUTRE ligne du
                  même séquenceur) — voir toggleSeqRowPipette/applySeqRowPipette. Distincte de Ctrl+C/V
@@ -15262,6 +15292,18 @@ class HarmoHubApp {
         host.querySelectorAll('.seq-ctx-nav').forEach(zone => {
             zone.addEventListener('click', () => this.editChordFromSequencer(this.activeSection, +zone.dataset.targetIndex));
         });
+
+        // Raccourci vers les motifs rythmiques (tiroir seulement) : il ouvre le MÊME menu que le
+        // sélecteur du module Lecture, ancré sur lui-même. stopPropagation pour la même raison que le
+        // bouton d'origine — sans ça, le clic remonterait jusqu'au gestionnaire de clic-à-côté.
+        const btnMotif = host.querySelector('#seq-playstyle-btn');
+        if (btnMotif) {
+            btnMotif.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const menu = document.getElementById('playstyle-dd-menu');
+                if (menu.hidden) this.openPlayStyleMenu(btnMotif); else this.closePlayStyleMenu();
+            });
+        }
 
         // Bouton « X tout » (remplace tout le motif par du silence) : ciblé via [data-preset] pour
         // ne pas capturer « X sélection » ci-dessous, qui a son propre câblage.

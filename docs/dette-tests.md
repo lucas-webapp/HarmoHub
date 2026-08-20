@@ -944,3 +944,34 @@ deux sens**, sinon il n'y a plus de sortie. Le banc l'éprouve.
    grille (30), qui sinon couperait la première ligne de cases sans qu'aucune mesure de rectangle ne
    le voie — le banc pose donc la question au navigateur (`elementFromPoint`) plutôt qu'aux
    coordonnées.
+
+---
+
+## Lot 4 bis-C : atteindre les motifs rythmiques depuis le tiroir
+
+**Ce lot devait être une rangée de motifs, et il ne l'est pas.** En allant l'écrire, j'ai vérifié ce
+qui existait : `PLAYSTYLE_OPTIONS` **est** exactement l'ensemble des motifs que `seqPreset()` sait
+poser — tenu, rondes/blanches/noires/croches, liées ou détachées — et il est déjà offert par un menu
+d'icônes groupé « Lié (son continu) » / « Détaché (staccato) », avec des têtes de notes dessinées. Une
+rangée de motifs aurait été une **seconde copie des neuf mêmes choix**, dans le même panneau :
+exactement le reproche « Trop de volets déroulants et de boutons ? J'ai l'impression d'avoir fait une
+machine à clics ».
+
+**Le vrai manque, lui, était mesurable** : sur iPhone 13 (fenêtre de 664px), le bouton qui ouvre ce
+menu se trouve à **630px** — hors écran — et il y reste que le tiroir soit ouvert ou non. Au moment
+précis où l'on travaille le rythme, on ne peut donc plus changer de motif. Le lot ajoute **un
+raccourci vers le même menu** dans la barre d'outils du tiroir, et seulement là.
+
+La moitié du lot consiste à NE PAS faire quelque chose, et le banc la garde : sur ordinateur, aucun
+raccourci en double, le sélecteur d'origine étant déjà sous les yeux. Sans cette vérification,
+quelqu'un « complétera » le raccourci en l'affichant partout et recréera le doublon.
+
+### Deux pièges désamorcés avant d'écrire
+
+1. **Le clic-à-côté du menu.** Son gestionnaire referme dès qu'on clique hors de `#playstyle-dd`. Le
+   nouveau bouton étant ailleurs, il aurait refermé le menu dans la foulée du clic qui l'ouvre — le
+   banc l'aurait vu comme « le menu ne s'ouvre pas », et on aurait cherché longtemps. C'est le même
+   piège que le champ `ancre` de la table `_popups` résout ailleurs ; même correctif.
+2. **La règle « le séquenceur est-il en tiroir ? »** est définie **une seule fois**
+   (`estSequenceurEnTiroir`), lue par le placement ET par la barre d'outils. La recopier aurait suffi
+   à les faire diverger — ce fichier en a déjà payé le prix plus d'une fois dans la même session.
