@@ -4190,6 +4190,54 @@ select.song-select-narrow {
     #progression-sections { order: 4; }
     .history-section .add-section-btn { order: 5; }
     main { padding-bottom: 0; }
+
+    /* ---- Faire remonter la grille d'accords sur téléphone ----
+       MESURÉ AVANT DE TOUCHER À QUOI QUE CE SOIT : sur un iPhone 13 (390x664), la grille commençait
+       à 376px du haut — 57 % de l'écran passé à ne rien montrer de musical avant d'atteindre le
+       premier accord. Après ces règles : 319px. C'est 57px rendus à la grille, presque une rangée
+       d'accords de plus visible sans faire défiler.
+
+       CE QUI A ÉTÉ ESSAYÉ ET ÉCARTÉ, parce que la mesure l'a tranché et pas l'intuition. La solution
+       qui vient d'abord à l'esprit — mettre le nom du morceau sur la même ligne que les six boutons —
+       descend bien la grille à 310px, mais ne laisse que ~95px utiles au nom : « Ballade en Do
+       mineur » y est déjà tronqué, et « Improvisation du dimanche matin » n'en montre qu'un tiers.
+       Or le nom du morceau fait partie de ce qui doit TOUJOURS être lisible (retour utilisateur :
+       « Voici ce que je veux toujours voir apparaître : nom du morceau, tonalité, tempo, les boutons
+       fichier, enregistrer, import/export »). Neuf pixels de mieux ne valent pas un titre illisible.
+       Réduire le nombre de boutons a été écarté pour la même raison : « Renommer » existe bien
+       ailleurs (fenêtre Fichiers, et double-tap sur le nom), mais « Nouveau morceau » n'existe NULLE
+       PART ailleurs — le retirer du téléphone y rendrait impossible la création d'un morceau.
+       Conclusion mesurée : à 390px de large, six boutons de 32px plus un nom lisible ne tiennent pas
+       sur une ligne. La hauteur devait donc venir d'ailleurs. */
+
+    /* 1. Les deux titres redondants. « Morceau » surmonte un menu qui affiche déjà le nom du
+       morceau ; « Grille d'accords » surmonte la grille elle-même, qu'on voit. Ils sont MASQUÉS À
+       L'ŒIL, pas retirés : ils restent dans l'arbre d'accessibilité, où ils nomment leur section pour
+       un lecteur d'écran — un titre invisible garde toute son utilité là. Deux gains distincts : le
+       titre de la grille occupait une rangée pleine largeur à lui seul (voir son `order: 1`
+       ci-dessus), soit ~31px avec sa marge ; celui du morceau ne libère pas de rangée mais retire une
+       écriture de plus (retour utilisateur : « Trop d'écriture dedans, ça ne rend pas joli ni pro »). */
+    .history-section h2,
+    #song-card .card-head h2 {
+        position: absolute;
+        width: 1px; height: 1px;
+        margin: 0; padding: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    /* 2. Le nom du morceau passe EN PREMIER et garde toute la largeur ; les boutons se rangent sous
+       lui, poussés à droite. Sans cela, le titre masqué laissait les boutons seuls sur la première
+       rangée et le nom en dessous : même hauteur, mais on lisait les outils avant le sujet. */
+    #song-card #song-select { order: 0; flex: 1 1 100%; margin-top: 0; }
+    #song-card .card-head-actions { order: 1; margin-left: auto; }
+
+    /* 3. Les interlignes. La carte Morceau mesurait 166px pour 106px de contenu réel : 60px de
+       remplissage, sur un écran qui en compte 664 en tout. */
+    #song-card .card-head { gap: 6px; margin-bottom: 6px; }
+    .song-panel { margin-bottom: 6px; }
+    #song-summary { padding-top: 5px; padding-bottom: 5px; }
 }
 
 @media (min-width: 900px) {

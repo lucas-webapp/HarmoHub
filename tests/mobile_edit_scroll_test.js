@@ -76,20 +76,34 @@ const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { 
         '.section-head', '.grid-head-sticky', '#context-menu', '.overlay', '.modal', '.settings-overlay',
         '#files-overlay', 'button', 'input', 'select', 'textarea', 'label', 'a', '[role="button"]',
     ].join(',');
+    // LE POINT D'ARRIVÉE DU GLISSÉ COMPTE AUTANT QUE SON POINT DE DÉPART. Troisième recalibrage, et
+    // celui-ci a une cause différente des deux premiers : le point de départ était bien cherché à
+    // chaque exécution, mais le clic-fantôme, lui, tombe à `y + dy` — une ordonnée que personne ne
+    // vérifiait. Une retouche de mise en page mobile (la carte Morceau resserrée, qui a fait remonter
+    // tout le contenu de 57px) a suffi pour que ce y-80 atterrisse pile sur le bouton « Mes
+    // morceaux » : le faux défilement OUVRAIT donc la fenêtre Fichiers, et les vérifications
+    // suivantes se mesuraient à travers une fenêtre modale posée par accident — l'application, elle,
+    // faisait exactement ce qu'il fallait. On exige désormais que TOUS les points touchés par le banc
+    // (le départ et les deux arrivées, -80 et +3) soient hors de la zone d'édition.
     const AILLEURS_X = 200;
-    const AILLEURS_Y = await page.evaluate(({ x, zone }) => {
-        for (let y = 60; y < window.innerHeight - 20; y += 2) {
+    const DEPLACEMENTS = [0, -80, 3];
+    const AILLEURS_Y = await page.evaluate(({ x, zone, deplacements }) => {
+        const neutre = (y) => {
+            if (y < 0 || y > window.innerHeight) return false;
             const el = document.elementFromPoint(x, y);
-            if (el && !el.closest(zone)) return y;
+            return !!el && !el.closest(zone);
+        };
+        for (let y = 60; y < window.innerHeight - 20; y += 2) {
+            if (deplacements.every(dy => neutre(y + dy))) return y;
         }
         return null;
-    }, { x: AILLEURS_X, zone: ZONE_EDITION });
+    }, { x: AILLEURS_X, zone: ZONE_EDITION, deplacements: DEPLACEMENTS });
     console.log('point « ailleurs » trouve :', AILLEURS_X, AILLEURS_Y,
         AILLEURS_Y === null ? '' : await page.evaluate(({ x, y }) => { const e = document.elementFromPoint(x, y); return e ? (e.id || e.className || e.tagName) : null; }, { x: AILLEURS_X, y: AILLEURS_Y }));
     // La précondition est VÉRIFIÉE, pas seulement supposée : sans point valide, tout ce qui suit ne
     // mesurerait rien. Le check est volontairement hors du `if` — enfermé dedans, il disparaîtrait
     // silencieusement le jour où il passe, ce que le banc méta traque justement (voir meta_suite_test).
-    check(AILLEURS_Y !== null, `un point hors de la zone d'édition a été trouvé sur cet écran — y=${AILLEURS_Y}`);
+    check(AILLEURS_Y !== null, `un point dont le départ ET les arrivées (${DEPLACEMENTS.join(', ')}px) sont hors de la zone d'édition — y=${AILLEURS_Y}`);
     if (AILLEURS_Y === null) {
         console.log(`\n=== Bilan : ${PASS} PASS / ${FAIL} FAIL ===`);
         await browser.close();

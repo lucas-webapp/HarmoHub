@@ -634,3 +634,53 @@ relevée depuis), `real_click_loupe_selection` (3/4), `seq_notes_libres_clavier`
 
 `glock_full_real_ui` figurait aussi dans cette liste au premier passage : c'était le serveur de test
 mono-thread qui se bloquait, pas le banc. Relancé avec un serveur multi-thread, il est vert (33/0).
+
+---
+
+## Lot 1 : sur téléphone, la grille remonte de 57px
+
+Mesure d'avant-travaux sur iPhone 13 (390x664) : la grille d'accords commençait à **376px** du haut,
+soit 57 % de l'écran passé avant d'apercevoir le premier accord. Après le lot : **319px** (48 %).
+Retour utilisateur à l'origine : « Sur téléphone, il est également mal placé au-dessus des accords. »
+
+### La solution évidente a été mesurée, puis écartée
+
+Poser le nom du morceau sur la même ligne que les six boutons descend la grille à 310px — neuf pixels
+de mieux. Elle a été abandonnée sur mesure : il ne reste alors que ~95px utiles au champ, et
+« Ballade en Do mineur » (115px) y est déjà tronqué ; « Improvisation du dimanche matin » n'en montre
+qu'un tiers. Or le nom du morceau fait partie de ce qui doit toujours rester lisible.
+
+Réduire le nombre de boutons a été envisagé puis écarté aussi, après vérification dans le code :
+« Renommer » existe bien ailleurs (fenêtre Fichiers, plus le double-tap sur le nom), mais **« Nouveau
+morceau » n'existe nulle part ailleurs** — le retirer du téléphone y rendrait la création d'un morceau
+impossible.
+
+Conclusion mesurée : à 390px de large, six boutons de 32px plus un nom lisible ne tiennent pas sur une
+ligne. La hauteur devait donc venir d'ailleurs — des deux titres redondants (« Morceau » au-dessus
+d'un menu qui affiche déjà le nom, « Grille d'accords » au-dessus de la grille) et des 60px de
+remplissage d'une carte qui n'avait que 106px de contenu.
+
+Les deux titres sont **masqués à l'œil, pas retirés** : ils restent dans l'arbre d'accessibilité. Le
+banc `mobile_grille_plus_haut_test` (13 vérifications) éprouve aussi bien le gain que les deux
+contreparties refusées — un nom ordinaire entièrement lisible, et les titres toujours annonçables —
+précisément parce que la solution écartée est plus alléchante en chiffres et donnera envie d'y revenir.
+
+### Troisième recalibrage de `mobile_edit_scroll_test`, et sa vraie cause
+
+Ce banc cherche à chaque exécution un point « ailleurs » hors de la zone d'édition, justement pour
+survivre aux changements de mise en page — deux recalibrages précédents l'avaient appris. Il est
+pourtant retombé, et pour une raison nouvelle : il calibrait le point de DÉPART du geste, jamais son
+point d'ARRIVÉE. Le clic-fantôme du faux défilement tombe à `y - 80`, une ordonnée que rien ne
+vérifiait.
+
+Les 57px gagnés par le lot ont suffi pour que ce `y - 80` atterrisse pile sur le bouton « Mes
+morceaux ». Le faux défilement OUVRAIT donc la fenêtre Fichiers, et les six vérifications suivantes se
+mesuraient à travers une fenêtre modale posée par accident. L'application faisait exactement ce qu'il
+fallait : un clic sur une fenêtre modale ne doit pas sortir du mode Modification.
+
+Vérifié avant de conclure, plutôt que supposé : le banc a été relancé sur le CSS d'AVANT le lot, où il
+repasse au vert (11/0) avec un point calibré à y=256 au lieu de y=200. C'est bien le déplacement qui
+révèle le défaut du banc, et non le lot qui casse l'application.
+
+Le banc exige désormais que **tous** les points qu'il touche — le départ et les deux arrivées (-80 et
++3) — soient hors de la zone d'édition.
