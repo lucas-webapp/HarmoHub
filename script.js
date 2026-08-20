@@ -12301,13 +12301,17 @@ class HarmoHubApp {
         }
         d.curStart = newStart;
         d.curEnd = newEnd;
-        // Ce qu'on est en train de régler, écrit à côté du doigt (voir showSeqDragReadout) : la
-        // longueur obtenue, et où s'arrête la note. Le repère de temps surligné dit déjà OÙ on est
-        // dans la mesure, pas COMBIEN on vient de prendre.
-        const croches = newEnd - newStart + 1;
-        const temps = croches / SEQ_STEPS_PER_BEAT;
-        const duree = Number.isInteger(temps) ? `${temps} temps` : `${croches} croches`;
-        this.showSeqDragReadout(`${duree} · fin ${this.seqStepLabel(newEnd)}`, e.clientX, e.clientY);
+        // AUCUNE étiquette flottante pendant un ÉTIREMENT (retour utilisateur : « lorsque j'étire une
+        // barre du séquenceur, je n'ai pas besoin de l'encadré vert qui se met à jour à l'étirement à
+        // droite de la souris, pour m'indiquer le nombre de croches de la barre »). Elle annonçait en
+        // chiffres (« 2 temps · fin mes. 1 temps 3 ») ce que la barre montre déjà d'elle-même en
+        // s'allongeant contre la règle de mesure — et elle le posait SOUS le pointeur, donc par-dessus
+        // l'endroit précis qu'on est en train de viser. Le repère de temps mis en évidence sur la règle
+        // (voir _highlightSeqBeatLabel plus haut dans cette même fonction) dit déjà où l'on s'arrête,
+        // sans rien recouvrir.
+        // Les DEUX AUTRES gestes gardent le leur, et c'est voulu : changer de hauteur (onSeqVoiceDragMove)
+        // annonce le NOM de la note visée, déplacer dans le temps (onSeqHDragMove) annonce la POSITION
+        // d'arrivée — deux informations que rien d'autre à l'écran ne donne, contrairement à une longueur.
 
         // Étire/déplace la pilule visuelle EN DIRECT, sans attendre le renderSequencer() final
         // (les cases en dessous, elles, sont déjà mises à jour case par case via applySeqCell ci-dessus)

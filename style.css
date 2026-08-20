@@ -4335,7 +4335,13 @@ select.song-select-narrow {
         flex: 1;
         min-width: 0;
         min-height: 0;
-        gap: 16px;
+        /* 12px et non 16 : cet interligne se paie QUATRE fois dans la colonne (grille, volet du
+           séquenceur, bande des diagrammes, pied de colonne), soit 16px rendus au séquenceur — dans
+           une colonne où la hauteur est la ressource rare et la largeur abondante (retour utilisateur :
+           « les boutons en bas... sont trop hauts et pourraient permettre de gagner de la place »).
+           Mesuré : rien ne se touche visuellement à 12px, les blocs ont chacun leur propre fond/bordure
+           qui les sépare déjà. */
+        gap: 12px;
     }
     .chord-header-row { flex: none; }
     .viz-wrap { flex: none; }
@@ -4383,13 +4389,23 @@ select.song-select-narrow {
     .dock {
         position: static;
         flex: none;
-        margin: 15px 0 0;
+        /* 6px et non 15 : ce pied n'est plus collant sur ordinateur (position:static juste au-dessus),
+           il n'a donc plus besoin de se détacher visuellement de ce qui le précède — et il vient
+           DÉJÀ après le `gap` de .col-right, si bien que les deux s'additionnaient en 31px de vide
+           entre la bande des diagrammes et la rangée de lecture. */
+        margin: 6px 0 0;
         padding: 0 6px 0 0;
         background: none;
         backdrop-filter: none;
         border-top: none;
         gap: 10px;
     }
+    /* ORDINATEUR UNIQUEMENT : 44px au lieu des 52 gardés au doigt. La souris vise au pixel, elle n'a
+       pas besoin des ~44px recommandés par Apple/Google pour un doigt — et ces boutons occupent déjà
+       toute la largeur de la colonne, donc la cible reste immense horizontalement (retour utilisateur :
+       « les boutons en bas, qui sont trop hauts »). Sur téléphone, où le pied reste collant et où
+       c'est bien un doigt qui vise, la hauteur d'origine est conservée telle quelle. */
+    .dock .transport > button { height: 44px; }
     .transport button { padding: 11px 12px 11px 8px; font-size: var(--fs-base); }
     .edit-actions button { padding: 11px 12px 11px 8px; font-size: var(--fs-base); }
 }
