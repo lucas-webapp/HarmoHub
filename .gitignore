@@ -20,3 +20,11 @@ sample_*.json
 # `tests/*.png` du dessus ne les attrapait pas — d'où celle-ci, ancrée à la racine par le `/` initial,
 # qui laisse donc intacts icons/*.png (les seules images légitimes du dépôt) et tests/*.png.
 /*.png
+
+# Sorties de bancs, troisième famille (même cause que les deux blocs ci-dessus : un banc qui écrit
+# son sous-produit dans le dépôt au lieu d'un dossier jetable).
+#   - paroles_pdf_test enregistre le PDF qu'il vient de produire pour en vérifier la taille ;
+#   - midi_import_e2e_test fabrique ses trois .mid dans un dossier que son code appelle déjà `TMP`
+#     (`const TMP = 'fixtures'`) — ce sont des entrées ÉCRITES par le banc, pas des fixtures versionnées.
+/exported_test.pdf
+/fixtures/
