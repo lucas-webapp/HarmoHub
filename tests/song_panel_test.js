@@ -141,8 +141,27 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     }));
     check(enEdition.mode === 'edit' && enEdition.accordCharge === 1,
         `un double-clic charge bien l'accord en Modification — index ${enEdition.accordCharge}`);
-    check(enEdition.accordOuvert && enEdition.reglages,
-        'réglages du morceau ET accord en cours d\'édition cohabitent enfin à l\'écran');
+    // Les réglages ne sont plus dépliés d'office : ils sont devenus un panneau FLOTTANT, qui part
+    // fermé à chaque chargement (voir applySongSettingsOpen dans script.js). On les ouvre donc
+    // explicitement pour éprouver ce que ce test a toujours voulu éprouver — que les deux
+    // COHABITENT, l'un n'en chassant pas l'autre. Et l'exigence est renforcée au passage : il ne
+    // suffit plus qu'ils soient tous deux « ouverts », le panneau ne doit pas non plus RECOUVRIR la
+    // carte de l'accord. C'est exactement le défaut qu'a produit le premier placement du panneau
+    // (96 % de la carte recouverte, mesuré), et qu'aucune vérification d'ouverture n'aurait vu.
+    await page.evaluate(() => window.app.toggleSongSettings(true));
+    await page.waitForTimeout(350);
+    const cohabitation = await page.evaluate(() => {
+        const ac = document.getElementById('accord-card');
+        const pan = document.getElementById('song-settings');
+        if (ac.hidden || pan.hidden) return { deux: false, part: 100 };
+        const a = ac.getBoundingClientRect(), p = pan.getBoundingClientRect();
+        const ox = Math.max(0, Math.min(p.right, a.right) - Math.max(p.left, a.left));
+        const oy = Math.max(0, Math.min(p.bottom, a.bottom) - Math.max(p.top, a.top));
+        const aire = a.width * a.height;
+        return { deux: true, part: aire > 0 ? Math.round(ox * oy / aire * 100) : 0 };
+    });
+    check(cohabitation.deux && cohabitation.part === 0,
+        `réglages du morceau ET accord en cours d'édition cohabitent à l'écran sans se recouvrir — ${cohabitation.part} % recouverts`);
 
     // ============================================================
     // === E. Les réglages déménagés fonctionnent toujours ===
@@ -184,7 +203,13 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
         bpm: document.getElementById('bpm').value,
         sig: document.getElementById('time-sig').value,
     }));
-    check(apresRechargement.ouvert, 'déplié avant de recharger, le bloc se retrouve déplié');
+    // EXIGENCE INVERSÉE, à dessein. Tant que c'était un bloc déplié DANS la colonne, le retrouver
+    // déplié au retour était cohérent. Devenu un panneau flottant posé par-dessus la grille, il ne
+    // doit plus se rouvrir tout seul au lancement de l'appli : personne ne l'a demandé, et il
+    // masquerait la musique dès l'ouverture. La préférence continue d'être écrite mais n'est plus
+    // relue (voir le constructeur, songSettingsOpen).
+    check(!apresRechargement.ouvert,
+        'devenu panneau flottant, il ne se rouvre plus tout seul au rechargement');
     // On ne vérifie pas que le tempo a SURVÉCU au rechargement — il ne survit pas tant que le morceau
     // n'est pas enregistré, et c'était déjà le cas avant ce chantier. Ce qui compte ici, et qui est
     // tout l'intérêt d'un résumé permanent, c'est qu'il dise VRAI dès l'ouverture : un résumé en
@@ -205,8 +230,13 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // CONTRAT CHANGÉ : ce bloc basculait le bandeau Ajout/Modif, qui n'existe plus. Ce qu'il
     // vérifiait reste valable et se teste par le geste qui l'a remplacé — ouvrir puis refermer un
     // accord : les réglages du morceau sont un bloc autonome, rien de tout ça ne doit les bouger.
-    await page.click('#song-summary');
-    await page.waitForTimeout(200);
+    // On FORCE l'ouverture au lieu de cliquer l'interrupteur. Un clic sur #song-summary bascule :
+    // il n'ouvre que si le panneau était fermé, et dépend donc silencieusement de tout ce que le banc
+    // a fait cent lignes plus haut. C'est précisément ce qui est arrivé — une ouverture ajoutée dans
+    // une section précédente a transformé ce clic en fermeture, et la vérification d'en dessous a
+    // rougi sans qu'aucun défaut n'existe.
+    await page.evaluate(() => window.app.toggleSongSettings(true));
+    await page.waitForTimeout(250);
     await page.evaluate(() => window.app.editChord(0, 0));
     await page.waitForTimeout(300);
     const enModif = await page.evaluate(() => ({
@@ -223,8 +253,18 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     }));
     check(enModif.mode === 'edit' && enAjout.mode === 'add',
         'ouvrir puis refermer un accord fait bien basculer le mode déduit');
-    check(enModif.reglages && enAjout.reglages,
-        'changer de contexte ne replie ni ne déplie les réglages du morceau : les deux sont indépendants');
+    // CONTRAT CHANGÉ, et il faut le dire au lieu de le contourner. Ce test affirmait que « rien ne
+    // bouge les réglages du morceau ». C'était vrai d'un bloc DOCKÉ dans la colonne ; ça ne l'est
+    // plus d'un panneau FLOTTANT, dont tout l'intérêt est justement de se refermer dès qu'on clique
+    // ailleurs — sans quoi il resterait posé par-dessus la grille sans qu'on sache comment s'en
+    // débarrasser. Ce qui RESTE vrai, et que le test garde, c'est l'indépendance vis-à-vis du MODE :
+    // le panneau peut être ouvert aussi bien en Ajout qu'en Modification, aucun changement de mode ne
+    // le referme de lui-même. C'est bien le clic sur #accord-close — un clic AILLEURS, au sens du
+    // popover — qui le referme ci-dessous, pas le passage en mode Ajout.
+    check(enModif.reglages,
+        'le panneau des réglages reste ouvert quand on passe en Modification : il ne dépend pas du mode');
+    check(!enAjout.reglages,
+        'un clic ailleurs (ici « fermer l\'accord ») referme bien le panneau flottant, comme tout popover');
     check(enModif.quickAdd === false && enAjout.quickAdd === false,
         'la saisie rapide reste visible dans les deux cas (c\'est une cible d\'ajout, elle ne bouge plus)');
 

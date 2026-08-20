@@ -2960,7 +2960,12 @@ class HarmoHubApp {
         // #song-card/toggleSongSettings. Simple état d'affichage d'un bloc autonome, retenu d'une
         // session à l'autre : ce n'était plus un onglet à choisir face à Ajout/Modif., et consulter
         // le tempo ne masque plus l'accord en cours d'édition.
-        this.songSettingsOpen = localStorage.getItem('songSettingsOpen') === '1';
+        // TOUJOURS FERMÉ au chargement, et la préférence n'est plus relue. Un bloc déplié qui se
+        // retrouvait déplié au retour était cohérent ; un panneau FLOTTANT qui s'ouvre tout seul
+        // par-dessus la grille au lancement de l'appli ne l'est pas — on ne l'a pas demandé cette
+        // fois-ci. La clé 'songSettingsOpen' continue d'être écrite (voir toggleSongSettings) mais
+        // n'est plus lue : ça ne coûte rien et laisse la porte ouverte si l'on veut y revenir.
+        this.songSettingsOpen = false;
         this.drag = null;          // état de glisser-déposer
         this.loopRange = null;     // {startSection, startIndex, endSection, endIndex} : boucle sur une
                                     // PLAGE d'accords voisins, qui peut traverser plusieurs parties
@@ -3844,7 +3849,21 @@ class HarmoHubApp {
             { id: 'file-menu', ancre: '#file-menu-btn', close: () => this.closeFileMenu() },
             { id: 'key-suggest-menu', ancre: '#key-suggest-btn', close: () => this.closeKeySuggestMenu() },
             { id: 'quick-add-help', ancre: '#quick-add-help-btn', close: () => this.closeQuickAddHelp() },
+            // Réglages du morceau (tempo/groove/mesure/tonalité), devenus un panneau flottant : une
+            // ligne suffit pour hériter des DEUX façons de renoncer, le clic à côté et Échap. C'est
+            // tout l'intérêt de cette table — le panneau du séquenceur, lui, n'y entrera PAS : on
+            // veut pouvoir cliquer la grille d'accords sans le refermer.
+            { id: 'song-settings', ancre: '#song-summary', close: () => this.toggleSongSettings(false) },
         ];
+        // Le panneau flottant est posé en coordonnées d'écran : il faut le replacer dès que son ancre
+        // bouge. Sur téléphone, la page défile pour de bon (contrairement à l'ordinateur, où seules
+        // les colonnes défilent), donc la ligne de résumé se déplace sous le panneau — sans ça, il
+        // resterait planté à sa position d'ouverture pendant que son ancre s'en va.
+        // En capture et en passif : on ne fait que suivre, on n'interfère avec aucun défilement.
+        const suivreAncre = () => { if (this.songSettingsOpen) this.placerReglagesMorceau(); };
+        window.addEventListener('resize', suivreAncre);
+        window.addEventListener('scroll', suivreAncre, { passive: true, capture: true });
+
         document.addEventListener('pointerdown', (e) => {
             for (const p of this._popups) {
                 const el = document.getElementById(p.id);
@@ -7324,8 +7343,65 @@ class HarmoHubApp {
         const summary = document.getElementById('song-summary');
         if (!body || !summary) return;
         body.hidden = !this.songSettingsOpen;
+        // Panneau FLOTTANT plutôt que bloc déplié (voir .song-settings.flottant dans style.css) :
+        // mesuré sur iPhone 13, le déplier repoussait la grille d'accords de 345px à 703px, donc hors
+        // d'un écran de 664px — il ne restait plus un seul accord en vue pendant qu'on réglait le
+        // tempo. La classe est posée AVANT le placement : sans elle, l'élément est encore en flux et
+        // sa largeur mesurée serait celle de la colonne, pas celle du panneau.
+        body.classList.toggle('flottant', this.songSettingsOpen);
         summary.setAttribute('aria-expanded', String(this.songSettingsOpen));
         summary.classList.toggle('open', this.songSettingsOpen);
+        if (this.songSettingsOpen) this.placerReglagesMorceau();
+    }
+
+    // Place le panneau des réglages sous la ligne de résumé qui l'ouvre, en le gardant entièrement
+    // dans la fenêtre. Même logique que les autres popups ancrés de l'appli (voir openKeySuggestMenu),
+    // avec une différence qui compte sur téléphone : quand il n'y a pas la place DESSOUS, on le pose
+    // AU-DESSUS de l'ancre au lieu de le coincer contre le bas de l'écran. Sur un écran bas, un
+    // panneau simplement remonté finirait par recouvrir la ligne de résumé elle-même — or c'est elle
+    // qui affiche le tempo et la tonalité qu'on est en train de changer, et elle doit rester lisible
+    // (retour utilisateur : « Voici ce que je veux toujours voir apparaître : ... tonalité, tempo »).
+    placerReglagesMorceau() {
+        const body = document.getElementById('song-settings');
+        const summary = document.getElementById('song-summary');
+        const carte = document.getElementById('song-card');
+        if (!body || !summary || body.hidden) return;
+        const marge = 8;
+        const ancre = summary.getBoundingClientRect();
+        const l = body.offsetWidth, h = body.offsetHeight;
+
+        // À CÔTÉ quand il y a la place, EN DESSOUS sinon. Le placement « sous l'ancre », le réflexe
+        // pour un popover, s'est révélé faux à la mesure sur grand écran : le panneau recouvrait 96 %
+        // de la carte de l'accord en cours d'édition, juste en dessous de lui dans le volet. Or
+        // pouvoir régler le tempo SANS perdre de vue l'accord qu'on édite est un acquis explicite
+        // (voir toggleSongSettings) — et c'est un banc qui l'a rattrapé, pas l'œil.
+        // Le critère est mesuré, pas deviné : y a-t-il assez de largeur à droite de la carte Morceau
+        // pour y poser le panneau en entier ? Sur ordinateur, oui — il se range à côté du volet, sur
+        // la grille, et le volet reste entièrement lisible. Sur téléphone, la carte occupe toute la
+        // largeur : la réponse est non, et on retombe sur le placement vertical, où le chevauchement
+        // ne se produit pas (la carte de l'accord y est bien plus bas, hors du panneau).
+        const bordDroitCarte = (carte ? carte.getBoundingClientRect().right : ancre.right);
+        const placeADroite = window.innerWidth - bordDroitCarte - marge * 2;
+        if (placeADroite >= l) {
+            body.style.left = `${Math.round(bordDroitCarte + marge)}px`;
+            body.style.top = `${Math.round(Math.max(marge, Math.min(ancre.top, window.innerHeight - h - marge)))}px`;
+            return;
+        }
+
+        // Placement vertical : dessous de préférence, dessus si le bas manque de place. On ne se
+        // contente PAS de coincer le panneau contre le bas de l'écran — sur un écran bas, il
+        // finirait par recouvrir la ligne de résumé elle-même, or c'est elle qui affiche le tempo et
+        // la tonalité qu'on est en train de changer, et elle doit rester lisible (retour
+        // utilisateur : « Voici ce que je veux toujours voir apparaître : ... tonalité, tempo »).
+        const placeDessous = window.innerHeight - ancre.bottom - marge;
+        const placeDessus = ancre.top - marge;
+        const dessous = placeDessous >= h || placeDessous >= placeDessus;
+        const top = dessous
+            ? Math.min(ancre.bottom + 6, window.innerHeight - h - marge)
+            : Math.max(marge, ancre.top - 6 - h);
+        const left = Math.min(ancre.left, window.innerWidth - l - marge);
+        body.style.left = `${Math.max(marge, left)}px`;
+        body.style.top = `${Math.max(marge, top)}px`;
     }
 
     // Tempo, mesure et tonalité tels qu'affichés sur la ligne de résumé. Appelée depuis TOUS les

@@ -691,3 +691,50 @@ révèle le défaut du banc, et non le lot qui casse l'application.
 
 Le banc exige désormais que **tous** les points qu'il touche — le départ et les deux arrivées (-80 et
 +3) — soient hors de la zone d'édition.
+
+---
+
+## Lot 2 : les réglages du morceau deviennent un panneau flottant
+
+Mesure qui a décidé du lot, sur iPhone 13 (390x664) : ouvrir les réglages (tempo, groove, mesure,
+tonalité) repoussait la grille d'accords de 345px à **703px**, c'est-à-dire hors d'un écran de 664px.
+Il ne restait plus **un seul accord en vue** pendant qu'on cherchait son tempo — alors que chercher un
+tempo se fait en regardant et en écoutant sa grille. Sur ordinateur, le coût était nul (le volet
+défile pour lui-même) mais le bloc y occupait 314px de colonne. Après le lot : la grille ne bouge plus
+d'un pixel, sur les deux formats.
+
+Le panneau rejoint la table `this._popups` : une ligne, et il hérite des deux façons de renoncer (clic
+à côté, Échap). C'est tout l'intérêt de cette table. Le futur panneau du séquenceur, lui, n'y entrera
+PAS — on veut pouvoir cliquer la grille sans le refermer.
+
+### Le placement « sous l'ancre » était faux, et c'est un banc qui l'a dit
+
+Poser un popover sous le bouton qui l'ouvre est le réflexe. À la mesure, sur grand écran, il
+recouvrait **96 % de la carte de l'accord en cours d'édition** — juste en dessous de lui dans le
+volet. Or « on peut régler le tempo sans perdre de vue l'accord qu'on est en train d'éditer » est un
+acquis explicite, antérieur à ce lot (voir `toggleSongSettings`). L'œil ne l'avait pas vu sur la
+capture ; `song_panel_test` l'a rattrapé.
+
+La règle est désormais mesurée à chaque ouverture : **à côté quand il y a la place, en dessous
+sinon**. Y a-t-il assez de largeur à droite de la carte Morceau pour poser le panneau en entier ? Sur
+ordinateur oui — il se range à côté du volet, sur la grille. Sur téléphone la carte occupe toute la
+largeur, la réponse est non, et on retombe sur le placement vertical, où le chevauchement ne se
+produit pas (la carte de l'accord y est bien plus bas).
+
+### Trois défauts de bancs corrigés au passage, dont deux à moi
+
+1. **Mon propre banc criait au loup.** Sa vérification « le panneau ne recouvre pas la ligne de
+   résumé » ne comparait que les bandes VERTICALES. Elle suffisait tant que le panneau se posait sous
+   son ancre ; elle est devenue fausse dès qu'il s'est rangé à côté — mêmes hauteurs, mais 400px de
+   distance horizontale. C'est maintenant un vrai croisement de rectangles, sur les deux axes.
+2. **Un montage qui basculait un interrupteur à l'aveugle.** `song_panel_test` faisait
+   `page.click('#song-summary')` pour ouvrir le panneau — un clic qui BASCULE, donc n'ouvre que si le
+   panneau était fermé. Il dépendait silencieusement de tout ce que le banc avait fait cent lignes
+   plus haut, et une ouverture ajoutée dans une section précédente l'a transformé en fermeture. Il
+   force désormais l'état voulu.
+3. **Deux contrats délibérément changés, écrits comme tels plutôt que contournés.** L'état déplié
+   n'est plus retenu d'un lancement à l'autre : cohérent pour un bloc docké, absurde pour un panneau
+   flottant qui s'ouvrirait tout seul par-dessus la grille. Et « rien ne bouge les réglages du
+   morceau » devient « aucun CHANGEMENT DE MODE ne les referme, mais un clic ailleurs si » — c'est le
+   contrat d'un popover, et sans lui le panneau resterait posé sur la grille sans moyen évident de
+   s'en défaire.

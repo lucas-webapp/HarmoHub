@@ -1295,6 +1295,37 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
     gap: 15px;
 }
 
+/* PANNEAU FLOTTANT — le bloc ne pousse plus rien quand on l'ouvre.
+   MESURÉ AVANT : sur un iPhone 13 (664px de haut), déplier ces réglages repoussait la grille
+   d'accords de 345px à 703px — c'est-à-dire hors de l'écran. Il ne restait littéralement AUCUN
+   accord visible pendant qu'on réglait le tempo, alors que c'est en écoutant sa grille qu'on cherche
+   son tempo. Sur ordinateur le coût était nul (le volet de gauche défile pour lui-même), mais le
+   bloc y occupait quand même 314px de colonne.
+   Posé à `fixed` et placé par placerReglagesMorceau() (voir script.js) sous la ligne de résumé, il
+   sort du flux : ce qu'il y a derrière ne bouge plus d'un pixel.
+   Z-INDEX 50, choisi dans le paysage existant plutôt qu'au hasard : au-dessus de la barre du haut
+   (40), de l'en-tête collant de la grille (30) et de la barre de lecture (20), mais SOUS les
+   fenêtres pleines page (.settings-overlay, 100) et sous les menus contextuels (200) — dont la
+   suggestion de tonalité, qui s'ouvre depuis CE panneau et doit donc passer devant lui. */
+.song-settings.flottant {
+    position: fixed;
+    z-index: 50;
+    /* Assez large pour les deux cartes, jamais plus large que l'écran du téléphone. */
+    width: min(340px, calc(100vw - 20px));
+    /* Le panneau mesure ~346px : sur un écran bas, il défile en lui-même au lieu de dépasser. */
+    max-height: min(72vh, 540px);
+    overflow-y: auto;
+    /* Surcharge le `hidden` du flux : ici c'est bien un panneau, pas une suite de cartes. */
+    gap: 10px;
+    padding: 12px;
+    background: #14171c;
+    border: 1px solid var(--btn-neutral-border-hover);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+}
+/* Les deux cartes à l'intérieur n'ont plus à porter leur propre cadre : le panneau en est un. */
+.song-settings.flottant .control-card { margin: 0; border: none; background: none; padding: 0; box-shadow: none; }
+
 .control-card h2 {
     margin: 0 0 10px 0;
     font-size: var(--fs-md);
