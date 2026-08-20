@@ -38,8 +38,14 @@ plan(ROOTS.length * QUALITIES.length * 3 + 2);
     if (!(await page.evaluate(() => document.getElementById('toggle-viz-guitar').getAttribute('aria-pressed') === 'true'))) {
         await page.click('#toggle-viz-guitar');
     }
-    await page.click('#toggle-complex-quality');
-    await page.waitForTimeout(150);
+    // Le clic sur #toggle-complex-quality qui se trouvait ici A ÉTÉ RETIRÉ AVEC LE BOUTON : m6 est
+    // désormais dans la liste des qualités dès l'ouverture (« mettre directement les accords complexes
+    // dans la liste. Il n'y en a pas tant que ça »), il n'y a plus rien à révéler avant de la choisir.
+    // On vérifie tout de même que l'option existe : sans elle, l'affectation ci-dessous serait
+    // silencieusement ramenée à '' par le <select>, et ce banc mesurerait les doigtés d'un accord qui
+    // n'est pas celui qu'il croit tester.
+    check(await page.evaluate(() => [...document.getElementById("quality").options].some(o => o.value === 'm6')),
+        'la qualité m6 est présente dans la liste sans rien avoir à déplier');
     const am6 = await page.evaluate(() => {
         document.getElementById('root').value = 'A';
         document.getElementById('quality').value = 'm6';

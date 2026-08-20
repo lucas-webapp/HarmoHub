@@ -6108,6 +6108,13 @@ class HarmoHubApp {
     // changer ce que la case affiche (symbole...).
     commitLiveEdit(refreshGrid) {
         if (this.appMode !== 'edit' || this.editingIndex == null) return;
+        // RIEN NE SE COMMIT PENDANT QU'ON RESTAURE (voir afterHistoryRestore). Reprendre l'accord après
+        // un Ctrl+Z passe par editChord, qui redessine le séquenceur, qui rappelle commitLiveEdit :
+        // l'annulation déposait alors un instantané tout neuf — elle POLLUAIT l'historique qu'elle
+        // venait de dépiler, vidait redoStack au passage, et « rétablir » ne rétablissait plus rien
+        // (mesuré : redoStack 1 → 0 juste après l'undo). Un état qu'on restaure n'est pas une action
+        // de l'utilisateur : il n'a rien à écrire ni à empiler.
+        if (this._restaurationHistorique) return;
         const sections = loadProgressionSections();
         const history = sections[this.activeSection] && sections[this.activeSection].chords;
         if (!history || !history[this.editingIndex]) return;
@@ -16174,11 +16181,38 @@ class HarmoHubApp {
 
     // Après un undo/redo : les indices de sélection/édition ne correspondent plus forcément
     // à l'état restauré, donc on les réinitialise prudemment plutôt que de risquer un décalage.
+    //
+    // ON REPREND ENSUITE L'ACCORD, S'IL EXISTE ENCORE. Sortir sèchement était sans conséquence tant
+    // que le bouton Annuler, séquenceur ouvert, visait forcément l'historique du séquenceur : ce
+    // chemin-ci n'était pas atteignable depuis le mode Modification. Depuis que « la dernière action
+    // gagne » (voir globalUndo), il l'est — et annuler une retouche éjectait de l'accord qu'on était
+    // en train de régler. Régression introduite par ce routage, retrouvée en rejouant le banc sur le
+    // commit d'avant : sur f357912 aucun contrôle ne faisait sortir de l'édition, sur le suivant
+    // #global-undo-btn le faisait.
+    // La prudence est conservée : on ne réutilise PAS l'ancien index tel quel, on vérifie qu'il
+    // désigne encore un accord dans l'état restauré, et editChord relit tous les champs depuis ces
+    // données — aucun reste de l'état d'avant ne survit. Si l'accord a disparu (c'était son ajout
+    // qu'on vient d'annuler), on reste dehors, comme avant.
     afterHistoryRestore(sections) {
+        const reprise = this.editingIndex != null ? { section: this.activeSection, index: this.editingIndex } : null;
         if (this.editingIndex != null) this.exitEditMode();
         if (this.activeSection >= sections.length) this.activeSection = Math.max(0, sections.length - 1);
         this.selectedIndex = null;
         this.loadProgression();
+        if (reprise) {
+            const s = sections[reprise.section];
+            if (s && s.chords && s.chords[reprise.index]) {
+                this._restaurationHistorique = true;
+                try { this.editChord(reprise.section, reprise.index); }
+                finally {
+                    this._restaurationHistorique = false;
+                    // La session d'édition qui reprend doit pouvoir déposer SON instantané à la
+                    // prochaine vraie retouche : sans cette remise à zéro, le premier réglage
+                    // d'après une annulation deviendrait à son tour inannulable.
+                    this._editSessionUndoPushed = false;
+                }
+            }
+        }
         this.updateGlobalUndoRedoButtons();
     }
 

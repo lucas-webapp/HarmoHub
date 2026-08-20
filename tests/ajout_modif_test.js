@@ -38,8 +38,24 @@ const etat = (page) => page.evaluate(() => ({
     titre: document.getElementById('accord-title').textContent,
     titreRendu: (() => { const s = document.getElementById('accord-title-sym'); return s ? getComputedStyle(s).textTransform : null; })(),
     couleurTitre: getComputedStyle(document.getElementById('accord-title')).color,
+    // La couleur DÉCLARÉE pour le sujet en cours (voir --sujet dans style.css, posé par
+    // .panel-controls / .panel-controls.subject-existing). On la lit au lieu de l'écrire en dur, pour
+    // que le banc vérifie le BRANCHEMENT (le titre suit le sujet) et non une valeur de palette.
+    sujetDeclare: (() => {
+        const v = getComputedStyle(document.querySelector('.panel-controls')).getPropertyValue('--sujet').trim();
+        if (!v) return '';
+        const d = document.createElement('span');
+        d.style.color = v; document.body.appendChild(d);
+        const rgb = getComputedStyle(d).color; d.remove();
+        return rgb;
+    })(),
     sujetExistant: document.getElementById('accord-card').classList.contains('subject-existing'),
-    gotoVisible: !document.getElementById('accord-goto').hidden,
+    // Le bouton « montrer dans la grille » (#accord-goto) A ÉTÉ RETIRÉ à la demande de l'utilisateur
+    // (« il ne me servira à rien, tu peux l'enlever ou le remplacer », choix confirmé : rien à la
+    // place). On garde la clé, mais elle mesure désormais son ABSENCE : les deux vérifications qui
+    // s'appuyaient dessus disaient une chose qui reste vraie autrement — le panneau ne propose rien
+    // qui n'ait de sens dans l'état où il se trouve.
+    gotoRetire: !document.getElementById('accord-goto'),
     mode: window.app.appMode,
     ed: window.app.editingIndex,
     sel: window.app.selectedIndex,
@@ -94,9 +110,20 @@ const etat = (page) => page.evaluate(() => ({
     // information déjà visible dans la grille (retour utilisateur).
     check(await page.evaluate(() => !document.getElementById('accord-where')),
         'pas de ligne de détail sous le titre : le titre seul porte l\'information');
-    check(/rgb\(0, 230, 118\)|rgb\(0,230,118\)/.test(e.couleurTitre), `titre en vert (${e.couleurTitre})`);
+    // ADAPTÉ APRÈS LA DÉSATURATION. L'utilisateur : « Les couleurs vertes et oranges des bandeaux sont
+    // trop criardes. Je trouve que ça dénote avec les couleurs pâles et discrète de l'application. »
+    // Le vert vif rgb(0,230,118) et l'ambre rgb(255,179,0) ont donc changé — et un banc qui écrit une
+    // couleur EN DUR devient rouge à chaque retouche de palette, en disant « régression » là où il n'y
+    // a qu'un choix appliqué. On lit désormais la couleur DÉCLARÉE (--sujet) et on vérifie que le
+    // titre la porte : ce qui compte est que le titre suive le sujet, pas quel vert exactement.
+    check(e.couleurTitre === e.sujetDeclare && e.sujetDeclare !== '',
+        `le titre porte la couleur du sujet en cours (${e.couleurTitre} = --sujet)`);
     check(!e.sujetExistant, 'teinte « nouvel accord » (verte), pas celle d\'un accord existant');
-    check(!e.gotoVisible, 'pas de bouton « montrer dans la grille » : il n\'y a rien à montrer');
+    // Mémorisée ICI, dans l'état « ajout », pour servir de point de comparaison plus bas : ce qu'on
+    // veut prouver est que les DEUX sujets se distinguent à l'œil, pas qu'ils valent telle ou telle
+    // teinte. C'est la seule formulation qui survive à un réglage de palette.
+    const vertAjout = e.couleurTitre;
+    check(e.gotoRetire, 'pas de bouton « montrer dans la grille » : il a été retiré, et il n\'y avait de toute façon rien à montrer');
 
     const p0 = await pointNu(page, 0);
     await page.mouse.click(p0.x, p0.y); await page.waitForTimeout(400);
@@ -108,9 +135,10 @@ const etat = (page) => page.evaluate(() => ({
     e = await etat(page);
     check(e.ed === 0, 'le double-clic charge l\'accord');
     check(e.titre.replace(/\s+/g, '') === 'ModifierC', `le panneau nomme l'accord qu'il pilote (${e.titre})`);
-    check(/rgb\(255, 179, 0\)|rgb\(255,179,0\)/.test(e.couleurTitre), `titre passé en ambre (${e.couleurTitre})`);
+    check(e.couleurTitre === e.sujetDeclare && e.couleurTitre !== vertAjout,
+        `le titre a changé de teinte en passant sur un accord existant (${vertAjout} → ${e.couleurTitre})`);
     check(e.sujetExistant, 'teinte « accord existant » (ambre)');
-    check(e.gotoVisible, 'le bouton « montrer dans la grille » apparaît');
+    check(e.gotoRetire, 'le bouton « montrer dans la grille » n\'apparaît pas non plus en modification : il n\'existe plus');
     // Les titres de carte sont mis en capitales par le CSS : « Am » y devenait « AM », soit un autre
     // accord. Le symbole doit donc être exempté — c'est de la musique, pas de la décoration.
     check(e.titreRendu === 'none', `le symbole garde sa casse (text-transform ${e.titreRendu})`);
@@ -124,21 +152,16 @@ const etat = (page) => page.evaluate(() => ({
     check(e.titre.replace(/\s+/g, '') === 'ModifierDm', `passer à un autre accord renomme le sujet (${e.titre})`);
 
     // ============================================================
-    console.log('\n=== C. Le fil panneau → grille ===');
+    // SECTION C RETIRÉE — « Le fil panneau → grille ».
     // ============================================================
-    await page.click('#accord-goto'); await page.waitForTimeout(250);
-    check(await page.evaluate(() => {
-        const f = document.querySelector('.grid-cell.cell-flash');
-        return !!f && f.dataset.index === '1';
-    }), 'le bouton fait clignoter LA case en cours d\'édition');
-    // Le clic sur un bouton du panneau désélectionne et reconstruit la grille : le clignotement doit y survivre
-    await page.evaluate(() => window.app.loadProgression());
-    await page.waitForTimeout(150);
-    check(await page.evaluate(() => !!document.querySelector('.grid-cell.cell-flash')),
-        'le clignotement survit à une reconstruction de la grille');
-    await page.waitForTimeout(1300);
-    check(await page.evaluate(() => !document.querySelector('.grid-cell.cell-flash')),
-        'puis il s\'éteint tout seul (ce n\'est pas un état de plus)');
+    // Elle éprouvait #accord-goto : le clic faisait clignoter la case en cours d'édition, le
+    // clignotement survivait à une reconstruction de la grille, puis s'éteignait seul. Trois
+    // vérifications justes, sur une fonctionnalité que l'utilisateur a demandé de supprimer (« il ne
+    // me servira à rien »). Le bouton, la méthode goToEditedChord et tout le mécanisme de
+    // clignotement (applyCellFlash, .cell-flash) ont été retirés ensemble.
+    // Ce qu'il reste à vérifier — qu'ils sont bien tous partis, et que rien d'utilisé ailleurs n'est
+    // parti avec eux — vit dans finitions_voicing_test.js, section A. Rien n'a été perdu : la
+    // vérification a changé d'objet, pas disparu.
 
     // ============================================================
     console.log('\n=== D. L\'ajout a ses propres cibles, qui reprennent le sujet ===');

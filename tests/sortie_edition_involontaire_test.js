@@ -83,6 +83,7 @@ const SORTIES_LEGITIMES = new Set([
     // verdicts suivants. Un banc qui contamine ses propres cas ne prouve rien : mieux vaut le payer
     // en secondes que d'aller « corriger » du code qui n'a rien.
     const fautifs = [];
+    const echecsMiseEnPlace = [];   // voir `ouvrir` plus bas : rien ne doit être avalé en silence
     let etatSain = true;
     for (const nom of cibles) {
         if (!etatSain) { await preparer(); etatSain = true; }
@@ -103,10 +104,27 @@ const SORTIES_LEGITIMES = new Set([
         // ici aussi directement en JS, peu importe que la forme dessinée soit musicalement cohérente :
         // seul compte, pour CE banc, que le clic sur ce bouton précis ne fasse pas sortir de l'édition.
         if (CONTROLES_SOUS_MANCHE.includes(nom)) {
-            await page.click('#guitar-edit-btn').catch(() => {});
+            // CES DEUX CLICS SONT DE LA MISE EN PLACE, PAS LA MESURE — mais les avaler
+            // (`.catch(() => {})`) transformait « la fenêtre du manche ne s'ouvre plus » en « tout va
+            // bien » : le contrôle visé restait alors introuvable, et le banc concluait sur un état
+            // qu'il n'avait pas su préparer. On enregistre l'échec au lieu de le jeter.
+            const ouvrir = async (sel, quoi) => {
+                try { await page.click(sel); }
+                catch (e) { echecsMiseEnPlace.push(`${nom} : impossible d'${quoi} (${sel})`); }
+            };
+            // N'OUVRIR QUE SI ELLE EST FERMÉE. Le tour précédent a pu la laisser ouverte (le clic
+            // mesuré ne la referme pas toujours) ; #guitar-edit-btn est alors DERRIÈRE la fenêtre, et
+            // le clic expire au bout de 30s. C'est ce qu'avalait le `.catch(() => {})` d'origine : la
+            // mise en place échouait, le contrôle visé restait introuvable, et le banc concluait sur
+            // un état qu'il n'avait pas su préparer — sans que rien ne le dise.
+            const dejaOuverte = await page.evaluate(() => {
+                const f = document.getElementById('guitar-edit-overlay');
+                return !!f && !f.hidden && getComputedStyle(f).display !== 'none';
+            });
+            if (!dejaOuverte) await ouvrir('#guitar-edit-btn', 'ouvrir la fenêtre du manche');
             await page.waitForTimeout(80);
             const onDrawTab = ['guitar-edit-tab-draw', 'guitar-draw-play', 'guitar-draw-validate', 'guitar-draw-lock'].includes(nom);
-            await page.click(onDrawTab ? '#guitar-edit-tab-draw' : '#guitar-edit-tab-name').catch(() => {});
+            await ouvrir(onDrawTab ? '#guitar-edit-tab-draw' : '#guitar-edit-tab-name', 'atteindre le bon onglet');
             if (nom === 'guitar-draw-play' || nom === 'guitar-draw-validate') {
                 await page.evaluate(() => { window.app.guitarDrawShape[0] = 0; window.app.renderGuitarDrawNeck(); });
             }
@@ -137,6 +155,12 @@ const SORTIES_LEGITIMES = new Set([
         const ok = await page.evaluate(() => window.app.appMode + '/' + window.app.editingIndex);
         if (ok !== 'edit/1') { fautifs.push(`${nom} -> ${ok}`); etatSain = false; }
     }
+
+    // Annoncé AVANT le verdict : si la mise en place a échoué quelque part, le verdict ci-dessous
+    // porte sur moins de contrôles qu'annoncé, et il faut le savoir pour le lire.
+    check(echecsMiseEnPlace.length === 0,
+        echecsMiseEnPlace.length ? `mise en place incomplète, le verdict qui suit est partiel : ${echecsMiseEnPlace.join(' | ')}`
+                                 : 'la mise en place a réussi pour tous les contrôles du manche');
 
     check(fautifs.length === 0,
         fautifs.length ? `des contrôles font sortir de l'édition : ${fautifs.join(', ')}`

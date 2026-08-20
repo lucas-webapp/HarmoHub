@@ -34,54 +34,8 @@
     ]
   },
   "id_disparu": {
-    "ajout_modif_test.js": [
-      "accord-where",
-      "app-mode-add",
-      "app-mode-edit",
-      "edit-empty-hint",
-      "grid-click-action"
-    ],
-    "global_transport_test.js": [
-      "grid-zoom-play-chord",
-      "grid-zoom-play-prog"
-    ],
-    "pdf_export_test.js": [
-      "pdf-measures-per-line",
-      "toggle-show-direction-pdf"
-    ],
-    "pdf_fixed_scale_test.js": [
-      "pdf-measures-per-line"
-    ],
-    "probe_suppression_pleinecran_test.js": [
-      "grid-zoom-overlay"
-    ],
-    "seq_buttons_removed_test.js": [
-      "seq-grow",
-      "seq-move-left",
-      "seq-move-right",
-      "seq-shrink",
-      "seq-tap-record"
-    ],
-    "seq_pattern_kbd_test.js": [
-      "seq-copy-pattern",
-      "seq-paintbrush",
-      "seq-paste-pattern",
-      "seq-pipette"
-    ],
     "seq_short_note_body_test.js": [
-      "grid-zoom-close",
-      "grid-zoom-pinned-body"
-    ],
-    "settings_improvements_test.js": [
-      "toggle-show-style-label"
-    ],
-    "song_panel_test.js": [
-      "app-mode-config",
-      "config-card"
-    ],
-    "three_fixes_test.js": [
-      "quick-library-export",
-      "quick-library-import"
+      "grid-zoom-close"
     ]
   },
   "erreurs_avalees": {
@@ -108,7 +62,7 @@
     "seq_row_pipette_test.js": 2,
     "seq_short_note_body_test.js": 1,
     "song_panel_test.js": 1,
-    "sortie_edition_involontaire_test.js": 1,
+    "sortie_edition_involontaire_test.js": 3,
     "zoom_coherence_test.js": 2
   },
   "sans_plan": [
@@ -244,12 +198,13 @@
   "verifications_conditionnelles": {
     "avant_seq_short_note_body_test.js": 3,
     "glock_full_real_ui_test.js": 1,
+    "manche_edition_lot1_test.js": 1,
+    "manche_edition_lot3_test.js": 1,
     "metronome_groove_test.js": 1,
     "popups_close_test.js": 1,
     "probe_clic_accord_voisin_test.js": 1,
-    "seq_beat_highlight_test.js": 1,
     "seq_changement_morceau_test.js": 1,
-    "seq_hscroll_test.js": 1,
+    "seq_glisser_molette_align_piano_test.js": 1,
     "seq_row_pipette_test.js": 1,
     "seq_short_note_body_test.js": 3,
     "song_panel_test.js": 1,

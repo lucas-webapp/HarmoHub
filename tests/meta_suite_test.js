@@ -66,12 +66,26 @@ for (const f of fichiers) {
     if (mortes.length) releve.api_disparue[f] = mortes;
 
     // 2. Identifiants DOM visés par le banc mais introuvables dans l'appli
-    const ids = new Set([
-        ...[...t.matchAll(/getElementById\(\s*['"]([\w-]+)['"]/g)].map(m => m[1]),
-        ...[...t.matchAll(/querySelector(?:All)?\(\s*['"]#([\w-]+)['"]/g)].map(m => m[1]),
-        ...[...t.matchAll(/(?:page|p|mob)\.click\(\s*['"]#([\w-]+)['"]/g)].map(m => m[1]),
-    ]);
-    const idsMorts = [...ids].filter(i => !idExiste(i)).sort();
+    //
+    // DEUX EXCEPTIONS, apprises en supprimant des boutons à la demande de l'utilisateur. Un
+    // identifiant absent de l'appli n'est pas forcément un banc périmé :
+    //
+    //  a) le banc vérifie justement son ABSENCE. `check(!document.getElementById('accord-goto'), …)`
+    //     est la bonne façon d'écrire « ce bouton a bien été retiré » — et c'est même la seule chose
+    //     qui empêche un bouton supprimé de revenir un jour. Le signaler comme dette poussait à
+    //     effacer la vérification, c'est-à-dire à faire exactement le contraire.
+    //  b) le banc CRÉE l'élément lui-même (`s.id = 'banc-largeur'`) pour ses propres besoins.
+    //
+    // La règle : un identifiant n'est mort que si AU MOINS UNE de ses mentions n'est ni niée ni
+    // fabriquée par le banc. Une seule mention affirmative suffit à le rendre suspect — on ne veut
+    // pas qu'une vérification d'absence serve d'alibi à un vrai clic devenu impossible.
+    const cree = new Set([...t.matchAll(/\.id\s*=\s*['"]([\w-]+)['"]/g)].map(m => m[1]));
+    const mentions = new Map(); // id -> a-t-il au moins une mention affirmative ?
+    const noter = (id, affirmative) => mentions.set(id, (mentions.get(id) || false) || affirmative);
+    for (const m of t.matchAll(/(!?\s*)document\.getElementById\(\s*['"]([\w-]+)['"]/g)) noter(m[2], !m[1].trim().startsWith('!'));
+    for (const m of t.matchAll(/(!?\s*)document\.querySelector(?:All)?\(\s*['"]#([\w-]+)['"]/g)) noter(m[2], !m[1].trim().startsWith('!'));
+    for (const m of t.matchAll(/(?:page|p|mob)\.click\(\s*['"]#([\w-]+)['"]/g)) noter(m[1], true);
+    const idsMorts = [...mentions].filter(([i, affirmative]) => affirmative && !cree.has(i) && !idExiste(i)).map(([i]) => i).sort();
     if (idsMorts.length) releve.id_disparu[f] = idsMorts;
 
     // 3. Erreurs d'interaction avalées : `.catch(() => {})` sur un clic transforme « ce bouton
@@ -81,15 +95,41 @@ for (const f of fichiers) {
 
     // 4. Bancs sans `plan()` : rien ne les empêche de perdre la moitié de leurs vérifications en
     //    silence (voir _harness.js).
-    if (!/\bplan\s*\(\s*\d+\s*\)/.test(t)) releve.sans_plan.push(f);
+    //    Le motif n'exigeait qu'un NOMBRE ÉCRIT (`plan(12)`) et déclarait donc « sans plan » un banc
+    //    dont le plan est CALCULÉ — `plan(ROOTS.length * QUALITIES.length * 3 + 2)`, qui est pourtant
+    //    la meilleure forme possible : il suit automatiquement la taille du jeu d'essai. On accepte
+    //    désormais n'importe quelle expression non vide.
+    if (!/\bplan\s*\(\s*[^)\s][^)]*\)/.test(t)) releve.sans_plan.push(f);
 
     // 5. Vérifications enfermées dans un `if (…) { … }` : elles disparaissent sans bruit dès que la
     //    condition tombe. `exiger()` est fait pour ça (voir _harness.js).
+    //
+    // DEUX FORMES NE SONT PAS DES VÉRIFICATIONS PERDUES, et les compter poussait à défaire le bon
+    // travail — c'est le pire défaut possible pour un garde-fou :
+    //
+    //  a) `if (exiger(...)) { check(...) }` : la condition EST elle-même une vérification enregistrée.
+    //     Si elle tombe, le bilan le dit, et le filet de `plan()` signale la couverture manquante.
+    //     C'est précisément la forme que le commentaire ci-dessus recommande — la signaler comme
+    //     dette revenait à demander de la remplacer par un `if` nu.
+    //  b) `if (!truc) { check(false, '…') ; continue; }` : le bloc ÉCHOUE bruyamment au lieu de sauter
+    //     en silence. C'est un garde qui parle, pas une vérification escamotée.
     let cond = 0;
-    for (const m of t.matchAll(/\bif\s*\([^)]*\)\s*\{/g)) {
+    for (const m of t.matchAll(/\bif\s*\(([^)]*(?:\)[^)]*)?)\)\s*\{/g)) {
+        if (/\bexiger\(/.test(m[1])) continue;
         let i = m.index + m[0].length, prof = 1, j = i;
         while (j < t.length && prof) { if (t[j] === '{') prof++; else if (t[j] === '}') prof--; j++; }
-        if (/\bcheck\(/.test(t.slice(i, j))) cond++;
+        const bloc = t.slice(i, j);
+        if (!/\bcheck\(/.test(bloc)) continue;
+        if (/\bcheck\(\s*false\s*,/.test(bloc)) continue;
+        // …y compris quand c'est la branche `else` qui parle : `if (trouvé) { check(…) } else {
+        // check(false, 'rien à mesurer ici') }` couvre les deux issues, aucune ne passe sous silence.
+        const suite = t.slice(j, j + 400);
+        if (/^\s*else\s*\{/.test(suite)) {
+            let k = suite.indexOf('{'), prof2 = 1, l = j + k + 1;
+            while (l < t.length && prof2) { if (t[l] === '{') prof2++; else if (t[l] === '}') prof2--; l++; }
+            if (/\bcheck\(\s*false\s*,/.test(t.slice(j + k + 1, l))) continue;
+        }
+        cond++;
     }
     if (cond) releve.verifications_conditionnelles[f] = cond;
 }

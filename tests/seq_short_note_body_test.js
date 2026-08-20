@@ -278,7 +278,17 @@ async function serieDeVue(page, nomVue) {
     const m1 = await boite(page, 0, 0);
     const m2 = await boite(page, 3, 4);
     check(m1 && m1.w < 25, `téléphone : une croche fait ${m1 ? m1.w.toFixed(1) : '?'} px — trop étroite pour un corps visable`);
-    check(!zonesAttendues(m1.w) && !zonesAttendues(m2.w), 'téléphone : les deux notes courtes sont sous le seuil de largeur');
+    // ADAPTÉ APRÈS LE TIROIR FLOTTANT (lot 4 bis-B). Cette ligne affirmait que les DEUX notes courtes
+    // restaient sous le seuil sur téléphone. Ce n'était pas une règle : c'était la géométrie de
+    // l'époque. Le tiroir a élargi le séquenceur mobile de 315 à 378px (mesuré), une double-croche
+    // est donc passée de 18,5 à 21,3px, et la note de deux croches (42,6px) franchit maintenant le
+    // seuil — ce qui est un GAIN, pas un dégât : elle devient assez large pour qu'on l'attrape par ses
+    // bords, ce à quoi sert justement ce seuil.
+    // Ce qu'on éprouve désormais est la RÈGLE et non la mesure du jour : c'est bien le seuil qui
+    // décide, note par note, et la plus courte des deux reste en dessous.
+    check(!zonesAttendues(m1.w), `téléphone : la note d'une croche (${m1.w.toFixed(1)} px) reste sous le seuil de largeur`);
+    check(zonesAttendues(m2.w) === (m2.w >= m1.w * 1.5),
+        `téléphone : le seuil tranche selon la largeur mesurée, pas selon la vue — 1 croche ${m1.w.toFixed(1)} px, 2 croches ${m2.w.toFixed(1)} px`);
     // CONTRAT INVERSÉ, ET C'ÉTAIT LE BUT (retour utilisateur : « ok pour rendre les seuils
     // proportionnels »). Avant, une note trop étroite n'avait AUCUNE zone : elle ne pouvait donc être
     // qu'étirée, jamais déplacée dans le temps — mesuré, une note de deux croches faisait 4-5 -> 5-5.

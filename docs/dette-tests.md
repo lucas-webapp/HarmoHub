@@ -1147,3 +1147,88 @@ voulue, pas un défaut. L'exigence juste est **« atteignable »** : après déf
 la fenêtre ET c'est bien lui que le doigt touche à cet endroit. C'est ce qui manquait au tiroir du
 séquenceur, dont le bouton de fermeture était à 838px d'une fenêtre de 664px qu'**aucun** défilement
 n'atteignait, pendant que le banc le fermait par `window.app.toggleSequencer` et voyait tout en vert.
+
+---
+
+## Chasse aux régressions : ce que la campagne a trouvé
+
+Demande de l'utilisateur : « Il faudrait aussi que tu vérifies qu'il n'y ait pas eu de régressions
+(par exemple comme le bouton "Ajouter section" que je t'ai montré précédemment). »
+
+### Une vraie régression : le bouton Annuler éjectait de l'accord en cours
+
+`sortie_edition_involontaire_test` — dont c'est tout l'objet — l'a montrée : **`#global-undo-btn`
+faisait sortir du mode Modification**. Vérifiée par la méthode du dépôt (rejouer sur le commit
+d'avant, servi sur un second port) : sur `f357912` aucun contrôle ne fait sortir de l'édition, sur
+`a865681` (Lot 4 bis-A) `#global-undo-btn` le fait.
+
+Le mécanisme, en trois temps :
+
+1. `afterHistoryRestore` sort de l'édition **à dessein**, « prudemment plutôt que de risquer un
+   décalage » — un index d'édition ne désigne plus forcément le même accord après restauration. Cette
+   prudence est antérieure au lot et reste juste.
+2. Tant que le bouton Annuler, séquenceur ouvert, visait forcément l'historique **du séquenceur**, ce
+   chemin n'était pas atteignable depuis le mode Modification.
+3. « La dernière action gagne » (Lot 4 bis-A) l'a rendu atteignable — et annuler une retouche éjectait
+   de l'accord qu'on était en train de régler.
+
+Correctif : on reprend l'accord **s'il existe encore** dans l'état restauré. La prudence est
+conservée — l'ancien index n'est pas réutilisé tel quel, il est vérifié contre les données restaurées,
+et `editChord` relit tous les champs depuis elles.
+
+### Le correctif avait lui-même un défaut, trouvé par un banc
+
+Première version : `afterHistoryRestore` appelait `editChord` directement. Or `editChord` redessine le
+séquenceur, qui rappelle `commitLiveEdit`, qui **dépose un instantané d'annulation**. Autrement dit,
+l'annulation polluait l'historique qu'elle venait de dépiler et vidait `redoStack` au passage :
+mesuré, `redoStack` passait de 1 à 0 juste après l'undo, et « rétablir » ne rétablissait plus rien.
+C'est `undo_derniere_action_test` qui l'a dit, à la vérification suivante.
+
+Correctif du correctif : un garde `_restaurationHistorique` fait sortir `commitLiveEdit` en tête.
+**Un état qu'on restaure n'est pas une action de l'utilisateur : il n'a rien à écrire ni à empiler.**
+Le drapeau de session est remis à zéro en sortant, sans quoi la première retouche d'après une
+annulation serait devenue à son tour inannulable.
+
+### Trois angles morts du méta-banc, dont un qui punissait le bon usage
+
+Le banc qui surveille les bancs signalait quatre aggravations. Trois étaient **ses propres
+heuristiques**, et les corriger a fait tomber la dette « identifiants morts » de 11 fichiers à 1 :
+
+- **Un identifiant vérifié ABSENT n'est pas un identifiant mort.** `check(!document.getElementById(
+  'accord-goto'), …)` est la bonne façon d'écrire « ce bouton a bien été retiré » — c'est même la seule
+  chose qui empêche un bouton supprimé de revenir. Le compter comme dette poussait à effacer la
+  vérification, soit exactement le contraire. Même exception pour un élément que le banc **crée**
+  lui-même (`s.id = 'banc-largeur'`).
+- **`if (exiger(…)) { check(…) }` n'est pas une vérification perdue** : la condition EST une
+  vérification enregistrée. C'est la forme que le méta-banc **recommande** dans son propre
+  commentaire — et il la comptait comme dette. Un garde-fou qui punit le remède qu'il prescrit finit
+  débranché. Même chose pour `if (…) { check(false, …) }` et sa branche `else` : un garde qui parle.
+- **Un `plan()` CALCULÉ est un plan.** Le motif n'acceptait qu'un nombre écrit, et déclarait donc
+  « sans plan » `plan(ROOTS.length * QUALITIES.length * 3 + 2)` — la meilleure forme possible,
+  puisqu'elle suit la taille du jeu d'essai.
+
+Le quatrième point, lui, était **réel** : deux `.catch(() => {})` sur des clics de mise en place dans
+`sortie_edition_involontaire_test`. Ils avalaient un échec d'ouverture de la fenêtre du manche, après
+quoi le banc concluait sur un état qu'il n'avait pas su préparer. Une fois l'échec enregistré au lieu
+d'être jeté, la cause est apparue en une exécution : la fenêtre restait ouverte du tour précédent, et
+le bouton qui l'ouvre était **derrière elle**.
+
+### Un rouge qui était un gain
+
+`seq_short_note_body_test` affirmait que sur téléphone les deux notes courtes restaient sous le seuil
+de largeur. Ce n'était pas une règle, c'était la géométrie du jour : le tiroir flottant (Lot 4 bis-B) a
+élargi le séquenceur mobile de **315 à 378px**, une double-croche est passée de 18,5 à 21,3px, et la
+note de deux croches (42,6px) franchit désormais le seuil — elle devient assez large pour qu'on
+l'attrape par ses bords, ce à quoi ce seuil sert précisément. Le banc éprouve maintenant la RÈGLE
+(c'est le seuil qui tranche, note par note) et non la mesure d'un jour.
+
+### Quatre rouges qui n'en étaient pas
+
+`entete_grille_debordement`, `ghost_note`, `item1_hzoom_out`, `items2345` et `probe_touches_piano`
+échouaient sur un `page.goto` expiré à 15s. Relancés en série : tous verts. C'est le bruit réseau du
+bac à sable déjà documenté — un serveur HTTP mono-thread sous quatre fils parallèles.
+
+Les sept autres rouges du balayage sont **exactement** la ligne de base d'avant les travaux
+(`probe_clic_accord_voisin` 4/8, `probe_defilement_tactile` 23/24, `probe_regle_voisins` 28/29,
+`probe_seq_finitions` 18/19, `real_click_loupe_selection` 3/4, `seq_notes_libres_clavier` 32/33,
+`seq_selection_et_cadre_diagrammes` 21/22), inchangés.
