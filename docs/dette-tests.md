@@ -1302,3 +1302,107 @@ cette échelle-là.
 pas sortir du mode Modification. Son commentaire annonçait lui-même la suite : « quand les autres
 remonteront à la surface, elles rejoindront cette liste. » Elles y sont — la liste éprouve maintenant
 un menu, des segments, un pas-à-pas et un bouton, soit une commande de chaque famille.
+
+---
+
+## Le rythme et la durée : les définir là où c'est vraiment le geste
+
+Retours utilisateur : « Le bouton "jeu" n'est pas clair, à travailler également » et « Je pense que je
+ne me servirai pas souvent de ces options de lecture (durée accord et type de rythme) vu que je
+modifie plus rapidement le séquenceur. Que penses-tu de les modifier fortement voire de les
+supprimer ? »
+
+### Trois constats, mesurés avant de décider quoi que ce soit
+
+**1. « Jeu » n'était pas un état, c'était un tampon.** Il écrase tout le motif du séquenceur. Sa forme
+— un menu qui affiche une valeur courante — mentait :
+
+| | ce que le bouton affiche | ce que l'accord joue |
+|---|---|---|
+| Je choisis « 1t détaché » | `1t` | `0,1,2,3;;;;0,1,2,3;;;;…` |
+| Je dessine une note | **`1t`** | `0,1,2,3;3;3t;3t;0,1,2,3;…` |
+
+Il annonçait une **action passée**, jamais l'état présent.
+
+**2. Ce tampon détruisait sans retour.** Il appelait `clearSeqHistory()` : pile du séquenceur **2 → 0**,
+et trois Ctrl+Z de suite retombaient sur l'état du début de session, **jamais** sur le rythme dessiné.
+Un bouton qui ressemble à un menu de réglage et qui efface du travail sans filet n'est pas un manque
+de clarté, c'est un piège.
+
+**3. « Durée » faisait doublon en Modification.** La poignée au bord de la case fait déjà le travail —
+tiré la case, `1 mes. → 2 mes.`, et le champ source a suivi tout seul.
+
+### Pourquoi « ne pas supprimer » malgré tout
+
+En mode **Ajout**, ces deux réglages sont les **valeurs par défaut des accords ajoutés** :
+`buildChordData(parsed, beats, playStyle, instrument)` les lit à chaque ajout, Ajout rapide compris.
+Les supprimer aurait enlevé le seul moyen de dire « les accords que je vais taper durent 2 mesures ».
+
+D'où un **partage par mode** plutôt qu'une suppression. Le masquage est en CSS et non en JS :
+`data-app-mode` est déjà posé sur `<body>` par `applyAppModeTheme`, LE point de passage de tout
+changement de mode. Un masquage piloté depuis le JS aurait été un second endroit à tenir à jour, donc
+un second endroit à oublier — le défaut « deux listes jumelles » que ce fichier documente douze fois.
+
+Et le mot a changé : **« Jeu » → « Rythme »**. Le bouton ne choisit pas une manière de jouer, il
+remplit le séquenceur d'un motif type. Le mot nomme maintenant la chose remplie.
+
+### Le tampon est devenu annulable
+
+`clearSeqHistory()` remplacé par un `pushSeqUndo()` **avant** d'écraser. La raison invoquée à l'époque
+(« nouveau motif de départ : l'ancien historique ne s'applique plus ») ne tenait pas : ni la forme de
+l'accord ni sa durée ne changent ici, seulement le motif — les instantanés précédents restent donc
+applicables. `clearSeqHistory` garde tout son sens à ses trois autres appels, qui sont de VRAIS
+changements de forme. Mesuré après : pile 2 → 3, et **un seul Ctrl+Z** retrouve le rythme dessiné.
+
+### « Ce rythme pour toute la partie »
+
+Le pendant, côté rythme, de « ce son pour tout le morceau ». Deux décisions de fond :
+
+- **La partie, pas le morceau.** Un couplet et un refrain n'ont presque jamais le même rythme : à
+  l'échelle du morceau, ce bouton effacerait plus souvent qu'il ne servirait.
+- **La durée de chaque accord est conservée.** C'est la différence avec la pipette de rythme, qui
+  recopie *aussi* la durée de la source (demandé ainsi pour un accord vers un autre). Sur toute une
+  partie, imposer la durée de la source aplatirait le rythme harmonique. Le motif est donc **ajusté** :
+  `resizeSeqPattern` le répète sur un accord plus long, le tronque sur un plus court. Mesuré sur une
+  partie 4/8/2/2 temps : durées inchangées, motifs de 8 à 32 cases selon l'accord.
+
+Dans le **menu contextuel** et non dans une carte : l'accord cliqué EST la source, il n'y a rien
+d'autre à désigner — et ça ne coûte pas un pixel, ce qui compte après tout le travail d'allègement.
+L'entrée se masque quand la partie n'a qu'un accord : proposer une action sans effet est pire que ne
+rien proposer.
+
+### Deux erreurs de banc, dont une qui accusait l'application à tort
+
+Ma première version de la section A ajoutait un accord avec **Entrée** sur une grille à **deux
+parties**. Deux pièges d'un coup : l'ajout rapide se valide par le bouton ou Ctrl+Entrée (le champ est
+un `<textarea>`, Entrée y insère une ligne — c'est écrit dans son infobulle), et avec plusieurs parties
+un sélecteur s'interpose. Résultat : rien n'était ajouté, le banc lisait le **dernier accord déjà
+présent** en croyant lire le sien, et annonçait « 2 temps au lieu de 16 » — **une accusation portée
+contre du code parfaitement sain**. Corrigé en cliquant le vrai bouton, en traitant le sélecteur, et
+en exigeant d'abord que le nombre d'accords ait bien augmenté.
+
+Second banc adapté : `lecture_meme_principe_test` mesurait la taille de toutes les cibles de la
+rangée. Rythme et Durée étant désormais en `display:none` en Modification, il annonçait « la plus
+petite cible fait 0x0 » — une alerte sur des boutons qui, précisément, ne sont pas là. Il ne mesure
+plus que les cibles **réellement proposées**.
+
+### La conséquence que le partage par mode a révélée
+
+Masquer le groupe « Rythme » a cassé, en silence pour l'œil mais pas pour son banc, le raccourci du
+tiroir mobile ajouté au Lot 4 bis-C. Cause **structurelle** : `#playstyle-dd-menu` était un **enfant
+du bouton** qu'il décore. Masquer le bouton masquait donc le menu — que le raccourci ouvrait depuis
+un tout autre endroit. Un menu en `position: fixed`, placé au pixel par JS, n'a aucune raison d'être
+un descendant de son bouton : les deux menus d'icônes (rythme et durée) sont désormais rangés avec
+les autres menus flottants, au niveau du document. Leurs items restent des `<button>`, mot qui figure
+déjà dans `ZONE_EDITION_SELECTEURS` — cliquer un motif ne fait donc pas sortir du mode Modification.
+
+Et une **question de fond** que ce rouge a posée : sur ORDINATEUR en Modification, il n'y avait plus
+aucun accès aux motifs, puisque le raccourci était réservé au tiroir mobile. Le bouton du séquenceur
+n'est donc plus réservé au tiroir. C'est cohérent avec tout le raisonnement de ce chantier : **poser
+un motif type est une action sur le rythme, sa place est dans l'outil du rythme**, pas dans une carte
+de réglages. Son infobulle le dit maintenant en toutes lettres — « Remplir le rythme avec un motif
+type (remplace le motif actuel — annulable par Ctrl+Z) ».
+
+`seq_tiroir_motifs_test` section C vérifiait l'inverse (« pas de second bouton sur ordinateur, le
+sélecteur d'origine est déjà sous les yeux »). Ses deux prémisses ont changé par décision. Elle
+vérifie maintenant ce qui compte vraiment : **il y a un accès, et un seul**.

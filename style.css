@@ -1768,6 +1768,30 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
     border-bottom: 2px dashed var(--sujet, var(--accent));
 }
 
+/* JEU ET DURÉE N'APPARAISSENT QU'EN MODE AJOUT.
+   Retour utilisateur : « Je pense que je ne me servirai pas souvent de ces options de lecture (durée
+   accord et type de rythme) vu que je modifie plus rapidement le séquenceur. » Vérifié dans le code
+   et à la mesure, il a raison deux fois :
+     - la DURÉE fait doublon en Modification. La poignée au bord de la case, dans la grille, fait déjà
+       le travail — tiré la case, « 1 mes. » est devenu « 2 mes. » et le menu a suivi tout seul.
+     - le RYTHME n'est pas un réglage mais un tampon : il écrase tout le motif du séquenceur. En
+       Modification, dessiner est plus direct — et c'est ce que fait l'utilisateur.
+   Mais aucun des deux n'est inutile pour autant : en AJOUT, ce sont les valeurs par défaut des
+   accords qu'on ajoute (buildChordData les lit à chaque ajout, Ajout rapide compris). Les supprimer
+   aurait enlevé le seul moyen de dire « les accords que je vais taper durent 2 mesures ».
+   D'où ce partage par mode plutôt qu'une suppression. En CSS et non en JS : data-app-mode est déjà
+   posé sur <body> par applyAppModeTheme, LE point de passage de tout changement de mode — un
+   masquage piloté depuis le JS aurait été un second endroit à tenir à jour, donc un second endroit
+   à oublier. Les <select> sources, eux, restent lus dans les deux modes : rien n'est débranché. */
+body[data-app-mode="edit"] .voicing-group-jeu,
+body[data-app-mode="edit"] .voicing-group-duree { display: none; }
+/* Restée seule, la bande d'intensité s'étire sur toute la rangée plutôt que de rester tassée à
+   gauche avec un grand vide à droite : une rangée à moitié remplie se lit comme une rangée amputée.
+   Les cases sont plafonnées, sinon six chiffres seuls s'étaleraient sur 52px chacun — large sans
+   raison, et plus du tout de la même famille que les cases de la carte au-dessus. */
+body[data-app-mode="edit"] .voicing-group-intensite { flex: 1 1 auto; }
+body[data-app-mode="edit"] .voicing-segment { max-width: 44px; }
+
 /* TÉLÉPHONES TRÈS ÉTROITS (320px, iPhone SE de 1re génération). La bande d'intensité y prend 126 de
    les 233px disponibles — six cases à leur plancher tactile, incompressibles — et il ne reste que
    107px pour le style de jeu ET la durée. Mesuré : « 4 mes. » y était coupé en « 4 … ».

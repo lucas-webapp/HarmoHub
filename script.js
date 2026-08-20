@@ -3567,12 +3567,25 @@ class HarmoHubApp {
         // ci-dessus, pour que le 'change' qu'elles émettent trouve déjà ses écouteurs en place.
         this.construireCommandesVoicing();
 
-        // Choisir un style de lecture réinitialise le motif sur le point de départ correspondant
+        // Choisir un rythme de départ REMPLACE tout le motif du séquenceur. Ce n'est pas un réglage,
+        // c'est un tampon — et il faut pouvoir revenir en arrière.
+        //
+        // MESURÉ AVANT : cette commande appelait clearSeqHistory(), donc un clic sur un préréglage
+        // effaçait un rythme dessiné à la main SANS AUCUN RETOUR POSSIBLE. Pile du séquenceur 2 → 0,
+        // et trois Ctrl+Z de suite retombaient sur l'état du début de session, jamais sur le motif
+        // dessiné. Un bouton qui ressemble à un menu de réglage et qui détruit du travail sans filet
+        // n'est pas un manque de clarté, c'est un piège.
+        // On empile donc un instantané AVANT d'écraser, au lieu de vider l'historique. La raison
+        // invoquée à l'époque (« nouveau motif de départ : l'ancien historique ne s'applique plus »)
+        // ne tient pas : ni la forme de l'accord ni sa durée ne changent ici, seulement le motif —
+        // les instantanés précédents restent donc parfaitement applicables. clearSeqHistory garde
+        // tout son sens là où il est appelé pour de VRAIS changements de forme (voir ses 3 autres
+        // appels : changement de racine/qualité, chargement d'un autre accord, motif validé).
         document.getElementById('playStyle').onchange = () => {
             const chord = this.readChord();
+            this.pushSeqUndo();     // AVANT d'écraser : c'est ce qui rend le tampon annulable
             this.seqTouched = true;
             this.seqSelections = [];
-            this.clearSeqHistory(); // nouveau motif de départ : l'ancien historique ne s'applique plus
             const { pattern, tie } = seqPreset(document.getElementById('playStyle').value, chord.getSeqMidiNotes().length, chord.beats * SEQ_STEPS_PER_BEAT);
             this.setLiveSeqPattern(pattern, tie);
             this.renderSequencer();
@@ -3840,6 +3853,11 @@ class HarmoHubApp {
             const t = this.contextMenuTarget;
             this.closeContextMenu();
             if (t && t.type === 'chord') this.pasteChordRhythm(t.section, t.index);
+        };
+        document.querySelector('[data-ctx-action="rhythm-to-section"]').onclick = () => {
+            const t = this.contextMenuTarget;
+            this.closeContextMenu();
+            if (t && t.type === 'chord') this.appliquerRythmeAlaPartie(t.section, t.index);
         };
         document.querySelector('[data-ctx-action="copy-all"]').onclick = () => {
             const t = this.contextMenuTarget;
@@ -9133,6 +9151,11 @@ class HarmoHubApp {
         menu.querySelector('[data-ctx-action="paste-identity"]').hidden = !isChord || !this.chordClipboard;
         menu.querySelector('[data-ctx-action="copy-rhythm"]').hidden = !isChord;
         menu.querySelector('[data-ctx-action="paste-rhythm"]').hidden = !isChord || !this.rhythmClipboard;
+        // Masqué si la partie n'a qu'UN accord : « pour toute la partie » n'aurait alors personne à
+        // qui s'appliquer, et proposer une action sans effet est pire que ne rien proposer.
+        const partieDeLaCible = isChord ? loadProgressionSections()[target.section] : null;
+        menu.querySelector('[data-ctx-action="rhythm-to-section"]').hidden =
+            !partieDeLaCible || !partieDeLaCible.chords || partieDeLaCible.chords.length < 2;
         menu.querySelector('[data-ctx-action="copy-all"]').hidden = !isChord;
         menu.querySelector('[data-ctx-action="paste-all"]').hidden = !isChord || !this.chordAllClipboard;
         menu.hidden = false;
@@ -15181,19 +15204,25 @@ class HarmoHubApp {
             <button type="button" id="seq-stop" class="btn-stop seq-icon-btn" title="Stop" aria-label="Stop">${svgIcon('stop')}</button>
             <button type="button" id="seq-loop-play" class="icon-btn seq-icon-btn${this.seqLoopPlay ? ' active' : ''}" title="Rejouer en boucle" aria-label="Rejouer en boucle">${svgIcon('loop')}</button>
             <button type="button" id="seq-add-note" class="icon-btn seq-icon-btn" title="Ajouter une note libre (ex. note de passage)" aria-label="Ajouter une note libre">${svgIcon('plus')}</button>
-            ${this.estSequenceurEnTiroir() ? (() => {
-                // RACCOURCI VERS LES MOTIFS RYTHMIQUES, dans le tiroir seulement.
-                // Ce n'est PAS une seconde rangée de motifs : ce serait recopier les neuf mêmes choix
-                // déjà offerts par le sélecteur de style de jeu (PLAYSTYLE_OPTIONS, qui EST la liste
-                // des motifs de seqPreset), et retomber dans le reproche « j'ai l'impression d'avoir
-                // fait une machine à clics ». C'est le MÊME menu, ouvert depuis un second endroit.
-                // Pourquoi ici : mesuré sur iPhone 13, le bouton d'origine se retrouve à 630px sur une
-                // fenêtre de 664 dès que le tiroir est ouvert — donc hors d'atteinte au moment précis
-                // où l'on règle le rythme. L'icône reprend celle du style courant, pour qu'on lise
-                // d'un coup d'œil sur quel motif on est.
+            ${(() => {
+                // REMPLIR LE RYTHME AVEC UN MOTIF TYPE — désormais PARTOUT, plus seulement dans le
+                // tiroir mobile. Ce n'est PAS une seconde rangée de motifs : ce serait recopier les
+                // neuf mêmes choix déjà offerts par PLAYSTYLE_OPTIONS (qui EST la liste des motifs de
+                // seqPreset), et retomber dans le reproche « j'ai l'impression d'avoir fait une
+                // machine à clics ». C'est le MÊME menu, ouvert depuis le séquenceur.
+                //
+                // POURQUOI IL N'EST PLUS RÉSERVÉ AU TIROIR. Il y était né parce que, sur iPhone 13, le
+                // sélecteur d'origine tombait à 630px d'une fenêtre de 664 dès le tiroir ouvert. Depuis,
+                // ce sélecteur ne s'affiche plus du tout en mode Modification (retour utilisateur : « je
+                // ne me servirai pas souvent de ces options de lecture… vu que je modifie plus rapidement
+                // le séquenceur ») : sur ORDINATEUR aussi, il n'y avait donc plus aucun accès aux motifs
+                // pendant qu'on modifie un accord. Le garder ici est cohérent avec tout le reste du
+                // raisonnement — poser un motif type est une ACTION SUR LE RYTHME, sa place est dans
+                // l'outil du rythme, pas dans une carte de réglages.
+                // L'icône reprend le motif courant, pour qu'on lise d'un coup d'œil d'où l'on part.
                 const o = PLAYSTYLE_BY_VALUE[document.getElementById('playStyle').value] || PLAYSTYLE_OPTIONS[0];
-                return `<button type="button" id="seq-playstyle-btn" class="icon-btn seq-icon-btn" title="Motif rythmique : ${o.name}" aria-label="Choisir le motif rythmique — actuellement ${o.name}" aria-haspopup="menu"><svg class="icon" viewBox="0 0 24 16" aria-hidden="true">${o.svg}</svg></button>`;
-            })() : ''}
+                return `<button type="button" id="seq-playstyle-btn" class="icon-btn seq-icon-btn" title="Remplir le rythme avec un motif type (remplace le motif actuel — annulable par Ctrl+Z). Actuellement : ${o.name}" aria-label="Remplir le rythme avec un motif type — actuellement ${o.name}" aria-haspopup="menu"><svg class="icon" viewBox="0 0 24 16" aria-hidden="true">${o.svg}</svg></button>`;
+            })()}
             <!-- Pipette de motif ENTRE VOIES du même accord (retour utilisateur : sélectionner une ou
                  plusieurs notes/barres, voir seqSelections, puis les appliquer sur une AUTRE ligne du
                  même séquenceur) — voir toggleSeqRowPipette/applySeqRowPipette. Distincte de Ctrl+C/V
@@ -16849,6 +16878,83 @@ class HarmoHubApp {
         if (this.editingIndex === index && this.activeSection === section) this.editChord(section, index);
         else this.loadProgression();
         this.flashHint('Rythme appliqué à cet accord');
+    }
+
+    // ---------- Un rythme pour toute une partie ----------
+    // Retour utilisateur, à la question « quelles sont tes meilleures idées pour améliorer la
+    // définition du rythme et de la durée des accords ? » : donner le même rythme à huit accords
+    // demandait sept coups de pipette. Le pendant, côté rythme, de « ce son pour tout le morceau »
+    // (voir applyInstrumentToSong), dont ce code reprend la forme — instantané Ctrl+Z unique,
+    // re-rendu, report sur une lecture en cours, message final chiffré.
+    //
+    // LA PARTIE, PAS LE MORCEAU. Un couplet et un refrain n'ont presque jamais le même rythme : à
+    // l'échelle du morceau, ce bouton effacerait plus souvent qu'il ne servirait. La partie est
+    // l'unité musicale qui a un rythme commun.
+    //
+    // ET SURTOUT : LA DURÉE DE CHAQUE ACCORD EST CONSERVÉE. C'est la différence de fond avec la
+    // pipette de rythme, qui recopie AUSSI la durée de la source (« recopie le rythme du séquenceur
+    // ET la durée », demandé ainsi pour un accord vers un autre). Sur toute une partie, imposer la
+    // durée de la source aplatirait le rythme harmonique — deux accords de deux temps dans une mesure
+    // deviendraient deux accords de quatre. Le motif est donc AJUSTÉ à la durée de chaque accord :
+    // resizeSeqPattern le répète (i % srcLen) sur un accord plus long, le tronque sur un plus court.
+    // Un rythme d'une mesure posé sur un accord de deux mesures s'y joue deux fois, ce qui est
+    // exactement ce qu'on attend en le lisant.
+    appliquerRythmeAlaPartie(section, index) {
+        const sections = loadProgressionSections();
+        const partie = sections[section];
+        const source = partie && partie.chords && partie.chords[index];
+        if (!source) return;
+        if (partie.chords.length < 2) { this.flashHint('Cette partie n\'a qu\'un accord'); return; }
+
+        // Motif TEL QUE JOUÉ, pas l'arpPattern brut : un accord dont le rythme vient encore d'un
+        // préréglage jamais retouché (seqEdited=false) se recopie ainsi correctement — même raison
+        // que pour la pipette, voir resolveSeqPatternForData.
+        const chordSource = new Chord(source.root, source.quality, beatsFromData(source), source.inversion, source.drop, octaveFromData(source), source.bass, source.guitarLock, source.extraNotes);
+        const { pattern, tie } = this.resolveSeqPatternForData(chordSource, source);
+        const intensiteSource = { ...(source.intensityPerStep || {}) };
+        const srcSteps = pattern.length;
+        if (srcSteps === 0) { this.flashHint('Cet accord n\'a pas de rythme à donner'); return; }
+
+        this.pushUndo(sections);
+        let n = 0;
+        partie.chords.forEach((data, i) => {
+            if (i === index) return; // la source est déjà à ce rythme
+            const c = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
+            const steps = c.beats * SEQ_STEPS_PER_BEAT;
+            const voices = c.getSeqMidiNotes().length;
+            // Une voix en plus/moins reste silencieuse/ignorée plutôt que de planter — même logique
+            // que pasteChordRhythm : on ne touche NI la fondamentale NI le voicing de la cible.
+            const r = resizeSeqPattern(pattern, tie, steps, voices);
+            data.arpPattern = serializeSeqPattern(r.pattern, r.tie);
+            data.seqEdited = true;
+            // Le mode studio suit le motif : sans ça, un accord recevrait le rythme de la source mais
+            // garderait ses propres accents croche par croche, donc un résultat qui ne ressemble ni à
+            // l'un ni à l'autre.
+            const out = {};
+            for (let k = 0; k < steps; k++) {
+                const src = k % srcSteps;
+                if (intensiteSource[src] != null) out[k] = intensiteSource[src];
+            }
+            data.intensityPerStep = out;
+            n++;
+        });
+        saveProgressionSections(sections);
+        hasUnsavedChanges = true;
+
+        // Un accord de CETTE partie est ouvert dans le panneau : le relire, sinon le séquenceur
+        // resterait affiché sur l'ancien rythme de cet accord-là.
+        if (this.editingIndex != null && this.activeSection === section) this.editChord(section, this.editingIndex);
+        else this.loadProgression();
+        // Report immédiat sur une lecture en cours, comme le fait « ce son pour tout le morceau ».
+        // Le rythme, LUI, change ce qui est programmé : on relit donc chaque emplacement déjà posé.
+        if (this.isPlaying && this._playMode === 'progression') {
+            for (const key of this._progChordSlots.keys()) {
+                const [sec, idx] = key.split(':').map(Number);
+                if (sec === section) this.liveUpdateProgressionChord(sec, idx);
+            }
+        }
+        const nom = (partie.title || '').trim();
+        this.flashHint(`Rythme appliqué à ${n} accord${n > 1 ? 's' : ''}${nom ? ' de « ' + nom + ' »' : ''}`);
     }
 
     // ---------- Pipette « tout » (menu contextuel, copier/coller l'accord dans son intégralité) ----------

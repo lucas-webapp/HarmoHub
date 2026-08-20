@@ -221,7 +221,14 @@ const atteignable = (sel) => {
         const row = document.getElementById('lecture-row');
         const carte = document.getElementById('lecture-card').getBoundingClientRect();
         const r = row.getBoundingClientRect();
-        const cibles = [...document.querySelectorAll('#lecture-row .voicing-segment, #lecture-row .voicing-step, #lecture-row .playstyle-dd-toggle, #lecture-row .duration-dd-toggle')].map(x => x.getBoundingClientRect());
+        // VISIBLES SEULEMENT. Depuis que Rythme et Durée ne s'affichent plus en mode Modification
+        // (retour utilisateur : « je ne me servirai pas souvent de ces options de lecture… vu que je
+        // modifie plus rapidement le séquenceur »), leurs boutons sont en display:none et mesurent
+        // donc 0x0. Les compter faisait annoncer « la plus petite cible fait 0x0 » — une alerte sur
+        // des boutons qui, précisément, ne sont pas là. Ce qu'on veut savoir reste le même : les
+        // cibles RÉELLEMENT proposées sont-elles assez grandes pour le doigt.
+        const cibles = [...document.querySelectorAll('#lecture-row .voicing-segment, #lecture-row .voicing-step, #lecture-row .playstyle-dd-toggle, #lecture-row .duration-dd-toggle')]
+            .filter(x => x.offsetParent !== null).map(x => x.getBoundingClientRect());
         return { deborde: r.right > carte.right + 1 || row.scrollWidth > row.clientWidth,
                  page: document.documentElement.scrollWidth > window.innerWidth + 1,
                  hMin: Math.round(Math.min(...cibles.map(x => x.height))),

@@ -115,9 +115,16 @@ const motifStocke = () => JSON.parse(localStorage.getItem('myProgression')).sect
     }
     await m.close();
 
-    console.log('\n=== C. ORDINATEUR : pas de second bouton, le sélecteur d\'origine est déjà sous les yeux ===');
-    // C'est la moitié du lot qui consiste à NE PAS faire quelque chose. Sans cette vérification,
-    // quelqu'un « complétera » le raccourci en l'affichant partout, et recréera le doublon.
+    console.log('\n=== C. ORDINATEUR : le bouton du séquenceur est devenu le SEUL accès ===');
+    // LA RÈGLE S'EST INVERSÉE, ET C'EST VOULU. Cette section vérifiait qu'aucun raccourci n'existait
+    // sur ordinateur, « le sélecteur d'origine étant déjà sous les yeux ». Ses deux prémisses ont
+    // changé le jour où le sélecteur a disparu du mode Modification (retour utilisateur : « je ne me
+    // servirai pas souvent de ces options de lecture… vu que je modifie plus rapidement le
+    // séquenceur ») : sur ordinateur aussi, il n'y avait alors plus AUCUN accès aux motifs pendant
+    // qu'on modifie un accord. Le bouton du séquenceur y est donc désormais présent — et c'est
+    // cohérent avec tout le raisonnement : poser un motif type est une action SUR LE RYTHME, sa place
+    // est dans l'outil du rythme.
+    // Ce qu'on éprouve maintenant est ce qui compte vraiment : il y a UN accès, et un seul.
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     page.on('pageerror', e => erreurs.push('ordinateur : ' + e.message));
     await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load' });
@@ -130,14 +137,18 @@ const motifStocke = () => JSON.parse(localStorage.getItem('myProgression')).sect
     const bureau = await page.evaluate(() => {
         const t = document.getElementById('playstyle-dd-toggle');
         const r = t.getBoundingClientRect();
-        const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        const e = (r.width && r.height) ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null;
         return {
             raccourci: !!document.getElementById('seq-playstyle-btn'),
-            origineAtteignable: r.top >= 0 && r.bottom <= window.innerHeight && !!e && (e === t || t.contains(e)),
+            // « Atteignable » au sens fort : une surface, dans la fenêtre, et que le clic désigne
+            // vraiment. Un élément en display:none a un rectangle nul — donc pas atteignable.
+            origineAtteignable: r.width > 1 && r.height > 1 && r.top >= 0 && r.bottom <= window.innerHeight
+                && !!e && (e === t || t.contains(e)),
         };
     });
-    check(!bureau.raccourci, 'ordinateur : aucun raccourci en double dans le séquenceur');
-    check(bureau.origineAtteignable, 'ordinateur : le sélecteur de motif d\'origine est bien atteignable, lui');
+    check(bureau.raccourci, 'ordinateur : le bouton de motif est présent dans le séquenceur, comme sur téléphone');
+    check(!bureau.origineAtteignable,
+        'ordinateur : et le sélecteur de la carte Lecture n\'est PAS là en Modification — un seul accès, pas deux');
 
     check(erreurs.length === 0, `aucune erreur JavaScript — ${erreurs.join(' | ') || 'aucune'}`);
     await browser.close();
