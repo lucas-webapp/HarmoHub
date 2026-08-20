@@ -15080,6 +15080,16 @@ class HarmoHubApp {
                  qu'une partie du motif, vers une autre voix du MÊME accord. Groupée avec les actions
                  constructives (ajouter/prélever), avant les deux actions de suppression ci-dessous. -->
             <button type="button" id="seq-row-pipette" class="icon-btn seq-icon-btn${this.seqRowPipette ? ' active' : ''}" ${(hasSelection || this.seqRowPipette) ? '' : 'disabled'} title="${this.seqRowPipette ? 'Clique une ligne pour y appliquer le motif prélevé (Échap pour annuler)' : 'Prélever le motif sélectionné pour le coller sur une autre ligne'}" aria-label="${this.seqRowPipette ? 'Appliquer le motif prélevé sur une ligne' : 'Prélever le motif sélectionné'}">${svgIcon('seqRowPipette')}</button>
+            ${this.estSequenceurEnTiroir() ? `
+            <!-- FERMER LE TIROIR, depuis le tiroir lui-même. Signalé par l'utilisateur : « je
+                 n'arrive plus à fermer le petit séquenceur une fois ouvert (test réalisé sur
+                 téléphone) ». Mesuré ensuite : le bouton qui l'ouvre (#toggle-sequencer, dans la
+                 carte Lecture) se trouve à 838px sur une fenêtre de 664 — hors écran, avant comme
+                 après l'ouverture. Le tiroir ne rejoignant volontairement PAS la table des popups
+                 (un clic sur la grille ne doit pas le refermer), il n'avait donc AUCUNE sortie
+                 atteignable. C'est le prix à payer de ce choix, et il se paie ici : un panneau
+                 flottant porte sa propre fermeture. -->
+            <button type="button" id="seq-tiroir-close" class="icon-btn seq-icon-btn seq-tiroir-close" title="Fermer le séquenceur" aria-label="Fermer le séquenceur">${svgIcon('close')}</button>` : ''}
             <button type="button" data-preset="clear" class="seq-delete-btn">${svgIcon('trash')} tout</button>
             <button type="button" id="seq-delete-selection" class="seq-delete-btn" ${hasSelection ? '' : 'disabled'}>${svgIcon('trash')}
                 <span class="lbl-full">sélection${countSuffix}</span><span class="lbl-short">Sélect.${countSuffix}</span>
@@ -15304,6 +15314,9 @@ class HarmoHubApp {
                 if (menu.hidden) this.openPlayStyleMenu(btnMotif); else this.closePlayStyleMenu();
             });
         }
+
+        const btnFermer = host.querySelector('#seq-tiroir-close');
+        if (btnFermer) btnFermer.addEventListener('click', () => this.toggleSequencer(this.seqMode));
 
         // Bouton « X tout » (remplace tout le motif par du silence) : ciblé via [data-preset] pour
         // ne pas capturer « X sélection » ci-dessous, qui a son propre câblage.

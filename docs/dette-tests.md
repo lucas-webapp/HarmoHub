@@ -975,3 +975,27 @@ quelqu'un « complétera » le raccourci en l'affichant partout et recréera le 
 2. **La règle « le séquenceur est-il en tiroir ? »** est définie **une seule fois**
    (`estSequenceurEnTiroir`), lue par le placement ET par la barre d'outils. La recopier aurait suffi
    à les faire diverger — ce fichier en a déjà payé le prix plus d'une fois dans la même session.
+
+---
+
+## Correctif signalé : le tiroir n'avait aucune sortie atteignable
+
+Retour utilisateur, après le lot 4 bis-B : « je n'arrive plus à fermer le petit séquenceur une fois
+ouvert (test réalisé sur téléphone) ». **Ma faute deux fois**, et les deux méritent d'être écrites.
+
+**Dans l'application.** Le tiroir ne rejoint volontairement pas la table `_popups` — un clic sur la
+grille ne doit pas le refermer. Le bouton qui l'ouvre (`#toggle-sequencer`) vit dans la carte Lecture,
+mesurée à **838px sur une fenêtre de 664** : hors écran avant comme après l'ouverture. Le tiroir
+n'avait donc plus aucune sortie. C'est le prix du choix « pas de clic-à-côté », et il se paie là où on
+l'a fait : **un panneau flottant porte sa propre fermeture**. Une croix, au bout de sa barre d'outils.
+
+**Dans le banc, et c'est la leçon générale.** La vérification « le bouton qui l'a ouvert le referme »
+appelait `window.app.toggleSequencer(...)` — un APPEL DE MÉTHODE. Elle passait au vert en n'éprouvant
+jamais ce qui manquait vraiment : qu'un doigt puisse atteindre quelque chose. J'avais pourtant écrit
+dans ce même document, deux lots plus tôt, qu'il faut « deux couches » et que la couche câblage est la
+seule à prouver que la commande visible touche le moteur — et je l'ai oublié sur la commande la plus
+importante du panneau, sa sortie.
+
+**Règle à appliquer désormais** : pour une commande que l'utilisateur doit ATTEINDRE, on vérifie
+d'abord qu'elle est à l'écran et que `elementFromPoint` la désigne, PUIS on la pilote par un vrai
+geste. Jamais par la méthode qui se cache derrière. Le banc fait maintenant les trois.

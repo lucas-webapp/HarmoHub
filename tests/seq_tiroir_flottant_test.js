@@ -59,7 +59,7 @@ const etat = () => {
 };
 
 (async () => {
-    plan(18);
+    plan(19);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
 
@@ -136,18 +136,48 @@ const etat = () => {
             'toucher un accord dans la grille laisse le tiroir ouvert');
     }
 
-    console.log('\n=== E. Le bouton qui l\'a ouvert le referme ===');
-    // Un panneau qui ne rejoint pas la table des popups n'a pas de « clic à côté » pour se fermer :
-    // son bouton doit donc vraiment marcher dans les deux sens, sinon il n'y a plus de sortie.
-    await m.evaluate(() => window.app.toggleSequencer('compact'));
-    await m.waitForTimeout(500);
-    const ferme = await m.evaluate(() => ({
-        ouvert: window.app.seqOpen,
-        tiroir: document.getElementById('arp-sequencer').classList.contains('seq-tiroir'),
-        varRestante: getComputedStyle(document.documentElement).getPropertyValue('--tiroir-bas').trim(),
-    }));
-    check(!ferme.ouvert && !ferme.tiroir, 'refermer retire bien le tiroir');
-    check(ferme.varRestante === '', 'et nettoie la variable de position derrière lui');
+    console.log('\n=== E. LA SORTIE : elle doit être ATTEIGNABLE, et éprouvée par un vrai geste ===');
+    // DÉFAUT SIGNALÉ PAR L'UTILISATEUR APRÈS COUP : « je n'arrive plus à fermer le petit séquenceur
+    // une fois ouvert (test réalisé sur téléphone) ». Et c'était ma faute deux fois.
+    //   1. Dans l'application : le tiroir ne rejoint volontairement PAS la table des popups (un clic
+    //      sur la grille ne doit pas le refermer), et le bouton qui l'ouvre vit dans la carte Lecture
+    //      — mesuré à 838px sur une fenêtre de 664, donc hors écran AVANT comme APRÈS l'ouverture. Le
+    //      tiroir n'avait donc aucune sortie atteignable. Un panneau flottant doit porter la sienne.
+    //   2. Dans ce banc : la vérification d'origine appelait `window.app.toggleSequencer(...)`, un
+    //      APPEL DE MÉTHODE. Elle passait au vert en n'éprouvant jamais ce qui manquait vraiment —
+    //      qu'un doigt puisse atteindre quelque chose. La leçon est générale : pour une commande que
+    //      l'utilisateur doit ATTEINDRE, on vérifie d'abord qu'elle est à l'écran et cliquable, puis
+    //      on la pilote par un VRAI geste. Jamais par la méthode qui se cache derrière.
+    const sortie = await m.evaluate(() => {
+        const b = document.getElementById('seq-tiroir-close');
+        if (!b) return { present: false };
+        const r = b.getBoundingClientRect();
+        const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return {
+            present: true,
+            dansEcran: r.top >= 0 && r.bottom <= window.innerHeight,
+            atteignable: !!e && (e === b || b.contains(e) || e.contains(b)),
+            dansTiroir: !!b.closest('.arp-seq.seq-tiroir'),
+            x: r.left + r.width / 2, y: r.top + r.height / 2,
+            taille: `${Math.round(r.width)}x${Math.round(r.height)}`,
+        };
+    });
+    if (exiger(sortie.present, 'le tiroir porte sa propre fermeture')) {
+        check(sortie.dansTiroir && sortie.dansEcran && sortie.atteignable,
+            `cette fermeture est à l'écran et le doigt l'atteint — ${sortie.taille}`);
+        // VRAI toucher, pas un appel de méthode : c'est tout l'objet de la correction.
+        const cdp2 = await ctx.newCDPSession(m);
+        await cdp2.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: sortie.x, y: sortie.y }] });
+        await cdp2.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        await m.waitForTimeout(600);
+        const ferme = await m.evaluate(() => ({
+            ouvert: window.app.seqOpen,
+            tiroir: document.getElementById('arp-sequencer').classList.contains('seq-tiroir'),
+            varRestante: getComputedStyle(document.documentElement).getPropertyValue('--tiroir-bas').trim(),
+        }));
+        check(!ferme.ouvert && !ferme.tiroir, 'un vrai toucher dessus referme bien le tiroir');
+        check(ferme.varRestante === '', 'et nettoie la variable de position derrière lui');
+    }
     await m.close();
 
     console.log('\n=== F. ORDINATEUR : rien ne doit avoir changé ===');

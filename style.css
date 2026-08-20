@@ -1434,6 +1434,20 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
     /* La barre d'outils du séquenceur ne défile pas avec les cases : lecture, stop et effacement
        doivent rester sous le pouce quoi qu'il arrive. */
     .arp-seq.seq-tiroir .seq-presets { flex: none; }
+
+    /* La fermeture du tiroir, toujours au BOUT de la barre, quelle que soit la façon dont celle-ci se
+       replie sur deux rangées : `order` la met en dernier et `margin-left: auto` la pousse contre le
+       bord droit. Sans les deux, elle se retrouvait au milieu d'une rangée, indistinguable des
+       outils — or c'est la seule sortie du tiroir (voir le commentaire du bouton dans script.js).
+       Teinte rouge discrète, la même famille que les boutons d'effacement : ce n'est pas une action
+       destructrice, mais c'est bien une action de sortie, et elle doit se repérer sans être lue. */
+    .arp-seq.seq-tiroir .seq-tiroir-close {
+        order: 99;
+        margin-left: auto;
+        border-color: var(--btn-red-border);
+        color: #e8a598;
+    }
+    .arp-seq.seq-tiroir .seq-tiroir-close:hover { border-color: var(--btn-red-border-hover); color: #fff; }
 }
 
 /* ============================================================
