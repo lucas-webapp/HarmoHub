@@ -7,13 +7,18 @@
 // 57 % de l'écran occupé avant d'apercevoir le premier accord. Ce banc fige le résultat obtenu ET,
 // surtout, les deux contreparties qu'on a refusé de payer pour l'obtenir.
 //
-// POURQUOI CE BANC VÉRIFIE AUSSI CE QU'ON N'A PAS FAIT. La solution évidente — poser le nom du
-// morceau sur la même ligne que les six boutons — descendait la grille à 310px, neuf pixels de mieux
-// que la solution retenue. Elle a été écartée sur mesure : il ne restait que ~95px utiles au nom, et
-// « Ballade en Do mineur » y était déjà tronqué. Comme le gain est plus alléchant que la solution
-// retenue, quelqu'un (moi le premier, dans six mois) sera tenté d'y revenir : le banc éprouve donc
-// explicitement qu'un nom de morceau ordinaire reste ENTIÈREMENT lisible, pour que ce retour en
-// arrière soit bruyant.
+// POURQUOI CE BANC VÉRIFIE AUSSI CE QU'ON N'A PAS FAIT. Deux mises en page plus agressives ont été
+// essayées, mesurées, et abandonnées — chacune pour une raison différente, et le banc garde une
+// vérification pour chacune, parce que toutes deux gagnent PLUS de place que la solution retenue et
+// donneront donc envie d'y revenir :
+//   1. Poser le nom du morceau sur la même ligne que les six boutons descendait la grille à 310px.
+//      Écartée sur mesure : il ne restait que ~95px utiles au nom, et « Ballade en Do mineur » y
+//      était déjà tronqué, alors que le nom du morceau doit toujours rester lisible.
+//   2. Masquer le titre « Morceau » et remonter le nom en première ligne gagnait 22px de plus.
+//      Écartée sur retour utilisateur : « Je ne voyais pas de problème avant pour l'affichage du
+//      morceau, je préférais avoir les logos au niveau du titre "morceau", c'était plus harmonieux. »
+// La carte Morceau est donc rendue intacte, et le banc l'éprouve : le titre reste VISIBLE et les
+// boutons partagent bien sa ligne. Seul le titre de la grille, hors de la carte, est masqué.
 const { chromium, devices } = require('playwright');
 const creerHarnais = require('./_harness');
 const { plan, check, exiger, bilan } = creerHarnais('Téléphone : la grille remonte');
@@ -23,7 +28,10 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 // amélioration NETTE (au moins 40px), pas une amélioration quelconque — un gain de 3px passerait
 // sinon pour un succès.
 const AVANT = 376;
-const GAIN_MINIMUM = 40;
+// Seuil ramené de 40 à 25px après le retour utilisateur ci-dessus : la carte Morceau étant rendue
+// intacte, il ne reste que le titre de la grille à récupérer (~31px mesurés). Le seuil reste au-dessus
+// du bruit de mesure, pour qu'un gain devenu nul se voie encore.
+const GAIN_MINIMUM = 25;
 
 const seed = (nom) => {
     const mk = (r, q, b) => ({ root: r, quality: q, beats: b, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
@@ -54,9 +62,28 @@ const mesurer = () => {
         besoin: Math.round(besoin),
         vh: window.innerHeight,
         debordeLargeur: document.documentElement.scrollWidth > window.innerWidth + 1,
-        // Les titres masqués doivent rester ANNONÇABLES : présents, avec leur texte, et non
-        // display:none — c'est la différence entre « masqué à l'œil » et « retiré ».
-        titres: ['#song-card .card-head h2', '.history-section h2'].map(q => {
+        // Le titre de la carte Morceau, lui, doit rester PLEINEMENT VISIBLE, et les boutons sur sa
+        // ligne : c'est la disposition que l'utilisateur a demandé de conserver.
+        carteTitreVisible: (() => {
+            const e = document.querySelector('#song-card .card-head h2');
+            if (!e) return false;
+            const r = e.getBoundingClientRect();
+            return r.width > 20 && r.height > 8;
+        })(),
+        titreY: Math.round((document.querySelector('#song-card .card-head h2') || { getBoundingClientRect: () => ({ top: -1 }) }).getBoundingClientRect().top),
+        boutonsY: Math.round((document.querySelector('#song-card .card-head-actions') || { getBoundingClientRect: () => ({ top: -1 }) }).getBoundingClientRect().top),
+        boutonsSurLigneTitre: (() => {
+            const t = document.querySelector('#song-card .card-head h2');
+            const a = document.querySelector('#song-card .card-head-actions');
+            if (!t || !a) return false;
+            const rt = t.getBoundingClientRect(), ra = a.getBoundingClientRect();
+            // « Sur la même ligne » = leurs hauteurs se recoupent, pas qu'ils aient le même `top` :
+            // le titre et les boutons n'ont pas la même hauteur et sont centrés l'un sur l'autre.
+            return Math.min(rt.bottom, ra.bottom) - Math.max(rt.top, ra.top) > 4;
+        })(),
+        // Le titre masqué doit rester ANNONÇABLE : présent, avec son texte, et non display:none —
+        // c'est la différence entre « masqué à l'œil » et « retiré ».
+        titres: ['.history-section h2'].map(q => {
             const e = document.querySelector(q);
             if (!e) return { q, present: false };
             const st = getComputedStyle(e);
@@ -69,7 +96,7 @@ const mesurer = () => {
 };
 
 (async () => {
-    plan(12);
+    plan(11);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const ctx = await browser.newContext({ ...devices['iPhone 13'] });
@@ -88,9 +115,14 @@ const mesurer = () => {
     const gain = AVANT - r.grille;
     check(gain >= GAIN_MINIMUM,
         `la grille remonte d'au moins ${GAIN_MINIMUM}px — elle commençait à ${AVANT}px, elle commence à ${r.grille}px (gain ${gain}px)`);
-    check(r.grille / r.vh < 0.52,
-        `moins de 52 % de l'écran avant le premier accord — ${Math.round(r.grille / r.vh * 100)} %`);
-    check(r.carte < 160, `la carte Morceau s'est resserrée — ${r.carte}px (166px avant)`);
+    check(r.grille / r.vh < 0.54,
+        `moins de 54 % de l'écran avant le premier accord — ${Math.round(r.grille / r.vh * 100)} %`);
+
+    console.log('\n=== La carte Morceau doit rester INTACTE (retour utilisateur) ===');
+    check(r.carteTitreVisible,
+        `le titre « Morceau » reste visible sur téléphone — ${r.carteTitreVisible ? 'visible' : 'masqué'}`);
+    check(r.boutonsSurLigneTitre,
+        `les boutons partagent bien la ligne du titre — titre à ${r.titreY}px, boutons à ${r.boutonsY}px`);
 
     console.log('\n=== La contrepartie qu\'on a REFUSÉ de payer ===');
     // ~22px pour la flèche du menu déroulant : le texte n'a jamais toute la largeur du champ.
@@ -126,7 +158,7 @@ const mesurer = () => {
     await bureau.evaluate(seed, 'Ballade en Do mineur');
     await bureau.reload({ waitUntil: 'load' });
     await bureau.waitForTimeout(600);
-    const b = await bureau.evaluate(() => ['#song-card .card-head h2', '.history-section h2'].map(q => {
+    const b = await bureau.evaluate(() => ['.history-section h2'].map(q => {
         const e = document.querySelector(q);
         const r = e.getBoundingClientRect();
         return { q, texte: (e.textContent || '').trim(), l: Math.round(r.width), h: Math.round(r.height) };

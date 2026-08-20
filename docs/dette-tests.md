@@ -637,11 +637,18 @@ mono-thread qui se bloquait, pas le banc. Relancé avec un serveur multi-thread,
 
 ---
 
-## Lot 1 : sur téléphone, la grille remonte de 57px
+## Lot 1 : sur téléphone, la grille remonte de 31px
 
 Mesure d'avant-travaux sur iPhone 13 (390x664) : la grille d'accords commençait à **376px** du haut,
-soit 57 % de l'écran passé avant d'apercevoir le premier accord. Après le lot : **319px** (48 %).
+soit 57 % de l'écran passé avant d'apercevoir le premier accord. Après le lot : **345px**.
 Retour utilisateur à l'origine : « Sur téléphone, il est également mal placé au-dessus des accords. »
+
+**Une première version gagnait 57px, et elle a été annulée.** Elle resserrait aussi la carte Morceau
+(titre « Morceau » masqué, nom remonté en première ligne, boutons dessous). Retour utilisateur : « Je
+ne voyais pas de problème avant pour l'affichage du morceau, je préférais avoir les logos au niveau du
+titre "morceau", c'était plus harmonieux. » La carte est donc rendue intacte, et le banc éprouve
+désormais qu'elle le RESTE : titre visible, boutons sur sa ligne. Seul le titre « Grille d'accords »,
+hors de la carte, est masqué.
 
 ### La solution évidente a été mesurée, puis écartée
 
@@ -660,10 +667,10 @@ ligne. La hauteur devait donc venir d'ailleurs — des deux titres redondants (�
 d'un menu qui affiche déjà le nom, « Grille d'accords » au-dessus de la grille) et des 60px de
 remplissage d'une carte qui n'avait que 106px de contenu.
 
-Les deux titres sont **masqués à l'œil, pas retirés** : ils restent dans l'arbre d'accessibilité. Le
-banc `mobile_grille_plus_haut_test` (13 vérifications) éprouve aussi bien le gain que les deux
-contreparties refusées — un nom ordinaire entièrement lisible, et les titres toujours annonçables —
-précisément parce que la solution écartée est plus alléchante en chiffres et donnera envie d'y revenir.
+Le titre de la grille est **masqué à l'œil, pas retiré** : il reste dans l'arbre d'accessibilité. Le
+banc `mobile_grille_plus_haut_test` (12 vérifications) éprouve le gain ET les trois contreparties
+refusées — carte Morceau intacte, nom ordinaire entièrement lisible, titre toujours annonçable —
+précisément parce que les solutions écartées gagnent PLUS de place et donneront envie d'y revenir.
 
 ### Troisième recalibrage de `mobile_edit_scroll_test`, et sa vraie cause
 
