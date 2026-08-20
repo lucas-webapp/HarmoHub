@@ -847,3 +847,47 @@ ils ne touchaient que le moteur.
 Comportement antérieur à ce lot, mais piégeant : la suite du banc s'exécutait en mode Ajout, où
 `commitLiveEdit` ne fait rien — à juste titre — et deux vérifications rougissaient en accusant les
 nouvelles commandes. Le banc revient explicitement en édition après chaque annulation.
+
+---
+
+## Lot 4 bis-A : Ctrl+Z suit la dernière action, plus la fenêtre ouverte
+
+L'appli tient trois historiques séparés — la grille, le séquenceur, les fichiers — mais l'utilisateur
+n'a qu'un seul Ctrl+Z. Il fallait décider lequel il vise, et c'était la FENÊTRE OUVERTE qui décidait :
+séquenceur ouvert, Ctrl+Z allait au séquenceur, même si la dernière chose faite était de changer le
+renversement de l'accord. D'où le signalement : « mon CTRL+Z ne garde pas toujours en mémoire TOUS mes
+changements. C'est important. » Le défaut ne pouvait que s'aggraver avec le panneau de rythme volant,
+qui reste ouvert pendant qu'on travaille la grille.
+
+Un **journal chronologique** note, dans l'ordre, à laquelle des trois piles chaque action est allée.
+Annuler dépile le journal et va chercher dans la pile qu'il désigne : une seule ligne du temps, sans
+avoir à fusionner trois formats d'instantanés incompatibles.
+
+**Une exception gardée à dessein** : la fenêtre Fichiers est MODALE. Sans garde, l'ouvrir puis appuyer
+sur Ctrl+Z sans rien y avoir fait annulerait la dernière retouche d'accord *derrière* elle, donc
+invisible. Le panneau de rythme, lui, n'est pas modal — c'est toute la différence.
+
+### Le défaut classique de ce code, une fois de plus
+
+Le raccourci clavier n'appelait pas `globalUndo()` : il **recopiait** la règle de routage en ligne. La
+modification n'a donc touché que les BOUTONS de la barre du haut, le clavier continuant d'appliquer
+l'ancienne règle. Exactement la dérive « deux listes jumelles » déjà corrigée douze fois pour la sortie
+d'édition (voir `ZONE_EDITION_SELECTEURS`). Le banc l'a montré immédiatement — Ctrl+Z ne faisait plus
+*rien du tout*, le séquenceur ouvert le détournant vers une pile vidée entre-temps. Une règle, un
+endroit : le clavier et les boutons passent désormais tous deux par `globalUndo`/`globalRedo`.
+
+### Trois exigences fausses, dans mon propre banc
+
+Écrites avant d'avoir lu ce que le code garantissait vraiment. Corrigées en le lisant, pas en forçant
+le code à leur obéir :
+
+1. « Le Ctrl+Z suivant remonte au motif du séquenceur. » **Faux** : les sept réglages qui changent la
+   FORME de l'accord appellent `clearSeqHistory()` — « l'historique portait sur une autre forme
+   d'accord ». Un motif dessiné sur un accord de quatre notes n'a plus de sens sur trois. La
+   vérification éprouve désormais que ce vidage a bien lieu, et que Ctrl+Z ne reste pas coincé dessus.
+2. « Ctrl+Z ne touche pas au motif du séquenceur. » **Faux** : l'instantané de la grille photographie
+   tout le morceau, motif compris, et `commitLiveEdit` n'en prend qu'un seul par session d'édition —
+   voulu, et déjà éprouvé ailleurs (« un seul Ctrl+Z annule toute la session d'édition »).
+3. Une vérification de rétablissement qui repartait de l'état laissé par la famille précédente : un
+   « rien n'a changé » y passait pour un rétablissement réussi. Elle part maintenant d'une session
+   neuve et d'une valeur franche.

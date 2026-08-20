@@ -3213,6 +3213,21 @@ class HarmoHubApp {
         this.filesUndoStack = [];
         this.filesRedoStack = [];
 
+        // JOURNAL CHRONOLOGIQUE DES ACTIONS — « la dernière action gagne ».
+        // Trois piles séparées, mais UN SEUL Ctrl+Z pour l'utilisateur : il fallait donc décider
+        // laquelle il vise. Jusqu'ici c'était la FENÊTRE OUVERTE qui décidait (voir globalUndo) —
+        // séquenceur ouvert, Ctrl+Z allait au séquenceur, même si la dernière chose faite était de
+        // changer le renversement de l'accord. D'où le signalement : « mon CTRL+Z ne garde pas
+        // toujours en mémoire TOUS mes changements ». Le défaut ne pouvait que s'aggraver avec le
+        // panneau de rythme volant, qui reste ouvert pendant qu'on travaille la grille — et
+        // l'utilisateur a tranché : « le rythme ouvert ne doit pas détourner le ctrl+Z ».
+        // Ce journal ne remplace pas les piles : il note seulement, dans l'ordre, à LAQUELLE chaque
+        // action est allée. Annuler dépile le journal et va chercher dans la pile qu'il désigne, ce
+        // qui reconstitue une seule ligne du temps sans avoir à fusionner trois formats d'instantanés
+        // incompatibles (des sections, une chaîne de motif, un couple dossiers/morceaux).
+        this._journalUndo = [];
+        this._journalRedo = [];
+
         // Débloque l'AudioContext au tout PREMIER geste tactile où qu'il tombe sur la page, pas
         // seulement sur un contrôle qui appelle lui-même Tone.start() (Lecture, un accord...) : Safari
         // iOS n'autorise la création/reprise de l'AudioContext que si elle survient DANS la pile d'appel
@@ -9019,8 +9034,10 @@ class HarmoHubApp {
     // action (créer/renommer/supprimer un dossier, renommer/supprimer/déplacer un morceau).
     pushFilesUndo() {
         this.filesUndoStack.push(JSON.stringify({ folders: loadFolders(), songs: loadSongs() }));
-        if (this.filesUndoStack.length > this.undoLimit) this.filesUndoStack.shift();
+        const deborde = this.filesUndoStack.length > this.undoLimit;
+        if (deborde) this.filesUndoStack.shift();
         this.filesRedoStack = [];
+        this.noterAction('fichiers', deborde);
         this.updateGlobalUndoRedoButtons();
     }
 
@@ -15922,10 +15939,27 @@ class HarmoHubApp {
         this.updateGlobalUndoRedoButtons();
     }
 
+    // Note une action dans le journal chronologique (voir _journalUndo). `debordement` dit si la pile
+    // visée vient de perdre son entrée la plus ancienne (plafond des 50) : il faut alors retirer du
+    // journal la plus ancienne entrée DE CETTE PILE, sinon le journal désignerait un instantané qui
+    // n'existe plus et Ctrl+Z tomberait dans le vide.
+    noterAction(pile, debordement) {
+        if (debordement) {
+            const i = this._journalUndo.indexOf(pile);
+            if (i >= 0) this._journalUndo.splice(i, 1);
+        }
+        this._journalUndo.push(pile);
+        // Une nouvelle action rend tout « rétablir » caduc — exactement comme chaque pile vide déjà
+        // son propre redoStack.
+        this._journalRedo = [];
+    }
+
     pushUndo(sections) {
         this.undoStack.push(JSON.stringify(this.captureGlobalSnapshot(sections)));
-        if (this.undoStack.length > this.undoLimit) this.undoStack.shift();
+        const deborde = this.undoStack.length > this.undoLimit;
+        if (deborde) this.undoStack.shift();
         this.redoStack = [];
+        this.noterAction('grille', deborde);
         this.updateGlobalUndoRedoButtons();
     }
 
@@ -16034,16 +16068,60 @@ class HarmoHubApp {
     // fichiers) plutôt qu'une paire dupliquée dans chaque carte — bascule sur le bon exactement comme
     // Ctrl+Z/Ctrl+Y (voir setupKeyboardShortcuts) : fenêtre Fichiers ouverte > séquenceur ouvert >
     // grille par défaut.
+    // « LA DERNIÈRE ACTION GAGNE » (voir _journalUndo). On dépile le journal chronologique et on va
+    // chercher dans la pile qu'il désigne — plus dans celle que la fenêtre ouverte imposait.
+    //
+    // UNE SEULE EXCEPTION, GARDÉE À DESSEIN : la fenêtre Fichiers. C'est une fenêtre MODALE qui
+    // couvre l'écran ; tant qu'elle est ouverte, on ne peut agir que sur des fichiers. Sans cette
+    // garde, l'ouvrir puis appuyer sur Ctrl+Z sans rien y avoir fait annulerait la dernière retouche
+    // d'accord — DERRIÈRE la fenêtre, donc invisible. Le panneau de rythme, lui, n'est pas modal : on
+    // travaille la grille pendant qu'il est ouvert, et c'est précisément pour ça qu'il ne doit rien
+    // détourner (« le rythme ouvert ne doit pas détourner le ctrl+Z et la barre espace »).
+    pileVisee(journal) {
+        if (this.filesOpen) return 'fichiers';
+        return journal.length ? journal[journal.length - 1] : null;
+    }
+
     globalUndo() {
-        if (this.filesOpen) this.filesUndo();
-        else if (this.seqOpen) this.seqUndo();
-        else this.undo();
+        const pile = this.pileVisee(this._journalUndo);
+        // Journal vide (ou historique purgé) : on retombe sur l'ancienne règle plutôt que de ne rien
+        // faire — un chemin d'action qui oublierait de se journaliser resterait ainsi annulable.
+        if (pile === null) { if (this.seqOpen) this.seqUndo(); else this.undo(); return; }
+        // On ne retire du journal que ce qui vient VRAIMENT d'être annulé : chaque undo peut refuser
+        // (pile vide), et le journal doit rester d'accord avec les piles.
+        const i = this._journalUndo.lastIndexOf(pile);
+        if (pile === 'fichiers') {
+            if (this.filesUndoStack.length === 0) { this.filesUndo(); return; } // affiche le bon message
+            this.filesUndo();
+        } else if (pile === 'sequenceur') {
+            if (this.seqUndoStack.length === 0) { this.seqUndo(); return; }
+            this.seqUndo();
+        } else {
+            if (this.undoStack.length === 0) { this.undo(); return; }
+            this.undo();
+        }
+        if (i >= 0) this._journalUndo.splice(i, 1);
+        this._journalRedo.push(pile);
+        this.updateGlobalUndoRedoButtons();
     }
 
     globalRedo() {
-        if (this.filesOpen) this.filesRedo();
-        else if (this.seqOpen) this.seqRedo();
-        else this.redo();
+        const pile = this.pileVisee(this._journalRedo);
+        if (pile === null) { if (this.seqOpen) this.seqRedo(); else this.redo(); return; }
+        const i = this._journalRedo.lastIndexOf(pile);
+        if (pile === 'fichiers') {
+            if (this.filesRedoStack.length === 0) { this.filesRedo(); return; }
+            this.filesRedo();
+        } else if (pile === 'sequenceur') {
+            if (this.seqRedoStack.length === 0) { this.seqRedo(); return; }
+            this.seqRedo();
+        } else {
+            if (this.redoStack.length === 0) { this.redo(); return; }
+            this.redo();
+        }
+        if (i >= 0) this._journalRedo.splice(i, 1);
+        this._journalUndo.push(pile);
+        this.updateGlobalUndoRedoButtons();
     }
 
     // Reflète l'historique du contexte actuellement actif (voir globalUndo ci-dessus) sur le bouton
@@ -16054,12 +16132,20 @@ class HarmoHubApp {
         const undoBtn = document.getElementById('global-undo-btn');
         const redoBtn = document.getElementById('global-redo-btn');
         if (!undoBtn || !redoBtn) return;
-        let undoStack, redoStack;
-        if (this.filesOpen) { undoStack = this.filesUndoStack; redoStack = this.filesRedoStack; }
-        else if (this.seqOpen) { undoStack = this.seqUndoStack; redoStack = this.seqRedoStack; }
-        else { undoStack = this.undoStack; redoStack = this.redoStack; }
-        undoBtn.disabled = undoStack.length === 0;
-        redoBtn.disabled = redoStack.length === 0;
+        // Le bouton reflète la MÊME décision que le raccourci (voir globalUndo/pileVisee) : les deux
+        // doivent viser la même pile, sinon le bouton s'active pendant que Ctrl+Z ne fait rien, ou
+        // l'inverse.
+        const parPile = (nom, u) => nom === 'fichiers' ? (u ? this.filesUndoStack : this.filesRedoStack)
+            : nom === 'sequenceur' ? (u ? this.seqUndoStack : this.seqRedoStack)
+            : (u ? this.undoStack : this.redoStack);
+        const pileU = this.pileVisee(this._journalUndo);
+        const pileR = this.pileVisee(this._journalRedo);
+        undoBtn.disabled = pileU === null
+            ? (this.seqOpen ? this.seqUndoStack : this.undoStack).length === 0
+            : parPile(pileU, true).length === 0;
+        redoBtn.disabled = pileR === null
+            ? (this.seqOpen ? this.seqRedoStack : this.redoStack).length === 0
+            : parPile(pileR, false).length === 0;
     }
 
     // Vide l'historique annuler/rétablir (appelé lors d'un changement de morceau : undo/redo
@@ -16067,6 +16153,11 @@ class HarmoHubApp {
     clearHistory() {
         this.undoStack = [];
         this.redoStack = [];
+        // Le journal chronologique doit oublier ces actions en même temps que la pile : sans ça, il
+        // continuerait de désigner « grille » pour des instantanés qui n'existent plus, et Ctrl+Z
+        // tomberait dans le vide en affichant « Rien à annuler » sur la mauvaise pile.
+        this._journalUndo = this._journalUndo.filter(p => p !== 'grille');
+        this._journalRedo = this._journalRedo.filter(p => p !== 'grille');
         this.updateGlobalUndoRedoButtons();
     }
 
@@ -16115,8 +16206,10 @@ class HarmoHubApp {
 
     pushSeqUndo() {
         this.seqUndoStack.push(this.instantaneSeq());
-        if (this.seqUndoStack.length > this.undoLimit) this.seqUndoStack.shift();
+        const deborde = this.seqUndoStack.length > this.undoLimit;
+        if (deborde) this.seqUndoStack.shift();
         this.seqRedoStack = [];
+        this.noterAction('sequenceur', deborde);
         this.updateGlobalUndoRedoButtons();
     }
 
@@ -16152,6 +16245,9 @@ class HarmoHubApp {
     clearSeqHistory() {
         this.seqUndoStack = [];
         this.seqRedoStack = [];
+        // Même raison que dans clearHistory : le journal ne doit pas survivre aux instantanés.
+        this._journalUndo = this._journalUndo.filter(p => p !== 'sequenceur');
+        this._journalRedo = this._journalRedo.filter(p => p !== 'sequenceur');
         this.updateGlobalUndoRedoButtons();
     }
 
@@ -16247,20 +16343,22 @@ class HarmoHubApp {
                 return;
             }
             // Annuler / Rétablir : Ctrl/Cmd+Z (annuler), Ctrl/Cmd+Y ou Ctrl/Cmd+Shift+Z (rétablir).
-            // Trois historiques distincts, chacun actif seulement dans son propre contexte visible :
-            // fenêtre Fichiers ouverte > séquenceur ouvert > grille d'accords par défaut.
+            // UN SEUL POINT DE DÉCISION, globalUndo/globalRedo — les mêmes que les boutons de la barre
+            // du haut. Ce bloc RECOPIAIT auparavant la règle de routage (« fenêtre Fichiers > séquenceur
+            // ouvert > grille »), et cette copie a dérivé exactement comme les deux listes de sortie
+            // d'édition avant elle : en faisant passer le routage à « la dernière action gagne », j'ai
+            // modifié globalUndo... et seuls les BOUTONS en ont profité, le clavier continuant
+            // d'appliquer l'ancienne règle. Le banc l'a montré tout de suite (Ctrl+Z ne faisait plus
+            // rien du tout, le séquenceur ouvert le détournant vers une pile vidée entre-temps).
+            // Une règle, un endroit.
             if (mod && !bloqueAnnulation && (e.key === 'z' || e.key === 'Z')) {
                 e.preventDefault();
-                if (this.filesOpen) { if (e.shiftKey) this.filesRedo(); else this.filesUndo(); }
-                else if (this.seqOpen) { if (e.shiftKey) this.seqRedo(); else this.seqUndo(); }
-                else { if (e.shiftKey) this.redo(); else this.undo(); }
+                if (e.shiftKey) this.globalRedo(); else this.globalUndo();
                 return;
             }
             if (mod && !bloqueAnnulation && (e.key === 'y' || e.key === 'Y')) {
                 e.preventDefault();
-                if (this.filesOpen) this.filesRedo();
-                else if (this.seqOpen) this.seqRedo();
-                else this.redo();
+                this.globalRedo();
                 return;
             }
             // Ctrl/Cmd+S : enregistre réellement le morceau (voir saveCurrentSong) — au lieu du
