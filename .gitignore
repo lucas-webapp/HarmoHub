@@ -28,7 +28,3 @@ sample_*.json
 #     (`const TMP = 'fixtures'`) — ce sont des entrées ÉCRITES par le banc, pas des fixtures versionnées.
 /exported_test.pdf
 /fixtures/
-
-# Artefacts produits par les bancs Paroles (export JSON du morceau vers paroles.html).
-# Ils sont recréés à chaque exécution et n'ont rien à faire dans l'historique.
-sample_*.json
