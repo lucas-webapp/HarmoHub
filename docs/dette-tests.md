@@ -1232,3 +1232,73 @@ Les sept autres rouges du balayage sont **exactement** la ligne de base d'avant 
 (`probe_clic_accord_voisin` 4/8, `probe_defilement_tactile` 23/24, `probe_regle_voisins` 28/29,
 `probe_seq_finitions` 18/19, `real_click_loupe_selection` 3/4, `seq_notes_libres_clavier` 32/33,
 `seq_selection_et_cadre_diagrammes` 21/22), inchangés.
+
+---
+
+## La carte Lecture prend la forme de la carte Accord
+
+Retour utilisateur : « Le panneau lecture n'est pas harmonieux non plus, mets en place le même
+principe de menu que pour accord au dessus. Tu peux définir 5 niveaux d'intensité au lieu de la barre
+si tu veux gagner de la place. »
+
+**Mesuré avant** : la carte empilait trois rangées de formes différentes — deux gros boutons de poids
+inégaux (`.select-group`), puis une barre de réglage avec son étiquette **à gauche** et son nombre à
+droite (`.intensity-row`). Aucune ne suivait la mise en page de la carte au-dessus : étiquettes
+minuscules **au-dessus**, commandes compactes sur **une** rangée.
+
+| | avant | après |
+|---|---|---|
+| Ordinateur | 160px | **124px** |
+| Téléphone | 182px | **130px** |
+
+### Les mêmes classes, pas une imitation
+
+La rangée Lecture **est** une `.voicing-row`, ses groupes des `.voicing-group`, ses étiquettes des
+`.voicing-label`, l'intensité une `.voicing-seg`. « Le même principe » ne tient que s'il n'y a qu'un
+seul principe : retoucher l'un retouche l'autre, et les deux cartes ne peuvent plus diverger sans
+qu'on le voie. Le banc le vérifie explicitement — si un jour quelqu'un recopie l'aspect au lieu de
+réutiliser les classes, il rougit.
+
+### Cinq niveaux, et pourquoi ils ne sont pas régulièrement espacés
+
+35 / 55 / **75** / 90 / 100. `computeVelocity` multiplie par `percent / DEFAULT_INTENSITY` puis
+**plafonne à 1** : au-dessus de 75 la marge utile se resserre (un accord tenu est déjà à fond), en
+dessous elle s'étale. D'où des pas de 20/20 sous la normale et de 15/10 au-dessus.
+
+**75 est conservé à l'identique** comme niveau central. C'est la valeur par défaut de tous les accords
+existants et la référence du calcul de vélocité : la déplacer aurait changé le son de morceaux déjà
+écrits.
+
+### Une valeur héritée n'est ni réécrite, ni affichée comme exacte
+
+Un morceau enregistré avant ce changement peut porter n'importe quelle valeur (60, 85…). Deux
+tentations, toutes deux malhonnêtes : la réécrire en silence à l'ouverture de l'accord — ce qui
+modifierait son son sans que personne ne l'ait demandé — ou allumer le niveau le plus proche comme
+s'il était exact. On fait ni l'un ni l'autre : le plus proche s'allume **en pointillé** (`.approx`),
+le nombre exact reste lisible dans l'étiquette, et la donnée n'est écrite qu'**au clic**.
+
+### Le mode studio a trouvé sa place
+
+Il était l'un de trois pictogrammes sans rapport entre eux dans l'en-tête, où rien ne disait à quoi il
+se rapportait. Il est maintenant la **dernière case de la bande d'intensité** : c'est le réglage fin
+(une intensité par croche) de ce que les cinq niveaux règlent grossièrement. Sa place est au bout de
+cette échelle-là.
+
+### Deux mesures qui ont corrigé le premier jet
+
+1. **La bande d'intensité débordait de son groupe de 9 à 17px** selon l'écran. Je lui avais donné un
+   poids flex comme aux deux autres groupes ; or ses six cases ont une largeur plancher et refusent de
+   descendre en dessous — c'est le cadre qui cédait. Elle prend désormais sa largeur naturelle
+   (`flex: 0 0 auto`), et le reste de la rangée se partage ce qui reste.
+2. **« 1 mes. » était tronqué** de 7px sur ordinateur et 14px sur un écran de 360px. Deux pixels
+   étaient vraiment redondants dans cette rangée : le chevron (il redit ce que le cadre dit déjà — une
+   case qui s'ouvre) et l'icône de durée (elle redit ce que « 1 mes. » écrit juste à côté). Retirés de
+   la rangée, gardés dans les menus ouverts. L'icône du **style de jeu** reste, elle : elle dessine le
+   rythme, ce que le mot ne fait pas.
+
+### Un banc adapté, aucun supprimé
+
+`filet_sequenceur_et_sortie_test` cliquait `#intensity` pour vérifier qu'utiliser une commande ne fait
+pas sortir du mode Modification. Son commentaire annonçait lui-même la suite : « quand les autres
+remonteront à la surface, elles rejoindront cette liste. » Elles y sont — la liste éprouve maintenant
+un menu, des segments, un pas-à-pas et un bouton, soit une commande de chaque famille.

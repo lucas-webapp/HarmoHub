@@ -175,14 +175,19 @@ const boiteDe = (sel) => {
     // commandes de familles différentes (menu déroulant, curseur, bouton) : la liste des sélecteurs
     // les attrape aujourd'hui par des règles distinctes ('select', 'input', 'button'), et la refonte
     // ne remplacera pas les trois par la même chose.
-    // Ce ne sont PAS les commandes de voicing (renversement, drop, octave, basse) : mesuré en
-    // sondant la page, elles vivent aujourd'hui dans un bloc replié #advanced-fields, et la durée
-    // comme le style de jeu sont même en display:none en mode Modification. Seuls l'instrument et
-    // l'intensité s'offrent directement — ce qui EST le défaut que la refonte doit corriger (« je
+    // LA LISTE A GRANDI, COMME ANNONCÉ. Ce commentaire disait, avant la refonte : « Seuls l'instrument
+    // et l'intensité s'offrent directement — ce qui EST le défaut que la refonte doit corriger (« je
     // veux pouvoir rapidement changer une octave, un renversement etc... Sans avoir à ouvrir trop de
     // menus »). Ce banc éprouve donc les commandes réellement à l'écran aujourd'hui ; quand les
-    // autres remonteront à la surface, elles rejoindront cette liste.
-    for (const [sel, nom] of [['#instrument', "le menu d'instrument"], ['#intensity', "le curseur d'intensité"], ['#toggle-sequencer', 'le bouton du séquenceur']]) {
+    // autres remonteront à la surface, elles rejoindront cette liste. » Elles y sont : renversement,
+    // drop et octave n'ont plus de bloc à déplier, et l'intensité est passée d'un curseur à cinq
+    // niveaux (le curseur #intensity reste dans le DOM, mais masqué — on ne peut plus le cliquer).
+    // On garde une commande de chaque famille : un menu, des segments, un pas-à-pas, un bouton.
+    for (const [sel, nom] of [['#instrument', "le menu d'instrument"],
+                              ['#intensity-seg .voicing-segment', "un niveau d'intensité"],
+                              ['#inversion-seg .voicing-segment', 'un segment de renversement'],
+                              ['[data-octave-step="1"]', "le pas-à-pas d'octave"],
+                              ['#toggle-sequencer', 'le bouton du séquenceur']]) {
         const b = await page.evaluate(boiteDe, sel);
         if (!b) { check(false, `${nom} : commande introuvable à l'écran (${sel})`); continue; }
         await page.mouse.click(b.x, b.y);

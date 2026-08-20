@@ -824,6 +824,23 @@ function grooveStepOffset(step, unitDur, ratio) {
 // multiplicateur ci-dessous vaut 1 pile à 75%, jamais une coïncidence.
 const DEFAULT_INTENSITY = 75;
 
+// CINQ NIVEAUX D'INTENSITÉ, à la place de la barre de 21 crans (0 à 100 par pas de 5). Retour
+// utilisateur : « Tu peux définir 5 niveaux d'intensité au lieu de la barre si tu veux gagner de la
+// place. » Personne ne règle 65 plutôt que 70 à l'oreille ; cinq crans nommés, oui.
+//
+// LES VALEURS NE SONT PAS RÉGULIÈREMENT ESPACÉES, et c'est voulu. computeVelocity multiplie par
+// `percent / DEFAULT_INTENSITY` puis PLAFONNE à 1 : au-dessus de 75 la marge utile se resserre (un
+// accord tenu est déjà à fond), en dessous elle s'étale. D'où des pas de 20/20 sous la normale et de
+// 15/10 au-dessus. 75 est conservé À L'IDENTIQUE comme niveau central : c'est la valeur par défaut de
+// tous les accords existants, la déplacer aurait changé le son de morceaux déjà écrits.
+const NIVEAUX_INTENSITE = [
+    { valeur: 35,  nom: 'Très doux' },
+    { valeur: 55,  nom: 'Doux' },
+    { valeur: DEFAULT_INTENSITY, nom: 'Normal' },
+    { valeur: 90,  nom: 'Fort' },
+    { valeur: 100, nom: 'Très fort' },
+];
+
 // Vélocité (0-1) d'une note du séquenceur : reprend l'aléa automatique existant (tenue/temps/
 // contretemps, voir schedulePlayback/buildMidiFile/renderProgressionBuffer) comme base, PUIS applique
 // l'intensité choisie par l'utilisateur comme un multiplicateur PAR-DESSUS plutôt qu'un remplacement
@@ -3569,8 +3586,10 @@ class HarmoHubApp {
         // si le mode studio est ouvert, dont les barres héritent de cette valeur globale pour les
         // croches sans réglage propre (voir la rangée de vélocité plus bas dans renderSequencer).
         document.getElementById('intensity').oninput = (e) => {
-            const val = document.getElementById('intensity-val');
-            if (val) val.textContent = e.target.value;
+            // Le nombre affiché ET les cinq niveaux se remettent d'aplomb ici : c'est le point de
+            // passage de TOUS les chemins qui changent l'intensité (les boutons, la sélection
+            // multiple, une valeur posée par le code). En le faisant ici, aucun appelant n'a à y penser.
+            this.syncCommandesIntensite();
             // Plusieurs accords sélectionnés (Ctrl/Cmd+clic, voir toggleGridMultiSelect) : la barre
             // règle alors l'intensité de TOUT le groupe d'un coup plutôt que du seul accord en édition
             // (retour utilisateur) — chemin dédié, la case en édition n'ayant pas forcément de lien
@@ -4365,6 +4384,78 @@ class HarmoHubApp {
                 this.appliquerReglageVoicing('octave', String(vise));
             };
         });
+
+        this.construireCommandesIntensite();
+    }
+
+    // ---------- Les cinq niveaux d'intensité (carte Lecture) ----------
+    // Retour utilisateur : « Le panneau lecture n'est pas harmonieux non plus, mets en place le même
+    // principe de menu que pour accord au dessus. »
+    //
+    // MÊME MÉCANIQUE, AU MOT PRÈS, que les segments de renversement/drop : on écrit dans le champ
+    // d'origine (#intensity, resté dans le DOM en `hidden`) et on émet son évènement. Tout ce qui
+    // suit — application en direct, sélection multiple d'accords, mode studio, instantané Ctrl+Z —
+    // est le code qui existait déjà et qui n'a pas à savoir que la barre est devenue cinq boutons.
+    //
+    // Les boutons sont INSÉRÉS AVANT le bouton mode studio, qui ferme la rangée dans le HTML : c'est
+    // le réglage fin de la même chose (une intensité par croche), sa place est au bout de cette
+    // échelle-là. D'où insertBefore plutôt qu'un innerHTML qui l'effacerait.
+    construireCommandesIntensite() {
+        const seg = document.getElementById('intensity-seg');
+        if (!seg) return;
+        seg.querySelectorAll('.voicing-segment').forEach(b => b.remove());
+        const studio = document.getElementById('toggle-studio-mode');
+        NIVEAUX_INTENSITE.forEach((niveau, i) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'voicing-segment';
+            b.dataset.chordParam = 'intensity';   // voir le raccourci Entrée (CHORD_PARAM_IDS)
+            b.dataset.valeur = String(niveau.valeur);
+            // Le rang (1 à 5) sur le bouton, le nom et le pourcentage en infobulle : cinq chiffres se
+            // lisent comme une échelle, cinq mots comme une liste. Même arbitrage que « 1/2/3 » pour
+            // les renversements, dont le libellé long vit aussi dans l'infobulle.
+            b.textContent = String(i + 1);
+            b.title = `${niveau.nom} (${niveau.valeur} %)`;
+            b.setAttribute('aria-label', b.title);
+            b.onclick = () => this.appliquerIntensite(niveau.valeur);
+            seg.insertBefore(b, studio || null);
+        });
+    }
+
+    appliquerIntensite(valeur) {
+        const champ = document.getElementById('intensity');
+        if (!champ || +champ.value === +valeur) return; // rien à faire, et pas d'entrée d'annulation pour rien
+        champ.value = String(valeur);
+        // 'input' et non 'change' : c'est l'évènement que la barre émettait en glissant, donc celui
+        // que le reste de l'appli écoute (voir le oninput de #intensity).
+        champ.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // Reflète la valeur courante sur les cinq niveaux. Une valeur enregistrée AVANT ce changement peut
+    // ne correspondre à aucun niveau (62, 85...) : on allume alors le plus proche, sans jamais
+    // réécrire la donnée — le nombre exact reste lisible dans l'étiquette, à côté du mot « Intensité ».
+    // Réécrire en silence aurait modifié le son de morceaux déjà écrits à la simple ouverture.
+    syncCommandesIntensite() {
+        const champ = document.getElementById('intensity');
+        const seg = document.getElementById('intensity-seg');
+        if (!champ || !seg) return;
+        const courant = +champ.value;
+        const affichage = document.getElementById('intensity-val');
+        if (affichage) affichage.textContent = String(courant);
+        let plusProche = null, ecart = Infinity;
+        for (const n of NIVEAUX_INTENSITE) {
+            const d = Math.abs(n.valeur - courant);
+            if (d < ecart) { ecart = d; plusProche = n.valeur; }
+        }
+        for (const b of seg.querySelectorAll('.voicing-segment')) {
+            const actif = +b.dataset.valeur === plusProche;
+            b.classList.toggle('active', actif);
+            // « À peu près » plutôt que « exactement » : une valeur héritée qui ne tombe sur aucun
+            // niveau allume le plus proche, mais en pointillé — sinon la commande affirmerait une
+            // valeur que l'accord n'a pas.
+            b.classList.toggle('approx', actif && ecart !== 0);
+            b.setAttribute('aria-pressed', String(actif));
+        }
     }
 
     // Un seul chemin d'écriture pour les trois commandes : on pose la valeur dans le <select>
@@ -4415,6 +4506,10 @@ class HarmoHubApp {
             const vise = (+octave.value || this._octaveMin) + (+btn.dataset.octaveStep);
             btn.disabled = vise < this._octaveMin || vise > this._octaveMax;
         });
+
+        // L'intensité suit le même point de passage commun (refreshPreview) que le reste de la rangée
+        // voicing : une seule adresse à ne pas oublier plutôt qu'un appel à semer partout.
+        this.syncCommandesIntensite();
     }
 
     refreshPreview() {

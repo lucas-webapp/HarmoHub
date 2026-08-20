@@ -1688,6 +1688,99 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
 }
 
 /* ============================================================
+   LA CARTE LECTURE, MÊME PRINCIPE QUE LA CARTE ACCORD
+   ============================================================
+   RETOUR UTILISATEUR : « Le panneau lecture n'est pas harmonieux non plus, mets en place le même
+   principe de menu que pour accord au dessus. Tu peux définir 5 niveaux d'intensité au lieu de la
+   barre si tu veux gagner de la place. »
+
+   Ce bloc ne redéfinit presque rien : la rangée EST une .voicing-row, ses groupes des .voicing-group,
+   ses étiquettes des .voicing-label, l'intensité une .voicing-seg. Il ne reste ici que ce qui est
+   propre à cette carte — la répartition des largeurs, et la mise à l'échelle des deux menus à icônes
+   qui étaient dessinés pour une rangée de 44px et vivent maintenant dans une bande de 30px.
+
+   POIDS DES TROIS GROUPES : 3 pour le jeu (icône + un mot + chevron, le plus gourmand), 2 pour la
+   durée (icône + « 2 mes. »), 4 pour l'intensité (cinq niveaux + la case du mode studio). Mesuré à
+   321px de large : 103 / 69 / 137px, soit des cases d'intensité de ~22px — au-dessus du plancher
+   tactile de 20px que les écrans les plus étroits imposent déjà à la rangée du dessus. */
+/* L'INTENSITÉ NE S'ÉTIRE NI NE SE SERRE : six cases de largeur fixe (cinq niveaux + le mode studio),
+   sa largeur est la somme, point. Lui donner un poids comme aux deux autres la faisait déborder de
+   son groupe de 9 à 17px selon l'écran (mesuré) — les cases refusaient de descendre sous leur
+   plancher tactile, et c'est le cadre qui cédait. Le reste de la rangée se partage ce qui reste. */
+.voicing-group-intensite { flex: 0 0 auto; }
+.voicing-group-jeu { flex: 3 1 0; }
+.voicing-group-duree { flex: 2 1 0; }
+
+
+/* Les deux menus à icônes prennent le cadre des cases de voicing : même hauteur, même bordure, même
+   fond, mêmes coins. Sans ça, la rangée aurait aligné trois habillages différents côte à côte — ce
+   qu'on cherche justement à corriger. Leur propre dégradé et leur ombre portée sont neutralisés. */
+.lecture-row .playstyle-dd,
+.lecture-row .duration-dd { align-self: auto; }
+.lecture-row .playstyle-dd-toggle,
+.lecture-row .duration-dd-toggle {
+    height: 30px;
+    flex-direction: row;     /* la durée empilait icône AU-DESSUS du libellé : impossible en 30px */
+    justify-content: flex-start;
+    gap: 5px;
+    padding: 0 6px;
+    background: #16191e;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    box-shadow: none;
+    font-size: 12px;
+    font-weight: 700;
+    min-width: 0;
+}
+.lecture-row .playstyle-dd-toggle:hover,
+.lecture-row .duration-dd-toggle:hover { background: rgba(255, 255, 255, 0.06); border-color: #454b54; }
+.lecture-row .playstyle-dd-icon { width: 20px; height: 14px; }
+/* CHEVRON ET ICÔNE DE DURÉE RETIRÉS DE CETTE RANGÉE (ils restent dans les menus ouverts). Ce sont
+   les deux seuls pixels vraiment redondants ici : le chevron redit ce que le cadre dit déjà — une
+   case qui s'ouvre — et l'icône de durée redit ce que « 1 mes. » écrit juste à côté. Mesuré : sans
+   eux, « 1 mes. » cesse d'être tronqué (il l'était de 7px sur ordinateur, 14px sur un écran de
+   360px). L'icône du STYLE DE JEU reste, elle : elle dessine le rythme, ce que le mot ne fait pas. */
+.lecture-row .playstyle-dd-chevron,
+.lecture-row .duration-dd-icon { display: none; }
+/* Les deux libellés se comportent comme le menu de basse de la rangée du dessus : ils prennent la
+   place restante et se coupent proprement plutôt que de pousser la case hors du groupe. */
+.lecture-row .duration-dd-label,
+.lecture-row .playstyle-dd-label {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--text-main);
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* La valeur exacte, dans l'étiquette. Un morceau écrit avant les cinq niveaux peut porter n'importe
+   quelle valeur (62, 85...) : le niveau le plus proche s'allume, mais le nombre reste lisible — et
+   la donnée n'est jamais réécrite en silence à la simple ouverture de l'accord. */
+.voicing-label-val { color: var(--text-main); font-variant-numeric: tabular-nums; }
+/* Allumé « à peu près » : la valeur de l'accord ne tombe sur aucun des cinq niveaux, on désigne le
+   plus proche sans affirmer qu'il est exact. Le liseré passe en pointillé, seul signal qui distingue
+   les deux cas sans ajouter de texte. */
+.voicing-segment.active.approx {
+    box-shadow: none;
+    border-bottom: 2px dashed var(--sujet, var(--accent));
+}
+
+/* TÉLÉPHONES TRÈS ÉTROITS (320px, iPhone SE de 1re génération). La bande d'intensité y prend 126 de
+   les 233px disponibles — six cases à leur plancher tactile, incompressibles — et il ne reste que
+   107px pour le style de jeu ET la durée. Mesuré : « 4 mes. » y était coupé en « 4 … ».
+   Deux ajustements, uniquement là : les deux groupes se partagent la place à parts ÉGALES (au lieu de
+   3 contre 2, ce qui affamait la durée), et l'icône de rythme s'efface. C'est elle qu'on sacrifie et
+   pas le texte : « 4 mes. » se lit, un pictogramme de croche large de 20px sur un écran de 320px, non.
+   Le menu ouvert, lui, garde ses icônes — c'est là qu'on choisit. */
+@media (max-width: 340px) {
+    .lecture-row .playstyle-dd-icon { display: none; }
+    .voicing-group-jeu, .voicing-group-duree { flex: 1 1 0; }
+}
+
+/* ============================================================
    L'INSPECTEUR DIT DE QUOI IL PARLE — Lot 3 de la refonte
    ============================================================
    RETOUR UTILISATEUR : « Pas assez de différences pour l'ajout et la modification, je confonds les
@@ -1906,40 +1999,30 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
 .icon-btn:disabled:active { transform: none; box-shadow: 0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03); }
 
 
-.select-group {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-.select-group + .select-group { margin-top: 10px; }
+/* .select-group ET .intensity-row ONT ÉTÉ RETIRÉS. Retour utilisateur : « Le panneau lecture n'est
+   pas harmonieux non plus, mets en place le même principe de menu que pour accord au dessus. »
+   La carte Lecture empilait trois rangées de formes différentes : deux gros boutons de poids inégaux
+   (.select-group), puis une barre de réglage avec son étiquette à GAUCHE et son nombre à droite
+   (.intensity-row). Aucune ne suivait la mise en page de la carte Accord — étiquettes minuscules
+   AU-DESSUS, commandes compactes sur UNE rangée. Les deux sont désormais une seule .voicing-row
+   (voir .lecture-row plus bas) : les MÊMES classes que la rangée de voicing, pas une imitation.
+   Plus aucun élément ne portait ces deux classes : les règles n'avaient plus rien à habiller. */
 
-/* Intensité de l'accord (voir #intensity/computeVelocity dans script.js) : curseur pleine largeur,
-   valeur courante affichée à droite (même classe .val que les curseurs du panneau Paramètres), bouton
-   mode studio en bout de ligne plutôt que sur sa propre rangée — un seul réglage de plus, pas besoin
-   de plus de place que ça. */
-.intensity-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 10px;
-}
-.intensity-row label {
-    font-size: var(--fs-sm);
-    color: var(--text-muted);
-    flex: none;
-}
-.intensity-row input[type="range"] { flex: 1; min-width: 0; }
-.intensity-row .val {
-    font-size: var(--fs-sm);
-    font-variant-numeric: tabular-nums;
-    color: var(--text-muted);
-    min-width: 2.4em;
-    text-align: right;
-}
+/* Le mode studio est devenu la DERNIÈRE CASE de la rangée d'intensité, à la suite des cinq niveaux :
+   c'est le réglage fin (une intensité par croche) de ce que ces cinq boutons règlent grossièrement.
+   Dans l'en-tête, parmi trois pictogrammes sans rapport entre eux, rien ne disait à quoi il se
+   rapportait. Il prend donc l'habillage des cases (.voicing-step) plutôt que celui d'une icône
+   flottante (.icon-btn) — d'où un état actif à réécrire ici : les fonds pleins de .icon-btn.active
+   ne s'appliquent plus. Un liseré, comme .voicing-segment.active, pour rester dans la même famille. */
+/* La largeur d'un niveau, pas plus : c'en est une sixième case, pas un bouton à part. Déclarée ICI
+   et nulle part ailleurs — une seconde déclaration dans le bloc de la carte Lecture aurait fini par
+   diverger de celle-ci, c'est le défaut que ce fichier a déjà connu plusieurs fois. */
+.voicing-studio { flex: none; width: 24px; padding: 0; border-left: 1px solid var(--border); }
+.voicing-studio .icon { width: 15px; height: 15px; display: block; margin: 0 auto; }
 #toggle-studio-mode.active {
-    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-blue-1), var(--btn-blue-2) 70%);
-    color: var(--btn-text);
-    border-color: var(--btn-blue-border);
+    background: var(--sujet-fond, rgba(255, 255, 255, 0.08));
+    color: var(--sujet, var(--accent));
+    box-shadow: inset 0 -2px 0 var(--sujet, var(--accent));
 }
 
 /* Durée de l'accord : bouton fermé (icône + libellé compact) qui ouvre un petit menu déroulant
