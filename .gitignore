@@ -14,3 +14,9 @@ tests/*.png
 # n'ont pas plus leur place dans le dépôt que les captures ci-dessus — et pour la même raison :
 # un `git add -A` lancé juste après une campagne les embarquerait sans qu'on le remarque.
 sample_*.json
+
+# Captures écrites À LA RACINE par cinq bancs (glock_full_real_ui, voice_leading, beat_labels,
+# seq_mobile_numbers) : `page.screenshot({ path: 'xxx.png' })` sans dossier tombe ici. La règle
+# `tests/*.png` du dessus ne les attrapait pas — d'où celle-ci, ancrée à la racine par le `/` initial,
+# qui laisse donc intacts icons/*.png (les seules images légitimes du dépôt) et tests/*.png.
+/*.png
