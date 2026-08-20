@@ -6485,6 +6485,15 @@ class HarmoHubApp {
         const val = document.getElementById('intensity-val');
         if (val) val.textContent = DEFAULT_INTENSITY;
         this.applyAppModeTheme(); // editingIndex vient de retomber à null : le thème repasse en « ajout »
+        // Le SUJET annoncé par l'inspecteur doit retomber ici aussi. Il ne le faisait pas : cette
+        // fonction est, de son propre aveu (voir son commentaire), le seul endroit qui remet
+        // editingIndex à null — mais elle laissait le titre et la marque de sujet sur le dernier
+        // accord édité. Ça ne se voyait presque pas tant que la marque n'était qu'une couleur de
+        // texte, et les appelants les plus courants (cancelEdit, le clic ailleurs) enchaînent un
+        // loadProgression() qui rafraîchissait tout derrière eux — d'où un défaut réel mais masqué
+        // par un effet de bord. Les autres chemins (suppression d'une partie, changement de morceau,
+        // voir les appels plus bas) n'ont pas cette chance. Défaut trouvé par un banc, pas à l'œil.
+        this.updateChordSubject();
     }
 
     // Déplace le bloc Ajouter/À la suite/Annuler entre sa place normale (juste au-dessus de la carte
@@ -7272,13 +7281,21 @@ class HarmoHubApp {
         // la carte elle-même, plutôt que déduite de data-app-mode : le panneau peut annoncer « Nouvel
         // accord » alors que le mode d'interaction, lui, n'a pas encore changé.
         if (carte) carte.classList.toggle('subject-existing', existant);
+        // La MÊME marque sur le conteneur des deux cartes : c'est de là que descend la variable de
+        // couleur du sujet (voir .panel-controls dans style.css), et l'instrument comme l'intensité
+        // appartiennent au même sujet que la fondamentale et la nature. Sans ça, seule la carte
+        // Accord changeait d'état et le volet semblait parler de deux choses à la fois.
+        const volet = document.querySelector('.panel-controls');
+        if (volet) volet.classList.toggle('subject-existing', existant);
 
         if (existant) {
             const d = chords[this.editingIndex];
             // Le symbole vient de la MÊME fonction que la grille (voir chordSymbolForData) : le titre
             // et la case doivent dire exactement la même chose, y compris « à nommer » après un
             // import MIDI.
-            titre.textContent = 'Modifier · ';
+            // Plus de « · » : l'intitulé est devenu une pastille encadrée (voir #accord-title-label
+            // dans style.css), le cadre sépare déjà l'état du symbole, et le point faisait doublon.
+            titre.textContent = 'Modifier';
             titreSym.textContent = chordSymbolForData(d, this.useFlatsForRoot(d.root));
             if (goto) goto.hidden = false;
             return;

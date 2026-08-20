@@ -738,3 +738,55 @@ produit pas (la carte de l'accord y est bien plus bas).
    morceau » devient « aucun CHANGEMENT DE MODE ne les referme, mais un clic ailleurs si » — c'est le
    contrat d'un popover, et sans lui le panneau resterait posé sur la grille sans moyen évident de
    s'en défaire.
+
+---
+
+## Lot 3 : l'inspecteur dit de quoi il parle
+
+Retour utilisateur : « Pas assez de différences pour l'ajout et la modification, je confonds les
+volets et je ne sais pas en quel mode je suis. »
+
+### La mesure, avant de dessiner quoi que ce soit
+
+Comparaison champ par champ des deux états sur grand écran : ils partagent **exactement les mêmes
+commandes** — mêmes deux grands menus (fondamentale et nature, 158x38 chacun), même instrument, même
+curseur d'intensité, même bouton de séquenceur. Trois choses seulement diffèrent (la croix
+« terminer » et la loupe « montrer dans la grille » apparaissent, le bloc Ajouter/À la suite s'en va),
+et surtout : la seule différence VISUELLE était **la couleur d'une ligne de texte de 13px de haut**,
+vert contre ambre, au sommet d'une carte de 106px. La confusion signalée n'avait rien d'étonnant.
+
+Trois marqueurs coordonnés remplacent cette unique ligne — un liseré de 4px sur toute la hauteur des
+**deux** cartes, une teinte de fond, et le titre transformé en pastille encadrée. Aucun mot de plus :
+« Trop d'écriture dedans, ça ne rend pas joli ni pro » interdisait la solution facile.
+
+La marque est portée par le SUJET (classe posée par `updateChordSubject`), pas par `data-app-mode` —
+même raison que celle déjà consignée dans le code : le panneau peut annoncer « Nouvel accord » alors
+que le mode d'interaction n'a pas encore changé.
+
+### Un défaut réel, masqué par un effet de bord, trouvé par un banc
+
+`exitEditMode()` ne remettait pas à jour le sujet annoncé. C'est pourtant, de son propre aveu, le seul
+endroit qui remet `editingIndex` à null. Le défaut ne se voyait presque pas tant que la marque
+n'était qu'une couleur de texte, et les appelants les plus courants (`cancelEdit`, le clic ailleurs)
+enchaînent un `loadProgression()` qui rafraîchissait tout derrière eux. Les autres chemins
+(suppression d'une partie, changement de morceau) n'ont pas cette chance. Corrigé à la source.
+
+### La fausse bonne idée, écartée grâce au code lui-même
+
+Sur téléphone, l'inspecteur reste à **76 % hors écran** après une sélection (sommet à 637px sur un
+écran de 664px). Le réflexe est de le faire remonter à la vue — et c'est exactement ce que faisait
+l'appli, avant que ce soit **retiré sur retour utilisateur** : « ça scrolle tout de suite en bas » en
+Modification, sur téléphone, parce que la grille et l'inspecteur partagent le même flux de défilement
+et que la page filait loin des accords à chaque accord touché (voir la fin de `editChord`).
+
+Le banc `inspecteur_sujet_test` garde donc une vérification qui EXIGE que sélectionner un accord au
+doigt ne fasse pas défiler la page d'un pixel. La prochaine personne tentée de « corriger » ce 76 %
+hors écran se heurtera à un banc rouge et à cette explication, au lieu de rejouer un aller-retour déjà
+arbitré.
+
+### Cinq assertions adaptées, aucune supprimée
+
+Le séparateur « · » du titre (« Modifier · Cm7 ») a disparu : la pastille encadrée sépare désormais
+l'état du symbole mieux qu'un point ne le faisait. Les cinq vérifications qui comparaient ce texte
+collé bout à bout comparent maintenant les deux morceaux séparément — ce qui dit mieux ce qu'elles
+voulaient prouver depuis le début : un état nommé ET un sujet nommé.

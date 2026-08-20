@@ -1371,8 +1371,70 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
    Une ligne détaillée sous le titre (« Sera ajouté à la fin de Couplet · mesure 5 ») a été essayée
    puis retirée : trop de texte pour une information qu'on a déjà sous les yeux dans la grille
    (retour utilisateur). Deux ou trois mots colorés suffisent à dire de quoi parle le panneau. */
-#accord-title { color: var(--accent); }
+#accord-title { color: var(--sujet, var(--accent)); }
 #accord-card.subject-existing #accord-title { color: #ffb300; }
+
+/* ============================================================
+   L'INSPECTEUR DIT DE QUOI IL PARLE — Lot 3 de la refonte
+   ============================================================
+   RETOUR UTILISATEUR : « Pas assez de différences pour l'ajout et la modification, je confonds les
+   volets et je ne sais pas en quel mode je suis. »
+
+   MESURÉ AVANT DE DESSINER QUOI QUE CE SOIT. En comparant champ par champ les deux états sur grand
+   écran, ils partagent EXACTEMENT les mêmes commandes : mêmes deux grands menus (fondamentale,
+   nature, 158x38 chacun), même instrument, même curseur d'intensité, même bouton de séquenceur.
+   Trois choses seulement diffèrent — la croix « terminer » et la loupe « montrer dans la grille »
+   apparaissent, le bloc Ajouter/À la suite s'en va — et surtout : la SEULE différence visuelle était
+   la COULEUR D'UNE LIGNE DE TEXTE de 13px de haut, vert contre ambre. Sur une carte de 106px
+   remplie de commandes identiques, ça ne pouvait pas suffire, et la confusion signalée n'a rien
+   d'étonnant.
+
+   TROIS SIGNAUX COORDONNÉS PLUTÔT QU'UN MOT DE PLUS. L'utilisateur a aussi dit « Trop d'écriture
+   dedans, ça ne rend pas joli ni pro » : la réponse ne pouvait donc pas être une phrase
+   supplémentaire. Ce sont trois marqueurs visuels, tous portés par la même variable :
+     1. un LISERÉ de 4px sur tout le bord gauche des deux cartes — visible en vision périphérique
+        sur 106px de haut, là où un mot de 13px ne l'est pas ;
+     2. une TEINTE de fond très légère, qui fait basculer la carte entière d'un état à l'autre ;
+     3. le titre transformé en PASTILLE d'état (fond, cadre, majuscules serrées) au lieu d'un simple
+        texte coloré, pour qu'il se lise comme un marqueur et non comme un intitulé de carte.
+
+   PORTÉ PAR LE SUJET, PAS PAR LE MODE. La variable est posée sur .panel-controls par
+   updateChordSubject (voir script.js), en même temps que la classe qui existait déjà sur la carte,
+   et surtout PAS déduite de data-app-mode : le panneau peut annoncer « Nouvel accord » alors que le
+   mode d'interaction, lui, n'a pas encore changé. C'est la même raison qui avait fait choisir une
+   classe sur la carte plutôt que l'attribut du <body>, et elle vaut toujours.
+   .panel-controls est en `display: contents` sur téléphone : sans effet ici, l'héritage des
+   variables suit l'arbre du document, pas les boîtes. */
+.panel-controls {
+    --sujet: var(--accent);
+    --sujet-fond: rgba(0, 230, 118, 0.05);
+    --sujet-cadre: rgba(0, 230, 118, 0.30);
+}
+.panel-controls.subject-existing {
+    --sujet: #ffb300;
+    --sujet-fond: rgba(255, 179, 0, 0.055);
+    --sujet-cadre: rgba(255, 179, 0, 0.32);
+}
+
+/* Les DEUX cartes portent le liseré : l'instrument et l'intensité appartiennent au même sujet que la
+   fondamentale et la nature. N'en teinter qu'une aurait laissé croire à deux sujets distincts. */
+#accord-card, #lecture-card {
+    border-left: 4px solid var(--sujet);
+    background-image: linear-gradient(90deg, var(--sujet-fond), transparent 55%);
+    transition: border-left-color 0.18s ease, background-image 0.18s ease;
+}
+
+/* La pastille d'état. Seul l'INTITULÉ y entre ; le symbole de l'accord (#accord-title-sym) reste à
+   côté, en clair — on lit « [MODIFIER] Fmaj7 », l'état d'un côté, le sujet de l'autre. */
+#accord-title-label {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: var(--sujet-fond);
+    border: 1px solid var(--sujet-cadre);
+    letter-spacing: 0.04em;
+}
+#accord-title-sym { margin-left: 6px; }
 
 /* Clignotement de la case ramenée à l'écran par #accord-goto : deux battements francs, puis plus
    rien — il s'agit de dire « c'est celle-ci », pas d'installer un état de plus dans la grille. */

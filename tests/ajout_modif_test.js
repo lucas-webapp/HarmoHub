@@ -2,7 +2,11 @@
 // Remplace mode_banner_test.js et edit_cards_visibility_test.js, dont le sujet même a disparu :
 // le bandeau Ajout/Modification et l'état « mode Modification armé mais aucun accord chargé ».
 // Le nouveau contrat tient en trois points :
-//   1. le panneau NOMME son sujet (« Nouvel accord » / « Modifier · X », + où ça se situe) ;
+//   1. le panneau NOMME son sujet (« Nouvel accord » / « Modifier » + le symbole de l'accord) ;
+//      Le séparateur « · » d'autrefois a disparu : l'intitulé est devenu une PASTILLE encadrée
+//      (#accord-title-label), et son cadre sépare désormais l'état du symbole mieux qu'un point ne le
+//      faisait. Ce que ces vérifications veulent prouver reste identique — le panneau dit sur QUOI il
+//      agit — donc on compare les deux morceaux séparément plutôt que le texte collé bout à bout.
 //   2. l'ajout a ses PROPRES cibles (case « + », ajout rapide), qui reprennent la main sur le sujet ;
 //   3. appMode est DÉDUIT de editingIndex, et ce qui restait de la bascule est un réglage.
 const { chromium } = require('playwright')
@@ -103,7 +107,7 @@ const etat = (page) => page.evaluate(() => ({
     await page.mouse.dblclick(p0.x, p0.y); await page.waitForTimeout(600);
     e = await etat(page);
     check(e.ed === 0, 'le double-clic charge l\'accord');
-    check(e.titre === 'Modifier · C', `le panneau nomme l'accord qu'il pilote (${e.titre})`);
+    check(e.titre.replace(/\s+/g, '') === 'ModifierC', `le panneau nomme l'accord qu'il pilote (${e.titre})`);
     check(/rgb\(255, 179, 0\)|rgb\(255,179,0\)/.test(e.couleurTitre), `titre passé en ambre (${e.couleurTitre})`);
     check(e.sujetExistant, 'teinte « accord existant » (ambre)');
     check(e.gotoVisible, 'le bouton « montrer dans la grille » apparaît');
@@ -114,10 +118,10 @@ const etat = (page) => page.evaluate(() => ({
     // Le titre suit les modifications en direct
     await page.selectOption('#quality', 'min7'); await page.waitForTimeout(500);
     e = await etat(page);
-    check(e.titre === 'Modifier · Cm7', `le titre suit la modification en direct (${e.titre})`);
+    check(e.titre.replace(/\s+/g, '') === 'ModifierCm7', `le titre suit la modification en direct (${e.titre})`);
     await page.mouse.dblclick((await pointNu(page, 1)).x, (await pointNu(page, 1)).y); await page.waitForTimeout(600);
     e = await etat(page);
-    check(e.titre === 'Modifier · Dm', `passer à un autre accord renomme le sujet (${e.titre})`);
+    check(e.titre.replace(/\s+/g, '') === 'ModifierDm', `passer à un autre accord renomme le sujet (${e.titre})`);
 
     // ============================================================
     console.log('\n=== C. Le fil panneau → grille ===');
@@ -247,7 +251,7 @@ const etat = (page) => page.evaluate(() => ({
     await page.mouse.click(p2.x, p2.y); await page.waitForTimeout(600);
     e = await etat(page);
     check(e.ed === 2, 'un double-clic, lui, charge l\'accord dans le panneau');
-    check(e.titre === 'Modifier · Em', `et le panneau le nomme (${e.titre})`);
+    check(e.titre.replace(/\s+/g, '') === 'ModifierEm', `et le panneau le nomme (${e.titre})`);
     await page.click('#accord-close'); await page.waitForTimeout(400);
 
     await page.reload(); await page.waitForTimeout(900);

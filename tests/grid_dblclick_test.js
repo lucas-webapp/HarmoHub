@@ -74,8 +74,15 @@ const centreSymbole = (page, idx) => page.evaluate((i) => {
     e = await etat();
     check(e.ed === 2, `double-clic sur une zone NUE : ouvre le panneau (${JSON.stringify(e)})`);
     check(!e.retape, '...sans laisser de champ de retape orphelin');
-    check(await page.evaluate(() => /^Modifier · /.test(document.getElementById('accord-title').textContent)),
-        'et le panneau annonce bien « Modifier · … »');
+    // Le séparateur « · » a disparu : l'intitulé est une PASTILLE encadrée (#accord-title-label) et
+    // le symbole vit à côté (#accord-title-sym). On éprouve donc les deux morceaux séparément, ce qui
+    // dit mieux ce qu'on veut vraiment — un état nommé ET un sujet nommé.
+    const annonce = await page.evaluate(() => ({
+        etat: (document.getElementById('accord-title-label').textContent || '').trim(),
+        sujet: (document.getElementById('accord-title-sym').textContent || '').trim(),
+    }));
+    check(annonce.etat === 'Modifier' && annonce.sujet.length > 0,
+        `et le panneau annonce bien l'état et son sujet — « ${annonce.etat} » sur « ${annonce.sujet} »`);
     // Le bouton « Fermer » du bas de colonne a été supprimé ; c'est la croix de l'en-tête du
     // panneau qui porte désormais la fin de modification (voir updateSaveButtons).
     check(await page.evaluate(() => document.getElementById('accord-close').hidden === false),
