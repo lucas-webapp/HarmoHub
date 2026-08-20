@@ -1520,7 +1520,11 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
 .voicing-row {
     display: flex;
     align-items: flex-end;
-    gap: 8px;
+    /* 6px et non 8 : sur les téléphones les plus étroits encore en service (320px de large, iPhone SE
+       de 1re génération), les quatre groupes à leur largeur PLANCHER + trois écarts de 8px dépassaient
+       de 12px la largeur de la carte (mesuré). Deux pixels rendus par écart suffisent à faire rentrer
+       la rangée partout, sans que les groupes se touchent. */
+    gap: 6px;
     margin-top: 8px;
 }
 .voicing-group { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
@@ -1535,6 +1539,7 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
    comme trois widgets étrangers posés côte à côte. */
 .voicing-stepper, .voicing-seg {
     display: flex;
+    flex: 1;                 /* remplit son groupe : c'est le groupe qui porte la largeur, voir plus bas */
     align-items: stretch;
     border: 1px solid var(--border);
     border-radius: 7px;
@@ -1542,12 +1547,21 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
     background: #16191e;
 }
 .voicing-step, .voicing-segment {
-    /* min-width: 0 — la règle générique `button { min-width: 120px; }` (bouton pleine largeur sur
-       téléphone) l'emporterait sinon, quelle que soit la spécificité : `width` perd toujours face à
-       un `min-width` plus grand. Même correctif que .icon-btn et .sidebar-tab, pour la même raison. */
-    min-width: 0;
+    /* ÉLARGIS, MAIS ÉLASTIQUES. Demande de l'utilisateur, à la suite du point sur le drop : « Tous
+       les boutons de la ligne pourront être élargis comme cela. » Premier essai : un padding fixe de
+       12px au lieu de 9. Mesuré ensuite sur neuf largeurs d'écran — la rangée débordait de 10px sur
+       ordinateur et jusqu'à 46px sur un téléphone de 360px, parce qu'un padding fixe ne sait pas
+       rendre la place quand il n'y en a plus. D'où flex : les boutons se PARTAGENT la largeur de
+       leur groupe, donc ils sont aussi larges que la carte le permet et jamais plus. */
+    flex: 1 1 0;
+    padding: 0 4px;
+    /* Plancher tactile de 24px : en dessous, la cible devient pénible au doigt. Ne sert que sur les
+       écrans les plus étroits ; ailleurs les boutons sont bien plus larges. Il neutralise au passage
+       le `button { min-width: 120px }` générique (bouton pleine largeur sur téléphone), qui
+       l'emporterait sinon quelle que soit la spécificité : `width` perd toujours face à un
+       `min-width` plus grand. Même correctif que .icon-btn et .sidebar-tab, pour la même raison. */
+    min-width: 24px;
     margin: 0;
-    padding: 0 9px;
     /* 30px : au-dessus des 28px en dessous desquels une cible devient pénible au doigt, et assez bas
        pour que la rangée entière n'ajoute que ~45px à la carte, étiquette comprise. */
     height: 30px;
@@ -1561,6 +1575,7 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
     cursor: pointer;
     transition: background-color 0.12s ease, color 0.12s ease;
 }
+
 .voicing-segment + .voicing-segment, .voicing-value + .voicing-step { border-left: 1px solid var(--border); }
 .voicing-step:hover:not(:disabled), .voicing-segment:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); color: var(--text-main); }
 .voicing-step:active:not(:disabled), .voicing-segment:active:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
@@ -1581,6 +1596,59 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
    suffisante pour rester LISIBLE : un segment illisible n'apprend rien. */
 .voicing-step:disabled, .voicing-segment:disabled { opacity: 0.32; cursor: default; }
 
+/* LA BASSE, 4e case de la rangée. Elle n'avait AUCUN style en arrivant ici : la règle générique
+   `select { min-width: 120px; padding: 14px; }` s'appliquait telle quelle, et le menu débordait donc
+   de son groupe de 14px sur un écran de 390px (mesuré : groupe 106px, menu 120px) tout en étant 14px
+   plus haut que les trois autres cases — la rangée ne se lisait plus comme un seul rang d'outils.
+   Même piège que .voicing-step/.icon-btn : `width` perd toujours face à un `min-width` plus grand,
+   il faut remettre min-width à 0 explicitement.
+   C'est aussi la SEULE case élastique de la rangée : les trois autres ont une largeur dictée par leur
+   contenu (deux flèches, deux ou trois chiffres), la basse est celle qui peut s'étirer ou se serrer
+   selon la place restante. D'où flex:1 ici et flex:none sur les autres. */
+/* Les quatre groupes se partagent la rangée au PRORATA de ce qu'ils contiennent : 3 cases pour
+   l'octave (− valeur +), 3 pour le renversement, 2 pour le drop, 2 parts pour la basse (un seul menu,
+   mais il lui faut de quoi rester lisible). Des poids plutôt que des largeurs fixes : les boutons
+   finissent à peu près de la même largeur d'un groupe à l'autre, quelle que soit la carte. */
+.voicing-group { flex: 3 1 0; }
+.voicing-group:has(#drop-seg) { flex: 2 1 0; }
+.voicing-group-basse { flex: 2 1 0; }
+.voicing-basse {
+    /* flex:none — SANS quoi la hauteur ci-dessous est ignorée. La règle générique `select { flex: 1 }`
+       s'applique aussi ici, et dans un conteneur en COLONNE (voir .voicing-group) « flex:1 » régit
+       l'axe VERTICAL : la base de 0 l'emporte alors sur `height`, et le menu était rendu à 18px de
+       haut au lieu de 30 — 12px plus court que les boutons juste à côté, sur tous les écrans (mesuré
+       sur ordinateur ET sur téléphone). Une hauteur qui ne s'applique pas ne se voit pas dans le
+       code : elle est bien écrite, elle est bien la dernière — elle est simplement sans effet.
+       Repéré en lisant les règles réellement appliquées par le navigateur, pas la feuille de style. */
+    flex: none;
+    /* min-width:0 pour neutraliser le `select { min-width: 120px }` générique, puis un plancher de
+       56px : de quoi afficher « Fond. » (la plus longue des 13 options depuis que le préfixe « Basse »
+       a été retiré, voir updateKeyLabels) plus la flèche du menu, sans jamais tronquer. */
+    min-width: 56px;
+    width: 100%;
+    height: 30px;      /* aligné sur .voicing-step/.voicing-segment : une seule bande d'outils */
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 700;
+    /* HABILLAGE NATIF REMPLACÉ PAR UN CHEVRON DESSINÉ. Deux raisons, dans cet ordre. D'abord la
+       place : la flèche native de Chrome réserve une vingtaine de pixels et tronquait « Fond. » en
+       « Fon » dès 390px de large (constaté sur capture, pas déduit) — le chevron ci-dessous en coûte
+       douze, et l'option par défaut tient partout. Ensuite la cohérence : les trois autres cases de
+       la rangée sont des boutons dessinés par l'appli ; un menu au rendu système au milieu d'eux se
+       lisait comme une pièce rapportée. Le SVG est inline (data:) et non un fichier : la feuille de
+       style ne dépend d'aucune ressource pour afficher une flèche.
+       text-overflow reste posé : si une option devenait plus longue que la case, elle serait coupée
+       proprement plutôt que de déborder sur la case voisine. */
+    appearance: none;
+    -webkit-appearance: none;
+    padding: 0 16px 0 6px;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238b93a1' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 5px center;
+    background-size: 9px 6px;
+    text-overflow: ellipsis;
+}
+
 .voicing-value {
     display: flex;
     align-items: center;
@@ -1592,6 +1660,31 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
     font-size: 12px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
+}
+
+/* TÉLÉPHONES ÉTROITS. Mesuré sur neuf largeurs : jusqu'à 375px la rangée tient telle quelle, mais à
+   360px elle dépasse de 3px et à 320px (iPhone SE de 1re génération) de 11px — les quatre groupes
+   sont alors tous à leur largeur PLANCHER, et un plancher ne se négocie pas. On rabote donc les
+   planchers eux-mêmes, uniquement là où c'est nécessaire : 22px par bouton au lieu de 24, 22px pour
+   la valeur d'octave au lieu de 26, 50px pour le menu de basse au lieu de 56 (« Fond. » à 12px gras
+   plus la flèche du menu). Les boutons restent hauts de 30px : c'est la dimension qui compte le plus
+   au doigt, et elle n'a pas bougé.
+   POURQUOI PAS UN PASSAGE À LA LIGNE. Deux groupes par ligne aurait donné des boutons confortables,
+   mais aurait doublé la hauteur de la rangée (50px → ~100px) sur les écrans qui ont justement le
+   moins de hauteur à donner — l'inverse de ce que demandait le lot « la grille plus haut ». */
+@media (max-width: 374px) {
+    .voicing-row { gap: 4px; }   /* 6px encore trop larges à 320px : il restait 5px à trouver */
+    .voicing-step, .voicing-segment { min-width: 20px; }
+    .voicing-value { min-width: 20px; }
+    /* 55px : la largeur RÉELLE de « Fond. » à 12px gras (33px, mesurée dans la police du menu) plus
+       les 22px de marges et de chevron. En dessous, le navigateur coupait l'option par défaut en
+       « F… » — constaté sur capture d'écran à 320px, pas déduit d'un calcul. */
+    .voicing-basse { min-width: 55px; }
+    /* Et une part de plus pour la basse (3 au lieu de 2) : c'est le seul groupe dont le contenu a une
+       largeur incompressible (un mot), les trois autres n'ont que des chiffres. Sans ce rééquilibrage,
+       la répartition au prorata lui donnait ~46px, son plancher de 55 reprenait la main, et les 9px
+       manquants sortaient de la carte au lieu d'être pris à ses voisins. */
+    .voicing-group-basse { flex: 3 1 0; }
 }
 
 /* ============================================================
@@ -1664,20 +1757,6 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
     letter-spacing: 0.04em;
 }
 #accord-title-sym { margin-left: 6px; }
-
-/* Clignotement de la case ramenée à l'écran par #accord-goto : deux battements francs, puis plus
-   rien — il s'agit de dire « c'est celle-ci », pas d'installer un état de plus dans la grille. */
-@keyframes cell-flash {
-    0%, 100% { box-shadow: inset 0 0 0 1px rgba(255, 179, 0, 0.32), 0 0 7px rgba(255, 179, 0, 0.14); }
-    25%, 75% { box-shadow: inset 0 0 0 3px rgba(255, 179, 0, 0.95), 0 0 18px rgba(255, 179, 0, 0.5); }
-}
-.grid-cell.cell-flash {
-    animation: cell-flash 0.55s ease-in-out 2;
-    z-index: 3;
-}
-@media (prefers-reduced-motion: reduce) {
-    .grid-cell.cell-flash { animation: none; box-shadow: inset 0 0 0 3px rgba(255, 179, 0, 0.95); }
-}
 
 /* Regroupe un select (ex. #instrument) et .card-head-actions juste après, pour qu'ils restent collés
    l'un à l'autre — sans lui, justify-content:space-between sur .card-head (3 enfants) les écarterait
@@ -2018,23 +2097,13 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
    plus larges que nécessaire (retour utilisateur) — moins de padding + ellipsis (jamais de
    retour à la ligne) plutôt qu'un menu qui s'étire pour rien, quitte à tronquer une option longue
    ("Basse : Fond.") dans une colonne étroite : le menu ouvert liste toujours l'option en entier. */
-.accord-grid select, .advanced-grid select {
+.accord-grid select {
     min-width: 0;
     padding: 10px 8px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-/* Les 4 réglages avancés (une seule ligne, voir .advanced-grid) sont nettement plus à l'étroit que
-   racine/qualité juste au-dessus (2 par ligne au lieu de 4) : padding réduit et police un cran plus
-   petite (encore lisible, --fs-xs déjà utilisée ailleurs pour du texte dense) pour que le nombre/la
-   lettre qui distingue chaque option (le "2" de "Drop 2", la note de "Basse D#"...) reste visible le
-   plus souvent possible avant de tomber sur l'ellipsis. */
-.advanced-grid select {
-    padding: 10px 4px;
-    font-size: var(--fs-xs);
-}
-
 /* Sélecteur de son, dans l'en-tête de la carte Lecture (à côté du titre, voir index.html) plutôt que
    dans .select-group : évite un 3e menu déroulant en pleine largeur pour un réglage qu'on change bien
    moins souvent que le style de jeu. flex-grow modéré : prend la place laissée par le titre et les
@@ -2048,23 +2117,15 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
     font-size: var(--fs-xs);
 }
 
-/* Renversement/drop/octave/basse : masqués par défaut, révélés par le même bouton « … » que les
-   qualités moins courantes (voir toggle-complex-quality/activateMoreOptions) — des réglages de
-   voicing fins que la plupart des accords n'utilisent jamais, inutile de les imposer à chaque
-   saisie. Réapparaissent aussi automatiquement en modifiant un accord qui s'en sert déjà
-   (revealAdvancedIfNeeded/activateMoreOptions). La basse (accord « sur » une note, ex. Cmaj7/D)
-   était auparavant un bouton/sélecteur séparé (toggle-bass) ; elle vit désormais ici, en 4e case,
-   son option par défaut « Basse : Fond. » suffisant à faire comprendre son rôle sans étiquette
-   dédiée — même esprit que « Fond. »/« Sans drop » pour les autres cases de cette grille. */
-/* 4 colonnes (au lieu de 2) : les 4 réglages tiennent sur une seule ligne plutôt que deux (retour
-   utilisateur : moins de hauteur prise, donc moins de scroll pour les atteindre sur téléphone) — les
-   selects, déjà rétrécis ci-dessus (min-width:0 + ellipsis), s'y prêtent bien mieux qu'avec le
-   padding/min-width par défaut de `select`. */
-/* Colonnes inégales, calées sur la largeur RÉELLE nécessaire à l'option la plus longue de chaque menu
-   (mesurée : Fond./1er renv. ~75px, Sans drop ~83px, Oct. 2 ~61px, Basse Fond. ~95px, à fs-xs) plutôt
-   que 4 parts égales — Octave (toujours courte : "Oct. X") peut céder de la place à Basse (toujours
-   la plus longue : "Basse " + jusqu'à 2 caractères de note). */
-.advanced-grid { margin-top: 10px; grid-template-columns: 0.85fr 0.9fr 1fr 1.25fr; }
+/* #advanced-fields ET .advanced-grid ONT ÉTÉ RETIRÉS. Renversement, drop et octave vivent désormais
+   dans la rangée voicing (.voicing-row), toujours visibles, et la basse les y a rejoints en 4e case
+   (demande de l'utilisateur : « Bouton "..." affiche maintenant uniquement une note à la basse = peu
+   d'intérêt, trouver une solution pour ajouter une note à la basse » → sortie vers la rangée voicing).
+   Le repli derrière le bouton « … » a disparu avec lui : « Je pense qu'on peut enlever le bouton "..."
+   complètement, afin de mettre directement les accords complexes dans la liste. Il n'y en a pas tant
+   que ça. » Les <select> correspondants restent dans le DOM en `hidden` (source de vérité lue par
+   readChord/commitLiveEdit/export), mais plus rien ne les met en page : les règles de grille qui les
+   habillaient n'avaient donc plus aucun élément à styler. */
 
 select {
     flex: 1;

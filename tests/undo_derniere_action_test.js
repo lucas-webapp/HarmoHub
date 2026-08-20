@@ -58,8 +58,15 @@ const boiteDe = (sel) => {
 
     // Toujours par de VRAIS gestes : c'est la chaîne complète (widget → select → change →
     // commitLiveEdit → pushUndo → journal) qu'on veut éprouver, pas les fonctions prises une à une.
+    // ADAPTÉ après « ne pas afficher le "F" pour fondamental » : le retour à la fondamentale n'a plus
+    // de bouton à lui, il se fait en re-cliquant le renversement ALLUMÉ (« je pensais enlever les
+    // renversements en cliquant à nouveau sur un renversement en surbrillance »). Le geste change, ce
+    // que ce banc mesure — quelle pile d'annulation reçoit l'action — ne change pas.
     const retoucherAccord = async (valeur) => {
-        await page.click(`#inversion-seg .voicing-segment[data-valeur="${valeur}"]`);
+        const sel = String(valeur) === '0'
+            ? '#inversion-seg .voicing-segment.active'
+            : `#inversion-seg .voicing-segment[data-valeur="${valeur}"]`;
+        await page.click(sel);
         await page.waitForTimeout(300);
     };
     const retoucherSequenceur = async () => {

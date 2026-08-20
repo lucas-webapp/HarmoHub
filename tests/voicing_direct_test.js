@@ -72,10 +72,19 @@ const atteignable = (sel) => {
             check(r.ok, `${etat} : ${nom} — ${r.ok ? r.taille : r.pourquoi}`);
         }
     }
-    // Et le bloc « avancé » doit être toujours REPLIÉ : si le lot n'avait fait que l'ouvrir d'office,
-    // les vérifications ci-dessus passeraient sans que rien ne soit vraiment résolu.
-    check(await page.evaluate(() => document.getElementById('advanced-fields').hidden),
-        'le bloc « … » est resté replié : les commandes sont vraiment à la surface, pas juste dépliées d\'office');
+    // ADAPTÉ APRÈS LE RETRAIT DU BOUTON « … » (« Je pense qu'on peut enlever le bouton "..."
+    // complètement »). Ce banc vérifiait que le bloc #advanced-fields restait REPLIÉ, pour prouver que
+    // le lot avait vraiment sorti les commandes à la surface au lieu de simplement déplier le bloc
+    // d'office. La preuve reste nécessaire, mais elle ne peut plus s'écrire ainsi : ni le bloc ni le
+    // bouton n'existent. On vérifie donc la même chose en plus fort — plus AUCUN dépliage n'est
+    // possible, et les <select> d'origine sont bien restés dans le DOM comme source de vérité.
+    const plusDeRepli = await page.evaluate(() => ({
+        bloc: !document.getElementById('advanced-fields'),
+        bouton: !document.getElementById('toggle-complex-quality'),
+        selects: ['inversion', 'drop', 'octave', 'bass'].filter(id => !!document.getElementById(id)).length,
+    }));
+    check(plusDeRepli.bloc && plusDeRepli.bouton && plusDeRepli.selects === 4,
+        `plus rien à déplier : ni #advanced-fields ni le bouton « … », et les 4 listes source sont toujours là — ${plusDeRepli.selects}/4`);
 
     console.log('\n=== B. Les segments sont CONSTRUITS à partir des listes, pas écrits en dur ===');
     // J'ai déjà proposé dans une maquette un « Drop 2+4 » qui n'existe pas, et l'utilisateur l'a
@@ -89,10 +98,14 @@ const atteignable = (sel) => {
         valeursDrop: [...document.querySelectorAll('#drop-seg .voicing-segment')].map(b => b.dataset.valeur),
         valeursOptDrop: [...document.getElementById('drop').options].map(o => o.value),
     }));
-    check(comptes.renvSeg === comptes.renvOpt && comptes.renvSeg > 0,
-        `autant de segments de renversement que d'options — ${comptes.renvSeg} pour ${comptes.renvOpt}`);
-    check(comptes.dropSeg === comptes.dropOpt && JSON.stringify(comptes.valeursDrop) === JSON.stringify(comptes.valeursOptDrop),
-        `les segments de drop reprennent exactement les valeurs de la liste — ${comptes.valeursDrop.join(', ')}`);
+    // ADAPTÉ : depuis la demande « ne pas afficher le "F" pour fondamental » (et « exactement la même
+    // remarque pour l'état initial » du drop), l'option PAR DÉFAUT n'a plus de bouton. Le lien avec la
+    // liste reste ce qu'on vérifie — il y a un segment par option SAUF la première, et ce sont bien
+    // les valeurs de la liste, dans l'ordre.
+    check(comptes.renvSeg === comptes.renvOpt - 1 && comptes.renvSeg > 0,
+        `un segment de renversement par option sauf « Fond. » — ${comptes.renvSeg} pour ${comptes.renvOpt} options`);
+    check(comptes.dropSeg === comptes.dropOpt - 1 && JSON.stringify(comptes.valeursDrop) === JSON.stringify(comptes.valeursOptDrop.slice(1)),
+        `les segments de drop reprennent les valeurs de la liste sauf la première — ${comptes.valeursDrop.join(', ')}`);
 
     console.log('\n=== C. Les DEUX bouts du fil : le widget ET la donnée ===');
     await page.evaluate(() => window.app.editChord(0, 0));
@@ -163,14 +176,19 @@ const atteignable = (sel) => {
     // alors rien de visible, la valeur étant ramenée en silence.
     await page.evaluate(() => window.app.editChord(0, 1)); // F majeur : trois notes
     await page.waitForTimeout(400);
+    // ADAPTÉ : on désigne les segments PAR LEUR VALEUR et non par leur rang. Le rang a bougé le jour
+    // où « Fond. » a perdu son bouton, et un banc qui compte les positions se serait mis à mesurer le
+    // mauvais segment sans rien signaler.
     const triade = await page.evaluate(() => [...document.querySelectorAll('#inversion-seg .voicing-segment')].map(b => ({ v: b.dataset.valeur, off: b.disabled })));
-    check(triade.length >= 4 && triade[3].off && !triade[2].off,
+    const parVal = (t, v) => t.find(x => x.v === String(v));
+    check(triade.length === 3 && parVal(triade, 3).off && !parVal(triade, 2).off,
         `sur une triade, le 3e renversement est grisé et le 2e reste actif — ${triade.map(t => t.v + (t.off ? '(grisé)' : '')).join(' ')}`);
 
     await page.evaluate(() => window.app.editChord(0, 0)); // Cmaj7 : quatre notes
     await page.waitForTimeout(400);
     const quatre = await page.evaluate(() => [...document.querySelectorAll('#inversion-seg .voicing-segment')].map(b => b.disabled));
-    check(quatre.every(x => !x), 'sur un accord de quatre notes, les quatre renversements sont disponibles');
+    check(quatre.length === 3 && quatre.every(x => !x),
+        'sur un accord de quatre notes, les trois renversements sont disponibles (le 4e état, la fondamentale, est l\'absence de surbrillance)');
 
     console.log('\n=== F. Le piège du raccourci Entrée ===');
     // Le raccourci « Entrée depuis un réglage d'accord ajoute l'accord » se décidait sur

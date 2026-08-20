@@ -1044,3 +1044,106 @@ Signalée par l'utilisateur : « Tu avais également modifié l'encadré vert "A
 `69d70ea` avait bien renommé le bouton, et `ee19b67` — celui qui le passait en vert — a **réécrit la
 ligne entière** et remis l'ancien libellé au passage. C'est le genre de retour en arrière qu'une
 réécriture de ligne refait sans le vouloir : le libellé a donc désormais son propre banc.
+
+---
+
+## Finitions 1-4 : ce que le retrait de deux boutons a coûté et rapporté
+
+Quatre demandes en une passe, toutes des retraits ou des conséquences de retraits.
+
+| # | Demande (mots de l'utilisateur) | Décision |
+|---|---|---|
+| 1 | « Bouton repérer l'accord dans la grille : il ne me servira à rien » | retiré, rien à la place |
+| 2 | « on peut enlever le bouton "..." complètement, afin de mettre directement les accords complexes dans la liste » | bouton retiré, six qualités rendues permanentes, basse sortie vers la rangée voicing |
+| 3 | « ne pas afficher le "F" pour fondamental… enlever les renversements en cliquant à nouveau » | l'état initial n'a plus de bouton, le clic bascule |
+| 4 | « exactement la même remarque pour l'état initial [du drop]… tous les boutons pourront être élargis » | idem, et les boutons se partagent la largeur libérée |
+
+### La suppression qui a cassé l'application, et pourquoi `node --check` ne l'a pas vue
+
+En retirant le bouton « … » j'ai emporté `toggleSelectOptions` — une aide **partagée** avec le bouton
+des MODES (carte Morceau), qui n'était pas dans la demande — ainsi que `revealComplexModeIfNeeded`.
+Résultat : `this.toggleSelectOptions is not a function` au démarrage, `window.app` jamais construit,
+**page entièrement morte**. Or `node --check script.js` passait au vert : un appel de méthode absente
+n'est pas une erreur de syntaxe. Le même piège avait laissé passer, quelques minutes plus tôt, un
+`this.revealAdvancedIfNeeded(d)` orphelin.
+
+**Règle appliquée depuis : une suppression ne se termine pas par une vérification syntaxique, elle se
+termine par un CHARGEMENT RÉEL de la page avec les erreurs écoutées.** Le banc en fait maintenant sa
+section A, dans les deux sens : les méthodes qui n'existaient QUE pour les boutons retirés doivent
+avoir disparu (sinon le bouton reviendra un jour), et celles qui servent ENCORE ailleurs doivent être
+là (sinon on casse une autre fonction en silence).
+
+### Une hauteur écrite, appliquée nulle part
+
+Le menu de basse, une fois posé dans la rangée, était rendu **18px de haut au lieu de 30**, sur tous
+les écrans. La règle était pourtant écrite, correcte, et la dernière à s'appliquer. La cause : la
+règle générique `select { flex: 1 }` s'applique aussi à lui, et dans un conteneur en **colonne**
+« flex:1 » régit l'axe **vertical** — la base de 0 l'emporte alors sur `height`. `flex: none` corrige.
+
+C'est invisible à la relecture de la feuille de style : il faut lire les règles **réellement
+appliquées par le navigateur** (`CSS.getMatchedStylesForNode` via CDP). C'est ce même outil qui a
+révélé, juste après, que mon `flex`/`padding` sur `.voicing-segment` n'étaient **pas appliqués du
+tout** : en réécrivant un commentaire, j'avais supprimé son `*/`, et le commentaire avalait les deux
+déclarations suivantes. Un contrôle d'équilibre des `/*` et `*/` ne l'aurait pas vu — ils étaient
+équilibrés, simplement mal placés.
+
+### Élargir des boutons : le padding fixe est le mauvais outil
+
+Premier essai, l'évidence : padding de 9px → 12px. Mesuré ensuite sur **neuf largeurs** — la rangée
+débordait de 10px sur ordinateur et de 46px sur un téléphone de 360px. Un padding fixe ne sait pas
+rendre la place quand il n'y en a plus.
+
+Deuxième version, retenue : `flex: 1 1 0` sur les boutons et des **poids** sur les groupes (3 pour
+l'octave, 3 pour le renversement, 2 pour le drop, 2 pour la basse). Les boutons sont alors aussi
+larges que la carte le permet, et jamais plus.
+
+Largeur du plus petit bouton, avant → après :
+
+| Écran | Avant | Après |
+|---|---|---|
+| 1440px | 23px | 29px |
+| 430px | 23px | 32px |
+| 390px | 23px | 28px |
+| 360px | 23px | 26px |
+| 320px | 23px | 20px |
+
+À 320px (iPhone SE de 1re génération) il reste une contrainte réelle : quatre groupes et huit
+contrôles dans 245px. Un palier `@media (max-width: 374px)` rabote les planchers et donne une part de
+plus à la basse — seul groupe dont le contenu est un mot et non un chiffre. Sans ce rééquilibrage, la
+répartition au prorata lui donnait 46px, son plancher de 55 reprenait la main, et les 9px manquants
+**sortaient de la carte**.
+
+### Le passage à la ligne, écarté et pourquoi
+
+Deux groupes par ligne aurait donné des boutons confortables partout, mais aurait **doublé la hauteur
+de la rangée** (50 → ~100px) sur les écrans qui ont le moins de hauteur à donner — l'inverse exact de
+ce que demandait le lot « sur téléphone, la grille plus haut ».
+
+### La flèche native mangeait le mot
+
+Constaté **sur capture d'écran**, pas déduit : « Fond. » était tronqué en « Fon » dès 390px. La flèche
+native de Chrome réserve une vingtaine de pixels. Remplacée par un chevron SVG inline (`appearance:
+none`), qui en coûte douze — et qui, accessoirement, aligne enfin la basse sur ses trois voisins
+dessinés par l'appli. Le préfixe « Basse » a aussi disparu des treize options : l'étiquette du groupe
+le dit déjà une fois.
+
+### Trois bancs adaptés, aucun supprimé
+
+- `voicing_direct_test.js` : « autant de segments que d'options » devient « un segment par option
+  **sauf la première** » ; le grisage se vérifie désormais **par la valeur** du segment et non par son
+  rang — un rang bouge le jour où l'on retire un bouton, et un banc qui compte les positions se met à
+  mesurer le mauvais segment sans rien signaler.
+- `undo_derniere_action_test.js` : le retour à la fondamentale n'a plus de bouton propre, il se fait
+  en re-cliquant le segment allumé. Le geste change, la mesure (quelle pile reçoit l'action) non.
+- Le banc du Lot 4 vérifiait que le bloc « avancé » restait **replié**. La preuve reste nécessaire mais
+  ne peut plus s'écrire ainsi : elle devient « plus rien n'est repliable, et les quatre listes source
+  sont toujours là ».
+
+### Une exigence de banc corrigée dans le bon sens
+
+Ma première version exigeait que le bouton drop soit dans la fenêtre **sans défiler** sur téléphone.
+Il est à 666px d'une fenêtre de 659px — la carte Accord vit sous la grille, c'est la disposition
+voulue, pas un défaut. L'exigence juste est **« atteignable »** : après défilement, le bouton est dans
+la fenêtre ET c'est bien lui que le doigt touche à cet endroit. C'est ce qui manquait au tiroir du
+séquenceur, dont le bouton de fermeture était à 838px d'une fenêtre de 664px qu'**aucun** défilement
+n'atteignait, pendant que le banc le fermait par `window.app.toggleSequencer` et voyait tout en vert.

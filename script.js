@@ -3345,8 +3345,6 @@ class HarmoHubApp {
         document.getElementById('quick-add-input').addEventListener('focus', () => {
             if (this.editingIndex != null) { this.leaveEditForNewChord(); this.loadProgression(); }
         });
-        // Le lien panneau → grille (voir goToEditedChord/#accord-goto).
-        document.getElementById('accord-goto').onclick = () => this.goToEditedChord();
         // Bloc « Morceau » : la ligne de résumé déplie/replie les réglages du morceau.
         document.getElementById('song-summary').onclick = () => this.toggleSongSettings();
         // Un seul écouteur pour TOUS les réglages du bloc, par délégation : ajouter un réglage demain
@@ -3423,23 +3421,15 @@ class HarmoHubApp {
             e.currentTarget.classList.toggle('active', this.loopActiveSection);
         };
 
-        // Révèle/masque, d'un même bouton (« … »), tout ce qui est secondaire pour la plupart des
-        // accords : qualités moins courantes (diminués, augmentés, enrichis...) ET renversement/drop/
-        // octave — regroupés plutôt que répartis sur plusieurs boutons, qui faisaient un peu double
-        // emploi. Les qualités passent par un vrai retrait/réinsertion des <option> du DOM (voir
-        // toggleSelectOptions) plutôt que par `hidden`, qui n'est pas fiable sur tous les navigateurs
-        // (Safari iOS notamment continue d'afficher des <option hidden> dans le sélecteur natif) ; les
-        // champs avancés, eux, sont juste un bloc qu'on montre/cache (voir #advanced-fields).
-        const qualitySelect = document.getElementById('quality');
-        this._complexQualityOptions = Array.from(qualitySelect.querySelectorAll('option.opt-complex'));
-        this.toggleSelectOptions(qualitySelect, this._complexQualityOptions, false); // masqué par défaut
-        document.getElementById('toggle-complex-quality').onclick = (e) => {
-            const btn = e.currentTarget;
-            const show = !btn.classList.contains('active');
-            this.toggleSelectOptions(qualitySelect, this._complexQualityOptions, show);
-            document.getElementById('advanced-fields').hidden = !show; // inclut la basse différente, voir index.html
-            btn.classList.toggle('active', show);
-        };
+        // LE BOUTON « … » A ÉTÉ RETIRÉ (retour utilisateur : « on peut enlever le bouton "..."
+        // complètement, afin de mettre directement les accords complexes dans la liste. Il n'y en a
+        // pas tant que ça. »). Il cachait deux choses : six qualités moins courantes (6, m6, dim,
+        // dim7, m7b5, aug) et le bloc renversement/drop/octave/basse. Les trois premières sont
+        // remontées à la surface au lot précédent, la basse au lot présent ; il ne restait donc qu'à
+        // rendre les six qualités permanentes dans la liste. Six lignes de plus dans un menu qu'on
+        // déroule déjà : c'est moins cher qu'un mode à comprendre et qu'un état à maintenir.
+        // Disparaissent avec lui : _complexQualityOptions, activateMoreOptions et
+        // revealComplexQualityIfNeeded — qui ne servaient qu'à ré-révéler ce que le bouton cachait.
 
         // Même principe pour les modes moins courants (dorien, phrygien, lydien, mixolydien, locrien).
         // Majeur/mineur restent nommés ainsi tant que les autres modes sont masqués (plus parlant pour
@@ -4169,6 +4159,14 @@ class HarmoHubApp {
     // dans le sélecteur natif). Ne retire jamais l'option actuellement sélectionnée, pour ne pas
     // changer silencieusement la valeur en cours. `options` doit lister les <option> dans leur ordre
     // d'origine (elles sont réinsérées dans cet ordre, à la fin du select).
+    //
+    // Cette aide NE SERT PLUS aux qualités d'accord — elles sont toutes permanentes depuis le retrait
+    // du bouton « … » — mais toujours aux MODES (bouton #toggle-complex-mode, carte Morceau), qui,
+    // eux, n'étaient pas dans la demande. Je l'avais emportée par erreur en supprimant le « … » : le
+    // fichier passait `node --check` sans broncher (un appel de méthode absente n'est pas une erreur
+    // de syntaxe) et l'application ne démarrait plus du tout. D'où la règle appliquée depuis :
+    // toute suppression se termine par un chargement RÉEL de la page, pas par une vérification
+    // syntaxique.
     toggleSelectOptions(select, options, show) {
         options.forEach(o => {
             if (show) {
@@ -4179,26 +4177,9 @@ class HarmoHubApp {
         });
     }
 
-    // Active le mode « plus d'options » du bouton « … » : qualités moins courantes ET renversement/
-    // drop/octave ensemble (voir le onclick de toggle-complex-quality) — un seul bouton, un seul état
-    // « actif », pour les deux à la fois. Ne fait rien s'il est déjà actif.
-    activateMoreOptions() {
-        const btn = document.getElementById('toggle-complex-quality');
-        if (btn.classList.contains('active')) return;
-        this.toggleSelectOptions(document.getElementById('quality'), this._complexQualityOptions, true);
-        document.getElementById('advanced-fields').hidden = false; // inclut la basse différente, voir index.html
-        btn.classList.add('active');
-    }
-
-    // Révèle le menu Qualité complet AVANT d'y affecter une valeur venue de données sauvegardées
-    // (accord enregistré avec une qualité moins courante) — sinon, l'option correspondante n'existe
-    // pas encore dans le DOM (voir toggleSelectOptions) et l'affectation échouerait silencieusement.
-    // Même principe que pour la basse différente (voir editChord).
-    revealComplexQualityIfNeeded(quality) {
-        if (!this._complexQualityOptions.some(o => o.value === quality)) return;
-        this.activateMoreOptions();
-    }
-
+    // Révèle les modes moins courants AVANT d'y affecter une valeur venue d'un morceau enregistré :
+    // sinon l'<option> visée n'est pas encore dans le DOM (voir toggleSelectOptions) et l'affectation
+    // échoue en silence, le morceau se rouvrant en majeur sans que rien ne le dise.
     revealComplexModeIfNeeded(mode) {
         const btn = document.getElementById('toggle-complex-mode');
         if (btn.classList.contains('active') || !this._complexModeOptions.some(o => o.value === mode)) return;
@@ -4209,16 +4190,11 @@ class HarmoHubApp {
         btn.classList.add('active');
     }
 
-    // Révèle renversement/drop/octave en modifiant un accord qui s'en sert déjà (l'un des trois
-    // s'écarte de son réglage par défaut), pour ne pas les laisser masqués sous les yeux de qui édite
-    // sans le savoir — même principe que la basse (voir editChord) et les qualités complexes.
-    revealAdvancedIfNeeded(d) {
-        const needsAdvanced = (parseInt(d.inversion) || 0) !== 0
-            || (d.drop && d.drop !== 'none')
-            || octaveFromData(d) !== 3;
-        if (!needsAdvanced) return;
-        this.activateMoreOptions();
-    }
+    // revealAdvancedIfNeeded A ÉTÉ RETIRÉE. Elle dépliait le bloc « avancé » quand un accord
+    // chargé s'écartait des réglages par défaut (renversement, drop ou octave), pour ne pas laisser
+    // ces valeurs masquées sous les yeux de qui édite sans le savoir. Le bloc n'existe plus : ces
+    // trois réglages sont en surface dans la rangée voicing, tout le temps, et il n'y a donc plus
+    // rien à révéler.
 
     // Lit les réglages de l'interface et renvoie un Chord. Le doigté guitare verrouillé (voir
     // toggleGuitarLock) n'est PAS passé ici : ensureGuitarDiagram le fournit explicitement à
@@ -4276,7 +4252,12 @@ class HarmoHubApp {
         });
         document.querySelectorAll('#bass option[value]:not([value=""])').forEach(opt => {
             const pc = NOTES.indexOf(opt.value);
-            opt.textContent = 'Basse ' + noteNameForPc(pc, songFlats); // garde le préfixe (voir index.html)
+            // Plus de préfixe « Basse » : le groupe porte désormais son étiquette AU-DESSUS du menu
+            // dans la rangée voicing (voir .voicing-group-basse), l'écrire une seconde fois dans
+            // chaque option doublait le mot et forçait le menu à ~120px de large — assez pour le
+            // faire déborder de sa case sur téléphone (mesuré). Même forme que les trois autres
+            // cases de la rangée : l'étiquette dit QUOI, la case dit COMBIEN.
+            opt.textContent = noteNameForPc(pc, songFlats);
         });
         // Point de passage obligé de tout changement de tonalité (choix direct, chargement d'un
         // morceau, transposition) : le résumé du bloc Morceau s'y raccroche plutôt que d'être remis à
@@ -4315,13 +4296,27 @@ class HarmoHubApp {
     // seul endroit ; ensuite, j'avais proposé dans une maquette un « Drop 2+4 » qui n'existe pas —
     // l'utilisateur l'a relevé (« ça ne veut rien dire »). Une commande qui LIT la liste ne peut pas
     // inventer d'option.
+    //
+    // L'ÉTAT INITIAL N'A PAS DE BOUTON. Demande de l'utilisateur : « pour gagner de la place, je
+    // propose de ne pas afficher le "F" pour fondamental. Que penses-tu de laisser en surbrillance
+    // les 1, 2 ou 3 s'il y a des renversements ? Je pensais enlever les renversements en cliquant à
+    // nouveau sur un renversement en surbrillance. » — puis, pour le drop : « exactement la même
+    // remarque pour l'état initial. Tous les boutons de la ligne pourront être élargis comme cela. »
+    // Le segment par défaut (« Fond. », « Sans drop ») n'est donc pas construit du tout : aucun
+    // bouton allumé VEUT DIRE état initial, et re-cliquer le bouton allumé y revient. La valeur par
+    // défaut reste lue dans la PREMIÈRE <option> du <select>, jamais écrite en dur ici — même règle
+    // que ci-dessus.
     construireCommandesVoicing() {
         const remplir = (idSelect, idSeg, court) => {
             const select = document.getElementById(idSelect);
             const seg = document.getElementById(idSeg);
             if (!select || !seg) return;
             seg.innerHTML = '';
+            const parDefaut = select.options.length ? select.options[0].value : '';
+            seg.dataset.defaut = parDefaut;
+            const libelleDefaut = select.options.length ? select.options[0].textContent.trim() : '';
             for (const opt of select.options) {
+                if (opt.value === parDefaut) continue; // l'état initial se lit à l'absence de surbrillance
                 const b = document.createElement('button');
                 b.type = 'button';
                 b.className = 'voicing-segment';
@@ -4331,22 +4326,31 @@ class HarmoHubApp {
                 // le long en infobulle. C'est exactement ce que fait une station audio, et ça évite le
                 // reproche « trop d'écriture dedans » sans rendre la commande devinette.
                 b.textContent = court(opt);
-                b.title = opt.textContent.trim();
-                b.setAttribute('aria-label', opt.textContent.trim());
-                b.onclick = () => this.appliquerReglageVoicing(idSelect, opt.value);
+                b.dataset.titreInactif = opt.textContent.trim();
+                // L'infobulle du bouton ALLUMÉ annonce ce que le clic va faire (revenir à l'état
+                // initial), sans quoi le second clic serait une trouvaille et non une commande. Elle
+                // est posée à chaque synchro, voir syncCommandesVoicing.
+                b.dataset.titreActif = `${opt.textContent.trim()} — cliquer pour revenir à « ${libelleDefaut} »`;
+                b.title = b.dataset.titreInactif;
+                b.setAttribute('aria-label', b.dataset.titreInactif);
+                b.onclick = () => {
+                    const courant = document.getElementById(idSelect).value;
+                    // Bascule : cliquer le réglage déjà appliqué le retire, au lieu de ne rien faire.
+                    this.appliquerReglageVoicing(idSelect, courant === opt.value ? parDefaut : opt.value);
+                };
                 seg.appendChild(b);
             }
         };
-        // Renversement : « Fond. » -> « F », « 1er renv. » -> « 1 ». On prend le premier chiffre du
-        // libellé, ou « F » s'il n'y en a pas — plutôt que de recopier une table qui dériverait.
+        // Renversement : « 1er renv. » -> « 1 ». On prend le premier chiffre du libellé plutôt que de
+        // recopier une table qui dériverait. « Fond. » n'a plus de bouton (voir ci-dessus).
         remplir('inversion', 'inversion-seg', (opt) => {
             const chiffre = (opt.textContent.match(/\d/) || [])[0];
-            return chiffre || 'F';
+            return chiffre || opt.textContent.trim();
         });
-        // Drop : « Sans drop » -> « — », « Drop 2 » -> « 2 ». Même principe.
+        // Drop : « Drop 2 » -> « 2 ». Même principe, « Sans drop » n'a plus de bouton.
         remplir('drop', 'drop-seg', (opt) => {
             const chiffre = (opt.textContent.match(/\d/) || [])[0];
-            return chiffre || '—';
+            return chiffre || opt.textContent.trim();
         });
 
         // Pas-à-pas d'octave : les bornes viennent des <option>, pas de nombres écrits ici.
@@ -4394,6 +4398,9 @@ class HarmoHubApp {
                 const actif = b.dataset.valeur === select.value;
                 b.classList.toggle('active', actif);
                 b.setAttribute('aria-pressed', String(actif));
+                // Infobulle qui suit l'état : allumé, elle annonce le retour à l'état initial.
+                const t = actif ? b.dataset.titreActif : b.dataset.titreInactif;
+                if (t) { b.title = t; b.setAttribute('aria-label', t); }
                 const ok = utilisable ? utilisable(b.dataset.valeur) : true;
                 b.disabled = !ok && !actif; // jamais griser celui qui est SÉLECTIONNÉ : il serait illisible
             }
@@ -6516,15 +6523,14 @@ class HarmoHubApp {
         this.activeSection = section;
 
         document.getElementById('root').value = d.root;
-        this.revealComplexQualityIfNeeded(d.quality);
-        // La basse différente (voir #bass dans advanced-fields, index.html) n'est accessible qu'en
-        // mode accords complexes : un accord qui en a une doit donc révéler ce mode même si sa
-        // qualité, elle, reste courante (ex. Cmaj/D) — sinon le réglage resterait invisible.
-        if (d.bass) this.activateMoreOptions();
+        // Plus rien à « révéler » ici : la basse a rejoint la rangée voicing et les accords enrichis
+        // sont désormais tous dans la liste des qualités. Demande de l'utilisateur : « Je pense qu'on
+        // peut enlever le bouton "..." complètement, afin de mettre directement les accords complexes
+        // dans la liste. Il n'y en a pas tant que ça. » Tous les réglages étant visibles en permanence,
+        // il suffit de les recopier ci-dessous.
         document.getElementById('quality').value = d.quality;
         this.setDurationField(beatsFromData(d));
         this.syncDurationPicker(); // reflète la nouvelle valeur sur le bouton/menu d'icônes (voir setupDurationPicker)
-        this.revealAdvancedIfNeeded(d);
         document.getElementById('octave').value = String(octaveFromData(d));
         document.getElementById('inversion').value = d.inversion;
         document.getElementById('drop').value = d.drop;
@@ -7131,11 +7137,6 @@ class HarmoHubApp {
         this.updateGridPlayhead(this.playheadSection, this.playheadIndex);
         this.fitCellSymbols(host);
         this.updatePlayButtonsForLoopRange();
-        // Les cases viennent d'être reconstruites : repose le clignotement s'il est encore en cours
-        // (voir applyCellFlash). Sans ça, « montrer cet accord » ne montrait rien du tout — le clic
-        // sur un bouton du panneau désélectionne (voir le pointerdown global) et reconstruit la
-        // grille dans la foulée, emportant la classe à peine posée.
-        this.applyCellFlash();
     }
 
     // Ouvre/ferme le panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) — un seul bouton
@@ -7437,7 +7438,6 @@ class HarmoHubApp {
     updateChordSubject(sectionsDejaLues = null) {
         const titre = document.getElementById('accord-title-label');
         const titreSym = document.getElementById('accord-title-sym');
-        const goto = document.getElementById('accord-goto');
         if (!titre || !titreSym) return;
         const carte = document.getElementById('accord-card');
         const sections = sectionsDejaLues || loadProgressionSections();
@@ -7464,30 +7464,18 @@ class HarmoHubApp {
             // dans style.css), le cadre sépare déjà l'état du symbole, et le point faisait doublon.
             titre.textContent = 'Modifier';
             titreSym.textContent = chordSymbolForData(d, this.useFlatsForRoot(d.root));
-            if (goto) goto.hidden = false;
             return;
         }
 
         titre.textContent = 'Nouvel accord';
         titreSym.textContent = '';
-        if (goto) goto.hidden = true;
     }
 
-    // Ramène la grille sur l'accord en cours d'édition et le fait clignoter — voir #accord-goto.
-    goToEditedChord() {
-        if (this.editingIndex == null) return;
-        const cell = this.gridCellEl(this.activeSection, this.editingIndex);
-        if (!cell) return;
-        cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-        // On retient la CASE VISÉE (partie + indice) et jusqu'à quand, pas l'élément : la grille est
-        // reconstruite à la moindre occasion — y compris par le clic qui déclenche ce geste, qui
-        // désélectionne l'accord au passage (voir le pointerdown global). Voir applyCellFlash, rappelé
-        // à la fin de chaque loadProgression.
-        this._cellFlash = { section: this.activeSection, index: this.editingIndex, until: Date.now() + 1200 };
-        this.applyCellFlash();
-        setTimeout(() => { this._cellFlash = null; this.applyCellFlash(); }, 1200);
-    }
-
+    // « Repérer l'accord dans la grille » A ÉTÉ RETIRÉ (retour utilisateur : « il ne me servira à
+    // rien »). Avec lui partent goToEditedChord et tout le mécanisme de clignotement de case
+    // (_cellFlash/applyCellFlash) : ils n'existaient QUE pour ce bouton, vérifié avant de les
+    // supprimer. La case de l'accord édité reste entourée en permanence dans la grille — c'est ce
+    // repère-là qui rendait le bouton superflu.
     // La case À L'ÉCRAN pour (partie, indice). Il fallait autrefois départager deux copies de la
     // grille (celle de la page et celle de la vue plein écran) ; cette dernière a été retirée.
     gridCellEl(section, index) {
@@ -7502,14 +7490,6 @@ class HarmoHubApp {
         this.exitEditMode();
         document.querySelectorAll('.grid-cell.editing').forEach(c => c.classList.remove('editing'));
         this.updateSaveButtons();
-    }
-
-    applyCellFlash() {
-        const f = this._cellFlash;
-        document.querySelectorAll('.grid-cell.cell-flash').forEach(c => c.classList.remove('cell-flash'));
-        if (!f || Date.now() >= f.until) return;
-        const cell = this.gridCellEl(f.section, f.index);
-        if (cell) cell.classList.add('cell-flash');
     }
 
     // ---------- Bloc « Morceau » (voir #song-card) ----------
@@ -15759,11 +15739,10 @@ class HarmoHubApp {
                 const matched = findQualityMatchingPitchClasses(unionSet);
                 if (!matched || matched === qualitySelect.value) continue; // jouée assez longtemps, mais ne complète rien de reconnu
 
-                // Révéler d'ABORD (peut reconstruire la liste d'options du <select>, voir
-                // activateMoreOptions/toggleSelectOptions) : régler la valeur avant l'effacerait, la
-                // qualité visée n'existant pas encore dans les options tant que le mode courant reste
-                // masqué (même ordre qu'editChord, qui a le même piège avec la basse différente).
-                this.revealComplexQualityIfNeeded(matched);
+                // Toutes les qualités, y compris les enrichies, sont maintenant présentes en permanence
+                // dans le <select> (« mettre directement les accords complexes dans la liste »), donc
+                // l'affectation ne peut plus être silencieusement effacée par une option absente —
+                // c'était le piège que l'ancien « révéler d'ABORD » contournait.
                 qualitySelect.value = matched;
 
                 // La qualité gagne une voix (celle qu'on absorbe), qui vient toujours se placer en
@@ -16327,7 +16306,6 @@ class HarmoHubApp {
             // Même ordre qu'ailleurs (voir reevaluateExtraNoteUpgrades/editChord) : révéler d'abord la
             // famille d'accords concernée, sinon l'option visée n'existe pas encore dans le <select> et
             // l'affectation est silencieusement perdue.
-            this.revealComplexQualityIfNeeded(snap.quality);
             qualitySelect.value = snap.quality;
             // Le SYMBOLE de l'accord change : la case de la grille doit être redessinée, comme lors du
             // renommage automatique. Sans ce drapeau, annuler l'ajout d'une note libre ramenait bien

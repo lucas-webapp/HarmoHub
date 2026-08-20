@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608221200">
+    <link rel="stylesheet" href="style.css?v=202608231200">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -625,16 +625,6 @@
                              « Am » en « AM » — deux accords différents. Il garde donc sa casse. -->
                         <h2 id="accord-title"><span id="accord-title-label">Nouvel accord</span><span id="accord-title-sym"></span></h2>
                         <div class="card-head-actions">
-                            <!-- Le lien panneau → grille, qui manquait : la case savait qu'elle était
-                                 en édition (.grid-cell.editing), le panneau ne disait jamais QUELLE
-                                 case il pilotait. Sur téléphone les deux sont à ~600 px l'un de
-                                 l'autre (mesuré). Voir goToEditedChord. -->
-                            <button type="button" id="accord-goto" class="icon-btn" hidden title="Montrer cet accord dans la grille" aria-label="Montrer cet accord dans la grille">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/></svg>
-                            </button>
-                            <button type="button" id="toggle-complex-quality" class="icon-btn" title="Afficher plus d'options (accords enrichis, renversement, drop, octave, basse différente...)" aria-label="Afficher plus d'options">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
-                            </button>
                             <!-- Fin de la modification. Elle vivait dans un large bouton « Fermer »
                                  ancré tout en bas de la colonne, loin de ce qu'il fermait (retour
                                  utilisateur : « ne sert à rien et est mal placé »). Ici, elle borde le
@@ -658,19 +648,19 @@
                             <option value="sus2">Sus2</option><option value="sus4">Sus4</option>
                             <option value="maj7">Maj 7</option><option value="min7">Min 7</option>
                             <option value="dom7">Dom 7</option>
-                            <option value="6" class="opt-complex" hidden>6</option>
-                            <option value="m6" class="opt-complex" hidden>Min 6</option>
-                            <option value="dim" class="opt-complex" hidden>Dim</option>
-                            <option value="dim7" class="opt-complex" hidden>Dim 7</option>
-                            <option value="m7b5" class="opt-complex" hidden>m7b5</option>
-                            <option value="aug" class="opt-complex" hidden>Aug</option>
-                            <option value="add9" class="opt-complex" hidden>Add9</option>
-                            <option value="add11" class="opt-complex" hidden>Add11</option>
-                            <option value="maj9" class="opt-complex" hidden>Maj 9</option>
-                            <option value="m9" class="opt-complex" hidden>Min 9</option>
-                            <option value="dom9" class="opt-complex" hidden>9</option>
-                            <option value="dom11" class="opt-complex" hidden>11</option>
-                            <option value="dom13" class="opt-complex" hidden>13</option>
+                            <option value="6">6</option>
+                            <option value="m6">Min 6</option>
+                            <option value="dim">Dim</option>
+                            <option value="dim7">Dim 7</option>
+                            <option value="m7b5">m7b5</option>
+                            <option value="aug">Aug</option>
+                            <option value="add9">Add9</option>
+                            <option value="add11">Add11</option>
+                            <option value="maj9">Maj 9</option>
+                            <option value="m9">Min 9</option>
+                            <option value="dom9">9</option>
+                            <option value="dom11">11</option>
+                            <option value="dom13">13</option>
                         </select>
                     </div>
                     <!-- COMMANDES DIRECTES DE VOICING (Lot 4 de la refonte).
@@ -707,47 +697,46 @@
                             <span class="voicing-label" id="drop-label">Drop</span>
                             <div class="voicing-seg" id="drop-seg" role="group" aria-labelledby="drop-label"></div>
                         </div>
+                        <!-- LA BASSE REJOINT LA RANGÉE (retour utilisateur : « Bouton "..." affiche
+                             maintenant uniquement une note à la basse = peu d'intérêt, trouver une
+                             solution pour ajouter une note à la basse »).
+                             Elle reste une LISTE et non des segments : douze notes ne tiennent pas en
+                             segments lisibles, là où trois drops ou quatre renversements, oui. La forme
+                             suit encore ce que le réglage EST.
+                             Pourquoi pas « une note ajoutée au séquenceur », comme suggéré : une note
+                             libre au séquenceur SONNE, mais ne renomme pas l'accord. C'est ce champ-ci
+                             qui produit le symbole barré (A/C#) dans la grille, dans le PDF et dans
+                             l'export Paroles (voir Chord.getLabel). Les deux ne font donc pas la même
+                             chose, et c'est la notation qu'on aurait perdue. -->
+                        <div class="voicing-group voicing-group-basse">
+                            <span class="voicing-label" id="bass-label">Basse</span>
+                            <select id="bass" class="voicing-basse" title="Choisir une note de basse différente (accord « sur » une note)">
+                            <option value="">Fond.</option>
+                            <option value="C">C</option><option value="C#">C#</option><option value="D">D</option><option value="D#">D#</option>
+                            <option value="E">E</option><option value="F">F</option><option value="F#">F#</option><option value="G">G</option>
+                            <option value="G#">G#</option><option value="A">A</option><option value="A#">A#</option><option value="B">B</option>
+                        </select>
+                        </div>
                     </div>
 
-                    <div class="accord-grid advanced-grid" id="advanced-fields" hidden>
-                        <!-- Les trois listes ci-dessous sont MASQUÉES mais gardées ici, à leur place
-                             d'origine : elles restent la source de vérité que lisent readChord et
-                             buildLiveChordData, avec les mêmes identifiants et les mêmes écouteurs
-                             'change'. Les déplacer ou les supprimer aurait cassé quatre chemins
-                             (lecture de l'accord, application en direct, import MIDI, restauration
-                             d'un accord existant) pour un gain nul : ce qui devait changer, c'est ce
-                             que l'utilisateur VOIT, pas où la valeur est rangée.
-                             La basse, elle, reste visible ici : c'est le réglage rare de ce groupe
-                             (un accord « sur » une note), et treize options n'entrent pas dans une
-                             rangée de segments sans la rendre illisible. -->
-                        <select id="inversion" hidden>
+                    <!-- SOURCES DE VÉRITÉ, MASQUÉES. Le bloc « avancé » et son bouton « … » ont été retirés
+                         (retour utilisateur : « on peut enlever le bouton "..." complètement, afin de mettre
+                         directement les accords complexes dans la liste »). Ces trois listes, elles, RESTENT :
+                         readChord et buildLiveChordData les lisent toujours, avec les mêmes identifiants et
+                         les mêmes écouteurs. Ce sont les commandes visibles de la rangée voicing qui écrivent
+                         dedans. Les supprimer aurait cassé la lecture de l'accord, l'application en direct,
+                         l'import MIDI et la restauration d'un accord existant, pour un gain nul. -->
+                    <select id="inversion" hidden>
                             <option value="0">Fond.</option><option value="1">1er renv.</option><option value="2">2e renv.</option>
                             <option value="3">3e renv.</option>
-                        </select>
-                        <select id="drop" hidden>
+                        </select><select id="drop" hidden>
                             <option value="none">Sans drop</option><option value="drop2">Drop 2</option><option value="drop3">Drop 3</option>
-                        </select>
-                        <select id="octave" hidden>
+                        </select><select id="octave" hidden>
                             <option value="2">Oct. 2</option>
                             <option value="3" selected>Oct. 3</option>
                             <option value="4">Oct. 4</option>
                             <option value="5">Oct. 5</option>
                         </select>
-                        <!-- Basse différente (accord « sur » une note, ex. Cmaj7/D) : chaque option préfixée
-                             "Basse ..." (y compris la valeur par défaut "Fond.") pour se comprendre sans
-                             étiquette dédiée, comme les autres cases de cette grille ("Sans drop", "Oct. 3"...).
-                             Anciennement un bouton/sélecteur séparé (toggle-bass) ; vit désormais ici,
-                             révélée/masquée avec le reste par le même bouton « … » (voir toggle-complex-quality).
-                             Pas de ":" (retour utilisateur : menus trop larges sur téléphone, ce caractère en
-                             plus n'apportait rien) — voir aussi updateKeyLabels dans script.js, qui régénère
-                             ce même texte pour chaque option de note (garde CE préfixe, sans ":"). -->
-                        <select id="bass" title="Choisir une note de basse différente (accord « sur » une note)">
-                            <option value="">Basse Fond.</option>
-                            <option value="C">Basse C</option><option value="C#">Basse C#</option><option value="D">Basse D</option><option value="D#">Basse D#</option>
-                            <option value="E">Basse E</option><option value="F">Basse F</option><option value="F#">Basse F#</option><option value="G">Basse G</option>
-                            <option value="G#">Basse G#</option><option value="A">Basse A</option><option value="A#">Basse A#</option><option value="B">Basse B</option>
-                        </select>
-                    </div>
                 </section>
 
                 <section class="control-card" id="lecture-card">
@@ -1220,6 +1209,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608221200"></script>
+    <script src="script.js?v=202608231200"></script>
 </body>
 </html>
