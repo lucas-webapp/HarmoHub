@@ -1,3 +1,29 @@
+/* ============================================================
+   BARRES DE DÉFILEMENT — sombres partout, pas seulement dans le séquenceur
+   ============================================================
+   Signalé par l'utilisateur, capture à l'appui : « La barre de défilement vertical est restée
+   blanche dans l'appli ». Vérifié : le fichier ne stylait QUE .seq-scroll-continuous (voir plus bas).
+   Partout ailleurs — le volet de gauche, les fenêtres, la page — le navigateur posait sa barre par
+   défaut, claire, sur une application entièrement sombre.
+   `color-scheme: dark` sur la racine est la vraie racine du problème : il dit au navigateur que ce
+   document est sombre, et celui-ci en tire de lui-même des barres, des menus déroulants natifs et des
+   champs de saisie accordés — plutôt que de repeindre chaque élément un par un. Les deux règles qui
+   suivent ne font qu'affiner ce que ce mot-clé donne déjà, pour Chromium comme pour Firefox. */
+:root { color-scheme: dark; }
+* { scrollbar-color: rgba(255, 255, 255, 0.22) transparent; }
+*::-webkit-scrollbar { width: 12px; height: 12px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.22);
+    border-radius: 6px;
+    /* Bordure transparente + background-clip : le pouce paraît plus fin que sa zone de saisie, qui
+       reste elle pleine largeur. On gagne en discrétion sans rendre la barre plus dure à attraper. */
+    border: 3px solid transparent;
+    background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.38); background-clip: padding-box; }
+*::-webkit-scrollbar-corner { background: transparent; }
+
 :root {
     --bg: #0a0a0a;
     --card-bg: #161616;
@@ -1387,8 +1413,10 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
    Une ligne détaillée sous le titre (« Sera ajouté à la fin de Couplet · mesure 5 ») a été essayée
    puis retirée : trop de texte pour une information qu'on a déjà sous les yeux dans la grille
    (retour utilisateur). Deux ou trois mots colorés suffisent à dire de quoi parle le panneau. */
+/* Une seule source pour la couleur du titre : la variable de sujet posée sur .panel-controls. La
+   seconde règle écrivait l'ambre en dur et aurait survécu à la désaturation ci-dessous, laissant un
+   titre criard sur un liseré éteint. */
 #accord-title { color: var(--sujet, var(--accent)); }
-#accord-card.subject-existing #accord-title { color: #ffb300; }
 
 /* ============================================================
    PETIT SÉQUENCEUR EN TIROIR FLOTTANT (téléphone) — Lot 4 bis de la refonte
@@ -1597,15 +1625,24 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
    classe sur la carte plutôt que l'attribut du <body>, et elle vaut toujours.
    .panel-controls est en `display: contents` sur téléphone : sans effet ici, l'héritage des
    variables suit l'arbre du document, pas les boîtes. */
+/* COULEURS DÉSATURÉES — retour utilisateur : « Les couleurs vertes et oranges des bandeaux sont trop
+   criardes. Je trouve que ça dénote avec les couleurs pâles et discrète de l'application. »
+   Le vert néon (#00e676) et l'ambre vif (#ffb300) viennent d'ailleurs dans l'appli : le premier est
+   la couleur d'accent générale (boutons, tempo), le second celle de la plage de boucle. Ils sont
+   justes à ces endroits-là, où ils marquent UNE chose à la fois ; étalés sur le liseré et le fond de
+   deux cartes entières, ils prennent toute l'attention alors qu'ils ne font qu'indiquer un état.
+   D'où deux teintes propres à l'inspecteur, assez éteintes pour se fondre dans les gris de
+   l'application, assez distinctes l'une de l'autre pour rester lisibles en vision périphérique.
+   --accent n'est PAS touché : le reste de l'appli garde son vert vif, qui n'a jamais été en cause. */
 .panel-controls {
-    --sujet: var(--accent);
-    --sujet-fond: rgba(0, 230, 118, 0.05);
-    --sujet-cadre: rgba(0, 230, 118, 0.30);
+    --sujet: #5fa87f;                          /* vert sourd — accord qu'on prépare */
+    --sujet-fond: rgba(95, 168, 127, 0.06);
+    --sujet-cadre: rgba(95, 168, 127, 0.34);
 }
 .panel-controls.subject-existing {
-    --sujet: #ffb300;
-    --sujet-fond: rgba(255, 179, 0, 0.055);
-    --sujet-cadre: rgba(255, 179, 0, 0.32);
+    --sujet: #c1904e;                          /* ocre éteint — accord déjà posé */
+    --sujet-fond: rgba(193, 144, 78, 0.065);
+    --sujet-cadre: rgba(193, 144, 78, 0.36);
 }
 
 /* Les DEUX cartes portent le liseré : l'instrument et l'intensité appartiennent au même sujet que la
