@@ -3879,7 +3879,15 @@ class HarmoHubApp {
         // les colonnes défilent), donc la ligne de résumé se déplace sous le panneau — sans ça, il
         // resterait planté à sa position d'ouverture pendant que son ancre s'en va.
         // En capture et en passif : on ne fait que suivre, on n'interfère avec aucun défilement.
-        const suivreAncre = () => { if (this.songSettingsOpen) this.placerReglagesMorceau(); };
+        document.getElementById('dock-rythme').addEventListener('click', () => this.toggleSequencer('compact'));
+        document.getElementById('dock-terminer').addEventListener('click', () => this.cancelEdit());
+
+        const suivreAncre = () => {
+            if (this.songSettingsOpen) this.placerReglagesMorceau();
+            // Le seuil téléphone/ordinateur décide de l'affichage des accès de secours : faire pivoter
+            // un appareil ou redimensionner une fenêtre doit les faire apparaître ou disparaître.
+            this.majBarreBasTelephone();
+        };
         window.addEventListener('resize', suivreAncre);
         window.addEventListener('scroll', suivreAncre, { passive: true, capture: true });
 
@@ -7379,6 +7387,32 @@ class HarmoHubApp {
         insertBtn.hidden = !canInsert;
     }
 
+    // ACCÈS DE SECOURS DE LA BARRE DU BAS — téléphone et mode Modification seulement.
+    // Mesuré sur iPhone 13 (fenêtre de 664px, page de 1314px), un accord en cours de modification :
+    // six commandes sur neuf sont hors écran, dont « terminer la modification » (653px) et le bouton
+    // du petit séquenceur (838px). Tout ce qui vit dans la carte Lecture n'est atteignable qu'après
+    // avoir fait défiler jusqu'en bas, en perdant la grille de vue — c'est-à-dire au moment précis
+    // où l'on ne veut pas la perdre.
+    // Le MÊME raisonnement que le raccourci de motif du tiroir, et le même garde-fou : sur ordinateur
+    // ces deux boutons n'existent pas, les originaux y étant sous les yeux. Un doublon n'en est un que
+    // là où l'original est atteignable.
+    majBarreBasTelephone() {
+        const rythme = document.getElementById('dock-rythme');
+        const terminer = document.getElementById('dock-terminer');
+        if (!rythme || !terminer) return;
+        const surTelephone = window.matchMedia('(max-width: 899px)').matches;
+        const utile = surTelephone && this.appMode === 'edit' && this.editingIndex != null;
+        rythme.hidden = !utile;
+        terminer.hidden = !utile;
+        // L'état du bouton Rythme suit celui du panneau : ouvert, il le referme — sans quoi on aurait
+        // deux boutons qui ouvrent et aucun qui ferme, exactement le défaut signalé sur le tiroir.
+        rythme.classList.toggle('active', utile && this.seqOpen);
+        if (utile) {
+            rythme.title = this.seqOpen ? 'Fermer le rythme' : 'Rythme de cet accord';
+            rythme.setAttribute('aria-label', rythme.title);
+        }
+    }
+
     // Pose data-app-mode sur <body> : la teinte discrète (curseur d'intensité) du contexte courant —
     // un seul attribut, plutôt que de reproduire le même if/else sur chaque élément concerné.
     // Ne pilote plus AUCUN bandeau : celui-ci a disparu. Ce qu'il montrait est désormais dit par le
@@ -7388,6 +7422,10 @@ class HarmoHubApp {
     // et une cible qui disparaît dès qu'on touche un accord ne peut pas servir de repère stable.
     applyAppModeTheme() {
         document.body.dataset.appMode = this.appMode;
+        // Accroché ici plutôt qu'aux quatre endroits qui changent de mode : applyAppModeTheme est
+        // déjà LE point de passage de tout changement de mode, et les accès de secours de la barre du
+        // bas ne dépendent que de ça (plus de la largeur d'écran, traitée au redimensionnement).
+        this.majBarreBasTelephone();
     }
 
     // ---------- Sujet du panneau d'accord (voir #accord-title) ----------
@@ -13539,6 +13577,7 @@ class HarmoHubApp {
             document.getElementById('arpPattern').insertAdjacentElement('afterend', seq);
         }
         this.appliquerTiroirSequenceur();
+        this.majBarreBasTelephone(); // l'état du bouton Rythme de la barre du bas suit l'ouverture
     }
 
     // TIROIR FLOTTANT DU PETIT SÉQUENCEUR, sur téléphone seulement (voir .arp-seq.seq-tiroir dans

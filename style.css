@@ -994,6 +994,22 @@ main {
 }
 .panel-controls .control-card { margin-bottom: 0; }
 
+/* Accès de secours de la barre du bas (voir #dock-rythme/#dock-terminer dans index.html) : posés au
+   BOUT de la rangée d'actions, pour ne pas s'intercaler entre Ajouter et À la suite. `min-width: 0`
+   pour la raison habituelle dans ce fichier — la règle générique `button { min-width: 120px; }`
+   (bouton pleine largeur sur téléphone) l'emporterait sinon, quelle que soit la spécificité. */
+.dock-secours {
+    min-width: 0;
+    margin-left: auto;
+    flex: none;
+}
+/* Le second colle au premier : sans ça, `margin-left: auto` sur les deux les écarterait l'un de
+   l'autre au lieu de les grouper à droite. */
+.dock-secours + .dock-secours { margin-left: 6px; }
+/* Ouvert, le bouton Rythme prend la teinte des bascules actives de l'appli : il referme alors, et
+   ça doit se voir sans lire l'infobulle. */
+.dock-secours.active { border-color: var(--accent); color: var(--accent); }
+
 /* Ajouter / À la suite / Annuler : actions d'édition de la grille. En temps normal, groupées juste
    au-dessus de la carte Morceau. Dès qu'on entre en mode "éditer" un accord existant, le JS
    (updateEditActionsDocking) déplace ce même bloc dans .dock, au-dessus de la barre de lecture, pour
@@ -4459,6 +4475,21 @@ select.song-select-narrow {
     #progression-sections { order: 4; }
     .history-section .add-section-btn { order: 5; }
     main { padding-bottom: 0; }
+
+    /* ---- LA BARRE DU BAS FUSIONNE SES DEUX RANGÉES (téléphone) ----
+       Elle empilait le bloc d'actions d'édition AU-DESSUS du transport, soit deux rangées. En mode
+       Modification, ce bloc a pourtant tous ses boutons masqués (Ajouter/À la suite/Annuler n'ont
+       plus de sens quand chaque champ s'applique déjà tout seul, voir updateSaveButtons) : il ne
+       portait qu'une rangée vide, et les deux accès de secours qu'on vient d'y ajouter la faisaient
+       passer de 81px à 113px — 40px pris à la grille sur un écran qui n'en compte que 664.
+       Une seule rangée : le transport prend la place restante, les accès de secours se rangent au
+       bout. Mesuré : on revient à 81px, les deux boutons ne coûtent donc plus rien.
+       En mode Ajout, ce bloc n'est PAS dans la barre du bas (voir updateEditActionsDocking) : la
+       règle n'a alors aucun effet, et le gros bouton « Ajouter » garde sa pleine largeur là où il
+       vit. */
+    .dock { flex-direction: row; align-items: center; gap: 6px; }
+    .dock #edit-actions { flex: none; width: auto; margin: 0; }
+    .dock .transport { flex: 1 1 auto; min-width: 0; }
 
     /* ---- Faire remonter la grille d'accords sur téléphone ----
        MESURÉ AVANT DE TOUCHER À QUOI QUE CE SOIT : sur un iPhone 13 (390x664), la grille commençait

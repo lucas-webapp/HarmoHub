@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608220900">
+    <link rel="stylesheet" href="style.css?v=202608221100">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -875,6 +875,29 @@
                     <button id="save" class="btn-green"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter</button>
                     <button id="save-insert" class="btn-green" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> À la suite</button>
                     <button id="cancel-edit" class="btn-orange" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg> Annuler</button>
+                    <!-- DEUX ACCÈS DE SECOURS, TÉLÉPHONE ET MODE MODIFICATION SEULEMENT (voir
+                         majBarreBasTelephone dans script.js).
+                         Mesuré sur iPhone 13, fenêtre de 664px, un accord en cours de modification :
+                         six commandes sur neuf sont HORS ÉCRAN — ouvrir le petit séquenceur (838px),
+                         l'instrument (838), l'intensité (936), le motif rythmique (880), et même
+                         « terminer la modification » (653). La page fait 1314px pour 664 de fenêtre :
+                         tout ce qui vit dans la carte Lecture n'est atteignable qu'après avoir fait
+                         défiler jusqu'en bas, en perdant la grille de vue.
+                         Ce ne sont PAS des commandes en double au sens du reproche « machine à
+                         clics » : sur ordinateur elles n'apparaissent pas (les originales y sont sous
+                         les yeux), et sur téléphone les originales sont inatteignables au moment où
+                         l'on en a besoin. Même raisonnement, et même précédent, que le raccourci de
+                         motif ajouté dans le tiroir.
+                         Deux et pas plus : le RYTHME (la porte d'entrée du tiroir, qui porte ensuite
+                         ses propres outils) et TERMINER (la sortie du mode). L'instrument et
+                         l'intensité restent hors d'atteinte sur téléphone — c'est signalé plutôt que
+                         corrigé en douce, faute de place dans une barre déjà à 81px. -->
+                    <button type="button" id="dock-rythme" class="icon-btn dock-secours" hidden title="Rythme de cet accord" aria-label="Ouvrir le rythme de cet accord">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20v-6"/><path d="M10 20V6"/><path d="M16 20v-9"/><path d="M20 20v-4"/></svg>
+                    </button>
+                    <button type="button" id="dock-terminer" class="icon-btn dock-secours" hidden title="Terminer la modification" aria-label="Terminer la modification">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
+                    </button>
                 </div>
 
             </div>
@@ -1009,7 +1032,7 @@
                     </div>
                 </div>
                 <div id="progression-sections"></div>
-                <button type="button" id="add-section" class="btn-green add-section-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter une partie</button>
+                <button type="button" id="add-section" class="btn-green add-section-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter section</button>
             </section>
 
             <!-- Volet du séquenceur CONTINU, sous la grille (voir placeSequencer dans script.js).
@@ -1197,6 +1220,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608220900"></script>
+    <script src="script.js?v=202608221100"></script>
 </body>
 </html>

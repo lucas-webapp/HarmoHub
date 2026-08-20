@@ -999,3 +999,48 @@ importante du panneau, sa sortie.
 **Règle à appliquer désormais** : pour une commande que l'utilisateur doit ATTEINDRE, on vérifie
 d'abord qu'elle est à l'écran et que `elementFromPoint` la désigne, PUIS on la pilote par un vrai
 geste. Jamais par la méthode qui se cache derrière. Le banc fait maintenant les trois.
+
+---
+
+## Lot 5 : la barre du bas fusionne, et porte deux accès de secours
+
+### La mesure a déplacé le sujet du lot
+
+La plainte d'origine visait l'ordinateur : « les boutons fichiers, accords, etc... ne sont pas
+descendus en bas de page ». Vérifié sur quatre configurations (1440x768 et 1440x900, volet ouvert et
+masqué) : **la barre du bas est en bas dans les quatre cas**, avec les 20px de marge de page pour
+seul écart. Ce défaut-là a été réglé par le lot antérieur qui recalcule la hauteur du séquenceur au
+repli du volet. Rien à y faire de plus.
+
+Le problème mesurable restant est ailleurs. Sur iPhone 13 (fenêtre de 664px, page de **1314px**), un
+accord en cours de modification : **six commandes sur neuf sont hors écran** — ouvrir le petit
+séquenceur (838px), l'instrument (838), l'intensité (936), le motif rythmique (880), et même
+« terminer la modification » (653). Tout ce qui vit dans la carte Lecture n'est atteignable qu'après
+avoir fait défiler jusqu'en bas, en perdant la grille de vue — au moment précis où l'on ne veut pas la
+perdre.
+
+### Deux accès seulement, et c'est un choix
+
+Le **rythme** (la porte d'entrée du tiroir, qui porte ensuite ses propres outils) et **terminer** (la
+sortie du mode). L'instrument et l'intensité restent hors d'atteinte sur téléphone : c'est **signalé
+plutôt que corrigé en douce**, faute de place dans une barre déjà courte.
+
+Ce ne sont pas des doublons, et le banc le vérifie dans les deux sens : sur ordinateur ces boutons
+n'existent pas (les originaux y sont sous les yeux), et sur téléphone les originaux sont
+inatteignables au moment où l'on en a besoin. **Un doublon n'en est un que là où l'original est
+atteignable.**
+
+### La fusion est ce qui rend ces deux boutons gratuits
+
+La barre empilait le bloc d'actions d'édition au-dessus du transport. En Modification, ce bloc a tous
+ses boutons masqués (Ajouter/À la suite/Annuler n'ont plus de sens quand chaque champ s'applique déjà
+seul) : il ne portait qu'une rangée vide. Les deux nouveaux boutons l'avaient fait passer de **81 à
+113px** — 40px pris à la grille. Fusionnées en une seule rangée : **73px**, moins qu'avant le lot.
+
+### Une régression de libellé, retrouvée dans l'historique
+
+Signalée par l'utilisateur : « Tu avais également modifié l'encadré vert "Ajouter une partie" en
+"Ajouter section" sous la grille, j'ai l'impression que cela a régressé. » Vérifié plutôt que supposé :
+`69d70ea` avait bien renommé le bouton, et `ee19b67` — celui qui le passait en vert — a **réécrit la
+ligne entière** et remis l'ancien libellé au passage. C'est le genre de retour en arrière qu'une
+réécriture de ligne refait sans le vouloir : le libellé a donc désormais son propre banc.
