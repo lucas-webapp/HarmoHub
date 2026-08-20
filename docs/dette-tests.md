@@ -555,3 +555,82 @@ Le garde-fou s'est aussi retourné contre son auteur, ce qui est exactement ce q
 signalé `_pdfDialogCancel` comme « appelé mais absent » au moment où je l'introduisais. C'était un
 faux positif (une propriété recevant une fonction, `this._pdfDialogCancel = fermer`), corrigé dans le
 détecteur — un outil qui traque les faux positifs ne peut pas se permettre d'en produire.
+
+---
+
+## Lot 0 : le filet posé avant la refonte de l'interface
+
+La refonte remplace le volet de gauche toujours ouvert par un inspecteur contextuel, et sort le petit
+séquenceur du flux de la page pour en faire un panneau volant. Trois bancs ont été écrits AVANT d'y
+toucher, et vérifiés verts sur le code d'alors — ils ne décrivent aucune nouveauté, seulement ce qui
+doit rester vrai après.
+
+| Banc | Ce qu'il fige | Vérifications |
+|---|---|---|
+| `filet_toujours_visible_test` | nom du morceau, tonalité, tempo, fichiers, enregistrer, import, export — visibles ET cliquables, sans rien déplier, dans les quatre situations (ordinateur/téléphone × Ajout/Modification) | 33 |
+| `filet_moteur_edition_test` | les dix réglages qui font un accord s'écrivent en direct dans la donnée et se reprennent au Ctrl+Z ; Entrée ajoute en mode Ajout et n'ajoute rien en Modification ; l'intensité s'applique à une sélection multiple | 28 |
+| `filet_sequenceur_et_sortie_test` | clic-puis-glissé pose une note (et un clic seul n'en pose aucune), Ctrl+Z reprend, Espace reste la lecture, conduite de voix et séquenceur s'excluent, ce qui sort du mode Modification et ce qui n'en sort pas, défilement au doigt depuis le séquenceur | 24 |
+
+### Deux couches qui ne vieillissent pas pareil
+
+C'est le point de méthode de tout le filet, et il vaut au-delà de cette refonte :
+
+- **Couche moteur** — on écrit dans le champ source et on émet l'évènement, sans cliquer sur aucun
+  widget. Aucune adresse d'écran n'y apparaît, donc rien à réadapter d'un lot à l'autre. Elle répond
+  à « la donnée suit-elle encore ? »
+- **Couche câblage** — de vrais clics sur de vrais widgets. Elle doit être ADAPTÉE lot par lot,
+  jamais supprimée : c'est la seule qui prouve que la commande visible touche bien le moteur.
+
+Un filet qui ne ferait que la première laisserait passer un inspecteur entièrement débranché ; un
+filet qui ne ferait que la seconde rougirait à chaque changement de maquette sans rien dire du fond.
+
+### Ce que l'écriture du filet a appris sur le code existant
+
+Quatre mesures faites en écrivant ces bancs, toutes contraires à ce qu'on aurait supposé :
+
+1. **En mode Modification, les commandes de voicing ne sont pas à l'écran.** `inversion`, `drop`,
+   `octave` et `bass` vivent dans un bloc replié `#advanced-fields` ; `duration` et `playStyle` sont
+   carrément en `display:none`. Seuls l'instrument et l'intensité s'offrent directement. C'est
+   littéralement la plainte à l'origine de la refonte : « je veux pouvoir rapidement changer une
+   octave, un renversement etc... Sans avoir à ouvrir trop de menus ».
+2. **Poser une note est un clic-PUIS-GLISSÉ, y compris sur les lignes de voix.** Un clic seul ne
+   crée rien. Le banc a d'abord échoué en cliquant, ce qui a permis de figer les DEUX moitiés de la
+   règle plutôt que la seule qu'on avait en tête.
+3. **Cliquer une note existante la sélectionne**, elle ne s'efface pas — et avec le style « tenu »
+   les 64 cases sont allumées, donc aucune case libre où poser quoi que ce soit. Les bancs sèment
+   désormais un style détaché.
+4. **`#playStyle` est déjà un `<select hidden>`.** La stratégie retenue pour la refonte — garder les
+   champs actuels comme source de vérité cachée, et brancher les nouvelles commandes dessus — a donc
+   déjà un précédent dans le code.
+
+### Un faux vert attrapé au passage
+
+Le banc du moteur a d'abord semé `playStyle = 'arpUp'`, une valeur qui n'existe pas dans les options
+(elles sont des LONGUEURS de note, pas des arpèges). Un `<select>` à qui l'on donne une valeur
+inconnue se met sur la chaîne vide **sans rien dire** : le banc constatait bien un changement
+(« held » → «  ») et passait au vert en n'éprouvant plus rien. Une garde a été ajoutée — on relit
+`el.value` après l'écriture et on refuse de conclure si le champ n'a pas accepté la valeur.
+
+### Un piège annoncé qui n'en est pas un
+
+En listant les pièges avant les travaux, j'avais écrit que « 71 règles CSS `order:` dépendent du
+`display: contents` » du volet, ce qui en faisait le risque le plus lourd de la refonte. C'était un
+mauvais comptage : le motif attrapait aussi `border:`. Il y a **quatorze** règles `order:` en tout,
+dont cinq dans la seule mise en page téléphone, et `display: contents` n'apparaît qu'à quatre
+endroits (`.col-left`/`.col-right`, `.sidebar-frame`, et l'en-tête de la grille sur téléphone). Le
+risque reste réel — aplatir une boîte change l'ordre de ses enfants — mais il est de l'ordre d'une
+poignée de règles à relire, pas d'une réécriture de la mise en page.
+
+### Ligne de base des bancs rouges AVANT les travaux
+
+Neuf bancs étaient déjà rouges sur le code d'avant la refonte. Ils sont notés ici pour qu'on ne les
+prenne pas plus tard pour des dégâts de la refonte :
+
+`avant_seq_snap_sticky` (cherche un sélecteur d'aimantation retiré depuis), `paroles_fixes` (dépasse
+le temps imparti), `probe_clic_accord_voisin` (4/8), `probe_defilement_tactile` (23/24),
+`probe_regle_voisins` (28/29), `probe_seq_finitions` (18/19 — attend une opacité volontairement
+relevée depuis), `real_click_loupe_selection` (3/4), `seq_notes_libres_clavier` (32/33),
+`seq_selection_et_cadre_diagrammes` (21/22 — débordement du diagramme guitare sous 300px).
+
+`glock_full_real_ui` figurait aussi dans cette liste au premier passage : c'était le serveur de test
+mono-thread qui se bloquait, pas le banc. Relancé avec un serveur multi-thread, il est vert (33/0).
