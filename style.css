@@ -1375,6 +1375,106 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
 #accord-card.subject-existing #accord-title { color: #ffb300; }
 
 /* ============================================================
+   COMMANDES DIRECTES DE VOICING — Lot 4 de la refonte
+   ============================================================
+   RETOUR UTILISATEUR : « Lorsque je suis en mode édition, je veux pouvoir rapidement changer une
+   octave, un renversement etc... Sans avoir à ouvrir trop de menus. »
+
+   MESURÉ AVANT : renversement, drop, octave et basse vivaient tous dans #advanced-fields, replié par
+   défaut derrière le bouton « … ». Monter d'une octave demandait donc d'ouvrir le bloc, dérouler une
+   liste, choisir — pour un réglage qu'on ajuste par tâtonnement, à l'oreille, dix fois de suite.
+
+   UNE SEULE RANGÉE, TROIS GROUPES, ÉTIQUETTES MINUSCULES. La largeur utile de la carte est de 354px
+   sur ordinateur et 350px sur téléphone : les trois groupes y tiennent côte à côte (environ
+   90 + 120 + 90px plus les écarts). Les étiquettes sont posées AU-DESSUS et non à côté, donc elles ne
+   coûtent rien en largeur — c'est la disposition des stations audio, et c'est aussi celle que la
+   carte Tempo utilise déjà pour le groove et la mesure (voir .groove-field). Trois mots de sept
+   lettres : assez pour ne pas jouer aux devinettes, pas assez pour retomber dans « trop d'écriture
+   dedans, ça ne rend pas joli ni pro ».
+
+   POURQUOI UN PAS-À-PAS POUR L'OCTAVE ET DES SEGMENTS POUR LES DEUX AUTRES. L'octave est une échelle
+   ordonnée qu'on parcourt de proche en proche (« un peu plus grave ») : deux boutons et une valeur
+   disent ça mieux que quatre cases. Le renversement et le drop sont des CHOIX parmi trois ou quatre
+   possibilités qu'on veut voir toutes à la fois, y compris celles qu'on n'a pas prises — d'où des
+   segments. La forme suit ce que le réglage EST, pas une envie d'uniformité. */
+.voicing-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+}
+.voicing-group { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.voicing-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    padding-left: 2px;
+}
+/* Les deux commandes partagent le même cadre : elles se lisent comme un seul rang d'outils, pas
+   comme trois widgets étrangers posés côte à côte. */
+.voicing-stepper, .voicing-seg {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    overflow: hidden;
+    background: #16191e;
+}
+.voicing-step, .voicing-segment {
+    /* min-width: 0 — la règle générique `button { min-width: 120px; }` (bouton pleine largeur sur
+       téléphone) l'emporterait sinon, quelle que soit la spécificité : `width` perd toujours face à
+       un `min-width` plus grand. Même correctif que .icon-btn et .sidebar-tab, pour la même raison. */
+    min-width: 0;
+    margin: 0;
+    padding: 0 9px;
+    /* 30px : au-dessus des 28px en dessous desquels une cible devient pénible au doigt, et assez bas
+       pour que la rangée entière n'ajoute que ~45px à la carte, étiquette comprise. */
+    height: 30px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease;
+}
+.voicing-segment + .voicing-segment, .voicing-value + .voicing-step { border-left: 1px solid var(--border); }
+.voicing-step:hover:not(:disabled), .voicing-segment:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); color: var(--text-main); }
+.voicing-step:active:not(:disabled), .voicing-segment:active:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
+
+/* Le segment retenu prend la couleur du SUJET (voir --sujet, Lot 3) : vert pour un accord qu'on
+   prépare, ambre pour un accord déjà posé qui change sous les yeux. Un même vert partout aurait dit
+   « validé » alors que la vraie information est « voici ce sur quoi vous agissez ». */
+.voicing-segment.active {
+    background: var(--sujet-fond, rgba(255, 255, 255, 0.08));
+    color: var(--sujet, var(--accent));
+    box-shadow: inset 0 -2px 0 var(--sujet, var(--accent));
+}
+
+/* GRISÉ = « pas possible pour CET accord », et c'est le vrai gain sur les listes d'avant : elles
+   offraient les quatre renversements à tous les accords, y compris aux accords de trois notes qui
+   n'en ont que trois. Choisir « 3e renv. » sur une triade ne faisait alors rien de visible, la valeur
+   étant ramenée en silence (voir Math.min dans Chord.effectiveInversion). On garde une opacité
+   suffisante pour rester LISIBLE : un segment illisible n'apprend rien. */
+.voicing-step:disabled, .voicing-segment:disabled { opacity: 0.32; cursor: default; }
+
+.voicing-value {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    padding: 0 4px;
+    border-left: 1px solid var(--border);
+    color: var(--text-main);
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
    L'INSPECTEUR DIT DE QUOI IL PARLE — Lot 3 de la refonte
    ============================================================
    RETOUR UTILISATEUR : « Pas assez de différences pour l'ajout et la modification, je confonds les

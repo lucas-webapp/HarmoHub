@@ -125,11 +125,15 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // ouvre l'édition du 1er accord et change son renversement
     await page.evaluate(() => { window.app.editChord(0, 0); });
     await page.waitForTimeout(150);
-    const inversionSelect = await page.$('#inversion');
-    check(!!inversionSelect, 'le panneau Accord (avec le sélecteur de renversement) s\'est bien ouvert');
-    if (inversionSelect) {
-        await page.selectOption('#inversion', '1');
-        await page.waitForTimeout(200);
+    // Le renversement se choisit désormais par les SEGMENTS de la rangée de voicing. La liste
+    // déroulante existe toujours — elle reste la source de vérité que lit readChord — mais elle est
+    // masquée, et selectOption ne pilote pas un élément invisible. On vise donc le segment visible,
+    // ce qui éprouve le vrai geste plutôt qu'un raccourci de banc.
+    const segmentRenv = await page.$('#inversion-seg .voicing-segment[data-valeur="1"]');
+    check(!!segmentRenv, 'le panneau Accord (avec les segments de renversement) s\'est bien ouvert');
+    if (segmentRenv) {
+        await segmentRenv.click();
+        await page.waitForTimeout(250);
         const afterMidis = await page.evaluate(() => {
             const svg = document.querySelector('.voice-leading-scroll svg');
             return svg ? [...svg.querySelectorAll('text[font-family="ui-monospace, monospace"]')].map(t => t.textContent) : null;

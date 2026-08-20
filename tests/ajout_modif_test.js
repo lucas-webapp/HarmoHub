@@ -265,7 +265,19 @@ const etat = (page) => page.evaluate(() => ({
     await page.selectOption('#root', 'F'); await page.waitForTimeout(300);
     check(await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[1].root === 'F'),
         'changer la fondamentale s\'écrit tout de suite, sans bouton Valider');
-    await page.selectOption('#octave', '5'); await page.waitForTimeout(300);
+    // L'octave se règle désormais par le PAS-À-PAS de la rangée de voicing, plus par une liste
+    // déroulante : celle-ci existe toujours (elle reste la source de vérité que lit readChord) mais
+    // elle est masquée, et selectOption ne peut pas piloter un élément invisible. On clique donc la
+    // vraie commande, ce qui éprouve au passage le câblage complet plutôt que le seul moteur.
+    for (let i = 0; i < 6; i++) {
+        const v = await page.evaluate(() => +document.getElementById('octave').value);
+        if (v >= 5) break;
+        await page.click('[data-octave-step="1"]');
+        await page.waitForTimeout(150);
+    }
+    check(await page.evaluate(() => document.getElementById('octave').value) === '5',
+        'le pas-à-pas amène bien l\'octave à 5');
+    await page.waitForTimeout(300);
     await page.keyboard.down('Control'); await page.keyboard.press('z'); await page.keyboard.up('Control');
     await page.waitForTimeout(400);
     const apres = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[1]);

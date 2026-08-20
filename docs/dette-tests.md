@@ -790,3 +790,60 @@ Le séparateur « · » du titre (« Modifier · Cm7 ») a disparu : la pastille
 l'état du symbole mieux qu'un point ne le faisait. Les cinq vérifications qui comparaient ce texte
 collé bout à bout comparent maintenant les deux morceaux séparément — ce qui dit mieux ce qu'elles
 voulaient prouver depuis le début : un état nommé ET un sujet nommé.
+
+---
+
+## Lot 4 : octave, renversement et drop sous la main
+
+Retour utilisateur : « Lorsque je suis en mode édition, je veux pouvoir rapidement changer une octave,
+un renversement etc... Sans avoir à ouvrir trop de menus. »
+
+Mesuré avant : ces trois réglages vivaient tous dans `#advanced-fields`, replié par défaut derrière le
+bouton « … ». Monter d'une octave demandait d'ouvrir le bloc, dérouler une liste, choisir — pour un
+réglage qu'on ajuste par tâtonnement, à l'oreille, dix fois de suite. Ils occupent désormais une
+rangée de 321px sur 50px, visible sans rien ouvrir, dans les deux modes.
+
+### La forme suit ce que le réglage EST
+
+L'octave est une échelle ordonnée qu'on parcourt de proche en proche (« un peu plus grave ») : un
+pas-à-pas `− 3 +` dit ça mieux que quatre cases. Le renversement et le drop sont des CHOIX parmi trois
+ou quatre possibilités qu'on veut voir toutes à la fois, y compris celles qu'on n'a pas prises : des
+segments. Pas d'uniformité pour l'uniformité.
+
+### Le vrai gain sur les listes d'avant : le grisage
+
+Les listes offraient les quatre renversements à TOUS les accords, y compris aux accords de trois notes
+qui n'en ont que trois. Choisir « 3e renv. » sur une triade ne faisait alors rien de visible — la
+valeur était ramenée en silence (`Math.min` dans `Chord.effectiveInversion`). Un segment grisé dit ce
+que la liste taisait. Le banc l'éprouve sur les deux cas : triade et accord de quatre notes.
+
+### Les segments sont CONSTRUITS à partir des `<option>`, jamais écrits en dur
+
+Deux raisons, dont une apprise à mes dépens : ajouter un drop demain ne se fera qu'à un seul endroit ;
+et j'avais proposé dans une maquette un « Drop 2+4 » qui n'existe pas, relevé par l'utilisateur (« ça
+ne veut rien dire »). Une commande qui LIT la liste ne peut pas inventer d'option. Le banc compare le
+nombre et les valeurs des segments à ceux des `<option>` — un retour au codage en dur le ferait rougir.
+
+### Le piège repéré AVANT d'écrire les boutons
+
+Le raccourci « Entrée depuis un réglage d'accord ajoute l'accord » se décidait sur l'IDENTIFIANT de
+l'élément ayant le focus (`CHORD_PARAM_IDS`). Un `<button>` n'a pas l'identifiant d'un `<select>` : le
+raccourci serait mort **en silence** dès qu'on aurait cliqué une des nouvelles commandes avant
+d'appuyer sur Entrée — aucune erreur, aucun symptôme, juste une touche qui ne fait plus rien. Le test
+lit désormais aussi `closest('[data-chord-param]')`, et le banc l'éprouve avec un vrai focus sur un
+vrai bouton.
+
+### Deux bancs adaptés — et c'est un progrès, pas une concession
+
+`ajout_modif_test` et `voice_leading_test` pilotaient l'octave et le renversement par
+`page.selectOption('#octave' | '#inversion')`. Ces listes existent toujours (elles restent la source
+de vérité que lit `readChord`) mais sont masquées, et Playwright ne pilote pas un élément invisible.
+Les deux bancs cliquent maintenant la commande VISIBLE : ils éprouvent donc le câblage complet là où
+ils ne touchaient que le moteur.
+
+### Une surprise consignée
+
+`Ctrl+Z` fait **sortir du mode Modification** (`appMode` repasse à « add », `editingIndex` à null).
+Comportement antérieur à ce lot, mais piégeant : la suite du banc s'exécutait en mode Ajout, où
+`commitLiveEdit` ne fait rien — à juste titre — et deux vérifications rougissaient en accusant les
+nouvelles commandes. Le banc revient explicitement en édition après chaque annulation.

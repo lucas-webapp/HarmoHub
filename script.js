@@ -3541,6 +3541,10 @@ class HarmoHubApp {
             });
         });
 
+        // Commandes directes de voicing (octave/renversement/drop) : construites APRÈS le câblage
+        // ci-dessus, pour que le 'change' qu'elles émettent trouve déjà ses écouteurs en place.
+        this.construireCommandesVoicing();
+
         // Choisir un style de lecture réinitialise le motif sur le point de départ correspondant
         document.getElementById('playStyle').onchange = () => {
             const chord = this.readChord();
@@ -4278,9 +4282,119 @@ class HarmoHubApp {
     }
 
     // Met à jour le grand titre + la liste de notes, sans jouer de son
+    // ---------- Commandes directes de voicing (octave / renversement / drop) ----------
+    // Retour utilisateur : « je veux pouvoir rapidement changer une octave, un renversement etc...
+    // Sans avoir à ouvrir trop de menus. » Ces trois réglages vivaient dans #advanced-fields, replié
+    // par défaut : il fallait ouvrir le bloc « … » avant de pouvoir monter d'une octave.
+    //
+    // LES SEGMENTS SONT CONSTRUITS À PARTIR DES <option> EXISTANTES, jamais écrits en dur. Deux
+    // raisons, dont une apprise à mes dépens : d'abord, ajouter un drop demain ne se fera qu'à un
+    // seul endroit ; ensuite, j'avais proposé dans une maquette un « Drop 2+4 » qui n'existe pas —
+    // l'utilisateur l'a relevé (« ça ne veut rien dire »). Une commande qui LIT la liste ne peut pas
+    // inventer d'option.
+    construireCommandesVoicing() {
+        const remplir = (idSelect, idSeg, court) => {
+            const select = document.getElementById(idSelect);
+            const seg = document.getElementById(idSeg);
+            if (!select || !seg) return;
+            seg.innerHTML = '';
+            for (const opt of select.options) {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'voicing-segment';
+                b.dataset.chordParam = idSelect;   // voir le raccourci Entrée, plus bas
+                b.dataset.valeur = opt.value;
+                // Deux libellés pour la même option : le court sur le bouton (la place est comptée),
+                // le long en infobulle. C'est exactement ce que fait une station audio, et ça évite le
+                // reproche « trop d'écriture dedans » sans rendre la commande devinette.
+                b.textContent = court(opt);
+                b.title = opt.textContent.trim();
+                b.setAttribute('aria-label', opt.textContent.trim());
+                b.onclick = () => this.appliquerReglageVoicing(idSelect, opt.value);
+                seg.appendChild(b);
+            }
+        };
+        // Renversement : « Fond. » -> « F », « 1er renv. » -> « 1 ». On prend le premier chiffre du
+        // libellé, ou « F » s'il n'y en a pas — plutôt que de recopier une table qui dériverait.
+        remplir('inversion', 'inversion-seg', (opt) => {
+            const chiffre = (opt.textContent.match(/\d/) || [])[0];
+            return chiffre || 'F';
+        });
+        // Drop : « Sans drop » -> « — », « Drop 2 » -> « 2 ». Même principe.
+        remplir('drop', 'drop-seg', (opt) => {
+            const chiffre = (opt.textContent.match(/\d/) || [])[0];
+            return chiffre || '—';
+        });
+
+        // Pas-à-pas d'octave : les bornes viennent des <option>, pas de nombres écrits ici.
+        const octaves = [...document.getElementById('octave').options].map(o => +o.value).filter(n => !isNaN(n));
+        this._octaveMin = Math.min(...octaves);
+        this._octaveMax = Math.max(...octaves);
+        document.querySelectorAll('[data-octave-step]').forEach(btn => {
+            btn.onclick = () => {
+                const select = document.getElementById('octave');
+                const vise = (+select.value || this._octaveMin) + (+btn.dataset.octaveStep);
+                if (vise < this._octaveMin || vise > this._octaveMax) return;
+                this.appliquerReglageVoicing('octave', String(vise));
+            };
+        });
+    }
+
+    // Un seul chemin d'écriture pour les trois commandes : on pose la valeur dans le <select>
+    // d'origine et on émet 'change'. Tout ce qui suit — application en direct dans l'accord édité,
+    // instantané Ctrl+Z, re-rendu du séquenceur, aperçu sonore — est le code qui existait déjà et
+    // qui n'a pas à savoir qu'une nouvelle commande est apparue.
+    appliquerReglageVoicing(idSelect, valeur) {
+        const select = document.getElementById(idSelect);
+        if (!select || select.value === String(valeur)) return; // rien à faire, et surtout pas d'entrée d'annulation pour rien
+        select.value = String(valeur);
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // Reflète l'état courant sur les commandes, et GRISE ce qui n'a pas de sens pour cet accord-là.
+    // Ce dernier point est le vrai gain sur les anciennes listes déroulantes : elles offraient les
+    // quatre renversements à tous les accords, y compris aux accords de trois notes qui n'en ont que
+    // trois — choisir « 3e renv. » sur une triade ne faisait alors rien de visible, la valeur étant
+    // ramenée en silence (voir le Math.min dans Chord.effectiveInversion). Un segment grisé dit ce
+    // que la liste taisait.
+    syncCommandesVoicing(chordDejaLu = null) {
+        const seg = document.getElementById('inversion-seg');
+        if (!seg || !seg.children.length) return; // commandes pas encore construites
+        const chord = chordDejaLu || this.readChord();
+        const nbNotes = chord.getIntervals().length;
+
+        const refleter = (idSelect, idSeg, utilisable) => {
+            const select = document.getElementById(idSelect);
+            const hote = document.getElementById(idSeg);
+            if (!select || !hote) return;
+            for (const b of hote.children) {
+                const actif = b.dataset.valeur === select.value;
+                b.classList.toggle('active', actif);
+                b.setAttribute('aria-pressed', String(actif));
+                const ok = utilisable ? utilisable(b.dataset.valeur) : true;
+                b.disabled = !ok && !actif; // jamais griser celui qui est SÉLECTIONNÉ : il serait illisible
+            }
+        };
+        refleter('inversion', 'inversion-seg', (v) => +v < nbNotes);
+        refleter('drop', 'drop-seg', null);
+
+        const octave = document.getElementById('octave');
+        const val = document.getElementById('octave-value');
+        if (octave && val) val.textContent = octave.value;
+        document.querySelectorAll('[data-octave-step]').forEach(btn => {
+            const vise = (+octave.value || this._octaveMin) + (+btn.dataset.octaveStep);
+            btn.disabled = vise < this._octaveMin || vise > this._octaveMax;
+        });
+    }
+
     refreshPreview() {
         const chord = this.readChord();
         const midis = chord.getMidiNotes();
+        // Les commandes directes de voicing se remettent d'aplomb ici, et pas dans chaque endroit qui
+        // change un accord : refreshPreview est LE point de passage commun (les sept listes de la
+        // carte Accord y appellent toutes, editChord aussi, la restauration d'un accord existant
+        // aussi). Une par une, on en aurait forcément oublié.
+        this.syncCommandesVoicing(chord);
         const useFlats = this.useFlatsForRoot(chord.root);
         const disp = document.getElementById('current-chord-display');
         disp.innerHTML = `<span class="chord-chip"><span class="chord-title">${flatTight(chord.getLabel(useFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, useFlats)}</span></span>`;
@@ -16209,7 +16323,15 @@ class HarmoHubApp {
             // Entrée depuis un réglage d'accord : ajoute sans avoir à cliquer sur le bouton — seulement
             // en mode Ajout : en mode Modification, chaque champ s'applique déjà tout seul (voir
             // commitLiveEdit), Entrée n'a plus rien à valider et ne doit pas refermer l'édition en cours.
-            if (e.key === 'Enter' && this.appMode !== 'edit' && CHORD_PARAM_IDS.includes(document.activeElement && document.activeElement.id)) {
+            // `closest('[data-chord-param]')` EN PLUS de l'identifiant, et pas à la place : les sept
+            // listes gardent leur identifiant, mais les commandes directes de voicing sont des
+            // <button> — leur identifiant n'est pas dans CHORD_PARAM_IDS, et le raccourci serait mort
+            // en silence dès qu'on aurait cliqué l'un d'eux avant d'appuyer sur Entrée. Repéré en
+            // relisant ce code AVANT d'ajouter les boutons, pas après.
+            const surReglageAccord = document.activeElement
+                && (CHORD_PARAM_IDS.includes(document.activeElement.id)
+                    || !!document.activeElement.closest('[data-chord-param]'));
+            if (e.key === 'Enter' && this.appMode !== 'edit' && surReglageAccord) {
                 e.preventDefault();
                 this.saveCurrent();
             }

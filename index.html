@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608220400">
+    <link rel="stylesheet" href="style.css?v=202608220500">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -673,15 +673,61 @@
                             <option value="dom13" class="opt-complex" hidden>13</option>
                         </select>
                     </div>
+                    <!-- COMMANDES DIRECTES DE VOICING (Lot 4 de la refonte).
+                         Retour utilisateur : « Lorsque je suis en mode édition, je veux pouvoir
+                         rapidement changer une octave, un renversement etc... Sans avoir à ouvrir trop
+                         de menus. » Mesuré avant d'y toucher : renversement, drop, octave et basse
+                         vivaient TOUS dans #advanced-fields, replié par défaut derrière le bouton
+                         « … » — trois clics pour monter d'une octave.
+                         Les <select> d'origine restent la SOURCE DE VÉRITÉ (readChord les lit
+                         toujours, ils gardent leurs identifiants et leurs écouteurs) : ces boutons-ci
+                         écrivent dedans et émettent 'change', donc tout le reste de la chaîne —
+                         application en direct, Ctrl+Z, export MIDI/PDF — n'a rien à savoir de leur
+                         existence. Les segments eux-mêmes sont CONSTRUITS à partir des <option> de
+                         ces mêmes listes (voir construireCommandesVoicing) : ajouter un drop demain
+                         se fera à un seul endroit.
+                         data-chord-param : lu par le raccourci Entrée (voir setupKeyboardShortcuts),
+                         qui décidait jusqu'ici sur l'identifiant de l'élément ayant le focus. Un
+                         bouton n'a pas l'identifiant d'un <select> : sans cet attribut, Entrée depuis
+                         l'une de ces commandes aurait cessé d'ajouter l'accord, en silence. -->
+                    <div class="voicing-row" id="voicing-row">
+                        <div class="voicing-group">
+                            <span class="voicing-label" id="octave-label">Octave</span>
+                            <div class="voicing-stepper" role="group" aria-labelledby="octave-label">
+                                <button type="button" class="voicing-step" data-chord-param="octave" data-octave-step="-1" title="Descendre d'une octave" aria-label="Descendre d'une octave">−</button>
+                                <span class="voicing-value" id="octave-value" aria-live="polite">3</span>
+                                <button type="button" class="voicing-step" data-chord-param="octave" data-octave-step="1" title="Monter d'une octave" aria-label="Monter d'une octave">+</button>
+                            </div>
+                        </div>
+                        <div class="voicing-group">
+                            <span class="voicing-label" id="inversion-label">Renv.</span>
+                            <div class="voicing-seg" id="inversion-seg" role="group" aria-labelledby="inversion-label"></div>
+                        </div>
+                        <div class="voicing-group">
+                            <span class="voicing-label" id="drop-label">Drop</span>
+                            <div class="voicing-seg" id="drop-seg" role="group" aria-labelledby="drop-label"></div>
+                        </div>
+                    </div>
+
                     <div class="accord-grid advanced-grid" id="advanced-fields" hidden>
-                        <select id="inversion">
+                        <!-- Les trois listes ci-dessous sont MASQUÉES mais gardées ici, à leur place
+                             d'origine : elles restent la source de vérité que lisent readChord et
+                             buildLiveChordData, avec les mêmes identifiants et les mêmes écouteurs
+                             'change'. Les déplacer ou les supprimer aurait cassé quatre chemins
+                             (lecture de l'accord, application en direct, import MIDI, restauration
+                             d'un accord existant) pour un gain nul : ce qui devait changer, c'est ce
+                             que l'utilisateur VOIT, pas où la valeur est rangée.
+                             La basse, elle, reste visible ici : c'est le réglage rare de ce groupe
+                             (un accord « sur » une note), et treize options n'entrent pas dans une
+                             rangée de segments sans la rendre illisible. -->
+                        <select id="inversion" hidden>
                             <option value="0">Fond.</option><option value="1">1er renv.</option><option value="2">2e renv.</option>
                             <option value="3">3e renv.</option>
                         </select>
-                        <select id="drop">
+                        <select id="drop" hidden>
                             <option value="none">Sans drop</option><option value="drop2">Drop 2</option><option value="drop3">Drop 3</option>
                         </select>
-                        <select id="octave">
+                        <select id="octave" hidden>
                             <option value="2">Oct. 2</option>
                             <option value="3" selected>Oct. 3</option>
                             <option value="4">Oct. 4</option>
@@ -1151,6 +1197,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608220400"></script>
+    <script src="script.js?v=202608220500"></script>
 </body>
 </html>
