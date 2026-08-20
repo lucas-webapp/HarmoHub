@@ -7,3 +7,10 @@ _local_backup_pre_git/
 # des artefacts de diagnostic régénérés à chaque exécution, jamais du code. Quatre d'entre elles se
 # sont retrouvées suivies par un `git add -A` de trop — cette règle évite que ça se reproduise.
 tests/*.png
+
+# Fixtures écrites À LA RACINE par les bancs Paroles (paroles_test, paroles_undo_test,
+# paroles_drag_test, paroles_copy_paste_test, paroles_pdf_test) : chacun exporte un morceau
+# d'exemple vers `sample_*.json` pour le réimporter ensuite. Régénérées à chaque exécution, elles
+# n'ont pas plus leur place dans le dépôt que les captures ci-dessus — et pour la même raison :
+# un `git add -A` lancé juste après une campagne les embarquerait sans qu'on le remarque.
+sample_*.json
