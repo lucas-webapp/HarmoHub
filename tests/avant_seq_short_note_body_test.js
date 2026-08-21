@@ -267,7 +267,13 @@ async function serieDeVue(page, nomVue) {
     // C. Vue LOUPE du séquenceur
     // ============================================================
     await poserMotif(page);
-    await page.click('#seq-zoom');
+        // LA PORTE DU PLEIN ÉCRAN A DÉMÉNAGÉ DANS LE SÉQUENCEUR : c'est la loupe de sa barre d'outils
+    // (#seq-plein-ecran). « Séquenceur » (#seq-zoom), dans le volet, n'ouvre plus que la vue
+    // compacte — et comme il BASCULE, le cliquer ici REFERMAIT le panneau qu'on venait d'ouvrir.
+    // Retour utilisateur à l'origine des deux changements : « le bouton séquenceur dans le volet de
+    // gauche ne devrait ouvrir que le "Petit séquenceur" […] sinon, je ne peux jamais ouvrir le
+    // petit », puis « je propose d'ajouter un bouton loupe dans le petit séquenceur ».
+await page.click('#seq-plein-ecran');
     await page.waitForTimeout(700);
     check(await page.evaluate(() => window.app.seqZoomOpen), 'la loupe séquenceur est ouverte');
     await poserMotif(page);

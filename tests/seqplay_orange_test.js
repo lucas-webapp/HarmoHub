@@ -37,7 +37,11 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         return { exists: !!btn, orange: btn && btn.classList.contains('btn-loop-range'), title: btn && btn.title };
     });
     console.log(JSON.stringify(r));
-    console.log((r.exists && !r.orange && r.title === 'Lecture') ? 'PASS (baseline: normal green seq-play)' : 'FAIL');
+    // LE LIBELLÉ DIT MAINTENANT DEUX CHOSES DE PLUS, et c'est voulu : ce que le bouton joue (l'accord,
+    // ou la plage tracée) et le geste qui bascule la boucle — l'anneau ayant remplacé le bouton dédié
+    // (voir syncAnneauBoucle). On éprouve donc le SUJET du libellé, pas sa formulation exacte : ce
+    // banc surveille la teinte orange et ce qui est joué, pas la rédaction de l'infobulle.
+    console.log((r.exists && !r.orange && /accord/i.test(r.title)) ? 'PASS (baseline: normal green seq-play)' : 'FAIL');
 
     console.log('--- Set a loop range WHILE the pinned sequencer is open: seq-play should react live ---');
     await page.evaluate(() => window.app.setLoopRange(0, 0, 0, 2));
@@ -66,7 +70,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         return { orange: btn.classList.contains('btn-loop-range'), title: btn.title };
     });
     console.log(JSON.stringify(r));
-    console.log((!r.orange && r.title === 'Lecture') ? 'PASS (reverted to normal)' : 'FAIL');
+    console.log((!r.orange && /accord/i.test(r.title)) ? 'PASS (reverted to normal)' : 'FAIL');
 
     console.log('Errors:', JSON.stringify(errors));
     await browser.close();

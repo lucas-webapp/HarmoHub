@@ -112,8 +112,15 @@ plan(9);
         return { cercle: !!svg.querySelector('circle'), rectangles: svg.querySelectorAll('rect').length };
     });
     console.log(JSON.stringify(icone));
-    check(!icone.cercle && icone.rectangles === 9,
-        `l'icône est bien une grille de 9 barres, sans cercle de loupe — ${icone.rectangles} rectangles, cercle : ${icone.cercle}`);
+    // LE COMPTE DE RECTANGLES ÉTAIT LIÉ À UN DESSIN PRÉCIS, et il a changé : l'icône est revenue à
+    // côté du mot « Séq. » (retour utilisateur : « je veux garder l'ancien logo séquenceur en petit à
+    // côté de l'écriture Séq. »), redessinée en traits plutôt qu'en pavés. Ce que ce point protège
+    // vraiment n'a pas bougé — ce bouton ouvre le SÉQUENCEUR, son dessin ne doit donc pas être une
+    // loupe — et il gagne au passage la vérification que le mot accompagne bien l'icône, puisque
+    // c'est le mot qui dit ce qu'elle ouvre.
+    const avecMot = await page.evaluate(() => (document.getElementById('grid-zoom').textContent || '').trim());
+    check(!icone.cercle && avecMot.length > 0,
+        `pas de loupe dans le dessin, et un mot pour dire ce qu'il ouvre — « ${avecMot} », cercle : ${icone.cercle}`);
 
     console.log('Errors:', JSON.stringify(errors));
     check(errors.length === 0, 'aucune erreur JavaScript pendant tout le scénario');

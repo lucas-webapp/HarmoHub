@@ -99,7 +99,13 @@ plan(11);
     check(apUnDoigt.voletX === avUnDoigt.voletX, `un seul doigt ne zoome pas — échelle inchangée à ${apUnDoigt.voletX}`);
 
     console.log('=== VUE AGRANDIE : Ctrl+molette zoome bien les DEUX axes ===');
-    await page.click('#seq-zoom');
+        // LA PORTE DU PLEIN ÉCRAN A DÉMÉNAGÉ DANS LE SÉQUENCEUR : c'est la loupe de sa barre d'outils
+    // (#seq-plein-ecran). « Séquenceur » (#seq-zoom), dans le volet, n'ouvre plus que la vue
+    // compacte — et comme il BASCULE, le cliquer ici REFERMAIT le panneau qu'on venait d'ouvrir.
+    // Retour utilisateur à l'origine des deux changements : « le bouton séquenceur dans le volet de
+    // gauche ne devrait ouvrir que le "Petit séquenceur" […] sinon, je ne peux jamais ouvrir le
+    // petit », puis « je propose d'ajouter un bouton loupe dans le petit séquenceur ».
+await page.click('#seq-plein-ecran');
     await page.waitForTimeout(800);
     if (!exiger(await page.evaluate(() => window.app.seqZoomOpen === true), 'la vue agrandie est bien ouverte')) bilan();
     const avAgrandi = await echelles();

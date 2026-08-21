@@ -30,12 +30,14 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
     await p.click('#grid-zoom'); await p.waitForTimeout(400);
     ck(await p.evaluate(()=>window.app.seqOpen===false), 'et le referme');
 
-    // Vue continue + un seul jeu de boutons de zoom. Elle vit dans le séquenceur AGRANDI (#seq-zoom) :
-    // le petit séquenceur du panneau Accord garde son affichage d'origine (voir
-    // probe_deux_sequenceurs_test.js).
-    await p.evaluate(()=>{ window.app.editChord(0,5); if(!window.app.seqOpen) window.app.toggleSequencer(); });
+    // Vue continue + un seul jeu de boutons de zoom. ELLE NE VIT PLUS DANS LA VUE AGRANDIE : agrandir
+    // ne change plus de vue mais de taille (retour utilisateur : « j'aimerais juste voir le petit
+    // séquenceur simple, mais en plus gros […] pas besoin de voir les demi-tons ni les accords
+    // adjacents »). La vue continue a sa propre porte, « Séq. » au-dessus de la grille — c'est par
+    // elle qu'on y va, et le sujet de ce point ne change pas d'un pouce.
+    await p.evaluate(()=>{ window.app.editChord(0,5); });
     await p.waitForTimeout(600);
-    await p.click('#seq-zoom');
+    await p.click('#grid-zoom');
     await p.waitForTimeout(900);
     const r = await p.evaluate(()=>({
         continu: !!document.querySelector('.seq-grid')?.className.includes('continuous'),
@@ -73,7 +75,12 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
     // Masquer le volet de gauche élargit encore le séquenceur continu, qui vit dans son volet sous la
     // grille (voir probe_deux_boutons_seq_test.js). On mesure le VOLET : #arp-sequencer défile à
     // l'intérieur, sa largeur propre est celle de son contenu, pas de la place disponible.
-    await p.click('#grid-zoom'); await p.waitForTimeout(900);
+    // « Séq. » BASCULE : le tiroir continu est déjà ouvert depuis la section précédente, et le
+    // recliquer le refermerait — mesuré, 0px de large. On s'ASSURE de l'état voulu au lieu de
+    // basculer à l'aveugle : c'est le piège classique d'un bouton à bascule dans un banc qui
+    // enchaîne plusieurs sections.
+    await p.evaluate(() => { if (window.app.seqMode !== 'continu' || !window.app.seqOpen) window.app.toggleSequencer('continu'); });
+    await p.waitForTimeout(900);
     const l1 = await p.evaluate(()=>Math.round(document.getElementById('seq-dock-panel').getBoundingClientRect().width));
     await p.click('#toggle-sidebar'); await p.waitForTimeout(700);
     const l2 = await p.evaluate(()=>Math.round(document.getElementById('seq-dock-panel').getBoundingClientRect().width));

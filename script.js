@@ -1929,9 +1929,14 @@ const SEQ_COL_PX_MAX = 28;
 // clic de lecture, assez court pour ne pas donner l'impression que le bouton ne répond pas.
 const BOUCLE_APPUI_LONG_MS = 500;
 
-// Largeur maximale d'une case en vue AGRANDIE compacte (voir renderSequencer/colTemplate). 34px,
-// soit le double environ d'une case du petit séquenceur : assez grand pour viser au doigt, assez
-// mesuré pour qu'un accord d'une seule mesure ne s'étale pas sur toute la largeur d'un écran.
+// Largeur maximale d'une case en vue AGRANDIE compacte, À L'ÉCHELLE 1 (voir renderSequencer :
+// le plafond est multiplié par le niveau de zoom horizontal). 34px, soit le double environ d'une
+// case du petit séquenceur : assez grand pour viser au doigt, assez mesuré pour qu'un accord d'une
+// seule mesure ne s'étale pas sur toute la largeur d'un écran.
+// IL PLAFONNE L'ÉTIREMENT AUTOMATIQUE, PAS LE GESTE. Premier jet : un plafond fixe. Le banc de zoom
+// l'a aussitôt attrapé — « la largeur calculée de la case a suivi : 34px -> 34px » — c'est-à-dire
+// que le bouton H+ ne faisait plus rien une fois la loupe ouverte. Empêcher la grille de s'étaler
+// toute seule est utile ; empêcher l'utilisateur d'agrandir quand il le demande est un défaut.
 const SEQ_CASE_MAX_AGRANDIE = 34;
 
 const SEQ_ZONE_HANDLE_RATIO = 0.25;
@@ -14941,7 +14946,7 @@ class HarmoHubApp {
         const colTemplate = continuous
             ? `${labelW}px repeat(${totalCols}, var(--seq-col-w))`
             : (wideCompact ? `max-content repeat(${totalCols}, var(--seq-col-w))`
-                           : (plafonne ? `max-content repeat(${pageSteps}, minmax(0, ${SEQ_CASE_MAX_AGRANDIE}px))`
+                           : (plafonne ? `max-content repeat(${pageSteps}, minmax(0, ${SEQ_CASE_MAX_AGRANDIE * seqHZoom}px))`
                                        : `max-content repeat(${pageSteps}, 1fr)`));
         let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}${plafondCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" data-col-px="${continuousColPx}" data-total-cols="${totalCols}" style="grid-template-columns: ${colTemplate}; --seq-col-w: ${continuousColPx}px; --seq-steps-per-bar: ${beatsPerBar * SEQ_STEPS_PER_BEAT}; --seq-bar-w: ${continuousColPx * beatsPerBar * SEQ_STEPS_PER_BEAT}px; --seq-beat-w: ${continuousColPx * SEQ_STEPS_PER_BEAT}px; --seq-label-w: ${labelW}px;">`;
 
