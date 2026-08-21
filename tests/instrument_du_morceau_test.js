@@ -52,7 +52,9 @@ const seedAncien = () => {
         return {
             existe: !!sel,
             dansMorceau: !!sel && !!sel.closest('#song-settings'),
-            dansLecture: !!sel && !!sel.closest('#lecture-card'),
+            // La carte Lecture a depuis fusionné dans Accord : ce qu'on veut savoir reste le même —
+            // le sélecteur n'est pas revenu dans la carte d'accord.
+            dansLecture: !!sel && !!sel.closest('#accord-card'),
             pot: !!document.getElementById('apply-instrument-all'),
         };
     });

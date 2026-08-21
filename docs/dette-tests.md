@@ -1716,3 +1716,61 @@ Quatre bancs ont dû être adaptés, et chacun pour une raison de fond :
 séquenceur est toujours là » sans l'avoir ouvert : `.seq-grid` était absent AVANT comme APRÈS, et le
 banc accusait le changement de son d'une disparition qui n'avait jamais eu lieu. Corrigé en relevant
 l'état **avant** — un relevé « avant » rend ce genre d'accusation impossible.
+
+## Une seule carte « Accord » : la carte « Lecture » a disparu
+
+> « Vu qu'on a bien réduit tout ça, je pense que le volet "Lecture" n'a plus trop d'intérêt. Tout
+> regrouper dans un seul volet Accord. Qu'en penses-tu ? »
+
+**Mesuré avant de répondre, et les chiffres lui donnent raison.** La carte Lecture portait quatre
+réglages : le son, le rythme, la durée, l'intensité. **Trois l'ont quittée en trois lots successifs** —
+l'intensité au menu contextuel de l'accord, le rythme aux Paramètres, le son aux réglages du morceau.
+Il restait un titre, un en-tête, un liseré et une bordure **pour un seul réglage**. Un titre de carte
+annonce un sujet ; « Lecture » n'en annonçait plus aucun.
+
+**Et la séparation était déjà fausse.** Les deux cartes décrivaient le MÊME objet — l'accord sous les
+yeux — et la feuille de style le disait déjà noir sur blanc : liseré de sujet commun, teinte de fond
+commune, classe `subject-existing` posée sur leur conteneur partagé. Le banc `inspecteur_sujet_test`
+vérifiait même explicitement que les deux liserés étaient **identiques**. Deux cadres autour d'un seul
+sujet : la cloison ne séparait rien.
+
+### Le gain, mesuré des deux côtés
+
+Rejoué à l'identique sur le commit précédent (worktree servi sur le port 8935), hauteur des deux
+cartes **plus leur écart**, de haut en bas :
+
+| | Avant | Après |
+|---|---|---|
+| Ordinateur, Ajout | 297px | **227px** |
+| Ordinateur, Modification | 249px | **179px** |
+| Téléphone, Ajout | 310px | **232px** |
+| Téléphone, Modification | 265px | **184px** |
+
+Soit **70 à 81px** rendus à la grille — un en-tête de carte, une bordure et un écart entre cartes.
+
+### Rien n'a bougé À L'INTÉRIEUR, et c'est ce qu'il fallait éprouver
+
+La rangée de durée, les quatre champs sources masqués, la barre du séquenceur et le séquenceur
+lui-même sont exactement là où ils étaient, dans le même ordre : seule la cloison a disparu. Le bouton
+du séquenceur a rejoint l'en-tête d'Accord, désormais le seul.
+
+**Une fusion qui laisse un morceau derrière ne se voit pas à l'œil** : un champ source oublié ne casse
+rien tant que personne ne le lit — jusqu'au jour où l'export MIDI le cherche. La section A du banc
+vérifie donc le déménagement **pièce par pièce**, y compris les quatre champs masqués.
+
+### Le banc a changé de nom parce que son sujet a changé de nature
+
+`lecture_meme_principe_test` → `carte_accord_unique_test`. Il éprouvait que la carte Lecture avait pris
+la FORME de la carte Accord, à la demande « mets en place le même principe de menu que pour accord au
+dessus ». Ce travail n'est pas annulé : **il est mené à son terme**. Deux cartes qui finissent par se
+ressembler en tout point ne sont pas deux cartes.
+
+Ses vérifications de forme (mêmes classes, étiquette au-dessus, cibles tactiles, vrai appui sur la
+durée) sont conservées telles quelles — elles gardent tout leur sens à l'intérieur de la carte unique.
+
+Trois autres bancs visaient `#lecture-card` et ont été adaptés. Le plus intéressant est
+`inspecteur_sujet_test` : il vérifiait que les deux cartes portaient le **même** liseré. Cette
+vérification-là ne peut pas simplement être supprimée sans perdre ce qu'elle protégeait — la teinte de
+sujet descend d'une variable posée sur le conteneur commun. Elle vise donc désormais cette variable
+directement, et exige qu'elle **diffère** entre Ajout et Modification : c'est le fond de l'affaire,
+et ça reste vrai avec une carte comme avec deux.

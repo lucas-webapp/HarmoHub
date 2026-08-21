@@ -1109,7 +1109,6 @@ main {
    0 et remonteraient devant tout, y compris devant la grille — c'est ce qui la laissait à ~490px du
    haut malgré le reste du réagencement. */
 #accord-card,
-#lecture-card,
 #edit-actions { order: 4; }
 .chord-header-row { order: 5; }
 .viz-wrap { order: 6; }
@@ -1846,9 +1845,10 @@ body[data-app-mode="edit"] .voicing-group-duree { display: none; }
     --sujet-cadre: rgba(193, 144, 78, 0.36);
 }
 
-/* Les DEUX cartes portent le liseré : l'instrument et l'intensité appartiennent au même sujet que la
-   fondamentale et la nature. N'en teinter qu'une aurait laissé croire à deux sujets distincts. */
-#accord-card, #lecture-card {
+/* LE LISERÉ DE SUJET, sur la carte unique. Il était sur les DEUX cartes, et c'est ce qui rendait la
+   fusion évidente : n'en teinter qu'une aurait laissé croire à deux sujets distincts, donc les deux
+   parlaient déjà du même — l'accord sous les yeux. La cloison entre elles ne séparait rien. */
+#accord-card {
     border-left: 4px solid var(--sujet);
     background-image: linear-gradient(90deg, var(--sujet-fond), transparent 55%);
     transition: border-left-color 0.18s ease, background-image 0.18s ease;

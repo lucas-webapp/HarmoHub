@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608241800">
+    <link rel="stylesheet" href="style.css?v=202608242000">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -701,6 +701,24 @@
                             <button type="button" id="accord-close" class="icon-btn" hidden title="Terminer la modification" aria-label="Terminer la modification">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
                             </button>
+                            <!-- Le séquenceur, remonté ici avec le reste de l'ancienne carte Lecture.
+                                 Grille de pas façon piano-roll (3 colonnes x 3 rangées, quelques pas
+                                 « actifs » en escalier) plutôt qu'un clavier stylisé : trop proche du
+                                 bouton piano (voir #toggle-viz-piano) et confondu avec lui (retour
+                                 utilisateur). Ce dessin se reconnaît comme un séquenceur, pas un clavier. -->
+                            <button type="button" id="toggle-sequencer" class="icon-btn icon-btn-wide" title="Séquenceur" aria-label="Séquenceur">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <rect x="3" y="4" width="4" height="4" rx="1"/>
+                                    <rect x="10" y="4" width="4" height="4" rx="1"/>
+                                    <rect x="17" y="4" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>
+                                    <rect x="3" y="10" width="4" height="4" rx="1"/>
+                                    <rect x="10" y="10" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>
+                                    <rect x="17" y="10" width="4" height="4" rx="1"/>
+                                    <rect x="3" y="16" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>
+                                    <rect x="10" y="16" width="4" height="4" rx="1"/>
+                                    <rect x="17" y="16" width="4" height="4" rx="1"/>
+                                </svg>
+                            </button>
                         </div>
                     </div>
                     <div class="accord-grid">
@@ -803,48 +821,33 @@
                             <option value="4">Oct. 4</option>
                             <option value="5">Oct. 5</option>
                         </select>
-                </section>
 
-                <section class="control-card" id="lecture-card">
-                    <div class="card-head">
-                        <h2>Lecture</h2>
-                        <!-- Regroupe le sélecteur de son et les icônes juste après (voir .card-head-right) : sans
-                             ce conteneur commun, justify-content:space-between sur .card-head les écartait l'un
-                             de l'autre comme s'ils étaient chacun un élément à part entière de la ligne, au lieu
-                             de rester collés (retour utilisateur). -->
-                        <div class="card-head-right">
-                        <!-- LE SON A QUITTÉ CETTE CARTE POUR LES RÉGLAGES DU MORCEAU.
-                             Retour utilisateur : « On va simplifier les types d'instruments : à définir
-                             une fois dans morceau uniquement, et tout le morceau prendra cet instrument,
-                             je ne ferai jamais de mélange. À cacher une fois modifié. »
-                             Il était PAR ACCORD, avec un pot de peinture pour le recopier partout —
-                             #apply-instrument-all, qui n'existe donc plus : quand il n'y a qu'une seule
-                             valeur pour tout le morceau, « appliquer à tout » ne veut plus rien dire.
-                             Le <select id="instrument"> a gardé son identifiant et vit désormais dans
-                             #song-settings, sous « Son ». -->
-                        <div class="card-head-actions">
-                            <button type="button" id="toggle-sequencer" class="icon-btn icon-btn-wide" title="Séquenceur" aria-label="Séquenceur">
-                                <!-- Grille de pas façon piano-roll (3 colonnes x 3 rangées, quelques pas "actifs"
-                                     en escalier) plutôt qu'un clavier stylisé : trop proche du bouton piano
-                                     juste à côté (voir #toggle-viz-piano) et confondu avec lui (retour
-                                     utilisateur). Ce dessin se reconnaît comme un séquenceur/pas, pas un clavier. -->
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                    <rect x="3" y="4" width="4" height="4" rx="1"/>
-                                    <rect x="10" y="4" width="4" height="4" rx="1"/>
-                                    <rect x="17" y="4" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>
-                                    <rect x="3" y="10" width="4" height="4" rx="1"/>
-                                    <rect x="10" y="10" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>
-                                    <rect x="17" y="10" width="4" height="4" rx="1"/>
-                                    <rect x="3" y="16" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>
-                                    <rect x="10" y="16" width="4" height="4" rx="1"/>
-                                    <rect x="17" y="16" width="4" height="4" rx="1"/>
-                                </svg>
-                            </button>
-                        </div>
-                        </div>
-                    </div>
                     <!-- ============================================================
-                         LA CARTE LECTURE PREND LA MÊME FORME QUE LA CARTE ACCORD
+                         PLUS DE CARTE « LECTURE » : TOUT EST DANS « ACCORD »
+                         ============================================================
+                         RETOUR UTILISATEUR : « Vu qu'on a bien réduit tout ça, je pense que le volet
+                         "Lecture" n'a plus trop d'intérêt. Tout regrouper dans un seul volet Accord.
+                         Qu'en penses-tu ? »
+
+                         MESURÉ AVANT DE RÉPONDRE, et les chiffres lui donnent raison. Cette carte
+                         portait quatre réglages : le son, le rythme, la durée, l'intensité. Trois
+                         l'ont quittée en trois lots — l'intensité au menu contextuel de l'accord, le
+                         rythme aux Paramètres, le son aux réglages du morceau. Il restait une carte,
+                         un titre, un en-tête et un liseré POUR UN SEUL RÉGLAGE : la durée. Un titre
+                         de carte annonce un sujet ; « Lecture » n'en annonçait plus aucun.
+
+                         ET LA SÉPARATION ÉTAIT DÉJÀ FAUSSE. Les deux cartes décrivaient le MÊME objet
+                         — l'accord sous les yeux — et le CSS le disait déjà : elles partageaient le
+                         liseré de sujet, la teinte de fond, et la classe subject-existing posée sur
+                         leur conteneur commun (voir updateChordSubject). Deux cadres pour un sujet.
+
+                         RIEN N'A BOUGÉ DE PLACE À L'INTÉRIEUR. La rangée de durée, les champs sources
+                         masqués, la barre du séquenceur et le séquenceur lui-même sont exactement là
+                         où ils étaient, dans le même ordre : seule la cloison entre les deux cartes a
+                         disparu. Le bouton du séquenceur, lui, a rejoint l'en-tête d'Accord, qui est
+                         désormais le seul. -->
+                    <!-- ============================================================
+                         LA RANGÉE DE DURÉE : MÊMES CLASSES QUE LA RANGÉE DE VOICING
                          ============================================================
                          RETOUR UTILISATEUR : « Le panneau lecture n'est pas harmonieux non plus, mets en
                          place le même principe de menu que pour accord au dessus. Tu peux définir 5
@@ -1278,6 +1281,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608241800"></script>
+    <script src="script.js?v=202608242000"></script>
 </body>
 </html>

@@ -80,8 +80,9 @@ const etat = (page) => page.evaluate(() => ({
         'plus de segments Ajout/Modif dans le DOM');
     check(await page.evaluate(() => !document.getElementById('edit-empty-hint')),
         'plus de carte « Touchez un accord » : cet état est devenu impossible');
-    check(await page.evaluate(() => !document.getElementById('accord-card').hidden && !document.getElementById('lecture-card').hidden),
-        'Accord et Lecture sont toujours affichées, sans état vide');
+    // Une seule carte désormais : Lecture a fusionné dans Accord (voir carte_accord_unique_test).
+    check(await page.evaluate(() => !document.getElementById('accord-card').hidden && !document.getElementById('lecture-card')),
+        'la carte Accord est toujours affichée, sans état vide — et il n\'y en a plus qu\'une');
     check(await page.evaluate(() => !document.getElementById('quick-add-panel').hidden),
         'l\'ajout rapide est visible (il ne se masque plus : c\'est une cible d\'ajout)');
     // Il vit SOUS LE TITRE DE LA GRILLE, avec ce qu'il alimente — plus dans le panneau de réglages

@@ -45,13 +45,18 @@ const seed = () => {
 // Les marqueurs, lus tels que le navigateur les calcule — pas tels que la feuille de style les écrit.
 const marqueurs = () => {
     const acc = document.getElementById('accord-card');
-    const lec = document.getElementById('lecture-card');
+    // La carte Lecture n'existe plus (voir carte_accord_unique_test) : ce banc vérifiait que les DEUX
+    // portaient le même liseré de sujet. C'était la bonne vérification tant qu'il y en avait deux —
+    // et c'est justement cette égalité qui a fini par démontrer qu'elles parlaient d'un seul sujet,
+    // donc qu'une seule carte suffisait. Le conteneur commun, lui, porte toujours la variable de
+    // couleur : c'est de lui que descend la teinte, on le garde donc sous surveillance.
+    const volet = document.querySelector('.panel-controls');
     const lab = document.getElementById('accord-title-label');
     const sym = document.getElementById('accord-title-sym');
-    const sAcc = getComputedStyle(acc), sLec = getComputedStyle(lec), sLab = lab ? getComputedStyle(lab) : null;
+    const sAcc = getComputedStyle(acc), sVolet = volet ? getComputedStyle(volet) : null, sLab = lab ? getComputedStyle(lab) : null;
     return {
         liseréAccord: sAcc.borderLeftColor,
-        liseréLecture: sLec.borderLeftColor,
+        sujetDuVolet: sVolet ? sVolet.getPropertyValue('--sujet').trim() : null,
         largeurLiseré: parseFloat(sAcc.borderLeftWidth) || 0,
         fondAccord: sAcc.backgroundImage,
         pastille: lab ? {
@@ -92,7 +97,7 @@ async function eprouverLesDeuxEtats(page, contexte) {
 
     // 3. Les DEUX cartes portent la marque : l'instrument et l'intensité appartiennent au même sujet
     //    que la fondamentale et la nature. N'en teinter qu'une ferait croire à deux sujets.
-    check(ajout.liseréLecture === ajout.liseréAccord && modif.liseréLecture === modif.liseréAccord,
+    check(!!ajout.sujetDuVolet && !!modif.sujetDuVolet && ajout.sujetDuVolet !== modif.sujetDuVolet,
         `${contexte} : les cartes Accord et Lecture portent la MÊME marque de sujet`);
 
     // 4. La pastille d'état : encadrée (donc lue comme un marqueur, pas comme un intitulé), et son

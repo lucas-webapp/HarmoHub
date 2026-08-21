@@ -107,12 +107,13 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     const ouvert = await page.evaluate(() => ({
         reglagesVisibles: !document.getElementById('song-settings').hidden,
         accord: !document.getElementById('accord-card').hidden,
-        lecture: !document.getElementById('lecture-card').hidden,
+        // Lecture a fusionné dans Accord : ce qu'on vérifiait sur elle se vérifie sur la carte unique.
+        lecture: !document.getElementById('lecture-card'),
         actions: !document.getElementById('edit-actions').hidden,
     }));
     check(ouvert.reglagesVisibles, 'un clic sur le résumé déplie les réglages');
     check(ouvert.accord && ouvert.lecture,
-        `...sans masquer Accord ni Lecture, contrairement à l'onglet qu'ils remplacent — ${JSON.stringify(ouvert)}`);
+        `...sans masquer la carte Accord, contrairement à l'onglet qu'elle remplace — ${JSON.stringify(ouvert)}`);
 
     // Même chose en mode Modification, avec un accord chargé : régler le tempo ne doit pas faire
     // perdre de vue l'accord qu'on est en train d'éditer.
