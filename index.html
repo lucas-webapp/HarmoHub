@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608243400">
+    <link rel="stylesheet" href="style.css?v=202608243500">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -351,6 +351,7 @@
                             <button type="button" id="guitar-override-btn" class="icon-btn" title="Accord différent à la guitare" aria-label="Définir un accord différent à la guitare" aria-pressed="false">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                             </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1171,14 +1172,30 @@
                              qu'aucun substitut n'est défini pour l'accord affiché. Reste ICI (et non
                              dans #guitar-edit-overlay, plus bas dans la page) : c'est la seule info
                              qu'on doit voir d'un coup d'œil SANS ouvrir la fenêtre d'édition. -->
-                        <div id="guitar-override-row" class="guitar-override-row" hidden></div>
-                        <div id="guitar-viz" class="guitar-container"></div>
+                        <!-- LE MANCHE ET SES COMMANDES CÔTE À CÔTE (retour utilisateur : « il me
+                             semblerait logique de placer les boutons à droite de l'accord "guitare" au
+                             lieu d'en-dessous. Par exemple : premier niveau de boutons avec choix
+                             accord + verrou ; 2ème niveau de boutons avec le bouton "éditer
+                             manuellement". Placer les boutons de manière logique pour que ça rende
+                             comme sur un logiciel DAW professionnel. »)
+                             Le manche est HAUT et ÉTROIT (mesuré : 119x70), les commandes larges et
+                             plates : empilées, elles allongeaient encore une colonne déjà plus haute
+                             que le piano. Posées à droite, elles occupent le vide qui existait déjà à
+                             côté du manche — c'est le rangement d'un inspecteur de DAW, où l'objet est
+                             à gauche et ses réglages à droite. -->
+                        <div class="guitar-viz-col">
+                            <div id="guitar-override-row" class="guitar-override-row" hidden></div>
+                            <div id="guitar-viz" class="guitar-container"></div>
+                        </div>
                         <!-- Flèches de doigté + cadenas restent ICI, comme avant (retour utilisateur :
                              « laisse les flèches et le cadenas hors du bouton éditer, je l'utilise
                              souvent pour les accords simples ») — seul le crayon de substitut manuscrit
                              est parti dans la fenêtre d'édition manuelle (#guitar-edit-overlay, voir
                              openGuitarEditor dans script.js), aux côtés du manche complet. -->
-                        <div class="guitar-controls-row">
+                        <div class="guitar-controls-row guitar-controls-cote">
+                            <!-- NIVEAU 1 : quel doigté (‹ 1/2 ›) et faut-il le garder (verrou). Deux
+                                 commandes qui parlent du MÊME choix, d'où leur regroupement. -->
+                            <div class="guitar-niveau">
                             <div id="guitar-nav" class="guitar-nav">
                                 <button type="button" id="guitar-prev" class="icon-btn" title="Doigté précédent" aria-label="Doigté précédent">
                                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
@@ -1192,6 +1209,11 @@
                             <button type="button" id="guitar-lock-btn" class="icon-btn guitar-lock-btn" title="Verrouiller ce doigté pour cet accord" aria-label="Verrouiller ce doigté pour cet accord" aria-pressed="false" style="display:none">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>
                             </button>
+                            </div>
+                            <!-- NIVEAU 2 : l'action, séparée des choix. Ouvrir une fenêtre d'édition
+                                 n'est pas du même ordre que feuilleter des doigtés — les mettre sur la
+                                 même ligne, c'était mélanger « regarder » et « modifier ». -->
+                            <div class="guitar-niveau">
                             <!-- Ouvre la fenêtre d'édition manuelle (manche complet + substitut
                                  manuscrit). Désactivé quand l'accord n'est pas jouable à la guitare
                                  (voir renderGuitarDiagram) : rien à éditer dans ce cas. -->
@@ -1318,6 +1340,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608243400"></script>
+    <script src="script.js?v=202608243500"></script>
 </body>
 </html>

@@ -4637,7 +4637,11 @@ class HarmoHubApp {
         // titre au-dessus, voir placeChordTitle) — sans cette même largeur posée ICI aussi, #piano-viz
         // n'aurait plus rien de déterminé contre quoi résoudre son propre width:100%, et s'écraserait à
         // son min-content (un clavier réduit à une lamelle).
-        const maxWidthPx = `${totalWhite * 11}px`;
+        // 14px par blanche, contre 11 auparavant : la hauteur du clavier passe de 32 à 44px (voir
+        // .piano-container), et l'élargir dans la même proportion évite des touches encore plus
+        // trapues qu'avant. Les deux vont ensemble — c'est la SILHOUETTE du clavier qu'on corrige,
+        // pas seulement sa taille.
+        const maxWidthPx = `${totalWhite * 14}px`;
         viz.style.maxWidth = maxWidthPx;
         const pianoCol = document.getElementById('piano-col');
         if (pianoCol) {

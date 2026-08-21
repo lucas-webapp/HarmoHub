@@ -2268,3 +2268,54 @@ Le panneau passe de **396px à 330px** de haut, soit 17 % de moins, sans qu'aucu
 disparaisse. Et la ligne de tonalité porte maintenant **six** commandes : c'était le vrai risque du
 lot, donc le banc mesure au doigt qu'aucune ne descend sous le seuil tactile (relevé : 60×36, 67×36,
 30×36, 38×38, 38×38, 38×38) et que rien ne déborde.
+
+## Les diagrammes rangés comme un inspecteur
+
+> « Il me semblerait logique de placer les boutons à droite de l'accord "guitare" au lieu d'en-dessous.
+> Par exemple : premier niveau de boutons avec choix accord + verrou ; 2ème niveau de boutons avec le
+> bouton "éditer manuellement". »
+> « Je propose d'augmenter très légèrement les dimensions du diagramme Piano, qui fait petit par
+> rapport au manche de guitare. »
+
+### Le relevé justifie les deux demandes d'un coup
+
+Manche **119×70** — haut et étroit. Piano **165×32**. Commandes du manche : larges et plates.
+
+Deux conséquences, et l'utilisateur les avait vues toutes les deux. D'abord les commandes empilées
+sous le manche **allongeaient la colonne déjà la plus haute** des deux, alors qu'un vide existait à
+côté. Ensuite le piano était **deux fois moins haut** que son voisin, ce qui le faisait passer pour
+l'accessoire de la paire.
+
+Les commandes passent donc à droite — l'objet à gauche, ses réglages à droite, la disposition d'un
+inspecteur de DAW — et le piano monte à **44px de haut, 210 de large**. Il reste sous les 48px d'une
+passe antérieure, et bien sous les 70 du manche : « très légèrement », comme demandé. La largeur des
+touches suit (11 → 14px par blanche) parce que grandir en hauteur seulement aurait donné des touches
+encore plus trapues — c'est la **silhouette** qu'on corrige, pas juste la taille.
+
+**Résultat mesuré : la carte passe de 134 à 98px de haut**, avec un piano plus grand dedans.
+
+### Deux niveaux, et le découpage dit quelque chose
+
+Niveau 1 : ‹ 1/3 › et le verrou — deux commandes qui parlent du **même choix**. Niveau 2 : l'édition
+manuelle, seule. Les mettre tous sur une ligne mélangeait « regarder » et « modifier ».
+
+### Quatrième collision de cascade du même genre
+
+`.guitar-controls-cote { align-items: stretch }` ne s'appliquait pas : `.guitar-controls-row`
+(même spécificité 0,1,0) pose `align-items: center` et se trouve **déclarée plus bas** dans la
+feuille. Mesuré — le niveau du bouton d'édition faisait 40px au lieu des 144 de sa colonne. Résolu en
+passant à deux classes (0,2,0).
+
+C'est la quatrième fois dans ce journal : `button { min-width: 120px }` sur « Séq. », `.col-left
+.icon-btn` sur le vert d'Enregistrer, le `@media` d'ordinateur sur les colonnes de la ligne d'accord,
+celle-ci. **Aucune n'aurait été vue en relisant la feuille** ; toutes l'ont été en mesurant le rendu.
+
+### Un défaut tactile préexistant, révélé par le nouveau banc
+
+Le bouton « éditer manuellement » — l'**action principale** de ce bloc — faisait **26px de haut** au
+doigt, sous le plancher confortable. Vérifié sur le commit précédent via un worktree : **26px là
+aussi**. Ce n'est donc pas le déplacement qui l'a causé, c'est le banc qui l'a fait apparaître, en
+mesurant enfin les trois commandes au doigt plutôt qu'à la souris. Corrigé à 32px.
+
+C'est l'argument pour écrire un banc même sur un lot « de mise en page » : il ne protège pas seulement
+ce qu'on vient de faire, il éclaire ce qui était déjà là.

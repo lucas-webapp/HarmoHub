@@ -2571,10 +2571,16 @@ button:active { transform: translateY(1px); }
     justify-content: flex-start;
     margin: 8px auto 0;
     width: 100%;          /* max-width posé dynamiquement en JS pour des touches réalistes */
-    /* 32px = encore les 2/3 d'une précédente passe à 48px (retour utilisateur : « Je n'ai pas besoin
-       de diagrammes piano / guitare aussi gros... environ 2/3 de la taille me suffit... La grille
-       d'accords est plus importante »). */
-    height: 32px;
+    /* 44px. Il était à 32 — les 2/3 d'une passe à 48, réduite à l'époque parce que « je n'ai pas
+       besoin de diagrammes piano / guitare aussi gros ». Nouveau retour, dans l'autre sens et avec une
+       capture annotée à l'appui : « je propose d'augmenter très légèrement les dimensions du diagramme
+       Piano, qui fait petit par rapport au manche de guitare ».
+       Il avait raison, et le relevé le dit : piano 165x32 contre un manche de 119x70. Le piano était
+       DEUX FOIS moins haut que son voisin, ce qui le faisait passer pour l'accessoire de la paire.
+       44px le rapproche sans le rendre encombrant — on reste sous les 48 d'origine, et bien sous les
+       70 du manche. La largeur des blanches suit dans le même mouvement (voir renderPiano) : grandir
+       en hauteur seulement aurait donné des touches encore plus trapues qu'avant. */
+    height: 44px;
     padding: 0;
     user-select: none;
 }
@@ -2806,12 +2812,63 @@ button:active { transform: translateY(1px); }
 .viz-toggle-btn svg { width: 18px; height: 18px; }
 
 /* ---------- Guitare ---------- */
+/* LE MANCHE À GAUCHE, SES COMMANDES À DROITE (retour utilisateur : « il me semblerait logique de
+   placer les boutons à droite de l'accord "guitare" au lieu d'en-dessous […] Placer les boutons de
+   manière logique pour que ça rende comme sur un logiciel DAW professionnel. »)
+   Mesuré avant : le manche fait 119x70 — haut et étroit — pendant que ses commandes sont larges et
+   plates. Empilées dessous, elles allongeaient une colonne déjà plus haute que le piano ; posées à
+   droite, elles occupent le vide qui existait déjà à côté du manche. C'est la disposition d'un
+   inspecteur de DAW : l'objet à gauche, ses réglages à droite.
+   `row` ici, mais le tout reste dans .viz-diagrams qui passe à la ligne (flex-wrap) : sur un écran
+   étroit, les commandes repassent sous le manche d'elles-mêmes plutôt que de l'écraser. */
 .guitar-viz-wrap {
     display: none; /* masqué par défaut ; JS applique la préférence utilisateur au chargement (display:flex) */
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
     text-align: center;
 }
+/* La colonne de gauche : le bandeau de substitut au-dessus de son manche, comme avant. */
+.guitar-viz-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+}
+/* DEUX NIVEAUX, et le découpage dit quelque chose : le premier réunit les commandes qui parlent du
+   MÊME choix (quel doigté, et faut-il le garder), le second isole l'ACTION. Les mettre tous sur une
+   ligne mélangeait « regarder » et « modifier ». */
+/* Sélecteur à DEUX classes (0,2,0), et ce n'est pas de la précaution : `.guitar-controls-row`
+   (0,1,0) pose `align-items: center` et se trouve DÉCLARÉE PLUS BAS dans cette feuille — à
+   spécificité égale, c'est elle qui l'emportait. Mesuré : le niveau contenant le bouton d'édition
+   faisait 40px au lieu des 144 de sa colonne, donc le bouton ne s'étirait pas.
+   C'est la quatrième fois dans ce fichier qu'une règle voisine annule une intention en silence : le
+   `button { min-width: 120px }` sur « Séq. », `.col-left .icon-btn` sur le vert d'Enregistrer, le
+   `@media` d'ordinateur sur les colonnes de la ligne d'accord, celle-ci. Le remède est toujours le
+   même — mesurer le rendu, jamais relire la feuille en espérant voir le conflit. */
+.guitar-viz-wrap .guitar-controls-cote {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    margin-top: 0;
+    flex: none;
+}
+.guitar-niveau {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+/* Le bouton d'édition prend toute la largeur de sa colonne : c'est l'action principale de ce bloc,
+   et une largeur pleine la distingue des petites icônes du niveau au-dessus. */
+/* CIBLE TACTILE : 32px de haut au minimum. Mesuré au doigt (iPhone 13) : ce bouton faisait 26px —
+   sous le plancher confortable, pour l'ACTION PRINCIPALE du bloc. Vérifié sur le commit précédent :
+   26px là aussi, donc le défaut est PRÉEXISTANT, pas causé par le déplacement. C'est le nouveau banc
+   qui l'a fait apparaître, en mesurant enfin les trois commandes au doigt plutôt qu'à la souris —
+   et c'est exactement à quoi sert d'écrire un banc pour un lot de mise en page. */
+.guitar-controls-cote .guitar-edit-btn { flex: 1; min-width: 0; width: auto; min-height: 32px; }
 .guitar-container svg { display: block; margin: 0 auto; }
 .guitar-unplayable {
     font-size: var(--fs-xs);
