@@ -48,6 +48,12 @@
     --btn-green-1: #234534; --btn-green-2: #17301f; --btn-green-border: #2f5b40; --btn-green-border-hover: #3d7a54;
     --btn-blue-1: #253a5c; --btn-blue-2: #182640; --btn-blue-border: #33507c; --btn-blue-border-hover: #4570b0;
     --btn-red-1: #5c2f2a; --btn-red-2: #3a1e1b; --btn-red-border: #7c443c; --btn-red-border-hover: #a35c4e;
+    /* L'ASPECT SOMBRE DU VOLET DE GAUCHE, en deux variables plutôt qu'en deux littéraux répétés.
+       #16191e est repris tel quel du menu de durée et de la rangée de voicing — « les nouveaux
+       boutons » que l'utilisateur désigne comme référence. La nuance de survol est le même ton
+       éclairci, pas une couleur d'une autre famille : un bouton qui s'allume doit rester le même
+       bouton. Voir le bloc « UN SEUL ASPECT DE BOUTON » en fin de feuille. */
+    --fond-bouton-sombre: #16191e; --fond-bouton-sombre-survol: #22272f;
     --btn-neutral-1: #262626; --btn-neutral-2: #1a1a1a; --btn-neutral-border: #3a3a3a; --btn-neutral-border-hover: #4a4a4a;
     /* Orange pastel : même famille que les 4 ci-dessus (dégradé sombre + liséré), mais dérivée de
        l'orange/doré de .loop-range-bar (#ffb300) plutôt que du vert/bleu/rouge — voir .btn-loop-range,
@@ -5659,3 +5665,88 @@ select.song-select-narrow {
    commandent — la place s'est libérée quand les transports sont partis à gauche. Le coin haut droit
    ne garde que ce qui vaut pour toute l'application. */
 .grid-head-sticky .card-head-actions { margin-right: auto; }
+
+
+/* ============================================================
+   UN SEUL ASPECT DE BOUTON DANS LE VOLET DE GAUCHE
+   ============================================================
+   RETOUR UTILISATEUR : « Je veux que tous les boutons du volet de gauche aient l'aspect sombre que
+   tu viens de mettre en place pour les nouveaux boutons, c'est plus joli. »
+
+   MESURÉ AVANT DE DESSINER QUOI QUE CE SOIT, en relevant les styles RÉELLEMENT APPLIQUÉS bouton par
+   bouton dans le navigateur : 20 boutons visibles, DIX familles d'aspect distinctes. Fonds #1c2027,
+   #16191e, rgba blanc à 3,5 %, transparent ; avec dégradé ou sans ; cadres #333, vert, rouge ;
+   rayons 0, 7, 8, 10 et 999px. Personne n'avait dessiné ça — c'est le dépôt de quinze lots
+   successifs, chacun ajoutant sa nuance sans regarder la précédente.
+
+   LA RÉFÉRENCE EST CELLE QUE L'UTILISATEUR DÉSIGNE : « les nouveaux boutons », c'est-à-dire la
+   rangée de voicing et le menu de durée posés aux derniers lots — fond PLAT #16191e, cadre 1px
+   var(--border), rayon 7px, aucun dégradé, aucune ombre portée. Le dégradé et l'ombre sont ce qui
+   fait paraître un bouton « en relief » ; les retirer est exactement ce que « sombre » veut dire ici.
+
+   CE QUI GARDE SA COULEUR, ET POURQUOI. Question posée, réponse retenue : Ajouter, Enregistrer et
+   Stop restent verts et rouge. Leur couleur n'est pas une décoration, c'est un signal — vert = ça
+   ajoute, rouge = ça arrête — et l'uniformité aurait obligé à LIRE chaque bouton pour retrouver ce
+   qu'un coup d'œil donnait. Ils adoptent en revanche la même FORME : fond plat, cadre 1px, rayon
+   7px. Le volet devient homogène, et les trois actions s'en détachent volontairement.
+
+   PORTÉE : .col-left, et surtout PAS le séquenceur. #arp-sequencer voyage — il vit dans la carte
+   Accord sur téléphone et sous la grille sur ordinateur (voir placeSequencer). Une règle qui le
+   prendrait au passage lui donnerait donc DEUX aspects selon la largeur de l'écran, ce qui est le
+   contraire du but. Sa barre d'outils garde sa propre famille, la même partout. */
+/* :not(.icon-btn-accent) N'EST PAS DE LA PRÉCAUTION, C'EST UN CORRECTIF. Sans lui, cette règle
+   emportait le liseré vert d'Enregistrer : .col-left .icon-btn (0,2,0) l'emporte sur
+   .icon-btn-accent (0,1,0), et le bouton passait dans la famille neutre sans que rien ne le dise.
+   Trouvé en relevant les familles d'aspect APRÈS coup — la feuille, elle, avait l'air juste. */
+.col-left .icon-btn:not(.icon-btn-accent):not(.arp-seq .icon-btn):not(.transport .icon-btn),
+.col-left .song-summary,
+.col-left .seq-zoom-btn,
+.col-left .btn-seq-court {
+    background: var(--fond-bouton-sombre);
+    background-image: none;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    box-shadow: none;
+}
+/* Le survol reste un ÉCLAIRCISSEMENT du même fond plat, pas un retour du dégradé : c'est la même
+   famille qui s'allume, pas une autre qui apparaît. */
+.col-left .icon-btn:not(.icon-btn-accent):not(.arp-seq .icon-btn):not(.transport .icon-btn):hover,
+.col-left .song-summary:hover,
+.col-left .seq-zoom-btn:hover,
+.col-left .btn-seq-court:hover {
+    background: var(--fond-bouton-sombre-survol);
+    background-image: none;
+    border-color: var(--btn-neutral-border-hover);
+    color: var(--text-main);
+}
+/* LES TROIS ACTIONS : couleur conservée, forme alignée. On ne touche ni à la teinte de fond ni au
+   liseré — seulement au dégradé, à l'ombre et au rayon, qui sont ce qui les faisait appartenir à une
+   autre famille visuelle. */
+/* LE BANDEAU DE LECTURE EST HORS SUJET, et c'est une décision, pas un oubli. Mon premier jet y
+   avait inclus .btn-prog et .btn-stop : le dégradé disparaissait, mais pas leur rayon de 10px, et
+   ils se retrouvaient à mi-chemin entre deux familles — le pire état possible. #global-transport
+   n'est pas un bouton de volet : c'est une barre FLOTTANTE au-dessus de toute l'application, avec
+   sa propre échelle (52px contre 32). Un rayon de 7px y paraîtrait pincé, et l'uniformiser
+   reviendrait à traiter comme un réglage ce qui est une commande de transport. On le laisse
+   entièrement tranquille — y compris #toggle-loop-section, qui y vit aussi : une barre à moitié
+   convertie serait pire que pas de conversion du tout. */
+.col-left .btn-green,
+.col-left .btn-orange,
+.col-left .icon-btn-accent {
+    /* LE FOND EXPLICITE N'EST PAS DÉCORATIF : IL RÉPARE CE QUE background-image: none CASSE.
+       .btn-green tire son vert du DÉGRADÉ, pas de son background-color — qui vaut le gris hérité de
+       la règle générique. Mon premier jet retirait le dégradé sans rien mettre à la place :
+       « Ajouter » est devenu un bouton GRIS à liseré vert, et je ne l'ai pas vu en relisant la
+       feuille. C'est le banc, en comptant les familles d'aspect, qui l'a montré — il en trouvait
+       quatre au lieu de trois, et la quatrième était ce gris.
+       On reprend donc le ton SOMBRE du dégradé (--btn-green-2, son extrémité) plutôt que le clair :
+       c'est celui qui va avec le reste du volet. */
+    background-color: var(--btn-green-2);
+    background-image: none;
+    border-radius: 7px;
+    box-shadow: none;
+}
+.col-left .btn-orange { background-color: var(--btn-orange-2); }
+/* Enregistrer partage désormais le fond des autres actions vertes : c'est le même geste (poser
+   quelque chose), il n'y a pas de raison qu'il ait sa propre nuance. */
+.col-left .icon-btn-accent { background-color: var(--btn-green-2); }

@@ -1892,3 +1892,69 @@ nouvelles portes, pas les contourner. Deux détails que seul un passage à la ma
   remise en état entre deux essais referme donc le plein écran.
 - `probe_deux_boutons_seq` éprouve la vue **compacte** : il referme le plein écran juste après
   l'avoir ouvert, pour retrouver la vue qu'il mesure.
+
+## Un seul aspect de bouton dans le volet de gauche
+
+> « Je veux que tous les boutons du volet de gauche aient l'aspect sombre que tu viens de mettre en
+> place pour les nouveaux boutons, c'est plus joli. »
+
+**Mesuré avant de dessiner quoi que ce soit**, en relevant les styles *réellement appliqués* bouton par
+bouton dans le navigateur : **20 boutons visibles, DIX familles d'aspect distinctes**. Fonds `#1c2027`,
+`#16191e`, rgba blanc à 3,5 %, transparent ; avec dégradé ou sans ; cadres `#333`, vert, rouge ; rayons
+0, 7, 8, 10 et 999px.
+
+Personne n'avait dessiné ça. C'est le dépôt de quinze lots successifs, chacun ajoutant sa nuance sans
+regarder la précédente — et c'est exactement pourquoi l'utilisateur le voit alors que la feuille de
+style, lue rule par rule, paraît cohérente.
+
+**Résultat : trois familles**, sur ordinateur comme sur téléphone.
+
+| Famille | Membres | Pourquoi elle existe |
+|---|---|---|
+| Référence sombre | 8 | `#16191e` plat, cadre 1px, rayon 7px, ni dégradé ni ombre |
+| Sélecteur segmenté | 7 | cases transparentes DANS un cadre commun — c'est le cadre qui porte l'aspect |
+| Actions colorées | 2 | Ajouter et Enregistrer : la couleur est un **signal**, pas une décoration |
+
+### Ce qui garde sa couleur, et pourquoi la question a été posée
+
+« Tous les boutons » pouvait se lire de deux façons. Question posée, réponse retenue : **Ajouter et
+Enregistrer restent verts**, Stop reste rouge. Leur couleur dit ce qu'ils font — l'uniformité totale
+aurait obligé à *lire* chaque bouton pour retrouver ce qu'un coup d'œil donnait. Ils adoptent en
+revanche la même **forme** : fond plat, cadre 1px, rayon 7px.
+
+### Le bandeau de lecture : exclu franchement, pas à moitié
+
+Mon premier jet y incluait Lecture et Stop. Le dégradé disparaissait mais **pas leur rayon de 10px**,
+et ils se retrouvaient à mi-chemin entre deux familles — le pire état possible. `#global-transport`
+n'est pas un bouton de volet : c'est une barre **flottante** au-dessus de toute l'application, avec sa
+propre échelle (52px contre 32). Elle est laissée entièrement tranquille, `#toggle-loop-section`
+compris, qui y vit aussi : **une barre à moitié convertie serait pire que pas de conversion.**
+
+### Le séquenceur exclu aussi, et c'est éprouvé plutôt qu'affirmé
+
+`#arp-sequencer` **voyage** : il vit dans la carte Accord sur téléphone et sous la grille sur
+ordinateur (`placeSequencer`). Une règle scopée `.col-left` l'aurait donc repeint **sur un format
+seulement** — un même outil avec deux aspects selon la largeur de l'écran. La section D du banc relève
+sa barre d'outils sur les deux formats et exige qu'elles soient identiques.
+
+### Deux défauts que seul le relevé des familles pouvait montrer
+
+**1. Enregistrer avait perdu son vert.** `.col-left .icon-btn` (0,2,0) l'emporte sur `.icon-btn-accent`
+(0,1,0) : le bouton était passé dans la famille neutre sans que rien ne le signale. Corrigé par un
+`:not(.icon-btn-accent)` explicite.
+
+**2. « Ajouter » était devenu GRIS.** Celui-là est le plus instructif : `.btn-green` tire son vert du
+**dégradé**, pas de son `background-color` — lequel vaut le gris hérité de la règle générique. Poser
+`background-image: none` retirait donc la couleur en même temps que le relief, et laissait un bouton
+gris à liseré vert. **Je ne l'ai pas vu en relisant la feuille** ; c'est le banc qui l'a montré, en
+comptant quatre familles au lieu de trois.
+
+### Pourquoi ce banc compte des familles plutôt que des valeurs
+
+Vérifier « ce bouton-ci a bien tel fond » ne dit **rien** de l'homogénéité : on peut passer douze
+vérifications de ce genre avec douze aspects différents. Le banc relève l'aspect de **chaque** bouton
+et compte les familles distinctes. C'est la seule forme qui échoue quand un lot futur réintroduira une
+nuance de plus — c'est-à-dire quand le défaut qu'on vient de corriger recommencera.
+
+Et la référence est **lue sur le bouton que l'utilisateur désigne** (le menu de durée), pas recopiée
+en valeurs dures : si elle change un jour, le banc suit au lieu de mentir.
