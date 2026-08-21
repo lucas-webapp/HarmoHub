@@ -56,7 +56,7 @@ const atteignable = (sel) => {
 };
 
 (async () => {
-    plan(18);   // quatre familles sont parties dans intensite_reparee_test.js, voir plus bas
+    plan(19);   // quatre familles sont parties dans intensite_reparee_test.js, voir plus bas
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -90,8 +90,10 @@ const atteignable = (sel) => {
     check(partage.memeRangee, 'la rangée Lecture EST une .voicing-row, comme celle de la carte Accord');
     check(partage.groupes && partage.etiquettes && partage.segments,
         'elle réutilise .voicing-group et .voicing-label, et la rangée du dessus garde ses segments');
-    // DEUX groupes désormais, et non trois : l'intensité est partie au menu contextuel de l'accord.
-    check(partage.nbGroupesVisibles === 2, `deux groupes étiquetés et visibles : Rythme et Durée — ${partage.nbGroupesVisibles}`);
+    // UN SEUL groupe désormais. La rangée en portait trois : l'intensité est partie au menu
+    // contextuel de l'accord, le rythme aux Paramètres. Il ne reste que la Durée — et c'est
+    // précisément ce qui rend la question du Lot 4 légitime : une carte pour un seul réglage.
+    check(partage.nbGroupesVisibles === 1, `un seul groupe étiqueté et visible : la Durée — ${partage.nbGroupesVisibles}`);
     // Et les deux formes d'avant ne doivent plus exister : les laisser en place, c'est laisser
     // quelqu'un les rebrancher un jour.
     const parties = await page.evaluate(() => ({
@@ -113,8 +115,8 @@ const atteignable = (sel) => {
             return { t: g.querySelector('.voicing-label').textContent.trim().split(' ')[0],
                      auDessus: lab.height > 0 && ctl.height > 0 && lab.bottom <= ctl.top + 1 };
         }));
-    check(dessus.length === 2 && dessus.every(d => d.auDessus),
-        `les étiquettes sont au-dessus de leur commande — ${dessus.map(d => d.t).join(', ')}`);
+    check(dessus.length === 1 && dessus.every(d => d.auDessus),
+        `l'étiquette est au-dessus de sa commande — ${dessus.map(d => d.t).join(', ')}`);
     // ============================================================
     // SECTIONS C À F DÉPLACÉES, PAS SUPPRIMÉES.
     // ============================================================
@@ -184,8 +186,8 @@ const atteignable = (sel) => {
                  hauteur: Math.round(carte.height) };
     });
     check(!geo.deborde && !geo.page, 'téléphone : la rangée tient dans la carte, sans débordement de page');
-    check(geo.nb === 2 && geo.hMin >= 28 && geo.lMin >= 20,
-        `téléphone : les ${geo.nb} cibles font au moins 28px de haut et 20px de large — ${geo.lMin}x${geo.hMin} au plus petit`);
+    check(geo.nb === 1 && geo.hMin >= 28 && geo.lMin >= 20,
+        `téléphone : la cible restante fait au moins 28px de haut et 20px de large — ${geo.lMin}x${geo.hMin}`);
     check(geo.hauteur <= 150, `téléphone : la carte fait ${geo.hauteur}px contre 182px avant`);
 
     // Un vrai appui, pas un appel de méthode : un bouton qu'on ne peut atteindre qu'en appelant la
@@ -193,19 +195,28 @@ const atteignable = (sel) => {
     // n'arrivait plus à fermer alors que le banc, lui, le fermait par window.app.toggleSequencer).
     await m.evaluate(() => document.getElementById('lecture-card').scrollIntoView({ block: 'center' }));
     await m.waitForTimeout(400);
-    const r1 = await m.evaluate(atteignable, '#playstyle-dd-toggle');
-    exiger(r1.ok, `téléphone : le bouton Rythme est réellement atteignable — ${r1.ok ? r1.taille : r1.pourquoi}`);
-    await m.tap('#playstyle-dd-toggle');
+    // L'appui portait sur le bouton Rythme jusqu'à ce qu'il quitte la carte. Il se reporte sur la
+    // Durée, seule commande restante : la vérification garde exactement le même sens — un bouton
+    // qu'on ne peut atteindre qu'en appelant la fonction derrière n'est pas un bouton.
+    const r1 = await m.evaluate(atteignable, '#duration-dd-toggle');
+    exiger(r1.ok, `téléphone : le bouton Durée est réellement atteignable — ${r1.ok ? r1.taille : r1.pourquoi}`);
+    await m.tap('#duration-dd-toggle');
     await m.waitForTimeout(400);
-    await m.tap('.playstyle-dd-item[data-value="noire_maintenu"]');
+    const cible = await m.evaluate(() => {
+        const actuel = document.getElementById('duration').value;
+        const autre = [...document.querySelectorAll('.duration-dd-item')].find(i => i.dataset.beats !== actuel);
+        return autre ? autre.dataset.beats : null;
+    });
+    exiger(!!cible, 'téléphone : une autre durée que celle en place est proposée');
+    await m.tap(`.duration-dd-item[data-beats="${cible}"]`);
     await m.waitForTimeout(400);
-    // La source de vérité, et non l'étiquette du bouton : c'est #playStyle que lit readChord().
+    // La source de vérité, et non l'étiquette du bouton : c'est #duration que lit readChord().
     const pose = await m.evaluate(() => ({
-        valeur: document.getElementById('playStyle').value,
-        ferme: document.getElementById('playstyle-dd-menu').hidden,
+        valeur: document.getElementById('duration').value,
+        ferme: document.getElementById('duration-dd-menu').hidden,
     }));
-    check(pose.valeur === 'noire_maintenu' && pose.ferme,
-        `téléphone : deux appuis posent le rythme dans #playStyle — « ${pose.valeur} », menu ${pose.ferme ? 'refermé' : 'RESTÉ OUVERT'}`);
+    check(pose.valeur === cible && pose.ferme,
+        `téléphone : deux appuis posent la durée dans #duration — « ${pose.valeur} », menu ${pose.ferme ? 'refermé' : 'RESTÉ OUVERT'}`);
 
     check(erreurs.length === 0, `aucune erreur JavaScript — ${erreurs.join(' | ') || 'aucune'}`);
     await browser.close();

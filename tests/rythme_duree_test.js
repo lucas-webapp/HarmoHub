@@ -15,10 +15,22 @@
 //   3. « Durée » faisait doublon en Modification : la poignée au bord de la case fait déjà le travail
 //      (tiré la case, « 1 mes. » est devenu « 2 mes. », le menu a suivi).
 //
-// D'où la décision : PAS de suppression — un partage par mode. En Ajout, les deux restent (ce sont
-// les valeurs par défaut des prochains accords, lues par buildChordData) ; en Modification, ils
-// s'effacent. Ce banc éprouve les trois choses à la fois : le partage, la fin du piège, et le
-// nouveau « ce rythme pour toute la partie ».
+// D'où la décision d'alors : PAS de suppression — un partage par mode. En Ajout, les deux restaient ;
+// en Modification, ils s'effaçaient.
+//
+// PUIS LE RYTHME A QUITTÉ LA CARTE POUR DE BON. Retour utilisateur suivant : « Je pense que je ne me
+// servirai rarement du rythme. […] Supprime les boutons dans "Lecture" et dans le petit séquenceur. »
+// Il ne reste donc, dans cette rangée, que la DURÉE. Ce banc a été réduit d'autant — il n'éprouve
+// plus que ce qui existe — mais SES SECTIONS D ET E SONT RESTÉES ENTIÈRES : le tampon de rythme et
+// « ce rythme pour toute la partie » n'ont pas disparu avec le bouton, ils sont seulement devenus
+// invisibles depuis la carte. La présence du bouton Rythme, elle, est désormais éprouvée par son
+// ABSENCE, dans rythme_une_preference_test.
+//
+// SECTION D, UN AVERTISSEMENT HONNÊTE : elle écrit dans #playStyle et émet 'change' à la main. Plus
+// aucun geste réel ne le fait aujourd'hui (voir le commentaire de cet écouteur dans script.js) —
+// c'est donc une garantie de MOTEUR, pas de câblage. Elle reste parce que le correctif qu'elle
+// protège (un instantané avant d'écraser, au lieu d'un historique vidé) devrait sinon être
+// redécouvert par le prochain lot qui redonnerait un moyen de changer le rythme d'un accord.
 const { chromium, devices } = require('playwright');
 const creerHarnais = require('./_harness');
 const { plan, check, exiger, bilan } = creerHarnais('Rythme et durée : mode Ajout, tampon annulable, rythme par partie');
@@ -62,17 +74,19 @@ const POSER_AIDES = `window.visible = (sel) => { const e = document.querySelecto
     console.log('=== A. En AJOUT, les deux réglages sont là : ce sont les prochains accords ===');
     exiger(await page.evaluate(() => window.app.appMode === 'add'), 'on démarre bien en mode Ajout');
     const ajout = await page.evaluate(() => ({
-        jeu: visible('.voicing-group-jeu'), duree: visible('.voicing-group-duree'),
-        // L'intensité a quitté la rangée pour le menu contextuel : elle ne doit plus y être, dans
-        // AUCUN des deux modes (« c'est une option pour affiner le morceau seulement. À cacher »).
+        duree: visible('.voicing-group-duree'),
+        // Les deux qui ont quitté la rangée, chacun pour sa raison, et qui ne doivent plus y être
+        // dans AUCUN des deux modes : l'intensité au menu contextuel (« c'est une option pour
+        // affiner le morceau seulement. À cacher »), le rythme aux Paramètres (« je ne me servirai
+        // rarement du rythme »).
         intensite: visible('.voicing-group-intensite'),
-        motJeu: document.getElementById('playstyle-label').textContent.trim(),
+        jeu: !!document.querySelector('.voicing-group-jeu'),
+        etiquette: !!document.getElementById('playstyle-label'),
     }));
-    check(ajout.jeu && ajout.duree && !ajout.intensite,
-        'en Ajout : Rythme et Durée sont là, l\'intensité non — elle est passée au menu contextuel');
-    // Le mot lui-même faisait partie du reproche : « Jeu » ne disait pas ce que le bouton fait.
-    check(ajout.motJeu.toLowerCase() === 'rythme',
-        `l'étiquette nomme la chose remplie, pas une manière de jouer — « ${ajout.motJeu} »`);
+    check(ajout.duree && !ajout.intensite,
+        'en Ajout : la Durée est là, l\'intensité non — elle est passée au menu contextuel');
+    check(!ajout.jeu && !ajout.etiquette,
+        'le groupe Rythme n\'existe plus du tout dans la rangée, pas même masqué');
     // Et ce sont bien les valeurs par défaut des accords AJOUTÉS : on les change, on ajoute, on vérifie.
     await page.evaluate(() => {
         const d = document.getElementById('duration');
@@ -106,13 +120,13 @@ const POSER_AIDES = `window.visible = (sel) => { const e = document.querySelecto
     await page.evaluate(() => window.app.editChord(0, 0));
     await page.waitForTimeout(600);
     const modif = await page.evaluate(() => ({
-        jeu: visible('.voicing-group-jeu'), duree: visible('.voicing-group-duree'),
+        duree: visible('.voicing-group-duree'),
         intensite: visible('.voicing-group-intensite'),
         // Les champs SOURCES, eux, doivent rester lisibles : rien n'est débranché, seulement masqué.
         selects: ['playStyle', 'duration', 'intensity'].filter(i => !!document.getElementById(i)).length,
         valeurs: ['playStyle', 'duration'].map(i => document.getElementById(i).value),
     }));
-    check(!modif.jeu && !modif.duree, 'Rythme et Durée ne s\'affichent plus en Modification');
+    check(!modif.duree, 'la Durée ne s\'affiche plus en Modification : la poignée de la case suffit');
     check(!modif.intensite, 'l\'intensité non plus : la rangée entière a disparu de la carte');
     check(modif.selects === 3 && modif.valeurs.every(v => v !== ''),
         `les champs sources restent dans le DOM et portent une valeur — ${modif.valeurs.join(', ')}`);
@@ -245,13 +259,13 @@ const POSER_AIDES = `window.visible = (sel) => { const e = document.querySelecto
     await m.evaluate(seed);
     await m.reload({ waitUntil: 'load' });
     await m.waitForTimeout(1000);
-    const telAjout = await m.evaluate(() => ({ jeu: visible('.voicing-group-jeu'), duree: visible('.voicing-group-duree') }), null);
-    check(telAjout.jeu && telAjout.duree, 'téléphone, Ajout : les deux réglages sont là');
+    const telAjout = await m.evaluate(() => ({ duree: visible('.voicing-group-duree'), jeu: !!document.querySelector('.voicing-group-jeu') }), null);
+    check(telAjout.duree && !telAjout.jeu, 'téléphone, Ajout : la Durée est là, le Rythme n\'existe plus');
     await m.evaluate(() => window.app.editChord(0, 0));
     await m.waitForTimeout(800);
     const telModif = await m.evaluate(() => {
         const row = document.getElementById('lecture-row');
-        return { jeu: visible('.voicing-group-jeu'), duree: visible('.voicing-group-duree'),
+        return { duree: visible('.voicing-group-duree'),
                  intensite: visible('.voicing-group-intensite'),
                  trop: row.scrollWidth - row.clientWidth,
                  // Plus d'intensité dans la rangée : on mesure ce qui y reste vraiment (rien en
@@ -259,7 +273,7 @@ const POSER_AIDES = `window.visible = (sel) => { const e = document.querySelecto
                  lMin: (() => { const c = [...document.querySelectorAll('#lecture-row .voicing-segment, #lecture-row .voicing-step')].filter(x => x.offsetParent !== null);
                                 return c.length ? Math.round(Math.min(...c.map(x => x.getBoundingClientRect().width))) : null; })() };
     });
-    check(!telModif.jeu && !telModif.duree && !telModif.intensite, 'téléphone, Modification : la rangée est vide, comme sur ordinateur');
+    check(!telModif.duree && !telModif.intensite, 'téléphone, Modification : la rangée est vide, comme sur ordinateur');
     check(telModif.trop <= 0 && (telModif.lMin === null || telModif.lMin >= 20),
         `téléphone : la rangée ne déborde pas${telModif.lMin === null ? ' (et elle est vide, comme attendu)' : ' et ses cases restent tactiles — ' + telModif.lMin + 'px'}`);
 

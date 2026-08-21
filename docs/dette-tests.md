@@ -1536,3 +1536,77 @@ des fonctions réelles — le transport global quand le volet est replié, la pl
 deuxième rangée, les flèches du clavier dans la loupe, le sélecteur d'aimantation, la loupe au doigt.
 Ils sont soit périmés, soit le signe de fonctions cassées ; les deux demandent d'être instruits, pas
 tolérés. La question est posée à l'utilisateur avant d'y consacrer un lot, sa priorité étant ailleurs.
+
+## Le rythme : deux boutons en moins, une préférence en plus
+
+> « Je pense que je ne me servirai rarement du rythme. Pour diminuer le nombre de boutons, laisser
+> uniquement un choix favori dans les paramètres : jouer des notes tenues tous les temps, ou jouer
+> uniquement une note tenue sur le premier temps de l'accord (par défaut). Supprime les boutons dans
+> "Lecture" et dans le petit séquenceur. »
+
+### Un revirement assumé, et il faut le dire
+
+Le lot précédent venait d'étendre le bouton de motifs du tiroir mobile à **tout** le séquenceur, avec
+un argument qui tenait : « poser un motif type est une action sur le rythme, sa place est dans
+l'outil du rythme ». L'argument était juste — il répondait à la mauvaise question. Le bon endroit
+pour une commande dont on ne se sert pas n'est aucun endroit.
+
+**Deux choix, pas neuf.** `PLAYSTYLE_OPTIONS` en compte neuf et reste la liste que lit `seqPreset` :
+elle n'est pas réduite, elle n'est plus **proposée**. Les sept autres restent atteignables là où le
+rythme se travaille vraiment — en dessinant dans le séquenceur, qui est justement le geste que
+l'utilisateur dit préférer.
+
+**Dans le groupe Son, pas dans « Options avancées ».** Première pose ratée de ma part : je l'avais
+mis dans le repli. Un réglage qu'on ne pose qu'une fois n'est pas pour autant un réglage à cacher —
+il remplace deux boutons qui étaient, eux, sous les yeux en permanence. L'enterrer derrière un repli
+revenait à le supprimer.
+
+### Le défaut que le banc a trouvé, et que la lecture n'aurait pas vu
+
+`exitEditMode` ne remettait pas la préférence dans `#playStyle`. Conséquence : on ouvre un vieil
+accord en croches détachées, on le referme, on ajoute un accord — **et il naît en croches détachées**,
+malgré une préférence réglée sur « une note tenue ».
+
+Ce défaut existait déjà avant ce lot. Il était simplement **visible** : le bouton Rythme affichait la
+valeur restée en place. En retirant le bouton, on a retiré le témoin sans retirer la fuite. C'est le
+motif exact qu'il faut retenir : **supprimer un affichage ne supprime pas ce qu'il affichait** — ça
+rend muet un état qui continue d'agir. Corrigé au même endroit qui remet déjà l'intensité et les
+notes libres à zéro, pour la même raison.
+
+### Un filet sans porte, dit à voix haute
+
+Plus rien n'émet `change` sur `#playStyle` : le champ est masqué, et `setRythmeDepart` écrit sa valeur
+**sans** émettre l'évènement — exprès, sinon changer un réglage global effacerait le rythme dessiné de
+l'accord ouvert. L'écouteur `onchange` (et le `pushSeqUndo` qui le rend annulable, correctif d'un
+défaut mesuré au lot A) ne protège donc plus aucun geste réel.
+
+Il est **gardé**, et c'est écrit dans le code plutôt que laissé à découvrir : c'est le seul endroit
+cohérent pour « #playStyle a changé, le motif doit suivre, et ça doit rester annulable ». Le
+supprimer obligerait à le réécrire au premier lot qui redonnerait un moyen de changer le rythme d'un
+accord existant — et ce lot-là oublierait sans doute le `pushSeqUndo`. Le banc qui l'éprouve
+(`rythme_duree_test` section D) porte le même avertissement : c'est une garantie de **moteur**, pas de
+câblage.
+
+### Le nom de classe partagé, piège invisible dans un diff
+
+Le menu d'intensité posé au lot précédent porte les classes `.playstyle-dd-menu` et
+`.playstyle-dd-item` — il avait repris l'habillage du menu de rythme. Nettoyer « tout ce qui commence
+par `.playstyle-dd` » l'aurait laissé **sans fond, sans cadre et sans ombre**, en `position: fixed`
+par-dessus la grille. Rien dans le diff ne l'aurait montré. Seules les cinq règles du **bouton** sont
+parties ; celles du **menu** restent, avec le commentaire qui explique pourquoi le nom ment.
+Une section entière du nouveau banc ne vérifie que ça.
+
+### Un banc renommé plutôt que supprimé
+
+`seq_tiroir_motifs_test` éprouvait le raccourci de motifs dans le tiroir. Son sujet n'existe plus.
+Mais il avait établi une garantie qui ne dépendait pas du bouton : **agir depuis la barre d'outils du
+tiroir ne referme pas le tiroir** — piège réel du gestionnaire de clic-à-côté, et sur téléphone un
+tiroir qui se referme à chaque geste rend le séquenceur inutilisable au doigt. Il devient donc
+`seq_tiroir_barre_outils_test`, recentré sur cette garantie-là, et vérifie au passage l'absence du
+raccourci. Supprimer le fichier aurait emporté la garantie avec le bouton.
+
+**Et une erreur de seuil, de mon fait.** Mon premier jet exigeait 26px de haut pour tous les boutons
+de la barre : deux échouaient à 30x15. Ce n'était pas la barre qui avait tort mais le seuil — les
+deux boutons de zoom horizontal sont **empilés** dans un cadre commun de 30x30, choix de conception
+antérieur. Ils sont donc mis à part **en étant nommés**, pour qu'un troisième petit bouton qui
+apparaîtrait un jour fasse bien rougir ce banc.

@@ -1699,23 +1699,18 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
    propre à cette carte — la répartition des largeurs, et la mise à l'échelle des deux menus à icônes
    qui étaient dessinés pour une rangée de 44px et vivent maintenant dans une bande de 30px.
 
-   POIDS DES TROIS GROUPES : 3 pour le jeu (icône + un mot + chevron, le plus gourmand), 2 pour la
-   durée (icône + « 2 mes. »), 4 pour l'intensité (cinq niveaux + la case du mode studio). Mesuré à
-   321px de large : 103 / 69 / 137px, soit des cases d'intensité de ~22px — au-dessus du plancher
-   tactile de 20px que les écrans les plus étroits imposent déjà à la rangée du dessus. */
-/* L'intensité occupait ici un troisième groupe de largeur fixe. Elle est partie au menu contextuel
-   de l'accord (« c'est une option pour affiner le morceau seulement. À cacher. »), et les deux
-   groupes restants se partagent toute la rangée : 3 contre 2, la durée demandant moins de place. */
-.voicing-group-jeu { flex: 3 1 0; }
-.voicing-group-duree { flex: 2 1 0; }
+   IL N'EN RESTE QU'UN. Cette rangée portait trois groupes de poids 3 / 2 / 4 (jeu, durée,
+   intensité). L'intensité est partie au menu contextuel de l'accord, le rythme dans Paramètres >
+   Son — deux retours utilisateur successifs, tous deux du même ordre : « c'est une option pour
+   affiner le morceau seulement » et « je ne me servirai rarement du rythme ». La durée reste seule
+   et prend toute la rangée ; il n'y a plus rien à répartir. */
+.voicing-group-duree { flex: 1 1 auto; }
 
 
 /* Les deux menus à icônes prennent le cadre des cases de voicing : même hauteur, même bordure, même
    fond, mêmes coins. Sans ça, la rangée aurait aligné trois habillages différents côte à côte — ce
    qu'on cherche justement à corriger. Leur propre dégradé et leur ombre portée sont neutralisés. */
-.lecture-row .playstyle-dd,
 .lecture-row .duration-dd { align-self: auto; }
-.lecture-row .playstyle-dd-toggle,
 .lecture-row .duration-dd-toggle {
     height: 30px;
     flex-direction: row;     /* la durée empilait icône AU-DESSUS du libellé : impossible en 30px */
@@ -1730,20 +1725,16 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
     font-weight: 700;
     min-width: 0;
 }
-.lecture-row .playstyle-dd-toggle:hover,
 .lecture-row .duration-dd-toggle:hover { background: rgba(255, 255, 255, 0.06); border-color: #454b54; }
-.lecture-row .playstyle-dd-icon { width: 20px; height: 14px; }
 /* CHEVRON ET ICÔNE DE DURÉE RETIRÉS DE CETTE RANGÉE (ils restent dans les menus ouverts). Ce sont
    les deux seuls pixels vraiment redondants ici : le chevron redit ce que le cadre dit déjà — une
    case qui s'ouvre — et l'icône de durée redit ce que « 1 mes. » écrit juste à côté. Mesuré : sans
    eux, « 1 mes. » cesse d'être tronqué (il l'était de 7px sur ordinateur, 14px sur un écran de
    360px). L'icône du STYLE DE JEU reste, elle : elle dessine le rythme, ce que le mot ne fait pas. */
-.lecture-row .playstyle-dd-chevron,
 .lecture-row .duration-dd-icon { display: none; }
 /* Les deux libellés se comportent comme le menu de basse de la rangée du dessus : ils prennent la
    place restante et se coupent proprement plutôt que de pousser la case hors du groupe. */
-.lecture-row .duration-dd-label,
-.lecture-row .playstyle-dd-label {
+.lecture-row .duration-dd-label {
     flex: 1;
     min-width: 0;
     font-size: 12px;
@@ -1781,7 +1772,6 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
    posé sur <body> par applyAppModeTheme, LE point de passage de tout changement de mode — un
    masquage piloté depuis le JS aurait été un second endroit à tenir à jour, donc un second endroit
    à oublier. Les <select> sources, eux, restent lus dans les deux modes : rien n'est débranché. */
-body[data-app-mode="edit"] .voicing-group-jeu,
 body[data-app-mode="edit"] .voicing-group-duree { display: none; }
 /* Deux règles vivaient ici pour étirer la bande d'intensité restée seule en Modification. Elles
    sont parties avec elle, et la seconde valait qu'on la remarque : `.voicing-segment` ne désigne pas
@@ -1799,8 +1789,10 @@ body[data-app-mode="edit"] .voicing-group-duree { display: none; }
    lit, un pictogramme de croche large de 20px sur un écran de 320px, non. Le menu ouvert, lui, garde
    ses icônes : c'est là qu'on choisit. */
 @media (max-width: 340px) {
-    .lecture-row .playstyle-dd-icon { display: none; }
-    .voicing-group-jeu, .voicing-group-duree { flex: 1 1 0; }
+    /* Il ne reste que la durée : plus rien à répartir, plus d'icône de rythme à sacrifier. Le bloc
+       est conservé comme point d'accroche — c'est ici qu'on ajustera si un jour la durée déborde à
+       320px, ce qu'elle ne fait plus depuis qu'elle a la rangée pour elle seule. */
+    .voicing-group-duree { flex: 1 1 auto; }
 }
 
 /* ============================================================
@@ -2117,32 +2109,14 @@ body[data-app-mode="edit"] .voicing-group-duree { display: none; }
 .duration-dd-item.active { color: var(--accent); }
 .duration-dd-item.active svg { color: var(--accent); }
 
-/* Style de jeu : même principe que .duration-dd (bouton fermé + menu déroulant d'icônes), mais FLEX:1
-   (occupe l'espace laissé libre par .duration-dd, à largeur fixe, juste à côté) et disposé en ligne
-   (icône + libellé + chevron) plutôt qu'empilé : plus de place ici pour un contenu horizontal, et le
-   chevron rappelle qu'il s'agit d'un menu déroulant, comme un <select> natif. */
-.playstyle-dd { position: relative; flex: 1; min-width: 0; align-self: stretch; }
-.playstyle-dd-toggle {
-    height: 100%;
-    width: 100%;
-    padding: 8px 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0) 40%), #222;
-    color: var(--text-main);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: var(--fs-select);
-    font-family: inherit;
-    font-weight: 600;
-}
-.playstyle-dd-toggle:hover { border-color: #454b54; }
-.playstyle-dd-icon { width: 28px; height: 20px; flex: none; display: block; }
-.playstyle-dd-icon svg { width: 100%; height: 100%; display: block; }
-.playstyle-dd-label { flex: 1; min-width: 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.playstyle-dd-chevron { width: 16px; height: 16px; flex: none; color: var(--text-muted); }
+/* LE BOUTON DE RYTHME A DISPARU, PAS SON MENU — et c'est le piège de ce nettoyage.
+   Le bouton fermé (.playstyle-dd, -toggle, -icon, -label, -chevron) n'a plus aucune cible depuis que
+   le rythme se règle une fois pour toutes dans Paramètres > Son : ces cinq règles sont parties.
+   Mais .playstyle-dd-menu et .playstyle-dd-item, plus bas, sont RÉUTILISÉES par le menu d'intensité
+   du menu contextuel d'un accord (voir ouvrirMenuIntensite). Supprimer « tout ce qui commence par
+   .playstyle-dd » aurait donc déshabillé ce menu-là : ni fond, ni cadre, ni ombre, posé en fixed
+   par-dessus la grille. Le nom de classe est resté celui du premier occupant ; ce qu'il habille,
+   non. */
 .playstyle-dd-menu {
     /* fixed, comme .duration-dd-menu (voir son commentaire) : même raison, la carte contenante défile
        sur elle-même et rognerait un menu positionné en absolu par rapport à elle. */
@@ -2160,15 +2134,6 @@ body[data-app-mode="edit"] .voicing-group-duree { display: none; }
     max-height: 70vh;
     overflow-y: auto;
 }
-.playstyle-dd-group {
-    font-size: var(--fs-2xs);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--text-muted);
-    padding: 8px 10px 4px;
-}
-.playstyle-dd-group:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--border); }
 .playstyle-dd-item {
     display: flex;
     align-items: center;

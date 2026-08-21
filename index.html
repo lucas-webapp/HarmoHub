@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608241600">
+    <link rel="stylesheet" href="style.css?v=202608241700">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -149,7 +149,6 @@
          Menu flottant construit en JS depuis NIVEAUX_INTENSITE, comme les deux menus juste en
          dessous — même mécanique de placement, même fermeture au clic à côté et à Échap. -->
     <div class="playstyle-dd-menu" id="intensity-menu" hidden></div>
-    <div class="playstyle-dd-menu" id="playstyle-dd-menu" hidden></div>
     <div class="duration-dd-menu" id="duration-dd-menu" hidden></div>
     <div id="section-picker-menu" class="context-menu" hidden></div>
 
@@ -842,25 +841,15 @@
                          principe » se tient s'il n'y a qu'un seul principe. Retoucher l'un retouche
                          l'autre, et les deux cartes ne peuvent plus diverger sans qu'on le voie. -->
                     <div class="voicing-row lecture-row" id="lecture-row">
-                        <!-- « JEU » EST DEVENU « RYTHME », et ces deux groupes ne s'affichent plus qu'en
-                             mode Ajout (voir body[data-app-mode] dans style.css).
-                             Retour utilisateur : « Le bouton "jeu" n'est pas clair, à travailler
-                             également. » Il ne l'était pas parce que son mot ne disait pas ce qu'il
-                             fait : ce bouton ne choisit pas une manière de jouer, il REMPLIT le
-                             séquenceur avec un motif type. « Rythme » nomme la chose remplie.
-                             Ici, en mode Ajout, les deux répondent à une seule question — « les
-                             accords que je m'apprête à taper, ils durent combien, et sur quel
-                             rythme ? » — d'où l'infobulle commune. -->
-                        <div class="voicing-group voicing-group-jeu">
-                            <span class="voicing-label" id="playstyle-label">Rythme</span>
-                            <div class="playstyle-dd" id="playstyle-dd">
-                                <button type="button" class="playstyle-dd-toggle" id="playstyle-dd-toggle" title="Rythme de départ des prochains accords : remplit le séquenceur avec ce motif type. Se redessine ensuite librement dans le séquenceur." aria-haspopup="true" aria-expanded="false">
-                                    <span class="playstyle-dd-icon" data-icon-slot></span>
-                                    <span class="playstyle-dd-label" data-label-slot></span>
-                                    <svg class="playstyle-dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-                                </button>
-                            </div>
-                        </div>
+                        <!-- LE BOUTON « RYTHME » A QUITTÉ CETTE CARTE — et le séquenceur avec.
+                             Retour utilisateur : « Je pense que je ne me servirai rarement du rythme.
+                             Pour diminuer le nombre de boutons, laisser uniquement un choix favori
+                             dans les paramètres. »
+                             Il ne reste donc qu'UN réglage, global à l'appareil, dans Paramètres > Son
+                             (voir RYTHME_DEPART_CHOIX) : deux choix au lieu de neuf, choisis une fois
+                             pour toutes. Le champ #playStyle plus bas reste la source de vérité que
+                             lisent readChord et seqPreset ; la préférence se contente d'y écrire pour
+                             les NOUVEAUX accords, et un accord déjà écrit garde le rythme qu'il a. -->
                         <div class="voicing-group voicing-group-duree">
                             <span class="voicing-label" id="duration-label">Durée</span>
                             <div class="duration-dd" id="duration-dd">
@@ -1269,6 +1258,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608241600"></script>
+    <script src="script.js?v=202608241700"></script>
 </body>
 </html>

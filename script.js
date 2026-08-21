@@ -1946,6 +1946,28 @@ const PDF_DIAGRAMS_KEY = 'harmohubPdfDiagrams';
 // d'une session à l'autre — pas remis à zéro à chaque accord édité, pour ne pas avoir à le
 // rallumer sans cesse (retour utilisateur : « alléger l'appli », voir aussi le mode simple/studio).
 const STUDIO_MODE_KEY = 'harmohubStudioMode';
+// RYTHME DE DÉPART DES NOUVEAUX ACCORDS — préférence globale de l'appareil.
+//
+// Retour utilisateur : « Je pense que je ne me servirai rarement du rythme. Pour diminuer le nombre
+// de boutons, laisser uniquement un choix favori dans les paramètres : jouer des notes tenues tous
+// les temps, ou jouer uniquement une note tenue sur le premier temps de l'accord (par défaut).
+// Supprime les boutons dans "Lecture" et dans le petit séquenceur. »
+//
+// DEUX CHOIX, PAS NEUF. PLAYSTYLE_OPTIONS en compte neuf (quatre cadences × lié/détaché, plus le
+// tenu) et reste la liste que lit seqPreset : elle n'est pas réduite, elle n'est plus PROPOSÉE. Les
+// deux entrées ci-dessous sont exactement les deux que l'utilisateur a nommées ; les sept autres
+// restent atteignables là où le rythme se travaille vraiment, en dessinant dans le séquenceur.
+//
+// CE QUE CETTE PRÉFÉRENCE NE FAIT PAS : toucher aux accords déjà écrits. Elle n'écrit dans #playStyle
+// que pour les NOUVEAUX accords, et sans jamais émettre 'change' — l'écouteur de #playStyle remplit
+// le séquenceur de l'accord en cours d'édition, ce qui reviendrait à effacer un rythme dessiné à la
+// main au moment où l'on change un réglage global. Un accord existant garde le sien (voir editChord).
+const RYTHME_DEPART_KEY = 'harmohubRythmeDepart';
+const RYTHME_DEPART_DEFAUT = 'held';
+const RYTHME_DEPART_CHOIX = [
+    { valeur: 'held', libelle: 'Une note tenue sur le premier temps' },
+    { valeur: 'noire_maintenu', libelle: 'Des notes tenues sur tous les temps' },
+];
 // Échelles horizontale/verticale de la loupe séquenceur : remplacent l'ancien niveau de zoom unique
 // (une seule clé harmohubSeqZoomLevel) — cette valeur reste reprise comme repli pour les deux axes si
 // on la trouve (session antérieure), pour ne pas perdre le réglage déjà choisi en migrant.
@@ -3121,6 +3143,11 @@ class HarmoHubApp {
         // Affiche la rangée de barres de vélocité sous le séquenceur (voir renderSequencer) — réglage
         // global de l'appareil, mémorisé (voir STUDIO_MODE_KEY), pas remis à zéro à chaque accord édité.
         this.studioMode = localStorage.getItem(STUDIO_MODE_KEY) === '1';
+        // Valeur VALIDÉE contre la liste, jamais reprise telle quelle : une clé restée d'une version
+        // antérieure (l'un des neuf styles d'avant, ou n'importe quoi d'autre) irait sinon se poser
+        // dans #playStyle, où plus aucune commande visible ne permettrait de la corriger.
+        const rythmeMemorise = localStorage.getItem(RYTHME_DEPART_KEY);
+        this.rythmeDepart = RYTHME_DEPART_CHOIX.some(c => c.valeur === rythmeMemorise) ? rythmeMemorise : RYTHME_DEPART_DEFAUT;
         this._velDragStep = null; // croche en cours de glissé dans cette rangée (voir setupEventListeners)
         this.seqRenderGen = 0;     // incrémenté à chaque renderSequencer() (voir plus bas, étiquette éditable
                                    // d'une note libre) : un blur tardif d'une étiquette d'un rendu déjà
@@ -3328,7 +3355,7 @@ class HarmoHubApp {
         this.applySongSettingsOpen(); // bloc Morceau : déplié ou non, tel qu'on l'avait laissé
         this.updateSongSummary();
         this.setupDurationPicker();
-        this.setupPlayStylePicker();
+        this.appliquerRythmeDepart();
         // La plage à boucler d'ABORD : les deux écoutent 'pointerdown' sur le même conteneur, et
         // onLoopRangeStart doit pouvoir couper court (stopImmediatePropagation) avant qu'onGridPointerDown
         // ne change la partie active et ne re-rende la grille — sinon l'élément qu'il vient de capturer
@@ -3624,6 +3651,18 @@ class HarmoHubApp {
         // les instantanés précédents restent donc parfaitement applicables. clearSeqHistory garde
         // tout son sens là où il est appelé pour de VRAIS changements de forme (voir ses 3 autres
         // appels : changement de racine/qualité, chargement d'un autre accord, motif validé).
+        // UN FILET SANS PORTE, AUJOURD'HUI — et c'est dit ici plutôt que découvert plus tard.
+        // Depuis que le rythme se règle une fois pour toutes dans Paramètres > Son, PLUS RIEN n'émet
+        // 'change' sur #playStyle : le champ est masqué, donc hors d'atteinte à la souris, et
+        // setRythmeDepart écrit sa valeur SANS émettre l'évènement, exprès (émettre reviendrait à
+        // effacer le rythme dessiné de l'accord ouvert au moment où l'on touche un réglage global).
+        // Le chemin vivant qui porte la préférence jusqu'aux nouveaux accords est ailleurs :
+        // syncSeqPatternForCurrentChord, qui appelle seqPreset tant que seqTouched est faux.
+        // POURQUOI LE GARDER ALORS : c'est le seul endroit cohérent pour « #playStyle vient de
+        // changer, le motif doit suivre, et ça doit rester annulable ». Le supprimer obligerait à le
+        // réécrire au premier lot qui redonnerait un moyen de changer le rythme d'un accord existant
+        // — et ce lot-là oublierait sans doute le pushSeqUndo, qui est précisément le correctif d'un
+        // défaut mesuré (trois Ctrl+Z ne retrouvaient jamais le motif dessiné à la main).
         document.getElementById('playStyle').onchange = () => {
             const chord = this.readChord();
             this.pushSeqUndo();     // AVANT d'écraser : c'est ce qui rend le tampon annulable
@@ -6623,7 +6662,6 @@ class HarmoHubApp {
         document.getElementById('drop').value = d.drop;
         document.getElementById('bass').value = d.bass || '';
         document.getElementById('playStyle').value = d.playStyle || 'held';
-        this.syncPlayStylePicker(); // reflète la nouvelle valeur sur le bouton/menu d'icônes (voir setupPlayStylePicker)
         document.getElementById('instrument').value = d.instrument || 'piano';
         const intensityValue = (d.intensity != null) ? d.intensity : DEFAULT_INTENSITY;
         document.getElementById('intensity').value = intensityValue;
@@ -6709,6 +6747,14 @@ class HarmoHubApp {
         this.guitarOverride = null;
         // Idem : réglages fins d'intensité propres à CET accord (voir editChord/computeVelocity).
         this.intensityPerStep = {};
+        // ET LE RYTHME, pour exactement la même raison — mais ce n'était pas visible avant.
+        // editChord a posé dans #playStyle le rythme de l'accord ouvert ; le laisser là, c'est le
+        // recopier sur le PROCHAIN accord ajouté. Tant que le bouton Rythme était sous les yeux, la
+        // valeur restée en place se lisait dessus. Depuis qu'il n'y a plus de bouton, cette fuite
+        // devient muette : on ferme un vieil accord en croches détachées, on en ajoute un, et il naît
+        // en croches détachées malgré une préférence réglée sur « une note tenue ». Trouvé par
+        // rythme_une_preference_test section E, pas à la lecture.
+        this.appliquerRythmeDepart();
         // this.studioMode N'EST PLUS remis à zéro ici (voir STUDIO_MODE_KEY) : réglage global de
         // l'appareil désormais, pas un état propre à CET accord.
         document.getElementById('intensity').value = DEFAULT_INTENSITY;
@@ -8087,6 +8133,9 @@ class HarmoHubApp {
                 el.value = el.defaultValue;
             }
         }
+        // La boucle ci-dessus vient de reposer la valeur écrite dans le HTML pour #playStyle ('held').
+        // C'est le bon repli, mais plus la bonne autorité depuis qu'une préférence existe.
+        this.appliquerRythmeDepart();
         const intensiteAffichee = document.getElementById('intensity-val');
         if (intensiteAffichee) intensiteAffichee.textContent = document.getElementById('intensity').value;
         // Motif rythmique : remis à vide ET seqTouched à false, pour qu'il soit RECALCULÉ d'après le
@@ -8376,6 +8425,21 @@ class HarmoHubApp {
                 <input type="range" id="metronome-volume" min="0" max="100" value="${this.metronomeVolumePercent}">
             </div>
             <div class="settings-slider-sep"></div>
+            <!-- UN SEUL CHOIX DE RYTHME, ET IL EST ICI — pas dans « Options avancées ».
+                 Retour utilisateur : « laisser uniquement un choix favori dans les paramètres ».
+                 Un réglage qu'on ne pose qu'une fois n'est pas pour autant un réglage à cacher : il
+                 remplace deux boutons qui étaient, eux, sous les yeux en permanence. L'enterrer
+                 derrière un repli reviendrait à le supprimer.
+                 Une liste déroulante plutôt que deux boutons côte à côte : les deux libellés sont des
+                 phrases, pas des mots, et ne tiendraient pas sur la largeur d'un téléphone. -->
+            <div class="settings-select-row">
+                <label for="rythme-depart" title="Rythme donné aux NOUVEAUX accords. Un accord déjà écrit garde le sien, et se redessine librement dans le séquenceur.">Rythme des nouveaux accords</label>
+                <select id="rythme-depart">
+                    ${RYTHME_DEPART_CHOIX.map(c =>
+                        `<option value="${c.valeur}"${c.valeur === this.rythmeDepart ? ' selected' : ''}>${c.libelle}</option>`
+                    ).join('')}
+                </select>
+            </div>
             <div class="settings-toggle-row">
                 <label for="toggle-autoplay-select" title="Jouer l'accord en le sélectionnant dans la grille">Jouer à la sélection</label>
                 <button type="button" id="toggle-autoplay-select" class="switch" role="switch" aria-checked="${this.autoplaySelect}" aria-label="Jouer l'accord en le sélectionnant dans la grille">
@@ -8414,6 +8478,7 @@ class HarmoHubApp {
         document.getElementById('toggle-autoplay-select').onclick = () => this.setAutoplaySelect(!this.autoplaySelect);
         document.getElementById('toggle-metronome-countin').onclick = () => this.setMetronomeCountIn(!this.metronomeCountIn);
         document.getElementById('toggle-seq-edit-audio').onclick = () => this.setSeqEditAudio(!this.seqEditAudio);
+        document.getElementById('rythme-depart').onchange = (e) => this.setRythmeDepart(e.target.value);
     }
 
     setSeqEditAudio(on) {
@@ -10459,81 +10524,24 @@ class HarmoHubApp {
         document.querySelectorAll('.duration-dd-item').forEach(b => b.classList.toggle('active', b.dataset.beats === d.beats));
     }
 
-    // ---------- Style de jeu : bouton fermé + menu déroulant d'icônes ----------
-    // Même principe que setupDurationPicker ci-dessus (voir son commentaire) : pilote le
-    // <select id="playStyle"> resté masqué dans le DOM, seule source de vérité lue ailleurs
-    // (onchange du style de jeu, readChord...). Le menu regroupe les options par `group` (Lié/Détaché),
-    // avec un intitulé non cliquable entre chaque groupe, comme les <optgroup> d'origine.
-    setupPlayStylePicker() {
-        const menu = document.getElementById('playstyle-dd-menu');
-        let lastGroup;
-        menu.innerHTML = PLAYSTYLE_OPTIONS.map(p => {
-            const groupHeader = (p.group && p.group !== lastGroup) ? `<div class="playstyle-dd-group">${p.group}</div>` : '';
-            lastGroup = p.group;
-            return `${groupHeader}
-            <button type="button" class="playstyle-dd-item" data-value="${p.value}">
-                <svg viewBox="0 0 24 16">${p.svg}</svg>
-                <span>${p.name}</span>
-            </button>`;
-        }).join('');
-
-        document.getElementById('playstyle-dd-toggle').addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (menu.hidden) this.openPlayStyleMenu(); else this.closePlayStyleMenu();
-        });
-        document.addEventListener('click', (e) => {
-            // Le raccourci du tiroir est EXCLU au même titre que le bouton d'origine : sans ça, le
-            // clic qui ouvre le menu le refermerait dans la foulée, puisqu'il tombe hors de
-            // #playstyle-dd. C'est exactement le piège que la table this._popups résout ailleurs avec
-            // son champ `ancre` — même correctif, même raison.
-            if (e.target.closest('#seq-playstyle-btn')) return;
-            if (!document.getElementById('playstyle-dd').contains(e.target)) this.closePlayStyleMenu();
-        });
-
-        menu.addEventListener('click', (e) => {
-            const item = e.target.closest('.playstyle-dd-item');
-            if (!item) return;
-            const select = document.getElementById('playStyle');
-            select.value = item.dataset.value;
-            select.dispatchEvent(new Event('change', { bubbles: true }));
-            this.syncPlayStylePicker();
-            this.closePlayStyleMenu();
-        });
-
-        this.syncPlayStylePicker();
-    }
-
-    // `ancre` : le bouton sous lequel poser le menu. Par défaut celui du module Lecture, mais le
-    // tiroir du séquenceur en a un second (voir renderSequencer) — sur téléphone, celui du module se
-    // retrouve hors écran dès que le tiroir est ouvert (mesuré : à 630px sur une fenêtre de 664),
-    // c'est-à-dire inatteignable au moment précis où l'on travaille le rythme.
-    openPlayStyleMenu(ancre = null) {
-        const toggle = ancre || document.getElementById('playstyle-dd-toggle');
-        const menu = document.getElementById('playstyle-dd-menu');
-        menu.hidden = false;
-        document.getElementById('playstyle-dd-toggle').setAttribute('aria-expanded', 'true');
-        const rect = toggle.getBoundingClientRect();
-        const pad = 8;
-        const left = Math.min(rect.left, window.innerWidth - menu.offsetWidth - pad);
-        menu.style.left = `${Math.max(pad, left)}px`;
-        menu.style.top = `${Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - pad)}px`;
-    }
-
-    closePlayStyleMenu() {
-        const menu = document.getElementById('playstyle-dd-menu');
-        if (menu.hidden) return;
-        menu.hidden = true;
-        document.getElementById('playstyle-dd-toggle').setAttribute('aria-expanded', 'false');
-    }
-
-    // Reflète le style de jeu actuel du <select> caché sur le bouton/menu d'icônes — à appeler chaque
-    // fois que sa valeur change par un autre chemin que ce menu lui-même (voir editChord).
-    syncPlayStylePicker() {
+    // ---------- Rythme de départ : une préférence, plus un bouton ----------
+    // Pose la préférence dans #playStyle, qui reste la source de vérité lue par readChord et
+    // seqPreset. SANS émettre 'change' : cet évènement remplit le séquenceur de l'accord en cours
+    // d'édition (voir son écouteur), ce qui effacerait un rythme dessiné à la main. Ici on ne fait
+    // que régler le point de DÉPART des accords à venir.
+    appliquerRythmeDepart() {
         const select = document.getElementById('playStyle');
-        const p = PLAYSTYLE_OPTIONS.find(x => x.value === select.value) || PLAYSTYLE_OPTIONS[0];
-        document.querySelector('#playstyle-dd-toggle [data-icon-slot]').innerHTML = `<svg viewBox="0 0 24 16">${p.svg}</svg>`;
-        document.querySelector('#playstyle-dd-toggle [data-label-slot]').textContent = p.label;
-        document.querySelectorAll('.playstyle-dd-item').forEach(b => b.classList.toggle('active', b.dataset.value === select.value));
+        if (select) select.value = this.rythmeDepart;
+    }
+
+    setRythmeDepart(valeur) {
+        if (!RYTHME_DEPART_CHOIX.some(c => c.valeur === valeur)) return;
+        this.rythmeDepart = valeur;
+        localStorage.setItem(RYTHME_DEPART_KEY, valeur);
+        // Pas pendant qu'on modifie un accord : sa valeur à lui est dans #playStyle, et l'écraser
+        // ferait changer de rythme un accord existant au moment où l'on touche un réglage global.
+        // editingIndex null = mode Ajout, c'est-à-dire précisément les accords que la préférence vise.
+        if (this.editingIndex == null) this.appliquerRythmeDepart();
     }
 
     // ---------- Grille interactive : tap (écoute), glisser (déplacer) ----------
@@ -15172,25 +15180,16 @@ class HarmoHubApp {
             <button type="button" id="seq-stop" class="btn-stop seq-icon-btn" title="Stop" aria-label="Stop">${svgIcon('stop')}</button>
             <button type="button" id="seq-loop-play" class="icon-btn seq-icon-btn${this.seqLoopPlay ? ' active' : ''}" title="Rejouer en boucle" aria-label="Rejouer en boucle">${svgIcon('loop')}</button>
             <button type="button" id="seq-add-note" class="icon-btn seq-icon-btn" title="Ajouter une note libre (ex. note de passage)" aria-label="Ajouter une note libre">${svgIcon('plus')}</button>
-            ${(() => {
-                // REMPLIR LE RYTHME AVEC UN MOTIF TYPE — désormais PARTOUT, plus seulement dans le
-                // tiroir mobile. Ce n'est PAS une seconde rangée de motifs : ce serait recopier les
-                // neuf mêmes choix déjà offerts par PLAYSTYLE_OPTIONS (qui EST la liste des motifs de
-                // seqPreset), et retomber dans le reproche « j'ai l'impression d'avoir fait une
-                // machine à clics ». C'est le MÊME menu, ouvert depuis le séquenceur.
-                //
-                // POURQUOI IL N'EST PLUS RÉSERVÉ AU TIROIR. Il y était né parce que, sur iPhone 13, le
-                // sélecteur d'origine tombait à 630px d'une fenêtre de 664 dès le tiroir ouvert. Depuis,
-                // ce sélecteur ne s'affiche plus du tout en mode Modification (retour utilisateur : « je
-                // ne me servirai pas souvent de ces options de lecture… vu que je modifie plus rapidement
-                // le séquenceur ») : sur ORDINATEUR aussi, il n'y avait donc plus aucun accès aux motifs
-                // pendant qu'on modifie un accord. Le garder ici est cohérent avec tout le reste du
-                // raisonnement — poser un motif type est une ACTION SUR LE RYTHME, sa place est dans
-                // l'outil du rythme, pas dans une carte de réglages.
-                // L'icône reprend le motif courant, pour qu'on lise d'un coup d'œil d'où l'on part.
-                const o = PLAYSTYLE_BY_VALUE[document.getElementById('playStyle').value] || PLAYSTYLE_OPTIONS[0];
-                return `<button type="button" id="seq-playstyle-btn" class="icon-btn seq-icon-btn" title="Remplir le rythme avec un motif type (remplace le motif actuel — annulable par Ctrl+Z). Actuellement : ${o.name}" aria-label="Remplir le rythme avec un motif type — actuellement ${o.name}" aria-haspopup="menu"><svg class="icon" viewBox="0 0 24 16" aria-hidden="true">${o.svg}</svg></button>`;
-            })()}
+            <!-- LE BOUTON « MOTIF TYPE » N'EST PLUS ICI, et c'est un revirement assumé.
+                 Le lot précédent venait de l'étendre du tiroir mobile à tout le séquenceur, en
+                 argumentant que « poser un motif type est une action sur le rythme, sa place est dans
+                 l'outil du rythme ». L'argument tenait — mais il répondait à la mauvaise question.
+                 Retour utilisateur : « Je pense que je ne me servirai rarement du rythme. Pour
+                 diminuer le nombre de boutons, laisser uniquement un choix favori dans les
+                 paramètres. […] Supprime les boutons dans "Lecture" et dans le petit séquenceur. »
+                 Le bon endroit pour une commande dont on ne se sert pas, ce n'est aucun endroit : le
+                 choix se fait UNE fois dans Paramètres > Son (RYTHME_DEPART_CHOIX), et le rythme se
+                 dessine ensuite à la main dans le séquenceur, ce qui est justement le geste rapide. -->
             <!-- Pipette de motif ENTRE VOIES du même accord (retour utilisateur : sélectionner une ou
                  plusieurs notes/barres, voir seqSelections, puis les appliquer sur une AUTRE ligne du
                  même séquenceur) — voir toggleSeqRowPipette/applySeqRowPipette. Distincte de Ctrl+C/V
@@ -15426,18 +15425,6 @@ class HarmoHubApp {
         host.querySelectorAll('.seq-ctx-nav').forEach(zone => {
             zone.addEventListener('click', () => this.editChordFromSequencer(this.activeSection, +zone.dataset.targetIndex));
         });
-
-        // Raccourci vers les motifs rythmiques (tiroir seulement) : il ouvre le MÊME menu que le
-        // sélecteur du module Lecture, ancré sur lui-même. stopPropagation pour la même raison que le
-        // bouton d'origine — sans ça, le clic remonterait jusqu'au gestionnaire de clic-à-côté.
-        const btnMotif = host.querySelector('#seq-playstyle-btn');
-        if (btnMotif) {
-            btnMotif.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const menu = document.getElementById('playstyle-dd-menu');
-                if (menu.hidden) this.openPlayStyleMenu(btnMotif); else this.closePlayStyleMenu();
-            });
-        }
 
         const btnStudio = host.querySelector('#toggle-studio-mode');
         if (btnStudio) {
@@ -16554,7 +16541,6 @@ class HarmoHubApp {
             if (e.key === 'Escape' && !document.getElementById('unsaved-modal').hidden) { if (this._unsavedModalCancel) this._unsavedModalCancel(); return; }
             if (e.key === 'Escape' && !document.getElementById('midi-export-modal').hidden) { if (this._midiExportModalCancel) this._midiExportModalCancel(); return; }
             if (e.key === 'Escape' && !document.getElementById('duration-dd-menu').hidden) { this.closeDurationMenu(); return; }
-            if (e.key === 'Escape' && !document.getElementById('playstyle-dd-menu').hidden) { this.closePlayStyleMenu(); return; }
             if (e.key === 'Escape' && this.seqRowPipette) { this.seqRowPipette = null; this.renderSequencer(); return; }
             if (e.key === 'Escape' && this.filesOpen) { this.closeFilesWindow(); return; }
             if (e.key === 'Escape' && this.settingsOpen) { this.closeSettings(); return; }
