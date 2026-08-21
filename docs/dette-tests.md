@@ -1774,3 +1774,51 @@ vérification-là ne peut pas simplement être supprimée sans perdre ce qu'elle
 sujet descend d'une variable posée sur le conteneur commun. Elle vise donc désormais cette variable
 directement, et exige qu'elle **diffère** entre Ajout et Modification : c'est le fond de l'affaire,
 et ça reste vrai avec une carte comme avec deux.
+
+### Le balayage a trouvé une régression du Lot 3, et le banc a mis quatre mesures à me la faire dire
+
+Le balayage complet a sorti `reglages_morceau_popover` : « téléphone : le panneau recouvre 2 % de la
+carte de l'accord édité ». La garantie protégée est explicite et ancienne : **on peut régler le tempo
+sans perdre de vue l'accord qu'on est en train d'éditer**.
+
+**Ce n'était pas le Lot 4.** Rejoué sur le commit du Lot 4 puis sur celui d'avant le Lot 3 (worktrees
+servis sur un second port) : vert avant le Lot 3, rouge après. C'est la section « Son » ajoutée aux
+réglages du morceau qui a fait passer le panneau de ~346px à **417px**.
+
+**Et le code portait l'hypothèse en toutes lettres**, dans un commentaire de `placerReglagesMorceau` :
+
+> « sur téléphone… on retombe sur le placement vertical, où le chevauchement ne se produit pas (la
+> carte de l'accord y est bien plus bas, hors du panneau) »
+
+Elle était vraie le jour où elle a été écrite. **Une hypothèse sur une hauteur ne survit pas au premier
+réglage ajouté** — et elle tombe en silence, puisque rien ne la revérifie. Elle est remplacée par une
+mesure : le panneau est plafonné à la place réellement disponible jusqu'au haut de la carte. Ça ne
+coûte rien, il défile déjà en lui-même.
+
+**Trois fausses pistes avant la bonne, et c'est la partie instructive.** Le premier correctif n'a rien
+changé : toujours 2 %. J'ai cru à un ordre de calcul, puis à une carte qui bougeait d'une frame à
+l'autre, et j'ai ajouté une seconde passe — toujours 2 %. En instrumentant enfin la fonction
+elle-même plutôt qu'en raisonnant dessus, la cause est apparue en une ligne :
+
+```
+DBG appel: top=212px max=417px acTop=637 panH=417
+```
+
+`style.top` valait **212**, le bord rendu **224**. `.song-settings` porte un `margin-top: 12px` qui,
+sur une boîte `position: fixed`, décale encore le rendu. Je calculais depuis la valeur que je venais
+de POSER, pas depuis le bord réellement DESSINÉ — 12px d'écart, moins la marge de 8, soit les 4px de
+chevauchement, soit les 2 %.
+
+La leçon n'est pas « attention aux marges sur les boîtes fixes ». C'est : **j'ai passé trois
+tentatives à corriger des causes que j'avais imaginées, alors qu'une seule ligne de relevé dans la
+fonction donnait la réponse.** Le réflexe de mesurer l'application, appliqué partout ailleurs dans ce
+journal, je ne l'avais pas appliqué à mon propre correctif.
+
+`hautPanneau` se lit désormais dans `getBoundingClientRect()`. Chevauchement : **0 %**.
+
+### Et la méta-suite avait raison une deuxième fois
+
+Elle signalait `probe_instrument_pendant_edition_test` comme nouveau banc sans `plan()`. Il comptait
+ses PASS/FAIL à la main — forme qu'il avait toujours eue, sauf que je venais de le **réécrire
+entièrement** : l'argument « on n'y touche pas » ne tenait plus. Repousser la référence aurait été
+enterrer le signal. Il est converti au harnais, avec `plan(8)` et un `exiger()` sur sa prémisse.

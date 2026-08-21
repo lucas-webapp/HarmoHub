@@ -15,10 +15,11 @@ const { chromium } = require('playwright');
 // qu'un accord est ouvert en modification touche toujours au séquenceur et à l'aperçu sonore ; c'est
 // exactement le terrain où l'appel mort s'était caché. Ce banc garde donc sa raison d'être et vise la
 // nouvelle porte : le sélecteur des réglages du morceau.
-let PASS = 0, FAIL = 0;
-const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { FAIL++; console.log('FAIL - ' + l); } };
+const creerHarnais = require('./_harness');
+const { plan, check, exiger, bilan } = creerHarnais('Instrument : le changer pendant une modification');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 (async () => {
+    plan(8);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
     const errors = [];
@@ -33,7 +34,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
     // Un accord EN COURS D'ÉDITION : c'est la seule branche qui touchait la méthode disparue.
     const cellule = i => page.click(`.grid-cell[data-index="${i}"]`, { position: { x: 40, y: 40 } });
     await cellule(1); await cellule(1); await page.waitForTimeout(400);
-    check(await page.evaluate(() => window.app.editingIndex) === 1, 'un accord est bien en cours de modification');
+    exiger(await page.evaluate(() => window.app.editingIndex) === 1, 'un accord est bien en cours de modification');
 
     // Le sélecteur vit maintenant dans les réglages du morceau, repliés par défaut : on les déplie
     // par le vrai bouton, comme le ferait quelqu'un.
@@ -71,9 +72,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
     check(etat.parAccord === 0, `aucun son n'est écrit dans les accords — ${etat.parAccord} en portent un`);
     check(errors.length === avant, `aucune erreur levée en changeant le son pendant une modification — ${JSON.stringify(errors.slice(avant))}`);
 
-    console.log('Errors:', JSON.stringify(errors));
-    check(errors.length === 0, 'aucune erreur JavaScript');
-    console.log('=== Bilan :', PASS, 'PASS /', FAIL, 'FAIL ===');
+    check(errors.length === 0, `aucune erreur JavaScript — ${errors.join(' | ') || 'aucune'}`);
     await browser.close();
-    process.exit(FAIL > 0 ? 1 : 0);
+    bilan();
 })().catch((e) => { console.error('FATAL', e); process.exit(2); });

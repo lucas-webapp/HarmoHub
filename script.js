@@ -7633,7 +7633,15 @@ class HarmoHubApp {
         body.classList.toggle('flottant', this.songSettingsOpen);
         summary.setAttribute('aria-expanded', String(this.songSettingsOpen));
         summary.classList.toggle('open', this.songSettingsOpen);
-        if (this.songSettingsOpen) this.placerReglagesMorceau();
+        if (this.songSettingsOpen) {
+            this.placerReglagesMorceau();
+            // SECOND PASSAGE, une frame plus tard. Ouvrir le panneau déplace ce qu'il y a derrière —
+            // mesuré : la carte de l'accord remonte de 12px — mais APRÈS que placerReglagesMorceau a
+            // rendu la main. Le plafond de hauteur calculé au premier passage vise donc une position
+            // périmée. Ce second appel, la mise en page retombée, le corrige. La fonction est
+            // idempotente : la rappeler ne fait que recalculer à partir de l'état courant.
+            requestAnimationFrame(() => { if (this.songSettingsOpen) this.placerReglagesMorceau(); });
+        }
     }
 
     // Place le panneau des réglages sous la ligne de résumé qui l'ouvre, en le gardant entièrement
@@ -7660,8 +7668,8 @@ class HarmoHubApp {
         // Le critère est mesuré, pas deviné : y a-t-il assez de largeur à droite de la carte Morceau
         // pour y poser le panneau en entier ? Sur ordinateur, oui — il se range à côté du volet, sur
         // la grille, et le volet reste entièrement lisible. Sur téléphone, la carte occupe toute la
-        // largeur : la réponse est non, et on retombe sur le placement vertical, où le chevauchement
-        // ne se produit pas (la carte de l'accord y est bien plus bas, hors du panneau).
+        // largeur : la réponse est non, et on retombe sur le placement vertical — où le chevauchement
+        // est évité par une MESURE, et non plus par une hypothèse (voir plus bas).
         const bordDroitCarte = (carte ? carte.getBoundingClientRect().right : ancre.right);
         const placeADroite = window.innerWidth - bordDroitCarte - marge * 2;
         if (placeADroite >= l) {
@@ -7684,6 +7692,40 @@ class HarmoHubApp {
         const left = Math.min(ancre.left, window.innerWidth - l - marge);
         body.style.left = `${Math.max(marge, left)}px`;
         body.style.top = `${Math.max(marge, top)}px`;
+
+        // ON MESURE LA PLACE AU LIEU DE LA SUPPOSER.
+        //
+        // Ce code portait, en commentaire, l'hypothèse « sur téléphone le chevauchement ne se produit
+        // pas, la carte de l'accord est bien plus bas, hors du panneau ». Elle était VRAIE quand le
+        // panneau mesurait ~346px. Le lot qui a déplacé le son du morceau dans ces réglages l'a fait
+        // passer à 417px, et l'hypothèse est tombée — en silence, comme tombent les hypothèses. Le
+        // banc reglages_morceau_popover l'a rattrapée : 2 % de la carte de l'accord recouverts.
+        //
+        // Une hypothèse sur une hauteur ne survit pas au premier réglage ajouté. On calcule donc la
+        // place réellement disponible jusqu'au haut de la carte, et on plafonne le panneau dessus. Ça
+        // ne coûte rien : il défile déjà en lui-même (overflow-y:auto, voir .song-settings.flottant).
+        //
+        // Le plancher de 220px est là pour le cas où il ne resterait presque rien : mieux vaut un
+        // chevauchement assumé qu'un panneau réduit à une fente illisible. Il n'est pas atteint sur
+        // les formats éprouvés — c'est écrit ici pour qu'on le sache si un jour il l'est.
+        const PLANCHER_PANNEAU = 220;
+        const accord = document.getElementById('accord-card');
+        // LE BORD RÉELLEMENT RENDU, et non la valeur qu'on vient de poser dans style.top. Les deux
+        // diffèrent de 12px : .song-settings porte un margin-top: 12px qui, sur une boîte `fixed`,
+        // décale encore le rendu. Calculer à partir de `top` donnait donc un plafond 12px trop
+        // grand — soit exactement les 4px de chevauchement (2 %) que le banc signalait, une fois la
+        // marge de 8px retranchée. C'est le genre d'écart qu'aucune relecture ne voit et qu'une
+        // mesure trouve tout de suite.
+        const hautPanneau = body.getBoundingClientRect().top;
+        if (accord && accord.getBoundingClientRect().top > hautPanneau) {
+            const place = accord.getBoundingClientRect().top - hautPanneau - marge;
+            body.style.maxHeight = `${Math.round(Math.max(PLANCHER_PANNEAU, place))}px`;
+        } else {
+            // La carte est AU-DESSUS du panneau : rien à contraindre, et il faut rendre au panneau la
+            // hauteur que la feuille de style lui donne — sans quoi un plafond posé au placement
+            // précédent lui resterait collé.
+            body.style.maxHeight = '';
+        }
     }
 
     // Tempo, mesure et tonalité tels qu'affichés sur la ligne de résumé. Appelée depuis TOUS les

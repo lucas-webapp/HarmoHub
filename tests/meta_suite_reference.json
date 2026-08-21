@@ -123,7 +123,6 @@
     "probe_defilement_tactile_test.js",
     "probe_deux_boutons_seq_test.js",
     "probe_deux_sequenceurs_test.js",
-    "probe_instrument_tout_test.js",
     "probe_mobile_seq_visible_test.js",
     "probe_regle_voisins_test.js",
     "probe_seq_continu_daw_test.js",
