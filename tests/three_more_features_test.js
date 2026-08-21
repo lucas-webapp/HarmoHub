@@ -156,7 +156,7 @@ const accord = (root, quality, beats) => ({ root, quality, beats, inversion: 0, 
     // accord de 16 temps, c'est-à-dire précisément le cas où le collant est voulu. On distingue donc
     // les deux compacts.
     console.log('--- Séquenceur COMPACT, accord qui TIENT sur une page : rien à coller ---');
-    await page.click('#toggle-sequencer');   // bascule de mode sans refermer (voir toggleSequencer)
+    await page.evaluate(() => window.app.toggleSequencer('compact'));   // bascule de mode sans refermer (voir toggleSequencer)
     await page.waitForTimeout(600);
     await page.evaluate(() => window.app.editChordFromSequencer(0, 1)); // le G, 4 temps : tient
     await page.waitForTimeout(500);

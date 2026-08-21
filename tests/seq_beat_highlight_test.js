@@ -14,7 +14,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     await page.goto(`${BASE}/index.html`);
     await page.waitForTimeout(600);
     await page.waitForTimeout(150);
-    await page.click('#toggle-sequencer');
+    await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(300);
 
     // === 1. Repères de base : chiffres de temps + points de contretemps ===

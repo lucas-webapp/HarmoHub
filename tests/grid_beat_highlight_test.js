@@ -27,7 +27,7 @@ plan(8);
     // pixel près sur la colonne, et l'utilisateur a tranché entre cinq propositions (« j'aime bien
     // le petit rond pour la grille d'accords, mais laisse un tiret pour le séquenceur »). Ce qui
     // reste à éprouver est le besoin, pas le moyen : le repère existe, et il se voit.
-    await page.click('#toggle-sequencer');
+    await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(250);
     const offbeatCss = await page.evaluate(() => {
         const el = document.querySelector('.seq-beat-offbeat');
@@ -47,7 +47,7 @@ plan(8);
         `le repère est une forme dessinée, pas un caractère — ${JSON.stringify(offbeatCss && offbeatCss.taille)}`);
     check(offbeatCss && offbeatCss.taille[1] > offbeatCss.taille[0],
         `...et c'est bien un trait VERTICAL pour le séquenceur, comme demandé — ${JSON.stringify(offbeatCss && offbeatCss.taille)}`);
-    await page.click('#toggle-sequencer'); // referme
+    await page.evaluate(() => window.app.toggleSequencer('compact')); // referme
     await page.waitForTimeout(150);
 
     // Ajoute plusieurs accords pour avoir de la marge d'étirement (case "+" toujours présente après)
@@ -98,7 +98,7 @@ plan(8);
     const gridCellsNow = await page.$$('.grid-cell');
     await gridCellsNow[0].dblclick();
     await page.waitForTimeout(300);
-    await page.click('#toggle-sequencer');
+    await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(300);
     await page.click('#seq-zoom');
     await page.waitForTimeout(300);

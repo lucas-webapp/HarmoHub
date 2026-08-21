@@ -291,7 +291,7 @@ async function ouvrir(page) {
     console.log('--- 5. Le petit séquenceur garde ses NUMÉROS DE TEMPS (1 2 3 4) ---');
     await page.click('#grid-zoom'); // referme le volet continu
     await page.waitForTimeout(300);
-    await page.click('#toggle-sequencer');
+    await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(500);
     const petit = await page.evaluate(() => {
         const g = document.querySelector('#arp-sequencer .seq-grid');

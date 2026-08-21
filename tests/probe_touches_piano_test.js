@@ -274,7 +274,7 @@ async function ouvrir(page) {
     console.log('--- 5. Le PETIT séquenceur garde ses noms (pas de clavier chromatique) ---');
     await page.click('#grid-zoom');
     await page.waitForTimeout(300);
-    await page.click('#toggle-sequencer');
+    await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(500);
     const petit = await page.evaluate(() => {
         const g = document.querySelector('#arp-sequencer .seq-grid');

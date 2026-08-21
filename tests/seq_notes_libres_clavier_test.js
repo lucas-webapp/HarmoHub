@@ -164,7 +164,7 @@ const relever = (p) => p.evaluate(() => {
     await p.waitForTimeout(700);
     await p.evaluate(() => window.app.editChord(0, 1));
     await p.waitForTimeout(500);
-    await p.evaluate(() => { if (!window.app.seqOpen) document.getElementById('toggle-sequencer').click(); });
+    await p.evaluate(() => { if (!window.app.seqOpen) window.app.toggleSequencer('compact'); });
     await p.waitForTimeout(700);
     const compact = await relever(p);
     check(compact && !compact.continu, 'on est bien revenu sur le séquenceur compact');

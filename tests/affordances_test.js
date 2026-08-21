@@ -10,7 +10,7 @@ async function openSeqWithNote(page) {
     await page.fill('#quick-add-input', 'C').catch(() => {});
     await page.click('#quick-add-btn').catch(() => {});
     await page.waitForTimeout(250);
-    if (!(await page.evaluate(() => window.app.seqOpen))) await page.click('#toggle-sequencer');
+    if (!(await page.evaluate(() => window.app.seqOpen))) await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(400);
     // Note de 4 croches sur la voix 0 : il lui faut un corps (croches 1 et 2) en plus de ses bords.
     await page.evaluate(() => {

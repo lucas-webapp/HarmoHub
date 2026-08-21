@@ -26,7 +26,7 @@ plan(15);
     }
 
     // === 1. Séquenceur : le repère est un trait (span), plus le caractère "•", et bien centré ===
-    await page.click('#toggle-sequencer');
+    await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(300);
 
     const seqCheck = await page.evaluate(() => {
@@ -74,7 +74,7 @@ plan(15);
     console.log('seqDashSize:', JSON.stringify(seqDashSize));
     check(seqDashSize.h > seqDashSize.w, `le trait du séquenceur est bien VERTICAL (hauteur ${seqDashSize.h} > largeur ${seqDashSize.w})`);
 
-    await page.click('#toggle-sequencer');
+    await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(150);
 
     // === 2. Grille d'accords (classique) : UN SEUL repère .row-offbeat par mesure, à son vrai milieu ===

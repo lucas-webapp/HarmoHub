@@ -192,16 +192,18 @@ const boiteDe = (sel) => {
     // trois familles ci-dessous, qui sont toujours dans la carte.
     for (const [sel, nom] of [['#inversion-seg .voicing-segment', 'un segment de renversement'],
                               ['[data-octave-step="1"]', "le pas-à-pas d'octave"],
-                              ['#toggle-sequencer', 'le bouton du séquenceur']]) {
+                              ['#seq-zoom', 'la porte « Séquenceur »']]) {
         const b = await page.evaluate(boiteDe, sel);
         if (!b) { check(false, `${nom} : commande introuvable à l'écran (${sel})`); continue; }
         await page.mouse.click(b.x, b.y);
         await page.waitForTimeout(300);
         const encore = await page.evaluate(() => window.app.appMode === 'edit');
         check(encore, `cliquer ${nom} ne sort PAS du mode Modification`);
-        // Le clic sur #toggle-sequencer ouvre/ferme le panneau : on remet l'état d'aplomb pour que
-        // les essais suivants partent tous du même point.
-        await page.evaluate(() => { if (window.app.appMode !== 'edit') window.app.editChord(0, 0); });
+        // « Séquenceur » ouvre le panneau ET l'agrandit (voir ouvrirSequenceurPleinEcran) : on remet
+        // l'état d'aplomb — plein écran refermé, mode Modification retrouvé — pour que les essais
+        // suivants partent tous du même point. Le plein écran est un vrai piège ici : laissé ouvert,
+        // il recouvre la carte, et le clic suivant tomberait sur son fond au lieu de la commande visée.
+        await page.evaluate(() => { window.app.closeSeqZoom(); if (window.app.appMode !== 'edit') window.app.editChord(0, 0); });
         await page.waitForTimeout(200);
     }
 

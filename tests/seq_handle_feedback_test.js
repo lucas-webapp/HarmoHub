@@ -13,7 +13,7 @@ async function poser(page) {
     await page.fill('#quick-add-input', 'C').catch(() => {});
     await page.click('#quick-add-btn').catch(() => {});
     await page.waitForTimeout(250);
-    if (!(await page.evaluate(() => window.app.seqOpen))) await page.click('#toggle-sequencer');
+    if (!(await page.evaluate(() => window.app.seqOpen))) await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(400);
     await page.evaluate(() => {
         const app = window.app;

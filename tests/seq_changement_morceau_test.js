@@ -53,7 +53,7 @@ const mk = (root, q) => ({ root, quality: q, beats: 4, inversion: 0, drop: 'none
     console.log('\n=== A. Le séquenceur ouvert sur un accord du morceau UN ===');
     await page.evaluate(() => window.app.editChord(0, 0));
     await page.waitForTimeout(300);
-    await page.click('#toggle-sequencer');
+    await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(600);
     let v = await vue();
     check(v.seqOpen && v.rangees.length >= 3, `le séquenceur est ouvert et garni — ${JSON.stringify(v.rangees)}`);
@@ -83,9 +83,11 @@ const mk = (root, q) => ({ root, quality: q, beats: 4, inversion: 0, drop: 'none
     check(v.notesLibres === 0, 'aucune note libre héritée de l\'ancien morceau');
 
     console.log('\n=== C. Et il reste refermable ===');
-    check(await page.evaluate(() => document.getElementById('toggle-sequencer').offsetParent !== null),
+    // Le bouton icône de l'en-tête a disparu (voir portes_sequenceur_test) : la porte de la carte
+    // Accord s'appelle « Séquenceur » et reste visible en permanence, séquenceur ouvert ou fermé.
+    check(await page.evaluate(() => document.getElementById('seq-zoom').offsetParent !== null),
         'le bouton qui le referme est bien atteignable');
-    await page.click('#toggle-sequencer');
+    await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(500);
     check(!(await page.evaluate(() => window.app.seqOpen)), 'un clic le referme');
 

@@ -3734,7 +3734,6 @@ class HarmoHubApp {
         });
         document.addEventListener('pointercancel', () => { this._velDragStep = null; });
 
-        document.getElementById('toggle-sequencer').onclick = () => this.toggleSequencer('compact');
 
         document.getElementById('cancel-edit').onclick = () => this.cancelEdit();
         this._cabler('accord-close', 'click', () => this.cancelEdit());
@@ -3831,7 +3830,7 @@ class HarmoHubApp {
 
         // Vue agrandie du séquenceur (voir openSeqZoom/closeSeqZoom) : ne fait que déplacer
         // #arp-sequencer dans une fenêtre plus grande, jamais le dupliquer.
-        document.getElementById('seq-zoom').onclick = () => this.openSeqZoom();
+        document.getElementById('seq-zoom').onclick = () => this.ouvrirSequenceurPleinEcran();
         document.getElementById('seq-zoom-close').onclick = () => this.closeSeqZoom();
         document.getElementById('seq-zoom-overlay').addEventListener('click', (e) => {
             if (e.target.id === 'seq-zoom-overlay') this.closeSeqZoom(); // clic sur le fond, pas la fenêtre
@@ -7273,8 +7272,7 @@ class HarmoHubApp {
             this.seqMode = null;
             this.seqSelections = [];
             this.closeSeqZoom();
-            document.getElementById('toggle-sequencer').classList.remove('active');
-            document.getElementById('seq-zoom').hidden = true;
+            document.getElementById('seq-zoom').classList.remove('active');
             this.renderSequencer();
             this.updateGlobalUndoRedoButtons();
         }
@@ -13557,9 +13555,11 @@ class HarmoHubApp {
             this.seqSelections = [];
             this.closeSeqZoom(); // rien à agrandir une fois le panneau lui-même refermé
         }
-        document.getElementById('toggle-sequencer').classList.toggle('active', this.seqMode === 'compact');
         document.getElementById('grid-zoom').classList.toggle('active', this.seqMode === 'continu');
-        document.getElementById('seq-zoom').hidden = !this.seqOpen;
+        // « Séquenceur » n'est plus masqué quand le séquenceur est fermé : c'est LUI qui l'ouvre
+        // désormais. Il s'allume quand la vue compacte est celle qui est ouverte, pour dire d'où l'on
+        // vient — exactement ce que faisait le bouton icône disparu.
+        document.getElementById('seq-zoom').classList.toggle('active', this.seqMode === 'compact');
         if (vlVientDEtreFerme) this.loadProgression(); // retire pour de bon le panneau de conduite de voix
         // Un accord était déjà SÉLECTIONNÉ dans la grille (simple clic, sans passer par « Modifier »)
         // au moment d'ouvrir le volet : on le charge pour édition, sinon le volet s'ouvre sur du vide
@@ -13637,6 +13637,23 @@ class HarmoHubApp {
     // interactions (glisser, étirer, sélectionner...) restent celles du vrai séquenceur, attachées
     // une fois pour toutes dans setupSequencerInteractions — un simple changement de parent ne les
     // perd pas. .seq-zoomed pilote uniquement la taille des cases/libellés (voir style.css).
+    // LA PORTE « SÉQUENCEUR » DE LA CARTE ACCORD : ouvrir, puis agrandir.
+    //
+    // openSeqZoom() refuse d'agir séquenceur fermé (`if (!this.seqOpen) return`) — c'était juste tant
+    // qu'un AUTRE bouton se chargeait de l'ouvrir, et que celui-ci ne faisait qu'agrandir ce qui
+    // l'était déjà. Ce bouton-là n'existe plus (retour utilisateur : « tu peux laisser uniquement le
+    // bouton agrandir car il est plus visible »), donc cette porte doit faire les deux gestes.
+    //
+    // Elle ne BASCULE pas : appuyer sur « Séquenceur » ouvre le séquenceur, toujours. toggleSequencer
+    // referme quand on lui redemande le mode déjà actif — passer par lui sans condition ferait donc
+    // du second appui sur un bouton nommé « Séquenceur » une fermeture, ce qu'aucun mot n'annonce.
+    // La sortie du plein écran a sa croix, et le séquenceur se referme par « Séq. » ou par la croix
+    // du tiroir sur téléphone.
+    ouvrirSequenceurPleinEcran() {
+        if (!this.seqOpen) this.toggleSequencer('compact');
+        this.openSeqZoom();
+    }
+
     openSeqZoom() {
         if (!this.seqOpen) return;
         this.seqZoomOpen = true;
@@ -14488,8 +14505,7 @@ class HarmoHubApp {
         this.editChord(section, index);
         this.seqOpen = true;
         if (!this.seqMode) this.seqMode = 'compact';
-        document.getElementById('toggle-sequencer').classList.add('active');
-        document.getElementById('seq-zoom').hidden = false;
+        document.getElementById('seq-zoom').classList.add('active');
         this.renderSequencer();
         this.updateGlobalUndoRedoButtons();
         document.getElementById('arp-sequencer').scrollIntoView({ behavior: 'smooth', block: 'center' });

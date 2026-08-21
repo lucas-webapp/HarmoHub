@@ -142,7 +142,10 @@ const sonde = (sel) => {
     await page.waitForTimeout(450);
     const bureau = await page.evaluate(() => ({
         secours: document.getElementById('dock-rythme').hidden && document.getElementById('dock-terminer').hidden,
-        originalSeq: (() => { const e = document.getElementById('toggle-sequencer'); const r = e.getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight; })(),
+        // L'original visé n'est plus le bouton icône de l'en-tête (disparu) mais la porte nommée
+        // « Séquenceur » de la carte Accord — ce qui compte ici est qu'un accès au séquenceur soit
+        // DÉJÀ à l'écran sur ordinateur, ce qui rend l'accès de secours inutile.
+        originalSeq: (() => { const e = document.getElementById('seq-zoom'); const r = e.getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight; })(),
         originalClose: (() => { const e = document.getElementById('accord-close'); const r = e.getBoundingClientRect(); return !e.hidden && r.top >= 0 && r.bottom <= window.innerHeight; })(),
     }));
     check(bureau.secours, 'ordinateur : aucun accès de secours — ce serait le doublon qu\'on veut éviter');

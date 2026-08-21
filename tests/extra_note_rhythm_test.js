@@ -29,7 +29,7 @@ async function openSeqOn(page, sym) {
     await page.fill('#quick-add-input', sym);
     await page.click('#quick-add-btn');
     await page.waitForTimeout(250);
-    if (!(await page.evaluate(() => window.app.seqOpen))) await page.click('#toggle-sequencer');
+    if (!(await page.evaluate(() => window.app.seqOpen))) await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(400);
 }
 

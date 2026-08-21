@@ -147,7 +147,7 @@ window._mesurerSignal = async () => {
     await p2.evaluate(() => { const a = window.app; a.selectedIndex = 0; a.loadProgression(); });
     await p2.waitForTimeout(300);
     const seqOuvert = await p2.evaluate(() => !!window.app.seqOpen);
-    if (!seqOuvert) await p2.evaluate(() => document.getElementById('toggle-sequencer').click());
+    if (!seqOuvert) await p2.evaluate(() => window.app.toggleSequencer('compact'));
     await p2.waitForTimeout(500);
     await p2.evaluate(() => document.getElementById('seq-play').click());
     await p2.waitForTimeout(1600);

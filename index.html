@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608242200">
+    <link rel="stylesheet" href="style.css?v=202608242400">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -701,24 +701,15 @@
                             <button type="button" id="accord-close" class="icon-btn" hidden title="Terminer la modification" aria-label="Terminer la modification">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
                             </button>
-                            <!-- Le séquenceur, remonté ici avec le reste de l'ancienne carte Lecture.
-                                 Grille de pas façon piano-roll (3 colonnes x 3 rangées, quelques pas
-                                 « actifs » en escalier) plutôt qu'un clavier stylisé : trop proche du
-                                 bouton piano (voir #toggle-viz-piano) et confondu avec lui (retour
-                                 utilisateur). Ce dessin se reconnaît comme un séquenceur, pas un clavier. -->
-                            <button type="button" id="toggle-sequencer" class="icon-btn icon-btn-wide" title="Séquenceur" aria-label="Séquenceur">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                    <rect x="3" y="4" width="4" height="4" rx="1"/>
-                                    <rect x="10" y="4" width="4" height="4" rx="1"/>
-                                    <rect x="17" y="4" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>
-                                    <rect x="3" y="10" width="4" height="4" rx="1"/>
-                                    <rect x="10" y="10" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>
-                                    <rect x="17" y="10" width="4" height="4" rx="1"/>
-                                    <rect x="3" y="16" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>
-                                    <rect x="10" y="16" width="4" height="4" rx="1"/>
-                                    <rect x="17" y="16" width="4" height="4" rx="1"/>
-                                </svg>
-                            </button>
+                            <!-- LE BOUTON ICÔNE DU SÉQUENCEUR N'EST PLUS ICI.
+                                 Retour utilisateur : « le bouton agrandir est pas mal, mais il fait la
+                                 même chose que le bouton séquenceur déjà présent. Tu peux laisser
+                                 uniquement le bouton agrandir car il est plus visible. Renomme-le en
+                                 "Séquenceur". »
+                                 Il avait raison sur le fond : deux boutons, deux dessins, deux
+                                 emplacements, et rien pour dire lequel ouvre quoi. Il ne reste que des
+                                 portes NOMMÉES — « Séquenceur » plus bas dans cette carte, « Séq. »
+                                 au-dessus de la grille. Voir la barre .seq-inline-toolbar. -->
                         </div>
                     </div>
                     <div class="accord-grid">
@@ -915,17 +906,23 @@
                     <input type="range" id="intensity" min="0" max="100" step="5" value="75" hidden>
 
                     <input type="hidden" id="arpPattern" value="">
-                    <!-- Juste au-dessus du séquenceur qu'elle agrandit, plutôt que perdue parmi 4 icônes
-                         de l'en-tête Lecture, sans lien visuel avec ce qu'elle fait (retour utilisateur :
-                         « la loupe n'est pas vraiment au bon endroit, difficile à voir »). Un mot, pas
-                         seulement une icône : ce qu'elle fait n'était pas devinable au survol d'une simple
-                         loupe entre d'autres pictogrammes. N'a de sens que séquenceur ouvert : masquée par
-                         défaut, révélée/masquée avec lui (voir toggleSequencer) — le conteneur n'a pas
-                         besoin de son propre hidden, un unique enfant caché suffit à le réduire à rien. -->
+                    <!-- LA PORTE « SÉQUENCEUR », ET C'EST LA SEULE DE CETTE CARTE.
+                         Retour utilisateur : « Renomme-le en "Séquenceur". Il faut l'abaisser un peu,
+                         il colle d'autres boutons. »
+                         Elle s'appelait « Agrandir » et ne s'affichait qu'une fois le séquenceur DÉJÀ
+                         ouvert par le bouton icône de l'en-tête — lequel n'existe plus. Elle est donc
+                         visible en permanence et fait les deux gestes d'un coup : ouvrir, puis
+                         agrandir (voir ouvrirSequenceurPleinEcran). Un mot plutôt qu'une icône, parce
+                         que c'est exactement le reproche fait au bouton disparu : rien ne disait ce
+                         qu'il ouvrait.
+                         L'identifiant reste #seq-zoom. Renommer un id de cette page a déjà figé
+                         l'application entière pour tout navigateur servant un index.html en cache
+                         (voir le commentaire de #grid-zoom plus bas) : le gain serait cosmétique, le
+                         risque non. -->
                     <div class="seq-inline-toolbar">
-                        <button type="button" id="seq-zoom" class="seq-zoom-btn" hidden title="Agrandir le séquenceur" aria-label="Agrandir le séquenceur">
+                        <button type="button" id="seq-zoom" class="seq-zoom-btn" title="Ouvrir le séquenceur en grand" aria-label="Ouvrir le séquenceur en grand">
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>
-                            <span>Agrandir</span>
+                            <span>Séquenceur</span>
                         </button>
                     </div>
                     <div id="arp-sequencer" class="arp-seq" hidden></div>
@@ -1031,9 +1028,14 @@
                         <button type="button" id="toggle-voice-leading" class="icon-btn icon-btn-wide" title="Conduite de voix" aria-label="Conduite de voix" aria-pressed="false">
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><rect x="10" y="7.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M8 5.3 10 8.8" stroke-width="1.5" stroke-dasharray="1.5 1.5"/><rect x="3" y="15.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><rect x="13" y="11.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M9 16.8 13 12.8" stroke-width="1.5" stroke-dasharray="1.5 1.5"/></svg>
                         </button>
-                        <!-- Même dessin que #toggle-sequencer (barres façon séquenceur) : les deux ouvrent
-                             le même panneau, depuis la barre de la grille pour celui-ci et depuis le volet
-                             Lecture pour l'autre.
+                        <!-- « SÉQ. », ET PLUS UN LOGO. Retour utilisateur : « Mettre le même bouton
+                             au-dessus de la grille au lieu du logo peu clair, mais en moins large. Par
+                             exemple "Séq." ? » — repris tel quel. Le dessin de barres ne disait pas ce
+                             qu'il ouvrait ; un mot, si.
+                             MOINS LARGE, ET C'EST VOULU : cette barre porte déjà plusieurs boutons, et
+                             celui-ci ouvre la vue d'ensemble, pas le réglage fin. « Séq. » abrégé le
+                             distingue à l'œil de « Séquenceur », son jumeau de la carte Accord, qui
+                             ouvre l'autre vue.
                              L'id garde son nom historique (#grid-zoom, du temps où il ouvrait la vue
                              agrandie plein écran) alors qu'il ouvre le séquenceur. Il avait été renommé
                              pour ne plus mentir : renommer l'a rendu INTROUVABLE pour tout navigateur
@@ -1042,19 +1044,7 @@
                              pas seulement ce bouton (reproduit). index.html ne porte pas de ?v= sur
                              lui-même : renommer un id y est donc une opération à risque pour un gain
                              purement cosmétique. -->
-                        <button type="button" id="grid-zoom" class="icon-btn icon-btn-wide" title="Séquenceur" aria-label="Ouvrir le séquenceur">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <rect x="3" y="4" width="4" height="4" rx="1"/>
-                                <rect x="10" y="4" width="4" height="4" rx="1"/>
-                                <rect x="17" y="4" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>
-                                <rect x="3" y="10" width="4" height="4" rx="1"/>
-                                <rect x="10" y="10" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>
-                                <rect x="17" y="10" width="4" height="4" rx="1"/>
-                                <rect x="3" y="16" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>
-                                <rect x="10" y="16" width="4" height="4" rx="1"/>
-                                <rect x="17" y="16" width="4" height="4" rx="1"/>
-                            </svg>
-                        </button>
+                        <button type="button" id="grid-zoom" class="btn-seq-court" title="Séquenceur : voir tout le morceau" aria-label="Ouvrir le séquenceur, vue d'ensemble">Séq.</button>
                     </div>
                 </div>
                 <!-- Saisie rapide : ajoute un accord tapé directement en fin de partie. Elle vit
@@ -1281,6 +1271,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608242200"></script>
+    <script src="script.js?v=202608242400"></script>
 </body>
 </html>

@@ -62,7 +62,7 @@ async function drag(page, from, to, opts = {}) {
     await page.click('#quick-add-btn').catch(() => {});
     await page.waitForTimeout(250);
     const seqOpen = await page.evaluate(() => window.app.seqOpen);
-    if (!seqOpen) await page.click('#toggle-sequencer');
+    if (!seqOpen) await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(400);
     check(await page.evaluate(() => window.app.seqOpen), 'le séquenceur est bien ouvert');
 

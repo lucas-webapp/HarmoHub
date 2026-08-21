@@ -47,8 +47,13 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
         });
 
         console.log(`\n======== ${vp.nom} ========`);
-        console.log('--- 1. Bouton du module Ajouter/Modifier -> petit séquenceur DANS le module ---');
-        await taper('#toggle-sequencer'); await p.waitForTimeout(1200);
+        console.log('--- 1. Porte « Séquenceur » de la carte Accord -> petit séquenceur DANS la carte ---');
+        // Elle s'appelait « Agrandir » et ne faisait qu'agrandir ce qu'un bouton icône avait ouvert.
+        // Ce bouton-là n'existe plus (retour utilisateur : « tu peux laisser uniquement le bouton
+        // agrandir car il est plus visible ») : « Séquenceur » ouvre ET agrandit. On referme donc le
+        // plein écran juste après, pour retrouver la vue compacte que cette section éprouve.
+        await taper('#seq-zoom'); await p.waitForTimeout(1200);
+        await p.evaluate(() => window.app.closeSeqZoom()); await p.waitForTimeout(600);
         let r = await lire(); console.log(JSON.stringify(r));
         ck(r.mode==='compact', `mode « compact » — ${r.mode}`);
         ck(!r.dansVolet, 'il reste dans le module, pas dans le volet sous la grille');

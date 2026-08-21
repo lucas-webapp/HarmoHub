@@ -77,8 +77,11 @@ const atteignable = (sel) => {
             sequenceur: dans('arp-sequencer'),
             agrandir: dans('seq-zoom'),
             sources: ['playStyle', 'duration', 'intensity', 'arpPattern'].filter(dans),
-            boutonSeq: dans('toggle-sequencer'),
-            boutonSeqEntete: (() => { const b = document.getElementById('toggle-sequencer'); return !!b && !!b.closest('.card-head'); })(),
+            // Le bouton icône remonté ici par la fusion a depuis disparu tout court : la porte de
+            // cette carte s'appelle « Séquenceur » et vit juste au-dessus du séquenceur qu'elle ouvre
+            // (voir portes_sequenceur_test). Ce que cette section éprouve reste le même : la fusion
+            // n'a rien laissé derrière elle.
+            boutonSeq: dans('seq-zoom'),
         };
     });
     exiger(a.nbAccord === 1, `il y a exactement une carte Accord — ${a.nbAccord}`);
@@ -87,8 +90,7 @@ const atteignable = (sel) => {
         'la rangée de durée, le séquenceur et son bouton « Agrandir » sont dans la carte Accord');
     check(a.sources.length === 4,
         `les quatre champs sources ont suivi — ${a.sources.join(', ') || 'AUCUN'}`);
-    check(a.boutonSeq && a.boutonSeqEntete,
-        'le bouton du séquenceur est passé dans l\'en-tête, qui est désormais le seul');
+    check(a.boutonSeq, 'la porte « Séquenceur » est bien dans la carte Accord');
 
     console.log('\n=== B. Ce sont les MÊMES classes, dans la même carte ===');
     // Ce que le banc d'origine éprouvait, et qui garde tout son sens : une ressemblance obtenue en
@@ -145,8 +147,15 @@ const atteignable = (sel) => {
     await page.waitForTimeout(300);
     const hAjout = await page.evaluate(() => Math.round(document.getElementById('accord-card').getBoundingClientRect().height));
     // 297px avant pour les DEUX cartes plus leur écart, mesuré sur ce même écran. On vérifie le GAIN,
-    // pas une valeur au pixel près : une retouche de police ferait rougir un banc qui exigerait 227.
-    check(hAjout <= 250, `mode Ajout : ${hAjout}px contre 297px pour les deux cartes d'avant`);
+    // pas une valeur au pixel près : une retouche de police ferait rougir un banc qui exigerait 266.
+    //
+    // LE SEUIL A ÉTÉ RELEVÉ DE 250 À 285, ET IL FAUT DIRE POURQUOI. La fusion avait ramené la carte à
+    // 227px. Le lot suivant en a repris 39 : la porte « Séquenceur » ne s'affichait qu'une fois le
+    // séquenceur DÉJÀ ouvert par un bouton icône, lequel a disparu — elle est donc devenue permanente,
+    // et on l'a descendue de 14px pour qu'elle ne colle plus la rangée du dessus (retour utilisateur).
+    // C'est un choix, pas une dérive : 266px pour UNE carte contre 297 pour deux, avec un accès nommé
+    // toujours sous les yeux au lieu d'un pictogramme qui apparaissait après coup.
+    check(hAjout <= 285, `mode Ajout : ${hAjout}px contre 297px pour les deux cartes d'avant`);
     await page.evaluate(() => window.app.editChord(0, 0));
     await page.waitForTimeout(600);
     const hEdit = await page.evaluate(() => ({
@@ -159,10 +168,14 @@ const atteignable = (sel) => {
 
     console.log('\n=== D. Le séquenceur s\'ouvre toujours, depuis son bouton ===');
     // La cloison a disparu, pas les fonctions. Un vrai clic, pas un appel de méthode.
-    const r0 = await page.evaluate(atteignable, '#toggle-sequencer');
-    exiger(r0.ok, `le bouton du séquenceur est réellement atteignable — ${r0.ok ? r0.taille : r0.pourquoi}`);
-    await page.click('#toggle-sequencer');
+    const r0 = await page.evaluate(atteignable, '#seq-zoom');
+    exiger(r0.ok, `la porte « Séquenceur » est réellement atteignable — ${r0.ok ? r0.taille : r0.pourquoi}`);
+    await page.click('#seq-zoom');
     await page.waitForTimeout(900);
+    // Elle ouvre ET agrandit : on referme le plein écran pour mesurer le séquenceur là où il vit
+    // normalement, c'est-à-dire dans la carte — ce que la vérification suivante éprouve.
+    await page.evaluate(() => window.app.closeSeqZoom());
+    await page.waitForTimeout(600);
     const d = await page.evaluate(() => ({
         ouvert: window.app.seqOpen === true,
         grille: !!document.querySelector('.seq-grid'),
@@ -171,7 +184,7 @@ const atteignable = (sel) => {
     }));
     check(d.ouvert && d.grille, 'un vrai clic ouvre le séquenceur');
     check(d.dansCarte, 'et il se déploie DANS la carte Accord, là où il a atterri');
-    check(d.agrandirVisible, 'le bouton « Agrandir » apparaît avec lui, comme avant');
+    check(d.agrandirVisible, 'la porte « Séquenceur » reste visible, séquenceur ouvert');
     await page.close();
 
     console.log('\n=== E. Téléphone : les mêmes gestes, au doigt ===');
@@ -199,7 +212,8 @@ const atteignable = (sel) => {
     check(!geo.deborde && !geo.page, 'téléphone : la rangée tient dans la carte, sans débordement de page');
     check(geo.nb === 1 && geo.hMin >= 28 && geo.lMin >= 20,
         `téléphone : la cible restante fait ${geo.lMin}x${geo.hMin}`);
-    check(geo.hauteur <= 260, `téléphone : la carte unique fait ${geo.hauteur}px contre 310px pour les deux d'avant`);
+    // Même relèvement, même raison qu'en section C : la porte « Séquenceur » est devenue permanente.
+    check(geo.hauteur <= 290, `téléphone : la carte unique fait ${geo.hauteur}px contre 310px pour les deux d'avant`);
 
     // Un vrai appui : un bouton qu'on ne peut atteindre qu'en appelant la fonction derrière n'est pas
     // un bouton (leçon du tiroir du séquenceur).

@@ -1976,14 +1976,53 @@ body[data-app-mode="edit"] .voicing-group-duree { display: none; }
 .icon-btn-lg { width: 38px; height: 38px; }
 .icon-btn-lg .icon { width: 17px; height: 17px; }
 
-/* Variante élargie SEULEMENT (hauteur inchangée, 32px comme .icon-btn) : les boutons qui ouvrent/
-   ferment le séquenceur (#toggle-sequencer, #grid-zoom, retour utilisateur) méritent un peu plus de
-   présence horizontale, mais doivent rester alignés en hauteur avec leurs voisins immédiats
-   (#apply-instrument-all, les groupes -/+ H/V) plutôt que dépasser comme .icon-btn-lg. 44px, PAS
+/* Variante élargie SEULEMENT (hauteur inchangée, 32px comme .icon-btn) : certains boutons méritent
+   un peu plus de présence horizontale, mais doivent rester alignés en hauteur avec leurs voisins
+   immédiats (les groupes -/+ H/V) plutôt que dépasser comme .icon-btn-lg. Les deux qui l'avaient
+   motivée — les ouvertures du séquenceur — n'en font plus partie : l'une a disparu, l'autre porte
+   désormais un mot et sa propre classe (.btn-seq-court). 44px, PAS
    42 (retour utilisateur, homogénéisation) : tombe pile sur la même largeur que .seq-icon-btn
    (Lecture/Stop/Boucle du séquenceur) — un seul chiffre "élargi" dans toute l'appli plutôt que deux
    valeurs proches mais différentes. */
 .icon-btn-wide { width: 44px; }
+
+/* « SÉQ. » — LE MOT PLUTÔT QUE LE LOGO, au-dessus de la grille.
+   Retour utilisateur : « Mettre le même bouton au-dessus de la grille au lieu du logo peu clair,
+   mais en moins large. Par exemple "Séq." ? »
+   Il reprend tout de .icon-btn (fond, cadre, hauteur de 32px, états) pour rester dans la famille de
+   ses voisins de barre — seul son CONTENU change : un mot abrégé au lieu d'un pictogramme. La
+   largeur suit le texte au lieu des 44px de .icon-btn-wide : « moins large » était la demande, et
+   ça le distingue à l'œil de « Séquenceur », son jumeau de la carte Accord qui ouvre l'autre vue. */
+.btn-seq-court {
+    height: 32px;
+    /* min-width: 0 EXPLICITE, et ce n'est pas de la ceinture-bretelles : la règle générique
+       `button` de cette feuille impose `flex: 1` ET `min-width: 120px`. Mesuré sans elle : ce
+       bouton faisait 120px de large — presque trois fois le logo de 44px qu'il remplace, dans une
+       barre déjà chargée. C'est la même famille de piège que le `select { flex: 1 }` qui avait
+       écrasé la hauteur du menu de basse : une règle d'élément qui gagne en silence sur l'intention
+       d'une classe. On la neutralise là où on veut une largeur de contenu. */
+    min-width: 0;
+    padding: 0 10px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0) 50%), var(--btn-neutral);
+    border: 1px solid var(--btn-neutral-border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    font-family: inherit;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    flex: none;
+}
+.btn-seq-court:hover { background: linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0) 50%), var(--btn-neutral-hover); border-color: var(--btn-neutral-border-hover); color: var(--text-main); }
+.btn-seq-court:active { transform: translateY(1px); }
+/* Allumé quand c'est CETTE vue qui est ouverte — même signal vert que .icon-btn.active, pour que la
+   barre entière parle la même langue. */
+.btn-seq-court.active {
+    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
+    border-color: var(--btn-green-border);
+    color: #0b1d12;
+}
 
 /* État "actif" (ex. panneau séquenceur ouvert) */
 .icon-btn.active {
@@ -4083,6 +4122,11 @@ body.all-beats .offbeat-dot {
 .seq-inline-toolbar {
     display: flex;
     justify-content: flex-end;
+    /* ABAISSÉE — retour utilisateur : « Il faut l'abaisser un peu, il colle d'autres boutons. »
+       Elle suivait immédiatement la rangée de durée, sans respiration : deux commandes sans rapport
+       se touchaient. 14px la détache franchement de ce qui précède tout en la gardant attachée au
+       séquenceur qu'elle ouvre, juste en dessous — c'est de CE côté qu'elle doit paraître collée. */
+    margin-top: 14px;
     margin-bottom: 6px;
 }
 /* Étiquette + icône plutôt qu'une simple icône parmi d'autres (retour utilisateur : « difficile à
@@ -4506,8 +4550,8 @@ body.all-beats .offbeat-dot {
    séquenceur), groupés à gauche — le texte "Lecture"/"Stop" prenait trop de place à côté des
    boutons Supprimer sur mobile. Même hauteur fixe que le reste de la rangée (.seq-presets button),
    pour rester alignés sur les boutons Supprimer juste à côté sans dépendre d'un étirement. Taille
-   d'origine (44px) : retour utilisateur, seuls les boutons qui OUVRENT/FERMENT le séquenceur
-   (#toggle-sequencer, #grid-zoom) devaient être agrandis, pas ceux-ci. */
+   d'origine (44px) : retour utilisateur, seuls les boutons qui OUVRENT le séquenceur devaient être
+   agrandis, pas ceux-ci. */
 .seq-presets .seq-icon-btn {
     flex: none;
     width: 44px;

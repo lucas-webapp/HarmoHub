@@ -26,7 +26,7 @@ function check(cond, label) {
     });
     await page.waitForTimeout(200);
 
-    await page.click('#toggle-sequencer');
+    await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(300);
 
     const info = await page.evaluate(() => {

@@ -1822,3 +1822,73 @@ Elle signalait `probe_instrument_pendant_edition_test` comme nouveau banc sans `
 ses PASS/FAIL à la main — forme qu'il avait toujours eue, sauf que je venais de le **réécrire
 entièrement** : l'argument « on n'y touche pas » ne tenait plus. Repousser la référence aurait été
 enterrer le signal. Il est converti au harnais, avec `plan(8)` et un `exiger()` sur sa prémisse.
+
+## Deux portes vers le séquenceur, et toutes deux portent un nom
+
+> « Le bouton agrandir est pas mal, mais il fait la même chose que le bouton séquenceur déjà présent.
+> Tu peux laisser uniquement le bouton agrandir car il est plus visible. Renomme-le en "Séquenceur".
+> Il faut l'abaisser un peu, il colle d'autres boutons. Mettre le même bouton au-dessus de la grille
+> au lieu du logo peu clair, mais en moins large. Par exemple "Séq." ? »
+
+**Trois portes, aucune nommée.** Un pictogramme de barres dans l'en-tête de la carte (vue compacte),
+**le même pictogramme** au-dessus de la grille (vue d'ensemble), et une loupe « Agrandir » qui
+n'apparaissait qu'une fois le séquenceur déjà ouvert. Deux dessins identiques pour deux vues
+différentes, et un troisième bouton dont le mot décrivait un geste, pas une destination.
+
+Il en reste deux, et chacune dit où elle mène :
+
+| | Où | Ce qu'elle ouvre |
+|---|---|---|
+| **« Séq. »** | au-dessus de la grille | la vue d'ensemble (mode continu) |
+| **« Séquenceur »** | dans la carte Accord | le plein écran sur l'accord ouvert |
+
+### Le piège de ce lot : une porte qui rend la main sans rien faire
+
+`openSeqZoom()` commence par `if (!this.seqOpen) return`. C'était juste tant qu'un AUTRE bouton se
+chargeait d'ouvrir, et que celui-ci ne faisait qu'agrandir l'existant. Ce bouton n'existe plus : sans
+correctif, « Séquenceur » n'aurait **rien fait du tout** au premier clic — et rien n'est plus
+silencieux qu'un bouton qui rend la main. D'où `ouvrirSequenceurPleinEcran()`, qui ouvre puis
+agrandit.
+
+Elle ne **bascule** pas, et c'est délibéré : passer par `toggleSequencer` sans condition ferait du
+second appui sur un bouton nommé « Séquenceur » une fermeture, ce qu'aucun mot n'annonce. Le banc
+l'éprouve explicitement.
+
+### Encore la même famille de piège CSS
+
+« Séq. » mesurait **120px** — presque trois fois le logo de 44px qu'il remplace, dans une barre déjà
+chargée. Cause : la règle générique `button { flex: 1; min-width: 120px }` de la feuille. C'est
+exactement le `select { flex: 1 }` qui avait écrasé la hauteur du menu de basse : **une règle
+d'élément qui gagne en silence sur l'intention d'une classe**. Neutralisée explicitement ; le bouton
+fait 47px, l'ordre de grandeur de ce qu'il remplace.
+
+Trouvé en relevant les styles **effectivement appliqués**, pas en relisant la feuille — le `flex: none`
+que j'avais posé stoppait bien l'étirement, et masquait donc la moitié du problème.
+
+### Un seuil relevé, dit à voix haute
+
+La fusion du lot précédent avait ramené la carte Accord à **227px**. Ce lot en reprend **39** : la
+porte « Séquenceur » ne s'affichait qu'une fois le séquenceur déjà ouvert, elle est devenue
+permanente, et on l'a descendue de 14px pour qu'elle ne colle plus la rangée du dessus. Le seuil du
+banc passe donc de 250 à 285px.
+
+Relever un seuil pour faire passer un banc est exactement ce qu'il ne faut pas faire **en silence** :
+c'est écrit dans le banc, avec le chiffre d'avant et la raison. **266px pour une carte contre 297 pour
+deux**, avec un accès nommé toujours sous les yeux au lieu d'un pictogramme qui apparaissait après
+coup — c'est un choix, pas une dérive.
+
+### Vingt-sept bancs, deux traitements
+
+`#toggle-sequencer` était cliqué par 27 bancs. Pour **23 d'entre eux, c'était de l'échafaudage** :
+ouvrir le séquenceur avant d'éprouver autre chose (glisser une note, mesurer une barre, écouter un
+temps). Leur sujet n'a pas bougé ; ils passent par `toggleSequencer('compact')`, qui a exactement la
+même sémantique de bascule que le clic remplacé.
+
+Les **quatre autres avaient ce bouton pour SUJET** et ont été repris un par un — eux doivent viser les
+nouvelles portes, pas les contourner. Deux détails que seul un passage à la main pouvait voir :
+
+- `filet_sequenceur_et_sortie` clique la commande puis enchaîne. « Séquenceur » ouvrant désormais le
+  **plein écran**, celui-ci recouvrait la carte et le clic suivant serait tombé sur son fond. La
+  remise en état entre deux essais referme donc le plein écran.
+- `probe_deux_boutons_seq` éprouve la vue **compacte** : il referme le plein écran juste après
+  l'avoir ouvert, pour retrouver la vue qu'il mesure.

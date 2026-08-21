@@ -33,7 +33,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
         saveProgressionSections(sections);
         app.loadProgression();
     });
-    await page.click('#toggle-sequencer');
+    await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(300);
 
     const seqSymmetry = await page.evaluate(() => {
@@ -52,7 +52,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     const diff = Math.abs(seqSymmetry.gapNumToDash - seqSymmetry.gapDashToNum);
     check(diff <= 2, `écart temps->trait (${seqSymmetry.gapNumToDash.toFixed(1)}px) ≈ écart trait->temps suivant (${seqSymmetry.gapDashToNum.toFixed(1)}px) — différence ${diff.toFixed(1)}px, plus d'asymétrie visible`);
 
-    await page.click('#toggle-sequencer');
+    await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(150);
 
     // === 2. Grille : le numéro de fin de contenu (ex "2" après 1 mesure) apparaît SANS prolonger

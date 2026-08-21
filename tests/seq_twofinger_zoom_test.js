@@ -34,7 +34,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // Accord long : la bande déborde vraiment, donc elle peut défiler ET se zoomer.
     await page.evaluate(() => { const s = document.getElementById('duration'); s.value = '8'; s.dispatchEvent(new Event('change')); });
     await page.waitForTimeout(200);
-    await page.click('#toggle-sequencer');
+    await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(500);
 
     const client = await page.context().newCDPSession(page);

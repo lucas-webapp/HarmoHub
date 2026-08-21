@@ -28,7 +28,7 @@ function fireTouch(el, type, id, x, y) {
         sel.dispatchEvent(new Event('change'));
     });
     await page.waitForTimeout(200);
-    await page.click('#toggle-sequencer');
+    await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(300);
     await page.evaluate(() => document.getElementById('arp-sequencer').scrollIntoView({ block: 'center' }));
     await page.waitForTimeout(150);

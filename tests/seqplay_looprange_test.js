@@ -50,7 +50,7 @@ plan(7);
     console.log('=== Séquenceur COMPACT (bouton du module) : joue le seul accord en cours ===');
     await page.evaluate(() => window.app.editChord(0, 0));
     await page.waitForTimeout(250);
-    await page.click('#toggle-sequencer');
+    await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(500);
     const modeCompact = await page.evaluate(() => window.app.seqMode);
     exiger(modeCompact === 'compact', `le séquenceur est bien ouvert en mode compact — trouvé « ${modeCompact} »`);

@@ -20,7 +20,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
         await page.click('#quick-add-btn').catch(() => {});
         await page.waitForTimeout(120);
     }
-    await page.click('#toggle-sequencer');
+    await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(2000); // laisse le toast "X ajouté" disparaître avant la capture
 
     const info = await page.evaluate(() => {
