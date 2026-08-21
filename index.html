@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608242900">
+    <link rel="stylesheet" href="style.css?v=202608243100">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -1044,7 +1044,16 @@
                              pas seulement ce bouton (reproduit). index.html ne porte pas de ?v= sur
                              lui-même : renommer un id y est donc une opération à risque pour un gain
                              purement cosmétique. -->
-                        <button type="button" id="grid-zoom" class="btn-seq-court" title="Séquenceur : voir tout le morceau" aria-label="Ouvrir le séquenceur, vue d'ensemble">Séq.</button>
+                        <!-- LE LOGO REVIENT, À CÔTÉ DU MOT (retour utilisateur : « je veux garder l'ancien
+                             logo séquenceur en petit à côté de l'écriture Séq. On peut l'élargir un peu
+                             pour le mettre en valeur »). Le lot précédent avait retiré l'icône SEULE,
+                             parce qu'elle ne disait pas ce qu'elle ouvrait ; le mot répond à cela, et
+                             l'icône redevient ce qu'elle sait faire de mieux — rendre le bouton
+                             repérable d'un coup d'œil dans une barre qui n'a que du texte. -->
+                        <button type="button" id="grid-zoom" class="btn-seq-court" title="Séquenceur : voir tout le morceau" aria-label="Ouvrir le séquenceur, vue d'ensemble">
+                            <svg class="icon icon-seq-court" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h6M14 7h6M4 12h3M11 12h9M4 17h11M19 17h1"/></svg>
+                            <span>Séq.</span>
+                        </button>
                     </div>
                 </div>
                 <!-- Saisie rapide : ajoute un accord tapé directement en fin de partie. Elle vit
@@ -1290,6 +1299,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608242900"></script>
+    <script src="script.js?v=202608243100"></script>
 </body>
 </html>

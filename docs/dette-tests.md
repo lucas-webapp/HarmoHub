@@ -2094,3 +2094,81 @@ expiration, et **les dix vérifications suivantes étaient perdues** — 14 exé
 C'est exactement ce que `plan()` existe pour attraper, et il l'a attrapé. `item1_2_test` éprouvait le
 bleu de ce même bouton. Les deux ont été retournés vers le nouveau geste et le nouveau signe, pas
 supprimés.
+
+## Les portes du séquenceur, et sa barre d'outils
+
+> « Le bouton séquenceur dans le volet de gauche ne devrait ouvrir que le "Petit séquenceur", pas le
+> grand séquenceur en continu. Sinon, je ne peux jamais ouvrir le petit... »
+> « Je propose d'ajouter un bouton loupe dans le petit séquenceur […] D'ailleurs, ça serait l'occasion
+> de réorganiser les boutons sous le petit séquenceur. C'est brouillon à l'affichage. »
+
+### Un blocage, pas une préférence
+
+`ouvrirSequenceurPleinEcran()` ouvrait le compact **puis l'agrandissait aussitôt**. La vue compacte
+n'était donc visible à **aucun moment** : elle existait dans le code et nulle part à l'écran. Le
+rangement est maintenant celui que la demande dessine, et il se lit tout seul :
+
+| porte | où | ce qu'elle ouvre |
+|---|---|---|
+| « Séquenceur » | volet de gauche | le petit, dans la carte |
+| « Séq. » | au-dessus de la grille | la vue continue, en tiroir |
+| loupe | **dans** le séquenceur | le plein écran |
+
+La troisième est la bonne trouvaille de l'utilisateur : **agrandir est une opération sur le
+séquenceur, sa commande lui appartient**. Et elle disparaît une fois en plein écran — il n'y a plus
+rien à agrandir.
+
+### « Brouillon » se mesure : neuf boutons à plat
+
+La barre alignait Lecture, Stop, Boucle, +note, Studio, Pipette, 🗑 tout, 🗑 sélection et le zoom H
+**sans aucune césure**, dans un ordre qui mélangeait quatre intentions. Ce n'est pas leur nombre qui
+faisait désordre, c'est l'absence de groupement. Elles sont maintenant quatre familles :
+
+**transport** (écouter) · **motif** (fabriquer) · **suppression** (défaire) · **affichage** (regarder)
+
+Bénéfice secondaire et réel : la barre se replie désormais **par famille** au lieu de couper au hasard
+entre deux boutons qui n'ont rien à voir.
+
+### Le filet séparateur était une impasse, et la mesure l'a montré
+
+Premier jet : `border-left` sur `.seq-groupe + .seq-groupe`. Mesuré aussitôt à 1440px — le groupe
+« suppression » passe à la ligne (gauche 0, haut 40) **en gardant son filet**, soit un trait orphelin
+collé au bord gauche de la barre. Exactement le genre de détail qui fait « brouillon », donc le
+contraire du but.
+
+Aucun sélecteur CSS ne sait dire « premier de sa ligne ». Le filet n'était pas un réglage à affiner,
+c'était une voie sans issue. L'**espacement** ne connaît pas ce problème : 18px entre les familles
+contre 8px à l'intérieur — plus du double, largement lu comme une césure, et un groupe seul sur sa
+ligne reste simplement un groupe.
+
+### Le vrai piège : deux boucles qui se ressemblent
+
+Le séquenceur a **sa propre** boucle (`seqLoopPlay`), qui répète l'accord en cours d'édition — pas la
+même que celle du transport. Les fondre en un seul drapeau aurait été le raccourci tentant : une plage
+tracée sur la grille aurait alors mis l'**audition d'un accord** en boucle sans fin.
+
+Ce qui est partagé, c'est le **geste** (appui long / clic droit) et le **signe** (l'anneau). Ce qui ne
+l'est pas, c'est l'état : `basculerBoucleSequenceur` regarde ce que le bouton lance *vraiment* — la
+grille quand une plage est tracée, l'accord sinon — et bascule le drapeau correspondant. Sans cela,
+l'anneau aurait menti la moitié du temps.
+
+*(À noter : le lot précédent avait posé l'anneau du séquenceur d'après l'état global. C'était faux, et
+ce lot le corrige.)*
+
+### Deux fonctions propriétaires du même titre
+
+`updatePlayButtonsForLoopRange` écrivait `#play-prog.title`, `syncAnneauBoucle` aussi : **le dernier
+appelé gagnait**. Un défaut latent, visible seulement par intermittence — le banc l'a attrapé.
+`syncAnneauBoucle` est désormais seule à composer ce libellé, ce qui est cohérent : elle connaît déjà
+les deux moitiés de la phrase, ce qui est joué et si ça se répète.
+
+Elle a d'ailleurs produit au premier essai **« Lire la plage à boucler en boucle »** — deux fois le
+même mot, parce que l'ancien libellé contenait déjà « à boucler ». La plage se nomme donc par ce
+qu'elle est, « la plage tracée », et la répétition est dite une seule fois.
+
+### Cinq bancs retournés vers les nouvelles portes
+
+`portes_sequenceur` (5 rouges), `pinned_seq_toolbar` (l'ordre était lu sur les enfants directs, qui
+sont désormais les groupes), `probe_deux_sequenceurs` (cliquait l'ancienne porte, ce qui **refermait**
+le panneau et faisait tomber les quatre points suivants), `tap_removal` et `global_transport`. Aucun
+supprimé : chacun vise le geste qui a remplacé le sien.

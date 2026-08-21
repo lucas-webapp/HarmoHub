@@ -48,7 +48,7 @@ const atteignable = (sel) => {
 };
 
 (async () => {
-    plan(19);
+    plan(23);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -73,13 +73,21 @@ const atteignable = (sel) => {
     check(!a.ancien, 'le pictogramme de l\'en-tête a disparu : il faisait doublon sans le dire');
     exiger(!!a.seq && !!a.plein, 'les deux portes existent');
     check(a.seq.texte === 'Séq.', `au-dessus de la grille, un mot et non un logo — « ${a.seq.texte} »`);
-    check(!a.seq.svg, 'et plus aucun dessin de barres dedans : c\'est lui qu\'on ne comprenait pas');
+    // LE LOGO EST REVENU, et ce n'est pas un retour en arrière. Ce qui posait problème, c'était le
+    // logo SEUL — rien ne disait ce qu'il ouvrait. Le mot répond à cela ; l'icône, à côté de lui,
+    // redevient ce qu'elle sait faire de mieux : rendre le bouton repérable dans une barre de texte
+    // (retour utilisateur : « je veux garder l'ancien logo séquenceur en petit à côté de l'écriture
+    // Séq. On peut l'élargir un peu pour le mettre en valeur »).
+    check(a.seq.svg, 'le logo est de retour À CÔTÉ du mot — c\'est le logo seul qui ne disait rien');
     check(a.plein.texte === 'Séquenceur', `dans la carte Accord, « ${a.plein.texte} » et non plus « Agrandir »`);
     // « Moins large » : la demande était explicite, et c'est ce qui distingue les deux jumeaux à l'œil.
     check(a.seq.l < a.plein.l, `« Séq. » est plus étroit que « Séquenceur » — ${a.seq.l}px contre ${a.plein.l}px`);
     // Le piège de la règle générique `button { min-width: 120px }` : sans neutralisation explicite,
     // ce bouton faisait 120px, soit près de trois fois le logo de 44px qu'il remplace.
-    check(a.seq.l <= 70, `il reste de l'ordre du bouton qu'il remplace (44px) — ${a.seq.l}px`);
+    // « On peut l'élargir un peu » : la borne monte donc, mais elle RESTE — sans elle, la règle
+    // générique `button { min-width: 120px }` reprendrait la main en silence, ce qu'elle a déjà fait
+    // une fois (mesuré : 120px, près de trois fois le logo de 44px qu'il remplaçait).
+    check(a.seq.l <= 90, `élargi pour loger son logo, sans repartir vers les 120px de la règle générique — ${a.seq.l}px`);
 
     console.log('\n=== B. « Séquenceur » ouvre ET agrandit, d\'un seul geste ===');
     // LE point du lot. Séquenceur fermé, openSeqZoom() rendait la main sans rien faire.
@@ -94,14 +102,34 @@ const atteignable = (sel) => {
         grilleDansLePleinEcran: !!document.querySelector('#seq-zoom-host .seq-grid'),
     }));
     check(b.ouvert && b.mode === 'compact', `un seul clic ouvre le séquenceur — mode ${b.mode}`);
-    check(b.zoom && b.overlay && b.grilleDansLePleinEcran, 'et l\'agrandit dans la foulée, grille comprise');
-    // Elle ne bascule pas : un second appui sur un bouton nommé « Séquenceur » ne doit pas fermer.
-    await page.evaluate(() => window.app.closeSeqZoom());
-    await page.waitForTimeout(500);
+    // ELLE N'AGRANDIT PLUS, ET C'ÉTAIT UN BLOCAGE. Retour utilisateur : « le bouton séquenceur dans
+    // le volet de gauche ne devrait ouvrir que le "Petit séquenceur", pas le grand séquenceur en
+    // continu. Sinon, je ne peux jamais ouvrir le petit... » — et c'est exact : la porte ouvrait le
+    // compact PUIS l'agrandissait aussitôt, si bien que la vue compacte n'existait à aucun moment.
+    check(!b.zoom && !b.overlay, 'elle n\'agrandit plus : le petit séquenceur reste visible, c\'était tout le problème');
+    // Elle BASCULE désormais : un second appui referme. C'est cohérent avec « Séq. » juste à côté, et
+    // avec l'état allumé que le bouton porte déjà quand sa vue est ouverte — un bouton qui s'allume
+    // annonce qu'il s'éteint.
     await page.click('#seq-zoom');
     await page.waitForTimeout(700);
-    check(await page.evaluate(() => window.app.seqOpen === true && window.app.seqZoomOpen === true),
-        'un second appui rouvre le plein écran au lieu de tout refermer : le mot ne promet pas une bascule');
+    check(await page.evaluate(() => window.app.seqOpen === false),
+        'un second appui referme le petit séquenceur : le bouton allumé annonce qu\'il s\'éteint');
+    await page.click('#seq-zoom');
+    await page.waitForTimeout(700);
+
+    // === B bis. Le plein écran se demande DEPUIS le séquenceur, par sa loupe ===
+    // « Je propose d'ajouter un bouton loupe dans le petit séquenceur, qui permettra d'afficher ce
+    // dernier en grand écran […] car je n'aurais pas souvent besoin d'ouvrir le séquenceur en grand. »
+    // Agrandir est une opération SUR le séquenceur : sa commande lui appartient.
+    exiger(await page.evaluate(() => !!document.getElementById('seq-plein-ecran')),
+        'la loupe est présente dans la barre du séquenceur');
+    await page.click('#seq-plein-ecran');
+    await page.waitForTimeout(800);
+    check(await page.evaluate(() => window.app.seqZoomOpen === true), 'la loupe ouvre bien le plein écran');
+    check(await page.evaluate(() => !document.getElementById('seq-plein-ecran')),
+        'et disparaît une fois en plein écran : il n\'y a plus rien à agrandir');
+    await page.evaluate(() => window.app.closeSeqZoom());
+    await page.waitForTimeout(500);
 
     console.log('\n=== C. « Séq. » ouvre l\'autre vue, et les deux s\'annoncent ===');
     await page.evaluate(() => window.app.closeSeqZoom());
@@ -169,8 +197,8 @@ const atteignable = (sel) => {
     exiger(r1.ok, `téléphone : « Séquenceur » est atteignable — ${r1.ok ? r1.taille : r1.pourquoi}`);
     await m.tap('#seq-zoom');
     await m.waitForTimeout(1000);
-    check(await m.evaluate(() => window.app.seqOpen === true && window.app.seqZoomOpen === true),
-        'téléphone : un vrai appui ouvre et agrandit, comme au clic');
+    check(await m.evaluate(() => window.app.seqOpen === true && window.app.seqZoomOpen === false),
+        'téléphone : un vrai appui ouvre le PETIT séquenceur, comme au clic');
 
     check(erreurs.length === 0, `aucune erreur JavaScript — ${erreurs.join(' | ') || 'aucune'}`);
     await browser.close();

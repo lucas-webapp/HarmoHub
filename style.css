@@ -2018,6 +2018,18 @@ body[data-app-mode="edit"] .voicing-group-duree { display: none; }
     cursor: pointer;
     flex: none;
 }
+/* Le logo REVIENT à côté du mot, et le bouton s'élargit un peu pour le mettre en valeur (retour
+   utilisateur). Il reste plus étroit que « Séquenceur », son jumeau de la carte Accord : ce qui était
+   demandé au lot précédent — « moins large » — tient toujours, on ajoute juste de quoi loger l'icône
+   et son écart. Flex en ligne, sinon l'icône et le mot se posent l'un sous l'autre dans un bouton de
+   32px de haut, et tout déborde. */
+.btn-seq-court {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+}
+.icon-seq-court { width: 15px; height: 15px; flex: none; }
 .btn-seq-court:hover { background: linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0) 50%), var(--btn-neutral-hover); border-color: var(--btn-neutral-border-hover); color: var(--text-main); }
 .btn-seq-court:active { transform: translateY(1px); }
 /* Allumé quand c'est CETTE vue qui est ouverte — même signal vert que .icon-btn.active, pour que la
@@ -2046,6 +2058,13 @@ body[data-app-mode="edit"] .voicing-group-duree { display: none; }
 .transport-icon-boucle { display: none; width: 26px; height: 26px; }
 #play-prog.boucle-active .transport-icon-simple { display: none; }
 #play-prog.boucle-active .transport-icon-boucle { display: block; }
+/* Le bouton Lecture du SÉQUENCEUR porte le même anneau, pour le même geste — mais pas forcément
+   pour la même boucle (voir basculerBoucleSequenceur : il lance le plus souvent le seul accord en
+   édition). Son icône « play » est construite en JS et n'a pas la classe .transport-icon-simple :
+   on vise donc la première icône du bouton, quelle qu'elle soit. */
+#seq-play .transport-icon-boucle { display: none; }
+#seq-play.boucle-active > .icon:first-child { display: none; }
+#seq-play.boucle-active .transport-icon-boucle { display: block; width: 22px; height: 22px; }
 
 /* Action mise en avant (Enregistrer) : reste verte même au repos */
 .icon-btn-accent {
@@ -4536,10 +4555,39 @@ body.all-beats .offbeat-dot {
 
 .seq-presets {
     display: flex;
-    gap: 8px;
+    /* 18px entre les FAMILLES (les enfants directs sont les groupes, voir .seq-groupe juste après),
+       8px à l'intérieur de chacune. 10px de gouttière verticale : quand la barre se replie, les
+       lignes doivent respirer un peu plus que les boutons entre eux. */
+    column-gap: 18px;
+    row-gap: 10px;
     margin-top: 12px;
     flex-wrap: wrap;
 }
+
+/* QUATRE FAMILLES, SÉPARÉES PAR L'ESPACE (retour utilisateur : « c'est brouillon à l'affichage »).
+   Neuf boutons alignés à plat, sans césure, dans un ordre qui mélangeait écouter, fabriquer, défaire
+   et regarder : c'est cette absence de groupement qui se lisait comme du désordre, pas leur nombre.
+   Chaque groupe reste une rangée qui passe à la ligne D'UN BLOC — c'est tout l'intérêt : la barre se
+   replie par FAMILLE au lieu de couper au hasard entre deux boutons qui n'ont rien à voir.
+
+   PAS DE FILET, ET C'EST UNE CORRECTION. Mon premier jet séparait les groupes par un `border-left`
+   sur `.seq-groupe + .seq-groupe`. Mesuré aussitôt : à 1440px le groupe « suppression » passe à la
+   ligne (gauche 0, haut 40) EN GARDANT son filet — un trait orphelin collé au bord gauche de la
+   barre, exactement le genre de détail qui fait « brouillon ». Aucun sélecteur CSS ne sait dire
+   « premier de sa ligne » ; le filet était donc une impasse, pas un réglage à affiner.
+   L'espacement, lui, ne connaît pas ce problème : 18px entre les groupes contre 8px à l'intérieur.
+   Plus du double, c'est amplement lu comme une césure — et un groupe seul sur sa ligne reste juste
+   un groupe, sans rien qui dépasse. */
+.seq-groupe {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 1 auto;
+    min-width: 0;
+}
+/* Un groupe vide (ex. « affichage » réduit à rien en plein écran) ne doit pas laisser un écart
+   de 18px flotter au milieu de la barre. */
+.seq-groupe:empty { display: none; }
 
 /* Uniquement la mise en page ici : chaque bouton de cette rangée porte désormais sa propre couleur
    sémantique (.btn-prog/.btn-stop/.seq-delete-btn) — un style gris générique ferait doublon et,

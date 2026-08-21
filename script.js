@@ -34,6 +34,7 @@ const ICONS = {
     'chevron-down': '<path d="m6 9 6 6 6-6"/>',
     'chevron-left': '<path d="m15 18-6-6 6-6"/>',
     'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+    loupePlus: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/>',
     loop: '<path d="M17 2 21 6 17 10"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22 3 18 7 14"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
     play: '<path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>',
     stop: '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/>',
@@ -3838,7 +3839,13 @@ class HarmoHubApp {
 
         // Vue agrandie du séquenceur (voir openSeqZoom/closeSeqZoom) : ne fait que déplacer
         // #arp-sequencer dans une fenêtre plus grande, jamais le dupliquer.
-        document.getElementById('seq-zoom').onclick = () => this.ouvrirSequenceurPleinEcran();
+        // LA PORTE DU VOLET N'OUVRE QUE LE PETIT SÉQUENCEUR. Retour utilisateur : « le bouton
+        // séquenceur dans le volet de gauche ne devrait ouvrir que le "Petit séquenceur", pas le grand
+        // séquenceur en continu. Sinon, je ne peux jamais ouvrir le petit... »
+        // C'était un vrai blocage, pas une préférence : ouvrirSequenceurPleinEcran ouvrait le compact
+        // PUIS l'agrandissait aussitôt, si bien que la vue compacte n'était visible à aucun moment.
+        // Le plein écran se demande maintenant depuis le séquenceur lui-même (#seq-plein-ecran).
+        document.getElementById('seq-zoom').onclick = () => this.toggleSequencer('compact');
         document.getElementById('seq-zoom-close').onclick = () => this.closeSeqZoom();
         document.getElementById('seq-zoom-overlay').addEventListener('click', (e) => {
             if (e.target.id === 'seq-zoom-overlay') this.closeSeqZoom(); // clic sur le fond, pas la fenêtre
@@ -7443,8 +7450,20 @@ class HarmoHubApp {
     // La réserve est assumée : un appui long est moins découvrable qu'un bouton. Elle est compensée
     // par le fait que le geste principal (tracer la plage) suffit, et par l'infobulle du bouton.
     setupBoucleLecture() {
-        const bouton = document.getElementById('play-prog');
-        if (!bouton) return;
+        this.brancherAppuiLongBoucle(document.getElementById('play-prog'), () => this.basculerBoucle());
+        this.syncAnneauBoucle();
+    }
+
+    // DEUX BOUTONS LECTURE, DEUX BOUCLES, UN SEUL MÉCANISME. Le bouton du transport lance le morceau
+    // (ou la plage) ; celui du séquenceur lance le plus souvent le seul accord en cours d'édition. Ce
+    // sont deux lectures différentes, avec chacune son état de boucle — les fondre en une seule ferait
+    // qu'une plage tracée sur la grille mettrait l'AUDITION d'un accord en boucle sans fin.
+    // Ce qui est commun, c'est le geste et le signe : appui long ou clic droit, anneau autour du
+    // triangle. D'où cette fonction, appelée une fois pour le transport (permanent) et à chaque rendu
+    // pour celui du séquenceur (reconstruit avec sa barre).
+    brancherAppuiLongBoucle(bouton, basculer) {
+        if (!bouton || bouton.dataset.boucleBranchee === '1') return;
+        bouton.dataset.boucleBranchee = '1';
         let minuteur = null;
         let deja = false; // l'appui long a déjà basculé : le clic qui suit ne doit pas lancer la lecture
         const annuler = () => { if (minuteur) { clearTimeout(minuteur); minuteur = null; } };
@@ -7453,7 +7472,7 @@ class HarmoHubApp {
             if (e.button && e.button !== 0) return; // le clic droit a son propre chemin, plus bas
             deja = false;
             annuler();
-            minuteur = setTimeout(() => { minuteur = null; deja = true; this.basculerBoucle(); }, BOUCLE_APPUI_LONG_MS);
+            minuteur = setTimeout(() => { minuteur = null; deja = true; basculer(); }, BOUCLE_APPUI_LONG_MS);
         });
         // Un doigt qui GLISSE n'est pas un appui long : sans ça, faire défiler la page depuis le
         // bouton finissait par basculer la boucle sans qu'on l'ait demandé.
@@ -7469,9 +7488,7 @@ class HarmoHubApp {
             e.preventDefault();
             e.stopPropagation();
         }, true);
-        bouton.addEventListener('contextmenu', (e) => { e.preventDefault(); this.basculerBoucle(); });
-
-        this.syncAnneauBoucle();
+        bouton.addEventListener('contextmenu', (e) => { e.preventDefault(); basculer(); });
     }
 
     // Bascule l'anneau, avec un retour immédiat : si une lecture de la grille est en cours, elle doit
@@ -7485,32 +7502,55 @@ class HarmoHubApp {
         if (this._playMode === 'progression') this.liveRestartForGlobalChange();
     }
 
-    // Un seul endroit qui pose l'anneau, sur TOUS les boutons Lecture de l'appli : celui du transport
-    // (permanent) et celui du séquenceur (reconstruit à chaque rendu, d'où l'appel depuis
-    // renderSequencer). Les deux commandent la même lecture, ils ne peuvent donc pas afficher deux
-    // états différents.
+    // Boucle du bouton Lecture DU SÉQUENCEUR. Il lance tantôt la grille (quand une plage est tracée
+    // et qu'on voit tout le morceau), tantôt le seul accord en édition — son anneau doit donc parler
+    // de la lecture qu'il lance vraiment, sans quoi il mentirait la moitié du temps.
+    basculerBoucleSequenceur() {
+        if (this._seqPlayLanceGrille) { this.basculerBoucle(); return; }
+        this.seqLoopPlay = !this.seqLoopPlay;
+        this.syncAnneauBoucle();
+        // Applique tout de suite si un accord est déjà en train de jouer, plutôt que d'attendre la
+        // fin (figée) de la lecture en cours pour en tenir compte (voir playCurrent).
+        if (this.isPlaying) this.livePreviewUpdate();
+    }
+
+    // Un seul endroit qui pose l'anneau, sur les DEUX boutons Lecture — mais chacun d'après SA
+    // lecture. Le piège serait de lire le même drapeau pour les deux : le bouton du séquenceur
+    // afficherait alors une boucle qu'il ne fait pas (et inversement) dès qu'une plage est tracée.
     syncAnneauBoucle() {
-        const actif = !!this.bouclerLecture;
-        const titre = actif ? 'Lecture en boucle — appui long ou clic droit pour arrêter de boucler'
-                            : 'Lecture — appui long ou clic droit pour boucler';
-        document.querySelectorAll('#play-prog, #seq-play').forEach((b) => {
+        const poser = (b, actif, titre) => {
+            if (!b) return;
             b.classList.toggle('boucle-active', actif);
             b.setAttribute('aria-pressed', actif ? 'true' : 'false');
-            if (b.id === 'play-prog') { b.title = titre; }
-        });
+            b.title = titre;
+        };
+        const suffixe = ' — appui long ou clic droit pour ';
+        // La phrase se compose de ce qui est JOUÉ puis de s'il se RÉPÈTE. Écrite naïvement, elle
+        // donnait « Lire la plage à boucler en boucle » : deux fois le même mot, parce que l'ancien
+        // libellé de la plage contenait déjà « à boucler ». La plage se nomme donc par ce qu'elle est
+        // — une plage tracée —, et la répétition est dite une seule fois, à la fin.
+        const sujetGrille = this.loopRange ? 'Lire la plage tracée' : 'Lecture';
+        poser(document.getElementById('play-prog'), !!this.bouclerLecture,
+            (this.bouclerLecture ? sujetGrille + ' en boucle' : sujetGrille)
+            + suffixe + (this.bouclerLecture ? 'arrêter de boucler' : 'boucler'));
+        const seq = document.getElementById('seq-play');
+        const actifSeq = this._seqPlayLanceGrille ? !!this.bouclerLecture : !!this.seqLoopPlay;
+        const quoi = this._seqPlayLanceGrille ? 'la plage à boucler' : 'l\'accord';
+        poser(seq, actifSeq, (actifSeq ? 'Lire ' + quoi + ' en boucle' : 'Lire ' + quoi) + suffixe
+            + (actifSeq ? 'arrêter de boucler' : 'boucler'));
     }
 
     updatePlayButtonsForLoopRange() {
-        const active = !!this.loopRange;
-        const rangeTitle = 'Lire la plage à boucler';
-        const normalTitle = 'Lecture';
-
         const playProg = document.getElementById('play-prog');
-        if (playProg) {
-            playProg.classList.toggle('btn-loop-range', active);
-            playProg.title = active ? rangeTitle : normalTitle;
-            playProg.setAttribute('aria-label', active ? rangeTitle : normalTitle);
-        }
+        if (!playProg) return;
+        playProg.classList.toggle('btn-loop-range', !!this.loopRange);
+        // LE TITRE N'EST PLUS ÉCRIT ICI. Il l'était, et syncAnneauBoucle écrivait le sien de son côté :
+        // deux fonctions propriétaires du même attribut, donc le dernier appelé gagnait — un défaut
+        // latent qui ne se voyait que par intermittence, et que le banc a fini par attraper.
+        // syncAnneauBoucle est désormais seule à composer ce libellé, et elle y intègre la plage :
+        // c'est elle qui connaît DÉJÀ les deux moitiés de la phrase — ce qui est joué, et si ça se
+        // répète.
+        this.syncAnneauBoucle();
     }
 
     // Rétrécit au besoin le texte d'un accord (ex. "B♭maj7") qui déborde de sa case — plutôt que de le
@@ -13722,18 +13762,13 @@ class HarmoHubApp {
     // interactions (glisser, étirer, sélectionner...) restent celles du vrai séquenceur, attachées
     // une fois pour toutes dans setupSequencerInteractions — un simple changement de parent ne les
     // perd pas. .seq-zoomed pilote uniquement la taille des cases/libellés (voir style.css).
-    // LA PORTE « SÉQUENCEUR » DE LA CARTE ACCORD : ouvrir, puis agrandir.
+    // OUVRIR PUIS AGRANDIR, en un geste. Ce n'est plus la porte du volet de gauche (elle n'ouvre
+    // plus que le petit séquenceur, à la demande) mais celle de la LOUPE posée dans la barre du
+    // séquenceur — voir #seq-plein-ecran.
     //
-    // openSeqZoom() refuse d'agir séquenceur fermé (`if (!this.seqOpen) return`) — c'était juste tant
-    // qu'un AUTRE bouton se chargeait de l'ouvrir, et que celui-ci ne faisait qu'agrandir ce qui
-    // l'était déjà. Ce bouton-là n'existe plus (retour utilisateur : « tu peux laisser uniquement le
-    // bouton agrandir car il est plus visible »), donc cette porte doit faire les deux gestes.
-    //
-    // Elle ne BASCULE pas : appuyer sur « Séquenceur » ouvre le séquenceur, toujours. toggleSequencer
-    // referme quand on lui redemande le mode déjà actif — passer par lui sans condition ferait donc
-    // du second appui sur un bouton nommé « Séquenceur » une fermeture, ce qu'aucun mot n'annonce.
-    // La sortie du plein écran a sa croix, et le séquenceur se referme par « Séq. » ou par la croix
-    // du tiroir sur téléphone.
+    // openSeqZoom() refuse d'agir séquenceur fermé (`if (!this.seqOpen) return`) : passer par ici
+    // plutôt que par lui garde la loupe utile même si le panneau vient d'être refermé autrement,
+    // plutôt que de rendre la main en silence.
     ouvrirSequenceurPleinEcran() {
         if (!this.seqOpen) this.toggleSequencer('compact');
         this.openSeqZoom();
@@ -15300,10 +15335,32 @@ class HarmoHubApp {
         // définie par ailleurs (retour utilisateur : son bouton lecture se retrouvait à tort à jouer
         // toute la grille).
         const seqLoopRangeActive = !!this.loopRange && (this.seqMode === 'continu' || this.seqZoomOpen);
+        // Retenu pour syncAnneauBoucle : ce bouton lance tantôt la grille, tantôt le seul accord en
+        // édition, et son anneau doit parler de la lecture qu'il lance VRAIMENT.
+        this._seqPlayLanceGrille = seqLoopRangeActive;
+        // QUATRE FAMILLES, SÉPARÉES. Retour utilisateur : « ça serait l'occasion de réorganiser les
+        // boutons sous le petit séquenceur. C'est brouillon à l'affichage. » Il avait raison, et le
+        // compte le dit : neuf boutons alignés à plat, sans aucune césure, dans un ordre qui mélangeait
+        // le transport, les actions sur le motif, les suppressions et les réglages d'affichage.
+        // Ils sont désormais groupés par ce qu'ils FONT, chaque groupe séparé du suivant par un filet :
+        //   transport (écouter) | motif (fabriquer) | suppression (défaire) | affichage (regarder)
+        // L'ordre à l'intérieur de chaque groupe ne change pas : c'est un regroupement, pas un
+        // remaniement, et rien de ce qu'on savait trouver ne change de voisin.
         html += `<div class="seq-presets">
-            <button type="button" id="seq-play" class="btn-prog seq-icon-btn${seqLoopRangeActive ? ' btn-loop-range' : ''}" title="${seqLoopRangeActive ? 'Lire la plage à boucler' : 'Lecture'}" aria-label="${seqLoopRangeActive ? 'Lire la plage à boucler' : 'Lecture'}">${svgIcon('play')}</button>
+            <div class="seq-groupe" data-groupe="transport">
+            <button type="button" id="seq-play" class="btn-prog seq-icon-btn${seqLoopRangeActive ? ' btn-loop-range' : ''}" title="${seqLoopRangeActive ? 'Lire la plage à boucler' : 'Lecture'}" aria-label="${seqLoopRangeActive ? 'Lire la plage à boucler' : 'Lecture'}" aria-pressed="false">${svgIcon('play')}<svg class="icon transport-icon-boucle" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.2 2.6a9.4 9.4 0 1 1-6.85 2.75" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="butt"/><path d="M11.2 0 15.6 2.6l-4.4 2.6z" fill="currentColor"/><path d="M9 7.2v9.6l7.4-4.8z" fill="currentColor"/></svg></button>
             <button type="button" id="seq-stop" class="btn-stop seq-icon-btn" title="Stop" aria-label="Stop">${svgIcon('stop')}</button>
-            <button type="button" id="seq-loop-play" class="icon-btn seq-icon-btn${this.seqLoopPlay ? ' active' : ''}" title="Rejouer en boucle" aria-label="Rejouer en boucle">${svgIcon('loop')}</button>
+            </div>
+            <!-- LE BOUTON « REJOUER EN BOUCLE » A DISPARU D'ICI, comme celui du transport : la boucle
+                 est devenue un anneau autour du triangle de Lecture (voir setupBoucleLecture). Un
+                 bouton de moins dans une barre qu'on trouvait justement trop chargée, et le même
+                 geste partout — appui long ou clic droit.
+                 ATTENTION, ce bouton-ci ne commande PAS la même boucle que celui du transport : il
+                 lance le plus souvent le seul accord en édition (playCurrent/seqLoopPlay). Les fondre
+                 en un seul drapeau ferait qu'une plage tracée sur la grille mettrait l'AUDITION d'un
+                 accord en boucle sans fin — voir basculerBoucleSequenceur, qui choisit lequel des deux
+                 il bascule selon ce que le bouton lance réellement. -->
+            <div class="seq-groupe" data-groupe="motif">
             <button type="button" id="seq-add-note" class="icon-btn seq-icon-btn" title="Ajouter une note libre (ex. note de passage)" aria-label="Ajouter une note libre">${svgIcon('plus')}</button>
             <!-- LE BOUTON « MOTIF TYPE » N'EST PLUS ICI, et c'est un revirement assumé.
                  Le lot précédent venait de l'étendre du tiroir mobile à tout le séquenceur, en
@@ -15328,6 +15385,8 @@ class HarmoHubApp {
                  Construit à chaque rendu comme ses voisins, donc câblé au même endroit qu'eux. -->
             <button type="button" id="toggle-studio-mode" class="icon-btn seq-icon-btn${this.studioMode ? ' active' : ''}" title="Mode studio : régler l'intensité croche par croche" aria-label="Mode studio">${svgIcon('studio')}</button>
             <button type="button" id="seq-row-pipette" class="icon-btn seq-icon-btn${this.seqRowPipette ? ' active' : ''}" ${(hasSelection || this.seqRowPipette) ? '' : 'disabled'} title="${this.seqRowPipette ? 'Clique une ligne pour y appliquer le motif prélevé (Échap pour annuler)' : 'Prélever le motif sélectionné pour le coller sur une autre ligne'}" aria-label="${this.seqRowPipette ? 'Appliquer le motif prélevé sur une ligne' : 'Prélever le motif sélectionné'}">${svgIcon('seqRowPipette')}</button>
+            </div>
+            <div class="seq-groupe" data-groupe="suppression">
             ${this.estSequenceurEnTiroir() ? `
             <!-- FERMER LE TIROIR, depuis le tiroir lui-même. Signalé par l'utilisateur : « je
                  n'arrive plus à fermer le petit séquenceur une fois ouvert (test réalisé sur
@@ -15337,11 +15396,23 @@ class HarmoHubApp {
                  (un clic sur la grille ne doit pas le refermer), il n'avait donc AUCUNE sortie
                  atteignable. C'est le prix à payer de ce choix, et il se paie ici : un panneau
                  flottant porte sa propre fermeture. -->
-            <button type="button" id="seq-tiroir-close" class="icon-btn seq-icon-btn seq-tiroir-close" title="Fermer le séquenceur" aria-label="Fermer le séquenceur">${svgIcon('close')}</button>` : ''}
+            ` : ''}
             <button type="button" data-preset="clear" class="seq-delete-btn">${svgIcon('trash')} tout</button>
             <button type="button" id="seq-delete-selection" class="seq-delete-btn" ${hasSelection ? '' : 'disabled'}>${svgIcon('trash')}
                 <span class="lbl-full">sélection${countSuffix}</span><span class="lbl-short">Sélect.${countSuffix}</span>
             </button>
+            </div>
+            <div class="seq-groupe" data-groupe="affichage">
+            <!-- LA PORTE DU PLEIN ÉCRAN EST ICI, et plus dans le volet de gauche. Retour utilisateur :
+                 « je propose d'ajouter un bouton loupe dans le petit séquenceur, qui permettra
+                 d'afficher ce dernier en grand écran (au lieu de l'ouvrir directement avec le bouton
+                 "Séquenceur" dans le volet), car je n'aurais pas souvent besoin d'ouvrir le séquenceur
+                 en grand. »
+                 C'est le bon rangement : agrandir est une opération SUR le séquenceur, sa commande
+                 appartient donc au séquenceur — et le bouton du volet redevient ce que son nom dit,
+                 une simple ouverture. Masquée en plein écran, où elle n'aurait plus rien à agrandir. -->
+            ${this.seqZoomOpen ? '' : `<button type="button" id="seq-plein-ecran" class="icon-btn seq-icon-btn" title="Afficher le séquenceur en grand" aria-label="Afficher le séquenceur en grand">${svgIcon('loupePlus')}</button>`}
+            ${this.estSequenceurEnTiroir() ? `<button type="button" id="seq-tiroir-close" class="icon-btn seq-icon-btn seq-tiroir-close" title="Fermer le séquenceur" aria-label="Fermer le séquenceur">${svgIcon('close')}</button>` : ''}
             <!-- Le sélecteur d'aimantation (1/4, 1/8, 1/16) vivait ici. Retiré (retour utilisateur :
                  « il faut enlever le bouton du choix d'aimantation, il faut que les notes s'accrochent
                  à la double croche automatiquement ») : c'était un réglage à comprendre et à maintenir
@@ -15360,6 +15431,7 @@ class HarmoHubApp {
                     <button type="button" id="seq-zoom-out-h-inline" class="icon-btn zoom-axis-btn" title="Réduire l'échelle horizontale" aria-label="Réduire l'échelle horizontale">${svgIcon('minus')}</button>
                 </div>
             </div>` : ''}
+            </div>
         </div>`;
 
         host.innerHTML = html;
@@ -15616,14 +15688,13 @@ class HarmoHubApp {
         if (playBtn) playBtn.onclick = () => (seqLoopRangeActive ? this.playProgression() : this.playCurrent());
         const stopBtn = document.getElementById('seq-stop');
         if (stopBtn) stopBtn.onclick = () => this.stopAll();
-        const loopBtn = document.getElementById('seq-loop-play');
-        if (loopBtn) loopBtn.onclick = (e) => {
-            this.seqLoopPlay = !this.seqLoopPlay;
-            e.currentTarget.classList.toggle('active', this.seqLoopPlay);
-            // Applique tout de suite si un accord est déjà en train de jouer, plutôt que d'attendre la
-            // fin (figée) de la lecture en cours pour en tenir compte (voir playCurrent).
-            if (this.isPlaying) this.livePreviewUpdate();
-        };
+        // La boucle se règle depuis le bouton Lecture lui-même (appui long / clic droit), comme dans le
+        // transport. Rebranché à CHAQUE rendu parce que le bouton est reconstruit avec sa barre —
+        // brancherAppuiLongBoucle pose un repère sur l'élément pour ne pas doubler les écouteurs.
+        if (playBtn) this.brancherAppuiLongBoucle(playBtn, () => this.basculerBoucleSequenceur());
+        // La porte du plein écran, désormais DANS le séquenceur (voir la barre plus haut).
+        const pleinEcranBtn = document.getElementById('seq-plein-ecran');
+        if (pleinEcranBtn) pleinEcranBtn.onclick = () => this.ouvrirSequenceurPleinEcran();
         const addNoteBtn = document.getElementById('seq-add-note');
         if (addNoteBtn) addNoteBtn.onclick = () => this.addSequencerNote();
         // Séquenceur compact : câblé comme tous les autres panneaux zoomables désormais (voir

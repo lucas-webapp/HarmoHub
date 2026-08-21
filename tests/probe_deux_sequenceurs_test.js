@@ -45,7 +45,10 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
     ck(petit.reperes <= 4, `la barre de temps couvre la seule durée de l'accord — ${petit.reperes} repères`);
 
     console.log('--- B. Séquenceur AGRANDI : vue continue à l\'échelle du morceau ---');
-    await p.click('#seq-zoom'); await p.waitForTimeout(900);
+    // LA PORTE A CHANGÉ : « Séquenceur » (#seq-zoom) n'ouvre plus que le petit, à la demande — la
+    // vue agrandie se demande depuis le séquenceur lui-même, par sa loupe. Cliquer l'ancienne porte
+    // ici REFERMAIT le panneau déjà ouvert, et les quatre vérifications suivantes tombaient toutes.
+    await p.click('#seq-plein-ecran'); await p.waitForTimeout(900);
     const grand = await lire();
     console.log(JSON.stringify(grand));
     ck(grand.continu, 'la vue continue est bien là');

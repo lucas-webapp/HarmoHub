@@ -54,7 +54,9 @@ plan(6);
         return { hasOrange: playProg.classList.contains('btn-loop-range'), title: playProg.title };
     });
     console.log(JSON.stringify(r));
-    check(!r.hasOrange && r.title === 'Lecture', `sans plage à boucler : pas de teinte, titre « ${r.title} »`);
+    // Le titre porte en plus le geste qui bascule la boucle (appui long / clic droit), donc on
+    // éprouve son DÉBUT : ce banc surveille la teinte et le sujet du bouton, pas la formulation.
+    check(!r.hasOrange && r.title.startsWith('Lecture'), `sans plage à boucler : pas de teinte, titre « ${r.title} »`);
 
     console.log('--- Une plage à boucler définie : le bouton se recolore et se retitre ---');
     await page.evaluate(() => window.app.setLoopRange(0, 0, 0, 2)); // accords 0..2 de la partie 0
@@ -64,7 +66,10 @@ plan(6);
         return { hasOrange: playProg.classList.contains('btn-loop-range'), title: playProg.title };
     });
     console.log(JSON.stringify(r));
-    check(r.hasOrange && r.title === 'Lire la plage à boucler', `plage active : le bouton se recolore et se retitre — « ${r.title} »`);
+    // « la plage tracée » et non plus « la plage à boucler » : le mot « boucler » est maintenant dit
+    // une seule fois, à la fin de la phrase — sinon le titre annonçait « Lire la plage à boucler en
+    // boucle », deux fois le même mot (attrapé par ce banc, corrigé au source).
+    check(r.hasOrange && r.title.startsWith('Lire la plage tracée'), `plage active : le bouton se recolore et se retitre — « ${r.title} »`);
 
     console.log('--- Plage effacée : retour à la normale ---');
     await page.evaluate(() => { window.app.loopRange = null; window.app.loadProgression(); });
@@ -74,7 +79,11 @@ plan(6);
         return { hasOrange: playProg.classList.contains('btn-loop-range'), title: playProg.title };
     });
     console.log(JSON.stringify(r));
-    check(!r.hasOrange && r.title === 'Lecture', `plage effacée : retour à la normale — « ${r.title} »`);
+    // EFFACER LA PLAGE N'ÉTEINT PAS LA BOUCLE, et c'est voulu : les deux sont indépendants depuis
+    // que la boucle est un état du bouton Lecture (la plage dit QUOI jouer, l'anneau dit SI ça se
+    // répète). Le sujet redevient donc le morceau entier — c'est cela, « retour à la normale » — mais
+    // l'anneau reste allumé tant qu'on ne l'éteint pas.
+    check(!r.hasOrange && r.title.startsWith('Lecture'), `plage effacée : le sujet redevient le morceau — « ${r.title} »`);
 
     console.log('--- Cliquer le bouton unique joue bien la PLAGE seule (chemin playProgression) ---');
     await page.evaluate(() => window.app.setLoopRange(0, 0, 0, 1));

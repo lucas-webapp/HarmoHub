@@ -80,13 +80,23 @@ plan(9);
         'la grille continue est bien dans le volet sous la grille (#seq-dock-host)');
 
     console.log('=== Ordre des boutons : transport -> actions -> zoom H EN DERNIER ===');
-    const ordre = await bureau.evaluate(() => [...document.querySelectorAll('.seq-presets > *')].map(el => el.id || el.className.split(' ')[0]));
+    // LA BARRE EST DÉSORMAIS GROUPÉE PAR FAMILLES (retour utilisateur : « c'est brouillon à
+    // l'affichage »), donc les enfants directs de .seq-presets sont des .seq-groupe et non plus les
+    // boutons eux-mêmes. On aplatit d'abord — ce banc éprouve un ORDRE, pas une profondeur de DOM, et
+    // l'ordre visuel n'a pas changé : transport, motif, suppression, affichage.
+    const ordre = await bureau.evaluate(() => [...document.querySelectorAll('.seq-presets button, .seq-presets .btn-wrap-group')]
+        .map(el => el.id || el.className.split(' ')[0]));
     console.log('ordre:', JSON.stringify(ordre));
+    const familles = await bureau.evaluate(() => [...document.querySelectorAll('.seq-presets > .seq-groupe')].map(g => g.dataset.groupe));
+    console.log('familles:', JSON.stringify(familles));
     const iZoom = ordre.findIndex(x => x === 'btn-wrap-group');
     const iDerniereAction = ordre.findIndex(x => x === 'seq-delete-selection');
     check(iZoom > iDerniereAction && iDerniereAction !== -1,
         `le groupe de zoom arrive bien APRÈS seq-delete-selection, dernier bouton d'action (${iDerniereAction} -> ${iZoom})`);
     check(ordre[0] === 'seq-play', `seq-play toujours en premier (transport) — trouvé « ${ordre[0]} »`);
+    // Le groupement lui-même, tant qu'on y est : c'est lui qui rend l'ordre lisible plutôt que subi.
+    check(JSON.stringify(familles) === JSON.stringify(['transport', 'motif', 'suppression', 'affichage']),
+        `quatre familles, dans l'ordre écouter -> fabriquer -> défaire -> regarder — ${familles.join(', ')}`);
 
     console.log('=== La rangée reste dans le cadre, hauteur normale puis volet réduit ===');
     const normal = await barreDansHote(bureau);

@@ -27,7 +27,13 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
 
     check(await page.isVisible('#seq-play'), "#seq-play visible");
     check(await page.isVisible('#seq-stop'), "#seq-stop visible");
-    check(await page.isVisible('#seq-loop-play'), "#seq-loop-play visible");
+    // LE BOUTON BOUCLE DU SÉQUENCEUR A DISPARU, remplacé par l'anneau du bouton Lecture (même
+    // traitement que le transport, façon Pro Tools — retour utilisateur : « c'est brouillon à
+    // l'affichage »). Ce point-ci ne servait qu'à s'assurer que le retrait du rythme tapé n'avait pas
+    // emporté ses voisins : il vise donc le voisin qui a pris sa place, sinon il ne garde plus rien.
+    check(await page.isVisible('#seq-play'), '#seq-play est bien là, et porte désormais la boucle');
+    check(await page.evaluate(() => !document.getElementById('seq-loop-play')),
+        'le bouton boucle séparé a bien disparu de la barre');
     check(await page.isVisible('#seq-add-note'), "#seq-add-note visible");
     check(await page.isVisible('#seq-row-pipette'), "#seq-row-pipette visible");
     check(await page.$('[data-preset="clear"]') !== null, "bouton Supprimer tout présent");

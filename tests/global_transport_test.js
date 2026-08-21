@@ -58,7 +58,11 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
         return { rects: svg.querySelectorAll('rect').length, paths: svg.querySelectorAll('path').length, title: document.getElementById('play-prog').title };
     });
     check(iconInfo.rects === 0 && iconInfo.paths === 1, `logo simplifié à un simple triangle — ${iconInfo.paths} path(s), ${iconInfo.rects} rect(s) (3 avant)`);
-    check(iconInfo.title === 'Lecture', `libellé simple — « ${iconInfo.title} »`);
+    // Le libellé annonce désormais le geste caché qui bascule la boucle (voir setupBoucleLecture) :
+    // c'est la contrepartie assumée d'un appui long, moins découvrable qu'un bouton. On éprouve donc
+    // le DÉBUT de la phrase, pas la phrase entière — la mention du geste peut être reformulée sans
+    // que ce banc ait à changer.
+    check(iconInfo.title.startsWith('Lecture'), `libellé simple, suivi du geste — « ${iconInfo.title} »`);
 
     console.log('\n=== B. Le transport est ANCRÉ en bas de la colonne de gauche ===');
     const structure = await p.evaluate(() => {
@@ -166,12 +170,13 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
     // contrat : un seul transport, toujours en place, et le verrou de défilement bien posé.
     await p.evaluate(() => window.app.editChord(0, 0));
     await p.waitForTimeout(300);
-    // #seq-zoom est masqué tant que le séquenceur lui-même n'est pas ouvert (voir toggleSequencer,
-    // qui pose `hidden = !this.seqOpen`) : sans cette ouverture préalable, le clic attend un bouton
-    // invisible jusqu'à expiration — et tout ce qui suit dans le banc est perdu.
+    // LA PORTE DU PLEIN ÉCRAN A DÉMÉNAGÉ DANS LE SÉQUENCEUR : c'est la loupe de sa barre d'outils
+    // (#seq-plein-ecran), le bouton du volet n'ouvrant plus que la vue compacte, à la demande. Il faut
+    // donc toujours ouvrir le séquenceur d'abord — la loupe n'existe pas tant que sa barre n'est pas
+    // rendue —, et l'ancien enchaînement (#grid-zoom puis #seq-zoom) aurait ici REFERMÉ le panneau.
     await p.click('#grid-zoom');
     await p.waitForTimeout(700);
-    await p.click('#seq-zoom');
+    await p.click('#seq-plein-ecran');
     await p.waitForTimeout(700);
     const pendantAgrandi = await p.evaluate(() => ({
         bodyLocked: document.body.classList.contains('body-scroll-locked'),
@@ -211,7 +216,12 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
         title: document.getElementById('play-prog').title,
     }));
     check(loopRangeUI.colored, 'le bouton Lecture se recolore quand une plage à boucler est définie');
-    check(loopRangeUI.title === 'Lire la plage à boucler', `...et son titre l'annonce — « ${loopRangeUI.title} »`);
+    // Le libellé dit maintenant les DEUX moitiés : ce qui est joué, ET si ça se répète (tracer une
+    // plage allume la boucle, voir setLoopRange). Un seul propriétaire l'écrit désormais —
+    // syncAnneauBoucle — après qu'ils ont été deux à se le disputer en silence, ce que ce banc a
+    // justement attrapé.
+    check(loopRangeUI.title.startsWith('Lire la plage tracée'),
+        `...et son titre l'annonce — « ${loopRangeUI.title} »`);
     await p.close();
 
     console.log('\n=== H. Téléphone : le transport flottant reste utilisable, sans déborder ===');
