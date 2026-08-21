@@ -44,7 +44,7 @@ const lirePopover = () => {
 };
 
 (async () => {
-    plan(17);
+    plan(20);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -62,9 +62,27 @@ const lirePopover = () => {
     // === A. Les répétitions sont parties ===
     check(!m.titres.includes('Tempo'), `le titre « Tempo » a disparu — reste ${m.titres.join(', ')}`);
     check(!m.etiquetteInstrument, 'l\'étiquette « Instrument » a disparu : le titre « Son » la disait déjà');
-    // Les deux qui restent nomment une FAMILLE, pas leur premier champ : ils rangent vraiment.
-    check(m.titres.length === 2 && m.titres[0] === 'Son' && m.titres[1] === 'Tonalité',
-        `il reste les deux titres qui nomment une famille — ${m.titres.join(', ')}`);
+    // UN TITRE EST REVENU, MAIS IL NOMME LA FAMILLE (retour utilisateur : « garder un titre (par
+    // exemple Rythme…) au-dessus du métronome + types de rythmes/grooves »). C'est exactement le
+    // critère du lot : « Tempo » redisait son premier champ, « Rythme » coiffe les trois — tempo,
+    // groove, signature.
+    check(m.titres.length === 3 && m.titres[0] === 'Rythme' && m.titres[1] === 'Son' && m.titres[2] === 'Tonalité',
+        `trois titres, chacun nommant une famille — ${m.titres.join(', ')}`);
+    // « Son » et sa liste sur UNE ligne (« mettre les instruments à droite du titre SON, pas
+    // en-dessous, trop de place occupée pour rien ») : une section à un seul champ n'a pas besoin de
+    // deux lignes. Et le titre doit être À GAUCHE — au premier essai il s'affichait à droite, la
+    // règle `#song-card .card-head h2 { order: 1 }` du titre de morceau atteignant aussi ce popover.
+    const son = await page.evaluate(() => {
+        const t = document.querySelector('.card-head-inline');
+        if (!t) return null;
+        const h = t.querySelector('h2').getBoundingClientRect();
+        const sel = t.querySelector('select').getBoundingClientRect();
+        return { memeLigne: Math.abs((h.top + h.height / 2) - (sel.top + sel.height / 2)) <= 3,
+                 titreAGauche: h.left < sel.left, titre: t.querySelector('h2').textContent.trim() };
+    });
+    exiger(!!son, 'la section Son est bien en ligne');
+    check(son.memeLigne, `« ${son.titre} » et sa liste tiennent sur une seule ligne`);
+    check(son.titreAGauche, 'et le titre est à GAUCHE de la liste, pas après elle');
 
     // === B. La transposition a rejoint la ligne de tonalité ===
     check(!m.ancienneRangeeTranspo, 'la rangée « Transposer » à elle seule a disparu');

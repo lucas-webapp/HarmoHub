@@ -1716,7 +1716,15 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
    qu'on cherche justement à corriger. Leur propre dégradé et leur ombre portée sont neutralisés. */
 .accord-grid .duration-dd { align-self: auto; }
 .accord-grid .duration-dd-toggle {
-    height: 30px;
+    /* PLEINE HAUTEUR DE SA COLONNE, et non plus 30px (retour utilisateur : « le bouton pour définir
+       la durée des accords dans le volet de gauche : hauteur à homogénéiser avec les boutons
+       voisins »). Mesuré : 30px contre 38 pour « C » et « Majeur », sur la même ligne.
+       Les 30px venaient de la rangée d'où il vient — une bande d'outils de 30px de haut. En changeant
+       de ligne au lot précédent il a emporté sa hauteur d'origine, et sa BOÎTE (#duration-dd) faisant
+       bien 38, il flottait dans un trou de 8px. C'est le genre de reste qu'un déplacement laisse
+       toujours derrière lui : la valeur était juste là-bas, elle ne l'est plus ici. */
+    height: 100%;
+    min-height: 0;
     flex-direction: row;     /* la durée empilait icône AU-DESSUS du libellé : impossible en 30px */
     justify-content: flex-start;
     gap: 5px;
@@ -2341,6 +2349,23 @@ select:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* Titre à GAUCHE, champ à DROITE, sur une seule ligne (voir .carte-son dans index.html). Le titre
+   garde sa marge basse par défaut, qui creuserait un vide sous une ligne unique : on l'annule ici.
+   flex:1 sur le champ, pour qu'il prenne toute la place restante plutôt que de se coller au titre. */
+.card-head-inline {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+/* order:0 EXPLICITE, et ce n'est pas superflu : `#song-card .card-head h2 { order: 1 }` (1,1,1)
+   renvoie tous les titres de cette carte APRÈS leurs actions — c'est ce qui place le titre du morceau
+   à droite de ses boutons dans l'en-tête principal. Ce popover vit DANS #song-card, la règle l'atteint
+   donc aussi : mesuré au premier essai, « SON » s'affichait à DROITE de la liste d'instruments,
+   exactement l'inverse de ce qui était demandé. Sélecteur à deux classes + id (1,2,0) pour l'emporter. */
+#song-card .card-head-inline h2 { margin-bottom: 0; flex: none; order: 0; }
+.card-head-inline .groove-field { flex: 1; min-width: 0; }
+.carte-son { margin-top: 4px; }
 
 /* HIÉRARCHIE TYPOGRAPHIQUE DU POPOVER (retour utilisateur : « tu peux réduire un peu la taille des
    écritures (titres) si tu estimes que ça sera plus harmonieux […] il faut quelque chose
@@ -5887,9 +5912,16 @@ select.song-select-narrow {
    emportait le liseré vert d'Enregistrer : .col-left .icon-btn (0,2,0) l'emporte sur
    .icon-btn-accent (0,1,0), et le bouton passait dans la famille neutre sans que rien ne le dise.
    Trouvé en relevant les familles d'aspect APRÈS coup — la feuille, elle, avait l'air juste. */
+/* LE BOUTON « SÉQUENCEUR » EST RESSORTI DE CETTE FAMILLE (retour utilisateur : « le bouton petit
+   séquenceur dans le volet de gauche : remettre en gris comme avant, il faut le différencier un peu
+   des autres boutons »). Et c'est juste : ce n'est pas un réglage parmi les autres, c'est une PORTE.
+   Il retrouve donc son aspect propre (voir .seq-zoom-btn) — fond #1c2027 et surtout un contour en
+   PILULE là où toute la famille est carrée à 7px. C'est la pilule, plus que la teinte, qui le
+   distingue d'un coup d'œil.
+   L'homogénéité reste la règle pour tout le reste du volet : ce lot-ci ne rouvre pas ce débat, il
+   pose UNE exception nommée, pour un bouton qui ne fait pas la même sorte de chose que ses voisins. */
 .col-left .icon-btn:not(.icon-btn-accent):not(.arp-seq .icon-btn):not(.transport .icon-btn),
 .col-left .song-summary,
-.col-left .seq-zoom-btn,
 .col-left .btn-seq-court {
     background: var(--fond-bouton-sombre);
     background-image: none;
@@ -5901,7 +5933,6 @@ select.song-select-narrow {
    famille qui s'allume, pas une autre qui apparaît. */
 .col-left .icon-btn:not(.icon-btn-accent):not(.arp-seq .icon-btn):not(.transport .icon-btn):hover,
 .col-left .song-summary:hover,
-.col-left .seq-zoom-btn:hover,
 .col-left .btn-seq-court:hover {
     background: var(--fond-bouton-sombre-survol);
     background-image: none;

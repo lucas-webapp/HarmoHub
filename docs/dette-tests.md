@@ -2399,3 +2399,57 @@ ne tenait pas au cadre mais à la **couleur** (vert en Ajout, orange en Modifica
 l'intitulé nomme l'état. `inspecteur_sujet` exigeait le cadre ; il exige maintenant ces deux
 propriétés-là. Exiger le cadre aurait été réclamer l'ornement qu'on venait d'enlever ; ne rien exiger
 aurait laissé la distinction se perdre en silence au prochain remaniement.
+
+## Quatre finitions, et une exception qu'on nomme au lieu de la subir
+
+### La hauteur qu'un déplacement laisse derrière lui
+
+> « Le bouton pour définir la durée des accords dans le volet de gauche : hauteur à homogénéiser avec
+> les boutons voisins. »
+
+Mesuré : **30px contre 38** pour « C » et « Majeur », sur la même ligne. Les 30px venaient de la
+rangée d'outils d'où il vient, haute de 30px — en changeant de ligne au lot précédent, il a **emporté
+sa hauteur d'origine**. Sa boîte faisant bien 38, il flottait dans un trou de 8px.
+
+C'est le résidu type d'un déplacement : la valeur était juste là-bas, elle ne l'est plus ici. Déplacer
+un élément, c'est aussi hériter des hypothèses de son ancien voisinage — et il faut aller les
+chercher, elles ne se signalent pas.
+
+### Une exception nommée vaut mieux qu'un plafond relevé
+
+> « Le bouton petit séquenceur dans le volet de gauche : remettre en gris comme avant, il faut le
+> différencier un peu des autres boutons. »
+
+Le lot « un seul aspect de bouton » l'avait absorbé dans la famille sombre. La demande est justifiée :
+ce n'est pas un réglage parmi les autres, c'est une **porte** — elle emmène ailleurs au lieu de
+modifier ce qu'on regarde. Il retrouve son fond `#1c2027` et surtout son **contour en pilule** (999px)
+là où toute la famille est carrée à 7px : c'est la forme, plus que la teinte, qui le distingue.
+
+Le banc comptait « au plus trois familles » et est passé à quatre. **Relever le plafond à `<= 4`
+aurait suffi à le faire taire — et l'aurait vidé de son sens** : n'importe quelle quatrième famille
+apparue par accident serait passée. Il exige donc que la famille en trop soit **celle-là**, nommée. Le
+garde-fou garde ses dents : une cinquième famille, ou une dérive sur un autre bouton, rougit toujours.
+
+C'est la différence entre enregistrer une décision et désarmer un test.
+
+### Le titre qui repart à droite
+
+> « Mettre les instruments à droite du titre SON, pas en-dessous. »
+
+Premier essai : « SON » s'est affiché **à droite de la liste**, l'inverse exact de la demande. Cause —
+`#song-card .card-head h2 { order: 1 }`, une règle qui place le titre du morceau *après* ses boutons
+dans l'en-tête principal. Ce popover vit dans `#song-card`, la règle l'atteignait donc aussi.
+
+Cinquième mode de défaillance CSS silencieux du journal, et le premier qui ne touche ni la couleur ni
+la taille mais **l'ordre**. Il a en commun avec les quatre autres de n'être visible qu'au rendu.
+
+### Le titre retenu, et pourquoi
+
+> « Garder un titre (par exemple Rythme, tu as des meilleures idées ?) au-dessus du métronome + types
+> de rythmes/grooves. »
+
+**« Rythme »**, la proposition de l'utilisateur, est la bonne — et elle passe le critère posé deux lots
+plus tôt : elle nomme une **famille** (tempo, groove, signature) sans redire son premier champ, ce qui
+était exactement le reproche fait à l'ancien « Tempo ». Les alternatives pesées valaient moins :
+« Métrique » est trop technique, « Tempo et mesure » oublie le groove, « Transport » désigne déjà les
+boutons de lecture ailleurs dans l'application.

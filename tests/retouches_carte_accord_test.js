@@ -25,7 +25,7 @@ const seed = () => {
 };
 
 (async () => {
-    plan(10);
+    plan(14);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -58,6 +58,33 @@ const seed = () => {
     // l'avait demandé. Ce point garde la trace de ce retour en arrière.
     const listes = await page.evaluate(() => getComputedStyle(document.getElementById('root')).backgroundImage);
     check(listes !== 'none', `les listes de la carte Accord gardent leur habillage d'origine — ${listes.slice(0, 30)}`);
+
+    // === A bis. La durée a la hauteur de ses voisines ===
+    // Retour utilisateur : « le bouton pour définir la durée des accords dans le volet de gauche :
+    // hauteur à homogénéiser avec les boutons voisins. » Mesuré : 30px contre 38, un reste de la
+    // rangée d'outils d'où il vient — sa boîte faisait bien 38, il flottait donc dans un trou de 8px.
+    const ligne = await page.evaluate(() => {
+        const h = (s) => { const e = document.querySelector(s); return e ? Math.round(e.getBoundingClientRect().height) : null; };
+        return { root: h('#root'), quality: h('#quality'), duree: h('.duration-dd-toggle') };
+    });
+    check(ligne.duree === ligne.root && ligne.duree === ligne.quality,
+        `la durée a la même hauteur que ses deux voisines — ${ligne.root}/${ligne.quality}/${ligne.duree}`);
+
+    // === A ter. La porte « Séquenceur » se distingue de nouveau ===
+    // Retour utilisateur : « remettre en gris comme avant, il faut le différencier un peu des autres
+    // boutons. » Elle avait été absorbée par la famille sombre du volet ; ce n'est pas un réglage
+    // parmi d'autres, c'est une porte. On éprouve la DIFFÉRENCE, pas une valeur : c'est elle qu'on
+    // veut préserver, et une teinte en dur rougirait au premier changement de palette.
+    const porte = await page.evaluate(() => {
+        const c = (s) => { const e = document.querySelector(s); if (!e) return null; const st = getComputedStyle(e);
+            return { fond: st.backgroundColor, rayon: st.borderTopLeftRadius }; };
+        return { seq: c('#seq-zoom'), duree: c('.duration-dd-toggle') };
+    });
+    exiger(!!porte.seq && !!porte.duree, 'la porte et un bouton voisin sont mesurables');
+    check(porte.seq.rayon !== porte.duree.rayon,
+        `la porte garde son contour en pilule, ses voisins restent carrés — ${porte.seq.rayon} contre ${porte.duree.rayon}`);
+    check(porte.seq.fond !== porte.duree.fond,
+        `et sa teinte propre — ${porte.seq.fond} contre ${porte.duree.fond}`);
 
     // === B. Le titre n'a plus d'encadré, mais garde sa couleur ===
     // La pastille distinguait l'ÉTAT (ajout/modification) du SUJET (le symbole). Cette distinction

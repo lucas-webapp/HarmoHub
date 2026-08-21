@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608243900">
+    <link rel="stylesheet" href="style.css?v=202608244100">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -561,6 +561,17 @@
                      dans un panneau. Les deux autres chapitres gardent le leur : « Son » et
                      « Tonalité » nomment des familles, pas leur premier champ. -->
                 <section class="control-card">
+                    <!-- UN TITRE, MAIS QUI NOMME LA FAMILLE (retour utilisateur : « garder un titre
+                         (par exemple Rythme, tu as des meilleures idées ?) au-dessus du métronome +
+                         types de rythmes/grooves »).
+                         « Rythme » est le bon mot, et c'est le sien : il couvre les TROIS réglages du
+                         bloc — tempo, groove, signature — sans redire le premier champ, ce qui était
+                         justement le reproche fait à l'ancien titre « Tempo ». Les alternatives pesées
+                         valaient moins : « Métrique » est trop technique, « Tempo et mesure » oublie le
+                         groove, et « Transport » désigne déjà les boutons de lecture ailleurs. -->
+                    <div class="card-head">
+                        <h2>Rythme</h2>
+                    </div>
                     <div class="bpm-group">
                         <div class="bpm-head">
                             <label for="bpm">Tempo : <input type="number" id="bpm-val" class="bpm-val-input" min="60" max="240" value="120" title="Cliquer pour saisir une valeur précise"> BPM</label>
@@ -622,13 +633,15 @@
                      reviendrait à faire d'un choix accidentel — celui du dernier accord touché — le
                      son de tout le reste. Piano est le repli neutre, et il suffit d'un geste ici pour
                      en changer. Un morceau enregistré APRÈS retrouve le sien (voir instrumentMorceau). -->
-                <section class="control-card">
-                    <div class="card-head">
+                <!-- TITRE ET CHAMP SUR LA MÊME LIGNE (retour utilisateur : « mettre les instruments à
+                     droite du titre SON, pas en-dessous (trop de place occupée pour rien) »).
+                     Cette section n'a qu'UN champ : lui donner deux lignes coûtait une hauteur entière
+                     pour un seul menu. Les deux autres sections gardent leur titre au-dessus, et ce
+                     n'est pas une incohérence mais la même règle appliquée : le titre passe à côté
+                     quand il n'a qu'une chose à annoncer, au-dessus quand il en coiffe plusieurs. -->
+                <section class="control-card carte-son">
+                    <div class="card-head card-head-inline">
                         <h2>Son</h2>
-                    </div>
-                    <div class="groove-group">
-                        <!-- Sans étiquette : le titre « Son » juste au-dessus la disait déjà, et cette
-                             section n'a qu'un seul champ. L'infobulle et aria-label gardent le mot. -->
                         <div class="groove-field">
                             <select id="instrument" class="compact" aria-label="Instrument du morceau" title="Son de tout le morceau">
                                 <option value="piano">Piano</option>
@@ -1341,6 +1354,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608243900"></script>
+    <script src="script.js?v=202608244100"></script>
 </body>
 </html>

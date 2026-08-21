@@ -65,7 +65,7 @@ const relever = () => {
 const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${x.ombre}`;
 
 (async () => {
-    plan(15);
+    plan(18);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -82,9 +82,21 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     const familles = new Map();
     for (const x of vus) { const k = cle(x); if (!familles.has(k)) familles.set(k, []); familles.get(k).push(x.nom); }
     const resume = [...familles.entries()].map(([, m]) => `${m.length}× ${m[0]}`).join(' | ');
-    // DIX avant, sur les mêmes boutons. Trois est le nombre décidé, pas un nombre subi : la référence
-    // sombre, le sélecteur segmenté, et les actions colorées.
-    check(familles.size <= 3, `au plus trois familles, contre dix avant — ${familles.size} : ${resume}`);
+    // DIX avant, sur les mêmes boutons. QUATRE est le nombre décidé, pas un nombre subi : la référence
+    // sombre, le sélecteur segmenté, les actions colorées — et depuis, UNE exception nommée.
+    //
+    // L'EXCEPTION, C'EST LA PORTE DU SÉQUENCEUR (retour utilisateur : « le bouton petit séquenceur
+    // dans le volet de gauche : remettre en gris comme avant, il faut le différencier un peu des
+    // autres boutons »). Elle est justifiée : ce n'est pas un réglage parmi les autres, c'est une
+    // porte — elle emmène ailleurs au lieu de modifier ce qu'on regarde.
+    // ON LA NOMME AU LIEU DE RELEVER LE PLAFOND, et c'est tout l'intérêt : un simple `<= 4` laisserait
+    // passer n'importe quelle quatrième famille apparue par accident. En exigeant que la famille en
+    // trop soit CELLE-LÀ, le garde-fou garde ses dents — une cinquième famille, ou une dérive sur un
+    // autre bouton, rougit toujours.
+    const familleSeule = [...familles.entries()].filter(([, m]) => m.length === 1).map(([, m]) => m[0]);
+    check(familles.size <= 4, `au plus quatre familles, contre dix avant — ${familles.size} : ${resume}`);
+    check(familles.size <= 3 || familleSeule.includes('seq-zoom'),
+        `la famille en trop est bien l'exception nommée (la porte du séquenceur) — seule(s) : ${familleSeule.join(', ') || 'aucune'}`);
 
     console.log('\n=== B. La famille dominante EST la référence désignée ===');
     // « L'aspect sombre que tu viens de mettre en place pour les nouveaux boutons » : le menu de durée
@@ -150,8 +162,14 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     await m.waitForTimeout(1200);
     const vusTel = await m.evaluate(relever);
     exiger(!!vusTel && vusTel.length >= 6, `le volet porte des boutons sur téléphone — ${vusTel ? vusTel.length : 0}`);
-    const famillesTel = new Set(vusTel.map(cle));
-    check(famillesTel.size <= 3, `téléphone : au plus trois familles également — ${famillesTel.size}`);
+    // Même compte qu'à l'écran large, exception comprise : la porte du séquenceur se distingue partout,
+    // sinon elle ne se distinguerait que sur un format et l'exception ne voudrait plus rien dire.
+    const famillesTelMap = new Map();
+    for (const x of vusTel) { const k = cle(x); if (!famillesTelMap.has(k)) famillesTelMap.set(k, []); famillesTelMap.get(k).push(x.nom); }
+    const seulesTel = [...famillesTelMap.entries()].filter(([, m]) => m.length === 1).map(([, m]) => m[0]);
+    check(famillesTelMap.size <= 4, `téléphone : au plus quatre familles également — ${famillesTelMap.size}`);
+    check(famillesTelMap.size <= 3 || seulesTel.includes('seq-zoom'),
+        `téléphone : la famille en trop est la même exception nommée — seule(s) : ${seulesTel.join(', ') || 'aucune'}`);
 
     await m.evaluate(() => window.app.ouvrirSequenceurPleinEcran());
     await m.waitForTimeout(1000);
