@@ -2354,18 +2354,41 @@ séquenceur pour que ça garde du sens ». Sans lui, `1fr` étirait seize double
 largeur de l'écran — une double croche de 80px, qui ne veut plus rien dire musicalement. Mesuré
 après : cases de 19px dans le petit, **34px** dans la loupe, grille de 1058px au lieu de 1440.
 
-### Le contraste que le lot précédent avait rendu visible
+### Une variable CSS qui n'existait pas, et un bouton jamais peint
 
-> « Bouton voicing : afficher en plus sombre, comme le séquenceur. »
+> « Bouton voicing : afficher en plus sombre, comme le séquenceur, à côté du bouton séquenceur
+> continu. »
 
-La mesure isolée disait que tout était déjà à `#16191e` — et elle avait tort de rassurer. La capture
-montrait autre chose : sur **la même ligne**, « C » et « Majeur » portaient le fond générique des
-`<select>` (#222 plus un dégradé clair) tandis que « 1 mes. » portait le `#16191e` du séquenceur.
+**J'ai d'abord visé les mauvais boutons** : j'ai assombri les listes « C » et « Majeur » de la carte
+Accord, alors que « bouton voicing » désignait « Conduite de voix », au-dessus de la grille. La
+méprise est annulée — ces listes n'avaient rien demandé.
 
-C'est le lot d'avant qui a créé le problème en le rendant visible : **remonter la durée sur cette
-ligne a mis côte à côte deux habillages qui vivaient jusque-là dans deux rangées différentes.** Un
-déplacement ne change pas que des positions, il change les voisinages — et un voisinage nouveau est
-une comparaison nouvelle.
+En allant voir le bon bouton, la mesure a donné ceci :
+
+```
+voicing : rgb(28,32,39) + dégradé clair
+Séq.    : rgba(0,0,0,0)  + AUCUNE image
+```
+
+Le voisin n'était pas « plus sombre » : il n'avait **pas de fond du tout**. La cause tient en un mot :
+
+```css
+background: linear-gradient(…), var(--btn-neutral);   /* --btn-neutral N'EXISTE PAS */
+```
+
+La feuille définit `--btn-neutral-1`, `-2`, `-border`, `-border-hover` — jamais `--btn-neutral` tout
+court. Une variable indéfinie rend la déclaration **invalide au calcul**, et la propriété retombe
+alors sur sa valeur initiale : `transparent`. Le bouton montrait le fond de la page depuis sa
+création. Les autres propriétés de la même règle (bordure, rayon) s'appliquaient normalement, ce qui
+rendait le défaut parfaitement invisible à la relecture — la règle *avait l'air* de marcher.
+
+**C'est le quatrième mode de défaillance CSS silencieux rencontré dans ce journal**, et le seul qui ne
+soit pas une histoire de spécificité : `min-width` générique, `.col-left .icon-btn` plus spécifique,
+`@media` déclaré plus bas, et maintenant une variable inexistante. Les trois premiers se voient en
+comparant deux règles ; celui-ci ne se voit qu'en **lisant la valeur calculée**.
+
+L'utilisateur avait donc raison sans pouvoir le nommer, et son œil valait mieux que ma relecture. Les
+deux voisins partagent maintenant le fond plat sombre de la famille, même arrondi compris.
 
 ### Un encadré retiré sans perdre ce qu'il disait
 

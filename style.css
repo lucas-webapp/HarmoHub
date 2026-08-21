@@ -2013,9 +2013,20 @@ body[data-app-mode="edit"] #duration-dd { display: none; }
        d'une classe. On la neutralise là où on veut une largeur de contenu. */
     min-width: 0;
     padding: 0 10px;
-    background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0) 50%), var(--btn-neutral);
-    border: 1px solid var(--btn-neutral-border);
-    border-radius: 8px;
+    /* --btn-neutral N'A JAMAIS EXISTÉ. La feuille définit --btn-neutral-1, -2, -border et
+       -border-hover, pas --btn-neutral tout court : la déclaration entière était donc invalide au
+       calcul, et `background` retombait sur sa valeur initiale — TRANSPARENT. Ce bouton n'a jamais
+       porté le fond qu'on croyait lui donner ; il montrait le fond de la page.
+       Le défaut se voyait, et c'est l'utilisateur qui l'a signalé sans le nommer : « bouton voicing :
+       afficher en plus sombre, comme le séquenceur » — le voisin paraissait plus sombre parce qu'il
+       n'avait pas de fond du tout. Il rejoint donc franchement la famille sombre et PLATE de
+       l'application (--fond-bouton-sombre), au lieu de le devenir par accident. */
+    background: var(--fond-bouton-sombre);
+    border: 1px solid var(--border);
+    /* 7px comme son voisin immédiat (« Conduite de voix ») et comme toute la famille sombre : à 8px
+       il gardait un arrondi d'un demi-pixel plus large, ce qui suffit à ce que deux boutons collés
+       ne se lisent pas tout à fait comme une paire. */
+    border-radius: 7px;
     color: var(--text-muted);
     font-size: var(--fs-xs);
     font-weight: 700;
@@ -2024,6 +2035,27 @@ body[data-app-mode="edit"] #duration-dd { display: none; }
     cursor: pointer;
     flex: none;
 }
+/* LA BARRE AU-DESSUS DE LA GRILLE PARLE D'UNE SEULE VOIX (retour utilisateur : « bouton voicing :
+   afficher en plus sombre, comme le séquenceur, à côté du bouton séquenceur continu »).
+   Le bouton « Conduite de voix » portait le fond générique des icônes — #1c2027 plus un dégradé
+   clair — juste à côté de « Séq. », qui n'en avait aucun (voir la variable inexistante ci-dessus).
+   Deux voisins immédiats, deux habillages, dont un accidentel. Ils partagent maintenant le fond
+   plat et sombre de la famille, exactement comme les boutons du volet de gauche l'ont fait au lot
+   « un seul aspect de bouton ». Le groupe de zoom H/V garde le sien : c'est un réglage d'échelle,
+   pas une commande de vue — il a déjà son propre cadre groupé. */
+.grid-head-sticky .card-head-actions > .icon-btn {
+    background: var(--fond-bouton-sombre);
+    background-image: none;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    box-shadow: none;
+}
+.grid-head-sticky .card-head-actions > .icon-btn:hover {
+    background: var(--fond-bouton-sombre-survol);
+    background-image: none;
+    border-color: var(--btn-neutral-border-hover);
+}
+
 /* Le logo REVIENT à côté du mot, et le bouton s'élargit un peu pour le mettre en valeur (retour
    utilisateur). Il reste plus étroit que « Séquenceur », son jumeau de la carte Accord : ce qui était
    demandé au lot précédent — « moins large » — tient toujours, on ajoute juste de quoi loger l'icône
@@ -2036,7 +2068,10 @@ body[data-app-mode="edit"] #duration-dd { display: none; }
     padding: 0 12px;
 }
 .icon-seq-court { width: 15px; height: 15px; flex: none; }
-.btn-seq-court:hover { background: linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0) 50%), var(--btn-neutral-hover); border-color: var(--btn-neutral-border-hover); color: var(--text-main); }
+/* Même correction au survol : --btn-neutral-hover n'existe pas davantage. Le survol éclaircit le
+   même fond plat plutôt que de faire réapparaître un dégradé — c'est la règle du volet de gauche,
+   appliquée ici pour que la barre entière parle la même langue. */
+.btn-seq-court:hover { background: var(--fond-bouton-sombre-survol); border-color: var(--btn-neutral-border-hover); color: var(--text-main); }
 .btn-seq-court:active { transform: translateY(1px); }
 /* Allumé quand c'est CETTE vue qui est ouverte — même signal vert que .icon-btn.active, pour que la
    barre entière parle la même langue. */
@@ -2248,19 +2283,12 @@ body[data-app-mode="edit"] .accord-grid { grid-template-columns: repeat(2, minma
    plus larges que nécessaire (retour utilisateur) — moins de padding + ellipsis (jamais de
    retour à la ligne) plutôt qu'un menu qui s'étire pour rien, quitte à tronquer une option longue
    ("Basse : Fond.") dans une colonne étroite : le menu ouvert liste toujours l'option en entier. */
-/* MÊME FOND SOMBRE QUE LE SÉQUENCEUR ET QUE LA DURÉE (retour utilisateur : « bouton voicing :
-   afficher en plus sombre, comme le séquenceur »).
-   Ce qui se voyait, capture à l'appui : sur UNE MÊME LIGNE, « C » et « Majeur » sortaient du fond
-   générique des <select> (#222 avec un dégradé clair par-dessus) tandis que « 1 mes. », juste à côté,
-   portait le #16191e des commandes du séquenceur. Trois commandes de même rang, deux habillages —
-   c'est le déplacement de la durée sur cette ligne qui a rendu l'écart visible, en les mettant côte
-   à côte. Elles s'alignent donc sur la plus sombre des trois, celle qui appartient déjà à la famille
-   du séquenceur. Le dégradé est retiré aussi : c'est lui qui éclaircissait le haut du champ. */
-.accord-grid select,
-.voicing-row select {
-    background: var(--fond-bouton-sombre);
-    background-image: none;
-}
+/* J'AVAIS ASSOMBRI LES LISTES « C » ET « MAJEUR » ICI, ET C'ÉTAIT UNE MÉPRISE. « Bouton voicing »
+   désignait le bouton Conduite de voix au-dessus de la grille (voir .grid-head-sticky plus haut),
+   pas les listes de cette carte. La règle est retirée : elles reprennent le fond générique des
+   <select>, qu'aucun retour n'a demandé de changer.
+   Ce qui reste vrai, et qui n'est pas perdu : la remarque valait pour la barre de la grille, et
+   c'est là qu'elle a été appliquée. */
 .accord-grid select {
     min-width: 0;
     padding: 10px 8px;
