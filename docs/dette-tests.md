@@ -1505,3 +1505,34 @@ laissé la page syntaxiquement valide et fonctionnellement morte. Ici : chargeme
 écoute des `pageerror`, appel des trois chemins qui appelaient les méthodes retirées (`refreshPreview`,
 l'`oninput` de `#intensity`, `editChord`), et relevé des styles **effectivement appliqués** sur les
 cases restantes. Aucune erreur, `max-width` bien retombé à `none`.
+
+### Le balayage complet, et une ligne de base qui n'était plus à jour
+
+187 suites jouées. 14 rouges, triés en trois familles comme d'habitude :
+
+**1. Changement voulu, banc à adapter (1).** `intensity_test` exigeait, mot pour mot, « 75 % reproduit
+EXACTEMENT le comportement d'avant » — donc une vélocité de 1,0 sur un accord tenu à « Normal ».
+C'était le bon contrat le jour où l'intensité est née : elle ne devait rien changer tant qu'on n'y
+touchait pas. **Ce contrat EST devenu le défaut.** Le banc éprouve maintenant la propriété qui compte
+— l'échelle est linéaire, bornée à 1, et surtout `Normal < Fort < Très fort` — au lieu d'une valeur
+gelée. L'aléa du temps et du contretemps reste vérifié comme « conservé puis mis à l'échelle, pas
+remplacé », ce qui était déjà l'intention d'origine.
+
+**2. Bruit du bac à sable (1).** `glock_full_real_ui` : 31/33 sous quatre fils, **33/33 rejoué seul**.
+
+**3. Rouges PRÉEXISTANTS, et ma liste ne les connaissait pas (12).** Sept étaient documentés
+(`probe_clic_accord_voisin`, `probe_defilement_tactile`, `probe_regle_voisins`, `probe_seq_finitions`,
+`real_click_loupe_selection`, `seq_notes_libres_clavier`, `seq_selection_et_cadre_diagrammes`).
+**Cinq ne l'étaient pas** : `avant_seq_snap_sticky` (3), `loupe_and_tap_fix` (2), `loupe_keyboard` (1),
+`multirow_loop` (1), `sidebar_collapse` (1).
+
+Rejoués **en série** : les cinq échouent pareil, ce n'est donc pas du bruit. Rejoués sur le **commit
+précédent** (`092a06d`) via un worktree servi sur le port 8935 : **exactement les mêmes comptes**. Ce
+ne sont pas des régressions de ce lot.
+
+Mais « préexistant » ne veut pas dire « sans importance », et c'est le vrai enseignement : **une
+ligne de base qu'on ne remesure pas devient un permis de ne pas regarder**. Ces cinq bancs portent sur
+des fonctions réelles — le transport global quand le volet est replié, la plage de boucle sur une
+deuxième rangée, les flèches du clavier dans la loupe, le sélecteur d'aimantation, la loupe au doigt.
+Ils sont soit périmés, soit le signe de fonctions cassées ; les deux demandent d'être instruits, pas
+tolérés. La question est posée à l'utilisateur avant d'y consacrer un lot, sa priorité étant ailleurs.

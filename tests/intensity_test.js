@@ -16,21 +16,44 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
     await page.waitForTimeout(200);
 
-    console.log('--- computeVelocity: 75% reproduces today\'s EXACT unchanged behavior ---');
+    // CE BANC A CHANGÉ DE CONTRAT, VOLONTAIREMENT.
+    //
+    // Il exigeait « 75 % reproduit EXACTEMENT le comportement d'avant », c'est-à-dire une vélocité de
+    // 1,0 sur un accord tenu au niveau « Normal ». C'était le bon contrat le jour où l'intensité est
+    // née : elle ne devait alors rien changer tant qu'on n'y touchait pas.
+    //
+    // Ce contrat est devenu le défaut lui-même. Retour utilisateur : « La modification d'intensité ne
+    // semble pas fonctionner, le jeu est toujours fort. » Mesuré, il avait raison : « Normal » étant
+    // déjà au plafond, « Fort » (90) et « Très fort » (100) donnaient EUX AUSSI 1,0 — trois des cinq
+    // niveaux rendaient le même son. VELOCITE_NIVEAU_NORMAL descend « Normal » à 0,8 pour créer la
+    // marge où les deux niveaux du dessus peuvent exister. Le coût, accepté : les morceaux déjà
+    // écrits, tous sur « Normal », deviennent environ 2 dB plus discrets.
+    //
+    // Ce qui est éprouvé ici n'est donc plus « rien n'a changé » mais LA PROPRIÉTÉ QUI COMPTE :
+    // les cinq niveaux sont-ils cinq sons DISTINCTS ? (Vérifié niveau par niveau dans
+    // intensite_reparee_test.js, section A.)
+    console.log('--- computeVelocity : l\'échelle est linéaire, et « Normal » laisse de la marge au-dessus ---');
     let r = await page.evaluate(() => {
         // held (base=1) : jamais d'aléa, vérifiable exactement
         const held75 = computeVelocity(true, false, 75, null);
-        // à 50% et 100%, le multiplicateur doit être exactement 50/75 et 100/75 (borné à 1)
         const held50 = computeVelocity(true, false, 50, null);
         const held100 = computeVelocity(true, false, 100, null);
+        const held90 = computeVelocity(true, false, 90, null);
         const held0 = computeVelocity(true, false, 0, null);
         // undefined -> DEFAULT_INTENSITY (75), donc identique à held75
         const heldDefault = computeVelocity(true, false, undefined, null);
-        return { held75, held50, held100, held0, heldDefault };
+        return { held75, held50, held100, held90, held0, heldDefault };
     });
     console.log(JSON.stringify(r));
-    const pass1 = r.held75 === 1 && Math.abs(r.held50 - (50 / 75)) < 1e-9 && r.held100 === 1 && r.held0 === 0 && r.heldDefault === 1;
-    console.log(pass1 ? 'PASS (75% = today\'s exact behavior, scaling correct, clamped to 1)' : 'FAIL');
+    const K = 0.8;   // VELOCITE_NIVEAU_NORMAL
+    const pass1 = Math.abs(r.held75 - K) < 1e-9
+        && Math.abs(r.held50 - (50 / 75) * K) < 1e-9
+        && Math.abs(r.heldDefault - K) < 1e-9
+        && r.held0 === 0
+        && r.held100 === 1                                   // toujours borné à 1 par le haut
+        // LE POINT DU CORRECTIF : les trois niveaux du haut ne se confondent plus.
+        && r.held75 < r.held90 && r.held90 < r.held100;
+    console.log(pass1 ? 'PASS (échelle linéaire, bornée à 1, et Normal < Fort < Très fort)' : 'FAIL');
 
     console.log('--- computeVelocity: a per-step override wins over the chord-wide intensity ---');
     r = await page.evaluate(() => ({
@@ -38,17 +61,20 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         withoutOverride: computeVelocity(true, false, 75, null),
     }));
     console.log(JSON.stringify(r));
-    console.log((Math.abs(r.withOverride - (30 / 75)) < 1e-9 && r.withoutOverride === 1) ? 'PASS (step override takes priority)' : 'FAIL');
+    console.log((Math.abs(r.withOverride - (30 / 75) * K) < 1e-9 && Math.abs(r.withoutOverride - K) < 1e-9) ? 'PASS (step override takes priority)' : 'FAIL');
 
     console.log('--- Existing onBeat/offBeat randomization still layered on top (not replaced) ---');
     r = await page.evaluate(() => {
         const samples = Array.from({ length: 30 }, () => computeVelocity(false, true, 75, null));
-        const allInRange = samples.every(v => v >= 0.78 && v <= 0.88);
+        // La fourchette d'aléa d'origine (0,78 à 0,88) est CONSERVÉE puis mise à l'échelle, elle
+        // n'est pas remplacée : c'est ce que ce banc vérifie depuis toujours. Seul le facteur a
+        // changé — 0,8, pour la même raison qu'en section 1.
+        const allInRange = samples.every(v => v >= 0.78 * 0.8 - 1e-9 && v <= 0.88 * 0.8 + 1e-9);
         const varied = new Set(samples).size > 1; // toujours un peu d'aléa
         return { allInRange, varied };
     });
     console.log(JSON.stringify(r));
-    console.log((r.allInRange && r.varied) ? 'PASS (onBeat randomization preserved, unscaled at 75%)' : 'FAIL');
+    console.log((r.allInRange && r.varied) ? 'PASS (aléa du temps/contretemps conservé, mis à l\'échelle et non remplacé)' : 'FAIL');
 
     console.log('--- UI: slider defaults to 75, DOM round-trips through save/edit ---');
     await page.evaluate(() => {
