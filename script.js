@@ -37,7 +37,7 @@ const ICONS = {
     loop: '<path d="M17 2 21 6 17 10"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22 3 18 7 14"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
     play: '<path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>',
     stop: '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/>',
-    // « Appliquer partout » (voir applyInstrumentToSong) : pot de peinture renversé qui goutte — se
+    // « Appliquer partout » : pot de peinture renversé qui goutte — se
     // lit comme « remplir/appliquer partout », plus parlant que les deux dessins précédents (une
     // flèche convergente, puis un porte-voix, tous deux jugés peu compréhensibles au premier coup
     // d'œil par retour utilisateur). Le seau (anse + corps + ouverture ovale) est un <g> incliné à
@@ -500,7 +500,9 @@ function seqPageBars(beatsPerBar, zoomed = false, hZoom = 1) {
 }
 
 // Réglages d'accord : Entrée depuis l'un d'eux ajoute/modifie directement (moins de clics)
-const CHORD_PARAM_IDS = ['root', 'quality', 'duration', 'inversion', 'drop', 'octave', 'bass', 'playStyle', 'instrument', 'intensity'];
+// 'instrument' n'y figure plus : le son est un réglage DU MORCEAU depuis qu'il a rejoint
+// #song-settings, il ne fait plus partie de ce qui définit UN accord.
+const CHORD_PARAM_IDS = ['root', 'quality', 'duration', 'inversion', 'drop', 'octave', 'bass', 'playStyle', 'intensity'];
 
 // Durées disponibles pour un accord (voir #duration, piloté par setupDurationPicker) : icône en
 // barre remplie (proportion de la mesure occupée), même langage visuel pour les 5 — noire/blanche
@@ -1822,7 +1824,22 @@ function waitForAudioReady(timeoutMs = 1200) {
     ]);
 }
 
-const INSTRUMENT_KEY = 'harmohubInstrument';
+// LE SON APPARTIENT AU MORCEAU. Retour utilisateur : « On va simplifier les types d'instruments : à
+// définir une fois dans morceau uniquement, et tout le morceau prendra cet instrument, je ne ferai
+// jamais de mélange. »
+//
+// Il était PAR ACCORD (data.instrument), avec une clé d'appareil pour présélectionner le suivant et
+// un bouton « pot de peinture » pour tout recopier. Trois mécanismes pour un réglage dont
+// l'utilisateur dit qu'il ne variera jamais à l'intérieur d'un morceau. Il n'en reste qu'un :
+// song.instrumentMorceau.
+//
+// POURQUOI UN NOUVEAU NOM DE CHAMP, ET PAS song.instrument. L'ancien existait déjà, mais il voulait
+// dire autre chose : « le son du PROCHAIN accord ajouté à ce morceau », posé implicitement par le
+// dernier accord touché. Le relire comme le son du morceau entier ferait d'un choix accidentel la
+// couleur de toute l'œuvre. Un champ neuf distingue sans ambiguïté un morceau écrit AVANT (aucun
+// champ → Piano, repli neutre, un geste pour en changer) d'un morceau enregistré APRÈS (le champ
+// fait foi). C'est le choix retenu par l'utilisateur : « Toujours Piano » pour l'existant.
+const SONG_INSTRUMENT_DEFAUT = 'piano';
 const METRONOME_KEY = 'harmohubMetronomeDuringPlayback';
 const METRONOME_VOLUME_KEY = 'harmohubMetronomeVolume';
 const METRONOME_SOUND_KEY = 'harmohubMetronomeSound';
@@ -3010,9 +3027,11 @@ class HarmoHubApp {
         const storedMeasuresPerLine = parseInt(localStorage.getItem(PDF_MEASURES_PER_LINE_KEY), 10);
         this.pdfMeasuresPerLine = (storedMeasuresPerLine >= 1 && storedMeasuresPerLine <= 8) ? storedMeasuresPerLine : 4;
 
-        // Chaque accord choisit sa propre banque de son (voir data.instrument) : plusieurs
-        // instruments Tone.js peuvent donc jouer simultanément. Construits à la demande et mis en
-        // cache (voir getInstrument) plutôt qu'un seul « activeInstrument » partagé comme avant.
+        // Cache des instruments Tone.js, construits à la demande (voir getInstrument) plutôt qu'un
+        // seul « activeInstrument » partagé. Il datait de l'époque où chaque accord choisissait sa
+        // propre banque de son ; depuis que le son est unique par morceau il n'en contient
+        // pratiquement plus qu'un — mais il reste utile : le métronome et l'aperçu au clavier du
+        // séquenceur y prennent le leur, et changer de son en cours de route ne reconstruit rien.
         this.instrumentCache = new Map();
 
         // Métronome : son au choix (voir METRONOME_SOUNDS et le panneau Son des Paramètres). 80 par
@@ -3143,6 +3162,11 @@ class HarmoHubApp {
         // Affiche la rangée de barres de vélocité sous le séquenceur (voir renderSequencer) — réglage
         // global de l'appareil, mémorisé (voir STUDIO_MODE_KEY), pas remis à zéro à chaque accord édité.
         this.studioMode = localStorage.getItem(STUDIO_MODE_KEY) === '1';
+        // Son du morceau ouvert. Seule valeur lue à la lecture, à l'export MIDI et à l'export PDF :
+        // les champs data.instrument des accords existants ne sont plus consultés. Ils restent dans
+        // les fichiers, inertes — les effacer serait une réécriture en masse de morceaux déjà
+        // enregistrés, pour aucun gain.
+        this.songInstrument = SONG_INSTRUMENT_DEFAUT;
         // Valeur VALIDÉE contre la liste, jamais reprise telle quelle : une clé restée d'une version
         // antérieure (l'un des neuf styles d'avant, ou n'importe quoi d'autre) irait sinon se poser
         // dans #playStyle, où plus aucune commande visible ne permettrait de la corriger.
@@ -3455,16 +3479,12 @@ class HarmoHubApp {
         document.getElementById('global-undo-btn').onclick = () => this.globalUndo();
         document.getElementById('global-redo-btn').onclick = () => this.globalRedo();
 
-        // La banque de son est un réglage PAR ACCORD (comme le style de lecture), pas un instrument
-        // global unique : on ne fait ici que présélectionner le dernier choix pour un nouvel accord,
-        // et mémoriser le prochain (voir INSTRUMENT_KEY). La valeur réellement utilisée à la lecture
-        // vient toujours de data.instrument (accords sauvegardés) ou du sélecteur (accord en cours).
-        const savedInstrument = localStorage.getItem(INSTRUMENT_KEY);
-        if (savedInstrument && INSTRUMENT_BANKS[savedInstrument]) {
-            document.getElementById('instrument').value = savedInstrument;
-        }
+        // La banque de son est désormais un réglage DU MORCEAU, unique. Le <select> a gardé son
+        // identifiant et sa place de source de vérité ; seule son autorité a changé — il ne décrit
+        // plus l'accord ouvert mais le morceau entier.
         document.getElementById('instrument').onchange = (e) => {
-            localStorage.setItem(INSTRUMENT_KEY, e.target.value);
+            this.songInstrument = e.target.value;
+            hasUnsavedChanges = true;
             // Fait entendre le nouveau son tout de suite, qu'on modifie un accord déjà posé OU qu'on
             // soit en train d'en composer un nouveau pas encore ajouté (retour utilisateur : changer de
             // son restait muet dans les deux cas, contrairement à root/qualité/etc. — voir refreshPreview,
@@ -3473,9 +3493,10 @@ class HarmoHubApp {
             // basculer sur l'audition d'un seul accord, qui volerait la lecture en cours.
             if (this.isPlaying) this.livePreviewUpdate();
             else this.playCurrent();
-            this.commitLiveEdit(false); // n'affecte pas le symbole affiché dans la case
+            // Plus de commitLiveEdit ici : il écrivait le son dans l'accord en cours d'édition, ce
+            // qui n'a plus de sens quand la valeur vaut pour tout le morceau. Et plus de bouton
+            // « appliquer à tout » non plus : quand il n'y a qu'une valeur, il n'y a rien à propager.
         };
-        document.getElementById('apply-instrument-all').onclick = () => this.applyInstrumentToSong();
 
         // Garder le métronome pendant la lecture de la grille (au-delà du seul décompte)
         const metroBtn = document.getElementById('toggle-metronome');
@@ -5844,7 +5865,7 @@ class HarmoHubApp {
         // `chord` (jamais substitué) passé tel quel : schedulePlayback relit data.guitarOverride depuis
         // les données à CHAQUE croche pour le diagramme (voir son bloc de mise à jour visuelle),
         // toujours à jour même si le substitut change pendant que cet accord sonne encore.
-        const eventIds = this.schedulePlayback(notes, chord.getSeqMidiNotes(), seqPattern, seqTie, secPerBeat, timeOffset, chord.getRoleMap(), data.instrument || 'piano', chord, false, { section, index }, data.intensity, data.intensityPerStep);
+        const eventIds = this.schedulePlayback(notes, chord.getSeqMidiNotes(), seqPattern, seqTie, secPerBeat, timeOffset, chord.getRoleMap(), this.songInstrument, chord, false, { section, index }, data.intensity, data.intensityPerStep);
 
         // Métronome maintenu pendant la lecture (option activée) : un clic par temps de l'accord,
         // accentué sur le 1er temps de chaque mesure — indépendant des notes de l'accord jouées.
@@ -6178,7 +6199,6 @@ class HarmoHubApp {
             drop: document.getElementById('drop').value,
             bass: document.getElementById('bass').value || null,
             playStyle: document.getElementById('playStyle').value,
-            instrument: document.getElementById('instrument').value,
             arpPattern: document.getElementById('arpPattern').value,
             seqEdited: true,
             guitarLock: this.guitarLock || null,
@@ -6253,7 +6273,7 @@ class HarmoHubApp {
     // renversement/drop — précisables via "_", voir parseChordSymbol) à partir d'un symbole déjà
     // reconnu — partagé par addChordFromSymbol (un accord) et addChordsFromSymbolList (plusieurs,
     // séparés par "/").
-    buildChordData(parsed, beats, playStyle, instrument) {
+    buildChordData(parsed, beats, playStyle) {
         const bass = parsed.bass || null;
         const octave = parsed.octave ?? 3;
         const inversion = parsed.inversion ?? 0;
@@ -6270,7 +6290,8 @@ class HarmoHubApp {
             drop,
             bass,
             playStyle,
-            instrument,
+            // Plus de champ `instrument` ici : le son est un réglage DU MORCEAU (voir
+            // SONG_INSTRUMENT_DEFAUT), lu à la lecture depuis this.songInstrument.
             arpPattern: serializeSeqPattern(pattern, tie),
             seqEdited: false,
             guitarLock: null,
@@ -6297,8 +6318,7 @@ class HarmoHubApp {
         }
         const beats = parseInt(document.getElementById('duration').value) || 4;
         const playStyle = document.getElementById('playStyle').value;
-        const instrument = document.getElementById('instrument').value;
-        const data = this.buildChordData(parsed, beats, playStyle, instrument);
+        const data = this.buildChordData(parsed, beats, playStyle);
 
         const sections = loadProgressionSections();
         this.pushUndo(sections);
@@ -6308,37 +6328,6 @@ class HarmoHubApp {
 
         this.flashHint(`${noteNameForPc(NOTES.indexOf(parsed.root), this.useFlatsForRoot(parsed.root))}${QUALITY_LABEL[parsed.quality]} ajouté`);
         return true;
-    }
-
-    // Applique le son actuellement choisi dans le panneau Accord à TOUS les accords déjà posés, dans
-    // toutes les parties du morceau (voir #apply-instrument-all) — un seul pushUndo pour tout annuler
-    // en un coup, comme n'importe quelle autre modification en masse de l'appli.
-    applyInstrumentToSong() {
-        const instrument = document.getElementById('instrument').value;
-        const sections = loadProgressionSections();
-        const total = sections.reduce((n, sec) => n + sec.chords.length, 0);
-        if (total === 0) { this.flashHint('Aucun accord dans le morceau'); return; }
-        this.pushUndo(sections);
-        sections.forEach(sec => sec.chords.forEach(c => { c.instrument = instrument; }));
-        saveProgressionSections(sections);
-        hasUnsavedChanges = true;
-        this.loadProgression();
-        // Si un accord est en cours d'édition, redessine le séquenceur, qui affiche son style et son
-        // instrument. Appelait syncGridZoomPinnedSeq, méthode partie avec la vue plein écran de la
-        // grille : « Appliquer à tout le morceau » levait donc une TypeError juste après avoir écrit
-        // les données — l'instrument était bien changé, mais la suite de la méthode (report sur une
-        // lecture en cours, voir juste en dessous) ne s'exécutait jamais.
-        if (this.editingIndex != null) this.renderSequencer();
-        // Répercute tout de suite sur une lecture en cours (voir liveUpdateProgressionChord) : un
-        // patch local par accord DÉJÀ programmé cette lecture-ci suffit, l'instrument ne change ni la
-        // durée ni le minutage de rien.
-        if (this.isPlaying && this._playMode === 'progression') {
-            for (const key of this._progChordSlots.keys()) {
-                const [section, index] = key.split(':').map(Number);
-                this.liveUpdateProgressionChord(section, index);
-            }
-        }
-        this.flashHint(`Son appliqué à ${total} accord${total > 1 ? 's' : ''}`);
     }
 
     // Parse une liste "/" (ex. "CM7/Am7/F6/Bbm7") en tableau d'accords reconnus, ou renvoie null (en
@@ -6369,8 +6358,7 @@ class HarmoHubApp {
         }
         const beats = this.beatsPerBar();
         const playStyle = document.getElementById('playStyle').value;
-        const instrument = document.getElementById('instrument').value;
-        parsedList.forEach(parsed => sections[section].chords.push(this.buildChordData(parsed, beats, playStyle, instrument)));
+        parsedList.forEach(parsed => sections[section].chords.push(this.buildChordData(parsed, beats, playStyle)));
         saveProgressionSections(sections);
         this.activeSection = section;
         this.loadProgression();
@@ -6442,9 +6430,8 @@ class HarmoHubApp {
         const barBeats = this.beatsPerBar();
         const singleBeats = parseInt(document.getElementById('duration').value) || 4;
         const playStyle = document.getElementById('playStyle').value;
-        const instrument = document.getElementById('instrument').value;
         items.forEach(({ parsed, isBatch }) => {
-            sections[section].chords.push(this.buildChordData(parsed, isBatch ? barBeats : singleBeats, playStyle, instrument));
+            sections[section].chords.push(this.buildChordData(parsed, isBatch ? barBeats : singleBeats, playStyle));
         });
         saveProgressionSections(sections);
         this.activeSection = section;
@@ -6532,13 +6519,12 @@ class HarmoHubApp {
         const barBeats = this.beatsPerBar();
         const singleBeats = parseInt(document.getElementById('duration').value) || 4;
         const playStyle = document.getElementById('playStyle').value;
-        const instrument = document.getElementById('instrument').value;
 
         let totalChords = 0;
         parsedBlocks.forEach(items => {
             const sec = { title: '', chords: [] };
             items.forEach(({ parsed, isBatch }) => {
-                sec.chords.push(this.buildChordData(parsed, isBatch ? barBeats : singleBeats, playStyle, instrument));
+                sec.chords.push(this.buildChordData(parsed, isBatch ? barBeats : singleBeats, playStyle));
             });
             sections.push(sec);
             totalChords += items.length;
@@ -6662,7 +6648,6 @@ class HarmoHubApp {
         document.getElementById('drop').value = d.drop;
         document.getElementById('bass').value = d.bass || '';
         document.getElementById('playStyle').value = d.playStyle || 'held';
-        document.getElementById('instrument').value = d.instrument || 'piano';
         const intensityValue = (d.intensity != null) ? d.intensity : DEFAULT_INTENSITY;
         document.getElementById('intensity').value = intensityValue;
         const intensityValEl = document.getElementById('intensity-val');
@@ -7887,7 +7872,7 @@ class HarmoHubApp {
             timeSig: document.getElementById('time-sig').value,
             groove: document.getElementById('groove').value,
             bpm: parseInt(document.getElementById('bpm').value),
-            instrument: document.getElementById('instrument').value,
+            instrumentMorceau: this.songInstrument,
             sections: loadProgressionSections(),
             ...this.zoomSettingsForSong(),
         };
@@ -8122,10 +8107,6 @@ class HarmoHubApp {
         for (const id of CHORD_PARAM_IDS) {
             const el = document.getElementById(id);
             if (!el) continue;
-            // `instrument` est délibérément laissé de côté : c'est un réglage DU MORCEAU, que
-            // applySongSettingsToDom pose juste après nous avec la valeur enregistrée dans celui
-            // qu'on ouvre. Le remettre à zéro ici ne ferait que se faire écraser — ou pire, écraser.
-            if (id === 'instrument') continue;
             if (el.tagName === 'SELECT') {
                 const parDefaut = el.querySelector('option[selected]') || el.options[0];
                 if (parDefaut) el.value = parDefaut.value;
@@ -8169,14 +8150,15 @@ class HarmoHubApp {
         document.getElementById('groove').value = song.groove || 'straight';
         document.getElementById('bpm').value = song.bpm || 120;
         document.getElementById('bpm-val').value = String(song.bpm || 120);
-        // Son par défaut pour un NOUVEL accord ajouté à ce morceau (chaque accord déjà posé garde de
-        // toute façon le sien, voir data.instrument) — sans ça, il restait celui du dernier morceau
-        // ouvert plutôt que de retrouver celui utilisé quand celui-ci a été enregistré (retour
-        // utilisateur).
-        if (song.instrument && INSTRUMENT_BANKS[song.instrument]) {
-            document.getElementById('instrument').value = song.instrument;
-            localStorage.setItem(INSTRUMENT_KEY, song.instrument);
-        }
+        // LE SON DU MORCEAU. Un morceau enregistré depuis ce changement porte instrumentMorceau et
+        // le retrouve ; tout ce qui a été écrit AVANT rouvre sur Piano, décision de l'utilisateur.
+        // On ne se rabat volontairement PAS sur l'ancien song.instrument, qui ne voulait pas dire la
+        // même chose : c'était le son du prochain accord à ajouter, posé implicitement par le dernier
+        // accord touché. Le promouvoir en son du morceau entier ferait d'un choix accidentel la
+        // couleur de toute l'œuvre — Piano est le repli neutre, et un geste suffit pour choisir.
+        this.songInstrument = (song.instrumentMorceau && INSTRUMENT_BANKS[song.instrumentMorceau])
+            ? song.instrumentMorceau : SONG_INSTRUMENT_DEFAUT;
+        document.getElementById('instrument').value = this.songInstrument;
         // Échelles horizontale/verticale des loupes (voir zoomSettingsForSong) : reprises DE CE
         // MORCEAU (1 par défaut pour un morceau enregistré avant ce réglage, ou jamais zoomé) plutôt
         // que de laisser trainer celles du morceau précédemment ouvert sur cet appareil, ou de
@@ -8247,7 +8229,7 @@ class HarmoHubApp {
             timeSig: document.getElementById('time-sig').value,
             groove: document.getElementById('groove').value,
             bpm: parseInt(document.getElementById('bpm').value),
-            instrument: document.getElementById('instrument').value,
+            instrumentMorceau: this.songInstrument,
             ...this.zoomSettingsForSong(),
         });
         hasUnsavedChanges = false;
@@ -9815,7 +9797,7 @@ class HarmoHubApp {
                 const midis = chord.getSeqMidiNotes();
                 const { pattern, tie } = this.resolveSeqPatternForData(chord, data);
                 const steps = pattern.length;
-                const { builder, channel } = trackFor(data.instrument || 'piano');
+                const { builder, channel } = trackFor(this.songInstrument);
 
                 // Une voix à la fois : regroupe ses croches liées et contiguës en une seule note
                 // (même logique que schedulePlayback, voir plus haut), plutôt qu'une attaque par croche.
@@ -10107,7 +10089,7 @@ class HarmoHubApp {
             // triggerAttackRelease à un instant absolu s'exécute IMMÉDIATEMENT (contrairement à
             // Tone.Transport.schedule, différé) — sans cette attente, les accords joués au Piano
             // restaient silencieux (ou levaient une erreur), le temps que le chargement se termine.
-            sections.forEach(sec => sec.chords.forEach(data => instrumentFor(data.instrument || 'piano')));
+            sections.forEach(sec => sec.chords.forEach(data => instrumentFor(this.songInstrument)));
             await Tone.loaded();
 
             let timeOffset = lead;
@@ -10120,7 +10102,7 @@ class HarmoHubApp {
                     const steps = pattern.length;
                     const stepDur = secPerBeat / SEQ_STEPS_PER_BEAT;
                     const stepTime = (s) => timeOffset + grooveStepOffset(s, stepDur, grooveRatio);
-                    const instrument = instrumentFor(data.instrument || 'piano');
+                    const instrument = instrumentFor(this.songInstrument);
 
                     // Une voix à la fois : regroupe ses croches liées et contiguës en une seule note
                     // (même logique que schedulePlayback/buildMidiFile), plutôt qu'une attaque par croche.
@@ -16041,7 +16023,7 @@ class HarmoHubApp {
         // toujours à jour même si le substitut change pendant que cet accord sonne encore (voir le bug
         // observé lors des tests de cette fonctionnalité : le bandeau revenait périodiquement à
         // l'ancien substitut tant que guitarChord, figé, restait passé ici).
-        this.schedulePlayback(notes, midis, seqPattern, seqTie, secPerBeat, 0.1, roleMap, data.instrument || 'piano', chord, false, { section, index }, data.intensity, data.intensityPerStep);
+        this.schedulePlayback(notes, midis, seqPattern, seqTie, secPerBeat, 0.1, roleMap, this.songInstrument, chord, false, { section, index }, data.intensity, data.intensityPerStep);
         this.isPlaying = true;
 
         // Attend que l'instrument soit prêt avant de démarrer le transport (voir playCurrent)
@@ -16853,9 +16835,11 @@ class HarmoHubApp {
     // ---------- Un rythme pour toute une partie ----------
     // Retour utilisateur, à la question « quelles sont tes meilleures idées pour améliorer la
     // définition du rythme et de la durée des accords ? » : donner le même rythme à huit accords
-    // demandait sept coups de pipette. Le pendant, côté rythme, de « ce son pour tout le morceau »
-    // (voir applyInstrumentToSong), dont ce code reprend la forme — instantané Ctrl+Z unique,
-    // re-rendu, report sur une lecture en cours, message final chiffré.
+    // demandait sept coups de pipette. Né comme le pendant, côté rythme, du bouton « ce son pour tout
+    // le morceau », dont ce code reprend la forme — instantané Ctrl+Z unique, re-rendu, report sur une
+    // lecture en cours, message final chiffré. Ce bouton-là a depuis disparu, le son étant devenu un
+    // réglage unique du morceau ; celui-ci reste, et la dissymétrie EST le point : le rythme, lui,
+    // diffère d'une partie à l'autre, il ne peut pas se réduire à une valeur pour tout le morceau.
     //
     // LA PARTIE, PAS LE MORCEAU. Un couplet et un refrain n'ont presque jamais le même rythme : à
     // l'échelle du morceau, ce bouton effacerait plus souvent qu'il ne servirait. La partie est

@@ -92,22 +92,29 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     console.log((after4.gen === genBefore4 && after4.isPlaying && after4.intensities[0] === 40 && after4.intensities[1] === 40 && after4.intensities[2] !== 40) ? 'PASS (patch local sans redémarrage, intensité appliquée aux 2 sélectionnés seulement)' : 'FAIL');
     await page.evaluate(() => window.app.stopAll());
 
-    console.log('=== TEST 5 : "appliquer le son à tout le morceau" pendant la lecture (patch local par accord) ===');
+    console.log('=== TEST 5 : changer le son du morceau pendant la lecture (patch local, pas de redémarrage) ===');
     await page.evaluate(() => { document.getElementById('bpm').value = '120'; window.app.playProgression(); });
     await page.waitForFunction(() => window.app.isPlaying === true, { timeout: 10000 });
     await page.waitForTimeout(100);
     const genBefore5 = await page.evaluate(() => window.app._playGen);
+    // LE SON N'EST PLUS RECOPIÉ DANS CHAQUE ACCORD. Ce banc appelait applyInstrumentToSong() et
+    // vérifiait que les N accords portaient tous 'epiano'. Le bouton « appliquer à tout » n'existe
+    // plus : le son est un réglage UNIQUE du morceau (retour utilisateur : « à définir une fois dans
+    // morceau uniquement, et tout le morceau prendra cet instrument »), il n'y a donc plus rien à
+    // propager — et plus de champ par accord à relire.
+    // Ce que la section éprouve reste le même, et c'est le point : changer le son PENDANT la lecture
+    // ne redémarre pas la boucle. On passe par le vrai évènement du sélecteur, pas par une méthode.
     await page.evaluate(() => {
-        document.getElementById('instrument').value = 'epiano';
-        window.app.applyInstrumentToSong();
+        const s = document.getElementById('instrument');
+        s.value = 'epiano';
+        s.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    await page.waitForTimeout(150);
-    const after5 = await page.evaluate(() => {
-        const sections = JSON.parse(localStorage.getItem('myProgression')).sections;
-        return { gen: window.app._playGen, isPlaying: window.app.isPlaying, instruments: sections[0].chords.map(c => c.instrument) };
-    });
+    await page.waitForTimeout(250);
+    const after5 = await page.evaluate(() => ({
+        gen: window.app._playGen, isPlaying: window.app.isPlaying, son: window.app.songInstrument,
+    }));
     console.log(JSON.stringify({ genBefore5, after5 }));
-    console.log((after5.gen === genBefore5 && after5.isPlaying && after5.instruments.every(i => i === 'epiano')) ? 'PASS (patch local sans redémarrage, instrument appliqué partout)' : 'FAIL');
+    console.log((after5.gen === genBefore5 && after5.isPlaying && after5.son === 'epiano') ? 'PASS (patch local sans redémarrage, son du morceau appliqué)' : 'FAIL');
     await page.evaluate(() => window.app.stopAll());
 
     console.log('Errors:', JSON.stringify(errors));

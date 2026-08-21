@@ -1635,3 +1635,84 @@ de la liste — `continuous_scroll`, `grid_loupe_pinch_undo`, `pinch_smoothness_
 dette qu'ils affichaient n'existait pas. Un relevé qui compte des choses fausses ne se contente pas
 de faire du bruit, il **cache le vrai** : neuf entrées à ignorer, ce sont neuf raisons de ne plus
 regarder la liste du tout.
+
+## Le son appartient au morceau, plus à l'accord
+
+> « On va simplifier les types d'instruments : à définir une fois dans morceau uniquement, et tout le
+> morceau prendra cet instrument, je ne ferai jamais de mélange. À cacher une fois modifié (dans la
+> popover morceau). »
+
+**Trois mécanismes pour un réglage qui ne varie jamais.** Le son était écrit dans CHAQUE accord
+(`data.instrument`), présélectionné par une clé d'appareil (`harmohubInstrument`), et recopiable
+partout par un bouton « pot de peinture ». Il n'en reste **qu'un** : le champ `instrumentMorceau` du
+morceau. Le `<select id="instrument">` a gardé son identifiant et son rôle de source de vérité ; seule
+son autorité a changé — il ne décrit plus l'accord ouvert mais le morceau entier.
+
+### Un champ NEUF, et pas l'ancien réutilisé
+
+`song.instrument` existait déjà. Le tenter aurait été l'erreur : il voulait dire **autre chose** —
+« le son du PROCHAIN accord ajouté à ce morceau », posé implicitement par le dernier accord touché.
+Le relire comme le son du morceau ferait d'un choix accidentel la couleur de l'œuvre entière.
+
+Un champ neuf distingue sans ambiguïté :
+- **écrit avant** (aucun `instrumentMorceau`) → Piano, repli neutre, un geste pour en changer ;
+- **enregistré depuis** → le champ fait foi.
+
+C'est le choix retenu par l'utilisateur (« Toujours Piano » pour l'existant), et c'est aussi le plus
+défendable techniquement. Les anciens champs restent dans les fichiers, **inertes** : on ne réécrit
+pas des morceaux enregistrés pour effacer une donnée devenue muette.
+
+### J'ai supprimé 4516 lignes, et `node --check` n'a rien vu
+
+Le pire incident de ce chantier, et il est entièrement de mon fait. Mon script de retrait coupait de
+`// Applique le son actuellement choisi…` jusqu'à la première occurrence de :
+
+```
+            }
+        }
+    }
+```
+
+Ce motif — trois fermetures d'accolade et une ligne vide — **n'a rien d'unique dans un fichier de
+17 000 lignes**. Il a matché des milliers de lignes plus loin et emporté **4516 lignes**, soit un
+quart de l'application. Le fichier restait syntaxiquement valide : `node --check` est passé sans
+broncher, exactement comme le jour du bouton « … ».
+
+Deux règles en sortent, et la seconde est nouvelle :
+
+1. **Un marqueur de fin fait de ponctuation générique n'identifie rien.** Pour couper une méthode, on
+   trouve sa ligne d'ouverture et on **suit ses accolades** jusqu'à l'équilibre. Le script réécrit le
+   fait, et il a mesuré 31 lignes — la bonne taille.
+2. **Un script de retrait doit refuser de déraper.** Il compte les lignes avant et après, et **lève une
+   erreur au lieu d'écrire** si la variation dépasse un plafond plausible. Une coupe qui part de
+   travers s'arrête d'elle-même. C'est ce garde-fou qui manquait : le premier script aurait été stoppé
+   net par un plafond à 60 lignes.
+
+Rattrapé par `git checkout` — le travail non commité du lot a été refait, ce qui est le vrai coût de
+l'incident. Rien n'est parti dans un commit.
+
+### Ce qui est éprouvé, et ce que ça a demandé aux bancs existants
+
+Le nouveau banc `instrument_du_morceau_test` (19/19) va jusqu'au **bout du fil** : sa section E
+intercepte `getInstrument` pendant une vraie lecture et vérifie que **rien d'autre** que le son du
+morceau n'est demandé à la banque de sons. Une valeur bien rangée dans le stockage ne prouve pas
+qu'elle est jouée.
+
+Quatre bancs ont dû être adaptés, et chacun pour une raison de fond :
+
+- `filet_moteur_edition_test` : l'instrument quitte la liste des réglages qui FONT un accord — il
+  n'écrit plus rien dans un accord, il n'y a plus de champ à comparer ;
+- `filet_sequenceur_et_sortie_test` : il quitte la liste des commandes de la carte, comme l'intensité
+  au lot précédent — deux départs, la même raison ;
+- `live_loop_update_test` : sa section 5 appelait `applyInstrumentToSong()`. Elle passe désormais par
+  le **vrai évènement du sélecteur** et éprouve la même chose qu'avant, qui est ce qui compte : changer
+  le son pendant la lecture ne redémarre pas la boucle ;
+- `probe_instrument_tout_test` → `probe_instrument_pendant_edition_test`. Son bouton a disparu, **mais
+  pas le danger qu'il gardait** : l'appel mort à `syncGridZoomPinnedSeq` s'était caché dans la branche
+  « un accord est en cours d'édition », et changer le son pendant une modification touche toujours au
+  séquenceur. Le banc vise donc la nouvelle porte.
+
+**Et une erreur de banc, encore la même famille.** Ma première version de ce dernier affirmait « le
+séquenceur est toujours là » sans l'avoir ouvert : `.seq-grid` était absent AVANT comme APRÈS, et le
+banc accusait le changement de son d'une disparition qui n'avait jamais eu lieu. Corrigé en relevant
+l'état **avant** — un relevé « avant » rend ce genre d'accusation impossible.

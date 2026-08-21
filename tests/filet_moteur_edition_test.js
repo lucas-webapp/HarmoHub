@@ -44,7 +44,11 @@ const REGLAGES = [
     // changement (« held » → «  ») et passait au vert pour de mauvaises raisons. Les valeurs réelles
     // sont des LONGUEURS de note (ronde/blanche/noire/croche, liées ou détachées), pas des arpèges.
     { id: 'playStyle',  valeur: 'noire_staccato', champ: 'playStyle', evt: 'change', nom: 'le style de jeu' },
-    { id: 'instrument', valeur: null,     champ: 'instrument', evt: 'change', nom: "l'instrument" },
+    // L'INSTRUMENT A QUITTÉ CETTE LISTE, et ce n'est pas un oubli. Retour utilisateur : « à définir
+    // une fois dans morceau uniquement, et tout le morceau prendra cet instrument, je ne ferai jamais
+    // de mélange. » Il n'écrit donc plus rien DANS un accord — il n'y a plus de champ data.instrument
+    // à comparer, et cette liste-ci ne parle que des réglages qui font un accord. Ce qu'il devient est
+    // éprouvé par instrument_du_morceau_test : le son suit le morceau, et le suit jusqu'au fichier.
     { id: 'intensity',  valeur: '95',     champ: 'intensity',  evt: 'input',  nom: "l'intensité" },
 ];
 
@@ -75,14 +79,6 @@ const lireAccord = (i) => JSON.parse(localStorage.getItem('myProgression')).sect
     await page.evaluate(seed);
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(500);
-
-    // L'instrument n'a pas de valeur fixe connue d'avance (la banque de sons évolue) : on prend la
-    // deuxième option offerte, quelle qu'elle soit, plutôt que d'en coder une en dur qui périmerait.
-    REGLAGES.find(r => r.id === 'instrument').valeur = await page.evaluate(() => {
-        const s = document.getElementById('instrument');
-        const autre = [...s.options].find(o => o.value !== s.value && !o.disabled);
-        return autre ? autre.value : null;
-    });
 
     console.log('=== A. Chaque réglage s\'applique en direct à l\'accord édité, et Ctrl+Z le reprend ===');
     for (const r of REGLAGES) {
