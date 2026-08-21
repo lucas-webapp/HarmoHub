@@ -15,6 +15,14 @@
 // que rien ne le dise. Et comme pour la rangée de voicing, une commande débranchée est invisible à
 // l'œil : le bouton s'allume et rien n'arrive dans l'accord. On éprouve donc systématiquement les
 // deux bouts du fil.
+//
+// EN MODE AJOUT, ET C'EST VOULU. Ce banc n'ouvre AUCUN accord. Depuis que Rythme et Durée sont
+// cachés en mode Modification (retour utilisateur : « je ne me servirai pas souvent de ces options
+// de lecture… vu que je modifie plus rapidement le séquenceur »), les mesurer après un editChord
+// revenait à mesurer des boîtes en display:none : largeur 0, hauteur 0, étiquette « au-dessus » de
+// rien du tout. Toutes les vérifications de forme passaient au vert sans rien éprouver. On mesure
+// donc là où la rangée est réellement affichée, et la section G vérifie séparément qu'elle
+// disparaît bien en mode Modification.
 const { chromium, devices } = require('playwright');
 const creerHarnais = require('./_harness');
 const { plan, check, exiger, bilan } = creerHarnais('Carte Lecture : même principe que la carte Accord');
@@ -25,9 +33,7 @@ const seed = () => {
     const song = {
         id: 'lecture', name: 'Ballade', bpm: 120, timeSig: '4/4', groove: 'straight',
         sections: [{ title: 'Couplet', chords: [
-            mk('A', 'm6', 8, { intensity: 75 }),   // pile sur un niveau
-            // Intensité qui ne tombe sur AUCUN des cinq niveaux : le cas des morceaux écrits AVANT ce
-            // changement. Il ne doit être ni réécrit en silence, ni affiché comme s'il était exact.
+            mk('A', 'm6', 8, { intensity: 75 }),
             mk('C', 'maj7', 4, { intensity: 60 }),
         ] }],
     };
@@ -35,7 +41,6 @@ const seed = () => {
     localStorage.setItem('harmohubCurrentSongId', song.id);
     localStorage.setItem('myProgression', JSON.stringify({ sections: song.sections }));
 };
-const accord = (i) => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[i];
 
 const atteignable = (sel) => {
     const el = document.querySelector(sel);
@@ -51,7 +56,7 @@ const atteignable = (sel) => {
 };
 
 (async () => {
-    plan(26);
+    plan(18);   // quatre familles sont parties dans intensite_reparee_test.js, voir plus bas
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -61,8 +66,6 @@ const atteignable = (sel) => {
     await page.evaluate(seed);
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(900);
-    await page.evaluate(() => window.app.editChord(0, 0));
-    await page.waitForTimeout(600);
 
     console.log('=== A. Ce sont les MÊMES classes, pas une imitation ===');
     // Le cœur de la demande. Une ressemblance obtenue en recopiant l'aspect se défait à la première
@@ -72,18 +75,23 @@ const atteignable = (sel) => {
         if (!l || !v) return null;
         const cl = (el, s) => !!el.querySelector(s);
         return {
+            mode: document.body.dataset.appMode,
             memeRangee: l.classList.contains('voicing-row') && v.classList.contains('voicing-row'),
             groupes: cl(l, '.voicing-group') && cl(v, '.voicing-group'),
             etiquettes: cl(l, '.voicing-label') && cl(v, '.voicing-label'),
-            segments: cl(l, '.voicing-seg .voicing-segment') && cl(v, '.voicing-seg .voicing-segment'),
-            nbGroupesLecture: l.querySelectorAll('.voicing-group').length,
+            // La rangée Lecture n'a plus de segments à elle (ils étaient ceux de l'intensité) : ce
+            // qu'on vérifie est qu'elle partage bien les classes de STRUCTURE avec celle du dessus.
+            segments: cl(v, '.voicing-seg .voicing-segment'),
+            nbGroupesVisibles: [...l.querySelectorAll('.voicing-group')].filter(g => g.offsetParent !== null).length,
         };
     });
     exiger(!!partage, 'les deux rangées existent');
+    exiger(partage.mode === 'add', `le banc mesure en mode Ajout, là où la rangée s'affiche — mode « ${partage.mode} »`);
     check(partage.memeRangee, 'la rangée Lecture EST une .voicing-row, comme celle de la carte Accord');
     check(partage.groupes && partage.etiquettes && partage.segments,
-        'elle réutilise .voicing-group, .voicing-label et .voicing-seg/.voicing-segment');
-    check(partage.nbGroupesLecture === 3, `trois groupes étiquetés : Jeu, Durée, Intensité — ${partage.nbGroupesLecture}`);
+        'elle réutilise .voicing-group et .voicing-label, et la rangée du dessus garde ses segments');
+    // DEUX groupes désormais, et non trois : l'intensité est partie au menu contextuel de l'accord.
+    check(partage.nbGroupesVisibles === 2, `deux groupes étiquetés et visibles : Rythme et Durée — ${partage.nbGroupesVisibles}`);
     // Et les deux formes d'avant ne doivent plus exister : les laisser en place, c'est laisser
     // quelqu'un les rebrancher un jour.
     const parties = await page.evaluate(() => ({
@@ -97,90 +105,27 @@ const atteignable = (sel) => {
     console.log('\n=== B. Les étiquettes sont AU-DESSUS, comme dans la carte Accord ===');
     // C'est ce qui fait qu'elles ne coûtent rien en largeur — et c'est le détail qui rendait la carte
     // Lecture différente : son « Intensité » était à gauche de la barre, sur la même ligne.
-    const dessus = await page.evaluate(() => [...document.querySelectorAll('#lecture-row .voicing-group')].map(g => {
-        const lab = g.querySelector('.voicing-label').getBoundingClientRect();
-        const ctl = [...g.children].find(c => !c.classList.contains('voicing-label')).getBoundingClientRect();
-        return { t: g.querySelector('.voicing-label').textContent.trim().split(' ')[0], auDessus: lab.bottom <= ctl.top + 1 };
-    }));
-    check(dessus.every(d => d.auDessus), `les trois étiquettes sont au-dessus de leur commande — ${dessus.map(d => d.t).join(', ')}`);
-
-    console.log('\n=== C. Cinq niveaux, construits depuis la table, jamais écrits en dur ===');
-    const niveaux = await page.evaluate(() => ({
-        n: document.querySelectorAll('#intensity-seg .voicing-segment').length,
-        valeurs: [...document.querySelectorAll('#intensity-seg .voicing-segment')].map(b => +b.dataset.valeur),
-        libelles: [...document.querySelectorAll('#intensity-seg .voicing-segment')].map(b => b.textContent.trim()),
-        contientDefaut: [...document.querySelectorAll('#intensity-seg .voicing-segment')].some(b => +b.dataset.valeur === 75),
-    }));
-    check(niveaux.n === 5, `cinq niveaux, pas un de plus — ${niveaux.n}`);
-    check(JSON.stringify(niveaux.libelles) === '["1","2","3","4","5"]', `numérotés 1 à 5 — ${niveaux.libelles.join(' ')}`);
-    check(niveaux.valeurs.every((v, i) => i === 0 || v > niveaux.valeurs[i - 1]), `les valeurs montent — ${niveaux.valeurs.join(', ')}`);
-    // 75 DOIT rester atteignable à l'identique : c'est la valeur par défaut de tous les accords déjà
-    // écrits, et computeVelocity s'en sert comme référence (mult = percent / 75). La déplacer aurait
-    // changé le son de morceaux existants.
-    check(niveaux.contientDefaut, 'la valeur par défaut (75) est l\'un des cinq niveaux, inchangée');
-
-    console.log('\n=== D. Les deux bouts du fil : le bouton ET la donnée ===');
-    const avant = await page.evaluate(accord, 0);
-    await page.click('#intensity-seg .voicing-segment[data-valeur="35"]');
-    await page.waitForTimeout(450);
-    check((await page.evaluate(accord, 0)).intensity === 35,
-        `cliquer un niveau écrit l'intensité dans l'accord — ${avant.intensity} → ${(await page.evaluate(accord, 0)).intensity}`);
-    check(await page.evaluate(() => +document.getElementById('intensity').value) === 35,
-        'la barre d\'origine, restée source de vérité, porte la même valeur');
-    check(await page.evaluate(() => document.querySelector('#intensity-seg .voicing-segment[data-valeur="35"]').classList.contains('active')),
-        'et le niveau cliqué s\'affiche comme retenu');
-    check(await page.evaluate(() => document.getElementById('intensity-val').textContent.trim()) === '35',
-        'le nombre affiché dans l\'étiquette suit');
-
-    // Ctrl+Z : le chemin d'annulation ne doit rien savoir de la nouvelle commande.
-    await page.evaluate(() => document.activeElement && document.activeElement.blur());
-    await page.keyboard.press('Control+z');
-    await page.waitForTimeout(450);
-    check((await page.evaluate(accord, 0)).intensity === avant.intensity,
-        `Ctrl+Z reprend l'intensité d'avant — ${avant.intensity}`);
-
-    console.log('\n=== E. Une valeur héritée n\'est ni réécrite, ni affichée comme exacte ===');
-    // Le cas des morceaux écrits avant les cinq niveaux. Réécrire en silence à la simple ouverture de
-    // l'accord aurait modifié leur son sans que personne ne demande rien.
-    await page.evaluate(() => window.app.editChord(0, 1));
-    await page.waitForTimeout(600);
-    const herite = await page.evaluate(() => ({
-        donnee: JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[1].intensity,
-        champ: +document.getElementById('intensity').value,
-        affiche: document.getElementById('intensity-val').textContent.trim(),
-        allume: [...document.querySelectorAll('#intensity-seg .voicing-segment.active')].map(b => b.dataset.valeur),
-        approx: [...document.querySelectorAll('#intensity-seg .voicing-segment.approx')].map(b => b.dataset.valeur),
-    }));
-    check(herite.donnee === 60 && herite.champ === 60, `la donnée n'a pas bougé à l'ouverture — ${herite.donnee}`);
-    check(herite.affiche === '60', `le nombre exact reste lisible dans l'étiquette — « ${herite.affiche} »`);
-    check(herite.allume.length === 1 && herite.allume[0] === '55', `le niveau le plus proche est désigné — ${herite.allume.join(',')}`);
-    check(herite.approx.length === 1, 'et il est marqué « à peu près » : la commande n\'affirme pas une valeur que l\'accord n\'a pas');
-    // Cliquer, en revanche, écrit franchement.
-    await page.click('#intensity-seg .voicing-segment[data-valeur="55"]');
-    await page.waitForTimeout(450);
-    const apresClic = await page.evaluate(() => ({
-        donnee: JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[1].intensity,
-        approx: document.querySelectorAll('#intensity-seg .voicing-segment.approx').length,
-    }));
-    check(apresClic.donnee === 55 && apresClic.approx === 0,
-        `un clic, lui, écrit franchement la valeur du niveau — ${apresClic.donnee}, plus de « à peu près »`);
-
-    console.log('\n=== F. Le mode studio est devenu la dernière case de l\'échelle ===');
-    const studio = await page.evaluate(() => {
-        const b = document.getElementById('toggle-studio-mode');
-        const seg = document.getElementById('intensity-seg');
-        return { dansLaBande: !!b && b.parentElement === seg, dernier: seg.lastElementChild === b };
-    });
-    check(studio.dansLaBande && studio.dernier,
-        'il ferme la bande d\'intensité, à la suite des cinq niveaux — c\'en est le réglage fin');
-    const rStudio = await page.evaluate(atteignable, '#toggle-studio-mode');
-    check(rStudio.ok, `et il reste atteignable — ${rStudio.ok ? rStudio.taille : rStudio.pourquoi}`);
-    const avantStudio = await page.evaluate(() => window.app.studioMode);
-    await page.click('#toggle-studio-mode');
-    await page.waitForTimeout(400);
-    check(await page.evaluate(() => window.app.studioMode) !== avantStudio, 'il bascule toujours le mode studio');
-    await page.click('#toggle-studio-mode');
-    await page.waitForTimeout(300);
+    const dessus = await page.evaluate(() => [...document.querySelectorAll('#lecture-row .voicing-group')]
+        .filter(g => g.offsetParent !== null).map(g => {
+            const lab = g.querySelector('.voicing-label').getBoundingClientRect();
+            const ctl = [...g.children].find(c => !c.classList.contains('voicing-label')).getBoundingClientRect();
+            // Des boîtes réellement dessinées : sans hauteur, « au-dessus » ne veut rien dire.
+            return { t: g.querySelector('.voicing-label').textContent.trim().split(' ')[0],
+                     auDessus: lab.height > 0 && ctl.height > 0 && lab.bottom <= ctl.top + 1 };
+        }));
+    check(dessus.length === 2 && dessus.every(d => d.auDessus),
+        `les étiquettes sont au-dessus de leur commande — ${dessus.map(d => d.t).join(', ')}`);
+    // ============================================================
+    // SECTIONS C À F DÉPLACÉES, PAS SUPPRIMÉES.
+    // ============================================================
+    // Elles éprouvaient les cinq niveaux d'intensité, leur câblage, le sort d'une valeur héritée et la
+    // place du mode studio. L'intensité a depuis quitté la carte pour le menu contextuel d'un accord
+    // (retour utilisateur : « Pas besoin de tout le temps le laisser afficher, c'est une option pour
+    // affiner le morceau seulement. À cacher. ») et le mode studio l'a suivie dans la barre d'outils du
+    // séquenceur. Ces quatre familles vivent désormais dans intensite_reparee_test.js, qui les éprouve
+    // à leur nouvelle adresse ET vérifie en plus le défaut qui les a fait bouger : trois des cinq
+    // niveaux donnaient la même vélocité sur un accord tenu.
+    // Ce banc-ci garde ce qui lui appartient : la FORME de la rangée.
 
     console.log('\n=== G. Rien ne déborde, et la carte a maigri ===');
     for (const [w, h] of [[1440, 950], [1024, 768], [768, 900]]) {
@@ -188,21 +133,31 @@ const atteignable = (sel) => {
         await page.waitForTimeout(400);
         const m = await page.evaluate(() => {
             const row = document.getElementById('lecture-row');
-            const seg = document.getElementById('intensity-seg');
             const coupes = [...document.querySelectorAll('#lecture-row .duration-dd-label, #lecture-row .playstyle-dd-label')]
-                .filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.textContent.trim());
-            return { trop: row.scrollWidth - row.clientWidth, segTrop: seg.scrollWidth - seg.clientWidth,
+                .filter(e => e.offsetParent !== null && e.scrollWidth > e.clientWidth + 1).map(e => e.textContent.trim());
+            return { trop: row.scrollWidth - row.clientWidth,
                      page: document.documentElement.scrollWidth - document.documentElement.clientWidth, coupes };
         });
-        check(m.trop <= 0 && m.segTrop <= 0 && m.page <= 0 && m.coupes.length === 0,
-            `${w}px : rangée ${m.trop}px, bande d'intensité ${m.segTrop}px, aucun libellé tronqué${m.coupes.length ? ' (' + m.coupes.join(', ') + ')' : ''}`);
+        check(m.trop <= 0 && m.page <= 0 && m.coupes.length === 0,
+            `${w}px : rangée ${m.trop}px, page ${m.page}px, aucun libellé tronqué${m.coupes.length ? ' (' + m.coupes.join(', ') + ')' : ''}`);
     }
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.waitForTimeout(300);
-    const hauteur = await page.evaluate(() => Math.round(document.getElementById('lecture-card').getBoundingClientRect().height));
+    const hAjout = await page.evaluate(() => Math.round(document.getElementById('lecture-card').getBoundingClientRect().height));
     // 160px avant, mesuré sur ce même écran. On vérifie le GAIN, pas une valeur au pixel près : une
-    // retouche de police ou d'espacement ferait rougir un banc qui exigerait exactement 124.
-    check(hauteur <= 140, `la carte a maigri : ${hauteur}px contre 160px avant (mesuré sur le même écran)`);
+    // retouche de police ou d'espacement ferait rougir un banc qui exigerait exactement 122.
+    check(hAjout <= 140, `mode Ajout : ${hAjout}px contre 160px avant (mesuré sur le même écran)`);
+    // Et en mode Modification la rangée s'efface entièrement : la carte doit vraiment rétrécir, pas
+    // garder un trou de la taille des boutons disparus.
+    await page.evaluate(() => window.app.editChord(0, 0));
+    await page.waitForTimeout(600);
+    const hEdit = await page.evaluate(() => ({
+        mode: document.body.dataset.appMode,
+        h: Math.round(document.getElementById('lecture-card').getBoundingClientRect().height),
+        visibles: [...document.querySelectorAll('#lecture-row .voicing-group')].filter(g => g.offsetParent !== null).length,
+    }));
+    check(hEdit.mode === 'edit' && hEdit.visibles === 0 && hEdit.h < hAjout - 30,
+        `mode Modification : ${hEdit.visibles} groupe(s) visible(s) et la carte tombe à ${hEdit.h}px (contre ${hAjout}px)`);
     await page.close();
 
     console.log('\n=== H. Téléphone : les mêmes gestes, au doigt ===');
@@ -214,30 +169,22 @@ const atteignable = (sel) => {
     await m.evaluate(seed);
     await m.reload({ waitUntil: 'load' });
     await m.waitForTimeout(1000);
-    await m.evaluate(() => window.app.editChord(0, 0));
-    await m.waitForTimeout(700);
 
     const geo = await m.evaluate(() => {
         const row = document.getElementById('lecture-row');
         const carte = document.getElementById('lecture-card').getBoundingClientRect();
         const r = row.getBoundingClientRect();
-        // VISIBLES SEULEMENT. Depuis que Rythme et Durée ne s'affichent plus en mode Modification
-        // (retour utilisateur : « je ne me servirai pas souvent de ces options de lecture… vu que je
-        // modifie plus rapidement le séquenceur »), leurs boutons sont en display:none et mesurent
-        // donc 0x0. Les compter faisait annoncer « la plus petite cible fait 0x0 » — une alerte sur
-        // des boutons qui, précisément, ne sont pas là. Ce qu'on veut savoir reste le même : les
-        // cibles RÉELLEMENT proposées sont-elles assez grandes pour le doigt.
-        const cibles = [...document.querySelectorAll('#lecture-row .voicing-segment, #lecture-row .voicing-step, #lecture-row .playstyle-dd-toggle, #lecture-row .duration-dd-toggle')]
+        const cibles = [...document.querySelectorAll('#lecture-row .playstyle-dd-toggle, #lecture-row .duration-dd-toggle')]
             .filter(x => x.offsetParent !== null).map(x => x.getBoundingClientRect());
         return { deborde: r.right > carte.right + 1 || row.scrollWidth > row.clientWidth,
                  page: document.documentElement.scrollWidth > window.innerWidth + 1,
-                 hMin: Math.round(Math.min(...cibles.map(x => x.height))),
-                 lMin: Math.round(Math.min(...cibles.map(x => x.width))),
+                 hMin: cibles.length ? Math.round(Math.min(...cibles.map(x => x.height))) : 0,
+                 lMin: cibles.length ? Math.round(Math.min(...cibles.map(x => x.width))) : 0,
                  nb: cibles.length,
                  hauteur: Math.round(carte.height) };
     });
     check(!geo.deborde && !geo.page, 'téléphone : la rangée tient dans la carte, sans débordement de page');
-    check(geo.hMin >= 28 && geo.lMin >= 20,
+    check(geo.nb === 2 && geo.hMin >= 28 && geo.lMin >= 20,
         `téléphone : les ${geo.nb} cibles font au moins 28px de haut et 20px de large — ${geo.lMin}x${geo.hMin} au plus petit`);
     check(geo.hauteur <= 150, `téléphone : la carte fait ${geo.hauteur}px contre 182px avant`);
 
@@ -246,11 +193,19 @@ const atteignable = (sel) => {
     // n'arrivait plus à fermer alors que le banc, lui, le fermait par window.app.toggleSequencer).
     await m.evaluate(() => document.getElementById('lecture-card').scrollIntoView({ block: 'center' }));
     await m.waitForTimeout(400);
-    const r1 = await m.evaluate(atteignable, '#intensity-seg .voicing-segment[data-valeur="90"]');
-    exiger(r1.ok, `téléphone : le niveau 4 est réellement atteignable — ${r1.ok ? r1.taille : r1.pourquoi}`);
-    await m.tap('#intensity-seg .voicing-segment[data-valeur="90"]');
-    await m.waitForTimeout(500);
-    check((await m.evaluate(accord, 0)).intensity === 90, 'téléphone : un vrai appui pose le niveau 4');
+    const r1 = await m.evaluate(atteignable, '#playstyle-dd-toggle');
+    exiger(r1.ok, `téléphone : le bouton Rythme est réellement atteignable — ${r1.ok ? r1.taille : r1.pourquoi}`);
+    await m.tap('#playstyle-dd-toggle');
+    await m.waitForTimeout(400);
+    await m.tap('.playstyle-dd-item[data-value="noire_maintenu"]');
+    await m.waitForTimeout(400);
+    // La source de vérité, et non l'étiquette du bouton : c'est #playStyle que lit readChord().
+    const pose = await m.evaluate(() => ({
+        valeur: document.getElementById('playStyle').value,
+        ferme: document.getElementById('playstyle-dd-menu').hidden,
+    }));
+    check(pose.valeur === 'noire_maintenu' && pose.ferme,
+        `téléphone : deux appuis posent le rythme dans #playStyle — « ${pose.valeur} », menu ${pose.ferme ? 'refermé' : 'RESTÉ OUVERT'}`);
 
     check(erreurs.length === 0, `aucune erreur JavaScript — ${erreurs.join(' | ') || 'aucune'}`);
     await browser.close();

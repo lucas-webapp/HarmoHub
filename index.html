@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608241400">
+    <link rel="stylesheet" href="style.css?v=202608241600">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -106,6 +106,12 @@
              tout le travail d'allègement des cartes. Icône : la même feuille rythmique que les deux
              pipettes juste au-dessus (on parle bien de la même chose) mais répétée sur trois cases,
              pour dire « à tous les accords » plutôt que « à un autre ». -->
+        <!-- Intensité : cinq niveaux, dans un menu à part plutôt que cinq lignes ici — ce menu en
+             compte déjà onze, et cinq de plus l'auraient rendu illisible. -->
+        <button type="button" data-ctx-action="intensity" hidden>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M5 20V14"/><path d="M5 10V4"/><circle cx="5" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M12 20V16"/><path d="M12 12V4"/><circle cx="12" cy="14" r="2" fill="currentColor" stroke="none"/><path d="M19 20V9"/><path d="M19 5V4"/><circle cx="19" cy="7" r="2" fill="currentColor" stroke="none"/></svg>
+            <span class="ctx-label">Intensité…</span>
+        </button>
         <button type="button" data-ctx-action="rhythm-to-section" hidden>
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.95 2.6a1.05 1.05 0 0 1 2.1 0l.2 3.6h-2.5z"/><path d="M8.6 6.2h6.8v3.2H8.6z"/><path d="M8.6 7.8h6.8"/><path d="M8.6 9.4h6.8v3.2l-1.15 1.5-1.1-1.25-1.15 1.4-1.1-1.3-1.15 1.35-1.15-1.35z"/><rect x="2.2" y="17.4" width="6" height="4.4" rx="1.2"/><rect x="9" y="17.4" width="6" height="4.4" rx="1.2"/><rect x="15.8" y="17.4" width="6" height="4.4" rx="1.2"/><path d="M5.2 19v1.2M11.9 19v1.2M18.8 19v1.2"/></svg>
             <span class="ctx-label">Ce rythme pour toute la partie</span>
@@ -135,6 +141,14 @@
          l'œil. Un menu flottant se range avec les autres menus flottants.
          Leurs <button> restent des <button> : la zone d'édition les couvre déjà par ce seul mot (voir
          ZONE_EDITION_SELECTEURS), cliquer un motif ne fait donc pas sortir du mode Modification. -->
+    <!-- LES CINQ NIVEAUX D'INTENSITÉ, sortis de la carte. Retour utilisateur : « Pas besoin de tout
+         le temps le laisser afficher, c'est une option pour affiner le morceau seulement. À cacher. »
+         Ils vivent maintenant dans le menu contextuel d'un accord (clic droit / appui long), là où
+         sont déjà les pipettes et « ce rythme pour toute la partie » : zéro pixel à l'écran tant
+         qu'on ne les demande pas, et au même endroit que les autres retouches d'un accord précis.
+         Menu flottant construit en JS depuis NIVEAUX_INTENSITE, comme les deux menus juste en
+         dessous — même mécanique de placement, même fermeture au clic à côté et à Échap. -->
+    <div class="playstyle-dd-menu" id="intensity-menu" hidden></div>
     <div class="playstyle-dd-menu" id="playstyle-dd-menu" hidden></div>
     <div class="duration-dd-menu" id="duration-dd-menu" hidden></div>
     <div id="section-picker-menu" class="context-menu" hidden></div>
@@ -856,32 +870,6 @@
                                 </button>
                             </div>
                         </div>
-                        <!-- CINQ NIVEAUX AU LIEU DE LA BARRE. La barre offrait 21 crans (0 à 100 par pas
-                             de 5) pour un réglage qu'on pose à l'oreille : personne ne distingue 65 de
-                             70. Cinq niveaux tiennent dans la largeur de deux crans de barre, se
-                             touchent au doigt, et disent d'un coup d'œil où l'on est.
-                             Le nombre exact reste affiché dans l'étiquette : un morceau enregistré avant
-                             ce changement peut porter n'importe quelle valeur (62, 85...), et il serait
-                             malhonnête de la faire disparaître derrière le niveau le plus proche — ou de
-                             la réécrire en silence. Elle n'est réécrite qu'au clic. -->
-                        <div class="voicing-group voicing-group-intensite">
-                            <span class="voicing-label" id="intensity-label">Intensité <span class="voicing-label-val" id="intensity-val">75</span></span>
-                            <div class="voicing-seg" id="intensity-seg" role="group" aria-labelledby="intensity-label">
-                                <!-- Les 5 niveaux sont construits par construireCommandesIntensite(), à
-                                     partir de NIVEAUX_INTENSITE — jamais écrits en dur ici.
-                                     Le mode studio ferme la rangée : c'est le réglage FIN de ce que les
-                                     cinq niveaux règlent grossièrement (une intensité par croche), il est
-                                     donc à sa place au bout de cette échelle-là plutôt que parmi les
-                                     icônes de l'en-tête, où rien ne disait à quoi il se rapportait. -->
-                                <button type="button" id="toggle-studio-mode" class="voicing-step voicing-studio" title="Mode studio : régler l'intensité croche par croche" aria-label="Mode studio">
-                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                        <path d="M5 21v-6"/><path d="M5 11V3"/><circle cx="5" cy="13" r="2" fill="currentColor" stroke="none"/>
-                                        <path d="M12 21v-2"/><path d="M12 15V3"/><circle cx="12" cy="17" r="2" fill="currentColor" stroke="none"/>
-                                        <path d="M19 21v-10"/><path d="M19 7V3"/><circle cx="19" cy="9" r="2" fill="currentColor" stroke="none"/>
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- SOURCES DE VÉRITÉ, MASQUÉES. Même stratégie que #inversion/#drop/#octave dans la
@@ -1281,6 +1269,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608241400"></script>
+    <script src="script.js?v=202608241600"></script>
 </body>
 </html>

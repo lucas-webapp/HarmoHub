@@ -1406,3 +1406,102 @@ type (remplace le motif actuel — annulable par Ctrl+Z) ».
 `seq_tiroir_motifs_test` section C vérifiait l'inverse (« pas de second bouton sur ordinateur, le
 sélecteur d'origine est déjà sous les yeux »). Ses deux prémisses ont changé par décision. Elle
 vérifie maintenant ce qui compte vraiment : **il y a un accès, et un seul**.
+
+## L'intensité : d'abord réparer, ensuite cacher
+
+> « La modification d'intensité ne semble pas fonctionner, le jeu est toujours fort. Pas besoin de
+> tout le temps le laisser afficher, c'est une option pour affiner le morceau seulement. À cacher. »
+
+Deux demandes dans une seule phrase, et l'ordre entre elles n'est pas neutre : **cacher d'abord aurait
+enterré le défaut**. Une commande qui ne fait rien, rangée dans un menu, ne fait toujours rien — elle
+est simplement plus difficile à mettre en cause. J'ai donc mesuré avant de déplacer quoi que ce soit.
+
+### Le défaut, chiffré — et ma propre note qui le maquillait
+
+Pour un accord **tenu**, c'est-à-dire le réglage par défaut de tous les accords, `computeVelocity`
+partait d'une base de `1` et la multipliait par `intensité / 75`. Résultat, avant :
+
+| Niveau | Très doux | Doux | Normal | Fort | Très fort |
+|---|---|---|---|---|---|
+| Vélocité **avant** | 0,467 | 0,733 | **1,000** | **1,000** | **1,000** |
+| Vélocité **après** | 0,373 | 0,587 | 0,800 | 0,960 | 1,000 |
+
+**Trois des cinq niveaux donnaient exactement la même chose**, parce que le multiplicateur écrêtait au
+plafond dès « Normal ». L'utilisateur n'avait pas une impression : dans la moitié haute de l'échelle,
+celle qu'on touche le plus, l'intensité était littéralement inopérante.
+
+Le pire est ce que j'avais écrit moi-même au lot précédent, en commentaire de ce même code :
+« au-dessus de 75 la marge utile se resserre ». C'est faux, et faux d'une façon dangereuse — ça
+**décrit un inconvénient là où il y a une panne**, donc ça décourage précisément l'enquête qu'il
+fallait mener. Une note qui atténue un symptôme au lieu de le mesurer vaut moins que pas de note.
+
+Le correctif tient en une constante, `VELOCITE_NIVEAU_NORMAL = 0.8` : « Normal » ne joue plus au
+plafond, ce qui **crée la marge** dans laquelle « Fort » et « Très fort » peuvent enfin exister.
+
+**Le coût, accepté en connaissance de cause.** Tout ce qui est réglé sur « Normal » — c'est-à-dire
+tous les morceaux déjà écrits — devient environ **2 dB plus discret** (0,8 contre 1,0). L'alternative
+était de comprimer l'échelle vers le bas en gardant Normal au plafond, mais alors « Fort » et « Très
+fort » n'auraient toujours rien eu au-dessus d'eux. Question posée, réponse retenue : **réparer
+l'échelle**, quitte à ce que le niveau par défaut baisse un peu.
+
+### Ensuite seulement, la cacher
+
+L'intensité quitte la carte pour le **menu contextuel de l'accord** (choix de l'utilisateur parmi
+quatre emplacements proposés) : c'est un réglage de finition, il se prend sur un accord précis, et
+l'accord cliqué EST déjà la cible — rien à désigner en plus, pas un pixel de carte consommé.
+
+`#intensity` **reste dans le DOM, masqué**. Même règle que pour `#inversion`, `#drop`, `#octave`,
+`#playStyle` et `#duration` : c'est la source de vérité que lit `readChord()`, et la vider aurait
+demandé de toucher `commitLiveEdit`, l'annulation, l'export MIDI et l'export PDF pour un gain nul.
+
+Le **mode studio** a suivi l'intensité : il n'affinait la vélocité que note par note dans le
+séquenceur, il n'avait plus rien à faire dans une carte de réglages d'accord. Il est désormais dans la
+barre d'outils du séquenceur, rendu **avec le gabarit** `.seq-presets` et non posé une fois au
+démarrage — sans quoi il disparaissait au premier redessin de la barre.
+
+### Ce que la carte y gagne, mesuré
+
+| | Avant les trois lots | Après |
+|---|---|---|
+| Ordinateur, mode Ajout | 160px | **122px** |
+| Ordinateur, mode Modification | 160px | **74px** |
+| Téléphone, mode Ajout | 182px | **128px** |
+| Téléphone, mode Modification | 182px | **80px** |
+
+### Un banc qui passait au vert sans rien éprouver
+
+`lecture_meme_principe_test` ouvrait un accord (`editChord`) avant de mesurer la forme de la rangée.
+Depuis que Rythme et Durée ne s'affichent qu'en mode Ajout, il mesurait donc des boîtes en
+`display:none` : largeur 0, hauteur 0, et une étiquette « au-dessus » de rien du tout — car
+`0 <= 0 + 1` est vrai. **Toutes ses vérifications de forme étaient devenues des tautologies**, et il
+les annonçait au vert. Il mesure maintenant là où la rangée est réellement affichée, exige
+explicitement `body[data-app-mode="add"]`, refuse une comparaison entre boîtes de hauteur nulle, et
+consacre une vérification séparée au fait que la rangée disparaît bien en Modification.
+
+C'est le même piège que le « la plus petite cible fait 0x0 » du lot précédent, vu de l'autre côté :
+une fois qu'une partie de l'interface peut être absente, **tout banc qui la mesure doit d'abord dire
+s'il l'attend présente ou absente**. Sans quoi il ne mesure plus rien, dans un sens ou dans l'autre.
+
+Ses quatre familles consacrées à l'intensité n'ont pas été supprimées mais **déménagées** dans
+`intensite_reparee_test.js`, qui les éprouve à leur nouvelle adresse et vérifie en plus les cinq
+vélocités distinctes — le défaut qui les a fait bouger.
+
+### Le code que le déménagement a laissé mort
+
+Trois méthodes (`construireCommandesIntensite`, `syncCommandesIntensite`, `appliquerIntensite`) et
+quatre règles CSS ne visaient plus que `#intensity-seg`, qui n'existe plus. Elles ne faisaient rien —
+mais elles portaient de longs commentaires décrivant une interface disparue, ce qui est pire que rien :
+la prochaine lecture y aurait cherché la logique des cinq niveaux, qui vit maintenant ailleurs.
+Retirées, avec leurs trois appels.
+
+Une des quatre règles méritait qu'on la regarde : `body[data-app-mode="edit"] .voicing-segment
+{ max-width: 44px }` ne visait pas que l'intensité — `.voicing-segment`, c'est **aussi** la classe des
+cases de renversement et de drop de la carte Accord, bien visibles en Modification. **Mesuré avant de
+l'écrire** : ces cases font 28 à 30px de large de 1440px à 390px, le plafond ne mordait donc nulle
+part. Ce n'était pas un défaut visible, c'était une règle qui attendait de le devenir.
+
+**Un retrait ne se vérifie pas par `node --check`** — leçon du bouton « … », dont la suppression avait
+laissé la page syntaxiquement valide et fonctionnellement morte. Ici : chargement réel de la page,
+écoute des `pageerror`, appel des trois chemins qui appelaient les méthodes retirées (`refreshPreview`,
+l'`oninput` de `#intensity`, `editChord`), et relevé des styles **effectivement appliqués** sur les
+cases restantes. Aucune erreur, `max-width` bien retombé à `none`.

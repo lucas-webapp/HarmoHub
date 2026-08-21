@@ -1703,11 +1703,9 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
    durée (icône + « 2 mes. »), 4 pour l'intensité (cinq niveaux + la case du mode studio). Mesuré à
    321px de large : 103 / 69 / 137px, soit des cases d'intensité de ~22px — au-dessus du plancher
    tactile de 20px que les écrans les plus étroits imposent déjà à la rangée du dessus. */
-/* L'INTENSITÉ NE S'ÉTIRE NI NE SE SERRE : six cases de largeur fixe (cinq niveaux + le mode studio),
-   sa largeur est la somme, point. Lui donner un poids comme aux deux autres la faisait déborder de
-   son groupe de 9 à 17px selon l'écran (mesuré) — les cases refusaient de descendre sous leur
-   plancher tactile, et c'est le cadre qui cédait. Le reste de la rangée se partage ce qui reste. */
-.voicing-group-intensite { flex: 0 0 auto; }
+/* L'intensité occupait ici un troisième groupe de largeur fixe. Elle est partie au menu contextuel
+   de l'accord (« c'est une option pour affiner le morceau seulement. À cacher. »), et les deux
+   groupes restants se partagent toute la rangée : 3 contre 2, la durée demandant moins de place. */
 .voicing-group-jeu { flex: 3 1 0; }
 .voicing-group-duree { flex: 2 1 0; }
 
@@ -1785,20 +1783,21 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
    à oublier. Les <select> sources, eux, restent lus dans les deux modes : rien n'est débranché. */
 body[data-app-mode="edit"] .voicing-group-jeu,
 body[data-app-mode="edit"] .voicing-group-duree { display: none; }
-/* Restée seule, la bande d'intensité s'étire sur toute la rangée plutôt que de rester tassée à
-   gauche avec un grand vide à droite : une rangée à moitié remplie se lit comme une rangée amputée.
-   Les cases sont plafonnées, sinon six chiffres seuls s'étaleraient sur 52px chacun — large sans
-   raison, et plus du tout de la même famille que les cases de la carte au-dessus. */
-body[data-app-mode="edit"] .voicing-group-intensite { flex: 1 1 auto; }
-body[data-app-mode="edit"] .voicing-segment { max-width: 44px; }
+/* Deux règles vivaient ici pour étirer la bande d'intensité restée seule en Modification. Elles
+   sont parties avec elle, et la seconde valait qu'on la remarque : `.voicing-segment` ne désigne pas
+   que les cases d'intensité — c'est aussi la classe des cases de renversement et de drop de la carte
+   Accord, elles bien visibles en Modification. Elle les VISAIT donc aussi. Mesuré avant de le dire :
+   elles font 28 à 30px de large de 1440 à 390px, le plafond de 44px ne mordait donc nulle part. Ce
+   n'était pas un défaut visible, c'était une règle qui attendait de le devenir. */
 
-/* TÉLÉPHONES TRÈS ÉTROITS (320px, iPhone SE de 1re génération). La bande d'intensité y prend 126 de
-   les 233px disponibles — six cases à leur plancher tactile, incompressibles — et il ne reste que
-   107px pour le style de jeu ET la durée. Mesuré : « 4 mes. » y était coupé en « 4 … ».
-   Deux ajustements, uniquement là : les deux groupes se partagent la place à parts ÉGALES (au lieu de
-   3 contre 2, ce qui affamait la durée), et l'icône de rythme s'efface. C'est elle qu'on sacrifie et
-   pas le texte : « 4 mes. » se lit, un pictogramme de croche large de 20px sur un écran de 320px, non.
-   Le menu ouvert, lui, garde ses icônes — c'est là qu'on choisit. */
+/* TÉLÉPHONES TRÈS ÉTROITS (320px, iPhone SE de 1re génération). Mesuré à l'époque où l'intensité
+   occupait encore la rangée : elle y prenait 126 des 233px disponibles, six cases incompressibles à
+   leur plancher tactile, et « 4 mes. » se retrouvait coupé en « 4 … ». Son départ au menu contextuel
+   a rendu cette place, mais les deux ajustements restent : à 320px, la durée est encore à l'étroit
+   quand le rythme prend trois parts sur cinq. Les deux groupes se partagent donc la place à parts
+   ÉGALES, et l'icône de rythme s'efface — c'est elle qu'on sacrifie et pas le texte : « 4 mes. » se
+   lit, un pictogramme de croche large de 20px sur un écran de 320px, non. Le menu ouvert, lui, garde
+   ses icônes : c'est là qu'on choisit. */
 @media (max-width: 340px) {
     .lecture-row .playstyle-dd-icon { display: none; }
     .voicing-group-jeu, .voicing-group-duree { flex: 1 1 0; }

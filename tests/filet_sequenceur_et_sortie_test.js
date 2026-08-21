@@ -183,8 +183,11 @@ const boiteDe = (sel) => {
     // drop et octave n'ont plus de bloc à déplier, et l'intensité est passée d'un curseur à cinq
     // niveaux (le curseur #intensity reste dans le DOM, mais masqué — on ne peut plus le cliquer).
     // On garde une commande de chaque famille : un menu, des segments, un pas-à-pas, un bouton.
+    // L'intensité a QUITTÉ la carte pour le menu contextuel d'un accord (« c'est une option pour
+    // affiner le morceau seulement. À cacher ») : elle n'est plus une commande de panneau, elle ne
+    // peut donc plus figurer dans cette liste-ci. Ce qu'elle éprouvait — qu'une retouche d'accord ne
+    // referme pas l'édition — reste couvert par les trois autres familles ci-dessous.
     for (const [sel, nom] of [['#instrument', "le menu d'instrument"],
-                              ['#intensity-seg .voicing-segment', "un niveau d'intensité"],
                               ['#inversion-seg .voicing-segment', 'un segment de renversement'],
                               ['[data-octave-step="1"]', "le pas-à-pas d'octave"],
                               ['#toggle-sequencer', 'le bouton du séquenceur']]) {

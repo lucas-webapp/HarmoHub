@@ -63,10 +63,13 @@ const POSER_AIDES = `window.visible = (sel) => { const e = document.querySelecto
     exiger(await page.evaluate(() => window.app.appMode === 'add'), 'on démarre bien en mode Ajout');
     const ajout = await page.evaluate(() => ({
         jeu: visible('.voicing-group-jeu'), duree: visible('.voicing-group-duree'),
+        // L'intensité a quitté la rangée pour le menu contextuel : elle ne doit plus y être, dans
+        // AUCUN des deux modes (« c'est une option pour affiner le morceau seulement. À cacher »).
         intensite: visible('.voicing-group-intensite'),
         motJeu: document.getElementById('playstyle-label').textContent.trim(),
     }));
-    check(ajout.jeu && ajout.duree && ajout.intensite, 'les trois groupes sont visibles en Ajout');
+    check(ajout.jeu && ajout.duree && !ajout.intensite,
+        'en Ajout : Rythme et Durée sont là, l\'intensité non — elle est passée au menu contextuel');
     // Le mot lui-même faisait partie du reproche : « Jeu » ne disait pas ce que le bouton fait.
     check(ajout.motJeu.toLowerCase() === 'rythme',
         `l'étiquette nomme la chose remplie, pas une manière de jouer — « ${ajout.motJeu} »`);
@@ -110,7 +113,7 @@ const POSER_AIDES = `window.visible = (sel) => { const e = document.querySelecto
         valeurs: ['playStyle', 'duration'].map(i => document.getElementById(i).value),
     }));
     check(!modif.jeu && !modif.duree, 'Rythme et Durée ne s\'affichent plus en Modification');
-    check(modif.intensite, 'l\'intensité, elle, reste : elle n\'a pas d\'équivalent ailleurs');
+    check(!modif.intensite, 'l\'intensité non plus : la rangée entière a disparu de la carte');
     check(modif.selects === 3 && modif.valeurs.every(v => v !== ''),
         `les champs sources restent dans le DOM et portent une valeur — ${modif.valeurs.join(', ')}`);
 
@@ -251,10 +254,14 @@ const POSER_AIDES = `window.visible = (sel) => { const e = document.querySelecto
         return { jeu: visible('.voicing-group-jeu'), duree: visible('.voicing-group-duree'),
                  intensite: visible('.voicing-group-intensite'),
                  trop: row.scrollWidth - row.clientWidth,
-                 lMin: Math.round(Math.min(...[...document.querySelectorAll('#intensity-seg > *')].map(x => x.getBoundingClientRect().width))) };
+                 // Plus d'intensité dans la rangée : on mesure ce qui y reste vraiment (rien en
+                 // Modification, d'où le repli sur Infinity, neutralisé par le check ci-dessous).
+                 lMin: (() => { const c = [...document.querySelectorAll('#lecture-row .voicing-segment, #lecture-row .voicing-step')].filter(x => x.offsetParent !== null);
+                                return c.length ? Math.round(Math.min(...c.map(x => x.getBoundingClientRect().width))) : null; })() };
     });
-    check(!telModif.jeu && !telModif.duree && telModif.intensite, 'téléphone, Modification : seule l\'intensité reste');
-    check(telModif.trop <= 0 && telModif.lMin >= 20, `téléphone : la rangée ne déborde pas et les cases restent tactiles — ${telModif.lMin}px`);
+    check(!telModif.jeu && !telModif.duree && !telModif.intensite, 'téléphone, Modification : la rangée est vide, comme sur ordinateur');
+    check(telModif.trop <= 0 && (telModif.lMin === null || telModif.lMin >= 20),
+        `téléphone : la rangée ne déborde pas${telModif.lMin === null ? ' (et elle est vide, comme attendu)' : ' et ses cases restent tactiles — ' + telModif.lMin + 'px'}`);
 
     check(erreurs.length === 0, `aucune erreur JavaScript — ${erreurs.join(' | ') || 'aucune'}`);
     await browser.close();
