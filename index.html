@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608243300">
+    <link rel="stylesheet" href="style.css?v=202608243400">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -552,10 +552,14 @@
                     <svg class="icon song-summary-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
                 </button>
                 <div id="song-settings" class="song-settings" hidden>
+                <!-- PAS DE TITRE « TEMPO » ICI. Retour utilisateur : « pas besoin des titres de
+                     chapitre, il y a déjà des répétitions. Enlève le titre "Tempo", "Instrument"
+                     (remplacé par "Son" déjà existant). » Il a raison : la ligne juste en dessous
+                     écrit « Tempo : 120 BPM ». Un titre qui redit le mot du premier champ ne range
+                     rien, il ajoute une ligne — et c'est précisément ce qui fait qu'« on se perd »
+                     dans un panneau. Les deux autres chapitres gardent le leur : « Son » et
+                     « Tonalité » nomment des familles, pas leur premier champ. -->
                 <section class="control-card">
-                    <div class="card-head">
-                        <h2>Tempo</h2>
-                    </div>
                     <div class="bpm-group">
                         <div class="bpm-head">
                             <label for="bpm">Tempo : <input type="number" id="bpm-val" class="bpm-val-input" min="60" max="240" value="120" title="Cliquer pour saisir une valeur précise"> BPM</label>
@@ -622,9 +626,10 @@
                         <h2>Son</h2>
                     </div>
                     <div class="groove-group">
+                        <!-- Sans étiquette : le titre « Son » juste au-dessus la disait déjà, et cette
+                             section n'a qu'un seul champ. L'infobulle et aria-label gardent le mot. -->
                         <div class="groove-field">
-                            <label for="instrument">Instrument</label>
-                            <select id="instrument" class="compact" title="Son de tout le morceau">
+                            <select id="instrument" class="compact" aria-label="Instrument du morceau" title="Son de tout le morceau">
                                 <option value="piano">Piano</option>
                                 <option value="epiano">Piano élec.</option>
                                 <option value="pad">Nappe</option>
@@ -663,15 +668,26 @@
                         <button type="button" id="key-suggest-btn" class="icon-btn icon-btn-lg" title="Suggérer une tonalité d'après les accords déjà posés" aria-label="Suggérer une tonalité">
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
                         </button>
-                    </div>
-                    <div class="transpose-field">
-                        <span class="transpose-label">Transposer</span>
-                        <button type="button" id="transpose-song-down" class="icon-btn icon-btn-lg" title="Transposer tout le morceau d'un demi-ton vers le bas" aria-label="Transposer tout le morceau vers le bas">
+                        <!-- LES FLÈCHES DE TRANSPOSITION REJOIGNENT LA TONALITÉ (retour utilisateur :
+                             « les flèches de transposition peuvent être positionnées à droite de la
+                             tonalité, par exemple en réduisant la largeur des menus déroulants »).
+                             Elles occupaient une ligne à elles seules, avec le mot « Transposer » —
+                             or transposer, c'est changer la tonalité : les deux gestes appartiennent
+                             à la même ligne, et c'est ainsi que les DAW les rangent.
+                             LE MOT DISPARAÎT, ET C'EST LE COMPROMIS DE CE LOT : deux flèches
+                             haut/bas posées contre un sélecteur de tonalité se lisent comme une
+                             transposition dans n'importe quel logiciel de musique, mais moins vite
+                             qu'un mot. Elles gardent donc leur infobulle en toutes lettres, et un
+                             filet les sépare des quatre commandes de tonalité (voir .transpose-inline)
+                             pour qu'on ne les prenne pas pour un cinquième réglage de la même famille. -->
+                        <div class="transpose-inline">
+<button type="button" id="transpose-song-down" class="icon-btn icon-btn-lg" title="Transposer tout le morceau d'un demi-ton vers le bas" aria-label="Transposer tout le morceau vers le bas">
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m5 12 7 7 7-7"/></svg>
                         </button>
                         <button type="button" id="transpose-song-up" class="icon-btn icon-btn-lg" title="Transposer tout le morceau d'un demi-ton vers le haut" aria-label="Transposer tout le morceau vers le haut">
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
                         </button>
+                        </div>
                     </div>
                 </section>
                 </div>
@@ -1302,6 +1318,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608243300"></script>
+    <script src="script.js?v=202608243400"></script>
 </body>
 </html>

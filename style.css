@@ -2299,6 +2299,23 @@ select:disabled {
     cursor: not-allowed;
 }
 
+/* HIÉRARCHIE TYPOGRAPHIQUE DU POPOVER (retour utilisateur : « tu peux réduire un peu la taille des
+   écritures (titres) si tu estimes que ça sera plus harmonieux […] il faut quelque chose
+   d'harmonieux et PRO, comme un vrai DAW. On ne doit pas se perdre dans le popover »).
+   Mesuré avant d'y toucher : les TITRES de chapitre faisaient 12,8px, les ÉTIQUETTES des champs
+   (« Tempo : », « Groove », « Mesure ») 14,1px — les étiquettes étaient donc PLUS GROSSES que les
+   titres censés les chapeauter. Une hiérarchie à l'envers, ce qui explique une bonne part du « on se
+   perd » : rien ne dit ce qui commande quoi.
+   Les étiquettes passent sous les titres. L'ordre est désormais titre (12,8) > étiquette (11,5) >
+   valeur, ce qui est la gradation d'un panneau de DAW : le chapitre s'annonce, le champ se nomme
+   discrètement, et c'est la VALEUR qu'on lit. Le tempo garde sa valeur en vert et en grand : c'est
+   le seul nombre qu'on cherche des yeux dans ce panneau. */
+.bpm-group,
+.groove-group { font-size: var(--fs-xs); }
+.bpm-group label,
+.groove-group label,
+.groove-field label { font-size: var(--fs-xs); letter-spacing: 0.02em; }
+
 .bpm-group {
     display: flex;
     flex-direction: column;
@@ -2376,24 +2393,23 @@ select:disabled {
     text-overflow: ellipsis;
 }
 
-/* Transposition du morceau : "Ton" en toutes lettres plutôt que des flèches seules — on ne comprend
-   pas au premier coup d'œil qu'un simple chevron change la tonalité (voir aussi le transpose-song-*
-   déplacé ici depuis .song-row, qui devient moins chargée). */
-.transpose-field {
+/* LES FLÈCHES DE TRANSPOSITION SONT REVENUES DANS LA LIGNE DE TONALITÉ (retour utilisateur : « les
+   flèches de transposition peuvent être positionnées à droite de la tonalité »). Elles occupaient une
+   ligne à elles seules avec le mot « Transposer » — or transposer, c'est changer la tonalité.
+   Le FILET à leur gauche fait le travail que le mot faisait : il dit qu'on change de famille. Sans
+   lui, elles se liraient comme deux commandes de tonalité de plus, à côté de « ⋯ » et de la baguette
+   — quatre pictogrammes d'affilée sans rien pour les distinguer, ce qui est exactement le « on se
+   perd » que ce lot corrige. */
+.transpose-inline {
     display: flex;
     align-items: center;
     gap: 4px;
     flex: none;
+    padding-left: 8px;
+    margin-left: 2px;
+    border-left: 1px solid var(--border);
 }
-.transpose-label {
-    /* Même police que le libellé "Groove" juste à côté (pas de font-size dédié : hérite de
-       .groove-group, exactement comme le <label for="groove">) — avant, une taille plus petite ici
-       donnait l'impression de deux polices différentes sur la même ligne. */
-    white-space: nowrap;
-}
-/* :not(.icon-btn-lg) : la carte Tonalité (voir index.html) pose désormais .icon-btn-lg sur ces deux
-   boutons — cette taille par défaut ne doit alors plus l'emporter sur elle. */
-.transpose-field .icon-btn:not(.icon-btn-lg) { width: 32px; height: 32px; }
+.transpose-inline .icon-btn:not(.icon-btn-lg) { width: 32px; height: 32px; }
 
 /* Valeur du tempo éditable au clavier : se fond dans le texte du libellé tant qu'on n'y touche pas
    (pas de bordure pleine, pas de fond), mais reste clairement un champ de saisie au survol/focus. */

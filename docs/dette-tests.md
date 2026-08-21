@@ -2219,3 +2219,52 @@ comparaison n'éprouvait plus rien. Elle vérifie désormais ce qui reste le fon
 seule grammaire de rangée dans cette carte**, et la durée bien arrivée là où on l'attend.
 
 `rythme_duree` visait `.voicing-group-duree`, le groupe disparu avec la rangée ; il vise la commande.
+
+## Le popover Morceau : la hiérarchie était à l'envers
+
+> « Pas besoin des titres de chapitre, il y a déjà des répétitions. […] Les flèches de transposition
+> peuvent être positionnées à droite de la tonalité […] Garde à l'idée qu'il faut quelque chose
+> d'harmonieux et PRO, comme un vrai DAW. On ne doit pas se perdre dans le popover. »
+
+### La mesure explique le « on se perd » mieux que l'impression
+
+Relevé avant d'y toucher : les **titres** de chapitre faisaient **12,8px**, les **étiquettes** de champ
+**14,1px**. Les étiquettes étaient donc *plus grosses* que les titres censés les chapeauter.
+
+C'est une hiérarchie inversée, et elle suffit à expliquer une bonne part de la sensation : dans un
+panneau où le chapitre pèse moins que le nom du champ, rien ne dit ce qui commande quoi, et l'œil n'a
+pas d'ordre de lecture. La gradation est maintenant celle d'un panneau de DAW — **titre (12,8) >
+étiquette (11,5) > valeur** — et c'est la valeur qu'on lit, ce qu'on vient chercher.
+
+Le banc éprouve la relation, pas les nombres : « chaque étiquette est plus petite que les titres ».
+Une valeur en dur rougirait au premier changement de police ; la relation, elle, est le vrai contrat.
+
+### Deux titres retirés, deux gardés — et le critère n'est pas le nombre
+
+« Tempo » redisait le mot du champ juste en dessous (« Tempo : 120 BPM ») ; l'étiquette « Instrument »
+redisait le titre « Son » juste au-dessus. **Un titre qui redit son premier champ ne range rien, il
+ajoute une ligne.**
+
+« Son » et « Tonalité » restent : ils nomment une **famille**, pas leur premier champ. C'est le
+critère, et il vaut mieux que « en enlever le plus possible ».
+
+### La transposition rejoint la tonalité, et un filet remplace le mot
+
+Elle occupait une ligne à elle seule avec le mot « Transposer ». Or transposer, **c'est** changer la
+tonalité : les deux gestes appartiennent à la même ligne, et c'est ainsi que les DAW les rangent. Les
+deux menus se resserrent pour faire la place — fondamentale 93 → 60px, mode 131 → 67px, exactement ce
+qui était demandé.
+
+Le mot disparaît, et c'est le compromis assumé du lot : deux flèches haut/bas contre un sélecteur de
+tonalité se lisent comme une transposition dans n'importe quel logiciel de musique, mais **moins vite
+qu'un mot**. Deux compensations : l'infobulle en toutes lettres, et surtout un **filet** à leur
+gauche. Sans lui, on aurait quatre pictogrammes d'affilée — « ⋯ », la baguette, puis les deux flèches
+— que rien ne distingue, et transposer passerait pour un réglage de tonalité de plus. Le filet fait le
+travail que le mot faisait : dire qu'on change de famille.
+
+### Résultat mesuré
+
+Le panneau passe de **396px à 330px** de haut, soit 17 % de moins, sans qu'aucune commande ne
+disparaisse. Et la ligne de tonalité porte maintenant **six** commandes : c'était le vrai risque du
+lot, donc le banc mesure au doigt qu'aucune ne descend sous le seuil tactile (relevé : 60×36, 67×36,
+30×36, 38×38, 38×38, 38×38) et que rien ne déborde.
