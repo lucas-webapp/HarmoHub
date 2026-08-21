@@ -1537,6 +1537,11 @@ deuxième rangée, les flèches du clavier dans la loupe, le sélecteur d'aimant
 Ils sont soit périmés, soit le signe de fonctions cassées ; les deux demandent d'être instruits, pas
 tolérés. La question est posée à l'utilisateur avant d'y consacrer un lot, sa priorité étant ailleurs.
 
+**Suite donnée** : les cinq ont été instruits (voir la section qui clôt ce journal). Quatre étaient
+périmés, un cachait une fonction réellement cassée. **La ligne de base tombe donc de 12 rouges à 7** :
+`probe_clic_accord_voisin`, `probe_defilement_tactile`, `probe_regle_voisins`, `probe_seq_finitions`,
+`real_click_loupe_selection`, `seq_notes_libres_clavier`, `seq_selection_et_cadre_diagrammes`.
+
 ## Le rythme : deux boutons en moins, une préférence en plus
 
 > « Je pense que je ne me servirai rarement du rythme. Pour diminuer le nombre de boutons, laisser
@@ -1958,3 +1963,69 @@ nuance de plus — c'est-à-dire quand le défaut qu'on vient de corriger recomm
 
 Et la référence est **lue sur le bouton que l'utilisateur désigne** (le menu de durée), pas recopiée
 en valeurs dures : si elle change un jour, le banc suit au lieu de mentir.
+
+## Les cinq bancs rouges instruits : quatre périmés, un vrai défaut
+
+> « Continuer, instruire après. »
+
+Les cinq rouges relevés à la fin du lot 1 étaient restés en suspens, avec une consigne claire : ne pas
+les tolérer, trancher pour chacun entre **banc périmé** et **fonction cassée**. Verdict après mesure :
+**quatre bancs périmés, une fonction réellement cassée** — et c'est le cinquième qui justifie à lui
+seul d'avoir posé la question.
+
+### La règle appliquée aux quatre premiers : retourner le banc vers le geste réel, jamais le supprimer
+
+| Banc | Ce qu'il exigeait | Ce qui est vrai aujourd'hui |
+|---|---|---|
+| `avant_seq_snap_sticky` | régler l'aimantation sur 1/4 puis 1/8 | le sélecteur a été **retiré par décision** : le pas vaut la case |
+| `sidebar_collapse` | le transport dans l'en-tête de la grille | il est **revenu dans le volet**, à la demande |
+| `loupe_and_tap_fix` | un clic charge l'accord en modification | un clic **sélectionne**, un double-clic charge |
+| `multirow_loop` | un appui-relâché pose une plage de boucle | la plage se pose par un **vrai glissé** sur la règle |
+
+Aucun n'a été supprimé : chacun a été **retourné vers ce qui reste vrai** et qui compte encore. Le banc
+d'aimantation, par exemple, éprouve désormais qu'**aucun recalage ne s'interpose** entre le geste et
+la case visée — c'est-à-dire exactement la propriété au nom de laquelle le sélecteur avait été retiré.
+Deux bancs sont renommés, parce qu'un nom qui désigne une fonction disparue (`loupe`, `tap`) est un
+piège pour la prochaine lecture : `grille_clic_et_double_clic` et `grille_raccourcis_clavier`.
+
+### Une tautologie démasquée au passage
+
+`loupe_keyboard` avait un point « flèche gauche : la modification revient sur l'accord 1 » qui
+**passait au vert**. Il passait parce que `editingIndex` valait déjà 1 et n'avait jamais bougé : le
+banc n'exigeait rien. Un vert peut donc être plus creux qu'un rouge — le rouge, lui, se signale.
+
+### Le vrai défaut : les flèches mouraient dès qu'un accord était ouvert
+
+C'est en retournant ce banc-là que la fonction cassée est apparue. `activeGridChordIndex()` rend
+`editingIndex ?? selectedIndex`, et les flèches ← → repartaient de **ce** repère à chaque appui. Une
+fois un accord ouvert en modification — l'état le plus banal qui soit, il suffit d'un double-clic — le
+point de départ ne bougeait plus jamais :
+
+```
+en édition, départ : {sel: null, ed: 1}
+  droite x1 : {sel: 2, ed: 1}
+  droite x2 : {sel: 2, ed: 1}   ← le 2e appui ne fait plus rien
+  droite x3 : {sel: 2, ed: 1}
+```
+
+Le premier appui marchait, ce qui rendait le défaut discret : il fallait appuyer **deux** fois pour le
+voir. Les flèches se calent maintenant sur la sélection verte (`selectedIndex ?? editingIndex`).
+Mesuré : un vrai double-clic pose les deux repères sur la même case, donc **le premier appui ne change
+pas**, et les suivants avancent enfin. Ce qui doit rester ancré à l'accord ouvert le reste :
+Maj+← → étire bien la case **ouverte**, Suppr efface bien l'accord **ouvert**.
+
+### Ce que cet épisode dit de la ligne de base
+
+Ces cinq bancs étaient rouges depuis plusieurs commits, tolérés comme « préexistants ». Instruits, ils
+donnent un défaut réel qui touchait un geste quotidien. **Une ligne de base n'est pas un classement,
+c'est une dette** : tant qu'un rouge n'est pas expliqué, on ignore s'il garde un banc mort ou une
+fonction morte.
+
+### Deux bancs renommés, une dette qui change d'étiquette sans grossir
+
+`meta_suite` a signalé « deux nouveaux bancs sans `plan()` » : ce sont les deux renommés, déjà comptés
+comme dette sous leurs anciens noms. La référence a été refigée (`--maj`), ce que le banc réclamait
+d'ailleurs lui-même au même moment — la dette avait **diminué** de deux entrées et il refusait de
+laisser filer le gain sans qu'on le fige. Il reste vrai qu'ils n'ont pas de `plan()` : ils comptent
+leurs PASS/FAIL eux-mêmes plutôt que de passer par l'harnais. C'est de la dette réelle, inchangée,
+et elle attend son tour avec les 127 autres.
