@@ -7,6 +7,11 @@ _local_backup_pre_git/
 # des artefacts de diagnostic régénérés à chaque exécution, jamais du code. Quatre d'entre elles se
 # sont retrouvées suivies par un `git add -A` de trop — cette règle évite que ça se reproduise.
 tests/*.png
+# MÊME CAS, ET IL A RÉCIDIVÉ TROIS FOIS. tests/exported_test.pdf est le fichier que produit le banc
+# d'export PDF : il est réécrit à chaque balayage, donc il apparaît « modifié » sans que personne ne
+# l'ait touché. Deux fois il est parti dans un commit, deux fois il a fallu l'en retirer. La règle
+# des PNG existait déjà juste au-dessus, avec ce raisonnement exact — le PDF y manquait simplement.
+tests/*.pdf
 
 # Fixtures écrites À LA RACINE par les bancs Paroles (paroles_test, paroles_undo_test,
 # paroles_drag_test, paroles_copy_paste_test, paroles_pdf_test) : chacun exporte un morceau
