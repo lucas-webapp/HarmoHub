@@ -1864,12 +1864,14 @@ body[data-app-mode="edit"] #duration-dd { display: none; }
 
 /* La pastille d'état. Seul l'INTITULÉ y entre ; le symbole de l'accord (#accord-title-sym) reste à
    côté, en clair — on lit « [MODIFIER] Fmaj7 », l'état d'un côté, le sujet de l'autre. */
+/* PLUS D'ENCADRÉ AUTOUR DE L'INTITULÉ (retour utilisateur : « nouvel accord ou modifier (titres) :
+   enlever les encadrés verts ou orange, je n'aime pas trop »).
+   La pastille servait à distinguer l'ÉTAT (ajout/modification) du SUJET (le symbole de l'accord).
+   Cette distinction survit sans cadre : l'état reste coloré — vert en Ajout, orange en Modification,
+   via var(--sujet) — et le symbole reste en clair juste à côté. On lit toujours « MODIFIER Fmaj7 »,
+   l'état d'un côté et le sujet de l'autre ; c'est la BOÎTE qui était de trop, pas la couleur. */
 #accord-title-label {
     display: inline-block;
-    padding: 2px 7px;
-    border-radius: 5px;
-    background: var(--sujet-fond);
-    border: 1px solid var(--sujet-cadre);
     letter-spacing: 0.04em;
 }
 #accord-title-sym { margin-left: 6px; }
@@ -2246,6 +2248,19 @@ body[data-app-mode="edit"] .accord-grid { grid-template-columns: repeat(2, minma
    plus larges que nécessaire (retour utilisateur) — moins de padding + ellipsis (jamais de
    retour à la ligne) plutôt qu'un menu qui s'étire pour rien, quitte à tronquer une option longue
    ("Basse : Fond.") dans une colonne étroite : le menu ouvert liste toujours l'option en entier. */
+/* MÊME FOND SOMBRE QUE LE SÉQUENCEUR ET QUE LA DURÉE (retour utilisateur : « bouton voicing :
+   afficher en plus sombre, comme le séquenceur »).
+   Ce qui se voyait, capture à l'appui : sur UNE MÊME LIGNE, « C » et « Majeur » sortaient du fond
+   générique des <select> (#222 avec un dégradé clair par-dessus) tandis que « 1 mes. », juste à côté,
+   portait le #16191e des commandes du séquenceur. Trois commandes de même rang, deux habillages —
+   c'est le déplacement de la durée sur cette ligne qui a rendu l'écart visible, en les mettant côte
+   à côte. Elles s'alignent donc sur la plus sombre des trois, celle qui appartient déjà à la famille
+   du séquenceur. Le dégradé est retiré aussi : c'est lui qui éclaircissait le haut du champ. */
+.accord-grid select,
+.voicing-row select {
+    background: var(--fond-bouton-sombre);
+    background-image: none;
+}
 .accord-grid select {
     min-width: 0;
     padding: 10px 8px;
@@ -4650,6 +4665,12 @@ body.all-beats .offbeat-dot {
     margin-top: 12px;
     flex-wrap: wrap;
 }
+
+/* Grille agrandie dont les cases sont plafonnées (voir renderSequencer/colTemplate) : elle ne remplit
+   plus la fenêtre, il faut donc la centrer plutôt que de la laisser collée à gauche avec un grand
+   vide à droite. C'est la contrepartie du plafond, et sans elle le gain de lisibilité serait annulé
+   par un cadrage bancal. */
+.seq-grid.seq-grid-plafonnee { justify-content: center; width: 100%; }
 
 /* QUATRE FAMILLES, SÉPARÉES PAR L'ESPACE (retour utilisateur : « c'est brouillon à l'affichage »).
    Neuf boutons alignés à plat, sans césure, dans un ordre qui mélangeait écouter, fabriquer, défaire

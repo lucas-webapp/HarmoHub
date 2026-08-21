@@ -45,7 +45,7 @@ async function avecGuitare(page) {
 }
 
 (async () => {
-    plan(16);
+    plan(20);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -123,6 +123,39 @@ async function avecGuitare(page) {
         .map(s => { const e = document.querySelector(s); const r = e.getBoundingClientRect(); return { s, l: Math.round(r.width), h: Math.round(r.height) }; }));
     check(cibles.every(c => c.l >= 28 && c.h >= 28),
         `téléphone : les commandes restent tactiles — ${cibles.map(c => c.l + 'x' + c.h).join(' ')}`);
+
+    // === G. LES BASCULES SURVIVENT AUX DIAGRAMMES MASQUÉS ===
+    // RÉGRESSION RÉELLE, signalée par l'utilisateur : « j'ai perdu mes boutons de diagrammes ».
+    // En déplaçant les commandes du manche, une <div> ouverte sans fermeture au bon niveau avait mis
+    // .viz-toggle À L'INTÉRIEUR de .viz-diagrams. Or `.col-right.diagrams-hidden .viz-diagrams` passe
+    // en display:none quand les deux diagrammes sont masqués : les bascules disparaissaient avec lui,
+    // et il ne restait AUCUN moyen de les rouvrir — un cul-de-sac, pas seulement un défaut d'affichage.
+    // Ce point garde les deux choses : la parenté (structurelle) et le résultat (visible au doigt).
+    await tel.evaluate(() => {
+        const pi = document.getElementById('toggle-viz-piano'), gu = document.getElementById('toggle-viz-guitar');
+        if (pi.getAttribute('aria-pressed') === 'true') pi.click();
+        if (gu.getAttribute('aria-pressed') === 'true') gu.click();
+    });
+    await tel.waitForTimeout(800);
+    const masques = await tel.evaluate(() => {
+        const t = document.querySelector('.viz-toggle');
+        const r = t.getBoundingClientRect();
+        return {
+            etatMasque: document.querySelector('.col-right').classList.contains('diagrams-hidden'),
+            dansVizDiagrams: !!t.closest('.viz-diagrams'),
+            visible: t.offsetParent !== null && r.width > 2 && r.height > 2,
+            taille: `${Math.round(r.width)}x${Math.round(r.height)}`,
+        };
+    });
+    exiger(masques.etatMasque, 'téléphone : les deux diagrammes sont bien masqués');
+    check(!masques.dansVizDiagrams,
+        'les bascules ne sont PAS dans .viz-diagrams : c\'est lui qui disparaît, elles doivent rester');
+    check(masques.visible, `et elles restent visibles pour pouvoir rouvrir un diagramme — ${masques.taille}`);
+    // Le geste qui sort du cul-de-sac : un vrai appui doit ramener un diagramme.
+    await tel.tap('#toggle-viz-piano');
+    await tel.waitForTimeout(700);
+    check(await tel.evaluate(() => !document.querySelector('.col-right').classList.contains('diagrams-hidden')),
+        'un appui sur la bascule piano ramène bien le diagramme');
 
     check(erreurs.length === 0, `aucune erreur JavaScript — ${erreurs.join(' | ') || 'aucune'}`);
     await browser.close();

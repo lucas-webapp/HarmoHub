@@ -1929,6 +1929,11 @@ const SEQ_COL_PX_MAX = 28;
 // clic de lecture, assez court pour ne pas donner l'impression que le bouton ne répond pas.
 const BOUCLE_APPUI_LONG_MS = 500;
 
+// Largeur maximale d'une case en vue AGRANDIE compacte (voir renderSequencer/colTemplate). 34px,
+// soit le double environ d'une case du petit séquenceur : assez grand pour viser au doigt, assez
+// mesuré pour qu'un accord d'une seule mesure ne s'étale pas sur toute la largeur d'un écran.
+const SEQ_CASE_MAX_AGRANDIE = 34;
+
 const SEQ_ZONE_HANDLE_RATIO = 0.25;
 const SEQ_ZONE_HANDLE_MIN_PX = 5;
 const SEQ_ZONE_HANDLE_MAX_PX = 18;
@@ -14754,7 +14759,16 @@ class HarmoHubApp {
         // avant/après, voir prevSegs/nextSegs juste en dessous) a réellement besoin d'une position dans
         // la grille pour exister — lui seul reste donc gardé par editingIndex != null ci-dessous, pas la
         // grille détaillée elle-même.
-        const continuous = (this.seqMode === 'continu' || this.seqZoomOpen);
+        // AGRANDIR NE CHANGE PLUS DE VUE, IL CHANGE DE TAILLE. Retour utilisateur : « il y a peut-être
+        // un malentendu pour la loupe dans le petit séquenceur. Au lieu de voir le séquenceur en
+        // continu, j'aimerais juste voir le petit séquenceur simple, mais en plus gros pour le
+        // modifier plus facilement. Donc pas besoin de voir les demi-tons ni les accords adjacents. »
+        // C'était bien un malentendu de ma part : `|| this.seqZoomOpen` faisait basculer la loupe dans
+        // la vue continue (axe chromatique en demi-tons, accords voisins en lecture seule), alors que
+        // la loupe ne doit qu'AGRANDIR ce qu'on regarde déjà. La vue continue garde sa propre porte —
+        // « Séq. » au-dessus de la grille — et reste agrandissable, elle : c'est le MODE qui décide
+        // maintenant, plus la fenêtre.
+        const continuous = (this.seqMode === 'continu');
         let prevMidiSet = new Set(), nextMidiSet = new Set();
         // TOUS les accords de la partie active, avant/après celui en édition (pas seulement le plus
         // proche, retour utilisateur : pouvoir défiler/cliquer directement n'importe quel accord de la
@@ -14889,6 +14903,7 @@ class HarmoHubApp {
         // hauteur des lignes) — juste un repère pour retrouver ce rendu au prochain (voir
         // prevGridEl/wasPrevScrollable plus haut dans ce rendu) et préserver son défilement.
         const wideCls = wideCompact ? ' seq-grid-wide' : '';
+        const plafondCls = (seqZoomed && !continuous && !wideCompact) ? ' seq-grid-plafonnee' : '';
         const scrollCls = continuous ? ' seq-scroll-continuous' : (wideCompact ? ' seq-scroll-wide' : '');
         const colOffset = continuous ? prevSteps : 0;
         const totalCols = continuous ? (prevSteps + pageSteps + nextSteps) : pageSteps;
@@ -14915,11 +14930,20 @@ class HarmoHubApp {
         // .seq-grid-continuous .seq-label : elles couvrent alors toutes les colonnes pour pouvoir
         // rester accrochées à gauche, et ne dimensionnent donc plus la piste elles-mêmes).
         const labelW = continuous ? 40 : 0;
+        // PLAFOND DE LARGEUR EN VUE AGRANDIE (retour utilisateur : « par contre pour des accords très
+        // courts, il faudra limiter la largeur du séquenceur pour que ça garde du sens »).
+        // Sans plafond, `1fr` étire les cases pour remplir la fenêtre : un accord d'une mesure y
+        // occupe seize cases sur toute la largeur d'un écran d'ordinateur, ce qui ne veut plus rien
+        // dire musicalement — une double croche large de 80px. Le plafond garde des cases GRANDES
+        // (c'est le but de la loupe) sans les laisser devenir absurdes, et la grille se centre alors
+        // dans la fenêtre au lieu de s'y coller à gauche (voir .seq-grid-plafonnee).
+        const plafonne = seqZoomed && !continuous;
         const colTemplate = continuous
             ? `${labelW}px repeat(${totalCols}, var(--seq-col-w))`
             : (wideCompact ? `max-content repeat(${totalCols}, var(--seq-col-w))`
-                           : `max-content repeat(${pageSteps}, 1fr)`);
-        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" data-col-px="${continuousColPx}" data-total-cols="${totalCols}" style="grid-template-columns: ${colTemplate}; --seq-col-w: ${continuousColPx}px; --seq-steps-per-bar: ${beatsPerBar * SEQ_STEPS_PER_BEAT}; --seq-bar-w: ${continuousColPx * beatsPerBar * SEQ_STEPS_PER_BEAT}px; --seq-beat-w: ${continuousColPx * SEQ_STEPS_PER_BEAT}px; --seq-label-w: ${labelW}px;">`;
+                           : (plafonne ? `max-content repeat(${pageSteps}, minmax(0, ${SEQ_CASE_MAX_AGRANDIE}px))`
+                                       : `max-content repeat(${pageSteps}, 1fr)`));
+        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}${plafondCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" data-col-px="${continuousColPx}" data-total-cols="${totalCols}" style="grid-template-columns: ${colTemplate}; --seq-col-w: ${continuousColPx}px; --seq-steps-per-bar: ${beatsPerBar * SEQ_STEPS_PER_BEAT}; --seq-bar-w: ${continuousColPx * beatsPerBar * SEQ_STEPS_PER_BEAT}px; --seq-beat-w: ${continuousColPx * SEQ_STEPS_PER_BEAT}px; --seq-label-w: ${labelW}px;">`;
 
         // Cases de la grille : zones de clic/glisser (toujours présentes, sous les notes visuelles).
         // Placement explicite (grid-row/grid-column) sur TOUT le monde : les notes ci-dessous se
@@ -15338,7 +15362,9 @@ class HarmoHubApp {
         // sens. Le petit séquenceur reste lié au seul accord en édition, quelle que soit une plage
         // définie par ailleurs (retour utilisateur : son bouton lecture se retrouvait à tort à jouer
         // toute la grille).
-        const seqLoopRangeActive = !!this.loopRange && (this.seqMode === 'continu' || this.seqZoomOpen);
+        // Idem ici : agrandir ne fait plus passer ce bouton du côté « toute la grille ». Il ne joue la
+        // plage que dans la vue CONTINUE, la seule où l'on voit le morceau entier — agrandi ou non.
+        const seqLoopRangeActive = !!this.loopRange && this.seqMode === 'continu';
         // Retenu pour syncAnneauBoucle : ce bouton lance tantôt la grille, tantôt le seul accord en
         // édition, et son anneau doit parler de la lecture qu'il lance VRAIMENT.
         this._seqPlayLanceGrille = seqLoopRangeActive;

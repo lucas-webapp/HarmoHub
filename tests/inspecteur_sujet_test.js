@@ -64,6 +64,7 @@ const marqueurs = () => {
             fond: sLab.backgroundColor,
             cadre: sLab.borderTopColor,
             encadree: parseFloat(sLab.borderTopWidth) > 0,
+            couleur: sLab.color,
             large: lab.getBoundingClientRect().width,
         } : null,
         symbole: sym ? (sym.textContent || '').trim() : null,
@@ -100,15 +101,22 @@ async function eprouverLesDeuxEtats(page, contexte) {
     check(!!ajout.sujetDuVolet && !!modif.sujetDuVolet && ajout.sujetDuVolet !== modif.sujetDuVolet,
         `${contexte} : les cartes Accord et Lecture portent la MÊME marque de sujet`);
 
-    // 4. La pastille d'état : encadrée (donc lue comme un marqueur, pas comme un intitulé), et son
-    //    texte dit lequel des deux états.
-    if (exiger(!!ajout.pastille && !!modif.pastille, `${contexte} : la pastille d'état existe dans les deux cas`)) {
-        check(ajout.pastille.encadree && modif.pastille.encadree,
-            `${contexte} : la pastille est bien encadrée, pas un simple texte coloré`);
-        check(ajout.pastille.fond !== modif.pastille.fond,
-            `${contexte} : le fond de la pastille change d'un état à l'autre`);
+    // 4. L'INTITULÉ D'ÉTAT. Il était encadré — une pastille avec fond et liseré — et ce banc l'exigeait.
+    //    L'encadré a été retiré à la demande : « nouvel accord ou modifier (titres) : enlever les
+    //    encadrés verts ou orange, je n'aime pas trop. »
+    //    CE QUI COMPTAIT DANS CE POINT SURVIT, et c'est pour ça qu'il n'est pas supprimé : la
+    //    distinction entre l'ÉTAT et le SUJET ne tenait pas au cadre mais à la COULEUR — vert en
+    //    Ajout, orange en Modification — et au fait que l'intitulé NOMME l'état. Le banc éprouve donc
+    //    ces deux propriétés-là, désormais portées par le texte lui-même. Exiger le cadre reviendrait
+    //    à réclamer l'ornement qu'on vient d'enlever ; ne rien exiger laisserait la distinction se
+    //    perdre en silence au prochain remaniement.
+    if (exiger(!!ajout.pastille && !!modif.pastille, `${contexte} : l'intitulé d'état existe dans les deux cas`)) {
+        check(!ajout.pastille.encadree && !modif.pastille.encadree,
+            `${contexte} : plus d'encadré autour de l'intitulé, comme demandé`);
+        check(ajout.pastille.couleur !== modif.pastille.couleur,
+            `${contexte} : la COULEUR du texte distingue les deux états — ${ajout.pastille.couleur} puis ${modif.pastille.couleur}`);
         check(ajout.pastille.texte !== modif.pastille.texte && ajout.pastille.texte.length > 0 && modif.pastille.texte.length > 0,
-            `${contexte} : la pastille NOMME l'état — « ${ajout.pastille.texte} » puis « ${modif.pastille.texte} »`);
+            `${contexte} : l'intitulé NOMME l'état — « ${ajout.pastille.texte} » puis « ${modif.pastille.texte} »`);
     }
 
     // 5. Le symbole de l'accord est à côté de la pastille, pas dedans : on lit « [MODIFIER] F », l'état

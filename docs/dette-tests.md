@@ -2319,3 +2319,60 @@ mesurant enfin les trois commandes au doigt plutôt qu'à la souris. Corrigé à
 
 C'est l'argument pour écrire un banc même sur un lot « de mise en page » : il ne protège pas seulement
 ce qu'on vient de faire, il éclaire ce qui était déjà là.
+
+## Quatre retours après essai sur téléphone
+
+### Une régression que j'ai causée, et qui était un cul-de-sac
+
+> « J'ai perdu mes boutons de diagrammes. »
+
+En déplaçant les commandes du manche, j'ai ouvert une `<div>` sans la refermer au bon niveau :
+`.viz-toggle` s'est retrouvé **à l'intérieur** de `.viz-diagrams`. Or `.col-right.diagrams-hidden
+.viz-diagrams` passe en `display: none` quand les deux diagrammes sont masqués — les bascules
+disparaissaient avec lui, et **il ne restait aucun moyen de les rouvrir**.
+
+Ce n'est donc pas un défaut d'affichage, c'est un **état sans sortie**. Le banc du lot n'attrapait
+rien parce qu'il mesurait toujours avec au moins un diagramme affiché ; il éprouve maintenant l'état
+masqué, la parenté DOM, et le geste qui en sort.
+
+**Ce que j'aurais dû faire** : à l'écriture, j'avais un doute explicite sur ces balises fermantes et
+j'ai écrit « je vérifie la structure dans le navigateur plutôt qu'à l'œil » — puis j'ai vérifié la
+*disposition* sans jamais vérifier la *parenté*. Le doute était le bon ; la vérification ne portait
+pas sur ce qui l'avait déclenché.
+
+### Un malentendu sur la loupe, et il était de mon côté
+
+> « Au lieu de voir le séquenceur en continu, j'aimerais juste voir le petit séquenceur simple, mais
+> en plus gros pour le modifier plus facilement. »
+
+`const continuous = (this.seqMode === 'continu' || this.seqZoomOpen)` : agrandir faisait **changer de
+vue**. La loupe ne doit que changer de **taille**. Le `|| this.seqZoomOpen` disparaît, et c'est le
+mode qui décide seul — la vue continue garde sa porte, « Séq. » au-dessus de la grille.
+
+S'y ajoute un plafond de largeur : « pour des accords très courts, il faudra limiter la largeur du
+séquenceur pour que ça garde du sens ». Sans lui, `1fr` étirait seize doubles croches sur toute la
+largeur de l'écran — une double croche de 80px, qui ne veut plus rien dire musicalement. Mesuré
+après : cases de 19px dans le petit, **34px** dans la loupe, grille de 1058px au lieu de 1440.
+
+### Le contraste que le lot précédent avait rendu visible
+
+> « Bouton voicing : afficher en plus sombre, comme le séquenceur. »
+
+La mesure isolée disait que tout était déjà à `#16191e` — et elle avait tort de rassurer. La capture
+montrait autre chose : sur **la même ligne**, « C » et « Majeur » portaient le fond générique des
+`<select>` (#222 plus un dégradé clair) tandis que « 1 mes. » portait le `#16191e` du séquenceur.
+
+C'est le lot d'avant qui a créé le problème en le rendant visible : **remonter la durée sur cette
+ligne a mis côte à côte deux habillages qui vivaient jusque-là dans deux rangées différentes.** Un
+déplacement ne change pas que des positions, il change les voisinages — et un voisinage nouveau est
+une comparaison nouvelle.
+
+### Un encadré retiré sans perdre ce qu'il disait
+
+> « Nouvel accord ou modifier (titres) : enlever les encadrés verts ou orange, je n'aime pas trop. »
+
+La pastille servait à séparer l'**état** du **sujet** — on lit « MODIFIER Fmaj7 ». Cette distinction
+ne tenait pas au cadre mais à la **couleur** (vert en Ajout, orange en Modification) et au fait que
+l'intitulé nomme l'état. `inspecteur_sujet` exigeait le cadre ; il exige maintenant ces deux
+propriétés-là. Exiger le cadre aurait été réclamer l'ornement qu'on venait d'enlever ; ne rien exiger
+aurait laissé la distinction se perdre en silence au prochain remaniement.

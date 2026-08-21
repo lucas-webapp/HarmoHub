@@ -48,7 +48,7 @@ const atteignable = (sel) => {
 };
 
 (async () => {
-    plan(23);
+    plan(28);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -123,11 +123,42 @@ const atteignable = (sel) => {
     // Agrandir est une opération SUR le séquenceur : sa commande lui appartient.
     exiger(await page.evaluate(() => !!document.getElementById('seq-plein-ecran')),
         'la loupe est présente dans la barre du séquenceur');
+    const casePetite = await page.evaluate(() => {
+        const c = document.querySelector('.seq-cell');
+        return c ? Math.round(c.getBoundingClientRect().width) : null;
+    });
+    exiger(casePetite > 0, `la taille d'une case du petit séquenceur est mesurable — ${casePetite}px`);
     await page.click('#seq-plein-ecran');
     await page.waitForTimeout(800);
     check(await page.evaluate(() => window.app.seqZoomOpen === true), 'la loupe ouvre bien le plein écran');
     check(await page.evaluate(() => !document.getElementById('seq-plein-ecran')),
         'et disparaît une fois en plein écran : il n\'y a plus rien à agrandir');
+    // AGRANDIR NE CHANGE PAS DE VUE, IL CHANGE DE TAILLE. Retour utilisateur : « il y a peut-être un
+    // malentendu pour la loupe […] j'aimerais juste voir le petit séquenceur simple, mais en plus gros
+    // pour le modifier plus facilement. Donc pas besoin de voir les demi-tons ni les accords
+    // adjacents. » C'était bien un malentendu : la loupe basculait dans la vue continue.
+    const agrandi = await page.evaluate(() => {
+        const g = document.querySelector('.seq-grid');
+        const c = document.querySelector('.seq-cell');
+        return {
+            continu: g.className.includes('continuous'),
+            plafonnee: g.className.includes('plafonnee'),
+            voisins: document.querySelectorAll('.seq-ctx-note').length,
+            lignes: document.querySelectorAll('.seq-row-name, .seq-label').length,
+            largeurCase: Math.round(c.getBoundingClientRect().width),
+            largeurGrille: Math.round(g.getBoundingClientRect().width),
+            fenetre: window.innerWidth,
+        };
+    });
+    check(!agrandi.continu, 'la loupe garde la vue SIMPLE : ni axe chromatique, ni demi-tons');
+    check(agrandi.voisins === 0, `et aucun accord voisin en lecture seule — ${agrandi.voisins}`);
+    check(agrandi.largeurCase > casePetite,
+        `mais des cases plus GRANDES, ce qui est tout l'objet de la loupe — ${casePetite}px puis ${agrandi.largeurCase}px`);
+    // « Pour des accords très courts, il faudra limiter la largeur du séquenceur pour que ça garde du
+    // sens » : sans plafond, `1fr` étire seize doubles croches sur toute la largeur de l'écran.
+    check(agrandi.plafonnee && agrandi.largeurGrille < agrandi.fenetre - 100,
+        `la largeur est plafonnée plutôt que d'occuper tout l'écran — grille ${agrandi.largeurGrille}px pour une fenêtre de ${agrandi.fenetre}px`);
+
     await page.evaluate(() => window.app.closeSeqZoom());
     await page.waitForTimeout(500);
 
