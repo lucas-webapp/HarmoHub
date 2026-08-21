@@ -73,7 +73,11 @@ const atteignable = (sel) => {
             mode: document.body.dataset.appMode,
             // Le déménagement, pièce par pièce. Une fusion qui oublie un champ source ne se voit pas
             // à l'œil : rien ne casse tant que personne ne le lit.
-            rangeeDuree: dans('lecture-row'),
+            // La durée n'a plus de rangée : elle est remontée sur la ligne de définition de l'accord
+            // (retour utilisateur : « prend trop de place pour rien »). Ce que cette section éprouve
+            // reste le même — la fusion n'a rien laissé derrière elle —, on vise juste la commande
+            // plutôt que le conteneur qui l'entourait.
+            rangeeDuree: dans('duration-dd'),
             sequenceur: dans('arp-sequencer'),
             agrandir: dans('seq-zoom'),
             sources: ['playStyle', 'duration', 'intensity', 'arpPattern'].filter(dans),
@@ -87,7 +91,7 @@ const atteignable = (sel) => {
     exiger(a.nbAccord === 1, `il y a exactement une carte Accord — ${a.nbAccord}`);
     check(!a.lecture, 'la carte Lecture n\'existe plus du tout, pas même masquée');
     check(a.rangeeDuree && a.sequenceur && a.agrandir,
-        'la rangée de durée, le séquenceur et son bouton « Agrandir » sont dans la carte Accord');
+        'la durée, le séquenceur et sa porte « Séquenceur » sont dans la carte Accord');
     check(a.sources.length === 4,
         `les quatre champs sources ont suivi — ${a.sources.join(', ') || 'AUCUN'}`);
     check(a.boutonSeq, 'la porte « Séquenceur » est bien dans la carte Accord');
@@ -96,52 +100,57 @@ const atteignable = (sel) => {
     // Ce que le banc d'origine éprouvait, et qui garde tout son sens : une ressemblance obtenue en
     // recopiant l'aspect se défait à la première retouche ; une ressemblance obtenue en partageant
     // les classes, non. Désormais les deux rangées sont sœurs, au sens propre.
+    // IL N'Y A PLUS DEUX RANGÉES À COMPARER. Cette section éprouvait que la rangée Lecture et la
+    // rangée de voicing partageaient les MÊMES classes — « même principe », c'était le sujet du lot.
+    // La rangée Lecture a fini par disparaître entièrement : son dernier occupant, la durée, est
+    // remonté sur la ligne de définition de l'accord. Comparer deux rangées dont une n'existe plus
+    // n'éprouve rien ; ce qui reste vrai, et qui était le fond de l'affaire, c'est qu'il n'y a plus
+    // qu'UNE grammaire de rangée dans cette carte, et que la durée a bien atterri là où on l'attend.
     const b = await page.evaluate(() => {
-        const l = document.getElementById('lecture-row'), v = document.getElementById('voicing-row');
-        if (!l || !v) return null;
-        const cl = (el, s) => !!el.querySelector(s);
+        const v = document.getElementById('voicing-row');
+        const d = document.getElementById('duration-dd');
+        if (!v || !d) return null;
         return {
-            memeCarte: !!l.closest('#accord-card') && !!v.closest('#accord-card'),
-            memeRangee: l.classList.contains('voicing-row') && v.classList.contains('voicing-row'),
-            groupes: cl(l, '.voicing-group') && cl(v, '.voicing-group'),
-            etiquettes: cl(l, '.voicing-label') && cl(v, '.voicing-label'),
-            segments: cl(v, '.voicing-seg .voicing-segment'),
-            nbGroupesVisibles: [...l.querySelectorAll('.voicing-group')].filter(g => g.offsetParent !== null).length,
+            ancienneRangee: !!document.getElementById('lecture-row'),
+            dureeDansLaLigne: !!d.closest('.accord-grid'),
+            ligneDansLaCarte: !!d.closest('#accord-card'),
+            voicingGarde: v.classList.contains('voicing-row')
+                && !!v.querySelector('.voicing-group') && !!v.querySelector('.voicing-label'),
+            segments: !!v.querySelector('.voicing-seg .voicing-segment'),
         };
     });
-    exiger(!!b, 'les deux rangées existent');
-    check(b.memeCarte, 'elles sont maintenant dans la MÊME carte, plus dans deux cadres séparés');
-    check(b.memeRangee && b.groupes && b.etiquettes && b.segments,
-        'elles partagent .voicing-row, .voicing-group et .voicing-label — pas une imitation');
-    // Un seul groupe reste dans l'ancienne rangée Lecture : c'est précisément ce qui a rendu la
-    // fusion évidente.
-    check(b.nbGroupesVisibles === 1, `un seul groupe subsiste dans cette rangée : la Durée — ${b.nbGroupesVisibles}`);
-    const dessus = await page.evaluate(() => [...document.querySelectorAll('#lecture-row .voicing-group')]
-        .filter(g => g.offsetParent !== null).map(g => {
-            const lab = g.querySelector('.voicing-label').getBoundingClientRect();
-            const ctl = [...g.children].find(c => !c.classList.contains('voicing-label')).getBoundingClientRect();
-            // Des boîtes réellement dessinées : sans hauteur, « au-dessus » ne veut rien dire.
-            return { t: g.querySelector('.voicing-label').textContent.trim().split(' ')[0],
-                     auDessus: lab.height > 0 && ctl.height > 0 && lab.bottom <= ctl.top + 1 };
-        }));
-    check(dessus.length === 1 && dessus.every(d => d.auDessus),
-        `l'étiquette reste au-dessus de sa commande — ${dessus.map(d => d.t).join(', ')}`);
+    exiger(!!b, 'la rangée de voicing et la durée sont là toutes les deux');
+    check(!b.ancienneRangee, 'la rangée Lecture a fini par disparaître entièrement, jusqu\'à son cadre');
+    check(b.dureeDansLaLigne && b.ligneDansLaCarte,
+        'la durée a atterri sur la ligne de définition de l\'accord, dans la carte Accord');
+    check(b.voicingGarde && b.segments,
+        'la rangée de voicing garde .voicing-row, .voicing-group, .voicing-label et ses segments');
+    // Le fond du lot d'origine tient toujours : une seule grammaire de rangée dans cette carte.
+    // Deux, ça se met à diverger sans qu'on le voie — c'était l'argument, il n'a pas vieilli.
+    const grammaire = await page.evaluate(() =>
+        [...document.querySelectorAll('#accord-card .voicing-row')].map(r => r.id || '(sans id)'));
+    check(grammaire.length === 1 && grammaire[0] === 'voicing-row',
+        `une seule rangée de ce type dans la carte — ${grammaire.join(', ')}`);
 
     console.log('\n=== C. Rien ne déborde, et la colonne a maigri ===');
     for (const [w, h] of [[1440, 950], [1024, 768], [768, 900]]) {
         await page.setViewportSize({ width: w, height: h });
         await page.waitForTimeout(400);
         const m = await page.evaluate(() => {
-            const row = document.getElementById('lecture-row');
+            // La rangée surveillée est désormais la LIGNE DE DÉFINITION DE L'ACCORD : c'est elle qui
+            // porte la durée depuis qu'elle est remontée, et elle a gagné une troisième colonne — donc
+            // trois occasions de déborder là où il n'y en avait que deux. #lecture-row a disparu, et
+            // le viser rendait ce banc muet à partir d'ici (mesuré : 10 vérifications sur 21).
+            const row = document.querySelector('.accord-grid');
             const carte = document.getElementById('accord-card');
-            const coupes = [...document.querySelectorAll('#lecture-row .duration-dd-label')]
+            const coupes = [...document.querySelectorAll('.accord-grid .duration-dd-label')]
                 .filter(e => e.offsetParent !== null && e.scrollWidth > e.clientWidth + 1).map(e => e.textContent.trim());
             return { trop: row.scrollWidth - row.clientWidth,
                      carteTrop: carte.scrollWidth - carte.clientWidth,
                      page: document.documentElement.scrollWidth - document.documentElement.clientWidth, coupes };
         });
         check(m.trop <= 0 && m.carteTrop <= 0 && m.page <= 0 && m.coupes.length === 0,
-            `${w}px : rangée ${m.trop}px, carte ${m.carteTrop}px, page ${m.page}px, aucun libellé tronqué${m.coupes.length ? ' (' + m.coupes.join(', ') + ')' : ''}`);
+            `${w}px : ligne d'accord ${m.trop}px, carte ${m.carteTrop}px, page ${m.page}px, aucun libellé tronqué${m.coupes.length ? ' (' + m.coupes.join(', ') + ')' : ''}`);
     }
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.waitForTimeout(300);
@@ -161,10 +170,15 @@ const atteignable = (sel) => {
     const hEdit = await page.evaluate(() => ({
         mode: document.body.dataset.appMode,
         h: Math.round(document.getElementById('accord-card').getBoundingClientRect().height),
-        visibles: [...document.querySelectorAll('#lecture-row .voicing-group')].filter(g => g.offsetParent !== null).length,
+        dureeVisible: getComputedStyle(document.getElementById('duration-dd')).display !== 'none',
+        colonnes: getComputedStyle(document.querySelector('.accord-grid')).gridTemplateColumns.split(' ').length,
     }));
-    check(hEdit.mode === 'edit' && hEdit.visibles === 0 && hEdit.h < hAjout - 30,
-        `mode Modification : ${hEdit.visibles} groupe(s) visible(s), la carte tombe à ${hEdit.h}px (contre ${hAjout}px)`);
+    // LA CARTE NE MAIGRIT PLUS DE 30px EN MODIFICATION, et c'est le résultat attendu du lot qui a
+    // remonté la durée : elle n'occupe plus une RANGÉE entière qu'on masquait, mais une colonne. La
+    // masquer ne rend donc plus de hauteur — elle rend de la LARGEUR aux deux menus voisins, ce qui
+    // est justement ce qu'on cherchait. Exiger encore -30px reviendrait à réclamer la rangée perdue.
+    check(hEdit.mode === 'edit' && !hEdit.dureeVisible && hEdit.colonnes === 2,
+        `mode Modification : la durée s'efface, la ligne repasse à ${hEdit.colonnes} colonnes (carte ${hEdit.h}px contre ${hAjout}px en Ajout)`);
 
     console.log('\n=== D. Le séquenceur s\'ouvre toujours, depuis son bouton ===');
     // La cloison a disparu, pas les fonctions. Un vrai clic, pas un appel de méthode.
@@ -197,10 +211,12 @@ const atteignable = (sel) => {
     await m.reload({ waitUntil: 'load' });
     await m.waitForTimeout(1000);
     const geo = await m.evaluate(() => {
-        const row = document.getElementById('lecture-row');
+        // Même déplacement de cible qu'en section C : la durée vit sur la ligne de définition de
+        // l'accord, #lecture-row n'existe plus. Au doigt, c'est cette ligne-là qu'il faut mesurer.
+        const row = document.querySelector('.accord-grid');
         const carte = document.getElementById('accord-card').getBoundingClientRect();
         const r = row.getBoundingClientRect();
-        const cibles = [...document.querySelectorAll('#lecture-row .duration-dd-toggle')]
+        const cibles = [...document.querySelectorAll('.accord-grid .duration-dd-toggle')]
             .filter(x => x.offsetParent !== null).map(x => x.getBoundingClientRect());
         return { deborde: r.right > carte.right + 1 || row.scrollWidth > row.clientWidth,
                  page: document.documentElement.scrollWidth > window.innerWidth + 1,

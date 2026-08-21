@@ -1707,14 +1707,15 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
    Son — deux retours utilisateur successifs, tous deux du même ordre : « c'est une option pour
    affiner le morceau seulement » et « je ne me servirai rarement du rythme ». La durée reste seule
    et prend toute la rangée ; il n'y a plus rien à répartir. */
-.voicing-group-duree { flex: 1 1 auto; }
+/* .voicing-group-duree n'existe plus : la durée a quitté cette rangée pour la ligne de définition
+   de l'accord (voir .accord-grid), et la rangée entière est partie avec elle. */
 
 
 /* Les deux menus à icônes prennent le cadre des cases de voicing : même hauteur, même bordure, même
    fond, mêmes coins. Sans ça, la rangée aurait aligné trois habillages différents côte à côte — ce
    qu'on cherche justement à corriger. Leur propre dégradé et leur ombre portée sont neutralisés. */
-.lecture-row .duration-dd { align-self: auto; }
-.lecture-row .duration-dd-toggle {
+.accord-grid .duration-dd { align-self: auto; }
+.accord-grid .duration-dd-toggle {
     height: 30px;
     flex-direction: row;     /* la durée empilait icône AU-DESSUS du libellé : impossible en 30px */
     justify-content: flex-start;
@@ -1728,16 +1729,16 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
     font-weight: 700;
     min-width: 0;
 }
-.lecture-row .duration-dd-toggle:hover { background: rgba(255, 255, 255, 0.06); border-color: #454b54; }
+.accord-grid .duration-dd-toggle:hover { background: rgba(255, 255, 255, 0.06); border-color: #454b54; }
 /* CHEVRON ET ICÔNE DE DURÉE RETIRÉS DE CETTE RANGÉE (ils restent dans les menus ouverts). Ce sont
    les deux seuls pixels vraiment redondants ici : le chevron redit ce que le cadre dit déjà — une
    case qui s'ouvre — et l'icône de durée redit ce que « 1 mes. » écrit juste à côté. Mesuré : sans
    eux, « 1 mes. » cesse d'être tronqué (il l'était de 7px sur ordinateur, 14px sur un écran de
    360px). L'icône du STYLE DE JEU reste, elle : elle dessine le rythme, ce que le mot ne fait pas. */
-.lecture-row .duration-dd-icon { display: none; }
+.accord-grid .duration-dd-icon { display: none; }
 /* Les deux libellés se comportent comme le menu de basse de la rangée du dessus : ils prennent la
    place restante et se coupent proprement plutôt que de pousser la case hors du groupe. */
-.lecture-row .duration-dd-label {
+.accord-grid .duration-dd-label {
     flex: 1;
     min-width: 0;
     font-size: 12px;
@@ -1775,7 +1776,10 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
    posé sur <body> par applyAppModeTheme, LE point de passage de tout changement de mode — un
    masquage piloté depuis le JS aurait été un second endroit à tenir à jour, donc un second endroit
    à oublier. Les <select> sources, eux, restent lus dans les deux modes : rien n'est débranché. */
-body[data-app-mode="edit"] .voicing-group-duree { display: none; }
+/* La durée n'a plus de groupe à elle (.voicing-group-duree est parti avec la rangée) : on masque
+   la commande elle-même, désormais 3e colonne de .accord-grid. Toujours piloté par l'attribut posé
+   sur <body>, LE point de passage unique de tout changement de mode. */
+body[data-app-mode="edit"] #duration-dd { display: none; }
 /* Deux règles vivaient ici pour étirer la bande d'intensité restée seule en Modification. Elles
    sont parties avec elle, et la seconde valait qu'on la remarque : `.voicing-segment` ne désigne pas
    que les cases d'intensité — c'est aussi la classe des cases de renversement et de drop de la carte
@@ -1792,10 +1796,10 @@ body[data-app-mode="edit"] .voicing-group-duree { display: none; }
    lit, un pictogramme de croche large de 20px sur un écran de 320px, non. Le menu ouvert, lui, garde
    ses icônes : c'est là qu'on choisit. */
 @media (max-width: 340px) {
-    /* Il ne reste que la durée : plus rien à répartir, plus d'icône de rythme à sacrifier. Le bloc
-       est conservé comme point d'accroche — c'est ici qu'on ajustera si un jour la durée déborde à
-       320px, ce qu'elle ne fait plus depuis qu'elle a la rangée pour elle seule. */
-    .voicing-group-duree { flex: 1 1 auto; }
+    /* La durée a quitté cette rangée pour la ligne de définition de l'accord. À 320px, c'est donc
+       .accord-grid qu'il faut surveiller : trois colonnes y sont serrées, et « 4 mes. » est le
+       libellé le plus long. Mesuré après le déplacement — voir le banc — il tient ; ce bloc reste
+       le point d'accroche si un futur libellé plus long venait à déborder. */
 }
 
 /* ============================================================
@@ -2222,11 +2226,21 @@ body[data-app-mode="edit"] .voicing-group-duree { display: none; }
    Lecture). minmax(0,1fr) laisse les colonnes se réduire ensemble plutôt que déborder si le contenu
    est plus large que prévu. Les boutons « ⋯ »/basse/avancé vivent dans .card-head-actions (en-tête de
    la carte), plus dans la grille elle-même. */
+/* TROIS COLONNES : fondamentale, type d'accord, DURÉE (retour utilisateur : « remonter [la durée]
+   au niveau de la définition de l'accord […] en réduisant la largeur des 2 boutons existants sur
+   cette ligne »). Les deux menus se resserrent donc d'un tiers — c'est exactement ce qui était
+   demandé, et ils n'en souffrent pas : ils portent une lettre ou un mot court, et savent déjà se
+   couper proprement (voir .accord-grid select juste en dessous). */
 .accord-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
+    align-items: stretch;
 }
+/* En Modification, la durée est masquée (voir plus bas : elle se règle alors en tirant le bord de la
+   case dans la grille). Sans cette règle, la ligne garderait sa troisième colonne — vide — et les
+   deux menus resteraient inutilement étroits pour rien. */
+body[data-app-mode="edit"] .accord-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 /* Peu de texte dans chacun de ces menus (une lettre, "Fond.", "Drop 2"...) : le padding généreux/
    min-width de `select` (pensé pour les menus pleine largeur ailleurs dans l'appli) les rendait bien
    plus larges que nécessaire (retour utilisateur) — moins de padding + ellipsis (jamais de
@@ -4920,7 +4934,12 @@ select.song-select-narrow {
     .control-card h2 { font-size: var(--fs-sm); margin-bottom: 8px; }
     .select-group { gap: 8px; }
     .select-group + .select-group { margin-top: 8px; }
-    .accord-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    /* TROIS colonnes ici aussi (fondamentale, type, durée) : cette règle d'ordinateur en imposait
+       deux et l'emportait sur la règle de base, si bien que la durée repassait à la ligne — mesuré :
+       grille de 321px pour trois colonnes de 157, donc débordement garanti. Seul l'espacement, plus
+       serré à la souris, relève vraiment de ce bloc. */
+    .accord-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    body[data-app-mode="edit"] .accord-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     select { padding: 9px 10px; font-size: var(--fs-select); min-width: 0; }
     button { padding: 10px 12px 10px 8px; font-size: var(--fs-base); }
     .bpm-group { margin-top: 10px; gap: 6px; }

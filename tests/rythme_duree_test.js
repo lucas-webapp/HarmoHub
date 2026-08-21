@@ -72,9 +72,15 @@ const POSER_AIDES = `window.visible = (sel) => { const e = document.querySelecto
     await page.waitForTimeout(900);
 
     console.log('=== A. En AJOUT, les deux réglages sont là : ce sont les prochains accords ===');
+    // LA DURÉE N'A PLUS DE GROUPE À ELLE. Elle vivait dans .voicing-group-duree, dernier survivant
+    // d'une rangée qui en portait trois ; cette rangée est partie avec elle (retour utilisateur : « le
+    // bouton "durée" prend trop de place pour rien […] le remonter au niveau de la définition de
+    // l'accord »). On vise donc la commande elle-même, #duration-dd, désormais 3e colonne de la ligne
+    // d'accord — ce que ce banc surveille (elle est là en Ajout, absente en Modification) n'a pas
+    // changé d'un pouce.
     exiger(await page.evaluate(() => window.app.appMode === 'add'), 'on démarre bien en mode Ajout');
     const ajout = await page.evaluate(() => ({
-        duree: visible('.voicing-group-duree'),
+        duree: visible('#duration-dd'),
         // Les deux qui ont quitté la rangée, chacun pour sa raison, et qui ne doivent plus y être
         // dans AUCUN des deux modes : l'intensité au menu contextuel (« c'est une option pour
         // affiner le morceau seulement. À cacher »), le rythme aux Paramètres (« je ne me servirai
@@ -120,7 +126,7 @@ const POSER_AIDES = `window.visible = (sel) => { const e = document.querySelecto
     await page.evaluate(() => window.app.editChord(0, 0));
     await page.waitForTimeout(600);
     const modif = await page.evaluate(() => ({
-        duree: visible('.voicing-group-duree'),
+        duree: visible('#duration-dd'),
         intensite: visible('.voicing-group-intensite'),
         // Les champs SOURCES, eux, doivent rester lisibles : rien n'est débranché, seulement masqué.
         selects: ['playStyle', 'duration', 'intensity'].filter(i => !!document.getElementById(i)).length,
@@ -259,23 +265,26 @@ const POSER_AIDES = `window.visible = (sel) => { const e = document.querySelecto
     await m.evaluate(seed);
     await m.reload({ waitUntil: 'load' });
     await m.waitForTimeout(1000);
-    const telAjout = await m.evaluate(() => ({ duree: visible('.voicing-group-duree'), jeu: !!document.querySelector('.voicing-group-jeu') }), null);
+    const telAjout = await m.evaluate(() => ({ duree: visible('#duration-dd'), jeu: !!document.querySelector('.voicing-group-jeu') }), null);
     check(telAjout.duree && !telAjout.jeu, 'téléphone, Ajout : la Durée est là, le Rythme n\'existe plus');
     await m.evaluate(() => window.app.editChord(0, 0));
     await m.waitForTimeout(800);
     const telModif = await m.evaluate(() => {
-        const row = document.getElementById('lecture-row');
-        return { duree: visible('.voicing-group-duree'),
+        // #lecture-row n'existe plus : la durée est remontée sur la ligne de définition de l'accord,
+        // et sa rangée est partie avec elle. C'est donc cette ligne qu'on mesure — et le fond de ce
+        // point ne change pas : en Modification, la durée s'efface et rien ne déborde.
+        const row = document.querySelector('.accord-grid');
+        return { duree: visible('#duration-dd'),
                  intensite: visible('.voicing-group-intensite'),
                  trop: row.scrollWidth - row.clientWidth,
-                 // Plus d'intensité dans la rangée : on mesure ce qui y reste vraiment (rien en
-                 // Modification, d'où le repli sur Infinity, neutralisé par le check ci-dessous).
-                 lMin: (() => { const c = [...document.querySelectorAll('#lecture-row .voicing-segment, #lecture-row .voicing-step')].filter(x => x.offsetParent !== null);
+                 // Les deux menus qui restent doivent garder une cible tactile décente une fois la
+                 // troisième colonne retirée — c'est justement la place qu'ils récupèrent.
+                 lMin: (() => { const c = [...row.children].filter(x => x.offsetParent !== null);
                                 return c.length ? Math.round(Math.min(...c.map(x => x.getBoundingClientRect().width))) : null; })() };
     });
-    check(!telModif.duree && !telModif.intensite, 'téléphone, Modification : la rangée est vide, comme sur ordinateur');
+    check(!telModif.duree && !telModif.intensite, 'téléphone, Modification : la durée et l\'intensité s\'effacent, comme sur ordinateur');
     check(telModif.trop <= 0 && (telModif.lMin === null || telModif.lMin >= 20),
-        `téléphone : la rangée ne déborde pas${telModif.lMin === null ? ' (et elle est vide, comme attendu)' : ' et ses cases restent tactiles — ' + telModif.lMin + 'px'}`);
+        `téléphone : la ligne d'accord ne déborde pas${telModif.lMin === null ? ' (et elle est vide)' : ' et ses commandes restent tactiles — ' + telModif.lMin + 'px'}`);
 
     check(erreurs.length === 0, `aucune erreur JavaScript — ${erreurs.join(' | ') || 'aucune'}`);
     await browser.close();

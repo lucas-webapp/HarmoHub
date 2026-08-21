@@ -2172,3 +2172,50 @@ qu'elle est, « la plage tracée », et la répétition est dite une seule fois.
 sont désormais les groupes), `probe_deux_sequenceurs` (cliquait l'ancienne porte, ce qui **refermait**
 le panneau et faisait tomber les quatre points suivants), `tap_removal` et `global_transport`. Aucun
 supprimé : chacun vise le geste qui a remplacé le sien.
+
+## La durée remonte sur la ligne de l'accord
+
+> « Le bouton "durée" pour un accord dans le volet de gauche prend trop de place pour rien. Est-ce que
+> ça te semble être une bonne idée de le remonter au niveau de la définition de l'accord (note et type
+> d'accord), en réduisant la largeur des 2 boutons existants sur cette ligne ? »
+
+Oui — et l'argument est plus fort que « ça prend de la place ». Cette rangée ne contenait **plus
+qu'elle**. Elle portait trois groupes (jeu, durée, intensité) ; l'intensité est partie au menu
+contextuel de l'accord, le rythme dans Paramètres > Son, deux lots plus tôt. Il restait une rangée
+entière, son espacement et son étiquette pour **une seule commande**. La durée devient donc la
+troisième colonne de `.accord-grid`, et la rangée disparaît.
+
+L'étiquette « Durée » ne suit pas : ses deux voisines n'en ont pas, une seule aurait creusé la ligne —
+et « 1 mes. », écrit dans le bouton, dit déjà ce que l'étiquette disait. Le mot reste dans l'infobulle
+et l'`aria-label`.
+
+### Une règle d'ordinateur imposait encore deux colonnes
+
+Passer `.accord-grid` à trois colonnes n'a pas suffi : à 1440px la durée **repassait à la ligne**.
+Mesuré — grille de 321px, trois colonnes de 157px, débordement garanti. Le bloc `@media` des écrans
+larges redéclarait `grid-template-columns: repeat(2, …)` et l'emportait par ordre de cascade.
+
+C'est la troisième fois dans ce journal qu'une règle plus spécifique ou plus tardive annule
+silencieusement une intention : le `button { min-width: 120px }` sur « Séq. », le `.col-left .icon-btn`
+sur le vert d'Enregistrer, celle-ci maintenant. **Le réflexe qui marche est toujours le même : mesurer
+le rendu, jamais relire la feuille en espérant voir le conflit.**
+
+### Ce que le déplacement change vraiment en Modification
+
+En Modification, la durée s'efface (elle se règle alors en tirant le bord de la case dans la grille).
+Avant, cela rendait **de la hauteur** — une rangée entière. Maintenant, cela rend de la **largeur** :
+la ligne repasse à deux colonnes et les deux menus récupèrent la place, mesuré 102px → 157px.
+
+C'est exactement ce que le lot cherchait, mais il fallait ajuster le banc : `carte_accord_unique`
+exigeait encore que la carte maigrisse de 30px en Modification. Réclamer ce gain-là revenait à
+réclamer la rangée qu'on venait de supprimer.
+
+### Cinq sections de bancs retournées, et un banc qui mourait à mi-parcours
+
+`carte_accord_unique` visait `#lecture-row` dans quatre sections différentes : la première le trouvait
+absent et **le banc s'arrêtait là** — 10 vérifications sur 21 attendues. Sa section B comparait « les
+deux rangées » pour montrer qu'elles partageaient les mêmes classes ; il n'en reste qu'une, donc la
+comparaison n'éprouvait plus rien. Elle vérifie désormais ce qui reste le fond de l'affaire : **une
+seule grammaire de rangée dans cette carte**, et la durée bien arrivée là où on l'attend.
+
+`rythme_duree` visait `.voicing-group-duree`, le groupe disparu avec la rangée ; il vise la commande.

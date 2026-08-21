@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608243100">
+    <link rel="stylesheet" href="style.css?v=202608243300">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -737,6 +737,17 @@
                             <option value="dom11">11</option>
                             <option value="dom13">13</option>
                         </select>
+                        <!-- LA DURÉE, TROISIÈME COLONNE. Sans étiquette au-dessus, contrairement à sa
+                             rangée d'origine : ses deux voisines n'en ont pas, une seule en aurait
+                             creusé la ligne — et « 1 mes. » écrit dans le bouton dit déjà ce que
+                             l'étiquette disait. L'infobulle et aria-label gardent le mot pour qui en a
+                             besoin. -->
+                        <div class="duration-dd" id="duration-dd">
+                            <button type="button" class="duration-dd-toggle" id="duration-dd-toggle" title="Durée des prochains accords. Celle d'un accord déjà posé se règle en tirant le bord de sa case dans la grille." aria-label="Durée des prochains accords" aria-haspopup="true" aria-expanded="false">
+                                <span class="duration-dd-icon" data-icon-slot></span>
+                                <span class="duration-dd-label" data-label-slot></span>
+                            </button>
+                        </div>
                     </div>
                     <!-- COMMANDES DIRECTES DE VOICING (Lot 4 de la refonte).
                          Retour utilisateur : « Lorsque je suis en mode édition, je veux pouvoir
@@ -854,26 +865,18 @@
                          .voicing-group/.voicing-label/.voicing-seg), pas une imitation : « le même
                          principe » se tient s'il n'y a qu'un seul principe. Retoucher l'un retouche
                          l'autre, et les deux cartes ne peuvent plus diverger sans qu'on le voie. -->
-                    <div class="voicing-row lecture-row" id="lecture-row">
-                        <!-- LE BOUTON « RYTHME » A QUITTÉ CETTE CARTE — et le séquenceur avec.
-                             Retour utilisateur : « Je pense que je ne me servirai rarement du rythme.
-                             Pour diminuer le nombre de boutons, laisser uniquement un choix favori
-                             dans les paramètres. »
-                             Il ne reste donc qu'UN réglage, global à l'appareil, dans Paramètres > Son
-                             (voir RYTHME_DEPART_CHOIX) : deux choix au lieu de neuf, choisis une fois
-                             pour toutes. Le champ #playStyle plus bas reste la source de vérité que
-                             lisent readChord et seqPreset ; la préférence se contente d'y écrire pour
-                             les NOUVEAUX accords, et un accord déjà écrit garde le rythme qu'il a. -->
-                        <div class="voicing-group voicing-group-duree">
-                            <span class="voicing-label" id="duration-label">Durée</span>
-                            <div class="duration-dd" id="duration-dd">
-                                <button type="button" class="duration-dd-toggle" id="duration-dd-toggle" title="Durée des prochains accords. Celle d'un accord déjà posé se règle en tirant le bord de sa case dans la grille." aria-haspopup="true" aria-expanded="false">
-                                    <span class="duration-dd-icon" data-icon-slot></span>
-                                    <span class="duration-dd-label" data-label-slot></span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- LA RANGÉE « LECTURE » A DISPARU, et il ne restait qu'elle à enlever.
+                         Retour utilisateur : « le bouton "durée" pour un accord dans le volet de gauche
+                         prend trop de place pour rien. Est-ce que ça te semble être une bonne idée de le
+                         remonter au niveau de la définition de l'accord (note et type d'accord), en
+                         réduisant la largeur des 2 boutons existants sur cette ligne ? »
+                         Oui, et mieux que ça : cette rangée ne contenait PLUS QUE la durée. Elle en
+                         portait trois (jeu, durée, intensité) ; l'intensité est partie au menu contextuel
+                         de l'accord, le rythme dans Paramètres > Son. Une rangée entière, son espacement
+                         et son étiquette pour une seule commande. La durée est remontée dans
+                         .accord-grid, qui passe de deux à trois colonnes.
+                         Le champ #playStyle juste en dessous reste la source de vérité que lisent
+                         readChord et seqPreset : le rythme n'est pas débranché, il n'a plus de bouton. -->
 
                     <!-- SOURCES DE VÉRITÉ, MASQUÉES. Même stratégie que #inversion/#drop/#octave dans la
                          carte Accord : les champs d'origine gardent leurs identifiants et leurs écouteurs
@@ -1299,6 +1302,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608243100"></script>
+    <script src="script.js?v=202608243300"></script>
 </body>
 </html>
