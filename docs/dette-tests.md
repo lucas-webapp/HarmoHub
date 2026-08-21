@@ -2453,3 +2453,89 @@ plus tôt : elle nomme une **famille** (tempo, groove, signature) sans redire so
 était exactement le reproche fait à l'ancien « Tempo ». Les alternatives pesées valaient moins :
 « Métrique » est trop technique, « Tempo et mesure » oublie le groove, « Transport » désigne déjà les
 boutons de lecture ailleurs dans l'application.
+
+## Les accords complexes : un seul doigté, et la bonne façon de savoir pourquoi
+
+> « Je dois jouer un Cmaj9 à la guitare, je suis étonné qu'il y ait un seul diagramme proposé sur
+> l'appli, alors qu'il est facilement jouable à la guitare. […] Peux-tu vérifier les accords
+> complexes stp ? »
+
+### Mesurer avant de corriger
+
+Un seul doigté proposé peut vouloir dire deux choses opposées : soit le chercheur ne cherche pas assez
+loin, soit il **rejette** des positions jouables au nom d'une règle trop stricte. On ne peut pas
+trancher en lisant le code — il faut lui faire dire ce qu'il jette, et sur quel motif. D'où une sonde
+qui rejoue l'énumération sans en écarter les rejets, sur trois tons et les vingt-deux qualités :
+
+| accord | dispositions énumérées | retenues | rejetées sur l'écartement | rejetées sur les doigts |
+|---|---|---|---|---|
+| Cmaj9 | 13 | **1** | 8 | 4 |
+| Cm9 | 7 | **0** | 4 | 3 |
+| Cdom11 | 28 | **0** | 7 | 21 |
+| Cdom13 | 20 | **0** | 2 | 18 |
+| Cdim7 | 4 | **0** | 4 | 0 |
+| Cm7b5 | 4 | **0** | 4 | 0 |
+
+Le relevé dit deux choses que l'utilisateur ne pouvait pas voir. D'abord, il s'est arrêté au premier
+symptôme : sur le seul ton de do, **cinq qualités n'affichaient rien du tout**, pas « un seul
+diagramme » — et le compte sur les douze tons donnait **38 accords sans le moindre diagramme, 30 à un
+seul**. Ensuite, ce ne sont ni la portée du manche ni le nombre de doigts qui bloquent, c'est
+**l'écartement de la main** — et cet écartement n'est pas la faute de la guitare.
+
+### La vraie cause : on demandait la voix du piano
+
+`solveGuitarFingerings` reproduit les hauteurs **exactes** du voicing par défaut, c'est-à-dire un
+empilement de tierces à l'octave 3 : pour Cmaj9, do3-mi3-sol3-si3-ré4. Cinq notes serrées dans une
+octave et demie. Aucune main ne tient cela sur six cordes — et aucun guitariste n'essaie : il
+répartit les mêmes notes sur d'autres octaves, et **laisse tomber la quinte**, que la fondamentale
+sous-entend déjà. L'accord n'était pas injouable ; c'est *cette disposition précise des notes* qui
+l'était. Le même diagnostic avait déjà été posé pour Am6 (voir `guitar_barre_shapes_6_9_test.js`), et
+corrigé à l'époque en consignant à la main les formes de barré manquantes — un remède qui ne passe
+pas à l'échelle de douze tons × douze qualités sans forme enseignée.
+
+### Le correctif : un second chercheur, qui raisonne en classes de hauteur
+
+`solveGuitarVoicings` ne cherche plus des hauteurs, il cherche des **positions jouables de l'accord**.
+Cases autorisées corde par corde (uniquement les notes de l'accord), puis une énumération exhaustive
+sous contraintes : fondamentale à la basse, quatre cordes contiguës au minimum, écartement et nombre
+de doigts dans les bornes existantes. 240 accords (12 tons × 20 qualités) calculés en 120 ms — la recherche est étroite parce
+que l'espace l'est.
+
+Trois règles ont été écrites *après* avoir vu ce que la première version produisait, et c'est ce qui
+les rend justes plutôt que devinées :
+
+- **La basse se juge en hauteur, pas en numéro de corde.** `8-0-0-9-11-0` passait pour un C13 en
+  position fondamentale : la corde de mi grave case 8 donne bien un do3, mais la corde de la à vide,
+  *plus haut placée dans le tableau*, sonne un la2 — plus grave. Un renversement déguisé.
+- **Une corde à vide veut dire main au sillet.** Elle ne coûte aucun doigt et n'entre dans aucun
+  écartement : sans garde-fou, un do à la case 8 flanqué de quatre cordes à vide passait pour la forme
+  la plus facile de toutes, « un seul doigt ». Les bourdons existent, mais aucun recueil n'en fait une
+  position de référence.
+- **Une octave de manche suffit.** Chercher jusqu'à la 15e case proposait `x-15-0-0-0-0` à côté de
+  `x-3-0-0-0-0` : deux fois le même doigté, dont un injouable, au lieu de deux positions.
+
+### Une position, une proposition
+
+Le premier classement rangeait par case croissante, comme un recueil imprimé. Erreur d'ergonomie : un
+recueil se voit page entière, alors que le navigateur sous le manche n'en montre **qu'un à la fois**,
+et le premier fait office de proposition par défaut. Cmaj9 ouvrait donc sur un écartement de quatre
+cases en première position, alors que `x-3-0-0-0-0` — un doigt — attendait en troisième. Le
+classement va maintenant du plus facile au plus difficile, une seule forme par position de manche,
+formes enseignées toujours en tête.
+
+| | avant | après |
+|---|---|---|
+| accords sans aucun diagramme | 38 sur 240 | **0** |
+| accords à un seul diagramme | 30 sur 240 | **0** |
+| moyenne de doigtés proposés | 1,98 | **3,94** |
+
+### Ce que le banc empêche
+
+`accords_complexes_guitare_test.js` audite les 240 accords note à note : aucune note étrangère, aucun
+degré essentiel manquant, fondamentale à la basse, cordes contiguës, bornes de main respectées. Il
+réécrit exprès les règles de dispense au lieu d'appeler `guitarChordPcs` — un banc qui appelle la
+fonction qu'il éprouve ne vérifie plus rien.
+
+Et surtout il garde la porte dans l'autre sens : dès qu'un voicing est **personnalisé**
+(renversement, drop, basse imposée), le doigté doit reproduire les hauteurs exactes demandées. Cette
+personnalisation-là est délibérée. Le nouveau chercheur ne doit jamais s'en mêler.

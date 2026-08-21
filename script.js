@@ -1380,6 +1380,48 @@ const GUITAR_MAX_SPAN = 4;    // écart max (en cases) entre la case la plus bas
 const GUITAR_MAX_FINGERS = 4; // 4 doigts disponibles ; une case commune à plusieurs cordes ne compte
                                // que pour un seul doigt (barré)
 
+// Deux mesures partagees par les deux chercheurs de doigtes (solveGuitarFingerings, qui reproduit
+// une voix EXACTE, et solveGuitarVoicings, qui cherche des positions jouables de l'accord) : le
+// nombre de doigts qu'une forme reclame, et sa "note de facilite". Sorties du corps du premier
+// pour que le second juge exactement de la meme facon, sans dupliquer la regle du barre.
+// Nombre de doigts requis pour tenir une forme (barré compris). Un barré n'est physiquement
+// possible qu'à la case la PLUS BASSE de la forme (technique réelle : l'index à plat) ET
+// seulement si aucune corde utilisée entre les deux cordes extrêmes du barré n'est prise à une
+// case différente (sinon le doigt à plat changerait aussi sa hauteur) — les cordes étouffées ou
+// à vide dans cet intervalle ne posent pas de problème. Toute autre case partagée par plusieurs
+// cordes (rare) est traitée prudemment comme des doigts séparés plutôt que comme un 2e barré.
+function guitarFingersNeeded(byString) {
+    const fretted = [];
+    byString.forEach((e, s) => { if (e && e.fret > 0) fretted.push({ s, fret: e.fret }); });
+    if (!fretted.length) return 0;
+    const minFret = Math.min(...fretted.map(f => f.fret));
+    const atMin = fretted.filter(f => f.fret === minFret);
+    let barreOk = false;
+    if (atMin.length >= 2) {
+        const strs = atMin.map(f => f.s);
+        const loS = Math.min(...strs), hiS = Math.max(...strs);
+        barreOk = true;
+        for (let s = loS; s <= hiS; s++) {
+            const e = byString[s];
+            if (e && e.fret > 0 && e.fret !== minFret) { barreOk = false; break; }
+        }
+    }
+    const barreFingers = barreOk ? 1 : atMin.length;
+    const others = fretted.filter(f => f.fret !== minFret).length;
+    return barreFingers + others;
+}
+
+function guitarShapeScore(byString) {
+    const fretted = byString.filter(e => e && e.fret > 0);
+    const openCount = byString.filter(e => e && e.fret === 0).length;
+    if (!fretted.length) return { fingers: 0, span: 0, position: 0, openCount, valid: true };
+    const frets = fretted.map(e => e.fret);
+    const position = Math.min(...frets);
+    const span = Math.max(...frets) - position;
+    const fingers = guitarFingersNeeded(byString);
+    return { fingers, span, position, openCount, valid: fingers <= GUITAR_MAX_FINGERS && span <= GUITAR_MAX_SPAN };
+}
+
 // Cherche tous les doigtés qui reproduisent EXACTEMENT les notes du voicing donné (mêmes hauteurs,
 // pas seulement mêmes classes de note - un accord est fait pour être joué tel quel, pas approximé)
 // sur un manche accordé standard. Retourne un tableau (longueur <= limit) trié du doigté le plus
@@ -1419,44 +1461,6 @@ function solveGuitarFingerings(voiced, limit = 4) {
         }
     })(0);
 
-    // Nombre de doigts requis pour tenir une forme (barré compris). Un barré n'est physiquement
-    // possible qu'à la case la PLUS BASSE de la forme (technique réelle : l'index à plat) ET
-    // seulement si aucune corde utilisée entre les deux cordes extrêmes du barré n'est prise à une
-    // case différente (sinon le doigt à plat changerait aussi sa hauteur) — les cordes étouffées ou
-    // à vide dans cet intervalle ne posent pas de problème. Toute autre case partagée par plusieurs
-    // cordes (rare) est traitée prudemment comme des doigts séparés plutôt que comme un 2e barré.
-    function fingersNeeded(byString) {
-        const fretted = [];
-        byString.forEach((e, s) => { if (e && e.fret > 0) fretted.push({ s, fret: e.fret }); });
-        if (!fretted.length) return 0;
-        const minFret = Math.min(...fretted.map(f => f.fret));
-        const atMin = fretted.filter(f => f.fret === minFret);
-        let barreOk = false;
-        if (atMin.length >= 2) {
-            const strs = atMin.map(f => f.s);
-            const loS = Math.min(...strs), hiS = Math.max(...strs);
-            barreOk = true;
-            for (let s = loS; s <= hiS; s++) {
-                const e = byString[s];
-                if (e && e.fret > 0 && e.fret !== minFret) { barreOk = false; break; }
-            }
-        }
-        const barreFingers = barreOk ? 1 : atMin.length;
-        const others = fretted.filter(f => f.fret !== minFret).length;
-        return barreFingers + others;
-    }
-
-    function score(byString) {
-        const fretted = byString.filter(e => e && e.fret > 0);
-        const openCount = byString.filter(e => e && e.fret === 0).length;
-        if (!fretted.length) return { fingers: 0, span: 0, position: 0, openCount, valid: true };
-        const frets = fretted.map(e => e.fret);
-        const position = Math.min(...frets);
-        const span = Math.max(...frets) - position;
-        const fingers = fingersNeeded(byString);
-        return { fingers, span, position, openCount, valid: fingers <= GUITAR_MAX_FINGERS && span <= GUITAR_MAX_SPAN };
-    }
-
     const seen = new Set();
     const candidates2 = [];
     for (const fingering of results) {
@@ -1469,7 +1473,7 @@ function solveGuitarFingerings(voiced, limit = 4) {
     }
 
     return candidates2
-        .map(byString => ({ byString, s: score(byString) }))
+        .map(byString => ({ byString, s: guitarShapeScore(byString) }))
         .filter(r => r.s.valid)
         .sort((a, b) =>
             a.s.position - b.s.position ||
@@ -1479,6 +1483,172 @@ function solveGuitarFingerings(voiced, limit = 4) {
         )
         .slice(0, limit)
         .map(r => r.byString);
+}
+
+// Un accord n'a pas besoin de TOUTES ses notes pour sonner comme lui-même, et c'est justement ce qui
+// manquait ici. RETOUR UTILISATEUR : « je dois jouer un Cmaj9 à la guitare, je suis étonné qu'il y ait
+// un seul diagramme proposé sur l'appli, alors qu'il est facilement jouable à la guitare. […] Peux-tu
+// vérifier les accords complexes stp ? » (avec quatre positions de Cmaj9 en photo, cases 2, 3, 5 et 10).
+//
+// LE RELEVÉ AVANT CORRECTIF (sonde sur les 240 accords : 12 tons × 20 qualités) : le solveur exact
+// énumérait bien 13 dispositions pour Cmaj9... et en rejetait 12, dont 8 sur le seul écart de cases.
+// Pire, 38 accords n'obtenaient RIEN DU TOUT et 30 un seul — pour le ton de do : Cm9, Cdim7, Cm7b5,
+// C11 et C13, zéro diagramme, alors que l'utilisateur n'avait signalé que Cmaj9. La raison n'est pas
+// que ces accords soient injouables : c'est que solveGuitarFingerings reproduit la voix EXACTE du
+// voicing par défaut (empilement de tierces à l'octave 3 : do3 mi3 sol3 si3 ré4 pour Cmaj9), un
+// bloc serré qu'aucune main ne tient sur six cordes. Un guitariste ne joue jamais cela : il répartit
+// les mêmes notes sur d'AUTRES octaves et laisse tomber la quinte.
+//
+// D'OÙ CE SECOND CHERCHEUR, qui raisonne en classes de hauteur au lieu de hauteurs exactes. Il ne
+// remplace pas le premier : il ne sert que lorsque le voicing n'a PAS été personnalisé (voir
+// guitarFingeringsForChord) — dès qu'il y a renversement, drop ou basse imposée, ce choix est
+// délibéré et le doigté doit rester fidèle à la note près.
+const GUITAR_MIN_STRINGS = 4;      // en dessous de quatre cordes, ce n'est plus un accord mais un fragment
+const GUITAR_MAX_SUGGESTIONS = 4;  // ce que le navigateur « 1/4 » sous le manche sait présenter
+// Une octave de manche suffit : au-delà de la 12e case, toute forme est le décalque exact de la même
+// forme une octave plus bas. Chercher jusqu'à GUITAR_MAX_FRET (15) revenait à proposer x-15-0-0-0-0
+// à côté de x-3-0-0-0-0 — deux fois le même doigté, dont un injouable, au lieu de deux positions.
+const GUITAR_VOICING_MAX_FRET = 12;
+
+// Classes de hauteur d'un accord, et celles dont on peut se passer. On ne retire QUE la quinte JUSTE
+// (7 demi-tons), et seulement à partir de quatre notes : c'est la note que la fondamentale sous-entend
+// déjà, celle que tous les recueils omettent en premier. Une quinte diminuée (dim, m7b5) ou augmentée
+// (aug) n'est pas du remplissage, c'est LA couleur de l'accord — jamais omise.
+function guitarChordPcs(root, quality) {
+    const rootPc = NOTES.indexOf(root);
+    const intervals = CHORD_INTERVALS[quality] || CHORD_INTERVALS.maj;
+    const toutes = new Set(intervals.map(iv => (((rootPc + iv.semi) % 12) + 12) % 12));
+    const essentielles = new Set(toutes);
+    if (toutes.size >= 4 && intervals.some(iv => (((iv.semi % 12) + 12) % 12) === 7)) {
+        essentielles.delete((((rootPc + 7) % 12) + 12) % 12);
+    }
+    // Et la 9e, mais UNIQUEMENT quand une 13e la surplombe : c'est la 13e qui nomme l'accord, la 9e
+    // n'est plus qu'un barreau de l'empilement. Le voicing de 13e que tout le monde joue, c'est
+    // fondamentale / tierce / septième / 13e, quatre notes. Sans cette dispense, quatre tons de dom13
+    // (ré, mi♭, sol#, la#) n'obtenaient encore qu'UN seul diagramme, faute d'une main pour tenir cinq
+    // notes contiguës dans quatre cases.
+    if (intervals.some(iv => iv.semi === 21) && intervals.some(iv => iv.semi === 14)) {
+        essentielles.delete((((rootPc + 2) % 12) + 12) % 12);
+    }
+    return { rootPc, toutes, essentielles };
+}
+
+// Une corde à vide placée SOUS un barré ne sonne pas : le doigt à plat la touche au passage. Le premier
+// chercheur ne s'en préoccupait pas (il ne pouvait pas produire ce cas, ses hauteurs étant imposées) ;
+// celui-ci, qui compose librement, le rencontrerait sans arrêt. Renvoie true si la forme est réellement
+// tenable : nombre de doigts, écart, et cette corde à vide impossible.
+function guitarFormeTenable(byString) {
+    const s = guitarShapeScore(byString);
+    if (!s.valid) return false;
+    const fretted = [];
+    byString.forEach((e, i) => { if (e && e.fret > 0) fretted.push({ i, fret: e.fret }); });
+    if (!fretted.length) return true;
+    const minFret = Math.min(...fretted.map(f => f.fret));
+    const atMin = fretted.filter(f => f.fret === minFret);
+    if (atMin.length < 2) return true;                       // pas de barré, rien ne couvre les voisines
+    const cordes = atMin.map(f => f.i);
+    const lo = Math.min(...cordes), hi = Math.max(...cordes);
+    for (let i = lo; i <= hi; i++) {
+        const e = byString[i];
+        if (e && e.fret === 0) return false;                  // corde à vide sous l'index à plat
+    }
+    return true;
+}
+
+// Comparaison lexicographique de deux critères de classement (le premier qui diffère tranche) —
+// écrite une fois plutôt qu'en chaîne de `||` illisible à cinq critères.
+function comparerRangs(a, b) {
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i];
+    return 0;
+}
+
+// Cherche des positions JOUABLES de l'accord (root/quality) partout sur le manche, sans imposer les
+// hauteurs exactes du voicing. Retourne au plus `limit` formes (tableau de 6 cases, `null` = corde
+// étouffée), une seule par position de manche, de la plus facile à tenir à la plus difficile (voir le
+// classement en fin de fonction, et pourquoi ce n'est PAS l'ordre d'un recueil imprimé).
+function solveGuitarVoicings(root, quality, limit = GUITAR_MAX_SUGGESTIONS) {
+    const { rootPc, toutes, essentielles } = guitarChordPcs(root, quality);
+    if (!toutes.size) return [];
+
+    // Cases autorisées corde par corde : uniquement celles qui tombent sur une note de l'accord. Cinq
+    // à sept possibilités par corde au lieu des seize cases — c'est ce qui rend la recherche exhaustive
+    // instantanée là où un balayage aveugle serait hors de question.
+    const parCorde = GUITAR_OPEN_MIDI.map(open => {
+        const opts = [];
+        for (let fret = 0; fret <= GUITAR_VOICING_MAX_FRET; fret++) {
+            if (toutes.has((((open + fret) % 12) + 12) % 12)) opts.push(fret);
+        }
+        return opts;
+    });
+
+    const trouvees = [];
+    const courant = new Array(6).fill(null);
+    // `etat` : 0 = on n'a encore touché aucune corde, 1 = on est dans le bloc de cordes jouées, 2 = le
+    // bloc est refermé. Les cordes jouées doivent rester CONTIGUËS : une corde étouffée au milieu se
+    // joue en l'assourdissant du doigt, une technique qu'on ne peut pas lire sur un diagramme et qu'un
+    // débutant ne devine pas — on ne propose que des formes qui se posent telles qu'elles se lisent.
+    (function poser(corde, etat, jouees, minF, maxF) {
+        if (corde === 6) {
+            if (jouees < GUITAR_MIN_STRINGS) return;
+            const byString = courant.map((fret, i) => (fret == null ? null : { fret, midi: GUITAR_OPEN_MIDI[i] + fret }));
+            // La note la plus GRAVE, pas la corde la plus grave : une corde à vide plus haut placée peut
+            // très bien sonner plus bas que la corde d'en dessous frettée (mi grave case 8 = do3, mais
+            // la corde de la à vide donne un la2, plus grave). Chercher la basse par numéro de corde
+            // laissait passer des renversements déguisés — 8-0-0-9-11-0 pour un C13, basse la2.
+            const grave = Math.min(...byString.filter(e => e).map(e => e.midi));
+            if ((((grave % 12) + 12) % 12) !== rootPc) return;   // fondamentale à la basse : voicing non renversé
+            const pcs = new Set(byString.filter(e => e).map(e => (((e.midi % 12) + 12) % 12)));
+            for (const pc of essentielles) if (!pcs.has(pc)) return;
+            // Une corde à vide veut dire que la main est au SILLET. Elle ne coûte aucun doigt et
+            // n'entre donc dans aucun écartement — c'est justement le piège : sans cette règle, un do
+            // à la case 8 accompagné de quatre cordes à vide passait pour la forme la plus facile de
+            // toutes, avec « un seul doigt ». Mêler cordes à vide et main haut sur le manche, ça existe
+            // (les bourdons), mais aucun recueil d'accords n'en fait une position de référence.
+            const casesFrettees = byString.filter(e => e && e.fret > 0).map(e => e.fret);
+            const aVide = byString.some(e => e && e.fret === 0);
+            if (aVide && casesFrettees.length && Math.max(...casesFrettees) > GUITAR_MAX_SPAN) return;
+            if (!guitarFormeTenable(byString)) return;
+            trouvees.push(courant.slice());
+            return;
+        }
+        poser(corde + 1, etat === 1 ? 2 : etat, jouees, minF, maxF);   // corde étouffée
+        if (etat === 2) return;                                        // le bloc est refermé, plus rien après
+        for (const fret of parCorde[corde]) {
+            // Une corde à vide ne demande aucun doigt : elle ne compte pas dans l'écart de la main.
+            const nMin = fret > 0 ? (minF == null ? fret : Math.min(minF, fret)) : minF;
+            const nMax = fret > 0 ? (maxF == null ? fret : Math.max(maxF, fret)) : maxF;
+            if (nMin != null && nMax - nMin > GUITAR_MAX_SPAN) continue;
+            courant[corde] = fret;
+            poser(corde + 1, 1, jouees + 1, nMin, nMax);
+            courant[corde] = null;
+        }
+    })(0, 0, 0, null, null);
+
+    // UNE forme par position de manche, la plus confortable : un recueil d'accords ne montre pas les
+    // quarante variantes de la case 3, il en montre une, et passe à la case suivante. Sans ce filtre,
+    // les quatre diagrammes proposés seraient quatre cousines de la même position — exactement ce que
+    // l'utilisateur reproche (« un seul diagramme »), en pire, puisque déguisé en choix.
+    //
+    // ORDRE : de la plus facile à la plus difficile, PAS de la case la plus basse à la plus haute. Un
+    // recueil imprimé range par position parce qu'on voit la page entière d'un coup ; ici le navigateur
+    // sous le manche n'en montre qu'UNE à la fois (« 1/4 »), et c'est la première qui fait office de
+    // proposition par défaut. Elle doit donc être celle qu'on tend spontanément — pour Cmaj9,
+    // x-3-0-0-0-0, un seul doigt, et non un écartement de quatre cases en première position.
+    const meilleureParPosition = new Map();
+    for (const forme of trouvees) {
+        const byString = forme.map((fret, i) => (fret == null ? null : { fret, midi: GUITAR_OPEN_MIDI[i] + fret }));
+        const s = guitarShapeScore(byString);
+        const cordes = forme.filter(f => f != null).length;
+        // Difficulté d'abord (doigts, puis écartement), qualité sonore ensuite (cordes qui sonnent,
+        // cordes à vide), position la plus basse pour départager deux formes équivalentes.
+        const rang = [s.fingers, s.span, -cordes, -s.openCount, s.position];
+        const dejaLa = meilleureParPosition.get(s.position);
+        if (!dejaLa || comparerRangs(rang, dejaLa.rang) < 0) meilleureParPosition.set(s.position, { forme, rang });
+    }
+    return [...meilleureParPosition.values()]
+        .sort((a, b) => comparerRangs(a.rang, b.rang))
+        .slice(0, limit)
+        .map(v => v.forme);
 }
 
 // Formes ouvertes standard (celles apprises en tout premier, "école de musique") pour les tons qui
@@ -1621,8 +1791,27 @@ function guitarFingeringsForChord(chord, lockedShape = chord.guitarLock) {
     const isPlainVoicing = chord.getEffectiveInversion() === 0 && !hasDrop && !chord.bass;
     let list;
     if (isPlainVoicing) {
-        const common = commonGuitarShapes(chord.root, chord.quality);
-        list = common.length ? common.map(shape => shapeToByString(shape, chord.root, chord.quality)) : solveGuitarFingerings(chord.getVoiced());
+        // Les formes enseignées d'abord — ce sont celles qu'on apprend, et l'ordre d'un cours de
+        // guitare vaut mieux que n'importe quel classement calculé. Puis, pour compléter jusqu'aux
+        // quatre diagrammes que le navigateur sous le manche sait présenter, les positions que
+        // solveGuitarVoicings trouve ailleurs sur le manche : c'est exactement ce complément qui
+        // manquait (« un seul diagramme proposé […] alors qu'il est facilement jouable »), et pour
+        // les qualités sans forme enseignée — 9e, 11e, 13e, dim7, m7b5 — c'est la seule source.
+        const communes = commonGuitarShapes(chord.root, chord.quality)
+            .map(shape => shapeToByString(shape, chord.root, chord.quality));
+        // Écarter aussi les positions DÉJÀ occupées par une forme enseignée, pas seulement les doigtés
+        // identiques : sans cela, un Cmaj7 proposait x-3-5-4-5-3 puis x-3-5-4-5-x — la même forme à
+        // une corde près, comptée comme un deuxième choix. Une position de manche, une proposition.
+        const dejaLa = new Set(communes.map(fingeringShapeKey));
+        const dejaPris = new Set(communes.map(f => guitarShapeScore(f).position));
+        const ailleurs = solveGuitarVoicings(chord.root, chord.quality)
+            .map(shape => shapeToByString(shape, chord.root, chord.quality))
+            .filter(f => !dejaLa.has(fingeringShapeKey(f)) && !dejaPris.has(guitarShapeScore(f).position));
+        list = [...communes, ...ailleurs].slice(0, GUITAR_MAX_SUGGESTIONS);
+        // Dernier recours : une qualité si particulière que même la recherche par classes de hauteur
+        // ne trouve rien de tenable. Le solveur exact a encore sa chance — mieux vaut un doigté serré
+        // que pas de diagramme du tout.
+        if (!list.length) list = solveGuitarFingerings(chord.getVoiced());
     } else {
         list = solveGuitarFingerings(chord.getVoiced());
     }
