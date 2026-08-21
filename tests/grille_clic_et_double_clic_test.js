@@ -1,3 +1,8 @@
+// Ce banc s'appelait loupe_and_tap_fix : il éprouvait la LOUPE (la vue plein écran de la grille) et
+// le rythme TAPÉ. Les deux ont été retirés — la loupe parce que « les boutons masquer panneau de
+// gauche et mode séquenceur grille font tous les deux quasiment pareil », le rythme tapé en entier
+// (voir fc7b776). Ce qui restait à éprouver est devenu le sujet du banc, et son nom : dans la grille
+// ordinaire, un clic SÉLECTIONNE et un double-clic CHARGE l'accord pour le modifier.
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // La police est chargée depuis Google Fonts : injoignable derrière le proxy du bac à sable,
@@ -22,29 +27,45 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(200);
 
-    console.log('=== 1. Loupe : single click loads for editing in DEFAULT Add mode (regression fix) ===');
+    // #grid-zoom n'ouvre plus une loupe : c'est désormais le bouton « Séq. » au-dessus de la grille
+    // (retour utilisateur : « mets ce même bouton au-dessus de la grille à la place du logo qui n'est
+    // pas clair, mais moins large »). Il ouvre le séquenceur ET laisse la grille cliquable — c'est
+    // justement ce qui rend la suite du banc possible.
+    console.log('=== 1. Le bouton Séq. ouvre le séquenceur sans emporter la grille ===');
     await page.click('#grid-zoom');
-    await page.waitForTimeout(150);
-    let r = await page.evaluate(() => ({ appMode: window.app.appMode }));
-    console.log('appMode:', JSON.stringify(r));
-    console.log((r.appMode === 'add') ? 'PASS (still in default Add mode)' : 'FAIL');
+    await page.waitForTimeout(250);
+    let r = await page.evaluate(() => ({
+        appMode: window.app.appMode,
+        seqOpen: window.app.seqOpen,
+        grilleCliquable: !!document.querySelector('.grid-cell[data-index="0"]'),
+    }));
+    console.log(JSON.stringify(r));
+    console.log((r.appMode === 'add' && r.seqOpen && r.grilleCliquable)
+        ? 'PASS (séquenceur ouvert, mode Ajout intact, grille toujours là)' : 'FAIL');
 
+    // UN CLIC NE CHARGE PLUS L'ACCORD, ET C'EST VOULU. Le banc exigeait editingIndex === 0 dès le
+    // premier clic ; depuis, un clic SÉLECTIONNE (encadré vert) et seul un double-clic ouvre la
+    // modification — sans quoi promener la sélection dans la grille rouvrait sans cesse une édition
+    // qu'on n'avait pas demandée.
+    console.log('=== 2. Un clic sélectionne, sans ouvrir la modification ===');
     const cell0 = await page.$('.grid-cell[data-index="0"]');
     const box0 = await cell0.boundingBox();
     await page.mouse.click(box0.x + box0.width / 2, box0.y + 8);
     await page.waitForTimeout(200);
-    r = await page.evaluate(() => ({ editingIndex: window.app.editingIndex, seqOpen: window.app.seqOpen }));
+    r = await page.evaluate(() => ({ selectedIndex: window.app.selectedIndex, editingIndex: window.app.editingIndex, appMode: window.app.appMode }));
     console.log(JSON.stringify(r));
-    console.log((r.editingIndex === 0 && r.seqOpen) ? 'PASS (loupe single-click loads chord for edit even in Add mode)' : 'FAIL');
+    console.log((r.selectedIndex === 0 && r.editingIndex === null && r.appMode === 'add')
+        ? 'PASS (un clic sélectionne et rien de plus)' : 'FAIL');
 
-    console.log('=== 2. Loupe : single click on ANOTHER chord loads it directly too ===');
+    console.log('=== 2 bis. Un double-clic charge bien cet accord pour le modifier ===');
     const cell1 = await page.$('.grid-cell[data-index="1"]');
     const box1 = await cell1.boundingBox();
-    await page.mouse.click(box1.x + box1.width / 2, box1.y + 8);
-    await page.waitForTimeout(200);
-    r = await page.evaluate(() => ({ editingIndex: window.app.editingIndex }));
+    await page.mouse.dblclick(box1.x + box1.width / 2, box1.y + 8);
+    await page.waitForTimeout(250);
+    r = await page.evaluate(() => ({ editingIndex: window.app.editingIndex, appMode: window.app.appMode, seqOpen: window.app.seqOpen }));
     console.log(JSON.stringify(r));
-    console.log((r.editingIndex === 1) ? 'PASS' : 'FAIL');
+    console.log((r.editingIndex === 1 && r.appMode === 'edit' && r.seqOpen)
+        ? 'PASS (double-clic : accord chargé, séquenceur toujours ouvert dessus)' : 'FAIL');
 
     console.log('=== 3. Double-click on the symbol still opens inline rename (unaffected) ===');
     const cellNow = await page.$('.grid-cell[data-index="1"]');

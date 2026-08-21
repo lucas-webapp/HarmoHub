@@ -1,3 +1,5 @@
+// Le calcul de rangée quand la grille en compte plusieurs : la plage de boucle posée sous la 2e
+// rangée doit tomber sur les accords de CETTE rangée, et non repartir du début de la grille.
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
@@ -18,7 +20,9 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     });
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(200);
-    await page.click('#grid-zoom');
+    // #grid-zoom n'ouvre plus une loupe : c'est le bouton « Séq. », qui ouvre le séquenceur. La
+    // grille à plusieurs rangées, elle, est là sans qu'on ait rien à ouvrir — le banc l'éprouve donc
+    // directement, ce qui est aussi ce que voit l'utilisateur.
     await page.waitForTimeout(150);
 
     const rows = await page.evaluate(() => {
@@ -43,20 +47,38 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         return { targetIndex, targetRect: targetRect ? { top: targetRect.top, bottom: targetRect.bottom, left: targetRect.left, width: targetRect.width } : null };
     });
     console.log('Target chord in 2nd row:', JSON.stringify(info));
+    await page.evaluate((i) => { window.__cible = i; }, info.targetIndex);
     if (info.targetIndex == null) { console.log('FAIL (could not find a 2nd-row chord)'); await browser.close(); process.exit(1); }
 
-    // Drag on the measure-row just below that chord to create a loop range anchored there
-    const x = info.targetRect.left + 4; // près du début de mesure, où .row-measure existe réellement
-    const y = info.targetRect.bottom + 8;
-    await page.mouse.move(x, y);
+    // UN CLIC NE POSE PAS DE PLAGE, ET C'EST LE GESTE QUI A CHANGÉ, PAS LE CALCUL. Ce banc faisait
+    // un appui-relâché immédiat à `bottom + 8`, une position devinée ; la plage se pose désormais par
+    // un vrai GLISSÉ sur la règle des mesures (voir onLoopRangeStart). On vise donc l'élément
+    // .row-measure lui-même — celui qui est juste sous la 2e rangée — plutôt qu'un décalage en pixels
+    // qui ne survit à aucun changement de gabarit.
+    const regle = await page.evaluate(() => {
+        const cible = document.querySelector(`.grid-cell[data-section="0"][data-index="${window.__cible}"]`);
+        const cr = cible.getBoundingClientRect();
+        const m = Array.from(document.querySelectorAll('.row-measure'))
+            .find((x) => { const r = x.getBoundingClientRect(); return r.top >= cr.bottom - 2 && r.top < cr.bottom + 40; });
+        if (!m) return null;
+        const r = m.getBoundingClientRect();
+        return { x: r.left + 6, y: r.top + r.height / 2, fin: r.left + r.width * 0.4 };
+    });
+    console.log('Règle des mesures sous la 2e rangée :', JSON.stringify(regle));
+    if (!regle) { console.log('FAIL (aucune règle de mesures sous la 2e rangée)'); await browser.close(); process.exit(1); }
+
+    await page.mouse.move(regle.x, regle.y);
     await page.mouse.down();
+    for (let i = 1; i <= 8; i++) { await page.mouse.move(regle.x + (regle.fin - regle.x) * i / 8, regle.y); await page.waitForTimeout(15); }
     await page.mouse.up();
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(200);
 
     const result = await page.evaluate(() => window.app.loopRange);
-    console.log('loopRange after interacting with 2nd-row chord:', JSON.stringify(result));
-    const pass = result && result.startIndex === result.endIndex; // whatever it resolved to, should be a valid tight range, not null/wrong
-    console.log((result && result.startIndex != null) ? 'PASS (row math resolved to a real chord index)' : 'FAIL');
+    console.log('loopRange après un glissé sur la règle de la 2e rangée :', JSON.stringify(result));
+    // Le fond de l'affaire : la plage tombe sur le PREMIER accord de la 2e rangée, pas sur le premier
+    // accord de la grille — c'est très exactement le calcul de rangée que ce banc protège.
+    const pass = result && result.startIndex === info.targetIndex && result.endIndex === info.targetIndex;
+    console.log(pass ? 'PASS (la plage se pose sur la rangée visée, pas sur la première)' : 'FAIL');
 
     await browser.close();
     process.exit(0);

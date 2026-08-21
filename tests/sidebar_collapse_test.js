@@ -51,22 +51,29 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     console.log((r.collapsed && r.colLeftWidth === 0 && r.colRightWidth > rightWidthBefore && r.ariaPressed === 'true' && r.active)
         ? 'PASS (sidebar hidden, col-right expanded, button reflects state)' : 'FAIL');
 
-    // Le transport de lecture a déménagé dans l'en-tête de la GRILLE (#grid-head-transport-host, à
-    // droite — retour utilisateur, voir global_transport_test.js) : il n'est donc plus dans le panneau
-    // de GAUCHE, et replier celui-ci ne le fait pas disparaître. Seul #footer-dock (Ajouter/À la
-    // suite/Annuler pendant une édition) continue de migrer entre les colonnes, voir
-    // applySidebarCollapsed.
-    console.log('--- Le transport global reste au même endroit, panneau replié ou non ---');
+    // LE TRANSPORT EST REVENU DANS LE VOLET DE GAUCHE, et ce banc visait encore l'en-tête de la
+    // grille. Retour utilisateur : « remets-les en bas du volet à gauche, mais juste sous le module
+    // (sous la barre intensité, mais en dehors du module) », puis « les boutons de transport doivent
+    // rester ancrés ». Il vit donc dans #footer-dock (voir placeGlobalTransport), et
+    // #grid-head-transport-host n'est plus qu'un point d'ancrage vide — l'éprouver revenait à exiger
+    // que le transport soit là où l'on a justement demandé qu'il ne soit plus.
+    // Ce qui compte, et que ce banc protège vraiment : replier le volet ne doit pas emporter le
+    // transport avec lui. #footer-dock migre alors vers .col-right (voir applySidebarCollapsed), donc
+    // on éprouve le RÉSULTAT — toujours affiché, toujours entièrement dans l'écran.
+    console.log('--- Le transport suit le dock hors du volet replié, et reste visible ---');
     r = await page.evaluate(() => {
-        const gt = document.getElementById('grid-head-transport-host');
-        const rect = gt.getBoundingClientRect();
+        const t = document.querySelector('.transport');
+        const rect = t.getBoundingClientRect();
         return {
-            horsColonnes: !document.querySelector('.col-left').contains(gt),
-            visible: getComputedStyle(gt).display !== 'none' && rect.width > 0 && rect.height > 0,
+            dansLeDock: t.parentElement.id === 'footer-dock',
+            horsVoletReplie: !document.querySelector('.col-left').contains(t),
+            visible: getComputedStyle(t).display !== 'none' && rect.width > 0 && rect.height > 0,
+            dansEcran: rect.left >= 0 && rect.top >= 0 && rect.right <= window.innerWidth && rect.bottom <= window.innerHeight,
         };
     });
     console.log(JSON.stringify(r));
-    console.log((r.horsColonnes && r.visible) ? 'PASS (transport toujours visible dans l\'en-tête de la grille, panneau replié)' : 'FAIL');
+    console.log((r.dansLeDock && r.horsVoletReplie && r.visible && r.dansEcran)
+        ? 'PASS (transport toujours visible et entier, panneau replié)' : 'FAIL');
 
     console.log('--- Le bouton Lecture fonctionne toujours, panneau replié ---');
     await page.click('#play-prog');

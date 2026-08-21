@@ -16683,13 +16683,22 @@ class HarmoHubApp {
             // ← → passe au précédent/suivant DANS LA MÊME PARTIE (s'arrête aux bornes, ne saute pas
             // d'une partie à l'autre) — s'appuie sur selectChord (simple sélection verte, rejoue aussi
             // l'accord ciblé, comme un clic direct sur sa case).
-            if (!typing && activeGridIdx != null && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+            // LE POINT DE DÉPART EST LA SÉLECTION VERTE, PAS L'ACCORD EN ÉDITION. Avec
+            // activeGridChordIndex(), l'édition primait à CHAQUE appui : une fois un accord ouvert en
+            // modification, les flèches repartaient toujours de lui, donc le 2e appui et les suivants
+            // ne bougeaient plus rien (mesuré : trois → d'affilée depuis l'accord 1 laissaient la
+            // sélection sur le 2). Se caler sur la sélection la fait avancer d'un cran à chaque appui,
+            // et ne change rien au premier : un vrai double-clic pose les deux repères sur la même
+            // case. L'édition reste la référence là où c'est elle qui compte — Maj+← → étire bien la
+            // case OUVERTE, et Suppr efface bien l'accord OUVERT.
+            const ancreFleches = this.selectedIndex != null ? this.selectedIndex : this.editingIndex;
+            if (!typing && ancreFleches != null && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
                 const sections = loadProgressionSections();
                 const history = sections[this.activeSection] && sections[this.activeSection].chords;
                 if (history && history.length > 0) {
                     const dir = (e.key === 'ArrowRight') ? 1 : -1;
-                    const next = Math.min(history.length - 1, Math.max(0, activeGridIdx + dir));
-                    if (next !== activeGridIdx) {
+                    const next = Math.min(history.length - 1, Math.max(0, ancreFleches + dir));
+                    if (next !== ancreFleches) {
                         this.selectChord(this.activeSection, next);
                     }
                     e.preventDefault();

@@ -1,6 +1,8 @@
-// Lot 2 : aimantation (1/4, 1/8, 1/16) et durée « collante » des nouvelles notes.
-// Vérifie aussi que le réglage par défaut (1/16, aucune durée mémorisée) laisse le comportement
-// historique rigoureusement inchangé.
+// Lot 2, revu : le pas du séquenceur et la durée « collante » des nouvelles notes.
+// Le sélecteur d'aimantation (1/4, 1/8, 1/16) que ce banc éprouvait a été RETIRÉ depuis, par
+// décision : il fallait le régler avant de dessiner, et l'oublier posait les notes ailleurs qu'où
+// l'on visait. Le banc a donc été retourné vers ce qui reste — le pas vaut la case, et aucun
+// recalage ne s'interpose entre le geste et l'endroit visé.
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
@@ -43,6 +45,18 @@ async function cellCenter(page, voice, step) {
     }, { v: voice, s: step });
 }
 
+// Un point visé sur la BARRE de note elle-même, en fraction de sa largeur (+ décalage en pixels).
+// Les zones corps/poignée se découpent au pixel sur la barre (voir seqShortNoteZone) : viser une
+// case, dont les bords ne coïncident pas exactement avec elle, éprouverait la mise en page.
+async function pointSurNote(page, voice, start, end, fraction, decalage = 0) {
+    return page.evaluate(({ v, s, e, f, d }) => {
+        const n = document.querySelector(`.seq-note[data-voice="${v}"][data-start="${s}"][data-end="${e}"]`);
+        if (!n) return null;
+        const r = n.getBoundingClientRect();
+        return { x: r.left + r.width * f + d, y: r.top + r.height / 2 };
+    }, { v: voice, s: start, e: end, f: fraction, d: decalage });
+}
+
 async function drag(page, from, to) {
     await page.mouse.move(from.x, from.y);
     await page.mouse.down();
@@ -52,11 +66,6 @@ async function drag(page, from, to) {
     }
     await page.mouse.up();
     await page.waitForTimeout(180);
-}
-
-async function setSnap(page, steps) {
-    await page.click(`.seq-snap-btn[data-snap="${steps}"]`);
-    await page.waitForTimeout(200);
 }
 
 (async () => {
@@ -74,12 +83,18 @@ async function setSnap(page, steps) {
     await page.waitForTimeout(400);
 
     // ============================================================
-    // === A. Le sélecteur existe et démarre sur 1/16 (aucune aimantation) ===
+    // === A. L'aimantation est FIXE : il n'y a plus de sélecteur ===
     // ============================================================
-    check(await page.isVisible('.seq-snap-group'), 'le sélecteur d\'aimantation est bien présent dans la barre du séquenceur');
-    const activeLabel = await page.evaluate(() => document.querySelector('.seq-snap-btn.active')?.textContent.trim());
-    check(activeLabel === '1/16', `par défaut, l'aimantation est sur 1/16 (aucune) — obtenu ${activeLabel}`);
-    check(await page.evaluate(() => window.app.seqSnap() === 1), 'seqSnap() vaut bien 1 croche par défaut');
+    // CE BANC ÉPROUVAIT UN SÉLECTEUR QUI N'EXISTE PLUS, et c'est une décision, pas une perte.
+    // Le choix 1/4-1/8-1/16 a été retiré (voir seqSnap dans script.js, qui porte la raison) : il
+    // fallait le régler AVANT de dessiner, et l'oublier posait des notes au mauvais endroit. Une case
+    // de la grille EST une double croche, donc « se caler sur la case » ne restreint plus rien —
+    // c'est déjà la précision maximale que la vue permet.
+    // Ce qui reste à éprouver, et qui est le fond de l'affaire : le pas est bien de 1, c'est-à-dire
+    // qu'aucune aimantation ne s'interpose entre le clic et la case visée.
+    check(await page.evaluate(() => !document.querySelector('.seq-snap-group')),
+        'plus aucun sélecteur d\'aimantation dans la barre : le pas est fixe');
+    check(await page.evaluate(() => window.app.seqSnap() === 1), 'seqSnap() vaut bien 1 double croche, la case elle-même');
 
     // ============================================================
     // === B. Sans aimantation : comportement historique inchangé ===
@@ -88,8 +103,12 @@ async function setSnap(page, steps) {
     await page.mouse.click(...Object.values(await cellCenter(page, 0, 5)));
     await page.waitForTimeout(200);
     let runs = await runsOf(page, 0);
-    check(runs.length === 1 && runs[0].start === 5 && runs[0].end === 5,
-        `sans aimantation, un clic pose bien UNE croche isolée pile où on clique — obtenu ${JSON.stringify(runs)}`);
+    // UNE CROCHE, ET NON UNE DOUBLE CROCHE. Ce banc attendait une note d'une seule case. Le repli a
+    // changé en même temps que le sélecteur disparaissait : seqNewNoteLen() rend 2 par défaut, soit
+    // une croche — « la durée la plus courante », et l'ancien repli (le pas d'aimantation) n'existe
+    // plus. Ce qui compte n'a pas bougé : la note commence PILE où l'on clique.
+    check(runs.length === 1 && runs[0].start === 5 && runs[0].end === 6,
+        `un clic pose une croche qui commence pile où on clique — obtenu ${JSON.stringify(runs)}`);
 
     await clearVoice(page, 0);
     await drag(page, await cellCenter(page, 0, 3), await cellCenter(page, 0, 6));
@@ -122,97 +141,96 @@ async function setSnap(page, steps) {
         `la durée collante est rabotée avant la note suivante, jamais écrasée — obtenu ${JSON.stringify(runs)}`);
 
     // ============================================================
-    // === D. Aimantation 1/4 : le clic se cale sur le temps, et pose une noire ===
+    // === D. Le clic pose la note PILE sur la case visée ===
     // ============================================================
-    await setSnap(page, 4);
-    check(await page.evaluate(() => window.app.seqSnap() === 4), 'seqSnap() vaut bien 4 croches après avoir choisi 1/4');
-    check(await page.evaluate(() => window.app.seqStickyLen === null),
-        'changer d\'aimantation remet la durée collante à zéro (sinon 1/4 ne donnerait pas des noires)');
-
+    // Ce que le sélecteur d'aimantation garantissait « en 1/4 » (le clic se cale sur le temps) n'a
+    // plus lieu d'être : le pas vaut 1, donc la seule garantie qui compte est qu'AUCUN recalage ne
+    // s'interpose. C'est très exactement ce qui avait motivé le retrait du sélecteur — il fallait le
+    // régler avant de dessiner, et l'oublier posait les notes ailleurs qu'où l'on visait.
+    await page.evaluate(() => { window.app.seqStickyLen = null; });
     await clearVoice(page, 0);
     await page.mouse.click(...Object.values(await cellCenter(page, 0, 6)));
     await page.waitForTimeout(200);
     runs = await runsOf(page, 0);
-    check(runs.length === 1 && runs[0].start === 4 && runs[0].end === 7,
-        `en 1/4, un clic sur la croche 6 pose une NOIRE calée sur le temps (4->7) — obtenu ${JSON.stringify(runs)}`);
+    check(runs.length === 1 && runs[0].start === 6 && runs[0].end === 7,
+        `un clic sur la case 6 pose une croche qui commence sur la case 6, sans recalage — obtenu ${JSON.stringify(runs)}`);
 
     // ============================================================
-    // === E. Aimantation 1/4 : un glissé se cale sur des temps entiers ===
+    // === E. Un glissé peint exactement les cases survolées ===
     // ============================================================
     await clearVoice(page, 0);
     await drag(page, await cellCenter(page, 0, 1), await cellCenter(page, 0, 9));
     runs = await runsOf(page, 0);
-    check(runs.length === 1 && runs[0].start === 0 && runs[0].end % 4 === 3,
-        `en 1/4, un glissé 1->9 donne une note calée début ET fin sur le temps — obtenu ${JSON.stringify(runs)}`);
+    check(runs.length === 1 && runs[0].start === 1 && runs[0].end === 9,
+        `un glissé 1->9 peint 1->9, bords compris — obtenu ${JSON.stringify(runs)}`);
 
     // ============================================================
-    // === F. Aimantation 1/4 : étirer un bord ne peut pas descendre sous le temps ===
+    // === F. Étirer un bord s'arrête pile sur la case survolée ===
     // ============================================================
     await clearVoice(page, 0);
-    await drag(page, await cellCenter(page, 0, 0), await cellCenter(page, 0, 7)); // deux temps
-    runs = await runsOf(page, 0);
-    const twoBeats = runs[0];
-    check(twoBeats.start === 0 && twoBeats.end === 7, `note de deux temps posée — obtenu ${JSON.stringify(runs)}`);
-    // Ramené DANS le 1er temps : la règle est « le cran survolé est couvert en entier », donc la note
-    // s'arrête à la fin de ce temps-là (croche 3), jamais au milieu.
-    await drag(page, await cellCenter(page, 0, 7), await cellCenter(page, 0, 2));
-    runs = await runsOf(page, 0);
-    check(runs.length === 1 && runs[0].start === 0 && runs[0].end === 3,
-        `étirer le bord droit en 1/4 s'arrête pile sur un temps entier (0->3) — obtenu ${JSON.stringify(runs)}`);
-    // ...et rester DANS le 2e temps le laisse couvert en entier, sans rétrécissement à la croche près.
-    await drag(page, await cellCenter(page, 0, 3), await cellCenter(page, 0, 5));
+    await drag(page, await cellCenter(page, 0, 0), await cellCenter(page, 0, 7));
     runs = await runsOf(page, 0);
     check(runs.length === 1 && runs[0].start === 0 && runs[0].end === 7,
-        `survoler le 2e temps le couvre en entier (0->7), jamais un bout de temps — obtenu ${JSON.stringify(runs)}`);
+        `note de deux temps posée — obtenu ${JSON.stringify(runs)}`);
+    // La règle « le cran survolé est couvert en entier » demeure ; simplement, le cran est la case.
+    await drag(page, await cellCenter(page, 0, 7), await cellCenter(page, 0, 2));
+    runs = await runsOf(page, 0);
+    check(runs.length === 1 && runs[0].start === 0 && runs[0].end === 2,
+        `raccourcir le bord droit s'arrête sur la case survolée (0->2) — obtenu ${JSON.stringify(runs)}`);
+    await drag(page, await cellCenter(page, 0, 2), await cellCenter(page, 0, 5));
+    runs = await runsOf(page, 0);
+    check(runs.length === 1 && runs[0].start === 0 && runs[0].end === 5,
+        `rallonger le bord droit s'arrête sur la case survolée (0->5) — obtenu ${JSON.stringify(runs)}`);
 
     // ============================================================
-    // === G. Aimantation 1/8 : déplacer une note la recale sur la demi-mesure ===
+    // === G. Déplacer une note par son corps : elle retombe où on la lâche ===
     // ============================================================
-    await setSnap(page, 2);
     await clearVoice(page, 0);
-    // Note de 4 croches : elle a des cases de CORPS (ni au début ni à la fin), depuis lesquelles le
-    // glissé horizontal déplace.
     await drag(page, await cellCenter(page, 0, 0), await cellCenter(page, 0, 3));
     runs = await runsOf(page, 0);
-    check(runs.length === 1 && runs[0].start === 0 && runs[0].end === 3, `note de 4 croches posée en 1/8 — obtenu ${JSON.stringify(runs)}`);
+    check(runs.length === 1 && runs[0].start === 0 && runs[0].end === 3, `note de 4 croches posée — obtenu ${JSON.stringify(runs)}`);
+    // Saisie sur sa 2e case (du corps : ni début ni fin), lâchée sur la case 6 : c'est le POINT SAISI
+    // qui suit le pointeur, donc la note glisse de 5 croches et garde sa longueur.
     await drag(page, await cellCenter(page, 0, 1), await cellCenter(page, 0, 6));
     runs = await runsOf(page, 0);
-    check(runs.length === 1 && runs[0].start % 2 === 0 && (runs[0].end - runs[0].start) === 3,
-        `en 1/8, la note déplacée retombe sur un multiple de 2 croches, longueur intacte — obtenu ${JSON.stringify(runs)}`);
+    check(runs.length === 1 && runs[0].start === 5 && runs[0].end === 8,
+        `la note déplacée suit le point saisi et garde sa longueur (5->8) — obtenu ${JSON.stringify(runs)}`);
 
     // CONTRAT CHANGÉ (à la demande : « mettre un corps aux notes qui n'en ont pas »). Une note de deux
     // croches n'avait que des bords : le centre de sa seconde case ÉTIRAIT, faute de mieux. Elle se
-    // découpe désormais au pixel (voir seqShortNoteZone) — ce point-là tombe dans son CORPS, donc le
-    // même geste la DÉPLACE, en respectant l'aimantation comme n'importe quel déplacement.
+    // découpe désormais au pixel (voir seqShortNoteZone) — corps au milieu, poignées aux extrémités.
+    // ON VISE LA BARRE, PAS LA CASE : à cette largeur, le centre de la 2e case tombe à un demi-pixel
+    // de la frontière corps/poignée. Le banc éprouvait donc un cheveu de mise en page, pas la règle ;
+    // le milieu de la barre, lui, est du corps quelle que soit la largeur.
     await clearVoice(page, 0);
     await drag(page, await cellCenter(page, 0, 0), await cellCenter(page, 0, 1));
-    await drag(page, await cellCenter(page, 0, 1), await cellCenter(page, 0, 5));
+    const corps2 = await pointSurNote(page, 0, 0, 1, 0.5);
+    await drag(page, corps2, await cellCenter(page, 0, 5));
     runs = await runsOf(page, 0);
-    check(runs.length === 1 && runs[0].start % 2 === 0 && (runs[0].end - runs[0].start) === 1,
-        `en 1/8, une note de 2 croches saisie par son corps se DÉPLACE sur un multiple de 2 croches, longueur intacte — obtenu ${JSON.stringify(runs)}`);
+    check(runs.length === 1 && (runs[0].end - runs[0].start) === 1 && runs[0].start > 0,
+        `une note de 2 croches saisie par son corps se DÉPLACE, longueur intacte — obtenu ${JSON.stringify(runs)}`);
 
-    // ...et depuis sa vraie POIGNÉE (les tout derniers pixels), elle s'étire toujours, aimantée pareil.
+    // ...et depuis sa vraie POIGNÉE (les tout derniers pixels), elle s'étire toujours.
     await clearVoice(page, 0);
     await drag(page, await cellCenter(page, 0, 0), await cellCenter(page, 0, 1));
-    const b2c = await page.evaluate(() => {
-        const n = document.querySelector('.seq-note[data-voice="0"][data-start="0"][data-end="1"]');
-        const r = n.getBoundingClientRect();
-        return { x: r.right - 2, y: r.top + r.height / 2 };
-    });
-    await drag(page, b2c, await cellCenter(page, 0, 5));
+    const poignee2 = await pointSurNote(page, 0, 0, 1, 1, -2);
+    await drag(page, poignee2, await cellCenter(page, 0, 5));
     runs = await runsOf(page, 0);
     check(runs.length === 1 && runs[0].start === 0 && runs[0].end === 5,
         `une note de 2 croches s'étire toujours depuis sa poignée de fin (0->5) — obtenu ${JSON.stringify(runs)}`);
 
     // ============================================================
-    // === H. Le réglage survit à un rechargement ===
+    // === H. Le pas fixe survit à un rechargement ===
     // ============================================================
+    // Il n'y a plus de réglage à retrouver : c'est justement l'intérêt du retrait. Ce qui doit
+    // survivre, c'est l'absence de réglage — aucun reste en mémoire ne peut ressusciter un pas
+    // qui décalerait les clics au prochain démarrage.
     await page.reload();
     await page.waitForTimeout(600);
-    check(await page.evaluate(() => window.app.seqSnap() === 2),
-        `le pas d'aimantation choisi (1/8) survit bien à un rechargement — obtenu ${await page.evaluate(() => window.app.seqSnap())}`);
-    // Remet le défaut, pour ne pas polluer les autres suites qui partagent ce profil de navigateur.
-    await page.evaluate(() => localStorage.removeItem('harmohubSeqSnap'));
+    check(await page.evaluate(() => window.app.seqSnap() === 1),
+        `après rechargement, le pas vaut toujours 1 — obtenu ${await page.evaluate(() => window.app.seqSnap())}`);
+    check(await page.evaluate(() => localStorage.getItem('harmohubSeqSnap') === null),
+        'aucun pas d\'aimantation ne traîne en mémoire pour ressusciter au prochain démarrage');
 
     console.log('=== Bilan :', PASS, 'PASS /', FAIL, 'FAIL ===');
     console.log('Errors:', JSON.stringify(errors));
