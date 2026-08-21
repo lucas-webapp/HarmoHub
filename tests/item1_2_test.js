@@ -86,16 +86,25 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     console.log(JSON.stringify(r));
     console.log((r.height > 0) ? 'PASS (icône affichée)' : 'FAIL');
 
-    console.log('--- Item 2: loop button turns blue when active ---');
+    // L'ÉTAT « BOUCLE » NE SE DIT PLUS PAR LA COULEUR D'UN BOUTON À PART. Ce point éprouvait le bleu
+    // de #toggle-loop-section, retiré : la boucle est devenue un état du bouton Lecture, qui échange
+    // son triangle contre un anneau fléché (façon Pro Tools). Le banc éprouve donc la même chose —
+    // « l'état se voit » — à l'endroit où elle se voit maintenant, et sur le DESSIN plutôt que sur
+    // une teinte, qui ne disait de toute façon pas ce qui allait être bouclé.
+    console.log('--- Item 2: l\'état boucle se voit sur le bouton Lecture lui-même ---');
     r = await page.evaluate(() => {
-        const btn = document.getElementById('toggle-loop-section');
-        btn.click();
-        const cs = getComputedStyle(btn);
-        return { active: btn.classList.contains('active'), bgImage: cs.backgroundImage };
+        window.app.basculerBoucle(true);
+        const b = document.getElementById('play-prog');
+        const simple = document.querySelector('#play-prog .transport-icon-simple');
+        const anneau = document.querySelector('#play-prog .transport-icon-boucle');
+        return {
+            classe: b.classList.contains('boucle-active'),
+            simpleVisible: getComputedStyle(simple).display !== 'none',
+            anneauVisible: getComputedStyle(anneau).display !== 'none',
+        };
     });
     console.log(JSON.stringify(r));
-    const isBlue = r.bgImage.includes('37, 58, 92') || r.bgImage.includes('#253a5c') || r.active; // just confirm active + some bg set; exact color checked visually
-    console.log('active=' + r.active);
+    console.log((r.classe && r.anneauVisible && !r.simpleVisible) ? 'PASS (anneau affiché à la place du triangle)' : 'FAIL');
 
     console.log('Errors:', JSON.stringify(errors));
     await browser.close();

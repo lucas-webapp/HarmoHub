@@ -1923,6 +1923,11 @@ const SEQ_COL_PX_MAX = 28;
 //   - si la note est si étroite que deux poignées ne laisseraient pas de milieu, on ne renonce plus au
 //     corps : on partage en DEUX — la moitié gauche déplace, la moitié droite étire par la fin. C'est
 //     le geste utile sur une note d'une seule croche (l'allonger), et déplacer reste toujours possible.
+// Seuil de l'appui long qui bascule la boucle depuis le bouton Lecture (voir setupBoucleLecture).
+// 500ms : le seuil habituel d'un appui long, assez long pour ne jamais se déclencher sur un vrai
+// clic de lecture, assez court pour ne pas donner l'impression que le bouton ne répond pas.
+const BOUCLE_APPUI_LONG_MS = 500;
+
 const SEQ_ZONE_HANDLE_RATIO = 0.25;
 const SEQ_ZONE_HANDLE_MIN_PX = 5;
 const SEQ_ZONE_HANDLE_MAX_PX = 18;
@@ -3044,7 +3049,15 @@ class HarmoHubApp {
         this.metronome.volume.value = percentToDb(this.metronomeVolumePercent);
 
         this.activeSection = 0;    // partie (couplet/refrain/...) ciblée par les contrôles courants
-        this.loopActiveSection = false; // boucle la partie active au lieu de jouer toute la grille (bouton Grille)
+        // UN SEUL INTERRUPTEUR DE BOUCLE, et il ne connaît plus les parties. Il remplace
+        // loopActiveSection (« boucler la partie active »), retiré à la demande : « à la base, je
+        // pensais boucler soit la plage tracée, soit tout le morceau si pas de zone tracée en orange.
+        // Mais jamais "uniquement une section". »
+        // La plage dit QUOI jouer, cet interrupteur dit SI ça se répète — les deux sont orthogonaux,
+        // comme le sont la zone de cycle et le bouton Cycle dans Logic ou Cubase. Il vit en mémoire
+        // seulement : la plage qu'il répète ne survit pas non plus à un rechargement, le persister
+        // rouvrirait donc l'appli en boucle sur un morceau entier sans que rien ne le montre.
+        this.bouclerLecture = false;
         this.selectedIndex = null; // accord sélectionné dans la grille (au sein de la partie active)
         this.multiSelect = new Set(); // indices en plus de selectedIndex (Ctrl/Cmd+clic, voir toggleGridMultiSelect), toujours au sein de la partie active — vidé au changement de partie
         this._multiIntensityUndoPushed = false; // voir applyIntensityToSelection : un seul instantané Annuler par sélection multiple, pas un par cran de la barre #intensity
@@ -3072,9 +3085,9 @@ class HarmoHubApp {
                                     // PLAGE d'accords voisins, qui peut traverser plusieurs parties
                                     // (glisser sur la ligne des numéros de mesure, voir
                                     // setupLoopRangeInteractions/playProgression) — comme la barre de
-                                    // cycle jaune de GarageBand. Distinct de loopActiveSection (boucle
-                                    // TOUTE la partie active, bouton dédié) : quand définie, elle est
-                                    // prioritaire sur celui-ci.
+                                    // cycle jaune de GarageBand. Elle dit QUOI boucler ; c'est
+                                    // this.bouclerLecture (l'anneau du bouton Lecture) qui dit si la
+                                    // lecture se répète. La tracer allume l'anneau, voir setLoopRange.
         this.clipboard = null;     // presse-papier (copier/coller d'accords)
         this.chordClipboard = null; // presse-papier NOM + VOICING seuls (voir copyChordIdentity/pasteChordIdentity) — pipette du menu contextuel, distincte de this.clipboard
         this.rhythmClipboard = null; // presse-papier RYTHME + DURÉE seuls (voir copyChordRhythm/pasteChordRhythm) — pipette complémentaire, jamais les notes de l'accord
@@ -3520,14 +3533,9 @@ class HarmoHubApp {
             localStorage.setItem(METRONOME_SUBDIVISION_KEY, this.metronomeSubdivision ? '1' : '0');
         };
 
-        // Boucle la partie active (bouton Grille) au lieu de jouer toute la grille — pratique
-        // pour retravailler un couplet/refrain en boucle sans tout rejouer depuis le début à chaque
-        // fois. Se désactive-t-elle en cours de lecture : la boucle en cours va jusqu'à son terme
-        // naturel plutôt que de couper brutalement (voir playProgression).
-        document.getElementById('toggle-loop-section').onclick = (e) => {
-            this.loopActiveSection = !this.loopActiveSection;
-            e.currentTarget.classList.toggle('active', this.loopActiveSection);
-        };
+        // La boucle se règle DEPUIS le bouton Lecture (voir setupBoucleLecture), il n'y a plus de
+        // bouton dédié à câbler ici.
+        this.setupBoucleLecture();
 
         // LE BOUTON « … » A ÉTÉ RETIRÉ (retour utilisateur : « on peut enlever le bouton "..."
         // complètement, afin de mettre directement les accords complexes dans la liste. Il n'y en a
@@ -5937,8 +5945,9 @@ class HarmoHubApp {
     }
 
     // Joue la chanson en entier : toutes les parties (couplet, refrain, ...) mises bout à bout, dans
-    // leur ordre d'affichage. Si this.loopActiveSection est activé (bouton dédié), ne joue QUE la
-    // partie active, et la boucle indéfiniment jusqu'à Stop (voir la fin de la fonction).
+    // leur ordre d'affichage — ou la seule PLAGE tracée sur la règle des mesures si elle existe.
+    // Dans les deux cas, this.bouclerLecture décide si l'on repart au début à la fin (voir la fin de
+    // la fonction) ou si la lecture s'arrête d'elle-même.
     async playProgression() {
         await Tone.start();
         this.stopAll();
@@ -5946,10 +5955,14 @@ class HarmoHubApp {
         this._playMode = 'progression';
 
         const sections = loadProgressionSections();
-        // Plage à boucler (glisser sur les numéros de mesure, voir setLoopRange) : prioritaire sur le
-        // bouton « Boucle » (partie active entière) quand elle est définie.
+        // La plage (glisser sur les numéros de mesure, voir setLoopRange) dit QUOI jouer ; l'anneau
+        // du bouton Lecture (this.bouclerLecture) dit si ça se répète. Les deux sont indépendants :
+        // plage sans anneau = la plage jouée une fois, anneau sans plage = tout le morceau en boucle.
+        // La branche « partie active seulement » a disparu avec le bouton qui la commandait : elle
+        // n'a jamais été demandée (« mais jamais "uniquement une section" »), et la retirer a
+        // SIMPLIFIÉ cette fonction au lieu de l'alourdir — une branche de moins, pas une de plus.
         const range = this.loopRange;
-        const loop = !!range || this.loopActiveSection;
+        const loop = this.bouclerLecture;
         const flat = []; // { section, index, data } à plat, dans l'ordre de lecture
         if (range) {
             // La plage peut traverser plusieurs parties : entière pour celles du milieu, bornée aux
@@ -5963,9 +5976,6 @@ class HarmoHubApp {
                     flat.push({ section: si, index: ci, data: sec.chords[ci] });
                 }
             }
-        } else if (this.loopActiveSection) {
-            const sec = sections[this.activeSection];
-            if (sec) sec.chords.forEach((data, ci) => flat.push({ section: this.activeSection, index: ci, data }));
         } else {
             sections.forEach((sec, si) => sec.chords.forEach((data, ci) => flat.push({ section: si, index: ci, data })));
         }
@@ -7422,6 +7432,74 @@ class HarmoHubApp {
     // Depuis le retrait du bouton « Accord » (un seul bouton Lecture désormais, voir
     // #global-transport), il n'y a plus qu'UN bouton par transport à recolorer — mais la fonction
     // garde son nom et son rôle : annoncer la plage à boucler sur le bouton Lecture lui-même.
+    // L'ANNEAU DE BOUCLE, ET LE GESTE QUI L'ALLUME.
+    // Pro Tools ne met pas de bouton « boucle » dans son transport : la lecture en boucle est un état
+    // du bouton Lecture, qui dessine alors une flèche circulaire autour du triangle. C'est la forme
+    // retenue ici (« bouton "boucle" à l'intérieur du bouton "Lecture" et non à part »), avec deux
+    // portes d'accès plutôt qu'une :
+    //  - l'APPUI LONG (et le clic droit sur ordinateur) sur le bouton Lecture ;
+    //  - et surtout, tracer une plage sur la règle des mesures, qui l'allume toute seule — c'est ce
+    //    que fait Logic avec sa zone de cycle, et c'est le geste que l'on fait déjà.
+    // La réserve est assumée : un appui long est moins découvrable qu'un bouton. Elle est compensée
+    // par le fait que le geste principal (tracer la plage) suffit, et par l'infobulle du bouton.
+    setupBoucleLecture() {
+        const bouton = document.getElementById('play-prog');
+        if (!bouton) return;
+        let minuteur = null;
+        let deja = false; // l'appui long a déjà basculé : le clic qui suit ne doit pas lancer la lecture
+        const annuler = () => { if (minuteur) { clearTimeout(minuteur); minuteur = null; } };
+
+        bouton.addEventListener('pointerdown', (e) => {
+            if (e.button && e.button !== 0) return; // le clic droit a son propre chemin, plus bas
+            deja = false;
+            annuler();
+            minuteur = setTimeout(() => { minuteur = null; deja = true; this.basculerBoucle(); }, BOUCLE_APPUI_LONG_MS);
+        });
+        // Un doigt qui GLISSE n'est pas un appui long : sans ça, faire défiler la page depuis le
+        // bouton finissait par basculer la boucle sans qu'on l'ait demandé.
+        bouton.addEventListener('pointermove', (e) => { if (minuteur && (Math.abs(e.movementX) > 2 || Math.abs(e.movementY) > 2)) annuler(); });
+        bouton.addEventListener('pointerup', annuler);
+        bouton.addEventListener('pointercancel', () => { annuler(); deja = false; });
+        bouton.addEventListener('pointerleave', annuler);
+        // Capture : ce clic-ci doit être avalé AVANT l'écouteur qui lance la lecture (voir
+        // setupPlaybackButtons), sinon l'appui long démarrerait la lecture en plus de basculer.
+        bouton.addEventListener('click', (e) => {
+            if (!deja) return;
+            deja = false;
+            e.preventDefault();
+            e.stopPropagation();
+        }, true);
+        bouton.addEventListener('contextmenu', (e) => { e.preventDefault(); this.basculerBoucle(); });
+
+        this.syncAnneauBoucle();
+    }
+
+    // Bascule l'anneau, avec un retour immédiat : si une lecture de la grille est en cours, elle doit
+    // se mettre à boucler (ou cesser de boucler) tout de suite, comme le fait déjà tout changement
+    // global — sans quoi l'anneau s'allumerait sans qu'il se passe quoi que ce soit à l'oreille.
+    basculerBoucle(valeur = null) {
+        const neuf = (valeur === null) ? !this.bouclerLecture : !!valeur;
+        if (neuf === this.bouclerLecture) return;
+        this.bouclerLecture = neuf;
+        this.syncAnneauBoucle();
+        if (this._playMode === 'progression') this.liveRestartForGlobalChange();
+    }
+
+    // Un seul endroit qui pose l'anneau, sur TOUS les boutons Lecture de l'appli : celui du transport
+    // (permanent) et celui du séquenceur (reconstruit à chaque rendu, d'où l'appel depuis
+    // renderSequencer). Les deux commandent la même lecture, ils ne peuvent donc pas afficher deux
+    // états différents.
+    syncAnneauBoucle() {
+        const actif = !!this.bouclerLecture;
+        const titre = actif ? 'Lecture en boucle — appui long ou clic droit pour arrêter de boucler'
+                            : 'Lecture — appui long ou clic droit pour boucler';
+        document.querySelectorAll('#play-prog, #seq-play').forEach((b) => {
+            b.classList.toggle('boucle-active', actif);
+            b.setAttribute('aria-pressed', actif ? 'true' : 'false');
+            if (b.id === 'play-prog') { b.title = titre; }
+        });
+    }
+
     updatePlayButtonsForLoopRange() {
         const active = !!this.loopRange;
         const rangeTitle = 'Lire la plage à boucler';
@@ -11339,6 +11417,13 @@ class HarmoHubApp {
         if (r && r.startSection === lo.section && r.startIndex === lo.index
             && r.endSection === hi.section && r.endIndex === hi.index) return;
         this.loopRange = { startSection: lo.section, startIndex: lo.index, endSection: hi.section, endIndex: hi.index };
+        // TRACER UNE PLAGE ALLUME LA BOUCLE. C'est la moitié « Logic » de la solution retenue : on ne
+        // trace pas une zone de cycle pour l'entendre une fois. Sans ça, l'appui long serait le SEUL
+        // accès à la boucle — et un geste caché comme seule porte d'entrée serait indéfendable.
+        // L'appui long garde tout son sens dans l'autre sens : éteindre l'anneau sans effacer la
+        // plage rejoue la plage une seule fois.
+        this.bouclerLecture = true;
+        this.syncAnneauBoucle();
         this.loadProgression();
         this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
         // Une lecture de toute la chanson en cours doit se mettre à boucler cette plage tout de suite
@@ -15285,6 +15370,10 @@ class HarmoHubApp {
         // exemple — alors que la souris n'avait pas bougé d'un pixel. Le repère de zone (voir la
         // signature dans applySeqHoverHighlight) est invalidé d'abord : les cases sont neuves, donc
         // même identique il faut le reposer sur elles.
+        // Le bouton Lecture du séquenceur vient d'être reconstruit avec le reste de la barre : il
+        // repart donc sans anneau, quel que soit l'état réel de la boucle. On le repose ici, au même
+        // endroit que le surlignage — même raison, même piège.
+        this.syncAnneauBoucle();
         this._seqBodyZoneSig = null;
         this.applySeqHoverHighlight();
 

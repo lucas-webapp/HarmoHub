@@ -1185,8 +1185,7 @@ main {
    52px pleine largeur du pied de colonne tactile — sinon cette ligne, désormais permanente, doublerait
    de hauteur et mangerait la place gagnée ailleurs. */
 .grid-head-transport-host .transport { gap: 6px; flex-wrap: nowrap; }
-.grid-head-transport-host .transport .transport-icon-btn,
-.grid-head-transport-host .transport #toggle-loop-section {
+.grid-head-transport-host .transport .transport-icon-btn {
     flex: none;
     width: 38px;
     min-width: 0;
@@ -1213,14 +1212,13 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
     padding: 13px 12px 13px 8px; /* contenu recentré, voir le commentaire sur le button de base */
     font-size: var(--fs-base);
 }
-/* Bouton « boucler la partie » : reste compact à côté du bouton Lecture, même hauteur que lui
-   (52px, voir .transport-icon-btn), carré plutôt qu'étiré. */
-.transport #toggle-loop-section {
-    flex: none;
-    width: 52px;
-    height: 52px;
-    padding: 0;
-}
+/* LE BOUTON « BOUCLER » A DISPARU DE LA BARRE, et sa règle de taille avec lui — c'était ELLE le
+   défaut signalé (« le bouton boucle est plus haut que les autres »). Elle imposait 52px par
+   IDENTIFIANT (spécificité 1,1,0), donc elle l'emportait sur la règle d'ordinateur qui rabaisse les
+   boutons du transport à 44px (.dock .transport > button, 0,2,1) : ce bouton-là, et lui seul,
+   ignorait le rabaissement. Mesuré à 1440px avant retrait : Lecture 44, Stop 44, Boucle 52.
+   La boucle est désormais un état du bouton Lecture (anneau autour du triangle, voir
+   .transport-icon-boucle), donc il n'y a plus de troisième bouton à dimensionner. */
 /* Lecture/Stop : logos seuls (sans libellé, voir index.html). Dans .dock (téléphone), ils S'ÉTIRENT
    (flex: 1 1 0, hérité de ".transport button" ci-dessus) pour occuper toute la largeur de l'écran :
    cibles tactiles plus larges plutôt que des carrés perdus avec du vide à côté. Dans l'en-tête de la
@@ -2037,15 +2035,17 @@ body[data-app-mode="edit"] .voicing-group-duree { display: none; }
     border-color: var(--btn-green-border);
 }
 
-/* Bouton « Boucler » (pied de colonne + en-tête loupe grille, mêmes id ci-dessous) : bleu plutôt
-   que le vert générique ci-dessus une fois actif — se distingue des autres bascules (verrouillage
-   guitare, panneau séquenceur...) qui partagent, elles, le même sens "actif = vert". Sélecteur par
-   id (spécificité 1,1,0) : l'emporte sur .icon-btn.active (0,1,0) ci-dessus. */
-#toggle-loop-section.active {
-    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.12), transparent 55%), linear-gradient(160deg, var(--btn-blue-1), var(--btn-blue-2) 70%);
-    color: var(--btn-text);
-    border-color: var(--btn-blue-border);
-}
+/* L'ÉTAT « BOUCLE » NE SE DIT PLUS PAR UNE COULEUR DE BOUTON, mais par le dessin lui-même : le
+   triangle de lecture s'entoure d'un anneau fléché (façon Pro Tools). Un deuxième bouton coloré ne
+   disait de toute façon rien de ce qui allait être bouclé — l'anneau, lui, est SUR le bouton qui
+   lance la lecture, c'est-à-dire sur l'action qu'il modifie.
+   Les deux dessins vivent dans le même bouton (voir #play-prog dans index.html) et s'échangent
+   ici : rien à reconstruire en JS, donc rien qui puisse se désynchroniser d'un rendu à l'autre. */
+/* Un peu plus grande que le triangle seul : l'anneau mange du rayon, et à 22px le dessin entier
+   paraissait plus petit que l'icône qu'il remplace — alors que c'est le MÊME bouton. */
+.transport-icon-boucle { display: none; width: 26px; height: 26px; }
+#play-prog.boucle-active .transport-icon-simple { display: none; }
+#play-prog.boucle-active .transport-icon-boucle { display: block; }
 
 /* Action mise en avant (Enregistrer) : reste verte même au repos */
 .icon-btn-accent {
@@ -5728,8 +5728,9 @@ select.song-select-narrow {
    n'est pas un bouton de volet : c'est une barre FLOTTANTE au-dessus de toute l'application, avec
    sa propre échelle (52px contre 32). Un rayon de 7px y paraîtrait pincé, et l'uniformiser
    reviendrait à traiter comme un réglage ce qui est une commande de transport. On le laisse
-   entièrement tranquille — y compris #toggle-loop-section, qui y vit aussi : une barre à moitié
-   convertie serait pire que pas de conversion du tout. */
+   entièrement tranquille : une barre à moitié convertie serait pire que pas de conversion du tout.
+   (Elle ne compte plus que deux boutons — le troisième, « Boucler », est devenu l'anneau du bouton
+   Lecture, voir .transport-icon-boucle.) */
 .col-left .btn-green,
 .col-left .btn-orange,
 .col-left .icon-btn-accent {

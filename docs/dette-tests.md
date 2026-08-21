@@ -2029,3 +2029,68 @@ d'ailleurs lui-même au même moment — la dette avait **diminué** de deux ent
 laisser filer le gain sans qu'on le fige. Il reste vrai qu'ils n'ont pas de `plan()` : ils comptent
 leurs PASS/FAIL eux-mêmes plutôt que de passer par l'harnais. C'est de la dette réelle, inchangée,
 et elle attend son tour avec les 127 autres.
+
+## La boucle : un état de la lecture, pas un troisième bouton
+
+> « L'affichage des boutons de lecture n'est pas très beau, notamment le bouton boucle qui est plus
+> haut que les autres, et prend trop de place. J'aurais bien vu une option du style : bouton "boucle"
+> à l'intérieur du bouton "Lecture" et non à part […] Comment font les DAW professionnels ? »
+
+### Le défaut de hauteur était réel, et sa cause est instructive
+
+Mesuré à 1440px **avant** d'y toucher : Lecture 44px, Stop 44px, **Boucle 52px**. Sur téléphone, les
+trois faisaient 52 — le défaut n'existait que sur ordinateur, ce qui explique qu'il ait survécu.
+
+La cause est une collision de spécificité, la même famille de piège que le vert perdu du lot
+précédent. La règle d'ordinateur qui rabaisse le transport est `.dock .transport > button` (0,2,1) ;
+celle qui dimensionnait la boucle était `.transport #toggle-loop-section` (**1**,1,0). L'identifiant
+l'emportait, donc **ce bouton-là, et lui seul, ignorait le rabaissement**. Le retrait du bouton
+emporte le défaut avec lui — mais il aurait fallu le corriger de toute façon, et le nommer ici évite
+qu'un futur `#quelque-chose` refasse exactement la même chose.
+
+### Ce que font les DAW, et ce qui est repris
+
+**Pro Tools** ne met pas de bouton boucle dans son transport : la lecture en boucle est un état du
+bouton Lecture, qui dessine alors une flèche circulaire autour du triangle. **Logic**, **Cubase**,
+**Ableton** et **Reaper** gardent un interrupteur, mais font l'essentiel sur la **règle** : on y trace
+la zone de cycle, et l'interrupteur s'allume tout seul.
+
+Les deux moitiés sont reprises : **l'anneau de Pro Tools**, et **l'allumage automatique de Logic**.
+
+### Retirer la boucle « une section » a SIMPLIFIÉ la lecture
+
+C'est le point contre-intuitif. `playProgression` construisait sa liste d'accords en trois branches :
+la plage, la partie active, tout le morceau. La demande — « soit la plage tracée, soit tout le
+morceau […] mais jamais *uniquement une section* » — **supprime la branche du milieu**. Une
+fonctionnalité en moins, une branche en moins, et une règle plus facile à énoncer :
+
+| | anneau éteint | anneau allumé |
+|---|---|---|
+| **plage tracée** | la plage, une fois | la plage, en boucle |
+| **pas de plage** | tout le morceau, une fois | tout le morceau, en boucle |
+
+La plage dit **quoi** jouer, l'anneau dit **si ça se répète**. Deux notions orthogonales là où il y en
+avait trois qui se chevauchaient.
+
+### La réserve, énoncée plutôt que masquée
+
+Un appui long est **moins découvrable** qu'un bouton visible. C'est le prix de la solution, et il est
+payé de deux façons : tracer une plage — le geste qu'on fait déjà — allume la boucle sans rien
+demander, et le clic droit double l'appui long sur ordinateur. Si la boucle n'était accessible QUE
+par un geste caché, ce serait indéfendable ; le banc éprouve donc explicitement l'allumage
+automatique (section C), qui est la vraie porte d'entrée.
+
+### Un dessin vérifié en capture, pas supposé
+
+Premier jet : anneau de 2px sur un rayon de 9. Le triangle qui restait dedans se lisait comme **un
+point**. Corrigé après capture à 5× — anneau de 1,7px, triangle porté à 7,4 × 9,6 dans la boîte de 24,
+icône passée de 22 à 26px. Le triangle doit rester le sujet du dessin : c'est toujours le bouton
+Lecture, l'anneau n'est qu'un état.
+
+### Deux bancs qui visaient le bouton disparu, dont un qui mourait en silence
+
+`global_transport_test` cliquait `#toggle-loop-section` : le clic attendait un bouton absent jusqu'à
+expiration, et **les dix vérifications suivantes étaient perdues** — 14 exécutées sur 24 attendues.
+C'est exactement ce que `plan()` existe pour attraper, et il l'a attrapé. `item1_2_test` éprouvait le
+bleu de ce même bouton. Les deux ont été retournés vers le nouveau geste et le nouveau signe, pas
+supprimés.

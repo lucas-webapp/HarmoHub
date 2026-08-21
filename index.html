@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608242700">
+    <link rel="stylesheet" href="style.css?v=202608242900">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -1249,12 +1249,31 @@
          n'ont pas de cohérence là où ils sont positionnés sur ordi (tout à droite)" — ils sont
          désormais groupés avec les autres commandes de la grille, dans son en-tête. -->
     <div id="global-transport" class="global-transport" hidden>
+        <!-- DEUX BOUTONS, PAS TROIS. Le bouton « Boucler » a disparu de cette barre (retour
+             utilisateur : « le bouton boucle est plus haut que les autres et prend trop de place.
+             J'aurais bien vu une option du style : bouton "boucle" à l'intérieur du bouton
+             "Lecture" […] Comment font les DAW professionnels ? »).
+             C'est exactement la solution de Pro Tools : la boucle n'est pas un bouton, c'est un ÉTAT
+             de la lecture, et le bouton dessine alors un anneau autour du triangle. Logic et Cubase
+             ajoutent l'autre moitié, reprise ici : la plage tracée sur la règle des mesures allume la
+             boucle toute seule (voir setLoopRange). Il reste l'appui long / clic droit pour les cas
+             sans plage — voir setupBoucleLecture.
+             Le défaut de hauteur signalé est réglé du même coup, et il était réel : mesuré à 1440px,
+             Lecture et Stop faisaient 44px (rabaissés sur ordinateur par .dock .transport > button)
+             quand la boucle en gardait 52 — sa règle par identifiant (1,1,0) l'emportait sur celle
+             d'ordinateur (0,2,1), donc elle seule ignorait le rabaissement. -->
         <div class="transport">
-            <button id="play-prog" class="btn-prog transport-icon-btn" title="Lecture" aria-label="Lecture">
-                <svg class="icon transport-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
-            </button>
-            <button type="button" id="toggle-loop-section" class="icon-btn" title="Boucler la partie active" aria-label="Boucler la partie active">
-                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            <button id="play-prog" class="btn-prog transport-icon-btn" title="Lecture — appui long ou clic droit pour boucler" aria-label="Lecture" aria-pressed="false">
+                <svg class="icon transport-icon transport-icon-simple" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+                <!-- Anneau FIN et triangle LARGE, dans cet ordre d'importance : le premier jet avait un
+                     anneau de 2px sur un rayon de 9, et le triangle qui restait dedans se lisait comme
+                     un point (vérifié en capture, pas supposé). Le triangle doit rester le sujet du
+                     dessin — c'est toujours le bouton Lecture ; l'anneau n'est qu'un état. -->
+                <svg class="icon transport-icon transport-icon-boucle" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12.2 2.6a9.4 9.4 0 1 1-6.85 2.75" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="butt"/>
+                    <path d="M11.2 0 15.6 2.6l-4.4 2.6z" fill="currentColor"/>
+                    <path d="M9 7.2v9.6l7.4-4.8z" fill="currentColor"/>
+                </svg>
             </button>
             <button id="stop" class="btn-stop transport-icon-btn" title="Stop" aria-label="Stop">
                 <svg class="icon transport-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
@@ -1271,6 +1290,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608242700"></script>
+    <script src="script.js?v=202608242900"></script>
 </body>
 </html>

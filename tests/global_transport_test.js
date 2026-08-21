@@ -141,10 +141,22 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
     await p.click('#stop');
     await p.waitForTimeout(200);
     check(await p.evaluate(() => !window.app.isPlaying), 'Stop arrête bien la lecture');
-    await p.click('#toggle-loop-section');
-    await p.waitForTimeout(200);
-    check(await p.evaluate(() => window.app.loopActiveSection === true), 'Boucler la partie active bien le réglage');
-    await p.click('#toggle-loop-section');
+    // LE TROISIÈME BOUTON N'EXISTE PLUS, et c'est une décision (« le fait de mettre un 3ème bouton
+    // uniquement pour les boucles alourdit un peu le visuel »). La boucle est devenue un ÉTAT du
+    // bouton Lecture, à la manière de Pro Tools — l'anneau autour du triangle. Le banc éprouve donc
+    // le même service, par le geste qui l'active désormais : l'appui long. Le clic attendait ici un
+    // bouton disparu jusqu'à expiration, et TOUT ce qui suivait dans ce banc était perdu en silence.
+    const boite = await p.locator('#play-prog').boundingBox();
+    await p.mouse.move(boite.x + boite.width / 2, boite.y + boite.height / 2);
+    await p.mouse.down();
+    await p.waitForTimeout(750);
+    await p.mouse.up();
+    await p.waitForTimeout(250);
+    check(await p.evaluate(() => window.app.bouclerLecture === true), 'un appui long sur Lecture allume bien la boucle');
+    check(await p.evaluate(() => document.getElementById('play-prog').classList.contains('boucle-active')),
+        'et le bouton Lecture porte alors son anneau');
+    await p.evaluate(() => window.app.basculerBoucle(false));
+    await p.waitForTimeout(150);
 
     console.log('\n=== E. Une vue agrandie par-dessus ne le fait pas disparaître ni doubler ===');
     // Le banc masquait ici le transport pendant la vue plein écran de la grille, qui portait sa PROPRE
