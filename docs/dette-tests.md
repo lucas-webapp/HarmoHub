@@ -1610,3 +1610,28 @@ de la barre : deux échouaient à 30x15. Ce n'était pas la barre qui avait tort
 deux boutons de zoom horizontal sont **empilés** dans un cadre commun de 30x30, choix de conception
 antérieur. Ils sont donc mis à part **en étant nommés**, pour qu'un troisième petit bouton qui
 apparaîtrait un jour fasse bien rougir ce banc.
+
+### La méta-suite lisait les commentaires comme du code
+
+Le balayage du Lot 2 a sorti un rouge auquel je ne m'attendais pas : `meta_suite_test` signalait que
+`rythme_une_preference_test` appelait `window.app.addChord()`, méthode absente de `script.js`. Le banc
+ne l'appelle pas — **il explique pourquoi il ne l'appelle pas** :
+
+> `// Le vrai bouton, pas window.app.addChord() : un bouton qu'on ne peut atteindre qu'en appelant la
+> // fonction derrière n'est pas un bouton.`
+
+C'est le pire genre de faux rouge, parce qu'il pousse à **contorsionner une phrase pour plaire à une
+expression régulière**, ou pire, à effacer l'explication. Un garde-fou qui punit les commentaires
+finit par les faire disparaître — et ce sont eux qui portent le *pourquoi*.
+
+Corrigé à la source : les cinq relevés travaillent désormais sur une copie **sans commentaires**.
+Une accolade citée dans un commentaire ne fausse plus le comptage de la section 5, un identifiant
+donné en exemple ne compte plus comme une visée.
+
+**Et l'ampleur était bien plus grande qu'un fichier.** Le nettoyage a fait tomber sept AUTRES bancs
+de la liste — `continuous_scroll`, `grid_loupe_pinch_undo`, `pinch_smoothness_centering`,
+`pinned_seq_toolbar`, `retour_a_sa_place`, `seqplay_looprange`, `three_more_features` — plus deux
+« erreurs avalées » fantômes dans `sortie_edition_involontaire`. Huit améliorations d'un coup : la
+dette qu'ils affichaient n'existait pas. Un relevé qui compte des choses fausses ne se contente pas
+de faire du bruit, il **cache le vrai** : neuf entrées à ignorer, ce sont neuf raisons de ne plus
+regarder la liste du tout.

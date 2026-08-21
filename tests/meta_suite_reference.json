@@ -1,36 +1,10 @@
 {
   "api_disparue": {
-    "continuous_scroll_test.js": [
-      "closeGridZoom"
-    ],
-    "grid_loupe_pinch_undo_test.js": [
-      "openGridZoom"
-    ],
     "new_voice_rule_test.js": [
       "closeGridZoom"
     ],
-    "pinch_smoothness_centering_test.js": [
-      "editChordFromGridZoom",
-      "openGridZoom"
-    ],
-    "pinned_seq_toolbar_test.js": [
-      "editChordFromGridZoom",
-      "openGridZoom"
-    ],
-    "retour_a_sa_place_test.js": [
-      "openGridZoom"
-    ],
     "seq_row_pipette_test.js": [
       "setMode"
-    ],
-    "seqplay_looprange_test.js": [
-      "editChordFromGridZoom",
-      "openGridZoom"
-    ],
-    "three_more_features_test.js": [
-      "closeGridZoom",
-      "editChordFromGridZoom",
-      "openGridZoom"
     ]
   },
   "id_disparu": {
@@ -62,7 +36,7 @@
     "seq_row_pipette_test.js": 2,
     "seq_short_note_body_test.js": 1,
     "song_panel_test.js": 1,
-    "sortie_edition_involontaire_test.js": 3,
+    "sortie_edition_involontaire_test.js": 1,
     "zoom_coherence_test.js": 2
   },
   "sans_plan": [

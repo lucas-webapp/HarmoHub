@@ -57,8 +57,28 @@ const idExiste = (id) => html.includes(`"${id}"`) || html.includes(`'${id}'`)
 
 const releve = { api_disparue: {}, id_disparu: {}, erreurs_avalees: {}, sans_plan: [], verifications_conditionnelles: {} };
 
+// LES COMMENTAIRES NE SONT PAS DU CODE, et ce banc les lisait comme tel.
+//
+// Trouvé en écrivant rythme_une_preference_test, dont un commentaire dit « Le vrai bouton, pas
+// window.app.addChord() : un bouton qu'on ne peut atteindre qu'en appelant la fonction derrière
+// n'est pas un bouton. » La méta-suite y a vu un APPEL à une méthode absente de script.js et a
+// signalé une aggravation — alors que le banc ne l'appelle pas : il explique pourquoi il ne
+// l'appelle pas.
+//
+// C'est le pire genre de faux rouge : il pousse à contorsionner une phrase pour plaire à une
+// expression régulière, ou pire, à effacer l'explication. Un garde-fou qui punit les commentaires
+// finit par les faire disparaître — et ce sont les commentaires qui portent le POURQUOI.
+//
+// Les cinq relevés y gagnent tous : une accolade citée dans un commentaire ne fausse plus le
+// comptage de la section 5, et un identifiant donné en exemple ne compte plus comme une visée.
+// Le repli [^:] devant // épargne les URL des chaînes (http://localhost:8934) : les couper ne
+// casserait rien ici, mais autant ne pas mutiler ce qu'on n'a pas besoin de toucher.
+const sansCommentaires = (src) => src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+
 for (const f of fichiers) {
-    const t = fs.readFileSync(path.join(__dirname, f), 'utf8');
+    const t = sansCommentaires(fs.readFileSync(path.join(__dirname, f), 'utf8'));
 
     // 1. Méthodes de l'appli appelées par le banc mais absentes de script.js
     const methodes = new Set([...t.matchAll(/\b(?:window\.)?app\.([A-Za-z_$][\w$]*)\s*\(/g)].map(m => m[1]));
