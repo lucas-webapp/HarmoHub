@@ -19,7 +19,7 @@
 const { chromium } = require('playwright');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('place du « + » et cadrage des diagrammes');
-plan(20);
+plan(25);
 
 const semer = (n) => {
     const mk = r => ({ root: r, quality: 'maj', beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
@@ -65,8 +65,12 @@ const releverPlus = () => {
             `${n} accords : le « + » est en bout de la dernière ligne d'accords, à droite du dernier`);
         check(!r.chevauche && r.atteignable && !r.deborde,
             `${n} accords : il ne chevauche rien, répond au clic, et ne fait rien déborder`);
-        check(r.h > 40 && r.l <= 40,
-            `${n} accords : hauteur d'une case conservée, largeur réduite (${r.l}x${r.h}) — c'est la forme demandée`);
+        // La forme dépend de la ligne : étroite SEULEMENT quand les accords la remplissent, carrée et
+        // collée au dernier accord sinon — « lorsque les accords n'atteignent pas le bout de la ligne,
+        // le + doit se mettre à la fin de l'accord comme avant ».
+        const ligneRemplie = [4, 8].includes(n);
+        check(ligneRemplie ? (r.h > 40 && r.l <= 40) : (r.l === r.h && r.h > 40),
+            `${n} accords : ${ligneRemplie ? 'ligne pleine, forme étroite' : 'ligne non pleine, forme d\'origine'} (${r.l}x${r.h})`);
     }
 
     // LE CŒUR DE LA DEMANDE : quatre accords remplissent exactement leur ligne. Avant, cela coûtait une
@@ -85,6 +89,50 @@ const releverPlus = () => {
         .map(c => Math.round(c.getBoundingClientRect().width)));
     check(new Set(largeurs).size === 1,
         `quatre accords de même durée gardent la même largeur (${largeurs.join(', ')}) — la grille reste proportionnelle au temps`);
+
+    // ---------- 1 bis. Le « + » ne bouge que si la ligne est pleine, et la police ne bouge pas ----------
+    // Retour utilisateur sur ma première version : « lorsque les accords n'atteignent pas le bout de la
+    // ligne, le + doit se mettre à la fin de l'accord comme avant ». La gouttière n'existe donc QUE si
+    // les accords remplissent leur dernière ligne.
+    await page.evaluate(semer, 3);
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForTimeout(650);
+    const pasPleine = await page.evaluate(releverPlus);
+    check(pasPleine.l > 40 && pasPleine.h > 40, `ligne non pleine : le « + » garde sa taille d'origine (${pasPleine.l}x${pasPleine.h})`);
+    const colle = await page.evaluate(() => {
+        const a = document.querySelector('.grid-cell-add').getBoundingClientRect();
+        const cs = [...document.querySelectorAll('.grid-cell:not(.grid-cell-add)')];
+        return Math.round(a.left - cs[cs.length - 1].getBoundingClientRect().right);
+    });
+    check(colle === 0, `et il est collé au dernier accord, comme avant (${colle} px d'écart)`);
+
+    // LA POLICE DES ACCORDS. Retour utilisateur : « des accords ont changé de taille de police ».
+    // Relevé : « E♭ » tombait à 8px là où « B », dans une case de MÊME largeur, tenait 14,08px. La
+    // cause était dans fitCellSymbols, qui comparait le symbole à SA PROPRE largeur — ajustée à son
+    // texte — au lieu de la largeur de la case. Deux accords qui tiennent dans des cases identiques
+    // doivent s'écrire de la même taille : c'est ce que vérifie ce qui suit.
+    await page.evaluate(() => {
+        const mk = (r, q, bt) => ({ root: r, quality: q, beats: bt, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
+        localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'S', chords: [mk('B', 'maj', 2), mk('D#', 'maj', 2), mk('E', 'maj', 4), mk('A#', 'maj7', 1)] }] }));
+    });
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForTimeout(700);
+    const polices = await page.evaluate(() => [...document.querySelectorAll('.cell-sym')].map(el => {
+        const c = el.closest('.grid-cell');
+        return { txt: el.textContent.trim(), px: parseFloat(getComputedStyle(el).fontSize),
+                 largeurCase: Math.round(c.getBoundingClientRect().width),
+                 deborde: el.scrollWidth > c.clientWidth };
+    }));
+    const memeLargeur = polices.filter(p => p.largeurCase === polices[0].largeurCase && !p.deborde);
+    check(memeLargeur.length >= 2 && new Set(memeLargeur.map(p => p.px)).size === 1,
+        `deux accords dans des cases de même largeur s'écrivent de la même taille : ${memeLargeur.map(p => p.txt + ' ' + p.px + 'px').join(', ')} (avant : E♭ à 8px contre B à 14,08px)`);
+    check(polices.every(p => p.px >= 10 || p.deborde),
+        `aucun symbole n'est rapetissé sans déborder : ${polices.map(p => p.txt + ' ' + p.px).join(', ')}`);
+    // Le filet de sécurité reste armé : un symbole long dans une case étroite doit TOUJOURS rétrécir,
+    // sinon on aurait remplacé un défaut par l'autre.
+    const long = polices.find(p => p.txt.length >= 5);
+    check(!long || long.px < polices.find(p => p.txt.length <= 2).px,
+        `un symbole long dans une case étroite rétrécit toujours (${long ? long.txt + ' ' + long.px + 'px' : 'aucun'})`);
 
     // ---------- 2. Les diagrammes ----------
     for (const id of ['toggle-viz-piano', 'toggle-viz-guitar']) {

@@ -2915,3 +2915,50 @@ ordinateur, 34 au doigt, la gouttière s'élargissant sur téléphone).
 proportionnalité au temps. `case_plus_test.js` et `ajout_modif_test.js` affirmaient une case CARRÉE :
 contrat changé sur demande, pas défaut — chacun le dit maintenant en toutes lettres. Et
 `diagrammes_inspecteur_test.js` gagne le rappel de pourquoi les bascules sont en haut.
+
+
+## Correctif du même lot : j'avais touché trop de choses
+
+> « Tes modifications ont entraîné des erreurs d'affichage. Je pense que tu as touché trop de choses.
+> Je pense que tu pouvais ajouter un petit espace réservé au + uniquement en fin de ligne. Lorsque les
+> accords n'atteignent pas le bout de la ligne, le + doit se mettre à la fin de l'accord comme avant. »
+> — et, séparément : « des accords ont changé de taille de police, à modifier ».
+
+### La gouttière n'existe que si la ligne est pleine
+
+J'avais réservé la colonne du « + » au bout de **toutes** les lignes. Conséquence visible sur la
+capture : une partie d'une seule mesure se retrouvait avec son « + » à l'autre bout d'une ligne vide,
+et toutes les largeurs de cases changeaient — pour un problème qui ne se pose que sur une ligne pleine.
+
+La règle est maintenant exactement celle que l'utilisateur a formulée. Mesuré :
+
+| accords | ligne pleine ? | forme du « + » | écart au dernier accord | largeur des cases |
+|---|---|---|---|---|
+| 1, 2, 3, 5 | non | 64×64, d'origine | **0 px** | 251 px, inchangée |
+| 4, 8 | oui | 26×64, en gouttière | 4 px | 243 px |
+
+Aucune ligne en plus dans les deux cas.
+
+### La police : ce n'était pas moi, mais c'était un vrai défaut
+
+Vérifié avant d'agir, en rejouant le même morceau sur le commit précédent : les tailles sont
+**identiques** de part et d'autre — `B` 14,08 px, `E♭` **8 px**, `E` 16,8 px. Mon lot ne l'avait pas
+causé. Mais 8 px pour un `E♭` dans une case de 125 px, quand le `B` d'à côté tient 14,08 px dans une
+case de MÊME largeur, est bel et bien un défaut.
+
+La cause est dans `fitCellSymbols` : il comparait `scrollWidth` à `clientWidth` **du symbole
+lui-même** — or `.cell-sym` est ajusté à son propre texte. Mesuré : 10 px pour « B », 7 px pour « E♭ »,
+11 px pour « E », dans des cases de 125 et 251 px. Comparer un élément à lui-même n'est pas un test de
+débordement, c'est une boucle : un pixel d'arrondi du navigateur suffisait à la déclencher, et le ratio
+la faisait plonger jusqu'au plancher de 8 px.
+
+La case est le vrai budget. Après correctif : `B` et `E♭` à 14,08 px tous les deux, `E` à 16,8 px dans
+sa case deux fois plus large — et le filet reste armé, `B♭maj7` dans une case de 63 px rétrécissant
+toujours à 11,52 px.
+
+### Ce que ça dit de ma façon de faire
+
+Deux fois dans ce lot, j'ai élargi la portée d'un correctif au-delà de ce qui était demandé : la
+gouttière sur toutes les lignes plutôt que sur la seule ligne pleine, et les bascules déplacées dans le
+DOM alors qu'un changement d'alignement suffisait. Les deux ont coûté un aller-retour. La demande
+initiale — « uniquement en fin de ligne » — décrivait déjà la bonne portée.

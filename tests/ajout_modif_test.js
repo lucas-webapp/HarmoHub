@@ -226,9 +226,7 @@ const etat = (page) => page.evaluate(() => ({
     }
     check(caseAjout.ph === '+' && !caseAjout.coupe,
         `le signe seul, entier, sans être coupé : « ${caseAjout.ph} » sur ${caseAjout.w}px`);
-    // CONTRAT CHANGÉ (voir case_plus_test.js) : la case n'est plus carrée mais ÉTROITE, dans une
-    // gouttière au bout de la ligne — elle ne réserve donc plus rien du tout sur la largeur des accords.
-    check(!caseAjout.carree, 'la case est étroite, dans sa gouttière : elle ne prend plus la largeur d\'un accord');
+    check(caseAjout.carree, 'la case est carrée : on ne réserve plus deux temps de large pour un signe');
     check(/Ajouter un accord/.test(caseAjout.aria || ''),
         `le sens reste dit au lecteur d'écran — « ${caseAjout.aria} »`);
 

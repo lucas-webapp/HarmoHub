@@ -1,11 +1,11 @@
-// CONTRAT CHANGÉ, sur retour utilisateur. La case n'est plus carrée : « il prend une ligne entière en
-// hauteur pour rien, ce qui limite le visionnage de toutes mes sections en même temps » puis « conserver
-// la hauteur du bouton, mais réduire sa largeur et le placer en fin de ligne ». Elle vit désormais dans
-// une gouttière étroite réservée au bout de CHAQUE ligne (voir --col-plus et loadProgression), et se
-// pose sur la dernière ligne d'accords : elle ne passe donc plus jamais à la ligne. Mesuré : une partie
-// de quatre accords passe de 206 à 104 px, soit la totalité du coût supprimée.
-// La cible tactile n'est pas oubliée pour autant : la gouttière s'élargit sur téléphone (34px contre 26),
-// et c'est ce que vérifie la partie mobile plus bas.
+// CONTRAT PRÉCISÉ, sur retour utilisateur en deux temps. « Il prend une ligne entière en hauteur pour
+// rien, ce qui limite le visionnage de toutes mes sections en même temps […] lorsqu'il est au milieu
+// d'une ligne, il ne me gêne pas », puis, après une première version qui réservait une gouttière au
+// bout de TOUTES les lignes : « lorsque les accords n'atteignent pas le bout de la ligne, le + doit se
+// mettre à la fin de l'accord comme avant ».
+// Donc : ce banc-ci éprouve le cas où la ligne N'EST PAS pleine, et la case y est carrée, exactement
+// comme avant. Le cas de la ligne pleine — case étroite dans une gouttière, aucune ligne en plus — est
+// éprouvé par place_du_plus_et_diagrammes_test.js.
 // La case « + » en bout de grille : un signe, une cible carrée, et toujours utilisable.
 // Retour utilisateur : « un "+" suffit à comprendre, et tu peux diminuer la taille de la case, je
 // n'ai pas besoin de toute cette largeur pour cliquer ». Elle occupait 2 temps pleins, soit 125px
@@ -59,9 +59,9 @@ const caseP = (p) => p.evaluate(() => {
     await prep(p);
     let c = await caseP(p);
     check(c.placeholder === '+', `le libellé se réduit au signe — « ${c.placeholder} »`);
-    check(c.w < c.h && c.h >= 40, `la case est ÉTROITE et garde la hauteur d'une case — ${c.w}x${c.h} (contrat changé : voir l'en-tête)`);
+    check(c.w === c.h, `la case est carrée — ${c.w}x${c.h} (ligne NON pleine : forme d'origine, voir l'en-tête)`);
     check(c.w < 100, `...et nettement moins large qu'avant (125px mesurés) — ${c.w}px`);
-    check(c.w >= 24, `...tout en restant cliquable à la souris — ${c.w}px`);
+    check(c.w >= 44, `...tout en restant une cible confortable — ${c.w}px pour 44 recommandés`);
     check(!c.deborde && !c.pageDeborde, 'elle ne déborde ni de la grille ni de la page');
 
     console.log('\n=== B. Le sens n\'est pas perdu pour autant ===');
@@ -87,10 +87,14 @@ const caseP = (p) => p.evaluate(() => {
     await p.evaluate(() => window.app.setZoomLevel('classicGrid', 'y', 1.5));
     await p.waitForTimeout(600);
     const c2 = await caseP(p);
-    // La largeur ne suit PLUS le zoom vertical : la gouttière est une largeur fixe, c'est ce qui la
-    // rend prévisible d'une partie à l'autre. Seule la hauteur suit, comme celle des accords.
-    check(c2.w === avantZoom, `agrandie verticalement, la gouttière garde sa largeur — ${avantZoom}px puis ${c2.w}px`);
-    check(c2.h > c2.w, `...et la case reste plus haute que large — ${c2.w}x${c2.h}`);
+    // Le zoom vertical change le nombre de temps par ligne : la ligne peut donc DEVENIR pleine, et la
+    // case passer dans sa gouttière. On éprouve la forme réellement en vigueur, pas celle qu'on
+    // espérait — un banc qui exige la forme carrée ici mesurerait autre chose que ce qu'il annonce.
+    const enGouttiere = c2.w < c2.h;
+    check(enGouttiere ? c2.h > avantZoom : c2.w > avantZoom,
+        `agrandie verticalement, la case grandit — ${avantZoom}px puis ${enGouttiere ? c2.h + 'px de haut' : c2.w + 'px de large'}`);
+    check(enGouttiere || c2.w === c2.h,
+        `...et garde sa forme : ${enGouttiere ? 'étroite, la ligne étant devenue pleine' : 'carrée'} — ${c2.w}x${c2.h}`);
     await p.close();
 
     console.log('\n=== E. Téléphone : la cible tactile n\'a pas rétréci ===');
@@ -98,7 +102,7 @@ const caseP = (p) => p.evaluate(() => {
     m.on('pageerror', e => errs.push('mobile: ' + e.message));
     await prep(m);
     const cm = await caseP(m);
-    check(cm.w >= 32, `elle garde une cible tactile au doigt — ${cm.w}x${cm.h} (la gouttière s'élargit sur téléphone)`);
+    check(cm.w >= 44, `elle garde au moins 44px de large au doigt — ${cm.w}x${cm.h}`);
     check(cm.placeholder === '+', 'même signe qu\'ailleurs');
     check(!cm.deborde && !cm.pageDeborde, 'rien ne déborde de l\'écran du téléphone');
     await m.close();

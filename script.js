@@ -7204,9 +7204,7 @@ class HarmoHubApp {
                 const plusCol = cursor % beatsPerRow;
                 const plusRow = Math.floor(cursor / beatsPerRow);
                 const plusSpan = Math.min(2, beatsPerRow - plusCol);
-                // Plus de ligne réservée au « + » : il vit dans la gouttière de droite (voir plus bas),
-                // sur la dernière ligne d'accords. Le nombre de lignes ne dépend donc plus que des accords.
-                const rows = Math.max(1, chordRows);
+                const rows = Math.max(chordRows, plusRow + 1);
                 // Trois lignes de grille par ligne d'ACCORDS (this.row, 0/1/2...) quand le chiffrage
                 // romain est activé (Paramètres > Affichage, voir showRomanNumerals) : une fine ligne
                 // AU-DESSUS (--roman-row-h, voir .row-roman), la ligne d'accords elle-même
@@ -7254,10 +7252,21 @@ class HarmoHubApp {
                 // « + » sur le seul dernier accord lui ferait mentir. Une gouttière de même largeur au
                 // bout de TOUTES les lignes ne change rien aux proportions entre accords — elle les
                 // réduit tous du même facteur.
+                // CORRECTIF, retour utilisateur : « tes modifications ont entraîné des erreurs d'affichage,
+                // je pense que tu as touché trop de choses. Je pense que tu pouvais ajouter un petit
+                // espace réservé au + uniquement en fin de ligne. Lorsque les accords n'atteignent pas le
+                // bout de la ligne, le + doit se mettre à la fin de l'accord comme avant. »
+                // J'avais réservé la gouttière au bout de TOUTES les lignes : une partie d'une seule
+                // mesure se retrouvait donc avec son « + » à l'autre bout d'une ligne vide, et toutes les
+                // largeurs de cases changeaient sans raison. La gouttière n'existe désormais QUE si les
+                // accords remplissent leur dernière ligne ; sinon RIEN ne change par rapport à avant.
+                const ligneRemplie = plusCol === 0 && plusRow >= chordRows;
                 const derniereLigneAccords = Math.max(0, chordRows - 1);
-                const ligneDuPlus = derniereLigneAccords * rowsPerGroup + chordRowOffset;
-                const colonneDuPlus = beatsPerRow + 1;
-                gridStyle = `grid-template-rows: repeat(${rows}, ${rowTemplate}); grid-template-columns: repeat(${beatsPerRow}, 1fr) var(--col-plus);`;
+                const ligneDuPlus = (ligneRemplie ? derniereLigneAccords : plusRow) * rowsPerGroup + chordRowOffset;
+                const colonneDuPlus = ligneRemplie ? beatsPerRow + 1 : plusCol + 1;
+                gridStyle = ligneRemplie
+                    ? `grid-template-rows: repeat(${chordRows}, ${rowTemplate}); grid-template-columns: repeat(${beatsPerRow}, 1fr) var(--col-plus);`
+                    : `grid-template-rows: repeat(${rows}, ${rowTemplate}); grid-template-columns: repeat(${beatsPerRow}, 1fr);`;
                 const loopRange = this.loopRangeForSection(si, history.length);
                 // Mesure ATTEINTE par un étirement de durée d'accord EN COURS (voir onResizeStart/
                 // onResizeMove) : même principe que _highlightSeqBeatLabel pour le séquenceur (retour
@@ -7333,7 +7342,7 @@ class HarmoHubApp {
                     // quatre, et une partie plus haute qu'avant le correctif — l'inverse du but).
                     // Le numéro de la mesure à venir se pose sous le « + » : dans la gouttière quand la
                     // ligne est pleine (le « + » y est), à sa place normale sinon.
-                    ? `<div class="row-measure row-measure-end" style="grid-column: ${plusRow >= chordRows ? colonneDuPlus : plusCol + 1} / span 1; grid-row: ${(plusRow >= chordRows ? derniereLigneAccords : plusRow) * rowsPerGroup + rowsPerGroup};">${cursor / beatsPerBar + 1}</div>`
+                    ? `<div class="row-measure row-measure-end" style="grid-column: ${colonneDuPlus} / span 1; grid-row: ${(ligneRemplie ? derniereLigneAccords : plusRow) * rowsPerGroup + rowsPerGroup};">${cursor / beatsPerBar + 1}</div>`
                     : '';
                 gridInner = cells.map(s => {
                     const h = history[s.index];
@@ -7447,7 +7456,8 @@ class HarmoHubApp {
                 ).join('') + cells.flatMap(s => s.innerBars.map(ib => `
                     <div class="row-measure${resizeReachedBar === ib.barNumber ? ' row-measure-reached' : ''}" style="grid-column: ${s.col + ib.offset + 1} / span 1; grid-row: ${s.row * rowsPerGroup + rowsPerGroup};">${ib.barNumber}</div>`)
                 ).join('') + offbeatTicksHtml + endMeasureHtml + this.buildLoopRangeBars(cells, loopRange, rowsPerGroup)
-                + this.buildAddCellHtml(si, ligneDuPlus, colonneDuPlus - 1, 1, true);
+                + this.buildAddCellHtml(si, ligneDuPlus, colonneDuPlus - 1,
+                    ligneRemplie ? 1 : plusSpan, ligneRemplie);
             }
 
             const titleVal = (sec.title || '').replace(/"/g, '&quot;');
@@ -7844,14 +7854,26 @@ class HarmoHubApp {
         const MIN_PX = 8; // en dessous, "B♭maj7" redeviendrait illisible — mieux vaut le laisser tronquer
         host.querySelectorAll('.cell-sym').forEach(el => {
             el.style.fontSize = '';
+            // LA LARGEUR DISPONIBLE EST CELLE DE LA CASE, PAS CELLE DU SYMBOLE. Ce test se faisait
+            // contre el.clientWidth — or .cell-sym est ajusté à SON PROPRE TEXTE : mesuré, 10px pour
+            // « B », 7px pour « E♭ », 11px pour « E », dans des cases de 125 et 251px. Comparer un
+            // élément à lui-même n'est pas un test de débordement, c'est une boucle : le moindre pixel
+            // d'arrondi du navigateur la déclenchait, et le ratio la faisait plonger jusqu'au plancher.
+            // Résultat mesuré : « E♭ » tombait à 8px quand « B », dans une case de MÊME largeur, tenait
+            // 14,08px — et « E », dans une case deux fois plus large, 16,8px. Retour utilisateur : « des
+            // accords ont changé de taille de police ». Trois tailles pour trois accords, sans qu'aucun
+            // ne déborde de quoi que ce soit.
+            // La case est le vrai budget : c'est elle qui borne ce qu'on peut écrire.
+            const caseHote = el.closest('.grid-cell') || el.parentElement;
+            const budget = caseHote ? caseHote.clientWidth : el.clientWidth;
             // Un ratio direct (plutôt que retirer 1px à la fois, insuffisant pour les cases très
             // étroites/symboles longs comme "B♭maj7" en mode loupe très zoomé) converge en 1-2 passes ;
             // quelques passes de plus rattrapent l'arrondi du navigateur sur la largeur réelle du texte.
             let attempts = 0;
-            while (el.scrollWidth > el.clientWidth && attempts < 4) {
+            while (budget > 0 && el.scrollWidth > budget && attempts < 4) {
                 const current = parseFloat(getComputedStyle(el).fontSize);
                 if (current <= MIN_PX) break;
-                const next = Math.max(MIN_PX, Math.floor(current * (el.clientWidth / el.scrollWidth) * 0.97));
+                const next = Math.max(MIN_PX, Math.floor(current * (budget / el.scrollWidth) * 0.97));
                 if (next >= current) break;
                 el.style.fontSize = `${next}px`;
                 attempts++;
