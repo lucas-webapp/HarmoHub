@@ -2718,3 +2718,67 @@ rendu de plus à l'ouverture d'un accord, la marge la plus courte finit par céd
 Les deux attentes portent maintenant leur justification en commentaire, avec le relevé qui les motive.
 Un banc qui varie est plus coûteux qu'un banc rouge : le rouge se corrige, la variation se rediscute
 à chaque campagne.
+
+## L'accord sur le temps de test : 15 minutes par lot, le balayage complet en fin de série
+
+> « Il ne faut pas lancer le banc complet à chaque fois. Il dure beaucoup trop longtemps pour de
+> petites modifications. » — « Cible les tests nécessaires à chaque lot de modifications (pas à chaque
+> étape), et écarte ceux qui vont prendre du temps alors qu'ils n'ont pas d'intérêt. » — « Je veux
+> bien garder un ensemble de tests de 15 minutes au lieu de 25-30, puis garder un banc complet en fin
+> de lot. »
+
+### Ce que coûte vraiment le balayage complet
+
+J'avais annoncé « 12 à 15 minutes », puis « 25 » : les deux étaient faux. Relevé sur les horodatages
+des 199 journaux du balayage du jour :
+
+| | mesuré |
+|---|---|
+| phase 1 — 25 suites tactiles, en série | 591 s (~10 min) |
+| phase 2 — 174 suites, 4 en parallèle | ~1930 s (~32 min) |
+| **total** | **2524 s = 42 min** |
+
+Le coût n'était pas où je le croyais : ce sont les 174 suites « ordinaires », à ~45 s pièce, qui pèsent
+— pas les tactiles. C'est ce chiffre qui rend le ciblage indispensable, et non préférable.
+
+### Ce que le balayage complet a rapporté, honnêtement
+
+Deux campagnes complètes dans la même journée, 84 minutes cumulées, **zéro défaut de produit trouvé**.
+La première a confirmé la ligne de base connue ; la seconde a remonté un rouge de plus, qui s'est
+révélé être un banc au minutage instable, préexistant, sans rapport avec le travail du jour. Pendant
+ce temps, les sous-ensembles ciblés — 2 à 4 minutes — ont attrapé tout ce qui comptait.
+
+### Le protocole retenu
+
+- **Par lot** (pas par étape) : un sous-ensemble borné à **15 minutes**, choisi par `tests/cibler.sh`.
+- **En fin de série de lots**, et avant toute poussée vers `main` : le balayage complet.
+- **Immédiatement**, sans attendre la fin du lot : dès qu'un lot touche une **règle CSS générique**
+  (`button`, `.icon-btn`) ou **retire un identifiant partagé**. Ce sont les deux cas où la recherche
+  par symbole est structurellement aveugle — retirer `#guitar-override-btn` a cassé cinq bancs d'un
+  coup. L'outil lève l'alerte tout seul quand il les repère.
+
+### Pourquoi un outil plutôt qu'une règle de conduite
+
+Choisir les bancs « de tête » est un pari sur ma mémoire des dépendances, et je me suis déjà trompé
+dessus — la régression des bascules de diagrammes vient exactement de là. `tests/cibler.sh` remplace
+la mémoire par une recherche, et rend le pari visible : il affiche ce qu'il retient, ce qu'il coupe,
+et pourquoi.
+
+Trois choses ont été corrigées en l'écrivant, chacune parce qu'un essai l'a montrée fausse :
+
+1. **Les symboles trop répandus ne désignent rien.** `icon-btn` apparaît partout ; le citer revenait à
+   tout rejouer. Au-delà d'un huitième des bancs, un symbole est écarté comme bruit.
+2. **Le budget est la contrainte, pas la conséquence.** Une version sans plafond proposait 63 bancs
+   pour un lot séquenceur, soit 48 minutes — *pire* que ce qu'elle remplaçait. Un outil de ciblage qui
+   peut dépasser le balayage complet ne sert à rien. On classe par pertinence et on coupe au budget.
+3. **Chercher un nom de fonction dans le diff ne marche pas.** Modifier le corps d'`onSeqPointerMove`
+   ne fait apparaître son nom nulle part, et le citer dans un commentaire ne veut pas dire qu'on l'a
+   touchée : le lot séquenceur ne se voyait attribuer qu'UN banc, alors que huit étaient pertinents.
+   L'outil remonte donc, pour chaque bloc modifié, à la méthode qui le contient **par ses numéros de
+   ligne** — l'en-tête de bloc de git n'annonçant que `class HarmoHubApp`, JS n'étant pas reconnu par
+   ses motifs de contexte par défaut.
+
+### La limite qu'il faut garder en tête
+
+Un sous-ensemble ne voit que ce qu'on pense à y mettre. Quand je livre sans balayage complet, je le
+dis, avec la liste de ce qui a été joué : on sait alors sur quoi porte le pari.
