@@ -2782,3 +2782,74 @@ Trois choses ont été corrigées en l'écrivant, chacune parce qu'un essai l'a 
 
 Un sous-ensemble ne voit que ce qu'on pense à y mettre. Quand je livre sans balayage complet, je le
 dis, avec la liste de ce qui a été joué : on sait alors sur quoi porte le pari.
+
+## Des sentinelles tirées de l'historique des défauts, plutôt que de mon intuition
+
+> « Tu peux travailler en off les bancs de tests que tu penses mettre en place pour qu'ils soient le
+> plus efficace possible (par exemple en fonction des soucis majeurs et les plus couramment rencontrés
+> au cours de la création de l'appli). Si tu as besoin de 20 minutes au lieu de 15 pour un gain
+> considérable, ok pour moi. »
+
+### Ce que dit le dépouillement
+
+52 sections de ce journal, 196 bancs. Deux familles de défauts dominent, et ce ne sont pas celles que
+les bancs existants surveillent le mieux — chacun d'eux éprouve SA fonctionnalité, aucun ne surveille
+ce qui se répète d'un lot à l'autre.
+
+**Famille 1 — le banc périmé.** « Suites supprimées », « Contrats réécrits », « 4 suites adaptées au
+nouveau bouton », « deux bancs périmés et le vrai défaut qu'ils cachaient », « Reprise des 30 bancs de
+la vue plein écran », « quatre périmés, un vrai défaut », et le retrait de `#guitar-override-btn` qui
+en a cassé cinq d'un coup. Le coût n'est pas le rouge, c'est le DÉLAI : le banc reste vert tant qu'il
+ne tourne pas, puis rougit 42 minutes plus tard — ou à la campagne suivante, quand plus personne ne
+relie la cause à l'effet. Pire, un banc qui cherche une adresse morte dans un `if` ne rougit même
+pas : il renonce en silence.
+
+**Famille 2 — l'élément visible mais injoignable.** « La modification se passe derrière sans que je le
+voie », « le tiroir n'avait aucune sortie atteignable », la bande morte de 4px, le bouton à 26px sur
+téléphone. Aucun de ces défauts ne se voit dans les COORDONNÉES : l'élément occupe le bon rectangle.
+Il faut interroger le POINT.
+
+### Les deux sentinelles
+
+| | ce qu'elle répond | durée |
+|---|---|---|
+| `sentinelle_adresses_test.js` | aucun banc n'adresse une adresse que le produit n'offre plus | **96 ms** |
+| `sentinelle_atteignabilite_test.js` | ce qu'une surface ouverte propose répond au clic, et tient la cible tactile | **155 s** |
+
+La première est **statique** — ni navigateur ni serveur. Elle peut donc tourner à chaque lot sans
+entamer le budget. Dès le premier passage, elle a trouvé **quatre bancs réellement périmés**, dont
+`real_click_loupe_selection_test.js`, l'un des six rouges de la ligne de base : elle explique en 96 ms
+ce que le balayage complet mettait 42 minutes à signaler sans le nommer.
+
+### Trois faux positifs corrigés, et ce qu'ils enseignent
+
+Une sentinelle qui crie faux est pire qu'une absence de sentinelle : on apprend à l'ignorer. Les trois
+familles rencontrées :
+
+1. **La citation qui attend l'absence.** `saisie_nom_dans_la_fenetre_test.js` vérifie que
+   `#guitar-override-btn` a bien disparu. Punir cette citation reviendrait à punir exactement le banc
+   qui fait le mieux son travail. La sentinelle lit donc le CONTEXTE de la ligne, pas seulement
+   l'adresse. Idem pour les couleurs (`#ccc` n'est pas une adresse) et pour les éléments qu'un banc
+   fabrique lui-même (`#banc-largeur`).
+2. **Le modal accusé d'être un modal.** La première version de la sentinelle 2 éprouvait toute la
+   page : fenêtre d'édition ouverte, elle accusait 34 commandes d'être « recouvertes par
+   guitar-edit-overlay ». C'est le propre d'un voile. On n'éprouve donc que la surface ACTIVE.
+3. **L'écran accusé d'être un défaut.** Elle accusait `#root` d'être recouvert par la barre de
+   transport sur téléphone. Vérification : la carte de l'accord va de 543 à 758 px dans une fenêtre de
+   664 — le sélecteur était simplement sous la barre À CETTE POSITION DE DÉFILEMENT. Un utilisateur
+   ferait défiler. La sentinelle le fait maintenant avant de juger. Ce qui reste recouvert APRÈS avoir
+   été amené au centre l'est vraiment — et c'est précisément le cas du champ construit hors de sa
+   fenêtre, que rien ne pouvait dégager.
+
+Un seuil aussi a été rejeté : imposer 24px sur ordinateur produisait cinq exceptions au premier essai
+(`toggle-sidebar` 16x86, un rail vertical ; les quatre chevrons de zoom 30x15, délibérément fins). Un
+seuil qui demande cinq exceptions d'emblée n'est pas un seuil, c'est une opinion. La taille n'est donc
+vérifiée que sur téléphone, où elle se paie.
+
+### Une dette constatée, à trancher
+
+Six commandes passent sous les 32px sur téléphone : `bass` (59x30), `seq-zoom` (315x25),
+`quick-add-help-btn` (26x44), `add-section` (138x31), `lyrics-btn` (81x26), `file-menu-btn` (77x26).
+32px est la borne que ce projet s'est donnée en corrigeant `#guitar-edit-btn`, mesuré à 26px, sur
+retour utilisateur. Les corriger est une décision d'interface, pas une réparation évidente : elles
+sont donc consignées nommément, et la sentinelle refuse qu'une SEPTIÈME apparaisse.
