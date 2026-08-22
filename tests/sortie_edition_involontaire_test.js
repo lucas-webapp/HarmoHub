@@ -67,10 +67,11 @@ const SORTIES_LEGITIMES = new Set([
     // derrière tout le reste de la page, et ouvrir cette fenêtre masquerait TOUS les autres contrôles
     // derrière elle si elle restait ouverte pour le reste du balayage — la boucle rouvre donc CETTE
     // fenêtre juste avant de chercher un de CES contrôles précis, jamais pour les autres (voir
-    // CONTROLES_SOUS_MANCHE plus bas). Flèches de doigté et cadenas, eux, sont RESTÉS hors de la
-    // fenêtre (retour utilisateur : « je les utilise souvent pour les accords simples ») : le
-    // balayage générique les voit donc déjà tout seul, comme avant — pas besoin de les y ajouter.
-    const CONTROLES_SOUS_MANCHE = ['guitar-edit-close', 'guitar-edit-tab-draw', 'guitar-edit-tab-name', 'guitar-override-btn', 'guitar-draw-play', 'guitar-draw-validate', 'guitar-draw-lock'];
+    // CONTROLES_SOUS_MANCHE plus bas). Les flèches de doigté et le cadenas existent MAINTENANT EN
+    // DOUBLE (retour utilisateur : « choix des diagrammes sur le manche avec le cadenas ») : les
+    // originaux, restés sous le petit diagramme, que le balayage générique voit déjà tout seul ; et
+    // leurs jumeaux dans la fenêtre, qu'il faut lister ici puisqu'ils n'existent qu'une fois ouverte.
+    const CONTROLES_SOUS_MANCHE = ['guitar-edit-close', 'guitar-edit-tab-draw', 'guitar-edit-tab-name', 'guitar-name-input', 'guitar-name-validate', 'guitar-edit-prev', 'guitar-edit-next', 'guitar-edit-lock', 'guitar-draw-play', 'guitar-draw-validate', 'guitar-draw-lock'];
     cibles.push(...CONTROLES_SOUS_MANCHE);
     console.log(`${cibles.length} contrôles visibles à éprouver`);
 
@@ -95,7 +96,7 @@ const SORTIES_LEGITIMES = new Set([
         // Rouvre la fenêtre d'édition manuelle du manche JUSTE avant de chercher un de SES contrôles
         // (voir CONTROLES_SOUS_MANCHE) — jamais laissée ouverte pour les autres, sous peine de masquer
         // tout le reste de la page derrière elle pour le reste du balayage. L'onglet est réaffirmé à
-        // chaque fois : sans ça, un passage antérieur sur l'autre onglet laisserait guitar-override-btn
+        // chaque fois : sans ça, un passage antérieur sur l'autre onglet laisserait guitar-name-input
         // masqué selon l'ordre de passage — l'inventaire doit rester le même quel que soit cet ordre.
         // guitar-draw-play est désactivé tant que le manche est vide (voir renderGuitarDrawNeck) : une
         // note y est posée directement en JS pour l'atteindre, sans dépendre d'un clic-souris précis

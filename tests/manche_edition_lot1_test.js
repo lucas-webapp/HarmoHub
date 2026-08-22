@@ -10,7 +10,7 @@
 const { chromium, devices } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, plan, bilan } = require('./_harness')('manche : Lot 1 (bouton unique + fenêtre agrandie)');
-plan(22);
+plan(23);
 
 (async () => {
     const browser = await chromium.launch();
@@ -44,7 +44,11 @@ plan(22);
 
     check(await page.locator('#guitar-edit-pane-name').isVisible(), "l'onglet « Taper le nom » est actif par défaut");
     check(await page.locator('#guitar-edit-pane-draw').isHidden(), "l'onglet « Dessiner » est masqué par défaut");
-    check(await page.locator('#guitar-edit-pane-name #guitar-override-btn').count() === 1, "le crayon de substitut est bien dans l'onglet « Taper le nom »");
+    // Le crayon a été remplacé par la saisie elle-même (voir saisie_nom_dans_la_fenetre_test.js) :
+    // ce que ce banc voulait prouver — « le moyen de définir un accord au clavier vit bien DANS cette
+    // fenêtre » — se vérifie désormais sur le champ et son bouton Valider.
+    check(await page.locator('#guitar-edit-pane-name #guitar-name-input').count() === 1, "la saisie du nom est bien dans l'onglet « Taper le nom »");
+    check(await page.locator('#guitar-edit-pane-name #guitar-name-validate').count() === 1, "son bouton Valider aussi");
 
     await page.click('#guitar-edit-tab-draw');
     await page.waitForTimeout(100);
@@ -55,7 +59,7 @@ plan(22);
 
     // Flux existant, à son nouvel endroit : taper un substitut DANS la fenêtre doit toujours écrire au
     // bon endroit (this.guitarOverride) et se refléter dans le bandeau resté hors fenêtre.
-    await page.click('#guitar-override-btn');
+    await page.click('#guitar-edit-tab-name');
     await page.waitForTimeout(150);
     await page.fill('.guitar-override-input', 'Em');
     await page.keyboard.press('Enter');
@@ -95,7 +99,7 @@ plan(22);
     // Nettoyage : retire le substitut posé plus haut.
     await page.click('#guitar-edit-btn');
     await page.waitForTimeout(150);
-    await page.click('#guitar-override-btn');
+    await page.click('#guitar-edit-tab-name');
     await page.waitForTimeout(150);
     await page.fill('.guitar-override-input', '');
     await page.keyboard.press('Enter');

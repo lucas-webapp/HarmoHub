@@ -54,7 +54,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // utilise souvent pour les accords simples »).
     await page.click('#guitar-edit-btn');
     await page.waitForTimeout(150);
-    await page.click('#guitar-override-btn');
+    await page.click('#guitar-edit-tab-name');
     await page.waitForTimeout(150);
     const inputVisible = await page.isVisible('.guitar-override-input');
     check(inputVisible, 'le clic sur le crayon ouvre bien une saisie au clavier');
@@ -108,8 +108,12 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     const pianoLabelAfter = await page.evaluate(() => document.querySelector('#current-chord-display .chord-title').textContent);
     check(pianoLabelAfter === 'C', `le titre piano N'A PAS changé (reste C) — un seul accord piano, le substitut ne concerne QUE la guitare — obtenu ${pianoLabelAfter}`);
 
-    const btnActive = await page.evaluate(() => document.getElementById('guitar-override-btn').classList.contains('active'));
-    check(btnActive, 'le bouton crayon est bien mis en évidence (actif) une fois un substitut défini');
+    // CONTRAT CHANGÉ (retour utilisateur : « la modification se passe derrière sans que je le voie ») :
+    // il n'y a plus de crayon à allumer. La saisie est un champ PERMANENT dans l'onglet « Taper le
+    // nom », et c'est son CONTENU — pas la couleur d'un bouton — qui dit quel substitut est en
+    // vigueur. On éprouve donc la même chose, à l'endroit où elle vit désormais.
+    const champSubstitut = await page.evaluate(() => document.getElementById('guitar-name-input').value);
+    check(champSubstitut === 'Em', `le champ de saisie affiche le substitut en vigueur (obtenu ${champSubstitut})`);
 
     // Referme la fenêtre d'édition (fenêtre modale : le reste de la page — dont le cadenas, RESTÉ hors
     // fenêtre — n'est pas cliquable tant qu'elle reste ouverte).
@@ -179,7 +183,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // ============================================================
     await page.click('#guitar-edit-btn');
     await page.waitForTimeout(150);
-    await page.click('#guitar-override-btn');
+    await page.click('#guitar-edit-tab-name');
     await page.waitForTimeout(150);
     await page.fill('.guitar-override-input', 'XyzNotAChord');
     await page.keyboard.press('Enter');

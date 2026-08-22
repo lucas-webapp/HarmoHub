@@ -3050,6 +3050,58 @@ button:active { transform: translateY(1px); }
 }
 .guitar-edit-tab.active { color: var(--text-main); border-bottom-color: var(--accent); }
 .guitar-edit-pane .guitar-controls-row { margin-top: 4px; justify-content: center; }
+
+/* Onglet « Taper le nom » : la saisie et son bouton sur une seule ligne, centrés sous le manche.
+   Retour utilisateur : « je préfèrerais que la fenêtre d'écriture soit positionnée dans la fenêtre
+   pop-up du menu édition manuelle, avec des boutons valider ». Le champ prend la place disponible
+   plutôt qu'une largeur fixe — dans cette fenêtre il y a de quoi respirer, contrairement au bandeau
+   étroit où il logeait avant (voir .guitar-override-input). */
+.guitar-name-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+.guitar-name-row .guitar-override-input {
+    width: auto;
+    flex: 1 1 200px;
+    max-width: 320px;
+    padding: 6px 10px;
+}
+/* MESURÉ, pas supposé : sans ces trois lignes, « Valider » faisait 410 px de large sur ordinateur et
+   51 px de haut sur téléphone, contre 38 px pour le champ à côté. La cause n'est pas dans .btn-blue
+   (qui ne fixe ni taille ni flex) mais dans la règle GÉNÉRIQUE `button { flex: 1 1 0; min-width:
+   120px; padding: 16px 18px 16px 14px }` — le premier des modes de défaillance CSS silencieux du
+   journal : une règle d'ensemble qui s'applique à un bouton qu'on croyait libre. */
+.guitar-name-row .btn-blue {
+    flex: 0 0 auto;
+    min-width: 0;
+    padding: 0 14px;
+    font-size: var(--fs-sm);
+}
+.guitar-name-row .guitar-override-input,
+.guitar-name-row .btn-blue { min-height: 38px; }
+/* Rangée « Doigté sur le manche » : le compteur ‹ n/N › et le cadenas, jumeaux de ceux restés sous le
+   petit diagramme. Séparés du champ par un filet, parce qu'ils répondent à une AUTRE question — le
+   champ dit QUEL accord, ceux-ci disent LEQUEL de ses doigtés. */
+.guitar-name-doigtes {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+}
+.guitar-name-doigtes-label {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.guitar-name-doigtes .guitar-nav button[disabled] { opacity: 0.35; cursor: default; }
 .guitar-edit-hint {
     font-size: var(--fs-sm);
     color: var(--text-muted);
@@ -3109,7 +3161,7 @@ button:active { transform: translateY(1px); }
     .guitar-edit-modal { max-width: 100%; }
 }
 
-/* Saisie au clavier du nom de substitution (voir startGuitarOverrideEdit) : même habillage que
+/* Saisie au clavier du nom de substitution (voir commitGuitarNameInput) : même habillage que
    .cell-sym-input (édition inline du symbole d'une case de la grille), compacte pour tenir dans ce
    bandeau étroit. JAMAIS en dessous de 16px (voir .cell-sym-input) : Safari iOS zoome sinon toute la
    page au focus. */

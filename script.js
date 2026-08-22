@@ -1757,7 +1757,7 @@ function fingeringShapeKey(fingering) {
     return fingering.map(f => f ? f.fret : 'x').join(',');
 }
 
-// Accord de substitution à la guitare (voir #guitar-override-btn/startGuitarOverrideEdit) : parfois
+// Accord de substitution à la guitare (voir #guitar-name-input/commitGuitarNameInput) : parfois
 // on ne joue pas le même accord au piano et à la guitare (retour utilisateur — "je ne fais pas les
 // mêmes à la guitare", pour se rattraper sur un accord pas encore maîtrisé, ou diversifier les deux
 // instruments). `override` (déjà normalisé, jamais de champ null — voir applyGuitarOverride) reprend
@@ -3361,7 +3361,7 @@ class HarmoHubApp {
         // exclusifs (voir onGuitarNeckClick/placeGuitarGhostAt).
         this.guitarDrawGhostStrings = new Array(6).fill(null);
         // Accord de substitution à la guitare, en attente pour l'accord en cours d'édition (voir
-        // toggleGuitarLock ci-dessus pour le même principe, et guitarChordFor/startGuitarOverrideEdit/
+        // toggleGuitarLock ci-dessus pour le même principe, et guitarChordFor/commitGuitarNameInput/
         // applyGuitarOverride) : { root, quality, bass, octave, inversion, drop } déjà normalisé (jamais
         // de champ null), ou null si aucun substitut n'est défini — auquel cas le diagramme guitare
         // suit simplement l'accord réellement joué, comme avant cette fonctionnalité.
@@ -4453,7 +4453,21 @@ class HarmoHubApp {
         document.getElementById('guitar-prev').onclick = () => this.cycleGuitarFingering(-1);
         document.getElementById('guitar-next').onclick = () => this.cycleGuitarFingering(1);
         document.getElementById('guitar-lock-btn').onclick = () => this.toggleGuitarLock();
-        document.getElementById('guitar-override-btn').onclick = () => this.startGuitarOverrideEdit();
+        // Saisie du nom, désormais DANS la fenêtre (voir #guitar-name-input dans index.html) : plus de
+        // crayon à cliquer pour la faire apparaître, elle est là dès qu'on ouvre l'onglet. Entrée et
+        // « Valider » font la même chose — l'un pour qui tape, l'autre pour qui vise à la souris ou au
+        // doigt. Échap remet le champ tel qu'il était, sans rien appliquer.
+        const champNom = document.getElementById('guitar-name-input');
+        champNom.addEventListener('keydown', (e) => {
+            e.stopPropagation(); // le panneau écoute les touches ailleurs : ici on tape un nom, pas un raccourci
+            if (e.key === 'Enter') { e.preventDefault(); this.commitGuitarNameInput(); }
+            else if (e.key === 'Escape') { e.preventDefault(); this.syncGuitarNameInput(); champNom.blur(); }
+        });
+        document.getElementById('guitar-name-validate').onclick = () => this.commitGuitarNameInput();
+        // Jumeaux des commandes restées sous le petit diagramme : MÊMES méthodes, donc même état.
+        document.getElementById('guitar-edit-prev').onclick = () => this.cycleGuitarFingering(-1);
+        document.getElementById('guitar-edit-next').onclick = () => this.cycleGuitarFingering(1);
+        document.getElementById('guitar-edit-lock').onclick = () => this.toggleGuitarLock();
         // Fenêtre d'édition manuelle du manche (voir openGuitarEditor) : même principe d'ouverture/
         // fermeture que les autres fenêtres agrandies (fond cliquable, croix, Échap — voir plus bas).
         document.getElementById('guitar-edit-btn').onclick = () => this.openGuitarEditor();
@@ -4503,6 +4517,9 @@ class HarmoHubApp {
             this.renderGuitarDrawNeck();
         } else {
             this.renderGuitarDiagram();
+            // Le champ est permanent : il doit repartir de l'accord réellement en vigueur, jamais d'une
+            // saisie laissée là au passage précédent.
+            this.syncGuitarNameInput();
         }
     }
 
@@ -4783,7 +4800,7 @@ class HarmoHubApp {
         disp.innerHTML = `<span class="chord-chip"><span class="chord-title">${flatTight(chord.getLabel(useFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, useFlats)}</span></span>`;
         this.ensurePianoWindow(midis);
         this.updateViz(midis, chord.getRoleMap());
-        // Substitut à la guitare éventuel (voir #guitar-override-btn/guitarChordFor) : le diagramme
+        // Substitut à la guitare éventuel (voir #guitar-name-input/guitarChordFor) : le diagramme
         // guitare peut différer de l'accord réellement joué/affiché ci-dessus.
         this.ensureGuitarDiagram(guitarChordFor(chord, this.guitarOverride));
     }
@@ -4973,6 +4990,16 @@ class HarmoHubApp {
             const label = document.getElementById('guitar-nav-label');
             if (label) label.textContent = `${idx + 1}/${fingerings.length}`;
         }
+        // Le jumeau de la fenêtre d'édition manuelle (voir #guitar-edit-nav) affiche le MÊME compteur,
+        // lu au même endroit — mais reste visible même à un seul doigté : dans la fenêtre, « 1/1 »
+        // répond à la question « combien y en a-t-il ? », alors que sous le petit diagramme la même
+        // rangée ne ferait qu'occuper de la place pour ne rien dire.
+        const navFenetre = document.getElementById('guitar-edit-nav');
+        if (navFenetre) {
+            const labelFenetre = document.getElementById('guitar-edit-nav-label');
+            if (labelFenetre) labelFenetre.textContent = `${idx + 1}/${fingerings.length}`;
+            navFenetre.querySelectorAll('button').forEach(b => { b.disabled = fingerings.length <= 1; });
+        }
         this.updateGuitarLockButton();
     }
 
@@ -5003,6 +5030,7 @@ class HarmoHubApp {
         this.guitarDrawGhostStrings = new Array(6).fill(null);
         this.guitarDrawHoverPos = null;
         if (this.guitarEditTab === 'draw') this.renderGuitarDrawNeck();
+        this.syncGuitarNameInput();
         this.renderGuitarDrawResult();
     }
 
@@ -5405,20 +5433,30 @@ class HarmoHubApp {
     // this.guitarLock : ce dernier ne porte que le verrou EN COURS D'ÉDITION, jamais celui d'un accord
     // simplement écouté/prévisualisé (useLiveLock=false) — sinon le cadenas semblait éteint dès qu'on
     // refermait l'édition.
+    // DEUX cadenas depuis que la fenêtre d'édition manuelle a le sien (#guitar-edit-lock, retour
+    // utilisateur : « choix des diagrammes sur le manche avec le cadenas ») — mais UN SEUL état, celui
+    // calculé ici. C'est délibéré : deux boutons qui se peindraient chacun de leur côté finiraient par
+    // se contredire, et un cadenas qui ment sur ce qu'il tient est précisément le défaut déjà corrigé
+    // une fois (« le cadenas saute »). Le petit diagramme reste seul juge de sa propre visibilité —
+    // celui de la fenêtre, lui, s'efface avec toute la fenêtre.
     updateGuitarLockButton() {
-        const btn = document.getElementById('guitar-lock-btn');
-        if (!btn) return;
-        btn.style.display = this.guitarFingerings.length ? '' : 'none';
         const shown = this.guitarFingerings[this.guitarFingeringIndex];
         const shownShape = shown ? shown.map(f => f ? f.fret : null) : null;
         const locked = !!this.guitarDisplayLock && !!shownShape && JSON.stringify(this.guitarDisplayLock) === JSON.stringify(shownShape);
-        btn.classList.toggle('active', locked);
-        btn.setAttribute('aria-pressed', locked);
-        btn.title = locked ? 'Doigté verrouillé pour cet accord (cliquer pour libérer)' : 'Verrouiller ce doigté pour cet accord';
-        btn.setAttribute('aria-label', btn.title);
-        btn.innerHTML = locked
+        const titre = locked ? 'Doigté verrouillé pour cet accord (cliquer pour libérer)' : 'Verrouiller ce doigté pour cet accord';
+        const dessin = locked
             ? `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`
             : `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>`;
+        ['guitar-lock-btn', 'guitar-edit-lock'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            if (id === 'guitar-lock-btn') btn.style.display = this.guitarFingerings.length ? '' : 'none';
+            btn.classList.toggle('active', locked);
+            btn.setAttribute('aria-pressed', locked);
+            btn.title = titre;
+            btn.setAttribute('aria-label', titre);
+            btn.innerHTML = dessin;
+        });
     }
 
     cycleGuitarFingering(delta) {
@@ -5467,7 +5505,7 @@ class HarmoHubApp {
             const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
             this.guitarKey = null;
             // Verrouille le doigté du diagramme réellement affiché — l'accord de substitution
-            // (guitarChordFor, voir #guitar-override-btn) s'il y en a un pour CET accord, sinon
+            // (guitarChordFor, voir #guitar-name-input) s'il y en a un pour CET accord, sinon
             // l'accord réellement joué, comme avant cette fonctionnalité.
             this.ensureGuitarDiagram(guitarChordFor(chord, data.guitarOverride), false);
             this.loadProgression();
@@ -5482,7 +5520,7 @@ class HarmoHubApp {
         this.commitLiveEdit(false); // n'affecte pas le symbole affiché dans la case
     }
 
-    // ---------- Accord de substitution à la guitare (voir #guitar-override-btn) ----------
+    // ---------- Accord de substitution à la guitare (voir #guitar-name-input) ----------
     // Retour utilisateur : "Parfois, je joue des accords au piano mais je ne fais pas les mêmes à la
     // guitare... Peux-tu ajouter une option qui permet de définir manuellement les accords à la
     // guitare ?" — pour se rattraper sur un accord pas encore maîtrisé à la guitare, ou diversifier
@@ -5493,47 +5531,49 @@ class HarmoHubApp {
     // inline du symbole d'une case de la grille) : un simple <input> texte remplace le bandeau,
     // Entrée valide (via parseChordSymbol, donc tout le vocabulaire d'accords déjà reconnu ailleurs
     // dans l'appli — Cm7, F#dim, Bbadd9...), Échap annule, un champ vidé retire le substitut.
-    startGuitarOverrideEdit() {
-        const row = document.getElementById('guitar-override-row');
-        if (!row || row.querySelector('input')) return; // déjà en édition
-        row.hidden = false;
-        row.innerHTML = '';
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'guitar-override-input';
-        input.placeholder = 'Ex. F#dim7';
-        input.autocomplete = 'off';
-        input.autocapitalize = 'off';
-        input.spellcheck = false;
-        const currentOverride = this.guitarPreviewPos ? this._previewGuitarOverride() : this.guitarOverride;
-        input.value = currentOverride ? new Chord(currentOverride.root, currentOverride.quality, 4, currentOverride.inversion, currentOverride.drop, currentOverride.octave, currentOverride.bass).getBareLabel(false) : '';
-        row.appendChild(input);
-        input.focus();
-        input.select();
+    // Remet le champ au diapason de l'accord de substitution réellement en vigueur pour CET accord —
+    // appelée à l'ouverture de la fenêtre, à chaque passage sur l'onglet, et après chaque application.
+    // Le champ étant PERMANENT (il n'apparaît plus au clic d'un crayon), c'est ce qui l'empêche de
+    // rester sur une saisie périmée quand on change d'accord dans la grille.
+    syncGuitarNameInput() {
+        const champ = document.getElementById('guitar-name-input');
+        if (!champ) return;
+        const courant = this.guitarPreviewPos ? this._previewGuitarOverride() : this.guitarOverride;
+        // Même orthographe que le bandeau au-dessus du diagramme (voir renderGuitarOverrideRow, qui
+        // consulte useFlatsForRoot) : sans cela, taper « Bbadd9 » puis revenir sur l'onglet réaffichait
+        // « A#add9 » — la même note, mais pas le nom qu'on avait écrit, alors que le bandeau juste à
+        // côté, lui, affichait bien un si bémol. Deux orthographes pour un seul accord, à trente
+        // centimètres l'une de l'autre. Défaut trouvé par le banc, pas à l'œil.
+        champ.value = courant
+            ? new Chord(courant.root, courant.quality, 4, courant.inversion, courant.drop, courant.octave, courant.bass)
+                  .getBareLabel(this.useFlatsForRoot(courant.root))
+            : '';
+    }
 
-        let done = false;
-        const commit = () => {
-            if (done) return;
-            done = true;
-            const text = input.value.trim();
-            if (!text) { this.applyGuitarOverride(null); return; }
-            const parsed = parseChordSymbol(text);
-            if (!parsed) {
-                this.flashHint('Accord non reconnu (ex. Cm7, F#dim, Bbadd9)');
-                this.renderGuitarOverrideRow();
-                return;
-            }
-            this.applyGuitarOverride({
-                root: parsed.root, quality: parsed.quality, bass: parsed.bass || null,
-                octave: parsed.octave ?? 3, inversion: parsed.inversion ?? 0, drop: parsed.drop ?? 'none',
-            });
-        };
-        input.addEventListener('blur', commit);
-        input.addEventListener('keydown', (e) => {
-            e.stopPropagation();
-            if (e.key === 'Enter') { e.preventDefault(); commit(); }
-            else if (e.key === 'Escape') { e.preventDefault(); done = true; this.renderGuitarOverrideRow(); }
+    // Applique ce qui est écrit dans le champ (point 1 du retour d'origine : « changer le nom de
+    // l'accord manuellement au clavier uniquement ») — même vocabulaire que partout ailleurs dans
+    // l'appli via parseChordSymbol (Cm7, F#dim, Bbadd9...), un champ vidé retire le substitut.
+    //
+    // PAS de validation à la perte du focus, contrairement à la version d'avant : ce champ ne
+    // disparaît plus après usage, il reste affiché tant que l'onglet est ouvert. Valider au blur
+    // signifierait appliquer l'accord au moindre clic ailleurs dans la fenêtre — sur le manche, sur un
+    // onglet, sur la croix de fermeture — donc appliquer sans que personne l'ait demandé. On valide
+    // sur un geste explicite, et rien d'autre.
+    commitGuitarNameInput() {
+        const champ = document.getElementById('guitar-name-input');
+        if (!champ) return;
+        const texte = champ.value.trim();
+        if (!texte) { this.applyGuitarOverride(null); this.syncGuitarNameInput(); return; }
+        const lu = parseChordSymbol(texte);
+        if (!lu) {
+            this.flashHint('Accord non reconnu (ex. Cm7, F#dim, Bbadd9)');
+            return; // on laisse le texte fautif à l'écran : c'est lui qu'il faut corriger, pas effacer
+        }
+        this.applyGuitarOverride({
+            root: lu.root, quality: lu.quality, bass: lu.bass || null,
+            octave: lu.octave ?? 3, inversion: lu.inversion ?? 0, drop: lu.drop ?? 'none',
         });
+        this.syncGuitarNameInput();
     }
 
     // Relit l'accord de substitution de CET accord précis en simple aperçu (this.guitarPreviewPos,
@@ -5594,13 +5634,15 @@ class HarmoHubApp {
     // placeChordTitle() (voir plus bas) écoute indirectement cet état via row.hidden : appelée à
     // chaque rendu pour décider si le titre piano doit descendre à côté de celui-ci.
     renderGuitarOverrideRow(override = this.guitarOverride) {
+        // Plus de crayon à allumer : la saisie est un champ permanent DANS la fenêtre d'édition
+        // manuelle (voir #guitar-name-input), et c'est son contenu — pas la couleur d'un bouton — qui
+        // dit si un substitut est en vigueur. Le bandeau ci-dessous garde son seul et unique rôle :
+        // montrer, au-dessus du diagramme, que la guitare joue autre chose que le piano.
         const row = document.getElementById('guitar-override-row');
-        const btn = document.getElementById('guitar-override-btn');
         if (!row) return;
         if (!override) {
             row.hidden = true;
             row.innerHTML = '';
-            if (btn) { btn.classList.remove('active'); btn.setAttribute('aria-pressed', 'false'); }
             this.placeChordTitle();
             return;
         }
@@ -5609,7 +5651,6 @@ class HarmoHubApp {
         row.hidden = false;
         row.innerHTML = `<span class="chord-chip"><span class="chord-title">${flatTight(chord.getLabel(useFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, useFlats)}</span></span><button type="button" id="guitar-override-clear" class="icon-btn" title="Revenir à l'accord réellement joué à la guitare" aria-label="Revenir à l'accord réellement joué à la guitare"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>`;
         document.getElementById('guitar-override-clear').onclick = () => this.clearGuitarOverride();
-        if (btn) { btn.classList.add('active'); btn.setAttribute('aria-pressed', 'true'); }
         this.placeChordTitle();
     }
 
@@ -5937,7 +5978,7 @@ class HarmoHubApp {
                         // `chord` (le Chord réellement joué, JAMAIS substitué) est un instantané figé au
                         // lancement de CETTE lecture (voir playSavedChord/scheduleProgressionChord/
                         // playCurrent) — son guitarLock ET son éventuel accord de substitution à la
-                        // guitare (voir #guitar-override-btn/guitarChordFor) peuvent être PÉRIMÉS si on
+                        // guitare (voir #guitar-name-input/guitarChordFor) peuvent être PÉRIMÉS si on
                         // vient de les changer pendant que l'accord sonne encore (plusieurs croches
                         // restent programmées) : les relire depuis les données à CHAQUE croche évite
                         // qu'un tick de lecture encore en vol n'écrase le cadenas/le substitut tout juste
@@ -6024,7 +6065,7 @@ class HarmoHubApp {
         const duration = chord.beats * secPerBeat;
         // `chord` (jamais substitué) passé tel quel : schedulePlayback relit this.guitarOverride à
         // CHAQUE croche pour le diagramme (voir son bloc de mise à jour visuelle), toujours à jour
-        // même si le substitut change en cours de lecture (voir #guitar-override-btn).
+        // même si le substitut change en cours de lecture (voir #guitar-name-input).
         this.schedulePlayback(notes, chord.getSeqMidiNotes(), seqPattern, seqTie, secPerBeat, start, chord.getRoleMap(), instrumentKey, chord, true, null, +document.getElementById('intensity').value, this.intensityPerStep);
         this.isPlaying = true;
 
@@ -6421,7 +6462,7 @@ class HarmoHubApp {
             arpPattern: document.getElementById('arpPattern').value,
             seqEdited: true,
             guitarLock: this.guitarLock || null,
-            // Accord de substitution à la guitare (voir #guitar-override-btn/applyGuitarOverride),
+            // Accord de substitution à la guitare (voir #guitar-name-input/applyGuitarOverride),
             // cloné pour ne jamais partager la même référence que this.guitarOverride.
             guitarOverride: this.guitarOverride ? { ...this.guitarOverride } : null,
             // { note, octave } seuls : x._new (voir addSequencerNote/pruneEmptyExtraNotes) n'a de sens
@@ -6895,7 +6936,7 @@ class HarmoHubApp {
         // (sinon il l'effacerait, croyant passer à un accord différent — voir keepGuitarLockOnce).
         this.guitarLock = d.guitarLock || null;
         this._keepGuitarLockOnce = true;
-        // Restaure l'accord de substitution à la guitare de CET accord (voir #guitar-override-btn/
+        // Restaure l'accord de substitution à la guitare de CET accord (voir #guitar-name-input/
         // applyGuitarOverride), cloné pour ne jamais muter directement l'objet stocké.
         this.guitarOverride = d.guitarOverride ? { ...d.guitarOverride } : null;
         // Restaure les notes libres déjà enregistrées pour CET accord (voir addSequencerNote) — clonées
@@ -6946,7 +6987,7 @@ class HarmoHubApp {
         this.guitarLock = null;
         this.guitarKey = null;
         this.guitarIdentityKey = null;
-        // Idem pour l'accord de substitution à la guitare (voir #guitar-override-btn) : propre à CET
+        // Idem pour l'accord de substitution à la guitare (voir #guitar-name-input) : propre à CET
         // accord, jamais à recopier malgré soi sur le suivant.
         this.guitarOverride = null;
         // Idem : réglages fins d'intensité propres à CET accord (voir editChord/computeVelocity).
@@ -16436,7 +16477,7 @@ class HarmoHubApp {
         const midis = chord.getSeqMidiNotes();
         const roleMap = chord.getRoleMap();
         const useFlats = this.useFlatsForRoot(chord.root);
-        // Substitut à la guitare éventuel (voir #guitar-override-btn/guitarChordFor) : n'affecte QUE le
+        // Substitut à la guitare éventuel (voir #guitar-name-input/guitarChordFor) : n'affecte QUE le
         // diagramme, jamais l'accord réellement joué/affiché ci-dessus (`chord`/`notes`/`midis`).
         const guitarChord = guitarChordFor(chord, data.guitarOverride);
 

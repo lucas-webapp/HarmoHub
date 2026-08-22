@@ -2539,3 +2539,76 @@ fonction qu'il éprouve ne vérifie plus rien.
 Et surtout il garde la porte dans l'autre sens : dès qu'un voicing est **personnalisé**
 (renversement, drop, basse imposée), le doigté doit reproduire les hauteurs exactes demandées. Cette
 personnalisation-là est délibérée. Le nouveau chercheur ne doit jamais s'en mêler.
+
+## Le champ qui avait le focus mais qu'on ne voyait pas
+
+> « J'ai essayé d'éditer un accord par son nom, c'est pas très pratique pour entrer le nom, la
+> modification se passe derrière sans que je le voie. Au lieu de cela, je préfèrerais que la fenêtre
+> d'écriture soit positionnée dans la fenêtre "pop-up" du menu édition manuelle, avec des boutons
+> valider et choix des diagrammes sur le manche avec le cadenas. »
+
+### Le relevé qui nomme le défaut
+
+| | mesuré |
+|---|---|
+| fenêtre d'édition manuelle | y = 289 → 611 |
+| champ ouvert par le crayon | y = **725** — 114 px sous le bord inférieur |
+| `elementFromPoint` au centre du champ | **`guitar-edit-overlay`** |
+
+La deuxième ligne suffisait à expliquer « derrière ». La troisième dit mieux : le champ n'était pas
+seulement hors cadre, il était **recouvert par le voile de la fenêtre**. Il recevait le focus par
+`input.focus()`, on pouvait donc y taper à l'aveugle — ce que l'utilisateur a fait — sans jamais
+pouvoir ni le voir ni le cliquer.
+
+La cause est un héritage assumé du lot « Manche 1 » : le crayon avait été *relocalisé* dans la
+fenêtre, mais la fonction qu'il déclenchait construisait toujours son `<input>` dans
+`#guitar-override-row`, resté au-dessus du petit diagramme. Le bouton avait déménagé, pas son effet.
+
+### Ce qui change, et la seule chose qui bouge vraiment
+
+`#guitar-override-row` **reste où il est** : son rôle est d'AFFICHER le substitut au-dessus du
+diagramme, et il n'a jamais été celui de la saisie. C'est la confusion des deux qui a produit le
+défaut. La saisie, elle, devient un champ permanent de l'onglet, avec un bouton Valider et, séparée
+par un filet, la rangée « Doigté sur le manche » : flèches ‹ n/N › et cadenas.
+
+Ces deux dernières sont des **jumeaux**, pas un déménagement. Le retour de l'époque — « je les
+utilise souvent pour les accords simples » — vaut toujours pour les originaux restés sous le petit
+diagramme. Les deux exemplaires lisent et écrivent le même état (`guitarFingeringIndex`,
+`guitarDisplayLock`) : il n'y a jamais deux vérités à tenir d'accord, ce qui est précisément le piège
+qu'un cadenas dupliqué tendrait — le défaut « le cadenas saute » a déjà été payé une fois.
+
+### La validation au blur, retirée exprès
+
+Avant, le champ disparaissait après usage : valider à la perte du focus était sans conséquence.
+Maintenant qu'il reste affiché tant que l'onglet est ouvert, valider au blur signifierait appliquer
+un accord au moindre clic sur le manche, sur un onglet ou sur la croix de fermeture. On valide sur
+Entrée ou sur Valider, et rien d'autre. Un texte non reconnu **reste affiché** : c'est lui qu'on
+vient corriger, l'effacer ferait perdre la frappe.
+
+### Deux défauts trouvés par la mesure, pas à l'œil
+
+**« Valider » à 410 px de large, et 51 px de haut sur téléphone** contre 38 pour le champ voisin. La
+cause n'est pas dans `.btn-blue`, qui ne fixe ni taille ni flex, mais dans la règle générique
+`button { flex: 1 1 0; min-width: 120px; padding: 16px 18px 16px 14px }` — le premier des cinq modes
+de défaillance CSS silencieux du journal, une règle d'ensemble qui atteint un bouton qu'on croyait
+libre. Relevé après correctif : 91 × 38, même ligne que le champ, sur les deux écrans.
+
+**Deux orthographes du même accord à trente centimètres.** Taper `Bbadd9` puis revenir sur l'onglet
+réaffichait `A#add9`, pendant que le bandeau voisin écrivait bien un si bémol : le champ appelait
+`getBareLabel(false)` en dur là où le bandeau consulte `useFlatsForRoot`. Trouvé par le banc, pas à
+l'œil. Corrigé — et vérifié dans la foulée que `parseChordSymbol` accepte le ♭ typographique aussi
+bien que le `b` ASCII, sans quoi le champ aurait réaffiché un texte impossible à revalider.
+
+### Ce que le banc empêche
+
+`saisie_nom_dans_la_fenetre_test.js`, 39 vérifications, ordinateur et téléphone. La vérification
+centrale porte sur le **point**, pas sur les coordonnées : un champ peut tenir dans le bon rectangle
+et rester couvert par un voile posé au-dessus. C'est exactement ce qui se passait, et un test de
+géométrie seul l'aurait laissé passer.
+
+Cinq bancs adaptés, aucun supprimé — ils cliquaient sur un crayon qui n'existe plus. Deux méritent
+d'être cités parce que l'adaptation y est un vrai changement de contrat, pas un renommage :
+`guitar_override_test` vérifiait que le crayon « s'allume » quand un substitut est défini ; c'est
+maintenant le **contenu du champ** qui porte cette information. Et `sortie_edition_involontaire_test`
+affirmait en commentaire que flèches et cadenas étaient restés hors de la fenêtre : ce n'est plus
+vrai, ses jumeaux sont désormais listés dans l'inventaire des contrôles à éprouver.
