@@ -2746,6 +2746,16 @@ button:active { transform: translateY(1px); }
     gap: 24px;
     min-width: 0;
 }
+/* DEUX TITRES, UNE SEULE LIGNE D'HORIZON. Retour utilisateur : « avec un nom édité pour la guitare,
+   les titres ne sont pas alignés en hauteur, à modifier » — mesuré : titre piano à y=732, titre
+   guitare à y=722, dix pixels d'écart pour deux chips de même hauteur.
+   La cause n'est pas dans les titres mais dans le centrage des COLONNES : align-items:center centre
+   chaque colonne sur sa propre hauteur, et elles n'ont pas la même. Dès qu'un substitut sépare piano
+   et guitare, chaque titre coiffe SON diagramme (voir placeChordTitle) : les deux colonnes doivent
+   alors partir du même haut, sinon les titres flottent l'un par rapport à l'autre.
+   Le centrage du piano SUR le manche, lui, n'est pas perdu : il est fait à part, par une mesure réelle
+   des deux centres (voir alignPianoOnGuitarDiagram), pas par ce align-items. */
+.viz-diagrams:has(#guitar-override-row:not([hidden])) { align-items: flex-start; }
 /* #piano-col (voir index.html) — la colonne piano, symétrique de .guitar-viz-wrap juste après :
    même principe (colonne, centrée), et accueille #current-chord-display quand placeChordTitle()
    (script.js) l'y déplace (voir plus bas, #current-chord-display). .piano-container tout seul se
@@ -2795,6 +2805,8 @@ button:active { transform: translateY(1px); }
    que .control-card (fond/bordure/rayon) pour rester visuellement de la même famille que les autres
    cartes de l'appli plutôt que des icônes nues sur le fond noir. */
 .viz-card {
+    /* Repère de position pour .viz-toggle, ancrée en haut à droite (voir plus bas). */
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -2850,6 +2862,12 @@ button:active { transform: translateY(1px); }
         justify-content: center;
         gap: 14px;
     }
+    /* EN HAUT à droite, plus au milieu du bord droit. Retour utilisateur : « les boutons diagrammes
+       seraient mieux en haut à droite de l'encadré. Là ils sont centrés, c'est un peu bizarre. » —
+       mesuré avant : posées à y=762 dans une carte descendant à 846. La carte étant EN LIGNE ici, son
+       axe transversal est le vertical : flex-start y veut dire « en haut ». Elles restent à droite
+       parce qu'elles sont le dernier enfant de la ligne, comme avant. */
+    .col-right:not(.diagrams-hidden) .viz-toggle { align-self: flex-start; }
 }
 /* Le conteneur des diagrammes RETIRÉ du flux, pas seulement vidé. Ses deux enfants sont déjà masqués un
    par un en JS (voir applyVizVisibility), mais lui restait, à 0px de haut — et sa seule présence
@@ -2866,11 +2884,25 @@ button:active { transform: translateY(1px); }
 /* Compacts (largeur réduite) plutôt qu'en pleine largeur — très utilisés, donc un peu plus grands que
    les icon-btn habituels quand même (icon-btn pour le style visuel, .active = même surbrillance verte
    que les autres boutons à bascule de l'appli). */
+/* Bascules piano/guitare EN HAUT À DROITE de l'encadré. Retour utilisateur : « les boutons diagrammes
+   seraient mieux en haut à droite de l'encadré. Là ils sont centrés, c'est un peu bizarre. » — mesuré
+   avant : posées à y=762 dans une carte qui descend jusqu'à 846, elles flottaient au milieu du bord
+   droit, sans rien pour expliquer cette hauteur-là.
+   DEUX FAUSSES PISTES ÉCARTÉES SUR MESURE, avant celle-ci. La position absolue en haut à droite :
+   relevé, elle recouvrait .guitar-controls-cote (flèches de doigté et cadenas — donc des commandes)
+   en pleine largeur, et #piano-viz sous 300px. Ce coin n'est pas libre. Puis le déplacement en tête
+   de carte : inutile, parce que la carte est DÉJÀ en ligne au-dessus de 900px (voir plus bas), et les
+   bascules déjà à droite des diagrammes — c'était un lot antérieur, qui économisait ainsi 42px de
+   hauteur. Elles n'étaient donc pas mal placées : juste centrées verticalement. Il ne restait qu'à
+   changer leur alignement, ce qui ne coûte pas un pixel et ne masque rien.
+   flex-end pour la disposition EN COLONNE (téléphone, diagrammes empilés) : la droite. flex-start dans
+   la disposition EN LIGNE (voir le @media plus bas) : le haut. Deux axes, deux valeurs, un seul but. */
 .viz-toggle {
     display: flex;
     flex-direction: row;
     flex: none;
     gap: 6px;
+    align-self: flex-end;
 }
 .viz-toggle-btn {
     flex: none;
@@ -3492,6 +3524,11 @@ button:active { transform: translateY(1px); }
    deux réglages INDÉPENDANTS qui se relaient simplement par héritage CSS, jamais actifs à la fois. */
 .chord-grid {
     --row-h: calc(64px * var(--grid-zoom-scale-v, 1));
+    /* Gouttière réservée au « + » d'ajout au bout de CHAQUE ligne (voir .grid-cell-add-seule et
+       loadProgression) : il garde la hauteur d'une case et ne coûte plus aucune ligne. Étroite, et
+       identique sur toutes les lignes — c'est ce qui préserve les proportions entre accords, la
+       largeur d'un accord disant sa durée. */
+    --col-plus: 30px;   /* 4px de plus que la case elle-même : la marge de séparation les sépare du dernier accord (voir .grid-cell-add-seule) */
     --measure-row-h: calc(20px * var(--grid-zoom-scale-v, 1));
     --roman-row-h: calc(18px * var(--grid-zoom-scale-v, 1));
     display: grid;
@@ -3508,6 +3545,18 @@ button:active { transform: translateY(1px); }
     /* Le repère de mesure vient uniquement de .grid-cell.bar-start (bordure) : le nombre de
        colonnes variant avec la signature rythmique, un fond à pourcentages fixes serait faux. */
 }
+/* Au doigt, 26px c'est trop mince : le projet s'est donné 32px comme cible tactile minimale en
+   corrigeant #guitar-edit-btn (mesuré à 26px) sur retour utilisateur. La gouttière s'élargit donc sur
+   téléphone — elle y coûte proportionnellement plus de largeur, mais une cible qu'on rate ne sert à
+   rien.
+   POSÉE APRÈS la règle .chord-grid complète, et pas au milieu de ses variables : une première version
+   glissait ce @media entre deux déclarations, refermait .chord-grid trop tôt, et faisait basculer tout
+   le reste de la règle (display:grid compris) dans le bloc conditionnel. Mesuré : le « + » passait à
+   1004x28 sur ordinateur. Une accolade mal placée ne se voit pas dans un diff, seulement au rendu. */
+@media (max-width: 899px) {
+    .chord-grid { --col-plus: 38px; }
+}
+
 
 .grid-cell {
     position: relative;
@@ -3584,6 +3633,24 @@ button:active { transform: translateY(1px); }
     cursor: text;
     justify-self: start;
     max-width: var(--row-h);
+}
+/* Le « + » relégué SEUL sur une nouvelle ligne : une bande fine au lieu d'une case pleine hauteur.
+   Retour utilisateur : « il prend une ligne entière en hauteur pour rien, ce qui limite le visionnage
+   de toutes mes sections en même temps. Lorsqu'il est au milieu d'une ligne, il ne me gêne pas » —
+   d'où une règle qui ne s'applique QUE dans ce cas-là (classe posée par buildAddCellHtml, la position
+   en début de ligne n'étant pas détectable en CSS). Il reste large : c'est ce qui garde une cible
+   confortable malgré la hauteur réduite, et ce qui le fait lire comme « la suite de la grille »
+   plutôt que comme un bouton égaré. */
+.grid-cell-add-seule {
+    /* `justify-self: stretch` SANS width:100% : avec les deux, la marge de 4px s'ajoutait à une largeur
+       déjà pleine et la case dépassait de la grille (mesuré : 3px à droite, sur les deux écrans).
+       Étirée, elle occupe sa colonne MOINS ses marges — ce qui est justement le but. */
+    max-width: none;
+    width: auto;
+    align-self: stretch;
+    justify-self: stretch;
+    border-radius: 6px;
+    margin-left: 4px;
 }
 .grid-cell-add:hover {
     border-color: rgba(0, 230, 118, 0.75);

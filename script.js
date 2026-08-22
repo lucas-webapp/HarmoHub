@@ -7204,7 +7204,9 @@ class HarmoHubApp {
                 const plusCol = cursor % beatsPerRow;
                 const plusRow = Math.floor(cursor / beatsPerRow);
                 const plusSpan = Math.min(2, beatsPerRow - plusCol);
-                const rows = Math.max(chordRows, plusRow + 1);
+                // Plus de ligne réservée au « + » : il vit dans la gouttière de droite (voir plus bas),
+                // sur la dernière ligne d'accords. Le nombre de lignes ne dépend donc plus que des accords.
+                const rows = Math.max(1, chordRows);
                 // Trois lignes de grille par ligne d'ACCORDS (this.row, 0/1/2...) quand le chiffrage
                 // romain est activé (Paramètres > Affichage, voir showRomanNumerals) : une fine ligne
                 // AU-DESSUS (--roman-row-h, voir .row-roman), la ligne d'accords elle-même
@@ -7224,7 +7226,38 @@ class HarmoHubApp {
                 const rowTemplate = showExtraRow
                     ? 'var(--roman-row-h) var(--row-h) var(--measure-row-h)'
                     : 'var(--row-h) var(--measure-row-h)';
-                gridStyle = `grid-template-rows: repeat(${rows}, ${rowTemplate}); grid-template-columns: repeat(${beatsPerRow}, 1fr);`;
+                // LE « + » SEUL SUR SA LIGNE NE MÉRITE PAS UNE LIGNE ENTIÈRE. Retour utilisateur :
+                // « le bouton + pour ajouter un accord est une bonne idée. Cependant, il prend une
+                // ligne entière en hauteur pour rien, ce qui limite le visionnage de toutes mes
+                // sections en même temps. Lorsqu'il est au milieu d'une ligne, il ne me gêne pas. »
+                // Mesuré : 102 px de partie en plus dès que les accords remplissent exactement leurs
+                // lignes — quatre parties, et c'est 408 px perdus.
+                //
+                // Raccourcir le bouton ne suffisait pas : les hauteurs de lignes sont EXPLICITES
+                // (var(--row-h)), délibérément pas « auto » (voir le commentaire ci-dessus, plus
+                // robuste d'un navigateur à l'autre). C'est donc le GABARIT de cette dernière ligne
+                // qu'on change — et elle n'a besoin que d'un seul rang, puisqu'elle ne porte ni
+                // chiffrage romain ni numéro de mesure : il n'y a aucun accord dessus.
+                // UNE GOUTTIÈRE À DROITE, JAMAIS UNE LIGNE EN PLUS. Le « + » vit dans une colonne étroite
+                // réservée au bout de CHAQUE ligne, et se pose sur la dernière ligne d'accords : il ne
+                // passe donc plus jamais à la ligne, et ne coûte plus un seul pixel de hauteur.
+                //
+                // Retour utilisateur : « il prend une ligne entière en hauteur pour rien, ce qui limite
+                // le visionnage de toutes mes sections en même temps » puis, sur ma première version
+                // (une bande fine sur sa propre ligne) : « pour plus de cohérence, que penses-tu de
+                // conserver la hauteur du bouton, mais de réduire sa largeur et le placer en fin de
+                // ligne ? » — c'est mieux, et c'est ce qui est fait ici : hauteur d'accord conservée,
+                // largeur réduite, toujours en bout de ligne.
+                //
+                // POURQUOI LA GOUTTIÈRE PLUTÔT QUE RÉTRÉCIR LE DERNIER ACCORD. Cette grille est
+                // proportionnelle au TEMPS : la largeur d'un accord dit sa durée. Prendre la place du
+                // « + » sur le seul dernier accord lui ferait mentir. Une gouttière de même largeur au
+                // bout de TOUTES les lignes ne change rien aux proportions entre accords — elle les
+                // réduit tous du même facteur.
+                const derniereLigneAccords = Math.max(0, chordRows - 1);
+                const ligneDuPlus = derniereLigneAccords * rowsPerGroup + chordRowOffset;
+                const colonneDuPlus = beatsPerRow + 1;
+                gridStyle = `grid-template-rows: repeat(${rows}, ${rowTemplate}); grid-template-columns: repeat(${beatsPerRow}, 1fr) var(--col-plus);`;
                 const loopRange = this.loopRangeForSection(si, history.length);
                 // Mesure ATTEINTE par un étirement de durée d'accord EN COURS (voir onResizeStart/
                 // onResizeMove) : même principe que _highlightSeqBeatLabel pour le séquenceur (retour
@@ -7295,7 +7328,12 @@ class HarmoHubApp {
                 // aperçu de la mesure suivante, pas encore un vrai accord sur lequel on pourrait glisser
                 // pour définir une plage à boucler.
                 const endMeasureHtml = (cursor > 0 && cursor % beatsPerBar === 0)
-                    ? `<div class="row-measure row-measure-end" style="grid-column: ${plusCol + 1} / span 1; grid-row: ${plusRow * rowsPerGroup + rowsPerGroup};">${cursor / beatsPerBar + 1}</div>`
+                    // Le numéro suit le « + » sur sa ligne raccourcie : le laisser sur la ligne calculée à
+                    // l'ancienne créait DEUX lignes fantômes (mesuré : gabarit à six rangs au lieu de
+                    // quatre, et une partie plus haute qu'avant le correctif — l'inverse du but).
+                    // Le numéro de la mesure à venir se pose sous le « + » : dans la gouttière quand la
+                    // ligne est pleine (le « + » y est), à sa place normale sinon.
+                    ? `<div class="row-measure row-measure-end" style="grid-column: ${plusRow >= chordRows ? colonneDuPlus : plusCol + 1} / span 1; grid-row: ${(plusRow >= chordRows ? derniereLigneAccords : plusRow) * rowsPerGroup + rowsPerGroup};">${cursor / beatsPerBar + 1}</div>`
                     : '';
                 gridInner = cells.map(s => {
                     const h = history[s.index];
@@ -7409,7 +7447,7 @@ class HarmoHubApp {
                 ).join('') + cells.flatMap(s => s.innerBars.map(ib => `
                     <div class="row-measure${resizeReachedBar === ib.barNumber ? ' row-measure-reached' : ''}" style="grid-column: ${s.col + ib.offset + 1} / span 1; grid-row: ${s.row * rowsPerGroup + rowsPerGroup};">${ib.barNumber}</div>`)
                 ).join('') + offbeatTicksHtml + endMeasureHtml + this.buildLoopRangeBars(cells, loopRange, rowsPerGroup)
-                + this.buildAddCellHtml(si, plusRow * rowsPerGroup + chordRowOffset, plusCol, plusSpan);
+                + this.buildAddCellHtml(si, ligneDuPlus, colonneDuPlus - 1, 1, true);
             }
 
             const titleVal = (sec.title || '').replace(/"/g, '&quot;');
@@ -11761,9 +11799,9 @@ class HarmoHubApp {
     // le champ d'ajout rapide séparé — pratique maintenant que les accords se réordonnent par glisser
     // (voir onGridPointerDown), plus besoin d'ajouter au bon endroit du premier coup. `gridRow` est
     // déjà la ligne CSS finale (traduite par l'appelant, voir loadProgression), pas un index logique.
-    buildAddCellHtml(section, gridRow, col, span) {
+    buildAddCellHtml(section, gridRow, col, span, seulSurSaLigne = false) {
         return `
-                    <div class="grid-cell grid-cell-add" style="grid-column: ${col + 1} / span ${span}; grid-row: ${gridRow};">
+                    <div class="grid-cell grid-cell-add${seulSurSaLigne ? ' grid-cell-add-seule' : ''}" style="grid-column: ${col + 1} / span ${span}; grid-row: ${gridRow};">
                         <input type="text" class="cell-add-input" data-section="${section}" placeholder="+" aria-label="Ajouter un accord à la fin de cette partie" autocomplete="off" autocapitalize="off" spellcheck="false" title="Ajouter un accord à la fin de cette partie — un accord seul (ex. Cm7), avec une basse via « _ » (ex. C_E = do avec mi à la basse), ou plusieurs accords séparés par « / » : un par mesure, sans renversement ni drop">
                     </div>`;
     }

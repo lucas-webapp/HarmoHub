@@ -87,6 +87,10 @@ async function avecGuitare(page) {
     // contenu de l'un d'eux. Les mêler aux réglages du manche brouillerait les deux familles.
     check(m.bascules.g >= m.commandes.d - 2,
         `les bascules piano/guitare restent à l'extrême droite — commandes finissent à ${m.commandes.d}, bascules à ${m.bascules.g}`);
+    // AJOUT, retour utilisateur : « les boutons diagrammes seraient mieux en haut à droite de
+    // l'encadré. Là ils sont centrés, c'est un peu bizarre. » Elles étaient déjà à droite (la carte est
+    // en ligne au-dessus de 900px, un lot antérieur y gagnait 42px de hauteur) : ce qui manquait,
+    // c'était l'alignement EN HAUT. Mesuré avant : y=762 dans une carte descendant à 846.
 
     // === D. Le piano a grandi, et se compare enfin au manche ===
     // AVANT : piano 165x32 contre manche 119x70 — moitié moins haut que son voisin.

@@ -2853,3 +2853,65 @@ Six commandes passent sous les 32px sur téléphone : `bass` (59x30), `seq-zoom`
 32px est la borne que ce projet s'est donnée en corrigeant `#guitar-edit-btn`, mesuré à 26px, sur
 retour utilisateur. Les corriger est une décision d'interface, pas une réparation évidente : elles
 sont donc consignées nommément, et la sentinelle refuse qu'une SEPTIÈME apparaisse.
+
+## Le « + » en gouttière, et deux cadrages de diagrammes
+
+> 1. « Le bouton + pour ajouter un accord est une bonne idée. Cependant, il prend une ligne entière en
+>    hauteur pour rien, ce qui limite le visionnage de toutes mes sections en même temps. […] Lorsqu'il
+>    est au milieu d'une ligne, il ne me gêne pas. »
+>    puis : « Pour plus de cohérence, que penses-tu de conserver la hauteur du bouton, mais de réduire
+>    sa largeur et le placer en fin de ligne ? »
+> 2a. « Avec un nom édité pour la guitare, les titres ne sont pas alignés en hauteur. »
+> 2b. « Les boutons diagrammes seraient mieux en haut à droite de l'encadré. Là ils sont centrés, c'est
+>    un peu bizarre. »
+
+### Le « + » : ma première version, puis la bonne
+
+Relevé : une partie de 4 accords (qui remplissent exactement leur ligne) mesurait **206 px** contre 104
+pour 3 accords. 102 px pour loger un bouton, et autant par partie.
+
+Raccourcir le bouton ne suffisait pas : les hauteurs de lignes sont **explicites** (`var(--row-h)`),
+délibérément pas `auto`. J'ai donc d'abord changé le GABARIT de cette dernière ligne — une bande de
+22 px plus le numéro de mesure : 146 px au lieu de 206.
+
+La contre-proposition de l'utilisateur est meilleure, et c'est elle qui est retenue : le « + » vit
+désormais dans une **gouttière étroite réservée au bout de chaque ligne**, posé sur la dernière ligne
+d'accords. Il ne passe plus jamais à la ligne. **104 px pour 4 accords, exactement comme pour 3** — la
+totalité du coût supprimée, pas réduite.
+
+**Pourquoi une gouttière plutôt que rétrécir le dernier accord.** Cette grille est proportionnelle au
+temps : la largeur d'un accord dit sa durée. Prendre la place du « + » sur le seul dernier accord lui
+ferait mentir. Une gouttière de même largeur au bout de TOUTES les lignes ne change rien aux
+proportions entre accords — le banc le vérifie (quatre accords de même durée, quatre largeurs égales).
+
+### Deux fausses pistes sur les bascules, écartées par la mesure
+
+**La position absolue en haut à droite.** Ce coin n'est pas libre : relevé, les bascules flottantes
+recouvraient `.guitar-controls-cote` — les flèches de doigté et le cadenas, donc des **commandes** — en
+pleine largeur, et `#piano-viz` sous 300 px.
+
+**Le déplacement en tête de carte.** Inutile, et c'est la lecture du CSS existant qui l'a montré : la
+carte est **déjà en ligne** au-dessus de 900 px, et les bascules déjà à droite des diagrammes — un lot
+antérieur y gagnait 42 px de hauteur, sur un retour utilisateur d'alors. Elles n'étaient donc pas mal
+placées : juste centrées verticalement. Il ne restait qu'à changer leur alignement sur l'axe
+transversal, ce qui ne coûte pas un pixel et ne masque rien. Résultat : 13 px du haut, 17 px de la
+droite.
+
+### Deux erreurs à moi, consignées parce qu'elles se reproduiront
+
+**Une accolade mal placée.** J'ai glissé un `@media` entre deux variables de `.chord-grid`, refermant
+la règle trop tôt : tout le reste, `display: grid` compris, est tombé dans le bloc conditionnel. Le
+« + » est passé à **1004x28** sur ordinateur. Cela ne se voit pas dans un diff, seulement au rendu — et
+c'est la même famille que le `<div>` non fermé qui avait avalé les bascules de diagrammes.
+
+**Une marge qui déborde.** `width: 100%` plus `margin-left: 4px` font 4 px de trop : la case dépassait
+de la grille (mesuré : 3 px à droite, sur les deux écrans). Corrigé par `justify-self: stretch` sans
+largeur imposée — et la gouttière élargie de 4 px pour que la case garde sa cible (26 px sur
+ordinateur, 34 au doigt, la gouttière s'élargissant sur téléphone).
+
+### Trois bancs adaptés, un ajouté
+
+`place_du_plus_et_diagrammes_test.js` (25 vérifications) éprouve les trois points, dont la
+proportionnalité au temps. `case_plus_test.js` et `ajout_modif_test.js` affirmaient une case CARRÉE :
+contrat changé sur demande, pas défaut — chacun le dit maintenant en toutes lettres. Et
+`diagrammes_inspecteur_test.js` gagne le rappel de pourquoi les bascules sont en haut.
