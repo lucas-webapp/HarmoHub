@@ -130,7 +130,13 @@ async function clickCellSafe(page, section, index) {
     await page.waitForTimeout(900);
     for (let i = 0; i < 3; i++) {
         await dblclickCellSafe(page, 0, i);
-        await page.waitForTimeout(150);
+        // 150ms ne suffisent plus, et c'est la MÊME cause que l'attente de 900ms juste au-dessus :
+        // ouvrir l'édition d'un accord enchaîne plusieurs rendus (panneau, diagrammes, doigtés), et ce
+        // point de contrôle lisait le cadenas avant que le dernier soit passé. Preuve que c'est bien le
+        // banc et non le produit : à code d'application IDENTIQUE, allonger cette seule attente et
+        // celle de fermeture ci-dessous fait passer le banc de 31/2 à 33/0. Aucune ligne de script.js
+        // n'a été touchée pour l'obtenir.
+        await page.waitForTimeout(700);
         const btnActive = await page.evaluate(() => document.getElementById('guitar-lock-btn').classList.contains('active'));
         const shownFingering = await page.evaluate(() => {
             const f = window.app.guitarFingerings[window.app.guitarFingeringIndex];
@@ -139,7 +145,10 @@ async function clickCellSafe(page, section, index) {
         check(btnActive, `après rechargement complet, accord ${i} : cadenas actif en édition`);
         check(JSON.stringify(shownFingering) === JSON.stringify(lockedShapes[i]), `après rechargement complet, accord ${i} : bon doigté affiché en édition`);
         await page.click('#accord-close');
-        await page.waitForTimeout(120);
+        // Refermer le panneau est asynchrone lui aussi : sans cette marge, le double-clic du TOUR
+        // SUIVANT arrivait pendant la fermeture du précédent. C'est pourquoi l'accord 0 passait
+        // toujours et les suivants non — un symptôme d'enchaînement, jamais de persistance.
+        await page.waitForTimeout(500);
     }
 
     check(pageErrors.length === 0, "aucune erreur JS pendant tout le scénario — " + JSON.stringify(pageErrors));

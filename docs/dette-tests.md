@@ -2676,3 +2676,45 @@ relâchement, et aucun aperçu qui survive au geste.
 Une vérification y est née d'une erreur de ma part : j'attendais qu'un glissé parti d'une case allumée
 **efface**. L'application, elle, **déplace** la note dans le temps (`beginSeqHDrag`) — et elle a raison.
 Le geste a maintenant sa propre vérification plutôt qu'une attente fausse.
+
+## Un rouge de plus au balayage, et la bonne façon de ne pas l'attribuer trop vite
+
+Le balayage qui suit les deux derniers lots remonte **7 rouges au lieu des 6 documentés** :
+`glock_full_real_ui_test.js`, quatre vérifications tombées, toutes après un rechargement complet de
+la page — le cadenas guitare de l'accord 1 et de l'accord 2.
+
+Le réflexe aurait été de l'attribuer aux modifications du jour : elles touchent précisément le
+cadenas guitare (deux exemplaires depuis que la fenêtre d'édition manuelle a le sien). Le relevé dit
+autre chose.
+
+| commit | résultat |
+|---|---|
+| `ccb47e3`, **avant** les deux commits du jour | 29 PASS / **4 FAIL** |
+| état actuel | 31 PASS / **2 FAIL** |
+
+Non seulement le banc était déjà rouge avant, mais il l'est **moins** après. Trois passages
+consécutifs sur l'état actuel donnent 2 rouges à chaque fois : ce n'est pas non plus un tirage
+instable d'un passage à l'autre.
+
+### Ce qui a réellement changé : le banc, pas le produit
+
+À code d'application **identique**, allonger deux attentes du banc — 150 → 700 ms après l'ouverture
+d'un accord, 120 → 500 ms après sa fermeture — le fait passer de 31/2 à **33/0**, trois fois sur
+trois. Aucune ligne de `script.js` n'a été touchée pour l'obtenir. C'est la preuve, et pas une
+présomption.
+
+La forme du symptôme le disait déjà : **l'accord 0 passait toujours, les suivants non**. Un défaut de
+persistance ne choisirait pas ses accords par ordre d'apparition ; un enchaînement trop serré, si —
+le double-clic du tour suivant arrivait pendant la fermeture du panneau précédent.
+
+### Pourquoi ce banc redevient instable
+
+Il portait déjà cette cicatrice : son propre commentaire consigne « le MÊME code passait 33/33, puis
+29/33, puis 31/33 d'un essai à l'autre », et l'attente après rechargement avait été portée à 900 ms
+pour cela. Ce qui n'avait pas été fait à l'époque, c'est de traiter **les deux autres attentes de la
+même boucle** — celles qui séparent les accords entre eux. Chaque fois que l'application gagne un
+rendu de plus à l'ouverture d'un accord, la marge la plus courte finit par céder.
+
+Les deux attentes portent maintenant leur justification en commentaire, avec le relevé qui les motive.
+Un banc qui varie est plus coûteux qu'un banc rouge : le rouge se corrige, la variation se rediscute
+à chaque campagne.
