@@ -2612,3 +2612,67 @@ d'être cités parce que l'adaptation y est un vrai changement de contrat, pas u
 maintenant le **contenu du champ** qui porte cette information. Et `sortie_edition_involontaire_test`
 affirmait en commentaire que flèches et cadenas étaient restés hors de la fenêtre : ce n'est plus
 vrai, ses jumeaux sont désormais listés dans l'inventaire des contrôles à éprouver.
+
+## La barre qui ne refusait pas de s'accrocher : elle n'existait pas
+
+> « Dans le grand séquenceur, lorsque je crée une note et définis sa longueur avec la souris, j'ai des
+> problèmes d'accrochage lors du survol : certains 1/4 de tons sont grisés et la barre refuse de
+> s'accrocher. »
+
+### Le relevé
+
+| pendant un tracé de 10 croches | mesuré |
+|---|---|
+| cases passées à l'état « on » (donc grises) | **11** |
+| barres dessinées | **0** |
+| après relâchement | 11 cases « on », **1** barre, 0 → 10, correcte |
+
+La formulation de l'utilisateur décrivait exactement ce que montre le tableau, mais l'explication
+n'était pas celle qu'elle suggère : la barre ne *refusait* pas de s'accrocher, **elle n'existait pas
+encore**. Les cases s'allumaient en gris (`rgba(255,255,255,0.055)`), la pilule n'apparaissait qu'au
+relâchement.
+
+### Deux pistes écartées par la mesure
+
+C'est ce qui rend le diagnostic sûr, et ça valait le détour :
+
+- **Ce n'est pas l'aimantation.** `seqSnap()` renvoie 1 — le sélecteur 1/4–1/8 a été retiré sur retour
+  utilisateur. Aucune quantification grossière ne pouvait faire « sauter » des cases.
+- **Ce n'est pas l'étirement d'une note existante.** Là, la pilule suit déjà : `onSeqResizeMove` garde
+  `d.noteEl` et déplace l'élément en direct. Il manquait le pendant pour une note **neuve**, qui n'a
+  pas encore de pilule à déplacer.
+
+### La cause, qui est un choix délibéré
+
+`applySeqCell` met à jour le modèle et bascule la classe de la case — jamais les pilules. Celles-ci ne
+naissent que d'un `renderSequencer()`, qu'on se garde d'appeler pendant le geste : il détruirait les
+`.seq-cell` actuellement sous les doigts, et couperait net la réception des `pointermove` suivants sur
+tactile. Le correctif ne touche pas à cette règle : il fabrique une pilule d'**aperçu**, la met à jour
+comme le fait l'étirement, et la jette au relâchement.
+
+### Géométrie lue, jamais recalculée
+
+La colonne d'une croche dépend de la page affichée et du décalage des accords voisins (`colOffset`,
+`pageStart`). Refaire ce calcul dans l'aperçu, c'était s'exposer à ce qu'il diverge un jour de celui du
+rendu. La case du pas visé porte déjà la bonne réponse dans son style inline : l'aperçu la lit.
+
+### Une correction que je dois consigner
+
+J'avais d'abord annoncé un **second défaut** : la barre d'une note étirée alterne +10 / +18 px pour des
+cases de 14 px. C'était **faux**, et l'erreur venait de ma « largeur idéale ». L'interstice de 4 px
+entre deux paires de doubles croches est porté par la bordure transparente de `.seq-cell-b` : une note
+qui s'arrête sur cette 2e moitié doit donc laisser ces 4 px libres, et une note qui s'arrête sur la 1re
+moitié doit au contraire occuper toute sa case. L'alternance est la conséquence exacte de cette règle.
+Le banc l'éprouve désormais comme une règle, avec un écart attendu de 0 px à chaque pas — pas comme une
+tolérance.
+
+### Ce que le banc empêche
+
+`apercu_barre_tracee_test.js`, 17 vérifications : une barre visible à **chaque** pas du tracé, bord
+droit tombant pile sur la case visée (écarts mesurés : 0, 0, 0… onze fois), couleur constante,
+`pointer-events: none` pour que l'aperçu ne vole pas le survol, aucune vraie pilule écrite avant le
+relâchement, et aucun aperçu qui survive au geste.
+
+Une vérification y est née d'une erreur de ma part : j'attendais qu'un glissé parti d'une case allumée
+**efface**. L'application, elle, **déplace** la note dans le temps (`beginSeqHDrag`) — et elle a raison.
+Le geste a maintenant sa propre vérification plutôt qu'une attente fausse.

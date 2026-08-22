@@ -6023,3 +6023,13 @@ select.song-select-narrow {
 /* Enregistrer partage désormais le fond des autres actions vertes : c'est le même geste (poser
    quelque chose), il n'y a pas de raison qu'il ait sa propre nuance. */
 .col-left .icon-btn-accent { background-color: var(--btn-green-2); }
+
+/* Aperçu de la barre pendant qu'on TRACE une note neuve (voir majApercuBarrePeinte dans script.js).
+   Retour utilisateur : « lorsque je crée une note et définis sa longueur avec la souris, j'ai des
+   problèmes d'accrochage lors du survol : certains 1/4 de tons sont grisés et la barre refuse de
+   s'accrocher. » Relevé : 11 cases passaient bien en gris, et ZÉRO barre était dessinée tant que le
+   bouton n'était pas relâché — la barre ne refusait pas de s'accrocher, elle n'existait pas.
+   Aucune mise en forme propre : l'aperçu porte exactement les classes d'une vraie pilule, pour qu'on
+   voie pendant le geste ce qu'on obtiendra après. Cette classe ne sert qu'à le RETROUVER et à
+   l'exclure des sélecteurs qui cherchent de vraies notes. */
+.seq-note-apercu { pointer-events: none; }

@@ -12974,6 +12974,65 @@ class HarmoHubApp {
         d.rangeFrom = newFrom;
         d.rangeTo = newTo;
         d.lastStep = step;
+        this.majApercuBarrePeinte(d, newFrom, newTo, paintOn);
+    }
+
+    // LA BARRE QUI MANQUAIT. Retour utilisateur : « dans le grand séquenceur, lorsque je crée une note
+    // et définis sa longueur avec la souris, j'ai des problèmes d'accrochage lors du survol : certains
+    // 1/4 de tons sont grisés et la barre refuse de s'accrocher. »
+    //
+    // LE RELEVÉ : pendant un tracé de 10 croches, 11 cases passaient bien à l'état `on` — donc grises,
+    // exactement la teinte décrite — et le compte de barres dessinées restait à ZÉRO tout du long. La
+    // barre n'apparaissait qu'au relâchement. Elle ne « refusait » pas de s'accrocher : elle n'existait
+    // pas encore. Le moteur, lui, était juste (note obtenue correcte, et findSeqStepAt n'a pas perdu un
+    // seul pas sur 167 positions balayées).
+    //
+    // LA CAUSE est un choix délibéré : applySeqCell met à jour le modèle et bascule la classe de la
+    // case, sans jamais toucher aux pilules — celles-ci ne naissent que d'un renderSequencer(), qu'on
+    // se garde bien d'appeler pendant le geste (il détruirait les .seq-cell actuellement sous les
+    // doigts). L'étirement d'une note EXISTANTE, lui, n'avait pas ce défaut : il déplace en direct la
+    // pilule déjà là (voir onSeqResizeMove, d.noteEl). Il manquait le pendant pour une note NEUVE,
+    // qui n'a pas encore de pilule à déplacer — on la fabrique donc, et on la jette au relâchement.
+    //
+    // GÉOMÉTRIE LUE SUR LES CASES ELLES-MÊMES, jamais recalculée : la colonne d'une croche dépend de la
+    // page affichée et du décalage des accords voisins (voir renderSequencer, colOffset/pageStart).
+    // Refaire ce calcul ici, c'était s'exposer à ce qu'il diverge un jour de celui du rendu — la case
+    // du pas visé porte déjà la bonne réponse dans son style inline.
+    majApercuBarrePeinte(d, from, to, paintOn) {
+        // On efface (geste parti d'une case allumée) : rien à prévisualiser, les cases s'éteignent
+        // d'elles-mêmes.
+        if (!paintOn) { this.retirerApercuBarrePeinte(d); return; }
+        const caseDebut = document.querySelector(`.seq-cell[data-voice="${d.voice}"][data-step="${from}"]`);
+        if (!caseDebut) { this.retirerApercuBarrePeinte(d); return; } // pas hors de la page affichée
+        const colonne = parseInt(caseDebut.style.gridColumn, 10);
+        if (!Number.isFinite(colonne)) return;
+        let el = d.apercuEl;
+        if (!el) {
+            const chord = this.readChord();
+            const roleMap = chord.getRoleMap();
+            const midis = chord.getMidiNotes();
+            const role = roleMap[midis[d.voice]] || 'ext';
+            el = document.createElement('div');
+            // Mêmes classes que la vraie pilule (voir renderSequencer) : même couleur, même forme,
+            // même arrondi. L'aperçu ne doit pas se distinguer de ce qu'on obtiendra — sinon on
+            // remplacerait « rien ne suit » par « quelque chose d'autre suit ».
+            el.className = `seq-note run role-${role} seq-note-apercu`;
+            el.innerHTML = '<span class="seq-note-head"></span>';
+            caseDebut.parentElement.appendChild(el);
+            d.apercuEl = el;
+        }
+        el.style.gridRow = caseDebut.style.gridRow;
+        el.style.gridColumn = `${colonne} / span ${to - from + 1}`;
+        // Même retrait de 4px que la vraie pilule : une note qui s'arrête sur la 2e moitié d'un
+        // rectangle laisse l'interstice qui la sépare de la paire suivante (voir .seq-cell-b, dont la
+        // bordure transparente porte cet écart).
+        el.style.marginRight = (to % 2 === 1) ? '4px' : '0';
+    }
+
+    // L'aperçu ne survit jamais au geste : le renderSequencer() de fin dessine la VRAIE pilule, et deux
+    // barres superposées au même endroit se verraient (opacités qui s'additionnent).
+    retirerApercuBarrePeinte(d) {
+        if (d && d.apercuEl) { d.apercuEl.remove(); d.apercuEl = null; }
     }
 
     // Glissé démarré sur le bord d'une note existante (ou son unique croche) : étend/raccourcit
@@ -13532,6 +13591,9 @@ class HarmoHubApp {
         // quelle qu'en soit l'issue — ici, dans le nettoyage COMMUN à tous les glissés : c'est le seul
         // endroit par lequel ils passent tous, y compris ceux qu'on annule en sortant de la grille.
         this.hideSeqDragReadout();
+        // Même raison, même endroit : l'aperçu de la barre en cours de tracé (voir
+        // majApercuBarrePeinte) vit lui aussi hors du rendu normal, il doit disparaître avec le geste.
+        this.retirerApercuBarrePeinte(d);
         if (d && d.voiceDrag) {
             d.voiceDrag.ghost.remove();
             if (d.voiceDrag.noteEl) d.voiceDrag.noteEl.style.visibility = '';
@@ -13565,6 +13627,11 @@ class HarmoHubApp {
         if (!d) return;
         this._stopSeqAutoScroll(d);
         this._highlightSeqBeatLabel(null); // éteint le repère de temps (voir onSeqResizeMove/paint), geste terminé
+        // L'aperçu de la barre en cours de tracé (voir majApercuBarrePeinte) s'efface AVANT tout
+        // retour anticipé de cette fonction — comme le repère flottant juste au-dessus, et pour la même
+        // raison : le geste est fini quoi qu'il advienne ensuite, et une barre d'aperçu oubliée
+        // resterait posée par-dessus la vraie, deux opacités qui s'additionnent.
+        this.retirerApercuBarrePeinte(d);
 
         // Défilement vertical (voir onSeqPointerMove) : jamais une modification, rien à valider ici —
         // sans ce retour anticipé, une case vide (!d.wasOn) jamais peinte serait lue comme un simple
