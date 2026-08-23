@@ -275,11 +275,38 @@ window._ecrire = (txt) => {
     check(JSON.stringify(enchaine) === JSON.stringify(['C', 'Am', 'F', 'G']),
         `...et ce sont bien les accords de la partie, dans l'ordre — obtenu ${JSON.stringify(enchaine)}`);
 
-    // L'indication annonce l'accord suivant.
+    // CE QUI EST EN MAIN SE LIT DANS LA RÉSERVE, PLUS DANS UN BANDEAU. Ce banc vérifiait auparavant
+    // que l'indication écrivait « poser C puis Am » ; le bandeau vert qui portait cette phrase a été
+    // retiré à la demande de l'utilisateur (« enlever le bandeau vert qui indique comment positionner
+    // les accords, pas besoin d'aide pour cela »). L'information, elle, n'a pas disparu : elle était
+    // déjà DOUBLÉE par le surlignage de la réserve, et c'est précisément l'argument qui a permis de
+    // retirer la phrase sans rien perdre. Le banc vérifie donc maintenant ce doublon — sans quoi on
+    // aurait supprimé une aide en se fiant à une redondance que plus rien ne garantissait.
     await page.click('.chord-chip:nth-child(1)');
     await page.waitForTimeout(200);
-    const indic = await page.evaluate(() => document.getElementById('armed-hint').textContent);
-    check(/C/.test(indic) && /puis Am/.test(indic), `l'indication annonce l'accord en main ET le suivant — « ${indic} »`);
+    const enMain = await page.evaluate(() => {
+        const a = document.querySelector('.chord-chip.armed');
+        return { arme: a ? a.textContent.trim() : null,
+                 aide: document.getElementById('armed-hint').textContent.trim() };
+    });
+    check(enMain.arme === 'C', `l'accord en main est surligné dans la réserve — obtenu ${JSON.stringify(enMain.arme)}`);
+    check(!/Clique dans le texte|puis /.test(enMain.aide),
+        `...et plus aucune phrase d'aide ne s'affiche — « ${enMain.aide} »`);
+    // L'enchaînement déplace ce surlignage tout seul : c'est lui qui remplace le « puis Am » écrit.
+    const posBanc = await page.evaluate(() => {
+        const d = document.querySelector('.lyrics-text').children[0];
+        const b = d.getBoundingClientRect();
+        return { x: Math.round(b.left + 40), y: Math.round(b.top + b.height / 2) };
+    });
+    await page.mouse.click(posBanc.x, posBanc.y);
+    await page.waitForTimeout(250);
+    const suivantArme = await page.evaluate(() => {
+        const a = document.querySelector('.chord-chip.armed');
+        return a ? a.textContent.trim() : null;
+    });
+    check(suivantArme === 'Am', `...et après la pose, c'est l'accord SUIVANT qui est surligné — obtenu ${JSON.stringify(suivantArme)}`);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
 
     // Le mode tampon reste disponible : décocher l'option remet le comportement d'avant.
     await page.click('#btn-options');

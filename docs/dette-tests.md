@@ -2962,3 +2962,117 @@ Deux fois dans ce lot, j'ai élargi la portée d'un correctif au-delà de ce qui
 gouttière sur toutes les lignes plutôt que sur la seule ligne pleine, et les bascules déplacées dans le
 DOM alors qu'un changement d'alignement suffisait. Les deux ont coûté un aller-retour. La demande
 initiale — « uniquement en fin de ligne » — décrivait déjà la bonne portée.
+
+## Lot « métronome allumé + Paroles » — décisions et mesures
+
+Retours utilisateur traités : « 1. Le bouton qui permet de maintenir le métronome pendant la lecture
+ou non doit rester "allumé" lorsqu'il est activé. C'est pas le cas aujourd'hui. 2. Outil "Paroles",
+plusieurs remarques : a. Enlever le bandeau vert qui indique comment positionner les accords, pas
+besoin d'aide pour cela b. Le vert des accords est trop "fluo" par rapport au texte blanc, à adoucir.
+c. L'outil "taille de texte" ne suit pas les codes couleur du reste de l'appli. En plus, lorsque je
+réduis le texte, l'affichage n'est pas optimal avec les pastilles d'accords. d. Sortie PDF : […] trop
+d'espace entre la pastille d'accord et le texte, c'est des polices d'écriture différentes, le premier
+accord peut dépasser à gauche […] Tu pourrais colorier les pastilles d'accord en bleu très foncé pour
+le PDF. » puis « Il y a également des problèmes à la fermeture de "Paroles" et réouverture. Les
+accords ne sont plus en place. »
+
+### 1. Le `const` qui cassait tout Paroles au chargement (point 6)
+
+Le défaut le plus grave du lot, et le seul qui perdait du travail. Deux pannes distinctes derrière un
+seul symptôme.
+
+**(a) Rouvrir Paroles perdait le morceau.** Mesuré : après avoir tapé des paroles et posé un accord,
+le stockage contenait bien `[{"p":1,"l":27}]` (1 emplacement, 27 caractères) ; après `reload()` sans
+dépôt en attente, `{"pastillesDOM":0,"vide":true}` — la page vide. `tryAutoImportFromHarmoHub()`
+consomme et EFFACE `harmohub_lyrics_pending_import` dès la première lecture (c'est voulu : une visite
+ultérieure ne doit pas rejouer un import fantôme), mais rien ne rouvrait le dernier morceau. Le
+commentaire d'origine promettait pourtant qu'on « retombe normalement sur le morceau déjà ouvert dans
+CETTE page » — l'intention était là, l'implémentation non.
+Correctif : `harmohub_lyrics_last_song`, photo de la structure brute du morceau prise au début de
+`loadSong` (avant que les champs de travail `_lyricsHtml`/`_placements` n'y soient ajoutés). La
+session de paroles, elle, était déjà enregistrée par morceau — `loadSong` la rebranche toute seule.
+
+**(b) Les accords revenaient DÉPLACÉS.** Mesuré, même ancre, même texte :
+
+    POSE     : texteG=306 texteL=828 pastilleG=312 donnees=[{"type":"char","charIndex":5,…}]
+    REIMPORT : texteG=306 texteL=828 pastilleG=277 donnees=[{"type":"char","charIndex":5,…}]
+
+Gauche du texte identique, largeur identique, donnée enregistrée identique — et 35 px d'écart. Le
+décalage n'était donc ni dans le texte, ni dans les données. Relevé décisif : `pill.style.left` valait
+`""` après réimport, contre `"40.9219px"` après la pose. Une chaîne vide veut dire qu'on a affecté une
+valeur invalide (`NaN`) — ou que l'affectation n'a jamais eu lieu. C'était la seconde : la console
+crachait `ReferenceError: Cannot access 'PILL_MIN_GAP' before initialization`, levé depuis
+`renderPills` appelé par `loadSong` appelé par `tryAutoImportFromHarmoHub`… qui s'exécutait ligne 452
+alors que le `const PILL_MIN_GAP` est déclaré ligne 1126. **Zone morte temporelle** : un `const` n'est
+pas hissé comme une fonction. L'import s'interrompait en plein vol, les pastilles restaient sans
+position et retombaient à l'origine de leur conteneur.
+Correctif AU BON NIVEAU : le démarrage part à la toute fin du fichier. Corriger `PILL_MIN_GAP` seul
+(en le remontant) aurait refermé CE cas et laissé la porte ouverte au prochain `const` ajouté entre
+les deux — le fichier contient déjà un commentaire, écrit lors d'un lot antérieur, expliquant que
+`undoStack`/`MAX_UNDO` avaient dû être déclarés tout en haut pour cette raison exacte. Le vrai défaut
+n'était pas la position d'une constante, c'était l'endroit d'où on démarre.
+
+### 2. Le bouton métronome n'était pas éteint, il était invisible (point 1)
+
+Fausse piste écartée d'emblée : le JS. Relevé après un vrai clic, la classe était bien posée
+(`icon-btn icon-btn-lg active`) et la préférence bien écrite. Le défaut était dans la feuille de
+style, et c'est un cas d'école du mode d'échec « règle plus spécifique » : le lot d'homogénéisation du
+volet gauche pose `.col-left .icon-btn:not(…):not(…):not(…)` avec `background-image: none`, soit
+(0,7,0) — qui écrase `.icon-btn.active` (0,2,0), le SEUL endroit où se disait l'état allumé. Mesuré :
+`background-image` calculé « none » et cadre resté `rgb(51,51,51)`, c'est-à-dire l'aspect exact du
+bouton éteint, classe `.active` posée ou non.
+Correctif au niveau de la FAMILLE et non de ce bouton : la panne ne visait pas le métronome, elle
+visait toutes les bascules du volet, et la prochaine ajoutée serait née éteinte. Fond vert PLEIN (pas
+le retour du dégradé, qui rouvrirait la famille qu'on venait de fermer) + une règle `:hover` jumelle,
+sans quoi le survol neutre reprenait la main et le bouton s'éteignait sous le curseur — au moment
+précis où on le regarde. Vérifié bureau ET mobile, allumage, persistance après rechargement,
+extinction.
+
+### 3. Paroles : ce qui part, ce qui reste (points 2a–2d)
+
+**Le bandeau vert (2a).** Ce qu'il disait était déjà lisible ailleurs : l'accord en main est surligné
+dans la réserve juste au-dessus du texte, et l'enchaînement y déplace le surlignage tout seul —
+« puis Fadd9 » répétait en toutes lettres ce que la réserve montrait. Ce qui NE POUVAIT PAS partir
+avec : le bouton « Arrêter ». Au doigt il n'y a pas d'Échap, et cliquer un accord déjà armé le
+RÉ-arme au lieu de le relâcher (correction délibérée d'un lot antérieur) — sans ce bouton, plus aucun
+moyen de reposer l'accord en main sur un téléphone. Il devient un bouton ordinaire du bandeau
+d'outils au lieu du prétexte d'un encadré.
+
+**Le vert fluo (2b).** `--accent` (#00e676) est à saturation pleine ; les paroles juste en dessous
+sont en #e0e0e0 quasi neutre. Sur une page entière, chaque pastille tirait l'œil plus fort que la
+ligne qu'elle annote — alors que c'est le texte qu'on lit en chantant. Même teinte, saturation et
+luminosité rabaissées (`--accent-pastille: #79c99a`), réservée aux pastilles : l'accent plein reste
+partout ailleurs, où il marque des états ponctuels et non une trame répétée.
+
+**Le curseur de taille (2c, couleurs).** Il était laissé au rendu natif, donc peint avec l'accent du
+SYSTÈME (bleu sur la plupart des machines) au milieu d'une page verte : la seule commande de toute
+l'appli à ne pas être de la maison. `accent-color`, exactement comme style.css le fait pour tous les
+curseurs de HarmoHub.
+
+**La taille de texte réduite (2c, disposition).** Mesuré avant correction : la pastille gardait
+20,1 px de haut à toutes les tailles (police figée à 0.72rem) tandis que le blanc entre deux lignes
+suit l'interligne — 22,7 px à 160 %, 14,8 px à 100 %, 10,8 px à 80 %. Réduire le texte réduisait donc
+le logement sans réduire ce qu'on y met. Exprimée en fraction de `--lyrics-fs`, la pastille garde le
+même rapport à son interligne partout : mesuré après, 16,6 / 20,2 / 31,1 px pour 80 / 100 / 160 % —
+strictement proportionnel. Le réglage devient un zoom du bloc paroles+accords, pas du seul texte.
+
+**La sortie PDF (2d).** Quatre reproches, traités ensemble :
+- *l'espace* : l'interligne 2.8 existe pour loger une pastille ENCADRÉE et la saisir au doigt ; sur le
+  papier elle perd cadre et fond et personne ne la déplace. Resserré au seul mode impression. Mesuré :
+  écart pastille→texte 7,5 px → 2,6 px.
+- *les polices* : ce n'était pas une autre famille mais 0.72rem en graisse 800 contre 1rem normal —
+  assez pour se lire comme deux typographies. Rapproché : 14,08 px en graisse 700 sous un texte de
+  16 px.
+- *le débord à gauche* : une pastille est CENTRÉE sur son caractère, donc celle du premier caractère
+  sort de la moitié de sa largeur, par construction. À l'écran la marge de la carte l'absorbait ; le
+  PDF rastérise la carte à ses bords exacts et coupait l'accord. Bornée dans la zone de texte : mieux
+  vaut un accord de quelques pixels à droite de sa syllabe qu'un accord coupé en deux. Mesuré : débord
+  ramené à 0,2 px.
+- *le bleu très foncé* : demandé, et justifié — un vert imprimé sur blanc perd son contraste, le bleu
+  nuit reste franc, y compris en noir et blanc où il descend en gris sombre.
+
+**Piège évité au passage.** Changer l'interligne en mode impression déplaçait le TEXTE sans déplacer
+les pastilles, positionnées une fois en pixels absolus : la bascule de classe seule aurait aggravé
+exactement le défaut qu'on corrigeait. D'où `setModeImpression()`, qui repose les pastilles à chaque
+bascule, dans les deux sens. Vérifié : aller-retour écran → PDF → écran, valeurs identiques au
+dixième de pixel.

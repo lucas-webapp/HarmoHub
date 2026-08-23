@@ -6058,6 +6058,36 @@ select.song-select-narrow {
     border-color: var(--btn-neutral-border-hover);
     color: var(--text-main);
 }
+/* ÉTAT ALLUMÉ DE LA FAMILLE PLATE — À AJOUTER, PAS UN DÉTAIL. La règle d'homogénéisation ci-dessus
+   pose `background-image: none` sur tout le volet et pèse (0,7,0) : elle écrase .icon-btn.active
+   (0,2,0), qui était jusque-là le SEUL endroit où se disait l'état « allumé ». Les boutons à bascule
+   du volet recevaient donc toujours leur classe .active en JS, mais plus rien ne se voyait à l'écran.
+   Mesuré sur #toggle-metronome après un vrai clic : classe « icon-btn icon-btn-lg active » bien
+   posée, préférence écrite en mémoire, et pourtant background-image calculé « none » avec un cadre
+   resté rgb(51,51,51) — exactement l'aspect du bouton éteint (retour utilisateur : « le bouton qui
+   permet de maintenir le métronome pendant la lecture ou non doit rester "allumé" lorsqu'il est
+   activé. C'est pas le cas aujourd'hui. »).
+   Le correctif se fait AU NIVEAU DE LA FAMILLE et non sur ce bouton-là : la panne ne visait pas le
+   métronome, elle visait tous les boutons à bascule du volet. Un correctif nominatif aurait laissé les
+   autres muets, et la prochaine bascule ajoutée serait née éteinte.
+   Fond vert PLEIN, pas le retour du dégradé : la famille est plate, son état allumé l'est aussi —
+   rouvrir le dégradé ici déferait précisément l'homogénéité que ce lot avait posée. */
+.col-left .icon-btn.active:not(.icon-btn-accent):not(.arp-seq .icon-btn):not(.transport .icon-btn) {
+    background: var(--btn-green-1);
+    background-image: none;
+    border-color: var(--btn-green-border);
+    color: var(--btn-text);
+}
+/* Le survol d'un bouton DÉJÀ allumé doit rester vert : sans cette ligne, la règle de survol neutre
+   ci-dessus (même poids, écrite plus haut mais applicable au survol) reprenait la main et le bouton
+   « s'éteignait » sous le curseur — le pire moment pour perdre son état, puisque c'est justement là
+   qu'on le regarde. Un vert plus clair, comme les autres survols verts de l'appli. */
+.col-left .icon-btn.active:not(.icon-btn-accent):not(.arp-seq .icon-btn):not(.transport .icon-btn):hover {
+    background: #2b5540;
+    background-image: none;
+    border-color: var(--btn-green-border-hover);
+    color: var(--btn-text);
+}
 /* LES TROIS ACTIONS : couleur conservée, forme alignée. On ne touche ni à la teinte de fond ni au
    liseré — seulement au dégradé, à l'ombre et au rayon, qui sont ce qui les faisait appartenir à une
    autre famille visuelle. */

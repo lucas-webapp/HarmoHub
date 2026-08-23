@@ -247,6 +247,10 @@ function loadSong(data) {
         return;
     }
     document.getElementById('banners').innerHTML = '';
+    // Photo du morceau AVANT que loadSong ne lui ajoute ses champs de travail (_lyricsHtml,
+    // _placements...) : c'est cette structure brute qu'on veut retrouver à la réouverture.
+    try { localStorage.setItem(LAST_SONG_KEY, JSON.stringify(data)); }
+    catch (e) { console.error('Mémorisation du dernier morceau impossible :', e); }
     const saved = loadSavedSession(data);
     let droppedPlacements = 0;
     data.sections.forEach((sec, si) => {
@@ -307,8 +311,21 @@ document.getElementById('file-input').addEventListener('change', (e) => {
 // Bascule le mode "impression/PDF" (voir la classe .pdf-export-mode dans paroles.css) : une VRAIE
 // impression navigateur (Ctrl+P, ou l'imprimante système) reste possible en secours, et partage les
 // mêmes règles de mise en forme que notre propre export PDF ci-dessous plutôt que deux jeux dupliqués.
-window.addEventListener('beforeprint', () => document.body.classList.add('pdf-export-mode'));
-window.addEventListener('afterprint', () => document.body.classList.remove('pdf-export-mode'));
+// Le mode impression change l'INTERLIGNE et la taille des pastilles (voir .pdf-export-mode dans
+// paroles.css, resserrés pour le papier). Or une pastille est positionnée en pixels absolus, calculés
+// une fois pour la disposition du moment : basculer la classe sans repasser par renderPills laisserait
+// les accords aux coordonnées de l'écran pendant que le texte, lui, se resserre — soit exactement le
+// défaut qu'on cherche à corriger, en pire. D'où ce recalcul à chaque bascule, dans les deux sens.
+function setModeImpression(actif) {
+    document.body.classList.toggle('pdf-export-mode', actif);
+    if (!state.song) return;
+    // Force le navigateur à recalculer la mise en page AVANT de remesurer les lignes : sans cette
+    // lecture, les rectangles renvoyés seraient encore ceux d'avant la bascule.
+    void document.body.offsetHeight;
+    state.song.sections.forEach((_, si) => renderPills(si));
+}
+window.addEventListener('beforeprint', () => setModeImpression(true));
+window.addEventListener('afterprint', () => setModeImpression(false));
 
 // Export PDF réel (jsPDF + html2canvas, même recette que exportPdf dans script.js de HarmoHub) —
 // remplace l'ancien bouton "Imprimer" qui ne faisait qu'ouvrir la boîte d'impression du navigateur :
@@ -323,7 +340,7 @@ async function exportLyricsPdf() {
     if (!blocks.length) { showBanner('Rien à exporter — importe un morceau avant.', 'warning'); return; }
 
     btn.disabled = true;
-    document.body.classList.add('pdf-export-mode');
+    setModeImpression(true);
     // Rastériser plusieurs sections prend quelques secondes (voir la boucle html2canvas plus bas) :
     // un bandeau visible plutôt qu'un bouton silencieusement désactivé, pour ne pas laisser croire que
     // rien ne se passe (même esprit que "assure-toi que les enregistrements sont bien réalisés, avec
@@ -365,7 +382,7 @@ async function exportLyricsPdf() {
         pendingBanner.remove();
         showBanner("Échec de l'export PDF — réessaie, ou utilise Ctrl+P (Imprimer) en secours.", 'error');
     } finally {
-        document.body.classList.remove('pdf-export-mode');
+        setModeImpression(false);
         btn.disabled = false;
     }
 }
@@ -444,14 +461,28 @@ document.getElementById('btn-copy-text').addEventListener('click', async (e) => 
 // fois (retiré aussitôt lu) : une visite ultérieure de cette page (favori, retour en arrière) retombe
 // normalement sur le morceau déjà ouvert dans CETTE page, pas sur un réimport fantôme.
 const PENDING_IMPORT_KEY = 'harmohub_lyrics_pending_import';
-(function tryAutoImportFromHarmoHub() {
+// Dernier morceau ouvert dans CETTE page, structure complète (parties + accords), à distinguer de la
+// session de paroles (voir STORAGE_PREFIX/storageKeyForSong) qui ne mémorise QUE le texte et les
+// accords posés, jamais la liste des accords disponibles. Sans cette copie, rouvrir Paroles sans
+// repasser par HarmoHub retombait sur la page vide alors que les paroles, elles, étaient toujours
+// enregistrées : impossible de les retrouver (retour utilisateur : "il y a également des problèmes à
+// la fermeture de « Paroles » et réouverture. Les accords ne sont plus en place.").
+const LAST_SONG_KEY = 'harmohub_lyrics_last_song';
+
+function tryAutoImportFromHarmoHub() {
     try {
         const raw = localStorage.getItem(PENDING_IMPORT_KEY);
-        if (!raw) return;
-        localStorage.removeItem(PENDING_IMPORT_KEY);
-        loadSong(JSON.parse(raw));
+        if (raw) {
+            localStorage.removeItem(PENDING_IMPORT_KEY);
+            loadSong(JSON.parse(raw));
+            return;
+        }
+        // Pas de dépôt en attente : on rouvre le dernier morceau travaillé ici. loadSong rebranche
+        // tout seul les paroles et les accords posés depuis la session enregistrée pour ce morceau.
+        const dernier = localStorage.getItem(LAST_SONG_KEY);
+        if (dernier) loadSong(JSON.parse(dernier));
     } catch (e) { console.error('Récupération automatique depuis HarmoHub impossible :', e); }
-})();
+}
 
 // ---------- Construction du DOM (une seule fois par import) ----------
 
@@ -1210,7 +1241,16 @@ function renderPills(si) {
     });
 
     built.forEach(b => {
-        b.pill.style.left = (b.finalX - wrapRect.left) + 'px';
+        // BORNÉE DANS LA ZONE DE TEXTE. Une pastille est CENTRÉE sur son caractère (translate(-50%)) :
+        // celle du tout premier caractère d'une ligne dépasse donc à gauche de la moitié de sa
+        // largeur, par construction. À l'écran la marge de la carte l'absorbait ; sur le PDF, qui
+        // rastérise la carte à ses bords exacts, l'accord se retrouvait rogné (retour utilisateur :
+        // « le premier accord peut dépasser à gauche »). On la ramène à l'intérieur plutôt que de la
+        // laisser sortir : mieux vaut un accord de quelques pixels à droite de sa syllabe qu'un
+        // accord coupé en deux. Même borne à droite, pour la dernière syllabe d'une ligne pleine.
+        const demi = b.pill.offsetWidth / 2;
+        const gauche = clamp(b.finalX - wrapRect.left, demi, Math.max(demi, wrapRect.width - demi));
+        b.pill.style.left = gauche + 'px';
         // `lineTop` est désormais le CENTRE Y de l'espace réservé (voir verticalSlotCenter) : on centre
         // donc la pastille dessus via sa hauteur réelle, pas un simple décalage fixe.
         b.pill.style.top = (b.lineTop - wrapRect.top - b.pill.offsetHeight / 2) + 'px';
@@ -1252,18 +1292,19 @@ function updateModeUI() {
         const sec = state.song.sections[state.armed.si];
         const chord = sec.chords[state.armed.ci];
         hint.hidden = false;
-        // Annonce aussi CE QUI VIENDRA ENSUITE quand l'enchaînement est actif : on pose alors une
-        // progression entière sans quitter le texte des yeux, et savoir d'avance quel accord arrive
-        // évite de devoir vérifier la réserve entre chaque clic.
-        const suivant = (prefs.chain && sec.chords.length > 1)
-            ? sec.chords[(state.armed.ci + 1) % sec.chords.length]
-            : null;
-        hint.innerHTML = `Clique dans le texte pour poser <strong>${escapeHtml(chord.symbol)}</strong>`
-            + (suivant ? ` <span class="hint-next">puis ${escapeHtml(suivant.symbol)}</span>` : '')
-            + ` <button type="button" id="hint-stop" class="hint-stop" title="Arrêter de poser (Échap)">Arrêter</button>`;
-        // Un vrai bouton, pas seulement la mention « Échap » : au doigt il n'y a pas de touche Échap,
-        // et depuis que cliquer un accord ne le désarme plus (voir renderPool), il n'existerait
-        // sinon aucun moyen de reposer l'accord en main sur un téléphone.
+        // PLUS DE PHRASE D'AIDE, ET PLUS DE BANDEAU VERT (retour utilisateur : « enlever le bandeau
+        // vert qui indique comment positionner les accords, pas besoin d'aide pour cela »). Ce qu'il
+        // disait était de toute façon déjà lisible ailleurs : l'accord en main est celui qui est
+        // surligné dans la réserve juste au-dessus du texte, et l'enchaînement déplace ce surlignage
+        // tout seul d'un accord au suivant — annoncer « puis Fadd9 » répétait donc en toutes lettres
+        // ce que la réserve montrait déjà.
+        // CE QUI RESTE, ET POURQUOI ÇA NE PEUT PAS PARTIR AVEC : le bouton « Arrêter ». Au doigt il
+        // n'y a pas de touche Échap, et cliquer un accord déjà armé le RÉ-arme au lieu de le relâcher
+        // (voir renderPool, c'était une correction délibérée) — sans ce bouton, il n'existerait plus
+        // aucun moyen de reposer l'accord en main sur un téléphone. Il devient donc un bouton
+        // ordinaire du bandeau d'outils, de la même famille que ses voisins, au lieu d'être le
+        // prétexte d'un encadré vert.
+        hint.innerHTML = `<button type="button" id="hint-stop" class="hint-stop" title="Arrêter de poser ${escapeHtml(chord.symbol)} (Échap)">Arrêter</button>`;
         hint.querySelector('#hint-stop').addEventListener('click', (e) => { e.stopPropagation(); disarm(); });
     } else {
         hint.hidden = true;
@@ -1292,3 +1333,14 @@ function debounce(fn, ms) {
     let t = null;
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
+
+// ---------- Démarrage ----------
+// APRÈS tout le reste du fichier, volontairement : le chargement d'un morceau construit le DOM et
+// dessine déjà les pastilles, donc il touche à des constantes déclarées plus haut en `const` (ex.
+// PILL_MIN_GAP, utilisée par renderPills). Un `const` n'est PAS hissé comme une fonction : appelé
+// depuis le milieu du fichier, renderPills levait "Cannot access 'PILL_MIN_GAP' before
+// initialization", l'import s'interrompait en plein vol et les pastilles restaient sans position —
+// mesuré : accord posé à x=312, accord rouvert à x=277, sans style.left du tout (retour utilisateur :
+// "à la fermeture de « Paroles » et réouverture, les accords ne sont plus en place"). Démarrer ici
+// met le fichier entier à disposition et referme cette famille de pannes d'un coup.
+tryAutoImportFromHarmoHub();

@@ -9,6 +9,16 @@
     --text-muted: #a0a0a0;
     --accent: #00e676;
     --accent-hover: #00c853;
+    /* Vert ADOUCI, réservé aux pastilles d'accords posées dans le texte (voir .lyric-pill). Retour
+       utilisateur : « le vert des accords est trop "fluo" par rapport au texte blanc, à adoucir ».
+       Et c'est mesurable : --accent (#00e676) est à saturation pleine, alors que les paroles juste en
+       dessous sont en #e0e0e0 quasi neutre — sur une page entière de texte, chaque pastille tirait
+       l'œil plus fort que la ligne qu'elle annote, alors que c'est le texte qu'on lit en chantant.
+       Même teinte (vert HarmoHub), saturation et luminosité rabaissées : les accords restent
+       identifiables d'un coup d'œil sans hurler par-dessus les paroles. L'accent PLEIN reste, lui,
+       partout ailleurs (logo, boutons actifs, accord armé dans la réserve) : ce sont des états
+       ponctuels, pas une trame répétée sur toute la page. */
+    --accent-pastille: #79c99a;
     --border: #333;
     --radius: 12px;
     --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -282,31 +292,31 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
 /* Boutons icône seule (Annuler/Rétablir) : carrés, sans texte à caser — même logique que .icon-btn
    dans style.css. */
 .mode-btn.icon-only { padding: 6px 10px; }
+/* PLUS D'ENCADRÉ VERT ICI : simple conteneur du bouton « Arrêter » (voir updateModeUI dans
+   paroles.js). Retour utilisateur : « enlever le bandeau vert qui indique comment positionner les
+   accords, pas besoin d'aide pour cela ». Le fond, le cadre et la teinte d'accent partent avec la
+   phrase qu'ils mettaient en valeur — il ne reste plus rien à encadrer. */
 .armed-hint {
     display: inline-flex;
     align-items: center;
-    gap: 9px;
-    font-size: 0.82rem;
-    color: var(--accent);
-    background: #17301f;
-    border: 1px solid #2f5b40;
-    border-radius: 8px;
-    padding: 5px 6px 5px 12px;
 }
 /* Sortie explicite du mode « pose » — voir updateModeUI : la seule qui existe au doigt, puisque
-   Échap n'est pas une touche qu'on a sous la main sur un téléphone. */
+   Échap n'est pas une touche qu'on a sous la main sur un téléphone. Désormais un bouton ORDINAIRE
+   du bandeau d'outils (mêmes cotes et même famille que .mode-btn, ses voisins immédiats) et non plus
+   une pastille posée dans un encadré vert : il ne signale plus un mode, il propose une action. */
 .hint-stop {
     font-family: var(--font);
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: var(--text-main);
-    background: rgba(0, 0, 0, 0.28);
-    border: 1px solid #2f5b40;
-    border-radius: 6px;
-    padding: 3px 9px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    color: var(--text-muted);
+    background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0) 50%), #1c2027;
+    border: 1px solid var(--border);
+    border-radius: 8px;
     cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease;
 }
-.hint-stop:hover { background: rgba(0, 0, 0, 0.45); border-color: var(--accent); }
+.hint-stop:hover { background: linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0) 50%), #262b33; color: var(--text-main); }
 @media (pointer: coarse) {
     .hint-stop { min-height: 32px; padding: 6px 12px; }
 }
@@ -331,7 +341,23 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     color: var(--text-main);
     cursor: default;
 }
-.option-row input[type="range"] { flex: 1; max-width: 220px; }
+/* MÊME CURSEUR QUE DANS HARMOHUB. Retour utilisateur : « l'outil "taille de texte" ne suit pas les
+   codes couleur du reste de l'appli ». Il était laissé au rendu natif du navigateur, donc peint avec
+   la couleur d'accent du SYSTÈME (bleu sur la plupart des machines) au milieu d'une page verte — la
+   seule commande de toute l'application à ne pas être de la maison. `accent-color` suffit : c'est
+   exactement ce que fait style.css pour tous les curseurs de HarmoHub, et le rendu natif (préféré, cf.
+   l'historique de input[type=range] là-bas) est conservé tel quel. */
+.option-row input[type="range"] {
+    flex: 1;
+    max-width: 220px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+/* Zone de prise agrandie au doigt, sans redessiner le curseur — copie conforme de la règle de
+   style.css, pour que le geste soit le même dans les deux pages. */
+@media (pointer: coarse) {
+    .option-row input[type="range"] { padding: 14px 0; }
+}
 .option-value { color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 3.5ch; }
 /* Réglage à cocher (voir #opt-chain) : la case et son libellé sur la première ligne, l'explication en
    dessous — un réglage qui change la façon de travailler mérite d'être expliqué là où il se règle,
@@ -357,7 +383,6 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
 }
 /* Accord qui viendra APRÈS celui qu'on tient (voir updateModeUI) : lisible mais en retrait, il
    renseigne sans détourner l'œil de l'accord en cours. */
-.hint-next { opacity: 0.62; font-size: 0.95em; }
 
 /* Même carte que .control-card dans style.css (fond, rayon, marge) : les sections de Paroles doivent
    se lire comme les cartes Accord/Morceau/Séquenceur de HarmoHub, pas comme un composant distinct. */
@@ -505,8 +530,11 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
 .lyrics-wrap {
     position: relative;
     /* De la place pour les pastilles d'accords posées au-dessus du texte (voir .lyric-pill) sans
-       jamais chevaucher la ligne juste au-dessus. */
-    padding-top: 22px;
+       jamais chevaucher la ligne juste au-dessus. PROPORTIONNELLE à la taille du texte (et non plus
+       22px figés) : cette réserve n'existe que pour loger UNE pastille, et les pastilles suivent
+       désormais la taille du texte — voir .lyric-pill. À 100 % le résultat est inchangé (1.4 × 16px =
+       22.4px, soit les 22px d'avant). */
+    padding-top: calc(var(--lyrics-fs, 1rem) * 1.4);
 }
 .lyrics-text {
     min-height: 60px;
@@ -543,16 +571,27 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     pointer-events: none;
 }
 
+/* LA PASTILLE SUIT LA TAILLE DU TEXTE. Retour utilisateur : « lorsque je réduis le texte, l'affichage
+   n'est pas optimal avec les pastilles d'accords ». Mesuré avant correction : la pastille gardait
+   20,1px de haut à TOUTES les tailles (police figée à 0.72rem), alors que le blanc disponible entre
+   deux lignes, lui, suit l'interligne — 22,7px à 160 %, 14,8px à 100 %, et seulement 10,8px à 80 %.
+   Réduire le texte revenait donc à réduire le logement sans réduire ce qu'on y met : à 80 % la
+   pastille faisait presque le double de la place restante et mordait sur les paroles. Dans l'autre
+   sens, à 160 %, elle paraissait minuscule au-dessus d'un texte deux fois plus gros.
+   Exprimée en fraction de --lyrics-fs, la pastille garde EXACTEMENT le même rapport à son interligne
+   à toutes les tailles : le réglage devient un vrai zoom du bloc paroles+accords, pas seulement du
+   texte. Le reste des cotes passe en `em` pour la même raison — elles se mesurent maintenant par
+   rapport à cette police-là, plus par rapport au navigateur. */
 .lyric-pill {
     position: absolute;
     transform: translate(-50%, 0);
-    font-size: 0.72rem;
+    font-size: calc(var(--lyrics-fs, 1rem) * 0.72);
     font-weight: 800;
-    color: var(--accent);
-    background: rgba(0, 230, 118, 0.12);
-    border: 1px solid var(--accent);
-    border-radius: 5px;
-    padding: 1px 6px;
+    color: var(--accent-pastille);
+    background: rgba(121, 201, 154, 0.10);
+    border: 1px solid rgba(121, 201, 154, 0.45);
+    border-radius: 0.45em;
+    padding: 0.09em 0.52em;
     white-space: nowrap;
     cursor: grab;
     line-height: 1.4;
@@ -563,7 +602,7 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
        pointermove suivre le doigt. */
     touch-action: none;
 }
-.lyric-pill:hover { background: rgba(0, 230, 118, 0.22); }
+.lyric-pill:hover { background: rgba(121, 201, 154, 0.2); border-color: var(--accent-pastille); }
 /* Pendant un glisser actif (voir pointermove dans paroles.js) : retour visuel clair que la pastille
    est "en main", cohérent avec l'état .armed des chips de la réserve (même dégradé/couleur d'accent). */
 .lyric-pill.dragging {
@@ -572,7 +611,7 @@ main { max-width: 900px; margin: 0 auto; padding: 24px 20px 80px; }
     z-index: 2;
 }
 .lyric-pill .pill-del {
-    margin-left: 4px;
+    margin-left: 0.35em;
     opacity: 0.6;
     font-weight: 400;
     cursor: pointer;
@@ -606,8 +645,35 @@ body.pdf-export-mode .section-title { color: #000; }
    — seuls les boutons +/- d'édition, inutiles hors écran, sont masqués. */
 body.pdf-export-mode .section-meta { color: #444; }
 body.pdf-export-mode .repeat-btn { display: none; }
-body.pdf-export-mode .lyrics-text { color: #000; }
-body.pdf-export-mode .lyric-pill { color: #000; background: none; border: none; padding: 0; }
+/* LES ACCORDS SUR LE PAPIER — quatre reproches, un seul bloc de règles (retour utilisateur, PDF à
+   l'appui : « il y a trop d'espace entre la pastille d'accord et le texte, c'est des polices
+   d'écriture différentes, le premier accord peut dépasser à gauche, etc... Tu pourrais colorier les
+   pastilles d'accord en bleu très foncé pour le PDF »).
+   L'INTERLIGNE d'abord : 2.8 à l'écran, c'est le blanc qu'il faut pour loger une pastille ENCADRÉE
+   entre deux lignes, et pour la saisir au doigt. Sur le PDF la pastille perd son cadre et son fond,
+   personne ne la déplace plus — ce blanc n'a plus de raison d'être et éloigne l'accord de la syllabe
+   qu'il annonce. Réduit ici seulement.
+   LA POLICE ensuite : ce n'était pas une autre famille, mais 0.72rem en graisse 800 contre du 1rem
+   en graisse normale — assez pour se lire comme deux typographies posées côte à côte. Rapprochée du
+   texte (0.88 de sa taille, graisse 700) : on lit une ligne d'accords au-dessus d'une ligne de
+   paroles, pas deux documents superposés.
+   LE BLEU TRÈS FONCÉ enfin : à l'écran le vert distingue l'accord du texte, mais un vert imprimé sur
+   blanc perd tout son contraste. Le bleu nuit reste franc à l'impression, y compris en noir et blanc
+   où il descend en gris sombre, et se distingue quand même du noir des paroles.
+   (Le débord du premier accord, lui, ne se règle pas en CSS : la pastille est centrée sur son
+   caractère, donc celle du tout premier caractère dépasse à gauche par construction — voir la borne
+   posée dans renderPills, paroles.js.) */
+body.pdf-export-mode .lyrics-text { color: #000; line-height: 2; }
+body.pdf-export-mode .lyrics-wrap { padding-top: calc(var(--lyrics-fs, 1rem) * 1.1); }
+body.pdf-export-mode .lyric-pill {
+    color: #12295e;
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: var(--font);
+    font-size: calc(var(--lyrics-fs, 1rem) * 0.88);
+    font-weight: 700;
+}
 body.pdf-export-mode .lyric-pill .pill-del { display: none; }
 body.pdf-export-mode .line-divider { display: none; }
 
