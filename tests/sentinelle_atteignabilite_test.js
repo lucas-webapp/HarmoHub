@@ -24,14 +24,29 @@ const { chromium, devices } = require('playwright');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('sentinelle : atteignabilité des commandes');
 
+// CETTE SENTINELLE S'ÉTAIT PIÉGÉE ELLE-MÊME, exactement comme le décrit la méta-suite : un
+// `.catch(() => {})` sur un clic transforme « ce bouton n'existe plus » en « tout va bien ». Deux de
+// ses cinq surfaces visaient des adresses qui n'existent plus dans index.html — #song-settings-btn et
+// #settings-btn — et ne s'ouvraient donc PAS. Le relevé se faisait quand même : il inventoriait deux
+// fois de plus la page de fond, en annonçant dans son bilan qu'il avait éprouvé les réglages du
+// morceau et les Paramètres. Un banc vert qui ne regarde pas ce qu'il dit regarder est pire qu'un banc
+// absent : il occupe la place. Les vraies adresses sont #song-summary (le bouton qui déplie
+// #song-settings) et #open-settings (la roue crantée de l'en-tête).
+// D'où `ouvrirPar` : un clic qui ATTEND la commande puis échoue bruyamment si elle manque. Le jour où
+// l'un de ces boutons sera renommé, ce banc le dira au lieu de continuer à mesurer le vide.
+const ouvrirPar = async (p, selecteur) => {
+    await p.waitForSelector(selecteur, { state: 'visible', timeout: 5000 });
+    await p.click(selecteur);
+};
+
 const SURFACES = [
     { nom: 'panneau Accord', ouvrir: async (p) => { await p.evaluate(() => window.app.editChord(0, 0)); } },
-    { nom: 'réglages du morceau', ouvrir: async (p) => { await p.click('#song-settings-btn').catch(() => {}); } },
-    { nom: 'Paramètres', ouvrir: async (p) => { await p.click('#settings-btn').catch(() => {}); } },
+    { nom: 'réglages du morceau', ouvrir: async (p) => { await ouvrirPar(p, '#song-summary'); } },
+    { nom: 'Paramètres', ouvrir: async (p) => { await ouvrirPar(p, '#open-settings'); } },
     { nom: 'édition manuelle guitare', ouvrir: async (p) => {
-        if (!(await p.evaluate(() => document.getElementById('toggle-viz-guitar')?.getAttribute('aria-pressed') === 'true'))) await p.click('#toggle-viz-guitar').catch(() => {});
+        if (!(await p.evaluate(() => document.getElementById('toggle-viz-guitar')?.getAttribute('aria-pressed') === 'true'))) await ouvrirPar(p, '#toggle-viz-guitar');
         await p.evaluate(() => window.app.editChord(0, 0));
-        await p.click('#guitar-edit-btn').catch(() => {});
+        await ouvrirPar(p, '#guitar-edit-btn');
     } },
     { nom: 'séquenceur continu', ouvrir: async (p) => {
         await p.evaluate(() => window.app.editChord(0, 0));
@@ -73,7 +88,15 @@ const DETTE_TACTILE = {
 // La surface ACTIVE : la fenêtre/le panneau au premier plan, ou le document si rien ne se superpose.
 // C'est elle, et elle seule, qui doit répondre au clic.
 const releverSurfaceActive = (minTactile) => {
-    const superposees = [...document.querySelectorAll('.settings-overlay:not([hidden]), .popover:not([hidden]), [role="dialog"]')]
+    // `.song-settings.flottant` A DÛ ÊTRE AJOUTÉE ICI, et c'est instructif. Ce panneau des réglages du
+    // morceau se détache de la page quand on l'ouvre (position: fixed, z-index 50, voir style.css) :
+    // c'est une surface au premier plan comme une autre, mais il ne porte ni .popover ni role="dialog".
+    // Faute de le reconnaître, la sentinelle mesurait la PAGE DE FOND pendant que le panneau la
+    // recouvrait, et accusait seize commandes d'être « recouvertes par control-card » — alors qu'être
+    // recouvert est précisément ce qu'on attend d'une page derrière un panneau ouvert. Le défaut
+    // n'était visible que depuis que ce panneau s'ouvre pour de bon (voir ouvrirPar plus haut) : tant
+    // que le clic échouait en silence, le relevé portait sur une page au repos et paraissait sain.
+    const superposees = [...document.querySelectorAll('.settings-overlay:not([hidden]), .popover:not([hidden]), .song-settings.flottant:not([hidden]), [role="dialog"]')]
         .filter(el => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
             return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden'; });
     const hote = superposees.length ? superposees[superposees.length - 1] : document.body;
@@ -134,7 +157,11 @@ plan(SURFACES.length * 2 * 2 + 5);
         await page.waitForTimeout(900);
 
         for (const surface of SURFACES) {
-            await page.keyboard.press('Escape').catch(() => {});
+            // Referme ce qui traîne de la surface précédente. Le repli reste (une touche envoyée à une
+            // page qui n'écoute rien n'est pas une anomalie), mais il est NOMMÉ : un catch muet, ici,
+            // c'est ce qui a permis aux deux surfaces mortes ci-dessus de passer inaperçues si
+            // longtemps.
+            await page.keyboard.press('Escape').catch((e) => { erreurs.push(`Échap de nettoyage : ${e.message}`); });
             await page.waitForTimeout(120);
             await surface.ouvrir(page);
             await page.waitForTimeout(450);

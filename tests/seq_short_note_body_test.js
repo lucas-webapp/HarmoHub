@@ -268,8 +268,10 @@ await page.click('#seq-plein-ecran');
         check(p1.cell < 40, `épinglé : cases plus étroites qu'en vue compacte (${p1.cell.toFixed(1)} px)`);
         await serieDeVue(page, 'épinglé (loupe grille)');
     }
-    await page.click('#grid-zoom-close').catch(() => {});
-    await page.waitForTimeout(400);
+    // PLUS DE FERMETURE DE LA LOUPE ICI. Cette ligne cliquait #grid-zoom-close, une adresse qui
+    // n'existe plus depuis la refonte de la loupe — et son `.catch(() => {})` avalait l'échec, si bien
+    // qu'elle ne faisait plus rien depuis des semaines sans que rien ne le dise. Elle ne manque à
+    // personne : la page est fermée à la ligne suivante, il n'y a donc aucun état à ranger.
     await page.close();
 
     // ============================================================

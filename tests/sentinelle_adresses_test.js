@@ -60,7 +60,19 @@ for (const banc of bancs) {
     const source = lire(path.join('tests', banc));
     // Ligne par ligne, pour pouvoir juger le CONTEXTE de chaque citation — c'est ce qui distingue un
     // banc périmé d'un banc qui vérifie exprès qu'une adresse a disparu.
-    const citees = new Map();  // adresse -> la ligne où elle est citée
+    // TOUTES les lignes citant l'adresse, pas seulement la première. Corrigé après avoir vu cette
+    // sentinelle accuser deux bancs QUI FONT EXACTEMENT CE QU'ELLE DEMANDE : la vérification d'absence
+    // tient presque toujours sur DEUX lignes — on récupère l'élément, puis on affirme qu'il est nul.
+    //
+    //     const oldBtn = await page.$('#btn-print');            <- la ligne citée
+    //     check(!oldBtn, "l'ancien #btn-print n'existe plus");  <- celle qui porte le sens
+    //
+    // En ne retenant que la première, la sentinelle jugeait sur la ligne la moins parlante des deux et
+    // déclarait « périmés » paroles_pdf_test et paroles_repeat_test, dont c'est justement le rôle
+    // d'empêcher le retour d'un bouton supprimé. Elle poussait donc à effacer ces gardes — le pire
+    // conseil possible, et sur l'outil chargé de traquer les bancs qui mentent.
+    // Une adresse n'est morte que si AUCUNE de ses mentions n'attend son absence.
+    const citees = new Map();  // adresse -> toutes les lignes où elle est citée
     source.split('\n').forEach(ligne => {
         const nue = ligne.trim();
         // Un commentaire n'adresse rien : il RACONTE, souvent l'histoire d'une adresse justement
@@ -69,7 +81,8 @@ for (const banc of bancs) {
         const prendre = (re, i) => { for (const m of ligne.matchAll(re)) { const a = m[i];
             // #fff, #1c2027 : une couleur CSS n'est pas une adresse.
             if (/^[0-9a-fA-F]{3}$/.test(a) || /^[0-9a-fA-F]{6}$/.test(a)) continue;
-            if (!citees.has(a)) citees.set(a, ligne); } };
+            if (!citees.has(a)) citees.set(a, []);
+            citees.get(a).push(ligne); } };
         prendre(/getElementById\(['"`]([a-zA-Z][a-zA-Z0-9_-]*)['"`]\)/g, 1);
         prendre(/['"`]#([a-zA-Z][a-zA-Z0-9_-]*)['"`]/g, 1);
         prendre(/['"`]#([a-zA-Z][a-zA-Z0-9_-]*)[ .>:[,)]/g, 1);
@@ -86,12 +99,40 @@ for (const banc of bancs) {
     for (const m of source.matchAll(/\.id\s*=\s*['"`]([a-zA-Z][a-zA-Z0-9_-]*)['"`]/g)) fabriquees.add(m[1]);
 
     const ATTEND_ABSENCE = /count\(\)\s*===\s*0|=== null|== null|!\s*document|\bnon\b|absent|disparu|n'existe plus|retiré|supprim|=== undefined|\.length === 0|toBeNull/i;
-    const mortes = [...citees.entries()]
-        .filter(([a, ligne]) => !adressesProduit.has(a)
+    // L'EXONÉRATION NE SE JUGE PAS SUR LES SEULES LIGNES EXTRAITES, et c'est là que se cachait le
+    // faux positif. L'extraction ci-dessus exige un guillemet collé au `#` — elle attrape donc
+    // `page.$('#btn-print')` mais pas `check(!oldBtn, "l'ancien #btn-print n'existe plus")`, où le
+    // dièse suit un espace au milieu d'une phrase. Résultat : la sentinelle jugeait l'adresse sur la
+    // ligne qui la RÉCUPÈRE, sans jamais voir celle qui affirme sa disparition, et accusait deux bancs
+    // de citer un bouton mort alors qu'ils gardent précisément la porte contre son retour.
+    // On relit donc TOUTES les lignes de code du banc, pas seulement celles qu'un motif a su découper.
+    // La borne `(?![\w-])` évite qu'un `#accord` exonère un `#accord-goto` voisin.
+    // FENÊTRE DE DEUX LIGNES, parce que la vérification d'absence se répartit presque toujours sur
+    // deux instructions et que la seconde ne répète PAS l'adresse :
+    //
+    //     const measureNumCheckbox = await page.$('#opt-show-measure-numbers');
+    //     check(!measureNumCheckbox, "la case […] a bien disparu des options");
+    //
+    // Le mot qui dit tout — « disparu » — est sur la ligne 2, l'adresse sur la ligne 1, et aucune des
+    // deux ne suffit seule. Juger ligne à ligne condamnait donc paroles_repeat_test, dont c'est
+    // exactement le rôle d'empêcher le retour d'une option retirée à la demande de l'utilisateur.
+    // Deux lignes et pas plus : au-delà, une vérification d'absence sans rapport, quelques lignes plus
+    // bas, finirait par innocenter une vraie adresse morte.
+    const toutesLignes = source.split('\n');
+    const attendSonAbsence = (a) => {
+        const motif = new RegExp('#?' + a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w-])');
+        return toutesLignes.some((l, i) => {
+            const nue = l.trim();
+            if (nue.startsWith('//') || nue.startsWith('*') || nue.startsWith('/*')) return false;
+            if (!motif.test(l)) return false;
+            return toutesLignes.slice(i, i + 3).some(v => ATTEND_ABSENCE.test(v));
+        });
+    };
+    const mortes = [...citees.keys()]
+        .filter(a => !adressesProduit.has(a)
             && !ASSEMBLES_A_L_EXECUTION.some(re => re.test(a))
             && !fabriquees.has(a)
-            && !ATTEND_ABSENCE.test(ligne))
-        .map(([a]) => a);
+            && !attendSonAbsence(a));
     citationsTotal += citees.size;
     if (mortes.length) perimes.push({ banc, mortes });
     check(mortes.length === 0, `${banc} : ${citees.size} adresses citées, toutes encore offertes par le produit${mortes.length ? ' — MORTES : ' + mortes.join(', ') : ''}`);

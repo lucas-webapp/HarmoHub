@@ -7,11 +7,7 @@
       "setMode"
     ]
   },
-  "id_disparu": {
-    "seq_short_note_body_test.js": [
-      "grid-zoom-close"
-    ]
-  },
+  "id_disparu": {},
   "erreurs_avalees": {
     "affordances_test.js": 4,
     "audio_fallback_test.js": 1,
@@ -34,7 +30,6 @@
     "seq_num_and_grid_end_test.js": 2,
     "seq_num_mobile_clip_test.js": 2,
     "seq_row_pipette_test.js": 2,
-    "seq_short_note_body_test.js": 1,
     "song_panel_test.js": 1,
     "sortie_edition_involontaire_test.js": 1,
     "zoom_coherence_test.js": 2
@@ -171,11 +166,8 @@
   "verifications_conditionnelles": {
     "avant_seq_short_note_body_test.js": 3,
     "glock_full_real_ui_test.js": 1,
-    "manche_edition_lot1_test.js": 1,
-    "manche_edition_lot3_test.js": 1,
     "metronome_groove_test.js": 1,
     "popups_close_test.js": 1,
-    "probe_clic_accord_voisin_test.js": 1,
     "seq_changement_morceau_test.js": 1,
     "seq_glisser_molette_align_piano_test.js": 1,
     "seq_row_pipette_test.js": 1,

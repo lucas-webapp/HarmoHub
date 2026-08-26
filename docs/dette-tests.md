@@ -3076,3 +3076,85 @@ les pastilles, positionnées une fois en pixels absolus : la bascule de classe s
 exactement le défaut qu'on corrigeait. D'où `setModeImpression()`, qui repose les pastilles à chaque
 bascule, dans les deux sens. Vérifié : aller-retour écran → PDF → écran, valeurs identiques au
 dixième de pixel.
+
+## Comptabilité des bancs : réparer la dette plutôt que la figer
+
+Retour utilisateur : « améliore la comptabilité des bancs ». La méta-suite demandait de figer un gain
+avec `--maj`. C'aurait été le geste le plus court et le plus faux : trois de ses griefs n'étaient pas
+un gain à enregistrer, mais des aggravations que j'avais moi-même introduites en écrivant
+`sentinelle_atteignabilite_test.js` et `place_du_plus_et_diagrammes_test.js`. Le cliquet est fait pour
+empêcher exactement ça.
+
+### 1. Une sentinelle qui ne regardait pas ce qu'elle disait regarder
+
+`sentinelle_atteignabilite_test.js` ouvre cinq surfaces et vérifie que chaque commande visible répond
+au clic. Deux de ces cinq surfaces visaient `#song-settings-btn` et `#settings-btn` — des adresses qui
+n'existent pas dans index.html. Les vraies sont `#song-summary` et `#open-settings`. Et comme chaque
+clic portait un `.catch(() => {})`, l'échec ne se voyait pas : le relevé se faisait quand même, sur la
+page de fond, et le bilan annonçait tranquillement avoir éprouvé « les réglages du morceau » et « les
+Paramètres ». C'est le défaut que la méta-suite décrit dans son propre en-tête, reproduit à la lettre.
+
+Un banc vert qui ne regarde pas ce qu'il prétend regarder est pire qu'un banc absent : il occupe la
+place, et personne ne va écrire le banc manquant.
+
+Correctif : `ouvrirPar()`, un clic qui ATTEND la commande et échoue bruyamment si elle manque. Les six
+`.catch(() => {})` du fichier partent avec, sauf celui de l'Échap de nettoyage — conservé mais NOMMÉ,
+il alimente désormais la liste des erreurs.
+
+**Ce que ça a révélé, une fois les surfaces réellement ouvertes.** Quatre constats, tous inédits :
+- `#metronome-sound` (sélecteur 160×35 des Paramètres) a un `<h3 class="settings-group-title">` en
+  plein centre. Vérifié par clic réel : la valeur ne change pas.
+- `#toggle-seq-edit-audio` est recouvert par `#toggle-show-roman` — deux bascules superposées.
+- Sur téléphone, cinq bascules des Paramètres font 38×20, et `bpm-val` (30×18) et
+  `toggle-complex-mode` (30×36) passent sous le plancher de 32px que le projet s'est donné.
+
+Ces quatre-là sont de VRAIS défauts d'interface, pas de la dette de bancs. Ils ne sont pas absorbés
+dans `DETTE_TACTILE` : cette liste est plafonnée à six par une vérification explicite, et la faire
+passer à treize reviendrait à démonter le garde-fou pour faire taire ce qu'il vient de trouver. Le
+banc reste donc rouge, avec ses mesures, en attendant une décision d'interface.
+
+### 2. Le détecteur de surface avait un angle mort
+
+Une fois `#song-summary` cliqué pour de bon, la sentinelle accusait seize commandes d'être
+« recouvertes par control-card ». Faux positif : le panneau des réglages du morceau est
+`position: fixed` (`.song-settings.flottant`) mais ne porte ni `.popover` ni `role="dialog"`, donc le
+relevé retombait sur `document.body` et mesurait la page DERRIÈRE le panneau ouvert. Or être recouvert
+est précisément ce qu'on attend d'une page derrière un panneau. La classe est ajoutée à la liste des
+surfaces superposées. Ce défaut-là n'était visible que depuis que le panneau s'ouvre vraiment : tant
+que le clic échouait en silence, le relevé portait sur une page au repos et paraissait sain.
+
+### 3. Deux garde-fous qui punissaient les bancs exemplaires
+
+**Méta-suite, règle 5 (« vérifications sous condition »).** Elle comptait comme dette
+`if (X) { check(…) } else { check(…) }`. Or les DEUX branches enregistrent : quel que soit le chemin,
+le bilan reçoit une vérification — c'est-à-dire exactement ce que la règle cherche à garantir. Quatre
+bancs étaient punis pour avoir bien écrit leur `else` (manche_edition_lot1, manche_edition_lot3,
+probe_clic_accord_voisin, sentinelle_atteignabilite). Un garde-fou qui punit la branche `else` bien
+écrite apprend à ne plus en écrire. Reste interdit, inchangé : le `if` NU dont l'autre issue est
+muette.
+
+**Sentinelle d'adresses.** Elle déclarait périmés `paroles_pdf_test` et `paroles_repeat_test`, dont
+c'est justement le rôle d'empêcher le retour d'un bouton supprimé. Deux causes cumulées :
+- elle ne jugeait que la PREMIÈRE ligne citant l'adresse ;
+- et l'extraction exige un guillemet collé au `#`, donc elle n'attrapait pas
+  `check(!oldBtn, "l'ancien #btn-print n'existe plus")`, où le dièse suit un espace.
+
+Résultat : elle jugeait sur la ligne qui RÉCUPÈRE l'élément, jamais sur celle qui affirme sa
+disparition. L'exonération se juge désormais sur toutes les lignes de code du banc, avec une fenêtre
+de deux lignes — parce que la vérification d'absence tient presque toujours sur deux instructions dont
+la seconde ne répète pas l'adresse. Deux lignes et pas plus : au-delà, une vérification sans rapport
+finirait par innocenter une vraie adresse morte.
+
+### 4. Ce qui reste
+
+`seq_short_note_body_test.js` cliquait `#grid-zoom-close`, disparu avec la refonte de la loupe, sous
+un `.catch` muet — juste avant de fermer la page. Ligne retirée : il n'y avait aucun état à ranger.
+
+`real_click_loupe_selection_test.js` cherche encore `#grid-zoom-host`. Là il n'y a pas de substitution
+possible : `#grid-zoom` ouvre désormais le séquenceur continu, il n'existe plus d'hôte de loupe avec
+ses propres cases. Ce banc demande une réécriture de son intention, pas un remplacement d'adresse — il
+appartient au chantier « instruire les bancs rouges préexistants », pas à celui-ci.
+
+**Bilan.** Méta-suite 3/3 → **6 PASS / 0 FAIL**, catégorie « identifiants DOM introuvables » à zéro
+fichier. Sentinelle d'adresses 196/6 → **200 PASS / 2 FAIL**. Sentinelle d'atteignabilité : rouge,
+mais pour la première fois avec de vraies mesures sur les surfaces qu'elle prétendait éprouver.

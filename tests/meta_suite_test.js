@@ -141,13 +141,24 @@ for (const f of fichiers) {
         const bloc = t.slice(i, j);
         if (!/\bcheck\(/.test(bloc)) continue;
         if (/\bcheck\(\s*false\s*,/.test(bloc)) continue;
+        //  c) `if (X) { check(…) } else { check(…) }` : les DEUX branches enregistrent. Quel que soit
+        //     le chemin pris, le bilan reçoit une vérification — c'est-à-dire exactement ce que cette
+        //     règle cherche à garantir. Ne pas l'accepter poussait à défaire du bon travail : trouvé
+        //     sur sentinelle_atteignabilite_test.js, qui éprouve la taille des commandes SUR TÉLÉPHONE
+        //     et, sur grand écran, vérifie à la place que rien ne déborde. Deux écrans, deux questions
+        //     pertinentes, aucune escamotée — et pourtant compté comme dette. Trois autres bancs
+        //     étaient dans le même cas (manche_edition_lot1, manche_edition_lot3,
+        //     probe_clic_accord_voisin). Un garde-fou qui punit la branche `else` bien écrite apprend
+        //     à ne plus en écrire.
+        //     Ce qui reste interdit est inchangé : un `if` NU dont le bloc vérifie et dont l'autre
+        //     issue ne dit rien. C'est celui-là qui perd des vérifications en silence.
         // …y compris quand c'est la branche `else` qui parle : `if (trouvé) { check(…) } else {
         // check(false, 'rien à mesurer ici') }` couvre les deux issues, aucune ne passe sous silence.
         const suite = t.slice(j, j + 400);
         if (/^\s*else\s*\{/.test(suite)) {
             let k = suite.indexOf('{'), prof2 = 1, l = j + k + 1;
             while (l < t.length && prof2) { if (t[l] === '{') prof2++; else if (t[l] === '}') prof2--; l++; }
-            if (/\bcheck\(\s*false\s*,/.test(t.slice(j + k + 1, l))) continue;
+            if (/\bcheck\(/.test(t.slice(j + k + 1, l))) continue;
         }
         cond++;
     }

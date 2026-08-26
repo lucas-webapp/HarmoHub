@@ -164,7 +164,10 @@ const releverPlus = () => {
     await page.waitForTimeout(350);
     await page.click('#guitar-edit-btn');
     await page.waitForTimeout(300);
-    await page.click('#guitar-edit-tab-name').catch(() => {});
+    // Sans repli muet : cet onglet existe bel et bien (voir #guitar-edit-tab-name dans index.html), et
+    // s'il venait à disparaître ce banc doit le dire au lieu de continuer à mesurer un panneau fermé.
+    await page.waitForSelector('#guitar-edit-tab-name', { state: 'visible', timeout: 5000 });
+    await page.click('#guitar-edit-tab-name');
     await page.fill('#guitar-name-input', 'Am');
     await page.click('#guitar-name-validate');
     await page.waitForTimeout(350);
