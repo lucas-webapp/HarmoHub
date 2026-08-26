@@ -50,12 +50,21 @@ function check(cond, label) {
     await page.waitForTimeout(150);
 
     const afterZoomClick = await page.evaluate(() => {
-        const cell = document.querySelector('#grid-zoom-host .grid-cell[data-section="0"][data-index="1"]');
+        // PLUS DE #grid-zoom-host : cette adresse est morte avec la refonte de la loupe. #grid-zoom
+        // n'ouvre plus une vue à part avec sa propre grille — il ouvre le séquenceur continu, et la
+        // grille reste la grille. La question posée ici n'a pas changé pour autant : après un vrai clic
+        // sur ce bouton, la case de l'accord doit TOUJOURS montrer qu'elle est sélectionnée et en
+        // édition. On la cherche donc là où elle vit maintenant, dans la grille elle-même.
+        // Toutes les cases correspondantes, pas la première : la grille classique et la vue séquenceur
+        // peuvent en afficher chacune une, et c'est bien qu'AU MOINS une porte la surbrillance.
+        const cells = [...document.querySelectorAll('.grid-cell[data-section="0"][data-index="1"]')];
         return {
             editingIndex: window.app.editingIndex,
             selectedIndex: window.app.selectedIndex,
             seqOpen: window.app.seqOpen,
-            cellClasses: cell ? cell.className : 'MISSING',
+            nbCases: cells.length,
+            cellClasses: cells.length ? cells.map(c => c.className).join(' | ') : 'MISSING',
+            surbrillance: cells.some(c => c.classList.contains('selected') && c.classList.contains('editing')),
         };
     });
     console.log('after real loupe button click:', JSON.stringify(afterZoomClick));
@@ -63,8 +72,10 @@ function check(cond, label) {
     check(afterZoomClick.editingIndex === 1, "l'accord reste bien EN ÉDITION après un vrai clic sur le bouton loupe (pas annulé par le clic-ailleurs)");
     check(afterZoomClick.selectedIndex === 1, "l'accord reste bien SÉLECTIONNÉ après un vrai clic sur le bouton loupe");
     check(afterZoomClick.seqOpen === true, 'le séquenceur est bien ouvert sur cet accord');
-    check(afterZoomClick.cellClasses.includes('selected') && afterZoomClick.cellClasses.includes('editing'),
-        "la case de la grille dans la loupe porte bien les classes selected ET editing (surbrillance visible)");
+    check(afterZoomClick.nbCases > 0,
+        `la case de l'accord existe toujours dans la grille après le clic (${afterZoomClick.nbCases} trouvée(s))`);
+    check(afterZoomClick.surbrillance,
+        `la case porte bien selected ET editing sur la MÊME case — surbrillance visible (${afterZoomClick.cellClasses})`);
 
     console.log('\n=== Bilan : ' + PASS + ' PASS / ' + FAIL + ' FAIL ===');
     console.log('Errors:', JSON.stringify(errors));

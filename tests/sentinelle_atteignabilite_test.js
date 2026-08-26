@@ -105,7 +105,20 @@ const releverSurfaceActive = (minTactile) => {
     hote.querySelectorAll('button[id], input[id], select[id], a[id], [role="button"][id]').forEach(el => {
         const r = el.getBoundingClientRect();
         const st = getComputedStyle(el);
+        // `checkVisibility()` EN PLUS des quatre tests classiques, et c'est lui qui tranche les cas que
+        // les quatre laissent passer. Un élément dans un <details> REPLIÉ garde un rectangle non nul :
+        // Chromium saute son rendu via content-visibility sur ::details-content, sans remettre les
+        // géométries à zéro. Aucune des quatre conditions ci-dessous ne le voit — display, visibility
+        // et opacity valent leurs valeurs normales, et la largeur/hauteur sont celles d'avant le repli.
+        // Cette sentinelle mesurait donc les « Options avancées » des Paramètres alors qu'elles sont
+        // repliées, et concluait que #metronome-sound était « recouvert par un titre de groupe ». Il ne
+        // l'était pas : il n'était simplement pas peint, et le titre est ce qui occupe vraiment ce
+        // point de l'écran. Un contrôle replié n'a pas à répondre au clic ni à respecter le plancher
+        // tactile — l'utilisateur ne le voit pas.
+        // Vérifié : checkVisibility rend false pour les deux commandes du repli et true pour leurs
+        // voisines visibles, de mêmes dimensions exactement.
         if (r.width === 0 || r.height === 0 || st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') return;
+        if (el.checkVisibility && !el.checkVisibility({ contentVisibilityAuto: true, opacityProperty: true, visibilityProperty: true })) return;
         if (el.disabled) return;
         // ON FAIT DÉFILER AVANT DE JUGER, parce que c'est ce que fait un utilisateur. Sans cela, la
         // sentinelle accusait `#root` d'être « recouvert par play-prog » sur téléphone — vérifié : la

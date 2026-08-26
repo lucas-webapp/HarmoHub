@@ -3158,3 +3158,65 @@ appartient au chantier « instruire les bancs rouges préexistants », pas à ce
 **Bilan.** Méta-suite 3/3 → **6 PASS / 0 FAIL**, catégorie « identifiants DOM introuvables » à zéro
 fichier. Sentinelle d'adresses 196/6 → **200 PASS / 2 FAIL**. Sentinelle d'atteignabilité : rouge,
 mais pour la première fois avec de vraies mesures sur les surfaces qu'elle prétendait éprouver.
+
+## Suite : ce que la sentinelle avait vraiment trouvé (et ce que je m'étais trompé à annoncer)
+
+« Je te laisse prendre les décisions qui sont les plus logiques. » Elles ont d'abord consisté à
+défaire une conclusion que j'avais annoncée trop vite.
+
+### Deux des quatre « défauts » n'existaient pas
+
+J'avais rapporté que `#metronome-sound` était recouvert en son centre par un titre de groupe, et
+`#toggle-seq-edit-audio` par `#toggle-show-roman` — en m'appuyant sur un clic réel montrant que la
+valeur ne changeait pas. Le clic ne prouvait rien : ces deux commandes vivent dans le `<details class=
+"settings-advanced">` des Paramètres, **replié**. Je cliquais un réglage que l'utilisateur ne voit pas.
+
+Le mécanisme, mesuré : Chromium 141 masque le contenu d'un `<details>` fermé via `content-visibility`
+sur `::details-content`. Il saute le rendu SANS remettre les géométries à zéro. Relevé : le `<details>`
+fait 51px de haut (le résumé seul) et son corps annonce pourtant 91px à y=545, hors de la boîte de son
+propre parent. Les quatre filtres de la sentinelle — largeur/hauteur nulles, `display:none`,
+`visibility:hidden`, `opacity:0` — ne voient rien de tout ça : toutes ces propriétés valent leurs
+valeurs normales. La sentinelle mesurait donc des commandes repliées, et `elementFromPoint` lui
+renvoyait ce qui occupe VRAIMENT ce point de l'écran — le titre du groupe suivant. D'où le verdict
+« recouvert », qui décrivait un fait exact avec la mauvaise conclusion.
+
+Correctif : `checkVisibility({ contentVisibilityAuto: true, … })` en plus des quatre tests. Vérifié :
+il rend `false` pour les deux commandes du repli et `true` pour leurs voisines visibles, de dimensions
+strictement identiques (38×20) — c'est-à-dire qu'il tranche exactement là où les dimensions ne
+tranchent pas.
+
+Leçon pour ce projet : *un banc qui mesure doit d'abord prouver que ce qu'il mesure est rendu.* Le
+rectangle non nul ne suffit plus depuis `content-visibility`.
+
+### Les trois vrais constats, corrigés
+
+Une fois le filtre juste, il restait cinq commandes réellement visibles sous le plancher de 32px sur
+téléphone : trois interrupteurs des Paramètres à 38×20, plus `bpm-val` (30×18) et
+`toggle-complex-mode` (30 de large) dans les réglages du morceau. Décision : les corriger, sous
+`(pointer: coarse)` uniquement. Un plancher qu'on ne tient pas n'est pas un plancher — et sur un écran
+à souris, 20px se visent très bien, la densité des Paramètres n'a aucune raison d'y perdre.
+
+C'est la PISTE de l'interrupteur qui grandit, pas la pastille : le dessin ne change pas, la cible
+devient prenable. Le centrage vertical de la pastille passe de `top: 1px` à un vrai centrage, et la
+variante « allumée » doit répéter ce centrage dans sa propre `transform` — une transform en écrase une
+autre, et sans ça la pastille allumée resterait collée en haut d'une piste deux fois plus haute.
+
+Résultat : `sentinelle_atteignabilite` **25 PASS / 0 FAIL**, la dette tactile reste à six, plafond
+intact.
+
+### Le banc de la loupe : réécrire l'intention, pas l'adresse
+
+`real_click_loupe_selection_test` cherchait `#grid-zoom-host`. Aucune substitution n'était possible :
+`#grid-zoom` n'ouvre plus une vue à part avec sa propre grille, il ouvre le séquenceur continu et la
+grille reste la grille. Mais la QUESTION du banc n'a pas vieilli : après un vrai clic navigateur sur ce
+bouton, l'accord doit rester sélectionné, rester en édition, et sa case doit le montrer. Trois de ses
+quatre vérifications passaient déjà ; seule la quatrième visait un DOM disparu.
+
+Réécrite sur la grille actuelle, et au passage rendue plus stricte : l'ancienne version concaténait
+les classes et cherchait `selected` et `editing` dans la chaîne — deux cases différentes auraient
+suffi à la satisfaire. La nouvelle exige les deux sur la MÊME case. `5 PASS / 0 FAIL` : un des six
+rouges de la ligne de base est éteint, et le banc en dit plus qu'avant.
+
+**Bilan de la campagne.** meta_suite 3/3 → **6/0** · sentinelle_adresses 196/6 → **202/0** ·
+sentinelle_atteignabilite → **25/0** · real_click_loupe_selection → **5/0**. Ligne de base des rouges
+préexistants : six → cinq.
