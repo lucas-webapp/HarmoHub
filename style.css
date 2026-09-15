@@ -299,6 +299,39 @@ body.body-scroll-locked { overflow: hidden !important; }
 .unsaved-modal-body p { margin: 0 0 16px; color: var(--text-muted); }
 .unsaved-modal-actions { display: flex; flex-direction: column; gap: 8px; }
 .unsaved-modal-actions button { width: 100%; }
+
+/* CONFLIT D'IMPORT (voir #import-conflict-modal / demanderResolutionImport). Une carte par morceau en
+   conflit, et DEUX lignes dedans : la version en place, celle du fichier. C'est une comparaison, pas
+   une liste — les deux côtés doivent se lire l'un sous l'autre, alignés sur la même colonne, sinon
+   l'œil ne voit pas ce qui change entre eux. D'où la grille à deux colonnes : étiquette fixe à gauche,
+   mesures à droite. */
+.import-conflict-song {
+    background: var(--fond-bouton-sombre, #1c2027);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+}
+.import-conflict-name { font-weight: 700; margin-bottom: 6px; }
+.import-conflict-side {
+    display: grid;
+    grid-template-columns: 5.5em 1fr;
+    gap: 8px;
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    line-height: 1.7;
+}
+/* L'étiquette « En place » / « Fichier » ne doit pas se lire comme une donnée : c'est le repère qui
+   permet de comparer les deux lignes, il reste en retrait. */
+.import-conflict-label { color: #7a7a7a; text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.04em; }
+/* La mention « la plus récente » est LA réponse à la question qu'on se pose en ouvrant cette fenêtre :
+   elle est donc la seule chose colorée du bloc. */
+.import-conflict-recent { color: var(--accent); font-weight: 700; }
+.import-conflict-aide { color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.5; }
+/* Trois boutons ici, contre deux ailleurs : côte à côte tant que la place le permet, empilés sinon —
+   « Garder les deux » ne tient pas sur une ligne étroite à côté de ses voisins. */
+.import-conflict-actions { flex-direction: row; flex-wrap: wrap; }
+.import-conflict-actions button { width: auto; flex: 1 1 auto; min-width: 8em; }
 .unsaved-modal-nameprompt label { display: block; margin-bottom: 6px; color: var(--text-muted); font-size: var(--fs-sm); }
 .unsaved-modal-nameprompt input, .unsaved-modal-nameprompt select { width: 100%; box-sizing: border-box; margin-bottom: 14px; }
 /* Fenêtre « Mes morceaux » (voir openFilesWindow dans script.js) : elle réutilise .settings-modal,

@@ -19,7 +19,13 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
-    page.on('console', (msg) => { if (msg.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_NAME_NOT_RESOLVED|fonts\.googleapis|fonts\.gstatic/.test(msg.text())) errors.push('console.error: ' + msg.text()); });
+    // ERR_CERT_AUTHORITY_INVALID ajouté à la liste du bruit : le bac à sable passe par un proxy qui
+    // ré-signe le HTTPS avec une autorité que ce navigateur ne connaît pas, et la police chargée
+    // depuis Google Fonts échoue donc ici — jamais chez l'utilisateur. Les voisins de cette liste
+    // filtrent déjà cet échec-là par son URL, mais ce message-ci n'en porte aucune : il ne pouvait
+    // donc pas être attrapé, et faisait rougir « aucune erreur JavaScript » par intermittence, selon
+    // que la police était en cache ou non.
+    page.on('console', (msg) => { if (msg.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_NAME_NOT_RESOLVED|ERR_CERT_AUTHORITY_INVALID|fonts\.googleapis|fonts\.gstatic/.test(msg.text())) errors.push('console.error: ' + msg.text()); });
 
     let PASS = 0, FAIL = 0;
     const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { FAIL++; console.log('FAIL - ' + l); } };

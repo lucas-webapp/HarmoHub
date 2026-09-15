@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202608250200">
+    <link rel="stylesheet" href="style.css?v=202609150100">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -279,6 +279,32 @@
                     <div class="unsaved-modal-actions">
                         <button type="button" id="pdf-export-go" class="btn-blue">Exporter</button>
                         <button type="button" id="pdf-export-cancel" class="btn-sec">Annuler</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFLIT D'IMPORT : un morceau du fichier porte le même identifiant qu'un morceau déjà dans la
+         bibliothèque (voir importLibraryFile / demanderResolutionImport dans script.js).
+         Une fenêtre et non un confirm() : la question ne se règle pas par oui/non. Il y a TROIS issues
+         raisonnables — écraser, garder les deux, ignorer — et surtout il faut pouvoir COMPARER avant
+         de choisir. Un confirm() ne sait ni afficher trois boutons ni montrer ce qui différencie les
+         deux versions ; il forçait donc le choix à l'aveugle (retour utilisateur : « j'aimerais que tu
+         fasses une meilleure analyse des versions précédentes d'un même morceau »).
+         Le corps est rempli en JS : il dépend des morceaux en conflit. -->
+    <div id="import-conflict-modal" class="settings-overlay" hidden>
+        <div class="settings-modal unsaved-modal" role="dialog" aria-modal="true" aria-labelledby="import-conflict-title">
+            <div class="settings-header">
+                <h2 id="import-conflict-title">Ce morceau existe déjà</h2>
+            </div>
+            <div class="settings-body">
+                <div class="settings-content unsaved-modal-body">
+                    <div id="import-conflict-body"></div>
+                    <div class="unsaved-modal-actions import-conflict-actions">
+                        <button type="button" id="import-conflict-overwrite" class="btn-blue">Écraser</button>
+                        <button type="button" id="import-conflict-both" class="btn-sec">Garder les deux</button>
+                        <button type="button" id="import-conflict-skip" class="btn-sec">Ignorer</button>
                     </div>
                 </div>
             </div>
@@ -1381,6 +1407,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202608250200"></script>
+    <script src="script.js?v=202609150100"></script>
 </body>
 </html>

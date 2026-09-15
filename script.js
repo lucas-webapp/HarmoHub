@@ -699,6 +699,44 @@ function saveSongs(songs) {
     localStorage.setItem('harmohubSongs', JSON.stringify(songs));
 }
 
+// Date de dernière modification d'un morceau, en clair. Vivait dans renderFilesPanel ; hissée ici
+// parce que la liste déroulante des morceaux l'affiche maintenant elle aussi (voir refreshSongList et
+// le réglage « Date de dernière modification »). Deux endroits qui montrent la même date doivent la
+// montrer de la MÊME façon, sinon le même morceau paraît daté différemment selon l'écran où on le
+// regarde.
+function formaterDateEnregistrement(ts) {
+    if (!ts) return 'date inconnue';
+    const d = new Date(ts);
+    const heure = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const auj = new Date();
+    if (d.toDateString() === auj.toDateString()) return `Aujourd'hui ${heure}`;
+    const hier = new Date(auj); hier.setDate(auj.getDate() - 1);
+    if (d.toDateString() === hier.toDateString()) return `Hier ${heure}`;
+    return `${d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })} ${heure}`;
+}
+
+// Nombre d'accords d'un morceau, toutes parties confondues — sert à COMPARER deux versions d'un même
+// morceau au moment d'un import (voir demanderResolutionImport), pas seulement à décorer une liste.
+function compterAccords(song) {
+    return (song && song.sections || []).reduce((n, sec) => n + (sec.chords ? sec.chords.length : 0), 0);
+}
+
+// Nom libre dans la bibliothèque : « Nom », puis « Nom (2) », « Nom (3) »… La date n'est PLUS soudée
+// dans le nom (elle l'était sous la forme « Nom (import du 12/03/2026) ») — retour utilisateur :
+// « tous les fichiers ont aujourd'hui un titre avec la version entre parenthèses ». Un nom est un nom ;
+// la date est une propriété du morceau, qui s'affiche ou non selon le réglage prévu pour ça.
+// Un suffixe numérique reste nécessaire quand même : sans lui, deux versions gardées côte à côte
+// porteraient le même nom dans la liste déroulante, et rien ne les distinguerait quand la date est
+// masquée.
+function nomLibrePourCopie(base, nomsPris) {
+    if (!nomsPris.has(base)) return base;
+    for (let i = 2; i < 999; i++) {
+        const essai = `${base} (${i})`;
+        if (!nomsPris.has(essai)) return essai;
+    }
+    return `${base} (${Date.now().toString(36)})`;
+}
+
 function getCurrentSongId() {
     return localStorage.getItem(SONG_ID_KEY) || null;
 }
@@ -2137,6 +2175,14 @@ const SEQ_ZONE_MIN_BODY_PX = 6;
 
 const METRONOME_SUBDIVISION_KEY = 'harmohubMetronomeSubdivision';
 const SHOW_ROMAN_KEY = 'harmohubShowRomanNumerals';
+// Date de dernière modification à côté du nom des morceaux (liste déroulante ET fenêtre « Mes
+// morceaux »). Retour utilisateur : « tous les fichiers ont aujourd'hui un titre avec la version entre
+// parenthèses. J'aimerais que cela soit précisé comme une option pour pouvoir ou non voir la date de
+// la dernière modification. » La date sortait donc du NOM, où elle était soudée à l'import et ne
+// partait plus jamais, pour devenir ce qu'elle est : une propriété du morceau, affichée ou non.
+// Allumée par défaut : la fenêtre « Mes morceaux » la montrait déjà, et c'est elle qui permet de s'y
+// retrouver entre deux versions d'un même morceau. Ce réglage sert à la RETIRER, pas à l'obtenir.
+const SHOW_SAVED_DATE_KEY = 'harmohubShowSavedDate';
 // Octave / renversement-drop sous chaque accord de la GRILLE (voir gridVoicingParts, Paramètres >
 // Affichage) — remplacent l'ancien réglage unique "Style de jeu" (icône sous la case), retiré.
 const SHOW_GRID_OCTAVE_KEY = 'harmohubShowGridOctave';
@@ -3210,6 +3256,7 @@ class HarmoHubApp {
         // Fonction harmonique (T/SD/D, voir chordFunction) partageant la même ligne que le chiffrage
         // romain — DÉSACTIVÉE par défaut (voir SHOW_CHORD_FUNCTION_KEY), contrairement à celui-ci.
         this.showChordFunction = localStorage.getItem(SHOW_CHORD_FUNCTION_KEY) === '1';
+        this.showSavedDate = localStorage.getItem(SHOW_SAVED_DATE_KEY) !== '0';
 
         // Octave / renversement-drop sous chaque accord de la grille (voir .cell-meta,
         // gridVoicingParts) — remplace l'ancienne icône de style de jeu (retour utilisateur :
@@ -4029,6 +4076,13 @@ class HarmoHubApp {
         // Options d'export PDF (voir openPdfExportDialog) : clic sur le fond = Annuler, comme les autres.
         this._cabler('pdf-export-modal', 'click', (e) => {
             if (e.target.id === 'pdf-export-modal' && this._pdfDialogCancel) this._pdfDialogCancel();
+        });
+
+        // Conflit d'import (voir demanderResolutionImport) : clic sur le fond = Ignorer. C'est la
+        // réponse prudente, et la seule qui convienne à un geste ambigu — refermer d'un clic distrait
+        // ne doit jamais écraser un morceau.
+        this._cabler('import-conflict-modal', 'click', (e) => {
+            if (e.target.id === 'import-conflict-modal' && this._importConflictCancel) this._importConflictCancel();
         });
 
         // Choix export MIDI (voir chooseMidiExportMode) : clic sur le fond = Annuler, même principe.
@@ -8430,16 +8484,24 @@ class HarmoHubApp {
             .filter(g => g.songs.length > 0);
         const noFolder = songs.filter(s => !s.folder);
 
+        // Le nom, et la date SI le réglage le demande (voir SHOW_SAVED_DATE_KEY). Un <option> ne peut
+        // pas porter deux niveaux de mise en forme : la date est donc collée au nom, séparée par un
+        // tiret cadratin. C'est précisément ce qui remplace l'ancien « (import du …) » soudé dans le
+        // nom — même information, mais ôtable, et juste pour tous les morceaux et non pour les seuls
+        // importés.
+        const etiquette = (s) => this.showSavedDate
+            ? `${escapeHtml(s.name)} — ${escapeHtml(formaterDateEnregistrement(s.savedAt))}`
+            : escapeHtml(s.name);
         let html = `<option value="">— Non enregistré —</option>`;
         if (grouped.length > 0) {
             grouped.forEach(g => {
-                html += `<optgroup label="${escapeHtml(g.name)}">${sortRecent(g.songs).map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</optgroup>`;
+                html += `<optgroup label="${escapeHtml(g.name)}">${sortRecent(g.songs).map(s => `<option value="${s.id}">${etiquette(s)}</option>`).join('')}</optgroup>`;
             });
             if (noFolder.length) {
-                html += `<optgroup label="Sans dossier">${sortRecent(noFolder).map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</optgroup>`;
+                html += `<optgroup label="Sans dossier">${sortRecent(noFolder).map(s => `<option value="${s.id}">${etiquette(s)}</option>`).join('')}</optgroup>`;
             }
         } else {
-            html += sortRecent(songs).map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+            html += sortRecent(songs).map(s => `<option value="${s.id}">${etiquette(s)}</option>`).join('');
         }
         select.innerHTML = html;
         select.value = currentId || '';
@@ -8985,6 +9047,12 @@ class HarmoHubApp {
                     <option value="complete"${positionValeur === 'complete' ? ' selected' : ''}>Octave + renversement (O3-R1)</option>
                 </select>
             </div>
+            <div class="settings-toggle-row">
+                <label for="toggle-show-saved-date" title="Affiche la date de dernière modification à côté du nom, dans la liste des morceaux et dans « Mes morceaux » — utile pour distinguer deux versions d'un même morceau">Date de dernière modification</label>
+                <button type="button" id="toggle-show-saved-date" class="switch" role="switch" aria-checked="${this.showSavedDate}" aria-label="Date de dernière modification à côté du nom des morceaux">
+                    <span class="switch-thumb"></span>
+                </button>
+            </div>
             <details class="settings-advanced">
                 <summary>Options avancées</summary>
                 <div class="settings-advanced-body">
@@ -9005,6 +9073,7 @@ class HarmoHubApp {
             </details>`;
         document.getElementById('toggle-show-roman').onclick = () => this.setShowRomanNumerals(!this.showRomanNumerals);
         document.getElementById('toggle-show-function').onclick = () => this.setShowChordFunction(!this.showChordFunction);
+        document.getElementById('toggle-show-saved-date').onclick = () => this.setShowSavedDate(!this.showSavedDate);
         document.getElementById('grid-voicing-badge').onchange = (e) => {
             const v = e.target.value;
             this.setShowGridOctave(v !== 'aucune');
@@ -9019,6 +9088,19 @@ class HarmoHubApp {
         const btn = document.getElementById('toggle-show-roman');
         if (btn) btn.setAttribute('aria-checked', on);
         this.loadProgression();
+    }
+
+    // Ne recharge PAS la progression : cette date ne touche ni la grille ni les accords, seulement la
+    // façon dont les morceaux sont NOMMÉS dans les deux listes. Rejouer loadProgression ici coûterait
+    // un rendu complet de la grille pour changer deux libellés, et ferait clignoter l'écran à chaque
+    // bascule.
+    setShowSavedDate(on) {
+        this.showSavedDate = on;
+        localStorage.setItem(SHOW_SAVED_DATE_KEY, on ? '1' : '0');
+        const btn = document.getElementById('toggle-show-saved-date');
+        if (btn) btn.setAttribute('aria-checked', on);
+        this.refreshSongList();
+        if (this.filesOpen) this.renderFilesPanel();
     }
 
     setShowChordFunction(on) {
@@ -9206,16 +9288,7 @@ class HarmoHubApp {
         // étaient jusque-là indistinguables. Les enregistrements du jour affichent « Aujourd'hui
         // 14:32 » plutôt que la date complète : c'est le cas le plus fréquent, et c'est l'heure qui
         // départage. La liste est déjà triée du plus récent au plus ancien (voir songs, plus haut).
-        const fmtDate = (ts) => {
-            const d = new Date(ts);
-            const heure = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-            const auj = new Date();
-            const memeJour = d.toDateString() === auj.toDateString();
-            if (memeJour) return `Aujourd'hui ${heure}`;
-            const hier = new Date(auj); hier.setDate(auj.getDate() - 1);
-            if (d.toDateString() === hier.toDateString()) return `Hier ${heure}`;
-            return `${d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })} ${heure}`;
-        };
+        const fmtDate = formaterDateEnregistrement;
         const chordCount = (song) => (song.sections || []).reduce((n, sec) => n + (sec.chords ? sec.chords.length : 0), 0);
 
         host.innerHTML = toolbar + groups.filter(g => g.name !== null || g.songs.length > 0).map(g => `
@@ -9238,7 +9311,7 @@ class HarmoHubApp {
                     <div class="file-row" data-id="${s.id}">
                         <div class="file-info">
                             <span class="file-name">${escapeHtml(s.name)}${s.id === currentId ? ' — <em>ouvert</em>' : ''}</span>
-                            <span class="file-meta">${chordCount(s)} accord(s) · ${fmtDate(s.savedAt)}</span>
+                            <span class="file-meta">${chordCount(s)} accord(s)${this.showSavedDate ? ' · ' + fmtDate(s.savedAt) : ''}</span>
                         </div>
                         <div class="file-actions">
                             <select class="file-folder-select" title="Déplacer vers un dossier">${folderOptions(s.folder)}</select>
@@ -9524,42 +9597,134 @@ class HarmoHubApp {
         const mergedFolders = Array.isArray(data.folders) ? [...new Set([...existingFolders, ...data.folders])] : existingFolders;
         const foldersChanged = mergedFolders.length !== existingFolders.length;
 
-        // Copies forcées des morceaux déjà présents (même id) : seulement si demandé EXPLICITEMENT
-        // ici, jamais par défaut — sinon réimporter deux fois le même fichier par erreur dupliquerait
-        // systématiquement toute la bibliothèque.
+        // TROIS ISSUES, PLUS DEUX. Le choix était auparavant « ignorer » (par défaut) ou « dupliquer »,
+        // proposé par un confirm() binaire. Il manquait la plus attendue : ÉCRASER. Quand on réimporte
+        // un morceau, c'est le plus souvent qu'on en rapporte une version plus récente et qu'on veut
+        // qu'elle remplace l'ancienne (retour utilisateur : « lorsque j'importe un morceau, j'aimerais
+        // que tu me demandes si je veux écraser ou non la version précédente »).
+        // Et la question n'est posée qu'une fois les deux versions COMPARÉES : voir
+        // demanderResolutionImport, qui montre ce qui les distingue avant de demander quoi en faire.
         let forcedCopies = [];
+        let remplacements = new Map(); // id -> morceau importé qui remplace celui en place
         if (alreadyPresent.length > 0) {
-            const n = alreadyPresent.length;
-            const ask = confirm(`${n} morceau${n > 1 ? 'x' : ''} de ce fichier ${n > 1 ? 'existent' : 'existe'} déjà (même identifiant) dans ta bibliothèque actuelle.\n\nImporter quand même une COPIE de chacun ? Utile pour retrouver une ancienne version (ex. des accords depuis retirés ou modifiés).`);
-            if (ask) {
-                const stamp = new Date().toLocaleDateString('fr-FR');
-                forcedCopies = alreadyPresent.map(s => ({
-                    ...s,
-                    id: 'song_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-                    name: `${s.name} (import du ${stamp})`,
-                    savedAt: Date.now(),
-                }));
+            const choix = await this.demanderResolutionImport(alreadyPresent, existingSongs);
+            if (choix === 'ecraser') {
+                alreadyPresent.forEach(s => remplacements.set(s.id, s));
+            } else if (choix === 'les-deux') {
+                // Noms déjà pris : ceux de la bibliothèque, PLUS ceux des copies déjà décidées dans
+                // cette même boucle — sans quoi importer deux fois « Ballade » produirait deux
+                // « Ballade (2) ».
+                const nomsPris = new Set(existingSongs.map(x => x.name));
+                forcedCopies = alreadyPresent.map(s => {
+                    const nom = nomLibrePourCopie(s.name, nomsPris);
+                    nomsPris.add(nom);
+                    return {
+                        ...s,
+                        id: 'song_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                        name: nom,
+                        // La date d'enregistrement du FICHIER, pas celle de l'import : c'est elle qui
+                        // dit de quelle version il s'agit. L'écraser par Date.now() faisait passer une
+                        // vieille sauvegarde pour la plus récente des deux — exactement l'information
+                        // dont on a besoin pour s'y retrouver entre versions.
+                        savedAt: s.savedAt || Date.now(),
+                    };
+                });
             }
         }
 
         const allToAdd = [...toAdd, ...forcedCopies];
-        const skipped = alreadyPresent.length - forcedCopies.length;
+        const skipped = alreadyPresent.length - forcedCopies.length - remplacements.size;
 
-        if (allToAdd.length > 0 || foldersChanged) {
+        if (allToAdd.length > 0 || remplacements.size > 0 || foldersChanged) {
             this.pushFilesUndo(); // un seul pas d'annulation pour tout l'import (morceaux + dossiers)
-            if (allToAdd.length > 0) saveSongs([...existingSongs, ...allToAdd]);
+            if (allToAdd.length > 0 || remplacements.size > 0) {
+                const base = existingSongs.map(s => {
+                    const remplacant = remplacements.get(s.id);
+                    if (!remplacant) return s;
+                    // Le DOSSIER de rangement est conservé quand le fichier n'en porte pas : c'est un
+                    // classement local, propre à cette bibliothèque-ci, pas une donnée du morceau. Une
+                    // sauvegarde venue d'ailleurs n'a pas à défaire le rangement d'ici.
+                    return { ...remplacant, folder: remplacant.folder || s.folder, savedAt: remplacant.savedAt || Date.now() };
+                });
+                saveSongs([...base, ...allToAdd]);
+            }
             if (foldersChanged) saveFolders(mergedFolders);
             this.refreshSongList();
             if (this.filesOpen) this.renderFilesPanel();
+            // Le morceau OUVERT vient peut-être d'être écrasé : le recharger, sinon l'écran continue
+            // d'afficher l'ancienne version pendant que la bibliothèque contient la nouvelle — deux
+            // vérités à l'écran en même temps, et la première sauvegarde réécrirait l'ancienne
+            // par-dessus la neuve.
+            const ouvert = getCurrentSongId();
+            if (ouvert && remplacements.has(ouvert)) this.loadSong(ouvert);
         }
 
-        if (allToAdd.length === 0) {
-            this.flashHint(skipped > 0 ? 'Bibliothèque déjà à jour — rien à importer' : 'Aucun morceau dans ce fichier');
-        } else if (skipped > 0) {
-            this.flashHint(`${allToAdd.length} morceau(x) importé(s), ${skipped} déjà présent(s)`);
+        if (allToAdd.length === 0 && remplacements.size === 0) {
+            this.flashHint(skipped > 0 ? 'Rien d\'importé — versions en place conservées' : 'Aucun morceau dans ce fichier');
         } else {
-            this.flashHint(`${allToAdd.length} morceau(x) importé(s)`);
+            const bouts = [];
+            if (remplacements.size > 0) bouts.push(`${remplacements.size} remplacé(s)`);
+            if (allToAdd.length > 0) bouts.push(`${allToAdd.length} importé(s)`);
+            if (skipped > 0) bouts.push(`${skipped} conservé(s) tel(s) quel(s)`);
+            this.flashHint(bouts.join(', '));
         }
+    }
+
+    // COMPARER AVANT DE DEMANDER. Le conflit d'import ne se résume pas à « ce morceau existe déjà » :
+    // ce qui compte est de savoir EN QUOI les deux versions diffèrent, sinon on choisit à l'aveugle.
+    // La fenêtre montre donc, pour chaque morceau en conflit, la version en place et celle du fichier —
+    // date, nombre de parties, nombre d'accords — et dit laquelle est la plus récente.
+    // Résout avec 'ecraser', 'les-deux' ou 'ignorer'. Jamais rejetée : fermer revient à ne rien faire,
+    // et ne rien faire est ici une réponse valable (c'était d'ailleurs l'ancien comportement par
+    // défaut).
+    demanderResolutionImport(enConflit, existants) {
+        const modal = document.getElementById('import-conflict-modal');
+        const parId = new Map(existants.map(s => [s.id, s]));
+        // Repli si la fenêtre manque (page partielle, gabarit modifié) : on ne bloque pas un import
+        // pour un défaut d'affichage, et on retombe sur le comportement le plus prudent — ne rien
+        // écraser.
+        if (!modal) return Promise.resolve('ignorer');
+
+        const ligne = (s) => {
+            const av = parId.get(s.id) || {};
+            const plusRecent = (s.savedAt || 0) > (av.savedAt || 0) ? 'fichier'
+                : (s.savedAt || 0) < (av.savedAt || 0) ? 'place' : 'egal';
+            const decrire = (m) => `${(m.sections || []).length} partie(s) · ${compterAccords(m)} accord(s)`;
+            const marque = (quoi) => plusRecent === quoi ? ' <strong class="import-conflict-recent">la plus récente</strong>' : '';
+            return `
+                <div class="import-conflict-song">
+                    <div class="import-conflict-name">${escapeHtml(s.name || 'Sans titre')}</div>
+                    <div class="import-conflict-side">
+                        <span class="import-conflict-label">En place</span>
+                        <span>${decrire(av)} · ${formaterDateEnregistrement(av.savedAt)}${marque('place')}</span>
+                    </div>
+                    <div class="import-conflict-side">
+                        <span class="import-conflict-label">Fichier</span>
+                        <span>${decrire(s)} · ${formaterDateEnregistrement(s.savedAt)}${marque('fichier')}</span>
+                    </div>
+                </div>`;
+        };
+
+        const n = enConflit.length;
+        document.getElementById('import-conflict-body').innerHTML =
+            `<p>${n === 1 ? 'Ce morceau est' : `Ces ${n} morceaux sont`} déjà dans ta bibliothèque. Voici ce qui distingue les deux versions&nbsp;:</p>
+             ${enConflit.map(ligne).join('')}
+             <p class="import-conflict-aide"><strong>Écraser</strong> remplace la version en place. <strong>Garder les deux</strong> ajoute celle du fichier à côté, sans rien perdre. <strong>Ignorer</strong> ne change rien.</p>`;
+
+        modal.hidden = false;
+        this.lockBodyScroll();
+        return new Promise((resolve) => {
+            const fermer = (reponse) => {
+                modal.hidden = true;
+                this.unlockBodyScroll();
+                this._importConflictCancel = null;
+                resolve(reponse);
+            };
+            this._importConflictCancel = () => fermer('ignorer');
+            document.getElementById('import-conflict-overwrite').onclick = () => fermer('ecraser');
+            document.getElementById('import-conflict-both').onclick = () => fermer('les-deux');
+            document.getElementById('import-conflict-skip').onclick = () => fermer('ignorer');
+        });
     }
 
     // ---------- Menu contextuel (clic droit / appui long) ----------

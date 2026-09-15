@@ -3220,3 +3220,74 @@ rouges de la ligne de base est éteint, et le banc en dit plus qu'avant.
 **Bilan de la campagne.** meta_suite 3/3 → **6/0** · sentinelle_adresses 196/6 → **202/0** ·
 sentinelle_atteignabilite → **25/0** · real_click_loupe_selection → **5/0**. Ligne de base des rouges
 préexistants : six → cinq.
+
+## Versions d'un même morceau : comparer, puis choisir — et sortir la date du nom
+
+Trois demandes liées : « une meilleure analyse des versions précédentes d'un même morceau », « lorsque
+j'importe un morceau, j'aimerais que tu me demandes si je veux écraser ou non la version précédente »,
+et « tous les fichiers ont aujourd'hui un titre avec la version entre parenthèses […] j'aimerais que
+cela soit précisé comme une option pour pouvoir ou non voir la date de la dernière modification ».
+
+### 1. Il manquait l'issue la plus attendue
+
+L'import fusionnait par identifiant et n'offrait que deux sorties : ignorer (par défaut) ou dupliquer
+en copie. **Écraser n'existait pas** — alors que c'est la raison la plus courante de réimporter un
+morceau : on en rapporte une version plus récente et on veut qu'elle remplace l'ancienne.
+
+La question était posée par un `confirm()`, ce qui la condamnait à être binaire. Trois issues
+raisonnables n'entrent pas dans un oui/non, et surtout un `confirm()` ne sait rien montrer : il
+demandait de choisir à l'aveugle entre deux versions dont rien ne disait ce qui les distinguait.
+
+D'où une vraie fenêtre (`#import-conflict-modal`) qui, pour chaque morceau en conflit, aligne la
+version **en place** et celle du **fichier** — nombre de parties, nombre d'accords, date — et marque
+laquelle est la plus récente. C'est ça, l'« analyse des versions » : pas un avertissement, une
+comparaison. Les trois boutons ne sont proposés qu'après.
+
+**Deux décisions de conservation, prises parce qu'elles ne vont pas de soi :**
+
+- *Le dossier de rangement survit à l'écrasement.* Un dossier est un classement LOCAL, propre à cette
+  bibliothèque-ci ; une sauvegarde venue d'ailleurs n'a pas à défaire le rangement d'ici. Vérifié au
+  banc : « Perso » est toujours là après écrasement.
+- *La copie garde la date du FICHIER, pas celle de l'import.* L'ancien code écrivait `Date.now()` sur
+  la copie : une vieille sauvegarde passait alors pour la plus récente des deux, ce qui détruisait
+  précisément l'information dont on a besoin pour s'y retrouver entre versions.
+
+Et un effet de bord à ne pas manquer : si le morceau ÉCRASÉ est celui qui est ouvert à l'écran, il est
+rechargé. Sans ça l'écran montre l'ancienne version pendant que la bibliothèque contient la nouvelle —
+deux vérités en même temps, et la première sauvegarde réécrirait l'ancienne par-dessus la neuve.
+
+### 2. La date n'est plus soudée dans le nom
+
+`Nom (import du 12/03/2026)` : la date entrait dans le NOM du morceau, définitivement, et se
+retrouvait ensuite partout — liste déroulante, fenêtre Fichiers, exports — sans aucun moyen de
+l'enlever. Un nom est un nom ; la date est une propriété du morceau.
+
+Elle en sort donc, et devient un réglage : **Paramètres → Affichage → « Date de dernière
+modification »**, allumé par défaut. Il gouverne les DEUX listes à la fois (déroulante et « Mes
+morceaux ») : deux vues qui montrent la même date doivent la montrer de la même façon, sinon le même
+morceau paraît daté différemment selon l'écran où on le regarde. `fmtDate` a été hissée hors de
+`renderFilesPanel` pour ça.
+
+*Pourquoi un suffixe numérique subsiste malgré tout.* Quand on garde les deux versions, la copie prend
+le nom du fichier tel quel — et seulement s'il est déjà pris, un `(2)`. Sans ce garde-fou, deux
+versions côte à côte porteraient un nom identique dans la liste déroulante, et **rien** ne les
+distinguerait lorsque la date est masquée. C'est le minimum qui rend l'option sûre dans les deux
+positions.
+
+### 3. Le banc qui s'est mis à attendre pour toujours
+
+`library_test` pilotait le `confirm()` par `page.on('dialog')`. Le `confirm()` disparu, le banc
+attendait une fenêtre que personne ne cliquerait jamais : expiration à 280 s. Conséquence attendue
+d'un changement voulu, pas une régression — mais elle valait d'être vue tout de suite plutôt que
+d'être découverte au balayage suivant.
+
+Adapté : l'import est lancé SANS être attendu, on attend que la fenêtre paraisse, on clique, puis on
+attend la promesse. Et le banc couvre désormais les trois issues, dont celle qui n'existait pas :
+écraser remplace en place, garde l'identifiant, ne duplique rien, et conserve le dossier local.
+10 assertions, toutes vertes.
+
+*Au passage :* `ERR_CERT_AUTHORITY_INVALID` ajouté au filtre de bruit de `settings_improvements_test`.
+Le bac à sable passe par un proxy qui ré-signe le HTTPS avec une autorité inconnue du navigateur de
+test ; la police Google Fonts échoue donc ici, jamais chez l'utilisateur. Les voisins de cette liste
+filtraient déjà cet échec par son URL — mais ce message-ci n'en porte aucune, il passait au travers et
+faisait rougir « aucune erreur JavaScript » par intermittence, selon que la police était en cache.
