@@ -1,7 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- Même dessin que la marque de la barre du haut (index.html, .logo-mark) :
+       quatre barres au dégradé d'opacité, dans la boîte d'encre de 32 × 30 centrée sur
+       (24, 24) partagée avec TabHub — 8 px de marge sur les flancs, 9 px en haut et en bas. -->
   <rect width="48" height="48" rx="10" fill="#0a0a0a"/>
-  <rect x="5" y="6" width="8" height="36" rx="3" fill="#00e676" opacity="0.25"/>
-  <rect x="15" y="6" width="8" height="36" rx="3" fill="#00e676" opacity="0.5"/>
-  <rect x="25" y="6" width="8" height="36" rx="3" fill="#00e676" opacity="0.75"/>
-  <rect x="35" y="6" width="8" height="36" rx="3" fill="#00e676" opacity="1"/>
+  <g fill="#00e676">
+    <rect x="8" y="9" width="6.5" height="30" rx="2.6" opacity="0.25"/>
+    <rect x="16.5" y="9" width="6.5" height="30" rx="2.6" opacity="0.5"/>
+    <rect x="25" y="9" width="6.5" height="30" rx="2.6" opacity="0.75"/>
+    <rect x="33.5" y="9" width="6.5" height="30" rx="2.6" opacity="1.0"/>
+  </g>
 </svg>

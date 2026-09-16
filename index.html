@@ -6,11 +6,11 @@
     <title>HarmoHub</title>
     <!-- Logo « grille en dégradé » (4 barres, une seule teinte, intensité croissante) : voir aussi
          .logo-mark dans style.css (même dessin, en ligne) et /icons/ pour les sources. -->
-    <link rel="icon" type="image/svg+xml" href="icons/favicon.svg?v=202607252000">
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=202607252000">
-    <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png?v=202607252000">
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
-    <link rel="manifest" href="manifest.json?v=202607252000">
+    <link rel="icon" type="image/svg+xml" href="icons/favicon.svg?v=202609161700">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=202609161700">
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png?v=202609161700">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202609161700">
+    <link rel="manifest" href="manifest.json?v=202609161700">
     <meta name="theme-color" content="#0a0a0a">
     <link rel="stylesheet" href="style.css?v=202608250100">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -38,11 +38,20 @@
         </button>
         <a class="logo" href="#" onclick="return false" title="HarmoHub" aria-label="HarmoHub">
             <span class="logo-mark">
+                <!-- Quatre barres, emprise ramenée à la boîte d'encre commune aux deux
+                     applis : 32 × 30 centrée sur (24, 24), soit 8 px de marge sur les
+                     flancs et 9 px en haut et en bas. Avant, les barres allaient de y=6 à
+                     y=42 et touchaient presque le bord du carré arrondi. Le dégradé
+                     d'opacité est conservé : c'est la signature de HarmoHub, et c'est
+                     aussi ce qui la distingue désormais de TabHub, dont les cordes sont
+                     d'opacité uniforme. -->
                 <svg class="icon" viewBox="0 0 48 48" aria-hidden="true">
-                    <rect x="5" y="6" width="8" height="36" rx="3" fill="currentColor" opacity=".25"/>
-                    <rect x="15" y="6" width="8" height="36" rx="3" fill="currentColor" opacity=".5"/>
-                    <rect x="25" y="6" width="8" height="36" rx="3" fill="currentColor" opacity=".75"/>
-                    <rect x="35" y="6" width="8" height="36" rx="3" fill="currentColor"/>
+                    <g fill="currentColor">
+                      <rect x="8" y="9" width="6.5" height="30" rx="2.6" opacity="0.25"/>
+                      <rect x="16.5" y="9" width="6.5" height="30" rx="2.6" opacity="0.5"/>
+                      <rect x="25" y="9" width="6.5" height="30" rx="2.6" opacity="0.75"/>
+                      <rect x="33.5" y="9" width="6.5" height="30" rx="2.6" opacity="1.0"/>
+                    </g>
                 </svg>
             </span>
             <span class="logo-text">HarmoHub</span>
