@@ -81,8 +81,6 @@ const DETTE_TACTILE = {
     'seq-zoom': '315x25 — porte « Séquenceur » du volet',
     'quick-add-help-btn': '26x44 — ampoule d\'aide de l\'ajout rapide, étroite',
     'add-section': '138x31 — « Ajouter une partie »',
-    'lyrics-btn': '81x26 — bouton Paroles',
-    'file-menu-btn': '77x26 — menu Fichier',
 };
 
 // La surface ACTIVE : la fenêtre/le panneau au premier plan, ou le document si rien ne se superpose.

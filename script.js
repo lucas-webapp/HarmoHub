@@ -603,6 +603,31 @@ function sectionMeasureCount(sec, beatsPerBar) {
     return Number.isInteger(count) ? String(count) : count.toFixed(1);
 }
 
+// Nombre de fois qu'une partie est rejouée d'affilée. Vivait UNIQUEMENT dans Paroles, où son propre
+// commentaire l'annonçait comme « propre à Paroles » et « repère purement indicatif ». C'est en
+// réalité une donnée du MORCEAU : elle décrit sa structure, pas la mise en page des paroles. Tant
+// qu'elle restait là-bas, la vue Structure aurait dû en inventer une seconde, et deux notions de
+// répétition finissent toujours par se contredire (retour utilisateur : « il faut que les sections de
+// HarmoHub, Paroles, et Structure soient liées »).
+// Elle remonte donc ici, dans la partie elle-même — elle voyage dès lors avec le morceau enregistré,
+// avec l'export, et avec la sauvegarde de bibliothèque, sans rien de plus à écrire.
+// Lue avec un défaut de 1 et bornée : les anciens morceaux n'ont pas le champ, et une valeur aberrante
+// (0, négative, décimale) fausserait la durée totale sans rien apporter.
+function repeatCountOf(sec) {
+    const n = Math.round(Number(sec && sec.repeatCount) || 1);
+    return Math.min(99, Math.max(1, n));
+}
+
+// Total de mesures du morceau, répétitions COMPRISES — c'est la longueur réellement jouée, la seule
+// qui réponde à « il dure combien ? ». Rendu en nombre (et non en chaîne comme sectionMeasureCount,
+// qui est fait pour l'affichage d'UNE partie) parce qu'il sert aussi à calculer une durée.
+function totalMeasuresOf(sections, beatsPerBar) {
+    return sections.reduce((total, sec) => {
+        const beats = (sec.chords || []).reduce((sum, c) => sum + beatsFromData(c), 0);
+        return total + (beats / beatsPerBar) * repeatCountOf(sec);
+    }, 0);
+}
+
 // Fond zébré sur UNE MESURE SUR DEUX (pas un temps sur deux : ça se répétait trop vite et perdait
 // tout son sens, on ne distinguait plus la mesure elle-même) — la mise en valeur couvre TOUTE la
 // largeur de la mesure, pas un simple repère centré sur un temps. S'applique quand même à CHAQUE
@@ -4053,6 +4078,12 @@ class HarmoHubApp {
         document.getElementById('settings-close').onclick = () => this.closeSettings();
         // Fenêtre « Mes morceaux » : mêmes gestes de fermeture que les Paramètres (croix, clic sur
         // le fond, Échap — voir setupKeyboardShortcuts).
+        this._cabler('structure-btn', 'click', () => this.openStructureWindow());
+        this._cabler('structure-close', 'click', () => this.closeStructureWindow());
+        this._cabler('structure-overlay', 'click', (e) => {
+            if (e.target.id === 'structure-overlay') this.closeStructureWindow();
+        });
+        this._cabler('structure-print', 'click', () => this.printStructure());
         this._cabler('song-files', 'click', () => this.openFilesWindow());
         this._cabler('files-close', 'click', () => this.closeFilesWindow());
         this._cabler('files-overlay', 'click', (e) => {
@@ -8871,6 +8902,191 @@ class HarmoHubApp {
     // chose — le motif signalé deux fois (« plusieurs options se recroisent »). Il vit donc
     // uniquement dans #files-overlay, ce qui a permis de supprimer tout l'aller-retour du panneau
     // entre les deux fenêtres. Les Paramètres ne contiennent plus que des préférences.
+    // ---------- Structure du morceau ----------
+    // POURQUOI UNE VUE ET PAS UN MODULE. Paroles est une page séparée qui reçoit un INSTANTANÉ du
+    // morceau ; cet instantané dérive (Paroles affiche déjà « Le morceau a changé dans HarmoHub depuis
+    // ta dernière session ici »). Refaire Structure sur ce modèle aurait donné une troisième copie des
+    // parties, à synchroniser, alors que la demande était précisément qu'elles soient liées. Cette
+    // fenêtre lit donc les parties RÉELLES : il n'y a rien à synchroniser parce qu'il n'y a qu'un seul
+    // exemplaire.
+    openStructureWindow() {
+        const overlay = document.getElementById('structure-overlay');
+        if (!overlay) return; // index.html servi depuis le cache : ne rien faire plutôt que lever
+        this.structureOpen = true;
+        overlay.hidden = false;
+        document.getElementById('structure-btn')?.classList.add('active');
+        this.lockBodyScroll();
+        this.renderStructurePanel();
+    }
+
+    closeStructureWindow() {
+        this.structureOpen = false;
+        const overlay = document.getElementById('structure-overlay');
+        if (overlay) overlay.hidden = true;
+        document.getElementById('structure-btn')?.classList.remove('active');
+        this.unlockBodyScroll();
+    }
+
+    // Les accords d'une partie, GROUPÉS PAR MESURE. Une liste à plat « C, Am, F, G » ne se lit pas :
+    // un musicien lit une grille, c'est-à-dire des mesures. On rend donc « | C | Am | F G | ».
+    // Un accord qui dure plus d'une mesure n'est écrit qu'une fois, les mesures suivantes portant « % »
+    // — le signe habituel du « comme la précédente ». Sans lui, un accord tenu quatre mesures
+    // s'afficherait quatre fois et donnerait à lire une suite d'accords là où il n'y en a qu'un.
+    chordsByMeasure(sec, beatsPerBar) {
+        // Même orthographe des notes que partout ailleurs (dièses ou bémols selon la tonalité, et par
+        // accord) : exactement le calcul d'exportLyricsData. Écrire « F# » ici quand la grille affiche
+        // « Gb » ferait douter qu'il s'agit du même accord.
+        const gRoot = document.getElementById('global-root').value;
+        const gMode = document.getElementById('global-mode').value;
+        const songUseFlats = useFlatsForKey(NOTES.indexOf(gRoot), gMode);
+        const mesures = [];
+        let courante = [];
+        let restant = beatsPerBar;
+        (sec.chords || []).forEach(h => {
+            let beats = beatsFromData(h);
+            const symbole = chordSymbolForData(h, useFlatsForChordRoot(NOTES.indexOf(h.root), NOTES.indexOf(gRoot), gMode, songUseFlats));
+            let premier = true;
+            while (beats > 0) {
+                const pris = Math.min(beats, restant);
+                courante.push(premier ? symbole : '%');
+                premier = false;
+                beats -= pris;
+                restant -= pris;
+                if (restant <= 0) { mesures.push(courante); courante = []; restant = beatsPerBar; }
+            }
+        });
+        if (courante.length) mesures.push(courante);
+        // Une mesure entièrement occupée par la suite d'un accord tenu se résume à « % » : répéter le
+        // signe autant de fois qu'il y a de temps n'apprendrait rien.
+        return mesures.map(m => (m.every(x => x === '%') ? ['%'] : m));
+    }
+
+    // Famille d'une partie : « Couplet » et « Couplet (variation) » sont la même chose jouée
+    // autrement. Le regroupement se fait sur le nom AVANT la parenthèse — aucune saisie de plus à
+    // faire, et c'est déjà la façon dont on nomme ses variations (l'exemple venait de l'utilisateur
+    // lui-même : « couplet (variation) »).
+    structureFamily(title) {
+        return (title || '').replace(/\s*\(.*$/, '').trim().toLowerCase() || '—';
+    }
+
+    renderStructurePanel() {
+        const hote = document.getElementById('structure-panel');
+        if (!hote) return;
+        const sections = loadProgressionSections();
+        const beatsPerBar = this.beatsPerBar();
+        const bpm = parseInt(document.getElementById('bpm')?.value, 10) || 120;
+
+        const totalMesures = totalMeasuresOf(sections, beatsPerBar);
+        const secondes = bpm > 0 ? (totalMesures * beatsPerBar * 60) / bpm : 0;
+        const duree = `${Math.floor(secondes / 60)} min ${String(Math.round(secondes % 60)).padStart(2, '0')} s`;
+
+        // Une couleur par famille, attribuée dans l'ordre d'apparition : elle ne sert qu'à faire
+        // ressortir d'un coup d'œil qu'une partie revient, éventuellement variée.
+        const familles = [...new Set(sections.map(sec => this.structureFamily(sec.title)))];
+
+        // MESURE DE DÉPART, répétitions comprises. C'est l'information qu'on cherche en répétition
+        // (« le pont commence mesure 45 ») et elle n'existait nulle part : chaque module savait dire la
+        // longueur d'une partie, aucun ne savait dire OÙ elle tombe.
+        let curseur = 1;
+        const lignes = sections.map((sec, i) => {
+            const titre = (sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${i + 1}`;
+            const beats = (sec.chords || []).reduce((sum, c) => sum + beatsFromData(c), 0);
+            const mesuresUne = beats / beatsPerBar;
+            const rep = repeatCountOf(sec);
+            const debut = curseur;
+            const fin = curseur + mesuresUne * rep - 1;
+            curseur += mesuresUne * rep;
+            const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+            const grille = this.chordsByMeasure(sec, beatsPerBar)
+                .map(m => m.map(escapeHtml).join(' ')).join(' | ');
+            const famille = familles.indexOf(this.structureFamily(sec.title)) % 8;
+            return `
+                <div class="struct-row" data-section="${i}">
+                    <span class="struct-famille struct-famille-${famille}" title="Parties du même nom (variations comprises)"></span>
+                    <div class="struct-main">
+                        <div class="struct-head">
+                            <span class="struct-title">${escapeHtml(titre)}</span>
+                            <span class="struct-measures">${sec.chords.length ? `${fmt(mesuresUne)} mes.` : 'vide'}</span>
+                            ${rep > 1 ? `<span class="struct-rep">×${rep}</span>` : ''}
+                            ${sec.chords.length ? `<span class="struct-pos">mes. ${fmt(debut)}–${fmt(fin)}</span>` : ''}
+                        </div>
+                        ${sec.chords.length ? `<div class="struct-chords">| ${grille} |</div>` : ''}
+                    </div>
+                    <div class="struct-actions">
+                        <button type="button" class="icon-btn" data-struct="rep-moins" title="Une répétition de moins" aria-label="Une répétition de moins">−</button>
+                        <button type="button" class="icon-btn" data-struct="rep-plus" title="Une répétition de plus" aria-label="Une répétition de plus">+</button>
+                        <button type="button" class="icon-btn" data-struct="haut" title="Monter cette partie" aria-label="Monter cette partie">↑</button>
+                        <button type="button" class="icon-btn" data-struct="bas" title="Descendre cette partie" aria-label="Descendre cette partie">↓</button>
+                    </div>
+                </div>`;
+        }).join('');
+
+        // LE DÉROULÉ : ce qu'on joue, dans l'ordre, répétitions comprises. C'est la forme du morceau —
+        // la seule ligne qu'on relit avant de monter sur scène.
+        const deroule = sections.filter(sec => sec.chords.length).map((sec, i) => {
+            const titre = (sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${i + 1}`;
+            const rep = repeatCountOf(sec);
+            return escapeHtml(titre) + (rep > 1 ? ` ×${rep}` : '');
+        }).join(' · ');
+
+        hote.innerHTML = `
+            <div class="struct-somme">
+                <span><strong>${Number.isInteger(totalMesures) ? totalMesures : totalMesures.toFixed(1)}</strong> mesures</span>
+                <span><strong>${duree}</strong> à ${bpm} BPM</span>
+                <span><strong>${sections.filter(s => s.chords.length).length}</strong> partie(s)</span>
+            </div>
+            ${deroule ? `<div class="struct-deroule"><span class="struct-deroule-label">Déroulé</span> ${deroule}</div>` : ''}
+            <div class="struct-liste">${lignes}</div>
+            ${sections.some(s => s.chords.length) ? '' : '<p class="struct-vide">Aucun accord pour l\'instant — la structure apparaîtra ici dès que la grille en contiendra.</p>'}`;
+
+        hote.querySelectorAll('[data-struct]').forEach(btn => {
+            btn.onclick = () => {
+                const i = +btn.closest('.struct-row').dataset.section;
+                const action = btn.dataset.struct;
+                if (action === 'haut' || action === 'bas') {
+                    this.moveSection(i, action === 'haut' ? -1 : 1);
+                } else {
+                    const sections = loadProgressionSections();
+                    if (!sections[i]) return;
+                    this.pushUndo(sections);
+                    sections[i].repeatCount = repeatCountOf(sections[i]) + (action === 'rep-plus' ? 1 : -1);
+                    saveProgressionSections(sections);
+                    this.loadProgression();
+                }
+                this.renderStructurePanel();
+            };
+        });
+    }
+
+    // IMPRESSION DE LA FEUILLE DE ROUTE. Pas un troisième moteur PDF : il y en a déjà deux dans ce
+    // projet (jsPDF côté HarmoHub, jsPDF côté Paroles) et un troisième serait la troisième copie de la
+    // même mécanique. Ici le contenu est du texte et des filets — l'impression du navigateur le rend
+    // parfaitement, et « Enregistrer en PDF » y est une destination standard.
+    // Le corps est REMPLACÉ le temps de l'impression puis rendu tel quel : imprimer la page entière
+    // n'aurait donné que la grille et le volet, pas cette fenêtre-ci.
+    printStructure() {
+        const panneau = document.getElementById('structure-panel');
+        if (!panneau) return;
+        const titre = this.getCurrentSongName ? (this.getCurrentSongName() || 'Morceau') : 'Morceau';
+        const zone = document.createElement('div');
+        zone.id = 'structure-print-zone';
+        zone.innerHTML = `<h1>${escapeHtml(titre)}</h1><h2>Structure</h2>` + panneau.innerHTML;
+        // Les commandes n'ont aucun sens sur papier : elles partent de la copie imprimée, pas de la
+        // fenêtre.
+        zone.querySelectorAll('.struct-actions').forEach(el => el.remove());
+        document.body.appendChild(zone);
+        document.body.classList.add('impression-structure');
+        const apres = () => {
+            document.body.classList.remove('impression-structure');
+            zone.remove();
+            window.removeEventListener('afterprint', apres);
+        };
+        window.addEventListener('afterprint', apres);
+        window.print();
+        // Filet : certains navigateurs ne lèvent pas afterprint si la boîte est annulée tout de suite.
+        setTimeout(() => { if (document.getElementById('structure-print-zone')) apres(); }, 3000);
+    }
+
     openFilesWindow() {
         this.filesOpen = true;
         const overlay = document.getElementById('files-overlay');
@@ -10640,6 +10856,13 @@ class HarmoHubApp {
             beatsPerBar: this.beatsPerBar(),
             sections: sections.map(sec => ({
                 title: (sec.title || '').trim(),
+                // Répétitions et nombre de mesures voyagent avec le morceau. Paroles les RECALCULAIT
+                // de son côté, avec un arrondi différent (Math.round contre le .toFixed(1) d'ici) :
+                // une partie de 7,5 mesures s'affichait « 8 » là-bas et « 7.5 » ici. Deux modules qui
+                // montrent la même longueur doivent la tenir du même endroit, sinon le même morceau
+                // paraît changer de taille selon l'écran où on le regarde.
+                repeatCount: repeatCountOf(sec),
+                measures: sectionMeasureCount(sec, this.beatsPerBar()),
                 chords: sec.chords.map(h => {
                     const chordUseFlats = useFlatsForChordRoot(NOTES.indexOf(h.root), NOTES.indexOf(gRoot), gMode, useFlats);
                     const chord = new Chord(h.root, h.quality, beatsFromData(h), h.inversion, h.drop, octaveFromData(h), h.bass, h.guitarLock, h.extraNotes);

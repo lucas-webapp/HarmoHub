@@ -267,9 +267,15 @@ function loadSong(data) {
         // complète ici pour que retrait/déplacement par id fonctionnent aussi sur d'anciennes données.
         sec._placements.forEach(p => { if (!p.id) p.id = nextPlacementId(); });
         droppedPlacements += rawPlacements.length - sec._placements.length;
-        // Nombre de répétitions d'affilée (voir buildSectionMeta) : propre à Paroles, absent des
-        // anciennes sessions enregistrées avant cet ajout — 1 par défaut (aucune répétition en plus).
-        sec._repeatCount = (savedSec && savedSec.repeatCount) || 1;
+        // LE MORCEAU FAIT FOI. Les répétitions étaient une notion propre à Paroles ; elles sont
+        // désormais une donnée de la partie côté HarmoHub (voir repeatCountOf dans script.js), et
+        // voyagent dans le fichier. Quand le fichier en porte une, elle l'emporte sur la valeur locale :
+        // c'est le prix, et le but, d'avoir une seule vérité. Un fichier ANCIEN n'a pas ce champ — on
+        // garde alors la valeur de la session, pour ne pas remettre à 1 un réglage posé ici avant ce
+        // changement.
+        sec._repeatCount = Number.isFinite(sec.repeatCount)
+            ? Math.min(99, Math.max(1, Math.round(sec.repeatCount)))
+            : ((savedSec && savedSec.repeatCount) || 1);
     });
     state.song = data;
     state.armed = null;
@@ -681,14 +687,23 @@ function buildSectionMeta(sec) {
     meta.className = 'section-meta';
     meta.refreshRepeatUI = () => {}; // remplacé plus bas s'il y a un compteur de répétitions à afficher
 
+    // La longueur est CELLE QU'A CALCULÉE HARMOHUB (champ `measures` du fichier), pas un second calcul
+    // fait ici. L'ancien Math.round local donnait « 8 mesures » là où HarmoHub affichait « 7.5 » :
+    // même partie, deux longueurs, selon l'écran. Le repli sur le calcul local ne sert qu'aux fichiers
+    // exportés avant ce changement, et reproduit alors la règle d'HarmoHub (une décimale si besoin)
+    // plutôt que l'arrondi d'avant.
     const beatsPerBar = state.song.beatsPerBar || 4;
     const totalBeats = sec.chords.reduce((sum, c) => sum + (c.beats || 0), 0);
-    const totalMeasures = Math.round(totalBeats / beatsPerBar);
+    const calculLocal = totalBeats / beatsPerBar;
+    const mesures = sec.measures != null
+        ? String(sec.measures)
+        : (Number.isInteger(calculLocal) ? String(calculLocal) : calculLocal.toFixed(1));
+    const totalMeasures = totalBeats > 0 ? calculLocal : 0;
 
     const measuresEl = document.createElement('span');
     measuresEl.className = 'section-measures';
     measuresEl.textContent = totalMeasures > 0
-        ? `${totalMeasures} mesure${totalMeasures > 1 ? 's' : ''}`
+        ? `${mesures} mesure${parseFloat(mesures) > 1 ? 's' : ''}`
         : 'Aucun accord';
     meta.appendChild(measuresEl);
 

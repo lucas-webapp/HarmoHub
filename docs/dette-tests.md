@@ -3291,3 +3291,76 @@ Le bac à sable passe par un proxy qui ré-signe le HTTPS avec une autorité inc
 test ; la police Google Fonts échoue donc ici, jamais chez l'utilisateur. Les voisins de cette liste
 filtraient déjà cet échec par son URL — mais ce message-ci n'en porte aucune, il passait au travers et
 faisait rougir « aucune erreur JavaScript » par intermittence, selon que la police était en cache.
+
+## Module « Structure » : une vue, pas un troisième silo
+
+Demande : voir d'un coup d'œil la structure d'un morceau (parties, mesures), rappeler les accords dans
+l'ordre, imprimer, et « que les sections de HarmoHub, Paroles, et Structure soient liées ». Avec cette
+question, rare et précieuse : « je n'ai peut-être pas proposé l'option la plus intuitive de travailler ».
+
+### Ce que l'inventaire a montré avant d'écrire une ligne
+
+La moitié du travail existait déjà, éparpillée : `sectionMeasureCount()` (script.js) calculait le
+nombre de mesures d'une partie et servait DÉJÀ à deux endroits — l'en-tête de la grille et les titres
+de section du PDF. `moveSection()` savait réordonner. Ce qui manquait n'était pas un calcul, c'était
+**un endroit où lire tout ça d'un coup**.
+
+Et une chose était au mauvais endroit : `repeatCount` vivait uniquement dans Paroles, où son propre
+commentaire le décrivait comme « propre à Paroles » et « repère purement indicatif ». C'est pourtant
+une donnée du MORCEAU — elle décrit sa forme, pas la mise en page des paroles.
+
+### La décision de fond : vue, pas module
+
+Paroles est une page séparée qui reçoit un **instantané** du morceau. Cet instantané dérive déjà, et
+l'appli le sait : elle affiche « Le morceau a changé dans HarmoHub depuis ta dernière session ici » et
+jette les accords posés dont l'index n'existe plus. Refaire Structure sur ce modèle aurait produit une
+**troisième copie** des parties, à synchroniser — exactement l'inverse de ce qui était demandé.
+
+Structure ne possède donc aucune donnée : elle lit les parties réelles. Il n'y a rien à synchroniser
+parce qu'il n'y a qu'un exemplaire. Conséquence directe et voulue : y changer l'ordre ou les
+répétitions change le morceau, et c'est précisément ce que le banc vérifie — pas l'affichage, mais le
+fait que le geste atteigne la grille.
+
+### Deux longueurs pour la même partie
+
+Paroles RECALCULAIT le nombre de mesures de son côté, avec `Math.round` là où HarmoHub fait
+`toFixed(1)`. Une partie de 7,5 mesures s'affichait donc « 8 » dans un module et « 7.5 » dans l'autre.
+Personne ne l'avait vu ; une vue Structure l'aurait mis en vitrine. La valeur voyage désormais dans le
+fichier (`measures`), calculée une seule fois. Le repli local ne sert qu'aux fichiers exportés avant ce
+changement — et reproduit alors la règle d'HarmoHub, pas l'ancien arrondi.
+
+### Ce que j'ai ajouté à la demande, et pourquoi
+
+La liste demandée était juste mais **statique**. Trois ajouts, tous tirés de ce qu'on cherche vraiment
+en regardant une structure :
+
+- **La mesure de départ de chaque partie.** « Le pont commence mesure 45 » est l'information qu'on
+  cherche en répétition — et elle n'existait nulle part : chaque module savait dire la LONGUEUR d'une
+  partie, aucun ne savait dire OÙ elle tombe. Une somme cumulée, répétitions comprises.
+- **Les accords groupés par mesure**, `| C | Am | F G |`, et non à plat. Un musicien lit une grille,
+  c'est-à-dire des mesures. Un accord tenu sur deux mesures n'est écrit qu'une fois, la suivante
+  portant `%` — l'écrire deux fois donnerait à lire deux accords là où il n'y en a qu'un.
+- **Les familles de variation.** L'exemple venait de l'utilisateur lui-même (« couplet (variation) ») :
+  le regroupement se fait sur le nom AVANT la parenthèse, donc sans aucune saisie supplémentaire.
+
+Et la réponse à « pas la plus intuitive » : **réordonner depuis cette vue**. `moveSection()` existait ;
+la vue passe ainsi de résumé passif à l'endroit où l'on ARRANGE le morceau.
+
+### L'impression, sans troisième moteur PDF
+
+Il y a déjà deux chaînes jsPDF dans ce projet (HarmoHub et Paroles). Une troisième aurait été la
+troisième copie de la même mécanique. Ici le contenu est du texte et des filets : l'impression du
+navigateur le rend parfaitement, et « Enregistrer en PDF » y est une destination standard. Le corps
+est remplacé le temps de l'impression — imprimer la page telle quelle n'aurait donné que la grille et
+le volet, jamais cette fenêtre, qui vit dans un overlay.
+
+### La sentinelle a attrapé mon propre bouton
+
+`structure-btn` mesurait 90×26 sur téléphone, sous le plancher de 32px. Le réflexe aurait été de
+l'inscrire dans `DETTE_TACTILE` — mais cette liste est plafonnée à six par une vérification explicite,
+et l'allonger pour faire taire ce qu'elle vient de trouver reviendrait à démonter le garde-fou (c'est
+l'arbitrage déjà pris au lot précédent). Corrigé à la source, sur la classe partagée : « Paroles » et
+« Fichier » en profitent, et **la dette tactile passe de six entrées à quatre**.
+
+**Bilan.** `structure_test` 16/0 · `paroles_repeat` 9/0 · `export_lyrics` 9/0 · `paroles_test` 24/0 ·
+`sentinelle_atteignabilite` 25/0 · `sentinelle_adresses` 202/0 · `meta_suite` 6/0.

@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202609150100">
+    <link rel="stylesheet" href="style.css?v=202609170100">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -281,6 +281,25 @@
                         <button type="button" id="pdf-export-cancel" class="btn-sec">Annuler</button>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STRUCTURE DU MORCEAU (voir renderStructurePanel dans script.js). Une FENÊTRE et non une page à
+         part : les parties affichées ici sont celles de la grille, lues en direct. Y changer l'ordre
+         ou le nombre de répétitions change le morceau lui-même, sans synchronisation d'aucune sorte —
+         c'est tout l'intérêt de ne rien dupliquer. -->
+    <div id="structure-overlay" class="settings-overlay" hidden>
+        <div class="settings-modal files-modal" role="dialog" aria-modal="true" aria-labelledby="structure-title">
+            <div class="settings-header">
+                <h2 id="structure-title">Structure du morceau</h2>
+                <button type="button" id="structure-print" class="btn-sec" title="Imprimer ou enregistrer en PDF cette feuille de route">Imprimer</button>
+                <button type="button" id="structure-close" class="icon-btn" title="Fermer" aria-label="Fermer">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="settings-body">
+                <div id="structure-panel" class="settings-content"></div>
             </div>
         </div>
     </div>
@@ -1329,6 +1348,16 @@
                          télécharger ; il mérite d'être visible directement plutôt que caché derrière un
                          clic de plus. Icône micro reprise du tout premier bouton "Lyrics" dédié (avant
                          sa fusion temporaire dans le menu Fichier). -->
+                    <!-- STRUCTURE : la forme du morceau d'un coup d'œil (voir openStructureWindow).
+                         Voisine de « Paroles » parce que ce sont les deux mêmes gestes — prendre du
+                         recul sur le morceau entier — mais elle n'ouvre PAS d'onglet : elle lit les
+                         parties réelles, ici même. Un troisième module aurait voulu dire une
+                         troisième copie des parties, alors que la demande était justement qu'elles
+                         soient liées. -->
+                    <button type="button" id="structure-btn" class="icon-btn lyrics-btn" title="Voir la structure du morceau (parties, mesures, enchaînement)" aria-label="Voir la structure du morceau">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="11" height="4" rx="1"/><rect x="3" y="16" width="15" height="4" rx="1"/></svg>
+                        <span class="btn-label">Structure</span>
+                    </button>
                     <button type="button" id="lyrics-btn" class="icon-btn lyrics-btn" title="Ouvrir dans Paroles (placer les accords sur un texte)" aria-label="Ouvrir dans Paroles">
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5"/><path d="M8 22h8"/></svg>
                         <span class="btn-label">Paroles</span>
@@ -1407,6 +1436,6 @@
          local comme lame.min.js, tous deux sous licence MIT. -->
     <script src="html2canvas.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
-    <script src="script.js?v=202609150100"></script>
+    <script src="script.js?v=202609170100"></script>
 </body>
 </html>

@@ -3294,6 +3294,16 @@ button:active { transform: translateY(1px); }
     gap: 5px;
 }
 .file-menu-btn .btn-label, .lyrics-btn .btn-label { font-size: var(--fs-xs); font-weight: 700; }
+/* AU DOIGT, CES TROIS-LÀ ATTEIGNENT LE PLANCHER. 26px de haut : c'est sous les 32px que ce projet
+   s'est donnés, et la sentinelle d'atteignabilité l'a relevé dès l'ajout de « Structure » (90×26).
+   Le réflexe aurait été d'inscrire le nouveau venu dans DETTE_TACTILE — mais cette liste est plafonnée
+   à six par une vérification explicite, et l'allonger pour faire taire ce qu'elle vient de trouver
+   reviendrait à démonter le garde-fou. On corrige donc, et « Paroles » et « Fichier » en profitent :
+   ils étaient dans la même situation, et l'un d'eux figurait justement dans cette dette. Un bouton
+   étiqueté reste 26px à la souris, où il se vise très bien. */
+@media (pointer: coarse) {
+    .file-menu-btn, .lyrics-btn { height: auto; min-height: 32px; }
+}
 
 /* Entrées du menu Fichier : libellé + précision en dessous. Une ligne pleine largeur se vise sans
    effort au doigt, là où les pictogrammes de 26px ne s'atteignaient pas. */
@@ -6184,3 +6194,109 @@ select.song-select-narrow {
    voie pendant le geste ce qu'on obtiendra après. Cette classe ne sert qu'à le RETROUVER et à
    l'exclure des sélecteurs qui cherchent de vraies notes. */
 .seq-note-apercu { pointer-events: none; }
+
+/* ===== STRUCTURE DU MORCEAU (voir renderStructurePanel dans script.js) =====
+   Une ligne par partie, et sur cette ligne tout ce qu'on cherche du regard : le nom, la longueur, les
+   répétitions, et SURTOUT la position en mesures — « le pont commence mesure 45 » est ce qu'on lit en
+   répétition. Les accords viennent dessous, groupés par mesure. */
+.struct-somme {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    background: var(--fond-bouton-sombre, #1c2027);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+}
+.struct-somme strong { color: var(--text-main); font-variant-numeric: tabular-nums; }
+/* Le déroulé est la FORME du morceau : une seule ligne, lisible d'un trait. C'est elle qu'on relit
+   avant de jouer, pas le détail partie par partie. */
+.struct-deroule {
+    padding: 8px 12px;
+    margin-bottom: 14px;
+    border-left: 3px solid var(--accent);
+    background: rgba(0, 230, 118, 0.05);
+    font-size: var(--fs-sm);
+    line-height: 1.6;
+}
+.struct-deroule-label {
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-right: 8px;
+}
+.struct-liste { display: flex; flex-direction: column; gap: 6px; }
+.struct-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card-bg, #16191e);
+}
+.struct-main { flex: 1; min-width: 0; }
+.struct-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.struct-title { font-weight: 700; }
+.struct-measures, .struct-pos, .struct-rep { font-size: var(--fs-sm); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+/* Les répétitions sont la seule donnée qu'on MODIFIE depuis cette vue : elle se distingue. */
+.struct-rep { color: var(--accent); font-weight: 700; }
+/* Les accords en police à chasse fixe : les barres de mesure s'alignent d'une ligne à l'autre, et
+   c'est cet alignement qui fait qu'une grille se lit comme une grille. */
+.struct-chords {
+    margin-top: 4px;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 0.82rem;
+    color: var(--text-main);
+    overflow-x: auto;
+    white-space: nowrap;
+}
+/* Pastille de famille : « Couplet » et « Couplet (variation) » partagent la même couleur. Elle ne dit
+   rien de plus que « c'est la même chose qui revient » — mais c'est justement ce qu'on veut voir sans
+   lire. */
+.struct-famille { flex: none; width: 4px; align-self: stretch; border-radius: 2px; background: #555; }
+.struct-famille-0 { background: #00e676; } .struct-famille-1 { background: #40c4ff; }
+.struct-famille-2 { background: #ffb300; } .struct-famille-3 { background: #ff6f61; }
+.struct-famille-4 { background: #b388ff; } .struct-famille-5 { background: #4db6ac; }
+.struct-famille-6 { background: #f06292; } .struct-famille-7 { background: #aed581; }
+.struct-actions { display: flex; gap: 4px; flex: none; }
+.struct-actions .icon-btn { width: 30px; height: 30px; font-size: 1rem; }
+.struct-vide { color: var(--text-muted); font-style: italic; }
+/* Le bouton « Imprimer » vit dans l'en-tête de la fenêtre, à côté du titre et de la croix. Sans cette
+   ligne il s'étirait sur toute la largeur : la règle générique `button { flex: 1; min-width: 120px }`
+   (voir tout en haut de cette feuille) s'applique aussi ici, et un en-tête en flex lui donne alors
+   tout l'espace libre. Même piège que .icon-btn et .voicing-step, pour la même raison. */
+#structure-overlay .settings-header .btn-sec { flex: 0 0 auto; min-width: 0; padding: 6px 16px; }
+
+/* À L'IMPRESSION : seule la feuille de route sort. Imprimer la page telle quelle donnerait la grille
+   et le volet, jamais cette fenêtre — elle vit dans un overlay. On imprime donc une copie posée à
+   part, sur fond blanc, encre noire : une feuille de route se lit sur du papier, pas sur un thème
+   sombre qui viderait une cartouche. */
+#structure-print-zone { display: none; }
+body.impression-structure > *:not(#structure-print-zone) { display: none !important; }
+/* Le fond blanc ne peut pas attendre @media print : la classe n'est posée QUE le temps d'imprimer, et
+   sans elle le corps garde le fond sombre de l'appli — visible dans l'aperçu avant impression, et
+   imprimé tel quel par les navigateurs qui honorent les couleurs de fond. */
+body.impression-structure { background: #fff; }
+body.impression-structure #structure-print-zone { display: block; color: #000; background: #fff; padding: 0; }
+body.impression-structure #structure-print-zone h1 { font-size: 20pt; margin: 0 0 2pt; }
+body.impression-structure #structure-print-zone h2 { font-size: 11pt; font-weight: 600; color: #555; margin: 0 0 14pt; }
+body.impression-structure .struct-somme,
+body.impression-structure .struct-row { background: #fff; border-color: #bbb; color: #000; }
+body.impression-structure .struct-somme strong,
+body.impression-structure .struct-title,
+body.impression-structure .struct-chords { color: #000; }
+body.impression-structure .struct-measures,
+body.impression-structure .struct-pos { color: #444; }
+/* Le vert de l'accent ne tient pas à l'impression : bleu nuit, comme les pastilles d'accord du PDF
+   Paroles — franc sur blanc, et encore lisible en noir et blanc. */
+body.impression-structure .struct-rep { color: #12295e; }
+body.impression-structure .struct-deroule { background: #fff; border-left-color: #12295e; }
+body.impression-structure .struct-row { break-inside: avoid; }
+@media print {
+    body.impression-structure { background: #fff; }
+}
