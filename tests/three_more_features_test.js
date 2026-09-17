@@ -34,7 +34,7 @@ const accord = (root, quality, beats) => ({ root, quality, beats, inversion: 0, 
     const page = await browser.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
-    page.on('console', (msg) => { if (msg.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_NAME_NOT_RESOLVED|fonts\.googleapis|fonts\.gstatic/.test(msg.text())) errors.push('console.error: ' + msg.text()); });
+    page.on('console', (msg) => { if (msg.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID|ERR_NAME_NOT_RESOLVED|fonts\.googleapis|fonts\.gstatic/.test(msg.text())) errors.push('console.error: ' + msg.text()); });
     await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
     await page.waitForTimeout(200);
 
@@ -59,13 +59,18 @@ const accord = (root, quality, beats) => ({ root, quality, beats, inversion: 0, 
     });
     console.log(JSON.stringify(groupes, null, 1));
     // Dossiers classés par ordre alphabétique, morceaux du plus récent au plus ancien dans chacun.
+    // On compare le NOM, pas le libellé entier : chaque option porte désormais « — <date> » derrière
+    // le nom (ajouté avec la comparaison des versions à l'import, commit 7ea17c0). Figer le libellé
+    // complet ici, c'était faire échouer ce banc pour un ajout qui ne le concerne pas — et ça a bien
+    // fini par arriver.
     const attendu = [
         { label: 'Jazz', options: ['Song C'] },
         { label: 'Rock', options: ['Song B', 'Song A'] },
         { label: 'Sans dossier', options: ['Song D'] },
     ];
-    check(JSON.stringify(groupes.groupes) === JSON.stringify(attendu),
-        'les morceaux sont regroupés par dossier, dossiers en ordre alphabétique et morceaux du plus récent au plus ancien');
+    const nomsSeuls = groupes.groupes.map(g => ({ label: g.label, options: g.options.map(o => o.split(' — ')[0]) }));
+    check(JSON.stringify(nomsSeuls) === JSON.stringify(attendu),
+        `les morceaux sont regroupés par dossier, dossiers en ordre alphabétique et morceaux du plus récent au plus ancien — ${JSON.stringify(nomsSeuls)}`);
 
     console.log('--- Aucun dossier utilisé -> liste plate, sans <optgroup> ---');
     await page.evaluate(() => {

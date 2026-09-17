@@ -2467,8 +2467,30 @@ function midiVarLen(value) {
 function midiU16(n) { return [(n >> 8) & 0xff, n & 0xff]; }
 function midiU32(n) { return [(n >> 24) & 0xff, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff]; }
 
+// LES ACCENTS SONT RETIRÉS DU TEXTE MIDI, ET CE N'EST PAS UNE NÉGLIGENCE.
+// La norme MIDI ne dit RIEN de l'encodage des événements de texte (titre du morceau, nom de piste,
+// marqueurs de partie) : elle les décrit comme du texte 8 bits, sans préciser lequel. Chaque lecteur
+// devine donc à sa façon — et chez MuseScore, savoir lire un jeu de caractères autre qu'ASCII est
+// encore une demande ouverte, pas une capacité (musescore.org/en/node/3370). Résultat mesuré ici même
+// avec un lecteur MIDI tiers : « Cordes synthé » écrit en UTF-8 ressort en « Cordes synthÃ© ».
+// Aucun encodage n'étant universellement juste, on ne parie pas : on écrit ce qu'AUCUN lecteur ne peut
+// déformer. « Été à Noël » devient « Ete a Noel » — l'accent se perd, mais lisiblement, et le repère
+// reste utilisable pour naviguer dans le morceau.
+// CE CHOIX NE VAUT QUE POUR LE MIDI. Les NOMS DE FICHIERS, eux, gardent leurs accents (voir
+// nettoyerNomFichier dans fichiers.js) : un système de fichiers moderne sait exactement quoi en faire,
+// là où le MIDI ne le sait pas. Deux médias, deux contraintes, deux réponses.
+function asciiPourMidi(text) {
+    return String(text == null ? '' : text)
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // é -> e, à -> a, ï -> i...
+        .replace(/[œŒ]/g, (c) => (c === 'œ' ? 'oe' : 'OE'))
+        .replace(/[æÆ]/g, (c) => (c === 'æ' ? 'ae' : 'AE'))
+        .replace(/[’‘‚‛]/g, "'").replace(/[“”„]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...')
+        .replace(/ß/g, 'ss')
+        .replace(/[^\x20-\x7e]/g, '');                      // tout ce qui reste hors ASCII imprimable
+}
+
 function midiTextEvent(type, text) {
-    const bytes = Array.from(new TextEncoder().encode(text));
+    const bytes = Array.from(asciiPourMidi(text), (c) => c.charCodeAt(0));
     return [0xff, type, ...midiVarLen(bytes.length), ...bytes];
 }
 function midiTempoEvent(bpm) {
@@ -10617,7 +10639,10 @@ class HarmoHubApp {
         const tracks = new Map(); // clé instrument -> { builder, channel }
         let nextChannel = 0;
         const trackFor = (key) => {
-            if (!GM_PROGRAM[key]) key = 'piano';
+            // `=== undefined` et non `!GM_PROGRAM[key]` : le programme du piano VAUT 0, donc faux au
+            // sens booléen. Le test naïf renvoyait le piano sur le piano — sans conséquence
+            // aujourd'hui, mais le premier instrument ajouté avec le programme 0 aurait été muet.
+            if (GM_PROGRAM[key] === undefined) key = 'piano';
             if (!tracks.has(key)) {
                 if (nextChannel === 9) nextChannel++; // canal 9 (GM) réservé à la percussion : sauté
                 const channel = nextChannel++;

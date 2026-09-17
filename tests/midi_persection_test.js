@@ -30,7 +30,12 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.click('#midi-export-persection');
     await page.waitForTimeout(1200);
     console.log('Downloads:', JSON.stringify(downloads));
-    const expected = ['Ma Chanson - Couplet.mid', 'Ma Chanson - Partie 2.mid', 'Ma Chanson - Refrain.mid'];
-    console.log(JSON.stringify(downloads) === JSON.stringify(expected) ? 'PASS (3 correctly named per-section files)' : 'FAIL');
+    // Les noms suivent la règle unique de fichiers.js : « Appli - Morceau - Type - Date Heure.ext »,
+    // le type portant ici le nom de la PARTIE. On éprouve la RÈGLE, pas une chaîne figée : écrire la
+    // date en dur condamnerait ce banc à devenir faux le lendemain.
+    const attendus = ['MIDI Couplet', 'MIDI Partie 2', 'MIDI Refrain'];
+    const conforme = downloads.length === 3 && downloads.every((nom, i) =>
+        new RegExp(`^HarmoHub - Ma Chanson - ${attendus[i]} - \\d{4}-\\d{2}-\\d{2} \\d{4}\\.mid$`).test(nom));
+    console.log(conforme ? 'PASS (3 correctly named per-section files)' : 'FAIL - ' + JSON.stringify(downloads));
     await browser.close();
 })();

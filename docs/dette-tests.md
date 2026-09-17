@@ -3524,3 +3524,86 @@ le port 8935 via `git worktree`), donne **exactement le même état** — `disab
 Il est noté ici pour ne pas être découvert deux fois, et laissé en l'état : onze contrôles restent donc
 non vérifiés par ce banc tant qu'il n'est pas repris. Le coût du diagnostic n'est pas anodin — chaque
 mise en place ratée expire au bout de 30 s, ce qui porte ce banc à une douzaine de minutes.
+
+## Le .mid exporté est-il lisible ailleurs ? (2026-09-17)
+
+### La question posée
+
+« Je n'ai pas MuseScore, fais en sorte que ça fonctionne, sinon je verrai plus tard lorsque je pourrai
+tester. » Autrement dit : personne ne peut ouvrir le fichier exporté pour vérifier qu'il est bon.
+
+Les bancs MIDI existants font tous un **aller-retour** : ils exportent, puis réimportent avec notre
+propre analyseur. C'est utile, mais ça ne prouve rien sur MuseScore, GarageBand ou Logic — si notre
+écrivain et notre lecteur partagent le même malentendu, l'aller-retour passe et le fichier reste
+illisible ailleurs. Ce trou-là est exactement celui que l'utilisateur ne peut pas combler lui-même.
+
+### Deux fausses pistes, écartées par la mesure
+
+Un premier relevé, avec un lecteur MIDI tiers, a montré deux anomalies apparentes : un accord `G7`
+sorti en triade majeure (sans la septième), et une partie entière **muette**. Les deux venaient de mes
+propres données d'essai, pas du produit :
+
+- l'identifiant interne d'une septième de dominante est `dom7` ; `'7'` n'est qu'un alias d'écriture
+  accepté à la SAISIE (voir la table ligne 187), et un accord enregistré avec `'7'` retombe en accord
+  majeur ;
+- `playStyle: 'arp'` n'est pas un préréglage. `seqPreset` ne connaît que `held` et les couples
+  cadence/articulation (`noire_staccato`…) ; l'arpège se saisit à la main dans le séquenceur, et un
+  accord « arpège » non dessiné est donc silencieux — en MIDI **comme à l'écoute**. Cohérent, pas
+  cassé.
+
+De même, la piste unique alors que deux accords portaient `instrument: 'strings'` : l'instrument est
+une propriété du MORCEAU (`instrumentMorceau`), pas de l'accord. Un morceau, un instrument, une piste.
+
+Mesurer avant d'accuser, une fois de plus : trois « défauts » sur trois étaient des erreurs de banc.
+
+### Ce que la mesure a VRAIMENT trouvé : l'encodage du texte
+
+Le nom de piste « Cordes synthé » ressortait en « **Cordes synthÃ©** » chez le lecteur tiers.
+
+La norme MIDI ne dit rien de l'encodage des événements de texte — titre du morceau, nom de piste,
+marqueurs de partie. Elle les décrit comme du texte 8 bits, sans préciser lequel. Chaque lecteur
+devine donc à sa façon, et chez MuseScore savoir lire autre chose que de l'ASCII est encore une
+**demande ouverte**, pas une capacité (musescore.org/en/node/3370). Vérifié plutôt que supposé.
+
+Aucun encodage n'étant universellement juste, on ne parie pas : `asciiPourMidi()` écrit ce qu'aucun
+lecteur ne peut déformer. « Rêve d'été » devient « Reve d'ete », « Refrain à Noël » devient
+« Refrain a Noel ». L'accent se perd, mais **lisiblement** — et le repère reste utilisable pour
+naviguer dans le morceau, ce qui est toute sa raison d'être.
+
+**Ce choix ne vaut que pour le MIDI.** Les noms de FICHIERS gardent leurs accents (voir
+`nettoyerNomFichier`) : un système de fichiers moderne sait exactement quoi en faire, là où le MIDI ne
+le sait pas. Deux médias, deux contraintes, deux réponses — et c'est volontaire, pas une incohérence.
+
+Corrigé au passage, sans conséquence visible aujourd'hui : `if (!GM_PROGRAM[key])` renvoyait au piano
+tout instrument dont le programme General MIDI vaut **0** — c'est-à-dire le piano lui-même. Sans effet
+pour l'instant, mais le premier instrument ajouté avec le programme 0 aurait été muet. Devenu
+`=== undefined`.
+
+### Le banc permanent
+
+`tests/midi_export_conformite_test.js` (27 contrôles) relit les octets avec un **lecteur SMF écrit
+depuis la norme**, sans réutiliser une ligne de l'appli : chunks et longueurs annoncées, delta-times de
+4 octets au plus, appariement Note On / Note Off, End of Track, tempo et métrique relus, marqueurs de
+partie au bon top, bornes 0-127, canal 9 (percussions) jamais utilisé, durée totale, et l'export d'une
+seule partie qui repart bien du temps 0.
+
+Trois contrôles méritent d'être nommés :
+- **la piste 0 ne porte aucune note** — convention du format 1, et plusieurs logiciels de notation
+  importent mal un fichier qui l'enfreint ;
+- **aucune note laissée ouverte** — une note sans Note Off sonne indéfiniment dans un synthé ;
+- **aucun octet de texte hors ASCII imprimable** — la garantie mise en place ci-dessus, qui se
+  reperdrait au premier `TextEncoder` réintroduit sans y penser.
+
+Le recoupement avec `@tonejs/midi` (lecteur tiers réel) a été fait à la main, hors dépôt : le projet
+n'a aucune dépendance npm et ce banc ne doit pas en introduire une. C'est le lecteur écrit depuis la
+norme qui reste, et il ne demande aucune installation.
+
+### Deux bancs restés en arrière, réparés
+
+- `midi_persection` attendait encore `Ma Chanson - Couplet.mid`, l'ancien nommage d'avant le lot A.
+  C'est une mise à jour que le lot A aurait dû faire et n'a pas faite. Il éprouve maintenant la
+  RÈGLE (`HarmoHub - <morceau> - MIDI <partie> - <date>.mid`) plutôt qu'une chaîne figée — écrire la
+  date en dur l'aurait condamné à devenir faux le lendemain.
+- `three_more_features` figeait le libellé complet des options du sélecteur de morceaux, auxquelles
+  `7ea17c0` a ajouté « — <date> » deux commits plus tôt. Il compare désormais le nom seul. Rien à voir
+  avec les lots de rangement : vérifié par l'historique (`git log -S`) plutôt que supposé.
