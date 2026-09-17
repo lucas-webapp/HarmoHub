@@ -13,7 +13,7 @@ const mk = (root, q) => ({ root, quality: q, beats: 8, inversion: 0, drop: 'none
     const p = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     const errs = [];
     p.on('pageerror', e => errs.push(e.message));
-    p.on('console', m => { if (m.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|fonts\.googleapis|fonts\.gstatic/.test(m.text())) errs.push('console: ' + m.text()); });
+    p.on('console', m => { if (m.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID|fonts\.googleapis|fonts\.gstatic/.test(m.text())) errs.push('console: ' + m.text()); });
     await p.goto(`${BASE}/index.html`); await p.waitForTimeout(500);
     await p.evaluate((s) => { const mk = eval('(' + s + ')');
         localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'C', chords: [mk('C','maj7')] }] })); }, mk.toString());

@@ -55,7 +55,7 @@ const caseP = (p) => p.evaluate(() => {
     console.log('\n=== A. Ordinateur : un « + », une cible carrée ===');
     const p = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     p.on('pageerror', e => errs.push(e.message));
-    p.on('console', m => { if (m.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|fonts\.googleapis|fonts\.gstatic/.test(m.text())) errs.push('console: ' + m.text()); });
+    p.on('console', m => { if (m.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID|fonts\.googleapis|fonts\.gstatic/.test(m.text())) errs.push('console: ' + m.text()); });
     await prep(p);
     let c = await caseP(p);
     check(c.placeholder === '+', `le libellé se réduit au signe — « ${c.placeholder} »`);

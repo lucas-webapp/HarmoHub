@@ -17,7 +17,7 @@
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('hauteur du volet et en-têtes de partie');
-plan(26);
+plan(27);
 
 const partie = (titre) => {
     const mk = (r, q) => ({ root: r, quality: q, beats: 4, inversion: 0, drop: 0, octave: 3, bass: null, playStyle: 'held' });
@@ -167,7 +167,16 @@ const partie = (titre) => {
         return { position: getComputedStyle(document.querySelector('.viz-card')).position, carte: c, exp: x, debordePage: Math.round(document.documentElement.scrollWidth - window.innerWidth) };
     });
     console.log(JSON.stringify(mob));
-    check(mob.position === 'static', `à 390px la carte reste dans le flux (position « ${mob.position} »)`);
+    // ON ÉPROUVE LE CONTRAT, PAS UNE VALEUR. Ce qui compte est que la carte ne soit pas SORTIE du flux
+    // et ne recouvre donc plus « Paroles » — c'est `position: absolute` qui l'en sortait, sur les
+    // grands écrans seulement. `relative`, elle, reste parfaitement dans le flux : ce n'est qu'un
+    // repère de position pour la bascule des diagrammes (voir .viz-card dans style.css, posé en
+    // 1ac0b31 bien avant ce banc). Exiger `static` faisait échouer ce contrôle sur une propriété qui
+    // ne change rien au défaut visé.
+    check(mob.position !== 'absolute' && mob.position !== 'fixed',
+        `à 390px la carte reste dans le flux (position « ${mob.position} »)`);
+    check(mob.carte.b <= mob.exp.t,
+        `et ne recouvre pas les boutons d'export (carte finit à ${mob.carte.b}, boutons commencent à ${mob.exp.t})`);
     check(mob.carte.b <= mob.exp.t + 2, `elle est AU-DESSUS de Paroles/Fichier, sans les recouvrir (finit à ${mob.carte.b}, ils commencent à ${mob.exp.t})`);
     check(mob.debordePage <= 1, `et la page ne défile pas horizontalement (${mob.debordePage}px)`);
     await tel.close();

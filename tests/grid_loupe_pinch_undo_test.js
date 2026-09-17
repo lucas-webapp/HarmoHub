@@ -23,7 +23,7 @@ plan(12);
     const page = await browser.newPage({ viewport: { width: 390, height: 700 }, hasTouch: true, isMobile: true });
     const errors = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
-    page.on('console', (msg) => { if (msg.type() === 'error' && !msg.text().includes('CONNECTION') && !msg.text().includes('TUNNEL')) errors.push('console.error: ' + msg.text()); });
+    page.on('console', (msg) => { if (msg.type() === 'error' && !msg.text().includes('ERR_CERT') && !msg.text().includes('CONNECTION') && !msg.text().includes('TUNNEL')) errors.push('console.error: ' + msg.text()); });
 
     await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
     await page.waitForTimeout(200);

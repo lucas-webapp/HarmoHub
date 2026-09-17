@@ -35,7 +35,7 @@ const GRAINE = { sections: [{ title: 'Couplet', chords: [
     const passerEnRevue = async (nom, taille) => {
         const page = await browser.newPage({ viewport: { width: taille.w, height: taille.h }, hasTouch: !!taille.mobile, isMobile: !!taille.mobile });
         page.on('pageerror', (e) => errors.push(`${nom} pageerror: ` + e.message));
-        page.on('console', (msg) => { if (msg.type() === 'error' && !msg.text().includes('CONNECTION')) errors.push(`${nom} console.error: ` + msg.text()); });
+        page.on('console', (msg) => { if (msg.type() === 'error' && !msg.text().includes('ERR_CERT') && !msg.text().includes('CONNECTION')) errors.push(`${nom} console.error: ` + msg.text()); });
         await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
         await page.waitForTimeout(200);
         await page.evaluate((g) => localStorage.setItem('myProgression', JSON.stringify(g)), GRAINE);

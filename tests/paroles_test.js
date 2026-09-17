@@ -25,7 +25,7 @@ fs.writeFileSync(SAMPLE_PATH, JSON.stringify(SAMPLE, null, 2));
     const page = await browser.newPage({ viewport: { width: 1000, height: 900 } });
     const errors = [];
     page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-    page.on('console', msg => { if (msg.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_NAME_NOT_RESOLVED|fonts\.googleapis|fonts\.gstatic/.test(msg.text())) errors.push('console: ' + msg.text()); });
+    page.on('console', msg => { if (msg.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID|ERR_NAME_NOT_RESOLVED|fonts\.googleapis|fonts\.gstatic/.test(msg.text())) errors.push('console: ' + msg.text()); });
     page.on('dialog', async d => { console.log('dialog:', d.message()); await d.accept(); });
 
     await page.goto(`${BASE}/paroles.html`);

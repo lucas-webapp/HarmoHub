@@ -11,7 +11,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     const page = await browser.newPage({ deviceScaleFactor: 2 });
     const errors = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
-    page.on('console', (msg) => { if (msg.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_NAME_NOT_RESOLVED|fonts\.googleapis|fonts\.gstatic/.test(msg.text())) errors.push('console.error: ' + msg.text()); });
+    page.on('console', (msg) => { if (msg.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID|ERR_NAME_NOT_RESOLVED|fonts\.googleapis|fonts\.gstatic/.test(msg.text())) errors.push('console.error: ' + msg.text()); });
 
     await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
     await page.waitForTimeout(200);
@@ -62,7 +62,12 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     }
 
     console.log('--- Item 1: loupe séquenceur H zoom is UNAFFECTED/separate from inline zoom ---');
-    await page.click('#seq-zoom');
+    // LA PORTE DE LA LOUPE A CHANGÉ. #seq-zoom n'ouvre plus que le PETIT séquenceur ; la loupe est
+    // désormais derrière #seq-plein-ecran, dans la barre du séquenceur (voir
+    // ouvrirSequenceurPleinEcran, qui le dit noir sur blanc). Ce banc cliquait donc l'ancienne porte,
+    // n'ouvrait rien, puis attendait trente secondes un bouton « Fermer » qui ne pouvait pas paraître
+    // — il mourait avant d'avoir rendu le moindre verdict, sans que rien ne signale pourquoi.
+    await page.click('#seq-plein-ecran');
     await page.waitForTimeout(150);
     r = await page.evaluate(() => ({
         seqZoomLevelX: window.app.seqZoomLevelX,

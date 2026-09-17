@@ -19,7 +19,7 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
     const page = await browser.newPage({ viewport: { width: 1400, height: 1200 } });
     const errs = [];
     page.on('pageerror', e => errs.push(e.message));
-    page.on('console', m => { if (m.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|fonts\.googleapis|fonts\.gstatic/.test(m.text())) errs.push('console: ' + m.text()); });
+    page.on('console', m => { if (m.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID|fonts\.googleapis|fonts\.gstatic/.test(m.text())) errs.push('console: ' + m.text()); });
 
     await page.goto(`${BASE}/index.html`);
     await page.waitForTimeout(500);

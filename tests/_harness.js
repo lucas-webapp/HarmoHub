@@ -82,3 +82,20 @@ function creerHarnais(nomDuBanc = '') {
 }
 
 module.exports = creerHarnais;
+
+// LE BRUIT DU BAC À SABLE, EN UN SEUL ENDROIT.
+// Le conteneur de test passe par un mandataire qui intercepte le TLS : la feuille de style Google
+// Fonts et les échantillons de piano de Tone.js n'aboutissent jamais. Ces échecs n'ont rien à voir
+// avec l'appli, mais ils remplissent la console et font échouer le contrôle « aucune erreur
+// JavaScript » de dizaines de bancs.
+// LE PIÈGE MESURÉ LE 17/09 : le message console de Chrome est « Failed to load resource:
+// net::ERR_CERT_AUTHORITY_INVALID », SANS l'URL. Les filtres écrits sur `fonts.googleapis` ne
+// pouvaient donc rien reconnaître — il faut filtrer sur le NOM DE L'ERREUR. Le jour où le mandataire
+// a changé de mode d'échec, vingt-cinq bancs sont passés au rouge d'un coup sans qu'une ligne de
+// l'appli ait bougé.
+// Ce motif est aujourd'hui recopié dans une soixantaine de bancs (dette notée dans dette-tests.md) ;
+// les nouveaux bancs passent par ici.
+const BRUIT_RESEAU = /ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID|ERR_NAME_NOT_RESOLVED|ERR_PROXY_CONNECTION_FAILED|fonts\.googleapis|fonts\.gstatic|tonejs\.github\.io/;
+const estBruitReseau = (texte) => BRUIT_RESEAU.test(String(texte || ''));
+module.exports.BRUIT_RESEAU = BRUIT_RESEAU;
+module.exports.estBruitReseau = estBruitReseau;

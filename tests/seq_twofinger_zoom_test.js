@@ -27,7 +27,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     const page = await browser.newPage({ ...devices['iPhone X'] });
     const errors = [];
     page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-    page.on('console', m => { if (m.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|fonts\.googleapis|fonts\.gstatic/.test(m.text())) errors.push('console: ' + m.text()); });
+    page.on('console', m => { if (m.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID|fonts\.googleapis|fonts\.gstatic/.test(m.text())) errors.push('console: ' + m.text()); });
 
     await page.goto(`${BASE}/index.html?nocache=` + Date.now());
     await page.waitForTimeout(600);

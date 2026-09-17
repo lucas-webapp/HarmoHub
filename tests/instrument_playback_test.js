@@ -11,7 +11,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     const page = await browser.newPage({ viewport: { width: 1400, height: 1400 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
-    page.on('console', (msg) => { if (msg.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_NAME_NOT_RESOLVED|fonts\.googleapis|fonts\.gstatic/.test(msg.text())) errors.push('console.error: ' + msg.text()); });
+    page.on('console', (msg) => { if (msg.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID|ERR_NAME_NOT_RESOLVED|fonts\.googleapis|fonts\.gstatic/.test(msg.text())) errors.push('console.error: ' + msg.text()); });
 
     await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
     await page.waitForTimeout(200);
@@ -65,7 +65,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.waitForTimeout(150);
 
     console.log('Errors:', JSON.stringify(errors));
-    const relevantErrors = errors.filter(e => !e.includes('ERR_CONNECTION_RESET') && !e.includes('ERR_TUNNEL_CONNECTION_FAILED') && !e.includes('Failed to load resource'));
+    const relevantErrors = errors.filter(e => !e.includes('ERR_CONNECTION_RESET') && !e.includes('ERR_TUNNEL_CONNECTION_FAILED') && !msg.text().includes('ERR_CERT_AUTHORITY_INVALID') && !e.includes('Failed to load resource'));
     console.log(relevantErrors.length === 0 ? 'PASS (no audio-related console errors during real playback)' : 'FAIL: ' + JSON.stringify(relevantErrors));
 
     await browser.close();

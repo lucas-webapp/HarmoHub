@@ -81,7 +81,7 @@ const relever = (p) => p.evaluate(() => {
     const errs = [];
     const brancher = (p, tag = '') => {
         p.on('pageerror', e => errs.push(tag + e.message));
-        p.on('console', m => { if (m.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|fonts\.googleapis|fonts\.gstatic/.test(m.text())) errs.push(tag + 'console: ' + m.text()); });
+        p.on('console', m => { if (m.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID|fonts\.googleapis|fonts\.gstatic/.test(m.text())) errs.push(tag + 'console: ' + m.text()); });
     };
 
     const p = await browser.newPage({ viewport: { width: 1440, height: 1000 } });

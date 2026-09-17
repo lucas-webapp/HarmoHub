@@ -10,7 +10,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     const errors = [];
     page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-    page.on('console', msg => { if (msg.type() === 'error' && !msg.text().includes('ERR_CONNECTION_RESET') && !msg.text().includes('ERR_TUNNEL_CONNECTION_FAILED')) errors.push('console: ' + msg.text()); });
+    page.on('console', msg => { if (msg.type() === 'error' && !msg.text().includes('ERR_CONNECTION_RESET') && !msg.text().includes('ERR_TUNNEL_CONNECTION_FAILED') && !msg.text().includes('ERR_CERT_AUTHORITY_INVALID')) errors.push('console: ' + msg.text()); });
 
     await page.goto(`${BASE}/index.html`);
     await page.waitForTimeout(600);
