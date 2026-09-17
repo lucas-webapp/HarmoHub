@@ -3428,3 +3428,99 @@ décoché par défaut.
 **Banc** : `nommage_fichiers_test` 19/0 — il éprouve la forme, le tri, la sanitisation, le fait que
 Paroles produise exactement le même nom qu'HarmoHub, et qu'aucune sanitisation dispersée ne subsiste.
 Non-régression : `library` 10/0, `export_lyrics` 9/0, `paroles_pdf` 7/0.
+
+## Rangement des fichiers, lot B : écrire dans un dossier choisi (2026-09-17)
+
+### Le problème, tel qu'il a été posé
+
+« Les exports de la bibliothèque et des morceaux se font directement dans les téléchargements, puis je
+dois les ranger correctement moi-même. Je me perds rapidement dans les versions. » Et la contrainte qui
+commande tout le reste : « la règle doit fonctionner sur n'importe quel système (ordinateur, mac,
+téléphone, etc…) ».
+
+Ces deux phrases tirent dans des directions opposées. Ranger automatiquement demande une API qui
+n'existe que sur Chrome et Edge en version bureau — File System Access. Ni Safari (Mac **et** iPhone),
+ni Firefox, ni Chrome Android ne l'ont, et aucun contournement n'existe : un site web qui pourrait
+écrire où il veut sur un disque serait une faille, pas une fonctionnalité.
+
+D'où les deux étages, décidés ensemble :
+
+| | Étage du bas — le **nommage** (lot A) | Étage du haut — le **rangement** (ce lot) |
+|---|---|---|
+| Où | Partout, sans exception | Chrome / Edge bureau |
+| Ce qu'on obtient | Fichiers en vrac dans Téléchargements, mais qui **se regroupent et se trient tout seuls** | Fichiers classés par type dans un dossier désigné |
+| Si ça échoue | — | On retombe sur l'étage du bas |
+
+Le second ne remplace jamais le premier : il se pose dessus. C'est ce qui rend l'exigence « n'importe
+quel système » tenable sans mentir.
+
+### Ce que le lot B ajoute
+
+- Un **point de passage unique**, `enregistrerFichier()`, par lequel sortent désormais les **neuf**
+  exports (bibliothèque, morceau, PDF accords, PDF paroles, MIDI entier, MIDI par partie, MP3, JSON
+  paroles, texte). Il range si un dossier est configuré, télécharge sinon, et **dit dans son retour ce
+  qui s'est réellement passé**.
+- L'**arborescence** créée dès le choix du dossier : `Bibliotheque/`, `Morceaux/`, `PDF/{Accords,
+  Paroles, Structure}/`, `MIDI/`, `Audio/`, `Texte/`. À plat par type, sans refléter les dossiers de la
+  bibliothèque : un classement à deux dimensions oblige à choisir où chercher. Le lien entre les pièces
+  d'un même morceau est porté par le **nom**, qui voyage partout — y compris sur les téléphones.
+- Un **`_index.json`** à la racine, qui recense ce qui a été écrit. Il ne sert pas à retrouver les
+  fichiers (l'explorateur le fait très bien) mais à savoir, sans parcourir le disque, quelles versions
+  existent déjà — la base des lots C (écraser ou garder les deux) et D (ne garder que dix versions).
+- Une **entrée de menu** qui annonce la destination **avant** les exports, pas après.
+
+### Trois décisions qui méritent d'être écrites
+
+**1. `pdf.save()` a dû disparaître.** Cette méthode de jsPDF télécharge directement, sans jamais rendre
+les octets. Impossible de ranger ce qu'on ne tient pas. Les deux appels (HarmoHub et Paroles) sont
+devenus `pdf.output('blob')`, le téléchargement n'étant plus qu'un des deux dénouements possibles.
+
+**2. La permission se demande AVANT le long calcul, pas après.** Chrome ne redemande la permission
+d'écrire que pendant un geste de l'utilisateur, et un geste « refroidit » en quelques secondes. Or un
+export PDF passe trois secondes dans html2canvas, et un MP3 bien davantage. Demander à la fin, au
+moment d'écrire, c'était retomber silencieusement dans Téléchargements **alors qu'un dossier est
+configuré** — le pire des cas, parce que rien ne le signale. `preparerRangement()` est donc appelé en
+tête de `exportPdf`, `exportAudio`, `exportMidi` et `exportLyricsPdf`, et la racine obtenue est passée
+jusqu'à l'écriture.
+
+**3. Le nom du dossier est doublé dans localStorage.** La poignée vit dans IndexedDB — seul magasin du
+navigateur qui sache sérialiser un `FileSystemHandle`. Mais la lire demande un `await`, or les menus se
+construisent d'un trait. Sans ce doublon, le menu ne pourrait pas dire quel dossier est configuré au
+moment où il s'affiche. Le nom seul ne donne aucun accès ; la poignée, elle, reste dans IndexedDB.
+
+### Ce que le banc éprouve en priorité : l'échec
+
+`tests/rangement_fichiers_test.js` (34 contrôles). Le sélecteur système, qu'aucun navigateur piloté ne
+peut manipuler, est remplacé par un dossier **OPFS** — le disque privé du navigateur, qui expose
+exactement la même interface `FileSystemDirectoryHandle`. Tout ce qui est en dessous du sélecteur
+(arborescence, écriture, index, persistance, permission) est donc le vrai code.
+
+Le contrôle qui compte le plus n'est pas que le rangement marche, c'est qu'il **échoue bien**. Le banc
+supprime le dossier sous les pieds de l'appli — clé USB retirée, dossier déplacé — et vérifie que
+l'export repart dans Téléchargements au lieu de disparaître. Un export qui ne produit rien serait bien
+pire qu'un export mal rangé. Trois autres pièges sont couverts pour la même raison : un fichier rangé
+doit être **relisible** (une coquille vide serait pire qu'une absence, puisqu'on croirait l'avoir), le
+sélecteur ne doit **pas** se rouvrir au rechargement (sinon la fonctionnalité serait à refaire chaque
+séance), et sur un navigateur sans l'API l'entrée de menu reste **visible et éteinte** plutôt que
+disparue — un menu où une fonction s'évapore sans explication laisse croire à une panne.
+
+### Adaptation de banc, pas régression
+
+`nommage_fichiers_test` relisait la liste des noms exportés avant que le moindre nom y soit inscrit :
+les routes d'export sont devenues asynchrones (elles commencent par demander si un dossier est
+configuré). Deux `await` ajoutés côté banc. La conséquence attendue d'un changement voulu, pas une
+régression du produit.
+
+### Un rouge rencontré en chemin, et qui n'est PAS de ce lot
+
+`sortie_edition_involontaire_test` rend « 3 PASS / 1 FAIL ». Le verdict principal passe (43 contrôles
+éprouvés, aucun ne fait sortir de l'édition) ; ce qui échoue est la **mise en place** des onze contrôles
+qui vivent dans la fenêtre d'édition manuelle du manche : `#guitar-edit-btn` est `disabled` et hors flux
+dans l'état que le banc prépare, donc la fenêtre ne s'ouvre jamais.
+
+Vérifié plutôt que supposé : le même relevé, joué sur le commit précédent (`57f5e23`, servi à part sur
+le port 8935 via `git worktree`), donne **exactement le même état** — `disabled: true`, rect 0×0,
+`offsetParent` nul. Ce rouge **précède** le lot B, qui ne touche ni le manche ni le mode Modification.
+Il est noté ici pour ne pas être découvert deux fois, et laissé en l'état : onze contrôles restent donc
+non vérifiés par ce banc tant qu'il n'est pas repris. Le coût du diagnostic n'est pas anodin — chaque
+mise en place ratée expire au bout de 30 s, ce qui porte ce banc à une douzaine de minutes.

@@ -75,8 +75,11 @@ plan(18);
         window.jspdf.jsPDF.prototype.save = function (n) { vus.push(n); return this; };
         try {
             localStorage.setItem('harmohubSongs', JSON.stringify([{ id: 's1', name: 'Ballade', savedAt: Date.now(), sections: [] }]));
-            window.app.exportLibrary();
-            window.app.downloadSongBackup(loadSongs()[0]);
+            // `await` indispensable depuis la couche rangement : ces exports sont devenus asynchrones
+            // (ils commencent par demander si un dossier est configuré). Sans attendre, on lisait la
+            // liste avant que le moindre nom y soit inscrit.
+            await window.app.exportLibrary();
+            await window.app.downloadSongBackup(loadSongs()[0]);
         } finally {
             HTMLAnchorElement.prototype.click = vraiClick;
             window.jspdf.jsPDF.prototype.save = vraiSave;

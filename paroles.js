@@ -346,6 +346,10 @@ async function exportLyricsPdf() {
     if (!blocks.length) { showBanner('Rien à exporter — importe un morceau avant.', 'warning'); return; }
 
     btn.disabled = true;
+    // Voir fichiers.js : la permission d'écrire dans le dossier se demande tant que le clic est encore
+    // valide, PAS après les quelques secondes de rastérisation — sinon le navigateur l'ignore et le
+    // PDF retombe dans Téléchargements alors qu'un dossier est configuré.
+    const racine = await preparerRangement();
     setModeImpression(true);
     // Rastériser plusieurs sections prend quelques secondes (voir la boucle html2canvas plus bas) :
     // un bandeau visible plutôt qu'un bouton silencieusement désactivé, pour ne pas laisser croire que
@@ -381,8 +385,13 @@ async function exportLyricsPdf() {
         }
 
         const title = state.song.song || 'Sans titre';
-        pdf.save(nomExport({ morceau: title, type: 'Paroles', extension: 'pdf' }));
+        // `pdf.save()` téléchargeait sans jamais nous rendre les octets : on demande le blob pour
+        // pouvoir le ranger (voir enregistrerFichier, partagé avec HarmoHub).
+        const res = await enregistrerFichier(pdf.output('blob'), {
+            morceau: title, type: 'Paroles', extension: 'pdf', dossier: 'pdfParoles', racine,
+        });
         pendingBanner.remove();
+        showBanner(messageEnregistrement(res, 'PDF exporté'), 'info');
     } catch (err) {
         console.error('Export PDF Paroles impossible :', err);
         pendingBanner.remove();
@@ -417,18 +426,15 @@ function buildPlainTextExport() {
     return out;
 }
 
-document.getElementById('btn-export-text').addEventListener('click', () => {
+document.getElementById('btn-export-text').addEventListener('click', async () => {
     if (!state.song) return;
     const title = state.song.song || 'Sans titre';
     const blob = new Blob([buildPlainTextExport()], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = nomExport({ morceau: title, type: 'Texte', extension: 'txt' });
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    // Le .txt est rangé lui aussi (décision prise avec l'utilisateur) : un type de fichier laissé de
+    // côté est justement celui qu'on retrouvera un jour en vrac dans Téléchargements, sans savoir
+    // de quel morceau il vient.
+    const res = await enregistrerFichier(blob, { morceau: title, type: 'Texte', extension: 'txt', dossier: 'texte' });
+    showBanner(messageEnregistrement(res, 'Texte exporté'), 'info');
 });
 
 // Copie directement dans le presse-papiers (navigator.clipboard, HTTPS/localhost uniquement — voir

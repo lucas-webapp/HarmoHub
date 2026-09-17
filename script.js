@@ -9762,7 +9762,7 @@ class HarmoHubApp {
     // Ne couvre QUE la bibliothèque (morceaux + dossiers) : les préférences locales de l'appareil
     // (volumes, instrument par défaut, son du métronome...) n'ont pas leur place dans une sauvegarde
     // destinée à être restaurée sur un autre navigateur ou ordinateur.
-    exportLibrary() {
+    async exportLibrary() {
         const payload = {
             app: 'HarmoHub',
             kind: 'library-backup',
@@ -9772,15 +9772,8 @@ class HarmoHubApp {
             folders: loadFolders()
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = nomExport({ type: 'Bibliotheque', extension: 'json' });
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        this.flashHint('Bibliothèque exportée → dossier Téléchargements', 2400);
+        const res = await enregistrerFichier(blob, { type: 'Bibliotheque', extension: 'json', dossier: 'bibliotheque' });
+        this.flashHint(messageEnregistrement(res, 'Bibliothèque exportée'), 2400);
     }
 
     // Importe une sauvegarde : AJOUTE les morceaux du fichier à la bibliothèque actuelle, sans jamais
@@ -10528,6 +10521,11 @@ class HarmoHubApp {
         // point d'entrée : sans ça on pouvait relancer un second export par-dessus le premier.
         const btn = document.getElementById('file-menu-btn');
         btn.disabled = true;
+        // La permission d'écrire dans le dossier se demande MAINTENANT, tant que le clic est encore
+        // « chaud ». Trois secondes plus tard, html2canvas ayant fini, le navigateur considère le
+        // geste expiré et n'affiche plus aucune demande : on retomberait silencieusement dans
+        // Téléchargements alors qu'un dossier est bel et bien configuré.
+        const racine = await preparerRangement();
         this.flashHint('Génération du PDF…', 60000);
 
         // .print-export est display:none par défaut (voir style.css), réservé jusqu'ici à l'impression
@@ -10579,8 +10577,14 @@ class HarmoHubApp {
                 pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, imgW, imgH);
             }
 
-            pdf.save(nomExport({ morceau: this.getCurrentSongName(), type: 'Accords', extension: 'pdf' }));
-            this.flashHint('PDF téléchargé → dossier Téléchargements', 2400);
+            // `pdf.save()` téléchargeait directement, sans jamais nous laisser voir les octets : on
+            // demande le blob pour pouvoir le RANGER (voir enregistrerFichier), le téléchargement
+            // n'étant plus qu'un des deux dénouements possibles.
+            const res = await enregistrerFichier(pdf.output('blob'), {
+                morceau: this.getCurrentSongName(), type: 'Accords', extension: 'pdf',
+                dossier: 'pdfAccords', racine,
+            });
+            this.flashHint(messageEnregistrement(res, 'PDF exporté'), 2400);
         } catch (err) {
             console.error(err);
             this.flashHint('Échec de l’export PDF');
@@ -10678,18 +10682,10 @@ class HarmoHubApp {
         return new Uint8Array(bytes);
     }
 
-    // Télécharge des octets .mid déjà construits sous `filename` — factorisé pour l'export simple ET
+    // Enregistre des octets .mid déjà construits sous `filename` — factorisé pour l'export simple ET
     // l'export par partie (voir exportMidi).
-    downloadMidiBytes(bytes, filename) {
-        const blob = new Blob([bytes], { type: 'audio/midi' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
+    downloadMidiBytes(bytes, filename, racine) {
+        return enregistrerFichier(new Blob([bytes], { type: 'audio/midi' }), { nom: filename, dossier: 'midi', racine });
     }
 
     // ---------- Import MIDI, étape 6 : assembler le tout ----------
@@ -10815,19 +10811,29 @@ class HarmoHubApp {
         if (perSection == null) return; // annulé
 
         const songName = this.getCurrentSongName();
+        const racine = await preparerRangement();
         if (!perSection) {
-            this.downloadMidiBytes(this.buildMidiFile(), nomExport({ morceau: songName, type: 'MIDI', extension: 'mid' }));
-            this.flashHint('MIDI téléchargé → dossier Téléchargements', 2400);
+            const res = await this.downloadMidiBytes(this.buildMidiFile(), nomExport({ morceau: songName, type: 'MIDI', extension: 'mid' }), racine);
+            this.flashHint(messageEnregistrement(res, 'MIDI exporté'), 2400);
             return;
         }
-        // Téléchargements décalés d'un petit délai (retour navigateur : plusieurs déclenchés d'un
-        // coup peuvent être bloqués/regroupés) — largement assez pour les laisser tous passer.
+        // Le délai entre fichiers n'existe que pour le TÉLÉCHARGEMENT (retour navigateur : plusieurs
+        // déclenchés d'un coup peuvent être bloqués ou regroupés). Quand un dossier est configuré,
+        // rien ne passe par le navigateur : on écrit les parties à la suite, sans attendre.
+        if (racine) {
+            for (const [si, sec] of sections.entries()) {
+                const title = (sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${si + 1}`;
+                await this.downloadMidiBytes(this.buildMidiFile([sec]), nomExport({ morceau: songName, type: `MIDI ${title}`, extension: 'mid' }), racine);
+            }
+            this.flashHint(`${sections.length} fichiers MIDI exportés → ${racine.name ? racine.name + '/' : ''}${cheminRangement('midi')}`, 2400);
+            return;
+        }
         sections.forEach((sec, si) => {
             const title = (sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${si + 1}`;
             setTimeout(() => {
                 // Une partie par fichier : le type porte le nom de la partie, pour que les quatre
                 // fichiers d'un même morceau restent côte à côte et se distinguent d'un coup d'œil.
-                this.downloadMidiBytes(this.buildMidiFile([sec]), nomExport({ morceau: songName, type: `MIDI ${title}`, extension: 'mid' }));
+                this.downloadMidiBytes(this.buildMidiFile([sec]), nomExport({ morceau: songName, type: `MIDI ${title}`, extension: 'mid' }), null);
             }, si * 200);
         });
         this.flashHint(`${sections.length} fichiers MIDI téléchargés → dossier Téléchargements`, 2400);
@@ -10873,14 +10879,7 @@ class HarmoHubApp {
             })),
         };
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = nomExport({ morceau: this.getCurrentSongName(), type: 'Paroles', extension: 'json' });
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
+        enregistrerFichier(blob, { morceau: this.getCurrentSongName(), type: 'Paroles', extension: 'json', dossier: 'morceaux' });
         // Dépose aussi les mêmes données dans un coin de localStorage PARTAGÉ (même origine) : paroles.js
         // les récupère toutes seules à l'ouverture et affiche direct les accords du morceau, sans repasser
         // par "Importer un fichier" (retour utilisateur : "il faut réimporter un morceau ensuite" — plus
@@ -11009,20 +11008,16 @@ class HarmoHubApp {
         }
         const btn = document.getElementById('file-menu-btn'); // voir exportPdf : même verrou
         btn.disabled = true;
+        const racine = await preparerRangement(); // voir exportPdf : avant le long calcul, pas après
         this.flashHint('Génération du MP3…', 60000);
         try {
             const toneBuffer = await this.renderProgressionBuffer();
             if (!toneBuffer) { this.flashHint('Grille vide — rien à exporter'); return; }
             const blob = this.audioBufferToMp3(toneBuffer.get());
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = nomExport({ morceau: this.getCurrentSongName(), type: 'Audio', extension: 'mp3' });
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-            this.flashHint('MP3 téléchargé → dossier Téléchargements', 2400);
+            const res = await enregistrerFichier(blob, {
+                morceau: this.getCurrentSongName(), type: 'Audio', extension: 'mp3', dossier: 'audio', racine,
+            });
+            this.flashHint(messageEnregistrement(res, 'MP3 exporté'), 2400);
         } catch (err) {
             console.error(err);
             this.flashHint('Échec de l’export MP3');
@@ -11046,7 +11041,18 @@ class HarmoHubApp {
         // setupEventListeners) — retour utilisateur : "il n'a pas trop sa place dans le bouton
         // fichiers", le seul export d'ici qui mène vers un AUTRE outil plutôt qu'un simple fichier
         // téléchargé.
+        // La destination est annoncée AVANT les exports, pas après : c'est la première chose à savoir
+        // quand on clique sur « Exporter » (retour utilisateur : « je dois les ranger correctement
+        // moi-même »). Sur un navigateur qui ne sait pas ranger, l'entrée reste visible mais dit
+        // pourquoi — un menu où une fonction disparaît sans explication laisse croire à une panne.
+        const dossier = nomRacineAffiche();
         const entrees = [
+            rangementDisponible()
+                ? { id: 'dossier', label: dossier ? `Dossier : ${dossier}` : 'Choisir un dossier de rangement',
+                    hint: dossier ? 'Les exports y sont classés par type' : 'Classer les exports au lieu de les télécharger' }
+                : { id: 'dossier', desactive: true, label: 'Rangement automatique indisponible',
+                    hint: 'Ce navigateur ne le permet pas — les fichiers vont dans Téléchargements' },
+            { sep: true },
             { id: 'pdf', label: 'Exporter en PDF', hint: 'Grille imprimable' },
             { id: 'midi', label: 'Exporter en MIDI', hint: 'Pour un DAW (GarageBand…)' },
             { id: 'audio', label: 'Exporter en MP3', hint: 'Rendu audio du morceau' },
@@ -11055,13 +11061,18 @@ class HarmoHubApp {
         ];
         menu.innerHTML = entrees.map(e => e.sep
             ? '<div class="file-menu-sep"></div>'
-            : `<button type="button" data-file-action="${e.id}"><span class="file-menu-label">${e.label}</span><span class="file-menu-hint">${e.hint}</span></button>`
+            : `<button type="button" data-file-action="${e.id}"${e.desactive ? ' disabled' : ''}><span class="file-menu-label">${e.label}</span><span class="file-menu-hint">${e.hint}</span></button>`
         ).join('');
         menu.querySelectorAll('button').forEach(btn => {
             btn.onclick = () => {
                 const action = btn.dataset.fileAction;
                 this.closeFileMenu();
-                if (action === 'pdf') this.openPdfExportDialog();
+                // Le sélecteur de dossier s'ouvre SANS `await` préalable : le moindre `await` avant
+                // showDirectoryPicker consomme le geste de l'utilisateur et le navigateur refuse
+                // d'ouvrir la fenêtre. D'où l'appel direct ici plutôt que dans une méthode qui
+                // commencerait par vérifier quoi que ce soit.
+                if (action === 'dossier') this.choisirDossierExports();
+                else if (action === 'pdf') this.openPdfExportDialog();
                 else if (action === 'midi') this.exportMidi();
                 else if (action === 'audio') this.exportAudio();
                 else if (action === 'import-midi') this._midiInput.click();
@@ -11069,6 +11080,20 @@ class HarmoHubApp {
         });
         anchorEl.setAttribute('aria-expanded', 'true');
         this.placeMenuNear(menu, anchorEl);
+    }
+
+    // Désigner (ou redésigner) le dossier où sont rangés les exports. Un second clic alors qu'un
+    // dossier est déjà configuré le REMPLACE : c'est le seul moyen offert par le navigateur de
+    // corriger un mauvais choix, aucune API ne permettant de « montrer » le dossier actuel.
+    async choisirDossierExports() {
+        const racine = await choisirDossierRangement();
+        if (!racine) {
+            // Annulation au sélecteur ou permission refusée : on ne touche à rien, et on le dit — un
+            // silence laisserait croire que le dossier a été pris en compte.
+            this.flashHint(nomRacineAffiche() ? 'Dossier inchangé' : 'Aucun dossier choisi — les exports iront dans Téléchargements', 2800);
+            return;
+        }
+        this.flashHint(`Exports rangés dans « ${racine.name} » (Bibliotheque, Morceaux, PDF, MIDI, Audio, Texte)`, 3600);
     }
 
     closeFileMenu() {
@@ -11229,7 +11254,7 @@ class HarmoHubApp {
     // Télécharge la sauvegarde JSON d'UN morceau déjà résolu — factorisé pour exportCurrentSong
     // (morceau actuellement ouvert) ET exportSongById (n'importe quel morceau de la bibliothèque,
     // voir renderFilesPanel), qui ne construisaient sinon le même fichier qu'à deux endroits.
-    downloadSongBackup(song) {
+    async downloadSongBackup(song) {
         const payload = {
             app: 'HarmoHub',
             kind: 'library-backup',
@@ -11238,15 +11263,8 @@ class HarmoHubApp {
             songs: [song]
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = nomExport({ morceau: song.name, type: 'Morceau', extension: 'json' });
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        this.flashHint(`« ${song.name} » sauvegardé → dossier Téléchargements`, 2400);
+        const res = await enregistrerFichier(blob, { morceau: song.name, type: 'Morceau', extension: 'json', dossier: 'morceaux' });
+        this.flashHint(messageEnregistrement(res, `« ${song.name} » sauvegardé`), 2400);
     }
 
     // Sauvegarde locale d'UN SEUL morceau (voir exportLibrary pour toute la bibliothèque) — même

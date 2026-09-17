@@ -3319,6 +3319,14 @@ button:active { transform: translateY(1px); }
 }
 .file-menu-label { font-size: var(--fs-sm); font-weight: 700; }
 .file-menu-hint { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 500; }
+/* Entrée éteinte : le rangement automatique sur un navigateur qui ne le permet pas (Safari, Firefox,
+   téléphones). Elle reste LISIBLE plutôt que grisée jusqu'à l'illisibilité — c'est justement son
+   texte qui explique pourquoi le fichier atterrit dans Téléchargements. */
+.file-menu button[disabled] {
+    cursor: default;
+    opacity: 0.75;
+}
+.file-menu button[disabled]:hover { background: transparent; }
 /* Ce qui SORT de l'appli au-dessus, ce qui y ENTRE en dessous : c'est la confusion entre les deux
    sens du MIDI qui rendait l'ancienne rangée piégeuse. */
 .file-menu-sep {
