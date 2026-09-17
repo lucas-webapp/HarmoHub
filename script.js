@@ -9775,7 +9775,7 @@ class HarmoHubApp {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `harmohub-bibliotheque-${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = nomExport({ type: 'Bibliotheque', extension: 'json' });
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -10579,7 +10579,7 @@ class HarmoHubApp {
                 pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, imgW, imgH);
             }
 
-            pdf.save(`${this.getCurrentSongName().replace(/[\\/:*?"<>|]+/g, '_')} - grille d'accords.pdf`);
+            pdf.save(nomExport({ morceau: this.getCurrentSongName(), type: 'Accords', extension: 'pdf' }));
             this.flashHint('PDF téléchargé → dossier Téléchargements', 2400);
         } catch (err) {
             console.error(err);
@@ -10814,9 +10814,9 @@ class HarmoHubApp {
         const perSection = sections.length > 1 ? await this.chooseMidiExportMode() : false;
         if (perSection == null) return; // annulé
 
-        const songName = this.getCurrentSongName().replace(/[\\/:*?"<>|]+/g, '_');
+        const songName = this.getCurrentSongName();
         if (!perSection) {
-            this.downloadMidiBytes(this.buildMidiFile(), `${songName}.mid`);
+            this.downloadMidiBytes(this.buildMidiFile(), nomExport({ morceau: songName, type: 'MIDI', extension: 'mid' }));
             this.flashHint('MIDI téléchargé → dossier Téléchargements', 2400);
             return;
         }
@@ -10825,7 +10825,9 @@ class HarmoHubApp {
         sections.forEach((sec, si) => {
             const title = (sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${si + 1}`;
             setTimeout(() => {
-                this.downloadMidiBytes(this.buildMidiFile([sec]), `${songName} - ${title.replace(/[\\/:*?"<>|]+/g, '_')}.mid`);
+                // Une partie par fichier : le type porte le nom de la partie, pour que les quatre
+                // fichiers d'un même morceau restent côte à côte et se distinguent d'un coup d'œil.
+                this.downloadMidiBytes(this.buildMidiFile([sec]), nomExport({ morceau: songName, type: `MIDI ${title}`, extension: 'mid' }));
             }, si * 200);
         });
         this.flashHint(`${sections.length} fichiers MIDI téléchargés → dossier Téléchargements`, 2400);
@@ -10874,7 +10876,7 @@ class HarmoHubApp {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${this.getCurrentSongName().replace(/[\\/:*?"<>|]+/g, '_')} - paroles.json`;
+        a.download = nomExport({ morceau: this.getCurrentSongName(), type: 'Paroles', extension: 'json' });
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -11015,7 +11017,7 @@ class HarmoHubApp {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${this.getCurrentSongName().replace(/[\\/:*?"<>|]+/g, '_')}.mp3`;
+            a.download = nomExport({ morceau: this.getCurrentSongName(), type: 'Audio', extension: 'mp3' });
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -11239,7 +11241,7 @@ class HarmoHubApp {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `harmohub-${song.name.replace(/[\\/:*?"<>|]+/g, '_')}-${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = nomExport({ morceau: song.name, type: 'Morceau', extension: 'json' });
         document.body.appendChild(a);
         a.click();
         a.remove();

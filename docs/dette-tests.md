@@ -3364,3 +3364,67 @@ l'arbitrage déjà pris au lot précédent). Corrigé à la source, sur la class
 
 **Bilan.** `structure_test` 16/0 · `paroles_repeat` 9/0 · `export_lyrics` 9/0 · `paroles_test` 24/0 ·
 `sentinelle_atteignabilite` 25/0 · `sentinelle_adresses` 202/0 · `meta_suite` 6/0.
+
+## Rangement des fichiers, lot A : le nommage d'abord
+
+Demande : que les exports se rangent tout seuls dans une arborescence locale, au lieu de s'entasser
+dans Téléchargements — « je me perds rapidement dans les versions », « j'ai vraiment besoin de ne pas
+perdre mes morceaux », et la règle « doit fonctionner sur n'importe quel système ».
+
+### Pourquoi le nommage vient AVANT le rangement
+
+Le rangement automatique repose sur File System Access (`showDirectoryPicker`). Cette API n'existe que
+sur Chrome et Edge en version bureau : **ni Safari, ni Firefox, ni iPhone, ni Android**. L'exigence
+« sur n'importe quel système » ne peut donc pas être tenue par ce mécanisme — c'est une limite du
+navigateur, pas un manque d'effort, et il valait mieux le dire avant d'écrire une ligne.
+
+Le nommage, lui, marche partout. Même déversés en vrac dans Téléchargements, des fichiers bien nommés
+se regroupent et se trient tout seuls. C'est la seule partie qui tienne la promesse sur tous les
+appareils, et elle ne pourra pas régresser quand le rangement viendra par-dessus.
+
+### La forme retenue, et le raisonnement derrière chaque segment
+
+    HarmoHub - Ballade - Accords - 2026-09-17 1432.pdf
+    HarmoHub - Bibliotheque - 2026-09-17 1432.json
+
+- **L'appli en tête** : HarmoHub et TabHub ne se mélangent jamais, y compris dans un dossier commun.
+- **Le morceau ensuite** : c'est par morceau qu'on se perd. Toutes ses pièces — accords, paroles,
+  MIDI, audio — se retrouvent côte à côte dans n'importe quel explorateur trié par nom.
+- **Le type, puis la date** : les versions d'un même document s'empilent dans l'ordre chronologique.
+- **L'heure n'est pas décorative.** Avec la seule date, deux exports le même jour donnaient
+  « (1) », « (2) » ajoutés par le navigateur — précisément ce qui fait perdre le fil. Les deux-points
+  étant interdits sous Windows, l'heure s'écrit « 1432 ».
+- **`aaaa-mm-jj`** parce que c'est le seul format dont le tri alphabétique donne l'ordre
+  chronologique. Un banc le vérifie explicitement.
+
+### Une règle, un endroit
+
+Les neuf routes d'export recopiaient chacune leur propre sanitisation
+(`replace(/[\\/:*?"<>|]+/g, '_')`). Neuf copies de la même règle, dans deux fichiers — et ce projet a
+déjà payé ce motif : le nombre de mesures d'une partie était calculé à deux endroits avec deux
+arrondis différents, si bien que le même morceau paraissait changer de longueur selon l'écran.
+
+Tout passe désormais par `fichiers.js`, chargé par index.html ET paroles.html. Le fichier est commun
+dès aujourd'hui parce que les deux applis seront servies depuis la même origine : mieux vaut un module
+partagé dès le premier jour que deux copies à réconcilier au premier ajustement. La sanitisation y
+gagne au passage ce qui manquait partout : caractères de contrôle retirés, points et espaces en fin de
+nom supprimés (Windows les efface en silence, si bien qu'un fichier ne porte pas le nom qu'on croit),
+longueur bornée, et repli sur « Sans titre » plutôt qu'un fichier anonyme.
+
+### Mesures faites avant de promettre un « export intégral »
+
+Sur un morceau réaliste (4 parties, 32 accords) : JSON **0 ms**, MIDI **0 ms**, PDF accords
+**3 193 ms**. Le MP3 n'a pas pu être mesuré ici — il télécharge ses échantillons depuis
+`tonejs.github.io`, bloqué par le bac à sable. Fragilité au passage : **l'export MP3 dépend du
+réseau**, et d'un hébergeur tiers.
+
+Conséquence pour la suite : une bibliothèque de 50 morceaux représente déjà ≈ 2 min 40 rien qu'en PDF
+d'accords. Et deux types ne sont pas groupables en l'état — le PDF Structure passe par
+`window.print()` (un clic humain par morceau), et le PDF Paroles vit sur une autre page. D'où la
+séparation décidée : **la sauvegarde** (JSON seul, instantané, versionné) ne doit jamais dépendre du
+type le plus lent et le plus fragile ; **l'export intégral** reste un geste volontaire, avec MP3
+décoché par défaut.
+
+**Banc** : `nommage_fichiers_test` 19/0 — il éprouve la forme, le tri, la sanitisation, le fait que
+Paroles produise exactement le même nom qu'HarmoHub, et qu'aucune sanitisation dispersée ne subsiste.
+Non-régression : `library` 10/0, `export_lyrics` 9/0, `paroles_pdf` 7/0.

@@ -381,7 +381,7 @@ async function exportLyricsPdf() {
         }
 
         const title = state.song.song || 'Sans titre';
-        pdf.save(`${title.replace(/[\\/:*?"<>|]+/g, '_')} - paroles.pdf`);
+        pdf.save(nomExport({ morceau: title, type: 'Paroles', extension: 'pdf' }));
         pendingBanner.remove();
     } catch (err) {
         console.error('Export PDF Paroles impossible :', err);
@@ -424,7 +424,7 @@ document.getElementById('btn-export-text').addEventListener('click', () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${title.replace(/[\\/:*?"<>|]+/g, '_')} - paroles.txt`;
+    a.download = nomExport({ morceau: title, type: 'Texte', extension: 'txt' });
     document.body.appendChild(a);
     a.click();
     a.remove();
