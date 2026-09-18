@@ -9,7 +9,12 @@ cd "$(dirname "$0")"
 rm -rf /tmp/sweep_out
 mkdir -p /tmp/sweep_out
 
-SENSITIVE="affordances_test.js ctx_nav_scroll_test.js ctx_nav_test.js glock_full_real_ui_test.js grid_beat_highlight_test.js grid_loupe_pinch_undo_test.js grid_multidrag_test.js grid_pipettes_test.js mobile_scroll_test.js paroles_drag_test.js pinch_smoothness_centering_test.js pipette_all_test.js seq_beat_highlight_test.js seq_dup_drag_test.js seq_handle_feedback_test.js seq_hscroll_test.js seq_marquee_test.js seq_row_pipette_clear_test.js seq_row_pipette_test.js seq_voicedrag_test.js seq_vscroll_and_cancel_test.js vl_pinch_test.js"
+# AJOUTS DU 17/09, mesures à l'appui : ces deux-là rendaient 1 et 2 FAIL en parallèle et 0 FAIL
+# lancés seuls. manche_edition_lot6 éprouve la DISPARITION d'un aperçu au départ de la souris, et
+# glock_full_real_ui un état relu APRÈS RECHARGEMENT COMPLET : deux mesures sensibles au temps, qui
+# dérivent dès que quatre navigateurs se disputent le processeur. Les ranger ici plutôt que relâcher
+# leurs contrôles — le défaut qu'ils gardent est réel, c'est leur horloge qui ne l'est pas.
+SENSITIVE="manche_edition_lot6_test.js glock_full_real_ui_test.js affordances_test.js ctx_nav_scroll_test.js ctx_nav_test.js grid_beat_highlight_test.js grid_loupe_pinch_undo_test.js grid_multidrag_test.js grid_pipettes_test.js mobile_scroll_test.js paroles_drag_test.js pinch_smoothness_centering_test.js pipette_all_test.js seq_beat_highlight_test.js seq_dup_drag_test.js seq_handle_feedback_test.js seq_hscroll_test.js seq_marquee_test.js seq_row_pipette_clear_test.js seq_row_pipette_test.js seq_voicedrag_test.js seq_vscroll_and_cancel_test.js vl_pinch_test.js"
 
 run_one() {
     f="$1"

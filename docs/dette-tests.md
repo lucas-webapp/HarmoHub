@@ -3607,3 +3607,73 @@ norme qui reste, et il ne demande aucune installation.
 - `three_more_features` figeait le libellé complet des options du sélecteur de morceaux, auxquelles
   `7ea17c0` a ajouté « — <date> » deux commits plus tôt. Il compare désormais le nom seul. Rien à voir
   avec les lots de rangement : vérifié par l'historique (`git log -S`) plutôt que supposé.
+
+## Le balayage complet du 17/09 : 29 rouges, dont 21 qui n'en étaient pas
+
+### Le relevé
+
+| | Avant | Après |
+|---|---|---|
+| Verts | 165 | **188** |
+| Rouges | 29 | **8** |
+| Sans verdict | 9 | 7 |
+
+Les 8 rouges restants : les **5 rouges de référence** déjà connus et non instruits
+(`probe_clic_accord_voisin`, `probe_defilement_tactile`, `probe_regle_voisins`, `probe_seq_finitions`,
+`seq_notes_libres_clavier`), `sortie_edition_involontaire` (antérieur, vérifié contre `57f5e23`), et
+**deux bancs fragiles sous charge** — voir plus bas.
+
+### La cause dominante : un mode d'échec du mandataire, pas une ligne de code
+
+Vingt-cinq bancs échouaient sur « aucune erreur JavaScript ». Mesuré plutôt que supposé : le conteneur
+de test passe par un mandataire qui intercepte le TLS, et la feuille de style Google Fonts n'aboutit
+jamais. Le piège est dans le MESSAGE : Chrome écrit
+
+    Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID
+
+**sans l'URL**. Les filtres de bruit étaient écrits sur `fonts.googleapis` — ils ne pouvaient rien
+reconnaître. Il faut filtrer sur le NOM DE L'ERREUR. Le jour où le mandataire a changé de mode d'échec
+(auparavant `ERR_TUNNEL_CONNECTION_FAILED`, encore filtré partout), vingt-cinq bancs sont passés au
+rouge d'un coup sans qu'une ligne de l'appli ait bougé.
+
+**Une erreur que j'ai commise en réparant, et qui mérite d'être écrite.** J'ai étendu le filtre par
+`sed` en supposant que les soixante bancs concernés utilisaient tous une expression régulière. Dix
+utilisaient `.includes('ERR_TUNNEL_CONNECTION_FAILED')` — une CHAÎNE. Le remplacement y a produit
+`.includes('ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID')`, qui ne correspond à rien : non
+seulement le nouveau bruit n'était pas filtré, mais **l'ancien ne l'était plus non plus**. Repéré au
+relevé suivant, réparé en deux tests séparés. Leçon : un `sed` sur soixante fichiers doit être suivi
+d'une vérification que le motif atterrit bien dans le contexte attendu — ici, `grep` des occurrences
+tombées entre guillemets plutôt qu'entre barres obliques.
+
+Un prédicat partagé `estBruitReseau` vit désormais dans `_harness.js`. Le motif reste recopié dans une
+soixantaine de bancs anciens (dette notée) ; les nouveaux passent par le harnais.
+
+### Le balayage rend maintenant son propre verdict
+
+Il fallait jusqu'ici le reconstruire après coup avec des `grep` improvisés — et un `grep FAIL` naïf
+compte les « 0 FAIL » des lignes de bilan comme des échecs. `run_all_fast.sh` imprime désormais un
+relevé à **trois états**, et le troisième compte autant que les deux autres : **SANS VERDICT**. Un banc
+planté, expiré, ou qui ne contient aucun contrôle ne prouve rien — et passait jusqu'ici pour un
+silence rassurant.
+
+Le lanceur **refuse aussi de démarrer** si sa liste « sensible » cite un fichier supprimé. Trois
+entrées fantômes (`seq_pinch_touch_conflict`, `seq_twofinger_jitter`, `seq_twofinger_pan`) s'y
+« exécutaient » depuis la disparition de leurs fichiers : `node` rendait « Cannot find module », le
+balayage passait au suivant, et le relevé les comptait comme muettes.
+
+### Deux bancs fragiles sous charge, rangés en série
+
+`manche_edition_lot6` (1 FAIL) et `glock_full_real_ui` (2 FAIL) rendent **0 FAIL lancés seuls**. Le
+premier éprouve la DISPARITION d'un aperçu au départ de la souris, le second un état relu APRÈS
+RECHARGEMENT COMPLET : deux mesures sensibles au temps, qui dérivent dès que quatre navigateurs se
+disputent le processeur. Déplacés dans la phase série plutôt que d'assouplir leurs contrôles — le
+défaut qu'ils gardent est réel, c'est leur horloge qui ne l'est pas.
+
+### Les 7 « sans verdict », maintenant visibles
+
+Cinq sont des **ébauches de diagnostic abandonnées** : `guitar_lock_click` définit un `check()` et ne
+l'appelle jamais, `ctx_nav_scroll`, `instrument_stress`, `item1_hzoom_out` et `smoke` impriment des
+mesures sans jamais conclure. Un fichier nommé `guitar_lock_click_test.js` qui n'éprouve rien fait
+paraître la couverture plus large qu'elle n'est. Deux autres (`detune`, `probe_cache_perime`) concluent
+bel et bien, mais écrivent « OK : » au lieu de « PASS ». Rien n'est supprimé ici — le relevé les
+montre désormais à chaque balayage, ce qui suffit à ce qu'ils ne se cachent plus.
