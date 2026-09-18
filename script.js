@@ -8455,6 +8455,7 @@ class HarmoHubApp {
         setCurrentSongId(song.id);
         hasUnsavedChanges = false;
         this.refreshSongList();
+        this.suivreSurLeDisque(song); // un morceau tout neuf a son fichier dès sa création
         return song;
     }
 
@@ -8812,6 +8813,36 @@ class HarmoHubApp {
         hasUnsavedChanges = false;
         this.refreshSongList();
         this.flashHint('Morceau enregistré');
+        this.suivreSurLeDisque(loadSongs().find(s => s.id === id));
+    }
+
+    // ---------- ENREGISTRER DANS L'APPLI = LE FICHIER SUIT ----------
+    // Décision prise avec l'utilisateur : « je prends trop de temps aujourd'hui à importer et exporter
+    // des fichiers ». Tant que l'écriture sur le disque est un geste à part, il faut y PENSER — et
+    // c'est en n'y pensant pas qu'on perd le fil. Ici, enregistrer suffit.
+    //
+    // CE N'EST PAS UNE ÉCRITURE AVEUGLE. Elle passe par le même garde-fou que tout le reste : si le
+    // fichier du disque est plus récent, ou s'il appartient à un autre morceau du même nom, la fenêtre
+    // s'ouvre et rien n'est écrit tant qu'on n'a pas tranché. Le moment est bien choisi pour poser la
+    // question — on vient d'appuyer sur « Enregistrer », on n'est pas au milieu d'une phrase.
+    //
+    // ET ELLE NE BLOQUE JAMAIS L'ENREGISTREMENT LUI-MÊME. Le morceau est déjà dans le navigateur quand
+    // on arrive ici ; le disque suit derrière. Un dossier débranché ne doit pas faire échouer un
+    // Ctrl+S.
+    suivreSurLeDisque(song) {
+        if (!song) return;
+        this.enregistrerMorceauDansDossier(song)
+            .then((r) => {
+                if (r.raison === 'recharge') this.chargerDepuisLeDisque(r.duFichier);
+                else if (r.raison === 'annule') this.flashHint('Enregistré ici — le fichier du disque est resté intact', 3200);
+                else if (r.fait && r.res && r.res.range) this.flashHint(`Morceau enregistré · fichier à jour dans ${r.res.dossier}`, 2400);
+            })
+            .catch((e) => {
+                // On le DIT. Un échec silencieux laisserait croire pendant une heure que le fichier
+                // suit, alors qu'il ne suit plus.
+                console.error('Suivi sur le disque impossible :', e);
+                this.flashHint('Morceau enregistré ici, mais le fichier du disque n\'a pas pu être mis à jour', 4000);
+            });
     }
 
     // Enregistre l'état actuel comme un NOUVEAU morceau (appelé uniquement quand aucun morceau n'est
@@ -9795,7 +9826,38 @@ class HarmoHubApp {
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const res = await enregistrerFichier(blob, { type: 'Bibliotheque', extension: 'json', dossier: 'bibliotheque' });
-        this.flashHint(messageEnregistrement(res, 'Bibliothèque exportée'), 2400);
+        const orphelins = res.range ? await this.morceauxOrphelinsSurDisque() : [];
+        this.flashHint(messageEnregistrement(res, 'Bibliothèque sauvegardée'), 2400);
+        if (orphelins.length) this.signalerOrphelins(orphelins);
+    }
+
+    // ---------- CE QUE LE DISQUE A ET QUE L'APPLI N'A PLUS ----------
+    // Retour utilisateur, mot pour mot : « si je réexporte une bibliothèque, les morceaux déjà présents
+    // sur le disque et qui ne sont plus sur l'application ne doivent pas être supprimés ».
+    // Ils ne le sont pas, et ne l'ont jamais été — rien dans cette appli n'efface un fichier, hormis la
+    // rotation des versions (voir purgerVersions, volontairement étroite). Mais ne rien supprimer EN
+    // SILENCE ne rassure personne : tant qu'on ne les voit pas, on ne peut pas savoir qu'ils vont bien.
+    // On les NOMME donc après chaque sauvegarde. C'est aussi le chemin du retour : un morceau perdu par
+    // un vidage de cache ou laissé sur une autre machine se récupère d'un clic au lieu de se chercher
+    // dans l'explorateur.
+    async morceauxOrphelinsSurDisque() {
+        try {
+            const surDisque = await listerRangement('morceaux');
+            if (!surDisque.length) return [];
+            const connus = new Set(loadSongs().map(s => nomCanonique({ morceau: s.name, type: 'Morceau', extension: 'json' })));
+            // Les copies horodatées d'avant le nom canonique, et les « (copie …) » de la résolution de
+            // conflit, ne sont pas des orphelins : ce sont des doublons voulus d'un morceau connu.
+            return surDisque.filter(nom => !connus.has(nom) && !/ - \d{4}-\d{2}-\d{2} \d{4}\.json$/.test(nom) && !/ \(copie /.test(nom));
+        } catch (e) {
+            console.error('Inventaire du dossier impossible :', e);
+            return [];
+        }
+    }
+
+    signalerOrphelins(noms) {
+        const liste = noms.slice(0, 4).map(n => n.replace(/^HarmoHub - /, '').replace(/\.json$/, ''));
+        const reste = noms.length > liste.length ? ` et ${noms.length - liste.length} autre(s)` : '';
+        this.flashHint(`${noms.length} morceau(x) sur le disque, absent(s) d'ici — laissés intacts : ${liste.join(', ')}${reste}`, 6000);
     }
 
     // Importe une sauvegarde : AJOUTE les morceaux du fichier à la bibliothèque actuelle, sans jamais
@@ -11279,17 +11341,149 @@ class HarmoHubApp {
     // Télécharge la sauvegarde JSON d'UN morceau déjà résolu — factorisé pour exportCurrentSong
     // (morceau actuellement ouvert) ET exportSongById (n'importe quel morceau de la bibliothèque,
     // voir renderFilesPanel), qui ne construisaient sinon le même fichier qu'à deux endroits.
+    // ---------- LE GARDE-FOU D'ÉCRASEMENT ----------
+    // POURQUOI IL EXISTE. Retour utilisateur : « des morceaux modifiés ailleurs (que l'appli) et
+    // qu'elle a "oublié" ne doivent pas être écrasés ». Le cas n'est pas théorique : la bibliothèque
+    // vit dans le stockage du navigateur. Un vidage de cache, un autre navigateur, une autre machine,
+    // et l'appli ne sait plus rien d'un morceau dont le fichier, lui, est bel et bien sur le disque.
+    // Écrire par-dessus sans regarder, c'est perdre ce travail-là sans le moindre signal.
+    //
+    // ON LIT AVANT D'ÉCRIRE, TOUJOURS. C'est le DISQUE qui fait foi, pas ce que l'appli croit y avoir
+    // laissé. Trois issues, et deux d'entre elles s'arrêtent pour demander :
+    //   - rien sur le disque, ou le disque est plus ANCIEN  -> on écrit (l'ancien part en version)
+    //   - même morceau, disque PLUS RÉCENT                  -> conflit « modifié ailleurs »
+    //   - AUTRE morceau sous le même nom                    -> conflit « homonyme »
+    // Le second cas vient du nom canonique, indexé sur le NOM du morceau et non sur son identifiant :
+    // c'est le prix d'un nom lisible, et il se paie par cette vérification plutôt que par un nom
+    // illisible du genre « Ballade - song_mu5skoqp3o85.json ».
+    async etatMorceauSurDisque(racine, song) {
+        const nomFichier = nomCanonique({ morceau: song.name, type: 'Morceau', extension: 'json' });
+        const surDisque = await lireJsonRange(racine, 'morceaux', nomFichier);
+        if (!surDisque.existe) return { nomFichier, etat: 'absent' };
+        const duFichier = ((surDisque.contenu && surDisque.contenu.songs) || [])[0];
+        if (!duFichier) return { nomFichier, etat: 'absent' }; // fichier illisible : traité comme vide
+        if (duFichier.id !== song.id) return { nomFichier, etat: 'homonyme', duFichier };
+        if ((duFichier.savedAt || 0) > (song.savedAt || 0)) return { nomFichier, etat: 'plus-recent', duFichier };
+        return { nomFichier, etat: 'a-jour', duFichier };
+    }
+
+    // Même principe que demanderResolutionImport : COMPARER avant de demander. Annoncer « le fichier
+    // existe » sans dire en quoi les deux versions diffèrent, c'est faire choisir à l'aveugle.
+    // Résout avec 'recharger', 'ecraser', 'les-deux' ou 'annuler'. Fermer revient à annuler, et ne
+    // rien faire est ici la réponse la plus prudente.
+    demanderResolutionExport(song, etat) {
+        const modal = document.getElementById('export-conflict-modal');
+        if (!modal) return Promise.resolve('annuler'); // fenêtre absente : on n'écrase surtout pas
+        const duFichier = etat.duFichier || {};
+        const decrire = (m) => `${(m.sections || []).length} partie(s) · ${compterAccords(m)} accord(s)`;
+        const homonyme = etat.etat === 'homonyme';
+        document.getElementById('export-conflict-title').textContent = homonyme
+            ? 'Un autre morceau porte déjà ce nom'
+            : 'Le fichier du disque est plus récent';
+        document.getElementById('export-conflict-body').innerHTML = `
+            <p>${homonyme
+                ? `Le fichier <strong>${escapeHtml(etat.nomFichier)}</strong> contient un morceau différent de celui-ci.`
+                : `Le fichier <strong>${escapeHtml(etat.nomFichier)}</strong> a été modifié après la version ouverte ici — ailleurs, ou avant que cette bibliothèque ne l'oublie.`}</p>
+            <div class="import-conflict-song">
+                <div class="import-conflict-name">${escapeHtml(song.name || 'Sans titre')}</div>
+                <div class="import-conflict-side">
+                    <span class="import-conflict-label">Dans l'appli</span>
+                    <span>${decrire(song)} · ${formaterDateEnregistrement(song.savedAt)}</span>
+                </div>
+                <div class="import-conflict-side">
+                    <span class="import-conflict-label">Sur le disque</span>
+                    <span>${escapeHtml(duFichier.name || 'Sans titre')} · ${decrire(duFichier)} · ${formaterDateEnregistrement(duFichier.savedAt)}${homonyme ? '' : ' <strong class="import-conflict-recent">la plus récente</strong>'}</span>
+                </div>
+            </div>
+            <p class="import-conflict-aide"><strong>Recharger</strong> ouvre la version du disque dans l'appli.
+            <strong>Écraser</strong> remplace le fichier par celle d'ici (l'ancienne part dans « _versions »).
+            <strong>Garder les deux</strong> écrit à côté, sous un nom suffixé.</p>`;
+
+        modal.hidden = false;
+        this.lockBodyScroll();
+        return new Promise((resolve) => {
+            const fermer = (reponse) => {
+                modal.hidden = true;
+                this.unlockBodyScroll();
+                modal.onclick = null;
+                resolve(reponse);
+            };
+            document.getElementById('export-conflict-reload').onclick = () => fermer('recharger');
+            document.getElementById('export-conflict-overwrite').onclick = () => fermer('ecraser');
+            document.getElementById('export-conflict-both').onclick = () => fermer('les-deux');
+            document.getElementById('export-conflict-cancel').onclick = () => fermer('annuler');
+            modal.onclick = (e) => { if (e.target === modal) fermer('annuler'); };
+        });
+    }
+
+    // Écrit le JSON d'un morceau dans le dossier, garde-fou compris.
+    // `auto` : déclenché par un enregistrement dans l'appli, donc SANS aucune fenêtre — interrompre
+    // quelqu'un au milieu de son travail par une boîte de dialogue serait insupportable. En cas de
+    // conflit on n'écrit pas, et on le DIT par un bandeau bien visible : un échec silencieux laisserait
+    // croire pendant une heure que tout est sauvegardé.
+    async enregistrerMorceauDansDossier(song, { racine, auto = false } = {}) {
+        const cible = racine === undefined ? await preparerRangement({ demander: !auto }) : racine;
+        if (!cible) return { fait: false, raison: 'pas-de-dossier' };
+
+        let etat;
+        try { etat = await this.etatMorceauSurDisque(cible, song); }
+        catch (e) { console.error('Lecture du fichier en place impossible :', e); return { fait: false, raison: 'illisible' }; }
+
+        const charge = { app: 'HarmoHub', kind: 'library-backup', version: 1, exportedAt: Date.now(), songs: [song] };
+        const ecrire = (nom) => enregistrerFichier(
+            new Blob([JSON.stringify(charge, null, 2)], { type: 'application/json' }),
+            nom ? { nom, dossier: 'morceaux', racine: cible }
+                : { morceau: song.name, type: 'Morceau', extension: 'json', dossier: 'morceaux', racine: cible });
+
+        if (etat.etat === 'absent' || etat.etat === 'a-jour') {
+            return { fait: true, raison: etat.etat, res: await ecrire() };
+        }
+
+        if (auto) return { fait: false, raison: etat.etat, etat };
+
+        const choix = await this.demanderResolutionExport(song, etat);
+        if (choix === 'annuler') return { fait: false, raison: 'annule', etat };
+        if (choix === 'recharger') return { fait: false, raison: 'recharge', etat, duFichier: etat.duFichier };
+        if (choix === 'les-deux') {
+            // Suffixe horodaté : le fichier du disque reste intact, celui-ci se pose à côté, et les
+            // deux se distinguent d'un coup d'œil dans l'explorateur.
+            const { base, ext } = { base: etat.nomFichier.replace(/\.json$/, ''), ext: '.json' };
+            return { fait: true, raison: 'les-deux', res: await ecrire(`${base} (copie ${horodatageFichier()})${ext}`) };
+        }
+        return { fait: true, raison: 'ecrase', res: await ecrire() };
+    }
+
     async downloadSongBackup(song) {
-        const payload = {
-            app: 'HarmoHub',
-            kind: 'library-backup',
-            version: 1,
-            exportedAt: Date.now(),
-            songs: [song]
-        };
+        const r = await this.enregistrerMorceauDansDossier(song);
+        if (r.fait) {
+            const suffixe = r.raison === 'les-deux' ? ' (à côté de celui du disque)' : '';
+            this.flashHint(messageEnregistrement(r.res, `« ${song.name} » sauvegardé`) + suffixe, 2400);
+            return;
+        }
+        if (r.raison === 'recharge') { this.chargerDepuisLeDisque(r.duFichier); return; }
+        if (r.raison === 'annule') { this.flashHint('Rien n\'a été écrit — le fichier du disque est intact', 2800); return; }
+        // Aucun dossier configuré (ou fichier illisible) : on retombe sur le téléchargement, qui reste
+        // le socle qui marche partout. Le nom horodaté y est le bon choix (voir enregistrerFichier).
+        const payload = { app: 'HarmoHub', kind: 'library-backup', version: 1, exportedAt: Date.now(), songs: [song] };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-        const res = await enregistrerFichier(blob, { morceau: song.name, type: 'Morceau', extension: 'json', dossier: 'morceaux' });
+        const res = await enregistrerFichier(blob, { morceau: song.name, type: 'Morceau', extension: 'json', dossier: 'morceaux', racine: null });
         this.flashHint(messageEnregistrement(res, `« ${song.name} » sauvegardé`), 2400);
+    }
+
+    // « Recharger depuis le disque » : la version du fichier remplace celle d'ici, à l'identifiant
+    // près. C'est la réponse la plus souvent juste quand le disque est plus récent, et sans elle il
+    // faudrait annuler puis aller réimporter le fichier à la main — le temps qu'on cherche justement
+    // à faire gagner.
+    chargerDepuisLeDisque(duFichier) {
+        if (!duFichier) return;
+        const songs = loadSongs();
+        const i = songs.findIndex(s => s.id === duFichier.id);
+        if (i >= 0) songs[i] = { ...duFichier, folder: songs[i].folder || duFichier.folder };
+        else songs.push(duFichier);
+        saveSongs(songs);
+        this.loadSong(duFichier.id); // loadSong prend un IDENTIFIANT, pas le morceau lui-même
+        if (this.filesOpen) this.renderFilesPanel();
+        this.flashHint(`« ${duFichier.name} » rechargé depuis le disque`, 2800);
     }
 
     // Sauvegarde locale d'UN SEUL morceau (voir exportLibrary pour toute la bibliothèque) — même

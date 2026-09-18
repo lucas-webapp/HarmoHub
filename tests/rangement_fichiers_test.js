@@ -16,7 +16,7 @@ const { chromium } = require('playwright');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('rangement des fichiers exportés');
 
-plan(21);
+plan(22);
 
 // Le sélecteur système remplacé par un dossier OPFS de même interface (voir l'en-tête).
 const STUB = () => {
@@ -116,10 +116,14 @@ const ARBRE = async (d, prefixe = '') => {
     });
     check(range.telecharges.length === 0,
         `avec un dossier configuré, AUCUN téléchargement n'est déclenché — ${JSON.stringify(range.telecharges)}`);
-    check(range.arbre.some((c) => /^Bibliotheque\/HarmoHub - Bibliotheque - \d{4}-\d{2}-\d{2} \d{4}\.json$/.test(c)),
-        `la bibliothèque atterrit dans Bibliotheque/ — ${JSON.stringify(range.arbre)}`);
-    check(range.arbre.some((c) => /^Morceaux\/HarmoHub - Ballade - Morceau - \d{4}-\d{2}-\d{2} \d{4}\.json$/.test(c)),
-        `un morceau seul atterrit dans Morceaux/ — ${JSON.stringify(range.arbre)}`);
+    // NOM STABLE DANS LE DOSSIER, nom horodaté dans Téléchargements — l'asymétrie est voulue. Dans un
+    // dossier, un nom fixe donne un point de repère et la rotation garde les anciens dans `_versions`.
+    // Dans Téléchargements il n'y a ni rotation ni versions : deux fichiers de même nom y deviennent
+    // « (1) », « (2) », précisément ce qu'on cherche à éviter.
+    check(range.arbre.includes('Bibliotheque/HarmoHub - Bibliotheque.json'),
+        `la bibliothèque atterrit dans Bibliotheque/, sous un nom stable — ${JSON.stringify(range.arbre)}`);
+    check(range.arbre.includes('Morceaux/HarmoHub - Ballade - Morceau.json'),
+        `un morceau seul atterrit dans Morceaux/, sous un nom stable — ${JSON.stringify(range.arbre)}`);
 
     // Le fichier écrit contient bien les octets, pas une coquille vide — une sauvegarde illisible
     // serait pire qu'une absence de sauvegarde, puisqu'on croirait l'avoir.
@@ -235,6 +239,8 @@ const ARBRE = async (d, prefixe = '') => {
         return vus;
     });
     check(telNue.length === 1, `et l'export fonctionne quand même — ${JSON.stringify(telNue)}`);
+    check(/ - \d{4}-\d{2}-\d{2} \d{4}\.json$/.test(telNue[0] || ''),
+        `un fichier TÉLÉCHARGÉ garde l'horodatage, lui — ${JSON.stringify(telNue)}`);
 
     check(erreurs.length === 0, `aucune erreur JavaScript (${erreurs.slice(0, 3).join(' | ')})`);
 

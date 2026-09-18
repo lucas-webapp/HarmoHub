@@ -317,13 +317,147 @@ function telechargerBlob(blob, nomFichier) {
     URL.revokeObjectURL(url);
 }
 
+// =====================================================================================
+// NOM CANONIQUE ET ROTATION DES VERSIONS
+// =====================================================================================
+//
+// LE DÉFAUT QUE ÇA CORRIGE. Jusqu'ici chaque nom portait la date à la minute : deux exports du même
+// morceau donnaient deux fichiers, et rien n'était jamais écrasé. Sûr, mais c'est une sûreté PAR
+// ACCUMULATION — rien n'étant jamais écrasé, rien n'est jamais REMPLACÉ non plus. Au bout de dix
+// exports, dix fichiers, et aucun dont on puisse dire « c'est LE fichier de Ballade ». Le « je me
+// perds rapidement dans les versions » revenait par la fenêtre.
+//
+// DÉSORMAIS : un nom STABLE pour le fichier courant, et les anciens poussés dans `_versions/`.
+//
+//     Morceaux/HarmoHub - Ballade.json                              <- LE fichier, jamais renommé
+//     Morceaux/_versions/HarmoHub - Ballade - 2026-09-17 1432.json  <- les dix précédents
+//
+// Le nom stable se retrouve les yeux fermés, se met en favori, et donne un point fixe à l'import.
+// Les versions gardent l'horodatage triable du lot A — c'est LÀ qu'il sert vraiment, puisque c'est là
+// qu'on cherche « celle d'avant ».
+//
+// SOURCES ET DÉRIVÉS, DEUX RÉGIMES. Un JSON de morceau ou de bibliothèque est une SOURCE : l'écraser
+// peut perdre du travail, d'où le garde-fou de fraîcheur (voir lireMorceauSurDisque, côté appli). Un
+// PDF, un MIDI, un MP3, un TXT sont DÉRIVÉS : ils se régénèrent d'un clic, les écraser ne perd rien.
+// Les deux profitent de la rotation ; seules les sources déclenchent une question.
+const DOSSIER_VERSIONS = '_versions';
+const VERSIONS_GARDEES = 10;
+
+// « HarmoHub - Ballade.json » — le même nom, toujours, pour un morceau donné.
+function nomCanonique({ morceau, type, extension, appli } = {}) {
+    const bouts = [appli || NOM_APPLI];
+    if (morceau) bouts.push(nettoyerNomFichier(morceau));
+    if (type) bouts.push(nettoyerNomFichier(type, 20));
+    return `${bouts.join(' - ')}.${String(extension || 'dat').replace(/^\./, '')}`;
+}
+
+const separeNom = (nomFichier) => {
+    const i = nomFichier.lastIndexOf('.');
+    return i > 0 ? { base: nomFichier.slice(0, i), ext: nomFichier.slice(i) } : { base: nomFichier, ext: '' };
+};
+
+// LES VERSIONS SE DATENT À LA SECONDE, pas à la minute comme les noms d'export.
+// Mesuré : quatre enregistrements rapprochés ne laissaient qu'UNE archive. L'horodatage à la minute
+// donnait le même nom aux quatre, et chacune écrasait la précédente — le filet de sécurité se vidait
+// tout seul, en silence, exactement dans le cas où l'on en a le plus besoin (des essais successifs en
+// quelques minutes). Deux Ctrl+S d'affilée suffisaient.
+// La seconde suffit à les distinguer et garde le tri chronologique (aaaa-mm-jj hhmmss se trie comme
+// il se lit). Le compteur en dernier recours couvre le cas, improbable mais pas impossible, de deux
+// écritures dans la même seconde.
+function horodatageVersion(date = new Date()) {
+    const deux = (n) => String(n).padStart(2, '0');
+    return `${horodatageFichier(date)}${deux(date.getSeconds())}`;
+}
+
+// Recopie le fichier en place dans `_versions/`, horodaté à SA date de dernière écriture — pas à
+// maintenant. Une version doit dire quand elle a été faite, sinon les dix archives portent toutes
+// l'heure du jour où on a archivé et ne servent plus à se repérer.
+async function archiverVersion(racine, cle, nomFichier) {
+    const dossier = await sousDossier(racine, cle, true);
+    let ancien;
+    try { ancien = await dossier.getFileHandle(nomFichier, { create: false }); }
+    catch (e) { return null; } // rien à archiver : premier enregistrement
+    const fichier = await ancien.getFile();
+    const { base, ext } = separeNom(nomFichier);
+    const versions = await dossier.getDirectoryHandle(DOSSIER_VERSIONS, { create: true });
+    const socle = `${base} - ${horodatageVersion(new Date(fichier.lastModified || Date.now()))}`;
+    let nomVersion = `${socle}${ext}`;
+    for (let n = 2; n <= 20; n++) {
+        try { await versions.getFileHandle(nomVersion, { create: false }); }
+        catch (e) { break; }                       // libre : on garde ce nom
+        nomVersion = `${socle} (${n})${ext}`;      // occupé : on ne recouvre pas une archive existante
+    }
+    const flux = await (await versions.getFileHandle(nomVersion, { create: true })).createWritable();
+    try { await flux.write(await fichier.arrayBuffer()); } finally { await flux.close(); }
+    return nomVersion;
+}
+
+// LA SEULE SUPPRESSION DE TOUT LE PROJET, et elle est volontairement étroite : uniquement dans
+// `_versions/`, uniquement les fichiers dont le nom commence par la base du morceau concerné, et
+// uniquement au-delà des dix plus récents. Elle ne peut pas atteindre un fichier courant, ni le
+// fichier d'un autre morceau, ni quoi que ce soit que l'utilisateur aurait déposé là à la main sous
+// un autre nom. Le tri est alphabétique DÉCROISSANT, ce qui est l'ordre chronologique inverse puisque
+// l'horodatage s'écrit aaaa-mm-jj hhmm (voir horodatageFichier).
+async function purgerVersions(racine, cle, nomFichier, nbGardees = VERSIONS_GARDEES) {
+    const dossier = await sousDossier(racine, cle, true);
+    let versions;
+    try { versions = await dossier.getDirectoryHandle(DOSSIER_VERSIONS, { create: false }); }
+    catch (e) { return []; }
+    const { base, ext } = separeNom(nomFichier);
+    const prefixe = `${base} - `;
+    const siennes = [];
+    for await (const [nom, h] of versions.entries()) {
+        if (h.kind === 'file' && nom.startsWith(prefixe) && nom.endsWith(ext)) siennes.push(nom);
+    }
+    siennes.sort().reverse();
+    const aSupprimer = siennes.slice(nbGardees);
+    for (const nom of aSupprimer) {
+        try { await versions.removeEntry(nom); }
+        catch (e) { console.error('Version non purgée (sans gravité, le fichier courant est intact) :', nom, e); }
+    }
+    return aSupprimer;
+}
+
+// Lit le fichier en place, s'il existe, et rend son JSON. Sert au garde-fou de fraîcheur : c'est le
+// DISQUE qui fait foi, pas ce que l'appli croit y avoir laissé. Un fichier illisible est traité comme
+// absent plutôt que comme un obstacle — on ne refuse pas d'enregistrer à cause d'un fichier abîmé.
+async function lireJsonRange(racine, cle, nomFichier) {
+    try {
+        const dossier = await sousDossier(racine, cle, false);
+        const fichier = await (await dossier.getFileHandle(nomFichier, { create: false })).getFile();
+        return { existe: true, contenu: JSON.parse(await fichier.text()), modifieAt: fichier.lastModified };
+    } catch (e) {
+        return { existe: false, contenu: null, modifieAt: 0 };
+    }
+}
+
+// Liste les versions archivées d'un fichier, de la plus récente à la plus ancienne.
+async function listerVersions(racine, cle, nomFichier) {
+    const dossier = await sousDossier(racine, cle, true);
+    let versions;
+    try { versions = await dossier.getDirectoryHandle(DOSSIER_VERSIONS, { create: false }); }
+    catch (e) { return []; }
+    const { base, ext } = separeNom(nomFichier);
+    const trouvees = [];
+    for await (const [nom, h] of versions.entries()) {
+        if (h.kind === 'file' && nom.startsWith(`${base} - `) && nom.endsWith(ext)) trouvees.push(nom);
+    }
+    return trouvees.sort().reverse();
+}
+
 // LE POINT DE PASSAGE UNIQUE de tout ce qui sort de l'appli. Range si c'est possible, télécharge
 // sinon, et dit dans son retour ce qui s'est réellement passé — pour que le message affiché à
 // l'utilisateur ne mente jamais sur l'endroit où son fichier se trouve.
 // `racine` peut être fournie par l'appelant qui l'a déjà préparée pendant le geste (voir
 // preparerRangement) ; sinon on tente sans redemander la permission.
-async function enregistrerFichier(blob, { morceau, type, extension, dossier, nom, date, appli, racine } = {}) {
-    const nomFichier = nom || nomExport({ morceau, type, extension, date, appli });
+// `versionne` (par défaut vrai quand un dossier est configuré) : nom STABLE, l'ancien fichier poussé
+// dans `_versions/`. Mis à faux, on retrouve l'ancien régime — un fichier horodaté par export. Le
+// TÉLÉCHARGEMENT, lui, garde toujours le nom horodaté : dans Téléchargements il n'y a ni dossier de
+// versions ni rotation, et deux fichiers de même nom y deviennent « (1) », « (2) » — exactement ce
+// qu'on cherche à éviter.
+async function enregistrerFichier(blob, { morceau, type, extension, dossier, nom, date, appli, racine, versionne = true } = {}) {
+    const nomHorodate = nom || nomExport({ morceau, type, extension, date, appli });
+    const nomFichier = (versionne && !nom) ? nomCanonique({ morceau, type, extension, appli }) : nomHorodate;
     const cle = dossier || 'morceaux';
     // `undefined` = l'appelant n'a rien préparé : on s'en charge, en demandant la permission si
     // besoin — légitime ici, ces exports-là sont instantanés et le clic est encore valide. Un `null`
@@ -332,7 +466,16 @@ async function enregistrerFichier(blob, { morceau, type, extension, dossier, nom
     if (cible === undefined) cible = await preparerRangement({ demander: true, appli });
     if (cible) {
         try {
+            // L'ancien est mis de côté AVANT d'écrire le nouveau : si l'écriture échoue à mi-chemin,
+            // la copie d'archive existe déjà et rien n'est perdu. L'ordre inverse laisserait une
+            // fenêtre où ni l'ancien ni le nouveau ne seraient complets.
+            let archive = null;
+            if (versionne) {
+                try { archive = await archiverVersion(cible, cle, nomFichier); }
+                catch (e) { console.error('Version précédente non archivée :', e); }
+            }
             await ecrireDansRacine(cible, cle, nomFichier, blob);
+            if (versionne) { try { await purgerVersions(cible, cle, nomFichier); } catch (e) { console.error('Purge des versions impossible :', e); } }
             const chemin = `${cheminRangement(cle)}/${nomFichier}`;
             // L'index est un confort : s'il échoue, le FICHIER est déjà écrit et c'est lui qui compte.
             try {
@@ -342,15 +485,15 @@ async function enregistrerFichier(blob, { morceau, type, extension, dossier, nom
                     extension: extension || null, taille: blob.size, ecritAt: Date.now(),
                 });
             } catch (e) { console.error('Index non mis à jour (le fichier, lui, est bien écrit) :', e); }
-            return { range: true, nom: nomFichier, dossier: cheminRangement(cle), chemin, racine: cible.name || '' };
+            return { range: true, nom: nomFichier, dossier: cheminRangement(cle), chemin, archive, racine: cible.name || '' };
         } catch (e) {
             // Dossier débranché, disque plein, permission retirée en cours de route : on ne perd pas
             // le fichier pour autant.
             console.error('Rangement impossible, repli sur le téléchargement :', e);
         }
     }
-    telechargerBlob(blob, nomFichier);
-    return { range: false, nom: nomFichier, dossier: null, chemin: null };
+    telechargerBlob(blob, nomHorodate);
+    return { range: false, nom: nomHorodate, dossier: null, chemin: null, archive: null };
 }
 
 // Message à afficher après un export. Un seul endroit, parce qu'une destination annoncée à tort est

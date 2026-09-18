@@ -3677,3 +3677,85 @@ mesures sans jamais conclure. Un fichier nommé `guitar_lock_click_test.js` qui 
 paraître la couverture plus large qu'elle n'est. Deux autres (`detune`, `probe_cache_perime`) concluent
 bel et bien, mais écrivent « OK : » au lieu de « PASS ». Rien n'est supprimé ici — le relevé les
 montre désormais à chaque balayage, ce qui suffit à ce qu'ils ne se cachent plus.
+
+## Les garde-fous d'écrasement (2026-09-18)
+
+### Le constat, mesuré avant de proposer quoi que ce soit
+
+Deux craintes exprimées : « si je réexporte une bibliothèque, les morceaux déjà présents sur le disque
+et qui ne sont plus sur l'application ne doivent pas être supprimés », et « des morceaux modifiés
+ailleurs (que l'appli) a "oublié" ne doivent pas être écrasés ».
+
+**Aucune des deux n'était réalisée.** `removeEntry` n'apparaissait nulle part dans le code applicatif,
+et chaque nom portant la date à la minute, un export ne réécrivait jamais un fichier existant. Une
+seule fenêtre étroite existait : deux exports du même morceau dans la même minute.
+
+Mais c'était une **sûreté par accumulation**, et c'est elle qui coûtait du temps. Rien n'étant jamais
+écrasé, rien n'était jamais REMPLACÉ : dix exports de « Ballade » donnaient dix fichiers, et aucun dont
+on puisse dire « c'est LE fichier de Ballade ». Le « je me perds dans les versions » revenait par la
+fenêtre.
+
+### Ce qui change
+
+**Un nom canonique par document, les anciens dans `_versions/`.**
+
+```
+Morceaux/HarmoHub - Ballade - Morceau.json                 <- LE fichier, jamais renommé
+Morceaux/_versions/HarmoHub - Ballade - Morceau - ….json   <- les dix précédents
+```
+
+Le nom stable donne un point fixe ; l'horodatage triable du lot A part dans `_versions/`, où il sert
+vraiment puisque c'est là qu'on cherche « celle d'avant ». Le TÉLÉCHARGEMENT, lui, garde le nom
+horodaté : dans Téléchargements il n'y a ni rotation ni dossier de versions, et deux fichiers de même
+nom y deviennent « (1) », « (2) » — exactement ce qu'on évite. L'asymétrie est voulue et verrouillée
+par un contrôle.
+
+**Sources et dérivés, deux régimes.** Un JSON de morceau ou de bibliothèque est une SOURCE : l'écraser
+peut perdre du travail, d'où le garde-fou de fraîcheur. Un PDF, un MIDI, un MP3, un TXT sont DÉRIVÉS :
+ils se régénèrent d'un clic. Les deux profitent de la rotation ; seules les sources posent une question.
+
+**Le garde-fou lui-même : on lit avant d'écrire, toujours.** C'est le disque qui fait foi, pas ce que
+l'appli croit y avoir laissé. Trois issues, dont deux s'arrêtent :
+
+| État du fichier en place | Ce qui se passe |
+|---|---|
+| absent, ou plus ancien | on écrit, l'ancien part en version |
+| même morceau, **plus récent** | conflit « modifié ailleurs » |
+| **autre** morceau, même nom | conflit « homonyme » |
+
+Le second cas est le prix du nom lisible : le nom canonique est indexé sur le NOM du morceau, pas sur
+son identifiant. Le payer par une vérification vaut mieux que par un nom du genre
+`Ballade - song_mu5skoqp3o85.json`.
+
+La fenêtre offre **quatre** issues, là où l'import en a trois. « Recharger depuis le disque » est
+souvent la bonne quand le fichier est le plus récent, et sans elle il faudrait annuler puis aller
+réimporter à la main — le temps qu'on cherche justement à faire gagner.
+
+**Enregistrer dans l'appli = le fichier suit.** Tant que l'écriture est un geste à part, il faut y
+PENSER, et c'est en n'y pensant pas qu'on perd le fil. `saveCurrentSong` écrit désormais le fichier,
+garde-fou compris. Le moment est bien choisi pour poser une question : on vient d'appuyer sur
+« Enregistrer », on n'est pas au milieu d'une phrase. Et l'écriture ne bloque jamais l'enregistrement
+lui-même — un dossier débranché ne doit pas faire échouer un Ctrl+S, mais il le DIT.
+
+**La sauvegarde de bibliothèque rend des comptes.** Elle ne supprime rien, ne l'a jamais fait, et le
+banc le verrouille. Mais ne rien supprimer EN SILENCE ne rassure personne : les morceaux présents sur
+le disque et absents de l'appli sont désormais NOMMÉS après chaque sauvegarde. C'est aussi le chemin du
+retour — un morceau perdu par un vidage de cache se récupère au lieu de se chercher.
+
+### Le défaut que le banc a trouvé
+
+Les archives étaient datées à la MINUTE. Quatre enregistrements rapprochés ne laissaient qu'**une**
+version : les quatre portaient le même nom et s'écrasaient l'une l'autre. Le filet de sécurité se
+vidait tout seul, en silence, précisément dans le cas où l'on en a le plus besoin — des essais
+successifs en quelques minutes. Deux Ctrl+S d'affilée suffisaient. Les versions se datent maintenant à
+la SECONDE (`horodatageVersion`), avec un compteur en dernier recours.
+
+### La purge : la seule suppression de tout le projet
+
+`purgerVersions` est la première ligne de ce projet qui efface un fichier. Elle est volontairement
+étroite — uniquement dans `_versions/`, uniquement les noms commençant par la base du morceau visé,
+uniquement au-delà des dix plus récents — et le banc la met à l'épreuve sur un dossier peuplé à la
+main : elle ne touche ni aux versions d'un AUTRE morceau, ni à un fichier déposé là sous un autre nom,
+ni au fichier courant. Ces quatre contrôles comptent plus que celui qui vérifie qu'elle supprime bien.
+
+`tests/garde_fous_ecrasement_test.js` : 31 contrôles.

@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202609171800">
+    <link rel="stylesheet" href="style.css?v=202609181000">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -324,6 +324,32 @@
                         <button type="button" id="import-conflict-overwrite" class="btn-blue">Écraser</button>
                         <button type="button" id="import-conflict-both" class="btn-sec">Garder les deux</button>
                         <button type="button" id="import-conflict-skip" class="btn-sec">Ignorer</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LE GARDE-FOU D'ÉCRASEMENT (voir demanderResolutionExport dans script.js). L'équivalent de
+         #import-conflict-modal, mais dans l'AUTRE sens : ici c'est le fichier du DISQUE qui risque
+         d'être perdu, pas celui de l'appli. Retour utilisateur : « des morceaux modifiés ailleurs que
+         l'appli a "oublié" ne doivent pas être écrasés ».
+         Quatre issues et non trois : « Recharger depuis le disque » est souvent la bonne quand le
+         fichier est le plus récent, et sans elle il faudrait annuler puis aller l'importer à la main —
+         exactement le temps qu'on cherche à faire gagner. -->
+    <div id="export-conflict-modal" class="settings-overlay" hidden>
+        <div class="settings-modal unsaved-modal" role="dialog" aria-modal="true" aria-labelledby="export-conflict-title">
+            <div class="settings-header">
+                <h2 id="export-conflict-title">Le fichier du disque est plus récent</h2>
+            </div>
+            <div class="settings-body">
+                <div class="settings-content unsaved-modal-body">
+                    <div id="export-conflict-body"></div>
+                    <div class="unsaved-modal-actions import-conflict-actions">
+                        <button type="button" id="export-conflict-reload" class="btn-blue">Recharger depuis le disque</button>
+                        <button type="button" id="export-conflict-overwrite" class="btn-sec">Écraser le fichier</button>
+                        <button type="button" id="export-conflict-both" class="btn-sec">Garder les deux</button>
+                        <button type="button" id="export-conflict-cancel" class="btn-sec">Annuler</button>
                     </div>
                 </div>
             </div>
@@ -1438,7 +1464,7 @@
     <script src="jspdf.umd.min.js"></script>
     <!-- Nommage des fichiers exportés, commun aux deux applis (voir fichiers.js). Chargé AVANT
          script.js : celui-ci s'en sert dès ses premiers exports. -->
-    <script src="fichiers.js?v=202609171200"></script>
-    <script src="script.js?v=202609171800"></script>
+    <script src="fichiers.js?v=202609181000"></script>
+    <script src="script.js?v=202609181000"></script>
 </body>
 </html>
