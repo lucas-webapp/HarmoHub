@@ -15,7 +15,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('suppression et fichiers du disque');
 const bruit = require('./_harness').estBruitReseau;
 
-plan(28);
+plan(29);
 
 const STUB = () => {
     window.showDirectoryPicker = async () =>
@@ -215,7 +215,10 @@ const LISTER = async (chemin) => {
         const i = blocs.findIndex(b => /Ballade - live/.test(b.textContent));
         return i < 0 ? null : blocs[i].querySelector('[data-disk-action="supprimer"]').dataset.diskIndex;
     });
-    if (idxLive !== null) {
+    // PAS DE `if` AUTOUR DES CONTRÔLES. Une vérification qui peut ne pas s'exécuter ne prouve rien, et
+    // un banc vert dont la moitié n'a pas tourné est pire qu'un banc rouge. On EXIGE donc de trouver la
+    // ligne avant de continuer.
+    if (exiger(idxLive !== null, 'la ligne « Ballade - live » est présente dans le panneau disque')) {
         await page.click(`#disk-files-body [data-disk-action="supprimer"][data-disk-index="${idxLive}"]`);
         await page.waitForTimeout(500);
         check(await page.isVisible('#delete-files-modal'),

@@ -3999,3 +3999,25 @@ fichier par génération au lieu de garder le dernier avec ses versions. Trouvé
 intégral, en vérifiant simplement le chemin attendu.
 
 `tests/export_integral_test.js` : 21 contrôles.
+
+### Le balayage complet du 18/09
+
+**195 verts · 7 rouges · 7 sans verdict**, sur 209 suites (contre 188 / 8 / 7 au relevé précédent, pour
+203 suites).
+
+Les 7 rouges : les **5 de référence** déjà connus et non instruits, `sortie_edition_involontaire`
+(antérieur, vérifié contre `57f5e23`), et `meta_suite` — le banc à cliquet, qui a attrapé **mes propres
+bancs** :
+
+- `sauvegarde_robustesse` appelait `window.app.marquerModifie`, une méthode que j'avais inventée et qui
+  n'existe pas. L'appel était « protégé » par un ternaire, donc invisible : du code mort dans un banc.
+- `suppression_disque` enfermait cinq contrôles dans un `if (idxLive !== null)`. Une vérification qui
+  peut ne pas s'exécuter ne prouve rien, et un banc vert dont la moitié n'a pas tourné est pire qu'un
+  banc rouge. Remplacé par un `exiger()`, qui échoue franchement si la ligne est introuvable.
+
+Les deux bancs ont été corrigés, **pas la référence** : élargir la liste de dette pour faire taire une
+trouvaille neuve viderait le cliquet de son sens.
+
+Les 7 « sans verdict » sont les ébauches de diagnostic déjà recensées (`guitar_lock_click`,
+`ctx_nav_scroll`, `instrument_stress`, `item1_hzoom_out`, `smoke`) et deux bancs qui concluent mais
+écrivent « OK : » au lieu de « PASS » (`detune`, `probe_cache_perime`).

@@ -87,7 +87,6 @@ plan(16);
     // `visibilitychange` et non `beforeunload` : sur iOS, seul le premier arrive vraiment.
     const marque = await page.evaluate(async () => {
         localStorage.removeItem('harmohub_parti_sans_enregistrer');
-        window.app.marquerModifie ? window.app.marquerModifie() : null;
         // On force l'état « modifications non enregistrées » comme le ferait une saisie.
         window.eval('hasUnsavedChanges = true');
         Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
