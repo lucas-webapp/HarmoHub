@@ -701,6 +701,10 @@ function loadProgressionSections() {
 // autonomes ci-dessous (appelées depuis de très nombreux endroits) doivent pouvoir la modifier sans
 // dépendre de l'instance HarmoHubApp (pas encore construite au tout premier appel).
 let hasUnsavedChanges = false;
+// Repères de sauvegarde (voir surveillerFraicheurSauvegarde / rappelerAvantDePartir).
+const CLE_DERNIERE_SAUVEGARDE = 'harmohub_derniere_sauvegarde';
+const CLE_DERNIER_RAPPEL = 'harmohub_dernier_rappel_sauvegarde';
+const CLE_PARTI_MODIFIE = 'harmohub_parti_sans_enregistrer';
 
 // `markDirty=false` : chargement d'un morceau (neuf ou déjà enregistré), pas une modification —
 // voir newSong/loadSong, les deux seuls appelants à passer false.
@@ -814,14 +818,37 @@ function cleTitre(nom) {
     return String(nom == null ? '' : nom).replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
+// Les morceaux ARCHIVÉS (voir ouvrirMenageDoublons) ne servent jamais d'appariement par titre : ce sont
+// des versions écartées, pas le morceau vivant. Sans cette exclusion, une archive plus récente que le
+// morceau gardé reprendrait sa place au premier import — et le ménage se déferait tout seul.
+// Le dossier est la SEULE source de vérité : sortir un morceau des Archives à la main le remet en jeu,
+// ce qui est exactement ce qu'on attend d'un rangement réversible.
+const DOSSIER_ARCHIVES = 'Archives';
+const estArchive = (s) => !!s && s.folder === DOSSIER_ARCHIVES;
+
 function apparierMorceau(importe, locaux) {
     const parId = locaux.find(s => s.id === importe.id);
     if (parId) return parId;
     const cle = cleTitre(importe.name);
     if (!cle) return null;
     return locaux
-        .filter(s => cleTitre(s.name) === cle)
+        .filter(s => !estArchive(s) && cleTitre(s.name) === cle)
         .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0] || null;
+}
+
+// Les groupes de morceaux VIVANTS partageant un même titre : l'inventaire du désordre à ranger.
+// Chaque groupe est trié du plus récent au plus ancien.
+function groupesDeDoublons(songs) {
+    const parCle = new Map();
+    songs.filter(s => !estArchive(s) && cleTitre(s.name)).forEach(s => {
+        const cle = cleTitre(s.name);
+        if (!parCle.has(cle)) parCle.set(cle, []);
+        parCle.get(cle).push(s);
+    });
+    return [...parCle.values()]
+        .filter(g => g.length > 1)
+        .map(g => g.slice().sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0)))
+        .sort((a, b) => String(a[0].name).localeCompare(String(b[0].name), 'fr'));
 }
 
 // Recopie les champs donnés dans le morceau actuellement ouvert (aucun effet si aucun n'est ouvert)
@@ -4168,6 +4195,12 @@ class HarmoHubApp {
         // ne doit jamais écraser un morceau.
         this._cabler('import-conflict-modal', 'click', (e) => {
             if (e.target.id === 'import-conflict-modal' && this._importConflictCancel) this._importConflictCancel();
+        });
+
+        // Ménage des doublons (voir ouvrirMenageDoublons) : clic sur le fond = renoncer. Même règle que
+        // partout ailleurs — un geste distrait ne doit jamais déplacer de morceaux.
+        this._cabler('dedup-modal', 'click', (e) => {
+            if (e.target.id === 'dedup-modal' && this._dedupCancel) this._dedupCancel();
         });
 
         // Choix export MIDI (voir chooseMidiExportMode) : clic sur le fond = Annuler, même principe.
@@ -9557,6 +9590,8 @@ class HarmoHubApp {
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M12 11v4M10 13h4"/></svg>
                     Nouveau dossier
                 </button>
+                ${rangementDisponible() && nomRacineAffiche() ? `<button type="button" id="export-changes-btn" class="btn-sec files-dedup-btn" title="Écrire sur le disque les morceaux modifiés depuis la dernière fois">Exporter ce qui a changé</button>` : ''}
+                ${groupesDeDoublons(songs).length ? `<button type="button" id="dedup-btn" class="btn-sec files-dedup-btn" title="Regrouper les morceaux qui portent le même titre">${groupesDeDoublons(songs).length} titre(s) en double</button>` : ''}
                 <div class="files-toolbar-spacer"></div>
                 <button type="button" id="library-export-btn" class="icon-btn" title="Exporter toute la bibliothèque (sauvegarde)" aria-label="Exporter toute la bibliothèque">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>
@@ -9665,6 +9700,14 @@ class HarmoHubApp {
     wireFilesToolbar() {
         const newBtn = document.getElementById('new-folder-btn');
         if (newBtn) newBtn.onclick = () => this.startInlineCreateFolder();
+        // N'existe que s'il y a effectivement des titres en double (voir renderFilesPanel) : un bouton
+        // de ménage affiché en permanence sur une bibliothèque propre n'apprend rien.
+        const dedupBtn = document.getElementById('dedup-btn');
+        if (dedupBtn) dedupBtn.onclick = () => this.ouvrirMenageDoublons();
+        // N'existe que si un dossier est configuré : sans dossier, « ce qui a changé » n'a rien à quoi
+        // se comparer.
+        const majBtn = document.getElementById('export-changes-btn');
+        if (majBtn) majBtn.onclick = () => this.exporterCeQuiAChange();
         const exportBtn = document.getElementById('library-export-btn');
         if (exportBtn) exportBtn.onclick = () => this.exportLibrary();
         const importBtn = document.getElementById('library-import-btn');
@@ -9858,7 +9901,8 @@ class HarmoHubApp {
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const res = await enregistrerFichier(blob, { type: 'Bibliotheque', extension: 'json', dossier: 'bibliotheque' });
-        const orphelins = res.range ? await this.morceauxOrphelinsSurDisque() : [];
+        if (res.range) this.marquerSauvegardeFaite();
+        const orphelins = res.range === true ? await this.morceauxOrphelinsSurDisque() : [];
         this.flashHint(messageEnregistrement(res, 'Bibliothèque sauvegardée'), 2400);
         if (orphelins.length) this.signalerOrphelins(orphelins);
     }
@@ -10005,6 +10049,82 @@ class HarmoHubApp {
             if (skipped > 0) bouts.push(`${skipped} conservé(s) tel(s) quel(s)`);
             this.flashHint(bouts.join(', '));
         }
+    }
+
+    // ---------- LE MÉNAGE DES TITRES EN DOUBLE ----------
+    // « Je ne sais plus lequel est le morceau correct. » On ne le saura pas à sa place : décision prise
+    // avec l'utilisateur, aucune règle automatique ne tranche — l'appli MONTRE ce qui distingue les
+    // versions (date, parties, accords) et c'est lui qui désigne la bonne. Deux raccourcis proposent
+    // quand même la plus récente ou la plus complète en un clic, pour les groupes évidents.
+    //
+    // RIEN N'EST SUPPRIMÉ. Les versions écartées vont dans un dossier « Archives » : elles sortent de
+    // la vue principale, restent ouvrables, et se ressortent à la main. C'est ce qui permet de trancher
+    // sans risque — on ne se décide bien que quand se tromper ne coûte rien.
+    ouvrirMenageDoublons() {
+        const modal = document.getElementById('dedup-modal');
+        const groupes = groupesDeDoublons(loadSongs());
+        if (!modal || !groupes.length) { this.flashHint('Aucun titre en double'); return; }
+
+        const decrire = (m) => `${(m.sections || []).length} partie(s) · ${compterAccords(m)} accord(s)`;
+        const corps = groupes.map((groupe, gi) => {
+            // Le plus récent est proposé par défaut : c'est le cas le plus fréquent, et ça évite de
+            // devoir cocher vingt lignes pour un rangement dont la réponse est presque toujours la même.
+            const lignes = groupe.map((s, i) => `
+                <label class="dedup-version">
+                    <input type="radio" name="dedup-${gi}" value="${escapeHtml(s.id)}"${i === 0 ? ' checked' : ''}>
+                    <span class="dedup-version-info">${decrire(s)} · ${formaterDateEnregistrement(s.savedAt)}${
+                        i === 0 ? ' <strong class="import-conflict-recent">la plus récente</strong>' : ''}${
+                        s.folder ? ` · <span class="import-conflict-hint">${escapeHtml(s.folder)}</span>` : ''}</span>
+                </label>`).join('');
+            return `
+                <div class="import-conflict-song" data-dedup-groupe="${gi}">
+                    <div class="import-conflict-name">${escapeHtml(groupe[0].name)} <span class="import-conflict-hint">${groupe.length} versions</span></div>
+                    ${lignes}
+                </div>`;
+        }).join('');
+
+        document.getElementById('dedup-body').innerHTML =
+            `<p>${groupes.length === 1 ? 'Un titre porte' : `${groupes.length} titres portent`} plusieurs versions. Désigne celle à garder : les autres iront dans « ${DOSSIER_ARCHIVES} », <strong>rien n'est supprimé</strong>.</p>${corps}`;
+
+        modal.hidden = false;
+        this.lockBodyScroll();
+
+        const poser = (critere) => groupes.forEach((groupe, gi) => {
+            const gagnant = groupe.slice().sort(critere)[0];
+            const cible = modal.querySelector(`input[name="dedup-${gi}"][value="${CSS.escape(gagnant.id)}"]`);
+            if (cible) cible.checked = true;
+        });
+        const fermer = () => { modal.hidden = true; this.unlockBodyScroll(); this._dedupCancel = null; };
+        this._dedupCancel = fermer;
+
+        document.getElementById('dedup-recent').onclick = () => poser((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+        document.getElementById('dedup-complete').onclick = () => poser((a, b) => compterAccords(b) - compterAccords(a));
+        document.getElementById('dedup-cancel').onclick = fermer;
+        document.getElementById('dedup-apply').onclick = () => {
+            const gardes = groupes.map((groupe, gi) => {
+                const coche = modal.querySelector(`input[name="dedup-${gi}"]:checked`);
+                return coche ? coche.value : groupe[0].id;
+            });
+            fermer();
+            this.archiverDoublons(groupes, gardes);
+        };
+    }
+
+    // Applique le ménage : tout ce qui n'a pas été désigné part aux Archives. Un seul pas d'annulation
+    // pour l'ensemble (voir pushFilesUndo) — un ménage se défait d'un bloc ou pas du tout.
+    archiverDoublons(groupes, gardes) {
+        const aArchiver = new Set();
+        groupes.forEach((groupe, gi) => groupe.forEach(s => { if (s.id !== gardes[gi]) aArchiver.add(s.id); }));
+        if (!aArchiver.size) { this.flashHint('Rien à ranger'); return; }
+
+        this.pushFilesUndo();
+        const songs = loadSongs().map(s => (aArchiver.has(s.id) ? { ...s, folder: DOSSIER_ARCHIVES } : s));
+        saveSongs(songs);
+        const dossiers = loadFolders();
+        if (!dossiers.includes(DOSSIER_ARCHIVES)) saveFolders([...dossiers, DOSSIER_ARCHIVES]);
+        this.refreshSongList();
+        if (this.filesOpen) this.renderFilesPanel();
+        this.flashHint(`${aArchiver.size} version(s) rangée(s) dans « ${DOSSIER_ARCHIVES} » — rien n'a été supprimé`, 4000);
     }
 
     // COMPARER AVANT DE DEMANDER. Le conflit d'import ne se résume pas à « ce morceau existe déjà » :
@@ -10845,8 +10965,12 @@ class HarmoHubApp {
 
     // Enregistre des octets .mid déjà construits sous `filename` — factorisé pour l'export simple ET
     // l'export par partie (voir exportMidi).
-    downloadMidiBytes(bytes, filename, racine) {
-        return enregistrerFichier(new Blob([bytes], { type: 'audio/midi' }), { nom: filename, dossier: 'midi', racine });
+    // `partage` : laissé libre pour un fichier unique (la feuille de partage est alors un vrai
+    // service sur iPhone), mais coupé pour l'export PAR PARTIE — on n'ouvre pas cinq feuilles de
+    // partage à la suite, et ces écritures-là partent d'un setTimeout, donc hors du geste : le
+    // navigateur les refuserait de toute façon.
+    downloadMidiBytes(bytes, filename, racine, partage) {
+        return enregistrerFichier(new Blob([bytes], { type: 'audio/midi' }), { nom: filename, dossier: 'midi', racine, partage });
     }
 
     // ---------- Import MIDI, étape 6 : assembler le tout ----------
@@ -10994,7 +11118,7 @@ class HarmoHubApp {
             setTimeout(() => {
                 // Une partie par fichier : le type porte le nom de la partie, pour que les quatre
                 // fichiers d'un même morceau restent côte à côte et se distinguent d'un coup d'œil.
-                this.downloadMidiBytes(this.buildMidiFile([sec]), nomExport({ morceau: songName, type: `MIDI ${title}`, extension: 'mid' }), null);
+                this.downloadMidiBytes(this.buildMidiFile([sec]), nomExport({ morceau: songName, type: `MIDI ${title}`, extension: 'mid' }), null, false);
             }, si * 200);
         });
         this.flashHint(`${sections.length} fichiers MIDI téléchargés → dossier Téléchargements`, 2400);
@@ -11437,8 +11561,14 @@ class HarmoHubApp {
         const duFichier = ((surDisque.contenu && surDisque.contenu.songs) || [])[0];
         if (!duFichier) return { nomFichier, etat: 'absent' }; // fichier illisible : traité comme vide
         if (duFichier.id !== song.id) return { nomFichier, etat: 'homonyme', duFichier };
-        if ((duFichier.savedAt || 0) > (song.savedAt || 0)) return { nomFichier, etat: 'plus-recent', duFichier };
-        return { nomFichier, etat: 'a-jour', duFichier };
+        const surDisqueAt = duFichier.savedAt || 0, iciAt = song.savedAt || 0;
+        if (surDisqueAt > iciAt) return { nomFichier, etat: 'plus-recent', duFichier };
+        // TROIS ÉTATS ET NON DEUX. « Le disque n'est pas plus récent » recouvrait deux situations très
+        // différentes : le fichier est identique (rien à faire) ou il est EN RETARD (c'est le cas
+        // courant — on vient de modifier le morceau et il faut l'écrire). Les confondre sous « à jour »
+        // faisait que « Exporter ce qui a changé » n'exportait justement rien.
+        if (surDisqueAt < iciAt) return { nomFichier, etat: 'a-ecrire', duFichier };
+        return { nomFichier, etat: 'identique', duFichier };
     }
 
     // Même principe que demanderResolutionImport : COMPARER avant de demander. Annoncer « le fichier
@@ -11509,8 +11639,10 @@ class HarmoHubApp {
             nom ? { nom, dossier: 'morceaux', racine: cible }
                 : { morceau: song.name, type: 'Morceau', extension: 'json', dossier: 'morceaux', racine: cible });
 
-        if (etat.etat === 'absent' || etat.etat === 'a-jour') {
-            return { fait: true, raison: etat.etat, res: await ecrire() };
+        if (etat.etat === 'absent' || etat.etat === 'a-ecrire' || etat.etat === 'identique') {
+            const res = await ecrire();
+            this.marquerSauvegardeFaite();
+            return { fait: true, raison: etat.etat, res };
         }
 
         if (auto) return { fait: false, raison: etat.etat, etat };
@@ -11525,6 +11657,135 @@ class HarmoHubApp {
             return { fait: true, raison: 'les-deux', res: await ecrire(`${base} (copie ${horodatageFichier()})${ext}`) };
         }
         return { fait: true, raison: 'ecrase', res: await ecrire() };
+    }
+
+    // ---------- DEMANDER À NE PAS ÊTRE EFFACÉ ----------
+    // Toute la bibliothèque vit dans localStorage. Or Safari EFFACE le stockage d'un site après sept
+    // jours sans visite (règle ITP, depuis Safari 13.1) — les apps posées sur l'écran d'accueil en sont
+    // exemptées, mais pas la navigation ordinaire. `navigator.storage.persist()` (Safari 17+, Chrome)
+    // demande à être exclu de l'éviction ; Safari répond seul, sans rien demander à l'utilisateur.
+    // HONNÊTETÉ SUR LA PORTÉE : ça protège de l'éviction sous pression de stockage. Que ça neutralise
+    // AUSSI la règle des sept jours sans interaction n'est pas documenté clairement. C'est strictement
+    // mieux que rien, ce n'est pas une garantie — d'où le rappel de fraîcheur, qui lui ne dépend
+    // d'aucune promesse du navigateur.
+    async demanderStockagePersistant() {
+        try {
+            if (!navigator.storage || typeof navigator.storage.persist !== 'function') return false;
+            if (typeof navigator.storage.persisted === 'function' && await navigator.storage.persisted()) return true;
+            return await navigator.storage.persist();
+        } catch (e) {
+            console.error('Demande de stockage persistant impossible :', e);
+            return false;
+        }
+    }
+
+    // ---------- LA FRAÎCHEUR DE LA SAUVEGARDE ----------
+    // Le filet de sécurité, aujourd'hui, est une HABITUDE : exporter en fin de séance. Une habitude
+    // tient jusqu'au jour où la séance ne finit pas comme prévu. Et sur Safari, le travail de cette
+    // séance-là a une mèche de sept jours (voir demanderStockagePersistant).
+    // On ne moralise pas à chaque ouverture : le rappel ne paraît qu'au-delà de CINQ jours, soit avant
+    // l'échéance de Safari, et une seule fois par jour.
+    marquerSauvegardeFaite() {
+        try { localStorage.setItem(CLE_DERNIERE_SAUVEGARDE, String(Date.now())); } catch (e) { /* stockage plein : sans gravité */ }
+    }
+
+    joursDepuisSauvegarde() {
+        try {
+            const t = parseInt(localStorage.getItem(CLE_DERNIERE_SAUVEGARDE), 10);
+            if (!t) return null;
+            return Math.floor((Date.now() - t) / 86400000);
+        } catch (e) { return null; }
+    }
+
+    surveillerFraicheurSauvegarde() {
+        if (!loadSongs().length) return; // rien à sauvegarder : pas de leçon à donner
+        const jours = this.joursDepuisSauvegarde();
+        if (jours === null) {
+            // Jamais sauvegardé depuis que l'appli en tient le compte : on pose le repère sans rien
+            // dire, sinon toute bibliothèque existante recevrait une alerte au premier chargement.
+            this.marquerSauvegardeFaite();
+            return;
+        }
+        if (jours < 5) return;
+        try {
+            const aujourdhui = new Date().toDateString();
+            if (localStorage.getItem(CLE_DERNIER_RAPPEL) === aujourdhui) return; // une fois par jour, pas plus
+            localStorage.setItem(CLE_DERNIER_RAPPEL, aujourdhui);
+        } catch (e) { /* sans stockage, on rappelle quand même : mieux vaut insister que se taire */ }
+        setTimeout(() => this.flashHint(
+            `Dernière sauvegarde sur disque il y a ${jours} jours — pense à exporter, Safari efface le stockage au bout de 7 jours sans visite`,
+            8000), 1500);
+    }
+
+    // ---------- LE RAPPEL EN PARTANT ----------
+    // `visibilitychange` et NON `beforeunload` : sur iOS, `beforeunload` ne se déclenche pas de façon
+    // fiable (onglet balayé, app basculée en arrière-plan, écran verrouillé). `visibilitychange` est le
+    // seul signal qui arrive vraiment sur ces appareils — précisément ceux où rien ne s'écrit tout seul.
+    // Sur Chrome avec un dossier configuré, le fichier suit déjà chaque enregistrement : il n'y a alors
+    // rien à rappeler, et le dire quand même serait du bruit.
+    rappelerAvantDePartir() {
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState !== 'hidden') return;
+            if (!hasUnsavedChanges) return;
+            try { localStorage.setItem(CLE_PARTI_MODIFIE, '1'); } catch (e) { /* sans gravité */ }
+        });
+        // Au retour : c'est là qu'on peut parler. Prévenir au moment où quelqu'un s'en va ne sert à
+        // rien — il ne regarde déjà plus l'écran.
+        try {
+            if (localStorage.getItem(CLE_PARTI_MODIFIE)) {
+                localStorage.removeItem(CLE_PARTI_MODIFIE);
+                if (hasUnsavedChanges) {
+                    setTimeout(() => this.flashHint('Tu es parti sans enregistrer la dernière fois — le morceau en cours est toujours là', 6000), 2500);
+                }
+            }
+        } catch (e) { /* sans gravité */ }
+    }
+
+    // ---------- CE QUI A CHANGÉ DEPUIS LA DERNIÈRE ÉCRITURE ----------
+    // Retour utilisateur : « lorsque je finis mon travail, j'exporte toujours ma bibliothèque OU LES
+    // MORCEAUX MODIFIÉS ». Ce « ou » est une décision prise à la main, en fin de séance, au moment où
+    // l'on est le moins attentif — et se tromper là coûte un morceau.
+    // L'appli sait déjà répondre : c'est la même comparaison que le garde-fou (le savedAt d'ici contre
+    // celui du fichier en place). On lit le DISQUE, pas un journal interne : un fichier effacé ou
+    // remplacé à la main doit réapparaître dans la liste, et il n'y a que le disque pour le dire.
+    async morceauxAEcrire(racine) {
+        const songs = loadSongs().filter(s => !estArchive(s));
+        const aEcrire = [];
+        for (const song of songs) {
+            let etat;
+            try { etat = await this.etatMorceauSurDisque(racine, song); }
+            catch (e) { continue; }
+            // 'identique' : le fichier porte déjà cette version, rien à faire.
+            // 'absent' et 'a-ecrire' : à écrire, sans rien demander.
+            // 'plus-recent' et 'homonyme' sont des CONFLITS, pas des retards : ils passeront par la
+            // fenêtre, un par un, plutôt que d'être écrits en masse sans qu'on regarde.
+            if (etat.etat !== 'identique') aEcrire.push({ song, etat: etat.etat });
+        }
+        return aEcrire;
+    }
+
+    async exporterCeQuiAChange() {
+        const racine = await preparerRangement();
+        if (!racine) { this.flashHint('Choisis d\'abord un dossier de rangement (menu Fichier)', 3600); return; }
+        const aEcrire = await this.morceauxAEcrire(racine);
+        if (!aEcrire.length) { this.flashHint('Tout est déjà à jour sur le disque', 2800); return; }
+
+        let ecrits = 0, conflits = 0, annules = 0;
+        for (const { song, etat } of aEcrire) {
+            // Les morceaux sans histoire passent sans rien demander ; seuls les conflits ouvrent la
+            // fenêtre. C'est ce qui fait la différence entre « un bouton » et « vingt questions ».
+            const r = await this.enregistrerMorceauDansDossier(song, { racine });
+            if (r.fait) ecrits++;
+            else if (r.raison === 'annule') annules++;
+            else conflits++;
+            if (r.raison === 'recharge') this.chargerDepuisLeDisque(r.duFichier);
+        }
+        if (ecrits) this.marquerSauvegardeFaite();
+        const bouts = [`${ecrits} écrit(s)`];
+        if (annules) bouts.push(`${annules} laissé(s) tel(s) quel(s)`);
+        if (conflits) bouts.push(`${conflits} non résolu(s)`);
+        this.flashHint(bouts.join(' · '), 4000);
+        if (this.filesOpen) this.renderFilesPanel();
     }
 
     async downloadSongBackup(song) {
@@ -18402,3 +18663,11 @@ class HarmoHubApp {
 }
 
 window.app = new HarmoHubApp();
+
+// ---------- CE QUI PROTÈGE LA BIBLIOTHÈQUE, AU DÉMARRAGE ----------
+// Tout ceci est en fin de fichier, après la construction de l'appli : une erreur ici ne doit jamais
+// empêcher HarmoHub de s'ouvrir (voir la panne de paroles.js, où du code de démarrage placé au milieu
+// du fichier lisait une constante pas encore initialisée et cassait toute la page).
+window.app.demanderStockagePersistant();
+window.app.surveillerFraicheurSauvegarde();
+window.app.rappelerAvantDePartir();

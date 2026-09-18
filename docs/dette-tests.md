@@ -3807,3 +3807,70 @@ s'équilibrent »). Une substitution de texte sur du code structuré doit se vé
 après.
 
 `tests/import_fusion_titre_test.js` : 23 contrôles.
+
+## Ménage, partage iOS et protections de la sauvegarde (2026-09-18)
+
+### Le ménage des titres en double
+
+Le lot précédent a fermé le robinet (l'import n'empile plus de doublons) ; celui-ci vide la baignoire.
+Un bouton n'apparaît dans le gestionnaire de fichiers **que s'il y a du désordre**, et annonce combien
+de titres sont concernés. La fenêtre montre chaque groupe avec date, parties et accords, la plus
+récente cochée d'avance, plus deux raccourcis (« la plus récente », « la plus complète »).
+
+**Rien n'est supprimé** — décision prise avec l'utilisateur. Les versions écartées vont dans un dossier
+`Archives`, d'où elles restent ouvrables. C'est ce qui permet de trancher : on ne se décide bien que
+quand se tromper ne coûte rien. Et c'est **réversible** : les archives sont exclues de l'appariement
+par titre, donc ressortir un morceau des Archives le remet en jeu. Sans cette exclusion, une archive
+plus récente que le morceau gardé aurait repris sa place au premier import, et le ménage se serait
+défait tout seul.
+
+### Un défaut de superposition, latent depuis longtemps
+
+Les choix du milieu de la fenêtre de ménage étaient **inatteignables** : l'en-tête du gestionnaire de
+fichiers, au même plan (`z-index: 100`), interceptait les clics. Le piège est vicieux — la fenêtre
+s'affiche, elle a l'air normale, et seule une partie d'elle refuse le clic ; les boutons du bas, eux,
+répondaient.
+
+`#unsaved-modal` avait déjà rencontré ça et l'avait réglé **pour lui seul**. La règle valait pour ses
+trois sœurs (`#import-conflict-modal`, `#export-conflict-modal`, `#dedup-modal`) sans que personne
+l'ait remarqué : toutes s'ouvrent depuis une `.settings-overlay` déjà affichée. Écrite une fois, pour
+la famille entière.
+
+### Le partage système : le seul rangement possible sur iPhone
+
+File System Access n'existe ni sur Safari ni sur Chrome Android. Mais l'iPhone a une autre porte : la
+feuille de partage. `navigator.share` avec des fichiers marche depuis Safari 15, et la feuille propose
+« Enregistrer dans Fichiers » — donc iCloud Drive, donc un vrai rangement, au même endroit que ce que
+l'ordinateur range tout seul.
+
+Deux pièges connus, tous deux couverts par un contrôle : il faut passer **uniquement** `files` (ajouter
+`title` ou `text` fait échouer le partage de fichier sur iOS), et `canShare` doit être interrogé avec
+le fichier lui-même. Renoncer à la feuille (`AbortError`) **ne déclenche pas** un téléchargement
+furtif : on ne sauvegarde pas dans le dos de quelqu'un qui vient d'annuler. L'export MIDI **par
+partie** coupe le partage explicitement — on n'ouvre pas cinq feuilles à la suite.
+
+### Trois protections contre la perte silencieuse
+
+- **`navigator.storage.persist()`** au démarrage (Safari 17+, Chrome). Honnêteté sur la portée : ça
+  protège de l'éviction sous pression de stockage ; que ça neutralise *aussi* la règle des sept jours
+  sans interaction n'est pas documenté clairement. Mieux que rien, pas une garantie.
+- **La fraîcheur de la sauvegarde** : au-delà de cinq jours (avant l'échéance de Safari), un rappel,
+  **une fois par jour au plus**, et jamais sur une bibliothèque vide.
+- **Le rappel en partant** : sur `visibilitychange` et non `beforeunload` — sur iOS, seul le premier
+  arrive vraiment (onglet balayé, app basculée, écran verrouillé). Le repère est posé en partant et lu
+  au démarrage suivant : prévenir quelqu'un au moment où il s'en va ne sert à rien, il ne regarde déjà
+  plus l'écran.
+
+### Le défaut que « Exporter ce qui a changé » a révélé dans mon propre code
+
+`etatMorceauSurDisque` ne connaissait que deux états après l'appariement : « le disque est plus
+récent » ou « à jour ». Or « à jour » recouvrait deux situations opposées — le fichier porte déjà cette
+version (rien à faire), ou **il est en retard** (c'est LE cas courant : on vient de modifier le morceau
+et il faut l'écrire). Les confondre faisait que « Exporter ce qui a changé » n'exportait justement
+rien. Trois états désormais : `identique`, `a-ecrire`, `plus-recent`.
+
+Bancs : `menage_doublons` 21/0, `sauvegarde_robustesse` 17/0, `garde_fous_ecrasement` 36/0.
+Ce que ces bancs **ne peuvent pas** faire, et il faut le dire : ils tournent sur Chromium. Le
+comportement réel de Safari et d'iOS n'est pas mesuré. Ce qui est éprouvé, c'est que le code fait ce
+qu'il annonce et, surtout, qu'il se comporte proprement quand l'API visée est **absente** — la
+situation de tous les navigateurs sauf un, pour chacune de ces fonctions.

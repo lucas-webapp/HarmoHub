@@ -344,9 +344,18 @@ body.body-scroll-locked { overflow: hidden !important; }
    ici il remplace un vrai champ de formulaire, à côté d'un <select> classique (padding 14px) : on
    l'agrandit pour rester visuellement cohérent. */
 .unsaved-modal-nameprompt input.inline-rename-input { padding: 13px 14px; font-size: var(--fs-select); }
-/* Doit passer devant .settings-overlay (z-index 100) : peut s'ouvrir PAR-DESSUS la fenêtre Paramètres
-   elle-même (voir openSongFromFiles dans script.js, appelée depuis l'onglet Fichiers). */
-#unsaved-modal { z-index: 200; }
+/* LES FENÊTRES DE DÉCISION PASSENT DEVANT .settings-overlay (z-index 100).
+   Toutes s'ouvrent DEPUIS la fenêtre Fichiers ou Paramètres, donc par-dessus une .settings-overlay
+   déjà affichée. Au même plan qu'elle, l'en-tête de la fenêtre du dessous intercepte les clics et la
+   décision devient impossible à prendre — mesuré sur #dedup-modal, dont les boutons du bas
+   répondaient mais dont les choix du milieu étaient inatteignables. Le piège est vicieux : la fenêtre
+   s'affiche, elle a l'air normale, et seule une partie d'elle refuse le clic.
+   La règle valait déjà pour #unsaved-modal ; elle valait pour ses trois sœurs sans que personne l'ait
+   remarqué. Écrite une fois, pour la famille entière. */
+#unsaved-modal,
+#import-conflict-modal,
+#export-conflict-modal,
+#dedup-modal { z-index: 200; }
 
 /* Fenêtre agrandie du séquenceur (voir #seq-zoom-overlay/openSeqZoom) : même habillage que
    .settings-modal, mais bien plus large/haute — tout l'intérêt est de donner beaucoup plus de place
@@ -6340,3 +6349,16 @@ body.impression-structure .struct-row { break-inside: avoid; }
     min-height: 28px;
 }
 .import-conflict-choix input { cursor: pointer; }
+
+/* ---------- Ménage des titres en double ---------- */
+.files-dedup-btn { font-size: var(--fs-xs); }
+.dedup-version {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* Même cible confortable que les choix d'import : ce rangement se fait aussi au doigt. */
+    min-height: 30px;
+    cursor: pointer;
+}
+.dedup-version-info { font-size: var(--fs-xs); color: var(--text-muted); }
+.dedup-version input { cursor: pointer; flex: 0 0 auto; }

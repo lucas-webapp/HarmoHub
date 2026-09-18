@@ -445,6 +445,48 @@ async function listerVersions(racine, cle, nomFichier) {
     return trouvees.sort().reverse();
 }
 
+// =====================================================================================
+// LE PARTAGE SYSTÈME — le seul rangement possible sur iPhone et sur Safari
+// =====================================================================================
+//
+// File System Access n'existe pas sur Safari (Mac ET iPhone), ni sur Chrome Android. Sur ces
+// appareils-là, un export tombait dans Téléchargements sans que personne choisisse rien. Or l'iPhone
+// a une autre porte : la FEUILLE DE PARTAGE. `navigator.share` avec des fichiers fonctionne depuis
+// Safari 15, et la feuille propose « Enregistrer dans Fichiers » — donc iCloud Drive, donc un vrai
+// rangement, choisi par l'utilisateur, au même endroit que ce que l'ordinateur range tout seul.
+//
+// DEUX PIÈGES CONNUS, LES DEUX ÉVITÉS ICI :
+//   - il faut passer UNIQUEMENT `files`. Ajouter `title` ou `text` fait échouer le partage de fichier
+//     sur iOS, ou le transforme en partage de texte ;
+//   - `canShare` doit être interrogé AVANT, avec le fichier lui-même : le type de fichier peut être
+//     refusé, et on ne le sait pas autrement.
+// Comme partout ailleurs, l'échec retombe sur le téléchargement plutôt que de perdre le fichier.
+function partageFichierPossible(fichier) {
+    return typeof navigator !== 'undefined'
+        && typeof navigator.share === 'function'
+        && typeof navigator.canShare === 'function'
+        && navigator.canShare({ files: [fichier] });
+}
+
+// Doit être appelé DANS le geste de l'utilisateur, comme le sélecteur de dossier.
+async function partagerFichier(blob, nomFichier) {
+    let fichier;
+    try { fichier = new File([blob], nomFichier, { type: blob.type || 'application/octet-stream' }); }
+    catch (e) { return false; } // constructeur File absent (très vieux navigateur)
+    if (!partageFichierPossible(fichier)) return false;
+    try {
+        await navigator.share({ files: [fichier] });
+        return true;
+    } catch (e) {
+        // AbortError = feuille de partage refermée sans choisir. Ce n'est pas une panne, et surtout ce
+        // n'est pas une invitation à télécharger dans le dos de quelqu'un qui vient de renoncer.
+        if (e && e.name === 'AbortError') return 'annule';
+        console.error('Partage impossible, repli sur le téléchargement :', e);
+        return false;
+    }
+}
+
+
 // LE POINT DE PASSAGE UNIQUE de tout ce qui sort de l'appli. Range si c'est possible, télécharge
 // sinon, et dit dans son retour ce qui s'est réellement passé — pour que le message affiché à
 // l'utilisateur ne mente jamais sur l'endroit où son fichier se trouve.
@@ -455,7 +497,7 @@ async function listerVersions(racine, cle, nomFichier) {
 // TÉLÉCHARGEMENT, lui, garde toujours le nom horodaté : dans Téléchargements il n'y a ni dossier de
 // versions ni rotation, et deux fichiers de même nom y deviennent « (1) », « (2) » — exactement ce
 // qu'on cherche à éviter.
-async function enregistrerFichier(blob, { morceau, type, extension, dossier, nom, date, appli, racine, versionne = true } = {}) {
+async function enregistrerFichier(blob, { morceau, type, extension, dossier, nom, date, appli, racine, versionne = true, partage } = {}) {
     const nomHorodate = nom || nomExport({ morceau, type, extension, date, appli });
     const nomFichier = (versionne && !nom) ? nomCanonique({ morceau, type, extension, appli }) : nomHorodate;
     const cle = dossier || 'morceaux';
@@ -492,6 +534,14 @@ async function enregistrerFichier(blob, { morceau, type, extension, dossier, nom
             console.error('Rangement impossible, repli sur le téléchargement :', e);
         }
     }
+    // AVANT DE TÉLÉCHARGER À L'AVEUGLE : proposer la feuille de partage, là où elle existe. C'est
+    // l'iPhone et Safari, c'est-à-dire précisément les appareils où rien ne range automatiquement.
+    // `partage: false` permet de la refuser explicitement (écriture de fond, sans geste).
+    if (partage !== false) {
+        const resultat = await partagerFichier(blob, nomHorodate);
+        if (resultat === true) return { range: 'partage', nom: nomHorodate, dossier: null, chemin: null, archive: null };
+        if (resultat === 'annule') return { range: false, annule: true, nom: nomHorodate, dossier: null, chemin: null, archive: null };
+    }
     telechargerBlob(blob, nomHorodate);
     return { range: false, nom: nomHorodate, dossier: null, chemin: null, archive: null };
 }
@@ -501,6 +551,8 @@ async function enregistrerFichier(blob, { morceau, type, extension, dossier, nom
 // en dur à sept endroits et deviendrait faux dès qu'un dossier est configuré.
 function messageEnregistrement(resultat, quoi) {
     if (!resultat) return quoi;
+    if (resultat.annule) return `${quoi} : annulé, rien n'a été enregistré`;
+    if (resultat.range === 'partage') return `${quoi} → choisis « Enregistrer dans Fichiers »`;
     return resultat.range
         ? `${quoi} → ${resultat.racine ? resultat.racine + '/' : ''}${resultat.dossier}`
         : `${quoi} → dossier Téléchargements`;

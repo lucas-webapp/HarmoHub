@@ -12,7 +12,7 @@ const { chromium } = require('playwright');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('garde-fous d\'écrasement');
 
-plan(27);
+plan(32);
 
 const STUB = () => {
     window.showDirectoryPicker = async () =>
@@ -172,6 +172,42 @@ const LISTER = async (chemin) => {
         `et l'appli SAIT NOMMER ce qu'elle ne connaît plus — ${JSON.stringify(orphelins)}`);
     check(!orphelins.some(n => / - \d{4}-\d{2}-\d{2} \d{4}\.json$/.test(n)),
         'sans confondre un orphelin avec une simple copie horodatée');
+
+    // ---- « EXPORTER CE QUI A CHANGÉ » ----
+    // « J'exporte toujours ma bibliothèque OU LES MORCEAUX MODIFIÉS » : ce « ou » est une décision
+    // prise à la main en fin de séance, au moment où l'on est le moins attentif. L'appli sait répondre.
+    await page.evaluate(async () => {
+        const racine = await preparerRangement();
+        const d = await sousDossier(racine, 'morceaux', true);
+        // Table rase du dossier Morceaux, pour partir d'un état connu.
+        for await (const [nom, h] of d.entries()) if (h.kind === 'file') await d.removeEntry(nom);
+        const ecrire = async (nom, song) => {
+            const f = await (await d.getFileHandle(nom, { create: true })).createWritable();
+            await f.write(JSON.stringify({ app: 'HarmoHub', kind: 'library-backup', songs: [song] }));
+            await f.close();
+        };
+        await ecrire('HarmoHub - Identique - Morceau.json', { id: 'i1', name: 'Identique', savedAt: 5000, sections: [] });
+        await ecrire('HarmoHub - EnRetard - Morceau.json', { id: 'r1', name: 'EnRetard', savedAt: 1000, sections: [] });
+        await ecrire('HarmoHub - PlusRecent - Morceau.json', { id: 'p1', name: 'PlusRecent', savedAt: 9000, sections: [] });
+        localStorage.setItem('harmohubSongs', JSON.stringify([
+            { id: 'i1', name: 'Identique', savedAt: 5000, sections: [] },   // le fichier porte déjà ça
+            { id: 'r1', name: 'EnRetard', savedAt: 8000, sections: [] },    // modifié ici : à écrire
+            { id: 'p1', name: 'PlusRecent', savedAt: 2000, sections: [] },  // le disque est plus récent
+            { id: 'n1', name: 'Jamais ecrit', savedAt: 3000, sections: [] },// absent du disque
+            { id: 'a1', name: 'Archive', savedAt: 3000, sections: [], folder: 'Archives' },
+        ]));
+    });
+    const aEcrire = await page.evaluate(() => preparerRangement().then(r => window.app.morceauxAEcrire(r)));
+    const parNom = Object.fromEntries(aEcrire.map(x => [x.song.name, x.etat]));
+    check(!('Identique' in parNom),
+        `un morceau dont le fichier porte déjà la version n'est PAS réécrit — ${JSON.stringify(parNom)}`);
+    check(parNom['EnRetard'] === 'a-ecrire',
+        `un morceau modifié ici est à écrire — c'est LE cas courant, et il était classé « à jour » (${parNom['EnRetard']})`);
+    check(parNom['Jamais ecrit'] === 'absent', 'un morceau jamais écrit est repéré comme absent');
+    check(parNom['PlusRecent'] === 'plus-recent',
+        'un fichier plus récent est signalé comme CONFLIT, pas comme retard — il ne sera pas écrasé en masse');
+    check(!('Archive' in parNom),
+        'les morceaux archivés ne sont pas réécrits : ce sont des versions écartées, pas du travail en cours');
 
     // ---- LA PURGE : la SEULE suppression de tout le projet ----
     // Elle mérite plus de méfiance que le reste. On lui donne un dossier `_versions` peuplé à la main,
