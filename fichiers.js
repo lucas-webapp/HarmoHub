@@ -94,11 +94,14 @@ function nomExport({ morceau, type, extension, date, appli } = {}) {
 // les pièces d'un même morceau est porté par le NOM, pas par l'emplacement, et le nom voyage partout,
 // y compris sur les téléphones qui n'ont pas cette couche.
 const DOSSIERS_RANGEMENT = {
+    // PAS DE PDF/Structure : la vue Structure passe encore par l'impression du navigateur, rien ne
+    // saurait écrire dans ce dossier. Il était créé quand même — un dossier vide dans l'arborescence
+    // est une invitation à y chercher quelque chose qui n'y sera jamais. Il reviendra le jour où
+    // l'export Structure passera par jsPDF, comme les deux autres PDF.
     bibliotheque: ['Bibliotheque'],
     morceaux: ['Morceaux'],
     pdfAccords: ['PDF', 'Accords'],
     pdfParoles: ['PDF', 'Paroles'],
-    pdfStructure: ['PDF', 'Structure'],
     midi: ['MIDI'],
     audio: ['Audio'],
     texte: ['Texte'],
@@ -250,41 +253,6 @@ async function ecrireDansRacine(racine, cle, nomFichier, blob) {
     return fichier;
 }
 
-// L'INDEX. Un fichier _index.json à la racine recense ce qui a été écrit. Il ne sert pas à retrouver
-// les fichiers — l'explorateur le fait très bien — mais à ce que l'appli sache, SANS parcourir tout le
-// disque, quelles versions d'un même document existent déjà. C'est ce qui permettra de proposer
-// « écraser ou garder les deux », puis de ne conserver que les dix dernières versions.
-// Il est reconstructible : s'il manque ou s'il est illisible, on repart d'un index vide plutôt que de
-// refuser d'écrire. Un catalogue perdu ne doit jamais bloquer une sauvegarde.
-const NOM_INDEX = '_index.json';
-
-async function lireIndex(racine) {
-    try {
-        const fichier = await racine.getFileHandle(NOM_INDEX, { create: false });
-        const contenu = JSON.parse(await (await fichier.getFile()).text());
-        if (contenu && Array.isArray(contenu.fichiers)) return contenu;
-    } catch (e) { /* absent ou abîmé : on repart à zéro, voir ci-dessus */ }
-    return { app: NOM_APPLI, version: 1, fichiers: [] };
-}
-
-async function ecrireIndex(racine, index) {
-    index.majAt = Date.now();
-    const fichier = await racine.getFileHandle(NOM_INDEX, { create: true });
-    const flux = await fichier.createWritable();
-    try { await flux.write(new Blob([JSON.stringify(index, null, 2)], { type: 'application/json' })); }
-    finally { await flux.close(); }
-}
-
-async function noterDansIndex(racine, entree) {
-    const index = await lireIndex(racine);
-    // Même chemin = même fichier réécrit : on remplace la ligne au lieu d'en empiler une seconde, sinon
-    // l'index compterait des versions qui n'existent plus.
-    index.fichiers = index.fichiers.filter((f) => f.chemin !== entree.chemin);
-    index.fichiers.push(entree);
-    await ecrireIndex(racine, index);
-    return index;
-}
-
 // Liste les fichiers réellement présents dans un sous-dossier, du plus récent au plus ancien. Lit le
 // DISQUE, pas l'index : c'est le disque qui fait foi (l'utilisateur peut supprimer des fichiers à la
 // main sans que l'appli en sache rien).
@@ -341,6 +309,8 @@ function telechargerBlob(blob, nomFichier) {
 // PDF, un MIDI, un MP3, un TXT sont DÉRIVÉS : ils se régénèrent d'un clic, les écraser ne perd rien.
 // Les deux profitent de la rotation ; seules les sources déclenchent une question.
 const DOSSIER_VERSIONS = '_versions';
+// Le même nom, destiné à l'affichage : il apparaît dans des phrases lues par l'utilisateur.
+const DOSSIER_VERSIONS_AFFICHE = '_versions';
 const VERSIONS_GARDEES = 10;
 
 // « HarmoHub - Ballade.json » — le même nom, toujours, pour un morceau donné.
@@ -487,6 +457,93 @@ async function partagerFichier(blob, nomFichier) {
 }
 
 
+// =====================================================================================
+// LES FICHIERS D'UN MORCEAU — pour pouvoir les montrer avant d'y toucher
+// =====================================================================================
+//
+// Demande de l'utilisateur : « lorsque je supprime un morceau de l'appli, l'appli doit me demander si
+// elle doit également supprimer tous les fichiers du disque qui lui sont liés ».
+//
+// C'est la première fois que ce projet efface des fichiers que l'utilisateur n'a pas désignés un par
+// un (la purge des versions, elle, est bornée à `_versions/`). La sûreté ne vient donc pas d'une règle
+// prudente cachée dans le code, mais du fait qu'on MONTRE la liste exacte avant de demander.
+//
+// LE PIÈGE DU PRÉFIXE, et il n'est pas théorique. Les fichiers d'un morceau « Ballade » commencent par
+// « HarmoHub - Ballade - ». Or ceux d'un morceau nommé « Ballade - live » commencent PAR LA MÊME
+// CHAÎNE. Supprimer le premier emporterait les fichiers du second. D'où la règle ci-dessous : un
+// fichier qui appartient AUSSI à un autre morceau de la bibliothèque n'est jamais retenu. On préfère
+// laisser un fichier de trop que d'en enlever un de travers.
+function prefixeMorceau(nom, appli) {
+    return `${appli || NOM_APPLI} - ${nettoyerNomFichier(nom)} - `;
+}
+
+// Retrouve le nom du morceau À PARTIR DU NOM DE FICHIER — « HarmoHub - Ballade - Morceau.json » donne
+// « Ballade ». C'est le nom de FICHIER qui détermine quels fichiers vont ensemble sur le disque, pas ce
+// que contient le JSON : un fichier renommé à la main, ou dont le titre interne a divergé, doit quand
+// même se regrouper avec ses PDF et ses MIDI, qui n'ont aucun contenu interrogeable.
+function nomMorceauDepuisFichier(nomFichier, appli) {
+    const tete = `${appli || NOM_APPLI} - `;
+    if (!nomFichier.startsWith(tete)) return null;
+    const reste = nomFichier.slice(tete.length).replace(/\.[^.]+$/, '');
+    // Le dernier segment est le TYPE (Morceau, Accords, Audio…) ; tout ce qui précède est le nom.
+    const i = reste.lastIndexOf(' - ');
+    return (i > 0 ? reste.slice(0, i) : reste) || null;
+}
+
+function estFichierDuMorceau(nomFichier, prefixe, prefixesAutres) {
+    if (!nomFichier.startsWith(prefixe)) return false;
+    // Plus spécifique = appartient à l'autre. « HarmoHub - Ballade - live - … » est à « Ballade - live »,
+    // pas à « Ballade ».
+    return !prefixesAutres.some(p => p.length > prefixe.length && nomFichier.startsWith(p));
+}
+
+// Parcourt tous les dossiers de rangement, `_versions/` compris, et rend la liste exacte des fichiers
+// rattachés à ce morceau. Ne supprime rien : c'est cette liste qu'on affiche.
+async function fichiersDuMorceau(racine, nom, autresNoms = [], { appli } = {}) {
+    const prefixe = prefixeMorceau(nom, appli);
+    const prefixesAutres = autresNoms.map(n => prefixeMorceau(n, appli));
+    const trouves = [];
+    for (const cle of Object.keys(DOSSIERS_RANGEMENT)) {
+        // La BIBLIOTHÈQUE est exclue : son fichier contient TOUS les morceaux, le supprimer pour un
+        // seul serait une catastrophe. Elle est rafraîchie autrement (voir l'appli).
+        if (cle === 'bibliotheque') continue;
+        let dossier;
+        try { dossier = await sousDossier(racine, cle, false); } catch (e) { continue; }
+        const scruter = async (d, sousChemin) => {
+            for await (const [nomFichier, h] of d.entries()) {
+                if (h.kind === 'directory') {
+                    if (nomFichier === DOSSIER_VERSIONS) await scruter(h, `${sousChemin}/${DOSSIER_VERSIONS}`);
+                    continue;
+                }
+                if (estFichierDuMorceau(nomFichier, prefixe, prefixesAutres)) {
+                    trouves.push({ cle, nom: nomFichier, versions: sousChemin.endsWith(DOSSIER_VERSIONS), chemin: `${sousChemin}/${nomFichier}` });
+                }
+            }
+        };
+        await scruter(dossier, cheminRangement(cle));
+    }
+    return trouves;
+}
+
+// Supprime la liste RENDUE PAR fichiersDuMorceau, et rien d'autre. Elle ne recalcule pas ce qu'il faut
+// effacer : ce qui a été montré est ce qui est supprimé, sans possibilité d'écart entre les deux.
+async function supprimerFichiers(racine, liste) {
+    let faits = 0;
+    const echecs = [];
+    for (const f of liste) {
+        try {
+            let dossier = await sousDossier(racine, f.cle, false);
+            if (f.versions) dossier = await dossier.getDirectoryHandle(DOSSIER_VERSIONS, { create: false });
+            await dossier.removeEntry(f.nom);
+            faits++;
+        } catch (e) {
+            echecs.push(f.chemin);
+            console.error('Suppression impossible :', f.chemin, e);
+        }
+    }
+    return { faits, echecs };
+}
+
 // LE POINT DE PASSAGE UNIQUE de tout ce qui sort de l'appli. Range si c'est possible, télécharge
 // sinon, et dit dans son retour ce qui s'est réellement passé — pour que le message affiché à
 // l'utilisateur ne mente jamais sur l'endroit où son fichier se trouve.
@@ -519,14 +576,13 @@ async function enregistrerFichier(blob, { morceau, type, extension, dossier, nom
             await ecrireDansRacine(cible, cle, nomFichier, blob);
             if (versionne) { try { await purgerVersions(cible, cle, nomFichier); } catch (e) { console.error('Purge des versions impossible :', e); } }
             const chemin = `${cheminRangement(cle)}/${nomFichier}`;
-            // L'index est un confort : s'il échoue, le FICHIER est déjà écrit et c'est lui qui compte.
-            try {
-                await noterDansIndex(cible, {
-                    chemin, nom: nomFichier, dossier: cheminRangement(cle),
-                    morceau: morceau || null, type: type || null,
-                    extension: extension || null, taille: blob.size, ecritAt: Date.now(),
-                });
-            } catch (e) { console.error('Index non mis à jour (le fichier, lui, est bien écrit) :', e); }
+            // PAS D'INDEX. Un `_index.json` était écrit ici à chaque export, recensant ce qui avait été
+            // rangé. Il a été retiré : RIEN NE LE LISAIT. Les garde-fous, l'inventaire et la liste des
+            // versions interrogent tous le DISQUE directement — et c'est le bon choix, puisque
+            // l'utilisateur peut déplacer ou effacer un fichier à la main sans que l'appli en sache
+            // rien. Une comptabilité parallèle qui peut diverger de la réalité est un passif, pas un
+            // actif : elle coûte une lecture, une analyse et une écriture à chaque export, et le jour
+            // où elle ment, elle ment avec assurance.
             return { range: true, nom: nomFichier, dossier: cheminRangement(cle), chemin, archive, racine: cible.name || '' };
         } catch (e) {
             // Dossier débranché, disque plein, permission retirée en cours de route : on ne perd pas

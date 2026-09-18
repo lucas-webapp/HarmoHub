@@ -4203,6 +4203,16 @@ class HarmoHubApp {
             if (e.target.id === 'dedup-modal' && this._dedupCancel) this._dedupCancel();
         });
 
+        // Suppression des fichiers : clic sur le fond = ANNULER tout le geste, pas « garder ». Le doute
+        // ne doit jamais retirer un morceau de la bibliothèque.
+        this._cabler('delete-files-modal', 'click', (e) => {
+            if (e.target.id === 'delete-files-modal' && this._deleteFilesCancel) this._deleteFilesCancel();
+        });
+
+        this._cabler('disk-files-modal', 'click', (e) => {
+            if (e.target.id === 'disk-files-modal' && this._diskFilesCancel) this._diskFilesCancel();
+        });
+
         // Choix export MIDI (voir chooseMidiExportMode) : clic sur le fond = Annuler, même principe.
         document.getElementById('midi-export-modal').addEventListener('click', (e) => {
             if (e.target.id === 'midi-export-modal' && this._midiExportModalCancel) this._midiExportModalCancel();
@@ -9590,7 +9600,8 @@ class HarmoHubApp {
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M12 11v4M10 13h4"/></svg>
                     Nouveau dossier
                 </button>
-                ${rangementDisponible() && nomRacineAffiche() ? `<button type="button" id="export-changes-btn" class="btn-sec files-dedup-btn" title="Écrire sur le disque les morceaux modifiés depuis la dernière fois">Exporter ce qui a changé</button>` : ''}
+                ${rangementDisponible() && nomRacineAffiche() ? `<button type="button" id="export-changes-btn" class="btn-sec files-dedup-btn" title="Écrire sur le disque les morceaux modifiés depuis la dernière fois">Exporter ce qui a changé</button>
+                <button type="button" id="disk-files-btn" class="btn-sec files-dedup-btn" title="Voir, reprendre ou supprimer les morceaux présents dans le dossier">Fichiers du disque</button>` : ''}
                 ${groupesDeDoublons(songs).length ? `<button type="button" id="dedup-btn" class="btn-sec files-dedup-btn" title="Regrouper les morceaux qui portent le même titre">${groupesDeDoublons(songs).length} titre(s) en double</button>` : ''}
                 <div class="files-toolbar-spacer"></div>
                 <button type="button" id="library-export-btn" class="icon-btn" title="Exporter toute la bibliothèque (sauvegarde)" aria-label="Exporter toute la bibliothèque">
@@ -9708,6 +9719,8 @@ class HarmoHubApp {
         // se comparer.
         const majBtn = document.getElementById('export-changes-btn');
         if (majBtn) majBtn.onclick = () => this.exporterCeQuiAChange();
+        const disqueBtn = document.getElementById('disk-files-btn');
+        if (disqueBtn) disqueBtn.onclick = () => this.ouvrirFichiersDuDisque();
         const exportBtn = document.getElementById('library-export-btn');
         if (exportBtn) exportBtn.onclick = () => this.exportLibrary();
         const importBtn = document.getElementById('library-import-btn');
@@ -9761,16 +9774,118 @@ class HarmoHubApp {
         });
     }
 
-    deleteSongById(id) {
+    async deleteSongById(id) {
         const songs = loadSongs();
         const song = songs.find(s => s.id === id);
         if (!song) return;
-        if (!confirm(`Supprimer « ${song.name} » ? (Ctrl+Z pour annuler juste après si besoin)`)) return;
+
+        // La question sur les fichiers du disque REMPLACE le confirm() quand un dossier est configuré :
+        // deux confirmations à la suite pour un seul geste, c'est une de trop, et la seconde finit par
+        // se cliquer sans être lue.
+        const racine = await preparerRangement();
+        let choix = 'garder';
+        if (racine) {
+            choix = await this.demanderSuppressionFichiers(racine, song, songs);
+            if (choix === 'annuler') return;
+        } else if (!confirm(`Supprimer « ${song.name} » ? (Ctrl+Z pour annuler juste après si besoin)`)) {
+            return;
+        }
+
         this.pushFilesUndo();
         saveSongs(songs.filter(s => s.id !== id));
         if (getCurrentSongId() === id) setCurrentSongId(null);
         this.refreshSongList();
         if (this.filesOpen) this.renderFilesPanel();
+
+        if (choix === 'fichiers') await this.supprimerFichiersDuMorceau(racine, song);
+        else if (racine) {
+            // On le dit franchement : « garder les fichiers » a une conséquence, et elle est voulue
+            // (« si je clique sur non, alors l'appli le réimportera la prochaine fois »). Mieux vaut
+            // l'annoncer maintenant que la découvrir dans trois semaines.
+            this.flashHint(`« ${song.name} » retiré d'ici — ses fichiers restent sur le disque, un import le ramènera`, 4500);
+        }
+    }
+
+    // Montre la LISTE EXACTE avant de demander. C'est elle qui rend la suppression sûre : une règle
+    // prudente cachée dans le code ne se vérifie pas au moment où l'on décide.
+    async demanderSuppressionFichiers(racine, song, tousLesMorceaux) {
+        let fichiers = [];
+        const autres = tousLesMorceaux.filter(s => s.id !== song.id).map(s => s.name);
+        try { fichiers = await fichiersDuMorceau(racine, song.name, autres); }
+        catch (e) { console.error('Inventaire des fichiers du morceau impossible :', e); }
+        const versions = fichiers.filter(f => f.versions);
+        return this.confirmerSuppressionFichiers({
+            titre: fichiers.length ? 'Supprimer aussi les fichiers du disque ?' : `Supprimer « ${song.name} » ?`,
+            intro: fichiers.length
+                ? `« ${escapeHtml(song.name)} » va être retiré de cette bibliothèque. Sur le disque, ${fichiers.length} fichier(s) lui sont rattachés${versions.length ? ` (dont ${versions.length} version(s) archivée(s))` : ''} :`
+                : `« ${escapeHtml(song.name)} » va être retiré de cette bibliothèque. <strong>Aucun fichier ne lui correspond sur le disque.</strong>`,
+            aide: fichiers.length
+                ? `<strong>Garder les fichiers</strong> : ils restent en place, et un prochain import ramènera le morceau. <strong>Supprimer aussi</strong> efface la liste ci-dessus et met à jour la sauvegarde de bibliothèque — l'ancienne reste dans « ${DOSSIER_VERSIONS_AFFICHE} ».`
+                : '',
+            fichiers,
+            garder: 'Garder les fichiers',
+            supprimer: 'Supprimer aussi les fichiers',
+        });
+    }
+
+    // LA MÊME FENÊTRE POUR LES DEUX CHEMINS DE SUPPRESSION. Celle depuis le panneau disque passait
+    // d'abord par un confirm() du navigateur — or c'est exactement le même geste, avec exactement les
+    // mêmes conséquences. Deux garanties différentes pour un même danger, c'est la moins bonne des deux
+    // qui finit par s'appliquer.
+    // Rend 'garder', 'fichiers' ou 'annuler'. `garder: null` retire cette issue (rien à garder : le
+    // morceau n'est pas dans la bibliothèque).
+    confirmerSuppressionFichiers({ titre, intro, aide, fichiers, garder, supprimer }) {
+        const modal = document.getElementById('delete-files-modal');
+        if (!modal) return Promise.resolve('annuler'); // fenêtre absente : on ne supprime SURTOUT rien
+
+        document.getElementById('delete-files-title').textContent = titre;
+        document.getElementById('delete-files-body').innerHTML = `<p>${intro}</p>`
+            + (fichiers.length ? `<div class="delete-files-liste">${fichiers.map(f => `<div>${escapeHtml(f.chemin)}</div>`).join('')}</div>` : '')
+            + (aide ? `<p class="import-conflict-aide">${aide}</p>` : '');
+        const btnGarder = document.getElementById('delete-files-keep');
+        const btnTout = document.getElementById('delete-files-all');
+        btnGarder.hidden = !garder;
+        btnGarder.textContent = garder || '';
+        btnTout.hidden = fichiers.length === 0;
+        btnTout.textContent = supprimer || 'Supprimer';
+
+        modal.hidden = false;
+        this.lockBodyScroll();
+        this._fichiersASupprimer = fichiers;
+        return new Promise((resolve) => {
+            const fermer = (reponse) => {
+                modal.hidden = true;
+                this.unlockBodyScroll();
+                this._deleteFilesCancel = null;
+                resolve(reponse);
+            };
+            this._deleteFilesCancel = () => fermer('annuler');
+            document.getElementById('delete-files-keep').onclick = () => fermer('garder');
+            document.getElementById('delete-files-all').onclick = () => fermer('fichiers');
+            document.getElementById('delete-files-cancel').onclick = () => fermer('annuler');
+        });
+    }
+
+    // Supprime EXACTEMENT la liste qui a été montrée — elle n'est pas recalculée ici, pour qu'aucun
+    // écart ne puisse se glisser entre ce qu'on a vu et ce qui disparaît.
+    async supprimerFichiersDuMorceau(racine, song) {
+        const liste = this._fichiersASupprimer || [];
+        this._fichiersASupprimer = null;
+        const { faits, echecs } = await supprimerFichiers(racine, liste);
+        // LA SAUVEGARDE DE BIBLIOTHÈQUE CONTIENT ENCORE CE MORCEAU. Sans ce rafraîchissement,
+        // « supprimer aussi les fichiers » ne tiendrait pas sa promesse : le morceau reviendrait au
+        // premier réimport de la bibliothèque, et l'utilisateur croirait l'avoir fait disparaître.
+        // L'ancienne sauvegarde part en version, donc rien n'est réellement perdu.
+        let biblio = '';
+        try {
+            const payload = { app: 'HarmoHub', kind: 'library-backup', version: 1, exportedAt: Date.now(), songs: loadSongs(), folders: loadFolders() };
+            const res = await enregistrerFichier(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
+                { type: 'Bibliotheque', extension: 'json', dossier: 'bibliotheque', racine });
+            if (res.range === true) { biblio = ' · sauvegarde de bibliothèque mise à jour'; this.marquerSauvegardeFaite(); }
+        } catch (e) { console.error('Sauvegarde de bibliothèque non rafraîchie :', e); }
+        this.flashHint(echecs.length
+            ? `${faits} fichier(s) supprimé(s), ${echecs.length} impossible(s) : ${echecs[0]}`
+            : `${faits} fichier(s) supprimé(s) sur le disque${biblio}`, 4500);
     }
 
     moveSongToFolder(id, folder) {
@@ -11539,6 +11654,108 @@ class HarmoHubApp {
     // Télécharge la sauvegarde JSON d'UN morceau déjà résolu — factorisé pour exportCurrentSong
     // (morceau actuellement ouvert) ET exportSongById (n'importe quel morceau de la bibliothèque,
     // voir renderFilesPanel), qui ne construisaient sinon le même fichier qu'à deux endroits.
+    // ---------- LES FICHIERS DU DISQUE ----------
+    // « Je voudrais également pouvoir supprimer des morceaux directement sur le disque, en ne passant
+    // pas par l'appli. » Cette fenêtre lit le DOSSIER, pas la bibliothèque. Elle montre donc aussi ce
+    // que l'appli ne connaît plus — un morceau laissé sur une autre machine, ou perdu par un vidage de
+    // navigateur — et permet de le reprendre ou de s'en débarrasser sans avoir à le faire exister ici
+    // d'abord. C'est le chemin du retour, qui n'était jusqu'ici qu'à moitié construit : l'appli savait
+    // NOMMER les orphelins mais ne proposait rien pour eux.
+    async ouvrirFichiersDuDisque() {
+        const modal = document.getElementById('disk-files-modal');
+        if (!modal) return;
+        const racine = await preparerRangement();
+        if (!racine) { this.flashHint('Choisis d\'abord un dossier de rangement (menu Fichier)', 3600); return; }
+        modal.hidden = false;
+        this.lockBodyScroll();
+        this._diskFilesCancel = () => { modal.hidden = true; this.unlockBodyScroll(); this._diskFilesCancel = null; };
+        document.getElementById('disk-files-close').onclick = this._diskFilesCancel;
+        await this.rendreFichiersDuDisque(racine);
+    }
+
+    async rendreFichiersDuDisque(racine) {
+        const hote = document.getElementById('disk-files-body');
+        hote.innerHTML = '<p>Lecture du dossier…</p>';
+        let noms = [];
+        try { noms = await listerRangement('morceaux'); } catch (e) { console.error(e); }
+        // On ne garde que les fichiers COURANTS : les « (copie …) » et les versions ont leur propre
+        // place, et les mêler ici transformerait la liste en inventaire illisible.
+        noms = noms.filter(n => !/ \(copie /.test(n));
+        if (!noms.length) { hote.innerHTML = '<p>Aucun morceau dans le dossier pour l\'instant.</p>'; return; }
+
+        const connus = new Map(loadSongs().map(s => [nomCanonique({ morceau: s.name, type: 'Morceau', extension: 'json' }), s]));
+        const lignes = [];
+        for (const nom of noms) {
+            const dedans = connus.get(nom);
+            let duFichier = null;
+            try {
+                const lu = await lireJsonRange(racine, 'morceaux', nom);
+                duFichier = ((lu.contenu && lu.contenu.songs) || [])[0] || null;
+            } catch (e) { /* fichier illisible : on l'affiche quand même, pour pouvoir l'effacer */ }
+            lignes.push({ nom, dedans, duFichier });
+        }
+
+        hote.innerHTML = `
+            <p>${lignes.length} morceau(x) dans le dossier. Ceux que cette bibliothèque ne contient pas sont signalés — tu peux les reprendre ou les effacer d'ici.</p>
+            ${lignes.map((l, i) => `
+                <div class="import-conflict-song" data-disk-index="${i}">
+                    <div class="import-conflict-name">${escapeHtml((l.duFichier && l.duFichier.name) || l.nom)}
+                        ${l.dedans ? '' : '<span class="import-conflict-hint">absent de cette bibliothèque</span>'}</div>
+                    <div class="import-conflict-side">
+                        <span class="import-conflict-label">Fichier</span>
+                        <span>${l.duFichier ? `${(l.duFichier.sections || []).length} partie(s) · ${compterAccords(l.duFichier)} accord(s) · ${formaterDateEnregistrement(l.duFichier.savedAt)}` : 'illisible'}</span>
+                    </div>
+                    <div class="import-conflict-choix-ligne">
+                        ${l.duFichier ? `<button type="button" class="btn-sec" data-disk-action="reprendre" data-disk-index="${i}">${l.dedans ? 'Recharger depuis le disque' : 'Reprendre dans la bibliothèque'}</button>` : ''}
+                        <button type="button" class="btn-sec btn-danger" data-disk-action="supprimer" data-disk-index="${i}">Supprimer du disque</button>
+                    </div>
+                </div>`).join('')}`;
+
+        hote.querySelectorAll('[data-disk-action]').forEach(btn => {
+            const ligne = lignes[Number(btn.dataset.diskIndex)];
+            btn.onclick = () => (btn.dataset.diskAction === 'reprendre'
+                ? this.reprendreDepuisLeDisque(racine, ligne)
+                : this.supprimerDuDisque(racine, ligne));
+        });
+    }
+
+    reprendreDepuisLeDisque(racine, ligne) {
+        // chargerDepuisLeDisque fait déjà exactement ça : remplacer ou ajouter, puis ouvrir. Une
+        // seconde version de cette logique divergerait au premier ajustement.
+        this.chargerDepuisLeDisque(ligne.duFichier);
+        this.rendreFichiersDuDisque(racine);
+    }
+
+    // Supprimer un morceau DU DISQUE sans toucher à la bibliothèque. La liste exacte est montrée
+    // d'abord, comme pour la suppression depuis la bibliothèque — même règle, même garantie.
+    async supprimerDuDisque(racine, ligne) {
+        // Déduit du NOM DE FICHIER, jamais du contenu : c'est lui qui regroupe les fichiers entre eux
+        // (voir nomMorceauDepuisFichier). Se fier au titre interne du JSON ferait manquer les fichiers
+        // d'un morceau dont le titre a divergé de son nom de fichier — et les PDF, MIDI et MP3 n'ont
+        // de toute façon aucun contenu interrogeable.
+        const nomMorceau = nomMorceauDepuisFichier(ligne.nom);
+        if (!nomMorceau) { this.flashHint('Nom de fichier non reconnu — suppression annulée par précaution', 3600); return; }
+        const autres = loadSongs().map(s => s.name).filter(n => cleTitre(n) !== cleTitre(nomMorceau));
+        let fichiers = [];
+        try { fichiers = await fichiersDuMorceau(racine, nomMorceau, autres); }
+        catch (e) { console.error(e); }
+        if (!fichiers.length) { this.flashHint('Aucun fichier à supprimer'); return; }
+        const choix = await this.confirmerSuppressionFichiers({
+            titre: `Supprimer « ${nomMorceau} » du disque ?`,
+            intro: `${fichiers.length} fichier(s) vont être effacés du dossier. <strong>La bibliothèque de ce navigateur n'est pas touchée.</strong>`,
+            aide: '',
+            fichiers,
+            garder: null, // le morceau n'est pas forcément ici : il n'y a rien à « garder »
+            supprimer: 'Supprimer du disque',
+        });
+        if (choix !== 'fichiers') return;
+        const { faits, echecs } = await supprimerFichiers(racine, fichiers);
+        this.flashHint(echecs.length
+            ? `${faits} supprimé(s), ${echecs.length} impossible(s)`
+            : `${faits} fichier(s) supprimé(s) du disque — la bibliothèque d'ici est inchangée`, 4000);
+        await this.rendreFichiersDuDisque(racine);
+    }
+
     // ---------- LE GARDE-FOU D'ÉCRASEMENT ----------
     // POURQUOI IL EXISTE. Retour utilisateur : « des morceaux modifiés ailleurs (que l'appli) et
     // qu'elle a "oublié" ne doivent pas être écrasés ». Le cas n'est pas théorique : la bibliothèque

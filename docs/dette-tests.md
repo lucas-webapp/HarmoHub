@@ -3874,3 +3874,75 @@ Ce que ces bancs **ne peuvent pas** faire, et il faut le dire : ils tournent sur
 comportement réel de Safari et d'iOS n'est pas mesuré. Ce qui est éprouvé, c'est que le code fait ce
 qu'il annonce et, surtout, qu'il se comporte proprement quand l'API visée est **absente** — la
 situation de tous les navigateurs sauf un, pour chacune de ces fonctions.
+
+## Supprimer : dans l'appli, et sur le disque (2026-09-18)
+
+### Ce que la relecture a trouvé avant de coder
+
+En cherchant ce qu'il restait à améliorer, j'ai cherché les **promesses que le code fait sans les
+tenir** plutôt que des idées nouvelles. Trois trouvées, dont deux de mon fait :
+
+1. **Les morceaux supprimés revenaient.** `deleteSongById` retirait le morceau du navigateur, mais son
+   fichier restait sur le disque *et* la sauvegarde de bibliothèque le contenait toujours. Comme
+   l'utilisateur réimporte la totalité à chaque changement de navigateur, l'import le voyait comme un
+   morceau inconnu et le **rajoutait**. Tout ce qui avait été supprimé ressuscitait, à chaque fois.
+2. **`_index.json` était écrit à chaque export et lu par personne.** Je l'avais justifié comme « la
+   base des lots suivants » ; ces lots ont finalement interrogé le disque directement, ce qui était le
+   bon choix. Retiré. Une comptabilité parallèle qui peut diverger de la réalité est un passif, pas un
+   actif : elle coûte une lecture, une analyse et une écriture par export, et le jour où elle ment,
+   elle ment avec assurance.
+3. **`PDF/Structure/` était créé et ne se remplirait jamais** (la vue Structure passe encore par
+   l'impression du navigateur). Retiré de l'arborescence jusqu'à ce que cet export passe par jsPDF.
+
+### La règle décidée par l'utilisateur
+
+« Lorsque je supprime un morceau de l'appli, l'appli doit me demander si elle doit également supprimer
+tous les fichiers du disque qui lui sont liés. Si je clique sur non, alors l'appli le réimportera la
+prochaine fois. »
+
+Et, dans la foulée : « je voudrais également pouvoir supprimer des morceaux directement sur le disque,
+en ne passant pas par l'appli ».
+
+### Le piège du préfixe
+
+C'est la première fois que cette appli efface des fichiers que l'utilisateur n'a pas désignés un par
+un. Le danger n'est pas théorique : les fichiers de « Ballade » commencent par `HarmoHub - Ballade - `,
+et **ceux de « Ballade - live » aussi**. Supprimer le premier aurait emporté le second.
+
+D'où la règle : un fichier qui appartient AUSSI à un autre morceau de la bibliothèque n'est jamais
+retenu — on préfère laisser un fichier de trop que d'en enlever un de travers. Le banc le vérifie avec
+trois morceaux dont deux aux noms imbriqués, et mesure que sans la liste des autres morceaux
+l'inventaire passe de 8 à 10 fichiers : c'est elle qui protège.
+
+**La sûreté ne vient pas de cette règle.** Elle vient de ce que la **liste exacte est affichée** avant
+qu'on demande quoi que ce soit. Une règle prudente cachée dans le code ne se vérifie pas au moment où
+l'on décide.
+
+### Deux choses qu'il aurait été facile de bâcler
+
+**« Supprimer aussi les fichiers » ne suffisait pas.** La sauvegarde de bibliothèque contient encore le
+morceau : sans rafraîchissement, il serait revenu au premier réimport et l'utilisateur aurait cru
+l'avoir fait disparaître. Elle est donc réécrite — et l'ancienne part dans `_versions`, donc rien n'est
+réellement perdu.
+
+**Le panneau disque passait d'abord par un `confirm()` du navigateur**, alors que c'est exactement le
+même geste, avec exactement les mêmes conséquences, que la suppression depuis la bibliothèque — laquelle
+affiche une vraie liste. Deux garanties différentes pour un même danger, c'est la moins bonne des deux
+qui finit par s'appliquer. Une seule fenêtre pour les deux chemins désormais.
+
+### Un défaut de robustesse trouvé par le banc
+
+`supprimerDuDisque` déduisait le nom du morceau du **contenu** du JSON. Or c'est le nom de FICHIER qui
+regroupe les fichiers entre eux sur le disque — et les PDF, MIDI et MP3 n'ont aucun contenu
+interrogeable. Un fichier renommé à la main, ou dont le titre interne a divergé, ne trouvait plus rien.
+Déduit du nom de fichier désormais (`nomMorceauDepuisFichier`), avec refus explicite si le nom n'est
+pas reconnu.
+
+### Le panneau « Fichiers du disque »
+
+Il lit le DOSSIER et non la bibliothèque : il montre donc aussi ce que l'appli ne connaît plus — un
+morceau laissé sur une autre machine, ou perdu par un vidage de navigateur — et permet de le reprendre
+ou de l'effacer sans avoir à le faire exister ici d'abord. C'est le chemin du retour, qui n'était
+jusqu'ici qu'à moitié construit : l'appli savait NOMMER les orphelins mais ne proposait rien pour eux.
+
+`tests/suppression_disque_test.js` : 30 contrôles.

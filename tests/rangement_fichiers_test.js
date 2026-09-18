@@ -16,7 +16,7 @@ const { chromium } = require('playwright');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('rangement des fichiers exportés');
 
-plan(22);
+plan(20);
 
 // Le sélecteur système remplacé par un dossier OPFS de même interface (voir l'en-tête).
 const STUB = () => {
@@ -96,7 +96,10 @@ const ARBRE = async (d, prefixe = '') => {
         const d = await (await navigator.storage.getDirectory()).getDirectoryHandle('BancHarmoHub');
         return (await window.__arbre(d)).sort();
     });
-    for (const attendu of ['Bibliotheque/', 'Morceaux/', 'PDF/', 'PDF/Accords/', 'PDF/Paroles/', 'PDF/Structure/', 'MIDI/', 'Audio/', 'Texte/']) {
+    // PDF/Structure a été RETIRÉ de l'arborescence : la vue Structure passe encore par l'impression du
+    // navigateur, donc rien ne saurait écrire dedans. Un dossier vide qu'on crée quand même est une
+    // invitation à y chercher ce qui n'y sera jamais.
+    for (const attendu of ['Bibliotheque/', 'Morceaux/', 'PDF/', 'PDF/Accords/', 'PDF/Paroles/', 'MIDI/', 'Audio/', 'Texte/']) {
         check(arbre.includes(attendu), `le dossier « ${attendu} » est créé dès le choix — ${JSON.stringify(arbre)}`);
     }
 
@@ -138,28 +141,18 @@ const ARBRE = async (d, prefixe = '') => {
     check(contenu && contenu.kind === 'library-backup' && contenu.songs[0].name === 'Ballade',
         'le fichier rangé est relisible et complet (pas une coquille vide)');
 
-    // ---- L'index ----
-    const index = await page.evaluate(async () => {
+    // ---- PLUS D'INDEX : ce qui n'est lu par personne ne doit pas être écrit ----
+    // Un `_index.json` recensait chaque écriture. Rien ne le lisait : les garde-fous, l'inventaire et
+    // les versions interrogent tous le DISQUE, qui est la seule source honnête (l'utilisateur peut
+    // déplacer un fichier à la main). Il coûtait une lecture, une analyse et une écriture par export.
+    const racineFichiers = await page.evaluate(async () => {
         const d = await (await navigator.storage.getDirectory()).getDirectoryHandle('BancHarmoHub');
-        return JSON.parse(await (await (await d.getFileHandle('_index.json')).getFile()).text());
+        const noms = [];
+        for await (const [nom, h] of d.entries()) if (h.kind === 'file') noms.push(nom);
+        return noms;
     });
-    check(Array.isArray(index.fichiers) && index.fichiers.length === 2,
-        `_index.json recense les deux écritures (${index.fichiers && index.fichiers.length})`);
-    check(index.fichiers.every((f) => f.chemin && f.taille > 0 && f.ecritAt),
-        'chaque ligne d\'index porte son chemin, sa taille et sa date');
-
-    // Réécrire le MÊME nom remplace la ligne : sinon l'index compterait des versions inexistantes, et
-    // la future limite à dix versions supprimerait les mauvais fichiers.
-    const apresDoublon = await page.evaluate(async () => {
-        const opts = { nom: 'HarmoHub - Doublon.json', dossier: 'morceaux' };
-        await enregistrerFichier(new Blob(['a']), opts);
-        await enregistrerFichier(new Blob(['bb']), opts);
-        const d = await (await navigator.storage.getDirectory()).getDirectoryHandle('BancHarmoHub');
-        const idx = JSON.parse(await (await (await d.getFileHandle('_index.json')).getFile()).text());
-        return idx.fichiers.filter((f) => f.nom === 'HarmoHub - Doublon.json');
-    });
-    check(apresDoublon.length === 1 && apresDoublon[0].taille === 2,
-        `réécrire un même nom remplace sa ligne d'index au lieu de l'empiler (${apresDoublon.length} ligne(s))`);
+    check(!racineFichiers.includes('_index.json'),
+        `aucun index n'est écrit à la racine — ${JSON.stringify(racineFichiers)}`);
 
     // ---- La persistance : c'est elle qui fait la différence entre un outil et une corvée ----
     const page2 = await contexte.newPage();
@@ -191,9 +184,12 @@ const ARBRE = async (d, prefixe = '') => {
         `le .txt de Paroles est rangé lui aussi — ${JSON.stringify(rangeTexte)}`);
 
     // ---- Lister : le disque fait foi, du plus récent au plus ancien ----
+    // Le second fichier venait du contrôle de l'index, désormais retiré : on le pose explicitement,
+    // plutôt que de dépendre d'un effet de bord d'un autre contrôle.
+    await page.evaluate(() => enregistrerFichier(new Blob(['x']), { morceau: 'Aurore', type: 'Morceau', extension: 'json', dossier: 'morceaux' }));
     const liste = await page.evaluate(() => listerRangement('morceaux'));
-    check(liste.length >= 2 && liste[0] >= liste[liste.length - 1],
-        `listerRangement rend les fichiers du plus récent au plus ancien — ${JSON.stringify(liste)}`);
+    check(liste.length === 2 && liste[0] > liste[1],
+        `listerRangement rend les fichiers dans l'ordre décroissant des noms — ${JSON.stringify(liste)}`);
 
     // ---- L'ÉCHEC : le point le plus important du banc ----
     // Dossier supprimé sous les pieds de l'appli (clé USB retirée, dossier déplacé). Le fichier ne

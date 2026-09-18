@@ -355,7 +355,9 @@ body.body-scroll-locked { overflow: hidden !important; }
 #unsaved-modal,
 #import-conflict-modal,
 #export-conflict-modal,
-#dedup-modal { z-index: 200; }
+#dedup-modal,
+#delete-files-modal,
+#disk-files-modal { z-index: 200; }
 
 /* Fenêtre agrandie du séquenceur (voir #seq-zoom-overlay/openSeqZoom) : même habillage que
    .settings-modal, mais bien plus large/haute — tout l'intérêt est de donner beaucoup plus de place
@@ -6362,3 +6364,24 @@ body.impression-structure .struct-row { break-inside: avoid; }
 }
 .dedup-version-info { font-size: var(--fs-xs); color: var(--text-muted); }
 .dedup-version input { cursor: pointer; flex: 0 0 auto; }
+
+
+/* ---------- Suppression : la liste des fichiers concernés ---------- */
+/* Elle est montrée AVANT la question, jamais après. C'est elle qui rend la suppression sûre — pas une
+   règle prudente cachée dans le code, qu'on ne peut ni voir ni vérifier au moment de décider. */
+.delete-files-liste {
+    max-height: 190px;
+    overflow-y: auto;
+    margin: 8px 0;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    /* Les chemins se lisent en colonne : une police à chasse fixe aligne les dossiers et rend un
+       intrus repérable d'un coup d'œil. */
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.delete-files-liste div { padding: 1px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btn-danger { border-color: #7a3030; color: #ff9c9c; }
+.btn-danger:hover { background: #4a1f1f; }
