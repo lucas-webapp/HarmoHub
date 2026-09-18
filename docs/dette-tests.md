@@ -3759,3 +3759,51 @@ main : elle ne touche ni aux versions d'un AUTRE morceau, ni à un fichier dépo
 ni au fichier courant. Ces quatre contrôles comptent plus que celui qui vérifie qu'elle supprime bien.
 
 `tests/garde_fous_ecrasement_test.js` : 31 contrôles.
+
+## La racine des doublons de titre (2026-09-18)
+
+### Le signalement
+
+« Dans l'appli, je commence à avoir beaucoup de fois le même titre de morceau, avec seulement les dates
+qui changent, et je ne sais plus lequel est le morceau correct. »
+
+### La cause, trouvée en lisant l'import
+
+L'import ne dédupliquait que par **identifiant**. Or chaque navigateur crée les siens de son côté
+(`'song_' + Date.now()…`) : « Ballade » enregistrée séparément dans Chrome et dans Safari porte deux
+identifiants différents. En réimportant la bibliothèque de l'un dans l'autre — le geste fait à *chaque*
+changement de navigateur — l'appli ne voyait aucun conflit et **ajoutait** un morceau de plus, sous le
+même titre. Répété, ça produit exactement le désordre décrit.
+
+Ce n'étaient pas les copies volontaires : « garder les deux » renomme déjà en « Ballade (2) ».
+
+### Ce qui change
+
+**Le titre devient une identité de repli.** `apparierMorceau` cherche par identifiant, puis par titre.
+La casse et les espaces ne comptent pas (« Ballade » = « ballade  »), mais un suffixe compte :
+« Ballade (2) » est un nom *choisi*, il reste distinct. Quand plusieurs morceaux d'ici portent le même
+titre — le désordre actuel — on apparie avec le plus récent.
+
+**La décision devient individuelle.** Elle était globale : un seul « Écraser » pour tout le lot, y
+compris les morceaux dont la version d'ici était la plus récente. Combiné à un réimport complet de la
+bibliothèque à chaque changement de navigateur, c'était le dernier endroit où du travail pouvait se
+perdre. Chaque ligne porte maintenant ses trois choix, **cochés d'avance sur la plus récente** — si
+bien qu'« Appliquer » sans rien toucher fait déjà la bonne chose. Les quatre raccourcis (« partout : la
+plus récente / écraser / garder les deux / ignorer ») gardent le cas courant à un clic.
+
+### Deux défauts trouvés en chemin
+
+**L'écrasement gardait l'identifiant du FICHIER.** Sans conséquence tant que l'appariement se faisait
+par identifiant — les deux étaient le même. Avec l'appariement par titre, le morceau importé vient d'un
+autre navigateur : `getCurrentSongId` aurait pointé dans le vide et le morceau ouvert aurait disparu de
+sous les doigts. L'identifiant local l'emporte désormais.
+
+**Et une erreur de méthode, la mienne.** Pour remplacer `demanderResolutionImport`, j'ai découpé la
+méthode en cherchant le premier `\n    }\n` après une ligne repère. Ce motif apparaît AUSSI à
+l'intérieur du corps : le découpage a emporté la méthode suivante, `attachContextMenuTrigger`, et
+l'appli ne démarrait plus du tout. Repris par **comptage d'accolades**, avec deux assertions dans le
+script de remplacement (« le découpage ne contient pas le nom de la méthode suivante », « les accolades
+s'équilibrent »). Une substitution de texte sur du code structuré doit se vérifier avant d'écrire, pas
+après.
+
+`tests/import_fusion_titre_test.js` : 23 contrôles.

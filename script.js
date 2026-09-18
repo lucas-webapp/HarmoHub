@@ -792,6 +792,38 @@ function buildFolderOptionsHtml(current) {
     return opts;
 }
 
+// APPARIER UN MORCEAU IMPORTÉ AVEC CELUI D'ICI — par identifiant, PUIS PAR TITRE.
+//
+// LA RACINE DES DOUBLONS. L'import ne dédupliquait que par identifiant. Or chaque navigateur crée les
+// siens de son côté : « Ballade » enregistrée séparément dans Chrome et dans Safari porte deux
+// identifiants différents. En réimportant la bibliothèque de l'un dans l'autre — le geste de référence
+// à chaque changement de navigateur — l'appli ne voyait aucun conflit et AJOUTAIT un morceau de plus,
+// sous le même titre. Répété, ça donne exactement ce qui a été signalé : « beaucoup de fois le même
+// titre de morceau, avec seulement les dates qui changent, et je ne sais plus lequel est le morceau
+// correct ».
+//
+// Décision prise avec l'utilisateur : même titre = MÊME MORCEAU. Le titre devient donc une identité de
+// repli, et un import de même titre passe par la fenêtre de comparaison au lieu de s'empiler.
+//
+// LA CASSE ET LES ESPACES NE COMPTENT PAS (« Ballade » = « ballade  »), mais un suffixe en compte :
+// « Ballade (2) » est un nom CHOISI lors d'un « garder les deux », et doit rester un morceau distinct.
+// Si plusieurs morceaux d'ici portent le même titre — le désordre actuel, justement — on apparie avec
+// LE PLUS RÉCENT : c'est celui qui sera le plus souvent considéré comme le bon, et le ménage des
+// doublons règle le reste.
+function cleTitre(nom) {
+    return String(nom == null ? '' : nom).replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function apparierMorceau(importe, locaux) {
+    const parId = locaux.find(s => s.id === importe.id);
+    if (parId) return parId;
+    const cle = cleTitre(importe.name);
+    if (!cle) return null;
+    return locaux
+        .filter(s => cleTitre(s.name) === cle)
+        .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0] || null;
+}
+
 // Recopie les champs donnés dans le morceau actuellement ouvert (aucun effet si aucun n'est ouvert)
 function syncCurrentSong(partial) {
     const id = getCurrentSongId();
@@ -9882,9 +9914,10 @@ class HarmoHubApp {
         }
 
         const existingSongs = loadSongs();
-        const existingIds = new Set(existingSongs.map(s => s.id));
-        const toAdd = data.songs.filter(s => s && s.id && !existingIds.has(s.id));
-        const alreadyPresent = data.songs.filter(s => s && s.id && existingIds.has(s.id));
+        const paires = data.songs.filter(s => s && s.id).map(s => ({ s, local: apparierMorceau(s, existingSongs) }));
+        const toAdd = paires.filter(p => !p.local).map(p => p.s);
+        const alreadyPresent = paires.filter(p => p.local).map(p => p.s);
+        const localDe = new Map(paires.filter(p => p.local).map(p => [p.s.id, p.local]));
 
         const existingFolders = loadFolders();
         const mergedFolders = Array.isArray(data.folders) ? [...new Set([...existingFolders, ...data.folders])] : existingFolders;
@@ -9898,17 +9931,23 @@ class HarmoHubApp {
         // Et la question n'est posée qu'une fois les deux versions COMPARÉES : voir
         // demanderResolutionImport, qui montre ce qui les distingue avant de demander quoi en faire.
         let forcedCopies = [];
-        let remplacements = new Map(); // id -> morceau importé qui remplace celui en place
+        let remplacements = new Map(); // id LOCAL -> morceau importé qui remplace celui en place
         if (alreadyPresent.length > 0) {
-            const choix = await this.demanderResolutionImport(alreadyPresent, existingSongs);
-            if (choix === 'ecraser') {
-                alreadyPresent.forEach(s => remplacements.set(s.id, s));
-            } else if (choix === 'les-deux') {
+            // UNE DÉCISION PAR MORCEAU, et non plus une seule pour tout le lot.
+            const choix = await this.demanderResolutionImport(alreadyPresent, existingSongs, localDe);
+            const parQuoi = (q) => alreadyPresent.filter(s => (choix.get(s.id) || 'ignorer') === q);
+            // ON GARDE L'IDENTIFIANT LOCAL : le morceau du fichier vient peut-être d'un autre
+            // navigateur, donc avec un autre identifiant. Reprendre le sien ferait diverger le morceau
+            // OUVERT (getCurrentSongId pointe sur celui d'ici) et casserait le rechargement de fin
+            // d'import.
+            parQuoi('ecraser').forEach(s => remplacements.set(localDe.get(s.id).id, s));
+            {
+                const aCopier = parQuoi('les-deux');
                 // Noms déjà pris : ceux de la bibliothèque, PLUS ceux des copies déjà décidées dans
                 // cette même boucle — sans quoi importer deux fois « Ballade » produirait deux
                 // « Ballade (2) ».
                 const nomsPris = new Set(existingSongs.map(x => x.name));
-                forcedCopies = alreadyPresent.map(s => {
+                forcedCopies = aCopier.map(s => {
                     const nom = nomLibrePourCopie(s.name, nomsPris);
                     nomsPris.add(nom);
                     return {
@@ -9937,7 +9976,12 @@ class HarmoHubApp {
                     // Le DOSSIER de rangement est conservé quand le fichier n'en porte pas : c'est un
                     // classement local, propre à cette bibliothèque-ci, pas une donnée du morceau. Une
                     // sauvegarde venue d'ailleurs n'a pas à défaire le rangement d'ici.
-                    return { ...remplacant, folder: remplacant.folder || s.folder, savedAt: remplacant.savedAt || Date.now() };
+                    // `id: s.id` — L'IDENTIFIANT D'ICI L'EMPORTE, et ce n'est pas un détail depuis
+                    // que l'appariement se fait aussi par titre : le morceau du fichier vient peut-être
+                    // d'un autre navigateur, donc avec un autre identifiant. Laisser passer le sien
+                    // ferait pointer getCurrentSongId dans le vide — le morceau ouvert disparaîtrait de
+                    // sous les doigts — et le rechargement de fin d'import ne retrouverait rien.
+                    return { ...remplacant, id: s.id, folder: remplacant.folder || s.folder, savedAt: remplacant.savedAt || Date.now() };
                 });
                 saveSongs([...base, ...allToAdd]);
             }
@@ -9970,23 +10014,38 @@ class HarmoHubApp {
     // Résout avec 'ecraser', 'les-deux' ou 'ignorer'. Jamais rejetée : fermer revient à ne rien faire,
     // et ne rien faire est ici une réponse valable (c'était d'ailleurs l'ancien comportement par
     // défaut).
-    demanderResolutionImport(enConflit, existants) {
+    demanderResolutionImport(enConflit, existants, localDe) {
         const modal = document.getElementById('import-conflict-modal');
-        const parId = new Map(existants.map(s => [s.id, s]));
+        const tout = (quoi) => new Map(enConflit.map(s => [s.id, quoi]));
         // Repli si la fenêtre manque (page partielle, gabarit modifié) : on ne bloque pas un import
         // pour un défaut d'affichage, et on retombe sur le comportement le plus prudent — ne rien
         // écraser.
-        if (!modal) return Promise.resolve('ignorer');
+        if (!modal) return Promise.resolve(tout('ignorer'));
+
+        // Le vis-à-vis vient de l'appariement (par identifiant OU par titre, voir apparierMorceau) :
+        // chercher ici par identifiant seul manquerait justement le cas qui crée les doublons.
+        const visAVis = (s) => (localDe && localDe.get(s.id)) || existants.find(x => x.id === s.id) || {};
+        // La réponse qu'on veut presque toujours : garder la plus récente des deux. Elle sert de
+        // position de départ, si bien qu'« Appliquer » sans rien toucher fait déjà la bonne chose.
+        const conseil = (s) => ((s.savedAt || 0) > (visAVis(s).savedAt || 0) ? 'ecraser' : 'ignorer');
 
         const ligne = (s) => {
-            const av = parId.get(s.id) || {};
+            const av = visAVis(s);
             const plusRecent = (s.savedAt || 0) > (av.savedAt || 0) ? 'fichier'
                 : (s.savedAt || 0) < (av.savedAt || 0) ? 'place' : 'egal';
             const decrire = (m) => `${(m.sections || []).length} partie(s) · ${compterAccords(m)} accord(s)`;
             const marque = (quoi) => plusRecent === quoi ? ' <strong class="import-conflict-recent">la plus récente</strong>' : '';
+            // Le titre d'ici est rappelé quand il diffère : l'appariement se faisant AUSSI par titre (à
+            // la casse et aux espaces près), il faut pouvoir vérifier d'un coup d'œil que les deux
+            // morceaux rapprochés sont bien les mêmes.
+            const memeTitre = cleTitre(s.name) === cleTitre(av.name);
+            const choisi = conseil(s);
+            const radio = (val, libelle) =>
+                `<label class="import-conflict-choix"><input type="radio" name="ic-${escapeHtml(s.id)}" value="${val}"${val === choisi ? ' checked' : ''}> ${libelle}</label>`;
             return `
-                <div class="import-conflict-song">
-                    <div class="import-conflict-name">${escapeHtml(s.name || 'Sans titre')}</div>
+                <div class="import-conflict-song" data-import-id="${escapeHtml(s.id)}">
+                    <div class="import-conflict-name">${escapeHtml(s.name || 'Sans titre')}${
+                        memeTitre ? '' : ` <span class="import-conflict-hint">↔ « ${escapeHtml(av.name || 'Sans titre')} » ici</span>`}</div>
                     <div class="import-conflict-side">
                         <span class="import-conflict-label">En place</span>
                         <span>${decrire(av)} · ${formaterDateEnregistrement(av.savedAt)}${marque('place')}</span>
@@ -9995,28 +10054,43 @@ class HarmoHubApp {
                         <span class="import-conflict-label">Fichier</span>
                         <span>${decrire(s)} · ${formaterDateEnregistrement(s.savedAt)}${marque('fichier')}</span>
                     </div>
+                    <div class="import-conflict-choix-ligne">
+                        ${radio('ecraser', 'Écraser')}${radio('les-deux', 'Garder les deux')}${radio('ignorer', 'Ignorer')}
+                    </div>
                 </div>`;
         };
 
         const n = enConflit.length;
         document.getElementById('import-conflict-body').innerHTML =
-            `<p>${n === 1 ? 'Ce morceau est' : `Ces ${n} morceaux sont`} déjà dans ta bibliothèque. Voici ce qui distingue les deux versions&nbsp;:</p>
+            `<p>${n === 1 ? 'Ce morceau est' : `Ces ${n} morceaux sont`} déjà dans ta bibliothèque. Voici ce qui distingue les deux versions — la plus récente est déjà cochée.</p>
              ${enConflit.map(ligne).join('')}
-             <p class="import-conflict-aide"><strong>Écraser</strong> remplace la version en place. <strong>Garder les deux</strong> ajoute celle du fichier à côté, sans rien perdre. <strong>Ignorer</strong> ne change rien.</p>`;
+             <p class="import-conflict-aide"><strong>Écraser</strong> remplace la version en place. <strong>Garder les deux</strong> ajoute une copie renommée. <strong>Ignorer</strong> ne touche à rien.</p>`;
 
         modal.hidden = false;
         this.lockBodyScroll();
         return new Promise((resolve) => {
+            const lu = () => new Map(enConflit.map(s => {
+                const coche = modal.querySelector(`input[name="ic-${CSS.escape(s.id)}"]:checked`);
+                return [s.id, coche ? coche.value : 'ignorer'];
+            }));
             const fermer = (reponse) => {
                 modal.hidden = true;
                 this.unlockBodyScroll();
                 this._importConflictCancel = null;
                 resolve(reponse);
             };
-            this._importConflictCancel = () => fermer('ignorer');
-            document.getElementById('import-conflict-overwrite').onclick = () => fermer('ecraser');
-            document.getElementById('import-conflict-both').onclick = () => fermer('les-deux');
-            document.getElementById('import-conflict-skip').onclick = () => fermer('ignorer');
+            // Le clic sur le fond passe par le gestionnaire déjà câblé dans setupEventListeners, qui
+            // appelle ce rappel-ci — plutôt qu'un second écouteur posé ici, qui ferait deux chemins
+            // pour un même geste.
+            this._importConflictCancel = () => fermer(tout('ignorer'));
+            // Les quatre raccourcis posent la même réponse PARTOUT et appliquent aussitôt : le cas
+            // courant reste à un clic, comme avant que la décision devienne individuelle.
+            document.getElementById('import-conflict-recent').onclick = () => fermer(new Map(enConflit.map(s => [s.id, conseil(s)])));
+            document.getElementById('import-conflict-overwrite').onclick = () => fermer(tout('ecraser'));
+            document.getElementById('import-conflict-both').onclick = () => fermer(tout('les-deux'));
+            document.getElementById('import-conflict-skip').onclick = () => fermer(tout('ignorer'));
+            document.getElementById('import-conflict-apply').onclick = () => fermer(lu());
+            document.getElementById('import-conflict-cancel').onclick = () => fermer(tout('ignorer'));
         });
     }
 

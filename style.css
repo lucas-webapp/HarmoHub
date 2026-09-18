@@ -6308,3 +6308,35 @@ body.impression-structure .struct-row { break-inside: avoid; }
 @media print {
     body.impression-structure { background: #fff; }
 }
+
+/* ---------- Fenêtre de conflit d'import : une décision PAR MORCEAU ---------- */
+/* La réponse était globale — un seul « Écraser » pour tout le lot, y compris les morceaux dont la
+   version d'ici était la plus récente. Avec un réimport complet de la bibliothèque à chaque
+   changement de navigateur, c'était le dernier endroit où du travail pouvait se perdre. */
+.import-conflict-partout {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+.import-conflict-partout-label { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 600; }
+.import-conflict-partout button { font-size: var(--fs-xs); padding: 4px 9px; }
+.import-conflict-hint { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 500; }
+.import-conflict-choix-ligne {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin-top: 6px;
+}
+.import-conflict-choix {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: var(--fs-xs);
+    cursor: pointer;
+    /* Cible confortable au doigt : ces choix se prennent aussi sur téléphone, où une case à cocher
+       nue de 13px ne s'atteint pas (voir la famille des corrections « pointer: coarse »). */
+    min-height: 28px;
+}
+.import-conflict-choix input { cursor: pointer; }

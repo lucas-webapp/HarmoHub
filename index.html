@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202609181000">
+    <link rel="stylesheet" href="style.css?v=202609181400">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -319,11 +319,25 @@
             </div>
             <div class="settings-body">
                 <div class="settings-content unsaved-modal-body">
+                    <!-- RACCOURCIS D'ABORD, PRÉCISION ENSUITE. La décision était globale : un seul
+                         « Écraser » pour tout le lot, y compris les morceaux dont la version d'ici
+                         était la plus récente. Avec un réimport complet de la bibliothèque à chaque
+                         changement de navigateur, c'était le seul endroit où du travail pouvait encore
+                         se perdre. Chaque morceau porte donc maintenant sa propre décision.
+                         Ces quatre boutons-là posent la même réponse PARTOUT et appliquent aussitôt :
+                         le cas courant reste à un clic. « La plus récente » est celui qu'on veut
+                         presque toujours, d'où sa place en premier. -->
+                    <div class="import-conflict-partout">
+                        <span class="import-conflict-partout-label">Partout :</span>
+                        <button type="button" id="import-conflict-recent" class="btn-blue">la plus récente</button>
+                        <button type="button" id="import-conflict-overwrite" class="btn-sec">écraser</button>
+                        <button type="button" id="import-conflict-both" class="btn-sec">garder les deux</button>
+                        <button type="button" id="import-conflict-skip" class="btn-sec">ignorer</button>
+                    </div>
                     <div id="import-conflict-body"></div>
                     <div class="unsaved-modal-actions import-conflict-actions">
-                        <button type="button" id="import-conflict-overwrite" class="btn-blue">Écraser</button>
-                        <button type="button" id="import-conflict-both" class="btn-sec">Garder les deux</button>
-                        <button type="button" id="import-conflict-skip" class="btn-sec">Ignorer</button>
+                        <button type="button" id="import-conflict-apply" class="btn-blue">Appliquer</button>
+                        <button type="button" id="import-conflict-cancel" class="btn-sec">Annuler</button>
                     </div>
                 </div>
             </div>
@@ -1465,6 +1479,6 @@
     <!-- Nommage des fichiers exportés, commun aux deux applis (voir fichiers.js). Chargé AVANT
          script.js : celui-ci s'en sert dès ses premiers exports. -->
     <script src="fichiers.js?v=202609181000"></script>
-    <script src="script.js?v=202609181000"></script>
+    <script src="script.js?v=202609181400"></script>
 </body>
 </html>
