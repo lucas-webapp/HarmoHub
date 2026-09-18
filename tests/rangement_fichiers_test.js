@@ -16,7 +16,7 @@ const { chromium } = require('playwright');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('rangement des fichiers exportés');
 
-plan(20);
+plan(21);
 
 // Le sélecteur système remplacé par un dossier OPFS de même interface (voir l'en-tête).
 const STUB = () => {
@@ -182,6 +182,15 @@ const ARBRE = async (d, prefixe = '') => {
     });
     check(rangeTexte.range === true && rangeTexte.dossier === 'Texte',
         `le .txt de Paroles est rangé lui aussi — ${JSON.stringify(rangeTexte)}`);
+    // LA PAGE PAROLES NE CHARGE PAS script.js. Tout ce dont fichiers.js a besoin doit donc vivre DANS
+    // fichiers.js : une dépendance vers script.js y devient une fonction inexistante, et le rangement
+    // repart en téléchargement sans un mot. C'est arrivé avec asciiPourMidi, écrite d'abord dans
+    // script.js puis appelée par fichiers.js.
+    const manquantes = await p2.evaluate(() => ['nomExport', 'nomCanonique', 'enregistrerFichier', 'preparerRangement',
+        'asciiPourMidi', 'nomsCandidats', 'partagerFichier', 'messageEnregistrement', 'listerRangement']
+        .filter(n => typeof window[n] !== 'function'));
+    check(manquantes.length === 0,
+        `Paroles dispose de tout ce que fichiers.js utilise — ${JSON.stringify(manquantes)}`);
 
     // ---- Lister : le disque fait foi, du plus récent au plus ancien ----
     // Le second fichier venait du contrôle de l'index, désormais retiré : on le pose explicitement,

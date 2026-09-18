@@ -94,14 +94,11 @@ function nomExport({ morceau, type, extension, date, appli } = {}) {
 // les pièces d'un même morceau est porté par le NOM, pas par l'emplacement, et le nom voyage partout,
 // y compris sur les téléphones qui n'ont pas cette couche.
 const DOSSIERS_RANGEMENT = {
-    // PAS DE PDF/Structure : la vue Structure passe encore par l'impression du navigateur, rien ne
-    // saurait écrire dans ce dossier. Il était créé quand même — un dossier vide dans l'arborescence
-    // est une invitation à y chercher quelque chose qui n'y sera jamais. Il reviendra le jour où
-    // l'export Structure passera par jsPDF, comme les deux autres PDF.
     bibliotheque: ['Bibliotheque'],
     morceaux: ['Morceaux'],
     pdfAccords: ['PDF', 'Accords'],
     pdfParoles: ['PDF', 'Paroles'],
+    pdfStructure: ['PDF', 'Structure'],
     midi: ['MIDI'],
     audio: ['Audio'],
     texte: ['Texte'],
@@ -245,12 +242,63 @@ async function sousDossier(racine, cle, creer) {
 }
 
 // ---------- Écriture ----------
+// TOUS LES SUPPORTS N'ACCEPTENT PAS TOUS LES NOMS. Mesuré : le système de fichiers privé du
+// navigateur (OPFS) refuse TOUT nom non-ASCII, précomposé ou décomposé — « Été à Noël » y est
+// impossible, « Ete a Noel » passe. Un disque ordinaire, lui, accepte les accents sans broncher ;
+// mais une clé en FAT, un partage réseau ou un support exotique peuvent avoir leurs propres limites.
+// Plutôt que de retomber dans Téléchargements — ce que faisait le code, en silence, alors qu'un
+// dossier est configuré — on réessaie avec le nom translittéré. La même translittération que pour le
+// texte MIDI (voir asciiPourMidi) et pour la même raison : écrire ce qu'aucun support ne peut refuser.
+// Les accents sont GARDÉS partout où c'est possible : c'est une appli française, les titres en portent.
+// LES ACCENTS SONT RETIRÉS DU TEXTE MIDI, ET CE N'EST PAS UNE NÉGLIGENCE.
+// La norme MIDI ne dit RIEN de l'encodage des événements de texte (titre du morceau, nom de piste,
+// marqueurs de partie) : elle les décrit comme du texte 8 bits, sans préciser lequel. Chaque lecteur
+// devine donc à sa façon — et chez MuseScore, savoir lire un jeu de caractères autre qu'ASCII est
+// encore une demande ouverte, pas une capacité (musescore.org/en/node/3370). Résultat mesuré ici même
+// avec un lecteur MIDI tiers : « Cordes synthé » écrit en UTF-8 ressort en « Cordes synthÃ© ».
+// Aucun encodage n'étant universellement juste, on ne parie pas : on écrit ce qu'AUCUN lecteur ne peut
+// déformer. « Été à Noël » devient « Ete a Noel » — l'accent se perd, mais lisiblement, et le repère
+// reste utilisable pour naviguer dans le morceau.
+// CE CHOIX NE VAUT QUE POUR LE MIDI. Les NOMS DE FICHIERS, eux, gardent leurs accents (voir
+// nettoyerNomFichier dans fichiers.js) : un système de fichiers moderne sait exactement quoi en faire,
+// là où le MIDI ne le sait pas. Deux médias, deux contraintes, deux réponses.
+function asciiPourMidi(text) {
+    return String(text == null ? '' : text)
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // é -> e, à -> a, ï -> i...
+        .replace(/[œŒ]/g, (c) => (c === 'œ' ? 'oe' : 'OE'))
+        .replace(/[æÆ]/g, (c) => (c === 'æ' ? 'ae' : 'AE'))
+        .replace(/[’‘‚‛]/g, "'").replace(/[“”„]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...')
+        .replace(/ß/g, 'ss')
+        .replace(/[^\x20-\x7e]/g, '');                      // tout ce qui reste hors ASCII imprimable
+}
+
+function nomsCandidats(nomFichier) {
+    const ascii = asciiPourMidi(nomFichier);
+    return (ascii && ascii !== nomFichier) ? [nomFichier, ascii] : [nomFichier];
+}
+
+// Vrai si l'erreur dit « ce nom ne convient pas » plutôt que « le disque est plein » ou « permission
+// refusée ». On ne translittère que dans ce cas-là : réessayer sous un autre nom parce que le disque
+// est plein ne ferait que produire un second échec, sous un nom moins lisible.
+function estErreurDeNom(e) {
+    return !!e && (e.name === 'TypeMismatchError' || e.name === 'TypeError' || e.name === 'InvalidCharacterError');
+}
+
 async function ecrireDansRacine(racine, cle, nomFichier, blob) {
     const dossier = await sousDossier(racine, cle, true);
-    const fichier = await dossier.getFileHandle(nomFichier, { create: true });
-    const flux = await fichier.createWritable();
-    try { await flux.write(blob); } finally { await flux.close(); }
-    return fichier;
+    let derniere;
+    for (const candidat of nomsCandidats(nomFichier)) {
+        try {
+            const fichier = await dossier.getFileHandle(candidat, { create: true });
+            const flux = await fichier.createWritable();
+            try { await flux.write(blob); } finally { await flux.close(); }
+            return { fichier, nom: candidat };
+        } catch (e) {
+            derniere = e;
+            if (!estErreurDeNom(e)) throw e;
+        }
+    }
+    throw derniere;
 }
 
 // Liste les fichiers réellement présents dans un sous-dossier, du plus récent au plus ancien. Lit le
@@ -344,11 +392,14 @@ function horodatageVersion(date = new Date()) {
 // l'heure du jour où on a archivé et ne servent plus à se repérer.
 async function archiverVersion(racine, cle, nomFichier) {
     const dossier = await sousDossier(racine, cle, true);
-    let ancien;
-    try { ancien = await dossier.getFileHandle(nomFichier, { create: false }); }
-    catch (e) { return null; } // rien à archiver : premier enregistrement
+    let ancien, nomReel;
+    for (const candidat of nomsCandidats(nomFichier)) {
+        try { ancien = await dossier.getFileHandle(candidat, { create: false }); nomReel = candidat; break; }
+        catch (e) { /* essaie le suivant */ }
+    }
+    if (!ancien) return null; // rien à archiver : premier enregistrement
     const fichier = await ancien.getFile();
-    const { base, ext } = separeNom(nomFichier);
+    const { base, ext } = separeNom(nomReel);
     const versions = await dossier.getDirectoryHandle(DOSSIER_VERSIONS, { create: true });
     const socle = `${base} - ${horodatageVersion(new Date(fichier.lastModified || Date.now()))}`;
     let nomVersion = `${socle}${ext}`;
@@ -394,11 +445,14 @@ async function purgerVersions(racine, cle, nomFichier, nbGardees = VERSIONS_GARD
 async function lireJsonRange(racine, cle, nomFichier) {
     try {
         const dossier = await sousDossier(racine, cle, false);
-        const fichier = await (await dossier.getFileHandle(nomFichier, { create: false })).getFile();
-        return { existe: true, contenu: JSON.parse(await fichier.text()), modifieAt: fichier.lastModified };
-    } catch (e) {
-        return { existe: false, contenu: null, modifieAt: 0 };
-    }
+        for (const candidat of nomsCandidats(nomFichier)) {
+            try {
+                const fichier = await (await dossier.getFileHandle(candidat, { create: false })).getFile();
+                return { existe: true, nom: candidat, contenu: JSON.parse(await fichier.text()), modifieAt: fichier.lastModified };
+            } catch (e) { /* nom suivant */ }
+        }
+    } catch (e) { /* sous-dossier absent */ }
+    return { existe: false, contenu: null, modifieAt: 0 };
 }
 
 // Liste les versions archivées d'un fichier, de la plus récente à la plus ancienne.
@@ -413,6 +467,37 @@ async function listerVersions(racine, cle, nomFichier) {
         if (h.kind === 'file' && nom.startsWith(`${base} - `) && nom.endsWith(ext)) trouvees.push(nom);
     }
     return trouvees.sort().reverse();
+}
+
+// ---------- L'IMPORT DIRECT ----------
+// Le sélecteur de fichiers s'ouvrait là où le SYSTÈME s'était arrêté la dernière fois — soit, le plus
+// souvent, dans Téléchargements, ou dans le dernier dossier visité pour une raison sans rapport. Il
+// fallait donc naviguer à la main jusqu'au dossier HarmoHub à chaque import, alors que l'appli sait
+// exactement où il est.
+// `startIn` accepte une poignée de dossier : on l'ouvre DANS le bon sous-dossier, pas seulement à la
+// racine. Comme le sélecteur de dossier, ceci DOIT partir d'un geste de l'utilisateur.
+// Repli complet sur `<input type="file">` là où l'API n'existe pas (Safari, Firefox, téléphones) : le
+// confort disparaît, l'import reste possible.
+async function choisirFichierAImporter({ cle = 'morceaux', appli, description = 'Sauvegarde HarmoHub', extensions = ['.json'] } = {}) {
+    if (typeof window === 'undefined' || typeof window.showOpenFilePicker !== 'function') return null;
+    let depart;
+    try {
+        const racine = await preparerRangement({ demander: true, appli });
+        if (racine) depart = await sousDossier(racine, cle, false);
+    } catch (e) { /* dossier absent : le sélecteur s'ouvrira où il veut, ce n'est pas bloquant */ }
+    try {
+        const options = {
+            multiple: false,
+            types: [{ description, accept: { 'application/json': extensions } }],
+        };
+        if (depart) options.startIn = depart;
+        const [poignee] = await window.showOpenFilePicker(options);
+        return await poignee.getFile();
+    } catch (e) {
+        if (e && e.name === 'AbortError') return 'annule'; // fermé sans choisir : ce n'est pas une panne
+        console.error('Sélecteur de fichier indisponible, repli sur le champ classique :', e);
+        return null;
+    }
 }
 
 // =====================================================================================
@@ -500,8 +585,11 @@ function estFichierDuMorceau(nomFichier, prefixe, prefixesAutres) {
 // Parcourt tous les dossiers de rangement, `_versions/` compris, et rend la liste exacte des fichiers
 // rattachés à ce morceau. Ne supprime rien : c'est cette liste qu'on affiche.
 async function fichiersDuMorceau(racine, nom, autresNoms = [], { appli } = {}) {
-    const prefixe = prefixeMorceau(nom, appli);
-    const prefixesAutres = autresNoms.map(n => prefixeMorceau(n, appli));
+    // Les DEUX écritures possibles du préfixe (accentuée et translittérée, voir nomsCandidats) :
+    // un morceau écrit sur un support qui refuse les accents doit quand même se retrouver.
+    const prefixes = nomsCandidats(prefixeMorceau(nom, appli));
+    const prefixe = prefixes[0];
+    const prefixesAutres = autresNoms.flatMap(n => nomsCandidats(prefixeMorceau(n, appli)));
     const trouves = [];
     for (const cle of Object.keys(DOSSIERS_RANGEMENT)) {
         // La BIBLIOTHÈQUE est exclue : son fichier contient TOUS les morceaux, le supprimer pour un
@@ -515,7 +603,7 @@ async function fichiersDuMorceau(racine, nom, autresNoms = [], { appli } = {}) {
                     if (nomFichier === DOSSIER_VERSIONS) await scruter(h, `${sousChemin}/${DOSSIER_VERSIONS}`);
                     continue;
                 }
-                if (estFichierDuMorceau(nomFichier, prefixe, prefixesAutres)) {
+                if (prefixes.some(p => estFichierDuMorceau(nomFichier, p, prefixesAutres))) {
                     trouves.push({ cle, nom: nomFichier, versions: sousChemin.endsWith(DOSSIER_VERSIONS), chemin: `${sousChemin}/${nomFichier}` });
                 }
             }
@@ -573,9 +661,13 @@ async function enregistrerFichier(blob, { morceau, type, extension, dossier, nom
                 try { archive = await archiverVersion(cible, cle, nomFichier); }
                 catch (e) { console.error('Version précédente non archivée :', e); }
             }
-            await ecrireDansRacine(cible, cle, nomFichier, blob);
-            if (versionne) { try { await purgerVersions(cible, cle, nomFichier); } catch (e) { console.error('Purge des versions impossible :', e); } }
-            const chemin = `${cheminRangement(cle)}/${nomFichier}`;
+            // `nomEcrit` peut différer de `nomFichier` : voir nomsCandidats, quand le support refuse
+            // les accents. Tout ce qui suit s'appuie sur le nom RÉELLEMENT écrit, jamais sur celui
+            // qu'on espérait — sinon la rotation des versions purgerait à côté et le message
+            // annoncerait un fichier qui n'existe pas.
+            const { nom: nomEcrit } = await ecrireDansRacine(cible, cle, nomFichier, blob);
+            if (versionne) { try { await purgerVersions(cible, cle, nomEcrit); } catch (e) { console.error('Purge des versions impossible :', e); } }
+            const chemin = `${cheminRangement(cle)}/${nomEcrit}`;
             // PAS D'INDEX. Un `_index.json` était écrit ici à chaque export, recensant ce qui avait été
             // rangé. Il a été retiré : RIEN NE LE LISAIT. Les garde-fous, l'inventaire et la liste des
             // versions interrogent tous le DISQUE directement — et c'est le bon choix, puisque
@@ -583,7 +675,7 @@ async function enregistrerFichier(blob, { morceau, type, extension, dossier, nom
             // rien. Une comptabilité parallèle qui peut diverger de la réalité est un passif, pas un
             // actif : elle coûte une lecture, une analyse et une écriture à chaque export, et le jour
             // où elle ment, elle ment avec assurance.
-            return { range: true, nom: nomFichier, dossier: cheminRangement(cle), chemin, archive, racine: cible.name || '' };
+            return { range: true, nom: nomEcrit, dossier: cheminRangement(cle), chemin, archive, racine: cible.name || '' };
         } catch (e) {
             // Dossier débranché, disque plein, permission retirée en cours de route : on ne perd pas
             // le fichier pour autant.

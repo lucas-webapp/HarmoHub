@@ -3946,3 +3946,56 @@ ou de l'effacer sans avoir à le faire exister ici d'abord. C'est le chemin du r
 jusqu'ici qu'à moitié construit : l'appli savait NOMMER les orphelins mais ne proposait rien pour eux.
 
 `tests/suppression_disque_test.js` : 30 contrôles.
+
+## Le reste : structure en PDF, export intégral, import direct (2026-09-18)
+
+### Ce qui est livré
+
+**La Structure en PDF.** C'était le dernier des trois PDF à passer par l'impression du navigateur,
+laquelle ne rend jamais les octets : impossible de RANGER ce qu'on ne tient pas, d'où un dossier
+`PDF/Structure` qui ne pouvait pas se remplir et qu'on avait retiré. Il revient. Le montage de la
+feuille est **partagé** entre l'impression et l'export — deux montages séparés finiraient par produire
+deux pages différentes.
+
+**L'export intégral**, décidé il y a longtemps et jamais construit. Six types, chacun avec son coût
+annoncé, et le **MP3 décoché par défaut** : c'est le plus long, et le cocher d'office ferait attendre
+une minute pour un fichier qu'on n'a pas demandé. La fenêtre reste ouverte pendant le travail et dit
+où on en est — un écran muet pendant une minute passe pour une panne. Le PDF des paroles et le texte
+n'y sont pas : ils se produisent dans l'outil Paroles, une autre page. C'est **écrit dans la fenêtre**
+plutôt que passé sous silence — une case qui ne ferait rien serait pire qu'une case absente.
+
+**L'import direct.** `showOpenFilePicker` reçoit `startIn` : le sélecteur s'ouvre dans `Morceaux/` au
+lieu de là où le système s'est arrêté. Repli complet sur le champ classique là où l'API n'existe pas.
+
+### Un défaut d'architecture, et il était grave
+
+`fichiers.js` s'est mis à appeler `asciiPourMidi`, qui vivait dans `script.js`. Or **la page Paroles
+charge `fichiers.js` sans `script.js`** : elle tombait sur une fonction inexistante, et tout son
+rangement repartait en téléchargement **sans un mot**. Une dépendance d'un module partagé vers un
+module qui ne l'est pas ne peut pas tenir. La translittération a déménagé dans `fichiers.js`, et un
+contrôle vérifie désormais depuis la page Paroles que tout ce que `fichiers.js` utilise y est bien
+défini.
+
+### Les accents dans les noms de fichiers
+
+Mesuré en écrivant le banc : **OPFS refuse tout nom non-ASCII**, précomposé comme décomposé
+(`TypeMismatchError`). Un disque ordinaire, lui, accepte les accents sans broncher — mais une clé en
+FAT ou un partage réseau peuvent avoir leurs propres limites. Le code retombait alors dans
+Téléchargements, en silence, alors qu'un dossier est configuré.
+
+`nomsCandidats` réessaie donc avec le nom translittéré, et **lectures, archivage, purge et inventaire
+s'appuient tous sur le nom RÉELLEMENT écrit** — sinon la rotation purgerait à côté et les messages
+annonceraient un fichier inexistant. Les accents sont gardés partout où c'est possible : c'est une
+appli française.
+
+**À dire franchement** : le banc n'éprouve donc que le REPLI. Le cas nominal — un nom accentué sur un
+vrai disque — n'est pas atteignable ici, faute d'autre chose qu'OPFS.
+
+### Le MIDI était resté en arrière
+
+Seul de tous les exports, il portait encore un nom **horodaté** dans le dossier : il passait un `nom`
+tout fait à `enregistrerFichier`, ce qui court-circuite le nommage canonique. Il accumulait donc un
+fichier par génération au lieu de garder le dernier avec ses versions. Trouvé par le banc de l'export
+intégral, en vérifiant simplement le chemin attendu.
+
+`tests/export_integral_test.js` : 21 contrôles.

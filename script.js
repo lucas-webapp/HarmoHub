@@ -2526,28 +2526,11 @@ function midiVarLen(value) {
 function midiU16(n) { return [(n >> 8) & 0xff, n & 0xff]; }
 function midiU32(n) { return [(n >> 24) & 0xff, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff]; }
 
-// LES ACCENTS SONT RETIRÉS DU TEXTE MIDI, ET CE N'EST PAS UNE NÉGLIGENCE.
-// La norme MIDI ne dit RIEN de l'encodage des événements de texte (titre du morceau, nom de piste,
-// marqueurs de partie) : elle les décrit comme du texte 8 bits, sans préciser lequel. Chaque lecteur
-// devine donc à sa façon — et chez MuseScore, savoir lire un jeu de caractères autre qu'ASCII est
-// encore une demande ouverte, pas une capacité (musescore.org/en/node/3370). Résultat mesuré ici même
-// avec un lecteur MIDI tiers : « Cordes synthé » écrit en UTF-8 ressort en « Cordes synthÃ© ».
-// Aucun encodage n'étant universellement juste, on ne parie pas : on écrit ce qu'AUCUN lecteur ne peut
-// déformer. « Été à Noël » devient « Ete a Noel » — l'accent se perd, mais lisiblement, et le repère
-// reste utilisable pour naviguer dans le morceau.
-// CE CHOIX NE VAUT QUE POUR LE MIDI. Les NOMS DE FICHIERS, eux, gardent leurs accents (voir
-// nettoyerNomFichier dans fichiers.js) : un système de fichiers moderne sait exactement quoi en faire,
-// là où le MIDI ne le sait pas. Deux médias, deux contraintes, deux réponses.
-function asciiPourMidi(text) {
-    return String(text == null ? '' : text)
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // é -> e, à -> a, ï -> i...
-        .replace(/[œŒ]/g, (c) => (c === 'œ' ? 'oe' : 'OE'))
-        .replace(/[æÆ]/g, (c) => (c === 'æ' ? 'ae' : 'AE'))
-        .replace(/[’‘‚‛]/g, "'").replace(/[“”„]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...')
-        .replace(/ß/g, 'ss')
-        .replace(/[^\x20-\x7e]/g, '');                      // tout ce qui reste hors ASCII imprimable
-}
-
+// LA TRANSLITTÉRATION EN ASCII VIT DANS fichiers.js — module partagé, chargé par HarmoHub comme par
+// Paroles. Elle était ici, et fichiers.js a fini par en avoir besoin lui aussi (voir nomsCandidats) :
+// la page Paroles, qui charge fichiers.js SANS script.js, tombait alors sur une fonction inexistante
+// et tout son rangement repartait en téléchargement, en silence. Une dépendance d'un module partagé
+// vers un module qui ne l'est pas ne peut pas tenir.
 function midiTextEvent(type, text) {
     const bytes = Array.from(asciiPourMidi(text), (c) => c.charCodeAt(0));
     return [0xff, type, ...midiVarLen(bytes.length), ...bytes];
@@ -4165,6 +4148,7 @@ class HarmoHubApp {
             if (e.target.id === 'structure-overlay') this.closeStructureWindow();
         });
         this._cabler('structure-print', 'click', () => this.printStructure());
+        this._cabler('structure-pdf', 'click', () => this.exportStructurePdf());
         this._cabler('song-files', 'click', () => this.openFilesWindow());
         this._cabler('files-close', 'click', () => this.closeFilesWindow());
         this._cabler('files-overlay', 'click', (e) => {
@@ -4211,6 +4195,10 @@ class HarmoHubApp {
 
         this._cabler('disk-files-modal', 'click', (e) => {
             if (e.target.id === 'disk-files-modal' && this._diskFilesCancel) this._diskFilesCancel();
+        });
+
+        this._cabler('export-full-modal', 'click', (e) => {
+            if (e.target.id === 'export-full-modal' && this._exportFullCancel) this._exportFullCancel();
         });
 
         // Choix export MIDI (voir chooseMidiExportMode) : clic sur le fond = Annuler, même principe.
@@ -9192,9 +9180,12 @@ class HarmoHubApp {
     // parfaitement, et « Enregistrer en PDF » y est une destination standard.
     // Le corps est REMPLACÉ le temps de l'impression puis rendu tel quel : imprimer la page entière
     // n'aurait donné que la grille et le volet, pas cette fenêtre-ci.
-    printStructure() {
+    // Prépare hors écran la feuille de route à rastériser ou à imprimer, et rend une fonction de
+    // nettoyage. Un seul endroit pour ce montage : l'impression navigateur et l'export jsPDF doivent
+    // produire EXACTEMENT la même page, sinon le PDF et le papier finissent par diverger.
+    monterFeuilleStructure() {
         const panneau = document.getElementById('structure-panel');
-        if (!panneau) return;
+        if (!panneau) return null;
         const titre = this.getCurrentSongName ? (this.getCurrentSongName() || 'Morceau') : 'Morceau';
         const zone = document.createElement('div');
         zone.id = 'structure-print-zone';
@@ -9203,6 +9194,55 @@ class HarmoHubApp {
         // fenêtre.
         zone.querySelectorAll('.struct-actions').forEach(el => el.remove());
         document.body.appendChild(zone);
+        return { zone, titre };
+    }
+
+    // EXPORT PDF DE LA STRUCTURE — le troisième PDF de l'appli, et le dernier à passer par jsPDF.
+    // Il passait jusqu'ici par l'impression du navigateur : impossible de RANGER ce qu'on ne tient pas
+    // (voir le même changement pour le PDF d'accords et celui des paroles). Le dossier PDF/Structure,
+    // retiré parce qu'il ne pouvait jamais se remplir, revient donc avec cette fonction.
+    async exportStructurePdf(racineFournie) {
+        const monte = this.monterFeuilleStructure();
+        if (!monte) return;
+        const btn = document.getElementById('structure-print');
+        if (btn) btn.disabled = true;
+        // Comme pour l'export PDF de la grille : la permission se demande AVANT la rastérisation, tant
+        // que le clic est encore « chaud » (voir exportPdf pour `racineFournie`).
+        const racine = racineFournie !== undefined ? racineFournie : await preparerRangement();
+        this.flashHint('Génération du PDF…', 60000);
+        // Affichée hors écran plutôt que masquée : html2canvas ne sait rastériser qu'un élément
+        // réellement mis en page. Largeur d'une page A4 à 96 dpi.
+        monte.zone.setAttribute('style', 'display:block; position:fixed; left:-10000px; top:0; width:794px; background:#fff; color:#000;');
+        try {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            const marge = 10;
+            const largeurMax = pdf.internal.pageSize.getWidth() - marge * 2;
+            const hauteurMax = pdf.internal.pageSize.getHeight() - marge * 2;
+            const canvas = await window.html2canvas(monte.zone, { scale: 2, backgroundColor: '#ffffff' });
+            const ratio = canvas.width / canvas.height;
+            let l = largeurMax, h = l / ratio;
+            if (h > hauteurMax) { h = hauteurMax; l = h * ratio; } // structure très longue : bornée par la hauteur
+            pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', marge, marge, l, h);
+            const res = await enregistrerFichier(pdf.output('blob'), {
+                morceau: monte.titre, type: 'Structure', extension: 'pdf', dossier: 'pdfStructure', racine,
+            });
+            this.flashHint(messageEnregistrement(res, 'Structure exportée'), 2400);
+        } catch (err) {
+            console.error(err);
+            this.flashHint('Échec de l\'export PDF de la structure');
+        } finally {
+            monte.zone.remove();
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    printStructure() {
+        const panneau = document.getElementById('structure-panel');
+        if (!panneau) return;
+        const monte = this.monterFeuilleStructure();
+        if (!monte) return;
+        const zone = monte.zone;
         document.body.classList.add('impression-structure');
         const apres = () => {
             document.body.classList.remove('impression-structure');
@@ -9726,7 +9766,15 @@ class HarmoHubApp {
         const importBtn = document.getElementById('library-import-btn');
         const importInput = document.getElementById('library-import-input');
         if (importBtn && importInput) {
-            importBtn.onclick = () => importInput.click();
+            // IMPORT DIRECT : le sélecteur s'ouvre DANS le dossier Morceaux quand il y en a un, au lieu
+            // de là où le système s'est arrêté la dernière fois. Repli sur le champ classique partout
+            // où l'API n'existe pas — le confort disparaît, l'import reste possible.
+            importBtn.onclick = async () => {
+                const fichier = await choisirFichierAImporter({ cle: 'morceaux' });
+                if (fichier === 'annule') return;            // fermé sans choisir : on ne force rien
+                if (fichier) { this.importLibraryFile(fichier); return; }
+                importInput.click();
+            };
             importInput.onchange = () => {
                 const file = importInput.files[0];
                 importInput.value = ''; // permet de resélectionner le même fichier ensuite
@@ -10899,7 +10947,11 @@ class HarmoHubApp {
         };
     }
 
-    async exportPdf() {
+    // `racineFournie` : passée par l'export intégral, qui a déjà obtenu la permission dans SON clic.
+    // Sans ça, chaque fichier d'un export intégral la redemanderait — et les demandes suivantes,
+    // tombant hors du geste, seraient refusées en silence : les fichiers partiraient dans
+    // Téléchargements alors qu'un dossier est bel et bien configuré.
+    async exportPdf(racineFournie) {
         // Le morceau doit être enregistré (avec un nom) pour pouvoir nommer le PDF en conséquence
         if (!getCurrentSongId()) {
             this.saveCurrentAsSong('Nomme d\'abord ton morceau pour exporter le PDF');
@@ -10918,7 +10970,7 @@ class HarmoHubApp {
         // « chaud ». Trois secondes plus tard, html2canvas ayant fini, le navigateur considère le
         // geste expiré et n'affiche plus aucune demande : on retomberait silencieusement dans
         // Téléchargements alors qu'un dossier est bel et bien configuré.
-        const racine = await preparerRangement();
+        const racine = racineFournie !== undefined ? racineFournie : await preparerRangement();
         this.flashHint('Génération du PDF…', 60000);
 
         // .print-export est display:none par défaut (voir style.css), réservé jusqu'ici à l'impression
@@ -11084,8 +11136,13 @@ class HarmoHubApp {
     // service sur iPhone), mais coupé pour l'export PAR PARTIE — on n'ouvre pas cinq feuilles de
     // partage à la suite, et ces écritures-là partent d'un setTimeout, donc hors du geste : le
     // navigateur les refuserait de toute façon.
-    downloadMidiBytes(bytes, filename, racine, partage) {
-        return enregistrerFichier(new Blob([bytes], { type: 'audio/midi' }), { nom: filename, dossier: 'midi', racine, partage });
+    // PREND LE MORCEAU ET LE TYPE, plus un nom tout fait. Un `nom` explicite court-circuite le nommage
+    // canonique (voir enregistrerFichier) : le MIDI était ainsi resté au nom horodaté dans le dossier,
+    // seul de tous les exports, et accumulait donc un fichier par génération au lieu de garder le
+    // dernier avec ses versions.
+    downloadMidiBytes(bytes, { morceau, type }, racine, partage) {
+        return enregistrerFichier(new Blob([bytes], { type: 'audio/midi' }),
+            { morceau, type, extension: 'mid', dossier: 'midi', racine, partage });
     }
 
     // ---------- Import MIDI, étape 6 : assembler le tout ----------
@@ -11213,7 +11270,7 @@ class HarmoHubApp {
         const songName = this.getCurrentSongName();
         const racine = await preparerRangement();
         if (!perSection) {
-            const res = await this.downloadMidiBytes(this.buildMidiFile(), nomExport({ morceau: songName, type: 'MIDI', extension: 'mid' }), racine);
+            const res = await this.downloadMidiBytes(this.buildMidiFile(), { morceau: songName, type: 'MIDI' }, racine);
             this.flashHint(messageEnregistrement(res, 'MIDI exporté'), 2400);
             return;
         }
@@ -11223,7 +11280,7 @@ class HarmoHubApp {
         if (racine) {
             for (const [si, sec] of sections.entries()) {
                 const title = (sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${si + 1}`;
-                await this.downloadMidiBytes(this.buildMidiFile([sec]), nomExport({ morceau: songName, type: `MIDI ${title}`, extension: 'mid' }), racine);
+                await this.downloadMidiBytes(this.buildMidiFile([sec]), { morceau: songName, type: `MIDI ${title}` }, racine);
             }
             this.flashHint(`${sections.length} fichiers MIDI exportés → ${racine.name ? racine.name + '/' : ''}${cheminRangement('midi')}`, 2400);
             return;
@@ -11233,7 +11290,7 @@ class HarmoHubApp {
             setTimeout(() => {
                 // Une partie par fichier : le type porte le nom de la partie, pour que les quatre
                 // fichiers d'un même morceau restent côte à côte et se distinguent d'un coup d'œil.
-                this.downloadMidiBytes(this.buildMidiFile([sec]), nomExport({ morceau: songName, type: `MIDI ${title}`, extension: 'mid' }), null, false);
+                this.downloadMidiBytes(this.buildMidiFile([sec]), { morceau: songName, type: `MIDI ${title}` }, null, false);
             }, si * 200);
         });
         this.flashHint(`${sections.length} fichiers MIDI téléchargés → dossier Téléchargements`, 2400);
@@ -11244,7 +11301,7 @@ class HarmoHubApp {
     // renversement/basse) + la durée en temps, par partie, dans l'ordre — aucun voicing ni instrument,
     // cet outil n'en a pas besoin. Format à part (pas la sauvegarde du morceau elle-même) : ne casse
     // jamais si la structure de sauvegarde évolue, et se lit d'un coup d'œil.
-    exportLyricsData() {
+    exportLyricsData(racineFournie) {
         if (!getCurrentSongId()) {
             this.saveCurrentAsSong('Nomme d\'abord ton morceau pour exporter les accords');
             if (!getCurrentSongId()) return; // enregistrement annulé -> pas d'export
@@ -11279,7 +11336,7 @@ class HarmoHubApp {
             })),
         };
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        enregistrerFichier(blob, { morceau: this.getCurrentSongName(), type: 'Paroles', extension: 'json', dossier: 'morceaux' });
+        const enCours = enregistrerFichier(blob, { morceau: this.getCurrentSongName(), type: 'Paroles', extension: 'json', dossier: 'morceaux', racine: racineFournie });
         // Dépose aussi les mêmes données dans un coin de localStorage PARTAGÉ (même origine) : paroles.js
         // les récupère toutes seules à l'ouverture et affiche direct les accords du morceau, sans repasser
         // par "Importer un fichier" (retour utilisateur : "il faut réimporter un morceau ensuite" — plus
@@ -11290,8 +11347,14 @@ class HarmoHubApp {
         catch (e) { console.error('Transfert vers Paroles impossible :', e); }
         // Ouvre directement l'outil Paroles dans un nouvel onglet, juste après le téléchargement (même
         // geste utilisateur, donc pas bloqué comme pop-up).
-        window.open('paroles.html', '_blank');
-        this.flashHint('Paroles ouvert avec les accords de ce morceau', 2400);
+        // SAUF quand l'export intégral nous appelle (il fournit une racine) : il produit six fichiers
+        // à la suite, et ouvrir un onglet au milieu ferait perdre de vue la fenêtre de progression —
+        // sans parler de l'onglet dont personne n'a rien demandé.
+        if (racineFournie === undefined) {
+            window.open('paroles.html', '_blank');
+            this.flashHint('Paroles ouvert avec les accords de ce morceau', 2400);
+        }
+        return enCours;
     }
 
     // ---------- Export audio (.mp3, encodage LAME embarqué — voir lame.min.js) ----------
@@ -11401,14 +11464,14 @@ class HarmoHubApp {
 
     // Bouton à côté de l'export MIDI : rend le morceau entier hors-temps réel puis l'encode en MP3,
     // prêt à écouter ou partager sans DAW ni lecteur MIDI.
-    async exportAudio() {
+    async exportAudio(racineFournie) {
         if (!getCurrentSongId()) {
             this.saveCurrentAsSong('Nomme d\'abord ton morceau pour exporter le MP3');
             if (!getCurrentSongId()) return; // enregistrement annulé -> pas d'export
         }
         const btn = document.getElementById('file-menu-btn'); // voir exportPdf : même verrou
         btn.disabled = true;
-        const racine = await preparerRangement(); // voir exportPdf : avant le long calcul, pas après
+        const racine = racineFournie !== undefined ? racineFournie : await preparerRangement(); // voir exportPdf
         this.flashHint('Génération du MP3…', 60000);
         try {
             const toneBuffer = await this.renderProgressionBuffer();
@@ -11453,6 +11516,7 @@ class HarmoHubApp {
                 : { id: 'dossier', desactive: true, label: 'Rangement automatique indisponible',
                     hint: 'Ce navigateur ne le permet pas — les fichiers vont dans Téléchargements' },
             { sep: true },
+            { id: 'tout', label: 'Export intégral du morceau', hint: 'Tous les fichiers, chacun à sa place' },
             { id: 'pdf', label: 'Exporter en PDF', hint: 'Grille imprimable' },
             { id: 'midi', label: 'Exporter en MIDI', hint: 'Pour un DAW (GarageBand…)' },
             { id: 'audio', label: 'Exporter en MP3', hint: 'Rendu audio du morceau' },
@@ -11472,6 +11536,7 @@ class HarmoHubApp {
                 // d'ouvrir la fenêtre. D'où l'appel direct ici plutôt que dans une méthode qui
                 // commencerait par vérifier quoi que ce soit.
                 if (action === 'dossier') this.choisirDossierExports();
+                else if (action === 'tout') this.ouvrirExportIntegral();
                 else if (action === 'pdf') this.openPdfExportDialog();
                 else if (action === 'midi') this.exportMidi();
                 else if (action === 'audio') this.exportAudio();
@@ -11654,6 +11719,103 @@ class HarmoHubApp {
     // Télécharge la sauvegarde JSON d'UN morceau déjà résolu — factorisé pour exportCurrentSong
     // (morceau actuellement ouvert) ET exportSongById (n'importe quel morceau de la bibliothèque,
     // voir renderFilesPanel), qui ne construisaient sinon le même fichier qu'à deux endroits.
+    // ---------- L'EXPORT INTÉGRAL D'UN MORCEAU ----------
+    // Décision prise avec l'utilisateur : DEUX options d'export. La « sauvegarde » (le seul JSON) est
+    // instantanée et se fait souvent, sans rien demander. L'export intégral produit tous les fichiers
+    // d'un morceau et se demande explicitement, parce qu'il COÛTE : le MP3 met plusieurs secondes à
+    // lui seul (mesuré : 3,2 s pour le PDF, bien davantage pour l'audio), d'où sa case décochée par
+    // défaut. Proposer tout coché serait faire attendre quelqu'un pour un fichier qu'il ne voulait pas.
+    //
+    // Les paroles (PDF et texte) ne sont pas ici : elles se produisent dans l'outil Paroles, une autre
+    // page, qui n'a ni la grille ni le moteur audio. Une case qui ne ferait rien serait pire qu'une
+    // case absente — c'est écrit dans la fenêtre plutôt que passé sous silence.
+    TYPES_EXPORT_INTEGRAL() {
+        return [
+            { id: 'morceau', libelle: 'Sauvegarde du morceau', cout: '.json — instantané', defaut: true },
+            { id: 'accords', libelle: 'Grille d\'accords', cout: '.pdf — quelques secondes', defaut: true },
+            { id: 'structure', libelle: 'Structure', cout: '.pdf — quelques secondes', defaut: true },
+            { id: 'midi', libelle: 'MIDI', cout: '.mid — instantané', defaut: true },
+            { id: 'paroles', libelle: 'Données pour l\'outil Paroles', cout: '.json — instantané', defaut: false },
+            { id: 'audio', libelle: 'Rendu audio', cout: '.mp3 — le plus long, souvent une minute', defaut: false },
+        ];
+    }
+
+    async ouvrirExportIntegral() {
+        const modal = document.getElementById('export-full-modal');
+        if (!modal) return;
+        if (!getCurrentSongId()) {
+            this.saveCurrentAsSong('Nomme d\'abord ton morceau pour l\'exporter en entier');
+            if (!getCurrentSongId()) return;
+        }
+        const nom = this.getCurrentSongName();
+        document.getElementById('export-full-body').innerHTML =
+            `<p>Tous les fichiers de « ${escapeHtml(nom)} », rangés chacun dans son dossier.</p>
+             ${this.TYPES_EXPORT_INTEGRAL().map(t => `
+                <label class="export-full-type">
+                    <input type="checkbox" value="${t.id}"${t.defaut ? ' checked' : ''}>
+                    <span>${escapeHtml(t.libelle)} <span class="export-full-cout">${escapeHtml(t.cout)}</span></span>
+                </label>`).join('')}
+             <p class="import-conflict-aide">Le PDF des paroles et le texte se produisent depuis l'outil Paroles, qui est une autre page — ils ne peuvent pas être générés d'ici.</p>
+             <div class="export-full-etat" id="export-full-etat"></div>`;
+        modal.hidden = false;
+        this.lockBodyScroll();
+        const fermer = () => { modal.hidden = true; this.unlockBodyScroll(); this._exportFullCancel = null; };
+        this._exportFullCancel = fermer;
+        document.getElementById('export-full-cancel').onclick = fermer;
+        document.getElementById('export-full-go').onclick = async () => {
+            const choisis = [...modal.querySelectorAll('#export-full-body input:checked')].map(i => i.value);
+            if (!choisis.length) { fermer(); return; }
+            // La permission se demande ICI, dans le clic, et la racine est passée à chaque étape : les
+            // générations suivantes durent trop longtemps pour que le geste soit encore valide (voir
+            // exportPdf).
+            const racine = await preparerRangement();
+            await this.lancerExportIntegral(choisis, racine, fermer);
+        };
+    }
+
+    // La fenêtre reste ouverte pendant le travail et dit où on en est : un export intégral peut durer
+    // une minute, et un écran muet pendant une minute passe pour une panne.
+    async lancerExportIntegral(choisis, racine, fermer) {
+        const etat = document.getElementById('export-full-etat');
+        const go = document.getElementById('export-full-go');
+        if (go) go.disabled = true;
+        const dire = (t) => { if (etat) etat.textContent = t; };
+        const faits = [], rates = [];
+        const song = loadSongs().find(s => s.id === getCurrentSongId());
+        const nom = this.getCurrentSongName();
+
+        for (const id of choisis) {
+            const libelle = (this.TYPES_EXPORT_INTEGRAL().find(t => t.id === id) || {}).libelle || id;
+            dire(`${libelle}…`);
+            try {
+                if (id === 'morceau') {
+                    const r = await this.enregistrerMorceauDansDossier(song, { racine });
+                    if (!r.fait) throw new Error(r.raison);
+                } else if (id === 'accords') {
+                    await this.exportPdf(racine);
+                } else if (id === 'structure') {
+                    await this.exportStructurePdf(racine);
+                } else if (id === 'midi') {
+                    await this.downloadMidiBytes(this.buildMidiFile(), { morceau: nom, type: 'MIDI' }, racine, false);
+                } else if (id === 'paroles') {
+                    await this.exportLyricsData(racine);
+                } else if (id === 'audio') {
+                    await this.exportAudio(racine);
+                }
+                faits.push(libelle);
+            } catch (e) {
+                console.error('Export intégral —', id, e);
+                rates.push(libelle);
+            }
+        }
+        if (go) go.disabled = false;
+        fermer();
+        if (faits.length) this.marquerSauvegardeFaite();
+        this.flashHint(rates.length
+            ? `${faits.length} fichier(s) exporté(s) · échec : ${rates.join(', ')}`
+            : `${faits.length} fichier(s) exporté(s) pour « ${nom} »`, 4500);
+    }
+
     // ---------- LES FICHIERS DU DISQUE ----------
     // « Je voudrais également pouvoir supprimer des morceaux directement sur le disque, en ne passant
     // pas par l'appli. » Cette fenêtre lit le DOSSIER, pas la bibliothèque. Elle montre donc aussi ce

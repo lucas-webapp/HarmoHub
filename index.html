@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202609182000">
+    <link rel="stylesheet" href="style.css?v=202609182200">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -293,7 +293,13 @@
         <div class="settings-modal files-modal" role="dialog" aria-modal="true" aria-labelledby="structure-title">
             <div class="settings-header">
                 <h2 id="structure-title">Structure du morceau</h2>
-                <button type="button" id="structure-print" class="btn-sec" title="Imprimer ou enregistrer en PDF cette feuille de route">Imprimer</button>
+                <!-- DEUX BOUTONS ET NON UN. « Imprimer » passe par le navigateur (papier, ou PDF via
+                     sa propre boîte) ; « Exporter en PDF » produit le fichier ET le RANGE dans
+                     PDF/Structure, comme les deux autres PDF de l'appli. Le second n'existait pas :
+                     l'impression navigateur ne rend jamais les octets, donc rien ne pouvait être
+                     rangé, et le dossier PDF/Structure restait vide. -->
+                <button type="button" id="structure-pdf" class="btn-sec" title="Exporter en PDF et le ranger dans le dossier">Exporter en PDF</button>
+                <button type="button" id="structure-print" class="btn-sec" title="Imprimer cette feuille de route">Imprimer</button>
                 <button type="button" id="structure-close" class="icon-btn" title="Fermer" aria-label="Fermer">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                 </button>
@@ -338,6 +344,30 @@
                     <div class="unsaved-modal-actions import-conflict-actions">
                         <button type="button" id="import-conflict-apply" class="btn-blue">Appliquer</button>
                         <button type="button" id="import-conflict-cancel" class="btn-sec">Annuler</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- EXPORT INTÉGRAL D'UN MORCEAU (voir ouvrirExportIntegral).
+         Décision prise avec l'utilisateur : DEUX options d'export, et non une. La « sauvegarde » (le
+         seul JSON) est instantanée et se fait souvent ; l'export intégral produit tous les fichiers
+         d'un morceau et se demande à la demande, parce qu'il coûte du temps — le MP3 à lui seul met
+         plusieurs secondes, d'où sa case DÉCOCHÉE par défaut.
+         Les paroles (PDF et texte) ne figurent pas ici : elles se produisent dans l'outil Paroles, qui
+         est une autre page. Mieux vaut le dire que proposer une case qui ne ferait rien. -->
+    <div id="export-full-modal" class="settings-overlay" hidden>
+        <div class="settings-modal unsaved-modal" role="dialog" aria-modal="true" aria-labelledby="export-full-title">
+            <div class="settings-header">
+                <h2 id="export-full-title">Export intégral du morceau</h2>
+            </div>
+            <div class="settings-body">
+                <div class="settings-content unsaved-modal-body">
+                    <div id="export-full-body"></div>
+                    <div class="unsaved-modal-actions import-conflict-actions">
+                        <button type="button" id="export-full-go" class="btn-blue">Exporter</button>
+                        <button type="button" id="export-full-cancel" class="btn-sec">Annuler</button>
                     </div>
                 </div>
             </div>
@@ -1553,7 +1583,7 @@
     <script src="jspdf.umd.min.js"></script>
     <!-- Nommage des fichiers exportés, commun aux deux applis (voir fichiers.js). Chargé AVANT
          script.js : celui-ci s'en sert dès ses premiers exports. -->
-    <script src="fichiers.js?v=202609182000"></script>
-    <script src="script.js?v=202609182000"></script>
+    <script src="fichiers.js?v=202609182200"></script>
+    <script src="script.js?v=202609182200"></script>
 </body>
 </html>

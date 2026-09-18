@@ -357,7 +357,8 @@ body.body-scroll-locked { overflow: hidden !important; }
 #export-conflict-modal,
 #dedup-modal,
 #delete-files-modal,
-#disk-files-modal { z-index: 200; }
+#disk-files-modal,
+#export-full-modal { z-index: 200; }
 
 /* Fenêtre agrandie du séquenceur (voir #seq-zoom-overlay/openSeqZoom) : même habillage que
    .settings-modal, mais bien plus large/haute — tout l'intérêt est de donner beaucoup plus de place
@@ -6385,3 +6386,17 @@ body.impression-structure .struct-row { break-inside: avoid; }
 .delete-files-liste div { padding: 1px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .btn-danger { border-color: #7a3030; color: #ff9c9c; }
 .btn-danger:hover { background: #4a1f1f; }
+
+
+/* ---------- Export intégral : une case par type de fichier ---------- */
+.export-full-type {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    /* Cible confortable au doigt, comme les autres listes de choix de cette famille. */
+    min-height: 32px;
+    cursor: pointer;
+}
+.export-full-type input { cursor: pointer; flex: 0 0 auto; }
+.export-full-cout { font-size: var(--fs-xs); color: var(--text-muted); }
+.export-full-etat { font-size: var(--fs-xs); margin-top: 8px; min-height: 1.2em; }
