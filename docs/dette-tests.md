@@ -4021,3 +4021,60 @@ trouvaille neuve viderait le cliquet de son sens.
 Les 7 « sans verdict » sont les ébauches de diagnostic déjà recensées (`guitar_lock_click`,
 `ctx_nav_scroll`, `instrument_stress`, `item1_hzoom_out`, `smoke`) et deux bancs qui concluent mais
 écrivent « OK : » au lieu de « PASS » (`detune`, `probe_cache_perime`).
+
+## Le chemin du retour : abandonner le rangement automatique (2026-09-23)
+
+### Le constat de l'utilisateur, qui est juste
+
+« Le fonctionnement Safari et Chrome fonctionnent quand même très différemment [...] je veux garder
+quelque chose de simple. » Et la question qui suit : est-ce qu'un rangement manuel, avec tout dans
+Téléchargements sur les deux navigateurs, ne serait pas plus intuitif ?
+
+Deux choses vérifiées avant de répondre :
+
+1. **Le mode simple existe déjà.** Sans dossier configuré, Chrome et Safari se comportent à
+   l'identique — tout part dans Téléchargements, les deux boutons du gestionnaire n'apparaissent pas,
+   la suppression redevient une confirmation. La divergence ne vient pas du code, mais du fait qu'un
+   dossier a été désigné sur Chrome.
+2. **On ne pouvait pas revenir en arrière.** `oublierRacine` existait dans `fichiers.js` et n'était
+   branchée sur aucun bouton. Un réglage qu'on peut prendre sans pouvoir le défaire n'est pas un
+   réglage : c'est un engagement.
+
+### Ce qui a été ajouté, et rien de plus
+
+Une entrée « Ne plus ranger automatiquement » dans le menu Fichier, visible uniquement quand un
+dossier est configuré. Pas de confirmation : le geste n'est ni destructeur ni irréversible, et une
+question de plus pour un réglage qu'on reprend d'un clic est une question de trop.
+
+**Rien n'est arraché.** Toute la couche rangement reste en place, dormante. Le réglage se reprend dans
+les deux sens, ce qui permet de décider par l'usage plutôt que par une opinion.
+
+### Ce que le banc éprouve en priorité
+
+Qu'abandonner le rangement **ne touche aucun fichier**. « Ne plus ranger » pourrait s'entendre comme
+« effacer ce qui est rangé » — le dossier et son contenu doivent rester exactement dans l'état où on
+les a laissés, et le message doit le dire plutôt que de laisser planer le doute. Le banc compare
+l'inventaire du dossier avant et après, vérifie le libellé du message, puis redésigne le dossier et
+retrouve les mêmes fichiers.
+
+Il vérifie aussi que l'appli redevient vraiment uniforme : plus de dossier mémorisé, `preparerRangement`
+qui ne rend plus rien, un export qui repart sous nom horodaté dans Téléchargements, les deux boutons
+du gestionnaire disparus (sinon ils mèneraient à une invitation à choisir un dossier — exactement ce
+qu'on vient de refuser), et une suppression redevenue simple confirmation.
+
+### Une note de conception, pour plus tard
+
+Ce qui a réellement réglé les problèmes signalés ne vit **pas** dans la couche rangement :
+
+- le **nommage strict** a réglé « je me perds dans les versions », et il marche partout ;
+- la **fusion par titre à l'import** et le **ménage des doublons** ont réglé « je ne sais plus lequel
+  est le bon », et ils n'ont rien à voir avec les dossiers.
+
+Le rangement automatique apporte du confort sur Chrome — l'écriture au Ctrl+S, « exporter ce qui a
+changé », le panneau disque — au prix d'une divergence entre navigateurs. Et il faut noter que **tout
+l'appareillage de garde-fous n'existe que parce que le mode dossier écrase** : dans Téléchargements,
+chaque export est un nouveau fichier horodaté, donc le danger qui a justifié la fenêtre de conflit et
+la rotation des versions ne se pose pas. Si le mode simple devait l'emporter à l'usage, c'est une
+simplification à envisager — pas avant.
+
+`tests/mode_simple_test.js` : 17 contrôles.

@@ -11508,6 +11508,14 @@ class HarmoHubApp {
         // quand on clique sur « Exporter » (retour utilisateur : « je dois les ranger correctement
         // moi-même »). Sur un navigateur qui ne sait pas ranger, l'entrée reste visible mais dit
         // pourquoi — un menu où une fonction disparaît sans explication laisse croire à une panne.
+        // LE CHEMIN DU RETOUR. Le rangement automatique se désignait, mais ne s'abandonnait pas : une
+        // fois un dossier choisi, aucun bouton ne permettait de revenir au mode simple. Or le mode
+        // simple a une vraie qualité que le rangement n'a pas — il se comporte À L'IDENTIQUE sur
+        // Chrome et sur Safari, alors que le rangement ne marche que sur le premier. Retour
+        // utilisateur : « le fonctionnement Safari et Chrome fonctionnent quand même très
+        // différemment [...] je veux garder quelque chose de simple ».
+        // Un réglage qu'on peut prendre sans pouvoir le défaire n'est pas un réglage : c'est un
+        // engagement. Les deux sens sont désormais à un clic, et c'est l'usage qui tranche.
         const dossier = nomRacineAffiche();
         const entrees = [
             rangementDisponible()
@@ -11515,6 +11523,8 @@ class HarmoHubApp {
                     hint: dossier ? 'Les exports y sont classés par type' : 'Classer les exports au lieu de les télécharger' }
                 : { id: 'dossier', desactive: true, label: 'Rangement automatique indisponible',
                     hint: 'Ce navigateur ne le permet pas — les fichiers vont dans Téléchargements' },
+            ...(dossier ? [{ id: 'oublier-dossier', label: 'Ne plus ranger automatiquement',
+                hint: 'Tout repartira dans Téléchargements — même comportement que sur Safari' }] : []),
             { sep: true },
             { id: 'tout', label: 'Export intégral du morceau', hint: 'Tous les fichiers, chacun à sa place' },
             { id: 'pdf', label: 'Exporter en PDF', hint: 'Grille imprimable' },
@@ -11536,6 +11546,7 @@ class HarmoHubApp {
                 // d'ouvrir la fenêtre. D'où l'appel direct ici plutôt que dans une méthode qui
                 // commencerait par vérifier quoi que ce soit.
                 if (action === 'dossier') this.choisirDossierExports();
+                else if (action === 'oublier-dossier') this.oublierDossierExports();
                 else if (action === 'tout') this.ouvrirExportIntegral();
                 else if (action === 'pdf') this.openPdfExportDialog();
                 else if (action === 'midi') this.exportMidi();
@@ -11559,6 +11570,24 @@ class HarmoHubApp {
             return;
         }
         this.flashHint(`Exports rangés dans « ${racine.name} » (Bibliotheque, Morceaux, PDF, MIDI, Audio, Texte)`, 3600);
+    }
+
+    // Revient au mode simple : les exports repartent dans Téléchargements, comme sur Safari.
+    // AUCUN FICHIER N'EST TOUCHÉ, et c'est le premier point à dire — « ne plus ranger » pourrait
+    // s'entendre comme « effacer ce qui est rangé ». L'appli oublie seulement OÙ elle écrivait ; le
+    // dossier et tout son contenu restent exactement où ils sont.
+    // Pas de confirmation : le geste n'est ni destructeur ni irréversible, et une question de plus
+    // pour un réglage qu'on reprend d'un clic est une question de trop.
+    async oublierDossierExports() {
+        const ancien = nomRacineAffiche();
+        await oublierRacine();
+        // Le panneau Fichiers perd ses deux boutons qui n'ont plus d'objet (« Exporter ce qui a
+        // changé », « Fichiers du disque ») : sans ce rendu, ils resteraient affichés et mèneraient à
+        // une invitation à choisir un dossier — exactement ce qu'on vient de refuser.
+        if (this.filesOpen) this.renderFilesPanel();
+        this.flashHint(ancien
+            ? `Rangement automatique désactivé — les exports iront dans Téléchargements. « ${ancien} » et son contenu sont intacts.`
+            : 'Rangement automatique désactivé', 5000);
     }
 
     closeFileMenu() {
