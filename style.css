@@ -161,6 +161,12 @@ button, .icon-btn, .prog-section-del, .seq-presets button, .seq-delete-btn {
 .settings-btn:hover { color: var(--text-main); border-color: #454b54; }
 .settings-btn.active { color: var(--accent); border-color: var(--accent); }
 
+/* États de la synchro cloud sur #google-signin-btn (voir firebase-sync.js) : seul le liseré
+   change, l'icône Google garde ses couleurs de marque. */
+#google-signin-btn.sync-syncing { border-color: #ffb300; }
+#google-signin-btn.sync-synced { border-color: var(--accent); }
+#google-signin-btn.sync-error { border-color: #ff6b6b; }
+
 .logo {
     display: inline-flex;
     align-items: center;
