@@ -298,7 +298,11 @@ function demarrerSynchro(adaptateur, elements) {
         if (typeof firebase === 'undefined' || typeof FIREBASE_CONFIG === 'undefined') {
             // Mode local uniquement : rien ne casse, la synchro n'existe simplement pas. C'est aussi ce
             // qui se produit hors ligne au premier chargement, quand le SDK n'a pas pu être téléchargé.
-            console.warn('Firebase indisponible : mode local uniquement.');
+            // `info` et non `warn` : ce n'est pas une anomalie. Hors ligne au premier chargement, ou SDK
+            // bloqué, l'appli fonctionne exactement comme avant — seule la synchro n'existe pas. Un
+            // avertissement à chaque chargement hors ligne noierait les vrais, et faisait échouer tout
+            // banc qui compte les avertissements de la console.
+            console.info('Firebase indisponible : mode local uniquement.');
             if ($connexion) $connexion.hidden = true;
             return false;
         }
@@ -315,23 +319,33 @@ function demarrerSynchro(adaptateur, elements) {
         }
     }
 
-    if ($connexion) {
-        $connexion.addEventListener('click', function () {
-            if (!etat.auth) return;
-            var fournisseur = new firebase.auth.GoogleAuthProvider();
-            etat.auth.signInWithPopup(fournisseur).catch(function (e) {
-                console.error('Connexion impossible', e);
-                // Annuler la fenêtre n'est pas une panne : on ne crie pas pour ça.
-                if (e && (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request')) return;
-                window.alert('Connexion impossible : ' + (e && e.message ? e.message : 'erreur inconnue'));
-            });
+    // CONNEXION ET DÉCONNEXION sont des FONCTIONS PUBLIQUES, et non des boutons câblés ici : la barre du
+    // morceau est trop serrée sur téléphone pour en porter deux de plus (mesuré : ils renvoyaient les
+    // boutons d'action à la ligne). Elles se déclenchent donc depuis le menu Fichier, où vivent déjà tous
+    // les échanges avec l'extérieur. Les éléments restent acceptés (`elements.connexion`…) pour une
+    // appli qui aurait la place : TabHub, par exemple.
+    function seConnecter() {
+        if (!etat.auth) return;
+        var fournisseur = new firebase.auth.GoogleAuthProvider();
+        etat.auth.signInWithPopup(fournisseur).catch(function (e) {
+            console.error('Connexion impossible', e);
+            // Annuler la fenêtre n'est pas une panne : on ne crie pas pour ça.
+            if (e && (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request')) return;
+            window.alert('Connexion impossible : ' + (e && e.message ? e.message : 'erreur inconnue'));
         });
     }
-    if ($deconnexion) $deconnexion.addEventListener('click', function () { if (etat.auth) etat.auth.signOut(); });
+    function seDeconnecter() { if (etat.auth) etat.auth.signOut(); }
+    if ($connexion) $connexion.addEventListener('click', seConnecter);
+    if ($deconnexion) $deconnexion.addEventListener('click', seDeconnecter);
 
     SYNCHRO.planifierEnvoi = planifierEnvoi;
     SYNCHRO.envoyerMaintenant = envoyerMaintenant;
     SYNCHRO.initialiser = initialiser;
-    initialiser();
+    SYNCHRO.seConnecter = seConnecter;
+    SYNCHRO.seDeconnecter = seDeconnecter;
+    SYNCHRO.libelleEtat = function () { return LIBELLES[etat.statut] || 'Non synchronisé'; };
+    // `disponible` : le SDK a pu démarrer. C'est lui que le menu consulte pour savoir s'il doit proposer
+    // de se connecter — inutile d'offrir un bouton qui ne peut rien faire.
+    SYNCHRO.disponible = initialiser();
     return SYNCHRO;
 }

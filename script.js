@@ -11550,7 +11550,20 @@ class HarmoHubApp {
         // Un réglage qu'on peut prendre sans pouvoir le défaire n'est pas un réglage : c'est un
         // engagement. Les deux sens sont désormais à un clic, et c'est l'usage qui tranche.
         const dossier = nomRacineAffiche();
+        // SYNCHRONISATION, EN TÊTE : c'est désormais LA façon d'enregistrer. Se connecter / se
+        // déconnecter vivent ici et non dans la barre du morceau, trop serrée sur téléphone pour en
+        // porter deux de plus (mesuré : les boutons d'action passaient à la ligne). L'entrée n'existe que
+        // si le SDK a pu démarrer : proposer un bouton qui ne peut rien faire serait trompeur.
+        const cloud = (typeof SYNCHRO !== 'undefined' && SYNCHRO && SYNCHRO.disponible)
+            ? [SYNCHRO.etat.utilisateur
+                ? { id: 'cloud-deconnexion', label: `Cloud : ${escapeHtml(SYNCHRO.etat.utilisateur.displayName || SYNCHRO.etat.utilisateur.email || 'connecté')}`,
+                    hint: `${SYNCHRO.libelleEtat()} — toucher pour se déconnecter` }
+                : { id: 'cloud-connexion', label: 'Se connecter pour synchroniser',
+                    hint: 'Enregistrement automatique dans ton cloud, sur tous tes appareils' },
+               { sep: true }]
+            : [];
         const entrees = [
+            ...cloud,
             rangementDisponible()
                 ? { id: 'dossier', label: dossier ? `Dossier : ${dossier}` : 'Choisir un dossier de rangement',
                     hint: dossier ? 'Les exports y sont classés par type' : 'Classer les exports au lieu de les télécharger' }
@@ -11578,7 +11591,11 @@ class HarmoHubApp {
                 // showDirectoryPicker consomme le geste de l'utilisateur et le navigateur refuse
                 // d'ouvrir la fenêtre. D'où l'appel direct ici plutôt que dans une méthode qui
                 // commencerait par vérifier quoi que ce soit.
-                if (action === 'dossier') this.choisirDossierExports();
+                // La connexion part DIRECTEMENT du clic, sans `await` devant : le navigateur ne laisse
+                // ouvrir la fenêtre Google que dans le geste de l'utilisateur, et bloque le reste.
+                if (action === 'cloud-connexion') SYNCHRO.seConnecter();
+                else if (action === 'cloud-deconnexion') SYNCHRO.seDeconnecter();
+                else if (action === 'dossier') this.choisirDossierExports();
                 else if (action === 'oublier-dossier') this.oublierDossierExports();
                 else if (action === 'tout') this.ouvrirExportIntegral();
                 else if (action === 'pdf') this.openPdfExportDialog();

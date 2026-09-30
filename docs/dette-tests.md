@@ -4164,3 +4164,25 @@ arrive*, donc avant tout enregistrement possible. Repéré en relisant ma propre
 une limite noir sur blanc oblige à se demander si on l'accepterait vraiment.
 
 `tests/synchro_cloud_test.js` : 97 contrôles, plus le faux Firebase dans `tests/_firebase_faux.js`.
+
+
+### Une régression de mise en page trouvée par le balayage, et ce qu'elle dit
+
+Mon premier placement — un bouton « se connecter » puis une pastille dans la barre du morceau — a fait
+passer les **boutons d'action à la ligne sur téléphone** (`mobile_grille_plus_haut` : « titre à 72 px,
+boutons à 105 px »). Mesuré ensuite : à 390 px la ligne fait 318 px pour 82 + 10 + 222 = 314, soit
+**4 px de marge**, et à 360 px les boutons passaient déjà à la ligne *sans moi*. Il n'y a aucune place,
+pour rien, dans cette barre.
+
+D'où le placement final : **se connecter / se déconnecter dans le menu Fichier** (où vivent déjà tous les
+échanges avec l'extérieur), et la pastille **superposée au bord du titre** en position absolue, donc
+sans prendre la moindre place. Le banc vérifie maintenant que l'en-tête ne bouge pas, connecté ou non.
+
+Deux erreurs de méthode à noter : mon premier contrôle mesurait en coordonnées de *fenêtre* alors que
+l'ouverture du menu fait défiler la page (il rendait -221 au lieu de 72 : la page avait bougé, pas
+l'en-tête) ; et mon second exigeait « même ordonnée exacte » alors que titre et boutons diffèrent de
+5 px de hauteur de ligne sans jamais avoir quitté la même ligne.
+
+Et un avertissement console (`Firebase indisponible : mode local uniquement`, repris de TrainHub) faisait
+échouer `continuous_scroll`, qui compte les avertissements comme des erreurs. Ce n'est pas une anomalie —
+hors ligne, l'appli marche comme avant — donc `info`, pas `warn`.
