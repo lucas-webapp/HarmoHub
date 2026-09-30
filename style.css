@@ -180,14 +180,14 @@ button, .icon-btn, .prog-section-del, .seq-presets button, .seq-delete-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 7px;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
     background: var(--bg);
     color: var(--accent);
     line-height: 1;
 }
-.logo-mark .icon { width: 15px; height: 15px; vertical-align: 0; }
+.logo-mark .icon { width: 26px; height: 26px; vertical-align: 0; }
 .logo-text { color: var(--text-main); font-weight: 800; }
 
 /* ============================================================
