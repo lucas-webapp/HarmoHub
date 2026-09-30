@@ -725,6 +725,13 @@ function loadSongs() {
 }
 
 function saveSongs(songs) {
+    // SYNCHRO CLOUD (voir synchro-harmohub.js). Toute écriture de la bibliothèque passe ici : c'est le
+    // seul endroit où l'on connaît à la fois l'état d'avant et celui d'après, donc le seul où repérer
+    // ce qui a changé, ce qui a été supprimé et ce qui revient (Ctrl+Z). `typeof` parce que ce fichier
+    // se charge AVANT l'adaptateur, et que rien ne doit casser si la synchro est absente.
+    if (typeof cloudNoterChangement === 'function') {
+        try { cloudNoterChangement(loadSongs(), songs); } catch (e) { console.error('Suivi de synchro impossible :', e); }
+    }
     localStorage.setItem('harmohubSongs', JSON.stringify(songs));
 }
 
@@ -782,6 +789,9 @@ function loadFolders() {
     try { return JSON.parse(localStorage.getItem('harmohubFolders')) || []; } catch (e) { return []; }
 }
 function saveFolders(folders) {
+    if (typeof cloudNoterDossiers === 'function') {
+        try { cloudNoterDossiers(loadFolders(), folders); } catch (e) { console.error('Suivi de synchro impossible :', e); }
+    }
     localStorage.setItem('harmohubFolders', JSON.stringify(folders));
 }
 
@@ -10297,8 +10307,17 @@ class HarmoHubApp {
     // Résout avec 'ecraser', 'les-deux' ou 'ignorer'. Jamais rejetée : fermer revient à ne rien faire,
     // et ne rien faire est ici une réponse valable (c'était d'ailleurs l'ancien comportement par
     // défaut).
-    demanderResolutionImport(enConflit, existants, localDe) {
+    // `libelles` (optionnel) : le MÊME dialogue sert à la première connexion au cloud, avec d'autres
+    // mots — « Sur cet appareil / Dans le cloud » au lieu de « En place / Fichier », et « garder celle de
+    // cet appareil » au lieu d'« ignorer ». Les valeurs rendues restent 'ecraser', 'les-deux', 'ignorer' :
+    // seule la formulation change, pas le contrat. `annulation` dit ce que vaut une fermeture sans choix.
+    demanderResolutionImport(enConflit, existants, localDe, libelles) {
         const modal = document.getElementById('import-conflict-modal');
+        const L = Object.assign({
+            titre: 'Ce morceau existe déjà', place: 'En place', fichier: 'Fichier',
+            ecraser: 'Écraser', lesDeux: 'Garder les deux', ignorer: 'Ignorer', recent: 'la plus récente',
+            intro: null, aide: null, annulation: 'ignorer',
+        }, libelles || {});
         const tout = (quoi) => new Map(enConflit.map(s => [s.id, quoi]));
         // Repli si la fenêtre manque (page partielle, gabarit modifié) : on ne bloque pas un import
         // pour un défaut d'affichage, et on retombe sur le comportement le plus prudent — ne rien
@@ -10325,29 +10344,41 @@ class HarmoHubApp {
             const choisi = conseil(s);
             const radio = (val, libelle) =>
                 `<label class="import-conflict-choix"><input type="radio" name="ic-${escapeHtml(s.id)}" value="${val}"${val === choisi ? ' checked' : ''}> ${libelle}</label>`;
+            const cote = (libelle) => `<span class="import-conflict-label">${libelle}</span>`;
             return `
                 <div class="import-conflict-song" data-import-id="${escapeHtml(s.id)}">
                     <div class="import-conflict-name">${escapeHtml(s.name || 'Sans titre')}${
                         memeTitre ? '' : ` <span class="import-conflict-hint">↔ « ${escapeHtml(av.name || 'Sans titre')} » ici</span>`}</div>
                     <div class="import-conflict-side">
-                        <span class="import-conflict-label">En place</span>
+                        ${cote(L.place)}
                         <span>${decrire(av)} · ${formaterDateEnregistrement(av.savedAt)}${marque('place')}</span>
                     </div>
                     <div class="import-conflict-side">
-                        <span class="import-conflict-label">Fichier</span>
+                        ${cote(L.fichier)}
                         <span>${decrire(s)} · ${formaterDateEnregistrement(s.savedAt)}${marque('fichier')}</span>
                     </div>
                     <div class="import-conflict-choix-ligne">
-                        ${radio('ecraser', 'Écraser')}${radio('les-deux', 'Garder les deux')}${radio('ignorer', 'Ignorer')}
+                        ${radio('ecraser', L.ecraser)}${radio('les-deux', L.lesDeux)}${radio('ignorer', L.ignorer)}
                     </div>
                 </div>`;
         };
 
         const n = enConflit.length;
+        const intro = L.intro ? L.intro(n)
+            : `${n === 1 ? 'Ce morceau est' : `Ces ${n} morceaux sont`} déjà dans ta bibliothèque.`;
+        const aide = L.aide != null ? L.aide
+            : '<strong>Écraser</strong> remplace la version en place. <strong>Garder les deux</strong> ajoute une copie renommée. <strong>Ignorer</strong> ne touche à rien.';
+        document.getElementById('import-conflict-title').textContent = L.titre;
         document.getElementById('import-conflict-body').innerHTML =
-            `<p>${n === 1 ? 'Ce morceau est' : `Ces ${n} morceaux sont`} déjà dans ta bibliothèque. Voici ce qui distingue les deux versions — la plus récente est déjà cochée.</p>
+            `<p>${intro} Voici ce qui distingue les deux versions — la plus récente est déjà cochée.</p>
              ${enConflit.map(ligne).join('')}
-             <p class="import-conflict-aide"><strong>Écraser</strong> remplace la version en place. <strong>Garder les deux</strong> ajoute une copie renommée. <strong>Ignorer</strong> ne touche à rien.</p>`;
+             <p class="import-conflict-aide">${aide}</p>`;
+        // Les boutons de raccourci portent les mêmes mots que les choix : remis à leur texte d'origine à
+        // la fermeture, pour que l'import d'un fichier ne hérite pas du vocabulaire du cloud.
+        const raccourcis = { 'import-conflict-recent': L.recent, 'import-conflict-overwrite': L.ecraser.toLowerCase(),
+            'import-conflict-both': L.lesDeux.toLowerCase(), 'import-conflict-skip': L.ignorer.toLowerCase() };
+        const defauts = {};
+        Object.keys(raccourcis).forEach(id => { const b = document.getElementById(id); if (b) { defauts[id] = b.textContent; b.textContent = raccourcis[id]; } });
 
         modal.hidden = false;
         this.lockBodyScroll();
@@ -10360,12 +10391,14 @@ class HarmoHubApp {
                 modal.hidden = true;
                 this.unlockBodyScroll();
                 this._importConflictCancel = null;
+                document.getElementById('import-conflict-title').textContent = 'Ce morceau existe déjà';
+                Object.keys(defauts).forEach(id => { const b = document.getElementById(id); if (b) b.textContent = defauts[id]; });
                 resolve(reponse);
             };
             // Le clic sur le fond passe par le gestionnaire déjà câblé dans setupEventListeners, qui
             // appelle ce rappel-ci — plutôt qu'un second écouteur posé ici, qui ferait deux chemins
             // pour un même geste.
-            this._importConflictCancel = () => fermer(tout('ignorer'));
+            this._importConflictCancel = () => fermer(tout(L.annulation));
             // Les quatre raccourcis posent la même réponse PARTOUT et appliquent aussitôt : le cas
             // courant reste à un clic, comme avant que la décision devienne individuelle.
             document.getElementById('import-conflict-recent').onclick = () => fermer(new Map(enConflit.map(s => [s.id, conseil(s)])));
@@ -10373,7 +10406,7 @@ class HarmoHubApp {
             document.getElementById('import-conflict-both').onclick = () => fermer(tout('les-deux'));
             document.getElementById('import-conflict-skip').onclick = () => fermer(tout('ignorer'));
             document.getElementById('import-conflict-apply').onclick = () => fermer(lu());
-            document.getElementById('import-conflict-cancel').onclick = () => fermer(tout('ignorer'));
+            document.getElementById('import-conflict-cancel').onclick = () => fermer(tout(L.annulation));
         });
     }
 
@@ -12114,15 +12147,25 @@ class HarmoHubApp {
             this.marquerSauvegardeFaite();
             return;
         }
-        if (jours < 5) return;
-        try {
-            const aujourdhui = new Date().toDateString();
-            if (localStorage.getItem(CLE_DERNIER_RAPPEL) === aujourdhui) return; // une fois par jour, pas plus
-            localStorage.setItem(CLE_DERNIER_RAPPEL, aujourdhui);
-        } catch (e) { /* sans stockage, on rappelle quand même : mieux vaut insister que se taire */ }
-        setTimeout(() => this.flashHint(
-            `Dernière sauvegarde sur disque il y a ${jours} jours — pense à exporter, Safari efface le stockage au bout de 7 jours sans visite`,
-            8000), 1500);
+        // Le seuil et le ton dépendent du cloud, qui ne répond pas encore au démarrage : on attend donc
+        // pour décider. Sans compte connecté, rien n'a changé — cinq jours, et Safari qui efface au bout
+        // de sept. Avec le cloud, ce danger-là n'existe plus : la copie sur disque redevient ce que
+        // l'utilisateur en a fait, « de temps en temps », un filet contre un compte supprimé ou une
+        // erreur répliquée partout.
+        setTimeout(() => {
+            const cloudOk = typeof SYNCHRO !== 'undefined' && SYNCHRO && SYNCHRO.etat
+                && SYNCHRO.etat.utilisateur && SYNCHRO.etat.statut === 'synced';
+            if (jours < (cloudOk ? 30 : 5)) return;
+            try {
+                const aujourdhui = new Date().toDateString();
+                if (localStorage.getItem(CLE_DERNIER_RAPPEL) === aujourdhui) return; // une fois par jour, pas plus
+                localStorage.setItem(CLE_DERNIER_RAPPEL, aujourdhui);
+            } catch (e) { /* sans stockage, on rappelle quand même : mieux vaut insister que se taire */ }
+            this.flashHint(cloudOk
+                ? `Ta bibliothèque est protégée par le cloud. Dernière copie sur disque il y a ${jours} jours — une sauvegarde de temps en temps reste une bonne idée`
+                : `Dernière sauvegarde sur disque il y a ${jours} jours — pense à exporter, Safari efface le stockage au bout de 7 jours sans visite`,
+                8000);
+        }, 4000);
     }
 
     // ---------- LE RAPPEL EN PARTANT ----------

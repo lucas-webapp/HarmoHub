@@ -4078,3 +4078,89 @@ la rotation des versions ne se pose pas. Si le mode simple devait l'emporter à 
 simplification à envisager — pas avant.
 
 `tests/mode_simple_test.js` : 17 contrôles.
+
+## Synchro cloud Firebase (2026-09-30)
+
+### La décision
+
+« L'enregistrement me semble trop aléatoire sur HarmoHub et TabHub : on va connecter tous les documents
+à mon Firebase, comme TrainHub. Conserve des exports/imports de secours, de temps en temps je
+conserverai mes données sur un disque. » Mécanique reprise de TrainHub : même projet partagé
+(`lucas-apps`), même chemin `users/{uid}/apps/{slug}`, même connexion Google par fenêtre, même SDK
+« compat » chargé par balises `<script>` (ce projet n'a aucune chaîne de build).
+
+### Trois choses qui diffèrent de TrainHub, et pourquoi
+
+**1. Fusion par morceau, pas remplacement global.** TrainHub a UN état qu'il remplace en bloc par le plus
+récent. Une bibliothèque modifiée depuis Chrome, Safari et l'app du Dock se FUSIONNE : le remplacement
+global ferait perdre à chaque synchro les modifications de l'appareil « perdant » — exactement ce que
+l'utilisateur redoute. Règle : morceau par morceau, le plus récent gagne ; et **le perdant d'une édition
+concurrente est rangé dans Archives, jamais jeté**.
+
+**2. Chaque envoi est une transaction** : relire le cloud, fusionner avec le local, écrire. Deux appareils
+qui envoient en même temps ne s'écrasent plus.
+
+**3. L'état est toujours dit.** Six états de pastille (synchronisé, envoi, *modifications pas encore
+envoyées*, hors ligne, erreur, trop volumineux), chacun avec son libellé. Le plus important est le
+troisième : c'est lui qui répond à « est-ce bien parti ? ».
+
+### Ce qui est synchronisé, et ce qui ne l'est pas
+
+Les morceaux, les dossiers, et la trace des suppressions. **Pas** le morceau en cours d'édition ni le
+morceau ouvert (états par appareil : les synchroniser ferait changer de morceau sous les doigts de
+quelqu'un qui travaille sur un autre écran), **ni les réglages** — à reconsidérer plutôt qu'à sous-entendre.
+
+### `syncAt`, à côté de `savedAt`
+
+`savedAt` est la date d'enregistrement AFFICHÉE ; `moveSongToFolder` ne la touche pas, et pourtant un
+déplacement doit voyager. `syncAt` est posée à toute modification et c'est elle qui arbitre. La date
+affichée reste celle du dernier vrai enregistrement.
+
+### Chaque morceau est stocké comme une chaîne JSON
+
+Firestore refuse les tableaux imbriqués et `undefined`. Un morceau d'aujourd'hui n'en contient pas (le
+motif du séquenceur est sérialisé en texte — vérifié), mais un champ ajouté demain pourrait en
+contenir, et l'écriture échouerait chez l'utilisateur, sans prévenir. Une chaîne ne peut pas échouer.
+Mesuré : ~8,6 Ko par morceau courant, soit ~120 morceaux avant le plafond de 1 Mio par document ; la
+pastille prévient à 80 %, et le recours est la sauvegarde sur disque.
+
+### Les défauts que le banc a trouvés dans mon propre code
+
+**Une boucle d'envoi infinie.** `modifsEnAttente` n'était jamais remis à zéro au *début* d'un envoi, donc
+« il reste des modifications » était toujours vrai à la fin et la synchro **se renvoyait elle-même,
+une écriture toutes les 1,5 s**. Mon contrôle « une modification = une écriture » passait — parce qu'il
+lisait le compteur à 2,6 s, juste avant la deuxième. **Un banc qui mesure trop tôt ne voit pas ce qu'il
+cherche** : il lit désormais encore cinq secondes plus tard.
+
+**Le perdant d'une édition concurrente n'était protégé que d'un côté.** Quand la version d'ici perdait,
+elle était rangée ; quand elle gagnait, celle de l'autre appareil partait sans laisser de trace. Trouvé
+en relisant la fusion, avant tout test.
+
+**L'avertissement « 80 % du plafond » était posé puis effacé** par le `dire('synced')` de la fin de
+connexion : on ne l'aurait jamais vu. « Synchronisé » est annoncé depuis quatre endroits.
+
+**Pas de reprise après échec.** Un échec passager laissait les modifications en attente jusqu'à la
+*prochaine modification* — des heures, potentiellement : c'est le « trop aléatoire » signalé. Reprise
+automatique avec recul (5 s, 10 s… 5 min), l'évènement `online` passant devant.
+
+### Ce qu'on ne peut PAS garantir, et il faut le dire
+
+Le banc tourne contre un **faux Firebase** qui reproduit les refus de FORMAT du vrai (undefined, tableaux
+imbriqués, > 1 Mio) — pas ses refus d'AUTORISATION. Ne sont donc vérifiés que sur de vrais appareils :
+les **règles de sécurité Firestore**, les **domaines autorisés**, et la **fenêtre Google sur Safari et
+dans l'app du Dock** (les fenêtres surgissantes y sont connues pour poser problème — TrainHub « marche
+bien » selon l'utilisateur, mais on ne l'a pas vérifié ici).
+
+Limites connues, acceptées : **l'horloge des appareils arbitre** (deux appareils très décalés peuvent se
+tromper sur « le plus récent » — le perdant est rangé, pas perdu) ; **un dossier supprimé peut réapparaître
+vide** si sa trace est plus ancienne que sa recréation.
+
+**Une limite que j'avais d'abord classée « acceptée », et à tort** : enregistrer un morceau ouvert alors
+qu'une version plus récente est arrivée d'ailleurs écrasait cette dernière sans trace (la synchro
+prenait la version reçue pour celle que l'utilisateur avait sous les yeux, puisqu'elle figurait déjà
+dans l'historique de l'appareil). C'est exactement le cas redouté — « des morceaux modifiés ailleurs ne
+doivent pas être écrasés ». La version arrivée est désormais rangée dans Archives *au moment où elle
+arrive*, donc avant tout enregistrement possible. Repéré en relisant ma propre documentation : écrire
+une limite noir sur blanc oblige à se demander si on l'accepterait vraiment.
+
+`tests/synchro_cloud_test.js` : 97 contrôles, plus le faux Firebase dans `tests/_firebase_faux.js`.

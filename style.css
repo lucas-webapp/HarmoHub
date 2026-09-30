@@ -6400,3 +6400,25 @@ body.impression-structure .struct-row { break-inside: avoid; }
 .export-full-type input { cursor: pointer; flex: 0 0 auto; }
 .export-full-cout { font-size: var(--fs-xs); color: var(--text-muted); }
 .export-full-etat { font-size: var(--fs-xs); margin-top: 8px; min-height: 1.2em; }
+
+/* ---------- Synchro cloud : connexion et pastille d'état ---------- */
+/* Retour utilisateur : « l'enregistrement me semble trop aléatoire ». La pastille est TOUJOURS visible
+   dès qu'un compte est connecté : on ne doit pas avoir à ouvrir une fenêtre pour savoir si le travail est
+   parti. Six états, six couleurs, et chacun a un libellé précis au survol (voir LIBELLES dans
+   synchro-cloud.js). Le plus important est « pending » : des modifications existent qui ne sont pas
+   encore au cloud — c'est lui qui répond à « est-ce que c'est bien parti ? ». */
+.cloud-area { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.account-info { display: inline-flex; align-items: center; gap: 4px; }
+.account-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.cloud-btn { width: 26px; height: 26px; }
+.sync-status { font-size: 12px; line-height: 1; color: var(--text-muted); transition: color .2s ease; cursor: help; }
+.sync-status.synced { color: #79c99a; }
+.sync-status.syncing { color: #6aa9ff; }
+.sync-status.pending { color: #e0a64a; }
+.sync-status.offline { color: var(--text-muted); }
+.sync-status.error, .sync-status.toolarge { color: #ff6b6b; }
+.sync-status.syncing { animation: sync-pulse 1s ease-in-out infinite; }
+@keyframes sync-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .sync-status.syncing { animation: none; } }
+/* Téléphone : cible tactile confortable, comme les autres boutons de la barre (voir pointer: coarse). */
+@media (pointer: coarse) { .cloud-btn { min-width: 32px; min-height: 32px; } }

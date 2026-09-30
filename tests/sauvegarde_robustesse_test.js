@@ -15,7 +15,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('robustesse des sauvegardes');
 const bruit = require('./_harness').estBruitReseau;
 
-plan(16);
+plan(17);
 
 (async () => {
     const navigateur = await chromium.launch();
@@ -70,9 +70,32 @@ plan(16);
         localStorage.setItem('harmohub_derniere_sauvegarde', String(Date.now() - 9 * 86400000));
         window.app.surveillerFraicheurSauvegarde();               // 9 jours : un rappel
         window.app.surveillerFraicheurSauvegarde();               // aussitôt : pas un second
-        return new Promise((r) => setTimeout(() => r(compte.vus), 2200));
+        // 4,6 s et non 2,2 : le rappel attend 4 s avant de décider, pour laisser à la connexion cloud le
+        // temps de répondre — son seuil et son ton en dépendent (voir surveillerFraicheurSauvegarde).
+        return new Promise((r) => setTimeout(() => r(compte.vus), 4600));
     });
     check(rappels === 1, `un seul rappel : rien à deux jours, un à neuf, et pas de second dans la journée (${rappels})`);
+
+    // AVEC LE CLOUD : Safari n'efface plus rien sous sept jours, donc l'urgence tombe. Le rappel de
+    // copie sur disque reste — l'utilisateur le veut, « de temps en temps » — mais au bout de trente
+    // jours, et sur un autre ton.
+    const avecCloud = await page.evaluate(() => {
+        const vus = [];
+        const vrai = window.app.flashHint.bind(window.app);
+        window.app.flashHint = (t) => { if (/copie sur disque|Dernière sauvegarde/.test(t)) vus.push(t); return vrai(t); };
+        SYNCHRO.etat.utilisateur = { uid: 'x' }; SYNCHRO.etat.statut = 'synced';
+        localStorage.setItem('harmohubSongs', JSON.stringify([{ id: 'x', name: 'A', savedAt: 1, sections: [] }]));
+        const essayer = (jours) => {
+            localStorage.removeItem('harmohub_dernier_rappel_sauvegarde');
+            localStorage.setItem('harmohub_derniere_sauvegarde', String(Date.now() - jours * 86400000));
+            window.app.surveillerFraicheurSauvegarde();
+        };
+        essayer(9);      // avec le cloud : rien
+        essayer(40);     // au-delà de trente jours : un rappel d'un autre ton
+        return new Promise((r) => setTimeout(() => { SYNCHRO.etat.utilisateur = null; SYNCHRO.etat.statut = null; r(vus); }, 4700));
+    });
+    check(avecCloud.length === 1 && /protégée par le cloud/.test(avecCloud[0]),
+        `cloud actif : rien à neuf jours, un rappel d'un autre ton à quarante — « ${(avecCloud[0] || '').slice(0, 70)} »`);
 
     const sansMorceaux = await page.evaluate(() => {
         localStorage.setItem('harmohubSongs', '[]');
