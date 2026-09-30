@@ -31,3 +31,20 @@ identifiant de tâche.
 
 Comptez large sur les délais : un `goto` + `reload` coûte ~26 s dans un conteneur lent, et certains
 bancs en font deux (ordinateur puis téléphone).
+
+## Le nuage (Firebase)
+
+`nuage_test.js` — HarmoHub + nuage, dans un vrai navigateur, avec un Firebase **injecté en mémoire**
+(`_firebase_factice.js`) et le CDN de Google coupé (sur une machine qui a du réseau, le vrai SDK
+écraserait le faux). Il couvre : la connexion depuis la fenêtre, la pastille, l'**enregistrement
+automatique** du morceau ouvert (1,5 s, un seul envoi pour six modifications rapprochées, avant un
+changement de morceau, à la fermeture de la page, réglable), une garde structurelle (le drapeau « modifié »
+n'est posé qu'à un seul endroit), les morceaux et dossiers venus d'un autre appareil, la mise à jour du
+morceau ouvert — sauf pendant qu'on le modifie, et la version de l'autre appareil alors conservée —, la
+suppression (le contenu reste dans le nuage), la suppression de masse refusée, la sauvegarde de secours et
+l'import de bibliothèque qui repart dans le nuage, et l'application sans Firebase. Douze sabotages de la
+source, tous détectés ; le dernier ne l'était pas d'abord (le scénario ne vérifiait que le tampon, pas ce que
+la garde protège vraiment : la version distante).
+
+Le moteur (`nuage.js`) a son propre banc, côté TabHub (`nuage_moteur_test.js`, sous Node, deux appareils).
+Voir `docs/nuage.md`.

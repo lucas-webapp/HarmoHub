@@ -6400,3 +6400,35 @@ body.impression-structure .struct-row { break-inside: avoid; }
 .export-full-type input { cursor: pointer; flex: 0 0 auto; }
 .export-full-cout { font-size: var(--fs-xs); color: var(--text-muted); }
 .export-full-etat { font-size: var(--fs-xs); margin-top: 8px; min-height: 1.2em; }
+
+
+/* ============================================================
+   NUAGE (Firebase) — bouton, pastille d'état, fenêtre « Nuage et sauvegarde »
+   ============================================================ */
+/* La pastille ne s'affiche qu'une fois connecté : une appli qu'on n'a pas reliée au nuage n'a pas à
+   montrer une pastille grise qui inquiète. */
+.cloud-btn { position: relative; }
+.cloud-dot { position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-muted); border: 1.5px solid var(--card-bg); }
+.cloud-dot[hidden] { display: none; }
+.cloud-dot.synced { background: var(--accent); }
+.cloud-dot.syncing { background: #ffb74d; }
+.cloud-dot.hors-ligne { background: var(--text-muted); }
+.cloud-dot.error { background: #ff6b6b; }
+.cloud-modal { max-width: 520px; }
+.cloud-content { padding: 4px 2px 10px; }
+.cloud-note { margin: 0 0 12px; color: var(--text-muted); font-size: 0.85rem; line-height: 1.5; }
+.cloud-note.alerte { color: #ff9a9a; }
+.cloud-account { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 16px; }
+.cloud-name { font-weight: 700; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px; }
+.cloud-btn-main, .cloud-btn-soft { font: inherit; border-radius: 8px; padding: 9px 14px; cursor: pointer; min-height: 40px; }
+.cloud-btn-main { background: var(--accent); color: #06220f; border: 1px solid var(--accent); font-weight: 700; }
+.cloud-btn-main:hover { background: var(--accent-hover); }
+.cloud-btn-soft { background: transparent; color: var(--text-main); border: 1px solid var(--border); }
+.cloud-btn-soft:hover { border-color: var(--text-muted); }
+.cloud-btn-main[hidden], .cloud-btn-soft[hidden], .cloud-name[hidden] { display: none; }
+.cloud-check { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 18px; color: var(--text-main); cursor: pointer; }
+.cloud-check input { margin-top: 3px; width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+.cloud-check small { display: block; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+.cloud-title { margin: 6px 0 6px; font-size: 0.95rem; color: var(--text-main); }
+.cloud-backup { display: flex; gap: 10px; flex-wrap: wrap; }

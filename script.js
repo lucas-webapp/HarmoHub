@@ -701,6 +701,16 @@ function loadProgressionSections() {
 // autonomes ci-dessous (appelées depuis de très nombreux endroits) doivent pouvoir la modifier sans
 // dépendre de l'instance HarmoHubApp (pas encore construite au tout premier appel).
 let hasUnsavedChanges = false;
+
+// TOUT ENDROIT QUI MODIFIE LE MORCEAU OUVERT PASSE PAR ICI (une vingtaine de gestes : accords, tempo,
+// tonalité, instrument…). Avant, ils posaient simplement le drapeau ci-dessus, et rien n'écrivait le
+// morceau tant qu'on n'appuyait pas sur Enregistrer — d'où un travail perdu à la première distraction
+// (retour utilisateur : « l'enregistrement me semble trop aléatoire »). Le drapeau reste, et programme
+// maintenant l'enregistrement automatique (voir HarmoHubApp#programmerEnregistrementAuto).
+function marquerModifie() {
+    hasUnsavedChanges = true;
+    if (window.app && typeof window.app.programmerEnregistrementAuto === 'function') window.app.programmerEnregistrementAuto();
+}
 // Repères de sauvegarde (voir surveillerFraicheurSauvegarde / rappelerAvantDePartir).
 const CLE_DERNIERE_SAUVEGARDE = 'harmohub_derniere_sauvegarde';
 const CLE_DERNIER_RAPPEL = 'harmohub_dernier_rappel_sauvegarde';
@@ -710,7 +720,7 @@ const CLE_PARTI_MODIFIE = 'harmohub_parti_sans_enregistrer';
 // voir newSong/loadSong, les deux seuls appelants à passer false.
 function saveProgressionSections(sections, markDirty = true) {
     localStorage.setItem('myProgression', JSON.stringify({ sections }));
-    if (markDirty) hasUnsavedChanges = true;
+    if (markDirty) marquerModifie();
 }
 
 // ---------- Morceaux (plusieurs chansons enregistrées séparément) ----------
@@ -724,8 +734,15 @@ function loadSongs() {
     try { return JSON.parse(localStorage.getItem('harmohubSongs')) || []; } catch (e) { return []; }
 }
 
+// Vrai PENDANT que le nuage écrit dans la bibliothèque (un morceau reçu d'un autre appareil) : ce
+// n'est pas une modification de l'utilisateur, et la renvoyer au nuage serait un écho.
+let nuageEcritLocalement = false;
+
 function saveSongs(songs) {
     localStorage.setItem('harmohubSongs', JSON.stringify(songs));
+    // Le nuage suit la bibliothèque, quel que soit le geste qui l'a changée : enregistrer, renommer,
+    // déplacer, supprimer, importer, annuler une suppression. Une seule porte, donc aucun geste oublié.
+    if (!nuageEcritLocalement && window.app && window.app.nuage) window.app.nuage.changement();
 }
 
 // Date de dernière modification d'un morceau, en clair. Vivait dans renderFilesPanel ; hissée ici
@@ -783,6 +800,7 @@ function loadFolders() {
 }
 function saveFolders(folders) {
     localStorage.setItem('harmohubFolders', JSON.stringify(folders));
+    if (!nuageEcritLocalement && window.app && window.app.nuage) window.app.nuage.changement();
 }
 
 // Options <option> pour un <select> de dossier (« Sans dossier » + dossiers existants triés + « +
@@ -3751,6 +3769,14 @@ class HarmoHubApp {
         // enregistrées (voir hasUnsavedChanges/saveCurrentSong) — les navigateurs modernes ignorent le
         // message personnalisé et affichent le leur, mais returnValue déclenche bien la confirmation.
         window.addEventListener('beforeunload', (e) => {
+            // L'enregistrement automatique part d'abord : fermer à la 1re seconde ne coûte rien.
+            this.enregistrerAuto();
+            // Un envoi au nuage EN COURS ou en échec : la copie du nuage n'est pas celle qu'on croit.
+            if (this.nuage && this.nuage.etat().connecte && this.nuage.enAttente()) {
+                e.preventDefault();
+                e.returnValue = '';
+                return;
+            }
             if (!hasUnsavedChanges) return;
             e.preventDefault();
             e.returnValue = '';
@@ -3833,7 +3859,7 @@ class HarmoHubApp {
         // plus l'accord ouvert mais le morceau entier.
         document.getElementById('instrument').onchange = (e) => {
             this.songInstrument = e.target.value;
-            hasUnsavedChanges = true;
+            marquerModifie();
             // Fait entendre le nouveau son tout de suite, qu'on modifie un accord déjà posé OU qu'on
             // soit en train d'en composer un nouveau pas encore ajouté (retour utilisateur : changer de
             // son restait muet dans les deux cas, contrairement à root/qualité/etc. — voir refreshPreview,
@@ -3925,7 +3951,7 @@ class HarmoHubApp {
         // 'change' (relâchement du curseur), pas 'input' (à chaque pixel glissé) : un changement de
         // tempo redémarre toute la lecture en cours (voir liveRestartForGlobalChange), on ne veut pas
         // le redéclencher en rafale pendant qu'on fait encore glisser le curseur.
-        document.getElementById('bpm').addEventListener('change', () => { this.commitGlobalSettingUndo(); hasUnsavedChanges = true; this.liveRestartForGlobalChange(); });
+        document.getElementById('bpm').addEventListener('change', () => { this.commitGlobalSettingUndo(); marquerModifie(); this.liveRestartForGlobalChange(); });
 
         // Valeur du tempo éditable directement au clavier (clic dessus, taper une valeur, Entrée ou
         // clic ailleurs pour valider) — resynchronisée avec le curseur, dans les mêmes bornes (60-240).
@@ -3939,7 +3965,7 @@ class HarmoHubApp {
             v = Math.min(240, Math.max(60, v));
             bpmValInput.value = v;
             bpmSlider.value = v;
-            hasUnsavedChanges = true;
+            marquerModifie();
             this.liveRestartForGlobalChange();
         });
 
@@ -3947,17 +3973,17 @@ class HarmoHubApp {
 
         document.getElementById('global-root').onchange = () => {
             this.commitGlobalSettingUndo();
-            hasUnsavedChanges = true;
+            marquerModifie();
             this.updateKeyLabels(); this.loadProgression(); this.refreshPreview();
         };
         document.getElementById('global-mode').onchange = () => {
             this.commitGlobalSettingUndo();
-            hasUnsavedChanges = true;
+            marquerModifie();
             this.updateKeyLabels(); this.loadProgression(); this.refreshPreview();
         };
         document.getElementById('time-sig').onchange = () => {
             this.commitGlobalSettingUndo();
-            hasUnsavedChanges = true;
+            marquerModifie();
             this.updateDurationOptions();
             this.loadProgression();
             this.refreshPreview();
@@ -3970,7 +3996,7 @@ class HarmoHubApp {
         // le redémarrage en direct d'une lecture en cours (voir liveRestartForGlobalChange).
         document.getElementById('groove').onchange = () => {
             this.commitGlobalSettingUndo();
-            hasUnsavedChanges = true;
+            marquerModifie();
             this.liveRestartForGlobalChange();
             // Le séquenceur affiche le groove en cours dans le coin de sa règle (voir .seq-groove-tag) :
             // sans ce rendu, le repère n'apparaissait/ne disparaissait qu'au prochain geste sur une
@@ -4154,6 +4180,7 @@ class HarmoHubApp {
         this._cabler('files-overlay', 'click', (e) => {
             if (e.target.id === 'files-overlay') this.closeFilesWindow();
         });
+        this.brancherNuage();
         document.getElementById('settings-overlay').addEventListener('click', (e) => {
             if (e.target.id === 'settings-overlay') this.closeSettings(); // clic sur le fond, pas la fenêtre
         });
@@ -5576,7 +5603,7 @@ class HarmoHubApp {
             data.guitarOverride = override;
             data.guitarLock = shape;
             saveProgressionSections(sections);
-            hasUnsavedChanges = true;
+            marquerModifie();
             const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
             this.guitarKey = null;
             this.ensureGuitarDiagram(guitarChordFor(chord, data.guitarOverride), false);
@@ -5671,7 +5698,7 @@ class HarmoHubApp {
             this.pushUndo(sections);
             data.guitarLock = shownIsLocked ? null : currentShape;
             saveProgressionSections(sections);
-            hasUnsavedChanges = true;
+            marquerModifie();
             const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
             this.guitarKey = null;
             // Verrouille le doigté du diagramme réellement affiché — l'accord de substitution
@@ -5773,7 +5800,7 @@ class HarmoHubApp {
             data.guitarOverride = override;
             data.guitarLock = null;
             saveProgressionSections(sections);
-            hasUnsavedChanges = true;
+            marquerModifie();
             const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
             this.guitarKey = null;
             this.ensureGuitarDiagram(guitarChordFor(chord, data.guitarOverride), false);
@@ -8463,7 +8490,7 @@ class HarmoHubApp {
 
         const rootSel = document.getElementById('global-root');
         rootSel.value = NOTES[(NOTES.indexOf(rootSel.value) + semitones + 1200) % 12];
-        hasUnsavedChanges = true;
+        marquerModifie();
         this.updateKeyLabels();
 
         this.loadProgression();
@@ -8482,6 +8509,9 @@ class HarmoHubApp {
     // Le beforeunload natif (fermeture RÉELLE de l'onglet/page) reste inchangé à côté : les
     // navigateurs n'autorisent aucun bouton personnalisé sur cette boîte-là.
     confirmDiscardUnsavedIfNeeded() {
+        // L'enregistrement automatique attend 1,5 s : si on change de morceau avant, on le fait partir
+        // tout de suite plutôt que de demander « enregistrer ? » pour ce qui s'enregistrait déjà.
+        this.enregistrerAuto();
         if (!hasUnsavedChanges) return Promise.resolve(true);
         return this.openUnsavedModal();
     }
@@ -8860,10 +8890,11 @@ class HarmoHubApp {
     // (voir hasUnsavedChanges), c'est désormais le SEUL moment où le morceau enregistré change.
     // Si aucun morceau n'est encore ouvert, il faut bien lui donner un nom une première fois :
     // se comporte alors comme « Enregistrer sous » (voir saveCurrentAsSong).
-    saveCurrentSong() {
-        const id = getCurrentSongId();
-        if (!id) { this.saveCurrentAsSong(); return; }
-        syncCurrentSong({
+    /** Ce que « enregistrer » recopie du tampon de travail dans le morceau — UN seul endroit, partagé par
+     *  l'enregistrement demandé (saveCurrentSong) et l'enregistrement automatique (enregistrerAuto) :
+     *  deux listes de champs finiraient par ne plus enregistrer la même chose. */
+    etatPourEnregistrer() {
+        return {
             sections: loadProgressionSections(),
             root: document.getElementById('global-root').value,
             mode: document.getElementById('global-mode').value,
@@ -8872,7 +8903,14 @@ class HarmoHubApp {
             bpm: parseInt(document.getElementById('bpm').value),
             instrumentMorceau: this.songInstrument,
             ...this.zoomSettingsForSong(),
-        });
+        };
+    }
+
+    saveCurrentSong() {
+        const id = getCurrentSongId();
+        if (!id) { this.saveCurrentAsSong(); return; }
+        clearTimeout(this._minuterieAuto);
+        syncCurrentSong(this.etatPourEnregistrer());
         hasUnsavedChanges = false;
         this.refreshSongList();
         this.flashHint('Morceau enregistré');
@@ -9255,6 +9293,186 @@ class HarmoHubApp {
         setTimeout(() => { if (document.getElementById('structure-print-zone')) apres(); }, 3000);
     }
 
+    // ==================================================================================================
+    // LE NUAGE (Firebase) — le moteur est dans nuage.js, ici seulement ce qui est propre à HarmoHub
+    // ==================================================================================================
+
+    autoEnregistrementActif() { return localStorage.getItem('harmohubAutoSave') !== '0'; }
+
+    /** Une modification du morceau ouvert vient d'avoir lieu : on l'enregistrera dans 1,5 s, quand la
+     *  frappe s'arrête (voir marquerModifie). */
+    programmerEnregistrementAuto() {
+        if (!this.autoEnregistrementActif() || !getCurrentSongId()) return;
+        clearTimeout(this._minuterieAuto);
+        this._minuterieAuto = setTimeout(() => this.enregistrerAuto(), 1500);
+    }
+
+    /** Recopie le tampon de travail dans le morceau ouvert — sans message, sans écrire sur le disque (le
+     *  fichier suit toujours le geste Enregistrer, voir suivreSurLeDisque). Sans effet s'il n'y a rien à
+     *  enregistrer, ou pas de morceau ouvert : un travail jamais nommé attend qu'on lui donne un nom. */
+    enregistrerAuto() {
+        clearTimeout(this._minuterieAuto);
+        if (!hasUnsavedChanges || !getCurrentSongId() || !this.autoEnregistrementActif()) return;
+        syncCurrentSong(this.etatPourEnregistrer());
+        hasUnsavedChanges = false;
+        this.refreshSongList();
+    }
+
+    demarrerNuage() {
+        if (!window.Nuage) { this.nuage = null; return; }
+        let copies = 0;
+        this._nuageTouches = new Set();
+        this.nuage = window.Nuage.creer({
+            slug: window.FIREBASE_APP_SLUG || 'harmohub',
+            config: window.FIREBASE_CONFIG,
+            adaptateur: {
+                // HarmoHub A une bibliothèque locale : tout ce que contient le nuage y est recopié, et
+                // retirer un morceau de la liste (le supprimer) le supprime aussi du nuage.
+                miroirComplet: true,
+                suppressionParDisparition: true,
+                lister: () => loadSongs().filter(s => s && s.id).map(s => ({ id: s.id, titre: s.name || 'Sans titre', donnees: s })),
+                lire: (id) => loadSongs().find(s => s.id === id) ?? null,
+                ecrire: (id, donnees) => {
+                    const songs = loadSongs();
+                    const i = songs.findIndex(s => s.id === id);
+                    if (i >= 0) songs[i] = donnees; else songs.push(donnees);
+                    nuageEcritLocalement = true;
+                    try { saveSongs(songs); } finally { nuageEcritLocalement = false; }
+                    this._nuageTouches.add(id);
+                },
+                retirer: (id) => {
+                    nuageEcritLocalement = true;
+                    try { saveSongs(loadSongs().filter(s => s.id !== id)); } finally { nuageEcritLocalement = false; }
+                    if (getCurrentSongId() === id) setCurrentSongId(null);
+                    this._nuageTouches.add(id);
+                },
+                // La date d'enregistrement n'est pas une modification de CONTENU : sans cette exclusion,
+                // enregistrer deux fois de suite sans rien changer enverrait deux fois le même morceau.
+                empreinte: (s) => JSON.stringify({ ...s, savedAt: undefined }),
+                maj: (s) => s.savedAt,
+                // Le morceau qu'on est en train de modifier n'est pas remplacé en douce sous les doigts.
+                occupe: (id) => id === getCurrentSongId() && hasUnsavedChanges,
+                nouvelleCopie: (donnees, suffixe) => {
+                    const id = 'song_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + (++copies);
+                    const nom = `${donnees.name || 'Sans titre'}${suffixe}`;
+                    return { id, titre: nom, donnees: { ...donnees, id, name: nom, savedAt: Date.now() } };
+                },
+                // Les dossiers sont une liste de noms à part (voir loadFolders) : on les fusionne, sans
+                // jamais en retirer un — un dossier supprimé ailleurs réapparaît vide plutôt que de
+                // faire disparaître des morceaux.
+                metaLire: () => ({ dossiers: loadFolders() }),
+                metaAppliquer: (meta) => {
+                    const distants = Array.isArray(meta?.dossiers) ? meta.dossiers.filter(d => typeof d === 'string') : [];
+                    const locaux = loadFolders();
+                    const manquants = distants.filter(d => !locaux.includes(d));
+                    if (!manquants.length) return;
+                    nuageEcritLocalement = true;
+                    try { saveFolders([...locaux, ...manquants]); } finally { nuageEcritLocalement = false; }
+                    this._nuageTouches.add('__dossiers__');
+                },
+                // UN rafraîchissement par lot reçu, et le morceau ouvert rechargé s'il a été remplacé.
+                apres: () => {
+                    const ouvert = getCurrentSongId();
+                    const remplace = ouvert && this._nuageTouches.has(ouvert) && !hasUnsavedChanges;
+                    this._nuageTouches.clear();
+                    this.refreshSongList();
+                    if (this.filesOpen) this.renderFilesPanel();
+                    if (remplace) this.loadSong(ouvert);
+                },
+            },
+            surEtat: (mode, message) => this.afficherEtatNuage(mode, message),
+            surCompte: (utilisateur) => this.afficherCompteNuage(utilisateur),
+        });
+        this.nuage.demarrer();
+    }
+
+    afficherEtatNuage(mode, message) {
+        const point = document.getElementById('cloud-dot');
+        if (point) {
+            point.hidden = !this.nuage?.etat().connecte;
+            point.classList.remove('synced', 'syncing', 'error', 'hors-ligne');
+            if (mode) point.classList.add(mode);
+        }
+        const bouton = document.getElementById('open-cloud');
+        if (bouton) {
+            bouton.title = ({
+                synced: 'Nuage : tout est enregistré',
+                syncing: 'Nuage : enregistrement en cours…',
+                'hors-ligne': 'Nuage : hors ligne — les modifications partiront au retour du réseau',
+                error: `Nuage : ${message || 'erreur'}`,
+            })[mode] || 'Nuage : enregistrement automatique';
+        }
+        const note = document.getElementById('cloud-note');
+        if (note) {
+            note.textContent = !this.nuage?.etat().connecte
+                ? (this.nuage ? 'Connecte-toi avec Google : tes morceaux s\'enregistrent alors tout seuls dans ton compte, et se retrouvent sur tes autres appareils.'
+                              : 'Le nuage est indisponible (hors ligne, ou bloqué par le navigateur). Tout continue de fonctionner en local.')
+                : ({ synced: 'Tout est enregistré dans le nuage.', syncing: 'Enregistrement en cours…',
+                     'hors-ligne': 'Hors ligne — les modifications partiront au retour du réseau.',
+                     error: message || 'Erreur de synchronisation.' })[mode] || '';
+            note.classList.toggle('alerte', mode === 'error');
+        }
+    }
+
+    afficherCompteNuage(utilisateur) {
+        const nom = document.getElementById('cloud-name');
+        const entrer = document.getElementById('cloud-signin');
+        const sortir = document.getElementById('cloud-signout');
+        if (!nom || !entrer || !sortir) return;
+        entrer.hidden = !!utilisateur;
+        sortir.hidden = !utilisateur;
+        nom.hidden = !utilisateur;
+        nom.textContent = utilisateur ? (utilisateur.displayName || utilisateur.email || 'Connecté') : '';
+        this.afficherEtatNuage(utilisateur ? 'syncing' : null);
+    }
+
+    openCloudWindow() {
+        const overlay = document.getElementById('cloud-overlay');
+        if (!overlay) return;
+        this.afficherCompteNuage(this.nuage?.etat().utilisateur || null);
+        if (this.nuage?.etat().connecte) this.afficherEtatNuage(this.nuage.etat().mode, this.nuage.etat().message);
+        const auto = document.getElementById('cloud-autosave');
+        if (auto) auto.checked = this.autoEnregistrementActif();
+        overlay.hidden = false;
+        this.lockBodyScroll();
+    }
+
+    closeCloudWindow() {
+        const overlay = document.getElementById('cloud-overlay');
+        if (!overlay || overlay.hidden) return;
+        overlay.hidden = true;
+        this.unlockBodyScroll();
+    }
+
+    brancherNuage() {
+        this._cabler('open-cloud', 'click', () => this.openCloudWindow());
+        this._cabler('cloud-close', 'click', () => this.closeCloudWindow());
+        this._cabler('cloud-overlay', 'click', (e) => { if (e.target.id === 'cloud-overlay') this.closeCloudWindow(); });
+        this._cabler('cloud-signin', 'click', () => {
+            if (!this.nuage) { this.flashHint('Le nuage est indisponible pour l\'instant.'); return; }
+            this.nuage.connecter().catch((err) => this.flashHint('Connexion impossible : ' + (err?.message || 'erreur inconnue'), 5000));
+        });
+        this._cabler('cloud-signout', 'click', () => this.nuage?.deconnecter());
+        this._cabler('cloud-autosave', 'change', (e) => {
+            try { localStorage.setItem('harmohubAutoSave', e.target.checked ? '1' : '0'); } catch (err) { /* sans gravité */ }
+            if (e.target.checked) this.programmerEnregistrementAuto();
+        });
+        // LA SAUVEGARDE DE SECOURS est celle qui existait déjà : toute la bibliothèque en un fichier. Ces
+        // deux boutons ne font que la mettre là où l'on pense au nuage.
+        this._cabler('cloud-export', 'click', () => this.exportLibrary());
+        this._cabler('cloud-import', 'click', () => document.getElementById('cloud-import-input')?.click());
+        this._cabler('cloud-import-input', 'change', (e) => {
+            const fichier = e.target.files && e.target.files[0];
+            e.target.value = '';
+            if (fichier) this.importLibraryFile(fichier);
+        });
+        // Quitter la page (onglet en arrière-plan, écran verrouillé) : c'est le seul signal fiable sur
+        // iOS (voir rappelerAvantDePartir). Le morceau ouvert part dans la bibliothèque à ce moment-là.
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') this.enregistrerAuto();
+        });
+    }
+
     openFilesWindow() {
         this.filesOpen = true;
         const overlay = document.getElementById('files-overlay');
@@ -9582,7 +9800,7 @@ class HarmoHubApp {
             const bpm = Math.min(240, Math.max(60, Math.round(60000 / avgMs)));
             document.getElementById('bpm').value = bpm;
             document.getElementById('bpm-val').value = bpm;
-            hasUnsavedChanges = true;
+            marquerModifie();
         }
 
         // Flash bref pour confirmer que le tap a bien été pris en compte, même avant qu'un BPM
@@ -11204,7 +11422,7 @@ class HarmoHubApp {
             this.activeSection = sections.length - 1;
         }
         saveProgressionSections(sections);
-        hasUnsavedChanges = true;
+        marquerModifie();
         if (this.editingIndex != null) this.exitEditMode();
         this.selectedIndex = null;
         this.loadProgression();
@@ -11723,7 +11941,7 @@ class HarmoHubApp {
                 this.closeKeySuggestMenu();
                 document.getElementById('global-root').value = btn.dataset.keyRoot;
                 document.getElementById('global-mode').value = btn.dataset.keyMode;
-                hasUnsavedChanges = true;
+                marquerModifie();
                 this.updateKeyLabels();
                 this.loadProgression();
                 this.refreshPreview();
@@ -12872,7 +13090,7 @@ class HarmoHubApp {
             // demandait, le repère n'a plus lieu d'être (voir chordSymbolForData).
             delete data.unnamed;
             saveProgressionSections(sections);
-            hasUnsavedChanges = true;
+            marquerModifie();
             // Si c'est l'accord actuellement en mode édition complète, resynchronise le panneau Accord
             // (réglages/séquenceur) avec la nouvelle racine/qualité plutôt que de le laisser périmé.
             if (this.editingIndex === index && this.activeSection === section) this.editChord(section, index);
@@ -12905,7 +13123,7 @@ class HarmoHubApp {
         // Voir changeChordOctave : un doigté verrouillé peut ne plus correspondre à la nouvelle octave.
         data.guitarLock = null;
         saveProgressionSections(sections);
-        hasUnsavedChanges = true;
+        marquerModifie();
         // Si c'est l'accord actuellement en édition, resynchronise le panneau Accord (dont le
         // sélecteur Octave) plutôt que de le laisser périmé — comme startInlineChordSymbolEdit.
         if (this.editingIndex === index && this.activeSection === section) this.editChord(section, index);
@@ -16219,7 +16437,7 @@ class HarmoHubApp {
         // Ces échelles sont désormais conservées DANS le morceau lui-même (voir zoomSettingsForSong/
         // saveCurrentSong) : comme les autres réglages "Morceau" (tonalité, tempo...), Enregistrer/
         // Ctrl+S doit rester le seul moment où ce changement devient permanent.
-        hasUnsavedChanges = true;
+        marquerModifie();
     }
 
     // Applique les deux échelles courantes : l'HORIZONTALE joue sur la DENSITÉ (accords par ligne
@@ -18085,7 +18303,7 @@ class HarmoHubApp {
         else if (this.editingIndex != null) {
             this.editingIndex -= indices.filter(i => i < this.editingIndex).length;
         }
-        hasUnsavedChanges = true;
+        marquerModifie();
         this.loadProgression();
     }
 
@@ -18196,7 +18414,7 @@ class HarmoHubApp {
         if (toucheCle) this.updateKeyLabels();
         if (toucheMesure) this.updateDurationOptions();
         if (toucheCle || toucheMesure || toucheAutre) {
-            hasUnsavedChanges = true;
+            marquerModifie();
             if (this.seqOpen) this.renderSequencer(); // affiche le nouveau groove/la nouvelle mesure
             this.liveRestartForGlobalChange();
         }
@@ -18882,7 +19100,7 @@ class HarmoHubApp {
             n++;
         });
         saveProgressionSections(sections);
-        hasUnsavedChanges = true;
+        marquerModifie();
 
         // Un accord de CETTE partie est ouvert dans le panneau : le relire, sinon le séquenceur
         // resterait affiché sur l'ancien rythme de cet accord-là.
@@ -18962,7 +19180,7 @@ class HarmoHubApp {
         this.pushUndo(sections);
         data.intensity = valeur;
         saveProgressionSections(sections);
-        hasUnsavedChanges = true;
+        marquerModifie();
         // L'accord visé est celui qui est ouvert : le champ source doit suivre, sinon la prochaine
         // retouche du panneau réécrirait l'ancienne valeur par-dessus.
         if (this.editingIndex === index && this.activeSection === section) {
@@ -19048,7 +19266,7 @@ class HarmoHubApp {
         // accord standard, et sur une forme cohérente avec la nouvelle octave sinon.
         data.guitarLock = null;
         saveProgressionSections(sections);
-        hasUnsavedChanges = true;
+        marquerModifie();
         if (this.editingIndex === index && this.activeSection === section) this.editChord(section, index);
         else this.loadProgression();
         this.flashHint(`Octave ${next}`);
@@ -19079,3 +19297,4 @@ window.app = new HarmoHubApp();
 window.app.demanderStockagePersistant();
 window.app.surveillerFraicheurSauvegarde();
 window.app.rappelerAvantDePartir();
+try { window.app.demarrerNuage(); } catch (e) { console.error('Nuage indisponible', e); }

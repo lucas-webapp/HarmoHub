@@ -36,6 +36,13 @@
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.04.05a2 2 0 1 1-2.83 2.83l-.05-.04a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.05.04a2 2 0 1 1-2.83-2.83l.04-.05a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.04-.05a2 2 0 1 1 2.83-2.83l.05.04a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82.33l.05-.04a2 2 0 1 1 2.83 2.83l-.04.05a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
             </svg>
         </button>
+        <!-- LE NUAGE : à côté des Paramètres, parce que c'est la même famille de gestes (réglages de
+             l'appli, pas du morceau). La pastille dit où en est l'enregistrement sans qu'on ouvre quoi
+             que ce soit ; elle n'apparaît qu'une fois connecté. -->
+        <button type="button" id="open-cloud" class="icon-btn cloud-btn" title="Nuage : enregistrement automatique" aria-label="Nuage">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+            <span id="cloud-dot" class="cloud-dot" hidden aria-hidden="true"></span>
+        </button>
         <a class="logo" href="#" onclick="return false" title="HarmoHub" aria-label="HarmoHub">
             <span class="logo-mark">
                 <svg class="icon" viewBox="0 0 48 48" aria-hidden="true">
@@ -627,6 +634,42 @@
             <div class="settings-body">
                 <div class="settings-content" id="files-window-host">
                     <div id="settings-panel-files" class="settings-panel" data-settings-panel="files"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fenêtre « Nuage » : le compte, l'état de l'enregistrement automatique, et le filet de sécurité
+         (exporter/importer toute la bibliothèque en un fichier, à garder de côté de temps en temps). -->
+    <div id="cloud-overlay" class="settings-overlay" hidden>
+        <div class="settings-modal cloud-modal" role="dialog" aria-modal="true" aria-labelledby="cloud-window-title">
+            <div class="settings-header">
+                <h2 id="cloud-window-title">Nuage et sauvegarde</h2>
+                <button type="button" id="cloud-close" class="icon-btn" title="Fermer" aria-label="Fermer">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="settings-body">
+                <div class="settings-content cloud-content">
+                    <p id="cloud-note" class="cloud-note"></p>
+                    <div class="cloud-account">
+                        <button type="button" id="cloud-signin" class="cloud-btn-main">Se connecter avec Google</button>
+                        <span id="cloud-name" class="cloud-name" hidden></span>
+                        <button type="button" id="cloud-signout" class="cloud-btn-soft" hidden>Se déconnecter</button>
+                    </div>
+                    <label class="cloud-check">
+                        <input type="checkbox" id="cloud-autosave">
+                        <span>Enregistrer automatiquement le morceau ouvert à chaque modification
+                            <small>Sans ça, seul le bouton Enregistrer (Ctrl+S) met à jour le morceau — et donc le nuage.</small></span>
+                    </label>
+                    <h3 class="cloud-title">Sauvegarde de secours</h3>
+                    <p class="cloud-note">Le nuage est la copie de tous les jours ; ceci est la copie à garder de côté, sur ton disque,
+                       de temps en temps. Un seul fichier, qui contient tous les morceaux.</p>
+                    <div class="cloud-backup">
+                        <button type="button" id="cloud-export" class="cloud-btn-soft">Tout exporter (.json)</button>
+                        <button type="button" id="cloud-import" class="cloud-btn-soft">Tout importer…</button>
+                        <input type="file" id="cloud-import-input" accept="application/json,.json" hidden>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1583,6 +1626,13 @@
     <script src="jspdf.umd.min.js"></script>
     <!-- Nommage des fichiers exportés, commun aux deux applis (voir fichiers.js). Chargé AVANT
          script.js : celui-ci s'en sert dès ses premiers exports. -->
+    <!-- LE NUAGE (Firebase) — même projet et mêmes versions que TrainHub. Chargé depuis le CDN de Google :
+         hors ligne ou bloqué, `firebase` reste indéfini et HarmoHub fonctionne comme avant, en local. -->
+    <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="nuage.js"></script>
     <script src="fichiers.js?v=202609182200"></script>
     <script src="script.js?v=202609231000"></script>
 </body>
