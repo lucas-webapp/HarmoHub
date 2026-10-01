@@ -44,12 +44,14 @@ function poidsOctets(objet) {
 //   slug          : identifiant de l'appli dans la base partagée (« harmohub », « tabhub »…) ;
 //   lire()        : rend l'état local sérialisable ;
 //   fusionner(local, distant) : rend { fusionne, changeLocal, changeDistant } — `fusionne` est l'état
-//                   à écrire des deux côtés, `changeLocal` dit s'il diffère de l'état local ;
+//                   à écrire des deux côtés, `changeLocal` dit s'il diffère de l'état local, et
+//                   `changeDistant === false` qu'il est identique à ce qui est déjà au cloud (on n'écrit pas) ;
 //   appliquer(etat, resume, origine) : écrit `etat` en local ET rafraîchit l'affichage ; `origine`
 //                   vaut 'reception', 'envoi' ou 'reprise' ;
 //   versDocument(etat)        : transforme l'état en document Firestore VALIDE (pas de tableau
 //                   imbriqué, pas de `undefined`) ;
-//   apresSynchro()            : appelée après CHAQUE synchro réussie, quel qu'en soit le sens ;
+//   apresSynchro(resultat)    : appelée après CHAQUE synchro réussie, quel qu'en soit le sens, avec le
+//                   résultat de la fusion (pour ranger, par exemple, une copie de secours) ;
 //   surCompte(uid)            : (optionnel) appelée à la connexion, pour repartir de zéro si le compte
 //                   n'est plus celui de la dernière synchro ;
 //   dejaSynchronise()         : vrai si cet appareil a déjà été synchronisé avec ce compte ;
@@ -90,6 +92,12 @@ function demarrerSynchro(adaptateur, elements) {
         // peine affiché reviendrait à ne jamais le voir.
         if (mode === 'synced' && detail === undefined) detail = etat.detailPoids || '';
         etat.statut = mode;
+        // `surEtat` : pour une appli qui n'a PAS la place d'un élément dédié (TabHub porte sa pastille sur
+        // le bouton Enregistrer). Appelé à chaque changement, avec le libellé déjà composé.
+        if (elements.surEtat) {
+            var lib = LIBELLES[mode] || 'Non synchronisé';
+            elements.surEtat(mode, detail ? lib + ' — ' + detail : lib, !!etat.utilisateur);
+        }
         if (!$statut) return;
         $statut.hidden = !etat.utilisateur;
         $statut.classList.remove('synced', 'syncing', 'pending', 'error', 'offline', 'toolarge');
@@ -155,7 +163,7 @@ function demarrerSynchro(adaptateur, elements) {
                 etat.appliqueDistant = true;
                 try { adaptateur.appliquer(r.fusionne, r, 'reception'); } finally { etat.appliqueDistant = false; }
             }
-            if (adaptateur.apresSynchro) adaptateur.apresSynchro();
+            if (adaptateur.apresSynchro) adaptateur.apresSynchro(r);
             dire('synced');
         }, function (e) {
             console.error('Écoute de la synchro interrompue', e);
@@ -190,6 +198,16 @@ function demarrerSynchro(adaptateur, elements) {
                 var distant = snap.exists ? snap.data() : null;
                 var local = adaptateur.lire();
                 var r = distant ? adaptateur.fusionner(local, distant) : { fusionne: local, changeLocal: false };
+                // PAS D'ÉCRITURE INUTILE. Quand la fusion rend exactement ce qui est déjà au cloud — un
+                // appareil à jour qui se connecte, un appareil périmé qui reprend la version du cloud —,
+                // réécrire le même document ne ferait que coûter une écriture (et de la batterie sur
+                // téléphone). L'adaptateur le dit par `changeDistant === false` ; absent, on écrit, par
+                // prudence.
+                if (distant && r.changeDistant === false) {
+                    aApplique = r.changeLocal ? r.fusionne : null;
+                    resumeApplique = r;
+                    return poidsOctets(distant);
+                }
                 var charge = adaptateur.versDocument(r.fusionne);
                 var poids = poidsOctets(charge);
                 if (poids > TAILLE_MAX) {
@@ -213,7 +231,7 @@ function demarrerSynchro(adaptateur, elements) {
                 etat.appliqueDistant = true;
                 try { adaptateur.appliquer(aApplique, resumeApplique, 'envoi'); } finally { etat.appliqueDistant = false; }
             }
-            if (adaptateur.apresSynchro) adaptateur.apresSynchro();
+            if (adaptateur.apresSynchro) adaptateur.apresSynchro(resumeApplique);
             etat.detailPoids = poids > TAILLE_ALERTE ? 'bibliothèque à ' + Math.round(poids / 10485.76) + ' % du plafond du cloud' : '';
             dire('synced');
             if (reste) planifierEnvoi();
@@ -274,7 +292,7 @@ function demarrerSynchro(adaptateur, elements) {
                 var r0 = adaptateur.fusionner(local, distant);
                 etat.appliqueDistant = true;
                 try { adaptateur.appliquer(r0.fusionne, r0, 'reprise'); } finally { etat.appliqueDistant = false; }
-                if (adaptateur.apresSynchro) adaptateur.apresSynchro();
+                if (adaptateur.apresSynchro) adaptateur.apresSynchro(r0);
                 return null;
             }
             if (adaptateur.premiereConnexion && !adaptateur.dejaSynchronise()) {

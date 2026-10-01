@@ -145,7 +145,15 @@ function fusionnerBibliotheques(local, distant, options) {
     };
     var visiblesLocaux = (local.dossiers || []).filter(function (r) { return !r.supprime; }).map(function (r) { return r.nom; });
     var changeLocal = signature(sortie, visibles) !== signature(local.songs, visiblesLocaux);
-    return { fusionne: fusionne, changeLocal: changeLocal, resume: resume };
+    // Ce qui est DÉJÀ au cloud : mêmes morceaux aux mêmes versions, mêmes dossiers, mêmes suppressions ?
+    // Alors il n'y a rien à écrire (voir synchro-cloud.js).
+    var signatureDoc = function (songs, dossiers, supprimes) {
+        return signature(songs, []) + '##' + canonique(dossiers.slice().sort(function (a, b) { return a.nom < b.nom ? -1 : 1; }))
+            + '##' + canonique(Object.keys(supprimes).sort().map(function (k) { return [k, supprimes[k]]; }));
+    };
+    var changeDistant = signatureDoc(sortie, fusionne.dossiers, tombes)
+        !== signatureDoc(distant.songs, distant.dossiers || [], distant.supprimes || {});
+    return { fusionne: fusionne, changeLocal: changeLocal, changeDistant: changeDistant, resume: resume };
 }
 
 function copieArchivee(s, maintenant) {

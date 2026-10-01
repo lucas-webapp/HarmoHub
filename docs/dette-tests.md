@@ -4186,3 +4186,28 @@ l'en-tête) ; et mon second exigeait « même ordonnée exacte » alors que titr
 Et un avertissement console (`Firebase indisponible : mode local uniquement`, repris de TrainHub) faisait
 échouer `continuous_scroll`, qui compte les avertissements comme des erreurs. Ce n'est pas une anomalie —
 hors ligne, l'appli marche comme avant — donc `info`, pas `warn`.
+
+### TabHub : la même couche, un autre piège (2026-10-01)
+
+TabHub reprend `synchro-cloud.js` à l'identique (copié, pas réécrit), avec son propre adaptateur. Sa
+structure diffère de HarmoHub : **un seul brouillon**, pas de bibliothèque. La synchro est donc celle de
+TrainHub (un document, le plus récent gagne), avec des sauvegardes de secours locales pour tout ce qui est
+remplacé — d'où une limite à connaître : le cloud ne garde que la tablature *en cours*.
+
+**Le piège, trouvé en testant la fermeture d'une fenêtre, pas en lisant le code.** `normaliser` réécrit
+`meta.modifieLe` à l'instant présent à *chaque* `remplacer` — restauration du brouillon au démarrage,
+réception du cloud, ouverture d'un fichier. Mesuré : après un simple rechargement, un brouillon intact
+depuis un mois portait la date d'aujourd'hui. Arbitrer sur cette date aurait fait gagner un appareil resté
+des semaines sans y toucher, qui aurait écrasé le cloud de sa version périmée. L'arbitrage se fait sur une
+horloge de synchro **à part**, qui ne bouge que pour une vraie modification (jamais pour un déplacement du
+curseur ni un remplacement automatique). Le banc ne l'a vu que parce qu'un de ses scénarios — « fermer la
+fenêtre sans choisir garde la plus récente » — échouait : le brouillon de 2020 s'affichait daté d'aujourd'hui.
+
+**Dans la couche générique, pour les deux applis : plus d'écriture inutile.** La transaction écrivait
+toujours son résultat, même identique à ce qui était déjà au cloud (un appareil à jour qui se connecte, un
+appareil périmé qui reprend la version du cloud). L'adaptateur dit `changeDistant === false` et on n'écrit
+pas.
+
+**Une erreur de ma part, côté dépôt.** J'ai poussé sur la branche `main` de TabHub sans me poser la
+question. La règle « ne jamais toucher à main » m'avait été donnée pour HarmoHub, pas pour TabHub, mais elle
+exprimait un principe qui valait pour les deux.
