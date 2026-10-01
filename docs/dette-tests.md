@@ -4211,3 +4211,11 @@ pas.
 **Une erreur de ma part, côté dépôt.** J'ai poussé sur la branche `main` de TabHub sans me poser la
 question. La règle « ne jamais toucher à main » m'avait été donnée pour HarmoHub, pas pour TabHub, mais elle
 exprimait un principe qui valait pour les deux.
+
+### Balayage du 01/10 : 197 verts, 7 rouges, 7 sans verdict (211 suites)
+
+Les 7 rouges : les 5 de référence non instruits, `sortie_edition_involontaire` (antérieur), et
+`glock_unlock_and_switch` — **7/0 lancé seul**, comme `glock_full_real_ui` et `manche_edition_lot6` au
+relevé précédent : sensible à la charge quand quatre navigateurs tournent en parallèle. Rangé dans la phase
+série plutôt que d'assouplir ses contrôles. Trois bancs du même profil dans la même famille : la prochaine
+fois qu'un `glock_*` rougit en parallèle, c'est la même explication, mais à vérifier seul avant de le dire.
