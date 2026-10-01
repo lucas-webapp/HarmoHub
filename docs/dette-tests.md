@@ -4078,3 +4078,35 @@ la rotation des versions ne se pose pas. Si le mode simple devait l'emporter à 
 simplification à envisager — pas avant.
 
 `tests/mode_simple_test.js` : 17 contrôles.
+
+## Le nuage (Firebase) : ce que le balayage a appris
+
+Balayage complet après l'ajout du nuage (`docs/nuage.md`) : 196 verts, 8 rouges, 7 sans verdict.
+Chacun a été rapproché d'un état antérieur, selon la méthode du dépôt (le commit d'avant, `9293327`,
+servi à part sur le port 8935 via `git worktree`) :
+
+- **Deux rouges étaient de mon fait, et corrigés** : `continuous_scroll_test` (le moteur écrivait
+  « Firebase indisponible » en `console.warn` à chaque chargement sans réseau — l'absence de Firebase
+  est un état normal, c'est devenu `console.info`) et `meta_suite_test` (mon banc avalait six délais
+  d'attente avec `.catch(() => {})` ; remplacés par `patienter()`, qui le dit).
+- **Les six autres rouges et les sept bancs sans verdict sont identiques avant et après** — mêmes
+  bilans, mêmes lignes en échec : `probe_clic_accord_voisin` 4/8, `probe_defilement_tactile` 23/24,
+  `probe_regle_voisins` 28/29, `probe_seq_finitions` 18/19, `seq_notes_libres_clavier` 32/33,
+  `sortie_edition_involontaire` 3/4 (la mise en place des contrôles de la fenêtre du manche, déjà
+  décrite plus haut) ; et `ctx_nav_scroll`, `detune`, `guitar_lock_click`, `instrument_stress`,
+  `item1_hzoom_out`, `probe_cache_perime`, `smoke`, qui n'ont jamais eu de ligne de bilan.
+
+### Une fenêtre qui ne se ferme pas avec Échap creuse le banc de balayage sans le faire échouer
+
+`sortie_edition_involontaire_test` presse Échap entre deux contrôles pour refermer ce qui serait resté
+ouvert, puis saute en silence tout contrôle que son clic ne peut pas atteindre (« masqué derrière autre
+chose à cet instant : rien à conclure »). La fenêtre Nuage ne se fermait pas avec Échap : elle restait
+ouverte derrière le balayage, et **31 des 44 contrôles étaient sautés** pendant que le banc affichait
+« 44 éprouvés » et passait. Mesuré avec une copie instrumentée qui compte les clics impossibles : 31 sans
+la correction, 0 avec. Rien n'était rouge ; c'est le chiffre qui mentait.
+
+Règle qui en découle : **toute nouvelle fenêtre doit se fermer avec Échap** (la liste est dans
+`setupEventListeners`, autour de `closeFilesWindow`), sinon ce banc ne couvre plus rien après elle. Et
+une amélioration à faire un jour au banc lui-même : compter les contrôles sautés et échouer au-delà d'un
+seuil, plutôt que de les passer sous silence. `nuage_test.js` garde maintenant cette règle pour la fenêtre
+Nuage (un contrôle, qui passe au rouge si la ligne est retirée).
