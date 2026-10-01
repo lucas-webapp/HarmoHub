@@ -18722,6 +18722,7 @@ class HarmoHubApp {
             if (e.key === 'Escape' && !document.getElementById('midi-export-modal').hidden) { if (this._midiExportModalCancel) this._midiExportModalCancel(); return; }
             if (e.key === 'Escape' && !document.getElementById('duration-dd-menu').hidden) { this.closeDurationMenu(); return; }
             if (e.key === 'Escape' && this.seqRowPipette) { this.seqRowPipette = null; this.renderSequencer(); return; }
+            if (e.key === 'Escape' && document.getElementById('cloud-overlay') && !document.getElementById('cloud-overlay').hidden) { this.closeCloudWindow(); return; }
             if (e.key === 'Escape' && this.filesOpen) { this.closeFilesWindow(); return; }
             if (e.key === 'Escape' && this.settingsOpen) { this.closeSettings(); return; }
             if (e.key === 'Escape' && this.seqZoomOpen) { this.closeSeqZoom(); return; }

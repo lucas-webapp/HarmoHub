@@ -25,7 +25,7 @@ const path = require('path');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('nuage dans HarmoHub');
 
-plan(48);
+plan(49);
 
 const attendre = (ms) => new Promise(r => setTimeout(r, ms));
 const FAUX = fs.readFileSync(path.join(__dirname, '_firebase_factice.js'), 'utf8');
@@ -101,6 +101,13 @@ const INDEX = 'users/u1/apps/harmohub';
         const compte = await p.evaluate(() => ({ nom: document.getElementById('cloud-name').textContent, sortir: !document.getElementById('cloud-signout').hidden }));
         check(compte.nom === 'Testeur' && compte.sortir, 'la fenêtre montre le compte et propose de se déconnecter');
         await p.click('#cloud-close');
+        // Comme toutes les autres fenêtres, Échap la ferme. Sans cela elle reste ouverte derrière un banc qui
+        // balaie les boutons (sortie_edition_involontaire_test) : tout ce qui suit est masqué, et son verdict
+        // « aucun contrôle ne fait sortir de l'édition » ne prouve plus rien — il saute ces clics en silence.
+        await p.click('#open-cloud');
+        await p.keyboard.press('Escape');
+        const apresEchap = await p.evaluate(() => ({ cachee: document.getElementById('cloud-overlay').hidden, verrou: document.body.classList.contains('body-scroll-locked') }));
+        check(apresEchap.cachee && !apresEchap.verrou, 'Échap ferme la fenêtre Nuage, comme les autres, et rend le défilement à la page');
 
         // --- un morceau créé part dans le nuage -----------------------------------------------------
         const id = await p.evaluate(() => window.app.createNewSongFromCurrentState('Ballade test').id);
