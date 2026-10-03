@@ -11554,7 +11554,12 @@ class HarmoHubApp {
         // déconnecter vivent ici et non dans la barre du morceau, trop serrée sur téléphone pour en
         // porter deux de plus (mesuré : les boutons d'action passaient à la ligne). L'entrée n'existe que
         // si le SDK a pu démarrer : proposer un bouton qui ne peut rien faire serait trompeur.
-        const cloud = (typeof SYNCHRO !== 'undefined' && SYNCHRO && SYNCHRO.disponible)
+        const cloud = (typeof SYNCHRO !== 'undefined' && SYNCHRO && !SYNCHRO.disponible)
+            // Visible mais éteinte, avec la RAISON : sans ça l'entrée disparaissait en silence quand le SDK
+            // ne se chargeait pas, et rien ne distinguait « pas de synchro » de « bouton introuvable ».
+            ? [{ id: 'cloud-indisponible', desactive: true, label: 'Synchronisation indisponible',
+                 hint: SYNCHRO.raison || 'Firebase n\'a pas pu démarrer' }, { sep: true }]
+            : (typeof SYNCHRO !== 'undefined' && SYNCHRO && SYNCHRO.disponible)
             ? [SYNCHRO.etat.utilisateur
                 ? { id: 'cloud-deconnexion', label: `Cloud : ${escapeHtml(SYNCHRO.etat.utilisateur.displayName || SYNCHRO.etat.utilisateur.email || 'connecté')}`,
                     hint: `${SYNCHRO.libelleEtat()} — toucher pour se déconnecter` }

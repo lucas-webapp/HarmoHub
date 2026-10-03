@@ -21,7 +21,7 @@ const { check, exiger, plan, bilan } = require('./_harness')('synchro cloud');
 const estBruitReseau = require('./_harness').estBruitReseau;
 const { creerNuage, installer } = require('./_firebase_faux');
 
-plan(101);
+plan(102);
 
 const CHEMIN = 'users/u1/apps/harmohub';
 const pause = (p, ms) => p.waitForTimeout(ms);
@@ -97,8 +97,14 @@ const pause = (p, ms) => p.waitForTimeout(ms);
         await p.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 20000 });
         await pause(p, 900);
         check(locales.length === 0, `sans SDK Firebase (hors ligne au premier chargement), aucune erreur — ${locales.slice(0, 1)}`);
-        check(!(await entreesMenu(p)).some(a => a.startsWith('cloud-')),
-            'et le menu ne propose PAS de se connecter : offrir un bouton qui ne peut rien faire serait trompeur');
+        const sans = await entreesMenu(p);
+        check(!sans.includes('cloud-connexion') && sans.includes('cloud-indisponible'),
+            'et le menu ne propose PAS de se connecter, mais le DIT : une entrée qui disparaît en silence ressemble à une panne');
+        await p.click('#file-menu-btn'); await p.waitForTimeout(200);
+        check(await p.locator('#file-menu [data-file-action="cloud-indisponible"]').isDisabled()
+            && /Firebase/.test(await p.textContent('#file-menu [data-file-action="cloud-indisponible"] .file-menu-hint')),
+            'l\'entrée est éteinte et donne la raison');
+        await p.keyboard.press('Escape');
         const stampe = await p.evaluate(() => {
             localStorage.setItem('harmohubSongs', JSON.stringify([{ id: 'x', name: 'X', savedAt: 1, sections: [] }]));
             const l = loadSongs(); l[0].name = 'X2'; saveSongs(l);
