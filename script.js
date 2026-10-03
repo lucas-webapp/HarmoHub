@@ -9527,9 +9527,11 @@ class HarmoHubApp {
             const p = partieDe(it);
             return it.label || (p ? nomPartie(p, parties.indexOf(p)) : 'Partie supprimée');
         };
-        // [couleur forte, teinte pâle] : lisibles en couleur comme en noir et blanc (tons distincts).
-        const PALETTE = [['#1f5fbf', '#e8f0fc'], ['#c2410c', '#fdeee4'], ['#15803d', '#e5f5ea'], ['#7e22ce', '#f2e8fb'],
-                         ['#b45309', '#fbf0dc'], ['#0e7490', '#e0f3f7'], ['#be185d', '#fbe6ef'], ['#4d5563', '#eceef2']];
+        // [encre du titre, teinte de fond]. Retour utilisateur : « des couleurs plus pâles et plus
+        // discrètes ». Les fonds sont presque blancs (à peine teintés), l'encre est assourdie mais reste
+        // lisible sur blanc (contraste ≥ 4:1) : la couleur repère la famille, elle ne crie pas.
+        const PALETTE = [['#3f6cb0', '#f1f6fc'], ['#b0623a', '#fcf4ed'], ['#3f7a56', '#eff8f2'], ['#7b5aa3', '#f6f1fa'],
+                         ['#96722a', '#fbf7ea'], ['#3a7f8e', '#edf6f8'], ['#a8507a', '#fbf0f5'], ['#69727e', '#f2f3f5']];
         const vivantes = items.filter(it => { const p = partieDe(it); return p && p.chords.length; });
         const familles = [...new Set(vivantes.map(it => this.structureFamily(partieDe(it).title)))];
         const couleurDe = (it) => PALETTE[Math.max(0, familles.indexOf(this.structureFamily((partieDe(it) || {}).title))) % PALETTE.length];
@@ -9546,30 +9548,25 @@ class HarmoHubApp {
             totalMesures += une * it.rep;
             const grille = this.chordsByMeasure(p, beatsPerBar).map(m => escapeHtml(m.join(' '))).join('<span class="sf-bar">|</span>');
             const notes = it.notes.map(n => `
-                <div class="sf-note" style="border-left-color:${fort};background:${pale}">
+                <div class="sf-note" style="border-left-color:${fort}77;background:${pale}">
                     <span class="sf-note-mes" style="color:${fort}">${libelleMesuresNote(n)}</span>
                     <span class="sf-note-txt">${escapeHtml(n.texte)}</span>
                 </div>`).join('');
             return `
-            <div class="sf-row" style="border-color:${fort}33">
-                <div class="sf-marge" style="background:${fort}">
-                    <span class="sf-marge-num">${fmt(debut)}</span><span class="sf-marge-lib">mesure</span>
+            <div class="sf-row" style="border-left-color:${fort}77">
+                <div class="sf-tete">
+                    <span class="sf-nom" style="color:${fort}">${escapeHtml(titreDe(it))}</span>
+                    ${it.rep > 1 ? `<span class="sf-rep" style="color:${fort};background:${pale};border-color:${fort}55">×${it.rep}</span>` : ''}
+                    <span class="sf-etendue">mes. ${fmt(debut)}${fin > debut ? `–${fmt(fin)}` : ''} · ${fmt(une)} mes.${it.rep > 1 ? ` × ${it.rep}` : ''}</span>
                 </div>
-                <div class="sf-corps">
-                    <div class="sf-tete">
-                        <span class="sf-nom" style="color:${fort}">${escapeHtml(titreDe(it))}</span>
-                        ${it.rep > 1 ? `<span class="sf-rep" style="background:${fort}">×${it.rep}</span>` : ''}
-                        <span class="sf-etendue">${fmt(une)} mes.${it.rep > 1 ? ` · mes. ${fmt(debut)}–${fmt(fin)}` : ''}</span>
-                    </div>
-                    <div class="sf-grille" style="background:${pale}"><span class="sf-bar">|</span>${grille}<span class="sf-bar">|</span></div>
-                    ${notes ? `<div class="sf-notes">${notes}</div>` : ''}
-                </div>
+                <div class="sf-grille" style="background:${pale}"><span class="sf-bar">|</span>${grille}<span class="sf-bar">|</span></div>
+                ${notes ? `<div class="sf-notes">${notes}</div>` : ''}
             </div>`;
         }).join('');
 
         const deroule = vivantes.map(it => {
             const [fort, pale] = couleurDe(it);
-            return `<span class="sf-puce" style="color:${fort};background:${pale};border-color:${fort}55">${escapeHtml(titreDe(it))}${it.rep > 1 ? ` ×${it.rep}` : ''}</span>`;
+            return `<span class="sf-puce" style="color:${fort};background:${pale};border-color:${fort}44">${escapeHtml(titreDe(it))}${it.rep > 1 ? ` ×${it.rep}` : ''}</span>`;
         }).join('<span class="sf-fleche">›</span>');
 
         const secondes = bpm > 0 ? (totalMesures * beatsPerBar * 60) / bpm : 0;

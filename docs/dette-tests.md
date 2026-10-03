@@ -4317,3 +4317,10 @@ Chrome → fichier → contexte vierge). `structure_modulable_test` : sélecteur
 (`#struct-edit-mesure`) puisqu'il y a désormais deux champs numériques.
 Piège de banc rencontré : `page.evaluate(() => app.editerCommentaireStructure(...))` attend la fermeture de la
 fenêtre (promesse) — ne pas attendre cet appel.
+
+**Retouche de la feuille (même jour).** Retours : « couleurs plus pâles et plus discrètes » ; « les numéros de
+mesure en gros sur la gauche sont un peu inutiles, ce n'est pas l'information principale ». La marge colorée
+avec le grand numéro disparaît : un simple filet pâle à gauche de la carte, fonds presque blancs, encre des
+titres assourdie (contraste ≥ 4:1 sur blanc). La mesure de départ reste donnée, en petit et grisée, à droite
+du titre (« mes. 3–18 · 8 mes. × 2 »). Le banc `structure_feuille_test` (34 contrôles) vérifie qu'aucun fond
+n'est soutenu (luminance ≥ 0,93) et que rien n'est grand hors du titre.

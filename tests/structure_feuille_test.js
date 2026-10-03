@@ -25,7 +25,7 @@ const SECTIONS = [
 ];
 const MORCEAU = { id: 'S1', name: 'Ballade du soir', savedAt: 5000, root: 'D', mode: 'major', timeSig: '4/4', groove: 'none', bpm: 96, sections: SECTIONS };
 
-plan(32);
+plan(34);
 
 (async () => {
     const navigateur = await chromium.launch();
@@ -128,15 +128,17 @@ plan(32);
         const fond = lum(getComputedStyle(z).backgroundColor);
         const encre = lum(getComputedStyle(z).color);
         // Les aplats de couleur franche (marge, pastille ×N) sont voulus ; tout le reste doit être clair.
-        const sombres = [...z.querySelectorAll('*')].filter(e => !e.matches('.sf-marge, .sf-marge *, .sf-rep, .sf-sous') &&
-            getComputedStyle(e).backgroundColor !== 'rgba(0, 0, 0, 0)' && lum(getComputedStyle(e).backgroundColor) < 0.7).length;
+        const sombres = [...z.querySelectorAll('*')].filter(e => !e.matches('.sf-rep') &&
+            getComputedStyle(e).backgroundColor !== 'rgba(0, 0, 0, 0)' && lum(getComputedStyle(e).backgroundColor) < 0.93).length;
         const r = {
             fond, encre, sombres,
             texte: z.innerText,
             lignes: z.querySelectorAll('.sf-row').length,
             commandes: z.querySelectorAll('.struct-actions, .struct-ajout, button, select').length,
             classesEcran: z.querySelectorAll('[class*="struct-"]').length,
-            couleurs: new Set([...z.querySelectorAll('.sf-marge')].map(e => getComputedStyle(e).backgroundColor)).size,
+            couleurs: new Set([...z.querySelectorAll('.sf-nom')].map(e => getComputedStyle(e).color)).size,
+            gros: [...z.querySelectorAll('*')].filter(e => e.tagName !== 'H1' && parseFloat(getComputedStyle(e).fontSize) > 16).length,
+            etendues: [...z.querySelectorAll('.sf-etendue')].map(e => ({ t: e.textContent.trim(), px: parseFloat(getComputedStyle(e).fontSize) })),
             largeurDebord: z.scrollWidth > z.clientWidth + 1,
         };
         m.zone.remove();
@@ -144,7 +146,11 @@ plan(32);
     });
     check(feuille.fond > 0.95, `fond blanc (luminance ${feuille.fond.toFixed(2)}), pas le thème sombre de l'appli`);
     check(feuille.encre < 0.25, `encre sombre (luminance ${feuille.encre.toFixed(2)})`);
-    check(feuille.sombres === 0, `aucun aplat sombre hors accents (${feuille.sombres})`);
+    check(feuille.sombres === 0, `aucun aplat soutenu : fonds presque blancs, couleurs discrètes (${feuille.sombres} fonds trop foncés)`);
+    // Retour utilisateur : « les numéros de mesure en gros sur la gauche sont un peu inutiles [...] à afficher en petit ».
+    check(feuille.gros === 0, `plus rien de grand hors du titre : le numéro de mesure n'est plus en gros (${feuille.gros})`);
+    check(feuille.etendues.length === 3 && feuille.etendues.every(e => e.px <= 12 && /^mes\. \d/.test(e.t)),
+        `la mesure de départ reste donnée, en petit — ${JSON.stringify(feuille.etendues.map(e => e.t))}`);
     check(feuille.lignes === 3, `une carte par occurrence de la structure (${feuille.lignes})`);
     check(feuille.couleurs >= 3, `une couleur par famille de parties (${feuille.couleurs} couleurs)`);
     check(feuille.commandes === 0 && feuille.classesEcran === 0, 'aucune commande ni classe de l\'écran dans la feuille');
