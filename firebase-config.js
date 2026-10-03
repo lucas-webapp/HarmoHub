@@ -15,25 +15,21 @@
 // Tes applications → Configuration du SDK). Rien d'autre ne change dans le code.
 // Attention alors : ce sera une base séparée, donc une connexion séparée, et les
 // données déjà écrites dans le projet partagé ne suivront pas toutes seules.
-// ⚠ À VÉRIFIER PAR TOI, dans la console Firebase (Paramètres du projet → Tes applications) :
-//   - `appId` ci-dessous est celui de TrainHub, repris faute de connaître celui de l'app « HarmoHub » que
-//     tu as créée. À ma connaissance Auth et Firestore ne s'en servent pas (il sert à Analytics et aux
-//     notifications), donc ça ne bloque rien — mais remplace-le par le bon pour que chaque appli soit
-//     identifiée correctement dans la console.
-//   - Si « HarmoHub » est en fait un PROJET Firebase à part et non une appli du projet lucas-apps,
-//     il faut remplacer les SIX valeurs, pas seulement appId (voir plus haut).
-//   - Les RÈGLES FIRESTORE doivent autoriser le chemin users/{uid}/apps/harmohub. Si elles sont de la
-//     forme « match /users/{uid}/apps/{appId} », c'est déjà bon. Si elles nomment « trainhub », il faut
-//     y ajouter « harmohub » — sinon la pastille affichera « permission-denied » au survol.
-//   - Le domaine qui sert HarmoHub doit figurer dans Authentication → Paramètres → Domaines autorisés
-//     (déjà le cas s'il s'agit du même domaine que TrainHub).
+// `appId` : celui de l'app web « HarmoHub » du projet (console Firebase → Paramètres du projet → Tes
+// applications). Les cinq autres valeurs sont celles du projet partagé lucas-apps.
+// ⚠ À VÉRIFIER dans la console Firebase si la pastille affiche une erreur au survol :
+//   - « permission-denied » : les RÈGLES FIRESTORE n'autorisent pas users/{uid}/apps/harmohub. Si elles
+//     sont de la forme « match /users/{uid}/apps/{appId} », c'est bon ; si elles nomment « trainhub »,
+//     il faut y ajouter « harmohub ».
+//   - « auth/unauthorized-domain » : le domaine qui sert HarmoHub doit figurer dans Authentication →
+//     Paramètres → Domaines autorisés.
 var FIREBASE_CONFIG = {
     apiKey: "AIzaSyBneiQUsoaLjPr18c1dRHjpZ9xswJC6H3E",
     authDomain: "lucas-apps-479b9.firebaseapp.com",
     projectId: "lucas-apps-479b9",
     storageBucket: "lucas-apps-479b9.firebasestorage.app",
     messagingSenderId: "1000530733464",
-    appId: "1:1000530733464:web:504eae847189524bada3ed"
+    appId: "1:1000530733464:web:c9d624eff3ef3bd4ada3ed"
 };
 
 // Identifiant de cette app dans la base partagée. TrainHub utilise "trainhub",
