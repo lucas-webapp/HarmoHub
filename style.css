@@ -358,7 +358,8 @@ body.body-scroll-locked { overflow: hidden !important; }
 #dedup-modal,
 #delete-files-modal,
 #disk-files-modal,
-#export-full-modal { z-index: 200; }
+#export-full-modal,
+#cloud-guard-modal { z-index: 200; }
 
 /* Fenêtre agrandie du séquenceur (voir #seq-zoom-overlay/openSeqZoom) : même habillage que
    .settings-modal, mais bien plus large/haute — tout l'intérêt est de donner beaucoup plus de place
@@ -6401,26 +6402,37 @@ body.impression-structure .struct-row { break-inside: avoid; }
 .export-full-cout { font-size: var(--fs-xs); color: var(--text-muted); }
 .export-full-etat { font-size: var(--fs-xs); margin-top: 8px; min-height: 1.2em; }
 
-/* ---------- Synchro cloud : pastille d'état ---------- */
-/* Retour utilisateur : « l'enregistrement me semble trop aléatoire ». La pastille est TOUJOURS visible
-   dès qu'un compte est connecté : on ne doit pas avoir à ouvrir une fenêtre pour savoir si le travail est
-   parti. Six états, six couleurs, et chacun a un libellé précis au survol (voir LIBELLES dans
-   synchro-cloud.js). Le plus important est « pending » : des modifications existent qui ne sont pas
-   encore au cloud — c'est lui qui répond à « est-ce que c'est bien parti ? ».
-   Elle est seule dans l'en-tête du morceau : se connecter / se déconnecter vivent dans le menu Fichier,
-   parce que cette barre est trop serrée sur téléphone pour en porter davantage. */
-/* Superposée au bord du titre (position absolue : aucune place prise, voir index.html) et centrée dans
-   l'espace qui le sépare des boutons. `position: relative` sur le titre seulement, pas sur toute la
-   barre : c'est le titre qui sert d'ancre, donc la pastille le suit s'il change de ligne. */
-#song-card .card-head h2 { position: relative; }
-.sync-status {
-    position: absolute; left: 100%; top: 50%; transform: translateY(-50%); margin-left: 3px;
-    font-size: 11px; line-height: 1; color: var(--text-muted); transition: color .2s ease; cursor: help;
+/* ---------- Synchro cloud : bouton de la barre du haut + pastille d'état ---------- */
+/* Un bouton À PART, voyant (comme TrainHub), dans la barre fixe du haut — qui est flottante à droite et a la
+   place pour lui. Même habillage que .logo et .settings-btn pour rester cohérent. Sur téléphone étroit le
+   libellé s'efface et il reste le G ou la pastille : la barre ne doit pas déborder. */
+.cloud-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 32px; padding: 0 11px 0 9px; border-radius: 999px;
+    background: rgba(22, 22, 22, 0.7); border: 1px solid var(--border);
+    backdrop-filter: blur(6px); color: var(--text-main);
+    font: inherit; font-size: var(--fs-sm); font-weight: 600; cursor: pointer;
+    max-width: 180px;
+    /* Le style GÉNÉRIQUE des boutons (voir `button, .icon-btn` plus haut) impose flex:1 et min-width:120px :
+       sans ces deux lignes, la pastille connectée faisait 121 px de large sur téléphone alors qu'elle ne
+       contient qu'un point de 7 px (mesuré). */
+    flex: 0 0 auto; min-width: 32px; width: auto;   /* 32 px : cible tactile minimale */
 }
+.cloud-pill:hover { border-color: #454b54; }
+.cloud-pill .cloud-g { width: 16px; height: 16px; flex: 0 0 auto; }
+.cloud-pill-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cloud-pill.indisponible { opacity: .55; }
+.cloud-pill.indisponible .cloud-pill-label::after { content: ' (indisponible)'; }
+@media (max-width: 520px) {
+    .cloud-pill.connecte .cloud-pill-label, .cloud-pill:not(.connecte) .cloud-pill-label { display: none; }
+    .cloud-pill { padding: 0 9px; }
+}
+.cloud-menu-etat { padding: 8px 12px 4px; }
+.sync-status { font-size: 12px; line-height: 1; color: var(--text-muted); transition: color .2s ease; cursor: help; }
 .sync-status.synced { color: #79c99a; }
 .sync-status.syncing { color: #6aa9ff; animation: sync-pulse 1s ease-in-out infinite; }
 .sync-status.pending { color: #e0a64a; }
 .sync-status.offline { color: var(--text-muted); }
 .sync-status.error, .sync-status.toolarge { color: #ff6b6b; }
-@keyframes sync-pulse { 50% { opacity: .35; } } /* opacité seule : un transform ici écraserait le centrage vertical */
+@keyframes sync-pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .sync-status.syncing { animation: none; } }

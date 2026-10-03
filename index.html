@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202609301500">
+    <link rel="stylesheet" href="style.css?v=202610030300">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -36,6 +36,25 @@
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.04.05a2 2 0 1 1-2.83 2.83l-.05-.04a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.05.04a2 2 0 1 1-2.83-2.83l.04-.05a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.04-.05a2 2 0 1 1 2.83-2.83l.05.04a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82.33l.05-.04a2 2 0 1 1 2.83 2.83l-.04.05a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
             </svg>
         </button>
+        <!-- SYNCHRONISATION : un bouton À PART, bien visible, dans la barre du haut (comme TrainHub) — et non
+             dans le menu Fichier, qui est un menu d'EXPORT (retour utilisateur : « c'est un bouton d'export,
+             pas de sauvegarde »). Deux états : « Se connecter » avec le G de Google, ou le NOM du compte avec
+             la pastille d'état. Les deux sont masqués au départ, le temps que Firebase dise si une session
+             existe : afficher « Se connecter » à quelqu'un déjà connecté serait une fausse alerte. Si Firebase
+             ne peut pas démarrer, le bouton apparaît grisé avec la raison (voir synchro-cloud.js). -->
+        <button type="button" id="google-signin-btn" class="cloud-pill" title="Se connecter avec Google pour enregistrer automatiquement dans le cloud" hidden>
+            <svg class="icon cloud-g" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+            <span class="cloud-pill-label">Se connecter</span>
+        </button>
+        <button type="button" id="account-info" class="cloud-pill connecte" title="Compte connecté" aria-haspopup="menu" aria-expanded="false" hidden>
+            <span id="sync-status" class="sync-status" title="Synchronisation" role="img">●</span>
+            <span id="account-name" class="cloud-pill-label"></span>
+        </button>
+        <div id="cloud-menu" class="context-menu file-menu" hidden>
+            <div class="file-menu-hint cloud-menu-etat" id="cloud-menu-etat"></div>
+            <div class="file-menu-sep"></div>
+            <button type="button" id="signout-btn"><span class="file-menu-label">Se déconnecter</span><span class="file-menu-hint">Le travail déjà envoyé reste dans le cloud</span></button>
+        </div>
         <a class="logo" href="#" onclick="return false" title="HarmoHub" aria-label="HarmoHub">
             <span class="logo-mark">
                 <svg class="icon" viewBox="0 0 48 48" aria-hidden="true">
@@ -368,6 +387,25 @@
                     <div class="unsaved-modal-actions import-conflict-actions">
                         <button type="button" id="export-full-go" class="btn-blue">Exporter</button>
                         <button type="button" id="export-full-cancel" class="btn-sec">Annuler</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GARDE-FOU : COMMENCER À TRAVAILLER SANS ÊTRE CONNECTÉ (voir demanderConnexionAvantTravail).
+         Retour utilisateur : « un garde-fou pour me demander une confirmation si je commence à travailler
+         alors que je ne suis pas connecté ». Posée une fois par ouverture de l'appli, à la première
+         modification. Fermer sans choisir revient à « continuer » : on ne bloque jamais le travail. -->
+    <div id="cloud-guard-modal" class="settings-overlay" hidden>
+        <div class="settings-modal unsaved-modal" role="dialog" aria-modal="true" aria-labelledby="cloud-guard-title">
+            <div class="settings-header"><h2 id="cloud-guard-title">Tu n'es pas connecté</h2></div>
+            <div class="settings-body">
+                <div class="settings-content unsaved-modal-body">
+                    <p>Ce que tu fais maintenant ne sera <strong>pas enregistré dans le cloud</strong> : il restera seulement sur cet appareil, et un autre appareil ne le verra pas.</p>
+                    <div class="unsaved-modal-actions import-conflict-actions">
+                        <button type="button" id="cloud-guard-connect" class="btn-blue">Se connecter</button>
+                        <button type="button" id="cloud-guard-continue" class="btn-sec">Continuer sans synchroniser</button>
                     </div>
                 </div>
             </div>
@@ -714,16 +752,7 @@
                  le dépliage ne sert qu'à les RÉGLER, et ne masque plus rien. -->
             <section class="control-card song-panel" id="song-card">
                 <div class="card-head">
-                    <h2>Morceau<!-- ÉTAT DE LA SYNCHRO, TOUJOURS VISIBLE dès qu'un compte est connecté. Retour utilisateur :
-                        « l'enregistrement me semble trop aléatoire » — une pastille permanente répond à
-                        ça sans qu'on ouvre quoi que ce soit. Masquée sans compte : annoncer un état de
-                        synchro quand il n'y a rien à synchroniser n'apprendrait rien.
-                        SUPERPOSÉE AU TITRE, elle ne prend AUCUNE PLACE : mesuré sur téléphone, cette
-                        barre n'a que 4 px de marge à 390 px (titre 82 + espace 10 + boutons 222 pour
-                        318), et à 360 px les boutons passent déjà à la ligne. Y ajouter quoi que ce soit,
-                        même 12 px, les renvoyait en dessous — c'est ce que mobile_grille_plus_haut a
-                        signalé. Se connecter / se déconnecter vivent dans le menu Fichier.
-                        --><span id="sync-status" class="sync-status" title="Synchronisation" role="img" hidden>●</span></h2>
+                    <h2>Morceau</h2>
                     <!-- Double-clic/double-tap sur le nom fait la même chose que le bouton crayon
                          ci-dessous (voir startInlineRenameSongMain, script.js) : deux façons d'accéder
                          au même renommage en place, le bouton rendant le geste visible/découvrable
@@ -1606,11 +1635,11 @@
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
     <script src="firebase-config.js?v=202610030200"></script>
     <script src="fichiers.js?v=202609182200"></script>
-    <script src="synchro-cloud.js?v=202610030100"></script>
-    <script src="script.js?v=202610030100"></script>
+    <script src="synchro-cloud.js?v=202610030300"></script>
+    <script src="script.js?v=202610030300"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202610030100"></script>
+    <script src="synchro-harmohub.js?v=202610030300"></script>
 </body>
 </html>

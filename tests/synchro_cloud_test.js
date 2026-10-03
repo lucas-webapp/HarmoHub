@@ -21,7 +21,7 @@ const { check, exiger, plan, bilan } = require('./_harness')('synchro cloud');
 const estBruitReseau = require('./_harness').estBruitReseau;
 const { creerNuage, installer } = require('./_firebase_faux');
 
-plan(102);
+plan(119);
 
 const CHEMIN = 'users/u1/apps/harmohub';
 const pause = (p, ms) => p.waitForTimeout(ms);
@@ -31,12 +31,12 @@ const pause = (p, ms) => p.waitForTimeout(ms);
     const erreurs = [];
     const pannesConsignees = [];
 
-    const ouvrir = async (nuage, appareil, { uid = 'u1', viewport, tactile } = {}) => {
+    const ouvrir = async (nuage, appareil, { uid = 'u1', viewport, tactile, persister } = {}) => {
         const ctx = await navigateur.newContext({
             viewport: viewport || { width: 1300, height: 950 },
             ...(tactile ? { hasTouch: true, isMobile: true } : {}),
         });
-        await installer(ctx, nuage, { appareil, uid });
+        await installer(ctx, nuage, { appareil, uid, persister });
         const p = await ctx.newPage();
         p.on('pageerror', (e) => erreurs.push(`${appareil} pageerror: ${e.message}`));
         p.on('console', (m) => {
@@ -59,19 +59,11 @@ const pause = (p, ms) => p.waitForTimeout(ms);
         await d.p.reload({ waitUntil: 'load' });
         await pause(d.p, 900);
     };
-    // Tout passe par le MENU FICHIER : la barre du morceau est trop serrée sur téléphone pour porter
-    // un bouton de connexion (mesuré : il renvoyait les boutons d'action à la ligne).
-    const entreesMenu = async (p) => {
-        await p.click('#file-menu-btn'); await p.waitForTimeout(200);
-        const l = await p.evaluate(() => [...document.querySelectorAll('#file-menu [data-file-action]')].map(b => b.dataset.fileAction));
-        await p.keyboard.press('Escape'); await p.waitForTimeout(150);
-        return l;
-    };
-    const actionMenu = async (p, action) => {
-        await p.click('#file-menu-btn'); await p.waitForTimeout(200);
-        await p.click(`#file-menu [data-file-action="${action}"]`);
-    };
-    const connecter = async (d, attente = 1800) => { await actionMenu(d.p, 'cloud-connexion'); await pause(d.p, attente); };
+    // LE BOUTON DE SYNCHRO est dans la BARRE DU HAUT (comme TrainHub), pas dans le menu Fichier : c'est un
+    // menu d'EXPORT (retour utilisateur : « c'est un bouton d'export, pas de sauvegarde »).
+    const ouvrirMenuCloud = async (p) => { await p.click('#account-info'); await p.waitForTimeout(200); };
+    const deconnecter = async (p) => { await ouvrirMenuCloud(p); await p.click('#signout-btn'); };
+    const connecter = async (d, attente = 1800) => { await d.p.click('#google-signin-btn'); await pause(d.p, attente); };
     const etat = (d) => d.p.getAttribute('#sync-status', 'data-etat');
     const locaux = (d) => d.p.evaluate(() => loadSongs());
     const nomsLocaux = async (d) => (await locaux(d)).map(s => s.name).sort();
@@ -97,14 +89,13 @@ const pause = (p, ms) => p.waitForTimeout(ms);
         await p.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 20000 });
         await pause(p, 900);
         check(locales.length === 0, `sans SDK Firebase (hors ligne au premier chargement), aucune erreur — ${locales.slice(0, 1)}`);
-        const sans = await entreesMenu(p);
-        check(!sans.includes('cloud-connexion') && sans.includes('cloud-indisponible'),
-            'et le menu ne propose PAS de se connecter, mais le DIT : une entrée qui disparaît en silence ressemble à une panne');
-        await p.click('#file-menu-btn'); await p.waitForTimeout(200);
-        check(await p.locator('#file-menu [data-file-action="cloud-indisponible"]').isDisabled()
-            && /Firebase/.test(await p.textContent('#file-menu [data-file-action="cloud-indisponible"] .file-menu-hint')),
-            'l\'entrée est éteinte et donne la raison');
-        await p.keyboard.press('Escape');
+        check(await p.isVisible('#google-signin-btn') && await p.locator('#google-signin-btn').evaluate(e => e.classList.contains('indisponible')),
+            'sans SDK, le bouton reste VISIBLE mais grisé : un bouton qui disparaît en silence ressemble à une panne');
+        check(/Firebase/.test(await p.getAttribute('#google-signin-btn', 'title')), 'et la raison est au survol');
+        await p.click('#google-signin-btn'); await pause(p, 300);
+        check(/indisponible/.test(await p.textContent('#toast')), 'le clic DIT pourquoi au lieu de ne rien faire');
+        check(!(await p.evaluate(() => [...document.querySelectorAll('#file-menu-btn')].length && (document.getElementById('file-menu') || {}).textContent || '')).includes('Cloud'),
+            'et le menu Fichier ne contient rien sur la synchro');
         const stampe = await p.evaluate(() => {
             localStorage.setItem('harmohubSongs', JSON.stringify([{ id: 'x', name: 'X', savedAt: 1, sections: [] }]));
             const l = loadSongs(); l[0].name = 'X2'; saveSongs(l);
@@ -121,8 +112,11 @@ const pause = (p, ms) => p.waitForTimeout(ms);
     const nuage = creerNuage();
     const A = await ouvrir(nuage, 'A');
     await poser(A, [morceau('a1', 'Ballade', 1000), morceau('a2', 'Nuit', 2000)], ['Jazz']);
-    if (!exiger((await entreesMenu(A.p)).includes('cloud-connexion'), 'le menu Fichier propose de se connecter quand Firebase est disponible')) return bilan();
-    check(await A.p.isHidden('#sync-status'), 'et la pastille reste cachée tant qu\'aucun compte n\'est connecté');
+    if (!exiger(await A.p.isVisible('#google-signin-btn'), 'le bouton « Se connecter » est visible dans la barre du haut')) return bilan();
+    check(await A.p.isHidden('#account-info') && await A.p.isHidden('#sync-status'), 'et rien d\'autre tant qu\'aucun compte n\'est connecté');
+    check(!(await A.p.evaluate(() => document.getElementById('file-menu-btn') && (window.app.openFileMenu(document.getElementById('file-menu-btn')), document.getElementById('file-menu').textContent))).includes('Se connecter'),
+        'le menu Fichier ne contient PAS la connexion : c\'est un menu d\'export');
+    await A.p.keyboard.press('Escape'); await A.p.evaluate(() => window.app.closeFileMenu());
     await connecter(A);
     check(await etat(A) === 'synced', `connecté : la pastille passe à « synchronisé » — ${await etat(A)}`);
     check(nuage.docs.has(CHEMIN), 'le document est créé sous users/{uid}/apps/harmohub, le même chemin que TrainHub (slug « harmohub »)');
@@ -130,13 +124,14 @@ const pause = (p, ms) => p.waitForTimeout(ms);
     check(nuage.docs.get(CHEMIN).songs.every(e => typeof e.json === 'string'),
         'chaque morceau est stocké comme une chaîne JSON — Firestore refuse les tableaux imbriqués et `undefined`');
     check(nuage.docs.get(CHEMIN).dossiers.some(r => r.nom === 'Jazz' && r.supprime === false), 'le dossier part aussi, avec sa date');
-    const menuConnecte = await entreesMenu(A.p);
-    check(await A.p.isVisible('#sync-status') && menuConnecte.includes('cloud-deconnexion') && !menuConnecte.includes('cloud-connexion'),
-        'connecté : la pastille est visible et le menu propose désormais de se déconnecter');
-    await A.p.click('#file-menu-btn'); await pause(A.p, 200);
-    check(/Synchronisé/.test(await A.p.textContent('#file-menu [data-file-action="cloud-deconnexion"] .file-menu-hint')),
-        'et il dit l\'état de la synchro sans qu\'on ait à survoler la pastille');
+    check(await A.p.isVisible('#account-info') && await A.p.isHidden('#google-signin-btn'),
+        'connecté : le bouton montre le COMPTE à la place de « Se connecter »');
+    check(/Testeur/.test(await A.p.textContent('#account-name')) || (await A.p.evaluate(() => getComputedStyle(document.getElementById('account-name')).display)) === 'none',
+        'avec le nom de la personne (sur un écran étroit, le libellé s\'efface et la pastille reste)');
+    await ouvrirMenuCloud(A.p);
+    check(/Synchronisé/.test(await A.p.textContent('#cloud-menu-etat')), 'cliquer dessus dit l\'état de la synchro en toutes lettres');
     await A.p.keyboard.press('Escape'); await pause(A.p, 150);
+    check(await A.p.isHidden('#cloud-menu'), 'et Échap referme ce menu');
 
     // =========================================================================================
     // 2. APPAREIL VIERGE : il RÉCUPÈRE, sans rien demander et sans écraser le cloud
@@ -382,7 +377,7 @@ const pause = (p, ms) => p.waitForTimeout(ms);
         await connecter(D1);
         const D2 = await ouvrir(n, 'D2');
         await poser(D2, [morceau('l1', 'Ballade', 1000, { notes: 'appareil' }), morceau('l2', 'Solo', 2000)]);
-        await actionMenu(D2.p, 'cloud-connexion');
+        await D2.p.click('#google-signin-btn');
         await pause(D2.p, 900);
         const vu = await D2.p.evaluate(() => ({
             visible: !document.getElementById('import-conflict-modal').hidden,
@@ -454,10 +449,10 @@ const pause = (p, ms) => p.waitForTimeout(ms);
     // 12. DÉCONNEXION ET CHANGEMENT DE COMPTE
     // =========================================================================================
     const ecrituresAvantSortie = nuage.ecritures.length;
-    await actionMenu(B.p, 'cloud-deconnexion');
+    await deconnecter(B.p);
     await pause(B.p, 500);
-    check((await entreesMenu(B.p)).includes('cloud-connexion') && await B.p.isHidden('#sync-status'),
-        'se déconnecter remet l\'entrée « se connecter » dans le menu et masque la pastille');
+    check(await B.p.isVisible('#google-signin-btn') && await B.p.isHidden('#sync-status') && await B.p.isHidden('#cloud-menu'),
+        'se déconnecter remet « Se connecter », masque la pastille et referme le menu');
     check((await locaux(B)).length > 0, 'et la bibliothèque reste sur l\'appareil');
     await modifier(B, 'a1', { notes: 'déconnecté' });
     await pause(B.p, 2500);
@@ -478,34 +473,76 @@ const pause = (p, ms) => p.waitForTimeout(ms);
     const nuageTel = creerNuage();
     const T = await ouvrir(nuageTel, 'T', { viewport: { width: 390, height: 844 }, tactile: true });
     await poser(T, [morceau('t1', 'Sur téléphone', 1000)]);
-    // LA RÉGRESSION QUE LE BALAYAGE A TROUVÉE : une première version logeait un bouton de connexion dans la
-    // barre du morceau. Sur 390 px, les boutons d'action passaient à la ligne (titre à 72 px, boutons à
-    // 105 px) — mesuré par mobile_grille_plus_haut. On vérifie donc que l'en-tête ne BOUGE PAS, ni
-    // connecté ni déconnecté.
+    // La barre du haut est FIXE et flottante, avec de la place ; l'en-tête de la carte Morceau, lui, n'a que
+    // 4 px de marge à 390 px et ne doit pas bouger (mobile_grille_plus_haut l'avait signalé à une version précédente).
     const geometrie = () => T.p.evaluate(() => {
-        // Coordonnées de DOCUMENT : ouvrir le menu fait défiler la page, et une mesure relative à la
-        // fenêtre donnait -221 au lieu de 72 — la page avait bougé, pas l'en-tête.
         const y = (s) => { const e = document.querySelector(s); const b = e && e.getBoundingClientRect(); return b && b.width > 0 ? Math.round(b.top + window.scrollY) : null; };
+        const b = (id) => { const r = document.getElementById(id).getBoundingClientRect(); return { l: Math.round(r.left), r: Math.round(r.right), w: Math.round(r.width), h: Math.round(r.height), vis: r.width > 0 }; };
         return { titre: y('#song-card .card-head h2'), actions: y('#song-card .card-head-actions'), select: y('#song-select'),
-                 debord: document.documentElement.scrollWidth - window.innerWidth };
+                 debord: document.documentElement.scrollWidth - window.innerWidth,
+                 pastille: b('sync-status'), compte: b('account-info'), logo: document.querySelector('.logo').getBoundingClientRect().left };
     });
     const avantConnexion = await geometrie();
     await connecter(T);
     const apresConnexion = await geometrie();
-    // « Sur la même ligne » = à moins d'une demi-hauteur de bouton l'un de l'autre : les hauteurs de ligne
-    // diffèrent de quelques pixels (77 / 72), alors qu'un passage à la ligne se compte en dizaines (72 → 105).
-    const memeLigne = (g) => Math.abs(g.titre - g.actions) < 16;
-    check(memeLigne(avantConnexion), `sans compte, le titre et les boutons partagent la ligne (${avantConnexion.titre} / ${avantConnexion.actions})`);
-    check(memeLigne(apresConnexion),
-        `et CONNECTÉ aussi : la pastille ne renvoie pas les boutons à la ligne (${apresConnexion.titre} / ${apresConnexion.actions})`);
-    check(apresConnexion.select === avantConnexion.select, 'le sélecteur de morceau n\'a pas bougé d\'un pixel en se connectant');
-    check(apresConnexion.debord <= 1, `à 390 px la barre du morceau ne déborde pas de l'écran (${apresConnexion.debord}px)`);
-    const pastille = await T.p.evaluate(() => { const b = document.getElementById('sync-status').getBoundingClientRect(); return { w: Math.round(b.width), visible: b.width > 0 }; });
-    check(pastille.visible, 'et la pastille reste visible sur téléphone');
-    await T.p.click('#file-menu-btn'); await pause(T.p, 200);
-    const ligne = await T.p.evaluate(() => { const b = document.querySelector('#file-menu [data-file-action="cloud-deconnexion"]').getBoundingClientRect(); return Math.round(b.height); });
-    check(ligne >= 32, `l'entrée du menu se vise au doigt (${ligne}px de haut)`);
-    await T.p.keyboard.press('Escape');
+    check(avantConnexion.titre === apresConnexion.titre && avantConnexion.actions === apresConnexion.actions && avantConnexion.select === apresConnexion.select,
+        'se connecter ne bouge RIEN dans la carte Morceau');
+    check(apresConnexion.debord <= 1, `à 390 px la page ne déborde pas (${apresConnexion.debord}px)`);
+    check(apresConnexion.pastille.vis, 'la pastille reste visible sur téléphone, libellé du nom effacé');
+    check(apresConnexion.compte.h >= 32 && apresConnexion.compte.w >= 32, `le bouton se vise au doigt (${apresConnexion.compte.w}×${apresConnexion.compte.h})`);
+    check(apresConnexion.compte.r <= apresConnexion.logo, 'et ne chevauche pas le logo');
+
+    // ================= 14. LE GARDE-FOU : travailler sans être connecté =================
+    // « Un garde-fou pour me demander une confirmation si je commence à travailler alors que je ne suis pas connecté. »
+    const nuageG = creerNuage();
+    const GF = await ouvrir(nuageG, 'GF');
+    await pause(GF.p, 600);
+    check(await GF.p.isHidden('#cloud-guard-modal'), 'à l\'ouverture, sans rien toucher : AUCUNE question — il n\'y a pas encore de travail');
+    await GF.p.evaluate(() => window.app.openFileMenu(document.getElementById('file-menu-btn')));
+    await GF.p.evaluate(() => window.app.closeFileMenu());
+    check(await GF.p.isHidden('#cloud-guard-modal'), 'ouvrir un menu n\'est pas travailler');
+    await GF.p.evaluate(() => saveProgressionSections([{ title: 'A', chords: [] }]));
+    await pause(GF.p, 250);
+    check(await GF.p.isVisible('#cloud-guard-modal'), 'à la PREMIÈRE modification sans être connecté : la question s\'ouvre');
+    check(/pas enregistré dans le cloud/.test(await GF.p.textContent('#cloud-guard-modal')), 'et dit ce qu\'on risque : ça ne partira pas dans le cloud');
+    check(await GF.p.isVisible('#cloud-guard-connect') && await GF.p.isVisible('#cloud-guard-continue'), 'avec deux issues : se connecter, ou continuer sans');
+    await GF.p.click('#cloud-guard-continue');
+    check(await GF.p.isHidden('#cloud-guard-modal'), '« continuer sans synchroniser » referme la fenêtre');
+    await GF.p.evaluate(() => saveProgressionSections([{ title: 'B', chords: [] }]));
+    await pause(GF.p, 250);
+    check(await GF.p.isHidden('#cloud-guard-modal'), 'et on ne REDEMANDE pas à chaque modification : une seule fois par ouverture');
+    check((await GF.p.evaluate(() => loadProgressionSections()))[0].title === 'B', 'le travail n\'a jamais été bloqué');
+
+    // Fermer sans choisir = continuer (jamais bloquer).
+    const GF2 = await ouvrir(creerNuage(), 'GF2');
+    await GF2.p.evaluate(() => saveProgressionSections([{ title: 'A', chords: [] }]));
+    await pause(GF2.p, 250);
+    await GF2.p.click('#cloud-guard-modal', { position: { x: 4, y: 4 } });
+    check(await GF2.p.isHidden('#cloud-guard-modal'), 'cliquer à côté referme aussi : on ne bloque jamais le travail');
+
+    // « Se connecter » depuis la question : la fenêtre Google part de CE clic.
+    const GF3 = await ouvrir(creerNuage(), 'GF3', { persister: true });
+    await GF3.p.evaluate(() => saveProgressionSections([{ title: 'A', chords: [] }]));
+    await pause(GF3.p, 250);
+    await GF3.p.click('#cloud-guard-connect');
+    await pause(GF3.p, 1500);
+    check(await GF3.p.evaluate(() => window.__faux.fenetresGoogle) === 1, 'le bouton ouvre la connexion Google (depuis le clic, sans quoi le navigateur la bloquerait)');
+    check(await etat(GF3) === 'synced', 'et la synchro démarre aussitôt');
+
+    // Déjà connecté : jamais de question, même après un rechargement où la session se relit.
+    await GF3.p.reload({ waitUntil: 'load' }); await pause(GF3.p, 900);
+    await GF3.p.evaluate(() => saveProgressionSections([{ title: 'C', chords: [] }]));
+    await pause(GF3.p, 250);
+    check(await GF3.p.isHidden('#cloud-guard-modal'), 'connecté, jamais de question');
+
+    // Avant que Firebase ait répondu sur « qui est connecté » : se taire, ce serait une fausse alerte.
+    const GF4 = await ouvrir(creerNuage(), 'GF4');
+    const avantReponse = await GF4.p.evaluate(() => {
+        SYNCHRO.etat.authPrete = false; SYNCHRO.etat.gardeConnexionPosee = false; SYNCHRO.etat.utilisateur = null;
+        saveProgressionSections([{ title: 'X', chords: [] }]);
+        return document.getElementById('cloud-guard-modal').hidden;
+    });
+    check(avantReponse === true, 'tant que Firebase n\'a pas dit s\'il y a une session, on se TAIT : alerter quelqu\'un déjà connecté serait une fausse alerte');
 
     check(pannesConsignees.length > 0, 'les pannes simulées ont bien été consignées dans la console — un échec qui ne laisserait aucune trace serait introuvable');
     check(erreurs.length === 0, `aucune autre erreur JavaScript pendant tout le scénario — ${erreurs.slice(0, 2).join(' | ')}`);

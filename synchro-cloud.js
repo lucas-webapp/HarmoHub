@@ -269,6 +269,10 @@ function demarrerSynchro(adaptateur, elements) {
 
     // ---------- connexion ----------
     function surChangementUtilisateur(user) {
+        // `authPrete` : Firebase a répondu au moins une fois sur « qui est connecté ». Avant ça, « pas de
+        // compte » ne veut RIEN dire (la session est en cours de relecture) : demander de se connecter à
+        // quelqu'un qui l'est déjà serait une fausse alerte à chaque ouverture.
+        etat.authPrete = true;
         etat.utilisateur = user;
         majInterfaceCompte(user);
         if (etat.desabonner) { etat.desabonner(); etat.desabonner = null; }
@@ -312,6 +316,15 @@ function demarrerSynchro(adaptateur, elements) {
         });
     }
 
+    // Le bouton reste VISIBLE, grisé, avec la raison au survol : un bouton qui disparaît en silence ressemble
+    // à une panne (retour utilisateur : « je ne vois pas le bouton »). Le clic affiche la raison.
+    function marquerIndisponible() {
+        if (!$connexion) return;
+        $connexion.hidden = false;      // masqué au départ dans le HTML, le temps de savoir si une session existe
+        $connexion.classList.add('indisponible');
+        $connexion.title = SYNCHRO.raison;
+    }
+
     function initialiser() {
         if (typeof firebase === 'undefined' || typeof FIREBASE_CONFIG === 'undefined') {
             // Mode local uniquement : rien ne casse, la synchro n'existe simplement pas. C'est aussi ce
@@ -326,7 +339,7 @@ function demarrerSynchro(adaptateur, elements) {
             SYNCHRO.raison = typeof firebase === 'undefined'
                 ? 'Le service Firebase n\'a pas pu se charger (hors ligne, ou bloqué par un bloqueur de contenu ?)'
                 : 'Le fichier firebase-config.js est absent ou illisible';
-            if ($connexion) $connexion.hidden = true;
+            marquerIndisponible();
             return false;
         }
         try {
@@ -338,7 +351,7 @@ function demarrerSynchro(adaptateur, elements) {
         } catch (e) {
             console.error('Initialisation Firebase impossible', e);
             SYNCHRO.raison = 'Initialisation de Firebase impossible : ' + ((e && e.message) || 'erreur inconnue');
-            if ($connexion) $connexion.hidden = true;
+            marquerIndisponible();
             return false;
         }
     }
@@ -349,7 +362,7 @@ function demarrerSynchro(adaptateur, elements) {
     // les échanges avec l'extérieur. Les éléments restent acceptés (`elements.connexion`…) pour une
     // appli qui aurait la place : TabHub, par exemple.
     function seConnecter() {
-        if (!etat.auth) return;
+        if (!etat.auth) { if (elements.surIndisponible) elements.surIndisponible(SYNCHRO.raison); return; }
         var fournisseur = new firebase.auth.GoogleAuthProvider();
         etat.auth.signInWithPopup(fournisseur).catch(function (e) {
             console.error('Connexion impossible', e);
@@ -366,6 +379,8 @@ function demarrerSynchro(adaptateur, elements) {
     SYNCHRO.envoyerMaintenant = envoyerMaintenant;
     SYNCHRO.initialiser = initialiser;
     SYNCHRO.seConnecter = seConnecter;
+    // Le clic sur « Se connecter » doit partir du geste de l'utilisateur ; le garde-fou (voir
+    // synchro-harmohub.js) l'appelle donc depuis le clic de sa propre fenêtre.
     SYNCHRO.seDeconnecter = seDeconnecter;
     SYNCHRO.libelleEtat = function () { return LIBELLES[etat.statut] || 'Non synchronisé'; };
     // `disponible` : le SDK a pu démarrer. C'est lui que le menu consulte pour savoir s'il doit proposer

@@ -701,6 +701,16 @@ function loadProgressionSections() {
 // autonomes ci-dessous (appelées depuis de très nombreux endroits) doivent pouvoir la modifier sans
 // dépendre de l'instance HarmoHubApp (pas encore construite au tout premier appel).
 let hasUnsavedChanges = false;
+// TOUT CE QUI MARQUE « modifié » PASSE ICI. Une vingtaine d'endroits écrivaient `hasUnsavedChanges = true`
+// directement ; en les faisant passer par une fonction, le garde-fou de connexion (voir
+// cloudGardeConnexion) se déclenche à la PREMIÈRE modification, quelle qu'elle soit, sans avoir à
+// retrouver chacun de ces endroits. Lecture et remise à faux restent directes.
+function marquerModifie() {
+    hasUnsavedChanges = true;
+    if (typeof cloudGardeConnexion === 'function') {
+        try { cloudGardeConnexion(); } catch (e) { console.error('Garde-fou de connexion impossible :', e); }
+    }
+}
 // Repères de sauvegarde (voir surveillerFraicheurSauvegarde / rappelerAvantDePartir).
 const CLE_DERNIERE_SAUVEGARDE = 'harmohub_derniere_sauvegarde';
 const CLE_DERNIER_RAPPEL = 'harmohub_dernier_rappel_sauvegarde';
@@ -710,7 +720,7 @@ const CLE_PARTI_MODIFIE = 'harmohub_parti_sans_enregistrer';
 // voir newSong/loadSong, les deux seuls appelants à passer false.
 function saveProgressionSections(sections, markDirty = true) {
     localStorage.setItem('myProgression', JSON.stringify({ sections }));
-    if (markDirty) hasUnsavedChanges = true;
+    if (markDirty) marquerModifie();
 }
 
 // ---------- Morceaux (plusieurs chansons enregistrées séparément) ----------
@@ -3843,7 +3853,7 @@ class HarmoHubApp {
         // plus l'accord ouvert mais le morceau entier.
         document.getElementById('instrument').onchange = (e) => {
             this.songInstrument = e.target.value;
-            hasUnsavedChanges = true;
+            marquerModifie();
             // Fait entendre le nouveau son tout de suite, qu'on modifie un accord déjà posé OU qu'on
             // soit en train d'en composer un nouveau pas encore ajouté (retour utilisateur : changer de
             // son restait muet dans les deux cas, contrairement à root/qualité/etc. — voir refreshPreview,
@@ -3935,7 +3945,7 @@ class HarmoHubApp {
         // 'change' (relâchement du curseur), pas 'input' (à chaque pixel glissé) : un changement de
         // tempo redémarre toute la lecture en cours (voir liveRestartForGlobalChange), on ne veut pas
         // le redéclencher en rafale pendant qu'on fait encore glisser le curseur.
-        document.getElementById('bpm').addEventListener('change', () => { this.commitGlobalSettingUndo(); hasUnsavedChanges = true; this.liveRestartForGlobalChange(); });
+        document.getElementById('bpm').addEventListener('change', () => { this.commitGlobalSettingUndo(); marquerModifie(); this.liveRestartForGlobalChange(); });
 
         // Valeur du tempo éditable directement au clavier (clic dessus, taper une valeur, Entrée ou
         // clic ailleurs pour valider) — resynchronisée avec le curseur, dans les mêmes bornes (60-240).
@@ -3949,7 +3959,7 @@ class HarmoHubApp {
             v = Math.min(240, Math.max(60, v));
             bpmValInput.value = v;
             bpmSlider.value = v;
-            hasUnsavedChanges = true;
+            marquerModifie();
             this.liveRestartForGlobalChange();
         });
 
@@ -3957,17 +3967,17 @@ class HarmoHubApp {
 
         document.getElementById('global-root').onchange = () => {
             this.commitGlobalSettingUndo();
-            hasUnsavedChanges = true;
+            marquerModifie();
             this.updateKeyLabels(); this.loadProgression(); this.refreshPreview();
         };
         document.getElementById('global-mode').onchange = () => {
             this.commitGlobalSettingUndo();
-            hasUnsavedChanges = true;
+            marquerModifie();
             this.updateKeyLabels(); this.loadProgression(); this.refreshPreview();
         };
         document.getElementById('time-sig').onchange = () => {
             this.commitGlobalSettingUndo();
-            hasUnsavedChanges = true;
+            marquerModifie();
             this.updateDurationOptions();
             this.loadProgression();
             this.refreshPreview();
@@ -3980,7 +3990,7 @@ class HarmoHubApp {
         // le redémarrage en direct d'une lecture en cours (voir liveRestartForGlobalChange).
         document.getElementById('groove').onchange = () => {
             this.commitGlobalSettingUndo();
-            hasUnsavedChanges = true;
+            marquerModifie();
             this.liveRestartForGlobalChange();
             // Le séquenceur affiche le groove en cours dans le coin de sa règle (voir .seq-groove-tag) :
             // sans ce rendu, le repère n'apparaissait/ne disparaissait qu'au prochain geste sur une
@@ -4203,6 +4213,15 @@ class HarmoHubApp {
             if (e.target.id === 'delete-files-modal' && this._deleteFilesCancel) this._deleteFilesCancel();
         });
 
+        // Garde-fou de connexion : clic sur le fond = CONTINUER sans synchroniser. On ne bloque jamais le travail.
+        this._cabler('cloud-guard-modal', 'click', (e) => {
+            if (e.target.id === 'cloud-guard-modal' && this._cloudGuardContinuer) this._cloudGuardContinuer();
+        });
+        const boutonCompte = document.getElementById('account-info');
+        if (boutonCompte) boutonCompte.addEventListener('click', () => this.basculerMenuCloud());
+        const boutonSortie = document.getElementById('signout-btn');
+        if (boutonSortie) boutonSortie.addEventListener('click', () => this.fermerMenuCloud());
+
         this._cabler('disk-files-modal', 'click', (e) => {
             if (e.target.id === 'disk-files-modal' && this._diskFilesCancel) this._diskFilesCancel();
         });
@@ -4389,6 +4408,7 @@ class HarmoHubApp {
             { id: 'intensity-menu', close: () => this.fermerMenuIntensite() },           // les cinq niveaux d'un accord
             { id: 'backup-scope-menu', close: () => this.closeTransferScopeMenu() },       // « ce morceau / toute la bibliothèque ? »
             { id: 'file-menu', ancre: '#file-menu-btn', close: () => this.closeFileMenu() },
+            { id: 'cloud-menu', ancre: '#account-info', close: () => this.fermerMenuCloud() },   // état de la synchro + déconnexion
             { id: 'key-suggest-menu', ancre: '#key-suggest-btn', close: () => this.closeKeySuggestMenu() },
             { id: 'quick-add-help', ancre: '#quick-add-help-btn', close: () => this.closeQuickAddHelp() },
             // Réglages du morceau (tempo/groove/mesure/tonalité), devenus un panneau flottant : une
@@ -5586,7 +5606,7 @@ class HarmoHubApp {
             data.guitarOverride = override;
             data.guitarLock = shape;
             saveProgressionSections(sections);
-            hasUnsavedChanges = true;
+            marquerModifie();
             const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
             this.guitarKey = null;
             this.ensureGuitarDiagram(guitarChordFor(chord, data.guitarOverride), false);
@@ -5681,7 +5701,7 @@ class HarmoHubApp {
             this.pushUndo(sections);
             data.guitarLock = shownIsLocked ? null : currentShape;
             saveProgressionSections(sections);
-            hasUnsavedChanges = true;
+            marquerModifie();
             const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
             this.guitarKey = null;
             // Verrouille le doigté du diagramme réellement affiché — l'accord de substitution
@@ -5783,7 +5803,7 @@ class HarmoHubApp {
             data.guitarOverride = override;
             data.guitarLock = null;
             saveProgressionSections(sections);
-            hasUnsavedChanges = true;
+            marquerModifie();
             const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
             this.guitarKey = null;
             this.ensureGuitarDiagram(guitarChordFor(chord, data.guitarOverride), false);
@@ -8473,7 +8493,7 @@ class HarmoHubApp {
 
         const rootSel = document.getElementById('global-root');
         rootSel.value = NOTES[(NOTES.indexOf(rootSel.value) + semitones + 1200) % 12];
-        hasUnsavedChanges = true;
+        marquerModifie();
         this.updateKeyLabels();
 
         this.loadProgression();
@@ -9592,7 +9612,7 @@ class HarmoHubApp {
             const bpm = Math.min(240, Math.max(60, Math.round(60000 / avgMs)));
             document.getElementById('bpm').value = bpm;
             document.getElementById('bpm-val').value = bpm;
-            hasUnsavedChanges = true;
+            marquerModifie();
         }
 
         // Flash bref pour confirmer que le tap a bien été pris en compte, même avant qu'un BPM
@@ -11237,7 +11257,7 @@ class HarmoHubApp {
             this.activeSection = sections.length - 1;
         }
         saveProgressionSections(sections);
-        hasUnsavedChanges = true;
+        marquerModifie();
         if (this.editingIndex != null) this.exitEditMode();
         this.selectedIndex = null;
         this.loadProgression();
@@ -11550,25 +11570,10 @@ class HarmoHubApp {
         // Un réglage qu'on peut prendre sans pouvoir le défaire n'est pas un réglage : c'est un
         // engagement. Les deux sens sont désormais à un clic, et c'est l'usage qui tranche.
         const dossier = nomRacineAffiche();
-        // SYNCHRONISATION, EN TÊTE : c'est désormais LA façon d'enregistrer. Se connecter / se
-        // déconnecter vivent ici et non dans la barre du morceau, trop serrée sur téléphone pour en
-        // porter deux de plus (mesuré : les boutons d'action passaient à la ligne). L'entrée n'existe que
-        // si le SDK a pu démarrer : proposer un bouton qui ne peut rien faire serait trompeur.
-        const cloud = (typeof SYNCHRO !== 'undefined' && SYNCHRO && !SYNCHRO.disponible)
-            // Visible mais éteinte, avec la RAISON : sans ça l'entrée disparaissait en silence quand le SDK
-            // ne se chargeait pas, et rien ne distinguait « pas de synchro » de « bouton introuvable ».
-            ? [{ id: 'cloud-indisponible', desactive: true, label: 'Synchronisation indisponible',
-                 hint: SYNCHRO.raison || 'Firebase n\'a pas pu démarrer' }, { sep: true }]
-            : (typeof SYNCHRO !== 'undefined' && SYNCHRO && SYNCHRO.disponible)
-            ? [SYNCHRO.etat.utilisateur
-                ? { id: 'cloud-deconnexion', label: `Cloud : ${escapeHtml(SYNCHRO.etat.utilisateur.displayName || SYNCHRO.etat.utilisateur.email || 'connecté')}`,
-                    hint: `${SYNCHRO.libelleEtat()} — toucher pour se déconnecter` }
-                : { id: 'cloud-connexion', label: 'Se connecter pour synchroniser',
-                    hint: 'Enregistrement automatique dans ton cloud, sur tous tes appareils' },
-               { sep: true }]
-            : [];
+        // LA SYNCHRONISATION N'EST PAS ICI. Ce menu est un menu d'EXPORT : la connexion au cloud a son propre
+        // bouton, voyant, dans la barre du haut (retour utilisateur : « c'est un bouton d'export, pas de
+        // sauvegarde »).
         const entrees = [
-            ...cloud,
             rangementDisponible()
                 ? { id: 'dossier', label: dossier ? `Dossier : ${dossier}` : 'Choisir un dossier de rangement',
                     hint: dossier ? 'Les exports y sont classés par type' : 'Classer les exports au lieu de les télécharger' }
@@ -11596,11 +11601,7 @@ class HarmoHubApp {
                 // showDirectoryPicker consomme le geste de l'utilisateur et le navigateur refuse
                 // d'ouvrir la fenêtre. D'où l'appel direct ici plutôt que dans une méthode qui
                 // commencerait par vérifier quoi que ce soit.
-                // La connexion part DIRECTEMENT du clic, sans `await` devant : le navigateur ne laisse
-                // ouvrir la fenêtre Google que dans le geste de l'utilisateur, et bloque le reste.
-                if (action === 'cloud-connexion') SYNCHRO.seConnecter();
-                else if (action === 'cloud-deconnexion') SYNCHRO.seDeconnecter();
-                else if (action === 'dossier') this.choisirDossierExports();
+                if (action === 'dossier') this.choisirDossierExports();
                 else if (action === 'oublier-dossier') this.oublierDossierExports();
                 else if (action === 'tout') this.ouvrirExportIntegral();
                 else if (action === 'pdf') this.openPdfExportDialog();
@@ -11643,6 +11644,42 @@ class HarmoHubApp {
         this.flashHint(ancien
             ? `Rangement automatique désactivé — les exports iront dans Téléchargements. « ${ancien} » et son contenu sont intacts.`
             : 'Rangement automatique désactivé', 5000);
+    }
+
+    // ---------- LE BOUTON DE SYNCHRO (barre du haut) ----------
+    // Connecté, il ouvre un petit menu : l'état de la synchro dit en toutes lettres, et « Se déconnecter ».
+    basculerMenuCloud() {
+        const menu = document.getElementById('cloud-menu');
+        const bouton = document.getElementById('account-info');
+        if (!menu || !bouton) return;
+        if (!menu.hidden) { this.fermerMenuCloud(); return; }
+        document.getElementById('cloud-menu-etat').textContent =
+            (typeof SYNCHRO !== 'undefined' && SYNCHRO) ? SYNCHRO.libelleEtat() : '';
+        bouton.setAttribute('aria-expanded', 'true');
+        this.placeMenuNear(menu, bouton);
+    }
+
+    fermerMenuCloud() {
+        const menu = document.getElementById('cloud-menu');
+        if (menu) menu.hidden = true;
+        const bouton = document.getElementById('account-info');
+        if (bouton) bouton.setAttribute('aria-expanded', 'false');
+    }
+
+    // ---------- GARDE-FOU : COMMENCER À TRAVAILLER SANS ÊTRE CONNECTÉ ----------
+    // Retour utilisateur : « un garde-fou pour me demander une confirmation si je commence à travailler alors
+    // que je ne suis pas connecté ». Appelée par cloudGardeConnexion à la première modification. Ne bloque
+    // JAMAIS : le travail se poursuit derrière la fenêtre, et la fermer sans choisir revient à « continuer ».
+    demanderConnexionAvantTravail() {
+        const modal = document.getElementById('cloud-guard-modal');
+        if (!modal) return;
+        modal.hidden = false;
+        const fermer = () => { modal.hidden = true; this._cloudGuardContinuer = null; };
+        this._cloudGuardContinuer = fermer;
+        document.getElementById('cloud-guard-continue').onclick = fermer;
+        // La connexion part DIRECTEMENT de ce clic, sans `await` devant : le navigateur ne laisse ouvrir la
+        // fenêtre Google que dans le geste de l'utilisateur.
+        document.getElementById('cloud-guard-connect').onclick = () => { fermer(); SYNCHRO.seConnecter(); };
     }
 
     closeFileMenu() {
@@ -11778,7 +11815,7 @@ class HarmoHubApp {
                 this.closeKeySuggestMenu();
                 document.getElementById('global-root').value = btn.dataset.keyRoot;
                 document.getElementById('global-mode').value = btn.dataset.keyMode;
-                hasUnsavedChanges = true;
+                marquerModifie();
                 this.updateKeyLabels();
                 this.loadProgression();
                 this.refreshPreview();
@@ -12937,7 +12974,7 @@ class HarmoHubApp {
             // demandait, le repère n'a plus lieu d'être (voir chordSymbolForData).
             delete data.unnamed;
             saveProgressionSections(sections);
-            hasUnsavedChanges = true;
+            marquerModifie();
             // Si c'est l'accord actuellement en mode édition complète, resynchronise le panneau Accord
             // (réglages/séquenceur) avec la nouvelle racine/qualité plutôt que de le laisser périmé.
             if (this.editingIndex === index && this.activeSection === section) this.editChord(section, index);
@@ -12970,7 +13007,7 @@ class HarmoHubApp {
         // Voir changeChordOctave : un doigté verrouillé peut ne plus correspondre à la nouvelle octave.
         data.guitarLock = null;
         saveProgressionSections(sections);
-        hasUnsavedChanges = true;
+        marquerModifie();
         // Si c'est l'accord actuellement en édition, resynchronise le panneau Accord (dont le
         // sélecteur Octave) plutôt que de le laisser périmé — comme startInlineChordSymbolEdit.
         if (this.editingIndex === index && this.activeSection === section) this.editChord(section, index);
@@ -16284,7 +16321,7 @@ class HarmoHubApp {
         // Ces échelles sont désormais conservées DANS le morceau lui-même (voir zoomSettingsForSong/
         // saveCurrentSong) : comme les autres réglages "Morceau" (tonalité, tempo...), Enregistrer/
         // Ctrl+S doit rester le seul moment où ce changement devient permanent.
-        hasUnsavedChanges = true;
+        marquerModifie();
     }
 
     // Applique les deux échelles courantes : l'HORIZONTALE joue sur la DENSITÉ (accords par ligne
@@ -18150,7 +18187,7 @@ class HarmoHubApp {
         else if (this.editingIndex != null) {
             this.editingIndex -= indices.filter(i => i < this.editingIndex).length;
         }
-        hasUnsavedChanges = true;
+        marquerModifie();
         this.loadProgression();
     }
 
@@ -18261,7 +18298,7 @@ class HarmoHubApp {
         if (toucheCle) this.updateKeyLabels();
         if (toucheMesure) this.updateDurationOptions();
         if (toucheCle || toucheMesure || toucheAutre) {
-            hasUnsavedChanges = true;
+            marquerModifie();
             if (this.seqOpen) this.renderSequencer(); // affiche le nouveau groove/la nouvelle mesure
             this.liveRestartForGlobalChange();
         }
@@ -18947,7 +18984,7 @@ class HarmoHubApp {
             n++;
         });
         saveProgressionSections(sections);
-        hasUnsavedChanges = true;
+        marquerModifie();
 
         // Un accord de CETTE partie est ouvert dans le panneau : le relire, sinon le séquenceur
         // resterait affiché sur l'ancien rythme de cet accord-là.
@@ -19027,7 +19064,7 @@ class HarmoHubApp {
         this.pushUndo(sections);
         data.intensity = valeur;
         saveProgressionSections(sections);
-        hasUnsavedChanges = true;
+        marquerModifie();
         // L'accord visé est celui qui est ouvert : le champ source doit suivre, sinon la prochaine
         // retouche du panneau réécrirait l'ancienne valeur par-dessus.
         if (this.editingIndex === index && this.activeSection === section) {
@@ -19113,7 +19150,7 @@ class HarmoHubApp {
         // accord standard, et sur une forme cohérente avec la nouvelle octave sinon.
         data.guitarLock = null;
         saveProgressionSections(sections);
-        hasUnsavedChanges = true;
+        marquerModifie();
         if (this.editingIndex === index && this.activeSection === section) this.editChord(section, index);
         else this.loadProgression();
         this.flashHint(`Octave ${next}`);
