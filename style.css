@@ -359,7 +359,8 @@ body.body-scroll-locked { overflow: hidden !important; }
 #delete-files-modal,
 #disk-files-modal,
 #export-full-modal,
-#cloud-guard-modal { z-index: 200; }
+#cloud-guard-modal,
+#struct-edit-modal { z-index: 200; }
 
 /* Fenêtre agrandie du séquenceur (voir #seq-zoom-overlay/openSeqZoom) : même habillage que
    .settings-modal, mais bien plus large/haute — tout l'intérêt est de donner beaucoup plus de place
@@ -6436,3 +6437,25 @@ body.impression-structure .struct-row { break-inside: avoid; }
 .sync-status.error, .sync-status.toolarge { color: #ff6b6b; }
 @keyframes sync-pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .sync-status.syncing { animation: none; } }
+
+
+/* ---------- Structure : occurrences, commentaires, saisie ---------- */
+.struct-notes { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+.struct-note {
+    display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline;
+    padding: 4px 9px; border-left: 3px solid #e0a64a; border-radius: 0 6px 6px 0;
+    background: rgba(224, 166, 74, 0.08); cursor: pointer; font-size: var(--fs-sm);
+}
+.struct-note:hover, .struct-note:focus-visible { background: rgba(224, 166, 74, 0.16); outline: none; }
+.struct-note-mes { color: #e0a64a; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.struct-note-texte { color: var(--text-main); white-space: pre-wrap; }
+.struct-orpheline { opacity: .6; }
+.struct-orpheline .struct-title { text-decoration: line-through; }
+.struct-ajout { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; }
+.struct-ajout select { max-width: 100%; }
+.struct-aide { font-size: var(--fs-xs); color: var(--text-muted); }
+.struct-edit-champ { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: var(--fs-sm); }
+.struct-edit-champ input, .struct-edit-champ textarea { width: 100%; }
+body.impression-structure .struct-note { background: #fff; border-left-color: #b07a1c; }
+body.impression-structure .struct-note-mes { color: #8a5a00; }
+body.impression-structure .struct-note-texte { color: #000; }

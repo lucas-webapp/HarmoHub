@@ -15,7 +15,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('robustesse des sauvegardes');
 const bruit = require('./_harness').estBruitReseau;
 
-plan(17);
+plan(19);
 
 (async () => {
     const navigateur = await chromium.launch();
@@ -151,10 +151,11 @@ plan(17);
         const partages = [], telecharges = [];
         const vraiClick = HTMLAnchorElement.prototype.click;
         HTMLAnchorElement.prototype.click = function () { if (this.download) telecharges.push(this.download); };
+        const vraiMM = window.matchMedia; window.matchMedia = (q) => (/coarse/.test(q) ? { matches: true } : vraiMM.call(window, q));   // iPhone : pointeur tactile
         navigator.canShare = (d) => !!(d && d.files && d.files.length);
         navigator.share = async (d) => { partages.push({ cles: Object.keys(d), nom: d.files[0].name }); };
         try { await enregistrerFichier(new Blob(['x']), { morceau: 'Avec partage', type: 'Morceau', extension: 'json', dossier: 'morceaux', racine: null }); }
-        finally { HTMLAnchorElement.prototype.click = vraiClick; delete navigator.share; delete navigator.canShare; }
+        finally { HTMLAnchorElement.prototype.click = vraiClick; delete navigator.share; delete navigator.canShare; window.matchMedia = vraiMM; }
         return { partages, telecharges };
     });
     check(avecPartage.partages.length === 1 && avecPartage.telecharges.length === 0,
@@ -168,16 +169,32 @@ plan(17);
         const telecharges = [];
         const vraiClick = HTMLAnchorElement.prototype.click;
         HTMLAnchorElement.prototype.click = function () { if (this.download) telecharges.push(this.download); };
+        const vraiMM = window.matchMedia; window.matchMedia = (q) => (/coarse/.test(q) ? { matches: true } : vraiMM.call(window, q));
         navigator.canShare = () => true;
         navigator.share = async () => { const e = new Error('annulé'); e.name = 'AbortError'; throw e; };
         let res;
         try { res = await enregistrerFichier(new Blob(['x']), { morceau: 'Annule', type: 'Morceau', extension: 'json', dossier: 'morceaux', racine: null }); }
-        finally { HTMLAnchorElement.prototype.click = vraiClick; delete navigator.share; delete navigator.canShare; }
+        finally { HTMLAnchorElement.prototype.click = vraiClick; delete navigator.share; delete navigator.canShare; window.matchMedia = vraiMM; }
         return { res, telecharges };
     });
     check(annule.telecharges.length === 0 && annule.res.annule === true,
         `renoncer au partage ne déclenche pas un téléchargement furtif — ${JSON.stringify(annule.telecharges)}`);
 
+    // SUR ORDINATEUR, la feuille de partage ne s'ouvre PAS, même quand l'API existe (Safari sur Mac l'expose).
+    // Retour utilisateur, capture à l'appui : « je n'en ai pas besoin, je veux juste un "enregistrer sous" ».
+    const surMac = await page.evaluate(async () => {
+        const partages = [], telecharges = [];
+        const vraiClick = HTMLAnchorElement.prototype.click;
+        HTMLAnchorElement.prototype.click = function () { if (this.download) telecharges.push(this.download); };
+        navigator.canShare = () => true;                                  // l'API est là, comme dans Safari sur Mac
+        navigator.share = async (d) => { partages.push(d); };
+        const fin = window.matchMedia('(pointer: coarse)').matches;      // un Chromium de banc a une souris
+        try { await enregistrerFichier(new Blob(['x']), { morceau: 'Sur Mac', type: 'Structure', extension: 'pdf', dossier: 'pdfStructure', racine: null }); }
+        finally { HTMLAnchorElement.prototype.click = vraiClick; delete navigator.share; delete navigator.canShare; }
+        return { partages: partages.length, telecharges, tactile: fin };
+    });
+    check(surMac.tactile === false && surMac.partages === 0 && surMac.telecharges.length === 1,
+        `souris + API de partage présente : un TÉLÉCHARGEMENT ordinaire, pas la feuille de partage — ${JSON.stringify(surMac)}`);
     check(erreurs.length === 0, `aucune erreur JavaScript (${erreurs.slice(0, 2).join(' | ')})`);
     await navigateur.close();
     bilan();

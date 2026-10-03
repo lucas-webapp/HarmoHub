@@ -718,9 +718,77 @@ const CLE_PARTI_MODIFIE = 'harmohub_parti_sans_enregistrer';
 
 // `markDirty=false` : chargement d'un morceau (neuf ou déjà enregistré), pas une modification —
 // voir newSong/loadSong, les deux seuls appelants à passer false.
-function saveProgressionSections(sections, markDirty = true) {
-    localStorage.setItem('myProgression', JSON.stringify({ sections }));
+// `structure` : undefined = conserver celle du tampon, null = la REMETTRE À ZÉRO (nouveau morceau), un
+// tableau = la poser (ouverture d'un morceau enregistré). Voir « Structure du morceau » plus bas.
+function saveProgressionSections(sections, markDirty = true, structure) {
+    const reste = structure === undefined ? loadStructureBrute() : structure;
+    const tampon = { sections };
+    if (reste) tampon.structure = reste;
+    localStorage.setItem('myProgression', JSON.stringify(tampon));
     if (markDirty) marquerModifie();
+}
+
+// ---------- Structure : l'ARRANGEMENT du morceau, distinct des parties de la grille ----------
+// Retour utilisateur : « j'ai besoin de plusieurs fois du même couplet, je suis obligé de dupliquer
+// plusieurs fois mes couplets dans l'écran principal [...] et ces couplets doivent être au bon endroit.
+// J'aimerais pouvoir définir un seul couplet, et le dupliquer au besoin dans la structure. »
+// La grille DÉFINIT les parties (une fois chacune) ; la structure est une liste d'OCCURRENCES qui y
+// renvoient par identifiant : { id, sid, rep, label?, notes: [{ mesure, texte }] }. Dupliquer une
+// occurrence ne copie aucun accord, et corriger la partie la corrige à chaque endroit où elle sert.
+// Tant que l'utilisateur n'a rien arrangé, la structure est DÉDUITE de la grille (une occurrence par
+// partie, dans l'ordre) : un morceau existant se lit comme avant, sans migration.
+function nouvelIdStructure(prefixe) {
+    return prefixe + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3);
+}
+
+function lireTamponProgression() {
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem('myProgression')); } catch (e) { raw = null; }
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw;
+    return { sections: loadProgressionSections() };
+}
+
+function loadStructureBrute() {
+    const r = lireTamponProgression();
+    return Array.isArray(r.structure) ? r.structure : null;
+}
+
+function saveStructureBrute(structure) {
+    const r = lireTamponProgression();
+    if (!Array.isArray(r.sections)) r.sections = loadProgressionSections();
+    r.structure = structure;
+    localStorage.setItem('myProgression', JSON.stringify(r));
+    marquerModifie();
+}
+
+// Donne un identifiant stable (`sid`) à chaque partie, et en redonne un à celle qui partage le sien avec
+// une autre — ce que produit « dupliquer la partie » dans la grille, qui copie tout. Écrit dans le
+// tampon SANS marquer le morceau modifié : poser un identifiant n'est pas une modification de
+// l'utilisateur. Il part avec le morceau au prochain enregistrement.
+function assurerIdentifiantsParties() {
+    const r = lireTamponProgression();
+    const parties = Array.isArray(r.sections) ? r.sections : loadProgressionSections();
+    const vus = new Set();
+    let change = false;
+    parties.forEach((p) => {
+        if (!p.sid || vus.has(p.sid)) { p.sid = nouvelIdStructure('p'); change = true; }
+        vus.add(p.sid);
+    });
+    if (change) { r.sections = parties; try { localStorage.setItem('myProgression', JSON.stringify(r)); } catch (e) { /* sans gravité */ } }
+    return parties;
+}
+
+// La structure à l'ÉCRAN : la brute si l'utilisateur en a fait une, sinon celle déduite de la grille.
+function structureEffective(parties) {
+    const brute = loadStructureBrute();
+    const propre = (it) => ({
+        id: it.id || nouvelIdStructure('i'), sid: it.sid,
+        rep: repeatCountOf({ repeatCount: it.rep }),
+        label: typeof it.label === 'string' && it.label.trim() ? it.label.trim() : '',
+        notes: Array.isArray(it.notes) ? it.notes.filter(n => n && typeof n.texte === 'string' && n.texte.trim()) : [],
+    });
+    if (brute) return { items: brute.map(propre), materialisee: true };
+    return { items: parties.map(p => propre({ id: 'd_' + p.sid, sid: p.sid, rep: repeatCountOf(p) })), materialisee: false };
 }
 
 // ---------- Morceaux (plusieurs chansons enregistrées séparément) ----------
@@ -4217,6 +4285,10 @@ class HarmoHubApp {
         this._cabler('cloud-guard-modal', 'click', (e) => {
             if (e.target.id === 'cloud-guard-modal' && this._cloudGuardContinuer) this._cloudGuardContinuer();
         });
+        this.brancherMenuStructure();
+        this._cabler('struct-edit-modal', 'click', (e) => {
+            if (e.target.id === 'struct-edit-modal' && this._structEditAnnuler) this._structEditAnnuler();
+        });
         const boutonCompte = document.getElementById('account-info');
         if (boutonCompte) boutonCompte.addEventListener('click', () => this.basculerMenuCloud());
         const boutonSortie = document.getElementById('signout-btn');
@@ -4409,6 +4481,7 @@ class HarmoHubApp {
             { id: 'backup-scope-menu', close: () => this.closeTransferScopeMenu() },       // « ce morceau / toute la bibliothèque ? »
             { id: 'file-menu', ancre: '#file-menu-btn', close: () => this.closeFileMenu() },
             { id: 'cloud-menu', ancre: '#account-info', close: () => this.fermerMenuCloud() },   // état de la synchro + déconnexion
+            { id: 'struct-menu', close: () => this.fermerMenuStructure() },                       // clic droit sur une partie de la structure
             { id: 'key-suggest-menu', ancre: '#key-suggest-btn', close: () => this.closeKeySuggestMenu() },
             { id: 'quick-add-help', ancre: '#quick-add-help-btn', close: () => this.closeQuickAddHelp() },
             // Réglages du morceau (tempo/groove/mesure/tonalité), devenus un panneau flottant : une
@@ -8536,6 +8609,7 @@ class HarmoHubApp {
             bpm: parseInt(document.getElementById('bpm').value),
             instrumentMorceau: this.songInstrument,
             sections: loadProgressionSections(),
+            structure: loadStructureBrute(),   // l'arrangement voyage avec le morceau
             ...this.zoomSettingsForSong(),
         };
         const songs = loadSongs();
@@ -8735,7 +8809,7 @@ class HarmoHubApp {
         document.getElementById('groove').value = 'straight';
         document.getElementById('bpm').value = 120;
         document.getElementById('bpm-val').value = '120';
-        saveProgressionSections([{ title: '', chords: [] }], false); // nouveau tampon vierge, rien à enregistrer
+        saveProgressionSections([{ title: '', chords: [] }], false, null); // nouveau tampon vierge, rien à enregistrer, structure comprise
         hasUnsavedChanges = false;
         this.clearHistory(); // changement de morceau : l'historique annuler/rétablir n'a plus de sens
         this.activeSection = 0;
@@ -8866,7 +8940,7 @@ class HarmoHubApp {
         // vraiment (instrument, tonalité...), et a donc le dernier mot sur ce qui le concerne.
         this.resetChordPanel();
         this.applySongSettingsToDom(song);
-        saveProgressionSections(song.sections && song.sections.length ? song.sections : [{ title: '', chords: [] }], false);
+        saveProgressionSections(song.sections && song.sections.length ? song.sections : [{ title: '', chords: [] }], false, Array.isArray(song.structure) ? song.structure : null);
         hasUnsavedChanges = false; // tampon tout juste chargé, identique au morceau enregistré
         this.clearHistory(); // changement de morceau : l'historique annuler/rétablir n'a plus de sens
         this.activeSection = 0;
@@ -8895,6 +8969,7 @@ class HarmoHubApp {
         if (!id) { this.saveCurrentAsSong(); return; }
         syncCurrentSong({
             sections: loadProgressionSections(),
+            structure: loadStructureBrute(),   // l'arrangement voyage avec le morceau
             root: document.getElementById('global-root').value,
             mode: document.getElementById('global-mode').value,
             timeSig: document.getElementById('time-sig').value,
@@ -9118,89 +9193,259 @@ class HarmoHubApp {
     renderStructurePanel() {
         const hote = document.getElementById('structure-panel');
         if (!hote) return;
-        const sections = loadProgressionSections();
+        const parties = assurerIdentifiantsParties();
+        const { items } = structureEffective(parties);
         const beatsPerBar = this.beatsPerBar();
         const bpm = parseInt(document.getElementById('bpm')?.value, 10) || 120;
+        const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+        const partieDe = (it) => parties.find(p => p.sid === it.sid);
+        const nomPartie = (p, i) => ((p.title && p.title.trim()) ? p.title.trim() : `Partie ${i + 1}`);
+        const mesuresDe = (p) => (p.chords || []).reduce((sum, c) => sum + beatsFromData(c), 0) / beatsPerBar;
 
-        const totalMesures = totalMeasuresOf(sections, beatsPerBar);
+        // Les occurrences dont la partie a été supprimée dans la grille restent affichées (barrées), pour
+        // qu'on puisse les retirer : les faire disparaître en silence ferait croire à une perte.
+        const totalMesures = items.reduce((t, it) => { const p = partieDe(it); return t + (p ? mesuresDe(p) * it.rep : 0); }, 0);
         const secondes = bpm > 0 ? (totalMesures * beatsPerBar * 60) / bpm : 0;
         const duree = `${Math.floor(secondes / 60)} min ${String(Math.round(secondes % 60)).padStart(2, '0')} s`;
 
         // Une couleur par famille, attribuée dans l'ordre d'apparition : elle ne sert qu'à faire
         // ressortir d'un coup d'œil qu'une partie revient, éventuellement variée.
-        const familles = [...new Set(sections.map(sec => this.structureFamily(sec.title)))];
+        const familles = [...new Set(items.map(it => { const p = partieDe(it); return this.structureFamily(p ? p.title : ''); }))];
 
         // MESURE DE DÉPART, répétitions comprises. C'est l'information qu'on cherche en répétition
-        // (« le pont commence mesure 45 ») et elle n'existait nulle part : chaque module savait dire la
-        // longueur d'une partie, aucun ne savait dire OÙ elle tombe.
+        // (« le pont commence mesure 45 »).
         let curseur = 1;
-        const lignes = sections.map((sec, i) => {
-            const titre = (sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${i + 1}`;
-            const beats = (sec.chords || []).reduce((sum, c) => sum + beatsFromData(c), 0);
-            const mesuresUne = beats / beatsPerBar;
-            const rep = repeatCountOf(sec);
+        const titreDe = (it) => {
+            const p = partieDe(it);
+            return it.label || (p ? nomPartie(p, parties.indexOf(p)) : 'Partie supprimée');
+        };
+        const lignes = items.map((it, i) => {
+            const p = partieDe(it);
+            const titre = titreDe(it);
+            if (!p) {
+                return `
+                <div class="struct-row struct-orpheline" data-item="${i}">
+                    <span class="struct-famille struct-famille-0"></span>
+                    <div class="struct-main"><div class="struct-head"><span class="struct-title">${escapeHtml(titre)}</span>
+                        <span class="struct-measures">cette partie n'existe plus dans la grille</span></div></div>
+                    <div class="struct-actions"><button type="button" class="icon-btn" data-struct="supprimer" title="Retirer de la structure" aria-label="Retirer de la structure">✕</button></div>
+                </div>`;
+            }
+            const mesuresUne = mesuresDe(p);
             const debut = curseur;
-            const fin = curseur + mesuresUne * rep - 1;
-            curseur += mesuresUne * rep;
-            const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-            const grille = this.chordsByMeasure(sec, beatsPerBar)
-                .map(m => m.map(escapeHtml).join(' ')).join(' | ');
-            const famille = familles.indexOf(this.structureFamily(sec.title)) % 8;
+            const fin = curseur + mesuresUne * it.rep - 1;
+            curseur += mesuresUne * it.rep;
+            const grille = this.chordsByMeasure(p, beatsPerBar).map(m => m.map(escapeHtml).join(' ')).join(' | ');
+            const famille = familles.indexOf(this.structureFamily(p.title)) % 8;
+            const notes = it.notes.map((n, k) => `
+                        <div class="struct-note" role="button" tabindex="0" data-note="${k}" title="Modifier ou supprimer ce commentaire">
+                            <span class="struct-note-mes">${Number.isFinite(n.mesure) && n.mesure > 0 ? `mes. ${n.mesure}` : 'toute la partie'}</span>
+                            <span class="struct-note-texte">${escapeHtml(n.texte)}</span>
+                        </div>`).join('');
             return `
-                <div class="struct-row" data-section="${i}">
+                <div class="struct-row" data-item="${i}">
                     <span class="struct-famille struct-famille-${famille}" title="Parties du même nom (variations comprises)"></span>
                     <div class="struct-main">
                         <div class="struct-head">
                             <span class="struct-title">${escapeHtml(titre)}</span>
-                            <span class="struct-measures">${sec.chords.length ? `${fmt(mesuresUne)} mes.` : 'vide'}</span>
-                            ${rep > 1 ? `<span class="struct-rep">×${rep}</span>` : ''}
-                            ${sec.chords.length ? `<span class="struct-pos">mes. ${fmt(debut)}–${fmt(fin)}</span>` : ''}
+                            <span class="struct-measures">${p.chords.length ? `${fmt(mesuresUne)} mes.` : 'vide'}</span>
+                            ${it.rep > 1 ? `<span class="struct-rep">×${it.rep}</span>` : ''}
+                            ${p.chords.length ? `<span class="struct-pos">mes. ${fmt(debut)}–${fmt(fin)}</span>` : ''}
                         </div>
-                        ${sec.chords.length ? `<div class="struct-chords">| ${grille} |</div>` : ''}
+                        ${p.chords.length ? `<div class="struct-chords">| ${grille} |</div>` : ''}
+                        ${notes ? `<div class="struct-notes">${notes}</div>` : ''}
                     </div>
                     <div class="struct-actions">
                         <button type="button" class="icon-btn" data-struct="rep-moins" title="Une répétition de moins" aria-label="Une répétition de moins">−</button>
                         <button type="button" class="icon-btn" data-struct="rep-plus" title="Une répétition de plus" aria-label="Une répétition de plus">+</button>
-                        <button type="button" class="icon-btn" data-struct="haut" title="Monter cette partie" aria-label="Monter cette partie">↑</button>
-                        <button type="button" class="icon-btn" data-struct="bas" title="Descendre cette partie" aria-label="Descendre cette partie">↓</button>
+                        <button type="button" class="icon-btn" data-struct="haut" title="Monter" aria-label="Monter">↑</button>
+                        <button type="button" class="icon-btn" data-struct="bas" title="Descendre" aria-label="Descendre">↓</button>
                     </div>
                 </div>`;
         }).join('');
 
         // LE DÉROULÉ : ce qu'on joue, dans l'ordre, répétitions comprises. C'est la forme du morceau —
         // la seule ligne qu'on relit avant de monter sur scène.
-        const deroule = sections.filter(sec => sec.chords.length).map((sec, i) => {
-            const titre = (sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${i + 1}`;
-            const rep = repeatCountOf(sec);
-            return escapeHtml(titre) + (rep > 1 ? ` ×${rep}` : '');
-        }).join(' · ');
+        const deroule = items.filter(it => { const p = partieDe(it); return p && p.chords.length; })
+            .map(it => escapeHtml(titreDe(it)) + (it.rep > 1 ? ` ×${it.rep}` : '')).join(' · ');
+
+        // Ajouter une OCCURRENCE d'une partie déjà définie : c'est le geste qui remplace « dupliquer la
+        // partie dans la grille ». Toutes les parties sont proposées, utilisées ou non.
+        const usages = (sid) => items.filter(it => it.sid === sid).length;
+        const ajout = `
+            <div class="struct-ajout">
+                <select id="struct-ajout-select" aria-label="Ajouter une partie à la structure">
+                    <option value="">+ Ajouter une partie à la structure…</option>
+                    ${parties.map((p, i) => `<option value="${escapeHtml(p.sid)}">${escapeHtml(nomPartie(p, i))}${usages(p.sid) ? ` (déjà ${usages(p.sid)}×)` : ' (pas encore utilisée)'}</option>`).join('')}
+                </select>
+                <span class="struct-aide">Clic droit (ou appui long) sur une partie : dupliquer, renommer, commenter, retirer.</span>
+            </div>`;
 
         hote.innerHTML = `
             <div class="struct-somme">
-                <span><strong>${Number.isInteger(totalMesures) ? totalMesures : totalMesures.toFixed(1)}</strong> mesures</span>
+                <span><strong>${fmt(totalMesures)}</strong> mesures</span>
                 <span><strong>${duree}</strong> à ${bpm} BPM</span>
-                <span><strong>${sections.filter(s => s.chords.length).length}</strong> partie(s)</span>
+                <span><strong>${items.filter(it => partieDe(it) && partieDe(it).chords.length).length}</strong> partie(s)</span>
             </div>
             ${deroule ? `<div class="struct-deroule"><span class="struct-deroule-label">Déroulé</span> ${deroule}</div>` : ''}
             <div class="struct-liste">${lignes}</div>
-            ${sections.some(s => s.chords.length) ? '' : '<p class="struct-vide">Aucun accord pour l\'instant — la structure apparaîtra ici dès que la grille en contiendra.</p>'}`;
+            ${parties.some(s => s.chords.length) ? '' : '<p class="struct-vide">Aucun accord pour l\'instant — la structure apparaîtra ici dès que la grille en contiendra.</p>'}
+            ${ajout}`;
 
-        hote.querySelectorAll('[data-struct]').forEach(btn => {
-            btn.onclick = () => {
-                const i = +btn.closest('.struct-row').dataset.section;
-                const action = btn.dataset.struct;
-                if (action === 'haut' || action === 'bas') {
-                    this.moveSection(i, action === 'haut' ? -1 : 1);
-                } else {
-                    const sections = loadProgressionSections();
-                    if (!sections[i]) return;
-                    this.pushUndo(sections);
-                    sections[i].repeatCount = repeatCountOf(sections[i]) + (action === 'rep-plus' ? 1 : -1);
-                    saveProgressionSections(sections);
-                    this.loadProgression();
-                }
-                this.renderStructurePanel();
+        hote.querySelectorAll('.struct-row').forEach(row => {
+            const i = +row.dataset.item;
+            row.querySelectorAll('[data-struct]').forEach(btn => { btn.onclick = () => this.actionStructure(i, btn.dataset.struct); });
+            row.querySelectorAll('[data-note]').forEach(n => {
+                const ouvrir = () => this.editerCommentaireStructure(i, +n.dataset.note);
+                n.onclick = ouvrir;
+                n.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ouvrir(); } };
+            });
+            // CLIC DROIT, et appui long au doigt (550 ms, comme les cases de la grille) : les mêmes actions
+            // que les boutons, plus celles qui n'ont pas de bouton (dupliquer, renommer, commenter).
+            row.addEventListener('contextmenu', (e) => { e.preventDefault(); this.ouvrirMenuStructure(e.clientX, e.clientY, i); });
+            let minuteur = null, x0 = 0, y0 = 0;
+            row.addEventListener('touchstart', (e) => {
+                if (e.touches.length !== 1 || e.target.closest('button, .struct-note')) return;
+                x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+                minuteur = setTimeout(() => { minuteur = null; this.ouvrirMenuStructure(x0, y0, i); }, 550);
+            }, { passive: true });
+            row.addEventListener('touchmove', (e) => {
+                if (minuteur && Math.hypot(e.touches[0].clientX - x0, e.touches[0].clientY - y0) > 10) { clearTimeout(minuteur); minuteur = null; }
+            }, { passive: true });
+            row.addEventListener('touchend', () => { if (minuteur) { clearTimeout(minuteur); minuteur = null; } });
+        });
+        const sel = document.getElementById('struct-ajout-select');
+        if (sel) sel.onchange = () => {
+            const sid = sel.value;
+            if (!sid) return;
+            this.modifierStructure((liste) => { liste.push({ id: nouvelIdStructure('i'), sid, rep: 1, label: '', notes: [] }); });
+        };
+    }
+
+    // Applique une modification à la structure : la matérialise si elle n'était que déduite de la grille,
+    // l'écrit dans le tampon (le morceau est alors « modifié »), puis redessine.
+    modifierStructure(fn) {
+        const parties = assurerIdentifiantsParties();
+        const copie = JSON.parse(JSON.stringify(structureEffective(parties).items));
+        fn(copie, parties);
+        saveStructureBrute(copie);
+        this.renderStructurePanel();
+    }
+
+    actionStructure(i, action) {
+        this.fermerMenuStructure();
+        this.modifierStructure((liste) => {
+            const it = liste[i];
+            if (!it) return;
+            if (action === 'rep-plus') it.rep = Math.min(99, it.rep + 1);
+            else if (action === 'rep-moins') it.rep = Math.max(1, it.rep - 1);
+            else if (action === 'haut' && i > 0) [liste[i - 1], liste[i]] = [liste[i], liste[i - 1]];
+            else if (action === 'bas' && i < liste.length - 1) [liste[i + 1], liste[i]] = [liste[i], liste[i + 1]];
+            else if (action === 'dupliquer') {
+                // Une occurrence de plus de LA MÊME partie, juste après : aucun accord copié. Ni le nom
+                // particulier ni les commentaires ne suivent — ils décrivent CETTE occurrence-ci.
+                liste.splice(i + 1, 0, { id: nouvelIdStructure('i'), sid: it.sid, rep: it.rep, label: '', notes: [] });
+            } else if (action === 'supprimer') liste.splice(i, 1);
+        });
+        if (action === 'supprimer') this.flashHint('Retirée de la structure — la partie reste dans la grille', 3200);
+    }
+
+    // ----- clic droit -----
+    ouvrirMenuStructure(x, y, i) {
+        const menu = document.getElementById('struct-menu');
+        if (!menu) return;
+        this._structCible = i;
+        menu.hidden = false;
+        const pad = 8;
+        menu.style.left = `${Math.max(pad, Math.min(x, window.innerWidth - menu.offsetWidth - pad))}px`;
+        menu.style.top = `${Math.max(pad, Math.min(y, window.innerHeight - menu.offsetHeight - pad))}px`;
+    }
+
+    fermerMenuStructure() {
+        const menu = document.getElementById('struct-menu');
+        if (menu) menu.hidden = true;
+    }
+
+    brancherMenuStructure() {
+        document.querySelectorAll('#struct-menu [data-struct-ctx]').forEach(b => {
+            b.onclick = () => {
+                const i = this._structCible;
+                const a = b.dataset.structCtx;
+                this.fermerMenuStructure();
+                if (a === 'renommer') this.renommerOccurrenceStructure(i);
+                else if (a === 'commentaire') this.editerCommentaireStructure(i, null);
+                else this.actionStructure(i, a);
             };
+        });
+    }
+
+    // ----- fenêtre de saisie : renommer, commenter -----
+    // Une seule fenêtre pour les deux : pas de prompt() natif (bloqué ou invisible dans l'app du Dock).
+    // Résout avec { champ: valeur }, 'supprimer' ou null (annulé).
+    saisirStructure({ titre, champs, supprimable }) {
+        const modal = document.getElementById('struct-edit-modal');
+        if (!modal) return Promise.resolve(null);
+        document.getElementById('struct-edit-title').textContent = titre;
+        document.getElementById('struct-edit-body').innerHTML = champs.map(c => `
+            <label class="struct-edit-champ"><span>${escapeHtml(c.libelle)}</span>
+                <${c.type === 'texte-long' ? 'textarea rows="3"' : `input type="${c.type || 'text'}"${c.type === 'number' ? ' min="1" inputmode="numeric"' : ''}`} id="struct-edit-${c.nom}" placeholder="${escapeHtml(c.indice || '')}" value="${c.type === 'texte-long' ? '' : escapeHtml(c.valeur ?? '')}">${c.type === 'texte-long' ? `${escapeHtml(c.valeur ?? '')}</textarea>` : ''}
+            </label>`).join('');
+        document.getElementById('struct-edit-delete').hidden = !supprimable;
+        modal.hidden = false;
+        const premier = modal.querySelector('input, textarea');
+        if (premier) setTimeout(() => premier.focus(), 30);
+        return new Promise((resolve) => {
+            const fermer = (rep) => { modal.hidden = true; this._structEditAnnuler = null; resolve(rep); };
+            this._structEditAnnuler = () => fermer(null);
+            const valider = () => fermer(Object.fromEntries(champs.map(c => [c.nom, document.getElementById(`struct-edit-${c.nom}`).value])));
+            document.getElementById('struct-edit-ok').onclick = valider;
+            document.getElementById('struct-edit-cancel').onclick = () => fermer(null);
+            document.getElementById('struct-edit-delete').onclick = () => fermer('supprimer');
+            modal.querySelectorAll('input').forEach(inp => { inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); valider(); } }; });
+        });
+    }
+
+    async renommerOccurrenceStructure(i) {
+        const parties = assurerIdentifiantsParties();
+        const it = structureEffective(parties).items[i];
+        if (!it) return;
+        const p = parties.find(x => x.sid === it.sid);
+        const rep = await this.saisirStructure({
+            titre: 'Renommer cette occurrence',
+            champs: [{ nom: 'label', libelle: 'Nom affiché dans la structure', valeur: it.label || (p && p.title) || '', indice: (p && p.title) || 'Nom de la partie' }],
+        });
+        if (!rep || typeof rep !== 'object') return;
+        // Le nom ne change que CETTE occurrence : « Couplet 1 » et « Couplet 2 » renvoient à la même partie.
+        // Vide ou identique au titre de la partie = on revient au nom d'origine.
+        const nom = rep.label.trim();
+        this.modifierStructure((liste) => { if (liste[i]) liste[i].label = (nom && p && nom === (p.title || '').trim()) ? '' : nom; });
+    }
+
+    async editerCommentaireStructure(i, k) {
+        const parties = assurerIdentifiantsParties();
+        const it = structureEffective(parties).items[i];
+        if (!it) return;
+        const existant = k != null ? it.notes[k] : null;
+        const rep = await this.saisirStructure({
+            titre: existant ? 'Modifier le commentaire' : 'Ajouter un commentaire',
+            champs: [
+                { nom: 'mesure', type: 'number', libelle: 'Mesure de cette partie (vide = toute la partie)', valeur: existant && existant.mesure ? String(existant.mesure) : '', indice: 'ex. 4' },
+                { nom: 'texte', type: 'texte-long', libelle: 'Commentaire', valeur: existant ? existant.texte : '', indice: 'ex. batterie uniquement' },
+            ],
+            supprimable: !!existant,
+        });
+        if (!rep) return;
+        this.modifierStructure((liste) => {
+            const cible = liste[i];
+            if (!cible) return;
+            if (rep === 'supprimer') { cible.notes.splice(k, 1); return; }
+            const texte = rep.texte.trim();
+            if (!texte) { if (existant) cible.notes.splice(k, 1); return; }
+            const m = parseInt(rep.mesure, 10);
+            const note = { mesure: Number.isFinite(m) && m > 0 ? m : null, texte };
+            if (existant) cible.notes[k] = note; else cible.notes.push(note);
+            // Dans l'ordre des mesures, « toute la partie » en tête : un commentaire se lit en suivant la grille.
+            cible.notes.sort((a, b) => (a.mesure || 0) - (b.mesure || 0));
         });
     }
 
@@ -9210,6 +9455,15 @@ class HarmoHubApp {
     // parfaitement, et « Enregistrer en PDF » y est une destination standard.
     // Le corps est REMPLACÉ le temps de l'impression puis rendu tel quel : imprimer la page entière
     // n'aurait donné que la grille et le volet, pas cette fenêtre-ci.
+    // Combien de fois cette partie est jouée AU TOTAL d'après la structure (somme des répétitions de toutes ses
+    // occurrences). Sans structure arrangée, c'est son propre nombre de répétitions, comme avant.
+    repetitionsDansStructure(sec) {
+        const brute = loadStructureBrute();
+        if (!brute || !sec.sid) return repeatCountOf(sec);
+        const total = brute.filter(it => it.sid === sec.sid).reduce((t, it) => t + repeatCountOf({ repeatCount: it.rep }), 0);
+        return Math.max(1, total);
+    }
+
     // Prépare hors écran la feuille de route à rastériser ou à imprimer, et rend une fonction de
     // nettoyage. Un seul endroit pour ce montage : l'impression navigateur et l'export jsPDF doivent
     // produire EXACTEMENT la même page, sinon le PDF et le papier finissent par diverger.
@@ -9222,7 +9476,7 @@ class HarmoHubApp {
         zone.innerHTML = `<h1>${escapeHtml(titre)}</h1><h2>Structure</h2>` + panneau.innerHTML;
         // Les commandes n'ont aucun sens sur papier : elles partent de la copie imprimée, pas de la
         // fenêtre.
-        zone.querySelectorAll('.struct-actions').forEach(el => el.remove());
+        zone.querySelectorAll('.struct-actions, .struct-ajout').forEach(el => el.remove());
         document.body.appendChild(zone);
         return { zone, titre };
     }
@@ -11359,7 +11613,7 @@ class HarmoHubApp {
             this.saveCurrentAsSong('Nomme d\'abord ton morceau pour exporter les accords');
             if (!getCurrentSongId()) return; // enregistrement annulé -> pas d'export
         }
-        const sections = loadProgressionSections();
+        const sections = assurerIdentifiantsParties();
         const gRoot = document.getElementById('global-root').value;
         const gMode = document.getElementById('global-mode').value;
         const useFlats = useFlatsForKey(NOTES.indexOf(gRoot), gMode);
@@ -11379,7 +11633,7 @@ class HarmoHubApp {
                 // une partie de 7,5 mesures s'affichait « 8 » là-bas et « 7.5 » ici. Deux modules qui
                 // montrent la même longueur doivent la tenir du même endroit, sinon le même morceau
                 // paraît changer de taille selon l'écran où on le regarde.
-                repeatCount: repeatCountOf(sec),
+                repeatCount: this.repetitionsDansStructure(sec),
                 measures: sectionMeasureCount(sec, this.beatsPerBar()),
                 chords: sec.chords.map(h => {
                     const chordUseFlats = useFlatsForChordRoot(NOTES.indexOf(h.root), NOTES.indexOf(gRoot), gMode, useFlats);

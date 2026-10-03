@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202610030300">
+    <link rel="stylesheet" href="style.css?v=202610030500">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -387,6 +387,35 @@
                     <div class="unsaved-modal-actions import-conflict-actions">
                         <button type="button" id="export-full-go" class="btn-blue">Exporter</button>
                         <button type="button" id="export-full-cancel" class="btn-sec">Annuler</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CLIC DROIT SUR UNE PARTIE DE LA STRUCTURE (voir ouvrirMenuStructure). Retour utilisateur : « ajoute
+         des options avec clic droit (supprimer, dupliquer, renommer) ». « Supprimer » retire l'OCCURRENCE de
+         la structure ; la partie, elle, reste définie dans la grille. -->
+    <div id="struct-menu" class="context-menu file-menu" hidden>
+        <button type="button" data-struct-ctx="dupliquer"><span class="file-menu-label">Dupliquer</span><span class="file-menu-hint">Une occurrence de plus, sans copier d'accords</span></button>
+        <button type="button" data-struct-ctx="renommer"><span class="file-menu-label">Renommer</span><span class="file-menu-hint">Seulement cette occurrence</span></button>
+        <button type="button" data-struct-ctx="commentaire"><span class="file-menu-label">Ajouter un commentaire…</span><span class="file-menu-hint">ex. mesure 4 : batterie uniquement</span></button>
+        <div class="file-menu-sep"></div>
+        <button type="button" data-struct-ctx="supprimer"><span class="file-menu-label">Supprimer</span><span class="file-menu-hint">La retire de la structure, pas de la grille</span></button>
+    </div>
+
+    <!-- SAISIE POUR LA STRUCTURE : renommer une occurrence, écrire un commentaire. Une seule fenêtre, pour les
+         deux, plutôt qu'un prompt() natif — absent ou bloqué dans l'app du Dock. -->
+    <div id="struct-edit-modal" class="settings-overlay" hidden>
+        <div class="settings-modal unsaved-modal" role="dialog" aria-modal="true" aria-labelledby="struct-edit-title">
+            <div class="settings-header"><h2 id="struct-edit-title"></h2></div>
+            <div class="settings-body">
+                <div class="settings-content unsaved-modal-body">
+                    <div id="struct-edit-body"></div>
+                    <div class="unsaved-modal-actions import-conflict-actions">
+                        <button type="button" id="struct-edit-ok" class="btn-blue">Valider</button>
+                        <button type="button" id="struct-edit-cancel" class="btn-sec">Annuler</button>
+                        <button type="button" id="struct-edit-delete" class="btn-sec btn-danger" hidden>Supprimer</button>
                     </div>
                 </div>
             </div>
@@ -1634,9 +1663,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
     <script src="firebase-config.js?v=202610030200"></script>
-    <script src="fichiers.js?v=202609182200"></script>
+    <script src="fichiers.js?v=202610030500"></script>
     <script src="synchro-cloud.js?v=202610030300"></script>
-    <script src="script.js?v=202610030300"></script>
+    <script src="script.js?v=202610030500"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->

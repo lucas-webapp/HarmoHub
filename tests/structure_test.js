@@ -19,7 +19,7 @@ const PROG = { sections: [
     { title: 'Pont', chords: [c('D', 'min', 4), c('G', 'dom7', 4)] },
 ] };
 
-plan(14);
+plan(15);
 
 (async () => {
     const navigateur = await chromium.launch();
@@ -77,20 +77,27 @@ plan(14);
     check(/Couplet ×2 · Refrain · Couplet \(variation\) · Pont/.test(v.deroule),
         `le déroulé donne la FORME du morceau d'un trait — « ${v.deroule} »`);
 
-    // ---- LE LIEN : agir ici doit agir sur le morceau, pas sur une copie ----
+    // ---- LE LIEN : agir ici s'écrit dans le MORCEAU, pas dans une copie ----
+    // RÈGLE CHANGÉE À LA DEMANDE DE L'UTILISATEUR. Ce banc affirmait ici que « monter une partie réordonne la
+    // GRILLE elle-même » et qu'une répétition s'écrit dans la partie. Retour : « j'ai besoin de plusieurs fois
+    // du même couplet, je suis obligé de le dupliquer dans l'écran principal [...] et ces couplets doivent être
+    // au bon endroit ». La grille DÉFINIT les parties ; la structure les ARRANGE, et ne touche donc plus à
+    // l'ordre de la grille (voir structure_modulable_test pour le détail).
     await page.evaluate(() => document.querySelectorAll('.struct-row')[3].querySelector('[data-struct="rep-plus"]').click());
     await page.waitForTimeout(400);
     v = await lire();
-    const persiste = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[3].repeatCount);
-    check(persiste === 2, `une répétition ajoutée ici est écrite dans le MORCEAU — repeatCount = ${persiste}`);
+    const tampon = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')));
+    check(tampon.structure && tampon.structure[3].rep === 2, `une répétition ajoutée ici est écrite dans la STRUCTURE du morceau — rep = ${tampon.structure && tampon.structure[3].rep}`);
     check(/16 mesures/.test(v.somme), `...et le total suit aussitôt — « ${v.somme} »`);
 
-    // Réordonner depuis Structure réordonne la vraie grille : la vue est l'endroit où l'on arrange.
     await page.evaluate(() => document.querySelectorAll('.struct-row')[3].querySelector('[data-struct="haut"]').click());
     await page.waitForTimeout(400);
-    const ordre = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections.map(s => s.title));
-    check(ordre[2] === 'Pont' && ordre[3] === 'Couplet (variation)',
-        `monter une partie réordonne la GRILLE elle-même — ${JSON.stringify(ordre)}`);
+    v = await lire();
+    check(v.lignes[2].titre === 'Pont' && v.lignes[3].titre === 'Couplet (variation)',
+        `monter une partie réordonne la STRUCTURE — ${JSON.stringify(v.lignes.map(l => l.titre))}`);
+    const ordreGrille = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections.map(s => s.title));
+    check(ordreGrille[2] === 'Couplet (variation)' && ordreGrille[3] === 'Pont',
+        `...sans toucher à l'ordre de la GRILLE — ${JSON.stringify(ordreGrille)}`);
 
     check(erreurs.length === 0, `aucune erreur JavaScript (${erreurs.slice(0, 2).join(' | ')})`);
 

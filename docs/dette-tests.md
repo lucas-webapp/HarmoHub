@@ -4219,3 +4219,65 @@ Les 7 rouges : les 5 de référence non instruits, `sortie_edition_involontaire`
 relevé précédent : sensible à la charge quand quatre navigateurs tournent en parallèle. Rangé dans la phase
 série plutôt que d'assouplir ses contrôles. Trois bancs du même profil dans la même famille : la prochaine
 fois qu'un `glock_*` rougit en parallèle, c'est la même explication, mais à vérifier seul avant de le dire.
+
+## Structure modulable, et la feuille de partage sur ordinateur (2026-10-03)
+
+### 1. « Je veux juste un "enregistrer sous" »
+
+La fenêtre de la capture était la **feuille de partage macOS** (AirDrop, Mail, Messages…). Je l'avais mise
+en place pour l'iPhone, seul chemin vers « Enregistrer dans Fichiers » — mais Safari sur Mac expose la même
+API `navigator.share`, donc elle s'ouvrait aussi sur ordinateur, pour **tous** les exports sans dossier
+configuré, pas seulement la Structure. Elle est désormais réservée aux appareils tactiles (`pointer: coarse`,
+pointeur *principal* : un iPad avec clavier reste tactile, un Mac avec écran tactile externe garde sa souris).
+Un contrôle verrouille le cas « souris + API présente = téléchargement ordinaire ».
+
+Non traité : le bouton « Imprimer » qui n'affiche rien chez l'utilisateur. Je n'ai pas su le reproduire ici ;
+l'export PDF le remplace pour l'usage visé.
+
+### 2-4. La structure devient un ARRANGEMENT
+
+**Le défaut de conception.** La vue Structure lisait les parties de la grille et agissait *dessus* : monter
+une partie réordonnait la grille, « + » écrivait dans la partie. Pour jouer deux fois le même couplet, il
+fallait donc le copier dans la grille — avec ses accords — et le placer au bon endroit.
+
+**Le modèle.** La grille *définit* les parties, une fois chacune. La structure est une liste d'**occurrences**
+qui y renvoient par identifiant : `{ id, sid, rep, label?, notes[] }`. Dupliquer une occurrence ne copie aucun
+accord (le banc le mesure : la structure pèse moins de 700 octets), et corriger la partie dans la grille la
+corrige à chaque endroit où elle sert. La structure voyage avec le morceau (enregistrement, import, synchro).
+
+**Pas de migration.** Tant que rien n'est arrangé, la structure est *déduite* de la grille, comme avant. Elle
+n'est écrite qu'au premier geste.
+
+**Décision renversée, à la demande de l'utilisateur.** `structure_test` affirmait « monter une partie
+réordonne la GRILLE elle-même ». Ce n'est plus vrai, par choix : deux contrôles ont été réécrits en
+conséquence, avec la raison dans le commentaire.
+
+**Identifiants.** Les parties n'en avaient pas. Ils sont posés à la demande, sans marquer le morceau modifié
+(poser un identifiant n'est pas une modification de l'utilisateur). Piège évité : « dupliquer la partie » dans
+la grille copie tout, identifiant compris — le doublon en reçoit un neuf, sinon deux parties se
+partageraient leurs occurrences.
+
+**Clic droit** (et appui long au doigt) : dupliquer, renommer, commenter, supprimer. *Renommer* ne change que
+l'occurrence (« Couplet 2 » renvoie toujours à la partie « Couplet »). *Supprimer* retire l'occurrence, pas la
+partie. Saisie par une fenêtre propre, pas un `prompt()` natif (absent ou bloqué dans l'app du Dock).
+
+**Commentaires** : `{ mesure | null, texte }` par occurrence — « mesure 4 : batterie uniquement » — triés par
+mesure, modifiables en cliquant dessus, présents dans l'impression et le PDF.
+
+**Une partie supprimée dans la grille** reste affichée, barrée, avec la raison : la faire disparaître en
+silence ferait croire à une perte.
+
+**Paroles** reçoit pour chaque partie le nombre de passages *total* (somme des répétitions de ses
+occurrences). Elle continue de fonctionner par partie, pas par occurrence : deux couplets aux paroles
+différentes y restent à saisir sur une même partie. À reconsidérer si ça gêne.
+
+### Ce qui n'est PAS fait, et il faut le dire
+
+- **La lecture audio ne suit pas la structure.** Elle joue la grille, dans l'ordre de la grille, comme avant
+  (les répétitions de la structure ne l'ont d'ailleurs jamais pilotée). La structure est, pour l'instant, un
+  document de travail et d'impression. La faire piloter la lecture changerait le curseur, la boucle et la
+  surbrillance : c'est une fonction à part entière.
+- Pas d'annulation (Ctrl+Z) pour les gestes de la structure : retirer une occurrence se corrige en la
+  rajoutant.
+
+`tests/structure_modulable_test.js` : 44 contrôles.

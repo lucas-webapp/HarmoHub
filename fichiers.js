@@ -516,8 +516,21 @@ async function choisirFichierAImporter({ cle = 'morceaux', appli, description = 
 //   - `canShare` doit être interrogé AVANT, avec le fichier lui-même : le type de fichier peut être
 //     refusé, et on ne le sait pas autrement.
 // Comme partout ailleurs, l'échec retombe sur le téléchargement plutôt que de perdre le fichier.
+// LA FEUILLE DE PARTAGE N'EST POUR LES APPAREILS TACTILES. Safari sur Mac expose la même API
+// `navigator.share` que Safari sur iPhone, et la feuille s'y ouvrait donc aussi : AirDrop, Mail, Messages…
+// au lieu d'un simple « Enregistrer » (retour utilisateur, capture à l'appui : « je n'en ai pas besoin, je
+// veux juste un "enregistrer sous" »). Sur ordinateur, un téléchargement ordinaire est le bon geste ; la
+// feuille ne se justifie que sur iPhone et iPad, où elle est le SEUL chemin vers « Enregistrer dans Fichiers ».
+// Le critère est le pointeur PRINCIPAL (`pointer: coarse`), pas la présence de l'API ni le nom du système :
+// un iPad avec clavier reste tactile, un Mac avec écran tactile externe garde sa souris.
+function appareilTactile() {
+    try { return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches; }
+    catch (e) { return false; }
+}
+
 function partageFichierPossible(fichier) {
-    return typeof navigator !== 'undefined'
+    return appareilTactile()
+        && typeof navigator !== 'undefined'
         && typeof navigator.share === 'function'
         && typeof navigator.canShare === 'function'
         && navigator.canShare({ files: [fichier] });
