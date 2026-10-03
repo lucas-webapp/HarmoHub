@@ -795,6 +795,40 @@ function libelleMesuresNote(n) {
     return r.fin > r.debut ? `mes. ${r.debut}–${r.fin}` : `mes. ${r.debut}`;
 }
 
+// RÉGLAGES DE LA FEUILLE (aperçu avant impression). Mémorisés d'une fois sur l'autre : on règle sa
+// mise en page une fois, et le PDF rangé par l'export intégral (qui n'ouvre aucune fenêtre) s'en sert aussi.
+const CLE_REGLAGES_FEUILLE = 'harmohub_feuille_structure';
+const FEUILLE_DEFAUT = {
+    format: 'a4', orientation: 'portrait', colonnes: 1,
+    ajuster: true, zoom: 100,                                    // « tout sur une page » d'abord
+    infos: true, deroule: true, accords: true, commentaires: true, temps: true, couleurs: true,
+    accordsUtilises: false,                                      // utile mais chargé : à demander
+};
+// En dessous, la police (14 px × 0,6 ≈ 6 pt) ne se lit plus : mieux vaut une deuxième page.
+const PLANCHER_ECHELLE_FEUILLE = 0.6;
+function lireReglagesFeuille() {
+    let r = {};
+    try { r = JSON.parse(localStorage.getItem(CLE_REGLAGES_FEUILLE)) || {}; } catch (e) { r = {}; }
+    const reg = Object.assign({}, FEUILLE_DEFAUT, r);
+    if (!['a4', 'lettre'].includes(reg.format)) reg.format = 'a4';
+    if (!['portrait', 'landscape'].includes(reg.orientation)) reg.orientation = 'portrait';
+    reg.colonnes = reg.colonnes === 2 ? 2 : 1;
+    reg.zoom = Math.max(50, Math.min(150, Number(reg.zoom) || 100));
+    return reg;
+}
+function ecrireReglagesFeuille(reg) {
+    try { localStorage.setItem(CLE_REGLAGES_FEUILLE, JSON.stringify(reg)); } catch (e) { /* sans gravité */ }
+}
+// Dimensions de la page en pixels CSS (96 dpi), arrondies VERS LE BAS : 1 px de trop et le navigateur
+// ajoute une page blanche à l'impression.
+function geometrieFeuille(reg) {
+    const f = reg.format === 'lettre' ? { l: 215.9, h: 279.4, jspdf: 'letter' } : { l: 210, h: 297, jspdf: 'a4' };
+    const mm = (v) => Math.floor(v * 96 / 25.4);
+    const paysage = reg.orientation === 'landscape';
+    const largeur = mm(paysage ? f.h : f.l), hauteur = mm(paysage ? f.l : f.h), marge = mm(10);
+    return { largeur, hauteur, marge, largeurUtile: largeur - 2 * marge, hauteurUtile: hauteur - 2 * marge, jspdf: f.jspdf, orientation: paysage ? 'landscape' : 'portrait' };
+}
+
 // La structure à l'ÉCRAN : la brute si l'utilisateur en a fait une, sinon celle déduite de la grille.
 function structureEffective(parties) {
     const brute = loadStructureBrute();
@@ -4252,8 +4286,15 @@ class HarmoHubApp {
         this._cabler('structure-overlay', 'click', (e) => {
             if (e.target.id === 'structure-overlay') this.closeStructureWindow();
         });
-        this._cabler('structure-print', 'click', () => this.printStructure());
-        this._cabler('structure-pdf', 'click', () => this.exportStructurePdf());
+        this._cabler('structure-pdf', 'click', () => this.ouvrirApercuStructure());
+        this._cabler('apercu-close', 'click', () => this.fermerApercuStructure());
+        this._cabler('apercu-pdf', 'click', () => this.exportStructurePdf());
+        this._cabler('apercu-print', 'click', () => this.imprimerStructure());
+        this._cabler('structure-apercu', 'click', (e) => { if (e.target.id === 'structure-apercu') this.fermerApercuStructure(); });
+        document.querySelectorAll('#structure-apercu [data-reglage]').forEach(el => {
+            el.addEventListener(el.type === 'range' ? 'input' : 'change', () => this.rendreApercuStructure());
+        });
+        window.addEventListener('resize', () => { if (!document.getElementById('structure-apercu')?.hidden) this.rendreApercuStructure(); });
         this._cabler('song-files', 'click', () => this.openFilesWindow());
         this._cabler('files-close', 'click', () => this.closeFilesWindow());
         this._cabler('files-overlay', 'click', (e) => {
@@ -9512,9 +9553,10 @@ class HarmoHubApp {
     // clair, éventuellement avec quelques couleurs. » Avant, la feuille était une COPIE du volet de
     // l'écran, donc de ses couleurs sombres : on en redessinait les contrastes par-dessus. Ici la page
     // est faite pour le papier — fond blanc, une couleur par famille de parties (la même logique que
-    // les pastilles de l'écran), les mesures de départ en marge. Les couleurs sont posées EN LIGNE :
-    // c'est ce que html2canvas rend le plus fidèlement, et l'impression du navigateur aussi.
-    construireFeuilleStructure() {
+    // les pastilles de l'écran). Les couleurs sont posées EN LIGNE : c'est ce que html2canvas rend le
+    // plus fidèlement, et l'impression du navigateur aussi.
+    // `reg` : les réglages de l'aperçu (voir lireReglagesFeuille) — ce qu'on y montre est ce qui sort.
+    construireFeuilleStructure(reg = lireReglagesFeuille()) {
         const parties = assurerIdentifiantsParties();
         const { items } = structureEffective(parties);
         const beatsPerBar = this.beatsPerBar();
@@ -9527,11 +9569,20 @@ class HarmoHubApp {
             const p = partieDe(it);
             return it.label || (p ? nomPartie(p, parties.indexOf(p)) : 'Partie supprimée');
         };
+        // Repère de temps : « à quelle minute arrive le pont ? » — la question qu'on se pose en répétition
+        // avec un enregistrement, et que le numéro de mesure seul ne règle pas.
+        const horloge = (mesure) => {
+            const s = bpm > 0 ? Math.round(((mesure - 1) * beatsPerBar * 60) / bpm) : 0;
+            return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+        };
         // [encre du titre, teinte de fond]. Retour utilisateur : « des couleurs plus pâles et plus
         // discrètes ». Les fonds sont presque blancs (à peine teintés), l'encre est assourdie mais reste
         // lisible sur blanc (contraste ≥ 4:1) : la couleur repère la famille, elle ne crie pas.
-        const PALETTE = [['#3f6cb0', '#f1f6fc'], ['#b0623a', '#fcf4ed'], ['#3f7a56', '#eff8f2'], ['#7b5aa3', '#f6f1fa'],
-                         ['#96722a', '#fbf7ea'], ['#3a7f8e', '#edf6f8'], ['#a8507a', '#fbf0f5'], ['#69727e', '#f2f3f5']];
+        // Sans couleurs (impression noir et blanc, cartouche économisée) : un seul gris pour tout.
+        const PALETTE = reg.couleurs
+            ? [['#3f6cb0', '#f1f6fc'], ['#b0623a', '#fcf4ed'], ['#3f7a56', '#eff8f2'], ['#7b5aa3', '#f6f1fa'],
+               ['#96722a', '#fbf7ea'], ['#3a7f8e', '#edf6f8'], ['#a8507a', '#fbf0f5'], ['#69727e', '#f2f3f5']]
+            : [['#333333', '#f4f4f4']];
         const vivantes = items.filter(it => { const p = partieDe(it); return p && p.chords.length; });
         const familles = [...new Set(vivantes.map(it => this.structureFamily(partieDe(it).title)))];
         const couleurDe = (it) => PALETTE[Math.max(0, familles.indexOf(this.structureFamily((partieDe(it) || {}).title))) % PALETTE.length];
@@ -9547,19 +9598,19 @@ class HarmoHubApp {
             curseur += une * it.rep;
             totalMesures += une * it.rep;
             const grille = this.chordsByMeasure(p, beatsPerBar).map(m => escapeHtml(m.join(' '))).join('<span class="sf-bar">|</span>');
-            const notes = it.notes.map(n => `
+            const notes = reg.commentaires ? it.notes.map(n => `
                 <div class="sf-note" style="border-left-color:${fort}77;background:${pale}">
                     <span class="sf-note-mes" style="color:${fort}">${libelleMesuresNote(n)}</span>
                     <span class="sf-note-txt">${escapeHtml(n.texte)}</span>
-                </div>`).join('');
+                </div>`).join('') : '';
             return `
             <div class="sf-row" style="border-left-color:${fort}77">
                 <div class="sf-tete">
                     <span class="sf-nom" style="color:${fort}">${escapeHtml(titreDe(it))}</span>
                     ${it.rep > 1 ? `<span class="sf-rep" style="color:${fort};background:${pale};border-color:${fort}55">×${it.rep}</span>` : ''}
-                    <span class="sf-etendue">mes. ${fmt(debut)}${fin > debut ? `–${fmt(fin)}` : ''} · ${fmt(une)} mes.${it.rep > 1 ? ` × ${it.rep}` : ''}</span>
+                    <span class="sf-etendue">${reg.temps ? `à ${horloge(debut)} · ` : ''}mes. ${fmt(debut)}${fin > debut ? `–${fmt(fin)}` : ''} · ${fmt(une)} mes.${it.rep > 1 ? ` × ${it.rep}` : ''}</span>
                 </div>
-                <div class="sf-grille" style="background:${pale}"><span class="sf-bar">|</span>${grille}<span class="sf-bar">|</span></div>
+                ${reg.accords ? `<div class="sf-grille" style="background:${pale}"><span class="sf-bar">|</span>${grille}<span class="sf-bar">|</span></div>` : ''}
                 ${notes ? `<div class="sf-notes">${notes}</div>` : ''}
             </div>`;
         }).join('');
@@ -9574,102 +9625,216 @@ class HarmoHubApp {
         const choix = (id) => { const el = document.getElementById(id); return el && el.selectedOptions && el.selectedOptions[0] ? el.selectedOptions[0].textContent.trim() : ''; };
         const ton = [choix('global-root'), choix('global-mode')].filter(Boolean).join(' ');
         const sig = document.getElementById('time-sig')?.value || '';
-        const meta = [ton, sig, `${bpm} BPM`, `${fmt(totalMesures)} mesures`, duree].filter(Boolean)
+        const groove = document.getElementById('groove')?.value && document.getElementById('groove').value !== 'straight' ? choix('groove') : '';
+        const meta = [ton, sig, `${bpm} BPM`, groove, `${fmt(totalMesures)} mesures`, duree].filter(Boolean)
             .map(t => `<span>${escapeHtml(t)}</span>`).join('<i>·</i>');
-        return { html: `
+        // Les accords du morceau, sans doublon, dans l'ordre où ils apparaissent : le « vocabulaire » à
+        // avoir sous les doigts avant de jouer.
+        const vus = new Set();
+        vivantes.forEach(it => this.chordsByMeasure(partieDe(it), beatsPerBar).forEach(m => m.forEach(c => { if (c !== '%') vus.add(c); })));
+        const date = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+        const nom = this.getCurrentSongName ? (this.getCurrentSongName() || 'Morceau') : 'Morceau';
+        return `
             <div class="sf-entete">
-                <h1>${escapeHtml(this.getCurrentSongName ? (this.getCurrentSongName() || 'Morceau') : 'Morceau')}</h1>
+                <h1>${escapeHtml(nom)}</h1>
                 <div class="sf-sous">Structure</div>
-                <div class="sf-meta">${meta}</div>
+                ${reg.infos ? `<div class="sf-meta">${meta}</div>` : ''}
+                ${reg.accordsUtilises && vus.size ? `<div class="sf-vocab"><b>Accords</b> ${[...vus].map(escapeHtml).join(' · ')}</div>` : ''}
             </div>
-            ${deroule ? `<div class="sf-deroule">${deroule}</div>` : ''}
-            <div class="sf-liste">${lignes || '<p class="sf-vide">Aucun accord dans la grille : rien à structurer pour l\'instant.</p>'}</div>
-            <div class="sf-pied">HarmoHub</div>` };
+            ${reg.deroule && deroule ? `<div class="sf-deroule">${deroule}</div>` : ''}
+            <div class="sf-liste${reg.colonnes === 2 ? ' sf-col2' : ''}">${lignes || '<p class="sf-vide">Aucun accord dans la grille : rien à structurer pour l\'instant.</p>'}</div>
+            <div class="sf-pied">HarmoHub · ${date}</div>`;
     }
 
-    // Prépare hors écran la feuille de route à rastériser ou à imprimer, et rend une fonction de
-    // nettoyage. Un seul endroit pour ce montage : l'impression navigateur et l'export jsPDF doivent
-    // produire EXACTEMENT la même page, sinon le PDF et le papier finissent par diverger.
-    monterFeuilleStructure() {
-        if (!document.getElementById('structure-panel')) return null;
-        const titre = this.getCurrentSongName ? (this.getCurrentSongName() || 'Morceau') : 'Morceau';
-        const zone = document.createElement('div');
-        zone.id = 'structure-print-zone';
-        zone.innerHTML = this.construireFeuilleStructure().html;
-        document.body.appendChild(zone);
-        return { zone, titre };
+    // LES PAGES de la feuille — la SEULE fabrication, partagée par l'aperçu, l'impression et le PDF :
+    // ce qu'on voit dans l'aperçu est donc, à la lettre, ce qui sort. Retour utilisateur : « prépare-moi,
+    // avant impression, un aperçu de la page. Comme ça je pourrai ajuster l'affichage pour que tout
+    // passe sur une page. »
+    // Le contenu est mis en page UNE fois, à la taille voulue (`échelle` = la taille de la police ; tout
+    // le reste est en em, donc tout suit), puis coupé en pages aux frontières des cartes : chaque page
+    // montre une fenêtre du même contenu, décalée. Pas de transform : html2canvas la rend mal.
+    fabriquerPagesFeuille(reg = lireReglagesFeuille()) {
+        const geo = geometrieFeuille(reg);
+        const html = this.construireFeuilleStructure(reg);
+        const base = 14; // px d'une échelle de 100 %
+        const hote = document.createElement('div');
+        hote.style.cssText = 'position:fixed; left:-10000px; top:0; visibility:hidden;';
+        document.body.appendChild(hote);
+        const contenu = (echelle) => {
+            const c = document.createElement('div');
+            c.className = 'sf-contenu';
+            c.style.cssText = `position:relative; width:${geo.largeurUtile}px; font-size:${(base * echelle).toFixed(3)}px;`;
+            c.innerHTML = html;
+            return c;
+        };
+        const mesurer = (echelle) => { const c = contenu(echelle); hote.innerHTML = ''; hote.appendChild(c); return c; };
+        let echelle = Math.max(0.5, Math.min(1.5, (reg.zoom || 100) / 100));
+        let tientSurUne = null;
+        if (reg.ajuster) {
+            // La plus grande taille (≤ 100 %) qui fait tenir TOUT sur une page. Dichotomie : la hauteur ne
+            // varie pas linéairement (les lignes se recoupent), mais elle décroît quand la taille baisse.
+            const tient = (e) => mesurer(e).offsetHeight <= geo.hauteurUtile;
+            if (tient(1)) { echelle = 1; tientSurUne = true; }
+            else if (!tient(PLANCHER_ECHELLE_FEUILLE)) { echelle = PLANCHER_ECHELLE_FEUILLE; tientSurUne = false; }
+            else {
+                let bas = PLANCHER_ECHELLE_FEUILLE, haut = 1;
+                for (let k = 0; k < 12; k++) { const m = (bas + haut) / 2; if (tient(m)) bas = m; else haut = m; }
+                echelle = bas; tientSurUne = true;
+            }
+        }
+        const ref = mesurer(echelle);
+        const total = ref.offsetHeight;
+        const bords = [...ref.querySelectorAll('.sf-row')].map(r => r.offsetTop + r.offsetHeight);
+        // Coupures : à la dernière carte entière qui tient dans la page ; une carte plus haute qu'une page
+        // est coupée franchement plutôt que de boucler.
+        const coupes = [0];
+        while (total - coupes[coupes.length - 1] > geo.hauteurUtile + 0.5) {
+            const y = coupes[coupes.length - 1];
+            const c = bords.filter(b => b > y + 1 && b <= y + geo.hauteurUtile).pop();
+            coupes.push(c || y + geo.hauteurUtile);
+        }
+        coupes.push(total);
+        const pages = document.createElement('div');
+        pages.className = 'sf-pages';
+        for (let i = 0; i < coupes.length - 1; i++) {
+            const page = document.createElement('div');
+            page.className = 'sf-page';
+            page.style.cssText = `width:${geo.largeur}px; height:${geo.hauteur}px; padding:${geo.marge}px;`;
+            const fenetre = document.createElement('div');
+            fenetre.className = 'sf-fenetre';
+            fenetre.style.cssText = `width:${geo.largeurUtile}px; height:${Math.min(geo.hauteurUtile, coupes[i + 1] - coupes[i])}px;`;
+            const c = contenu(echelle);
+            c.style.top = `-${coupes[i]}px`;
+            fenetre.appendChild(c);
+            page.appendChild(fenetre);
+            pages.appendChild(page);
+        }
+        hote.remove();
+        return { pages, nbPages: coupes.length - 1, echelle, tientSurUne, geo };
+    }
+
+    // ----- l'aperçu avant impression -----
+    ouvrirApercuStructure() {
+        const modal = document.getElementById('structure-apercu');
+        if (!modal) return;
+        const reg = lireReglagesFeuille();
+        modal.querySelectorAll('[data-reglage]').forEach(el => {
+            const v = reg[el.dataset.reglage];
+            if (el.type === 'checkbox') el.checked = !!v; else el.value = String(v);
+        });
+        modal.hidden = false;
+        this.rendreApercuStructure();
+    }
+
+    fermerApercuStructure() {
+        const modal = document.getElementById('structure-apercu');
+        if (modal) modal.hidden = true;
+    }
+
+    reglagesDepuisApercu() {
+        const reg = lireReglagesFeuille();
+        document.querySelectorAll('#structure-apercu [data-reglage]').forEach(el => {
+            const nom = el.dataset.reglage;
+            if (el.type === 'checkbox') reg[nom] = el.checked;
+            else if (typeof FEUILLE_DEFAUT[nom] === 'number') reg[nom] = Number(el.value);
+            else reg[nom] = el.value;
+        });
+        return reg;
+    }
+
+    rendreApercuStructure() {
+        const scene = document.getElementById('apercu-pages');
+        if (!scene) return;
+        const reg = this.reglagesDepuisApercu();
+        ecrireReglagesFeuille(reg);
+        const f = this.fabriquerPagesFeuille(reg);
+        scene.innerHTML = '';
+        scene.appendChild(f.pages);
+        // L'aperçu est réduit pour tenir dans la fenêtre — l'AFFICHAGE seulement : la page, elle, garde sa
+        // vraie taille (c'est elle qui part au PDF ou à l'imprimante).
+        const place = scene.parentElement.clientWidth - 24;
+        // Réduit pour qu'une page ENTIÈRE se voie d'un coup d'œil (largeur ET hauteur de la fenêtre) : on
+        // règle la mise en page en regardant la page, pas en la faisant défiler. Les pages suivantes défilent.
+        const placeH = scene.parentElement.clientHeight - 24;
+        const k = Math.max(0.2, Math.min(1, place / f.geo.largeur, placeH / f.geo.hauteur));
+        // `transform` et non `zoom` : zoom ARRONDIT les lignes à l'échelle réduite, et le texte remesuré
+        // débordait de la fenêtre calculée (dernière carte et pied de page coupés — mesuré : 359 px au lieu de
+        // 347). Transform ne touche pas à la mise en page, seulement à l'affichage.
+        f.pages.style.cssText = `transform: scale(${k}); transform-origin: top left;`;
+        scene.style.width = `${Math.ceil(f.geo.largeur * k)}px`;
+        scene.style.height = `${Math.ceil((f.nbPages * f.geo.hauteur + (f.nbPages - 1) * 14) * k)}px`;
+        document.getElementById('apercu-zoom').disabled = !!reg.ajuster;
+        const pct = Math.round(f.echelle * 100);
+        document.getElementById('apercu-zoom').value = String(pct);
+        document.getElementById('apercu-zoom-val').textContent = `${pct} %`;
+        const etat = document.getElementById('apercu-etat');
+        etat.textContent = f.nbPages === 1 ? `1 page · taille ${pct} %`
+            : (reg.ajuster && f.tientSurUne === false ? `${f.nbPages} pages : même réduite à ${pct} %, la structure ne tient pas sur une seule` : `${f.nbPages} pages · taille ${pct} %`);
+        etat.dataset.pages = String(f.nbPages);
+        return f;
     }
 
     // EXPORT PDF DE LA STRUCTURE — le troisième PDF de l'appli, et le dernier à passer par jsPDF.
     // Il passait jusqu'ici par l'impression du navigateur : impossible de RANGER ce qu'on ne tient pas
     // (voir le même changement pour le PDF d'accords et celui des paroles). Le dossier PDF/Structure,
     // retiré parce qu'il ne pouvait jamais se remplir, revient donc avec cette fonction.
+    // Chaque page de l'aperçu est rastérisée telle quelle : le PDF est l'aperçu, pas une approximation.
     async exportStructurePdf(racineFournie) {
-        const monte = this.monterFeuilleStructure();
-        if (!monte) return;
-        const btn = document.getElementById('structure-print');
-        if (btn) btn.disabled = true;
+        const reg = lireReglagesFeuille();
+        const titre = this.getCurrentSongName ? (this.getCurrentSongName() || 'Morceau') : 'Morceau';
+        const btns = ['structure-pdf', 'apercu-pdf'].map(id => document.getElementById(id)).filter(Boolean);
+        btns.forEach(b => { b.disabled = true; });
         // Comme pour l'export PDF de la grille : la permission se demande AVANT la rastérisation, tant
         // que le clic est encore « chaud » (voir exportPdf pour `racineFournie`).
         const racine = racineFournie !== undefined ? racineFournie : await preparerRangement();
         this.flashHint('Génération du PDF…', 60000);
+        const f = this.fabriquerPagesFeuille(reg);
         // Affichée hors écran plutôt que masquée : html2canvas ne sait rastériser qu'un élément
-        // réellement mis en page. Largeur d'une page A4 à 96 dpi.
-        monte.zone.setAttribute('style', 'display:block; position:fixed; left:-10000px; top:0; width:794px; background:#fff; color:#000;');
+        // réellement mis en page.
+        f.pages.style.cssText = 'position:fixed; left:-10000px; top:0;';
+        document.body.appendChild(f.pages);
         try {
             const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            const marge = 10;
-            const largeurMax = pdf.internal.pageSize.getWidth() - marge * 2;
-            const hauteurMax = pdf.internal.pageSize.getHeight() - marge * 2;
-            const canvas = await window.html2canvas(monte.zone, { scale: 2, backgroundColor: '#ffffff' });
-            // Une structure longue se COUPE en pages, aux frontières des lignes : la réduire pour tout
-            // faire tenir sur une feuille la rendait illisible. Chaque tranche est de la hauteur utile
-            // d'une page, ramenée au plus près du bas de la dernière ligne qui y tient entière.
-            const px = canvas.width / monte.zone.offsetWidth;               // pixels du canvas par pixel CSS
-            const hauteurPage = Math.floor((hauteurMax / largeurMax) * canvas.width);
-            const bords = [...monte.zone.querySelectorAll('.sf-row')]
-                .map(r => Math.round((r.getBoundingClientRect().bottom - monte.zone.getBoundingClientRect().top) * px));
-            let y = 0, premiere = true;
-            while (y < canvas.height) {
-                let fin = Math.min(canvas.height, y + hauteurPage);
-                if (fin < canvas.height) {
-                    const coupe = bords.filter(b => b > y && b <= fin).pop();
-                    if (coupe) fin = coupe;                                      // sinon (ligne géante) : coupe franche
-                }
-                const tranche = document.createElement('canvas');
-                tranche.width = canvas.width; tranche.height = fin - y;
-                const ctx = tranche.getContext('2d');
-                ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, tranche.width, tranche.height);
-                ctx.drawImage(canvas, 0, y, canvas.width, fin - y, 0, 0, canvas.width, fin - y);
-                if (!premiere) pdf.addPage();
-                pdf.addImage(tranche.toDataURL('image/jpeg', 0.92), 'JPEG', marge, marge, largeurMax, (fin - y) * (largeurMax / canvas.width));
-                premiere = false;
-                y = fin;
+            const g = f.geo;
+            const pdf = new jsPDF({ orientation: g.orientation, unit: 'mm', format: g.jspdf });
+            const lP = pdf.internal.pageSize.getWidth(), hP = pdf.internal.pageSize.getHeight();
+            const feuilles = [...f.pages.querySelectorAll('.sf-page')];
+            for (let i = 0; i < feuilles.length; i++) {
+                const canvas = await window.html2canvas(feuilles[i], { scale: 2, backgroundColor: '#ffffff' });
+                if (i > 0) pdf.addPage();
+                pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, lP, hP);
             }
             const res = await enregistrerFichier(pdf.output('blob'), {
-                morceau: monte.titre, type: 'Structure', extension: 'pdf', dossier: 'pdfStructure', racine,
+                morceau: titre, type: 'Structure', extension: 'pdf', dossier: 'pdfStructure', racine,
             });
             this.flashHint(messageEnregistrement(res, 'Structure exportée'), 2400);
         } catch (err) {
             console.error(err);
             this.flashHint('Échec de l\'export PDF de la structure');
         } finally {
-            monte.zone.remove();
-            if (btn) btn.disabled = false;
+            f.pages.remove();
+            btns.forEach(b => { b.disabled = false; });
         }
     }
 
-    printStructure() {
-        const panneau = document.getElementById('structure-panel');
-        if (!panneau) return;
-        const monte = this.monterFeuilleStructure();
-        if (!monte) return;
-        const zone = monte.zone;
+    // Impression navigateur : les MÊMES pages que l'aperçu, une par feuille (saut de page imposé), et la
+    // taille de papier annoncée au navigateur — il n'a plus à repaginer.
+    imprimerStructure() {
+        const reg = lireReglagesFeuille();
+        const f = this.fabriquerPagesFeuille(reg);
+        const zone = document.createElement('div');
+        zone.id = 'structure-print-zone';
+        zone.appendChild(f.pages);
+        const style = document.createElement('style');
+        style.id = 'structure-print-style';
+        style.textContent = `@page { size: ${f.geo.jspdf === 'letter' ? 'letter' : 'A4'} ${f.geo.orientation}; margin: 0; }`;
+        document.head.appendChild(style);
+        document.body.appendChild(zone);
         document.body.classList.add('impression-structure');
         const apres = () => {
             document.body.classList.remove('impression-structure');
             zone.remove();
+            style.remove();
             window.removeEventListener('afterprint', apres);
         };
         window.addEventListener('afterprint', apres);

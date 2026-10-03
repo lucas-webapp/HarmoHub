@@ -25,7 +25,7 @@ const SECTIONS = [
 ];
 const MORCEAU = { id: 'S1', name: 'Ballade du soir', savedAt: 5000, root: 'D', mode: 'major', timeSig: '4/4', groove: 'none', bpm: 96, sections: SECTIONS };
 
-plan(34);
+plan(54);
 
 (async () => {
     const navigateur = await chromium.launch();
@@ -121,27 +121,28 @@ plan(34);
 
     // ============ C. LA FEUILLE : claire, colorée, avec les plages ============
     const feuille = await A.evaluate(() => {
-        const m = window.app.monterFeuilleStructure();
-        const z = m.zone;
-        z.setAttribute('style', 'display:block; position:fixed; left:-10000px; top:0; width:794px;');
-        const lum = (css) => { const c = css.match(/\d+(\.\d+)?/g).map(Number); return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255; };
-        const fond = lum(getComputedStyle(z).backgroundColor);
-        const encre = lum(getComputedStyle(z).color);
-        // Les aplats de couleur franche (marge, pastille ×N) sont voulus ; tout le reste doit être clair.
+        const f = window.app.fabriquerPagesFeuille();
+        const z = f.pages;
+        z.style.cssText = 'position:fixed; left:-10000px; top:0;';
+        document.body.appendChild(z);
+        const c = z.querySelector('.sf-contenu');
+        const lum = (css) => { const m = css.match(/\d+(\.\d+)?/g).map(Number); return (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255; };
+        const fond = lum(getComputedStyle(z.querySelector('.sf-page')).backgroundColor);
+        const encre = lum(getComputedStyle(c).color);
+        // Seule la pastille ×N est un aplat voulu ; tout le reste doit être presque blanc.
         const sombres = [...z.querySelectorAll('*')].filter(e => !e.matches('.sf-rep') &&
             getComputedStyle(e).backgroundColor !== 'rgba(0, 0, 0, 0)' && lum(getComputedStyle(e).backgroundColor) < 0.93).length;
         const r = {
-            fond, encre, sombres,
-            texte: z.innerText,
+            fond, encre, sombres, pages: f.nbPages,
+            texte: z.textContent,
             lignes: z.querySelectorAll('.sf-row').length,
             commandes: z.querySelectorAll('.struct-actions, .struct-ajout, button, select').length,
             classesEcran: z.querySelectorAll('[class*="struct-"]').length,
             couleurs: new Set([...z.querySelectorAll('.sf-nom')].map(e => getComputedStyle(e).color)).size,
             gros: [...z.querySelectorAll('*')].filter(e => e.tagName !== 'H1' && parseFloat(getComputedStyle(e).fontSize) > 16).length,
             etendues: [...z.querySelectorAll('.sf-etendue')].map(e => ({ t: e.textContent.trim(), px: parseFloat(getComputedStyle(e).fontSize) })),
-            largeurDebord: z.scrollWidth > z.clientWidth + 1,
         };
-        m.zone.remove();
+        z.remove();
         return r;
     });
     check(feuille.fond > 0.95, `fond blanc (luminance ${feuille.fond.toFixed(2)}), pas le thème sombre de l'appli`);
@@ -149,23 +150,99 @@ plan(34);
     check(feuille.sombres === 0, `aucun aplat soutenu : fonds presque blancs, couleurs discrètes (${feuille.sombres} fonds trop foncés)`);
     // Retour utilisateur : « les numéros de mesure en gros sur la gauche sont un peu inutiles [...] à afficher en petit ».
     check(feuille.gros === 0, `plus rien de grand hors du titre : le numéro de mesure n'est plus en gros (${feuille.gros})`);
-    check(feuille.etendues.length === 3 && feuille.etendues.every(e => e.px <= 12 && /^mes\. \d/.test(e.t)),
+    check(feuille.etendues.length === 3 && feuille.etendues.every(e => e.px <= 12 && /mes\. \d/.test(e.t)),
         `la mesure de départ reste donnée, en petit — ${JSON.stringify(feuille.etendues.map(e => e.t))}`);
-    check(feuille.lignes === 3, `une carte par occurrence de la structure (${feuille.lignes})`);
+    check(feuille.lignes === 3 && feuille.pages === 1, `une carte par occurrence, sur une page (${feuille.lignes} cartes, ${feuille.pages} page)`);
     check(feuille.couleurs >= 3, `une couleur par famille de parties (${feuille.couleurs} couleurs)`);
     check(feuille.commandes === 0 && feuille.classesEcran === 0, 'aucune commande ni classe de l\'écran dans la feuille');
     check(/mes\. 1–3/.test(feuille.texte) && /batterie uniquement/.test(feuille.texte), 'la plage « mes. 1–3 » et son texte sont sur la feuille');
     // Le tempo imprimé est celui de l'écran (140, réglé plus haut sans enregistrer) : la feuille montre ce qu'on voit.
     check(/Ballade du soir/.test(feuille.texte) && /140 BPM/.test(feuille.texte) && /×2/.test(feuille.texte), `titre du morceau, tempo et répétitions y figurent — ${feuille.texte.replace(/\s+/g, ' ').slice(0, 120)}`);
+    // Informations ajoutées : repère de temps (mes. 3 à 140 BPM, 4/4 : 8 temps = 3,4 s -> 0:03) et date en pied.
+    check(/à 0:00/.test(feuille.texte) && /à 0:03/.test(feuille.texte), 'repères de temps : la 2e partie arrive à 0:03');
+    check(/HarmoHub · \d+ \w+ 20\d\d/.test(feuille.texte), 'la date d\'impression figure en pied de page');
 
-    // ============ D. PDF RÉEL, plusieurs pages si la structure est longue ============
-    const longue = await A.evaluate(() => {
+    // ============ D. L'APERÇU AVANT IMPRESSION, puis le PDF réel ============
+    await A.evaluate(() => {
         const sid = loadProgressionSections()[1].sid;
         window.app.modifierStructure((l) => { for (let k = 0; k < 14; k++) l.push({ id: 'z' + k, sid, rep: 1, label: 'Passage ' + (k + 1), notes: [{ mesure: 1, mesureFin: 2, texte: 'plage ' + k }] }); });
-        return true;
     });
-    const dl = A.waitForEvent('download', { timeout: 30000 }).catch(() => null);
+    check(await A.locator('#structure-print').count() === 0, 'plus de bouton « Imprimer » direct : tout passe par l\'aperçu');
     await A.click('#structure-pdf');
+    await A.waitForTimeout(500);
+    check(await A.isVisible('#structure-apercu'), 'le bouton ouvre l\'aperçu avant impression, pas un enregistrement à l\'aveugle');
+    const lireApercu = () => A.evaluate(() => {
+        const pages = [...document.querySelectorAll('#apercu-pages .sf-page')];
+        const r = pages[0] && pages[0].getBoundingClientRect();
+        const m = document.querySelector('#structure-apercu .apercu-modal').getBoundingClientRect();
+        return {
+            nb: pages.length, etat: document.getElementById('apercu-etat').textContent,
+            cartes: document.querySelectorAll('#apercu-pages .sf-page:first-child .sf-row').length,
+            notes: document.querySelectorAll('#apercu-pages .sf-note').length,
+            paysage: pages[0] ? parseFloat(pages[0].style.width) > parseFloat(pages[0].style.height) : null,
+            nomsCouleurs: new Set([...document.querySelectorAll('#apercu-pages .sf-nom')].map(e => getComputedStyle(e).color)).size,
+            vocab: !!document.querySelector('#apercu-pages .sf-vocab'),
+            zoomOff: document.getElementById('apercu-zoom').disabled,
+            debordeX: m.right > window.innerWidth + 1 || m.left < -1,
+            pageDansEcran: r ? r.width <= window.innerWidth : false,
+        };
+    });
+    let ap = await lireApercu();
+    // 17 cartes avec leurs accords et commentaires ne tiennent PAS sur une page lisible : l'aperçu le dit
+    // franchement au lieu de réduire jusqu'à l'illisible (plancher 60 %).
+    check(ap.nb >= 2 && /même réduite à 60 %/.test(ap.etat), `trop long même réduit : l'aperçu coupe en pages et l'annonce — ${ap.etat}`);
+    await A.uncheck('[data-reglage="commentaires"]'); await A.uncheck('[data-reglage="accords"]'); await A.waitForTimeout(400);
+    ap = await lireApercu();
+    check(ap.nb === 1 && /^1 page · taille \d+ %/.test(ap.etat) && !/100 %/.test(ap.etat), `allégée (sans accords ni commentaires), la structure est RÉDUITE pour tenir sur 1 page — ${ap.etat}`);
+    await A.check('[data-reglage="commentaires"]'); await A.check('[data-reglage="accords"]'); await A.waitForTimeout(300);
+    check(ap.zoomOff === true, 'le curseur de zoom est grisé tant que « Tout sur une page » est coché');
+    // Le réglage sur lequel l'utilisateur compte : décocher, et la structure se coupe en plusieurs pages.
+    await A.uncheck('#apercu-ajuster'); await A.fill('#apercu-zoom', '100'); await A.waitForTimeout(300);
+    ap = await lireApercu();
+    check(ap.nb >= 2 && ap.zoomOff === false, `sans l'ajustement, à 100 % : plusieurs pages (${ap.nb}) et le zoom se règle`);
+    await A.locator('#apercu-zoom').evaluate((el) => { el.value = '60'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+    await A.waitForTimeout(300);
+    const ap60 = await lireApercu();
+    check(ap60.nb < ap.nb && /60 %/.test(ap60.etat), `réduire le zoom diminue le nombre de pages (${ap.nb} -> ${ap60.nb})`);
+    await A.selectOption('#apercu-orientation', 'landscape'); await A.waitForTimeout(300);
+    check((await lireApercu()).paysage === true, 'l\'orientation paysage fait une page plus large que haute');
+    await A.selectOption('#apercu-orientation', 'portrait');
+    await A.selectOption('#apercu-colonnes', '2'); await A.waitForTimeout(300);
+    check(await A.evaluate(() => !!document.querySelector('#apercu-pages .sf-liste.sf-col2')), 'deux colonnes : les cartes se rangent côte à côte');
+    await A.selectOption('#apercu-colonnes', '1');
+    const avecNotes = (await lireApercu()).notes;
+    await A.uncheck('[data-reglage="commentaires"]'); await A.waitForTimeout(300);
+    check(avecNotes > 0 && (await lireApercu()).notes === 0, 'décocher « Commentaires » les retire de la page');
+    await A.check('[data-reglage="commentaires"]');
+    await A.uncheck('[data-reglage="couleurs"]'); await A.waitForTimeout(300);
+    check((await lireApercu()).nomsCouleurs === 1, 'décocher « Couleurs » donne une page en gris (impression économe)');
+    await A.check('[data-reglage="couleurs"]');
+    await A.check('[data-reglage="accordsUtilises"]'); await A.waitForTimeout(300);
+    check((await lireApercu()).vocab === true && /Bm7/.test(await A.textContent('#apercu-pages .sf-vocab')), 'la liste des accords utilisés peut s\'ajouter à l\'en-tête');
+    await A.uncheck('[data-reglage="accordsUtilises"]');
+    // Mémoire : le réglage survit à la fermeture et au rechargement.
+    await A.uncheck('#apercu-ajuster'); await A.waitForTimeout(200);
+    const memo = await A.evaluate(() => JSON.parse(localStorage.getItem('harmohub_feuille_structure')));
+    check(memo && memo.ajuster === false && memo.colonnes === 1 && memo.orientation === 'portrait', `les réglages sont mémorisés — ${JSON.stringify(memo)}`);
+
+    // Impression : les mêmes pages que l'aperçu, avec le format de papier annoncé (window.print est simulée).
+    const nbApercu = (await lireApercu()).nb;
+    const imprime = await A.evaluate(() => new Promise((res) => {
+        window.print = () => res({
+            pages: document.querySelectorAll('#structure-print-zone .sf-page').length,
+            css: document.getElementById('structure-print-style').textContent,
+            classe: document.body.classList.contains('impression-structure'),
+        });
+        document.getElementById('apercu-print').click();
+    }));
+    check(imprime.pages === nbApercu && imprime.classe && /size: A4 portrait/.test(imprime.css),
+        `l'impression sort les ${nbApercu} pages de l'aperçu, papier A4 portrait annoncé — ${JSON.stringify(imprime)}`);
+    await A.waitForTimeout(3300);
+    check(await A.evaluate(() => !document.getElementById('structure-print-zone') && !document.getElementById('structure-print-style')), 'l\'impression se nettoie derrière elle');
+
+    // PDF : autant de pages que l'aperçu.
+    const dl = A.waitForEvent('download', { timeout: 40000 }).catch(() => null);
+    await A.click('#apercu-pdf');
     const telechargement = await dl;
     let pages = 0, entete = '';
     if (telechargement) {
@@ -175,7 +252,9 @@ plan(34);
         pages = (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
     }
     check(telechargement && entete === '%PDF-', `l'export produit un vrai PDF (${entete || 'rien reçu'})`);
-    check(pages >= 2, `une structure longue est COUPÉE en pages au lieu d'être écrasée sur une seule (${pages} pages)`);
+    check(pages === nbApercu, `le PDF a exactement les pages de l'aperçu (${pages} / ${nbApercu})`);
+    await A.click('#apercu-close');
+    check(await A.evaluate(() => document.getElementById('structure-apercu').hidden), 'la fenêtre d\'aperçu se ferme');
 
     // ============ E. SAFARI : un contexte vierge reçoit le fichier ============
     const exporte = await A.evaluate(() => JSON.stringify({ app: 'HarmoHub', kind: 'library-backup', version: 1, songs: loadSongs() }));
@@ -220,8 +299,19 @@ plan(34);
     check(await M.evaluate(() => { const n = loadSongs()[0].structure[1].notes[0]; return n.mesure === 2 && n.mesureFin === 4; }), 'la plage saisie au doigt est enregistrée');
     check(/mes\. 2–4/.test(await M.locator('.struct-row').nth(1).textContent()), 'et lisible sur la ligne');
 
+    await M.evaluate(() => localStorage.setItem('harmohub_feuille_structure', JSON.stringify({ ajuster: true })));
+    await M.tap('#structure-pdf');
+    await M.waitForTimeout(500);
+    const mob = await M.evaluate(() => {
+        const m = document.querySelector('#structure-apercu .apercu-modal').getBoundingClientRect();
+        const pdf = document.getElementById('apercu-pdf').getBoundingClientRect();
+        const page = document.querySelector('#apercu-pages .sf-page').getBoundingClientRect();
+        return { modalOk: m.left >= 0 && m.right <= window.innerWidth + 1, pdfVisible: pdf.bottom <= window.innerHeight + 1 && pdf.width > 0, pageOk: page.right <= window.innerWidth + 1, h: document.documentElement.scrollWidth <= window.innerWidth + 1 };
+    });
+    check(mob.modalOk && mob.pdfVisible, `téléphone : l'aperçu et son bouton PDF tiennent dans l'écran (${JSON.stringify(mob)})`);
+    check(mob.pageOk, 'téléphone : la page est réduite pour tenir en largeur, sans défilement horizontal de la page');
+
     check(erreurs.length === 0, `aucune erreur JavaScript (${erreurs.slice(0, 2).join(' | ')})`);
-    void longue;
     await navigateur.close();
     bilan();
 })().catch((e) => { console.error('FATAL', e); process.exit(2); });

@@ -190,7 +190,7 @@ plan(44);
     // ---- IMPRESSION : les commentaires y sont, les commandes non ----
     await page.evaluate(() => { localStorage.setItem('myProgression', JSON.stringify({ sections: [{ sid: 'pA', title: 'Couplet', chords: [{ root: 'C', quality: 'maj', beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' }] }],
         structure: [{ id: 'a', sid: 'pA', rep: 1, notes: [{ mesure: 1, texte: 'batterie seule' }] }] })); window.app.renderStructurePanel(); });
-    const feuille = await page.evaluate(() => { const m = window.app.monterFeuilleStructure(); const t = m.zone.innerText; const cmd = m.zone.querySelectorAll('.struct-actions, .struct-ajout').length; m.zone.remove(); return { t, cmd }; });
+    const feuille = await page.evaluate(() => { const f = window.app.fabriquerPagesFeuille(); return { t: f.pages.textContent, cmd: f.pages.querySelectorAll('.struct-actions, .struct-ajout, button, select').length }; });
     check(/batterie seule/.test(feuille.t) && feuille.cmd === 0, 'la feuille imprimée / PDF contient les commentaires et aucune commande');
 
     check(erreurs.length === 0, `aucune erreur JavaScript (${erreurs.slice(0, 2).join(' | ')})`);

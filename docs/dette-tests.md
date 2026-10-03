@@ -4324,3 +4324,25 @@ avec le grand numéro disparaît : un simple filet pâle à gauche de la carte, 
 titres assourdie (contraste ≥ 4:1 sur blanc). La mesure de départ reste donnée, en petit et grisée, à droite
 du titre (« mes. 3–18 · 8 mes. × 2 »). Le banc `structure_feuille_test` (34 contrôles) vérifie qu'aucun fond
 n'est soutenu (luminance ≥ 0,93) et que rien n'est grand hors du titre.
+
+**Aperçu avant impression (même jour).** Retour : « regarde si d'autres informations peuvent être intéressantes ;
+prépare-moi, avant impression, un aperçu de la page, pour que je puisse ajuster l'affichage — par exemple pour
+que tout passe sur une page. » Le bouton de la fenêtre Structure devient « Aperçu / PDF » (le bouton
+« Imprimer » direct disparaît : il passe par l'aperçu, d'où l'on imprime ou enregistre le PDF).
+- **Une seule fabrication** (`fabriquerPagesFeuille`) pour l'aperçu, l'impression et le PDF : le contenu est mis en
+  page une fois à la taille voulue, puis coupé en pages (fenêtres décalées) aux frontières des cartes. Le PDF
+  rastérise chaque `.sf-page` telle quelle, l'impression sort les mêmes pages avec `@page` (format + orientation) :
+  l'aperçu EST ce qui sort.
+- **Réglages** (mémorisés, `harmohub_feuille_structure`) : format A4/Lettre, orientation, 1 ou 2 colonnes, « Tout sur
+  une page » (dichotomie sur la taille de police, plancher 60 % : en dessous, ce n'est plus lisible, l'aperçu dit
+  alors franchement « même réduite à 60 %, ça ne tient pas » et coupe en pages), zoom manuel 50–150 %, et le contenu
+  (infos, déroulé, accords, commentaires, repères de temps, accords utilisés, couleurs / gris).
+- **Informations ajoutées** : repère de temps de chaque partie (« à 1:08 », d'après tempo et signature), groove s'il
+  n'est pas droit, date en pied de page, liste des accords utilisés (optionnelle).
+- Pièges mesurés : (1) `zoom` CSS pour réduire l'aperçu ARRONDIT les lignes — le texte remesuré dépassait de la fenêtre
+  calculée (359 px au lieu de 347, dernière carte et pied coupés) ; l'aperçu utilise `transform: scale`, qui ne
+  touche pas à la mise en page. (2) Pages en px arrondis VERS LE BAS : 1 px de trop et le navigateur ajoute une page
+  blanche. (3) `.apercu-modal` était écrasé par la largeur de `.settings-modal` (spécificité).
+- Banc : `structure_feuille_test` passe à 54 contrôles (aperçu, ajustement, colonnes, orientation, mémoire,
+  impression simulée, PDF = pages de l'aperçu, téléphone).
+Limite connue : l'aperçu n'est pas relu par une vraie imprimante ; la boîte d'impression du navigateur n'est pas testée.

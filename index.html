@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202610031300">
+    <link rel="stylesheet" href="style.css?v=202610031540">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -312,19 +312,64 @@
         <div class="settings-modal files-modal" role="dialog" aria-modal="true" aria-labelledby="structure-title">
             <div class="settings-header">
                 <h2 id="structure-title">Structure du morceau</h2>
-                <!-- DEUX BOUTONS ET NON UN. « Imprimer » passe par le navigateur (papier, ou PDF via
-                     sa propre boîte) ; « Exporter en PDF » produit le fichier ET le RANGE dans
-                     PDF/Structure, comme les deux autres PDF de l'appli. Le second n'existait pas :
-                     l'impression navigateur ne rend jamais les octets, donc rien ne pouvait être
-                     rangé, et le dossier PDF/Structure restait vide. -->
-                <button type="button" id="structure-pdf" class="btn-sec" title="Exporter en PDF et le ranger dans le dossier">Exporter en PDF</button>
-                <button type="button" id="structure-print" class="btn-sec" title="Imprimer cette feuille de route">Imprimer</button>
+                <!-- UN SEUL BOUTON : il ouvre l'APERÇU AVANT IMPRESSION (#structure-apercu), d'où l'on règle la
+                     page puis enregistre le PDF (rangé dans PDF/Structure) ou imprime. -->
+                <button type="button" id="structure-pdf" class="btn-sec" title="Aperçu de la page, réglages, PDF et impression">Aperçu / PDF</button>
                 <button type="button" id="structure-close" class="icon-btn" title="Fermer" aria-label="Fermer">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                 </button>
             </div>
             <div class="settings-body">
                 <div id="structure-panel" class="settings-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- APERÇU AVANT IMPRESSION de la structure (voir fabriquerPagesFeuille dans script.js). Retour
+         utilisateur : « prépare-moi un aperçu de la page, comme ça je pourrai ajuster l'affichage pour que
+         tout passe sur une page ». Les pages montrées ici sont celles qui partent au PDF et à l'imprimante. -->
+    <div id="structure-apercu" class="settings-overlay" hidden>
+        <div class="settings-modal apercu-modal" role="dialog" aria-modal="true" aria-labelledby="apercu-titre">
+            <div class="settings-header">
+                <h2 id="apercu-titre">Aperçu avant impression</h2>
+                <button type="button" id="apercu-close" class="icon-btn" title="Fermer" aria-label="Fermer">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="apercu-corps">
+                <div class="apercu-reglages">
+                    <fieldset class="apercu-groupe">
+                        <legend>Page</legend>
+                        <label class="apercu-champ"><span>Format</span>
+                            <select id="apercu-format" data-reglage="format"><option value="a4">A4</option><option value="lettre">Lettre</option></select></label>
+                        <label class="apercu-champ"><span>Orientation</span>
+                            <select id="apercu-orientation" data-reglage="orientation"><option value="portrait">Portrait</option><option value="landscape">Paysage</option></select></label>
+                        <label class="apercu-champ"><span>Colonnes</span>
+                            <select id="apercu-colonnes" data-reglage="colonnes"><option value="1">1</option><option value="2">2</option></select></label>
+                    </fieldset>
+                    <fieldset class="apercu-groupe">
+                        <legend>Taille</legend>
+                        <label class="apercu-case"><input type="checkbox" id="apercu-ajuster" data-reglage="ajuster"> Tout sur une page <small>(réduit si besoin)</small></label>
+                        <label class="apercu-champ"><span>Zoom <output id="apercu-zoom-val">100 %</output></span>
+                            <input type="range" id="apercu-zoom" data-reglage="zoom" min="50" max="150" step="5" value="100"></label>
+                    </fieldset>
+                    <fieldset class="apercu-groupe">
+                        <legend>Contenu</legend>
+                        <label class="apercu-case"><input type="checkbox" data-reglage="infos"> Tonalité, tempo, durée</label>
+                        <label class="apercu-case"><input type="checkbox" data-reglage="deroule"> Déroulé</label>
+                        <label class="apercu-case"><input type="checkbox" data-reglage="accords"> Accords de chaque partie</label>
+                        <label class="apercu-case"><input type="checkbox" data-reglage="commentaires"> Commentaires</label>
+                        <label class="apercu-case"><input type="checkbox" data-reglage="temps"> Repère de temps (« à 1:32 »)</label>
+                        <label class="apercu-case"><input type="checkbox" data-reglage="accordsUtilises"> Liste des accords utilisés</label>
+                        <label class="apercu-case"><input type="checkbox" data-reglage="couleurs"> Couleurs</label>
+                    </fieldset>
+                </div>
+                <div class="apercu-scene"><div id="apercu-pages"></div></div>
+            </div>
+            <div class="apercu-pied">
+                <span id="apercu-etat" class="apercu-etat" role="status"></span>
+                <button type="button" id="apercu-print" class="btn-sec">Imprimer</button>
+                <button type="button" id="apercu-pdf" class="btn-blue">Enregistrer en PDF</button>
             </div>
         </div>
     </div>
@@ -1665,7 +1710,7 @@
     <script src="firebase-config.js?v=202610030200"></script>
     <script src="fichiers.js?v=202610030500"></script>
     <script src="synchro-cloud.js?v=202610030300"></script>
-    <script src="script.js?v=202610031300"></script>
+    <script src="script.js?v=202610031550"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->

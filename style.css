@@ -6302,45 +6302,79 @@ select.song-select-narrow {
 body.impression-structure > *:not(#structure-print-zone) { display: none !important; }
 /* Le fond blanc ne peut pas attendre @media print : la classe n'est posée QUE le temps d'imprimer, et
    sans elle le corps garde le fond sombre de l'appli. */
-body.impression-structure { background: #fff; }
+body.impression-structure { background: #fff; margin: 0; padding: 0; }
 body.impression-structure #structure-print-zone { display: block; }
+@media print {
+    body.impression-structure #structure-print-zone .sf-page { break-after: page; page-break-after: always; box-shadow: none; }
+    body.impression-structure #structure-print-zone .sf-page:last-child { break-after: auto; page-break-after: auto; }
+}
 
-/* LA FEUILLE DE ROUTE (impression ET PDF). Retour utilisateur : « le rendu n'est pas joli [...] sans le
-   thème sombre. Garde un thème clair, éventuellement avec quelques couleurs. » Page faite pour le papier,
-   pas copie du volet de l'écran : fond blanc, encre sombre, une couleur par famille de parties (posée en
-   ligne par construireFeuilleStructure). Tout est sous #structure-print-zone et indépendant du thème de
-   l'appli — le même rendu s'impose dans le PDF rastérisé (zone hors écran) et à l'impression. */
-#structure-print-zone {
-    color: #1c2430; background: #fff; box-sizing: border-box; padding: 28px 30px 20px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+/* LA FEUILLE DE ROUTE (aperçu, impression ET PDF) : un seul rendu, voir fabriquerPagesFeuille. Retour
+   utilisateur : « sans le thème sombre [...] un thème clair, éventuellement avec quelques couleurs »,
+   puis « plus pâles et plus discrètes ». Tout est en em : la taille de police posée sur .sf-contenu fixe
+   l'échelle de TOUTE la page (réglage « Taille » de l'aperçu), sans transform ni zoom que html2canvas
+   rendrait mal. Indépendant du thème de l'appli. */
+.sf-page {
+    box-sizing: border-box; background: #fff; overflow: hidden; position: relative;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
-#structure-print-zone * { box-sizing: border-box; }
-#structure-print-zone .sf-entete { border-bottom: 1px solid #d5dbe6; padding-bottom: 12px; margin-bottom: 14px; }
-#structure-print-zone h1 { font-size: 26px; line-height: 1.15; margin: 0; color: #2a3a57; letter-spacing: -0.01em; }
-#structure-print-zone .sf-sous { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #8a93a1; margin: 4px 0 8px; }
-#structure-print-zone .sf-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 13px; color: #36414f; }
-#structure-print-zone .sf-meta i { font-style: normal; color: #a0a9b6; }
-#structure-print-zone .sf-deroule { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 4px; margin: 0 0 16px; }
-#structure-print-zone .sf-puce { font-size: 12px; font-weight: 700; padding: 3px 9px; border: 1px solid; border-radius: 999px; white-space: nowrap; }
-#structure-print-zone .sf-fleche { color: #a0a9b6; font-size: 14px; padding: 0 1px; }
-#structure-print-zone .sf-liste { display: flex; flex-direction: column; gap: 9px; }
-#structure-print-zone .sf-row { border: 1px solid #e3e7ee; border-left: 4px solid; border-radius: 6px; padding: 9px 12px 10px; background: #fff; break-inside: avoid; page-break-inside: avoid; }
-#structure-print-zone .sf-tete { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 6px; }
-#structure-print-zone .sf-nom { font-size: 15px; font-weight: 700; }
-#structure-print-zone .sf-rep { font-size: 11px; font-weight: 700; padding: 0 7px; border: 1px solid; border-radius: 999px; }
-#structure-print-zone .sf-etendue { font-size: 11px; color: #8a93a1; font-variant-numeric: tabular-nums; margin-left: auto; }
-#structure-print-zone .sf-grille { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; line-height: 1.7; padding: 3px 9px; border-radius: 5px; color: #1c2430; overflow-wrap: anywhere; }
-#structure-print-zone .sf-bar { color: #8a94a3; margin: 0 7px; }
-#structure-print-zone .sf-notes { display: flex; flex-direction: column; gap: 4px; margin-top: 7px; }
-#structure-print-zone .sf-note { display: flex; gap: 10px; align-items: baseline; border-left: 3px solid; border-radius: 0 5px 5px 0; padding: 4px 9px; font-size: 13px; }
-#structure-print-zone .sf-note-mes { flex: 0 0 auto; font-weight: 800; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-#structure-print-zone .sf-note-txt { white-space: pre-wrap; color: #1c2430; }
-#structure-print-zone .sf-vide { color: #6b7686; font-style: italic; }
-#structure-print-zone .sf-pied { margin-top: 16px; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #a0a9b6; text-align: right; }
-@media print {
-    body.impression-structure { background: #fff; }
-    body.impression-structure #structure-print-zone { padding: 0; }
+.sf-fenetre { overflow: hidden; position: relative; }
+.sf-contenu {
+    box-sizing: border-box; color: #1c2430; background: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; line-height: 1.3;
+}
+.sf-contenu * { box-sizing: border-box; }
+.sf-contenu .sf-entete { border-bottom: 1px solid #d5dbe6; padding-bottom: 0.85em; margin-bottom: 1em; }
+.sf-contenu h1 { font-size: 1.85em; line-height: 1.15; margin: 0; color: #2a3a57; letter-spacing: -0.01em; font-weight: 800; background: none; border: 0; padding: 0; }
+.sf-contenu .sf-sous { font-size: 0.8em; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #8a93a1; margin: 0.3em 0 0.55em; }
+.sf-contenu .sf-meta { display: flex; flex-wrap: wrap; gap: 0.3em 0.6em; font-size: 0.93em; color: #36414f; }
+.sf-contenu .sf-meta i { font-style: normal; color: #a0a9b6; }
+.sf-contenu .sf-vocab { margin-top: 0.5em; font-size: 0.86em; color: #4a5565; }
+.sf-contenu .sf-vocab b { font-size: 0.85em; letter-spacing: 0.1em; text-transform: uppercase; color: #8a93a1; margin-right: 0.4em; }
+.sf-contenu .sf-deroule { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4em 0.3em; margin: 0 0 1.15em; }
+.sf-contenu .sf-puce { font-size: 0.86em; font-weight: 700; padding: 0.2em 0.65em; border: 1px solid; border-radius: 999px; white-space: nowrap; }
+.sf-contenu .sf-fleche { color: #a0a9b6; font-size: 1em; padding: 0 0.1em; }
+.sf-contenu .sf-liste { display: flex; flex-direction: column; gap: 0.65em; }
+.sf-contenu .sf-liste.sf-col2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65em 0.8em; }
+.sf-contenu .sf-row { border: 1px solid #e3e7ee; border-left: 4px solid; border-radius: 0.45em; padding: 0.65em 0.85em 0.7em; background: #fff; min-width: 0; }
+.sf-contenu .sf-tete { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25em 0.7em; margin-bottom: 0.4em; }
+.sf-contenu .sf-nom { font-size: 1.07em; font-weight: 700; }
+.sf-contenu .sf-rep { font-size: 0.78em; font-weight: 700; padding: 0 0.5em; border: 1px solid; border-radius: 999px; }
+.sf-contenu .sf-etendue { font-size: 0.78em; color: #8a93a1; font-variant-numeric: tabular-nums; margin-left: auto; }
+.sf-contenu .sf-grille { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 0.93em; line-height: 1.7; padding: 0.2em 0.65em; border-radius: 0.35em; color: #1c2430; overflow-wrap: anywhere; }
+.sf-contenu .sf-bar { color: #8a94a3; margin: 0 0.5em; }
+.sf-contenu .sf-notes { display: flex; flex-direction: column; gap: 0.3em; margin-top: 0.5em; }
+.sf-contenu .sf-note { display: flex; gap: 0.7em; align-items: baseline; border-left: 3px solid; border-radius: 0 0.35em 0.35em 0; padding: 0.28em 0.65em; font-size: 0.93em; }
+.sf-contenu .sf-note-mes { flex: 0 0 auto; font-weight: 800; font-size: 0.86em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sf-contenu .sf-note-txt { white-space: pre-wrap; color: #1c2430; }
+.sf-contenu .sf-vide { color: #6b7686; font-style: italic; }
+.sf-contenu .sf-pied { margin-top: 1.1em; font-size: 0.72em; letter-spacing: 0.14em; text-transform: uppercase; color: #a0a9b6; text-align: right; }
+
+/* ---------- Fenêtre « Aperçu avant impression » ---------- */
+#structure-apercu { z-index: 200; }                        /* au-dessus de la fenêtre Structure, qui l'a ouverte */
+#structure-apercu .apercu-modal { width: min(1100px, 96vw); max-width: none; height: min(900px, 94vh); max-height: 94vh; display: flex; flex-direction: column; }
+.apercu-corps { flex: 1; min-height: 0; display: flex; gap: 14px; padding: 0 14px 10px; }
+.apercu-reglages { flex: 0 0 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; }
+.apercu-groupe { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px 10px; margin: 0; display: flex; flex-direction: column; gap: 7px; }
+.apercu-groupe legend { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted, #8a93a1); padding: 0 6px; }
+.apercu-champ { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.9rem; }
+.apercu-champ select { flex: 0 0 auto; min-width: 7.5em; }
+.apercu-champ input[type=range] { flex: 1 1 100px; min-width: 0; }
+.apercu-case { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer; }
+.apercu-case small { color: var(--text-muted, #8a93a1); }
+.apercu-case input { flex: 0 0 auto; width: auto; min-width: 0; }
+.apercu-scene { flex: 1; min-width: 0; overflow: auto; background: #5b6270; border-radius: 8px; padding: 12px; }
+#apercu-pages { margin: 0 auto; position: relative; }
+#apercu-pages .sf-pages { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; width: max-content; position: absolute; left: 0; top: 0; }
+#apercu-pages .sf-page { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4); flex: 0 0 auto; }
+.apercu-pied { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 10px 14px 14px; flex-wrap: wrap; }
+.apercu-pied button { flex: 0 0 auto; min-width: 0; }
+.apercu-etat { margin-right: auto; font-size: 0.9rem; color: var(--text-muted, #8a93a1); }
+@media (max-width: 760px) {
+    #structure-apercu .apercu-modal { width: 100vw; height: 100vh; max-height: 100vh; border-radius: 0; }
+    .apercu-corps { flex-direction: column; }
+    .apercu-reglages { flex: 0 0 auto; max-height: 36%; }
+    .apercu-scene { flex: 1 1 auto; min-height: 120px; }
 }
 
 /* ---------- Fenêtre de conflit d'import : une décision PAR MORCEAU ---------- */
