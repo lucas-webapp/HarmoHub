@@ -6405,16 +6405,85 @@ body.impression-structure .struct-row { break-inside: avoid; }
 /* ============================================================
    NUAGE (Firebase) — bouton, pastille d'état, fenêtre « Nuage et sauvegarde »
    ============================================================ */
-/* La pastille ne s'affiche qu'une fois connecté : une appli qu'on n'a pas reliée au nuage n'a pas à
-   montrer une pastille grise qui inquiète. */
-.cloud-btn { position: relative; }
-.cloud-dot { position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%;
-    background: var(--text-muted); border: 1.5px solid var(--card-bg); }
-.cloud-dot[hidden] { display: none; }
-.cloud-dot.synced { background: var(--accent); }
-.cloud-dot.syncing { background: #ffb74d; }
-.cloud-dot.hors-ligne { background: var(--text-muted); }
-.cloud-dot.error { background: #ff6b6b; }
+/* UN BOUTON À PART, voyant (retour utilisateur : « plus voyant, avec mon nom ou Google, dans la barre du
+   haut »). Avant, une simple icône de nuage de 32px, dont on ne devinait pas l'usage.
+
+   LE DÉCONNECTÉ SE VOIT DE LOIN, et lui seul : c'est le seul état qui DEMANDE quelque chose (ambre, comme
+   « en cours » — la couleur de ce qui n'est pas fini). Une fois connecté, le bouton s'efface dans la barre :
+   un prénom, une pastille d'état. Le dessin est piloté par data-etat / data-avatar / data-point, posés par
+   script.js#rafraichirBoutonNuage d'après Nuage.presentation — le CSS ne décide d'aucun état. Même traitement
+   que .logo à côté (pastille sombre arrondie, flou) pour que la barre reste d'un seul tenant. */
+.cloud-btn {
+    position: relative;
+    flex: none;
+    min-width: 0;   /* la règle générique `button { min-width: 120px }` ferait de ce bouton un rectangle de 120px, avec ou sans libellé */
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 32px;
+    padding: 0 12px 0 3px;
+    border-radius: 999px;
+    background: rgba(22, 22, 22, 0.7);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(6px);
+    color: var(--text-main);
+    font: inherit; font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0.01em;
+    white-space: nowrap; cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.cloud-btn[hidden] { display: none; }
+.cloud-btn:hover { border-color: #454b54; }
+.cloud-avatar {
+    position: relative; flex: none;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--bg); color: var(--text-muted);
+}
+.cloud-avatar > svg, .cloud-initiale { display: none; }
+.cloud-g { width: 56%; height: 56%; }
+.cloud-icone { width: 58%; height: 58%; }
+.cloud-initiale { font-size: var(--fs-sm); font-weight: 800; line-height: 1; color: var(--accent); }
+.cloud-btn[data-avatar="g"] .cloud-g, .cloud-btn[data-avatar="nuage"] .cloud-icone { display: block; }
+.cloud-btn[data-avatar="initiale"] .cloud-initiale { display: block; }
+.cloud-btn[data-avatar="g"] .cloud-avatar { background: #fff; }   /* le G de Google se pose sur du blanc, jamais sur du sombre */
+.cloud-libelle { max-width: 9em; overflow: hidden; text-overflow: ellipsis; }
+.cloud-libelle:empty { display: none; }
+
+/* La pastille d'état : un point sur le coin de l'avatar, cerclé de la couleur du bouton pour se détacher. */
+.cloud-dot {
+    position: absolute; right: -3px; bottom: -3px;
+    width: 9px; height: 9px; border-radius: 50%;
+    border: 2px solid #1b1b1b;
+    display: none;
+}
+.cloud-btn[data-point="synced"] .cloud-dot,
+.cloud-btn[data-point="syncing"] .cloud-dot,
+.cloud-btn[data-point="hors-ligne"] .cloud-dot,
+.cloud-btn[data-point="error"] .cloud-dot { display: block; }
+.cloud-btn[data-point="synced"] .cloud-dot { background: var(--accent); }
+.cloud-btn[data-point="syncing"] .cloud-dot { background: #ffb74d; }
+.cloud-btn[data-point="hors-ligne"] .cloud-dot { background: var(--text-muted); }
+.cloud-btn[data-point="error"] .cloud-dot { background: #ff6b6b; }
+
+.cloud-btn[data-etat="deconnecte"] {
+    border-color: #ffb74d;
+    background: color-mix(in srgb, #ffb74d 16%, #161616);
+    color: #ffd9a0;
+}
+.cloud-btn[data-etat="deconnecte"]:hover { border-color: #ffc978; background: color-mix(in srgb, #ffb74d 25%, #161616); }
+.cloud-btn[data-etat="connexion"] { border-color: #ffb74d; color: #ffd9a0; }
+.cloud-btn[data-etat="inconnu"] { opacity: 0.75; }
+.cloud-btn[data-etat="indisponible"] { color: var(--text-muted); }
+/* La boîte du garde-fou reçoit le focus ELLE-MÊME (script.js#demanderSansConnexion) : la question surgit pendant qu'on
+   travaille, et la frappe suivante ne doit pas activer un bouton. Un conteneur non interactif n'a pas à porter d'anneau
+   de focus — il se lisait comme un liseré blanc autour de la boîte. Les boutons gardent le leur. */
+#cloud-guard-modal .settings-modal:focus { outline: none; }
+/* TÉLÉPHONE : le bouton ne garde que son rond (le G de Google, l'initiale ou un nuage) et sa pastille ; le
+   libellé reste dans l'infobulle et dans le nom accessible — la barre du haut, pleine largeur sur téléphone,
+   n'a pas la place pour un libellé de plus. */
+@media (max-width: 560px) {
+    .cloud-btn { padding: 0 3px; }
+    .cloud-libelle { display: none; }
+}
 .cloud-modal { max-width: 520px; }
 .cloud-content { padding: 4px 2px 10px; }
 .cloud-note { margin: 0 0 12px; color: var(--text-muted); font-size: 0.85rem; line-height: 1.5; }
@@ -6427,8 +6496,5 @@ body.impression-structure .struct-row { break-inside: avoid; }
 .cloud-btn-soft { background: transparent; color: var(--text-main); border: 1px solid var(--border); }
 .cloud-btn-soft:hover { border-color: var(--text-muted); }
 .cloud-btn-main[hidden], .cloud-btn-soft[hidden], .cloud-name[hidden] { display: none; }
-.cloud-check { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 18px; color: var(--text-main); cursor: pointer; }
-.cloud-check input { margin-top: 3px; width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
-.cloud-check small { display: block; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
 .cloud-title { margin: 6px 0 6px; font-size: 0.95rem; color: var(--text-main); }
 .cloud-backup { display: flex; gap: 10px; flex-wrap: wrap; }

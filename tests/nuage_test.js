@@ -17,6 +17,10 @@
 //   • les dossiers voyagent, sans jamais en retirer ;
 //   • la sauvegarde de secours (celle qui existait : toute la bibliothèque en un fichier) est à portée
 //     de la fenêtre Nuage ;
+//   • LE BOUTON DE LA BARRE DU HAUT (retour utilisateur : « un bouton à part plus voyant avec mon nom ou Google »),
+//     et LE GARDE-FOU (« une confirmation si je commence à travailler alors que je ne suis pas connecté ») :
+//     une question à la première modification faite sans être connecté, une fois par séance, sans activer un
+//     bouton par mégarde, la fenêtre Google ouverte dans le clic, jamais à quelqu'un qui est connecté ;
 //   • sans Firebase, HarmoHub fonctionne exactement comme avant.
 
 const { chromium } = require('playwright');
@@ -25,11 +29,11 @@ const path = require('path');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('nuage dans HarmoHub');
 
-plan(49);
+plan(100);
 
 const attendre = (ms) => new Promise(r => setTimeout(r, ms));
 const FAUX = fs.readFileSync(path.join(__dirname, '_firebase_factice.js'), 'utf8');
-const BRANCHEMENT = "window.__backend = FirebaseFactice.creerBackend(); window.firebase = FirebaseFactice.creerFirebase(window.__backend, { uid: 'u1', nom: 'Testeur' });";
+const branchement = (compte = {}) => `window.__backend = FirebaseFactice.creerBackend(); window.firebase = FirebaseFactice.creerFirebase(window.__backend, ${JSON.stringify({ uid: 'u1', nom: 'Testeur', ...compte })});`;
 const IGNORES = /ERR_FAILED|fonts\.|ERR_CONNECTION|ERR_NAME_NOT_RESOLVED|ERR_TUNNEL|ERR_CERT_AUTHORITY_INVALID|tonejs|Failed to load resource|AudioContext was not allowed/;
 
 // Attente d'une condition SANS avaler le délai : s'il est dépassé, le banc le dit (et la vérification qui suit
@@ -40,12 +44,13 @@ function patienter(page, fn, arg, options) {
     });
 }
 
-async function ouvrir(navigateur, { avecFaux = true, viewport } = {}) {
-    const contexte = await navigateur.newContext({ viewport: viewport || { width: 1300, height: 950 }, acceptDownloads: true });
+async function ouvrir(navigateur, { avecFaux = true, viewport, compte, avant = [], tactile = false } = {}) {
+    const contexte = await navigateur.newContext({ viewport: viewport || { width: 1300, height: 950 }, acceptDownloads: true, ...(tactile ? { hasTouch: true, isMobile: true } : {}) });
     if (avecFaux) {
         await contexte.addInitScript({ content: FAUX });
-        await contexte.addInitScript({ content: BRANCHEMENT });
+        await contexte.addInitScript({ content: branchement(compte) });
     }
+    for (const contenu of avant) await contexte.addInitScript({ content: contenu });
     // Le CDN de Google est COUPÉ dans tous les cas. Avec le faux : sur une machine qui a du réseau, le vrai SDK
     // se chargerait après l'injection et l'écraserait — le banc éprouverait Firebase au lieu de l'application.
     // Sans le faux : le scénario « sans Firebase » éprouve l'absence du SDK, pas celle du réseau.
@@ -80,27 +85,41 @@ const INDEX = 'users/u1/apps/harmohub';
         const A = await ouvrir(navigateur);
         const p = A.page;
         const dansLeNuage = (id) => p.evaluate((c) => window.__backend.docs[c] ? JSON.parse(window.__backend.docs[c].json) : null, cle(id));
-        const pastille = () => p.evaluate(() => { const d = document.getElementById('cloud-dot'); return { visible: !d.hidden, cls: [...d.classList] }; });
-        const attendrePastille = (c, ms = 6000) => p.waitForFunction((x) => document.getElementById('cloud-dot').classList.contains(x), c, { timeout: ms }).then(() => true, () => false);
+        const pastille = () => p.evaluate(() => {
+            const b = document.getElementById('open-cloud');
+            return { visible: !b.hidden, etat: b.dataset.etat, point: b.dataset.point, libelle: b.querySelector('.cloud-libelle').textContent, titre: b.title };
+        });
+        const attendrePastille = (c, ms = 6000) => p.waitForFunction((x) => document.getElementById('open-cloud').dataset.point === x, c, { timeout: ms }).then(() => true, () => false);
 
-        check(!(await pastille()).visible, 'pas connecté : aucune pastille');
-        // L'entrée existe dans la barre du haut et ouvre la fenêtre
+        // --- le bouton du nuage, dans la barre du haut -------------------------------------------------
+        let b0 = await pastille();
+        check(b0.visible && b0.etat === 'deconnecte' && b0.libelle === 'Se connecter' && b0.point === '',
+            'pas connecté : le bouton de la barre du haut dit « Se connecter », sans pastille d\'état (rien à signaler tant qu\'il n\'y a rien de relié)');
+        // UN SEUL CLIC : déconnecté, le bouton ouvre Google tout de suite, sans fenêtre intermédiaire.
+        await p.click('#open-cloud');
+        check(await attendrePastille('synced'), 'un clic sur « Se connecter » ouvre Google, et connecté la pastille passe à « synchronisé »');
+        check(await p.evaluate(() => document.getElementById('cloud-overlay').hidden), 'sans passer par une fenêtre : un seul clic suffit');
+        b0 = await pastille();
+        check(b0.etat === 'connecte' && b0.libelle === 'Testeur' && /tout est enregistré/.test(b0.titre), 'le bouton montre alors le prénom, et son infobulle dit que tout est enregistré');
+        // Connecté, le même bouton ouvre la fenêtre du compte.
         await p.click('#open-cloud');
         const ouverte = await p.evaluate(() => !document.getElementById('cloud-overlay').hidden);
-        exiger(ouverte, 'le bouton Nuage de la barre du haut ouvre la fenêtre « Nuage et sauvegarde »');
-        const avant = await p.evaluate(() => ({
-            note: document.getElementById('cloud-note').textContent,
-            entrer: !document.getElementById('cloud-signin').hidden, sortir: !document.getElementById('cloud-signout').hidden,
-            auto: document.getElementById('cloud-autosave').checked,
-        }));
-        check(avant.entrer && !avant.sortir && /Connecte-toi/.test(avant.note), 'elle propose de se connecter, et explique pourquoi');
-        check(avant.auto === true, 'l\'enregistrement automatique est ACTIVÉ par défaut (c\'est ce qui était demandé)');
-
+        exiger(ouverte, 'connecté, le bouton de la barre du haut ouvre la fenêtre « Nuage et sauvegarde »');
+        const compte = await p.evaluate(() => ({ nom: document.getElementById('cloud-name').textContent, sortir: !document.getElementById('cloud-signout').hidden, entrer: !document.getElementById('cloud-signin').hidden }));
+        check(compte.nom === 'Testeur' && compte.sortir && !compte.entrer, 'la fenêtre montre le compte et propose de se déconnecter');
+        // Se déconnecter depuis la fenêtre : le bouton redevient « Se connecter », la fenêtre propose de se reconnecter.
+        await p.click('#cloud-signout');
+        await p.waitForFunction(() => document.getElementById('open-cloud').dataset.etat === 'deconnecte', null, { timeout: 4000 });
+        const apresSortie = await p.evaluate(() => ({ note: document.getElementById('cloud-note').textContent, entrer: !document.getElementById('cloud-signin').hidden, libelle: document.querySelector('#open-cloud .cloud-libelle').textContent }));
+        check(apresSortie.entrer && apresSortie.libelle === 'Se connecter' && /Connecte-toi/.test(apresSortie.note), 'déconnecté depuis la fenêtre : le bouton redit « Se connecter », et la fenêtre propose de se reconnecter en expliquant pourquoi');
         await p.click('#cloud-signin');
-        check(await attendrePastille('synced'), 'connecté : la pastille passe à « synchronisé »');
-        const compte = await p.evaluate(() => ({ nom: document.getElementById('cloud-name').textContent, sortir: !document.getElementById('cloud-signout').hidden }));
-        check(compte.nom === 'Testeur' && compte.sortir, 'la fenêtre montre le compte et propose de se déconnecter');
+        check(await attendrePastille('synced'), 'se reconnecter depuis la fenêtre marche aussi');
         await p.click('#cloud-close');
+        // L'enregistrement automatique est une PRÉFÉRENCE : dans les Paramètres, activé par défaut.
+        await p.evaluate(() => window.app.openSettings());
+        const reglage = await p.evaluate(() => ({ actif: document.getElementById('toggle-autosave')?.getAttribute('aria-checked'), groupes: [...document.querySelectorAll('.settings-group-title')].map(h => h.textContent) }));
+        check(reglage.actif === 'true' && reglage.groupes.includes('Enregistrement'), 'l\'enregistrement automatique est ACTIVÉ par défaut, et se règle dans les Paramètres (groupe « Enregistrement »)');
+        await p.click('#settings-close');
         // Comme toutes les autres fenêtres, Échap la ferme. Sans cela elle reste ouverte derrière un banc qui
         // balaie les boutons (sortie_edition_involontaire_test) : tout ce qui suit est masqué, et son verdict
         // « aucun contrôle ne fait sortir de l'édition » ne prouve plus rien — il saute ces clics en silence.
@@ -153,10 +172,11 @@ const INDEX = 'users/u1/apps/harmohub';
             'changer de morceau AVANT le délai : la modification est enregistrée d\'abord, et on ne demande pas « enregistrer ? » pour ce qui s\'enregistrait déjà');
 
         // --- LE RÉGLAGE : on peut revenir à l'enregistrement explicite --------------------------------
-        await p.evaluate(() => { window.app.openCloudWindow(); });
-        await p.click('#cloud-autosave');
-        check(await p.evaluate(() => localStorage.getItem('harmohubAutoSave')) === '0', 'décocher l\'option la mémorise');
-        await p.click('#cloud-close');
+        await p.evaluate(() => { window.app.openSettings(); });
+        await p.click('#toggle-autosave');
+        check(await p.evaluate(() => localStorage.getItem('harmohubAutoSave')) === '0' && await p.evaluate(() => document.getElementById('toggle-autosave').getAttribute('aria-checked')) === 'false',
+            'éteindre l\'option dans les Paramètres la mémorise');
+        await p.click('#settings-close');
         await p.evaluate(() => { saveProgressionSections([{ title: 'Non enregistré', chords: [window.app.buildChordData({ root: 'E', quality: 'maj' }, 4, 'block')] }]); });
         await attendre(2200);
         const explicite = await p.evaluate((i) => ({ dirty: hasUnsavedChanges, enBiblio: loadSongs().find(s => s.id === i).sections[0].title }), id);
@@ -293,7 +313,7 @@ const INDEX = 'users/u1/apps/harmohub';
         // ===== B. IMPORT DE BIBLIOTHÈQUE -> NUAGE ====================================================
         const B = await ouvrir(navigateur);
         await B.page.evaluate(() => { window.app.openCloudWindow(); document.getElementById('cloud-signin').click(); });
-        await B.page.waitForFunction(() => document.getElementById('cloud-dot').classList.contains('synced'), null, { timeout: 6000 });
+        await B.page.waitForFunction(() => document.getElementById('open-cloud').dataset.point === 'synced', null, { timeout: 6000 });
         await B.page.evaluate(() => { window.app.closeCloudWindow(); });
         const fichierBiblio = path.join(require('os').tmpdir(), 'harmohub-biblio.json');
         // Le format que lit importLibraryFile : `{ songs: [...] }` (voir script.js).
@@ -317,17 +337,301 @@ const INDEX = 'users/u1/apps/harmohub';
             await new Promise(r => setTimeout(r, 2000));
             return {
                 note: document.getElementById('cloud-note').textContent,
-                pastilleCachee: document.getElementById('cloud-dot').hidden,
+                bouton: document.getElementById('open-cloud').dataset.etat + '/' + document.querySelector('#open-cloud .cloud-libelle').textContent,
+                connexionProposee: !document.getElementById('cloud-signin').hidden,
+                dialogue: !document.getElementById('cloud-guard-modal').hidden,
                 enBiblio: loadSongs().find(x => x.id === s.id).sections[0].title,
                 dirty: hasUnsavedChanges,
                 enAttente: window.app.nuage ? window.app.nuage.enAttente() : false,
             };
         });
-        check(sans.pastilleCachee && /indisponible|Connecte-toi/.test(sans.note) && !sans.enAttente,
-            'sans Firebase : pas de pastille, la fenêtre dit honnêtement ce qui manque, et rien n\'est « en attente »');
+        check(sans.bouton === 'indisponible/Hors ligne' && /indisponible/.test(sans.note) && !sans.connexionProposee && !sans.enAttente,
+            'sans Firebase : le bouton dit « Hors ligne », la fenêtre dit honnêtement ce qui manque (sans proposer de se connecter) et rien n\'est « en attente »');
+        check(sans.dialogue === false, 'et AUCUNE question « tu n\'es pas connecté » malgré les modifications : proposer de se connecter quand c\'est impossible n\'aurait aucun sens');
         check(sans.enBiblio === 'Local' && sans.dirty === false, 'et l\'enregistrement automatique local marche quand même (le nuage est un plus, pas une condition)');
         check(C.erreurs.length === 0, `aucune erreur JavaScript sans Firebase (${C.erreurs.length}) ${C.erreurs.slice(0, 2).join(' | ')}`);
         await C.contexte.close();
+
+        // ===== D. LE GARDE-FOU « TU TRAVAILLES SANS ÊTRE CONNECTÉ », DANS UN VRAI NAVIGATEUR =============
+        // Le moteur décide QUAND (nuage_moteur_test.js, côté TabHub : le même fichier) ; ici on éprouve ce que
+        // l'utilisateur voit et touche : la question, le clavier, les deux boutons, la fenêtre Google.
+        const lire = (pg) => pg.evaluate(() => {
+            const v = document.getElementById('cloud-guard-modal');
+            return {
+                ouvert: !v.hidden,
+                titre: document.getElementById('cloud-guard-title').textContent,
+                boutons: [...v.querySelectorAll('button')].map(b => b.textContent.trim()),
+                focusSurBouton: !!(document.activeElement && document.activeElement.closest('#cloud-guard-modal button')),
+                focusDansLaBoite: v.contains(document.activeElement),
+            };
+        });
+        const questionOuverte = (pg, ms = 1500) => pg.waitForFunction(() => !document.getElementById('cloud-guard-modal').hidden, null, { timeout: ms }).then(() => true, () => false);
+        const sansQuestion = async (pg, ms = 500) => { await attendre(ms); return await pg.evaluate(() => document.getElementById('cloud-guard-modal').hidden); };
+        const reponduGarde = (pg) => pg.evaluate(() => window.app.nuage._diagnostic().garde.repondu);
+        const compterQuestions = (pg) => pg.evaluate(() => {
+            window.__questions = 0; window.__ouvert = false;
+            new MutationObserver(() => {
+                const v = document.getElementById('cloud-guard-modal');
+                if (!v.hidden && !window.__ouvert) { window.__questions++; window.__ouvert = true; }
+                if (v.hidden) window.__ouvert = false;
+            }).observe(document.getElementById('cloud-guard-modal'), { attributes: true, attributeFilter: ['hidden'] });
+        });
+        const nbQuestions = (pg) => pg.evaluate(() => window.__questions || 0);
+        // Un VRAI geste : l'ajout rapide d'un accord, comme au clavier — pas un appel direct à la porte des modifications.
+        const ajouterAccord = async (pg, nom) => { await pg.fill('#quick-add-input', nom); await pg.press('#quick-add-input', 'Control+Enter'); await attendre(250); };
+        const nbAccords = (pg) => pg.evaluate(() => loadProgressionSections().reduce((n, sec) => n + (sec.chords || []).length, 0));
+        // Note l'évènement en cours au moment où la fenêtre Google est demandée : `window.event` n'existe QUE pendant la
+        // distribution d'un évènement. Une demande faite après une attente le trouve vide — et c'est exactement ce que
+        // Safari refuse d'ouvrir.
+        const espionnerGoogle = (pg) => pg.evaluate(() => {
+            const auth = window.firebase.auth();
+            const origine = auth.signInWithPopup;
+            window.__googleDemande = [];
+            auth.signInWithPopup = function () { window.__googleDemande.push(window.event ? window.event.type : null); return origine.apply(this, arguments); };
+        });
+        const message = (pg) => pg.evaluate(() => (document.getElementById('toast') || {}).textContent || '');
+
+        // --- D1. Ouvrir, regarder : ce n'est pas travailler -----------------------------------------------------
+        {
+            const D = await ouvrir(navigateur);
+            const pg = D.page;
+            await compterQuestions(pg);
+            await attendre(700);
+            check(await sansQuestion(pg, 100), 'ouvrir l\'application sans rien toucher : aucune question (celui qui vient seulement lire ou écouter n\'est pas interrompu)');
+            await pg.evaluate(() => window.app.openSettings()); await pg.click('#settings-close');
+            check(await sansQuestion(pg, 400), 'ouvrir les Paramètres n\'est pas travailler non plus');
+            // Charger un morceau de la bibliothèque réécrit le tampon de travail, mais ne modifie rien. Le morceau est
+            // posé directement dans le stockage : passer par saveSongs() serait déjà « travailler ».
+            await pg.evaluate(() => {
+                localStorage.setItem('harmohubSongs', JSON.stringify([{ id: 'song_a', name: 'Ancien', savedAt: 1, root: 'C', mode: 'major', timeSig: '4/4', groove: 'straight', bpm: 90, sections: [{ title: 'S', chords: [] }] }]));
+                window.app.loadSong('song_a');
+            });
+            check(await sansQuestion(pg, 400), 'charger un morceau de la bibliothèque n\'est pas travailler non plus');
+
+            // --- D2. La première vraie modification pose la question -----------------------------------------
+            await ajouterAccord(pg, 'Am7');
+            exiger(await questionOuverte(pg), 'la première modification (un accord ajouté) pose la question');
+            let d = await lire(pg);
+            check(d.titre === 'Tu n\'es pas connecté' && d.boutons.join('|') === 'Me connecter avec Google|Continuer sans me connecter',
+                `elle dit « ${d.titre} » et propose deux choix : ${d.boutons.join(' / ')}`);
+            check((await nbAccords(pg)) === 1, 'et la modification qui l\'a déclenchée est bien appliquée (la question ne la bloque pas, ni ne la perd)');
+            check(d.focusDansLaBoite && !d.focusSurBouton,
+                'le focus est dans la boîte mais SUR AUCUN BOUTON : la frappe suivante (Entrée, espace) ne peut pas activer un choix avant qu\'on ait lu');
+            // Un accord SÉLECTIONNÉ, comme après un clic : c'est ce qui donne un effet à Suppr. Sans lui, la grille n'a rien à
+            // perdre et le test passerait même si le clavier agissait sous la question (mesuré : sabotage survivant).
+            await pg.evaluate(() => { window.app.selectChord(0, 0); });
+            for (const touche of ['Enter', 'Space', 'Delete', 'Backspace', 'ArrowRight', 'a']) await pg.keyboard.press(touche);
+            await attendre(250);
+            check((await lire(pg)).ouvert && (await nbAccords(pg)) === 1 && (await pg.evaluate(() => window.firebase.auth()._appelsConnexion)) === 0,
+                'Entrée, espace, Suppr, flèche, une lettre pendant que la question est à l\'écran, avec un accord sélectionné : elle reste ouverte, aucune connexion lancée, et l\'accord caché derrière n\'est PAS effacé');
+
+            // --- D3. Échap vaut « continuer » : la question ne revient pas ----------------------------------------
+            await pg.keyboard.press('Escape');
+            check(await sansQuestion(pg, 150), 'Échap referme la question');
+            check((await reponduGarde(pg)) === true, 'et vaut « continuer sans me connecter »');
+            await ajouterAccord(pg, 'F'); await ajouterAccord(pg, 'G');
+            check(await sansQuestion(pg, 500) && (await nbQuestions(pg)) === 1, 'les modifications suivantes ne posent plus la question (une seule pour toute la séance)');
+            check(D.erreurs.length === 0, `aucune erreur JavaScript (${D.erreurs.length}) ${D.erreurs.slice(0, 2).join(' | ')}`);
+            await D.contexte.close();
+        }
+
+        // --- D4. « Me connecter avec Google » : la fenêtre Google s'ouvre DANS le clic ---------------------------
+        {
+            const D = await ouvrir(navigateur, { compte: { nom: 'Lucas Martin' } });
+            const pg = D.page;
+            await espionnerGoogle(pg);
+            await ajouterAccord(pg, 'C');
+            exiger(await questionOuverte(pg), 'préalable : la question est posée');
+            await pg.click('#cloud-guard-signin');
+            const demandes = await pg.evaluate(() => window.__googleDemande);
+            check(demandes.length === 1 && demandes[0] === 'click',
+                `la fenêtre Google est demandée DANS le clic (évènement en cours : ${JSON.stringify(demandes)}) — pas après une attente, que Safari refuserait`);
+            check(await pg.waitForFunction(() => document.getElementById('open-cloud').dataset.etat === 'connecte', null, { timeout: 4000 }).then(() => true, () => false),
+                'puis on est connecté : le bouton de la barre du haut montre le prénom');
+            check(await sansQuestion(pg, 100), 'et la question est refermée');
+            await ajouterAccord(pg, 'Dm');
+            check(await sansQuestion(pg, 500), 'connecté, les modifications suivantes ne posent plus aucune question');
+            await D.contexte.close();
+        }
+
+        // --- D5. Le bouton de la barre du haut lance Google lui aussi dans le clic ---------------------------------------
+        {
+            const D = await ouvrir(navigateur);
+            const pg = D.page;
+            await espionnerGoogle(pg);
+            await pg.click('#open-cloud');
+            const demandes = await pg.evaluate(() => window.__googleDemande);
+            check(demandes.length === 1 && demandes[0] === 'click', `le bouton « Se connecter » demande la fenêtre Google dans le clic (${JSON.stringify(demandes)})`);
+            await D.contexte.close();
+        }
+
+        // --- D6. Google refermé sans se connecter : pas d'erreur affichée, et la question revient -------------------------
+        {
+            const D = await ouvrir(navigateur);
+            const pg = D.page;
+            await compterQuestions(pg);
+            await pg.evaluate(() => { window.firebase.auth()._echecConnexion = { code: 'auth/popup-closed-by-user', message: 'Firebase: Error (auth/popup-closed-by-user).' }; });
+            await ajouterAccord(pg, 'C');
+            exiger(await questionOuverte(pg), 'préalable : la question est posée');
+            await pg.click('#cloud-guard-signin');
+            await attendre(400);
+            const msg = await message(pg);
+            check(!/Connexion impossible|popup/.test(msg), `refermer la fenêtre Google n'est pas une erreur : aucun message (« ${msg} »)`);
+            check((await pg.evaluate(() => document.getElementById('open-cloud').dataset.etat)) === 'deconnecte', 'on reste déconnecté, et le bouton continue de proposer « Se connecter »');
+            await ajouterAccord(pg, 'G');
+            check(await questionOuverte(pg) && (await nbQuestions(pg)) === 2, 'la modification suivante REDEMANDE : il avait dit vouloir se connecter, ce n\'est pas fait');
+            await pg.keyboard.press('Escape');
+            await D.contexte.close();
+        }
+
+        // --- D7. Fenêtre bloquée par le navigateur : on le dit, et comment s'en sortir ----------------------------------
+        {
+            const D = await ouvrir(navigateur);
+            const pg = D.page;
+            await pg.evaluate(() => { window.firebase.auth()._echecConnexion = { code: 'auth/popup-blocked', message: 'bloqué' }; });
+            await pg.click('#open-cloud');
+            await attendre(300);
+            const msg = await message(pg);
+            check(/bloqué la fenêtre de connexion/.test(msg) && /autorise/.test(msg), `fenêtre bloquée : le message dit pourquoi et quoi faire (« ${msg} »)`);
+            await D.contexte.close();
+        }
+
+        // --- D8. Connecté AILLEURS pendant que la question est à l'écran : elle disparaît d'elle-même ------------------
+        {
+            const D = await ouvrir(navigateur, { compte: { nom: 'Lucas Martin' } });
+            const pg = D.page;
+            await compterQuestions(pg);
+            await ajouterAccord(pg, 'E');
+            exiger(await questionOuverte(pg), 'préalable : la question est posée');
+            await pg.evaluate(() => window.firebase.auth()._connecter());   // un autre onglet vient de se connecter
+            check(await pg.waitForFunction(() => document.getElementById('cloud-guard-modal').hidden, null, { timeout: 3000 }).then(() => true, () => false),
+                'connecté depuis un autre onglet pendant que la question est à l\'écran : elle se referme toute seule (elle n\'a plus d\'objet)');
+            await pg.evaluate(() => window.app.nuage.deconnecter());
+            await attendre(300);
+            await ajouterAccord(pg, 'A');
+            check(await questionOuverte(pg) && (await nbQuestions(pg)) === 2, 'puis déconnecté : la modification suivante redemande (la fermeture automatique n\'a pas compté comme une réponse)');
+            await pg.keyboard.press('Escape');
+            await D.contexte.close();
+        }
+
+        // --- D9. Un clic à côté vaut « continuer » ----------------------------------------------------------------------
+        {
+            const D = await ouvrir(navigateur);
+            const pg = D.page;
+            await ajouterAccord(pg, 'B');
+            exiger(await questionOuverte(pg), 'préalable : la question est posée');
+            await pg.mouse.click(5, 5);   // dans le voile, hors de la boîte
+            check(await sansQuestion(pg, 150) && (await reponduGarde(pg)) === true, 'un clic à côté referme la question et vaut « continuer »');
+            await D.contexte.close();
+        }
+
+        // --- D10. Firebase n'a pas encore répondu : on ne le sait pas, on ne demande pas -----------------------------------
+        {
+            // Une session est restaurée, mais Firebase met 700 ms à le dire : c'est le piège du garde-fou naïf.
+            const D = await ouvrir(navigateur, { compte: { nom: 'Lucas Martin', dejaConnecte: true, authApres: 2500 } });
+            const pg = D.page;
+            await ajouterAccord(pg, 'C');
+            exiger(await pg.evaluate(() => window.app.nuage.etat().authConnue === false), 'préalable : Firebase n\'a PAS encore répondu au moment de la modification (sans quoi ce scénario n\'éprouverait rien)');
+            check(await sansQuestion(pg, 100), 'Firebase n\'a pas encore répondu : aucune question (on ne sait pas encore si l\'utilisateur est connecté)');
+            await pg.waitForFunction(() => document.getElementById('open-cloud').dataset.etat === 'connecte', null, { timeout: 4000 });
+            check(await sansQuestion(pg, 400), 'il répond « connecté » (session restaurée) : la question ne vient JAMAIS — on ne demande pas de se connecter à quelqu\'un qui l\'est');
+            await D.contexte.close();
+        }
+        {
+            // Même retard, mais personne n'est connecté : la question vient, une fois la réponse connue.
+            const D = await ouvrir(navigateur, { compte: { nom: 'Lucas Martin', authApres: 2500 } });
+            const pg = D.page;
+            await ajouterAccord(pg, 'C');
+            exiger(await pg.evaluate(() => window.app.nuage.etat().authConnue === false), 'préalable : Firebase n\'a PAS encore répondu au moment de la modification');
+            check(await sansQuestion(pg, 100), 'Firebase tarde, personne n\'est connecté : pas de question tant qu\'il n\'a pas répondu…');
+            check(await questionOuverte(pg, 5000), '…elle vient dès qu\'il répond « personne », pour la modification faite entre-temps');
+            await pg.keyboard.press('Escape');
+            await D.contexte.close();
+        }
+
+        // --- D11. Au rechargement, le dernier compte s'affiche tout de suite (pas de « Se connecter » qui clignote) ------
+        {
+            // Firebase met 2,5 s à répondre : assez pour regarder le bouton AVANT sa réponse.
+            const D = await ouvrir(navigateur, { compte: { nom: 'Lucas Martin', dejaConnecte: true, authApres: 2500 } });
+            const pg = D.page;
+            const etatBouton = () => pg.evaluate(() => { const b = document.getElementById('open-cloud'); return { etat: b.dataset.etat, avatar: b.dataset.avatar, libelle: b.querySelector('.cloud-libelle').textContent }; });
+            await pg.waitForFunction(() => document.getElementById('open-cloud').dataset.etat === 'connecte', null, { timeout: 8000 });
+            check(JSON.parse(await pg.evaluate(() => localStorage.getItem('nuage.harmohub.compte')) || 'null')?.nom === 'Lucas Martin',
+                'connecté : le nom du compte est retenu dans le navigateur (un indice d\'affichage, rien d\'autre)');
+            await pg.reload({ waitUntil: 'load' });
+            await pg.waitForFunction(() => window.app && window.app.nuage, null, { timeout: 15000 });
+            const avant = await etatBouton();
+            check(avant.etat === 'inconnu' && avant.libelle === 'Lucas' && avant.avatar === 'initiale',
+                `au rechargement, AVANT que Firebase ne réponde, le bouton montre déjà le dernier compte (${avant.etat} / ${avant.libelle}) au lieu d'un « Se connecter » qui clignoterait`);
+            await pg.waitForFunction(() => document.getElementById('open-cloud').dataset.etat === 'connecte', null, { timeout: 8000 });
+            await pg.evaluate(() => window.app.nuage.deconnecter());
+            await pg.waitForFunction(() => document.getElementById('open-cloud').dataset.etat === 'deconnecte', null, { timeout: 4000 });
+            check((await pg.evaluate(() => localStorage.getItem('nuage.harmohub.compte'))) === null, 'déconnecté : l\'indice est oublié (le bouton ne montrera plus ce nom au prochain chargement)');
+            await D.contexte.close();
+        }
+
+        // --- D12. Le script du moteur n'a pas chargé : pas de bouton qui ne mène nulle part ------------------------------
+        {
+            const D = await ouvrir(navigateur, { avecFaux: false, avant: ["Object.defineProperty(window, 'Nuage', { get() { return undefined; }, set() {} });"] });
+            const pg = D.page;
+            await ajouterAccord(pg, 'C');
+            const r = await pg.evaluate(() => ({ cache: document.getElementById('open-cloud').hidden, question: !document.getElementById('cloud-guard-modal').hidden, moteur: window.app.nuage }));
+            check(r.cache && !r.question && r.moteur === null && (await nbAccords(pg)) === 1,
+                'sans le moteur (script non chargé) : pas de bouton qui ne mène nulle part, aucune question, et l\'édition marche comme avant');
+            check(D.erreurs.length === 0, `et aucune erreur JavaScript (${D.erreurs.length}) ${D.erreurs.slice(0, 2).join(' | ')}`);
+            await D.contexte.close();
+        }
+
+        // --- D13. Créer un morceau ou un dossier, c'est aussi travailler (la bibliothèque est un document) -----------------
+        {
+            const D = await ouvrir(navigateur);
+            const pg = D.page;
+            await pg.evaluate(() => { window.app.createNewSongFromCurrentState('Ballade'); });
+            check(await questionOuverte(pg), 'créer un morceau (une écriture dans la bibliothèque) pose la question, comme une modification du morceau ouvert');
+            await pg.keyboard.press('Escape');
+            await D.contexte.close();
+        }
+        {
+            const D = await ouvrir(navigateur);
+            const pg = D.page;
+            await pg.evaluate(() => { saveFolders(['Mes idées']); });
+            check(await questionOuverte(pg), 'créer un dossier aussi');
+            await pg.keyboard.press('Escape');
+            await D.contexte.close();
+        }
+
+        // ===== E. LE BOUTON DANS LA BARRE DU HAUT : DESSIN ET PLACE ===========================================
+        {
+            const mesurer = (pg) => pg.evaluate(() => {
+                const barre = document.querySelector('.top-bar'); const b = document.getElementById('open-cloud'); const r = b.getBoundingClientRect(); const cs = getComputedStyle(b);
+                const visibles = [...barre.children].filter(e => !e.hidden && getComputedStyle(e).display !== 'none').map(e => e.getBoundingClientRect());
+                return { largeur: Math.round(r.width), hauteur: Math.round(r.height), libelleVisible: getComputedStyle(b.querySelector('.cloud-libelle')).display !== 'none',
+                         affichage: cs.display, rayon: parseFloat(cs.borderTopLeftRadius), minLargeur: cs.minWidth, bordure: cs.borderTopColor,
+                         horsEcran: visibles.some(x => x.left < -0.5 || x.right > innerWidth + 0.5) };
+            });
+            const E = await ouvrir(navigateur, { viewport: { width: 1320, height: 800 } });
+            const m1 = await mesurer(E.page);
+            // `inline-flex` devient `flex` : un enfant direct d'une barre en flex est « blockifié ».
+            check(m1.affichage === 'flex' && m1.rayon > 100 && m1.libelleVisible && m1.largeur < 160,
+                `sur ordinateur, le bouton est dessiné par sa règle propre (flex, arrondi, ${m1.largeur}px de large avec son libellé) — la règle générique « button { min-width: 120px } » en aurait fait un rectangle`);
+            const bordureDeconnecte = m1.bordure;
+            await E.page.click('#open-cloud');
+            await E.page.waitForFunction(() => document.getElementById('open-cloud').dataset.etat === 'connecte', null, { timeout: 4000 });
+            await attendre(300);   // la bordure s'anime (0,12 s) : on mesure une fois posée
+            const m2 = await mesurer(E.page);
+            check(m2.bordure !== bordureDeconnecte, `le déconnecté se voit de loin : sa bordure change une fois connecté (${bordureDeconnecte} → ${m2.bordure})`);
+            await E.contexte.close();
+            for (const largeur of [390, 320]) {
+                const T = await ouvrir(navigateur, { viewport: { width: largeur, height: 800 }, tactile: true });
+                const a = await mesurer(T.page);
+                await T.page.tap('#open-cloud');
+                await T.page.waitForFunction(() => document.getElementById('open-cloud').dataset.etat === 'connecte', null, { timeout: 4000 });
+                const b = await mesurer(T.page);
+                check(!a.horsEcran && !b.horsEcran, `téléphone ${largeur}px : tous les boutons de la barre du haut restent à l'écran, déconnecté comme connecté`);
+                check(!a.libelleVisible && a.largeur >= 30 && a.largeur < 50 && a.hauteur >= 30, `et le bouton garde son rond (${a.largeur}×${a.hauteur}px), sans libellé`);
+                await T.contexte.close();
+            }
+        }
     } finally {
         await navigateur.close();
     }

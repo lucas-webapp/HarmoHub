@@ -6,12 +6,52 @@ secours, de temps en temps je conserverai mes données sur un disque. »*
 
 ## Ce que ça fait
 
-Connecté avec Google (bouton nuage de la barre du haut, à côté des Paramètres), chaque morceau est recopié
-dans le compte dès qu'il change — 1,5 s après la dernière modification — et se retrouve sur les autres
-appareils. Une pastille sur le bouton dit où ça en est : **verte** (tout est enregistré), **orange** (en
-cours), **grise** (hors ligne), **rouge** (un problème, et la raison en infobulle). Elle n'apparaît qu'une
-fois connecté. Sans Firebase — hors ligne, bloqué — HarmoHub fonctionne exactement comme avant : le nuage est
-un plus, jamais une condition.
+Connecté avec Google (le bouton de la barre du haut), chaque morceau est recopié dans le compte dès qu'il
+change — 1,5 s après la dernière modification — et se retrouve sur les autres appareils. Sans Firebase —
+hors ligne, bloqué — HarmoHub fonctionne exactement comme avant : le nuage est un plus, jamais une condition.
+
+## Le bouton, et le garde-fou
+
+**Un bouton à part, voyant, dans la barre du haut** (retour utilisateur : *« un bouton à part plus voyant
+avec mon nom ou Google »*). Il dit où l'on en est sans rien ouvrir :
+
+- **« Se connecter »**, avec le G de Google, en ambre, quand personne n'est connecté — le seul état qui
+  demande quelque chose, donc le seul qui se voit de loin ;
+- **le prénom**, avec une pastille d'état, une fois connecté : verte (tout est enregistré), orange (en
+  cours), grise (hors ligne), rouge (un problème, la raison en infobulle) ;
+- **« Hors ligne »** quand le nuage n'existe pas ici (Firebase bloqué, hors ligne au chargement).
+
+**Un clic suffit.** Déconnecté, le bouton ouvre Google tout de suite — dans le geste du clic, pas après une
+attente : un navigateur (Safari, iPhone surtout) refuse sinon d'ouvrir la fenêtre. Connecté, il ouvre la
+fenêtre du compte (le compte, la sauvegarde de secours). Refermer la fenêtre Google n'est pas une erreur :
+aucun message. Sur téléphone, le bouton ne garde que son rond (le G, ou l'initiale). Au rechargement, le
+dernier compte connu s'affiche tout de suite, plutôt qu'un « Se connecter » qui clignoterait le temps que
+Firebase réponde.
+
+**Le garde-fou « tu travailles sans être connecté »** (retour utilisateur : *« une confirmation si je
+commence à travailler alors que je ne suis pas connecté »*). À la première modification faite sans être
+connecté, une question : *Me connecter avec Google* ou *Continuer sans me connecter*. La modification qui
+l'a déclenchée est appliquée : la question ne la bloque ni ne la perd. Les règles, chacune gardée par un
+banc :
+
+- **Une fois par séance.** « Continuer » éteint la question jusqu'au prochain chargement (ou jusqu'à ce
+  qu'on se connecte puis se déconnecte) ; Échap ou un clic à côté valent « continuer ». Une question qui
+  reviendrait à chaque touche se fermerait sans être lue, et ne garderait plus rien.
+- **À la première *modification*, pas à l'ouverture.** Celui qui vient seulement lire ou écouter n'est pas
+  interrompu ; ouvrir les Paramètres ou charger un morceau ne comptent pas. Toutes les modifications du
+  morceau ouvert passent par `marquerModifie()` (voir plus bas), et celles de la bibliothèque (créer,
+  renommer, importer…) par `saveSongs` : ce sont les deux portes qui préviennent le moteur.
+- **Jamais à quelqu'un qui est connecté.** Cela demande d'attendre Firebase : au chargement, il y a un
+  court moment où l'on ne sait pas encore si une session est restaurée. Une modification faite à ce moment
+  attend la réponse, et ne pose la question que si personne n'est connecté.
+- **Jamais quand le nuage n'existe pas ici.** Proposer de se connecter serait proposer ce qui ne peut pas
+  marcher ; le bouton dit alors « Hors ligne ».
+- **Sans rien activer par mégarde.** La question surgit pendant qu'on travaille : le focus va à la boîte,
+  pas à un bouton, et le clavier n'agit plus sur la grille cachée derrière. La frappe suivante (Entrée,
+  espace, Suppr) ne peut donc ni choisir une réponse avant d'avoir été lue, ni modifier un accord.
+- **Fenêtre Google refermée sans se connecter** : la modification suivante redemande (il avait dit vouloir
+  se connecter, ce n'est pas fait). Connecté dans un autre onglet pendant que la question est à l'écran :
+  elle se referme d'elle-même.
 
 ## L'enregistrement automatique du morceau ouvert
 
@@ -24,7 +64,8 @@ qu'on n'appuyait pas sur *Enregistrer* (Ctrl+S) : un onglet fermé, un télépho
 - en **fermant la page** ;
 - quand l'**onglet passe en arrière-plan** (le seul signal fiable sur iOS).
 
-C'est **réglable** (fenêtre Nuage, case *Enregistrer automatiquement…*, activée par défaut). Désactivée, on
+C'est **réglable** (Paramètres > *Enregistrement*, activé par défaut — une préférence, donc rangée avec les
+préférences, et atteignable même sans être connecté). Désactivé, on
 retrouve l'ancien comportement : seul *Enregistrer* met à jour le morceau — et donc le nuage. Le bouton
 *Enregistrer* et Ctrl+S restent, et sont le seul geste qui écrit aussi le **fichier du disque** (le dossier de
 rangement) : le dernier commit avait abandonné le rangement automatique, ce n'est pas revenu.
@@ -96,9 +137,11 @@ Le code ne peut pas le faire, et je n'y ai pas accès :
    Si elle nomme chaque app, elle refusera `harmohub__<id>` : la pastille passera au rouge avec « Firestore
    refuse l'accès : les règles de sécurité ne couvrent pas ce document ».
 
-`firebase-config.js` reprend la configuration publique de TrainHub (même projet `lucas-apps`) avec
-`FIREBASE_APP_SLUG = "harmohub"` ; `appId` est celui de TrainHub, sans conséquence pour l'authentification et
-Firestore.
+`firebase-config.js` reprend la configuration publique du projet `lucas-apps` (celle de TrainHub) avec
+`FIREBASE_APP_SLUG = "harmohub"` ; `appId` est celui de l'application web créée dans la console Firebase pour
+ce projet (et non plus celui de TrainHub). Il ne sert ni à l'authentification ni à Firestore — seuls
+`apiKey`, `authDomain` et `projectId` comptent — mais il identifie l'app. S'il y a une application web par
+site, c'est une ligne à changer dans chaque `firebase-config.js`.
 
 ## Ce qui n'est pas synchronisé
 
@@ -108,7 +151,11 @@ Les réglages (volumes, zoom, etc.), le tampon de travail d'un morceau jamais no
 
 **Rien n'a parlé au vrai Firebase** (il faudrait un compte Google). Les bancs `nuage_test.js` (ici) et
 `nuage_moteur_test.js` (côté TabHub, le moteur `nuage.js` étant le même fichier) éprouvent la logique de
-synchro sur un faux Firestore en mémoire, pas la configuration du projet — d'où la liste ci-dessus.
+synchro, le bouton et le garde-fou sur un faux Firebase en mémoire, pas la configuration du projet — d'où la
+liste ci-dessus. Deux choses que seul le vrai Google peut confirmer : que la fenêtre de connexion s'ouvre bien
+sur iPhone quand elle est demandée depuis le bouton ou depuis la question (le banc prouve qu'elle est
+demandée *dans* le clic, c'est la condition ; pas que Safari l'accepte), et que le domaine publié est dans les
+domaines autorisés (sinon le message dit lequel régler).
 
 `nuage.js` est **le même fichier** dans HarmoHub et TabHub (`src/io/nuage.js` côté TabHub). Le corriger dans un
 seul dépôt ferait diverger les deux : à recopier.

@@ -710,6 +710,9 @@ let hasUnsavedChanges = false;
 function marquerModifie() {
     hasUnsavedChanges = true;
     if (window.app && typeof window.app.programmerEnregistrementAuto === 'function') window.app.programmerEnregistrementAuto();
+    // LE GARDE-FOU « tu travailles sans être connecté » (voir nuage.js#travail) : la porte unique des modifications
+    // du morceau ouvert est aussi l'endroit où le moteur apprend que l'utilisateur est en train de travailler.
+    if (window.app && window.app.nuage) window.app.nuage.travail();
 }
 // Repères de sauvegarde (voir surveillerFraicheurSauvegarde / rappelerAvantDePartir).
 const CLE_DERNIERE_SAUVEGARDE = 'harmohub_derniere_sauvegarde';
@@ -742,7 +745,7 @@ function saveSongs(songs) {
     localStorage.setItem('harmohubSongs', JSON.stringify(songs));
     // Le nuage suit la bibliothèque, quel que soit le geste qui l'a changée : enregistrer, renommer,
     // déplacer, supprimer, importer, annuler une suppression. Une seule porte, donc aucun geste oublié.
-    if (!nuageEcritLocalement && window.app && window.app.nuage) window.app.nuage.changement();
+    if (!nuageEcritLocalement && window.app && window.app.nuage) { window.app.nuage.changement(); window.app.nuage.travail(); }
 }
 
 // Date de dernière modification d'un morceau, en clair. Vivait dans renderFilesPanel ; hissée ici
@@ -800,7 +803,7 @@ function loadFolders() {
 }
 function saveFolders(folders) {
     localStorage.setItem('harmohubFolders', JSON.stringify(folders));
-    if (!nuageEcritLocalement && window.app && window.app.nuage) window.app.nuage.changement();
+    if (!nuageEcritLocalement && window.app && window.app.nuage) { window.app.nuage.changement(); window.app.nuage.travail(); }
 }
 
 // Options <option> pour un <select> de dossier (« Sans dossier » + dossiers existants triés + « +
@@ -9048,6 +9051,7 @@ class HarmoHubApp {
         // gestionnaire de fichiers a sa propre fenêtre (voir openFilesWindow).
         this.renderAudioPanel();
         this.renderDisplayPanel();
+        this.renderSavingPanel();
     }
 
     // Le gestionnaire de fichiers a QUITTÉ les Paramètres (retour utilisateur : « enlever les options
@@ -9319,7 +9323,7 @@ class HarmoHubApp {
     }
 
     demarrerNuage() {
-        if (!window.Nuage) { this.nuage = null; return; }
+        if (!window.Nuage) { this.nuage = null; this.rafraichirBoutonNuage(); return; }
         let copies = 0;
         this._nuageTouches = new Set();
         this.nuage = window.Nuage.creer({
@@ -9382,31 +9386,98 @@ class HarmoHubApp {
             },
             surEtat: (mode, message) => this.afficherEtatNuage(mode, message),
             surCompte: (utilisateur) => this.afficherCompteNuage(utilisateur),
+            // Le bouton de la barre du haut suit tout ce qui le concerne : qui est connecté, l'état, la fenêtre Google.
+            surAffichage: () => this.rafraichirBoutonNuage(),
+            confirmerSansConnexion: (outils) => this.demanderSansConnexion(outils),
         });
         this.nuage.demarrer();
+        this.rafraichirBoutonNuage();   // l'état de départ : « inconnu », ou « Hors ligne » si le nuage n'existe pas ici
+    }
+
+    /**
+     * LE BOUTON DU NUAGE dans la barre du haut. Ce qu'il montre est décidé par le moteur (Nuage.presentation,
+     * vérifié sans navigateur) ; ici on ne fait que le poser dans le DOM, et le CSS dessine d'après
+     * data-etat / data-avatar / data-point.
+     */
+    rafraichirBoutonNuage() {
+        const b = document.getElementById('open-cloud');
+        if (!b) return;
+        // Sans moteur (le script n'a pas chargé) : pas de bouton, plutôt qu'un bouton qui ne mène nulle part. Il est
+        // CACHÉ dans le balisage (attribut `hidden`) : tant que rien ne le montre, il le reste.
+        if (!this.nuage) return;
+        const p = window.Nuage.presentation(this.nuage.etat());
+        b.hidden = false;
+        b.dataset.etat = p.cle;
+        b.dataset.avatar = p.avatar;
+        b.dataset.point = p.point;
+        b.title = p.titre;
+        b.setAttribute('aria-label', p.titre);
+        b.querySelector('.cloud-libelle').textContent = p.libelle;
+        b.querySelector('.cloud-initiale').textContent = p.initiale;
+    }
+
+    /** Le clic sur le bouton : déconnecté, Google s'ouvre tout de suite ; connecté, c'est la fenêtre du compte. */
+    cliquerBoutonNuage() {
+        if (!this.nuage) return;
+        const p = window.Nuage.presentation(this.nuage.etat());
+        if (p.action === 'connecter') this.connecterAuNuage();
+        else this.openCloudWindow();
+    }
+
+    /** Ouvre la fenêtre Google. À appeler DIRECTEMENT depuis un clic, sans rien attendre avant : un navigateur
+     *  (Safari, iPhone surtout) refuse sinon d'ouvrir la fenêtre. Fermer la fenêtre Google n'est pas une erreur. */
+    connecterAuNuage() {
+        if (!this.nuage) { this.flashHint('Le nuage est indisponible pour l\'instant.', 3000); return Promise.resolve(); }
+        return this.nuage.connecter().catch((err) => this.direErreurConnexion(err));
+    }
+
+    direErreurConnexion(err) {
+        const dit = window.Nuage.expliquerConnexion(err);
+        if (dit) this.flashHint(dit, 5000);
+    }
+
+    /**
+     * LE GARDE-FOU (voir nuage.js#travail) : la première modification faite sans être connecté. Le moteur décide
+     * QUAND poser la question (une fois par séance, jamais si l'on est connecté ou si le nuage n'existe pas
+     * ici) ; ici, seulement COMMENT.
+     *
+     * « Me connecter » appelle `connecter` dans son propre clic, pas après la promesse : sinon le navigateur
+     * refuserait la fenêtre Google. Le focus va à la boîte elle-même et à AUCUN bouton : la question surgit
+     * pendant qu'on travaille, et la frappe suivante (Entrée, espace) ne doit pas activer un choix avant d'avoir
+     * été lue. Échap, ou un clic à côté, vaut « continuer sans me connecter » — voir le moteur.
+     */
+    demanderSansConnexion({ connecter }) {
+        const voile = document.getElementById('cloud-guard-modal');
+        if (!voile) return Promise.resolve(null);
+        const avantFocus = document.activeElement;
+        return new Promise((resolve) => {
+            const finir = (choix) => {
+                if (this._gardeNuageFermer !== finir) return;
+                this._gardeNuageFermer = null;
+                voile.hidden = true;
+                if (avantFocus && typeof avantFocus.focus === 'function') { try { avantFocus.focus(); } catch (e) { /* élément parti */ } }
+                resolve(choix);
+            };
+            this._gardeNuageFermer = finir;
+            document.getElementById('cloud-guard-continue').onclick = () => finir('continuer');
+            document.getElementById('cloud-guard-signin').onclick = () => {
+                connecter().catch((err) => this.direErreurConnexion(err));   // DANS le clic
+                finir('connecter');
+            };
+            voile.hidden = false;
+            voile.querySelector('.settings-modal').focus();
+        });
     }
 
     afficherEtatNuage(mode, message) {
-        const point = document.getElementById('cloud-dot');
-        if (point) {
-            point.hidden = !this.nuage?.etat().connecte;
-            point.classList.remove('synced', 'syncing', 'error', 'hors-ligne');
-            if (mode) point.classList.add(mode);
-        }
-        const bouton = document.getElementById('open-cloud');
-        if (bouton) {
-            bouton.title = ({
-                synced: 'Nuage : tout est enregistré',
-                syncing: 'Nuage : enregistrement en cours…',
-                'hors-ligne': 'Nuage : hors ligne — les modifications partiront au retour du réseau',
-                error: `Nuage : ${message || 'erreur'}`,
-            })[mode] || 'Nuage : enregistrement automatique';
-        }
+        // (La pastille d'état est sur le bouton de la barre du haut : voir rafraichirBoutonNuage.)
         const note = document.getElementById('cloud-note');
         if (note) {
-            note.textContent = !this.nuage?.etat().connecte
-                ? (this.nuage ? 'Connecte-toi avec Google : tes morceaux s\'enregistrent alors tout seuls dans ton compte, et se retrouvent sur tes autres appareils.'
-                              : 'Le nuage est indisponible (hors ligne, ou bloqué par le navigateur). Tout continue de fonctionner en local.')
+            const etat = this.nuage?.etat();
+            note.textContent = !etat?.disponible
+                ? 'Le nuage est indisponible (hors ligne, ou bloqué par le navigateur). Tout continue de fonctionner en local.'
+                : !etat.connecte
+                ? 'Connecte-toi avec Google : tes morceaux s\'enregistrent alors tout seuls dans ton compte, et se retrouvent sur tes autres appareils.'
                 : ({ synced: 'Tout est enregistré dans le nuage.', syncing: 'Enregistrement en cours…',
                      'hors-ligne': 'Hors ligne — les modifications partiront au retour du réseau.',
                      error: message || 'Erreur de synchronisation.' })[mode] || '';
@@ -9418,8 +9489,11 @@ class HarmoHubApp {
         const nom = document.getElementById('cloud-name');
         const entrer = document.getElementById('cloud-signin');
         const sortir = document.getElementById('cloud-signout');
+        // Connecté pendant que la question du garde-fou est à l'écran (depuis un autre onglet) : elle n'a plus
+        // d'objet. Refermée comme Échap ; le moteur n'en retient rien puisqu'on est connecté.
+        if (utilisateur && this._gardeNuageFermer) this._gardeNuageFermer(null);
         if (!nom || !entrer || !sortir) return;
-        entrer.hidden = !!utilisateur;
+        entrer.hidden = !!utilisateur || !this.nuage?.etat().disponible;
         sortir.hidden = !utilisateur;
         nom.hidden = !utilisateur;
         nom.textContent = utilisateur ? (utilisateur.displayName || utilisateur.email || 'Connecté') : '';
@@ -9431,8 +9505,6 @@ class HarmoHubApp {
         if (!overlay) return;
         this.afficherCompteNuage(this.nuage?.etat().utilisateur || null);
         if (this.nuage?.etat().connecte) this.afficherEtatNuage(this.nuage.etat().mode, this.nuage.etat().message);
-        const auto = document.getElementById('cloud-autosave');
-        if (auto) auto.checked = this.autoEnregistrementActif();
         overlay.hidden = false;
         this.lockBodyScroll();
     }
@@ -9445,18 +9517,12 @@ class HarmoHubApp {
     }
 
     brancherNuage() {
-        this._cabler('open-cloud', 'click', () => this.openCloudWindow());
+        this._cabler('open-cloud', 'click', () => this.cliquerBoutonNuage());
+        this._cabler('cloud-guard-modal', 'click', (e) => { if (e.target.id === 'cloud-guard-modal' && this._gardeNuageFermer) this._gardeNuageFermer(null); });
         this._cabler('cloud-close', 'click', () => this.closeCloudWindow());
         this._cabler('cloud-overlay', 'click', (e) => { if (e.target.id === 'cloud-overlay') this.closeCloudWindow(); });
-        this._cabler('cloud-signin', 'click', () => {
-            if (!this.nuage) { this.flashHint('Le nuage est indisponible pour l\'instant.'); return; }
-            this.nuage.connecter().catch((err) => this.flashHint('Connexion impossible : ' + (err?.message || 'erreur inconnue'), 5000));
-        });
+        this._cabler('cloud-signin', 'click', () => this.connecterAuNuage());
         this._cabler('cloud-signout', 'click', () => this.nuage?.deconnecter());
-        this._cabler('cloud-autosave', 'change', (e) => {
-            try { localStorage.setItem('harmohubAutoSave', e.target.checked ? '1' : '0'); } catch (err) { /* sans gravité */ }
-            if (e.target.checked) this.programmerEnregistrementAuto();
-        });
         // LA SAUVEGARDE DE SECOURS est celle qui existait déjà : toute la bibliothèque en un fichier. Ces
         // deux boutons ne font que la mettre là où l'on pense au nuage.
         this._cabler('cloud-export', 'click', () => this.exportLibrary());
@@ -9696,6 +9762,28 @@ class HarmoHubApp {
     // façon dont les morceaux sont NOMMÉS dans les deux listes. Rejouer loadProgression ici coûterait
     // un rendu complet de la grille pour changer deux libellés, et ferait clignoter l'écran à chaque
     // bascule.
+    /** L'enregistrement automatique du morceau ouvert : une préférence, donc dans les Paramètres (voir
+     *  programmerEnregistrementAuto pour ce qu'il fait). Activé par défaut. */
+    renderSavingPanel() {
+        const host = document.getElementById('settings-panel-saving');
+        if (!host) return;
+        host.innerHTML = `
+            <div class="settings-toggle-row">
+                <label for="toggle-autosave" title="Le morceau ouvert s'enregistre tout seul 1,5 s après la dernière modification, en changeant de morceau et en fermant la page. Sans ça, seul le bouton Enregistrer (Ctrl+S) met à jour le morceau — et donc le nuage.">Enregistrer automatiquement le morceau ouvert</label>
+                <button type="button" id="toggle-autosave" class="switch" role="switch" aria-checked="${this.autoEnregistrementActif()}" aria-label="Enregistrer automatiquement le morceau ouvert">
+                    <span class="switch-thumb"></span>
+                </button>
+            </div>`;
+        document.getElementById('toggle-autosave').onclick = () => this.definirEnregistrementAuto(!this.autoEnregistrementActif());
+    }
+
+    definirEnregistrementAuto(on) {
+        try { localStorage.setItem('harmohubAutoSave', on ? '1' : '0'); } catch (err) { /* sans gravité */ }
+        const bouton = document.getElementById('toggle-autosave');
+        if (bouton) bouton.setAttribute('aria-checked', on);
+        if (on) this.programmerEnregistrementAuto();
+    }
+
     setShowSavedDate(on) {
         this.showSavedDate = on;
         localStorage.setItem(SHOW_SAVED_DATE_KEY, on ? '1' : '0');
@@ -18680,6 +18768,13 @@ class HarmoHubApp {
     // ---------- Raccourcis clavier ----------
     setupKeyboardShortcuts() {
         document.addEventListener('keydown', (e) => {
+            // La question du garde-fou (« tu n'es pas connecté ») est MODALE : Échap répond « continuer sans me
+            // connecter », Tab atteint ses boutons, et rien d'autre n'agit sur la grille cachée derrière — une
+            // frappe ne doit pas modifier un accord que la boîte recouvre.
+            if (this._gardeNuageFermer) {
+                if (e.key === 'Escape') { e.preventDefault(); this._gardeNuageFermer(null); }
+                return;
+            }
             const tag = (document.activeElement && document.activeElement.tagName) || '';
             const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(tag)
                 || (document.activeElement && document.activeElement.isContentEditable);

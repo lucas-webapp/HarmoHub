@@ -36,12 +36,30 @@
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.04.05a2 2 0 1 1-2.83 2.83l-.05-.04a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.05.04a2 2 0 1 1-2.83-2.83l.04-.05a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.04-.05a2 2 0 1 1 2.83-2.83l.05.04a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82.33l.05-.04a2 2 0 1 1 2.83 2.83l-.04.05a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
             </svg>
         </button>
-        <!-- LE NUAGE : à côté des Paramètres, parce que c'est la même famille de gestes (réglages de
-             l'appli, pas du morceau). La pastille dit où en est l'enregistrement sans qu'on ouvre quoi
-             que ce soit ; elle n'apparaît qu'une fois connecté. -->
-        <button type="button" id="open-cloud" class="icon-btn cloud-btn" title="Nuage : enregistrement automatique" aria-label="Nuage">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
-            <span id="cloud-dot" class="cloud-dot" hidden aria-hidden="true"></span>
+        <!-- LE NUAGE — un bouton À PART, voyant, dans la barre du haut (retour utilisateur : « pour la
+             synchronisation, je préfère un bouton à part plus voyant avec mon nom ou Google dans la barre du
+             haut »). Il dit où l'on en est SANS rien ouvrir :
+               • « Se connecter » avec le G de Google, en ambre — le seul état qui demande quelque chose ;
+               • le prénom, avec une pastille d'état (vert : tout est enregistré, orange : en cours, gris : hors
+                 ligne, rouge : problème), une fois connecté ;
+               • « Hors ligne » quand le nuage n'existe pas ici.
+             Ce que le bouton montre et ce que son clic fait sont décidés par le moteur (Nuage.presentation,
+             voir nuage.js) ; script.js#rafraichirBoutonNuage ne fait que l'afficher. Déconnecté, le clic ouvre
+             Google tout de suite ; connecté, il ouvre la fenêtre du compte (#cloud-overlay). -->
+        <button type="button" id="open-cloud" class="cloud-btn" data-etat="inconnu" data-avatar="nuage" data-point="" aria-haspopup="dialog" title="Nuage" aria-label="Nuage" hidden>
+            <span class="cloud-avatar" aria-hidden="true">
+                <!-- Le « G » de Google, aux couleurs de Google (lignes directrices : jamais recoloré). -->
+                <svg class="cloud-g" viewBox="0 0 48 48" focusable="false">
+                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                </svg>
+                <svg class="cloud-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+                <span class="cloud-initiale"></span>
+                <span class="cloud-dot"></span>
+            </span>
+            <span class="cloud-libelle"></span>
         </button>
         <a class="logo" href="#" onclick="return false" title="HarmoHub" aria-label="HarmoHub">
             <span class="logo-mark">
@@ -188,6 +206,28 @@
     <!-- Avant de perdre des modifications non enregistrées (changer/fermer/créer un morceau) : propose
          d'enregistrer ou d'exporter en JSON plutôt qu'un simple confirm() natif Annuler/OK — voir
          confirmDiscardUnsavedIfNeeded, devenu asynchrone pour attendre ce choix. -->
+    <!-- LE GARDE-FOU DU NUAGE (retour utilisateur : « un garde-fou pour me demander une confirmation si je
+         commence à travailler alors que je ne suis pas connecté »). Posée par le moteur à la PREMIÈRE
+         modification faite sans être connecté, une fois par séance (voir nuage.js#travail) ; script.js#
+         demanderSansConnexion ne fait que l'afficher. Même châssis que la boîte « modifications non
+         enregistrées » juste en dessous. Échap et le clic à côté valent « Continuer sans me connecter ». -->
+    <div id="cloud-guard-modal" class="settings-overlay" hidden>
+        <div class="settings-modal unsaved-modal" role="alertdialog" aria-modal="true" aria-labelledby="cloud-guard-title" tabindex="-1">
+            <div class="settings-header">
+                <h2 id="cloud-guard-title">Tu n'es pas connecté</h2>
+            </div>
+            <div class="settings-body">
+                <div class="settings-content unsaved-modal-body">
+                    <p>Sans connexion à ton compte Google, ce que tu écris reste sur cet appareil : rien n'est enregistré dans le nuage, et tu ne le retrouveras pas sur tes autres appareils.</p>
+                    <div class="unsaved-modal-actions">
+                        <button type="button" id="cloud-guard-signin" class="btn-blue">Me connecter avec Google</button>
+                        <button type="button" id="cloud-guard-continue" class="btn-sec">Continuer sans me connecter</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="unsaved-modal" class="settings-overlay" hidden>
         <div class="settings-modal unsaved-modal" role="alertdialog" aria-modal="true" aria-labelledby="unsaved-modal-title">
             <div class="settings-header">
@@ -614,6 +654,11 @@
                          autant ne pas avoir à renommer le groupe à ce moment-là. -->
                     <h3 class="settings-group-title">Affichage</h3>
                     <div id="settings-panel-display" class="settings-panel" data-settings-panel="display"></div>
+                    <!-- ENREGISTREMENT — l'enregistrement automatique du morceau ouvert est une PRÉFÉRENCE, donc sa
+                         place est ici (il était d'abord dans la fenêtre du nuage, où l'on n'arrive plus qu'une fois
+                         connecté : le bouton du nuage, déconnecté, lance Google tout de suite). -->
+                    <h3 class="settings-group-title">Enregistrement</h3>
+                    <div id="settings-panel-saving" class="settings-panel" data-settings-panel="saving"></div>
                     <!-- Plus de groupe « Mes morceaux » ici : un gestionnaire de fichiers n'est pas
                          un réglage, et depuis qu'il a son propre bouton à droite du titre du morceau
                          (#song-files), le laisser aussi dans les Paramètres n'était qu'une seconde
@@ -666,11 +711,7 @@
                         <span id="cloud-name" class="cloud-name" hidden></span>
                         <button type="button" id="cloud-signout" class="cloud-btn-soft" hidden>Se déconnecter</button>
                     </div>
-                    <label class="cloud-check">
-                        <input type="checkbox" id="cloud-autosave">
-                        <span>Enregistrer automatiquement le morceau ouvert à chaque modification
-                            <small>Sans ça, seul le bouton Enregistrer (Ctrl+S) met à jour le morceau — et donc le nuage.</small></span>
-                    </label>
+                    <p class="cloud-note">L'enregistrement automatique du morceau ouvert se règle dans les Paramètres.</p>
                     <h3 class="cloud-title">Sauvegarde de secours</h3>
                     <p class="cloud-note">Le nuage est la copie de tous les jours ; ceci est la copie à garder de côté, sur ton disque,
                        de temps en temps. Un seul fichier, qui contient tous les morceaux.</p>

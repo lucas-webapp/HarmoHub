@@ -4110,3 +4110,62 @@ Règle qui en découle : **toute nouvelle fenêtre doit se fermer avec Échap** 
 une amélioration à faire un jour au banc lui-même : compter les contrôles sautés et échouer au-delà d'un
 seuil, plutôt que de les passer sous silence. `nuage_test.js` garde maintenant cette règle pour la fenêtre
 Nuage (un contrôle, qui passe au rouge si la ligne est retirée).
+
+## Le bouton du nuage et le garde-fou : ce que les sabotages ont appris
+
+Retour utilisateur : *« un bouton à part plus voyant avec mon nom ou Google dans la barre du haut »* et *« un
+garde-fou pour me demander une confirmation si je commence à travailler alors que je ne suis pas connecté »*
+(voir `docs/nuage.md`). Le moteur (`nuage.js`) est le même fichier que dans TabHub ; son banc
+(`nuage_moteur_test.js`, 117 vérifications) vit de l'autre côté.
+
+Méthode du dépôt : on casse une ligne de la source, on rejoue le banc, et un banc qui reste vert est un
+contrôle manquant. Vingt sabotages côté HarmoHub, seize côté TabHub, vingt-trois sur le moteur : **tous
+détectés — mais pas du premier coup**. Ce qu'ont appris ceux qui survivaient :
+
+- **Un banc qui presse Suppr sous la question n'avait rien à effacer.** Le clavier doit rester sans effet sur la
+  grille cachée derrière la question (le `return` du gestionnaire global). Le sabotage « le clavier agit sous la
+  question » survivait : aucun accord n'était sélectionné, et Suppr sans sélection ne fait rien. Mesuré sur une
+  copie sans ce `return` : avec un accord sélectionné, **Suppr l'efface pendant que la question est ouverte**.
+  Le banc sélectionne maintenant un accord avant de presser les touches. (Une première expérience concluait
+  « rien ne change » pour une mauvaise raison : Playwright `fill()` redonne le focus au champ d'ajout rapide,
+  si bien que les touches partaient dans le champ et jamais sur la boîte — le focus se vérifie, il ne se suppose pas.)
+- **Créer un morceau ou un dossier n'était pas couvert.** La bibliothèque est un document aussi : `saveSongs` et
+  `saveFolders` préviennent le moteur, comme `marquerModifie()`. Ni « charger un morceau n'est pas travailler ».
+- **Des défenses doublonnées rendaient des sabotages invisibles.** `utilisateur` était testé à trois endroits du
+  moteur, `connexionEnCours` à deux : retirer l'un laissait l'autre faire le travail, et aucun banc ne pouvait
+  distinguer. Retirées plutôt que testées deux fois — une défense doublée est une défense qu'on ne peut pas
+  prouver. Même chose pour le « masquer le bouton sans moteur » : le bouton est déjà caché dans le balisage, la
+  ligne était sans effet ; c'est le balisage qu'on sabote désormais.
+- **Un scénario « Firebase tarde » validait une situation qui n'avait pas lieu.** Avec 700 ms de retard,
+  l'initialisation de HarmoHub dépassait déjà ce délai quand le geste arrivait : Firebase *avait* répondu. Le
+  banc affirme maintenant en préalable (`authConnue === false`) l'état qu'il prétend éprouver.
+
+Deux défauts d'interface trouvés en REGARDANT le résultat (captures à 1320, 900, 390 et 320 px) plutôt qu'en
+lisant le code :
+
+- **La règle générique `button { min-width: 120px; }`** faisait du bouton du nuage un rectangle de 120 px,
+  libellé ou non — sur téléphone, le premier bouton de la barre sortait de l'écran (à −59 px à 320 px). Le
+  bouton pose `min-width: 0`, comme `.icon-btn` ; un contrôle de largeur calculée le garde.
+- **Une accolade `}` en trop dans le CSS de TabHub** avalait la première règle qui la suivait (voir le README de
+  TabHub). HarmoHub n'en avait pas — mais `css_equilibre_test.js` le vérifie désormais pour les deux feuilles
+  (`style.css`, `paroles.css`), sans navigateur.
+
+**Une limite découverte au passage, et non corrigée** : les paroles (page Paroles) sont rangées sous leurs
+propres clés `localStorage`, hors du morceau ; **elles ne sont pas synchronisées**. Seuls les morceaux et les
+dossiers voyagent. À décider avec l'utilisateur (un second adaptateur, avec sa règle de conflit).
+
+### Le balayage complet, et un rouge qui n'en était pas un
+
+Après le bouton et le garde-fou : **198 verts, 7 rouges, 7 sans verdict sur 212 suites**. Six des sept rouges
+et les sept bancs sans verdict sont ceux du balayage précédent, au même bilan (`probe_clic_accord_voisin` 4/8,
+`probe_defilement_tactile` 23/24, `probe_regle_voisins` 28/29, `probe_seq_finitions` 18/19,
+`seq_notes_libres_clavier` 32/33, `sortie_edition_involontaire` 3/4 — avec ses 44 contrôles éprouvés, dont le
+nouveau bouton — ; `ctx_nav_scroll`, `detune`, `guitar_lock_click`, `instrument_stress`, `item1_hzoom_out`,
+`probe_cache_perime`, `smoke`). `meta_suite_test` et `continuous_scroll_test`, rouges la fois d'avant, sont verts.
+
+Le septième, **`glock_full_real_ui_test` (31/2), est INTERMITTENT, et ne vient pas de ces changements** : lancé
+seul trois fois sur l'arbre courant, il donne 31/2, 31/2, 33/0 ; trois fois sur le commit d'avant (`7df5384`,
+servi à part), 33/0, 31/2, 33/0. Même signature des deux côtés (« après rechargement complet, accord 2 : cadenas
+actif en édition »), et c'est exactement ce que le banc dit de lui-même dans ses commentaires (« le MÊME code
+passait 33/33, puis 29/33, puis 31/33 »). À ranger avec les autres bancs sensibles au temps ; je ne l'ai pas
+touché, faute de pouvoir dire d'où vient l'instabilité.
