@@ -25,7 +25,7 @@ const PROG = { sections: [
     { title: 'Refrain', chords: [mk('C#', 'min7', 8), mk('F#', 'min', 8)] },
 ] };
 
-plan(44);
+plan(45);
 
 (async () => {
     const navigateur = await chromium.launch();
@@ -48,7 +48,7 @@ plan(44);
             pos: r.querySelector('.struct-pos')?.textContent || '',
             rep: r.querySelector('.struct-rep')?.textContent || '',
             accords: r.querySelector('.struct-chords')?.textContent.trim() || '',
-            notes: [...r.querySelectorAll('.struct-note')].map(n => n.innerText.replace(/\s+/g, ' ').trim()),
+            notes: [...r.querySelectorAll('.struct-note-texte')].map(n => n.innerText.replace(/\s+/g, ' ').trim()),
         })),
     }));
     const tampon = () => page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')));
@@ -115,32 +115,31 @@ plan(44);
     check((await lire()).lignes[3].titre === 'Couplet', 'vider le nom revient au titre de la partie');
     await clicDroit(3); await menu('renommer'); await page.fill('#struct-edit-body input[type=text]', 'Couplet 2'); await page.click('#struct-edit-ok'); await page.waitForTimeout(200);
 
-    // ---- 4. COMMENTAIRES ----
+    // ---- 4. COMMENTAIRES : des notes LIBRES (retour : « je n'ai pas besoin de définir les mesures impactées ») ----
     await clicDroit(3);
     await menu('commentaire');
     await page.waitForTimeout(250);
-    await page.fill('#struct-edit-mesure', '4');
-    await page.fill('#struct-edit-body textarea', 'batterie uniquement');
+    check(await page.locator('#struct-edit-mesure').count() === 0, 'la fenêtre de commentaire ne demande plus de mesure : un seul champ libre');
+    await page.fill('#struct-edit-body textarea', 'mes. 4 : batterie uniquement');
     await page.click('#struct-edit-ok');
     await page.waitForTimeout(250);
     v = await lire();
-    check(v.lignes[3].notes.length === 1 && /mes\. 4/.test(v.lignes[3].notes[0]) && /batterie uniquement/.test(v.lignes[3].notes[0]),
-        `« mesure 4 : batterie uniquement » s'affiche sous la partie — ${JSON.stringify(v.lignes[3].notes)}`);
+    check(v.lignes[3].notes.length === 1 && v.lignes[3].notes[0] === 'mes. 4 : batterie uniquement',
+        `la note s'affiche telle que saisie (la mesure, si on la veut, s'écrit dedans) — ${JSON.stringify(v.lignes[3].notes)}`);
     check(v.lignes[1].notes.length === 0, 'et PAS sur l\'autre occurrence du même couplet : il décrit CETTE occurrence-ci');
-    // un commentaire sur toute la partie, un autre sur la mesure 1 : triés
     await clicDroit(3); await menu('commentaire'); await page.fill('#struct-edit-body textarea', 'jouer plus doucement'); await page.click('#struct-edit-ok'); await page.waitForTimeout(200);
-    await clicDroit(3); await menu('commentaire'); await page.fill('#struct-edit-mesure', '1'); await page.fill('#struct-edit-body textarea', 'entrée à la basse'); await page.click('#struct-edit-ok'); await page.waitForTimeout(200);
+    await clicDroit(3); await menu('commentaire'); await page.fill('#struct-edit-body textarea', 'entrée à la basse'); await page.click('#struct-edit-ok'); await page.waitForTimeout(200);
     v = await lire();
-    check(v.lignes[3].notes.length === 3 && /toute la partie/.test(v.lignes[3].notes[0]) && /mes\. 1/.test(v.lignes[3].notes[1]) && /mes\. 4/.test(v.lignes[3].notes[2]),
-        `plusieurs commentaires par partie, dans l'ordre des mesures — ${JSON.stringify(v.lignes[3].notes)}`);
+    check(v.lignes[3].notes.join('|') === 'mes. 4 : batterie uniquement|jouer plus doucement|entrée à la basse',
+        `plusieurs commentaires par partie, dans l'ordre où on les a ajoutés (aucun tri imposé) — ${JSON.stringify(v.lignes[3].notes)}`);
     // modifier / supprimer un commentaire en cliquant dessus
-    await page.locator('.struct-row').nth(3).locator('.struct-note').nth(2).click();
+    await page.locator('.struct-row').nth(3).locator('.struct-note').nth(0).locator('.struct-note-texte').click();
     await page.waitForTimeout(200);
-    check(await page.inputValue('#struct-edit-body textarea') === 'batterie uniquement' && await page.isVisible('#struct-edit-delete'),
+    check(await page.inputValue('#struct-edit-body textarea') === 'mes. 4 : batterie uniquement' && await page.isVisible('#struct-edit-delete'),
         'cliquer un commentaire le rouvre, avec « Supprimer »');
     await page.fill('#struct-edit-body textarea', 'batterie seule'); await page.click('#struct-edit-ok'); await page.waitForTimeout(200);
-    check((await lire()).lignes[3].notes[2].includes('batterie seule'), 'il se modifie');
-    await page.locator('.struct-row').nth(3).locator('.struct-note').nth(1).click(); await page.waitForTimeout(150);
+    check((await lire()).lignes[3].notes[0] === 'batterie seule', 'il se modifie, et garde sa place dans la liste');
+    await page.locator('.struct-row').nth(3).locator('.struct-note').nth(1).locator('.struct-note-texte').click(); await page.waitForTimeout(150);
     await page.click('#struct-edit-delete'); await page.waitForTimeout(200);
     check((await lire()).lignes[3].notes.length === 2, 'et se supprime');
     await clicDroit(3); await menu('commentaire'); await page.fill('#struct-edit-body textarea', '   '); await page.click('#struct-edit-ok'); await page.waitForTimeout(150);
@@ -191,7 +190,7 @@ plan(44);
     await page.evaluate(() => { localStorage.setItem('myProgression', JSON.stringify({ sections: [{ sid: 'pA', title: 'Couplet', chords: [{ root: 'C', quality: 'maj', beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' }] }],
         structure: [{ id: 'a', sid: 'pA', rep: 1, notes: [{ mesure: 1, texte: 'batterie seule' }] }] })); window.app.renderStructurePanel(); });
     const feuille = await page.evaluate(() => { const f = window.app.fabriquerPagesFeuille(); return { t: f.pages.textContent, cmd: f.pages.querySelectorAll('.struct-actions, .struct-ajout, button, select').length }; });
-    check(/batterie seule/.test(feuille.t) && feuille.cmd === 0, 'la feuille imprimée / PDF contient les commentaires et aucune commande');
+    check(/mes\. 1 : batterie seule/.test(feuille.t) && feuille.cmd === 0, 'la feuille imprimée / PDF contient les commentaires (un ancien « mesure 1 » est devenu « mes. 1 : » dans le texte) et aucune commande');
 
     check(erreurs.length === 0, `aucune erreur JavaScript (${erreurs.slice(0, 2).join(' | ')})`);
     await navigateur.close();

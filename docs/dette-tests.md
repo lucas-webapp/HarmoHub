@@ -4346,3 +4346,27 @@ que tout passe sur une page. » Le bouton de la fenêtre Structure devient « Ap
 - Banc : `structure_feuille_test` passe à 54 contrôles (aperçu, ajustement, colonnes, orientation, mémoire,
   impression simulée, PDF = pages de l'aperçu, téléphone).
 Limite connue : l'aperçu n'est pas relu par une vraie imprimante ; la boîte d'impression du navigateur n'est pas testée.
+
+## Commentaires de structure : notes libres, ordre au choix, autre appareil (2026-10-03)
+
+Trois retours : « ils ne sont pas persistants lorsque j'ouvre une session sur un autre appareil » ; « finalement,
+je n'ai pas besoin de définir les mesures impactées, je préfère des notes libres » ; « je veux pouvoir modifier
+l'ordre des commentaires dans la liste ».
+
+- **Notes libres.** Une note est `{ texte }`. Les champs « de la mesure / à la mesure » disparaissent (le lot
+  précédent les avait ajoutés — retour d'avis de l'utilisateur, assumé). Rien n'est perdu : un ancien commentaire
+  `{ mesure, mesureFin?, texte }` est converti à la lecture (`texteNoteStructure`) en « mes. 1–3 : texte », que
+  l'utilisateur garde ou efface. Conversion idempotente. La feuille PDF montre le texte seul.
+- **Ordre.** Deux boutons ↑ ↓ sur chaque note (grisés aux extrémités, 26 px, ne rouvrent pas la fenêtre d'édition).
+  Le tableau EST l'ordre : plus aucun tri automatique (l'ancien tri par mesure aurait défait l'ordre choisi). Une
+  note modifiée garde sa place, une nouvelle va à la fin. L'ordre part au morceau et au cloud comme le reste.
+- **Autre appareil.** Reproduit à deux appareils sur le faux cloud : depuis la correction du lot précédent (structure
+  reportée dans le morceau à chaque geste), les commentaires arrivent bien sur un appareil neuf, et au démarrage
+  d'un appareil resté en retard. Ce qui manquait réellement : le volet Structure restait figé sur l'ancienne
+  structure quand la synchro rechargeait le morceau (volet ouvert) — `loadSong` le redessine désormais.
+  Si le défaut persiste chez l'utilisateur après ce correctif, le faux Firebase ne reproduit pas les refus
+  d'AUTORISATION (règles Firestore) : à vérifier sur appareils réels.
+- Le banc a attrapé une erreur de ma part en route : mon remplacement de texte avait emporté les réglages de
+  l'aperçu (`lireReglagesFeuille`) — détecté au premier passage de `structure_modulable_test`.
+- Bancs : `structure_feuille_test` 61 contrôles (dont la section G, deux appareils : session neuve, volet ouvert,
+  retour du réseau après rechargement), `structure_modulable_test` 45.

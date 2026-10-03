@@ -1,10 +1,13 @@
-// LA STRUCTURE : feuille claire, commentaires sur plusieurs mesures, et structure qui VOYAGE.
+// LA STRUCTURE : feuille claire, commentaires LIBRES et ordonnables, et structure qui VOYAGE.
 //
 // RETOURS UTILISATEUR, mot pour mot :
 //   « Impression PDF : le rendu n'est pas joli. Je veux un joli rendu, et sans le thème sombre comme
 //     actuellement. Garde un thème clair, éventuellement avec quelques couleurs. »
-//   « Pour les commentaires, permets-moi de les mettre sur plusieurs mesures. Par exemple : mesure 1 à 3.
-//     Ça doit se retranscrire sur la sortie PDF. »
+//   « Pour les commentaires, permets-moi de les mettre sur plusieurs mesures. Par exemple : mesure 1 à 3. »
+//   puis, ENSUITE : « Finalement, je n'ai pas besoin de définir les mesures impactées. Je préfère des notes
+//     libres, j'indiquerai moi-même si besoin les mesures impactées. Je veux pouvoir modifier l'ordre des
+//     commentaires dans la liste. » et « Ils ne sont pas persistants lorsque j'ouvre une session sur un
+//     autre appareil. »
 //   « J'ai l'impression que la structure se sauvegarde mal, quand j'ai ouvert HarmoHub avec Safari
 //     (j'étais sur Chrome avant), j'ai dû retaper le nombre de chaque section. »
 //
@@ -16,6 +19,7 @@ const { chromium } = require('playwright');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('structure feuille');
 const bruit = require('./_harness').estBruitReseau;
+const { creerNuage, installer } = require('./_firebase_faux');
 
 const mk = (root, quality, beats) => ({ root, quality, beats, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
 const SECTIONS = [
@@ -25,14 +29,15 @@ const SECTIONS = [
 ];
 const MORCEAU = { id: 'S1', name: 'Ballade du soir', savedAt: 5000, root: 'D', mode: 'major', timeSig: '4/4', groove: 'none', bpm: 96, sections: SECTIONS };
 
-plan(54);
+plan(61);
 
 (async () => {
     const navigateur = await chromium.launch();
     const erreurs = [];
     const surveiller = (page) => {
         page.on('pageerror', (e) => erreurs.push('pageerror: ' + e.message));
-        page.on('console', (m) => { if (m.type() === 'error' && !bruit(m.text())) erreurs.push('console: ' + m.text()); });
+        // Les pannes réseau de la section G sont SIMULÉES (nuage.coupe) et l'appli les consigne : comportement voulu.
+        page.on('console', (m) => { if (m.type() === 'error' && !bruit(m.text()) && !/Envoi vers le cloud impossible|Écoute de la synchro interrompue|Synchro initiale impossible/.test(m.text())) erreurs.push('console: ' + m.text()); });
     };
     const ouvrir = async (contexte, init) => {
         const page = await contexte.newPage();
@@ -80,7 +85,7 @@ plan(54);
     check(v.bpm === 96 && v.sale === true, `le tempo non enregistré reste non enregistré (morceau ${v.bpm}, modifié=${v.sale}) : seule la structure est reportée`);
     check(v.rep === 2, 'et la structure, elle, suit chaque geste');
 
-    // ============ B. COMMENTAIRE SUR PLUSIEURS MESURES ============
+    // ============ B. COMMENTAIRES : notes libres, dans l'ordre choisi ============
     const menu = async (i, action) => {
         const r = A.locator('.struct-row').nth(i).locator('.struct-main');
         const b = await r.boundingBox();
@@ -89,35 +94,45 @@ plan(54);
         await A.click(`#struct-menu [data-struct-ctx="${action}"]`);
         await A.waitForTimeout(250);
     };
+    const texteDe = (i) => A.locator('.struct-row').nth(i).locator('.struct-note-texte').allTextContents();
+    const enregistrees = () => A.evaluate(() => loadSongs()[0].structure[1].notes.map(n => n.texte));
+    const ajouter = async (texte) => { await menu(1, 'commentaire'); await A.fill('#struct-edit-body textarea', texte); await A.click('#struct-edit-ok'); await A.waitForTimeout(250); };
     await menu(1, 'commentaire');
-    check(await A.isVisible('#struct-edit-mesure') && await A.isVisible('#struct-edit-mesureFin'),
-        'la fenêtre propose « de la mesure » ET « à la mesure »');
-    await A.fill('#struct-edit-mesure', '1');
-    await A.fill('#struct-edit-mesureFin', '3');
-    await A.fill('#struct-edit-body textarea', 'batterie uniquement');
+    check(await A.locator('#struct-edit-mesure').count() === 0 && await A.locator('#struct-edit-body textarea').count() === 1,
+        'la fenêtre de commentaire ne demande plus de mesure : UN champ libre');
+    await A.fill('#struct-edit-body textarea', 'mes. 1 à 3 : batterie uniquement');
     await A.click('#struct-edit-ok');
     await A.waitForTimeout(250);
-    let notes = await A.evaluate(() => loadSongs()[0].structure[1].notes);
-    check(notes.length === 1 && notes[0].mesure === 1 && notes[0].mesureFin === 3, `la plage est enregistrée avec le morceau — ${JSON.stringify(notes)}`);
-    const libelle = await A.locator('.struct-row').nth(1).locator('.struct-note-mes').first().textContent();
-    check(libelle.trim() === 'mes. 1–3', `elle s'affiche « mes. 1–3 » (${libelle.trim()})`);
+    check((await enregistrees()).join('|') === 'mes. 1 à 3 : batterie uniquement', 'la note est enregistrée avec le morceau, telle que saisie (les mesures, si on les veut, s\'écrivent dedans)');
+    await ajouter('basse seule'); await ajouter('crescendo');
+    check((await texteDe(1)).join('|') === 'mes. 1 à 3 : batterie uniquement|basse seule|crescendo', 'les notes s\'ajoutent à la suite, sans tri imposé');
 
-    // Entrées bancales : jamais bloquantes, jamais une plage absurde.
-    await menu(1, 'commentaire');
-    await A.fill('#struct-edit-mesure', '3'); await A.fill('#struct-edit-mesureFin', '1'); await A.fill('#struct-edit-body textarea', 'à l\'envers');
-    await A.click('#struct-edit-ok'); await A.waitForTimeout(250);
-    await menu(1, 'commentaire');
-    await A.fill('#struct-edit-mesure', ''); await A.fill('#struct-edit-mesureFin', '4'); await A.fill('#struct-edit-body textarea', 'fin seule');
-    await A.click('#struct-edit-ok'); await A.waitForTimeout(250);
-    notes = await A.evaluate(() => loadSongs()[0].structure[1].notes);
-    const envers = notes.find(n => n.texte === 'à l\'envers'), seule = notes.find(n => n.texte === 'fin seule');
-    check(envers && envers.mesure === 3 && !envers.mesureFin, '« de 3 à 1 » se lit comme la mesure 3 seule');
-    check(seule && !seule.mesure && !seule.mesureFin, 'une fin sans début vaut « toute la partie »');
-    check(notes[0].texte === 'fin seule' && notes[1].texte === 'batterie uniquement' && notes[2].texte === 'à l\'envers',
-        `triés : toute la partie, puis mes. 1–3, puis mes. 3 — ${notes.map(n => n.texte)}`);
-    // Un commentaire déjà enregistré avant les plages (mesure seule) reste lisible tel quel.
-    check(await A.evaluate(() => libelleMesuresNote({ mesure: 4, texte: 'x' }) === 'mes. 4' && libelleMesuresNote({ texte: 'x' }) === 'toute la partie'),
-        'un ancien commentaire { mesure, texte } s\'affiche comme avant');
+    // L'ORDRE se règle à la main : « je veux pouvoir modifier l'ordre des commentaires dans la liste ».
+    const note = (k) => A.locator('.struct-row').nth(1).locator('.struct-note').nth(k);
+    check(await note(0).locator('[data-note-move="-1"]').isDisabled() && await note(2).locator('[data-note-move="1"]').isDisabled(),
+        'la première note ne se monte pas, la dernière ne se descend pas (boutons grisés)');
+    await note(0).locator('[data-note-move="1"]').click(); await A.waitForTimeout(250);
+    check(!(await A.isVisible('#struct-edit-modal')), 'un bouton d\'ordre ne rouvre pas la fenêtre d\'édition de sa note');
+    check((await texteDe(1)).join('|') === 'basse seule|mes. 1 à 3 : batterie uniquement|crescendo', 'descendre la 1re note : elle passe en 2e position');
+    await note(2).locator('[data-note-move="-1"]').click(); await A.waitForTimeout(250);
+    check((await enregistrees()).join('|') === 'basse seule|crescendo|mes. 1 à 3 : batterie uniquement',
+        'monter la dernière : l\'ordre est enregistré dans le MORCEAU tout de suite, pas seulement affiché');
+    // Modifier une note ne la déplace pas.
+    await note(1).locator('.struct-note-texte').click(); await A.waitForTimeout(200);
+    await A.fill('#struct-edit-body textarea', 'crescendo jusqu\'au refrain'); await A.click('#struct-edit-ok'); await A.waitForTimeout(250);
+    check((await enregistrees())[1] === 'crescendo jusqu\'au refrain', 'une note modifiée garde sa place');
+    // Les notes d'avant (avec une mesure ou une plage) ne se perdent pas : la mesure passe dans le texte.
+    check(await A.evaluate(() => texteNoteStructure({ mesure: 1, mesureFin: 3, texte: 'x' }) === 'mes. 1–3 : x' && texteNoteStructure({ mesure: 4, texte: 'x' }) === 'mes. 4 : x'
+        && texteNoteStructure({ texte: ' libre ' }) === 'libre'),
+        'un ancien commentaire { mesure, mesureFin, texte } devient « mes. 1–3 : texte » : rien n\'est perdu');
+    check(await A.evaluate(() => {
+        const t = JSON.parse(localStorage.getItem('myProgression'));
+        t.structure[0].notes = [{ mesure: 2, mesureFin: 3, texte: 'ancien' }];
+        localStorage.setItem('myProgression', JSON.stringify(t));
+        const lu = structureEffective(loadProgressionSections()).items[0].notes;
+        return lu.length === 1 && lu[0].texte === 'mes. 2–3 : ancien' && !('mesure' in lu[0]);
+    }), 'et la lecture de la structure fait cette conversion toute seule');
+    await A.evaluate(() => { window.app.modifierStructure((l) => { l[0].notes = []; }); });
 
     // ============ C. LA FEUILLE : claire, colorée, avec les plages ============
     const feuille = await A.evaluate(() => {
@@ -155,7 +170,8 @@ plan(54);
     check(feuille.lignes === 3 && feuille.pages === 1, `une carte par occurrence, sur une page (${feuille.lignes} cartes, ${feuille.pages} page)`);
     check(feuille.couleurs >= 3, `une couleur par famille de parties (${feuille.couleurs} couleurs)`);
     check(feuille.commandes === 0 && feuille.classesEcran === 0, 'aucune commande ni classe de l\'écran dans la feuille');
-    check(/mes\. 1–3/.test(feuille.texte) && /batterie uniquement/.test(feuille.texte), 'la plage « mes. 1–3 » et son texte sont sur la feuille');
+    check(feuille.texte.indexOf('basse seule') < feuille.texte.indexOf('crescendo jusqu\'au refrain') && feuille.texte.indexOf('crescendo jusqu\'au refrain') < feuille.texte.indexOf('batterie uniquement'),
+        'les notes sont sur la feuille, dans l\'ordre choisi dans la liste');
     // Le tempo imprimé est celui de l'écran (140, réglé plus haut sans enregistrer) : la feuille montre ce qu'on voit.
     check(/Ballade du soir/.test(feuille.texte) && /140 BPM/.test(feuille.texte) && /×2/.test(feuille.texte), `titre du morceau, tempo et répétitions y figurent — ${feuille.texte.replace(/\s+/g, ' ').slice(0, 120)}`);
     // Informations ajoutées : repère de temps (mes. 3 à 140 BPM, 4/4 : 8 temps = 3,4 s -> 0:03) et date en pied.
@@ -165,7 +181,7 @@ plan(54);
     // ============ D. L'APERÇU AVANT IMPRESSION, puis le PDF réel ============
     await A.evaluate(() => {
         const sid = loadProgressionSections()[1].sid;
-        window.app.modifierStructure((l) => { for (let k = 0; k < 14; k++) l.push({ id: 'z' + k, sid, rep: 1, label: 'Passage ' + (k + 1), notes: [{ mesure: 1, mesureFin: 2, texte: 'plage ' + k }] }); });
+        window.app.modifierStructure((l) => { for (let k = 0; k < 14; k++) l.push({ id: 'z' + k, sid, rep: 1, label: 'Passage ' + (k + 1), notes: [{ texte: 'note ' + k }] }); });
     });
     check(await A.locator('#structure-print').count() === 0, 'plus de bouton « Imprimer » direct : tout passe par l\'aperçu');
     await A.click('#structure-pdf');
@@ -271,10 +287,58 @@ plan(54);
     await B.waitForTimeout(400);
     const rb = await B.evaluate(() => ({
         reps: [...document.querySelectorAll('.struct-row')].slice(0, 3).map(r => r.querySelector('.struct-rep')?.textContent || '×1'),
-        plage: [...(document.querySelectorAll('.struct-row')[1]?.querySelectorAll('.struct-note-mes') || [])].map(e => e.textContent).join(' / '),
+        notes: [...(document.querySelectorAll('.struct-row')[1]?.querySelectorAll('.struct-note-texte') || [])].map(e => e.textContent).join(' | '),
     }));
     check(rb.reps.join(' ') === '×1 ×2 ×1', `rien à retaper : les nombres de passages sont retrouvés (${rb.reps.join(' ')})`);
-    check(/mes\. 1–3/.test(rb.plage), `ni les plages de commentaires (${rb.plage})`);
+    check(rb.notes === 'basse seule | crescendo jusqu\'au refrain | mes. 1 à 3 : batterie uniquement', `ni les commentaires, dans leur ordre (${rb.notes})`);
+
+    // ============ G. UN AUTRE APPAREIL : « ils ne sont pas persistants quand j'ouvre une session ailleurs » ============
+    const nuage = creerNuage();
+    const appareil = async (nom) => {
+        const ctx = await navigateur.newContext({ viewport: { width: 1300, height: 950 } });
+        await installer(ctx, nuage, { appareil: nom, uid: 'u1', persister: true });
+        const p = await ctx.newPage();
+        surveiller(p);
+        await p.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 20000 });
+        await p.waitForTimeout(900);
+        return p;
+    };
+    const notesAffichees = (p) => p.evaluate(() => [...document.querySelectorAll('#structure-panel .struct-row')].map(r => [...r.querySelectorAll('.struct-note-texte')].map(e => e.textContent).join(' | ')));
+    const P = await appareil('P');
+    await P.evaluate((m) => {
+        localStorage.setItem('harmohubSongs', JSON.stringify([m]));
+        localStorage.setItem('harmohubCurrentSongId', m.id);
+        localStorage.setItem('myProgression', JSON.stringify({ sections: m.sections }));
+    }, MORCEAU);
+    await P.reload({ waitUntil: 'load' }); await P.waitForTimeout(900);
+    await P.click('#google-signin-btn'); await P.waitForTimeout(1800);
+    await P.click('#structure-btn'); await P.waitForTimeout(300);
+    await P.evaluate(() => {
+        window.app.modifierStructure((l) => { l[1].notes.push({ texte: 'premier' }, { texte: 'deuxième' }); });
+        window.app.deplacerCommentaireStructure(1, 0, 1);   // -> deuxième, premier
+    });
+    await P.waitForTimeout(2500);
+    const doc = () => JSON.parse(nuage.docs.get('users/u1/apps/harmohub').songs[0].json);
+    check(doc().structure[1].notes.map(n => n.texte).join('|') === 'deuxième|premier', 'appareil 1 : les commentaires ET leur ordre sont dans le cloud, sans avoir enregistré');
+    const Q = await appareil('Q');
+    await Q.click('#google-signin-btn'); await Q.waitForTimeout(2500);
+    await Q.evaluate(() => window.app.loadSong(loadSongs()[0].id));
+    await Q.click('#structure-btn'); await Q.waitForTimeout(300);
+    check((await notesAffichees(Q))[1] === 'deuxième | premier', `appareil 2, session neuve : il retrouve les commentaires dans l'ordre — ${(await notesAffichees(Q))[1]}`);
+    // Volet ouvert sur l'appareil 2 pendant que l'appareil 1 modifie.
+    await P.evaluate(() => { window.app.modifierStructure((l) => { l[1].notes.push({ texte: 'troisième' }); }); window.app.deplacerCommentaireStructure(1, 2, -1); });
+    await P.waitForTimeout(2500); await Q.waitForTimeout(1500);
+    check((await notesAffichees(Q))[1] === 'deuxième | troisième | premier', `appareil 2, volet ouvert : la modification arrive SANS recharger la page — ${(await notesAffichees(Q))[1]}`);
+    // Appareil 2 déconnecté du réseau au moment où l'appareil 1 modifie : il recharge avec un tampon périmé,
+    // puis retrouve le réseau et recharge encore.
+    nuage.coupe.add('Q');
+    await P.evaluate(() => { window.app.modifierStructure((l) => { l[1].notes.push({ texte: 'quatrième' }); }); });
+    await P.waitForTimeout(2000);
+    await Q.reload({ waitUntil: 'load' }); await Q.waitForTimeout(1500);
+    nuage.coupe.delete('Q');
+    await Q.reload({ waitUntil: 'load' }); await Q.waitForTimeout(3000);
+    await Q.click('#structure-btn'); await Q.waitForTimeout(300);
+    check((await notesAffichees(Q))[1] === 'deuxième | troisième | premier | quatrième', `appareil 2, retour du réseau après un rechargement : à jour, au démarrage — ${(await notesAffichees(Q))[1]}`);
 
     // ============ F. TÉLÉPHONE : mêmes gestes, au doigt ============
     const ctxM = await navigateur.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
@@ -288,16 +352,23 @@ plan(54);
     check(await M.evaluate(() => loadSongs()[0].structure[1].rep === 2), 'au doigt aussi : le réglage entre dans le morceau tout de suite');
     await M.evaluate(() => { window.app.editerCommentaireStructure(1, null); }); // sans attendre : la promesse ne se résout qu'à la fermeture de la fenêtre
     await M.waitForTimeout(300);
-    const champs = await M.evaluate(() => ['struct-edit-mesure', 'struct-edit-mesureFin', 'struct-edit-ok'].map(id => {
+    const champs = await M.evaluate(() => ['struct-edit-body', 'struct-edit-ok'].map(id => {
         const r = document.getElementById(id).getBoundingClientRect();
         return r.width > 0 && r.left >= 0 && r.right <= window.innerWidth;
     }));
     check(champs.every(Boolean), `la fenêtre de commentaire tient dans l'écran du téléphone (${champs})`);
-    await M.fill('#struct-edit-mesure', '2'); await M.fill('#struct-edit-mesureFin', '4'); await M.fill('#struct-edit-body textarea', 'basse seule');
+    await M.fill('#struct-edit-body textarea', 'basse seule');
     await M.tap('#struct-edit-ok');
     await M.waitForTimeout(300);
-    check(await M.evaluate(() => { const n = loadSongs()[0].structure[1].notes[0]; return n.mesure === 2 && n.mesureFin === 4; }), 'la plage saisie au doigt est enregistrée');
-    check(/mes\. 2–4/.test(await M.locator('.struct-row').nth(1).textContent()), 'et lisible sur la ligne');
+    await M.evaluate(() => { window.app.editerCommentaireStructure(1, null); });
+    await M.waitForTimeout(300);
+    await M.fill('#struct-edit-body textarea', 'puis le piano');
+    await M.tap('#struct-edit-ok');
+    await M.waitForTimeout(300);
+    await M.locator('.struct-row').nth(1).locator('.struct-note').nth(0).locator('[data-note-move="1"]').tap();
+    await M.waitForTimeout(300);
+    check(await M.evaluate(() => loadSongs()[0].structure[1].notes.map(n => n.texte).join('|') === 'puis le piano|basse seule'), 'au doigt : les boutons d\'ordre déplacent la note, et c\'est enregistré');
+    check(await M.evaluate(() => { const b = document.querySelector('.struct-row:nth-child(2) [data-note-move]').getBoundingClientRect(); return b.width >= 24 && b.height >= 24; }), 'et ils restent assez grands pour le doigt');
 
     await M.evaluate(() => localStorage.setItem('harmohub_feuille_structure', JSON.stringify({ ajuster: true })));
     await M.tap('#structure-pdf');

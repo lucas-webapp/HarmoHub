@@ -733,7 +733,7 @@ function saveProgressionSections(sections, markDirty = true, structure) {
 // plusieurs fois mes couplets dans l'écran principal [...] et ces couplets doivent être au bon endroit.
 // J'aimerais pouvoir définir un seul couplet, et le dupliquer au besoin dans la structure. »
 // La grille DÉFINIT les parties (une fois chacune) ; la structure est une liste d'OCCURRENCES qui y
-// renvoient par identifiant : { id, sid, rep, label?, notes: [{ mesure, texte }] }. Dupliquer une
+// renvoient par identifiant : { id, sid, rep, label?, notes: [{ texte }] }. Dupliquer une
 // occurrence ne copie aucun accord, et corriger la partie la corrige à chaque endroit où elle sert.
 // Tant que l'utilisateur n'a rien arrangé, la structure est DÉDUITE de la grille (une occurrence par
 // partie, dans l'ordre) : un morceau existant se lit comme avant, sans migration.
@@ -778,21 +778,17 @@ function assurerIdentifiantsParties() {
     return parties;
 }
 
-// Plage de mesures d'un commentaire. Retour utilisateur : « permets-moi de les mettre sur plusieurs
-// mesures. Par exemple : mesure 1 à 3. Ça doit se retranscrire sur la sortie PDF. » Le modèle reste
-// { mesure, texte } pour une mesure seule (rien à migrer) ; une plage ajoute `mesureFin`. Les mesures
-// sont celles de la PARTIE (la 1re mesure de la partie est la 1), pas celles du morceau : un
-// commentaire suit la partie, où qu'elle soit rejouée.
-function plageNoteStructure(n) {
+// Un commentaire de structure est une NOTE LIBRE : { texte }. Retour utilisateur : « finalement, je n'ai pas
+// besoin de définir les mesures impactées. Je préfère des notes libres, j'indiquerai moi-même si besoin les
+// mesures. » Les commentaires déjà posés avec une mesure ({ mesure, mesureFin?, texte }) ne se perdent pas :
+// leur mesure passe en tête du texte (« mes. 1–3 : batterie seule »), où l'utilisateur peut la garder ou
+// l'effacer. L'opération est idempotente — une fois migrée, la note n'a plus de `mesure`.
+function texteNoteStructure(n) {
+    const texte = n && typeof n.texte === 'string' ? n.texte.trim() : '';
     const d = Math.round(Number(n && n.mesure));
-    if (!(d > 0)) return null;
-    const f = Math.round(Number(n && n.mesureFin));
-    return { debut: d, fin: f > d ? f : d };
-}
-function libelleMesuresNote(n) {
-    const r = plageNoteStructure(n);
-    if (!r) return 'toute la partie';
-    return r.fin > r.debut ? `mes. ${r.debut}–${r.fin}` : `mes. ${r.debut}`;
+    if (!texte || !(d > 0)) return texte;
+    const f = Math.round(Number(n.mesureFin));
+    return `${f > d ? `mes. ${d}–${f}` : `mes. ${d}`} : ${texte}`;
 }
 
 // RÉGLAGES DE LA FEUILLE (aperçu avant impression). Mémorisés d'une fois sur l'autre : on règle sa
@@ -836,7 +832,7 @@ function structureEffective(parties) {
         id: it.id || nouvelIdStructure('i'), sid: it.sid,
         rep: repeatCountOf({ repeatCount: it.rep }),
         label: typeof it.label === 'string' && it.label.trim() ? it.label.trim() : '',
-        notes: Array.isArray(it.notes) ? it.notes.filter(n => n && typeof n.texte === 'string' && n.texte.trim()) : [],
+        notes: Array.isArray(it.notes) ? it.notes.map(n => ({ texte: texteNoteStructure(n) })).filter(n => n.texte) : [],
     });
     if (brute) return { items: brute.map(propre), materialisee: true };
     return { items: parties.map(p => propre({ id: 'd_' + p.sid, sid: p.sid, rep: repeatCountOf(p) })), materialisee: false };
@@ -9014,6 +9010,11 @@ class HarmoHubApp {
         // ligne, un séquenceur ouvert restait figé sur les notes du morceau PRÉCÉDENT. Ici, à la fin :
         // le motif et la pagination dépendent de la grille et de editingIndex, tous deux à jour.
         this.renderSequencer();
+        // Le volet Structure peut être OUVERT pendant qu'un morceau se recharge — typiquement quand la synchro
+        // apporte la version modifiée sur un autre appareil. Sans ce redessin il montrait l'ancienne
+        // structure jusqu'au prochain rechargement de la page (reproduit : une note ajoutée sur l'appareil A
+        // n'apparaissait pas sur B, volet ouvert).
+        if (document.getElementById('structure-overlay') && !document.getElementById('structure-overlay').hidden) this.renderStructurePanel();
         this.refreshSongList();
     }
 
@@ -9297,8 +9298,11 @@ class HarmoHubApp {
             const famille = familles.indexOf(this.structureFamily(p.title)) % 8;
             const notes = it.notes.map((n, k) => `
                         <div class="struct-note" role="button" tabindex="0" data-note="${k}" title="Modifier ou supprimer ce commentaire">
-                            <span class="struct-note-mes">${libelleMesuresNote(n)}</span>
                             <span class="struct-note-texte">${escapeHtml(n.texte)}</span>
+                            ${it.notes.length > 1 ? `<span class="struct-note-ordre">
+                                <button type="button" class="icon-btn" data-note-move="-1" ${k === 0 ? 'disabled' : ''} title="Monter ce commentaire" aria-label="Monter ce commentaire">↑</button>
+                                <button type="button" class="icon-btn" data-note-move="1" ${k === it.notes.length - 1 ? 'disabled' : ''} title="Descendre ce commentaire" aria-label="Descendre ce commentaire">↓</button>
+                            </span>` : ''}
                         </div>`).join('');
             return `
                 <div class="struct-row" data-item="${i}">
@@ -9354,9 +9358,15 @@ class HarmoHubApp {
             const i = +row.dataset.item;
             row.querySelectorAll('[data-struct]').forEach(btn => { btn.onclick = () => this.actionStructure(i, btn.dataset.struct); });
             row.querySelectorAll('[data-note]').forEach(n => {
-                const ouvrir = () => this.editerCommentaireStructure(i, +n.dataset.note);
+                const k = +n.dataset.note;
+                const ouvrir = () => this.editerCommentaireStructure(i, k);
                 n.onclick = ouvrir;
-                n.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ouvrir(); } };
+                n.onkeydown = (e) => { if (e.target === n && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); ouvrir(); } };
+                // L'ordre des commentaires se règle à la main : les boutons ne doivent PAS ouvrir la fenêtre
+                // d'édition de la note qui les porte.
+                n.querySelectorAll('[data-note-move]').forEach(b => {
+                    b.onclick = (e) => { e.stopPropagation(); this.deplacerCommentaireStructure(i, k, +b.dataset.noteMove); };
+                });
             });
             // CLIC DROIT, et appui long au doigt (550 ms, comme les cases de la grille) : les mêmes actions
             // que les boutons, plus celles qui n'ont pas de bouton (dupliquer, renommer, commenter).
@@ -9500,6 +9510,17 @@ class HarmoHubApp {
         this.modifierStructure((liste) => { if (liste[i]) liste[i].label = (nom && p && nom === (p.title || '').trim()) ? '' : nom; });
     }
 
+    // Retour utilisateur : « je veux pouvoir modifier l'ordre des commentaires dans la liste. » Le tableau EST
+    // l'ordre (aucun tri automatique : c'est à l'utilisateur de décider). `delta` : -1 monte, +1 descend.
+    deplacerCommentaireStructure(i, k, delta) {
+        this.modifierStructure((liste) => {
+            const notes = liste[i] && liste[i].notes;
+            const j = k + delta;
+            if (!notes || !notes[k] || j < 0 || j >= notes.length) return;
+            [notes[k], notes[j]] = [notes[j], notes[k]];
+        });
+    }
+
     async editerCommentaireStructure(i, k) {
         const parties = assurerIdentifiantsParties();
         const it = structureEffective(parties).items[i];
@@ -9508,9 +9529,7 @@ class HarmoHubApp {
         const rep = await this.saisirStructure({
             titre: existant ? 'Modifier le commentaire' : 'Ajouter un commentaire',
             champs: [
-                { nom: 'mesure', type: 'number', libelle: 'De la mesure (de cette partie ; vide = toute la partie)', valeur: existant && existant.mesure ? String(existant.mesure) : '', indice: 'ex. 1' },
-                { nom: 'mesureFin', type: 'number', libelle: 'À la mesure (facultatif, pour couvrir plusieurs mesures)', valeur: existant && existant.mesureFin ? String(existant.mesureFin) : '', indice: 'ex. 3' },
-                { nom: 'texte', type: 'texte-long', libelle: 'Commentaire', valeur: existant ? existant.texte : '', indice: 'ex. batterie uniquement' },
+                { nom: 'texte', type: 'texte-long', libelle: 'Commentaire', valeur: existant ? existant.texte : '', indice: 'ex. mes. 4 : batterie uniquement' },
             ],
             supprimable: !!existant,
         });
@@ -9521,15 +9540,8 @@ class HarmoHubApp {
             if (rep === 'supprimer') { cible.notes.splice(k, 1); return; }
             const texte = rep.texte.trim();
             if (!texte) { if (existant) cible.notes.splice(k, 1); return; }
-            const m = parseInt(rep.mesure, 10);
-            const f = parseInt(rep.mesureFin, 10);
-            const note = { mesure: Number.isFinite(m) && m > 0 ? m : null, texte };
-            // Une fin n'a de sens qu'avec un début, et après lui : « de 3 à 1 » ou une fin seule se
-            // lisent comme une mesure seule plutôt que de bloquer la saisie.
-            if (note.mesure && Number.isFinite(f) && f > note.mesure) note.mesureFin = f;
-            if (existant) cible.notes[k] = note; else cible.notes.push(note);
-            // Dans l'ordre des mesures, « toute la partie » en tête : un commentaire se lit en suivant la grille.
-            cible.notes.sort((a, b) => ((a.mesure || 0) - (b.mesure || 0)) || ((a.mesureFin || 0) - (b.mesureFin || 0)));
+            // Nouvelle note à la FIN de la liste ; une note modifiée garde sa place.
+            if (existant) cible.notes[k] = { texte }; else cible.notes.push({ texte });
         });
     }
 
@@ -9600,7 +9612,6 @@ class HarmoHubApp {
             const grille = this.chordsByMeasure(p, beatsPerBar).map(m => escapeHtml(m.join(' '))).join('<span class="sf-bar">|</span>');
             const notes = reg.commentaires ? it.notes.map(n => `
                 <div class="sf-note" style="border-left-color:${fort}77;background:${pale}">
-                    <span class="sf-note-mes" style="color:${fort}">${libelleMesuresNote(n)}</span>
                     <span class="sf-note-txt">${escapeHtml(n.texte)}</span>
                 </div>`).join('') : '';
             return `
