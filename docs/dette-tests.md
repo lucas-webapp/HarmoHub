@@ -4281,3 +4281,39 @@ différentes y restent à saisir sur une même partie. À reconsidérer si ça g
   rajoutant.
 
 `tests/structure_modulable_test.js` : 44 contrôles.
+
+## Structure : feuille claire, commentaires sur plusieurs mesures, structure qui voyage (2026-10-03)
+
+Trois retours utilisateur d'un coup.
+
+**3. « La structure se sauvegarde mal : ouvert dans Safari après Chrome, j'ai dû retaper le nombre de chaque
+section. »** Cause mesurée, pas supposée : un réglage de structure (nombre de passages, commentaire, ordre)
+n'était écrit que dans le *tampon de travail* (`myProgression`) ; il n'entrait dans le morceau qu'au prochain
+« Enregistrer ». L'export de bibliothèque et la synchro cloud ne lisent que le morceau enregistré : sans Ctrl+S,
+l'autre navigateur recevait l'ancienne structure. Correction : `modifierStructure` appelle maintenant
+`persisterStructureDansMorceau`, qui reporte **les parties et la structure** (les `sid` des parties en
+dépendent : une structure qui renvoie à des parties absentes du morceau serait orpheline) dans le morceau
+ouvert. Le reste du tampon (tempo, tonalité…) n'est PAS enregistré au passage, et un morceau propre le reste
+(sinon la fenêtre « enregistrer avant de partir ? » s'ouvrirait pour rien). Un morceau pas encore nommé n'a rien
+où se rattacher : inchangé.
+Limite connue : les réglages faits dans la **grille** (ex. le nombre de répétitions d'une partie, hors volet
+Structure) restent, eux, soumis à l'enregistrement explicite — c'est le comportement historique de l'appli.
+
+**2. Commentaires sur plusieurs mesures.** Modèle `{ mesure, mesureFin?, texte }` : une mesure seule ne change
+pas (aucune migration), une plage ajoute `mesureFin`. Les mesures sont celles de la **partie** (1re mesure de la
+partie = 1), parce qu'un commentaire suit la partie où qu'elle soit rejouée. Saisie tolérante, jamais bloquante :
+fin ≤ début = mesure seule ; fin sans début = « toute la partie ». Affichage `mes. 1–3`, tri début puis fin.
+
+**1. Feuille PDF / impression.** Avant, la feuille était une *copie du volet de l'écran* (thème sombre) qu'on
+recolorait par-dessus. Elle est maintenant construite à part (`construireFeuilleStructure`) : fond blanc, une
+couleur par famille de parties (« Couplet » et « Couplet (variation) » partagent la leur), mesure de départ en
+marge, déroulé en pastilles, plages de commentaires teintées. Couleurs posées en ligne (le plus fidèle pour
+html2canvas), styles scopés sous `#structure-print-zone`, donc identiques dans le PDF rastérisé et à
+l'impression. Le PDF n'est plus réduit pour tenir sur UNE page : il est découpé en pages aux frontières des
+cartes (`.sf-row`).
+
+Bancs : `tests/structure_feuille_test.js` (32 contrôles, bureau + téléphone ; rejoue le vrai parcours
+Chrome → fichier → contexte vierge). `structure_modulable_test` : sélecteur du champ « mesure » rendu précis
+(`#struct-edit-mesure`) puisqu'il y a désormais deux champs numériques.
+Piège de banc rencontré : `page.evaluate(() => app.editerCommentaireStructure(...))` attend la fermeture de la
+fenêtre (promesse) — ne pas attendre cet appel.

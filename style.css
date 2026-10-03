@@ -6301,26 +6301,50 @@ select.song-select-narrow {
 #structure-print-zone { display: none; }
 body.impression-structure > *:not(#structure-print-zone) { display: none !important; }
 /* Le fond blanc ne peut pas attendre @media print : la classe n'est posée QUE le temps d'imprimer, et
-   sans elle le corps garde le fond sombre de l'appli — visible dans l'aperçu avant impression, et
-   imprimé tel quel par les navigateurs qui honorent les couleurs de fond. */
+   sans elle le corps garde le fond sombre de l'appli. */
 body.impression-structure { background: #fff; }
-body.impression-structure #structure-print-zone { display: block; color: #000; background: #fff; padding: 0; }
-body.impression-structure #structure-print-zone h1 { font-size: 20pt; margin: 0 0 2pt; }
-body.impression-structure #structure-print-zone h2 { font-size: 11pt; font-weight: 600; color: #555; margin: 0 0 14pt; }
-body.impression-structure .struct-somme,
-body.impression-structure .struct-row { background: #fff; border-color: #bbb; color: #000; }
-body.impression-structure .struct-somme strong,
-body.impression-structure .struct-title,
-body.impression-structure .struct-chords { color: #000; }
-body.impression-structure .struct-measures,
-body.impression-structure .struct-pos { color: #444; }
-/* Le vert de l'accent ne tient pas à l'impression : bleu nuit, comme les pastilles d'accord du PDF
-   Paroles — franc sur blanc, et encore lisible en noir et blanc. */
-body.impression-structure .struct-rep { color: #12295e; }
-body.impression-structure .struct-deroule { background: #fff; border-left-color: #12295e; }
-body.impression-structure .struct-row { break-inside: avoid; }
+body.impression-structure #structure-print-zone { display: block; }
+
+/* LA FEUILLE DE ROUTE (impression ET PDF). Retour utilisateur : « le rendu n'est pas joli [...] sans le
+   thème sombre. Garde un thème clair, éventuellement avec quelques couleurs. » Page faite pour le papier,
+   pas copie du volet de l'écran : fond blanc, encre sombre, une couleur par famille de parties (posée en
+   ligne par construireFeuilleStructure). Tout est sous #structure-print-zone et indépendant du thème de
+   l'appli — le même rendu s'impose dans le PDF rastérisé (zone hors écran) et à l'impression. */
+#structure-print-zone {
+    color: #1c2430; background: #fff; box-sizing: border-box; padding: 28px 30px 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+#structure-print-zone * { box-sizing: border-box; }
+#structure-print-zone .sf-entete { border-bottom: 3px solid #1f5fbf; padding-bottom: 12px; margin-bottom: 14px; }
+#structure-print-zone h1 { font-size: 26px; line-height: 1.15; margin: 0; color: #12295e; letter-spacing: -0.01em; }
+#structure-print-zone .sf-sous { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #6b7686; margin: 4px 0 8px; }
+#structure-print-zone .sf-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 13px; color: #36414f; }
+#structure-print-zone .sf-meta i { font-style: normal; color: #a0a9b6; }
+#structure-print-zone .sf-deroule { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 4px; margin: 0 0 16px; }
+#structure-print-zone .sf-puce { font-size: 12px; font-weight: 700; padding: 3px 9px; border: 1px solid; border-radius: 999px; white-space: nowrap; }
+#structure-print-zone .sf-fleche { color: #a0a9b6; font-size: 14px; padding: 0 1px; }
+#structure-print-zone .sf-liste { display: flex; flex-direction: column; gap: 9px; }
+#structure-print-zone .sf-row { display: flex; align-items: stretch; border: 1px solid; border-radius: 8px; overflow: hidden; background: #fff; break-inside: avoid; page-break-inside: avoid; }
+#structure-print-zone .sf-marge { flex: 0 0 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; padding: 6px 4px; }
+#structure-print-zone .sf-marge-num { font-size: 20px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+#structure-print-zone .sf-marge-lib { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.85; margin-top: 3px; }
+#structure-print-zone .sf-corps { flex: 1; min-width: 0; padding: 9px 12px 10px; }
+#structure-print-zone .sf-tete { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 6px; }
+#structure-print-zone .sf-nom { font-size: 16px; font-weight: 800; }
+#structure-print-zone .sf-rep { color: #fff; font-size: 12px; font-weight: 800; padding: 1px 8px; border-radius: 999px; }
+#structure-print-zone .sf-etendue { font-size: 12px; color: #5b6676; font-variant-numeric: tabular-nums; }
+#structure-print-zone .sf-grille { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; line-height: 1.7; padding: 3px 9px; border-radius: 5px; color: #1c2430; overflow-wrap: anywhere; }
+#structure-print-zone .sf-bar { color: #8a94a3; margin: 0 7px; }
+#structure-print-zone .sf-notes { display: flex; flex-direction: column; gap: 4px; margin-top: 7px; }
+#structure-print-zone .sf-note { display: flex; gap: 10px; align-items: baseline; border-left: 3px solid; border-radius: 0 5px 5px 0; padding: 4px 9px; font-size: 13px; }
+#structure-print-zone .sf-note-mes { flex: 0 0 auto; font-weight: 800; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#structure-print-zone .sf-note-txt { white-space: pre-wrap; color: #1c2430; }
+#structure-print-zone .sf-vide { color: #6b7686; font-style: italic; }
+#structure-print-zone .sf-pied { margin-top: 16px; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #a0a9b6; text-align: right; }
 @media print {
     body.impression-structure { background: #fff; }
+    body.impression-structure #structure-print-zone { padding: 0; }
 }
 
 /* ---------- Fenêtre de conflit d'import : une décision PAR MORCEAU ---------- */
@@ -6456,6 +6480,3 @@ body.impression-structure .struct-row { break-inside: avoid; }
 .struct-aide { font-size: var(--fs-xs); color: var(--text-muted); }
 .struct-edit-champ { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: var(--fs-sm); }
 .struct-edit-champ input, .struct-edit-champ textarea { width: 100%; }
-body.impression-structure .struct-note { background: #fff; border-left-color: #b07a1c; }
-body.impression-structure .struct-note-mes { color: #8a5a00; }
-body.impression-structure .struct-note-texte { color: #000; }

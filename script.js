@@ -778,6 +778,23 @@ function assurerIdentifiantsParties() {
     return parties;
 }
 
+// Plage de mesures d'un commentaire. Retour utilisateur : « permets-moi de les mettre sur plusieurs
+// mesures. Par exemple : mesure 1 à 3. Ça doit se retranscrire sur la sortie PDF. » Le modèle reste
+// { mesure, texte } pour une mesure seule (rien à migrer) ; une plage ajoute `mesureFin`. Les mesures
+// sont celles de la PARTIE (la 1re mesure de la partie est la 1), pas celles du morceau : un
+// commentaire suit la partie, où qu'elle soit rejouée.
+function plageNoteStructure(n) {
+    const d = Math.round(Number(n && n.mesure));
+    if (!(d > 0)) return null;
+    const f = Math.round(Number(n && n.mesureFin));
+    return { debut: d, fin: f > d ? f : d };
+}
+function libelleMesuresNote(n) {
+    const r = plageNoteStructure(n);
+    if (!r) return 'toute la partie';
+    return r.fin > r.debut ? `mes. ${r.debut}–${r.fin}` : `mes. ${r.debut}`;
+}
+
 // La structure à l'ÉCRAN : la brute si l'utilisateur en a fait une, sinon celle déduite de la grille.
 function structureEffective(parties) {
     const brute = loadStructureBrute();
@@ -9239,7 +9256,7 @@ class HarmoHubApp {
             const famille = familles.indexOf(this.structureFamily(p.title)) % 8;
             const notes = it.notes.map((n, k) => `
                         <div class="struct-note" role="button" tabindex="0" data-note="${k}" title="Modifier ou supprimer ce commentaire">
-                            <span class="struct-note-mes">${Number.isFinite(n.mesure) && n.mesure > 0 ? `mes. ${n.mesure}` : 'toute la partie'}</span>
+                            <span class="struct-note-mes">${libelleMesuresNote(n)}</span>
                             <span class="struct-note-texte">${escapeHtml(n.texte)}</span>
                         </div>`).join('');
             return `
@@ -9327,9 +9344,30 @@ class HarmoHubApp {
     modifierStructure(fn) {
         const parties = assurerIdentifiantsParties();
         const copie = JSON.parse(JSON.stringify(structureEffective(parties).items));
+        const etaitModifie = hasUnsavedChanges;
         fn(copie, parties);
         saveStructureBrute(copie);
+        this.persisterStructureDansMorceau(etaitModifie);
         this.renderStructurePanel();
+    }
+
+    // Retour utilisateur : « J'ai l'impression que la structure se sauvegarde mal, quand j'ai ouvert
+    // HarmoHub avec Safari (j'étais sur Chrome avant), j'ai dû retaper le nombre de chaque section. »
+    // Cause mesurée : un réglage de structure n'allait que dans le TAMPON de travail (myProgression) ;
+    // il n'entrait dans le morceau qu'au prochain « Enregistrer ». Or l'export et la synchro cloud ne
+    // lisent que le morceau enregistré : sans Ctrl+S, l'autre navigateur recevait l'ancienne structure.
+    // Réparer la structure à la source = elle entre dans le morceau dès qu'on la change. On y met aussi
+    // les parties (leurs identifiants `sid` en dépendent : une structure qui renvoie à des parties
+    // absentes du morceau serait orpheline à la réouverture). Le reste du tampon (tonalité, tempo...)
+    // n'est pas touché ; et si le morceau était propre avant ce geste, il le redevient.
+    persisterStructureDansMorceau(etaitModifie) {
+        if (!getCurrentSongId()) return false; // morceau pas encore nommé : rien à quoi rattacher
+        syncCurrentSong({
+            sections: loadProgressionSections(),
+            structure: loadStructureBrute(),
+        });
+        if (!etaitModifie) hasUnsavedChanges = false;
+        return true;
     }
 
     actionStructure(i, action) {
@@ -9429,7 +9467,8 @@ class HarmoHubApp {
         const rep = await this.saisirStructure({
             titre: existant ? 'Modifier le commentaire' : 'Ajouter un commentaire',
             champs: [
-                { nom: 'mesure', type: 'number', libelle: 'Mesure de cette partie (vide = toute la partie)', valeur: existant && existant.mesure ? String(existant.mesure) : '', indice: 'ex. 4' },
+                { nom: 'mesure', type: 'number', libelle: 'De la mesure (de cette partie ; vide = toute la partie)', valeur: existant && existant.mesure ? String(existant.mesure) : '', indice: 'ex. 1' },
+                { nom: 'mesureFin', type: 'number', libelle: 'À la mesure (facultatif, pour couvrir plusieurs mesures)', valeur: existant && existant.mesureFin ? String(existant.mesureFin) : '', indice: 'ex. 3' },
                 { nom: 'texte', type: 'texte-long', libelle: 'Commentaire', valeur: existant ? existant.texte : '', indice: 'ex. batterie uniquement' },
             ],
             supprimable: !!existant,
@@ -9442,10 +9481,14 @@ class HarmoHubApp {
             const texte = rep.texte.trim();
             if (!texte) { if (existant) cible.notes.splice(k, 1); return; }
             const m = parseInt(rep.mesure, 10);
+            const f = parseInt(rep.mesureFin, 10);
             const note = { mesure: Number.isFinite(m) && m > 0 ? m : null, texte };
+            // Une fin n'a de sens qu'avec un début, et après lui : « de 3 à 1 » ou une fin seule se
+            // lisent comme une mesure seule plutôt que de bloquer la saisie.
+            if (note.mesure && Number.isFinite(f) && f > note.mesure) note.mesureFin = f;
             if (existant) cible.notes[k] = note; else cible.notes.push(note);
             // Dans l'ordre des mesures, « toute la partie » en tête : un commentaire se lit en suivant la grille.
-            cible.notes.sort((a, b) => (a.mesure || 0) - (b.mesure || 0));
+            cible.notes.sort((a, b) => ((a.mesure || 0) - (b.mesure || 0)) || ((a.mesureFin || 0) - (b.mesureFin || 0)));
         });
     }
 
@@ -9464,19 +9507,98 @@ class HarmoHubApp {
         return Math.max(1, total);
     }
 
+    // LA FEUILLE DE ROUTE, construite à part des données de structure. Retour utilisateur : « le rendu
+    // n'est pas joli. Je veux un joli rendu, et sans le thème sombre comme actuellement. Garde un thème
+    // clair, éventuellement avec quelques couleurs. » Avant, la feuille était une COPIE du volet de
+    // l'écran, donc de ses couleurs sombres : on en redessinait les contrastes par-dessus. Ici la page
+    // est faite pour le papier — fond blanc, une couleur par famille de parties (la même logique que
+    // les pastilles de l'écran), les mesures de départ en marge. Les couleurs sont posées EN LIGNE :
+    // c'est ce que html2canvas rend le plus fidèlement, et l'impression du navigateur aussi.
+    construireFeuilleStructure() {
+        const parties = assurerIdentifiantsParties();
+        const { items } = structureEffective(parties);
+        const beatsPerBar = this.beatsPerBar();
+        const bpm = parseInt(document.getElementById('bpm')?.value, 10) || 120;
+        const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+        const partieDe = (it) => parties.find(p => p.sid === it.sid);
+        const nomPartie = (p, i) => ((p.title && p.title.trim()) ? p.title.trim() : `Partie ${i + 1}`);
+        const mesuresDe = (p) => (p.chords || []).reduce((sum, c) => sum + beatsFromData(c), 0) / beatsPerBar;
+        const titreDe = (it) => {
+            const p = partieDe(it);
+            return it.label || (p ? nomPartie(p, parties.indexOf(p)) : 'Partie supprimée');
+        };
+        // [couleur forte, teinte pâle] : lisibles en couleur comme en noir et blanc (tons distincts).
+        const PALETTE = [['#1f5fbf', '#e8f0fc'], ['#c2410c', '#fdeee4'], ['#15803d', '#e5f5ea'], ['#7e22ce', '#f2e8fb'],
+                         ['#b45309', '#fbf0dc'], ['#0e7490', '#e0f3f7'], ['#be185d', '#fbe6ef'], ['#4d5563', '#eceef2']];
+        const vivantes = items.filter(it => { const p = partieDe(it); return p && p.chords.length; });
+        const familles = [...new Set(vivantes.map(it => this.structureFamily(partieDe(it).title)))];
+        const couleurDe = (it) => PALETTE[Math.max(0, familles.indexOf(this.structureFamily((partieDe(it) || {}).title))) % PALETTE.length];
+
+        let curseur = 1, totalMesures = 0;
+        const lignes = items.map((it) => {
+            const p = partieDe(it);
+            if (!p || !p.chords.length) return '';
+            const [fort, pale] = couleurDe(it);
+            const une = mesuresDe(p);
+            const debut = curseur;
+            const fin = curseur + une * it.rep - 1;
+            curseur += une * it.rep;
+            totalMesures += une * it.rep;
+            const grille = this.chordsByMeasure(p, beatsPerBar).map(m => escapeHtml(m.join(' '))).join('<span class="sf-bar">|</span>');
+            const notes = it.notes.map(n => `
+                <div class="sf-note" style="border-left-color:${fort};background:${pale}">
+                    <span class="sf-note-mes" style="color:${fort}">${libelleMesuresNote(n)}</span>
+                    <span class="sf-note-txt">${escapeHtml(n.texte)}</span>
+                </div>`).join('');
+            return `
+            <div class="sf-row" style="border-color:${fort}33">
+                <div class="sf-marge" style="background:${fort}">
+                    <span class="sf-marge-num">${fmt(debut)}</span><span class="sf-marge-lib">mesure</span>
+                </div>
+                <div class="sf-corps">
+                    <div class="sf-tete">
+                        <span class="sf-nom" style="color:${fort}">${escapeHtml(titreDe(it))}</span>
+                        ${it.rep > 1 ? `<span class="sf-rep" style="background:${fort}">×${it.rep}</span>` : ''}
+                        <span class="sf-etendue">${fmt(une)} mes.${it.rep > 1 ? ` · mes. ${fmt(debut)}–${fmt(fin)}` : ''}</span>
+                    </div>
+                    <div class="sf-grille" style="background:${pale}"><span class="sf-bar">|</span>${grille}<span class="sf-bar">|</span></div>
+                    ${notes ? `<div class="sf-notes">${notes}</div>` : ''}
+                </div>
+            </div>`;
+        }).join('');
+
+        const deroule = vivantes.map(it => {
+            const [fort, pale] = couleurDe(it);
+            return `<span class="sf-puce" style="color:${fort};background:${pale};border-color:${fort}55">${escapeHtml(titreDe(it))}${it.rep > 1 ? ` ×${it.rep}` : ''}</span>`;
+        }).join('<span class="sf-fleche">›</span>');
+
+        const secondes = bpm > 0 ? (totalMesures * beatsPerBar * 60) / bpm : 0;
+        const duree = `${Math.floor(secondes / 60)} min ${String(Math.round(secondes % 60)).padStart(2, '0')} s`;
+        const choix = (id) => { const el = document.getElementById(id); return el && el.selectedOptions && el.selectedOptions[0] ? el.selectedOptions[0].textContent.trim() : ''; };
+        const ton = [choix('global-root'), choix('global-mode')].filter(Boolean).join(' ');
+        const sig = document.getElementById('time-sig')?.value || '';
+        const meta = [ton, sig, `${bpm} BPM`, `${fmt(totalMesures)} mesures`, duree].filter(Boolean)
+            .map(t => `<span>${escapeHtml(t)}</span>`).join('<i>·</i>');
+        return { html: `
+            <div class="sf-entete">
+                <h1>${escapeHtml(this.getCurrentSongName ? (this.getCurrentSongName() || 'Morceau') : 'Morceau')}</h1>
+                <div class="sf-sous">Structure</div>
+                <div class="sf-meta">${meta}</div>
+            </div>
+            ${deroule ? `<div class="sf-deroule">${deroule}</div>` : ''}
+            <div class="sf-liste">${lignes || '<p class="sf-vide">Aucun accord dans la grille : rien à structurer pour l\'instant.</p>'}</div>
+            <div class="sf-pied">HarmoHub</div>` };
+    }
+
     // Prépare hors écran la feuille de route à rastériser ou à imprimer, et rend une fonction de
     // nettoyage. Un seul endroit pour ce montage : l'impression navigateur et l'export jsPDF doivent
     // produire EXACTEMENT la même page, sinon le PDF et le papier finissent par diverger.
     monterFeuilleStructure() {
-        const panneau = document.getElementById('structure-panel');
-        if (!panneau) return null;
+        if (!document.getElementById('structure-panel')) return null;
         const titre = this.getCurrentSongName ? (this.getCurrentSongName() || 'Morceau') : 'Morceau';
         const zone = document.createElement('div');
         zone.id = 'structure-print-zone';
-        zone.innerHTML = `<h1>${escapeHtml(titre)}</h1><h2>Structure</h2>` + panneau.innerHTML;
-        // Les commandes n'ont aucun sens sur papier : elles partent de la copie imprimée, pas de la
-        // fenêtre.
-        zone.querySelectorAll('.struct-actions, .struct-ajout').forEach(el => el.remove());
+        zone.innerHTML = this.construireFeuilleStructure().html;
         document.body.appendChild(zone);
         return { zone, titre };
     }
@@ -9504,10 +9626,30 @@ class HarmoHubApp {
             const largeurMax = pdf.internal.pageSize.getWidth() - marge * 2;
             const hauteurMax = pdf.internal.pageSize.getHeight() - marge * 2;
             const canvas = await window.html2canvas(monte.zone, { scale: 2, backgroundColor: '#ffffff' });
-            const ratio = canvas.width / canvas.height;
-            let l = largeurMax, h = l / ratio;
-            if (h > hauteurMax) { h = hauteurMax; l = h * ratio; } // structure très longue : bornée par la hauteur
-            pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', marge, marge, l, h);
+            // Une structure longue se COUPE en pages, aux frontières des lignes : la réduire pour tout
+            // faire tenir sur une feuille la rendait illisible. Chaque tranche est de la hauteur utile
+            // d'une page, ramenée au plus près du bas de la dernière ligne qui y tient entière.
+            const px = canvas.width / monte.zone.offsetWidth;               // pixels du canvas par pixel CSS
+            const hauteurPage = Math.floor((hauteurMax / largeurMax) * canvas.width);
+            const bords = [...monte.zone.querySelectorAll('.sf-row')]
+                .map(r => Math.round((r.getBoundingClientRect().bottom - monte.zone.getBoundingClientRect().top) * px));
+            let y = 0, premiere = true;
+            while (y < canvas.height) {
+                let fin = Math.min(canvas.height, y + hauteurPage);
+                if (fin < canvas.height) {
+                    const coupe = bords.filter(b => b > y && b <= fin).pop();
+                    if (coupe) fin = coupe;                                      // sinon (ligne géante) : coupe franche
+                }
+                const tranche = document.createElement('canvas');
+                tranche.width = canvas.width; tranche.height = fin - y;
+                const ctx = tranche.getContext('2d');
+                ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, tranche.width, tranche.height);
+                ctx.drawImage(canvas, 0, y, canvas.width, fin - y, 0, 0, canvas.width, fin - y);
+                if (!premiere) pdf.addPage();
+                pdf.addImage(tranche.toDataURL('image/jpeg', 0.92), 'JPEG', marge, marge, largeurMax, (fin - y) * (largeurMax / canvas.width));
+                premiere = false;
+                y = fin;
+            }
             const res = await enregistrerFichier(pdf.output('blob'), {
                 morceau: monte.titre, type: 'Structure', extension: 'pdf', dossier: 'pdfStructure', racine,
             });

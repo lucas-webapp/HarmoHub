@@ -119,7 +119,7 @@ plan(44);
     await clicDroit(3);
     await menu('commentaire');
     await page.waitForTimeout(250);
-    await page.fill('#struct-edit-body input[type=number]', '4');
+    await page.fill('#struct-edit-mesure', '4');
     await page.fill('#struct-edit-body textarea', 'batterie uniquement');
     await page.click('#struct-edit-ok');
     await page.waitForTimeout(250);
@@ -129,7 +129,7 @@ plan(44);
     check(v.lignes[1].notes.length === 0, 'et PAS sur l\'autre occurrence du même couplet : il décrit CETTE occurrence-ci');
     // un commentaire sur toute la partie, un autre sur la mesure 1 : triés
     await clicDroit(3); await menu('commentaire'); await page.fill('#struct-edit-body textarea', 'jouer plus doucement'); await page.click('#struct-edit-ok'); await page.waitForTimeout(200);
-    await clicDroit(3); await menu('commentaire'); await page.fill('#struct-edit-body input[type=number]', '1'); await page.fill('#struct-edit-body textarea', 'entrée à la basse'); await page.click('#struct-edit-ok'); await page.waitForTimeout(200);
+    await clicDroit(3); await menu('commentaire'); await page.fill('#struct-edit-mesure', '1'); await page.fill('#struct-edit-body textarea', 'entrée à la basse'); await page.click('#struct-edit-ok'); await page.waitForTimeout(200);
     v = await lire();
     check(v.lignes[3].notes.length === 3 && /toute la partie/.test(v.lignes[3].notes[0]) && /mes\. 1/.test(v.lignes[3].notes[1]) && /mes\. 4/.test(v.lignes[3].notes[2]),
         `plusieurs commentaires par partie, dans l'ordre des mesures — ${JSON.stringify(v.lignes[3].notes)}`);
