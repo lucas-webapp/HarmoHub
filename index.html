@@ -13,6 +13,14 @@
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
     <link rel="stylesheet" href="style.css?v=202610281200">
+    <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
+         réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
+         paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
+         le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
+         est propre à HarmoHub. -->
+    <link rel="stylesheet" href="verre.css?v=202610281900">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202610281900">
+    <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
@@ -677,6 +685,10 @@
                          autant ne pas avoir à renommer le groupe à ce moment-là. -->
                     <h3 class="settings-group-title">Affichage</h3>
                     <div id="settings-panel-display" class="settings-panel" data-settings-panel="display"></div>
+                    <!-- APPARENCE : l'effet verre (voir verre.js et verre.css), un réglage PAR APPAREIL. Le groupe se masque de
+                         lui-même si verre.js n'a pas chargé : pas de commande qui ne ferait rien. -->
+                    <h3 class="settings-group-title" id="settings-title-look">Apparence</h3>
+                    <div id="settings-panel-look" class="settings-panel" data-settings-panel="look"></div>
                     <!-- Plus de groupe « Mes morceaux » ici : un gestionnaire de fichiers n'est pas
                          un réglage, et depuis qu'il a son propre bouton à droite du titre du morceau
                          (#song-files), le laisser aussi dans les Paramètres n'était qu'une seconde

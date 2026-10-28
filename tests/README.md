@@ -22,6 +22,15 @@ l'identique, ce n'est pas une régression.
 
 Bancs connus rouges et pourquoi : voir `docs/dette-tests.md`, sections 11 à 14.
 
+## Le verre dépoli (option d'apparence)
+
+`verre_module_test.js` (sans navigateur : réglages, valeurs illisibles, deux applis sur une origine) et `verre_test.js`
+(navigateur : éteint = rendu d'avant élément par élément, attribut posé avant le premier affichage, contrastes mesurés, flou aux
+bons endroits et jamais écrit en dur, réglage Paramètres > Apparence, téléphone). `verre_compte_test.js` (propre à HarmoHub) regarde
+ce que les deux autres ne pouvaient pas voir : la pilule de connexion, son menu et sa fenêtre en verre sur les sept fonds (mesurés sur
+les pixels), et le fond de la page Paroles. Les outils communs sont dans `_verre_commun.js`, **identique à celui de TabHub** : le
+corriger aux deux endroits. Le détail et les pièges : `docs/verre.md`.
+
 ## Un piège d'outillage, deux fois rencontré
 
 `pgrep -f` / `pkill -f` comparent le motif à la ligne de commande ENTIÈRE, y compris celle du shell

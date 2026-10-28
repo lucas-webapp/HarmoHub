@@ -4449,3 +4449,31 @@ entendre la note. »
   `manche_edition_lot6` (« l'aperçu disparaît quand la souris quitte le manche ») rougit sous charge quand neuf
   navigateurs tournent en parallèle et passe 18/0 seul — déjà classé « sensible à la charge » dans le balayage.
   `sortie_edition_involontaire` plante de la même façon (ligne 126) sur le commit d'AVANT : antérieur à ce lot.
+
+## L'effet « verre dépoli » repris sur la ligne à jour (2026-10-28)
+
+Retour : « un affichage de type verre comme sur TrainHub, il est très joli, je veux le retrouver sur toutes les applis. Il doit
+rester gérable en paramètres. » L'effet avait été réalisé dans une autre discussion (commit 16e1622, ligne plus ancienne de HarmoHub,
+« moteur nuage ») ; il est ici REPRIS, pas réécrit : `verre.js`, `verre.css` et `tests/_verre_commun.js` copiés tels quels
+(empreintes vérifiées, voir `docs/fichiers-partages.md`), `verre-surfaces.css`, `verre_module_test`, `verre_test` et `docs/verre.md`
+aussi. Pas de cherry-pick : il aurait conflué sur index.html, script.js et ce journal. Refaits à la main, trois petits branchements :
+les trois lignes du `<head>` d'index.html et de paroles.html (sans `defer` : l'attribut doit être posé avant le premier affichage),
+le groupe « Apparence » des Paramètres (ici à côté d'« Affichage » : cette ligne n'a pas de groupe « Enregistrement ») et
+`renderLookPanel()` appelée par `openSettings()`. Réglage par appareil, éteint par défaut, rien n'est envoyé au cloud.
+
+**Ce que cette ligne a de plus que celle où le verre a été fait, et que seul un regard a trouvé** (bancs 25 + 64 verts du premier
+coup, les trois fichiers partagés intacts) :
+- **La pilule de connexion commune, son menu et sa fenêtre** (compte-cloud.js) n'existaient pas encore : elles restaient des plaques
+  d'un gris neutre au milieu du verre bleu nuit — lisibles, mais d'un autre monde que les autres menus. Habillées dans
+  `verre-surfaces.css` seulement (la pilule comme `.logo`/`.settings-btn`, menu et fenêtre comme les autres fenêtres, flou par
+  `--glass-filter` jamais écrit en dur) ; `compte-cloud.js`, partagé avec TabHub et TrainHub, n'a pas bougé.
+- **La page Paroles** : `paroles.css` pose un fond sur `html, body`. Le fond du verre, posé sur `body`, ne se propage alors plus à la
+  toile entière : aurore sur 360 px, puis moitié basse unie. `html[data-glass="1"] { background: none }` dans `verre-surfaces.css`
+  (la page principale n'a pas de fond sur `html` : rien n'y change). Piège dans `verre.css` partagé : à signaler à TabHub si sa page
+  d'accueil a le même cas (on ne l'a pas modifié ici).
+- Nouveau banc `verre_compte_test` (32 contrôles, bureau + téléphone) : lisibilité MESURÉE SUR LES PIXELS de la pilule, du menu et
+  de la fenêtre par-dessus chacun des sept fonds (le contrôle de contraste commun ignore les dégradés, donc ces trois surfaces),
+  même habillage que les autres fenêtres, repli par la variable, éteint = fond d'avant, fond de Paroles sur tout l'écran.
+  La méta-suite a refusé à juste titre un `.catch(() => {})` dans la première version (« erreur avalée ») — remplacé par un enchaînement
+  explicite.
+- Limite connue : rendu vu dans Chromium seulement ; Safari/iPhone et la fluidité du flou sur un vieux téléphone ne sont pas vérifiés.

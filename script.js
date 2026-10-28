@@ -9229,6 +9229,7 @@ class HarmoHubApp {
         // gestionnaire de fichiers a sa propre fenêtre (voir openFilesWindow).
         this.renderAudioPanel();
         this.renderDisplayPanel();
+        this.renderLookPanel();
     }
 
     // Le gestionnaire de fichiers a QUITTÉ les Paramètres (retour utilisateur : « enlever les options
@@ -10066,6 +10067,45 @@ class HarmoHubApp {
     // qui est une lecture d'analyse et non un confort quotidien, et la densité des repères de temps,
     // qu'on règle une fois pour toutes. Restent en tête les deux réglages qu'on bascule vraiment en
     // travaillant : les degrés et la position d'accord.
+    /**
+     * APPARENCE — l'effet verre (voir verre.js pour les réglages, verre.css pour le dessin). Deux commandes : un interrupteur, et
+     * la couleur du fond. Le réglage est propre à l'APPAREIL (un téléphone peut être en verre, l'ordinateur non), comme sur
+     * TrainHub : il n'est pas envoyé au nuage. Les pastilles de couleur restent atteignables verre éteint (on peut choisir avant
+     * d'allumer), mais s'estompent : elles ne changent rien tant que le verre est éteint, et la consigne le dit.
+     */
+    renderLookPanel() {
+        const host = document.getElementById('settings-panel-look');
+        const titre = document.getElementById('settings-title-look');
+        const dispo = !!window.Verre;
+        // Sans verre.js (script non chargé) : pas de commande qui ne ferait rien.
+        if (titre) titre.hidden = !dispo;
+        if (host) host.hidden = !dispo;
+        if (!host || !dispo) return;
+        host.innerHTML = `
+            <div class="settings-toggle-row">
+                <label for="toggle-glass" title="Fond coloré, surfaces translucides et flou, comme sur TrainHub">Verre dépoli
+                    <span class="verre-indice">Fond coloré, flou et reflets. Réglage propre à cet appareil.</span></label>
+                <button type="button" id="toggle-glass" class="switch" role="switch" aria-checked="${window.Verre.actif()}" aria-label="Verre dépoli">
+                    <span class="switch-thumb"></span>
+                </button>
+            </div>
+            <div class="verre-ligne-fonds" id="look-fond-row" data-verre="${window.Verre.actif() ? 'on' : 'off'}">
+                <label id="look-fond-label">Couleur du fond
+                    <span class="verre-indice">S'applique quand le verre est allumé.</span></label>
+                <div id="look-fonds"></div>
+            </div>`;
+        window.Verre.construireFonds(document.getElementById('look-fonds'), 'Couleur du fond');
+        const bascule = document.getElementById('toggle-glass');
+        const rangee = document.getElementById('look-fond-row');
+        bascule.onclick = () => window.Verre.definirActif(!window.Verre.actif());
+        // Tenu à jour quel que soit l'endroit d'où vient le changement (cet interrupteur, ou un autre onglet de l'appareil).
+        if (this._verreDesabonner) this._verreDesabonner();
+        this._verreDesabonner = window.Verre.surChangement((e) => {
+            bascule.setAttribute('aria-checked', e.actif);
+            rangee.setAttribute('data-verre', e.actif ? 'on' : 'off');
+        });
+    }
+
     renderDisplayPanel() {
         const host = document.getElementById('settings-panel-display');
         if (!host) return;

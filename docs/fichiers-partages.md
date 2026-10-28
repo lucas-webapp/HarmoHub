@@ -17,6 +17,20 @@ Le banc `tests/compte_cloud_test.js` refuse un fichier dont l'empreinte ne corre
 modifier un fichier partagé oblige donc à augmenter sa version (en-tête `// VERSION N` **et** constante
 `…_VERSION`) et à recalculer l'empreinte ici (`sha256sum compte-cloud.js synchro-cloud.js`).
 
+## Fichiers du verre dépoli (partagés avec TabHub seulement)
+
+Même règle : HarmoHub fait référence, on copie TEL QUEL, `cmp` avant de livrer. Détail et pièges : `docs/verre.md`.
+Ils n'ont pas de numéro de version : l'empreinte fait foi.
+
+| Fichier | Empreinte SHA-256 | Utilisé par |
+|---|---|---|
+| `verre.js` | `94e5b850e34e107bdc724e6af21573e223badcf4d19519f5113183133fd03f29` | HarmoHub, TabHub |
+| `verre.css` | `1ef4a076df50b08c8c5e5a395da1ca50b1f2a3f1fe9cbbba11b8cab1d5b61ec9` | HarmoHub, TabHub |
+| `tests/_verre_commun.js` | `1dc862f0226fa96e070a5f264b2c6029fce3a81a090dcf3f19c1e013ce836a75` | HarmoHub, TabHub |
+
+`verre-surfaces.css` est propre à chaque appli (dessin des surfaces de HarmoHub) : il habille aussi, en verre, la pilule, le menu et la
+fenêtre du compte cloud — c'est là, jamais dans `compte-cloud.js`, que ces trois surfaces apprennent le verre.
+
 ## Ce que fait chaque fichier
 
 - **`compte-cloud.js`** : tout ce qui se VOIT de la connexion, identique dans les trois applis.
