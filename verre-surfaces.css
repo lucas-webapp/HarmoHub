@@ -1,0 +1,76 @@
+/* ============================================================
+   EFFET VERRE — LES SURFACES DE HARMOHUB (le dessin propre à cette appli ; les variables, les fonds, le repli et le réglage
+   lui-même sont dans verre.css, identique dans HarmoHub et TabHub).
+
+   Chaque règle commence par html[data-glass="1"] : verre éteint, rien ne s'applique et le rendu est celui d'avant.
+
+   RÈGLES DU JEU, tirées de TrainHub :
+   • le flou (--glass-filter) ne va que sur les GRANDES surfaces (cartes, fenêtres, menus, barre du haut), jamais sur chaque ligne
+     ni chaque case : un flou par case coûterait cher sur un téléphone, et ne se verrait pas ;
+   • les champs sont des creux légers, les listes déroulantes restent OPAQUES (une liste translucide devient illisible) ;
+   • tout ce que la grille ou le clavier dessinent avec une couleur propre (cases d'accord, touches de piano, notes du séquenceur)
+     garde ses couleurs : le verre habille le cadre, pas le contenu musical.
+   ============================================================ */
+
+/* ---- grandes surfaces : flou + teinte ---- */
+html[data-glass="1"] :is(.control-card, .viz-card, .voice-leading-panel, .seq-dock-panel, .dock,
+        .settings-modal, .seq-zoom-modal, .context-menu, .duration-dd-menu, .playstyle-dd-menu, .toast) {
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+}
+/* les fenêtres et les menus : plus opaques que les cartes, pour rester lisibles par-dessus n'importe quoi */
+html[data-glass="1"] :is(.settings-modal, .seq-zoom-modal, .context-menu, .duration-dd-menu, .playstyle-dd-menu, .toast) {
+    background: var(--glass-pop-fond);
+    box-shadow: var(--glass-hi), 0 24px 50px -24px rgba(0, 0, 0, .65);
+}
+html[data-glass="1"] .control-card { box-shadow: var(--glass-hi); }
+
+/* ---- barre du haut : des pastilles flottantes sur ordinateur (le conteneur lui-même n'a ni fond ni flou : un flou posé sur lui
+   dessinerait un rectangle flou derrière les pastilles), une vraie barre pleine largeur sur téléphone (style.css, max-width 899px),
+   où elle devient une surface comme une autre ---- */
+@media (max-width: 899px) {
+    html[data-glass="1"] .top-bar { background: var(--glass-bar); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
+}
+html[data-glass="1"] :is(.logo, .settings-btn) { background: var(--glass-bar); box-shadow: var(--glass-hi); }
+
+/* titres de groupe collants des Paramètres : opaques — translucides, le contenu qui défile dessous les traverserait */
+html[data-glass="1"] .settings-group-title { background: var(--glass-select); }
+
+/* ---- champs : creux légers ; listes déroulantes opaques ---- */
+/* Les champs de saisie qui ont un FOND propre. Pas de règle sur tous les `input` : le titre éditable d'une partie
+   (.prog-title) et la case d'ajout d'une grille sont volontairement transparents — un fond posé là dessinait une
+   plaque sombre derrière chaque titre de partie (mesuré). */
+html[data-glass="1"] :is(.quick-add-input, .inline-rename-input) { background: var(--glass-inp); }
+html[data-glass="1"] select, html[data-glass="1"] select option { background: var(--glass-select); }
+
+/* ---- boutons : un liseré clair sur le bord haut. Les FAMILLES de boutons nommées, et non « button » : les touches du piano,
+   les cases de la grille et les curseurs ont leurs propres ombres, qu'un reflet général viendrait écraser ---- */
+html[data-glass="1"] :is(.btn-prog, .btn-blue, .btn-stop, .btn-sec, .btn-loop-range, .icon-btn, .sidebar-tab, .seq-zoom-btn, .duration-dd-toggle) { box-shadow: var(--glass-hi); }
+html[data-glass="1"] :is(.btn-prog, .btn-blue, .btn-stop, .btn-sec, .btn-loop-range, .icon-btn, .sidebar-tab, .seq-zoom-btn, .duration-dd-toggle):active { box-shadow: inset 0 1px 3px rgba(0, 0, 0, .4); }
+
+/* ---- contrôles sombres écrits en dur dans style.css (#1c2027, #16191e…) : sans cette règle, ils restent des plaques opaques
+   posées sur le verre. Un léger dégradé blanc translucide à la place, plus clair au survol. ---- */
+html[data-glass="1"] :is(.icon-btn, .sidebar-tab, .seq-zoom-btn, .duration-dd-toggle, .zoom-axis-group, .voicing-stepper, .voicing-seg, .import-conflict-song) {
+    background: linear-gradient(180deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .05));
+}
+html[data-glass="1"] :is(.icon-btn, .sidebar-tab, .seq-zoom-btn, .duration-dd-toggle):hover {
+    background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, .1));
+}
+/* ---- la grille d'accords et son en-tête collant ---- */
+html[data-glass="1"] .chord-grid { background: rgba(0, 0, 0, .2); }
+html[data-glass="1"] .grid-head-sticky { background: rgba(255, 255, 255, .045); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
+/* panneaux flottants et tiroirs */
+html[data-glass="1"] :is(.song-settings.flottant, .arp-seq.seq-tiroir) { background: var(--glass-pop-fond); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
+
+/* ---- la page Paroles (paroles.html), qui suit le même réglage : sa barre du haut est une vraie barre collante, et sa réserve
+   d'accords un creux ---- */
+html[data-glass="1"] header.top-bar,
+html[data-glass="1"] .toolbar { background: var(--glass-bar); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
+html[data-glass="1"] .chord-pool { background: rgba(0, 0, 0, .2); }
+/* Les boutons de la barre d'outils de Paroles (Syllabe / Libre, Annuler, Options, Arrêter) posent un dégradé SUR une couleur pleine
+   (#1c2027) : des tuiles ardoise opaques au milieu des pastilles translucides, et sous le vert « actif », un fond gris. Le raccourci
+   `background` remet aussi la couleur de dessous à transparent. */
+html[data-glass="1"] :is(.mode-btn, .hint-stop) { background: linear-gradient(180deg, rgba(255, 255, 255, .13), rgba(255, 255, 255, .04) 55%); }
+html[data-glass="1"] :is(.mode-btn, .hint-stop):hover { background: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .08) 55%); }
+html[data-glass="1"] .mode-btn.active { background: radial-gradient(120% 160% at 20% 0%, rgba(255, 255, 255, .12), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%); }
+html[data-glass="1"] :is(.btn-primary, .btn-secondary, .btn-back, .mode-btn, .chord-chip) { box-shadow: var(--glass-hi); }

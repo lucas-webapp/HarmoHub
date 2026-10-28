@@ -4169,3 +4169,32 @@ servi à part), 33/0, 31/2, 33/0. Même signature des deux côtés (« après re
 actif en édition »), et c'est exactement ce que le banc dit de lui-même dans ses commentaires (« le MÊME code
 passait 33/33, puis 29/33, puis 31/33 »). À ranger avec les autres bancs sensibles au temps ; je ne l'ai pas
 touché, faute de pouvoir dire d'où vient l'instabilité.
+
+## L'effet « verre dépoli » : trois bancs, et ce que les sabotages ont montré (2026-10-28)
+
+Retour : « un affichage de type verre comme sur TrainHub, il est très joli, je veux le retrouver sur toutes les applis. Il doit
+rester gérable en paramètres. » Réalisation, choix et pièges : `docs/verre.md`. Ici, la leçon des bancs.
+
+- Trois bancs : `verre_module_test` (25, sans navigateur), `verre_test` de HarmoHub (64 ; 63 dans une version sans aperçu de structure) et de TabHub (54). Ils éprouvent ce qui
+  ne se voit pas à l'œil : éteint = rendu d'avant (signature des styles calculés, `verre.css` retiré contre chargé-mais-éteint),
+  attribut posé avant le premier affichage, texte lisible (contraste mesuré, verre éteint puis allumé), flou jamais écrit en dur.
+- **Sabotages** (une ligne de source cassée, le banc doit rougir) : 14 sur le module, 31 sur le banc HarmoHub, 29 sur celui de
+  TabHub. Au premier passage, **trois survivantes côté HarmoHub** — et chacune cachait un vrai trou :
+  1. *Retirer la remise à transparent de la couleur par défaut des boutons* ne rougissait rien : le seul contrôle regardait que la
+     pastille n'était pas GRISE CLAIRE, or avec `color-scheme: dark` le navigateur fournit un gris foncé, que ce contrôle laissait
+     passer. Remplacé par une propriété : aucun bouton à dégradé ne garde une couleur de fond dessous (`boutonsSousDegrade`).
+  2. *La barre du haut sur téléphone* : le banc cherchait « un flou », mais `style.css` en pose déjà un (6 px) — la règle du verre
+     pouvait disparaître sans effet visible sur le banc. Il exige maintenant les 24 px du verre, et vérifie qu'il n'y a PAS de flou
+     sur ordinateur (conteneur de pastilles).
+  3. *Le menu contextuel sans sa sous-couche* : seul le flou était contrôlé, pas le fond.
+- Le renfort a aussi trouvé, côté rendu, ce que l'œil avait manqué : sur Paroles, les boutons `.mode-btn` / `.hint-stop` posent un
+  dégradé SUR une couleur pleine (`#1c2027`) — des tuiles ardoise opaques au milieu des pastilles translucides ; et sur TabHub,
+  les boutons d'outil (`.btn-outil`) ont un dégradé qui finit sur `#12151a`, plein. `boutonsDegradeOpaque` (un arrêt de dégradé
+  « rgb( » au lieu de « rgba( ») les détecte désormais dans tous les états.
+- **Deux survivantes assumées, côté TabHub, qui sont des mutants ÉQUIVALENTS** (le comportement ne change pas, aucun banc ne peut
+  les distinguer) : retirer `color-scheme: dark` de `verre.css` (TabHub le pose déjà sur `:root`) et retirer `min-width: 0` des
+  pastilles (TabHub n'a pas de règle générique `button { min-width }`). Ces deux lignes protègent HarmoHub, où les mutations
+  correspondantes SONT attrapées — et comme `verre.css` est commun, elles restent.
+- **Dérive entre dépôts.** `verre.js`, `verre.css` et `tests/_verre_commun.js` sont recopiés à l'identique dans TabHub ; aucun banc ne
+  compare les deux dépôts. À chaque correction : la faire dans HarmoHub, recopier, `cmp` avant de livrer.
+- Limite connue : rendu vu dans Chromium seulement ; Safari/iPhone et la fluidité du flou sur un vieux téléphone ne sont pas vérifiés.
