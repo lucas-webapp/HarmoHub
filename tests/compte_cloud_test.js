@@ -18,7 +18,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { check, exiger, plan, bilan } = require('./_harness')('compte cloud (composant commun)');
 
-plan(51);
+plan(49);   // 51 dans HarmoHub et TabHub ; 49 là où synchro-cloud.js n'existe pas (TrainHub)
 
 const RACINE = path.join(__dirname, '..');
 const SOURCE = fs.readFileSync(path.join(RACINE, 'compte-cloud.js'), 'utf8');
@@ -235,7 +235,10 @@ const PAGE = (theme) => `<!doctype html><html><head><meta charset="utf-8"><meta 
     // SHA-256. C'est ce que les autres applis comparent pour savoir si leur copie est la bonne. Si le fichier
     // change sans que la note suive, la comparaison mentirait : ce banc refuse.
     const note = fs.readFileSync(path.join(RACINE, 'docs', 'fichiers-partages.md'), 'utf8');
+    // TrainHub copie ce banc mais garde son propre moteur : pas de synchro-cloud.js chez lui. On ne vérifie que
+    // les fichiers partagés PRÉSENTS dans le dépôt — compte-cloud.js, lui, l'est partout (voir plan()).
     for (const [fichier, constante] of [['compte-cloud.js', 'COMPTE_CLOUD_VERSION'], ['synchro-cloud.js', 'SYNCHRO_CLOUD_VERSION']]) {
+        if (fichier !== 'compte-cloud.js' && !fs.existsSync(path.join(RACINE, fichier))) continue;
         const contenu = fs.readFileSync(path.join(RACINE, fichier));
         const empreinte = crypto.createHash('sha256').update(contenu).digest('hex');
         const texteFichier = contenu.toString('utf8');
