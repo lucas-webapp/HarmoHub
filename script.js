@@ -5652,11 +5652,23 @@ class HarmoHubApp {
         const chosen = candidates[this.guitarDrawSelectedIndex] || r;
         const pianoIdentity = this._currentPianoChordIdentity();
         const samePiano = !!pianoIdentity && pianoIdentity.root === chosen.root && pianoIdentity.quality === chosen.quality;
+        // RETOUR UTILISATEUR : « j'ai créé un accord manuellement à la guitare en plaçant les notes sur le
+        // manche. Je n'ai pas pu l'envoyer directement dans la grille. [...] Pour un Dadd11, je ne vois pas le
+        // 11 sur le piano, et il ne me semble pas entendre la note. » Verrouiller / « substitut guitare »
+        // ne touche QUE le diagramme de la guitare : l'accord du piano (et donc le son, et les touches
+        // allumées) reste celui du panneau, jamais le Dadd11 dessiné. Ce bouton-ci envoie l'accord reconnu
+        // lui-même dans la grille, doigté verrouillé compris.
+        const edition = this.appMode === 'edit' && this.editingIndex != null;
+        const envoi = edition ? `Remplacer l'accord de la grille par ${label(chosen)}` : `Ajouter ${label(chosen)} à la grille`;
         box.innerHTML = `
             <p class="guitar-edit-hint">Accord reconnu — choisis celui qui convient :</p>
             <div class="guitar-draw-candidates">${candidates.map((c, i) =>
                 `<button type="button" class="guitar-draw-candidate${i === this.guitarDrawSelectedIndex ? ' active' : ''}" data-index="${i}">${label(c)}</button>`
             ).join('')}</div>
+            <button type="button" id="guitar-draw-send" class="btn-prog guitar-draw-lock">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                ${envoi}
+            </button>
             <button type="button" id="guitar-draw-lock" class="btn-blue guitar-draw-lock">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
                 ${samePiano ? 'Verrouiller ce doigté' : 'Utiliser comme substitut guitare'}
@@ -5665,6 +5677,7 @@ class HarmoHubApp {
             btn.onclick = () => this.selectGuitarDrawCandidate(+btn.dataset.index);
         });
         box.querySelector('#guitar-draw-lock').onclick = () => this.lockGuitarDrawnChord();
+        box.querySelector('#guitar-draw-send').onclick = () => this.sendGuitarDrawnChordToGrid();
     }
 
     // Choisit un candidat parmi ceux proposés (retour utilisateur, point 3 : « je vais devoir choisir
@@ -5738,6 +5751,57 @@ class HarmoHubApp {
             this.commitLiveEdit(false); // n'affecte pas le symbole affiché dans la case
         }
         this.flashHint(samePiano ? 'Doigté verrouillé pour cet accord' : 'Substitut guitare verrouillé sur ce doigté');
+        this.closeGuitarEditor();
+    }
+
+    // Envoie l'accord reconnu DANS LA GRILLE (bouton « Ajouter … à la grille » du panneau de résultat) :
+    // le piano prend l'accord choisi (racine + qualité, donc ses notes, ses touches allumées et le son), et
+    // le doigté dessiné y est verrouillé tel quel. En mode Ajout, la case s'ajoute (à la suite de l'accord
+    // sélectionné s'il y en a un, sinon en fin de partie, comme « Ajouter » / « À la suite ») ; en mode
+    // Modification, elle REMPLACE l'accord ouvert — c'est ce que le libellé du bouton annonce d'avance.
+    // La basse jouée est reprise seulement si c'est une note de l'accord (D/F#) : une corde grave qui
+    // tombe sur une extension (le 11 d'un Dadd11) ne doit pas faire d'un « Dadd11 » un « Dadd11/G ».
+    sendGuitarDrawnChordToGrid() {
+        const r = this.guitarDrawRecognition;
+        if (!r || r.confidence < GUITAR_DRAW_MIN_CONFIDENCE) return;
+        const candidates = [r, ...r.alternatives];
+        const chosen = candidates[this.guitarDrawSelectedIndex] || r;
+        const shape = this.guitarDrawShape.slice();
+        const rootPc = NOTES.indexOf(chosen.root);
+        const bassPc = r.bassPc;
+        const tones = (CHORD_INTERVALS[chosen.quality] || []).filter(n => n.role !== 'ext').map(n => (rootPc + n.semi) % 12);
+        const bass = (bassPc !== rootPc && tones.includes(bassPc)) ? NOTES[bassPc] : '';
+
+        // Le panneau Accord devient l'accord reconnu. Les 'change' passent par les écouteurs habituels
+        // (aperçu, séquenceur — qui ajoute la voix de l'extension au rythme —, et en mode Modification
+        // l'enregistrement de la case ouverte).
+        const regler = (id, valeur) => {
+            const el = document.getElementById(id);
+            if (!el || el.value === valeur) return;
+            el.value = valeur;
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+        regler('root', chosen.root);
+        regler('quality', chosen.quality);
+        regler('bass', bass);
+
+        // Changer d'identité d'accord a levé le verrou (voir ensureGuitarDiagram) : on pose le doigté
+        // dessiné APRÈS, avec le drapeau qui le laisse survivre au prochain recalcul. Plus de substitut :
+        // l'accord de la guitare EST maintenant celui du piano.
+        this.guitarOverride = null;
+        this.guitarLock = shape;
+        this._keepGuitarLockOnce = true;
+        this.guitarKey = null;
+        this.ensureGuitarDiagram(guitarChordFor(this.readChord(), null));
+
+        const nom = noteNameForPc(rootPc, false) + (QUALITY_LABEL[chosen.quality] ?? '');
+        if (this.appMode === 'edit' && this.editingIndex != null) {
+            this.commitLiveEdit(true);
+            this.flashHint(`Accord remplacé par ${nom}`);
+        } else {
+            this.saveCurrent(this.selectedIndex != null ? this.selectedIndex : undefined);
+            this.flashHint(`${nom} ajouté à la grille`);
+        }
         this.closeGuitarEditor();
     }
 

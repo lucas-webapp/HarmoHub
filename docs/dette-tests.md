@@ -4420,3 +4420,32 @@ Premier passage : 200 / 7 / 7 — le 7e rouge était la sentinelle des adresses 
 non instruits (`probe_clic_accord_voisin`, `probe_defilement_tactile`, `probe_regle_voisins`,
 `probe_seq_finitions`, `seq_notes_libres_clavier`) et `sortie_edition_involontaire`. Après la version finale du
 composant : compte_cloud 51/0, synchro_cloud 126/0, structure_feuille 61/0, méta-suite 6/0.
+
+## Accord dessiné sur le manche : l'envoyer dans la grille (2026-10-28)
+
+Retour : « j'ai créé un accord manuellement à la guitare en plaçant les notes sur le manche. Je n'ai pas pu
+l'envoyer directement dans la grille. Pour un Dadd11, je ne vois pas le 11 sur le piano, et il ne me semble pas
+entendre la note. »
+
+- **Cause mesurée.** Après « Valider », seuls « Verrouiller ce doigté » et « Utiliser comme substitut guitare »
+  existaient, et ils ne touchent QUE le diagramme de la guitare : l'accord du piano (donc ses touches, le son, la
+  case de la grille) restait celui du panneau Accord. Le 11 ne s'allumait pas parce que le piano n'avait jamais
+  reçu un Dadd11 — pas à cause du moteur, qui sait très bien jouer l'add11 (vérifié : D F# A + sol 67, quatre
+  voix dans le rythme, 11 allumé en « extension »).
+- **Correction.** Un bouton « Ajouter Dadd11 à la grille » dans le panneau de résultat
+  (`sendGuitarDrawnChordToGrid`) : le panneau Accord prend l'accord choisi (par les écouteurs `change` habituels,
+  donc le séquenceur ajoute la voix du 11 au rythme), le doigté dessiné est verrouillé tel quel, sans substitut
+  (la guitare EST l'accord du piano), puis la case est ajoutée — à la suite de l'accord sélectionné s'il y en a
+  un, sinon en fin de partie. En mode Modification, le même bouton devient « Remplacer l'accord de la grille par
+  … » et remplace la case ouverte (jamais de doublon). Le libellé annonce d'avance ce qui va se passer et suit le
+  candidat choisi.
+- **Basse.** Reprise seulement si c'est une note de l'accord (F# → Dadd11/F#). Une corde grave qui tombe sur
+  l'extension (le sol d'un Dadd11) ne fait pas un « Dadd11/G ».
+- Accord non reconnu : toujours pas de bouton (rien d'écrit au hasard dans la grille). « Substitut guitare »
+  inchangé.
+- **Piège de banc** : `editChord(section, index)` prend DEUX arguments ; `editChord(0)` ne fait rien en silence
+  (la case n'existe pas) — mes premières sondes mesuraient donc le panneau et non la case.
+- Banc : `guitare_envoi_grille_test` (32 contrôles, bureau + téléphone). `manche_edition_lot3/4/5` verts ;
+  `manche_edition_lot6` (« l'aperçu disparaît quand la souris quitte le manche ») rougit sous charge quand neuf
+  navigateurs tournent en parallèle et passe 18/0 seul — déjà classé « sensible à la charge » dans le balayage.
+  `sortie_edition_involontaire` plante de la même façon (ligne 126) sur le commit d'AVANT : antérieur à ce lot.
