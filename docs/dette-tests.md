@@ -4410,3 +4410,13 @@ fait référence, chaque fichier partagé porte une VERSION et une EMPREINTE (do
   scripts chargés par index.html (même leçon que pour la page Paroles).
 - Limites : TabHub et TrainHub ne sont pas modifiés par ce lot (consignes données à leurs sessions). Le
   composant n'a été éprouvé qu'avec le faux Firebase et sur Chromium ; le rendu Safari n'est pas vérifié ici.
+- **Sentinelle des adresses** : même faux rouge que la méta-suite (elle ne lisait pas compte-cloud.js, et ne
+  connaissait pas les éléments nommés par `.id = '…'`). Elle lit désormais tous les scripts de la page.
+
+### Balayage du 28/10 : 201 verts, 6 rouges, 7 sans verdict (214 suites)
+
+Premier passage : 200 / 7 / 7 — le 7e rouge était la sentinelle des adresses (faux rouge ci-dessus, corrigé,
+217/0 relancée seule). Les 6 rouges restants sont exactement la ligne de base documentée : les 5 de référence
+non instruits (`probe_clic_accord_voisin`, `probe_defilement_tactile`, `probe_regle_voisins`,
+`probe_seq_finitions`, `seq_notes_libres_clavier`) et `sortie_edition_involontaire`. Après la version finale du
+composant : compte_cloud 51/0, synchro_cloud 126/0, structure_feuille 61/0, méta-suite 6/0.

@@ -28,7 +28,12 @@ const { check, exiger, plan, bilan } = require('./_harness')('sentinelle : adres
 const RACINE = path.join(__dirname, '..');
 const lire = (f) => fs.readFileSync(path.join(RACINE, f), 'utf8');
 
-const produit = ['index.html', 'script.js', 'style.css', 'paroles.html', 'paroles.js']
+// TOUS les scripts que charge index.html, et pas seulement script.js : la pilule de connexion, son menu et
+// sa fenêtre sont fabriqués par compte-cloud.js (composant commun aux trois applis, 28/10). Sans lui, la
+// sentinelle déclarait « mortes » onze adresses bien vivantes — un faux rouge, le pire défaut pour un outil
+// dont le rôle est justement de dire quand une adresse a disparu.
+const produit = ['index.html', 'script.js', 'style.css', 'paroles.html', 'paroles.js',
+    'fichiers.js', 'compte-cloud.js', 'synchro-cloud.js', 'synchro-harmohub.js']
     .filter(f => fs.existsSync(path.join(RACINE, f)))
     .map(lire).join('\n');
 
@@ -40,6 +45,8 @@ const adressesProduit = new Set();
 for (const m of produit.matchAll(/id="([a-zA-Z][a-zA-Z0-9_-]*)"/g)) adressesProduit.add(m[1]);
 for (const m of produit.matchAll(/id='([a-zA-Z][a-zA-Z0-9_-]*)'/g)) adressesProduit.add(m[1]);
 for (const m of produit.matchAll(/getElementById\(['"]([a-zA-Z][a-zA-Z0-9_-]*)['"]\)/g)) adressesProduit.add(m[1]);
+// Un élément créé par le produit puis nommé (`menu.id = 'cloud-menu'`) offre lui aussi son adresse.
+for (const m of produit.matchAll(/\.id\s*=\s*['"]([a-zA-Z][a-zA-Z0-9_-]*)['"]/g)) adressesProduit.add(m[1]);
 
 // Identifiants assemblés à l'exécution : la recherche statique ne peut pas les voir. Chacun est ici
 // avec sa raison — une exception nommée reste un garde-fou, une exception muette est un trou.
