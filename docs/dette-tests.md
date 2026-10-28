@@ -4477,3 +4477,11 @@ coup, les trois fichiers partagés intacts) :
   La méta-suite a refusé à juste titre un `.catch(() => {})` dans la première version (« erreur avalée ») — remplacé par un enchaînement
   explicite.
 - Limite connue : rendu vu dans Chromium seulement ; Safari/iPhone et la fluidité du flou sur un vieux téléphone ne sont pas vérifiés.
+
+### Balayage du 28/10 (verre dépoli) : 205 verts, 6 rouges, 7 sans verdict (218 suites)
+
+Comparé à la version d'AVANT (99dc117, servie à part sur un autre port, les 13 bancs rouges ou muets rejoués) : les 5 rouges de
+référence ont exactement les mêmes bilans (`probe_clic_accord_voisin` 4/4, `probe_defilement_tactile` 23/1, `probe_regle_voisins` 28/1,
+`probe_seq_finitions` 18/1, `seq_notes_libres_clavier` 32/1) ; les 7 sans verdict le sont aux deux endroits ; `sortie_edition_involontaire`
+donne 3/1 dans le balayage (avant comme après) et plante en isolation sur les deux versions (ligne 126, antérieur). Aucun banc nouvellement
+rouge. Les 4 suites de plus sont les nouvelles (`guitare_envoi_grille`, `verre_module`, `verre`, `verre_compte`).
