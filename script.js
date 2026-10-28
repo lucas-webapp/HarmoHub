@@ -4335,18 +4335,10 @@ class HarmoHubApp {
             if (e.target.id === 'delete-files-modal' && this._deleteFilesCancel) this._deleteFilesCancel();
         });
 
-        // Garde-fou de connexion : clic sur le fond = CONTINUER sans synchroniser. On ne bloque jamais le travail.
-        this._cabler('cloud-guard-modal', 'click', (e) => {
-            if (e.target.id === 'cloud-guard-modal' && this._cloudGuardContinuer) this._cloudGuardContinuer();
-        });
         this.brancherMenuStructure();
         this._cabler('struct-edit-modal', 'click', (e) => {
             if (e.target.id === 'struct-edit-modal' && this._structEditAnnuler) this._structEditAnnuler();
         });
-        const boutonCompte = document.getElementById('account-info');
-        if (boutonCompte) boutonCompte.addEventListener('click', () => this.basculerMenuCloud());
-        const boutonSortie = document.getElementById('signout-btn');
-        if (boutonSortie) boutonSortie.addEventListener('click', () => this.fermerMenuCloud());
 
         this._cabler('disk-files-modal', 'click', (e) => {
             if (e.target.id === 'disk-files-modal' && this._diskFilesCancel) this._diskFilesCancel();
@@ -4534,7 +4526,6 @@ class HarmoHubApp {
             { id: 'intensity-menu', close: () => this.fermerMenuIntensite() },           // les cinq niveaux d'un accord
             { id: 'backup-scope-menu', close: () => this.closeTransferScopeMenu() },       // « ce morceau / toute la bibliothèque ? »
             { id: 'file-menu', ancre: '#file-menu-btn', close: () => this.closeFileMenu() },
-            { id: 'cloud-menu', ancre: '#account-info', close: () => this.fermerMenuCloud() },   // état de la synchro + déconnexion
             { id: 'struct-menu', close: () => this.fermerMenuStructure() },                       // clic droit sur une partie de la structure
             { id: 'key-suggest-menu', ancre: '#key-suggest-btn', close: () => this.closeKeySuggestMenu() },
             { id: 'quick-add-help', ancre: '#quick-add-help-btn', close: () => this.closeQuickAddHelp() },
@@ -12213,42 +12204,6 @@ class HarmoHubApp {
         this.flashHint(ancien
             ? `Rangement automatique désactivé — les exports iront dans Téléchargements. « ${ancien} » et son contenu sont intacts.`
             : 'Rangement automatique désactivé', 5000);
-    }
-
-    // ---------- LE BOUTON DE SYNCHRO (barre du haut) ----------
-    // Connecté, il ouvre un petit menu : l'état de la synchro dit en toutes lettres, et « Se déconnecter ».
-    basculerMenuCloud() {
-        const menu = document.getElementById('cloud-menu');
-        const bouton = document.getElementById('account-info');
-        if (!menu || !bouton) return;
-        if (!menu.hidden) { this.fermerMenuCloud(); return; }
-        document.getElementById('cloud-menu-etat').textContent =
-            (typeof SYNCHRO !== 'undefined' && SYNCHRO) ? SYNCHRO.libelleEtat() : '';
-        bouton.setAttribute('aria-expanded', 'true');
-        this.placeMenuNear(menu, bouton);
-    }
-
-    fermerMenuCloud() {
-        const menu = document.getElementById('cloud-menu');
-        if (menu) menu.hidden = true;
-        const bouton = document.getElementById('account-info');
-        if (bouton) bouton.setAttribute('aria-expanded', 'false');
-    }
-
-    // ---------- GARDE-FOU : COMMENCER À TRAVAILLER SANS ÊTRE CONNECTÉ ----------
-    // Retour utilisateur : « un garde-fou pour me demander une confirmation si je commence à travailler alors
-    // que je ne suis pas connecté ». Appelée par cloudGardeConnexion à la première modification. Ne bloque
-    // JAMAIS : le travail se poursuit derrière la fenêtre, et la fermer sans choisir revient à « continuer ».
-    demanderConnexionAvantTravail() {
-        const modal = document.getElementById('cloud-guard-modal');
-        if (!modal) return;
-        modal.hidden = false;
-        const fermer = () => { modal.hidden = true; this._cloudGuardContinuer = null; };
-        this._cloudGuardContinuer = fermer;
-        document.getElementById('cloud-guard-continue').onclick = fermer;
-        // La connexion part DIRECTEMENT de ce clic, sans `await` devant : le navigateur ne laisse ouvrir la
-        // fenêtre Google que dans le geste de l'utilisateur.
-        document.getElementById('cloud-guard-connect').onclick = () => { fermer(); SYNCHRO.seConnecter(); };
     }
 
     closeFileMenu() {

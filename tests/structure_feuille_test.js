@@ -311,7 +311,13 @@ plan(61);
         localStorage.setItem('myProgression', JSON.stringify({ sections: m.sections }));
     }, MORCEAU);
     await P.reload({ waitUntil: 'load' }); await P.waitForTimeout(900);
-    await P.click('#google-signin-btn'); await P.waitForTimeout(1800);
+    // Un appareil sans compte voit d'abord la fenêtre de connexion (compte-cloud.js) : on se connecte par elle
+    // si elle est là, par la pilule sinon — comme l'utilisateur.
+    const seConnecter = async (p, attente) => {
+        if (await p.isVisible('#cloud-guard-modal')) await p.click('#cloud-guard-connect'); else await p.click('#google-signin-btn');
+        await p.waitForTimeout(attente);
+    };
+    await seConnecter(P, 1800);
     await P.click('#structure-btn'); await P.waitForTimeout(300);
     await P.evaluate(() => {
         window.app.modifierStructure((l) => { l[1].notes.push({ texte: 'premier' }, { texte: 'deuxième' }); });
@@ -321,7 +327,7 @@ plan(61);
     const doc = () => JSON.parse(nuage.docs.get('users/u1/apps/harmohub').songs[0].json);
     check(doc().structure[1].notes.map(n => n.texte).join('|') === 'deuxième|premier', 'appareil 1 : les commentaires ET leur ordre sont dans le cloud, sans avoir enregistré');
     const Q = await appareil('Q');
-    await Q.click('#google-signin-btn'); await Q.waitForTimeout(2500);
+    await seConnecter(Q, 2500);
     await Q.evaluate(() => window.app.loadSong(loadSongs()[0].id));
     await Q.click('#structure-btn'); await Q.waitForTimeout(300);
     check((await notesAffichees(Q))[1] === 'deuxième | premier', `appareil 2, session neuve : il retrouve les commentaires dans l'ordre — ${(await notesAffichees(Q))[1]}`);

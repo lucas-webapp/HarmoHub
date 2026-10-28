@@ -4370,3 +4370,43 @@ l'ordre des commentaires dans la liste ».
   l'aperçu (`lireReglagesFeuille`) — détecté au premier passage de `structure_modulable_test`.
 - Bancs : `structure_feuille_test` 61 contrôles (dont la section G, deux appareils : session neuve, volet ouvert,
   retour du réseau après rechargement), `structure_modulable_test` 45.
+
+## Compte cloud commun aux trois applis (2026-10-28)
+
+Retours : « à chaque fois que je modifie les systèmes de connexion sur une appli, je dois refaire toute la
+démarche pour les autres » ; « sur les 3 applis, les pastilles de connexion sont différentes, je veux les
+mêmes » ; « propose la fenêtre connexion lorsqu'aucun utilisateur n'est connecté ». Décision prise avec
+l'utilisateur : PAS de dépôt commun (il veut « ne plus trop toucher au code ») — une copie par appli, HarmoHub
+fait référence, chaque fichier partagé porte une VERSION et une EMPREINTE (docs/fichiers-partages.md).
+
+- **`compte-cloud.js` (nouveau, version 1)** : dessine tout ce qui se voit de la connexion — pilule, pastille,
+  menu du compte, fenêtre de connexion. Ne connaît ni Firebase ni les données (TrainHub peut donc le brancher
+  sur son propre moteur). Styles injectés, classes `cc-…`, fondés sur les seules variables communes aux trois
+  applis ; fonds CALCULÉS depuis `--bg`/`--text-main` (dans les thèmes « verre » de TrainHub, `--card-bg` est
+  presque transparent). Boutons en `all: unset` (la règle générale `button` de HarmoHub — flex: 1,
+  min-width: 120px — avait déjà fait faire 121 px à l'ancienne pastille).
+- **Fenêtre de connexion** : proposée DÈS L'OUVERTURE quand Firebase répond « personne » (jamais avant sa
+  réponse : ce serait une fausse alerte pour quelqu'un déjà connecté). Une fois par onglet (sessionStorage :
+  ni au rechargement, ni à la première modification ensuite), et plus jamais si l'on coche « Ne plus me le
+  proposer sur cet appareil » (localStorage, clé PAR APPLI — les trois applis partagent l'origine
+  lucas-webapp.github.io). Le garde-fou « Tu n'es pas connecté » à la première modification subsiste pour le
+  cas où la fenêtre n'a pas été vue dans l'onglet (ex. connecté à l'ouverture, puis déconnecté).
+- **`synchro-cloud.js` version 2** : ne dessine plus rien, parle au composant (`elements.ui`).
+- **HarmoHub** : pilule, menu, garde-fou et leurs styles retirés de index.html/script.js/style.css au profit du
+  composant (`<div id="compte-cloud">`). Les identifiants restent les mêmes (google-signin-btn, account-info,
+  sync-status, cloud-menu, cloud-guard-modal…).
+- **Changement VOULU d'un banc** : `synchro_cloud_test` section 14 vérifiait qu'AUCUNE question n'était posée à
+  l'ouverture ; c'est désormais le contraire, à la demande de l'utilisateur. Section réécrite (fenêtre à
+  l'ouverture, une fois par onglet, nouvel onglet, ne plus proposer, déconnexion puis modification). Le test
+  « avant la réponse de Firebase, se taire » passe dans `compte_cloud_test`. `connecter()` passe par la fenêtre
+  quand elle est ouverte, comme l'utilisateur. 126 contrôles.
+- **`compte_cloud_test` (nouveau, 50 contrôles)** : le composant SEUL, sur une page qui imite le pire des trois
+  applis (règle `button` hostile, barre en overflow hidden, thème clair et « verre » de TrainHub), bureau et
+  téléphone. Dernière section : version de l'en-tête = constante, et empreinte SHA-256 = celle de la note.
+  Piège rencontré dans mon propre banc : `color-mix()` rend ses couleurs calculées en `color(srgb 0.88 …)`
+  (0 à 1) et non `rgb(224 …)` — lue comme du 0–255, la fenêtre claire paraissait noire.
+- **Méta-suite** : elle ne lisait que script.js et paroles.js pour savoir quels identifiants existent, et
+  déclarait donc « introuvables » les dix boutons fabriqués par compte-cloud.js. Elle lit maintenant tous les
+  scripts chargés par index.html (même leçon que pour la page Paroles).
+- Limites : TabHub et TrainHub ne sont pas modifiés par ce lot (consignes données à leurs sessions). Le
+  composant n'a été éprouvé qu'avec le faux Firebase et sur Chromium ; le rendu Safari n'est pas vérifié ici.

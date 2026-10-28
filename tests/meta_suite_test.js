@@ -29,7 +29,10 @@ const REFERENCE = path.join(__dirname, 'meta_suite_reference.json');
 // positifs ne peut pas se permettre d'en produire : il perdrait toute autorité, et on prendrait
 // l'habitude d'ignorer ce qu'il dit. Symétriquement, ne pas lire ces fichiers laissait passer un vrai
 // bouton mort côté Paroles sans rien dire.
-const SOURCES = ['script.js', 'paroles.js'];
+// Même leçon le 28/10 : la pilule de connexion, son menu et sa fenêtre sont FABRIQUÉS par compte-cloud.js
+// (composant commun aux trois applis), pas par script.js. Sans lire ce fichier, la méta-suite déclarait
+// introuvables dix identifiants bien vivants. Tous les scripts que charge index.html sont donc lus.
+const SOURCES = ['script.js', 'paroles.js', 'fichiers.js', 'compte-cloud.js', 'synchro-cloud.js', 'synchro-harmohub.js'];
 const PAGES = ['index.html', 'paroles.html'];
 const source = SOURCES.map(f => fs.readFileSync(path.join(RACINE, f), 'utf8')).join('\n');
 const html = PAGES.map(f => fs.readFileSync(path.join(RACINE, f), 'utf8')).join('\n');

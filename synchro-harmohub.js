@@ -432,32 +432,31 @@ var ADAPTATEUR_HARMOHUB = {
 };
 
 // ---------- GARDE-FOU : travailler sans être connecté ----------
-// Appelée par marquerModifie (script.js) à CHAQUE modification, mais ne parle qu'UNE fois par ouverture de
-// l'appli. Quatre conditions pour parler, parce que se taire à tort vaut mieux qu'alerter à tort :
-//   - la synchro existe (sinon il n'y a rien à proposer : le bouton grisé dit déjà pourquoi) ;
-//   - Firebase a répondu sur « qui est connecté » (`authPrete`) : avant ça, « pas de compte » ne veut rien
-//     dire — la session est en cours de relecture, et alerter quelqu'un déjà connecté serait une fausse
-//     alerte à chaque ouverture ;
-//   - personne n'est connecté ;
-//   - on n'a pas déjà posé la question (le clic sur « continuer » vaut jusqu'au prochain rechargement).
+// Appelée par marquerModifie (script.js) à CHAQUE modification. La fenêtre elle-même, et la règle « une seule
+// fois par onglet, jamais si l'on a dit de ne plus proposer, jamais avant que Firebase ait dit qui est
+// connecté », appartiennent au composant commun (compte-cloud.js#proposerConnexion) : la même dans les trois
+// applis. Si la fenêtre d'accueil a déjà été vue à l'ouverture, celle-ci ne se rouvre pas.
 function cloudGardeConnexion() {
-    if (typeof SYNCHRO === 'undefined' || !SYNCHRO || !SYNCHRO.disponible) return;
-    var e = SYNCHRO.etat;
-    if (!e.authPrete || e.utilisateur || e.gardeConnexionPosee) return;
-    e.gardeConnexionPosee = true;
-    if (window.app && window.app.demanderConnexionAvantTravail) window.app.demanderConnexionAvantTravail();
+    if (typeof SYNCHRO === 'undefined' || !SYNCHRO || !SYNCHRO.disponible || !SYNCHRO.ui) return;
+    SYNCHRO.ui.proposerConnexion('modification');
 }
 
 // ---------- démarrage ----------
 (function () {
     if (typeof demarrerSynchro !== 'function') return;
-    demarrerSynchro(ADAPTATEUR_HARMOHUB, {
-        statut: document.getElementById('sync-status'),
-        connexion: document.getElementById('google-signin-btn'),
-        compte: document.getElementById('account-info'),
-        nomCompte: document.getElementById('account-name'),
-        deconnexion: document.getElementById('signout-btn'),
+    // Le composant est monté AVANT la synchro : c'est lui qui affiche « indisponible » si Firebase ne démarre
+    // pas, et la synchro lui parle dès sa première réponse.
+    var ui = (typeof monterCompteCloud === 'function') ? monterCompteCloud(document.getElementById('compte-cloud'), {
+        appli: 'HarmoHub',
+        slug: 'harmohub',
+        objets: 'morceaux',
+        seConnecter: function () { if (SYNCHRO && SYNCHRO.seConnecter) SYNCHRO.seConnecter(); },
+        seDeconnecter: function () { if (SYNCHRO && SYNCHRO.seDeconnecter) SYNCHRO.seDeconnecter(); },
         // Clic sur le bouton grisé : on dit POURQUOI plutôt que de ne rien faire.
+        surIndisponible: function (raison) { if (window.app) window.app.flashHint('Synchronisation indisponible — ' + raison, 7000); },
+    }) : null;
+    demarrerSynchro(ADAPTATEUR_HARMOHUB, {
+        ui: ui,
         surIndisponible: function (raison) { if (window.app) window.app.flashHint('Synchronisation indisponible — ' + raison, 7000); },
     });
 })();

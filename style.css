@@ -359,7 +359,6 @@ body.body-scroll-locked { overflow: hidden !important; }
 #delete-files-modal,
 #disk-files-modal,
 #export-full-modal,
-#cloud-guard-modal,
 #struct-edit-modal { z-index: 200; }
 
 /* Fenêtre agrandie du séquenceur (voir #seq-zoom-overlay/openSeqZoom) : même habillage que
@@ -6456,40 +6455,9 @@ body.impression-structure #structure-print-zone { display: block; }
 .export-full-cout { font-size: var(--fs-xs); color: var(--text-muted); }
 .export-full-etat { font-size: var(--fs-xs); margin-top: 8px; min-height: 1.2em; }
 
-/* ---------- Synchro cloud : bouton de la barre du haut + pastille d'état ---------- */
-/* Un bouton À PART, voyant (comme TrainHub), dans la barre fixe du haut — qui est flottante à droite et a la
-   place pour lui. Même habillage que .logo et .settings-btn pour rester cohérent. Sur téléphone étroit le
-   libellé s'efface et il reste le G ou la pastille : la barre ne doit pas déborder. */
-.cloud-pill {
-    display: inline-flex; align-items: center; gap: 6px;
-    height: 32px; padding: 0 11px 0 9px; border-radius: 999px;
-    background: rgba(22, 22, 22, 0.7); border: 1px solid var(--border);
-    backdrop-filter: blur(6px); color: var(--text-main);
-    font: inherit; font-size: var(--fs-sm); font-weight: 600; cursor: pointer;
-    max-width: 180px;
-    /* Le style GÉNÉRIQUE des boutons (voir `button, .icon-btn` plus haut) impose flex:1 et min-width:120px :
-       sans ces deux lignes, la pastille connectée faisait 121 px de large sur téléphone alors qu'elle ne
-       contient qu'un point de 7 px (mesuré). */
-    flex: 0 0 auto; min-width: 32px; width: auto;   /* 32 px : cible tactile minimale */
-}
-.cloud-pill:hover { border-color: #454b54; }
-.cloud-pill .cloud-g { width: 16px; height: 16px; flex: 0 0 auto; }
-.cloud-pill-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cloud-pill.indisponible { opacity: .55; }
-.cloud-pill.indisponible .cloud-pill-label::after { content: ' (indisponible)'; }
-@media (max-width: 520px) {
-    .cloud-pill.connecte .cloud-pill-label, .cloud-pill:not(.connecte) .cloud-pill-label { display: none; }
-    .cloud-pill { padding: 0 9px; }
-}
-.cloud-menu-etat { padding: 8px 12px 4px; }
-.sync-status { font-size: 12px; line-height: 1; color: var(--text-muted); transition: color .2s ease; cursor: help; }
-.sync-status.synced { color: #79c99a; }
-.sync-status.syncing { color: #6aa9ff; animation: sync-pulse 1s ease-in-out infinite; }
-.sync-status.pending { color: #e0a64a; }
-.sync-status.offline { color: var(--text-muted); }
-.sync-status.error, .sync-status.toolarge { color: #ff6b6b; }
-@keyframes sync-pulse { 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .sync-status.syncing { animation: none; } }
+/* ---------- Compte cloud ---------- */
+/* La pilule, son menu et la fenêtre de connexion ont LEURS styles, injectés par compte-cloud.js (commun aux
+   trois applis) : rien à ajouter ici, sinon les trois applis divergeraient de nouveau. */
 
 
 /* ---------- Structure : occurrences, commentaires, saisie ---------- */

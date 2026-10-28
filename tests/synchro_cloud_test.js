@@ -21,7 +21,7 @@ const { check, exiger, plan, bilan } = require('./_harness')('synchro cloud');
 const estBruitReseau = require('./_harness').estBruitReseau;
 const { creerNuage, installer } = require('./_firebase_faux');
 
-plan(119);
+plan(126);
 
 const CHEMIN = 'users/u1/apps/harmohub';
 const pause = (p, ms) => p.waitForTimeout(ms);
@@ -63,7 +63,13 @@ const pause = (p, ms) => p.waitForTimeout(ms);
     // menu d'EXPORT (retour utilisateur : « c'est un bouton d'export, pas de sauvegarde »).
     const ouvrirMenuCloud = async (p) => { await p.click('#account-info'); await p.waitForTimeout(200); };
     const deconnecter = async (p) => { await ouvrirMenuCloud(p); await p.click('#signout-btn'); };
-    const connecter = async (d, attente = 1800) => { await d.p.click('#google-signin-btn'); await pause(d.p, attente); };
+    // Un appareil qui s'ouvre sans compte voit d'abord la FENÊTRE DE CONNEXION (compte-cloud.js) : c'est par
+    // elle que l'utilisateur se connecte alors, comme il le ferait. Sinon, par la pilule de la barre du haut.
+    const connecter = async (d, attente = 1800) => {
+        if (await d.p.isVisible('#cloud-guard-modal')) await d.p.click('#cloud-guard-connect');
+        else await d.p.click('#google-signin-btn');
+        await pause(d.p, attente);
+    };
     const etat = (d) => d.p.getAttribute('#sync-status', 'data-etat');
     const locaux = (d) => d.p.evaluate(() => loadSongs());
     const nomsLocaux = async (d) => (await locaux(d)).map(s => s.name).sort();
@@ -89,7 +95,7 @@ const pause = (p, ms) => p.waitForTimeout(ms);
         await p.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 20000 });
         await pause(p, 900);
         check(locales.length === 0, `sans SDK Firebase (hors ligne au premier chargement), aucune erreur — ${locales.slice(0, 1)}`);
-        check(await p.isVisible('#google-signin-btn') && await p.locator('#google-signin-btn').evaluate(e => e.classList.contains('indisponible')),
+        check(await p.isVisible('#google-signin-btn') && await p.locator('#google-signin-btn').evaluate(e => e.classList.contains('cc-indisponible')),
             'sans SDK, le bouton reste VISIBLE mais grisé : un bouton qui disparaît en silence ressemble à une panne');
         check(/Firebase/.test(await p.getAttribute('#google-signin-btn', 'title')), 'et la raison est au survol');
         await p.click('#google-signin-btn'); await pause(p, 300);
@@ -492,57 +498,73 @@ const pause = (p, ms) => p.waitForTimeout(ms);
     check(apresConnexion.compte.h >= 32 && apresConnexion.compte.w >= 32, `le bouton se vise au doigt (${apresConnexion.compte.w}×${apresConnexion.compte.h})`);
     check(apresConnexion.compte.r <= apresConnexion.logo, 'et ne chevauche pas le logo');
 
-    // ================= 14. LE GARDE-FOU : travailler sans être connecté =================
-    // « Un garde-fou pour me demander une confirmation si je commence à travailler alors que je ne suis pas connecté. »
+    // ================= 14. LA FENÊTRE DE CONNEXION (compte-cloud.js, commune aux trois applis) =================
+    // « Un garde-fou pour me demander une confirmation si je commence à travailler alors que je ne suis pas
+    // connecté », puis le 28/10 : « propose la fenêtre connexion lorsqu'aucun utilisateur n'est connecté ».
+    // CHANGEMENT VOULU : la fenêtre s'ouvre désormais DÈS L'OUVERTURE (avant, ce banc vérifiait qu'elle se
+    // taisait jusqu'à la première modification). Une seule fois par onglet, et plus jamais si on l'a demandé.
+    const nouvelOnglet = async (d) => {
+        const p = await d.ctx.newPage();
+        p.on('pageerror', (e) => erreurs.push(`${d.nom}+ pageerror: ${e.message}`));
+        await p.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 20000 });
+        await pause(p, 900);
+        return { ctx: d.ctx, p, nom: d.nom + '+' };
+    };
     const nuageG = creerNuage();
     const GF = await ouvrir(nuageG, 'GF');
-    await pause(GF.p, 600);
-    check(await GF.p.isHidden('#cloud-guard-modal'), 'à l\'ouverture, sans rien toucher : AUCUNE question — il n\'y a pas encore de travail');
-    await GF.p.evaluate(() => window.app.openFileMenu(document.getElementById('file-menu-btn')));
-    await GF.p.evaluate(() => window.app.closeFileMenu());
-    check(await GF.p.isHidden('#cloud-guard-modal'), 'ouvrir un menu n\'est pas travailler');
-    await GF.p.evaluate(() => saveProgressionSections([{ title: 'A', chords: [] }]));
-    await pause(GF.p, 250);
-    check(await GF.p.isVisible('#cloud-guard-modal'), 'à la PREMIÈRE modification sans être connecté : la question s\'ouvre');
-    check(/pas enregistré dans le cloud/.test(await GF.p.textContent('#cloud-guard-modal')), 'et dit ce qu\'on risque : ça ne partira pas dans le cloud');
-    check(await GF.p.isVisible('#cloud-guard-connect') && await GF.p.isVisible('#cloud-guard-continue'), 'avec deux issues : se connecter, ou continuer sans');
+    check(await GF.p.isVisible('#cloud-guard-modal') && await GF.p.getAttribute('#cloud-guard-modal', 'data-raison') === 'accueil',
+        'à l\'ouverture, sans compte : la fenêtre de connexion est PROPOSÉE');
+    check(/tes morceaux sont enregistrés automatiquement/.test(await GF.p.textContent('#cloud-guard-modal')),
+        'elle dit ce que la connexion apporte, avec les mots de l\'appli (« tes morceaux »)');
+    check(await GF.p.isVisible('#cloud-guard-connect') && await GF.p.isVisible('#cloud-guard-continue'), 'avec deux issues : se connecter, ou continuer sans compte');
     await GF.p.click('#cloud-guard-continue');
-    check(await GF.p.isHidden('#cloud-guard-modal'), '« continuer sans synchroniser » referme la fenêtre');
+    check(await GF.p.isHidden('#cloud-guard-modal'), '« continuer sans compte » referme la fenêtre');
+    check(await GF.p.isVisible('#google-signin-btn'), 'et la pilule « Se connecter » reste là pour plus tard');
     await GF.p.evaluate(() => saveProgressionSections([{ title: 'B', chords: [] }]));
     await pause(GF.p, 250);
-    check(await GF.p.isHidden('#cloud-guard-modal'), 'et on ne REDEMANDE pas à chaque modification : une seule fois par ouverture');
+    check(await GF.p.isHidden('#cloud-guard-modal'), 'on ne REDEMANDE pas à la première modification : une seule fenêtre par onglet');
+    await GF.p.reload({ waitUntil: 'load' }); await pause(GF.p, 900);
+    check(await GF.p.isHidden('#cloud-guard-modal'), 'ni au rechargement de la page dans le même onglet');
     check((await GF.p.evaluate(() => loadProgressionSections()))[0].title === 'B', 'le travail n\'a jamais été bloqué');
-
+    const GFb = await nouvelOnglet(GF);
+    check(await GFb.p.isVisible('#cloud-guard-modal'), 'un NOUVEL onglet (nouvelle ouverture de l\'appli) la propose de nouveau');
     // Fermer sans choisir = continuer (jamais bloquer).
-    const GF2 = await ouvrir(creerNuage(), 'GF2');
-    await GF2.p.evaluate(() => saveProgressionSections([{ title: 'A', chords: [] }]));
-    await pause(GF2.p, 250);
-    await GF2.p.click('#cloud-guard-modal', { position: { x: 4, y: 4 } });
-    check(await GF2.p.isHidden('#cloud-guard-modal'), 'cliquer à côté referme aussi : on ne bloque jamais le travail');
+    await GFb.p.click('#cloud-guard-modal', { position: { x: 4, y: 4 } });
+    check(await GFb.p.isHidden('#cloud-guard-modal'), 'cliquer à côté referme aussi : on ne bloque jamais le travail');
 
-    // « Se connecter » depuis la question : la fenêtre Google part de CE clic.
+    // « Ne plus me le proposer sur cet appareil »
+    const GF2 = await ouvrir(creerNuage(), 'GF2');
+    await GF2.p.check('#cloud-guard-ne-plus');
+    await GF2.p.click('#cloud-guard-continue');
+    const GF2b = await nouvelOnglet(GF2);
+    check(await GF2b.p.isHidden('#cloud-guard-modal'), '« ne plus me le proposer » : un nouvel onglet ne la propose plus');
+    await GF2b.p.evaluate(() => saveProgressionSections([{ title: 'A', chords: [] }]));
+    await pause(GF2b.p, 250);
+    check(await GF2b.p.isHidden('#cloud-guard-modal'), 'ni à la première modification');
+    check(await GF2b.p.isVisible('#google-signin-btn'), 'la connexion reste possible par la pilule');
+
+    // « Se connecter » depuis la fenêtre : la fenêtre Google part de CE clic.
     const GF3 = await ouvrir(creerNuage(), 'GF3', { persister: true });
-    await GF3.p.evaluate(() => saveProgressionSections([{ title: 'A', chords: [] }]));
-    await pause(GF3.p, 250);
     await GF3.p.click('#cloud-guard-connect');
     await pause(GF3.p, 1500);
     check(await GF3.p.evaluate(() => window.__faux.fenetresGoogle) === 1, 'le bouton ouvre la connexion Google (depuis le clic, sans quoi le navigateur la bloquerait)');
     check(await etat(GF3) === 'synced', 'et la synchro démarre aussitôt');
-
-    // Déjà connecté : jamais de question, même après un rechargement où la session se relit.
-    await GF3.p.reload({ waitUntil: 'load' }); await pause(GF3.p, 900);
-    await GF3.p.evaluate(() => saveProgressionSections([{ title: 'C', chords: [] }]));
-    await pause(GF3.p, 250);
-    check(await GF3.p.isHidden('#cloud-guard-modal'), 'connecté, jamais de question');
-
-    // Avant que Firebase ait répondu sur « qui est connecté » : se taire, ce serait une fausse alerte.
-    const GF4 = await ouvrir(creerNuage(), 'GF4');
-    const avantReponse = await GF4.p.evaluate(() => {
-        SYNCHRO.etat.authPrete = false; SYNCHRO.etat.gardeConnexionPosee = false; SYNCHRO.etat.utilisateur = null;
-        saveProgressionSections([{ title: 'X', chords: [] }]);
-        return document.getElementById('cloud-guard-modal').hidden;
-    });
-    check(avantReponse === true, 'tant que Firebase n\'a pas dit s\'il y a une session, on se TAIT : alerter quelqu\'un déjà connecté serait une fausse alerte');
+    // Déjà connecté : jamais de fenêtre, même dans un nouvel onglet où la session se relit.
+    const GF3b = await nouvelOnglet(GF3);
+    await GF3b.p.evaluate(() => saveProgressionSections([{ title: 'C', chords: [] }]));
+    await pause(GF3b.p, 250);
+    check(await GF3b.p.isHidden('#cloud-guard-modal'), 'connecté, jamais de fenêtre');
+    // Connecté à l'ouverture, puis déconnecté : pas d'« accueil » au moment de la déconnexion…
+    await deconnecter(GF3b.p); await pause(GF3b.p, 500);
+    check(await GF3b.p.isHidden('#cloud-guard-modal'), 'se déconnecter n\'ouvre pas la fenêtre d\'accueil');
+    // …mais le garde-fou, à la première modification qui suit.
+    await GF3b.p.evaluate(() => saveProgressionSections([{ title: 'D', chords: [] }]));
+    await pause(GF3b.p, 250);
+    check(await GF3b.p.isVisible('#cloud-guard-modal') && await GF3b.p.getAttribute('#cloud-guard-modal', 'data-raison') === 'modification',
+        'déconnecté puis modifiant : le garde-fou « tu n\'es pas connecté » s\'ouvre');
+    check(/pas enregistré dans le cloud/.test(await GF3b.p.textContent('#cloud-guard-modal')), 'et dit ce qu\'on risque : ça ne partira pas dans le cloud');
+    await GF3b.p.keyboard.press('Escape');
+    check(await GF3b.p.isHidden('#cloud-guard-modal'), 'Échap referme (= continuer)');
 
     check(pannesConsignees.length > 0, 'les pannes simulées ont bien été consignées dans la console — un échec qui ne laisserait aucune trace serait introuvable');
     check(erreurs.length === 0, `aucune autre erreur JavaScript pendant tout le scénario — ${erreurs.slice(0, 2).join(' | ')}`);
