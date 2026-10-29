@@ -1,10 +1,11 @@
 // SYNCHRO HARMOHUB — l'ADAPTATEUR de la bibliothèque, branché sur la couche générique synchro-cloud.js.
 //
-// CE QUI EST SYNCHRONISÉ : les morceaux, les dossiers, et la trace des suppressions. PAS le morceau en
-// cours d'édition (`myProgression`) ni le morceau ouvert (`harmohubCurrentSongId`) : ce sont des états
-// PAR APPAREIL. Les synchroniser ferait changer de morceau sous les doigts de quelqu'un qui travaille
-// sur un autre écran. Les réglages de l'appli ne le sont pas non plus — à reconsidérer, pas à sous-
-// entendre : chaque appareil garde les siens.
+// CE QUI EST SYNCHRONISÉ : les morceaux (structure, commentaires et réglages de chaque morceau compris, ils
+// sont DANS le morceau), les dossiers, la trace des suppressions, et les RÉGLAGES de l'utilisateur (voir plus
+// bas). Les paroles ont leur propre document, envoyé par la page Paroles (voir synchro-paroles.js).
+// PAS le morceau en cours d'édition (`myProgression`) ni le morceau ouvert (`harmohubCurrentSongId`) : ce
+// sont des états PAR APPAREIL. Les synchroniser ferait changer de morceau sous les doigts de quelqu'un qui
+// travaille sur un autre écran.
 //
 // POURQUOI UNE FUSION PAR MORCEAU ET NON UN REMPLACEMENT GLOBAL (ce que fait TrainHub). Un état unique
 // se remplace en bloc. Une bibliothèque modifiée depuis Chrome, Safari et l'app du Dock se FUSIONNE :
@@ -29,6 +30,34 @@ var CLE_SYNC_BASE = 'harmohub_sync_base';
 var CLE_SYNC_SUPPR = 'harmohub_sync_deleted';
 var CLE_SYNC_DOSSIERS = 'harmohub_sync_dossiers';
 var CLE_SYNC_UID = 'harmohub_sync_uid';
+var CLE_SYNC_REGLAGES_T = 'harmohub_sync_reglages_t';   // { clé: date de la dernière modification faite SUR CET appareil }
+
+// ---------- LES RÉGLAGES ----------
+// Retour utilisateur : « je veux que tout soit stocké en ligne pour retrouver mes données en changeant d'ordinateur. » Les réglages
+// (son, métronome, ce que la grille affiche, exports PDF, rythme de départ) étaient dans le navigateur : un ordinateur neuf
+// repartait des valeurs d'usine.
+//
+// UNE LISTE BLANCHE, ET PAS « TOUT CE QUI COMMENCE PAR harmohub ». Un réglage n'a de sens sur un autre appareil que s'il décrit une
+// PRÉFÉRENCE de l'utilisateur. Ceux qui décrivent l'ÉCRAN ou l'APPAREIL restent locaux, parce que les voyager ferait de mauvaises
+// surprises :
+//   • zooms et hauteurs de panneaux (`harmohub*ZoomLevel*`, `harmohubSeqDockHeight`), volet replié (`harmohubSidebarCollapsed`),
+//     instruments affichés (`harmohubShowPiano/Guitar`), réglages du morceau ouvert (`songSettingsOpen`) : un téléphone n'a pas
+//     l'écran d'un ordinateur ;
+//   • l'effet verre (`harmohub.glass*`) : « une option PAR APPAREIL », demandé tel quel ;
+//   • le dossier de rangement sur disque, les repères de sauvegarde et de rappel, l'état de la synchro elle-même, le morceau
+//     ouvert, la fenêtre de connexion (« ne plus proposer ») : propres à l'appareil, ou sans sens ailleurs ;
+//   • les préférences de la page Paroles (taille du texte, enchaînement) : dépendantes de l'écran.
+// Une clé de plus à synchroniser = une ligne ici. Le banc vérifie que chaque clé listée existe bien dans script.js (une faute
+// de frappe ici ne ferait rien, sans erreur).
+var REGLAGES_SYNCHRONISES = [
+    'harmohubMetronomeDuringPlayback', 'harmohubMetronomeVolume', 'harmohubMetronomeSound', 'harmohubMetronomeCountIn',
+    'harmohubMetronomeSubdivision', 'harmohubGeneralVolume', 'harmohubAutoplaySelect', 'harmohubSeqEditAudio',
+    'harmohubShowRomanNumerals', 'harmohubShowSavedDate', 'harmohubShowGridOctave', 'harmohubShowAllBeats',
+    'harmohubShowGridVoicing', 'harmohubShowVoicingPdf', 'harmohubShowChordFunction',
+    'harmohubPdfMeasuresPerLine', 'harmohubPdfDiagrams',
+    'harmohubStudioMode', 'harmohubRythmeDepart',
+    'harmohub_feuille_structure',
+];
 // Une trace de suppression sert à empêcher un appareil resté hors ligne de ramener un morceau effacé.
 // Au bout de six mois, on considère qu'aucun appareil n'est plus en retard à ce point.
 var DUREE_TRACE_SUPPRESSION_MS = 180 * 86400000;
@@ -59,6 +88,82 @@ function ecrireCleJson(cle, valeur) {
 function lireSuppressions() { var v = lireCleJson(CLE_SYNC_SUPPR, {}); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {}; }
 function lireEnregistrementsDossiers() { var v = lireCleJson(CLE_SYNC_DOSSIERS, {}); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {}; }
 function lireBaseSync() { var v = lireCleJson(CLE_SYNC_BASE, {}); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {}; }
+
+// Date de dernière modification de chaque réglage, sur CET appareil : c'est elle qui arbitre entre deux appareils, réglage par
+// réglage. Par réglage et non en bloc : changer le volume sur le téléphone ne doit pas écraser, à la prochaine synchro, le
+// métronome réglé le matin sur l'ordinateur.
+function lireDatesReglages() { var v = lireCleJson(CLE_SYNC_REGLAGES_T, {}); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {}; }
+
+// Les réglages présents dans ce navigateur : { clé: { v: valeur (texte), t: date } }. Un réglage jamais touché n'existe pas : un
+// appareil neuf n'impose donc rien au cloud, et reprend ce qui y est.
+function lireReglagesLocaux() {
+    var t = lireDatesReglages(), sortie = {};
+    REGLAGES_SYNCHRONISES.forEach(function (cle) {
+        var v = null;
+        try { v = localStorage.getItem(cle); } catch (e) { v = null; }
+        if (v !== null) sortie[cle] = { v: v, t: Number(t[cle]) || 0 };
+    });
+    return sortie;
+}
+
+// Fusion PURE : pour chaque réglage, la modification la plus récente gagne. Même valeur des deux côtés : rien à faire. Même date
+// mais valeurs différentes : la plus grande chaîne gagne, le même choix sur les deux appareils — ils convergent au lieu de
+// s'échanger leur valeur indéfiniment.
+function fusionnerReglages(local, distant) {
+    var L = local || {}, R = distant || {};
+    var cles = Object.keys(L);
+    Object.keys(R).forEach(function (c) { if (!(c in L)) cles.push(c); });
+    var sortie = {}, changeLocal = false, changeDistant = false;
+    cles.forEach(function (c) {
+        var l = L[c], r = R[c], g = l;
+        if (!l) g = r;
+        else if (r && l.v !== r.v) g = (r.t > l.t || (r.t === l.t && r.v > l.v)) ? r : l;
+        else if (r && r.t > l.t) g = r;                 // même valeur, date plus récente : sans effet visible, mais on la garde
+        sortie[c] = g;
+        if (!l || l.v !== g.v) changeLocal = true;
+        if (!r || r.v !== g.v) changeDistant = true;
+    });
+    return { fusionne: sortie, changeLocal: changeLocal, changeDistant: changeDistant };
+}
+
+// Écrit ICI les réglages reçus. Rend la liste de ceux dont la valeur a réellement changé. L'écriture passe par l'`setItem` d'origine
+// (voir plus bas) : un réglage reçu n'est pas une modification faite ici, il ne doit ni se redater ni repartir au cloud.
+var setItemOrigine = Storage.prototype.setItem;
+function appliquerReglagesLocaux(reglages) {
+    var t = lireDatesReglages(), changes = [];
+    Object.keys(reglages || {}).forEach(function (cle) {
+        if (REGLAGES_SYNCHRONISES.indexOf(cle) < 0) return;      // une clé inconnue venue du cloud n'écrit rien ici
+        var g = reglages[cle], actuel = null;
+        try { actuel = localStorage.getItem(cle); } catch (e) { actuel = null; }
+        if (actuel !== g.v) {
+            try { setItemOrigine.call(localStorage, cle, g.v); changes.push(cle); } catch (e) { return; }
+        }
+        t[cle] = g.t;
+    });
+    ecrireCleJson(CLE_SYNC_REGLAGES_T, t);
+    return changes;
+}
+
+// Accroche : chaque écriture d'un réglage listé, par n'importe quel endroit de script.js, date ce réglage et prévient la synchro.
+// Une accroche sur `setItem` plutôt qu'un appel à ajouter derrière chacune des vingt écritures : la liste blanche ci-dessus est
+// alors la SEULE chose à tenir à jour, et un réglage futur n'a pas à penser à la synchro. N'agit que si la valeur CHANGE (une écriture
+// qui répète la valeur ne doit pas passer pour une modification et gagner contre un autre appareil).
+function cloudNoterReglage(cle) {
+    if (typeof SYNCHRO !== 'undefined' && SYNCHRO && SYNCHRO.etat && SYNCHRO.etat.appliqueDistant) return;
+    var t = lireDatesReglages();
+    t[cle] = Math.max(Date.now(), (Number(t[cle]) || 0) + 1);
+    ecrireCleJson(CLE_SYNC_REGLAGES_T, t);
+    if (typeof SYNCHRO !== 'undefined' && SYNCHRO && SYNCHRO.planifierEnvoi) SYNCHRO.planifierEnvoi();
+}
+Storage.prototype.setItem = function (cle, valeur) {
+    var suivi = false, avant = null;
+    try {
+        suivi = (this === window.localStorage) && REGLAGES_SYNCHRONISES.indexOf(cle) >= 0;
+        if (suivi) avant = this.getItem(cle);
+    } catch (e) { suivi = false; }
+    setItemOrigine.apply(this, arguments);
+    if (suivi && String(valeur) !== avant) cloudNoterReglage(cle);
+};
 
 // ---------- la fusion (PURE : aucune lecture ni écriture de stockage, donc testable à part) ----------
 // local / distant = { songs: [...], dossiers: [{nom, ts, supprime}], supprimes: {id: ts} }
@@ -133,18 +238,20 @@ function fusionnerBibliotheques(local, distant, options) {
     (local.dossiers || []).forEach(function (rec) { var m = dos.get(rec.nom); if (m && !m.supprime && visibles.indexOf(rec.nom) < 0) visibles.push(rec.nom); });
     dos.forEach(function (rec, nom) { if (!rec.supprime && visibles.indexOf(nom) < 0) visibles.push(nom); });
 
+    var rg = fusionnerReglages(local.reglages, distant.reglages);
     var fusionne = {
         songs: sortie,
         dossiers: Array.from(dos.values()),
         dossiersVisibles: visibles,
         supprimes: tombes,
+        reglages: rg.fusionne,
     };
 
     var signature = function (songs, dossiers) {
         return songs.map(function (s) { return s.id + '|' + cleSync(s); }).sort().join(';') + '##' + dossiers.slice().sort().join(';');
     };
     var visiblesLocaux = (local.dossiers || []).filter(function (r) { return !r.supprime; }).map(function (r) { return r.nom; });
-    var changeLocal = signature(sortie, visibles) !== signature(local.songs, visiblesLocaux);
+    var changeLocal = signature(sortie, visibles) !== signature(local.songs, visiblesLocaux) || rg.changeLocal;
     // Ce qui est DÉJÀ au cloud : mêmes morceaux aux mêmes versions, mêmes dossiers, mêmes suppressions ?
     // Alors il n'y a rien à écrire (voir synchro-cloud.js).
     var signatureDoc = function (songs, dossiers, supprimes) {
@@ -152,7 +259,7 @@ function fusionnerBibliotheques(local, distant, options) {
             + '##' + canonique(Object.keys(supprimes).sort().map(function (k) { return [k, supprimes[k]]; }));
     };
     var changeDistant = signatureDoc(sortie, fusionne.dossiers, tombes)
-        !== signatureDoc(distant.songs, distant.dossiers || [], distant.supprimes || {});
+        !== signatureDoc(distant.songs, distant.dossiers || [], distant.supprimes || {}) || rg.changeDistant;
     return { fusionne: fusionne, changeLocal: changeLocal, changeDistant: changeDistant, resume: resume };
 }
 
@@ -184,6 +291,11 @@ function versDocumentHarmoHub(etat) {
         supprimes: Object.keys(etat.supprimes || {})
             .filter(function (id) { return maintenant - etat.supprimes[id] < DUREE_TRACE_SUPPRESSION_MS; })
             .map(function (id) { return { id: id, ts: Number(etat.supprimes[id]) || 0 }; }),
+        // Une liste d'objets { k, v, t } : Firestore accepte un tableau d'objets, refuse un tableau de tableaux. `v` est toujours un
+        // texte (c'est ce que localStorage stocke), jamais `undefined`.
+        reglages: Object.keys(etat.reglages || {}).sort().map(function (k) {
+            return { k: String(k), v: String(etat.reglages[k].v), t: Number(etat.reglages[k].t) || 0 };
+        }),
     };
 }
 
@@ -197,7 +309,11 @@ function depuisDocumentHarmoHub(doc) {
     });
     var supprimes = {};
     (doc && doc.supprimes || []).forEach(function (t) { if (t && t.id) supprimes[t.id] = Number(t.ts) || 0; });
-    return { songs: songs, dossiers: (doc && doc.dossiers) || [], supprimes: supprimes };
+    var reglages = {};
+    ((doc && doc.reglages) || []).forEach(function (e) {
+        if (e && typeof e.k === 'string' && typeof e.v === 'string') reglages[e.k] = { v: e.v, t: Number(e.t) || 0 };
+    });
+    return { songs: songs, dossiers: (doc && doc.dossiers) || [], supprimes: supprimes, reglages: reglages };
 }
 
 // ---------- état local ----------
@@ -215,7 +331,7 @@ function dossiersLocaux() {
 }
 
 function lireEtatHarmoHub() {
-    return { songs: loadSongs(), dossiers: dossiersLocaux(), supprimes: lireSuppressions() };
+    return { songs: loadSongs(), dossiers: dossiersLocaux(), supprimes: lireSuppressions(), reglages: lireReglagesLocaux() };
 }
 
 // ---------- accroches appelées par saveSongs / saveFolders (script.js) ----------
@@ -279,6 +395,17 @@ function appliquerEtatHarmoHub(etat, resume, origine) {
     (etat.dossiers || []).forEach(function (r) { recs[r.nom] = r; });
     ecrireCleJson(CLE_SYNC_DOSSIERS, recs);
     ecrireCleJson(CLE_SYNC_SUPPR, etat.supprimes || {});
+    var reglagesChanges = appliquerReglagesLocaux(etat.reglages);
+    // LES RÉGLAGES SONT LUS AU DÉMARRAGE de l'appli (volume, métronome, affichages...) : écrits ici, ils ne prennent effet qu'à la
+    // prochaine ouverture. Sur un appareil qui vient de REPRENDRE ses données (ordinateur neuf, navigateur vidé — il n'a encore rien
+    // à perdre), on recharge donc la page UNE fois, pour qu'il se retrouve tel qu'il était ailleurs. Jamais en plein travail
+    // (modifications non enregistrées, lecture), jamais deux fois de suite (une valeur qui se corrigerait toute seule ferait une
+    // boucle de rechargements).
+    if (reglagesChanges.length && origine === 'reprise' && !(typeof hasUnsavedChanges !== 'undefined' && hasUnsavedChanges) && !(window.app && window.app.isPlaying)) {
+        var dejaRecharge = false;
+        try { dejaRecharge = sessionStorage.getItem('harmohub_reglages_rechargee') === '1'; sessionStorage.setItem('harmohub_reglages_rechargee', '1'); } catch (e) { dejaRecharge = true; }
+        if (!dejaRecharge) { setTimeout(function () { location.reload(); }, 400); return; }
+    }
 
     var app = window.app;
     if (!app) return;
@@ -318,6 +445,10 @@ function appliquerEtatHarmoHub(etat, resume, origine) {
                 app.loadSong(ouvert);
             }
         }
+    }
+
+    if (reglagesChanges.length && origine !== 'reprise') {
+        app.flashHint('Réglages mis à jour depuis un autre appareil — appliqués à la prochaine ouverture de HarmoHub', 6000);
     }
 
     if (origine === 'reception' && resume) {

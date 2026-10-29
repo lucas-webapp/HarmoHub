@@ -33,7 +33,7 @@ const lire = (f) => fs.readFileSync(path.join(RACINE, f), 'utf8');
 // sentinelle déclarait « mortes » onze adresses bien vivantes — un faux rouge, le pire défaut pour un outil
 // dont le rôle est justement de dire quand une adresse a disparu.
 const produit = ['index.html', 'script.js', 'style.css', 'paroles.html', 'paroles.js',
-    'fichiers.js', 'compte-cloud.js', 'synchro-cloud.js', 'synchro-harmohub.js']
+    'fichiers.js', 'compte-cloud.js', 'synchro-cloud.js', 'synchro-harmohub.js', 'synchro-paroles.js']
     .filter(f => fs.existsSync(path.join(RACINE, f)))
     .map(lire).join('\n');
 

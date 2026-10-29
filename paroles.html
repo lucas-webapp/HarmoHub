@@ -20,7 +20,7 @@
      boutons, logo, icônes SVG plutôt qu'émojis) est repris à la main de style.css pour que ça reste
      visiblement le MÊME produit (retour utilisateur : "optimise le design pour que ça colle au design
      HarmoHub, utilisation de logos, couleurs pastel"). -->
-<link rel="stylesheet" href="paroles.css?v=18">
+<link rel="stylesheet" href="paroles.css?v=19">
 <!-- L'EFFET VERRE de HarmoHub (Paramètres > Apparence de l'appli principale) : même réglage, même fichier — Paroles est un
      compagnon de HarmoHub, il doit suivre. verre.js se charge ici, sans defer, pour poser les attributs avant le premier affichage. -->
 <link rel="stylesheet" href="verre.css?v=202610281900">
@@ -54,6 +54,10 @@
         </div>
         <div class="top-actions">
             <span id="save-status" class="save-status"></span>
+            <!-- COMPTE CLOUD : la même pilule que dans HarmoHub (compte-cloud.js). Les paroles sont enregistrées dans le cloud
+                 comme les morceaux (voir synchro-paroles.js) : on voit ici où en est l'envoi, et on peut se connecter sans repasser
+                 par HarmoHub. -->
+            <div id="compte-cloud"></div>
             <span id="song-name" class="song-name" hidden></span>
             <!-- Icône seule (retour utilisateur : "les boutons import export etc sont trop gros, il
                  faut les mettre en haut à droite avec logos uniquement") — le libellé reste en
@@ -143,6 +147,16 @@
     <!-- Même règle de nommage que HarmoHub : un seul fichier pour les deux, pas deux copies qui
          divergeront (voir fichiers.js). -->
     <script src="fichiers.js?v=202610030500"></script>
-    <script src="paroles.js?v=20"></script>
+    <script src="paroles.js?v=21"></script>
+    <!-- SYNCHRO CLOUD des paroles (Firebase) : mêmes scripts et même ordre que dans index.html. Chargés APRÈS paroles.js, dont
+         l'adaptateur lit l'état (state, loadSong, showBanner). Si le SDK manque (premier chargement hors ligne), la synchro ne
+         démarre pas et la page reste pleinement utilisable en local. -->
+    <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js?v=202610030200"></script>
+    <script src="compte-cloud.js?v=202610281200"></script>
+    <script src="synchro-cloud.js?v=202610281200"></script>
+    <script src="synchro-paroles.js?v=202610291000"></script>
 </body>
 </html>

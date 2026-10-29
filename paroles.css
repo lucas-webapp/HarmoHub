@@ -162,6 +162,14 @@ html, body {
     border-radius: 8px;
     margin-top: 14px;
 }
+/* Le bouton d'un bandeau (ex. « Restaurer la version d'ici », voir synchro-paroles.js) : une petite pastille discrète, alignée à droite
+   du texte, qui ne ressemble pas au bouton de fermeture (la croix) juste à côté. */
+.banner-action {
+    flex: 0 0 auto; align-self: center; cursor: pointer; font: inherit; font-size: 0.8rem; font-weight: 600;
+    color: inherit; background: rgba(255, 255, 255, 0.08); border: 1px solid currentColor; border-radius: 999px;
+    padding: 4px 12px; white-space: nowrap;
+}
+.banner-action:hover { background: rgba(255, 255, 255, 0.16); }
 .banner-error { background: rgba(255, 111, 102, 0.12); border: 1px solid #7c443c; color: #ffb3ac; }
 .banner-warning { background: rgba(255, 179, 0, 0.1); border: 1px solid #7c5c34; color: #ffcf7a; }
 .banner-info { background: rgba(0, 230, 118, 0.08); border: 1px solid #2f5b40; color: #a8e6c0; }

@@ -188,6 +188,10 @@ function writeSessionNow() {
     if (!state.song) return;
     const payload = {
         songName: state.song.song,
+        // DATE D'ENREGISTREMENT : c'est elle qui dit, entre deux appareils, quelle version des paroles est la plus récente (voir
+        // synchro-paroles.js). Sans elle, la synchro ne pouvait pas arbitrer — et une session sans date (enregistrée avant ce
+        // changement) vaut « très ancienne » : une version plus récente d'ailleurs l'emporte, et la sienne est alors rangée.
+        savedAt: Date.now(),
         sections: state.song.sections.map(sec => ({
             lyricsHtml: sec._lyricsHtml || '',
             placements: sec._placements || [],
@@ -197,6 +201,9 @@ function writeSessionNow() {
     try {
         localStorage.setItem(storageKeyForSong(state.song), JSON.stringify(payload));
         setSaveStatus('ok');
+        // `typeof` : ce fichier se charge AVANT l'adaptateur (synchro-paroles.js), et doit marcher sans lui (hors ligne au premier
+        // chargement, SDK bloqué : l'enregistrement local, lui, ne dépend de rien).
+        if (typeof parolesNoterChangement === 'function') parolesNoterChangement();
     } catch (e) {
         // Ex. quota localStorage dépassé, ou navigation privée qui bloque l'écriture — retour
         // utilisateur explicite : "assure-toi que les enregistrements sont bien réalisés, avec

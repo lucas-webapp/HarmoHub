@@ -4485,3 +4485,54 @@ référence ont exactement les mêmes bilans (`probe_clic_accord_voisin` 4/4, `p
 `probe_seq_finitions` 18/1, `seq_notes_libres_clavier` 32/1) ; les 7 sans verdict le sont aux deux endroits ; `sortie_edition_involontaire`
 donne 3/1 dans le balayage (avant comme après) et plante en isolation sur les deux versions (ligne 126, antérieur). Aucun banc nouvellement
 rouge. Les 4 suites de plus sont les nouvelles (`guitare_envoi_grille`, `verre_module`, `verre`, `verre_compte`).
+
+## Tout au cloud : les paroles et les réglages (2026-10-29)
+
+Retour : « sur HarmoHub, tu me disais qu'il y avait des éléments non enregistrés dans le firestore (paroles et structure ?). Je veux que tout
+soit stocké en ligne pour retrouver mes données en changeant d'ordinateur. » Vue d'ensemble de ce qui est où : `docs/synchro-donnees.md`.
+
+**Inventaire d'abord** (toutes les clés de stockage lues, pas ma mémoire). La **structure et ses commentaires étaient DÉJÀ au cloud** — ils font
+partie du morceau, vérifié à deux appareils au lot précédent ; ma réponse précédente les rangeait à tort parmi ce qui manquait. Ce qui ne l'était
+vraiment pas : (1) les **paroles**, (2) les **réglages**, (3) les **sauvegardes sur disque**, qui ne contenaient pas les paroles.
+
+1. **Paroles** — `synchro-paroles.js` (nouveau), une instance du moteur générique `synchro-cloud.js` (inchangé, version 2) dans la page Paroles,
+   avec son adaptateur sur le document `users/{uid}/apps/harmohub-paroles` (les règles du projet `users/{userId}/apps/{appId}` l'autorisent :
+   rien à faire dans la console). **Pourquoi un moteur dans la page Paroles** et pas les paroles dans le document de la bibliothèque : la page est
+   un document à part ; si seule la page principale envoyait, des paroles tapées puis la fenêtre fermée n'atteindraient le cloud qu'à la prochaine
+   ouverture de HarmoHub — pour qui change d'ordinateur le soir même, jamais à temps. Chaque session (une par morceau) est une chaîne JSON
+   (Firestore refuse les tableaux imbriqués). `paroles.js` : chaque session porte maintenant son `savedAt` (sans date, impossible d'arbitrer) et
+   prévient le moteur après chaque enregistrement. La pilule de connexion est la même que dans HarmoHub (`compte-cloud.js`), sans fenêtre d'accueil
+   (`accueil: false` : on arrive en général depuis HarmoHub, qui l'a déjà proposée).
+   Fusion session par session, la plus récente gagne. **La version perdante est rangée** (une par session, `harmohub_lyrics_rangee_<clé>`) et un
+   bandeau propose de la restaurer — dans les DEUX sens : celle d'ici qui est remplacée, et celle de l'autre appareil qui perd. Trou trouvé en
+   écrivant : le moteur n'appelle `appliquer` que si l'état d'ICI change ; quand c'est la version de l'AUTRE appareil qui perd, rien n'est appelé
+   et elle aurait été écrasée au cloud sans trace — le rangement se fait donc dans `fusionner` elle-même (idempotent : la transaction d'envoi la
+   rejoue). À date égale mais contenu différent, la plus grande chaîne gagne (les deux appareils convergent).
+2. **Réglages** — dans le document de la bibliothèque (champ `reglages`, liste d'objets `{k, v, t}`), fusionnés **réglage par réglage**
+   (`fusionnerReglages`, pure) : changer le volume sur le téléphone n'écrase pas le métronome réglé le matin sur l'ordinateur. Liste BLANCHE
+   (`REGLAGES_SYNCHRONISES`) : seul ce qui décrit une préférence voyage ; zooms, hauteurs de panneaux, volet replié, instruments affichés, verre,
+   dossier de rangement, repères de sauvegarde, préférences de la page Paroles restent sur l'appareil (raisons dans l'en-tête du fichier). Le
+   suivi passe par une accroche sur `Storage.prototype.setItem` (la liste blanche est la SEULE chose à tenir à jour, vingt écritures dans script.js
+   n'ont pas été touchées) ; elle ne date un réglage que si sa VALEUR change. Un appareil qui REPREND ses données (vierge) recharge la page une fois
+   pour que les réglages prennent effet (garde-fou sessionStorage contre toute boucle, jamais en plein travail) ; une réception en direct dit
+   seulement « appliqués à la prochaine ouverture ».
+3. **Sauvegardes** — `enveloppeSauvegarde()` : les quatre fabrications (bibliothèque, export intégral, un morceau, téléchargement) joignent un champ
+   `paroles` seulement s'il y en a (un fichier sans paroles reste identique à avant). `importLibraryFile` les restaure pour les morceaux réellement
+   entrés, **sans jamais écraser une version plus récente**, en suivant le nouvel identifiant d'une copie (« garder les deux ») ou l'identifiant local
+   (« écraser »). Limite : « recharger depuis le dossier de rangement » (gestionnaire de fichiers) ne les restaure pas.
+
+**Bancs.** `synchro_paroles_test` (40 : sans SDK, connexion, un navigateur vierge retrouve les paroles, en direct, édition concurrente dans les deux sens,
+restauration, téléphone) et `synchro_reglages_test` (42 : vrai clic dans les Paramètres, jamais l'écran au cloud, appareil neuf, en direct, deux appareils
+deux réglages, valeur répétée, sauvegardes, restauration, téléphone). **Sabotés** (une ligne cassée, le banc doit rougir) : 3 sur les paroles
+(notification, « la plus ancienne gagne », pas de rangement) et 5 sur les réglages (accroche retirée, zoom ajouté à la liste, « le cloud gagne toujours »,
+sauvegarde qui écrase, copie sans paroles) — les 8 font rougir. Les deux bancs passaient du premier coup, ce qui justifiait le contrôle.
+`meta_suite` et `sentinelle_adresses` lisent maintenant `synchro-paroles.js`.
+
+**Balayage du 29/10 : 206 verts, 7 rouges, 7 sans verdict (220 suites).** Les 6 rouges de la ligne de base ont les mêmes bilans (probe_clic_accord_voisin
+4/4, probe_defilement_tactile 23/1, probe_regle_voisins 28/1, probe_seq_finitions 18/1, seq_notes_libres_clavier 32/1, sortie_edition_involontaire 3/1)
+et les 7 muets sont les mêmes. Le 7e rouge, `glock_unlock_and_switch` (3/4), est **intermittent sur les DEUX versions** : 2 échecs sur 10 passages seuls
+sur la version d'avant (99dc117, port à part), 1 sur 10 sur celle-ci — même signature (2/5 ou 7/0). Il pose des pauses fixes de 80 à 250 ms autour de la
+lecture automatique ; à ranger avec les bancs sensibles au temps, non causé par ce lot.
+
+**Reste à confirmer sur de vrais appareils** : les règles Firestore réelles pour le document `harmohub-paroles`, la fenêtre Google sur Safari/Dock, et
+un changement d'ordinateur de bout en bout.

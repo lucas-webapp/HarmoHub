@@ -838,6 +838,78 @@ function structureEffective(parties) {
     return { items: parties.map(p => propre({ id: 'd_' + p.sid, sid: p.sid, rep: repeatCountOf(p) })), materialisee: false };
 }
 
+// ---------- LES PAROLES DANS LES SAUVEGARDES ----------
+// Retour utilisateur : « je veux que tout soit stocké en ligne pour retrouver mes données en changeant d'ordinateur » — et il garde
+// des sauvegardes sur disque « de temps en temps ». Les paroles (page Paroles, une clé `harmohub_lyrics_v1_id-<morceau>` par
+// morceau) n'étaient dans AUCUNE : ni au cloud, ni dans le fichier de sauvegarde. Elles voyagent maintenant avec les morceaux, dans
+// un champ `paroles` { clé: session (texte JSON) } de la même enveloppe — les anciens fichiers, qui n'en ont pas, s'importent
+// comme avant.
+const PREFIXE_SESSIONS_PAROLES = 'harmohub_lyrics_v1_';
+const PREFIXE_PAROLES_RANGEE = 'harmohub_lyrics_rangee_';   // même version rangée que celle de la synchro (voir synchro-paroles.js)
+
+// Les sessions de paroles à joindre à une sauvegarde : celles des morceaux donnés, ou toutes si `songs` est null (bibliothèque
+// entière : on emporte aussi celles dont le morceau n'existe plus, c'est une SAUVEGARDE, pas un nettoyage).
+function lireParolesPourSauvegarde(songs) {
+    const voulues = songs ? new Set(songs.map(s => 'id-' + s.id)) : null;
+    const sortie = {};
+    try {
+        for (let i = 0; i < localStorage.length; i++) {
+            const cle = localStorage.key(i);
+            if (!cle || cle.indexOf(PREFIXE_SESSIONS_PAROLES) !== 0) continue;
+            const id = cle.slice(PREFIXE_SESSIONS_PAROLES.length);
+            if (voulues && !voulues.has(id)) continue;
+            const brut = localStorage.getItem(cle);
+            if (brut) sortie[id] = brut;
+        }
+    } catch (e) { console.error('Lecture des paroles pour la sauvegarde impossible :', e); }
+    return sortie;
+}
+
+// Une enveloppe de sauvegarde, avec ses paroles seulement s'il y en a (un fichier sans paroles reste identique à avant).
+function enveloppeSauvegarde(songs, folders, toutesLesParoles) {
+    const charge = { app: 'HarmoHub', kind: 'library-backup', version: 1, exportedAt: Date.now(), songs };
+    if (folders) charge.folders = folders;
+    const paroles = lireParolesPourSauvegarde(toutesLesParoles ? null : songs);
+    if (Object.keys(paroles).length) charge.paroles = paroles;
+    return charge;
+}
+
+// Remet en place les paroles d'un fichier. `renum` : Map ancien identifiant de morceau -> identifiant sous lequel il vit ICI (un morceau
+// importé peut avoir changé d'identifiant, voir importLibraryFile) ; un morceau absent de la table n'est pas importé, ses paroles non plus.
+// RÈGLE : jamais d'écrasement d'une version plus récente. Quand la version du fichier est plus récente que celle d'ici, elle
+// la remplace ET celle d'ici est rangée (même rangement que la synchro : la page Paroles propose de la restaurer).
+function restaurerParolesDeSauvegarde(paroles, renum) {
+    const bilan = { ecrites: 0, gardees: 0 };
+    if (!paroles || typeof paroles !== 'object') return bilan;
+    Object.keys(paroles).forEach((id) => {
+        const brut = paroles[id];
+        if (typeof brut !== 'string') return;
+        let payload = null;
+        try { payload = JSON.parse(brut); } catch (e) { return; }
+        if (!payload || !Array.isArray(payload.sections)) return;
+        let idLocal = id;
+        if (id.indexOf('id-') === 0) {
+            const ancien = id.slice(3);
+            if (renum) { if (!renum.has(ancien)) return; idLocal = 'id-' + renum.get(ancien); }
+        }
+        const cle = PREFIXE_SESSIONS_PAROLES + idLocal;
+        let local = null;
+        try { local = localStorage.getItem(cle); } catch (e) { return; }
+        if (local === brut) return;
+        try {
+            if (local) {
+                let localPayload = null;
+                try { localPayload = JSON.parse(local); } catch (e) { localPayload = null; }
+                if (localPayload && (Number(localPayload.savedAt) || 0) >= (Number(payload.savedAt) || 0)) { bilan.gardees++; return; }
+                localStorage.setItem(PREFIXE_PAROLES_RANGEE + idLocal, JSON.stringify({ json: local, at: Number(localPayload && localPayload.savedAt) || 0, nom: String(localPayload && localPayload.songName || ''), de: 'cet appareil' }));
+            }
+            localStorage.setItem(cle, brut);
+            bilan.ecrites++;
+        } catch (e) { console.error('Restauration des paroles impossible :', e); }
+    });
+    return bilan;
+}
+
 // ---------- Morceaux (plusieurs chansons enregistrées séparément) ----------
 // Le « tampon de travail » (myProgression, tonalité, tempo) représente le morceau ouvert, mais n'est
 // PLUS recopié automatiquement dans le morceau enregistré à chaque modification (voir
@@ -10620,7 +10692,7 @@ class HarmoHubApp {
         // L'ancienne sauvegarde part en version, donc rien n'est réellement perdu.
         let biblio = '';
         try {
-            const payload = { app: 'HarmoHub', kind: 'library-backup', version: 1, exportedAt: Date.now(), songs: loadSongs(), folders: loadFolders() };
+            const payload = enveloppeSauvegarde(loadSongs(), loadFolders(), true);
             const res = await enregistrerFichier(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
                 { type: 'Bibliotheque', extension: 'json', dossier: 'bibliotheque', racine });
             if (res.range === true) { biblio = ' · sauvegarde de bibliothèque mise à jour'; this.marquerSauvegardeFaite(); }
@@ -10748,14 +10820,7 @@ class HarmoHubApp {
     // (volumes, instrument par défaut, son du métronome...) n'ont pas leur place dans une sauvegarde
     // destinée à être restaurée sur un autre navigateur ou ordinateur.
     async exportLibrary() {
-        const payload = {
-            app: 'HarmoHub',
-            kind: 'library-backup',
-            version: 1,
-            exportedAt: Date.now(),
-            songs: loadSongs(),
-            folders: loadFolders()
-        };
+        const payload = enveloppeSauvegarde(loadSongs(), loadFolders(), true);
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const res = await enregistrerFichier(blob, { type: 'Bibliotheque', extension: 'json', dossier: 'bibliotheque' });
         if (res.range) this.marquerSauvegardeFaite();
@@ -10833,6 +10898,9 @@ class HarmoHubApp {
         // demanderResolutionImport, qui montre ce qui les distingue avant de demander quoi en faire.
         let forcedCopies = [];
         let remplacements = new Map(); // id LOCAL -> morceau importé qui remplace celui en place
+        // Sous quel identifiant vit ICI chaque morceau du fichier retenu : ses paroles (champ `paroles` du fichier) y sont rattachées.
+        const renumParoles = new Map();
+        toAdd.forEach(s => renumParoles.set(s.id, s.id));
         if (alreadyPresent.length > 0) {
             // UNE DÉCISION PAR MORCEAU, et non plus une seule pour tout le lot.
             const choix = await this.demanderResolutionImport(alreadyPresent, existingSongs, localDe);
@@ -10841,7 +10909,7 @@ class HarmoHubApp {
             // navigateur, donc avec un autre identifiant. Reprendre le sien ferait diverger le morceau
             // OUVERT (getCurrentSongId pointe sur celui d'ici) et casserait le rechargement de fin
             // d'import.
-            parQuoi('ecraser').forEach(s => remplacements.set(localDe.get(s.id).id, s));
+            parQuoi('ecraser').forEach(s => { remplacements.set(localDe.get(s.id).id, s); renumParoles.set(s.id, localDe.get(s.id).id); });
             {
                 const aCopier = parQuoi('les-deux');
                 // Noms déjà pris : ceux de la bibliothèque, PLUS ceux des copies déjà décidées dans
@@ -10851,9 +10919,11 @@ class HarmoHubApp {
                 forcedCopies = aCopier.map(s => {
                     const nom = nomLibrePourCopie(s.name, nomsPris);
                     nomsPris.add(nom);
+                    const nouvelId = 'song_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+                    renumParoles.set(s.id, nouvelId);   // ses paroles suivront la copie, pas l'original
                     return {
                         ...s,
-                        id: 'song_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                        id: nouvelId,
                         name: nom,
                         // La date d'enregistrement du FICHIER, pas celle de l'import : c'est elle qui
                         // dit de quelle version il s'agit. L'écraser par Date.now() faisait passer une
@@ -10867,6 +10937,8 @@ class HarmoHubApp {
 
         const allToAdd = [...toAdd, ...forcedCopies];
         const skipped = alreadyPresent.length - forcedCopies.length - remplacements.size;
+        // Les PAROLES du fichier, pour les morceaux qui sont réellement entrés ou ont été remplacés (voir restaurerParolesDeSauvegarde).
+        const parolesBilan = restaurerParolesDeSauvegarde(data.paroles, renumParoles);
 
         if (allToAdd.length > 0 || remplacements.size > 0 || foldersChanged) {
             this.pushFilesUndo(); // un seul pas d'annulation pour tout l'import (morceaux + dossiers)
@@ -10904,6 +10976,7 @@ class HarmoHubApp {
             if (remplacements.size > 0) bouts.push(`${remplacements.size} remplacé(s)`);
             if (allToAdd.length > 0) bouts.push(`${allToAdd.length} importé(s)`);
             if (skipped > 0) bouts.push(`${skipped} conservé(s) tel(s) quel(s)`);
+            if (parolesBilan.ecrites > 0) bouts.push(`paroles de ${parolesBilan.ecrites} morceau(x) retrouvées`);
             this.flashHint(bouts.join(', '));
         }
     }
@@ -12761,7 +12834,7 @@ class HarmoHubApp {
         try { etat = await this.etatMorceauSurDisque(cible, song); }
         catch (e) { console.error('Lecture du fichier en place impossible :', e); return { fait: false, raison: 'illisible' }; }
 
-        const charge = { app: 'HarmoHub', kind: 'library-backup', version: 1, exportedAt: Date.now(), songs: [song] };
+        const charge = enveloppeSauvegarde([song], null, false);
         const ecrire = (nom) => enregistrerFichier(
             new Blob([JSON.stringify(charge, null, 2)], { type: 'application/json' }),
             nom ? { nom, dossier: 'morceaux', racine: cible }
@@ -12937,7 +13010,7 @@ class HarmoHubApp {
         if (r.raison === 'annule') { this.flashHint('Rien n\'a été écrit — le fichier du disque est intact', 2800); return; }
         // Aucun dossier configuré (ou fichier illisible) : on retombe sur le téléchargement, qui reste
         // le socle qui marche partout. Le nom horodaté y est le bon choix (voir enregistrerFichier).
-        const payload = { app: 'HarmoHub', kind: 'library-backup', version: 1, exportedAt: Date.now(), songs: [song] };
+        const payload = enveloppeSauvegarde([song], null, false);
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const res = await enregistrerFichier(blob, { morceau: song.name, type: 'Morceau', extension: 'json', dossier: 'morceaux', racine: null });
         this.flashHint(messageEnregistrement(res, `« ${song.name} » sauvegardé`), 2400);
