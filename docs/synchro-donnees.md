@@ -24,6 +24,7 @@ Chaque document a sa propre limite de 1 Mio.
 - **L'écran** : zooms de la grille, du séquenceur et du conducteur de voix, hauteur du tiroir du séquenceur, volet latéral replié, piano et
   guitare affichés. Un téléphone n'a pas l'écran d'un ordinateur.
 - **L'effet verre** et sa couleur (`harmohub.glass*`) : « une option par appareil ».
+- **L'ordre des blocs de la barre de lecture** (`harmohubBarreLectureOrdre`) : l'écran de chaque appareil n'est pas celui des autres (refonte, lot 2).
 - **Le dossier de rangement sur disque** : une autorisation du navigateur, impossible à transporter.
 - **Les repères de sauvegarde et de rappel**, l'état de la synchro, le morceau ouvert, la fenêtre de connexion (« ne plus proposer »).
 - **Les préférences de la page Paroles** (taille du texte, enchaînement des accords) et son « dernier morceau ouvert » : dépendants de l'écran,

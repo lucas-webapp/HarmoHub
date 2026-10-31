@@ -72,8 +72,10 @@ ne le redécouvre pas.
   coin de la case.
 - La case « + » de fin de ligne a la **largeur d'une mesure**, jamais tout l'espace restant.
 - Voicing personnalisé : **petite pastille ambre** (infobulle), jamais le mot « perso ».
-- Les 16 petits carrés du rythme (affichage Détaillé) : **décision en attente** de l'utilisateur (garder avec infobulle,
-  ou retirer).
+- Les 16 petits carrés du rythme (affichage Détaillé) : **gardés** (« c'est pas débile »), avec une **option dans les
+  Paramètres › Affichage** pour les montrer ou non (« Rythme de l'accord dans les cases », allumée par défaut : le mode
+  Détaillé est déjà un choix). Infobulle « Rythme de l'accord ». Réglage SYNCHRONISÉ (à ajouter à
+  `REGLAGES_SYNCHRONISES`). Lot 5.
 
 ## Barre du haut
 

@@ -60,12 +60,15 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     // Ce qui compte, et que ce banc protège vraiment : replier le volet ne doit pas emporter le
     // transport avec lui. #footer-dock migre alors vers .col-right (voir applySidebarCollapsed), donc
     // on éprouve le RÉSULTAT — toujours affiché, toujours entièrement dans l'écran.
-    console.log('--- Le transport suit le dock hors du volet replié, et reste visible ---');
+    // REFONTE, LOT 2 : le transport a quitté le dock pour la BARRE DE LECTURE du bas (#bl-lecture), qui ne dépend pas du volet
+    // de gauche — replier le volet n'y touche plus du tout (c'était le risque que ce banc surveillait). On éprouve donc toujours
+    // le résultat : transport affiché, entier, hors du volet. Le dock, lui, migre encore (il porte Ajouter/Annuler en édition).
+    console.log('--- Le transport (barre du bas) ne bouge pas quand le volet se replie, et reste visible ---');
     r = await page.evaluate(() => {
         const t = document.querySelector('.transport');
         const rect = t.getBoundingClientRect();
         return {
-            dansLeDock: t.parentElement.id === 'footer-dock',
+            dansLeDock: t.parentElement.id === 'bl-lecture',
             horsVoletReplie: !document.querySelector('.col-left').contains(t),
             visible: getComputedStyle(t).display !== 'none' && rect.width > 0 && rect.height > 0,
             dansEcran: rect.left >= 0 && rect.top >= 0 && rect.right <= window.innerWidth && rect.bottom <= window.innerHeight,

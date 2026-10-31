@@ -1,3 +1,10 @@
+// REFONTE, LOT 2 (31/10) — CONTRAT DÉPLACÉ UNE FOIS DE PLUS. Sur ORDINATEUR, le transport ne vit plus au pied du volet de gauche
+// (#footer-dock) mais dans la BARRE DE LECTURE du bas (#bl-lecture, bloc « Lecture »), en plus gros (44px) et avec un bouton
+// Boucle à part ; sur TÉLÉPHONE il reste dans #footer-dock (lot 10). Toujours UN SEUL nœud, déplacé, jamais dupliqué — et il se
+// déplace maintenant au franchissement des 900px (sections B, E, I). Ce qui est resté vrai, et que ce banc tient toujours :
+// un seul bouton Lecture, atteignable de n'importe où, qui garde sa place quand on défile, sans recouvrir la grille.
+// (Historique des contrats précédents ci-dessous.)
+//
 // Transport global flottant : un seul bouton Lecture, atteignable de n'importe où sans traverser
 // l'écran. Retour utilisateur, trois demandes liées :
 //   - « laisser un seul bouton lecture pour toute la grille ? Le bouton lecture accord ne sert pas
@@ -24,7 +31,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // échouait donc sur « visible au chargement », et sa section E cliquait en plus #grid-zoom-close, le
 // bouton de fermeture de la vue plein écran supprimée : rien après n'était atteint.
 const { check, exiger, plan, bilan } = require('./_harness')('transport global');
-plan(24);
+plan(40);
 
 const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held', instrument: 'piano', arpPattern: '', seqEdited: false, guitarLock: null, extraNotes: [], intensity: 75, intensityPerStep: {} });
 
@@ -64,26 +71,35 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
     // que ce banc ait à changer.
     check(iconInfo.title.startsWith('Lecture'), `libellé simple, suivi du geste — « ${iconInfo.title} »`);
 
-    console.log('\n=== B. Le transport est ANCRÉ en bas de la colonne de gauche ===');
+    console.log('\n=== B. Le transport est dans la BARRE DE LECTURE du bas (ordinateur) ===');
     const structure = await p.evaluate(() => {
         const transport = document.querySelector('.transport');
-        const dock = document.getElementById('footer-dock');
+        const bloc = document.getElementById('bl-lecture');
+        const barre = document.getElementById('barre-lecture');
         const ancreEntete = document.getElementById('grid-head-transport-host');
         const r = transport.getBoundingClientRect();
+        const rb = barre.getBoundingClientRect();
         return {
-            dansLeDock: dock.contains(transport),
-            dockDansColonneGauche: !!dock.closest('.col-left'),
-            dockDernierEnfant: dock.parentElement.lastElementChild === dock,
+            dansLaBarre: bloc.contains(transport),
+            barreEnBas: Math.abs(rb.bottom - window.innerHeight) < 1.5,
+            barrePleineLargeur: Math.abs(rb.left) < 1 && Math.abs(rb.right - window.innerWidth) < 1,
+            barreHauteur: Math.round(rb.height),
             visible: transport.offsetParent !== null && r.width > 0 && r.height > 0,
+            troisBoutons: [...transport.querySelectorAll(':scope > button')].filter(b => b.offsetParent !== null).map(b => b.id),
+            tailles: [...transport.querySelectorAll(':scope > button')].map(b => Math.round(b.getBoundingClientRect().width) + 'x' + Math.round(b.getBoundingClientRect().height)),
+            dockVide: document.getElementById('footer-dock').children.length === 0,
             ancreEnteteVide: ancreEntete.children.length === 0,
             ancreEnteteSansHauteur: ancreEntete.getBoundingClientRect().height === 0,
         };
     });
     console.log(JSON.stringify(structure));
-    if (!exiger(structure.dansLeDock, 'le transport vit bien dans #footer-dock')) bilan();
-    check(structure.dockDansColonneGauche, '...qui est dans la colonne de gauche, hors des cartes');
-    check(structure.dockDernierEnfant, '...et en est le dernier enfant : sous le module, comme demandé');
+    if (!exiger(structure.dansLaBarre, 'le transport vit bien dans #bl-lecture, la barre de lecture')) bilan();
+    check(structure.barreEnBas && structure.barrePleineLargeur, '...une barre collée au bas de l\'écran, sur toute la largeur');
+    check(structure.barreHauteur <= 61, `...de 60px de haut au plus — ${structure.barreHauteur}px (la maquette l'a fixée : « 160px de commandes autour de la grille »)`);
     check(structure.visible, 'il est visible au chargement');
+    check(structure.troisBoutons.join(',') === 'play-prog,stop,boucle-btn', `Lecture, Stop et Boucle, dans cet ordre — ${structure.troisBoutons.join(',')}`);
+    check(new Set(structure.tailles).size === 1 && structure.tailles[0] === '44x44', `...tous identiques, carrés de 44px — ${structure.tailles.join(' ')}`);
+    check(structure.dockVide, 'le pied de colonne (#footer-dock) ne contient plus rien hors édition');
     check(structure.ancreEnteteVide && structure.ancreEnteteSansHauteur,
         "l'ancienne ancre de l'en-tête de grille reste vide et sans hauteur, elle ne repousse rien");
 
@@ -159,8 +175,18 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
     check(await p.evaluate(() => window.app.bouclerLecture === true), 'un appui long sur Lecture allume bien la boucle');
     check(await p.evaluate(() => document.getElementById('play-prog').classList.contains('boucle-active')),
         'et le bouton Lecture porte alors son anneau');
+    check(await p.evaluate(() => document.getElementById('boucle-btn').getAttribute('aria-pressed') === 'true'),
+        'et le bouton Boucle de la barre est allumé avec elle (même drapeau, deux signes)');
+    check(await p.evaluate(() => getComputedStyle(document.querySelector('#play-prog .transport-icon-simple')).display !== 'none'),
+        'sur ordinateur le triangle de Lecture reste un triangle : la boucle a son bouton, l\'anneau est réservé au téléphone');
     await p.evaluate(() => window.app.basculerBoucle(false));
     await p.waitForTimeout(150);
+    await p.click('#boucle-btn');
+    await p.waitForTimeout(150);
+    check(await p.evaluate(() => window.app.bouclerLecture === true), 'un clic sur le bouton Boucle allume la boucle');
+    await p.click('#boucle-btn');
+    await p.waitForTimeout(150);
+    check(await p.evaluate(() => window.app.bouclerLecture === false), '...et un second clic l\'éteint');
 
     console.log('\n=== E. Une vue agrandie par-dessus ne le fait pas disparaître ni doubler ===');
     // Le banc masquait ici le transport pendant la vue plein écran de la grille, qui portait sa PROPRE
@@ -181,13 +207,13 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
     const pendantAgrandi = await p.evaluate(() => ({
         bodyLocked: document.body.classList.contains('body-scroll-locked'),
         nbTransports: document.querySelectorAll('.transport').length,
-        toujoursDansLeDock: document.getElementById('footer-dock').contains(document.querySelector('.transport')),
+        toujoursDansLaBarre: document.getElementById('bl-lecture').contains(document.querySelector('.transport')),
         jumeauDeLaLoupe: !!document.getElementById('grid-zoom-play-prog') || !!document.getElementById('grid-zoom-play-chord'),
     }));
     console.log(JSON.stringify(pendantAgrandi));
     check(pendantAgrandi.bodyLocked, 'body.body-scroll-locked est bien posé pendant la vue agrandie');
     check(pendantAgrandi.nbTransports === 1, `un SEUL transport dans la page — ${pendantAgrandi.nbTransports}`);
-    check(pendantAgrandi.toujoursDansLeDock, "...toujours ancré au même endroit, la fenêtre se pose par-dessus sans le déplacer");
+    check(pendantAgrandi.toujoursDansLaBarre, "...toujours ancré au même endroit, la fenêtre se pose par-dessus sans le déplacer");
     check(!pendantAgrandi.jumeauDeLaLoupe, 'plus aucun bouton jumeau hérité de la vue plein écran');
     await p.keyboard.press('Escape');
     await p.waitForTimeout(500);
@@ -263,7 +289,10 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
             })(),
         };
     });
-    check(mobileInfo.dansLeDock, 'le transport vit dans #footer-dock au téléphone aussi');
+    check(mobileInfo.dansLeDock, 'le transport vit dans #footer-dock au téléphone (la barre du bas est réservée à l\'ordinateur)');
+    check(await m.evaluate(() => getComputedStyle(document.getElementById('boucle-btn')).display === 'none'
+        && getComputedStyle(document.getElementById('barre-lecture')).display === 'none'),
+        '...sans bouton Boucle à part ni barre du bas : la boucle y reste un état de Lecture, comme avant');
     check(mobileInfo.videDansEnteteGrille, "...et l'ancre de l'en-tête de grille reste vide sur cet écran");
     check(!mobileInfo.deborde, 'ne déborde pas horizontalement de l\'écran');
     check(mobileInfo.withinScreen, 'reste dans la hauteur de l\'écran');
@@ -276,21 +305,19 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
     check(await m.evaluate(() => window.app.isPlaying), 'un toucher sur Lecture démarre bien la lecture au doigt');
     await m.tap('#stop');
 
-    console.log('\n=== I. Franchir le seuil ordinateur/téléphone ne le déplace plus ===');
-    // ANCIEN CONTRAT : au-delà de 900px le transport rejoignait l'en-tête de la grille, en deçà il
-    // revenait au pied de colonne, sans rechargement. Il ne DÉMÉNAGE plus : « les boutons de transport
-    // doivent rester ancrés » (retour utilisateur). Ce qu'on vérifie donc maintenant, c'est justement
-    // sa stabilité — un aller-retour de part et d'autre du seuil ne doit rien bouger.
+    console.log('\n=== I. Franchir le seuil ordinateur/téléphone déplace le MÊME nœud, jamais un double ===');
+    // Contrat de nouveau mobile (lot 2) : au-delà de 900px le transport rejoint la barre de lecture, en deçà il revient au
+    // pied de colonne, sans rechargement — comme avant le passage par « ancrés dans le dock », mais vers la barre du bas.
     await m.setViewportSize({ width: 1440, height: 900 });
     await m.waitForTimeout(400);
     const large = await m.evaluate(() => ({
-        dansLeDock: document.getElementById('footer-dock').contains(document.querySelector('.transport')),
+        dansLaBarre: document.getElementById('bl-lecture').contains(document.querySelector('.transport')),
         nb: document.querySelectorAll('.transport').length,
         visible: document.querySelector('.transport').offsetParent !== null,
     }));
     console.log('élargi :', JSON.stringify(large));
-    check(large.dansLeDock && large.nb === 1 && large.visible,
-        'élargir la fenêtre au-delà de 900px laisse le transport ancré dans #footer-dock, en un seul exemplaire');
+    check(large.dansLaBarre && large.nb === 1 && large.visible,
+        'élargir la fenêtre au-delà de 900px amène le transport dans la barre de lecture, en un seul exemplaire');
     await m.setViewportSize({ width: 390, height: 780 });
     await m.waitForTimeout(400);
     const etroit = await m.evaluate(() => ({
@@ -300,7 +327,7 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
     }));
     console.log('rétréci :', JSON.stringify(etroit));
     check(etroit.dansLeDock && etroit.nb === 1 && etroit.visible,
-        '...et le rétrécir non plus : même ancre, un seul exemplaire, toujours visible');
+        '...et le rétrécir le ramène dans #footer-dock : un seul exemplaire, toujours visible');
     await m.close();
 
     await browser.close();

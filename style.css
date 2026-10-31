@@ -6497,3 +6497,157 @@ body.impression-structure #structure-print-zone { display: block; }
 .struct-aide { font-size: var(--fs-xs); color: var(--text-muted); }
 .struct-edit-champ { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: var(--fs-sm); }
 .struct-edit-champ input, .struct-edit-champ textarea { width: 100%; }
+
+/* ======================================================================================================
+   BARRE DE LECTURE DU BAS (refonte, lot 2 — voir docs/refonte.md et la maquette « Version 2 »).
+   Ordinateur seulement : sous 900px elle est masquée et le transport reste dans #footer-dock (lot 10).
+   Trois blocs réordonnables (--ordre, posé par setupBarreLectureOrdre) : Lecture (le transport existant, déplacé ici),
+   Parties du morceau (« Mes. N » + frise), Tempo (BPM, vitesse, métronome).
+   ====================================================================================================== */
+.barre-lecture { display: none; }
+.dock .transport #boucle-btn { display: none; } /* téléphone : la boucle y reste un état de Lecture (anneau, appui long) */
+
+@media (min-width: 900px) {
+    .barre-lecture {
+        display: flex;
+        flex: none;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        box-sizing: border-box;
+        min-height: 60px;         /* 44px de boutons + 2 × 8px : la hauteur annoncée par la maquette, jamais plus */
+        padding: 8px 16px;
+        background: rgba(17, 18, 20, 0.96);
+        border-top: 1px solid var(--border);
+        position: relative;
+        z-index: 30;
+    }
+    .bl-bloc { display: flex; align-items: center; gap: 8px; flex: none; min-width: 0; order: var(--ordre, 0); position: relative; }
+    .bl-parties { flex: 1 1 280px; }
+    .bl-fin { order: 99; display: flex; align-items: center; gap: 8px; flex: none; }
+
+    /* BLOC LECTURE : le transport existant, à la jauge — « boutons de lecture plus gros… de la même taille » : carrés de 44px
+       tous identiques, quatre angles de 7px. Lecture se reconnaît à son vert, pas à sa taille. */
+    .barre-lecture .transport { display: flex; gap: 8px; width: auto; }
+    .barre-lecture .transport > button {
+        flex: none;
+        box-sizing: border-box;
+        width: var(--bouton-h-lg);
+        min-width: 0;             /* la règle générique `button { min-width: 120px }` l'emporterait sinon */
+        height: var(--bouton-h-lg);
+        padding: 0;
+        border-radius: var(--rayon-bouton);
+    }
+    .barre-lecture .transport .icon, .barre-lecture .transport .transport-icon { width: 20px; height: 20px; }
+    /* La boucle a SON bouton ici : le triangle de Lecture reste un triangle (l'anneau y est réservé au téléphone). */
+    .barre-lecture #play-prog.boucle-active .transport-icon-simple { display: block; }
+    .barre-lecture #play-prog.boucle-active .transport-icon-boucle { display: none; }
+    .barre-lecture .boucle-btn[aria-pressed="true"] {
+        background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
+        color: var(--btn-text);
+        border: 1px solid var(--btn-green-border);
+    }
+    /* Plage tracée : la même couleur que la bande orange de la règle (.btn-loop-range reste, pour le téléphone). */
+    .barre-lecture .boucle-btn.boucle-active.btn-loop-range { border-color: #ffb300; }
+
+    /* BLOC PARTIES : « Mes. N » seul, puis la frise. */
+    .bl-mesure { min-width: 64px; font-size: var(--fs-md); font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-main); }
+    .bl-frise { position: relative; flex: 1 1 auto; min-width: 140px; height: var(--bouton-h); display: flex; }
+    .bl-frise-part {
+        box-sizing: border-box;
+        min-width: 0;
+        padding: 0 8px;
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+        white-space: nowrap;
+        font-size: var(--fs-xs);
+        font-weight: 600;
+        color: #b5bac2;
+        background: #1a1d22;
+        border-radius: 5px;
+        box-shadow: inset -2px 0 0 #111214; /* un filet entre deux parties, sans écart qui fausserait les % de la bande et de la tête */
+    }
+    .bl-frise-part.en-cours { background: #1d3a2a; color: #d6efe0; }
+    .bl-frise-plage {
+        position: absolute; top: -3px; bottom: -3px;
+        border: 1px solid #ffb300; border-radius: 6px; background: rgba(255, 179, 0, 0.18);
+        pointer-events: none;
+    }
+    .bl-frise-tete {
+        position: absolute; top: -4px; bottom: -4px; width: 2px;
+        background: var(--accent); border-radius: 1px;
+        pointer-events: none;
+        transition: left 0.12s linear;
+    }
+
+    /* BLOC TEMPO */
+    .bl-hote-tempo { position: relative; }
+    .bl-tempo { width: auto; min-width: 0; padding: 0 12px; gap: 6px; font-size: var(--fs-sm); font-weight: 600; }
+    .bl-tempo-val { color: var(--text-main); font-weight: 800; font-variant-numeric: tabular-nums; }
+    .bl-tempo-unite { color: var(--text-muted); }
+    .bl-vitesse-tag { color: #ffd54f; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .bl-pop {
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 0;
+        z-index: 80;
+        box-sizing: border-box;
+        width: 270px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        background: #181b20;
+        border: 1px solid var(--border);
+        border-radius: var(--rayon-surface);
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+    }
+    .bl-pop-ligne { display: flex; align-items: center; gap: 8px; }
+    .bl-pop-ligne-espacee { justify-content: space-between; }
+    .bl-pop-etiquette { font-size: var(--fs-sm); color: var(--text-muted); }
+    .bl-pop-aide { margin: 0; font-size: var(--fs-xs); line-height: 1.45; color: #7d838c; }
+    .bl-pop input[type="range"] { width: 100%; accent-color: var(--btn-green-border-hover); }
+    .bl-tap { width: auto; min-width: 0; padding: 0 12px; font-weight: 800; letter-spacing: 0.06em; font-size: var(--fs-xs); }
+
+    /* Groupe SEGMENTÉ de la jauge (maquette « Gabarit ») : un choix parmi plusieurs, le choix actif sur fond clair, texte
+       vert et soulignement de 2px — le style des segments de voicing actuels. 32px au total. */
+    .bl-seg {
+        box-sizing: border-box;
+        height: var(--bouton-h);
+        display: inline-flex;
+        align-items: stretch;
+        gap: 2px;
+        padding: 2px;
+        border: 1px solid #333;
+        border-radius: var(--rayon-bouton);
+        background: #14171c;
+        flex: none;
+    }
+    .bl-seg > button {
+        flex: none;
+        min-width: 0;             /* même piège que ci-dessus : la règle générique `button` impose 120px de large */
+        height: 26px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: 5px;
+        background: transparent;
+        color: #a0a0a0;
+        font-size: var(--fs-sm);
+        font-weight: 600;
+        line-height: 1;
+        white-space: nowrap;
+    }
+    .bl-seg > button:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.05); }
+    .bl-seg > button[aria-pressed="true"] { background: rgba(255, 255, 255, 0.08); color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+    .bl-seg > button:disabled { opacity: 0.3; cursor: not-allowed; }
+    .bl-seg-val { display: flex; align-items: center; justify-content: center; min-width: 72px; padding: 0 6px; font-size: var(--fs-sm); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-main); }
+    .bl-seg-plein { display: flex; width: 100%; }
+    .bl-seg-plein > button { flex: 1 1 0; padding: 0; }
+
+    /* Mode « réorganiser » : chaque bloc s'entoure de pointillés bleus (la couleur de la sélection) et montre ses flèches. */
+    .bl-fleches { display: none; }
+    .barre-lecture.reorganiser .bl-bloc { padding: 6px; border: 1px dashed #4570b0; border-radius: 10px; }
+    .barre-lecture.reorganiser .bl-fleches { display: inline-flex; }
+    .bl-reinit { width: auto; min-width: 0; padding: 0 12px; font-size: var(--fs-sm); font-weight: 600; }
+}

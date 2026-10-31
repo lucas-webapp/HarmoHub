@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202610311000">
+    <link rel="stylesheet" href="style.css?v=202610311100">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202610281900">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202610311100">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1608,6 +1608,63 @@
             </div>
         </div>
     </main>
+
+    <!-- BARRE DE LECTURE (refonte, lot 2 — docs/refonte.md), ordinateur seulement (masquée sous 900px : le téléphone garde
+         le transport dans #footer-dock jusqu'au lot 10). Trois BLOCS que l'on peut réordonner (bouton « réorganiser » à
+         droite : flèches ◀ ▶ sur chaque bloc, « ordre d'origine », ordre mémorisé PAR APPAREIL) — « si je veux déplacer le
+         bloc des boutons de lecture au centre, à droite des parties du morceau » :
+           • Lecture : le transport existant (.transport : Lecture, Stop, Boucle), DÉPLACÉ ici par placeGlobalTransport, jamais
+             dupliqué — 44px, quatre angles de 7px, identiques (« boutons de lecture plus gros… de la même taille ») ;
+           • Parties du morceau : « Mes. N » seul (« simplifier : juste le numéro de mesure ») et la frise des parties, la
+             bande orange de la plage à boucler, la tête de lecture ;
+           • Tempo : le bouton « 120 BPM » (fenêtre −/+/Tap, vitesse 50–200 %, molette, clic molette + glisser) et le
+             métronome (même logo que celui de la carte Rythme, qu'il pilote).
+         Clavier et Guitare rejoindront la barre au lot 8 (ils pilotent aujourd'hui les boutons du mini-piano). -->
+    <div id="barre-lecture" class="barre-lecture" role="toolbar" aria-label="Lecture">
+        <div class="bl-bloc" data-bloc="lecture" id="bl-lecture"></div>
+        <div class="bl-bloc bl-parties" data-bloc="parties">
+            <span id="bl-mesure" class="bl-mesure" title="Mesure en cours">Mes. 1</span>
+            <div id="bl-frise" class="bl-frise" aria-hidden="true"></div>
+        </div>
+        <div class="bl-bloc" data-bloc="tempo">
+            <div class="bl-hote-tempo">
+                <button type="button" id="bl-tempo" class="icon-btn bl-tempo" aria-haspopup="dialog" aria-expanded="false"
+                        title="Tempo — molette : ±1 (Maj : ±5) ; clic molette + glisser vers le haut ou le bas">
+                    <span class="bl-tempo-val" id="bl-tempo-val">120</span><span class="bl-tempo-unite">BPM</span><span id="bl-vitesse-tag" class="bl-vitesse-tag" hidden></span>
+                </button>
+                <div id="bl-tempo-pop" class="bl-pop" role="dialog" aria-label="Tempo et vitesse de lecture" hidden>
+                    <div class="bl-pop-ligne">
+                        <div class="bl-seg" role="group" aria-label="Tempo">
+                            <button type="button" id="bl-tempo-moins" aria-label="Plus lent">−</button>
+                            <span class="bl-seg-val" id="bl-tempo-pop-val">120 BPM</span>
+                            <button type="button" id="bl-tempo-plus" aria-label="Plus rapide">+</button>
+                        </div>
+                        <button type="button" id="bl-tap" class="icon-btn bl-tap" title="Tape plusieurs fois au rythme voulu">TAP</button>
+                    </div>
+                    <div class="bl-pop-ligne bl-pop-ligne-espacee">
+                        <label for="bl-vitesse" class="bl-pop-etiquette">Vitesse de lecture</label>
+                        <span class="bl-seg-val" id="bl-vitesse-val">100 %</span>
+                    </div>
+                    <input type="range" id="bl-vitesse" min="50" max="200" step="5" value="100" aria-label="Vitesse de lecture, de 50 à 200 %">
+                    <div class="bl-seg bl-seg-plein" role="group" aria-label="Vitesses rapides" id="bl-vitesses">
+                        <button type="button" data-vitesse="50">50 %</button>
+                        <button type="button" data-vitesse="75">75 %</button>
+                        <button type="button" data-vitesse="100">100 %</button>
+                        <button type="button" data-vitesse="150">150 %</button>
+                        <button type="button" data-vitesse="200">200 %</button>
+                    </div>
+                    <p class="bl-pop-aide">50 à 200 % du tempo, pour travailler lentement un passage. Décompte, son et volume du métronome : dans les Paramètres.</p>
+                </div>
+            </div>
+            <button type="button" id="bl-metro" class="icon-btn" aria-pressed="false"></button>
+        </div>
+        <div class="bl-fin">
+            <button type="button" id="bl-reinit" class="icon-btn bl-reinit" hidden title="Remettre les blocs dans l'ordre d'origine">Ordre d'origine</button>
+            <button type="button" id="bl-reorg" class="icon-btn" aria-pressed="false" title="Réorganiser les blocs de la barre" aria-label="Réorganiser les blocs de la barre">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h16M4 16h16"/><path d="M8 4 4 8l4 4M16 12l4 4-4 4"/></svg>
+            </button>
+        </div>
+    </div>
     <div id="print-export" class="print-export"></div>
 
     <!-- Transport GLOBAL, flottant en colonne verticale sur le bord DROIT de l'écran (retour
@@ -1661,6 +1718,17 @@
             <button id="stop" class="btn-stop transport-icon-btn" title="Stop" aria-label="Stop">
                 <svg class="icon transport-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
             </button>
+            <!-- BOUCLE, BOUTON À PART — sur ordinateur seulement (refonte, lot 2 : la barre de lecture en bas, voir
+                 docs/refonte.md). « Boucle = icône seule », au même gabarit que Lecture et Stop. C'est l'anneau avec sa
+                 flèche du bouton Lecture, SANS le triangle : le dessin existant, pas un nouveau. Sur téléphone (.dock) il est
+                 masqué : la boucle y reste un état de Lecture (anneau, appui long), comme avant. Même mécanisme dans les deux
+                 cas (basculerBoucle / syncAnneauBoucle). -->
+            <button id="boucle-btn" type="button" class="btn-sec transport-icon-btn boucle-btn" title="Boucle" aria-label="Boucle" aria-pressed="false">
+                <svg class="icon transport-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12.2 2.6a9.4 9.4 0 1 1-6.85 2.75" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="butt"/>
+                    <path d="M11.2 0 15.6 2.6l-4.4 2.6z" fill="currentColor"/>
+                </svg>
+            </button>
         </div>
     </div>
     <!-- Encodeur MP3 pur JS (LAME), utilisé uniquement par l'export audio (voir exportAudio dans
@@ -1689,10 +1757,10 @@
     <script src="fichiers.js?v=202610030500"></script>
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
-    <script src="script.js?v=202610291000"></script>
+    <script src="script.js?v=202610311100"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202610291000"></script>
+    <script src="synchro-harmohub.js?v=202610311100"></script>
 </body>
 </html>

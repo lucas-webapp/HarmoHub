@@ -3952,6 +3952,7 @@ class HarmoHubApp {
         // premier franchissement du seuil ordinateur/téléphone.
         this.placeGlobalTransport();
         this.setupGlobalTransportPlacement();
+        this.setupBarreLecture(); // la barre de lecture du bas (ordinateur) : blocs, tempo, frise (voir plus bas)
         this.setupKeyboardShortcuts();
         this.applySidebarCollapsed(); // reflète l'état mémorisé dès le premier rendu (bouton déjà câblé)
         // Avertissement natif du navigateur si on ferme/recharge la page avec des modifications non
@@ -6511,7 +6512,7 @@ class HarmoHubApp {
         this.refreshPreview();
 
         const { pattern: seqPattern, tie: seqTie } = this.getLiveSeqPattern(chord);
-        const bpm = parseInt(document.getElementById('bpm').value);
+        const bpm = this.bpmLecture(); // tempo × vitesse de lecture (barre du bas) — le tempo ENREGISTRÉ ne change pas
         const secPerBeat = 60 / bpm;
         const instrumentKey = document.getElementById('instrument').value;
 
@@ -6694,7 +6695,7 @@ class HarmoHubApp {
             if (pos >= 0) startPos = pos;
         }
 
-        const bpm = parseInt(document.getElementById('bpm').value);
+        const bpm = this.bpmLecture(); // tempo × vitesse de lecture (barre du bas) — le tempo ENREGISTRÉ ne change pas
         const secPerBeat = 60 / bpm;
         const start = 0.02; // aligné sur Tone.context.lookAhead (voir constructeur)
 
@@ -6836,6 +6837,7 @@ class HarmoHubApp {
     setGridPlayheadProgress(section, index, elapsedBeats, totalBeats) {
         this.playheadSection = section;
         this.playheadIndex = index;
+        this.majBarreLecture(section, index, elapsedBeats, totalBeats); // « Mes. N » et la tête de la frise, même source que la barre de la grille
         const segs = Array.from(document.querySelectorAll(`.chord-grid[data-section="${section}"] .grid-cell[data-index="${index}"]`));
         if (segs.length === 0) {
             document.querySelectorAll('.grid-playhead').forEach(el => el.remove());
@@ -8279,6 +8281,14 @@ class HarmoHubApp {
         poser(document.getElementById('play-prog'), !!this.bouclerLecture,
             (this.bouclerLecture ? sujetGrille + ' en boucle' : sujetGrille)
             + suffixe + (this.bouclerLecture ? 'arrêter de boucler' : 'boucler'));
+        // BOUTON BOUCLE DE LA BARRE DE LECTURE (ordinateur) : le même drapeau que l'anneau de Lecture, dit en toutes lettres.
+        const bb = document.getElementById('boucle-btn');
+        if (bb) {
+            const titre = (this.bouclerLecture ? 'Boucle activée — ' : 'Boucler — ')
+                + (this.loopRange ? 'la plage tracée (orange)' : 'tout le morceau (trace une plage sur la règle des mesures pour n\'en boucler qu\'une partie)');
+            poser(bb, !!this.bouclerLecture, titre);
+            bb.setAttribute('aria-label', titre);
+        }
         const seq = document.getElementById('seq-play');
         const actifSeq = this._seqPlayLanceGrille ? !!this.bouclerLecture : !!this.seqLoopPlay;
         const quoi = this._seqPlayLanceGrille ? 'la plage à boucler' : 'l\'accord';
@@ -8297,6 +8307,7 @@ class HarmoHubApp {
         // c'est elle qui connaît DÉJÀ les deux moitiés de la phrase — ce qui est joué, et si ça se
         // répète.
         this.syncAnneauBoucle();
+        this.renduBarreLecture(); // la frise suit la progression ET la plage orange (toutes deux passent par ici)
     }
 
     // Rétrécit au besoin le texte d'un accord (ex. "B♭maj7") qui déborde de sa case — plutôt que de le
@@ -8605,6 +8616,7 @@ class HarmoHubApp {
     // Tempo, mesure et tonalité tels qu'affichés sur la ligne de résumé. Appelée depuis TOUS les
     // réglages qu'elle résume : un résumé qui retarde sur la valeur réelle est pire que pas de résumé.
     updateSongSummary() {
+        this.syncBarreLecture(); // le tempo de la barre du bas résume la même valeur : même appelants, même fraîcheur
         const bpm = document.getElementById('bpm');
         const sig = document.getElementById('time-sig');
         const root = document.getElementById('global-root');
@@ -16610,9 +16622,13 @@ class HarmoHubApp {
         // grille ne disparaît donc plus quand on referme une modification.
         // `gridHead` (l'en-tête de la grille) n'accueille plus rien : conservé comme point d'ancrage
         // vide, il ne coûte rien et évite de casser le gabarit de l'en-tête collant.
-        const wide = false;
-        if (wide) {
-            if (transport.parentElement !== gridHead) gridHead.appendChild(transport);
+        // REFONTE, LOT 2 (docs/refonte.md) : sur ORDINATEUR, le transport rejoint la BARRE DE LECTURE du bas (bloc
+        // « Lecture », #bl-lecture) — plus en pied du volet de gauche, qui disparaît avec la refonte. Sur TÉLÉPHONE il
+        // reste dans #footer-dock (lot 10). Toujours UN SEUL nœud, déplacé, jamais dupliqué.
+        const bloc = document.getElementById('bl-lecture');
+        const ordinateur = !!bloc && window.matchMedia(SEQ_DOCK_MEDIA).matches;
+        if (ordinateur) {
+            if (transport.parentElement !== bloc) bloc.appendChild(transport);
         } else if (transport.parentElement !== dock) {
             // En dernier enfant de .dock : édition en cours ou non, updateEditActionsDocking (voir
             // plus haut) sait déjà placer .edit-actions AVANT ce nœud repère quand il faut l'insérer.
@@ -16628,6 +16644,269 @@ class HarmoHubApp {
         const onChange = () => this.placeGlobalTransport();
         if (mq.addEventListener) mq.addEventListener('change', onChange);
         else mq.addListener(onChange); // Safari < 14
+    }
+
+    // ======================================================================================================
+    // BARRE DE LECTURE DU BAS (refonte, lot 2 — docs/refonte.md). Ordinateur seulement ; le téléphone garde le
+    // transport dans #footer-dock jusqu'au lot 10. Elle ne PORTE aucune logique de lecture : Lecture / Stop / Boucle sont les
+    // boutons existants (déplacés, voir placeGlobalTransport), le tempo est le curseur #bpm de la carte Rythme (la barre le
+    // pilote, ne le remplace pas — la carte disparaît au lot 6), le métronome est #toggle-metronome. Elle ajoute :
+    //   • « Mes. N » et la frise des parties (tête de lecture, bande orange de la plage à boucler) ;
+    //   • la VITESSE DE LECTURE, 50 à 200 % du tempo (« bouton 50 % à 200 % du métronome ») ;
+    //   • le tempo à la molette, ou clic molette + glisser vers le haut / le bas ;
+    //   • trois BLOCS réordonnables (« si je veux déplacer le bloc des boutons de lecture au centre, à droite des parties »).
+    // ======================================================================================================
+    setupBarreLecture() {
+        const barre = document.getElementById('barre-lecture');
+        if (!barre) return;
+        this.vitesseLecture = 100;
+        this._blRaw = null;
+        this._blGeo = null;
+        this.setupBarreLectureMetro();
+        this.setupBarreLectureTempo();
+        this.setupBarreLectureOrdre();
+        const boucle = document.getElementById('boucle-btn');
+        if (boucle) boucle.addEventListener('click', () => this.basculerBoucle());
+        this.syncAnneauBoucle();
+        this.renduBarreLecture();
+        this.syncBarreLecture();
+    }
+
+    // Tempo de LECTURE : le tempo du morceau × la vitesse choisie dans la barre. Seule la lecture l'utilise ; le tempo
+    // ENREGISTRÉ (morceau, export MIDI, PDF) reste celui du curseur — travailler un passage à 60 % ne doit pas réécrire le
+    // morceau. Valeur non entière possible (120 × 75 % = 90 ; 125 × 75 % = 93,75) : secPerBeat s'en accommode.
+    bpmLecture() {
+        const base = parseInt(document.getElementById('bpm').value, 10) || 120;
+        return base * (this.vitesseLecture || 100) / 100;
+    }
+
+    tempoCourant() { return parseInt(document.getElementById('bpm').value, 10) || 120; }
+
+    // Règle le tempo DU MORCEAU par le chemin du curseur : même événement 'change', donc même annulation, même « modifié »,
+    // même relance de la lecture en cours (voir le câblage de #bpm). Bornes du curseur : 60 à 240.
+    reglerTempo(v) {
+        const bpm = Math.min(240, Math.max(60, Math.round(v)));
+        if (bpm === this.tempoCourant()) return;
+        const curseur = document.getElementById('bpm');
+        this.armGlobalSettingUndo();
+        curseur.value = bpm;
+        document.getElementById('bpm-val').value = bpm;
+        curseur.dispatchEvent(new Event('change'));
+        this.syncBarreLecture();
+    }
+
+    reglerVitesse(v) {
+        const vitesse = Math.min(200, Math.max(50, Math.round(v / 5) * 5));
+        if (vitesse === (this.vitesseLecture || 100)) return;
+        this.vitesseLecture = vitesse;
+        this.syncBarreLecture();
+        this.liveRestartForGlobalChange(); // comme un changement de tempo : une lecture en cours prend la nouvelle vitesse
+    }
+
+    // Écrit ce que la barre affiche d'après l'état réel (tempo, vitesse). Appelée par tout ce qui résume le tempo
+    // (updateSongSummary) et par les gestes de la barre.
+    syncBarreLecture() {
+        const bt = document.getElementById('bl-tempo');
+        if (!bt) return;
+        const tempo = this.tempoCourant();
+        const vitesse = this.vitesseLecture || 100;
+        document.getElementById('bl-tempo-val').textContent = String(tempo);
+        document.getElementById('bl-tempo-pop-val').textContent = tempo + ' BPM';
+        document.getElementById('bl-vitesse-val').textContent = vitesse + ' %';
+        document.getElementById('bl-vitesse').value = String(vitesse);
+        // La vitesse n'apparaît sur le bouton que si elle DIFFÈRE de 100 % : un réglage oublié à 60 % se verrait sinon trop tard.
+        const tag = document.getElementById('bl-vitesse-tag');
+        tag.hidden = vitesse === 100;
+        tag.textContent = '· ' + vitesse + ' %';
+        document.querySelectorAll('#bl-vitesses button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.vitesse === vitesse)));
+    }
+
+    setupBarreLectureMetro() {
+        const source = document.getElementById('toggle-metronome');
+        const bouton = document.getElementById('bl-metro');
+        if (!source || !bouton) return;
+        // Le MÊME logo que celui de la carte Rythme (« ne perds pas mes logos ») : on recopie son dessin, on ne le redessine pas.
+        bouton.innerHTML = source.innerHTML;
+        bouton.title = source.title;
+        bouton.setAttribute('aria-label', source.getAttribute('aria-label') || source.title);
+        const miroir = () => {
+            const actif = source.classList.contains('active');
+            bouton.classList.toggle('active', actif);
+            bouton.setAttribute('aria-pressed', String(actif));
+        };
+        new MutationObserver(miroir).observe(source, { attributes: true, attributeFilter: ['class'] });
+        miroir();
+        bouton.addEventListener('click', () => source.click());
+    }
+
+    setupBarreLectureTempo() {
+        const bouton = document.getElementById('bl-tempo');
+        const pop = document.getElementById('bl-tempo-pop');
+        if (!bouton || !pop) return;
+        const ouvrir = (oui) => {
+            pop.hidden = !oui;
+            bouton.setAttribute('aria-expanded', String(oui));
+            if (!oui) return;
+            // Aligné sur le bord GAUCHE du bouton, ou sur son bord droit s'il dépasserait de l'écran : le bloc Tempo peut être
+            // n'importe où dans la barre (il se déplace), la fenêtre doit toujours rester entièrement visible.
+            pop.style.left = '0'; pop.style.right = 'auto';
+            if (pop.getBoundingClientRect().right > window.innerWidth - 8) { pop.style.left = 'auto'; pop.style.right = '0'; }
+        };
+        bouton.addEventListener('click', () => ouvrir(pop.hidden));
+        document.addEventListener('pointerdown', (e) => {
+            if (!pop.hidden && !pop.contains(e.target) && !bouton.contains(e.target)) ouvrir(false);
+        }, true);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !pop.hidden) { ouvrir(false); bouton.focus(); }
+        });
+        document.getElementById('bl-tempo-moins').addEventListener('click', () => this.reglerTempo(this.tempoCourant() - 1));
+        document.getElementById('bl-tempo-plus').addEventListener('click', () => this.reglerTempo(this.tempoCourant() + 1));
+        document.getElementById('bl-tap').addEventListener('click', () => { this.handleTapTempo(); this.syncBarreLecture(); });
+        document.getElementById('bl-vitesse').addEventListener('input', (e) => this.reglerVitesse(+e.target.value));
+        document.querySelectorAll('#bl-vitesses button').forEach(b => b.addEventListener('click', () => this.reglerVitesse(+b.dataset.vitesse)));
+
+        // MOLETTE : un cran = ±1 BPM (Maj : ±5). Un pavé tactile envoie de petits deltas en rafale : on les ACCUMULE par
+        // tranches de 100 (un cran de molette ordinaire) au lieu de bouger à chaque événement.
+        this._blRoue = 0;
+        bouton.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            this._blRoue += (e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY);
+            const crans = Math.trunc(-this._blRoue / 100);
+            if (!crans) return;
+            this._blRoue += crans * 100;
+            this.reglerTempo(this.tempoCourant() + crans * (e.shiftKey ? 5 : 1));
+        }, { passive: false });
+
+        // CLIC MOLETTE + GLISSER vers le haut (plus vite) ou le bas (plus lent) : un cran tous les 6px, comme un curseur.
+        // Le défilement automatique du navigateur sur le clic molette serait un parasite : on le coupe.
+        bouton.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
+        bouton.addEventListener('pointerdown', (e) => {
+            if (e.button !== 1) return;
+            e.preventDefault();
+            try { bouton.setPointerCapture(e.pointerId); } catch (err) { /* capture facultative */ }
+            this._blGlisse = { y0: e.clientY, t0: this.tempoCourant() };
+        });
+        bouton.addEventListener('pointermove', (e) => {
+            const g = this._blGlisse;
+            if (!g) return;
+            this.reglerTempo(g.t0 + Math.round((g.y0 - e.clientY) / 6) * (e.shiftKey ? 5 : 1));
+        });
+        const fin = () => { this._blGlisse = null; };
+        bouton.addEventListener('pointerup', fin);
+        bouton.addEventListener('pointercancel', fin);
+    }
+
+    // Les trois blocs, dans l'ordre choisi (mémorisé PAR APPAREIL : l'écran de chacun n'est pas celui de l'autre, comme
+    // le zoom — jamais synchronisé). En mode « réorganiser », chaque bloc montre deux flèches ◀ ▶.
+    setupBarreLectureOrdre() {
+        const barre = document.getElementById('barre-lecture');
+        const CLE = 'harmohubBarreLectureOrdre';
+        const DEFAUT = ['lecture', 'parties', 'tempo'];
+        const lire = () => {
+            try {
+                const o = JSON.parse(localStorage.getItem(CLE));
+                if (Array.isArray(o) && o.length === DEFAUT.length && DEFAUT.every(b => o.includes(b))) return o;
+            } catch (e) { /* mémoire illisible : ordre d'origine */ }
+            return DEFAUT.slice();
+        };
+        this._blOrdre = lire();
+        const chevron = (sens) => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${sens < 0 ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'}"/></svg>`;
+        const appliquer = () => {
+            this._blOrdre.forEach((nom, i) => {
+                const bloc = barre.querySelector(`.bl-bloc[data-bloc="${nom}"]`);
+                bloc.style.setProperty('--ordre', String(i));
+                const [g, d] = bloc.querySelectorAll('.bl-fleches button');
+                g.disabled = i === 0;
+                d.disabled = i === this._blOrdre.length - 1;
+            });
+            try { localStorage.setItem(CLE, JSON.stringify(this._blOrdre)); } catch (e) { /* stockage plein : l'ordre vaut pour la session */ }
+        };
+        barre.querySelectorAll('.bl-bloc').forEach(bloc => {
+            const nom = bloc.dataset.bloc;
+            const fl = document.createElement('div');
+            fl.className = 'bl-fleches';
+            fl.setAttribute('role', 'group');
+            fl.setAttribute('aria-label', 'Déplacer ce bloc');
+            fl.innerHTML = `<button type="button" aria-label="Déplacer ce bloc vers la gauche" title="Vers la gauche">${chevron(-1)}</button>`
+                + `<button type="button" aria-label="Déplacer ce bloc vers la droite" title="Vers la droite">${chevron(1)}</button>`;
+            bloc.insertBefore(fl, bloc.firstChild);
+            fl.addEventListener('click', (e) => {
+                const b = e.target.closest('button');
+                if (!b || b.disabled) return;
+                const i = this._blOrdre.indexOf(nom), j = i + (b === fl.firstElementChild ? -1 : 1);
+                if (j < 0 || j >= this._blOrdre.length) return;
+                [this._blOrdre[i], this._blOrdre[j]] = [this._blOrdre[j], this._blOrdre[i]];
+                appliquer();
+            });
+        });
+        const reorg = document.getElementById('bl-reorg');
+        const reinit = document.getElementById('bl-reinit');
+        reorg.addEventListener('click', () => {
+            const oui = !barre.classList.contains('reorganiser');
+            barre.classList.toggle('reorganiser', oui);
+            reorg.setAttribute('aria-pressed', String(oui));
+            reinit.hidden = !oui;
+        });
+        reinit.addEventListener('click', () => { this._blOrdre = DEFAUT.slice(); appliquer(); });
+        appliquer();
+    }
+
+    // Géométrie du morceau EN TEMPS (début de chaque partie et de chaque accord), relue seulement quand le tampon de
+    // travail change — majBarreLecture est appelée à chaque croche jouée, elle ne doit rien reconstruire.
+    geometrieBarreLecture() {
+        const brut = localStorage.getItem('myProgression');
+        if (this._blGeo && brut === this._blRaw) return this._blGeo;
+        const sections = loadProgressionSections();
+        let t = 0;
+        const parts = sections.map((sec, si) => {
+            const debuts = [];
+            const debut = t;
+            (sec.chords || []).forEach(c => { debuts.push(t); t += beatsFromData(c); });
+            return { nom: (sec.title || '').trim() || ('Partie ' + (si + 1)), debut, fin: t, debuts };
+        });
+        this._blRaw = brut;
+        this._blGeo = { parts, total: Math.max(t, 1) };
+        return this._blGeo;
+    }
+
+    // Dessine la frise : une tranche par partie (largeur = sa durée), la bande orange de la plage à boucler, la tête de
+    // lecture. Appelée quand la progression ou la plage change (voir updatePlayButtonsForLoopRange).
+    renduBarreLecture() {
+        const frise = document.getElementById('bl-frise');
+        if (!frise) return;
+        const g = this.geometrieBarreLecture();
+        const echap = (x) => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        let html = g.parts.map((p, i) => `<div class="bl-frise-part" data-part="${i}" style="flex: ${Math.max(p.fin - p.debut, 0.01)} 1 0">${echap(p.nom)}</div>`).join('');
+        const r = this.loopRange;
+        if (r && g.parts[r.startSection] && g.parts[r.endSection]) {
+            const a = g.parts[r.startSection], b = g.parts[r.endSection];
+            const debut = a.debuts[r.startIndex];
+            const fin = (b.debuts[r.endIndex + 1] !== undefined) ? b.debuts[r.endIndex + 1] : b.fin;
+            if (debut !== undefined && fin > debut) {
+                html += `<div class="bl-frise-plage" style="left: ${debut / g.total * 100}%; width: ${(fin - debut) / g.total * 100}%"></div>`;
+            }
+        }
+        html += '<div class="bl-frise-tete" style="left: 0%"></div>';
+        frise.innerHTML = html;
+        if (this.playheadIndex != null) this.majBarreLecture(this.playheadSection, this.playheadIndex, 0, 1);
+    }
+
+    // « Mes. N » et la tête de la frise, d'après l'accord en cours (section, index) et le temps déjà joué dedans. Rien à
+    // faire sur ordinateur seulement : la barre est masquée sur téléphone, mais l'écriture reste sans coût.
+    majBarreLecture(section, index, ecoules = 0, duree = 1) {
+        const mesure = document.getElementById('bl-mesure');
+        if (!mesure) return;
+        const g = this.geometrieBarreLecture();
+        const p = g.parts[section];
+        const debut = p ? p.debuts[index] : undefined;
+        if (debut === undefined) return;
+        const t = debut + Math.max(0, Math.min(ecoules || 0, duree || 0));
+        const bpb = this.beatsPerBar() || 4;
+        const texte = 'Mes. ' + (Math.floor(t / bpb + 1e-9) + 1);
+        if (mesure.textContent !== texte) mesure.textContent = texte;
+        const tete = document.querySelector('#bl-frise .bl-frise-tete');
+        if (tete) tete.style.left = (t / g.total * 100) + '%';
+        document.querySelectorAll('#bl-frise .bl-frise-part').forEach(el => el.classList.toggle('en-cours', +el.dataset.part === section));
     }
 
     // Remet #arp-sequencer à sa place d'origine dans le volet Lecture (juste après #arpPattern,
@@ -18798,7 +19077,7 @@ class HarmoHubApp {
 
         if (!play) return; // aperçu silencieux seulement : le clavier/la guitare restent affichés
 
-        const bpm = parseInt(document.getElementById('bpm').value);
+        const bpm = this.bpmLecture(); // tempo × vitesse de lecture (barre du bas) — le tempo ENREGISTRÉ ne change pas
         const secPerBeat = 60 / bpm;
         const { pattern: seqPattern, tie: seqTie } = this.resolveSeqPatternForData(chord, data);
         // `chord` (jamais substitué) passé tel quel : schedulePlayback relit data.guitarOverride depuis

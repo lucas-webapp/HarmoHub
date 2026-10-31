@@ -94,3 +94,11 @@ html[data-glass="1"] :is(.mode-btn, .hint-stop) { background: linear-gradient(18
 html[data-glass="1"] :is(.mode-btn, .hint-stop):hover { background: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .08) 55%); }
 html[data-glass="1"] .mode-btn.active { background: radial-gradient(120% 160% at 20% 0%, rgba(255, 255, 255, .12), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%); }
 html[data-glass="1"] :is(.btn-primary, .btn-secondary, .btn-back, .mode-btn, .chord-chip) { box-shadow: var(--glass-hi); }
+
+/* ---- BARRE DE LECTURE DU BAS (refonte, lot 2) : une vraie barre pleine largeur, donc une surface comme une autre (flou +
+   teinte des barres) ; sa fenêtre de tempo est un menu, plus opaque que les cartes pour rester lisible par-dessus n'importe
+   quel fond. Les boutons, eux, ont déjà leur habillage (.icon-btn, .btn-prog, .btn-stop, .btn-sec). La frise et la bande
+   orange gardent leurs couleurs : ce sont des repères musicaux. ---- */
+html[data-glass="1"] .barre-lecture { background: var(--glass-bar); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-hi); }
+html[data-glass="1"] .bl-pop { background: var(--glass-pop-fond); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-hi), 0 24px 50px -24px rgba(0, 0, 0, .65); }
+html[data-glass="1"] .bl-seg { background: var(--glass-inp); }

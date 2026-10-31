@@ -47,10 +47,15 @@ const etatBouton = () => {
         hStop: Math.round(s.getBoundingClientRect().height),
         simpleVisible: getComputedStyle(simple).display !== 'none',
         anneauVisible: getComputedStyle(anneau).display !== 'none',
-        nbBoutons: document.querySelectorAll('.transport > button').length,
+        nbBoutons: [...document.querySelectorAll('.transport > button')].filter(x => x.offsetParent !== null).length,
+        boucleBtn: (document.getElementById('boucle-btn') || {}).offsetParent !== null ? document.getElementById('boucle-btn').getAttribute('aria-pressed') : null,
         ancienBouton: !!document.getElementById('toggle-loop-section'),
     };
 };
+
+// REFONTE, LOT 2 (31/10) : sur ORDINATEUR, la boucle a désormais son bouton (#boucle-btn, dans la barre de lecture du bas) en plus
+// de l'état de Lecture ; le triangle y reste un triangle — l'anneau est réservé au TÉLÉPHONE, où la barre du bas n'existe pas.
+// Même drapeau (bouclerLecture), deux signes selon l'écran : c'est ce que sections A, B et E éprouvent.
 
 // Appui long à la souris : on descend, on attend au-delà du seuil, on remonte SANS bouger.
 async function appuiLong(page, selecteur) {
@@ -63,7 +68,7 @@ async function appuiLong(page, selecteur) {
 }
 
 (async () => {
-    plan(20);
+    plan(22);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -74,10 +79,10 @@ async function appuiLong(page, selecteur) {
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(900);
 
-    // === A. Deux boutons, de la même hauteur ===
+    // === A. Lecture, Stop, Boucle : trois boutons de la même hauteur (ordinateur) ===
     let e = await page.evaluate(etatBouton);
     check(!e.ancienBouton, 'le troisième bouton (#toggle-loop-section) a bien disparu');
-    check(e.nbBoutons === 2, `la barre de transport ne compte plus que deux boutons — obtenu ${e.nbBoutons}`);
+    check(e.nbBoutons === 3, `la barre de lecture compte Lecture, Stop et Boucle — obtenu ${e.nbBoutons}`);
     check(e.hLecture === e.hStop, `Lecture et Stop ont la MÊME hauteur — obtenu ${e.hLecture} et ${e.hStop}`);
     check(e.simpleVisible && !e.anneauVisible, 'au repos, le triangle seul est affiché, pas l\'anneau');
     check(e.pressed === 'false', 'au repos, le bouton s\'annonce non enfoncé aux lecteurs d\'écran');
@@ -86,8 +91,9 @@ async function appuiLong(page, selecteur) {
     await appuiLong(page, '#play-prog');
     e = await page.evaluate(etatBouton);
     check(e.boucle === true && e.classe, 'un appui long allume la boucle');
-    check(e.anneauVisible && !e.simpleVisible, 'l\'anneau remplace alors le triangle seul');
-    check(e.pressed === 'true', 'et le bouton s\'annonce enfoncé');
+    check(e.simpleVisible && !e.anneauVisible && e.boucleBtn === 'true',
+        'le bouton Boucle s\'allume, et le triangle de Lecture reste un triangle (l\'anneau est réservé au téléphone)');
+    check(e.pressed === 'true', 'et le bouton Lecture s\'annonce enfoncé');
     // LE POINT QUI JUSTIFIE LE CLIC EN CAPTURE (voir setupBoucleLecture) : sans lui, l'appui long
     // basculerait la boucle ET lancerait la lecture, puisque le clic part quand même au relâchement.
     check(await page.evaluate(() => window.app.isPlaying !== true),
@@ -173,6 +179,11 @@ async function appuiLong(page, selecteur) {
     await tel.waitForTimeout(400);
     check(await tel.evaluate(() => window.app.bouclerLecture === false),
         'téléphone : un appui court ne bascule pas la boucle');
+    check(t.nbBoutons === 2, `téléphone : deux boutons seulement (Lecture, Stop), pas de bouton Boucle à part — obtenu ${t.nbBoutons}`);
+    await tel.evaluate(() => window.app.basculerBoucle(true));
+    const tb = await tel.evaluate(etatBouton);
+    check(tb.anneauVisible && !tb.simpleVisible, 'téléphone : la boucle allumée remplace le triangle par l\'anneau, comme avant');
+    await tel.evaluate(() => window.app.basculerBoucle(false));
     await tel.evaluate(() => window.app.stopAll());
     await tel.waitForTimeout(200);
 

@@ -106,10 +106,13 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
             classe: b.classList.contains('boucle-active'),
             simpleVisible: getComputedStyle(simple).display !== 'none',
             anneauVisible: getComputedStyle(anneau).display !== 'none',
+            boucleBtn: document.getElementById('boucle-btn').getAttribute('aria-pressed'),
         };
     });
     console.log(JSON.stringify(r));
-    console.log((r.classe && r.anneauVisible && !r.simpleVisible) ? 'PASS (anneau affiché à la place du triangle)' : 'FAIL');
+    // REFONTE, LOT 2 : sur ordinateur, la boucle a son bouton dans la barre de lecture du bas ; le triangle de Lecture reste un
+    // triangle (l'anneau est réservé au téléphone — voir transport_boucle_test, section E). « L'état se voit » : ici, sur Boucle.
+    console.log((r.classe && r.boucleBtn === 'true' && r.simpleVisible && !r.anneauVisible) ? 'PASS (le bouton Boucle s\'allume, le triangle reste)' : 'FAIL');
 
     console.log('Errors:', JSON.stringify(errors));
     await browser.close();

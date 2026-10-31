@@ -15,7 +15,7 @@ const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('jauge des commandes');
 const { estBruitReseau } = require('./_harness');
 
-plan(10);
+plan(20);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const HAUTEURS = [32, 44];
@@ -34,8 +34,6 @@ const HORS_JAUGE = {
     'bass': 'lot 6',
     'seq-zoom': 'lot 9 — le « Séquenceur » de la carte devient « Éditeur de notes »',
     'save': 'lot 3 — Enregistrer passe dans la barre du haut',
-    'play-prog': 'lot 2 — barre de lecture : quatre boutons de 44px identiques, angles de 7px',
-    'stop': 'lot 2',
     'toggle-sidebar': 'lot 6 — le bandeau de gauche disparaît',
     'classic-grid-in-h': 'lot 5 — les quatre boutons de zoom deviennent Compact / Normal / Détaillé',
     'classic-grid-out-h': 'lot 5',
@@ -111,7 +109,7 @@ const mk = (root, quality) => ({ root, quality, beats: 4, inversion: 0, drop: 'n
     check(perimees.length === 0, `aucune entrée périmée dans HORS_JAUGE (à retirer : ${perimees.join(', ') || 'rien'})`);
 
     // 3. Ce que la refonte a déjà remis à la jauge ne doit plus en sortir.
-    const dejaTenues = ['structure-btn', 'lyrics-btn', 'file-menu-btn', 'global-undo-btn', 'global-redo-btn', 'open-settings', 'logo'];
+    const dejaTenues = ['structure-btn', 'lyrics-btn', 'file-menu-btn', 'global-undo-btn', 'global-redo-btn', 'open-settings', 'logo', 'play-prog', 'stop', 'boucle-btn', 'bl-tempo', 'bl-metro', 'bl-reorg'];
     const mesure = Object.fromEntries(etats.arrivee.map(c => [c.cle, c]));
     for (const k of dejaTenues) {
         const c = mesure[k];
