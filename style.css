@@ -25,6 +25,16 @@
 *::-webkit-scrollbar-corner { background: transparent; }
 
 :root {
+    /* JAUGE DES COMMANDES (refonte de l'interface, voir docs/refonte.md). « C'est souvent le point qui pèche :
+       les boutons sont rangés n'importe comment » — d'où DEUX hauteurs seulement, un seul arrondi pour ce qu'on
+       clique, un autre pour ce qui flotte. Une commande qui n'entre pas dans cette jauge est une commande à revoir,
+       pas une exception de plus : tests/gabarit_boutons_test.js tient la liste de celles qui n'y sont pas ENCORE et
+       refuse qu'elle s'allonge. 32px = tout le bureau ; 44px = le bloc de lecture (Lecture, Stop… tous identiques)
+       et tout le téléphone (taille minimale d'une cible pour le doigt). */
+    --bouton-h: 32px;
+    --bouton-h-lg: 44px;
+    --rayon-bouton: 7px;
+    --rayon-surface: 12px;
     --bg: #0a0a0a;
     --card-bg: #161616;
     --text-main: #e0e0e0;
@@ -165,7 +175,11 @@ button, .icon-btn, .prog-section-del, .seq-presets button, .seq-delete-btn {
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    padding: 5px 10px 5px 6px;
+    /* LOGO SEUL, sans le mot (« laisser logo mais enlever nom de l'appli ») : une pastille de la hauteur d'un bouton
+       (32px), le nom restant dans l'infobulle et pour les lecteurs d'écran (aria-label sur le lien). */
+    box-sizing: border-box;
+    height: var(--bouton-h);
+    padding: 0 5px;
     border-radius: 999px;
     background: rgba(22, 22, 22, 0.7);
     border: 1px solid var(--border);
@@ -188,7 +202,6 @@ button, .icon-btn, .prog-section-del, .seq-presets button, .seq-delete-btn {
     line-height: 1;
 }
 .logo-mark .icon { width: 15px; height: 15px; vertical-align: 0; }
-.logo-text { color: var(--text-main); font-weight: 800; }
 
 /* ============================================================
    PARAMÈTRES (fenêtre modale) — bâtie pour grandir : une nav de
@@ -3302,7 +3315,7 @@ button:active { transform: translateY(1px); }
 }
 .file-menu-btn, .lyrics-btn {
     width: auto;
-    height: 26px;
+    height: var(--bouton-h);
     padding: 0 10px 0 7px;
     gap: 5px;
 }
@@ -3313,7 +3326,9 @@ button:active { transform: translateY(1px); }
    à six par une vérification explicite, et l'allonger pour faire taire ce qu'elle vient de trouver
    reviendrait à démonter le garde-fou. On corrige donc, et « Paroles » et « Fichier » en profitent :
    ils étaient dans la même situation, et l'un d'eux figurait justement dans cette dette. Un bouton
-   étiqueté reste 26px à la souris, où il se vise très bien. */
+   étiqueté reste 26px à la souris, où il se vise très bien.
+   REFONTE (31/10) : ce « 26px à la souris » n'a plus cours — ces trois boutons sont à 32px partout, bureau compris, comme
+   toutes les commandes de la jauge (--bouton-h). La règle tactile ci-dessous ne change donc plus rien : elle reste le garde-fou. */
 @media (pointer: coarse) {
     .file-menu-btn, .lyrics-btn { height: auto; min-height: 32px; }
 }

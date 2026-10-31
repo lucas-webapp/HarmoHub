@@ -4536,3 +4536,25 @@ lecture automatique ; à ranger avec les bancs sensibles au temps, non causé pa
 
 **Reste à confirmer sur de vrais appareils** : les règles Firestore réelles pour le document `harmohub-paroles`, la fenêtre Google sur Safari/Dock, et
 un changement d'ordinateur de bout en bout.
+
+## Refonte de l'interface — lot 1 : fondations (2026-10-31)
+
+Retour : « on a bien travaillé, tu peux commencer à monter l'application comme ça. Fais bien attention aux problèmes d'alignement, aux aspects
+pas pratiques, et ne perds pas mes logos. » Cahier des charges COMPLET et feuille de route en 10 lots : `docs/refonte.md` (c'est lui qui garde les
+décisions prises commentaire par commentaire sur la maquette — pour qu'une autre session ne les redécouvre pas).
+
+**Mesuré avant de toucher** (ordinateur 1440×900, écran d'arrivée) : 43 commandes visibles, **10 hauteurs différentes** (15, 26, 27, 30, 32, 37, 39,
+42, 44, 86 px) et **8 arrondis** — c'est le « boutons rangés n'importe comment » dit en chiffres.
+
+**Ce que le lot fait.** (1) La jauge devient du code : `--bouton-h` 32px, `--bouton-h-lg` 44px, `--rayon-bouton` 7px, `--rayon-surface` 12px dans `:root`.
+(2) Logo SEUL (« laisser logo mais enlever nom de l'appli ») : pastille de 32px, le nom reste en infobulle et en `aria-label` ; le dessin du logo n'est pas
+touché. (3) « Structure », « Paroles » et « Fichier » passent de 26 à 32px (la règle tactile qui les protégeait devient sans objet, gardée comme filet).
+Aucune icône de l'utilisateur n'est remplacée ; la règle « on reprend les logos existants » est écrite dans `docs/refonte.md`.
+
+**Le banc : un CLIQUET.** `gabarit_boutons_test` mesure toutes les commandes visibles (arrivée + accord en modification) et tient `HORS_JAUGE`, la liste de
+celles qui ne sont pas ENCORE à la jauge (18 aujourd'hui, chacune avec le lot qui la supprime). Il refuse (1) une commande hors jauge qui n'y figure pas — une commande
+neuve ne peut pas être de travers —, et (2) une entrée devenue inutile : la liste ne fait que raccourcir, le lot qui supprime un bouton le retire d'ici, et c'est la
+preuve que c'est fait. Liste vide = jauge tenue partout = fin de la refonte. Sabotage : `--bouton-h` à 29px → le banc rougit sur le logo et les trois boutons.
+
+**Voisins verts** : synchro_cloud 126, compte_cloud 51, verre_compte 32, verre 64, sentinelle_atteignabilite 25, sentinelle_adresses 224, entete_grille_debordement 15,
+meta_suite 6, structure_feuille 61, song_panel 31.
