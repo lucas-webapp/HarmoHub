@@ -4762,3 +4762,7 @@ dont 7 rouges** ; le 8e (plafond de hauteur retiré de `borneHauteurCase`) reste
 ou ancien part de Normal), `probe_suppression_pleinecran_test` (l'échelle horizontale par l'affichage Compact), `gabarit_boutons_test` (les quatre `classic-grid-*` quittent `HORS_JAUGE`),
 `entete_grille_debordement_test` (trois commandes au bureau au lieu de quatre), `retour_a_sa_place_test` (l'enveloppe `#grille-cadre`), `grille_clic_et_double_clic_test` (le double-clic
 « charger l'accord » vise le bas de la case : à 52px, 8px sous le haut c'est déjà la zone du symbole, qui renomme — le lot 6 refait ces gestes), `place_du_plus_et_diagrammes_test` (voir plus haut).
+
+**Balayages du lot 5a (01/11).** Premier : 210 verts, 10 rouges — cinq nouveaux (en-tête de grille, double-clic, police des symboles, ordre de la section, tiroir du téléphone), tous
+analysés ci-dessus et corrigés (dont le téléphone qui changeait). Second, après corrections : **214 verts, 6 rouges, 7 sans verdict (227 suites)** — les cinq rouges de la ligne de base,
+plus `glock_unlock_and_switch_test` (2/5), suite déjà notée intermittente et rangée parmi les sensibles au minutage : relancée seule trois fois, 7 PASS / 0 FAIL à chaque fois.
