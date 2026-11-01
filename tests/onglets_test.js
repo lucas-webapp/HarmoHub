@@ -179,17 +179,16 @@ const graine = (src) => {
 
     // ======================================================================================================
     console.log('\n=== D. Paroles : sa page à part, ouverte depuis l\'onglet ===');
-    const [page2] = await Promise.all([ctx.waitForEvent('page', { timeout: 5000 }).catch(() => null), p.click('#lyrics-btn')]);
+    // Pas de `.catch` ni de `if` : si la page ne s'ouvre pas, le banc doit ÉCHOUER bruyamment (délai dépassé), pas continuer sur une vérification sautée.
+    const [page2] = await Promise.all([ctx.waitForEvent('page', { timeout: 5000 }), p.click('#lyrics-btn')]);
     check(!!page2, 'un clic sur l\'onglet Paroles ouvre la page Paroles dans un nouvel onglet du navigateur (comme avant)');
-    if (page2) {
-        await page2.waitForLoadState('domcontentloaded').catch(() => {});
-        check(/paroles\.html/.test(page2.url()), `…la bonne page (${page2.url().replace(BASE, '')})`);
-        // Le transfert (les accords du morceau, déposés dans un coin de localStorage partagé) est CONSOMMÉ par la page Paroles à son ouverture :
-        // on vérifie donc qu'elle les a reçus — son nom de morceau s'affiche — plutôt que de chercher une clé qu'elle a déjà retirée.
-        const recu = await page2.waitForFunction(() => { const n = document.getElementById('song-name'); return n && !n.hidden && /Démo/.test(n.textContent); }, null, { timeout: 5000 }).then(() => true).catch(() => false);
-        check(recu, 'le morceau arrive dans Paroles (son nom « Démo » s\'y affiche) : le transfert fonctionne comme avant');
-        await page2.close();
-    }
+    await page2.waitForLoadState('domcontentloaded');
+    check(/paroles\.html/.test(page2.url()), `…la bonne page (${page2.url().replace(BASE, '')})`);
+    // Le transfert (les accords du morceau, déposés dans un coin de localStorage partagé) est CONSOMMÉ par la page Paroles à son ouverture :
+    // on vérifie donc qu'elle les a reçus — son nom de morceau s'affiche — plutôt que de chercher une clé qu'elle a déjà retirée.
+    await page2.waitForFunction(() => { const n = document.getElementById('song-name'); return n && !n.hidden && /Démo/.test(n.textContent); }, null, { timeout: 5000 });
+    check(true, 'le morceau arrive dans Paroles (son nom « Démo » s\'y affiche) : le transfert fonctionne comme avant');
+    await page2.close();
     e = await etat(p);
     check(e.paroles === 'false' && e.grille === 'true' && !e.fenetre, 'Paroles n\'est jamais « allumé » ici (la page s\'ouvre ailleurs) : on reste sur Grille');
 

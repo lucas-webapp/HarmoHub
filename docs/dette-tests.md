@@ -4678,3 +4678,10 @@ suivait plus, et le clic suivant sur Structure FERMAIT au lieu d'ouvrir. Corrig�
 **À noter, sans y toucher (comportement d'origine).** Cliquer « Paroles » télécharge aussi un fichier `.json` (le transfert vers un autre navigateur) en plus d'ouvrir la page : pour un onglet, c'est
 surprenant — à reconsidérer avec l'utilisateur, ce n'est pas une régression. La page Paroles garde son propre en-tête (« ‹ HarmoHub », logo, « Paroles ») : y reposer les trois onglets est possible
 (Grille et Structure y mèneraient vers `index.html`), mais touche une page à part et ses bancs : à décider.
+
+**Balayage du lot 4 (01/11) : 211 verts, 7 rouges, 7 sans verdict (225 suites).** Les cinq rouges de la ligne de base (probe_clic_accord_voisin 4/4, probe_defilement_tactile 23/1, probe_regle_voisins 28/1,
+probe_seq_finitions 18/1, seq_notes_libres_clavier 32/1) et les sept muets sont inchangés ; `sortie_edition_involontaire` (rouge dans la base, à cause de la fenêtre du manche) est passé au vert cette fois-ci.
+Deux rouges NOUVEAUX, examinés avant de pousser : (1) `meta_suite_test` — le défaut était dans MON banc : `onglets_test` avalait une erreur (`.catch(() => {})`) et portait une vérification sous
+condition (`if (page2) { check… }`), deux compteurs que la méta-suite interdit d'augmenter. Corrigé : si la page Paroles ne s'ouvre pas, le banc échoue bruyamment au lieu de sauter la vérification.
+(2) `manche_edition_lot6_test` (« l'aperçu disparaît quand la souris quitte le manche ») — déjà rangé dans les suites sensibles au minutage du balayage (son en-tête note 1-2 rouges en charge et 0 isolé) ;
+relancé seul trois fois de suite : 18 PASS / 0 FAIL à chaque fois, et rien dans le lot 4 ne touche le manche. Traité comme du bruit de minutage, noté ici pour le cas où il reviendrait.
