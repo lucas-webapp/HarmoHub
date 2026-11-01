@@ -4728,3 +4728,37 @@ des frappes de Paroles (une étape d'annulation par seconde de frappe continue) 
 
 **Balayage du lot 4b (01/11) : 214 verts, 5 rouges, 7 sans verdict (226 suites)** — les cinq rouges (probe_clic_accord_voisin 4/4, probe_defilement_tactile 23/1, probe_regle_voisins 28/1,
 probe_seq_finitions 18/1, seq_notes_libres_clavier 32/1) et les sept muets sont ceux de la ligne de base ; aucun nouveau rouge.
+
+## Refonte de l'interface — lot 5a : l'affichage de la grille (2026-11-01)
+
+Retours de la maquette repris : « les cases sont trop grosses, ça nuit à la visibilité », « je n'ai pas besoin de toute cette largeur… fenêtre extensible, centrée, plus
+petite ? », « la fenêtre fonctionne bien en largeur… trouver une astuce en hauteur aussi », « Compact / Normal / Détaillé remplace les quatre boutons de zoom ». Le lot 5
+(grille) est livré en quatre sous-lots : 5a affichage (celui-ci), 5b les petits carrés du rythme et leur option, 5c l'en-tête de partie, 5d les finitions (case « + »,
+pastille ambre du voicing perso, durée affichée pendant l'étirement, Maj+flèches). La règle de lecture sous les cases et la plage orange qu'on y trace EXISTAIENT déjà.
+
+**Ce qui est fait (ordinateur).** Un groupe Compact / Normal / Détaillé (trois boutons à la jauge, l'allumé en texte vert + liseré) à la place des quatre boutons H± V±, aux
+valeurs de la maquette : Compact = cases de 38px, 8 mesures par ligne, noms seuls (ni degrés ni position d'accord : c'est le RENDU qui les omet, pour ne pas laisser de rangée
+vide), fenêtre de 640px ; Normal = 52px, 4 mesures, 480px ; Détaillé = 84px, 4 mesures, 640px. La grille est une fenêtre CENTRÉE (`#grille-cadre`) : poignée du bord droit
+(360 à 1400px, et jamais plus que sa colonne ; les deux bords s'écartent ensemble), poignée du bord bas pour la hauteur des cases (30 à 160px, l'écart réparti sur toutes les
+rangées, seule une variable CSS bouge pendant le geste), double-clic sur l'une ou l'autre = valeurs de l'affichage. **Sous le capot, rien de neuf** : les affichages sont des
+préréglages des deux échelles qui existaient déjà (enregistrées dans le morceau, synchronisées) ; seule la largeur de fenêtre est une donnée nouvelle (`grilleLargeur`, par
+morceau, avec `grilleDensite`). Un morceau d'avant ce lot s'ouvre en Normal ; sans morceau ouvert, l'appareil mémorise l'affichage comme il mémorise les échelles.
+
+**Ce que la mesure a imposé.** (1) Une vraie régression trouvée par `classic_grid_zoom_test` : sans morceau ouvert, forcer « Normal » au démarrage effaçait les échelles réglées
+au rechargement — corrigé par la mémoire de l'appareil (`harmohubGrilleDensite`, `harmohubGrilleLargeur`). (2) « Téléphone inchangé » était FAUX au premier jet : les échelles
+étant celles du morceau, l'affichage Normal (0,8125) réduisait les cases du téléphone de 56 à 45px (`seq_tiroir_flottant_test` l'a vu : grille visible 118px au lieu de ≥120). Le
+téléphone lit désormais son échelle ramenée à l'affichage Normal (`--grid-zoom-scale-v-tel`) et Compact n'y descend pas sous l'ancien plancher (0,7) : Normal y redonne exactement
+l'aspect d'avant. (3) Les rangées de numéros et de degrés ont un plancher (16 / 14px) : en Compact elles seraient tombées à 12px. (4) L'échelle verticale est arrondie au
+dix-millième (et non plus au centième) : 52px = 0,8125, arrondi à 0,81 la case faisait 51,84px.
+
+**Un point à faire trancher par l'utilisateur.** En Normal (480px, valeur de la maquette), un accord d'UN temps n'a que ~28px : un symbole long (« B♭maj7 ») y descend au plancher de
+8px de `fitCellSymbols` — lisible de près, pas de loin. Au format d'avant (toute la colonne) il tenait à plus de 10px. Ce n'est pas un défaut de code, c'est le prix de la largeur
+choisie ; Détaillé (640px) ou la poignée droite le règlent. `place_du_plus_et_diagrammes_test` mesure désormais l'égalité des polices dans une fenêtre élargie à la poignée.
+
+**Bancs.** Nouveau `affichage_grille_test` (29 : les trois affichages et leurs valeurs, centrage, poignée droite — écart double, plancher, plafond de la colonne, double-clic —, poignée
+basse — +20px par case, 160, 30, double-clic —, mémoire dans le morceau, morceau ancien en Normal, rechargement, mémoire de l'appareil sans morceau, téléphone inchangé). **Sabotages : 8,
+dont 7 rouges** ; le 8e (plafond de hauteur retiré de `borneHauteurCase`) reste vert, et c'est une information : `setZoomLevel` borne la même échelle à 160px — double protection.
+**Réécrits pour le nouveau geste :** `classic_grid_zoom_test`, `song_zoom_persist_test` (les boutons H / V ne restent qu'au format téléphone : ces bancs s'y placent ; un morceau neuf
+ou ancien part de Normal), `probe_suppression_pleinecran_test` (l'échelle horizontale par l'affichage Compact), `gabarit_boutons_test` (les quatre `classic-grid-*` quittent `HORS_JAUGE`),
+`entete_grille_debordement_test` (trois commandes au bureau au lieu de quatre), `retour_a_sa_place_test` (l'enveloppe `#grille-cadre`), `grille_clic_et_double_clic_test` (le double-clic
+« charger l'accord » vise le bas de la case : à 52px, 8px sous le haut c'est déjà la zone du symbole, qui renomme — le lot 6 refait ces gestes), `place_du_plus_et_diagrammes_test` (voir plus haut).

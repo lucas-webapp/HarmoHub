@@ -3629,8 +3629,10 @@ button:active { transform: translateY(1px); }
        identique sur toutes les lignes — c'est ce qui préserve les proportions entre accords, la
        largeur d'un accord disant sa durée. */
     --col-plus: 30px;   /* 4px de plus que la case elle-même : la marge de séparation les sépare du dernier accord (voir .grid-cell-add-seule) */
-    --measure-row-h: calc(20px * var(--grid-zoom-scale-v, 1));
-    --roman-row-h: calc(18px * var(--grid-zoom-scale-v, 1));
+    /* Lot 5a : les rangées de NUMÉROS (règle) et de DEGRÉS ne descendent pas sous 16 / 14px — l'affichage Compact (cases de 38px) les aurait sinon
+       réduits à 12px, illisibles ; ce sont les cases qui doivent rétrécir, pas les chiffres. */
+    --measure-row-h: max(16px, calc(20px * var(--grid-zoom-scale-v, 1)));
+    --roman-row-h: max(14px, calc(18px * var(--grid-zoom-scale-v, 1)));
     display: grid;
     grid-template-columns: repeat(16, 1fr); /* par défaut (grille vide) ; posé dynamiquement en JS sinon,
                                                 selon la signature rythmique du morceau */
@@ -5084,8 +5086,18 @@ select.song-select-narrow {
    que sur écran étroit, là où la version complète ne rentre pas (voir #seq-delete-selection). */
 .lbl-short { display: none; }
 
+/* TÉLÉPHONE (lot 5a) : « rien ne change avant le lot 10 ». Les échelles de la grille sont celles du MORCEAU, partagées entre appareils — l'affichage
+   Normal choisi sur l'ordinateur (cases de 52px, échelle 0,8125) aurait donc réduit les cases du téléphone de 56 à 45px. Le téléphone lit son échelle
+   RAMENÉE à l'affichage Normal (--grid-zoom-scale-v-tel = échelle / 0,8125, posée par applyZoomLevel) : Normal y redonne exactement l'aspect d'avant. */
+@media (max-width: 899px) {
+    .chord-grid {
+        --row-h: calc(64px * var(--grid-zoom-scale-v-tel, 1));
+        --measure-row-h: calc(20px * var(--grid-zoom-scale-v-tel, 1));
+        --roman-row-h: calc(18px * var(--grid-zoom-scale-v-tel, 1));
+    }
+}
 @media (max-width: 480px) {
-    .chord-grid { --row-h: calc(56px * var(--grid-zoom-scale-v, 1)); }
+    .chord-grid { --row-h: calc(56px * var(--grid-zoom-scale-v-tel, 1)); }
     .cell-sym { font-size: var(--fs-md); }
     .seq-cell { height: 30px; }
     .lbl-full { display: none; }

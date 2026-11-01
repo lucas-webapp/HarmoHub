@@ -116,9 +116,12 @@ await page.click('#seq-plein-ecran');
     check(ferme.grilleDansColRight && !ferme.grilleDansColLeft, 'elle est dans .col-right, et surtout PAS dans .col-left');
     const rang = (q) => ferme.ordreHistory.indexOf(q);
     console.log('ordre dans .history-section :', JSON.stringify(ferme.ordreHistory));
+    // Lot 5a : la grille et son bouton d'ajout vivent dans l'enveloppe centrée #grille-cadre (fenêtre de grille, poignées) ; l'ordre se lit donc
+    // jusqu'à elle, puis dedans.
+    const dansCadre = await page.evaluate(() => { const c = document.getElementById('grille-cadre'); return c ? [...c.children].map(e => e.id || e.className.split(' ')[0]) : []; });
     check(rang('card-head') < rang('quick-add-panel')
-        && rang('quick-add-panel') < rang('progression-sections')
-        && rang('progression-sections') < rang('add-section'),
+        && rang('quick-add-panel') < rang('grille-cadre')
+        && dansCadre.indexOf('progression-sections') >= 0 && dansCadre.indexOf('progression-sections') < dansCadre.indexOf('add-section'),
         `l'ordre de la section est intact : en-tête, saisie rapide, grille, bouton d'ajout — ${JSON.stringify(ferme.ordreHistory)}`);
     check(ferme.ajoutDansHistory, 'le bouton « Ajouter une partie » est là aussi');
     check(JSON.stringify(ferme.symboles) === JSON.stringify(repos.symboles),

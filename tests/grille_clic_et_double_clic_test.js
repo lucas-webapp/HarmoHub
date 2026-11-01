@@ -60,7 +60,9 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     console.log('=== 2 bis. Un double-clic charge bien cet accord pour le modifier ===');
     const cell1 = await page.$('.grid-cell[data-index="1"]');
     const box1 = await cell1.boundingBox();
-    await page.mouse.dblclick(box1.x + box1.width / 2, box1.y + 8);
+    // Lot 5a : les cases font 52px (Normal) au lieu de 64 — à 8px du haut on touche maintenant la zone du symbole (qui renomme). On vise donc le BAS
+    // de la case, comme les autres bancs (« au centre se trouve le symbole, dont le double-clic ouvre la retape »).
+    await page.mouse.dblclick(box1.x + box1.width / 2, box1.y + box1.height * 0.85);
     await page.waitForTimeout(250);
     r = await page.evaluate(() => ({ editingIndex: window.app.editingIndex, appMode: window.app.appMode, seqOpen: window.app.seqOpen }));
     console.log(JSON.stringify(r));

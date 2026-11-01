@@ -69,7 +69,9 @@ const GRAINE = { sections: [{ title: 'Couplet', chords: [
         console.log(`--- ${nom} (${taille.w}px) ---`);
         console.log(JSON.stringify(i && i.enfants.map(e => `${e.q} ${Math.round(e.l)}→${Math.round(e.r)} t=${Math.round(e.t)} h=${Math.round(e.h)}`)));
 
-        if (!exiger(i && i.enfants.length >= 4, `${nom} : la barre de la grille et ses commandes sont bien là (${i ? i.enfants.length : 0} éléments visibles)`)) continue;
+        // Lot 5a : au bureau, les DEUX groupes H± V± ont cédé la place à UN groupe « Compact / Normal / Détaillé » — trois commandes visibles (affichage,
+        // conduite de voix, Séq.) au lieu de quatre ; le téléphone garde les siennes.
+        if (!exiger(i && i.enfants.length >= (nom === 'ordinateur' ? 3 : 4), `${nom} : la barre de la grille et ses commandes sont bien là (${i ? i.enfants.length : 0} éléments visibles)`)) continue;
 
         const dedans = i.enfants.filter(e => e.l >= 0 && e.r <= i.vw + 1);
         check(dedans.length === i.enfants.length,

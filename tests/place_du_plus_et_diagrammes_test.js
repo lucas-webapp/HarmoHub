@@ -117,6 +117,17 @@ const releverPlus = () => {
     });
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(700);
+    // Lot 5a : la grille est une fenêtre centrée de 480px en Normal — un accord d'UN temps n'y a que ~28px, et « B♭maj7 » y descend légitimement au
+    // plancher de 8px (le filet de sécurité vérifié plus bas). Ce que mesure CETTE partie — deux cases de même largeur, même taille ; pas de
+    // rétrécissement inutile — se mesure donc dans une fenêtre élargie à la poignée, comme l'aurait fait l'utilisateur, au format de grille d'avant.
+    if (await page.locator('#grille-poignee-droite').isVisible()) {
+        const ph = await page.locator('#grille-poignee-droite').boundingBox();
+        await page.mouse.move(ph.x + ph.width / 2, ph.y + ph.height / 2); await page.mouse.down();
+        for (let i = 1; i <= 5; i++) await page.mouse.move(ph.x + ph.width / 2 + 80 * i, ph.y + ph.height / 2);
+        await page.mouse.up(); await page.waitForTimeout(400);
+        await page.evaluate(() => window.app.loadProgression());
+        await page.waitForTimeout(300);
+    }
     const polices = await page.evaluate(() => [...document.querySelectorAll('.cell-sym')].map(el => {
         const c = el.closest('.grid-cell');
         return { txt: el.textContent.trim(), px: parseFloat(getComputedStyle(el).fontSize),

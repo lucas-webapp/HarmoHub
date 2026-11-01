@@ -7637,6 +7637,9 @@ class HarmoHubApp {
     // celle-ci a été retirée, il n'en reste qu'un. Gardé comme paramètre par les appelants qui le
     // passent encore (voir layoutProgression), mais il ne change plus rien.
     currentGridHZoom() {
+        // Téléphone (lot 5a) : l'affichage Compact de l'ordinateur (0,5 = 8 mesures par ligne) n'y descend pas sous l'ancien plancher — 8 mesures sur un
+        // écran de 390px seraient illisibles, et le téléphone garde sa mise en page jusqu'au lot 10.
+        if (!window.matchMedia('(min-width: 900px)').matches) return Math.max(this.classicGridZoomLevelX, ZOOM_LEVEL_MIN);
         return this.classicGridZoomLevelX;
     }
 
@@ -18165,7 +18168,11 @@ class HarmoHubApp {
             // garde son nom d'origine, du temps où une vue agrandie posait la même variable sur un
             // second hôte ; il n'en reste qu'un.
             const host = document.querySelector('.history-section');
-            if (host) host.style.setProperty('--grid-zoom-scale-v', String(this.classicGridZoomLevelY));
+            if (host) {
+                host.style.setProperty('--grid-zoom-scale-v', String(this.classicGridZoomLevelY));
+                // Téléphone (lot 5a) : la même échelle ramenée à l'affichage Normal — voir style.css, « rien ne change avant le lot 10 ».
+                host.style.setProperty('--grid-zoom-scale-v-tel', String(this.classicGridZoomLevelY / (DENSITES_GRILLE.normal.h / GRILLE_CASE_BASE)));
+            }
             if (this._zoomPinchActive) this._gridZoomRenderPending = true;
             else this.loadProgression();
         } else if (kind === 'voiceLeading') {
