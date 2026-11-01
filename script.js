@@ -2634,6 +2634,22 @@ const SEQ_MIDI_TOUJOURS_VISIBLE_MAX = 83;  // B5
 // « moins ») ; son amplitude, elle, ne sert plus — un cran vaut désormais une PROPORTION, voir
 // ZOOM_LEVEL_RATIO et adjustZoom.
 const ZOOM_LEVEL_STEP = 0.1;
+// LES TROIS AFFICHAGES DE LA GRILLE (refonte, lot 5a — docs/refonte.md, valeurs de la maquette validée) : « les cases sont trop grosses, ça nuit à la
+// visibilité ». Ce sont des PRÉRÉGLAGES des deux échelles de la grille (classicGridZoomLevelX/Y, déjà enregistrées dans le morceau et synchronisées) :
+// x = densité horizontale (0,5 → 8 mesures par ligne en 4/4, 1 → 4 mesures), h = hauteur d'une case en px (l'échelle verticale vaut h / 64),
+// w = largeur de la fenêtre de grille en px.
+const DENSITES_GRILLE = {
+    compact: { x: 0.5, h: 38, w: 640 },
+    normal: { x: 1, h: 52, w: 480 },
+    detail: { x: 1, h: 84, w: 640 },
+};
+const GRILLE_CASE_BASE = 64;              // --row-h vaut 64px × l'échelle verticale (style.css)
+const GRILLE_HAUTEUR_MIN = 30, GRILLE_HAUTEUR_MAX = 160;
+const GRILLE_LARGEUR_MIN = 360, GRILLE_LARGEUR_MAX = 1400;
+// Mémoire SUR L'APPAREIL de l'affichage et de la largeur, comme celle des échelles (CLASSIC_GRID_ZOOM_LEVEL_X/Y_KEY) : sans morceau ouvert, c'est elle
+// qui fait foi au rechargement (un morceau ouvert, lui, porte les siens).
+const GRILLE_DENSITE_KEY = 'harmohubGrilleDensite';
+const GRILLE_LARGEUR_KEY = 'harmohubGrilleLargeur';
 // +25 % par cran : sept crans couvrent 1 -> 4 (plafond horizontal du séquenceur) comme 1 -> 0,7
 // (plancher commun), et chaque clic se voit autant que le précédent, quelle que soit l'échelle
 // atteinte. C'est le pas habituel des stations audio.
@@ -4513,6 +4529,7 @@ class HarmoHubApp {
         // départageaient ce réglage de celui de la vue plein écran ont disparu avec elle : il n'y a
         // plus qu'une seule grille, donc plus de risque qu'un même geste zoome deux réglages.
         this._bindZoomButtons('classicGrid', { inH: 'classic-grid-in-h', outH: 'classic-grid-out-h', inV: 'classic-grid-in-v', outV: 'classic-grid-out-v' });
+        this.setupAffichageGrille(); // lot 5a : Compact / Normal / Détaillé, fenêtre centrée, poignées
         this._bindCtrlWheelZoom('progression-sections', 'classicGrid');
         this.setupPinchZoom(document.getElementById('progression-sections'), 'classicGrid');
 
@@ -7706,7 +7723,8 @@ class HarmoHubApp {
                 // dimensionnement intrinsèque basé sur le contenu. rowsPerGroup/chordRowOffset
                 // traduisent this.row en ligne CSS partout plus bas dans ce bloc (cellules d'accord,
                 // chiffrage romain, numéros de mesure, plage de boucle, case "+").
-                const showRoman = this.showRomanNumerals;
+                // Affichage Compact (lot 5a) : « noms seuls » — pas de rangée de degrés, quel que soit le réglage (à 38px de case il n'y a pas la place).
+                const showRoman = this.showRomanNumerals && this.grilleDensite !== 'compact';
                 const showFunction = this.showChordFunction;
                 // Degrés et fonction harmonique partagent la MÊME ligne dédiée (voir plus bas) : une
                 // ligne de plus à réserver dès que l'UN des deux est actif, pas une par réglage.
@@ -7875,8 +7893,9 @@ class HarmoHubApp {
                     // Octave / renversement-drop (voir gridVoicingParts, options Affichage > Octave /
                     // Renversement-drop) : même notation compacte que le PDF exporté (ex. "O3-R1-D2").
                     const badgeParts = [];
-                    if (this.showGridOctave) badgeParts.push(`O${octaveFromData(h)}`);
-                    if (this.showGridVoicing) badgeParts.push(...gridVoicingParts(h));
+                    const nomsSeuls = this.grilleDensite === 'compact'; // Compact : noms seuls (lot 5a)
+                    if (this.showGridOctave && !nomsSeuls) badgeParts.push(`O${octaveFromData(h)}`);
+                    if (this.showGridVoicing && !nomsSeuls) badgeParts.push(...gridVoicingParts(h));
                     const hasMeta = !!(s.isFirst && badgeParts.length);
                     const metaEl = hasMeta ? `<span class="cell-meta">${badgeParts.join('-')}</span>` : '';
                     // .has-meta réserve, en CSS, la hauteur du badge sous le symbole (voir style.css) :
@@ -8973,6 +8992,126 @@ class HarmoHubApp {
     // openTransferScopeMenu…). Les boutons de la carte existent toujours — ils servent encore sur téléphone jusqu'au lot 10.
     // « Ne rien faire régresser » : le changement de morceau en deux clics (la liste déroulante) reste à deux clics, car le menu s'ouvre
     // sur la liste des morceaux récents ; « Mes morceaux… » mène à la fenêtre complète, dossiers compris.
+    // ---------- L'AFFICHAGE DE LA GRILLE (refonte, lot 5a — docs/refonte.md) ----------
+    // « Affichage Compact / Normal / Détaillé remplace les quatre boutons de zoom. » + « une fenêtre centrée… poignée bord droit (largeur) et poignée bord bas
+    // (hauteur des cases, 30 à 160 px), double-clic = valeurs d'origine ». Rien de neuf sous le capot : les affichages règlent les DEUX échelles de grille
+    // qui existaient déjà (enregistrées dans le morceau, synchronisées, rendues par loadProgression) ; la poignée du bas règle l'échelle verticale ;
+    // seule la largeur de la fenêtre est une donnée nouvelle (grilleLargeur, par morceau aussi).
+    setupAffichageGrille() {
+        // Pas de morceau ouvert (tampon neuf) : l'affichage Normal d'emblée — sinon les échelles mémorisées de l'ancien réglage global (64px de case)
+        // s'afficheraient sous un bouton « Normal » allumé qui annonce 52px. Un morceau ouvert, lui, a déjà posé les siennes (applySongSettingsToDom).
+        const id = getCurrentSongId();
+        const ouvert = id ? loadSongs().find(x => x.id === id) : null;
+        if (!ouvert) {
+            let memo = null;
+            try { memo = localStorage.getItem(GRILLE_DENSITE_KEY); } catch (e) { /* stockage indisponible */ }
+            if (memo && DENSITES_GRILLE[memo]) {
+                // Déjà réglé sur cet appareil : l'affichage ET les échelles mémorisées (la poignée du bas a pu les affiner) — un rechargement ne défait rien.
+                this.grilleDensite = memo;
+                const l = parseInt(localStorage.getItem(GRILLE_LARGEUR_KEY), 10);
+                this.grilleLargeur = l > 0 ? l : null;
+            } else {
+                // Première ouverture depuis ce lot : l'affichage Normal.
+                this.grilleDensite = 'normal';
+                this.grilleLargeur = null;
+                this.setZoomLevel('classicGrid', 'x', DENSITES_GRILLE.normal.x);
+                this.setZoomLevel('classicGrid', 'y', DENSITES_GRILLE.normal.h / GRILLE_CASE_BASE);
+                marquerEnregistre(); // un réglage d'affichage posé au démarrage n'est pas une modification du morceau
+                this.memoriserAffichageGrille();
+            }
+        }
+        if (!this.grilleDensite) this.grilleDensite = 'normal';
+        const groupe = document.getElementById('grille-densites');
+        if (groupe) groupe.querySelectorAll('[data-densite]').forEach(b => b.addEventListener('click', () => this.choisirDensiteGrille(b.dataset.densite)));
+        const droite = document.getElementById('grille-poignee-droite');
+        const bas = document.getElementById('grille-poignee-bas');
+        const cadre = document.getElementById('grille-cadre');
+        if (!droite || !bas || !cadre) return;
+        // LARGEUR : la fenêtre est centrée, donc ses deux bords s'écartent ensemble — l'écart suit la souris du double de son déplacement.
+        this._glisserPoignee(droite, {
+            debut: () => ({ w0: cadre.getBoundingClientRect().width }),
+            bouger: (d, dx) => { cadre.style.maxWidth = this.borneLargeurGrille(d.w0 + 2 * dx) + 'px'; },
+            fin: (d, dx) => { this.grilleLargeur = this.borneLargeurGrille(d.w0 + 2 * dx); this.rafraichirAffichageGrille(); marquerModifie(); },
+        });
+        // HAUTEUR DES CASES : le bord bas suit la souris — l'écart se répartit sur toutes les rangées de cases au-dessus. Pendant le geste, seule la variable
+        // CSS bouge (pas de nouveau rendu à chaque pixel) ; l'échelle est posée pour de bon au relâchement.
+        const hote = document.querySelector('.history-section');
+        this._glisserPoignee(bas, {
+            debut: () => ({ h0: this.hauteurCaseGrille(), rangees: Math.max(1, this.compterRangeesGrille()) }),
+            bouger: (d, dx, dy) => { if (hote) hote.style.setProperty('--grid-zoom-scale-v', String(this.borneHauteurCase(d.h0 + dy / d.rangees) / GRILLE_CASE_BASE)); },
+            fin: (d, dx, dy) => { this.setZoomLevel('classicGrid', 'y', this.borneHauteurCase(d.h0 + dy / d.rangees) / GRILLE_CASE_BASE); this.rafraichirAffichageGrille(); },
+        });
+        // Double-clic sur l'une ou l'autre : les valeurs de l'affichage en cours (« double-clic = valeurs d'origine »).
+        [droite, bas].forEach(p => p.addEventListener('dblclick', (e) => { e.preventDefault(); this.choisirDensiteGrille(this.grilleDensite || 'normal'); }));
+        this.rafraichirAffichageGrille();
+    }
+
+    // Glisser à la souris (ou au doigt) avec capture du pointeur : le geste continue même si le pointeur sort de la poignée de 8px.
+    _glisserPoignee(el, { debut, bouger, fin }) {
+        el.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0) return;
+            e.preventDefault(); e.stopPropagation();
+            try { el.setPointerCapture(e.pointerId); } catch (err) { /* pointeur synthétique : sans capture, le geste marche quand même */ }
+            const x0 = e.clientX, y0 = e.clientY, d = debut();
+            el.classList.add('en-cours');
+            const mv = (ev) => bouger(d, ev.clientX - x0, ev.clientY - y0);
+            const up = (ev) => {
+                el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
+                el.classList.remove('en-cours');
+                if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) < 2) return; // un simple clic n'est pas un réglage
+                fin(d, ev.clientX - x0, ev.clientY - y0);
+            };
+            el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+        });
+    }
+
+    borneLargeurGrille(w) {
+        const col = document.getElementById('grille-cadre');
+        const dispo = col && col.parentElement ? col.parentElement.getBoundingClientRect().width : GRILLE_LARGEUR_MAX;
+        return Math.round(Math.max(GRILLE_LARGEUR_MIN, Math.min(GRILLE_LARGEUR_MAX, dispo, w)));
+    }
+    borneHauteurCase(h) { return Math.round(Math.max(GRILLE_HAUTEUR_MIN, Math.min(GRILLE_HAUTEUR_MAX, h))); }
+    hauteurCaseGrille() { return Math.round(GRILLE_CASE_BASE * (this.classicGridZoomLevelY || 1)); }
+    // Nombre de rangées de cases d'accord visibles (toutes parties confondues) : celles que la poignée du bas fait grandir ensemble.
+    compterRangeesGrille() {
+        const hauts = new Set();
+        document.querySelectorAll('#progression-sections .grid-cell').forEach(c => hauts.add(Math.round(c.getBoundingClientRect().top)));
+        return hauts.size;
+    }
+
+    memoriserAffichageGrille() {
+        try {
+            localStorage.setItem(GRILLE_DENSITE_KEY, this.grilleDensite || 'normal');
+            if (this.grilleLargeur) localStorage.setItem(GRILLE_LARGEUR_KEY, String(this.grilleLargeur)); else localStorage.removeItem(GRILLE_LARGEUR_KEY);
+        } catch (e) { /* stockage plein ou refusé : sans gravité, le morceau garde les siens */ }
+    }
+
+    choisirDensiteGrille(densite) {
+        const d = DENSITES_GRILLE[densite];
+        if (!d) return;
+        this.grilleDensite = densite;
+        this.grilleLargeur = null;
+        this.setZoomLevel('classicGrid', 'x', d.x);
+        this.setZoomLevel('classicGrid', 'y', d.h / GRILLE_CASE_BASE);
+        this.rafraichirAffichageGrille();
+        this.loadProgression(); // ce que montrent les cases dépend de l'affichage (noms seuls en Compact), même à échelles inchangées
+        marquerModifie(); // un réglage du morceau, comme ses échelles : Enregistrer le rend permanent
+    }
+
+    // Pose ce que montre l'écran d'après l'état : bouton allumé, largeur de la fenêtre, classe d'affichage (le CSS en tire ce que montrent les cases).
+    rafraichirAffichageGrille() {
+        const densite = this.grilleDensite || 'normal';
+        document.querySelectorAll('#grille-densites [data-densite]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.densite === densite)));
+        const cadre = document.getElementById('grille-cadre');
+        if (cadre) cadre.style.maxWidth = (this.grilleLargeur || DENSITES_GRILLE[densite].w) + 'px';
+        this.memoriserAffichageGrille();
+        const hote = document.querySelector('.history-section');
+        if (hote) {
+            hote.classList.remove('densite-compact', 'densite-normal', 'densite-detail');
+            hote.classList.add('densite-' + densite);
+        }
+    }
+
     // ---------- LES ONGLETS : Grille / Structure / Paroles (refonte, lot 4 — docs/refonte.md) ----------
     // « Structure et Paroles deviennent des onglets (Paroles garde sa page et sa synchro propre, ouverte depuis l'onglet). » Ce sont les MÊMES boutons qu'avant
     // (#structure-btn, #lyrics-btn : identifiant, logo, code), simplement posés au centre de la barre du haut sur ordinateur et remis à côté de Fichier
@@ -9326,6 +9465,7 @@ class HarmoHubApp {
                     root: morceau.root, mode: morceau.mode, timeSig: morceau.timeSig, groove: morceau.groove, bpm: morceau.bpm, instrumentMorceau: morceau.instrumentMorceau,
                     classicGridZoomLevelX: morceau.classicGridZoomLevelX, classicGridZoomLevelY: morceau.classicGridZoomLevelY,
                     seqZoomLevelX: morceau.seqZoomLevelX, seqZoomLevelY: morceau.seqZoomLevelY, seqInlineZoomLevelX: morceau.seqInlineZoomLevelX,
+                    grilleDensite: morceau.grilleDensite, grilleLargeur: morceau.grilleLargeur,
                 };
             } else {
                 const id = getCurrentSongId();
@@ -9659,6 +9799,8 @@ class HarmoHubApp {
             seqZoomLevelX: this.seqZoomLevelX,
             seqZoomLevelY: this.seqZoomLevelY,
             seqInlineZoomLevelX: this.seqInlineZoomLevelX,
+            grilleDensite: this.grilleDensite || 'normal',   // lot 5a : l'affichage de la grille et la largeur de sa fenêtre suivent le morceau, comme ses échelles
+            grilleLargeur: this.grilleLargeur || null,
         };
     }
 
@@ -9738,6 +9880,19 @@ class HarmoHubApp {
         this.seqZoomLevelX = song.seqZoomLevelX || 1;
         this.seqZoomLevelY = song.seqZoomLevelY || 1;
         this.seqInlineZoomLevelX = song.seqInlineZoomLevelX || 1;
+        // AFFICHAGE DE LA GRILLE (lot 5a). Un morceau enregistré avant ce lot n'en porte pas : il s'ouvre en « Normal » (cases de 52px, 4 mesures par ligne),
+        // et non avec ses anciennes échelles — c'est la demande même du lot (« les cases sont trop grosses »). Un morceau qui en porte un retrouve
+        // l'affichage choisi ET ses échelles exactes (la poignée du bas a pu les affiner).
+        if (song.grilleDensite && DENSITES_GRILLE[song.grilleDensite]) {
+            this.grilleDensite = song.grilleDensite;
+            this.grilleLargeur = song.grilleLargeur || null;
+        } else {
+            this.grilleDensite = 'normal';
+            this.grilleLargeur = null;
+            this.classicGridZoomLevelX = DENSITES_GRILLE.normal.x;
+            this.classicGridZoomLevelY = DENSITES_GRILLE.normal.h / GRILLE_CASE_BASE;
+        }
+        if (this.rafraichirAffichageGrille) this.rafraichirAffichageGrille();
     }
 
     // Au tout premier rendu de la page (voir constructeur) : un morceau reste "ouvert" d'une session à
@@ -17921,6 +18076,8 @@ class HarmoHubApp {
         // utilisateur : « voir trop petit ne me sert à rien »). L'échelle 1 montre déjà six mesures
         // d'un coup. SEQ_INLINE_ZOOM_MIN (0,3), qui autorisait ce dézoom inutile, n'a plus d'emploi.
         if (axis === 'x' && (kind === 'seq' || kind === 'seqInline')) return 1;
+        // Grille (lot 5a) : l'affichage Compact descend à 0,5 (8 mesures par ligne), la poignée du bas à 30px de case.
+        if (kind === 'classicGrid') return axis === 'x' ? DENSITES_GRILLE.compact.x : GRILLE_HAUTEUR_MIN / GRILLE_CASE_BASE;
         return ZOOM_LEVEL_MIN;
     }
 
@@ -17930,6 +18087,7 @@ class HarmoHubApp {
     // « le zoom horizontal est vite plafonné, je veux pouvoir voir plus gros »).
     zoomMaxFor(kind, axis) {
         if (axis === 'x' && (kind === 'seq' || kind === 'seqInline')) return SEQ_ZOOM_X_MAX;
+        if (kind === 'classicGrid' && axis === 'y') return GRILLE_HAUTEUR_MAX / GRILLE_CASE_BASE; // poignée du bas : jusqu'à 160px
         return ZOOM_LEVEL_MAX;
     }
 
@@ -17955,7 +18113,10 @@ class HarmoHubApp {
             : kind === 'classicGrid'
             ? (axis === 'x' ? CLASSIC_GRID_ZOOM_LEVEL_X_KEY : CLASSIC_GRID_ZOOM_LEVEL_Y_KEY)
             : (axis === 'x' ? VOICE_LEADING_ZOOM_LEVEL_X_KEY : VOICE_LEADING_ZOOM_LEVEL_Y_KEY);
-        const next = Math.round(Math.max(this.zoomMinFor(kind, axis), Math.min(this.zoomMaxFor(kind, axis), value)) * 100) / 100;
+        // Arrondi au centième, SAUF la hauteur des cases de la grille (lot 5a) : elle se règle en pixels (52px = 0,8125) — arrondie à 0,81, la case
+        // ferait 51,84px et l'affichage « Normal » ne tomberait jamais juste.
+        const pas = (kind === 'classicGrid' && axis === 'y') ? 10000 : 100;
+        const next = Math.round(Math.max(this.zoomMinFor(kind, axis), Math.min(this.zoomMaxFor(kind, axis), value)) * pas) / pas;
         if (next === this[levelKey]) return; // évite un applyZoomLevel (donc un rendu) inutile
         this[levelKey] = next;
         localStorage.setItem(storageKey, String(next));

@@ -60,9 +60,11 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
     await p.keyboard.press('Escape'); await p.waitForTimeout(600); // referme la vue agrandie
 
     // Zoom de la grille (classicGrid) toujours opérant
+    // Lot 5a : au bureau, l'échelle horizontale de la grille se règle par l'affichage (Compact = 8 mesures par ligne) et non plus par le bouton H+.
     const av = await p.evaluate(()=>window.app.classicGridZoomLevelX);
-    await p.click('#classic-grid-in-h'); await p.waitForTimeout(400);
-    ck(await p.evaluate(()=>window.app.classicGridZoomLevelX) > av, 'le zoom H de la grille fonctionne toujours');
+    await p.click('#grille-densites [data-densite="compact"]'); await p.waitForTimeout(400);
+    ck(await p.evaluate(()=>window.app.classicGridZoomLevelX) < av, 'l\'échelle horizontale de la grille se règle toujours (affichage Compact)');
+    await p.click('#grille-densites [data-densite="normal"]'); await p.waitForTimeout(400); // retour en Normal : les clics qui suivent visent y = 40px, plus haut qu'une case Compact (38px)
 
     // Clic simple / double-clic inchangés
     await p.evaluate(()=>window.app.cancelEdit()); await p.waitForTimeout(400);

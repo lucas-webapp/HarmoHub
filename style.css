@@ -6964,3 +6964,41 @@ body.impression-structure #structure-print-zone { display: block; }
     #structure-overlay #structure-title, #structure-overlay #structure-close { display: none; }
     #structure-overlay .settings-header { justify-content: flex-end; }
 }
+
+
+/* ======================================================================================================
+   L'AFFICHAGE DE LA GRILLE (refonte, lot 5a — docs/refonte.md et la maquette « Version 2 »).
+   Compact / Normal / Détaillé (un groupe de trois boutons à la jauge), une fenêtre de grille CENTRÉE de largeur réglable (poignée droite) et des cases de
+   hauteur réglable (poignée basse). Ordinateur seulement : sur téléphone l'enveloppe s'efface et les boutons H / V restent (lot 10).
+   ====================================================================================================== */
+.grille-densites, .grille-poignee { display: none; }
+@media (max-width: 899px) {
+    .grille-cadre { display: contents; }
+}
+@media (min-width: 900px) {
+    /* Les quatre boutons H± V± : remplacés par l'affichage et les poignées. Ils restent dans la page (le téléphone s'en sert, et Ctrl+molette / le pincement
+       pilotent toujours les mêmes échelles). */
+    .history-section .card-head-actions > .zoom-axis-group[data-zoom-kind="classicGrid"] { display: none; }
+    .grille-densites { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+    .grille-densites > button {
+        flex: none; box-sizing: border-box; min-width: 0; height: var(--bouton-h); padding: 0 10px;
+        border: 1px solid var(--border); border-radius: var(--rayon-bouton);
+        background: var(--fond-bouton-sombre); color: var(--text-muted);
+        font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; cursor: pointer;
+    }
+    .grille-densites > button:hover { color: var(--text-main); border-color: var(--btn-neutral-border-hover); }
+    /* Un choix parmi trois, allumé comme les onglets : texte vert + liseré dessous, jamais un aplat. */
+    .grille-densites > button[aria-pressed="true"] { color: var(--accent); background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 -2px 0 var(--accent); }
+
+    .grille-cadre { position: relative; width: 100%; margin: 0 auto; box-sizing: border-box; padding-right: 10px; }
+    .grille-poignee { display: block; position: absolute; z-index: 4; touch-action: none; }
+    .grille-poignee::after { content: ''; position: absolute; border-radius: 3px; background: #3a4048; transition: background 0.15s ease; }
+    .grille-poignee:hover::after, .grille-poignee.en-cours::after { background: var(--btn-blue-border-hover); }
+    .grille-poignee-droite { top: 0; bottom: 0; right: -4px; width: 12px; cursor: ew-resize; }
+    .grille-poignee-droite::after { top: 50%; left: 4px; width: 4px; height: 44px; transform: translateY(-50%); }
+    /* La poignée basse est DANS le flux, juste sous les parties : elle suit la hauteur de la grille sans calcul. */
+    .grille-poignee-bas { position: relative; height: 12px; margin: 2px 0 4px; cursor: ns-resize; }
+    .grille-poignee-bas::after { left: 50%; top: 4px; width: 44px; height: 4px; transform: translateX(-50%); }
+
+    /* COMPACT : « noms seuls » — ni degrés ni position d'accord ; c'est le rendu qui les omet (loadProgression), pour ne pas laisser de rangée vide. */
+}

@@ -28,7 +28,10 @@ plan(9);
     const browser = await chromium.launch({
         args: ['--autoplay-policy=no-user-gesture-required'],
     });
-    const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    // REFONTE, LOT 5a : sur ORDINATEUR les boutons H± V± ont cédé la place aux affichages Compact / Normal / Détaillé et aux poignées de la grille
+    // (voir affichage_grille_test). Ils restent l'interface du TÉLÉPHONE jusqu'au lot 10 — et ce banc éprouve les deux échelles qu'ils pilotent,
+    // toujours les mêmes : il se place donc au format où ces boutons existent encore, au lieu de les cliquer cachés.
+    const page = await browser.newPage({ viewport: { width: 860, height: 900 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
     page.on('console', (msg) => { if (msg.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID|ERR_NAME_NOT_RESOLVED|fonts\.googleapis|fonts\.gstatic/.test(msg.text())) errors.push('console.error: ' + msg.text()); });
@@ -41,7 +44,8 @@ plan(9);
         localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Couplet', chords }] }));
         // Échelles neuves : elles sont mémorisées par appareil, une campagne précédente aurait sinon
         // laissé la grille déjà zoomée et les crans mesurés ici ne partiraient pas de 1.
-        for (const k of ['harmohubClassicGridZoomLevelX', 'harmohubClassicGridZoomLevelY', 'harmohubSeqInlineZoomLevelX']) localStorage.removeItem(k);
+        // (lot 5a : l'affichage de la grille et la largeur de sa fenêtre sont mémorisés de la même façon, et avec elles)
+        for (const k of ['harmohubClassicGridZoomLevelX', 'harmohubClassicGridZoomLevelY', 'harmohubSeqInlineZoomLevelX', 'harmohubGrilleDensite', 'harmohubGrilleLargeur']) localStorage.removeItem(k);
     });
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(400);
@@ -56,7 +60,8 @@ plan(9);
 
     const depart = await etat();
     console.log('départ :', JSON.stringify(depart));
-    if (!exiger(depart.x === 1 && depart.y === 1, `les deux échelles partent bien de 1 — ${depart.x}/${depart.y}`)) bilan();
+    // Lot 5a : un morceau neuf s'ouvre dans l'affichage NORMAL — échelle horizontale 1, cases de 52px (échelle verticale 52/64 = 0,8125), et non plus 1/1.
+    if (!exiger(depart.x === 1 && depart.y === 0.8125, `les deux échelles partent de l'affichage Normal (1 / 0,8125) — ${depart.x}/${depart.y}`)) bilan();
 
     console.log('--- V+ trois fois : la hauteur de ligne grandit, le nombre de temps par ligne ne bouge pas ---');
     for (let i = 0; i < 3; i++) await page.click('#classic-grid-in-v');

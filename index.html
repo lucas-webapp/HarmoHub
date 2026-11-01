@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611011720">
+    <link rel="stylesheet" href="style.css?v=202611012000">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611011720">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611012000">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1388,6 +1388,13 @@
                              adjustZoom('classicGrid', ...)/currentGridHZoom dans script.js) : mémorisées
                              PAR MORCEAU (zoomSettingsForSong), indépendantes de celles de la loupe
                              ci-dessous — resserrer/agrandir la grille sans avoir à l'ouvrir en grand. -->
+                        <!-- AFFICHAGE (refonte, lot 5a) : « Compact / Normal / Détaillé remplace les quatre boutons de zoom ». Ordinateur seulement :
+                             sur téléphone, les boutons H / V juste après restent jusqu'au lot 10 (et les affichages sont masqués). -->
+                        <div class="grille-densites" id="grille-densites" role="group" aria-label="Affichage de la grille">
+                            <button type="button" data-densite="compact" aria-pressed="false" title="Compact : noms seuls, 8 mesures par ligne">Compact</button>
+                            <button type="button" data-densite="normal" aria-pressed="true" title="Normal : noms et degrés, 4 mesures par ligne">Normal</button>
+                            <button type="button" data-densite="detail" aria-pressed="false" title="Détaillé : noms, degrés, voicing et rythme, 4 mesures par ligne">Détaillé</button>
+                        </div>
                         <div class="zoom-axis-group" data-zoom-kind="classicGrid" data-zoom-axis="x" title="Échelle horizontale de la grille">
                             <span class="zoom-axis-tag">H</span>
                             <button type="button" id="classic-grid-in-h" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">
@@ -1480,8 +1487,16 @@
                         </button>
                     </div>
                 </div>
-                <div id="progression-sections"></div>
-                <button type="button" id="add-section" class="btn-green add-section-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter section</button>
+                <!-- LA GRILLE, UNE FENÊTRE CENTRÉE (refonte, lot 5a) : « je n'ai pas besoin de toute cette largeur… fenêtre extensible ? centrée plus petite ? »
+                     puis « la fenêtre fonctionne bien en largeur… trouver une astuce en hauteur aussi ». Largeur par affichage (Compact 640, Normal 480,
+                     Détaillé 640 px), poignée du bord DROIT pour l'élargir (360 à 1400 px), poignée du bord BAS pour la hauteur des cases (30 à 160 px),
+                     double-clic sur l'une ou l'autre = valeurs de l'affichage. Sur téléphone l'enveloppe s'efface (display: contents) : rien ne change. -->
+                <div id="grille-cadre" class="grille-cadre">
+                    <div id="progression-sections"></div>
+                    <div id="grille-poignee-bas" class="grille-poignee grille-poignee-bas" role="separator" aria-orientation="horizontal" aria-label="Hauteur des cases" title="Glisser pour la hauteur des cases — double-clic : hauteur d'origine"></div>
+                    <button type="button" id="add-section" class="btn-green add-section-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter section</button>
+                    <div id="grille-poignee-droite" class="grille-poignee grille-poignee-droite" role="separator" aria-orientation="vertical" aria-label="Largeur de la grille" title="Glisser pour élargir la grille — double-clic : largeur d'origine"></div>
+                </div>
             </section>
 
             <!-- Volet du séquenceur CONTINU, sous la grille (voir placeSequencer dans script.js).
@@ -1816,11 +1831,11 @@
     <script src="fichiers.js?v=202610030500"></script>
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
-    <script src="historique.js?v=202611011720"></script>
-    <script src="script.js?v=202611011720"></script>
+    <script src="historique.js?v=202611012000"></script>
+    <script src="script.js?v=202611012000"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611011720"></script>
+    <script src="synchro-harmohub.js?v=202611012000"></script>
 </body>
 </html>

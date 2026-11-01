@@ -28,7 +28,9 @@ plan(8);
     const browser = await chromium.launch({
         args: ['--autoplay-policy=no-user-gesture-required'],
     });
-    const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    // REFONTE, LOT 5a : les boutons H± V± ne restent qu'au format téléphone (lot 10) ; ce banc éprouve la MÉMOIRE des échelles dans le morceau, pas
+    // le bouton : il se place là où les boutons existent encore. (L'affichage choisi au bureau est mémorisé de la même façon, voir affichage_grille_test.)
+    const page = await browser.newPage({ viewport: { width: 860, height: 900 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
     page.on('console', (msg) => { if (msg.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID|ERR_NAME_NOT_RESOLVED|fonts\.googleapis|fonts\.gstatic/.test(msg.text())) errors.push('console.error: ' + msg.text()); });
@@ -115,8 +117,10 @@ plan(8);
         seqX: window.app.seqZoomLevelX, seqInlineX: window.app.seqInlineZoomLevelX,
     }));
     console.log('morceau ancien :', JSON.stringify(ancien));
-    check(ancien.x === 1 && ancien.y === 1 && ancien.seqX === 1 && ancien.seqInlineX === 1,
-        `toutes les échelles reviennent à 1 pour un morceau sans champ de zoom — ${JSON.stringify(ancien)}`);
+    // Lot 5a : un morceau enregistré avant les affichages s'ouvre en NORMAL — grille 1 / 0,8125 (cases de 52px : « les cases sont trop grosses ») ; les
+    // échelles du séquenceur, elles, reviennent toujours à 1.
+    check(ancien.x === 1 && ancien.y === 0.8125 && ancien.seqX === 1 && ancien.seqInlineX === 1,
+        `un morceau sans champ de zoom s'ouvre dans l'affichage Normal (grille 1 / 0,8125), séquenceur à 1 — ${JSON.stringify(ancien)}`);
 
     console.log('Errors:', JSON.stringify(errors));
     check(errors.length === 0, 'aucune erreur JavaScript pendant tout le scénario');
