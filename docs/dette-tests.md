@@ -4725,3 +4725,6 @@ d'appeler la méthode en douce). Les 13 suites Paroles et `synchro_paroles_test`
 
 **Limites.** Le cadre a son propre défilement (celui de la page Paroles) ; Ctrl+S tapé DANS le cadre n'enregistre pas le morceau (les paroles, elles, s'enregistrent seules). Le regroupement
 des frappes de Paroles (une étape d'annulation par seconde de frappe continue) est celui d'avant, inchangé.
+
+**Balayage du lot 4b (01/11) : 214 verts, 5 rouges, 7 sans verdict (226 suites)** — les cinq rouges (probe_clic_accord_voisin 4/4, probe_defilement_tactile 23/1, probe_regle_voisins 28/1,
+probe_seq_finitions 18/1, seq_notes_libres_clavier 32/1) et les sept muets sont ceux de la ligne de base ; aucun nouveau rouge.
