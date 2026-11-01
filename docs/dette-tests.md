@@ -4558,3 +4558,38 @@ preuve que c'est fait. Liste vide = jauge tenue partout = fin de la refonte. Sab
 
 **Voisins verts** : synchro_cloud 126, compte_cloud 51, verre_compte 32, verre 64, sentinelle_atteignabilite 25, sentinelle_adresses 224, entete_grille_debordement 15,
 meta_suite 6, structure_feuille 61, song_panel 31.
+
+## Refonte de l'interface — lot 2 : la barre de lecture du bas (2026-11-01)
+
+Retours de la maquette repris : « boutons de lecture plus gros… de la même taille », « la barre de lecture dépasse de mon écran en bas »,
+« simplifier : juste le numéro de mesure », « garder une règle de lecture… avec la barre orange », « bouton 50 % à 200 % » + « molette / clic molette
++ haut ou bas », « compartimentage par blocs… déplacer le bloc des boutons de lecture au centre, à droite des parties du morceau ».
+
+**Ce qui est fait (ordinateur seulement).** Une barre de 60px collée au bas de l'écran, trois blocs réordonnables : **Lecture** (le transport EXISTANT, déplacé
+par `placeGlobalTransport`, jamais dupliqué : Lecture, Stop, + un bouton **Boucle** à part, carrés identiques de 44px, angles de 7px), **Parties** (« Mes. N » seul, la
+frise des parties, la bande orange de la plage, la tête), **Tempo** (le bouton « 120 BPM » : molette ±1 / Maj ±5, clic molette + glisser, fenêtre −/+/TAP, **vitesse de
+lecture 50–200 %**, et le métronome). Mode « réorganiser » : flèches ◀ ▶ par bloc, « Ordre d'origine », ordre mémorisé PAR APPAREIL (`harmohubBarreLectureOrdre`, jamais
+synchronisé). Le téléphone garde son pied de colonne (lot 10). **Logos** : le métronome de la barre COPIE le dessin de la carte Rythme ; le bouton Boucle reprend l'anneau
+fléché de Lecture (sans le triangle) ; aucun nouveau dessin quand un existait.
+
+**Deux écarts avec la maquette, assumés.** (1) Pas de bouton « Début » : l'appli n'a pas de tête de lecture persistante, Stop revient déjà au départ — l'ajouter aurait été un
+bouton sans effet. (2) Le bloc « Vues » (Clavier, Guitare) attend le lot 8 : ses deux boutons pilotent aujourd'hui le mini-piano.
+
+**La vitesse, éprouvée sur le MOTEUR.** `bpmLecture()` = tempo du morceau × vitesse ; seules les trois lectures (accord, morceau, séquenceur) l'utilisent. Le banc lit les instants
+que `playProgression` programme sur `Tone.Transport` : à 200 % le dernier tombe à 15,9s → 7,9s (rapport 2), et `#bpm` n'a pas bougé — le tempo ENREGISTRÉ (morceau, MIDI, PDF) est intact.
+
+**Ce que la barre a révélé.** (a) `SEQ_DOCK_RESERVE_CONFORT` valait 190 et annonçait « une rangée d'accords » : mesuré, il en faut ~220. Personne ne le voyait tant que les écrans avaient de
+la marge ; avec 60px de moins, `volet_hauteur_poignee_test` a rougi. Portée à 225 (plus petit palier qui passe : 222). (b) Un banc de la maquette lui-même appelait une méthode absente
+(`clearLoopRange`) : la méta-suite l'a refusé, à raison. (c) La fenêtre du tempo sortait de l'écran quand le bloc est à droite : repérée en capture, corrigée (elle s'aligne sur le bord droit
+du bouton si besoin).
+
+**Bancs.** Nouveau `barre_lecture_test` (50 : barre en bas et pleine largeur, 60px, ordre des blocs, « Mes. N » qui suit l'accord puis la lecture, frise, bande orange, molette, clic molette,
+vitesse sur le moteur, métronome miroir, réorganiser + mémoire, fenêtre du tempo à l'écran, **barre entière à 560/700/800/1000px de haut**, téléphone sans barre). **Sabotages** (4) : vitesse
+ignorée, hook « Mes. N » retiré, ordre non appliqué, transport laissé au dock — chacun fait rougir ce qu'il doit. Réécrits pour le nouveau contrat (pas supprimés) : `global_transport_test`
+(43), `transport_boucle_test` (25 : trois boutons au bureau, deux et l'anneau au téléphone), `item1_2_test`, `sidebar_collapse_test`, `sidebar_collapse_seq_height_test` (le pied de colonne se
+mesure par rapport à la barre), `gabarit_boutons_test` (Lecture et Stop quittent `HORS_JAUGE`, 29 PASS). Une vérification vide a été repérée et corrigée en route : « l'ordre n'est pas
+synchronisé » lisait `window.REGLAGES_SYNCHRONISES`, qui n'existe pas (une `const` de script n'est pas sur `window`) — elle passait sans rien prouver ; elle exige maintenant que la liste soit lisible.
+
+**Balayage du 01/11 : 209 verts, 6 rouges, 7 sans verdict (222 suites)** — les six rouges et les sept muets sont EXACTEMENT ceux de la ligne de base (probe_clic_accord_voisin 4/4,
+probe_defilement_tactile 23/1, probe_regle_voisins 28/1, probe_seq_finitions 18/1, seq_notes_libres_clavier 32/1, sortie_edition_involontaire 3/1) ; les deux suites de plus sont les deux
+nouvelles. Premier balayage de la journée : 9 rouges, dont les trois ci-dessus (réserve, pied de colonne, méta-suite) — corrigés avant de pousser.
