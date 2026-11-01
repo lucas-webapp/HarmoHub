@@ -4593,3 +4593,57 @@ synchronisé » lisait `window.REGLAGES_SYNCHRONISES`, qui n'existe pas (une `co
 **Balayage du 01/11 : 209 verts, 6 rouges, 7 sans verdict (222 suites)** — les six rouges et les sept muets sont EXACTEMENT ceux de la ligne de base (probe_clic_accord_voisin 4/4,
 probe_defilement_tactile 23/1, probe_regle_voisins 28/1, probe_seq_finitions 18/1, seq_notes_libres_clavier 32/1, sortie_edition_involontaire 3/1) ; les deux suites de plus sont les deux
 nouvelles. Premier balayage de la journée : 9 rouges, dont les trois ci-dessus (réserve, pied de colonne, méta-suite) — corrigés avant de pousser.
+
+## Refonte de l'interface — lot 3 : la barre du haut, et le filet sous l'enregistrement manuel (2026-11-01)
+
+Retours de la maquette repris : « laisser le logo, mais enlever le nom de l'appli », « ajuster la largeur de la barre avec le titre du morceau (rétrécir ou
+élargir avec seuil) », « je veux bien garder le bouton enregistrer… enregistrement manuel. Mais garde quand même des enregistrements automatiques en arrière-plan
+pour pouvoir revenir en arrière », « mettre versions de l'appli et récupérations historiques dans les paramètres », « pas de bouton rond ici ».
+
+**3a — La barre (ordinateur seulement).** Une vraie barre pleine largeur de 52px, trois colonnes (`1fr auto 1fr`) : à gauche le logo SEUL, le titre du morceau (un
+bouton de 128 à 280px, « … » au-delà, nom complet en infobulle) qui ouvre le **menu du morceau**, Enregistrer et son voyant ; au centre la place des onglets du lot 4
+(colonne centrée sur la fenêtre, mesurée) ; à droite annuler, rétablir, Paramètres (l'engrenage existant), le compte. Le menu s'ouvre sur les 8 morceaux récents (le
+morceau ouvert coché) : **changer de morceau reste à deux clics**, comme avec l'ancienne liste. Puis Mes morceaux, Nouveau, Renommer (en place, DANS la barre), Dupliquer
+(nouveau : une copie de la version enregistrée, l'original ne bouge pas), Importer, Exporter (la portée « ce morceau / la bibliothèque »), Historique du morceau,
+Rangement. Chaque entrée appelle le code de l'ancien bouton — aucune seconde copie. La carte Morceau du volet de gauche perd son en-tête sur ordinateur (le résumé
+« tempo · mesure · tonalité » reste jusqu'au lot 6) ; sur téléphone rien ne change avant le lot 10. Le voyant : « Non enregistré » (orange) / « Enregistré à 14:32 »
+(vert) / « Nouveau morceau » (gris) ; sous 1180px il garde son point et son texte passe en infobulle. Tous les boutons de la barre sont à la jauge (32px, 7px d'angle) :
+le logo et le titre aussi (« pas de bouton rond »). Verre dépoli : la barre et le menu y sont, relevés par `verre_test` (nouvel état « menuMorceau »).
+
+**3b — Les versions automatiques.** `historique.js` (nouveau) garde des instantanés du morceau dans **IndexedDB, par appareil** — jamais dans localStorage (quota de ≈ 5 Mo
+PARTAGÉ avec la bibliothèque : un historique qui le remplirait ferait échouer l'enregistrement des morceaux eux-mêmes) ni dans le cloud (1 Mio par document). Quand : toutes
+les 5 minutes de TRAVAIL (l'horloge part de la première modification depuis la dernière version, pas de la dernière version), en quittant la page s'il y a du neuf, à chaque
+enregistrement, et AVANT chaque opération lourde — transposition, suppression d'une partie ou d'un morceau, import (bibliothèque ou MIDI), restauration, et « continuer sans
+enregistrer » (le moment exact où des modifications disparaissent). Une version identique à la précédente du même morceau n'est pas gardée (le zoom n'est pas du contenu) ; 40
+par morceau, au-delà de 90 jours on ne garde que les 5 plus récentes, 800 au total ; un quota plein fait de la place puis retente une fois. **Rien ne lève jamais** : IndexedDB
+absent ou refusé → l'appli enregistre comme avant et les Paramètres le disent. **Paramètres › Historique et récupération** : le morceau (le ouvert d'abord, les supprimés aussi,
+marqués), la carte « Maintenant » (brouillon modifié ou identique), chaque version avec son étiquette et son résumé (accords, parties, tonalité en notation internationale, BPM)
+et un bouton Restaurer. **Restaurer remet la version dans le BROUILLON** : le morceau enregistré ne bouge pas tant qu'on n'a pas cliqué Enregistrer ; l'état d'avant est gardé
+d'abord ; Ctrl+Z défait la restauration (même morceau) ; une version d'un autre morceau l'ouvre (avec la confirmation habituelle) ; celle d'un morceau supprimé le fait revenir dans
+Mes morceaux. **À propos** : la version réellement chargée (lue sur la balise `script.js`, pas un numéro écrit en dur), sa date, « Recharger l'application ».
+
+**Bancs.** `barre_haut_test` (71 : géométrie et jauge, centre exact, titre 128→280px, voyant, Enregistrer manuel, menu et chacune de ses entrées avec le même garde-fou
+qu'avant, premier enregistrement dans la barre, carte masquée, seuils, verre, téléphone inchangé) et `historique_versions_test` (69 : moteur, 8 opérations lourdes avec leur VRAI
+geste et lecture du CONTENU gardé, horloge simulée `page.clock` pour les 5 minutes, panneau, 4 restaurations, isolation localStorage/cloud, IndexedDB absent / qui lève / quota
+plein, téléphone). **Sabotages — 13, tous rouges comme il faut** : barre (voyant jamais orange, titre sans plafond, en-tête de carte visible, Échap sans effet, renommage dans la
+carte) ; historique (version prise APRÈS l'opération, doublons gardés, seuil de 5 minutes supprimé, plafond supprimé, restauration marquée « enregistrée », restauration sans version
+d'avant, versions écrites aussi dans localStorage, abandon sans version). Un sabotage « équivalent » est resté vert et c'est une information : retirer le rappel de `marquerEnregistre`
+ne change rien, parce que `refreshSongList` rafraîchit déjà le voyant juste après — le rappel est un filet de plus, pas la seule protection.
+**Réécrits pour le nouveau geste, pas supprimés :** `filet_toujours_visible_test` (ordinateur : titre, Enregistrer, puis les trois entrées du menu ouvert ; téléphone : les sept adresses
+d'origine), `three_fixes_test` (exporter / importer par le menu), `aspect_boutons_volet_test` (le bouton Enregistrer lu dans la barre ; la « famille dominante = la référence » était un effet
+du nombre des six boutons partis : on tient maintenant directement la règle — la référence sombre porte le bouton de durée ET le résumé, et la plus nombreuse est l'une des deux décisions
+nommées), `verre_test` (la barre n'est plus des pastilles flottantes : elle floute comme les autres surfaces), `gabarit_boutons_test` (`song-select` quitte `HORS_JAUGE`),
+`sortie_edition_involontaire_test` (titre et Enregistrer, sorties légitimes). `sauvegarde_robustesse_test` et la synchro n'ont pas bougé.
+
+**Ce que les bancs ont trouvé en route (vrais défauts, corrigés avant de livrer) :** une substitution en masse avait fait appeler `marquerEnregistre` par elle-même (récursion infinie
+sur Enregistrer) ; le message « Clique Enregistrer pour la garder » disparaissait aussitôt, le panneau se redessinant juste après l'avoir posé ; les « 5 minutes de travail » étaient
+comptées depuis la dernière version et non depuis la première modification (une version à la première retouche après une heure d'inactivité) ; la liste du menu s'écrasait à 16px par
+ligne (`button { flex: 1 }` générique) et l'état « Modifications non enregistrées » se coupait en « …enregist… » (raccourci en « Non enregistré », la phrase reste en infobulle).
+**Hors sujet mais vu :** dans un morceau de plusieurs parties, l'ajout rapide ouvre un menu « dans quelle partie ? » même pour un seul accord (sans doute à revoir au lot 7, « ajout
+unique »). `verre_test` a rougi UNE fois sur `#open-settings` (transition de bordure en vol, 1 écart) puis passé deux fois de suite : même famille de bruit de minutage que les autres
+suites sensibles — à surveiller si elle revient.
+
+**Limites assumées.** Le comportement réel d'IndexedDB sur Safari / iOS n'est pas mesuré (Chromium ici) ; le code ne dépend d'aucune fonction rare et se replie proprement s'il est absent.
+Ctrl+Z défait la restauration des accords et des réglages mais pas de la structure du morceau (elle n'est pas dans l'instantané d'annulation) : l'état d'avant, lui, est dans l'historique. La
+synchro cloud qui apporterait une version d'un autre appareil n'est pas encore un déclencheur de version. Les entrées du menu « Exporter… » ne couvrent que la portée (ce morceau / la
+bibliothèque) : PDF, MIDI, MP3 restent dans le bouton Fichier jusqu'au lot 4.

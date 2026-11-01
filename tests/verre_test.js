@@ -50,7 +50,7 @@ if (A_APERCU) ETATS.apercu = async (p) => { await p.click('#structure-btn'); awa
 async function fermerTout(p) { await p.keyboard.press('Escape'); await p.waitForTimeout(150); await p.evaluate(() => { try { window.app.closeSettings(); } catch (e) {} window.app.editingIndex = null; window.app.loadProgression(); }); await p.waitForTimeout(150); }
 
 (async () => {
-    plan(A_APERCU ? 66 : 65);
+    plan(A_APERCU ? 65 : 64);
     const nav = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     try {
         // ===== 0. LES FICHIERS ET LEUR ORDRE (statique) ==========================================================================

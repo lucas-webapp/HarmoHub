@@ -25,6 +25,10 @@ Chaque document a sa propre limite de 1 Mio.
   guitare affichés. Un téléphone n'a pas l'écran d'un ordinateur.
 - **L'effet verre** et sa couleur (`harmohub.glass*`) : « une option par appareil ».
 - **L'ordre des blocs de la barre de lecture** (`harmohubBarreLectureOrdre`) : l'écran de chaque appareil n'est pas celui des autres (refonte, lot 2).
+- **L'historique des versions** (IndexedDB `harmohub-historique`, voir `historique.js`) : les instantanés automatiques de chaque morceau (toutes les 5 minutes de
+  travail, avant chaque opération lourde, à chaque enregistrement). PAR APPAREIL, et c'est voulu deux fois : le document cloud est limité à 1 Mio, des versions
+  de tous les morceaux n'y tiendraient pas ; et ce que l'on défait sur l'ordinateur ne doit pas se défaire tout seul sur le téléphone. Jamais dans
+  localStorage non plus (quota de ≈ 5 Mo partagé avec la bibliothèque : un historique qui le remplirait ferait échouer l'enregistrement des morceaux). Refonte, lot 3.
 - **Le dossier de rangement sur disque** : une autorisation du navigateur, impossible à transporter.
 - **Les repères de sauvegarde et de rappel**, l'état de la synchro, le morceau ouvert, la fenêtre de connexion (« ne plus proposer »).
 - **Les préférences de la page Paroles** (taille du texte, enchaînement des accords) et son « dernier morceau ouvert » : dépendants de l'écran,

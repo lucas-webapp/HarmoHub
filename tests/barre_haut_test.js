@@ -152,7 +152,7 @@ const graine = ({ src, noms, courant }) => {
     check(morceaux.length === 3, `le menu s'ouvre sur la liste des morceaux : ${morceaux.length} morceaux (changer de morceau = deux clics, comme avant)`);
     check(morceaux.filter(x => x.coche === 'true').length === 1 && /Blues|Ballade/.test(morceaux.find(x => x.coche === 'true').t), 'le morceau ouvert est coché, et un seul');
     const actions = entrees.filter(x => x.a !== 'ouvrir-id').map(x => x.a);
-    check(JSON.stringify(actions) === JSON.stringify(['mes-morceaux', 'nouveau', 'renommer', 'dupliquer', 'importer', 'exporter', 'rangement']), `les entrées, dans l'ordre de la maquette : ${actions.join(' · ')}`);
+    check(JSON.stringify(actions) === JSON.stringify(['mes-morceaux', 'nouveau', 'renommer', 'dupliquer', 'importer', 'exporter', 'historique', 'rangement']), `les entrées, dans l'ordre de la maquette : ${actions.join(' · ')}`);
     check(await p.evaluate(() => document.activeElement && document.activeElement.closest('#tb-menu') !== null), 'le focus passe dans le menu (clavier utilisable)');
     await p.keyboard.press('ArrowDown');
     const f1 = await p.evaluate(() => document.activeElement.dataset.songId || document.activeElement.dataset.tbAction);

@@ -701,6 +701,11 @@ function loadProgressionSections() {
 // autonomes ci-dessous (appelées depuis de très nombreux endroits) doivent pouvoir la modifier sans
 // dépendre de l'instance HarmoHubApp (pas encore construite au tout premier appel).
 let hasUnsavedChanges = false;
+// Nombre de modifications depuis le chargement de la page. Ne sert qu'à comparer deux instants (voir les versions automatiques) ; jamais enregistré.
+let compteurModifs = 0;
+// Instant de la première modification depuis la dernière version (null = rien de neuf). C'est de là que part l'horloge des « 5 minutes de TRAVAIL » :
+// compter depuis la dernière version faisait tomber une version à la première retouche après une heure d'inactivité.
+let debutTravail = null;
 // TOUT CE QUI MARQUE « modifié » PASSE ICI. Une vingtaine d'endroits écrivaient `hasUnsavedChanges = true`
 // directement ; en les faisant passer par une fonction, le garde-fou de connexion (voir
 // cloudGardeConnexion) se déclenche à la PREMIÈRE modification, quelle qu'elle soit, sans avoir à
@@ -708,6 +713,8 @@ let hasUnsavedChanges = false;
 function marquerModifie() {
     const etaitModifie = hasUnsavedChanges;
     hasUnsavedChanges = true;
+    compteurModifs++; // lu par les versions automatiques : « y a-t-il du NEUF depuis la dernière version ? » (voir verifierVersionAuto)
+    if (debutTravail === null) debutTravail = Date.now();
     // Le voyant d'Enregistrer (barre du haut) ne bouge qu'au PASSAGE enregistré → modifié : marquerModifie est appelé à chaque cran
     // d'un glissement, il ne doit pas réécrire le DOM à chacun.
     if (!etaitModifie) signalerEtatEnregistrement();
@@ -3976,6 +3983,7 @@ class HarmoHubApp {
         this.setupGlobalTransportPlacement();
         this.setupBarreLecture(); // la barre de lecture du bas (ordinateur) : blocs, tempo, frise (voir plus bas)
         this.setupBarreMorceau(); // la barre du haut (ordinateur) : titre + menu du morceau, Enregistrer et son voyant
+        this.setupHistoriqueAuto(); // versions automatiques (toutes les 5 min de travail, en quittant la page) — voir historique.js
         this.setupKeyboardShortcuts();
         this.applySidebarCollapsed(); // reflète l'état mémorisé dès le premier rendu (bouton déjà câblé)
         // Avertissement natif du navigateur si on ferme/recharge la page avec des modifications non
@@ -8713,6 +8721,8 @@ class HarmoHubApp {
         if (sec.chords.length > 0) {
             const label = sec.title || `Partie ${s + 1}`;
             if (!confirm(`Supprimer « ${label} » et ses ${sec.chords.length} accord(s) ?`)) return;
+            // Version AVANT (lot 3b), seulement quand il y avait quelque chose à perdre — une partie vide ne mérite pas de version.
+            this.gardeVersion('avant-suppression-partie', `Avant la suppression de « ${label} »`);
         }
         this.pushUndo(sections);
         sections.splice(s, 1);
@@ -8776,6 +8786,8 @@ class HarmoHubApp {
     transposeSong(semitones) {
         const sections = loadProgressionSections();
         if (sections.every(sec => sec.chords.length === 0)) return;
+        // Version AVANT (lot 3b) : transposer réécrit tous les accords d'un coup, et Ctrl+Z ne vit que dans cette séance.
+        this.gardeVersion('avant-transposition', `Avant la transposition de ${semitones > 0 ? '+' : ''}${semitones} demi-ton${Math.abs(semitones) > 1 ? 's' : ''}`);
         this.pushUndo(sections);
         sections.forEach(sec => { sec.chords = sec.chords.map(c => transposeChordData(c, semitones)); });
         saveProgressionSections(sections);
@@ -8837,6 +8849,7 @@ class HarmoHubApp {
         }
         setCurrentSongId(song.id);
         marquerEnregistre();
+        this.gardeVersion('enregistre', 'Enregistrée'); // la première version du morceau (lot 3b)
         this.refreshSongList();
         this.suivreSurLeDisque(song); // un morceau tout neuf a son fichier dès sa création
         return song;
@@ -8895,7 +8908,9 @@ class HarmoHubApp {
                 if (getCurrentSongId()) { this.exportCurrentSong(); close(true); }
                 else askNameThen(() => { this.exportCurrentSong(); close(true); });
             };
-            document.getElementById('unsaved-discard').onclick = () => close(true);
+            // « Continuer sans enregistrer » : le moment exact où des modifications disparaissent. La version est prise ICI, avant que l'appelant
+            // ne remplace le tampon (lot 3b : « pour pouvoir revenir en arrière ») — on peut donc se raviser une heure plus tard.
+            document.getElementById('unsaved-discard').onclick = () => { this.gardeVersion('abandon', 'Modifications abandonnées'); close(true); };
             document.getElementById('unsaved-cancel').onclick = () => close(false);
         });
     }
@@ -9047,6 +9062,7 @@ class HarmoHubApp {
             exporter: ico('<path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/>'),
             importer: ico('<path d="M12 21V9"/><path d="m7 13 5-5 5 5"/><path d="M5 3h14"/>'),
             disque: ico('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/>'),
+            historique: ico('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>'),
         };
         const item = (action, icone, libelle, extra = '') =>
             `<button type="button" role="menuitem" class="tb-mi" data-tb-action="${action}"${extra}>${icone}<span class="tb-mi-libelle">${libelle}</span></button>`;
@@ -9069,6 +9085,7 @@ class HarmoHubApp {
             + item('importer', IC.importer, 'Importer…')
             + item('exporter', IC.exporter, 'Exporter…')
             + '<div class="tb-sep" role="separator"></div>'
+            + item('historique', IC.historique, 'Historique du morceau…')
             + item('rangement', IC.disque, disponible ? (dossier ? `Rangement : ${escapeHtml(dossier)}` : 'Rangement sur le disque…') : 'Rangement indisponible ici', disponible ? '' : ' disabled');
         menu.querySelectorAll('.tb-mi').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -9083,6 +9100,7 @@ class HarmoHubApp {
                 else if (action === 'nouveau') this.openNewSongModal();
                 else if (action === 'renommer') this.startInlineRenameSongMain();
                 else if (action === 'dupliquer') this.dupliquerMorceau();
+                else if (action === 'historique') this.ouvrirHistorique();
                 else if (action === 'importer') { const inp = document.getElementById('song-import-input'); if (inp) inp.click(); }
             });
         });
@@ -9120,6 +9138,271 @@ class HarmoHubApp {
         this.flashHint(hasUnsavedChanges
             ? `« ${copie.name} » ajouté — copie de la version enregistrée (tes modifications en cours restent ici)`
             : `« ${copie.name} » ajouté à Mes morceaux`, 3600);
+    }
+
+    // ---------- HISTORIQUE DES VERSIONS (refonte, lot 3b — historique.js, docs/refonte.md) ----------
+    // « Je veux bien garder le bouton enregistrer… enregistrement manuel. Mais garde quand même des enregistrements automatiques en arrière-plan
+    // pour pouvoir revenir en arrière. » Ici : QUAND on prend un instantané, et comment on y revient. Où ils sont gardés et comment : historique.js.
+    //   • toutes les 5 minutes de travail (verifierVersionAuto), et en quittant la page s'il y a du neuf (visibilitychange) ;
+    //   • avant chaque opération lourde : transposition, suppression d'une partie ou d'un morceau, import, restauration, abandon de modifications ;
+    //   • à chaque enregistrement manuel (la trace des moments où l'on a jugé que c'était bien).
+    // Les doublons (même contenu que la version précédente du morceau) ne sont pas gardés : une nuit sans toucher à rien ne produit rien.
+
+    // Le contenu du tampon de travail, tel que saveCurrentSong l'écrit dans le morceau. Une SEULE définition : l'enregistrement et les versions
+    // ne peuvent pas se mettre à garder des choses différentes.
+    instantaneTampon() {
+        return {
+            sections: loadProgressionSections(),
+            structure: loadStructureBrute(),   // l'arrangement voyage avec le morceau
+            root: document.getElementById('global-root').value,
+            mode: document.getElementById('global-mode').value,
+            timeSig: document.getElementById('time-sig').value,
+            groove: document.getElementById('groove').value,
+            bpm: parseInt(document.getElementById('bpm').value),
+            instrumentMorceau: this.songInstrument,
+            ...this.zoomSettingsForSong(),
+        };
+    }
+
+    // Garde une version. SANS `morceau` : le tampon, ce qu'on voit à l'écran (photographié ICI, tout de suite — avant que l'opération qui
+    // l'appelle ne le change ; seule l'écriture est asynchrone). AVEC `morceau` : le morceau ENREGISTRÉ tel qu'il est dans la bibliothèque
+    // (suppression d'un morceau, import qui l'écrase). Ne lève jamais et ne bloque jamais l'opération qui l'appelle.
+    gardeVersion(motif, libelle, morceau = null) {
+        if (typeof HistoriqueVersions === 'undefined') return Promise.resolve({ fait: false, raison: 'indisponible' });
+        try {
+            let songId, songName, charge;
+            if (morceau) {
+                songId = morceau.id; songName = morceau.name;
+                charge = {
+                    sections: JSON.parse(JSON.stringify(morceau.sections || [])), structure: Array.isArray(morceau.structure) ? JSON.parse(JSON.stringify(morceau.structure)) : null,
+                    root: morceau.root, mode: morceau.mode, timeSig: morceau.timeSig, groove: morceau.groove, bpm: morceau.bpm, instrumentMorceau: morceau.instrumentMorceau,
+                    classicGridZoomLevelX: morceau.classicGridZoomLevelX, classicGridZoomLevelY: morceau.classicGridZoomLevelY,
+                    seqZoomLevelX: morceau.seqZoomLevelX, seqZoomLevelY: morceau.seqZoomLevelY, seqInlineZoomLevelX: morceau.seqInlineZoomLevelX,
+                };
+            } else {
+                const id = getCurrentSongId();
+                const song = id ? loadSongs().find(x => x.id === id) : null;
+                songId = id || ''; songName = song ? song.name : '';
+                charge = this.instantaneTampon();
+            }
+            // Rien à protéger dans un morceau sans le moindre accord : la première ouverture de la page ne doit pas fabriquer une version « vide ».
+            if (HistoriqueVersions.resume(charge).accords === 0) return Promise.resolve({ fait: false, raison: 'vide' });
+            // Un instantané du tampon repart l'horloge des versions automatiques : « depuis la dernière version », il n'y a plus rien de neuf.
+            if (!morceau) { this._histCompteur = compteurModifs; debutTravail = null; }
+            return HistoriqueVersions.ajouter({ songId, songName, motif, libelle, charge }).then((r) => {
+                if (r && r.fait && this.settingsOpen) this.renderHistoriquePanel();
+                return r;
+            });
+        } catch (e) {
+            console.error('Version impossible :', e);
+            return Promise.resolve({ fait: false, raison: 'erreur' });
+        }
+    }
+
+    // L'horloge des versions automatiques part de zéro quand on change de morceau (ou à l'ouverture de la page) : ce qui est à l'écran vient
+    // d'être posé, il n'y a rien de neuf à garder.
+    repartirHorlogeVersions() {
+        this._histCompteur = compteurModifs;
+        debutTravail = null;
+    }
+
+    // Cinq minutes de TRAVAIL, pas cinq minutes de calendrier : une version n'est prise que s'il y a eu des modifications depuis la dernière.
+    // `maintenant` est un paramètre pour que le banc n'ait pas à attendre cinq minutes.
+    verifierVersionAuto(maintenant = Date.now()) {
+        if (compteurModifs === this._histCompteur || debutTravail === null) return false;   // rien de neuf depuis la dernière version
+        if (maintenant - debutTravail < this.DELAI_VERSION_AUTO) return false;              // moins de cinq minutes qu'on travaille dessus
+        this.gardeVersion('auto', 'Version automatique');
+        return true;
+    }
+
+    setupHistoriqueAuto() {
+        this.DELAI_VERSION_AUTO = 5 * 60 * 1000;
+        this.repartirHorlogeVersions();
+        this._histRendu = 0;
+        // Un battement toutes les 30 s suffit : le seuil est de cinq minutes. Le temps passé onglet masqué compte aussi — c'est du calendrier
+        // entre deux modifications, pas du temps de clavier, et c'est voulu : revenir à l'onglet après une heure doit laisser une version.
+        setInterval(() => this.verifierVersionAuto(), 30000);
+        // En quittant la page (onglet masqué, appli basculée en arrière-plan sur téléphone) : c'est le dernier moment sûr pour garder ce qui
+        // n'est pas enregistré. visibilitychange et non beforeunload, pour la même raison que rappelerAvantDePartir : seul signal fiable sur iOS.
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState !== 'hidden') return;
+            if (compteurModifs === this._histCompteur) return;
+            this.gardeVersion('auto', 'En quittant la page');
+        });
+    }
+
+    // Étiquette courte et couleur de chaque sorte de version (le panneau affiche l'étiquette ; un motif inconnu s'affiche tel quel).
+    etiquetteVersion(v) {
+        const T = {
+            'auto': ['Automatique', 'neutre'], 'enregistre': ['Enregistrée', 'vert'],
+            'avant-transposition': ['Avant transposition', 'bleu'], 'avant-suppression-partie': ['Avant suppression', 'bleu'],
+            'avant-suppression-morceau': ['Avant suppression du morceau', 'bleu'], 'avant-import': ['Avant import', 'bleu'],
+            'avant-restauration': ['Avant restauration', 'bleu'], 'abandon': ['Modifications abandonnées', 'orange'],
+        };
+        return T[v.motif] || [v.motif || 'Version', 'neutre'];
+    }
+
+    // « 12 accords · 3 parties · Do majeur · 120 BPM » — de quoi reconnaître une version sans l'ouvrir.
+    resumeVersion(v) {
+        const c = v.charge || {};
+        const r = v.resume || HistoriqueVersions.resume(c);
+        const bouts = [`${r.accords} accord${r.accords > 1 ? 's' : ''}`, `${r.parties} partie${r.parties > 1 ? 's' : ''}`];
+        if (c.root && c.mode) {
+            const pc = NOTES.indexOf(c.root);
+            const optMode = document.querySelector(`#global-mode option[value="${c.mode}"]`);
+            if (pc >= 0) bouts.push(`${noteNameForPc(pc, useFlatsForKey(pc, c.mode))} ${(optMode ? optMode.textContent : c.mode).toLowerCase()}`);
+        }
+        if (c.bpm) bouts.push(`${c.bpm} BPM`);
+        return bouts.join(' · ');
+    }
+
+    nomMorceauHistorique(songId, nomGarde) {
+        if (!songId) return 'Morceau sans nom';
+        const vivant = loadSongs().find(x => x.id === songId);
+        return vivant ? vivant.name : `${nomGarde || 'Morceau'} (supprimé)`;
+    }
+
+    // Paramètres › Historique et récupération. Rendu asynchrone (IndexedDB) : le jeton évite qu'un rendu lent écrase un rendu plus récent
+    // (on peut changer de morceau dans la liste pendant que le précédent se dessine).
+    async renderHistoriquePanel() {
+        const host = document.getElementById('settings-panel-historique');
+        if (!host) return;
+        const jeton = ++this._histRendu;
+        if (typeof HistoriqueVersions === 'undefined' || !(await HistoriqueVersions.disponible())) {
+            if (jeton !== this._histRendu) return;
+            const raison = (typeof HistoriqueVersions !== 'undefined' && HistoriqueVersions.raison()) || 'L\'historique n\'est pas disponible ici.';
+            host.innerHTML = `<p class="hist-aide hist-indispo" id="hist-indispo">${escapeHtml(raison)} Enregistrer fonctionne comme d'habitude ; seules les versions automatiques ne sont pas gardées sur cet appareil.</p>`;
+            return;
+        }
+        const courantId = getCurrentSongId() || '';
+        const avecHistoire = await HistoriqueVersions.morceaux();
+        const choix = this._histChoix !== undefined && (this._histChoix === courantId || avecHistoire.some(m => m.songId === this._histChoix)) ? this._histChoix : courantId;
+        const versions = await HistoriqueVersions.lister(choix);
+        if (jeton !== this._histRendu) return;
+        // Le morceau ouvert d'abord (même sans version), puis les autres du plus récemment travaillé au plus ancien.
+        const options = [{ songId: courantId, nom: this.nomMorceauHistorique(courantId, ''), n: (avecHistoire.find(m => m.songId === courantId) || { n: 0 }).n }]
+            .concat(avecHistoire.filter(m => m.songId !== courantId).map(m => ({ songId: m.songId, nom: this.nomMorceauHistorique(m.songId, m.songName), n: m.n })));
+        const optionsHtml = options.map(o => `<option value="${escapeHtml(o.songId)}"${o.songId === choix ? ' selected' : ''}>${escapeHtml(o.nom)} — ${o.n} version${o.n > 1 ? 's' : ''}</option>`).join('');
+        const estCourant = choix === courantId;
+        const maintenant = !estCourant ? '' : `
+            <li class="hist-carte hist-maintenant" id="hist-maintenant">
+                <div class="hist-ligne"><span class="hist-titre">Maintenant</span><span class="hist-tag ${hasUnsavedChanges ? 'orange' : 'neutre'}">${hasUnsavedChanges ? 'Brouillon modifié' : 'Identique à l\'enregistrement'}</span></div>
+                <span class="hist-resume">${escapeHtml(this.resumeVersion({ charge: this.instantaneTampon() }))}</span>
+            </li>`;
+        const lignes = versions.map(v => {
+            const [tag, couleur] = this.etiquetteVersion(v);
+            const plus = v.libelle && v.libelle !== tag ? ` title="${escapeHtml(v.libelle)}"` : '';
+            return `<li class="hist-carte" data-version="${escapeHtml(v.id)}">
+                <div class="hist-corps">
+                    <div class="hist-ligne"><span class="hist-titre">${escapeHtml(formaterDateEnregistrement(v.date))}</span><span class="hist-tag ${couleur}"${plus}>${escapeHtml(tag)}</span></div>
+                    <span class="hist-resume">${escapeHtml(this.resumeVersion(v))}</span>
+                </div>
+                <button type="button" class="hist-restaurer" data-restaurer="${escapeHtml(v.id)}" title="Remettre cette version dans le brouillon">Restaurer</button>
+            </li>`;
+        }).join('');
+        host.innerHTML = `
+            <p class="hist-aide">Enregistrer reste manuel. En plus, HarmoHub garde des versions automatiques : toutes les 5 minutes de travail, et juste avant chaque opération lourde
+                (transposition, suppression, import, restauration). Rien ne se perd. Elles restent sur <strong>cet appareil</strong> : ce que tu défais ici n'est pas défait sur les autres.</p>
+            <div class="settings-select-row"><label for="hist-morceau">Morceau</label><select id="hist-morceau" class="compact">${optionsHtml}</select></div>
+            <div id="hist-message" class="hist-message" role="status"${this._histMessage ? ` data-sorte="${this._histMessage.sorte}"` : ' hidden'}>${this._histMessage ? escapeHtml(this._histMessage.texte) : ''}</div>
+            <ul class="hist-liste" id="hist-liste">${maintenant}${lignes || '<li class="hist-vide" id="hist-vide">Aucune version pour ce morceau pour l\'instant. La première arrive après 5 minutes de travail, ou à la prochaine opération lourde.</li>'}</ul>
+            <p class="hist-aide">Restaurer remet la version dans le brouillon ; l'état actuel est d'abord gardé comme version. Clique Enregistrer pour la garder.</p>
+            <button type="button" id="hist-vider" class="hist-vider">Vider l'historique de cet appareil</button>`;
+        document.getElementById('hist-morceau').onchange = (e) => { this._histChoix = e.target.value; this._histMessage = null; this.renderHistoriquePanel(); };
+        host.querySelectorAll('[data-restaurer]').forEach(b => { b.onclick = () => this.restaurerVersion(b.dataset.restaurer); });
+        document.getElementById('hist-vider').onclick = async () => {
+            if (!confirm('Effacer toutes les versions gardées sur cet appareil ? Tes morceaux enregistrés ne sont pas touchés.')) return;
+            const ok = await HistoriqueVersions.vider();
+            this.messageHistorique(ok ? 'Historique vidé sur cet appareil.' : 'Impossible de vider l\'historique.', ok ? 'ok' : 'erreur');
+            this.renderHistoriquePanel();
+        };
+    }
+
+    // Le message est GARDÉ (this._histMessage) : le panneau se redessine juste après chaque restauration pour montrer le nouvel état, et un message
+    // posé seulement dans le DOM disparaissait avec lui — le bandeau « clique Enregistrer pour la garder » ne s'affichait jamais (trouvé par le banc).
+    messageHistorique(texte, sorte = 'ok') {
+        this._histMessage = { texte, sorte };
+        const zone = document.getElementById('hist-message');
+        if (!zone) { this.flashHint(texte, 4000); return; }
+        zone.textContent = texte;
+        zone.dataset.sorte = sorte;
+        zone.hidden = false;
+    }
+
+    // REVENIR EN ARRIÈRE. Toujours dans cet ordre : (1) l'état actuel est gardé (photographié avant tout), (2) ce qu'on remplace peut être
+    // défait d'un Ctrl+Z quand c'est le même morceau, (3) la version arrive dans le BROUILLON — le morceau enregistré, lui, ne bouge pas tant
+    // qu'on n'a pas cliqué Enregistrer. Trois cas :
+    //   A. une version du morceau OUVERT : elle remplace le tampon sur place ;
+    //   B. une version d'un AUTRE morceau qui existe encore : on l'ouvre (avec la confirmation habituelle si le tampon est modifié), puis idem ;
+    //   C. une version d'un morceau SUPPRIMÉ (ou d'un tampon qui n'a jamais eu de nom) : elle redevient un morceau à part entière, sous un
+    //      nom libre, enregistré tout de suite — c'est le cas « je l'ai supprimé par erreur ».
+    async restaurerVersion(id) {
+        const v = await HistoriqueVersions.lire(id);
+        if (!v) { this.messageHistorique('Cette version n\'existe plus sur cet appareil.', 'erreur'); return false; }
+        const courantId = getCurrentSongId() || '';
+        const quand = formaterDateEnregistrement(v.date);
+        const songs = loadSongs();
+        const existe = v.songId && songs.find(x => x.id === v.songId);
+        const surPlace = !!v.songId && v.songId === courantId;
+        // Un tampon jamais nommé qu'on restaure depuis SA propre histoire : c'est le même document, il n'y a pas de morceau qu'on « quitte » — la
+        // question « continuer sans enregistrer ? » n'aurait rien à protéger (l'état actuel est gardé juste après).
+        const memeTampon = !v.songId && !courantId;
+
+        if (!surPlace && !memeTampon && !(await this.confirmDiscardUnsavedIfNeeded())) return false;   // même garde-fou que changer de morceau
+        await this.gardeVersion('avant-restauration', `Avant la restauration de la version du ${quand}`);
+
+        if (surPlace) {
+            this.pushUndo(loadProgressionSections());
+            this.loadSong(v.songId, { version: v.charge, garderHistorique: true });
+            this.messageHistorique(`Version du ${quand} remise dans le brouillon. Clique Enregistrer pour la garder.`);
+        } else if (existe) {
+            this.loadSong(v.songId, { version: v.charge });
+            this.messageHistorique(`« ${existe.name} » ouvert avec la version du ${quand} dans le brouillon. Clique Enregistrer pour la garder.`);
+        } else {
+            const nom = nomLibrePourCopie(v.songName || 'Morceau récupéré', new Set(songs.map(x => x.name)));
+            const rec = { ...JSON.parse(JSON.stringify(v.charge)), id: 'song_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: nom, savedAt: Date.now(), folder: null };
+            saveSongs([...songs, rec]);
+            this.loadSong(rec.id);
+            this.messageHistorique(`« ${nom} » est de retour dans Mes morceaux (version du ${quand}).`);
+        }
+        this._histChoix = getCurrentSongId() || '';
+        this.renderHistoriquePanel();
+        return true;
+    }
+
+    // L'entrée « Historique du morceau… » du menu du morceau : les Paramètres, ouverts sur le bon groupe, sur le morceau ouvert.
+    async ouvrirHistorique() {
+        this._histChoix = getCurrentSongId() || '';
+        this.openSettings();
+        // Le groupe se dessine de façon ASYNCHRONE (IndexedDB) : le faire défiler avant la fin, c'est viser une page encore trop courte
+        // (vu en capture : le titre restait au milieu de la fenêtre au lieu d'être en haut).
+        await this.renderHistoriquePanel();
+        const titre = document.getElementById('settings-title-historique');
+        if (titre && titre.scrollIntoView) titre.scrollIntoView({ block: 'start' });
+    }
+
+    // « À propos » : la version de l'appli (celle des fichiers réellement chargés par cette page, lue sur la balise script.js — pas un numéro
+    // écrit en dur qu'on oublierait de changer) et un bouton pour la recharger.
+    versionAppli() {
+        const bal = [...document.scripts].find(x => /\/script\.js(\?|$)/.test(x.src));
+        const m = bal && bal.src.match(/[?&]v=(\d+)/);
+        return m ? m[1] : null;
+    }
+
+    renderAproposPanel() {
+        const host = document.getElementById('settings-panel-apropos');
+        if (!host) return;
+        const v = this.versionAppli();
+        let date = '';
+        if (v && v.length >= 8) {
+            const d = new Date(+v.slice(0, 4), +v.slice(4, 6) - 1, +v.slice(6, 8));
+            date = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+        host.innerHTML = `
+            <div class="hist-propos"><span>Version de l'application</span><strong id="apropos-version">${escapeHtml(v || 'inconnue')}</strong></div>
+            ${date ? `<div class="hist-propos"><span>Dernière mise à jour</span><strong id="apropos-date">${escapeHtml(date)}</strong></div>` : ''}
+            <button type="button" id="apropos-recharger" class="hist-vider">Recharger l'application</button>`;
+        document.getElementById('apropos-recharger').onclick = () => location.reload();
     }
 
     async onSongSelectChange(id) {
@@ -9325,17 +9608,21 @@ class HarmoHubApp {
     // Charge un morceau enregistré : il devient le morceau ouvert, mais n'est plus auto-sauvegardé en
     // continu (voir hasUnsavedChanges/saveCurrentSong) — il faut Enregistrer/Ctrl+S pour persister
     // toute modification ultérieure.
-    loadSong(id) {
+    // `options.version` (lot 3b, restauration depuis l'historique) : le tampon reçoit le CONTENU de cette version au lieu de celui du morceau
+    // enregistré, et le morceau reste « modifié » — « clique Enregistrer pour la garder » : revenir en arrière n'écrase rien tant qu'on ne l'a pas décidé.
+    // `options.garderHistorique` : même morceau, l'historique annuler/rétablir garde son sens (Ctrl+Z défait la restauration).
+    loadSong(id, options = {}) {
         const song = loadSongs().find(s => s.id === id);
         if (!song) return;
+        const contenu = options.version || song;
         setCurrentSongId(id);
         // AVANT applySongSettingsToDom : celui-ci pose ensuite ce que le morceau ouvert définit
         // vraiment (instrument, tonalité...), et a donc le dernier mot sur ce qui le concerne.
         this.resetChordPanel();
-        this.applySongSettingsToDom(song);
-        saveProgressionSections(song.sections && song.sections.length ? song.sections : [{ title: '', chords: [] }], false, Array.isArray(song.structure) ? song.structure : null);
+        this.applySongSettingsToDom(contenu);
+        saveProgressionSections(contenu.sections && contenu.sections.length ? contenu.sections : [{ title: '', chords: [] }], false, Array.isArray(contenu.structure) ? contenu.structure : null);
         marquerEnregistre(); // tampon tout juste chargé, identique au morceau enregistré
-        this.clearHistory(); // changement de morceau : l'historique annuler/rétablir n'a plus de sens
+        if (!options.garderHistorique) this.clearHistory(); // changement de morceau : l'historique annuler/rétablir n'a plus de sens
         this.activeSection = 0;
         this.selectedIndex = null;
         if (this.editingIndex != null) this.exitEditMode();
@@ -9354,6 +9641,8 @@ class HarmoHubApp {
         // structure jusqu'au prochain rechargement de la page (reproduit : une note ajoutée sur l'appareil A
         // n'apparaissait pas sur B, volet ouvert).
         if (document.getElementById('structure-overlay') && !document.getElementById('structure-overlay').hidden) this.renderStructurePanel();
+        if (options.version) marquerModifie(); // la version est dans le tampon, pas encore dans le morceau enregistré
+        this.repartirHorlogeVersions();
         this.refreshSongList();
     }
 
@@ -9365,18 +9654,9 @@ class HarmoHubApp {
     saveCurrentSong() {
         const id = getCurrentSongId();
         if (!id) { this.saveCurrentAsSong(); return; }
-        syncCurrentSong({
-            sections: loadProgressionSections(),
-            structure: loadStructureBrute(),   // l'arrangement voyage avec le morceau
-            root: document.getElementById('global-root').value,
-            mode: document.getElementById('global-mode').value,
-            timeSig: document.getElementById('time-sig').value,
-            groove: document.getElementById('groove').value,
-            bpm: parseInt(document.getElementById('bpm').value),
-            instrumentMorceau: this.songInstrument,
-            ...this.zoomSettingsForSong(),
-        });
+        syncCurrentSong(this.instantaneTampon());
         marquerEnregistre();
+        this.gardeVersion('enregistre', 'Enregistrée'); // chaque enregistrement manuel laisse aussi sa trace dans l'historique (lot 3b)
         this.refreshSongList();
         this.flashHint('Morceau enregistré');
         this.suivreSurLeDisque(loadSongs().find(s => s.id === id));
@@ -9516,6 +9796,7 @@ class HarmoHubApp {
     // section = un nouveau bouton .settings-tab + panneau + sa fonction de rendu, appelée ici.
     openSettings() {
         this.settingsOpen = true;
+        this._histMessage = null; // un message de restauration ne survit pas à la fermeture des Paramètres
         document.getElementById('settings-overlay').hidden = false;
         document.getElementById('open-settings').classList.add('active');
         // Comme openGridZoom/openSeqZoom (voir lockBodyScroll) : sans ça, faire défiler le contenu
@@ -9527,6 +9808,8 @@ class HarmoHubApp {
         this.renderAudioPanel();
         this.renderDisplayPanel();
         this.renderLookPanel();
+        this.renderHistoriquePanel();
+        this.renderAproposPanel();
     }
 
     // Le gestionnaire de fichiers a QUITTÉ les Paramètres (retour utilisateur : « enlever les options
@@ -10830,6 +11113,10 @@ class HarmoHubApp {
             return;
         }
 
+        // VERSION AVANT (lot 3b) : le morceau tel qu'il était enregistré — c'est ce qui permet de le retrouver (« je l'ai supprimé par erreur »)
+        // dans Paramètres › Historique, où il reste listé même une fois sorti de la bibliothèque. Et son brouillon, s'il était ouvert et modifié.
+        this.gardeVersion('avant-suppression-morceau', `Avant la suppression de « ${song.name} »`, song);
+        if (getCurrentSongId() === id && hasUnsavedChanges) this.gardeVersion('avant-suppression-morceau', `Brouillon de « ${song.name} » avant sa suppression`);
         this.pushFilesUndo();
         saveSongs(songs.filter(s => s.id !== id));
         if (getCurrentSongId() === id) setCurrentSongId(null);
@@ -11166,6 +11453,10 @@ class HarmoHubApp {
         const parolesBilan = restaurerParolesDeSauvegarde(data.paroles, renumParoles);
 
         if (allToAdd.length > 0 || remplacements.size > 0 || foldersChanged) {
+            // VERSIONS AVANT (lot 3b) : chaque morceau d'ici qu'un morceau du fichier va ÉCRASER est gardé tel qu'il est enregistré, et le tampon
+            // du morceau ouvert aussi (ses modifications non enregistrées disparaissent au rechargement de fin d'import).
+            existingSongs.filter(x => remplacements.has(x.id)).forEach(x => this.gardeVersion('avant-import', `Avant l'import de « ${x.name} »`, x));
+            if (getCurrentSongId() && remplacements.has(getCurrentSongId())) this.gardeVersion('avant-import', 'Avant l\'import (brouillon du morceau ouvert)');
             this.pushFilesUndo(); // un seul pas d'annulation pour tout l'import (morceaux + dossiers)
             if (allToAdd.length > 0 || remplacements.size > 0) {
                 const base = existingSongs.map(s => {
@@ -12191,6 +12482,7 @@ class HarmoHubApp {
         const title = (fileName || 'Import').replace(/\.mid[i]?$/i, '').slice(0, 40);
 
         const sections = loadProgressionSections();
+        this.gardeVersion('avant-import', `Avant l'import MIDI « ${title} »`); // version AVANT (lot 3b)
         this.pushUndo(sections);
         // Morceau encore vierge : on adopte le tempo et la mesure du fichier, puisque rien ne s'y
         // oppose. Sinon on n'y touche pas — changer le tempo d'un morceau existant pour accommoder
