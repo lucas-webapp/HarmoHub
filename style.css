@@ -6651,3 +6651,176 @@ body.impression-structure #structure-print-zone { display: block; }
     .barre-lecture.reorganiser .bl-fleches { display: inline-flex; }
     .bl-reinit { width: auto; min-width: 0; padding: 0 12px; font-size: var(--fs-sm); font-weight: 600; }
 }
+
+
+/* ======================================================================================================
+   BARRE DU HAUT (refonte, lot 3 — docs/refonte.md et la maquette « Version 2 »).
+   Ordinateur : une vraie barre pleine largeur de TROIS colonnes — à gauche le logo SEUL, le titre du morceau (un bouton qui ouvre son
+   menu), Enregistrer et son voyant ; au centre la place des onglets (lot 4) ; à droite annuler, rétablir, Paramètres, le compte.
+   « Les trois colonnes égales » : la colonne du milieu est `auto` entre deux colonnes `1fr` — le groupe du centre tombe donc
+   EXACTEMENT au centre de la fenêtre, quelle que soit la largeur du titre à gauche.
+   Téléphone : rien ne change (pastilles à droite, la carte Morceau garde ses boutons) jusqu'au lot 10.
+   ====================================================================================================== */
+.tb-morceau, .tb-save, .tb-etat, .tb-centre { display: none; }
+.tb-titre[hidden], .tb-menu[hidden] { display: none; }
+/* Téléphone : les deux colonnes se dissolvent dans la barre d'origine ; le logo reste le dernier, comme avant. */
+@media (max-width: 899px) {
+    .tb-gauche, .tb-droite { display: contents; }
+    .top-bar .logo { order: 9; }
+}
+
+@media (min-width: 900px) {
+    .top-bar {
+        left: 0; right: 0; top: 0;
+        box-sizing: border-box;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        align-items: center;
+        column-gap: 16px;
+        padding: 10px 16px;       /* 32px de boutons + 2 × 10px = 52px, comme la barre de la maquette */
+        background: rgba(17, 18, 20, 0.96);
+        border-bottom: 1px solid var(--border);
+    }
+    .tb-gauche, .tb-droite { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .tb-droite { justify-content: flex-end; }
+    .tb-centre { display: flex; align-items: center; justify-content: center; min-width: 0; }
+    .tb-morceau { display: block; position: relative; min-width: 0; }
+    .tb-save { display: inline-flex; }
+    .tb-etat { display: inline-flex; }
+    /* Le logo prend la forme des autres boutons : « pas de bouton rond ici ». */
+    .top-bar .logo { border-radius: var(--rayon-bouton); background: transparent; border-color: transparent; backdrop-filter: none; }
+
+    /* LE TITRE : un bouton de la jauge (32px, 7px d'angle), largeur ADAPTATIVE — 128px au moins, 280px au plus, « … » au-delà. */
+    .tb-titre {
+        flex: none;
+        box-sizing: border-box;
+        height: var(--bouton-h);
+        min-width: 128px;
+        max-width: 280px;
+        padding: 0 10px;
+        gap: 8px;
+        justify-content: space-between;
+        border: 1px solid var(--border);
+        border-radius: var(--rayon-bouton);
+        background: var(--fond-bouton-sombre, #1c2027);
+        color: var(--text-main);
+        font-size: var(--fs-sm);
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .tb-titre:hover, .tb-titre[aria-expanded="true"] { border-color: var(--btn-neutral-border-hover); background: var(--fond-bouton-sombre-survol, #262b33); }
+    .tb-titre-nom { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tb-titre-chevron { width: 14px; height: 14px; flex: none; color: var(--text-muted); }
+    /* Le champ de renommage prend la place du titre, mêmes dimensions : rien ne saute. */
+    .tb-titre-saisie {
+        box-sizing: border-box;
+        height: var(--bouton-h);
+        width: 220px;
+        min-width: 128px;
+        max-width: 280px;
+        padding: 0 10px;
+        border: 1px solid var(--btn-blue-border-hover);
+        border-radius: var(--rayon-bouton);
+        background: #0f1114;
+        color: var(--text-main);
+        font-size: var(--fs-sm);
+        font-weight: 700;
+    }
+
+    /* ENREGISTRER : la famille VERTE (« vert = enregistrer »), 32px, l'icône d'origine + le mot. */
+    .tb-save {
+        flex: none;               /* la règle générique `button { flex: 1 }` l'étirait sur 270px (mesuré) */
+        box-sizing: border-box;
+        align-items: center;
+        gap: 6px;
+        height: var(--bouton-h);
+        min-width: 0;
+        padding: 0 12px 0 10px;
+        border-radius: var(--rayon-bouton);
+        border: 1px solid var(--btn-green-border);
+        background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
+        color: var(--btn-text);
+        font-size: var(--fs-sm);
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .tb-save:hover { border-color: var(--btn-green-border-hover); background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.16), transparent 55%), linear-gradient(160deg, #2b5540, #1c3a26 70%); }
+    .tb-save .icon { width: 15px; height: 15px; }
+    /* Quand il y a quelque chose à enregistrer, le bouton le DIT d'un liseré orangé : le voyant seul est loin à droite du titre. */
+    .tb-save[data-modifie="1"] { border-color: var(--etat-modifie); }
+
+    /* LE VOYANT : un point + un texte. Orange = quelque chose n'est pas enregistré ; vert discret = tout l'est ; gris = morceau vierge. */
+    .tb-etat {
+        --etat-point: #5a6068;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+        margin: 0 4px;
+        font-size: var(--fs-sm);
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+    .tb-etat-point { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--etat-point); }
+    .tb-etat[data-etat="modifie"] { --etat-point: var(--etat-modifie); color: #d8c49a; }
+    .tb-etat[data-etat="enregistre"] { --etat-point: var(--btn-green-border-hover); }
+    .tb-etat-texte { overflow: hidden; text-overflow: ellipsis; }
+
+    /* LE MENU DU MORCEAU : sous le titre, 12px d'angle (« ce qui flotte »), la liste récente d'abord. */
+    .tb-menu {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        z-index: 80;
+        box-sizing: border-box;
+        width: 320px;             /* assez large pour « nom du morceau + date » sans couper les titres courants */
+        padding: 6px;
+        background: #181b20;
+        border: 1px solid var(--border);
+        border-radius: var(--rayon-surface);
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+    }
+    .tb-mi-etiquette { padding: 6px 10px 4px; font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+    .tb-liste { display: flex; flex-direction: column; max-height: 232px; overflow-y: auto; padding-bottom: 4px; }
+    .tb-mi {
+        flex: none;               /* dans la liste (colonne à hauteur limitée), la règle générique `button { flex: 1 }` écrasait les lignes à 16px (vu en capture) */
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        justify-content: flex-start;
+        width: 100%;
+        min-width: 0;
+        height: var(--bouton-h);
+        padding: 0 10px;
+        border: 0;
+        border-radius: var(--rayon-bouton);
+        background: transparent;
+        color: var(--text-main);
+        font-size: var(--fs-sm);
+        font-weight: 500;
+        text-align: left;
+        cursor: pointer;
+    }
+    .tb-mi .icon { width: 15px; height: 15px; flex: none; color: var(--text-muted); }
+    .tb-mi:hover, .tb-mi:focus-visible { background: rgba(255, 255, 255, 0.07); outline: none; }
+    .tb-mi:focus-visible { box-shadow: inset 0 0 0 1px var(--btn-blue-border-hover); }
+    .tb-mi[disabled] { opacity: 0.45; cursor: default; }
+    .tb-mi-libelle { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tb-mi-coche { width: 15px; flex: none; text-align: center; color: var(--btn-green-border-hover); font-weight: 700; }
+    .tb-mi-morceau.actif { font-weight: 700; }
+    .tb-mi-date { flex: none; font-size: var(--fs-xs); color: var(--text-muted); }
+    .tb-sep { height: 1px; margin: 5px 4px; background: var(--border); }
+
+    /* La carte Morceau du volet de gauche : son en-tête (titre, six boutons) vit désormais dans la barre du haut. Il reste le résumé
+       « 120 BPM · 4/4 · C majeur », qui disparaîtra avec le volet au lot 6. */
+    #song-card > .card-head { display: none; }
+}
+
+/* Sous 1180px de large le voyant garde son point, son texte passe en infobulle : le titre garde la place — « rétrécir ou élargir avec seuil ». */
+@media (min-width: 900px) and (max-width: 1179px) {
+    .tb-etat-texte { display: none; }
+    .tb-save-mot { display: none; }
+    .tb-save { padding: 0 9px; }
+}
+:root { --etat-modifie: #f0a03c; }

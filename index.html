@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202610311100">
+    <link rel="stylesheet" href="style.css?v=202611011200">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202610311100">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611011200">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -27,7 +27,46 @@
     <script src="tone.min.js"></script>
 </head>
 <body>
+    <!-- BARRE DU HAUT (refonte, lot 3 — docs/refonte.md). Trois colonnes : à gauche le logo SEUL, le nom du morceau (un bouton qui ouvre
+         le menu du morceau) et Enregistrer avec son état ; au CENTRE la place des onglets Grille / Structure / Paroles (lot 4 : les trois
+         colonnes seront égales pour que le groupe tombe exactement au centre) ; à droite annuler, rétablir, Paramètres, le compte.
+         Sur ordinateur seulement : sous 900px la barre garde ses pastilles à droite et la carte « Morceau » garde ses boutons (lot 10).
+         Les anciens boutons de la carte Morceau (crayon, +, dossier, flèches, disquette) ne sont pas supprimés : ils sont masqués sur
+         ordinateur et chacun a désormais son entrée dans le menu du morceau — c'est le MÊME code derrière, pas une seconde copie. -->
     <div class="top-bar">
+        <div class="tb-gauche">
+        <a class="logo" href="#" onclick="return false" title="HarmoHub" aria-label="HarmoHub">
+            <span class="logo-mark">
+                <svg class="icon" viewBox="0 0 48 48" aria-hidden="true">
+                    <rect x="5" y="6" width="8" height="36" rx="3" fill="currentColor" opacity=".25"/>
+                    <rect x="15" y="6" width="8" height="36" rx="3" fill="currentColor" opacity=".5"/>
+                    <rect x="25" y="6" width="8" height="36" rx="3" fill="currentColor" opacity=".75"/>
+                    <rect x="35" y="6" width="8" height="36" rx="3" fill="currentColor"/>
+                </svg>
+            </span>
+        </a>
+            <div class="tb-morceau">
+                <!-- Le titre est un BOUTON à largeur adaptative (128 à 280 px, « … » au-delà, nom complet en infobulle) : « ajuster la
+                     largeur de la barre avec le titre du morceau (rétrécir ou élargir avec seuil) ». Il remplace la liste déroulante,
+                     qui prenait toute la largeur de la carte pour afficher un seul mot. -->
+                <button type="button" id="tb-titre" class="tb-titre" aria-haspopup="menu" aria-expanded="false" aria-controls="tb-menu" title="Morceau">
+                    <span class="tb-titre-nom" id="tb-titre-nom">Nouveau morceau</span>
+                    <svg class="icon tb-titre-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div id="tb-menu" class="tb-menu" role="menu" aria-label="Morceau" hidden></div>
+            </div>
+            <!-- ENREGISTRER reste MANUEL (« je fais beaucoup de modifications, c'est juste pour tester »). Le mot accompagne l'icône ici :
+                 c'est l'action qui protège le travail, la seule de la barre dont on ne doit jamais douter. -->
+            <button type="button" id="tb-save" class="tb-save" title="Enregistrer (Ctrl+S)" aria-label="Enregistrer">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
+                <span class="tb-save-mot">Enregistrer</span>
+            </button>
+            <span id="tb-etat" class="tb-etat" role="status" aria-live="polite" data-etat="neuf">
+                <span class="tb-etat-point" aria-hidden="true"></span><span class="tb-etat-texte" id="tb-etat-texte">Nouveau morceau</span>
+            </span>
+        </div>
+        <div class="tb-centre" id="tb-centre"></div>
+        <div class="tb-droite">
         <!-- Historique unique pour toute l'appli (grille, séquenceur, fichiers) : bascule sur le bon
              selon le contexte ouvert, comme Ctrl+Z/Ctrl+Y (voir globalUndo/updateGlobalUndoRedoButtons
              dans script.js) — remplace les 3 paires qui se répétaient dans chaque carte. -->
@@ -37,7 +76,6 @@
         <button type="button" id="global-redo-btn" class="icon-btn" title="Rétablir (Ctrl+Y)" aria-label="Rétablir" disabled>
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
         </button>
-        <!-- Juste avant le titre (retour utilisateur), plutôt qu'au tout début de la barre du haut. -->
         <button type="button" id="open-settings" class="icon-btn settings-btn" title="Paramètres" aria-label="Paramètres">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="3"/>
@@ -49,16 +87,7 @@
              TrainHub (retour utilisateur : « les pastilles de connexion sont différentes, je veux les mêmes »).
              Un bouton à part dans la barre du haut, et non dans le menu Fichier, qui est un menu d'EXPORT. -->
         <div id="compte-cloud"></div>
-        <a class="logo" href="#" onclick="return false" title="HarmoHub" aria-label="HarmoHub">
-            <span class="logo-mark">
-                <svg class="icon" viewBox="0 0 48 48" aria-hidden="true">
-                    <rect x="5" y="6" width="8" height="36" rx="3" fill="currentColor" opacity=".25"/>
-                    <rect x="15" y="6" width="8" height="36" rx="3" fill="currentColor" opacity=".5"/>
-                    <rect x="25" y="6" width="8" height="36" rx="3" fill="currentColor" opacity=".75"/>
-                    <rect x="35" y="6" width="8" height="36" rx="3" fill="currentColor"/>
-                </svg>
-            </span>
-        </a>
+        </div>
     </div>
 
     <div id="context-menu" class="context-menu" hidden>
@@ -1757,10 +1786,10 @@
     <script src="fichiers.js?v=202610030500"></script>
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
-    <script src="script.js?v=202610311100"></script>
+    <script src="script.js?v=202611011200"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202610311100"></script>
+    <script src="synchro-harmohub.js?v=202611011200"></script>
 </body>
 </html>

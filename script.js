@@ -706,10 +706,29 @@ let hasUnsavedChanges = false;
 // cloudGardeConnexion) se déclenche à la PREMIÈRE modification, quelle qu'elle soit, sans avoir à
 // retrouver chacun de ces endroits. Lecture et remise à faux restent directes.
 function marquerModifie() {
+    const etaitModifie = hasUnsavedChanges;
     hasUnsavedChanges = true;
+    // Le voyant d'Enregistrer (barre du haut) ne bouge qu'au PASSAGE enregistré → modifié : marquerModifie est appelé à chaque cran
+    // d'un glissement, il ne doit pas réécrire le DOM à chacun.
+    if (!etaitModifie) signalerEtatEnregistrement();
     if (typeof cloudGardeConnexion === 'function') {
         try { cloudGardeConnexion(); } catch (e) { console.error('Garde-fou de connexion impossible :', e); }
     }
+}
+// Le pendant de marquerModifie : « le tampon est identique au morceau enregistré » (morceau tout juste chargé, enregistré, ou vierge).
+// Passe aussi par ici pour que le voyant de la barre du haut (« Modifications non enregistrées » / « Enregistré à 14:32 ») ne mente jamais :
+// il y avait six endroits qui remettaient le drapeau à faux, et aucun ne savait qu'un voyant existait.
+function marquerEnregistre() {
+    const etaitModifie = hasUnsavedChanges;
+    hasUnsavedChanges = false;
+    if (etaitModifie) signalerEtatEnregistrement();
+}
+// `window.app` n'existe pas encore pendant le tout premier chargement (le drapeau y est posé avant la construction de l'appli) : rien à
+// afficher à ce moment-là, la barre se dessine d'elle-même en fin de démarrage.
+function signalerEtatEnregistrement() {
+    try {
+        if (window.app && typeof window.app.rafraichirEtatEnregistrement === 'function') window.app.rafraichirEtatEnregistrement();
+    } catch (e) { console.error('Voyant d\'enregistrement impossible :', e); }
 }
 // Repères de sauvegarde (voir surveillerFraicheurSauvegarde / rappelerAvantDePartir).
 const CLE_DERNIERE_SAUVEGARDE = 'harmohub_derniere_sauvegarde';
@@ -3956,6 +3975,7 @@ class HarmoHubApp {
         this.placeGlobalTransport();
         this.setupGlobalTransportPlacement();
         this.setupBarreLecture(); // la barre de lecture du bas (ordinateur) : blocs, tempo, frise (voir plus bas)
+        this.setupBarreMorceau(); // la barre du haut (ordinateur) : titre + menu du morceau, Enregistrer et son voyant
         this.setupKeyboardShortcuts();
         this.applySidebarCollapsed(); // reflète l'état mémorisé dès le premier rendu (bouton déjà câblé)
         // Avertissement natif du navigateur si on ferme/recharge la page avec des modifications non
@@ -8816,7 +8836,7 @@ class HarmoHubApp {
             if (!folders.includes(folder)) { folders.push(folder); saveFolders(folders); }
         }
         setCurrentSongId(song.id);
-        hasUnsavedChanges = false;
+        marquerEnregistre();
         this.refreshSongList();
         this.suivreSurLeDisque(song); // un morceau tout neuf a son fichier dès sa création
         return song;
@@ -8923,6 +8943,183 @@ class HarmoHubApp {
         select.innerHTML = html;
         select.value = currentId || '';
         document.getElementById('song-save').title = 'Enregistrer (Ctrl+S)';
+        this.rafraichirBarreMorceau(); // le titre de la barre du haut suit la liste (ouverture, renommage, synchro…)
+    }
+
+    // ---------- BARRE DU HAUT : le morceau, son menu, Enregistrer et son état (refonte, lot 3 — docs/refonte.md) ----------
+    // Tout ce que la carte « Morceau » faisait avec ses six boutons et sa liste déroulante est ici, derrière UN titre. Rien de ce
+    // code n'est neuf : chaque entrée du menu appelle la méthode qu'appelait l'ancien bouton (openNewSongModal, startInlineRenameSongMain,
+    // openTransferScopeMenu…). Les boutons de la carte existent toujours — ils servent encore sur téléphone jusqu'au lot 10.
+    // « Ne rien faire régresser » : le changement de morceau en deux clics (la liste déroulante) reste à deux clics, car le menu s'ouvre
+    // sur la liste des morceaux récents ; « Mes morceaux… » mène à la fenêtre complète, dossiers compris.
+    setupBarreMorceau() {
+        const titre = document.getElementById('tb-titre');
+        const menu = document.getElementById('tb-menu');
+        const save = document.getElementById('tb-save');
+        if (!titre || !menu || !save) return; // index.html servi depuis un cache plus ancien : on n'empêche pas l'appli de démarrer
+        titre.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (menu.hidden) this.ouvrirMenuMorceau(); else this.fermerMenuMorceau(true);
+        });
+        // Double-clic sur le titre = renommer, comme sur l'ancienne liste (voir startInlineRenameSongMain) : le geste raccourci reste.
+        titre.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            this.fermerMenuMorceau();
+            this.startInlineRenameSongMain();
+        });
+        save.addEventListener('click', () => this.saveCurrentSong());
+        // Clic ailleurs ou Échap : le menu se referme. pointerdown (et non click) pour qu'un glissement commencé sur la grille ne le laisse pas ouvert.
+        document.addEventListener('pointerdown', (e) => {
+            if (menu.hidden) return;
+            if (menu.contains(e.target) || titre.contains(e.target)) return;
+            this.fermerMenuMorceau();
+        });
+        menu.addEventListener('keydown', (e) => {
+            const items = [...menu.querySelectorAll('.tb-mi:not([disabled])')];
+            const i = items.indexOf(document.activeElement);
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.fermerMenuMorceau(true); }
+            else if (e.key === 'ArrowDown') { e.preventDefault(); (items[i + 1] || items[0]).focus(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); (items[i - 1] || items[items.length - 1]).focus(); }
+        });
+        this.rafraichirBarreMorceau();
+    }
+
+    // Le titre et le voyant. Appelé à chaque changement de liste (refreshSongList) ; le voyant seul est rafraîchi par
+    // rafraichirEtatEnregistrement, qui passe par marquerModifie / marquerEnregistre.
+    rafraichirBarreMorceau() {
+        const titre = document.getElementById('tb-titre');
+        if (!titre) return;
+        const id = getCurrentSongId();
+        const song = id ? loadSongs().find(s => s.id === id) : null;
+        const nom = song ? song.name : 'Nouveau morceau';
+        const zone = document.getElementById('tb-titre-nom');
+        if (zone && zone.textContent !== nom) zone.textContent = nom;
+        // L'infobulle donne le nom COMPLET : le bouton coupe à 280px (« … »), et un titre long ne doit pas devenir illisible.
+        titre.title = song ? `${nom} — menu du morceau (double-clic : renommer)` : 'Nouveau morceau — ouvrir un morceau, en créer un…';
+        this.rafraichirEtatEnregistrement();
+    }
+
+    // Le voyant d'Enregistrer : modifié (orange) / enregistré (vert discret) / vierge (gris). Le texte disparaît sous 1180px (le voyant
+    // reste, le texte passe en infobulle) pour que le titre garde sa largeur — « rétrécir ou élargir avec seuil ».
+    rafraichirEtatEnregistrement() {
+        const zone = document.getElementById('tb-etat');
+        const texte = document.getElementById('tb-etat-texte');
+        if (!zone || !texte) return;
+        const id = getCurrentSongId();
+        const song = id ? loadSongs().find(s => s.id === id) : null;
+        // « Non enregistré » et non la phrase entière de la maquette : à 1300px la phrase se coupait en « Modifications non enregist… »
+        // (mesuré), et un texte coupé a l'air d'une panne. La phrase complète reste dans l'infobulle.
+        let etat, libelle, infobulle = null;
+        if (hasUnsavedChanges) { etat = 'modifie'; libelle = 'Non enregistré'; infobulle = 'Modifications non enregistrées — Ctrl+S pour les enregistrer'; }
+        else if (song) {
+            etat = 'enregistre';
+            const d = new Date(song.savedAt || 0);
+            const memeJour = d.toDateString() === new Date().toDateString();
+            libelle = song.savedAt
+                ? (memeJour ? `Enregistré à ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : `Enregistré ${formaterDateEnregistrement(song.savedAt).toLowerCase()}`)
+                : 'Enregistré';
+        } else { etat = 'neuf'; libelle = 'Nouveau morceau'; }
+        if (zone.dataset.etat !== etat) zone.dataset.etat = etat;
+        if (texte.textContent !== libelle) texte.textContent = libelle;
+        zone.title = infobulle || libelle;
+        const save = document.getElementById('tb-save');
+        if (save) save.dataset.modifie = etat === 'modifie' ? '1' : '0';
+    }
+
+    ouvrirMenuMorceau() {
+        const titre = document.getElementById('tb-titre');
+        const menu = document.getElementById('tb-menu');
+        if (!titre || !menu) return;
+        const id = getCurrentSongId();
+        // Les morceaux archivés (voir DOSSIER_ARCHIVES) n'ont rien à faire dans un accès rapide : ils sont écartés exprès.
+        const recents = loadSongs().filter(s => !estArchive(s)).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+        const MAX = 8;
+        let liste = recents.slice(0, MAX);
+        const courant = recents.find(s => s.id === id);
+        if (courant && !liste.includes(courant)) liste = [courant, ...liste.slice(0, MAX - 1)]; // le morceau ouvert est toujours visible, coché
+        const ico = (d) => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+        // Les dessins sont CEUX des anciens boutons de la carte Morceau (crayon, +, dossier, flèches) : « ne perds pas mes logos ».
+        const IC = {
+            ouvrir: ico('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
+            nouveau: ico('<path d="M12 5v14M5 12h14"/>'),
+            renommer: ico('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>'),
+            dupliquer: ico('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
+            exporter: ico('<path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/>'),
+            importer: ico('<path d="M12 21V9"/><path d="m7 13 5-5 5 5"/><path d="M5 3h14"/>'),
+            disque: ico('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/>'),
+        };
+        const item = (action, icone, libelle, extra = '') =>
+            `<button type="button" role="menuitem" class="tb-mi" data-tb-action="${action}"${extra}>${icone}<span class="tb-mi-libelle">${libelle}</span></button>`;
+        const morceaux = liste.map(s => {
+            const actif = s.id === id;
+            const date = this.showSavedDate ? `<span class="tb-mi-date">${escapeHtml(formaterDateEnregistrement(s.savedAt))}</span>` : '';
+            return `<button type="button" role="menuitemradio" aria-checked="${actif}" class="tb-mi tb-mi-morceau${actif ? ' actif' : ''}" data-tb-action="ouvrir-id" data-song-id="${escapeHtml(s.id)}" title="${escapeHtml(s.name)}">`
+                + `<span class="tb-mi-coche" aria-hidden="true">${actif ? '✓' : ''}</span><span class="tb-mi-libelle">${escapeHtml(s.name)}</span>${date}</button>`;
+        }).join('');
+        const dossier = (typeof nomRacineAffiche === 'function') ? nomRacineAffiche() : null;
+        const disponible = (typeof rangementDisponible === 'function') ? rangementDisponible() : false;
+        menu.innerHTML =
+            (morceaux ? `<div class="tb-mi-etiquette">Ouvrir</div><div class="tb-liste">${morceaux}</div>` : '')
+            + item('mes-morceaux', IC.ouvrir, 'Mes morceaux…')
+            + '<div class="tb-sep" role="separator"></div>'
+            + item('nouveau', IC.nouveau, 'Nouveau morceau')
+            + item('renommer', IC.renommer, 'Renommer')
+            + item('dupliquer', IC.dupliquer, 'Dupliquer')
+            + '<div class="tb-sep" role="separator"></div>'
+            + item('importer', IC.importer, 'Importer…')
+            + item('exporter', IC.exporter, 'Exporter…')
+            + '<div class="tb-sep" role="separator"></div>'
+            + item('rangement', IC.disque, disponible ? (dossier ? `Rangement : ${escapeHtml(dossier)}` : 'Rangement sur le disque…') : 'Rangement indisponible ici', disponible ? '' : ' disabled');
+        menu.querySelectorAll('.tb-mi').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const action = btn.dataset.tbAction;
+                // Le sélecteur de dossier doit s'ouvrir DANS le geste de l'utilisateur (voir openFileMenu) : on l'appelle avant tout await.
+                if (action === 'rangement') { this.fermerMenuMorceau(); this.choisirDossierExports(); return; }
+                if (action === 'exporter') { this.fermerMenuMorceau(); this.openTransferScopeMenu(titre); return; }
+                this.fermerMenuMorceau();
+                if (action === 'ouvrir-id') this.onSongSelectChange(btn.dataset.songId);
+                else if (action === 'mes-morceaux') this.openFilesWindow();
+                else if (action === 'nouveau') this.openNewSongModal();
+                else if (action === 'renommer') this.startInlineRenameSongMain();
+                else if (action === 'dupliquer') this.dupliquerMorceau();
+                else if (action === 'importer') { const inp = document.getElementById('song-import-input'); if (inp) inp.click(); }
+            });
+        });
+        menu.hidden = false;
+        titre.setAttribute('aria-expanded', 'true');
+        const premier = menu.querySelector('.tb-mi.actif') || menu.querySelector('.tb-mi:not([disabled])');
+        if (premier) premier.focus({ preventScroll: true });
+    }
+
+    fermerMenuMorceau(rendreLeFocus = false) {
+        const titre = document.getElementById('tb-titre');
+        const menu = document.getElementById('tb-menu');
+        if (menu) menu.hidden = true;
+        if (titre) {
+            titre.setAttribute('aria-expanded', 'false');
+            if (rendreLeFocus) titre.focus({ preventScroll: true });
+        }
+    }
+
+    // DUPLIQUER : une copie de la version ENREGISTRÉE, sous « Nom (2) », rangée au même endroit. Le morceau ouvert, lui, ne bouge pas —
+    // ni le tampon, ni les modifications en cours : une copie ne doit rien coûter à l'original. (Copier le tampon aurait été « Enregistrer
+    // sous », un autre geste, qui laisse le morceau d'origine sans ses modifications.)
+    dupliquerMorceau() {
+        const id = getCurrentSongId();
+        const songs = loadSongs();
+        const song = id ? songs.find(s => s.id === id) : null;
+        if (!song) { this.flashHint('Enregistre d\'abord ce morceau pour pouvoir le dupliquer'); return; }
+        const copie = JSON.parse(JSON.stringify(song));
+        copie.id = 'song_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        copie.name = nomLibrePourCopie(song.name, new Set(songs.map(s => s.name)));
+        copie.savedAt = Date.now();
+        songs.push(copie);
+        saveSongs(songs);
+        this.refreshSongList();
+        this.flashHint(hasUnsavedChanges
+            ? `« ${copie.name} » ajouté — copie de la version enregistrée (tes modifications en cours restent ici)`
+            : `« ${copie.name} » ajouté à Mes morceaux`, 3600);
     }
 
     async onSongSelectChange(id) {
@@ -9006,7 +9203,7 @@ class HarmoHubApp {
         document.getElementById('bpm').value = 120;
         document.getElementById('bpm-val').value = '120';
         saveProgressionSections([{ title: '', chords: [] }], false, null); // nouveau tampon vierge, rien à enregistrer, structure comprise
-        hasUnsavedChanges = false;
+        marquerEnregistre();
         this.clearHistory(); // changement de morceau : l'historique annuler/rétablir n'a plus de sens
         this.activeSection = 0;
         this.selectedIndex = null;
@@ -9137,7 +9334,7 @@ class HarmoHubApp {
         this.resetChordPanel();
         this.applySongSettingsToDom(song);
         saveProgressionSections(song.sections && song.sections.length ? song.sections : [{ title: '', chords: [] }], false, Array.isArray(song.structure) ? song.structure : null);
-        hasUnsavedChanges = false; // tampon tout juste chargé, identique au morceau enregistré
+        marquerEnregistre(); // tampon tout juste chargé, identique au morceau enregistré
         this.clearHistory(); // changement de morceau : l'historique annuler/rétablir n'a plus de sens
         this.activeSection = 0;
         this.selectedIndex = null;
@@ -9179,7 +9376,7 @@ class HarmoHubApp {
             instrumentMorceau: this.songInstrument,
             ...this.zoomSettingsForSong(),
         });
-        hasUnsavedChanges = false;
+        marquerEnregistre();
         this.refreshSongList();
         this.flashHint('Morceau enregistré');
         this.suivreSurLeDisque(loadSongs().find(s => s.id === id));
@@ -9214,6 +9411,17 @@ class HarmoHubApp {
             });
     }
 
+    // OÙ ÉCRIRE LE NOM. Dans la barre du haut quand elle montre le titre (ordinateur), dans la carte Morceau sinon (téléphone, jusqu'au
+    // lot 10) : le renommage en place et l'enregistrement d'un morceau neuf cachent l'élément qui porte le nom et posent un champ à sa
+    // place — deux endroits, un seul code. Les deux champs gardent la classe `inline-rename-input`, que les bancs et le CSS connaissent.
+    _hoteTitreMorceau() {
+        const titre = document.getElementById('tb-titre');
+        if (titre && (titre.offsetParent !== null || titre.hidden)) {
+            return { element: titre, classe: 'tb-titre-saisie inline-rename-input' };
+        }
+        return { element: document.getElementById('song-select'), classe: 'compact song-select-full inline-rename-input' };
+    }
+
     // Enregistre l'état actuel comme un NOUVEAU morceau (appelé uniquement quand aucun morceau n'est
     // encore ouvert — voir saveCurrentSong et les export PDF/MIDI/MP3, qui en ont besoin pour nommer
     // le fichier). Le select se cache et un champ de saisie apparaît à sa place, plutôt qu'un prompt()
@@ -9223,13 +9431,14 @@ class HarmoHubApp {
     // le champ de renommage peut apparaître hors du cadre visible sans que rien n'explique pourquoi
     // l'action d'origine n'a eu aucun effet apparent.
     saveCurrentAsSong(reason) {
-        const select = document.getElementById('song-select');
+        const hote = this._hoteTitreMorceau();
+        const select = hote.element;
         if (!select || select.hidden) return; // déjà en cours de saisie
 
         select.hidden = true;
         const input = document.createElement('input');
         input.type = 'text';
-        input.className = 'compact song-select-full inline-rename-input';
+        input.className = hote.classe;
         input.placeholder = 'Nom du morceau…';
         select.insertAdjacentElement('afterend', input);
         input.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -9260,13 +9469,14 @@ class HarmoHubApp {
         const songs = loadSongs();
         const song = songs.find(s => s.id === id);
         if (!song) return;
-        const select = document.getElementById('song-select');
+        const hote = this._hoteTitreMorceau();
+        const select = hote.element;
         if (!select || select.hidden) return; // déjà en cours de saisie (ex. Enregistrer)
 
         select.hidden = true;
         const input = document.createElement('input');
         input.type = 'text';
-        input.className = 'compact song-select-full inline-rename-input';
+        input.className = hote.classe;
         input.value = song.name;
         select.insertAdjacentElement('afterend', input);
         input.focus();
@@ -9560,7 +9770,7 @@ class HarmoHubApp {
             sections: loadProgressionSections(),
             structure: loadStructureBrute(),
         });
-        if (!etaitModifie) hasUnsavedChanges = false;
+        if (!etaitModifie) marquerEnregistre();
         return true;
     }
 

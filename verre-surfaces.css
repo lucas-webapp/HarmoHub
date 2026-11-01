@@ -25,12 +25,11 @@ html[data-glass="1"] :is(.settings-modal, .seq-zoom-modal, .context-menu, .durat
 }
 html[data-glass="1"] .control-card { box-shadow: var(--glass-hi); }
 
-/* ---- barre du haut : des pastilles flottantes sur ordinateur (le conteneur lui-même n'a ni fond ni flou : un flou posé sur lui
-   dessinerait un rectangle flou derrière les pastilles), une vraie barre pleine largeur sur téléphone (style.css, max-width 899px),
-   où elle devient une surface comme une autre ---- */
-@media (max-width: 899px) {
-    html[data-glass="1"] .top-bar { background: var(--glass-bar); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
-}
+/* ---- barre du haut : depuis le lot 3 (refonte) c'est une vraie barre pleine largeur sur ordinateur comme sur téléphone, une surface
+   comme une autre : fond de verre + flou. Le menu du morceau (.tb-menu) prend le fond des autres menus ; le champ de renommage
+   garde son fond opaque. ---- */
+html[data-glass="1"] .top-bar { background: var(--glass-bar); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-hi); }
+html[data-glass="1"] .tb-menu { background: var(--glass-pop-fond); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-hi), 0 24px 50px -24px rgba(0, 0, 0, .65); }
 html[data-glass="1"] :is(.logo, .settings-btn) { background: var(--glass-bar); box-shadow: var(--glass-hi); }
 
 /* ---- LE FOND COUVRE TOUT L'ÉCRAN, même sur une page courte. Paroles pose son propre fond sur `html` (paroles.css : `html, body`) : le
