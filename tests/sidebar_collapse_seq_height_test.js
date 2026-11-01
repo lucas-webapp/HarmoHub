@@ -87,11 +87,14 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
     const dock = await page.evaluate(() => {
         const el = document.getElementById('footer-dock');
         const r = el.getBoundingClientRect();
-        return { bottom: r.bottom, innerHeight: window.innerHeight, parent: el.parentElement.className };
+        // REFONTE, LOT 2 : le « bas » de la colonne n'est plus celui de la fenêtre mais le HAUT de la barre de lecture (60px) — c'est
+        // elle qui porte désormais le bas de l'écran. Le pied de colonne reste collé à ~20px de ce qui le borde.
+        const barre = document.getElementById('barre-lecture').getBoundingClientRect();
+        return { bottom: r.bottom, innerHeight: barre.top, parent: el.parentElement.className };
     });
     check(dock.parent === 'col-right', `le pied de colonne est bien déplacé dans .col-right, panneau masqué — ${dock.parent}`);
     check(Math.abs((dock.innerHeight - dock.bottom) - 20) < 3,
-        `...et reste collé à ~20px du bas de la fenêtre — écart mesuré ${(dock.innerHeight - dock.bottom).toFixed(0)}px`);
+        `...et reste collé à ~20px de la barre de lecture du bas — écart mesuré ${(dock.innerHeight - dock.bottom).toFixed(0)}px`);
 
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' — ' + errors[0] : ''));
 

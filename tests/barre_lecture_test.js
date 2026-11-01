@@ -108,7 +108,7 @@ const graine = (src) => {
     // plage = Couplet accord n°3 → Refrain accord n°2 (indices 2 et 1) : de 8 temps à 24 temps sur 32 → 25 % à 75 %.
     check(e && Math.abs(e.debut - 25) <= 2 && Math.abs(e.fin - 75) <= 2, `...et couvre la bonne partie du morceau — ${e && e.debut}→${e && e.fin} % (attendu 25→75)`);
     check(e && e.couleur === 'rgb(255, 179, 0)', `...en orange, comme la bande de la règle — ${e && e.couleur}`);
-    await p.evaluate(() => window.app.clearLoopRange ? window.app.clearLoopRange() : (window.app.loopRange = null, window.app.updatePlayButtonsForLoopRange()));
+    await p.evaluate(() => { window.app.loopRange = null; window.app.updatePlayButtonsForLoopRange(); }); // ce que fait un tap sur la bande (onLoopRangeEnd)
     await p.waitForTimeout(200);
     check(await p.evaluate(() => !document.querySelector('#bl-frise .bl-frise-plage')), '...et disparaît avec la plage');
 

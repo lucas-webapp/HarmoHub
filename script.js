@@ -2397,7 +2397,10 @@ const SEQ_DOCK_HEIGHT_AUTO_MAX = 700;  // au-delà, le volet mangerait la grille
 //     saisie rapide, un titre de partie, une rangée d'accords). Écraser la grille est un choix qui
 //     revient à l'utilisateur, pas un défaut imposé.
 const SEQ_DOCK_RESERVE_REPLI = 48;
-const SEQ_DOCK_RESERVE_CONFORT = 190;
+// 225 et non 190 (refonte, lot 2) : 190 ne laissait PAS la rangée d'accords annoncée — mesuré, il en faut ~220 (barre de titre 36,
+// saisie rapide, titre de partie, rangée d'accords avec sa règle de mesures). Personne ne le voyait tant que la fenêtre avait de la
+// marge ; la barre de lecture du bas retire 60px de hauteur et le défaut est apparu (volet_hauteur_poignee_test).
+const SEQ_DOCK_RESERVE_CONFORT = 225;
 // Part de la place disponible que la hauteur AUTOMATIQUE s'autorise. Volontairement inférieure à 1 :
 // un volet ouvert d'emblée à son maximum ne pourrait plus que rétrécir, et tirer la poignée vers le
 // haut ne ferait toujours rien — exactement le symptôme qu'on vient de corriger, avec une autre cause.
