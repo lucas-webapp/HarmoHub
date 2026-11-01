@@ -4647,3 +4647,34 @@ suites sensibles — à surveiller si elle revient.
 Ctrl+Z défait la restauration des accords et des réglages mais pas de la structure du morceau (elle n'est pas dans l'instantané d'annulation) : l'état d'avant, lui, est dans l'historique. La
 synchro cloud qui apporterait une version d'un autre appareil n'est pas encore un déclencheur de version. Les entrées du menu « Exporter… » ne couvrent que la portée (ce morceau / la
 bibliothèque) : PDF, MIDI, MP3 restent dans le bouton Fichier jusqu'au lot 4.
+
+## Refonte de l'interface — lot 4 : les onglets Grille / Structure / Paroles (2026-11-01)
+
+Retours de la maquette repris : « onglets Grille / Structure / Paroles EXACTEMENT au centre » (trois colonnes égales) et « Structure et Paroles deviennent des onglets (Paroles garde sa
+page et sa synchro propre, ouverte depuis l'onglet) ».
+
+**Ce qui est fait (ordinateur seulement).** Un groupe de trois onglets au centre de la barre du haut, dans la colonne `auto` réservée au lot 3 entre deux colonnes `1fr` : le centre est
+celui de la FENÊTRE, pas celui de l'espace qui reste. **Ce ne sont pas de nouveaux boutons** : `#structure-btn` et `#lyrics-btn` gardent leur identifiant, leur logo (lignes de structure, micro)
+et leur code ; `setupOnglets` les DÉPLACE dans la barre sur ordinateur et les remet à côté de Fichier sous 900px (un seul nœud DOM chacun, aller-retour mesuré). Seul « Grille » est neuf : il
+n'avait pas de logo, il a une grille de quatre carrés. Chaque onglet est un bouton de la jauge (32px, 7px d'angle) — pas de cadre segmenté dont les cases à 26px auraient exigé une exemption : le
+cliquet `HORS_JAUGE` n'a pas bougé. L'onglet allumé : texte vert + liseré vert dessous (« vert = état allumé »), jamais un aplat. **Grille** est allumée tant que la fenêtre Structure est fermée ;
+**Structure** ouvre la fenêtre existante et l'allume, un second clic la referme ; **Paroles** ouvre sa page à part dans un nouvel onglet du navigateur, comme avant (et dépose toujours le transfert
+des accords), sans jamais s'allumer ici. La fenêtre Structure s'ouvre désormais SOUS la barre (`top: var(--haut-barre)`) : sans cela elle couvrait les onglets, et un onglet qu'on ne peut plus cliquer
+n'en est pas un. Échap la referme (elle ne répondait qu'à la croix et au clic sur le fond), l'aperçu avant impression d'abord s'il est ouvert par-dessus.
+
+**Ce que la mesure a imposé.** (1) À 900px le groupe de droite dépassait de 26px sur les onglets (le compte vient de `compte-cloud.js`, commun aux trois applis : il ne rétrécit pas) : sous 1000px les
+onglets gardent leur logo et perdent leur mot (infobulle). (2) Avec un titre de 280px, Enregistrer et son voyant, la colonne de gauche — la moitié de la fenêtre moins la moitié des onglets — débordait sur
+les onglets : le titre se COMPRESSE maintenant (jusqu'à 128px), le voyant aussi. Le centre exact passe avant la largeur du titre ; le plafond de 280px ne se voit donc plus qu'à partir de ~1700px (le banc du
+lot 3 a été ajusté en conséquence : il vérifie le plafond à 1920px et la compression à 1440px). Après correction : écart au centre ≤ 1px et jeu minimal de 20px avec les deux voisins, à sept largeurs de 900 à
+1920px, titre court comme très long.
+
+**Bancs.** Nouveau `onglets_test` (34 : centrage et jeux à six largeurs × titre court/long, ordre, jauge, un seul nœud par identifiant, aller-retour 600px ↔ 1440px, l'état allumé à chaque ouverture/fermeture —
+clic, Grille, second clic, Échap, croix, fond—, ce que reçoivent les clics fenêtre ouverte via `elementFromPoint`, le clavier, la page Paroles ouverte et qui reçoit bien le morceau, téléphone inchangé).
+**Sabotages — 8, tous rouges** : nœuds non déplacés, fenêtre qui couvre la barre, colonnes non égales, état allumé figé, Grille qui ne ferme pas, second clic qui ne ferme pas, titre non compressible, Échap sans
+effet. **Un défaut réel trouvé par un ancien banc** : `structure_modulable_test` masque la fenêtre en posant `hidden = true` directement ; mon bascule se fiait à un drapeau interne (`structureOpen`) qui ne
+suivait plus, et le clic suivant sur Structure FERMAIT au lieu d'ouvrir. Corrigé à la racine : l'état se lit sur la fenêtre elle-même (`fenetreStructureOuverte`), ce que l'utilisateur voit étant la seule vérité.
+`barre_haut_test` ajusté (voir plus haut), aucun autre banc réécrit.
+
+**À noter, sans y toucher (comportement d'origine).** Cliquer « Paroles » télécharge aussi un fichier `.json` (le transfert vers un autre navigateur) en plus d'ouvrir la page : pour un onglet, c'est
+surprenant — à reconsidérer avec l'utilisateur, ce n'est pas une régression. La page Paroles garde son propre en-tête (« ‹ HarmoHub », logo, « Paroles ») : y reposer les trois onglets est possible
+(Grille et Structure y mèneraient vers `index.html`), mais touche une page à part et ses bancs : à décider.

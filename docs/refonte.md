@@ -132,7 +132,7 @@ ne le redécouvre pas.
 | 1 | Fondations : jauge des boutons (32/44, 7 px) appliquée aux hors-gabarit, logo seul | faible |
 | 2 ✅ | Barre de lecture en blocs (bas), boutons 44 px, position « Mes. N », frise, vitesse 50–200 %, tempo à la molette — **livré 01/11** (voir `docs/dette-tests.md`). Restent : le bloc Vues (Clavier, Guitare) au lot 8 ; le téléphone au lot 10. Le bouton « Début » de la maquette n'existe pas : l'appli n'a pas de tête de lecture persistante, Stop fait déjà « revenir au départ » | moyen |
 | 3 ✅ | Barre du haut : titre adaptatif + menu du morceau, Enregistrer + état, versions automatiques, Paramètres › Historique — **livré 01/11** (voir `docs/dette-tests.md`). Restent : les onglets Grille / Structure / Paroles au centre (lot 4, la colonne est réservée et centrée) ; sur téléphone la carte Morceau garde ses boutons (lot 10) | élevé |
-| 4 | Onglets Grille / Structure / Paroles, centrés | moyen |
+| 4 ✅ | Onglets Grille / Structure / Paroles, centrés — **livré 01/11** (voir `docs/dette-tests.md`). Restent : les mêmes onglets sur la page Paroles elle-même (elle garde son en-tête) et sur téléphone (lot 10) | moyen |
 | 5 | Grille : fenêtre centrée, poignées, cases basses, règle et plage orange, case « + » fixe, durée par poignée | élevé |
 | 6 | Bulle + inspecteur, suppression du bandeau de gauche et de la carte Accord | élevé |
 | 7 | Ajout unique (syntaxe complète, suggestions, « + » entre deux cases), clic droit, barre de sélection | moyen |

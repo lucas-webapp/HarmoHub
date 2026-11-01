@@ -18,7 +18,7 @@ const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('barre du haut');
 const { estBruitReseau } = require('./_harness');
 
-plan(70);
+plan(71);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const NOM_LONG = 'Ballade en mi bémol pour quatuor à cordes et piano, version longue';
@@ -89,6 +89,11 @@ const graine = ({ src, noms, courant }) => {
 
     // ======================================================================================================
     console.log('\n=== B. Le titre : largeur adaptative de 128 à 280px ===');
+    // LOT 4 : les onglets du centre prennent leur place, et la colonne de gauche n'est plus que la moitié de la fenêtre moins la moitié des onglets : à 1440px un
+    // titre de 280px, avec Enregistrer et son voyant, ne tient plus — il se COMPRESSE (c'est voulu : le centre exact passe avant). Le plafond de 280px se vérifie
+    // donc là où il y a la place : sur un grand écran.
+    await p.setViewportSize({ width: 1920, height: 900 });
+    await p.waitForTimeout(150);
     const larg = async (nom) => {
         await p.evaluate((n) => { document.getElementById('tb-titre-nom').textContent = n; }, nom);
         return p.evaluate(() => { const t = document.getElementById('tb-titre'), z = document.getElementById('tb-titre-nom'); return { w: t.getBoundingClientRect().width, coupe: z.scrollWidth > z.clientWidth + 1 }; });
@@ -99,6 +104,10 @@ const graine = ({ src, noms, courant }) => {
     check(Math.abs(court.w - 128) < 1, `un titre court n'écrase pas la barre : plancher de 128px (${Math.round(court.w)}px)`);
     check(moyen.w > 128 && moyen.w < 280, `un titre moyen élargit le bouton selon son nom (${Math.round(moyen.w)}px)`);
     check(Math.abs(long.w - 280) < 1 && long.coupe, `un titre très long plafonne à 280px et se coupe (« … ») : ${Math.round(long.w)}px`);
+    await p.setViewportSize({ width: 1440, height: 900 });
+    await p.waitForTimeout(150);
+    const compresse = await larg(NOM_LONG);
+    check(compresse.w >= 128 && compresse.w < 280 && compresse.coupe, `…et à 1440px, avec les onglets au centre, il se compresse plutôt que de pousser les onglets (${Math.round(compresse.w)}px, toujours coupé par « … »)`);
     await p.evaluate(() => window.app.refreshSongList());
     check(await p.evaluate(() => document.getElementById('tb-titre-nom').textContent) === 'Blues du dimanche', 'le titre affiche le nom du morceau ouvert');
     const infobulleLongue = await p.evaluate((n) => { window.app.rafraichirBarreMorceau(); const s = JSON.parse(localStorage.getItem('harmohubSongs')); s[0].name = n; localStorage.setItem('harmohubSongs', JSON.stringify(s)); window.app.rafraichirBarreMorceau(); return document.getElementById('tb-titre').title; }, NOM_LONG);

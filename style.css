@@ -6684,7 +6684,9 @@ body.impression-structure #structure-print-zone { display: block; }
     .tb-gauche, .tb-droite { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .tb-droite { justify-content: flex-end; }
     .tb-centre { display: flex; align-items: center; justify-content: center; min-width: 0; }
-    .tb-morceau { display: block; position: relative; min-width: 0; }
+    /* Le titre se COMPRESSE quand la place manque (jusqu'à 128px) : sans cela un titre de 280px, avec Enregistrer et son voyant, dépassait de sa
+       colonne et passait sous les onglets (mesuré), cassant le centrage qu'on cherche. */
+    .tb-morceau { display: flex; flex: 0 1 auto; position: relative; min-width: 0; }
     .tb-save { display: inline-flex; }
     .tb-etat { display: inline-flex; }
     /* Le logo prend la forme des autres boutons : « pas de bouton rond ici ». */
@@ -6692,7 +6694,7 @@ body.impression-structure #structure-print-zone { display: block; }
 
     /* LE TITRE : un bouton de la jauge (32px, 7px d'angle), largeur ADAPTATIVE — 128px au moins, 280px au plus, « … » au-delà. */
     .tb-titre {
-        flex: none;
+        flex: 0 1 auto;
         box-sizing: border-box;
         height: var(--bouton-h);
         min-width: 128px;
@@ -6752,6 +6754,7 @@ body.impression-structure #structure-print-zone { display: block; }
 
     /* LE VOYANT : un point + un texte. Orange = quelque chose n'est pas enregistré ; vert discret = tout l'est ; gris = morceau vierge. */
     .tb-etat {
+        flex: 0 1 auto;
         --etat-point: #5a6068;
         align-items: center;
         gap: 7px;
@@ -6869,3 +6872,53 @@ body.impression-structure #structure-print-zone { display: block; }
 .hist-propos { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; font-size: var(--fs-sm); color: var(--text-muted); }
 .hist-propos strong { color: var(--text-main); font-variant-numeric: tabular-nums; }
 #settings-panel-apropos { margin-bottom: 8px; }
+
+
+/* ======================================================================================================
+   LES ONGLETS DE LA BARRE DU HAUT (refonte, lot 4 — docs/refonte.md et la maquette « Version 2 »).
+   Grille / Structure / Paroles, EXACTEMENT au centre : la colonne du milieu de .top-bar est `auto` entre deux colonnes `1fr` égales.
+   Chaque onglet est un bouton de la jauge (32px, 7px d'angle) : « une barre = une hauteur », et le banc de jauge n'a aucune exemption à
+   accorder. L'onglet allumé se reconnaît à son texte vert et au liseré vert sous lui (« vert = état allumé ») — jamais à un aplat.
+   ====================================================================================================== */
+:root { --haut-barre: 53px; } /* hauteur de .top-bar (52px + son filet) : la fenêtre Structure commence dessous */
+@media (min-width: 900px) {
+    .tb-onglets { display: inline-flex; align-items: center; gap: 4px; }
+    .tb-onglets > button {
+        flex: none;
+        box-sizing: border-box;
+        height: var(--bouton-h);
+        min-width: 0;
+        padding: 0 12px 0 10px;
+        gap: 6px;
+        border: 1px solid transparent;
+        border-radius: var(--rayon-bouton);
+        background: transparent;
+        box-shadow: none;
+        color: var(--text-muted);
+        font-size: var(--fs-sm);
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .tb-onglets > button .btn-label { font-size: var(--fs-sm); font-weight: 600; }
+    .tb-onglets > button .icon { width: 15px; height: 15px; }
+    .tb-onglets > button:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.05); border-color: transparent; }
+    .tb-onglets > button[aria-pressed="true"],
+    .tb-onglets > button.active {
+        color: var(--accent);
+        background: rgba(255, 255, 255, 0.08);
+        border-color: transparent;
+        box-shadow: inset 0 -2px 0 var(--accent);
+    }
+    .tb-onglets > button:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--btn-blue-border-hover); }
+    .tb-onglets > button[aria-pressed="true"]:focus-visible { box-shadow: inset 0 -2px 0 var(--accent), inset 0 0 0 1px var(--btn-blue-border-hover); }
+
+    /* La fenêtre Structure s'ouvre SOUS la barre : les onglets restent sous le doigt, et le retour à la grille est à un clic. */
+    #structure-overlay { top: var(--haut-barre); }
+}
+
+/* Sous 1000px la place manque pour les mots : les trois onglets gardent leur logo, leur nom passe en infobulle (le compte, lui, ne rétrécit pas : il vient de
+   compte-cloud.js, commun aux trois applis). Mesuré avant : à 900px le groupe de droite dépassait de 26px sur les onglets. */
+@media (min-width: 900px) and (max-width: 999px) {
+    .tb-onglets > button .btn-label { display: none; }
+    .tb-onglets > button { padding: 0 9px; }
+}

@@ -3983,6 +3983,7 @@ class HarmoHubApp {
         this.setupGlobalTransportPlacement();
         this.setupBarreLecture(); // la barre de lecture du bas (ordinateur) : blocs, tempo, frise (voir plus bas)
         this.setupBarreMorceau(); // la barre du haut (ordinateur) : titre + menu du morceau, Enregistrer et son voyant
+        this.setupOnglets(); // les onglets Grille / Structure / Paroles, au centre de la barre du haut (ordinateur)
         this.setupHistoriqueAuto(); // versions automatiques (toutes les 5 min de travail, en quittant la page) — voir historique.js
         this.setupKeyboardShortcuts();
         this.applySidebarCollapsed(); // reflète l'état mémorisé dès le premier rendu (bouton déjà câblé)
@@ -4381,7 +4382,8 @@ class HarmoHubApp {
         document.getElementById('settings-close').onclick = () => this.closeSettings();
         // Fenêtre « Mes morceaux » : mêmes gestes de fermeture que les Paramètres (croix, clic sur
         // le fond, Échap — voir setupKeyboardShortcuts).
-        this._cabler('structure-btn', 'click', () => this.openStructureWindow());
+        // Un onglet, pas un simple bouton d'ouverture : un second clic sur Structure la referme (lot 4).
+        this._cabler('structure-btn', 'click', () => (this.fenetreStructureOuverte() ? this.closeStructureWindow() : this.openStructureWindow()));
         this._cabler('structure-close', 'click', () => this.closeStructureWindow());
         this._cabler('structure-overlay', 'click', (e) => {
             if (e.target.id === 'structure-overlay') this.closeStructureWindow();
@@ -8967,6 +8969,54 @@ class HarmoHubApp {
     // openTransferScopeMenu…). Les boutons de la carte existent toujours — ils servent encore sur téléphone jusqu'au lot 10.
     // « Ne rien faire régresser » : le changement de morceau en deux clics (la liste déroulante) reste à deux clics, car le menu s'ouvre
     // sur la liste des morceaux récents ; « Mes morceaux… » mène à la fenêtre complète, dossiers compris.
+    // ---------- LES ONGLETS : Grille / Structure / Paroles (refonte, lot 4 — docs/refonte.md) ----------
+    // « Structure et Paroles deviennent des onglets (Paroles garde sa page et sa synchro propre, ouverte depuis l'onglet). » Ce sont les MÊMES boutons qu'avant
+    // (#structure-btn, #lyrics-btn : identifiant, logo, code), simplement posés au centre de la barre du haut sur ordinateur et remis à côté de Fichier
+    // sur téléphone — un seul nœud DOM par bouton, jamais deux copies (comme le transport de la barre de lecture).
+    //   • Grille : la vue d'arrivée. Allumée tant que la fenêtre Structure est fermée ; un clic la referme.
+    //   • Structure : la fenêtre existante (voir openStructureWindow), allumée tant qu'elle est ouverte. Sur ordinateur elle s'ouvre SOUS la barre
+    //     (CSS : #structure-overlay commence à --haut-barre) pour que les onglets restent atteignables : un onglet qu'on ne peut plus cliquer n'en est pas un.
+    //   • Paroles : sa page à part, ouverte comme avant (nouvel onglet du navigateur). Jamais allumée ici : on est dans HarmoHub.
+    setupOnglets() {
+        const hote = document.getElementById('tb-onglets');
+        const grille = document.getElementById('tab-grille');
+        const struct = document.getElementById('structure-btn');
+        const paroles = document.getElementById('lyrics-btn');
+        if (!hote || !grille || !struct || !paroles) return; // index.html servi depuis un cache plus ancien : l'appli démarre quand même
+        grille.addEventListener('click', () => { if (this.fenetreStructureOuverte()) this.closeStructureWindow(); });
+        const media = window.matchMedia('(min-width: 900px)');
+        const placer = () => {
+            const zone = document.querySelector('.viz-export-actions');
+            const fichier = document.getElementById('file-menu-btn');
+            if (media.matches) {
+                hote.append(struct, paroles);
+                [struct, paroles].forEach(b => b.classList.add('tb-onglet'));
+            } else if (zone) {
+                [struct, paroles].forEach(b => { b.classList.remove('tb-onglet'); zone.insertBefore(b, fichier); });
+            }
+        };
+        if (media.addEventListener) media.addEventListener('change', placer); else if (media.addListener) media.addListener(placer);
+        placer();
+        this.rafraichirOnglets();
+    }
+
+    // La fenêtre Structure est-elle OUVERTE ? On regarde la fenêtre elle-même, pas un drapeau interne : ce que l'utilisateur voit est la seule vérité (un
+    // drapeau peut ne plus coller si quelque chose masque la fenêtre sans passer par closeStructureWindow — un banc l'a fait, un jour un autre code le fera).
+    fenetreStructureOuverte() {
+        const o = document.getElementById('structure-overlay');
+        return !!o && !o.hidden;
+    }
+
+    // L'onglet allumé : Structure tant que sa fenêtre est ouverte, Grille sinon. Appelé à l'ouverture et à la fermeture de la fenêtre.
+    rafraichirOnglets() {
+        const g = document.getElementById('tab-grille'), s = document.getElementById('structure-btn'), l = document.getElementById('lyrics-btn');
+        if (!g || !s || !l) return;
+        const ouverte = this.fenetreStructureOuverte();
+        g.setAttribute('aria-pressed', String(!ouverte));
+        s.setAttribute('aria-pressed', String(ouverte));
+        l.setAttribute('aria-pressed', 'false');
+    }
+
     setupBarreMorceau() {
         const titre = document.getElementById('tb-titre');
         const menu = document.getElementById('tb-menu');
@@ -9833,6 +9883,7 @@ class HarmoHubApp {
         document.getElementById('structure-btn')?.classList.add('active');
         this.lockBodyScroll();
         this.renderStructurePanel();
+        this.rafraichirOnglets();
     }
 
     closeStructureWindow() {
@@ -9841,6 +9892,7 @@ class HarmoHubApp {
         if (overlay) overlay.hidden = true;
         document.getElementById('structure-btn')?.classList.remove('active');
         this.unlockBodyScroll();
+        this.rafraichirOnglets();
     }
 
     // Les accords d'une partie, GROUPÉS PAR MESURE. Une liste à plat « C, Am, F, G » ne se lit pas :
@@ -20091,6 +20143,10 @@ class HarmoHubApp {
             if (e.key === 'Escape' && !document.getElementById('midi-export-modal').hidden) { if (this._midiExportModalCancel) this._midiExportModalCancel(); return; }
             if (e.key === 'Escape' && !document.getElementById('duration-dd-menu').hidden) { this.closeDurationMenu(); return; }
             if (e.key === 'Escape' && this.seqRowPipette) { this.seqRowPipette = null; this.renderSequencer(); return; }
+            // La fenêtre Structure est un ONGLET depuis le lot 4 : Échap la referme, comme toutes les autres fenêtres (elle ne répondait qu'à la croix et au
+            // clic sur le fond). L'aperçu avant impression, ouvert PAR-DESSUS, se referme d'abord — un seul niveau par appui.
+            if (e.key === 'Escape' && document.getElementById('structure-apercu') && !document.getElementById('structure-apercu').hidden) { this.fermerApercuStructure(); return; }
+            if (e.key === 'Escape' && this.fenetreStructureOuverte()) { this.closeStructureWindow(); return; }
             if (e.key === 'Escape' && this.filesOpen) { this.closeFilesWindow(); return; }
             if (e.key === 'Escape' && this.settingsOpen) { this.closeSettings(); return; }
             if (e.key === 'Escape' && this.seqZoomOpen) { this.closeSeqZoom(); return; }

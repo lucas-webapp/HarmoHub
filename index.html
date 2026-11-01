@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611011400">
+    <link rel="stylesheet" href="style.css?v=202611011530">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611011400">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611011530">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -65,7 +65,18 @@
                 <span class="tb-etat-point" aria-hidden="true"></span><span class="tb-etat-texte" id="tb-etat-texte">Nouveau morceau</span>
             </span>
         </div>
-        <div class="tb-centre" id="tb-centre"></div>
+        <!-- LES ONGLETS (refonte, lot 4) : les trois vues du morceau, EXACTEMENT au centre de la fenêtre (la colonne du milieu est `auto` entre deux
+             colonnes `1fr` égales). « Structure et Paroles deviennent des onglets » : #structure-btn et #lyrics-btn ne sont PAS recréés — ce sont les boutons
+             qui existaient déjà (même identifiant, même logo, même code derrière), que setupOnglets DÉPLACE ici sur ordinateur et remet à leur place d'origine
+             (à côté de Fichier) sur téléphone, où rien ne change avant le lot 10. Seul « Grille » est neuf : il n'avait pas de logo, il a celui-ci. -->
+        <div class="tb-centre" id="tb-centre">
+            <div class="tb-onglets" id="tb-onglets" role="group" aria-label="Vues du morceau">
+                <button type="button" id="tab-grille" class="tb-onglet" aria-pressed="true" title="Grille d'accords">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+                    <span class="btn-label">Grille</span>
+                </button>
+            </div>
+        </div>
         <div class="tb-droite">
         <!-- Historique unique pour toute l'appli (grille, séquenceur, fichiers) : bascule sur le bon
              selon le contexte ouvert, comme Ctrl+Z/Ctrl+Y (voir globalUndo/updateGlobalUndoRedoButtons
@@ -1793,11 +1804,11 @@
     <script src="fichiers.js?v=202610030500"></script>
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
-    <script src="historique.js?v=202611011400"></script>
-    <script src="script.js?v=202611011400"></script>
+    <script src="historique.js?v=202611011530"></script>
+    <script src="script.js?v=202611011530"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611011400"></script>
+    <script src="synchro-harmohub.js?v=202611011530"></script>
 </body>
 </html>
