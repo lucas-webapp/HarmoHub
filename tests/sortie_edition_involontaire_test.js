@@ -24,6 +24,7 @@ const SORTIES_LEGITIMES = new Set([
     'accord-close',      // la croix de l'accord : c'est sa raison d'être
     'save',              // Ajouter/Modifier : valide et referme
     'song-new', 'song-files', 'song-import', 'song-export', 'song-rename', 'song-save',
+    'tb-titre', 'tb-save',  // lot 3 : le titre ouvre le menu du morceau (nouveau, mes morceaux, importer…), Enregistrer valide : mêmes sorties légitimes que les anciens boutons
     'open-settings', 'file-menu-btn', 'lyrics-btn', 'quick-add-btn', 'add-section',
 ]);
 

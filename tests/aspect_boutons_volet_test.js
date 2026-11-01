@@ -80,7 +80,8 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     const vus = await page.evaluate(relever);
     exiger(!!vus && vus.length >= 10, `le volet porte assez de boutons pour que la question se pose — ${vus ? vus.length : 0}`);
     const familles = new Map();
-    for (const x of vus) { const k = cle(x); if (!familles.has(k)) familles.set(k, []); familles.get(k).push(x.nom); }
+    const exemples = new Map(); // un bouton RÉEL par famille : retrouver un bouton par son nom ne marche pas quand il n'a pas d'id (nom = « icon-btn », partagé)
+    for (const x of vus) { const k = cle(x); if (!familles.has(k)) { familles.set(k, []); exemples.set(k, x); } familles.get(k).push(x.nom); }
     const resume = [...familles.entries()].map(([, m]) => `${m.length}× ${m[0]}`).join(' | ');
     // DIX avant, sur les mêmes boutons. QUATRE est le nombre décidé, pas un nombre subi : la référence
     // sombre, le sélecteur segmenté, les actions colorées — et depuis, UNE exception nommée.
@@ -98,7 +99,7 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     check(familles.size <= 3 || familleSeule.includes('seq-zoom'),
         `la famille en trop est bien l'exception nommée (la porte du séquenceur) — seule(s) : ${familleSeule.join(', ') || 'aucune'}`);
 
-    console.log('\n=== B. La famille dominante EST la référence désignée ===');
+    console.log('\n=== B. La référence désignée est une famille du volet ===');
     // « L'aspect sombre que tu viens de mettre en place pour les nouveaux boutons » : le menu de durée
     // de la rangée du dessous. On lit la référence SUR LUI plutôt que de recopier des valeurs en dur —
     // si elle change un jour, ce banc suit au lieu de mentir.
@@ -113,10 +114,22 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     check(!ref.degrade && !ref.ombre, `la référence est bien PLATE — dégradé ${ref.degrade}, ombre ${ref.ombre}`);
     const grande = [...familles.entries()].sort((a, b) => b[1].length - a[1].length)[0];
     const membres = grande[1];
-    const unExemple = vus.find(x => x.nom === membres[0]);
+    // LOT 3 DE LA REFONTE : l'en-tête de la carte Morceau (six boutons, tous de la famille sombre) a quitté le volet — ils sont masqués sur
+    // ordinateur et vivent dans la barre du haut, que gabarit_boutons_test mesure (32px, 7px d'angle). La famille sombre ne compte donc plus
+    // que deux boutons ici (le résumé du morceau et le bouton de durée) ; le sélecteur segmenté, avec ses sept cases, devient la plus nombreuse.
+    // L'ancienne vérification — « la plus nombreuse EST la référence » — n'avait de sens que parce que ces six boutons la gonflaient : elle
+    // affirmait un effet de leur nombre, pas une règle de design. La règle, elle, reste, et on la tient directement :
+    //   • la référence sombre existe dans le volet, et c'est bien elle qui porte le bouton de durée ET le résumé (deux boutons de rôles différents) ;
+    //   • la famille la plus nombreuse est l'une des DEUX décisions nommées en tête de ce fichier : la référence, ou le sélecteur segmenté.
+    // Les lire par la famille elle-même (et non par le nom d'un bouton, souvent absent : « icon-btn » est partagé) est ce qui évite de lire
+    // un bouton d'une autre famille.
     check(membres.length >= 6, `la famille dominante rassemble ${membres.length} boutons — ${membres.slice(0, 4).join(', ')}…`);
-    check(unExemple.fond === ref.fond && unExemple.rayon === ref.rayon && !unExemple.degrade && !unExemple.ombre,
-        `et c'est la référence : fond ${unExemple.fond}, rayon ${unExemple.rayon}, sans dégradé ni ombre`);
+    const exempleRef = [...exemples.values()].find(x => x.fond === ref.fond && x.rayon === ref.rayon && !x.degrade && !x.ombre);
+    const membresRef = exempleRef ? familles.get(cle(exempleRef)) : [];
+    check(!!exempleRef && membresRef.includes('duration-dd-toggle') && membresRef.includes('song-summary'),
+        `la référence sombre (fond ${ref.fond}, rayon ${ref.rayon}, sans dégradé ni ombre) est une famille du volet : elle porte ${membresRef.join(' + ') || 'rien'}`);
+    const dominanteNommee = (grande[0] === (exempleRef && cle(exempleRef))) || membres.every(n => /^voicing-/.test(n));
+    check(dominanteNommee, `et la famille la plus nombreuse est l'une des deux décisions nommées (la référence, ou le sélecteur segmenté) — ${membres.slice(0, 3).join(', ')}…`);
 
     console.log('\n=== C. Les deux signaux de couleur ont survécu ===');
     // Le risque de ce lot : une règle de volet plus spécifique emporte le liseré d'un bouton d'accent
@@ -125,7 +138,8 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     const couleurs = await page.evaluate(() => {
         const lire = (id) => { const e = document.getElementById(id); if (!e) return null; const st = getComputedStyle(e);
             return { cadre: st.borderTopColor, rayon: st.borderTopLeftRadius, degrade: st.backgroundImage !== 'none' }; };
-        return { ajouter: lire('save'), enregistrer: lire('song-save') };
+        // « Enregistrer » est depuis le lot 3 dans la barre du haut (#tb-save) ; #song-save n'existe plus qu'à l'état masqué sur ordinateur.
+        return { ajouter: lire('save'), enregistrer: lire('tb-save') };
     });
     exiger(!!couleurs.ajouter && !!couleurs.enregistrer, 'les deux boutons colorés existent');
     const vert = (c) => /rgb\(\s*4[0-9],\s*9[0-9],\s*6[0-9]/.test(c) || c.includes('47, 91, 64');

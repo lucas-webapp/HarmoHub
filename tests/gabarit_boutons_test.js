@@ -25,7 +25,6 @@ const PASTILLES = new Set(['logo', 'cc-pill']);
 
 // Commande → lot qui la supprime ou la remet à la jauge. Clé = id, à défaut la première classe.
 const HORS_JAUGE = {
-    'song-select': 'lot 3 — la liste des morceaux devient le menu du morceau (bouton à titre adaptatif)',
     'root': 'lot 6 — la carte Accord disparaît (bulle + inspecteur)',
     'quality': 'lot 6',
     'duration-dd-toggle': 'lot 6',

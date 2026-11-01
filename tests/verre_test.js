@@ -39,6 +39,8 @@ const ETATS = {
     accueil: async () => {},
     parametres: async (p) => { await p.evaluate(() => window.app.openSettings()); await p.waitForTimeout(300); },
     menu: async (p) => { const c = await p.locator('.grid-cell').first().boundingBox(); await p.mouse.click(c.x + c.width / 2, c.y + c.height / 2, { button: 'right' }); await p.waitForTimeout(300); },
+    // Le menu du morceau (barre du haut, lot 3) : une surface de plus à relever, éteinte comme allumée.
+    menuMorceau: async (p) => { await p.click('#tb-titre'); await p.waitForTimeout(250); },
     confirmation: async (p) => { await p.evaluate(() => { window.app.openUnsavedModal(); }); await p.waitForTimeout(300); },
     sequenceur: async (p) => { await p.evaluate(() => window.app.editChord(0, 1)); await p.waitForTimeout(300); await p.click('#seq-zoom'); await p.waitForTimeout(600); },
 };
@@ -48,7 +50,7 @@ if (A_APERCU) ETATS.apercu = async (p) => { await p.click('#structure-btn'); awa
 async function fermerTout(p) { await p.keyboard.press('Escape'); await p.waitForTimeout(150); await p.evaluate(() => { try { window.app.closeSettings(); } catch (e) {} window.app.editingIndex = null; window.app.loadProgression(); }); await p.waitForTimeout(150); }
 
 (async () => {
-    plan(A_APERCU ? 64 : 63);
+    plan(A_APERCU ? 66 : 65);
     const nav = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     try {
         // ===== 0. LES FICHIERS ET LEUR ORDRE (statique) ==========================================================================
@@ -112,7 +114,10 @@ async function fermerTout(p) { await p.keyboard.press('Escape'); await p.waitFor
             check(sousDegrade.length === 0, `aucun bouton à dégradé ne garde une couleur de fond dessous — le gris du navigateur transparaîtrait sous chaque bouton vert (${sousDegrade.length}${sousDegrade.length ? ' : ' + sousDegrade.slice(0, 3).join(' ; ') : ''})`);
             const opaques = await V.boutonsDegradeOpaque(p);
             check(opaques.length === 0, `ni aucun dégradé de bouton qui finisse sur une couleur pleine — un bouton moitié verre, moitié tuile ardoise (${opaques.length}${opaques.length ? ' : ' + opaques.slice(0, 3).join(' ; ') : ''})`);
-            check(await flou('.top-bar') === 'none', `sur ordinateur la barre du haut ne floute PAS : ce sont des pastilles flottantes, un flou sur le conteneur dessinerait un rectangle flou derrière elles (${await flou('.top-bar')})`);
+            // LOT 3 DE LA REFONTE : la barre du haut n'est plus un nuage de pastilles flottantes, c'est une vraie barre pleine largeur (titre du
+            // morceau, Enregistrer, compte…). Elle est donc une surface comme une autre — l'ancienne assertion (« ne floute PAS ») défendait un
+            // état qui n'existe plus. Le garde-fou qu'elle portait reste : le flou est celui des autres surfaces (24 px), pas un flou de plus.
+            check(/blur\(24px\)/.test(await flou('.top-bar')), `sur ordinateur la barre du haut est une vraie barre pleine largeur : elle floute comme les autres surfaces, à 24 px (${await flou('.top-bar')})`);
             await ETATS.parametres(p);
             check(/blur\(24px\)/.test(await flou('.settings-modal')), 'la fenêtre Paramètres floute ce qu\'elle recouvre');
             const fen = await p.evaluate(() => ({ img: getComputedStyle(document.querySelector('#settings-overlay .settings-modal')).backgroundImage, couleur: getComputedStyle(document.querySelector('#settings-overlay .settings-modal')).backgroundColor, titre: getComputedStyle(document.querySelector('.settings-group-title')).backgroundColor }));

@@ -31,14 +31,33 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
 // Les sept choses nommées par l'utilisateur. Le libellé sert au message d'échec : il doit parler de
 // la FONCTION (« le nom du morceau »), pas de l'adresse technique, pour rester lisible dans deux ans.
-const INDISPENSABLES = [
-    ['#song-select',      'le nom du morceau'],
+//
+// LOT 3 DE LA REFONTE : sur ORDINATEUR, le nom du morceau, Enregistrer et le menu du morceau (fichiers, importer, exporter) vivent dans la
+// barre du haut — fixe, donc visible par construction, y compris pendant une modification. Les boutons fichiers / importer / exporter ne sont
+// plus des boutons posés à côté du titre : ils sont des ENTRÉES du menu que le titre ouvre (la maquette validée par l'utilisateur). « Les
+// toujours voir » devient donc : le titre est visible et cliquable, ET son menu, une fois ouvert, offre les trois entrées visibles et
+// atteignables. Sur TÉLÉPHONE, rien ne change avant le lot 10 : la carte Morceau garde ses boutons, et les sept adresses d'origine valent.
+const COMMUNS = [
     ['#song-summary-key', 'la tonalité'],
     ['#song-summary-bpm', 'le tempo'],
+];
+const BUREAU = [
+    ['#tb-titre',         'le nom du morceau (le titre de la barre du haut)'],
+    ['#tb-save',          'le bouton enregistrer'],
+    ...COMMUNS,
+];
+const BUREAU_MENU = [
+    ['#tb-menu [data-tb-action="mes-morceaux"]', 'le bouton fichiers (« Mes morceaux… » du menu)'],
+    ['#tb-menu [data-tb-action="importer"]',     'le bouton importer (menu du morceau)'],
+    ['#tb-menu [data-tb-action="exporter"]',     'le bouton exporter (menu du morceau)'],
+];
+const TELEPHONE = [
+    ['#song-select',      'le nom du morceau'],
     ['#song-files',       'le bouton fichiers'],
     ['#song-save',        'le bouton enregistrer'],
     ['#song-import',      'le bouton importer'],
     ['#song-export',      'le bouton exporter'],
+    ...COMMUNS,
 ];
 
 const seed = () => {
@@ -73,8 +92,8 @@ const auditer = (liste) => liste.map(([sel, nom]) => {
              vh: window.innerHeight };
 });
 
-async function eprouver(page, contexte) {
-    const res = await page.evaluate(auditer, INDISPENSABLES);
+async function eprouver(page, contexte, liste) {
+    const res = await page.evaluate(auditer, liste);
     for (const r of res) {
         if (!r.present) { check(false, `${contexte} — ${r.nom} : introuvable dans la page (${r.sel})`); continue; }
         const ok = r.surface && r.dansFenetre && r.atteignable;
@@ -87,8 +106,20 @@ async function eprouver(page, contexte) {
     return res;
 }
 
+// Ouvre le menu du morceau (un VRAI clic sur le titre) et rend la liste à éprouver. Le menu reste ouvert le temps de l'audit ; l'appel
+// suivant le referme d'abord (second clic sur le titre) pour ne pas fausser la mesure suivante.
+async function ouvrirMenu(page, liste) {
+    if (await page.evaluate(() => !document.getElementById('tb-menu').hidden)) await page.click('#tb-titre');
+    await page.click('#tb-titre');
+    await page.waitForTimeout(250);
+    return liste;
+}
+async function fermerMenu(page) {
+    if (await page.evaluate(() => !document.getElementById('tb-menu').hidden)) { await page.click('#tb-titre'); await page.waitForTimeout(150); }
+}
+
 (async () => {
-    plan(28); // 7 éléments × 4 situations
+    plan(28); // ordinateur : (4 + 3) × 2 situations ; téléphone : 7 × 2
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
 
@@ -102,7 +133,8 @@ async function eprouver(page, contexte) {
     await page.waitForTimeout(500);
 
     exiger(await page.evaluate(() => window.app && window.app.appMode === 'add'), 'ordinateur : on démarre bien en mode Ajout (aucun accord sélectionné)');
-    await eprouver(page, 'ordinateur, mode Ajout');
+    await eprouver(page, 'ordinateur, mode Ajout', BUREAU);
+    await eprouver(page, 'ordinateur, mode Ajout, menu du morceau ouvert', await ouvrirMenu(page, BUREAU_MENU));
 
     // Mode Modification par un VRAI geste sur un accord : c'est lui qui fait apparaître le panneau
     // d'édition, donc lui qui peut recouvrir ou repousser le reste.
@@ -111,6 +143,7 @@ async function eprouver(page, contexte) {
     // On vise le BAS de la case, pas son centre : au centre se trouve le symbole d'accord, dont le
     // double-clic ouvre la retape du texte (d.symTarget) au lieu du panneau. Et on reste au milieu
     // horizontalement pour éviter les poignées .cell-resize des deux bords.
+    await fermerMenu(page);
     const caseAccord = await page.locator('.grid-cell').first().boundingBox();
     const cx = caseAccord.x + caseAccord.width / 2, cy = caseAccord.y + caseAccord.height * 0.85;
     await page.mouse.click(cx, cy);
@@ -118,7 +151,8 @@ async function eprouver(page, contexte) {
     await page.mouse.click(cx, cy);
     await page.waitForTimeout(450);
     exiger(await page.evaluate(() => window.app.appMode === 'edit'), 'ordinateur : le clic sur un accord fait bien entrer en mode Modification');
-    await eprouver(page, 'ordinateur, mode Modification');
+    await eprouver(page, 'ordinateur, mode Modification', BUREAU);
+    await eprouver(page, 'ordinateur, mode Modification, menu du morceau ouvert', await ouvrirMenu(page, BUREAU_MENU));
     await page.close();
 
     // ---------- TÉLÉPHONE ----------
@@ -131,7 +165,7 @@ async function eprouver(page, contexte) {
     await m.reload({ waitUntil: 'load' });
     await m.waitForTimeout(600);
 
-    await eprouver(m, 'téléphone, mode Ajout');
+    await eprouver(m, 'téléphone, mode Ajout', TELEPHONE);
 
     // Sur téléphone, le geste est un VRAI toucher (dispatchTouchEvent via CDP) : un
     // element.dispatchEvent(new TouchEvent(...)) ne synthétise PAS les évènements pointeur dans
@@ -151,7 +185,7 @@ async function eprouver(page, contexte) {
     }
     const modeTel = await m.evaluate(() => window.app.appMode);
     check(modeTel === 'edit', `téléphone : le toucher sur un accord fait entrer en mode Modification — mode ${modeTel}`);
-    await eprouver(m, 'téléphone, mode Modification');
+    await eprouver(m, 'téléphone, mode Modification', TELEPHONE);
 
     check(erreurs.length === 0, `aucune erreur JavaScript pendant le parcours — ${erreurs.join(' | ') || 'aucune'}`);
     await browser.close();

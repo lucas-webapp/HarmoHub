@@ -284,14 +284,17 @@ const graine = ({ src, noms, courant }) => {
         document.documentElement.dataset.glass = '1';
         const flou = (el) => { const c = getComputedStyle(el); return (c.backdropFilter || c.webkitBackdropFilter || 'none'); };
         document.getElementById('tb-titre').click();
-        const r = { barre: flou(document.querySelector('.top-bar')), menu: flou(document.getElementById('tb-menu')), fondMenu: getComputedStyle(document.getElementById('tb-menu')).backgroundColor };
+        const autre = document.getElementById('backup-scope-menu'); const etaitCache = autre.hidden; autre.hidden = false;
+        const r = { barre: flou(document.querySelector('.top-bar')), menu: flou(document.getElementById('tb-menu')), fondMenu: getComputedStyle(document.getElementById('tb-menu')).backgroundColor, fondAutreMenu: getComputedStyle(autre).backgroundColor };
+        autre.hidden = etaitCache;
         document.getElementById('tb-titre').click();
         delete document.documentElement.dataset.glass;
         return r;
     });
     check(verre.barre !== 'none' && verre.menu !== 'none', `verre allumé : la barre et le menu du morceau sont floutés (${verre.barre})`);
-    const alpha = (c) => { const m = c.match(/rgba?\(([^)]+)\)/); const v = m[1].split(',').map(Number); return v.length === 4 ? v[3] : 1; };
-    check(alpha(verre.fondMenu) >= 0.7, `…et le fond du menu reste assez opaque pour rester lisible (alpha ${alpha(verre.fondMenu)})`);
+    // Le fond du menu est celui des AUTRES menus (le même jeton) : sa lisibilité est mesurée par verre_test, qui relève maintenant aussi cet
+    // état (menuMorceau). Ici on vérifie seulement qu'il n'a pas son propre fond, à part.
+    check(verre.fondMenu === verre.fondAutreMenu, `…et le fond du menu du morceau est celui des autres menus (${verre.fondMenu})`);
 
     // ======================================================================================================
     console.log('\n=== H. Téléphone : rien ne change avant le lot 10 ===');
@@ -301,7 +304,9 @@ const graine = ({ src, noms, courant }) => {
         const barre = [...document.querySelector('.top-bar').children].filter(e => e.getBoundingClientRect().width > 0).map(e => e.id || e.className.split(' ')[0]);
         return {
             titre: vis('#tb-titre'), save: vis('#tb-save'), etat: vis('#tb-etat'), centre: vis('#tb-centre'), liste: vis('#song-select'), sauve: vis('#song-save'),
-            barre, logoDernier: [...document.querySelectorAll('.top-bar .logo, .top-bar #open-settings')].pop().classList.contains('logo'),
+            // « le dernier » se juge à l'ÉCRAN (abscisse), pas dans le DOM : le logo est le premier dans le HTML depuis le lot 3 et reste le dernier à l'écran
+            logoDernier: (() => { const x = (s) => document.querySelector(s).getBoundingClientRect().x; return x('.top-bar .logo') > Math.max(x('#compte-cloud'), x('#open-settings'), x('#global-redo-btn'), x('#global-undo-btn')); })(),
+            barre,
             bar: document.querySelector('.top-bar').getBoundingClientRect().width, W: innerWidth,
         };
     });

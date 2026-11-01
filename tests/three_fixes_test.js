@@ -49,8 +49,10 @@ plan(14);
     await page.evaluate(() => window.app.createNewSongFromCurrentState('Quick Export Test'));
     await page.waitForTimeout(250);
 
-    // #song-export ouvre d'abord un choix de portée : un clic ne télécharge donc plus directement.
-    await page.click('#song-export');
+    // « Exporter… » ouvre d'abord un choix de portée : un clic ne télécharge donc plus directement. LOT 3 : le geste est désormais
+    // titre du morceau → « Exporter… » (l'ancienne flèche de la carte Morceau est masquée sur ordinateur) ; le code derrière est le même.
+    await page.click('#tb-titre');
+    await page.click('#tb-menu [data-tb-action="exporter"]');
     await page.waitForTimeout(300);
     const menu = await page.evaluate(() => {
         const m = document.getElementById('backup-scope-menu');
@@ -68,16 +70,22 @@ plan(14);
     check(download.suggestedFilename().endsWith('.json'),
         `« Toute la bibliothèque » déclenche bien un téléchargement JSON — ${download.suggestedFilename()}`);
 
+    // Vrai clic sur « Importer… » du menu du morceau (et non un .click() du script sur un bouton masqué) : le champ de fichier caché doit
+    // recevoir l'appel.
+    await page.evaluate(() => {
+        const input = document.getElementById('song-import-input');
+        window.__importClique = false;
+        window.__importOrig = input.click;
+        input.click = () => { window.__importClique = true; };
+    });
+    await page.click('#tb-titre');
+    await page.click('#tb-menu [data-tb-action="importer"]');
     const importCable = await page.evaluate(() => {
         const input = document.getElementById('song-import-input');
-        let clique = false;
-        const orig = input.click;
-        input.click = () => { clique = true; };
-        document.getElementById('song-import').click();
-        input.click = orig;
-        return clique;
+        input.click = window.__importOrig;
+        return window.__importClique;
     });
-    check(importCable, "le bouton d'import déclenche bien le champ de fichier caché");
+    check(importCable, "l'entrée « Importer… » du menu déclenche bien le champ de fichier caché");
 
     console.log('=== 2. Resizing a chord in the grid extends with HELD notes, not the looped preset ===');
     await page.evaluate(() => {
