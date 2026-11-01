@@ -83,7 +83,9 @@ ne le redécouvre pas.
   infobulle) qui ouvre le menu du morceau (ouvrir, nouveau, renommer, dupliquer, importer, exporter, historique,
   rangement) ; **Enregistrer** + état ; **onglets Grille / Structure / Paroles EXACTEMENT au centre** (trois colonnes
   égales) ; annuler, rétablir, **Paramètres (engrenage existant)**, compte (pilule commune, inchangée).
-- Structure et Paroles deviennent des onglets (Paroles garde sa page et sa synchro propre, ouverte depuis l'onglet).
+- Structure et Paroles deviennent des onglets. **Décision du 01/11 (lot 4b)** : « au lieu de séparer Paroles, on peut l'intégrer directement au morceau. Il ne
+  faut pas qu'elle garde sa propre en-tête, ni le logo. » Les deux sont des VUES dans la page HarmoHub (entre la barre du haut et la barre de lecture). Paroles
+  garde son code et sa synchro, chargée en mode intégré (`paroles.html?integre=1`) ; ouverte seule (favori, téléphone), elle reste une page à part.
 
 ## Barre de lecture (bas)
 
@@ -132,7 +134,7 @@ ne le redécouvre pas.
 | 1 | Fondations : jauge des boutons (32/44, 7 px) appliquée aux hors-gabarit, logo seul | faible |
 | 2 ✅ | Barre de lecture en blocs (bas), boutons 44 px, position « Mes. N », frise, vitesse 50–200 %, tempo à la molette — **livré 01/11** (voir `docs/dette-tests.md`). Restent : le bloc Vues (Clavier, Guitare) au lot 8 ; le téléphone au lot 10. Le bouton « Début » de la maquette n'existe pas : l'appli n'a pas de tête de lecture persistante, Stop fait déjà « revenir au départ » | moyen |
 | 3 ✅ | Barre du haut : titre adaptatif + menu du morceau, Enregistrer + état, versions automatiques, Paramètres › Historique — **livré 01/11** (voir `docs/dette-tests.md`). Restent : les onglets Grille / Structure / Paroles au centre (lot 4, la colonne est réservée et centrée) ; sur téléphone la carte Morceau garde ses boutons (lot 10) | élevé |
-| 4 ✅ | Onglets Grille / Structure / Paroles, centrés — **livré 01/11** (voir `docs/dette-tests.md`). Restent : les mêmes onglets sur la page Paroles elle-même (elle garde son en-tête) et sur téléphone (lot 10) | moyen |
+| 4 ✅ | Onglets Grille / Structure / Paroles, centrés — **livré 01/11** (voir `docs/dette-tests.md`). **Lot 4b (01/11)** : Paroles et Structure INTÉGRÉES comme vues du morceau (« il ne faut pas qu'elle garde sa propre en-tête, ni le logo ») — Paroles est la page Paroles chargée dans HarmoHub en mode intégré, Structure une vue dans la page. Reste : le téléphone (lot 10) | moyen |
 | 5 | Grille : fenêtre centrée, poignées, cases basses, règle et plage orange, case « + » fixe, durée par poignée | élevé |
 | 6 | Bulle + inspecteur, suppression du bandeau de gauche et de la carte Accord | élevé |
 | 7 | Ajout unique (syntaxe complète, suggestions, « + » entre deux cases), clic droit, barre de sélection | moyen |

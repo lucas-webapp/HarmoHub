@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611011530">
+    <link rel="stylesheet" href="style.css?v=202611011720">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611011530">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611011720">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1667,6 +1667,18 @@
            • Tempo : le bouton « 120 BPM » (fenêtre −/+/Tap, vitesse 50–200 %, molette, clic molette + glisser) et le
              métronome (même logo que celui de la carte Rythme, qu'il pilote).
          Clavier et Guitare rejoindront la barre au lot 8 (ils pilotent aujourd'hui les boutons du mini-piano). -->
+    <!-- VUE PAROLES (refonte, lot 4b) : « au lieu de séparer Paroles, on peut l'intégrer directement au morceau ». C'est la page Paroles elle-même,
+         chargée ici en MODE INTÉGRÉ (paroles.html?integre=1 : sans en-tête ni logo) — pas une copie de son code. La fusionner dans script.js
+         était impossible sans tout renommer : les deux déclarent les mêmes noms globaux (state, loadSong, undo, escapeHtml…) et paroles.css
+         habille `.top-bar` et `button` pour toute la page. Le cadre garde chacun chez soi ; même origine, donc mêmes données et même synchro,
+         exactement comme quand les deux étaient ouvertes dans deux onglets. Voir ouvrirVueParoles dans script.js. Ordinateur seulement (lot 10). -->
+    <div id="vue-paroles" class="vue-morceau vue-paroles" role="region" aria-label="Paroles du morceau" hidden>
+        <div id="vue-paroles-vide" class="vue-paroles-vide" hidden>
+            <p>Donne un nom à ton morceau pour écrire ses paroles : elles lui sont attachées.</p>
+            <button type="button" id="vue-paroles-nommer" class="tb-save">Nommer le morceau</button>
+        </div>
+        <iframe id="paroles-cadre" class="paroles-cadre" title="Paroles du morceau"></iframe>
+    </div>
     <div id="barre-lecture" class="barre-lecture" role="toolbar" aria-label="Lecture">
         <div class="bl-bloc" data-bloc="lecture" id="bl-lecture"></div>
         <div class="bl-bloc bl-parties" data-bloc="parties">
@@ -1804,11 +1816,11 @@
     <script src="fichiers.js?v=202610030500"></script>
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
-    <script src="historique.js?v=202611011530"></script>
-    <script src="script.js?v=202611011530"></script>
+    <script src="historique.js?v=202611011720"></script>
+    <script src="script.js?v=202611011720"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611011530"></script>
+    <script src="synchro-harmohub.js?v=202611011720"></script>
 </body>
 </html>

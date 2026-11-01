@@ -4386,7 +4386,9 @@ class HarmoHubApp {
         this._cabler('structure-btn', 'click', () => (this.fenetreStructureOuverte() ? this.closeStructureWindow() : this.openStructureWindow()));
         this._cabler('structure-close', 'click', () => this.closeStructureWindow());
         this._cabler('structure-overlay', 'click', (e) => {
-            if (e.target.id === 'structure-overlay') this.closeStructureWindow();
+            // En vue intégrée (ordinateur), le « fond » est la page elle-même : cliquer à côté du panneau ne doit pas le fermer — on revient à la
+            // grille par l'onglet Grille. Sur téléphone c'est une fenêtre : le clic à côté la referme, comme avant.
+            if (e.target.id === 'structure-overlay' && !this.vuesIntegrees()) this.closeStructureWindow();
         });
         this._cabler('structure-pdf', 'click', () => this.ouvrirApercuStructure());
         this._cabler('apercu-close', 'click', () => this.fermerApercuStructure());
@@ -4849,7 +4851,8 @@ class HarmoHubApp {
         // Paroles, ressorti dans son propre bouton juste à côté (retour utilisateur : "il n'a pas
         // trop sa place dans le bouton fichiers").
         document.getElementById('file-menu-btn').onclick = (e) => this.openFileMenu(e.currentTarget);
-        document.getElementById('lyrics-btn').onclick = () => this.exportLyricsData();
+        // Ordinateur : l'onglet Paroles ouvre la vue INTÉGRÉE (lot 4b), sans fichier téléchargé ni nouvel onglet. Téléphone : comme avant (lot 10).
+        document.getElementById('lyrics-btn').onclick = () => (this.vuesIntegrees() ? this.basculerVueParoles() : this.exportLyricsData());
         // Le champ de fichier reste caché : c'est une entrée de menu qui le déclenche, un champ de
         // fichier natif ne se mettant pas au style du reste.
         const midiInput = document.getElementById('import-midi-input');
@@ -8961,6 +8964,7 @@ class HarmoHubApp {
         select.value = currentId || '';
         document.getElementById('song-save').title = 'Enregistrer (Ctrl+S)';
         this.rafraichirBarreMorceau(); // le titre de la barre du haut suit la liste (ouverture, renommage, synchro…)
+        if (this.vueParolesOuverte && this.vueParolesOuverte()) this.chargerParoles(); // la vue Paroles suit le morceau ouvert (changement, nom donné…)
     }
 
     // ---------- BARRE DU HAUT : le morceau, son menu, Enregistrer et son état (refonte, lot 3 — docs/refonte.md) ----------
@@ -8983,16 +8987,34 @@ class HarmoHubApp {
         const struct = document.getElementById('structure-btn');
         const paroles = document.getElementById('lyrics-btn');
         if (!hote || !grille || !struct || !paroles) return; // index.html servi depuis un cache plus ancien : l'appli démarre quand même
-        grille.addEventListener('click', () => { if (this.fenetreStructureOuverte()) this.closeStructureWindow(); });
+        grille.addEventListener('click', () => this.revenirALaGrille());
+        const nommer = document.getElementById('vue-paroles-nommer');
+        if (nommer) nommer.addEventListener('click', () => this.saveCurrentAsSong('Nomme ton morceau pour écrire ses paroles'));
+        // Les vues s'arrêtent AU-DESSUS de la barre de lecture (qui reste utilisable : on joue le morceau en lisant ses paroles) : sa hauteur réelle
+        // est tenue dans --haut-barre-lecture, elle peut passer sur deux lignes.
+        const bl = document.getElementById('barre-lecture');
+        const poserHauteur = () => document.documentElement.style.setProperty('--haut-barre-lecture', (bl && bl.offsetHeight ? bl.offsetHeight : 0) + 'px');
+        if (bl && window.ResizeObserver) new ResizeObserver(poserHauteur).observe(bl);
+        poserHauteur();
+        // Le cadre Paroles dit s'il y a quelque chose à annuler chez lui : annuler / rétablir de la barre du haut agissent sur lui quand sa vue est ouverte.
+        window.addEventListener('message', (e) => {
+            if (e.origin !== location.origin || !e.data || e.data.type !== 'harmohub:paroles-annuler') return;
+            this._parolesAnnulable = { annuler: !!e.data.peutAnnuler, retablir: !!e.data.peutRetablir };
+            this.updateGlobalUndoRedoButtons();
+        });
         const media = window.matchMedia('(min-width: 900px)');
         const placer = () => {
             const zone = document.querySelector('.viz-export-actions');
             const fichier = document.getElementById('file-menu-btn');
             if (media.matches) {
                 hote.append(struct, paroles);
+                if (this.fenetreStructureOuverte()) document.body.classList.add('vue-ouverte');
                 [struct, paroles].forEach(b => b.classList.add('tb-onglet'));
             } else if (zone) {
                 [struct, paroles].forEach(b => { b.classList.remove('tb-onglet'); zone.insertBefore(b, fichier); });
+                // Passage au format téléphone : la vue Paroles n'y existe pas (lot 10), et la fenêtre Structure y redevient une fenêtre.
+                if (this.vueParolesOuverte()) this.fermerVueParoles();
+                document.body.classList.remove('vue-ouverte');
             }
         };
         if (media.addEventListener) media.addEventListener('change', placer); else if (media.addListener) media.addListener(placer);
@@ -9007,14 +9029,90 @@ class HarmoHubApp {
         return !!o && !o.hidden;
     }
 
+    // ---------- LES VUES INTÉGRÉES (lot 4b) : Structure et Paroles dans la page, sous la barre du haut ----------
+    // « Il ne faut pas qu'elle garde sa propre en-tête, ni le logo. On peut garder les trois onglets avec Paroles et Structure intégrées. »
+    vuesIntegrees() { return window.matchMedia('(min-width: 900px)').matches; }
+    vueParolesOuverte() { const v = document.getElementById('vue-paroles'); return !!v && !v.hidden; }
+    vueOuverte() { return this.fenetreStructureOuverte() || this.vueParolesOuverte(); }
+
+    revenirALaGrille() {
+        if (this.fenetreStructureOuverte()) this.closeStructureWindow();
+        if (this.vueParolesOuverte()) this.fermerVueParoles();
+    }
+
+    basculerVueParoles() {
+        if (this.vueParolesOuverte()) this.fermerVueParoles(); else this.ouvrirVueParoles();
+    }
+
+    ouvrirVueParoles() {
+        const vue = document.getElementById('vue-paroles');
+        if (!vue) return;
+        if (this.fenetreStructureOuverte()) this.closeStructureWindow();
+        vue.hidden = false;
+        this.chargerParoles();
+        this.rafraichirOnglets();
+        this.updateGlobalUndoRedoButtons();
+    }
+
+    fermerVueParoles() {
+        const vue = document.getElementById('vue-paroles');
+        if (!vue) return;
+        // Les paroles s'enregistrent un instant APRÈS la frappe (voir saveSession dans paroles.js) : on force l'écriture en quittant la vue, pour
+        // qu'aucune syllabe tapée juste avant le clic ne reste en suspens.
+        this.appelerParoles('writeSessionNow');
+        vue.hidden = true;
+        this.rafraichirOnglets();
+        this.updateGlobalUndoRedoButtons();
+    }
+
+    appelerParoles(nom) {
+        const cadre = document.getElementById('paroles-cadre');
+        try {
+            const cw = cadre && cadre.contentWindow;
+            if (cw && typeof cw[nom] === 'function') { cw[nom](); return true; }
+        } catch (e) { console.error(`Paroles : ${nom} impossible :`, e); }
+        return false;
+    }
+
+    // Donne au cadre les accords du morceau OUVERT. Par le même chemin qu'avant (le dépôt « harmohub_lyrics_pending_import » que la page Paroles lit
+    // à son ouverture), mais sans fichier téléchargé ni nouvel onglet. Rechargé seulement si les accords ont changé : sinon, passer d'un onglet à
+    // l'autre effacerait l'historique d'annulation des paroles et le défilement.
+    chargerParoles() {
+        const vide = document.getElementById('vue-paroles-vide');
+        const cadre = document.getElementById('paroles-cadre');
+        if (!vide || !cadre) return;
+        if (!getCurrentSongId()) {
+            // Les paroles sont attachées à un morceau (par son identifiant) : sans nom, rien où les ranger.
+            vide.hidden = false; cadre.hidden = true;
+            return;
+        }
+        vide.hidden = true; cadre.hidden = false;
+        const texte = JSON.stringify(this.donneesParoles());
+        if (cadre.dataset.charge && texte === this._parolesCharge) return;
+        try { localStorage.setItem('harmohub_lyrics_pending_import', texte); }
+        catch (e) { console.error('Transfert vers Paroles impossible :', e); }
+        this._parolesCharge = texte;
+        if (!cadre.dataset.charge) {
+            cadre.dataset.charge = '1';
+            cadre.src = 'paroles.html?integre=1';
+        } else {
+            this.appelerParoles('writeSessionNow');            // les paroles du morceau précédent d'abord
+            this.appelerParoles('tryAutoImportFromHarmoHub');  // puis le nouveau dépôt
+        }
+    }
+
     // L'onglet allumé : Structure tant que sa fenêtre est ouverte, Grille sinon. Appelé à l'ouverture et à la fermeture de la fenêtre.
     rafraichirOnglets() {
         const g = document.getElementById('tab-grille'), s = document.getElementById('structure-btn'), l = document.getElementById('lyrics-btn');
         if (!g || !s || !l) return;
-        const ouverte = this.fenetreStructureOuverte();
-        g.setAttribute('aria-pressed', String(!ouverte));
-        s.setAttribute('aria-pressed', String(ouverte));
-        l.setAttribute('aria-pressed', 'false');
+        const structure = this.fenetreStructureOuverte();
+        const paroles = this.vueParolesOuverte();
+        g.setAttribute('aria-pressed', String(!structure && !paroles));
+        s.setAttribute('aria-pressed', String(structure));
+        l.setAttribute('aria-pressed', String(paroles));
+        // La grille se cache derrière une vue (CSS : body.vue-ouverte main { visibility: hidden }) — la vue a un fond transparent pour laisser voir
+        // le fond de l'appli (uni ou verre), pas la grille. Seulement sur ordinateur : sur téléphone la fenêtre Structure garde son fond de fenêtre.
+        document.body.classList.toggle('vue-ouverte', (structure || paroles) && this.vuesIntegrees());
     }
 
     setupBarreMorceau() {
@@ -9879,6 +9977,7 @@ class HarmoHubApp {
         const overlay = document.getElementById('structure-overlay');
         if (!overlay) return; // index.html servi depuis le cache : ne rien faire plutôt que lever
         this.structureOpen = true;
+        if (this.vueParolesOuverte()) this.fermerVueParoles(); // une vue à la fois
         overlay.hidden = false;
         document.getElementById('structure-btn')?.classList.add('active');
         this.lockBodyScroll();
@@ -12660,11 +12759,9 @@ class HarmoHubApp {
     // renversement/basse) + la durée en temps, par partie, dans l'ordre — aucun voicing ni instrument,
     // cet outil n'en a pas besoin. Format à part (pas la sauvegarde du morceau elle-même) : ne casse
     // jamais si la structure de sauvegarde évolue, et se lit d'un coup d'œil.
-    exportLyricsData(racineFournie) {
-        if (!getCurrentSongId()) {
-            this.saveCurrentAsSong('Nomme d\'abord ton morceau pour exporter les accords');
-            if (!getCurrentSongId()) return; // enregistrement annulé -> pas d'export
-        }
+    // Les accords du morceau tels que Paroles les attend (format version 1). Extrait de exportLyricsData (lot 4b) : la vue Paroles intégrée en a
+    // besoin sans le téléchargement du fichier ni l'ouverture d'un onglet — une seule fabrique, pour que les deux chemins ne divergent jamais.
+    donneesParoles() {
         const sections = assurerIdentifiantsParties();
         const gRoot = document.getElementById('global-root').value;
         const gMode = document.getElementById('global-mode').value;
@@ -12694,6 +12791,15 @@ class HarmoHubApp {
                 }),
             })),
         };
+        return data;
+    }
+
+    exportLyricsData(racineFournie) {
+        if (!getCurrentSongId()) {
+            this.saveCurrentAsSong('Nomme d\'abord ton morceau pour exporter les accords');
+            if (!getCurrentSongId()) return; // enregistrement annulé -> pas d'export
+        }
+        const data = this.donneesParoles();
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const enCours = enregistrerFichier(blob, { morceau: this.getCurrentSongName(), type: 'Paroles', extension: 'json', dossier: 'morceaux', racine: racineFournie });
         // Dépose aussi les mêmes données dans un coin de localStorage PARTAGÉ (même origine) : paroles.js
@@ -19931,6 +20037,7 @@ class HarmoHubApp {
     }
 
     globalUndo() {
+        if (this.vueParolesOuverte()) { this.appelerParoles('undo'); return; } // vue Paroles : on annule dans les paroles (lot 4b)
         const pile = this.pileVisee(this._journalUndo);
         // Journal vide (ou historique purgé) : on retombe sur l'ancienne règle plutôt que de ne rien
         // faire — un chemin d'action qui oublierait de se journaliser resterait ainsi annulable.
@@ -19954,6 +20061,7 @@ class HarmoHubApp {
     }
 
     globalRedo() {
+        if (this.vueParolesOuverte()) { this.appelerParoles('redo'); return; }
         const pile = this.pileVisee(this._journalRedo);
         if (pile === null) { if (this.seqOpen) this.seqRedo(); else this.redo(); return; }
         const i = this._journalRedo.lastIndexOf(pile);
@@ -19980,6 +20088,12 @@ class HarmoHubApp {
         const undoBtn = document.getElementById('global-undo-btn');
         const redoBtn = document.getElementById('global-redo-btn');
         if (!undoBtn || !redoBtn) return;
+        if (this.vueParolesOuverte && this.vueParolesOuverte()) {
+            const p = this._parolesAnnulable || { annuler: false, retablir: false };
+            undoBtn.disabled = !p.annuler;
+            redoBtn.disabled = !p.retablir;
+            return;
+        }
         // Le bouton reflète la MÊME décision que le raccourci (voir globalUndo/pileVisee) : les deux
         // doivent viser la même pile, sinon le bouton s'active pendant que Ctrl+Z ne fait rien, ou
         // l'inverse.
@@ -20151,6 +20265,16 @@ class HarmoHubApp {
             if (e.key === 'Escape' && this.settingsOpen) { this.closeSettings(); return; }
             if (e.key === 'Escape' && this.seqZoomOpen) { this.closeSeqZoom(); return; }
             if (e.key === 'Escape' && this.guitarEditOpen) { this.closeGuitarEditor(); return; }
+            // VUES STRUCTURE / PAROLES (lot 4b) : la grille est CACHÉE. Ses raccourcis (lettres, Suppr, copier/coller, flèches…) agiraient sur un accord
+            // qu'on ne voit pas — on les coupe. Restent l'espace (lecture), annuler / rétablir (routés vers la vue) et Ctrl+S. Échap ramène à la grille.
+            if (this.vueParolesOuverte()) {
+                if (e.key === 'Escape') { this.fermerVueParoles(); return; }
+                const permis = (!mod && (e.key === ' ' || e.code === 'Space')) || (mod && /^[zZyYsS]$/.test(e.key));
+                if (!permis) return;
+            } else if (this.fenetreStructureOuverte()) {
+                const permis = (!mod && (e.key === ' ' || e.code === 'Space')) || (mod && /^[zZyYsS]$/.test(e.key));
+                if (!permis) return;
+            }
 
             // Taper directement une lettre de note (A-G) sur un accord chargé en édition (loupe
             // grille, ou double-clic en grille normale) ou simplement sélectionné ouvre son édition

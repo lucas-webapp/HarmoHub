@@ -712,3 +712,21 @@ body.pdf-export-mode .line-divider { display: none; }
         top: -9px; right: -9px; bottom: -9px; left: -6px;
     }
 }
+
+
+/* ======================================================================================================
+   MODE INTÉGRÉ (refonte, lot 4b) — la page vit dans l'onglet « Paroles » de HarmoHub (paroles.html?integre=1, voir paroles.html).
+   « Il ne faut pas qu'elle garde sa propre en-tête, ni le logo » : l'en-tête disparaît entièrement. Ce qu'il portait d'utile — l'état
+   d'enregistrement des paroles et les exports texte / copie / PDF — est déplacé dans la barre d'outils par paroles.js. Le titre du
+   morceau, le compte et annuler / rétablir sont ceux de la barre du haut de HarmoHub : pas de doublon. Le fond est transparent : c'est
+   celui de HarmoHub (uni ou verre) qui se voit, la vue fait partie de la même page.
+   ====================================================================================================== */
+html.integre, html.integre body { background: transparent !important; }
+/* MÊME color-scheme que HarmoHub (`:root { color-scheme: dark }` dans style.css). Quand celui d'un cadre diffère de celui de la page qui l'accueille,
+   le navigateur peint un fond OPAQUE derrière le document du cadre — un rectangle blanc à la place de la vue (vu en capture, verre éteint). */
+html.integre { color-scheme: dark; }
+html.integre .top-bar { display: none !important; }
+html.integre #btn-undo, html.integre #btn-redo, html.integre #btn-import, html.integre #compte-cloud { display: none !important; }
+html.integre .toolbar-actions { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+html.integre .toolbar-actions .save-status { margin-right: 4px; }
+html.integre main { padding-top: 12px; }

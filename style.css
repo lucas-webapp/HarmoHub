@@ -6922,3 +6922,45 @@ body.impression-structure #structure-print-zone { display: block; }
     .tb-onglets > button .btn-label { display: none; }
     .tb-onglets > button { padding: 0 9px; }
 }
+
+
+/* ======================================================================================================
+   LES VUES INTÉGRÉES : STRUCTURE ET PAROLES (refonte, lot 4b — « on peut garder les trois onglets avec Paroles et Structure intégrées »).
+   Ordinateur seulement (sur téléphone, Structure reste une fenêtre et Paroles sa page, jusqu'au lot 10).
+   Une vue occupe l'espace ENTRE la barre du haut et la barre de lecture (qui reste utilisable : on joue le morceau en lisant sa structure ou
+   ses paroles). La grille n'est pas recouverte d'un fond opaque : elle est MASQUÉE (visibility, donc sans rien recalculer — revenir à la grille
+   est instantané et retrouve le défilement), et la vue est transparente : c'est le fond de l'appli, uni ou verre, qui se voit.
+   ====================================================================================================== */
+.vue-paroles { display: none; }
+@media (min-width: 900px) {
+    body.vue-ouverte main { visibility: hidden; }
+    .vue-morceau:not([hidden]) {
+        display: flex;
+        position: fixed;
+        left: 0; right: 0;
+        top: var(--haut-barre);
+        bottom: var(--haut-barre-lecture, 60px);
+        z-index: 35;
+        flex-direction: column;
+    }
+    /* Le cadre hérite du color-scheme sombre de la page ; la page Paroles intégrée déclare le même (paroles.css) : sinon le navigateur peint un fond OPAQUE. */
+    .paroles-cadre { flex: 1 1 auto; width: 100%; min-height: 0; border: 0; background: transparent; }
+    .paroles-cadre[hidden] { display: none; }
+    .vue-paroles-vide { margin: 48px auto; max-width: 420px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; color: var(--text-muted); font-size: var(--fs-sm); }
+    .vue-paroles-vide[hidden] { display: none; }
+
+    /* STRUCTURE : la fenêtre d'origine devient une vue — même contenu, même code (renderStructurePanel), sans voile ni cadre de fenêtre. */
+    #structure-overlay {
+        bottom: var(--haut-barre-lecture, 60px);
+        z-index: 35;
+        padding: 16px;
+        background: transparent;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        align-items: stretch;
+    }
+    #structure-overlay > .settings-modal { max-width: 960px; width: 100%; max-height: none; height: 100%; margin: 0 auto; box-shadow: none; }
+    /* L'onglet dit déjà « Structure », et l'onglet Grille ramène à la grille : le titre et la croix de fenêtre n'ont plus d'objet ici. */
+    #structure-overlay #structure-title, #structure-overlay #structure-close { display: none; }
+    #structure-overlay .settings-header { justify-content: flex-end; }
+}

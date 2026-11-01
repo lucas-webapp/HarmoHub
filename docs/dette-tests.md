@@ -4685,3 +4685,43 @@ Deux rouges NOUVEAUX, examinés avant de pousser : (1) `meta_suite_test` — le 
 condition (`if (page2) { check… }`), deux compteurs que la méta-suite interdit d'augmenter. Corrigé : si la page Paroles ne s'ouvre pas, le banc échoue bruyamment au lieu de sauter la vérification.
 (2) `manche_edition_lot6_test` (« l'aperçu disparaît quand la souris quitte le manche ») — déjà rangé dans les suites sensibles au minutage du balayage (son en-tête note 1-2 rouges en charge et 0 isolé) ;
 relancé seul trois fois de suite : 18 PASS / 0 FAIL à chaque fois, et rien dans le lot 4 ne touche le manche. Traité comme du bruit de minutage, noté ici pour le cas où il reviendrait.
+
+## Refonte de l'interface — lot 4b : Paroles et Structure intégrées au morceau (2026-11-01)
+
+Décision de l'utilisateur, après le lot 4 : « au lieu de séparer Paroles, on peut l'intégrer directement au morceau. Ce sera plus simple. Il ne faut pas qu'elle garde sa
+propre en-tête, ni le logo. On peut garder les trois onglets avec Paroles et Structure intégrées. »
+
+**Comment, et pourquoi pas autrement.** Fusionner le code de Paroles dans script.js était hors de portée sans tout renommer : les deux fichiers déclarent les mêmes noms
+globaux (`state`, `loadSong`, `undo`, `redo`, `escapeHtml`, `showBanner`…) et paroles.css habille `.top-bar`, `button`, `body` pour la page entière. La page Paroles est donc
+chargée DANS HarmoHub, dans un cadre, en **mode intégré** (`paroles.html?integre=1`) : même code, mêmes données (même origine), même synchro — exactement la configuration qui
+tournait déjà quand les deux étaient ouvertes dans deux onglets, moins l'onglet. En mode intégré : plus d'en-tête ni de logo ni de lien « HarmoHub », plus de bouton d'import
+(le morceau vient de HarmoHub), plus de second compte ni de second annuler / rétablir (ceux de la barre du haut) ; l'état d'enregistrement des paroles et les exports texte /
+copie / PDF rejoignent sa barre d'outils (déplacés, pas recopiés). Ouverte seule (favori, téléphone), la page ne change pas.
+
+**Ce qui relie les deux.** Les accords passent par le dépôt d'origine (`harmohub_lyrics_pending_import`) — plus de fichier `.json` téléchargé ni de nouvel onglet au clic.
+La vue ne se recharge que si les accords ont changé (sinon l'historique d'annulation et le défilement des paroles seraient perdus à chaque aller-retour d'onglet). En quittant la
+vue ou en changeant de morceau, l'écriture des paroles est FORCÉE (`writeSessionNow`) : rien de ce qui vient d'être tapé ne reste en suspens. Annuler / rétablir de la barre du haut
+agissent sur les paroles quand leur vue est ouverte (le cadre dit par `postMessage` s'il y a de quoi annuler). Un morceau jamais nommé : la vue l'explique et propose de le nommer
+(les paroles sont attachées à un morceau). **Structure** : la fenêtre d'origine devient une vue (même contenu, même code) — plus de voile, de flou, de titre ni de croix ; un clic à
+côté du panneau ne la ferme plus. **Les deux vues** s'arrêtent au-dessus de la barre de lecture (on joue le morceau en lisant), la grille est masquée derrière (`visibility`, sans
+recalcul), leur fond est celui de l'appli. Pendant une vue, les raccourcis de la grille sont coupés (restent espace, annuler / rétablir, Ctrl+S, Échap qui ramène à la grille).
+Téléphone inchangé (lot 10).
+
+**Ce que la mesure a trouvé.** (1) Un rectangle BLANC à la place de la vue Paroles, verre éteint : HarmoHub déclare `color-scheme: dark`, la page Paroles non — quand ils diffèrent,
+le navigateur peint un fond opaque derrière le document du cadre. Corrigé (même `color-scheme` en mode intégré) et tenu par une mesure en PIXELS, verre éteint et allumé. (2) La
+garde du clavier : un premier banc tapait Suppr « sur un accord sélectionné » et restait vert la garde RETIRÉE — vérification vide. L'expérience témoin a montré pourquoi : ouvrir un
+onglet, à la souris comme au clavier, efface déjà la sélection. Le vrai risque est **Ctrl+V**, qui colle le presse-papiers des accords SANS sélection (mesuré : 3 → 4 accords) dans une
+grille qu'on ne voit pas. Le banc éprouve maintenant Ctrl+V seul (une séquence Ctrl+V puis Suppr masquait le défaut : l'accord collé, sélectionné, était aussitôt effacé), avec un TÉMOIN
+vue fermée qui prouve que le même geste colle bien.
+
+**Bancs.** Nouveau `vues_integrees_test` (40 : contenu du cadre — ni en-tête, ni logo, ni import, ni second compte, ni second annuler —, exports présents, parties du morceau, place exacte
+entre les deux barres, barre de lecture utilisable, grille masquée, paroles tapées puis vue quittée aussitôt = enregistrées, annuler / rétablir et Ctrl+Z routés vers les paroles et jamais vers
+la grille, Ctrl+V et autres touches sans effet vue ouverte + témoin, Échap, changement de morceau vue ouverte dans les deux sens, fond sombre mesuré en pixels avec et sans verre, morceau sans nom,
+vue Structure, page Paroles seule inchangée, téléphone inchangé). **Sabotages — 10, tous rouges** : en-tête visible, pas d'écriture en quittant, annuler qui va à la grille, garde clavier Paroles
+retirée, garde clavier Structure retirée, vue qui ne suit pas le morceau, fond blanc, vue qui couvre la barre de lecture, téléchargement au clic. **Réécrits pour le nouveau geste :**
+`onglets_test` (Paroles ouvre la vue, exclusive avec Structure ; clic à côté de Structure ne la ferme plus ; ni titre ni croix), `export_lyrics_test`, `export_lyrics_opens_tab_test`,
+`paroles_autoload_back_test` (l'export vers Paroles — fichier + nouvel onglet — reste le geste du TÉLÉPHONE : ces trois bancs passent au format téléphone pour cliquer le même bouton, au lieu
+d'appeler la méthode en douce). Les 13 suites Paroles et `synchro_paroles_test` passent sans modification.
+
+**Limites.** Le cadre a son propre défilement (celui de la page Paroles) ; Ctrl+S tapé DANS le cadre n'enregistre pas le morceau (les paroles, elles, s'enregistrent seules). Le regroupement
+des frappes de Paroles (une étape d'annulation par seconde de frappe continue) est celui d'avant, inchangé.

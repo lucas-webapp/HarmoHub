@@ -157,14 +157,19 @@ const graine = (src) => {
     e = await etat(p);
     check(!e.fenetre && e.grille === 'true' && e.structure === 'false', 'Échap referme la fenêtre ET rallume Grille (l\'état suit, d\'où que vienne la fermeture)');
     await p.click('#structure-btn'); await p.waitForTimeout(250);
-    await p.click('#structure-close'); await p.waitForTimeout(250);
-    e = await etat(p);
-    check(!e.fenetre && e.grille === 'true', 'la croix de la fenêtre aussi');
+    // LOT 4b : sur ordinateur Structure est une VUE — pas de croix de fenêtre (l'onglet Grille ramène à la grille) ; le téléphone, où elle reste
+    // une fenêtre, garde la sienne (section E).
+    check(await p.evaluate(() => getComputedStyle(document.getElementById('structure-close')).display === 'none' && getComputedStyle(document.getElementById('structure-title')).display === 'none'),
+        'vue Structure : ni croix ni titre de fenêtre (l\'onglet dit « Structure », l\'onglet Grille ramène à la grille)');
+    await p.click('#tab-grille'); await p.waitForTimeout(250);
     await p.click('#structure-btn'); await p.waitForTimeout(250);
-    await p.mouse.click(1420, 600); // le fond autour de la fenêtre
+    await p.mouse.click(1420, 600); // à côté du panneau
     await p.waitForTimeout(250);
     e = await etat(p);
-    check(!e.fenetre && e.grille === 'true', 'un clic sur le fond autour de la fenêtre aussi');
+    // LOT 4b : Structure est une VUE dans la page, plus une fenêtre posée sur un voile — « à côté du panneau », c'est la page : cliquer là ne la
+    // referme plus (on revient à la grille par l'onglet Grille). Avant, ce clic la fermait : c'était un fond de fenêtre.
+    check(e.fenetre && e.structure === 'true', 'un clic à côté du panneau ne referme pas la vue Structure (c\'est la page, plus un voile de fenêtre)');
+    await p.click('#tab-grille'); await p.waitForTimeout(250);
     // ce que montre la fenêtre : la structure du morceau, comme avant
     await p.click('#structure-btn'); await p.waitForTimeout(300);
     const contenu = await p.evaluate(() => document.getElementById('structure-panel').textContent);
@@ -178,19 +183,29 @@ const graine = (src) => {
     await p.click('#tab-grille'); await p.waitForTimeout(200);
 
     // ======================================================================================================
-    console.log('\n=== D. Paroles : sa page à part, ouverte depuis l\'onglet ===');
-    // Pas de `.catch` ni de `if` : si la page ne s'ouvre pas, le banc doit ÉCHOUER bruyamment (délai dépassé), pas continuer sur une vérification sautée.
-    const [page2] = await Promise.all([ctx.waitForEvent('page', { timeout: 5000 }), p.click('#lyrics-btn')]);
-    check(!!page2, 'un clic sur l\'onglet Paroles ouvre la page Paroles dans un nouvel onglet du navigateur (comme avant)');
-    await page2.waitForLoadState('domcontentloaded');
-    check(/paroles\.html/.test(page2.url()), `…la bonne page (${page2.url().replace(BASE, '')})`);
-    // Le transfert (les accords du morceau, déposés dans un coin de localStorage partagé) est CONSOMMÉ par la page Paroles à son ouverture :
-    // on vérifie donc qu'elle les a reçus — son nom de morceau s'affiche — plutôt que de chercher une clé qu'elle a déjà retirée.
-    await page2.waitForFunction(() => { const n = document.getElementById('song-name'); return n && !n.hidden && /Démo/.test(n.textContent); }, null, { timeout: 5000 });
-    check(true, 'le morceau arrive dans Paroles (son nom « Démo » s\'y affiche) : le transfert fonctionne comme avant');
-    await page2.close();
+    console.log('\n=== D. Paroles : une vue du morceau, dans la page (lot 4b) ===');
+    // « Au lieu de séparer Paroles, on peut l'intégrer directement au morceau. » Plus de nouvel onglet du navigateur, plus de fichier téléchargé :
+    // l'onglet ouvre la vue, et c'est un onglet comme les deux autres (allumé, exclusif). Le détail de la vue est éprouvé par vues_integrees_test.
+    let nouvellesPages = 0, telechargements = 0;
+    ctx.on('page', () => nouvellesPages++);
+    p.on('download', () => telechargements++);
+    await p.click('#lyrics-btn');
+    await p.waitForSelector('#vue-paroles:not([hidden])', { timeout: 3000 });
+    await p.waitForTimeout(400);
     e = await etat(p);
-    check(e.paroles === 'false' && e.grille === 'true' && !e.fenetre, 'Paroles n\'est jamais « allumé » ici (la page s\'ouvre ailleurs) : on reste sur Grille');
+    check(e.paroles === 'true' && e.grille === 'false' && e.structure === 'false' && !e.fenetre, 'un clic sur Paroles ouvre la vue Paroles et l\'allume ; Grille et Structure s\'éteignent');
+    check(nouvellesPages === 0 && telechargements === 0, 'ni nouvel onglet du navigateur, ni fichier téléchargé : Paroles fait partie du morceau');
+    await p.click('#structure-btn'); await p.waitForTimeout(300);
+    e = await etat(p);
+    check(e.structure === 'true' && e.paroles === 'false' && await p.evaluate(() => document.getElementById('vue-paroles').hidden), 'Structure depuis Paroles : une vue à la fois');
+    await p.click('#lyrics-btn'); await p.waitForTimeout(300);
+    await p.click('#lyrics-btn'); await p.waitForTimeout(300);
+    e = await etat(p);
+    check(e.grille === 'true' && e.paroles === 'false', 'un second clic sur Paroles referme la vue et rallume Grille');
+    await p.click('#lyrics-btn'); await p.waitForTimeout(300);
+    await p.click('#tab-grille'); await p.waitForTimeout(300);
+    e = await etat(p);
+    check(e.grille === 'true' && e.paroles === 'false', 'Grille referme la vue Paroles');
 
     // ======================================================================================================
     console.log('\n=== E. Téléphone : rien ne change avant le lot 10 ===');

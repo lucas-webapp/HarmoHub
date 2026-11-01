@@ -877,6 +877,13 @@ function updateUndoRedoUI() {
     const r = document.getElementById('btn-redo');
     if (u) u.disabled = undoStack.length === 0;
     if (r) r.disabled = redoStack.length === 0;
+    // MODE INTÉGRÉ : annuler / rétablir sont ceux de la barre du haut de HarmoHub (les nôtres sont masqués) — elle doit savoir s'il y a
+    // quelque chose à annuler ici pour allumer ou éteindre ses boutons.
+    // (lu ici et non dans EST_INTEGRE : cette fonction peut être appelée avant la ligne qui déclare la constante — un `const` n'est pas hissé)
+    if (document.documentElement.classList.contains('integre')) {
+        try { window.parent.postMessage({ type: 'harmohub:paroles-annuler', peutAnnuler: undoStack.length > 0, peutRetablir: redoStack.length > 0 }, location.origin); }
+        catch (e) { /* page ouverte seule : pas de parent à prévenir */ }
+    }
 }
 
 document.getElementById('btn-undo').addEventListener('click', undo);
@@ -1360,6 +1367,23 @@ document.addEventListener('keydown', (e) => {
 function debounce(fn, ms) {
     let t = null;
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+// ---------- Mode intégré (refonte, lot 4b) ----------
+// Dans HarmoHub (onglet « Paroles »), l'en-tête est masqué (voir paroles.css) : ses commandes encore utiles ici — l'état d'enregistrement des
+// paroles, l'export texte, la copie, le PDF — rejoignent la barre d'outils. Ce sont les MÊMES éléments (déplacés, pas recopiés) : leurs
+// gestionnaires, posés plus haut, les suivent. Page ouverte seule : rien ne bouge.
+const EST_INTEGRE = document.documentElement.classList.contains('integre');
+if (EST_INTEGRE) {
+    const barre = document.getElementById('toolbar');
+    if (barre) {
+        const actions = document.createElement('div');
+        actions.className = 'toolbar-actions';
+        ['save-status', 'btn-export-text', 'btn-copy-text', 'btn-export-pdf'].forEach(id => { const el = document.getElementById(id); if (el) actions.appendChild(el); });
+        const options = document.getElementById('btn-options');
+        barre.insertBefore(actions, options || null);
+    }
+    syncStickyOffsets();
 }
 
 // ---------- Démarrage ----------

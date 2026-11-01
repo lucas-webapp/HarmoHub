@@ -20,7 +20,11 @@
      boutons, logo, icônes SVG plutôt qu'émojis) est repris à la main de style.css pour que ça reste
      visiblement le MÊME produit (retour utilisateur : "optimise le design pour que ça colle au design
      HarmoHub, utilisation de logos, couleurs pastel"). -->
-<link rel="stylesheet" href="paroles.css?v=19">
+<!-- MODE INTÉGRÉ (refonte, lot 4b) : ouverte DANS HarmoHub (onglet « Paroles » de la barre du haut, paroles.html?integre=1), la page
+     n'a plus d'en-tête ni de logo — « il ne faut pas qu'elle garde sa propre en-tête, ni le logo ». Le drapeau est posé ici, avant la
+     feuille de style, pour qu'aucun en-tête ne s'affiche un instant puis disparaisse. Ouverte seule (favori, téléphone), rien ne change. -->
+<script>if (/[?&]integre=1\b/.test(location.search)) document.documentElement.classList.add('integre');</script>
+<link rel="stylesheet" href="paroles.css?v=21">
 <!-- L'EFFET VERRE de HarmoHub (Paramètres > Apparence de l'appli principale) : même réglage, même fichier — Paroles est un
      compagnon de HarmoHub, il doit suivre. verre.js se charge ici, sans defer, pour poser les attributs avant le premier affichage. -->
 <link rel="stylesheet" href="verre.css?v=202610281900">
@@ -147,7 +151,7 @@
     <!-- Même règle de nommage que HarmoHub : un seul fichier pour les deux, pas deux copies qui
          divergeront (voir fichiers.js). -->
     <script src="fichiers.js?v=202610030500"></script>
-    <script src="paroles.js?v=21"></script>
+    <script src="paroles.js?v=22"></script>
     <!-- SYNCHRO CLOUD des paroles (Firebase) : mêmes scripts et même ordre que dans index.html. Chargés APRÈS paroles.js, dont
          l'adaptateur lit l'état (state, loadSong, showBanner). Si le SDK manque (premier chargement hors ligne), la synchro ne
          démarre pas et la page reste pleinement utilisable en local. -->

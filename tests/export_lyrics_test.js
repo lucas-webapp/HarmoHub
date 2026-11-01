@@ -13,7 +13,15 @@ const actionFichier = async (page, id) => {
     await page.waitForSelector(`[data-file-action="${id}"]`, { timeout: 3000 });
     await page.click(`[data-file-action="${id}"]`);
 };
-const ouvrirParoles = (page) => page.click('#lyrics-btn');
+// CONTRAT CHANGÉ (3), refonte lot 4b : sur ORDINATEUR l'onglet Paroles ouvre désormais la vue INTÉGRÉE (dans la page, sans fichier ni nouvel
+// onglet). L'export vers Paroles — fichier .json téléchargé + page ouverte dans un nouvel onglet, ce que ce banc éprouve — reste le geste du
+// TÉLÉPHONE (et de l'export intégral). Le banc passe donc au format téléphone pour cliquer le même bouton, au lieu d'appeler la méthode en douce.
+const ouvrirParoles = async (page) => {
+    await page.setViewportSize({ width: 800, height: 900 });
+    await page.waitForTimeout(150);
+    await page.evaluate(() => document.getElementById('lyrics-btn').scrollIntoView({ block: 'center' }));
+    await page.click('#lyrics-btn');
+};
 const fs = require('fs');
 
 let PASS = 0, FAIL = 0;
