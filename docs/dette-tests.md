@@ -4796,3 +4796,38 @@ Détaillé. » utilisait la classe `.verre-indice`, qui vit dans `verre.css` (fi
 du verre. Classe propre à HarmoHub (`.reglage-indice`).
 
 **Balayage du lot 5b (02/11) : 216 verts, 5 rouges, 7 sans verdict (228 suites)** — exactement la ligne de base ; aucun nouveau rouge.
+
+## Refonte de l'interface — lot 5c : l'en-tête de partie (2026-11-02)
+
+Demande reprise de la maquette validée : « nom et N mesures sur la même ligne de base, ×N si répétée, menu ⋯ (répéter, renommer, monter, descendre, dupliquer, supprimer — version
+automatique avant suppression) ».
+
+**L'en-tête (ordinateur).** Le nom, « 8 mesures » (en toutes lettres, au singulier sous 2, virgule décimale : « 1,5 mesure ») et l'étiquette bleue « ×N » se suivent sur la MÊME ligne de
+base ; le champ du nom prend la largeur de son texte (il prenait toute la ligne, ce qui envoyait le nombre de mesures loin à droite) et grandit en tapant, sans jamais pousser le ⋯ hors de
+la ligne. Les quatre petits boutons ▲▼⧉🗑 (26px, hors jauge) laissent la place au seul bouton ⋯ (32px), au bout de la ligne : l'en-tête fait 32px, comme la maquette.
+
+**×N, une seule notion de répétition.** L'étiquette dit combien de fois la partie est JOUÉE d'après la structure (`repetitionsDansStructure`, la valeur de la vue Structure et de Paroles) —
+rien à ×1. « Répéter » dans le menu est le même geste que le ×N de la vue Structure (`modifierStructure`, donc enregistré aussitôt dans le morceau, bornes 1 à 99), et le menu reste
+ouvert pour enchaîner les « + ». Une partie jouée à plusieurs endroits de la structure, ou à aucun, ne se règle pas d'ici : − et + restent visibles mais grisés, la raison est écrite
+(« Jouée à 2 endroits de la structure », « Absente de la structure ») et « Régler dans Structure » ouvre la vue.
+
+**Le menu.** Celui du morceau (même aspect, même verre), posé sous le ⋯ et calé à droite ; il suit son bouton quand la page défile. Monter / Descendre / Supprimer restent visibles et
+grisés quand ils sont sans objet (première ou dernière partie, partie seule). Supprimer demande confirmation et garde une version « avant suppression » (lot 3b) quand la partie avait
+des accords. Clavier : flèches, Échap (rend le focus au ⋯), Tab referme.
+
+**Téléphone : inchangé** (boutons ▲▼⧉🗑, « 8 mes. », nom pleine ligne) jusqu'au lot 10 ; seule l'étiquette ×N y apparaît aussi, c'est une information.
+
+**Défauts trouvés en codant.** (1) **Déjà présent avant ce lot** : cliquer le nom d'une partie INACTIVE ne permettait pas de le taper — l'activer redessinait la grille et le focus
+partait avec l'ancien champ ; il fallait cliquer deux fois. Le focus est rendu au champ neuf. (2) Le menu, posé en position fixe, se refermait au moindre défilement — or activer une
+partie fait défiler d'un cran : il se refermait à peine ouvert. Il suit désormais son bouton. (3) Trouvé par `voice_leading_section_ops_test` : ouvrir le ⋯ ACTIVAIT la partie, ce qui
+déplaçait le panneau « Conduite de voix » sous elle — la grille sautait sous la souris et le bouton sortait de l'écran. Ouvrir un menu ne déplace plus rien.
+
+**Bancs.** Nouveau `entete_partie_test` (49 : ligne de base mesurée par sondes et par le texte, largeur du champ, nom long, singulier et virgule, 32px, ×N, ⋯ seul au bout de la ligne,
+répéter ±, enregistrement dans la structure du morceau, focus quand « − » se grise, clavier, clic ailleurs, ouvrir sans activer, chaque article, article grisé sans effet, confirmation
+refusée / acceptée, version avant suppression contenant la partie, partie seule, structure à plusieurs endroits, partie absente, « Régler dans Structure », défilement, téléphone).
+**Sabotages : 14, tous rouges** — dont un d'abord resté vert (refermer au défilement) : le banc ne faisait rien défiler ; l'épreuve E2 l'a comblé. Adaptés : `voice_leading_section_ops_test`
+(monter / dupliquer / supprimer passent par le ⋯, comme l'utilisateur sur ordinateur), `gabarit_boutons_test` (l'entrée `prog-section-duplicate` sort de HORS_JAUGE : la commande n'est plus
+visible sur ordinateur, le ⋯ est à la jauge).
+
+
+**Balayage du lot 5c (02/11) : 217 verts, 5 rouges, 7 sans verdict (229 suites)** — exactement la ligne de base, plus la nouvelle suite ; aucun nouveau rouge.

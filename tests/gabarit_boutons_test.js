@@ -34,7 +34,6 @@ const HORS_JAUGE = {
     'seq-zoom': 'lot 9 — le « Séquenceur » de la carte devient « Éditeur de notes »',
     'save': 'lot 3 — Enregistrer passe dans la barre du haut',
     'toggle-sidebar': 'lot 6 — le bandeau de gauche disparaît',
-    'icon-btn.prog-section-duplicate': 'lot 5 — outils de partie : menu ⋯ de l\'en-tête, à 32px',
     'add-section': 'lot 5 — « Nouvelle section », à 7px',
 };
 

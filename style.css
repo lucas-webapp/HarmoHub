@@ -3542,6 +3542,99 @@ button:active { transform: translateY(1px); }
     background: rgba(255, 90, 80, 0.1);
 }
 
+/* EN-TÊTE DE PARTIE (lot 5c) — « nom et N mesures sur la même ligne de base, ×N si répétée, menu ⋯ ». Le nom, le nombre de mesures et le ×N
+   vivent dans .psh-nom, aligné sur la LIGNE DE BASE (un champ, un texte plus petit et une étiquette n'ont pas la même hauteur : centrés, leurs
+   lettres ne tombaient pas sur la même ligne). */
+.psh-nom { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 auto; }
+.prog-section-rep {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: 5px;
+    background: #182640;           /* l'étiquette bleue de la maquette (« section répétée ») */
+    color: #a9c6f5;
+    font-size: var(--fs-2xs);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.prog-section-menu, .psm-long { display: none; }
+@media (min-width: 900px) {
+    /* Hauteur de la maquette : 32px, celle du bouton ⋯ (la jauge des commandes) — le titre n'a plus à se caser entre quatre boutons de 26px. */
+    .prog-section-head { min-height: var(--bouton-h, 32px); }
+    .psh-nom { flex: 0 1 auto; }
+    /* Le champ prend la largeur de son texte (voir ajusterLargeurTitrePartie) et ne déborde jamais de la ligne. */
+    .psh-nom .prog-title { flex: 0 1 auto; width: var(--titre-l, 160px); max-width: 100%; }
+    .prog-section-measures { font-size: var(--fs-sm); }
+    .psm-long { display: inline; }
+    .psm-court { display: none; }
+    /* Les quatre petits boutons ▲▼⧉🗑 passent dans le menu ⋯ : sur ordinateur ils ne sont plus dans l'en-tête. */
+    .prog-section-head .psh-ancien { display: none; }
+    .prog-section-menu {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: none;
+        margin-left: auto;
+        box-sizing: border-box;
+        width: var(--bouton-h, 32px);
+        min-width: 0;
+        height: var(--bouton-h, 32px);
+        padding: 0;
+        border: 1px solid transparent;
+        border-radius: var(--rayon-bouton, 7px);
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+    }
+    .prog-section-menu .icon { width: 16px; height: 16px; }
+    .prog-section-menu:hover, .prog-section-menu[aria-expanded="true"] {
+        color: var(--text-main);
+        border-color: var(--border);
+        background: rgba(255, 255, 255, 0.06);
+    }
+    .prog-section-menu:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--btn-blue-border-hover); }
+
+    /* Le menu lui-même : celui du morceau (.tb-menu), posé en position FIXE sous son bouton (voir ouvrirMenuPartie), 240px comme la maquette. */
+    .tb-menu.partie-menu { position: fixed; top: 0; left: 0; width: 240px; z-index: 90; }
+    .partie-rep { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 4px 6px 10px; }
+    .partie-rep-libelle { font-size: var(--fs-sm); font-weight: 600; color: var(--text-main); }
+    .partie-rep-seg {
+        box-sizing: border-box;
+        display: inline-flex;
+        align-items: stretch;
+        gap: 2px;
+        height: var(--bouton-h, 32px);
+        padding: 2px;
+        border: 1px solid var(--border);
+        border-radius: var(--rayon-bouton, 7px);
+        background: #14171c;
+    }
+    .partie-rep-seg button {
+        flex: none;
+        width: 28px;
+        min-width: 0;
+        height: auto;
+        padding: 0;
+        border: 0;
+        border-radius: 5px;
+        background: transparent;
+        color: var(--text-main);
+        font-size: var(--fs-md);
+        font-weight: 600;
+        line-height: 1;
+        cursor: pointer;
+    }
+    .partie-rep-seg button:hover { background: rgba(255, 255, 255, 0.07); }
+    .partie-rep-seg button:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--btn-blue-border-hover); }
+    .partie-rep-seg button:disabled { opacity: 0.3; cursor: not-allowed; background: transparent; }
+    .partie-rep-val { display: flex; align-items: center; justify-content: center; min-width: 40px; font-size: var(--fs-sm); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-main); }
+    .partie-rep-raison { padding: 0 10px 4px; font-size: var(--fs-xs); color: var(--text-muted); }
+    .partie-menu .tb-mi[data-danger="1"] { color: #ff9a8f; }
+    .partie-menu .tb-mi[data-danger="1"] .icon { color: #ff9a8f; }
+}
+
 /* Panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) : piano-roll continu de toute la
    partie, sous la grille elle-même (jamais au-dessus, pour ne pas déplacer la grille qu'on est en
    train de modifier à chaque ouverture/fermeture — retour utilisateur sur la maquette). */

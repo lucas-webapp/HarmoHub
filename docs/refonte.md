@@ -66,7 +66,8 @@ ne le redécouvre pas.
   Normal 52, Détaillé 84 px. « Les cases sont trop grosses, ça nuit à la visibilité. »
 - **Affichage Compact / Normal / Détaillé** remplace les quatre boutons de zoom (hauteur calculée, mesures par ligne).
 - En-tête de partie : nom et « N mesures » sur la **même ligne de base**, `×N` si répétée, menu ⋯ (répéter, renommer,
-  monter, descendre, dupliquer, supprimer — version automatique avant suppression).
+  monter, descendre, dupliquer, supprimer — version automatique avant suppression). ✅ **Livré 02/11 (lot 5c)** : ×N = répétitions de la
+  STRUCTURE (même geste que la vue Structure) ; partie à plusieurs endroits de la structure → réglée dans Structure. Téléphone inchangé (lot 10).
 - Chaque case porte en bas sa **règle de lecture** : numéro de mesure sur le 1ᵉʳ temps, un point par temps. On y
   glisse pour tracer la **plage à boucler (orange)** ; un clic dans la plage l'efface. Pas de numéro de mesure dans le
   coin de la case.

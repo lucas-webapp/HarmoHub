@@ -4003,6 +4003,7 @@ class HarmoHubApp {
         this.setupGlobalTransportPlacement();
         this.setupBarreLecture(); // la barre de lecture du bas (ordinateur) : blocs, tempo, frise (voir plus bas)
         this.setupBarreMorceau(); // la barre du haut (ordinateur) : titre + menu du morceau, Enregistrer et son voyant
+        this.setupMenuPartie(); // le menu ⋯ des en-têtes de partie (lot 5c)
         this.setupOnglets(); // les onglets Grille / Structure / Paroles, au centre de la barre du haut (ordinateur)
         this.setupHistoriqueAuto(); // versions automatiques (toutes les 5 min de travail, en quittant la page) — voir historique.js
         this.setupKeyboardShortcuts();
@@ -7992,7 +7993,17 @@ class HarmoHubApp {
             const canDelete = sections.length > 1;
             const canMoveUp = si > 0;
             const canMoveDown = si < sections.length - 1;
-            const measureCountEl = history.length > 0 ? `<span class="prog-section-measures">${sectionMeasureCount(sec, beatsPerBar)} mes.</span>` : '';
+            // EN-TÊTE DE PARTIE (lot 5c) : « nom et N mesures sur la MÊME LIGNE DE BASE, ×N si répétée, menu ⋯ » (maquette validée). Le mot entier
+            // « mesures » sur ordinateur ; le téléphone garde son « mes. » abrégé jusqu'au lot 10 (deux libellés, l'un ou l'autre masqué en CSS).
+            const nbMesures = sectionMeasureCount(sec, beatsPerBar);
+            const motMesures = parseFloat(nbMesures) < 2 ? 'mesure' : 'mesures'; // « 1 mesure », « 1,5 mesure » : le singulier français va jusqu'à 2
+            const measureCountEl = history.length > 0
+                ? `<span class="prog-section-measures">${nbMesures.replace('.', ',')} <span class="psm-long">${motMesures}</span><span class="psm-court">mes.</span></span>`
+                : '';
+            // ×N : combien de fois la partie est JOUÉE d'après la structure (toutes ses occurrences) — la même valeur que la vue Structure et Paroles
+            // (voir repetitionsDansStructure), jamais une seconde notion de répétition. Rien à 1 : une partie jouée une fois n'a rien à signaler.
+            const nbRep = this.repetitionsDansStructure(sec);
+            const repEl = nbRep > 1 ? `<span class="prog-section-rep" title="Jouée ${nbRep} fois dans la structure">×${nbRep}</span>` : '';
             // Conduite de voix : un seul bouton global (voir #toggle-voice-leading, à côté de
             // #grid-zoom) plutôt qu'un par partie — mais le panneau lui-même reste posé ICI, juste
             // sous la partie ACTIVE (this.activeSection), pas ailleurs : suit donc automatiquement la
@@ -8005,12 +8016,16 @@ class HarmoHubApp {
             return `
             <div class="prog-section">
                 <div class="prog-section-head">
-                    <input type="text" class="prog-title" data-section="${si}" placeholder="Section" value="${titleVal}">
-                    ${measureCountEl}
-                    ${canMoveUp ? `<button type="button" class="prog-section-tool prog-section-move-up" data-section="${si}" title="Monter cette partie" aria-label="Monter cette partie">${svgIcon('up')}</button>` : ''}
-                    ${canMoveDown ? `<button type="button" class="prog-section-tool prog-section-move-down" data-section="${si}" title="Descendre cette partie" aria-label="Descendre cette partie">${svgIcon('down')}</button>` : ''}
-                    <button type="button" class="icon-btn prog-section-duplicate" data-section="${si}" title="Dupliquer cette partie" aria-label="Dupliquer cette partie">${svgIcon('duplicate')}</button>
-                    ${canDelete ? `<button type="button" class="prog-section-del" data-section="${si}" title="Supprimer cette partie" aria-label="Supprimer cette partie">${svgIcon('trash')}</button>` : ''}
+                    <div class="psh-nom">
+                        <input type="text" class="prog-title" data-section="${si}" placeholder="Section" value="${titleVal}">
+                        ${measureCountEl}
+                        ${repEl}
+                    </div>
+                    ${canMoveUp ? `<button type="button" class="prog-section-tool psh-ancien prog-section-move-up" data-section="${si}" title="Monter cette partie" aria-label="Monter cette partie">${svgIcon('up')}</button>` : ''}
+                    ${canMoveDown ? `<button type="button" class="prog-section-tool psh-ancien prog-section-move-down" data-section="${si}" title="Descendre cette partie" aria-label="Descendre cette partie">${svgIcon('down')}</button>` : ''}
+                    <button type="button" class="icon-btn psh-ancien prog-section-duplicate" data-section="${si}" title="Dupliquer cette partie" aria-label="Dupliquer cette partie">${svgIcon('duplicate')}</button>
+                    ${canDelete ? `<button type="button" class="prog-section-del psh-ancien" data-section="${si}" title="Supprimer cette partie" aria-label="Supprimer cette partie">${svgIcon('trash')}</button>` : ''}
+                    <button type="button" class="prog-section-menu" data-section="${si}" aria-haspopup="menu" aria-expanded="false" title="Répéter, renommer, déplacer, dupliquer, supprimer" aria-label="Actions de la partie ${escapeHtml(sec.title || `${si + 1}`)}"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
                 </div>
                 <div class="chord-grid" data-section="${si}" data-beats-per-row="${beatsPerRowFor(beatsPerBar, false, this.currentGridHZoom())}" style="${gridStyle}">${gridInner}</div>
                 ${voiceLeadingPanel}
@@ -8051,10 +8066,37 @@ class HarmoHubApp {
         }
 
         host.querySelectorAll('.prog-title').forEach(input => {
-            input.addEventListener('focus', () => this.setActiveSection(+input.dataset.section));
+            input.addEventListener('focus', () => {
+                const si = +input.dataset.section;
+                if (si === this.activeSection) return;
+                // Activer la partie REDESSINE la grille : le champ qu'on vient de cliquer est remplacé par un neuf, et le focus partait avec l'ancien
+                // — il fallait cliquer deux fois le nom d'une partie inactive pour pouvoir le taper (trouvé par le banc du lot 5c, et déjà vrai avant).
+                // On rend donc le focus au champ neuf, curseur en fin de nom.
+                this.setActiveSection(si);
+                const neuf = document.querySelector(`#progression-sections .prog-title[data-section="${si}"]`);
+                if (neuf && neuf !== input) {
+                    neuf.focus({ preventScroll: true });
+                    const n = neuf.value.length;
+                    try { neuf.setSelectionRange(n, n); } catch (e) { /* champ non texte : sans objet */ }
+                }
+            });
             input.addEventListener('change', () => this.renameSection(+input.dataset.section, input.value));
             input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
+            input.addEventListener('input', () => this.ajusterLargeurTitrePartie(input));
+            this.ajusterLargeurTitrePartie(input);
         });
+        host.querySelectorAll('.prog-section-menu').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const si = +btn.dataset.section;
+                if (this._menuPartie === si) this.fermerMenuPartie(true); else this.ouvrirMenuPartie(si);
+            });
+        });
+        // La grille vient d'être redessinée sous un menu ⋯ resté ouvert (« Répéter » ne le referme pas) : le bouton est neuf, on lui rend son état.
+        if (this._menuPartie != null) {
+            const b = host.querySelector(`.prog-section-menu[data-section="${this._menuPartie}"]`);
+            if (b) { b.setAttribute('aria-expanded', 'true'); this.placerMenuPartie(); } else this.fermerMenuPartie();
+        }
         host.querySelectorAll('.prog-section-move-up').forEach(btn => {
             btn.onclick = (e) => { e.stopPropagation(); this.moveSection(+btn.dataset.section, -1); };
         });
@@ -8768,6 +8810,194 @@ class HarmoHubApp {
         this.loadProgression();
         const input = document.querySelector(`.prog-title[data-section="${this.activeSection}"]`);
         if (input) input.focus();
+    }
+
+    // ---------- EN-TÊTE DE PARTIE (lot 5c) ----------
+    // Le champ du nom prend la LARGEUR DE SON TEXTE (il prenait toute la ligne) : c'est ce qui permet à « 8 mesures » et à « ×2 » de suivre le
+    // nom sur la même ligne de base, comme sur la maquette. Mesuré au canevas avec la police réelle du champ ; posé dans une variable CSS que
+    // seul l'ordinateur lit — le téléphone garde son champ pleine largeur jusqu'au lot 10.
+    ajusterLargeurTitrePartie(input) {
+        if (!input) return;
+        const cs = getComputedStyle(input);
+        if (!this._ctxMesureTitre) this._ctxMesureTitre = document.createElement('canvas').getContext('2d');
+        const ctx = this._ctxMesureTitre;
+        ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        const texte = input.value || input.placeholder || '';
+        // + les marges intérieures et la place du curseur en fin de texte (sans elle, le dernier caractère glisse sous le bord à la frappe).
+        const l = Math.ceil(ctx.measureText(texte).width) + (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0) + 4;
+        input.style.setProperty('--titre-l', `${Math.max(40, l)}px`);
+    }
+
+    // Où se règle la répétition de la partie `si`. La règle est celle de la vue Structure, pas une seconde : une partie jouée à UN endroit
+    // de la structure (toujours le cas tant que la structure n'est que déduite de la grille) se règle d'ici ; jouée à plusieurs endroits, ou
+    // à aucun, « répéter » ne veut plus dire une seule chose — c'est la vue Structure qui tranche.
+    infoRepetitionPartie(si) {
+        const parties = assurerIdentifiantsParties();
+        const sec = parties[si];
+        if (!sec) return null;
+        const occurrences = structureEffective(parties).items.filter(it => it.sid === sec.sid);
+        return {
+            sid: sec.sid,
+            occurrences: occurrences.length,
+            rep: occurrences.length === 1 ? occurrences[0].rep : this.repetitionsDansStructure(sec),
+        };
+    }
+
+    // ±1 répétition, exactement le geste ×N de la vue Structure (voir actionStructure) : même écriture (modifierStructure), donc même
+    // enregistrement immédiat dans le morceau (« la structure se sauvegarde mal »), et même bornes 1 à 99.
+    repeterPartie(si, delta) {
+        const info = this.infoRepetitionPartie(si);
+        if (!info || info.occurrences !== 1) return;
+        this.modifierStructure((liste) => {
+            const it = liste.find(x => x.sid === info.sid);
+            if (it) it.rep = Math.min(99, Math.max(1, it.rep + delta));
+        });
+        this.loadProgression(); // le « ×N » de l'en-tête
+        this.rafraichirMenuPartie();
+    }
+
+    ouvrirMenuPartie(si) {
+        const menu = document.getElementById('partie-menu');
+        const btn = document.querySelector(`.prog-section-menu[data-section="${si}"]`);
+        if (!menu || !btn) return;
+        if (this._menuPartie != null) this.fermerMenuPartie();
+        this._menuPartie = si;
+        // On n'ACTIVE pas la partie en ouvrant son menu : l'activer redessine la grille et déplace le panneau « Conduite de voix » sous elle —
+        // la grille sautait sous la souris et le ⋯ sortait de l'écran (trouvé par voice_leading_section_ops_test). Chaque article fait le
+        // nécessaire lui-même (renommer donne le focus au nom, ce qui active la partie).
+        this.rafraichirMenuPartie();
+        menu.hidden = false;
+        btn.setAttribute('aria-expanded', 'true');
+        this.placerMenuPartie();
+        const premier = menu.querySelector('.tb-mi:not([disabled]), .partie-rep button:not([disabled])');
+        if (premier) premier.focus({ preventScroll: true });
+    }
+
+    // Sous le bouton ⋯, calé à DROITE sur lui (il est au bout de la ligne) ; au-dessus s'il n'y a pas la place en bas. Rappelé à chaque
+    // défilement : le menu est en position fixe, il suit son bouton au lieu de flotter ailleurs. Bouton sorti de l'écran : le menu se referme.
+    placerMenuPartie() {
+        const menu = document.getElementById('partie-menu');
+        const btn = this._menuPartie != null ? document.querySelector(`.prog-section-menu[data-section="${this._menuPartie}"]`) : null;
+        if (!menu || menu.hidden) return;
+        if (!btn) { this.fermerMenuPartie(); return; }
+        const r = btn.getBoundingClientRect();
+        if (r.width === 0 || r.bottom < 0 || r.top > window.innerHeight) { this.fermerMenuPartie(); return; }
+        const pad = 8;
+        const h = menu.offsetHeight, w = menu.offsetWidth;
+        let top = r.bottom + 6;
+        if (top + h > window.innerHeight - pad) top = Math.max(pad, r.top - 6 - h);
+        menu.style.top = `${Math.round(top)}px`;
+        menu.style.left = `${Math.round(Math.max(pad, Math.min(r.right - w, window.innerWidth - w - pad)))}px`;
+    }
+
+    fermerMenuPartie(rendreLeFocus = false) {
+        const menu = document.getElementById('partie-menu');
+        const si = this._menuPartie;
+        this._menuPartie = null;
+        if (menu) menu.hidden = true;
+        const btn = si != null ? document.querySelector(`.prog-section-menu[data-section="${si}"]`) : null;
+        if (btn) {
+            btn.setAttribute('aria-expanded', 'false');
+            if (rendreLeFocus) btn.focus({ preventScroll: true });
+        }
+    }
+
+    // (Re)construit le contenu du menu pour la partie ouverte — appelé à l'ouverture et après chaque ±1 (le menu reste ouvert pendant qu'on
+    // règle la répétition : trois clics sur « + » ne doivent pas demander trois ouvertures).
+    rafraichirMenuPartie() {
+        const menu = document.getElementById('partie-menu');
+        const si = this._menuPartie;
+        if (!menu || si == null) return;
+        const sections = loadProgressionSections();
+        const sec = sections[si];
+        if (!sec) { this.fermerMenuPartie(); return; }
+        const info = this.infoRepetitionPartie(si);
+        const reglable = info && info.occurrences === 1;
+        const rep = info ? info.rep : 1;
+        const focusAvant = document.activeElement && menu.contains(document.activeElement) ? document.activeElement.dataset.partieAction : null;
+        const ico = (d) => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+        const IC = {
+            renommer: ico('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>'),
+            monter: ico('<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>'),
+            descendre: ico('<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>'),
+            dupliquer: ico('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
+            supprimer: ico('<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>'),
+            structure: ico('<path d="M4 6h16M4 12h10M4 18h13"/>'),
+        };
+        const item = (action, icone, libelle, extra = '') =>
+            `<button type="button" role="menuitem" class="tb-mi" data-partie-action="${action}"${extra}>${icone}<span class="tb-mi-libelle">${libelle}</span></button>`;
+        const nom = sec.title && sec.title.trim() ? sec.title.trim() : `Partie ${si + 1}`;
+        // Répéter : un réglage − ×N + (maquette), pas un article de menu. Hors de portée d'ici (partie à plusieurs endroits de la structure, ou à
+        // aucun), il reste VISIBLE mais grisé, avec la raison et le chemin vers la vue Structure : un article qui disparaît sans dire pourquoi
+        // fait chercher.
+        const raison = !info ? '' : info.occurrences > 1
+            ? `Jouée à ${info.occurrences} endroits de la structure`
+            : (info.occurrences === 0 ? 'Absente de la structure' : '');
+        menu.innerHTML =
+            `<div class="partie-rep" role="group" aria-label="Répétitions de ${escapeHtml(nom)}">`
+            + `<span class="partie-rep-libelle">Répéter</span>`
+            + `<span class="partie-rep-seg">`
+            + `<button type="button" data-partie-action="rep-moins" aria-label="Une répétition de moins"${reglable && rep > 1 ? '' : ' disabled'}>−</button>`
+            + `<span class="partie-rep-val" aria-live="polite">×${rep}</span>`
+            + `<button type="button" data-partie-action="rep-plus" aria-label="Une répétition de plus"${reglable && rep < 99 ? '' : ' disabled'}>+</button>`
+            + `</span></div>`
+            + (raison ? `<div class="partie-rep-raison">${raison}</div>` + item('structure', IC.structure, 'Régler dans Structure') : '')
+            + '<div class="tb-sep" role="separator"></div>'
+            + item('renommer', IC.renommer, 'Renommer')
+            + item('monter', IC.monter, 'Monter', si > 0 ? '' : ' disabled')
+            + item('descendre', IC.descendre, 'Descendre', si < sections.length - 1 ? '' : ' disabled')
+            + item('dupliquer', IC.dupliquer, 'Dupliquer')
+            + '<div class="tb-sep" role="separator"></div>'
+            + item('supprimer', IC.supprimer, 'Supprimer la partie',
+                sections.length > 1 ? ' data-danger="1"' : ' disabled title="La dernière partie du morceau ne se supprime pas"');
+        menu.setAttribute('aria-label', `Partie « ${nom} »`);
+        if (focusAvant) {
+            // Le bouton qu'on vient d'utiliser garde le focus ; s'il vient de se griser (×1 atteint), son voisin le prend.
+            const cible = menu.querySelector(`[data-partie-action="${focusAvant}"]:not([disabled])`) || menu.querySelector('.partie-rep button:not([disabled])') || menu.querySelector('.tb-mi:not([disabled])');
+            if (cible) cible.focus({ preventScroll: true });
+        }
+    }
+
+    setupMenuPartie() {
+        const menu = document.getElementById('partie-menu');
+        if (!menu) return; // index.html servi depuis un cache plus ancien
+        menu.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-partie-action]');
+            if (!b || b.disabled) return;
+            e.stopPropagation();
+            const si = this._menuPartie;
+            if (si == null) return;
+            const action = b.dataset.partieAction;
+            if (action === 'rep-plus' || action === 'rep-moins') { this.repeterPartie(si, action === 'rep-plus' ? 1 : -1); return; }
+            this.fermerMenuPartie();
+            if (action === 'renommer') {
+                this.setActiveSection(si); // AVANT le focus : activer redessine la grille, le champ à sélectionner est celui d'après
+                const input = document.querySelector(`.prog-title[data-section="${si}"]`);
+                if (input) { input.focus(); input.select(); }
+            } else if (action === 'monter') this.moveSection(si, -1);
+            else if (action === 'descendre') this.moveSection(si, 1);
+            else if (action === 'dupliquer') this.duplicateSection(si);
+            else if (action === 'supprimer') this.deleteSection(si);
+            else if (action === 'structure') this.openStructureWindow();
+        });
+        // Clic ailleurs : le menu se referme (pointerdown, comme le menu du morceau). Le bouton ⋯ lui-même est laissé à son propre clic.
+        document.addEventListener('pointerdown', (e) => {
+            if (this._menuPartie == null) return;
+            if (menu.contains(e.target) || e.target.closest('.prog-section-menu')) return;
+            this.fermerMenuPartie();
+        });
+        // Posé en position fixe : un défilement le décollerait de son bouton — il le SUIT (le refermer ne marchait pas : redessiner la grille en
+        // activant la partie fait défiler la page d'un cran, et le menu se refermait sous le doigt à peine ouvert ; trouvé par le banc).
+        window.addEventListener('scroll', () => { if (this._menuPartie != null) this.placerMenuPartie(); }, true);
+        window.addEventListener('resize', () => { if (this._menuPartie != null) this.placerMenuPartie(); });
+        menu.addEventListener('keydown', (e) => {
+            const items = [...menu.querySelectorAll('button:not([disabled])')];
+            const i = items.indexOf(document.activeElement);
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.fermerMenuPartie(true); }
+            else if (e.key === 'ArrowDown') { e.preventDefault(); (items[i + 1] || items[0]).focus(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); (items[i - 1] || items[items.length - 1]).focus(); }
+            else if (e.key === 'Tab') this.fermerMenuPartie(); // on sort du menu : il ne reste pas ouvert derrière
+        });
     }
 
     renameSection(s, title) {

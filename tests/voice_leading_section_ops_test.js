@@ -64,7 +64,9 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
         `...posé dans une partie qui existe vraiment — « ${e.partie[0]} »`);
 
     console.log('=== Faire MONTER une partie ne le fait ni disparaître ni se dédoubler ===');
-    await page.click('.prog-section:nth-child(2) .prog-section-move-up');
+    // Sur ordinateur, les outils de partie sont dans le menu ⋯ de l'en-tête (lot 5c) — c'est par lui qu'on passe, comme l'utilisateur.
+    const parMenu = async (n, action) => { await page.click(`.prog-section:nth-child(${n}) .prog-section-menu`); await page.waitForTimeout(150); await page.click(`#partie-menu [data-partie-action="${action}"]`); };
+    await parMenu(2, 'monter');
     await page.waitForTimeout(300);
     e = await etat();
     check(e.nombre === 1 && e.ouvert,
@@ -73,7 +75,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
         `...et toujours rattaché à une partie réelle, pas à un index périmé — « ${e.partie[0]} »`);
 
     console.log('=== Dupliquer une partie : toujours un seul panneau, toujours cohérent ===');
-    await page.click('.prog-section:nth-child(1) .prog-section-duplicate');
+    await parMenu(1, 'dupliquer');
     await page.waitForTimeout(300);
     e = await etat();
     check(e.nombre === 1, `pas de panneau en double après une duplication — obtenu ${e.nombre}`);
@@ -82,7 +84,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
 
     console.log('=== Supprimer une partie : le panneau ne montre jamais une partie disparue ===');
     const supprimee = (await etat()).titresExistants[0];
-    await page.click('.prog-section:nth-child(1) .prog-section-del');
+    await parMenu(1, 'supprimer');
     await page.waitForTimeout(300);
     e = await etat();
     check(!e.titresExistants.includes(supprimee), `la partie « ${supprimee} » a bien été supprimée`);
