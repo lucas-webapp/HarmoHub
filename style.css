@@ -4031,6 +4031,39 @@ button:active { transform: translateY(1px); }
    début, aux dépens de l'accord précédent) — voir onResizeStart. Restent pleinement fonctionnelles
    (zone invisible + curseur col-resize au survol) mais ne dessinent plus de trait, pour ne pas
    ajouter de repères visuels en plus de ceux des mesures (voir .cell-tick). */
+/* VOICING PERSONNALISÉ (lot 5d) : une petite pastille ambre dans le coin haut droit — « jamais le mot perso ». L'ambre de la maquette (#e0b36a),
+   déjà celui de la vitesse ≠ 100 % : « quelque chose ici n'est pas réglage d'origine ». */
+.cell-perso {
+    position: absolute;
+    top: 6px;
+    right: 7px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #e0b36a;
+    box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.35);
+    z-index: 2;
+}
+/* La bulle de durée pendant l'étirement (voir afficherDureeAccord) : l'étiquette bleue de la maquette, posée au-dessus du bord droit. */
+.duree-etirement {
+    position: fixed;
+    z-index: 95;
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: 5px;
+    background: #182640;
+    border: 1px solid #33507c;
+    color: #cfe0ff;
+    font-size: 11.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+}
+.duree-etirement[hidden] { display: none; }
+
 .cell-resize {
     position: absolute;
     top: 0;

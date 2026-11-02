@@ -597,6 +597,30 @@ function beatsFromData(data) {
 // coup d'œil rapide sur sa longueur (grille et export PDF), utile pour une synthèse du morceau.
 // Un entier la plupart du temps ; jusqu'à 1 décimale si une partie s'arrête au milieu d'une mesure
 // (rare, mais possible selon les durées choisies et la signature rythmique).
+// Ce qui rend le voicing d'un accord « personnalisé » (lot 5d, pastille ambre) — '' s'il ne l'est pas. Deux choses font qu'un accord ne sonne
+// plus comme son nom le laisse attendre : des notes ajoutées à la main (notes libres, voir addSequencerNote) et un doigté de guitare fixé au
+// cadenas (voir toggleGuitarLock). Le renversement, le drop, l'octave ou la basse NE comptent PAS : ils s'écrivent déjà dans la case (badge
+// « O3-R1-D2 », « /E »), ce sont des réglages, pas des retouches. Le motif rythmique non plus : ce sont les carrés du rythme qui le montrent.
+function raisonVoicingPersonnalise(data) {
+    if (!data) return '';
+    const raisons = [];
+    const libres = Array.isArray(data.extraNotes) ? data.extraNotes.length : 0;
+    if (libres) raisons.push(libres > 1 ? `${libres} notes ajoutées à la main` : 'une note ajoutée à la main');
+    if (data.guitarLock) raisons.push('doigté de guitare fixé');
+    return raisons.join(', ');
+}
+
+// Une durée en mots, pour la bulle affichée pendant qu'on étire un accord (lot 5d) : « 1 mesure », « 2 mesures », « 3 temps »,
+// « 1 mesure et 2 temps » — ce que l'utilisateur compte, plutôt qu'un nombre de temps à diviser de tête.
+function dureeEnMots(beats, beatsPerBar) {
+    const b = Math.max(1, Math.round(beats));
+    const bpb = Math.max(1, Math.round(beatsPerBar) || 4);
+    const m = Math.floor(b / bpb), t = b % bpb;
+    const mes = m ? `${m} mesure${m > 1 ? 's' : ''}` : '';
+    const tps = t ? `${t} temps` : '';
+    return mes && tps ? `${mes} et ${tps}` : (mes || tps);
+}
+
 function sectionMeasureCount(sec, beatsPerBar) {
     const totalBeats = sec.chords.reduce((sum, c) => sum + beatsFromData(c), 0);
     const count = totalBeats / beatsPerBar;
@@ -7923,6 +7947,12 @@ class HarmoHubApp {
                     // positionné... l'écriture est coupée ».
                     if (hasMeta) cls += ' has-meta';
                     const contFlag = (s.split && !s.isFirst) ? ' <span class="cell-cont">↩</span>' : '';
+                    // VOICING PERSONNALISÉ (lot 5d) : « petite pastille ambre (infobulle), jamais le mot perso ». Une seule fois par accord (son
+                    // premier morceau, s'il est coupé de ligne), à TOUS les affichages : c'est l'information « cet accord ne sonne pas comme son
+                    // nom le laisse attendre », qui compte autant en Compact qu'en Détaillé.
+                    const raisonPerso = s.isFirst ? raisonVoicingPersonnalise(h) : '';
+                    const persoEl = raisonPerso ? `<span class="cell-perso" title="Voicing personnalisé : ${raisonPerso}" aria-label="Voicing personnalisé : ${raisonPerso}"></span>` : '';
+                    if (persoEl) cls += ' has-perso';
                     // Petits traits à chaque limite de mesure interne, positionnés en % de la largeur du
                     // segment (colonnes de largeur égale au sein d'une même grille) — le dégradé qui les
                     // compose (voir .cell-tick) les estompe vers le centre pour ne jamais couper le texte.
@@ -7959,6 +7989,7 @@ class HarmoHubApp {
                     return `
                     <div class="${cls}" data-section="${si}" data-index="${s.index}" style="${style}" title="Toucher pour écouter · cliquer le nom pour le modifier · double-clic/double-tap pour l'édition complète · clic droit/appui long pour plus d'options · Cmd/Ctrl+clic pour sélection multiple (Cmd+clic sur Mac)">
                         <span class="cell-sym">${flatTight(sym)}${contFlag}</span>
+                        ${persoEl}
                         ${metaEl}
                         ${rythmeEl}
                         ${ticksEl}
@@ -8133,6 +8164,44 @@ class HarmoHubApp {
         this.updateGridPlayhead(this.playheadSection, this.playheadIndex);
         this.fitCellSymbols(host);
         this.updatePlayButtonsForLoopRange();
+        this.afficherDureeAccord();
+    }
+
+    // LA DURÉE AFFICHÉE PENDANT QU'ON L'ÉTIRE (lot 5d) : une petite bulle au-dessus du bord droit de l'accord, « 2 mesures », mise à jour à chaque
+    // cran du glissé ; et, une seconde, après un Maj+flèche (le clavier n'a pas de geste à regarder). La grille se redessine à chaque cran : la
+    // bulle vit donc HORS de la grille (dans le corps de la page, en position fixe), sinon elle serait recréée — et coupée par la case
+    // (overflow: hidden). `apres` = { section, index, jusqua } pour la bulle de Maj+flèche ; sans argument, on suit le glissé en cours.
+    afficherDureeAccord(apres) {
+        let bulle = document.getElementById('duree-etirement');
+        if (apres) this._dureeApres = apres;
+        const cible = this.resize
+            ? { section: this.resize.section, index: this.resize.index }
+            : (this._dureeApres && this._dureeApres.jusqua > Date.now() ? this._dureeApres : null);
+        if (!cible) { if (bulle) bulle.hidden = true; return; }
+        const sections = loadProgressionSections();
+        const data = sections[cible.section] && sections[cible.section].chords[cible.index];
+        const segs = [...document.querySelectorAll(`#progression-sections .grid-cell[data-section="${cible.section}"][data-index="${cible.index}"]`)];
+        const dernier = segs[segs.length - 1];
+        if (!data || !dernier) { if (bulle) bulle.hidden = true; return; }
+        if (!bulle) {
+            bulle = document.createElement('div');
+            bulle.id = 'duree-etirement';
+            bulle.className = 'duree-etirement';
+            bulle.setAttribute('role', 'status');
+            bulle.setAttribute('aria-live', 'polite');
+            document.body.appendChild(bulle);
+        }
+        const texte = dureeEnMots(beatsFromData(data), this.beatsPerBar());
+        if (bulle.textContent !== texte) bulle.textContent = texte;
+        bulle.hidden = false;
+        const r = dernier.getBoundingClientRect();
+        const w = bulle.offsetWidth;
+        bulle.style.left = `${Math.round(Math.max(4, Math.min(r.right - w, window.innerWidth - w - 4)))}px`;
+        bulle.style.top = `${Math.round(Math.max(4, r.top - bulle.offsetHeight - 4))}px`;
+        if (!this.resize && this._dureeApres) {
+            clearTimeout(this._dureeMinuterie);
+            this._dureeMinuterie = setTimeout(() => { this._dureeApres = null; this.afficherDureeAccord(); }, Math.max(0, this._dureeApres.jusqua - Date.now()));
+        }
     }
 
     // Ouvre/ferme le panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) — un seul bouton
@@ -15193,6 +15262,7 @@ class HarmoHubApp {
         // durablement la durée de l'accord (voir beatsFromData).
         if (!(colWidth > 0)) return;
 
+        this._dureeApres = null;
         this.resize = {
             section, index, edge,
             startX: e.clientX,
@@ -15206,6 +15276,7 @@ class HarmoHubApp {
         window.addEventListener('pointermove', this._onResizeMove, { passive: false });
         window.addEventListener('pointerup', this._onResizeEnd);
         window.addEventListener('pointercancel', this._onResizeEnd);
+        this.afficherDureeAccord(); // dès la prise de la poignée, avant même le premier cran
     }
 
     onResizeMove(e) {
@@ -15357,6 +15428,7 @@ class HarmoHubApp {
             this.syncDurationPicker();
         }
         this.extendChordPatternToHold(this.activeSection, index, beats);
+        this._dureeApres = { section: this.activeSection, index, jusqua: Date.now() + 1200 }; // la bulle de durée, une seconde (voir afficherDureeAccord)
         this.loadProgression();
     }
 

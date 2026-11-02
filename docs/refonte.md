@@ -72,7 +72,8 @@ ne le redécouvre pas.
   glisse pour tracer la **plage à boucler (orange)** ; un clic dans la plage l'efface. Pas de numéro de mesure dans le
   coin de la case.
 - La case « + » de fin de ligne a la **largeur d'une mesure**, jamais tout l'espace restant.
-- Voicing personnalisé : **petite pastille ambre** (infobulle), jamais le mot « perso ».
+- Voicing personnalisé : **petite pastille ambre** (infobulle), jamais le mot « perso ». ✅ **Livré 02/11 (lot 5d)**, avec la durée affichée pendant l'étirement ;
+  la case « + » garde le petit carré demandé en août (jamais plus d'une mesure).
 - Les 16 petits carrés du rythme (affichage Détaillé) : **gardés** (« c'est pas débile »), avec une **option dans les
   Paramètres › Affichage** pour les montrer ou non (« Rythme de l'accord dans les cases », allumée par défaut : le mode
   Détaillé est déjà un choix). Infobulle « Rythme de l'accord ». Réglage SYNCHRONISÉ (à ajouter à

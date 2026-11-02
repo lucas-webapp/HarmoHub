@@ -4831,3 +4831,25 @@ visible sur ordinateur, le ⋯ est à la jauge).
 
 
 **Balayage du lot 5c (02/11) : 217 verts, 5 rouges, 7 sans verdict (229 suites)** — exactement la ligne de base, plus la nouvelle suite ; aucun nouveau rouge.
+
+## Refonte de l'interface — lot 5d : les finitions de la grille (2026-11-02)
+
+**Pastille ambre du voicing personnalisé** (« jamais le mot perso ») : un point de 6px dans le coin haut droit de la case quand l'accord ne sonne plus comme
+son nom le laisse attendre — notes ajoutées à la main (notes libres) ou doigté de guitare fixé au cadenas. L'infobulle dit lequel (« 2 notes ajoutées à la
+main, doigté de guitare fixé »). Renversement, drop, octave et basse ne comptent pas : ils s'écrivent déjà dans la case. Une seule pastille par accord (sur
+son début s'il est coupé de ligne), à tous les affichages, Compact compris.
+
+**La durée affichée pendant qu'on étire** : une étiquette bleue au-dessus du bord droit de l'accord, dès la prise de la poignée et à chaque cran (« 1 mesure »,
+« 1 mesure et 2 temps », selon la mesure du morceau) ; une seconde après chaque Maj+flèche. Elle vit hors de la grille (la grille se redessine à chaque cran,
+et la case coupe ce qui dépasse). Une seule annulation pour tout le glissé (existait déjà, désormais éprouvé).
+
+**Maj+flèches existait déjà** (`resizeSelectedChord`, une annulation par appui, plancher d'un temps) — le banc le tient désormais.
+
+**La case « + »** : le cahier des charges dit « largeur d'une mesure, jamais tout l'espace restant ». C'était le défaut de la MAQUETTE (sa case s'allongeait
+sur le reste de la ligne). Dans HarmoHub, elle est depuis août le petit carré demandé par l'utilisateur (« je n'ai pas besoin de toute cette largeur pour
+cliquer », `case_plus_test`) : gardée, et ce lot tient qu'elle ne dépasse jamais une mesure, à chaque affichage et sur une ligne presque vide.
+
+**Banc.** Nouveau `finitions_grille_test` (33). **Sabotages : 10, tous rouges** — dont un d'abord vert (bulle posée sur le début d'un accord coupé de ligne) :
+le banc n'étirait jamais un accord coupé ; le cas a été ajouté.
+
+**Balayage du lot 5d (02/11) : 218 verts, 5 rouges, 7 sans verdict (230 suites)** — exactement la ligne de base, plus la nouvelle suite ; aucun nouveau rouge.
