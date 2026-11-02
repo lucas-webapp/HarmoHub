@@ -7014,3 +7014,32 @@ body.impression-structure #structure-print-zone { display: block; }
 
     /* COMPACT : « noms seuls » — ni degrés ni position d'accord ; c'est le rendu qui les omet (loadProgression), pour ne pas laisser de rangée vide. */
 }
+
+
+/* ======================================================================================================
+   LES CARRÉS DU RYTHME ET LE NOM SUR DEUX LIGNES (refonte, lot 5b).
+   Seize carrés par mesure sous le nom de l'accord, en affichage Détaillé (option « Rythme de l'accord dans les cases ») : plein = une note attaquée,
+   pâle = des notes tenues, vide = silence. Couleurs douces (règle 4 du cahier des charges) : jamais d'aplat vif.
+   ====================================================================================================== */
+.cell-rythme {
+    position: absolute;
+    left: 6px; right: 6px; bottom: 6px;
+    display: flex;
+    gap: 1px;
+    height: 6px;
+    pointer-events: none;   /* on clique toujours la CASE à travers eux */
+}
+.cell-rythme i { flex: 1 1 0; min-width: 0; border-radius: 1px; background: rgba(255, 255, 255, 0.07); }
+.cell-rythme i:nth-child(4n):not(:last-child) { margin-right: 2px; }    /* un temps = quatre carrés : le temps se lit d'un coup d'œil */
+.cell-rythme i.a { background: rgba(74, 168, 118, 0.85); }
+.cell-rythme i.t { background: rgba(74, 168, 118, 0.38); }
+.grid-cell.has-rythme .cell-sym { margin-bottom: 10px; }
+.grid-cell.has-rythme.has-meta .cell-meta { bottom: 16px; }
+
+/* Nom de l'accord sur deux lignes quand la case est trop étroite pour une ligne lisible (voir fitCellSymbols). */
+.cell-sym.sym-2l { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.02; }
+.cell-sym.sym-2l .sym-l { display: block; white-space: nowrap; }
+
+/* Petite précision sous le libellé d'un réglage. Même aspect que .verre-indice, mais À HarmoHub : .verre-indice vit dans verre.css (fichier COMMUN aux trois
+   applis, réservé au verre) — s'en servir ici faisait dépendre l'aspect d'un réglage d'Affichage de la présence du verre (verre_test l'a relevé). */
+.reglage-indice { display: block; margin-top: 2px; font-size: var(--fs-xs); font-weight: 400; line-height: 1.35; color: var(--text-muted); opacity: .85; }

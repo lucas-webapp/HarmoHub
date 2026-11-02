@@ -56,6 +56,7 @@ var REGLAGES_SYNCHRONISES = [
     'harmohubShowGridVoicing', 'harmohubShowVoicingPdf', 'harmohubShowChordFunction',
     'harmohubPdfMeasuresPerLine', 'harmohubPdfDiagrams',
     'harmohubStudioMode', 'harmohubRythmeDepart',
+    'harmohubRythmeDansCases', // lot 5b : « Rythme de l'accord dans les cases » (Paramètres › Affichage) — un réglage de lecture, comme les degrés
     'harmohub_feuille_structure',
 ];
 // Une trace de suppression sert à empêcher un appareil resté hors ligne de ramener un morceau effacé.

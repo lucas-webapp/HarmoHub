@@ -4766,3 +4766,31 @@ ou ancien part de Normal), `probe_suppression_pleinecran_test` (l'échelle horiz
 **Balayages du lot 5a (01/11).** Premier : 210 verts, 10 rouges — cinq nouveaux (en-tête de grille, double-clic, police des symboles, ordre de la section, tiroir du téléphone), tous
 analysés ci-dessus et corrigés (dont le téléphone qui changeait). Second, après corrections : **214 verts, 6 rouges, 7 sans verdict (227 suites)** — les cinq rouges de la ligne de base,
 plus `glock_unlock_and_switch_test` (2/5), suite déjà notée intermittente et rangée parmi les sensibles au minutage : relancée seule trois fois, 7 PASS / 0 FAIL à chaque fois.
+
+## Refonte de l'interface — lot 5b : les carrés du rythme, et les accords d'un temps (2026-11-02)
+
+Demandes reprises : « pour les petits carrés du rythme, c'est pas débile, je pense qu'on peut les garder avec une option dans les paramètres pour les afficher ou pas » ; et, sur
+les accords d'un temps devenus minuscules dans la fenêtre de 480px du lot 5a : « ça peut arriver quelques fois. Fais au mieux pour l'affichage. Ça ne se règle pas en étirant la
+fenêtre manuellement ? » (réponse : si — la poignée droite ; ce lot le fait aussi tout seul).
+
+**Les carrés.** En affichage Détaillé, seize carrés par mesure sous le nom de l'accord, lus dans le MOTIF que joue réellement l'accord (`resolveSeqPatternForData`, le même que le
+séquenceur et la lecture) : plein = attaque, pâle = notes tenues (liées depuis le pas d'avant), vide = silence ; un léger écart tous les quatre carrés marque le temps. Un accord coupé en
+fin de ligne montre sur chaque morceau SES pas (la 2e ligne commence « tenue », pas « attaque »). Couleurs douces, jamais d'aplat vif. Ils ne prennent pas le clic. Ils n'apparaissent
+qu'en Détaillé, option allumée, case d'au moins 64px (sinon ils recouvriraient le nom) — jamais sur téléphone. **L'option** « Rythme de l'accord dans les cases » est dans Paramètres ›
+Affichage, allumée par défaut (choisir Détaillé est déjà un choix), mémorisée (`harmohubRythmeDansCases`) et SYNCHRONISÉE comme les degrés (ajoutée à `REGLAGES_SYNCHRONISES`).
+
+**Les accords courts.** Quand le morceau contient un accord de moins de deux temps et que la largeur n'a pas été tirée à la main, la fenêtre de grille s'élargit d'elle-même juste assez
+pour que l'accord le plus court ait ~56px (dans la limite de sa colonne) : « B♭maj7 » d'un temps passe de 8px à 11,5px, sur une ligne. Une largeur tirée à la poignée l'emporte toujours ;
+un morceau sans accord court garde exactement les 480 / 640px de la maquette. Dernier recours, dans une fenêtre très étroite : le nom passe sur DEUX lignes (« B♭ » / « maj7 »), gardé
+seulement s'il y est plus grand et s'il tient en hauteur ; la case repart d'une ligne à chaque nouvel ajustement (elle a pu s'élargir).
+
+**Téléphone, encore.** Relu en codant ce lot : l'affichage étant enregistré dans le morceau, un morceau mis en Compact sur l'ordinateur aurait perdu ses degrés sur le téléphone, et un
+morceau en Détaillé y aurait montré les carrés. Les deux effets sont désormais réservés à l'ordinateur ; la grille se redessine quand on change de format.
+
+**Bancs.** Nouveau `rythme_cases_test` (27 : un motif posé à la main relu pas à pas, accord tenu, accord coupé sur deux lignes, place des carrés, clic à travers, affichages Normal / Compact
+/ Normal avec des cases de 90px, hauteur insuffisante, option dans Affichage, mémoire, synchronisation, rechargement, élargissement automatique, largeur manuelle prioritaire, deux lignes à
+360px, largeur de la maquette sans accord court, téléphone). **Sabotages : 8, dont 7 rouges.** Le 8e — les carrés reçoivent les clics — reste vert, et c'est juste : ils sont DANS la case,
+le clic remonte jusqu'à elle ; `pointer-events: none` est un filet de plus. Un premier sabotage resté vert (carrés hors Détaillé) a montré un TROU du banc : en Normal et Compact les cases
+sont trop basses, la condition « Détaillé » n'était jamais éprouvée — d'où le cas « Normal avec des cases de 90px ». **Un vrai défaut trouvé par `verre_test`** : la précision « En affichage
+Détaillé. » utilisait la classe `.verre-indice`, qui vit dans `verre.css` (fichier commun aux trois applis, réservé au verre) — l'aspect d'un réglage d'Affichage dépendait donc de la présence
+du verre. Classe propre à HarmoHub (`.reglage-indice`).

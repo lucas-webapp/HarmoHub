@@ -2495,6 +2495,9 @@ const SEQ_ZONE_MIN_BODY_PX = 6;
 
 const METRONOME_SUBDIVISION_KEY = 'harmohubMetronomeSubdivision';
 const SHOW_ROMAN_KEY = 'harmohubShowRomanNumerals';
+// Les petits carrés du rythme dans les cases, en affichage Détaillé (refonte, lot 5b) : « c'est pas débile, je pense qu'on peut les garder avec une option
+// dans les paramètres pour les afficher ou pas ». Allumé par défaut (choisir Détaillé est déjà un choix). Synchronisé, comme les degrés.
+const SHOW_CELL_RHYTHM_KEY = 'harmohubRythmeDansCases';
 // Date de dernière modification à côté du nom des morceaux (liste déroulante ET fenêtre « Mes
 // morceaux »). Retour utilisateur : « tous les fichiers ont aujourd'hui un titre avec la version entre
 // parenthèses. J'aimerais que cela soit précisé comme une option pour pouvoir ou non voir la date de
@@ -3594,6 +3597,7 @@ class HarmoHubApp {
         // dernier reprenant toujours ce qui est affiché à l'écran plutôt qu'un réglage à part (voir
         // loadProgression et buildPrintExportHtml).
         this.showRomanNumerals = localStorage.getItem(SHOW_ROMAN_KEY) !== '0';
+        this.showCellRhythm = localStorage.getItem(SHOW_CELL_RHYTHM_KEY) !== '0';
         // Fonction harmonique (T/SD/D, voir chordFunction) partageant la même ligne que le chiffrage
         // romain — DÉSACTIVÉE par défaut (voir SHOW_CHORD_FUNCTION_KEY), contrairement à celui-ci.
         this.showChordFunction = localStorage.getItem(SHOW_CHORD_FUNCTION_KEY) === '1';
@@ -7685,6 +7689,9 @@ class HarmoHubApp {
     // contrôles (Ajouter/Modifier), Suppr, copier/coller, etc.
     loadProgression() {
         const host = document.getElementById('progression-sections');
+        // La largeur de la fenêtre de grille dépend des accords (les plus courts l'élargissent, lot 5b) : posée AVANT le rendu, pour que l'ajustement des
+        // noms (fitCellSymbols) mesure les cases à leur vraie largeur.
+        if (this.appliquerLargeurGrille && this.grilleDensite) this.appliquerLargeurGrille();
         // Toute reconstruction de la grille rend caduque le suivi des doigts actifs par case (voir
         // this._gridActiveTouchIds/onGridPointerDown), même raison que this._seqActiveTouchIds côté
         // séquenceur (voir renderSequencer) : évite qu'un id resté bloqué ne fasse à tort passer le
@@ -7727,7 +7734,7 @@ class HarmoHubApp {
                 // traduisent this.row en ligne CSS partout plus bas dans ce bloc (cellules d'accord,
                 // chiffrage romain, numéros de mesure, plage de boucle, case "+").
                 // Affichage Compact (lot 5a) : « noms seuls » — pas de rangée de degrés, quel que soit le réglage (à 38px de case il n'y a pas la place).
-                const showRoman = this.showRomanNumerals && this.grilleDensite !== 'compact';
+                const showRoman = this.showRomanNumerals && !(this.grilleDensite === 'compact' && window.matchMedia('(min-width: 900px)').matches); // le téléphone garde ses degrés (lot 10)
                 const showFunction = this.showChordFunction;
                 // Degrés et fonction harmonique partagent la MÊME ligne dédiée (voir plus bas) : une
                 // ligne de plus à réserver dès que l'UN des deux est actif, pas une par réglage.
@@ -7781,6 +7788,7 @@ class HarmoHubApp {
                     ? `grid-template-rows: repeat(${chordRows}, ${rowTemplate}); grid-template-columns: repeat(${beatsPerRow}, 1fr) var(--col-plus);`
                     : `grid-template-rows: repeat(${rows}, ${rowTemplate}); grid-template-columns: repeat(${beatsPerRow}, 1fr);`;
                 const loopRange = this.loopRangeForSection(si, history.length);
+                const motifsRythme = new Map(); // un motif par accord, calculé une fois même si l'accord est coupé sur deux lignes (lot 5b)
                 // Mesure ATTEINTE par un étirement de durée d'accord EN COURS (voir onResizeStart/
                 // onResizeMove) : même principe que _highlightSeqBeatLabel pour le séquenceur (retour
                 // utilisateur : "je veux faire pareil pour les étirements des accords de la grille") —
@@ -7896,7 +7904,12 @@ class HarmoHubApp {
                     // Octave / renversement-drop (voir gridVoicingParts, options Affichage > Octave /
                     // Renversement-drop) : même notation compacte que le PDF exporté (ex. "O3-R1-D2").
                     const badgeParts = [];
-                    const nomsSeuls = this.grilleDensite === 'compact'; // Compact : noms seuls (lot 5a)
+                    const bureau = window.matchMedia('(min-width: 900px)').matches; // les affichages sont ceux de l'ORDINATEUR : le téléphone ne change pas avant le lot 10
+                    const nomsSeuls = bureau && this.grilleDensite === 'compact'; // Compact : noms seuls (lot 5a)
+                    // Détaillé + option allumée + case assez haute pour une rangée de plus (la poignée du bas peut l'avoir réduite) : les carrés du rythme (lot 5b).
+                    const rythmeEl = (bureau && this.grilleDensite === 'detail' && this.showCellRhythm && this.hauteurCaseGrille() >= 64)
+                        ? this.htmlRythmeCase(h, s, cells, motifsRythme) : '';
+                    if (rythmeEl) cls += ' has-rythme';
                     if (this.showGridOctave && !nomsSeuls) badgeParts.push(`O${octaveFromData(h)}`);
                     if (this.showGridVoicing && !nomsSeuls) badgeParts.push(...gridVoicingParts(h));
                     const hasMeta = !!(s.isFirst && badgeParts.length);
@@ -7946,6 +7959,7 @@ class HarmoHubApp {
                     <div class="${cls}" data-section="${si}" data-index="${s.index}" style="${style}" title="Toucher pour écouter · cliquer le nom pour le modifier · double-clic/double-tap pour l'édition complète · clic droit/appui long pour plus d'options · Cmd/Ctrl+clic pour sélection multiple (Cmd+clic sur Mac)">
                         <span class="cell-sym">${flatTight(sym)}${contFlag}</span>
                         ${metaEl}
+                        ${rythmeEl}
                         ${ticksEl}
                         ${beatTicksEl}
                         ${resizeLeftEl}
@@ -8376,6 +8390,8 @@ class HarmoHubApp {
     fitCellSymbols(host) {
         const MIN_PX = 8; // en dessous, "B♭maj7" redeviendrait illisible — mieux vaut le laisser tronquer
         host.querySelectorAll('.cell-sym').forEach(el => {
+            // Une case déjà passée sur deux lignes repart de sa ligne unique : la case a pu s'élargir depuis (poignée, fenêtre).
+            if (el.dataset.html1) { el.innerHTML = el.dataset.html1; el.classList.remove('sym-2l'); delete el.dataset.html1; delete el.dataset.deuxLignes; }
             el.style.fontSize = '';
             // LA LARGEUR DISPONIBLE EST CELLE DE LA CASE, PAS CELLE DU SYMBOLE. Ce test se faisait
             // contre el.clientWidth — or .cell-sym est ajusté à SON PROPRE TEXTE : mesuré, 10px pour
@@ -8392,14 +8408,36 @@ class HarmoHubApp {
             // Un ratio direct (plutôt que retirer 1px à la fois, insuffisant pour les cases très
             // étroites/symboles longs comme "B♭maj7" en mode loupe très zoomé) converge en 1-2 passes ;
             // quelques passes de plus rattrapent l'arrondi du navigateur sur la largeur réelle du texte.
-            let attempts = 0;
-            while (budget > 0 && el.scrollWidth > budget && attempts < 4) {
-                const current = parseFloat(getComputedStyle(el).fontSize);
-                if (current <= MIN_PX) break;
-                const next = Math.max(MIN_PX, Math.floor(current * (budget / el.scrollWidth) * 0.97));
-                if (next >= current) break;
-                el.style.fontSize = `${next}px`;
-                attempts++;
+            const ajuster = () => {
+                let attempts = 0;
+                while (budget > 0 && el.scrollWidth > budget && attempts < 4) {
+                    const current = parseFloat(getComputedStyle(el).fontSize);
+                    if (current <= MIN_PX) break;
+                    const next = Math.max(MIN_PX, Math.floor(current * (budget / el.scrollWidth) * 0.97));
+                    if (next >= current) break;
+                    el.style.fontSize = `${next}px`;
+                    attempts++;
+                }
+                return parseFloat(getComputedStyle(el).fontSize);
+            };
+            const surUneLigne = ajuster();
+            // SUR DEUX LIGNES PLUTÔT QUE MINUSCULE (lot 5b). Une case d'UN temps n'a que ~28px en affichage Normal : « B♭maj7 » y tombait au plancher de 8px
+            // (« ça peut arriver quelques fois… fais au mieux »). Sous 10px, on essaie la fondamentale AU-DESSUS du type (« B♭ » / « maj7 ») : chaque ligne
+            // est deux fois plus courte, donc deux fois plus grande. Gardé seulement si c'est vraiment plus lisible ; sinon on revient à une ligne.
+            if (surUneLigne < 10 && !el.dataset.deuxLignes) {
+                const texte = el.textContent.replace('↩', '').trim();
+                const m = texte.match(/^([A-G](?:♭|♯|#|b)?)(.+)$/);
+                if (m) {
+                    const avantHtml = el.innerHTML, avantTaille = el.style.fontSize;
+                    const suite = el.querySelector('.cell-cont') ? ' <span class="cell-cont">↩</span>' : '';
+                    el.innerHTML = `<span class="sym-l">${flatTight(m[1])}</span><span class="sym-l">${flatTight(m[2])}${suite}</span>`;
+                    el.classList.add('sym-2l');
+                    el.style.fontSize = '';
+                    const surDeux = ajuster();
+                    const caseH = caseHote ? caseHote.clientHeight : 0;
+                    if (surDeux > surUneLigne && el.scrollHeight <= caseH) { el.dataset.deuxLignes = '1'; el.dataset.html1 = avantHtml; }
+                    else { el.innerHTML = avantHtml; el.classList.remove('sym-2l'); el.style.fontSize = avantTaille; }
+                }
             }
         });
         // Il y avait ici un ajustement de la case « + » : elle affichait « + Accord » quand elle
@@ -9046,6 +9084,10 @@ class HarmoHubApp {
         });
         // Double-clic sur l'une ou l'autre : les valeurs de l'affichage en cours (« double-clic = valeurs d'origine »).
         [droite, bas].forEach(p => p.addEventListener('dblclick', (e) => { e.preventDefault(); this.choisirDensiteGrille(this.grilleDensite || 'normal'); }));
+        // Passer d'un format à l'autre (fenêtre redimensionnée) : ce que montrent les cases en dépend (noms seuls, carrés du rythme — ordinateur seulement).
+        const bureau = window.matchMedia('(min-width: 900px)');
+        const auChangement = () => this.loadProgression();
+        if (bureau.addEventListener) bureau.addEventListener('change', auChangement); else if (bureau.addListener) bureau.addListener(auChangement);
         this.rafraichirAffichageGrille();
     }
 
@@ -9089,6 +9131,29 @@ class HarmoHubApp {
         } catch (e) { /* stockage plein ou refusé : sans gravité, le morceau garde les siens */ }
     }
 
+    // LARGEUR DE LA FENÊTRE. Celle que l'utilisateur a tirée à la poignée l'emporte toujours. Sinon, celle de l'affichage (480 / 640px)… SAUF si le morceau
+    // a des accords COURTS : en Normal, un accord d'un temps n'avait que ~28px et « B♭maj7 » tombait à 8px (« ça peut arriver quelques fois… fais au mieux »).
+    // La fenêtre s'élargit alors d'elle-même juste assez pour que l'accord le plus court ait ~56px (dans la limite de sa colonne) ; un morceau sans
+    // accord de moins de deux temps garde exactement la largeur de la maquette.
+    largeurAutoGrille(densite) {
+        const base = DENSITES_GRILLE[densite] ? DENSITES_GRILLE[densite].w : DENSITES_GRILLE.normal.w;
+        let plusCourt = Infinity;
+        try { loadProgressionSections().forEach(sec => sec.chords.forEach(c => { const b = beatsFromData(c); if (b > 0) plusCourt = Math.min(plusCourt, b); })); } catch (e) { return base; }
+        if (!isFinite(plusCourt)) return base;
+        const tempsParLigne = beatsPerRowFor(this.beatsPerBar(), false, this.currentGridHZoom());
+        const voulu = Math.ceil(tempsParLigne * 56 / plusCourt) + 10; // +10 : la gouttière de la poignée droite
+        return Math.max(base, voulu);
+    }
+
+    appliquerLargeurGrille() {
+        const cadre = document.getElementById('grille-cadre');
+        if (!cadre) return;
+        const densite = this.grilleDensite || 'normal';
+        const w = this.grilleLargeur || this.largeurAutoGrille(densite);
+        const px = Math.min(GRILLE_LARGEUR_MAX, w) + 'px';
+        if (cadre.style.maxWidth !== px) cadre.style.maxWidth = px;
+    }
+
     choisirDensiteGrille(densite) {
         const d = DENSITES_GRILLE[densite];
         if (!d) return;
@@ -9105,8 +9170,7 @@ class HarmoHubApp {
     rafraichirAffichageGrille() {
         const densite = this.grilleDensite || 'normal';
         document.querySelectorAll('#grille-densites [data-densite]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.densite === densite)));
-        const cadre = document.getElementById('grille-cadre');
-        if (cadre) cadre.style.maxWidth = (this.grilleLargeur || DENSITES_GRILLE[densite].w) + 'px';
+        this.appliquerLargeurGrille();
         this.memoriserAffichageGrille();
         const hote = document.querySelector('.history-section');
         if (hote) {
@@ -11006,6 +11070,13 @@ class HarmoHubApp {
                     <span class="switch-thumb"></span>
                 </button>
             </div>
+            <div class="settings-toggle-row">
+                <label for="toggle-show-cell-rhythm" title="Seize petits carrés par mesure sous le nom de l'accord : plein = une note jouée, pâle = une note tenue, vide = un silence">Rythme de l'accord dans les cases
+                    <span class="reglage-indice">En affichage Détaillé.</span></label>
+                <button type="button" id="toggle-show-cell-rhythm" class="switch" role="switch" aria-checked="${this.showCellRhythm}" aria-label="Rythme de l'accord dans les cases">
+                    <span class="switch-thumb"></span>
+                </button>
+            </div>
             <div class="settings-select-row">
                 <label for="grid-voicing-badge" title="Petite mention sous chaque accord : son octave, et son renversement/drop s'il en a un">Position d'accord</label>
                 <select id="grid-voicing-badge">
@@ -11039,6 +11110,7 @@ class HarmoHubApp {
                 </div>
             </details>`;
         document.getElementById('toggle-show-roman').onclick = () => this.setShowRomanNumerals(!this.showRomanNumerals);
+        document.getElementById('toggle-show-cell-rhythm').onclick = () => this.setShowCellRhythm(!this.showCellRhythm);
         document.getElementById('toggle-show-function').onclick = () => this.setShowChordFunction(!this.showChordFunction);
         document.getElementById('toggle-show-saved-date').onclick = () => this.setShowSavedDate(!this.showSavedDate);
         document.getElementById('grid-voicing-badge').onchange = (e) => {
@@ -11047,6 +11119,39 @@ class HarmoHubApp {
             this.setShowGridVoicing(v === 'complete');
         };
         document.getElementById('grid-beat-marks').onchange = (e) => this.setShowAllBeats(e.target.value === 'tous');
+    }
+
+    setShowCellRhythm(on) {
+        this.showCellRhythm = on;
+        localStorage.setItem(SHOW_CELL_RHYTHM_KEY, on ? '1' : '0');
+        const btn = document.getElementById('toggle-show-cell-rhythm');
+        if (btn) btn.setAttribute('aria-checked', on);
+        this.loadProgression();
+    }
+
+    // LES PETITS CARRÉS DU RYTHME (lot 5b) : seize par mesure — une double croche chacun —, lus dans le MOTIF que joue réellement l'accord (le même que
+    // celui du séquenceur et de la lecture : resolveSeqPatternForData). Plein = une note attaquée sur ce pas ; pâle = des notes tenues (liées depuis le pas
+    // d'avant) ; vide = silence. Un accord coupé sur deux lignes montre, sur chaque morceau, les pas qui lui reviennent.
+    htmlRythmeCase(h, s, cells, cache) {
+        let motif = cache.get(s.index);
+        if (!motif) {
+            try {
+                const chord = new Chord(h.root, h.quality, beatsFromData(h), h.inversion, h.drop, octaveFromData(h), h.bass, h.guitarLock, h.extraNotes);
+                motif = this.resolveSeqPatternForData(chord, h);
+            } catch (e) { motif = { pattern: [], tie: [] }; }
+            cache.set(s.index, motif);
+        }
+        // Temps de CET accord qui précèdent ce morceau de case (segments précédents du même accord).
+        const avant = cells.filter(c => c.index === s.index && c !== s && (c.row < s.row || (c.row === s.row && c.col < s.col))).reduce((n, c) => n + c.span, 0);
+        const debut = avant * SEQ_STEPS_PER_BEAT, n = s.span * SEQ_STEPS_PER_BEAT;
+        let html = '';
+        for (let i = 0; i < n; i++) {
+            const voix = motif.pattern[debut + i] || [];
+            const liees = motif.tie[debut + i] || [];
+            const etat = !voix.length ? '' : (voix.every(v => liees.includes(v)) ? 't' : 'a');
+            html += `<i class="${etat}"></i>`;
+        }
+        return `<span class="cell-rythme" aria-hidden="true" title="Rythme de l'accord">${html}</span>`;
     }
 
     setShowRomanNumerals(on) {
