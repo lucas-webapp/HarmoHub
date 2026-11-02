@@ -4794,3 +4794,5 @@ le clic remonte jusqu'à elle ; `pointer-events: none` est un filet de plus. Un 
 sont trop basses, la condition « Détaillé » n'était jamais éprouvée — d'où le cas « Normal avec des cases de 90px ». **Un vrai défaut trouvé par `verre_test`** : la précision « En affichage
 Détaillé. » utilisait la classe `.verre-indice`, qui vit dans `verre.css` (fichier commun aux trois applis, réservé au verre) — l'aspect d'un réglage d'Affichage dépendait donc de la présence
 du verre. Classe propre à HarmoHub (`.reglage-indice`).
+
+**Balayage du lot 5b (02/11) : 216 verts, 5 rouges, 7 sans verdict (228 suites)** — exactement la ligne de base ; aucun nouveau rouge.
