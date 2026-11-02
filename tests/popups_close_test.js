@@ -38,7 +38,17 @@ const cache = (page, id) => page.evaluate((i) => {
         // Le bouton vit dans les réglages du morceau, qui sont repliés par défaut : on les déplie
         // s'il le faut avant de cliquer (et pas systématiquement — #song-summary est une bascule,
         // un clic de trop les refermerait).
-        { id: 'key-suggest-menu', nom: 'suggestion de tonalité', ouvre: async () => { await deplieReglages(); await page.click('#key-suggest-btn'); } },
+        // LOT 6a : sur ordinateur, la suggestion s'ouvre depuis la puce « Tonalité » au-dessus de la grille (clic sur l'ICÔNE, le cas réel).
+        { id: 'key-suggest-menu', nom: 'suggestion de tonalité', ouvre: async () => {
+            if (await page.locator('#rr-tonalite').isVisible()) {
+                if (await cache(page, 'rr-pop')) { await page.click('#rr-tonalite'); await page.waitForTimeout(150); }
+                await page.click('#rr-pop .rr-suggerer svg');
+                return;
+            }
+            await deplieReglages(); await page.click('#key-suggest-btn');
+        } },
+        // Le choix d'une puce de la rangée de réglages (lot 6a) : même table, mêmes deux façons de renoncer.
+        { id: 'rr-pop', nom: 'choix d\'une puce de réglage (Mesure)', ouvre: async () => page.click('#rr-mesure') },
         // L'aide de l'ajout rapide a quitté les Paramètres pour la rangée du champ qu'elle explique
         // (retour utilisateur : « une aide n'est pas un réglage »). Elle s'ouvre donc depuis la page
         // elle-même, et le « clic à côté » est un clic ordinaire sur la page.
@@ -95,13 +105,14 @@ const cache = (page, id) => page.evaluate((i) => {
     // échappait à l'ancienne comparaison `e.target.id !== 'key-suggest-btn'`.
     await page.evaluate(() => { if (window.app.settingsOpen) window.app.closeSettings(); });
     await page.waitForTimeout(300);
-    await deplieReglages();
+    const surPuce = await page.locator('#rr-tonalite').isVisible();
+    if (surPuce) { await page.click('#rr-tonalite'); await page.waitForTimeout(150); } else await deplieReglages();
     const surIcone = await page.evaluate(() => {
         const svg = document.querySelector('#key-suggest-btn svg, #key-suggest-btn *');
         return !!svg;
     });
     if (surIcone) {
-        await page.click('#key-suggest-btn');
+        await page.click(surPuce ? '#rr-pop .rr-suggerer svg' : '#key-suggest-btn');
         await page.waitForTimeout(350);
         check(!(await cache(page, 'key-suggest-menu')),
             'la suggestion de tonalité s\'ouvre même quand le clic tombe sur l\'icône dans le bouton');

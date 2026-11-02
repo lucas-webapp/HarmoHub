@@ -38,13 +38,16 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
     // Le sélecteur vit maintenant dans les réglages du morceau, repliés par défaut : on les déplie
     // par le vrai bouton, comme le ferait quelqu'un.
+    // LOT 6a : sur ordinateur, c'est la puce « Son » de la rangée au-dessus de la grille qui ouvre ce choix (elle règle le même #instrument).
     const avant = errors.length;
-    await page.click('#song-summary');
-    await page.waitForTimeout(400);
+    await page.click('#rangee-reglages .rr-puce[data-puce="son"]');
+    await page.waitForTimeout(300);
     check(await page.evaluate(() => {
-        const s = document.getElementById('instrument');
-        return !!s && s.offsetParent !== null && !!s.closest('#song-settings');
-    }), 'le son du morceau est atteignable dans les réglages dépliés');
+        const o = document.querySelector('#rr-pop [data-rr-valeur="organ"]');
+        return !!o && o.offsetParent !== null;
+    }), 'le son du morceau est atteignable par la puce Son');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
 
     // LE SÉQUENCEUR DOIT ÊTRE OUVERT pour que cette section éprouve quoi que ce soit. Ma première
     // version affirmait « le séquenceur est toujours là » sans l'avoir ouvert : .seq-grid était
@@ -55,7 +58,9 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
     const seqAvant = await page.evaluate(() => !!document.querySelector('.seq-grid'));
     check(seqAvant, 'le séquenceur de l\'accord ouvert est bien affiché AVANT le changement');
 
-    await page.selectOption('#instrument', 'organ');
+    await page.click('#rangee-reglages .rr-puce[data-puce="son"]');
+    await page.waitForTimeout(250);
+    await page.click('#rr-pop [data-rr-valeur="organ"]');
     await page.waitForTimeout(600);
     const etat = await page.evaluate(() => ({
         son: window.app.songInstrument,

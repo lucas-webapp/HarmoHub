@@ -78,19 +78,21 @@ const seedAncien = () => {
         'et rien n\'a été effacé dans le fichier : les anciens champs sont ignorés, pas réécrits');
 
     console.log('\n=== C. Choisir un son l\'écrit dans le MORCEAU, et il y reste ===');
-    // Par le vrai geste : déplier les réglages du morceau, puis choisir.
-    await page.click('#song-summary');
-    await page.waitForTimeout(400);
+    // Par le vrai geste. LOT 6a : sur ordinateur, les réglages du morceau ne se déplient plus dans le volet — c'est la puce « Son » de la rangée
+    // au-dessus de la grille qui ouvre le choix (elle règle le même #instrument, qui reste la seule source).
+    await page.click('#rangee-reglages .rr-puce[data-puce="son"]');
+    await page.waitForTimeout(300);
     const atteignable = await page.evaluate(() => {
-        const s = document.getElementById('instrument');
+        const s = document.querySelector('#rr-pop [data-rr-valeur="strings"]');
+        if (!s) return { visible: false, taille: 'absent', dessus: false };
         const r = s.getBoundingClientRect();
         const dessus = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
         return { visible: s.offsetParent !== null, taille: `${Math.round(r.width)}x${Math.round(r.height)}`,
                  dessus: !!dessus && (dessus === s || s.contains(dessus)) };
     });
     exiger(atteignable.visible && atteignable.dessus,
-        `le sélecteur est réellement atteignable une fois les réglages dépliés — ${atteignable.taille}`);
-    await page.selectOption('#instrument', 'strings');
+        `le choix « Cordes synth. » est réellement atteignable une fois la puce Son ouverte — ${atteignable.taille}`);
+    await page.click('#rr-pop [data-rr-valeur="strings"]');
     await page.waitForTimeout(400);
     check(await page.evaluate(() => window.app.songInstrument) === 'strings',
         'choisir met à jour le son du morceau tout de suite');

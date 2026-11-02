@@ -126,7 +126,9 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     check(membres.length >= 6, `la famille dominante rassemble ${membres.length} boutons — ${membres.slice(0, 4).join(', ')}…`);
     const exempleRef = [...exemples.values()].find(x => x.fond === ref.fond && x.rayon === ref.rayon && !x.degrade && !x.ombre);
     const membresRef = exempleRef ? familles.get(cle(exempleRef)) : [];
-    check(!!exempleRef && membresRef.includes('duration-dd-toggle') && membresRef.includes('song-summary'),
+    // LOT 6a : le résumé du morceau a quitté le volet (ses réglages sont dans la rangée au-dessus de la grille, à la jauge — gabarit_boutons_test).
+    // La référence sombre porte le bouton de durée ; elle doit rester PLATE et rester une famille du volet, c'est tout ce que le design demande.
+    check(!!exempleRef && membresRef.includes('duration-dd-toggle'),
         `la référence sombre (fond ${ref.fond}, rayon ${ref.rayon}, sans dégradé ni ombre) est une famille du volet : elle porte ${membresRef.join(' + ') || 'rien'}`);
     const dominanteNommee = (grande[0] === (exempleRef && cle(exempleRef))) || membres.every(n => /^voicing-/.test(n));
     check(dominanteNommee, `et la famille la plus nombreuse est l'une des deux décisions nommées (la référence, ou le sélecteur segmenté) — ${membres.slice(0, 3).join(', ')}…`);

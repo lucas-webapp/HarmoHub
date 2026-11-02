@@ -61,11 +61,20 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // qu'ils sont sortis du système d'onglets. Il n'a pas disparu — il faut déplier pour le voir,
     // c'est tout, et c'est bien ce que ce test veut vérifier (« la fonctionnalité voisine est
     // intacte »), pas qu'il soit affiché en permanence.
-    if (await page.evaluate(() => document.getElementById('song-settings').hidden)) {
-        await page.click('#song-summary');
+    // LOT 6a : sur ordinateur, la carte Morceau n'est plus affichée ; le tap tempo y est celui de la barre du bas (lot 2), dans la fenêtre du tempo.
+    if (await page.locator('#bl-tempo').isVisible()) {
+        await page.click('#bl-tempo');
         await page.waitForTimeout(250);
+        check(await page.isVisible('#bl-tap'), "le tap tempo (feature séparée, tap tempo pour le BPM) toujours présent — barre du bas");
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(150);
+    } else {
+        if (await page.evaluate(() => document.getElementById('song-settings').hidden)) {
+            await page.click('#song-summary');
+            await page.waitForTimeout(250);
+        }
+        check(await page.isVisible('#tap-tempo'), "#tap-tempo (feature séparée, tap tempo pour le BPM) toujours présent");
     }
-    check(await page.isVisible('#tap-tempo'), "#tap-tempo (feature séparée, tap tempo pour le BPM) toujours présent");
 
     // Spacebar no longer does anything tap-recording related; should just play/stop
     await page.evaluate(() => { window.app.stopAll(); });

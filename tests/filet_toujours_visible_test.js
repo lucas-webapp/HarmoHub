@@ -41,10 +41,13 @@ const COMMUNS = [
     ['#song-summary-key', 'la tonalité'],
     ['#song-summary-bpm', 'le tempo'],
 ];
+// LOT 6a : sur ORDINATEUR, la ligne de résumé de la carte Morceau a laissé sa place à la rangée de réglages au-dessus de la grille (la puce
+// « Tonalité C majeur ») et à la barre de lecture du bas (le tempo, lot 2). Les deux se lisent sans rien déplier, comme le résumé avant elles.
 const BUREAU = [
     ['#tb-titre',         'le nom du morceau (le titre de la barre du haut)'],
     ['#tb-save',          'le bouton enregistrer'],
-    ...COMMUNS,
+    ['#rangee-reglages .rr-puce[data-puce="tonalite"]', 'la tonalité'],
+    ['#bl-tempo',         'le tempo'],
 ];
 const BUREAU_MENU = [
     ['#tb-menu [data-tb-action="mes-morceaux"]', 'le bouton fichiers (« Mes morceaux… » du menu)'],

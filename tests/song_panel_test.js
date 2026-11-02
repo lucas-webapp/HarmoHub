@@ -11,7 +11,9 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
 (async () => {
     const browser = await chromium.launch();
     const errors = [];
-    const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+    // LOT 6a : à partir de 900px, la carte Morceau n'est plus affichée — ses réglages sont des puces au-dessus de la grille (rangee_reglages_test),
+    // le tempo est dans la barre du bas. Elle reste celle des écrans étroits jusqu'au lot 10 : sa partie « grand écran » se joue juste sous le seuil.
+    const page = await browser.newPage({ viewport: { width: 860, height: 1000 } });
     page.on('pageerror', e => errors.push('pageerror: ' + e.message));
     await page.goto(`${BASE}/index.html`);
     await page.waitForTimeout(800);
@@ -48,7 +50,9 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
             dansPanneau: panel.contains(song),
             // Le bandeau ayant disparu, le repère devient le panneau de réglages lui-même : le bloc
             // Morceau doit toujours ouvrir la colonne, avant tout le reste.
-            avantBandeau: song.getBoundingClientRect().top < panel.getBoundingClientRect().top,
+            // Sous 900px, .panel-controls est « aplati » (display: contents, rectangle nul) : c'est la carte Accord, sa première carte, qui sert
+            // de repère (lot 6a : la partie « grand écran » de ce banc se joue désormais sous le seuil).
+            avantBandeau: song.getBoundingClientRect().top < document.getElementById('accord-card').getBoundingClientRect().top,
             haut: Math.round(song.getBoundingClientRect().top),
         };
     });

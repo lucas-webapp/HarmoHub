@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611021600">
+    <link rel="stylesheet" href="style.css?v=202611021900">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611021600">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611021900">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -103,6 +103,8 @@
 
     <!-- Menu ⋯ d'un en-tête de partie (lot 5c) : un seul pour toutes les parties, rempli à l'ouverture (voir ouvrirMenuPartie). -->
     <div id="partie-menu" class="tb-menu partie-menu" role="menu" aria-label="Partie" hidden></div>
+    <!-- Choix ouvert par une puce de la rangée de réglages (lot 6a) : un seul, rempli à l'ouverture (voir ouvrirPuceReglage). -->
+    <div id="rr-pop" class="tb-menu rr-pop" hidden></div>
     <div id="context-menu" class="context-menu" hidden>
         <button type="button" data-ctx-action="rename">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -1382,6 +1384,23 @@
                      longue, les boutons de lecture auraient disparu dès qu'on descend. -->
                 <div class="card-head grid-head-sticky">
                     <h2>Grille d'accords</h2>
+                    <!-- RANGÉE DE RÉGLAGES DU MORCEAU (refonte, lot 6a) : Tonalité, Mesure, Swing, Son, Transposer — des puces qui ouvrent leur choix,
+                         au-dessus de la grille qu'elles règlent. Elles REMPLACENT, sur ordinateur, la carte Morceau du bandeau de gauche (le tempo est
+                         déjà dans la barre du bas, lot 2). Les vraies listes (#global-root, #time-sig, #groove, #instrument) restent la seule source :
+                         une puce les règle et déclenche leur « change », donc tout ce qui y était branché (annulation, versions, lecture en direct)
+                         reste vrai sans être recopié. Rempli par setupRangeeReglages ; masqué sur téléphone (lot 10). -->
+                    <!-- Les puces sont ÉCRITES ICI, pas fabriquées par le script : leurs adresses (#rr-tonalite…) existent dans la page, comme celles de
+                         toutes les commandes — c'est ce que vérifient sentinelle_adresses_test et meta_suite_test. Le script ne fait que les remplir. -->
+                    <div id="rangee-reglages" class="rangee-reglages" role="group" aria-label="Réglages du morceau">
+                        <button type="button" id="rr-tonalite" class="rr-puce" data-puce="tonalite" aria-haspopup="dialog" aria-expanded="false" title="Tonalité de référence : degrés, modes et suggestions — les accords ne bougent pas"><span class="rr-nom">Tonalité</span><span class="rr-val"></span><svg class="icon rr-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+                        <button type="button" id="rr-mesure" class="rr-puce" data-puce="mesure" aria-haspopup="listbox" aria-expanded="false" title="Signature rythmique"><span class="rr-nom">Mesure</span><span class="rr-val"></span><svg class="icon rr-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+                        <button type="button" id="rr-swing" class="rr-puce" data-puce="swing" aria-haspopup="listbox" aria-expanded="false" title="Placement des croches à la lecture (anciennement « Groove »)"><span class="rr-nom">Swing</span><span class="rr-val"></span><svg class="icon rr-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+                        <button type="button" id="rr-son" class="rr-puce" data-puce="son" aria-haspopup="listbox" aria-expanded="false" title="Instrument de tout le morceau"><span class="rr-nom">Son</span><span class="rr-val"></span><svg class="icon rr-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+                        <div class="rr-seg" role="group" aria-label="Transposer le morceau"><span class="rr-cap">Transposer</span>
+                            <button type="button" id="rr-transposer-bas" data-rr-transposer="-1" title="Transposer tout le morceau d'un demi-ton vers le bas" aria-label="Transposer tout le morceau vers le bas"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m5 12 7 7 7-7"/></svg></button>
+                            <button type="button" id="rr-transposer-haut" data-rr-transposer="1" title="Transposer tout le morceau d'un demi-ton vers le haut" aria-label="Transposer tout le morceau vers le haut"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></button>
+                        </div>
+                    </div>
                     <!-- Hôte du transport sur ordinateur (rempli par placeGlobalTransport ; vide et
                          sans hauteur sur téléphone, où le transport reste dans #footer-dock). -->
                     <div id="grid-head-transport-host" class="grid-head-transport-host"></div>
@@ -1729,6 +1748,9 @@
                         <button type="button" data-vitesse="150">150 %</button>
                         <button type="button" data-vitesse="200">200 %</button>
                     </div>
+                    <!-- Le clic de contretemps du métronome (#toggle-metronome-subdivision) vient ici sur ordinateur (lot 6a) : la carte Morceau où il
+                         vivait n'y est plus affichée. Même bouton, déplacé (voir placerSubdivisionMetronome). -->
+                    <div class="bl-pop-ligne bl-pop-ligne-espacee" id="bl-hote-subdivision"><span class="bl-pop-etiquette">Contretemps au métronome</span></div>
                     <p class="bl-pop-aide">50 à 200 % du tempo, pour travailler lentement un passage. Décompte, son et volume du métronome : dans les Paramètres.</p>
                 </div>
             </div>
@@ -1833,11 +1855,11 @@
     <script src="fichiers.js?v=202610030500"></script>
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
-    <script src="historique.js?v=202611021600"></script>
-    <script src="script.js?v=202611021600"></script>
+    <script src="historique.js?v=202611021900"></script>
+    <script src="script.js?v=202611021900"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611021600"></script>
+    <script src="synchro-harmohub.js?v=202611021900"></script>
 </body>
 </html>

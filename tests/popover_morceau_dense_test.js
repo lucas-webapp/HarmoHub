@@ -47,7 +47,9 @@ const lirePopover = () => {
     plan(20);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
-    const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
+    // LOT 6a : sur ordinateur (≥ 900px), ce panneau n'existe plus — ses réglages sont des puces au-dessus de la grille (rangee_reglages_test).
+    // Il reste celui des écrans étroits jusqu'au lot 10 : ce banc garde donc sa mise en page là où elle vit encore, sous le seuil.
+    const page = await browser.newPage({ viewport: { width: 860, height: 950 } });
     page.on('pageerror', e => erreurs.push('ordinateur : ' + e.message));
     await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load' });
     await page.waitForTimeout(250);

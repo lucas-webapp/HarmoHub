@@ -108,7 +108,9 @@ async function eprouverFormat(page, contexte, ouvrir) {
     await m.close();
 
     console.log('\n=== D. Ordinateur : rien ne bouge non plus, et 310px de volet sont rendus ===');
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    // LOT 6a : à partir de 900px, ce panneau n'existe plus (ses réglages sont des puces au-dessus de la grille, rangee_reglages_test ; le tempo est
+    // dans la barre du bas). Il reste celui des écrans étroits jusqu'au lot 10 : la partie « grand écran » de ce banc se joue juste sous le seuil.
+    const page = await browser.newPage({ viewport: { width: 860, height: 900 } });
     page.on('pageerror', e => erreurs.push('ordinateur : ' + e.message));
     await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load' });
     await page.waitForTimeout(300);

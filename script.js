@@ -4028,6 +4028,9 @@ class HarmoHubApp {
         this.setupBarreLecture(); // la barre de lecture du bas (ordinateur) : blocs, tempo, frise (voir plus bas)
         this.setupBarreMorceau(); // la barre du haut (ordinateur) : titre + menu du morceau, Enregistrer et son voyant
         this.setupMenuPartie(); // le menu ⋯ des en-têtes de partie (lot 5c)
+        this.setupRangeeReglages(); // Tonalité, Mesure, Swing, Son, Transposer au-dessus de la grille (lot 6a)
+        this.placerSubdivisionMetronome();
+        window.matchMedia('(min-width: 900px)').addEventListener('change', () => this.placerSubdivisionMetronome());
         this.setupOnglets(); // les onglets Grille / Structure / Paroles, au centre de la barre du haut (ordinateur)
         this.setupHistoriqueAuto(); // versions automatiques (toutes les 5 min de travail, en quittant la page) — voir historique.js
         this.setupKeyboardShortcuts();
@@ -4681,7 +4684,9 @@ class HarmoHubApp {
             { id: 'backup-scope-menu', close: () => this.closeTransferScopeMenu() },       // « ce morceau / toute la bibliothèque ? »
             { id: 'file-menu', ancre: '#file-menu-btn', close: () => this.closeFileMenu() },
             { id: 'struct-menu', close: () => this.fermerMenuStructure() },                       // clic droit sur une partie de la structure
-            { id: 'key-suggest-menu', ancre: '#key-suggest-btn', close: () => this.closeKeySuggestMenu() },
+            { id: 'key-suggest-menu', ancre: '#key-suggest-btn, .rr-suggerer', close: () => this.closeKeySuggestMenu() },
+            // Le choix d'une puce de la rangée de réglages (lot 6a). La suggestion de tonalité s'ouvre DEPUIS lui : la cliquer ne doit pas le refermer.
+            { id: 'rr-pop', ancre: '.rr-puce, #key-suggest-menu', close: () => this.fermerPuceReglage() },
             { id: 'quick-add-help', ancre: '#quick-add-help-btn', close: () => this.closeQuickAddHelp() },
             // Réglages du morceau (tempo/groove/mesure/tonalité), devenus un panneau flottant : une
             // ligne suffit pour hériter des DEUX façons de renoncer, le clic à côté et Échap. C'est
@@ -8824,6 +8829,7 @@ class HarmoHubApp {
     // réglages qu'elle résume : un résumé qui retarde sur la valeur réelle est pire que pas de résumé.
     updateSongSummary() {
         this.syncBarreLecture(); // le tempo de la barre du bas résume la même valeur : même appelants, même fraîcheur
+        this.rafraichirRangeeReglages(); // les puces de la rangée de réglages (lot 6a) : idem
         const bpm = document.getElementById('bpm');
         const sig = document.getElementById('time-sig');
         const root = document.getElementById('global-root');
@@ -8879,6 +8885,183 @@ class HarmoHubApp {
         this.loadProgression();
         const input = document.querySelector(`.prog-title[data-section="${this.activeSection}"]`);
         if (input) input.focus();
+    }
+
+    // ---------- RANGÉE DE RÉGLAGES DU MORCEAU (lot 6a) ----------
+    // « Tonalité ≠ Transposer : la puce Tonalité change seulement la référence (degrés, modes, suggestion) ; Transposer déplace les accords
+    // (version automatique avant) » ; « Groove → Swing » (docs/refonte.md). Chaque puce RÈGLE la vraie liste du morceau et déclenche son
+    // « change » : les écouteurs d'origine (annulation, morceau modifié, lecture relancée en direct) font le reste, rien n'est recopié.
+    libelleTonalite() {
+        const root = document.getElementById('global-root'), mode = document.getElementById('global-mode');
+        if (!root || !mode) return '';
+        const pc = NOTES.indexOf(root.value);
+        // Notation internationale (docs/refonte.md, règle 7) : « F♯ majeur », pas « F# majeur ».
+        return `${noteNameForPc(pc, useFlatsForKey(pc, mode.value)).replace('#', '♯')} ${MODE_LABELS[mode.value] || mode.value}`;
+    }
+
+    setupRangeeReglages() {
+        const host = document.getElementById('rangee-reglages');
+        if (!host) return; // index.html servi depuis un cache plus ancien
+        // Les puces sont écrites dans index.html (leurs adresses doivent y exister, voir le commentaire là-bas) : ici, on les câble seulement.
+        host.addEventListener('click', (e) => {
+            const p = e.target.closest('.rr-puce');
+            if (p) {
+                e.stopPropagation();
+                if (this._puceOuverte === p.dataset.puce) this.fermerPuceReglage(true); else this.ouvrirPuceReglage(p.dataset.puce);
+                return;
+            }
+            const t = e.target.closest('[data-rr-transposer]');
+            if (t) this.transposeSong(+t.dataset.rrTransposer);
+        });
+        const pop = document.getElementById('rr-pop');
+        if (pop) {
+            pop.addEventListener('click', (e) => this.choisirDansPuce(e));
+            pop.addEventListener('keydown', (e) => {
+                const items = [...pop.querySelectorAll('button:not([disabled])')];
+                const i = items.indexOf(document.activeElement);
+                if (e.key === 'Escape') {
+                    e.preventDefault(); e.stopPropagation();
+                    // La suggestion de tonalité s'ouvre PAR-DESSUS ce choix : Échap ferme d'abord ce qui est devant (trouvé par popups_close_test —
+                    // le choix se fermait et laissait la suggestion flotter seule).
+                    const ks = document.getElementById('key-suggest-menu');
+                    if (ks && !ks.hidden) { this.closeKeySuggestMenu(); return; }
+                    this.fermerPuceReglage(true);
+                }
+                else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); (items[i + 1] || items[0]).focus(); }
+                else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); (items[i - 1] || items[items.length - 1]).focus(); }
+                else if (e.key === 'Tab') this.fermerPuceReglage();
+            });
+        }
+        this.rafraichirRangeeReglages();
+    }
+
+    // Le bouton « contretemps » du métronome vivait dans la carte Morceau, masquée sur ordinateur depuis le lot 6a : il passe dans la fenêtre
+    // du tempo (barre du bas), à côté de ce qu'il règle. UN SEUL bouton, déplacé selon le format (le téléphone garde sa carte jusqu'au lot 10).
+    placerSubdivisionMetronome() {
+        const btn = document.getElementById('toggle-metronome-subdivision');
+        const hote = document.getElementById('bl-hote-subdivision');
+        if (!btn || !hote) return;
+        if (!this._origineSubdivision) this._origineSubdivision = { parent: btn.parentNode, suivant: btn.nextSibling };
+        if (window.matchMedia('(min-width: 900px)').matches) { if (btn.parentNode !== hote) hote.appendChild(btn); }
+        else if (btn.parentNode !== this._origineSubdivision.parent) this._origineSubdivision.parent.insertBefore(btn, this._origineSubdivision.suivant);
+    }
+
+    rafraichirRangeeReglages() {
+        const host = document.getElementById('rangee-reglages');
+        if (!host || !host.firstChild) return;
+        const texte = (id) => { const el = document.getElementById(id); return el ? ((el.options[el.selectedIndex] || {}).text || el.value) : ''; };
+        const SWING = { straight: 'Droit', shuffle: 'Shuffle léger', ternary: 'Ternaire' };
+        const groove = (document.getElementById('groove') || {}).value;
+        const vals = {
+            tonalite: this.libelleTonalite(),
+            mesure: (document.getElementById('time-sig') || {}).value || '',
+            swing: SWING[groove] || texte('groove'),
+            son: texte('instrument'),
+        };
+        host.querySelectorAll('.rr-puce').forEach(b => {
+            const v = b.querySelector('.rr-val');
+            if (v && v.textContent !== vals[b.dataset.puce]) v.textContent = vals[b.dataset.puce];
+        });
+        if (this._puceOuverte) this.remplirPuceReglage();
+    }
+
+    ouvrirPuceReglage(id) {
+        const pop = document.getElementById('rr-pop');
+        const btn = document.querySelector(`#rangee-reglages .rr-puce[data-puce="${id}"]`);
+        if (!pop || !btn) return;
+        if (this._puceOuverte) this.fermerPuceReglage();
+        this._puceOuverte = id;
+        btn.setAttribute('aria-expanded', 'true');
+        this.remplirPuceReglage();
+        pop.hidden = false;
+        const r = btn.getBoundingClientRect(), pad = 8, w = pop.offsetWidth;
+        pop.style.left = `${Math.round(Math.max(pad, Math.min(r.left, window.innerWidth - w - pad)))}px`;
+        pop.style.top = `${Math.round(r.bottom + 6)}px`;
+        const cible = pop.querySelector('[aria-pressed="true"], [aria-selected="true"]') || pop.querySelector('button');
+        if (cible) cible.focus({ preventScroll: true });
+    }
+
+    fermerPuceReglage(rendreLeFocus = false) {
+        const pop = document.getElementById('rr-pop');
+        const id = this._puceOuverte;
+        this._puceOuverte = null;
+        if (pop) pop.hidden = true;
+        const btn = id ? document.querySelector(`#rangee-reglages .rr-puce[data-puce="${id}"]`) : null;
+        if (btn) { btn.setAttribute('aria-expanded', 'false'); if (rendreLeFocus) btn.focus({ preventScroll: true }); }
+    }
+
+    // Le contenu du choix ouvert. Reconstruit après chaque choix (une tonique choisie change l'orthographe des autres : D♭ ou C#).
+    remplirPuceReglage() {
+        const pop = document.getElementById('rr-pop');
+        const id = this._puceOuverte;
+        if (!pop || !id) return;
+        const focusAvant = pop.contains(document.activeElement) ? (document.activeElement.dataset.rrValeur || document.activeElement.dataset.rrAction) : null;
+        const option = (valeur, libelle, choisi, desc = '') =>
+            `<button type="button" role="option" class="tb-mi rr-option" data-rr-valeur="${escapeHtml(valeur)}" aria-selected="${choisi}">`
+            + `<span class="tb-mi-coche" aria-hidden="true">${choisi ? '✓' : ''}</span><span class="rr-option-txt"><span class="tb-mi-libelle">${escapeHtml(libelle)}</span>`
+            + (desc ? `<span class="rr-option-desc">${escapeHtml(desc)}</span>` : '') + `</span></button>`;
+        const listeDe = (selId) => { const sel = document.getElementById(selId); return sel ? [...sel.options].map(o => option(o.value, o.text, o.value === sel.value)).join('') : ''; };
+        let html = '';
+        pop.dataset.puce = id;
+        if (id === 'tonalite') {
+            const root = document.getElementById('global-root').value, mode = document.getElementById('global-mode').value;
+            pop.setAttribute('role', 'dialog');
+            pop.setAttribute('aria-label', 'Tonalité de référence');
+            // L'icône d'origine du bouton de suggestion (étincelle) : « les logos de l'utilisateur ne se perdent pas ».
+            const iconeSuggestion = (document.querySelector('#key-suggest-btn svg') || {}).outerHTML || '';
+            const toniques = NOTES.map((n, pc) => `<button type="button" data-rr-action="tonique" data-rr-valeur="${n}" aria-pressed="${n === root}">${noteNameForPc(pc, useFlatsForKey(pc, mode)).replace('#', '♯')}</button>`).join('');
+            const modes = Object.keys(MODE_LABELS).map(m => `<button type="button" data-rr-action="mode" data-rr-valeur="${m}" aria-pressed="${m === mode}">${MODE_LABELS[m].charAt(0).toUpperCase() + MODE_LABELS[m].slice(1)}</button>`).join('');
+            html = `<div class="rr-lbl">Tonique</div><div class="rr-grille rr-g6">${toniques}</div>`
+                + `<div class="rr-lbl">Mode</div><div class="rr-grille rr-g4">${modes}</div>`
+                + `<button type="button" class="tb-mi rr-suggerer" data-rr-action="suggerer">${iconeSuggestion}<span class="tb-mi-libelle">Suggérer d'après les accords</span></button>`
+                + `<p class="rr-aide">Change seulement la lecture des degrés : les accords ne bougent pas. Pour déplacer les accords, utilise Transposer.</p>`;
+        } else {
+            pop.setAttribute('role', 'listbox');
+            if (id === 'mesure') { pop.setAttribute('aria-label', 'Mesure'); html = listeDe('time-sig'); }
+            else if (id === 'son') { pop.setAttribute('aria-label', 'Son du morceau'); html = listeDe('instrument'); }
+            else if (id === 'swing') {
+                pop.setAttribute('aria-label', 'Swing');
+                const g = document.getElementById('groove').value;
+                // Ce que le code fait vraiment : seule la 2ᵉ croche de chaque temps bouge, à 50 / 58 / 67 % (docs/refonte.md, « Groove → Swing »).
+                html = option('straight', 'Droit', g === 'straight', 'Croches égales — pop, rock, ballade, bossa.')
+                    + option('shuffle', 'Shuffle léger', g === 'shuffle', 'La 2e croche de chaque temps arrive un peu en retard — funk, pop chaloupée.')
+                    + option('ternary', 'Ternaire', g === 'ternary', 'Croches en triolet — jazz, blues, swing.');
+            }
+        }
+        pop.innerHTML = html;
+        if (focusAvant) {
+            const c = pop.querySelector(`[data-rr-valeur="${focusAvant}"], [data-rr-action="${focusAvant}"]`);
+            if (c) c.focus({ preventScroll: true });
+        }
+    }
+
+    choisirDansPuce(e) {
+        const b = e.target.closest('button');
+        const id = this._puceOuverte;
+        if (!b || !id) return;
+        e.stopPropagation();
+        const action = b.dataset.rrAction;
+        const regler = (selId, valeur) => {
+            const sel = document.getElementById(selId);
+            if (!sel || sel.value === valeur) return false;
+            // L'annulation des réglages du morceau prend son instantané AU FOCUS de la liste, avant le changement (voir armGlobalSettingUndo) :
+            // une puce ne donne jamais le focus à la liste, elle arme donc elle-même — sans quoi Ctrl+Z ne défaisait pas un choix fait ici.
+            // Pas pour le son : il n'est pas un des réglages globaux annulables (son écouteur ne valide rien), un instantané armé resterait en
+            // attente et serait validé à tort par le PROCHAIN réglage.
+            if (selId !== 'instrument') this.armGlobalSettingUndo();
+            sel.value = valeur;
+            // bubbles : le résumé du morceau (et donc ces puces) écoute le « change » de son conteneur (voir updateSongSummary).
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+        };
+        if (action === 'suggerer') { this.openKeySuggestMenu(b); return; }
+        if (action === 'tonique') { regler('global-root', b.dataset.rrValeur); this.remplirPuceReglage(); return; }
+        if (action === 'mode') { regler('global-mode', b.dataset.rrValeur); this.remplirPuceReglage(); return; }
+        const SEL = { mesure: 'time-sig', swing: 'groove', son: 'instrument' };
+        if (SEL[id] && b.dataset.rrValeur != null) {
+            regler(SEL[id], b.dataset.rrValeur);
+            this.fermerPuceReglage(true);
+        }
     }
 
     // ---------- EN-TÊTE DE PARTIE (lot 5c) ----------
@@ -20517,6 +20700,10 @@ class HarmoHubApp {
         if (toucheMesure) this.updateDurationOptions();
         if (toucheCle || toucheMesure || toucheAutre) {
             marquerModifie();
+            // Tout ce qui RÉSUME ces réglages doit suivre : la ligne de la carte Morceau, le tempo de la barre du bas et les puces de la rangée de
+            // réglages (lot 6a). Seule la tonalité le faisait (par updateKeyLabels) : un Ctrl+Z sur la mesure, le swing ou le tempo laissait
+            // l'ancienne valeur affichée — trouvé par le banc du lot 6a.
+            this.updateSongSummary();
             if (this.seqOpen) this.renderSequencer(); // affiche le nouveau groove/la nouvelle mesure
             this.liveRestartForGlobalChange();
         }

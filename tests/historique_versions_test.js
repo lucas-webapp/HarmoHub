@@ -59,6 +59,8 @@ const graine = ({ src, avec }) => {
     const accordsEnregistres = (p, id = 's1') => p.evaluate((i) => { const s = JSON.parse(localStorage.getItem('harmohubSongs')).find(x => x.id === i); return s ? s.sections.flatMap(x => x.chords).map(c => c.root + c.quality) : null; }, id);
     // Transposer d'un demi-ton vers le haut par le vrai bouton (rangé sous le résumé du morceau, qui se replie quand on s'occupe de la grille).
     const transposerHaut = async (p) => {
+        // Sur ordinateur, « Transposer + » est dans la rangée de réglages au-dessus de la grille (lot 6a) ; sur téléphone, dans la carte Morceau dépliée.
+        if (await p.locator('#rangee-reglages [data-rr-transposer="1"]').isVisible()) { await p.click('#rangee-reglages [data-rr-transposer="1"]'); return; }
         if (!(await p.locator('#transpose-song-up').isVisible())) { await p.click('#song-summary'); await p.waitForTimeout(150); }
         await p.click('#transpose-song-up');
     };

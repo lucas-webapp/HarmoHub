@@ -41,7 +41,12 @@ const ouvrirPar = async (p, selecteur) => {
 
 const SURFACES = [
     { nom: 'panneau Accord', ouvrir: async (p) => { await p.evaluate(() => window.app.editChord(0, 0)); } },
-    { nom: 'réglages du morceau', ouvrir: async (p) => { await ouvrirPar(p, '#song-summary'); } },
+    // LOT 6a : sur ordinateur, les réglages du morceau sont la rangée de puces au-dessus de la grille, visible SANS rien déplier — la surface
+    // éprouvée est alors la page, où ces puces doivent répondre au clic. Sur téléphone, la carte Morceau se déplie comme avant (lot 10).
+    { nom: 'réglages du morceau', ouvrir: async (p) => {
+        if (await p.locator('#rr-tonalite').isVisible()) { await p.waitForSelector('#rr-transposer-haut', { state: 'visible', timeout: 5000 }); return; }
+        await ouvrirPar(p, '#song-summary');
+    } },
     { nom: 'Paramètres', ouvrir: async (p) => { await ouvrirPar(p, '#open-settings'); } },
     { nom: 'édition manuelle guitare', ouvrir: async (p) => {
         if (!(await p.evaluate(() => document.getElementById('toggle-viz-guitar')?.getAttribute('aria-pressed') === 'true'))) await ouvrirPar(p, '#toggle-viz-guitar');

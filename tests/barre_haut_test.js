@@ -274,11 +274,12 @@ const graine = ({ src, noms, courant }) => {
     console.log('\n=== F. L\'ancienne carte Morceau : discrète sur ordinateur, intacte pour le téléphone ===');
     const f = await p.evaluate(() => ({
         tete: getComputedStyle(document.querySelector('#song-card > .card-head')).display,
-        resume: document.getElementById('song-summary').getBoundingClientRect().height > 0,
+        resume: document.getElementById('song-summary').getBoundingClientRect().height === 0 && document.getElementById('rangee-reglages').getBoundingClientRect().height > 0,
         ids: ['song-select', 'song-rename', 'song-new', 'song-files', 'song-export', 'song-import', 'song-save', 'song-import-input'].filter(i => !document.getElementById(i)),
     }));
     check(f.tete === 'none', 'l\'en-tête de la carte Morceau (titre, liste, six boutons) est masqué : tout est dans la barre, pas en double');
-    check(f.resume, 'le résumé « tempo · mesure · tonalité » reste (il disparaîtra avec le volet, lot 6)');
+    // LOT 6a : le résumé « tempo · mesure · tonalité » a laissé sa place à la rangée de réglages au-dessus de la grille (le tempo est dans la barre du bas).
+    check(f.resume, 'le résumé « tempo · mesure · tonalité » a laissé sa place à la rangée de réglages au-dessus de la grille (lot 6a)');
     check(f.ids.length === 0, 'aucun ancien élément n\'a disparu du DOM (le téléphone s\'en sert encore)');
     // seuil : sous 1180px, le voyant garde son point et perd son texte
     await p.setViewportSize({ width: 1100, height: 800 }); await p.waitForTimeout(250);

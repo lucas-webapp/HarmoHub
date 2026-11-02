@@ -3542,6 +3542,91 @@ button:active { transform: translateY(1px); }
     background: rgba(255, 90, 80, 0.1);
 }
 
+/* RANGÉE DE RÉGLAGES DU MORCEAU (lot 6a) — des puces « Tonalité C majeur ▾ », à la jauge (32px, 7px), dans l'en-tête de grille. Ordinateur
+   seulement : le téléphone garde sa carte Morceau jusqu'au lot 10. */
+.rangee-reglages { display: none; }
+@media (min-width: 900px) {
+    .rangee-reglages { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+    .rr-puce {
+        flex: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        box-sizing: border-box;
+        height: var(--bouton-h, 32px);
+        min-width: 0;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--rayon-bouton, 7px);
+        background: var(--fond-bouton-sombre, #1c2027);
+        color: var(--text-main);
+        font-size: var(--fs-sm);
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .rr-puce:hover, .rr-puce[aria-expanded="true"] { border-color: var(--btn-neutral-border-hover); background: var(--fond-bouton-sombre-survol, #262b33); }
+    .rr-puce:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--btn-blue-border-hover); }
+    .rr-nom { color: var(--text-muted); font-weight: 500; }
+    .rr-val { font-weight: 700; }
+    .rr-chevron { width: 12px; height: 12px; color: var(--text-muted); }
+    /* Transposer : le mot, puis deux vrais boutons à la jauge (32px, 7px) — pas un groupe segmenté à boutons de 26px, que la jauge refuse
+       (gabarit_boutons_test) et qui n'a pas lieu d'être : ce ne sont pas deux choix exclusifs, ce sont deux gestes. */
+    .rr-seg { flex: none; display: inline-flex; align-items: center; gap: 4px; }
+    .rr-cap { padding: 0 4px 0 6px; color: var(--text-muted); font-size: var(--fs-sm); font-weight: 500; white-space: nowrap; }
+    .rr-seg button {
+        flex: none;
+        box-sizing: border-box;
+        width: var(--bouton-h, 32px);
+        min-width: 0;
+        height: var(--bouton-h, 32px);
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--border);
+        border-radius: var(--rayon-bouton, 7px);
+        background: var(--fond-bouton-sombre, #1c2027);
+        color: var(--text-main);
+        cursor: pointer;
+    }
+    .rr-seg button .icon { width: 15px; height: 15px; }
+    .rr-seg button:hover { border-color: var(--btn-neutral-border-hover); background: var(--fond-bouton-sombre-survol, #262b33); }
+    .rr-seg button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--btn-blue-border-hover); }
+
+    /* Le choix ouvert : le menu du morceau (.tb-menu), en position fixe sous sa puce. */
+    .tb-menu.rr-pop { position: fixed; top: 0; left: 0; width: 240px; z-index: 90; }
+    .tb-menu.rr-pop[data-puce="tonalite"] { width: 360px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .tb-menu.rr-pop[data-puce="swing"] { width: 320px; }
+    .rr-lbl { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+    .rr-grille { display: grid; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: var(--rayon-bouton, 7px); background: #14171c; }
+    .rr-g6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .rr-g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .rr-grille button {
+        min-width: 0;
+        height: 28px;
+        padding: 0 4px;
+        border: 0;
+        border-radius: 5px;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: var(--fs-sm);
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .rr-grille button:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.05); }
+    /* Choisi : le vert « état allumé » des segments de voicing, en liseré — jamais un aplat vif (gabarit, règle 3). */
+    .rr-grille button[aria-pressed="true"] { background: rgba(255, 255, 255, 0.08); color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+    .rr-grille button:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--btn-blue-border-hover); }
+    .rr-aide { margin: 0; font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.45; }
+    .rr-option { height: auto; min-height: 32px; padding-top: 6px; padding-bottom: 6px; align-items: flex-start; }
+    .rr-option-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+    .rr-option-desc { font-size: var(--fs-xs); font-weight: 500; color: var(--text-muted); white-space: normal; }
+    /* Le titre « Grille d'accords » : l'onglet Grille le dit déjà (lot 4), et la maquette n'en a pas — sa place va aux puces. */
+    .grid-head-sticky > h2 { display: none; }
+    /* La carte Morceau du bandeau de gauche : ses réglages sont dans la rangée ci-dessus (et son titre dans la barre du haut, lot 3). */
+    #song-card { display: none; }
+}
+
 /* EN-TÊTE DE PARTIE (lot 5c) — « nom et N mesures sur la même ligne de base, ×N si répétée, menu ⋯ ». Le nom, le nombre de mesures et le ×N
    vivent dans .psh-nom, aligné sur la LIGNE DE BASE (un champ, un texte plus petit et une étiquette n'ont pas la même hauteur : centrés, leurs
    lettres ne tombaient pas sur la même ligne). */

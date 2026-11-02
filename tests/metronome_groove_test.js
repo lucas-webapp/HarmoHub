@@ -27,7 +27,10 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     await page.click('#quick-add-btn').catch(() => {});
     await page.waitForTimeout(150);
 
-    await deplieReglages();
+    // LOT 6a : sur ordinateur, la carte Morceau n'est plus affichée — le swing (« groove ») se choisit à la puce au-dessus de la grille, le
+    // métronome est dans la barre du bas, et son clic de contretemps dans la fenêtre du tempo. Sur un écran étroit, tout reste dans la carte.
+    const bureau = await page.locator('#rr-swing').isVisible();
+    if (!bureau) await deplieReglages();
     await page.waitForTimeout(150);
 
     await page.evaluate(() => {
@@ -38,18 +41,27 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     });
     await page.waitForTimeout(100);
 
-    await page.selectOption('#groove', 'shuffle').catch(async () => {
-        await page.evaluate(() => { document.getElementById('groove').value = 'shuffle'; document.getElementById('groove').dispatchEvent(new Event('change')); });
-    });
+    if (bureau) {
+        await page.click('#rr-swing');
+        await page.waitForTimeout(150);
+        await page.click('#rr-pop [data-rr-valeur="shuffle"]');
+    } else {
+        await page.selectOption('#groove', 'shuffle');
+    }
     await page.waitForTimeout(100);
+    check(await page.evaluate(() => document.getElementById('groove').value) === 'shuffle', 'le swing « Shuffle léger » est réglé par le vrai geste');
 
     // Active métronome pendant la lecture + clic faible sur le contretemps.
-    const metroActive = await page.evaluate(() => document.getElementById('toggle-metronome').classList.contains('active'));
-    if (!metroActive) await page.click('#toggle-metronome');
+    if (!(await page.evaluate(() => window.app.metronomeDuringPlayback))) await page.click(bureau ? '#bl-metro' : '#toggle-metronome');
     await page.waitForTimeout(100);
     const subActive = await page.evaluate(() => document.getElementById('toggle-metronome-subdivision').classList.contains('active'));
-    if (!subActive) await page.click('#toggle-metronome-subdivision');
+    if (!subActive) {
+        if (bureau) { await page.click('#bl-tempo'); await page.waitForTimeout(200); }
+        await page.click('#toggle-metronome-subdivision');
+        if (bureau) { await page.keyboard.press('Escape'); }
+    }
     await page.waitForTimeout(100);
+    check(await page.evaluate(() => window.app.metronomeDuringPlayback && window.app.metronomeSubdivision), 'métronome et contretemps allumés par leurs vrais boutons');
 
     // Désactive le décompte pour ne pas polluer le journal capturé.
     await page.click('#open-settings').catch(() => {});

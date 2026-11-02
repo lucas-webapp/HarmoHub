@@ -11,6 +11,18 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     page.on('console', (msg) => { if (msg.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID|ERR_NAME_NOT_RESOLVED|fonts\.googleapis|fonts\.gstatic/.test(msg.text())) errors.push('console.error: ' + msg.text()); });
     await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
     await page.waitForTimeout(200);
+    // LOT 6a : sur ordinateur, la suggestion de tonalité s'ouvre depuis la puce « Tonalité » au-dessus de la grille ; ailleurs, depuis les
+    // réglages du morceau dépliés, comme avant.
+    const ouvrirSuggestion = async () => {
+        if (await page.locator('#rr-tonalite').isVisible()) {
+            await page.click('#rr-tonalite');
+            await page.waitForTimeout(150);
+            await page.click('#rr-pop .rr-suggerer');
+            return;
+        }
+        await deplieReglages();
+        await page.click('#key-suggest-btn');
+    };
     const deplieReglages = async () => {
         if (await page.evaluate(() => document.getElementById('song-settings').hidden)) {
             await page.click('#song-summary');
@@ -59,8 +71,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     console.log('--- UI: clicking a suggestion applies it to global-root/global-mode ---');
     // Le bouton vivait dans l'onglet Config ; il vit maintenant dans les réglages du morceau, un
     // bloc dépliable et autonome (l'onglet a disparu, voir plus haut).
-    await deplieReglages();
-    await page.click('#key-suggest-btn');
+    await ouvrirSuggestion();
     await page.waitForTimeout(100);
     r = await page.evaluate(() => document.getElementById('key-suggest-menu').hidden);
     console.log('menu hidden?', r);
@@ -78,8 +89,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.waitForTimeout(200);
     // Le bouton vivait dans l'onglet Config ; il vit maintenant dans les réglages du morceau, un
     // bloc dépliable et autonome (l'onglet a disparu, voir plus haut).
-    await deplieReglages();
-    await page.click('#key-suggest-btn');
+    await ouvrirSuggestion();
     await page.waitForTimeout(100);
     r = await page.evaluate(() => document.getElementById('key-suggest-menu').hidden);
     console.log('menu stayed hidden (hint shown instead)?', r);

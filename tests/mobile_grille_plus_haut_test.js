@@ -158,12 +158,15 @@ const mesurer = () => {
     await bureau.evaluate(seed, 'Ballade en Do mineur');
     await bureau.reload({ waitUntil: 'load' });
     await bureau.waitForTimeout(600);
-    const b = await bureau.evaluate(() => ['.history-section h2'].map(q => {
+    // LOT 6a : sur ordinateur, le titre « Grille d'accords » a laissé sa place à la rangée de réglages (l'onglet Grille de la barre du haut nomme
+    // déjà la vue, et la maquette n'a pas ce titre). Ce que ce banc garde : la grille reste identifiée et ses commandes visibles sur grand écran —
+    // l'onglet Grille, actif, et la rangée de réglages au-dessus d'elle.
+    const b = await bureau.evaluate(() => ['#tab-grille', '#rangee-reglages'].map(q => {
         const e = document.querySelector(q);
         const r = e.getBoundingClientRect();
-        return { q, texte: (e.textContent || '').trim(), l: Math.round(r.width), h: Math.round(r.height) };
+        return { q, texte: (e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40), l: Math.round(r.width), h: Math.round(r.height) };
     }));
-    for (const t of b) check(t.l > 20 && t.h > 8, `ordinateur : le titre « ${t.texte} » reste bien visible — ${t.l}x${t.h}px`);
+    for (const t of b) check(t.l > 20 && t.h > 8, `ordinateur : « ${t.texte} » (${t.q}) reste bien visible — ${t.l}x${t.h}px`);
 
     check(erreurs.length === 0, `aucune erreur JavaScript — ${erreurs.join(' | ') || 'aucune'}`);
     await browser.close();

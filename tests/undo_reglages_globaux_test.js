@@ -42,29 +42,31 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
     });
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(500);
-    await page.click('#song-summary'); // déplie le bloc tempo/mesure/tonalité (masqué par défaut)
-    await page.waitForTimeout(300);
-
-    console.log('=== A. Glissé RÉEL de souris sur le tempo, PUIS Ctrl+Z RÉEL au clavier ===');
-    const bpmBox = await page.locator('#bpm').boundingBox();
-    await page.mouse.move(bpmBox.x + bpmBox.width * 0.2, bpmBox.y + bpmBox.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(bpmBox.x + bpmBox.width * 0.9, bpmBox.y + bpmBox.height / 2, { steps: 10 });
-    await page.mouse.up();
+    // LOT 6a : sur ordinateur, ces réglages ne se déplient plus dans le volet. Le tempo se règle dans la barre du bas (lot 2), la mesure, le swing
+    // (« groove ») et la tonalité par les puces au-dessus de la grille. Ce banc garde ce qu'il éprouve — un VRAI geste puis un VRAI Ctrl+Z —
+    // avec les gestes d'aujourd'hui.
+    console.log('=== A. Tempo réglé dans la barre du bas, PUIS Ctrl+Z RÉEL au clavier ===');
+    await page.click('#bl-tempo');
+    await page.waitForTimeout(200);
+    await page.click('#bl-tempo-plus');
     await page.waitForTimeout(150);
     const bpmAfterDrag = await page.$eval('#bpm', el => el.value);
-    check(bpmAfterDrag !== '120', `le glissé a bien changé le tempo — ${bpmAfterDrag}`);
+    check(bpmAfterDrag !== '120', `le geste a bien changé le tempo — ${bpmAfterDrag}`);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
     await page.keyboard.press('Control+z');
     await page.waitForTimeout(150);
     const bpmAfterUndo = await page.$eval('#bpm', el => el.value);
-    check(bpmAfterUndo === '120', `Ctrl+Z restaure le tempo d'avant le glissé — ${bpmAfterUndo}`);
-    const bpmValAfterUndo = await page.$eval('#bpm-val', el => el.value);
-    check(bpmValAfterUndo === '120', `le champ numérique du tempo suit la restauration — ${bpmValAfterUndo}`);
+    check(bpmAfterUndo === '120', `Ctrl+Z restaure le tempo d'avant — ${bpmAfterUndo}`);
+    const bpmValAfterUndo = await page.$eval('#bl-tempo-val', el => el.textContent.trim());
+    check(bpmValAfterUndo === '120', `l'affichage du tempo (barre du bas) suit la restauration — ${bpmValAfterUndo}`);
 
-    console.log('\n=== B. Sélection RÉELLE (flèches clavier) sur la mesure, PUIS Ctrl+Z RÉEL ===');
-    await page.locator('#time-sig').focus();
+    console.log('\n=== B. Mesure choisie à la puce (flèches clavier), PUIS Ctrl+Z RÉEL ===');
+    await page.click('#rr-mesure');
+    await page.waitForTimeout(150);
     await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(100);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(150);
     const sigAfter = await page.$eval('#time-sig', el => el.value);
     check(sigAfter !== '4/4', `la mesure a bien changé — ${sigAfter}`);
     await page.keyboard.press('Control+z');
@@ -72,25 +74,25 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
     const sigAfterUndo = await page.$eval('#time-sig', el => el.value);
     check(sigAfterUndo === '4/4', `Ctrl+Z restaure la mesure d'avant — ${sigAfterUndo}`);
 
-    console.log('\n=== C. Groove et mode : deux changements distincts = deux annulations distinctes ===');
-    // .focus() explicite avant chaque selectOption() : page.selectOption() seul ne garantit pas que
-    // l'élément visé devienne document.activeElement (constaté en déboguant) — sans focus réel, l'arme
-    // (armGlobalSettingUndo, posée sur 'pointerdown'/'focus') ne se déclenche jamais.
-    await page.locator('#groove').focus();
-    await page.selectOption('#groove', 'shuffle');
+    console.log('\n=== C. Swing et mode : deux changements distincts = deux annulations distinctes ===');
+    await page.click('#rr-swing');
+    await page.waitForTimeout(150);
+    await page.click('#rr-pop [data-rr-valeur="shuffle"]');
     await page.waitForTimeout(100);
-    await page.locator('#global-mode').focus();
-    await page.selectOption('#global-mode', 'min');
+    await page.click('#rr-tonalite');
+    await page.waitForTimeout(150);
+    await page.click('#rr-pop [data-rr-action="mode"][data-rr-valeur="min"]');
     await page.waitForTimeout(100);
+    await page.keyboard.press('Escape');
     await page.evaluate(() => window.app.globalUndo()); // annule le MODE seulement
     await page.waitForTimeout(150);
     const apres1 = { mode: await page.$eval('#global-mode', el => el.value), groove: await page.$eval('#groove', el => el.value) };
     check(apres1.mode === 'maj' && apres1.groove === 'shuffle',
-        `1er Ctrl+Z : le mode revient seul, le groove reste changé — ${JSON.stringify(apres1)}`);
-    await page.evaluate(() => window.app.globalUndo()); // annule le GROOVE
+        `1er Ctrl+Z : le mode revient seul, le swing reste changé — ${JSON.stringify(apres1)}`);
+    await page.evaluate(() => window.app.globalUndo()); // annule le SWING
     await page.waitForTimeout(150);
     const apres2 = await page.$eval('#groove', el => el.value);
-    check(apres2 === 'straight', `2e Ctrl+Z : le groove revient aussi — ${apres2}`);
+    check(apres2 === 'straight', `2e Ctrl+Z : le swing revient aussi — ${apres2}`);
 
     console.log('\n=== D. Renommer EN PLACE (bouton crayon), PUIS Ctrl+Z SANS ouvrir la fenêtre Fichiers ===');
     const nameBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('harmohubSongs'))[0].name);

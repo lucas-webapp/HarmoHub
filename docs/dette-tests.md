@@ -4853,3 +4853,41 @@ cliquer », `case_plus_test`) : gardée, et ce lot tient qu'elle ne dépasse jam
 le banc n'étirait jamais un accord coupé ; le cas a été ajouté.
 
 **Balayage du lot 5d (02/11) : 218 verts, 5 rouges, 7 sans verdict (230 suites)** — exactement la ligne de base, plus la nouvelle suite ; aucun nouveau rouge.
+
+## Refonte de l'interface — lot 6a : la rangée de réglages du morceau (2026-11-02)
+
+Le lot 6 (« bulle + inspecteur, suppression du bandeau de gauche et de la carte Accord ») est livré en trois sous-lots : **6a** la rangée de réglages
+(celui-ci), **6b** la bulle « quel accord » au clic, **6c** l'inspecteur « son de l'accord » et la fin du bandeau de gauche.
+
+**La rangée.** Au-dessus de la grille, des puces à la jauge : « Tonalité C majeur ▾ », « Mesure 4/4 ▾ », « Swing Droit ▾ », « Son Piano ▾ », puis
+« Transposer » et ses deux flèches d'origine. Elles remplacent, sur ordinateur, la carte Morceau du bandeau de gauche (son titre et ses boutons étaient
+déjà dans la barre du haut, lot 3 ; le tempo dans la barre du bas, lot 2). Le titre « Grille d'accords » disparaît aussi : l'onglet Grille le dit.
+- **Une seule source.** Chaque puce règle la vraie liste du morceau (#global-root, #time-sig, #groove, #instrument) et déclenche son « change » : tout ce
+  qui y était branché (morceau modifié, Ctrl+Z, lecture relancée en direct, versions) reste vrai sans être recopié.
+- **Tonalité ≠ Transposer** (docs/refonte.md) : la puce Tonalité ouvre un petit panneau — douze toniques en notation internationale (E♭, F♯), sept modes,
+  « Suggérer d'après les accords », et la phrase « Change seulement la lecture des degrés : les accords ne bougent pas. Pour déplacer les accords, utilise
+  Transposer. » Transposer, lui, déplace tous les accords (version gardée avant, lot 3b).
+- **Groove → Swing** : Droit / Shuffle léger / Ternaire, chacun expliqué en une ligne.
+- **Le contretemps du métronome**, seul réglage de la carte Morceau que la barre du bas n'avait pas, passe dans la fenêtre du tempo (même bouton, déplacé).
+- **Téléphone : inchangé** jusqu'au lot 10 (carte Morceau, contretemps compris).
+
+**Défauts trouvés en route.** (1) **Existait avant ce lot** : après un Ctrl+Z sur la mesure, le swing ou le tempo, la ligne de résumé de la carte Morceau
+et le tempo de la barre du bas gardaient l'ancienne valeur — seule la tonalité rafraîchissait l'affichage. `restoreHistorySettings` rafraîchit désormais
+tout ce qui résume ces réglages. (2) L'annulation de ces réglages prend son instantané AU FOCUS de la liste : une puce, qui ne lui donne jamais le focus,
+arme elle-même l'annulation (sauf pour le son, qui n'est pas un réglage annulable : un instantané resté armé aurait été validé à tort par le réglage
+suivant). (3) Trouvé par `popups_close_test` : avec la suggestion de tonalité ouverte par-dessus la puce, Échap fermait la puce et laissait la
+suggestion flotter seule — Échap ferme désormais d'abord ce qui est devant.
+
+**Bancs.** Nouveau `rangee_reglages_test` (41). **Réécrits pour le nouveau geste** (la carte Morceau ne se déplie plus sur ordinateur) : `barre_haut`,
+`aspect_boutons_volet` (la référence sombre porte le bouton de durée ; le résumé n'est plus dans le volet), `instrument_du_morceau` et
+`probe_instrument_pendant_edition` (puce Son), `historique_versions` (Transposer de la rangée), `filet_toujours_visible` (la tonalité = la puce, le
+tempo = la barre du bas), `undo_reglages_globaux` (tempo dans la barre du bas, mesure / swing / mode aux puces, chacun avec un VRAI Ctrl+Z),
+`config_improvements` et `popups_close` (suggestion depuis la puce ; la table des menus éprouve aussi le choix d'une puce), `metronome_groove`
+(swing à la puce, métronome et contretemps dans la barre du bas), `tap_removal` (TAP de la barre du bas), `sentinelle_atteignabilite` (les puces ont des
+identifiants, et la surface « réglages du morceau » est la page elle-même sur ordinateur). `popover_morceau_dense`, `reglages_morceau_popover` et
+`song_panel` éprouvaient la mise en page de la carte Morceau elle-même : ils se jouent désormais juste sous le seuil (860px), là où elle vit encore.
+**Sabotages : 12, tous rouges** (dont un éprouvé par `popups_close_test`).
+**Premier balayage du lot 6a : 216 verts, 8 rouges** — trois rouges NOUVEAUX, tous du lot lui-même : `sentinelle_adresses` et `meta_suite` ne trouvaient pas
+les adresses `#rr-*` dans la page (les puces étaient fabriquées par le script) — elles sont désormais écrites dans index.html, le script ne fait que les
+câbler ; `meta_suite` a aussi relevé une vérification sous condition dans le nouveau banc (rendue inconditionnelle) ; `mobile_grille_plus_haut` exigeait le
+titre « Grille d'accords » sur ordinateur — il éprouve désormais que la grille reste identifiée par l'onglet Grille et que la rangée est visible.
