@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611041700">
+    <link rel="stylesheet" href="style.css?v=202611041900">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611041700">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611041900">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -108,7 +108,28 @@
     <!-- LA BULLE « QUEL ACCORD » (refonte, lot 6b) : un clic sur une case l'ouvre — fondamentale, type, basse, durée, ‹ › vers le voisin. Une seule,
          remplie à l'ouverture (voir ouvrirBulleAccord). Ordinateur seulement : le téléphone garde ses gestes jusqu'au lot 10. -->
     <div id="bulle-accord" class="tb-menu bulle-accord" role="dialog" aria-label="Quel accord" hidden></div>
+    <!-- LA BARRE DE SÉLECTION (refonte, lot 7b) : « Ctrl/Maj+clic = multiple (barre de sélection : copier, dupliquer, transposer, boucler, supprimer) ».
+         Ces gestes groupés existaient déjà en partie (Ctrl+C, Suppr) mais ne se voyaient nulle part : la barre les montre dès que deux accords sont pris.
+         Ordinateur seulement (le téléphone attend le lot 10). -->
+    <div id="barre-selection" class="tb-menu barre-selection" role="toolbar" aria-label="Sélection" hidden>
+        <span id="bs-compte" class="bs-compte"></span>
+        <button type="button" id="bs-copier" class="bs-btn" data-bs="copier" title="Copier ces accords (Ctrl+C) — Ctrl+V les colle derrière l'accord cliqué">Copier</button>
+        <button type="button" id="bs-dupliquer" class="bs-btn" data-bs="dupliquer" title="Recopier ces accords juste après eux">Dupliquer</button>
+        <div class="rr-seg" role="group" aria-label="Transposer la sélection"><span class="rr-cap">Transposer</span>
+            <button type="button" id="bs-transposer-bas" data-bs="bas" title="Ces accords, un demi-ton plus bas" aria-label="Un demi-ton plus bas">−</button>
+            <button type="button" id="bs-transposer-haut" data-bs="haut" title="Ces accords, un demi-ton plus haut" aria-label="Un demi-ton plus haut">+</button>
+        </div>
+        <button type="button" id="bs-boucler" class="bs-btn" data-bs="boucler" aria-pressed="false" title="Boucler la lecture sur ces accords">Boucler</button>
+        <button type="button" id="bs-supprimer" class="bs-btn bs-danger" data-bs="supprimer" title="Supprimer ces accords (Suppr)">Supprimer</button>
+        <button type="button" id="bs-fermer" class="bs-btn bs-icone" data-bs="fermer" title="Tout désélectionner (Échap)" aria-label="Tout désélectionner"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
     <div id="context-menu" class="context-menu" hidden>
+        <!-- Clic droit sur une case, ordinateur (lot 7b) : « clic droit = copier, coller, pipettes, insérer, dupliquer, supprimer ». Copier / Coller sont ceux de
+             Ctrl+C / Ctrl+V (une NOUVELLE case), d'où la touche affichée — à ne pas confondre avec les pipettes plus bas, qui retouchent une case existante. -->
+        <button type="button" data-ctx-action="copy-chord" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg><span class="ctx-label">Copier</span><span class="ctx-touche">Ctrl+C</span></button>
+        <button type="button" data-ctx-action="paste-after" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9z"/></svg><span class="ctx-label">Coller après</span><span class="ctx-touche">Ctrl+V</span></button>
+        <button type="button" data-ctx-action="insert-before" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="ctx-label">Insérer avant…</span></button>
+        <button type="button" data-ctx-action="insert-after" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="ctx-label">Insérer après…</span></button>
         <button type="button" data-ctx-action="rename">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
             <span class="ctx-label">Renommer</span>
@@ -1868,11 +1889,11 @@
     <script src="fichiers.js?v=202610030500"></script>
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
-    <script src="historique.js?v=202611041700"></script>
-    <script src="script.js?v=202611041700"></script>
+    <script src="historique.js?v=202611041900"></script>
+    <script src="script.js?v=202611041900"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611041700"></script>
+    <script src="synchro-harmohub.js?v=202611041900"></script>
 </body>
 </html>

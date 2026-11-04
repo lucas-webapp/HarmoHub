@@ -4980,3 +4980,29 @@ sort de la modification : c'est une sortie LÉGITIME, comme `quick-add-btn` et `
 qu'il affiche, pour un bouton sans id).
 
 **Balayage du lot 7a (04/11) : 222 verts, 5 rouges, 7 sans verdict (234 suites)** — exactement la ligne de base, plus la nouvelle suite.
+
+## Refonte de l'interface — lot 7b : la barre de sélection, le clic droit, Tab (2026-11-04)
+
+Cahier des charges : « Ctrl/Maj+clic = multiple (barre de sélection : copier, dupliquer, transposer, boucler, supprimer) ; double-clic = retaper le nom
+(Tab = case suivante) ; clic droit = copier, coller, pipettes, insérer, dupliquer, supprimer ».
+
+**La barre de sélection (ordinateur).** Ctrl+clic ajoute ou retire un accord du groupe ; Maj+clic prend toute la PLAGE depuis l'accord déjà choisi. Dès
+deux accords, la bulle (qui ne parle que d'UN accord) s'efface et la barre apparaît en bas de la grille, centrée sur elle, juste au-dessus de la barre de
+lecture : « N accords sélectionnés », Copier, Dupliquer, Transposer −/+, Boucler, Supprimer, ×. Aucun geste nouveau : Copier et Supprimer sont ceux de
+Ctrl+C et Suppr ; Boucler pose la plage de la règle sur le groupe (un second appui la retire) ; Transposer et Dupliquer agissent sur ce groupe seul, d'UN
+Ctrl+Z chacun. Cliquer dans la barre ne perd pas l'accord d'ancrage (Maj+clic et collage repartent de lui) ; × et Échap relâchent tout. Le message passager
+(« accords dupliqués ») monte au-dessus de la barre au lieu de la couvrir.
+
+**Clic droit.** Copier (le groupe entier si la case en fait partie), Coller après (seulement s'il y a quelque chose à coller), Insérer avant… et Insérer
+après… — qui ouvrent le panneau d'ajout du lot 7a, destination déjà visée. Les pipettes, Dupliquer et Supprimer restent.
+
+**Tab dans la retape du nom.** Tab valide la case et passe à la suivante (Maj+Tab : la précédente), d'une partie à l'autre : on retape une grille entière au
+clavier. Au bout du morceau, rien ne se passe de plus.
+
+**Téléphone : inchangé** (lot 10) — ni barre ni nouvelles lignes au menu.
+
+**Bancs.** Nouveau `barre_selection_test` (49). **Sabotages : 9, tous rouges** (Maj+clic, transposer tout, barre jamais rafraîchie, Tab, insérer avant/après
+confondus, clic dans la barre qui perd l'ancre, message sur la barre, barre au téléphone, dupliquer sans annulation). Le premier passage a montré deux défauts
+réels, corrigés : cliquer dans la barre perdait l'accord d'ancrage, et le message passager couvrait la barre.
+
+**Balayage du lot 7b (04/11) : 223 verts, 5 rouges, 7 sans verdict (235 suites)** — exactement la ligne de base, plus la nouvelle suite.

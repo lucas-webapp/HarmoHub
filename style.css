@@ -7463,3 +7463,39 @@ body.impression-structure #structure-print-zone { display: block; }
     }
     .ajout-7e[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 }
+
+/* ===== Refonte, lot 7b : la barre de sélection, et les touches du clic droit ===== */
+.barre-selection[hidden] { display: none !important; }
+@media (min-width: 900px) {
+    /* Le verre des menus (.tb-menu), liseré bleu de la sélection (la maquette) ; en position fixe, posée par placerBarreSelection. */
+    .tb-menu.barre-selection { position: fixed; top: 0; left: 0; z-index: 70; padding: 6px; display: flex; align-items: center; gap: 8px; width: auto; border-color: #33507c; }
+    .bs-compte { padding: 0 6px 0 8px; font-size: var(--fs-sm); font-weight: 700; color: #cfe0ff; white-space: nowrap; }
+    .bs-btn {
+        flex: none;
+        box-sizing: border-box;
+        height: var(--bouton-h, 32px);
+        min-width: 0;
+        padding: 0 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--border);
+        border-radius: var(--rayon-bouton, 7px);
+        background: var(--fond-bouton-sombre, #1c2027);
+        color: var(--text-main);
+        font-size: var(--fs-sm);
+        font-weight: 600;
+        white-space: nowrap;
+        cursor: pointer;
+    }
+    .bs-btn:hover { border-color: var(--btn-neutral-border-hover); background: var(--fond-bouton-sombre-survol, #262b33); }
+    .bs-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--btn-blue-border-hover); }
+    .bs-btn[aria-pressed="true"] { color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+    .bs-danger { color: #ff9a8f; }
+    .bs-danger:hover { background: rgba(255, 90, 80, 0.12); border-color: rgba(255, 120, 110, 0.5); }
+    .bs-icone { width: var(--bouton-h, 32px); padding: 0; }
+    .bs-icone .icon { width: 15px; height: 15px; }
+}
+.context-menu .ctx-touche { margin-left: auto; padding-left: 16px; font-size: var(--fs-2xs); color: var(--text-muted); }
+/* Le message passager se posait SUR la barre de sélection (même place, en bas au centre) : il monte au-dessus d'elle tant qu'elle est là. */
+body.avec-barre-selection .toast { bottom: 132px; }

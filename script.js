@@ -4589,6 +4589,35 @@ class HarmoHubApp {
             else if (t.type === 'folder') this.startInlineRenameFolder(t.name);
             else if (t.type === 'chord') this.editChord(t.section, t.index);
         };
+        // Clic droit, ordinateur (lot 7b). Copier : la case visée — ou tout le groupe si elle en fait partie, comme Ctrl+C.
+        document.querySelector('[data-ctx-action="copy-chord"]').onclick = () => {
+            const t = this.contextMenuTarget;
+            this.closeContextMenu();
+            if (!t || t.type !== 'chord') return;
+            const dansLeGroupe = t.section === this.activeSection && this.multiSelect.size >= 2 && this.multiSelect.has(t.index);
+            if (!dansLeGroupe) { this.activeSection = t.section; this.multiSelect = new Set(); this.selectedIndex = t.index; }
+            this.copySelected();
+        };
+        document.querySelector('[data-ctx-action="paste-after"]').onclick = () => {
+            const t = this.contextMenuTarget;
+            this.closeContextMenu();
+            if (!t || t.type !== 'chord') return;
+            this.activeSection = t.section; this.multiSelect = new Set(); this.selectedIndex = t.index;
+            this.pasteChord();
+        };
+        // Insérer : le panneau d'ajout du lot 7a, sa destination déjà posée — il dit où, propose la tonalité et les suites.
+        document.querySelector('[data-ctx-action="insert-before"]').onclick = () => {
+            const t = this.contextMenuTarget;
+            this.closeContextMenu();
+            if (t && t.type === 'chord') this.ouvrirAideAjout(t.section, t.index);
+        };
+        document.querySelector('[data-ctx-action="insert-after"]').onclick = () => {
+            const t = this.contextMenuTarget;
+            this.closeContextMenu();
+            if (!t || t.type !== 'chord') return;
+            const n = (loadProgressionSections()[t.section] || { chords: [] }).chords.length;
+            this.ouvrirAideAjout(t.section, t.index + 1 >= n ? null : t.index + 1);
+        };
         document.querySelector('[data-ctx-action="duplicate"]').onclick = () => {
             const t = this.contextMenuTarget;
             this.closeContextMenu();
@@ -4804,7 +4833,8 @@ class HarmoHubApp {
             // « dans la grille » et ne désélectionnait/ne sortait jamais de l'édition — retour
             // utilisateur, voir ZONE_EDITION_SELECTEURS plus haut, même correctif.
             const inGrid = inPath('.grid-cell, .cell-add, .section-head');
-            const inMenu = inPath('#context-menu');
+            // Lot 7b : la barre de sélection agit SUR la sélection — un clic dedans ne la perd pas (l'accord d'ancrage sert au Maj+clic et au collage).
+            const inMenu = inPath('#context-menu, #barre-selection');
             // .seq-zoom-modal inclus : le séquenceur (déplacé dans la loupe séquenceur,
             // ou dans sa propre vue agrandie, voir openSeqZoom) et ses boutons (Enregistrer/Annuler/
             // replier, poignée de redimensionnement...) y vivent, hors de .chord-grid ET de .col-left —
@@ -8221,6 +8251,7 @@ class HarmoHubApp {
         this.fitCellSymbols(host);
         this.updatePlayButtonsForLoopRange();
         this.afficherDureeAccord();
+        this.rafraichirBarreSelection();
         if (this._bulle) { this.remplirBulleAccord(); this.placerBulleAccord(); } // la grille vient d'être redessinée : la bulle relit l'accord et se recale
     }
 
@@ -9063,6 +9094,125 @@ class HarmoHubApp {
             + `<p class="rr-aide">Ou tapez dans la saisie ci-dessus (Cm7, C_E, C/Am/F/G…) — Entrée pour une nouvelle ligne, Ctrl+Entrée pour ajouter.</p>`;
     }
 
+    // ---------- La barre de sélection (refonte, lot 7b) ----------
+    // « Ctrl/Maj+clic = multiple (barre de sélection : copier, dupliquer, transposer, boucler, supprimer) ». Elle n'invente aucun geste : chaque bouton
+    // est un geste qui existait (Ctrl+C, Suppr, la plage à boucler de la règle) ou son équivalent pour un groupe ; elle les MONTRE. Toujours au sein de la
+    // partie active, comme la sélection multiple elle-même.
+    indicesSelection() {
+        const sections = loadProgressionSections();
+        const ch = sections[this.activeSection] && sections[this.activeSection].chords;
+        return ch ? [...this.multiSelect].filter(i => ch[i]).sort((a, b) => a - b) : [];
+    }
+
+    selectionnerPlage(section, a, b) {
+        const [lo, hi] = a <= b ? [a, b] : [b, a];
+        this.multiSelect = new Set(Array.from({ length: hi - lo + 1 }, (_, k) => lo + k));
+        this._multiIntensityUndoPushed = false;
+        if (this.multiSelect.size >= 2) this.fermerBulleAccord();
+        this.loadProgression();
+    }
+
+    rafraichirBarreSelection() {
+        const barre = document.getElementById('barre-selection');
+        if (!barre) return;
+        const indices = this.indicesSelection();
+        const montrer = this.bulleDisponible() && indices.length >= 2 && !this.vueOuverte();
+        barre.hidden = !montrer;
+        // Le message passager (« 2 accords dupliqués »…) se pose au même endroit : tant que la barre est là, il monte au-dessus d'elle (voir style.css).
+        document.body.classList.toggle('avec-barre-selection', montrer);
+        if (!montrer) return;
+        document.getElementById('bs-compte').textContent = `${indices.length} accords sélectionnés`;
+        const r = this.loopRange, s = this.activeSection;
+        const boucle = !!r && r.startSection === s && r.endSection === s && r.startIndex === indices[0] && r.endIndex === indices[indices.length - 1];
+        document.getElementById('bs-boucler').setAttribute('aria-pressed', boucle ? 'true' : 'false');
+        this.placerBarreSelection();
+    }
+
+    // Comme la maquette : en bas de la grille, centrée sur elle — juste au-dessus de la barre de lecture, qui ne bouge jamais.
+    placerBarreSelection() {
+        const barre = document.getElementById('barre-selection');
+        if (!barre || barre.hidden) return;
+        const cadre = document.getElementById('grille-cadre') || document.getElementById('progression-sections');
+        const lecture = document.getElementById('barre-lecture');
+        const rc = cadre.getBoundingClientRect();
+        const bas = lecture && lecture.getBoundingClientRect().height > 0 ? lecture.getBoundingClientRect().top : window.innerHeight;
+        const l = barre.offsetWidth;
+        const centre = Math.max(8 + l / 2, Math.min(window.innerWidth - 8 - l / 2, rc.left + rc.width / 2));
+        barre.style.left = `${Math.round(centre - l / 2)}px`;
+        barre.style.top = `${Math.round(bas - 14 - barre.offsetHeight)}px`;
+    }
+
+    // Toutes ces actions s'annulent d'UN Ctrl+Z chacune (« Modification directe, Ctrl+Z comme filet »).
+    actionBarreSelection(action) {
+        const indices = this.indicesSelection();
+        if (indices.length === 0) return;
+        const s = this.activeSection;
+        if (action === 'copier') { this.copySelected(); return; }       // même geste que Ctrl+C (qui relâche la sélection, voir copySelected)
+        if (action === 'supprimer') { this.removeSelectedChords(); return; } // même geste que Suppr
+        if (action === 'fermer') { this.multiSelect = new Set(); this.selectedIndex = null; this.loadProgression(); return; } // « Tout désélectionner » : l'ancre aussi
+        if (action === 'boucler') {
+            const r = this.loopRange;
+            // Déjà bouclée sur exactement ces accords : le second appui retire la boucle — comme un clic sur la bande de la règle (voir onLoopRangeEnd).
+            if (r && r.startSection === s && r.endSection === s && r.startIndex === indices[0] && r.endIndex === indices[indices.length - 1]) {
+                this.loopRange = null;
+                this.loadProgression();
+                this.renderSequencer();
+                this.liveRestartForGlobalChange();
+                return;
+            }
+            this.setLoopRange(s, indices[0], s, indices[indices.length - 1]);
+            return;
+        }
+        const sections = loadProgressionSections();
+        const ch = sections[s].chords;
+        if (action === 'dupliquer') {
+            this.pushUndo(sections);
+            // Une plage à boucler repose sur des index d'accords : une insertion la décalerait (même règle que l'ajout au milieu d'une partie, lot 7a).
+            if (this.loopRange) this.loopRange = null;
+            this.duplicateChordsTo(s, indices, indices[indices.length - 1] + 1); // la copie devient la sélection : on peut la retransposer aussitôt
+            this.flashHint(`${indices.length} accords dupliqués`);
+            return;
+        }
+        if (action === 'bas' || action === 'haut') {
+            const pas = action === 'haut' ? 1 : -1;
+            this.pushUndo(sections);
+            indices.forEach(i => { ch[i] = transposeChordData(ch[i], pas); });
+            saveProgressionSections(sections);
+            // L'accord ouvert dans l'inspecteur fait partie du groupe : ses réglages suivent, au lieu de rester sur l'ancien nom.
+            if (this.editingIndex != null && indices.includes(this.editingIndex)) this.editChord(s, this.editingIndex);
+            else this.loadProgression();
+            if (this.isPlaying && this._playMode === 'progression') indices.forEach(i => this.liveUpdateProgressionChord(s, i));
+        }
+    }
+
+    setupBarreSelection() {
+        const barre = document.getElementById('barre-selection');
+        if (!barre) return;
+        barre.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-bs]');
+            if (b) this.actionBarreSelection(b.dataset.bs);
+        });
+        window.addEventListener('resize', () => this.placerBarreSelection());
+    }
+
+    // Double-clic = retaper le nom ; Tab = la case suivante (Maj+Tab : la précédente), d'une partie à l'autre — on retape une grille entière au
+    // clavier, sans reprendre la souris (lot 7b). Au bout du morceau, Tab valide simplement.
+    retaperVoisin(section, index, pas) {
+        const sections = loadProgressionSections();
+        let s = section, i = index + pas;
+        while (sections[s] && (i < 0 || i >= sections[s].chords.length)) {
+            s += pas;
+            if (!sections[s]) return;
+            i = pas > 0 ? 0 : sections[s].chords.length - 1;
+        }
+        if (!sections[s] || !sections[s].chords[i]) return;
+        if (s !== this.activeSection) this.multiSelect = new Set();
+        this.activeSection = s;
+        this.selectedIndex = i;
+        this.loadProgression();
+        this.startInlineChordSymbolEdit(s, i);
+    }
+
     setupAideAjout() {
         const panneau = document.getElementById('ajout-aide');
         if (!panneau) return;
@@ -9650,6 +9800,7 @@ class HarmoHubApp {
         window.addEventListener('resize', () => { if (this._bulle) this.placerBulleAccord(); });
         this.setupBulleAccord();
         this.setupAideAjout();
+        this.setupBarreSelection();
         { const auto = document.getElementById('voicing-perso-auto'); if (auto) auto.addEventListener('click', () => this.revenirVoicingAutomatique()); }
         window.addEventListener('resize', () => { if (this._menuPartie != null) this.placerMenuPartie(); });
         menu.addEventListener('keydown', (e) => {
@@ -13044,6 +13195,12 @@ class HarmoHubApp {
         const isChord = target && target.type === 'chord';
         menu.querySelector('[data-ctx-action="rename"] .ctx-label').textContent = isChord ? 'Modifier' : 'Renommer';
         menu.querySelector('[data-ctx-action="duplicate"]').hidden = !isChord;
+        // Lot 7b : ordinateur seulement (le téléphone garde son menu jusqu'au lot 10). « Coller après » n'apparaît qu'avec quelque chose à coller.
+        const bureau = isChord && this.bulleDisponible();
+        menu.querySelector('[data-ctx-action="copy-chord"]').hidden = !bureau;
+        menu.querySelector('[data-ctx-action="paste-after"]').hidden = !bureau || !(this.clipboard && this.clipboard.length);
+        menu.querySelector('[data-ctx-action="insert-before"]').hidden = !bureau;
+        menu.querySelector('[data-ctx-action="insert-after"]').hidden = !bureau;
         menu.querySelector('[data-ctx-action="octave-up"]').hidden = !isChord;
         menu.querySelector('[data-ctx-action="octave-down"]').hidden = !isChord;
         menu.querySelector('[data-ctx-action="sequencer"]').hidden = !isChord;
@@ -15099,6 +15256,8 @@ class HarmoHubApp {
                 // (voir le seuil dans onGridPointerMove) SUIVI d'un glisser — un tap-glisser immédiat
                 // reste un déplacement, comme avant.
                 copy: e.ctrlKey || e.metaKey,
+                // Maj+clic (lot 7b) : « Ctrl/Maj+clic = multiple » — Maj prend toute la PLAGE depuis l'accord déjà choisi (voir onGridPointerUp).
+                range: e.shiftKey && !(e.ctrlKey || e.metaKey),
                 // Clic pile sur le symbole affiché (voir onGridPointerUp) : un tap sans glisser dessus
                 // ouvre directement l'édition inline de son texte plutôt que de sélectionner/écouter
                 // l'accord — bien plus rapide que passer par le mode édition complet.
@@ -15322,6 +15481,13 @@ class HarmoHubApp {
                 this.toggleGridMultiSelect(d.section, d.index);
                 return;
             }
+            // Maj+clic (lot 7b, ordinateur) : de l'accord déjà choisi jusqu'à celui-ci, dans la même partie (la sélection multiple ne franchit pas une
+            // partie, voir toggleGridMultiSelect). Sans accord choisi avant, c'est un clic ordinaire.
+            if (d.range && this.bulleDisponible() && this.selectedIndex != null && d.section === this.activeSection) {
+                this._lastTap = null;
+                this.selectionnerPlage(d.section, this.selectedIndex, d.index);
+                return;
+            }
             // Un clic normal (sans Ctrl/Cmd) ailleurs referme toujours la sélection multiple en cours,
             // comme dans la plupart des grilles/explorateurs de fichiers.
             this.multiSelect = new Set();
@@ -15526,6 +15692,8 @@ class HarmoHubApp {
             e.stopPropagation();
             if (e.key === 'Enter') { e.preventDefault(); commit(); }
             else if (e.key === 'Escape') { e.preventDefault(); done = true; this.loadProgression(); }
+            // Tab / Maj+Tab : valide CETTE case et passe à la voisine (lot 7b) — sinon le navigateur promènerait le focus sur un bouton quelconque.
+            else if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); commit(); this.retaperVoisin(section, index, e.shiftKey ? -1 : 1); }
         });
     }
 
@@ -20852,6 +21020,8 @@ class HarmoHubApp {
             this.multiSelect.add(index);
         }
         this.selectedIndex = index;
+        // Deux accords et plus : la barre de sélection prend le relais de la bulle, qui ne parle que d'UN accord (lot 7b).
+        if (this.multiSelect.size >= 2) this.fermerBulleAccord();
         // Sélection modifiée : un futur glissé de #intensity sur ce nouveau groupe doit repartir sur son
         // propre instantané Annuler (voir applyIntensityToSelection), pas réutiliser celui d'un groupe
         // précédent déjà refermé.
@@ -21434,6 +21604,7 @@ class HarmoHubApp {
                     return el && !el.hidden;
                 });
                 if (ouvert) { ouvert.close(); return; }
+                if (!typing && this.multiSelect.size >= 2 && this.bulleDisponible() && !this.vueOuverte()) { this.multiSelect = new Set(); this.loadProgression(); return; }
             }
             if (e.key === 'Escape' && !document.getElementById('unsaved-modal').hidden) { if (this._unsavedModalCancel) this._unsavedModalCancel(); return; }
             if (e.key === 'Escape' && !document.getElementById('midi-export-modal').hidden) { if (this._midiExportModalCancel) this._midiExportModalCancel(); return; }
