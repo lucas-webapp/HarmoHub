@@ -17,11 +17,11 @@
 // un peu plus haut dans le fichier, sur le même principe.
 const { chromium } = require('playwright')
 const creerHarnais = require('./_harness');
-const { plan, check, bilan } = creerHarnais('repli du panneau de gauche : la hauteur auto du séquenceur suit');
+const { plan, check, bilan } = creerHarnais('inspecteur ouvert ou fermé (autrefois : repli du panneau) : la hauteur auto du séquenceur suit');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
 (async () => {
-    plan(9);
+    plan(8);
     const browser = await chromium.launch();
     // Format assez étroit pour que les diagrammes/en-têtes puissent réellement se réarranger entre les
     // deux largeurs de .col-right (panneau visible vs masqué) — c'est ce réarrangement qui fait bouger
@@ -40,10 +40,19 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
     });
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(400);
-    await page.evaluate(() => { window.app.editChord(0, 0); window.app.toggleSequencer('continu'); });
+    await page.evaluate(() => { window.app.editChord(0, 0); window.app.toggleSequencer('continu'); }); // l'accord ouvert = l'inspecteur ouvert (lot 6c)
     await page.waitForTimeout(600);
 
-    console.log('=== A. Hauteur AUTOMATIQUE (jamais réglée à la main) : suit le repli du panneau ===');
+    // LOT 6c : le panneau de gauche ne se replie plus — il n'existe plus sur ordinateur. Ce qui change désormais la largeur de .col-right, c'est
+    // l'INSPECTEUR « son de l'accord » (344px à droite de la grille), qui s'ouvre avec un accord et se ferme par sa croix. Le défaut gardé ici est
+    // le même : une colonne qui change de largeur sans que la hauteur automatique du volet séquenceur la suive.
+    const ouvrirInspecteur = async (i) => {
+        await page.click(`#progression-sections .grid-cell[data-index="${i}"]`); await page.waitForTimeout(300);
+        await page.click('#bulle-accord [data-bulle="son"]'); await page.waitForTimeout(500);
+    };
+    const fermerInspecteur = async () => { await page.click('#accord-close'); await page.waitForTimeout(500); };
+
+    console.log('=== A. Hauteur AUTOMATIQUE (jamais réglée à la main) : suit la fermeture de l\'inspecteur ===');
     const avant = await page.evaluate(() => ({
         colRightWidth: document.querySelector('.col-right').getBoundingClientRect().width,
         hostHeight: document.getElementById('seq-dock-host').style.height,
@@ -51,25 +60,22 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
     }));
     check(!avant.seqDockHeight, 'la hauteur n\'a jamais été réglée à la main pour ce test (avant) — comportement automatique visé');
 
-    await page.evaluate(() => document.getElementById('toggle-sidebar').click());
-    await page.waitForTimeout(500);
+    await fermerInspecteur();
     const apres = await page.evaluate(() => ({
         colRightWidth: document.querySelector('.col-right').getBoundingClientRect().width,
         hostHeight: document.getElementById('seq-dock-host').style.height,
+        seqOuvert: window.app.seqOpen,
         // Recalcule ce que la hauteur automatique DEVRAIT valoir MAINTENANT, pour comparer au lieu de
         // deviner un chiffre — la valeur exacte dépend de la mise en page mesurée, pas d'une constante.
         attendu: `${window.app.hauteurVoletSequenceur()}px`,
     }));
+    check(apres.seqOuvert, 'le séquenceur continu reste ouvert quand on ferme l\'inspecteur');
     check(apres.colRightWidth > avant.colRightWidth + 200,
-        `.col-right a bien regagné une largeur substantielle en repliant le panneau — ${avant.colRightWidth.toFixed(0)} -> ${apres.colRightWidth.toFixed(0)}`);
+        `.col-right a bien regagné une largeur substantielle en fermant l'inspecteur — ${avant.colRightWidth.toFixed(0)} -> ${apres.colRightWidth.toFixed(0)}`);
     check(apres.hostHeight === apres.attendu,
-        `la hauteur du volet suit désormais la nouvelle largeur, sans redéclencher de rendu manuel — obtenu ${apres.hostHeight}, attendu ${apres.attendu}`);
-    check(apres.hostHeight !== avant.hostHeight || apres.attendu === avant.hostHeight,
-        `cohérent : si la hauteur recalculée diffère de l'ancienne, le volet a bien changé — avant ${avant.hostHeight}, après ${apres.hostHeight}`);
+        `la hauteur du volet suit la nouvelle largeur — obtenu ${apres.hostHeight}, attendu ${apres.attendu}`);
 
-    console.log('\n=== B. Hauteur RÉGLÉE À LA MAIN (poignée) : jamais écrasée par un repli de panneau ===');
-    await page.evaluate(() => document.getElementById('toggle-sidebar').click()); // ré-affiche le panneau
-    await page.waitForTimeout(400);
+    console.log('\n=== B. Hauteur RÉGLÉE À LA MAIN (poignée) : jamais écrasée par l\'inspecteur ===');
     await page.evaluate(() => {
         window.app.seqDockHeight = 260;
         localStorage.setItem('harmohubSeqDockHeight', '260');
@@ -77,24 +83,23 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
     });
     await page.waitForTimeout(300);
     const manuelAvant = await page.$eval('#seq-dock-host', el => el.style.height);
-    check(manuelAvant === '260px', `la hauteur manuelle est bien appliquée avant le repli — ${manuelAvant}`);
-    await page.evaluate(() => document.getElementById('toggle-sidebar').click());
-    await page.waitForTimeout(500);
+    check(manuelAvant === '260px', `la hauteur manuelle est bien appliquée — ${manuelAvant}`);
+    await ouvrirInspecteur(1);
+    const manuelOuvert = await page.$eval('#seq-dock-host', el => el.style.height);
+    await fermerInspecteur();
     const manuelApres = await page.$eval('#seq-dock-host', el => el.style.height);
-    check(manuelApres === '260px', `...et reste EXACTEMENT la même après le repli — le choix de l'utilisateur prime — ${manuelApres}`);
+    check(manuelOuvert === '260px' && manuelApres === '260px', `...et reste EXACTEMENT la même, inspecteur ouvert puis fermé — le choix de l'utilisateur prime — ${manuelOuvert} / ${manuelApres}`);
 
-    console.log('\n=== C. Non-régression : le pied de colonne reste collé en bas, comme avant ce correctif ===');
-    const dock = await page.evaluate(() => {
-        const el = document.getElementById('footer-dock');
-        const r = el.getBoundingClientRect();
-        // REFONTE, LOT 2 : le « bas » de la colonne n'est plus celui de la fenêtre mais le HAUT de la barre de lecture (60px) — c'est
-        // elle qui porte désormais le bas de l'écran. Le pied de colonne reste collé à ~20px de ce qui le borde.
+    console.log('\n=== C. Non-régression : la colonne de la grille reste collée en bas ===');
+    const bas = await page.evaluate(() => {
+        // REFONTE, LOT 2 : le « bas » est le HAUT de la barre de lecture (60px). Lot 6c : le pied de colonne d'autrefois (#footer-dock) vivait dans le
+        // bandeau de gauche, qui n'est plus sur ordinateur ; c'est la colonne de la grille elle-même qui borde le bas, à ~20px de la barre.
+        const c = document.querySelector('.col-right').getBoundingClientRect();
         const barre = document.getElementById('barre-lecture').getBoundingClientRect();
-        return { bottom: r.bottom, innerHeight: barre.top, parent: el.parentElement.className };
+        return { bottom: c.bottom, haut: barre.top };
     });
-    check(dock.parent === 'col-right', `le pied de colonne est bien déplacé dans .col-right, panneau masqué — ${dock.parent}`);
-    check(Math.abs((dock.innerHeight - dock.bottom) - 20) < 3,
-        `...et reste collé à ~20px de la barre de lecture du bas — écart mesuré ${(dock.innerHeight - dock.bottom).toFixed(0)}px`);
+    check(Math.abs((bas.haut - bas.bottom) - 20) < 3,
+        `la colonne de la grille s'arrête à ~20px de la barre de lecture du bas — écart mesuré ${(bas.haut - bas.bottom).toFixed(0)}px`);
 
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' — ' + errors[0] : ''));
 

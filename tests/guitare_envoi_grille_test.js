@@ -62,7 +62,9 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
     const pianoActif = (page) => page.evaluate(() => [...document.querySelectorAll('#piano-viz .key.active')].map(k => +k.dataset.midi).sort((a, b) => a - b));
 
     // ============ A. BUREAU : ajouter le Dadd11 reconnu à la grille ============
-    const A = await ouvrir({ width: 1100, height: 1000 });
+    // LOT 6c : sur ordinateur, plus de carte Accord à préparer (ni fondamentale ni type hors modification) : les sections qui posent l'accord
+    // EN ATTENTE avant de dessiner se jouent sous le seuil (860px), où la carte garde son mode Ajout jusqu'au lot 10. DETTE : à reprendre au lot 10.
+    const A = await ouvrir({ width: 860, height: 1000 });
     await A.click('#quick-add-btn'); await A.waitForTimeout(200);
     await ouvrirDessin(A);
     await poser(A, DADD11);
@@ -101,7 +103,7 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
     check(son.midis.includes(67) && son.voix.includes(67), `le 11 (67) est dans les notes JOUÉES par le rythme de la case — ${JSON.stringify(son)}`);
 
     // ============ B. UN AUTRE CANDIDAT ============
-    const B = await ouvrir({ width: 1100, height: 1000 });
+    const B = await ouvrir({ width: 860, height: 1000 });
     await B.click('#quick-add-btn'); await B.waitForTimeout(200);
     await ouvrirDessin(B); await poser(B, DADD11); await valider(B);
     await B.locator('.guitar-draw-candidate', { hasText: /^D$/ }).click(); await B.waitForTimeout(150);
@@ -118,7 +120,7 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
     check(g2b.length === 2 && g2b[0].quality === 'maj' && g2b[1].quality === 'add11', `un second envoi s'ajoute à la suite, le premier accord ne bouge pas (${g2b.map(c => c.root + c.quality)})`);
 
     // ============ C. MODE MODIFICATION : remplacer, sans doublon ============
-    const C = await ouvrir({ width: 1100, height: 1000 });
+    const C = await ouvrir({ width: 860, height: 1000 });
     await C.click('#quick-add-btn'); await C.waitForTimeout(200);
     await C.selectOption('#root', 'C'); await C.selectOption('#quality', 'maj'); await C.waitForTimeout(150);
     await C.click('#save'); await C.waitForTimeout(300);
@@ -132,7 +134,7 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
         `l'accord ouvert est REMPLACÉ, pas dupliqué (${g3.length} accord, ${g3.map(c => c.root + c.quality)})`);
 
     // ============ D. LA BASSE JOUÉE ============
-    const D = await ouvrir({ width: 1100, height: 1000 });
+    const D = await ouvrir({ width: 860, height: 1000 });
     await D.click('#quick-add-btn'); await D.waitForTimeout(200);
     await ouvrirDessin(D);
     await poser(D, [[2, 4], [3, 2], [4, 3], [5, 3]]);   // F# A D G : la basse est le fa#, une note de l'accord
@@ -144,7 +146,7 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
         await D.click('#guitar-draw-send'); await D.waitForTimeout(400);
         check((await grille(D))[0].bass === 'F#', 'la basse jouée (fa#, tierce de l\'accord) est reprise : Dadd11/F#');
     }
-    const E = await ouvrir({ width: 1100, height: 1000 });
+    const E = await ouvrir({ width: 860, height: 1000 });
     await E.click('#quick-add-btn'); await E.waitForTimeout(200);
     await ouvrirDessin(E);
     await poser(E, [[2, 5], [3, 2], [4, 3], [5, 2]]);   // G A D F# : la basse est le sol, le 11 — pas une note « de base »
@@ -158,7 +160,7 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
     }
 
     // ============ E. ACCORD NON RECONNU : rien à envoyer ============
-    const F = await ouvrir({ width: 1100, height: 1000 });
+    const F = await ouvrir({ width: 860, height: 1000 });
     await F.click('#quick-add-btn'); await F.waitForTimeout(200);
     await ouvrirDessin(F);
     await poser(F, [[5, 0]]);                           // une seule note : pas d'accord
@@ -186,7 +188,7 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
     check(await T.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0, 'la page ne déborde pas');
 
     // ============ G. LE VERROU HABITUEL N'A PAS CHANGÉ ============
-    const H = await ouvrir({ width: 1100, height: 1000 });
+    const H = await ouvrir({ width: 860, height: 1000 });
     await H.click('#quick-add-btn'); await H.waitForTimeout(200);
     await H.selectOption('#root', 'C'); await H.selectOption('#quality', 'maj'); await H.waitForTimeout(150);
     await ouvrirDessin(H); await poser(H, DADD11); await valider(H);

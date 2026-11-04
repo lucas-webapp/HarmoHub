@@ -31,7 +31,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const seed = () => {
     const mk = (r, q, b) => ({ root: r, quality: q, beats: b, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
     const song = { id: 'aspect', name: 'Ballade', bpm: 120, timeSig: '4/4', groove: 'straight',
-        sections: [{ title: 'Couplet', chords: [mk('C', 'maj7', 4), mk('F', 'maj', 4)] }] };
+        sections: [{ title: 'Couplet', chords: [mk('C', 'maj7', 4), { ...mk('F', 'maj', 4), extraNotes: [{ note: 'G', octave: 5 }] }] }] };
     localStorage.setItem('harmohubSongs', JSON.stringify([song]));
     localStorage.setItem('harmohubCurrentSongId', song.id);
     localStorage.setItem('myProgression', JSON.stringify({ sections: song.sections }));
@@ -76,6 +76,11 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(1100);
 
+    // LOT 6c : sur ordinateur, le « volet » n'existe plus qu'en modification d'un accord — c'est l'inspecteur « son de l'accord », à droite de la
+    // grille (même cadre, mêmes boutons). On l'ouvre donc sur un accord au voicing personnalisé, pour que son bouton « Revenir à l'automatique »
+    // soit du relevé.
+    await page.evaluate(() => window.app.editChord(0, 1));
+    await page.waitForTimeout(500);
     console.log('=== A. Combien de familles d\'aspect cohabitent ? ===');
     const vus = await page.evaluate(relever);
     exiger(!!vus && vus.length >= 10, `le volet porte assez de boutons pour que la question se pose — ${vus ? vus.length : 0}`);
@@ -104,7 +109,8 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     // de la rangée du dessous. On lit la référence SUR LUI plutôt que de recopier des valeurs en dur —
     // si elle change un jour, ce banc suit au lieu de mentir.
     const ref = await page.evaluate(() => {
-        const d = document.getElementById('duration-dd-toggle');
+        // Lot 6c : le menu de durée est dans la bulle désormais ; la référence sombre se lit sur la croix de l'inspecteur, de la même famille.
+        const d = document.getElementById('accord-close');
         if (!d) return null;
         const st = getComputedStyle(d);
         return { fond: st.backgroundColor, degrade: st.backgroundImage !== 'none',
@@ -128,7 +134,7 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     const membresRef = exempleRef ? familles.get(cle(exempleRef)) : [];
     // LOT 6a : le résumé du morceau a quitté le volet (ses réglages sont dans la rangée au-dessus de la grille, à la jauge — gabarit_boutons_test).
     // La référence sombre porte le bouton de durée ; elle doit rester PLATE et rester une famille du volet, c'est tout ce que le design demande.
-    check(!!exempleRef && membresRef.includes('duration-dd-toggle'),
+    check(!!exempleRef && membresRef.includes('accord-close') && membresRef.includes('voicing-perso-auto'),
         `la référence sombre (fond ${ref.fond}, rayon ${ref.rayon}, sans dégradé ni ombre) est une famille du volet : elle porte ${membresRef.join(' + ') || 'rien'}`);
     const dominanteNommee = (grande[0] === (exempleRef && cle(exempleRef))) || membres.every(n => /^voicing-/.test(n));
     check(dominanteNommee, `et la famille la plus nombreuse est l'une des deux décisions nommées (la référence, ou le sélecteur segmenté) — ${membres.slice(0, 3).join(', ')}…`);

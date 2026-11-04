@@ -53,10 +53,13 @@ const atteignable = (sel) => {
 };
 
 (async () => {
-    plan(21);
+    plan(22);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
-    const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
+    // LOT 6c : sur ordinateur, la carte Accord n'existe plus qu'en modification — c'est l'inspecteur « son de l'accord », SANS la rangée « quel accord »
+    // (fondamentale, type, durée : la bulle). Sa mise en page de carte complète, mode Ajout compris, vit sous le seuil jusqu'au lot 10 : ce banc s'y joue
+    // (860px), et vérifie en plus, plus bas, ce que devient la carte sur ordinateur. DETTE : à reprendre au lot 10.
+    const page = await browser.newPage({ viewport: { width: 860, height: 950 } });
     page.on('pageerror', e => erreurs.push('ordinateur : ' + e.message));
     await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load' });
     await page.waitForTimeout(300);
@@ -152,7 +155,7 @@ const atteignable = (sel) => {
         check(m.trop <= 0 && m.carteTrop <= 0 && m.page <= 0 && m.coupes.length === 0,
             `${w}px : ligne d'accord ${m.trop}px, carte ${m.carteTrop}px, page ${m.page}px, aucun libellé tronqué${m.coupes.length ? ' (' + m.coupes.join(', ') + ')' : ''}`);
     }
-    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.setViewportSize({ width: 860, height: 950 });
     await page.waitForTimeout(300);
     const hAjout = await page.evaluate(() => Math.round(document.getElementById('accord-card').getBoundingClientRect().height));
     // 297px avant pour les DEUX cartes plus leur écart, mesuré sur ce même écran. On vérifie le GAIN,
@@ -177,8 +180,16 @@ const atteignable = (sel) => {
     // remonté la durée : elle n'occupe plus une RANGÉE entière qu'on masquait, mais une colonne. La
     // masquer ne rend donc plus de hauteur — elle rend de la LARGEUR aux deux menus voisins, ce qui
     // est justement ce qu'on cherchait. Exiger encore -30px reviendrait à réclamer la rangée perdue.
-    check(hEdit.mode === 'edit' && !hEdit.dureeVisible && hEdit.colonnes === 2,
-        `mode Modification : la durée s'efface, la ligne repasse à ${hEdit.colonnes} colonnes (carte ${hEdit.h}px contre ${hAjout}px en Ajout)`);
+    check(hEdit.mode === 'edit' && !hEdit.dureeVisible,
+        `mode Modification : la durée s'efface (carte ${hEdit.h}px contre ${hAjout}px en Ajout)`);
+    // Et sur ordinateur : la même carte, en modification, est l'inspecteur — la rangée « quel accord » n'y est plus du tout (« rien aux deux endroits »).
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.waitForTimeout(400);
+    const bureau = await page.evaluate(() => ({ rangee: getComputedStyle(document.querySelector('.accord-grid')).display, voicing: document.getElementById('voicing-row').getBoundingClientRect().height > 0,
+        aDroite: document.querySelector('.sidebar-frame').getBoundingClientRect().left > document.querySelector('.col-right').getBoundingClientRect().left }));
+    check(bureau.rangee === 'none' && bureau.voicing && bureau.aDroite, `ordinateur, en modification : la carte est l'inspecteur, à droite, sans la rangée « quel accord » (${JSON.stringify(bureau)})`);
+    await page.setViewportSize({ width: 860, height: 950 });
+    await page.waitForTimeout(400);
 
     console.log('\n=== D. Le séquenceur s\'ouvre toujours, depuis son bouton ===');
     // La cloison a disparu, pas les fonctions. Un vrai clic, pas un appel de méthode.

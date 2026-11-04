@@ -4920,3 +4920,37 @@ plus entendre (l'appel au lecteur est maintenant compté), la bulle s'ouvrait so
 ouverte dans la mise en page étroite — double protection, comme Échap, que la table commune des menus traite aussi).
 
 **Balayage des lots 6a + 6b (04/11) : 220 verts, 5 rouges, 7 sans verdict (232 suites)** — exactement la ligne de base, plus les deux nouvelles suites ; `probe_clic_accord_voisin` (rouge de la ligne de base) passe de 4 échecs à 1.
+
+## Refonte de l'interface — lot 6c : l'inspecteur « son de l'accord », la fin du bandeau de gauche (2026-11-04)
+
+Cahier des charges : « Plus de bandeau de gauche, plus de mode ajout / modification. On agit dans la grille : une bulle (QUEL accord) et un inspecteur
+(COMMENT il sonne : voicing, jeu, intensité, rythme, doigté). Rien aux deux endroits » ; « pastille ambre sur la case + « Revenir à l'automatique » dans
+l'inspecteur » ; « Fini l'orange du mode modification ».
+
+**Sur ordinateur, le bandeau de gauche a disparu.** Sans accord ouvert, la grille a toute la largeur. « Réglages du son » (dans la bulle) ouvre l'accord en
+modification : le CADRE de l'ancien bandeau devient l'inspecteur, À DROITE de la grille (344px, comme la maquette) — même nœud, mêmes adresses, seule la
+mise en page change, d'où un risque minimal pour tout ce qui y vivait (voicing, basse, séquenceur, doigté). La rangée « quel accord » (fondamentale, type,
+durée) n'y est plus : c'est la bulle. La croix le ferme. L'ancien repli du bandeau n'a plus d'objet : son étiquette disparaît, et un repli mémorisé ne vide
+pas l'inspecteur. Le sujet « accord déjà posé » passe de l'ocre au bleu éteint de la sélection.
+
+**Voicing personnalisé.** L'inspecteur dit pourquoi la case porte une pastille ambre (« Voicing personnalisé : une note ajoutée à la main. ») et propose
+« Revenir à l'automatique » (retire les notes ajoutées et le doigté fixé) — une modification de la session comme une autre, défaite par Ctrl+Z.
+
+**Téléphone : inchangé** (carte Accord, mode Ajout compris) jusqu'au lot 10.
+
+**Bancs.** Nouveau `inspecteur_son_test` (26). **Sabotages : 11, tous rouges** — dont un d'abord vert (l'étiquette de repli revenait avec l'inspecteur :
+le banc ne la cherchait que fermé). **27 anciens bancs touchés**, en trois familles :
+- **réécrits pour le nouveau geste** : `aspect_boutons_volet` (le volet est l'inspecteur, ouvert sur un accord ; référence sombre lue sur sa croix),
+  `barre_haut` (le contenu sous la barre se mesure sur la colonne de la grille), `gabarit_boutons` (cinq entrées sortent de HORS_JAUGE : fondamentale,
+  type, durée, « Ajouter », repli — plus à l'écran), `instrument_du_morceau` (nouvel accord par la saisie), `portes_sequenceur` (les deux portes,
+  inspecteur ouvert), `rythme_duree` (plus de menu de durée « des prochains accords » sur ordinateur : chaque accord a sa durée dans sa bulle),
+  `carte_accord_unique` (vérifie en plus la carte devenue inspecteur), `sidebar_collapse` et `sidebar_collapse_seq_height` (le repli n'existe plus ;
+  ce qu'ils gardaient — la grille regagne sa place, le transport ne bouge pas, la hauteur automatique du séquenceur suit la largeur — est éprouvé à
+  l'ouverture et à la fermeture de l'inspecteur) ;
+- **joués sous le seuil (860px)**, parce qu'ils éprouvent une FONCTION de la carte en mode Ajout (même code), qui n'existe plus que là jusqu'au lot 10 :
+  `manche_edition_lot4/5/6`, `rythme_une_preference`, `guitare_envoi_grille`, `glock_unlock_and_switch`, `extra_note_rhythm`, `filet_moteur_edition`,
+  `avant_seq_short_note_body`, `avant_seq_snap_sticky`, `seq_short_note_body`, `seq_move_note`, `seq_handle_feedback`, `grid_beat_highlight`,
+  `offbeat_dash`, `affordances`, `voicing_direct`, `seq_changement_morceau`, `carte_accord_unique` (sa partie carte). **DETTE pour le lot 10** : ces
+  dix-neuf bancs seront à reprendre quand le téléphone perdra à son tour le mode Ajout.
+
+**Balayage du lot 6c (04/11) : 221 verts, 5 rouges, 7 sans verdict (233 suites)** — exactement la ligne de base, plus la nouvelle suite ; aucun nouveau rouge (le premier balayage du lot en comptait 30, tous réécrits ou déplacés ci-dessus).

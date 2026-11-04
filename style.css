@@ -1935,10 +1935,12 @@ body[data-app-mode="edit"] #duration-dd { display: none; }
     --sujet-fond: rgba(95, 168, 127, 0.06);
     --sujet-cadre: rgba(95, 168, 127, 0.34);
 }
+/* « Sélection BLEUE [...] Fini l'orange du mode modification » (refonte, règle 5, lot 6c) : l'accord déjà posé prend le bleu de la sélection, éteint
+   comme l'était l'ocre (« les couleurs pâles et discrètes de l'application »). */
 .panel-controls.subject-existing {
-    --sujet: #c1904e;                          /* ocre éteint — accord déjà posé */
-    --sujet-fond: rgba(193, 144, 78, 0.065);
-    --sujet-cadre: rgba(193, 144, 78, 0.36);
+    --sujet: #7ea6e0;                          /* bleu éteint — accord déjà posé, celui de la case choisie */
+    --sujet-fond: rgba(126, 166, 224, 0.065);
+    --sujet-cadre: rgba(126, 166, 224, 0.36);
 }
 
 /* LE LISERÉ DE SUJET, sur la carte unique. Il était sur les DEUX cartes, et c'est ce qui rendait la
@@ -3678,6 +3680,26 @@ button:active { transform: translateY(1px); }
     }
     .bulle-son .icon { width: 14px; height: 14px; }
     .bulle-son:hover { border-color: var(--btn-blue-border-hover); }
+
+    .voicing-perso { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 8px 10px; border-radius: var(--rayon-bouton, 7px); background: #241c10; border: 1px solid #5c4023; }
+    .voicing-perso[hidden] { display: none; }
+    .voicing-perso-texte { flex: 1 1 auto; min-width: 0; font-size: var(--fs-xs); color: #f0c27a; }
+    .voicing-perso-auto {
+        flex: none;
+        box-sizing: border-box;
+        height: var(--bouton-h, 32px);
+        min-width: 0;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--rayon-bouton, 7px);
+        background: var(--fond-bouton-sombre, #1c2027);
+        color: var(--text-main);
+        font-size: var(--fs-sm);
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .voicing-perso-auto:hover { border-color: var(--btn-neutral-border-hover); background: var(--fond-bouton-sombre-survol, #262b33); }
 
     /* La carte Morceau du bandeau de gauche : ses réglages sont dans la rangée ci-dessus (et son titre dans la barre du haut, lot 3). */
     #song-card { display: none; }
@@ -7312,3 +7334,18 @@ body.impression-structure #structure-print-zone { display: block; }
 /* Petite précision sous le libellé d'un réglage. Même aspect que .verre-indice, mais À HarmoHub : .verre-indice vit dans verre.css (fichier COMMUN aux trois
    applis, réservé au verre) — s'en servir ici faisait dépendre l'aspect d'un réglage d'Affichage de la présence du verre (verre_test l'a relevé). */
 .reglage-indice { display: block; margin-top: 2px; font-size: var(--fs-xs); font-weight: 400; line-height: 1.35; color: var(--text-muted); opacity: .85; }
+
+/* L'INSPECTEUR « SON DE L'ACCORD » (lot 6c) — EN FIN DE FEUILLE, exprès : les règles des colonnes d'ordinateur (.sidebar-frame en flex, 360px)
+   sont posées plus haut avec la même force ; écrites avant elles, celles-ci perdaient (le bandeau restait affiché, mesuré par inspecteur_son_test). */
+@media (min-width: 900px) {
+    /* L'INSPECTEUR « SON DE L'ACCORD » (lot 6c) : le cadre du bandeau de gauche passe À DROITE de la grille (order), 344px comme la maquette, et
+       n'existe qu'en modification d'un accord. Le bandeau de gauche, en tant que tel, a disparu : sans accord ouvert, la grille a toute la place. */
+    .sidebar-frame { order: 2; width: 344px; flex: none; display: none; }
+    body[data-app-mode="edit"] .sidebar-frame { display: flex; }
+    /* L'ancien repli du bandeau n'a plus d'objet : l'inspecteur se ferme par sa croix (et un repli mémorisé ne doit pas le laisser vide). */
+    #toggle-sidebar { display: none; }
+    body.sidebar-collapsed .sidebar-frame .col-left { display: flex; }
+    body.sidebar-collapsed .sidebar-frame { width: 344px; }
+    /* « Rien aux deux endroits » : QUEL accord (fondamentale, type, durée) se règle dans la bulle ; l'inspecteur dit COMMENT il sonne. */
+    .sidebar-frame .accord-grid { display: none; }
+}

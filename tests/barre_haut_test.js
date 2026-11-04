@@ -67,14 +67,14 @@ const graine = ({ src, noms, courant }) => {
         return {
             bar: R('.top-bar'), logo: R('.logo'), titre: R('#tb-titre'), save: R('#tb-save'), etat: R('#tb-etat'), centre: R('#tb-centre'),
             undo: R('#global-undo-btn'), redo: R('#global-redo-btn'), reglages: R('#open-settings'), compte: R('#compte-cloud'),
-            colGauche: R('.col-left'), pos: getComputedStyle(document.querySelector('.top-bar')).position, W: innerWidth,
+            colGauche: R('.col-right'), pos: getComputedStyle(document.querySelector('.top-bar')).position, W: innerWidth,
             rayons: { titre: rayon('#tb-titre'), save: rayon('#tb-save'), undo: rayon('#global-undo-btn'), reglages: rayon('#open-settings'), logo: rayon('.logo') },
             logoTexte: document.querySelector('.logo').textContent.trim(),
         };
     });
     check(a.pos === 'fixed' && a.bar.x === 0 && Math.abs(a.bar.w - a.W) < 1 && a.bar.y === 0, `la barre est fixée en haut et occupe toute la largeur (${Math.round(a.bar.w)}px sur ${a.W}px)`);
     check(a.bar.b < 60, `la barre est basse : ${Math.round(a.bar.b)}px (maquette : 52px)`);
-    check(a.colGauche.y >= a.bar.b, `le contenu commence SOUS la barre (volet de gauche à ${Math.round(a.colGauche.y)}px, barre jusqu'à ${Math.round(a.bar.b)}px)`);
+    check(a.colGauche.y >= a.bar.b, `le contenu commence SOUS la barre (colonne de la grille à ${Math.round(a.colGauche.y)}px — lot 6c : il n'y a plus de volet de gauche, barre jusqu'à ${Math.round(a.bar.b)}px)`);
     check(a.logoTexte === '', 'le logo est SEUL : aucun mot (« enlever le nom de l\'appli »)');
     const ordreG = [a.logo.x, a.titre.x, a.save.x, a.etat.x];
     check(ordreG.every((x, i) => i === 0 || x > ordreG[i - 1]), 'à gauche, de gauche à droite : logo, titre du morceau, Enregistrer, voyant');

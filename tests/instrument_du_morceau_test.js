@@ -113,9 +113,9 @@ const seedAncien = () => {
 
     console.log('\n=== D. Un nouvel accord n\'emporte plus de son à lui ===');
     const avant = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords.length);
-    await page.selectOption('#root', 'D');
-    await page.waitForTimeout(200);
-    await page.click('#save');
+    // LOT 6c : sur ordinateur, un nouvel accord s'ajoute par la saisie (plus de carte Accord en mode Ajout) — c'est ce geste qu'on éprouve.
+    await page.fill('#quick-add-input', 'D');
+    await page.click('#quick-add-btn');
     await page.waitForTimeout(700);
     const d = await page.evaluate(() => {
         const ch = JSON.parse(localStorage.getItem('myProgression')).sections[0].chords;

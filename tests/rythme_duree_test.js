@@ -89,8 +89,10 @@ const POSER_AIDES = `window.visible = (sel) => { const e = document.querySelecto
         jeu: !!document.querySelector('.voicing-group-jeu'),
         etiquette: !!document.getElementById('playstyle-label'),
     }));
-    check(ajout.duree && !ajout.intensite,
-        'en Ajout : la Durée est là, l\'intensité non — elle est passée au menu contextuel');
+    // LOT 6c : sur ordinateur, sans accord ouvert, il n'y a plus de carte Accord — donc plus de menu de durée « des prochains accords » : chaque
+    // accord prend sa durée dans sa bulle (ou à la poignée de sa case). Le réglage par défaut des accords ajoutés (#duration) reste la source, plus bas.
+    check(!ajout.duree && !ajout.intensite,
+        'sans accord ouvert, sur ordinateur : ni menu de durée (c\'est la bulle de chaque accord), ni intensité (menu contextuel)');
     check(!ajout.jeu && !ajout.etiquette,
         'le groupe Rythme n\'existe plus du tout dans la rangée, pas même masqué');
     // Et ce sont bien les valeurs par défaut des accords AJOUTÉS : on les change, on ajoute, on vérifie.

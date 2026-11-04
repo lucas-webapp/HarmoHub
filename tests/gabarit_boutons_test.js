@@ -25,15 +25,12 @@ const PASTILLES = new Set(['logo', 'cc-pill']);
 
 // Commande → lot qui la supprime ou la remet à la jauge. Clé = id, à défaut la première classe.
 const HORS_JAUGE = {
-    'root': 'lot 6 — la carte Accord disparaît (bulle + inspecteur)',
-    'quality': 'lot 6',
-    'duration-dd-toggle': 'lot 6',
+    // Lot 6c : fondamentale, type, durée, « Ajouter » et le repli du bandeau ne sont plus à l'écran sur ordinateur (bulle + inspecteur) — sortis d'ici.
+    // Les commandes de voicing restent : elles vivent dans l'inspecteur, à remettre à la jauge avec lui.
     'voicing-step': 'lot 6',
     'voicing-segment': 'lot 6',
     'bass': 'lot 6',
     'seq-zoom': 'lot 9 — le « Séquenceur » de la carte devient « Éditeur de notes »',
-    'save': 'lot 3 — Enregistrer passe dans la barre du haut',
-    'toggle-sidebar': 'lot 6 — le bandeau de gauche disparaît',
     'add-section': 'lot 5 — « Nouvelle section », à 7px',
 };
 

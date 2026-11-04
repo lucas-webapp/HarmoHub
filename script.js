@@ -8684,8 +8684,10 @@ class HarmoHubApp {
             // dans style.css), le cadre sépare déjà l'état du symbole, et le point faisait doublon.
             titre.textContent = 'Modifier';
             titreSym.textContent = chordSymbolForData(d, this.useFlatsForRoot(d.root));
+            this.rafraichirVoicingPerso(d);
             return;
         }
+        this.rafraichirVoicingPerso(null);
 
         titre.textContent = 'Nouvel accord';
         titreSym.textContent = '';
@@ -8890,6 +8892,36 @@ class HarmoHubApp {
         this.loadProgression();
         const input = document.querySelector(`.prog-title[data-section="${this.activeSection}"]`);
         if (input) input.focus();
+    }
+
+    // ---------- L'INSPECTEUR « SON DE L'ACCORD » (lot 6c) ----------
+    // « Plus de bandeau de gauche [...] On agit dans la grille : une bulle (QUEL accord) et un inspecteur (COMMENT il sonne : voicing, jeu,
+    // intensité, rythme, doigté). Rien aux deux endroits » (docs/refonte.md). Sur ordinateur, le cadre du bandeau de gauche DEVIENT l'inspecteur :
+    // il passe à droite de la grille et n'existe qu'en modification d'un accord (« Réglages du son » dans la bulle). Tout ce qu'il contient garde sa
+    // place et ses adresses — c'est le même nœud, la mise en page seule change (voir style.css, lot 6c). Le téléphone garde sa colonne (lot 10).
+    // Ici : le bloc « voicing personnalisé » de l'inspecteur, qui dit pourquoi la case porte une pastille ambre, et le moyen d'en revenir.
+    rafraichirVoicingPerso(data) {
+        const bloc = document.getElementById('voicing-perso');
+        if (!bloc) return;
+        // L'accord OUVERT, tel que l'inspecteur le pilote en direct (notes libres et verrou en cours), pas seulement tel qu'enregistré.
+        const vivant = data ? { extraNotes: this.extraNotes, guitarLock: this.guitarLock } : null;
+        const raison = vivant ? raisonVoicingPersonnalise(vivant) : '';
+        bloc.hidden = !raison;
+        const t = document.getElementById('voicing-perso-texte');
+        if (t && raison) t.textContent = `Voicing personnalisé : ${raison}.`;
+    }
+
+    // « Revenir à l'automatique » : retire les notes ajoutées à la main et le doigté fixé de l'accord ouvert. Une modification comme une autre (même
+    // session d'annulation que le reste de l'inspecteur, voir commitLiveEdit) : Ctrl+Z la défait.
+    revenirVoicingAutomatique() {
+        if (this.editingIndex == null) return;
+        this.extraNotes = [];
+        this.guitarLock = null;
+        this.guitarKey = null;
+        this.guitarIdentityKey = null;
+        this.refreshPreview();
+        this.renderSequencer();
+        this.commitLiveEdit(true);
     }
 
     // ---------- LA BULLE « QUEL ACCORD » (lot 6b) ----------
@@ -9420,6 +9452,7 @@ class HarmoHubApp {
         window.addEventListener('scroll', () => { if (this._bulle) this.placerBulleAccord(); }, true);
         window.addEventListener('resize', () => { if (this._bulle) this.placerBulleAccord(); });
         this.setupBulleAccord();
+        { const auto = document.getElementById('voicing-perso-auto'); if (auto) auto.addEventListener('click', () => this.revenirVoicingAutomatique()); }
         window.addEventListener('resize', () => { if (this._menuPartie != null) this.placerMenuPartie(); });
         menu.addEventListener('keydown', (e) => {
             const items = [...menu.querySelectorAll('button:not([disabled])')];

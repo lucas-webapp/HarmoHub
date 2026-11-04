@@ -50,7 +50,10 @@ async function drag(page, from, to, opts = {}) {
 
 (async () => {
     const browser = await chromium.launch();
-    const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+    // LOT 6c : sur ordinateur (≥ 900px), il n'y a plus de mode Ajout ni de carte Accord à préparer — QUEL accord se règle dans la bulle, COMMENT il
+    // sonne dans l'inspecteur, qui n'existe qu'en modification. Ce banc éprouve une FONCTION de la carte (le même code), pas sa mise en page :
+    // il se joue donc sous le seuil (860px), où la carte garde son mode Ajout jusqu'au lot 10. DETTE : à reprendre au lot 10 (docs/dette-tests.md).
+    const page = await browser.newPage({ viewport: { width: 860, height: 1000 } });
     const errors = [];
     page.on('pageerror', e => errors.push('pageerror: ' + e.message));
 

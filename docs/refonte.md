@@ -138,7 +138,7 @@ ne le redécouvre pas.
 | 3 ✅ | Barre du haut : titre adaptatif + menu du morceau, Enregistrer + état, versions automatiques, Paramètres › Historique — **livré 01/11** (voir `docs/dette-tests.md`). Restent : les onglets Grille / Structure / Paroles au centre (lot 4, la colonne est réservée et centrée) ; sur téléphone la carte Morceau garde ses boutons (lot 10) | élevé |
 | 4 ✅ | Onglets Grille / Structure / Paroles, centrés — **livré 01/11** (voir `docs/dette-tests.md`). **Lot 4b (01/11)** : Paroles et Structure INTÉGRÉES comme vues du morceau (« il ne faut pas qu'elle garde sa propre en-tête, ni le logo ») — Paroles est la page Paroles chargée dans HarmoHub en mode intégré, Structure une vue dans la page. Reste : le téléphone (lot 10) | moyen |
 | 5 | Grille : fenêtre centrée, poignées, cases basses, règle et plage orange, case « + » fixe, durée par poignée | élevé |
-| 6 | Bulle + inspecteur, suppression du bandeau de gauche et de la carte Accord — **6a ✅ (rangée de réglages) et 6b ✅ (bulle, sélection bleue) livrés 04/11** ; reste 6c (inspecteur, fin du bandeau de gauche) | élevé |
+| 6 | Bulle + inspecteur, suppression du bandeau de gauche et de la carte Accord — ✅ **livré 04/11** : 6a rangée de réglages, 6b bulle et sélection bleue, 6c inspecteur à droite et fin du bandeau de gauche (ordinateur). Reste : le téléphone (lot 10), et 19 bancs joués sous le seuil à reprendre alors (voir `docs/dette-tests.md`) | élevé |
 | 7 | Ajout unique (syntaxe complète, suggestions, « + » entre deux cases), clic droit, barre de sélection | moyen |
 | 8 | Clavier / Guitare : épinglés ou fenêtre libre, construction d'accord | moyen |
 | 9 | Éditeur de notes (grand séquenceur + conduite de voix) | très élevé |

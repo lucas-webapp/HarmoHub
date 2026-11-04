@@ -28,62 +28,55 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(200);
 
-    console.log('--- Baseline: sidebar visible ---');
+    // LOT 6c : CONTRAT CHANGÉ. Le bandeau de gauche n'existe plus sur ordinateur — ni lui ni son bouton de repli. La place qu'il libérait, la grille
+    // l'a désormais TOUJOURS ; le seul panneau latéral est l'inspecteur « son de l'accord », à droite, ouvert avec un accord et fermé par sa croix.
+    // Ce que ce banc protégeait reste vrai, avec ce geste-là : la grille regagne sa place, le transport ne bouge pas, la lecture marche, et rien
+    // ne reste « replié » au rechargement.
+    const ouvrirInspecteur = async (i) => {
+        await page.click(`#progression-sections .grid-cell[data-index="${i}"]`); await page.waitForTimeout(300);
+        await page.click('#bulle-accord [data-bulle="son"]'); await page.waitForTimeout(400);
+    };
+    console.log('--- Au départ : plus de bandeau, la grille a toute la place ---');
     let r = await page.evaluate(() => ({
-        collapsed: document.body.classList.contains('sidebar-collapsed'),
-        colLeftVisible: document.querySelector('.col-left').getBoundingClientRect().width > 0,
+        cadre: document.querySelector('.sidebar-frame').getBoundingClientRect().width,
+        repli: (() => { const b = document.getElementById('toggle-sidebar'); return b ? b.getBoundingClientRect().width : 0; })(),
     }));
     console.log(JSON.stringify(r));
-    console.log((!r.collapsed && r.colLeftVisible) ? 'PASS (sidebar visible by default)' : 'FAIL');
+    console.log((r.cadre === 0 && r.repli === 0) ? 'PASS (ni bandeau ni bouton de repli sur ordinateur)' : 'FAIL');
 
-    console.log('--- Click toggle: sidebar hides, col-right expands ---');
-    const rightWidthBefore = await page.evaluate(() => document.querySelector('.col-right').getBoundingClientRect().width);
-    await page.click('#toggle-sidebar');
-    await page.waitForTimeout(150);
+    console.log('--- Un accord ouvert : l\'inspecteur prend sa place à droite, la grille se resserre ---');
+    const largeAvant = await page.evaluate(() => document.querySelector('.col-right').getBoundingClientRect().width);
+    await ouvrirInspecteur(0);
     r = await page.evaluate(() => ({
-        collapsed: document.body.classList.contains('sidebar-collapsed'),
-        colLeftWidth: document.querySelector('.col-left').getBoundingClientRect().width,
-        colRightWidth: document.querySelector('.col-right').getBoundingClientRect().width,
-        ariaPressed: document.getElementById('toggle-sidebar').getAttribute('aria-pressed'),
-        active: document.getElementById('toggle-sidebar').classList.contains('active'),
+        inspecteur: document.querySelector('.sidebar-frame').getBoundingClientRect(),
+        colRight: document.querySelector('.col-right').getBoundingClientRect(),
     }));
-    console.log(JSON.stringify(r));
-    console.log((r.collapsed && r.colLeftWidth === 0 && r.colRightWidth > rightWidthBefore && r.ariaPressed === 'true' && r.active)
-        ? 'PASS (sidebar hidden, col-right expanded, button reflects state)' : 'FAIL');
+    console.log(JSON.stringify({ i: Math.round(r.inspecteur.width), c: Math.round(r.colRight.width) }));
+    console.log((r.inspecteur.width === 344 && r.inspecteur.left >= r.colRight.right - 1 && r.colRight.width < largeAvant) ? 'PASS (inspecteur à droite, grille resserrée)' : 'FAIL');
 
-    // LE TRANSPORT EST REVENU DANS LE VOLET DE GAUCHE, et ce banc visait encore l'en-tête de la
-    // grille. Retour utilisateur : « remets-les en bas du volet à gauche, mais juste sous le module
-    // (sous la barre intensité, mais en dehors du module) », puis « les boutons de transport doivent
-    // rester ancrés ». Il vit donc dans #footer-dock (voir placeGlobalTransport), et
-    // #grid-head-transport-host n'est plus qu'un point d'ancrage vide — l'éprouver revenait à exiger
-    // que le transport soit là où l'on a justement demandé qu'il ne soit plus.
-    // Ce qui compte, et que ce banc protège vraiment : replier le volet ne doit pas emporter le
-    // transport avec lui. #footer-dock migre alors vers .col-right (voir applySidebarCollapsed), donc
-    // on éprouve le RÉSULTAT — toujours affiché, toujours entièrement dans l'écran.
-    // REFONTE, LOT 2 : le transport a quitté le dock pour la BARRE DE LECTURE du bas (#bl-lecture), qui ne dépend pas du volet
-    // de gauche — replier le volet n'y touche plus du tout (c'était le risque que ce banc surveillait). On éprouve donc toujours
-    // le résultat : transport affiché, entier, hors du volet. Le dock, lui, migre encore (il porte Ajouter/Annuler en édition).
-    console.log('--- Le transport (barre du bas) ne bouge pas quand le volet se replie, et reste visible ---');
+    // REFONTE, LOT 2 : le transport vit dans la BARRE DE LECTURE du bas (#bl-lecture), qui ne dépend d'aucun panneau — c'était le risque que ce banc
+    // surveillait (un panneau qui emporte le transport avec lui). On éprouve donc toujours le résultat : transport affiché, entier, hors du panneau.
+    console.log('--- Le transport (barre du bas) ne bouge pas quand l\'inspecteur s\'ouvre, et reste visible ---');
     r = await page.evaluate(() => {
         const t = document.querySelector('.transport');
         const rect = t.getBoundingClientRect();
         return {
             dansLeDock: t.parentElement.id === 'bl-lecture',
-            horsVoletReplie: !document.querySelector('.col-left').contains(t),
+            horsPanneau: !document.querySelector('.col-left').contains(t),
             visible: getComputedStyle(t).display !== 'none' && rect.width > 0 && rect.height > 0,
             dansEcran: rect.left >= 0 && rect.top >= 0 && rect.right <= window.innerWidth && rect.bottom <= window.innerHeight,
         };
     });
     console.log(JSON.stringify(r));
-    console.log((r.dansLeDock && r.horsVoletReplie && r.visible && r.dansEcran)
-        ? 'PASS (transport toujours visible et entier, panneau replié)' : 'FAIL');
+    console.log((r.dansLeDock && r.horsPanneau && r.visible && r.dansEcran)
+        ? 'PASS (transport toujours visible et entier, inspecteur ouvert)' : 'FAIL');
 
-    console.log('--- Le bouton Lecture fonctionne toujours, panneau replié ---');
+    console.log('--- Le bouton Lecture fonctionne toujours, inspecteur ouvert ---');
     await page.click('#play-prog');
     await page.waitForTimeout(200);
     r = await page.evaluate(() => ({ isPlaying: window.app.isPlaying }));
     console.log(JSON.stringify(r));
-    console.log(r.isPlaying ? 'PASS (playback works with sidebar collapsed)' : 'FAIL');
+    console.log(r.isPlaying ? 'PASS (la lecture marche, inspecteur ouvert)' : 'FAIL');
     await page.evaluate(() => window.app.stopAll());
     // Laisse le temps au nettoyage audio (Tone.Transport/contexte) de vraiment se terminer avant de
     // recharger — mesuré : recharger juste après stopAll() peut planter la page dans ce bac à sable
@@ -91,32 +84,19 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     // pas de l'appli), le contexte audio semblant parfois encore en cours de désallocation.
     await page.waitForTimeout(300);
 
-    console.log('--- Persists across reload ---');
+    console.log('--- La croix le ferme : la grille reprend toute sa place ---');
+    await page.click('#accord-close');
+    await page.waitForTimeout(300);
+    r = await page.evaluate(() => ({ cadre: document.querySelector('.sidebar-frame').getBoundingClientRect().width, colRight: document.querySelector('.col-right').getBoundingClientRect().width }));
+    console.log(JSON.stringify(r));
+    console.log((r.cadre === 0 && Math.abs(r.colRight - largeAvant) <= 1) ? 'PASS (inspecteur fermé, grille à sa largeur d\'origine)' : 'FAIL');
+
+    console.log('--- Au rechargement, rien ne reste ouvert ---');
     await page.reload({ waitUntil: 'load' });
-    await page.waitForTimeout(200);
-    r = await page.evaluate(() => ({
-        collapsed: document.body.classList.contains('sidebar-collapsed'),
-        colLeftWidth: document.querySelector('.col-left').getBoundingClientRect().width,
-    }));
+    await page.waitForTimeout(300);
+    r = await page.evaluate(() => ({ cadre: document.querySelector('.sidebar-frame').getBoundingClientRect().width, edition: window.app.editingIndex }));
     console.log(JSON.stringify(r));
-    console.log((r.collapsed && r.colLeftWidth === 0) ? 'PASS (persisted across reload)' : 'FAIL');
-
-    console.log('--- Click again: sidebar comes back ---');
-    await page.click('#toggle-sidebar');
-    await page.waitForTimeout(150);
-    r = await page.evaluate(() => ({
-        collapsed: document.body.classList.contains('sidebar-collapsed'),
-        colLeftWidth: document.querySelector('.col-left').getBoundingClientRect().width,
-    }));
-    console.log(JSON.stringify(r));
-    console.log((!r.collapsed && r.colLeftWidth > 0) ? 'PASS (sidebar restored)' : 'FAIL');
-
-    console.log('--- Dock moved back into col-left ---');
-    r = await page.evaluate(() => ({
-        dockInColLeft: document.querySelector('.col-left').contains(document.getElementById('footer-dock')),
-    }));
-    console.log(JSON.stringify(r));
-    console.log(r.dockInColLeft ? 'PASS (dock restored to col-left)' : 'FAIL');
+    console.log((r.cadre === 0 && r.edition == null) ? 'PASS (rechargé sans panneau : l\'inspecteur ne se mémorise pas, il suit l\'accord ouvert)' : 'FAIL');
 
     console.log('Errors:', JSON.stringify(errors));
     await browser.close();
