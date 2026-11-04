@@ -8,8 +8,9 @@ de commit, journal.
 La **refonte de l'interface** suit `docs/refonte.md` (règles, décisions de fond, feuille de route). Maquette validée : https://claude.ai/artifact/AMrn1tzDEBfmVij2fdfiBp
 (fichier `project/Grille2.dc.html`). Chaque lot est journalisé dans `docs/dette-tests.md`.
 
-- **Livrés** : lots 1 à 7 (fondations, barre de lecture, barre du haut, onglets, grille, bulle + inspecteur, ajout unique + barre de sélection).
-- **À faire** : lot 8 (Clavier / Guitare : épinglés ou fenêtre libre, construction d'accord), lot 9 (éditeur de notes — risque très élevé), lot 10 (téléphone).
+- **Livrés** : lots 1 à 8 (fondations, barre de lecture, barre du haut, onglets, grille, bulle + inspecteur, ajout unique + barre de sélection, Clavier / Guitare).
+- **Reprise** : lire `docs/reprise.md` en premier (état, plan du lot suivant, points ouverts).
+- **À faire** : lot 9 (éditeur de notes — risque très élevé, découpage dans `docs/reprise.md`), lot 10 (téléphone).
 - **Ligne de base du balayage** (`bash tests/run_all_fast.sh`) : 235 suites, **5 rouges** déjà là avant la refonte et à ne pas confondre avec une régression
   (`probe_clic_accord_voisin`, `probe_defilement_tactile`, `probe_regle_voisins`, `probe_seq_finitions`, `seq_notes_libres_clavier`) et **7 « sans verdict »**
   (`ctx_nav_scroll`, `detune`, `guitar_lock_click`, `instrument_stress`, `item1_hzoom_out`, `probe_cache_perime`, `smoke`). Dernier balayage : 223 verts.
