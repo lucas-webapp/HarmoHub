@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611041000">
+    <link rel="stylesheet" href="style.css?v=202611041700">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611041000">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611041700">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1516,6 +1516,10 @@
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                         </button>
                     </div>
+                    <!-- AJOUT UNIQUE (refonte, lot 7a) : la saisie ci-dessus est LA saisie — « une seule saisie (syntaxe actuelle complète), accords de
+                         la tonalité, suggestions après l'accord précédent, « + » entre deux cases ». Ce panneau s'ouvre quand on choisit OÙ ajouter (« + Accord »
+                         d'une partie, « + » entre deux cases) : il dit la destination et propose des accords d'un clic. Rempli par ouvrirAideAjout. -->
+                    <div id="ajout-aide" class="ajout-aide" role="dialog" aria-label="Ajouter des accords" hidden></div>
                 </div>
                 <!-- LA GRILLE, UNE FENÊTRE CENTRÉE (refonte, lot 5a) : « je n'ai pas besoin de toute cette largeur… fenêtre extensible ? centrée plus petite ? »
                      puis « la fenêtre fonctionne bien en largeur… trouver une astuce en hauteur aussi ». Largeur par affichage (Compact 640, Normal 480,
@@ -1864,11 +1868,11 @@
     <script src="fichiers.js?v=202610030500"></script>
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
-    <script src="historique.js?v=202611041000"></script>
-    <script src="script.js?v=202611041000"></script>
+    <script src="historique.js?v=202611041700"></script>
+    <script src="script.js?v=202611041700"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611041000"></script>
+    <script src="synchro-harmohub.js?v=202611041700"></script>
 </body>
 </html>

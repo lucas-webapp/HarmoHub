@@ -7262,6 +7262,18 @@ class HarmoHubApp {
 
         if (blocks.length > 1) { this.commitMultilineQuickAdd(blocks); return; }
 
+        // Une DESTINATION a été choisie (lot 7a : « + Accord » d'une partie, « + » entre deux cases) : on y va tout droit, sans redemander la
+        // partie, et à l'endroit voulu — la même syntaxe que d'habitude, une ligne ou plusieurs.
+        const cible = this.cibleAjoutValide();
+        if (cible) {
+            const items = this.parseBlockLines(blocks[0]);
+            if (!items) return;
+            const barBeats = this.beatsPerBar();
+            const seul = parseInt(document.getElementById('duration').value) || 4;
+            if (this.insererAccordsALaCible(items.map(({ parsed, isBatch }) => ({ parsed, beats: isBatch ? barBeats : seul })))) this.resetQuickAddInput();
+            return;
+        }
+
         const block = blocks[0];
         const sections = loadProgressionSections();
 
@@ -7960,6 +7972,11 @@ class HarmoHubApp {
                     // premier morceau, s'il est coupé de ligne), à TOUS les affichages : c'est l'information « cet accord ne sonne pas comme son
                     // nom le laisse attendre », qui compte autant en Compact qu'en Détaillé.
                     const raisonPerso = s.isFirst ? raisonVoicingPersonnalise(h) : '';
+                    // « + » entre deux cases au survol (lot 7a) : sur le bord gauche du PREMIER morceau de chaque accord = « ajouter avant lui ».
+                    const notDraggingIns = !cls.includes('drag-placeholder');
+                    const insEl = (s.isFirst && notDraggingIns && this.bulleDisponible()) ? `<button type="button" class="cell-ins" data-section="${si}" data-index="${s.index}" tabindex="-1" title="Ajouter un accord ici" aria-label="Ajouter un accord avant celui-ci">+</button>` : '';
+                    const cibleIci = this._cibleAjout && this._cibleAjout.section === si && this._cibleAjout.index === s.index && s.isFirst;
+                    if (cibleIci) cls += ' cible-ajout';
                     const persoEl = raisonPerso ? `<span class="cell-perso" title="Voicing personnalisé : ${raisonPerso}" aria-label="Voicing personnalisé : ${raisonPerso}"></span>` : '';
                     if (persoEl) cls += ' has-perso';
                     // Petits traits à chaque limite de mesure interne, positionnés en % de la largeur du
@@ -7999,6 +8016,7 @@ class HarmoHubApp {
                     <div class="${cls}" data-section="${si}" data-index="${s.index}" style="${style}" title="Toucher pour écouter · cliquer le nom pour le modifier · double-clic/double-tap pour l'édition complète · clic droit/appui long pour plus d'options · Cmd/Ctrl+clic pour sélection multiple (Cmd+clic sur Mac)">
                         <span class="cell-sym">${flatTight(sym)}${contFlag}</span>
                         ${persoEl}
+                        ${insEl}
                         ${metaEl}
                         ${rythmeEl}
                         ${ticksEl}
@@ -8065,6 +8083,7 @@ class HarmoHubApp {
                     ${canMoveDown ? `<button type="button" class="prog-section-tool psh-ancien prog-section-move-down" data-section="${si}" title="Descendre cette partie" aria-label="Descendre cette partie">${svgIcon('down')}</button>` : ''}
                     <button type="button" class="icon-btn psh-ancien prog-section-duplicate" data-section="${si}" title="Dupliquer cette partie" aria-label="Dupliquer cette partie">${svgIcon('duplicate')}</button>
                     ${canDelete ? `<button type="button" class="prog-section-del psh-ancien" data-section="${si}" title="Supprimer cette partie" aria-label="Supprimer cette partie">${svgIcon('trash')}</button>` : ''}
+                    <button type="button" class="prog-section-ajout" data-section="${si}" title="Ajouter des accords à cette partie" aria-label="Ajouter des accords à ${escapeHtml(sec.title || `la partie ${si + 1}`)}">${svgIcon('plus')}<span>Accord</span></button>
                     <button type="button" class="prog-section-menu" data-section="${si}" aria-haspopup="menu" aria-expanded="false" title="Répéter, renommer, déplacer, dupliquer, supprimer" aria-label="Actions de la partie ${escapeHtml(sec.title || `${si + 1}`)}"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
                 </div>
                 <div class="chord-grid" data-section="${si}" data-beats-per-row="${beatsPerRowFor(beatsPerBar, false, this.currentGridHZoom())}" style="${gridStyle}">${gridInner}</div>
@@ -8124,6 +8143,34 @@ class HarmoHubApp {
             input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
             input.addEventListener('input', () => this.ajusterLargeurTitrePartie(input));
             this.ajusterLargeurTitrePartie(input);
+        });
+        host.querySelectorAll('.prog-section-ajout').forEach(btn => {
+            btn.addEventListener('click', (e) => { e.stopPropagation(); this.ouvrirAideAjout(+btn.dataset.section, null); });
+        });
+        // « + » entre deux cases (lot 7a) : ajouter ICI, avant cet accord.
+        host.querySelectorAll('.cell-ins').forEach(btn => {
+            // Géré DÈS L'APPUI, pas au « click » : le relâché retombait sur la case (le clic se perdait vers elle, mesuré) ; et preventDefault garde le
+            // focus pour la saisie, où ouvrirAideAjout le pose. Clavier : Entrée / Espace sur le bouton passent par « click ».
+            // Le « + » se pose sur la frontière entre deux cases, là même où se saisit la poignée gauche (tirer le bord, lot 5d) : les deux gestes s'y
+            // partagent la place. Appuyer-relâcher sans bouger = ajouter ici ; appuyer puis glisser = tirer le bord, exactement comme avant.
+            btn.addEventListener('pointerdown', (e) => {
+                if (e.button != null && e.button !== 0) return;
+                e.preventDefault(); e.stopPropagation();
+                const s = +btn.dataset.section, i = +btn.dataset.index, x0 = e.clientX, y0 = e.clientY;
+                const fin = () => { window.removeEventListener('pointermove', bouge); window.removeEventListener('pointerup', lache); window.removeEventListener('pointercancel', fin); };
+                const bouge = (ev) => {
+                    if (Math.abs(ev.clientX - x0) < 4 && Math.abs(ev.clientY - y0) < 4) return;
+                    fin();
+                    // Le glissé démarre au point d'appui : l'étirement compte depuis là, sans perdre les premiers pixels.
+                    this.onResizeStart({ button: 0, clientX: x0, target: btn, stopPropagation() {}, preventDefault() {} }, s, i, 'left');
+                    if (this.resize) this.onResizeMove(ev);
+                };
+                const lache = () => { fin(); this.ouvrirAideAjout(s, i); };
+                window.addEventListener('pointermove', bouge);
+                window.addEventListener('pointerup', lache);
+                window.addEventListener('pointercancel', fin);
+            });
+            btn.addEventListener('click', (e) => { e.stopPropagation(); if (e.detail === 0) this.ouvrirAideAjout(+btn.dataset.section, +btn.dataset.index); });
         });
         host.querySelectorAll('.prog-section-menu').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -8894,6 +8941,156 @@ class HarmoHubApp {
         if (input) input.focus();
     }
 
+    // ---------- AJOUT UNIQUE (lot 7a) ----------
+    // « Ajouter : une seule saisie (syntaxe actuelle COMPLÈTE : C_E, C_O4-R1-D2, C/Am/F/G, plusieurs lignes, ligne vide = nouvelle partie, aide « ? »),
+    // accords de la tonalité, suggestions après l'accord précédent, « + » entre deux cases au survol » (docs/refonte.md). La saisie rapide reste LA
+    // saisie ; ce qui s'ajoute ici, c'est la DESTINATION (une partie, ou un endroit précis dans une partie) et un panneau qui la dit et propose des
+    // accords d'un clic. Il ne s'ouvre que quand on choisit une destination : taper vite dans la saisie reste exactement comme avant.
+    cibleAjoutValide() {
+        const c = this._cibleAjout;
+        if (!c) return null;
+        const sections = loadProgressionSections();
+        if (!sections[c.section]) { this._cibleAjout = null; return null; }
+        const n = sections[c.section].chords.length;
+        return { section: c.section, index: c.index == null ? null : Math.max(0, Math.min(n, c.index)) };
+    }
+
+    // Insère des accords (déjà reconnus) à la destination choisie, d'UNE étape d'annulation. La destination avance d'autant : un second ajout se range
+    // APRÈS le premier, comme on écrit.
+    insererAccordsALaCible(items) {
+        const c = this.cibleAjoutValide();
+        if (!c || !items.length) return false;
+        const sections = loadProgressionSections();
+        this.pushUndo(sections);
+        const playStyle = document.getElementById('playStyle').value;
+        const datas = items.map(({ parsed, beats }) => this.buildChordData(parsed, beats, playStyle));
+        const chords = sections[c.section].chords;
+        const ou = c.index == null ? chords.length : c.index;
+        chords.splice(ou, 0, ...datas);
+        saveProgressionSections(sections);
+        this.activeSection = c.section;
+        if (c.index != null) this._cibleAjout.index = ou + datas.length;
+        // Une plage à boucler repose sur des index d'accords : une insertion au milieu les décale (même règle que dupliquer une partie).
+        if (this.loopRange && c.index != null) this.loopRange = null;
+        this.loadProgression();
+        const nom = (p) => `${noteNameForPc(NOTES.indexOf(p.root), this.useFlatsForRoot(p.root))}${QUALITY_LABEL[p.quality] ?? ''}`;
+        this.flashHint(datas.length === 1 ? `${nom(items[0].parsed)} ajouté` : `${datas.length} accords ajoutés`);
+        this.remplirAideAjout();
+        return true;
+    }
+
+    // Les accords de la tonalité, degré par degré (triades ou accords de 7e), avec leur chiffrage — ceux de la palette et des suggestions.
+    accordsDeLaTonalite(avec7) {
+        const root = document.getElementById('global-root').value, mode = document.getElementById('global-mode').value;
+        const gamme = MODE_SCALES[mode] || MODE_SCALES.maj;
+        const r0 = NOTES.indexOf(root);
+        const QUALITE = { '4,7': 'maj', '3,7': 'min', '3,6': 'dim', '4,8': 'aug', '4,7,11': 'maj7', '4,7,10': 'dom7', '3,7,10': 'min7', '3,6,10': 'm7b5', '3,6,9': 'dim7', '3,7,11': 'min7' };
+        return gamme.map((_, d) => {
+            const iv = (k) => ((gamme[(d + k) % 7] - gamme[d]) + 12) % 12;
+            const cle = (avec7 ? [iv(2), iv(4), iv(6)] : [iv(2), iv(4)]).join(',');
+            const quality = QUALITE[cle] || (avec7 ? 'dom7' : 'maj');
+            const rootNote = NOTES[(r0 + gamme[d]) % 12];
+            return { degre: d, root: rootNote, quality, roman: this.getRomanNumeral(root, mode, rootNote, quality) };
+        });
+    }
+
+    // « Souvent après » : les enchaînements les plus courants, d'un degré à l'autre (I→IV/V/vi, ii→V, V→I/vi…). L'accord précédent doit appartenir à
+    // la tonalité : un accord chromatique n'a pas de « suite habituelle » qu'on puisse affirmer.
+    suggestionsApres(prec, avec7) {
+        if (!prec) return [];
+        const mode = document.getElementById('global-mode').value, root = document.getElementById('global-root').value;
+        const gamme = MODE_SCALES[mode] || MODE_SCALES.maj;
+        const d = gamme.indexOf((NOTES.indexOf(prec.root) - NOTES.indexOf(root) + 12) % 12);
+        if (d < 0) return [];
+        const SUITES = mode === 'min'
+            ? [[3, 4, 5], [4, 6], [5, 3], [4, 0, 6], [0, 5], [3, 6, 1], [2, 0]]
+            : [[3, 4, 5], [4, 3], [5, 3], [4, 0, 1], [0, 5, 3], [3, 1, 4], [0, 2]];
+        const tous = this.accordsDeLaTonalite(avec7);
+        return (SUITES[d] || []).map(k => tous[k]);
+    }
+
+    ouvrirAideAjout(section, index = null) {
+        const sections = loadProgressionSections();
+        if (!sections[section]) return;
+        this.fermerBulleAccord();
+        this._cibleAjout = { section, index };
+        this.activeSection = section;
+        const panneau = document.getElementById('ajout-aide');
+        if (!panneau) return;
+        this.remplirAideAjout();
+        panneau.hidden = false;
+        const input = document.getElementById('quick-add-input');
+        if (input) { input.focus({ preventScroll: true }); input.scrollIntoView({ block: 'nearest' }); }
+        this.loadProgression(); // la destination se voit aussi dans la grille (voir .cible-ajout)
+    }
+
+    fermerAideAjout() {
+        const panneau = document.getElementById('ajout-aide');
+        const avait = !!this._cibleAjout;
+        this._cibleAjout = null;
+        if (panneau) panneau.hidden = true;
+        if (avait) this.loadProgression();
+    }
+
+    remplirAideAjout() {
+        const panneau = document.getElementById('ajout-aide');
+        const c = this.cibleAjoutValide();
+        if (!panneau || !c) return;
+        const sections = loadProgressionSections();
+        const sec = sections[c.section];
+        const nomPartie = (sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${c.section + 1}`;
+        const gRoot = document.getElementById('global-root').value, gMode = document.getElementById('global-mode').value;
+        const useFlats = useFlatsForKey(NOTES.indexOf(gRoot), gMode);
+        const sym = (data) => chordSymbolForData(data, useFlatsForChordRoot(NOTES.indexOf(data.root), NOTES.indexOf(gRoot), gMode, useFlats));
+        const ou = c.index == null ? sec.chords.length : c.index;
+        const prec = ou > 0 ? sec.chords[ou - 1] : null;
+        const suiv = ou < sec.chords.length ? sec.chords[ou] : null;
+        const lieu = c.index == null || !suiv
+            ? `${nomPartie}, ${prec ? `à la fin, après ${sym(prec)}` : 'partie vide'}`
+            : `${nomPartie}, avant ${sym(suiv)}${prec ? ` (après ${sym(prec)})` : ' (au début)'}`;
+        const avec7 = !!this._ajoutAvec7;
+        const tuile = (a, classe = '') => `<button type="button" class="ajout-tuile${classe}" data-ajout-root="${a.root}" data-ajout-quality="${a.quality}" title="Ajouter ${escapeHtml(sym(a))}">`
+            + `<span class="ajout-t1">${flatTight(escapeHtml(sym(a)))}</span><span class="ajout-t2">${escapeHtml(a.roman || '')}</span></button>`;
+        const sugg = this.suggestionsApres(prec, avec7);
+        const nomTonalite = this.libelleTonalite();
+        panneau.innerHTML =
+            `<div class="ajout-tete"><span class="ajout-titre">Ajouter</span><span class="ajout-lieu" id="ajout-lieu">${escapeHtml(lieu)}</span>`
+            + `<button type="button" class="bulle-nav" data-ajout="fermer" aria-label="Fermer" title="Fermer (Échap)"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`
+            + (sugg.length ? `<div class="rr-lbl">Souvent après ${flatTight(escapeHtml(sym(prec)))}</div><div class="ajout-tuiles">${sugg.map(a => tuile(a, ' ajout-tuile-sugg')).join('')}</div>` : '')
+            + `<div class="ajout-ligne"><span class="rr-lbl">Accords de ${escapeHtml(nomTonalite)}</span>`
+            + `<button type="button" class="ajout-7e" data-ajout="avec7" aria-pressed="${avec7}">avec 7e</button></div>`
+            + `<div class="ajout-tuiles">${this.accordsDeLaTonalite(avec7).map(a => tuile(a)).join('')}</div>`
+            + `<p class="rr-aide">Ou tapez dans la saisie ci-dessus (Cm7, C_E, C/Am/F/G…) — Entrée pour une nouvelle ligne, Ctrl+Entrée pour ajouter.</p>`;
+    }
+
+    setupAideAjout() {
+        const panneau = document.getElementById('ajout-aide');
+        if (!panneau) return;
+        panneau.addEventListener('click', (e) => {
+            const b = e.target.closest('button');
+            if (!b) return;
+            e.stopPropagation();
+            if (b.dataset.ajout === 'fermer') { this.fermerAideAjout(); return; }
+            if (b.dataset.ajout === 'avec7') { this._ajoutAvec7 = !this._ajoutAvec7; this.remplirAideAjout(); return; }
+            if (b.dataset.ajoutRoot) {
+                const beats = parseInt(document.getElementById('duration').value) || 4;
+                this.insererAccordsALaCible([{ parsed: { root: b.dataset.ajoutRoot, quality: b.dataset.ajoutQuality }, beats }]);
+                const n = panneau.querySelector(`[data-ajout-root="${b.dataset.ajoutRoot}"][data-ajout-quality="${b.dataset.ajoutQuality}"]`);
+                if (n) n.focus({ preventScroll: true });
+            }
+        });
+        // Clic ailleurs (hors saisie, panneau, et ce qui l'ouvre) ou Échap : le panneau se ferme et la destination s'oublie — sans quoi un ajout bien
+        // plus tard, tapé sans y penser, irait encore au milieu d'une partie choisie il y a longtemps.
+        document.addEventListener('pointerdown', (e) => {
+            if (panneau.hidden) return;
+            if (e.target.closest('#ajout-aide, #quick-add-panel, .prog-section-ajout, .cell-ins, #section-picker-menu')) return;
+            this.fermerAideAjout();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !panneau.hidden) { this.fermerAideAjout(); }
+        });
+    }
+
     // ---------- L'INSPECTEUR « SON DE L'ACCORD » (lot 6c) ----------
     // « Plus de bandeau de gauche [...] On agit dans la grille : une bulle (QUEL accord) et un inspecteur (COMMENT il sonne : voicing, jeu,
     // intensité, rythme, doigté). Rien aux deux endroits » (docs/refonte.md). Sur ordinateur, le cadre du bandeau de gauche DEVIENT l'inspecteur :
@@ -9452,6 +9649,7 @@ class HarmoHubApp {
         window.addEventListener('scroll', () => { if (this._bulle) this.placerBulleAccord(); }, true);
         window.addEventListener('resize', () => { if (this._bulle) this.placerBulleAccord(); });
         this.setupBulleAccord();
+        this.setupAideAjout();
         { const auto = document.getElementById('voicing-perso-auto'); if (auto) auto.addEventListener('click', () => this.revenirVoicingAutomatique()); }
         window.addEventListener('resize', () => { if (this._menuPartie != null) this.placerMenuPartie(); });
         menu.addEventListener('keydown', (e) => {
@@ -14870,6 +15068,7 @@ class HarmoHubApp {
         const gridEl = e.target.closest('.chord-grid');
         if (!gridEl) return;
         if (e.target.closest('.grid-cell-add')) return; // laisse le clic focaliser normalement le champ
+        if (e.target.closest('.cell-ins')) return; // le « + » entre deux cases (lot 7a) : un bouton, pas une prise sur la case — sinon le glisser-sélectionner redessine la grille et le clic se perd
         // Retape du symbole en cours : on ne s'en mêle pas, le champ fait son travail (curseur,
         // sélection d'un mot au double-clic, etc.).
         // Il y avait ici un rattrapage : du temps où le PREMIER clic sur le symbole ouvrait déjà ce

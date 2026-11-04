@@ -4954,3 +4954,29 @@ le banc ne la cherchait que fermé). **27 anciens bancs touchés**, en trois fam
   dix-neuf bancs seront à reprendre quand le téléphone perdra à son tour le mode Ajout.
 
 **Balayage du lot 6c (04/11) : 221 verts, 5 rouges, 7 sans verdict (233 suites)** — exactement la ligne de base, plus la nouvelle suite ; aucun nouveau rouge (le premier balayage du lot en comptait 30, tous réécrits ou déplacés ci-dessus).
+
+## Refonte de l'interface — lot 7a : l'ajout unique (2026-11-04)
+
+Cahier des charges : « Ajouter : une seule saisie (syntaxe actuelle COMPLÈTE), accords de la tonalité, suggestions après l'accord précédent, « + » entre
+deux cases au survol ».
+
+**Choisir où l'on ajoute (ordinateur).** Chaque partie a son « + Accord » dans son en-tête ; au survol d'une case, un « + » se montre sur sa frontière
+gauche (ajouter AVANT elle). L'un ou l'autre ouvre, sous la saisie, un panneau qui dit la destination (« Couplet, avant Dm7 (après Am7) » / « Couplet, à la
+fin, après G7 ») et marque la case d'après. Il propose « Souvent après [accord précédent] » (trois suites habituelles selon son degré : V → I, vi, IV…) et les
+sept accords de la tonalité avec leur degré, en triades ou « avec 7e ». Un clic ajoute là, d'UNE annulation, et la destination avance : deux clics = deux
+accords dans l'ordre. La saisie (syntaxe inchangée, toute) va au même endroit, sans le « dans quelle partie ? ». Échap, × ou un clic à côté referment ET
+oublient la destination : la saisie redevient exactement celle d'avant.
+
+**Le « + » et la poignée gauche partagent la frontière.** Ils tombent au même endroit (le bord gauche se tire depuis le lot 5d, la maquette n'avait que le
+droit). Appuyer-relâcher sans bouger ajoute ; appuyer puis glisser tire le bord, comme avant. Le « + » est à la jauge (32 px, arrondi 7 px).
+
+**Téléphone : inchangé** (lot 10).
+
+**Bancs.** Nouveau `ajout_unique_test` (29). **Sabotages : 7, tous rouges** (destination qui n'avance pas, saisie qui l'ignore, fermeture qui la garde,
+pas d'annulation, « + » qui n'ouvre rien, suggestions = début de la palette, glissé depuis le « + » qui ne tire plus le bord — attrapé aussi par
+`finitions_grille`). **Premier balayage : 3 nouveaux rouges, tous corrigés dans l'appli ou le banc** : `finitions_grille` (le « + » avalait le glissé de
+la poignée gauche → les deux gestes cohabitent), `gabarit_boutons` (le « + » faisait 26 px → 32), `sortie_edition_involontaire` (« + Accord » d'une partie
+sort de la modification : c'est une sortie LÉGITIME, comme `quick-add-btn` et `add-section` déjà déclarés ; le banc compare désormais ses exclusions à la clé
+qu'il affiche, pour un bouton sans id).
+
+**Balayage du lot 7a (04/11) : 222 verts, 5 rouges, 7 sans verdict (234 suites)** — exactement la ligne de base, plus la nouvelle suite.

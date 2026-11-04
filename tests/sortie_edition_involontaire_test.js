@@ -26,6 +26,9 @@ const SORTIES_LEGITIMES = new Set([
     'song-new', 'song-files', 'song-import', 'song-export', 'song-rename', 'song-save',
     'tb-titre', 'tb-save',  // lot 3 : le titre ouvre le menu du morceau (nouveau, mes morceaux, importer…), Enregistrer valide : mêmes sorties légitimes que les anciens boutons
     'open-settings', 'file-menu-btn', 'lyrics-btn', 'quick-add-btn', 'add-section',
+    // Lot 7a : le « + Accord » d'une partie (un par partie, donc sans id). Comme quick-add-btn et add-section juste avant : on passe à l'ajout d'un
+    // AUTRE accord, c'est « j'ai fini avec celui-ci ».
+    '(Ajouter des accords à ce)',
 ]);
 
 (async () => {
@@ -56,8 +59,10 @@ const SORTIES_LEGITIMES = new Set([
         document.querySelectorAll('button, #seq-dock-resize').forEach(e => {
             if (!e.offsetParent || e.disabled) return;
             const id = e.id || '';
-            if (exclus.includes(id)) return;
-            vus.push(id || ('(' + (e.title || e.textContent || '').trim().slice(0, 24) + ')'));
+            // La clé que le banc affiche (l'id, ou « (titre) » pour un bouton sans id) : une sortie légitime sans id se déclare comme elle s'affiche.
+            const cle = id || ('(' + (e.title || e.textContent || '').trim().slice(0, 24) + ')');
+            if (exclus.includes(cle)) return;
+            vus.push(cle);
         });
         return vus;
     }, [...SORTIES_LEGITIMES]);

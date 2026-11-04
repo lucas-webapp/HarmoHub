@@ -7349,3 +7349,117 @@ body.impression-structure #structure-print-zone { display: block; }
     /* « Rien aux deux endroits » : QUEL accord (fondamentale, type, durée) se règle dans la bulle ; l'inspecteur dit COMMENT il sonne. */
     .sidebar-frame .accord-grid { display: none; }
 }
+
+/* AJOUT UNIQUE (lot 7a) — « + Accord » dans l'en-tête de partie, « + » entre deux cases au survol, et le panneau qui dit où l'on ajoute et propose
+   des accords d'un clic. Ordinateur seulement (le téléphone garde ses gestes jusqu'au lot 10). */
+.prog-section-ajout, .cell-ins, .ajout-aide { display: none; }
+@media (min-width: 900px) {
+    .prog-section-ajout {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        flex: none;
+        margin-left: auto;
+        box-sizing: border-box;
+        height: var(--bouton-h, 32px);
+        min-width: 0;
+        padding: 0 10px 0 8px;
+        border: 1px solid var(--border);
+        border-radius: var(--rayon-bouton, 7px);
+        background: var(--fond-bouton-sombre, #1c2027);
+        color: var(--text-main);
+        font-size: var(--fs-sm);
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .prog-section-ajout .icon { width: 14px; height: 14px; }
+    .prog-section-ajout:hover { border-color: var(--btn-neutral-border-hover); background: var(--fond-bouton-sombre-survol, #262b33); }
+    /* Le ⋯ suit « + Accord » : c'est lui qui pousse maintenant à droite. */
+    .prog-section-ajout ~ .prog-section-menu { margin-left: 0; }
+
+    /* « + » entre deux cases : sur le bord gauche de la case, à mi-hauteur, visible au survol seulement (bleu = ajouter). */
+    .cell-ins {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        left: -1px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 8;                 /* au-dessus de la poignée gauche (.cell-resize-left) — et un glissé parti de lui tire quand même le bord (voir loadProgression) */
+        width: 16px;
+        min-width: 0;
+        height: var(--bouton-h, 32px); /* la jauge (lot 1) — et les 32 px de la maquette */
+        padding: 0;
+        border: 1px solid #33507c;
+        border-radius: var(--rayon-bouton, 7px);
+        background: #182640;
+        color: #cfe0ff;
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.12s;
+    }
+    .grid-cell:hover .cell-ins, .cell-ins:focus-visible { opacity: 1; }
+    /* La case AVANT laquelle on va ajouter : un liseré bleu sur son bord gauche. */
+    .grid-cell.cible-ajout { box-shadow: inset 3px 0 0 #4c8dff; }
+
+    #quick-add-panel { position: relative; }
+    .ajout-aide {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        z-index: 60;
+        box-sizing: border-box;
+        width: min(460px, 100%);
+        padding: 12px;
+        flex-direction: column;
+        gap: 8px;
+        background: #181b20;
+        border: 1px solid var(--border);
+        border-radius: var(--rayon-surface, 12px);
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+    }
+    .ajout-aide:not([hidden]) { display: flex; }
+    .ajout-tete { display: flex; align-items: center; gap: 8px; }
+    .ajout-titre { font-weight: 700; font-size: var(--fs-md); color: var(--text-main); }
+    .ajout-lieu { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--text-muted); }
+    .ajout-ligne { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .ajout-tuiles { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+    .ajout-tuile {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1px;
+        box-sizing: border-box;
+        min-width: 0;
+        height: 44px;
+        padding: 0 2px;
+        border: 1px solid var(--border);
+        border-radius: var(--rayon-bouton, 7px);
+        background: #14171c;
+        color: var(--text-main);
+        cursor: pointer;
+    }
+    .ajout-tuile:hover, .ajout-tuile:focus-visible { border-color: var(--btn-blue-border-hover); outline: none; }
+    .ajout-tuile-sugg { border-color: #33507c; }
+    .ajout-t1 { font-size: var(--fs-sm); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    .ajout-t2 { font-size: var(--fs-2xs); color: #8fe3b3; font-weight: 700; }
+    .ajout-7e {
+        flex: none;
+        box-sizing: border-box;
+        height: var(--bouton-h, 32px);
+        min-width: 0;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--rayon-bouton, 7px);
+        background: var(--fond-bouton-sombre, #1c2027);
+        color: var(--text-main);
+        font-size: var(--fs-sm);
+        cursor: pointer;
+    }
+    .ajout-7e[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+}
