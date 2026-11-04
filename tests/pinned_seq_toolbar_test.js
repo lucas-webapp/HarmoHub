@@ -60,8 +60,12 @@ plan(9);
     // La rangée tient-elle dans la boîte du volet ? C'est la seule question qui intéresse
     // l'utilisateur : voit-il ses boutons, ou sont-ils rognés hors du cadre.
     const barreDansHote = (page) => page.evaluate(() => {
-        const hote = document.getElementById('seq-dock-host');
-        const barre = document.querySelector('.seq-presets');
+        // LOT 9b : sur ordinateur, la barre a rejoint la rangée « Notes / Fermer » de l'éditeur de notes (#editeur-notes-tete), EN HAUT du même
+        // volet. La question reste la même — voit-on les boutons, ou sont-ils rognés ? — mais elle se pose alors à cette rangée dans le volet
+        // entier (#seq-dock-panel), et plus à une barre au bas de #seq-dock-host.
+        const tete = document.querySelector('#editeur-notes-tete .seq-presets') ? document.getElementById('editeur-notes-tete') : null;
+        const hote = tete ? document.getElementById('seq-dock-panel') : document.getElementById('seq-dock-host');
+        const barre = tete || document.querySelector('.seq-presets');
         if (!hote || !barre) return null;
         const rh = hote.getBoundingClientRect(), rb = barre.getBoundingClientRect();
         return {

@@ -2427,6 +2427,9 @@ const SEQ_DOCK_HEIGHT_MIN = 140;
 // ÉDITEUR DE NOTES RÉDUIT (refonte, lot 9a) : « réduit par défaut (~170 px de notes) » — la bande des notes seule, sans la règle ni la barre
 // d'outils, qui s'y ajoutent (voir hauteurVoletSequenceur). Ordinateur seulement : le téléphone garde la hauteur d'avant jusqu'au lot 10.
 const EDITEUR_NOTES_REDUIT_PX = 170;
+// « Ajuster la hauteur aux notes présentes » (lot 9b) : ne montrer que les demi-tons des notes jouées, plus cette marge de part et d'autre (maquette).
+const SEQ_AJUSTER_KEY = 'harmohubSeqAjuster';
+const SEQ_AJUSTER_MARGE = 2;
 // Hauteur d'ouverture du volet quand l'utilisateur ne l'a jamais réglé : une PART de l'écran, pas une
 // valeur fixe. 300px partout était calibré pour un téléphone — sur un écran de 1080px, ça laissait
 // 222px inutilisés juste sous le volet et coupait 3 des 20 lignes chromatiques (mesuré).
@@ -3850,6 +3853,10 @@ class HarmoHubApp {
         this.editeurNotesEtendu = false;
         this._editeurNotesActif = false;
         this._affichageAvantEditeur = null;
+        // Lot 9b : l'outil de l'éditeur (Sélection par défaut, qui garde les gestes d'avant) et « Ajuster » (lignes limitées aux notes présentes),
+        // mémorisé par appareil. Éteint par défaut : « voir toutes les notes possibles » avait été demandé, c'est donc la vue d'arrivée.
+        this.seqOutil = 'selection';
+        this.seqAjuster = localStorage.getItem(SEQ_AJUSTER_KEY) === '1';
         this.seqZoomOpen = false;  // fenêtre agrandie du séquenceur ouverte ou non (voir openSeqZoom)
         // Panneau "Conduite de voix" ouvert ou non (voir toggleVoiceLeadingPanel/buildVoiceLeadingPanelHtml)
         // — un seul bouton global (#toggle-voice-leading, à côté de #grid-zoom), pas un par partie : le
@@ -16646,7 +16653,12 @@ class HarmoHubApp {
         if (hote) hote.classList.add('seq-live');
 
         let voice = +cell.dataset.voice, step = +cell.dataset.step;
-        const wasOn = cell.classList.contains('on');
+        // OUTILS DE L'ÉDITEUR DE NOTES (lot 9b). Gomme : efface ce qu'elle touche, rien d'autre. Crayon : la case est traitée comme VIDE, donc le
+        // geste dessine toujours (pas de sélection, de déplacement ni d'étirement d'une note existante). Sélection : rien ne change.
+        const outil = this.outilSeq();
+        if (outil === 'gomme') { this.commencerGommeSeq(e, cell); return; }
+        const crayon = outil === 'crayon';
+        const wasOn = cell.classList.contains('on') && !crayon;
         // Posé UNIQUEMENT dans la branche voix<0 ci-dessous : un seul instantané d'annulation doit
         // couvrir À LA FOIS la création de la ligne ET la note qui la peint, sinon `seqUndo()` ne
         // ferait reculer que la moitié du geste (voir le garde-fou `d.undoPushed` plus bas, sur les
@@ -16787,6 +16799,7 @@ class HarmoHubApp {
             // geste vient de créer une ligne de note libre (pushSeqUndo() déjà appelé une fois pour
             // TOUT le geste), faux dans tous les autres cas — comportement inchangé partout ailleurs.
             undoPushed: voixLibreUndoDejaPousse,
+            crayon, // lot 9b : un tap au crayon pose une note là où l'on clique, sans « rattraper » une note voisine (voir onSeqPointerUp)
         };
 
         // Dès la prise, pas seulement au premier mouvement : ajouter une note d'un simple appui est un
@@ -18015,7 +18028,7 @@ class HarmoHubApp {
                 // faire cela »). Viser à une croche près à cette échelle est une erreur bien plus
                 // probable qu'une intention. Un vrai GLISSÉ, lui, dessine toujours : c'est ce qui
                 // permet quand même de poser une note collée à une autre quand on le veut vraiment.
-                const voisine = this._noteSeqVoisine(d.voice, d.startStep, d.startX);
+                const voisine = d.crayon ? null : this._noteSeqVoisine(d.voice, d.startStep, d.startX);
                 if (voisine) {
                     this.selectSeqNoteAt(d.voice, voisine.start, false);
                     this.seqEditFeedback(d.voice);
@@ -18178,12 +18191,9 @@ class HarmoHubApp {
 
     // Supprime entièrement toutes les notes actuellement sélectionnées (touche Suppr/Retour arrière,
     // bouton dédié, ou double-tap tactile) — une seule lecture/écriture du motif même à plusieurs.
-    deleteSelectedSeqNote() {
-        if (this.seqSelections.length === 0) return;
-        this.pushSeqUndo();
-        const chord = this.readChord();
-        const { pattern, tie } = this.getLiveSeqPattern(chord);
-        this.seqSelections.forEach(sel => {
+    // Retire des notes {voice, start, end} du motif (et leurs liaisons) — partagé par Suppr et par la gomme de l'éditeur de notes (lot 9b).
+    retirerNotesSeq(pattern, tie, notes) {
+        notes.forEach(sel => {
             for (let s = sel.start; s <= sel.end; s++) {
                 const at = pattern[s].indexOf(sel.voice);
                 if (at >= 0) pattern[s].splice(at, 1);
@@ -18195,6 +18205,53 @@ class HarmoHubApp {
                 if (nt >= 0) tie[sel.end + 1].splice(nt, 1);
             }
         });
+    }
+
+    // GOMME (lot 9b) : « cliquer ou glisser efface les notes touchées ». Une seule étape d'annulation pour tout le geste, posée à la première note
+    // effacée (un geste qui ne touche rien n'en laisse pas de vide). Seules les cases de l'accord en édition comptent : celles des voisins se
+    // montrent en contexte mais ne s'effacent pas d'ici (on y passe en cliquant leur accord, comme avant).
+    commencerGommeSeq(e, cell) {
+        if (e.preventDefault) e.preventDefault();
+        let annulationPosee = false, efface = false;
+        const effacer = (c) => {
+            if (!c || !c.classList.contains('on')) return;
+            const voice = +c.dataset.voice, step = +c.dataset.step;
+            if (!(voice >= 0)) return;
+            const { pattern, tie } = this.getLiveSeqPattern(this.readChord());
+            if (!(step >= 0 && step < pattern.length) || !pattern[step].includes(voice)) return;
+            const b = this.seqNoteBoundsAt(pattern, tie, voice, step);
+            if (!annulationPosee) { this.pushSeqUndo(); annulationPosee = true; }
+            this.retirerNotesSeq(pattern, tie, [{ voice, start: b.start, end: b.end }]);
+            this.seqTouched = true;
+            this.setLiveSeqPattern(pattern, tie);
+            this.seqSelections = [];
+            efface = true;
+            this.renderSequencer();
+        };
+        effacer(cell);
+        const bouger = (ev) => {
+            const sous = document.elementFromPoint(ev.clientX, ev.clientY);
+            effacer(sous && sous.closest('#arp-sequencer .seq-cell'));
+        };
+        const lacher = () => {
+            window.removeEventListener('pointermove', bouger);
+            window.removeEventListener('pointerup', lacher);
+            window.removeEventListener('pointercancel', lacher);
+            const hote = document.getElementById('arp-sequencer');
+            if (hote) hote.classList.remove('seq-live');
+            if (efface) this.livePreviewUpdate();
+        };
+        window.addEventListener('pointermove', bouger);
+        window.addEventListener('pointerup', lacher);
+        window.addEventListener('pointercancel', lacher);
+    }
+
+    deleteSelectedSeqNote() {
+        if (this.seqSelections.length === 0) return;
+        this.pushSeqUndo();
+        const chord = this.readChord();
+        const { pattern, tie } = this.getLiveSeqPattern(chord);
+        this.retirerNotesSeq(pattern, tie, this.seqSelections);
         this.seqTouched = true;
         this.setLiveSeqPattern(pattern, tie);
         this.seqSelections = [];
@@ -18682,8 +18739,25 @@ class HarmoHubApp {
         const etendre = document.getElementById('editeur-notes-etendre');
         if (fermer) fermer.addEventListener('click', () => { if (this.seqMode === 'continu') this.toggleSequencer('continu'); });
         if (etendre) etendre.addEventListener('click', () => this.basculerEtendueEditeurNotes());
+        const outils = document.getElementById('editeur-notes-outils');
+        if (outils) outils.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-outil]');
+            if (!b) return;
+            this.seqOutil = b.dataset.outil;
+            this.majBoutonEditeurNotes();
+        });
+        const ajuster = document.getElementById('editeur-notes-ajuster');
+        if (ajuster) ajuster.addEventListener('click', () => {
+            this.seqAjuster = !this.seqAjuster;
+            try { localStorage.setItem(SEQ_AJUSTER_KEY, this.seqAjuster ? '1' : '0'); } catch (e) { /* stockage refusé : le réglage vaut pour la session */ }
+            this.majBoutonEditeurNotes();
+            this.renderSequencer();
+        });
         this.majBoutonEditeurNotes();
     }
+
+    // L'outil ne vaut QUE dans l'éditeur de notes (ordinateur) : ailleurs (petit séquenceur de l'inspecteur, téléphone) les gestes restent ceux d'avant.
+    outilSeq() { return this._editeurNotesActif ? this.seqOutil : 'selection'; }
 
     // « Étendre ou non » : le bouton à chevrons et le double-clic sur la poignée font la même chose. Une hauteur tirée à la main compte comme
     // « étendu » (c'est la maquette) : le chevron la défait et revient au réduit, sinon on ne pourrait plus jamais retrouver la hauteur d'origine.
@@ -18731,6 +18805,11 @@ class HarmoHubApp {
             etendre.title = mot;
             etendre.setAttribute('aria-label', mot);
         }
+        document.querySelectorAll('#editeur-notes-outils [data-outil]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.outil === this.seqOutil)));
+        const ajuster = document.getElementById('editeur-notes-ajuster');
+        if (ajuster) ajuster.setAttribute('aria-pressed', String(!!this.seqAjuster));
+        const hoteSeq = document.getElementById('arp-sequencer');
+        if (hoteSeq) hoteSeq.dataset.outil = this.outilSeq(); // le curseur suit l'outil (style.css)
         const poignee = document.getElementById('seq-dock-resize');
         if (poignee && bureau) poignee.title = 'Tirer pour changer la hauteur — double-clic : étendre ou réduire';
         else if (poignee) poignee.title = 'Glisser pour ajuster la hauteur';
@@ -19977,6 +20056,9 @@ class HarmoHubApp {
     renderSequencer() {
         const host = document.getElementById('arp-sequencer');
         if (!host) return;
+        // Lot 9b : la barre déplacée dans l'éditeur de notes au rendu précédent s'en va AVANT tout — ses boutons portent des id, et
+        // getElementById, qui suit l'ordre du document, prendrait sinon l'ancien (plus haut dans la page) au lieu de celui qu'on va construire.
+        this.viderBarreEditeurNotes();
         host.hidden = !this.seqOpen;
         // Avant tout calcul de mise en page : le séquenceur doit d'abord être AU BON ENDROIT (colonne
         // large sur ordinateur, colonne unique sur téléphone — voir placeSequencer), car la largeur
@@ -20174,8 +20256,10 @@ class HarmoHubApp {
             // Plancher/plafond TOUJOURS visibles (voir SEQ_MIDI_TOUJOURS_VISIBLE_MIN/MAX) : n'ÉLARGIT
             // jamais que vers l'extérieur, un accord/contexte qui déborde de octave 1-5 reste montré
             // en entier comme avant.
-            const bas = Math.min(SEQ_MIDI_TOUJOURS_VISIBLE_MIN, ...sonnantes);
-            const haut = Math.max(SEQ_MIDI_TOUJOURS_VISIBLE_MAX, ...sonnantes);
+            // « Ajuster » (lot 9b, éditeur de notes) : seulement l'étendue des notes jouées, plus deux demi-tons de part et d'autre.
+            const ajuste = this._editeurNotesActif && this.seqAjuster && sonnantes.size > 0;
+            const bas = ajuste ? Math.min(...sonnantes) - SEQ_AJUSTER_MARGE : Math.min(SEQ_MIDI_TOUJOURS_VISIBLE_MIN, ...sonnantes);
+            const haut = ajuste ? Math.max(...sonnantes) + SEQ_AJUSTER_MARGE : Math.max(SEQ_MIDI_TOUJOURS_VISIBLE_MAX, ...sonnantes);
             rowOrder = [];
             for (let m = haut; m >= bas; m--) rowOrder.push({ voice: midis.indexOf(m), midi: m });
         } else {
@@ -20761,8 +20845,8 @@ class HarmoHubApp {
                  atteignable. C'est le prix à payer de ce choix, et il se paie ici : un panneau
                  flottant porte sa propre fermeture. -->
             ` : ''}
-            <button type="button" data-preset="clear" class="seq-delete-btn">${svgIcon('trash')} tout</button>
-            <button type="button" id="seq-delete-selection" class="seq-delete-btn" ${hasSelection ? '' : 'disabled'}>${svgIcon('trash')}
+            <button type="button" data-preset="clear" class="seq-delete-btn" title="Effacer tout le rythme de l'accord" aria-label="Effacer tout le rythme de l'accord">${svgIcon('trash')}<span class="seq-mot"> tout</span></button>
+            <button type="button" id="seq-delete-selection" class="seq-delete-btn" ${hasSelection ? '' : 'disabled'} title="Supprimer la note (Suppr)" aria-label="Supprimer la note${countSuffix}">${svgIcon('trash')}
                 <span class="lbl-full">sélection${countSuffix}</span><span class="lbl-short">Sélect.${countSuffix}</span>
             </button>
             </div>
@@ -21121,7 +21205,18 @@ class HarmoHubApp {
         // se rejoignent. La boucle redoutée n'a pas lieu : `accordRenomme` n'est vrai qu'au rendu qui
         // renomme, et le rendu déclenché par loadProgression trouve la note libre déjà absorbée.
         this.commitLiveEdit(!!accordRenomme);
+        // LOT 9b : dans l'éditeur de notes, la barre (câblée ci-dessus, sur ses propres boutons) rejoint la rangée « Notes / Fermer ». Déplacée, jamais
+        // dupliquée ; la précédente, restée là-haut, est retirée au début du rendu suivant (voir viderBarreEditeurNotes).
+        this.viderBarreEditeurNotes();
+        const barreEn = document.getElementById('editeur-notes-barre');
+        const presets = host.querySelector('.seq-presets');
+        if (this._editeurNotesActif && barreEn && presets) barreEn.appendChild(presets);
         this.ajusterHauteurVoletAuContenu();
+    }
+
+    viderBarreEditeurNotes() {
+        const barreEn = document.getElementById('editeur-notes-barre');
+        if (barreEn) barreEn.replaceChildren();
     }
 
     // Recale la hauteur du volet sur ce qu'il y a VRAIMENT à montrer, une fois la grille dessinée.

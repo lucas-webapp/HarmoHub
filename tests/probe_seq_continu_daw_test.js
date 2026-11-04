@@ -44,10 +44,14 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
     const st = await p.evaluate(()=>{
         const g=document.querySelector('.seq-grid'); const beat=g.querySelector('.seq-beat-label');
         const sc=document.querySelector('.seq-scroll'); const pr=document.querySelector('.seq-presets');
+        // LOT 9b : sur ordinateur la rangée de boutons est la rangée « Notes / Fermer » de l'éditeur de notes, EN HAUT du volet (maquette).
+        const tete=document.querySelector('#editeur-notes-tete .seq-presets') ? document.getElementById('editeur-notes-tete') : null;
         const cs=e=>getComputedStyle(e);
         return {beatRow:beat.style.gridRow, beatPos:cs(beat).position,
                 labelPos:cs(g.querySelector('.seq-label')).position,
                 defileVert: sc.scrollHeight > sc.clientHeight+2,
+                enTete: !!tete, teteHaut: tete ? Math.round(tete.getBoundingClientRect().top) : 0, teteBas: tete ? Math.round(tete.getBoundingClientRect().bottom) : 0,
+                bandeHaut: Math.round(sc.getBoundingClientRect().top), voletHaut: Math.round(document.getElementById('seq-dock-panel').getBoundingClientRect().top),
                 prBas: Math.round(pr.getBoundingClientRect().bottom),
                 voletBas: Math.round(document.getElementById('seq-dock-panel').getBoundingClientRect().bottom)};
     });
@@ -55,7 +59,10 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
     ck(st.beatRow.startsWith('1'), `la règle est la PREMIÈRE ligne — ${st.beatRow}`);
     ck(st.beatPos === 'sticky', 'elle reste collée en haut pendant le défilement des hauteurs');
     ck(st.labelPos === 'sticky', 'l\'échelle de notes reste collée à gauche');
-    ck(Math.abs(st.prBas - st.voletBas) < 12, `la rangée de boutons tient entière au bas du volet — ${st.prBas} vs ${st.voletBas}`);
+    ck(st.enTete ? (st.teteHaut >= st.voletHaut && st.teteBas <= st.bandeHaut + 2)
+                 : Math.abs(st.prBas - st.voletBas) < 12,
+        st.enTete ? `la rangée de boutons tient entière en haut du volet, au-dessus des notes (lot 9b) — ${st.teteHaut}→${st.teteBas}, notes à ${st.bandeHaut}`
+                  : `la rangée de boutons tient entière au bas du volet — ${st.prBas} vs ${st.voletBas}`);
     // Elle doit RESTER visible après avoir descendu dans les hauteurs. Le volet s'ouvre maintenant
     // assez haut pour que toutes les lignes tiennent (voir hauteurVoletSequenceur) : on le rétrécit
     // exprès, sinon il n'y aurait plus rien à faire défiler et le cas ne serait pas éprouvé.
@@ -70,7 +77,8 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
         const rs=sc.getBoundingClientRect();
         return {scrollTop:Math.round(sc.scrollTop),
                 regleDansLaBande: beat.getBoundingClientRect().top >= rs.top-2 && beat.getBoundingClientRect().top < rs.top+30,
-                boutonsVisibles: pr.getBoundingClientRect().height>0 && pr.getBoundingClientRect().bottom<=innerHeight+2};
+                // Mesuré sur le bouton Lecture : la barre peut être une simple enveloppe (display: contents) dans la rangée de l'éditeur (lot 9b).
+                boutonsVisibles: (() => { const b = document.getElementById('seq-play').getBoundingClientRect(); return b.height>0 && b.bottom<=innerHeight+2 && b.top>=0; })()};
     });
     console.log(JSON.stringify(apres));
     ck(apres.scrollTop > 10, `on a bien descendu dans les hauteurs — scrollTop ${apres.scrollTop}px`);

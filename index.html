@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611051400">
+    <link rel="stylesheet" href="style.css?v=202611051600">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611051400">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611051600">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1580,6 +1580,28 @@
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
                         <span>Fermer</span>
                     </button>
+                    <!-- OUTILS (lot 9b) : « sélection, crayon, gomme » en groupe segmenté (un choix parmi trois). Décision du 05/11 : Sélection, l'outil par
+                         défaut, garde EXACTEMENT les gestes d'avant ; Crayon ne fait que dessiner (même en partant d'une note) ; Gomme efface ce qu'elle
+                         touche. Icônes de la maquette : ces trois fonctions n'avaient pas de logo. Pas de choix de calage (décision du 05/11 : « il faut que les
+                         notes s'accrochent à la double croche automatiquement » prime sur la maquette). -->
+                    <div id="editeur-notes-outils" class="editeur-notes-outils" role="group" aria-label="Outil">
+                        <button type="button" id="en-outil-selection" data-outil="selection" aria-pressed="true" title="Sélection : choisir, déplacer, étirer (et dessiner sur du vide, comme avant)" aria-label="Sélection">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3l14 8-6 2-3 6z"/></svg>
+                        </button>
+                        <button type="button" id="en-outil-crayon" data-outil="crayon" aria-pressed="false" title="Crayon : cliquer ou glisser dessine des notes" aria-label="Crayon">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-5L16 4l4 4L9 19z"/><path d="M14 6l4 4"/></svg>
+                        </button>
+                        <button type="button" id="en-outil-gomme" data-outil="gomme" aria-pressed="false" title="Gomme : cliquer ou glisser efface les notes touchées" aria-label="Gomme">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 21h13"/><path d="M5 13l8-8 6 6-8 8H8z"/></svg>
+                        </button>
+                    </div>
+                    <!-- La barre du séquenceur (Lecture, Stop, note libre, intensité, pipette, effacer, loupe, zoom) est DÉPLACÉE ici à chaque rendu sur
+                         ordinateur (voir renderSequencer) : une seule rangée, comme la maquette, et les 39px que l'en-tête prenait au lot 9a reviennent aux
+                         notes. Décision du 05/11 : tous les boutons d'avant restent, en icônes. -->
+                    <div id="editeur-notes-barre" class="editeur-notes-barre"></div>
+                    <button type="button" id="editeur-notes-ajuster" class="editeur-notes-btn editeur-notes-icone" aria-pressed="false" title="Ajuster la hauteur aux notes présentes" aria-label="Ajuster">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v6M9 6l3 3 3-3M12 21v-6M9 18l3-3 3 3"/></svg>
+                    </button>
                     <button type="button" id="editeur-notes-etendre" class="editeur-notes-btn editeur-notes-icone" title="Étendre l'éditeur de notes" aria-label="Étendre l'éditeur de notes" aria-pressed="false">
                         <svg class="icon en-chevrons-ouvrir" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9l5-5 5 5"/><path d="M7 15l5 5 5-5"/></svg>
                         <svg class="icon en-chevrons-fermer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4l5 5 5-5"/><path d="M7 20l5-5 5 5"/></svg>
@@ -1947,11 +1969,11 @@
     <script src="fichiers.js?v=202610030500"></script>
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
-    <script src="historique.js?v=202611051400"></script>
-    <script src="script.js?v=202611051400"></script>
+    <script src="historique.js?v=202611051600"></script>
+    <script src="script.js?v=202611051600"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611051400"></script>
+    <script src="synchro-harmohub.js?v=202611051600"></script>
 </body>
 </html>

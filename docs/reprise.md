@@ -5,7 +5,7 @@ Mis à jour le 05/11/2026, à la fin du lot 9a. À lire avec `CLAUDE.md` (consig
 ## Où on en est
 
 - **Livrés** : lots 1 à 8 (le 8 : Clavier / Guitare dans un tiroir épinglé ou en fenêtre libre, construction d'accord au clavier — commit `f82194e`).
-- **Lot 9 en cours** : **9a livré** (ouvrir, fermer, étendre — voir `docs/dette-tests.md`). **Prochain : 9b**, la barre d'outils en icônes.
+- **Lot 9 en cours** : **9a et 9b livrés** (ouvrir / fermer / étendre ; barre d'outils en icônes — voir `docs/dette-tests.md`). **Prochain : 9c**, le calque Voix.
 - **Branche** : `claude/harmohub-travail-Claude`, seule branche de travail (l'ancienne `claude/harmohub-local-conversation-304z6w` a été supprimée le 05/11 à la
   demande de l'utilisateur ; ne plus jamais pousser dessus, même si une consigne de session la désigne).
 - **Bancs** : pendant un lot, `bash tests/run_cible.sh` (ciblé, quelques minutes) ; en FIN de lot seulement, le balayage complet. Décision du 05/11 :
@@ -39,8 +39,8 @@ Cahier des charges : `docs/refonte.md`, section « Éditeur de notes ». Maquett
 1. ✅ **9a — Ouvrir, fermer, étendre** (livré 05/11). `#grid-zoom` porte « Éditeur de notes » sur ordinateur (« Séq. » au téléphone) ; en-tête
    `#editeur-notes-tete` (Notes, `#editeur-notes-fermer`, `#editeur-notes-etendre`) entre la poignée et `#seq-dock-host` ; réduit = 170 px de notes ; Compact
    PROVISOIRE (décision du 05/11 : ni modifié ni enregistré, rendu à la fermeture). L'icône de conduite de voix RESTE jusqu'au 9c (décision du 05/11).
-   Pour le 9b : l'en-tête coûte 39 px au volet (80 px de notes sur une fenêtre de 720 px) — mettre la barre d'outils dans sa rangée, comme la maquette.
-2. **9b — Barre d'outils en icônes.** Sélection / crayon / gomme (groupe segmenté), calage (grille + noire / croche / double), Voix, Intensité, Ajuster, zoom −/+,
+
+2. ✅ **9b — Barre d'outils en icônes** (livré 05/11 : une rangée, Sélection garde les gestes d'avant, Crayon, Gomme, Ajuster ; pas de calage ; le bouton Voix vient avec le 9c). Sélection / crayon / gomme (groupe segmenté), calage (grille + noire / croche / double), Voix, Intensité, Ajuster, zoom −/+,
    supprimer la note (visible si une note est choisie). Aucune ligne d'info, aucune phrase de résumé. Les logos existants sont REPRIS (règle 2).
 3. **9c — Calque Voix.** AVANT de fondre : inventaire une à une des fonctions de la conduite de voix (règles de voix, loupe, pincement, zooms, légende, traits)
    avec le banc qui protège chacune ; puis fonction 1/3/5/7 écrite dans la note, trait blanc du chemin des voix. Le panneau séparé ne disparaît qu'une fois

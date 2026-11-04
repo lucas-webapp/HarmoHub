@@ -71,7 +71,9 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
         ck(r.continu && r.contexte>0 && r.lignes>4,
             `continu : ${r.lignes} lignes (demi-tons), ${r.contexte} barres de contexte`);
         ck(r.visible, 'il est visible à l\'écran');
-        ck(r.hauteurVolet > 200, `volet en GROS — ${r.hauteurVolet}px de haut`);
+        // Lot 9a/9b : l'éditeur de notes s'ouvre RÉDUIT (« ~170 px de notes ») + la règle, soit ~194px, et sa barre est passée dans l'en-tête, hors de
+        // cet hôte. « En gros » se juge donc face au petit séquenceur de la carte (une poignée de lignes) : au moins les 170px de notes et la règle.
+        ck(r.hauteurVolet >= 190, `volet en GROS — ${r.hauteurVolet}px de haut`);
 
         console.log('--- 3. Le volet est ajustable en hauteur ---');
         const h0 = r.hauteurVolet;

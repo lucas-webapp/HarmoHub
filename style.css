@@ -7646,4 +7646,49 @@ body.avec-barre-selection .toast { bottom: 132px; }
     #editeur-notes-etendre .en-chevrons-fermer { display: none; }
     #editeur-notes-etendre[aria-pressed="true"] .en-chevrons-fermer { display: block; }
     #editeur-notes-etendre[aria-pressed="true"] .en-chevrons-ouvrir { display: none; }
+
+    /* LOT 9b — UNE SEULE RANGÉE : Notes, Fermer, outils, la barre du séquenceur (déplacée ici par renderSequencer), Ajuster, chevrons. Elle se replie
+       sur deux lignes si la fenêtre est étroite, sans jamais rogner un bouton. */
+    .editeur-notes-tete { flex-wrap: wrap; row-gap: 6px; padding: 0 12px 6px; }
+    .editeur-notes-barre { display: contents; }
+    .editeur-notes-barre .seq-presets { display: contents; }
+    .editeur-notes-barre .seq-groupe { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+    .editeur-notes-barre .seq-groupe + .seq-groupe { margin-left: 6px; }
+    .editeur-notes-barre .seq-groupe[data-groupe="affichage"] { margin-left: auto; }
+    /* « Uniquement logo » : les mots des deux corbeilles se taisent, leur infobulle et leur aria-label disent ce qu'elles font. « Supprimer la note »
+       n'apparaît que lorsqu'une note est choisie (maquette). */
+    .editeur-notes-barre .seq-delete-btn .lbl-full, .editeur-notes-barre .seq-delete-btn .lbl-short, .editeur-notes-barre .seq-delete-btn .seq-mot { display: none; }
+    .editeur-notes-barre .seq-delete-btn { width: var(--bouton-h); min-width: 0; padding: 0; justify-content: center; }
+    .editeur-notes-barre #seq-delete-selection:disabled { display: none; }
+    .editeur-notes-barre .zoom-axis-tag { display: none; }
+    /* À la jauge (règle 3) : chaque bouton de la rangée fait 32×32, arrondi 7px — Lecture et Stop gardent leur couleur. Le zoom devient deux boutons
+       côte à côte, − puis + comme la maquette, au lieu de la pastille empilée du petit séquenceur. */
+    .editeur-notes-barre .seq-icon-btn, .editeur-notes-barre .seq-delete-btn {
+        width: var(--bouton-h); height: var(--bouton-h); min-width: 0; padding: 0; border-radius: var(--rayon-bouton);
+    }
+    .editeur-notes-barre .btn-wrap-group, .editeur-notes-barre .zoom-axis-group {
+        display: inline-flex; flex-direction: row-reverse; align-items: center; gap: 6px; height: auto; padding: 0; border: 0; background: none; box-shadow: none;
+    }
+    .editeur-notes-barre .zoom-axis-group .zoom-axis-btn {
+        width: var(--bouton-h); height: var(--bouton-h); min-width: 0; padding: 0; border-radius: var(--rayon-bouton);
+        border: 1px solid var(--btn-neutral-border); background: var(--fond-bouton-sombre); color: var(--text-muted);
+    }
+    .editeur-notes-barre .zoom-axis-group .zoom-axis-btn:hover { color: var(--text-main); border-color: var(--btn-neutral-border-hover); }
+    .editeur-notes-barre .zoom-axis-group .zoom-axis-btn .icon { width: 16px; height: 16px; }
+
+    /* Le groupe segmenté des outils : la matière des segments d'Affichage (Compact / Normal / Détaillé), la sélection en BLEU (règle 5). */
+    .editeur-notes-outils { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+    .editeur-notes-outils > button {
+        flex: none; box-sizing: border-box; min-width: 0; width: var(--bouton-h); height: var(--bouton-h); padding: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        border: 1px solid var(--border); border-radius: var(--rayon-bouton);
+        background: var(--fond-bouton-sombre); color: var(--text-muted); cursor: pointer;
+    }
+    .editeur-notes-outils > button .icon { width: 16px; height: 16px; }
+    .editeur-notes-outils > button:hover { color: var(--text-main); border-color: var(--btn-neutral-border-hover); }
+    .editeur-notes-outils > button[aria-pressed="true"] { color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); }
+    #editeur-notes-ajuster[aria-pressed="true"] { color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); }
+    /* Le curseur dit l'outil. */
+    #arp-sequencer[data-outil="crayon"] .seq-cell { cursor: crosshair; }
+    #arp-sequencer[data-outil="gomme"] .seq-cell { cursor: cell; }
 }

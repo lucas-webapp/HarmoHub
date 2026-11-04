@@ -5105,3 +5105,34 @@ verdict** : la ligne de base, `verre_test` vert, plus `glock_unlock_and_switch` 
 automatique, le doigté verrouillé est bien enregistré (`guitarLock` dans le morceau) mais l'édition le rouvre déverrouillé (`app.guitarLock` nul, durablement — pas
 un délai). Point ouvert, hors de ce lot.
 
+
+## Refonte de l'interface — lot 9b : la barre d'outils de l'éditeur de notes, en icônes (2026-11-05)
+
+Cahier des charges : « Barre d'outils en icônes : sélection, crayon, gomme ; calage (grille + noire / croche / double) ; Voix ; Intensité ; Ajuster ; zoom ;
+supprimer la note. Aucune ligne d'info sur la note, aucune phrase de résumé. » (docs/refonte.md.)
+
+**Décisions de l'utilisateur (05/11).** Sélection (outil par défaut) garde EXACTEMENT les gestes d'avant ; Crayon ne fait que dessiner ; Gomme efface ce qu'elle touche.
+**Pas de choix de calage** : la demande d'avant (« il faut que les notes s'accrochent à la double croche automatiquement ») prime sur la maquette. Les boutons d'avant
+absents de la maquette (Lecture, Stop, note libre, pipette, « tout », loupe) **restent, en icônes**, dans la rangée. Voix arrive au 9c, avec le calque.
+
+**Ce qui est fait (ordinateur, éditeur de notes seulement ; le petit séquenceur et le téléphone n'ont pas bougé).**
+- **Une seule rangée** : « Notes », Fermer, les outils, la barre du séquenceur, Ajuster, chevrons. La barre est construite comme avant dans `#arp-sequencer` (et câblée
+  là), puis DÉPLACÉE dans `#editeur-notes-barre` en fin de rendu ; elle est vidée en DÉBUT de rendu, sinon `getElementById` (ordre du document) attrapait les boutons
+  périmés du rendu précédent. Les 39 px pris par l'en-tête au 9a reviennent aux notes (bande de 194 px au lieu de 155).
+- **À la jauge** : chaque bouton de la rangée 32×32, arrondi 7 px (Lecture, Stop et les corbeilles étaient à 44 px / 8 px) ; le zoom devient deux boutons − / +. Les
+  mots se taisent (« tout », « sélection ») ; chaque icône garde son infobulle et son `aria-label` (« Supprimer la note » n'en avait pas : ajouté). « Supprimer la note »
+  n'apparaît que lorsqu'une note est choisie.
+- **Outils** (`#editeur-notes-outils`, groupe segmenté, sélection en bleu ; icônes de la maquette, ces fonctions n'en avaient pas) : `outilSeq()` ne vaut que dans
+  l'éditeur. Crayon : la case est traitée comme vide (`wasOn` faux), donc on dessine même en partant d'une note, et un tap ne « rattrape » pas une note voisine.
+  Gomme (`commencerGommeSeq`) : efface la note touchée, puis toutes celles que le glissé traverse, UNE étape d'annulation par geste (posée à la première note effacée).
+  `retirerNotesSeq` est partagé avec Suppr. L'outil repart sur Sélection à chaque chargement.
+- **Ajuster** (`#editeur-notes-ajuster`) : les lignes se limitent aux notes jouées (accord et voisins) ± 2 demi-tons, au lieu du plancher / plafond toujours visibles.
+  Éteint par défaut (« voir toutes les notes possibles » avait été demandé), mémorisé par appareil (`harmohubSeqAjuster`).
+
+**Bancs.** Nouveau `editeur_notes_outils_test` (32). **Sabotages : 7, tous rouges** (barre non déplacée, gomme inopérante, une annulation par note, crayon qui déplace,
+Ajuster ignoré, barre non vidée au début du rendu, « supprimer » toujours visible — ce dernier a révélé le nom manquant). **Bancs réécrits** : `pinned_seq_toolbar`
+(la rangée se mesure dans le volet entier, en haut), `probe_seq_continu_daw` (rangée en haut du volet, au-dessus des notes ; boutons visibles mesurés sur Lecture),
+`probe_deux_boutons_seq` (« en gros » : au moins 190 px, la barre n'est plus dans l'hôte mesuré).
+
+**Balayage du lot 9b (05/11) : 225 verts, 6 rouges, 7 sans verdict (238 suites)** — la ligne de base, plus `glock_unlock_and_switch` (2/5), l'intermittent ancien
+décrit au lot 9a (rouge aussi sur le commit d'avant le 9a). Aucune régression.
