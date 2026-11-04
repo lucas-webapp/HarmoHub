@@ -92,11 +92,23 @@ const mk = (root, quality, octave, beats) => ({ root, quality, beats: beats || 4
         for (const n of sc.querySelectorAll('.seq-note')) {
             const r = n.getBoundingClientRect();
             const x1 = Math.max(r.left, rs.left + 40), x2 = Math.min(r.right, rs.right - 40);
-            if (x2 > x1 && r.top > rs.top + 4 && r.bottom < rs.bottom - 4)
+            // SOUS la règle des temps (24px), qui est collante en haut de la bande : l'éditeur de notes réduit (lot 9a, ~170px de notes) laisse
+            // souvent une barre à demi glissée dessous — le clic tombait alors sur la règle, pas sur la barre.
+            if (x2 > x1 && r.top > rs.top + 24 + 2 && r.bottom < rs.bottom - 4)
                 return { x: Math.round((x1 + x2) / 2), y: Math.round(r.top + r.height / 2) };
         }
         return null;
     });
+    // L'éditeur de notes s'ouvre RÉDUIT (lot 9a, ~170px de notes, moins sur cette fenêtre de 720px) : après le glissé, les barres de l'accord ont pu
+    // sortir de la bande. On ramène la plus proche au milieu (défilement seul : le glisser molette a déjà été vérifié ci-dessus) avant de cliquer.
+    await page.evaluate(() => {
+        const sc = document.querySelector('#arp-sequencer .seq-scroll');
+        const n = sc.querySelector('.seq-note');
+        if (!n) return;
+        const rs = sc.getBoundingClientRect(), r = n.getBoundingClientRect();
+        sc.scrollTop += (r.top + r.height / 2) - (rs.top + 24 + (rs.height - 24) / 2);
+    });
+    await page.waitForTimeout(150);
     const barre = await trouveBarreVisible();
     if (exiger(!!barre, 'une barre est visible après le glisser molette pour vérifier le clic gauche')) {
         await page.mouse.click(barre.x, barre.y);

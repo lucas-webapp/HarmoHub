@@ -10,10 +10,10 @@ La **refonte de l'interface** suit `docs/refonte.md` (règles, décisions de fon
 
 - **Livrés** : lots 1 à 8 (fondations, barre de lecture, barre du haut, onglets, grille, bulle + inspecteur, ajout unique + barre de sélection, Clavier / Guitare).
 - **Reprise** : lire `docs/reprise.md` en premier (état, plan du lot suivant, points ouverts).
-- **À faire** : lot 9 (éditeur de notes — risque très élevé, découpage dans `docs/reprise.md`), lot 10 (téléphone).
+- **En cours** : lot 9 (éditeur de notes — risque très élevé, découpage dans `docs/reprise.md`) : **9a livré** (ouvrir, fermer, étendre), prochain 9b. Puis lot 10 (téléphone).
 - **Ligne de base du balayage** (`bash tests/run_all_fast.sh`) : 235 suites, **5 rouges** déjà là avant la refonte et à ne pas confondre avec une régression
   (`probe_clic_accord_voisin`, `probe_defilement_tactile`, `probe_regle_voisins`, `probe_seq_finitions`, `seq_notes_libres_clavier`) et **7 « sans verdict »**
-  (`ctx_nav_scroll`, `detune`, `guitar_lock_click`, `instrument_stress`, `item1_hzoom_out`, `probe_cache_perime`, `smoke`). Dernier balayage : 223 verts.
+  (`ctx_nav_scroll`, `detune`, `guitar_lock_click`, `instrument_stress`, `item1_hzoom_out`, `probe_cache_perime`, `smoke`). Dernier balayage (lot 9a) : 224 verts ; `glock_unlock_and_switch` y est intermittent, aussi avant le lot (voir `docs/reprise.md`).
   Toute suite rouge ou ajout de rouge hors de cette liste est une régression : on la traite avant de pousser.
 - **Dettes connues pour le lot 10** : sur téléphone (< 900 px) rien n'a bougé depuis le lot 6 ; 19 bancs sont joués à 860 px parce qu'ils éprouvent le mode
   « Ajout » de la carte Accord, qui n'existe plus que là (liste dans `docs/dette-tests.md`, lot 6c).

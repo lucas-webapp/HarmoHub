@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611051210">
+    <link rel="stylesheet" href="style.css?v=202611051400">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611051210">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611051400">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1497,9 +1497,14 @@
                              parce qu'elle ne disait pas ce qu'elle ouvrait ; le mot répond à cela, et
                              l'icône redevient ce qu'elle sait faire de mieux — rendre le bouton
                              repérable d'un coup d'œil dans une barre qui n'a que du texte. -->
-                        <button type="button" id="grid-zoom" class="btn-seq-court" title="Séquenceur : voir tout le morceau" aria-label="Ouvrir le séquenceur, vue d'ensemble">
+                        <!-- « ÉDITEUR DE NOTES » (refonte, lot 9a) : « ouvert par un bouton bleu libellé Éditeur de notes dans la rangée de réglages (pas parmi
+                             les instruments : on a l'impression que c'est un instrument) ». C'est CE bouton, pas un nouveau : même nœud, même id, même
+                             fonction (toggleSequencer('continu')) — une cinquantaine de bancs le cliquent, et renommer un id de cette page a déjà figé l'appli
+                             (voir plus haut). Sur ordinateur il porte le libellé long et le bleu ; le téléphone garde « Séq. » jusqu'au lot 10 (CSS). Le logo
+                             existant est gardé (règle 2 : un logo de l'utilisateur ne se perd pas). Titre et aria-label suivent l'écran (majBoutonEditeurNotes). -->
+                        <button type="button" id="grid-zoom" class="btn-seq-court" title="Séquenceur : voir tout le morceau" aria-label="Ouvrir le séquenceur, vue d'ensemble" aria-pressed="false">
                             <svg class="icon icon-seq-court" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h6M14 7h6M4 12h3M11 12h9M4 17h11M19 17h1"/></svg>
-                            <span>Séq.</span>
+                            <span class="gz-court">Séq.</span><span class="gz-long">Éditeur de notes</span>
                         </button>
                     </div>
                 </div>
@@ -1565,6 +1570,21 @@
                  l'autre, jamais dupliqué. -->
             <div id="seq-dock-panel" class="seq-dock-panel" hidden>
                 <div id="seq-dock-resize" class="seq-dock-resize" title="Glisser pour ajuster la hauteur" aria-label="Ajuster la hauteur du séquenceur"></div>
+                <!-- EN-TÊTE DE L'ÉDITEUR DE NOTES (refonte, lot 9a), ordinateur seulement (masqué sous 900px : le téléphone ne bouge pas avant le lot 10).
+                     « fermé par Fermer » ; « Étendre ou non : réduit par défaut (~170 px de notes), bouton à chevrons, double-clic sur la poignée, ou
+                     poignée tirée ». Écrit ICI et pas dans la barre du séquenceur : celle-ci est reconstruite à chaque rendu (innerHTML), et les adresses
+                     des commandes doivent exister dans la page (sentinelle_adresses_test). -->
+                <div id="editeur-notes-tete" class="editeur-notes-tete">
+                    <span class="editeur-notes-titre">Notes</span>
+                    <button type="button" id="editeur-notes-fermer" class="editeur-notes-btn" title="Fermer l'éditeur de notes et revenir à la grille" aria-label="Fermer l'éditeur de notes">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                        <span>Fermer</span>
+                    </button>
+                    <button type="button" id="editeur-notes-etendre" class="editeur-notes-btn editeur-notes-icone" title="Étendre l'éditeur de notes" aria-label="Étendre l'éditeur de notes" aria-pressed="false">
+                        <svg class="icon en-chevrons-ouvrir" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9l5-5 5 5"/><path d="M7 15l5 5 5-5"/></svg>
+                        <svg class="icon en-chevrons-fermer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4l5 5 5-5"/><path d="M7 20l5-5 5 5"/></svg>
+                    </button>
+                </div>
                 <div id="seq-dock-host" class="seq-dock-host"></div>
             </div>
 
@@ -1927,11 +1947,11 @@
     <script src="fichiers.js?v=202610030500"></script>
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
-    <script src="historique.js?v=202611051210"></script>
-    <script src="script.js?v=202611051210"></script>
+    <script src="historique.js?v=202611051400"></script>
+    <script src="script.js?v=202611051400"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611051210"></script>
+    <script src="synchro-harmohub.js?v=202611051400"></script>
 </body>
 </html>

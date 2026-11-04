@@ -5052,3 +5052,56 @@ de la ligne de base restent). Le premier balayage complet avait été interrompu
 **Balayage ciblé** (`tests/run_cible.sh`, décidé le 05/11) : à lancer pendant un lot ; le complet reste réservé à la fin du lot. Premier essai : 89 suites sur 236, une dizaine de minutes ;
 la plus longue, `synchro_cloud`, fait 157 s. **À faire** : durées par suite dans le relevé de `run_all_fast.sh` (non modifié pendant qu'il tournait), puis raccourcir les plus lentes.
 
+
+## Refonte de l'interface — lot 9a : l'éditeur de notes, ouvrir / fermer / étendre (2026-11-05)
+
+Cahier des charges : « Ouvert par un bouton bleu libellé « Éditeur de notes » dans la rangée de réglages (pas parmi les instruments), fermé par « Fermer ».
+Étendre ou non : réduit par défaut (~170 px de notes), bouton à chevrons, double-clic sur la poignée, ou poignée tirée. » Maquette : « la grille passe d'elle-même en
+affichage Compact tant que l'éditeur de notes est ouvert ». (docs/refonte.md, maquette `project/Notes2.dc.html`.)
+
+**Décisions de l'utilisateur (05/11).** Le Compact est **provisoire** (pas « modifié », pas enregistré, rendu à la fermeture ; un affichage choisi pendant ce temps est le
+sien). L'icône de conduite de voix **reste** dans la rangée jusqu'au lot 9c (le panneau ne disparaît qu'une fois chaque fonction retrouvée dans le calque Voix).
+
+**Ce qui est fait (ordinateur seulement ; le téléphone n'a pas bougé, lot 10).**
+- **Le bouton** : c'est `#grid-zoom` lui-même (même nœud, même id, même `toggleSequencer('continu')` — une cinquantaine de bancs le cliquent), avec deux libellés :
+  « Éditeur de notes » au-dessus de 900 px, « Séq. » en dessous. Bleu (famille `--btn-blue`), 32 px, 7 px, logo existant gardé ; ouvert, il reste bleu et s'enfonce.
+  Titre et `aria-label` suivent l'écran (`majBoutonEditeurNotes`).
+- **L'en-tête** `#editeur-notes-tete` (écrit dans `index.html`, entre la poignée et l'hôte du séquenceur : la barre du séquenceur est reconstruite à chaque rendu) :
+  « Notes », **Fermer** (`#editeur-notes-fermer`), **chevrons** (`#editeur-notes-etendre`, écartés = étendre, rapprochés = réduire). Sans fond propre : c'est le volet,
+  déjà dans `verre-surfaces.css`, qui porte la surface (aucune nouvelle surface à dépolir).
+- **Hauteur** (`hauteurVoletSequenceur`) : réduit = règle + 170 px de notes + l'habillage (`EDITEUR_NOTES_REDUIT_PX`), étendu = toute la place que la poignée autorise,
+  toujours plafonnée au contenu (pas de noir sous la dernière note). Réduit à CHAQUE ouverture. Le chevron et le double-clic sur la poignée basculent ; une hauteur tirée à la
+  main compte comme « étendu » (maquette) et reste mémorisée comme avant ; le chevron la défait (retour au réduit, mémoire effacée).
+- **Compact provisoire** (`entrerCompactProvisoire` / `sortirCompactProvisoire`) : à l'ouverture, l'affichage (densité, largeur, deux échelles) est mis de côté et la grille
+  passe en Compact SANS `setZoomLevel` (qui marquerait modifié et écrirait la mémoire de l'appareil). `zoomSettingsForSong` et `memoriserAffichageGrille` donnent l'affichage
+  mis de côté tant qu'il existe : Ctrl+S éditeur ouvert enregistre « Normal ». Un choix de l'utilisateur (Compact / Normal / Détaillé, poignées de la grille, échelles)
+  l'efface (`abandonnerCompactProvisoire`) : son choix reste à la fermeture. Une grille déjà en Compact n'est pas touchée. Un autre morceau ouvert éditeur ouvert : son
+  affichage devient celui à rendre, et le Compact repasse par-dessus. Fermeture par tous les chemins : Fermer, le bouton, la conduite de voix qui prend la place, le passage
+  sous 900 px (`majEditeurNotes`, appelé par `toggleSequencer`, `toggleVoiceLeadingPanel`, `setupSequencerPlacement`).
+- Corrigé au passage : ouvrir la conduite de voix pendant que le séquenceur continu était ouvert laissait `#grid-zoom` allumé.
+- **Défaut du lot 8 trouvé par le balayage complet** (`verre_test`, 64/2, le même rouge qu'au relevé du lot 8, vert seul) : taper une touche du clavier PENDANT que
+  l'accord sonne arrête l'audition (`stopAll`), et `stopAll` vide le manche (`clearGuitarViz`) en comptant sur une lecture suivante — qui ne vient pas : la guitare
+  restait VIDE. Sous charge, l'audition lancée par le clic sur la case durait encore au moment où le banc tapait ses touches ; une des deux pages comparées n'avait
+  donc pas de manche (561 éléments contre 596). Une attente plus longue n'y changeait rien (essayé, puis retiré). Corrigé : `redessinerMancheSelection` après ce
+  `stopAll`. Vérification ajoutée à `vues_tiroir_test` (98), rouge au sabotage ; `verre_test` vert trois fois sous charge (trois bancs lourds en parallèle).
+
+**Coût connu.** L'en-tête prend 39 px au volet : sur une fenêtre basse (1397×720), la hauteur automatique passe de 143 à 104 px de bande (80 px de notes). Le lot 9b
+(barre d'outils en icônes, dans la même rangée que « Notes / Fermer », comme la maquette) rend cette place.
+
+**Bancs.** Nouveau `editeur_notes_test` (45) ; `vues_tiroir_test` 96 → 98 (le manche après une touche tapée pendant l'audition). **Sabotages : 6, tous rouges** (pas de Compact provisoire, Compact enregistré, double-clic coupé, téléphone touché, bouton
+pas bleu, pas de hauteur réduite). **Bancs réécrits pour le nouveau geste** : `portes_sequenceur` (libellé lu par `innerText` : « Éditeur de notes » à l'ordinateur,
+« Séq. » vérifié au téléphone ; borne de largeur relevée à 150 px), `retouches_carte_accord` (à l'ordinateur le bouton est bleu, son voisin garde le fond sombre ; la paire
+sombre d'avant vérifiée au téléphone), `probe_seq_adaptatif` (s'ouvre réduit ; la « vraie taille » et le « plus de hauteurs qu'un téléphone » se mesurent étendu),
+`seq_glisser_molette_align_piano` (la barre cherchée pour le clic gauche doit être sous la règle collante ; la bande est recentrée sur une barre avant le clic — avec 80 px
+de notes, le glissé l'avait sortie), `probe_suppression_pleinecran` (rouge AUSSI sur le commit d'avant, hors ligne de base : il cliquait `#toggle-sidebar`, masqué
+depuis le lot 6c ; il vérifie maintenant que, sans bandeau de gauche, le volet prend toute la largeur ; et il choisit Normal avant Compact, la grille étant déjà en Compact
+provisoire).
+
+**Balayage du lot 9a (05/11).** Premier relevé complet : 224 verts, 6 rouges, 7 sans verdict (237 suites) : les 5 rouges de la ligne de base plus `verre_test` (le manche
+vidé, ci-dessus, corrigé). Le relevé suivant a été perdu : le serveur de test, lancé en tâche de fond par une session précédente, a atteint sa durée limite en plein
+balayage (toutes les suites de fin d'alphabet à « 0 PASS / 1 FAIL ») ; relancé avec la durée maximale. Dernier relevé complet : **224 verts, 6 rouges, 7 sans
+verdict** : la ligne de base, `verre_test` vert, plus `glock_unlock_and_switch` (2/5), déjà noté intermittent (lots 4 et 5) et **pas une régression** : rejoué seul,
+3 échecs sur 15 avec ce lot, 7 sur 12 sur le commit d'avant. Ce qu'il montre est un vrai défaut, ancien : après un aller-retour par un autre accord avec lecture
+automatique, le doigté verrouillé est bien enregistré (`guitarLock` dans le morceau) mais l'édition le rouvre déverrouillé (`app.guitarLock` nul, durablement — pas
+un délai). Point ouvert, hors de ce lot.
+

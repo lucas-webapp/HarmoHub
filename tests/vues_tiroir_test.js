@@ -12,7 +12,7 @@ const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('tiroir clavier / guitare');
 const { estBruitReseau } = require('./_harness');
 
-plan(96);
+plan(98);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const graine = () => {
@@ -221,6 +221,15 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
     await p.click(cellule(0, 1)); await p.waitForTimeout(300);
     await p.click('#toggle-viz-guitar'); await p.waitForTimeout(500);
     exiger(await p.evaluate(() => !!document.querySelector('#vues-corps #guitar-viz svg')), 'le manche est dans le tiroir');
+    // Une touche tapée PENDANT que l'accord sonne : l'audition s'arrête (stopAll), et stopAll vide le manche en comptant sur une lecture suivante
+    // qui n'arrive pas. Le manche doit rester dessiné (défaut trouvé au lot 9a, sous la charge du balayage, par verre_test).
+    await p.click(cellule(0, 2)); await p.waitForTimeout(120);
+    exiger(await p.evaluate(() => window.app.isPlaying), 'cliquer une case fait entendre l\'accord (il sonne encore)');
+    await touche(p, await doDeLaFenetre(p) + 4);
+    await p.waitForTimeout(300);
+    check(await p.evaluate(() => !window.app.isPlaying && !!document.querySelector('#vues-corps #guitar-viz svg')), 'une touche tapée pendant qu\'il sonne arrête l\'audition, et le manche reste dessiné');
+    await p.click('#kb-effacer'); await p.waitForTimeout(200);
+    await p.click(cellule(0, 1)); await p.waitForTimeout(2300); // retour sur l'accord 2, que la suite feuillette (l'audition du clic se termine)
     const lab1 = await p.textContent('#guitar-nav-label');
     await p.click('#guitar-next'); await p.waitForTimeout(250);
     check(await p.textContent('#guitar-nav-label') !== lab1, `les doigtés se feuillettent (${lab1} → ${await p.textContent('#guitar-nav-label')})`);

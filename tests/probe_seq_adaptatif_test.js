@@ -4,7 +4,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // écran de 1080px, 222px restaient inutilisés sous le volet et seules 2,5 mesures tenaient dans la
 // vue continue — l'inverse de ce qu'on attend d'un « réglage à l'échelle du morceau en grand écran ».
 const { check: ck, plan, bilan } = require('./_harness')('volet adaptatif');
-plan(12);
+plan(14);
 (async () => {
     const b = await chromium.launch({args:['--autoplay-policy=no-user-gesture-required']});
     const mesures = {};
@@ -22,7 +22,7 @@ plan(12);
         await p.evaluate(()=>window.app.editChord(0,6)); await p.waitForTimeout(400);
         if (vp.mob) await p.tap('#grid-zoom'); else await p.click('#grid-zoom');
         await p.waitForTimeout(1300);
-        const r = await p.evaluate(()=>{
+        const mesurer = () => p.evaluate(()=>{
             const sc=document.querySelector('.seq-scroll'), g=sc.querySelector('.seq-grid');
             const pan=document.getElementById('seq-dock-panel').getBoundingClientRect();
             const cs=getComputedStyle(g);
@@ -42,8 +42,16 @@ plan(12);
                 mesuresVisibles: Math.round((rs.width-40)/barW*10)/10,
                 lignesVisibles: Math.round((rs.height-18)/hLigne),
                 lignesTotales: g.querySelectorAll('.seq-label').length,
+                bande: Math.round(rs.height),
             };
         });
+        const r = await mesurer();
+        // ÉDITEUR DE NOTES (lot 9a) : sur ordinateur il s'ouvre RÉDUIT (« ~170 px de notes ») ; sa « vraie taille » est celle qu'on obtient en
+        // l'étendant (bouton à chevrons). Le téléphone n'a pas de chevron et garde son volet d'avant (lot 10).
+        if (!vp.mob) {
+            await p.click('#editeur-notes-etendre'); await p.waitForTimeout(1100);
+            r.etendu = await mesurer();
+        }
         mesures[vp.nom]=r;
         console.log(vp.nom.padEnd(11), JSON.stringify(r));
         ck(errs.length===0, `${vp.nom} : aucune erreur JavaScript`);
@@ -52,9 +60,10 @@ plan(12);
 
     console.log('\n--- Ce qui doit avoir changé ---');
     const o=mesures['ordi-large'], pt=mesures['portable'], t=mesures['telephone'];
-    ck(o.voletH > 400, `ordinateur : le volet s'ouvre à sa vraie taille — ${o.voletH}px (300px avant)`);
-    ck(o.voletEntierVisible, 'ordinateur : le volet agrandi tient entier dans l\'écran');
-    ck(o.debordePage <= 0, `...sans faire déborder la page — ${o.debordePage}px de dépassement`);
+    ck(o.bande >= 185 && o.bande <= 200, `ordinateur : l'éditeur de notes s'ouvre réduit, ~170px de notes + la règle — ${o.bande}px (lot 9a)`);
+    ck(o.etendu.voletH > 400, `ordinateur : étendu, le volet prend sa vraie taille — ${o.etendu.voletH}px (300px avant)`);
+    ck(o.etendu.voletEntierVisible, 'ordinateur : le volet étendu tient entier dans l\'écran');
+    ck(o.etendu.debordePage <= 0, `...sans faire déborder la page — ${o.etendu.debordePage}px de dépassement`);
     // ASSERTION CORRIGÉE. Elle exigeait que les 60 lignes chromatiques tiennent toutes dans le volet,
     // ce que la conception REFUSE explicitement : la hauteur automatique est plafonnée à
     // SEQ_DOCK_HEIGHT_AUTO_MAX = 700px, « au-delà, le volet mangerait la grille d'accords au-dessus ».
@@ -63,7 +72,7 @@ plan(12);
     // ignorer. Ce qui est vraiment promis, et vérifié ici : le plafond est respecté, et un grand écran
     // montre bel et bien plus de hauteurs qu'un téléphone.
     ck(o.voletH <= 700 + 40, `ordinateur : la hauteur automatique respecte son plafond — ${o.voletH}px (700px + habillage)`);
-    ck(o.lignesVisibles > t.lignesVisibles, `...et un grand écran montre plus de hauteurs qu'un téléphone — ${o.lignesVisibles} contre ${t.lignesVisibles} lignes sur ${o.lignesTotales}`);
+    ck(o.etendu.lignesVisibles > t.lignesVisibles, `...et un grand écran, éditeur étendu, montre plus de hauteurs qu'un téléphone — ${o.etendu.lignesVisibles} contre ${t.lignesVisibles} lignes sur ${o.lignesTotales}`);
     ck(o.mesuresVisibles >= 4.5, `ordinateur : on voit la structure du morceau — ${o.mesuresVisibles} mesures (2,5 avant)`);
     ck(pt.mesuresVisibles > 3, `portable : idem à sa mesure — ${pt.mesuresVisibles} mesures (2 avant)`);
     ck(t.voletH === 300 || t.voletH < 400, `téléphone : le volet garde une taille raisonnable — ${t.voletH}px`);

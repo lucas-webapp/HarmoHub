@@ -7598,3 +7598,52 @@ body.avec-barre-selection .toast { bottom: 132px; }
     .bl-vues .viz-toggle { align-self: center; gap: 8px; }
     .bl-vues .viz-toggle-btn { width: var(--bouton-h); height: var(--bouton-h); }
 }
+
+/* ---------- ÉDITEUR DE NOTES (refonte, lot 9a — docs/refonte.md, « Éditeur de notes ») ----------
+   En FIN de feuille, comme l'inspecteur : des règles du séquenceur plus bas l'écraseraient. Téléphone : le libellé « Séq. » et le volet d'avant,
+   sans en-tête (rien ne bouge avant le lot 10). */
+#grid-zoom .gz-long { display: none; }
+.editeur-notes-tete { display: none; }
+@media (min-width: 900px) {
+    /* « Un bouton BLEU libellé Éditeur de notes » : bleu = ajouter / modifier (règle 3). Ouvert, il reste bleu (le vert dit « lecture ») mais
+       s'éclaire et s'enfonce, comme un segment choisi. */
+    #grid-zoom .gz-court { display: none; }
+    #grid-zoom .gz-long { display: inline; }
+    #grid-zoom.btn-seq-court {
+        height: var(--bouton-h); border-radius: var(--rayon-bouton, 7px); color: var(--btn-text);
+        border: 1px solid var(--btn-blue-border);
+        background: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(160deg, var(--btn-blue-1), var(--btn-blue-2) 70%);
+    }
+    #grid-zoom.btn-seq-court:hover {
+        border-color: var(--btn-blue-border-hover); color: #fff;
+        background: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.16), transparent 55%), linear-gradient(160deg, #2d4570, #1e304e 70%);
+    }
+    #grid-zoom.btn-seq-court.active {
+        border-color: var(--btn-blue-border-hover); color: #fff;
+        background: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.16), transparent 55%), linear-gradient(160deg, #2d4570, #1e304e 70%);
+        box-shadow: inset 0 1px 3px rgba(0,0,0,0.45);
+    }
+
+    /* L'EN-TÊTE : « Notes », Fermer, chevrons — une barre, une hauteur, une ligne de base (règle 3). Sans fond propre : c'est le volet
+       (déjà dans verre-surfaces.css) qui porte la surface, il n'y a donc pas de nouvelle surface à dépolir. */
+    .editeur-notes-tete {
+        display: flex; align-items: center; gap: 8px; flex: none;
+        padding: 0 12px 6px; border-bottom: 1px solid var(--border);
+    }
+    .editeur-notes-titre { font-size: var(--fs-sm); font-weight: 800; color: var(--text-main); margin-right: 4px; }
+    .editeur-notes-btn {
+        flex: none; min-width: 0; height: var(--bouton-h); padding: 0 12px; gap: 6px;
+        display: inline-flex; align-items: center; justify-content: center;
+        border-radius: var(--rayon-bouton, 7px); border: 1px solid var(--btn-neutral-border);
+        background: var(--fond-bouton-sombre); color: var(--text-muted);
+        font-size: var(--fs-sm); font-weight: 600; cursor: pointer;
+    }
+    .editeur-notes-btn:hover { background: var(--fond-bouton-sombre-survol); border-color: var(--btn-neutral-border-hover); color: var(--text-main); }
+    .editeur-notes-btn .icon { width: 15px; height: 15px; }
+    .editeur-notes-icone { width: var(--bouton-h); padding: 0; }
+    .editeur-notes-icone .icon { width: 16px; height: 16px; }
+    /* Deux chevrons : écartés = « étendre », rapprochés = « réduire » (maquette). */
+    #editeur-notes-etendre .en-chevrons-fermer { display: none; }
+    #editeur-notes-etendre[aria-pressed="true"] .en-chevrons-fermer { display: block; }
+    #editeur-notes-etendre[aria-pressed="true"] .en-chevrons-ouvrir { display: none; }
+}

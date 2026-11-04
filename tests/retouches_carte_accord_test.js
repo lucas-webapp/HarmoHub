@@ -25,7 +25,7 @@ const seed = () => {
 };
 
 (async () => {
-    plan(14);
+    plan(18);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -46,12 +46,15 @@ const seed = () => {
     // LE POINT QUI COMPTE VRAIMENT : « Séq. » ne doit plus être transparent par accident. Un fond
     // transparent passerait ce banc si l'on se contentait de comparer les deux entre eux — d'où le
     // contrôle explicite qu'il est PEINT.
-    check(barre.seq.fond !== 'rgba(0, 0, 0, 0)' && barre.seq.fond !== 'transparent',
-        `« Séq. » a enfin un fond peint, au lieu de montrer celui de la page — ${barre.seq.fond}`);
-    check(barre.voicing.fond === barre.seq.fond,
-        `« Conduite de voix » a le même fond que son voisin « Séq. » — ${barre.voicing.fond} contre ${barre.seq.fond}`);
-    check(barre.voicing.image === 'none' && barre.seq.image === 'none',
-        `tous deux à plat, sans dégradé clair — ${barre.voicing.image} / ${barre.seq.image}`);
+    // LOT 9a : sur ORDINATEUR, « Séq. » est devenu l'« Éditeur de notes », et la refonte le veut BLEU (« un bouton bleu libellé Éditeur de
+    // notes » ; bleu = ajouter / modifier). La paire sombre « Séq. / Conduite de voix » ne vaut donc plus qu'au téléphone (vérifiée plus bas) ;
+    // ici, l'Éditeur de notes est peint dans la matière des boutons bleus, et son voisin garde le fond sombre à plat qu'on lui avait donné.
+    check(/linear-gradient/.test(barre.seq.image) && /rgb\(37, 58, 92\)/.test(barre.seq.image),
+        `« Éditeur de notes » est peint, en bleu (dégradé --btn-blue) — ${barre.seq.image.slice(0, 60)}…`);
+    check(barre.voicing.fond === 'rgb(22, 25, 30)',
+        `« Conduite de voix » garde le fond sombre du volet (--fond-bouton-sombre) — ${barre.voicing.fond}`);
+    check(barre.voicing.image === 'none',
+        `et reste à plat, sans dégradé clair — ${barre.voicing.image}`);
     check(barre.voicing.rayon === barre.seq.rayon,
         `et le même arrondi, pour qu'ils se lisent comme une paire — ${barre.voicing.rayon} / ${barre.seq.rayon}`);
     // La méprise annulée : les listes de la carte Accord n'avaient PAS à changer, aucun retour ne
@@ -131,6 +134,13 @@ const seed = () => {
         return Math.round(((Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05)) * 10) / 10;
     });
     check(contraste >= 4.5, `téléphone : « Séq. » garde un texte lisible sur son nouveau fond — ${contraste}:1 (seuil AA : 4.5)`);
+    // La paire d'avant, au TÉLÉPHONE (rien n'y bouge avant le lot 10) : même fond, à plat, même arrondi.
+    const paire = await tel.evaluate(() => {
+        const f = (s) => { const c = getComputedStyle(document.querySelector(s)); return { fond: c.backgroundColor, image: c.backgroundImage, rayon: c.borderTopLeftRadius }; };
+        return { v: f('#toggle-voice-leading'), s: f('#grid-zoom') };
+    });
+    check(paire.s.fond !== 'rgba(0, 0, 0, 0)' && paire.v.fond === paire.s.fond && paire.v.image === 'none' && paire.s.image === 'none' && paire.v.rayon === paire.s.rayon,
+        `téléphone : « Séq. » et « Conduite de voix » gardent le même fond sombre, à plat — ${paire.s.fond} / ${paire.v.fond}`);
 
     check(erreurs.length === 0, `aucune erreur JavaScript — ${erreurs.join(' | ') || 'aucune'}`);
     await browser.close();

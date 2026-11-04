@@ -61,6 +61,9 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
 
     // Zoom de la grille (classicGrid) toujours opérant
     // Lot 5a : au bureau, l'échelle horizontale de la grille se règle par l'affichage (Compact = 8 mesures par ligne) et non plus par le bouton H+.
+    // Lot 9a : l'éditeur de notes (ouvert juste au-dessus) met déjà la grille en Compact PROVISOIRE. On choisit d'abord Normal — un vrai choix,
+    // qui l'emporte sur le provisoire — pour que Compact ait encore une échelle à resserrer.
+    await p.click('#grille-densites [data-densite="normal"]'); await p.waitForTimeout(400);
     const av = await p.evaluate(()=>window.app.classicGridZoomLevelX);
     await p.click('#grille-densites [data-densite="compact"]'); await p.waitForTimeout(400);
     ck(await p.evaluate(()=>window.app.classicGridZoomLevelX) < av, 'l\'échelle horizontale de la grille se règle toujours (affichage Compact)');
@@ -83,10 +86,17 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
     // enchaîne plusieurs sections.
     await p.evaluate(() => { if (window.app.seqMode !== 'continu' || !window.app.seqOpen) window.app.toggleSequencer('continu'); });
     await p.waitForTimeout(900);
-    const l1 = await p.evaluate(()=>Math.round(document.getElementById('seq-dock-panel').getBoundingClientRect().width));
-    await p.click('#toggle-sidebar'); await p.waitForTimeout(700);
-    const l2 = await p.evaluate(()=>Math.round(document.getElementById('seq-dock-panel').getBoundingClientRect().width));
-    ck(l2 > l1 + 200, `masquer le volet de gauche élargit vraiment le séquenceur continu — ${l1}px → ${l2}px`);
+    // LOT 6c : le bandeau de gauche n'existe plus sur ordinateur (#toggle-sidebar est masqué, l'inspecteur s'ouvre À DROITE seulement pendant
+    // la modification d'un accord). Le point devient donc : hors modification, rien ne prend plus la place du séquenceur continu — son volet
+    // occupe toute la largeur de la colonne, ce que le repli du bandeau servait justement à obtenir.
+    await p.evaluate(()=>window.app.cancelEdit()); await p.waitForTimeout(500); // quitte la modification ouverte plus haut (comme ce banc le fait déjà) : l'inspecteur se referme
+    await p.evaluate(() => { if (window.app.seqMode !== 'continu' || !window.app.seqOpen) window.app.toggleSequencer('continu'); });
+    await p.waitForTimeout(700);
+    const l = await p.evaluate(()=>({ volet: Math.round(document.getElementById('seq-dock-panel').getBoundingClientRect().width),
+        colonne: Math.round(document.querySelector('.col-right').getBoundingClientRect().width), page: innerWidth,
+        repli: getComputedStyle(document.getElementById('toggle-sidebar')).display }));
+    ck(l.repli === 'none' && l.volet >= l.colonne - 2 && l.volet > l.page - 120,
+        `sans bandeau de gauche, le séquenceur continu prend toute la largeur — volet ${l.volet}px, colonne ${l.colonne}px, page ${l.page}px`);
 
     console.log('Errors:', JSON.stringify(errs));
     ck(errs.length===0, 'aucune erreur JavaScript');

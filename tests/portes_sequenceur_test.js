@@ -48,7 +48,7 @@ const atteignable = (sel) => {
 };
 
 (async () => {
-    plan(28);
+    plan(32);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -71,14 +71,18 @@ const atteignable = (sel) => {
             const e = document.getElementById(id);
             if (!e) return null;
             const r = e.getBoundingClientRect();
-            return { texte: (e.textContent || '').trim(), l: Math.round(r.width), h: Math.round(r.height),
+            // innerText et non textContent : le bouton porte les deux libellés (« Séq. » au téléphone, « Éditeur de notes » à l'ordinateur, lot 9a),
+            // et seul celui que l'écran MONTRE compte.
+            return { texte: (e.innerText || '').trim(), l: Math.round(r.width), h: Math.round(r.height),
                      visible: e.offsetParent !== null, svg: !!e.querySelector('svg') };
         };
         return { ancien: !!document.getElementById('toggle-sequencer'), seq: lire('grid-zoom'), plein: lire('seq-zoom') };
     });
     check(!a.ancien, 'le pictogramme de l\'en-tête a disparu : il faisait doublon sans le dire');
     exiger(!!a.seq && !!a.plein, 'les deux portes existent');
-    check(a.seq.texte === 'Séq.', `au-dessus de la grille, un mot et non un logo — « ${a.seq.texte} »`);
+    // LOT 9a : sur ordinateur, cette porte est devenue l'« Éditeur de notes » (« un bouton bleu libellé Éditeur de notes dans la rangée de
+    // réglages ») — toujours un mot et non un logo seul ; le téléphone garde « Séq. » jusqu'au lot 10 (vérifié en F).
+    check(a.seq.texte === 'Éditeur de notes', `au-dessus de la grille, un mot et non un logo — « ${a.seq.texte} »`);
     // LE LOGO EST REVENU, et ce n'est pas un retour en arrière. Ce qui posait problème, c'était le
     // logo SEUL — rien ne disait ce qu'il ouvrait. Le mot répond à cela ; l'icône, à côté de lui,
     // redevient ce qu'elle sait faire de mieux : rendre le bouton repérable dans une barre de texte
@@ -93,7 +97,9 @@ const atteignable = (sel) => {
     // « On peut l'élargir un peu » : la borne monte donc, mais elle RESTE — sans elle, la règle
     // générique `button { min-width: 120px }` reprendrait la main en silence, ce qu'elle a déjà fait
     // une fois (mesuré : 120px, près de trois fois le logo de 44px qu'il remplaçait).
-    check(a.seq.l <= 90, `élargi pour loger son logo, sans repartir vers les 120px de la règle générique — ${a.seq.l}px`);
+    // Lot 9a : le libellé long (« Éditeur de notes ») fait ~140px. La borne garde son rôle — le bouton suit son texte, sans `flex: 1` qui
+    // l'étirerait dans la rangée — et elle est donc relevée à la largeur de ce texte, pas supprimée.
+    check(a.seq.l <= 150, `élargi pour loger son logo et son libellé, sans s'étirer dans la rangée — ${a.seq.l}px`);
 
     console.log('\n=== B. « Séquenceur » ouvre ET agrandit, d\'un seul geste ===');
     // LE point du lot. Séquenceur fermé, openSeqZoom() rendait la main sans rien faire.
@@ -226,6 +232,7 @@ const atteignable = (sel) => {
         const r = document.getElementById(id).getBoundingClientRect();
         return { id, l: Math.round(r.width), h: Math.round(r.height) };
     }));
+    check(await m.evaluate(() => document.getElementById('grid-zoom').innerText.trim()) === 'Séq.', 'téléphone : la porte garde son mot « Séq. » (lot 10)');
     check(tailles.every(t => t.h >= 24 && t.l >= 40),
         `téléphone : les deux portes restent des cibles — ${tailles.map(t => t.id + ' ' + t.l + 'x' + t.h).join(', ')}`);
     await m.evaluate(() => document.getElementById('seq-zoom').scrollIntoView({ block: 'center' }));
