@@ -156,10 +156,6 @@
     "sortie_edition_involontaire_test.js",
     "tap_removal_test.js",
     "undo_ajout_rapide_test.js",
-    "vl_loupe_test.js",
-    "vl_pinch_test.js",
-    "voice_leading_section_ops_test.js",
-    "voice_leading_test.js",
     "voicing_syntax_test.js",
     "zoom_coherence_test.js"
   ],
@@ -172,7 +168,6 @@
     "seq_glisser_molette_align_piano_test.js": 1,
     "seq_row_pipette_test.js": 1,
     "seq_short_note_body_test.js": 3,
-    "song_panel_test.js": 1,
-    "voice_leading_test.js": 1
+    "song_panel_test.js": 1
   }
 }

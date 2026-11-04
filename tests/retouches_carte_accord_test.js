@@ -40,9 +40,10 @@ const seed = () => {
     const barre = await page.evaluate(() => {
         const f = (s) => { const e = document.querySelector(s); if (!e) return null; const c = getComputedStyle(e);
             return { fond: c.backgroundColor, image: c.backgroundImage, rayon: c.borderTopLeftRadius }; };
-        return { voicing: f('#toggle-voice-leading'), seq: f('#grid-zoom') };
+        return { voicing: f('#toggle-voice-leading'), voix: f('#editeur-notes-voix'), seq: f('#grid-zoom'),
+            voicingAffiche: !!document.getElementById('toggle-voice-leading').offsetParent };
     });
-    exiger(!!barre.voicing && !!barre.seq, 'les deux boutons voisins de la barre sont là');
+    exiger(!!barre.voicing && !!barre.voix && !!barre.seq, 'les boutons de la conduite de voix et de l\'éditeur de notes sont là');
     // LE POINT QUI COMPTE VRAIMENT : « Séq. » ne doit plus être transparent par accident. Un fond
     // transparent passerait ce banc si l'on se contentait de comparer les deux entre eux — d'où le
     // contrôle explicite qu'il est PEINT.
@@ -51,12 +52,14 @@ const seed = () => {
     // ici, l'Éditeur de notes est peint dans la matière des boutons bleus, et son voisin garde le fond sombre à plat qu'on lui avait donné.
     check(/linear-gradient/.test(barre.seq.image) && /rgb\(37, 58, 92\)/.test(barre.seq.image),
         `« Éditeur de notes » est peint, en bleu (dégradé --btn-blue) — ${barre.seq.image.slice(0, 60)}…`);
-    check(barre.voicing.fond === 'rgb(22, 25, 30)',
-        `« Conduite de voix » garde le fond sombre du volet (--fond-bouton-sombre) — ${barre.voicing.fond}`);
-    check(barre.voicing.image === 'none',
-        `et reste à plat, sans dégradé clair — ${barre.voicing.image}`);
-    check(barre.voicing.rayon === barre.seq.rayon,
-        `et le même arrondi, pour qu'ils se lisent comme une paire — ${barre.voicing.rayon} / ${barre.seq.rayon}`);
+    // LOT 9c : « Conduite de voix » a quitté la rangée de l'ordinateur ; elle est devenue le bouton Voix de l'éditeur de notes, qui reprend son logo.
+    // C'est lui qui garde maintenant la matière de l'ancien voisin : fond sombre du volet, à plat, même arrondi.
+    check(!barre.voicingAffiche && barre.voix.fond === 'rgb(22, 25, 30)',
+        `« Conduite de voix » a quitté la rangée ; Voix, dans l'éditeur, garde le fond sombre du volet (--fond-bouton-sombre) — ${barre.voix.fond}`);
+    check(barre.voix.image === 'none',
+        `et reste à plat, sans dégradé clair — ${barre.voix.image}`);
+    check(barre.voix.rayon === barre.seq.rayon,
+        `et le même arrondi que l'Éditeur de notes — ${barre.voix.rayon} / ${barre.seq.rayon}`);
     // La méprise annulée : les listes de la carte Accord n'avaient PAS à changer, aucun retour ne
     // l'avait demandé. Ce point garde la trace de ce retour en arrière.
     const listes = await page.evaluate(() => getComputedStyle(document.getElementById('root')).backgroundImage);

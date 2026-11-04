@@ -1636,6 +1636,25 @@ class Chord {
         return map;
     }
 
+    // CHIFFRE DE FONCTION de chaque voix, dans l'ordre STABLE de _computeVoices (donc par index de voix du séquenceur) — calque Voix de l'éditeur
+    // de notes (lot 9c) : « fonction 1/3/5/7 écrite dans la note (la couleur n'est plus seule) ». Les couleurs « Autres » de la légende disent leur
+    // vrai degré (2, 4, 6, 9, 11, 13, avec ♭ ou ♯ s'il est altéré) plutôt qu'un point : la même teinte violette couvre une 9e et une sixte, le
+    // chiffre les distingue. « · » seulement pour une note étrangère à l'accord (note libre ou basse sans classe de hauteur commune).
+    getFonctionsVoix() {
+        const intervalles = this.getIntervals();
+        const GAMME = [0, 2, 4, 5, 7, 9, 11]; // demi-tons de chaque degré dans la gamme majeure : le repère du ♭ / ♯
+        const PAR_ROLE = { root: '1', third: '3', fifth: '5', seventh: '7' };
+        return this._computeVoices().map(v => {
+            if (PAR_ROLE[v.role]) return PAR_ROLE[v.role];
+            const iv = v.degree == null ? null : intervalles.find(n => n.degree === v.degree);
+            if (!iv) return '·';
+            const auDessus = iv.semi >= 12; // au-dessus de l'octave : 9, 11, 13 et non 2, 4, 6
+            const naturel = GAMME[v.degree] + (auDessus ? 12 : 0);
+            const alt = iv.semi === naturel - 1 ? '♭' : (iv.semi === naturel + 1 ? '♯' : '');
+            return alt + (v.degree + 1 + (auDessus ? 7 : 0));
+        });
+    }
+
     // Suffixe renversement/drop seul (ex. "1er renv. · Drop 2", '' si voicing de base) : version
     // longue, utilisée par getLabel() (aperçu, séquenceur...) — voir getVoicingBadge pour la notation
     // compacte du PDF exporté.
@@ -2430,6 +2449,11 @@ const EDITEUR_NOTES_REDUIT_PX = 170;
 // « Ajuster la hauteur aux notes présentes » (lot 9b) : ne montrer que les demi-tons des notes jouées, plus cette marge de part et d'autre (maquette).
 const SEQ_AJUSTER_KEY = 'harmohubSeqAjuster';
 const SEQ_AJUSTER_MARGE = 2;
+// CALQUE « VOIX » (lot 9c) : « l'ancienne conduite de voix : fonction 1/3/5/7 écrite dans la note (la couleur n'est plus seule), trait blanc du
+// chemin des voix ». Décisions du 05/11 : éteint au premier usage puis mémorisé par appareil (comme Ajuster) ; le nom et le degré de chaque accord
+// reviennent dans la règle, calque allumé seulement — une bande de cette hauteur AU-DESSUS des numéros de mesure, que la règle gagne alors.
+const SEQ_VOIX_KEY = 'harmohubSeqVoix';
+const SEQ_REGLE_ACCORDS_PX = 14;
 // Hauteur d'ouverture du volet quand l'utilisateur ne l'a jamais réglé : une PART de l'écran, pas une
 // valeur fixe. 300px partout était calibré pour un téléphone — sur un écran de 1080px, ça laissait
 // 222px inutilisés juste sous le volet et coupait 3 des 20 lignes chromatiques (mesuré).
@@ -3857,6 +3881,8 @@ class HarmoHubApp {
         // mémorisé par appareil. Éteint par défaut : « voir toutes les notes possibles » avait été demandé, c'est donc la vue d'arrivée.
         this.seqOutil = 'selection';
         this.seqAjuster = localStorage.getItem(SEQ_AJUSTER_KEY) === '1';
+        // Lot 9c : le calque Voix (voir SEQ_VOIX_KEY). Ne vaut que dans l'éditeur de notes (voir calqueVoixActif).
+        this.seqVoix = localStorage.getItem(SEQ_VOIX_KEY) === '1';
         this.seqZoomOpen = false;  // fenêtre agrandie du séquenceur ouverte ou non (voir openSeqZoom)
         // Panneau "Conduite de voix" ouvert ou non (voir toggleVoiceLeadingPanel/buildVoiceLeadingPanelHtml)
         // — un seul bouton global (#toggle-voice-leading, à côté de #grid-zoom), pas un par partie : le
@@ -18664,14 +18690,16 @@ class HarmoHubApp {
             // Une ligne par demi-ton affiché, à 14px : le contenu ne dépend plus d'aucune échelle
             // depuis que la hauteur de barre est fixe.
             const nbLignes = grille.querySelectorAll('.seq-label').length;
-            const contenuEchelle1 = SEQ_RULER_PX + nbLignes * SEQ_LIGNE_PX;
+            // La règle gagne la bande des accords quand le calque Voix est allumé (lot 9c) : comptée ici, les 170px de notes du « réduit » restent 170px.
+            const regle = this.hauteurRegleSeq();
+            const contenuEchelle1 = regle + nbLignes * SEQ_LIGNE_PX;
             h = Math.min(h, contenuEchelle1 + autour + 8);
             // ÉDITEUR DE NOTES (lot 9a, ordinateur) : « réduit par défaut (~170 px de notes) », étendu = tout ce que la place permet (le plafond
             // du contenu ci-dessus vaut toujours : étendre ne crée pas de noir sous la dernière note). Seulement sans hauteur tirée à la main.
             if (this._editeurNotesActif) {
                 h = this.editeurNotesEtendu
                     ? Math.min(dispo, contenuEchelle1 + autour + 8)
-                    : Math.min(h, SEQ_RULER_PX + EDITEUR_NOTES_REDUIT_PX + autour);
+                    : Math.min(h, regle + EDITEUR_NOTES_REDUIT_PX + autour);
             }
         }
         return Math.round(h);
@@ -18753,8 +18781,36 @@ class HarmoHubApp {
             this.majBoutonEditeurNotes();
             this.renderSequencer();
         });
+        const voix = document.getElementById('editeur-notes-voix');
+        if (voix) voix.addEventListener('click', () => this.basculerCalqueVoix());
         this.majBoutonEditeurNotes();
     }
+
+    // CALQUE VOIX (lot 9c) : l'ancienne conduite de voix, fondue dans l'éditeur de notes. Ne vaut que là (ordinateur) : le petit séquenceur de
+    // l'inspecteur et le téléphone n'en ont pas (le téléphone garde son panneau de conduite de voix jusqu'au lot 10).
+    calqueVoixActif() { return !!(this._editeurNotesActif && this.seqVoix); }
+
+    basculerCalqueVoix() {
+        this.seqVoix = !this.seqVoix;
+        try { localStorage.setItem(SEQ_VOIX_KEY, this.seqVoix ? '1' : '0'); } catch (e) { /* stockage refusé : le réglage vaut pour la session */ }
+        this.majBoutonEditeurNotes();
+        // L'ancien panneau montrait TOUTE la partie sans qu'aucun accord soit choisi ; l'éditeur, lui, ne montre la partie qu'autour d'un accord en
+        // cours. Décision de l'utilisateur (05/11, choix proposé et retenu) : allumer Voix sans accord choisi ouvre le premier accord de la partie
+        // active — on voit aussitôt toute la partie et ses voix. Même chemin que l'ouverture de l'éditeur sur un accord sélectionné (toggleSequencer) : sélection puis editChord, sans
+        // faire entendre l'accord (le clic portait sur un bouton d'affichage, pas sur la musique).
+        if (this.seqVoix && this._editeurNotesActif && this.editingIndex == null) {
+            const sec = loadProgressionSections()[this.activeSection];
+            if (sec && sec.chords && sec.chords.length) {
+                this.selectedIndex = 0;
+                this.editChord(this.activeSection, 0);
+                return; // editChord redessine déjà le séquenceur et la grille
+            }
+        }
+        this.renderSequencer();
+    }
+
+    // Hauteur de la règle de l'éditeur : la bande des accords (nom et degré) s'ajoute au-dessus des mesures quand le calque Voix est allumé.
+    hauteurRegleSeq() { return SEQ_RULER_PX + (this.calqueVoixActif() ? SEQ_REGLE_ACCORDS_PX : 0); }
 
     // L'outil ne vaut QUE dans l'éditeur de notes (ordinateur) : ailleurs (petit séquenceur de l'inspecteur, téléphone) les gestes restent ceux d'avant.
     outilSeq() { return this._editeurNotesActif ? this.seqOutil : 'selection'; }
@@ -18808,6 +18864,10 @@ class HarmoHubApp {
         document.querySelectorAll('#editeur-notes-outils [data-outil]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.outil === this.seqOutil)));
         const ajuster = document.getElementById('editeur-notes-ajuster');
         if (ajuster) ajuster.setAttribute('aria-pressed', String(!!this.seqAjuster));
+        const voix = document.getElementById('editeur-notes-voix');
+        if (voix) voix.setAttribute('aria-pressed', String(!!this.seqVoix));
+        const legende = document.getElementById('editeur-notes-legende');
+        if (legende) legende.hidden = !this.seqVoix;
         const hoteSeq = document.getElementById('arp-sequencer');
         if (hoteSeq) hoteSeq.dataset.outil = this.outilSeq(); // le curseur suit l'outil (style.css)
         const poignee = document.getElementById('seq-dock-resize');
@@ -18874,6 +18934,9 @@ class HarmoHubApp {
             this.majEditeurNotes(); // passer sous 900px éditeur ouvert rend à la grille son affichage (le téléphone n'a pas de Compact provisoire)
             this.placeSequencer();
             if (this.seqOpen) this.renderSequencer();
+            // Lot 9c : au-dessus de 900px, l'ancien panneau de conduite de voix n'a plus de bouton (c'est le calque Voix de l'éditeur) : ouvert sur
+            // téléphone puis la fenêtre élargie, il resterait affiché sans rien pour le fermer.
+            if (mq.matches && this.voiceLeadingOpen) { this.voiceLeadingOpen = false; this.loadProgression(); }
         };
         if (mq.addEventListener) mq.addEventListener('change', onChange);
         else mq.addListener(onChange); // Safari < 14
@@ -20185,6 +20248,8 @@ class HarmoHubApp {
         // « Séq. » au-dessus de la grille — et reste agrandissable, elle : c'est le MODE qui décide
         // maintenant, plus la fenêtre.
         const continuous = (this.seqMode === 'continu');
+        // Calque Voix (lot 9c) : seulement dans la vue continue de l'éditeur de notes (voir calqueVoixActif).
+        const voix = continuous && this.calqueVoixActif();
         let prevMidiSet = new Set(), nextMidiSet = new Set();
         // TOUS les accords de la partie active, avant/après celui en édition (pas seulement le plus
         // proche, retour utilisateur : pouvoir défiler/cliquer directement n'importe quel accord de la
@@ -20210,7 +20275,9 @@ class HarmoHubApp {
                 // CET accord voisin — c'est ce qui permet de teinter son rythme comme les barres de
                 // l'accord édité, au lieu d'un gris uniforme (voir .seq-ctx-note). Calculé ici, une
                 // fois par segment, plutôt qu'à chaque case peinte.
-                return { data, midis: segMidis, midiSet: new Set(segMidis), roleMap: c.getRoleMap(), pattern: resolved.pattern, tie: resolved.tie, steps: c.beats * SEQ_STEPS_PER_BEAT, index };
+                // `fonctions` : chiffre de fonction de chaque voix (calque Voix, lot 9c), dans l'ordre de `midis`.
+                return { data, midis: segMidis, midiSet: new Set(segMidis), roleMap: c.getRoleMap(), pattern: resolved.pattern, tie: resolved.tie, steps: c.beats * SEQ_STEPS_PER_BEAT, index,
+                    fonctions: voix ? c.getFonctionsVoix() : null };
             };
             let offset = 0;
             for (let i = 0; i < this.editingIndex; i++) {
@@ -20361,7 +20428,7 @@ class HarmoHubApp {
             : (wideCompact ? `max-content repeat(${totalCols}, var(--seq-col-w))`
                            : (plafonne ? `max-content repeat(${pageSteps}, minmax(0, ${SEQ_CASE_MAX_AGRANDIE * seqHZoom}px))`
                                        : `max-content repeat(${pageSteps}, 1fr)`));
-        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}${plafondCls}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" data-col-px="${continuousColPx}" data-total-cols="${totalCols}" style="grid-template-columns: ${colTemplate}; --seq-col-w: ${continuousColPx}px; --seq-steps-per-bar: ${beatsPerBar * SEQ_STEPS_PER_BEAT}; --seq-bar-w: ${continuousColPx * beatsPerBar * SEQ_STEPS_PER_BEAT}px; --seq-beat-w: ${continuousColPx * SEQ_STEPS_PER_BEAT}px; --seq-label-w: ${labelW}px;">`;
+        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}${plafondCls}${voix ? ' seq-grid-voix' : ''}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" data-col-px="${continuousColPx}" data-total-cols="${totalCols}" style="grid-template-columns: ${colTemplate}; --seq-col-w: ${continuousColPx}px; --seq-steps-per-bar: ${beatsPerBar * SEQ_STEPS_PER_BEAT}; --seq-bar-w: ${continuousColPx * beatsPerBar * SEQ_STEPS_PER_BEAT}px; --seq-beat-w: ${continuousColPx * SEQ_STEPS_PER_BEAT}px; --seq-label-w: ${labelW}px;">`;
 
         // Cases de la grille : zones de clic/glisser (toujours présentes, sous les notes visuelles).
         // Placement explicite (grid-row/grid-column) sur TOUT le monde : les notes ci-dessous se
@@ -20423,7 +20490,8 @@ class HarmoHubApp {
                 // Jamais la classe .seq-note elle-même : le rectangle de sélection la cherche sans
                 // qualificatif (voir onSeqMarqueeMove/finalizeSeqMarqueeSelect) et happerait alors des
                 // barres de contexte, qui n'appartiennent pas à l'accord en cours d'édition.
-                out += `<div class="seq-ctx-note ${runLen > 1 ? 'run' : 'single'} seq-ctx-role-${role}" style="grid-row:${rowIndex}; grid-column:${colBase + seg.colStart + runStart + 2} / span ${runLen};${trimEnd}"></div>`;
+                const fnCtx = seg.fonctions ? `<span class="seq-note-fn">${seg.fonctions[segVoice]}</span>` : '';
+                out += `<div class="seq-ctx-note ${runLen > 1 ? 'run' : 'single'} seq-ctx-role-${role}" style="grid-row:${rowIndex}; grid-column:${colBase + seg.colStart + runStart + 2} / span ${runLen};${trimEnd}">${fnCtx}</div>`;
             }
             return out;
         };
@@ -20547,6 +20615,7 @@ class HarmoHubApp {
         // gère le clic. Un glissé démarré sur sa première ou dernière croche l'étire/la raccourcit
         // depuis ce bord (voir onSeqPointerDown) ; ailleurs, un glissé peint/efface comme avant.
         let notesHtml = '';
+        const fonctionsVoix = voix ? chord.getFonctionsVoix() : null;
         rowIndex = 1; // même décalage que ci-dessus : la ligne 1 est la règle de mesure
         for (const row of rowOrder) {
             rowIndex++;
@@ -20586,10 +20655,13 @@ class HarmoHubApp {
                 // croche isolée, rien à distinguer) dont le début est réellement visible sur cette page
                 // (une note coupée par la page — voir clip-start — n'attaque pas ici, juste continue).
                 const headEl = (shape === 'run' && !clipStart) ? '<span class="seq-note-head"></span>' : '';
-                notesHtml += `<div class="seq-note ${shape} role-${role}${sel}${clipCls}" data-voice="${r}" data-start="${runStart}" data-end="${trueRunEnd}" style="grid-row:${rowIndex}; grid-column:${colOffset + runStart - pageStart + 2} / span ${runLen};${trimEnd}">${headEl}</div>`;
+                // Calque Voix (lot 9c) : la fonction écrite DANS la note, « la couleur n'est plus seule ».
+                const fnEl = fonctionsVoix ? `<span class="seq-note-fn">${fonctionsVoix[r]}</span>` : '';
+                notesHtml += `<div class="seq-note ${shape} role-${role}${sel}${clipCls}" data-voice="${r}" data-start="${runStart}" data-end="${trueRunEnd}" style="grid-row:${rowIndex}; grid-column:${colOffset + runStart - pageStart + 2} / span ${runLen};${trimEnd}">${headEl}${fnEl}</div>`;
             }
         }
         html += notesHtml;
+        if (voix) html += this.calqueVoixHtml({ chord, midis, rowOrder, prevSegs, nextSegs, colOffset, pageSteps });
 
         // RÈGLE DE MESURE, en haut de la grille : une graduation à chaque début de temps, et un chiffre
         // dont la nature dépend de la vue — numéro de MESURE en vue continue (qui court sur toute la
@@ -21217,6 +21289,51 @@ class HarmoHubApp {
     viderBarreEditeurNotes() {
         const barreEn = document.getElementById('editeur-notes-barre');
         if (barreEn) barreEn.replaceChildren();
+    }
+
+    // CALQUE VOIX (lot 9c) — ce que l'ancien panneau de conduite de voix (buildVoiceLeadingPanelHtml) dessinait à part, posé DANS la grille de
+    // l'éditeur de notes : le chemin de chaque voix d'un accord au suivant, et le nom + le degré de chaque accord dans la règle.
+    // Même appariement que l'ancien panneau : la voix de rang v (après tri du grave à l'aigu) va à la voix de rang v de l'accord suivant, jusqu'au
+    // plus petit des deux nombres de voix. Même lecture aussi : un trait PLEIN pour une note commune tenue, un trait en POINTILLÉS pour un
+    // mouvement — en blanc (« trait blanc du chemin des voix », maquette), sur la frontière entre les deux accords.
+    // Tout est placé par la grille CSS (grid-row / grid-column), comme les notes : le zoom horizontal (boutons, Ctrl+molette, pincement), qui ne
+    // change qu'une variable de largeur de colonne, emporte les traits avec lui sans un seul recalcul — c'est ce qu'éprouvait vl_pinch sur
+    // l'ancien panneau, qui avait besoin d'un « transform de secours » pendant le geste.
+    calqueVoixHtml({ chord, midis, rowOrder, prevSegs, nextSegs, colOffset, pageSteps }) {
+        const ligneDe = new Map();
+        rowOrder.forEach((row, i) => { if (!ligneDe.has(row.midi)) ligneDe.set(row.midi, i + 2); }); // la ligne 1 est la règle
+        const sections = loadProgressionSections();
+        const accordsPartie = (sections[this.activeSection] && sections[this.activeSection].chords) || [];
+        const editData = this.editingIndex != null ? accordsPartie[this.editingIndex] : null;
+        const accords = [
+            ...prevSegs.map(s => ({ midis: s.midis, col: s.colStart + 2, steps: s.steps, data: s.data, index: s.index })),
+            { midis, col: colOffset + 2, steps: pageSteps, index: this.editingIndex,
+              data: { root: chord.root, quality: chord.quality, bass: chord.bass, unnamed: !!(editData && editData.unnamed) } },
+            ...nextSegs.map(s => ({ midis: s.midis, col: colOffset + pageSteps + s.colStart + 2, steps: s.steps, data: s.data, index: s.index })),
+        ];
+        let out = '';
+        for (let i = 0; i + 1 < accords.length; i++) {
+            const a = [...accords[i].midis].sort((x, y) => x - y);
+            const b = [...accords[i + 1].midis].sort((x, y) => x - y);
+            const frontiere = accords[i + 1].col; // ligne de grille = bord gauche de l'accord suivant
+            for (let v = 0; v < Math.min(a.length, b.length); v++) {
+                const la = ligneDe.get(a[v]), lb = ligneDe.get(b[v]);
+                if (la == null || lb == null) continue;
+                const attrs = `data-voix="${v}" data-de="${a[v]}" data-vers="${b[v]}" data-accord="${accords[i + 1].index}"`;
+                out += a[v] === b[v]
+                    ? `<div class="seq-voix-trait seq-voix-tenue" ${attrs} style="grid-row:${la}; grid-column:${frontiere - 1} / span 2;"></div>`
+                    : `<div class="seq-voix-trait seq-voix-mouvement" ${attrs} style="grid-row:${Math.min(la, lb)} / ${Math.max(la, lb) + 1}; grid-column:${frontiere} / span 1;"></div>`;
+            }
+        }
+        // Nom et degré de chaque accord, dans une bande AU-DESSUS des numéros de mesure (décision du 05/11 : « dans la règle, calque allumé ») — la
+        // grille passe en Compact quand l'éditeur est ouvert, sans degrés : c'est ici seulement qu'on les lit.
+        const gRoot = document.getElementById('global-root').value, gMode = document.getElementById('global-mode').value;
+        accords.forEach(c => {
+            const sym = chordSymbolForData(c.data, this.useFlatsForRoot(c.data.root));
+            const degre = c.data.unnamed ? '' : (this.getRomanNumeral(gRoot, gMode, c.data.root, c.data.quality) || '');
+            out += `<div class="seq-voix-accord" data-accord="${c.index}" title="${escapeHtml(sym + (degre ? ' — ' + degre : ''))}" style="grid-row:1; grid-column:${c.col} / span ${c.steps};"><span class="seq-voix-nom">${escapeHtml(sym)}</span>${degre ? `<span class="seq-voix-degre">${escapeHtml(degre)}</span>` : ''}</div>`;
+        });
+        return out;
     }
 
     // Recale la hauteur du volet sur ce qu'il y a VRAIMENT à montrer, une fois la grille dessinée.

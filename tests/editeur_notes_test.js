@@ -167,16 +167,19 @@ const graine = () => {
     check((await etat(p)).densiteEcran === 'compact', 'une grille déjà en Compact le reste à la fermeture');
 
     // ======================================================================================================
-    console.log('\n=== H. La conduite de voix garde son bouton jusqu\'au lot 9c ===');
+    console.log('\n=== H. Lot 9c : la conduite de voix est devenue le calque Voix de l\'éditeur ===');
+    // Jusqu'au lot 9c, l'icône ⊱ restait à côté et son panneau prenait la place de l'éditeur. Elle a quitté l'ordinateur une fois chaque fonction
+    // retrouvée dans le calque (décision du 05/11) : la conduite de voix s'allume DANS l'éditeur, qui reste ouvert, grille en Compact provisoire.
     await clic(p, '#grille-densites [data-densite="normal"]', 600);
     await clic(p, '#grid-zoom', 800);
-    check(await p.locator('#toggle-voice-leading').isVisible(), 'l\'icône de conduite de voix est toujours là, à côté');
-    await clic(p, '#toggle-voice-leading', 800);
+    check(!(await p.locator('#toggle-voice-leading').isVisible()) && await p.locator('#editeur-notes-voix').isVisible(), 'l\'icône ⊱ a quitté la rangée ; sa porte est le bouton Voix de l\'éditeur');
+    await clic(p, '#editeur-notes-voix', 800);
     e = await etat(p);
-    check(!e.ouvert && e.btnPresse === 'false' && await p.evaluate(() => !document.getElementById('grid-zoom').classList.contains('active')),
-        'l\'ouvrir prend la place de l\'éditeur, et le bouton s\'éteint');
-    check(e.densiteEcran === 'normal', 'la grille retrouve alors son affichage (Normal)');
-    check(await p.evaluate(() => !!document.querySelector('.voice-leading-panel')), 'le panneau de conduite de voix est bien affiché');
+    check(e.ouvert && e.btnPresse === 'true' && await p.evaluate(() => document.getElementById('grid-zoom').classList.contains('active')),
+        'l\'allumer ne prend PAS la place de l\'éditeur : il reste ouvert, son bouton enfoncé');
+    check(e.densiteEcran === 'compact', 'la grille reste en Compact provisoire');
+    check(await p.evaluate(() => !document.querySelector('.voice-leading-panel') && document.querySelectorAll('#arp-sequencer .seq-note-fn').length > 0), 'aucun ancien panneau : le calque est dans les notes');
+    await clic(p, '#editeur-notes-voix', 500); // on le rend éteint, comme on l'a trouvé (réglage mémorisé par appareil)
     await p.close();
 
     // ======================================================================================================

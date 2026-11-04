@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611051600">
+    <link rel="stylesheet" href="style.css?v=202611051700">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611051600">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611051700">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1599,6 +1599,19 @@
                          ordinateur (voir renderSequencer) : une seule rangée, comme la maquette, et les 39px que l'en-tête prenait au lot 9a reviennent aux
                          notes. Décision du 05/11 : tous les boutons d'avant restent, en icônes. -->
                     <div id="editeur-notes-barre" class="editeur-notes-barre"></div>
+                    <!-- CALQUE VOIX (lot 9c) : « l'ancienne conduite de voix : fonction 1/3/5/7 écrite dans la note, trait blanc du chemin des voix ». Le logo
+                         est celui de l'ancien bouton #toggle-voice-leading, REPRIS tel quel (règle 2). La légende est celle de l'ancien panneau
+                         (.piano-legend), visible calque allumé ; elle prend la place libre de la rangée sans jamais la faire passer sur deux lignes. -->
+                    <div id="editeur-notes-legende" class="piano-legend editeur-notes-legende" hidden aria-label="Légende du calque Voix">
+                        <span class="lg"><span class="dot dot-root"></span>1</span>
+                        <span class="lg"><span class="dot dot-third"></span>3</span>
+                        <span class="lg"><span class="dot dot-fifth"></span>5</span>
+                        <span class="lg"><span class="dot dot-seventh"></span>7</span>
+                        <span class="lg"><span class="dot dot-ext"></span>Autres</span>
+                    </div>
+                    <button type="button" id="editeur-notes-voix" class="editeur-notes-btn editeur-notes-icone" aria-pressed="false" title="Voix : la fonction de chaque note (1, 3, 5, 7) et le chemin de chaque voix" aria-label="Voix">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><rect x="10" y="7.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M8 5.3 10 8.8" stroke-width="1.5" stroke-dasharray="1.5 1.5"/><rect x="3" y="15.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><rect x="13" y="11.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M9 16.8 13 12.8" stroke-width="1.5" stroke-dasharray="1.5 1.5"/></svg>
+                    </button>
                     <button type="button" id="editeur-notes-ajuster" class="editeur-notes-btn editeur-notes-icone" aria-pressed="false" title="Ajuster la hauteur aux notes présentes" aria-label="Ajuster">
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v6M9 6l3 3 3-3M12 21v-6M9 18l3-3 3 3"/></svg>
                     </button>
@@ -1969,11 +1982,11 @@
     <script src="fichiers.js?v=202610030500"></script>
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
-    <script src="historique.js?v=202611051600"></script>
-    <script src="script.js?v=202611051600"></script>
+    <script src="historique.js?v=202611051700"></script>
+    <script src="script.js?v=202611051700"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611051600"></script>
+    <script src="synchro-harmohub.js?v=202611051700"></script>
 </body>
 </html>

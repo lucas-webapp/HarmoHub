@@ -7692,3 +7692,67 @@ body.avec-barre-selection .toast { bottom: 132px; }
     #arp-sequencer[data-outil="crayon"] .seq-cell { cursor: crosshair; }
     #arp-sequencer[data-outil="gomme"] .seq-cell { cursor: cell; }
 }
+
+/* ---------- CALQUE VOIX DE L'ÉDITEUR DE NOTES (refonte, lot 9c — docs/refonte.md, « Éditeur de notes ») ----------
+   « Calque Voix = l'ancienne conduite de voix : fonction 1/3/5/7 écrite dans la note (la couleur n'est plus seule), trait blanc du chemin des voix. »
+   En fin de feuille comme le reste de l'éditeur, et ordinateur seulement : le téléphone garde son panneau de conduite de voix jusqu'au lot 10.
+   Aucune surface nouvelle : la légende et la bande des accords n'ont pas de fond propre (le volet et la règle, déjà dépolis, les portent). */
+@media (min-width: 900px) {
+    /* L'icône ⊱ de la rangée de réglages se retire de l'ordinateur : sa seule porte est désormais le bouton Voix de l'éditeur (décision du 05/11,
+       une fois chaque fonction de l'ancien panneau retrouvée dans le calque). */
+    #toggle-voice-leading { display: none; }
+
+    #editeur-notes-voix[aria-pressed="true"] { color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); }
+    /* PLACE DANS LA RANGÉE. Voix se range avec les commandes d'affichage, à droite (maquette : Voix, zoom, Ajuster, chevrons). Il prend lui-même
+       la marge automatique que portait le zoom : sinon, la légende qui apparaît le ferait sauter sous le pointeur au moment même du clic. */
+    #editeur-notes-voix { order: 1; margin-left: auto; }
+    .editeur-notes-barre .seq-groupe[data-groupe="affichage"], #editeur-notes-ajuster, #editeur-notes-etendre { order: 2; }
+    .editeur-notes-barre .seq-groupe[data-groupe="affichage"] { margin-left: 0; }
+    /* La légende prend la place LIBRE de la rangée (base 0, elle grandit) : elle ne la fait jamais passer sur deux lignes — sur une fenêtre
+       étroite, elle se rogne plutôt que de prendre 38px aux notes. */
+    .editeur-notes-legende {
+        order: 1; flex: 1 1 0; min-width: 0; overflow: hidden;
+        flex-wrap: nowrap; justify-content: flex-end; gap: 12px; margin: 0; white-space: nowrap;
+    }
+    .editeur-notes-legende[hidden] { display: none; }
+
+    /* LA FONCTION DANS LA NOTE. Chiffre sombre sur la teinte translucide (règle 4 : jamais d'aplat), calé à gauche comme dans la maquette. */
+    .seq-note-fn {
+        position: absolute; left: 3px; top: 50%; transform: translateY(-50%);
+        font-size: 9px; font-weight: 800; line-height: 1; letter-spacing: -0.02em;
+        color: #e9f0ec; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.55);
+        pointer-events: none; white-space: nowrap; max-width: calc(100% - 4px); overflow: hidden;
+    }
+    .seq-note.run .seq-note-fn { left: 6px; max-width: calc(100% - 7px); } /* après le repère d'attaque (.seq-note-head) */
+
+    /* LE CHEMIN DES VOIX, en blanc, sur la frontière entre deux accords. Plein = note commune tenue (un pont qui enjambe la frontière) ;
+       pointillés = la voix bouge (un trait vertical d'une hauteur à l'autre, du milieu d'une ligne au milieu de l'autre). Par-dessus les notes,
+       sous la règle et la gouttière collantes ; jamais cliquable : la case dessous garde ses gestes. */
+    .seq-voix-trait { position: relative; z-index: 2; pointer-events: none; align-self: stretch; }
+    .seq-voix-tenue {
+        align-self: center; height: 2px; border-radius: 1px;
+        background: rgba(255, 255, 255, 0.85);
+    }
+    .seq-voix-mouvement {
+        justify-self: start; width: 2px; margin-left: -1px;
+        margin-block: calc(7px * var(--seq-zoom-scale-v, 1));
+        background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0 4px, transparent 4px 6px);
+    }
+
+    /* LA BANDE DES ACCORDS dans la règle : nom et degré de chaque accord, au-dessus des numéros de mesure (décision du 05/11). La règle grandit
+       d'autant (--seq-ruler-h, que le quadrillage et le bandeau lisent déjà) ; mesures, graduations et tête de lecture descendent sous la bande
+       et y restent collées en défilant. */
+    .seq-grid-continuous.seq-grid-voix { --seq-ruler-h: 38px; }
+    .seq-grid-continuous.seq-grid-voix .seq-beat-label,
+    .seq-grid-continuous.seq-grid-voix .seq-beat-offbeat,
+    .seq-grid-voix .seq-ruler-head { top: 14px; margin-top: 14px; height: 24px; }
+    .seq-voix-accord {
+        position: sticky; top: 0; z-index: 8; align-self: start;
+        height: 14px; box-sizing: border-box; padding: 0 4px; min-width: 0; overflow: hidden;
+        display: flex; align-items: center; gap: 4px; white-space: nowrap;
+        border-left: 1px solid rgba(255, 255, 255, 0.22);
+        font-size: 10px; line-height: 1; pointer-events: none;
+    }
+    .seq-voix-nom { font-weight: 800; color: var(--text-main); }
+    .seq-voix-degre { font-weight: 700; color: var(--text-muted); font-size: 9px; }
+}

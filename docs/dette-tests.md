@@ -5136,3 +5136,74 @@ Ajuster ignoré, barre non vidée au début du rendu, « supprimer » toujours v
 
 **Balayage du lot 9b (05/11) : 225 verts, 6 rouges, 7 sans verdict (238 suites)** — la ligne de base, plus `glock_unlock_and_switch` (2/5), l'intermittent ancien
 décrit au lot 9a (rouge aussi sur le commit d'avant le 9a). Aucune régression.
+
+
+## Refonte de l'interface — lot 9c : le calque Voix de l'éditeur de notes (2026-11-05)
+
+Cahier des charges : « Calque Voix = l'ancienne conduite de voix : fonction 1/3/5/7 écrite dans la note (la couleur n'est plus seule), trait blanc du chemin des
+voix. Chaque fonction de l'ancien panneau (règles de voix, loupe, pincement) est vérifiée une à une AVANT de fondre. » (docs/refonte.md, maquette
+`project/Notes2.dc.html`.)
+
+**Décisions de l'utilisateur (05/11).** Calque **éteint au premier usage, puis mémorisé par appareil** (comme Ajuster). Le **nom et le degré** de chaque accord
+reviennent **dans la règle, calque allumé seulement**. Allumer Voix **sans accord choisi ouvre le premier accord** de la partie active (on voit aussitôt toute la
+partie). L'icône ⊱ **quitte l'ordinateur à la fin du 9c** ; le téléphone la garde jusqu'au lot 10.
+
+**Inventaire, avant de fondre : chaque fonction de l'ancien panneau, où elle va, quel banc la tient.**
+
+| Fonction de l'ancien panneau | Dans le calque Voix (ordinateur) | Banc |
+|---|---|---|
+| Un seul bouton global, état allumé | Bouton **Voix** de la rangée de l'éditeur, **même logo** (repris de `#toggle-voice-leading`), 32 px / 7 px, `aria-pressed` | `calque_voix` A, `voice_leading` B |
+| Fermé par défaut | Éteint au premier usage, puis mémorisé (`harmohubSeqVoix`) | `calque_voix` A, H |
+| Désactivé sur une partie d'un seul accord | Disponible : les fonctions s'écrivent, aucun trait (rien à enchaîner) | `voice_leading` B |
+| Toute la partie active, sans rien choisir | Voix sans accord choisi → premier accord de la partie (décision du 05/11) | `calque_voix` B |
+| Couleur par rôle | Inchangée (`.seq-note.role-*`) | `voice_leading` B |
+| Nom de la note écrit dans la barre | Remplacé par la **fonction** écrite dans la note (cahier des charges) ; le nom reste à la gouttière (do écrit, nom allumé au choix d'une note) | `calque_voix` C |
+| Légende 1 / 3 / 5 / 7 / Autres | La même (`.piano-legend`), dans la place libre de la rangée, calque allumé | `calque_voix` B |
+| Symbole + degré au-dessus de chaque accord | Bande des accords dans la règle, au-dessus des mesures | `calque_voix` E |
+| Traits : voix de même rang, plein = tenue, pointillés = mouvement | Les mêmes, en blanc, sur la frontière entre deux accords | `calque_voix` D |
+| Touches à part, fixes, ivoire et noir | La gouttière collante du séquenceur | `voice_leading` B |
+| Zoom horizontal (boutons, Ctrl+molette) | Le zoom de l'éditeur ; les traits, placés par la grille, suivent | `calque_voix` F, `voice_leading` B |
+| Zoom vertical | **Non repris tel quel** : la hauteur des lignes est bloquée à la demande de l'utilisateur (« laisser une unique hauteur de barres ») ; Étendre et Ajuster montrent plus ou moins de hauteurs | `voice_leading` B |
+| Pincement (transform de secours pendant le geste) | Le pincement de l'éditeur : plus besoin de secours, les traits suivent la variable de largeur sans rendu | `vl_pinch` B |
+| Suit une édition (renversement) | Le calque est redessiné avec le séquenceur | `calque_voix` G, `voice_leading` B |
+| Suit la partie active ; opérations de partie sans panneau fantôme | Idem ; une opération de partie termine l'édition (déjà vrai avant), l'éditeur montre alors l'accord seul | `voice_leading_section_ops` B |
+| Exclusion avec le séquenceur (« je ne peux pas l'enlever ») | Plus d'exclusion : le calque vit DANS l'éditeur, son bouton n'est jamais recouvert, rien n'en reste à la fermeture | `vl_loupe` B, `filet_sequenceur_et_sortie` C |
+| Pas d'id en double | Idem | `calque_voix` H, `voice_leading` B |
+| « Règles de voix » (`new_voice_rule`) | Règle du séquenceur (la 7e ajoutée copie le motif commun) : indépendante du panneau, inchangée | `new_voice_rule`, inchangé |
+
+**Ce qui est fait (ordinateur seulement ; le téléphone n'a pas bougé, lot 10).**
+- **Le bouton** `#editeur-notes-voix` (écrit dans `index.html`) et la **légende** `#editeur-notes-legende` : Voix se range avec les commandes d'affichage (maquette :
+  Voix, zoom, Ajuster, chevrons) et prend lui-même la marge automatique qui poussait le zoom à droite — sinon la légende, en apparaissant, le ferait sauter sous le
+  pointeur. La légende a une base nulle et grandit dans la place libre : elle ne fait jamais passer la rangée sur deux lignes (elle se rogne plutôt que de prendre
+  38 px aux notes).
+- **La fonction dans la note** : `Chord.getFonctionsVoix()` (ordre des voix du séquenceur) — 1, 3, 5, 7, et pour les couleurs « Autres » leur **vrai degré** (2, 4, 6,
+  9, 11, 13, avec ♭ / ♯ si altéré) plutôt qu'un point : la même teinte violette couvre une 9e et une sixte, le chiffre les distingue. « · » pour une note étrangère.
+  Écrite aussi dans les notes des accords voisins.
+- **Le chemin des voix** (`calqueVoixHtml`) : même appariement que l'ancien panneau (rang après tri du grave à l'aigu, jusqu'au plus petit nombre de voix). Trait
+  PLEIN (un pont qui enjambe la frontière) pour une note commune tenue, POINTILLÉS (vertical, du milieu d'une ligne au milieu de l'autre) pour un mouvement. Tout est
+  placé par la grille CSS, comme les notes : le zoom horizontal, qui ne change qu'une variable de largeur de colonne, emporte les traits sans rendu (mesuré : aucun
+  `renderSequencer` pendant un pincement). `pointer-events: none` : la case dessous garde ses gestes.
+- **La bande des accords** : nom et degré dans une bande de 14 px au-dessus des numéros de mesure (`--seq-ruler-h` passe à 38 px, mesures et graduations descendent
+  et restent collées). `hauteurRegleSeq()` la compte dans la hauteur du volet : le « réduit » garde ses 170 px de notes (bande 194 → 208 px).
+- **L'icône ⊱** est masquée au-dessus de 900 px ; un ancien panneau ouvert au téléphone se referme si la fenêtre passe au-dessus du seuil (il n'aurait plus de bouton).
+- Aucune nouvelle surface : la légende et la bande n'ont pas de fond propre (le volet et la règle, déjà dépolis, les portent).
+
+**Constaté, pas changé (déjà vrai sur le commit d'avant, vérifié sur une copie de `649dd77`)** : éditeur ouvert, un clic sur une AUTRE case de la grille la
+sélectionne mais l'éditeur garde l'accord d'avant (on change d'accord par la zone de l'accord voisin, dans l'éditeur) ; une opération sur les parties (monter,
+dupliquer, supprimer) termine l'édition de l'accord, l'éditeur montre alors l'accord seul. Notés en points ouverts dans `docs/reprise.md`.
+
+**Bancs.** Nouveau `calque_voix_test` (46). **Sabotages : 10, tous rouges** (calque jamais actif, appariement inversé, règle sans la bande, icône ⊱ visible, pas de
+premier accord, non mémorisé, couleurs en point, traits cliquables, trait décalé d'une colonne, ancien panneau orphelin à l'élargissement). **Bancs réécrits pour le
+nouveau geste**, chacun gardant ses vérifications d'origine au téléphone (860 px) et rejouant chaque fonction à l'ordinateur sous sa nouvelle forme :
+`voice_leading` (35), `vl_loupe` (24), `vl_pinch` (15), `voice_leading_section_ops` (19) — passés au harnais (`plan`) ; `editeur_notes` (H : Voix allume le calque
+DANS l'éditeur, qui reste ouvert, grille en Compact), `filet_sequenceur_et_sortie` (C : ni ancien panneau ni calque sur le petit séquenceur, calque allumé),
+`retouches_carte_accord` (à l'ordinateur, Voix garde la matière de l'ancien voisin de « Éditeur de notes »). `meta_suite` : la dette a baissé de 5, référence figée
+(`--maj`).
+
+**Balayage du lot 9c (05/11) : 226 verts, 6 rouges, 7 sans verdict (239 suites)** — les 5 rouges de la ligne de base, plus `entete_grille_debordement`, que le
+balayage ciblé n'avait pas choisi (il ne cite pas l'icône ⊱) : il attendait au moins trois commandes visibles dans la barre de la grille à l'ordinateur, dont la
+conduite de voix. **Réécrit pour le nouveau geste** : deux commandes, nommées (l'affichage `#grille-densites` et l'Éditeur de notes `#grid-zoom`), le téléphone
+garde ses quatre ; 15/15, rouge au sabotage (Éditeur de notes masqué). Les 7 « sans verdict » sont ceux de la ligne de base ; `glock_unlock_and_switch` vert cette
+fois. Après la réécriture, balayage ciblé de confirmation sur ce qui avait bougé depuis le relevé complet (ce banc, un commentaire de `script.js`) : 54 suites,
+48 vertes (dont `entete_grille_debordement`, `calque_voix`, les sept bancs réécrits, `gabarit_boutons`, `verre`, `sentinelle_adresses`, `meta_suite`), les 5 rouges de
+la ligne de base et `smoke` sans verdict. **Aucune régression.**
