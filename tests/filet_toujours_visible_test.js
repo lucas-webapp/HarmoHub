@@ -141,17 +141,13 @@ async function fermerMenu(page) {
 
     // Mode Modification par un VRAI geste sur un accord : c'est lui qui fait apparaître le panneau
     // d'édition, donc lui qui peut recouvrir ou repousser le reste.
-    // DOUBLE-clic, et non simple : « je veux une seule possibilité : double clic pour modifier »
-    // (retour utilisateur, voir le gestionnaire isSecondTap dans script.js — simple clic = écouter).
-    // On vise le BAS de la case, pas son centre : au centre se trouve le symbole d'accord, dont le
-    // double-clic ouvre la retape du texte (d.symTarget) au lieu du panneau. Et on reste au milieu
-    // horizontalement pour éviter les poignées .cell-resize des deux bords.
+    // LOT 6b : sur ordinateur, « clic = sélectionne et ouvre la bulle », et le COMMENT il sonne (la carte Accord, le mode Modification) s'ouvre
+    // depuis la bulle, par « Réglages du son » — le double-clic, lui, retape le nom. C'est donc ce geste-là, réel, qui fait apparaître le panneau
+    // d'édition, et lui qui pourrait recouvrir ou repousser le reste.
     await fermerMenu(page);
-    const caseAccord = await page.locator('.grid-cell').first().boundingBox();
-    const cx = caseAccord.x + caseAccord.width / 2, cy = caseAccord.y + caseAccord.height * 0.85;
-    await page.mouse.click(cx, cy);
-    await page.waitForTimeout(90);
-    await page.mouse.click(cx, cy);
+    await page.click('.grid-cell:not(.grid-cell-add)');
+    await page.waitForTimeout(300);
+    await page.click('#bulle-accord [data-bulle="son"]');
     await page.waitForTimeout(450);
     exiger(await page.evaluate(() => window.app.appMode === 'edit'), 'ordinateur : le clic sur un accord fait bien entrer en mode Modification');
     await eprouver(page, 'ordinateur, mode Modification', BUREAU);

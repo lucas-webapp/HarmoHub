@@ -4891,3 +4891,32 @@ identifiants, et la surface « réglages du morceau » est la page elle-même su
 les adresses `#rr-*` dans la page (les puces étaient fabriquées par le script) — elles sont désormais écrites dans index.html, le script ne fait que les
 câbler ; `meta_suite` a aussi relevé une vérification sous condition dans le nouveau banc (rendue inconditionnelle) ; `mobile_grille_plus_haut` exigeait le
 titre « Grille d'accords » sur ordinateur — il éprouve désormais que la grille reste identifiée par l'onglet Grille et que la rangée est visible.
+
+## Refonte de l'interface — lot 6b : la bulle « quel accord » (2026-11-02)
+
+Cahier des charges : « clic = sélectionne et ouvre la bulle » ; « une bulle (QUEL accord : fondamentale, type, basse, durée, ‹ › vers le voisin) [...] Une
+bulle = UNE étape d'annulation. Modification directe, Ctrl+Z comme filet » ; « double-clic = retaper le nom » ; « Sélection BLEUE, lecture VERTE ».
+
+**La bulle (ordinateur).** Un clic sur une case la choisit (et la fait entendre, comme avant) et ouvre, sous elle, une bulle de 404px : ‹ › vers l'accord
+voisin, le nom, son degré et sa place (« mes. 2 · Couplet »), × ; douze fondamentales (orthographe de la tonalité), les vingt types de l'appli, treize basses
+(« — » = fondamentale) ; la durée −/+ en mots ; « Réglages du son › » ; une ligne d'aide. Au-dessus de la case s'il n'y a pas la place en dessous. Elle suit
+le défilement, se ferme par Échap, × ou un clic à côté ; un clic sur une autre case la DÉPLACE ; ← → au clavier la font suivre.
+
+**Elle écrit l'accord directement**, comme la retape du nom au double-clic (déjà éprouvée) — elle ne fait PAS passer l'appli en « modification » : c'est
+tout l'objet de la décision « plus de mode ajout / modification ». Changer de type remet renversement et drop à zéro (la maquette) ; allonger tient la
+partie ajoutée (comme la poignée) ; un doigté verrouillé saute avec l'accord qu'il jouait. Toutes les retouches d'une bulle s'annulent d'UN Ctrl+Z ; deux
+bulles, deux étapes. « Réglages du son » ouvre la carte Accord sur cet accord (elle deviendra l'inspecteur au lot 6c).
+
+**Double-clic = retaper le nom**, où que tombe le clic (la bulle porte le reste). **Sélection bleue** : la case choisie et la case en modification sont
+bleues ; le vert reste à la lecture. **Téléphone : inchangé** (lot 10).
+
+**Bancs.** Nouveau `bulle_accord_test` (40). **Réécrits pour le nouveau geste** — ils entraient en modification par un double-clic sur la case, qui retape
+désormais le nom : `ajout_modif` (dont sa section « une seule règle au clic », dont la règle a changé), `filet_toujours_visible`, `glock_full_real_ui`,
+`grid_dblclick`, `grille_clic_et_double_clic`, `probe_instrument_pendant_edition`, `probe_suppression_pleinecran` : clic, puis « Réglages du son ».
+`probe_clic_accord_voisin`, rouge depuis toujours (4 échecs), n'en garde plus qu'un — celui d'avant.
+**Sabotages : 15, dont 11 rouges au premier passage.** Trois restés verts étaient des TROUS du banc, comblés puis rejoués rouges : changer de type ne remettait
+plus renversement et drop à zéro (le banc partait d'accords sans renversement — l'accord d'essai en porte un désormais), l'accord retouché ne se faisait
+plus entendre (l'appel au lecteur est maintenant compté), la bulle s'ouvrait sous 900px (ce cas-là reste vert : sans la garde, la bulle ne tient pas
+ouverte dans la mise en page étroite — double protection, comme Échap, que la table commune des menus traite aussi).
+
+**Balayage des lots 6a + 6b (04/11) : 220 verts, 5 rouges, 7 sans verdict (232 suites)** — exactement la ligne de base, plus les deux nouvelles suites ; `probe_clic_accord_voisin` (rouge de la ligne de base) passe de 4 échecs à 1.

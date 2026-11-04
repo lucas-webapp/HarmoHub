@@ -57,17 +57,19 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     console.log((r.selectedIndex === 0 && r.editingIndex === null && r.appMode === 'add')
         ? 'PASS (un clic sélectionne et rien de plus)' : 'FAIL');
 
-    console.log('=== 2 bis. Un double-clic charge bien cet accord pour le modifier ===');
+    console.log('=== 2 bis. « Réglages du son », dans la bulle, charge bien cet accord pour le modifier ===');
+    // LOT 6b : sur ordinateur, le simple clic ouvre la bulle, et c'est d'elle que l'accord se charge dans le panneau (« Réglages du son ») ;
+    // le double-clic retape le nom (section 3). Même vérification — accord chargé, séquenceur toujours ouvert dessus — avec le geste d'aujourd'hui.
     const cell1 = await page.$('.grid-cell[data-index="1"]');
     const box1 = await cell1.boundingBox();
-    // Lot 5a : les cases font 52px (Normal) au lieu de 64 — à 8px du haut on touche maintenant la zone du symbole (qui renomme). On vise donc le BAS
-    // de la case, comme les autres bancs (« au centre se trouve le symbole, dont le double-clic ouvre la retape »).
-    await page.mouse.dblclick(box1.x + box1.width / 2, box1.y + box1.height * 0.85);
+    await page.mouse.click(box1.x + box1.width / 2, box1.y + box1.height * 0.85);
+    await page.waitForTimeout(250);
+    await page.click('#bulle-accord [data-bulle="son"]');
     await page.waitForTimeout(250);
     r = await page.evaluate(() => ({ editingIndex: window.app.editingIndex, appMode: window.app.appMode, seqOpen: window.app.seqOpen }));
     console.log(JSON.stringify(r));
     console.log((r.editingIndex === 1 && r.appMode === 'edit' && r.seqOpen)
-        ? 'PASS (double-clic : accord chargé, séquenceur toujours ouvert dessus)' : 'FAIL');
+        ? 'PASS (« Réglages du son » : accord chargé, séquenceur toujours ouvert dessus)' : 'FAIL');
 
     console.log('=== 3. Double-click on the symbol still opens inline rename (unaffected) ===');
     const cellNow = await page.$('.grid-cell[data-index="1"]');

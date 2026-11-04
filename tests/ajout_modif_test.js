@@ -33,6 +33,12 @@ const pointNu = (page, idx) => page.evaluate((i) => {
     }
     return null;
 }, idx);
+// Ouvrir un accord dans le panneau, comme l'utilisateur sur ordinateur depuis le lot 6b : un clic sur la case (la bulle s'ouvre), puis « Réglages du son ».
+const ouvrirSon = async (page, i) => {
+    const pt = await pointNu(page, i);
+    await page.mouse.click(pt.x, pt.y); await page.waitForTimeout(300);
+    await page.click('#bulle-accord [data-bulle="son"]'); await page.waitForTimeout(600);
+};
 
 const etat = (page) => page.evaluate(() => ({
     titre: document.getElementById('accord-title').textContent,
@@ -132,9 +138,11 @@ const etat = (page) => page.evaluate(() => ({
     check(e.ed === null && e.sel === 0, 'un clic simple sélectionne sans ouvrir la modification (réglage par défaut)');
     check(e.titre === 'Nouvel accord', 'sélectionner n\'est pas modifier : le sujet ne change pas');
 
-    await page.mouse.dblclick(p0.x, p0.y); await page.waitForTimeout(600);
+    // LOT 6b : sur ordinateur, « clic = sélectionne et ouvre la bulle », et l'accord se charge dans le panneau depuis la bulle (« Réglages du
+    // son ») — le double-clic, lui, retape le nom. Même vérification, avec le geste d'aujourd'hui.
+    await ouvrirSon(page, 0);
     e = await etat(page);
-    check(e.ed === 0, 'le double-clic charge l\'accord');
+    check(e.ed === 0, '« Réglages du son » (dans la bulle) charge l\'accord');
     check(e.titre.replace(/\s+/g, '') === 'ModifierC', `le panneau nomme l'accord qu'il pilote (${e.titre})`);
     check(e.couleurTitre === e.sujetDeclare && e.couleurTitre !== vertAjout,
         `le titre a changé de teinte en passant sur un accord existant (${vertAjout} → ${e.couleurTitre})`);
@@ -148,7 +156,7 @@ const etat = (page) => page.evaluate(() => ({
     await page.selectOption('#quality', 'min7'); await page.waitForTimeout(500);
     e = await etat(page);
     check(e.titre.replace(/\s+/g, '') === 'ModifierCm7', `le titre suit la modification en direct (${e.titre})`);
-    await page.mouse.dblclick((await pointNu(page, 1)).x, (await pointNu(page, 1)).y); await page.waitForTimeout(600);
+    await ouvrirSon(page, 1);
     e = await etat(page);
     check(e.titre.replace(/\s+/g, '') === 'ModifierDm', `passer à un autre accord renomme le sujet (${e.titre})`);
 
@@ -179,7 +187,7 @@ const etat = (page) => page.evaluate(() => ({
         'plus aucune case marquée « en édition » dans la grille');
 
     // même chose depuis l'ajout rapide
-    await page.mouse.dblclick((await pointNu(page, 2)).x, (await pointNu(page, 2)).y); await page.waitForTimeout(600);
+    await ouvrirSon(page, 2);
     check((await etat(page)).ed === 2, 'on rouvre un accord pour la suite');
     await page.click('#quick-add-input'); await page.waitForTimeout(400);
     e = await etat(page);
@@ -271,11 +279,17 @@ const etat = (page) => page.evaluate(() => ({
     check(e.ed === null, 'un simple clic n\'ouvre PAS l\'édition');
     check(e.sel === 2, '...il sélectionne l\'accord (pour l\'écouter et le voir aux diagrammes)');
 
+    // LOT 6b (la maquette validée) : sur ordinateur, « double-clic = retaper le nom », et l'accord se charge dans le panneau depuis la bulle que
+    // le simple clic a ouverte (« Réglages du son »). La règle reste UNIQUE — c'est ce que cette section tient — mais ce n'est plus la même.
     await page.mouse.click(p2.x, p2.y); await page.waitForTimeout(80);
     await page.mouse.click(p2.x, p2.y); await page.waitForTimeout(600);
     e = await etat(page);
-    check(e.ed === 2, 'un double-clic, lui, charge l\'accord dans le panneau');
-    check(e.titre.replace(/\s+/g, '') === 'ModifierEm', `et le panneau le nomme (${e.titre})`);
+    const retape = await page.evaluate(() => !!document.querySelector('.grid-cell[data-index="2"] .cell-sym-input'));
+    check(e.ed === null && retape, 'un double-clic retape le nom (un champ dans la case), sans ouvrir le panneau');
+    await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+    await ouvrirSon(page, 2);
+    e = await etat(page);
+    check(e.ed === 2 && e.titre.replace(/\s+/g, '') === 'ModifierEm', `« Réglages du son », dans la bulle, charge l'accord dans le panneau et le nomme (${e.titre})`);
     await page.click('#accord-close'); await page.waitForTimeout(400);
 
     await page.reload(); await page.waitForTimeout(900);

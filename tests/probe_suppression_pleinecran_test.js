@@ -70,9 +70,9 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
     await p.evaluate(()=>window.app.cancelEdit()); await p.waitForTimeout(400);
     await p.click('.grid-cell[data-index="1"]', {position:{x:40,y:40}}); await p.waitForTimeout(400);
     ck(await p.evaluate(()=>window.app.editingIndex)===null, 'simple clic : pas d\'édition');
-    await p.click('.grid-cell[data-index="1"]', {position:{x:40,y:40}});
-    await p.click('.grid-cell[data-index="1"]', {position:{x:40,y:40}}); await p.waitForTimeout(500);
-    ck(await p.evaluate(()=>window.app.editingIndex)!==null, 'double-clic : édition ouverte');
+    // LOT 6b : sur ordinateur, le simple clic a ouvert la bulle ; l'édition s'ouvre depuis elle (« Réglages du son »), le double-clic retapant le nom.
+    await p.click('#bulle-accord [data-bulle="son"]'); await p.waitForTimeout(500);
+    ck(await p.evaluate(()=>window.app.editingIndex)!==null, '« Réglages du son » (bulle) : édition ouverte');
 
     // Masquer le volet de gauche élargit encore le séquenceur continu, qui vit dans son volet sous la
     // grille (voir probe_deux_boutons_seq_test.js). On mesure le VOLET : #arp-sequencer défile à

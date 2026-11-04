@@ -33,7 +33,9 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
     await page.waitForTimeout(500);
     // Un accord EN COURS D'ÉDITION : c'est la seule branche qui touchait la méthode disparue.
     const cellule = i => page.click(`.grid-cell[data-index="${i}"]`, { position: { x: 40, y: 40 } });
-    await cellule(1); await cellule(1); await page.waitForTimeout(400);
+    // LOT 6b : sur ordinateur, un clic ouvre la bulle, et l'accord passe en modification par « Réglages du son » (le double-clic retape le nom).
+    await cellule(1); await page.waitForTimeout(300);
+    await page.click('#bulle-accord [data-bulle="son"]'); await page.waitForTimeout(400);
     exiger(await page.evaluate(() => window.app.editingIndex) === 1, 'un accord est bien en cours de modification');
 
     // Le sélecteur vit maintenant dans les réglages du morceau, repliés par défaut : on les déplie

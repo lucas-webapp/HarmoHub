@@ -8,11 +8,15 @@ async function cellBox(page, section, index) {
     await page.waitForSelector(sel);
     return page.locator(sel).boundingBox();
 }
+// LOT 6b : sur ordinateur, ouvrir un accord en modification = un clic (la bulle s'ouvre) puis « Réglages du son » ; le double-clic retape le nom.
+// Le nom de la fonction reste (ses appelants le citent) ; le geste, lui, est celui d'aujourd'hui.
 async function dblclickCellSafe(page, section, index) {
     const box = await cellBox(page, section, index);
     const x = box.x + box.width / 2;
-    const y = box.y + box.height - 6; // avoid the centered chord-symbol text (inline-rename trap)
-    await page.mouse.dblclick(x, y);
+    const y = box.y + box.height - 6;
+    await page.mouse.click(x, y);
+    await page.waitForTimeout(250);
+    await page.click('#bulle-accord [data-bulle="son"]');
     await page.waitForTimeout(250);
 }
 async function clickCellSafe(page, section, index) {

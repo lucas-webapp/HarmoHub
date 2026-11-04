@@ -3623,6 +3623,62 @@ button:active { transform: translateY(1px); }
     .rr-option-desc { font-size: var(--fs-xs); font-weight: 500; color: var(--text-muted); white-space: normal; }
     /* Le titre « Grille d'accords » : l'onglet Grille le dit déjà (lot 4), et la maquette n'en a pas — sa place va aux puces. */
     .grid-head-sticky > h2 { display: none; }
+    /* LA BULLE « QUEL ACCORD » (lot 6b) : le menu du morceau (.tb-menu, donc son verre), 404px comme la maquette, en position fixe sous la case. */
+    .tb-menu.bulle-accord { position: fixed; top: 0; left: 0; width: 404px; z-index: 85; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .bulle-tete { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .bulle-nom { font-size: 20px; font-weight: 800; color: var(--text-main); white-space: nowrap; }
+    .bulle-degre { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; background: #16301f; color: #8fe3b3; font-size: var(--fs-2xs); font-weight: 700; }
+    .bulle-ou { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--text-muted); }
+    .bulle-suiv { margin-left: auto; }
+    .bulle-nav {
+        flex: none;
+        box-sizing: border-box;
+        width: var(--bouton-h, 32px);
+        min-width: 0;
+        height: var(--bouton-h, 32px);
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--border);
+        border-radius: var(--rayon-bouton, 7px);
+        background: var(--fond-bouton-sombre, #1c2027);
+        color: var(--text-main);
+        cursor: pointer;
+    }
+    .bulle-nav .icon { width: 15px; height: 15px; }
+    .bulle-nav:hover:not(:disabled) { border-color: var(--btn-neutral-border-hover); background: var(--fond-bouton-sombre-survol, #262b33); }
+    .bulle-nav:disabled { opacity: 0.35; cursor: not-allowed; }
+    .bulle-g12 { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+    .bulle-g5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .bulle-g13 { grid-template-columns: repeat(13, minmax(0, 1fr)); }
+    .bulle-g12 button, .bulle-g13 button { padding: 0; font-size: var(--fs-xs); }
+    .bulle-g5 button { font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bulle-pied { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+    .bulle-duree { min-width: 104px; }
+    /* « Réglages du son › » : bleu = « modifier » (gabarit, règle 3). */
+    .bulle-son {
+        margin-left: auto;
+        flex: none;
+        box-sizing: border-box;
+        height: var(--bouton-h, 32px);
+        min-width: 0;
+        padding: 0 8px 0 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border: 1px solid var(--btn-blue-border, #2f4d6e);
+        border-radius: var(--rayon-bouton, 7px);
+        background-image: linear-gradient(160deg, var(--btn-blue-1, #1d2f47), var(--btn-blue-2, #142236) 70%);
+        color: var(--btn-text, #e8eef6);
+        font-size: var(--fs-sm);
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .bulle-son .icon { width: 14px; height: 14px; }
+    .bulle-son:hover { border-color: var(--btn-blue-border-hover); }
+
     /* La carte Morceau du bandeau de gauche : ses réglages sont dans la rangée ci-dessus (et son titre dans la barre du haut, lot 3). */
     #song-card { display: none; }
 }
@@ -3959,10 +4015,12 @@ button:active { transform: translateY(1px); }
 .cell-add-input:focus { outline: none; }
 .grid-cell-add:focus-within { border-style: solid; border-color: var(--accent); background-color: #0f1c14; }
 
+/* SÉLECTION BLEUE (refonte, règle 5 : « Sélection BLEUE, lecture VERTE, plage à boucler ORANGE. Fini l'orange du mode modification »). Le vert
+   reste à la lecture (.playing) : une case choisie et une case qui sonne ne se confondent plus. */
 .grid-cell.selected {
-    background-color: #0f1c14;
-    border-color: rgba(0, 230, 118, 0.5);
-    box-shadow: inset 0 0 0 1px rgba(0, 230, 118, 0.32), 0 0 7px rgba(0, 230, 118, 0.14);
+    background-color: rgba(76, 141, 255, 0.08);
+    border-color: rgba(76, 141, 255, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(76, 141, 255, 0.35), 0 0 7px rgba(76, 141, 255, 0.16);
     z-index: 2;
 }
 
@@ -3987,9 +4045,9 @@ button:active { transform: translateY(1px); }
 /* Fond en rgba (pas un aplat marron distinct) : reste un simple voile translucide sur la case, quel
    que soit son fond d'origine — cohérent avec le contour, déjà en rgba, et moins "lourd" à l'œil. */
 .grid-cell.editing {
-    background-color: rgba(255, 179, 0, 0.075);
-    border-color: rgba(255, 179, 0, 0.5);
-    box-shadow: inset 0 0 0 1px rgba(255, 179, 0, 0.32), 0 0 7px rgba(255, 179, 0, 0.14);
+    background-color: rgba(76, 141, 255, 0.1);
+    border-color: rgba(76, 141, 255, 0.7);
+    box-shadow: inset 0 0 0 1px rgba(76, 141, 255, 0.45), 0 0 8px rgba(76, 141, 255, 0.2);
     z-index: 2;
 }
 
@@ -4291,7 +4349,7 @@ button:active { transform: translateY(1px); }
     box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.07), 0 0 0 7px rgba(255, 255, 255, 0.16);
 }
 
-.grid-cell.selected .cell-sym { color: var(--accent); }
+.grid-cell.selected .cell-sym { color: #a9c6f5; }
 
 /* Édition inline du texte d'un accord (clic sur .cell-sym, voir startInlineChordSymbolEdit) : ce
    champ remplace le symbole EN PLACE, même gabarit visuel pour ne pas faire "sauter" la case, mais

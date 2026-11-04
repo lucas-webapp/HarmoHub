@@ -2627,6 +2627,8 @@ const ZONE_EDITION_SELECTEURS = [
     '#quick-add-help-btn', '#quick-add-help', '.grid-cell', '.cell-add',
     '.section-head', '.grid-head-sticky', '#context-menu', '.overlay', '.modal', '.settings-overlay',
     '#files-overlay', 'button', 'input', 'select', 'textarea', 'label', 'a', '[role="button"]',
+    // Lot 6 : la bulle « quel accord », la rangée de réglages et leurs choix — travailler dedans n'est pas quitter son travail.
+    '#bulle-accord', '#rangee-reglages', '#rr-pop', '#partie-menu',
 ].join(',');
 const SEQ_INLINE_ZOOM_LEVEL_X_KEY = 'harmohubSeqInlineZoomLevelX';
 // Échelles horizontale/verticale du panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) —
@@ -4687,6 +4689,8 @@ class HarmoHubApp {
             { id: 'key-suggest-menu', ancre: '#key-suggest-btn, .rr-suggerer', close: () => this.closeKeySuggestMenu() },
             // Le choix d'une puce de la rangée de réglages (lot 6a). La suggestion de tonalité s'ouvre DEPUIS lui : la cliquer ne doit pas le refermer.
             { id: 'rr-pop', ancre: '.rr-puce, #key-suggest-menu', close: () => this.fermerPuceReglage() },
+            // La bulle « quel accord » (lot 6b) : un clic sur une AUTRE case ne la ferme pas, il la déplace (voir onGridPointerUp).
+            { id: 'bulle-accord', ancre: '.grid-cell:not(.grid-cell-add)', close: () => this.fermerBulleAccord() },
             { id: 'quick-add-help', ancre: '#quick-add-help-btn', close: () => this.closeQuickAddHelp() },
             // Réglages du morceau (tempo/groove/mesure/tonalité), devenus un panneau flottant : une
             // ligne suffit pour hériter des DEUX façons de renoncer, le clic à côté et Échap. C'est
@@ -8170,6 +8174,7 @@ class HarmoHubApp {
         this.fitCellSymbols(host);
         this.updatePlayButtonsForLoopRange();
         this.afficherDureeAccord();
+        if (this._bulle) { this.remplirBulleAccord(); this.placerBulleAccord(); } // la grille vient d'être redessinée : la bulle relit l'accord et se recale
     }
 
     // LA DURÉE AFFICHÉE PENDANT QU'ON L'ÉTIRE (lot 5d) : une petite bulle au-dessus du bord droit de l'accord, « 2 mesures », mise à jour à chaque
@@ -8887,6 +8892,177 @@ class HarmoHubApp {
         if (input) input.focus();
     }
 
+    // ---------- LA BULLE « QUEL ACCORD » (lot 6b) ----------
+    // « Plus de bandeau de gauche, plus de mode ajout / modification. On agit dans la grille : une bulle (QUEL accord : fondamentale, type, basse,
+    // durée, ‹ › vers le voisin) et un inspecteur (COMMENT il sonne). Une bulle = UNE étape d'annulation. Modification directe, Ctrl+Z comme filet »
+    // (docs/refonte.md). La bulle écrit l'accord DIRECTEMENT, comme la retape du nom au double-clic (startInlineChordSymbolEdit) — elle ne fait pas
+    // passer l'appli en « modification » : c'est tout l'objet de la décision.
+    bulleDisponible() {
+        return window.matchMedia('(min-width: 900px)').matches && !(this.vueOuverte && this.vueOuverte());
+    }
+
+    setupBulleAccord() {
+        const b = document.getElementById('bulle-accord');
+        if (!b) return;
+        b.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-bulle]');
+            if (!btn || btn.disabled || !this._bulle) return;
+            e.stopPropagation();
+            const action = btn.dataset.bulle, v = btn.dataset.valeur;
+            const z = this._bulle;
+            if (action === 'fermer') this.fermerBulleAccord();
+            else if (action === 'prec' || action === 'suiv') this.naviguerBulle(action === 'prec' ? -1 : 1);
+            else if (action === 'root') this.modifierAccordBulle({ root: v });
+            else if (action === 'quality') this.modifierAccordBulle({ quality: v });
+            else if (action === 'bass') this.modifierAccordBulle({ bass: v || null });
+            else if (action === 'duree-moins' || action === 'duree-plus') {
+                const data = (loadProgressionSections()[z.section] || { chords: [] }).chords[z.index];
+                if (data) this.modifierAccordBulle({ beats: beatsFromData(data) + (action === 'duree-plus' ? 1 : -1) });
+            } else if (action === 'son') this.ouvrirSonDepuisBulle();
+        });
+        b.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.fermerBulleAccord(); }
+        });
+    }
+
+    ouvrirBulleAccord(section, index) {
+        const b = document.getElementById('bulle-accord');
+        const sections = loadProgressionSections();
+        if (!b || !sections[section] || !sections[section].chords[index]) return;
+        const meme = this._bulle && this._bulle.section === section && this._bulle.index === index;
+        // Une NOUVELLE bulle = une nouvelle étape d'annulation ; la même bulle rouverte (re-clic sur sa case) garde la sienne.
+        this._bulle = { section, index, undoPousse: meme ? this._bulle.undoPousse : false };
+        this.remplirBulleAccord();
+        b.hidden = false;
+        this.placerBulleAccord();
+    }
+
+    fermerBulleAccord() {
+        const b = document.getElementById('bulle-accord');
+        this._bulle = null;
+        if (b) b.hidden = true;
+    }
+
+    // Sous la case (son premier morceau, s'il est coupé de ligne), calée sur son bord gauche ; au-dessus s'il n'y a pas la place en bas.
+    placerBulleAccord() {
+        const b = document.getElementById('bulle-accord');
+        const z = this._bulle;
+        if (!b || !z || b.hidden) return;
+        const cell = document.querySelector(`#progression-sections .grid-cell[data-section="${z.section}"][data-index="${z.index}"]`);
+        if (!cell) { this.fermerBulleAccord(); return; }
+        const r = cell.getBoundingClientRect();
+        if (r.width === 0 || r.bottom < 0 || r.top > window.innerHeight) { this.fermerBulleAccord(); return; }
+        const pad = 8, h = b.offsetHeight, w = b.offsetWidth;
+        let top = r.bottom + 6;
+        if (top + h > window.innerHeight - pad) top = Math.max(pad, r.top - 6 - h);
+        b.style.top = `${Math.round(top)}px`;
+        b.style.left = `${Math.round(Math.max(pad, Math.min(r.left, window.innerWidth - w - pad)))}px`;
+    }
+
+    naviguerBulle(delta) {
+        const z = this._bulle;
+        if (!z) return;
+        const chords = (loadProgressionSections()[z.section] || { chords: [] }).chords;
+        const n = z.index + delta;
+        if (n < 0 || n >= chords.length) return;
+        this.selectChord(z.section, n);
+        this.ouvrirBulleAccord(z.section, n);
+        const focus = document.querySelector(`#bulle-accord [data-bulle="${delta < 0 ? 'prec' : 'suiv'}"]:not([disabled])`);
+        if (focus) focus.focus({ preventScroll: true });
+    }
+
+    // « Réglages du son › » : le COMMENT il sonne (voicing, jeu, intensité, rythme, doigté) — la carte Accord, ouverte sur CET accord. Elle
+    // deviendra l'inspecteur au lot 6c.
+    ouvrirSonDepuisBulle() {
+        const z = this._bulle;
+        if (!z) return;
+        this.fermerBulleAccord();
+        this.editChord(z.section, z.index);
+    }
+
+    // Une retouche faite dans la bulle. La PREMIÈRE de la bulle dépose l'instantané d'annulation, les suivantes non : « une bulle = une étape ».
+    modifierAccordBulle(patch) {
+        const z = this._bulle;
+        if (!z) return;
+        const sections = loadProgressionSections();
+        const data = sections[z.section] && sections[z.section].chords[z.index];
+        if (!data) return;
+        const avant = beatsFromData(data);
+        const change = ('root' in patch && patch.root !== data.root) || ('quality' in patch && patch.quality !== data.quality)
+            || ('bass' in patch && (patch.bass || null) !== (data.bass || null)) || ('beats' in patch && Math.max(1, patch.beats) !== avant);
+        if (!change) return;
+        if (!z.undoPousse) { this.pushUndo(sections); z.undoPousse = true; }
+        if ('root' in patch || 'quality' in patch || 'bass' in patch) {
+            // Comme la retape du nom : un doigté verrouillé a été calculé pour l'ancien accord, et une case « à nommer » vient d'être nommée.
+            data.guitarLock = null;
+            delete data.unnamed;
+        }
+        if ('root' in patch) data.root = patch.root;
+        // Un autre TYPE : renversement et drop repartent de zéro (ceux de l'ancien accord ne veulent rien dire pour le nouveau — la maquette).
+        if ('quality' in patch) { data.quality = patch.quality; data.inversion = 0; data.drop = 'none'; }
+        if ('bass' in patch) data.bass = patch.bass || null;
+        if ('beats' in patch) data.beats = Math.max(1, patch.beats);
+        saveProgressionSections(sections);
+        // Plus long : la partie ajoutée est TENUE, comme un étirement à la poignée (voir extendChordPatternToHold).
+        if ('beats' in patch && data.beats > avant) this.extendChordPatternToHold(z.section, z.index, avant);
+        if (this.editingIndex === z.index && this.activeSection === z.section) this.editChord(z.section, z.index);
+        else this.loadProgression();
+        // On ENTEND le nouvel accord, comme à un clic sur sa case — pas pour un simple changement de durée.
+        if (!('beats' in patch)) this.playSavedChord(z.section, z.index, this.autoplaySelect);
+    }
+
+    remplirBulleAccord() {
+        const b = document.getElementById('bulle-accord');
+        const z = this._bulle;
+        if (!b || !z) return;
+        const sections = loadProgressionSections();
+        const sec = sections[z.section];
+        const data = sec && sec.chords[z.index];
+        if (!data) { this.fermerBulleAccord(); return; }
+        const focusAvant = b.contains(document.activeElement) ? `[data-bulle="${document.activeElement.dataset.bulle}"]${document.activeElement.dataset.valeur != null ? `[data-valeur="${document.activeElement.dataset.valeur}"]` : ''}` : null;
+        const gRoot = document.getElementById('global-root').value, gMode = document.getElementById('global-mode').value;
+        const useFlats = useFlatsForKey(NOTES.indexOf(gRoot), gMode);
+        const flats = useFlatsForChordRoot(NOTES.indexOf(data.root), NOTES.indexOf(gRoot), gMode, useFlats);
+        const label = chordSymbolForData(data, flats);
+        const deg = this.getRomanNumeral(gRoot, gMode, data.root, data.quality);
+        const bpb = this.beatsPerBar();
+        let pos = 0;
+        for (let i = 0; i < z.index; i++) pos += beatsFromData(sec.chords[i]);
+        const ou = `mes. ${Math.floor(pos / bpb) + 1} · ${(sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${z.section + 1}`}`;
+        const nom = (pc) => noteNameForPc(pc, useFlats).replace('#', '♯');
+        const bouton = (action, valeur, libelle, actif, titre = '') =>
+            `<button type="button" data-bulle="${action}" data-valeur="${escapeHtml(valeur)}" aria-pressed="${actif}"${titre ? ` title="${escapeHtml(titre)}"` : ''}>${escapeHtml(libelle)}</button>`;
+        const fondamentales = NOTES.map((n, pc) => bouton('root', n, nom(pc), n === data.root)).join('');
+        const types = [...document.getElementById('quality').options].map(o => bouton('quality', o.value, o.text, o.value === data.quality)).join('');
+        const basses = bouton('bass', '', '—', !data.bass, 'Basse = fondamentale') + NOTES.map((n, pc) => bouton('bass', n, nom(pc), data.bass === n, `Basse ${nom(pc)}`)).join('');
+        const beats = beatsFromData(data);
+        const chevron = (d) => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+        const dernier = sec.chords.length - 1;
+        b.setAttribute('aria-label', `Accord ${label}`);
+        b.innerHTML =
+            `<div class="bulle-tete">`
+            + `<button type="button" class="bulle-nav" data-bulle="prec" aria-label="Accord précédent" title="Accord précédent"${z.index > 0 ? '' : ' disabled'}>${chevron('M15 6l-6 6 6 6')}</button>`
+            + `<span class="bulle-nom">${flatTight(escapeHtml(label))}</span>`
+            + (deg ? `<span class="bulle-degre">${escapeHtml(deg)}</span>` : '')
+            + `<span class="bulle-ou">${escapeHtml(ou)}</span>`
+            + `<button type="button" class="bulle-nav bulle-suiv" data-bulle="suiv" aria-label="Accord suivant" title="Accord suivant"${z.index < dernier ? '' : ' disabled'}>${chevron('M9 6l6 6-6 6')}</button>`
+            + `<button type="button" class="bulle-nav" data-bulle="fermer" aria-label="Fermer" title="Fermer (Échap)">${chevron('M6 6l12 12M18 6L6 18')}</button>`
+            + `</div>`
+            + `<div class="rr-lbl">Fondamentale</div><div class="rr-grille bulle-g12">${fondamentales}</div>`
+            + `<div class="rr-lbl">Type</div><div class="rr-grille bulle-g5">${types}</div>`
+            + `<div class="rr-lbl">Basse</div><div class="rr-grille bulle-g13">${basses}</div>`
+            + `<div class="bulle-pied"><span class="rr-lbl">Durée</span>`
+            + `<span class="partie-rep-seg"><button type="button" data-bulle="duree-moins" aria-label="Un temps de moins"${beats > 1 ? '' : ' disabled'}>−</button>`
+            + `<span class="partie-rep-val bulle-duree" aria-live="polite">${escapeHtml(dureeEnMots(beats, bpb))}</span>`
+            + `<button type="button" data-bulle="duree-plus" aria-label="Un temps de plus">+</button></span>`
+            + `<button type="button" class="bulle-son" data-bulle="son">Réglages du son${chevron('M9 6l6 6-6 6')}</button></div>`
+            + `<p class="rr-aide">Ctrl+Z annule toute la bulle d'un coup · double-clic : taper le nom · bord droit de la case : tirer pour la durée</p>`;
+        if (focusAvant) {
+            const c = b.querySelector(focusAvant + ':not([disabled])');
+            if (c) c.focus({ preventScroll: true });
+        }
+    }
+
     // ---------- RANGÉE DE RÉGLAGES DU MORCEAU (lot 6a) ----------
     // « Tonalité ≠ Transposer : la puce Tonalité change seulement la référence (degrés, modes, suggestion) ; Transposer déplace les accords
     // (version automatique avant) » ; « Groove → Swing » (docs/refonte.md). Chaque puce RÈGLE la vraie liste du morceau et déclenche son
@@ -9241,6 +9417,9 @@ class HarmoHubApp {
         // Posé en position fixe : un défilement le décollerait de son bouton — il le SUIT (le refermer ne marchait pas : redessiner la grille en
         // activant la partie fait défiler la page d'un cran, et le menu se refermait sous le doigt à peine ouvert ; trouvé par le banc).
         window.addEventListener('scroll', () => { if (this._menuPartie != null) this.placerMenuPartie(); }, true);
+        window.addEventListener('scroll', () => { if (this._bulle) this.placerBulleAccord(); }, true);
+        window.addEventListener('resize', () => { if (this._bulle) this.placerBulleAccord(); });
+        this.setupBulleAccord();
         window.addEventListener('resize', () => { if (this._menuPartie != null) this.placerMenuPartie(); });
         menu.addEventListener('keydown', (e) => {
             const items = [...menu.querySelectorAll('button:not([disabled])')];
@@ -14925,6 +15104,13 @@ class HarmoHubApp {
             const isSecondTap = this._lastTap && this._lastTap.section === d.section && this._lastTap.index === d.index && (now - this._lastTap.time) < 420;
             if (isSecondTap) {
                 this._lastTap = null;
+                // Ordinateur (lot 6b) : « double-clic = retaper le nom », où que tombe le clic dans la case — la bulle (ouverte au premier clic)
+                // fait déjà tout le reste, et l'inspecteur s'ouvre depuis elle.
+                if (this.bulleDisponible()) {
+                    this.fermerBulleAccord();
+                    this.startInlineChordSymbolEdit(d.section, d.index, d.cell);
+                    return;
+                }
                 if (d.symTarget) {
                     this.startInlineChordSymbolEdit(d.section, d.index, d.cell);
                 } else {
@@ -14940,6 +15126,8 @@ class HarmoHubApp {
             // clic pour modifier »). Une préférence qui n'a qu'une bonne réponse n'est pas une
             // préférence, c'est un choix à faire pour rien.
             this.selectChord(d.section, d.index);
+            // Ordinateur (lot 6b) : « clic = sélectionne et ouvre la bulle ».
+            if (this.bulleDisponible()) this.ouvrirBulleAccord(d.section, d.index);
             return;
         }
         if (d.copy) {
@@ -21151,6 +21339,7 @@ class HarmoHubApp {
                     const next = Math.min(history.length - 1, Math.max(0, ancreFleches + dir));
                     if (next !== ancreFleches) {
                         this.selectChord(this.activeSection, next);
+                        if (this._bulle) this.ouvrirBulleAccord(this.activeSection, next); // la bulle suit l'accord choisi (lot 6b)
                     }
                     e.preventDefault();
                 }

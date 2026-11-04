@@ -68,12 +68,22 @@ const centreSymbole = (page, idx) => page.evaluate((i) => {
 
     await page.evaluate(() => { if (window.app.editingIndex != null) window.app.exitEditMode(); window.app.loadProgression(); });
     await page.waitForTimeout(400);
+    // LOT 6b (la maquette validée) : sur ORDINATEUR, « double-clic = retaper le nom » OÙ QUE TOMBE le clic — la bulle ouverte au premier clic
+    // porte déjà tout le reste. Le panneau (le COMMENT il sonne) s'ouvre depuis elle, par « Réglages du son ». Le téléphone garde la règle
+    // « symbole / zone nue » jusqu'au lot 10.
     const nu2 = await pointNu(page, 2);
     await page.mouse.dblclick(nu2.x, nu2.y);
     await page.waitForTimeout(700);
     e = await etat();
-    check(e.ed === 2, `double-clic sur une zone NUE : ouvre le panneau (${JSON.stringify(e)})`);
-    check(!e.retape, '...sans laisser de champ de retape orphelin');
+    check(e.retape && e.ed === null, `double-clic sur une zone NUE : retape aussi le nom, sans ouvrir le panneau (${JSON.stringify(e)})`);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(400);
+    await page.mouse.click(nu2.x, nu2.y);
+    await page.waitForTimeout(400);
+    await page.click('#bulle-accord [data-bulle="son"]');
+    await page.waitForTimeout(600);
+    e = await etat();
+    check(e.ed === 2 && !e.retape, `« Réglages du son », dans la bulle, ouvre le panneau — sans champ de retape orphelin (${JSON.stringify(e)})`);
     // Le séparateur « · » a disparu : l'intitulé est une PASTILLE encadrée (#accord-title-label) et
     // le symbole vit à côté (#accord-title-sym). On éprouve donc les deux morceaux séparément, ce qui
     // dit mieux ce qu'on veut vraiment — un état nommé ET un sujet nommé.
