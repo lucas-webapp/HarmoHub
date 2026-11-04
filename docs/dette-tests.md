@@ -5006,3 +5006,49 @@ confondus, clic dans la barre qui perd l'ancre, message sur la barre, barre au t
 réels, corrigés : cliquer dans la barre perdait l'accord d'ancrage, et le message passager couvrait la barre.
 
 **Balayage du lot 7b (04/11) : 223 verts, 5 rouges, 7 sans verdict (235 suites)** — exactement la ligne de base, plus la nouvelle suite.
+
+## Refonte de l'interface — lot 8 : Clavier / Guitare, tiroir épinglé ou fenêtre libre (2026-11-05)
+
+Cahier des charges : « Clavier / Guitare : épinglés en bas par défaut, ou détachés en fenêtre libre (barre de titre qui déplace, coin qui redimensionne, punaise
+pour réépingler). Construire un accord au clavier puis « Remplacer » ou « Ajouter ». Guitare : le manche actuel AU COMPLET (doigtés, verrouillage, édition,
+dessin, envoi dans la grille). » (docs/refonte.md.)
+
+**Ce qui est fait (ordinateur seulement ; le téléphone n'a pas bougé, lot 10).**
+- **Bloc « Vues »** : quatrième bloc réordonnable de la barre de lecture. Il reçoit les deux boutons EXISTANTS (`#toggle-viz-piano`, `#toggle-viz-guitar`, mêmes
+  adresses, 32 px), déplacés par `placerVues` comme `placeGlobalTransport` déplace le transport : un seul nœud, jamais dupliqué. Les 18 bancs qui cliquaient ces boutons
+  n'ont donc pas eu à changer de geste.
+- **Tiroir** (`#vues-tiroir`) : accueille la carte des diagrammes et le titre de l'accord (nœuds existants, déplacés). Épinglé : dans le flux, collé au-dessus de la
+  barre de lecture (la grille cède la place, rien n'est recouvert). Détaché : fenêtre fixe de 12 px d'arrondi, barre de titre qui déplace, coin qui redimensionne, bornée
+  à l'écran (jamais plus petite que 360×150, jamais sous la barre de lecture), punaise pour réépingler. Mode et géométrie mémorisés PAR APPAREIL
+  (`harmohubVuesMode`, `harmohubVuesFenetre`), jamais synchronisés. « Fermer » éteint les deux instruments ; Clavier et Guitare restent indépendants (les deux côte à côte).
+  Le clavier reste allumé par défaut (choix conservé : aucun changement de comportement pour qui n'y touche pas) — **à confirmer** : la maquette part tiroir fermé.
+- **Construire un accord au clavier** : un clic sur une touche (20 px de large, 64 de haut dans le tiroir, 14 px au téléphone) la pose ou la retire et la fait sonner ;
+  les touches tapées s'allument en bleu (la sélection est bleue) ; une bande donne les notes, le nom reconnu (même moteur que le manche : `analyzeDrawnMidis`, extrait de
+  `analyzeGuitarDrawnChord`), les autres lectures en puces, puis **Remplacer <accord sélectionné>** (une seule étape d'annulation), **Ajouter en fin de partie**
+  (partie de l'accord sélectionné) et **Effacer**. Rien n'est écrit avant l'un des deux boutons. Choisir un autre accord efface les notes tapées. Limite connue : la
+  fenêtre du clavier suit l'accord affiché (2 à 3 octaves), on ne tape pas hors d'elle.
+- **Guitare** : le manche, les doigtés, le cadenas, l'édition, le dessin et l'envoi dans la grille travaillent dans le tiroir (éprouvés à 1440 px par le nouveau banc).
+
+**Pièges rencontrés.**
+- La fermeture « au clic à côté » désélectionnait l'accord dès qu'on touchait une touche (le tiroir n'était dans aucune liste) : `#vues-tiroir` et `#bl-vues` entrent dans
+  `ZONE_EDITION_SELECTEURS` et dans l'exemption de la désélection (comme la barre de sélection au lot 7b).
+- La bulle « quel accord » se posait sur les touches : son plancher est maintenant le haut du tiroir épinglé, sinon celui de la barre de lecture.
+- Le tiroir (z-index 31) recouvrait la fenêtre du tempo, qui s'ouvre vers le HAUT depuis la barre (30) : `rangee_reglages` a rougi, à raison. Tiroir épinglé à 29.
+- Clic sur une touche pendant l'audition d'un accord : l'audition s'arrête (sinon elle repeint ses notes par-dessus celles qu'on pose).
+
+**Bancs.** Nouveau `vues_tiroir_test` (95). **Sabotages : 12, tous rouges** (bornes de la fenêtre, touches bleues, zone d'édition, désélection au clic, annulation du
+Remplacer, effacement au changement d'accord, arrêt de l'audition, plancher de la bulle, retour de la carte au téléphone, touches du téléphone, partie visée par Ajouter,
+tiroir sous une vue) — dont deux d'abord VERTS (zone d'édition, tiroir sous une vue), d'où deux vérifications ajoutées ; un contrôle redondant (effacement dans
+`refreshPreview`) retiré. **Bancs touchés** : `barre_lecture` (quatre blocs), `place_du_plus_et_diagrammes`, `seq_selection_et_cadre_diagrammes` (la bascule est dans la
+barre, plus dans la carte), `seq_centrage_molette_diagrammes` (seuls les diagrammes de la carte sont à centrer), `volet_hauteur_poignee` (sans diagramme, plus de carte à
+descendre : boutons dans la barre, colonne à ~20 px d'elle), `sidebar_collapse_seq_height` (la colonne borde le tiroir quand il est ouvert), `diagrammes_inspecteur` (piano
+plafonné à 66 px au lieu de 52), `verre_test` (nouvel état « tiroir » : éteint identique, allumé lisible). `verre-surfaces.css` : le tiroir est une barre, sa version libre
+une fenêtre.
+
+**Balayage du lot 8 (05/11) : 222 verts, 7 rouges, 7 sans verdict (236 suites)** au premier relevé complet : les 5 rouges de la ligne de base, plus `verre_test` (deux vérifications
+dépendantes du timing, attente ajoutée sur les commandes du manche) et `vues_integrees` (vrai défaut : la bulle, retournée vers le haut faute de place, recouvrait la barre du haut
+et ses onglets — elle ne se retourne plus que si elle tient sous la barre du haut). Les deux revérifiés ensuite, seuls et sous charge (balayage ciblé de 80 suites : seuls les rouges
+de la ligne de base restent). Le premier balayage complet avait été interrompu deux fois par la perte du serveur de test (un `nohup` est tué à la fin du tour) : voir `CLAUDE.md`.
+**Balayage ciblé** (`tests/run_cible.sh`, décidé le 05/11) : à lancer pendant un lot ; le complet reste réservé à la fin du lot. Premier essai : 89 suites sur 236, une dizaine de minutes ;
+la plus longue, `synchro_cloud`, fait 157 s. **À faire** : durées par suite dans le relevé de `run_all_fast.sh` (non modifié pendant qu'il tournait), puis raccourcir les plus lentes.
+

@@ -54,7 +54,7 @@ const graine = (src) => {
 
     const p = await ouvrir({ width: 1440, height: 900 });
 
-    console.log('\n=== A. La barre : en bas, pleine largeur, trois blocs ===');
+    console.log('\n=== A. La barre : en bas, pleine largeur, quatre blocs ===');
     const a = await p.evaluate(() => {
         const b = document.getElementById('barre-lecture'), r = b.getBoundingClientRect();
         const blocs = [...b.querySelectorAll('.bl-bloc')].map(x => ({ nom: x.dataset.bloc, gauche: Math.round(x.getBoundingClientRect().left) }));
@@ -62,8 +62,9 @@ const graine = (src) => {
     });
     check(a.verticale === 'flex' && a.bas === a.fenetre && a.larg === 1440, `barre collée au bas de l'écran, sur toute la largeur — bas ${a.bas}/${a.fenetre}, largeur ${a.larg}`);
     check(a.h >= 60 && a.h <= 61, `60px de haut — ${a.h}px`);
-    check(a.blocs.map(x => x.nom).join() === 'lecture,parties,tempo' && a.blocs[0].gauche < a.blocs[1].gauche && a.blocs[1].gauche < a.blocs[2].gauche,
-        `trois blocs, dans l'ordre d'origine : Lecture, Parties, Tempo — ${JSON.stringify(a.blocs)}`);
+    // LOT 8 : le quatrième bloc est « Vues » (Clavier, Guitare), à la suite du tempo.
+    check(a.blocs.map(x => x.nom).join() === 'lecture,parties,tempo,vues' && a.blocs[0].gauche < a.blocs[1].gauche && a.blocs[1].gauche < a.blocs[2].gauche && a.blocs[2].gauche < a.blocs[3].gauche,
+        `quatre blocs, dans l'ordre d'origine : Lecture, Parties, Tempo, Vues — ${JSON.stringify(a.blocs)}`);
     check(a.mesure === 'Mes. 1', `« Mes. N » seul, sans temps ni nom d'accord — « ${a.mesure} »`);
 
     console.log('\n=== B. La frise : une tranche par partie, durée proportionnelle ===');

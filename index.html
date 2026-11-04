@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611041900">
+    <link rel="stylesheet" href="style.css?v=202611051210">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611041900">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611051210">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1749,6 +1749,42 @@
         </div>
         <iframe id="paroles-cadre" class="paroles-cadre" title="Paroles du morceau"></iframe>
     </div>
+    <!-- TIROIR CLAVIER / GUITARE (refonte, lot 8) : « épinglés en bas par défaut, ou détachés en fenêtre libre (barre de titre qui déplace, coin qui
+         redimensionne, punaise pour réépingler) ». Ordinateur seulement : sous 900px les diagrammes restent dans leur carte (lot 10). Il ne porte AUCUNE
+         logique d'instrument : il ACCUEILLE la carte des diagrammes existante (.viz-card, déplacée par placerVues, jamais dupliquée) et le titre de
+         l'accord ; les deux boutons Clavier / Guitare (#toggle-viz-piano, #toggle-viz-guitar) vivent dans le bloc « Vues » de la barre de lecture. -->
+    <div id="vues-tiroir" class="vues-tiroir" role="region" aria-label="Clavier et guitare" hidden>
+        <div id="vues-barre" class="vues-barre">
+            <span id="vues-titre" class="vues-titre">Clavier</span>
+            <span id="vues-aide" class="vues-aide" hidden>glisser la barre pour déplacer · tirer le coin pour agrandir</span>
+            <span class="vues-espace"></span>
+            <button type="button" id="vues-detacher" class="icon-btn" aria-pressed="false" title="Détacher en fenêtre libre" aria-label="Détacher en fenêtre libre">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="13" height="13" rx="2"/><path d="M12 12l9-9"/><path d="M15 3h6v6"/></svg>
+            </button>
+            <button type="button" id="vues-fermer" class="icon-btn" title="Fermer" aria-label="Fermer le clavier et la guitare">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+        </div>
+        <div id="vues-corps" class="vues-corps">
+            <!-- Construction d'accord au clavier (lot 8) : n'apparaît qu'une fois des touches tapées. Le titre de l'accord et la carte des diagrammes
+                 sont déplacés AVANT cette bande par placerVues. Rien n'est écrit dans le morceau avant « Remplacer » ou « Ajouter ». -->
+            <div id="kb-construction" class="kb-construction" role="group" aria-label="Accord construit au clavier" hidden>
+                <span id="kb-notes" class="kb-notes"></span>
+                <div class="kb-ligne">
+                    <span id="kb-nom" class="kb-nom"></span>
+                    <div id="kb-lectures" class="kb-lectures" role="group" aria-label="Autres lectures de ces notes" hidden></div>
+                </div>
+                <div class="kb-actions">
+                    <button type="button" id="kb-remplacer" class="btn-blue"><span class="kb-libelle">Remplacer</span></button>
+                    <button type="button" id="kb-ajouter" class="btn-blue" title="Ajouter cet accord à la fin de la partie de l'accord sélectionné">Ajouter en fin de partie</button>
+                    <button type="button" id="kb-effacer" class="btn-sec" title="Effacer les notes tapées">Effacer</button>
+                </div>
+            </div>
+        </div>
+        <button type="button" id="vues-coin" class="vues-coin" title="Tirer pour agrandir ou réduire" aria-label="Redimensionner la fenêtre" hidden>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M17 8L8 17M17 13l-4 4"/></svg>
+        </button>
+    </div>
     <div id="barre-lecture" class="barre-lecture" role="toolbar" aria-label="Lecture">
         <div class="bl-bloc" data-bloc="lecture" id="bl-lecture"></div>
         <div class="bl-bloc bl-parties" data-bloc="parties">
@@ -1790,6 +1826,8 @@
             </div>
             <button type="button" id="bl-metro" class="icon-btn" aria-pressed="false"></button>
         </div>
+        <!-- Bloc « Vues » (lot 8) : Clavier et Guitare. Les deux boutons existants (.viz-toggle) y sont déplacés sur ordinateur par placerVues. -->
+        <div class="bl-bloc bl-vues" data-bloc="vues" id="bl-vues"></div>
         <div class="bl-fin">
             <button type="button" id="bl-reinit" class="icon-btn bl-reinit" hidden title="Remettre les blocs dans l'ordre d'origine">Ordre d'origine</button>
             <button type="button" id="bl-reorg" class="icon-btn" aria-pressed="false" title="Réorganiser les blocs de la barre" aria-label="Réorganiser les blocs de la barre">
@@ -1889,11 +1927,11 @@
     <script src="fichiers.js?v=202610030500"></script>
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
-    <script src="historique.js?v=202611041900"></script>
-    <script src="script.js?v=202611041900"></script>
+    <script src="historique.js?v=202611051210"></script>
+    <script src="script.js?v=202611051210"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611041900"></script>
+    <script src="synchro-harmohub.js?v=202611051210"></script>
 </body>
 </html>

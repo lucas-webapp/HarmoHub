@@ -43,6 +43,16 @@ const ETATS = {
     menuMorceau: async (p) => { await p.click('#tb-titre'); await p.waitForTimeout(250); },
     confirmation: async (p) => { await p.evaluate(() => { window.app.openUnsavedModal(); }); await p.waitForTimeout(300); },
     sequenceur: async (p) => { await p.evaluate(() => window.app.editChord(0, 1)); await p.waitForTimeout(300); await p.click('#seq-zoom'); await p.waitForTimeout(600); },
+    // Le tiroir Clavier / Guitare (lot 8) : détaché en fenêtre libre, clavier ET guitare ouverts, un accord en construction (sa bande, ses puces, ses
+    // touches bleues). DERNIER de la liste : il laisse le tiroir ouvert, et rien ne doit le suivre.
+    tiroir: async (p) => {
+        await p.evaluate(() => window.app.fermerBulleAccord());
+        await p.click('.grid-cell >> nth=1'); await p.waitForTimeout(300);
+        await p.click('#toggle-viz-guitar'); await p.waitForSelector('#guitar-lock-btn', { state: 'visible' }); await p.waitForTimeout(300); // le manche ET ses commandes (cadenas, doigtés) sont CALCULÉS après le clic : sans cette attente, sous charge, les deux pages se comparaient à des moments différents
+        await p.click('#vues-detacher'); await p.waitForTimeout(300);
+        const bas = await p.evaluate(() => Math.min(...[...document.querySelectorAll('#piano-viz .key')].map(k => +k.dataset.midi)));
+        for (const d of [2, 6, 9, 12]) { await p.click(`#piano-viz .key[data-midi="${bas + d}"]`); await p.waitForTimeout(80); }
+    },
 };
 // L'aperçu avant impression de la structure n'existe que dans les versions qui l'ont : son état n'est relevé que là.
 const A_APERCU = V.lireSource('index.html').includes('id="structure-apercu"');
@@ -50,7 +60,7 @@ if (A_APERCU) ETATS.apercu = async (p) => { await p.click('#structure-btn'); awa
 async function fermerTout(p) { await p.keyboard.press('Escape'); await p.waitForTimeout(150); await p.evaluate(() => { try { window.app.closeSettings(); } catch (e) {} window.app.editingIndex = null; window.app.loadProgression(); }); await p.waitForTimeout(150); }
 
 (async () => {
-    plan(A_APERCU ? 65 : 64);
+    plan(A_APERCU ? 66 : 65);
     const nav = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     try {
         // ===== 0. LES FICHIERS ET LEUR ORDRE (statique) ==========================================================================

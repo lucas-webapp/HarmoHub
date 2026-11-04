@@ -132,14 +132,16 @@ const partie = (titre) => {
     const bas = await mesurer(page);
     console.log(JSON.stringify({ carte: bas.carte, exp: bas.exp, vizWrap: bas.vizWrap }));
     if (exiger(!!bas.carte && !!bas.exp, 'la carte des boutons et les boutons Paroles/Fichier sont mesurables')) {
-        // Alignement vertical : même bord bas. Les deux rangées n'ont pas la même hauteur (32px contre
-        // 26px), on compare donc ce qui est demandé — être sur la même ligne — et non des centres égaux.
-        check(Math.abs(bas.carte.b - bas.exp.b) <= 2,
-            `même bord bas que Paroles/Fichier, donc même ligne (${bas.carte.b} contre ${bas.exp.b})`);
-        const centreCarte = (bas.carte.l + bas.carte.r) / 2;
-        const centreBande = (bas.enteteGrille.l + bas.enteteGrille.r) / 2;
-        check(Math.abs(centreCarte - centreBande) <= 2,
-            `centrés horizontalement dans la colonne (écart ${Math.round(Math.abs(centreCarte - centreBande))}px)`);
+        // RÉÉCRIT AU LOT 8 : les boutons Clavier / Guitare ne sont plus une carte posée sur la ligne de Paroles/Fichier, ils sont dans le bloc « Vues » de la
+        // barre de lecture, et sans diagramme il n'y a plus de tiroir. Ce que ces deux contrôles gardaient — « les boutons ne coûtent aucune hauteur à la
+        // grille, et ne sont pas décrochés » — se mesure donc ici : ils sont dans la barre, et la colonne de la grille descend jusqu'à ~20px d'elle.
+        const dansLaBarre = await page.evaluate(() => {
+            const bt = document.querySelector('#toggle-viz-piano').getBoundingClientRect(), br = document.getElementById('barre-lecture').getBoundingClientRect();
+            const col = document.querySelector('.col-right').getBoundingClientRect();
+            return { dedans: bt.top >= br.top && bt.bottom <= br.bottom, ecart: Math.round(br.top - col.bottom), tiroir: !!document.getElementById('vues-tiroir') && !document.getElementById('vues-tiroir').hidden };
+        });
+        check(dansLaBarre.dedans && !dansLaBarre.tiroir, 'les boutons sont dans la barre de lecture, et sans diagramme le tiroir ne prend aucune place');
+        check(Math.abs(dansLaBarre.ecart - 20) <= 3, `la colonne de la grille descend jusqu'à ~20px de la barre (${dansLaBarre.ecart}px)`);
         check(bas.carte.r < bas.exp.l, `sans recouvrir Paroles/Fichier (fin à ${bas.carte.r}, qui commencent à ${bas.exp.l})`);
         check(bas.vizWrap <= 40, `la bande des diagrammes ne coûte plus qu'une hauteur de boutons (${bas.vizWrap}px, contre 142 avant)`);
         // Retour utilisateur : « il reste encore de la place optimisable entre le séquenceur et les

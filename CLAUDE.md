@@ -31,7 +31,11 @@ La **refonte de l'interface** suit `docs/refonte.md` (règles, décisions de fon
 1. Lire la section du lot dans `docs/refonte.md` et, au besoin, la maquette ; lire le code concerné **par plages** (`script.js` et `style.css` sont très longs).
 2. Coder. **Incrémenter `?v=`** dans `index.html` (toutes les occurrences) à chaque changement de fichier servi.
 3. Écrire le banc (voir plus bas), puis des **sabotages** : casser un comportement dans l'appli et vérifier que le banc rougit. Restaurer ensuite.
-4. Balayage complet : `bash tests/run_all_fast.sh > /tmp/sweep.log 2>&1` (long, le lancer en arrière-plan), puis lire la section `RELEVÉ` en fin de log.
+4. **Pendant le lot : balayage CIBLÉ** (`bash tests/run_cible.sh`, quelques minutes). Il lit le `git diff` et joue les bancs qui citent les noms touchés (ids, classes,
+   méthodes) plus un petit socle ; `--liste` montre la sélection sans rien lancer, `--depuis REV` compare à un autre commit, des mots en argument ajoutent des bancs par
+   leur nom. Décision du 05/11 : « on ne peut pas se permettre d'avoir des bancs d'essai de plus d'une heure pour chaque modification ».
+   **EN FIN DE LOT SEULEMENT : balayage complet** (`bash tests/run_all_fast.sh`), lancé en tâche d'arrière-plan gérée par l'outil (`run_in_background`) : un `nohup`/`setsid`
+   est tué à la fin du tour, avec le serveur de test. Lire la section `RELEVÉ` en fin de log. Un balayage ciblé vert ne dispense jamais du complet avant un push.
 5. Journal dans `docs/dette-tests.md`, case du lot cochée dans `docs/refonte.md`, commit, push.
 
 Serveur de test : les bancs attendent `http://localhost:8934` (`python3 -m http.server 8934` depuis la racine ; `tests/watchdog.sh` le relance au besoin).

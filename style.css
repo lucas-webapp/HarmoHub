@@ -7499,3 +7499,102 @@ body.impression-structure #structure-print-zone { display: block; }
 .context-menu .ctx-touche { margin-left: auto; padding-left: 16px; font-size: var(--fs-2xs); color: var(--text-muted); }
 /* Le message passager se posait SUR la barre de sélection (même place, en bas au centre) : il monte au-dessus d'elle tant qu'elle est là. */
 body.avec-barre-selection .toast { bottom: 132px; }
+
+/* ======================================================================================================
+   TIROIR CLAVIER / GUITARE (refonte, lot 8 — voir docs/refonte.md et setupVues dans script.js). Ordinateur seulement ; sous 900px la carte des
+   diagrammes garde sa place sous la grille (lot 10). Bloc placé EN FIN DE FICHIER : les règles de .viz-card / .viz-diagrams plus haut visaient
+   .col-right, elles ne s'appliquent plus au tiroir, mais celles-ci doivent l'emporter sur toute règle générique de carte.
+   « Épinglés en bas par défaut, ou détachés en fenêtre libre » : épinglé = dans le flux, juste au-dessus de la barre de lecture (la grille
+   cède la place, rien n'est recouvert) ; libre = fenêtre fixe, 12px d'arrondi comme tout ce qui flotte.
+   ====================================================================================================== */
+.vues-tiroir { display: none; }
+@media (min-width: 900px) {
+    .vues-tiroir:not([hidden]) {
+        display: block;
+        position: relative;
+        flex: none;
+        box-sizing: border-box;
+        padding: 12px 20px;
+        background: rgba(17, 18, 20, 0.96);
+        border-top: 1px solid var(--border);
+        z-index: 29; /* SOUS la barre de lecture (30) : la fenêtre du tempo s'ouvre vers le haut et doit passer par-dessus le tiroir épinglé */
+    }
+    body.vue-ouverte .vues-tiroir { display: none; } /* Structure et Paroles recouvrent la grille : le tiroir attendrait derrière elles */
+    .vues-corps { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 28px; min-width: 0; }
+    .vues-corps .chord-header-row { flex: none; margin: 0; padding: 0; width: auto; }
+    .vues-corps .viz-card {
+        position: static; transform: none;
+        flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center;
+        gap: 14px; margin: 0; padding: 0;
+        background: none; border: none; box-shadow: none; border-radius: 0;
+        max-width: 100%;
+    }
+    /* Épinglé : la barre n'est qu'un coin de boutons (pas de titre), pour ne pas ajouter une ligne de hauteur. */
+    .vues-barre { position: absolute; top: 6px; right: 12px; z-index: 3; display: flex; align-items: center; gap: 8px; }
+    .vues-titre, .vues-aide { display: none; }
+    .vues-espace { flex: 1; }
+    .vues-barre .icon-btn { width: var(--bouton-h); height: var(--bouton-h); padding: 0; border-radius: var(--rayon-bouton, 7px); }
+    .vues-barre .icon-btn[aria-pressed="true"] { color: var(--accent); }
+
+    /* Libre : une vraie fenêtre. La barre de titre (44px) se tire, le coin en bas à droite redimensionne, le corps défile si besoin. */
+    .vues-tiroir.vues-libre:not([hidden]) {
+        position: fixed;
+        z-index: 45;
+        display: flex;
+        flex-direction: column;
+        padding: 0 12px 12px;
+        background: rgba(24, 27, 32, 0.97);
+        border: 1px solid var(--border-strong, #333);
+        border-radius: 12px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    }
+    .vues-libre .vues-barre {
+        position: static;
+        flex: none;
+        height: 44px;
+        cursor: grab;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+    .vues-libre .vues-barre:active { cursor: grabbing; }
+    .vues-libre .vues-titre { display: inline; font-size: var(--fs-sm); font-weight: 700; color: var(--text-main); }
+    .vues-libre .vues-aide { display: inline; margin-left: 4px; font-size: var(--fs-2xs); color: var(--text-muted); }
+    .vues-libre .vues-aide[hidden] { display: none; }
+    .vues-libre .vues-corps { flex: 1 1 auto; min-height: 0; overflow: auto; }
+    .vues-coin {
+        position: absolute; right: 0; bottom: 0; width: 20px; height: 20px; padding: 0; min-width: 0;
+        border: 0; background: transparent; color: var(--text-muted); cursor: nwse-resize; touch-action: none;
+    }
+    .vues-coin[hidden] { display: none; }
+
+    /* Clavier du tiroir : des touches qu'on vise à la souris pour construire un accord (la largeur, 20px par blanche, est posée par renderPiano). */
+    .vues-corps .piano-container { height: 64px; }
+    .vues-corps .piano-container .key { cursor: pointer; }
+    .vues-corps .piano-container .key.white:hover { filter: brightness(0.93); }
+    .vues-corps .piano-container .key.black:hover { filter: brightness(1.6); }
+    /* Notes TAPÉES (pas encore dans le morceau) : bleu de la sélection, satin mat comme les rôles. */
+    .key.active.kb-note { background: linear-gradient(180deg, #5b98f0 0%, #1f5fc0 100%); }
+
+    /* BANDE DE CONSTRUCTION : le nom reconnu, ses autres lectures, puis Remplacer / Ajouter / Effacer. */
+    .kb-construction { display: flex; flex-direction: column; gap: 6px; flex: 0 1 340px; min-width: 240px; }
+    .kb-construction[hidden] { display: none; }
+    .kb-notes { font-size: var(--fs-xs); color: var(--text-muted); }
+    .kb-ligne { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: var(--bouton-h); }
+    .kb-nom { font-size: 1.3rem; font-weight: 800; color: #cfe0ff; }
+    .kb-nom.kb-non-reconnu { font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); }
+    .kb-lectures { display: inline-flex; gap: 4px; }
+    .kb-lecture {
+        height: 24px; min-width: 0; padding: 0 8px; font-size: var(--fs-xs); font-weight: 600;
+        border: 1px solid var(--border); border-radius: var(--rayon-bouton, 7px);
+        background: transparent; color: var(--text-muted); cursor: pointer;
+    }
+    .kb-lecture.active { color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); }
+    .kb-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .kb-actions button { height: var(--bouton-h); min-width: 0; padding: 0 12px; border-radius: var(--rayon-bouton, 7px); font-size: var(--fs-sm); font-weight: 600; }
+    .kb-actions button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* BLOC « VUES » de la barre de lecture : les deux boutons existants, à la jauge de la barre. */
+    .bl-vues .viz-toggle { align-self: center; gap: 8px; }
+    .bl-vues .viz-toggle-btn { width: var(--bouton-h); height: var(--bouton-h); }
+}

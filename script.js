@@ -2629,6 +2629,9 @@ const ZONE_EDITION_SELECTEURS = [
     '#files-overlay', 'button', 'input', 'select', 'textarea', 'label', 'a', '[role="button"]',
     // Lot 6 : la bulle « quel accord », la rangée de réglages et leurs choix — travailler dedans n'est pas quitter son travail.
     '#bulle-accord', '#rangee-reglages', '#rr-pop', '#partie-menu',
+    // Lot 8 : le tiroir Clavier / Guitare et ses deux boutons de la barre de lecture. Les touches du clavier y sont des <div> (aucun `button` ne les couvre),
+    // et le clavier AGIT sur l'accord sélectionné : cliquer dedans ne doit ni le désélectionner ni sortir de sa modification.
+    '#vues-tiroir', '#bl-vues',
 ].join(',');
 const SEQ_INLINE_ZOOM_LEVEL_X_KEY = 'harmohubSeqInlineZoomLevelX';
 // Échelles horizontale/verticale du panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) —
@@ -3344,6 +3347,13 @@ function analyzeGuitarDrawnChord(guitarDrawShape) {
     const midis = guitarDrawShape
         .map((fret, s) => (fret == null ? null : GUITAR_OPEN_MIDI[s] + fret))
         .filter(m => m != null);
+    return analyzeDrawnMidis(midis);
+}
+
+// Le cœur de la reconnaissance, PARTAGÉ : des notes qui sonnent ensemble, sans durée ni rythme à départager — celles posées sur le manche (voir
+// ci-dessus) comme celles tapées sur les touches du clavier (lot 8, construction d'accord : « construire un accord au clavier puis Remplacer ou
+// Ajouter »). Une seule reconnaissance pour les deux instruments : le même jeu de notes doit recevoir le même nom, où qu'on l'ait posé.
+function analyzeDrawnMidis(midis) {
     if (!midis.length) return null;
 
     // Poids uniforme par classe de hauteur entendue : pas de durée à départager entre elles, une
@@ -3719,6 +3729,7 @@ class HarmoHubApp {
                                    // diagramme entier doit se recalculer).
         this.guitarFingerings = []; // doigtés jouables pour l'accord courant (voir solveGuitarFingerings)
         this.guitarFingeringIndex = 0; // doigté actuellement affiché parmi guitarFingerings
+        this.kbNotes = [];         // notes tapées sur le clavier du tiroir pour construire un accord (lot 8) ; vide = le clavier montre l'accord de la grille
         this.guitarLock = null;    // doigté verrouillé en attente pour l'accord en cours d'édition (voir toggleGuitarLock)
         this._keepGuitarLockOnce = false; // laisse passer guitarLock au PROCHAIN recalcul (voir ensureGuitarDiagram)
         this.guitarDisplayLock = null; // verrou du diagramme RÉELLEMENT affiché (édition ou simple aperçu, voir ensureGuitarDiagram/updateGuitarLockButton)
@@ -4028,6 +4039,7 @@ class HarmoHubApp {
         this.placeGlobalTransport();
         this.setupGlobalTransportPlacement();
         this.setupBarreLecture(); // la barre de lecture du bas (ordinateur) : blocs, tempo, frise (voir plus bas)
+        this.setupVues(); // le tiroir Clavier / Guitare : épinglé au-dessus de la barre de lecture, ou fenêtre libre (lot 8)
         this.setupBarreMorceau(); // la barre du haut (ordinateur) : titre + menu du morceau, Enregistrer et son voyant
         this.setupMenuPartie(); // le menu ⋯ des en-têtes de partie (lot 5c)
         this.setupRangeeReglages(); // Tonalité, Mesure, Swing, Son, Transposer au-dessus de la grille (lot 6a)
@@ -4834,7 +4846,7 @@ class HarmoHubApp {
             // utilisateur, voir ZONE_EDITION_SELECTEURS plus haut, même correctif.
             const inGrid = inPath('.grid-cell, .cell-add, .section-head');
             // Lot 7b : la barre de sélection agit SUR la sélection — un clic dedans ne la perd pas (l'accord d'ancrage sert au Maj+clic et au collage).
-            const inMenu = inPath('#context-menu, #barre-selection');
+            const inMenu = inPath('#context-menu, #barre-selection, #vues-tiroir, #bl-vues'); // le tiroir et ses boutons (lot 8) agissent SUR l'accord sélectionné
             // .seq-zoom-modal inclus : le séquenceur (déplacé dans la loupe séquenceur,
             // ou dans sa propre vue agrandie, voir openSeqZoom) et ses boutons (Enregistrer/Annuler/
             // replier, poignée de redimensionnement...) y vivent, hors de .chord-grid ET de .col-left —
@@ -5369,7 +5381,10 @@ class HarmoHubApp {
         // .piano-container), et l'élargir dans la même proportion évite des touches encore plus
         // trapues qu'avant. Les deux vont ensemble — c'est la SILHOUETTE du clavier qu'on corrige,
         // pas seulement sa taille.
-        const maxWidthPx = `${totalWhite * 14}px`;
+        // Sur ordinateur le clavier vit dans le tiroir et sert à CONSTRUIRE un accord (lot 8) : des touches de 14px y seraient trop étroites pour
+        // être visées à la souris — 20px, et plus hautes (voir .vues-corps .piano-container). Le téléphone garde les siennes.
+        const largeurBlanche = window.matchMedia(SEQ_DOCK_MEDIA).matches ? 20 : 14;
+        const maxWidthPx = `${totalWhite * largeurBlanche}px`;
         viz.style.maxWidth = maxWidthPx;
         const pianoCol = document.getElementById('piano-col');
         if (pianoCol) {
@@ -5403,8 +5418,19 @@ class HarmoHubApp {
 
     // `midis` : numéros MIDI à surligner ; `roleMap` : { midi: role } (voir Chord.getRoleMap)
     updateViz(midis, roleMap = {}) {
-        const ROLE_CLASSES = ['active', 'role-root', 'role-third', 'role-fifth', 'role-seventh', 'role-ext'];
+        const ROLE_CLASSES = ['active', 'role-root', 'role-third', 'role-fifth', 'role-seventh', 'role-ext', 'kb-note'];
+        // Gardé pour repeindre sans recalcul quand on tape une touche (voir majConstructionClavier). Pendant la lecture on ne mémorise pas : ce
+        // sont les accords qui défilent, pas celui qu'on regarde.
+        if (!this.isPlaying) this._derniersViz = [midis, roleMap];
         document.querySelectorAll('.key').forEach(k => k.classList.remove(...ROLE_CLASSES));
+        // Des notes tapées au clavier du tiroir : le clavier montre CE qu'on construit, en bleu (la sélection est bleue), plus l'accord de la grille.
+        if (this.kbNotes && this.kbNotes.length && !this.isPlaying) {
+            this.kbNotes.forEach(m => {
+                const el = document.querySelector(`.key[data-midi="${m}"]`);
+                if (el) el.classList.add('active', 'kb-note');
+            });
+            return;
+        }
         midis.forEach(m => {
             const el = document.querySelector(`.key[data-midi="${m}"]`);
             if (el) {
@@ -5412,6 +5438,8 @@ class HarmoHubApp {
             }
         });
     }
+
+    derniersAffichagesViz() { return this._derniersViz || [[], {}]; }
 
     clearViz() {
         document.querySelectorAll('.key').forEach(k =>
@@ -6390,6 +6418,7 @@ class HarmoHubApp {
         // masquer l'un des deux diagrammes doit ramener le titre en haut, il n'y a plus rien à
         // comparer avec le sien.
         this.placeChordTitle();
+        this.syncVues();
     }
 
     stopAll() {
@@ -7153,6 +7182,11 @@ class HarmoHubApp {
             this.flashHint('Accord non reconnu (ex. Cm7, F#dim, Bbadd9)');
             return false;
         }
+        return this.ajouterAccordReconnu(section, parsed);
+    }
+
+    // La fin de addChordFromSymbol, séparée pour servir aussi au clavier du tiroir (lot 8) : un accord DÉJÀ reconnu, posé à la fin d'une partie.
+    ajouterAccordReconnu(section, parsed) {
         const beats = parseInt(document.getElementById('duration').value) || 4;
         const playStyle = document.getElementById('playStyle').value;
         const data = this.buildChordData(parsed, beats, playStyle);
@@ -7765,6 +7799,9 @@ class HarmoHubApp {
     // contrôles (Ajouter/Modifier), Suppr, copier/coller, etc.
     loadProgression() {
         const host = document.getElementById('progression-sections');
+        // Choisir un autre accord efface les notes tapées au clavier du tiroir (lot 8) : elles visaient l'accord choisi AU premier clic. Ici, point de passage de tout
+        // changement de sélection (la grille est redessinée à coup sûr), plutôt que dans refreshPreview que la sélection n'appelle pas toujours.
+        if (this.kbNotes && this.kbNotes.length && this._kbCle !== this.cleSelectionClavier()) { this.kbNotes = []; this.majConstructionClavier(); }
         // La largeur de la fenêtre de grille dépend des accords (les plus courts l'élargissent, lot 5b) : posée AVANT le rendu, pour que l'ajustement des
         // noms (fitCellSymbols) mesure les cases à leur vraie largeur.
         if (this.appliquerLargeurGrille && this.grilleDensite) this.appliquerLargeurGrille();
@@ -9332,8 +9369,23 @@ class HarmoHubApp {
         const r = cell.getBoundingClientRect();
         if (r.width === 0 || r.bottom < 0 || r.top > window.innerHeight) { this.fermerBulleAccord(); return; }
         const pad = 8, h = b.offsetHeight, w = b.offsetWidth;
+        // Le plancher de la bulle est le haut du tiroir Clavier / Guitare épinglé (lot 8), sinon celui de la barre de lecture : elle ne doit pas se poser
+        // sur les touches qu'on vise pour construire un accord.
+        let plancher = window.innerHeight;
+        ['vues-tiroir', 'barre-lecture'].forEach(id => {
+            const e = document.getElementById(id);
+            if (!e || e.hidden || (id === 'vues-tiroir' && e.classList.contains('vues-libre'))) return;
+            const y = e.getBoundingClientRect().top;
+            if (y > 0) plancher = Math.min(plancher, y);
+        });
+        // Sous la case si ça tient au-dessus du plancher ; sinon au-dessus d'elle SI ça tient (sous la barre du haut) ; sinon comme avant le tiroir (plancher =
+        // bas de l'écran) : la bulle est haute (~430px) et, retournée vers le haut faute de place, elle recouvrait la barre du haut et ses onglets (vues_integrees).
         let top = r.bottom + 6;
-        if (top + h > window.innerHeight - pad) top = Math.max(pad, r.top - 6 - h);
+        if (top + h > plancher - pad) {
+            const hautMin = Math.max(pad, (document.getElementById('tb-titre') || { getBoundingClientRect: () => ({ bottom: 0 }) }).getBoundingClientRect().bottom + pad);
+            if (r.top - 6 - h >= hautMin) top = r.top - 6 - h;
+            else if (top + h > window.innerHeight - pad) top = Math.max(pad, r.top - 6 - h);
+        }
         b.style.top = `${Math.round(top)}px`;
         b.style.left = `${Math.round(Math.max(pad, Math.min(r.left, window.innerWidth - w - pad)))}px`;
     }
@@ -18646,6 +18698,296 @@ class HarmoHubApp {
     }
 
     // ======================================================================================================
+    // TIROIR CLAVIER / GUITARE (refonte, lot 8 — docs/refonte.md). « Épinglés en bas par défaut, ou détachés en fenêtre libre (barre de titre
+    // qui déplace, coin qui redimensionne, punaise pour réépingler). » Ordinateur seulement : sous 900px les diagrammes gardent leur carte sous
+    // la grille (lot 10).
+    //
+    // POURQUOI ON DÉPLACE LES NŒUDS EXISTANTS plutôt que d'en écrire de nouveaux : le piano, le manche, le doigté, le cadenas, l'édition et le
+    // dessin sont éprouvés par des dizaines de bancs qui les adressent par leurs id. Même principe que placeGlobalTransport : UN seul nœud,
+    // déplacé selon la mise en page, jamais dupliqué. Les deux boutons Clavier / Guitare (#toggle-viz-piano, #toggle-viz-guitar) rejoignent le
+    // bloc « Vues » de la barre de lecture ; la carte des diagrammes et le titre de l'accord entrent dans le tiroir.
+    //
+    // Clavier et Guitare restent INDÉPENDANTS (les deux peuvent s'afficher côte à côte, comme avant) : le tiroir est ouvert dès que l'un des deux
+    // l'est, et « Fermer » éteint les deux. Le mode (épinglé / libre) et la géométrie de la fenêtre sont PAR APPAREIL, jamais synchronisés :
+    // l'écran de chacun n'est pas celui de l'autre.
+    // ======================================================================================================
+    setupVues() {
+        const tiroir = document.getElementById('vues-tiroir');
+        const barre = document.getElementById('vues-barre');
+        const coin = document.getElementById('vues-coin');
+        if (!tiroir || !barre || !coin || !document.getElementById('bl-vues')) return; // index.html servi depuis un cache plus ancien
+        this._vues = { mode: 'epingle', fen: null, geste: null };
+        try { if (localStorage.getItem('harmohubVuesMode') === 'libre') this._vues.mode = 'libre'; } catch (e) { /* mémoire illisible : épinglé */ }
+        try {
+            const f = JSON.parse(localStorage.getItem('harmohubVuesFenetre'));
+            if (f && [f.x, f.y, f.w, f.h].every(Number.isFinite)) this._vues.fen = f;
+        } catch (e) { /* géométrie illisible : position par défaut */ }
+        document.getElementById('vues-detacher').addEventListener('click', () => {
+            this._vues.mode = this._vues.mode === 'libre' ? 'epingle' : 'libre';
+            try { localStorage.setItem('harmohubVuesMode', this._vues.mode); } catch (e) { /* stockage plein : vaut pour la session */ }
+            this.syncVues();
+        });
+        document.getElementById('vues-fermer').addEventListener('click', () => this.fermerVues());
+        // Construction d'accord : un clic sur une touche du clavier du tiroir, puis la bande (nom reconnu, Remplacer, Ajouter, Effacer).
+        document.getElementById('piano-viz').addEventListener('click', (e) => {
+            const touche = e.target.closest('.key');
+            if (touche && document.getElementById('vues-corps').contains(touche)) this.basculerNoteClavier(+touche.dataset.midi);
+        });
+        document.getElementById('kb-remplacer').addEventListener('click', () => this.remplacerParClavier());
+        document.getElementById('kb-ajouter').addEventListener('click', () => this.ajouterParClavier());
+        document.getElementById('kb-effacer').addEventListener('click', () => this.viderClavier());
+        document.getElementById('kb-lectures').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-lecture]');
+            if (b) { this._kbChoix = +b.dataset.lecture; this.majConstructionClavier(); }
+        });
+        // Déplacer : la barre de titre, en fenêtre libre seulement (épinglé, la barre n'est qu'un coin de boutons). Capture du pointeur pour que
+        // le geste suive la souris même hors de la barre.
+        barre.addEventListener('pointerdown', (e) => {
+            if (this._vues.mode !== 'libre' || e.button !== 0 || e.target.closest('button')) return;
+            barre.setPointerCapture(e.pointerId);
+            const f = this.geometrieVues();
+            this._vues.geste = { type: 'deplace', x0: e.clientX, y0: e.clientY, f };
+        });
+        coin.addEventListener('pointerdown', (e) => {
+            if (this._vues.mode !== 'libre' || e.button !== 0) return;
+            e.stopPropagation();
+            coin.setPointerCapture(e.pointerId);
+            this._vues.geste = { type: 'taille', x0: e.clientX, y0: e.clientY, f: this.geometrieVues() };
+        });
+        const bouge = (e) => {
+            const g = this._vues.geste;
+            if (!g) return;
+            const dx = e.clientX - g.x0, dy = e.clientY - g.y0;
+            const f = g.type === 'deplace' ? { ...g.f, x: g.f.x + dx, y: g.f.y + dy } : { ...g.f, w: g.f.w + dx, h: g.f.h + dy };
+            this._vues.fen = this.bornerVues(f);
+            this.syncVues(false);
+        };
+        const fin = () => {
+            if (!this._vues.geste) return;
+            this._vues.geste = null;
+            try { localStorage.setItem('harmohubVuesFenetre', JSON.stringify(this._vues.fen)); } catch (e) { /* stockage plein */ }
+        };
+        [barre, coin].forEach(el => {
+            el.addEventListener('pointermove', bouge);
+            el.addEventListener('pointerup', fin);
+            el.addEventListener('pointercancel', fin);
+        });
+        // Une fenêtre libre ne doit jamais rester hors d'un écran devenu plus petit.
+        window.addEventListener('resize', () => { if (this._vues.mode === 'libre') this.syncVues(false); });
+        const mq = window.matchMedia(SEQ_DOCK_MEDIA);
+        const surChangement = () => this.placerVues();
+        if (mq.addEventListener) mq.addEventListener('change', surChangement);
+        else mq.addListener(surChangement); // Safari < 14
+        this.placerVues();
+    }
+
+    // Fenêtre libre : position et taille courantes (celles mémorisées, ou une position de départ au-dessus de la barre de lecture, centrée).
+    geometrieVues() {
+        if (this._vues.fen) return this.bornerVues({ ...this._vues.fen });
+        const w = Math.min(680, window.innerWidth - 40), h = 260;
+        const bas = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--haut-barre-lecture')) || 60;
+        return this.bornerVues({ x: (window.innerWidth - w) / 2, y: window.innerHeight - bas - h - 24, w, h });
+    }
+
+    // Garde la fenêtre entièrement dans l'écran, au-dessus de la barre de lecture, et ni plus petite que ses commandes ni plus grande que l'écran.
+    bornerVues(f) {
+        const bas = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--haut-barre-lecture')) || 60;
+        const w = Math.round(Math.min(Math.max(f.w, 360), window.innerWidth));
+        const h = Math.round(Math.min(Math.max(f.h, 150), window.innerHeight - bas));
+        const x = Math.round(Math.min(Math.max(f.x, 0), window.innerWidth - w));
+        const y = Math.round(Math.min(Math.max(f.y, 0), window.innerHeight - bas - h));
+        return { x, y, w, h };
+    }
+
+    // Place les nœuds existants selon la mise en page. Ordinateur : boutons dans la barre, carte et titre dans le tiroir. Téléphone : chacun à
+    // sa place d'origine (la carte sous la grille), pour que rien n'ait bougé avant le lot 10.
+    placerVues() {
+        const bloc = document.getElementById('bl-vues');
+        const corps = document.getElementById('vues-corps');
+        const carte = document.querySelector('.viz-card');
+        const bascule = document.querySelector('.viz-toggle');
+        const titre = document.querySelector('.chord-header-row');
+        const enveloppe = document.querySelector('.viz-wrap');
+        if (!bloc || !corps || !carte || !bascule || !titre || !enveloppe) return;
+        const ordinateur = window.matchMedia(SEQ_DOCK_MEDIA).matches;
+        if (ordinateur) {
+            if (bascule.parentElement !== bloc) bloc.appendChild(bascule);
+            if (titre.parentElement !== corps) corps.insertBefore(titre, corps.firstChild);
+            if (carte.parentElement !== corps) corps.insertBefore(carte, document.getElementById('kb-construction'));
+        } else {
+            if (carte.parentElement !== enveloppe) enveloppe.insertBefore(carte, enveloppe.firstChild);
+            if (bascule.parentElement !== carte) carte.appendChild(bascule);
+            if (titre.parentElement !== enveloppe.parentElement) enveloppe.parentElement.insertBefore(titre, enveloppe);
+        }
+        this.syncVues();
+    }
+
+    // Reflète l'état : le tiroir est ouvert dès que le clavier OU la guitare est affiché ; son titre le dit ; en fenêtre libre la barre devient une
+    // vraie barre de titre et la fenêtre prend sa géométrie. `complet` faux pendant un geste : seule la géométrie bouge.
+    syncVues(complet = true) {
+        const tiroir = document.getElementById('vues-tiroir');
+        if (!tiroir || !this._vues) return;
+        const ordinateur = window.matchMedia(SEQ_DOCK_MEDIA).matches;
+        const piano = this.showPianoViz(), guitare = this.showGuitarViz();
+        const libre = this._vues.mode === 'libre';
+        tiroir.hidden = !(ordinateur && (piano || guitare));
+        if (tiroir.hidden) return;
+        tiroir.classList.toggle('vues-libre', libre);
+        if (libre) {
+            const f = this.geometrieVues();
+            Object.assign(tiroir.style, { left: f.x + 'px', top: f.y + 'px', width: f.w + 'px', height: f.h + 'px' });
+        } else {
+            ['left', 'top', 'width', 'height'].forEach(k => { tiroir.style[k] = ''; });
+        }
+        document.getElementById('vues-coin').hidden = !libre;
+        document.getElementById('vues-aide').hidden = !libre;
+        if (!complet) return;
+        document.getElementById('vues-titre').textContent = piano && guitare ? 'Clavier et guitare' : (guitare ? 'Guitare' : 'Clavier');
+        tiroir.setAttribute('role', libre ? 'dialog' : 'region');
+        const detacher = document.getElementById('vues-detacher');
+        const message = libre ? 'Épingler en bas de l’écran' : 'Détacher en fenêtre libre';
+        detacher.setAttribute('aria-pressed', String(libre));
+        detacher.title = message;
+        detacher.setAttribute('aria-label', message);
+        // Punaise quand la fenêtre est libre (« punaise pour réépingler »), flèche de sortie quand elle est épinglée (« détacher »).
+        detacher.querySelector('svg').innerHTML = libre
+            ? '<path d="M12 17v5"/><path d="M9 3h6l-1 6 4 4H6l4-4z"/>'
+            : '<rect x="3" y="8" width="13" height="13" rx="2"/><path d="M12 12l9-9"/><path d="M15 3h6v6"/>';
+        this.alignPianoOnGuitarDiagram();
+    }
+
+    // « Fermer » éteint les deux instruments : le tiroir n'a plus rien à montrer. Même état persistant que les boutons de la barre.
+    fermerVues() {
+        localStorage.setItem('harmohubShowPiano', '0');
+        localStorage.setItem('harmohubShowGuitar', '0');
+        this.applyVizVisibility();
+    }
+
+    // ---------- CONSTRUIRE UN ACCORD AU CLAVIER (lot 8) ----------
+    // « Construire un accord au clavier puis « Remplacer » ou « Ajouter » » (docs/refonte.md). Un clic sur une touche la pose (ou la retire) et la
+    // FAIT SONNER ; dès qu'il y a des notes tapées, le clavier cesse de montrer l'accord de la grille et montre CE qu'on construit (en bleu : c'est
+    // ce qu'on tient en main, pas encore l'accord du morceau), et une bande propose le nom reconnu, « Remplacer », « Ajouter en fin de section »,
+    // « Effacer ». Rien n'est écrit dans le morceau avant un de ces deux boutons : tapoter des touches pour chercher un accord ne doit rien casser.
+    // Ordinateur seulement (lot 10 pour le téléphone).
+    cleSelectionClavier() { return `${this.activeSection}:${this.selectedIndex}`; }
+
+    basculerNoteClavier(midi) {
+        if (!window.matchMedia(SEQ_DOCK_MEDIA).matches) return;
+        // Les notes tapées visent l'accord sélectionné AU MOMENT du premier clic : en choisir un autre les efface (voir refreshPreview), sinon
+        // « Remplacer » changerait un accord que l'on ne regardait plus.
+        if (!this.kbNotes.length) this._kbCle = this.cleSelectionClavier();
+        // Taper une touche, c'est construire et non plus écouter : l'audition de l'accord (qu'un clic sur sa case lance) s'arrête, sinon elle
+        // repeindrait ses propres notes par-dessus celles qu'on vient de poser.
+        if (this.isPlaying) this.stopAll();
+        const i = this.kbNotes.indexOf(midi);
+        if (i >= 0) this.kbNotes.splice(i, 1); else this.kbNotes.push(midi);
+        this._kbChoix = 0;
+        this.sonnerNoteClavier(midi);
+        this.majConstructionClavier();
+    }
+
+    async sonnerNoteClavier(midi) {
+        try {
+            await Tone.start();
+            const inst = this.getInstrument(document.getElementById('instrument').value);
+            inst.triggerAttackRelease(Tone.Frequency(midi, 'midi').toNote(), 0.6, Tone.now(), 0.85);
+        } catch (e) {
+            console.warn('Note du clavier ignorée (instrument pas encore prêt) :', e.message);
+        }
+    }
+
+    viderClavier() {
+        if (!this.kbNotes.length) return;
+        this.kbNotes = [];
+        this._kbChoix = 0;
+        this.majConstructionClavier();
+    }
+
+    // Les lectures possibles des notes tapées, la plus cohérente d'abord (même moteur que les accords dessinés sur le manche), avec la basse si
+    // c'est une vraie note de l'accord (D/F#) : une note grave qui tombe sur une extension ne fait pas d'un « Dadd11 » un « Dadd11/G ».
+    lecturesClavier() {
+        const r = analyzeDrawnMidis(this.kbNotes);
+        if (!r || r.confidence < GUITAR_DRAW_MIN_CONFIDENCE) return [];
+        return [r, ...r.alternatives].filter(c => c.confidence >= GUITAR_DRAW_MIN_CONFIDENCE).map(c => {
+            const rootPc = NOTES.indexOf(c.root);
+            const tones = (CHORD_INTERVALS[c.quality] || []).filter(n => n.role !== 'ext').map(n => (rootPc + n.semi) % 12);
+            const bass = (r.bassPc !== rootPc && tones.includes(r.bassPc)) ? NOTES[r.bassPc] : null;
+            const nom = noteNameForPc(rootPc, this.useFlatsForRoot(c.root)) + (QUALITY_LABEL[c.quality] ?? '')
+                + (bass ? '/' + noteNameForPc(NOTES.indexOf(bass), this.useFlatsForRoot(bass)) : '');
+            return { root: c.root, quality: c.quality, bass, nom };
+        });
+    }
+
+    // Redessine la bande de construction et repeint les touches. Appelée à chaque touche tapée, à « Effacer », et quand la sélection change.
+    majConstructionClavier() {
+        const bande = document.getElementById('kb-construction');
+        if (!bande) return;
+        const construit = this.kbNotes.length > 0;
+        bande.hidden = !construit;
+        this.updateViz(...this.derniersAffichagesViz());
+        if (!construit) return;
+        const lectures = this.lecturesClavier();
+        const choix = Math.min(this._kbChoix || 0, Math.max(0, lectures.length - 1));
+        const nomsNotes = this.kbNotes.slice().sort((a, b) => a - b).map(m => noteNameForPc(m % 12, false)).join(' · ');
+        document.getElementById('kb-notes').textContent = `Tu joues : ${nomsNotes}`;
+        const cible = this.accordVisePourClavier();
+        const nom = lectures.length ? lectures[choix].nom : null;
+        document.getElementById('kb-nom').textContent = nom || 'Accord non reconnu';
+        document.getElementById('kb-nom').classList.toggle('kb-non-reconnu', !nom);
+        const puces = document.getElementById('kb-lectures');
+        puces.innerHTML = lectures.length > 1
+            ? lectures.map((l, i) => `<button type="button" class="kb-lecture${i === choix ? ' active' : ''}" data-lecture="${i}" aria-pressed="${i === choix}">${escapeHtml(l.nom)}</button>`).join('')
+            : '';
+        puces.hidden = lectures.length <= 1;
+        const rempl = document.getElementById('kb-remplacer');
+        rempl.disabled = !nom || !cible;
+        rempl.querySelector('.kb-libelle').textContent = cible ? `Remplacer ${cible.nom}` : 'Remplacer';
+        rempl.title = cible ? `Remplacer ${cible.nom} par ${nom || 'cet accord'}` : 'Sélectionne d’abord un accord dans la grille';
+        document.getElementById('kb-ajouter').disabled = !nom;
+    }
+
+    // L'accord de la grille que « Remplacer » viserait : celui qui est sélectionné.
+    accordVisePourClavier() {
+        if (this.selectedIndex == null) return null;
+        const data = (loadProgressionSections()[this.activeSection] || { chords: [] }).chords[this.selectedIndex];
+        if (!data) return null;
+        return { section: this.activeSection, index: this.selectedIndex, nom: noteNameForPc(NOTES.indexOf(data.root), this.useFlatsForRoot(data.root)) + (QUALITY_LABEL[data.quality] ?? '') };
+    }
+
+    lectureClavierChoisie() {
+        const lectures = this.lecturesClavier();
+        return lectures[Math.min(this._kbChoix || 0, Math.max(0, lectures.length - 1))] || null;
+    }
+
+    remplacerParClavier() {
+        const l = this.lectureClavierChoisie(), cible = this.accordVisePourClavier();
+        if (!l || !cible) return;
+        const sections = loadProgressionSections();
+        const data = sections[cible.section].chords[cible.index];
+        this.pushUndo(sections); // une seule étape d'annulation, avant d'écrire
+        data.root = l.root; data.quality = l.quality; data.bass = l.bass || null;
+        // Comme la bulle (modifierAccordBulle) : l'ancien renversement, drop et doigté fixé ne veulent rien dire pour le nouvel accord.
+        data.inversion = 0; data.drop = 'none'; data.guitarLock = null; delete data.unnamed;
+        saveProgressionSections(sections);
+        marquerModifie();
+        this.kbNotes = [];
+        this.loadProgression();
+        this.majConstructionClavier();
+        this.flashHint(`${cible.nom} remplacé par ${l.nom}`);
+        this.playSavedChord(cible.section, cible.index, this.autoplaySelect);
+    }
+
+    ajouterParClavier() {
+        const l = this.lectureClavierChoisie();
+        if (!l) return;
+        const cible = this.accordVisePourClavier();
+        const section = cible ? cible.section : Math.min(this.activeSection || 0, loadProgressionSections().length - 1);
+        this.ajouterAccordReconnu(section, { root: l.root, quality: l.quality, bass: l.bass });
+        this.kbNotes = [];
+        this.majConstructionClavier();
+    }
+
+    // ======================================================================================================
     // BARRE DE LECTURE DU BAS (refonte, lot 2 — docs/refonte.md). Ordinateur seulement ; le téléphone garde le
     // transport dans #footer-dock jusqu'au lot 10. Elle ne PORTE aucune logique de lecture : Lecture / Stop / Boucle sont les
     // boutons existants (déplacés, voir placeGlobalTransport), le tempo est le curseur #bpm de la carte Rythme (la barre le
@@ -18800,7 +19142,7 @@ class HarmoHubApp {
     setupBarreLectureOrdre() {
         const barre = document.getElementById('barre-lecture');
         const CLE = 'harmohubBarreLectureOrdre';
-        const DEFAUT = ['lecture', 'parties', 'tempo'];
+        const DEFAUT = ['lecture', 'parties', 'tempo', 'vues'];
         const lire = () => {
             try {
                 const o = JSON.parse(localStorage.getItem(CLE));

@@ -158,6 +158,9 @@ const releverPlus = () => {
         const chip = s => { const e = document.querySelector(s); return e ? Math.round(e.getBoundingClientRect().top) : null; };
         return {
             depuisLeHaut: Math.round(bt.top - carte.top), depuisLaDroite: Math.round(carte.right - bt.right),
+            // LOT 8 : les bascules ont quitté l'encadré pour le bloc « Vues » de la barre de lecture (voir vues_tiroir_test).
+            dansLaBarre: !!document.querySelector('#barre-lecture .viz-toggle') && bt.top >= document.getElementById('barre-lecture').getBoundingClientRect().top
+                && bt.bottom <= document.getElementById('barre-lecture').getBoundingClientRect().bottom,
             hauteurCarte: Math.round(carte.height),
             basculesAtteignables: !!sous && document.querySelector('.viz-toggle').contains(sous),
             titrePiano: chip('#current-chord-display .chord-chip'), titreGuitare: chip('#guitar-override-row .chord-chip'),
@@ -166,8 +169,9 @@ const releverPlus = () => {
 
     // 2b — en haut à droite, dans les deux états (avec et sans substitut).
     const sans = await cadre();
-    check(sans.depuisLeHaut < 20 && sans.depuisLaDroite < 20,
-        `bascules ancrées en haut à droite de l'encadré : ${sans.depuisLeHaut} px du haut, ${sans.depuisLaDroite} px de la droite (avant : centrées verticalement)`);
+    // RÉÉCRIT AU LOT 8 (« Clavier / Guitare : épinglés ou fenêtre libre ») : l'encadré n'a plus ses bascules en haut à droite, elles sont dans la barre de
+    // lecture. Ce que le banc gardait — des bascules à une place fixe, jamais décrochées de ce qu'elles commandent, atteignables au clic — se mesure donc là.
+    check(sans.dansLaBarre, 'bascules rangées dans le bloc « Vues » de la barre de lecture, entièrement dans la barre');
     check(sans.basculesAtteignables, 'et elles répondent au clic à cet emplacement');
 
     // 2a — avec un nom édité pour la guitare, les deux titres sur la même ligne d'horizon.
@@ -189,8 +193,7 @@ const releverPlus = () => {
     exiger(avec.titreGuitare != null, 'le bandeau du substitut guitare est bien affiché');
     check(avec.titrePiano === avec.titreGuitare,
         `les deux titres sont sur la même ligne d'horizon : piano ${avec.titrePiano}, guitare ${avec.titreGuitare} (avant : 10 px d'écart)`);
-    check(avec.depuisLeHaut < 20 && avec.depuisLaDroite < 20,
-        `les bascules restent en haut à droite une fois le substitut affiché : ${avec.depuisLeHaut} / ${avec.depuisLaDroite} px`);
+    check(avec.dansLaBarre && avec.basculesAtteignables, 'les bascules restent dans la barre, atteignables, une fois le substitut affiché');
     // Non-régression : le piano reste centré sur le MANCHE, ce que fait une mesure réelle des deux
     // centres (voir alignPianoOnGuitarDiagram) — pas le align-items qu'on vient de changer.
     const centres = await page.evaluate(() => {

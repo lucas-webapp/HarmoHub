@@ -94,7 +94,8 @@ async function avecGuitare(page) {
 
     // === D. Le piano a grandi, et se compare enfin au manche ===
     // AVANT : piano 165x32 contre manche 119x70 — moitié moins haut que son voisin.
-    check(m.piano.h >= 40 && m.piano.h <= 52, `le piano a grandi sans devenir encombrant — ${m.piano.h}px de haut (32 avant, 70 pour le manche)`);
+    // LOT 8 : sur ordinateur le clavier du tiroir sert à CONSTRUIRE un accord (touches de 20px, hautes de 64px, plafond relevé de 52 à 66) : il reste sous les 70px du manche.
+    check(m.piano.h >= 40 && m.piano.h <= 66, `le piano a grandi sans devenir encombrant — ${m.piano.h}px de haut (32 avant, 70 pour le manche)`);
     check(m.piano.l > 165, `et s'est élargi dans le même mouvement — ${m.piano.l}px (165 avant)`);
     // « Très légèrement » : il ne doit pas dépasser le manche, qui reste le plus grand des deux.
     check(m.piano.h < m.manche.h, `il reste plus bas que le manche — ${m.piano.h} contre ${m.manche.h}`);

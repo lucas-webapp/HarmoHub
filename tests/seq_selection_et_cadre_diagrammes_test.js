@@ -165,6 +165,7 @@ const mk = (root, quality, octave, beats) => ({ root, quality, beats: beats || 4
             carte: { h: Math.round(cr.height), w: Math.round(cr.width) },
             padV: pad.t + pad.b,
             diag: bo('.viz-diagrams'), toggle: bo('.viz-toggle'),
+            dansLaBarre: !!document.querySelector('#barre-lecture .viz-toggle') && !c.querySelector('.viz-toggle'),
             volet: bo('#seq-dock-panel'),
             hors: hors.slice(0, 6),
         };
@@ -179,10 +180,9 @@ const mk = (root, quality, octave, beats) => ({ root, quality, beats: beats || 4
         const m = await mesureCarte(p);
         console.log(nom.padEnd(16), JSON.stringify({ carte: m.carte, diag: m.diag && m.diag.h, toggle: m.toggle, hors: m.hors }));
         if (!exiger(!!m && !!m.diag && !!m.toggle, `${nom} : la carte, les diagrammes et la bascule sont mesurables`)) continue;
-        // Le critère structurel, pas un nombre magique : la bascule chevauche la bande verticale des
-        // diagrammes, donc elle est bien À CÔTÉ. Empilée, son haut serait sous leur bas.
-        check(m.toggle.t < m.diag.b && m.toggle.b > m.diag.t,
-            `${nom} : la bascule est sur la même ligne que les diagrammes (bascule ${m.toggle.t}-${m.toggle.b}, diagrammes ${m.diag.t}-${m.diag.b})`);
+        // RÉÉCRIT AU LOT 8 : la bascule n'est plus À CÔTÉ des diagrammes dans la carte, elle est dans le bloc « Vues » de la barre de lecture (le critère
+        // d'alors — chevaucher leur bande verticale — voulait dire « elle ne coûte pas de hauteur à la carte » ; elle n'est plus du tout dans la carte).
+        check(m.dansLaBarre, `${nom} : la bascule est dans la barre de lecture, et plus dans la carte des diagrammes`);
         // Et la conséquence recherchée : la carte n'est plus haute que de son plus grand contenu.
         const attendu = Math.max(m.diag.h, m.toggle.h) + m.padV;
         check(m.carte.h <= attendu + 2,

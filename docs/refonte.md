@@ -140,7 +140,7 @@ ne le redécouvre pas.
 | 5 | Grille : fenêtre centrée, poignées, cases basses, règle et plage orange, case « + » fixe, durée par poignée | élevé |
 | 6 | Bulle + inspecteur, suppression du bandeau de gauche et de la carte Accord — ✅ **livré 04/11** : 6a rangée de réglages, 6b bulle et sélection bleue, 6c inspecteur à droite et fin du bandeau de gauche (ordinateur). Reste : le téléphone (lot 10), et 19 bancs joués sous le seuil à reprendre alors (voir `docs/dette-tests.md`) | élevé |
 | 7 | Ajout unique (syntaxe complète, suggestions, « + » entre deux cases), clic droit, barre de sélection — ✅ **livré 04/11** : 7a ajout unique et « + » entre les cases, 7b barre de sélection, clic droit, Tab dans la retape | moyen |
-| 8 | Clavier / Guitare : épinglés ou fenêtre libre, construction d'accord | moyen |
+| 8 ✅ | Clavier / Guitare : épinglés ou fenêtre libre, construction d'accord — **livré 05/11** (voir `docs/dette-tests.md`) : bloc « Vues » dans la barre de lecture, tiroir épinglé / fenêtre libre, accord construit touche par touche puis Remplacer / Ajouter. Reste : le téléphone (lot 10) | moyen |
 | 9 | Éditeur de notes (grand séquenceur + conduite de voix) | très élevé |
 | 10 | Téléphone | élevé |
 

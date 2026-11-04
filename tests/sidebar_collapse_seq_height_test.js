@@ -95,8 +95,11 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
         // REFONTE, LOT 2 : le « bas » est le HAUT de la barre de lecture (60px). Lot 6c : le pied de colonne d'autrefois (#footer-dock) vivait dans le
         // bandeau de gauche, qui n'est plus sur ordinateur ; c'est la colonne de la grille elle-même qui borde le bas, à ~20px de la barre.
         const c = document.querySelector('.col-right').getBoundingClientRect();
-        const barre = document.getElementById('barre-lecture').getBoundingClientRect();
-        return { bottom: c.bottom, haut: barre.top };
+        // LOT 8 : le clavier est ouvert par défaut, et son tiroir épinglé s'intercale AU-DESSUS de la barre de lecture : la colonne s'arrête alors à ~20px du
+        // tiroir, qui est lui-même collé à la barre. Sans diagramme, c'est la barre qui borde.
+        const tiroir = document.getElementById('vues-tiroir');
+        const borne = (tiroir && !tiroir.hidden ? tiroir : document.getElementById('barre-lecture')).getBoundingClientRect();
+        return { bottom: c.bottom, haut: borne.top };
     });
     check(Math.abs((bas.haut - bas.bottom) - 20) < 3,
         `la colonne de la grille s'arrête à ~20px de la barre de lecture du bas — écart mesuré ${(bas.haut - bas.bottom).toFixed(0)}px`);

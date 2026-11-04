@@ -133,7 +133,9 @@ const mk = (root, quality, octave) => ({ root, quality, beats: 4, inversion: 0, 
                 .map(e => ({ q: e.id, ...e.getBoundingClientRect().toJSON() }));
             // La BASCULE compte dans le contenu de la carte : depuis qu'elle est passée à côté des
             // diagrammes (voir plus bas), c'est l'ensemble des deux qui doit être centré.
-            const bascule = [...document.querySelectorAll('.viz-toggle')]
+            // LOT 8 : sur ordinateur la bascule a quitté la carte pour le bloc « Vues » de la barre de lecture ; seule celle qui est DANS la carte compte ici
+            // (le téléphone, lui, l'y garde). Ce qui doit rester centré dans la carte est donc ses diagrammes.
+            const bascule = [...document.querySelectorAll('.viz-card .viz-toggle')]
                 .filter(e => e.getBoundingClientRect().width > 0)
                 .map(e => ({ q: 'viz-toggle', ...e.getBoundingClientRect().toJSON() }));
             const contenu = visibles.concat(bascule);
