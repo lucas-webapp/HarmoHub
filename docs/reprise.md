@@ -16,9 +16,9 @@ Mis à jour le 05/11/2026, à la fin du sous-lot 10a (lot 10 découpé, barre du
   gérée par l'outil (un `nohup`/`setsid` est tué à la fin du tour, serveur de test compris). Ligne de base : celle de `CLAUDE.md`.
 - **À faire, hors lot** : durées par suite dans le relevé de `run_all_fast.sh`, puis raccourcir les plus lentes (`synchro_cloud` 160 s, `verre` 70 s,
   `verre_compte` 66 s, `structure_feuille` 51 s, `song_panel` 43 s).
-- **Défaut ancien, sensible à la charge** (`verre`, constaté au lot 10a) : l'état « tiroir » compare deux pages et un toast (`#toast`) y paraît ou non selon
-  la charge ; rouge 4 sur 4 en quatre passages simultanés, sur le commit d'avant le 10a aussi, vert en série. Rouge au balayage complet du 10a. Remède à
-  proposer : attendre la fin du toast dans l'état « tiroir », ou passer `verre` dans la liste SENSITIVE de `run_all_fast.sh`.
+- **Corrigé hors lot (05/11)** : `verre` rougissait sous charge (état « tiroir » : le toast « Sons du piano pas encore chargés » éteint sur une page,
+  allumé sur l'autre). Le banc attend la fin du toast avant chaque relevé et mesure la lisibilité du toast par un vrai geste (« Copier l'accord ») ; vert
+  4 sur 4 en quatre passages simultanés, l'ancienne version rouge 4 sur 4 (détail dans `docs/dette-tests.md`).
 - **Défaut ancien, intermittent** (`glock_unlock_and_switch`, 860 px) : un doigté verrouillé, enregistré, se rouvre parfois déverrouillé après un aller-retour avec
   lecture automatique (`guitarLock` du morceau présent, `app.guitarLock` nul). Rouge environ une fois sur deux à cinq, sur le commit d'avant le lot 9a aussi.
 - **Points ouverts du lot 9c (constatés, déjà vrais avant le lot, vérifiés sur `649dd77`)** : éditeur ouvert, un clic sur une AUTRE case de la grille la

@@ -5327,3 +5327,24 @@ passages en série, verts des deux côtés (lot 10a et commit d'avant `f512e55`)
 d'affichage dépasse ou non la capture selon la charge. À traiter hors lot (attendre la fin du toast dans l'état, ou passer `verre` dans la liste SENSITIVE de
 `run_all_fast.sh`). Les 7 « sans verdict » sont ceux de la ligne de base. **Aucune régression.**
 
+
+## Hors lot : `verre_test` rougissait sous charge, l'écart du toast de l'état « tiroir » (2026-11-05)
+
+**Cause.** Les échantillons du piano sont coupés exprès (`_verre_commun.js` bloque `tonejs.github.io`) : la première note jouée — la case touchée au début de
+l'état « tiroir » — fait paraître « Sons du piano pas encore chargés (réseau) — son de secours en attendant » (`warnIfFallbackInstrument`, une fois par session,
+4,2 s). Les deux pages comparées (sans verre.css / verre.css éteint) sont menées L'UNE APRÈS L'AUTRE, puis relevées : seule, la seconde finit avant que le toast
+de la première s'éteigne ; quatre navigateurs en parallèle, non, et le relevé comparait un toast éteint (opacité 0) à un toast allumé (opacité 1). Ce n'était
+pas un défaut de l'appli : un défaut de minutage du banc, sur toutes les versions qui ont l'état « tiroir » (lot 8 et après).
+
+**Remède (le banc seul, aucun fichier servi ne change).** `toastEteint(page)` attend, sur chaque page, que le toast soit éteint (classe `show` retirée,
+opacité calculée 0) avant chaque relevé des sections 2 (éteint = avant) et 4 (lisibilité). Le toast reste dans la page : ses couleurs, son ombre, son flou
+restent comparés, seule l'opacité est figée. Sa LISIBILITÉ verre allumé, que le banc ne mesurait qu'à la faveur de ce hasard de minutage (en série, toast
+allumé sur les deux pages au moment du relevé), a désormais son contrôle propre : vrai geste (clic droit sur une case, « Copier l'accord »), mesure pendant
+qu'il est affiché, relu allumé après la mesure (trois essais si la charge l'éteint entre-temps). `verre_test` 67 → 68. Écarté : passer `verre` dans la
+liste SENSITIVE de `run_all_fast.sh` (70 s de plus en série, et le minutage serait resté faux, seulement moins souvent visible).
+
+**Épreuves.** Seul : 68/68 (74 s, contre 70 s avant : l'attente du toast coûte environ 4 s par section). Quatre passages simultanés : **4 verts sur 4** ;
+l'ancienne version, dans la même charge juste après : **4 rouges sur 4**, même écart (`#588 div#toast.toast`). **Sabotages : 2, tous rouges** — une règle qui
+fuit hors du verre sur le toast (`html[data-glass="1"] .sabotage-rien, .toast { box-shadow: none }`, que le contrôle statique laisse passer) : rouge aux états
+« tiroir » et « apercu », preuve que l'attente ne masque pas la comparaison du toast ; un toast illisible verre allumé (texte à 12 % d'opacité) : le nouveau
+contrôle rougit (rapport 1,34). `sentinelle_adresses` 244/244 et `meta_suite` 6/6 verts.

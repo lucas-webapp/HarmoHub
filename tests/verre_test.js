@@ -57,10 +57,20 @@ const ETATS = {
 // L'aperçu avant impression de la structure n'existe que dans les versions qui l'ont : son état n'est relevé que là.
 const A_APERCU = V.lireSource('index.html').includes('id="structure-apercu"');
 if (A_APERCU) ETATS.apercu = async (p) => { await p.click('#structure-btn'); await p.waitForTimeout(500); await p.click('#structure-pdf'); await p.waitForTimeout(800); };
+// LE MESSAGE ÉPHÉMÈRE (#toast) FAISAIT ROUGIR LE BANC SOUS CHARGE (constat des lots 8 à 10a). Les échantillons du piano sont coupés exprès
+// (`_verre_commun.js`) : la première note jouée — la case touchée dans l'état « tiroir » — affiche « Sons du piano pas encore chargés »
+// pendant 4,2 s. Les deux pages sont menées L'UNE APRÈS L'AUTRE puis relevées : seule, la seconde finit avant que le toast de la première
+// s'éteigne ; quatre navigateurs en parallèle, non — le relevé comparait un toast éteint à un toast allumé (opacité 0 contre 1), rouge
+// 4 fois sur 4, sur le commit d'avant le 10a aussi. On attend donc qu'il soit éteint sur chaque page avant de relever : il reste dans la
+// page, et ses couleurs, son ombre, son flou restent comparés (seule l'opacité est figée). Sa lisibilité, qu'on ne mesurait qu'à la
+// faveur de ce hasard de minutage, a désormais son propre contrôle (section 4, « Copier l'accord »).
+async function toastEteint(p) {
+    await p.waitForFunction(() => { const t = document.getElementById('toast'); return !t || (!t.classList.contains('show') && getComputedStyle(t).opacity === '0'); }, null, { timeout: 15000 });
+}
 async function fermerTout(p) { await p.keyboard.press('Escape'); await p.waitForTimeout(150); await p.evaluate(() => { try { window.app.closeSettings(); } catch (e) {} window.app.editingIndex = null; window.app.loadProgression(); }); await p.waitForTimeout(150); }
 
 (async () => {
-    plan(A_APERCU ? 67 : 66);
+    plan(A_APERCU ? 68 : 67);
     const nav = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     try {
         // ===== 0. LES FICHIERS ET LEUR ORDRE (statique) ==========================================================================
@@ -100,6 +110,7 @@ async function fermerTout(p) { await p.keyboard.press('Escape'); await p.waitFor
             const avec = await ouvrirHH(nav, {});
             for (const [nom, aller] of Object.entries(ETATS)) {
                 await aller(sans.page); await aller(avec.page);
+                await toastEteint(sans.page); await toastEteint(avec.page);
                 const a = await V.signature(sans.page, EXCLURE), b = await V.signature(avec.page, EXCLURE);
                 const d = V.comparer(a, b);
                 check(d.n === 0, `éteint, l'état « ${nom} » est IDENTIQUE à celui sans verre.css (${a.length} éléments relevés${d.n ? ', ' + d.n + ' écarts : ' + d.premieres.join(' / ') : ''})`);
@@ -180,9 +191,28 @@ async function fermerTout(p) { await p.keyboard.press('Escape'); await p.waitFor
         {
             const off = await ouvrirHH(nav, {});
             const on = await ouvrirHH(nav, { reglages: VERRE });
+            // LE TOAST LUI-MÊME (une surface de `verre-surfaces.css`) : appelé par un vrai geste — clic droit sur une case, « Copier l'accord » —
+            // sur les pages neuves (après l'état « tiroir », sa fenêtre libre reste ouverte), et mesuré PENDANT qu'il est affiché : relu allumé
+            // après la mesure, trois essais si la charge l'a éteint entre-temps (il dure 1,6 s).
+            const toastMesure = async (pg) => {
+                for (let essai = 0; essai < 3; essai++) {
+                    const c = await pg.locator('.grid-cell').first().boundingBox();
+                    await pg.mouse.click(c.x + c.width / 2, c.y + c.height / 2, { button: 'right' });
+                    await pg.click('#context-menu [data-ctx-action="copy-identity"]');
+                    await pg.waitForFunction(() => { const t = document.getElementById('toast'); return t && t.classList.contains('show') && getComputedStyle(t).opacity === '1'; }, null, { timeout: 5000 });
+                    const faibles = (await V.contrastesFaibles(pg)).filter((f) => /^div\.toast\|/.test(f.cle));
+                    const r = await pg.evaluate(() => { const t = document.getElementById('toast'); return { allume: t.classList.contains('show') && getComputedStyle(t).opacity === '1', texte: t.textContent }; });
+                    if (r.allume) return { ...r, faibles };
+                }
+                return { allume: false, texte: '', faibles: [] };
+            };
+            const toastOff = await toastMesure(off.page), toastOn = await toastMesure(on.page);
+            check(toastOn.allume && toastOff.allume && /prélevé/.test(toastOn.texte) && toastOn.faibles.length === 0,
+                `le message éphémère (« ${toastOn.texte.slice(0, 16)}… ») reste lisible verre allumé, mesuré pendant qu'il est affiché (allumé ${toastOff.allume}/${toastOn.allume}, faibles : ${JSON.stringify(toastOn.faibles.concat(toastOff.faibles))})`);
             let total = 0; const nouveaux = [];
             for (const [nom, aller] of Object.entries(ETATS)) {
                 await aller(off.page); await aller(on.page);
+                await toastEteint(off.page); await toastEteint(on.page);
                 const a = await V.contrastesFaibles(off.page), b = await V.contrastesFaibles(on.page);
                 total += b.length;
                 for (const f of b) if (!a.some((g) => g.cle === f.cle)) nouveaux.push(`${nom}: ${f.cle} (${f.rapport})`);
