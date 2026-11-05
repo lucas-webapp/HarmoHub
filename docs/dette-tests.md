@@ -5190,7 +5190,7 @@ partie). L'icône ⊱ **quitte l'ordinateur à la fin du 9c** ; le téléphone l
 
 **Constaté, pas changé (déjà vrai sur le commit d'avant, vérifié sur une copie de `649dd77`)** : éditeur ouvert, un clic sur une AUTRE case de la grille la
 sélectionne mais l'éditeur garde l'accord d'avant (on change d'accord par la zone de l'accord voisin, dans l'éditeur) ; une opération sur les parties (monter,
-dupliquer, supprimer) termine l'édition de l'accord, l'éditeur montre alors l'accord seul. Notés en points ouverts dans `docs/reprise.md`.
+dupliquer, supprimer) termine l'édition de l'accord, l'éditeur montre alors l'accord seul. Notés en points ouverts dans `CLAUDE-HARMOHUB.md`.
 
 **Bancs.** Nouveau `calque_voix_test` (46). **Sabotages : 10, tous rouges** (calque jamais actif, appariement inversé, règle sans la bande, icône ⊱ visible, pas de
 premier accord, non mémorisé, couleurs en point, traits cliquables, trait décalé d'une colonne, ancien panneau orphelin à l'élargissement). **Bancs réécrits pour le
@@ -5274,7 +5274,7 @@ premier passage, `inspecteur_son` rouge (ci-dessus, corrigé) ; second passage, 
 
 **Constaté, pas changé (déjà vrai avant le lot, vérifié sur le commit d'avant)** : l'éditeur s'ouvre au-dessus des notes d'un accord grave (`scrollTop` 0,
 notes 416 px plus bas qu'une vue de 194 px) — point ouvert du 9c, plus visible avec la bande allumée ; verre allumé, la bande de la RÈGLE (`.seq-ruler-band`)
-est à 5,5 % d'opacité (`--card-bg`), les notes qui défilent dessous se devinent. Notés dans `docs/reprise.md`.
+est à 5,5 % d'opacité (`--card-bg`), les notes qui défilent dessous se devinent. Notés dans `CLAUDE-HARMOHUB.md`.
 
 **Balayage du lot 9d (05/11) : 227 verts, 6 rouges, 7 sans verdict (240 suites)** — les 5 rouges de la ligne de base, plus `glock_unlock_and_switch`
 (3/4), l'intermittent ancien décrit au lot 9a : rejoué six fois de chaque côté, 2 rouges sur 6 avec ce lot, 3 sur 6 sur le commit d'avant. Les 7 « sans
@@ -5284,7 +5284,7 @@ verdict » sont ceux de la ligne de base. **Aucune régression.** Le lot 9 (édi
 
 **Découpage du lot 10** (fait en début de session, d'après la page « Téléphone (v2) » de la maquette) : 10a barre du haut et onglets ; 10b barre de lecture
 (et vues Structure / Paroles intégrées au-dessus d'elle) ; 10c réglages du morceau et Affichage ; 10d panneau d'accord ; 10e panneau d'ajout (les 19 bancs
-à 860 px) ; 10f éditeur de notes (fin de l'icône ⊱). Détail dans `docs/reprise.md`. L'ordre suit les dépendances : les vues intégrées masquent `main`, où vit
+à 860 px) ; 10f éditeur de notes (fin de l'icône ⊱). Détail dans `CLAUDE-HARMOHUB.md`. L'ordre suit les dépendances : les vues intégrées masquent `main`, où vit
 encore le transport du téléphone (`#footer-dock`) — elles attendent donc la barre de lecture.
 
 **Ce qui change (téléphone, < 900 px).**

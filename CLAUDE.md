@@ -9,8 +9,8 @@ La **refonte de l'interface** suit `docs/refonte.md` (règles, décisions de fon
 (fichier `project/Grille2.dc.html`). Chaque lot est journalisé dans `docs/dette-tests.md`.
 
 - **Livrés** : lots 1 à 9 (fondations, barre de lecture, barre du haut, onglets, grille, bulle + inspecteur, ajout unique + barre de sélection, Clavier / Guitare, éditeur de notes).
-- **Reprise** : lire `docs/reprise.md` en premier (état, plan du lot suivant, points ouverts).
-- **En cours** : lot 10 (téléphone), découpé en six sous-lots (`docs/reprise.md`, section « Lot 10 ») ; **10a et 10b livrés** (barre du haut et onglets ; barre de lecture fixée en bas, panneau Lecture, Structure et Paroles en vues intégrées). **Prochain : 10c** (réglages du morceau et Affichage). Le lot 9 (éditeur de notes) est livré : 9a à 9d (ouvrir / fermer / étendre ; barre d'outils ; calque Voix ; notes manuelles en pointillés et bande d'intensité — l'icône ⊱ de conduite de voix n'existe plus qu'au téléphone).
+- **Reprise** : `CLAUDE-HARMOHUB.md` (état, plan du lot suivant, points ouverts) est importé en bas de ce fichier. Après `/clear` ou `/compact`, la commande **`/reprise`** le relit et annonce la suite prévue (section « Suite à faire »).
+- **En cours** : lot 10 (téléphone), découpé en six sous-lots (`CLAUDE-HARMOHUB.md`, section « Lot 10 ») ; **10a et 10b livrés** (barre du haut et onglets ; barre de lecture fixée en bas, panneau Lecture, Structure et Paroles en vues intégrées). **Prochain : 10c** (réglages du morceau et Affichage). Le lot 9 (éditeur de notes) est livré : 9a à 9d (ouvrir / fermer / étendre ; barre d'outils ; calque Voix ; notes manuelles en pointillés et bande d'intensité — l'icône ⊱ de conduite de voix n'existe plus qu'au téléphone).
 - **Ligne de base du balayage** (`bash tests/run_all_fast.sh`) : 235 suites, **5 rouges** déjà là avant la refonte et à ne pas confondre avec une régression
   (`probe_clic_accord_voisin`, `probe_defilement_tactile`, `probe_regle_voisins`, `probe_seq_finitions`, `seq_notes_libres_clavier`) et **7 « sans verdict »**
   (`ctx_nav_scroll`, `detune`, `guitar_lock_click`, `instrument_stress`, `item1_hzoom_out`, `probe_cache_perime`, `smoke`). Dernier balayage (lot 10b) : 229 verts sur 242 (le sixième rouge, un contrôle de minutage du nouveau banc, corrigé et éprouvé sous charge) ; `glock_unlock_and_switch` est intermittent, aussi avant le lot 9a ; `verre`, qui rougissait sous la charge du balayage parallèle (toast de l'état « tiroir »), est corrigé hors lot (le banc attend la fin du toast).
@@ -39,7 +39,7 @@ La **refonte de l'interface** suit `docs/refonte.md` (règles, décisions de fon
    leur nom. Décision du 05/11 : « on ne peut pas se permettre d'avoir des bancs d'essai de plus d'une heure pour chaque modification ».
    **EN FIN DE LOT SEULEMENT : balayage complet** (`bash tests/run_all_fast.sh`), lancé en tâche d'arrière-plan gérée par l'outil (`run_in_background`) : un `nohup`/`setsid`
    est tué à la fin du tour, avec le serveur de test. Lire la section `RELEVÉ` en fin de log. Un balayage ciblé vert ne dispense jamais du complet avant un push.
-5. Journal dans `docs/dette-tests.md`, case du lot cochée dans `docs/refonte.md`, commit, push.
+5. Journal dans `docs/dette-tests.md`, case du lot cochée dans `docs/refonte.md`, **section « Suite à faire » de `CLAUDE-HARMOHUB.md` réécrite** (le sous-lot suivant, ou « Rien de prévu »), commit, push.
 
 Serveur de test : les bancs attendent `http://localhost:8934` (`python3 -m http.server 8934` depuis la racine ; `tests/watchdog.sh` le relance au besoin).
 Navigateur : Playwright et Chromium sont préinstallés, ne rien réinstaller.
@@ -84,3 +84,7 @@ Navigateur : Playwright et Chromium sont préinstallés, ne rien réinstaller.
 
 Fichiers très longs : lire par plages (`sed -n`, `offset`/`limit`), filtrer les sorties de bancs (`grep -E "^FAIL|FATAL|PASS /"`), ne jamais afficher un balayage
 entier. Une session par lot, `/clear` entre deux lots.
+
+## Mémoire de reprise (importée)
+
+@CLAUDE-HARMOHUB.md

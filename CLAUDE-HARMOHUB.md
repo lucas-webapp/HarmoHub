@@ -1,6 +1,13 @@
-# Reprise du travail — à lire en premier
+# HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
 Mis à jour le 05/11/2026, à la fin du sous-lot 10b (barre de lecture du téléphone, Structure et Paroles intégrées). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+
+## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
+
+- **Prochain : sous-lot 10c** — réglages du morceau et Affichage (section « Lot 10 », point 3). Plan arrêté : on peut commencer sans rien demander à l'utilisateur ; boucle d'un lot dans `CLAUDE.md`.
+- **Ensuite** : 10d (panneau d'accord), 10e (panneau d'ajout), 10f (éditeur de notes au téléphone), dans cet ordre (dépendances).
+- **À proposer à l'utilisateur, sans bloquer le 10c** : les points ouverts des lots 10b, 9c et 9d (plus bas), et le défaut ancien `ajout_modif` (hors lot).
+- **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
 
