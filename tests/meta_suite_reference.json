@@ -14,7 +14,7 @@
     "avant_seq_short_note_body_test.js": 1,
     "avant_seq_snap_sticky_test.js": 2,
     "export_lyrics_opens_tab_test.js": 2,
-    "export_lyrics_test.js": 6,
+    "export_lyrics_test.js": 5,
     "global_transport_test.js": 1,
     "grid_beat_highlight_test.js": 2,
     "grid_pipettes_test.js": 2,

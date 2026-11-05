@@ -190,8 +190,14 @@ const graine = (src) => {
     check(await p.evaluate(() => document.getElementById('bl-tempo-pop').hidden), 'Échap referme la fenêtre du tempo');
 
     console.log('\n=== H. Le métronome de la barre pilote celui de la carte, avec le même logo ===');
-    const m0 = await p.evaluate(() => ({ barre: document.getElementById('bl-metro').getAttribute('aria-pressed'), source: document.getElementById('toggle-metronome').classList.contains('active'), svg: document.getElementById('bl-metro').innerHTML.replace(/\s+/g, '') === document.getElementById('toggle-metronome').innerHTML.replace(/\s+/g, '') }));
-    check(m0.svg, 'le logo du métronome est exactement celui de la carte Rythme');
+    const m0 = await p.evaluate(() => ({ barre: document.getElementById('bl-metro').getAttribute('aria-pressed'), source: document.getElementById('toggle-metronome').classList.contains('active'), svg: (() => {
+        // Lot 10b : le bouton porte en plus le mot de son état (« Activé » / « Coupé »), montré au téléphone dans le panneau Lecture, MASQUÉ ici. Le logo,
+        // lui, reste à l'identique : on compare le bouton sans ce mot.
+        const b = document.getElementById('bl-metro'), copie = b.cloneNode(true), mot = b.querySelector('.bl-metro-etat');
+        copie.querySelectorAll('.bl-metro-etat').forEach(e => e.remove());
+        return copie.innerHTML.replace(/\s+/g, '') === document.getElementById('toggle-metronome').innerHTML.replace(/\s+/g, '') && !!mot && getComputedStyle(mot).display === 'none';
+    })() }));
+    check(m0.svg, 'le logo du métronome est exactement celui de la carte Rythme (le mot d\'état du téléphone est masqué à l\'ordinateur)');
     await p.click('#bl-metro');
     await p.waitForTimeout(150);
     const m1 = await p.evaluate(() => ({ barre: document.getElementById('bl-metro').getAttribute('aria-pressed'), source: document.getElementById('toggle-metronome').classList.contains('active') }));
@@ -239,9 +245,11 @@ const graine = (src) => {
         await q.close();
     }
 
-    console.log('\n=== K. Téléphone : pas de barre du bas (lot 10) ===');
+    // CHANGÉ DE SENS AU LOT 10b : le téléphone a désormais SA barre de lecture (fixée en bas, détail dans telephone_barre_lecture_test).
+    console.log('\n=== K. Téléphone : la barre de lecture y est aussi (lot 10b) ===');
     const tel = await ouvrir({ width: 390, height: 800 }, { hasTouch: true, isMobile: true });
-    check(await tel.evaluate(() => getComputedStyle(document.getElementById('barre-lecture')).display === 'none' && document.getElementById('footer-dock').contains(document.querySelector('.transport'))), 'sous 900px la barre est masquée et le transport reste dans le pied de colonne');
+    check(await tel.evaluate(() => { const cs = getComputedStyle(document.getElementById('barre-lecture')); return cs.display === 'flex' && cs.position === 'fixed' && document.getElementById('bl-lecture').contains(document.querySelector('.transport')) && !document.getElementById('footer-dock').contains(document.querySelector('.transport')); }),
+        'sous 900px la barre de lecture est fixée en bas de l\'écran et le transport y est, plus dans le pied de colonne');
     await tel.close();
 
     check(erreurs.length === 0, 'aucune erreur JavaScript (' + (erreurs.join(' | ') || 'rien') + ')');

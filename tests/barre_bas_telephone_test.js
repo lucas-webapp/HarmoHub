@@ -112,7 +112,11 @@ const sonde = (sel) => {
             'et les deux accès disparaissent avec le mode');
     }
 
-    console.log('\n=== C. La fusion : deux boutons de plus, et la barre RÉTRÉCIT ===');
+    // CHANGÉ DE SENS AU LOT 10b : le transport a quitté le dock pour la barre de lecture du téléphone (fixée en bas). Le dock ne porte plus, en
+    // Modification, que les deux accès de secours : UNE rangée, posée SUR la barre de lecture, sans la chevaucher. Le seuil des 81px reste (la
+    // rangée n'en fait plus que 45) ; le total du bas en Modification (45 + 68) est une dette connue jusqu'au lot 10d, qui retire la Modification
+    // du téléphone (panneau d'accord).
+    console.log('\n=== C. Une seule rangée, posée sur la barre de lecture ===');
     // Sans la fusion des deux rangées, ces deux boutons faisaient passer la barre de 81 à 113px, soit
     // 40px pris à la grille sur un écran de 664. Le seuil vise le AVANT (81px), pas une valeur ronde.
     await m.evaluate(() => window.app.editChord(0, 1));
@@ -124,11 +128,13 @@ const sonde = (sel) => {
         // Une seule rangée = tous les enfants visibles se recoupent verticalement.
         const rects = enfants.map(c => c.getBoundingClientRect());
         const uneRangee = rects.every(a => rects.every(b => Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 4));
-        return { h: Math.round(r.height), nb: enfants.length, uneRangee };
+        const secours = [...d.querySelectorAll('#dock-rythme, #dock-terminer')].map(e => e.getBoundingClientRect());
+        const lecture = document.getElementById('barre-lecture').getBoundingClientRect();
+        return { h: Math.round(r.height), nb: enfants.length, uneRangee, rangeeSecours: secours.length === 2 && Math.abs(secours[0].top - secours[1].top) < 1, surLaBarre: Math.abs(r.bottom - lecture.top) < 1 };
     });
     check(barre.h <= 81, `la barre ne dépasse pas sa hauteur d'avant le lot — ${barre.h}px (81px avant)`);
-    check(barre.uneRangee && barre.nb >= 2,
-        `ses ${barre.nb} blocs partagent bien UNE seule rangée`);
+    check(barre.uneRangee && barre.rangeeSecours && barre.surLaBarre,
+        `ses accès de secours partagent UNE seule rangée, posée sur la barre de lecture sans la chevaucher (${JSON.stringify(barre)})`);
 
     console.log('\n=== D. Ordinateur : aucun accès de secours, les originaux y sont sous les yeux ===');
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });

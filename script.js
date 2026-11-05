@@ -2667,6 +2667,9 @@ const ZONE_EDITION_SELECTEURS = [
     // Lot 8 : le tiroir Clavier / Guitare et ses deux boutons de la barre de lecture. Les touches du clavier y sont des <div> (aucun `button` ne les couvre),
     // et le clavier AGIT sur l'accord sélectionné : cliquer dedans ne doit ni le désélectionner ni sortir de sa modification.
     '#vues-tiroir', '#bl-vues',
+    // Lot 10b : la barre de lecture du téléphone et son panneau Lecture. Toucher la frise, « Mes. N » ou le fond du panneau n'est pas quitter
+    // la modification en cours (les boutons, eux, sont déjà couverts par `button`).
+    '#barre-lecture', '#panneau-lecture',
 ].join(',');
 const SEQ_INLINE_ZOOM_LEVEL_X_KEY = 'harmohubSeqInlineZoomLevelX';
 // Échelles horizontale/verticale du panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) —
@@ -4498,8 +4501,8 @@ class HarmoHubApp {
         this._cabler('structure-btn', 'click', () => (this.fenetreStructureOuverte() ? this.closeStructureWindow() : this.openStructureWindow()));
         this._cabler('structure-close', 'click', () => this.closeStructureWindow());
         this._cabler('structure-overlay', 'click', (e) => {
-            // En vue intégrée (ordinateur), le « fond » est la page elle-même : cliquer à côté du panneau ne doit pas le fermer — on revient à la
-            // grille par l'onglet Grille. Sur téléphone c'est une fenêtre : le clic à côté la referme, comme avant.
+            // En vue intégrée, le « fond » est la page elle-même : cliquer à côté du panneau ne doit pas le fermer — on revient à la grille par
+            // l'onglet Grille. Depuis le lot 10b c'est vrai au téléphone aussi ; la condition reste pour le jour où une largeur n'intégrerait plus.
             if (e.target.id === 'structure-overlay' && !this.vuesIntegrees()) this.closeStructureWindow();
         });
         this._cabler('structure-pdf', 'click', () => this.ouvrirApercuStructure());
@@ -4789,6 +4792,8 @@ class HarmoHubApp {
             // tout l'intérêt de cette table — le panneau du séquenceur, lui, n'y entrera PAS : on
             // veut pouvoir cliquer la grille d'accords sans le refermer.
             { id: 'song-settings', ancre: '#song-summary', close: () => this.toggleSongSettings(false) },
+            // Le panneau Lecture du téléphone (lot 10b) : le clic à côté et Échap le referment ; « ⋯ » gère sa propre bascule.
+            { id: 'panneau-lecture', ancre: '#bl-plus', close: () => this.fermerPanneauLecture() },
         ];
         // Le panneau flottant est posé en coordonnées d'écran : il faut le replacer dès que son ancre
         // bouge. Sur téléphone, la page défile pour de bon (contrairement à l'ordinateur, où seules
@@ -4999,7 +5004,8 @@ class HarmoHubApp {
         // Paroles, ressorti dans son propre bouton juste à côté (retour utilisateur : "il n'a pas
         // trop sa place dans le bouton fichiers").
         document.getElementById('file-menu-btn').onclick = (e) => this.openFileMenu(e.currentTarget);
-        // Ordinateur : l'onglet Paroles ouvre la vue INTÉGRÉE (lot 4b), sans fichier téléchargé ni nouvel onglet. Téléphone : comme avant (lot 10).
+        // L'onglet Paroles ouvre la vue INTÉGRÉE (lot 4b à l'ordinateur, lot 10b au téléphone), sans fichier téléchargé ni nouvel onglet. Le fichier
+        // .json pour Paroles reste produit par l'export intégral (menu Fichier).
         document.getElementById('lyrics-btn').onclick = () => (this.vuesIntegrees() ? this.basculerVueParoles() : this.exportLyricsData());
         // Le champ de fichier reste caché : c'est une entrée de menu qui le déclenche, un champ de
         // fichier natif ne se mettant pas au style du reste.
@@ -10397,14 +10403,8 @@ class HarmoHubApp {
             // boutons restent dans le groupe à toutes les largeurs. Fichier, lui, garde sa place au bas de la grille, comme à l'ordinateur.
             hote.append(struct, paroles);
             [struct, paroles].forEach(b => b.classList.add('tb-onglet'));
-            if (media.matches) {
-                if (this.fenetreStructureOuverte()) document.body.classList.add('vue-ouverte');
-            } else {
-                // Passage au format téléphone : la vue Paroles n'y existe pas encore (lot 10b, avec la barre de lecture), et la fenêtre Structure y
-                // reste une fenêtre — ouverte sous la barre du haut pour que les onglets restent atteignables.
-                if (this.vueParolesOuverte()) this.fermerVueParoles();
-                document.body.classList.remove('vue-ouverte');
-            }
+            // Depuis le lot 10b, une vue ouverte le reste en franchissant le seuil : Structure et Paroles sont des vues aux deux largeurs.
+            this.rafraichirOnglets();
         };
         if (media.addEventListener) media.addEventListener('change', placer); else if (media.addListener) media.addListener(placer);
         placer();
@@ -10420,7 +10420,9 @@ class HarmoHubApp {
 
     // ---------- LES VUES INTÉGRÉES (lot 4b) : Structure et Paroles dans la page, sous la barre du haut ----------
     // « Il ne faut pas qu'elle garde sa propre en-tête, ni le logo. On peut garder les trois onglets avec Paroles et Structure intégrées. »
-    vuesIntegrees() { return window.matchMedia('(min-width: 900px)').matches; }
+    // Lot 10b : vrai à TOUTES les largeurs. Au téléphone, Structure et Paroles attendaient une barre de lecture à elles : une vue posée sur la page
+    // aurait masqué le transport, qui vivait dans le volet (#footer-dock). La barre de lecture du téléphone est fixée en bas, la vue s'arrête au-dessus.
+    vuesIntegrees() { return true; }
     vueParolesOuverte() { const v = document.getElementById('vue-paroles'); return !!v && !v.hidden; }
     vueOuverte() { return this.fenetreStructureOuverte() || this.vueParolesOuverte(); }
 
@@ -10500,7 +10502,7 @@ class HarmoHubApp {
         s.setAttribute('aria-pressed', String(structure));
         l.setAttribute('aria-pressed', String(paroles));
         // La grille se cache derrière une vue (CSS : body.vue-ouverte main { visibility: hidden }) — la vue a un fond transparent pour laisser voir
-        // le fond de l'appli (uni ou verre), pas la grille. Seulement sur ordinateur : sur téléphone la fenêtre Structure garde son fond de fenêtre.
+        // le fond de l'appli (uni ou verre), pas la grille. Aux deux largeurs depuis le lot 10b.
         document.body.classList.toggle('vue-ouverte', (structure || paroles) && this.vuesIntegrees());
     }
 
@@ -18600,8 +18602,10 @@ class HarmoHubApp {
         // contient (le bloc Ajouter/Annuler y descend en mode Modification, voir
         // updateEditActionsDocking). Un nombre en dur laisserait le tiroir flotter au-dessus d'un
         // vide, ou recouvrir le bouton Lecture.
-        const barre = document.querySelector('.dock');
-        const h = barre ? Math.round(barre.getBoundingClientRect().height) : 0;
+        // Lot 10b : le bas de l'écran porte la BARRE DE LECTURE (fixée) et, en Modification, le dock posé dessus. On mesure donc la hauteur
+        // occupée depuis le bas de la fenêtre jusqu'au plus haut des deux — mesurer le seul dock posait le tiroir sur ses accès de secours.
+        const hauts = ['.dock', '#barre-lecture'].map(s => document.querySelector(s)).filter(e => e && e.getBoundingClientRect().height > 0).map(e => e.getBoundingClientRect().top);
+        const h = hauts.length ? Math.max(0, Math.round(window.innerHeight - Math.min(...hauts))) : 0;
         document.documentElement.style.setProperty('--tiroir-bas', `${h}px`);
     }
 
@@ -19013,9 +19017,11 @@ class HarmoHubApp {
         // REFONTE, LOT 2 (docs/refonte.md) : sur ORDINATEUR, le transport rejoint la BARRE DE LECTURE du bas (bloc
         // « Lecture », #bl-lecture) — plus en pied du volet de gauche, qui disparaît avec la refonte. Sur TÉLÉPHONE il
         // reste dans #footer-dock (lot 10). Toujours UN SEUL nœud, déplacé, jamais dupliqué.
+        // LOT 10b : le TÉLÉPHONE a lui aussi sa barre de lecture (maquette « Téléphone (v2) ») ; le transport quitte #footer-dock aux deux largeurs.
+        // #footer-dock ne porte plus que les actions d'édition (Modification), juste au-dessus de la barre. Le repli vers le dock ne sert qu'à un
+        // index.html servi depuis un cache plus ancien, sans #bl-lecture.
         const bloc = document.getElementById('bl-lecture');
-        const ordinateur = !!bloc && window.matchMedia(SEQ_DOCK_MEDIA).matches;
-        if (ordinateur) {
+        if (bloc) {
             if (transport.parentElement !== bloc) bloc.appendChild(transport);
         } else if (transport.parentElement !== dock) {
             // En dernier enfant de .dock : édition en cours ou non, updateEditActionsDocking (voir
@@ -19360,6 +19366,7 @@ class HarmoHubApp {
         this.setupBarreLectureMetro();
         this.setupBarreLectureTempo();
         this.setupBarreLectureOrdre();
+        this.setupPanneauLecture();
         const boucle = document.getElementById('boucle-btn');
         if (boucle) boucle.addEventListener('click', () => this.basculerBoucle());
         this.syncAnneauBoucle();
@@ -19424,10 +19431,16 @@ class HarmoHubApp {
         bouton.innerHTML = source.innerHTML;
         bouton.title = source.title;
         bouton.setAttribute('aria-label', source.getAttribute('aria-label') || source.title);
+        // Au téléphone, le bouton passe dans le panneau Lecture et dit son état en toutes lettres, comme la maquette (« Activé » / « Coupé ») : le
+        // logo seul ne suffit pas à un réglage qu'on lit de loin. Masqué à l'ordinateur (style.css).
+        const etat = document.createElement('span');
+        etat.className = 'bl-metro-etat';
+        bouton.appendChild(etat);
         const miroir = () => {
             const actif = source.classList.contains('active');
             bouton.classList.toggle('active', actif);
             bouton.setAttribute('aria-pressed', String(actif));
+            etat.textContent = actif ? 'Activé' : 'Coupé';
         };
         new MutationObserver(miroir).observe(source, { attributes: true, attributeFilter: ['class'] });
         miroir();
@@ -19489,6 +19502,89 @@ class HarmoHubApp {
         const fin = () => { this._blGlisse = null; };
         bouton.addEventListener('pointerup', fin);
         bouton.addEventListener('pointercancel', fin);
+    }
+
+    // ======================================================================================================
+    // LE PANNEAU LECTURE DU TÉLÉPHONE (refonte, lot 10b — maquette « Téléphone (v2) »). La barre du téléphone ne porte que Lecture, Stop, la
+    // mesure, la frise, la Boucle et « ⋯ » : 390px ne laissent pas la place au tempo, au métronome ni aux vues. « ⋯ » ouvre ce panneau, qui
+    // monte du bas au-dessus de la barre. Il n'invente AUCUNE commande :
+    //   • la rangée du tempo (−, valeur, +, Tap : #bl-tempo-ligne) et le métronome (#bl-metro) de la barre d'ordinateur y sont DÉPLACÉS, comme
+    //     placerVues déplace le clavier — un seul nœud, donc un seul câblage, jamais deux réglages qui divergent ;
+    //   • Clavier, Guitare et Notes PILOTENT les boutons d'origine (#toggle-viz-piano, #toggle-viz-guitar, #grid-zoom), qui restent à leur place
+    //     au téléphone (la carte des diagrammes sous la grille, « Séq. » dans la rangée de la grille) — le principe de #bl-metro, qui pilote
+    //     #toggle-metronome depuis le lot 2. Leur logo est recopié de l'original (« ne perds pas mes logos »). Ouvrir un diagramme le fait venir
+    //     à l'écran : sous la grille, il serait sinon ouvert hors de vue.
+    // Le plein écran des diagrammes et de l'éditeur de notes au-dessus de la barre (aide de la maquette) vient avec le lot 10f.
+    // ======================================================================================================
+    setupPanneauLecture() {
+        const plus = document.getElementById('bl-plus');
+        const panneau = document.getElementById('panneau-lecture');
+        if (!plus || !panneau) return; // index.html servi depuis un cache plus ancien
+        plus.addEventListener('click', () => (panneau.hidden ? this.ouvrirPanneauLecture() : this.fermerPanneauLecture(true)));
+        document.getElementById('pl-fermer').addEventListener('click', () => this.fermerPanneauLecture(true));
+        panneau.querySelectorAll('.pl-vue').forEach((b) => {
+            const source = document.getElementById(b.dataset.source);
+            if (!source) { b.hidden = true; return; }
+            const logo = source.querySelector('svg');
+            if (logo) b.querySelector('.pl-logo').appendChild(logo.cloneNode(true));
+            b.title = source.title;
+            const miroir = () => b.setAttribute('aria-pressed', String(source.getAttribute('aria-pressed') === 'true'));
+            new MutationObserver(miroir).observe(source, { attributes: true, attributeFilter: ['aria-pressed'] });
+            miroir();
+            b.addEventListener('click', () => {
+                this.fermerPanneauLecture();
+                source.click();
+                if (source.getAttribute('aria-pressed') !== 'true') return; // refermé : rien à montrer
+                const cible = b.dataset.source === 'grid-zoom' ? document.getElementById('seq-dock-panel') : document.querySelector('.viz-card');
+                if (cible) requestAnimationFrame(() => cible.scrollIntoView({ block: 'nearest' }));
+            });
+        });
+        const mq = window.matchMedia(SEQ_DOCK_MEDIA);
+        const surChangement = () => this.placerPanneauLecture();
+        if (mq.addEventListener) mq.addEventListener('change', surChangement);
+        else mq.addListener(surChangement); // Safari < 14
+        this.placerPanneauLecture();
+    }
+
+    // Téléphone : la rangée du tempo et le métronome dans le panneau. Ordinateur : chacun à sa place dans le bloc Tempo de la barre (la rangée en
+    // tête de la fenêtre du tempo, le métronome après le bouton BPM), et le panneau fermé.
+    placerPanneauLecture() {
+        const ligne = document.getElementById('bl-tempo-ligne');
+        const metro = document.getElementById('bl-metro');
+        const pop = document.getElementById('bl-tempo-pop');
+        const hoteBpm = document.querySelector('.bl-hote-tempo');
+        const hoteTempo = document.getElementById('pl-tempo');
+        const hoteMetro = document.getElementById('pl-metro');
+        if (!ligne || !metro || !pop || !hoteBpm || !hoteTempo || !hoteMetro) return;
+        if (window.matchMedia(SEQ_DOCK_MEDIA).matches) {
+            if (ligne.parentElement !== pop) pop.insertBefore(ligne, pop.firstElementChild);
+            if (metro.previousElementSibling !== hoteBpm) hoteBpm.insertAdjacentElement('afterend', metro);
+            this.fermerPanneauLecture();
+        } else {
+            if (ligne.parentElement !== hoteTempo) hoteTempo.appendChild(ligne);
+            if (metro.parentElement !== hoteMetro) hoteMetro.appendChild(metro);
+        }
+    }
+
+    ouvrirPanneauLecture() {
+        const panneau = document.getElementById('panneau-lecture');
+        const plus = document.getElementById('bl-plus');
+        if (!panneau || !plus || window.matchMedia(SEQ_DOCK_MEDIA).matches) return; // téléphone seulement : à l'ordinateur, tout est dans la barre
+        panneau.hidden = false;
+        plus.setAttribute('aria-expanded', 'true');
+        plus.setAttribute('aria-pressed', 'true');
+        this.syncBarreLecture();
+    }
+
+    // `rendreFocus` : fermé par son bouton ou sa croix, le focus revient sur « ⋯ » (le clavier ne se perd pas au début de la page).
+    fermerPanneauLecture(rendreFocus = false) {
+        const panneau = document.getElementById('panneau-lecture');
+        const plus = document.getElementById('bl-plus');
+        if (!panneau || !plus || panneau.hidden) return;
+        panneau.hidden = true;
+        plus.setAttribute('aria-expanded', 'false');
+        plus.setAttribute('aria-pressed', 'false');
+        if (rendreFocus) plus.focus();
     }
 
     // Les trois blocs, dans l'ordre choisi (mémorisé PAR APPAREIL : l'écran de chacun n'est pas celui de l'autre, comme

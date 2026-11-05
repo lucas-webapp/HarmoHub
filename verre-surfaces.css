@@ -121,3 +121,9 @@ html[data-glass="1"] :is(.seq-grid-intensite .seq-vel-band, .seq-grid-intensite 
 @media (max-width: 899px) {
     html[data-glass="1"] .tb-onglets { background: var(--glass-inp); }
 }
+
+/* ---- TÉLÉPHONE, LE PANNEAU LECTURE (refonte, lot 10b) : il flotte au-dessus de la barre de lecture et des vues, comme une fenêtre : le fond plus
+   opaque des menus, pour rester lisible par-dessus la grille ou les paroles. Sa rangée du tempo garde le creux des groupes (.bl-seg, plus haut). ---- */
+@media (max-width: 899px) {
+    html[data-glass="1"] .panneau-lecture { background: var(--glass-pop-fond); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-hi), 0 -24px 50px -24px rgba(0, 0, 0, .65); }
+}

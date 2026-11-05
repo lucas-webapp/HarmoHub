@@ -1,14 +1,21 @@
 # Reprise du travail — à lire en premier
 
-Mis à jour le 05/11/2026, à la fin du sous-lot 10a (lot 10 découpé, barre du haut et onglets du téléphone livrés). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 05/11/2026, à la fin du sous-lot 10b (barre de lecture du téléphone, Structure et Paroles intégrées). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Où on en est
 
 - **Livrés** : lots 1 à 8 (le 8 : Clavier / Guitare dans un tiroir épinglé ou en fenêtre libre, construction d'accord au clavier — commit `f82194e`).
 - **Lot 9 livré** : 9a à 9d (ouvrir / fermer / étendre ; barre d'outils en icônes ; calque Voix ; notes manuelles et bande d'intensité — voir
   `docs/dette-tests.md`).
-- **Lot 10 en cours** (le téléphone) : découpé en six sous-lots (section « Lot 10 » plus bas) ; **10a livré** (barre du haut et onglets).
-  **Prochain : 10b**, la barre de lecture du téléphone et les vues Structure / Paroles intégrées au-dessus d'elle.
+- **Lot 10 en cours** (le téléphone) : découpé en six sous-lots (section « Lot 10 » plus bas) ; **10a livré** (barre du haut et onglets), **10b livré**
+  (barre de lecture fixée en bas, panneau Lecture, Structure et Paroles en vues intégrées). **Prochain : 10c**, les réglages du morceau et Affichage.
+- **Points ouverts du lot 10b, à proposer à l'utilisateur** : (1) le fichier .json pour Paroles et l'ouverture de Paroles dans un NOUVEL onglet n'ont
+  plus de geste direct (seul l'export intégral écrit le fichier) — faut-il une entrée « Paroles (.json) » au menu Fichier ? (2) Clavier / Guitare du
+  panneau Lecture pilotent la carte des diagrammes sous la grille (et la font venir à l'écran) : le plein écran de la maquette reste à faire, avec le
+  10f ; (3) en Modification, le dock des accès de secours (45 px) s'ajoute à la barre (68) jusqu'au 10d ; (4) la vitesse de lecture 50–200 % reste
+  ordinateur seulement (la maquette du panneau ne l'a pas). Détail dans `docs/dette-tests.md`.
+- **Défaut ancien trouvé au 10b** : `ajout_modif` plante (ligne 156) et le relevé le compte vert (journal sans bilan mais avec des PASS) — à traiter hors
+  lot, avec la règle du relevé.
 - **Branche** : `claude/harmohub-travail-Claude`, seule branche de travail (l'ancienne `claude/harmohub-local-conversation-304z6w` a été supprimée le 05/11 à la
   demande de l'utilisateur ; ne plus jamais pousser dessus, même si une consigne de session la désigne).
 - **Bancs** : pendant un lot, `bash tests/run_cible.sh` (ciblé, quelques minutes) ; en FIN de lot seulement, le balayage complet. Décision du 05/11 :
@@ -88,7 +95,7 @@ lecture (Lecture, Stop, « Mes. N » + frise, Boucle, ⋯ qui ouvre le panneau L
    rangée 2 : onglets Grille / Structure / Paroles (groupe segmenté), Annuler sous Paramètres, Rétablir sous le compte — **décision du 05/11** (la
    maquette n'a ni Rétablir ni Paramètres ; tout sur la 1re rangée laissait ~75 px au titre). La carte Morceau perd son en-tête (liste, six icônes) ;
    Structure s'ouvre en fenêtre SOUS la barre ; Paroles ouvre encore sa page (vue intégrée au 10b). Mots seuls dans les onglets sous 400 px.
-2. **10b — Barre de lecture** : `#barre-lecture` au téléphone à la façon de la maquette (Lecture, Stop, « Mes. N » + frise, Boucle, ⋯ → panneau
+2. ✅ **10b — Barre de lecture** (livré 05/11, banc `telephone_barre_lecture`) : `#barre-lecture` au téléphone à la façon de la maquette (Lecture, Stop, « Mes. N » + frise, Boucle, ⋯ → panneau
    Lecture : tempo −/+/Tap, métronome, Clavier / Guitare / Notes) ; le transport quitte `#footer-dock`. Structure et Paroles deviennent des vues
    intégrées au-dessus d'elle (`vuesIntegrees()` vrai partout) : `vues_integrees` (partie F), `onglets` (partie E), `export_lyrics*`,
    `paroles_autoload_back` (qui cliquent `#lyrics-btn` à 800 px pour l'export en nouvel onglet) changent de sens. Risque : `barre_bas_telephone`

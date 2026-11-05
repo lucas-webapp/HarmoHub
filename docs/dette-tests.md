@@ -5348,3 +5348,62 @@ l'ancienne version, dans la même charge juste après : **4 rouges sur 4**, mêm
 fuit hors du verre sur le toast (`html[data-glass="1"] .sabotage-rien, .toast { box-shadow: none }`, que le contrôle statique laisse passer) : rouge aux états
 « tiroir » et « apercu », preuve que l'attente ne masque pas la comparaison du toast ; un toast illisible verre allumé (texte à 12 % d'opacité) : le nouveau
 contrôle rougit (rapport 1,34). `sentinelle_adresses` 244/244 et `meta_suite` 6/6 verts.
+
+## Refonte de l'interface — lot 10b : la barre de lecture du téléphone, Structure et Paroles intégrées (2026-11-05)
+
+**Ce qui change (téléphone, < 900 px).**
+- **La barre de lecture est celle de l'ordinateur** (`#barre-lecture`), fixée en bas, en 68 px comme la maquette : Lecture, Stop, « Mes. N » au-dessus
+  de la frise des parties (réduite à une bande de 8 px : partie en cours en vert, plage à boucler en orange, tête de lecture), Boucle, « ⋯ ». Le
+  transport y entre aux deux largeurs (`placeGlobalTransport`) et **quitte `#footer-dock`**. Les boutons ne sont pas réordonnés dans le DOM : le bloc
+  Lecture et `.transport` s'effacent (`display: contents`) et chaque bouton prend sa place par `order` (la Boucle après la frise). Les blocs Tempo et
+  Vues, « réorganiser » et ses flèches sont masqués. Le bouton Boucle existe désormais au téléphone : le triangle de Lecture y reste un triangle
+  (l'anneau était l'état « boucle » d'un téléphone sans bouton Boucle) ; l'appui long reste.
+- **« ⋯ » ouvre le panneau Lecture** (`#panneau-lecture`, `setupPanneauLecture`), qui monte du bas et se pose sur la barre : Tempo (la rangée −/valeur/+
+  et Tap de la fenêtre du tempo d'ordinateur, `#bl-tempo-ligne`, **déplacée** par `placerPanneauLecture`, comme `placerVues`), Métronome (`#bl-metro`
+  déplacé, avec le mot « Activé » / « Coupé » de la maquette, masqué à l'ordinateur), Voir : Clavier / Guitare / Notes. **Décision prise en séance** :
+  ces trois-là PILOTENT les boutons d'origine (`#toggle-viz-piano`, `#toggle-viz-guitar`, `#grid-zoom`) sur le modèle de `#bl-metro` (lot 2), logo
+  recopié de l'original, état en miroir ; ouvrir un diagramme ou l'éditeur le fait venir à l'écran (`scrollIntoView`, marges de la barre). Déplacer les
+  bascules elles-mêmes aurait cassé une douzaine de bancs du manche joués à 860 px pour un plein écran qui n'est pas encore là (aide de la maquette :
+  « s'ouvrent en plein écran au-dessus de la barre ») — reste à faire, avec le lot 10f. Le panneau est dans `this._popups` (Échap, clic à côté) et dans
+  `ZONE_EDITION_SELECTEURS` (le toucher n'y sort pas de la Modification). Tout à 44 px.
+- **Le dock** (`#footer-dock`) ne porte plus que les accès de secours de la Modification (Rythme, Terminer), sur une rangée de 45 px calée à droite et
+  posée SUR la barre ; il s'efface quand il est vide (`:has`). Le tiroir du petit séquenceur mesure désormais le haut de ce qui occupe le bas de
+  l'écran (dock ou barre) : mesurer le seul dock le posait sur les accès de secours (trouvé par `barre_bas_telephone`). **Dette connue jusqu'au 10d** :
+  en Modification, le bas de l'écran prend 45 + 68 px (73 avant le lot) ; en Ajout, 68 (73 avant).
+- **Structure et Paroles sont des vues intégrées** à toutes les largeurs (`vuesIntegrees()` vrai partout) : entre la barre du haut et la barre de
+  lecture, grille masquée derrière, fond transparent ; Structure perd sa croix et son titre (l'onglet le dit, Grille ramène, Échap referme), le clic sur
+  son fond ne la ferme plus ; Paroles charge `paroles.html?integre=1` dans la page. Le panneau Lecture passe au-dessus des vues (z 40 contre 35).
+  **À confirmer avec l'utilisateur** : le geste « fichier .json téléchargé + Paroles dans un nouvel onglet » n'existe plus à aucune largeur (il était
+  resté au téléphone depuis le lot 4b) ; le fichier reste produit par l'export intégral (menu Fichier). La page Paroles seule s'ouvre par son adresse.
+- **Verre dépoli** : le panneau Lecture est une surface flottante (fond des menus, flou), téléphone seulement (`verre-surfaces.css`) ; la barre l'était déjà.
+
+**Bancs.** Nouveau `telephone_barre_lecture_test` (48) : barre fixée en bas, 68 px, ordre de la maquette, carrés de 44 px à 7 px, frise en bande, rien du
+bureau, transport hors du dock, fin de page au-dessus de la barre ; Lecture joue et avance « Mes. N » et la tête, Stop, Boucle ; panneau posé sur la barre,
+nœuds déplacés et non copiés, 44 px partout, tempo −/+ et une annulation par geste, Tap, métronome et son mot, logos repris, Guitare et Notes qui ouvrent et
+amènent à l'écran, quatre façons de refermer ; Modification par double toucher, accès de secours sur la barre et atteignables ; Structure et Paroles entre
+les deux barres, barre jouable dessous, fond qui ne ferme pas, accords dans le cadre sans onglet, panneau au-dessus de la vue ; verre (flou 24 px,
+sous-couche, aucun contraste perdu) ; 320 px ; ordinateur inchangé et seuil franchi dans les deux sens.
+**Sabotages : 8, tous rouges** (barre non fixée, transport resté au dock, tempo non déplacé, diagramme ouvert hors de vue, vues non intégrées, panneau
+sous les vues, verre du panneau oublié, dock sous la barre).
+**Réécrits pour le nouveau geste** (ils vérifiaient que le téléphone n'avait pas bougé, ou cliquaient un élément disparu) : `vues_integrees` (F : Paroles
+en vue intégrée au téléphone, sans onglet), `onglets` (E : Structure sans croix, Échap la referme), `barre_lecture` (H : le logo du métronome comparé
+sans le mot d'état, masqué à l'ordinateur ; K : la barre fixée au téléphone, le transport dedans), `global_transport` (H : on mesure la barre, le
+transport s'y efface ; I : rétrécir le laisse dans la barre), `transport_boucle` (E : trois boutons, toucher Boucle, le triangle reste un triangle),
+`barre_bas_telephone` (C : une rangée d'accès de secours posée sur la barre ; le seuil des 81 px reste), `export_lyrics`, `export_lyrics_opens_tab`,
+`paroles_autoload_back` (l'onglet Paroles à 800 px ouvre la vue ; le contenu transmis est relu dans le dépôt au moment où HarmoHub l'écrit, mêmes
+contrôles qu'au fichier ; ni fichier ni onglet ; le lien de retour est éprouvé sur la page Paroles ouverte seule). `meta_suite` : référence mise à jour
+(une erreur avalée de moins dans `export_lyrics`).
+**Constat en passant, déjà vrai avant le lot (vérifié sur `270173e`)** : `ajout_modif` plante (délai dépassé à la ligne 156, `#quality` invisible) et le
+relevé de `run_all_fast.sh` / `run_cible.sh` le compte VERT, parce qu'un journal sans bilan qui contient des PASS et aucun FAIL passe pour vert. À traiter
+hors lot : un banc sans bilan devrait être « sans verdict ».
+
+**Balayages du lot 10b (05/11).** Ciblé n°1 (66 suites : le diff et les bancs du téléphone) : les neuf changements de sens attendus, réécrits ci-dessus,
+plus `barre_bas_telephone` qui a trouvé le tiroir du séquenceur posé sur les accès de secours (corrigé). Ciblé n°2 (129 suites, dont les 75 bancs joués
+sous 900 px pas encore rejoués — risque d'un recouvrement par la barre fixée) : 123 verts, rouges et « sans verdict » de la ligne de base seulement.
+**Complet : 229 verts, 6 rouges, 7 sans verdict (242 suites)** au second passage. Le premier a été arrêté et relancé : le serveur de test (tâche
+d'arrière-plan d'une session précédente) avait atteint sa limite de durée en pleine phase série, 15 suites tombées sur `ERR_CONNECTION_REFUSED`.
+Les 5 rouges et 7 « sans verdict » de la ligne de base, plus `telephone_barre_lecture` (47/48) : le contrôle du Tap supposait des touchers toutes
+les 500 ms, que la charge allonge (94 BPM au lieu de ~120). **Défaut du banc, pas de l'appli** : il compare désormais le tempo obtenu au rythme
+réellement tapé, relevé dans la page à chaque toucher ; vert seul, **4 sur 4 en quatre passages simultanés**, rouge au sabotage (Tap qui ne fait rien :
+122 contre 108). Aucun fichier servi n'a changé depuis le balayage complet. `verre` vert (corrigé hors lot juste avant), `glock_unlock_and_switch` vert
+cette fois. **Aucune régression.**

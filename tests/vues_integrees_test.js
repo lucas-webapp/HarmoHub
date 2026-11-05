@@ -258,11 +258,15 @@ const graine = ({ src, avecMorceau, verre }) => {
     await ctx.close();
 
     // ======================================================================================================
-    console.log('\n=== F. Téléphone : rien ne change avant le lot 10 ===');
+    // CHANGÉ DE SENS AU LOT 10b : avant, le téléphone ouvrait encore Paroles dans sa page (nouvel onglet) — sa barre de lecture n'existait pas, et une
+    // vue posée sur la page aurait masqué le transport du volet. Il a désormais la barre de lecture, et la vue s'arrête au-dessus d'elle.
+    console.log('\n=== F. Téléphone (lot 10b) : Paroles y est aussi une vue intégrée ===');
     ({ p, ctx } = await ouvrir({ nom: 'F: ', viewport: { width: 390, height: 844 } }));
-    await p.evaluate(() => document.getElementById('lyrics-btn').scrollIntoView({ block: 'center' }));
-    const [nouvelle] = await Promise.all([ctx.waitForEvent('page', { timeout: 6000 }), p.click('#lyrics-btn')]);
-    check(!!nouvelle && await p.evaluate(() => document.getElementById('vue-paroles').hidden), 'téléphone : Paroles s\'ouvre encore dans sa page (nouvel onglet), pas de vue intégrée');
+    let ongletsTel = 0; ctx.on('page', () => { ongletsTel++; });
+    await p.click('#lyrics-btn'); await p.waitForTimeout(1500);
+    const vueTel = await p.evaluate(() => { const v = document.getElementById('vue-paroles'); return { ouverte: !v.hidden, bas: Math.round(v.getBoundingClientRect().bottom), lecture: Math.round(document.getElementById('barre-lecture').getBoundingClientRect().top), src: document.getElementById('paroles-cadre').getAttribute('src') }; });
+    check(ongletsTel === 0 && vueTel.ouverte && vueTel.bas === vueTel.lecture && /integre=1/.test(vueTel.src || ''),
+        `téléphone : Paroles s'ouvre en vue intégrée, jusqu'à la barre de lecture, sans nouvel onglet (${ongletsTel} onglet, ${JSON.stringify(vueTel)})`);
     await ctx.close();
 
     console.log(`\nErreurs de page : ${erreurs.length}${erreurs.length ? '\n  ' + erreurs.slice(0, 6).join('\n  ') : ''}`);

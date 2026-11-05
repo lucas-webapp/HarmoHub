@@ -225,9 +225,12 @@ const graine = (src) => {
     check(tf.ouverte && Math.abs(tf.haut - tf.barre) <= 1 && tf.allume === 'true', `téléphone : la fenêtre Structure s'ouvre SOUS la barre (haut à ${Math.round(tf.haut)}px, barre jusqu'à ${Math.round(tf.barre)}px), onglet allumé`);
     await p.click('#tab-grille'); await p.waitForTimeout(250);
     check(await p.evaluate(() => document.getElementById('structure-overlay').hidden && document.getElementById('tab-grille').getAttribute('aria-pressed') === 'true'), 'téléphone : l\'onglet Grille la referme (les onglets restent sous le doigt)');
+    // CHANGÉ DE SENS AU LOT 10b : Structure n'est plus une fenêtre au téléphone mais une vue, comme à l'ordinateur — sans croix (l'onglet Grille
+    // ramène) ; Échap la referme, comme à l'ordinateur.
     await p.click('#structure-btn'); await p.waitForTimeout(350);
-    await p.click('#structure-close'); await p.waitForTimeout(250);
-    check(await p.evaluate(() => document.getElementById('structure-overlay').hidden), 'téléphone : et sa croix la referme toujours (elle reste une fenêtre jusqu\'au lot 10b)');
+    const croixTel = await p.evaluate(() => document.getElementById('structure-close').getBoundingClientRect().width);
+    await p.keyboard.press('Escape'); await p.waitForTimeout(250);
+    check(croixTel === 0 && await p.evaluate(() => document.getElementById('structure-overlay').hidden), `téléphone : Structure est une vue sans croix (${croixTel}px), Échap la referme (lot 10b)`);
     await ctx.close();
 
     console.log(`\nErreurs de page : ${erreurs.length}${erreurs.length ? '\n  ' + erreurs.slice(0, 6).join('\n  ') : ''}`);

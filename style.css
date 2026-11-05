@@ -7931,3 +7931,142 @@ body.avec-barre-selection .toast { bottom: 132px; }
     .tb-onglets > button { padding: 0 2px; font-size: 12px; }
     .tb-onglets > button .btn-label { font-size: 12px; }
 }
+
+
+/* ======================================================================================================
+   TÉLÉPHONE, LA BARRE DE LECTURE ET LE PANNEAU LECTURE (refonte, lot 10b — maquette « Téléphone (v2) »).
+   La barre de l'ordinateur (#barre-lecture) descend au téléphone, fixée en bas, en 68px : Lecture, Stop, « Mes. N » + frise, Boucle, « ⋯ ».
+   Le transport y entre aux deux largeurs (placeGlobalTransport) et quitte #footer-dock, qui ne porte plus que les actions de la Modification,
+   juste au-dessus de la barre. Les boutons du transport ne sont pas réordonnés dans le DOM : le bloc Lecture et le transport s'effacent
+   (display: contents) et chaque bouton prend sa place dans la rangée par `order` — la Boucle vient après la frise, comme dans la maquette.
+   Tempo, métronome, Clavier, Guitare et Notes sont dans le panneau qu'ouvre « ⋯ » (setupPanneauLecture). Tout est en 44px (jauge du téléphone).
+   Ordinateur : « ⋯ » et le panneau n'existent pas (les blocs Tempo et Vues sont dans la barre).
+   ====================================================================================================== */
+.bl-plus, .panneau-lecture { display: none; }
+.bl-metro-etat { display: none; }
+@media (max-width: 899px) {
+    .barre-lecture {
+        display: flex;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 6px;
+        position: fixed;
+        left: 0; right: 0; bottom: 0;
+        z-index: 30;
+        box-sizing: border-box;
+        height: calc(68px + env(safe-area-inset-bottom, 0px));
+        padding: 0 10px env(safe-area-inset-bottom, 0px);
+        background: rgba(17, 18, 20, 0.96);
+        border-top: 1px solid var(--border);
+    }
+    #bl-lecture, .barre-lecture .transport { display: contents; }
+    .barre-lecture #play-prog { order: 1; }
+    .barre-lecture #stop { order: 2; }
+    .barre-lecture .bl-parties { order: 3; }
+    .barre-lecture #boucle-btn { order: 4; }
+    .barre-lecture .bl-plus { order: 5; }
+    /* Le tempo, les vues et la réorganisation des blocs (un geste de souris) n'ont pas leur place dans 390px : tempo et vues sont dans le panneau. */
+    .barre-lecture [data-bloc="tempo"], .barre-lecture .bl-vues, .barre-lecture .bl-fin, .barre-lecture .bl-fleches { display: none; }
+
+    /* Lecture, Stop, Boucle, ⋯ : carrés de 44px identiques, angles de 7px — la règle du téléphone (.transport .transport-icon-btn) les étirait. */
+    .barre-lecture .transport > button, .barre-lecture .bl-plus {
+        display: inline-flex;
+        flex: none;
+        box-sizing: border-box;
+        width: var(--bouton-h-lg);
+        min-width: 0;
+        height: var(--bouton-h-lg);
+        padding: 0;
+        border-radius: var(--rayon-bouton);
+    }
+    .barre-lecture .transport .icon, .barre-lecture .transport .transport-icon, .barre-lecture .bl-plus .icon { width: 18px; height: 18px; }
+    /* La boucle a SON bouton dans la barre : le triangle de Lecture reste un triangle (l'anneau était l'état « boucle » du téléphone tant qu'il
+       n'avait pas de bouton Boucle). La plage tracée se dit en orange, la couleur de la bande de la règle. */
+    .barre-lecture #play-prog.boucle-active .transport-icon-simple { display: block; }
+    .barre-lecture #play-prog.boucle-active .transport-icon-boucle { display: none; }
+    .barre-lecture .boucle-btn[aria-pressed="true"], .barre-lecture .bl-plus[aria-pressed="true"] {
+        background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
+        color: var(--btn-text);
+        border: 1px solid var(--btn-green-border);
+    }
+    .barre-lecture .boucle-btn.boucle-active.btn-loop-range { border-color: #ffb300; }
+
+    /* « Mes. N » au-dessus de la frise des parties, réduite à une bande : la partie en cours en vert, la plage à boucler en orange, la tête de
+       lecture en trait vert. Les noms des parties ne tiennent pas dans 8px : ils restent dans l'infobulle de la frise d'ordinateur. */
+    .barre-lecture .bl-parties { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 5px; padding: 0 4px; }
+    .bl-mesure { font-size: 13px; font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-main); }
+    .bl-frise { position: relative; height: 8px; min-width: 0; display: flex; border-radius: 3px; background: #262a30; }
+    .bl-frise-part { box-sizing: border-box; min-width: 0; padding: 0; font-size: 0; overflow: hidden; background: #2c3138; border-radius: 3px; box-shadow: inset -2px 0 0 #111214; }
+    .bl-frise-part.en-cours { background: #2f6b48; }
+    .bl-frise-plage { position: absolute; top: -2px; bottom: -2px; border: 1px solid #ffb300; border-radius: 4px; background: rgba(255, 179, 0, 0.25); pointer-events: none; }
+    .bl-frise-tete { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--accent); border-radius: 1px; pointer-events: none; transition: left 0.12s linear; }
+
+    /* La page s'arrête au-dessus de la barre (sinon la dernière partie et « Ajouter section » passeraient dessous) ; les actions de la Modification
+       (#footer-dock, collant) se posent sur la barre au lieu d'y disparaître, et le dock s'efface quand il n'a rien à porter. */
+    main { padding-bottom: calc(var(--haut-barre-lecture, 68px) + 16px); }
+    /* En Modification, le dock ne porte plus que les deux accès de secours (Rythme, Terminer) : une rangée resserrée, calée à DROITE comme
+       avant le lot (ils étaient au bout de la rangée du transport). La Modification quitte le téléphone au lot 10d (panneau d'accord). */
+    .dock { bottom: var(--haut-barre-lecture, 68px); padding: 6px 10px; justify-content: flex-end; }
+    .dock:not(:has(> *)) { display: none; }
+    /* Les diagrammes et l'éditeur de notes ouverts depuis le panneau viennent à l'écran par scrollIntoView : sans cette marge, ils s'arrêteraient
+       sous la barre de lecture. */
+    .viz-card, #seq-dock-panel { scroll-margin-top: calc(var(--haut-barre, 110px) + 8px); scroll-margin-bottom: calc(var(--haut-barre-lecture, 68px) + 8px); }
+
+    /* LE PANNEAU LECTURE : il monte du bas et se pose sur la barre (qui reste utilisable). 12px d'arrondi, ce qui flotte. Au-dessus des vues
+       Structure et Paroles (35) : on règle le tempo en lisant ses paroles. */
+    .panneau-lecture:not([hidden]) {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        position: fixed;
+        left: 0; right: 0;
+        bottom: var(--haut-barre-lecture, 68px);
+        z-index: 40;
+        box-sizing: border-box;
+        max-height: calc(100dvh - var(--haut-barre, 110px) - var(--haut-barre-lecture, 68px));
+        overflow-y: auto;
+        padding: 10px 12px 14px;
+        background: #181b20;
+        border-top: 1px solid #333;
+        border-radius: var(--rayon-surface) var(--rayon-surface) 0 0;
+        box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.55);
+    }
+    .pl-tete { display: flex; align-items: center; gap: 8px; }
+    .pl-titre { flex: 1 1 auto; font-size: 17px; font-weight: 800; color: var(--text-main); }
+    .panneau-lecture .icon-btn { width: var(--bouton-h-lg); height: var(--bouton-h-lg); border-radius: var(--rayon-bouton); }
+    .panneau-lecture .icon-btn .icon { width: 18px; height: 18px; }
+    .pl-ligne { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--bouton-h-lg); }
+    .pl-etiquette { font-size: 14px; color: var(--text-muted); }
+    .pl-hote { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .pl-voir { margin-top: 4px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #8a8f98; }
+    .pl-vues { display: flex; gap: 8px; }
+    .panneau-lecture .pl-vue { flex: 1 1 0; width: auto; gap: 6px; font-size: 14px; font-weight: 600; }
+    .panneau-lecture .pl-vue[hidden] { display: none; }
+    .pl-logo { display: inline-flex; }
+    .panneau-lecture .pl-vue[aria-pressed="true"], .panneau-lecture #bl-metro[aria-pressed="true"] {
+        background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
+        color: var(--btn-text);
+        border-color: var(--btn-green-border);
+    }
+    /* La rangée du tempo, venue de la fenêtre du tempo de l'ordinateur : le groupe segmenté −/valeur/+ et Tap, à la jauge du téléphone. */
+    #pl-tempo .bl-pop-ligne { display: flex; align-items: center; gap: 8px; }
+    #pl-tempo .bl-seg { box-sizing: border-box; height: var(--bouton-h-lg); display: inline-flex; align-items: stretch; gap: 2px; padding: 2px; border: 1px solid #333; border-radius: var(--rayon-bouton); background: #14171c; flex: none; }
+    #pl-tempo .bl-seg > button { flex: none; width: 40px; min-width: 0; height: 38px; padding: 0; border: 0; border-radius: 5px; background: transparent; box-shadow: none; color: #a0a0a0; font-size: 18px; font-weight: 600; line-height: 1; }
+    #pl-tempo .bl-seg-val { display: flex; align-items: center; justify-content: center; min-width: 84px; padding: 0 6px; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-main); }
+    #pl-tempo .bl-tap { width: auto; padding: 0 14px; font-size: 13px; font-weight: 800; letter-spacing: 0.06em; }
+    #pl-metro #bl-metro { width: auto; padding: 0 14px; gap: 8px; }
+    #pl-metro .bl-metro-etat { display: inline; font-size: 14px; font-weight: 600; }
+
+    /* STRUCTURE ET PAROLES, VUES INTÉGRÉES (lot 4b à l'ordinateur, 10b au téléphone) : entre la barre du haut et la barre de lecture, la grille
+       masquée derrière (visibility, sans rien recalculer), fond transparent. Structure perd sa croix et son titre : l'onglet le dit, Grille ramène. */
+    body.vue-ouverte main { visibility: hidden; }
+    .vue-morceau:not([hidden]) { display: flex; flex-direction: column; position: fixed; left: 0; right: 0; top: var(--haut-barre); bottom: var(--haut-barre-lecture, 68px); z-index: 35; }
+    .paroles-cadre { flex: 1 1 auto; width: 100%; min-height: 0; border: 0; background: transparent; }
+    .paroles-cadre[hidden] { display: none; }
+    .vue-paroles-vide { margin: 32px 16px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; color: var(--text-muted); font-size: var(--fs-sm); }
+    .vue-paroles-vide[hidden] { display: none; }
+    #structure-overlay { top: var(--haut-barre); bottom: var(--haut-barre-lecture, 68px); z-index: 35; padding: 8px; background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; align-items: stretch; }
+    #structure-overlay > .settings-modal { max-width: none; width: 100%; max-height: none; height: 100%; margin: 0; box-shadow: none; }
+    #structure-overlay #structure-title, #structure-overlay #structure-close { display: none; }
+    #structure-overlay .settings-header { justify-content: flex-end; }
+}

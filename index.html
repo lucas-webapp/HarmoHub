@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611052000">
+    <link rel="stylesheet" href="style.css?v=202611052100">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611052000">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611052100">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1853,7 +1853,8 @@
                     <span class="bl-tempo-val" id="bl-tempo-val">120</span><span class="bl-tempo-unite">BPM</span><span id="bl-vitesse-tag" class="bl-vitesse-tag" hidden></span>
                 </button>
                 <div id="bl-tempo-pop" class="bl-pop" role="dialog" aria-label="Tempo et vitesse de lecture" hidden>
-                    <div class="bl-pop-ligne">
+                    <!-- #bl-tempo-ligne : la même rangée −/+/Tap passe dans le panneau Lecture au téléphone (lot 10b, placerPanneauLecture) — déplacée, jamais copiée. -->
+                    <div class="bl-pop-ligne" id="bl-tempo-ligne">
                         <div class="bl-seg" role="group" aria-label="Tempo">
                             <button type="button" id="bl-tempo-moins" aria-label="Plus lent">−</button>
                             <span class="bl-seg-val" id="bl-tempo-pop-val">120 BPM</span>
@@ -1888,6 +1889,31 @@
             <button type="button" id="bl-reorg" class="icon-btn" aria-pressed="false" title="Réorganiser les blocs de la barre" aria-label="Réorganiser les blocs de la barre">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h16M4 16h16"/><path d="M8 4 4 8l4 4M16 12l4 4-4 4"/></svg>
             </button>
+        </div>
+        <!-- TÉLÉPHONE (lot 10b, maquette « Téléphone (v2) ») : « ⋯ » ouvre le panneau Lecture — le tempo, le métronome et les vues n'ont pas de place dans
+             une barre de 390px qui porte déjà Lecture, Stop, la mesure, la frise et la Boucle. Masqué sur ordinateur, où les blocs Tempo et Vues sont dans
+             la barre. Le logo est celui du menu ⋯ des parties (lot 5c). -->
+        <button type="button" id="bl-plus" class="icon-btn bl-plus" aria-haspopup="dialog" aria-expanded="false" aria-controls="panneau-lecture" title="Tempo, métronome, clavier, guitare, notes" aria-label="Tempo, métronome, clavier, guitare, notes">
+            <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+        </button>
+    </div>
+    <!-- PANNEAU LECTURE DU TÉLÉPHONE (lot 10b) : il monte du bas, au-dessus de la barre de lecture. Il n'invente aucune commande : la rangée du tempo
+         (#bl-tempo-ligne) et le métronome (#bl-metro) de la barre d'ordinateur y sont DÉPLACÉS (placerPanneauLecture) ; Clavier, Guitare et Notes
+         pilotent les boutons d'origine (#toggle-viz-piano, #toggle-viz-guitar, #grid-zoom), comme #bl-metro pilote déjà #toggle-metronome. -->
+    <div id="panneau-lecture" class="panneau-lecture" role="dialog" aria-label="Lecture" hidden>
+        <div class="pl-tete">
+            <span class="pl-titre">Lecture</span>
+            <button type="button" id="pl-fermer" class="icon-btn" title="Fermer" aria-label="Fermer le panneau Lecture">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+        </div>
+        <div class="pl-ligne"><span class="pl-etiquette">Tempo</span><div id="pl-tempo" class="pl-hote"></div></div>
+        <div class="pl-ligne"><span class="pl-etiquette">Métronome</span><div id="pl-metro" class="pl-hote"></div></div>
+        <span class="pl-voir">Voir</span>
+        <div class="pl-vues" role="group" aria-label="Voir">
+            <button type="button" id="pl-clavier" class="icon-btn pl-vue" data-source="toggle-viz-piano" aria-pressed="false"><span class="pl-logo"></span><span class="btn-label">Clavier</span></button>
+            <button type="button" id="pl-guitare" class="icon-btn pl-vue" data-source="toggle-viz-guitar" aria-pressed="false"><span class="pl-logo"></span><span class="btn-label">Guitare</span></button>
+            <button type="button" id="pl-notes" class="icon-btn pl-vue" data-source="grid-zoom" aria-pressed="false"><span class="pl-logo"></span><span class="btn-label">Notes</span></button>
         </div>
     </div>
     <div id="print-export" class="print-export"></div>
@@ -1983,7 +2009,7 @@
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
     <script src="historique.js?v=202611051800"></script>
-    <script src="script.js?v=202611052000"></script>
+    <script src="script.js?v=202611052100"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->

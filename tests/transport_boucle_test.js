@@ -179,11 +179,17 @@ async function appuiLong(page, selecteur) {
     await tel.waitForTimeout(400);
     check(await tel.evaluate(() => window.app.bouclerLecture === false),
         'téléphone : un appui court ne bascule pas la boucle');
-    check(t.nbBoutons === 2, `téléphone : deux boutons seulement (Lecture, Stop), pas de bouton Boucle à part — obtenu ${t.nbBoutons}`);
-    await tel.evaluate(() => window.app.basculerBoucle(true));
+    // CHANGÉ DE SENS AU LOT 10b : la barre de lecture du téléphone a SON bouton Boucle (maquette « Téléphone (v2) ») et le triangle de Lecture y reste
+    // un triangle, comme à l'ordinateur — l'anneau était l'état « boucle » d'un téléphone qui n'avait pas de bouton Boucle. L'appui long sur Lecture
+    // reste (geste éprouvé plus haut, à la souris comme au doigt).
+    check(t.nbBoutons === 3, `téléphone : trois boutons, Lecture, Stop et Boucle — obtenu ${t.nbBoutons}`);
+    await tel.tap('#boucle-btn');
+    await tel.waitForTimeout(200);
     const tb = await tel.evaluate(etatBouton);
-    check(tb.anneauVisible && !tb.simpleVisible, 'téléphone : la boucle allumée remplace le triangle par l\'anneau, comme avant');
-    await tel.evaluate(() => window.app.basculerBoucle(false));
+    check(tb.boucle === true && tb.boucleBtn === 'true' && tb.simpleVisible && !tb.anneauVisible,
+        `téléphone : toucher Boucle met la boucle, et le triangle de Lecture reste un triangle (${JSON.stringify({ boucle: tb.boucle, bouton: tb.boucleBtn, anneau: tb.anneauVisible })})`);
+    await tel.tap('#boucle-btn');
+    await tel.waitForTimeout(200);
     await tel.evaluate(() => window.app.stopAll());
     await tel.waitForTimeout(200);
 

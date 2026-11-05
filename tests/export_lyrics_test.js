@@ -13,15 +13,32 @@ const actionFichier = async (page, id) => {
     await page.waitForSelector(`[data-file-action="${id}"]`, { timeout: 3000 });
     await page.click(`[data-file-action="${id}"]`);
 };
-// CONTRAT CHANGÉ (3), refonte lot 4b : sur ORDINATEUR l'onglet Paroles ouvre désormais la vue INTÉGRÉE (dans la page, sans fichier ni nouvel
-// onglet). L'export vers Paroles — fichier .json téléchargé + page ouverte dans un nouvel onglet, ce que ce banc éprouve — reste le geste du
-// TÉLÉPHONE (et de l'export intégral). Le banc passe donc au format téléphone pour cliquer le même bouton, au lieu d'appeler la méthode en douce.
+// CONTRAT CHANGÉ (3), refonte lot 4b : sur ORDINATEUR l'onglet Paroles ouvre la vue INTÉGRÉE (dans la page, sans fichier ni nouvel onglet) ;
+// le banc était passé au format téléphone, qui gardait l'export (fichier .json téléchargé + page ouverte dans un nouvel onglet).
+// CONTRAT CHANGÉ (4), refonte lot 10b : le téléphone a lui aussi la vue intégrée, au-dessus de sa barre de lecture. Le geste « fichier + nouvel
+// onglet » n'existe plus à aucune largeur (le fichier .json reste produit par l'export intégral du menu Fichier). Ce que les accords deviennent
+// chez Paroles passe par le MÊME dépôt qu'avant (harmohub_lyrics_pending_import, voir donneesParoles) : le banc garde le format téléphone et son
+// geste — l'onglet Paroles —, nomme le morceau par la vue quand il n'a pas de nom (les paroles lui sont attachées), et rend le cadre de la vue.
 const ouvrirParoles = async (page) => {
     await page.setViewportSize({ width: 800, height: 900 });
     await page.waitForTimeout(150);
-    await page.evaluate(() => document.getElementById('lyrics-btn').scrollIntoView({ block: 'center' }));
     await page.click('#lyrics-btn');
+    await page.waitForTimeout(400);
+    if (await page.isVisible('#vue-paroles-vide')) {
+        await page.click('#vue-paroles-nommer');
+        const champ = await page.waitForSelector('input:visible', { timeout: 3000 });
+        await champ.fill('Chanson Test Paroles');
+        await page.keyboard.press('Enter');
+    }
+    for (let i = 0; i < 80; i++) {
+        const cadre = page.frames().find(f => /paroles\.html\?integre=1/.test(f.url()));
+        if (cadre && await cadre.evaluate(() => document.readyState === 'complete' && document.querySelectorAll('.chord-chip').length > 0)) return cadre;
+        await page.waitForTimeout(100);
+    }
+    return null;
 };
+// Le dépôt est CONSOMMÉ par la vue dès son chargement : on le relit au moment où HarmoHub l'écrit (lecture seule, rien n'est déclenché).
+const ESPION_DEPOT = () => { const ecrire = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { if (k === 'harmohub_lyrics_pending_import' && window === window.top) window.__depotParoles = v; return ecrire.apply(this, arguments); }; };
 const fs = require('fs');
 
 let PASS = 0, FAIL = 0;
@@ -32,6 +49,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     const page = await browser.newPage({ viewport: { width: 1200, height: 900 }, acceptDownloads: true });
     const errors = [];
     page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+    await page.addInitScript(ESPION_DEPOT);
     page.on('console', msg => { if (msg.type() === 'error' && !msg.text().includes('ERR_CONNECTION_RESET') && !msg.text().includes('ERR_TUNNEL_CONNECTION_FAILED') && !msg.text().includes('ERR_CERT_AUTHORITY_INVALID')) errors.push('console: ' + msg.text()); });
 
     await page.goto(`${BASE}/index.html`);
@@ -53,34 +71,13 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     await page.click('#quick-add-btn').catch(() => {});
     await page.waitForTimeout(200);
 
-    // Nomme le morceau (l'export exige un morceau enregistré) via le prompt custom si besoin.
-    const [download] = await Promise.all([
-        page.waitForEvent('download', { timeout: 10000 }),
-        ouvrirParoles(page),
-    ]).catch(async (e) => {
-        // Si un prompt de nom de morceau est apparu, le remplir puis retenter.
-        console.log('1ère tentative:', e.message);
-        return [null];
-    });
+    let fichiers = 0; page.on('download', () => { fichiers++; });
+    const cadre = await ouvrirParoles(page);
+    const puces = cadre ? await cadre.evaluate(() => [...document.querySelectorAll('.chord-chip')].map(c => c.textContent.trim()).join(' ')) : '';
+    check(!!cadre && /^Am F/.test(puces) && fichiers === 0, `l'onglet Paroles ouvre la vue intégrée, qui affiche les accords du morceau (« ${puces} »), sans fichier téléchargé (${fichiers})`);
 
-    let dl = download;
-    if (!dl) {
-        // Cherche un champ de saisie de nom de morceau visible (popup "Nomme d'abord ton morceau").
-        const nameInput = await page.$('input:visible');
-        if (nameInput) {
-            await nameInput.fill('Chanson Test Paroles');
-            await page.keyboard.press('Enter').catch(() => {});
-        }
-        [dl] = await Promise.all([
-            page.waitForEvent('download', { timeout: 10000 }),
-            ouvrirParoles(page),
-        ]);
-    }
-    check(!!dl, "un téléchargement se déclenche bien au clic sur le bouton Exporter pour paroles");
-
-    const p = await dl.path();
-    const content = JSON.parse(fs.readFileSync(p, 'utf8'));
-    console.log('contenu exporté:', JSON.stringify(content, null, 2));
+    const content = JSON.parse(await page.evaluate(() => window.__depotParoles || '{}'));
+    console.log('contenu transmis à Paroles:', JSON.stringify(content, null, 2));
 
     check(content.version === 1, 'le fichier a un numéro de version');
     check(Array.isArray(content.sections) && content.sections.length === 2, `2 parties exportées — obtenu ${content.sections?.length}`);

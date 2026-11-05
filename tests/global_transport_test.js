@@ -266,10 +266,12 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
     // où il flottait : centré sur un écran de 390×780, il tombait
     // pile sur #quick-add-btn ET le logo du bandeau du haut, tous deux rendus incliquables (Playwright
     // plantait littéralement dessus). Voir placeGlobalTransport dans script.js.
+    // CHANGÉ DE SENS AU LOT 10b : le téléphone a sa barre de lecture, fixée en bas (maquette « Téléphone (v2) ») ; le transport y vit, Boucle comprise.
+    // Le bloc Lecture et le transport s'y effacent (display: contents, chaque bouton prend sa place dans la rangée) : on mesure donc la BARRE.
     const mobileInfo = await m.evaluate(() => {
         const dock = document.getElementById('footer-dock');
         const transport = document.querySelector('.transport');
-        const b = transport.getBoundingClientRect();
+        const b = document.getElementById('barre-lecture').getBoundingClientRect();
         const superpose = (id) => {
             const el = document.getElementById(id);
             if (!el) return false;
@@ -279,6 +281,7 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
         };
         return {
             dansLeDock: dock.contains(transport),
+            dansLaBarre: document.getElementById('bl-lecture').contains(transport),
             videDansEnteteGrille: document.getElementById('grid-head-transport-host').children.length === 0,
             deborde: b.right > window.innerWidth || b.left < 0,
             withinScreen: b.bottom <= window.innerHeight + 1,
@@ -289,10 +292,10 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
             })(),
         };
     });
-    check(mobileInfo.dansLeDock, 'le transport vit dans #footer-dock au téléphone (la barre du bas est réservée à l\'ordinateur)');
-    check(await m.evaluate(() => getComputedStyle(document.getElementById('boucle-btn')).display === 'none'
-        && getComputedStyle(document.getElementById('barre-lecture')).display === 'none'),
-        '...sans bouton Boucle à part ni barre du bas : la boucle y reste un état de Lecture, comme avant');
+    check(mobileInfo.dansLaBarre && !mobileInfo.dansLeDock, 'le transport vit dans la barre de lecture au téléphone aussi (lot 10b), plus dans #footer-dock');
+    check(await m.evaluate(() => getComputedStyle(document.getElementById('boucle-btn')).display !== 'none'
+        && getComputedStyle(document.getElementById('barre-lecture')).position === 'fixed'),
+        '...avec son bouton Boucle, dans une barre fixée en bas de l\'écran');
     check(mobileInfo.videDansEnteteGrille, "...et l'ancre de l'en-tête de grille reste vide sur cet écran");
     check(!mobileInfo.deborde, 'ne déborde pas horizontalement de l\'écran');
     check(mobileInfo.withinScreen, 'reste dans la hauteur de l\'écran');
@@ -320,14 +323,15 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
         'élargir la fenêtre au-delà de 900px amène le transport dans la barre de lecture, en un seul exemplaire');
     await m.setViewportSize({ width: 390, height: 780 });
     await m.waitForTimeout(400);
+    // Lot 10b : rétrécir le LAISSE dans la barre de lecture, devenue celle du téléphone aussi (le bloc s'y efface : on regarde Lecture lui-même).
     const etroit = await m.evaluate(() => ({
-        dansLeDock: document.getElementById('footer-dock').contains(document.querySelector('.transport')),
+        dansLaBarre: document.getElementById('bl-lecture').contains(document.querySelector('.transport')),
         nb: document.querySelectorAll('.transport').length,
-        visible: document.querySelector('.transport').offsetParent !== null,
+        visible: document.getElementById('play-prog').getBoundingClientRect().width > 0,
     }));
     console.log('rétréci :', JSON.stringify(etroit));
-    check(etroit.dansLeDock && etroit.nb === 1 && etroit.visible,
-        '...et le rétrécir le ramène dans #footer-dock : un seul exemplaire, toujours visible');
+    check(etroit.dansLaBarre && etroit.nb === 1 && etroit.visible,
+        '...et le rétrécir le laisse dans la barre de lecture, celle du téléphone : un seul exemplaire, toujours visible');
     await m.close();
 
     await browser.close();
