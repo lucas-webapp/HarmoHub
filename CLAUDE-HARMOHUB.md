@@ -6,7 +6,7 @@ Mis à jour le 05/11/2026, à la fin du sous-lot 10b (barre de lecture du télé
 
 - **Prochain : sous-lot 10c** — réglages du morceau et Affichage (section « Lot 10 », point 3). Plan arrêté : on peut commencer sans rien demander à l'utilisateur ; boucle d'un lot dans `CLAUDE.md`.
 - **Ensuite** : 10d (panneau d'accord), 10e (panneau d'ajout), 10f (éditeur de notes au téléphone), dans cet ordre (dépendances).
-- **À proposer à l'utilisateur, sans bloquer le 10c** : les points ouverts des lots 10b, 9c et 9d (plus bas), et le défaut ancien `ajout_modif` (hors lot).
+- **À proposer à l'utilisateur, sans bloquer le 10c** : le sous-lot « Paroles homogènes » et sa question (paroles en enregistrement manuel comme la grille, ou automatique ?), les points ouverts des lots 10b, 9c et 9d (plus bas), et le défaut ancien `ajout_modif` (hors lot).
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
@@ -16,11 +16,14 @@ Mis à jour le 05/11/2026, à la fin du sous-lot 10b (barre de lecture du télé
   `docs/dette-tests.md`).
 - **Lot 10 en cours** (le téléphone) : découpé en six sous-lots (section « Lot 10 » plus bas) ; **10a livré** (barre du haut et onglets), **10b livré**
   (barre de lecture fixée en bas, panneau Lecture, Structure et Paroles en vues intégrées). **Prochain : 10c**, les réglages du morceau et Affichage.
-- **Points ouverts du lot 10b, à proposer à l'utilisateur** : (1) le fichier .json pour Paroles et l'ouverture de Paroles dans un NOUVEL onglet n'ont
-  plus de geste direct (seul l'export intégral écrit le fichier) — faut-il une entrée « Paroles (.json) » au menu Fichier ? (2) Clavier / Guitare du
-  panneau Lecture pilotent la carte des diagrammes sous la grille (et la font venir à l'écran) : le plein écran de la maquette reste à faire, avec le
-  10f ; (3) en Modification, le dock des accès de secours (45 px) s'ajoute à la barre (68) jusqu'au 10d ; (4) la vitesse de lecture 50–200 % reste
-  ordinateur seulement (la maquette du panneau ne l'a pas). Détail dans `docs/dette-tests.md`.
+- **Points du lot 10b, réponses du 05/11** : la vitesse de lecture est au téléphone (panneau Lecture, mention dorée à côté de « Mes. N ») ; les
+  paroles « doivent être connectées au firestore directement, et doivent fonctionner comme la grille ou la structure » — elles le sont déjà
+  (`synchro-paroles.js`, document `harmohub-paroles`, envoyé par la vue intégrée elle-même), pas d'entrée .json au menu Fichier ; dupliquer un
+  morceau copie désormais ses paroles. **Sous-lot à proposer, « Paroles homogènes »** : (1) supprimer un morceau supprime ses paroles (trace des
+  suppressions dans `synchro-paroles.js`) ; (2) synchro des paroles dès l'ouverture de HarmoHub (sans toucher `synchro-cloud.js`, une instance
+  par page : par exemple charger le cadre Paroles en arrière-plan une fois connecté) ; (3) À DEMANDER : les paroles en enregistrement manuel comme
+  la grille (Enregistrer, voyant), ou garder l'enregistrement automatique ? (4) les paroles dans les versions automatiques. Restent aussi du 10b :
+  Clavier / Guitare en plein écran (avec le 10f) ; le dock de la Modification (45 px) au-dessus de la barre jusqu'au 10d.
 - **Défaut ancien trouvé au 10b** : `ajout_modif` plante (ligne 156) et le relevé le compte vert (journal sans bilan mais avec des PASS) — à traiter hors
   lot, avec la règle du relevé.
 - **Branche** : `claude/harmohub-travail-Claude`, seule branche de travail (l'ancienne `claude/harmohub-local-conversation-304z6w` a été supprimée le 05/11 à la

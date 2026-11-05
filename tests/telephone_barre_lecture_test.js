@@ -24,7 +24,7 @@ const { check, exiger, plan, bilan } = require('./_harness')('téléphone : barr
 const { estBruitReseau } = require('./_harness');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
-plan(48);
+plan(50);
 
 const mk = (root, quality) => ({ root, quality, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
 const SECTIONS = [
@@ -123,9 +123,9 @@ const panneauOuvert = (p) => p.evaluate(() => !document.getElementById('panneau-
         exiger(pan && pan.vis, '« ⋯ » ouvre le panneau Lecture');
         check(Math.abs(pan.b - barre.y) < 1 && pan.y >= 0 && pan.x === 0 && Math.abs(pan.w - 390) < 1 && plus.exp === 'true' && plus.pr === 'true',
             `il monte du bas et se pose sur la barre, pleine largeur, dans l'écran ; « ⋯ » se dit ouvert (${Math.round(pan.y)}→${Math.round(pan.b)}, barre à ${barre.y} ; ${JSON.stringify(plus)})`);
-        const noeuds = await p.evaluate(() => ({ ligne: !!document.querySelector('#panneau-lecture #bl-tempo-ligne'), metro: !!document.querySelector('#panneau-lecture #bl-metro'), n: ['bl-tempo-moins', 'bl-tempo-plus', 'bl-tap', 'bl-metro'].map(i => document.querySelectorAll('#' + i).length).join('') }));
-        check(noeuds.ligne && noeuds.metro && noeuds.n === '1111', `le tempo et le métronome du panneau sont ceux de la barre d'ordinateur, déplacés et non copiés (${JSON.stringify(noeuds)})`);
-        const jauge = await p.evaluate(() => ['#pl-fermer', '#bl-tap', '#bl-metro', '#pl-clavier', '#pl-guitare', '#pl-notes', '#pl-tempo .bl-seg'].map(s => Math.round(document.querySelector(s).getBoundingClientRect().height)));
+        const noeuds = await p.evaluate(() => ({ ligne: !!document.querySelector('#panneau-lecture #bl-tempo-ligne'), vitesse: !!document.querySelector('#panneau-lecture #bl-vitesse-bloc'), metro: !!document.querySelector('#panneau-lecture #bl-metro'), n: ['bl-tempo-moins', 'bl-tempo-plus', 'bl-tap', 'bl-vitesse', 'bl-vitesses', 'bl-metro'].map(i => document.querySelectorAll('#' + i).length).join('') }));
+        check(noeuds.ligne && noeuds.vitesse && noeuds.metro && noeuds.n === '111111', `le tempo, la vitesse de lecture et le métronome du panneau sont ceux de la barre d'ordinateur, déplacés et non copiés (${JSON.stringify(noeuds)})`);
+        const jauge = await p.evaluate(() => ['#pl-fermer', '#bl-tap', '#bl-metro', '#pl-clavier', '#pl-guitare', '#pl-notes', '#pl-tempo .bl-seg', '#pl-vitesse .bl-seg'].map(s => Math.round(document.querySelector(s).getBoundingClientRect().height)));
         check(jauge.every(h => h === 44), `toutes les commandes du panneau font 44px de haut (${jauge.join(', ')})`);
         const bpm = () => p.evaluate(() => +document.getElementById('bpm').value);
         const bpm0 = await bpm();
@@ -151,6 +151,18 @@ const panneauOuvert = (p) => p.evaluate(() => !document.getElementById('panneau-
         const metro2 = await p.evaluate(() => ({ actif: document.getElementById('toggle-metronome').classList.contains('active'), mot: document.querySelector('#bl-metro .bl-metro-etat').textContent }));
         check(metro1.actif !== metro2.actif && metro1.mot === (metro1.actif ? 'Activé' : 'Coupé') && metro2.mot === (metro2.actif ? 'Activé' : 'Coupé'),
             `le métronome du panneau pilote celui du morceau et dit son état en toutes lettres (${JSON.stringify([metro1, metro2])})`);
+        // LA VITESSE DE LECTURE (retour du 05/11 : « intègre-la au téléphone ») : 50 à 200 % du tempo, pour la LECTURE seulement — le tempo du morceau
+        // ne bouge pas —, et la barre la rappelle en doré à côté de « Mes. N » tant qu'elle n'est pas 100 %.
+        const tempoAvant = await bpm();
+        await toucher(p, '#bl-vitesses [data-vitesse="75"]');
+        const v75 = await p.evaluate(() => {
+            const t = document.getElementById('bl-vitesse-tel'), r = t.getBoundingClientRect(), b = document.getElementById('barre-lecture').getBoundingClientRect(), m = document.getElementById('bl-mesure').getBoundingClientRect();
+            return { app: window.app.vitesseLecture, curseur: document.getElementById('bl-vitesse').value, texte: t.textContent, dansBarre: !t.hidden && r.width > 0 && r.top >= b.top && r.bottom <= b.bottom && r.left >= m.right, couleur: getComputedStyle(t).color, tempo: +document.getElementById('bpm').value };
+        });
+        check(v75.app === 75 && v75.curseur === '75' && v75.tempo === tempoAvant && v75.texte === '· 75 %' && v75.dansBarre && v75.couleur === 'rgb(255, 213, 79)',
+            `la vitesse de lecture est dans le panneau : 75 % règle la lecture, pas le tempo du morceau, et la barre l'écrit en doré après « Mes. N » (${JSON.stringify(v75)})`);
+        await toucher(p, '#bl-vitesses [data-vitesse="100"]');
+        check(await p.evaluate(() => window.app.vitesseLecture === 100 && document.getElementById('bl-vitesse-tel').hidden), 'revenue à 100 %, la mention dorée s\'efface');
         const logos = await p.evaluate(() => ['pl-clavier', 'pl-guitare', 'pl-notes'].map(i => { const b = document.getElementById(i); const src = document.getElementById(b.dataset.source); return !!b.querySelector('svg') && b.querySelector('svg').innerHTML === src.querySelector('svg').innerHTML; }));
         check(logos.every(Boolean), `Clavier, Guitare et Notes portent le logo de leur bouton d'origine (${JSON.stringify(logos)})`);
         const guitareAvant = await p.evaluate(() => document.getElementById('toggle-viz-guitar').getAttribute('aria-pressed'));
@@ -172,7 +184,9 @@ const panneauOuvert = (p) => p.evaluate(() => !document.getElementById('panneau-
         await p.keyboard.press('Escape'); await p.waitForTimeout(200);
         const apresEchap = await panneauOuvert(p);
         await toucher(p, '#bl-plus');
-        await p.tap('.grid-cell >> nth=0'); await p.waitForTimeout(300);
+        // « À côté » : la marge gauche de la page, juste sous la barre du haut — le panneau (plus haut depuis la vitesse de lecture) couvre la grille.
+        const sousBarre = await p.evaluate(() => document.querySelector('.top-bar').getBoundingClientRect().bottom);
+        await p.touchscreen.tap(4, Math.round(sousBarre + 6)); await p.waitForTimeout(300);
         const apresCote = await panneauOuvert(p);
         await toucher(p, '#bl-plus'); await toucher(p, '#bl-plus');
         const apresPlus = await panneauOuvert(p);
@@ -277,9 +291,9 @@ const panneauOuvert = (p) => p.evaluate(() => !document.getElementById('panneau-
             const { p, ctx } = await ouvrir(nav, { viewport: { width: 1320, height: 820 } }, erreurs, 'ordinateur : ');
             const o = await p.evaluate(() => {
                 const vu = (s) => { const e = document.querySelector(s); return !!e && e.getBoundingClientRect().width > 0; };
-                return { plus: vu('#bl-plus'), panneau: vu('#panneau-lecture'), tempo: vu('#bl-tempo'), metro: vu('#bl-metro'), metroBloc: !!document.querySelector('[data-bloc="tempo"] #bl-metro'), ligne: document.getElementById('bl-tempo-ligne').parentElement.id, pos: getComputedStyle(document.getElementById('barre-lecture')).position, mot: getComputedStyle(document.querySelector('#bl-metro .bl-metro-etat')).display };
+                return { plus: vu('#bl-plus'), panneau: vu('#panneau-lecture'), tempo: vu('#bl-tempo'), metro: vu('#bl-metro'), metroBloc: !!document.querySelector('[data-bloc="tempo"] #bl-metro'), ligne: document.getElementById('bl-tempo-ligne').parentElement.id, vitesse: document.getElementById('bl-vitesse-bloc').parentElement.id + '>' + document.getElementById('bl-vitesse-bloc').previousElementSibling.id, pos: getComputedStyle(document.getElementById('barre-lecture')).position, mot: getComputedStyle(document.querySelector('#bl-metro .bl-metro-etat')).display, tel: getComputedStyle(document.getElementById('bl-vitesse-tel')).display };
             });
-            check(!o.plus && !o.panneau && o.tempo && o.metro && o.metroBloc && o.ligne === 'bl-tempo-pop' && o.pos === 'relative' && o.mot === 'none',
+            check(!o.plus && !o.panneau && o.tempo && o.metro && o.metroBloc && o.ligne === 'bl-tempo-pop' && o.vitesse === 'bl-tempo-pop>bl-tempo-ligne' && o.pos === 'relative' && o.mot === 'none' && o.tel === 'none',
                 `ordinateur : ni « ⋯ » ni panneau ; BPM et métronome (logo seul) dans le bloc Tempo, la rangée −/+/Tap dans la fenêtre du tempo, la barre dans le flux (${JSON.stringify(o)})`);
             await p.click('#bl-tempo'); await p.waitForTimeout(200);
             const avant = await p.evaluate(() => +document.getElementById('bpm').value);
@@ -287,12 +301,12 @@ const panneauOuvert = (p) => p.evaluate(() => !document.getElementById('panneau-
             check(await p.evaluate(() => +document.getElementById('bpm').value) === avant + 1, 'et le + de la fenêtre du tempo règle toujours le tempo à l\'ordinateur');
             await p.keyboard.press('Escape');
             await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(400);
-            const tel = await p.evaluate(() => ({ ligne: document.getElementById('bl-tempo-ligne').parentElement.id, metro: document.getElementById('bl-metro').parentElement.id }));
+            const tel = await p.evaluate(() => ({ ligne: document.getElementById('bl-tempo-ligne').parentElement.id, vitesse: document.getElementById('bl-vitesse-bloc').parentElement.id, metro: document.getElementById('bl-metro').parentElement.id }));
             await p.click('#bl-plus'); await p.waitForTimeout(200);
             await p.setViewportSize({ width: 1320, height: 820 }); await p.waitForTimeout(400);
-            const retour = await p.evaluate(() => ({ ligne: document.getElementById('bl-tempo-ligne').parentElement.id, premier: document.getElementById('bl-tempo-pop').firstElementChild.id, metro: !!document.querySelector('[data-bloc="tempo"] #bl-metro'), ferme: document.getElementById('panneau-lecture').hidden }));
-            check(tel.ligne === 'pl-tempo' && tel.metro === 'pl-metro' && retour.ligne === 'bl-tempo-pop' && retour.premier === 'bl-tempo-ligne' && retour.metro && retour.ferme,
-                `franchir le seuil déplace la rangée du tempo et le métronome dans le panneau, puis les rend à la barre d'ordinateur, panneau refermé (${JSON.stringify({ tel, retour })})`);
+            const retour = await p.evaluate(() => ({ ligne: document.getElementById('bl-tempo-ligne').parentElement.id, premier: document.getElementById('bl-tempo-pop').firstElementChild.id, second: document.getElementById('bl-tempo-pop').children[1].id, metro: !!document.querySelector('[data-bloc="tempo"] #bl-metro'), ferme: document.getElementById('panneau-lecture').hidden }));
+            check(tel.ligne === 'pl-tempo' && tel.vitesse === 'pl-vitesse' && tel.metro === 'pl-metro' && retour.ligne === 'bl-tempo-pop' && retour.premier === 'bl-tempo-ligne' && retour.second === 'bl-vitesse-bloc' && retour.metro && retour.ferme,
+                `franchir le seuil déplace la rangée du tempo, la vitesse et le métronome dans le panneau, puis les rend à la barre d'ordinateur, panneau refermé (${JSON.stringify({ tel, retour })})`);
             await ctx.close();
         }
         check(erreurs.length === 0, `aucune erreur JavaScript nulle part (${erreurs.length}) ${erreurs.slice(0, 2).join(' | ')}`);

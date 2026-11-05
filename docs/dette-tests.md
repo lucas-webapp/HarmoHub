@@ -5407,3 +5407,40 @@ les 500 ms, que la charge allonge (94 BPM au lieu de ~120). **Défaut du banc, p
 réellement tapé, relevé dans la page à chaque toucher ; vert seul, **4 sur 4 en quatre passages simultanés**, rouge au sabotage (Tap qui ne fait rien :
 122 contre 108). Aucun fichier servi n'a changé depuis le balayage complet. `verre` vert (corrigé hors lot juste avant), `glock_unlock_and_switch` vert
 cette fois. **Aucune régression.**
+
+## Suite du lot 10b : la vitesse de lecture au téléphone, les paroles suivent la copie d'un morceau (2026-11-05)
+
+**Réponses de l'utilisateur aux points ouverts du 10b.** « Vitesse de lecture : intègre-la au téléphone. » « Paroles : elles doivent être connectées
+au firestore directement, et doivent fonctionner comme la grille ou la structure. Le but est d'avoir un fonctionnement homogène. Donc fais au mieux,
+je n'ai pas tranché. »
+
+**La vitesse de lecture au téléphone.** Ses trois éléments de la fenêtre du tempo (nom et valeur, curseur 50–200 %, vitesses rapides) sont regroupés
+dans `#bl-vitesse-bloc` (sans boîte à l'ordinateur, `display: contents` : la fenêtre du tempo y reste identique) et DÉPLACÉS dans le panneau Lecture
+au téléphone (`placerPanneauLecture`), sous le tempo ; vitesses rapides en groupe segmenté de 44 px. La barre du téléphone n'a pas de bouton BPM pour
+porter la mention dorée « · 60 % » : `#bl-vitesse-tel` la pose à côté de « Mes. N » tant que la vitesse n'est pas 100 % (même règle : « un réglage
+oublié à 60 % se verrait sinon trop tard »).
+
+**Les paroles, ce qui est déjà vrai et ce qui ne l'est pas.** Elles SONT connectées à Firestore : document `users/{uid}/apps/harmohub-paroles`
+(`synchro-paroles.js`), envoyé et relu par la page Paroles elle-même — y compris quand elle est la vue intégrée (le cadre charge Firebase et son
+moteur). Le fichier .json n'était qu'un passage entre deux pages ; avec la vue intégrée il ne sert plus : **décision prise (« fais au mieux »)** :
+pas d'entrée « Paroles (.json) » au menu Fichier, l'export intégral garde le fichier comme archive. Écarts restants avec la grille et la structure,
+à reprendre dans un sous-lot « Paroles homogènes » (proposé dans `CLAUDE-HARMOHUB.md`) :
+- **corrigé ici** : dupliquer un morceau copiait sa grille et sa structure (elles sont DANS le morceau), pas ses paroles. `copierParolesDuMorceau`
+  recopie la session sous l'identifiant de la copie, datée de maintenant (gardée par la synchro), après avoir fait écrire la frappe en suspens du
+  cadre, et demande au cadre de l'envoyer ;
+- supprimer un morceau laisse ses paroles (localement et au cloud) : la synchro des paroles ne connaît pas les suppressions (une session effacée
+  ici reviendrait du cloud) — il faut une trace des suppressions dans `synchro-paroles.js`, comme celle des morceaux ;
+- la synchro des paroles ne démarre qu'à la première ouverture de l'onglet Paroles dans la session (le moteur commun n'admet qu'une instance par
+  page : la page principale ne peut pas porter aussi celle des paroles sans toucher au fichier partagé `synchro-cloud.js`) ;
+- les paroles s'enregistrent toutes seules, la grille et la structure à la main (Enregistrer, voyant « non enregistré ») ; les versions
+  automatiques (Historique) ne gardent pas les paroles ; la vue Paroles a son propre « Enregistré ✓ ».
+
+**Bancs.** `telephone_barre_lecture` 48 → 50 : la vitesse dans le panneau (nœuds déplacés, groupe de 44 px), 75 % règle la lecture et pas le tempo du
+morceau, mention dorée après « Mes. N », effacée à 100 % ; ordinateur : le bloc de vitesse dans la fenêtre du tempo, juste après la rangée du tempo,
+mention du téléphone masquée ; le seuil franchi dans les deux sens. Le toucher « à côté » du panneau, plus haut désormais, vise la marge sous la
+barre du haut (il tombait sur le panneau). `vues_integrees` 40 → 43 (partie G : « Dupliquer » du menu du morceau emporte les paroles, sous le nom de
+la copie, l'original intact ; la copie ouverte montre ses paroles dans la vue). **Sabotages : 4, tous rouges** (vitesse non déplacée, mention dorée
+muette, vitesse non rendue à l'ordinateur, paroles non copiées).
+
+**Balayages (05/11).** Ciblé : 52 suites, 51 vertes, `smoke` sans verdict (ligne de base). **Complet : 230 verts, 5 rouges, 7 sans verdict (242
+suites)** — exactement la ligne de base, aucune suite tombée sur le serveur (relancé avec son chien de garde avant le balayage). **Aucune régression.**

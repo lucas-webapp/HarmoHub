@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611052100">
+    <link rel="stylesheet" href="style.css?v=202611052200">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
@@ -1844,6 +1844,8 @@
         <div class="bl-bloc" data-bloc="lecture" id="bl-lecture"></div>
         <div class="bl-bloc bl-parties" data-bloc="parties">
             <span id="bl-mesure" class="bl-mesure" title="Mesure en cours">Mes. 1</span>
+            <!-- Téléphone : la vitesse en doré à côté de la mesure quand elle n'est pas 100 % (à l'ordinateur, elle est sur le bouton BPM, #bl-vitesse-tag). -->
+            <span id="bl-vitesse-tel" class="bl-vitesse-tel" hidden></span>
             <div id="bl-frise" class="bl-frise" aria-hidden="true"></div>
         </div>
         <div class="bl-bloc" data-bloc="tempo">
@@ -1862,6 +1864,9 @@
                         </div>
                         <button type="button" id="bl-tap" class="icon-btn bl-tap" title="Tape plusieurs fois au rythme voulu">TAP</button>
                     </div>
+                    <!-- #bl-vitesse-bloc : la vitesse de lecture passe elle aussi dans le panneau Lecture au téléphone (« intègre-la au téléphone », retour
+                         du 05/11). Sans boîte à l'ordinateur (display: contents) : la fenêtre du tempo y reste exactement celle d'avant. -->
+                    <div id="bl-vitesse-bloc" class="bl-vitesse-bloc">
                     <div class="bl-pop-ligne bl-pop-ligne-espacee">
                         <label for="bl-vitesse" class="bl-pop-etiquette">Vitesse de lecture</label>
                         <span class="bl-seg-val" id="bl-vitesse-val">100 %</span>
@@ -1873,6 +1878,7 @@
                         <button type="button" data-vitesse="100">100 %</button>
                         <button type="button" data-vitesse="150">150 %</button>
                         <button type="button" data-vitesse="200">200 %</button>
+                    </div>
                     </div>
                     <!-- Le clic de contretemps du métronome (#toggle-metronome-subdivision) vient ici sur ordinateur (lot 6a) : la carte Morceau où il
                          vivait n'y est plus affichée. Même bouton, déplacé (voir placerSubdivisionMetronome). -->
@@ -1898,7 +1904,7 @@
         </button>
     </div>
     <!-- PANNEAU LECTURE DU TÉLÉPHONE (lot 10b) : il monte du bas, au-dessus de la barre de lecture. Il n'invente aucune commande : la rangée du tempo
-         (#bl-tempo-ligne) et le métronome (#bl-metro) de la barre d'ordinateur y sont DÉPLACÉS (placerPanneauLecture) ; Clavier, Guitare et Notes
+         (#bl-tempo-ligne), la vitesse de lecture (#bl-vitesse-bloc) et le métronome (#bl-metro) de la barre d'ordinateur y sont DÉPLACÉS (placerPanneauLecture) ; Clavier, Guitare et Notes
          pilotent les boutons d'origine (#toggle-viz-piano, #toggle-viz-guitar, #grid-zoom), comme #bl-metro pilote déjà #toggle-metronome. -->
     <div id="panneau-lecture" class="panneau-lecture" role="dialog" aria-label="Lecture" hidden>
         <div class="pl-tete">
@@ -1908,6 +1914,7 @@
             </button>
         </div>
         <div class="pl-ligne"><span class="pl-etiquette">Tempo</span><div id="pl-tempo" class="pl-hote"></div></div>
+        <div id="pl-vitesse" class="pl-hote-vitesse"></div>
         <div class="pl-ligne"><span class="pl-etiquette">Métronome</span><div id="pl-metro" class="pl-hote"></div></div>
         <span class="pl-voir">Voir</span>
         <div class="pl-vues" role="group" aria-label="Voir">
@@ -2009,7 +2016,7 @@
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
     <script src="historique.js?v=202611051800"></script>
-    <script src="script.js?v=202611052100"></script>
+    <script src="script.js?v=202611052200"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->

@@ -7944,6 +7944,10 @@ body.avec-barre-selection .toast { bottom: 132px; }
    ====================================================================================================== */
 .bl-plus, .panneau-lecture { display: none; }
 .bl-metro-etat { display: none; }
+/* La vitesse de lecture (retour du 05/11 : « intègre-la au téléphone ») : à l'ordinateur son bloc n'a pas de boîte, la fenêtre du tempo garde sa mise
+   en page d'avant ; sa pastille du téléphone (à côté de « Mes. N ») n'y paraît pas — l'ordinateur a la sienne sur le bouton BPM. */
+.bl-vitesse-bloc { display: contents; }
+.bl-vitesse-tel { display: none; }
 @media (max-width: 899px) {
     .barre-lecture {
         display: flex;
@@ -7993,7 +7997,10 @@ body.avec-barre-selection .toast { bottom: 132px; }
 
     /* « Mes. N » au-dessus de la frise des parties, réduite à une bande : la partie en cours en vert, la plage à boucler en orange, la tête de
        lecture en trait vert. Les noms des parties ne tiennent pas dans 8px : ils restent dans l'infobulle de la frise d'ordinateur. */
-    .barre-lecture .bl-parties { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 5px; padding: 0 4px; }
+    .barre-lecture .bl-parties { flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; column-gap: 6px; row-gap: 5px; padding: 0 4px; }
+    .barre-lecture .bl-frise { grid-column: 1 / -1; }
+    /* La vitesse en doré quand elle n'est pas 100 % — « un réglage oublié à 60 % se verrait sinon trop tard » (même règle que le bouton BPM). */
+    .bl-vitesse-tel:not([hidden]) { display: inline; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; color: #ffd54f; }
     .bl-mesure { font-size: 13px; font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-main); }
     .bl-frise { position: relative; height: 8px; min-width: 0; display: flex; border-radius: 3px; background: #262a30; }
     .bl-frise-part { box-sizing: border-box; min-width: 0; padding: 0; font-size: 0; overflow: hidden; background: #2c3138; border-radius: 3px; box-shadow: inset -2px 0 0 #111214; }
@@ -8054,6 +8061,16 @@ body.avec-barre-selection .toast { bottom: 132px; }
     #pl-tempo .bl-seg > button { flex: none; width: 40px; min-width: 0; height: 38px; padding: 0; border: 0; border-radius: 5px; background: transparent; box-shadow: none; color: #a0a0a0; font-size: 18px; font-weight: 600; line-height: 1; }
     #pl-tempo .bl-seg-val { display: flex; align-items: center; justify-content: center; min-width: 84px; padding: 0 6px; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-main); }
     #pl-tempo .bl-tap { width: auto; padding: 0 14px; font-size: 13px; font-weight: 800; letter-spacing: 0.06em; }
+    /* La vitesse de lecture, venue de la fenêtre du tempo : son nom et sa valeur, le curseur pleine largeur, les vitesses rapides en groupe segmenté
+       de 44px (un choix parmi cinq). */
+    .pl-hote-vitesse, #pl-vitesse .bl-vitesse-bloc { display: flex; flex-direction: column; gap: 8px; }
+    #pl-vitesse .bl-pop-ligne { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    #pl-vitesse .bl-pop-etiquette { font-size: 14px; color: var(--text-muted); }
+    #pl-vitesse .bl-seg-val { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-main); }
+    #pl-vitesse input[type="range"] { width: 100%; height: 28px; margin: 0; accent-color: var(--btn-green-border-hover); }
+    #pl-vitesse .bl-seg { box-sizing: border-box; display: flex; width: 100%; height: var(--bouton-h-lg); align-items: stretch; gap: 2px; padding: 2px; border: 1px solid #333; border-radius: var(--rayon-bouton); background: #14171c; }
+    #pl-vitesse .bl-seg > button { flex: 1 1 0; width: auto; min-width: 0; height: 38px; padding: 0; border: 0; border-radius: 5px; background: transparent; box-shadow: none; color: #a0a0a0; font-size: 13px; font-weight: 600; line-height: 1; }
+    #pl-vitesse .bl-seg > button[aria-pressed="true"] { background: rgba(255, 255, 255, 0.08); color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
     #pl-metro #bl-metro { width: auto; padding: 0 14px; gap: 8px; }
     #pl-metro .bl-metro-etat { display: inline; font-size: 14px; font-weight: 600; }
 

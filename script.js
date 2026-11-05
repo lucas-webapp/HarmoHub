@@ -10673,10 +10673,33 @@ class HarmoHubApp {
         copie.savedAt = Date.now();
         songs.push(copie);
         saveSongs(songs);
+        this.copierParolesDuMorceau(song.id, copie.id, copie.name);
         this.refreshSongList();
         this.flashHint(hasUnsavedChanges
             ? `« ${copie.name} » ajouté — copie de la version enregistrée (tes modifications en cours restent ici)`
             : `« ${copie.name} » ajouté à Mes morceaux`, 3600);
+    }
+
+    // LES PAROLES SUIVENT LA COPIE, comme la grille et la structure, qui sont DANS le morceau. Retour du 05/11 : « elles doivent être connectées au
+    // firestore directement, et doivent fonctionner comme la grille ou la structure. Le but est d'avoir un fonctionnement homogène. » Elles vivent
+    // dans leur propre session (paroles.js, une clé par morceau, rattachée par son identifiant) et leur propre document Firestore (synchro-paroles.js,
+    // `users/{uid}/apps/harmohub-paroles`, envoyé par la page Paroles — aussi quand elle est la vue intégrée). On recopie la session sous
+    // l'identifiant de la copie, datée de maintenant : elle est la plus récente, donc gardée par la synchro, et le cadre Paroles, s'il est chargé,
+    // est prié de l'envoyer tout de suite (sinon il l'enverra à sa prochaine ouverture : son moteur relit toutes les sessions).
+    copierParolesDuMorceau(de, vers, nom) {
+        const PREFIXE = 'harmohub_lyrics_v1_id-';   // le préfixe de storageKeyForSong (paroles.js) pour un morceau enregistré
+        this.appelerParoles('writeSessionNow');      // une frappe de moins de 350 ms n'est pas encore écrite : la copie la prendrait sans elle
+        try {
+            const brut = localStorage.getItem(PREFIXE + de);
+            if (!brut) return false;
+            const session = JSON.parse(brut);
+            if (!session || !Array.isArray(session.sections)) return false;
+            session.songName = nom;
+            session.savedAt = Date.now();
+            localStorage.setItem(PREFIXE + vers, JSON.stringify(session));
+        } catch (e) { console.error('Copie des paroles impossible :', e); return false; }
+        this.appelerParoles('parolesNoterChangement');
+        return true;
     }
 
     // ---------- HISTORIQUE DES VERSIONS (refonte, lot 3b — historique.js, docs/refonte.md) ----------
@@ -19420,6 +19443,9 @@ class HarmoHubApp {
         const tag = document.getElementById('bl-vitesse-tag');
         tag.hidden = vitesse === 100;
         tag.textContent = '· ' + vitesse + ' %';
+        // Téléphone : la barre n'a pas de bouton BPM ; la même alerte dorée se pose à côté de « Mes. N » (masquée à l'ordinateur, style.css).
+        const tel = document.getElementById('bl-vitesse-tel');
+        if (tel) { tel.hidden = vitesse === 100; tel.textContent = '· ' + vitesse + ' %'; }
         document.querySelectorAll('#bl-vitesses button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.vitesse === vitesse)));
     }
 
@@ -19546,22 +19572,27 @@ class HarmoHubApp {
         this.placerPanneauLecture();
     }
 
-    // Téléphone : la rangée du tempo et le métronome dans le panneau. Ordinateur : chacun à sa place dans le bloc Tempo de la barre (la rangée en
-    // tête de la fenêtre du tempo, le métronome après le bouton BPM), et le panneau fermé.
+    // Téléphone : la rangée du tempo, la vitesse de lecture et le métronome dans le panneau. Ordinateur : chacun à sa place dans le bloc Tempo de
+    // la barre (la rangée en tête de la fenêtre du tempo, la vitesse juste après, le métronome après le bouton BPM), et le panneau fermé.
+    // La vitesse a rejoint le panneau après coup (« vitesse de lecture : intègre-la au téléphone », retour du 05/11) : la maquette ne l'avait pas.
     placerPanneauLecture() {
         const ligne = document.getElementById('bl-tempo-ligne');
+        const vitesse = document.getElementById('bl-vitesse-bloc');
+        const hoteVitesse = document.getElementById('pl-vitesse');
         const metro = document.getElementById('bl-metro');
         const pop = document.getElementById('bl-tempo-pop');
         const hoteBpm = document.querySelector('.bl-hote-tempo');
         const hoteTempo = document.getElementById('pl-tempo');
         const hoteMetro = document.getElementById('pl-metro');
-        if (!ligne || !metro || !pop || !hoteBpm || !hoteTempo || !hoteMetro) return;
+        if (!ligne || !vitesse || !hoteVitesse || !metro || !pop || !hoteBpm || !hoteTempo || !hoteMetro) return;
         if (window.matchMedia(SEQ_DOCK_MEDIA).matches) {
             if (ligne.parentElement !== pop) pop.insertBefore(ligne, pop.firstElementChild);
+            if (vitesse.previousElementSibling !== ligne) ligne.insertAdjacentElement('afterend', vitesse);
             if (metro.previousElementSibling !== hoteBpm) hoteBpm.insertAdjacentElement('afterend', metro);
             this.fermerPanneauLecture();
         } else {
             if (ligne.parentElement !== hoteTempo) hoteTempo.appendChild(ligne);
+            if (vitesse.parentElement !== hoteVitesse) hoteVitesse.appendChild(vitesse);
             if (metro.parentElement !== hoteMetro) hoteMetro.appendChild(metro);
         }
     }

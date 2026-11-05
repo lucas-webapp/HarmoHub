@@ -17,7 +17,7 @@ const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('vues intégrées (Paroles, Structure)');
 const { estBruitReseau } = require('./_harness');
 
-plan(40);
+plan(43);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const mk = (root, quality, beats = 4) => ({ root, quality, beats, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held', instrument: 'piano', arpPattern: '', seqEdited: false, guitarLock: null, extraNotes: [], intensity: 75, intensityPerStep: {} });
@@ -267,6 +267,28 @@ const graine = ({ src, avecMorceau, verre }) => {
     const vueTel = await p.evaluate(() => { const v = document.getElementById('vue-paroles'); return { ouverte: !v.hidden, bas: Math.round(v.getBoundingClientRect().bottom), lecture: Math.round(document.getElementById('barre-lecture').getBoundingClientRect().top), src: document.getElementById('paroles-cadre').getAttribute('src') }; });
     check(ongletsTel === 0 && vueTel.ouverte && vueTel.bas === vueTel.lecture && /integre=1/.test(vueTel.src || ''),
         `téléphone : Paroles s'ouvre en vue intégrée, jusqu'à la barre de lecture, sans nouvel onglet (${ongletsTel} onglet, ${JSON.stringify(vueTel)})`);
+    await ctx.close();
+
+    // ===== G. DUPLIQUER UN MORCEAU EMPORTE SES PAROLES ======================================================================
+    // Retour du 05/11 : les paroles « doivent être connectées au firestore directement, et doivent fonctionner comme la grille ou la structure » — qui,
+    // elles, sont DANS le morceau et suivent sa copie. Les paroles ont leur propre session, rattachée au morceau par son identifiant : la copie doit
+    // emporter la sienne. La session de départ est posée dans la mémoire (préparation) ; le reste se fait par les gestes du menu du morceau.
+    console.log('\n=== G. Dupliquer un morceau emporte ses paroles, comme sa grille et sa structure ===');
+    ({ p, ctx } = await ouvrir({ nom: 'G: ' }));
+    await p.evaluate(() => localStorage.setItem('harmohub_lyrics_v1_id-s1', JSON.stringify({ songName: 'Démo', savedAt: 1000, sections: [{ lyricsHtml: 'Sous le pont Mirabeau', placements: [], repeatCount: 1 }, { lyricsHtml: 'coule la Seine', placements: [], repeatCount: 1 }] })));
+    await p.click('#tb-titre'); await p.waitForTimeout(250);
+    await p.click('#tb-menu [data-tb-action="dupliquer"]'); await p.waitForTimeout(400);
+    const copieG = await p.evaluate(() => loadSongs().find(s => s.id !== 's1' && s.id !== 's2') || null);
+    exiger(!!copieG, `« Dupliquer » du menu du morceau crée la copie (${copieG && copieG.name})`);
+    const sCopie = await sessionDe(p, copieG.id), sOrig = await sessionDe(p, 's1');
+    check(!!sCopie && texteParoles(sCopie) === texteParoles(sOrig) && /Mirabeau/.test(texteParoles(sCopie)) && sCopie.songName === copieG.name && sCopie.savedAt > 1000 && sOrig.savedAt === 1000,
+        `la copie emporte les paroles, sous son nom et datées de la copie ; celles de l'original n'ont pas bougé (${JSON.stringify({ nom: sCopie && sCopie.songName, date: sCopie && sCopie.savedAt, original: sOrig.savedAt })})`);
+    await p.click('#tb-titre'); await p.waitForTimeout(250);
+    await p.click(`#tb-menu [data-tb-action="ouvrir-id"][data-song-id="${copieG.id}"]`); await p.waitForTimeout(600);
+    await p.click('#lyrics-btn');
+    const fG = await attendreCadre(p);
+    const texteG = fG ? await fG.evaluate(() => [...document.querySelectorAll('.lyrics-text')].map(e => e.textContent.trim()).join(' | ')) : '';
+    check(/Sous le pont Mirabeau/.test(texteG) && /coule la Seine/.test(texteG), `ouvrir la copie puis l'onglet Paroles : ses paroles y sont (« ${texteG} »)`);
     await ctx.close();
 
     console.log(`\nErreurs de page : ${erreurs.length}${erreurs.length ? '\n  ' + erreurs.slice(0, 6).join('\n  ') : ''}`);
