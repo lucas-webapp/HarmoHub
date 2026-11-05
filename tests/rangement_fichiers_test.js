@@ -186,7 +186,7 @@ const ARBRE = async (d, prefixe = '') => {
     // fichiers.js : une dépendance vers script.js y devient une fonction inexistante, et le rangement
     // repart en téléchargement sans un mot. C'est arrivé avec asciiPourMidi, écrite d'abord dans
     // script.js puis appelée par fichiers.js.
-    const manquantes = await p2.evaluate(() => ['nomExport', 'nomCanonique', 'enregistrerFichier', 'preparerRangement',
+    const manquantes = await p3.evaluate(() => ['nomExport', 'nomCanonique', 'enregistrerFichier', 'preparerRangement',
         'asciiPourMidi', 'nomsCandidats', 'partagerFichier', 'messageEnregistrement', 'listerRangement']
         .filter(n => typeof window[n] !== 'function'));
     check(manquantes.length === 0,

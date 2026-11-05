@@ -50,17 +50,22 @@ async function ouvrir(page, vp) {
 }
 
 (async () => {
-    plan(16);
+    plan(25);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
 
     // === A. La ligne tient sur UNE ligne, aux trois largeurs qui comptent ===
-    // 1440 (ordinateur), 390 (téléphone courant), 320 (le plus étroit qu'on vise).
-    for (const vp of [{ width: 1440, height: 950 }, { width: 390, height: 844 }, { width: 320, height: 640 }]) {
+    // RÉÉCRIT LE 05/11 (sous-lot « Bancs fiables ») : depuis le lot 6c, la ligne de l'accord n'existe plus à l'ordinateur — « rien aux deux
+    // endroits » : fondamentale, type et durée se règlent dans la bulle (partie F), .accord-grid y est masquée. À 1440px, ce banc mesurait donc
+    // des éléments INVISIBLES (tout à 0 : « même ligne », « même hauteur » passaient à vide) puis plantait sur le clic de la partie C, tout en
+    // imprimant un bilan vert. La ligne se joue désormais sous le seuil (860px), là où elle vit encore jusqu'au lot 10, comme les autres bancs du
+    // mode Ajout ; et l'on exige qu'elle soit VISIBLE avant de la mesurer.
+    // 860 (sous le seuil de l'ordinateur), 390 (téléphone courant), 320 (le plus étroit qu'on vise).
+    for (const vp of [{ width: 860, height: 950 }, { width: 390, height: 844 }, { width: 320, height: 640 }]) {
         const p = await ouvrir(browser, vp);
         p.on('pageerror', e => erreurs.push(vp.width + 'px : ' + e.message));
         const m = await p.evaluate(mesurer);
-        exiger(!!m.root && !!m.quality && !!m.duree, `${vp.width}px : les trois commandes sont présentes`);
+        exiger(!!m.root && !!m.quality && !!m.duree && m.root.l > 0 && m.quality.l > 0 && m.duree.l > 0, `${vp.width}px : les trois commandes sont présentes et visibles`);
         check(m.root.t === m.quality.t && m.root.t === m.duree.t,
             `${vp.width}px : fondamentale, type et durée sur la MÊME ligne — hauts ${m.root.t}/${m.quality.t}/${m.duree.t}`);
         check(m.root.h === m.duree.h,
@@ -84,8 +89,8 @@ async function ouvrir(page, vp) {
     await etroit.close();
 
     // === C. La rangée d'origine a disparu, et le clic réel marche toujours ===
-    const p = await ouvrir(browser, { width: 1440, height: 950 });
-    p.on('pageerror', e => erreurs.push('ordinateur : ' + e.message));
+    const p = await ouvrir(browser, { width: 860, height: 950 });
+    p.on('pageerror', e => erreurs.push('860px : ' + e.message));
     const m = await p.evaluate(mesurer);
     check(!m.ancienneRangee, 'la rangée #lecture-row a bien disparu : elle ne portait plus qu\'une commande');
     check(m.colonnes === 3, `la ligne d'accord compte trois colonnes — ${m.colonnes}`);
@@ -122,6 +127,17 @@ async function ouvrir(page, vp) {
     check(enEdition.colonnes === 2, `et la ligne se referme sur deux colonnes — ${enEdition.colonnes}`);
     check(enEdition.largeurRoot > m.root.l,
         `les deux menus restants reprennent la place libérée — ${m.root.l}px en Ajout, ${enEdition.largeurRoot}px en Modification`);
+
+    // === F. À l'ordinateur, la durée vit dans la bulle (lot 6b/6c), et la ligne d'accord n'y est plus ===
+    const o = await ouvrir(browser, { width: 1440, height: 950 });
+    o.on('pageerror', e => erreurs.push('ordinateur : ' + e.message));
+    check(await o.evaluate(() => getComputedStyle(document.querySelector('.accord-grid')).display === 'none' || document.querySelector('.accord-grid').getBoundingClientRect().width === 0),
+        'ordinateur : la ligne de l\'accord n\'est pas affichée (rien aux deux endroits)');
+    await o.click('#progression-sections .grid-cell[data-index="0"]');
+    await o.waitForTimeout(300);
+    const bulleDuree = await o.evaluate(() => { const b = document.getElementById('bulle-accord'); const d = b && !b.hidden && b.querySelector('.bulle-duree'); return d ? { txt: d.textContent.trim(), l: d.getBoundingClientRect().width } : null; });
+    check(!!bulleDuree && bulleDuree.l > 0 && /mes|temps/.test(bulleDuree.txt), `ordinateur : un clic sur la case ouvre la bulle, qui dit la durée — « ${bulleDuree && bulleDuree.txt} »`);
+    await o.close();
 
     check(erreurs.length === 0, `aucune erreur JavaScript — ${erreurs.join(' | ') || 'aucune'}`);
     await browser.close();

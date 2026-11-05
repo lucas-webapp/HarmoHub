@@ -67,7 +67,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.waitForTimeout(150);
     r = await page.evaluate(() => ({ selectedIndex: window.app.selectedIndex, editingIndex: window.app.editingIndex }));
     console.log(JSON.stringify(r));
-    console.log((r.selectedIndex === 1 && r.editingIndex === 1) ? 'PASS (la sélection recule d\'un cran)' : 'FAIL');
+    console.log((r.selectedIndex === 1 && r.editingIndex === 1) ? "PASS (la sélection recule d\'un cran)" : 'FAIL');
 
     console.log('--- Shift+ArrowRight: should extend chord 1 duration by 1 beat ---');
     let beatsBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[1].beats);
@@ -80,7 +80,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     // Number(...) : le live-apply (voir commitLiveEdit) sérialise désormais aussi ce champ depuis le
     // panneau (une <select>.value est toujours une string), comme le faisait déjà l'ancien bouton
     // "Modifier" pour tous les autres champs — beatsFromData() le relit de toute façon avec parseInt.
-    console.log((Number(beatsAfter) === Number(beatsBefore) + 1) ? 'PASS (Maj+flèche étire bien la case de l'accord OUVERT)' : 'FAIL');
+    console.log((Number(beatsAfter) === Number(beatsBefore) + 1) ? "PASS (Maj+flèche étire bien la case de l'accord OUVERT)" : 'FAIL');
 
     console.log('--- Letter key "G": should open inline rename with G already typed ---');
     await page.keyboard.press('g');
@@ -100,7 +100,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.waitForTimeout(150);
     let countAfter = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords.length);
     console.log('count before/after delete:', countBefore, countAfter);
-    console.log((countAfter === countBefore - 1) ? 'PASS (Suppr efface bien l'accord OUVERT)' : 'FAIL');
+    console.log((countAfter === countBefore - 1) ? "PASS (Suppr efface bien l'accord OUVERT)" : 'FAIL');
 
     console.log('Errors:', JSON.stringify(errors));
     await browser.close();

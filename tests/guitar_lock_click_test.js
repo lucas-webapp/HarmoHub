@@ -1,11 +1,14 @@
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
-let PASS = 0, FAIL = 0;
-function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label); } else { FAIL++; console.log('FAIL - ' + label); } }
+const { plan, check, bilan } = require('./_harness')('Cadenas : ajouter puis ouvrir un accord');
 
+// 05/11 (sous-lot « Bancs fiables ») : cette sonde ne vérifiait rien (« sans verdict » à chaque relevé) et, depuis le lot 6c, plantait à
+// l'ordinateur sur « Ajouter » (#save), masqué hors du mode Ajout du téléphone. Jouée sous le seuil (860px), là où la carte garde ce mode
+// jusqu'au lot 10, elle vérifie désormais ce qu'elle préparait : l'accord ajouté au vrai clic, puis le double-clic qui l'ouvre, cadenas en vue.
 (async () => {
+    plan(2);
     const browser = await chromium.launch();
-    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const page = await browser.newPage({ viewport: { width: 860, height: 900 } });
     const pageErrors = [];
     page.on('pageerror', (e) => pageErrors.push(e.message));
 
@@ -22,16 +25,18 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     await page.click('#save'); // "Ajouter" button in add mode
     await page.waitForTimeout(200);
 
-    // Double click first chord chip in the grid to enter edit mode (real UI interaction)
-    const chip = await page.$('.progression-sections .chord-block, .progression-sections .chord-item, .progression-sections [data-index]');
-    console.log('chip found:', !!chip);
+    const cases = await page.evaluate(() => document.querySelectorAll('#progression-sections .grid-cell[data-index]').length);
+    check(cases === 1, `« Ajouter » pose un accord dans la grille (${cases} case)`);
 
-    // fall back: use app method to find selector used for chord chips
-    const chipSelectorInfo = await page.evaluate(() => {
-        const el = document.querySelector('#progression-sections');
-        return el ? el.innerHTML.slice(0, 500) : 'NOT FOUND';
+    // Double-clic sur le bas de la case (le centre porte le symbole) : l'accord s'ouvre en modification, le cadenas de la guitare en vue.
+    const box = await page.locator('#progression-sections .grid-cell[data-index="0"]').boundingBox();
+    await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height - 6);
+    await page.waitForTimeout(400);
+    const ouvert = await page.evaluate(() => {
+        const b = document.getElementById('guitar-lock-btn'); const r = b && b.getBoundingClientRect();
+        return { ed: window.app.editingIndex, cadenas: !!r && r.width > 0 && r.height > 0 };
     });
-    console.log(chipSelectorInfo);
-
+    check(ouvert.ed === 0 && ouvert.cadenas, `le double-clic ouvre l'accord, cadenas visible (édition ${ouvert.ed}, cadenas ${ouvert.cadenas})`);
     await browser.close();
+    bilan();
 })().catch((e) => { console.error('FATAL', e); process.exit(2); });

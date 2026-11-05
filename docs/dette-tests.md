@@ -5601,3 +5601,56 @@ identifiants) ; `synchro_paroles` (la page Paroles écrit aussi les documents de
 **Balayages (05/11).** Ciblé (33 suites) : 30 verts, `probe_defilement_tactile` rouge et `smoke` sans verdict (ligne de base), `synchro_paroles` rouge
 (2, réécrit ci-dessus ; l'échec réseau de l'envoi des versions passé en avertissement). Complet n°1 sans valeur (serveur de test arrêté en route).
 **Complet n°2 : 233 verts, 5 rouges, 7 sans verdict (245 suites), exactement la ligne de base. Aucune régression.**
+
+## Sous-lot « Bancs fiables » : un plantage compte rouge, quatre bancs réparés, un vrai défaut du cadenas corrigé (2026-11-05)
+
+Points 12, 13 et 14 des décisions du 05/11.
+
+**Relevé (point 12).** `run_all_fast.sh` et `run_cible.sh` comptent ROUGE tout journal qui contient une ligne `FATAL` ou une trace d'exception non rattrapée
+de Node (`Node.js vNN`), même suivie d'un bilan sans échec. Les PASS d'un banc qui meurt en route ne valent que pour ce qu'il a eu le temps de faire.
+Éprouvé sur des journaux factices (FATAL puis bilan vert : rouge ; trace de Node sans bilan : rouge ; bilan vert seul : vert).
+
+**Bancs qui plantaient en silence, réparés.** Tous ont la même cause : depuis le lot 6c, `.accord-grid` (`#root`, `#quality`, la durée) et « Ajouter » sont
+masqués à l'ordinateur (« rien aux deux endroits »).
+- `ajout_modif` (51, vrais gestes). Le type puis la fondamentale se choisissent dans la bulle rouverte sur l'accord en cours. La section G ouvrait l'accord par
+  `window.app.editChord` ; elle passe désormais par la bulle et « Réglages du son ». Contrat d'annulation de la refonte (« une bulle = UNE étape ») : un Ctrl+Z défait la
+  session de l'inspecteur, un second le choix fait dans la bulle (deux contrôles au lieu d'un). **Le banc, enfin allé au bout, a trouvé un vrai défaut** : appuyer
+  sur la case « + » pendant une modification ferme l'inspecteur dès l'appui, la grille s'élargit sous le pointeur, et le relâcher tombe sur le fond de la grille.
+  Ce clic passait pour un clic « à côté » : la grille était reconstruite, le champ détruit, le focus perdu. Corrigé dans le gestionnaire du clic à côté
+  (`_ajoutEngageA`, posé au focusin de la case « + ») ; sabotage : rouge.
+- `duree_sur_la_ligne_accord` (25). La ligne se mesurait à 1440 px sur des éléments invisibles (tout valait 0, « même ligne » passait à vide), puis le banc
+  plantait sur un clic et imprimait un bilan vert. Il se joue désormais à 860 / 390 / 320 px et exige que les commandes soient VISIBLES. Nouvelle partie F :
+  à l'ordinateur, la ligne n'est pas affichée et la bulle dit la durée. Sabotages : hauteur de la durée au téléphone (3 rouges), durée de la bulle masquée (rouge).
+- `glock_full_real_ui` (33, ordinateur). L'ajout se fait désormais en tapant le nom dans la case « + » (C, Am7, D7, Entrée). Le banc plantait après UN seul PASS,
+  et le relevé le comptait vert. Sabotage du verrou dans le chemin de l'aperçu (celui de l'ordinateur) : 4 rouges.
+- `guitar_lock_click` (2, 860 px). C'était une sonde sans vérification (« sans verdict » de la ligne de base) qui plantait sur `#save` ; elle vérifie désormais
+  l'ajout et l'ouverture au double-clic, cadenas visible.
+
+**`glock_unlock_and_switch` (point 13) : un VRAI défaut, pas le minutage.** Le banc a été tracé sous charge (4 exemplaires en parallèle, environ 1 échec sur 8).
+Après `editChord(0)`, une croche en retard de l'écoute de l'accord 1 passait par le verrou VIVANT : `Tone.Draw` garde sa propre file, que
+`Transport.cancel()` ne vide pas. Elle consommait `_keepGuitarLockOnce` avec l'identité de l'accord 1, et le recalcul de l'accord 0 effaçait son cadenas. C'est
+la même famille que c7060b1 (03/08, « cadenas effacé par stopAll() à chaque lecture automatique »), par un autre chemin. Correctif : `schedulePlayback` estampille
+ses croches de dessin avec `_playGen`, et une lecture arrêtée ne dessine plus rien. Vérifié : 24 sur 24 verts sous charge, plus aucune croche périmée dans les
+traces. Le banc joue désormais le scénario deux fois : tel quel, puis avec des images retardées de 150 ms (`requestAnimationFrame` différé, comme sur un appareil
+occupé). Sans la correction : 4 FAIL trois fois sur trois ; avec : 14 sur 14. Le défaut ne dépend plus du hasard de la charge pour se montrer. Le banc passe sur
+`_harness` (`plan(14)`) ; `meta_suite --maj` fige le gain.
+
+**Durées (point 14).** Le relevé donne les 12 suites les plus lentes et le temps cumulé ; les durées vont dans `/tmp/sweep_durees.txt`. La phase parallèle fait
+partir les plus longues d'abord, d'après le balayage précédent, ou à défaut d'après une liste connue. Par ordre alphabétique, `synchro_cloud`, `verre` et
+`verre_compte` partaient parmi les dernières, et le balayage les attendait seules. On n'a raccourci AUCUN banc : les pauses de `synchro_cloud` (66 s sur environ 160)
+attendent le délai d'envoi de `synchro-cloud.js` (fichier partagé, intouchable), et plusieurs prouvent qu'il ne se passe RIEN (pas de boucle) ; les écourter
+affaiblirait le banc.
+
+**Révélés par la nouvelle règle au balayage complet, réparés.** Ces quatre bancs plantaient déjà avant ce sous-lot, et le relevé les comptait verts.
+- `grille_raccourcis_clavier` : une ERREUR DE SYNTAXE (apostrophes non échappées dans deux libellés « PASS (… l'accord OUVERT) »). Le banc ne s'exécutait
+  plus du tout ; il rend désormais ses 6 PASS.
+- `rangement_fichiers` : `p2` au lieu de `p3` (la page Paroles). Les 9 dernières vérifications étaient sautées ; 33 sur 33.
+- `guitar_override` : la carte en mode Ajout, à 1100 px (`#save` masqué depuis le lot 6c), plantait après 19 PASS ; joué à 860 px : 30 sur 30.
+- `zoom_coherence` : le séquenceur COMPACT vit dans le cadre de la carte Accord, masqué à l'ordinateur hors modification. Il se joue à 860 px (15 PASS), et la
+  partie Z2 (pincement de la grille de l'ordinateur) repasse à 1400 px : sous le seuil, le pincement suit Compact / Normal / Large (lot 10c). 16 sur 16.
+
+**Balayages (05/11).** Ciblé (24 suites) : il a révélé `glock_full_real_ui` et `guitar_lock_click` (plantages, réparés plus haut) ; `meta_suite` signalait la dette
+en baisse, d'où `--maj`. **Complet : 230 verts, 9 rouges, 6 sans verdict (245 suites).** Les 9 rouges : les 5 de la ligne de base, plus les quatre plantages
+anciens ci-dessus, tous réparés ensuite ; le code de l'appli n'a pas bougé depuis ce balayage. Rejoués seuls avec `meta_suite` et `sentinelle_adresses` : tous verts.
+**Nouvelle ligne de base : 5 rouges (inchangés), 6 sans verdict** (`guitar_lock_click` a désormais un verdict). `glock_unlock_and_switch` n'est plus intermittent.
+Durées : 3290 s cumulées ; les plus lentes sont `synchro_cloud` 182 s, `verre` 88 s, `verre_compte` 74 s, `historique_versions` 71 s, `synchro_paroles` 65 s.

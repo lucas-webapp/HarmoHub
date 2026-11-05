@@ -48,16 +48,18 @@ async function clickCellSafe(page, section, index) {
     check(await page.evaluate(() => window.app.showGuitarViz()), "vue guitare activée via clic réel");
 
     // Add 3 different chords via real UI: C maj, A min7, D7 (chosen for multiple fingering options)
-    const addChord = async (root, quality) => {
-        await page.selectOption('#root', root);
-        await page.selectOption('#quality', quality);
-        await page.waitForTimeout(100);
-        await page.click('#save');
-        await page.waitForTimeout(150);
+    // 05/11 (sous-lot « Bancs fiables ») : depuis le lot 6c, #root, #quality et « Ajouter » sont masqués à l'ordinateur (« rien aux deux
+    // endroits ») ; le banc plantait ici après UN seul PASS, et le relevé, faute de bilan, le comptait vert. L'ajout se fait désormais comme
+    // l'utilisateur à l'ordinateur : taper le nom dans la case « + » de la partie, Entrée (le champ reprend le focus pour enchaîner).
+    const addChord = async (symbole) => {
+        await page.click('.cell-add-input');
+        await page.keyboard.type(symbole);
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(250);
     };
-    await addChord('C', 'maj');
-    await addChord('A', 'min7');
-    await addChord('D', 'dom7');
+    await addChord('C');
+    await addChord('Am7');
+    await addChord('D7');
     await page.waitForTimeout(200);
 
     const chordCount = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords.length);

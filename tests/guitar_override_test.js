@@ -6,7 +6,9 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
 
 (async () => {
     const browser = await chromium.launch();
-    const page = await browser.newPage({ viewport: { width: 1100, height: 1000 } });
+    // 05/11 (sous-lot « Bancs fiables ») : 860px, sous le seuil. Le banc éprouve la carte Accord en mode Ajout (« Ajouter », #save), masquée à
+    // l'ordinateur depuis le lot 6c : il plantait sur #save après 19 PASS, et le relevé le comptait vert. DETTE : à reprendre au lot 10.
+    const page = await browser.newPage({ viewport: { width: 860, height: 1000 } });
     const errors = [];
     page.on('pageerror', e => errors.push('pageerror: ' + e.message));
 

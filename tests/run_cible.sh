@@ -70,7 +70,9 @@ verts=0; rouges=0; muets=0
 for f in $SEL; do
     log="/tmp/cible_out/${f}.log"; sec=$(cat "/tmp/cible_out/${f}.sec" 2>/dev/null || echo "?")
     bilan=$(grep -oE "[0-9]+ PASS / [0-9]+ FAIL" "$log" | tail -1)
-    if [ -n "$bilan" ]; then
+    # Plantage = rouge, même suivi d'un bilan sans échec (même règle que run_all_fast.sh, décision du 05/11).
+    if grep -qE "^FATAL|^Node\.js v[0-9]" "$log"; then rouges=$((rouges+1)); echo "ROUGE  ${f%_test.js}  (plantage, ${sec}s) -- $(grep -m1 -E "^FATAL|Error|^Node\.js v" "$log" | cut -c1-90)"
+    elif [ -n "$bilan" ]; then
         echecs=${bilan##*/ }; echecs=${echecs%% FAIL}
         if [ "$echecs" = "0" ]; then verts=$((verts+1)); else rouges=$((rouges+1)); echo "ROUGE  ${f%_test.js}  ($bilan, ${sec}s)"; grep -E "^FAIL" "$log" | head -3 | cut -c1-200; fi
     elif grep -qE "^FAIL|FAIL - " "$log"; then rouges=$((rouges+1)); echo "ROUGE  ${f%_test.js}  (banc sans bilan, ${sec}s)"

@@ -18,7 +18,10 @@ async function openSeq(page) {
 (async () => {
     const browser = await chromium.launch();
     const errors = [];
-    const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+    // 05/11 (sous-lot « Bancs fiables ») : 860px, sous le seuil. Le séquenceur COMPACT vit dans le cadre de la carte Accord, masqué à
+    // l'ordinateur hors modification depuis le lot 6c : le banc plantait sur #seq-zoom-in-h-inline invisible après 5 PASS, compté vert.
+    // DETTE : à reprendre au lot 10f (éditeur de notes au téléphone).
+    const page = await browser.newPage({ viewport: { width: 860, height: 1000 } });
     page.on('pageerror', e => errors.push('pageerror: ' + e.message));
     await page.goto(`${BASE}/index.html`);
     await page.waitForTimeout(700);
@@ -113,7 +116,10 @@ async function openSeq(page) {
     // ============================================================
     // === Z2. Le pincer-zoomer existe désormais partout ===
     // ============================================================
-    // Pincement synthétique à 2 doigts sur la grille classique, qui n'en avait aucun.
+    // Pincement synthétique à 2 doigts sur la grille classique, qui n'en avait aucun. À l'ORDINATEUR (1400px) : sous le seuil, depuis le
+    // lot 10c, le pincement passe par Compact / Normal / Large, la préférence du téléphone (telephone_reglages l'éprouve), pas par ce niveau.
+    await page.setViewportSize({ width: 1400, height: 1000 });
+    await page.waitForTimeout(400);
     const before = await page.evaluate(() => window.app.classicGridZoomLevelY);
     await page.evaluate(async () => {
         const el = document.getElementById('progression-sections');

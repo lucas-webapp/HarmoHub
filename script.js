@@ -5011,6 +5011,13 @@ class HarmoHubApp {
             // large l'écart mesuré entre la fin d'un défilement et un clic-fantôme qui le suit, sans
             // pour autant retarder perceptiblement un vrai clic juste après un vrai petit défilement.
             if (Date.now() - dernierDefilementA < 350) return;
+            // La case « + » engagée PENDANT une modification (05/11, trouvé en réparant ajout_modif) : l'appui donne le focus au champ, le focusin
+            // referme l'accord (leaveEditForNewChord), l'inspecteur de droite disparaît et la grille s'élargit SOUS le pointeur — le relâcher
+            // tombe alors sur le fond de la grille, et le clic, recalé sur leur ancêtre commun (.chord-grid), passait pour un clic « à côté » :
+            // grille reconstruite, champ détruit, focus perdu. Tant que le champ « + » garde le focus juste après l'avoir pris, ce clic est le
+            // sien. (Un vrai clic ailleurs aurait déplacé le focus dès l'appui, donc ne tombe pas sous ce cas.)
+            const actif = document.activeElement;
+            if (actif && actif.matches && actif.matches('.cell-add-input') && Date.now() - (this._ajoutEngageA || 0) < 1000) return;
             // e.target.closest(...) suit le DOM ACTUEL, pas celui d'au moment du clic : un bouton du
             // séquenceur (ex. « + » une note libre, voir addSequencerNote) déclenche souvent un
             // renderSequencer() synchrone qui remplace tout le HTML du panneau — DONC son propre
@@ -6746,10 +6753,18 @@ class HarmoHubApp {
         // trackPlayhead (uniquement pour playCurrent, jamais pour la lecture de toute la grille où
         // l'accord affiché dans le panneau n'est pas forcément celui qui sonne) anime en plus le
         // curseur de lecture du séquenceur, s'il est ouvert sur cet accord.
+        // Génération de la lecture qui programme ces croches (voir this._playGen, incrémenté par stopAll). Tone.Draw garde SA PROPRE file :
+        // Transport.cancel() n'en retire rien, et une croche déjà confiée au dessin s'exécute encore APRÈS l'arrêt. Défaut réel trouvé le
+        // 05/11 (glock_unlock_and_switch, rouge une fois sur deux à cinq sous charge, tracé) : une croche en retard de l'écoute de l'accord 1
+        // passait par le verrou VIVANT juste après editChord(0) — elle consommait _keepGuitarLockOnce avec l'identité de l'accord 1, et le
+        // recalcul suivant, celui de l'accord 0, effaçait son cadenas (« un doigté verrouillé se rouvre déverrouillé »). Une lecture arrêtée
+        // ne dessine plus rien.
+        const genLecture = this._playGen;
         for (let s = 0; s < steps; s++) {
             const activeMidis = seqPattern[s].map(v => midis[v]);
             eventIds.push(Tone.Transport.schedule((t) => {
                 Tone.Draw.schedule(() => {
+                    if (genLecture !== this._playGen) return;
                     // Ce bloc tourne à CHAQUE croche de CHAQUE accord pendant la lecture de toute la
                     // grille : une exception ici importe silencieusement TOUT le traitement des
                     // évènements suivants du transport (même constat que pour triggerAttackRelease,
@@ -15740,6 +15755,7 @@ class HarmoHubApp {
         // ce sujet change quand on change de cible.
         host.addEventListener('focusin', (e) => {
             if (!e.target.matches('.cell-add-input') || this.editingIndex == null) return;
+            this._ajoutEngageA = Date.now(); // lu par le clic à côté (voir « La case « + » engagée PENDANT une modification »)
             this.leaveEditForNewChord();
         });
         // Case "+" en bout de grille (voir buildAddCellHtml) : Entrée ajoute l'accord tapé. Échap vide

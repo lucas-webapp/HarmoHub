@@ -152,8 +152,12 @@ const etat = (page) => page.evaluate(() => ({
     // accord. Le symbole doit donc être exempté — c'est de la musique, pas de la décoration.
     check(e.titreRendu === 'none', `le symbole garde sa casse (text-transform ${e.titreRendu})`);
 
-    // Le titre suit les modifications en direct
-    await page.selectOption('#quality', 'min7'); await page.waitForTimeout(500);
+    // Le titre suit les modifications en direct. Depuis le lot 6c, le TYPE ne se règle plus dans l'inspecteur (« rien aux deux endroits » :
+    // #quality y est masqué, c'est là que le banc plantait) mais dans la bulle : on rouvre la bulle de l'accord en cours d'édition et on y
+    // choisit « Min 7 », le geste de l'utilisateur d'aujourd'hui. Ce qui est prouvé ne change pas : le titre de l'inspecteur suit en direct.
+    const pc = await pointNu(page, 0);
+    await page.mouse.click(pc.x, pc.y); await page.waitForTimeout(300);
+    await page.click('#bulle-accord [data-bulle="quality"][data-valeur="min7"]'); await page.waitForTimeout(500);
     e = await etat(page);
     check(e.titre.replace(/\s+/g, '') === 'ModifierCm7', `le titre suit la modification en direct (${e.titre})`);
     await ouvrirSon(page, 1);
@@ -299,8 +303,13 @@ const etat = (page) => page.evaluate(() => ({
     // ============================================================
     console.log('\n=== G. Application en direct (inchangée) ===');
     // ============================================================
-    await page.evaluate(() => window.app.editChord(0, 1)); await page.waitForTimeout(400);
-    await page.selectOption('#root', 'F'); await page.waitForTimeout(300);
+    // Réécrit le 05/11 : ouvrir par window.app.editChord et choisir la fondamentale par #root ne passaient plus — #root est masqué à l'ordinateur
+    // depuis le lot 6c (« rien aux deux endroits » : la fondamentale se règle dans la bulle). Vrais gestes : la bulle, « Réglages du son »,
+    // puis « F » dans la bulle rouverte sur le même accord.
+    await ouvrirSon(page, 1);
+    const pf = await pointNu(page, 1);
+    await page.mouse.click(pf.x, pf.y); await page.waitForTimeout(300);
+    await page.click('#bulle-accord [data-bulle="root"][data-valeur="F"]'); await page.waitForTimeout(300);
     check(await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[1].root === 'F'),
         'changer la fondamentale s\'écrit tout de suite, sans bouton Valider');
     // L'octave se règle désormais par le PAS-À-PAS de la rangée de voicing, plus par une liste
@@ -318,9 +327,16 @@ const etat = (page) => page.evaluate(() => ({
     await page.waitForTimeout(300);
     await page.keyboard.down('Control'); await page.keyboard.press('z'); await page.keyboard.up('Control');
     await page.waitForTimeout(400);
+    // Contrat de la refonte (docs/refonte.md : « Une bulle = UNE étape d'annulation ») : la fondamentale choisie dans la bulle et la session
+    // de l'inspecteur sont deux étapes. Un Ctrl+Z défait toute la session de l'inspecteur (l'octave), un second le choix de la bulle.
     const apres = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[1]);
-    check(apres.root === 'D' && String(apres.octave) === '4',
-        `un seul Ctrl+Z annule toute la session d'édition (${apres.root}, octave ${apres.octave})`);
+    check(apres.root === 'F' && String(apres.octave) === '4',
+        `un Ctrl+Z annule toute la session de l'inspecteur, pas le choix de la bulle (${apres.root}, octave ${apres.octave})`);
+    await page.keyboard.down('Control'); await page.keyboard.press('z'); await page.keyboard.up('Control');
+    await page.waitForTimeout(400);
+    const apres2 = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[1]);
+    check(apres2.root === 'D' && String(apres2.octave) === '4',
+        `un second Ctrl+Z annule le choix de la bulle (${apres2.root}, octave ${apres2.octave})`);
 
     await browser.close();
     console.log('\nErreurs page : ' + (errors.length ? errors.join(' | ') : 'aucune'));
