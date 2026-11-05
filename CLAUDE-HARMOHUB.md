@@ -4,12 +4,28 @@ Mis à jour le 05/11/2026, après le sous-lot « Paroles homogènes » (suppress
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
-- **Prochain : 10d (panneau d'accord)**, section « Lot 10 » plus bas. On peut commencer sans rien demander ; boucle d'un lot dans `CLAUDE.md`.
-- **Ensuite** : 10e (panneau d'ajout), 10f (éditeur de notes au téléphone), dans cet ordre (dépendances). L'utilisateur peut changer l'ordre en
-  lançant `/reprise`.
-- **À proposer à l'utilisateur, sans bloquer la suite** : les deux décisions du 10c à confirmer (plus bas), les deux points des « Paroles homogènes »
-  (plus bas), les points ouverts des lots 10b, 9c et 9d,
-  et les défauts anciens `ajout_modif` / `duree_sur_la_ligne_accord` (hors lot, même règle du relevé).
+- **Décisions du 05/11 (soir), réponses aux points en attente** — elles remplacent les questions « à confirmer » plus bas :
+  - **Versions au cloud** : « toutes les versions stockées dans le firestore », celles des **morceaux** ET des **paroles**, donc sur tous les appareils ;
+    « s'il y a un problème de place, il faut garder moins de versions que prévu […] le minimum acceptable (environ 3 à 5 versions) ». La page
+    Paroles ouverte SEULE doit aussi lister et restaurer ses versions (« oui on restaure »).
+  - 10c : (1) le tempo reste dans la barre-résumé ; (2) Compact / Normal / Large et le pincement restent une préférence de l'appareil ; (3) Transposer :
+    « fais au plus logique, le but est de garder une option me permettant de transposer le morceau d'un seul clic » → la ligne sous les cases reste.
+  - Éditeur de notes : (4) l'éditeur SUIT la sélection (un clic sur une autre case de la grille l'y amène) ; (5) une opération de partie (monter,
+    dupliquer, supprimer) garde l'édition OUVERTE ; (6) ouverture sur un accord grave : pas de recentrage (« tu peux me laisser scroller », comme
+    GarageBand), rien à changer ; (7) bande de la règle : « au plus cohérent, cela doit me faciliter l'usage » → opaque comme la bande d'intensité ;
+    (8) gestes de la bande d'intensité : garder glisser / double-clic (cohérent avec le mode studio).
+  - Clavier : (9) « se souvenir de mes derniers paramètres dans chaque morceau » → l'état ouvert / fermé du clavier (tiroir) est retenu PAR MORCEAU ;
+    (10) la bulle qui recouvre les touches d'un accord grave : OK tel quel.
+  - (11) Clavier / Guitare en plein écran au téléphone avec le 10f, dock de la Modification jusqu'au 10d : OK.
+  - Bancs : (12) le relevé compte un FATAL comme rouge, et `ajout_modif` / `duree_sur_la_ligne_accord` sont réparés ; (13) corriger
+    `glock_unlock_and_switch` (doigté verrouillé rouvert déverrouillé ; « ce problème était déjà arrivé plusieurs fois et tu avais réussi à le
+    réparer » : chercher l'ancien correctif dans `git log`) ; (14) durées par suite dans le relevé et raccourcir les plus lentes, « uniquement si cela
+    n'altère pas la qualité des bancs » — et si cela réduit la consommation de tokens.
+- **Prochain : sous-lot « Versions au cloud »** (décision ci-dessus). Plan : un document Firestore par morceau pour ses versions (limite de 1 Mio par
+  document), 5 versions au plus par morceau et 5 pour ses paroles au cloud (moins si le document approche la limite) ; fusion entre appareils sans
+  doublon ; Paramètres › Historique inchangé à l'usage ; liste des versions dans la page Paroles seule. On peut commencer sans rien demander.
+- **Ensuite, dans cet ordre** : « Bancs fiables » (points 12, 13, 14) ; « Éditeur et clavier » (points 4, 5, 7, 9) ; puis 10d (panneau d'accord),
+  10e (panneau d'ajout), 10f (éditeur de notes au téléphone). L'utilisateur peut changer l'ordre en lançant `/reprise`.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
@@ -21,9 +37,9 @@ Mis à jour le 05/11/2026, après le sous-lot « Paroles homogènes » (suppress
   et quatre cases, Affichage, en-tête de partie), **« Paroles homogènes » livré** (supprimer un morceau supprime ses paroles partout, Ctrl+Z les
   ramène ; synchro des paroles dès l'ouverture une fois connecté, cadre Paroles chargé en arrière-plan ; versions des paroles dans Paramètres ›
   Historique, base `harmohub-historique-paroles` ; banc `paroles_homogenes`). **Prochain : 10d.**
-- **Deux points des « Paroles homogènes », à proposer** : (1) les versions des paroles restent PAR APPAREIL (IndexedDB), comme celles des morceaux ;
+- **Deux points des « Paroles homogènes » (tranchés le 05/11 : versions au cloud, voir « Suite à faire »)** : (1) les versions des paroles restent PAR APPAREIL (IndexedDB), comme celles des morceaux ;
   (2) la page Paroles ouverte SEULE (favori) n'a pas de liste des versions : on restaure depuis HarmoHub (Paramètres › Historique).
-- **Deux décisions du 10c, à confirmer avec l'utilisateur** : (1) la barre-résumé dit aussi le TEMPO (« C majeur · 120 BPM · 4/4 · Droit · Piano »),
+- **Deux décisions du 10c (confirmées le 05/11, voir « Suite à faire »)** : (1) la barre-résumé dit aussi le TEMPO (« C majeur · 120 BPM · 4/4 · Droit · Piano »),
   que la maquette n'y mettait pas — pour tenir son exigence « toujours voir tonalité et tempo » (`filet_toujours_visible`) ; (2) Compact / Normal /
   Large et le pincement du téléphone sont une préférence de l'APPAREIL (`harmohubGrilleTelephone`), pas du morceau : les échelles du morceau restent
   celles de l'ordinateur (un morceau en Détaillé donnait des cases de 103 px au téléphone). Aussi : Transposer garde une ligne sous les cases (absent de
@@ -61,15 +77,15 @@ Mis à jour le 05/11/2026, après le sous-lot « Paroles homogènes » (suppress
   4 sur 4 en quatre passages simultanés, l'ancienne version rouge 4 sur 4 (détail dans `docs/dette-tests.md`).
 - **Défaut ancien, intermittent** (`glock_unlock_and_switch`, 860 px) : un doigté verrouillé, enregistré, se rouvre parfois déverrouillé après un aller-retour avec
   lecture automatique (`guitarLock` du morceau présent, `app.guitarLock` nul). Rouge environ une fois sur deux à cinq, sur le commit d'avant le lot 9a aussi.
-- **Points ouverts du lot 9c (constatés, déjà vrais avant le lot, vérifiés sur `649dd77`)** : éditeur ouvert, un clic sur une AUTRE case de la grille la
+- **Points ouverts du lot 9c (tranchés le 05/11, voir « Suite à faire » ; constatés, déjà vrais avant le lot, vérifiés sur `649dd77`)** : éditeur ouvert, un clic sur une AUTRE case de la grille la
   sélectionne mais l'éditeur garde l'accord d'avant (on change d'accord par la zone de l'accord voisin, dans l'éditeur) ; une opération de partie (monter, dupliquer,
   supprimer) termine l'édition de l'accord, l'éditeur montre alors l'accord seul. À proposer à l'utilisateur (faire suivre la sélection par l'éditeur ?). Aussi : à
   l'ouverture sur un accord grave, la bande verticale peut s'ouvrir au-dessus des notes (il faut défiler pour les voir).
-- **Points ouverts du lot 9d** : l'ouverture de l'éditeur au-dessus des notes (point du 9c ci-dessus) se voit davantage avec la bande d'intensité allumée
+- **Points ouverts du lot 9d (tranchés le 05/11, voir « Suite à faire »)** : l'ouverture de l'éditeur au-dessus des notes (point du 9c ci-dessus) se voit davantage avec la bande d'intensité allumée
   (mesuré sur le commit d'avant aussi : `scrollTop` 0, notes 416 px plus bas, vue de 194 px) — c'est le premier point à proposer. La bande de la RÈGLE
   (`.seq-ruler-band`) prend `--card-bg`, translucide verre allumé (mesuré : 5,5 % d'opacité) : les notes qui défilent dessous se devinent à travers (la bande d'intensité, elle, est
   opaque). Les gestes de la bande sont ceux du mode studio (glisser, double-clic) ; la maquette faisait tourner les valeurs au clic : à confirmer.
-- **Points ouverts du lot 8, à confirmer avec l'utilisateur** : le clavier s'ouvre allumé par défaut (la maquette part tiroir fermé) ; la bulle d'accord (~430 px)
+- **Points ouverts du lot 8 (tranchés le 05/11, voir « Suite à faire »)** : le clavier s'ouvre allumé par défaut (la maquette part tiroir fermé) ; la bulle d'accord (~430 px)
   peut recouvrir les touches pour un accord d'une partie basse (on la ferme, la sélection reste).
 
 ## Lot 9 — l'éditeur de notes (livré ; repères utiles au 10f)
