@@ -1,7 +1,11 @@
 .DS_Store
 _Old/
 _local_backup_pre_git/
-.claude/
+# Le dossier de Claude reste local (réglages, permissions de cette machine)… SAUF ses commandes : `/reprise` doit exister dans chaque
+# session, y compris une session cloud qui part d'un clone neuf. Ignorée avec le reste, la commande écrite dans une session n'était jamais
+# commitée, et les suivantes ne la voyaient pas (constat du 05/11).
+.claude/*
+!.claude/commands/
 
 # Captures d'écran produites par les bancs d'essai (probe_touches_piano, loupe_fullscreen...) :
 # des artefacts de diagnostic régénérés à chaque exécution, jamais du code. Quatre d'entre elles se

@@ -1,28 +1,36 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 05/11/2026, à la fin du sous-lot 10b (barre de lecture du téléphone, Structure et Paroles intégrées). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 05/11/2026, après la suite du sous-lot 10b (vitesse de lecture au téléphone, paroles copiées avec leur morceau) et la mise en place de `/reprise`. **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
 - **Prochain : sous-lot 10c** — réglages du morceau et Affichage (section « Lot 10 », point 3). Plan arrêté : on peut commencer sans rien demander à l'utilisateur ; boucle d'un lot dans `CLAUDE.md`.
-- **Ensuite** : 10d (panneau d'accord), 10e (panneau d'ajout), 10f (éditeur de notes au téléphone), dans cet ordre (dépendances).
-- **À proposer à l'utilisateur, sans bloquer le 10c** : le sous-lot « Paroles homogènes » et sa question (paroles en enregistrement manuel comme la grille, ou automatique ?), les points ouverts des lots 10b, 9c et 9d (plus bas), et le défaut ancien `ajout_modif` (hors lot).
+- **Ensuite** : le sous-lot **« Paroles homogènes »** (plan arrêté, décisions du 05/11 plus bas, dans « Où on en est »), puis 10d (panneau d'accord),
+  10e (panneau d'ajout), 10f (éditeur de notes au téléphone), dans cet ordre (dépendances). L'utilisateur peut changer l'ordre en lançant `/reprise`.
+- **À proposer à l'utilisateur, sans bloquer le 10c** : les points ouverts des lots 10b, 9c et 9d (plus bas), et le défaut ancien `ajout_modif` (hors lot).
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
 
-- **Livrés** : lots 1 à 8 (le 8 : Clavier / Guitare dans un tiroir épinglé ou en fenêtre libre, construction d'accord au clavier — commit `f82194e`).
-- **Lot 9 livré** : 9a à 9d (ouvrir / fermer / étendre ; barre d'outils en icônes ; calque Voix ; notes manuelles et bande d'intensité — voir
-  `docs/dette-tests.md`).
+- **Livrés** : lots 1 à 9 (fondations, barre de lecture, barre du haut, onglets, grille, bulle + inspecteur, ajout unique + barre de sélection,
+  Clavier / Guitare, éditeur de notes : 9a à 9d — l'icône ⊱ de conduite de voix n'existe plus qu'au téléphone). Détail : `docs/dette-tests.md`.
 - **Lot 10 en cours** (le téléphone) : découpé en six sous-lots (section « Lot 10 » plus bas) ; **10a livré** (barre du haut et onglets), **10b livré**
-  (barre de lecture fixée en bas, panneau Lecture, Structure et Paroles en vues intégrées). **Prochain : 10c**, les réglages du morceau et Affichage.
+  (barre de lecture fixée en bas, panneau Lecture avec tempo, vitesse et métronome, Structure et Paroles en vues intégrées). **Prochain : 10c**.
+- **Dernier balayage complet** (suite du 10b, commit `3c1520e`) : 230 verts sur 242, la ligne de base exacte (voir `CLAUDE.md`).
+- **Dettes connues pour le lot 10** : au téléphone, hors barre du haut, onglets, barre de lecture et vues intégrées (10a, 10b), rien n'a bougé depuis
+  le lot 6 ; 19 bancs sont joués à 860 px parce qu'ils éprouvent le mode « Ajout » de la carte Accord, qui n'existe plus que là (liste dans
+  `docs/dette-tests.md`, lot 6c) → 10e. L'ancien panneau de conduite de voix (icône ⊱) n'existe plus qu'au téléphone : `voice_leading`, `vl_loupe`,
+  `vl_pinch`, `voice_leading_section_ops` le jouent à 860 px (partie A) à côté du calque Voix (partie B) ; `calque_voix` et `notes_manuelles_intensite`
+  vérifient que le téléphone n'a PAS bougé → ces vérifications changeront de sens au 10f.
 - **Points du lot 10b, réponses du 05/11** : la vitesse de lecture est au téléphone (panneau Lecture, mention dorée à côté de « Mes. N ») ; les
   paroles « doivent être connectées au firestore directement, et doivent fonctionner comme la grille ou la structure » — elles le sont déjà
   (`synchro-paroles.js`, document `harmohub-paroles`, envoyé par la vue intégrée elle-même), pas d'entrée .json au menu Fichier ; dupliquer un
-  morceau copie désormais ses paroles. **Sous-lot à proposer, « Paroles homogènes »** : (1) supprimer un morceau supprime ses paroles (trace des
+  morceau copie désormais ses paroles. **Sous-lot « Paroles homogènes », plan arrêté** : (1) supprimer un morceau supprime ses paroles (trace des
   suppressions dans `synchro-paroles.js`) ; (2) synchro des paroles dès l'ouverture de HarmoHub (sans toucher `synchro-cloud.js`, une instance
-  par page : par exemple charger le cadre Paroles en arrière-plan une fois connecté) ; (3) À DEMANDER : les paroles en enregistrement manuel comme
-  la grille (Enregistrer, voyant), ou garder l'enregistrement automatique ? (4) les paroles dans les versions automatiques. Restent aussi du 10b :
+  par page : par exemple charger le cadre Paroles en arrière-plan une fois connecté) ; (3) **décidé le 05/11** : « Oui tu peux enregistrer les
+  paroles automatiquement » — l'enregistrement automatique reste ; (4) **décidé le 05/11** : « Garde en mémoire des sauvegardes précédentes » — les
+  paroles gardent leurs versions précédentes et se restaurent, comme les versions automatiques des morceaux (Paramètres › Historique et
+  récupération, `historique.js`). Restent aussi du 10b :
   Clavier / Guitare en plein écran (avec le 10f) ; le dock de la Modification (45 px) au-dessus de la barre jusqu'au 10d.
 - **Défaut ancien trouvé au 10b** : `ajout_modif` plante (ligne 156) et le relevé le compte vert (journal sans bilan mais avec des PASS) — à traiter hors
   lot, avec la règle du relevé.
@@ -49,7 +57,7 @@ Mis à jour le 05/11/2026, à la fin du sous-lot 10b (barre de lecture du télé
 - **Points ouverts du lot 8, à confirmer avec l'utilisateur** : le clavier s'ouvre allumé par défaut (la maquette part tiroir fermé) ; la bulle d'accord (~430 px)
   peut recouvrir les touches pour un accord d'une partie basse (on la ferme, la sélection reste).
 
-## Lot 9 — l'éditeur de notes
+## Lot 9 — l'éditeur de notes (livré ; repères utiles au 10f)
 
 Cahier des charges : `docs/refonte.md`, section « Éditeur de notes ». Maquette : page `project/Notes2.dc.html` de l'artefact (lire avec l'outil Artifact, `path`).
 
@@ -65,21 +73,7 @@ Cahier des charges : `docs/refonte.md`, section « Éditeur de notes ». Maquett
 - **Bancs qui les protègent** (à garder verts, à réécrire pour le nouveau geste, jamais supprimer) : `voice_leading*`, `vl_loupe`, `vl_pinch`, `new_voice_rule`,
   `probe_seq_*`, `seq_*` (une quarantaine), `pinned_seq_toolbar`, `loupe_*`, `grid_loupe_pinch_undo`, `sidebar_collapse_seq_height`, `volet_hauteur_poignee`.
 
-### Découpage proposé (un commit par sous-lot, banc + sabotages à chaque fois)
-
-1. ✅ **9a — Ouvrir, fermer, étendre** (livré 05/11). `#grid-zoom` porte « Éditeur de notes » sur ordinateur (« Séq. » au téléphone) ; en-tête
-   `#editeur-notes-tete` (Notes, `#editeur-notes-fermer`, `#editeur-notes-etendre`) entre la poignée et `#seq-dock-host` ; réduit = 170 px de notes ; Compact
-   PROVISOIRE (décision du 05/11 : ni modifié ni enregistré, rendu à la fermeture). L'icône de conduite de voix RESTE jusqu'au 9c (décision du 05/11).
-
-2. ✅ **9b — Barre d'outils en icônes** (livré 05/11 : une rangée, Sélection garde les gestes d'avant, Crayon, Gomme, Ajuster ; pas de calage ; le bouton Voix vient avec le 9c). Sélection / crayon / gomme (groupe segmenté), calage (grille + noire / croche / double), Voix, Intensité, Ajuster, zoom −/+,
-   supprimer la note (visible si une note est choisie). Aucune ligne d'info, aucune phrase de résumé. Les logos existants sont REPRIS (règle 2).
-3. ✅ **9c — Calque Voix** (livré 05/11 : bouton Voix au logo ⊱ repris, fonctions dans les notes, chemin des voix, nom + degré dans la règle, éteint puis
-   mémorisé, premier accord pris si rien n'est choisi ; l'icône ⊱ a quitté l'ordinateur ; inventaire dans `docs/dette-tests.md`). AVANT de fondre : inventaire une à une des fonctions de la conduite de voix (règles de voix, loupe, pincement, zooms, légende, traits)
-   avec le banc qui protège chacune ; puis fonction 1/3/5/7 écrite dans la note, trait blanc du chemin des voix. Le panneau séparé ne disparaît qu'une fois
-   chaque fonction retrouvée dans le calque.
-4. ✅ **9d — Notes manuelles et intensité** (livré 05/11 : pointillés partout à l'ordinateur, pastille en direct, « Revenir » annulable ; bouton Intensité
-   après Voix, bande collée sous les notes, voisins pâles, ambre si réglée, une annulation par geste). Notes ajoutées à la main en pointillés, pastille ambre sur la case (existe déjà, lot 5d), « Revenir à l'automatique »
-   dans l'inspecteur (existe, lot 6c) ; bande d'intensité (le « mode studio ») sous les notes.
+Découpage et livraison (9a à 9d) : `docs/dette-tests.md` et `docs/refonte.md`. Ce qui suit sert encore au lot 10f (éditeur de notes au téléphone).
 
 ### Risques connus
 

@@ -3,22 +3,19 @@
 Application web (HTML / JS / CSS, sans build) pour composer des grilles d'accords. **Tout se dit et s'écrit en français** : échanges, commentaires, messages
 de commit, journal.
 
-## Où en est le chantier
+## Le chantier
 
 La **refonte de l'interface** suit `docs/refonte.md` (règles, décisions de fond, feuille de route). Maquette validée : https://claude.ai/artifact/AMrn1tzDEBfmVij2fdfiBp
 (fichier `project/Grille2.dc.html`). Chaque lot est journalisé dans `docs/dette-tests.md`.
 
-- **Livrés** : lots 1 à 9 (fondations, barre de lecture, barre du haut, onglets, grille, bulle + inspecteur, ajout unique + barre de sélection, Clavier / Guitare, éditeur de notes).
-- **Reprise** : `CLAUDE-HARMOHUB.md` (état, plan du lot suivant, points ouverts) est importé en bas de ce fichier. Après `/clear` ou `/compact`, la commande **`/reprise`** le relit et annonce la suite prévue (section « Suite à faire »).
-- **En cours** : lot 10 (téléphone), découpé en six sous-lots (`CLAUDE-HARMOHUB.md`, section « Lot 10 ») ; **10a et 10b livrés** (barre du haut et onglets ; barre de lecture fixée en bas, panneau Lecture, Structure et Paroles en vues intégrées). **Prochain : 10c** (réglages du morceau et Affichage). Le lot 9 (éditeur de notes) est livré : 9a à 9d (ouvrir / fermer / étendre ; barre d'outils ; calque Voix ; notes manuelles en pointillés et bande d'intensité — l'icône ⊱ de conduite de voix n'existe plus qu'au téléphone).
-- **Ligne de base du balayage** (`bash tests/run_all_fast.sh`) : 235 suites, **5 rouges** déjà là avant la refonte et à ne pas confondre avec une régression
+- **L'état du chantier vit dans `CLAUDE-HARMOHUB.md`, et là seulement** (importé en bas de ce fichier) : lots livrés, lot en cours, section
+  « Suite à faire », dernier balayage, dettes et points ouverts. Ce fichier-ci ne bouge pas d'un lot à l'autre : on n'y recopie aucun état.
+- **Reprise** : après `/clear` ou `/compact`, la commande **`/reprise`** (`.claude/commands/reprise.md`, versionnée) relit « Suite à faire », vérifie le
+  dépôt, annonce la suite prévue et la commence.
+- **Ligne de base du balayage** (`bash tests/run_all_fast.sh`) : **5 rouges** déjà là avant la refonte et à ne pas confondre avec une régression
   (`probe_clic_accord_voisin`, `probe_defilement_tactile`, `probe_regle_voisins`, `probe_seq_finitions`, `seq_notes_libres_clavier`) et **7 « sans verdict »**
-  (`ctx_nav_scroll`, `detune`, `guitar_lock_click`, `instrument_stress`, `item1_hzoom_out`, `probe_cache_perime`, `smoke`). Dernier balayage (suite du lot 10b) : 230 verts sur 242, la ligne de base exacte ; `glock_unlock_and_switch` est intermittent, aussi avant le lot 9a ; `verre`, qui rougissait sous la charge du balayage parallèle (toast de l'état « tiroir »), est corrigé hors lot (le banc attend la fin du toast).
-  Toute suite rouge ou ajout de rouge hors de cette liste est une régression : on la traite avant de pousser.
-- **Dettes connues pour le lot 10** : sur téléphone (< 900 px), hors barre du haut, onglets, barre de lecture et vues intégrées (10a, 10b), rien n'a bougé depuis le lot 6 ; 19 bancs sont joués à 860 px parce qu'ils éprouvent le mode
-  « Ajout » de la carte Accord, qui n'existe plus que là (liste dans `docs/dette-tests.md`, lot 6c). Depuis le 9c, l'ancien panneau de conduite de voix (icône ⊱)
-  n'existe plus qu'au téléphone : `voice_leading`, `vl_loupe`, `vl_pinch`, `voice_leading_section_ops` le jouent à 860 px (partie A) à côté du calque Voix (partie B).
-  `calque_voix` et `notes_manuelles_intensite` vérifient que le téléphone n'a PAS bougé : ces vérifications changeront de sens au lot 10.
+  (`ctx_nav_scroll`, `detune`, `guitar_lock_click`, `instrument_stress`, `item1_hzoom_out`, `probe_cache_perime`, `smoke`). `glock_unlock_and_switch` est
+  intermittent (aussi avant le lot 9a). Toute suite rouge ou ajout de rouge hors de cette liste est une régression : on la traite avant de pousser.
 
 ## Git
 
@@ -39,7 +36,7 @@ La **refonte de l'interface** suit `docs/refonte.md` (règles, décisions de fon
    leur nom. Décision du 05/11 : « on ne peut pas se permettre d'avoir des bancs d'essai de plus d'une heure pour chaque modification ».
    **EN FIN DE LOT SEULEMENT : balayage complet** (`bash tests/run_all_fast.sh`), lancé en tâche d'arrière-plan gérée par l'outil (`run_in_background`) : un `nohup`/`setsid`
    est tué à la fin du tour, avec le serveur de test. Lire la section `RELEVÉ` en fin de log. Un balayage ciblé vert ne dispense jamais du complet avant un push.
-5. Journal dans `docs/dette-tests.md`, case du lot cochée dans `docs/refonte.md`, **section « Suite à faire » de `CLAUDE-HARMOHUB.md` réécrite** (le sous-lot suivant, ou « Rien de prévu »), commit, push.
+5. Journal dans `docs/dette-tests.md`, case du lot cochée dans `docs/refonte.md`, **`CLAUDE-HARMOHUB.md` mis à jour** (« Suite à faire » réécrite : le sous-lot suivant, ou « Rien de prévu » ; « Où on en est », dernier balayage), commit, push. `CLAUDE.md` n'est pas touché.
 
 Serveur de test : les bancs attendent `http://localhost:8934` (`python3 -m http.server 8934` depuis la racine ; `tests/watchdog.sh` le relance au besoin).
 Navigateur : Playwright et Chromium sont préinstallés, ne rien réinstaller.
