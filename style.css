@@ -7756,3 +7756,67 @@ body.avec-barre-selection .toast { bottom: 132px; }
     .seq-voix-nom { font-weight: 800; color: var(--text-main); }
     .seq-voix-degre { font-weight: 700; color: var(--text-muted); font-size: 9px; }
 }
+
+/* ---------- NOTES MANUELLES ET INTENSITÉ DANS L'ÉDITEUR DE NOTES (refonte, lot 9d — docs/refonte.md, « Éditeur de notes ») ----------
+   « Notes ajoutées à la main en pointillés + pastille ambre sur la case + Revenir à l'automatique dans l'inspecteur. Bande d'intensité (le mode
+   studio actuel) sous les notes. » En fin de feuille comme le reste de l'éditeur ; ordinateur seulement (le téléphone ne bouge pas avant le lot 10). */
+@media (min-width: 900px) {
+    /* UNE NOTE AJOUTÉE À LA MAIN : liseré en pointillés, presque vide (la maquette : fond à 8 %, liseré à 85 %). La teinte reste celle de son rôle
+       (règle 4) : ce qui change, c'est qu'elle ne vient pas du nom de l'accord. Partout à l'ordinateur — l'éditeur, le petit séquenceur de
+       l'inspecteur, les accords voisins (décision du 05/11). La sélection garde son liseré blanc (posé plus haut, même spécificité : la couleur
+       seule est reprise ici, pas le blanc). */
+    .seq-note.manuelle { border-style: dashed; }
+    .seq-note.manuelle:not(.selected) { box-shadow: none; }
+    .seq-note.manuelle.role-root { background: rgba(0, 230, 118, 0.08); }
+    .seq-note.manuelle.role-third { background: rgba(47, 129, 247, 0.08); }
+    .seq-note.manuelle.role-fifth { background: rgba(255, 59, 48, 0.08); }
+    .seq-note.manuelle.role-seventh { background: rgba(255, 179, 0, 0.08); }
+    .seq-note.manuelle.role-ext { background: rgba(224, 176, 255, 0.08); }
+    .seq-note.manuelle.selected { border-color: rgba(255, 255, 255, 0.85); }
+    .seq-ctx-note.manuelle { border-style: dashed; background: transparent; }
+}
+@media (min-width: 900px) {
+    /* LE BOUTON INTENSITÉ (le mode studio, même logo) : rangé après Voix dans l'éditeur, allumé en BLEU comme Voix et Ajuster — le vert dit
+       « lecture » (règle 5). Ailleurs à l'ordinateur, il garde son allumage d'avant. */
+    .editeur-notes-barre #toggle-studio-mode[aria-pressed="true"] {
+        color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); box-shadow: none;
+    }
+
+    /* LA BANDE D'INTENSITÉ, collée en bas de la vue comme la règle l'est en haut : fond plein (les notes défilent dessous), filet net en haut,
+       ombre portée vers les notes — le bandeau de la règle, retourné. Elle PREND les clics qui tombent entre deux barres : sans ça, un clic sur
+       la bande irait à la case cachée dessous et y dessinerait une note qu'on ne voit pas. Pas une nouvelle surface : la même matière que le
+       bandeau de la règle, portée par le volet déjà dépoli (verre-surfaces.css). */
+    /* bottom: -2px et non 0 : la vue défilante a 2px de marge intérieure en bas, où `sticky` s'arrête — 2px de notes passaient sous la bande. */
+    .seq-grid-intensite .seq-vel-band {
+        position: sticky; bottom: -2px; z-index: 7; align-self: end;
+        height: 40px; box-sizing: border-box;
+        background: linear-gradient(0deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03)), var(--card-bg);
+        box-shadow: inset 0 1px 0 var(--border), 0 -2px 5px rgba(0, 0, 0, 0.45);
+    }
+    /* « Int. » dans la gouttière, collé à gauche ET en bas (même parade que les étiquettes de notes : il couvre toutes les colonnes pour que
+       `sticky` ait de quoi le retenir), fond plein pour que les barres des voisins passent dessous en défilant. */
+    .seq-grid-intensite .seq-vel-lane-label {
+        position: sticky; left: 0; bottom: -2px; z-index: 9; align-self: end; justify-self: start;
+        width: var(--seq-label-w, 40px); height: 40px; box-sizing: border-box; padding: 6px 0 0 5px; opacity: 1;
+        background: linear-gradient(0deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03)), var(--card-bg);
+        box-shadow: inset -1px 0 0 var(--border), inset 0 1px 0 var(--border);
+        font-size: 10px; color: var(--text-muted);
+    }
+    /* Les barres : 32px dans les 40 de la bande, centrées — à 4px du bas de la bande quand elle est collée. Celles des voisins ont la matière des
+       barres réglables, pâlies comme leurs notes (« c'est la pâleur qui dit pas modifiable ici »), et ne prennent aucun clic. */
+    .seq-grid-intensite .seq-vel-bar,
+    .seq-grid-intensite .seq-vel-ctx {
+        position: sticky; bottom: 2px; z-index: 8; align-self: center;
+        height: 32px; margin: 0 1px; box-sizing: border-box;
+    }
+    .seq-vel-ctx {
+        background: #1c1c1c; border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
+        opacity: 0.5; pointer-events: none;
+    }
+    .seq-vel-ctx .seq-vel-fill { transition: none; }
+
+    /* RÉGLÉE À LA MAIN = AMBRE (décision du 05/11) : l'ambre de la pastille de la case, « quelque chose ici n'est pas réglage d'origine ». En
+       dégradé, jamais en aplat (règle 4). La barre de la note choisie est cerclée de blanc, comme la note. Partout à l'ordinateur. */
+    .seq-vel-bar.reglee .seq-vel-fill, .seq-vel-ctx.reglee .seq-vel-fill { background: linear-gradient(180deg, #e0b36a, #9c7334); }
+    .seq-vel-bar.choisie { border-color: rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.7); }
+}

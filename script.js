@@ -2454,6 +2454,11 @@ const SEQ_AJUSTER_MARGE = 2;
 // reviennent dans la règle, calque allumé seulement — une bande de cette hauteur AU-DESSUS des numéros de mesure, que la règle gagne alors.
 const SEQ_VOIX_KEY = 'harmohubSeqVoix';
 const SEQ_REGLE_ACCORDS_PX = 14;
+// BANDE D'INTENSITÉ (lot 9d) : « Bande d'intensité (le mode studio actuel) sous les notes ». Dans l'éditeur de notes, la rangée du mode studio
+// devient une bande collée en BAS de la vue (comme la règle l'est en haut) : avant, elle suivait la dernière hauteur, à 400px sous la partie
+// visible du volet réduit (mesuré) — on ne la voyait qu'en défilant jusqu'en bas. Sa hauteur s'AJOUTE au volet : les 170px de notes du réduit
+// restent 170px (la maquette fait de même).
+const SEQ_BANDE_INTENSITE_PX = 40;
 // Hauteur d'ouverture du volet quand l'utilisateur ne l'a jamais réglé : une PART de l'écran, pas une
 // valeur fixe. 300px partout était calibré pour un téléphone — sur un écran de 1080px, ça laissait
 // 222px inutilisés juste sous le volet et coupait 3 des 20 lignes chromatiques (mesuré).
@@ -4416,8 +4421,12 @@ class HarmoHubApp {
         });
         document.addEventListener('pointerup', () => {
             if (this._velDragStep == null) return;
+            this._velDernierLacher = { step: this._velDragStep, t: performance.now() }; // voir le double-clic, au pointerdown des barres
             this._velDragStep = null;
             this.seqTouched = true;
+            // Dans le morceau DÈS le relâchement (lot 9d) : le réglage n'était écrit qu'au rendu suivant du séquenceur — un Ctrl+S juste après
+            // un glissé enregistrait la valeur d'avant. Pas de rendu ici : il remplacerait la barre entre les deux appuis d'un double-clic.
+            this.commitLiveEdit(false);
         });
         document.addEventListener('pointercancel', () => { this._velDragStep = null; });
 
@@ -7169,8 +7178,15 @@ class HarmoHubApp {
             this.pushUndo(sections);
             this._editSessionUndoPushed = true;
         }
+        const persoAvant = raisonVoicingPersonnalise(history[this.editingIndex]);
         history[this.editingIndex] = this.buildLiveChordData();
         saveProgressionSections(sections);
+        // LA PASTILLE AMBRE SUIT EN DIRECT (lot 9d). Les gestes du séquenceur commitent sans redessiner la grille (refreshGrid faux, voir plus
+        // haut) : une note posée à la main dans l'éditeur de notes laissait donc la case SANS sa pastille jusqu'au prochain rendu de la grille,
+        // alors que c'est précisément ce qu'elle doit signaler. Seule la pastille est reprise, en place : redessiner toute la grille au milieu
+        // d'un geste du séquenceur reconstruirait des cases sous le pointeur.
+        const persoApres = raisonVoicingPersonnalise(history[this.editingIndex]);
+        if (!refreshGrid && persoApres !== persoAvant) this.majPastilleVoicing(this.activeSection, this.editingIndex, persoApres);
         if (refreshGrid) this.loadProgression(); // qui repose le sujet du panneau (updateSaveButtons)
         // Réglage sans effet sur la grille (refreshGrid faux) : le titre doit quand même suivre, une
         // durée modifiée déplace par exemple la mesure annoncée. On lui passe les sections déjà lues.
@@ -9339,10 +9355,33 @@ class HarmoHubApp {
         if (t && raison) t.textContent = `Voicing personnalisé : ${raison}.`;
     }
 
+    // La pastille ambre d'UNE case, reprise sans redessiner la grille (voir commitLiveEdit) : même élément, même infobulle que loadProgression,
+    // sur le PREMIER morceau de l'accord s'il est coupé de ligne (l'ordre du document est celui de la grille).
+    majPastilleVoicing(section, index, raison) {
+        const cases = document.querySelectorAll(`#progression-sections .grid-cell[data-section="${section}"][data-index="${index}"]`);
+        if (!cases.length) return;
+        cases.forEach(c => { c.querySelectorAll('.cell-perso').forEach(e => e.remove()); c.classList.remove('has-perso'); });
+        if (!raison) return;
+        const premiere = cases[0];
+        const pastille = document.createElement('span');
+        pastille.className = 'cell-perso';
+        pastille.title = `Voicing personnalisé : ${raison}`;
+        pastille.setAttribute('aria-label', `Voicing personnalisé : ${raison}`);
+        const sym = premiere.querySelector('.cell-sym');
+        if (sym) sym.after(pastille); else premiere.prepend(pastille);
+        premiere.classList.add('has-perso');
+    }
+
     // « Revenir à l'automatique » : retire les notes ajoutées à la main et le doigté fixé de l'accord ouvert. Une modification comme une autre (même
     // session d'annulation que le reste de l'inspecteur, voir commitLiveEdit) : Ctrl+Z la défait.
     revenirVoicingAutomatique() {
         if (this.editingIndex == null) return;
+        // Son propre instantané dans l'historique du séquenceur (lot 9d), QUAND la dernière action notée est un geste du séquenceur : Ctrl+Z
+        // tombait alors sur ce geste — souvent la note qu'on venait d'ajouter à la main — et ne rendait rien (mesuré : note posée dans l'éditeur,
+        // « Revenir », Ctrl+Z → toujours aucune note). Doigté compris, puisque ce bouton le retire aussi. Pas sinon : la dernière action est alors
+        // l'instantané de la session d'édition, et Ctrl+Z défait déjà « Revenir » avec tout le reste, d'un coup, même accord refermé
+        // (inspecteur_son) — un instantané du séquenceur l'intercepterait, et cette pile n'a plus de sens une fois l'accord refermé.
+        if (this._journalUndo[this._journalUndo.length - 1] === 'sequenceur') this.pushSeqUndo(true);
         this.extraNotes = [];
         this.guitarLock = null;
         this.guitarKey = null;
@@ -18692,14 +18731,16 @@ class HarmoHubApp {
             const nbLignes = grille.querySelectorAll('.seq-label').length;
             // La règle gagne la bande des accords quand le calque Voix est allumé (lot 9c) : comptée ici, les 170px de notes du « réduit » restent 170px.
             const regle = this.hauteurRegleSeq();
-            const contenuEchelle1 = regle + nbLignes * SEQ_LIGNE_PX;
+            // La bande d'intensité (lot 9d), collée sous les notes, s'ajoute de la même façon : elle ne prend rien aux notes.
+            const bandeInt = this.hauteurBandeIntensite();
+            const contenuEchelle1 = regle + nbLignes * SEQ_LIGNE_PX + bandeInt;
             h = Math.min(h, contenuEchelle1 + autour + 8);
             // ÉDITEUR DE NOTES (lot 9a, ordinateur) : « réduit par défaut (~170 px de notes) », étendu = tout ce que la place permet (le plafond
             // du contenu ci-dessus vaut toujours : étendre ne crée pas de noir sous la dernière note). Seulement sans hauteur tirée à la main.
             if (this._editeurNotesActif) {
                 h = this.editeurNotesEtendu
                     ? Math.min(dispo, contenuEchelle1 + autour + 8)
-                    : Math.min(h, regle + EDITEUR_NOTES_REDUIT_PX + autour);
+                    : Math.min(h, regle + EDITEUR_NOTES_REDUIT_PX + bandeInt + autour);
             }
         }
         return Math.round(h);
@@ -18808,6 +18849,10 @@ class HarmoHubApp {
         }
         this.renderSequencer();
     }
+
+    // La bande d'intensité n'est collée sous les notes (et comptée dans la hauteur) que dans l'éditeur de notes, mode studio allumé (lot 9d).
+    bandeIntensiteActive() { return !!(this._editeurNotesActif && this.studioMode && this.seqMode === 'continu'); }
+    hauteurBandeIntensite() { return this.bandeIntensiteActive() ? SEQ_BANDE_INTENSITE_PX : 0; }
 
     // Hauteur de la règle de l'éditeur : la bande des accords (nom et degré) s'ajoute au-dessus des mesures quand le calque Voix est allumé.
     hauteurRegleSeq() { return SEQ_RULER_PX + (this.calqueVoixActif() ? SEQ_REGLE_ACCORDS_PX : 0); }
@@ -20093,6 +20138,7 @@ class HarmoHubApp {
         let pct = Math.round(((rect.bottom - clientY) / rect.height) * 100);
         pct = Math.max(0, Math.min(100, pct));
         this.intensityPerStep[+bar.dataset.step] = pct;
+        bar.classList.add('reglee'); // réglée à la main : l'ambre (ordinateur, lot 9d) apparaît pendant le geste, pas au rendu suivant
         const fill = bar.querySelector('.seq-vel-fill');
         if (fill) fill.style.height = pct + '%';
         // Valeur chiffrée affichée EN PLUS de la hauteur du remplissage (retour utilisateur : la
@@ -20276,8 +20322,11 @@ class HarmoHubApp {
                 // l'accord édité, au lieu d'un gris uniforme (voir .seq-ctx-note). Calculé ici, une
                 // fois par segment, plutôt qu'à chaque case peinte.
                 // `fonctions` : chiffre de fonction de chaque voix (calque Voix, lot 9c), dans l'ordre de `midis`.
+                // `libresDe` / `libresA` : les voix ajoutées à la main (notes libres) de ce voisin, juste après celles de sa qualité — dessinées en
+                // pointillés comme celles de l'accord en cours (lot 9d).
+                const libresDe = c.getIntervals().length;
                 return { data, midis: segMidis, midiSet: new Set(segMidis), roleMap: c.getRoleMap(), pattern: resolved.pattern, tie: resolved.tie, steps: c.beats * SEQ_STEPS_PER_BEAT, index,
-                    fonctions: voix ? c.getFonctionsVoix() : null };
+                    fonctions: voix ? c.getFonctionsVoix() : null, libresDe, libresA: libresDe + c.extraNotes.length };
             };
             let offset = 0;
             for (let i = 0; i < this.editingIndex; i++) {
@@ -20428,7 +20477,7 @@ class HarmoHubApp {
             : (wideCompact ? `max-content repeat(${totalCols}, var(--seq-col-w))`
                            : (plafonne ? `max-content repeat(${pageSteps}, minmax(0, ${SEQ_CASE_MAX_AGRANDIE * seqHZoom}px))`
                                        : `max-content repeat(${pageSteps}, 1fr)`));
-        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}${plafondCls}${voix ? ' seq-grid-voix' : ''}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" data-col-px="${continuousColPx}" data-total-cols="${totalCols}" style="grid-template-columns: ${colTemplate}; --seq-col-w: ${continuousColPx}px; --seq-steps-per-bar: ${beatsPerBar * SEQ_STEPS_PER_BEAT}; --seq-bar-w: ${continuousColPx * beatsPerBar * SEQ_STEPS_PER_BEAT}px; --seq-beat-w: ${continuousColPx * SEQ_STEPS_PER_BEAT}px; --seq-label-w: ${labelW}px;">`;
+        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}${plafondCls}${voix ? ' seq-grid-voix' : ''}${(continuous && this.bandeIntensiteActive()) ? ' seq-grid-intensite' : ''}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" data-col-px="${continuousColPx}" data-total-cols="${totalCols}" style="grid-template-columns: ${colTemplate}; --seq-col-w: ${continuousColPx}px; --seq-steps-per-bar: ${beatsPerBar * SEQ_STEPS_PER_BEAT}; --seq-bar-w: ${continuousColPx * beatsPerBar * SEQ_STEPS_PER_BEAT}px; --seq-beat-w: ${continuousColPx * SEQ_STEPS_PER_BEAT}px; --seq-label-w: ${labelW}px;">`;
 
         // Cases de la grille : zones de clic/glisser (toujours présentes, sous les notes visuelles).
         // Placement explicite (grid-row/grid-column) sur TOUT le monde : les notes ci-dessous se
@@ -20491,7 +20540,8 @@ class HarmoHubApp {
                 // qualificatif (voir onSeqMarqueeMove/finalizeSeqMarqueeSelect) et happerait alors des
                 // barres de contexte, qui n'appartiennent pas à l'accord en cours d'édition.
                 const fnCtx = seg.fonctions ? `<span class="seq-note-fn">${seg.fonctions[segVoice]}</span>` : '';
-                out += `<div class="seq-ctx-note ${runLen > 1 ? 'run' : 'single'} seq-ctx-role-${role}" style="grid-row:${rowIndex}; grid-column:${colBase + seg.colStart + runStart + 2} / span ${runLen};${trimEnd}">${fnCtx}</div>`;
+                const manuelleCtx = (segVoice >= seg.libresDe && segVoice < seg.libresA) ? ' manuelle' : '';
+                out += `<div class="seq-ctx-note ${runLen > 1 ? 'run' : 'single'} seq-ctx-role-${role}${manuelleCtx}" style="grid-row:${rowIndex}; grid-column:${colBase + seg.colStart + runStart + 2} / span ${runLen};${trimEnd}">${fnCtx}</div>`;
             }
             return out;
         };
@@ -20657,7 +20707,12 @@ class HarmoHubApp {
                 const headEl = (shape === 'run' && !clipStart) ? '<span class="seq-note-head"></span>' : '';
                 // Calque Voix (lot 9c) : la fonction écrite DANS la note, « la couleur n'est plus seule ».
                 const fnEl = fonctionsVoix ? `<span class="seq-note-fn">${fonctionsVoix[r]}</span>` : '';
-                notesHtml += `<div class="seq-note ${shape} role-${role}${sel}${clipCls}" data-voice="${r}" data-start="${runStart}" data-end="${trueRunEnd}" style="grid-row:${rowIndex}; grid-column:${colOffset + runStart - pageStart + 2} / span ${runLen};${trimEnd}">${headEl}${fnEl}</div>`;
+                // NOTE AJOUTÉE À LA MAIN (lot 9d) : « Notes ajoutées à la main en pointillés » (docs/refonte.md). Une voix libre (voir addSequencerNote)
+                // est la seule chose de l'accord que son nom ne dit pas — c'est elle qui allume la pastille ambre de la case. La classe est posée
+                // partout ; le dessin n'existe qu'à l'ordinateur (style.css, min-width 900px : le téléphone ne bouge pas avant le lot 10), dans l'éditeur
+                // comme dans le petit séquenceur de l'inspecteur (décision du 05/11 : « partout (ordinateur) », la même note a le même aspect).
+                const manuelle = (r >= extraStart && r < extraEnd) ? ' manuelle' : '';
+                notesHtml += `<div class="seq-note ${shape} role-${role}${sel}${clipCls}${manuelle}" data-voice="${r}" data-start="${runStart}" data-end="${trueRunEnd}" style="grid-row:${rowIndex}; grid-column:${colOffset + runStart - pageStart + 2} / span ${runLen};${trimEnd}">${headEl}${fnEl}</div>`;
             }
         }
         html += notesHtml;
@@ -20773,18 +20828,47 @@ class HarmoHubApp {
         // verticalement (voir applyStudioVelocityFromClientY) pour un réglage fin façon GarageBand ;
         // double-clic efface le réglage propre à cette croche pour revenir à l'intensité globale de
         // l'accord (#intensity). Mêmes colonnes que .seq-beat-label juste au-dessus, une ligne plus bas.
+        // LOT 9d — dans l'éditeur de notes (ordinateur), la rangée devient une BANDE COLLÉE EN BAS de la vue (voir SEQ_BANDE_INTENSITE_PX) : un fond
+        // plein d'un bout à l'autre (.seq-vel-band, comme le bandeau de la règle en haut), « Int. » dans la gouttière, et les barres des accords
+        // VOISINS, pâles et non modifiables comme leurs notes (décision du 05/11 : « voisins pâles »). Deux marques, à l'ordinateur : une croche
+        // dont l'intensité est réglée à la main passe en AMBRE (décision du 05/11 — l'ambre dit « touché à la main », comme la pastille de la
+        // case ; le double-clic la rend à l'accord, et au bleu) ; la barre de la note choisie est cerclée de blanc, comme la note. Le petit
+        // séquenceur et le téléphone gardent leur rangée d'avant (le téléphone ne bouge pas avant le lot 10).
         if (this.studioMode) {
             const velRow = rowCount + 2; // sous les hauteurs, la règle occupant désormais la ligne 1
             const chordIntensity = +document.getElementById('intensity').value;
-            let velHtml = `<div class="seq-vel-lane-label" style="grid-row:${velRow}; grid-column:1;">Studio</div>`;
+            const bandeInt = continuous && this.bandeIntensiteActive();
+            let velHtml = bandeInt ? `<div class="seq-vel-band" style="grid-row:${velRow}; grid-column: 1 / -1;"></div>` : '';
+            velHtml += bandeInt
+                ? `<div class="seq-vel-lane-label" title="Intensité de chaque croche" style="grid-row:${velRow}; grid-column: 1 / -1;">Int.</div>`
+                : `<div class="seq-vel-lane-label" style="grid-row:${velRow}; grid-column:1;">Studio</div>`;
+            const debutsChoisis = new Set(this.seqSelections.map(sel => sel.start));
             for (let s = pageStart; s < pageEnd; s++) {
                 const hasAttack = pattern[s].some(v => !tie[s].includes(v));
                 if (!hasAttack) continue;
-                const val = (this.intensityPerStep[s] != null) ? this.intensityPerStep[s] : chordIntensity;
-                velHtml += `<div class="seq-vel-bar" data-step="${s}" style="grid-row:${velRow}; grid-column:${colOffset + s - pageStart + 2};" title="Intensité de cette croche — glisser pour régler, double-clic pour revenir à l'intensité de l'accord">
+                const reglee = this.intensityPerStep[s] != null;
+                const val = reglee ? this.intensityPerStep[s] : chordIntensity;
+                velHtml += `<div class="seq-vel-bar${reglee ? ' reglee' : ''}${debutsChoisis.has(s) ? ' choisie' : ''}" data-step="${s}" style="grid-row:${velRow}; grid-column:${colOffset + s - pageStart + 2};" title="Intensité de cette croche — glisser pour régler, double-clic pour revenir à l'intensité de l'accord">
                     <div class="seq-vel-fill" style="height:${val}%;"></div>
                     <div class="seq-vel-value"><span>${val}%</span></div>
                 </div>`;
+            }
+            if (bandeInt) {
+                // Voisins : une barre par croche où une de leurs notes attaque, à la valeur qu'ils jouent vraiment (réglage propre, sinon leur
+                // intensité). Jamais la classe .seq-vel-bar : celle-là se règle au glissé, et seul l'accord en cours se règle ici.
+                const velVoisin = (seg, colBase) => {
+                    const propres = seg.data.intensityPerStep || {};
+                    const base = (seg.data.intensity != null) ? +seg.data.intensity : DEFAULT_INTENSITY;
+                    let out = '';
+                    for (let s = 0; s < seg.steps; s++) {
+                        if (!seg.pattern[s].some(v => !seg.tie[s].includes(v))) continue;
+                        const propre = propres[s] != null;
+                        out += `<div class="seq-vel-ctx${propre ? ' reglee' : ''}" data-accord="${seg.index}" data-step="${s}" aria-hidden="true" style="grid-row:${velRow}; grid-column:${colBase + seg.colStart + s + 2};"><div class="seq-vel-fill" style="height:${propre ? +propres[s] : base}%;"></div></div>`;
+                    }
+                    return out;
+                };
+                for (const seg of prevSegs) velHtml += velVoisin(seg, 0);
+                for (const seg of nextSegs) velHtml += velVoisin(seg, colOffset + pageSteps);
             }
             html += velHtml;
         }
@@ -20866,6 +20950,13 @@ class HarmoHubApp {
         //   transport (écouter) | motif (fabriquer) | suppression (défaire) | affichage (regarder)
         // L'ordre à l'intérieur de chaque groupe ne change pas : c'est un regroupement, pas un
         // remaniement, et rien de ce qu'on savait trouver ne change de voisin.
+        // MODE STUDIO = « Intensité » dans l'éditeur de notes (lot 9d). La maquette le range avec les commandes d'AFFICHAGE, juste après Voix (« Voix,
+        // Intensité, zoom, Ajuster ») : il montre ou cache une bande, comme Voix un calque. Même bouton, même id, même logo (règle 2 : le logo
+        // existant est repris), allumé en bleu comme Voix et Ajuster (aria-pressed, style.css). Ailleurs (petit séquenceur, téléphone), il garde
+        // sa place et ses mots d'avant.
+        const boutonStudio = this._editeurNotesActif
+            ? `<button type="button" id="toggle-studio-mode" class="icon-btn seq-icon-btn${this.studioMode ? ' active' : ''}" aria-pressed="${this.studioMode}" title="Intensité : une bande sous les notes, pour régler l'intensité croche par croche" aria-label="Intensité">${svgIcon('studio')}</button>`
+            : `<button type="button" id="toggle-studio-mode" class="icon-btn seq-icon-btn${this.studioMode ? ' active' : ''}" title="Mode studio : régler l'intensité croche par croche" aria-label="Mode studio">${svgIcon('studio')}</button>`;
         html += `<div class="seq-presets">
             <div class="seq-groupe" data-groupe="transport">
             <button type="button" id="seq-play" class="btn-prog seq-icon-btn${seqLoopRangeActive ? ' btn-loop-range' : ''}" title="${seqLoopRangeActive ? 'Lire la plage à boucler' : 'Lecture'}" aria-label="${seqLoopRangeActive ? 'Lire la plage à boucler' : 'Lecture'}" aria-pressed="false">${svgIcon('play')}<svg class="icon transport-icon-boucle" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.2 2.6a9.4 9.4 0 1 1-6.85 2.75" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="butt"/><path d="M11.2 0 15.6 2.6l-4.4 2.6z" fill="currentColor"/><path d="M9 7.2v9.6l7.4-4.8z" fill="currentColor"/></svg></button>
@@ -20903,7 +20994,7 @@ class HarmoHubApp {
                  (« c'est une option pour affiner le morceau seulement. À cacher »), et un réglage fin
                  du rythme n'a de toute façon de sens qu'ici : il dessine ses barres DANS ce séquenceur.
                  Construit à chaque rendu comme ses voisins, donc câblé au même endroit qu'eux. -->
-            <button type="button" id="toggle-studio-mode" class="icon-btn seq-icon-btn${this.studioMode ? ' active' : ''}" title="Mode studio : régler l'intensité croche par croche" aria-label="Mode studio">${svgIcon('studio')}</button>
+            ${this._editeurNotesActif ? '' : boutonStudio}
             <button type="button" id="seq-row-pipette" class="icon-btn seq-icon-btn${this.seqRowPipette ? ' active' : ''}" ${(hasSelection || this.seqRowPipette) ? '' : 'disabled'} title="${this.seqRowPipette ? 'Clique une ligne pour y appliquer le motif prélevé (Échap pour annuler)' : 'Prélever le motif sélectionné pour le coller sur une autre ligne'}" aria-label="${this.seqRowPipette ? 'Appliquer le motif prélevé sur une ligne' : 'Prélever le motif sélectionné'}">${svgIcon('seqRowPipette')}</button>
             </div>
             <div class="seq-groupe" data-groupe="suppression">
@@ -20923,6 +21014,7 @@ class HarmoHubApp {
             </button>
             </div>
             <div class="seq-groupe" data-groupe="affichage">
+            ${this._editeurNotesActif ? boutonStudio : ''}
             <!-- LA PORTE DU PLEIN ÉCRAN EST ICI, et plus dans le volet de gauche. Retour utilisateur :
                  « je propose d'ajouter un bouton loupe dans le petit séquenceur, qui permettra
                  d'afficher ce dernier en grand écran (au lieu de l'ouvrir directement avec le bouton
@@ -21188,7 +21280,14 @@ class HarmoHubApp {
         host.querySelectorAll('.seq-vel-bar').forEach(bar => {
             bar.addEventListener('pointerdown', (e) => {
                 e.preventDefault();
-                this._velDragStep = +bar.dataset.step;
+                const step = +bar.dataset.step;
+                // UNE ÉTAPE D'ANNULATION PAR GESTE (lot 9d) : le réglage d'une barre n'était dans aucun historique (Ctrl+Z ne le défaisait pas).
+                // Le second appui d'un double-clic (sur la même barre, moins d'une demi-seconde après le relâchement du premier) fait partie du
+                // même geste : il n'empile rien, et Ctrl+Z rend alors la valeur d'avant le premier appui.
+                const l = this._velDernierLacher;
+                const memeGeste = !!l && l.step === step && performance.now() - l.t < 500;
+                if (!memeGeste) this.pushSeqUndo();
+                this._velDragStep = step;
                 this.applyStudioVelocityFromClientY(bar, e.clientY);
             });
             bar.addEventListener('dblclick', (e) => {
@@ -22210,12 +22309,19 @@ class HarmoHubApp {
     // le bouton Annuler grisé — le geste qui change le plus de choses était le seul qu'on ne pouvait
     // pas défaire, et il fallait remettre la qualité à la main puis effacer la voix. La qualité et les
     // notes libres font donc partie de l'instantané.
-    instantaneSeq() {
-        return {
+    // L'INTENSITÉ PAR CROCHE en fait partie aussi (lot 9d) : la bande d'intensité de l'éditeur de notes se règle au glissé, et ce réglage doit se
+    // défaire d'un Ctrl+Z comme une note peinte — il n'était dans aucun instantané, donc dans aucune annulation.
+    // `avecGuitare` : « Revenir à l'automatique » retire aussi le doigté fixé ; son instantané (et lui seul) le garde, pour que Ctrl+Z le rende.
+    // Les autres gestes du séquenceur n'y touchent jamais : leurs annulations ne doivent pas rouvrir un verrou posé entre-temps.
+    instantaneSeq(avecGuitare = false) {
+        const snap = {
             motif: document.getElementById('arpPattern').value,
             quality: document.getElementById('quality').value,
             extraNotes: JSON.stringify(this.extraNotes),
+            intensite: JSON.stringify(this.intensityPerStep || {}),
         };
+        if (avecGuitare) snap.guitare = JSON.stringify({ lock: this.guitarLock || null, key: this.guitarKey || null, identityKey: this.guitarIdentityKey || null });
+        return snap;
     }
 
     restaurerInstantaneSeq(snap) {
@@ -22234,14 +22340,19 @@ class HarmoHubApp {
             this._seqSymboleAChange = true;
         }
         this.extraNotes = JSON.parse(snap.extraNotes || '[]');
+        if (snap.intensite != null) this.intensityPerStep = JSON.parse(snap.intensite);
+        if (snap.guitare) {
+            const g = JSON.parse(snap.guitare);
+            this.guitarLock = g.lock; this.guitarKey = g.key; this.guitarIdentityKey = g.identityKey;
+        }
         // Le corps de l'accord vient peut-être de rétrécir (C7 redevenu C) : sans ce repère remis à
         // jour, la synchro suivante croirait à des voix « neuves » et leur repeindrait un rythme par
         // défaut (voir applyNewVoiceDefaults).
         this.seqLastChordToneVoices = (CHORD_INTERVALS[qualitySelect.value] || CHORD_INTERVALS.maj).length;
     }
 
-    pushSeqUndo() {
-        this.seqUndoStack.push(this.instantaneSeq());
+    pushSeqUndo(avecGuitare = false) {
+        this.seqUndoStack.push(this.instantaneSeq(avecGuitare));
         const deborde = this.seqUndoStack.length > this.undoLimit;
         if (deborde) this.seqUndoStack.shift();
         this.seqRedoStack = [];
@@ -22251,8 +22362,9 @@ class HarmoHubApp {
 
     seqUndo() {
         if (this.seqUndoStack.length === 0) { this.flashHint('Rien à annuler dans le séquenceur'); return; }
-        this.seqRedoStack.push(this.instantaneSeq());
-        this.restaurerInstantaneSeq(this.seqUndoStack.pop());
+        const snapAnnule = this.seqUndoStack.pop();
+        this.seqRedoStack.push(this.instantaneSeq(!!snapAnnule.guitare)); // le rétablissement rend aussi ce que l'annulation reprend
+        this.restaurerInstantaneSeq(snapAnnule);
         this.seqTouched = true;
         this.seqSelections = [];
         this.renderSequencer();
@@ -22264,8 +22376,9 @@ class HarmoHubApp {
 
     seqRedo() {
         if (this.seqRedoStack.length === 0) { this.flashHint('Rien à rétablir dans le séquenceur'); return; }
-        this.seqUndoStack.push(this.instantaneSeq());
-        this.restaurerInstantaneSeq(this.seqRedoStack.pop());
+        const snapRetabli = this.seqRedoStack.pop();
+        this.seqUndoStack.push(this.instantaneSeq(!!snapRetabli.guitare));
+        this.restaurerInstantaneSeq(snapRetabli);
         this.seqTouched = true;
         this.seqSelections = [];
         this.renderSequencer();

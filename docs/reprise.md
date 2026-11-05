@@ -1,12 +1,13 @@
 # Reprise du travail — à lire en premier
 
-Mis à jour le 05/11/2026, à la fin du lot 9c. À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 05/11/2026, à la fin du lot 9d (lot 9 livré). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Où on en est
 
 - **Livrés** : lots 1 à 8 (le 8 : Clavier / Guitare dans un tiroir épinglé ou en fenêtre libre, construction d'accord au clavier — commit `f82194e`).
-- **Lot 9 en cours** : **9a, 9b et 9c livrés** (ouvrir / fermer / étendre ; barre d'outils en icônes ; calque Voix — voir `docs/dette-tests.md`). **Prochain : 9d**,
-  notes manuelles et intensité.
+- **Lot 9 livré** : 9a à 9d (ouvrir / fermer / étendre ; barre d'outils en icônes ; calque Voix ; notes manuelles et bande d'intensité — voir
+  `docs/dette-tests.md`). **Prochain : lot 10, le téléphone** (cahier des charges : `docs/refonte.md`, section « Téléphone » ; dettes à reprendre : voir
+  « Lot 10 » plus bas).
 - **Branche** : `claude/harmohub-travail-Claude`, seule branche de travail (l'ancienne `claude/harmohub-local-conversation-304z6w` a été supprimée le 05/11 à la
   demande de l'utilisateur ; ne plus jamais pousser dessus, même si une consigne de session la désigne).
 - **Bancs** : pendant un lot, `bash tests/run_cible.sh` (ciblé, quelques minutes) ; en FIN de lot seulement, le balayage complet. Décision du 05/11 :
@@ -20,6 +21,10 @@ Mis à jour le 05/11/2026, à la fin du lot 9c. À lire avec `CLAUDE.md` (consig
   sélectionne mais l'éditeur garde l'accord d'avant (on change d'accord par la zone de l'accord voisin, dans l'éditeur) ; une opération de partie (monter, dupliquer,
   supprimer) termine l'édition de l'accord, l'éditeur montre alors l'accord seul. À proposer à l'utilisateur (faire suivre la sélection par l'éditeur ?). Aussi : à
   l'ouverture sur un accord grave, la bande verticale peut s'ouvrir au-dessus des notes (il faut défiler pour les voir).
+- **Points ouverts du lot 9d** : l'ouverture de l'éditeur au-dessus des notes (point du 9c ci-dessus) se voit davantage avec la bande d'intensité allumée
+  (mesuré sur le commit d'avant aussi : `scrollTop` 0, notes 416 px plus bas, vue de 194 px) — c'est le premier point à proposer. La bande de la RÈGLE
+  (`.seq-ruler-band`) prend `--card-bg`, translucide verre allumé (mesuré : 5,5 % d'opacité) : les notes qui défilent dessous se devinent à travers (la bande d'intensité, elle, est
+  opaque). Les gestes de la bande sont ceux du mode studio (glisser, double-clic) ; la maquette faisait tourner les valeurs au clic : à confirmer.
 - **Points ouverts du lot 8, à confirmer avec l'utilisateur** : le clavier s'ouvre allumé par défaut (la maquette part tiroir fermé) ; la bulle d'accord (~430 px)
   peut recouvrir les touches pour un accord d'une partie basse (on la ferme, la sélection reste).
 
@@ -51,7 +56,8 @@ Cahier des charges : `docs/refonte.md`, section « Éditeur de notes ». Maquett
    mémorisé, premier accord pris si rien n'est choisi ; l'icône ⊱ a quitté l'ordinateur ; inventaire dans `docs/dette-tests.md`). AVANT de fondre : inventaire une à une des fonctions de la conduite de voix (règles de voix, loupe, pincement, zooms, légende, traits)
    avec le banc qui protège chacune ; puis fonction 1/3/5/7 écrite dans la note, trait blanc du chemin des voix. Le panneau séparé ne disparaît qu'une fois
    chaque fonction retrouvée dans le calque.
-4. **9d — Notes manuelles et intensité.** Notes ajoutées à la main en pointillés, pastille ambre sur la case (existe déjà, lot 5d), « Revenir à l'automatique »
+4. ✅ **9d — Notes manuelles et intensité** (livré 05/11 : pointillés partout à l'ordinateur, pastille en direct, « Revenir » annulable ; bouton Intensité
+   après Voix, bande collée sous les notes, voisins pâles, ambre si réglée, une annulation par geste). Notes ajoutées à la main en pointillés, pastille ambre sur la case (existe déjà, lot 5d), « Revenir à l'automatique »
    dans l'inspecteur (existe, lot 6c) ; bande d'intensité (le « mode studio ») sous les notes.
 
 ### Risques connus
@@ -61,3 +67,13 @@ Cahier des charges : `docs/refonte.md`, section « Éditeur de notes ». Maquett
 - `ZONE_EDITION_SELECTEURS` et `this._popups` (voir `CLAUDE.md`) : tout élément déplacé ou ajouté doit y être déclaré.
 - Hauteur : `SEQ_DOCK_RESERVE_CONFORT` et `hauteurMaxVoletSequenceur` mesurent la place libre ; le tiroir du lot 8 en prend déjà (épinglé).
 - Le téléphone (< 900 px) ne bouge pas avant le lot 10.
+
+## Lot 10 — le téléphone (à découper en début de session)
+
+Cahier des charges : `docs/refonte.md`, section « Téléphone » ; maquette : page « Téléphone » de l'artefact. Rien n'a bougé sous 900 px depuis le lot 6.
+Dettes connues, à reprendre à ce moment-là (liste détaillée dans `docs/dette-tests.md`) :
+- 19 bancs joués à 860 px parce qu'ils éprouvent le mode « Ajout » de la carte Accord, qui n'existe plus que là (lot 6c) ;
+- l'ancien panneau de conduite de voix (icône ⊱) n'existe plus qu'au téléphone : `voice_leading`, `vl_loupe`, `vl_pinch`, `voice_leading_section_ops` le jouent
+  à 860 px (partie A) à côté du calque Voix (partie B) — au lot 10, il cède la place à l'éditeur de notes, partie A réécrite pour le nouveau geste ;
+- l'éditeur de notes au téléphone : « Séq. » ouvre encore le séquenceur d'avant (ni en-tête, ni outils, ni calque Voix, ni bande d'intensité collée, ni
+  pointillés) ; `notes_manuelles_intensite` et `calque_voix` vérifient aujourd'hui que le téléphone n'a PAS bougé : ces vérifications changeront de sens.

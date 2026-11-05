@@ -122,7 +122,10 @@ ne le redécouvre pas.
   vertical de l'ancien panneau n'est pas repris : la hauteur des lignes de l'éditeur reste bloquée (« laisser une unique
   hauteur de barres ») ; Étendre et Ajuster en tiennent lieu.
 - Notes ajoutées à la main en pointillés + pastille ambre sur la case + « Revenir à l'automatique » dans l'inspecteur.
-  Bande d'intensité (le « mode studio » actuel) sous les notes.
+  Bande d'intensité (le « mode studio » actuel) sous les notes. ✅ **Livré 05/11 (lot 9d)**. Décisions du 05/11 : les barres des accords voisins
+  s'affichent, pâles et non modifiables ; une croche réglée à la main passe en ambre ; les pointillés valent partout à l'ordinateur (éditeur, petit
+  séquenceur de l'inspecteur, accords voisins). Les gestes de la bande sont ceux du mode studio (glisser, double-clic pour revenir à l'accord), pas le
+  clic qui fait tourner les valeurs de la maquette.
 
 ## Téléphone
 
@@ -145,7 +148,7 @@ ne le redécouvre pas.
 | 6 | Bulle + inspecteur, suppression du bandeau de gauche et de la carte Accord — ✅ **livré 04/11** : 6a rangée de réglages, 6b bulle et sélection bleue, 6c inspecteur à droite et fin du bandeau de gauche (ordinateur). Reste : le téléphone (lot 10), et 19 bancs joués sous le seuil à reprendre alors (voir `docs/dette-tests.md`) | élevé |
 | 7 | Ajout unique (syntaxe complète, suggestions, « + » entre deux cases), clic droit, barre de sélection — ✅ **livré 04/11** : 7a ajout unique et « + » entre les cases, 7b barre de sélection, clic droit, Tab dans la retape | moyen |
 | 8 ✅ | Clavier / Guitare : épinglés ou fenêtre libre, construction d'accord — **livré 05/11** (voir `docs/dette-tests.md`) : bloc « Vues » dans la barre de lecture, tiroir épinglé / fenêtre libre, accord construit touche par touche puis Remplacer / Ajouter. Reste : le téléphone (lot 10) | moyen |
-| 9 | Éditeur de notes (grand séquenceur + conduite de voix) — **9a ✅ livré 05/11** : bouton bleu « Éditeur de notes », Fermer, réduit / étendu (chevrons, double-clic, poignée), grille en Compact provisoire (voir `docs/dette-tests.md`). **9b ✅ livré 05/11** : barre d'outils en icônes, en une rangée, Sélection / Crayon / Gomme, Ajuster (pas de calage, décision du 05/11). **9c ✅ livré 05/11** : calque Voix — bouton Voix (logo ⊱ repris), fonctions dans les notes (degré réel des couleurs « Autres »), chemin des voix en blanc (plein = tenue, pointillés = mouvement), nom + degré des accords dans la règle calque allumé, éteint puis mémorisé par appareil, premier accord pris si rien n'est choisi ; l'icône ⊱ quitte l'ordinateur (téléphone : lot 10). Inventaire fonction par fonction dans `docs/dette-tests.md`. Reste 9d (notes manuelles, intensité) | très élevé |
+| 9 | Éditeur de notes (grand séquenceur + conduite de voix) — **9a ✅ livré 05/11** : bouton bleu « Éditeur de notes », Fermer, réduit / étendu (chevrons, double-clic, poignée), grille en Compact provisoire (voir `docs/dette-tests.md`). **9b ✅ livré 05/11** : barre d'outils en icônes, en une rangée, Sélection / Crayon / Gomme, Ajuster (pas de calage, décision du 05/11). **9c ✅ livré 05/11** : calque Voix — bouton Voix (logo ⊱ repris), fonctions dans les notes (degré réel des couleurs « Autres »), chemin des voix en blanc (plein = tenue, pointillés = mouvement), nom + degré des accords dans la règle calque allumé, éteint puis mémorisé par appareil, premier accord pris si rien n'est choisi ; l'icône ⊱ quitte l'ordinateur (téléphone : lot 10). Inventaire fonction par fonction dans `docs/dette-tests.md`. **9d ✅ livré 05/11** : notes ajoutées à la main en pointillés (partout à l'ordinateur, voisins compris), pastille ambre de la case en direct, « Revenir à l'automatique » annulable ; bouton Intensité (logo du mode studio repris) après Voix, bande collée sous les notes, voisins pâles, croche réglée à la main en ambre, une annulation par geste. **Lot 9 livré.** Reste : le téléphone (lot 10) | très élevé |
 | 10 | Téléphone | élevé |
 
 Le verre dépoli (règle 6) et l'inventaire (règle 1) valent pour chaque ligne.

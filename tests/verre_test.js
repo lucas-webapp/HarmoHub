@@ -60,7 +60,7 @@ if (A_APERCU) ETATS.apercu = async (p) => { await p.click('#structure-btn'); awa
 async function fermerTout(p) { await p.keyboard.press('Escape'); await p.waitForTimeout(150); await p.evaluate(() => { try { window.app.closeSettings(); } catch (e) {} window.app.editingIndex = null; window.app.loadProgression(); }); await p.waitForTimeout(150); }
 
 (async () => {
-    plan(A_APERCU ? 66 : 65);
+    plan(A_APERCU ? 67 : 66);
     const nav = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     try {
         // ===== 0. LES FICHIERS ET LEUR ORDRE (statique) ==========================================================================
@@ -137,6 +137,16 @@ async function fermerTout(p) { await p.keyboard.press('Escape'); await p.waitFor
             check(/blur\(24px\)/.test(await flou('#context-menu')), 'le menu contextuel aussi');
             const menu = await p.evaluate(() => { const cs = getComputedStyle(document.getElementById('context-menu')); return { img: cs.backgroundImage, couleur: cs.backgroundColor }; });
             check(/gradient/.test(menu.img) && /rgba\(7, 11, 18, 0\.6\)/.test(menu.couleur), 'et lui aussi a sa sous-couche sombre (sinon il grisonne sur ce qu\'il recouvre)');
+            // LA BANDE D'INTENSITÉ DE L'ÉDITEUR DE NOTES (lot 9d) est collée sous les notes qui défilent : même raison, même exigence. Le geste de
+            // l'utilisateur : une case, « Éditeur de notes », puis « Intensité » (rendu éteint à la fin : le réglage est mémorisé par appareil).
+            await fermerTout(p);
+            await p.click('.grid-cell >> nth=0'); await p.waitForTimeout(300);
+            await p.click('#grid-zoom'); await p.waitForTimeout(700);
+            await p.click('#toggle-studio-mode'); await p.waitForTimeout(500);
+            const bandeInt = await p.evaluate(() => [...document.querySelectorAll('.seq-grid-intensite .seq-vel-band, .seq-grid-intensite .seq-vel-lane-label')].map(e => getComputedStyle(e).backgroundColor));
+            check(bandeInt.length === 2 && bandeInt.every(c => /^rgb\(\d+, \d+, \d+\)$/.test(c)), `la bande d'intensité de l'éditeur de notes et son étiquette sont OPAQUES (${bandeInt.join(', ')}) : translucides, les notes qui défilent dessous traverseraient ses barres`);
+            await p.click('#toggle-studio-mode'); await p.waitForTimeout(300);
+            await p.click('#editeur-notes-fermer'); await p.waitForTimeout(500);
             await fermerTout(p);
             const fond = await p.evaluate(() => getComputedStyle(document.body).backgroundImage);
             check(/linear-gradient/.test(fond), 'le fond de la page est le dégradé « aurore »');

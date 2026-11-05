@@ -107,3 +107,10 @@ html[data-glass="1"] .bl-seg { background: var(--glass-inp); }
    les notes tapées gardent leurs couleurs (ce sont des repères musicaux) ; la bande de construction et ses puces n'ont pas de fond propre. ---- */
 html[data-glass="1"] .vues-tiroir { background: var(--glass-bar); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-hi); }
 html[data-glass="1"] .vues-tiroir.vues-libre { background: var(--glass-pop-fond); box-shadow: var(--glass-hi), 0 24px 50px -24px rgba(0, 0, 0, .65); }
+
+/* ---- BANDE D'INTENSITÉ DE L'ÉDITEUR DE NOTES (refonte, lot 9d) : collée sous les notes qui défilent, elle doit rester OPAQUE verre allumé —
+   comme les titres collants des Paramètres : translucide (--card-bg l'est ici), les notes qui passent dessous traverseraient ses barres. Le
+   même dégradé qu'éteint, sur le fond opaque des listes. Les barres gardent leurs couleurs (ce sont des repères musicaux). ---- */
+html[data-glass="1"] :is(.seq-grid-intensite .seq-vel-band, .seq-grid-intensite .seq-vel-lane-label) {
+    background: linear-gradient(0deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .03)), var(--glass-select);
+}

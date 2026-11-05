@@ -5207,3 +5207,75 @@ garde ses quatre ; 15/15, rouge au sabotage (Éditeur de notes masqué). Les 7 �
 fois. Après la réécriture, balayage ciblé de confirmation sur ce qui avait bougé depuis le relevé complet (ce banc, un commentaire de `script.js`) : 54 suites,
 48 vertes (dont `entete_grille_debordement`, `calque_voix`, les sept bancs réécrits, `gabarit_boutons`, `verre`, `sentinelle_adresses`, `meta_suite`), les 5 rouges de
 la ligne de base et `smoke` sans verdict. **Aucune régression.**
+
+
+## Refonte de l'interface — lot 9d : notes manuelles et bande d'intensité (2026-11-05)
+
+Cahier des charges : « Notes ajoutées à la main en pointillés + pastille ambre sur la case + « Revenir à l'automatique » dans l'inspecteur. Bande
+d'intensité (le « mode studio » actuel) sous les notes. » (docs/refonte.md, maquette `project/Notes2.dc.html`.)
+
+**Constaté avant de coder (sondes sur le commit d'avant).** Une note posée à la main dans l'éditeur avait l'aspect d'une note de l'accord ; la pastille ambre de
+la case n'apparaissait qu'au rendu suivant de la grille (les gestes du séquenceur commitent sans redessiner la grille) ; la rangée du mode studio suivait la
+dernière hauteur, 400 px sous la partie visible du volet réduit ; son bouton restait parmi les boutons du motif et s'allumait en vert. Trois défauts d'annulation
+et d'enregistrement, mesurés : « Revenir à l'automatique » puis Ctrl+Z ne rendait pas la note (Ctrl+Z tombait sur le dernier geste du séquenceur) ; un glissé
+sur une barre d'intensité n'avait aucune étape d'annulation ; et il n'était écrit dans le morceau qu'au rendu suivant — Ctrl+S juste après enregistrait la
+valeur d'avant (`{}` au lieu de la valeur réglée).
+
+**Décisions de l'utilisateur (05/11).** Les barres des accords **voisins** s'affichent, **pâles et non modifiables** (comme leurs notes) ; une croche dont
+l'intensité est **réglée à la main passe en ambre** (le double-clic la rend à l'accord, et au bleu) ; les **pointillés valent partout à l'ordinateur** (éditeur,
+petit séquenceur de l'inspecteur, accords voisins).
+
+**Ce qui est fait (ordinateur ; le téléphone n'a pas bougé, lot 10).**
+- **Notes manuelles** : classe `manuelle` sur les barres des voix libres (`extraNotes`), de l'accord en cours comme des voisins (`seq-ctx-note`) ; à
+  l'ordinateur, liseré en pointillés et fond à 8 % de la teinte du rôle (maquette), la sélection garde son liseré blanc et son halo.
+- **Pastille ambre en direct** : `commitLiveEdit` compare la raison « voicing personnalisé » avant / après et, si elle change sans rendu de la grille, reprend la
+  seule pastille de la case en place (`majPastilleVoicing`) — redessiner la grille au milieu d'un geste reconstruirait des cases sous le pointeur.
+- **« Revenir à l'automatique »** (inspecteur, lot 6c, visible éditeur ouvert) a son propre instantané dans l'historique du séquenceur, doigté compris
+  (`pushSeqUndo(true)` ; l'instantané ne garde le doigté que pour ce geste, les autres annulations du séquenceur n'y touchent pas) — mais SEULEMENT quand la
+  dernière action notée est un geste du séquenceur : Ctrl+Z rend alors la note et la pastille, Ctrl+Y les reprend. Sinon (réglages faits dans l'inspecteur
+  seul), la dernière action est l'instantané de la session et Ctrl+Z défait déjà tout d'un coup, accord refermé compris : la première version, qui empilait
+  toujours, a fait rougir `inspecteur_son` au balayage ciblé (fermer l'inspecteur puis Ctrl+Z tombait sur la pile du séquenceur d'un accord refermé, et ne
+  rendait plus rien).
+- **Le bouton Intensité** : `#toggle-studio-mode` lui-même (même id, même logo), construit dans le groupe d'affichage quand l'éditeur est ouvert — juste après
+  Voix, comme la maquette (« Voix, Intensité, zoom, Ajuster ») ; `aria-label` « Intensité », `aria-pressed`, allumé en bleu comme Voix et Ajuster. Ailleurs il
+  garde sa place parmi le motif et son nom « Mode studio ».
+- **La bande** (`.seq-grid-intensite`) : la rangée du mode studio devient une bande collée en BAS de la vue, comme la règle l'est en haut — fond plein
+  (`.seq-vel-band`), « Int. » dans la gouttière, barres de 32 px dans 40. Sa hauteur (`SEQ_BANDE_INTENSITE_PX`) s'ajoute au volet : les 170 px de notes du
+  réduit restent 170 px (`hauteurBandeIntensite`, comptée dans `hauteurVoletSequenceur`). Elle prend les clics qui tombent entre deux barres (sinon ils
+  dessineraient une note dans la case cachée dessous). Décalée de −2 px : la vue défilante a 2 px de marge intérieure en bas, où `sticky` s'arrête, et 2 px de
+  notes passaient dessous.
+- **Les voisins** (`.seq-vel-ctx`) : une barre par croche d'attaque, à la valeur qu'ils jouent (réglage propre, sinon leur intensité), pâles (opacité 0,5),
+  sans clic ; jamais la classe `.seq-vel-bar` (celle qui se règle).
+- **Les marques** : `.reglee` (croche réglée à la main) = ambre de la pastille (`#e0b36a`, en dégradé) ; posée pendant le glissé, pas au rendu suivant ;
+  `.choisie` = la barre de la note choisie, cerclée de blanc comme la note.
+- **Le geste sur une barre** : une étape d'annulation par geste (`pushSeqUndo` au premier appui ; le second appui d'un double-clic, sur la même barre moins
+  d'une demi-seconde après le relâchement, n'empile rien) ; l'intensité par croche entre dans l'instantané du séquenceur ; écrit dans le morceau dès le
+  relâchement (`commitLiveEdit(false)`, sans rendu : un rendu remplacerait la barre entre les deux appuis d'un double-clic). Ces deux corrections valent
+  partout, téléphone compris : ce sont une perte de données et une annulation manquante, pas une mise en page.
+- **Verre dépoli** : la bande et son étiquette sont opaques verre allumé (`verre-surfaces.css`, fond des listes `--glass-select`), comme les titres collants des
+  Paramètres : `--card-bg` est translucide verre allumé, et les notes qui défilent dessous auraient traversé les barres. Contrôle ajouté à `verre_test` (66 → 67).
+
+**Bancs.** Nouveau `notes_manuelles_intensite_test` (57) : la porte (logo repris, après Voix, jauge, bleu), la bande collée en haut comme en bas du défilement,
++40 px sans rien prendre aux notes, « Int. », voisins pâles sans clic et à leur vraie valeur, l'ambre, la barre visible sans défiler, le glissé (ambre pendant le
+geste, écrit au relâchement, Ctrl+S, une annulation, Ctrl+Z / Ctrl+Y, vrai double-clic = une annulation), un clic sur la bande ne dessine rien, la barre de la
+note choisie, la note posée à la main (pointillés, 8 %, pastille aussitôt, infobulle, écrite, voisin en pointillés), « Revenir à l'automatique » éditeur ouvert
+(Ctrl+Z / Ctrl+Y), la gomme (pastille éteinte en direct), le petit séquenceur (pointillés, rangée d'avant), mémorisé, pas d'id en double, téléphone inchangé.
+`verre_test` 66 → 67 (la bande opaque verre allumé).
+**Sabotages : 17, tous rouges** (pas de classe `manuelle`, pas de pointillés, pastille pas en direct, « Revenir » sans annulation, bande non collée, bande non
+comptée dans la hauteur, pas de voisins avant, pas de voisins après, pas écrit au relâchement, glissé sans annulation, double-clic = deux annulations, pas
+d'ambre, bande transparente aux clics, bouton resté dans le motif, pointillés au téléphone, note choisie sans repère ; bande translucide verre allumé →
+`verre_test`). Deux sont d'abord restés VERTS et ont fait compléter le banc : les voisins d'avant (le banc n'ouvrait que le premier accord, qui n'en a pas :
+il passe maintenant par G7, au milieu) et les pointillés au téléphone (ouvert sans accord choisi, il n'y avait aucune note manuelle à l'écran, et « toutes en
+trait plein » était vrai sur une liste vide : il ouvre maintenant le premier accord et EXIGE la note du voisin à l'écran). Banc 57 → 59.
+
+**Balayage ciblé (05/11)** : 55 suites (avec `editeur_notes`, `pinned_seq_toolbar`, `probe_seq_continu_daw`, `entete_grille_debordement` ajoutés à la main) —
+premier passage, `inspecteur_son` rouge (ci-dessus, corrigé) ; second passage, 51 verts, les 3 rouges de la ligne de base qu'il a choisis
+(`probe_regle_voisins`, `probe_seq_finitions`, `seq_notes_libres_clavier`) et `smoke` sans verdict.
+
+**Constaté, pas changé (déjà vrai avant le lot, vérifié sur le commit d'avant)** : l'éditeur s'ouvre au-dessus des notes d'un accord grave (`scrollTop` 0,
+notes 416 px plus bas qu'une vue de 194 px) — point ouvert du 9c, plus visible avec la bande allumée ; verre allumé, la bande de la RÈGLE (`.seq-ruler-band`)
+est à 5,5 % d'opacité (`--card-bg`), les notes qui défilent dessous se devinent. Notés dans `docs/reprise.md`.
+
+**Balayage du lot 9d (05/11) : 227 verts, 6 rouges, 7 sans verdict (240 suites)** — les 5 rouges de la ligne de base, plus `glock_unlock_and_switch`
+(3/4), l'intermittent ancien décrit au lot 9a : rejoué six fois de chaque côté, 2 rouges sur 6 avec ce lot, 3 sur 6 sur le commit d'avant. Les 7 « sans
+verdict » sont ceux de la ligne de base. **Aucune régression.** Le lot 9 (éditeur de notes) est livré ; reste le téléphone (lot 10).
