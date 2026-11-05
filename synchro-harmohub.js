@@ -560,6 +560,10 @@ var ADAPTATEUR_HARMOHUB = {
             [CLE_SYNC_BASE, CLE_SYNC_SUPPR, CLE_SYNC_DOSSIERS].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { } });
         }
         try { localStorage.setItem(CLE_SYNC_UID, uid); } catch (e) { /* sans gravité */ }
+        // Connecté : les paroles se synchronisent dès maintenant, comme la grille et la structure, sans attendre qu'on ouvre leur vue
+        // (sous-lot « Paroles homogènes », voir prechargerParoles dans script.js). L'appli peut ne pas être encore construite.
+        var precharger = function () { if (window.app && window.app.prechargerParoles) window.app.prechargerParoles(); };
+        if (window.app) setTimeout(precharger, 0); else window.addEventListener('load', function () { setTimeout(precharger, 0); }, { once: true });
     },
 };
 

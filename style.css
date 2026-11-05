@@ -8204,3 +8204,11 @@ body.avec-barre-selection .toast { bottom: 132px; }
     .partie-rep-raison { padding: 0 10px 4px; font-size: var(--fs-xs); color: var(--text-muted); }
     .partie-menu .tb-mi[data-danger="1"], .partie-menu .tb-mi[data-danger="1"] .icon { color: #ff9a8f; }
 }
+
+/* ======================================================================================================
+   PARAMÈTRES › HISTORIQUE : LES VERSIONS DES PAROLES (sous-lot « Paroles homogènes », 05/11 — « Garde en mémoire des sauvegardes
+   précédentes »). Même carte que les versions du morceau ; un intertitre les sépare, et un extrait du texte permet de reconnaître une
+   version sans l'ouvrir (deux versions de 54 mots se ressemblent toutes). En fin de fichier : voir « Cascade CSS » dans CLAUDE.md.
+   ====================================================================================================== */
+.hist-sous-titre { margin: 18px 0 8px; font-size: var(--fs-sm); font-weight: 700; color: var(--text-main); }
+.hist-extrait { font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

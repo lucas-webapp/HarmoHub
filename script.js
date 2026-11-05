@@ -915,6 +915,105 @@ function lireParolesPourSauvegarde(songs) {
     return sortie;
 }
 
+// ---------- LES PAROLES SUIVENT LE MORCEAU (sous-lot « Paroles homogènes », 05/11) ----------
+// « Elles doivent être connectées au firestore directement, et doivent fonctionner comme la grille ou la structure. Le but est d'avoir un
+// fonctionnement homogène. » La grille et la structure sont DANS le morceau : le supprimer les supprime, Ctrl+Z les ramène, la synchro
+// propage les deux. Les paroles vivent à part (une session par morceau, un document Firestore à elles) : elles restaient, orphelines, et
+// revenaient au cloud. saveSongs voit passer toute écriture de la bibliothèque — comme pour la synchro des morceaux, c'est le seul endroit
+// qui sait ce qui part et ce qui revient, quel que soit le chemin (menu du morceau, fenêtre Fichiers, ménage, Ctrl+Z, restauration).
+//   • Un morceau qui PART : sa session est retirée, rangée dans la CORBEILLE de cet appareil (pour Ctrl+Z) et gardée comme version
+//     (historique.js, pour plus tard) ; une TRACE de suppression part au cloud (synchro-paroles.js) et l'efface des autres appareils.
+//   • Un morceau qui REVIENT sous le même identifiant (Ctrl+Z, ménage défait) : sa session sort de la corbeille, datée de maintenant — plus
+//     récente que la trace, elle la lève, comme un morceau ressuscité.
+// Ce qui arrive PAR LA SYNCHRO n'est pas suivi ici : le document des paroles porte lui-même ses suppressions et ses retours.
+const CLE_PAROLES_CORBEILLE = 'harmohub_lyrics_corbeille';      // { 'id-<morceau>': { json, ts } } — sur CET appareil seulement
+const CLE_PAROLES_SUPPR = 'harmohub_lyrics_sync_deleted';       // la trace lue par synchro-paroles.js
+const DUREE_CORBEILLE_PAROLES_MS = 30 * 86400000;              // au-delà, le morceau aussi n'est plus qu'une version dans l'historique
+
+function lireObjetStocke(cle) {
+    try { const v = JSON.parse(localStorage.getItem(cle)); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {}; }
+    catch (e) { return {}; }
+}
+
+function parolesSuivreBibliotheque(ancien, nouveau) {
+    if (typeof SYNCHRO !== 'undefined' && SYNCHRO && SYNCHRO.etat && SYNCHRO.etat.appliqueDistant) return;   // reçu d'ailleurs
+    const avant = new Set((ancien || []).map(s => s && s.id).filter(Boolean));
+    const apres = new Set((nouveau || []).map(s => s && s.id).filter(Boolean));
+    const partis = [...avant].filter(id => !apres.has(id));
+    const revenus = [...apres].filter(id => !avant.has(id));
+    if (!partis.length && !revenus.length) return;
+    const app = (typeof window !== 'undefined') ? window.app : null;
+    // Une frappe de moins de 350 ms n'est pas encore écrite : elle doit partir AVEC le morceau, pas revenir après lui.
+    if (partis.length && app) app.appelerParoles('writeSessionNow');
+    const maintenant = Date.now();
+    const corbeille = lireObjetStocke(CLE_PAROLES_CORBEILLE);
+    const tombes = lireObjetStocke(CLE_PAROLES_SUPPR);
+    const touchees = [];
+    partis.forEach((id) => {
+        const c = 'id-' + id, cle = PREFIXE_SESSIONS_PAROLES + c;
+        const brut = localStorage.getItem(cle);
+        if (brut === null) return;
+        corbeille[c] = { json: brut, ts: maintenant };
+        tombes[c] = Math.max(maintenant, Number(tombes[c]) || 0);
+        localStorage.removeItem(cle);
+        touchees.push(c);
+        if (typeof HistoriqueParoles !== 'undefined') {
+            try {
+                const p = JSON.parse(brut);
+                HistoriqueParoles.ajouter({ songId: id, songName: String(p.songName || ''), motif: 'avant-suppression-morceau', libelle: 'Avant la suppression du morceau', charge: p });
+            } catch (e) { /* session illisible : rien à garder */ }
+        }
+    });
+    revenus.forEach((id) => {
+        const c = 'id-' + id, cle = PREFIXE_SESSIONS_PAROLES + c;
+        const rangee = corbeille[c];
+        if (!rangee) return;
+        delete corbeille[c];
+        delete tombes[c];
+        touchees.push(c);
+        if (localStorage.getItem(cle) !== null) return;   // des paroles plus récentes sont déjà là : on n'écrase rien
+        try {
+            const p = JSON.parse(rangee.json);
+            p.savedAt = maintenant;
+            localStorage.setItem(cle, JSON.stringify(p));
+        } catch (e) { console.error('Retour des paroles impossible :', e); }
+    });
+    if (!touchees.length) return;
+    Object.keys(corbeille).forEach(c => { if (maintenant - (Number(corbeille[c].ts) || 0) > DUREE_CORBEILLE_PAROLES_MS) delete corbeille[c]; });
+    try {
+        localStorage.setItem(CLE_PAROLES_CORBEILLE, JSON.stringify(corbeille));
+        localStorage.setItem(CLE_PAROLES_SUPPR, JSON.stringify(tombes));
+    } catch (e) { console.error('Suivi des paroles impossible :', e); }
+    // Le cadre Paroles (s'il est chargé) oublie ou relit le morceau ouvert et envoie au cloud ; sinon, son moteur relira tout à sa prochaine
+    // ouverture (il lit les sessions ET les traces).
+    if (app) app.appelerParoles('parolesSuivreStockage', touchees);
+}
+
+// La mise en garde à la fermeture, POUR le cadre Paroles intégré : il s'est tu (paroles.js, une seule boîte par fermeture), mais des paroles pas
+// encore envoyées au cloud méritent le même avertissement que des morceaux (même règle que synchro-cloud.js : connecté, envoi en attente, en
+// cours ou en échec ; pas pour « trop volumineux », qu'une fermeture ne résout pas).
+window.addEventListener('beforeunload', (e) => {
+    try {
+        const cadre = document.getElementById('paroles-cadre');
+        const cw = cadre && cadre.dataset.charge ? cadre.contentWindow : null;
+        const etat = cw && cw.SYNCHRO && cw.SYNCHRO.etat;
+        if (!etat || !etat.utilisateur || etat.statut === 'toolarge') return;
+        if (!(etat.modifsEnAttente || etat.envoiEnCours || etat.statut === 'error')) return;
+        e.preventDefault();
+        e.returnValue = '';
+    } catch (err) { /* cadre inaccessible : rien à signaler de plus */ }
+});
+
+// Les paroles d'un morceau supprimé, pour le ramener sous un AUTRE identifiant (Paramètres › Historique, « je l'ai supprimé par erreur ») :
+// la corbeille d'abord, sinon la dernière version gardée. Rend le texte de la session, ou null.
+async function parolesDuMorceauSupprime(id) {
+    const rangee = lireObjetStocke(CLE_PAROLES_CORBEILLE)['id-' + id];
+    if (rangee && rangee.json) return rangee.json;
+    if (typeof HistoriqueParoles === 'undefined') return null;
+    const versions = await HistoriqueParoles.lister(id);
+    return versions.length ? JSON.stringify(versions[0].charge) : null;
+}
+
 // Une enveloppe de sauvegarde, avec ses paroles seulement s'il y en a (un fichier sans paroles reste identique à avant).
 function enveloppeSauvegarde(songs, folders, toutesLesParoles) {
     const charge = { app: 'HarmoHub', kind: 'library-backup', version: 1, exportedAt: Date.now(), songs };
@@ -952,6 +1051,9 @@ function restaurerParolesDeSauvegarde(paroles, renum) {
                 try { localPayload = JSON.parse(local); } catch (e) { localPayload = null; }
                 if (localPayload && (Number(localPayload.savedAt) || 0) >= (Number(payload.savedAt) || 0)) { bilan.gardees++; return; }
                 localStorage.setItem(PREFIXE_PAROLES_RANGEE + idLocal, JSON.stringify({ json: local, at: Number(localPayload && localPayload.savedAt) || 0, nom: String(localPayload && localPayload.songName || ''), de: 'cet appareil' }));
+                if (localPayload && idLocal.indexOf('id-') === 0 && typeof HistoriqueParoles !== 'undefined') {
+                    HistoriqueParoles.ajouter({ songId: idLocal.slice(3), songName: String(localPayload.songName || ''), motif: 'avant-import', libelle: 'Avant l\'import d\'une sauvegarde', charge: localPayload });
+                }
             }
             localStorage.setItem(cle, brut);
             bilan.ecrites++;
@@ -976,10 +1078,13 @@ function saveSongs(songs) {
     // seul endroit où l'on connaît à la fois l'état d'avant et celui d'après, donc le seul où repérer
     // ce qui a changé, ce qui a été supprimé et ce qui revient (Ctrl+Z). `typeof` parce que ce fichier
     // se charge AVANT l'adaptateur, et que rien ne doit casser si la synchro est absente.
+    const avant = loadSongs();
     if (typeof cloudNoterChangement === 'function') {
-        try { cloudNoterChangement(loadSongs(), songs); } catch (e) { console.error('Suivi de synchro impossible :', e); }
+        try { cloudNoterChangement(avant, songs); } catch (e) { console.error('Suivi de synchro impossible :', e); }
     }
     localStorage.setItem('harmohubSongs', JSON.stringify(songs));
+    // Les paroles suivent : un morceau qui sort de la bibliothèque emporte les siennes, un morceau qui revient les retrouve (voir plus haut).
+    try { parolesSuivreBibliotheque(avant, songs); } catch (e) { console.error('Suivi des paroles impossible :', e); }
 }
 
 // Date de dernière modification d'un morceau, en clair. Vivait dans renderFilesPanel ; hissée ici
@@ -10640,11 +10745,11 @@ class HarmoHubApp {
         this.updateGlobalUndoRedoButtons();
     }
 
-    appelerParoles(nom) {
+    appelerParoles(nom, ...args) {
         const cadre = document.getElementById('paroles-cadre');
         try {
             const cw = cadre && cadre.contentWindow;
-            if (cw && typeof cw[nom] === 'function') { cw[nom](); return true; }
+            if (cw && typeof cw[nom] === 'function') { cw[nom](...args); return true; }
         } catch (e) { console.error(`Paroles : ${nom} impossible :`, e); }
         return false;
     }
@@ -10663,7 +10768,11 @@ class HarmoHubApp {
         }
         vide.hidden = true; cadre.hidden = false;
         const texte = JSON.stringify(this.donneesParoles());
-        if (cadre.dataset.charge && texte === this._parolesCharge) return;
+        // …et seulement si le cadre montre ENCORE ce morceau : il l'oublie quand le morceau est supprimé (paroles.js, oublierMorceauOuvert) —
+        // après un Ctrl+Z, les accords n'ont pas changé, mais la vue serait restée vide (trouvé par le banc paroles_homogenes).
+        let montre = null;
+        try { const cw = cadre.contentWindow; montre = cw && typeof cw.idMorceauOuvert === 'function' ? cw.idMorceauOuvert() : null; } catch (e) { montre = null; }
+        if (cadre.dataset.charge && texte === this._parolesCharge && montre === getCurrentSongId()) return;
         try { localStorage.setItem('harmohub_lyrics_pending_import', texte); }
         catch (e) { console.error('Transfert vers Paroles impossible :', e); }
         this._parolesCharge = texte;
@@ -10674,6 +10783,20 @@ class HarmoHubApp {
             this.appelerParoles('writeSessionNow');            // les paroles du morceau précédent d'abord
             this.appelerParoles('tryAutoImportFromHarmoHub');  // puis le nouveau dépôt
         }
+    }
+
+    // LA SYNCHRO DES PAROLES DÈS L'OUVERTURE (sous-lot « Paroles homogènes », 05/11). Les paroles ont leur moteur dans la page Paroles (une
+    // instance de synchro-cloud.js par page, voir synchro-paroles.js) : tant que la vue Paroles n'avait pas été ouverte, rien ne partait ni
+    // n'arrivait — des paroles tapées sur le téléphone n'étaient pas sur l'ordinateur avant d'avoir cliqué l'onglet, une suppression ne
+    // partait pas. La grille et la structure, elles, se synchronisent à l'ouverture de HarmoHub. Une fois connecté (synchro-harmohub.js,
+    // surCompte), on charge donc le cadre Paroles en arrière-plan : la vue reste fermée, le cadre caché, mais son moteur tourne. Pas avant la
+    // connexion : sans compte, il n'y aurait rien à synchroniser, et c'est une page de plus à charger.
+    prechargerParoles() {
+        const cadre = document.getElementById('paroles-cadre');
+        if (!cadre || cadre.dataset.charge) return false;
+        cadre.dataset.charge = '1';
+        cadre.src = 'paroles.html?integre=1';
+        return true;
     }
 
     // L'onglet allumé : Structure tant que sa fenêtre est ouverte, Grille sinon. Appelé à l'ouverture et à la fermeture de la fenêtre.
@@ -10985,6 +11108,7 @@ class HarmoHubApp {
             'avant-transposition': ['Avant transposition', 'bleu'], 'avant-suppression-partie': ['Avant suppression', 'bleu'],
             'avant-suppression-morceau': ['Avant suppression du morceau', 'bleu'], 'avant-import': ['Avant import', 'bleu'],
             'avant-restauration': ['Avant restauration', 'bleu'], 'abandon': ['Modifications abandonnées', 'orange'],
+            'avant-synchro': ['Avant synchro', 'bleu'],   // paroles : remplacées par la version d'un autre appareil
         };
         return T[v.motif] || [v.motif || 'Version', 'neutre'];
     }
@@ -11023,8 +11147,15 @@ class HarmoHubApp {
         }
         const courantId = getCurrentSongId() || '';
         const avecHistoire = await HistoriqueVersions.morceaux();
+        // Un morceau dont seules les PAROLES ont une histoire figure aussi dans la liste (sous-lot « Paroles homogènes »).
+        const parolesDispo = typeof HistoriqueParoles !== 'undefined' && await HistoriqueParoles.disponible();
+        (parolesDispo ? await HistoriqueParoles.morceaux() : []).forEach(m => {
+            const deja = avecHistoire.find(x => x.songId === m.songId);
+            if (deja) deja.n += m.n; else avecHistoire.push(m);
+        });
         const choix = this._histChoix !== undefined && (this._histChoix === courantId || avecHistoire.some(m => m.songId === this._histChoix)) ? this._histChoix : courantId;
         const versions = await HistoriqueVersions.lister(choix);
+        const versionsParoles = parolesDispo && choix ? await HistoriqueParoles.lister(choix) : [];
         if (jeton !== this._histRendu) return;
         // Le morceau ouvert d'abord (même sans version), puis les autres du plus récemment travaillé au plus ancien.
         const options = [{ songId: courantId, nom: this.nomMorceauHistorique(courantId, ''), n: (avecHistoire.find(m => m.songId === courantId) || { n: 0 }).n }]
@@ -11054,15 +11185,69 @@ class HarmoHubApp {
             <div id="hist-message" class="hist-message" role="status"${this._histMessage ? ` data-sorte="${this._histMessage.sorte}"` : ' hidden'}>${this._histMessage ? escapeHtml(this._histMessage.texte) : ''}</div>
             <ul class="hist-liste" id="hist-liste">${maintenant}${lignes || '<li class="hist-vide" id="hist-vide">Aucune version pour ce morceau pour l\'instant. La première arrive après 5 minutes de travail, ou à la prochaine opération lourde.</li>'}</ul>
             <p class="hist-aide">Restaurer remet la version dans le brouillon ; l'état actuel est d'abord gardé comme version. Clique Enregistrer pour la garder.</p>
+            ${this.historiqueParolesHtml(choix, versionsParoles)}
             <button type="button" id="hist-vider" class="hist-vider">Vider l'historique de cet appareil</button>`;
+        host.querySelectorAll('[data-restaurer-paroles]').forEach(b => { b.onclick = () => this.restaurerVersionParoles(b.dataset.restaurerParoles); });
         document.getElementById('hist-morceau').onchange = (e) => { this._histChoix = e.target.value; this._histMessage = null; this.renderHistoriquePanel(); };
         host.querySelectorAll('[data-restaurer]').forEach(b => { b.onclick = () => this.restaurerVersion(b.dataset.restaurer); });
         document.getElementById('hist-vider').onclick = async () => {
             if (!confirm('Effacer toutes les versions gardées sur cet appareil ? Tes morceaux enregistrés ne sont pas touchés.')) return;
             const ok = await HistoriqueVersions.vider();
+            if (typeof HistoriqueParoles !== 'undefined') await HistoriqueParoles.vider();
             this.messageHistorique(ok ? 'Historique vidé sur cet appareil.' : 'Impossible de vider l\'historique.', ok ? 'ok' : 'erreur');
             this.renderHistoriquePanel();
         };
+    }
+
+    // LES VERSIONS DES PAROLES du morceau choisi (sous-lot « Paroles homogènes », 05/11 : « Garde en mémoire des sauvegardes précédentes »).
+    // Les paroles s'enregistrent toutes seules ; ces versions sont prises par la page Paroles (au plus une toutes les 5 minutes de frappe,
+    // avant chaque version reçue d'un autre appareil) et par HarmoHub (avant la suppression du morceau, avant un import). Restaurer remet
+    // la version EN PLACE — il n'y a pas de brouillon pour les paroles —, après avoir gardé l'état actuel. Rien pour un tampon sans nom.
+    historiqueParolesHtml(choix, versions) {
+        if (!choix) return '';
+        const existe = loadSongs().some(x => x.id === choix);
+        const lignes = versions.map(v => {
+            const [tag, couleur] = this.etiquetteVersion(v);
+            const r = v.resume || HistoriqueParoles.resume(v.charge || {});
+            const bouts = [`${r.mots} mot${r.mots > 1 ? 's' : ''}`, `${r.parties} partie${r.parties > 1 ? 's' : ''}`];
+            if (r.poses) bouts.push(`${r.poses} accord${r.poses > 1 ? 's' : ''} posé${r.poses > 1 ? 's' : ''}`);
+            const plus = v.libelle && v.libelle !== tag ? ` title="${escapeHtml(v.libelle)}"` : '';
+            return `<li class="hist-carte hist-carte-paroles" data-version-paroles="${escapeHtml(v.id)}">
+                <div class="hist-corps">
+                    <div class="hist-ligne"><span class="hist-titre">${escapeHtml(formaterDateEnregistrement(v.date))}</span><span class="hist-tag ${couleur}"${plus}>${escapeHtml(tag)}</span></div>
+                    <span class="hist-resume">${escapeHtml(bouts.join(' · '))}</span>
+                    ${r.extrait ? `<span class="hist-resume hist-extrait">« ${escapeHtml(r.extrait)}${r.extrait.length >= 80 ? '…' : ''} »</span>` : ''}
+                </div>
+                ${existe ? `<button type="button" class="hist-restaurer" data-restaurer-paroles="${escapeHtml(v.id)}" title="Remettre ces paroles à la place des paroles actuelles">Restaurer</button>` : ''}
+            </li>`;
+        }).join('');
+        return `<h4 class="hist-sous-titre">Paroles de ce morceau</h4>
+            <ul class="hist-liste hist-liste-paroles">${lignes || '<li class="hist-vide hist-vide-paroles">Aucune version des paroles pour l\'instant. La première est gardée dès que tu modifies des paroles déjà enregistrées.</li>'}</ul>
+            <p class="hist-aide">${existe ? 'Restaurer remet ces paroles en place tout de suite (les paroles s\'enregistrent toutes seules) ; les paroles actuelles sont d\'abord gardées comme version.' : 'Ce morceau est supprimé : restaure-le plus haut, ses paroles reviennent avec lui.'}</p>`;
+    }
+
+    async restaurerVersionParoles(id) {
+        const v = await HistoriqueParoles.lire(id);
+        if (!v || !v.charge) { this.messageHistorique('Cette version n\'existe plus sur cet appareil.', 'erreur'); return false; }
+        if (!loadSongs().some(x => x.id === v.songId)) { this.messageHistorique('Restaure d\'abord le morceau : ses paroles reviennent avec lui.', 'erreur'); return false; }
+        const quand = formaterDateEnregistrement(v.date);
+        const c = 'id-' + v.songId, cle = PREFIXE_SESSIONS_PAROLES + c;
+        this.appelerParoles('writeSessionNow');   // la dernière frappe fait partie de « l'état actuel » qu'on garde
+        const actuel = localStorage.getItem(cle);
+        if (actuel) {
+            try { await HistoriqueParoles.ajouter({ songId: v.songId, songName: v.songName, motif: 'avant-restauration', libelle: `Avant la restauration des paroles du ${quand}`, charge: JSON.parse(actuel) }); }
+            catch (e) { /* session illisible : on restaure quand même, c'est justement le cas où l'on en a besoin */ }
+        }
+        try {
+            const p = JSON.parse(JSON.stringify(v.charge));
+            p.savedAt = Date.now();   // la plus récente : c'est elle que la synchro garde et envoie
+            localStorage.setItem(cle, JSON.stringify(p));
+        } catch (e) { console.error('Restauration des paroles impossible :', e); this.messageHistorique('Impossible de restaurer ces paroles (stockage plein ?).', 'erreur'); return false; }
+        this.appelerParoles('parolesSuivreStockage', [c]);
+        this._parolesCharge = null;   // la vue Paroles relira la session à sa prochaine ouverture
+        this.messageHistorique(`Paroles du ${quand} remises en place.`);
+        this.renderHistoriquePanel();
+        return true;
     }
 
     // Le message est GARDÉ (this._histMessage) : le panneau se redessine juste après chaque restauration pour montrer le nouvel état, et un message
@@ -11108,6 +11293,16 @@ class HarmoHubApp {
         } else {
             const nom = nomLibrePourCopie(v.songName || 'Morceau récupéré', new Set(songs.map(x => x.name)));
             const rec = { ...JSON.parse(JSON.stringify(v.charge)), id: 'song_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: nom, savedAt: Date.now(), folder: null };
+            // Ses paroles reviennent avec lui (sous-lot « Paroles homogènes ») : la grille, la structure ET les paroles, comme un morceau entier.
+            const paroles = v.songId ? await parolesDuMorceauSupprime(v.songId) : null;
+            if (paroles) {
+                try {
+                    const p = JSON.parse(paroles);
+                    p.songName = nom; p.savedAt = Date.now();
+                    localStorage.setItem(PREFIXE_SESSIONS_PAROLES + 'id-' + rec.id, JSON.stringify(p));
+                    this.appelerParoles('parolesNoterChangement');
+                } catch (e) { console.error('Retour des paroles impossible :', e); }
+            }
             saveSongs([...songs, rec]);
             this.loadSong(rec.id);
             this.messageHistorique(`« ${nom} » est de retour dans Mes morceaux (version du ${quand}).`);

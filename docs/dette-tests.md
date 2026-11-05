@@ -5516,3 +5516,46 @@ un vrai défaut à moi dans `verre` (un « backdrop-filter: none » écrit en du
 flou, invisible sans fond). Bancs réécrits rejoués un à un : tous verts. **Complet : 230 verts, 6 rouges, 7 sans verdict (243 suites)** — les 5 rouges
 et 7 « sans verdict » de la ligne de base, plus `meta_suite`, rouge parce que la dette avait DIMINUÉ (deux erreurs avalées de moins dans `song_panel`) :
 référence figée (`--maj`), vert 6/6. Aucun fichier servi n'a changé depuis. **Aucune régression.**
+
+## Sous-lot « Paroles homogènes » : les paroles suivent le morceau, se synchronisent dès l'ouverture, gardent leurs versions (2026-11-05)
+
+Demandes du 05/11 : les paroles « doivent être connectées au firestore directement, et doivent fonctionner comme la grille ou la structure. Le but
+est d'avoir un fonctionnement homogène » ; « Oui tu peux enregistrer les paroles automatiquement » ; « Garde en mémoire des sauvegardes précédentes ».
+
+- **Supprimer un morceau supprime ses paroles**, par tous les chemins (menu, fenêtre Fichiers, ménage, Ctrl+Z, restauration) : `saveSongs` appelle
+  `parolesSuivreBibliotheque` (script.js). Un morceau qui part : sa session est retirée, rangée dans une corbeille de l'appareil
+  (`harmohub_lyrics_corbeille`, 30 jours, pour Ctrl+Z), gardée comme version, et une **trace de suppression** (`harmohub_lyrics_sync_deleted`) part
+  dans le document `harmohub-paroles` (champ `supprimes`, six mois, même règle que les morceaux : la suppression l'emporte sur toute version plus
+  ancienne, une version plus récente la lève). Un morceau qui revient sous le même identifiant (Ctrl+Z) retrouve ses paroles, datées de maintenant.
+  Ce qui arrive par la synchro n'est pas suivi là : le document des paroles porte ses propres suppressions. Restaurer un morceau supprimé depuis
+  Paramètres › Historique (nouvel identifiant) ramène aussi ses paroles (corbeille, sinon dernière version).
+- **Le cadre Paroles oublie un morceau supprimé** (`oublierMorceauOuvert`, ici ou reçu d'un autre appareil) : il ne peut plus le réécrire. Et la vue
+  le recharge quand il revient (`idMorceauOuvert`, demandé par `chargerParoles`) — sans quoi, après Ctrl+Z, la vue restait vide : trouvé par le banc.
+- **Défaut ancien corrigé** : `writeSessionNow` réécrivait la session (datée de maintenant) à chaque sortie de la vue, même sans frappe. C'est ce qui
+  ressuscitait les paroles d'un morceau supprimé (sabotage S3 : B les récupère). Elle n'écrit plus que s'il y a une écriture en attente.
+- **Synchro dès l'ouverture** : une fois connecté (`surCompte` de synchro-harmohub.js), `prechargerParoles` charge le cadre Paroles en arrière-plan,
+  vue fermée. `synchro-cloud.js` intouché (une instance par page). Sans compte, rien n'est chargé.
+- **Versions des paroles** : historique.js devient une fabrique (`creerHistorique`) ; `HistoriqueParoles` a sa base à part
+  (`harmohub-historique-paroles`, pour ne pas monter la version de celle des morceaux). Versions prises avant d'écraser la session (au plus une
+  toutes les 5 minutes par morceau, donc toujours l'état d'avant la première frappe), avant une version reçue d'un autre appareil (« Avant synchro »),
+  avant la suppression du morceau, avant un import, avant une restauration ; doublons écartés. Paramètres › Historique : intertitre « Paroles de ce
+  morceau », cartes avec mots, parties, accords posés et un extrait, bouton Restaurer (en place, l'état actuel gardé d'abord, envoyé au cloud).
+- **Faux Firebase des bancs** : une écoute venue d'un cadre reçoit ses notifications dans ce cadre (`frame`), et non dans la page qui le contient.
+
+- **Une seule mise en garde à la fermeture** : le cadre préchargé a son moteur, qui prévenait lui aussi quand un envoi était en attente — deux boîtes,
+  le navigateur refusait la seconde (erreur de console, trouvée par `structure_feuille` au premier balayage complet). Intégrée, la page Paroles arrête
+  l'écouteur de synchro-cloud.js (posé avant lui, sans toucher le fichier partagé) ; HarmoHub prévient à sa place en lisant l'état du moteur du cadre.
+
+**Banc.** Nouveau `paroles_homogenes_test` (36), deux appareils sur le même nuage simulé (A ordinateur, B téléphone 390 px tactile), vrais gestes :
+préchargement (cadre chargé, vue fermée, document au cloud) ; B reçoit les paroles sans ouvrir la vue ; suppression par la fenêtre Fichiers (session,
+trace, cloud, cadre qui oublie, version gardée ; B supprimée et sa vue ouverte qui oublie) ; Ctrl+Z (morceau, paroles, trace levée, cloud, B) ;
+réouverture de la vue ; vue ouverte puis quittée sans frappe : rien de réécrit ; versions (pas de doublon, version automatique, liste et extrait,
+Restaurer, version avant restauration, message, cloud, B, vue) ; fermeture hors ligne : une seule mise en garde ; sans compte, rien de préchargé.
+**Sabotages : 8, tous rouges** (session laissée, pas de préchargement, réécriture sans frappe, traces ignorées par la fusion, vue non rechargée, pas
+de version avant restauration, cadre qui prévient aussi, HarmoHub qui ne prévient pas pour le cadre).
+**Réécrit** : `paroles_hardening` (6) corrompait la session pendant l'anti-rebond qui suit l'export ; charger un morceau écrit maintenant d'abord la
+frappe en attente du précédent (rien ne se perd), qui remplaçait la session corrompue. Le banc attend la fin de l'anti-rebond, son intention reste.
+`_firebase_faux.js` notifie le cadre d'où vient l'écoute.
+**Balayages (05/11).** Ciblé (44 suites) : 42 verts, `probe_regle_voisins` rouge et `smoke` sans verdict (ligne de base). Complet n°1 : 229 verts, 8 rouges —
+la ligne de base plus `paroles_hardening` et `structure_feuille` (corrigés ci-dessus) et `verre` (écart sur `#tb-titre`, vert rejoué seul : l'intermittence
+connue sous charge). **Complet n°2 : 232 verts, 5 rouges, 7 sans verdict (244 suites), exactement la ligne de base. Aucune régression.**

@@ -179,13 +179,45 @@ function setSaveStatus(kind, detail) {
 // ---------- Persistance ----------
 
 let saveTimer = null;
+// UNE ÉCRITURE EN ATTENTE ? (sous-lot « Paroles homogènes », 05/11). HarmoHub appelle writeSessionNow en quittant la vue Paroles et en
+// changeant de morceau, pour ne perdre aucune frappe de moins de 350 ms. Elle réécrivait alors la session à CHAQUE fois, datée de
+// maintenant, même sans rien tapé : la session d'un morceau qu'on venait de SUPPRIMER revenait ainsi, plus récente que sa suppression —
+// et la synchro la ramenait partout. On n'écrit plus que ce qui a été modifié (toute modification passe par saveSession).
+let ecritureEnAttente = false;
+
+// VERSIONS DES PAROLES (historique.js, base `harmohub-historique-paroles`). « Garde en mémoire des sauvegardes précédentes » (05/11). Avant
+// d'écraser la session enregistrée, on en garde une version — au plus une toutes les 5 minutes par morceau : la première frappe après
+// l'ouverture garde donc toujours l'état d'avant, et une longue séance laisse un point de retour toutes les 5 minutes. Les doublons (même
+// texte que la dernière version) ne sont pas gardés. `DELAI_VERSION_PAROLES` est une variable pour que le banc n'attende pas 5 minutes.
+var DELAI_VERSION_PAROLES = 5 * 60 * 1000;
+const derniereVersionParoles = {};   // clé de session -> date de la dernière version prise ICI
+function sessionParolesAContenu(payload) {
+    return !!payload && Array.isArray(payload.sections) && payload.sections.some(sec =>
+        String(sec.lyricsHtml || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() || (sec.placements && sec.placements.length));
+}
+// Garde une version d'une session (texte JSON tel qu'enregistré). Ne lève jamais : un historique indisponible n'empêche rien.
+function garderVersionParoles(cle, brut, motif, libelle) {
+    try {
+        if (typeof HistoriqueParoles === 'undefined' || !brut || cle.indexOf(STORAGE_PREFIX + 'id-') !== 0) return;
+        const payload = JSON.parse(brut);
+        if (!sessionParolesAContenu(payload)) return;
+        HistoriqueParoles.ajouter({ songId: cle.slice((STORAGE_PREFIX + 'id-').length), songName: String(payload.songName || ''), motif, libelle, charge: payload });
+    } catch (e) { console.error('Version des paroles impossible :', e); }
+}
 
 // Écriture proprement dite, factorisée pour être appelable soit après le délai anti-rebond normal
 // (voir saveSession), soit IMMÉDIATEMENT (voir "beforeunload" plus bas) — sans ça, fermer l'onglet ou
 // naviguer moins de 350ms après une dernière frappe perdrait cette toute dernière modification, jamais
 // écrite (retour utilisateur : "assure-toi que les enregistrements sont bien réalisés").
 function writeSessionNow() {
-    if (!state.song) return;
+    if (!state.song || !ecritureEnAttente) return;
+    ecritureEnAttente = false;
+    clearTimeout(saveTimer); saveTimer = null;
+    const cle = storageKeyForSong(state.song);
+    if (Date.now() - (derniereVersionParoles[cle] || 0) >= DELAI_VERSION_PAROLES) {
+        derniereVersionParoles[cle] = Date.now();
+        garderVersionParoles(cle, localStorage.getItem(cle), 'auto', 'Version automatique');
+    }
     const payload = {
         songName: state.song.song,
         // DATE D'ENREGISTREMENT : c'est elle qui dit, entre deux appareils, quelle version des paroles est la plus récente (voir
@@ -199,7 +231,7 @@ function writeSessionNow() {
         })),
     };
     try {
-        localStorage.setItem(storageKeyForSong(state.song), JSON.stringify(payload));
+        localStorage.setItem(cle, JSON.stringify(payload));
         setSaveStatus('ok');
         // `typeof` : ce fichier se charge AVANT l'adaptateur (synchro-paroles.js), et doit marcher sans lui (hors ligne au premier
         // chargement, SDK bloqué : l'enregistrement local, lui, ne dépend de rien).
@@ -220,6 +252,7 @@ function writeSessionNow() {
 
 function saveSession() {
     if (!state.song) return;
+    ecritureEnAttente = true;
     setSaveStatus('pending');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(writeSessionNow, 350);
@@ -228,7 +261,7 @@ function saveSession() {
 // Filet de sécurité : si une écriture est encore en attente (dans les 350ms) au moment de fermer
 // l'onglet/naviguer ailleurs, on la force IMMÉDIATEMENT plutôt que de la laisser expirer dans le vide.
 window.addEventListener('beforeunload', () => {
-    if (saveTimer) { clearTimeout(saveTimer); writeSessionNow(); }
+    if (ecritureEnAttente) writeSessionNow();
 });
 
 function loadSavedSession(song) {
@@ -246,6 +279,23 @@ function loadSavedSession(song) {
     }
 }
 
+// L'identifiant du morceau affiché (ou null) : HarmoHub le demande avant de décider s'il doit recharger la vue (voir chargerParoles).
+function idMorceauOuvert() { return state.song ? (state.song.songId || null) : null; }
+
+// LE MORCEAU OUVERT A ÉTÉ SUPPRIMÉ (dans HarmoHub, ou sur un autre appareil : synchro-paroles.js). Ses paroles sont parties avec lui ; la page
+// ne doit plus les montrer, ni surtout les réécrire (une frappe les ferait revenir, plus récentes que la suppression). On revient à la page
+// vide, et on oublie le « dernier morceau ouvert ici » pour qu'une réouverture ne le ressuscite pas.
+function oublierMorceauOuvert() {
+    clearTimeout(saveTimer); saveTimer = null; ecritureEnAttente = false;
+    state.song = null; state.armed = null; state.sectionEls = [];
+    try { localStorage.removeItem(LAST_SONG_KEY); } catch (e) { /* sans gravité */ }
+    resetUndoHistory();
+    document.getElementById('sections').innerHTML = '';
+    document.getElementById('empty-state').hidden = false;
+    document.getElementById('toolbar').hidden = true;
+    ['btn-export-pdf', 'btn-export-text', 'btn-copy-text', 'song-name'].forEach(id => { const el = document.getElementById(id); if (el) el.hidden = true; });
+}
+
 // ---------- Import ----------
 
 function loadSong(data) {
@@ -253,6 +303,7 @@ function loadSong(data) {
         alert("Fichier invalide — utilise le fichier téléchargé depuis le bouton « Exporter pour paroles » de HarmoHub.");
         return;
     }
+    if (ecritureEnAttente) writeSessionNow();   // les frappes du morceau précédent d'abord, sous SA clé
     document.getElementById('banners').innerHTML = '';
     // Photo du morceau AVANT que loadSong ne lui ajoute ses champs de travail (_lyricsHtml,
     // _placements...) : c'est cette structure brute qu'on veut retrouver à la réouverture.
@@ -1374,6 +1425,12 @@ function debounce(fn, ms) {
 // paroles, l'export texte, la copie, le PDF — rejoignent la barre d'outils. Ce sont les MÊMES éléments (déplacés, pas recopiés) : leurs
 // gestionnaires, posés plus haut, les suivent. Page ouverte seule : rien ne bouge.
 const EST_INTEGRE = document.documentElement.classList.contains('integre');
+// UNE SEULE MISE EN GARDE À LA FERMETURE (sous-lot « Paroles homogènes »). Intégrée, la page a son moteur de synchro, qui prévient comme celui
+// de HarmoHub quand un envoi est en attente : deux boîtes pour une seule fermeture, le navigateur refuse la seconde (« Blocked attempt to show
+// multiple 'beforeunload' confirmation panels », vu par structure_feuille). Écouteur posé AVANT synchro-cloud.js (chargé après ce fichier, et
+// partagé avec TabHub et TrainHub : on n'y touche pas) : il arrête le sien ici. La page HarmoHub prévient À SA PLACE (script.js, elle lit l'état
+// de ce moteur). L'écriture forcée de la dernière frappe, plus haut, a été posée avant celui-ci : elle a toujours lieu.
+if (EST_INTEGRE) window.addEventListener('beforeunload', (e) => { e.stopImmediatePropagation(); });
 if (EST_INTEGRE) {
     const barre = document.getElementById('toolbar');
     if (barre) {

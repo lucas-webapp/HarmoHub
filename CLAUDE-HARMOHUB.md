@@ -1,15 +1,14 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 05/11/2026, après le sous-lot 10c (réglages du morceau, Affichage et en-tête de partie au téléphone). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 05/11/2026, après le sous-lot « Paroles homogènes » (suppression, synchro dès l'ouverture, versions des paroles). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
-- **Prochain : sous-lot « Paroles homogènes »** (plan arrêté, décisions du 05/11 plus bas, dans « Où on en est » : suppression qui suit le morceau,
-  synchro dès l'ouverture, enregistrement automatique gardé, versions précédentes restaurables). On peut commencer sans rien demander ; boucle d'un lot
-  dans `CLAUDE.md`.
-- **Ensuite** : 10d (panneau d'accord), 10e (panneau d'ajout), 10f (éditeur de notes au téléphone), dans cet ordre (dépendances). L'utilisateur peut
-  changer l'ordre en lançant `/reprise`.
-- **À proposer à l'utilisateur, sans bloquer la suite** : les deux décisions du 10c à confirmer (plus bas), les points ouverts des lots 10b, 9c et 9d,
+- **Prochain : 10d (panneau d'accord)**, section « Lot 10 » plus bas. On peut commencer sans rien demander ; boucle d'un lot dans `CLAUDE.md`.
+- **Ensuite** : 10e (panneau d'ajout), 10f (éditeur de notes au téléphone), dans cet ordre (dépendances). L'utilisateur peut changer l'ordre en
+  lançant `/reprise`.
+- **À proposer à l'utilisateur, sans bloquer la suite** : les deux décisions du 10c à confirmer (plus bas), les deux points des « Paroles homogènes »
+  (plus bas), les points ouverts des lots 10b, 9c et 9d,
   et les défauts anciens `ajout_modif` / `duree_sur_la_ligne_accord` (hors lot, même règle du relevé).
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
@@ -19,13 +18,19 @@ Mis à jour le 05/11/2026, après le sous-lot 10c (réglages du morceau, Afficha
   Clavier / Guitare, éditeur de notes : 9a à 9d — l'icône ⊱ de conduite de voix n'existe plus qu'au téléphone). Détail : `docs/dette-tests.md`.
 - **Lot 10 en cours** (le téléphone) : découpé en six sous-lots (section « Lot 10 » plus bas) ; **10a livré** (barre du haut et onglets), **10b livré**
   (barre de lecture fixée en bas, panneau Lecture avec tempo, vitesse et métronome, Structure et Paroles en vues intégrées), **10c livré** (barre-résumé
-  et quatre cases, Affichage, en-tête de partie). **Prochain : « Paroles homogènes »**, puis 10d.
+  et quatre cases, Affichage, en-tête de partie), **« Paroles homogènes » livré** (supprimer un morceau supprime ses paroles partout, Ctrl+Z les
+  ramène ; synchro des paroles dès l'ouverture une fois connecté, cadre Paroles chargé en arrière-plan ; versions des paroles dans Paramètres ›
+  Historique, base `harmohub-historique-paroles` ; banc `paroles_homogenes`). **Prochain : 10d.**
+- **Deux points des « Paroles homogènes », à proposer** : (1) les versions des paroles restent PAR APPAREIL (IndexedDB), comme celles des morceaux ;
+  (2) la page Paroles ouverte SEULE (favori) n'a pas de liste des versions : on restaure depuis HarmoHub (Paramètres › Historique).
 - **Deux décisions du 10c, à confirmer avec l'utilisateur** : (1) la barre-résumé dit aussi le TEMPO (« C majeur · 120 BPM · 4/4 · Droit · Piano »),
   que la maquette n'y mettait pas — pour tenir son exigence « toujours voir tonalité et tempo » (`filet_toujours_visible`) ; (2) Compact / Normal /
   Large et le pincement du téléphone sont une préférence de l'APPAREIL (`harmohubGrilleTelephone`), pas du morceau : les échelles du morceau restent
   celles de l'ordinateur (un morceau en Détaillé donnait des cases de 103 px au téléphone). Aussi : Transposer garde une ligne sous les cases (absent de
   la maquette, présent avant).
-- **Dernier balayage complet** (lot 10c) : 230 verts, 6 rouges, 7 sans verdict sur 243 suites — la ligne de base exacte (voir `CLAUDE.md`) plus `meta_suite`, rouge parce que la dette avait DIMINUÉ (référence figée par `--maj`, vert 6/6 ensuite).
+- **Dernier balayage complet** (« Paroles homogènes ») : 232 verts, 5 rouges, 7 sans verdict sur 244 suites — exactement la ligne de base de
+  `CLAUDE.md`. Le premier passage avait trouvé deux défauts (double mise en garde à la fermeture, `paroles_hardening` à réécrire) et `verre`
+  intermittent sous charge (vert seul) ; corrigés, repassé en entier.
 - **Dettes connues pour le lot 10** : au téléphone, hors barre du haut, onglets, barre de lecture et vues intégrées (10a, 10b), rien n'a bougé depuis
   le lot 6 ; 19 bancs sont joués à 860 px parce qu'ils éprouvent le mode « Ajout » de la carte Accord, qui n'existe plus que là (liste dans
   `docs/dette-tests.md`, lot 6c) → 10e. L'ancien panneau de conduite de voix (icône ⊱) n'existe plus qu'au téléphone : `voice_leading`, `vl_loupe`,
@@ -34,7 +39,7 @@ Mis à jour le 05/11/2026, après le sous-lot 10c (réglages du morceau, Afficha
 - **Points du lot 10b, réponses du 05/11** : la vitesse de lecture est au téléphone (panneau Lecture, mention dorée à côté de « Mes. N ») ; les
   paroles « doivent être connectées au firestore directement, et doivent fonctionner comme la grille ou la structure » — elles le sont déjà
   (`synchro-paroles.js`, document `harmohub-paroles`, envoyé par la vue intégrée elle-même), pas d'entrée .json au menu Fichier ; dupliquer un
-  morceau copie désormais ses paroles. **Sous-lot « Paroles homogènes », plan arrêté** : (1) supprimer un morceau supprime ses paroles (trace des
+  morceau copie désormais ses paroles. **Sous-lot « Paroles homogènes » (livré, voir plus haut)** : (1) supprimer un morceau supprime ses paroles (trace des
   suppressions dans `synchro-paroles.js`) ; (2) synchro des paroles dès l'ouverture de HarmoHub (sans toucher `synchro-cloud.js`, une instance
   par page : par exemple charger le cadre Paroles en arrière-plan une fois connecté) ; (3) **décidé le 05/11** : « Oui tu peux enregistrer les
   paroles automatiquement » — l'enregistrement automatique reste ; (4) **décidé le 05/11** : « Garde en mémoire des sauvegardes précédentes » — les

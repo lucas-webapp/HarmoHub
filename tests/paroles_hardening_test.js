@@ -76,6 +76,9 @@ fs.writeFileSync(SAMPLE_PATH, JSON.stringify(SAMPLE, null, 2));
     check(txt.includes('Nouvelles paroles ici'), "l'export texte contient bien les paroles tapées");
 
     // === 6. Session corrompue : avertissement visible, pas de plantage ===
+    // On laisse d'abord passer l'anti-rebond d'enregistrement (350 ms) : depuis le sous-lot « Paroles homogènes », charger un morceau écrit
+    // d'abord la frappe EN ATTENTE du précédent, sous sa clé (rien ne se perd) — elle remplacerait la session qu'on corrompt ici, et c'est voulu.
+    await page.waitForTimeout(600);
     await page.evaluate(() => {
         const keys = Object.keys(localStorage).filter(k => k.startsWith('harmohub_lyrics_v1_id-'));
         keys.forEach(k => localStorage.setItem(k, '{ ceci n\'est pas du JSON valide'));

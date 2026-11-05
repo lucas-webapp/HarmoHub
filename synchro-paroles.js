@@ -31,6 +31,15 @@ var PREFIXE_PAROLES = 'harmohub_lyrics_v1_';
 var CLE_PAROLES_BASE = 'harmohub_lyrics_sync_base';        // { cle: savedAt à la dernière synchro de CET appareil }
 var CLE_PAROLES_UID = 'harmohub_lyrics_sync_uid';
 var PREFIXE_PAROLES_RANGEE = 'harmohub_lyrics_rangee_';     // la version perdante, une par session (volontairement HORS du préfixe ci-dessus)
+// LES SUPPRESSIONS (sous-lot « Paroles homogènes », 05/11). « Elles doivent fonctionner comme la grille ou la structure. Le but est d'avoir
+// un fonctionnement homogène. » Supprimer un morceau supprime sa grille et sa structure (elles sont DANS le morceau) — ses paroles restaient,
+// orphelines, et revenaient au cloud. HarmoHub (script.js, parolesSuivreBibliotheque) retire maintenant la session et laisse ici une TRACE,
+// comme la bibliothèque pour ses morceaux (`harmohub_sync_deleted`, synchro-harmohub.js) : { clé de session: date }. Elle voyage dans le
+// document des paroles et empêche un appareil resté hors ligne de les ramener. Même règle que pour les morceaux : une suppression l'emporte
+// sur toute version plus ANCIENNE qu'elle ; une version plus récente (Ctrl+Z, restauration) la lève. Gardée six mois, comme les morceaux.
+var CLE_PAROLES_SUPPR = 'harmohub_lyrics_sync_deleted';
+var DUREE_TRACE_PAROLES_MS = 180 * 86400000;
+function lireSuppressionsParoles() { var v = lireJsonParoles(CLE_PAROLES_SUPPR, {}); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {}; }
 
 function lireJsonParoles(cle, repli) {
     try { var v = JSON.parse(localStorage.getItem(cle)); return (v === null || v === undefined) ? repli : v; }
@@ -66,7 +75,7 @@ function sessionAContenu(s) {
 }
 
 // ---------- la fusion (PURE : aucune lecture ni écriture de stockage) ----------
-// local / distant = { sessions: { cle: { cle, nom, at, json } } } ; base = { cle: at } tel qu'à la dernière synchro.
+// local / distant = { sessions: { cle: { cle, nom, at, json } }, supprimes: { cle: date } } ; base = { cle: at } tel qu'à la dernière synchro.
 // Rend { fusionne, changeLocal, changeDistant, rangees: [{ session, de }] } — `rangees` : les versions perdantes à garder.
 function fusionnerParoles(local, distant, base) {
     base = base || {};
@@ -75,6 +84,11 @@ function fusionnerParoles(local, distant, base) {
     Object.keys(R).forEach(function (c) { if (!(c in L)) cles.push(c); });
 
     var sortie = {}, rangees = [], changeLocal = false, changeDistant = false;
+    // Suppressions : union, la plus récente l'emporte pour chaque session (comme fusionnerBibliotheques).
+    var tombes = {};
+    [local.supprimes, distant.supprimes].forEach(function (m) {
+        Object.keys(m || {}).forEach(function (c) { tombes[c] = Math.max(tombes[c] || 0, Number(m[c]) || 0); });
+    });
     cles.forEach(function (c) {
         var l = L[c], r = R[c], gagnant = l;
         if (l && r && l.json !== r.json) {
@@ -89,15 +103,26 @@ function fusionnerParoles(local, distant, base) {
         } else if (!l) {
             gagnant = r;
         }
+        var ts = tombes[c];
+        if (ts && ts >= gagnant.at) {           // supprimée, et rien de plus récent : elle n'existe plus nulle part
+            if (l) changeLocal = true;
+            if (r) changeDistant = true;
+            return;
+        }
+        if (ts) delete tombes[c];               // revenue (Ctrl+Z, restauration) : plus récente que sa suppression
         sortie[c] = gagnant;
         if (!l || l.json !== gagnant.json) changeLocal = true;
         if (!r || r.json !== gagnant.json) changeDistant = true;
     });
-    return { fusionne: { sessions: sortie }, changeLocal: changeLocal, changeDistant: changeDistant, rangees: rangees };
+    var signature = function (m) { return Object.keys(m || {}).sort().map(function (c) { return c + '=' + m[c]; }).join('|'); };
+    if (signature(tombes) !== signature(local.supprimes)) changeLocal = true;
+    if (signature(tombes) !== signature(distant.supprimes)) changeDistant = true;
+    return { fusionne: { sessions: sortie, supprimes: tombes }, changeLocal: changeLocal, changeDistant: changeDistant, rangees: rangees };
 }
 
 // ---------- passage document Firestore <-> état ----------
 function versDocumentParoles(etat) {
+    var maintenant = Date.now(), tombes = etat.supprimes || {};
     return {
         app: 'HarmoHub-Paroles',
         schema: 1,
@@ -106,6 +131,9 @@ function versDocumentParoles(etat) {
             var s = etat.sessions[c];
             return { cle: String(c), nom: String(s.nom || ''), at: Number(s.at) || 0, json: String(s.json) };
         }),
+        supprimes: Object.keys(tombes).sort()
+            .filter(function (c) { return maintenant - tombes[c] < DUREE_TRACE_PAROLES_MS; })
+            .map(function (c) { return { cle: String(c), ts: Number(tombes[c]) || 0 }; }),
     };
 }
 
@@ -114,7 +142,9 @@ function depuisDocumentParoles(doc) {
     ((doc && doc.sessions) || []).forEach(function (e) {
         if (e && e.cle && typeof e.json === 'string') sessions[e.cle] = { cle: e.cle, nom: String(e.nom || ''), at: Number(e.at) || 0, json: e.json };
     });
-    return { sessions: sessions };
+    var supprimes = {};
+    ((doc && doc.supprimes) || []).forEach(function (t) { if (t && t.cle) supprimes[t.cle] = Number(t.ts) || 0; });
+    return { sessions: sessions, supprimes: supprimes };
 }
 
 // ---------- appliquer un état reçu ----------
@@ -127,15 +157,47 @@ function cleSessionOuverte() {
 
 function appliquerEtatParoles(etat, resume) {
     var ouverte = cleSessionOuverte();
-    var ouverteChangee = false;
+    var ouverteChangee = false, ouverteSupprimee = false;
+    // Avant de remplacer ou d'effacer ce qui est ici, on en garde une VERSION (historique.js) : la fusion décide pour le mieux, mais
+    // « garde en mémoire des sauvegardes précédentes » — c'est le seul moment où une version d'ici disparaît sans geste d'ici.
+    var garder = function (cle, motif, libelle) {
+        if (typeof garderVersionParoles === 'function') garderVersionParoles(cle, localStorage.getItem(cle), motif, libelle);
+    };
     Object.keys(etat.sessions).forEach(function (c) {
         var s = etat.sessions[c];
         var cle = PREFIXE_PAROLES + c;
         if (localStorage.getItem(cle) === s.json) return;
+        garder(cle, 'avant-synchro', 'Remplacée par une version d\'un autre appareil');
         try { localStorage.setItem(cle, s.json); } catch (e) { console.error('Écriture d\'une session reçue impossible :', e); return; }
         if (cle === ouverte) ouverteChangee = true;
     });
-    if (ouverteChangee) rechargerParolesOuvertes();
+    // Les sessions SUPPRIMÉES (trace plus récente qu'elles) : seules celles-là partent — une session simplement absente de l'état ne
+    // l'est jamais (on n'efface pas sur une absence).
+    var tombes = etat.supprimes || {};
+    Object.keys(tombes).forEach(function (c) {
+        var cle = PREFIXE_PAROLES + c;
+        if (c in etat.sessions || localStorage.getItem(cle) === null) return;
+        garder(cle, 'avant-suppression-morceau', 'Morceau supprimé sur un autre appareil');
+        try { localStorage.removeItem(cle); } catch (e) { return; }
+        if (cle === ouverte) ouverteSupprimee = true;
+    });
+    try { localStorage.setItem(CLE_PAROLES_SUPPR, JSON.stringify(tombes)); } catch (e) { /* sans gravité */ }
+    if (ouverteSupprimee) { if (typeof oublierMorceauOuvert === 'function') oublierMorceauOuvert(); }
+    else if (ouverteChangee) rechargerParolesOuvertes();
+}
+
+// ---------- accroche appelée par HarmoHub (script.js, parolesSuivreBibliotheque) après la suppression ou le retour d'un morceau ----------
+// HarmoHub a déjà écrit le stockage (session retirée ou remise, trace posée ou levée) : la page suit — elle oublie le morceau ouvert s'il a
+// été supprimé, le relit s'il est revenu — et le moteur envoie.
+// `cles` : les clés de session touchées (sans préfixe) ; le morceau ouvert n'est relu que s'il en fait partie (relire efface son annulation).
+function parolesSuivreStockage(cles) {
+    var ouverte = cleSessionOuverte();
+    var c = ouverte ? ouverte.slice(PREFIXE_PAROLES.length) : null;
+    if (c && (!cles || cles.indexOf(c) >= 0)) {
+        if (localStorage.getItem(ouverte) === null && lireSuppressionsParoles()[c]) { if (typeof oublierMorceauOuvert === 'function') oublierMorceauOuvert(); }
+        else rechargerParolesOuvertes();
+    }
+    if (typeof SYNCHRO !== 'undefined' && SYNCHRO && SYNCHRO.planifierEnvoi) SYNCHRO.planifierEnvoi();
 }
 
 // Les versions PERDANTES sont rangées au moment de la FUSION, et non à l'application : le moteur n'appelle `appliquer` que
@@ -217,7 +279,7 @@ function parolesNoterChangement() {
 // ---------- l'adaptateur ----------
 var ADAPTATEUR_PAROLES = {
     slug: 'harmohub-paroles',
-    lire: function () { return { sessions: lireSessionsParoles() }; },
+    lire: function () { return { sessions: lireSessionsParoles(), supprimes: lireSuppressionsParoles() }; },
     fusionner: function (local, distantDoc) {
         var r = fusionnerParoles(local, depuisDocumentParoles(distantDoc), lireJsonParoles(CLE_PAROLES_BASE, {}));
         ranger(r.rangees);
@@ -227,7 +289,9 @@ var ADAPTATEUR_PAROLES = {
     appliquer: appliquerEtatParoles,
     // Un navigateur sans aucune session reprend celles du cloud sans rien demander : écraser le cloud avec du vide est
     // justement ce qu'on ne doit JAMAIS faire.
-    estVide: function (etat) { return Object.keys(etat.sessions).length === 0; },
+    // Un appareil qui n'a plus de session mais des TRACES n'est pas vide : il a des suppressions à transmettre (sinon, supprimer son
+    // dernier morceau à paroles ne partirait jamais au cloud).
+    estVide: function (etat) { return Object.keys(etat.sessions).length === 0 && Object.keys(etat.supprimes || {}).length === 0; },
     // Ce que chaque session valait À LA DERNIÈRE SYNCHRO : c'est lui qui dit, plus tard, si la version locale a été modifiée depuis.
     apresSynchro: function () {
         var base = {}, s = lireSessionsParoles();
@@ -239,7 +303,7 @@ var ADAPTATEUR_PAROLES = {
     surCompte: function (uid) {
         var precedent = null;
         try { precedent = localStorage.getItem(CLE_PAROLES_UID); } catch (e) { /* sans gravité */ }
-        if (precedent && precedent !== uid) { try { localStorage.removeItem(CLE_PAROLES_BASE); } catch (e) { } }
+        if (precedent && precedent !== uid) { [CLE_PAROLES_BASE, CLE_PAROLES_SUPPR].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { } }); }
         try { localStorage.setItem(CLE_PAROLES_UID, uid); } catch (e) { /* sans gravité */ }
     },
 };

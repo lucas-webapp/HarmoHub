@@ -45,13 +45,15 @@ async function installer(context, nuage, { appareil, uid, nom, email, persister 
         // Les AUTRES appareils reçoivent le changement, comme avec un vrai onSnapshot.
         for (const e of nuage.ecoutes) {
             if (e.chemin === chemin && e.appareil !== appareil && !nuage.coupe.has(e.appareil)) {
-                e.page.evaluate(([c, d]) => window.__faux.notifier(c, d), [chemin, copie(donnees)]).catch(() => { });
+                (e.frame || e.page).evaluate(([c, d]) => window.__faux.notifier(c, d), [chemin, copie(donnees)]).catch(() => { });
             }
         }
         return true;
     });
-    await context.exposeBinding('__nuageEcoute', async ({ page }, chemin) => {
-        nuage.ecoutes.push({ page, chemin, appareil });
+    // `frame` : l'écoute peut venir d'un CADRE (la vue Paroles intégrée à HarmoHub a son propre moteur) — la notification doit
+    // arriver dans ce cadre-là, pas dans la page qui le contient.
+    await context.exposeBinding('__nuageEcoute', async ({ page, frame }, chemin) => {
+        nuage.ecoutes.push({ page, frame, chemin, appareil });
         return true;
     });
 

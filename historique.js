@@ -23,8 +23,16 @@
 //           'avant-restauration' | 'abandon'  (le panneau en tire l'étiquette ; un motif inconnu s'affiche tel quel, jamais d'erreur)
 //   charge  le contenu du morceau tel que saveCurrentSong l'écrirait : sections, structure, root, mode, timeSig, groove, bpm, instrumentMorceau, zoom…
 //   empreinte  condensé du CONTENU musical (pas du zoom) : deux versions d'empreinte égale sont la même version, la seconde n'est pas gardée.
-const HistoriqueVersions = (() => {
-    const NOM_BASE = 'harmohub-historique';
+//
+// LES PAROLES ONT LEUR PROPRE HISTORIQUE (sous-lot « Paroles homogènes », 05/11). Demande de l'utilisateur : « Garde en mémoire des sauvegardes
+// précédentes » — les paroles s'enregistrent toutes seules (« Oui tu peux enregistrer les paroles automatiquement »), sans ce filet une
+// mauvaise manipulation (tout sélectionner, taper) ou une version reçue d'un autre appareil remplaçait le texte sans retour possible. Même
+// mécanique que les morceaux (même fichier, même élagage, même « ne lève jamais »), mais une BASE À PART (`harmohub-historique-paroles`) :
+// ajouter un magasin à la base des morceaux aurait exigé d'en monter la version, et un onglet resté ouvert sur l'ancien fichier aurait
+// alors perdu son historique jusqu'au rechargement. D'où la fabrique `creerHistorique` : les morceaux et les paroles ne diffèrent que par
+// le nom de la base, l'empreinte (ce qui fait qu'une version est « la même ») et le résumé affiché.
+function creerHistorique({ nomBase, empreinteDe, resumeDe }) {
+    const NOM_BASE = nomBase;
     const MAGASIN = 'versions';
     // Combien on en garde. 40 par morceau : à raison d'une version toutes les 5 minutes de travail effectif, c'est plus de trois heures de
     // travail en arrière — et chaque opération lourde en ajoute une. Au-delà de 90 jours, une version n'est plus qu'un souvenir : on les
@@ -72,8 +80,7 @@ const HistoriqueVersions = (() => {
 
     // Condensé stable du CONTENU musical. Pas du zoom (réglage de vue, pas de contenu : une version de plus à cause d'un zoom n'aurait aucun sens).
     function empreinte(charge) {
-        const utile = [charge.sections, charge.structure || null, charge.root, charge.mode, charge.timeSig, charge.groove, charge.bpm, charge.instrumentMorceau || null];
-        const texte = JSON.stringify(utile);
+        const texte = JSON.stringify(empreinteDe(charge));
         // FNV-1a 32 bits, deux fois (graines différentes) : pas de la cryptographie, juste « ces deux textes sont-ils les mêmes ? » — et la
         // longueur s'y ajoute, ce qui rend une collision accidentelle négligeable à l'échelle de quelques centaines de versions.
         let h1 = 0x811c9dc5, h2 = 0x1b873593;
@@ -85,10 +92,7 @@ const HistoriqueVersions = (() => {
         return `${h1.toString(16)}-${h2.toString(16)}-${texte.length}`;
     }
 
-    function resume(charge) {
-        const sections = Array.isArray(charge.sections) ? charge.sections : [];
-        return { parties: sections.length, accords: sections.reduce((n, s) => n + (s && Array.isArray(s.chords) ? s.chords.length : 0), 0) };
-    }
+    function resume(charge) { return resumeDe(charge); }
 
     async function toutes(db, songId) {
         const tx = db.transaction(MAGASIN, 'readonly');
@@ -220,5 +224,33 @@ const HistoriqueVersions = (() => {
         derniereErreur: () => derniereErreur,
         limites: { MAX_PAR_MORCEAU, MAX_JOURS, MIN_GARDEES, MAX_TOTAL },
     };
-})();
-if (typeof window !== 'undefined') window.HistoriqueVersions = HistoriqueVersions;
+}
+
+// Les MORCEAUX : l'empreinte porte sur le contenu musical (pas le zoom), le résumé compte accords et parties.
+const HistoriqueVersions = creerHistorique({
+    nomBase: 'harmohub-historique',
+    empreinteDe: (charge) => [charge.sections, charge.structure || null, charge.root, charge.mode, charge.timeSig, charge.groove, charge.bpm, charge.instrumentMorceau || null],
+    resumeDe: (charge) => {
+        const sections = Array.isArray(charge.sections) ? charge.sections : [];
+        return { parties: sections.length, accords: sections.reduce((n, s) => n + (s && Array.isArray(s.chords) ? s.chords.length : 0), 0) };
+    },
+});
+
+// Les PAROLES : `charge` est la session de paroles telle que paroles.js l'écrit ({ songName, savedAt, sections: [{ lyricsHtml, placements,
+// repeatCount }] }). L'empreinte ignore la date d'enregistrement et le nom : réécrire le même texte, ou renommer le morceau, n'est pas une
+// nouvelle version. Le résumé compte les MOTS (de quoi reconnaître une version sans l'ouvrir) et les accords posés.
+function texteDesParoles(html) {
+    return String(html || '').replace(/<(br|\/div|\/p)[^>]*>/gi, ' ').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+}
+const HistoriqueParoles = creerHistorique({
+    nomBase: 'harmohub-historique-paroles',
+    empreinteDe: (charge) => (Array.isArray(charge.sections) ? charge.sections : []).map(s => [s && s.lyricsHtml || '', (s && s.placements) || [], (s && s.repeatCount) || 1]),
+    resumeDe: (charge) => {
+        const sections = Array.isArray(charge.sections) ? charge.sections : [];
+        const mots = sections.reduce((n, s) => n + texteDesParoles(s && s.lyricsHtml).split(/\s+/).filter(Boolean).length, 0);
+        const poses = sections.reduce((n, s) => n + ((s && Array.isArray(s.placements)) ? s.placements.length : 0), 0);
+        const extrait = sections.map(s => texteDesParoles(s && s.lyricsHtml).replace(/\s+/g, ' ').trim()).filter(Boolean).join(' / ').slice(0, 80);
+        return { parties: sections.length, mots, poses, extrait };
+    },
+});
+if (typeof window !== 'undefined') { window.HistoriqueVersions = HistoriqueVersions; window.HistoriqueParoles = HistoriqueParoles; }
