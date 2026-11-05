@@ -5444,3 +5444,75 @@ muette, vitesse non rendue à l'ordinateur, paroles non copiées).
 
 **Balayages (05/11).** Ciblé : 52 suites, 51 vertes, `smoke` sans verdict (ligne de base). **Complet : 230 verts, 5 rouges, 7 sans verdict (242
 suites)** — exactement la ligne de base, aucune suite tombée sur le serveur (relancé avec son chien de garde avant le balayage). **Aucune régression.**
+
+
+## Refonte de l'interface — lot 10c : réglages du morceau, affichage de la grille, en-tête de partie au téléphone (2026-11-05)
+
+Demande (docs/refonte.md, « Téléphone » ; maquette `project/Telephone2.dc.html`) : « infos du morceau (tonalité, mesure, swing, son) repliées dans UNE
+barre-résumé pleine largeur → quatre grosses cases sur deux colonnes ; bouton carré "Affichage" à côté : Compact (4 mesures/ligne, noms seuls, 44 px),
+Normal (4 mesures/ligne + degrés, 64 px), Large (2 mesures/ligne, 72 px). Pincement conservé » ; les zooms H / V s'effacent ; l'en-tête de partie :
+nom + « N mesures » + ×N + menu ⋯ (celui du lot 5c).
+
+**Ce qui change (téléphone, < 900 px).**
+- **La barre-résumé** est le même bouton qu'avant (`#song-summary`), sur une ligne de 44 px avec le bouton carré Affichage ; la carte Morceau perd son
+  cadre. Elle dit « C majeur · 120 BPM · 4/4 · Droit · Piano ». **Écart voulu avec la maquette, qui n'a pas le tempo dans cette barre** : l'exigence de
+  l'utilisateur « voici ce que je veux toujours voir apparaître : nom du morceau, tonalité, tempo » (`filet_toujours_visible`) l'emporte — le tempo se
+  règle dans le panneau Lecture depuis le 10b, il restait donc à le LIRE sans un toucher. Tonalité et tempo en tête : à 320 px, ce sont le swing et le
+  son qui s'abrègent.
+- **Les quatre cases** sont les puces de l'ordinateur (`#rangee-reglages`, lot 6a), DÉPLACÉES dans `#tel-reglages-cases` (`placerRangeeReglages`) et
+  rendues à la rangée au-dessus du seuil — mêmes choix (`#rr-pop`, à 44 px, jamais plus large que l'écran, qui suit sa case quand la page défile),
+  même annulation. 52 px de haut comme la maquette, nom au-dessus de la valeur ; elles sont DANS la page et poussent la grille (rien ne la recouvre).
+  **Transposer** garde sa ligne pleine largeur sous les cases : la maquette ne l'a pas, mais il était dans la carte Morceau (règle 1, rien ne se perd).
+  L'ancien panneau de listes déroulantes (`#song-settings`) ne s'ouvre plus à aucune largeur ; le **contretemps du métronome**, qui n'avait que lui au
+  téléphone, rejoint le panneau Lecture (ligne « Contretemps », `#pl-subdivision`), comme à l'ordinateur dans la fenêtre du tempo.
+- **Affichage** (`#tel-affichage`, icône de la maquette : aucune n'existait pour cette fonction) ouvre dans la page, sous la ligne, un groupe segmenté de
+  44 px Compact / Normal / Large et une phrase qui dit ce que fait le choix. Croix, Échap, le bouton lui-même et le toucher à côté le referment
+  (`this._popups`). **Décision prise en séance : une préférence de l'APPAREIL** (`harmohubGrilleTelephone`), pas un réglage du morceau — les échelles du
+  morceau (`classicGridZoomLevelX/Y`) sont celles de l'ordinateur, dont l'écran n'a rien de commun ; un morceau réglé en Détaillé (84 px) donnait
+  jusqu'ici des cases de 103 px au téléphone. Choisir un affichage ne marque donc pas le morceau modifié, et survit au rechargement.
+- **Le pincement** règle, au téléphone, les échelles du téléphone (`gridTelZoomLevelX/Y`, via `genreZoomGeste` dans le pincement et la molette), plus
+  celles du morceau ; choisir un affichage remet ses valeurs. Les boutons H± V± s'effacent (comme à l'ordinateur depuis le lot 5a). En 3/4, « 4 mesures
+  par ligne » reste la règle de `beatsPerRowFor` (une ligne vaut ~16 temps : 5 mesures de 3), comme à l'ordinateur.
+- **Les cases de la grille** : `--row-h` = la hauteur de l'affichage (la règle « 56 px sous 480 px » disparaît, Normal fait 64 px) ; rangées de numéros
+  et de degrés bornées (16–20 / 14–18 px). **Défaut ancien corrigé en passant** : la ligne du nom d'accord (hauteur 1, débordement masqué) coupait le
+  jambage — « Cmaj7 » se lisait « Cmai7 » au téléphone (vérifié sur le commit d'avant) ; 1,25 au téléphone.
+- **L'en-tête de partie** prend celui de l'ordinateur à 44 px : « 8 mesures » en toutes lettres, ×N, le ⋯ au bout de la ligne ; ▲▼⧉🗑 passent dans
+  le menu (lignes de 44 px, jamais plus large que l'écran).
+- **Verre dépoli** : la carte reste sans fond ni ombre verre allumé ; le panneau Affichage et son groupe sont des creux (`--glass-inp`) ; les choix des
+  cases et le menu ⋯ sont des `.tb-menu` (fond des menus déjà posé).
+
+**Défaut trouvé par un banc réécrit** (`reglages_morceau_popover`) : régler le tempo par −, + ou Tap (`reglerTempo`) ne rafraîchissait que la barre de
+lecture — le « change » envoyé au curseur ne remonte pas jusqu'à l'écouteur du conteneur des réglages. La barre-résumé restait à « 120 BPM ». Déjà vrai
+avant le lot pour l'ancien résumé de la carte (invisible : le panneau était fermé). `reglerTempo` rafraîchit tout le résumé (`updateSongSummary`).
+
+**Bancs.** Nouveau `telephone_reglages_test` (47) : la ligne (44 px, 7 px, pleine largeur, les cinq valeurs, sans cadre) ; les cases (ordre, deux
+colonnes, 52 px, déplacées, poussent la grille, Transposer à 44 px) ; les choix (dans l'écran, lignes de 44 px, 3/4 avec résumé, grille et voyant, une
+annulation ; E♭ sans toucher aux accords, Échap ; Swing, Son, Transposer ; toucher à côté ; suit au défilement ; replier) ; le contretemps dans le
+panneau Lecture ; Affichage (Normal 64 px / 16 temps / degrés, Compact 44 px sans degrés, Large 72 px / 8 temps, aide et nom du bouton, morceau ni
+modifié ni ses échelles changées, trois façons de fermer, rechargement) ; le pincement (grille du téléphone agrandie, morceau intact, Normal remet) ;
+zooms effacés ; l'en-tête (« 8 mesures », ⋯ 44 px au bout, anciens boutons disparus, menu de 44 px collé à son bouton page défilée, Dupliquer, Répéter ×2, Échap) ; verre (sans cadre,
+creux, aucun contraste perdu) ; 320 px ; ordinateur inchangé (puces à 32 px dans la rangée, Normal à 52 px malgré Large choisi au téléphone) et seuil
+franchi dans les deux sens.
+**Réécrits pour le nouveau geste** (ils éprouvaient l'ancien panneau, les H± V± ou l'en-tête d'avant au téléphone, ou vérifiaient qu'il n'avait pas bougé) :
+`song_panel` (la barre-résumé et ses cases : valeurs lisibles, résumé fidèle — le swing est toujours dit, comme la maquette —, rien de masqué, Transposer
+et le Tap depuis leur nouvelle place, rien ne se rouvre seul, et le contrat d'origine « rien ne bouge les réglages » redevient vrai : les cases ne se
+referment qu'à la demande) ; `reglages_morceau_popover` (l'intention d'origine — la grille reste à l'écran pendant qu'on règle — mesurée sur la première
+rangée d'accords ; fermetures, rechargement, circuit par de vrais clics sur « + » puis Ctrl+Z, Modification, suggestion devant, carte de l'accord jamais
+recouverte, sur ce qui flotte aujourd'hui ; 21 → 25) ; `popover_morceau_dense` (densité et hiérarchie des cases : pas de titre redondant, nom plus petit
+que la valeur, Transposer sur sa ligne sans passer pour une case, vingt commandes tactiles dans le choix de tonalité ; 20 → 21) ; `classic_grid_zoom`
+(les deux échelles du morceau par la poignée du bas et Ctrl+molette, à l'ordinateur ; plan rendu exact, 9 → 12) ; `song_zoom_persist` (Ctrl+molette) ;
+`grid_loupe_pinch_undo` (le pincement règle les échelles du téléphone) ; `affichage_grille` (F), `entete_partie` (F), `entete_grille_debordement`
+(téléphone : ⊱ et Séq.), `rangee_reglages` (I : les puces dans les cases, le contretemps dans le panneau), `instrument_du_morceau` (G : la case Son),
+`filet_toujours_visible` (la tonalité et le tempo lus sur la barre-résumé), `voice_leading_section_ops` (A : monter, dupliquer, supprimer par le ⋯).
+**Sabotages : 13, tous rouges** (résumé masqué, puces non déplacées, affichage ignoré, pincement sur les échelles du morceau, contretemps resté dans la
+carte, anciens boutons de partie gardés, verre du panneau oublié, choix qui ne suit pas sa case, affichage qui marque le morceau modifié, hauteur de Large
+non posée, tempo réglé sans rafraîchir le résumé → `reglages_morceau_popover`, tempo sorti de la barre → `filet_toujours_visible`, menu ⋯ non fixé). Le
+dernier est d'abord resté VERT : le banc ouvrait toujours le menu en haut de page, où un menu non fixé tombe juste par hasard. Il fait désormais défiler
+la page et exige le menu collé à son bouton ; rouge au sabotage.
+**Constat en passant, déjà vrai avant le lot (rejoué sur `66ee339`)** : `duree_sur_la_ligne_accord` plante (`#duration-dd-toggle` invisible, délai
+dépassé) puis imprime un bilan « 16 PASS / 0 FAIL » : le relevé le compte vert. Même défaut de règle que `ajout_modif` (lot 10b), à traiter hors lot.
+**Balayages (05/11).** Ciblé n°1 (78 suites : le diff et les bancs du téléphone) : 62 verts, les changements de sens attendus (réécrits ci-dessus) et
+un vrai défaut à moi dans `verre` (un « backdrop-filter: none » écrit en dur, puis une carte exclue du flou qui faussait sa mesure : la carte garde son
+flou, invisible sans fond). Bancs réécrits rejoués un à un : tous verts. **Complet : 230 verts, 6 rouges, 7 sans verdict (243 suites)** — les 5 rouges
+et 7 « sans verdict » de la ligne de base, plus `meta_suite`, rouge parce que la dette avait DIMINUÉ (deux erreurs avalées de moins dans `song_panel`) :
+référence figée (`--maj`), vert 6/6. Aucun fichier servi n'a changé depuis. **Aucune régression.**

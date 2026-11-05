@@ -127,3 +127,13 @@ html[data-glass="1"] :is(.seq-grid-intensite .seq-vel-band, .seq-grid-intensite 
 @media (max-width: 899px) {
     html[data-glass="1"] .panneau-lecture { background: var(--glass-pop-fond); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-hi), 0 -24px 50px -24px rgba(0, 0, 0, .65); }
 }
+
+/* ---- TÉLÉPHONE, LES RÉGLAGES DU MORCEAU ET L'AFFICHAGE (refonte, lot 10c) : la carte Morceau perd son cadre (il n'y reste que la ligne de la
+   maquette) — sans cette règle, le verre lui rendrait un fond et un liseré. Son flou de grande surface reste (une carte comme une autre) :
+   sans fond ni bord, il ne se voit pas. À l'ordinateur la carte est masquée. Le panneau Affichage, dans la page, est un creux comme les
+   groupes segmentés ; son groupe Compact / Normal / Large aussi. Les choix des cases (#rr-pop) et le menu ⋯ des parties sont des .tb-menu :
+   ils ont déjà le fond des menus. ---- */
+@media (max-width: 899px) {
+    html[data-glass="1"] #song-card.control-card { background: none; box-shadow: none; }
+    html[data-glass="1"] :is(.tel-affichage-panneau, .tel-densites) { background: var(--glass-inp); }
+}

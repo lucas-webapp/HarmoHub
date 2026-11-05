@@ -27,24 +27,25 @@ const seed = () => {
     localStorage.setItem('myProgression', JSON.stringify({ sections: song.sections }));
 };
 
+// LOT 10c : sous 900px, la barre-résumé déplie désormais les quatre CASES de la maquette (Tonalité, Mesure, Swing, Son, et Transposer dessous) ;
+// l'ancien panneau flottant de listes déroulantes ne s'ouvre plus à aucune largeur. Les cases sont DANS la page, comme sur la maquette : elles
+// poussent la grille d'environ 170px — ce que ce banc interdisait au panneau. L'intention d'origine est gardée telle quelle, mesurée autrement :
+// pendant qu'on règle, la grille RESTE À L'ÉCRAN (sa première rangée d'accords visible au-dessus de la barre de lecture), rien ne déborde, le
+// résumé reste lisible. Ce qui flotte aujourd'hui — le choix ouvert par une case (#rr-pop), le panneau Lecture du tempo — est éprouvé pour le
+// reste : deux façons de le refermer, rien qui ne se rouvre seul, le circuit (vrai geste puis vrai Ctrl+Z), la Modification, la suggestion de
+// tonalité devant, la carte de l'accord jamais recouverte.
 const geometrie = () => {
-    const p = document.getElementById('song-settings');
+    const p = document.getElementById('tel-reglages-cases');
     const a = document.getElementById('song-summary');
-    const g = document.getElementById('progression-sections');
-    const rp = p.getBoundingClientRect(), ra = a.getBoundingClientRect(), rg = g.getBoundingClientRect();
+    const c = document.querySelector('#progression-sections .grid-cell');
+    const rp = p.getBoundingClientRect(), ra = a.getBoundingClientRect(), rc = c.getBoundingClientRect();
+    const basUtile = window.innerHeight - document.getElementById('barre-lecture').getBoundingClientRect().height;
     return {
         ouvert: !p.hidden,
         panneau: { t: Math.round(rp.top), b: Math.round(rp.bottom), l: Math.round(rp.left), r: Math.round(rp.right), h: Math.round(rp.height) },
-        grilleTop: Math.round(rg.top),
-        // Le panneau doit tenir ENTIÈREMENT dans la fenêtre : un panneau dont le bas dépasse laisse
-        // des réglages inatteignables sans un défilement que rien n'annonce.
+        caseBas: Math.round(rc.bottom), basUtile: Math.round(basUtile),
         deborde: rp.bottom > window.innerHeight + 1 || rp.top < -1 || rp.right > window.innerWidth + 1 || rp.left < -1,
-        // ...et ne doit pas recouvrir la ligne de résumé, qui affiche justement le tempo et la
-        // tonalité qu'on est en train de changer.
-        // VRAI croisement de rectangles, sur les DEUX axes. La première version de cette
-        // vérification ne comparait que les bandes verticales — elle suffisait tant que le panneau
-        // se posait sous son ancre, et elle a crié au loup dès qu'il s'est rangé À CÔTÉ de la
-        // colonne : mêmes hauteurs, mais à 400px de distance horizontale, donc aucun recouvrement.
+        // VRAI croisement de rectangles, sur les DEUX axes (une première version ne comparait que les bandes verticales et criait au loup).
         recouvreResume: !(rp.bottom <= ra.top || rp.top >= ra.bottom || rp.right <= ra.left || rp.left >= ra.right),
         resumeLisible: ra.width > 20 && ra.top >= -1 && ra.bottom <= window.innerHeight + 1,
         vh: window.innerHeight,
@@ -52,22 +53,21 @@ const geometrie = () => {
 };
 
 async function eprouverFormat(page, contexte, ouvrir) {
-    const ferme = await page.evaluate(geometrie);
     await ouvrir();
     await page.waitForTimeout(400);
     const ouv = await page.evaluate(geometrie);
-    exiger(ouv.ouvert, `${contexte} : le panneau s'ouvre bien`);
-    check(ouv.grilleTop === ferme.grilleTop,
-        `${contexte} : ouvrir les réglages ne déplace PAS la grille — ${ferme.grilleTop}px puis ${ouv.grilleTop}px`);
+    exiger(ouv.ouvert, `${contexte} : les cases s'ouvrent bien`);
+    check(ouv.caseBas <= ouv.basUtile,
+        `${contexte} : ouvrir les réglages laisse la grille à l'écran — la première rangée d'accords finit à ${ouv.caseBas}px, au-dessus de la barre de lecture (${ouv.basUtile}px)`);
     check(!ouv.deborde,
-        `${contexte} : le panneau tient entièrement dans la fenêtre — haut ${ouv.panneau.t}, bas ${ouv.panneau.b}, écran ${ouv.vh}px`);
+        `${contexte} : les cases tiennent entièrement dans la fenêtre — haut ${ouv.panneau.t}, bas ${ouv.panneau.b}, écran ${ouv.vh}px`);
     check(!ouv.recouvreResume && ouv.resumeLisible,
-        `${contexte} : la ligne de résumé (tempo, mesure, tonalité) reste visible et non recouverte`);
+        `${contexte} : la ligne de résumé (tonalité, tempo, mesure) reste visible et non recouverte`);
     return ouv;
 }
 
 (async () => {
-    plan(21);
+    plan(25);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
 
@@ -82,97 +82,95 @@ async function eprouverFormat(page, contexte, ouvrir) {
     await m.waitForTimeout(700);
     await eprouverFormat(m, 'téléphone', () => m.click('#song-summary'));
 
-    console.log('\n=== B. Le panneau se referme des deux façons attendues ===');
-    // Un clic AILLEURS. On vise le bas de l'écran, hors du panneau : le panneau est ancré en haut.
-    await m.mouse.click(20, await m.evaluate(() => window.innerHeight - 30));
+    console.log('\n=== B. Le choix d\'une case se referme des deux façons attendues ===');
+    await m.click('#rr-mesure');
+    await m.waitForTimeout(250);
+    // Un clic AILLEURS. On vise le haut de la grille, hors du choix (posé sous sa case).
+    await m.mouse.click(20, await m.evaluate(() => window.innerHeight - 100));
     await m.waitForTimeout(300);
-    check(await m.evaluate(() => document.getElementById('song-settings').hidden), 'un clic à côté referme le panneau');
+    check(await m.evaluate(() => document.getElementById('rr-pop').hidden), 'un clic à côté referme le choix');
 
-    await m.click('#song-summary');
+    await m.click('#rr-mesure');
     await m.waitForTimeout(300);
-    exiger(await m.evaluate(() => !document.getElementById('song-settings').hidden), 'le panneau est rouvert pour éprouver Échap');
+    exiger(await m.evaluate(() => !document.getElementById('rr-pop').hidden), 'le choix est rouvert pour éprouver Échap');
     await m.keyboard.press('Escape');
     await m.waitForTimeout(300);
-    check(await m.evaluate(() => document.getElementById('song-settings').hidden), 'Échap referme le panneau');
+    check(await m.evaluate(() => document.getElementById('rr-pop').hidden), 'Échap referme le choix');
 
-    console.log('\n=== C. Il ne se rouvre pas tout seul au chargement ===');
-    // Un bloc déplié qui restait déplié au retour était cohérent ; un panneau flottant qui s'ouvre
-    // par-dessus la grille au lancement ne l'est pas, et personne ne l'a demandé.
-    await m.click('#song-summary');
+    console.log('\n=== C. Rien ne se rouvre tout seul au chargement ===');
+    await m.click('#rr-swing');
     await m.waitForTimeout(250);
-    exiger(await m.evaluate(() => !document.getElementById('song-settings').hidden), 'le panneau est ouvert avant le rechargement');
+    exiger(await m.evaluate(() => !document.getElementById('tel-reglages-cases').hidden && !document.getElementById('rr-pop').hidden), 'les cases et un choix sont ouverts avant le rechargement');
     await m.reload({ waitUntil: 'load' });
     await m.waitForTimeout(700);
-    check(await m.evaluate(() => document.getElementById('song-settings').hidden),
-        'après rechargement, le panneau est refermé');
+    check(await m.evaluate(() => document.getElementById('tel-reglages-cases').hidden && document.getElementById('rr-pop').hidden),
+        'après rechargement, les cases et le choix sont refermés');
     await m.close();
 
-    console.log('\n=== D. Ordinateur : rien ne bouge non plus, et 310px de volet sont rendus ===');
-    // LOT 6a : à partir de 900px, ce panneau n'existe plus (ses réglages sont des puces au-dessus de la grille, rangee_reglages_test ; le tempo est
-    // dans la barre du bas). Il reste celui des écrans étroits jusqu'au lot 10 : la partie « grand écran » de ce banc se joue juste sous le seuil.
+    console.log('\n=== D. Juste sous le seuil (860px) : la grille reste à l\'écran aussi ===');
+    // LOT 6a : à partir de 900px, ces réglages sont des puces au-dessus de la grille (rangee_reglages_test). Sous le seuil, la barre-résumé et ses
+    // cases (lot 10c) : la partie « grand écran » de ce banc se joue juste sous le seuil.
     const page = await browser.newPage({ viewport: { width: 860, height: 900 } });
-    page.on('pageerror', e => erreurs.push('ordinateur : ' + e.message));
+    page.on('pageerror', e => erreurs.push('860px : ' + e.message));
     await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load' });
     await page.waitForTimeout(300);
     await page.evaluate(seed);
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(600);
-    const ouvBureau = await eprouverFormat(page, 'ordinateur', () => page.click('#song-summary'));
-    check(ouvBureau.panneau.h > 150, `le panneau contient bien les deux cartes — ${ouvBureau.panneau.h}px de haut`);
+    const ouvBureau = await eprouverFormat(page, '860px', () => page.click('#song-summary'));
+    check(ouvBureau.panneau.h > 100, `les cases contiennent bien les quatre réglages et Transposer — ${ouvBureau.panneau.h}px de haut`);
 
-    console.log('\n=== E. Le panneau reste branché sur le reste de l\'appli ===');
-    // Un panneau sorti du flux est vite un panneau sorti du CIRCUIT : ses réglages n'écrivent plus
-    // dans le morceau, ou n'alimentent plus la ligne de résumé. Éprouvé par un VRAI glissé de souris
-    // sur le curseur de tempo, puis un VRAI Ctrl+Z — pas par un appel de méthode.
-    const boite = await page.locator('#bpm').boundingBox();
-    if (exiger(!!boite, 'le curseur de tempo est atteignable dans le panneau flottant')) {
-        await page.mouse.move(boite.x + boite.width * 0.2, boite.y + boite.height / 2);
-        await page.mouse.down();
-        await page.mouse.move(boite.x + boite.width * 0.8, boite.y + boite.height / 2, { steps: 10 });
-        await page.mouse.up();
+    console.log('\n=== E. Le tempo reste branché sur le reste de l\'appli ===');
+    // Un réglage sorti de sa place est vite un réglage sorti du CIRCUIT : il n'écrit plus dans le morceau, ou n'alimente plus la ligne de résumé.
+    // Le tempo se règle dans le panneau Lecture (lot 10b) : éprouvé par de VRAIS clics sur « + », puis un VRAI Ctrl+Z — pas par un appel de méthode.
+    await page.click('#bl-plus');
+    await page.waitForTimeout(250);
+    const boite = await page.locator('#bl-tempo-plus').boundingBox();
+    if (exiger(!!boite, 'le « + » du tempo est atteignable dans le panneau Lecture')) {
+        for (let i = 0; i < 4; i++) { await page.mouse.click(boite.x + boite.width / 2, boite.y + boite.height / 2); await page.waitForTimeout(60); }
         await page.waitForTimeout(250);
         const apres = await page.evaluate(() => ({
             bpm: document.getElementById('bpm').value,
-            resume: document.getElementById('song-summary-bpm').textContent.trim(),
+            resume: document.getElementById('song-summary-tel-bpm').textContent.trim(),
         }));
-        check(apres.bpm !== '120', `le glissé change bien le tempo — ${apres.bpm}`);
-        check(apres.resume === apres.bpm, `la ligne de résumé suit le réglage — résumé « ${apres.resume} », champ « ${apres.bpm} »`);
-
-        await page.keyboard.press('Control+z');
-        await page.waitForTimeout(300);
+        check(apres.bpm !== '120', `les clics changent bien le tempo — ${apres.bpm}`);
+        check(apres.resume === apres.bpm + ' BPM', `la ligne de résumé suit le réglage — résumé « ${apres.resume} », champ « ${apres.bpm} »`);
+        await page.click('#pl-fermer');
+        await page.waitForTimeout(200);
+        for (let i = 0; i < 4; i++) { await page.keyboard.press('Control+z'); await page.waitForTimeout(120); }
+        await page.waitForTimeout(200);
         const repris = await page.evaluate(() => document.getElementById('bpm').value);
-        check(repris === '120', `Ctrl+Z reprend le tempo d'avant depuis le panneau flottant — ${repris}`);
+        check(repris === '120', `Ctrl+Z reprend le tempo d'avant — ${repris}`);
     }
 
-    console.log('\n=== F. Le panneau ne casse ni le mode Modification ni les menus qui s\'ouvrent depuis lui ===');
-    // F1. Cliquer DANS le panneau ne doit pas sortir du mode Modification. Le panneau est posé en
-    // position fixe, mais il reste un descendant de #song-card dans le DOM — c'est cette parenté,
-    // pas la position à l'écran, que lit ZONE_EDITION_SELECTEURS. Une vérification bon marché pour
-    // un défaut qui a mordu douze fois.
+    console.log('\n=== F. Les cases ne cassent ni le mode Modification ni les menus qui s\'ouvrent depuis elles ===');
+    // F1. Choisir dans une case ne doit pas sortir du mode Modification : les cases vivent dans #song-card (.col-left) et leur choix est
+    // déclaré dans ZONE_EDITION_SELECTEURS (#rr-pop) — c'est cette déclaration que lit le clic à côté. Un défaut qui a mordu douze fois.
     await page.evaluate(() => window.app.editChord(0, 0));
     await page.waitForTimeout(300);
     exiger(await page.evaluate(() => window.app.appMode === 'edit'), 'on est bien en mode Modification');
-    await page.evaluate(() => { if (document.getElementById('song-settings').hidden) window.app.toggleSongSettings(true); });
-    await page.waitForTimeout(300);
-    const bGroove = await page.locator('#groove').boundingBox();
-    if (exiger(!!bGroove, 'un réglage du panneau est atteignable')) {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    if (await page.evaluate(() => document.getElementById('tel-reglages-cases').hidden)) await page.click('#song-summary');
+    await page.waitForTimeout(250);
+    await page.click('#rr-swing');
+    await page.waitForTimeout(250);
+    const bGroove = await page.locator('#rr-pop [data-rr-valeur="shuffle"]').boundingBox();
+    if (exiger(!!bGroove, 'un réglage du choix est atteignable')) {
         await page.mouse.click(bGroove.x + bGroove.width / 2, bGroove.y + bGroove.height / 2);
         await page.waitForTimeout(300);
-        check(await page.evaluate(() => window.app.appMode === 'edit'),
-            'cliquer dans le panneau flottant ne sort PAS du mode Modification');
-        await page.keyboard.press('Escape'); // referme la liste déroulante native éventuelle
-        await page.waitForTimeout(200);
+        check(await page.evaluate(() => window.app.appMode === 'edit' && document.getElementById('groove').value === 'shuffle'),
+            'choisir dans une case règle le swing et ne sort PAS du mode Modification');
     }
 
-    // F2. La suggestion de tonalité s'ouvre DEPUIS ce panneau : elle doit passer DEVANT lui. Un
-    // menu qui s'ouvrirait derrière serait invisible sans que rien ne le signale.
-    await page.evaluate(() => { if (document.getElementById('song-settings').hidden) window.app.toggleSongSettings(true); });
-    await page.waitForTimeout(300);
-    await page.click('#key-suggest-btn');
+    // F2. La suggestion de tonalité s'ouvre DEPUIS le choix de la tonalité : elle doit passer DEVANT lui. Un menu qui s'ouvrirait derrière serait
+    // invisible sans que rien ne le signale.
+    await page.click('#rr-tonalite');
+    await page.waitForTimeout(250);
+    await page.click('#rr-pop .rr-suggerer');
     await page.waitForTimeout(400);
     const menu = await page.evaluate(() => {
         const el = document.getElementById('key-suggest-menu');
-        const pan = document.getElementById('song-settings');
+        const pan = document.getElementById('rr-pop');
         if (!el || el.hidden) return { ouvert: false };
         const r = el.getBoundingClientRect();
         const cx = r.left + r.width / 2, cy = r.top + Math.min(12, r.height / 2);
@@ -184,39 +182,34 @@ async function eprouverFormat(page, contexte, ouvrir) {
             voleur: dessus ? (dessus.id ? '#' + dessus.id : dessus.tagName) : 'rien',
         };
     });
-    if (menu.ouvert) {
-        check(menu.devant,
-            `la suggestion de tonalité passe DEVANT le panneau — z-index ${menu.zMenu} contre ${menu.zPanneau}${menu.devant ? '' : ', le clic atteint ' + menu.voleur}`);
-    } else {
-        // Pas d'échec ici : la suggestion ne s'affiche que si la grille est assez claire pour en
-        // proposer une. On le dit, plutôt que de faire semblant d'avoir mesuré.
-        check(false, 'la suggestion de tonalité n\'a rien proposé pour cette grille — superposition non éprouvée');
-    }
+    // Pas de vérification sous condition : si la suggestion n'a rien proposé, c'est un échec dit comme tel (rien n'a été mesuré).
+    check(menu.ouvert && menu.devant,
+        `la suggestion de tonalité passe DEVANT le choix — z-index ${menu.zMenu} contre ${menu.zPanneau}${menu.ouvert ? (menu.devant ? '' : ', le clic atteint ' + menu.voleur) : ' (rien n\'a été proposé)'}`);
+    await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+    await page.keyboard.press('Escape'); await page.waitForTimeout(150);
 
-    console.log('\n=== G. Le panneau ne doit JAMAIS recouvrir l\'accord en cours d\'édition ===');
-    // Acquis explicite, antérieur à ce lot : « on peut régler le tempo sans perdre de vue l'accord
-    // qu'on est en train d'éditer » (voir toggleSongSettings dans script.js). Le premier placement de
-    // ce lot — sous l'ancre, le réflexe pour un popover — le cassait sans bruit : mesuré à 96 % de la
-    // carte de l'accord recouverte sur grand écran. C'est un banc qui l'a rattrapé, pas l'œil ; d'où
-    // cette vérification, sur les DEUX formats, car le défaut n'existait que sur l'un des deux.
+    console.log('\n=== G. Les réglages ne doivent JAMAIS recouvrir l\'accord en cours d\'édition ===');
+    // Acquis explicite, antérieur au lot 2 : « on peut régler le tempo sans perdre de vue l'accord qu'on est en train d'éditer ». Le premier
+    // placement du panneau flottant le cassait sans bruit (96 % de la carte recouverte, mesuré) : vérifié sur les DEUX formats, cases ouvertes.
     const chevauchement = async (p, contexte) => {
         await p.evaluate(() => { window.app.editChord(0, 1); });
         await p.waitForTimeout(300);
-        await p.evaluate(() => window.app.toggleSongSettings(true));
+        await p.evaluate(() => window.scrollTo(0, 0));
+        if (await p.evaluate(() => document.getElementById('tel-reglages-cases').hidden)) await p.click('#song-summary');
         await p.waitForTimeout(400);
         const r = await p.evaluate(() => {
-            const pan = document.getElementById('song-settings').getBoundingClientRect();
+            const pan = document.getElementById('tel-reglages-cases').getBoundingClientRect();
             const ac = document.getElementById('accord-card');
             const acr = ac.getBoundingClientRect();
             const ox = Math.max(0, Math.min(pan.right, acr.right) - Math.max(pan.left, acr.left));
             const oy = Math.max(0, Math.min(pan.bottom, acr.bottom) - Math.max(pan.top, acr.top));
             const aire = acr.width * acr.height;
-            return { cachee: ac.hidden, part: aire > 0 ? Math.round(ox * oy / aire * 100) : 0 };
+            return { cachee: ac.hidden, ouvertes: pan.height > 0, part: aire > 0 ? Math.round(ox * oy / aire * 100) : 0 };
         });
-        check(!r.cachee && r.part === 0,
-            `${contexte} : le panneau ne recouvre pas la carte de l'accord édité — ${r.part} % recouverts`);
+        check(!r.cachee && r.ouvertes && r.part === 0,
+            `${contexte} : les cases ne recouvrent pas la carte de l'accord édité — ${r.part} % recouverts`);
     };
-    await chevauchement(page, 'ordinateur');
+    await chevauchement(page, '860px');
 
     const ctx2 = await browser.newContext({ ...devices['iPhone 13'] });
     const m2 = await ctx2.newPage();

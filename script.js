@@ -2713,6 +2713,18 @@ const DENSITES_GRILLE = {
     normal: { x: 1, h: 52, w: 480 },
     detail: { x: 1, h: 84, w: 640 },
 };
+// LES TROIS AFFICHAGES DU TÉLÉPHONE (refonte, lot 10c — docs/refonte.md, « Téléphone ») : « Compact (4 mesures/ligne, noms seuls, 44 px), Normal
+// (4 mesures/ligne + degrés, 64 px), Large (2 mesures/ligne, 72 px). Pincement conservé. » Une PRÉFÉRENCE DE L'APPAREIL et non du morceau : les
+// échelles du morceau (classicGridZoomLevelX/Y) sont celles de l'ordinateur, dont l'écran n'a rien de commun avec celui-ci — un morceau réglé en
+// Détaillé (84px) sur l'ordinateur donnait jusqu'ici des cases de 103px au téléphone. hz = échelle horizontale (1 → 4 mesures par ligne en 4/4,
+// 2 → 2 mesures), h = hauteur d'une case en px. Le pincement règle ensuite ces deux échelles-là (gridTelZoomLevelX/Y), pas celles du morceau.
+const DENSITES_TELEPHONE = {
+    compact: { libelle: 'Compact', hz: 1, h: 44, degres: false, aide: 'Quatre mesures par ligne, le nom de l\'accord seul : le plus de morceau possible à l\'écran.' },
+    normal: { libelle: 'Normal', hz: 1, h: 64, degres: true, aide: 'Quatre mesures par ligne, avec le degré de chaque accord.' },
+    large: { libelle: 'Large', hz: 2, h: 72, degres: true, aide: 'Deux mesures par ligne : des cases plus grandes, faciles à toucher. Le pincement des deux doigts agrandit ou réduit toujours la grille.' },
+};
+const GRILLE_TELEPHONE_KEY = 'harmohubGrilleTelephone'; // { densite, x, y } — mémoire de l'appareil
+const GRILLE_TEL_ZOOM_X_MIN = 1, GRILLE_TEL_ZOOM_X_MAX = 4;   // jamais plus de 4 mesures par ligne sur 390px, jamais moins d'une
 const GRILLE_CASE_BASE = 64;              // --row-h vaut 64px × l'échelle verticale (style.css)
 const GRILLE_HAUTEUR_MIN = 30, GRILLE_HAUTEUR_MAX = 160;
 const GRILLE_LARGEUR_MIN = 360, GRILLE_LARGEUR_MAX = 1400;
@@ -3746,6 +3758,7 @@ class HarmoHubApp {
         // fois-ci. La clé 'songSettingsOpen' continue d'être écrite (voir toggleSongSettings) mais
         // n'est plus lue : ça ne coûte rien et laisse la porte ouverte si l'on veut y revenir.
         this.songSettingsOpen = false;
+        this.chargerAffichageTelephone(); // lot 10c : avant le premier rendu de la grille (applyZoomLevel en pose l'échelle)
         this.drag = null;          // état de glisser-déposer
         this.loopRange = null;     // {startSection, startIndex, endSection, endIndex} : boucle sur une
                                     // PLAGE d'accords voisins, qui peut traverser plusieurs parties
@@ -4094,6 +4107,7 @@ class HarmoHubApp {
         this.setupRangeeReglages(); // Tonalité, Mesure, Swing, Son, Transposer au-dessus de la grille (lot 6a)
         this.placerSubdivisionMetronome();
         window.matchMedia('(min-width: 900px)').addEventListener('change', () => this.placerSubdivisionMetronome());
+        this.setupReglagesTelephone(); // barre-résumé, quatre cases et Affichage du téléphone (lot 10c)
         this.setupOnglets(); // les onglets Grille / Structure / Paroles, au centre de la barre du haut (ordinateur)
         this.setupHistoriqueAuto(); // versions automatiques (toutes les 5 min de travail, en quittant la page) — voir historique.js
         this.setupKeyboardShortcuts();
@@ -4157,7 +4171,12 @@ class HarmoHubApp {
             if (this.editingIndex != null) { this.leaveEditForNewChord(); this.loadProgression(); }
         });
         // Bloc « Morceau » : la ligne de résumé déplie/replie les réglages du morceau.
-        document.getElementById('song-summary').onclick = () => this.toggleSongSettings();
+        // Au téléphone (lot 10c), la barre-résumé déplie les quatre cases ; l'ancien panneau (#song-settings) ne s'y ouvre plus — tout ce qu'il
+        // réglait est ailleurs : tempo, Tap, métronome et contretemps dans le panneau Lecture, le reste dans les cases. (À l'ordinateur la carte
+        // Morceau est masquée depuis le lot 6a.)
+        document.getElementById('song-summary').onclick = () => {
+            if (window.matchMedia('(min-width: 900px)').matches) this.toggleSongSettings(); else this.basculerReglagesTelephone();
+        };
         // Un seul écouteur pour TOUS les réglages du bloc, par délégation : ajouter un réglage demain
         // n'obligera pas à penser à brancher aussi le résumé. `input` couvre le curseur de tempo qu'on
         // fait glisser, `change` les listes déroulantes.
@@ -4794,6 +4813,8 @@ class HarmoHubApp {
             { id: 'song-settings', ancre: '#song-summary', close: () => this.toggleSongSettings(false) },
             // Le panneau Lecture du téléphone (lot 10b) : le clic à côté et Échap le referment ; « ⋯ » gère sa propre bascule.
             { id: 'panneau-lecture', ancre: '#bl-plus', close: () => this.fermerPanneauLecture() },
+            // L'affichage de la grille du téléphone (lot 10c) : son bouton gère sa propre bascule. Pincer la grille le referme aussi (toucher à côté).
+            { id: 'tel-affichage-panneau', ancre: '#tel-affichage', close: () => this.fermerAffichageTelephone() },
         ];
         // Le panneau flottant est posé en coordonnées d'écran : il faut le replacer dès que son ancre
         // bouge. Sur téléphone, la page défile pour de bon (contrairement à l'ordinateur, où seules
@@ -7817,7 +7838,8 @@ class HarmoHubApp {
     currentGridHZoom() {
         // Téléphone (lot 5a) : l'affichage Compact de l'ordinateur (0,5 = 8 mesures par ligne) n'y descend pas sous l'ancien plancher — 8 mesures sur un
         // écran de 390px seraient illisibles, et le téléphone garde sa mise en page jusqu'au lot 10.
-        if (!window.matchMedia('(min-width: 900px)').matches) return Math.max(this.classicGridZoomLevelX, ZOOM_LEVEL_MIN);
+        // Lot 10c : le téléphone a désormais SES affichages (DENSITES_TELEPHONE) et son échelle à lui, réglée par le pincement.
+        if (!window.matchMedia('(min-width: 900px)').matches) return this.gridTelZoomLevelX || 1;
         return this.classicGridZoomLevelX;
     }
 
@@ -7911,7 +7933,9 @@ class HarmoHubApp {
                 // traduisent this.row en ligne CSS partout plus bas dans ce bloc (cellules d'accord,
                 // chiffrage romain, numéros de mesure, plage de boucle, case "+").
                 // Affichage Compact (lot 5a) : « noms seuls » — pas de rangée de degrés, quel que soit le réglage (à 38px de case il n'y a pas la place).
-                const showRoman = this.showRomanNumerals && !(this.grilleDensite === 'compact' && window.matchMedia('(min-width: 900px)').matches); // le téléphone garde ses degrés (lot 10)
+                const showRoman = this.showRomanNumerals && (window.matchMedia('(min-width: 900px)').matches
+                    ? this.grilleDensite !== 'compact'
+                    : this.densiteTelephone().degres); // téléphone (lot 10c) : son Compact à lui, « noms seuls » aussi
                 const showFunction = this.showChordFunction;
                 // Degrés et fonction harmonique partagent la MÊME ligne dédiée (voir plus bas) : une
                 // ligne de plus à réserver dès que l'UN des deux est actif, pas une par réglage.
@@ -8082,7 +8106,7 @@ class HarmoHubApp {
                     // Renversement-drop) : même notation compacte que le PDF exporté (ex. "O3-R1-D2").
                     const badgeParts = [];
                     const bureau = window.matchMedia('(min-width: 900px)').matches; // les affichages sont ceux de l'ORDINATEUR : le téléphone ne change pas avant le lot 10
-                    const nomsSeuls = bureau && this.grilleDensite === 'compact'; // Compact : noms seuls (lot 5a)
+                    const nomsSeuls = bureau ? this.grilleDensite === 'compact' : !this.densiteTelephone().degres; // Compact : noms seuls (lot 5a ; téléphone, lot 10c)
                     // Détaillé + option allumée + case assez haute pour une rangée de plus (la poignée du bas peut l'avoir réduite) : les carrés du rythme (lot 5b).
                     const rythmeEl = (bureau && this.grilleDensite === 'detail' && this.showCellRhythm && this.hauteurCaseGrille() >= 64)
                         ? this.htmlRythmeCase(h, s, cells, motifsRythme) : '';
@@ -9638,7 +9662,10 @@ class HarmoHubApp {
         const hote = document.getElementById('bl-hote-subdivision');
         if (!btn || !hote) return;
         if (!this._origineSubdivision) this._origineSubdivision = { parent: btn.parentNode, suivant: btn.nextSibling };
+        // Lot 10c : au téléphone, la carte Morceau ne s'ouvre plus — le contretemps rejoint le panneau Lecture, sous le métronome.
+        const hoteTel = document.getElementById('pl-subdivision');
         if (window.matchMedia('(min-width: 900px)').matches) { if (btn.parentNode !== hote) hote.appendChild(btn); }
+        else if (hoteTel) { if (btn.parentNode !== hoteTel) hoteTel.appendChild(btn); }
         else if (btn.parentNode !== this._origineSubdivision.parent) this._origineSubdivision.parent.insertBefore(btn, this._origineSubdivision.suivant);
     }
 
@@ -9658,6 +9685,19 @@ class HarmoHubApp {
             const v = b.querySelector('.rr-val');
             if (v && v.textContent !== vals[b.dataset.puce]) v.textContent = vals[b.dataset.puce];
         });
+        // La barre-résumé du téléphone (lot 10c) dit les quatre mêmes valeurs, dans l'ordre des cases, et le tempo juste après la tonalité :
+        // « C majeur · 120 BPM · 4/4 · Droit · Piano » — tonalité et tempo « toujours visibles » (filet_toujours_visible), le reste peut s'abréger.
+        const tel = document.getElementById('song-summary-tel');
+        if (tel) {
+            const set = (id, t) => { const el = document.getElementById(id); if (el && el.textContent !== t) el.textContent = t; };
+            const bpm = `${(document.getElementById('bpm') || {}).value || ''} BPM`;
+            const reste = [vals.mesure, vals.swing, vals.son].filter(Boolean).map(v => ' · ' + v).join('');
+            set('song-summary-tel-ton', vals.tonalite);
+            set('song-summary-tel-bpm', bpm);
+            set('song-summary-tel-reste', reste);
+            const resume = document.getElementById('song-summary');
+            if (resume && !window.matchMedia('(min-width: 900px)').matches) resume.setAttribute('aria-label', `Réglages du morceau : ${vals.tonalite} · ${bpm}${reste}`);
+        }
         if (this._puceOuverte) this.remplirPuceReglage();
     }
 
@@ -9670,11 +9710,21 @@ class HarmoHubApp {
         btn.setAttribute('aria-expanded', 'true');
         this.remplirPuceReglage();
         pop.hidden = false;
-        const r = btn.getBoundingClientRect(), pad = 8, w = pop.offsetWidth;
-        pop.style.left = `${Math.round(Math.max(pad, Math.min(r.left, window.innerWidth - w - pad)))}px`;
-        pop.style.top = `${Math.round(r.bottom + 6)}px`;
+        this.placerPuceReglage();
         const cible = pop.querySelector('[aria-pressed="true"], [aria-selected="true"]') || pop.querySelector('button');
         if (cible) cible.focus({ preventScroll: true });
+    }
+
+    // Sous sa puce. Rappelé au défilement : au téléphone (lot 10c) c'est la PAGE qui défile, et le choix, en position fixe, serait resté en plan
+    // pendant que sa case s'en allait ; sortie de l'écran, la case referme son choix.
+    placerPuceReglage() {
+        const pop = document.getElementById('rr-pop');
+        const btn = this._puceOuverte ? document.querySelector(`#rangee-reglages .rr-puce[data-puce="${this._puceOuverte}"]`) : null;
+        if (!pop || pop.hidden || !btn) return;
+        const r = btn.getBoundingClientRect(), pad = 8, w = pop.offsetWidth;
+        if (r.width === 0 || r.bottom < 0 || r.top > window.innerHeight) { this.fermerPuceReglage(); return; }
+        pop.style.left = `${Math.round(Math.max(pad, Math.min(r.left, window.innerWidth - w - pad)))}px`;
+        pop.style.top = `${Math.round(r.bottom + 6)}px`;
     }
 
     fermerPuceReglage(rendreLeFocus = false) {
@@ -9937,6 +9987,7 @@ class HarmoHubApp {
         // Posé en position fixe : un défilement le décollerait de son bouton — il le SUIT (le refermer ne marchait pas : redessiner la grille en
         // activant la partie fait défiler la page d'un cran, et le menu se refermait sous le doigt à peine ouvert ; trouvé par le banc).
         window.addEventListener('scroll', () => { if (this._menuPartie != null) this.placerMenuPartie(); }, true);
+        window.addEventListener('scroll', () => { if (this._puceOuverte) this.placerPuceReglage(); }, true);
         window.addEventListener('scroll', () => { if (this._bulle) this.placerBulleAccord(); }, true);
         window.addEventListener('resize', () => { if (this._bulle) this.placerBulleAccord(); });
         this.setupBulleAccord();
@@ -10366,6 +10417,139 @@ class HarmoHubApp {
             hote.classList.remove('densite-compact', 'densite-normal', 'densite-detail');
             hote.classList.add('densite-' + densite);
         }
+    }
+
+    // ---------- LE TÉLÉPHONE : réglages du morceau et affichage de la grille (refonte, lot 10c — docs/refonte.md, « Téléphone ») ----------
+    densiteTelephone() { return DENSITES_TELEPHONE[this.grilleTelDensite] || DENSITES_TELEPHONE.normal; }
+
+    chargerAffichageTelephone() {
+        let memo = null;
+        try { memo = JSON.parse(localStorage.getItem(GRILLE_TELEPHONE_KEY) || 'null'); } catch (e) { memo = null; } // illisible : on repart de Normal
+        const densite = memo && DENSITES_TELEPHONE[memo.densite] ? memo.densite : 'normal';
+        const d = DENSITES_TELEPHONE[densite];
+        this.grilleTelDensite = densite;
+        this.gridTelZoomLevelX = memo && memo.x > 0 ? memo.x : d.hz;
+        this.gridTelZoomLevelY = memo && memo.y > 0 ? memo.y : d.h / GRILLE_CASE_BASE;
+    }
+
+    memoriserAffichageTelephone() {
+        try { localStorage.setItem(GRILLE_TELEPHONE_KEY, JSON.stringify({ densite: this.grilleTelDensite, x: this.gridTelZoomLevelX, y: this.gridTelZoomLevelY })); }
+        catch (e) { /* stockage plein ou refusé : l'affichage reste celui de la session */ }
+    }
+
+    // Le geste (pincement, Ctrl+molette) vise la grille : au téléphone, ce sont SES échelles qui bougent, pas celles du morceau.
+    genreZoomGeste(kind) {
+        return (kind === 'classicGrid' && !window.matchMedia('(min-width: 900px)').matches) ? 'gridTel' : kind;
+    }
+
+    // Une préférence de l'appareil : rien à enregistrer dans le morceau, donc pas de marquerModifie (le voyant ne s'allume pas pour un pincement).
+    reglerEchelleTelephone(axis, value) {
+        const [min, max] = axis === 'x' ? [GRILLE_TEL_ZOOM_X_MIN, GRILLE_TEL_ZOOM_X_MAX] : [GRILLE_HAUTEUR_MIN / GRILLE_CASE_BASE, GRILLE_HAUTEUR_MAX / GRILLE_CASE_BASE];
+        const pas = axis === 'x' ? 100 : 10000; // la hauteur se lit en pixels (64px = 1, 44px = 0,6875) : un centième ne tomberait pas juste
+        const next = Math.round(Math.max(min, Math.min(max, value)) * pas) / pas;
+        const cle = axis === 'x' ? 'gridTelZoomLevelX' : 'gridTelZoomLevelY';
+        if (next === this[cle]) return;
+        this[cle] = next;
+        this.memoriserAffichageTelephone();
+        const host = document.querySelector('.history-section');
+        if (host) host.style.setProperty('--grid-zoom-scale-v-tel', String(this.gridTelZoomLevelY));
+        if (this._zoomPinchActive) this._gridZoomRenderPending = true; else this.loadProgression();
+    }
+
+    choisirDensiteTelephone(densite) {
+        const d = DENSITES_TELEPHONE[densite];
+        if (!d) return;
+        // Choisir un affichage remet ses valeurs : ce qu'un pincement avait changé s'efface (le même principe que le double-clic des poignées à l'ordinateur).
+        this.grilleTelDensite = densite;
+        this.gridTelZoomLevelX = d.hz;
+        this.gridTelZoomLevelY = d.h / GRILLE_CASE_BASE;
+        this.memoriserAffichageTelephone();
+        const host = document.querySelector('.history-section');
+        if (host) host.style.setProperty('--grid-zoom-scale-v-tel', String(this.gridTelZoomLevelY));
+        this.rafraichirAffichageTelephone();
+        this.loadProgression(); // ce que montrent les cases change (degrés), même à hauteur égale
+    }
+
+    rafraichirAffichageTelephone() {
+        const d = this.densiteTelephone();
+        document.querySelectorAll('#tel-densites [data-densite-tel]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.densiteTel === this.grilleTelDensite)));
+        const aide = document.getElementById('tel-affichage-aide');
+        if (aide && aide.textContent !== d.aide) aide.textContent = d.aide;
+        const btn = document.getElementById('tel-affichage');
+        if (btn) { btn.title = `Affichage de la grille : ${d.libelle}`; btn.setAttribute('aria-label', btn.title); }
+    }
+
+    ouvrirAffichageTelephone() {
+        const panneau = document.getElementById('tel-affichage-panneau');
+        const btn = document.getElementById('tel-affichage');
+        if (!panneau || !btn) return;
+        this.rafraichirAffichageTelephone();
+        panneau.hidden = false;
+        btn.setAttribute('aria-expanded', 'true');
+        btn.setAttribute('aria-pressed', 'true');
+        const choisi = panneau.querySelector('[aria-pressed="true"]');
+        if (choisi) choisi.focus({ preventScroll: true });
+    }
+
+    fermerAffichageTelephone(rendreFocus = false) {
+        const panneau = document.getElementById('tel-affichage-panneau');
+        const btn = document.getElementById('tel-affichage');
+        if (!panneau || !btn || panneau.hidden) return;
+        panneau.hidden = true;
+        btn.setAttribute('aria-expanded', 'false');
+        btn.setAttribute('aria-pressed', 'false');
+        if (rendreFocus) btn.focus({ preventScroll: true });
+    }
+
+    // Les quatre cases : un simple dépliage dans la page (comme la maquette), pas un flottant — elles poussent la grille, rien ne la recouvre.
+    basculerReglagesTelephone(force) {
+        const cases = document.getElementById('tel-reglages-cases');
+        const resume = document.getElementById('song-summary');
+        if (!cases || !resume) return;
+        const ouvrir = force != null ? force : cases.hidden;
+        if (!ouvrir) this.fermerPuceReglage();
+        cases.hidden = !ouvrir;
+        resume.setAttribute('aria-expanded', String(ouvrir));
+        resume.setAttribute('aria-controls', 'tel-reglages-cases');
+        resume.classList.toggle('open', ouvrir);
+    }
+
+    // UN SEUL jeu de puces, déplacé selon le format (comme le transport ou le tempo) : dans la rangée au-dessus de la grille à l'ordinateur,
+    // dans les cases de la carte Morceau au téléphone. Deux copies auraient demandé de tenir deux affichages à jour, et les bancs du lot 6a
+    // éprouvent ces nœuds-là.
+    placerRangeeReglages() {
+        const rangee = document.getElementById('rangee-reglages');
+        const cases = document.getElementById('tel-reglages-cases');
+        if (!rangee || !cases) return;
+        if (!this._origineRangee) this._origineRangee = { parent: rangee.parentNode, suivant: rangee.nextSibling };
+        this.fermerPuceReglage();
+        if (window.matchMedia('(min-width: 900px)').matches) {
+            if (rangee.parentNode !== this._origineRangee.parent) this._origineRangee.parent.insertBefore(rangee, this._origineRangee.suivant);
+            this.basculerReglagesTelephone(false);
+            this.fermerAffichageTelephone();
+            const resume = document.getElementById('song-summary');
+            if (resume) { resume.setAttribute('aria-controls', 'song-settings'); resume.removeAttribute('aria-label'); }
+        } else {
+            if (this.songSettingsOpen) this.toggleSongSettings(false); // ouvert à l'ordinateur juste avant de passer sous le seuil : il ne reste pas en plan
+            if (rangee.parentNode !== cases) cases.appendChild(rangee);
+        }
+        this.rafraichirRangeeReglages();
+    }
+
+    setupReglagesTelephone() {
+        const btn = document.getElementById('tel-affichage');
+        const panneau = document.getElementById('tel-affichage-panneau');
+        if (!btn || !panneau) return; // index.html servi depuis un cache plus ancien
+        btn.addEventListener('click', () => { if (panneau.hidden) this.ouvrirAffichageTelephone(); else this.fermerAffichageTelephone(true); });
+        document.getElementById('tel-affichage-fermer').addEventListener('click', () => this.fermerAffichageTelephone(true));
+        panneau.querySelectorAll('[data-densite-tel]').forEach(b => b.addEventListener('click', () => this.choisirDensiteTelephone(b.dataset.densiteTel)));
+        panneau.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.fermerAffichageTelephone(true); }
+        });
+        const bureau = window.matchMedia('(min-width: 900px)');
+        bureau.addEventListener('change', () => this.placerRangeeReglages());
+        this.placerRangeeReglages();
+        this.rafraichirAffichageTelephone();
     }
 
     // ---------- LES ONGLETS : Grille / Structure / Paroles (refonte, lot 4 — docs/refonte.md) ----------
@@ -19417,7 +19601,10 @@ class HarmoHubApp {
         curseur.value = bpm;
         document.getElementById('bpm-val').value = bpm;
         curseur.dispatchEvent(new Event('change'));
-        this.syncBarreLecture();
+        // Tout ce qui RÉSUME le tempo, pas seulement la barre : le « change » ci-dessus ne remonte pas (pas de bubbles) jusqu'à l'écouteur du
+        // conteneur des réglages, et la barre-résumé du téléphone (lot 10c, « C majeur · 120 BPM… ») restait à l'ancien tempo après −, + ou Tap —
+        // trouvé par reglages_morceau_popover_test. updateSongSummary rafraîchit aussi la barre de lecture.
+        this.updateSongSummary();
     }
 
     reglerVitesse(v) {
@@ -19829,6 +20016,7 @@ class HarmoHubApp {
     setupPinchZoom(el, kind, { zoom = true, guard = null } = {}) {
         const pointers = new Map();
         let baseDist = null, baseZoomX = null, baseZoomY = null;
+        let genre = kind; // la grille au téléphone se pince sur ses propres échelles (lot 10c, voir genreZoomGeste) — fixé au début de chaque geste
         const dist = () => {
             const pts = [...pointers.values()];
             return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
@@ -19876,8 +20064,9 @@ class HarmoHubApp {
                 // ratio de cet écart initial, jamais en delta cumulé depuis le dernier mouvement
                 // (qui dériverait/s'accumulerait faux si un pointermove venait à manquer).
                 baseDist = dist();
-                baseZoomX = this[`${kind}ZoomLevelX`];
-                baseZoomY = this[`${kind}ZoomLevelY`];
+                genre = this.genreZoomGeste(kind);
+                baseZoomX = this[`${genre}ZoomLevelX`];
+                baseZoomY = this[`${genre}ZoomLevelY`];
                 this._ancrageZoomH = ancrageSousLesDoigts();
                 this._zoomPinchActive = true;
                 this._startZoomPinchFlushLoop();
@@ -19891,8 +20080,8 @@ class HarmoHubApp {
             let handled = false;
             if (zoom && baseDist != null && baseDist >= 1) {
                 const ratio = dist() / baseDist;
-                this.setZoomLevel(kind, 'x', baseZoomX * ratio);
-                this.setZoomLevel(kind, 'y', baseZoomY * ratio);
+                this.setZoomLevel(genre, 'x', baseZoomX * ratio);
+                this.setZoomLevel(genre, 'y', baseZoomY * ratio);
                 handled = true;
             }
             if (handled) e.preventDefault(); // empêche le navigateur de zoomer/défiler la PAGE entière avec la même pince
@@ -20064,6 +20253,7 @@ class HarmoHubApp {
     // multiplicatif avance du même MONTANT VISIBLE partout : ~7 crans d'un bout à l'autre, dans les
     // deux sens, comme sur n'importe quelle station audio.
     adjustZoom(kind, axis, delta) {
+        kind = this.genreZoomGeste(kind);
         const levelKey = `${kind}ZoomLevel${axis === 'x' ? 'X' : 'Y'}`;
         const facteur = delta > 0 ? ZOOM_LEVEL_RATIO : 1 / ZOOM_LEVEL_RATIO;
         this.setZoomLevel(kind, axis, this[levelKey] * facteur);
@@ -20109,6 +20299,7 @@ class HarmoHubApp {
         // hauteur de barre en silence, sans plus aucun bouton pour la ramener à 1 (mesuré : c'est
         // exactement ce qui se produisait avant ce correctif).
         if (kind === 'seqInline' && axis === 'y') return;
+        if (kind === 'gridTel') { this.reglerEchelleTelephone(axis, value); return; }
         if (kind === 'classicGrid') this.abandonnerCompactProvisoire(); // geste de l'utilisateur sur la grille : l'affichage provisoire devient le sien (lot 9a)
         const levelKey = `${kind}ZoomLevel${axis === 'x' ? 'X' : 'Y'}`;
         const storageKey = kind === 'seq'
@@ -20172,8 +20363,8 @@ class HarmoHubApp {
             const host = document.querySelector('.history-section');
             if (host) {
                 host.style.setProperty('--grid-zoom-scale-v', String(this.classicGridZoomLevelY));
-                // Téléphone (lot 5a) : la même échelle ramenée à l'affichage Normal — voir style.css, « rien ne change avant le lot 10 ».
-                host.style.setProperty('--grid-zoom-scale-v-tel', String(this.classicGridZoomLevelY / (DENSITES_GRILLE.normal.h / GRILLE_CASE_BASE)));
+                // Téléphone (lot 10c) : SON échelle, celle de son affichage et du pincement (voir DENSITES_TELEPHONE) — plus celle du morceau.
+                host.style.setProperty('--grid-zoom-scale-v-tel', String(this.gridTelZoomLevelY || 1));
             }
             if (this._zoomPinchActive) this._gridZoomRenderPending = true;
             else this.loadProgression();

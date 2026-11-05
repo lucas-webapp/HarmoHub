@@ -22,16 +22,17 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 // jamais un problème chez l'utilisateur. Ces échecs réseau sont donc filtrés — sinon ils font
 // échouer « aucune erreur console » et masquent les vraies erreurs au milieu du bruit.
 const { check, exiger, plan, bilan } = require('./_harness')('échelles de la grille classique');
-plan(9);
+plan(12);
 
 (async () => {
     const browser = await chromium.launch({
         args: ['--autoplay-policy=no-user-gesture-required'],
     });
     // REFONTE, LOT 5a : sur ORDINATEUR les boutons H± V± ont cédé la place aux affichages Compact / Normal / Détaillé et aux poignées de la grille
-    // (voir affichage_grille_test). Ils restent l'interface du TÉLÉPHONE jusqu'au lot 10 — et ce banc éprouve les deux échelles qu'ils pilotent,
-    // toujours les mêmes : il se place donc au format où ces boutons existent encore, au lieu de les cliquer cachés.
-    const page = await browser.newPage({ viewport: { width: 860, height: 900 } });
+    // (voir affichage_grille_test). LOT 10c : ils se sont effacés au téléphone aussi (qui a désormais ses affichages et son échelle à lui, voir
+    // telephone_reglages_test). Les deux échelles du MORCEAU, elles, restent : ce banc les éprouve à l'ordinateur par leurs gestes d'aujourd'hui —
+    // la poignée du bas de la grille pour la hauteur seule, Ctrl+molette pour les deux à la fois.
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
     page.on('console', (msg) => { if (msg.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID|ERR_NAME_NOT_RESOLVED|fonts\.googleapis|fonts\.gstatic/.test(msg.text())) errors.push('console.error: ' + msg.text()); });
@@ -63,8 +64,16 @@ plan(9);
     // Lot 5a : un morceau neuf s'ouvre dans l'affichage NORMAL — échelle horizontale 1, cases de 52px (échelle verticale 52/64 = 0,8125), et non plus 1/1.
     if (!exiger(depart.x === 1 && depart.y === 0.8125, `les deux échelles partent de l'affichage Normal (1 / 0,8125) — ${depart.x}/${depart.y}`)) bilan();
 
-    console.log('--- V+ trois fois : la hauteur de ligne grandit, le nombre de temps par ligne ne bouge pas ---');
-    for (let i = 0; i < 3; i++) await page.click('#classic-grid-in-v');
+    console.log('--- La poignée du bas tirée vers le bas : la hauteur de ligne grandit, le nombre de temps par ligne ne bouge pas ---');
+    {
+        const r = await page.locator('#grille-poignee-bas').boundingBox();
+        exiger(!!r && r.width > 0, 'la poignée du bas de la grille est à l\'écran');
+        await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2 + 20, { steps: 4 });
+        await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2 + 40, { steps: 4 });
+        await page.mouse.up();
+    }
     await page.waitForTimeout(250);
     const apresV = await etat();
     console.log(JSON.stringify(apresV));
@@ -73,8 +82,14 @@ plan(9);
         `le nombre de temps par ligne est inchangé : le zoom V ne touche pas à la mise en page horizontale (${apresV.beatsPerRow})`);
     check(apresV.x === depart.x, `et l'échelle horizontale n'a pas bougé non plus (${apresV.x})`);
 
-    console.log('--- H+ trois fois : MOINS de temps par ligne (les cases s\'élargissent) ---');
-    for (let i = 0; i < 3; i++) await page.click('#classic-grid-in-h');
+    console.log('--- Ctrl+molette vers le haut, trois crans : MOINS de temps par ligne (les cases s\'élargissent) ---');
+    {
+        const g = await page.locator('#progression-sections .grid-cell').first().boundingBox();
+        await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+        await page.keyboard.down('Control');
+        for (let i = 0; i < 3; i++) { await page.mouse.wheel(0, -100); await page.waitForTimeout(120); }
+        await page.keyboard.up('Control');
+    }
     await page.waitForTimeout(250);
     const apresH = await etat();
     console.log(JSON.stringify(apresH));

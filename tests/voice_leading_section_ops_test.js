@@ -11,7 +11,7 @@
 // RÉÉCRIT POUR LE NOUVEAU GESTE (lot 9c). Sur ORDINATEUR, la conduite de voix est le calque Voix de l'éditeur de notes (docs/refonte.md) : la
 // partie B rejoue les trois opérations, éditeur ouvert et calque allumé, par le menu ⋯ de l'en-tête (lot 5c) — le calque reste unique, ne montre
 // jamais une partie disparue (la bande des accords de sa règle est celle d'une partie qui existe), et rien ne plante. Sur TÉLÉPHONE (< 900px),
-// rien ne bouge avant le lot 10 : la partie A rejoue le contrat d'origine à 860px, avec les boutons d'en-tête de partie qu'il a là.
+// rien ne bouge avant le lot 10 : la partie A rejoue le contrat d'origine à 860px (depuis le lot 10c par le menu ⋯ de l'en-tête, comme à l'ordinateur).
 // Les parties ont des accords DIFFÉRENTS, pour que « la bonne partie » se lise dans ce que le calque affiche.
 // La police est chargée depuis Google Fonts : injoignable derrière le proxy du bac à sable, bruit filtré (estBruitReseau).
 const { chromium } = require('playwright');
@@ -65,20 +65,22 @@ const graine = () => {
     let e = await etat();
     check(e.nombre === 1 && e.ouvert, `un panneau, un seul — obtenu ${JSON.stringify(e.partie)}`);
     check(e.titresExistants.includes(e.partie[0]), `...posé dans une partie qui existe vraiment — « ${e.partie[0]} »`);
-    // Au téléphone, les outils de partie restent dans l'en-tête (le menu ⋯ est celui de l'ordinateur, lot 5c ; lot 10 pour le reste).
-    exiger(await page.locator('.prog-section:nth-child(2) .prog-section-move-up').isVisible(), 'le bouton « Monter cette partie » est là, sous 900px');
-    await page.click('.prog-section:nth-child(2) .prog-section-move-up');
+    // Réécrit au lot 10c : au téléphone aussi, les outils de partie sont passés dans le menu ⋯ de l'en-tête (celui du lot 5c, à 44px) —
+    // monter, dupliquer, supprimer s'y font comme à l'ordinateur. Le panneau ⊱ d'avant, lui, reste au téléphone jusqu'au lot 10f.
+    const parMenuTel = async (n, action) => { await page.click(`.prog-section:nth-child(${n}) .prog-section-menu`); await page.waitForTimeout(150); await page.click(`#partie-menu [data-partie-action="${action}"]`); };
+    exiger(await page.locator('.prog-section:nth-child(2) .prog-section-menu').isVisible(), 'le menu ⋯ de la partie est là, sous 900px');
+    await parMenuTel(2, 'monter');
     await page.waitForTimeout(300);
     e = await etat();
     check(e.nombre === 1 && e.ouvert, `le panneau reste ouvert après un échange de parties — obtenu ${e.nombre} panneau(x)`);
     check(e.titresExistants.includes(e.partie[0]), `...et toujours rattaché à une partie réelle, pas à un index périmé — « ${e.partie[0]} »`);
-    await page.click('.prog-section:nth-child(1) .prog-section-duplicate');
+    await parMenuTel(1, 'dupliquer');
     await page.waitForTimeout(300);
     e = await etat();
     check(e.nombre === 1, `pas de panneau en double après une duplication — obtenu ${e.nombre}`);
     check(e.titresExistants.includes(e.partie[0]), `...et il désigne une partie existante — « ${e.partie[0]} » parmi ${JSON.stringify(e.titresExistants)}`);
     const supprimee = (await etat()).titresExistants[0];
-    await page.click('.prog-section:nth-child(1) .prog-section-del');
+    await parMenuTel(1, 'supprimer');
     await page.waitForTimeout(400);
     e = await etat();
     check(e.titresExistants.length === 3, `une partie de moins (${JSON.stringify(e.titresExistants)}, la première était « ${supprimee} »)`);

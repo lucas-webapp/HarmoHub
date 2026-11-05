@@ -5388,7 +5388,7 @@ select.song-select-narrow {
     }
 }
 @media (max-width: 480px) {
-    .chord-grid { --row-h: calc(56px * var(--grid-zoom-scale-v-tel, 1)); }
+    /* (La case de 56px sous 480px a disparu au lot 10c : la hauteur est celle de l'affichage du téléphone, voir la fin du fichier.) */
     .cell-sym { font-size: var(--fs-md); }
     .seq-cell { height: 30px; }
     .lbl-full { display: none; }
@@ -8086,4 +8086,121 @@ body.avec-barre-selection .toast { bottom: 132px; }
     #structure-overlay > .settings-modal { max-width: none; width: 100%; max-height: none; height: 100%; margin: 0; box-shadow: none; }
     #structure-overlay #structure-title, #structure-overlay #structure-close { display: none; }
     #structure-overlay .settings-header { justify-content: flex-end; }
+}
+
+/* ============================================================
+   TÉLÉPHONE — RÉGLAGES DU MORCEAU, AFFICHAGE, EN-TÊTE DE PARTIE (refonte, lot 10c — docs/refonte.md, « Téléphone »)
+   « Infos du morceau (tonalité, mesure, swing, son) repliées dans UNE barre-résumé pleine largeur → quatre grosses cases sur deux
+   colonnes ; bouton carré "Affichage" à côté : Compact (4 mesures/ligne, noms seuls, 44 px), Normal (4 mesures/ligne + degrés, 64 px),
+   Large (2 mesures/ligne, 72 px). Pincement conservé. » Placé en FIN de fichier (piège de cascade connu, voir CLAUDE.md).
+   ============================================================ */
+.song-summary-tel, .tel-affichage, .tel-reglages-cases, .tel-affichage-panneau { display: none; }
+.tel-reglages-ligne { display: contents; }
+@media (max-width: 899px) {
+    /* La carte Morceau n'a plus de cadre : il n'y reste que la ligne de la maquette (barre-résumé + Affichage) et ce qu'elle déplie. */
+    #song-card.control-card { margin: 0 0 8px; padding: 0; background: none; border: 0; box-shadow: none; }
+    .tel-reglages-ligne { display: flex; align-items: stretch; gap: 6px; }
+    #song-card .song-summary {
+        flex: 1 1 auto; min-width: 0; box-sizing: border-box; height: var(--bouton-h-lg, 44px); margin: 0; padding: 0 12px;
+        border-radius: var(--rayon-bouton, 7px);
+    }
+    #song-card .song-summary-items { display: none; }
+    #song-summary-tel-bpm { color: var(--accent); } /* le tempo, en vert comme dans l'ancien résumé : c'est le chiffre qu'on cherche */
+    .song-summary-tel { display: block; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-main); font-size: 14px; font-weight: 700; }
+    .col-left .tel-affichage { display: inline-flex; align-items: center; justify-content: center; flex: none; box-sizing: border-box; width: var(--bouton-h-lg, 44px); height: var(--bouton-h-lg, 44px); padding: 0; border-radius: var(--rayon-bouton, 7px); }
+    .tel-affichage .icon { width: 18px; height: 18px; }
+    /* Ouvert : l'état allumé de la famille (liseré vert), jamais un aplat vif. */
+    .col-left .tel-affichage[aria-expanded="true"] { color: var(--text-main); border-color: var(--btn-green-border); box-shadow: inset 0 -2px 0 var(--accent); }
+
+    /* LES QUATRE CASES : les puces de l'ordinateur (#rangee-reglages, déplacée ici par placerRangeeReglages), sur deux colonnes, le nom au-dessus
+       de la valeur comme la maquette ; Transposer garde sa ligne pleine largeur dessous — la maquette ne l'avait pas, mais il était dans la
+       carte Morceau du téléphone : rien ne se perd (règle 1). */
+    .tel-reglages-cases:not([hidden]) { display: block; margin-top: 8px; }
+    #tel-reglages-cases .rangee-reglages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+    #tel-reglages-cases .rr-puce {
+        position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px;
+        box-sizing: border-box; min-width: 0; height: 52px; padding: 0 30px 0 12px;
+        border: 1px solid var(--border); border-radius: var(--rayon-bouton, 7px); background: var(--fond-bouton-sombre, #1c2027);
+        color: var(--text-main); text-align: left; cursor: pointer;
+    }
+    #tel-reglages-cases .rr-puce[aria-expanded="true"] { border-color: var(--btn-blue-border-hover); }
+    #tel-reglages-cases .rr-nom { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #8a8f98; }
+    #tel-reglages-cases .rr-val { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 700; }
+    #tel-reglages-cases .rr-chevron { position: absolute; right: 10px; top: 50%; width: 14px; height: 14px; margin-top: -7px; color: var(--text-muted); }
+    #tel-reglages-cases .rr-seg { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; }
+    #tel-reglages-cases .rr-cap { flex: 1 1 auto; padding: 0 4px; color: var(--text-muted); font-size: 14px; }
+    #tel-reglages-cases .rr-seg button {
+        flex: none; box-sizing: border-box; width: var(--bouton-h-lg, 44px); min-width: 0; height: var(--bouton-h-lg, 44px); padding: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        border: 1px solid var(--border); border-radius: var(--rayon-bouton, 7px); background: var(--fond-bouton-sombre, #1c2027); color: var(--text-main);
+    }
+    #tel-reglages-cases .rr-seg button .icon { width: 18px; height: 18px; }
+
+    /* LE CHOIX OUVERT PAR UNE CASE : le même flottant qu'à l'ordinateur (#rr-pop, le menu du morceau), à la jauge du téléphone — lignes et
+       boutons de 44px, jamais plus large que l'écran. */
+    .tb-menu.rr-pop { position: fixed; top: 0; left: 0; z-index: 90; width: min(320px, calc(100vw - 16px)); box-sizing: border-box; }
+    .tb-menu.rr-pop[data-puce="tonalite"] { width: min(360px, calc(100vw - 16px)); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .tb-menu.rr-pop .tb-mi { min-height: var(--bouton-h-lg, 44px); }
+    .rr-lbl { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+    .rr-grille { display: grid; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: var(--rayon-bouton, 7px); background: #14171c; }
+    .rr-g6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .rr-g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .rr-grille button { min-width: 0; height: 38px; padding: 0 2px; border: 0; border-radius: 5px; background: transparent; color: var(--text-muted); font-size: 14px; font-weight: 600; }
+    .rr-grille button[aria-pressed="true"] { background: rgba(255, 255, 255, 0.08); color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+    .rr-aide { margin: 0; font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.45; }
+    .rr-option { height: auto; padding-top: 6px; padding-bottom: 6px; align-items: flex-start; }
+    .rr-option-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+    .rr-option-desc { font-size: var(--fs-xs); font-weight: 500; color: var(--text-muted); white-space: normal; }
+
+    /* LE PANNEAU AFFICHAGE : dans la page, sous la ligne (comme la maquette, en haut de la grille) — 12px d'arrondi, un groupe segmenté de 44px
+       (un choix parmi trois), une ligne qui dit ce que fait l'affichage choisi. */
+    .tel-affichage-panneau:not([hidden]) { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding: 12px; border: 1px solid #2a2e35; border-radius: var(--rayon-surface, 12px); background: #14171c; }
+    .tap-tete { display: flex; align-items: center; gap: 8px; }
+    .tap-titre { flex: 1 1 auto; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #8a8f98; }
+    .tel-affichage-panneau .icon-btn { width: var(--bouton-h-lg, 44px); height: var(--bouton-h-lg, 44px); border-radius: var(--rayon-bouton, 7px); }
+    .tel-densites { box-sizing: border-box; display: flex; width: 100%; height: var(--bouton-h-lg, 44px); align-items: stretch; gap: 2px; padding: 2px; border: 1px solid #333; border-radius: var(--rayon-bouton, 7px); background: #14171c; }
+    .tel-densites > button { flex: 1 1 0; min-width: 0; height: 38px; padding: 0; border: 0; border-radius: 5px; background: transparent; box-shadow: none; color: #a0a0a0; font-size: 14px; font-weight: 600; line-height: 1; cursor: pointer; }
+    .tel-densites > button[aria-pressed="true"] { background: rgba(255, 255, 255, 0.08); color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+    .tap-aide { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--text-muted); }
+
+    /* LES CASES DE LA GRILLE : la hauteur de l'affichage du téléphone (--grid-zoom-scale-v-tel = hauteur / 64, posée par le script), à toutes les
+       largeurs sous le seuil — la règle « 56px sous 480px » disparaît, Normal y fait 64px comme la maquette. Les rangées de numéros et de degrés
+       ne descendent pas sous 16 / 14px ni ne dépassent leur taille d'avant : ce sont les cases qui grandissent ou rétrécissent, pas les chiffres. */
+    .chord-grid {
+        --row-h: calc(64px * var(--grid-zoom-scale-v-tel, 1));
+        --measure-row-h: clamp(16px, calc(20px * var(--grid-zoom-scale-v-tel, 1)), 20px);
+        --roman-row-h: clamp(14px, calc(18px * var(--grid-zoom-scale-v-tel, 1)), 18px);
+    }
+    /* Le nom d'accord en entier : sa ligne (line-height 1, débordement masqué) coupait le jambage des lettres — « Cmaj7 » se lisait « Cmai7 »
+       (constaté avant ce lot aussi). La maquette lui donne 1,3 ; 1,25 suffit et la case garde sa hauteur. */
+    .cell-sym { line-height: 1.25; }
+    /* Les zooms H / V « s'effacent, le pincement reste » (comme à l'ordinateur depuis le lot 5a). */
+    .history-section .card-head-actions > .zoom-axis-group[data-zoom-kind="classicGrid"] { display: none; }
+
+    /* L'EN-TÊTE DE PARTIE (celui du lot 5c, à la jauge du téléphone) : nom + « N mesures » + ×N sur la même ligne de base, le menu ⋯ au bout
+       (répéter, renommer, monter, descendre, dupliquer, supprimer) — les quatre petits boutons ▲▼⧉🗑 passent dedans. */
+    .prog-section-head { min-height: var(--bouton-h-lg, 44px); }
+    .psh-nom { flex: 1 1 auto; }
+    .psh-nom .prog-title { flex: 0 1 auto; width: var(--titre-l, 160px); max-width: 100%; }
+    .prog-section-measures { font-size: 12px; white-space: nowrap; }
+    .psm-long { display: inline; }
+    .psm-court { display: none; }
+    .prog-section-head .psh-ancien { display: none; }
+    .prog-section-menu {
+        display: inline-flex; align-items: center; justify-content: center; flex: none; margin-left: auto; box-sizing: border-box;
+        width: var(--bouton-h-lg, 44px); min-width: 0; height: var(--bouton-h-lg, 44px); padding: 0;
+        border: 1px solid transparent; border-radius: var(--rayon-bouton, 7px); background: transparent; color: var(--text-muted); cursor: pointer;
+    }
+    .prog-section-menu .icon { width: 18px; height: 18px; }
+    .prog-section-menu[aria-expanded="true"] { color: var(--text-main); border-color: var(--border); background: rgba(255, 255, 255, 0.06); }
+    .tb-menu.partie-menu { position: fixed; top: 0; left: 0; z-index: 90; width: min(280px, calc(100vw - 16px)); box-sizing: border-box; }
+    .partie-menu .tb-mi { min-height: var(--bouton-h-lg, 44px); }
+    .partie-rep { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 4px 6px 10px; }
+    .partie-rep-libelle { font-size: 14px; font-weight: 600; color: var(--text-main); }
+    .partie-rep-seg { box-sizing: border-box; display: inline-flex; align-items: stretch; gap: 2px; height: var(--bouton-h-lg, 44px); padding: 2px; border: 1px solid var(--border); border-radius: var(--rayon-bouton, 7px); background: #14171c; }
+    .partie-rep-seg button { flex: none; width: 40px; min-width: 0; height: auto; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--text-main); font-size: 18px; font-weight: 600; line-height: 1; }
+    .partie-rep-seg button:disabled { opacity: 0.3; background: transparent; }
+    .partie-rep-val { display: flex; align-items: center; justify-content: center; min-width: 44px; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-main); }
+    .partie-rep-raison { padding: 0 10px 4px; font-size: var(--fs-xs); color: var(--text-muted); }
+    .partie-menu .tb-mi[data-danger="1"], .partie-menu .tb-mi[data-danger="1"] .icon { color: #ff9a8f; }
 }

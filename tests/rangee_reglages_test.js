@@ -160,12 +160,14 @@ const graine = () => {
     await p.close();
 
     // ======================================================================================================
-    console.log('\n=== I. Le téléphone n\'a pas bougé (lot 10) ===');
+    // Réécrit au lot 10c : au téléphone, ces puces deviennent les quatre cases que déplie la barre-résumé (déplacées, pas copiées), et le contretemps
+    // passe dans le panneau Lecture — la carte Morceau ne s'ouvre plus (voir telephone_reglages_test).
+    console.log('\n=== I. Le téléphone : les puces sont ses quatre cases, le contretemps est dans le panneau Lecture (lot 10c) ===');
     p = await ouvrir({ width: 390, height: 844 });
     const tel = await p.evaluate(() => ({ rangee: document.getElementById('rangee-reglages').getBoundingClientRect().height, carte: document.getElementById('song-card').getBoundingClientRect().height,
-        sub: !!document.getElementById('toggle-metronome-subdivision').closest('#song-card') }));
-    check(tel.rangee === 0 && tel.carte > 0, `pas de rangée, la carte Morceau est là (${tel.rangee}px / ${Math.round(tel.carte)}px)`);
-    check(tel.sub, 'le contretemps est resté dans la carte Morceau');
+        hote: document.getElementById('rangee-reglages').parentElement.id, sub: document.getElementById('toggle-metronome-subdivision').parentElement.id }));
+    check(tel.rangee === 0 && tel.carte > 0 && tel.hote === 'tel-reglages-cases', `les puces sont rangées dans les cases repliées, la barre-résumé est là (${tel.rangee}px / ${Math.round(tel.carte)}px, ${tel.hote})`);
+    check(tel.sub === 'pl-subdivision', `le contretemps est dans le panneau Lecture (${tel.sub})`);
     await p.close();
 
     check(erreurs.length === 0, `aucune erreur JavaScript (${erreurs.length ? erreurs.join(' | ') : 'aucune'})`);

@@ -23,7 +23,7 @@
 //
 // AUCUN clic préalable n'est autorisé pour révéler ces éléments : « toujours voir » veut dire à
 // l'ouverture, sans rien déplier. C'est pour ça que la tonalité et le tempo sont lus sur la ligne de
-// résumé (#song-summary-bpm / #song-summary-key), et non sur les réglages qu'elle déplie.
+// résumé (aujourd'hui la barre-résumé du téléphone, #song-summary-tel-ton / -bpm), et non sur les réglages qu'elle déplie.
 const { chromium, devices } = require('playwright');
 const creerHarnais = require('./_harness');
 const { plan, check, exiger, bilan } = creerHarnais('Filet : ce qui doit TOUJOURS rester visible');
@@ -37,10 +37,6 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 // plus des boutons posés à côté du titre : ils sont des ENTRÉES du menu que le titre ouvre (la maquette validée par l'utilisateur). « Les
 // toujours voir » devient donc : le titre est visible et cliquable, ET son menu, une fois ouvert, offre les trois entrées visibles et
 // atteignables. Sur TÉLÉPHONE c'est pareil depuis le lot 10a (voir TELEPHONE plus bas).
-const COMMUNS = [
-    ['#song-summary-key', 'la tonalité'],
-    ['#song-summary-bpm', 'le tempo'],
-];
 // LOT 6a : sur ORDINATEUR, la ligne de résumé de la carte Morceau a laissé sa place à la rangée de réglages au-dessus de la grille (la puce
 // « Tonalité C majeur ») et à la barre de lecture du bas (le tempo, lot 2). Les deux se lisent sans rien déplier, comme le résumé avant elles.
 const BUREAU = [
@@ -56,11 +52,14 @@ const BUREAU_MENU = [
 ];
 // LOT 10a : le téléphone a la même barre du haut (titre, Enregistrer, menu du morceau), à 44px ; la carte Morceau a perdu son en-tête. Les sept
 // adresses d'origine (#song-select, #song-files…) n'y sont donc plus à l'écran : on éprouve les mêmes que l'ordinateur — le titre et Enregistrer
-// visibles, le menu qui offre fichiers, importer et exporter. La tonalité et le tempo restent lus sur le résumé de la carte (lot 10c le refera).
+// visibles, le menu qui offre fichiers, importer et exporter.
+// LOT 10c : la tonalité et le tempo se lisent sur la barre-résumé du téléphone (« C majeur · 120 BPM · 4/4 · Droit · Piano »), en tête, sans rien
+// déplier — l'ancien résumé de la carte (#song-summary-key / -bpm) ne s'affiche plus.
 const TELEPHONE = [
     ['#tb-titre',         'le nom du morceau (le titre de la barre du haut)'],
     ['#tb-save',          'le bouton enregistrer'],
-    ...COMMUNS,
+    ['#song-summary-tel-ton', 'la tonalité'],
+    ['#song-summary-tel-bpm', 'le tempo'],
 ];
 
 const seed = () => {

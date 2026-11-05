@@ -30,7 +30,6 @@
     "seq_num_and_grid_end_test.js": 2,
     "seq_num_mobile_clip_test.js": 2,
     "seq_row_pipette_test.js": 2,
-    "song_panel_test.js": 1,
     "sortie_edition_involontaire_test.js": 1,
     "zoom_coherence_test.js": 2
   },
@@ -167,7 +166,6 @@
     "seq_changement_morceau_test.js": 1,
     "seq_glisser_molette_align_piano_test.js": 1,
     "seq_row_pipette_test.js": 1,
-    "seq_short_note_body_test.js": 3,
-    "song_panel_test.js": 1
+    "seq_short_note_body_test.js": 3
   }
 }

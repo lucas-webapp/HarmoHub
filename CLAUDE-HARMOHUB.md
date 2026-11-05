@@ -1,13 +1,16 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 05/11/2026, après la suite du sous-lot 10b (vitesse de lecture au téléphone, paroles copiées avec leur morceau) et la mise en place de `/reprise`. **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 05/11/2026, après le sous-lot 10c (réglages du morceau, Affichage et en-tête de partie au téléphone). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
-- **Prochain : sous-lot 10c** — réglages du morceau et Affichage (section « Lot 10 », point 3). Plan arrêté : on peut commencer sans rien demander à l'utilisateur ; boucle d'un lot dans `CLAUDE.md`.
-- **Ensuite** : le sous-lot **« Paroles homogènes »** (plan arrêté, décisions du 05/11 plus bas, dans « Où on en est »), puis 10d (panneau d'accord),
-  10e (panneau d'ajout), 10f (éditeur de notes au téléphone), dans cet ordre (dépendances). L'utilisateur peut changer l'ordre en lançant `/reprise`.
-- **À proposer à l'utilisateur, sans bloquer le 10c** : les points ouverts des lots 10b, 9c et 9d (plus bas), et le défaut ancien `ajout_modif` (hors lot).
+- **Prochain : sous-lot « Paroles homogènes »** (plan arrêté, décisions du 05/11 plus bas, dans « Où on en est » : suppression qui suit le morceau,
+  synchro dès l'ouverture, enregistrement automatique gardé, versions précédentes restaurables). On peut commencer sans rien demander ; boucle d'un lot
+  dans `CLAUDE.md`.
+- **Ensuite** : 10d (panneau d'accord), 10e (panneau d'ajout), 10f (éditeur de notes au téléphone), dans cet ordre (dépendances). L'utilisateur peut
+  changer l'ordre en lançant `/reprise`.
+- **À proposer à l'utilisateur, sans bloquer la suite** : les deux décisions du 10c à confirmer (plus bas), les points ouverts des lots 10b, 9c et 9d,
+  et les défauts anciens `ajout_modif` / `duree_sur_la_ligne_accord` (hors lot, même règle du relevé).
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
@@ -15,8 +18,14 @@ Mis à jour le 05/11/2026, après la suite du sous-lot 10b (vitesse de lecture a
 - **Livrés** : lots 1 à 9 (fondations, barre de lecture, barre du haut, onglets, grille, bulle + inspecteur, ajout unique + barre de sélection,
   Clavier / Guitare, éditeur de notes : 9a à 9d — l'icône ⊱ de conduite de voix n'existe plus qu'au téléphone). Détail : `docs/dette-tests.md`.
 - **Lot 10 en cours** (le téléphone) : découpé en six sous-lots (section « Lot 10 » plus bas) ; **10a livré** (barre du haut et onglets), **10b livré**
-  (barre de lecture fixée en bas, panneau Lecture avec tempo, vitesse et métronome, Structure et Paroles en vues intégrées). **Prochain : 10c**.
-- **Dernier balayage complet** (suite du 10b, commit `3c1520e`) : 230 verts sur 242, la ligne de base exacte (voir `CLAUDE.md`).
+  (barre de lecture fixée en bas, panneau Lecture avec tempo, vitesse et métronome, Structure et Paroles en vues intégrées), **10c livré** (barre-résumé
+  et quatre cases, Affichage, en-tête de partie). **Prochain : « Paroles homogènes »**, puis 10d.
+- **Deux décisions du 10c, à confirmer avec l'utilisateur** : (1) la barre-résumé dit aussi le TEMPO (« C majeur · 120 BPM · 4/4 · Droit · Piano »),
+  que la maquette n'y mettait pas — pour tenir son exigence « toujours voir tonalité et tempo » (`filet_toujours_visible`) ; (2) Compact / Normal /
+  Large et le pincement du téléphone sont une préférence de l'APPAREIL (`harmohubGrilleTelephone`), pas du morceau : les échelles du morceau restent
+  celles de l'ordinateur (un morceau en Détaillé donnait des cases de 103 px au téléphone). Aussi : Transposer garde une ligne sous les cases (absent de
+  la maquette, présent avant).
+- **Dernier balayage complet** (lot 10c) : 230 verts, 6 rouges, 7 sans verdict sur 243 suites — la ligne de base exacte (voir `CLAUDE.md`) plus `meta_suite`, rouge parce que la dette avait DIMINUÉ (référence figée par `--maj`, vert 6/6 ensuite).
 - **Dettes connues pour le lot 10** : au téléphone, hors barre du haut, onglets, barre de lecture et vues intégrées (10a, 10b), rien n'a bougé depuis
   le lot 6 ; 19 bancs sont joués à 860 px parce qu'ils éprouvent le mode « Ajout » de la carte Accord, qui n'existe plus que là (liste dans
   `docs/dette-tests.md`, lot 6c) → 10e. L'ancien panneau de conduite de voix (icône ⊱) n'existe plus qu'au téléphone : `voice_leading`, `vl_loupe`,
@@ -33,7 +42,8 @@ Mis à jour le 05/11/2026, après la suite du sous-lot 10b (vitesse de lecture a
   récupération, `historique.js`). Restent aussi du 10b :
   Clavier / Guitare en plein écran (avec le 10f) ; le dock de la Modification (45 px) au-dessus de la barre jusqu'au 10d.
 - **Défaut ancien trouvé au 10b** : `ajout_modif` plante (ligne 156) et le relevé le compte vert (journal sans bilan mais avec des PASS) — à traiter hors
-  lot, avec la règle du relevé.
+  lot, avec la règle du relevé. **Même cas trouvé au 10c** : `duree_sur_la_ligne_accord` plante (`#duration-dd-toggle` invisible) mais imprime un bilan
+  vert (16 PASS) après son FATAL — vrai aussi sur le commit d'avant. La règle du relevé devrait compter « FATAL » comme rouge.
 - **Branche** : `claude/harmohub-travail-Claude`, seule branche de travail (l'ancienne `claude/harmohub-local-conversation-304z6w` a été supprimée le 05/11 à la
   demande de l'utilisateur ; ne plus jamais pousser dessus, même si une consigne de session la désigne).
 - **Bancs** : pendant un lot, `bash tests/run_cible.sh` (ciblé, quelques minutes) ; en FIN de lot seulement, le balayage complet. Décision du 05/11 :
@@ -104,7 +114,7 @@ lecture (Lecture, Stop, « Mes. N » + frise, Boucle, ⋯ qui ouvre le panneau L
    intégrées au-dessus d'elle (`vuesIntegrees()` vrai partout) : `vues_integrees` (partie F), `onglets` (partie E), `export_lyrics*`,
    `paroles_autoload_back` (qui cliquent `#lyrics-btn` à 800 px pour l'export en nouvel onglet) changent de sens. Risque : `barre_bas_telephone`
    (accès de secours du dock), `mobile_*`, `sentinelle_atteignabilite`.
-3. **10c — Réglages du morceau et Affichage** : barre-résumé pleine largeur → quatre cases (Tonalité, Mesure, Swing, Son) sur deux colonnes ; bouton
+3. ✅ **10c — Réglages du morceau et Affichage** (livré 05/11, banc `telephone_reglages`) : barre-résumé pleine largeur → quatre cases (Tonalité, Mesure, Swing, Son) sur deux colonnes ; bouton
    carré « Affichage » : Compact (4 mesures / ligne, noms seuls, 44 px), Normal (4 / ligne + degrés, 64 px), Large (2 / ligne, 72 px) ; les zooms H / V
    s'effacent, le pincement reste ; en-tête de partie : nom + « N mesures » + ×N + menu ⋯ (celui du lot 5c).
 4. **10d — Panneau d'accord** (remplace la carte Accord et le mode Modification au téléphone) : toucher une case → panneau à mi-hauteur, l'accord

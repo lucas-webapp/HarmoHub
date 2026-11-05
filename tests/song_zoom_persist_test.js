@@ -14,7 +14,7 @@
 // Les champs surveillés changent donc de nom : gridZoomLevelX/Y (la vue supprimée) laissent la place
 // aux échelles qui existent — classicGridZoomLevelX/Y pour la grille, seqInlineZoomLevelX pour le
 // séquenceur en volet, seqZoomLevelX/Y pour la vue agrandie. Et les crans se règlent depuis la barre de
-// la grille (#classic-grid-in-h / -in-v), qui est là en permanence : il n'y a plus rien à ouvrir ni à
+// la grille (#classic-grid-in-h / -in-v jusqu'au lot 10c, Ctrl+molette depuis), qui est là en permanence : il n'y a plus rien à ouvrir ni à
 // refermer.
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
@@ -28,9 +28,10 @@ plan(8);
     const browser = await chromium.launch({
         args: ['--autoplay-policy=no-user-gesture-required'],
     });
-    // REFONTE, LOT 5a : les boutons H± V± ne restent qu'au format téléphone (lot 10) ; ce banc éprouve la MÉMOIRE des échelles dans le morceau, pas
-    // le bouton : il se place là où les boutons existent encore. (L'affichage choisi au bureau est mémorisé de la même façon, voir affichage_grille_test.)
-    const page = await browser.newPage({ viewport: { width: 860, height: 900 } });
+    // REFONTE, LOT 5a : les boutons H± V± ont quitté l'ordinateur ; LOT 10c : le téléphone aussi (il a désormais son affichage à lui, mémorisé sur
+    // l'appareil et non dans le morceau). Ce banc éprouve la MÉMOIRE des échelles dans le morceau, pas un bouton : il les règle à l'ordinateur par
+    // Ctrl+molette, le geste qui agit sur les deux à la fois. (L'affichage choisi au bureau est mémorisé de la même façon, voir affichage_grille_test.)
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
     page.on('console', (msg) => { if (msg.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID|ERR_NAME_NOT_RESOLVED|fonts\.googleapis|fonts\.gstatic/.test(msg.text())) errors.push('console.error: ' + msg.text()); });
@@ -52,8 +53,13 @@ plan(8);
     }));
 
     console.log('--- Change les échelles depuis la barre de la grille, puis enregistre un nouveau morceau ---');
-    for (let i = 0; i < 3; i++) await page.click('#classic-grid-in-h');
-    for (let i = 0; i < 2; i++) await page.click('#classic-grid-in-v');
+    {
+        const g = await page.locator('#progression-sections .grid-cell').first().boundingBox();
+        await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+        await page.keyboard.down('Control');
+        for (let i = 0; i < 3; i++) { await page.mouse.wheel(0, -100); await page.waitForTimeout(120); }
+        await page.keyboard.up('Control');
+    }
     await page.waitForTimeout(300);
     const reglees = await echelles();
     console.log('échelles réglées :', JSON.stringify(reglees));

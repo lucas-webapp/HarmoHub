@@ -157,10 +157,12 @@ const seedAncien = () => {
     await m.evaluate(seedAncien);
     await m.reload({ waitUntil: 'load' });
     await m.waitForTimeout(1200);
+    // Lot 10c : au téléphone, la barre-résumé déplie quatre cases ; le son se règle par la case « Son » (la puce de l'ordinateur, déplacée) et son
+    // choix — plus par la liste déroulante de l'ancienne carte Morceau, qui ne s'ouvre plus.
     await m.tap('#song-summary');
-    await m.waitForTimeout(600);
+    await m.waitForTimeout(400);
     const g = await m.evaluate(() => {
-        const s = document.getElementById('instrument');
+        const s = document.getElementById('rr-son');
         if (!s) return null;
         s.scrollIntoView({ block: 'center' });
         const r = s.getBoundingClientRect();
@@ -169,10 +171,12 @@ const seedAncien = () => {
                  atteignable: !!dessus && (dessus === s || s.contains(dessus)),
                  pageDeborde: document.documentElement.scrollWidth > window.innerWidth + 1 };
     });
-    exiger(!!g, 'téléphone : le sélecteur est là');
-    check(g.h >= 28 && g.l >= 80, `téléphone : il fait ${g.l}x${g.h}, assez grand pour le doigt`);
-    check(g.atteignable && !g.pageDeborde, 'téléphone : rien ne le recouvre, et la page ne déborde pas');
-    await m.selectOption('#instrument', 'pad');
+    exiger(!!g, 'téléphone : la case Son est là');
+    check(g.h >= 44 && g.l >= 80, `téléphone : elle fait ${g.l}x${g.h}, assez grande pour le doigt`);
+    check(g.atteignable && !g.pageDeborde, 'téléphone : rien ne la recouvre, et la page ne déborde pas');
+    await m.tap('#rr-son');
+    await m.waitForTimeout(250);
+    await m.tap('#rr-pop [data-rr-valeur="pad"]');
     await m.waitForTimeout(400);
     check(await m.evaluate(() => window.app.songInstrument) === 'pad',
         'téléphone : le choix arrive bien dans le son du morceau');

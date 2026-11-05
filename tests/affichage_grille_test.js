@@ -151,10 +151,12 @@ const graine = ({ src, avecMorceau }) => {
     await p.close();
 
     // ======================================================================================================
-    console.log('\n=== F. Téléphone : rien ne change avant le lot 10 ===');
+    // Réécrit au lot 10c : le téléphone a désormais SON bouton Affichage (Compact / Normal / Large, voir telephone_reglages_test) et les boutons H / V
+    // s'y sont effacés comme ici — les trois affichages de l'ordinateur, eux, n'y paraissent toujours pas.
+    console.log('\n=== F. Téléphone : son Affichage à lui, ni les trois de l\'ordinateur ni H / V ===');
     p = await ouvrir({ width: 390, height: 844 });
-    const t = await p.evaluate(() => ({ densites: document.getElementById('grille-densites').getBoundingClientRect().width, h: document.getElementById('classic-grid-in-h').getBoundingClientRect().width, cadre: getComputedStyle(document.getElementById('grille-cadre')).display, poignees: ['grille-poignee-droite', 'grille-poignee-bas'].map(i => document.getElementById(i).getBoundingClientRect().width) }));
-    check(t.densites === 0 && t.h > 0, 'téléphone : pas d\'affichages, les boutons H / V restent');
+    const t = await p.evaluate(() => ({ densites: document.getElementById('grille-densites').getBoundingClientRect().width, h: document.getElementById('classic-grid-in-h').getBoundingClientRect().width, tel: document.getElementById('tel-affichage').getBoundingClientRect().width, cadre: getComputedStyle(document.getElementById('grille-cadre')).display, poignees: ['grille-poignee-droite', 'grille-poignee-bas'].map(i => document.getElementById(i).getBoundingClientRect().width) }));
+    check(t.densites === 0 && t.h === 0 && t.tel > 0, `téléphone : pas les affichages de l'ordinateur ni les boutons H / V, le bouton Affichage du téléphone à la place (${JSON.stringify(t)})`);
     check(t.cadre === 'contents' && t.poignees.every(w => w === 0), 'téléphone : pas de fenêtre centrée ni de poignées (la grille garde sa mise en page)');
     await p.close();
 

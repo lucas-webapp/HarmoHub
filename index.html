@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611052200">
+    <link rel="stylesheet" href="style.css?v=202611052300">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611052100">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611052300">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -925,7 +925,17 @@
                 <!-- Tempo, mesure et tonalité en clair, toujours : ce sont les trois choses qu'on
                      vérifie d'un coup d'œil en composant. Le bouton entier déplie les réglages —
                      cliquer sur ce qu'on veut changer est le geste le plus court possible. -->
+                <!-- TÉLÉPHONE (refonte, lot 10c) : « infos du morceau (tonalité, mesure, swing, son) repliées dans UNE barre-résumé pleine largeur → quatre
+                     grosses cases sur deux colonnes ; bouton carré "Affichage" à côté ». La barre-résumé, c'est CE bouton (#song-summary, même nœud) : au
+                     téléphone il montre « C majeur · 120 BPM · 4/4 · Droit · Piano » (#song-summary-tel, avec le tempo, qui se règle dans le panneau Lecture depuis le 10b) et
+                     déplie les quatre cases. Les cases sont les puces de l'ordinateur (#rangee-reglages, lot 6a), DÉPLACÉES dans #tel-reglages-cases
+                     (placerRangeeReglages) — jamais copiées : mêmes choix, même annulation, Transposer compris. -->
+                <div class="tel-reglages-ligne">
                 <button type="button" id="song-summary" class="song-summary" aria-expanded="false" aria-controls="song-settings" title="Régler le tempo, la mesure et la tonalité du morceau">
+                    <!-- Tonalité et tempo EN TÊTE : « Voici ce que je veux toujours voir apparaître : nom du morceau, tonalité, tempo » (filet_toujours_visible).
+                         La maquette n'avait pas le tempo dans cette barre (il est réglé dans le panneau Lecture depuis le 10b) : il y reste LISIBLE, sans
+                         un toucher. Si la place manque (320px), ce sont le swing et le son, au bout, qui s'abrègent. -->
+                    <span class="song-summary-tel" id="song-summary-tel"><span id="song-summary-tel-ton"></span><span class="sst-sep"> · </span><span id="song-summary-tel-bpm"></span><span id="song-summary-tel-reste"></span></span>
                     <span class="song-summary-items">
                         <span class="song-summary-item"><strong id="song-summary-bpm">120</strong> BPM</span>
                         <span class="song-summary-sep">·</span>
@@ -936,6 +946,29 @@
                     </span>
                     <svg class="icon song-summary-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
                 </button>
+                <!-- « Affichage » : aucune icône n'existait pour cette fonction (à l'ordinateur ce sont trois mots, Compact / Normal / Détaillé) — le dessin
+                     est celui de la maquette, une grille de cases (règle 2 : une icône n'est créée que pour une fonction qui n'en a pas). -->
+                <button type="button" id="tel-affichage" class="icon-btn tel-affichage" aria-haspopup="dialog" aria-expanded="false" aria-controls="tel-affichage-panneau" title="Affichage de la grille : Normal" aria-label="Affichage de la grille : Normal">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v16H4zM4 9.3h16M4 14.7h16M9.3 4v16M14.7 4v16"/></svg>
+                </button>
+                </div>
+                <div id="tel-reglages-cases" class="tel-reglages-cases" hidden></div>
+                <!-- Le choix d'affichage du téléphone : une PRÉFÉRENCE DE L'APPAREIL (choisirDensiteTelephone), pas un réglage du morceau — les échelles du
+                     morceau restent celles de l'ordinateur, dont l'écran n'a rien à voir avec celui-ci. -->
+                <div id="tel-affichage-panneau" class="tel-affichage-panneau" role="dialog" aria-label="Affichage de la grille" hidden>
+                    <div class="tap-tete">
+                        <span class="tap-titre">Affichage de la grille</span>
+                        <button type="button" id="tel-affichage-fermer" class="icon-btn" title="Fermer" aria-label="Fermer l'affichage de la grille">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                        </button>
+                    </div>
+                    <div id="tel-densites" class="tel-densites" role="group" aria-label="Affichage de la grille">
+                        <button type="button" data-densite-tel="compact" aria-pressed="false">Compact</button>
+                        <button type="button" data-densite-tel="normal" aria-pressed="true">Normal</button>
+                        <button type="button" data-densite-tel="large" aria-pressed="false">Large</button>
+                    </div>
+                    <p id="tel-affichage-aide" class="tap-aide"></p>
+                </div>
                 <div id="song-settings" class="song-settings" hidden>
                 <!-- PAS DE TITRE « TEMPO » ICI. Retour utilisateur : « pas besoin des titres de
                      chapitre, il y a déjà des répétitions. Enlève le titre "Tempo", "Instrument"
@@ -1916,6 +1949,9 @@
         <div class="pl-ligne"><span class="pl-etiquette">Tempo</span><div id="pl-tempo" class="pl-hote"></div></div>
         <div id="pl-vitesse" class="pl-hote-vitesse"></div>
         <div class="pl-ligne"><span class="pl-etiquette">Métronome</span><div id="pl-metro" class="pl-hote"></div></div>
+        <!-- Lot 10c : le contretemps du métronome (#toggle-metronome-subdivision, logo repris) vivait dans la carte Morceau du téléphone, qui ne s'ouvre
+             plus ; il est déplacé ici, à côté de ce qu'il règle (placerSubdivisionMetronome) — comme à l'ordinateur, dans la fenêtre du tempo. -->
+        <div class="pl-ligne"><span class="pl-etiquette">Contretemps</span><div id="pl-subdivision" class="pl-hote"></div></div>
         <span class="pl-voir">Voir</span>
         <div class="pl-vues" role="group" aria-label="Voir">
             <button type="button" id="pl-clavier" class="icon-btn pl-vue" data-source="toggle-viz-piano" aria-pressed="false"><span class="pl-logo"></span><span class="btn-label">Clavier</span></button>
@@ -2016,7 +2052,7 @@
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
     <script src="historique.js?v=202611051800"></script>
-    <script src="script.js?v=202611052200"></script>
+    <script src="script.js?v=202611052300"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->

@@ -233,7 +233,8 @@ const graine = (opts) => {
     await p.close();
 
     // ======================================================================================================
-    console.log('\n=== F. Le téléphone n\'a pas bougé (lot 10) ===');
+    // Réécrit au lot 10c : le téléphone a pris l'en-tête de l'ordinateur (« nom + N mesures + ×N + menu ⋯ ») — à 44px, voir telephone_reglages_test.
+    console.log('\n=== F. Le téléphone a l\'en-tête de l\'ordinateur (lot 10c) ===');
     p = await ouvrir({ width: 390, height: 844 });
     const tel = await p.evaluate(() => {
         const h = document.querySelector('#progression-sections .prog-section-head');
@@ -242,8 +243,8 @@ const graine = (opts) => {
         return { anciens: vis('.psh-ancien'), menu: vis('.prog-section-menu'), titre: h.querySelector('.prog-title').getBoundingClientRect().width,
             mesures: [...m.childNodes].filter(n => n.nodeType === 3 || getComputedStyle(n).display !== 'none').map(n => n.textContent).join('').trim() };
     });
-    check(tel.anciens === 3 && tel.menu === 0, `ses boutons ▼⧉🗑 sont toujours là, pas de ⋯ (${tel.anciens} boutons, ${tel.menu} ⋯)`);
-    check(tel.titre > 150 && tel.mesures === '4 mes.', `le nom prend toujours la ligne (${tel.titre.toFixed(0)}px) et « 4 mes. » reste abrégé (« ${tel.mesures} »)`);
+    check(tel.anciens === 0 && tel.menu === 1, `ses boutons ▼⧉🗑 sont passés dans le ⋯ (${tel.anciens} boutons, ${tel.menu} ⋯)`);
+    check(tel.titre < 150 && tel.mesures === '4 mesures', `le nom prend la largeur de son texte (${tel.titre.toFixed(0)}px) et « 4 mesures » s'écrit en toutes lettres (« ${tel.mesures} »)`);
     await p.close();
 
     check(erreurs.length === 0, `aucune erreur JavaScript (${erreurs.length ? erreurs.join(' | ') : 'aucune'})`);

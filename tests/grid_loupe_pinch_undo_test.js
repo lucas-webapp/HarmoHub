@@ -80,9 +80,11 @@ plan(12);
 
     console.log('=== 2. Pincer à deux doigts sur de VRAIES cases : zoome, ne réordonne pas ===');
     const ordreAvant = await page.evaluate(() => [...document.querySelectorAll('#progression-sections .grid-cell .cell-sym')].map(e => e.textContent.trim()));
-    const zoomAvant = await page.evaluate(() => ({ x: window.app.classicGridZoomLevelX, y: window.app.classicGridZoomLevelY }));
+    // Lot 10c : au téléphone, le pincement règle les échelles DU TÉLÉPHONE (gridTelZoomLevelX/Y, sa préférence d'affichage), plus celles du
+    // morceau (classicGridZoomLevelX/Y, qui restent celles de l'ordinateur) — voir telephone_reglages_test.
+    const zoomAvant = await page.evaluate(() => ({ x: window.app.gridTelZoomLevelX, y: window.app.gridTelZoomLevelY }));
     exiger(typeof zoomAvant.x === 'number' && typeof zoomAvant.y === 'number',
-        `les deux échelles de la grille classique sont bien lisibles — ${JSON.stringify(zoomAvant)}`);
+        `les deux échelles de la grille du téléphone sont bien lisibles — ${JSON.stringify(zoomAvant)}`);
 
     const pincement = await page.evaluate(() => {
         const cases = document.querySelectorAll('#progression-sections .grid-cell');
@@ -101,7 +103,7 @@ plan(12);
         a.dispatchEvent(ev('pointerup', 1, ra));
         b.dispatchEvent(ev('pointerup', 2, rb));
         return {
-            x: window.app.classicGridZoomLevelX, y: window.app.classicGridZoomLevelY,
+            x: window.app.gridTelZoomLevelX, y: window.app.gridTelZoomLevelY,
             glisser: window.app.drag, doigtsActifs: [...window.app._gridActiveTouchIds],
         };
     });

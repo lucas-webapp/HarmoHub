@@ -12,7 +12,8 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     const browser = await chromium.launch();
     const errors = [];
     // LOT 6a : à partir de 900px, la carte Morceau n'est plus affichée — ses réglages sont des puces au-dessus de la grille (rangee_reglages_test),
-    // le tempo est dans la barre du bas. Elle reste celle des écrans étroits jusqu'au lot 10 : sa partie « grand écran » se joue juste sous le seuil.
+    // le tempo est dans la barre du bas. Sous le seuil elle reste (lot 10c : la barre-résumé et ses quatre cases) : la partie « grand écran » se joue
+    // donc juste sous le seuil.
     const page = await browser.newPage({ viewport: { width: 860, height: 1000 } });
     page.on('pageerror', e => errors.push('pageerror: ' + e.message));
     await page.goto(`${BASE}/index.html`);
@@ -63,9 +64,12 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // ============================================================
     // === C. Les valeurs du morceau se lisent SANS un clic ===
     // ============================================================
+    // LOT 10c : sous 900px, la ligne de résumé est la barre-résumé de la maquette (« C majeur · 120 BPM · 4/4 · Droit · Piano ») et elle déplie
+    // quatre CASES (les puces de l'ordinateur, déplacées) au lieu de l'ancien panneau de listes déroulantes, qui ne s'ouvre plus à aucune largeur.
+    // Chaque intention de ce banc est gardée, éprouvée par le nouveau geste : toucher la barre, toucher une case, choisir.
     const resume = await page.evaluate(() => ({
         texte: document.getElementById('song-summary').innerText.replace(/\s+/g, ' ').trim(),
-        replie: document.getElementById('song-settings').hidden,
+        replie: document.getElementById('tel-reglages-cases').hidden && document.getElementById('song-settings').hidden,
         visible: document.getElementById('song-summary').getBoundingClientRect().height > 0,
     }));
     check(resume.visible && /120/.test(resume.texte) && /4\/4/.test(resume.texte) && /majeur/i.test(resume.texte),
@@ -73,43 +77,39 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     check(resume.replie, 'les réglages, eux, restent repliés tant qu\'on n\'en a pas besoin');
 
     // Le résumé suit les valeurs réelles, quel que soit le chemin emprunté.
+    const choisir = async (puce, valeur, action = null) => {
+        await page.click(`#rr-${puce}`); await page.waitForTimeout(150);
+        await page.click(action ? `#rr-pop [data-rr-action="${action}"][data-rr-valeur="${valeur}"]` : `#rr-pop [data-rr-valeur="${valeur}"]`);
+        await page.waitForTimeout(150);
+        if (await page.evaluate(() => !document.getElementById('rr-pop').hidden)) { await page.keyboard.press('Escape'); await page.waitForTimeout(100); }
+    };
     await page.click('#song-summary');
     await page.waitForTimeout(250);
-    await page.selectOption('#time-sig', '3/4');
+    await choisir('mesure', '3/4');
     await page.evaluate(() => {
         const b = document.getElementById('bpm');
         b.value = '96'; b.dispatchEvent(new Event('input', { bubbles: true })); b.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    await page.selectOption('#global-root', 'A');
-    await page.selectOption('#global-mode', 'minor').catch(() => {});
+    await choisir('tonalite', 'A', 'tonique');
     await page.waitForTimeout(350);
     const apres = await page.evaluate(() => document.getElementById('song-summary').innerText.replace(/\s+/g, ' ').trim());
     check(/96/.test(apres) && /3\/4/.test(apres),
         `le résumé suit le tempo et la mesure qu'on vient de changer — « ${apres} »`);
     check(/A|La/.test(apres), `...et la tonalité — « ${apres} »`);
 
-    // Le groove n'apparaît que s'il sort de l'ordinaire.
-    const grooveOptions = await page.evaluate(() => [...document.querySelectorAll('#groove option')].map(o => o.value));
-    const grooveNonDroit = grooveOptions.find(v => v && v !== 'straight' && v !== 'none');
-    if (grooveNonDroit) {
-        await page.selectOption('#groove', grooveNonDroit);
-        await page.waitForTimeout(250);
-        const avecGroove = await page.evaluate(() => ({
-            visible: !document.getElementById('song-summary-groove').hidden,
-            texte: document.getElementById('song-summary').innerText.replace(/\s+/g, ' ').trim(),
-        }));
-        check(avecGroove.visible, `un groove non droit s'affiche dans le résumé — « ${avecGroove.texte} »`);
-        await page.selectOption('#groove', grooveOptions.find(v => v === 'straight' || v === 'none') || grooveOptions[0]);
-        await page.waitForTimeout(200);
-        const sansGroove = await page.evaluate(() => document.getElementById('song-summary-groove').hidden);
-        check(sansGroove, 'revenu au groove droit, la mention disparaît au lieu d\'encombrer la ligne');
-    }
+    // Le swing : la barre-résumé de la maquette le dit toujours (« Droit » compris) — il suit donc le choix, dans les deux sens.
+    await choisir('swing', 'ternary');
+    const avecGroove = await page.evaluate(() => document.getElementById('song-summary').innerText.replace(/\s+/g, ' ').trim());
+    check(/Ternaire/.test(avecGroove), `un swing non droit s'affiche dans le résumé — « ${avecGroove} »`);
+    await choisir('swing', 'straight');
+    const sansGroove = await page.evaluate(() => document.getElementById('song-summary').innerText.replace(/\s+/g, ' ').trim());
+    check(/Droit/.test(sansGroove) && !/Ternaire/.test(sansGroove), `revenu au swing droit, le résumé le dit — « ${sansGroove} »`);
 
     // ============================================================
     // === D. Déplier les réglages ne masque plus RIEN (le vrai gain) ===
     // ============================================================
     const ouvert = await page.evaluate(() => ({
-        reglagesVisibles: !document.getElementById('song-settings').hidden,
+        reglagesVisibles: !document.getElementById('tel-reglages-cases').hidden,
         accord: !document.getElementById('accord-card').hidden,
         // Lecture a fusionné dans Accord : ce qu'on vérifiait sur elle se vérifie sur la carte unique.
         lecture: !document.getElementById('lecture-card'),
@@ -128,6 +128,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // éprouver le renommage : il veut un accord chargé en Modification.
     const pointNu = await page.evaluate(() => {
         const c = document.querySelector('.grid-cell[data-index="1"]');
+        c.scrollIntoView({ block: 'center' });
         const r = c.getBoundingClientRect();
         for (let j = 0; j < 9; j++) for (let k = 0; k < 21; k++) {
             const x = r.left + 2 + (r.width - 4) * k / 20, y = r.top + 2 + (r.height - 4) * j / 8;
@@ -140,24 +141,15 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     await page.waitForTimeout(400);
     const enEdition = await page.evaluate(() => ({
         mode: document.body.dataset.appMode,
-        accordOuvert: !document.getElementById('accord-card').hidden,
-        reglages: !document.getElementById('song-settings').hidden,
         accordCharge: window.app.editingIndex,
     }));
     check(enEdition.mode === 'edit' && enEdition.accordCharge === 1,
         `un double-clic charge bien l'accord en Modification — index ${enEdition.accordCharge}`);
-    // Les réglages ne sont plus dépliés d'office : ils sont devenus un panneau FLOTTANT, qui part
-    // fermé à chaque chargement (voir applySongSettingsOpen dans script.js). On les ouvre donc
-    // explicitement pour éprouver ce que ce test a toujours voulu éprouver — que les deux
-    // COHABITENT, l'un n'en chassant pas l'autre. Et l'exigence est renforcée au passage : il ne
-    // suffit plus qu'ils soient tous deux « ouverts », le panneau ne doit pas non plus RECOUVRIR la
-    // carte de l'accord. C'est exactement le défaut qu'a produit le premier placement du panneau
-    // (96 % de la carte recouverte, mesuré), et qu'aucune vérification d'ouverture n'aurait vu.
-    await page.evaluate(() => window.app.toggleSongSettings(true));
-    await page.waitForTimeout(350);
+    // Les cases sont DANS la page (elles poussent la grille, comme la maquette) : elles ne peuvent pas recouvrir la carte de l'accord. On l'éprouve
+    // quand même, mesuré, parce que c'est exactement le défaut qu'avait produit le premier placement de l'ancien panneau flottant (96 % recouverts).
     const cohabitation = await page.evaluate(() => {
         const ac = document.getElementById('accord-card');
-        const pan = document.getElementById('song-settings');
+        const pan = document.getElementById('tel-reglages-cases');
         if (ac.hidden || pan.hidden) return { deux: false, part: 100 };
         const a = ac.getBoundingClientRect(), p = pan.getBoundingClientRect();
         const ox = Math.max(0, Math.min(p.right, a.right) - Math.max(p.left, a.left));
@@ -171,50 +163,42 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // ============================================================
     // === E. Les réglages déménagés fonctionnent toujours ===
     // ============================================================
-    // Un déplacement dans le DOM casse silencieusement tout ce qui dépendait de l'ancienne place.
-    const marche = await page.evaluate(async () => {
-        const app = window.app;
-        const avant = loadProgressionSections()[0].chords.map(c => c.root).join(',');
-        document.getElementById('transpose-song-up').click();
-        await new Promise(r => setTimeout(r, 250));
-        const apresUp = loadProgressionSections()[0].chords.map(c => c.root).join(',');
-        document.getElementById('transpose-song-down').click();
-        await new Promise(r => setTimeout(r, 250));
-        const retour = loadProgressionSections()[0].chords.map(c => c.root).join(',');
-        return { avant, apresUp, retour, tapExiste: !!document.getElementById('tap-tempo'),
-                 metroExiste: !!document.getElementById('toggle-metronome') };
-    });
-    check(marche.apresUp !== marche.avant && marche.retour === marche.avant,
-        `transposer le morceau fonctionne encore depuis sa nouvelle place — ${marche.avant} -> ${marche.apresUp} -> ${marche.retour}`);
-    check(marche.tapExiste && marche.metroExiste, 'le tap tempo et le métronome ont suivi le déménagement');
+    // Un déplacement dans le DOM casse silencieusement tout ce qui dépendait de l'ancienne place. Transposer est la ligne sous les cases ; le Tap et
+    // le métronome sont dans le panneau Lecture (lot 10b).
+    const racines = () => page.evaluate(() => loadProgressionSections()[0].chords.map(c => c.root).join(','));
+    const avantT = await racines();
+    await page.click('#rr-transposer-haut'); await page.waitForTimeout(250);
+    const apresUp = await racines();
+    await page.click('#rr-transposer-bas'); await page.waitForTimeout(250);
+    const retourT = await racines();
+    const existent = await page.evaluate(() => ({ tap: !!document.querySelector('#panneau-lecture #bl-tap'), metro: !!document.querySelector('#panneau-lecture #bl-metro') }));
+    check(apresUp !== avantT && retourT === avantT,
+        `transposer le morceau fonctionne encore depuis sa nouvelle place — ${avantT} -> ${apresUp} -> ${retourT}`);
+    check(existent.tap && existent.metro, `le tap tempo et le métronome ont suivi le déménagement (panneau Lecture) — ${JSON.stringify(existent)}`);
 
     const bpmMarche = await page.evaluate(() => {
         const bv = document.getElementById('bpm-val');
         bv.value = '140'; bv.dispatchEvent(new Event('change', { bubbles: true }));
-        return { slider: document.getElementById('bpm').value, resume: document.getElementById('song-summary-bpm').textContent };
+        return { slider: document.getElementById('bpm').value, resume: document.getElementById('song-summary-tel-bpm').textContent };
     });
     check(bpmMarche.slider === '140', `saisir un tempo au clavier pilote toujours le curseur — ${bpmMarche.slider}`);
-    check(bpmMarche.resume === '140', `...et le résumé le reflète — ${bpmMarche.resume}`);
+    check(bpmMarche.resume === '140 BPM', `...et le résumé le reflète — ${bpmMarche.resume}`);
 
     // ============================================================
-    // === F. L'état déplié/replié est retenu ===
+    // === F. L'état déplié/replié au rechargement ===
     // ============================================================
     await page.reload();
     await page.waitForTimeout(800);
     const apresRechargement = await page.evaluate(() => ({
-        ouvert: !document.getElementById('song-settings').hidden,
+        ouvert: !document.getElementById('tel-reglages-cases').hidden || !document.getElementById('song-settings').hidden,
         resume: document.getElementById('song-summary').innerText.replace(/\s+/g, ' ').trim(),
         // Valeurs RÉELLES des réglages : c'est à elles que le résumé doit correspondre.
         bpm: document.getElementById('bpm').value,
         sig: document.getElementById('time-sig').value,
     }));
-    // EXIGENCE INVERSÉE, à dessein. Tant que c'était un bloc déplié DANS la colonne, le retrouver
-    // déplié au retour était cohérent. Devenu un panneau flottant posé par-dessus la grille, il ne
-    // doit plus se rouvrir tout seul au lancement de l'appli : personne ne l'a demandé, et il
-    // masquerait la musique dès l'ouverture. La préférence continue d'être écrite mais n'est plus
-    // relue (voir le constructeur, songSettingsOpen).
+    // Rien ne se rouvre tout seul au lancement de l'appli : personne ne l'a demandé (exigence du temps du panneau flottant, gardée).
     check(!apresRechargement.ouvert,
-        'devenu panneau flottant, il ne se rouvre plus tout seul au rechargement');
+        'les réglages ne se rouvrent pas tout seuls au rechargement');
     // On ne vérifie pas que le tempo a SURVÉCU au rechargement — il ne survit pas tant que le morceau
     // n'est pas enregistré, et c'était déjà le cas avant ce chantier. Ce qui compte ici, et qui est
     // tout l'intérêt d'un résumé permanent, c'est qu'il dise VRAI dès l'ouverture : un résumé en
@@ -224,52 +208,40 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
         `dès l'ouverture, le résumé correspond aux réglages réels (${apresRechargement.bpm} BPM, ${apresRechargement.sig}) — « ${apresRechargement.resume} »`);
     await page.click('#song-summary');
     await page.waitForTimeout(200);
+    await page.click('#song-summary');
+    await page.waitForTimeout(200);
     await page.reload();
     await page.waitForTimeout(800);
-    check(await page.evaluate(() => document.getElementById('song-settings').hidden),
+    check(await page.evaluate(() => document.getElementById('tel-reglages-cases').hidden),
         'replié avant de recharger, il se retrouve replié');
 
     // ============================================================
     // === G. Ouvrir/refermer un accord ne touche pas au bloc Morceau ===
     // ============================================================
-    // CONTRAT CHANGÉ : ce bloc basculait le bandeau Ajout/Modif, qui n'existe plus. Ce qu'il
-    // vérifiait reste valable et se teste par le geste qui l'a remplacé — ouvrir puis refermer un
-    // accord : les réglages du morceau sont un bloc autonome, rien de tout ça ne doit les bouger.
-    // On FORCE l'ouverture au lieu de cliquer l'interrupteur. Un clic sur #song-summary bascule :
-    // il n'ouvre que si le panneau était fermé, et dépend donc silencieusement de tout ce que le banc
-    // a fait cent lignes plus haut. C'est précisément ce qui est arrivé — une ouverture ajoutée dans
-    // une section précédente a transformé ce clic en fermeture, et la vérification d'en dessous a
-    // rougi sans qu'aucun défaut n'existe.
-    await page.evaluate(() => window.app.toggleSongSettings(true));
+    // Les cases sont un dépliage DANS la page, pas un flottant : le contrat d'origine (« rien ne bouge les réglages du morceau »), que l'ancien
+    // panneau flottant avait dû assouplir (il se refermait au clic ailleurs), redevient vrai — et c'est lui qu'on éprouve de nouveau.
+    await page.click('#song-summary');
     await page.waitForTimeout(250);
     await page.evaluate(() => window.app.editChord(0, 0));
     await page.waitForTimeout(300);
     const enModif = await page.evaluate(() => ({
-        reglages: !document.getElementById('song-settings').hidden,
+        reglages: !document.getElementById('tel-reglages-cases').hidden,
         mode: window.app.appMode,
         quickAdd: document.getElementById('quick-add-panel').hidden,
     }));
     await page.click('#accord-close');
     await page.waitForTimeout(300);
     const enAjout = await page.evaluate(() => ({
-        reglages: !document.getElementById('song-settings').hidden,
+        reglages: !document.getElementById('tel-reglages-cases').hidden,
         mode: window.app.appMode,
         quickAdd: document.getElementById('quick-add-panel').hidden,
     }));
     check(enModif.mode === 'edit' && enAjout.mode === 'add',
         'ouvrir puis refermer un accord fait bien basculer le mode déduit');
-    // CONTRAT CHANGÉ, et il faut le dire au lieu de le contourner. Ce test affirmait que « rien ne
-    // bouge les réglages du morceau ». C'était vrai d'un bloc DOCKÉ dans la colonne ; ça ne l'est
-    // plus d'un panneau FLOTTANT, dont tout l'intérêt est justement de se refermer dès qu'on clique
-    // ailleurs — sans quoi il resterait posé par-dessus la grille sans qu'on sache comment s'en
-    // débarrasser. Ce qui RESTE vrai, et que le test garde, c'est l'indépendance vis-à-vis du MODE :
-    // le panneau peut être ouvert aussi bien en Ajout qu'en Modification, aucun changement de mode ne
-    // le referme de lui-même. C'est bien le clic sur #accord-close — un clic AILLEURS, au sens du
-    // popover — qui le referme ci-dessous, pas le passage en mode Ajout.
     check(enModif.reglages,
-        'le panneau des réglages reste ouvert quand on passe en Modification : il ne dépend pas du mode');
-    check(!enAjout.reglages,
-        'un clic ailleurs (ici « fermer l\'accord ») referme bien le panneau flottant, comme tout popover');
+        'les réglages restent ouverts quand on passe en Modification : ils ne dépendent pas du mode');
+    check(enAjout.reglages,
+        'et ils restent ouverts quand on referme l\'accord : un dépliage dans la page ne se referme qu\'à la demande');
     check(enModif.quickAdd === false && enAjout.quickAdd === false,
         'la saisie rapide reste visible dans les deux cas (c\'est une cible d\'ajout, elle ne bouge plus)');
 
@@ -307,7 +279,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     await mob.tap('#song-summary');
     await mob.waitForTimeout(300);
     const telOuvert = await mob.evaluate(() => ({
-        ouvert: !document.getElementById('song-settings').hidden,
+        ouvert: !document.getElementById('tel-reglages-cases').hidden,
         deborde: document.documentElement.scrollWidth > window.innerWidth,
     }));
     check(telOuvert.ouvert && !telOuvert.deborde, 'il se déplie au doigt sans faire déborder la page');
