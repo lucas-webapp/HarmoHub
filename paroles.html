@@ -24,7 +24,7 @@
      n'a plus d'en-tête ni de logo — « il ne faut pas qu'elle garde sa propre en-tête, ni le logo ». Le drapeau est posé ici, avant la
      feuille de style, pour qu'aucun en-tête ne s'affiche un instant puis disparaisse. Ouverte seule (favori, téléphone), rien ne change. -->
 <script>if (/[?&]integre=1\b/.test(location.search)) document.documentElement.classList.add('integre');</script>
-<link rel="stylesheet" href="paroles.css?v=21">
+<link rel="stylesheet" href="paroles.css?v=22">
 <!-- L'EFFET VERRE de HarmoHub (Paramètres > Apparence de l'appli principale) : même réglage, même fichier — Paroles est un
      compagnon de HarmoHub, il doit suivre. verre.js se charge ici, sans defer, pour poser les attributs avant le premier affichage. -->
 <link rel="stylesheet" href="verre.css?v=202610281900">
@@ -139,6 +139,13 @@
                 <span>Enchaîner les accords</span>
                 <span class="option-help">Après avoir posé un accord, passe automatiquement au suivant de la partie. Décoche pour poser plusieurs fois le même.</span>
             </label>
+            <!-- VERSIONS PRÉCÉDENTES des paroles de ce morceau (sous-lot « Versions au cloud », 05/11) : la page ouverte SEULE doit pouvoir les
+                 lister et les restaurer (« oui on restaure »), sans repasser par Paramètres › Historique de HarmoHub. Remplie par paroles.js. -->
+            <div class="option-versions" id="versions-paroles">
+                <span class="option-titre">Versions précédentes</span>
+                <ul class="versions-liste" id="versions-paroles-liste"></ul>
+                <span class="option-help" id="versions-paroles-aide"></span>
+            </div>
         </div>
         <div id="sections"></div>
     </main>
@@ -151,8 +158,8 @@
     <!-- Même règle de nommage que HarmoHub : un seul fichier pour les deux, pas deux copies qui
          divergeront (voir fichiers.js). -->
     <script src="fichiers.js?v=202610030500"></script>
-    <script src="historique.js?v=202611052000"></script>
-    <script src="paroles.js?v=25"></script>
+    <script src="historique.js?v=202611060300"></script>
+    <script src="paroles.js?v=26"></script>
     <!-- SYNCHRO CLOUD des paroles (Firebase) : mêmes scripts et même ordre que dans index.html. Chargés APRÈS paroles.js, dont
          l'adaptateur lit l'état (state, loadSong, showBanner). Si le SDK manque (premier chargement hors ligne), la synchro ne
          démarre pas et la page reste pleinement utilisable en local. -->
@@ -163,5 +170,6 @@
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
     <script src="synchro-paroles.js?v=202611052000"></script>
+    <script src="synchro-versions.js?v=202611060400"></script>
 </body>
 </html>

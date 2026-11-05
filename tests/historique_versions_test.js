@@ -330,10 +330,14 @@ const graine = ({ src, avec }) => {
     const cles1 = await p.evaluate(() => Object.keys(localStorage).sort());
     const texteLS = await p.evaluate(() => JSON.stringify(localStorage));
     check(nbVersions >= 10, `douze enregistrements laissent leurs versions (${nbVersions})`);
-    check(!cles1.some(k => /histor|version/i.test(k)) && !/avant-transposition|"motif"/.test(texteLS), 'aucune version dans localStorage : le quota (≈ 5 Mo) partagé avec la bibliothèque n\'est jamais entamé');
+    // Une seule clé admise depuis le sous-lot « Versions au cloud » : la FILE des morceaux dont les versions attendent l'envoi au cloud
+    // (`harmohub_versions_a_envoyer`, { songId: uid }) — des identifiants, jamais le contenu d'une version.
+    const file = await p.evaluate(() => localStorage.getItem('harmohub_versions_a_envoyer'));
+    const fileSobre = file === null || (/^\{("[\w-]+":"[\w-]*",?)*\}$/.test(file) && file.length < 200);
+    check(!cles1.some(k => /histor|version/i.test(k) && k !== 'harmohub_versions_a_envoyer') && fileSobre && !/avant-transposition|"motif"/.test(texteLS), `aucune version dans localStorage : le quota (≈ 5 Mo) partagé avec la bibliothèque n'est jamais entamé (file d'envoi : ${file})`);
     check(await p.evaluate(() => { const liste = typeof REGLAGES_SYNCHRONISES !== 'undefined' ? REGLAGES_SYNCHRONISES : null; return !!liste && !JSON.stringify(liste).match(/histor|version/i); }), 'l\'historique n\'est pas dans la liste des réglages synchronisés : il reste sur l\'appareil (le document cloud est limité à 1 Mio)');
     const nouvellesCles = cles1.filter(k => !cles0.includes(k));
-    check(nouvellesCles.every(k => !/histor|version/i.test(k)), `aucune nouvelle clé liée à l'historique ${nouvellesCles.length ? '(' + nouvellesCles.join(', ') + ' : sans rapport)' : ''}`);
+    check(nouvellesCles.every(k => !/histor|version/i.test(k) || k === 'harmohub_versions_a_envoyer'), `aucune nouvelle clé liée à l'historique, hormis la file d'envoi au cloud ${nouvellesCles.length ? '(' + nouvellesCles.join(', ') + ')' : ''}`);
     await p.close();
 
     // ======================================================================================================

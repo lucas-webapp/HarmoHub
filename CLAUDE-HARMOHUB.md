@@ -1,6 +1,6 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 05/11/2026, après le sous-lot « Paroles homogènes » (suppression, synchro dès l'ouverture, versions des paroles). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 05/11/2026, après le sous-lot « Versions au cloud » (versions des morceaux et des paroles dans Firestore). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
@@ -21,10 +21,12 @@ Mis à jour le 05/11/2026, après le sous-lot « Paroles homogènes » (suppress
     `glock_unlock_and_switch` (doigté verrouillé rouvert déverrouillé ; « ce problème était déjà arrivé plusieurs fois et tu avais réussi à le
     réparer » : chercher l'ancien correctif dans `git log`) ; (14) durées par suite dans le relevé et raccourcir les plus lentes, « uniquement si cela
     n'altère pas la qualité des bancs » — et si cela réduit la consommation de tokens.
-- **Prochain : sous-lot « Versions au cloud »** (décision ci-dessus). Plan : un document Firestore par morceau pour ses versions (limite de 1 Mio par
-  document), 5 versions au plus par morceau et 5 pour ses paroles au cloud (moins si le document approche la limite) ; fusion entre appareils sans
-  doublon ; Paramètres › Historique inchangé à l'usage ; liste des versions dans la page Paroles seule. On peut commencer sans rien demander.
-- **Ensuite, dans cet ordre** : « Bancs fiables » (points 12, 13, 14) ; « Éditeur et clavier » (points 4, 5, 7, 9) ; puis 10d (panneau d'accord),
+- ✅ **« Versions au cloud » livré** (05/11, banc `versions_cloud`, `synchro-versions.js`) : un document par morceau (5 + 5 au plus, moins si lourd),
+  index `harmohub-versions`, fusion sans doublon, liste et restauration dans les Options de la page Paroles seule.
+- **Prochain : sous-lot « Bancs fiables »** (points 12, 13, 14 ci-dessus) : le relevé de `run_all_fast.sh` compte un FATAL comme rouge et
+  `ajout_modif` / `duree_sur_la_ligne_accord` sont réparés ; `glock_unlock_and_switch` corrigé (chercher l'ancien correctif dans `git log`) ; durées
+  par suite dans le relevé (le ciblé les donne déjà) et raccourcir les plus lentes sans altérer les bancs. On peut commencer sans rien demander.
+- **Ensuite, dans cet ordre** : « Éditeur et clavier » (points 4, 5, 7, 9) ; puis 10d (panneau d'accord),
   10e (panneau d'ajout), 10f (éditeur de notes au téléphone). L'utilisateur peut changer l'ordre en lançant `/reprise`.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
@@ -36,17 +38,18 @@ Mis à jour le 05/11/2026, après le sous-lot « Paroles homogènes » (suppress
   (barre de lecture fixée en bas, panneau Lecture avec tempo, vitesse et métronome, Structure et Paroles en vues intégrées), **10c livré** (barre-résumé
   et quatre cases, Affichage, en-tête de partie), **« Paroles homogènes » livré** (supprimer un morceau supprime ses paroles partout, Ctrl+Z les
   ramène ; synchro des paroles dès l'ouverture une fois connecté, cadre Paroles chargé en arrière-plan ; versions des paroles dans Paramètres ›
-  Historique, base `harmohub-historique-paroles` ; banc `paroles_homogenes`). **Prochain : 10d.**
-- **Deux points des « Paroles homogènes » (tranchés le 05/11 : versions au cloud, voir « Suite à faire »)** : (1) les versions des paroles restent PAR APPAREIL (IndexedDB), comme celles des morceaux ;
-  (2) la page Paroles ouverte SEULE (favori) n'a pas de liste des versions : on restaure depuis HarmoHub (Paramètres › Historique).
+  Historique, base `harmohub-historique-paroles` ; banc `paroles_homogenes`), **« Versions au cloud » livré** (les 5 plus récentes versions de
+  chaque morceau et de ses paroles dans Firestore, `synchro-versions.js`, banc `versions_cloud`). **Prochain : « Bancs fiables », puis 10d.**
+- **Versions au cloud (livré 05/11)** : les deux points des « Paroles homogènes » sont réglés (versions au cloud, liste dans la page Paroles seule).
+  Limite : les versions ne sont pas écoutées en continu ; celles des autres appareils arrivent à l'ouverture de l'historique ou des Options de Paroles.
 - **Deux décisions du 10c (confirmées le 05/11, voir « Suite à faire »)** : (1) la barre-résumé dit aussi le TEMPO (« C majeur · 120 BPM · 4/4 · Droit · Piano »),
   que la maquette n'y mettait pas — pour tenir son exigence « toujours voir tonalité et tempo » (`filet_toujours_visible`) ; (2) Compact / Normal /
   Large et le pincement du téléphone sont une préférence de l'APPAREIL (`harmohubGrilleTelephone`), pas du morceau : les échelles du morceau restent
   celles de l'ordinateur (un morceau en Détaillé donnait des cases de 103 px au téléphone). Aussi : Transposer garde une ligne sous les cases (absent de
   la maquette, présent avant).
-- **Dernier balayage complet** (« Paroles homogènes ») : 232 verts, 5 rouges, 7 sans verdict sur 244 suites — exactement la ligne de base de
-  `CLAUDE.md`. Le premier passage avait trouvé deux défauts (double mise en garde à la fermeture, `paroles_hardening` à réécrire) et `verre`
-  intermittent sous charge (vert seul) ; corrigés, repassé en entier.
+- **Dernier balayage complet** (« Versions au cloud ») : 233 verts, 5 rouges, 7 sans verdict sur 245 suites — exactement la ligne de base de
+  `CLAUDE.md`. Un premier passage n'a rien valu : le serveur de test, lancé en tâche de fond par une session précédente, a atteint sa limite de
+  temps en plein balayage (des dizaines de « 0 PASS / 1 FAIL »). Le relancer en tâche d'arrière-plan au délai maximal avant un balayage complet.
 - **Dettes connues pour le lot 10** : au téléphone, hors barre du haut, onglets, barre de lecture et vues intégrées (10a, 10b), rien n'a bougé depuis
   le lot 6 ; 19 bancs sont joués à 860 px parce qu'ils éprouvent le mode « Ajout » de la carte Accord, qui n'existe plus que là (liste dans
   `docs/dette-tests.md`, lot 6c) → 10e. L'ancien panneau de conduite de voix (icône ⊱) n'existe plus qu'au téléphone : `voice_leading`, `vl_loupe`,

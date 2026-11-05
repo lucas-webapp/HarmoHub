@@ -5559,3 +5559,45 @@ frappe en attente du précédent (rien ne se perd), qui remplaçait la session c
 **Balayages (05/11).** Ciblé (44 suites) : 42 verts, `probe_regle_voisins` rouge et `smoke` sans verdict (ligne de base). Complet n°1 : 229 verts, 8 rouges —
 la ligne de base plus `paroles_hardening` et `structure_feuille` (corrigés ci-dessus) et `verre` (écart sur `#tb-titre`, vert rejoué seul : l'intermittence
 connue sous charge). **Complet n°2 : 232 verts, 5 rouges, 7 sans verdict (244 suites), exactement la ligne de base. Aucune régression.**
+
+## Sous-lot « Versions au cloud » : les versions des morceaux et des paroles dans Firestore, sur tous les appareils (2026-11-05)
+
+Décisions du 05/11 (soir) : « toutes les versions stockées dans le firestore », celles des morceaux ET des paroles ; « s'il y a un problème de place,
+il faut garder moins de versions que prévu […] le minimum acceptable (environ 3 à 5 versions) » ; la page Paroles ouverte seule doit aussi lister et
+restaurer ses versions (« oui on restaure »).
+
+- **Nouveau `synchro-versions.js`** (propre à HarmoHub, chargé par `index.html` et `paroles.html`). Un document par morceau,
+  `users/{uid}/apps/harmohub-versions-{songId}` : les 5 plus récentes versions du morceau et les 5 de ses paroles, `charge` et `resume` en texte JSON
+  (tableaux imbriqués). Trop lourd (plus de 900 Kio) : on retire la plus ancienne de la liste la plus longue jusqu'à une de chaque ; une version seule
+  plus lourde que le plafond reste sur l'appareil. Un index `harmohub-versions` (morceau, dernière date, nombre) : un appareil n'ouvre que les documents
+  qui ont du neuf, et retrouve les versions d'un morceau supprimé ailleurs. Écriture en transaction (relire, fusionner, écrire), sans écriture quand rien
+  ne change. `synchro-cloud.js` intouché : il synchronise un document par instance, en écoute continue — une écoute par morceau aurait coûté trop cher ;
+  le module réutilise seulement la connexion du moteur de la page (`SYNCHRO.etat`).
+- **Quand** : une version prise ici part 3 s après (anti-rebond), ou en masquant la page ; prise hors ligne ou déconnecté, elle est notée dans
+  `harmohub_versions_a_envoyer` (des identifiants seulement) et part à l'ouverture de l'historique ou au battement de 20 s une fois connecté. Celles des
+  autres appareils sont lues à l'ouverture de Paramètres › Historique et des Options de la page Paroles (le panneau se dessine d'abord avec ce qui est
+  ici, puis se redessine s'il en est arrivé ; un même document n'est pas relu plus d'une fois toutes les 30 s).
+- **`historique.js`** : `importer` (verse les versions du cloud, sans doublon : même id ou même contenu pour ce morceau, puis élagage habituel),
+  `surAjout` (le module apprend chaque version posée ici), `appareil` (identifiant tiré au sort une fois par navigateur, `harmohub_appareil`) : la liste
+  dit « autre appareil » d'une version reçue. La copie locale garde toujours 40 versions par morceau.
+- **Fusion sans doublon** au cloud : union par id, puis par empreinte (la plus récente gagne), coupée à 5.
+- **Page Paroles** : Options › « Versions précédentes » (liste, extrait, « autre appareil », Restaurer en 32 px, 44 px au doigt) ; restaurer garde d'abord
+  l'état actuel, remet la version datée de maintenant et la relit à l'écran. Pas de nouvelle surface (la liste vit dans `.options-panel`).
+- **Paramètres › Historique** : le texte d'aide dit, connecté, que les 5 plus récentes sont aussi au cloud ; « Vider l'historique de cet appareil »
+  prévient que celles du cloud reviendront.
+- **Un échec réseau** de l'envoi des versions est un avertissement de console, pas une erreur : rien n'est perdu, la version attend.
+
+**Banc.** Nouveau `versions_cloud_test` (37), deux appareils sur le même nuage simulé (A ordinateur 1440 px, B téléphone 390 px tactile), vrais gestes :
+enregistrer envoie la version (document du morceau, charge complète en texte, index, rien dans le document de la bibliothèque) ; sept enregistrements :
+toutes gardées ici, les 5 plus récentes au cloud, dans l'ordre ; versions des paroles au cloud ; la page Paroles SEULE sur B liste la version de l'ordinateur
+(« autre appareil »), Restaurer (44 px au doigt) remet le texte à l'écran et dans la session, garde l'état remplacé, bandeau ; cet état au cloud une seule
+fois (l'ordinateur, en recevant la restauration, le garde aussi « avant synchro » : même contenu, un seul gardé) ; Paramètres › Historique au téléphone :
+les versions de l'ordinateur, marquées, aide « cloud », pas de débordement, Restaurer, la version d'avant part au cloud, jamais plus de 5 + 5, aucun
+doublon au cloud ni dans le téléphone ; hors ligne : la version attend, part au retour du réseau, sort de la file ; import d'un contenu déjà là refusé ;
+morceau trop lourd : moins de versions, les plus récentes, au moins une de chaque ; version seule trop lourde gardée sur l'appareil.
+**Sabotages : 5, tous rouges** (pas d'envoi, plafond de 5 retiré, import sans dédoublonnage, liste absente de la page Paroles, pas de réduction de taille).
+**Réécrits** (le sens a changé, l'intention reste) : `historique_versions` (partie F : la seule clé localStorage admise est la file d'envoi, des
+identifiants) ; `synchro_paroles` (la page Paroles écrit aussi les documents de versions, et rien d'autre que ses paroles).
+**Balayages (05/11).** Ciblé (33 suites) : 30 verts, `probe_defilement_tactile` rouge et `smoke` sans verdict (ligne de base), `synchro_paroles` rouge
+(2, réécrit ci-dessus ; l'échec réseau de l'envoi des versions passé en avertissement). Complet n°1 sans valeur (serveur de test arrêté en route).
+**Complet n°2 : 233 verts, 5 rouges, 7 sans verdict (245 suites), exactement la ligne de base. Aucune régression.**

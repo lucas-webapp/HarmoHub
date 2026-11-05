@@ -2051,11 +2051,13 @@
     <script src="fichiers.js?v=202610030500"></script>
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
-    <script src="historique.js?v=202611060100"></script>
-    <script src="script.js?v=202611060200"></script>
+    <script src="historique.js?v=202611060300"></script>
+    <script src="script.js?v=202611060300"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
     <script src="synchro-harmohub.js?v=202611060100"></script>
+    <!-- Les versions au cloud (sous-lot « Versions au cloud ») : après l'adaptateur, dont elles réutilisent la connexion (SYNCHRO). -->
+    <script src="synchro-versions.js?v=202611060400"></script>
 </body>
 </html>

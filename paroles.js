@@ -86,6 +86,7 @@ applyPrefs();
 document.getElementById('btn-options').addEventListener('click', () => {
     const panel = document.getElementById('options-panel');
     panel.hidden = !panel.hidden;
+    if (!panel.hidden) afficherVersionsParoles({ cloud: true });
 });
 document.getElementById('opt-font-size').addEventListener('input', (e) => {
     prefs.fontSize = parseFloat(e.target.value);
@@ -1453,3 +1454,82 @@ if (EST_INTEGRE) {
 // "à la fermeture de « Paroles » et réouverture, les accords ne sont plus en place"). Démarrer ici
 // met le fichier entier à disposition et referme cette famille de pannes d'un coup.
 tryAutoImportFromHarmoHub();
+
+
+// ---------- VERSIONS PRÉCÉDENTES (sous-lot « Versions au cloud », 05/11) ----------
+// « La page Paroles ouverte SEULE doit aussi lister et restaurer ses versions » — « oui on restaure ». La liste est celle de historique.js
+// (base `harmohub-historique-paroles`, partagée avec HarmoHub : même origine), complétée par celles du cloud (synchro-versions.js) quand on
+// est connecté. Restaurer fait comme Paramètres › Historique dans HarmoHub : l'état actuel est d'abord gardé comme version, puis la version
+// revient EN PLACE, datée de maintenant (sans quoi la synchro des paroles la remplacerait aussitôt par la session du cloud, plus récente).
+let jetonVersionsParoles = 0;
+function formaterDateVersion(ms) {
+    try { return new Date(ms).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+    catch (e) { return String(new Date(ms)); }
+}
+const ETIQUETTES_VERSIONS_PAROLES = {
+    'auto': 'Automatique', 'avant-synchro': 'Avant synchro', 'avant-restauration': 'Avant restauration',
+    'avant-suppression-morceau': 'Avant suppression du morceau', 'avant-import': 'Avant import',
+};
+async function afficherVersionsParoles(options = {}) {
+    const liste = document.getElementById('versions-paroles-liste');
+    const aide = document.getElementById('versions-paroles-aide');
+    if (!liste || !aide) return;
+    const jeton = ++jetonVersionsParoles;
+    const songId = state.song && state.song.songId;
+    if (typeof HistoriqueParoles === 'undefined' || !songId || !(await HistoriqueParoles.disponible())) {
+        liste.innerHTML = '';
+        aide.textContent = !songId ? 'Les versions précédentes apparaissent une fois un morceau ouvert depuis HarmoHub.'
+            : ((typeof HistoriqueParoles !== 'undefined' && HistoriqueParoles.raison()) || 'Les versions ne sont pas disponibles ici.');
+        return;
+    }
+    const versions = await HistoriqueParoles.lister(songId);
+    if (jeton !== jetonVersionsParoles) return;
+    const ici = HistoriqueParoles.appareil ? HistoriqueParoles.appareil() : '';
+    liste.innerHTML = versions.map(v => {
+        const r = v.resume || HistoriqueParoles.resume(v.charge || {});
+        const bouts = [`${r.mots} mot${r.mots > 1 ? 's' : ''}`];
+        if (r.poses) bouts.push(`${r.poses} accord${r.poses > 1 ? 's' : ''} posé${r.poses > 1 ? 's' : ''}`);
+        if (v.appareil && v.appareil !== ici) bouts.push('autre appareil');
+        const tag = ETIQUETTES_VERSIONS_PAROLES[v.motif] || v.motif || 'Version';
+        return `<li class="version-carte" data-version="${escapeHtml(v.id)}">
+            <span class="version-corps">
+                <span class="version-ligne"><span class="version-date">${escapeHtml(formaterDateVersion(v.date))}</span><span class="version-tag">${escapeHtml(tag)}</span></span>
+                <span class="version-resume">${escapeHtml(bouts.join(' · '))}</span>
+                ${r.extrait ? `<span class="version-resume version-extrait">« ${escapeHtml(r.extrait)}${r.extrait.length >= 80 ? '…' : ''} »</span>` : ''}
+            </span>
+            <button type="button" class="mode-btn version-restaurer" data-restaurer="${escapeHtml(v.id)}" title="Remettre ces paroles à la place des paroles actuelles">Restaurer</button>
+        </li>`;
+    }).join('') || '<li class="version-vide">Aucune version précédente pour l\'instant : la première est gardée dès que tu modifies des paroles déjà enregistrées.</li>';
+    const connecte = typeof VersionsCloud !== 'undefined' && VersionsCloud.connecte();
+    aide.textContent = 'Restaurer remet ces paroles en place ; les paroles actuelles sont d\'abord gardées comme version. '
+        + (connecte ? 'Les 5 plus récentes sont aussi gardées dans le cloud, pour tes autres appareils.' : 'Connecté, les 5 plus récentes sont aussi gardées dans le cloud.');
+    liste.querySelectorAll('[data-restaurer]').forEach(b => b.addEventListener('click', () => restaurerVersionParolesIci(b.dataset.restaurer)));
+    // Celles des autres appareils : on dessine d'abord ce qui est ici, puis on redessine s'il en est arrivé (pas de boucle : `cloud` absent).
+    if (options.cloud && connecte) {
+        VersionsCloud.rafraichir(songId).then(r => { if (r && r.importees > 0 && jeton === jetonVersionsParoles) afficherVersionsParoles(); });
+    }
+}
+
+async function restaurerVersionParolesIci(id) {
+    const v = await HistoriqueParoles.lire(id);
+    if (!v || !v.charge || !state.song || state.song.songId !== v.songId) { showBanner('Cette version n\'existe plus sur cet appareil.', 'warning'); return false; }
+    const cle = storageKeyForSong(state.song);
+    const quand = formaterDateVersion(v.date);
+    if (ecritureEnAttente) writeSessionNow();   // la dernière frappe fait partie de « l'état actuel » qu'on garde
+    const actuel = localStorage.getItem(cle);
+    if (actuel) {
+        try { await HistoriqueParoles.ajouter({ songId: v.songId, songName: v.songName, motif: 'avant-restauration', libelle: `Avant la restauration des paroles du ${quand}`, charge: JSON.parse(actuel) }); }
+        catch (e) { /* session illisible : on restaure quand même, c'est justement le cas où l'on en a besoin */ }
+    }
+    try {
+        const p = JSON.parse(JSON.stringify(v.charge));
+        p.savedAt = Date.now();
+        localStorage.setItem(cle, JSON.stringify(p));
+    } catch (e) { console.error('Restauration des paroles impossible :', e); showBanner('Impossible de restaurer ces paroles (stockage plein ?).', 'error'); return false; }
+    if (typeof parolesNoterChangement === 'function') parolesNoterChangement();
+    try { const brut = localStorage.getItem(LAST_SONG_KEY); if (brut) loadSong(JSON.parse(brut)); }
+    catch (e) { console.error('Relecture des paroles restaurées impossible :', e); }
+    showBanner(`Paroles du ${quand} remises en place.`, 'info');
+    afficherVersionsParoles();
+    return true;
+}

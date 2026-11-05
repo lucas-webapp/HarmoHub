@@ -11124,7 +11124,13 @@ class HarmoHubApp {
             if (pc >= 0) bouts.push(`${noteNameForPc(pc, useFlatsForKey(pc, c.mode))} ${(optMode ? optMode.textContent : c.mode).toLowerCase()}`);
         }
         if (c.bpm) bouts.push(`${c.bpm} BPM`);
+        if (this.versionDAilleurs(v)) bouts.push('autre appareil');
         return bouts.join(' · ');
+    }
+
+    // Une version prise sur un AUTRE appareil (reçue du cloud). Les versions d'avant le sous-lot n'ont pas d'appareil : elles sont d'ici.
+    versionDAilleurs(v) {
+        return !!(v && v.appareil && typeof HistoriqueVersions !== 'undefined' && HistoriqueVersions.appareil && v.appareil !== HistoriqueVersions.appareil());
     }
 
     nomMorceauHistorique(songId, nomGarde) {
@@ -11180,7 +11186,7 @@ class HarmoHubApp {
         }).join('');
         host.innerHTML = `
             <p class="hist-aide">Enregistrer reste manuel. En plus, HarmoHub garde des versions automatiques : toutes les 5 minutes de travail, et juste avant chaque opération lourde
-                (transposition, suppression, import, restauration). Rien ne se perd. Elles restent sur <strong>cet appareil</strong> : ce que tu défais ici n'est pas défait sur les autres.</p>
+                (transposition, suppression, import, restauration). Rien ne se perd. ${this.texteVersionsCloud()}</p>
             <div class="settings-select-row"><label for="hist-morceau">Morceau</label><select id="hist-morceau" class="compact">${optionsHtml}</select></div>
             <div id="hist-message" class="hist-message" role="status"${this._histMessage ? ` data-sorte="${this._histMessage.sorte}"` : ' hidden'}>${this._histMessage ? escapeHtml(this._histMessage.texte) : ''}</div>
             <ul class="hist-liste" id="hist-liste">${maintenant}${lignes || '<li class="hist-vide" id="hist-vide">Aucune version pour ce morceau pour l\'instant. La première arrive après 5 minutes de travail, ou à la prochaine opération lourde.</li>'}</ul>
@@ -11191,12 +11197,30 @@ class HarmoHubApp {
         document.getElementById('hist-morceau').onchange = (e) => { this._histChoix = e.target.value; this._histMessage = null; this.renderHistoriquePanel(); };
         host.querySelectorAll('[data-restaurer]').forEach(b => { b.onclick = () => this.restaurerVersion(b.dataset.restaurer); });
         document.getElementById('hist-vider').onclick = async () => {
-            if (!confirm('Effacer toutes les versions gardées sur cet appareil ? Tes morceaux enregistrés ne sont pas touchés.')) return;
+            if (!confirm('Effacer toutes les versions gardées sur cet appareil ? Tes morceaux enregistrés ne sont pas touchés. Connecté, les 5 plus récentes de chaque morceau, gardées dans le cloud, reviendront.')) return;
             const ok = await HistoriqueVersions.vider();
             if (typeof HistoriqueParoles !== 'undefined') await HistoriqueParoles.vider();
             this.messageHistorique(ok ? 'Historique vidé sur cet appareil.' : 'Impossible de vider l\'historique.', ok ? 'ok' : 'erreur');
             this.renderHistoriquePanel();
         };
+        this.rafraichirVersionsCloud(choix, jeton);
+    }
+
+    // VERSIONS AU CLOUD (sous-lot « Versions au cloud », 05/11 : « toutes les versions stockées dans le firestore »). Le panneau se dessine
+    // d'abord avec ce qui est ici (pas d'attente du réseau), puis va chercher celles des autres appareils (synchro-versions.js) et se redessine
+    // s'il en est arrivé. Pas de boucle : un même document n'est pas relu plus d'une fois toutes les 30 s.
+    rafraichirVersionsCloud(choix, jeton) {
+        if (typeof VersionsCloud === 'undefined' || !VersionsCloud.connecte()) return;
+        VersionsCloud.rafraichir(choix || '').then((r) => {
+            if (r && r.importees > 0 && jeton === this._histRendu && this.settingsOpen) this.renderHistoriquePanel();
+        });
+    }
+
+    texteVersionsCloud() {
+        const connecte = typeof VersionsCloud !== 'undefined' && VersionsCloud.connecte();
+        return connecte
+            ? 'Elles sont sur cet appareil, et les <strong>5 plus récentes</strong> de chaque morceau (et de ses paroles) sont aussi gardées dans le <strong>cloud</strong> : tu les retrouves sur tes autres appareils.'
+            : 'Elles restent sur <strong>cet appareil</strong> tant que tu n\'es pas connecté ; une fois connecté, les 5 plus récentes de chaque morceau partent aussi dans le cloud.';
     }
 
     // LES VERSIONS DES PAROLES du morceau choisi (sous-lot « Paroles homogènes », 05/11 : « Garde en mémoire des sauvegardes précédentes »).
@@ -11211,6 +11235,7 @@ class HarmoHubApp {
             const r = v.resume || HistoriqueParoles.resume(v.charge || {});
             const bouts = [`${r.mots} mot${r.mots > 1 ? 's' : ''}`, `${r.parties} partie${r.parties > 1 ? 's' : ''}`];
             if (r.poses) bouts.push(`${r.poses} accord${r.poses > 1 ? 's' : ''} posé${r.poses > 1 ? 's' : ''}`);
+            if (this.versionDAilleurs(v)) bouts.push('autre appareil');
             const plus = v.libelle && v.libelle !== tag ? ` title="${escapeHtml(v.libelle)}"` : '';
             return `<li class="hist-carte hist-carte-paroles" data-version-paroles="${escapeHtml(v.id)}">
                 <div class="hist-corps">

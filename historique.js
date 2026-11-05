@@ -9,15 +9,20 @@
 // OÙ ILS VIVENT, ET C'EST LE POINT QUI COMPTE.
 //   • PAS DANS localStorage. Il est limité (≈ 5 Mo) et PARTAGÉ avec la bibliothèque des morceaux : un historique qui le remplirait ferait
 //     échouer l'enregistrement des morceaux eux-mêmes — le filet de sécurité qui coule le bateau. IndexedDB a son propre quota, bien plus large.
-//   • PAS DANS LE CLOUD. Le document Firestore d'un utilisateur est limité à 1 Mio (voir docs/synchro-donnees.md) ; des versions de tous
-//     les morceaux n'y tiendraient pas. Elles restent donc PAR APPAREIL : ce qu'on a défait sur l'ordinateur n'est pas défait sur le téléphone.
-//     C'est dit tel quel à l'utilisateur dans le panneau.
+//   • AU CLOUD, LES PLUS RÉCENTES SEULEMENT (sous-lot « Versions au cloud », 05/11). Demande : « toutes les versions stockées dans le
+//     firestore […] s'il y a un problème de place, il faut garder moins de versions que prévu […] le minimum acceptable (environ 3 à 5
+//     versions) ». Le document de la bibliothèque est limité à 1 Mio : les versions n'y vont pas, elles ont UN DOCUMENT PAR MORCEAU
+//     (synchro-versions.js), qui garde les 5 plus récentes du morceau et les 5 de ses paroles. Ce fichier reste la copie de l'appareil
+//     (40 par morceau) ; synchro-versions.js y verse celles des autres appareils par `importer`, et apprend chaque nouvelle par `surAjout`.
+//     Restaurer une version ne restaure que le brouillon d'ICI : rien ne se « défait » tout seul sur un autre appareil.
 //
 // CE QUE CE FICHIER NE FAIT JAMAIS : lever. Navigation privée, IndexedDB absent, quota plein, base verrouillée par un autre onglet — dans
 // tous ces cas l'historique devient simplement indisponible (raison() dit pourquoi, le panneau l'affiche) et l'appli continue d'enregistrer
 // comme avant. Un filet de sécurité qui peut faire tomber la voiture est pire que pas de filet.
 //
-// FORMAT D'UNE VERSION  { id, songId, songName, date, motif, libelle, empreinte, resume:{accords,parties}, charge }
+// FORMAT D'UNE VERSION  { id, songId, songName, date, motif, libelle, empreinte, appareil, resume:{accords,parties}, charge }
+//   appareil  identifiant tiré au sort une fois par navigateur (`harmohub_appareil`) : le panneau dit « autre appareil » pour une version
+//           reçue du cloud. Absent des versions d'avant le sous-lot « Versions au cloud » (elles sont d'ici).
 //   songId  '' pour un tampon qui n'a jamais été enregistré sous un nom (« Nouveau morceau ») : c'est là qu'un plantage coûte le plus.
 //   motif   'auto' | 'enregistre' | 'avant-transposition' | 'avant-suppression-partie' | 'avant-suppression-morceau' | 'avant-import' |
 //           'avant-restauration' | 'abandon'  (le panneau en tire l'étiquette ; un motif inconnu s'affiche tel quel, jamais d'erreur)
@@ -31,6 +36,19 @@
 // ajouter un magasin à la base des morceaux aurait exigé d'en monter la version, et un onglet resté ouvert sur l'ancien fichier aurait
 // alors perdu son historique jusqu'au rechargement. D'où la fabrique `creerHistorique` : les morceaux et les paroles ne diffèrent que par
 // le nom de la base, l'empreinte (ce qui fait qu'une version est « la même ») et le résumé affiché.
+// L'APPAREIL qui a pris une version. Partagé par HarmoHub et la page Paroles (même origine, même localStorage). Sans stockage, un
+// identifiant de la session : on dira au pire « autre appareil » d'une version d'ici après un rechargement, jamais l'inverse.
+var ID_APPAREIL_HISTORIQUE = null;
+function idAppareilHistorique() {
+    if (ID_APPAREIL_HISTORIQUE) return ID_APPAREIL_HISTORIQUE;
+    try { ID_APPAREIL_HISTORIQUE = localStorage.getItem('harmohub_appareil'); } catch (e) { /* stockage refusé */ }
+    if (!ID_APPAREIL_HISTORIQUE) {
+        ID_APPAREIL_HISTORIQUE = 'a_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        try { localStorage.setItem('harmohub_appareil', ID_APPAREIL_HISTORIQUE); } catch (e) { /* sans gravité */ }
+    }
+    return ID_APPAREIL_HISTORIQUE;
+}
+
 function creerHistorique({ nomBase, empreinteDe, resumeDe }) {
     const NOM_BASE = nomBase;
     const MAGASIN = 'versions';
@@ -45,6 +63,7 @@ function creerHistorique({ nomBase, empreinteDe, resumeDe }) {
     let promesseBase = null;
     let indisponible = null; // texte lisible si l'historique ne peut pas fonctionner ici
     let derniereErreur = null;
+    const ecouteursAjout = [];   // synchro-versions.js : prévenu de chaque version posée ICI (pas de celles importées)
 
     const demande = (req) => new Promise((resolve, reject) => { req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
     const fin = (tx) => new Promise((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error || new Error('transaction annulée')); });
@@ -148,7 +167,7 @@ function creerHistorique({ nomBase, empreinteDe, resumeDe }) {
             const version = {
                 id: 'v_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
                 songId: sid, songName: songName || '', date: date || Date.now(), motif: motif || 'auto', libelle: libelle || '',
-                empreinte: emp, resume: resume(charge), charge: JSON.parse(JSON.stringify(charge)),
+                empreinte: emp, appareil: idAppareilHistorique(), resume: resume(charge), charge: JSON.parse(JSON.stringify(charge)),
             };
             try {
                 await poser(db, version);
@@ -161,6 +180,7 @@ function creerHistorique({ nomBase, empreinteDe, resumeDe }) {
                 } else { derniereErreur = e; return { fait: false, raison: 'erreur' }; }
             }
             await elaguer(db, sid);
+            ecouteursAjout.forEach(fn => { try { fn({ songId: sid, id: version.id }); } catch (e) { derniereErreur = e; } });
             return { fait: true, id: version.id };
         } catch (e) {
             derniereErreur = e;
@@ -218,8 +238,37 @@ function creerHistorique({ nomBase, empreinteDe, resumeDe }) {
 
     async function disponible() { return !!(await ouvrir()); }
 
+    // Verse ici des versions venues du cloud (synchro-versions.js). « Sans doublon » : une version déjà là (même id), ou dont le CONTENU est
+    // déjà là pour ce morceau (même empreinte — deux appareils qui ont gardé le même état après une synchro), n'est pas ajoutée. Elles
+    // gardent leur date et leur appareil d'origine, et passent par le même élagage que les autres. Rend le nombre de versions ajoutées.
+    async function importer(versions) {
+        try {
+            const db = await ouvrir();
+            if (!db || !Array.isArray(versions) || !versions.length) return 0;
+            const touches = new Set();
+            let n = 0;
+            for (const v of versions) {
+                if (!v || typeof v.id !== 'string' || !v.charge || typeof v.charge !== 'object') continue;
+                const sid = v.songId || '';
+                if (await demande(db.transaction(MAGASIN, 'readonly').objectStore(MAGASIN).get(v.id))) continue;
+                const emp = empreinte(v.charge);
+                if ((await toutes(db, sid)).some(x => x.empreinte === emp)) continue;
+                await poser(db, {
+                    id: v.id, songId: sid, songName: v.songName || '', date: Number(v.date) || Date.now(), motif: v.motif || 'auto', libelle: v.libelle || '',
+                    empreinte: emp, appareil: v.appareil || '', resume: resume(v.charge), charge: v.charge,
+                });
+                touches.add(sid);
+                n++;
+            }
+            for (const sid of touches) await elaguer(db, sid);
+            return n;
+        } catch (e) { derniereErreur = e; return 0; }
+    }
+
     return {
-        ajouter, lister, morceaux, lire, vider, disponible, empreinte, resume,
+        ajouter, lister, morceaux, lire, vider, disponible, empreinte, resume, importer,
+        surAjout: (fn) => { if (typeof fn === 'function') ecouteursAjout.push(fn); },
+        appareil: idAppareilHistorique,
         raison: () => indisponible,
         derniereErreur: () => derniereErreur,
         limites: { MAX_PAR_MORCEAU, MAX_JOURS, MIN_GARDEES, MAX_TOTAL },

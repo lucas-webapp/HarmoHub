@@ -183,7 +183,10 @@ const pause = (p, ms) => p.waitForTimeout(ms);
     check(final.sessions.length === 1, `une seule session au cloud pour un seul morceau (${final.sessions.length})`);
     check(JSON.stringify(final).length < 20000, `et le document reste petit (${JSON.stringify(final).length} octets)`);
     check(!final.sessions.some(s => /rangee/.test(s.cle)), 'les versions rangées restent sur l\'appareil : elles ne sont pas envoyées comme des morceaux');
-    check(nuage.ecritures.every(e => e.chemin === CHEMIN), `rien d'autre n'est écrit au cloud par la page Paroles (${[...new Set(nuage.ecritures.map(e => e.chemin))]})`);
+    // Depuis le sous-lot « Versions au cloud » (05/11), la page envoie AUSSI les versions de ses paroles, dans leurs documents à elles
+    // (`harmohub-versions-{morceau}` et l'index `harmohub-versions`) : voulu. Rien d'autre — en particulier pas le document de la bibliothèque.
+    const VERSIONS = /^users\/u1\/apps\/harmohub-versions(-[\w-]+)?$/;
+    check(nuage.ecritures.every(e => e.chemin === CHEMIN || VERSIONS.test(e.chemin)), `rien d'autre n'est écrit au cloud par la page Paroles que ses paroles et leurs versions (${[...new Set(nuage.ecritures.map(e => e.chemin))]})`);
 
     // =========================================================================================
     // 6. APPAREIL VIERGE ET CLOUD VIDE : on n'écrase jamais le cloud avec du vide

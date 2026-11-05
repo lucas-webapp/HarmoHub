@@ -15,8 +15,9 @@ ordinateur. Ce qui décrit l'écran ou l'appareil lui-même reste sur l'appareil
 | Dossiers, suppressions (pour ne pas ramener un morceau effacé) | `users/{uid}/apps/harmohub` | par nom, le plus récent gagne | |
 | **Réglages** (son, métronome, affichages de la grille, exports PDF, rythme de départ, mise en page de la feuille de structure) | `users/{uid}/apps/harmohub` (champ `reglages`) | **réglage par réglage**, le plus récent gagne | un appareil neuf recharge une fois la page pour les appliquer |
 | **Paroles** (texte de chaque partie + accords posés, une session par morceau) | `users/{uid}/apps/harmohub-paroles` | session par session, le plus récent gagne ; la perdante est rangée à part et un bandeau propose de la restaurer | envoyées par la page Paroles elle-même |
+| **Versions** des morceaux et de leurs paroles (les 5 plus récentes de chaque, moins si le morceau est très lourd) | `users/{uid}/apps/harmohub-versions-{songId}` (un document par morceau) + l'index `harmohub-versions` | union sans doublon (même id ou même contenu), les plus récentes gardées | envoyées par `synchro-versions.js` quand une version est prise ; celles des autres appareils sont lues à l'ouverture de Paramètres › Historique ou des Options de la page Paroles (sous-lot « Versions au cloud », 05/11) |
 
-Les règles de sécurité du projet (`users/{userId}/apps/{appId}`) couvrent les deux documents : aucune modification de la console.
+Les règles de sécurité du projet (`users/{userId}/apps/{appId}`) couvrent tous ces documents : aucune modification de la console.
 Chaque document a sa propre limite de 1 Mio.
 
 ## Ce qui reste volontairement sur l'appareil
@@ -25,10 +26,11 @@ Chaque document a sa propre limite de 1 Mio.
   guitare affichés. Un téléphone n'a pas l'écran d'un ordinateur.
 - **L'effet verre** et sa couleur (`harmohub.glass*`) : « une option par appareil ».
 - **L'ordre des blocs de la barre de lecture** (`harmohubBarreLectureOrdre`) : l'écran de chaque appareil n'est pas celui des autres (refonte, lot 2).
-- **L'historique des versions** (IndexedDB `harmohub-historique`, voir `historique.js`) : les instantanés automatiques de chaque morceau (toutes les 5 minutes de
-  travail, avant chaque opération lourde, à chaque enregistrement). PAR APPAREIL, et c'est voulu deux fois : le document cloud est limité à 1 Mio, des versions
-  de tous les morceaux n'y tiendraient pas ; et ce que l'on défait sur l'ordinateur ne doit pas se défaire tout seul sur le téléphone. Jamais dans
-  localStorage non plus (quota de ≈ 5 Mo partagé avec la bibliothèque : un historique qui le remplirait ferait échouer l'enregistrement des morceaux). Refonte, lot 3.
+- **L'historique COMPLET des versions** (IndexedDB `harmohub-historique` et `harmohub-historique-paroles`, voir `historique.js`) : jusqu'à 40 versions par
+  morceau sur l'appareil. Seules les 5 plus récentes (et 5 pour les paroles) vont au cloud, dans un document par morceau (ligne « Versions » ci-dessus) :
+  « toutes les versions stockées dans le firestore […] s'il y a un problème de place, il faut garder moins de versions » (05/11). Restaurer une version ne
+  touche que le brouillon de l'appareil : rien ne se défait tout seul ailleurs. Jamais dans localStorage (quota de ≈ 5 Mo partagé avec la bibliothèque),
+  hormis la file des morceaux dont les versions attendent l'envoi (`harmohub_versions_a_envoyer`, des identifiants seulement).
 - **Le dossier de rangement sur disque** : une autorisation du navigateur, impossible à transporter.
 - **Les repères de sauvegarde et de rappel**, l'état de la synchro, le morceau ouvert, la fenêtre de connexion (« ne plus proposer »).
 - **Les préférences de la page Paroles** (taille du texte, enchaînement des accords) et son « dernier morceau ouvert » : dépendants de l'écran,
