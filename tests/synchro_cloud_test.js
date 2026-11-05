@@ -479,24 +479,25 @@ const pause = (p, ms) => p.waitForTimeout(ms);
     const nuageTel = creerNuage();
     const T = await ouvrir(nuageTel, 'T', { viewport: { width: 390, height: 844 }, tactile: true });
     await poser(T, [morceau('t1', 'Sur téléphone', 1000)]);
-    // La barre du haut est FIXE et flottante, avec de la place ; l'en-tête de la carte Morceau, lui, n'a que
-    // 4 px de marge à 390 px et ne doit pas bouger (mobile_grille_plus_haut l'avait signalé à une version précédente).
+    // LOT 10a : le téléphone a la barre du haut de l'ordinateur (titre, Enregistrer, Paramètres, compte CARRÉ, onglets en seconde rangée) ; la carte
+    // Morceau a perdu son en-tête. Ce qui ne doit pas bouger en se connectant est donc la barre : le compte passe du G à la pastille + l'initiale
+    // DANS son carré de 44px, sans pousser le titre ni personne. (Avant le lot : l'en-tête de la carte Morceau, et le logo à droite du compte.)
     const geometrie = () => T.p.evaluate(() => {
-        const y = (s) => { const e = document.querySelector(s); const b = e && e.getBoundingClientRect(); return b && b.width > 0 ? Math.round(b.top + window.scrollY) : null; };
-        const b = (id) => { const r = document.getElementById(id).getBoundingClientRect(); return { l: Math.round(r.left), r: Math.round(r.right), w: Math.round(r.width), h: Math.round(r.height), vis: r.width > 0 }; };
-        return { titre: y('#song-card .card-head h2'), actions: y('#song-card .card-head-actions'), select: y('#song-select'),
-                 debord: document.documentElement.scrollWidth - window.innerWidth,
-                 pastille: b('sync-status'), compte: b('account-info'), logo: document.querySelector('.logo').getBoundingClientRect().left };
+        const b = (s) => { const e = document.querySelector(s); const r = e.getBoundingClientRect(); return { l: Math.round(r.left), r: Math.round(r.right), t: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), vis: r.width > 0 }; };
+        return { titre: b('#tb-titre'), save: b('#tb-save'), onglets: b('#tb-onglets'), reglages: b('#open-settings'),
+                 debord: document.documentElement.scrollWidth - window.innerWidth, W: window.innerWidth,
+                 pastille: b('#sync-status'), compte: b('#compte-cloud .cc-pilule:not([hidden])') };
     });
     const avantConnexion = await geometrie();
     await connecter(T);
     const apresConnexion = await geometrie();
-    check(avantConnexion.titre === apresConnexion.titre && avantConnexion.actions === apresConnexion.actions && avantConnexion.select === apresConnexion.select,
-        'se connecter ne bouge RIEN dans la carte Morceau');
+    const memeBoite = (x, y) => x.l === y.l && x.w === y.w && x.t === y.t;
+    check(memeBoite(avantConnexion.titre, apresConnexion.titre) && memeBoite(avantConnexion.save, apresConnexion.save) && memeBoite(avantConnexion.onglets, apresConnexion.onglets),
+        'se connecter ne bouge RIEN dans la barre du haut (titre, Enregistrer, onglets)');
     check(apresConnexion.debord <= 1, `à 390 px la page ne déborde pas (${apresConnexion.debord}px)`);
     check(apresConnexion.pastille.vis, 'la pastille reste visible sur téléphone, libellé du nom effacé');
-    check(apresConnexion.compte.h >= 32 && apresConnexion.compte.w >= 32, `le bouton se vise au doigt (${apresConnexion.compte.w}×${apresConnexion.compte.h})`);
-    check(apresConnexion.compte.r <= apresConnexion.logo, 'et ne chevauche pas le logo');
+    check(apresConnexion.compte.h === 44 && apresConnexion.compte.w === 44, `le bouton se vise au doigt, carré comme ses voisins (${apresConnexion.compte.w}×${apresConnexion.compte.h})`);
+    check(apresConnexion.compte.l >= apresConnexion.reglages.r && apresConnexion.compte.r <= apresConnexion.W, 'et ne chevauche ni Paramètres ni le bord de l\'écran');
 
     // ================= 14. LA FENÊTRE DE CONNEXION (compte-cloud.js, commune aux trois applis) =================
     // « Un garde-fou pour me demander une confirmation si je commence à travailler alors que je ne suis pas

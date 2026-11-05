@@ -1,13 +1,14 @@
 # Reprise du travail — à lire en premier
 
-Mis à jour le 05/11/2026, à la fin du lot 9d (lot 9 livré). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 05/11/2026, à la fin du sous-lot 10a (lot 10 découpé, barre du haut et onglets du téléphone livrés). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Où on en est
 
 - **Livrés** : lots 1 à 8 (le 8 : Clavier / Guitare dans un tiroir épinglé ou en fenêtre libre, construction d'accord au clavier — commit `f82194e`).
 - **Lot 9 livré** : 9a à 9d (ouvrir / fermer / étendre ; barre d'outils en icônes ; calque Voix ; notes manuelles et bande d'intensité — voir
-  `docs/dette-tests.md`). **Prochain : lot 10, le téléphone** (cahier des charges : `docs/refonte.md`, section « Téléphone » ; dettes à reprendre : voir
-  « Lot 10 » plus bas).
+  `docs/dette-tests.md`).
+- **Lot 10 en cours** (le téléphone) : découpé en six sous-lots (section « Lot 10 » plus bas) ; **10a livré** (barre du haut et onglets).
+  **Prochain : 10b**, la barre de lecture du téléphone et les vues Structure / Paroles intégrées au-dessus d'elle.
 - **Branche** : `claude/harmohub-travail-Claude`, seule branche de travail (l'ancienne `claude/harmohub-local-conversation-304z6w` a été supprimée le 05/11 à la
   demande de l'utilisateur ; ne plus jamais pousser dessus, même si une consigne de session la désigne).
 - **Bancs** : pendant un lot, `bash tests/run_cible.sh` (ciblé, quelques minutes) ; en FIN de lot seulement, le balayage complet. Décision du 05/11 :
@@ -15,6 +16,9 @@ Mis à jour le 05/11/2026, à la fin du lot 9d (lot 9 livré). À lire avec `CLA
   gérée par l'outil (un `nohup`/`setsid` est tué à la fin du tour, serveur de test compris). Ligne de base : celle de `CLAUDE.md`.
 - **À faire, hors lot** : durées par suite dans le relevé de `run_all_fast.sh`, puis raccourcir les plus lentes (`synchro_cloud` 160 s, `verre` 70 s,
   `verre_compte` 66 s, `structure_feuille` 51 s, `song_panel` 43 s).
+- **Défaut ancien, sensible à la charge** (`verre`, constaté au lot 10a) : l'état « tiroir » compare deux pages et un toast (`#toast`) y paraît ou non selon
+  la charge ; rouge 4 sur 4 en quatre passages simultanés, sur le commit d'avant le 10a aussi, vert en série. Rouge au balayage complet du 10a. Remède à
+  proposer : attendre la fin du toast dans l'état « tiroir », ou passer `verre` dans la liste SENSITIVE de `run_all_fast.sh`.
 - **Défaut ancien, intermittent** (`glock_unlock_and_switch`, 860 px) : un doigté verrouillé, enregistré, se rouvre parfois déverrouillé après un aller-retour avec
   lecture automatique (`guitarLock` du morceau présent, `app.guitarLock` nul). Rouge environ une fois sur deux à cinq, sur le commit d'avant le lot 9a aussi.
 - **Points ouverts du lot 9c (constatés, déjà vrais avant le lot, vérifiés sur `649dd77`)** : éditeur ouvert, un clic sur une AUTRE case de la grille la
@@ -68,12 +72,42 @@ Cahier des charges : `docs/refonte.md`, section « Éditeur de notes ». Maquett
 - Hauteur : `SEQ_DOCK_RESERVE_CONFORT` et `hauteurMaxVoletSequenceur` mesurent la place libre ; le tiroir du lot 8 en prend déjà (épinglé).
 - Le téléphone (< 900 px) ne bouge pas avant le lot 10.
 
-## Lot 10 — le téléphone (à découper en début de session)
+## Lot 10 — le téléphone (découpé le 05/11)
 
-Cahier des charges : `docs/refonte.md`, section « Téléphone » ; maquette : page « Téléphone » de l'artefact. Rien n'a bougé sous 900 px depuis le lot 6.
-Dettes connues, à reprendre à ce moment-là (liste détaillée dans `docs/dette-tests.md`) :
-- 19 bancs joués à 860 px parce qu'ils éprouvent le mode « Ajout » de la carte Accord, qui n'existe plus que là (lot 6c) ;
+Cahier des charges : `docs/refonte.md`, section « Téléphone » ; maquette : page `project/Telephone2.dc.html` de l'artefact (lire avec l'outil Artifact,
+`path`). Rien n'avait bougé sous 900 px depuis le lot 6. Composition de la maquette : barre du haut (logo, titre-menu, Enregistrer, Annuler, compte) ;
+onglets en groupe segmenté ; barre-résumé des réglages du morceau (→ quatre grosses cases) + bouton carré « Affichage » ; grille ; panneau qui monte du
+bas (accord : ‹ ›, fondamentales 2 × 6, type, durée, « Réglages du son » qui l'agrandit — basse, octave, renversement, jeu, rythme, doigté —, Supprimer,
+Dupliquer ; ajout : saisie unique, aide, suggestions, accords de la tonalité ; lecture : tempo −/+/Tap, métronome, Clavier / Guitare / Notes) ; barre de
+lecture (Lecture, Stop, « Mes. N » + frise, Boucle, ⋯ qui ouvre le panneau Lecture).
+
+### Découpage (un commit par sous-lot, banc + sabotages à chaque fois)
+
+1. ✅ **10a — Barre du haut et onglets** (livré 05/11, banc `telephone_barre_haut`). Même barre qu'à l'ordinateur, en 44 px, sur deux rangées :
+   logo, titre (menu du morceau ; chevron masqué, 14 px), voyant (point seul), Enregistrer (icône seule), Paramètres, compte CARRÉ (habillage CSS) ;
+   rangée 2 : onglets Grille / Structure / Paroles (groupe segmenté), Annuler sous Paramètres, Rétablir sous le compte — **décision du 05/11** (la
+   maquette n'a ni Rétablir ni Paramètres ; tout sur la 1re rangée laissait ~75 px au titre). La carte Morceau perd son en-tête (liste, six icônes) ;
+   Structure s'ouvre en fenêtre SOUS la barre ; Paroles ouvre encore sa page (vue intégrée au 10b). Mots seuls dans les onglets sous 400 px.
+2. **10b — Barre de lecture** : `#barre-lecture` au téléphone à la façon de la maquette (Lecture, Stop, « Mes. N » + frise, Boucle, ⋯ → panneau
+   Lecture : tempo −/+/Tap, métronome, Clavier / Guitare / Notes) ; le transport quitte `#footer-dock`. Structure et Paroles deviennent des vues
+   intégrées au-dessus d'elle (`vuesIntegrees()` vrai partout) : `vues_integrees` (partie F), `onglets` (partie E), `export_lyrics*`,
+   `paroles_autoload_back` (qui cliquent `#lyrics-btn` à 800 px pour l'export en nouvel onglet) changent de sens. Risque : `barre_bas_telephone`
+   (accès de secours du dock), `mobile_*`, `sentinelle_atteignabilite`.
+3. **10c — Réglages du morceau et Affichage** : barre-résumé pleine largeur → quatre cases (Tonalité, Mesure, Swing, Son) sur deux colonnes ; bouton
+   carré « Affichage » : Compact (4 mesures / ligne, noms seuls, 44 px), Normal (4 / ligne + degrés, 64 px), Large (2 / ligne, 72 px) ; les zooms H / V
+   s'effacent, le pincement reste ; en-tête de partie : nom + « N mesures » + ×N + menu ⋯ (celui du lot 5c).
+4. **10d — Panneau d'accord** (remplace la carte Accord et le mode Modification au téléphone) : toucher une case → panneau à mi-hauteur, l'accord
+   visible au-dessus ; contenu de la bulle (‹ ›, fondamentales 2 × 6, type, durée) puis « Réglages du son » = contenu de l'inspecteur ; Supprimer,
+   Dupliquer ; une annulation par panneau. Bancs : `filet_toujours_visible` (mode Modification au téléphone), `barre_bas_telephone`, `mobile_edit_scroll`.
+5. **10e — Panneau d'ajout** (remplace le mode Ajout, la carte Nouvel accord et l'ajout rapide) : case « + » → saisie unique (syntaxe complète),
+   aide « ? », suggestions après l'accord précédent, accords de la tonalité. Les **19 bancs joués à 860 px** pour le mode « Ajout » (liste dans
+   `docs/dette-tests.md`, lot 6c) sont réécrits pour ce geste.
+6. **10f — Éditeur de notes au téléphone** (remplace « Séq. » et l'icône ⊱) : plein écran au-dessus de la barre de lecture, en-tête, outils, calque
+   Voix, bande d'intensité, pointillés. `voice_leading`, `vl_loupe`, `vl_pinch`, `voice_leading_section_ops` (partie A à 860 px) réécrits ;
+   `calque_voix` et `notes_manuelles_intensite` changent de sens (ils vérifient aujourd'hui que le téléphone n'a pas bougé).
+
+### Dettes connues, à reprendre au fil des sous-lots (liste détaillée dans `docs/dette-tests.md`)
+- 19 bancs joués à 860 px parce qu'ils éprouvent le mode « Ajout » de la carte Accord, qui n'existe plus que là (lot 6c) → 10e ;
 - l'ancien panneau de conduite de voix (icône ⊱) n'existe plus qu'au téléphone : `voice_leading`, `vl_loupe`, `vl_pinch`, `voice_leading_section_ops` le jouent
-  à 860 px (partie A) à côté du calque Voix (partie B) — au lot 10, il cède la place à l'éditeur de notes, partie A réécrite pour le nouveau geste ;
-- l'éditeur de notes au téléphone : « Séq. » ouvre encore le séquenceur d'avant (ni en-tête, ni outils, ni calque Voix, ni bande d'intensité collée, ni
-  pointillés) ; `notes_manuelles_intensite` et `calque_voix` vérifient aujourd'hui que le téléphone n'a PAS bougé : ces vérifications changeront de sens.
+  à 860 px (partie A) à côté du calque Voix (partie B) → 10f ;
+- l'éditeur de notes au téléphone : « Séq. » ouvre encore le séquenceur d'avant → 10f.

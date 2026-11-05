@@ -118,11 +118,12 @@ const graine = (src) => {
     check(b.ilsSontLa.every(Boolean), '#structure-btn et #lyrics-btn sont les boutons d\'origine, maintenant dans la barre du haut');
     check(JSON.stringify(b.fichierSeul) === '["file-menu-btn"]', 'le coin bas droit ne garde que « Fichier » (les exports PDF / MIDI / MP3)');
     check(b.logoStruct && b.logoParoles, 'les logos d\'origine (lignes de structure, micro) sont conservés');
-    // aller-retour téléphone ↔ ordinateur : toujours un nœud, au bon endroit
+    // aller-retour téléphone ↔ ordinateur : toujours un nœud, au bon endroit. Depuis le lot 10a le « bon endroit » est le même aux deux formats : le
+    // téléphone a lui aussi ses onglets (seconde rangée de la barre du haut) ; avant, les deux boutons redescendaient à côté de Fichier.
     await p.setViewportSize({ width: 600, height: 900 }); await p.waitForTimeout(250);
-    const tel = await p.evaluate(() => ({ n: ['structure-btn', 'lyrics-btn'].map(i => document.querySelectorAll('#' + i).length), dansActions: ['structure-btn', 'lyrics-btn'].map(i => !!document.getElementById(i).closest('.viz-export-actions')), ordre: [...document.querySelectorAll('.viz-export-actions > button')].map(x => x.id), visible: ['structure-btn', 'lyrics-btn', 'file-menu-btn'].map(i => document.getElementById(i).getBoundingClientRect().width > 0), centreVisible: document.getElementById('tb-centre').getBoundingClientRect().width > 0 }));
-    check(JSON.stringify(tel.n) === '[1,1]' && tel.dansActions.every(Boolean) && JSON.stringify(tel.ordre) === '["structure-btn","lyrics-btn","file-menu-btn"]', `à 600px ils retrouvent leur place d'origine, dans le même ordre (${tel.ordre.join(', ')})`);
-    check(tel.visible.every(Boolean) && !tel.centreVisible, 'téléphone : Structure, Paroles et Fichier restent visibles en bas ; les onglets du centre n\'existent pas');
+    const tel = await p.evaluate(() => ({ n: ['structure-btn', 'lyrics-btn'].map(i => document.querySelectorAll('#' + i).length), onglets: ['structure-btn', 'lyrics-btn'].map(i => !!document.getElementById(i).closest('#tb-onglets')), ordre: [...document.querySelectorAll('#tb-onglets > button')].map(x => x.id), fichier: [...document.querySelectorAll('.viz-export-actions > button')].map(x => x.id), visible: ['tab-grille', 'structure-btn', 'lyrics-btn', 'file-menu-btn'].map(i => document.getElementById(i).getBoundingClientRect().width > 0) }));
+    check(JSON.stringify(tel.n) === '[1,1]' && tel.onglets.every(Boolean) && JSON.stringify(tel.ordre) === '["tab-grille","structure-btn","lyrics-btn"]', `à 600px ils restent dans les onglets, dans le même ordre (${tel.ordre.join(', ')})`);
+    check(tel.visible.every(Boolean) && JSON.stringify(tel.fichier) === '["file-menu-btn"]', 'téléphone : les trois onglets sont visibles ; « Fichier » garde seul le coin bas de la grille, comme à l\'ordinateur');
     await p.setViewportSize({ width: 1440, height: 900 }); await p.waitForTimeout(250);
     const retour = await p.evaluate(() => ({ n: ['structure-btn', 'lyrics-btn'].map(i => document.querySelectorAll('#' + i).length), ontglets: ['structure-btn', 'lyrics-btn'].map(i => !!document.getElementById(i).closest('#tb-onglets')) }));
     check(JSON.stringify(retour.n) === '[1,1]' && retour.ontglets.every(Boolean), 'de retour à 1440px : de nouveau dans les onglets, toujours un seul nœud chacun');
@@ -208,17 +209,25 @@ const graine = (src) => {
     check(e.grille === 'true' && e.paroles === 'false', 'Grille referme la vue Paroles');
 
     // ======================================================================================================
-    console.log('\n=== E. Téléphone : rien ne change avant le lot 10 ===');
+    console.log('\n=== E. Téléphone (lot 10a) : les onglets sous la barre du haut ===');
+    // AVANT le lot 10a : « pas d'onglets en haut, Structure plein écran comme avant ». La refonte du téléphone a changé ce sens : les onglets sont
+    // un groupe segmenté de 44px sur la seconde rangée de la barre, et la fenêtre Structure s'ouvre SOUS la barre pour qu'ils restent atteignables.
     await ctx.close();
     ({ p, ctx } = await ouvrir({ width: 390, height: 844 }, 'tel: '));
-    const t = await p.evaluate(() => ({ centre: document.getElementById('tb-centre').getBoundingClientRect().width, struct: document.getElementById('structure-btn').getBoundingClientRect(), dansActions: !!document.getElementById('structure-btn').closest('.viz-export-actions') }));
-    check(t.centre === 0 && t.struct.width > 0 && t.dansActions, 'téléphone : pas d\'onglets en haut ; Structure et Paroles sont à côté de Fichier, visibles');
-    await p.evaluate(() => document.getElementById('structure-btn').scrollIntoView({ block: 'center' }));
+    const t = await p.evaluate(() => {
+        const r = (i) => document.getElementById(i).getBoundingClientRect();
+        const barre = document.querySelector('.top-bar').getBoundingClientRect();
+        return { groupe: r('tb-onglets').height, onglets: ['tab-grille', 'structure-btn', 'lyrics-btn'].map(i => Math.round(r(i).width)), dansBarre: r('tb-onglets').bottom <= barre.bottom, egaux: (() => { const w = ['tab-grille', 'structure-btn', 'lyrics-btn'].map(i => r(i).width); return Math.max(...w) - Math.min(...w) < 1.5; })() };
+    });
+    check(t.groupe === 44 && t.dansBarre && t.egaux && t.onglets.every(w => w > 60), `téléphone : trois onglets égaux dans un groupe de 44px, dans la barre du haut (${t.onglets} px)`);
     await p.click('#structure-btn'); await p.waitForTimeout(350);
-    const tf = await p.evaluate(() => ({ ouverte: !document.getElementById('structure-overlay').hidden, haut: document.getElementById('structure-overlay').getBoundingClientRect().top }));
-    check(tf.ouverte && tf.haut <= 1, `téléphone : la fenêtre Structure s'ouvre en plein écran comme avant (haut à ${Math.round(tf.haut)}px)`);
+    const tf = await p.evaluate(() => ({ ouverte: !document.getElementById('structure-overlay').hidden, haut: document.getElementById('structure-overlay').getBoundingClientRect().top, barre: document.querySelector('.top-bar').getBoundingClientRect().bottom, allume: document.getElementById('structure-btn').getAttribute('aria-pressed') }));
+    check(tf.ouverte && Math.abs(tf.haut - tf.barre) <= 1 && tf.allume === 'true', `téléphone : la fenêtre Structure s'ouvre SOUS la barre (haut à ${Math.round(tf.haut)}px, barre jusqu'à ${Math.round(tf.barre)}px), onglet allumé`);
+    await p.click('#tab-grille'); await p.waitForTimeout(250);
+    check(await p.evaluate(() => document.getElementById('structure-overlay').hidden && document.getElementById('tab-grille').getAttribute('aria-pressed') === 'true'), 'téléphone : l\'onglet Grille la referme (les onglets restent sous le doigt)');
+    await p.click('#structure-btn'); await p.waitForTimeout(350);
     await p.click('#structure-close'); await p.waitForTimeout(250);
-    check(await p.evaluate(() => document.getElementById('structure-overlay').hidden), 'téléphone : et se referme');
+    check(await p.evaluate(() => document.getElementById('structure-overlay').hidden), 'téléphone : et sa croix la referme toujours (elle reste une fenêtre jusqu\'au lot 10b)');
     await ctx.close();
 
     console.log(`\nErreurs de page : ${erreurs.length}${erreurs.length ? '\n  ' + erreurs.slice(0, 6).join('\n  ') : ''}`);

@@ -5279,3 +5279,51 @@ est à 5,5 % d'opacité (`--card-bg`), les notes qui défilent dessous se devine
 **Balayage du lot 9d (05/11) : 227 verts, 6 rouges, 7 sans verdict (240 suites)** — les 5 rouges de la ligne de base, plus `glock_unlock_and_switch`
 (3/4), l'intermittent ancien décrit au lot 9a : rejoué six fois de chaque côté, 2 rouges sur 6 avec ce lot, 3 sur 6 sur le commit d'avant. Les 7 « sans
 verdict » sont ceux de la ligne de base. **Aucune régression.** Le lot 9 (éditeur de notes) est livré ; reste le téléphone (lot 10).
+
+## Refonte de l'interface — lot 10a : la barre du haut et les onglets au téléphone (2026-11-05)
+
+**Découpage du lot 10** (fait en début de session, d'après la page « Téléphone (v2) » de la maquette) : 10a barre du haut et onglets ; 10b barre de lecture
+(et vues Structure / Paroles intégrées au-dessus d'elle) ; 10c réglages du morceau et Affichage ; 10d panneau d'accord ; 10e panneau d'ajout (les 19 bancs
+à 860 px) ; 10f éditeur de notes (fin de l'icône ⊱). Détail dans `docs/reprise.md`. L'ordre suit les dépendances : les vues intégrées masquent `main`, où vit
+encore le transport du téléphone (`#footer-dock`) — elles attendent donc la barre de lecture.
+
+**Ce qui change (téléphone, < 900 px).**
+- **La barre du haut est celle de l'ordinateur**, mêmes nœuds, en 44 px, sur deux rangées (`.top-bar` en grille de six colonnes, `.tb-gauche` / `.tb-droite`
+  en `display: contents`) : logo à gauche, titre (menu du morceau), voyant (son point seul), Enregistrer (icône seule), Paramètres, compte ; rangée 2 : les
+  onglets, Annuler sous Paramètres, Rétablir sous le compte. **Décision du 05/11** (question posée) : la maquette n'a ni Rétablir ni Paramètres ; tout sur la
+  1re rangée laissait ~75 px au titre (« Ba… »). Le titre garde ~175 px à 390 px ; chevron masqué et corps à 14 px pour que « Ballade en Do mineur » y tienne
+  en entier (exigence de `mobile_grille_plus_haut`).
+- **Le compte, carré** : la pilule de `compte-cloud.js` (fichier commun, pas touché) habillée par `#compte-cloud .cc-pilule` (44 × 44, 7 px).
+- **Les onglets** (`#tb-onglets`) : groupe segmenté de 44 px, segments de 38, trois parts égales ; allumé = texte vert + liseré. `setupOnglets` laisse
+  `#structure-btn` / `#lyrics-btn` dans le groupe à toutes les largeurs (avant : redescendus à côté de Fichier). Sous 400 px le mot seul (comme la maquette),
+  sous 350 px un corps de 12 px. La fenêtre Structure s'ouvre SOUS la barre (`--haut-barre` : 111 px au téléphone) ; elle reste une fenêtre (croix, fond) et
+  Paroles ouvre encore sa page, jusqu'au 10b.
+- **La carte Morceau perd son en-tête** (liste, six icônes) : tout est dans le menu du titre, dont les lignes passent à 44 px et qui défile s'il dépasse
+  l'écran. Les règles du titre, d'Enregistrer, du voyant et du menu sont sorties de la media query ordinateur (`@media all`) plutôt que recopiées.
+- **Verre dépoli** : le groupe d'onglets est un creux (`--glass-inp`) verre allumé, téléphone seulement (`verre-surfaces.css`).
+
+**Bancs.** Nouveau `telephone_barre_haut_test` (31) : jauge (six commandes à 44 px / 7 px, compte carré, groupe de 44 et segments de 38, parts égales), les
+deux rangées et l'ordre, le titre ≥ 160 px, rien sous la barre, pas de débordement, rien en double ; menu du titre dans l'écran, lignes à 44 px, ouvre un autre
+morceau, renommer (champ à 44 px, Entrée) ; un accord ajouté allume le voyant, Enregistrer l'éteint, Annuler / Rétablir de la 2e rangée, Paramètres ; Structure
+sous la barre, Grille atteignable et qui la referme, liseré sans aplat ; verre (creux translucide, aucun contraste perdu) ; 360 et 320 px ; ordinateur inchangé.
+**Réécrits pour le nouveau geste** (ils vérifiaient que le téléphone n'avait pas bougé) : `barre_haut` (H : la barre à 44 px, renommer dans le titre),
+`onglets` (B : à 600 px les boutons restent dans les onglets ; E : groupe de 44 px, Structure sous la barre, Grille la referme), `filet_toujours_visible`
+(le téléphone éprouve le titre, Enregistrer et les trois entrées du menu, comme l'ordinateur), `historique_versions` (H : `#tb-save`),
+`mobile_grille_plus_haut` (la carte « intacte » du retour d'août → le nom en entier dans le titre, Enregistrer sur sa ligne ; 11 → 12).
+`synchro_cloud` (partie 13, téléphone : « se connecter ne bouge rien dans la carte Morceau » et « ne chevauche pas le logo », écrits quand le logo était à droite
+du compte → rien ne bouge dans la barre du haut, compte carré de 44 px, sans chevaucher Paramètres ni le bord ; trouvé par le balayage complet).
+**Sabotages : 6, tous rouges** (grille dissoute, menu à 32 px, onglets redescendus, page sous la barre, verre oublié, Structure plein écran). Le dernier est
+d'abord resté vert : le sabotage avait frappé la règle `#structure-overlay` de l'ordinateur, au texte identique ; rejoué sur celle du téléphone, rouge.
+
+**Balayage ciblé (05/11)** : 49 suites (le diff, plus `telephone`, `filet`, `onglets`, `mobile_`, `slider_`, `export_lyrics`, `paroles_autoload`,
+`sentinelle_atteignabilite`, `vues_tiroir`, `synchro_reglages`, `midi_import`, `grid_loupe`, `rythme_cases` ajoutés à la main) : 46 verts ;
+`seq_notes_libres_clavier` (ligne de base) rouge, `smoke` sans verdict (ligne de base) ; `verre` rouge une fois sur un écart de toast (`#toast` affiché pendant
+la capture « tiroir », quatre navigateurs en parallèle), vert 67/67 rejoué seul.
+
+**Balayage du lot 10a (05/11) : 227 verts, 7 rouges, 7 sans verdict (241 suites)** — les 5 rouges de la ligne de base, plus `synchro_cloud` (réécrit, ci-dessus :
+vert 126/126 rejoué) et `verre` (66/67, l'écart de toast de l'état « tiroir »). **`verre` : défaut ancien, sensible à la charge, pas une régression** — six
+passages en série, verts des deux côtés (lot 10a et commit d'avant `f512e55`) ; quatre passages simultanés de chaque côté, rouges 4 sur 4 des deux côtés, même
+écart (`#588 div#toast.toast`). L'état « tiroir » (ordinateur, clavier détaché, accord construit touche par touche) fait paraître un toast dont la durée
+d'affichage dépasse ou non la capture selon la charge. À traiter hors lot (attendre la fin du toast dans l'état, ou passer `verre` dans la liste SENSITIVE de
+`run_all_fast.sh`). Les 7 « sans verdict » sont ceux de la ligne de base. **Aucune régression.**
+

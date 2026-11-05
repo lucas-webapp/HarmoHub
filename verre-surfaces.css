@@ -114,3 +114,10 @@ html[data-glass="1"] .vues-tiroir.vues-libre { background: var(--glass-pop-fond)
 html[data-glass="1"] :is(.seq-grid-intensite .seq-vel-band, .seq-grid-intensite .seq-vel-lane-label) {
     background: linear-gradient(0deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .03)), var(--glass-select);
 }
+
+/* ---- TÉLÉPHONE, LES ONGLETS (refonte, lot 10a) : le groupe segmenté Grille / Structure / Paroles de la seconde rangée de la barre du haut est un
+   creux, comme le groupe de vitesse de la barre de lecture (.bl-seg) : le fond de verre de la barre se voit à travers, l'onglet allumé garde son
+   liseré vert. Téléphone seulement : à l'ordinateur les onglets n'ont pas de fond de groupe. ---- */
+@media (max-width: 899px) {
+    html[data-glass="1"] .tb-onglets { background: var(--glass-inp); }
+}

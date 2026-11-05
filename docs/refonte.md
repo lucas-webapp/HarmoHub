@@ -129,7 +129,8 @@ ne le redécouvre pas.
 
 ## Téléphone
 
-- Tout en 44 px, bouton du compte **carré** comme ses voisins (habillage CSS HarmoHub, sans toucher `compte-cloud.js`).
+- Tout en 44 px, bouton du compte **carré** comme ses voisins (habillage CSS HarmoHub, sans toucher `compte-cloud.js`). ✅ **Barre du haut livrée 05/11 (lot 10a)**. Décision du 05/11 : la maquette n'a
+  ni Rétablir ni Paramètres ; ils restent, Annuler et Rétablir sur la seconde rangée, à droite des onglets (le titre garde ~175 px à 390 px).
 - Infos du morceau (tonalité, mesure, swing, son) **repliées dans UNE barre-résumé** pleine largeur → quatre grosses
   cases sur deux colonnes ; bouton carré « Affichage » à côté : **Compact** (4 mesures/ligne, noms seuls, 44 px),
   **Normal** (4 mesures/ligne + degrés, 64 px), **Large** (2 mesures/ligne, 72 px). Pincement conservé.
@@ -149,6 +150,6 @@ ne le redécouvre pas.
 | 7 | Ajout unique (syntaxe complète, suggestions, « + » entre deux cases), clic droit, barre de sélection — ✅ **livré 04/11** : 7a ajout unique et « + » entre les cases, 7b barre de sélection, clic droit, Tab dans la retape | moyen |
 | 8 ✅ | Clavier / Guitare : épinglés ou fenêtre libre, construction d'accord — **livré 05/11** (voir `docs/dette-tests.md`) : bloc « Vues » dans la barre de lecture, tiroir épinglé / fenêtre libre, accord construit touche par touche puis Remplacer / Ajouter. Reste : le téléphone (lot 10) | moyen |
 | 9 | Éditeur de notes (grand séquenceur + conduite de voix) — **9a ✅ livré 05/11** : bouton bleu « Éditeur de notes », Fermer, réduit / étendu (chevrons, double-clic, poignée), grille en Compact provisoire (voir `docs/dette-tests.md`). **9b ✅ livré 05/11** : barre d'outils en icônes, en une rangée, Sélection / Crayon / Gomme, Ajuster (pas de calage, décision du 05/11). **9c ✅ livré 05/11** : calque Voix — bouton Voix (logo ⊱ repris), fonctions dans les notes (degré réel des couleurs « Autres »), chemin des voix en blanc (plein = tenue, pointillés = mouvement), nom + degré des accords dans la règle calque allumé, éteint puis mémorisé par appareil, premier accord pris si rien n'est choisi ; l'icône ⊱ quitte l'ordinateur (téléphone : lot 10). Inventaire fonction par fonction dans `docs/dette-tests.md`. **9d ✅ livré 05/11** : notes ajoutées à la main en pointillés (partout à l'ordinateur, voisins compris), pastille ambre de la case en direct, « Revenir à l'automatique » annulable ; bouton Intensité (logo du mode studio repris) après Voix, bande collée sous les notes, voisins pâles, croche réglée à la main en ambre, une annulation par geste. **Lot 9 livré.** Reste : le téléphone (lot 10) | très élevé |
-| 10 | Téléphone | élevé |
+| 10 | Téléphone — découpé le 05/11 en six sous-lots (`docs/reprise.md`). **10a ✅ livré 05/11** : la barre du haut de l'ordinateur en 44 px sur deux rangées (logo, titre-menu, voyant, Enregistrer, Paramètres, compte carré ; onglets en groupe segmenté, Annuler et Rétablir à leur droite — décision du 05/11), carte Morceau sans en-tête, Structure sous la barre. Restent : 10b barre de lecture et vues intégrées, 10c réglages et Affichage, 10d panneau d'accord, 10e panneau d'ajout, 10f éditeur de notes | élevé |
 
 Le verre dépoli (règle 6) et l'inventaire (règle 1) valent pour chaque ligne.

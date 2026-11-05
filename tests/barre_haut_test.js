@@ -271,7 +271,7 @@ const graine = ({ src, noms, courant }) => {
     await q.close();
 
     // ======================================================================================================
-    console.log('\n=== F. L\'ancienne carte Morceau : discrète sur ordinateur, intacte pour le téléphone ===');
+    console.log('\n=== F. L\'ancienne carte Morceau : discrète (son en-tête est dans la barre du haut, au téléphone aussi depuis le lot 10a) ===');
     const f = await p.evaluate(() => ({
         tete: getComputedStyle(document.querySelector('#song-card > .card-head')).display,
         resume: document.getElementById('song-summary').getBoundingClientRect().height === 0 && document.getElementById('rangee-reglages').getBoundingClientRect().height > 0,
@@ -280,7 +280,7 @@ const graine = ({ src, noms, courant }) => {
     check(f.tete === 'none', 'l\'en-tête de la carte Morceau (titre, liste, six boutons) est masqué : tout est dans la barre, pas en double');
     // LOT 6a : le résumé « tempo · mesure · tonalité » a laissé sa place à la rangée de réglages au-dessus de la grille (le tempo est dans la barre du bas).
     check(f.resume, 'le résumé « tempo · mesure · tonalité » a laissé sa place à la rangée de réglages au-dessus de la grille (lot 6a)');
-    check(f.ids.length === 0, 'aucun ancien élément n\'a disparu du DOM (le téléphone s\'en sert encore)');
+    check(f.ids.length === 0, 'aucun ancien élément n\'a disparu du DOM (le code s\'en sert encore : la liste des morceaux, le champ d\'import)');
     // seuil : sous 1180px, le voyant garde son point et perd son texte
     await p.setViewportSize({ width: 1100, height: 800 }); await p.waitForTimeout(250);
     const etroit = await p.evaluate(() => ({ texte: getComputedStyle(document.getElementById('tb-etat-texte')).display, mot: getComputedStyle(document.querySelector('.tb-save-mot')).display, point: document.querySelector('.tb-etat-point').getBoundingClientRect().width, titre: document.getElementById('tb-titre').getBoundingClientRect().width, save: document.getElementById('tb-save').getBoundingClientRect().height }));
@@ -307,24 +307,26 @@ const graine = ({ src, noms, courant }) => {
     check(verre.fondMenu === verre.fondAutreMenu, `…et le fond du menu du morceau est celui des autres menus (${verre.fondMenu})`);
 
     // ======================================================================================================
-    console.log('\n=== H. Téléphone : rien ne change avant le lot 10 ===');
+    console.log('\n=== H. Téléphone (lot 10a) : la même barre, en 44px, sur deux rangées ===');
+    // AVANT le lot 10a ce bloc vérifiait que rien n'avait bougé (pastilles à droite, logo dernier, carte Morceau avec sa liste) : la refonte du
+    // téléphone l'a changé de sens. « Tout en 44 px, bouton du compte carré comme ses voisins » (docs/refonte.md, section « Téléphone »).
     const t = await ouvrir({ width: 390, height: 844 }, ['Blues du dimanche', 'Autumn Leaves'], 's1');
     const tel = await t.evaluate(() => {
         const vis = (s) => { const e = document.querySelector(s); return !!e && e.getBoundingClientRect().width > 0 && getComputedStyle(e).visibility !== 'hidden'; };
-        const barre = [...document.querySelector('.top-bar').children].filter(e => e.getBoundingClientRect().width > 0).map(e => e.id || e.className.split(' ')[0]);
+        const x = (s) => document.querySelector(s).getBoundingClientRect().x;
         return {
             titre: vis('#tb-titre'), save: vis('#tb-save'), etat: vis('#tb-etat'), centre: vis('#tb-centre'), liste: vis('#song-select'), sauve: vis('#song-save'),
-            // « le dernier » se juge à l'ÉCRAN (abscisse), pas dans le DOM : le logo est le premier dans le HTML depuis le lot 3 et reste le dernier à l'écran
-            logoDernier: (() => { const x = (s) => document.querySelector(s).getBoundingClientRect().x; return x('.top-bar .logo') > Math.max(x('#compte-cloud'), x('#open-settings'), x('#global-redo-btn'), x('#global-undo-btn')); })(),
-            barre,
+            logoPremier: x('.top-bar .logo') < x('#tb-titre') && x('#tb-titre') < x('#tb-save') && x('#tb-save') < x('#open-settings'),
+            hauteurs: ['#tb-titre', '#tb-save', '#global-undo-btn', '#global-redo-btn', '#open-settings', '#tb-onglets'].map(s => Math.round(document.querySelector(s).getBoundingClientRect().height)),
             bar: document.querySelector('.top-bar').getBoundingClientRect().width, W: innerWidth,
         };
     });
-    check(!tel.titre && !tel.save && !tel.etat && !tel.centre, 'téléphone : ni titre-bouton, ni Enregistrer, ni voyant dans la barre');
-    check(tel.liste && tel.sauve, 'téléphone : la carte Morceau garde sa liste déroulante et son bouton Enregistrer');
-    check(tel.logoDernier && Math.abs(tel.bar - tel.W) < 1, 'téléphone : barre pleine largeur, le logo reste le dernier, comme avant');
-    await t.click('#song-rename'); await t.waitForTimeout(150);
-    check(await t.evaluate(() => { const i = document.querySelector('#song-card input.inline-rename-input'); return !!i && !i.classList.contains('tb-titre-saisie'); }), 'téléphone : renommer pose son champ dans la carte, pas dans la barre');
+    check(tel.titre && tel.save && tel.etat && tel.centre, 'téléphone : le titre-bouton, Enregistrer, le voyant et les onglets sont dans la barre');
+    check(!tel.liste && !tel.sauve, 'téléphone : la carte Morceau n\'a plus sa liste ni ses six icônes — tout passe par le menu du titre, pas en double');
+    check(tel.logoPremier && Math.abs(tel.bar - tel.W) < 1 && tel.hauteurs.every(h => h === 44), `téléphone : barre pleine largeur, le logo à gauche du titre comme à l'ordinateur, tout à 44px (${tel.hauteurs})`);
+    await t.click('#tb-titre'); await t.waitForTimeout(150);
+    await t.click('#tb-menu [data-tb-action="renommer"]'); await t.waitForTimeout(150);
+    check(await t.evaluate(() => { const i = document.querySelector('.tb-morceau input.inline-rename-input'); return !!i && i.classList.contains('tb-titre-saisie') && i.getBoundingClientRect().height === 44; }), 'téléphone : renommer (menu du titre) pose son champ à la place du titre, à 44px');
     await t.keyboard.press('Escape');
     await t.close();
 

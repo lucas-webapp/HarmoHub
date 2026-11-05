@@ -83,6 +83,15 @@ const mesurer = () => {
         })(),
         // Le titre masqué doit rester ANNONÇABLE : présent, avec son texte, et non display:none —
         // c'est la différence entre « masqué à l'œil » et « retiré ».
+        // LOT 10a : le nom du morceau est dans la barre du haut (le titre-bouton), comme à l'ordinateur. Il doit y tenir EN ENTIER.
+        titreBarre: (() => {
+            const n = document.getElementById('tb-titre-nom'), t = document.getElementById('tb-titre'), sv = document.getElementById('tb-save');
+            if (!n || !t || !sv) return null;
+            const rt = t.getBoundingClientRect(), rs = sv.getBoundingClientRect();
+            return { texte: n.textContent, tient: n.scrollWidth <= n.clientWidth, besoin: n.scrollWidth, dispo: n.clientWidth, visible: rt.width > 60 && rt.height === 44,
+                     memeLigne: Math.min(rt.bottom, rs.bottom) - Math.max(rt.top, rs.top) > 4 };
+        })(),
+        carteSansTete: getComputedStyle(document.querySelector('#song-card > .card-head')).display === 'none',
         titres: ['.history-section h2'].map(q => {
             const e = document.querySelector(q);
             if (!e) return { q, present: false };
@@ -96,7 +105,7 @@ const mesurer = () => {
 };
 
 (async () => {
-    plan(11);
+    plan(12);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const ctx = await browser.newContext({ ...devices['iPhone 13'] });
@@ -118,17 +127,20 @@ const mesurer = () => {
     check(r.grille / r.vh < 0.54,
         `moins de 54 % de l'écran avant le premier accord — ${Math.round(r.grille / r.vh * 100)} %`);
 
-    console.log('\n=== La carte Morceau doit rester INTACTE (retour utilisateur) ===');
-    check(r.carteTitreVisible,
-        `le titre « Morceau » reste visible sur téléphone — ${r.carteTitreVisible ? 'visible' : 'masqué'}`);
-    check(r.boutonsSurLigneTitre,
-        `les boutons partagent bien la ligne du titre — titre à ${r.titreY}px, boutons à ${r.boutonsY}px`);
+    // LOT 10a : la carte Morceau « intacte » (titre « Morceau », six logos sur sa ligne — retour utilisateur d'août) a cédé la place à la barre du
+    // haut de la maquette validée (« Téléphone (v2) ») : le nom du morceau dans le titre-bouton, Enregistrer sur la même ligne, les autres actions
+    // dans le menu du titre — comme à l'ordinateur depuis le lot 3. Ce que l'utilisateur demandait reste vrai et reste vérifié : le nom LISIBLE en
+    // entier, et les commandes du morceau sur sa ligne.
+    console.log('\n=== Le nom du morceau et ses commandes : dans la barre du haut (lot 10a) ===');
+    exiger(!!r.titreBarre, 'le titre-bouton et Enregistrer existent dans la barre du haut');
+    check(r.titreBarre.visible && r.carteSansTete,
+        `le nom du morceau est dans la barre du haut, et la carte Morceau n'en porte plus de copie — titre ${r.titreBarre.visible ? 'visible' : 'invisible'}, en-tête de carte ${r.carteSansTete ? 'masqué' : 'encore là'}`);
+    check(r.titreBarre.memeLigne,
+        'Enregistrer partage la ligne du nom du morceau');
 
     console.log('\n=== La contrepartie qu\'on a REFUSÉ de payer ===');
-    // ~22px pour la flèche du menu déroulant : le texte n'a jamais toute la largeur du champ.
-    const utile = r.champ - 22;
-    check(r.besoin <= utile,
-        `« Ballade en Do mineur » tient en entier dans le champ — il faut ${r.besoin}px, il y en a ${utile}px d'utiles`);
+    check(r.titreBarre.tient && r.titreBarre.texte === 'Ballade en Do mineur',
+        `« Ballade en Do mineur » tient en entier dans le titre — il faut ${r.titreBarre.besoin}px, il y en a ${r.titreBarre.dispo}px`);
     check(!r.debordeLargeur, 'aucun débordement horizontal de la page');
 
     console.log('\n=== Les titres sont masqués à l\'œil, pas retirés ===');

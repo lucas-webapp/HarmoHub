@@ -6966,11 +6966,7 @@ body.impression-structure #structure-print-zone { display: block; }
    ====================================================================================================== */
 .tb-morceau, .tb-save, .tb-etat, .tb-centre { display: none; }
 .tb-titre[hidden], .tb-menu[hidden] { display: none; }
-/* Téléphone : les deux colonnes se dissolvent dans la barre d'origine ; le logo reste le dernier, comme avant. */
-@media (max-width: 899px) {
-    .tb-gauche, .tb-droite { display: contents; }
-    .top-bar .logo { order: 9; }
-}
+/* Téléphone : la barre a la même composition depuis le lot 10a, en 44px et sur deux rangées (bloc « TÉLÉPHONE » en fin de fichier). */
 
 @media (min-width: 900px) {
     .top-bar {
@@ -6994,7 +6990,12 @@ body.impression-structure #structure-print-zone { display: block; }
     .tb-etat { display: inline-flex; }
     /* Le logo prend la forme des autres boutons : « pas de bouton rond ici ». */
     .top-bar .logo { border-radius: var(--rayon-bouton); background: transparent; border-color: transparent; backdrop-filter: none; }
+}
 
+/* Le titre, Enregistrer, le voyant et le menu du morceau valent aussi pour le TÉLÉPHONE depuis le lot 10a : il a la même barre (à 44px, voir le bloc
+   « TÉLÉPHONE » en fin de fichier, qui ne pose que ce qui y diffère). Les règles restent ici, sorties de la media query, plutôt que recopiées : deux
+   copies d'un même bouton finissent toujours par diverger. */
+@media all {
     /* LE TITRE : un bouton de la jauge (32px, 7px d'angle), largeur ADAPTATIVE — 128px au moins, 280px au plus, « … » au-delà. */
     .tb-titre {
         flex: 0 1 auto;
@@ -7217,6 +7218,16 @@ body.impression-structure #structure-print-zone { display: block; }
 
     /* La fenêtre Structure s'ouvre SOUS la barre : les onglets restent sous le doigt, et le retour à la grille est à un clic. */
     #structure-overlay { top: var(--haut-barre); }
+}
+/* Sous 400px, trois logos + trois mots ne tiennent plus à côté d'Annuler et Rétablir (« Structure » se coupait) : les onglets gardent le MOT, comme la
+   maquette, le logo passe en infobulle — un nom d'onglet coupé ne se lit plus, un logo absent se devine par le mot. */
+@media (max-width: 399px) {
+    .tb-onglets > button .icon { display: none; }
+}
+/* Sous 350px (les plus petits écrans, 320px), le mot lui-même ne tenait plus (« Structur… ») : un corps plus petit, moins de marge. */
+@media (max-width: 349px) {
+    .tb-onglets > button { padding: 0 2px; font-size: 12px; }
+    .tb-onglets > button .btn-label { font-size: 12px; }
 }
 
 /* Sous 1000px la place manque pour les mots : les trois onglets gardent leur logo, leur nom passe en infobulle (le compte, lui, ne rétrécit pas : il vient de
@@ -7819,4 +7830,104 @@ body.avec-barre-selection .toast { bottom: 132px; }
        dégradé, jamais en aplat (règle 4). La barre de la note choisie est cerclée de blanc, comme la note. Partout à l'ordinateur. */
     .seq-vel-bar.reglee .seq-vel-fill, .seq-vel-ctx.reglee .seq-vel-fill { background: linear-gradient(180deg, #e0b36a, #9c7334); }
     .seq-vel-bar.choisie { border-color: rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.7); }
+}
+
+
+/* ======================================================================================================
+   TÉLÉPHONE (refonte, lot 10 — docs/refonte.md, section « Téléphone », et la page « Téléphone (v2) » de la maquette).
+   « Tout en 44 px, bouton du compte carré comme ses voisins (habillage CSS HarmoHub, sans toucher compte-cloud.js). »
+   Ce bloc ne pose que ce qui DIFFÈRE de l'ordinateur : les boutons sont les mêmes nœuds, avec le même code derrière.
+   ====================================================================================================== */
+
+/* 10a — LA BARRE DU HAUT ET LES ONGLETS. Même composition qu'à l'ordinateur (logo seul, titre qui ouvre le menu du morceau, Enregistrer et son
+   voyant ; annuler, rétablir, Paramètres, compte), sur DEUX rangées : la seconde porte les onglets Grille / Structure / Paroles en groupe segmenté,
+   comme la maquette. La carte Morceau du volet perd son en-tête (liste et six icônes) : tout est dans le menu du titre.
+   Rétablir et Paramètres ne figurent pas sur la maquette du téléphone ; ils restent (« rien ne régresse »). Décision du 05/11 : Annuler et Rétablir
+   passent sur la seconde rangée, à droite des onglets — tout sur la première ne laissait que ~75px au titre (« Ba… »). Les deux groupes de
+   l'ordinateur (.tb-gauche, .tb-droite) se dissolvent dans une grille de six colonnes que les deux rangées partagent : le titre prend ce qui reste
+   (~175px à 390px), Annuler et Rétablir tombent sous Paramètres et le compte. */
+@media (max-width: 899px) {
+    :root { --haut-barre: 111px; } /* 6 + 44 + 8 + 44 + 8 + le filet : la fenêtre Structure et la page commencent dessous */
+    .top-bar {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto auto 44px 44px;
+        grid-template-rows: 44px 44px;
+        align-items: center;
+        gap: 8px 6px;
+        box-sizing: border-box;
+        height: var(--haut-barre);
+        padding: 6px 10px 8px;
+    }
+    .tb-gauche, .tb-droite { display: contents; }
+    .top-bar .logo { grid-area: 1 / 1; }
+    .tb-morceau { grid-area: 1 / 2; }
+    .tb-etat { grid-area: 1 / 3; }
+    .tb-save { grid-area: 1 / 4; }
+    #open-settings { grid-area: 1 / 5; }
+    #compte-cloud { grid-area: 1 / 6; }
+    .tb-centre { grid-area: 2 / 1 / 3 / 5; display: block; min-width: 0; }
+    #global-undo-btn { grid-area: 2 / 5; }
+    #global-redo-btn { grid-area: 2 / 6; }
+    main { padding-top: calc(var(--haut-barre) + 6px); }
+
+    /* Le logo d'abord, comme à l'ordinateur (il était le dernier, à droite) ; sans pastille : « pas de bouton rond ici ». */
+    .top-bar .logo { flex: none; height: 44px; padding: 0 2px; border-radius: var(--rayon-bouton); background: transparent; border-color: transparent; backdrop-filter: none; }
+    /* Le titre prend la place qui reste ; le voyant (son point seul, le texte est dans l'infobulle) se colle à lui, puis Enregistrer — l'ordre de
+       la maquette, où le point d'état est dans le bouton du titre. */
+    .tb-morceau { display: flex; min-width: 0; position: relative; }
+    /* Le nom doit rester LISIBLE (exigence ancienne, voir mobile_grille_plus_haut_test : « Ballade en Do mineur » en entier) : à 390px il manquait
+       23px. Le chevron s'efface (la maquette n'en a pas : le titre en bouton suffit à dire qu'il s'ouvre) et le corps passe à 14px, celui des boutons
+       de la maquette. */
+    .tb-titre { flex: 1 1 auto; min-width: 0; max-width: none; height: 44px; padding: 0 8px; font-size: 14px; }
+    .tb-titre-chevron { display: none; }
+    .tb-titre-saisie { width: 100%; min-width: 0; max-width: none; height: 44px; font-size: 16px; } /* 16px : sous ce corps, iOS zoome la page au focus */
+    .tb-etat { display: inline-flex; margin: 0; }
+    .tb-etat-texte { display: none; }
+    .tb-save { display: inline-flex; justify-content: center; width: 44px; height: 44px; padding: 0; }
+    .tb-save-mot { display: none; }
+    .tb-save .icon { width: 18px; height: 18px; }
+    /* Le menu du morceau tient dans l'écran : ses lignes passent à 44px (cible du doigt), il défile s'il le faut. */
+    #tb-menu { width: min(320px, calc(100vw - 20px)); max-height: calc(100dvh - var(--haut-barre) - 12px); overflow-y: auto; }
+    #tb-menu .tb-mi { height: 44px; }
+    #tb-menu .tb-liste { max-height: 176px; }
+
+    #global-undo-btn, #global-redo-btn, #open-settings { width: 44px; height: 44px; border-radius: var(--rayon-bouton); }
+    #global-undo-btn .icon, #global-redo-btn .icon, #open-settings .icon { width: 18px; height: 18px; }
+    /* LE COMPTE, CARRÉ : la pilule de compte-cloud.js (commun aux trois applis, pas touché) habillée ici. Sous 600px elle montre déjà le G ou la
+       pastille + l'initiale ; on lui donne la forme de ses voisins. */
+    #compte-cloud .cc-pilule { width: 44px; min-width: 44px; max-width: 44px; height: 44px; padding: 0; gap: 3px; justify-content: center; border-radius: var(--rayon-bouton); }
+    #compte-cloud .cc-libelle { display: none; }
+    #compte-cloud .cc-initiale { display: inline; font-weight: 700; }
+
+    /* LES ONGLETS : un groupe segmenté de 44px (« un choix parmi plusieurs = un groupe segmenté »), trois parts égales, allumé comme à l'ordinateur —
+       texte vert et liseré dessous, jamais un aplat. Ce sont les mêmes boutons #structure-btn et #lyrics-btn (setupOnglets les y pose). */
+    .tb-onglets {
+        display: flex; align-items: stretch; gap: 2px;
+        box-sizing: border-box; width: 100%; height: 44px; padding: 2px;
+        border: 1px solid var(--border); border-radius: var(--rayon-bouton); background: #14171c;
+    }
+    .tb-onglets > button {
+        flex: 1 1 0; box-sizing: border-box; min-width: 0; width: auto; height: 38px; min-height: 0; padding: 0 4px; gap: 5px;
+        border: 0; border-radius: 5px; background: transparent; box-shadow: none;
+        color: var(--text-muted); font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden;
+    }
+    .tb-onglets > button .btn-label { display: inline; font-size: 13px; font-weight: 600; }
+    .tb-onglets > button .icon { width: 15px; height: 15px; flex: none; }
+    .tb-onglets > button:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.05); }
+    .tb-onglets > button[aria-pressed="true"] { color: var(--accent); background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 -2px 0 var(--accent); }
+
+    /* La fenêtre Structure s'ouvre SOUS la barre, comme à l'ordinateur : les onglets restent sous le doigt (un onglet qu'on ne peut plus toucher n'en
+       est pas un). Elle reste une fenêtre (sa croix, son fond) tant que la lecture vit dans le volet : la vue intégrée viendra avec la barre de
+       lecture du téléphone (lot 10b), sans quoi elle masquerait le transport. */
+    #structure-overlay { top: var(--haut-barre); }
+}
+/* Sous 400px, trois logos + trois mots ne tiennent plus à côté d'Annuler et Rétablir (« Structure » se coupait) : les onglets gardent le MOT, comme la
+   maquette, le logo passe en infobulle — un nom d'onglet coupé ne se lit plus, un logo absent se devine par le mot. */
+@media (max-width: 399px) {
+    .tb-onglets > button .icon { display: none; }
+}
+/* Sous 350px (les plus petits écrans, 320px), le mot lui-même ne tenait plus (« Structur… ») : un corps plus petit, moins de marge. */
+@media (max-width: 349px) {
+    .tb-onglets > button { padding: 0 2px; font-size: 12px; }
+    .tb-onglets > button .btn-label { font-size: 12px; }
 }

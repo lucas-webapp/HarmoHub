@@ -375,7 +375,7 @@ const graine = ({ src, avec }) => {
     // ======================================================================================================
     console.log('\n=== H. Téléphone ===');
     p = await ouvrir({ nom: 'H: ', viewport: { width: 390, height: 844 } });
-    await ajouterAccord(p, 'A#'); await p.click('#song-save'); await attendreVersion(p, 's1', 'enregistre');
+    await ajouterAccord(p, 'A#'); await p.click('#tb-save'); await attendreVersion(p, 's1', 'enregistre'); // lot 10a : Enregistrer est dans la barre du haut au téléphone aussi
     await p.evaluate(() => window.app.openSettings());
     await p.waitForSelector('#settings-panel-historique .hist-carte');
     const tel = await p.evaluate(() => { const c = document.querySelector('.settings-content'); const bt = document.querySelector('#hist-liste [data-restaurer]').getBoundingClientRect(); return { deborde: c.scrollWidth - c.clientWidth, h: bt.height, ds: bt.right <= innerWidth }; });

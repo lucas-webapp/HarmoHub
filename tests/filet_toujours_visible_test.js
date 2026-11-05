@@ -36,7 +36,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 // barre du haut — fixe, donc visible par construction, y compris pendant une modification. Les boutons fichiers / importer / exporter ne sont
 // plus des boutons posés à côté du titre : ils sont des ENTRÉES du menu que le titre ouvre (la maquette validée par l'utilisateur). « Les
 // toujours voir » devient donc : le titre est visible et cliquable, ET son menu, une fois ouvert, offre les trois entrées visibles et
-// atteignables. Sur TÉLÉPHONE, rien ne change avant le lot 10 : la carte Morceau garde ses boutons, et les sept adresses d'origine valent.
+// atteignables. Sur TÉLÉPHONE c'est pareil depuis le lot 10a (voir TELEPHONE plus bas).
 const COMMUNS = [
     ['#song-summary-key', 'la tonalité'],
     ['#song-summary-bpm', 'le tempo'],
@@ -54,12 +54,12 @@ const BUREAU_MENU = [
     ['#tb-menu [data-tb-action="importer"]',     'le bouton importer (menu du morceau)'],
     ['#tb-menu [data-tb-action="exporter"]',     'le bouton exporter (menu du morceau)'],
 ];
+// LOT 10a : le téléphone a la même barre du haut (titre, Enregistrer, menu du morceau), à 44px ; la carte Morceau a perdu son en-tête. Les sept
+// adresses d'origine (#song-select, #song-files…) n'y sont donc plus à l'écran : on éprouve les mêmes que l'ordinateur — le titre et Enregistrer
+// visibles, le menu qui offre fichiers, importer et exporter. La tonalité et le tempo restent lus sur le résumé de la carte (lot 10c le refera).
 const TELEPHONE = [
-    ['#song-select',      'le nom du morceau'],
-    ['#song-files',       'le bouton fichiers'],
-    ['#song-save',        'le bouton enregistrer'],
-    ['#song-import',      'le bouton importer'],
-    ['#song-export',      'le bouton exporter'],
+    ['#tb-titre',         'le nom du morceau (le titre de la barre du haut)'],
+    ['#tb-save',          'le bouton enregistrer'],
     ...COMMUNS,
 ];
 
@@ -122,7 +122,7 @@ async function fermerMenu(page) {
 }
 
 (async () => {
-    plan(28); // ordinateur : (4 + 3) × 2 situations ; téléphone : 7 × 2
+    plan(28); // (4 + 3) × 2 situations, à l'ordinateur comme au téléphone
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
 
@@ -165,6 +165,8 @@ async function fermerMenu(page) {
     await m.waitForTimeout(600);
 
     await eprouver(m, 'téléphone, mode Ajout', TELEPHONE);
+    await eprouver(m, 'téléphone, mode Ajout, menu du morceau ouvert', await ouvrirMenu(m, BUREAU_MENU));
+    await fermerMenu(m);
 
     // Sur téléphone, le geste est un VRAI toucher (dispatchTouchEvent via CDP) : un
     // element.dispatchEvent(new TouchEvent(...)) ne synthétise PAS les évènements pointeur dans
@@ -185,6 +187,7 @@ async function fermerMenu(page) {
     const modeTel = await m.evaluate(() => window.app.appMode);
     check(modeTel === 'edit', `téléphone : le toucher sur un accord fait entrer en mode Modification — mode ${modeTel}`);
     await eprouver(m, 'téléphone, mode Modification', TELEPHONE);
+    await eprouver(m, 'téléphone, mode Modification, menu du morceau ouvert', await ouvrirMenu(m, BUREAU_MENU));
 
     check(erreurs.length === 0, `aucune erreur JavaScript pendant le parcours — ${erreurs.join(' | ') || 'aucune'}`);
     await browser.close();

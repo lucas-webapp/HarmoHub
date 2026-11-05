@@ -10393,15 +10393,15 @@ class HarmoHubApp {
         });
         const media = window.matchMedia('(min-width: 900px)');
         const placer = () => {
-            const zone = document.querySelector('.viz-export-actions');
-            const fichier = document.getElementById('file-menu-btn');
+            // Depuis le lot 10a le téléphone a lui aussi ses onglets, sur la seconde rangée de la barre du haut (maquette « Téléphone (v2) ») : les deux
+            // boutons restent dans le groupe à toutes les largeurs. Fichier, lui, garde sa place au bas de la grille, comme à l'ordinateur.
+            hote.append(struct, paroles);
+            [struct, paroles].forEach(b => b.classList.add('tb-onglet'));
             if (media.matches) {
-                hote.append(struct, paroles);
                 if (this.fenetreStructureOuverte()) document.body.classList.add('vue-ouverte');
-                [struct, paroles].forEach(b => b.classList.add('tb-onglet'));
-            } else if (zone) {
-                [struct, paroles].forEach(b => { b.classList.remove('tb-onglet'); zone.insertBefore(b, fichier); });
-                // Passage au format téléphone : la vue Paroles n'y existe pas (lot 10), et la fenêtre Structure y redevient une fenêtre.
+            } else {
+                // Passage au format téléphone : la vue Paroles n'y existe pas encore (lot 10b, avec la barre de lecture), et la fenêtre Structure y
+                // reste une fenêtre — ouverte sous la barre du haut pour que les onglets restent atteignables.
                 if (this.vueParolesOuverte()) this.fermerVueParoles();
                 document.body.classList.remove('vue-ouverte');
             }
