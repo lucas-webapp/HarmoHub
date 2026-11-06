@@ -7,6 +7,7 @@
 // et que c'est justement la largeur, non la vue, qui décide si un corps est offert. Chaque attente
 // est donc calculée à partir de la géométrie MESURÉE, jamais d'une valeur écrite en dur.
 const { chromium } = require('playwright')
+const { ajouterAccord, editerAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 const HANDLE_MIN = 9, HANDLE_MAX = 18, MIN_BODY = 16; // mêmes constantes que SEQ_ZONE_* dans script.js
@@ -49,9 +50,9 @@ const zones = (page, start, end) => page.evaluate(([s, e]) => {
 }, [start, end]);
 
 async function preparer(page) {
-    await page.fill('#quick-add-input', 'C');
-    await page.click('#quick-add-btn');
+    await ajouterAccord(page, 'C');
     await page.waitForTimeout(350);
+    await editerAccord(page); // lot 10e : plus de séquenceur compact en mode Ajout
     if (!(await page.evaluate(() => window.app.seqOpen))) await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(450);
     await poserMotif(page);

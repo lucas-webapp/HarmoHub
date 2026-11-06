@@ -182,6 +182,8 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     await m.evaluate(seed);
     await m.reload({ waitUntil: 'load' });
     await m.waitForTimeout(1200);
+    await m.evaluate(() => window.app.editChord(0, 0)); // lot 10e : le volet (la carte Accord) suit un accord ouvert, plus le mode Ajout
+    await m.waitForTimeout(500);
     const vusTel = await m.evaluate(relever);
     exiger(!!vusTel && vusTel.length >= 6, `le volet porte des boutons sur téléphone — ${vusTel ? vusTel.length : 0}`);
     // Même compte qu'à l'écran large, exception comprise : la porte du séquenceur se distingue partout,

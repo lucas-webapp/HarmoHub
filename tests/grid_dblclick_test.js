@@ -5,6 +5,7 @@
 // qu'on voulait. Désormais : premier clic = sélectionner, PARTOUT ; second clic rapproché = renommer
 // si l'on a visé le symbole, ouvrir le panneau sinon. Le geste fréquent est uniforme, le rare ciblé.
 const { chromium } = require('playwright')
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -34,8 +35,7 @@ const centreSymbole = (page, idx) => page.evaluate((i) => {
 
     await page.goto(`${BASE}/index.html`);
     await page.waitForTimeout(900);
-    await page.fill('#quick-add-input', 'C/Am/F');
-    await page.click('#quick-add-btn');
+    await ajouterAccord(page, 'C/Am/F');
     await page.waitForTimeout(700);
 
     const etat = () => page.evaluate(() => ({

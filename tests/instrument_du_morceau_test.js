@@ -16,6 +16,7 @@
 // l'œuvre entière. Piano est le repli neutre, et il suffit d'un geste pour en changer.
 // Un morceau enregistré APRÈS, lui, retrouve le sien : c'est ce que la section C éprouve.
 const { chromium, devices } = require('playwright');
+const { ajouterAccord } = require('./_ajout');
 const creerHarnais = require('./_harness');
 const { plan, check, exiger, bilan } = creerHarnais('Le son appartient au morceau');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
@@ -114,8 +115,7 @@ const seedAncien = () => {
     console.log('\n=== D. Un nouvel accord n\'emporte plus de son à lui ===');
     const avant = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords.length);
     // LOT 6c : sur ordinateur, un nouvel accord s'ajoute par la saisie (plus de carte Accord en mode Ajout) — c'est ce geste qu'on éprouve.
-    await page.fill('#quick-add-input', 'D');
-    await page.click('#quick-add-btn');
+    await ajouterAccord(page, 'D');
     await page.waitForTimeout(700);
     const d = await page.evaluate(() => {
         const ch = JSON.parse(localStorage.getItem('myProgression')).sections[0].chords;

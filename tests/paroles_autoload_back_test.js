@@ -1,4 +1,5 @@
 const { chromium } = require('playwright')
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 // CONTRAT CHANGÉ (1) : les six boutons d'export (PDF, MIDI, MP3, Paroles, sauvegarde, import MIDI)
@@ -53,8 +54,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     await page.waitForTimeout(600);
     await page.waitForTimeout(150);
     for (const sym of ['C', 'G']) {
-        await page.fill('#quick-add-input', sym).catch(() => {});
-        await page.click('#quick-add-btn').catch(() => {});
+        await ajouterAccord(page, sym);
         await page.waitForTimeout(120);
     }
 

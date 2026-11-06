@@ -221,6 +221,8 @@ const atteignable = (sel) => {
     await m.evaluate(seed);
     await m.reload({ waitUntil: 'load' });
     await m.waitForTimeout(1000);
+    await m.evaluate(() => window.app.editChord(0, 0)); // lot 10e : la carte suit un accord ouvert, plus le mode Ajout
+    await m.waitForTimeout(500);
     const geo = await m.evaluate(() => {
         // Même déplacement de cible qu'en section C : la durée vit sur la ligne de définition de
         // l'accord, #lecture-row n'existe plus. Au doigt, c'est cette ligne-là qu'il faut mesurer.
@@ -237,33 +239,28 @@ const atteignable = (sel) => {
                  hauteur: Math.round(carte.height) };
     });
     check(!geo.deborde && !geo.page, 'téléphone : la rangée tient dans la carte, sans débordement de page');
-    check(geo.nb === 1 && geo.hMin >= 28 && geo.lMin >= 20,
-        `téléphone : la cible restante fait ${geo.lMin}x${geo.hMin}`);
+    // Lot 10e : la durée a quitté la carte (elle se règle dans le panneau de l'accord, par − / +) : la carte ouverte en modification ne la porte plus.
+    check(geo.nb === 0, `téléphone : la carte ouverte en modification ne porte plus de bouton Durée (${geo.nb}) — elle est dans le panneau`);
     // Même relèvement, même raison qu'en section C : la porte « Séquenceur » est devenue permanente.
     check(geo.hauteur <= 290, `téléphone : la carte unique fait ${geo.hauteur}px contre 310px pour les deux d'avant`);
 
-    // Un vrai appui : un bouton qu'on ne peut atteindre qu'en appelant la fonction derrière n'est pas
-    // un bouton (leçon du tiroir du séquenceur).
-    await m.evaluate(() => document.getElementById('accord-card').scrollIntoView({ block: 'center' }));
+    // Un vrai appui : un bouton qu'on ne peut atteindre qu'en appelant la fonction derrière n'est pas un bouton (leçon du tiroir du séquenceur).
+    // La durée se règle maintenant dans le panneau d'accord, par − / + : on y va par le geste, un toucher sur la case.
+    await m.evaluate(() => window.app.exitEditMode());
+    await m.evaluate(() => window.scrollTo(0, 0));
     await m.waitForTimeout(400);
-    const r1 = await m.evaluate(atteignable, '#duration-dd-toggle');
-    exiger(r1.ok, `téléphone : le bouton Durée est réellement atteignable — ${r1.ok ? r1.taille : r1.pourquoi}`);
-    await m.tap('#duration-dd-toggle');
+    await m.tap('#progression-sections .grid-cell[data-section="0"][data-index="1"]');
+    await m.waitForTimeout(500);
+    // Sur cet écran court (664px) le panneau défile : le doigt amène d'abord la durée sous le pouce.
+    await m.locator('#pa-quel [data-bulle="duree-plus"]').scrollIntoViewIfNeeded(); await m.waitForTimeout(300);
+    const r1 = await m.evaluate(atteignable, '#pa-quel [data-bulle="duree-plus"]');
+    exiger(r1.ok, `téléphone : le bouton + de la durée est réellement atteignable — ${r1.ok ? r1.taille : r1.pourquoi}`);
+    const beatsAvant = await m.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[1].beats);
+    await m.tap('#pa-quel [data-bulle="duree-plus"]');
     await m.waitForTimeout(400);
-    const cible = await m.evaluate(() => {
-        const actuel = document.getElementById('duration').value;
-        const autre = [...document.querySelectorAll('.duration-dd-item')].find(i => i.dataset.beats !== actuel);
-        return autre ? autre.dataset.beats : null;
-    });
-    exiger(!!cible, 'téléphone : une autre durée que celle en place est proposée');
-    await m.tap(`.duration-dd-item[data-beats="${cible}"]`);
-    await m.waitForTimeout(400);
-    const pose = await m.evaluate(() => ({
-        valeur: document.getElementById('duration').value,
-        ferme: document.getElementById('duration-dd-menu').hidden,
-    }));
-    check(pose.valeur === cible && pose.ferme,
-        `téléphone : deux appuis posent la durée dans #duration — « ${pose.valeur} », menu ${pose.ferme ? 'refermé' : 'RESTÉ OUVERT'}`);
+    const beatsApres = await m.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[1].beats);
+    exiger(beatsApres === beatsAvant + 1, `téléphone : un appui sur + allonge l'accord d'un temps — ${beatsAvant} → ${beatsApres}`);
+    check(await m.evaluate(() => document.getElementById('duration').value) !== undefined, 'et #duration, la source des prochains accords, reste lisible');
 
     check(erreurs.length === 0, `aucune erreur JavaScript — ${erreurs.join(' | ') || 'aucune'}`);
     await browser.close();

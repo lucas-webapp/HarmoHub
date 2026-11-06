@@ -1,4 +1,5 @@
 const { chromium } = require('playwright')
+const { editerAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -14,6 +15,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     await page.goto(`${BASE}/index.html`);
     await page.waitForTimeout(600);
     await page.waitForTimeout(150);
+    await editerAccord(page); // lot 10e : plus de séquenceur compact en mode Ajout
     await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(300);
 

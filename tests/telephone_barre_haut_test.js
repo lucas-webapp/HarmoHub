@@ -136,10 +136,13 @@ const nbAccords = (p) => p.evaluate(() => loadProgressionSections()[0].chords.le
         // ===================================================================================================
         console.log('\n=== D. Le travail : voyant, Enregistrer, Annuler / Rétablir, Paramètres ===');
         const avant = await nbAccords(p);
+        // Lot 10e : au téléphone la saisie vit dans le panneau d'ajout, que la case « + » de la partie ouvre.
+        await toucher(p, '#progression-sections .cell-add-input >> nth=0');
         await toucher(p, '#quick-add-input');
         await p.keyboard.type('Em7');
-        await toucher(p, '#quick-add-btn'); // l'ajout rapide se valide par « + » (Entrée y ouvre une nouvelle ligne)
+        await toucher(p, '#quick-add-btn'); // l'ajout se valide par « + » (Entrée y ouvre une nouvelle ligne)
         await p.waitForTimeout(300);
+        await p.keyboard.press('Escape'); await p.waitForTimeout(200);
         const apresAjout = await nbAccords(p);
         const voyant = await p.evaluate(() => ({ etat: document.getElementById('tb-etat').dataset.etat, point: document.querySelector('.tb-etat-point').getBoundingClientRect().width, texte: getComputedStyle(document.getElementById('tb-etat-texte')).display }));
         check(apresAjout === avant + 1 && voyant.etat === 'modifie' && voyant.point > 0 && voyant.texte === 'none',

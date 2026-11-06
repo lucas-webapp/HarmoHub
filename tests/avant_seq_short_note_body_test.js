@@ -14,6 +14,7 @@
 // rebranchant qu'un vrai défaut est apparu (bande morte de 4px entre deux cases, voir .seq-cell-b
 // dans style.css) : un banc qui abandonne en silence ne protège rien.
 const { chromium } = require('playwright')
+const { ajouterAccord, editerAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 // Mêmes constantes que SEQ_ZONE_* dans script.js — recopiées ici plutôt qu'importées ; avaient dérivé
@@ -75,9 +76,9 @@ const zones = (page, start, end) => page.evaluate(([s, e]) => {
 }, [start, end]);
 
 async function preparer(page) {
-    await page.fill('#quick-add-input', 'C');
-    await page.click('#quick-add-btn');
+    await ajouterAccord(page, 'C');
     await page.waitForTimeout(350);
+    await editerAccord(page); // lot 10e : plus de séquenceur compact en mode Ajout
     if (!(await page.evaluate(() => window.app.seqOpen))) await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(450);
     await poserMotif(page);

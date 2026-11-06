@@ -4,6 +4,7 @@
 // de l'appli, au profit de l'annulation de TEXTE du navigateur — sur un champ vide, donc sans le
 // moindre effet. Il fallait cliquer ailleurs d'abord. Un champ vide n'a rien à annuler.
 const { chromium } = require('playwright')
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -21,8 +22,7 @@ function check(c, l) { if (c) { PASS++; console.log('PASS - ' + l); } else { FAI
     await page.waitForTimeout(1000);
 
     console.log('\n=== A. Annuler sans avoir à cliquer ailleurs ===');
-    await page.fill('#quick-add-input', 'C/Am/F/G');
-    await page.click('#quick-add-btn');
+    await ajouterAccord(page, 'C/Am/F/G');
     await page.waitForTimeout(800);
     check(await page.evaluate(() => document.activeElement.id === 'quick-add-input'),
         'le focus reste dans le champ après l\'ajout (c\'est voulu : on enchaîne)');

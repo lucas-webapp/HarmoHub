@@ -1,4 +1,5 @@
 const { chromium } = require('playwright')
+const { ajouterAccordTypé } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 const { plan, check, bilan } = require('./_harness')('Cadenas : déverrouiller et changer d\'accord');
 
@@ -47,10 +48,7 @@ async function scenario(browser, retardImages) {
     if (!(await page.evaluate(() => window.app.showGuitarViz()))) { await page.click('#toggle-viz-guitar'); await page.waitForTimeout(150); }
 
     const addChord = async (root, quality) => {
-        await page.selectOption('#root', root);
-        await page.selectOption('#quality', quality);
-        await page.waitForTimeout(80);
-        await page.click('#save');
+        await ajouterAccordTypé(page, root, quality); // lot 10e : plus de carte « Nouvel accord » — on ajoute par le geste de saisie
         await page.waitForTimeout(150);
     };
     await addChord('C', 'maj');

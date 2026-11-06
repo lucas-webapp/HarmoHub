@@ -16,6 +16,7 @@
 // Volontairement une aide de SESSION UNIQUE (jamais écrite dans guitarLock/le morceau, remise à zéro
 // à chaque ouverture de la fenêtre) : voir le constructeur de App pour le raisonnement complet.
 const { chromium, devices } = require('playwright')
+const { ajouterAccordTypé, editerAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, plan, bilan } = require('./_harness')('manche : Lot 6 (bonus — notes fantômes)');
 plan(18);
@@ -35,10 +36,7 @@ plan(18);
         await page.click('#toggle-viz-guitar');
     }
     await page.waitForTimeout(200);
-    await page.click('#quick-add-btn');
-    await page.waitForTimeout(200);
-    await page.selectOption('#root', 'C');
-    await page.selectOption('#quality', 'maj');
+    await ajouterAccordTypé(page, 'C', 'maj'); await editerAccord(page, -1); // lot 10e : l'accord est posé par le geste d'ajout, puis ouvert
     await page.waitForTimeout(200);
 
     await page.click('#guitar-edit-btn');
@@ -186,10 +184,7 @@ plan(18);
         await mpage.tap('#toggle-viz-guitar');
     }
     await mpage.waitForTimeout(200);
-    await mpage.tap('#quick-add-btn');
-    await mpage.waitForTimeout(200);
-    await mpage.selectOption('#root', 'C');
-    await mpage.selectOption('#quality', 'maj');
+    await ajouterAccordTypé(mpage, 'C', 'maj'); await editerAccord(mpage, -1); // lot 10e : l'accord est posé par le geste d'ajout, puis ouvert
     await mpage.waitForTimeout(200);
     await mpage.tap('#guitar-edit-btn');
     await mpage.waitForTimeout(200);

@@ -2,6 +2,7 @@
 // différentes — QUEL geste (curseur), QUEL bord (liseré), QUELLE note (la barre entière s'éclaire),
 // plus la durée qui en résultera pendant le glissé.
 const { chromium } = require('playwright')
+const { ajouterAccord, editerAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -10,9 +11,9 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
 // Deux notes VOISINES et courtes sur la même voix, séparées par une seule croche : le cas où l'on se
 // trompe de cible, et donc celui qui doit prouver l'utilité du surlignage.
 async function poser(page) {
-    await page.fill('#quick-add-input', 'C').catch(() => {});
-    await page.click('#quick-add-btn').catch(() => {});
+    await ajouterAccord(page, 'C');
     await page.waitForTimeout(250);
+    await editerAccord(page); // lot 10e : plus de séquenceur compact en mode Ajout
     if (!(await page.evaluate(() => window.app.seqOpen))) await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(400);
     await page.evaluate(() => {

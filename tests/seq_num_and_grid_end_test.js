@@ -1,4 +1,5 @@
 const { chromium } = require('playwright')
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -22,8 +23,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // voisin à gauche — rien à centrer symétriquement contre, le chiffre y déborde forcément un peu
     // hors de la piste plutôt que d'empiéter sur un temps précédent qui n'existe pas). ===
     for (const sym of ['C']) {
-        await page.fill('#quick-add-input', sym).catch(() => {});
-        await page.click('#quick-add-btn').catch(() => {});
+        await ajouterAccord(page, sym);
         await page.waitForTimeout(120);
     }
     // 2 mesures (8 temps) pour avoir un 2e temps "interne" (voisins des deux côtés) à comparer.

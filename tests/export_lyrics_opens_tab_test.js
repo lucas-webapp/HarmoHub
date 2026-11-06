@@ -1,4 +1,5 @@
 const { chromium } = require('playwright')
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 // CONTRAT CHANGÉ (1) : les six boutons d'export (PDF, MIDI, MP3, Paroles, sauvegarde, import MIDI)
@@ -52,8 +53,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     await page.goto(`${BASE}/index.html`);
     await page.waitForTimeout(600);
     await page.waitForTimeout(150);
-    await page.fill('#quick-add-input', 'C').catch(() => {});
-    await page.click('#quick-add-btn').catch(() => {});
+    await ajouterAccord(page, 'C');
     await page.waitForTimeout(150);
 
     // CHANGÉ DE SENS AU LOT 10b (voir l'en-tête) : ni téléchargement ni nouvel onglet — Paroles s'ouvre DANS la page, au-dessus de la barre de lecture.

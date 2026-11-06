@@ -8282,3 +8282,66 @@ body.avec-barre-selection .toast { bottom: 132px; }
     .pa-actions :is(.pa-supprimer, .pa-dupliquer) .btn-label { display: none; }
     .pa-actions .pa-son-btn { margin-left: auto; background-image: linear-gradient(160deg, var(--btn-blue-1), var(--btn-blue-2) 70%); border-color: var(--btn-blue-border); color: var(--btn-text, #e8eef6); }
 }
+
+/* ======================================================================================================
+   TÉLÉPHONE, LE PANNEAU D'AJOUT (refonte, lot 10e — maquette « Téléphone (v2) ») : la case « + » d'une partie ouvre un panneau qui monte du bas, comme celui
+   de l'accord (10d) : « Ajouter » + la destination, la saisie unique (la syntaxe complète : Cm7, C_E, C/Am/F/G…, aide « ? »), « Souvent après … » et les
+   accords de la tonalité sur quatre colonnes. Il remplace la carte « Nouvel accord » (mode Ajout), son bouton « Ajouter » et la saisie rapide posée dans
+   la page. Le champ de saisie est DÉPLACÉ dedans par rangerSaisieAjout, jamais dupliqué. En fin de fichier : voir « Cascade CSS » dans CLAUDE.md.
+   ====================================================================================================== */
+@media (max-width: 899px) {
+    #quick-add-panel { margin: 0; }
+    #quick-add-panel > .quick-add-row { display: none; }
+    /* Plus de carte « Nouvel accord » dans la page : ajouter, c'est le panneau. (Modifier garde la carte jusqu'au 10f pour les chemins qui n'ont pas le panneau.) */
+    body[data-app-mode="add"] #accord-card, body[data-app-mode="add"] #save { display: none; }
+    .ajout-aide:not([hidden]) {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        position: fixed;
+        left: 0; right: 0;
+        bottom: var(--haut-barre-lecture, 68px);
+        z-index: 38;
+        box-sizing: border-box;
+        width: auto;
+        max-height: min(520px, calc(100dvh - var(--haut-barre, 111px) - var(--haut-barre-lecture, 68px) - var(--reserve-panneau-accord, 150px)));
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 12px;
+        background: #181b20;
+        border: 0;
+        border-top: 1px solid #333;
+        border-radius: var(--rayon-surface, 12px) var(--rayon-surface, 12px) 0 0;
+        box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.55);
+    }
+    /* Comme le panneau d'accord : la barre-résumé reste collée sous la barre du haut, la page s'arrête au-dessus du panneau. */
+    body.aj-ouvert #song-card { position: sticky; top: var(--haut-barre, 111px); z-index: 30; background: var(--bg, #0a0a0a); }
+    body.aj-ouvert main { padding-bottom: calc(var(--haut-panneau-ajout, 0px) + var(--haut-barre-lecture, 68px) + 16px); }
+    .ajout-tete { display: flex; align-items: center; gap: 8px; }
+    .ajout-titre { font-weight: 800; font-size: 17px; color: var(--text-main); }
+    .ajout-lieu { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text-muted); }
+    .ajout-tete .bulle-nav { flex: none; min-width: 0; width: var(--bouton-h-lg, 44px); height: var(--bouton-h-lg, 44px); border-radius: var(--rayon-bouton, 7px); }
+    .ajout-ligne { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .aa-saisie .quick-add-row { display: flex; align-items: stretch; gap: 6px; margin: 0; }
+    .aa-saisie .quick-add-input { flex: 1 1 auto; min-width: 0; min-height: var(--bouton-h-lg, 44px); }
+    .aa-saisie .quick-add-row .icon-btn { flex: none; width: var(--bouton-h-lg, 44px); height: var(--bouton-h-lg, 44px); border-radius: var(--rayon-bouton, 7px); }
+    .ajout-tuiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+    .ajout-tuile {
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+        box-sizing: border-box; min-width: 0; height: var(--bouton-h-lg, 44px); padding: 0 2px;
+        border: 1px solid var(--border); border-radius: var(--rayon-bouton, 7px);
+        background: #14171c; color: var(--text-main); cursor: pointer;
+    }
+    .ajout-tuile-sugg { border-color: #33507c; }
+    .ajout-t1 { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    .ajout-t2 { font-size: 11px; color: #8fe3b3; font-weight: 700; }
+    .ajout-7e {
+        flex: none; box-sizing: border-box; height: var(--bouton-h-lg, 44px); min-width: 0; padding: 0 12px;
+        border: 1px solid var(--border); border-radius: var(--rayon-bouton, 7px);
+        background: var(--fond-bouton-sombre, #1c2027); color: var(--text-main); font-size: 14px; cursor: pointer;
+    }
+    .ajout-7e[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+    .ajout-aide .rr-aide { margin: 0; }
+    /* Le message passager (« 2 accords ajoutés ») monte au-dessus du panneau, comme au-dessus de la barre de sélection. */
+    body.aj-ouvert .toast { bottom: calc(var(--haut-panneau-ajout, 0px) + var(--haut-barre-lecture, 68px) + 12px); }
+}

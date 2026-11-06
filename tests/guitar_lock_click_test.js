@@ -1,4 +1,5 @@
 const { chromium } = require('playwright')
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 const { plan, check, bilan } = require('./_harness')('Cadenas : ajouter puis ouvrir un accord');
 
@@ -22,7 +23,7 @@ const { plan, check, bilan } = require('./_harness')('Cadenas : ajouter puis ouv
     await page.waitForTimeout(300);
 
     // Add a chord via real UI click, then double-click the grid cell to edit it
-    await page.click('#save'); // "Ajouter" button in add mode
+    await ajouterAccord(page, 'C'); // lot 10e : le geste d'ajout (la saisie), plus le bouton « Ajouter » de la carte
     await page.waitForTimeout(200);
 
     const cases = await page.evaluate(() => document.querySelectorAll('#progression-sections .grid-cell[data-index]').length);

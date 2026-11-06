@@ -1,4 +1,5 @@
 const { chromium } = require('playwright')
+const { ajouterAccord, editerAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 // plan() n'est pas décoratif ici : ce banc a longtemps expiré au milieu de sa section 3, sur un clic
 // #grid-zoom-close disparu, et sa section 4 n'était plus jamais atteinte — sans que rien ne le dise,
@@ -23,12 +24,12 @@ plan(15);
     // 8 accords d'1 temps chacun, en 4/4 -> exactement 2 mesures pleines : de quoi vérifier qu'il n'y a
     // bien qu'UN SEUL repère par mesure (pas un par temps).
     for (const sym of ['C', 'G', 'Am', 'F', 'Dm', 'Em', 'C', 'G']) {
-        await page.fill('#quick-add-input', sym).catch(() => {});
-        await page.click('#quick-add-btn').catch(() => {});
+        await ajouterAccord(page, sym);
         await page.waitForTimeout(120);
     }
 
     // === 1. Séquenceur : le repère est un trait (span), plus le caractère "•", et bien centré ===
+    await editerAccord(page); // lot 10e : plus de séquenceur compact en mode Ajout
     await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(300);
 

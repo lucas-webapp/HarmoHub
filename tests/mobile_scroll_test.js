@@ -35,10 +35,13 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     const vue = await page.evaluate(() => {
         const c = document.querySelector('.grid-cell[data-index="0"]').getBoundingClientRect();
         const dessus = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2);
-        return { haut: Math.round(c.top), bas: Math.round(c.bottom), libre: !!dessus && !!dessus.closest('.grid-cell[data-index="0"]') };
+        const pa = document.getElementById('panneau-accord').getBoundingClientRect();
+        return { haut: Math.round(c.top), bas: Math.round(c.bottom), libre: !!dessus && !!dessus.closest('.grid-cell[data-index="0"]'), auDessusDuPanneau: c.bottom <= pa.top + 1 };
     });
     console.log('scrollY before:', before, 'after:', after, 'case:', JSON.stringify(vue));
-    console.log((Math.abs(after - before) <= 32 && vue.libre) ? 'PASS (no scroll jump on mobile)' : 'FAIL');
+    // Lot 10e : sans la carte « Nouvel accord » la page est plus courte et le panneau, plus haut que ce qui reste à défiler, la fait descendre davantage pour
+    // garder la case entre la barre-résumé et lui (110px ici) : c'est le défilement voulu du lot 10d, pas le saut vers le diagramme. Borné à deux cases (128px).
+    console.log((Math.abs(after - before) <= 128 && vue.libre && vue.auDessusDuPanneau) ? 'PASS (no scroll jump on mobile)' : 'FAIL');
     await page.close();
 
     console.log('--- Desktop (1280px): clicking a chord in Modification STILL scrolls the diagram into view ---');

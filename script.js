@@ -9291,6 +9291,7 @@ class HarmoHubApp {
         const nom = (p) => `${noteNameForPc(NOTES.indexOf(p.root), this.useFlatsForRoot(p.root))}${QUALITY_LABEL[p.quality] ?? ''}`;
         this.flashHint(datas.length === 1 ? `${nom(items[0].parsed)} ajouté` : `${datas.length} accords ajoutés`);
         this.remplirAideAjout();
+        if (this.ajoutTelephone()) this.assurerDestinationVisible(); // la grille a grandi : la destination suit, au-dessus du panneau
         return true;
     }
 
@@ -9334,16 +9335,62 @@ class HarmoHubApp {
         if (!panneau) return;
         this.remplirAideAjout();
         panneau.hidden = false;
+        const tel = this.ajoutTelephone();
         const input = document.getElementById('quick-add-input');
-        if (input) { input.focus({ preventScroll: true }); input.scrollIntoView({ block: 'nearest' }); }
+        // Au téléphone le clavier virtuel recouvrirait les accords proposés : on n'y met pas le curseur d'office, un toucher dans la saisie l'y amène.
+        if (input && !tel) { input.focus({ preventScroll: true }); input.scrollIntoView({ block: 'nearest' }); }
         this.loadProgression(); // la destination se voit aussi dans la grille (voir .cible-ajout)
+        if (tel) { document.body.classList.add('aj-ouvert'); this.placerPanneauAjout(); this.assurerDestinationVisible(); }
+    }
+
+    // Lot 10e : au téléphone le panneau d'ajout monte du bas (maquette « Téléphone (v2) » : « Ajouter à <partie> », saisie unique, aide « ? », suggestions,
+    // accords de la tonalité). Il remplace le mode Ajout de la carte Accord, la carte « Nouvel accord » et la saisie rapide posée dans la page.
+    ajoutTelephone() {
+        return window.matchMedia('(max-width: 899px)').matches && !(this.vueOuverte && this.vueOuverte());
+    }
+
+    // La saisie (champ, « ? », « + ») est DÉPLACÉE dans le panneau, jamais dupliquée : mêmes adresses, mêmes écouteurs (comme la carte Accord du 10d).
+    rangerSaisieAjout(dansPanneau) {
+        const rang = document.querySelector('.quick-add-row');
+        if (!rang) return;
+        const hote = document.getElementById('aa-saisie'), panneau = document.getElementById('quick-add-panel');
+        if (dansPanneau && hote) { if (rang.parentElement !== hote) hote.appendChild(rang); }
+        else if (panneau && rang.parentElement !== panneau) panneau.insertBefore(rang, document.getElementById('ajout-aide'));
+    }
+
+    // La page s'arrête au-dessus du panneau (--haut-panneau-ajout) et laisse au moins une rangée de la grille visible au-dessus de lui.
+    placerPanneauAjout() {
+        const p = document.getElementById('ajout-aide');
+        if (!p || p.hidden || !this.ajoutTelephone()) return;
+        const resume = document.getElementById('song-card'), cellule = document.querySelector('#progression-sections .grid-cell');
+        const reserve = (resume ? resume.offsetHeight : 0) + (cellule ? cellule.offsetHeight : 64) + 40;
+        document.documentElement.style.setProperty('--reserve-panneau-accord', `${reserve}px`);
+        document.documentElement.style.setProperty('--haut-panneau-ajout', `${p.offsetHeight}px`);
+    }
+
+    // La destination (la case « + » de la partie, ou la case d'avant laquelle on ajoute) doit rester visible au-dessus du panneau.
+    assurerDestinationVisible() {
+        const p = document.getElementById('ajout-aide');
+        const c = this._cibleAjout;
+        if (!p || !c) return;
+        const cible = document.querySelector(c.index == null
+            ? `#progression-sections .cell-add-input[data-section="${c.section}"]`
+            : '#progression-sections .cible-ajout') || document.querySelector('#progression-sections .grid-cell');
+        if (!cible) return;
+        const haut = p.getBoundingClientRect().top, r = cible.getBoundingClientRect();
+        const barre = document.getElementById('song-card');
+        const limiteHaute = (barre ? barre.getBoundingClientRect().bottom : 0) + 8;
+        if (r.bottom > haut - 8) window.scrollBy(0, r.bottom - (haut - 8));
+        else if (r.top < limiteHaute) window.scrollBy(0, r.top - limiteHaute);
     }
 
     fermerAideAjout() {
         const panneau = document.getElementById('ajout-aide');
         const avait = !!this._cibleAjout;
         this._cibleAjout = null;
+        this.rangerSaisieAjout(false); // la saisie rentre chez elle avant que le panneau ne se vide
         if (panneau) panneau.hidden = true;
+        document.body.classList.remove('aj-ouvert');
         if (avait) this.loadProgression();
     }
 
@@ -9368,14 +9415,17 @@ class HarmoHubApp {
             + `<span class="ajout-t1">${flatTight(escapeHtml(sym(a)))}</span><span class="ajout-t2">${escapeHtml(a.roman || '')}</span></button>`;
         const sugg = this.suggestionsApres(prec, avec7);
         const nomTonalite = this.libelleTonalite();
+        this.rangerSaisieAjout(false); // la saisie quitte le panneau avant qu'on le réécrive (sinon l'innerHTML la détruirait)
         panneau.innerHTML =
             `<div class="ajout-tete"><span class="ajout-titre">Ajouter</span><span class="ajout-lieu" id="ajout-lieu">${escapeHtml(lieu)}</span>`
             + `<button type="button" class="bulle-nav" data-ajout="fermer" aria-label="Fermer" title="Fermer (Échap)"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`
+            + `<div id="aa-saisie" class="aa-saisie"></div>`
             + (sugg.length ? `<div class="rr-lbl">Souvent après ${flatTight(escapeHtml(sym(prec)))}</div><div class="ajout-tuiles">${sugg.map(a => tuile(a, ' ajout-tuile-sugg')).join('')}</div>` : '')
             + `<div class="ajout-ligne"><span class="rr-lbl">Accords de ${escapeHtml(nomTonalite)}</span>`
             + `<button type="button" class="ajout-7e" data-ajout="avec7" aria-pressed="${avec7}">avec 7e</button></div>`
             + `<div class="ajout-tuiles">${this.accordsDeLaTonalite(avec7).map(a => tuile(a)).join('')}</div>`
             + `<p class="rr-aide">Ou tapez dans la saisie ci-dessus (Cm7, C_E, C/Am/F/G…) — Entrée pour une nouvelle ligne, Ctrl+Entrée pour ajouter.</p>`;
+        if (this.ajoutTelephone()) { this.rangerSaisieAjout(true); this.placerPanneauAjout(); }
     }
 
     // ---------- La barre de sélection (refonte, lot 7b) ----------
@@ -9515,13 +9565,22 @@ class HarmoHubApp {
         });
         // Clic ailleurs (hors saisie, panneau, et ce qui l'ouvre) ou Échap : le panneau se ferme et la destination s'oublie — sans quoi un ajout bien
         // plus tard, tapé sans y penser, irait encore au milieu d'une partie choisie il y a longtemps.
-        document.addEventListener('pointerdown', (e) => {
+        const dehors = (e) => {
             if (panneau.hidden) return;
-            if (e.target.closest('#ajout-aide, #quick-add-panel, .prog-section-ajout, .cell-ins, #section-picker-menu')) return;
+            if (e.target.closest('#ajout-aide, #quick-add-panel, .prog-section-ajout, .cell-ins, #section-picker-menu, #quick-add-help, .grid-cell-add')) return;
             this.fermerAideAjout();
-        });
+        };
+        // Au téléphone l'appui commence aussi un défilement de la grille (le panneau la laisse visible au-dessus de lui) : on referme au CLIC, pas à l'appui.
+        document.addEventListener('pointerdown', (e) => { if (!this.ajoutTelephone()) dehors(e); });
+        document.addEventListener('click', (e) => { if (this.ajoutTelephone()) dehors(e); });
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && !panneau.hidden) { this.fermerAideAjout(); }
+        });
+        // Le seuil de 900px franchi panneau ouvert : au téléphone il se replace (le clavier virtuel change la hauteur), à l'ordinateur il se referme et la
+        // saisie rentre dans la page (sa destination s'oublie, comme à tout autre refermeture).
+        window.addEventListener('resize', () => {
+            if (panneau.hidden) return;
+            if (this.ajoutTelephone()) this.placerPanneauAjout(); else this.fermerAideAjout();
         });
     }
 
@@ -9792,6 +9851,12 @@ class HarmoHubApp {
         p.addEventListener('click', (e) => {
             if (this._paGardeClic && performance.now() - this._paGardeClic < 350) { e.stopPropagation(); e.preventDefault(); }
         }, true);
+        // LE CLIC FANTÔME, HORS DU PANNEAU. Le même clic de synthèse peut tomber AILLEURS : la page défile pour garder la case au-dessus du panneau
+        // (assurerCaseVisiblePanneau), et le point touché devient un autre élément — au lot 10e, la barre-résumé collante, dont une case de réglage
+        // s'ouvrait toute seule (telephone_panneau_accord). Un clic moins de 350ms après l'ouverture, hors du panneau, n'est pas un geste : il est avalé.
+        document.addEventListener('click', (e) => {
+            if (this._paOuvertA && performance.now() - this._paOuvertA < 350 && !e.target.closest('#panneau-accord')) { e.stopPropagation(); e.preventDefault(); }
+        }, true);
         // LE SECOND TOUCHER D'UN DOUBLE TOUCHER. Le premier ouvre le panneau et fait défiler la page pour garder la case visible : le second tombe
         // alors sur le panneau, pas sur la case. Le doigt, lui, n'a pas bougé : un appui dans le panneau dans le temps du double toucher (420ms,
         // comme onGridPointerUp), juste après l'avoir ouvert, EST ce second toucher — sur le nom, retaper ; ailleurs, modifier (agrandir).
@@ -9838,12 +9903,14 @@ class HarmoHubApp {
         const sections = loadProgressionSections();
         if (!document.getElementById('panneau-accord') || !sections[section] || !sections[section].chords[index]) return;
         const avant = this._bulle;
+        if (this._cibleAjout) this.fermerAideAjout(); // un seul panneau à la fois : toucher une case referme celui de l'ajout (lot 10e)
         if (avant && !avant.telephone) { const b = document.getElementById('bulle-accord'); if (b) b.hidden = true; } // le seuil vient d'être franchi
         const tel = avant && avant.telephone ? avant : null;
         const meme = !!tel && tel.section === section && tel.index === index;
         // Agrandi, le panneau le RESTE en passant à un autre accord (une autre case touchée, ‹ ›) : on règle le son d'un accord après l'autre, comme
         // dans l'ancienne Modification « collante » et comme l'éditeur de notes qui suit la sélection (décision du 05/11, point 4).
         this._bulle = { section, index, telephone: true, etendu: !!(tel && tel.etendu), undoPousse: meme ? tel.undoPousse : false };
+        if (!meme) this._paOuvertA = performance.now(); // voir le clic à côté : le clic de synthèse du toucher d'ouverture n'est pas un « à côté »
         if (this._bulle.etendu && !(this.editingIndex === index && this.activeSection === section)) this.editChord(section, index);
         this.afficherPanneauAccord();
         if (!meme) this.assurerCaseVisiblePanneau();
@@ -16089,7 +16156,15 @@ class HarmoHubApp {
         // au lieu de continuer à annoncer « Modifier · Am » pendant qu'on tape un tout autre accord.
         // C'est la contrepartie de l'étape précédente : le panneau nomme son sujet, encore faut-il que
         // ce sujet change quand on change de cible.
+        // Au téléphone (lot 10e) la case « + » n'est plus un champ de saisie : toucher ouvre le panneau d'ajout, la saisie y est. Le champ est en lecture
+        // seule pour que le clavier virtuel ne s'ouvre pas dessous ; passé à l'ordinateur, il redevient un champ.
+        host.addEventListener('click', (e) => {
+            if (!e.target.matches('.cell-add-input') || !this.ajoutTelephone()) return;
+            e.preventDefault(); e.stopPropagation();
+            this.ouvrirAideAjout(+e.target.dataset.section, null);
+        });
         host.addEventListener('focusin', (e) => {
+            if (e.target.matches('.cell-add-input') && e.target.readOnly && !this.ajoutTelephone()) e.target.readOnly = false;
             if (!e.target.matches('.cell-add-input') || this.editingIndex == null) return;
             this._ajoutEngageA = Date.now(); // lu par le clic à côté (voir « La case « + » engagée PENDANT une modification »)
             this.leaveEditForNewChord();
@@ -16944,7 +17019,7 @@ class HarmoHubApp {
     buildAddCellHtml(section, gridRow, col, span, seulSurSaLigne = false) {
         return `
                     <div class="grid-cell grid-cell-add${seulSurSaLigne ? ' grid-cell-add-seule' : ''}" style="grid-column: ${col + 1} / span ${span}; grid-row: ${gridRow};">
-                        <input type="text" class="cell-add-input" data-section="${section}" placeholder="+" aria-label="Ajouter un accord à la fin de cette partie" autocomplete="off" autocapitalize="off" spellcheck="false" title="Ajouter un accord à la fin de cette partie — un accord seul (ex. Cm7), avec une basse via « _ » (ex. C_E = do avec mi à la basse), ou plusieurs accords séparés par « / » : un par mesure, sans renversement ni drop">
+                        <input type="text" class="cell-add-input" data-section="${section}" placeholder="+" aria-label="Ajouter un accord à la fin de cette partie" autocomplete="off" autocapitalize="off" spellcheck="false"${this.ajoutTelephone() ? ' readonly' : ''} title="Ajouter un accord à la fin de cette partie — un accord seul (ex. Cm7), avec une basse via « _ » (ex. C_E = do avec mi à la basse), ou plusieurs accords séparés par « / » : un par mesure, sans renversement ni drop">
                     </div>`;
     }
 

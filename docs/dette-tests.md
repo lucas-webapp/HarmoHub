@@ -5748,3 +5748,51 @@ Points 4, 5, 7 et 9 des décisions du 05/11. Nouveau banc `editeur_et_clavier` (
 - Bancs : `telephone_panneau_accord` (partie I jouée à 320 px dès l'ouverture, toucher au centre ; plan 38) et `affordances` (largeur attendue = 25 % de la case,
   entre 12 et 22 px). Sabotage : remettre `width: 22px` fait rougir les deux vérifications du 320 px.
 - Ciblé : 9 verts, 0 rouge, `smoke` sans verdict (ligne de base). Balayage complet reporté à la fin du 10e (décision de l'utilisateur) ; `?v=` à 202611062000.
+
+## Refonte de l'interface — lot 10e : le panneau d'ajout du téléphone (2026-11-06)
+
+Cahier des charges (maquette « Téléphone (v2) », page `project/Telephone2.dc.html`) : « Ajout : saisie unique (syntaxe complète), aide « ? », suggestions après
+l'accord précédent, accords de la tonalité. » Il remplace sous 900px la carte « Nouvel accord » (mode Ajout), son bouton « Ajouter » et la saisie rapide posée
+dans la page.
+
+**Ce qui change (téléphone, < 900px).**
+- **La case « + » d'une partie ouvre le panneau d'ajout** (`#ajout-aide`, le panneau du lot 7a, habillé en feuille du bas comme celui de l'accord) : « Ajouter » +
+  la destination (« Couplet, à la fin, après G »), la saisie unique (syntaxe complète, « ? » pour l'aide), « Souvent après … » et les accords de la tonalité sur
+  quatre colonnes (« avec 7e »). Un toucher sur un accord l'ajoute à la fin, d'UNE annulation, et la destination avance (deux touchers = deux accords dans
+  l'ordre). Le champ de saisie est **déplacé** dans le panneau (`rangerSaisieAjout`), jamais dupliqué : mêmes adresses, mêmes écouteurs.
+- **La case « + » n'est plus un champ de saisie** au téléphone (lecture seule, pour que le clavier virtuel ne s'ouvre pas dessous) : elle ouvre le panneau.
+  **Décision** : le curseur n'est pas mis d'office dans la saisie à l'ouverture (le clavier recouvrirait les accords proposés) ; un toucher dans la saisie l'y amène.
+- La carte « Nouvel accord » et « Ajouter » disparaissent de la page en mode Ajout (`body[data-app-mode="add"]`, CSS) ; la carte reste l'inspecteur d'un accord
+  ouvert en modification (panneau agrandi du 10d, ou les chemins qui la gardent dans la page jusqu'au 10f). Les diagrammes (piano, guitare) restent en place.
+- Un seul panneau à la fois : toucher une case referme celui de l'ajout ; toucher la case « + » referme celui de l'accord. ✕, Échap et un toucher à côté (au CLIC,
+  pas à l'appui, qui commence un défilement) referment le panneau d'ajout et oublient la destination. Le seuil de 900px franchi panneau ouvert le referme.
+- Verre dépoli : `verre-surfaces.css` (même fond que le panneau d'accord), contrôles de lisibilité dans le banc.
+
+**Défaut trouvé et corrigé en route : le clic fantôme hors du panneau.** Sans la carte « Nouvel accord » la page est plus courte, le défilement que fait le panneau
+d'accord pour garder la case visible change, et le clic de synthèse qui suit le toucher d'ouverture tombait sur la barre-résumé collante, dont une case de réglage
+s'ouvrait toute seule (`telephone_panneau_accord`). Un clic moins de 350ms après l'ouverture, hors du panneau, est désormais avalé (`_paOuvertA`, capture sur `document`).
+
+**Bancs.**
+- Nouveau `telephone_panneau_ajout` (34 vérifications, huit parties A à J). **Sabotages : 4, tous rouges** (carte « Nouvel accord » de retour dans la page ; la saisie
+  qui ne rentre pas à la fermeture ; ouvrir le panneau d'accord sans fermer celui de l'ajout ; la case « + » qui n'ouvre rien), fichiers restaurés ensuite.
+- Nouvel assistant `tests/_ajout.js` : `ajouterAccord` (ordinateur : on tape et on valide ; téléphone : on touche d'abord la case « + », on tape, on valide, Échap),
+  `ajouterAccordTypé` (fondamentale + type), `editerAccord` (ouvre un accord de la grille en modification, le crée au besoin). 36 appels de la saisie rapide
+  répartis dans 31 bancs passent par lui, sans changer ce qu'ils éprouvent.
+- **Bancs qui éprouvaient le mode Ajout de la carte, réécrits pour le nouveau geste (rien supprimé)** : le séquenceur compact, qui appartient à un accord ouvert
+  (`seq_hscroll`, `seq_twofinger_zoom`, `seq_vscroll_and_cancel`, `seq_beat_highlight`, `seq_move_note`, `seq_handle_feedback`, `seq_short_note_body`,
+  `avant_seq_short_note_body`, `avant_seq_snap_sticky`, `offbeat_dash`, `grid_beat_highlight` — qui passe par « Réglages du son » —, `zoom_coherence`,
+  `extra_note_rhythm`, `affordances`, `seq_changement_morceau`) ; l'accord posé par le geste puis ouvert (`manche_edition_lot4/5/6`, `guitar_override`, `glock_unlock_and_switch`,
+  `guitar_lock_click`, `rythme_une_preference`, `guitare_envoi_grille` — un second envoi revalide le dessin resté sur le manche au lieu de le reposer, qui l'effaçait) ;
+  la carte vue en modification (`inspecteur_son`, `aspect_boutons_volet`, `portes_sequenceur`, `carte_accord_unique`, `voicing_direct`, `rythme_duree`) ; `telephone_barre_haut`
+  et `song_panel` ; `telephone_barre_lecture` (page remontée en haut avant le double toucher) ; `mobile_scroll` (défilement borné à deux cases, case au-dessus du panneau).
+- **« Entrée depuis un réglage d'accord ajoute l'accord »** (`voicing_direct` F, `filet_moteur_edition` B) : le réglage de la carte n'existe plus en mode Ajout au téléphone ;
+  le même piège (un `<button>` n'a pas l'identifiant d'un `<select>`) est éprouvé sur les accords du panneau d'ajout, focus réel et touche Entrée réelle.
+- **`duree_sur_la_ligne_accord` réécrit en entier** (21 vérifications) : la ligne « fondamentale, type, durée » de la carte n'existe plus nulle part ; la durée d'un accord est le
+  stepper − / + de son panneau (38px, groupes segmentés), lue en entier à 860, 390 et 320px, le pire libellé (« 4 mesures ») à 320px, écrite dans l'accord.
+- **Conséquence assumée** : la durée « des prochains accords » (`#duration`) n'est plus un réglage de la page au téléphone ; un accord ajouté prend la valeur qu'elle a, et chaque
+  accord règle la sienne dans son panneau (comme la maquette, qui n'a pas de durée dans le panneau d'ajout).
+
+**Balayage complet du lot 10e** : 235 verts, 7 rouges, 6 sans verdict (248 suites). Les 5 rouges de la ligne de base, plus deux défauts de BANC (aucun de l'appli) corrigés ensuite et
+rejoués verts : `versions_cloud` (sa fonction locale `ajouterAccord` s'appelait elle-même une fois l'assistant importé sous le même nom, comme `historique_versions`) et
+`meta_suite` (la dette de bancs a diminué de 17 : les `.catch(() => {})` avalés des ajouts rapides ont disparu — référence figée avec `--maj`). Après correction : exactement la ligne de base.
+Point à voir au 10f : à 664px de haut (iPhone 13) le panneau d'accord défile en interne, la durée n'est visible qu'après un défilement du panneau.

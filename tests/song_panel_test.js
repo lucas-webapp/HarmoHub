@@ -3,6 +3,7 @@
 // lisent SANS un clic ; les déplier ne masque plus rien ; et tous les réglages déménagés fonctionnent
 // encore — c'est le risque propre à un déplacement dans le DOM.
 const { chromium } = require('playwright')
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -19,7 +20,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     await page.goto(`${BASE}/index.html`);
     await page.waitForTimeout(800);
     for (const s of ['C', 'Am', 'F', 'G']) {
-        await page.fill('#quick-add-input', s); await page.click('#quick-add-btn'); await page.waitForTimeout(110);
+        await ajouterAccord(page, s); await page.waitForTimeout(110);
     }
     await page.waitForTimeout(300);
 
@@ -53,7 +54,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
             // Morceau doit toujours ouvrir la colonne, avant tout le reste.
             // Sous 900px, .panel-controls est « aplati » (display: contents, rectangle nul) : c'est la carte Accord, sa première carte, qui sert
             // de repère (lot 6a : la partie « grand écran » de ce banc se joue désormais sous le seuil).
-            avantBandeau: song.getBoundingClientRect().top < document.getElementById('accord-card').getBoundingClientRect().top,
+            avantBandeau: song.getBoundingClientRect().top < document.getElementById('progression-sections').getBoundingClientRect().top, // lot 10e : la carte Accord n'est plus dans la page en mode Ajout, la grille sert de repère
             haut: Math.round(song.getBoundingClientRect().top),
         };
     });

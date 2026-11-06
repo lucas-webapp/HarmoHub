@@ -1,4 +1,5 @@
 const { chromium } = require('playwright')
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -23,8 +24,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     };
 
     // Un accord de 4 temps, tempo rond (60 BPM = 1s/temps, calculs faciles).
-    await page.fill('#quick-add-input', 'C').catch(() => {});
-    await page.click('#quick-add-btn').catch(() => {});
+    await ajouterAccord(page, 'C');
     await page.waitForTimeout(150);
 
     // LOT 6a : sur ordinateur, la carte Morceau n'est plus affichée — le swing (« groove ») se choisit à la puce au-dessus de la grille, le

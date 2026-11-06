@@ -2,6 +2,7 @@
 // Règle : elle copie le rythme des voix de l'accord si elles jouent toutes le même, sinon tenue
 // pleine durée — et ce rythme est posé À LA VALIDATION DE LA HAUTEUR, jamais à la création.
 const { chromium } = require('playwright')
+const { ajouterAccord, editerAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -26,9 +27,9 @@ async function state(page) {
 }
 
 async function openSeqOn(page, sym) {
-    await page.fill('#quick-add-input', sym);
-    await page.click('#quick-add-btn');
+    await ajouterAccord(page, sym);
     await page.waitForTimeout(250);
+    await editerAccord(page); // lot 10e : plus de séquenceur compact en mode Ajout
     if (!(await page.evaluate(() => window.app.seqOpen))) await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(400);
 }
@@ -84,15 +85,14 @@ async function openSeqOn(page, sym) {
     check(st.quality === 'add9' && st.extras === 0 && st.bodyVoices === before.bodyVoices + 1,
         `un ré tenu sur un do renomme l'accord en add9 et absorbe la note dans son corps — obtenu ${JSON.stringify(st)}`);
 
-    // #save en mode Ajout AJOUTE un accord à la grille (il ne réécrit pas le premier) : c'est donc le
-    // DERNIER accord qu'il faut relire, pas chords[0] — qui reste le do majeur ajouté au départ.
-    await page.click('#save');
+    // Lot 10e : l'accord est ouvert en modification (plus de mode Ajout sous 900px), chaque réglage s'écrit déjà dans la grille — plus de « Ajouter » à
+    // cliquer. On attend la fin de l'écriture, puis on recharge : c'est le premier (et seul) accord qu'il faut relire.
     await page.waitForTimeout(250);
     await page.reload();
     await page.waitForTimeout(600);
     const saved = await page.evaluate(() => {
         const chords = loadProgressionSections()[0].chords;
-        const c = chords[chords.length - 1];
+        const c = chords[0];
         return { count: chords.length, quality: c.quality, extras: (c.extraNotes || []).length, seqEdited: !!c.seqEdited };
     });
     check(saved.quality === 'add9',

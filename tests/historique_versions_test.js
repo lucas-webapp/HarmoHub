@@ -14,6 +14,7 @@
 //
 // CE QUE LE BANC NE PEUT PAS DIRE : le comportement réel d'IndexedDB sur Safari / iOS (Chromium ici), ni ce que donne une vraie semaine de travail.
 const { chromium } = require('playwright');
+const { ajouterAccord: ajouterGeste } = require('./_ajout');
 const { check, exiger, plan, bilan } = require('./_harness')('historique des versions');
 const { estBruitReseau } = require('./_harness');
 
@@ -66,8 +67,7 @@ const graine = ({ src, avec }) => {
     };
     // Dans un morceau de plusieurs parties, l'ajout rapide demande OÙ poser l'accord (le menu « section-picker ») : on choisit la première partie.
     const ajouterAccord = async (p, texte) => {
-        await p.fill('#quick-add-input', texte);
-        await p.click('#quick-add-btn');
+        await ajouterGeste(p, texte);
         const choix = p.locator('#section-picker-menu:not([hidden]) button').first();
         if (await choix.isVisible().catch(() => false)) await choix.click();
         await p.waitForTimeout(250);

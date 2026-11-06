@@ -6,6 +6,7 @@
 // même accord que le piano (racine + qualité) -> verrou seul ; accord différent -> substitut, mais
 // verrouillé sur EXACTEMENT la forme dessinée (pas une forme communément enseignée recalculée).
 const { chromium, devices } = require('playwright')
+const { ajouterAccordTypé, editerAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, plan, bilan } = require('./_harness')('manche : Lot 4 (verrouillage cadenas/substitut)');
 plan(18);
@@ -45,10 +46,7 @@ plan(18);
     // ============================================================
     // === A. Même accord que le piano (Am) -> verrou seul, aucun substitut ===
     // ============================================================
-    await page.click('#quick-add-btn');
-    await page.waitForTimeout(200);
-    await page.selectOption('#root', 'A');
-    await page.selectOption('#quality', 'min');
+    await ajouterAccordTypé(page, 'A', 'min'); await editerAccord(page, -1); // lot 10e : l'accord est posé par le geste d'ajout, puis ouvert
     await page.waitForTimeout(200);
     await openDrawTab();
 
@@ -84,10 +82,7 @@ plan(18);
     // ============================================================
     // === B. Accord différent du piano (piano=C, dessiné=G) -> substitut verrouillé sur SA forme ===
     // ============================================================
-    await page.click('#quick-add-btn');
-    await page.waitForTimeout(200);
-    await page.selectOption('#root', 'C');
-    await page.selectOption('#quality', 'maj');
+    await ajouterAccordTypé(page, 'C', 'maj'); await editerAccord(page, -1); // lot 10e : l'accord est posé par le geste d'ajout, puis ouvert
     await page.waitForTimeout(200);
     await openDrawTab();
 
@@ -177,10 +172,7 @@ plan(18);
         await mpage.tap('#toggle-viz-guitar');
     }
     await mpage.waitForTimeout(200);
-    await mpage.tap('#quick-add-btn');
-    await mpage.waitForTimeout(200);
-    await mpage.selectOption('#root', 'A');
-    await mpage.selectOption('#quality', 'min');
+    await ajouterAccordTypé(mpage, 'A', 'min'); await editerAccord(mpage, -1); // lot 10e : l'accord est posé par le geste d'ajout, puis ouvert
     await mpage.waitForTimeout(200);
     await mpage.tap('#guitar-edit-btn');
     await mpage.waitForTimeout(200);

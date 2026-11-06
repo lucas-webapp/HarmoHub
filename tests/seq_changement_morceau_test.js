@@ -88,6 +88,9 @@ const mk = (root, q) => ({ root, quality: q, beats: 4, inversion: 0, drop: 'none
     console.log('\n=== C. Et il reste refermable ===');
     // Le bouton icône de l'en-tête a disparu (voir portes_sequenceur_test) : la porte de la carte
     // Accord s'appelle « Séquenceur » et reste visible en permanence, séquenceur ouvert ou fermé.
+    // Lot 10e : la porte « Séquenceur » vit dans la carte Accord, qui n'est plus dans la page en mode Ajout : on rouvre l'accord pour la voir.
+    await page.evaluate(() => window.app.editChord(0, 0));
+    await page.waitForTimeout(400);
     check(await page.evaluate(() => document.getElementById('seq-zoom').offsetParent !== null),
         'le bouton qui le referme est bien atteignable');
     await page.evaluate(() => window.app.toggleSequencer('compact'));

@@ -1,4 +1,5 @@
 const { chromium } = require('playwright')
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // La police est chargée depuis Google Fonts : injoignable derrière le proxy du bac à sable,
 // jamais un problème chez l'utilisateur. Ces échecs réseau sont donc filtrés — sinon ils font
@@ -39,8 +40,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     console.log(allPass ? 'ALL PARSE CASES PASS' : 'SOME PARSE CASES FAILED');
 
     console.log('--- Quick-add: C_O4-R1-D2 creates a chord with that exact voicing ---');
-    await page.fill('#quick-add-input', 'C_O4-R1-D2');
-    await page.click('#quick-add-btn');
+    await ajouterAccord(page, 'C_O4-R1-D2');
     await page.waitForTimeout(150);
     let r = await page.evaluate(() => {
         const sections = loadProgressionSections();
@@ -51,8 +51,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     console.log((r.octave === 4 && r.inversion === 1 && r.drop === 'drop2' && r.bass === null) ? 'PASS' : 'FAIL');
 
     console.log('--- Quick-add: C_D2 only sets drop, octave/inversion stay default ---');
-    await page.fill('#quick-add-input', 'C_D2');
-    await page.click('#quick-add-btn');
+    await ajouterAccord(page, 'C_D2');
     await page.waitForTimeout(150);
     r = await page.evaluate(() => {
         const sections = loadProgressionSections();

@@ -17,6 +17,7 @@
 // PointerEvent de synthèse ne déclenche jamais le défilement natif du navigateur, et n'aurait donc
 // pas pu éprouver le point 1.
 const { chromium, devices } = require('playwright');
+const { editerAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
 let PASS = 0, FAIL = 0;
@@ -34,6 +35,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // Accord long : la bande déborde vraiment, donc elle peut défiler ET se zoomer.
     await page.evaluate(() => { const s = document.getElementById('duration'); s.value = '8'; s.dispatchEvent(new Event('change')); });
     await page.waitForTimeout(200);
+    await editerAccord(page); // lot 10e : plus de séquenceur compact en mode Ajout
     await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(500);
 

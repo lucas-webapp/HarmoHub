@@ -3,6 +3,7 @@
 // On ne se fie pas à « ça a l'air de jouer » : on ENREGISTRE la sortie audio hors temps réel et on
 // mesure s'il y a effectivement du signal.
 const { chromium } = require('playwright')
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -16,7 +17,7 @@ async function page(browser, bloquer) {
     await p.evaluate(() => localStorage.clear());
     await p.reload();
     await p.waitForTimeout(900);
-    for (const s of ['C', 'Am']) { await p.fill('#quick-add-input', s); await p.click('#quick-add-btn'); await p.waitForTimeout(120); }
+    for (const s of ['C', 'Am']) { await ajouterAccord(p, s); await p.waitForTimeout(120); }
     await p.evaluate(() => { const m = document.getElementById('context-menu'); if (m) m.hidden = true; });
     await p.waitForTimeout(250);
     return p;

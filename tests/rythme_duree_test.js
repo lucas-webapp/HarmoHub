@@ -32,6 +32,7 @@
 // protège (un instantané avant d'écraser, au lieu d'un historique vidé) devrait sinon être
 // redécouvert par le prochain lot qui redonnerait un moyen de changer le rythme d'un accord.
 const { chromium, devices } = require('playwright');
+const { ajouterAccord } = require('./_ajout');
 const creerHarnais = require('./_harness');
 const { plan, check, exiger, bilan } = creerHarnais('Rythme et durée : mode Ajout, tampon annulable, rythme par partie');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
@@ -111,8 +112,7 @@ const POSER_AIDES = `window.visible = (sel) => { const e = document.querySelecto
     // lisait le DERNIER accord déjà présent en croyant lire le sien — il annonçait donc « 2 temps au
     // lieu de 16 » et accusait l'application d'un défaut qu'elle n'a pas.
     const avantAjout = (await page.evaluate(grille))[0].length;
-    await page.fill('#quick-add-input', 'Bm7');
-    await page.click('#quick-add-btn');
+    await ajouterAccord(page, 'Bm7');
     await page.waitForTimeout(500);
     const picker = await page.$('#section-picker-menu:not([hidden]) button');
     if (picker) { await picker.click(); await page.waitForTimeout(600); }
@@ -267,8 +267,9 @@ const POSER_AIDES = `window.visible = (sel) => { const e = document.querySelecto
     await m.evaluate(seed);
     await m.reload({ waitUntil: 'load' });
     await m.waitForTimeout(1000);
+    // Lot 10e : au repos la carte (donc la Durée de « l'accord à ajouter ») a quitté la page — la durée d'un accord est dans son panneau.
     const telAjout = await m.evaluate(() => ({ duree: visible('#duration-dd'), jeu: !!document.querySelector('.voicing-group-jeu') }), null);
-    check(telAjout.duree && !telAjout.jeu, 'téléphone, Ajout : la Durée est là, le Rythme n\'existe plus');
+    check(!telAjout.duree && !telAjout.jeu, 'téléphone, Ajout : plus de carte à préparer (ni Durée, ni Rythme) — l\'ajout se fait par le panneau d\'ajout');
     await m.evaluate(() => window.app.editChord(0, 0));
     await m.waitForTimeout(800);
     const telModif = await m.evaluate(() => {

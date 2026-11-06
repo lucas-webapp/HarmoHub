@@ -10,6 +10,7 @@
 //   2. l'ajout a ses PROPRES cibles (case « + », ajout rapide), qui reprennent la main sur le sujet ;
 //   3. appMode est DÉDUIT de editingIndex, et ce qui restait de la bascule est un réglage.
 const { chromium } = require('playwright')
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -223,8 +224,7 @@ const etat = (page) => page.evaluate(() => ({
         const tel = await browser.newPage({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
         await tel.goto(`${BASE}/index.html`);
         await tel.waitForTimeout(800);
-        await tel.fill('#quick-add-input', 'C/Am');
-        await tel.click('#quick-add-btn');
+        await ajouterAccord(tel, 'C/Am');
         await tel.waitForTimeout(700);
         const ordre = await tel.evaluate(() => [
             ['titre', '.history-section h2'],

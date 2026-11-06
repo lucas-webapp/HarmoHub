@@ -1,3 +1,11 @@
+// La durée de l'accord, au téléphone (réécrit au lot 10e).
+//
+// HISTOIRE : la durée avait d'abord remonté sur la ligne de définition de l'accord (fondamentale, type, durée) de la carte « Nouvel accord ». Depuis le
+// lot 10d (panneau d'accord) et le lot 10e (panneau d'ajout), cette carte a quitté la page sous 900px : la ligne n'existe plus nulle part. La durée d'un
+// accord se règle dans son panneau, par un stepper − / + (« 1 mes. », « 2 mes. »…). Ce banc garde sa question — la durée se lit en entier, à la jauge
+// du téléphone, aux trois largeurs qui comptent, et son geste écrit bien dans l'accord — sur le nouveau porteur. L'ancien texte suit, pour mémoire.
+//
+// ANCIEN EN-TÊTE :
 // La durée remonte sur la ligne de définition de l'accord.
 //
 // RETOUR UTILISATEUR : « Le bouton "durée" pour un accord dans le volet de gauche prend trop de place
@@ -50,83 +58,85 @@ async function ouvrir(page, vp) {
 }
 
 (async () => {
-    plan(25);
+    plan(21);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
-
-    // === A. La ligne tient sur UNE ligne, aux trois largeurs qui comptent ===
-    // RÉÉCRIT LE 05/11 (sous-lot « Bancs fiables ») : depuis le lot 6c, la ligne de l'accord n'existe plus à l'ordinateur — « rien aux deux
-    // endroits » : fondamentale, type et durée se règlent dans la bulle (partie F), .accord-grid y est masquée. À 1440px, ce banc mesurait donc
-    // des éléments INVISIBLES (tout à 0 : « même ligne », « même hauteur » passaient à vide) puis plantait sur le clic de la partie C, tout en
-    // imprimant un bilan vert. La ligne se joue désormais sous le seuil (860px), là où elle vit encore jusqu'au lot 10, comme les autres bancs du
-    // mode Ajout ; et l'on exige qu'elle soit VISIBLE avant de la mesurer.
-    // 860 (sous le seuil de l'ordinateur), 390 (téléphone courant), 320 (le plus étroit qu'on vise).
-    for (const vp of [{ width: 860, height: 950 }, { width: 390, height: 844 }, { width: 320, height: 640 }]) {
-        const p = await ouvrir(browser, vp);
+    const case1 = '#progression-sections .grid-cell[data-section="0"][data-index="1"]';
+    const ouvrirPanneau = async (p) => { await p.tap(case1); await p.waitForTimeout(500); };
+    const duree = (p) => p.evaluate(() => {
+        const q = (s) => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); return { l: Math.round(r.width), h: Math.round(r.height), t: Math.round(r.top) }; };
+        const lbl = document.querySelector('#pa-quel .pa-duree');
+        const pa = document.getElementById('panneau-accord').getBoundingClientRect();
+        const btn = [...document.querySelectorAll('#pa-quel [data-bulle="duree-moins"], #pa-quel [data-bulle="duree-plus"]')].map(b => b.getBoundingClientRect());
+        return {
+            ouvert: !document.getElementById('panneau-accord').hidden, libelle: lbl ? lbl.textContent.trim() : null,
+            tronque: lbl ? lbl.scrollWidth > lbl.clientWidth + 1 : null, valeur: lbl ? q('#pa-quel .pa-duree') : null,
+            boutons: btn.map(r => Math.round(r.height)), dansEcran: btn.every(r => r.left >= 0 && r.right <= innerWidth),
+            deborde: document.documentElement.scrollWidth > innerWidth + 1, haut: Math.round(pa.top),
+            beats: JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[1].beats,
+        };
+    });
+    const ouvrirTel = async (vp) => {
+        const ctx = await browser.newContext({ viewport: vp, hasTouch: true, isMobile: true });
+        const p = await ctx.newPage();
         p.on('pageerror', e => erreurs.push(vp.width + 'px : ' + e.message));
-        const m = await p.evaluate(mesurer);
-        exiger(!!m.root && !!m.quality && !!m.duree && m.root.l > 0 && m.quality.l > 0 && m.duree.l > 0, `${vp.width}px : les trois commandes sont présentes et visibles`);
-        check(m.root.t === m.quality.t && m.root.t === m.duree.t,
-            `${vp.width}px : fondamentale, type et durée sur la MÊME ligne — hauts ${m.root.t}/${m.quality.t}/${m.duree.t}`);
-        check(m.root.h === m.duree.h,
-            `${vp.width}px : la durée a la même hauteur que ses voisines — ${m.root.h} contre ${m.duree.h}`);
+        await p.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load' });
+        await p.waitForTimeout(250);
+        await p.evaluate(seed);
+        await p.reload({ waitUntil: 'load' });
+        await p.waitForTimeout(800);
+        return { p, ctx };
+    };
+
+    // === A. La durée est dans le panneau, lisible en entier, à la jauge du doigt, aux trois largeurs ===
+    for (const vp of [{ width: 860, height: 950 }, { width: 390, height: 844 }, { width: 320, height: 640 }]) {
+        const { p, ctx } = await ouvrirTel(vp);
+        await ouvrirPanneau(p);
+        const m = await duree(p);
+        exiger(m.ouvert && !!m.valeur && m.valeur.l > 0 && m.boutons.length === 2, `${vp.width}px : le panneau montre la durée et ses deux boutons − / + (${m.libelle})`);
+        check(m.boutons.every(h => h >= 38) && m.dansEcran && !m.deborde, `${vp.width}px : − et + sont à la jauge des groupes segmentés du téléphone (38px au moins), tiennent dans l'écran, sans débordement de page (${m.boutons})`);
         check(!m.tronque, `${vp.width}px : « ${m.libelle} » se lit en entier`);
-        await p.close();
+        await ctx.close();
     }
 
     // === B. Le libellé le PLUS LONG, à la largeur la plus étroite ===
-    // « 4 mes. » est le pire cas de la liste (voir #duration dans index.html). C'est lui qu'il faut
-    // éprouver à 320px, pas « 1 mes. » qui passe partout — mesurer le cas facile ne prouve rien.
-    const etroit = await ouvrir(browser, { width: 320, height: 640 });
-    etroit.on('pageerror', e => erreurs.push('320px : ' + e.message));
-    await etroit.click('#duration-dd-toggle');
-    await etroit.waitForTimeout(250);
-    await etroit.click('.duration-dd-item[data-beats="16"]');
-    await etroit.waitForTimeout(300);
-    const pire = await etroit.evaluate(mesurer);
-    check(pire.libelle === '4 mes.', `le pire libellé est bien affiché — « ${pire.libelle} »`);
+    // « 4 mesures » est le pire cas (le panneau écrit les mots en entier) : c'est lui qu'il faut éprouver à 320px, pas « 1 mes. » qui passe partout.
+    const etroit = await ouvrirTel({ width: 320, height: 640 });
+    await etroit.p.evaluate(() => { const s = JSON.parse(localStorage.getItem('myProgression')); s.sections[0].chords[1].beats = 15; localStorage.setItem('myProgression', JSON.stringify(s)); });
+    await etroit.p.reload({ waitUntil: 'load' }); await etroit.p.waitForTimeout(800);
+    await ouvrirPanneau(etroit.p);
+    await etroit.p.tap('#pa-quel [data-bulle="duree-plus"]'); await etroit.p.waitForTimeout(300);
+    const pire = await duree(etroit.p);
+    check(pire.libelle === '4 mesures' && pire.beats === 16, `le pire libellé est bien affiché, et la durée écrite : « ${pire.libelle} », ${pire.beats} temps`);
     check(!pire.tronque, `et il se lit en entier à 320px — « ${pire.libelle} »`);
-    await etroit.close();
+    await etroit.ctx.close();
 
-    // === C. La rangée d'origine a disparu, et le clic réel marche toujours ===
-    const p = await ouvrir(browser, { width: 860, height: 950 });
-    p.on('pageerror', e => erreurs.push('860px : ' + e.message));
-    const m = await p.evaluate(mesurer);
-    check(!m.ancienneRangee, 'la rangée #lecture-row a bien disparu : elle ne portait plus qu\'une commande');
-    check(m.colonnes === 3, `la ligne d'accord compte trois colonnes — ${m.colonnes}`);
-    await p.click('#duration-dd-toggle');
-    await p.waitForTimeout(300);
-    check(await p.evaluate(() => !document.getElementById('duration-dd-menu').hidden),
-        'un vrai clic ouvre toujours le menu des durées');
+    // === C. Le geste réel : − et + écrivent dans l'accord, d'un temps ===
+    const { p, ctx } = await ouvrirTel({ width: 390, height: 844 });
+    await ouvrirPanneau(p);
+    const avant = (await duree(p)).beats;
+    await p.tap('#pa-quel [data-bulle="duree-plus"]'); await p.waitForTimeout(300);
+    const plus = await duree(p);
+    check(plus.beats === avant + 1, `+ allonge l'accord d'un temps dans la grille — ${avant} → ${plus.beats}`);
+    await p.tap('#pa-quel [data-bulle="duree-moins"]'); await p.waitForTimeout(300);
+    const moins = await duree(p);
+    check(moins.beats === avant, `− le raccourcit d'un temps — ${plus.beats} → ${moins.beats}`);
+    check(await p.evaluate(() => window.app.appMode) === 'add', 'régler la durée n\'ouvre pas la modification : le panneau reste à mi-hauteur');
 
-    // === D. Couche MOTEUR : la source de vérité reçoit bien le choix ===
-    // Déplacer un bouton ne doit RIEN changer à ce qu'il commande. #duration est lu par readChord,
-    // l'annulation et les exports MIDI/PDF : c'est lui qu'on regarde, pas l'apparence du bouton.
-    const avant = await p.evaluate(() => document.getElementById('duration').value);
-    await p.evaluate(() => {
-        const items = [...document.querySelectorAll('#duration-dd-menu .duration-dd-item')];
-        items.find(i => i.dataset.beats !== document.getElementById('duration').value).click();
-    });
-    await p.waitForTimeout(300);
-    const apres = await p.evaluate(() => document.getElementById('duration').value);
-    check(apres !== avant, `choisir une durée écrit bien dans #duration — ${avant} -> ${apres}`);
-    check(await p.evaluate(() => document.getElementById('duration-dd-menu').hidden), 'et le menu se referme');
+    // === D. « Réglages du son » agrandit le panneau : la durée reste en haut, à sa place ===
+    await p.tap('#pa-son-btn'); await p.waitForTimeout(500);
+    const agrandi = await duree(p);
+    check(agrandi.ouvert && !!agrandi.valeur && agrandi.valeur.l > 0, `agrandi, le panneau garde la durée sous les yeux (« ${agrandi.libelle} »)`);
+    await ctx.close();
 
-    // === E. En Modification, la durée s'efface — et la ligne se referme sur deux colonnes ===
-    // Elle se règle alors en tirant le bord de la case dans la grille (voir l'infobulle du bouton).
-    // Sans le rattrapage du gabarit, la ligne garderait une 3e colonne vide et les deux menus
-    // resteraient étroits pour rien.
-    await p.evaluate(() => window.app.editChord(0, 0));
-    await p.waitForTimeout(500);
-    const enEdition = await p.evaluate(() => ({
-        dureeVisible: getComputedStyle(document.getElementById('duration-dd')).display !== 'none',
-        colonnes: getComputedStyle(document.querySelector('.accord-grid')).gridTemplateColumns.split(' ').length,
-        largeurRoot: Math.round(document.getElementById('root').getBoundingClientRect().width),
-    }));
-    check(!enEdition.dureeVisible, 'en Modification, la durée s\'efface de la ligne');
-    check(enEdition.colonnes === 2, `et la ligne se referme sur deux colonnes — ${enEdition.colonnes}`);
-    check(enEdition.largeurRoot > m.root.l,
-        `les deux menus restants reprennent la place libérée — ${m.root.l}px en Ajout, ${enEdition.largeurRoot}px en Modification`);
+    // === E. Le téléphone n'a plus de ligne « fondamentale / type / durée » dans la page ===
+    const vide = await ouvrirTel({ width: 390, height: 844 });
+    const ligne = await vide.p.evaluate(() => { const g = document.querySelector('.accord-grid'); return !g || g.getBoundingClientRect().width === 0 || getComputedStyle(g).display === 'none' || getComputedStyle(document.getElementById('accord-card')).display === 'none'; });
+    check(ligne, 'la ligne de l\'accord a quitté la page : au repos, la carte « Nouvel accord » n\'y est plus');
+    check(await vide.p.evaluate(() => !document.getElementById('lecture-row')), 'et l\'ancienne rangée #lecture-row n\'existe toujours pas');
+    check(await vide.p.evaluate(() => getComputedStyle(document.getElementById('duration-dd')).display === 'none' || document.getElementById('duration-dd').getBoundingClientRect().width === 0),
+        'la durée « des prochains accords » n\'est plus un réglage de la page : chaque accord a la sienne, dans son panneau');
+    await vide.ctx.close();
 
     // === F. À l'ordinateur, la durée vit dans la bulle (lot 6b/6c), et la ligne d'accord n'y est plus ===
     const o = await ouvrir(browser, { width: 1440, height: 950 });
@@ -135,7 +145,7 @@ async function ouvrir(page, vp) {
         'ordinateur : la ligne de l\'accord n\'est pas affichée (rien aux deux endroits)');
     await o.click('#progression-sections .grid-cell[data-index="0"]');
     await o.waitForTimeout(300);
-    const bulleDuree = await o.evaluate(() => { const b = document.getElementById('bulle-accord'); const d = b && !b.hidden && b.querySelector('.bulle-duree'); return d ? { txt: d.textContent.trim(), l: d.getBoundingClientRect().width } : null; });
+    const bulleDuree = await o.evaluate(() => { const b = document.getElementById('bulle-accord'); const d = b && !b.hidden && b.querySelector('.bulle-duree'); return d ? { txt: d.textContent.trim(), l: Math.round(d.getBoundingClientRect().width) } : null; });
     check(!!bulleDuree && bulleDuree.l > 0 && /mes|temps/.test(bulleDuree.txt), `ordinateur : un clic sur la case ouvre la bulle, qui dit la durée — « ${bulleDuree && bulleDuree.txt} »`);
     await o.close();
 

@@ -1,6 +1,6 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 06/11/2026, après le lot 10d (panneau d'accord du téléphone). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 06/11/2026, après le lot 10e (panneau d'ajout du téléphone). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
@@ -34,8 +34,12 @@ Mis à jour le 06/11/2026, après le lot 10d (panneau d'accord du téléphone). 
   d'annulation (`_ouvertureEdition`, `_journalDebutSession` dans `commitLiveEdit`).
 - ✅ **10d livré** (06/11, banc `telephone_panneau_accord`) : panneau d'accord du téléphone, détail dans « Lot 10 » et `docs/dette-tests.md`.
 - ✅ **Point du 10d réglé** (06/11, commité sans balayage complet, qui vient en fin de 10e) : poignées de durée proportionnelles à la case au doigt (`clamp(12px, 25%, 22px)`).
-- **Prochain : 10e (panneau d'ajout)**, voir « Lot 10 » plus bas. On peut commencer sans rien demander.
-- **Ensuite** : 10f (éditeur de notes au téléphone). L'utilisateur peut changer l'ordre en lançant `/reprise`.
+- ✅ **10e livré** (06/11, banc `telephone_panneau_ajout`, assistant `tests/_ajout.js`) : panneau d'ajout du téléphone, détail dans « Lot 10 » et `docs/dette-tests.md`.
+  Décision en route : le curseur n'est pas mis d'office dans la saisie à l'ouverture du panneau (le clavier virtuel recouvrirait les accords proposés) — à confirmer
+  avec l'utilisateur. Défaut trouvé et corrigé : le clic fantôme hors du panneau d'accord (`_paOuvertA`).
+- **Prochain : 10f (éditeur de notes au téléphone)**, voir « Lot 10 » plus bas : remplace « Séq. » et l'icône ⊱ ; `voice_leading`, `vl_loupe`, `vl_pinch`, `voice_leading_section_ops`
+  (partie A à 860 px) à réécrire ; `calque_voix` et `notes_manuelles_intensite` changent de sens. Le séquenceur compact n'est plus joignable qu'au travers d'un accord
+  ouvert (panneau agrandi) : les bancs l'ouvrent par `editerAccord`. À voir aussi : à 664 px de haut le panneau d'accord défile en interne (la durée y est sous le pli).
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
@@ -47,7 +51,7 @@ Mis à jour le 06/11/2026, après le lot 10d (panneau d'accord du téléphone). 
   et quatre cases, Affichage, en-tête de partie), **« Paroles homogènes » livré** (supprimer un morceau supprime ses paroles partout, Ctrl+Z les
   ramène ; synchro des paroles dès l'ouverture une fois connecté, cadre Paroles chargé en arrière-plan ; versions des paroles dans Paramètres ›
   Historique, base `harmohub-historique-paroles` ; banc `paroles_homogenes`), **« Versions au cloud » livré** (les 5 plus récentes versions de
-  chaque morceau et de ses paroles dans Firestore, `synchro-versions.js`, banc `versions_cloud`), **« Éditeur et clavier » livré** (06/11), **10d livré** (06/11 : panneau d'accord). **Prochain : 10e.**
+  chaque morceau et de ses paroles dans Firestore, `synchro-versions.js`, banc `versions_cloud`), **« Éditeur et clavier » livré** (06/11), **10d livré** (06/11 : panneau d'accord), **10e livré** (06/11 : panneau d'ajout). **Prochain : 10f.**
 - **Versions au cloud (livré 05/11)** : les deux points des « Paroles homogènes » sont réglés (versions au cloud, liste dans la page Paroles seule).
   Limite : les versions ne sont pas écoutées en continu ; celles des autres appareils arrivent à l'ouverture de l'historique ou des Options de Paroles.
 - **Deux décisions du 10c (confirmées le 05/11, voir « Suite à faire »)** : (1) la barre-résumé dit aussi le TEMPO (« C majeur · 120 BPM · 4/4 · Droit · Piano »),
@@ -55,7 +59,7 @@ Mis à jour le 06/11/2026, après le lot 10d (panneau d'accord du téléphone). 
   Large et le pincement du téléphone sont une préférence de l'APPAREIL (`harmohubGrilleTelephone`), pas du morceau : les échelles du morceau restent
   celles de l'ordinateur (un morceau en Détaillé donnait des cases de 103 px au téléphone). Aussi : Transposer garde une ligne sous les cases (absent de
   la maquette, présent avant).
-- **Dernier balayage complet** (lot 10d, 06/11) : 236 verts, 5 rouges, 6 sans verdict sur 247 suites — exactement la ligne de base de
+- **Dernier balayage complet** (lot 10e, 06/11) : 235 verts + 2 bancs réparés puis rejoués verts, 5 rouges, 6 sans verdict sur 248 suites — exactement la ligne de base de
   `CLAUDE.md`. Le lancer en tâche d'arrière-plan avec le chien de garde dans la même commande : `(bash tests/watchdog.sh &) ; bash tests/run_all_fast.sh`.
 - **Dettes connues pour le lot 10** : au téléphone, hors barre du haut, onglets, barre de lecture et vues intégrées (10a, 10b), rien n'a bougé depuis
   le lot 6 ; 19 bancs sont joués à 860 px parce qu'ils éprouvent le mode « Ajout » de la carte Accord, qui n'existe plus que là (liste dans
@@ -149,7 +153,7 @@ lecture (Lecture, Stop, « Mes. N » + frise, Boucle, ⋯ qui ouvre le panneau L
    séquenceur ouvert. Cahier d'origine : (remplace la carte Accord et le mode Modification au téléphone) : toucher une case → panneau à mi-hauteur, l'accord
    visible au-dessus ; contenu de la bulle (‹ ›, fondamentales 2 × 6, type, durée) puis « Réglages du son » = contenu de l'inspecteur ; Supprimer,
    Dupliquer ; une annulation par panneau. Bancs : `filet_toujours_visible` (mode Modification au téléphone), `barre_bas_telephone`, `mobile_edit_scroll`.
-5. **10e — Panneau d'ajout** (remplace le mode Ajout, la carte Nouvel accord et l'ajout rapide) : case « + » → saisie unique (syntaxe complète),
+5. ✅ **10e — Panneau d'ajout** (livré 06/11, banc `telephone_panneau_ajout` ; remplace le mode Ajout, la carte Nouvel accord et l'ajout rapide) : case « + » → saisie unique (syntaxe complète),
    aide « ? », suggestions après l'accord précédent, accords de la tonalité. Les **19 bancs joués à 860 px** pour le mode « Ajout » (liste dans
    `docs/dette-tests.md`, lot 6c) sont réécrits pour ce geste.
 6. **10f — Éditeur de notes au téléphone** (remplace « Séq. » et l'icône ⊱) : plein écran au-dessus de la barre de lecture, en-tête, outils, calque

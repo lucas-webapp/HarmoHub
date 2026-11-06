@@ -1,4 +1,5 @@
 const { chromium } = require('playwright')
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -14,8 +15,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     await page.waitForTimeout(600);
     await page.waitForTimeout(150);
     for (const sym of ['C', 'D', 'E']) {
-        await page.fill('#quick-add-input', sym).catch(() => {});
-        await page.click('#quick-add-btn').catch(() => {});
+        await ajouterAccord(page, sym);
         await page.waitForTimeout(120);
     }
     const roots = async () => (await page.evaluate(() => loadProgressionSections()[0].chords.map(c => c.root)));

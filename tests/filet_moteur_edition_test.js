@@ -129,13 +129,16 @@ const lireAccord = (i) => JSON.parse(localStorage.getItem('myProgression')).sect
     const nbAvant = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords.length);
 
     // VRAI focus sur la commande, VRAIE touche Entrée : c'est tout l'enjeu du piège décrit en tête.
-    await page.focus('#root');
-    const focusId = await page.evaluate(() => document.activeElement && document.activeElement.id);
-    check(focusId === 'root', `le focus est bien sur le réglage de fondamentale — activeElement #${focusId}`);
+    // Lot 10e : le réglage d'accord de la carte n'existe plus en mode Ajout sous 900px — la commande qui ajoute est un accord du panneau d'ajout.
+    await page.click('#progression-sections .cell-add-input >> nth=0');
+    await page.waitForTimeout(300);
+    await page.focus('#ajout-aide .ajout-tuile[data-ajout-root="D"]');
+    const focusId = await page.evaluate(() => document.activeElement && document.activeElement.dataset.ajoutRoot);
+    check(focusId === 'D', `le focus est bien sur un accord du panneau d'ajout — activeElement D attendu, obtenu ${focusId}`);
     await page.keyboard.press('Enter');
     await page.waitForTimeout(350);
     const nbApres = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords.length);
-    check(nbApres === nbAvant + 1, `Entrée depuis un réglage ajoute un accord — ${nbAvant} → ${nbApres}`);
+    check(nbApres === nbAvant + 1, `Entrée depuis un bouton du panneau d'ajout ajoute un accord — ${nbAvant} → ${nbApres}`);
 
     console.log('\n=== C. En mode Modification, Entrée ne doit RIEN ajouter ===');
     // Le pendant du précédent, et il compte autant : « en mode Modification, chaque champ s'applique

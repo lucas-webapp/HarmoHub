@@ -15,6 +15,7 @@
 // CE QUE LE BANC NE PEUT PAS DIRE : à quoi ça ressemble. Les mesures disent « aligné, à la bonne hauteur, centré » ; l'œil reste à
 // l'utilisateur (voir les captures dans le journal du lot).
 const { chromium } = require('playwright');
+const { ajouterAccord } = require('./_ajout');
 const { check, exiger, plan, bilan } = require('./_harness')('barre du haut');
 const { estBruitReseau } = require('./_harness');
 
@@ -119,8 +120,7 @@ const graine = ({ src, noms, courant }) => {
     let e = await etat(p);
     check(e.etat === 'enregistre' && /^Enregistré/.test(e.texte) && e.drapeau === false, `morceau tout juste ouvert : « ${e.texte} » (voyant vert, rien à enregistrer)`);
     const avant = await p.evaluate(() => JSON.parse(localStorage.getItem('harmohubSongs'))[0].sections[0].chords.length);
-    await p.fill('#quick-add-input', 'F');
-    await p.click('#quick-add-btn');
+    await ajouterAccord(p, 'F');
     await p.waitForTimeout(250);
     e = await etat(p);
     check(e.etat === 'modifie' && e.texte === 'Non enregistré' && e.drapeau === true, `après un ajout : voyant orange « ${e.texte} »`);
@@ -134,8 +134,7 @@ const graine = ({ src, noms, courant }) => {
     const surDisqueApres = await p.evaluate(() => JSON.parse(localStorage.getItem('harmohubSongs'))[0].sections.flatMap(s => s.chords).length);
     check(surDisqueApres === avant + 1, `un clic sur Enregistrer écrit le morceau (${avant} → ${surDisqueApres} accords)`);
     check(e.etat === 'enregistre' && /^Enregistré à \d\d:\d\d$/.test(e.texte) && e.modifie === '0', `le voyant repasse au vert : « ${e.texte} »`);
-    await p.fill('#quick-add-input', 'Am');
-    await p.click('#quick-add-btn');
+    await ajouterAccord(p, 'Am');
     await p.waitForTimeout(250);
     check((await etat(p)).etat === 'modifie', 'une nouvelle modification rallume le voyant');
     await p.locator('body').click({ position: { x: 700, y: 600 } }); // le focus quitte le champ : Ctrl+S doit marcher partout
@@ -187,8 +186,7 @@ const graine = ({ src, noms, courant }) => {
     check(apresOuvrir !== 's1' && /^s\d$/.test(apresOuvrir), `choisir un autre morceau l'ouvre (de s1 à ${apresOuvrir}), en deux clics`);
     check(await p.evaluate(() => document.getElementById('tb-titre-nom').textContent) !== 'Blues du dimanche', 'le titre suit');
     // … et le garde-fou des modifications non enregistrées passe par le même chemin que l'ancienne liste.
-    await p.fill('#quick-add-input', 'E7');
-    await p.click('#quick-add-btn');
+    await ajouterAccord(p, 'E7');
     await p.waitForTimeout(200);
     const avantGarde = await idCourant(p);
     await p.click('#tb-titre');

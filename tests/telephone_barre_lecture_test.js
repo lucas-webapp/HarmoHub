@@ -200,6 +200,8 @@ const panneauOuvert = (p) => p.evaluate(() => !document.getElementById('panneau-
         // d'accord agrandi, posé sur la barre (il remplace le dock de secours « Rythme / Terminer » de 45px qui s'y posait jusque-là) : le banc
         // vérifie la même chose qu'avant — rien ne chevauche la barre, la sortie est au doigt — sur le nouveau porteur.
         const cdp = await ctx.newCDPSession(p);
+        // La page est remontée en haut : la case visée est alors entièrement sous la barre-résumé, comme sous le doigt de quelqu'un qui vient de l'ouvrir.
+        await p.evaluate(() => window.scrollTo(0, 0)); await p.waitForTimeout(400);
         const caseB = await p.locator('.grid-cell >> nth=1').boundingBox();
         for (let i = 0; i < 2; i++) {
             await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: caseB.x + caseB.width / 2, y: caseB.y + caseB.height * 0.85 }] });

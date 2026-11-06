@@ -12,6 +12,7 @@
 // l'utilisateur constate : la case, le doigté verrouillé, le 11 sur le piano, et la voix du 11 dans le rythme
 // (sans elle l'extension ne sonnerait pas). Bureau ET téléphone, vrais clics.
 const { chromium } = require('playwright');
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('guitare : envoyer l\'accord dessiné dans la grille');
 const bruit = require('./_harness').estBruitReseau;
@@ -65,7 +66,6 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
     // LOT 6c : sur ordinateur, plus de carte Accord à préparer (ni fondamentale ni type hors modification) : les sections qui posent l'accord
     // EN ATTENTE avant de dessiner se jouent sous le seuil (860px), où la carte garde son mode Ajout jusqu'au lot 10. DETTE : à reprendre au lot 10.
     const A = await ouvrir({ width: 860, height: 1000 });
-    await A.click('#quick-add-btn'); await A.waitForTimeout(200);
     await ouvrirDessin(A);
     await poser(A, DADD11);
     await valider(A);
@@ -104,7 +104,6 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
 
     // ============ B. UN AUTRE CANDIDAT ============
     const B = await ouvrir({ width: 860, height: 1000 });
-    await B.click('#quick-add-btn'); await B.waitForTimeout(200);
     await ouvrirDessin(B); await poser(B, DADD11); await valider(B);
     await B.locator('.guitar-draw-candidate', { hasText: /^D$/ }).click(); await B.waitForTimeout(150);
     check((await B.textContent('#guitar-draw-send')).trim().replace(/\s+/g, ' ') === 'Ajouter D à la grille', 'le bouton suit le candidat choisi (« Ajouter D à la grille »)');
@@ -113,17 +112,16 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
     check(g2.length === 1 && g2[0].root === 'D' && g2[0].quality === 'maj' && JSON.stringify(g2[0].lock) === JSON.stringify([null, 5, 4, 2, 3, 3]),
         `c'est le candidat CHOISI qui part, avec le même doigté (${g2.map(c => c.root + c.quality)})`);
     // Un second envoi s'ajoute à la suite, sans toucher au premier.
-    await B.selectOption('#root', 'C'); await B.selectOption('#quality', 'maj'); await B.waitForTimeout(150);
-    await ouvrirDessin(B); await poser(B, DADD11); await valider(B);
+    // Lot 10e : sans la carte « Nouvel accord » dont le changement de fondamentale remettait le manche à blanc, le dessin du premier envoi est encore
+    // sur le manche (« reclique pour la retirer ») : on le valide de nouveau tel quel, au lieu de le reposer — ce qui l'aurait effacé.
+    await ouvrirDessin(B); await valider(B);
     await B.click('#guitar-draw-send'); await B.waitForTimeout(400);
     const g2b = await grille(B);
     check(g2b.length === 2 && g2b[0].quality === 'maj' && g2b[1].quality === 'add11', `un second envoi s'ajoute à la suite, le premier accord ne bouge pas (${g2b.map(c => c.root + c.quality)})`);
 
     // ============ C. MODE MODIFICATION : remplacer, sans doublon ============
     const C = await ouvrir({ width: 860, height: 1000 });
-    await C.click('#quick-add-btn'); await C.waitForTimeout(200);
-    await C.selectOption('#root', 'C'); await C.selectOption('#quality', 'maj'); await C.waitForTimeout(150);
-    await C.click('#save'); await C.waitForTimeout(300);
+    await ajouterAccord(C, 'C'); await C.waitForTimeout(300); // lot 10e : le geste d'ajout, plus la carte « Nouvel accord »
     await C.evaluate(() => window.app.editChord(0, 0)); await C.waitForTimeout(300);
     check(await C.evaluate(() => window.app.appMode === 'edit' && window.app.editingIndex === 0), 'précondition : l\'accord de la grille est ouvert en modification');
     await ouvrirDessin(C); await poser(C, DADD11); await valider(C);
@@ -135,7 +133,6 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
 
     // ============ D. LA BASSE JOUÉE ============
     const D = await ouvrir({ width: 860, height: 1000 });
-    await D.click('#quick-add-btn'); await D.waitForTimeout(200);
     await ouvrirDessin(D);
     await poser(D, [[2, 4], [3, 2], [4, 3], [5, 3]]);   // F# A D G : la basse est le fa#, une note de l'accord
     await valider(D);
@@ -147,7 +144,6 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
         check((await grille(D))[0].bass === 'F#', 'la basse jouée (fa#, tierce de l\'accord) est reprise : Dadd11/F#');
     }
     const E = await ouvrir({ width: 860, height: 1000 });
-    await E.click('#quick-add-btn'); await E.waitForTimeout(200);
     await ouvrirDessin(E);
     await poser(E, [[2, 5], [3, 2], [4, 3], [5, 2]]);   // G A D F# : la basse est le sol, le 11 — pas une note « de base »
     await valider(E);
@@ -161,7 +157,6 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
 
     // ============ E. ACCORD NON RECONNU : rien à envoyer ============
     const F = await ouvrir({ width: 860, height: 1000 });
-    await F.click('#quick-add-btn'); await F.waitForTimeout(200);
     await ouvrirDessin(F);
     await poser(F, [[5, 0]]);                           // une seule note : pas d'accord
     await valider(F);
@@ -172,7 +167,6 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
     // ============ F. TÉLÉPHONE ============
     const T = await ouvrir({ width: 390, height: 844 }, { hasTouch: true, isMobile: true });
     check(await mobile(T), 'précondition : appareil tactile');
-    await T.tap('#quick-add-btn'); await T.waitForTimeout(250);
     await T.tap('#guitar-edit-btn'); await T.waitForTimeout(250);
     await T.tap('#guitar-edit-tab-draw'); await T.waitForTimeout(150);
     await poser(T, DADD11, true);
@@ -189,8 +183,6 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
 
     // ============ G. LE VERROU HABITUEL N'A PAS CHANGÉ ============
     const H = await ouvrir({ width: 860, height: 1000 });
-    await H.click('#quick-add-btn'); await H.waitForTimeout(200);
-    await H.selectOption('#root', 'C'); await H.selectOption('#quality', 'maj'); await H.waitForTimeout(150);
     await ouvrirDessin(H); await poser(H, DADD11); await valider(H);
     await H.click('#guitar-draw-lock'); await H.waitForTimeout(300);
     const etatH = await H.evaluate(() => ({ ov: window.app.guitarOverride, lock: window.app.guitarLock, q: document.getElementById('quality').value, n: loadProgressionSections()[0] ? loadProgressionSections()[0].chords.length : 0 }));

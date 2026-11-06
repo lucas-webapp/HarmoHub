@@ -228,6 +228,9 @@ const atteignable = (sel) => {
     await m.evaluate(seed);
     await m.reload({ waitUntil: 'load' });
     await m.waitForTimeout(1200);
+    // Lot 10e : la porte « Séquenceur » vit dans la carte Accord, qui n'est plus dans la page en mode Ajout : elle suit un accord ouvert en modification.
+    await m.evaluate(() => window.app.editChord(0, 0));
+    await m.waitForTimeout(500);
     const tailles = await m.evaluate(() => ['grid-zoom', 'seq-zoom'].map(id => {
         const r = document.getElementById(id).getBoundingClientRect();
         return { id, l: Math.round(r.width), h: Math.round(r.height) };

@@ -1,4 +1,5 @@
 const { chromium } = require('playwright')
+const { ajouterAccord, editerAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -23,6 +24,10 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // ============================================================
     // === A. Panneau live (Ajout) : accord "C" au piano, substitut "Em" à la guitare ===
     // ============================================================
+    // Lot 10e : plus de carte « Nouvel accord » sous 900px — l'accord est posé par le geste d'ajout, puis ouvert en modification ; chaque réglage
+    // s'écrit alors tout seul dans la grille (le « Ajouter » de la partie C n'existe plus).
+    await ajouterAccord(page, 'C');
+    await editerAccord(page);
 
     await page.waitForTimeout(150);
     check(await page.isHidden('#guitar-override-row'), "au départ (aucun substitut), le bandeau au-dessus du diagramme est masqué");
@@ -135,8 +140,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // ============================================================
     // === C. Ajoute l'accord dans la grille, vérifie la persistance ===
     // ============================================================
-    await page.click('#save');
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(400); // la modification s'écrit toute seule dans la grille
     const saved = await page.evaluate(() => {
         const c = loadProgressionSections()[0].chords[0];
         return { root: c.root, quality: c.quality, guitarOverride: c.guitarOverride, guitarLock: c.guitarLock };

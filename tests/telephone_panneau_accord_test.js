@@ -211,6 +211,9 @@ const accord = (e, s, i) => e.secs[s].chords[i];
         await p.keyboard.press('Escape'); await p.waitForTimeout(250);
         const g2 = await etat(p);
         await toucher(p, CASE(0, 1), 400);
+        // Le doigt ne touche pas pendant que la page défile (le garde « dernierDefilementA » l'écarte, voir le clic à côté) : on amène d'abord la cible
+        // à l'écran et on attend la fin du défilement. Sans carte « Nouvel accord » (lot 10e) la page est plus courte, et la cible exige ce défilement.
+        await p.locator('.prog-section-measures').first().scrollIntoViewIfNeeded(); await p.waitForTimeout(700);
         await toucher(p, '.prog-section-measures');
         const g3 = await etat(p);
         check(!g1.ouvert && !g2.ouvert && !g3.ouvert, `✕, Échap et le toucher à côté referment le panneau (${[g1.ouvert, g2.ouvert, g3.ouvert]})`);

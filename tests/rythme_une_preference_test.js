@@ -18,6 +18,7 @@
 //      .playstyle-dd » l'aurait déshabillé — fond, cadre et ombre en moins, en fixed par-dessus la
 //      grille. Un nom de classe partagé ne se voit pas dans un diff. Section G.
 const { chromium, devices } = require('playwright');
+const { ajouterAccord } = require('./_ajout');
 const creerHarnais = require('./_harness');
 const { plan, check, exiger, bilan } = creerHarnais('Rythme : une seule préférence, plus aucun bouton');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
@@ -137,11 +138,8 @@ const ouvrir = async (p) => { await p.click('#open-settings'); await p.waitForTi
     await page.click('#accord-close');
     await page.waitForTimeout(700);
     const avant = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords.length);
-    await page.selectOption('#root', 'D');
-    await page.waitForTimeout(200);
-    // Le vrai bouton, pas window.app.addChord() : un bouton qu'on ne peut atteindre qu'en appelant la
-    // fonction derrière n'est pas un bouton.
-    await page.click('#save');
+    // Lot 10e : le geste d'ajout est la saisie du panneau d'ajout (plus de carte « Nouvel accord » ni de « Ajouter »).
+    await ajouterAccord(page, 'D');
     await page.waitForTimeout(700);
     const e = await page.evaluate(() => {
         const ch = JSON.parse(localStorage.getItem('myProgression')).sections[0].chords;

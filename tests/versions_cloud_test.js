@@ -10,6 +10,7 @@
 //
 // A à l'ordinateur (1440 px), B au téléphone (390 px, tactile). Tous deux déjà connectés (la session survit au rechargement).
 const { chromium } = require('playwright');
+const { ajouterAccord: ajouterGeste } = require('./_ajout');
 const { check, exiger, plan, bilan } = require('./_harness')('versions au cloud (morceaux et paroles, deux appareils)');
 const { estBruitReseau } = require('./_harness');
 const { creerNuage, installer } = require('./_firebase_faux');
@@ -59,8 +60,7 @@ const texteDe = (brut) => { if (!brut) return ''; const s = JSON.parse(brut); re
     const doc = () => nuage.docs.get(DOC) || null;
     const versionsLocales = (p, quoi = 'HistoriqueVersions') => p.evaluate(([q]) => window[q].lister('s1').then(l => l.map(v => ({ id: v.id, motif: v.motif, appareil: v.appareil, empreinte: v.empreinte }))), [quoi]);
     const ajouterAccord = async (p, texte) => {
-        await p.fill('#quick-add-input', texte);
-        await p.click('#quick-add-btn');
+        await ajouterGeste(p, texte);
         const choix = p.locator('#section-picker-menu:not([hidden]) button').first();
         if (await choix.isVisible().catch(() => false)) await choix.click();
         await p.waitForTimeout(250);

@@ -152,3 +152,10 @@ html[data-glass="1"] .seq-ruler-band {
     html[data-glass="1"] .panneau-accord { background: var(--glass-pop-fond); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-hi), 0 -24px 50px -24px rgba(0, 0, 0, .65); }
     html[data-glass="1"] .panneau-accord :is(.rr-grille, .partie-rep-seg) { background: var(--glass-inp); }
 }
+
+/* ---- TÉLÉPHONE, LE PANNEAU D'AJOUT (refonte, lot 10e) : même fond que le panneau d'accord, au-dessus de la grille et de la barre de lecture. Les tuiles
+   d'accords et la saisie gardent le creux des champs. ---- */
+@media (max-width: 899px) {
+    html[data-glass="1"] .ajout-aide:not([hidden]) { background: var(--glass-pop-fond); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-hi), 0 -24px 50px -24px rgba(0, 0, 0, .65); }
+    html[data-glass="1"] .ajout-aide :is(.ajout-tuile, .ajout-7e) { background: var(--glass-inp); }
+}

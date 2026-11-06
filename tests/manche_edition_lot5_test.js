@@ -14,6 +14,7 @@
 // — sinon l'inverse se produirait : taper un nom sur l'autre onglet effacerait un dessin en train
 // d'être posé.
 const { chromium, devices } = require('playwright')
+const { ajouterAccordTypé, editerAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, plan, bilan } = require('./_harness')('manche : Lot 5 (non-régression dessin/manuscrit)');
 plan(13);
@@ -44,10 +45,7 @@ plan(13);
         await page.waitForTimeout(120);
     };
 
-    await page.click('#quick-add-btn');
-    await page.waitForTimeout(200);
-    await page.selectOption('#root', 'C');
-    await page.selectOption('#quality', 'maj');
+    await ajouterAccordTypé(page, 'C', 'maj'); await editerAccord(page, -1); // lot 10e : l'accord est posé par le geste d'ajout, puis ouvert
     await page.waitForTimeout(200);
 
     // ============================================================
@@ -118,10 +116,7 @@ plan(13);
     // ============================================================
     // === E. Un dessin EN COURS (brouillon, jamais verrouillé) survit à un détour par l'autre onglet ===
     // ============================================================
-    await page.click('#quick-add-btn');
-    await page.waitForTimeout(200);
-    await page.selectOption('#root', 'C');
-    await page.selectOption('#quality', 'maj');
+    await ajouterAccordTypé(page, 'C', 'maj'); await editerAccord(page, -1); // lot 10e : l'accord est posé par le geste d'ajout, puis ouvert
     await page.waitForTimeout(200);
     await page.click('#guitar-edit-btn');
     await page.waitForTimeout(150);
@@ -149,10 +144,7 @@ plan(13);
     // ============================================================
     // === F. Un accord verrouillé DEPUIS le dessin (Lot 4) survit lui aussi à la réouverture ===
     // ============================================================
-    await page.click('#quick-add-btn');
-    await page.waitForTimeout(200);
-    await page.selectOption('#root', 'A');
-    await page.selectOption('#quality', 'min');
+    await ajouterAccordTypé(page, 'A', 'min'); await editerAccord(page, -1); // lot 10e : l'accord est posé par le geste d'ajout, puis ouvert
     await page.waitForTimeout(200);
     await page.click('#guitar-edit-btn');
     await page.waitForTimeout(150);
@@ -192,10 +184,7 @@ plan(13);
         await mpage.tap('#toggle-viz-guitar');
     }
     await mpage.waitForTimeout(200);
-    await mpage.tap('#quick-add-btn');
-    await mpage.waitForTimeout(200);
-    await mpage.selectOption('#root', 'C');
-    await mpage.selectOption('#quality', 'maj');
+    await ajouterAccordTypé(mpage, 'C', 'maj'); await editerAccord(mpage, -1); // lot 10e : l'accord est posé par le geste d'ajout, puis ouvert
     await mpage.waitForTimeout(200);
     await mpage.tap('#guitar-edit-btn');
     await mpage.waitForTimeout(200);

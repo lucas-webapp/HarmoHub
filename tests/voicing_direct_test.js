@@ -66,7 +66,7 @@ const atteignable = (sel) => {
     // Le cœur de la demande. On ne clique sur RIEN avant de mesurer : ni le bouton « … », ni un
     // dépliage quelconque. Et on éprouve les deux modes : préparer un accord compte autant que
     // retoucher un accord posé.
-    for (const [etat, preparer] of [['Ajout', () => {}], ['Modification', () => window.app.editChord(0, 0)]]) {
+    for (const [etat, preparer] of [['Modification (1er accord)', () => window.app.editChord(0, 0)], ['Modification (2e accord)', () => window.app.editChord(0, 1)]]) {
         await page.evaluate(preparer);
         await page.waitForTimeout(350);
         for (const [sel, nom] of [['#octave-value', "la valeur d'octave"], ['[data-octave-step="1"]', "le bouton octave +"],
@@ -203,17 +203,21 @@ const atteignable = (sel) => {
     await page.waitForTimeout(300);
     exiger(await page.evaluate(() => window.app.appMode === 'add'), 'on est bien revenu en mode Ajout');
     const nbAvant = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords.length);
-    await page.focus('#drop-seg .voicing-segment[data-valeur="drop2"]');
+    // Lot 10e : plus de carte « Nouvel accord » en mode Ajout sous 900px — le raccourci « Entrée sur une commande ajoute l'accord » vit dans le panneau
+    // d'ajout, dont les accords de la tonalité sont des BOUTONS (même piège : un <button> n'a pas l'identifiant d'un <select>).
+    await page.click('#progression-sections .cell-add-input >> nth=0');
+    await page.waitForTimeout(300);
+    await page.focus('#ajout-aide .ajout-tuile[data-ajout-root="D"]');
     const cible = await page.evaluate(() => {
         const a = document.activeElement;
-        return { tag: a.tagName, param: a.dataset ? a.dataset.chordParam : null };
+        return { tag: a.tagName, param: a.dataset ? a.dataset.ajoutRoot : null };
     });
-    check(cible.tag === 'BUTTON' && cible.param === 'drop',
-        `le focus est bien sur un BOUTON de réglage d'accord — ${cible.tag}, param « ${cible.param} »`);
+    check(cible.tag === 'BUTTON' && cible.param === 'D',
+        `le focus est bien sur un BOUTON d'accord du panneau d'ajout — ${cible.tag}, accord « ${cible.param} »`);
     await page.keyboard.press('Enter');
     await page.waitForTimeout(400);
     const nbApres = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords.length);
-    check(nbApres === nbAvant + 1, `Entrée depuis une commande de voicing ajoute bien l'accord — ${nbAvant} → ${nbApres}`);
+    check(nbApres === nbAvant + 1, `Entrée depuis un bouton du panneau d'ajout ajoute bien l'accord — ${nbAvant} → ${nbApres}`);
 
     console.log('\n=== G. Cliquer une commande ne sort pas du mode Modification ===');
     await page.evaluate(() => window.app.editChord(0, 0));
@@ -233,6 +237,8 @@ const atteignable = (sel) => {
     await m.evaluate(seed);
     await m.reload({ waitUntil: 'load' });
     await m.waitForTimeout(700);
+    await m.evaluate(() => window.app.editChord(0, 0)); // lot 10e : la carte n'est plus dans la page en mode Ajout, elle suit un accord ouvert
+    await m.waitForTimeout(400);
     const tel = await m.evaluate(() => {
         const rang = document.getElementById('voicing-row').getBoundingClientRect();
         const carte = document.getElementById('accord-card').getBoundingClientRect();

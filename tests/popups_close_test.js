@@ -3,6 +3,7 @@
 // (this._popups). Ce test existe pour ça : une consolidation qui laisserait UN popup au bord de la
 // route ne se verrait pas à l'œil nu — on ne rouvre pas les six menus à chaque relecture.
 const { chromium } = require('playwright')
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -20,8 +21,7 @@ const cache = (page, id) => page.evaluate((i) => {
     page.on('pageerror', e => errs.push(e.message));
     await page.goto(`${BASE}/index.html`);
     await page.waitForTimeout(900);
-    await page.fill('#quick-add-input', 'C/Am/F/G');
-    await page.click('#quick-add-btn');
+    await ajouterAccord(page, 'C/Am/F/G');
     await page.waitForTimeout(600);
     await page.evaluate(() => document.activeElement && document.activeElement.blur());
 

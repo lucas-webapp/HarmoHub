@@ -110,7 +110,11 @@ const graine = (opts) => {
     // ======================================================================================================
     console.log('\n=== G. Le téléphone garde sa colonne (lot 10) ===');
     p = await ouvrir({ width: 390, height: 844 });
-    check(await visible(p, '#accord-card') && await visible(p, '#root'), 'la carte Accord et sa fondamentale sont là, comme avant');
+    // Lot 10e : en mode Ajout la carte « Nouvel accord » a quitté la page ; elle reste l'inspecteur d'un accord ouvert en modification.
+    const auRepos = await visible(p, '#accord-card');
+    await p.evaluate(() => window.app.editChord(0, 0));
+    await p.waitForTimeout(400);
+    check(!auRepos && await visible(p, '#accord-card') && await visible(p, '#root'), 'la carte Accord n\'est plus là au repos, et revient avec sa fondamentale quand un accord est ouvert');
     await p.close();
 
     check(erreurs.length === 0, `aucune erreur JavaScript (${erreurs.length ? erreurs.join(' | ') : 'aucune'})`);

@@ -1,15 +1,16 @@
 // Lot 3 : affordances. C = curseurs + repères de bord dans le séquenceur ; H = poignées de durée de
 // la grille visibles et élargies au doigt ; D = étiquette Copier/Déplacer sur le fantôme de glissé.
 const { chromium } = require('playwright')
+const { ajouterAccord, editerAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
 function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label); } else { FAIL++; console.log('FAIL - ' + label); } }
 
 async function openSeqWithNote(page) {
-    await page.fill('#quick-add-input', 'C').catch(() => {});
-    await page.click('#quick-add-btn').catch(() => {});
+    await ajouterAccord(page, 'C');
     await page.waitForTimeout(250);
+    await editerAccord(page); // lot 10e : plus de séquenceur compact en mode Ajout
     if (!(await page.evaluate(() => window.app.seqOpen))) await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(400);
     // Note de 4 croches sur la voix 0 : il lui faut un corps (croches 1 et 2) en plus de ses bords.
@@ -175,8 +176,7 @@ async function openSeqWithNote(page) {
     // justement pas de repère — avec un seul accord, le sélecteur ne trouvait rien et l'assertion ne
     // prouvait rien.
     for (const sym of ['C', 'Am7', 'F']) {
-        await mob.fill('#quick-add-input', sym).catch(() => {});
-        await mob.click('#quick-add-btn').catch(() => {});
+        await ajouterAccord(mob, sym);
         await mob.waitForTimeout(120);
     }
     await mob.waitForTimeout(200);

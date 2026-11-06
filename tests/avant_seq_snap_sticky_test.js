@@ -4,6 +4,7 @@
 // l'on visait. Le banc a donc été retourné vers ce qui reste — le pas vaut la case, et aucun
 // recalage ne s'interpose entre le geste et l'endroit visé.
 const { chromium } = require('playwright')
+const { ajouterAccord, editerAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -79,9 +80,9 @@ async function drag(page, from, to) {
 
     await page.goto(`${BASE}/index.html`);
     await page.waitForTimeout(700);
-    await page.fill('#quick-add-input', 'C').catch(() => {});
-    await page.click('#quick-add-btn').catch(() => {});
+    await ajouterAccord(page, 'C');
     await page.waitForTimeout(250);
+    await editerAccord(page); // lot 10e : plus de séquenceur compact en mode Ajout
     if (!(await page.evaluate(() => window.app.seqOpen))) await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(400);
 

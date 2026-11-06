@@ -1,4 +1,5 @@
 const { chromium } = require('playwright')
+const { ajouterAccord, editerAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 // La section « loupe grille » de ce banc est SUPPRIMÉE, pas rebranchée : elle refaisait exactement les
 // mêmes deux vérifications que la section 1, sur les mêmes cases, au seul motif qu'elles vivaient alors
@@ -30,6 +31,7 @@ plan(8);
     // pixel près sur la colonne, et l'utilisateur a tranché entre cinq propositions (« j'aime bien
     // le petit rond pour la grille d'accords, mais laisse un tiret pour le séquenceur »). Ce qui
     // reste à éprouver est le besoin, pas le moyen : le repère existe, et il se voit.
+    await editerAccord(page); // lot 10e : plus de séquenceur compact en mode Ajout
     await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(250);
     const offbeatCss = await page.evaluate(() => {
@@ -55,8 +57,7 @@ plan(8);
 
     // Ajoute plusieurs accords pour avoir de la marge d'étirement (case "+" toujours présente après)
     for (const sym of ['C', 'G', 'Am', 'F']) {
-        await page.fill('#quick-add-input', sym).catch(() => {});
-        await page.click('#quick-add-btn').catch(() => {});
+        await ajouterAccord(page, sym);
         await page.waitForTimeout(150);
     }
 
@@ -101,7 +102,10 @@ plan(8);
     const gridCellsNow = await page.$$('.grid-cell');
     await gridCellsNow[0].dblclick();
     await page.waitForTimeout(300);
-    await page.evaluate(() => window.app.toggleSequencer('compact'));
+    await editerAccord(page); // lot 10e : la modification de l'accord (le double clic n'y mène plus depuis que la carte Accord a quitté le mode Ajout)
+    await page.click('#pa-son-btn'); // lot 10e : le séquenceur compact vit dans « Réglages du son » du panneau d'accord
+    await page.waitForTimeout(300);
+    if (!(await page.evaluate(() => window.app.seqOpen))) await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(300);
         // LA PORTE DU PLEIN ÉCRAN A DÉMÉNAGÉ DANS LE SÉQUENCEUR : c'est la loupe de sa barre d'outils
     // (#seq-plein-ecran). « Séquenceur » (#seq-zoom), dans le volet, n'ouvre plus que la vue

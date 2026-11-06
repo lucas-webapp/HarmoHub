@@ -2,6 +2,7 @@
 // pas déplacer l'accord. Un appui marqué (> 300 ms) avant de glisser, lui, doit toujours réordonner,
 // et la souris ne doit rien changer du tout.
 const { chromium } = require('playwright')
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -56,8 +57,7 @@ async function touchDrag(page, from, to, { holdMs = 0, steps = 14, stepDelay = 1
 
     // Assez d'accords pour que la grille tienne sur plusieurs lignes et que la page déborde.
     for (const sym of ['C', 'Dm', 'Em', 'F', 'G', 'Am', 'Bm', 'C']) {
-        await page.fill('#quick-add-input', sym);
-        await page.click('#quick-add-btn');
+        await ajouterAccord(page, sym);
         await page.waitForTimeout(90);
     }
     const before = await labels(page);

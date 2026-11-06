@@ -1,4 +1,5 @@
 const { chromium } = require('playwright')
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 // CONTRAT CHANGÉ (1) : les six boutons d'export (PDF, MIDI, MP3, Paroles, sauvegarde, import MIDI)
@@ -58,8 +59,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
 
     // Deux parties : "Couplet" (par défaut) avec 2 accords, + une 2e partie "Refrain" avec 1 accord.
     for (const sym of ['Am', 'F']) {
-        await page.fill('#quick-add-input', sym).catch(() => {});
-        await page.click('#quick-add-btn').catch(() => {});
+        await ajouterAccord(page, sym);
         await page.waitForTimeout(120);
     }
     await page.click('#add-section');
@@ -67,8 +67,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // Section fraîchement ajoutée : vérifie qu'elle est bien active avant d'y ajouter un accord (sinon
     // "G" pourrait atterrir dans la 1ère section par erreur — pas ce que ce test veut vérifier).
     await page.waitForFunction(() => app.activeSection === 1, { timeout: 3000 }).catch(() => {});
-    await page.fill('#quick-add-input', 'G').catch(() => {});
-    await page.click('#quick-add-btn').catch(() => {});
+    await ajouterAccord(page, 'G');
     await page.waitForTimeout(200);
 
     let fichiers = 0; page.on('download', () => { fichiers++; });
