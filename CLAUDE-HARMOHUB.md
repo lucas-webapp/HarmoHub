@@ -33,8 +33,7 @@ Mis à jour le 06/11/2026, après le lot 10d (panneau d'accord du téléphone). 
   retenu par morceau dans une table de l'appareil (`harmohubVuesParMorceau`). Défaut ancien corrigé au passage : ouvrir un accord n'empile plus
   d'annulation (`_ouvertureEdition`, `_journalDebutSession` dans `commitLiveEdit`).
 - ✅ **10d livré** (06/11, banc `telephone_panneau_accord`) : panneau d'accord du téléphone, détail dans « Lot 10 » et `docs/dette-tests.md`.
-- **Point ouvert du 10d, à proposer à l'utilisateur (d'avant le lot)** : à 320 px, une case fait 60 px et ses poignées de durée 22 px de chaque côté ; le
-  ciblage tactile attire un toucher au centre de la case vers la poignée gauche (la case n'est pas sélectionnée). Poignées plus étroites sur une case étroite ?
+- ✅ **Point du 10d réglé** (06/11, commité sans balayage complet, qui vient en fin de 10e) : poignées de durée proportionnelles à la case au doigt (`clamp(12px, 25%, 22px)`).
 - **Prochain : 10e (panneau d'ajout)**, voir « Lot 10 » plus bas. On peut commencer sans rien demander.
 - **Ensuite** : 10f (éditeur de notes au téléphone). L'utilisateur peut changer l'ordre en lançant `/reprise`.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.

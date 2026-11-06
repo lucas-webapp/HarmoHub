@@ -4271,7 +4271,9 @@ button:active { transform: translateY(1px); }
    reste fin : c'est la CIBLE qui grandit, pas le dessin. Même correctif que celui déjà appliqué à la
    poignée du séquenceur épinglé. */
 @media (hover: none), (pointer: coarse) {
-    .cell-resize { width: 22px; }
+    /* Proportionnelle à la case (décision du 06/11 : « oui il faut réduire les poignées ») : à 320px une case fait 60px, et deux poignées de 22px en
+       gardaient 16 au milieu — le ciblage tactile y attirait le toucher vers la poignée, la case n'était pas sélectionnée. 22px dès que la case est large. */
+    .cell-resize { width: clamp(12px, 25%, 22px); }
     /* Repère visible réservé à la case ACTIVE. Il était d'abord affiché sur TOUTES les cases (faute de
        survol au doigt pour le révéler à la demande) : deux barres blanches sur chaque accord, soit
        douze traits sur une grille de six — un bruit visuel qui noyait la grille au lieu de l'aider.

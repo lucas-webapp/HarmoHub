@@ -5740,3 +5740,11 @@ Points 4, 5, 7 et 9 des décisions du 05/11. Nouveau banc `editeur_et_clavier` (
 - **Balayages complets.** Premier : 233 verts, 8 rouges, 6 sans verdict. Hors ligne de base : `inspecteur_sujet`, `seq_tiroir_flottant` (le panneau ouvert
   par-dessus le tiroir flottant, corrigé) et `glock_unlock_and_switch` (les diagrammes recouverts, corrigé ; banc réécrit pour la croix du panneau). Second,
   après correction : **236 verts, 5 rouges, 6 sans verdict (247 suites), exactement la ligne de base.**
+
+## Correctif du 10d : poignées de durée proportionnelles à la case, au doigt (2026-11-06)
+
+- Point ouvert du 10d réglé sur la réponse de l'utilisateur (« oui il faut réduire les poignées ») : `.cell-resize` passe de 22 px à `clamp(12px, 25%, 22px)`
+  sous `(hover: none), (pointer: coarse)`. À 320 px (case de 60 px) un toucher au centre sélectionne la case au lieu d'être attiré par la poignée.
+- Bancs : `telephone_panneau_accord` (partie I jouée à 320 px dès l'ouverture, toucher au centre ; plan 38) et `affordances` (largeur attendue = 25 % de la case,
+  entre 12 et 22 px). Sabotage : remettre `width: 22px` fait rougir les deux vérifications du 320 px.
+- Ciblé : 9 verts, 0 rouge, `smoke` sans verdict (ligne de base). Balayage complet reporté à la fin du 10e (décision de l'utilisateur) ; `?v=` à 202611062000.

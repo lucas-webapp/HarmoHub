@@ -198,9 +198,15 @@ async function openSeqWithNote(page) {
             opaciteAutre: any ? getComputedStyle(any, '::after').opacity : null,
         };
     });
-    check(handleMobile && handleMobile.width === '22px',
-        `au doigt, la cible de la poignée est bien élargie à 22px — obtenu ${JSON.stringify(handleMobile)}`);
-    check(handleMobile && handleMobile.widthAutre === '22px',
+    // Depuis le 06/11 (« oui il faut réduire les poignées ») la cible est PROPORTIONNELLE à la case : 25 %, entre 12 et 22px. À 320px une case fait 60px et
+    // deux poignées de 22px en laissaient 16 au centre — le ciblage tactile y volait le toucher. Elle reste plus large que celle de l'ordinateur (14px)
+    // dès que la case dépasse 56px, et jamais au-dessous de 12px.
+    const largeurCase = await mob.evaluate(() => document.querySelector('.grid-cell').getBoundingClientRect().width);
+    const attendue = Math.min(22, Math.max(12, largeurCase * 0.25));
+    const larg = handleMobile && parseFloat(handleMobile.width);
+    check(handleMobile && Math.abs(larg - attendue) < 1.5 && larg > 14,
+        `au doigt, la cible de la poignée est élargie, proportionnelle à la case (${attendue.toFixed(1)}px pour une case de ${Math.round(largeurCase)}px) — obtenu ${JSON.stringify(handleMobile)}`);
+    check(handleMobile && handleMobile.widthAutre === handleMobile.width,
         `...sur TOUTES les cases, pas seulement l'active — obtenu ${handleMobile && handleMobile.widthAutre}`);
     check(handleMobile && parseFloat(handleMobile.opaciteSelection) > 0,
         `le repère est visible sur la case sélectionnée (seul canal au doigt) — obtenu ${handleMobile && handleMobile.opaciteSelection}`);

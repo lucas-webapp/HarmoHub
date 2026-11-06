@@ -25,7 +25,7 @@ const { check, exiger, plan, bilan } = require('./_harness')('téléphone : pann
 const { estBruitReseau } = require('./_harness');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
-plan(37);
+plan(38);
 
 const mk = (root, quality) => ({ root, quality, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
 const SECTIONS = [
@@ -248,11 +248,10 @@ const accord = (e, s, i) => e.secs[s].chords[i];
 
         // ===== I. 320px ==============================================================================================================
         {
-            // Ouvert à 390px puis l'écran rétréci : à 320px, une case ne fait que 60px et le ciblage tactile de Chromium attire le toucher vers la
-            // poignée de durée (22px de chaque côté) — défaut d'avant ce lot, noté dans docs/dette-tests.md, qu'on ne veut pas confondre avec celui-ci.
-            const { p, ctx } = await ouvrir(nav, TEL, erreurs, '320px : ');
+            // Au CENTRE d'une case de 60px, comme un pouce : les poignées de durée, proportionnelles à la case (12px ici), ne volent plus le toucher.
+            const { p, ctx } = await ouvrir(nav, { ...TEL, viewport: { width: 320, height: 640 } }, erreurs, '320px : ');
             await toucher(p, CASE(0, 1), 500);
-            await p.setViewportSize({ width: 320, height: 640 }); await p.waitForTimeout(500);
+            check(await p.evaluate(() => !document.getElementById('panneau-accord').hidden && window.app.selectedIndex === 1), 'à 320px, un toucher au centre d\'une case la sélectionne et ouvre le panneau (les poignées de durée ne le volent plus)');
             const t = await p.evaluate(() => {
                 const pa = document.getElementById('panneau-accord'), r = pa.getBoundingClientRect();
                 const dehors = [...pa.querySelectorAll('button')].filter(b => { const q = b.getBoundingClientRect(); return q.width > 0 && (q.left < 0 || q.right > innerWidth + 0.5); }).length;
