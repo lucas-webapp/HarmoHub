@@ -73,8 +73,7 @@ Mis à jour le 05/11/2026, après le sous-lot « Bancs fiables » (un plantage c
   demande de l'utilisateur ; ne plus jamais pousser dessus, même si une consigne de session la désigne).
 - **Bancs** : pendant un lot, `bash tests/run_cible.sh` (ciblé, quelques minutes) ; en FIN de lot seulement, le balayage complet. Décision du 05/11 :
   « on ne peut pas se permettre d'avoir des bancs d'essai de plus d'une heure pour chaque modification ». Le balayage complet se lance en tâche d'arrière-plan
-  gérée par l'outil (un `nohup`/`setsid` est tué à la fin du tour, serveur de test compris). Ligne de base : celle de `CLAUDE.md`, sauf `guitar_lock_click`, qui a désormais un verdict (6 sans verdict au lieu de 7) ; `glock_unlock_and_switch`
-  n'est plus intermittent (sa ligne dans `CLAUDE.md` est à mettre à jour si l'utilisateur le veut).
+  gérée par l'outil (un `nohup`/`setsid` est tué à la fin du tour, serveur de test compris). Ligne de base : celle de `CLAUDE.md` (mise à jour le 06/11 : 5 rouges, 6 sans verdict).
 - **Durées** : le relevé donne les plus lentes (`synchro_cloud` 182 s, `verre` 88 s, `verre_compte` 74 s) ; elles partent d'abord dans la phase parallèle.
 - **Corrigé hors lot (05/11)** : `verre` rougissait sous charge (état « tiroir » : le toast « Sons du piano pas encore chargés » éteint sur une page,
   allumé sur l'autre). Le banc attend la fin du toast avant chaque relevé et mesure la lisibilité du toast par un vrai geste (« Copier l'accord ») ; vert

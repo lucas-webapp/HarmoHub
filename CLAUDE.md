@@ -13,9 +13,10 @@ La **refonte de l'interface** suit `docs/refonte.md` (règles, décisions de fon
 - **Reprise** : après `/clear` ou `/compact`, la commande **`/reprise`** (`.claude/commands/reprise.md`, versionnée) relit « Suite à faire », vérifie le
   dépôt, annonce la suite prévue et la commence.
 - **Ligne de base du balayage** (`bash tests/run_all_fast.sh`) : **5 rouges** déjà là avant la refonte et à ne pas confondre avec une régression
-  (`probe_clic_accord_voisin`, `probe_defilement_tactile`, `probe_regle_voisins`, `probe_seq_finitions`, `seq_notes_libres_clavier`) et **7 « sans verdict »**
-  (`ctx_nav_scroll`, `detune`, `guitar_lock_click`, `instrument_stress`, `item1_hzoom_out`, `probe_cache_perime`, `smoke`). `glock_unlock_and_switch` est
-  intermittent (aussi avant le lot 9a). Toute suite rouge ou ajout de rouge hors de cette liste est une régression : on la traite avant de pousser.
+  (`probe_clic_accord_voisin`, `probe_defilement_tactile`, `probe_regle_voisins`, `probe_seq_finitions`, `seq_notes_libres_clavier`) et **6 « sans verdict »**
+  (`ctx_nav_scroll`, `detune`, `instrument_stress`, `item1_hzoom_out`, `probe_cache_perime`, `smoke`). Depuis le 05/11, un banc qui plante (ligne `FATAL` ou
+  trace d'exception de Node) compte ROUGE même s'il imprime un bilan vert. Toute suite rouge ou ajout de rouge hors de cette liste est une régression : on
+  la traite avant de pousser. Lancer le balayage complet avec le chien de garde dans la même tâche : `(bash tests/watchdog.sh &) ; bash tests/run_all_fast.sh`.
 
 ## Git
 
