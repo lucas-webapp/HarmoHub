@@ -11994,7 +11994,7 @@ class HarmoHubApp {
         // grille repasse en Compact provisoire par-dessus — « tant que l'éditeur de notes est ouvert ».
         this._affichageAvantEditeur = null;
         if (this.rafraichirAffichageGrille) this.rafraichirAffichageGrille();
-        if (this._editeurNotesActif) this.entrerCompactProvisoire();
+        if (this._editeurNotesActif && window.matchMedia(SEQ_DOCK_MEDIA).matches) this.entrerCompactProvisoire();
     }
 
     // Au tout premier rendu de la page (voir constructeur) : un morceau reste "ouvert" d'une session à
@@ -19746,14 +19746,17 @@ class HarmoHubApp {
     // Ouvert = le séquenceur continu est dans son volet, sur ordinateur. Appelé à chaque ouverture / fermeture (toggleSequencer, la conduite de voix
     // qui prend la place, le passage du seuil de 900px). Idempotent : ne fait quelque chose qu'au CHANGEMENT d'état.
     majEditeurNotes() {
-        const ouvert = this.seqMode === 'continu' && window.matchMedia(SEQ_DOCK_MEDIA).matches;
+        // Lot 10f : l'éditeur existe aussi au téléphone (feuille plein écran au-dessus de la barre de lecture) ; seul le Compact PROVISOIRE de la grille
+        // reste à l'ordinateur (au téléphone la grille est cachée derrière la feuille et son affichage est une préférence de l'appareil).
+        const ouvert = this.seqMode === 'continu';
+        const bureau = window.matchMedia(SEQ_DOCK_MEDIA).matches;
         if (ouvert && !this._editeurNotesActif) {
             this._editeurNotesActif = true;
             this.editeurNotesEtendu = false; // « réduit par défaut », à chaque ouverture
-            this.entrerCompactProvisoire();
+            if (bureau) this.entrerCompactProvisoire();
         } else if (!ouvert && this._editeurNotesActif) {
             this._editeurNotesActif = false;
-            this.sortirCompactProvisoire();
+            this.sortirCompactProvisoire(); // sans effet quand rien n'a été mis de côté (téléphone)
         }
         this.majBoutonEditeurNotes();
     }
@@ -19765,8 +19768,8 @@ class HarmoHubApp {
             const ouvert = this.seqMode === 'continu';
             btn.setAttribute('aria-pressed', String(ouvert));
             // Le libellé dit ce que fait le bouton sur CET écran : sur téléphone il reste « Séq. » et garde ses mots d'avant (lot 10).
-            btn.title = bureau ? (ouvert ? 'Fermer l\'éditeur de notes' : 'Ouvrir l\'éditeur de notes : séquenceur de tout le morceau') : 'Séquenceur : voir tout le morceau';
-            btn.setAttribute('aria-label', bureau ? 'Éditeur de notes' : 'Ouvrir le séquenceur, vue d\'ensemble');
+            btn.title = ouvert ? 'Fermer l\'éditeur de notes' : 'Ouvrir l\'éditeur de notes : séquenceur de tout le morceau';
+            btn.setAttribute('aria-label', 'Éditeur de notes');
         }
         const etendre = document.getElementById('editeur-notes-etendre');
         if (etendre) {

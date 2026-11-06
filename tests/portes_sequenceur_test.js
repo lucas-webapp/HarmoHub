@@ -235,7 +235,7 @@ const atteignable = (sel) => {
         const r = document.getElementById(id).getBoundingClientRect();
         return { id, l: Math.round(r.width), h: Math.round(r.height) };
     }));
-    check(await m.evaluate(() => document.getElementById('grid-zoom').innerText.trim()) === 'Séq.', 'téléphone : la porte garde son mot « Séq. » (lot 10)');
+    check(await m.evaluate(() => document.getElementById('grid-zoom').innerText.trim()) === 'Notes', 'téléphone : la porte dit « Notes » (lot 10f)');
     check(tailles.every(t => t.h >= 24 && t.l >= 40),
         `téléphone : les deux portes restent des cibles — ${tailles.map(t => t.id + ' ' + t.l + 'x' + t.h).join(', ')}`);
     await m.evaluate(() => document.getElementById('seq-zoom').scrollIntoView({ block: 'center' }));

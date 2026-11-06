@@ -7637,6 +7637,9 @@ body.avec-barre-selection .toast { bottom: 132px; }
         box-shadow: inset 0 1px 3px rgba(0,0,0,0.45);
     }
 
+}
+/* Lot 10f : tout ce qui suit vaut aussi au téléphone (la feuille plein écran, bloc final de la feuille). */
+@media screen {
     /* L'EN-TÊTE : « Notes », Fermer, chevrons — une barre, une hauteur, une ligne de base (règle 3). Sans fond propre : c'est le volet
        (déjà dans verre-surfaces.css) qui porte la surface, il n'y a donc pas de nouvelle surface à dépolir. */
     .editeur-notes-tete {
@@ -7710,7 +7713,7 @@ body.avec-barre-selection .toast { bottom: 132px; }
    « Calque Voix = l'ancienne conduite de voix : fonction 1/3/5/7 écrite dans la note (la couleur n'est plus seule), trait blanc du chemin des voix. »
    En fin de feuille comme le reste de l'éditeur, et ordinateur seulement : le téléphone garde son panneau de conduite de voix jusqu'au lot 10.
    Aucune surface nouvelle : la légende et la bande des accords n'ont pas de fond propre (le volet et la règle, déjà dépolis, les portent). */
-@media (min-width: 900px) {
+@media screen {
     /* L'icône ⊱ de la rangée de réglages se retire de l'ordinateur : sa seule porte est désormais le bouton Voix de l'éditeur (décision du 05/11,
        une fois chaque fonction de l'ancien panneau retrouvée dans le calque). */
     #toggle-voice-leading { display: none; }
@@ -7773,7 +7776,7 @@ body.avec-barre-selection .toast { bottom: 132px; }
 /* ---------- NOTES MANUELLES ET INTENSITÉ DANS L'ÉDITEUR DE NOTES (refonte, lot 9d — docs/refonte.md, « Éditeur de notes ») ----------
    « Notes ajoutées à la main en pointillés + pastille ambre sur la case + Revenir à l'automatique dans l'inspecteur. Bande d'intensité (le mode
    studio actuel) sous les notes. » En fin de feuille comme le reste de l'éditeur ; ordinateur seulement (le téléphone ne bouge pas avant le lot 10). */
-@media (min-width: 900px) {
+@media screen {
     /* UNE NOTE AJOUTÉE À LA MAIN : liseré en pointillés, presque vide (la maquette : fond à 8 %, liseré à 85 %). La teinte reste celle de son rôle
        (règle 4) : ce qui change, c'est qu'elle ne vient pas du nom de l'accord. Partout à l'ordinateur — l'éditeur, le petit séquenceur de
        l'inspecteur, les accords voisins (décision du 05/11). La sélection garde son liseré blanc (posé plus haut, même spécificité : la couleur
@@ -7788,7 +7791,7 @@ body.avec-barre-selection .toast { bottom: 132px; }
     .seq-note.manuelle.selected { border-color: rgba(255, 255, 255, 0.85); }
     .seq-ctx-note.manuelle { border-style: dashed; background: transparent; }
 }
-@media (min-width: 900px) {
+@media screen {
     /* LE BOUTON INTENSITÉ (le mode studio, même logo) : rangé après Voix dans l'éditeur, allumé en BLEU comme Voix et Ajuster — le vert dit
        « lecture » (règle 5). Ailleurs à l'ordinateur, il garde son allumage d'avant. */
     .editeur-notes-barre #toggle-studio-mode[aria-pressed="true"] {
@@ -8344,4 +8347,31 @@ body.avec-barre-selection .toast { bottom: 132px; }
     .ajout-aide .rr-aide { margin: 0; }
     /* Le message passager (« 2 accords ajoutés ») monte au-dessus du panneau, comme au-dessus de la barre de sélection. */
     body.aj-ouvert .toast { bottom: calc(var(--haut-panneau-ajout, 0px) + var(--haut-barre-lecture, 68px) + 12px); }
+}
+
+/* ======================================================================================================
+   10f — L'ÉDITEUR DE NOTES AU TÉLÉPHONE (refonte, lot 10 — « Éditeur de notes accessible »).
+   Même éditeur qu'à l'ordinateur (mêmes nœuds, même code : en-tête, outils, calque Voix, bande d'intensité, pointillés), en feuille PLEIN ÉCRAN entre
+   la barre du haut et la barre de lecture (qui reste utilisable : Lecture, Stop, tempo). Il remplace « Séq. » et l'icône ⊱. En fin de feuille : les
+   règles de l'éditeur plus haut l'emporteraient sinon. Aucune surface nouvelle : le volet #seq-dock-panel est déjà dans verre-surfaces.css.
+   ====================================================================================================== */
+@media (max-width: 899px) {
+    #seq-dock-panel:not([hidden]) {
+        position: fixed; left: 0; right: 0; top: var(--haut-barre, 111px); bottom: var(--haut-barre-lecture, 68px);
+        z-index: 34; border-radius: 0; border-left: 0; border-right: 0; order: 0;
+    }
+    /* La hauteur automatique du volet est celle de l'ordinateur : ici la feuille donne toute la place aux notes. */
+    #seq-dock-panel #seq-dock-host { flex: 1 1 auto; height: auto !important; min-height: 0; }
+    #seq-dock-resize { display: none; }
+    #editeur-notes-etendre { display: none; }
+    .editeur-notes-tete { padding: 8px 10px 8px; row-gap: 8px; }
+    .editeur-notes-btn, .editeur-notes-outils > button, .editeur-notes-icone { height: var(--bouton-h-lg); min-height: var(--bouton-h-lg); }
+    .editeur-notes-icone, .editeur-notes-outils > button { width: var(--bouton-h-lg); min-width: var(--bouton-h-lg); }
+    .editeur-notes-barre .seq-icon-btn, .editeur-notes-barre .seq-delete-btn { height: var(--bouton-h-lg); min-width: var(--bouton-h-lg); }
+    .editeur-notes-barre .zoom-axis-group .zoom-axis-btn { height: var(--bouton-h-lg); min-width: var(--bouton-h-lg); }
+    .editeur-notes-legende { flex: 1 1 100%; justify-content: flex-start; order: 3; }
+    #editeur-notes-voix { margin-left: 0; }
+}
+@media (max-width: 899px) {
+    #grid-zoom.btn-seq-court { height: var(--bouton-h-lg); min-height: var(--bouton-h-lg); }
 }

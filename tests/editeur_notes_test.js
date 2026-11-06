@@ -183,18 +183,18 @@ const graine = () => {
     await p.close();
 
     // ======================================================================================================
-    console.log('\n=== I. Le téléphone n\'a pas bougé (lot 10) ===');
+    console.log('\n=== I. Le téléphone : l\'éditeur de notes est une feuille plein écran (lot 10f) ===');
     p = await ouvrir({ width: 390, height: 844 });
     e = await etat(p);
-    check(e.btnTexte === 'Séq.', `le bouton garde « Séq. » (« ${e.btnTexte} »)`);
-    check(e.btnLabel === 'Ouvrir le séquenceur, vue d\'ensemble', 'et son aria-label d\'avant');
+    check(e.btnTexte === 'Notes', `la porte dit « Notes » (« ${e.btnTexte} »)`);
+    check(e.btnLabel === 'Éditeur de notes', 'et son aria-label est celui de l\'ordinateur');
     await p.locator('#grid-zoom').scrollIntoViewIfNeeded();
     await clic(p, '#grid-zoom', 900);
     e = await etat(p);
-    exiger(e.ouvert, 'il ouvre toujours le séquenceur');
-    check(e.tete === 0, 'sans l\'en-tête de l\'éditeur');
-    check(e.densiteEcran === 'normal' && e.modifie === false, `et sans Compact provisoire (${e.densiteEcran})`);
-    check(e.bande > 230, `ni hauteur réduite : le volet garde sa hauteur d'avant (${e.bande}px de bande)`);
+    exiger(e.ouvert, 'elle ouvre l\'éditeur');
+    check(e.tete > 40, `avec son en-tête (${e.tete}px)`);
+    check(e.densiteEcran === 'normal' && e.modifie === false, `sans Compact provisoire : la grille garde l\'affichage de l\'appareil (${e.densiteEcran})`);
+    check(e.bande > 230, `la feuille donne toute la place aux notes (${e.bande}px de bande)`);
     await p.close();
 
     check(erreurs.length === 0, `aucune erreur de page${erreurs.length ? ' : ' + erreurs.slice(0, 3).join(' | ') : ''}`);

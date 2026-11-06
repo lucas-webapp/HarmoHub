@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611062200">
+    <link rel="stylesheet" href="style.css?v=202611070900">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611062200">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611070900">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1535,9 +1535,9 @@
                              fonction (toggleSequencer('continu')) — une cinquantaine de bancs le cliquent, et renommer un id de cette page a déjà figé l'appli
                              (voir plus haut). Sur ordinateur il porte le libellé long et le bleu ; le téléphone garde « Séq. » jusqu'au lot 10 (CSS). Le logo
                              existant est gardé (règle 2 : un logo de l'utilisateur ne se perd pas). Titre et aria-label suivent l'écran (majBoutonEditeurNotes). -->
-                        <button type="button" id="grid-zoom" class="btn-seq-court" title="Séquenceur : voir tout le morceau" aria-label="Ouvrir le séquenceur, vue d'ensemble" aria-pressed="false">
+                        <button type="button" id="grid-zoom" class="btn-seq-court" title="Ouvrir l'éditeur de notes : séquenceur de tout le morceau" aria-label="Éditeur de notes" aria-pressed="false">
                             <svg class="icon icon-seq-court" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h6M14 7h6M4 12h3M11 12h9M4 17h11M19 17h1"/></svg>
-                            <span class="gz-court">Séq.</span><span class="gz-long">Éditeur de notes</span>
+                            <span class="gz-court">Notes</span><span class="gz-long">Éditeur de notes</span>
                         </button>
                     </div>
                 </div>
@@ -2076,7 +2076,7 @@
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
     <script src="historique.js?v=202611060300"></script>
-    <script src="script.js?v=202611062200"></script>
+    <script src="script.js?v=202611070900"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
