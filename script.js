@@ -2776,6 +2776,9 @@ const ZONE_EDITION_SELECTEURS = [
     // la modification en cours (les boutons, eux, sont déjà couverts par `button`).
     '#barre-lecture', '#panneau-lecture',
 ].join(',');
+// Tiroir Clavier / Guitare retenu par morceau (sous-lot « Éditeur et clavier », voir memoriserVuesMorceau) : table locale { idMorceau: { p, g } }.
+const VUES_PAR_MORCEAU_KEY = 'harmohubVuesParMorceau';
+const VUES_PAR_MORCEAU_MAX = 200;
 const SEQ_INLINE_ZOOM_LEVEL_X_KEY = 'harmohubSeqInlineZoomLevelX';
 // Échelles horizontale/verticale du panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) —
 // mêmes bornes/pas que les autres (ZOOM_LEVEL_MIN/MAX/STEP ci-dessous), un seul réglage GLOBAL
@@ -5156,11 +5159,13 @@ class HarmoHubApp {
         // Bascule piano/guitare : indépendantes, les deux peuvent s'afficher côte à côte ou aucune.
         document.getElementById('toggle-viz-piano').onclick = () => {
             localStorage.setItem('harmohubShowPiano', this.showPianoViz() ? '0' : '1');
+            this.memoriserVuesMorceau();
             this.applyVizVisibility();
         };
         document.getElementById('toggle-viz-guitar').onclick = () => {
             const wasOn = this.showGuitarViz();
             localStorage.setItem('harmohubShowGuitar', wasOn ? '0' : '1');
+            this.memoriserVuesMorceau();
             this.applyVizVisibility();
             if (!wasOn) this.refreshPreview(); // vient d'être activée : calcule le diagramme de l'accord courant
         };
@@ -7321,12 +7326,22 @@ class HarmoHubApp {
         const sections = loadProgressionSections();
         const history = sections[this.activeSection] && sections[this.activeSection].chords;
         if (!history || !history[this.editingIndex]) return;
-        if (!this._editSessionUndoPushed) {
+        const neuf = this.buildLiveChordData();
+        // L'instantané Annuler n'est pris qu'au PREMIER VRAI changement (sous-lot « Éditeur et clavier », 06/11). Chaque rendu de l'éditeur passe par
+        // ici — y compris celui qui suit l'OUVERTURE d'un accord (editChord) : un accord qu'on ne faisait que regarder déposait donc un instantané
+        // identique à l'état courant, et le Ctrl+Z suivant « n'annulait rien ». Peu visible tant qu'on ouvrait un accord de temps en temps ;
+        // depuis que l'éditeur suit la sélection et se rouvre après une opération de partie, chaque clic en aurait déposé un (attrapé par
+        // editeur_et_clavier : Ctrl+Z après la suppression d'une partie ne la ramenait pas). Comparaison par le texte : deux écritures
+        // différentes d'un même accord comptent comme un changement — le pire cas est l'ancien comportement, jamais une annulation perdue.
+        // L'OUVERTURE elle-même (editChord, voir _ouvertureEdition) écrit parfois pour de bon — un accord encore jamais ouvert y reçoit son motif
+        // résolu (arpPattern, seqEdited) — mais ce n'est pas un geste de l'utilisateur : rien à empiler, la première vraie retouche prendra son
+        // instantané à elle (le drapeau de session reste baissé).
+        if (!this._editSessionUndoPushed && !this._ouvertureEdition && JSON.stringify(neuf) !== JSON.stringify(history[this.editingIndex])) {
             this.pushUndo(sections);
             this._editSessionUndoPushed = true;
         }
         const persoAvant = raisonVoicingPersonnalise(history[this.editingIndex]);
-        history[this.editingIndex] = this.buildLiveChordData();
+        history[this.editingIndex] = neuf;
         saveProgressionSections(sections);
         // LA PASTILLE AMBRE SUIT EN DIRECT (lot 9d). Les gestes du séquenceur commitent sans redessiner la grille (refreshGrid faux, voir plus
         // haut) : une note posée à la main dans l'éditeur de notes laissait donc la case SANS sa pastille jusqu'au prochain rendu de la grille,
@@ -7775,9 +7790,16 @@ class HarmoHubApp {
         this.intensityPerStep = { ...(d.intensityPerStep || {}) };
         // this.studioMode N'EST PLUS remis à zéro ici (voir STUDIO_MODE_KEY) : réglage global de
         // l'appareil désormais, pas un état propre à CET accord.
-        this.refreshPreview();
-        this.renderSequencer();
-        this.loadProgression();     // met en évidence la case en édition
+        // Les rendus qui suivent l'ouverture repassent par commitLiveEdit : ce qu'ils écrivent n'est pas une action à annuler (voir commitLiveEdit).
+        this._ouvertureEdition = true;
+        try {
+            this.refreshPreview();
+            this.renderSequencer();
+            this.loadProgression();     // met en évidence la case en édition
+        } finally {
+            this._ouvertureEdition = false;
+        }
+        this._journalDebutSession = this._journalUndo.length; // début de la session dans le journal (voir revenirVoicingAutomatique)
         // Remonte vers les contrôles pour voir ce qu'on modifie — UNIQUEMENT sur bureau (au-delà du
         // seuil où .col-left/.col-right redeviennent deux vraies colonnes séparées, voir le même
         // seuil dans style.css) : en dessous, la grille et #current-chord-display partagent le MÊME
@@ -9531,7 +9553,11 @@ class HarmoHubApp {
         // « Revenir », Ctrl+Z → toujours aucune note). Doigté compris, puisque ce bouton le retire aussi. Pas sinon : la dernière action est alors
         // l'instantané de la session d'édition, et Ctrl+Z défait déjà « Revenir » avec tout le reste, d'un coup, même accord refermé
         // (inspecteur_son) — un instantané du séquenceur l'intercepterait, et cette pile n'a plus de sens une fois l'accord refermé.
-        if (this._journalUndo[this._journalUndo.length - 1] === 'sequenceur') this.pushSeqUndo(true);
+        // Depuis le 06/11, l'instantané de la session n'est plus pris à l'ouverture mais au premier vrai changement (voir commitLiveEdit) : un geste
+        // du séquenceur (note posée) note donc le sien AVANT celui de la session, et la dernière entrée du journal est « grille » alors même que la
+        // note vient du séquenceur. On regarde donc toute la session (depuis _journalDebutSession, posé par editChord), pas sa seule dernière entrée.
+        const depuis = this._journalDebutSession != null ? this._journalUndo.slice(this._journalDebutSession) : [];
+        if (this._journalUndo[this._journalUndo.length - 1] === 'sequenceur' || depuis.includes('sequenceur')) this.pushSeqUndo(true);
         this.extraNotes = [];
         this.guitarLock = null;
         this.guitarKey = null;
@@ -10148,13 +10174,17 @@ class HarmoHubApp {
         sections.splice(s, 1);
         saveProgressionSections(sections);
 
-        if (this.activeSection === s && this.editingIndex != null) this.exitEditMode();
+        const edite = this.editingIndex;
+        const garder = this._editeurNotesActif && edite != null; // l'éditeur de notes garde l'édition ouverte (voir reprendreEditionApresPartie)
+        if (!garder && this.activeSection === s && this.editingIndex != null) this.exitEditMode();
         if (this.activeSection >= sections.length) this.activeSection = sections.length - 1;
         else if (this.activeSection > s) this.activeSection--;
         this.selectedIndex = null;
         // Une partie supprimée décale les index des suivantes : plus sûr de redéfinir la plage à
         // boucler (si elle existe) que de tenter de la remapper.
         if (this.loopRange) this.loopRange = null;
+        // L'accord ouvert était DANS la partie supprimée : l'édition passe à la partie qui prend sa place (même rang d'accord, ou son dernier).
+        if (garder) this.reprendreEditionApresPartie(this.activeSection, edite);
 
         this.loadProgression();
         this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
@@ -10171,13 +10201,34 @@ class HarmoHubApp {
         const copy = { title: sec.title ? `${sec.title} (copie)` : '', chords: sec.chords.map(c => ({ ...c })) };
         sections.splice(s + 1, 0, copy);
         saveProgressionSections(sections);
-        this.activeSection = s + 1;
+        const edite = this.editingIndex;
+        const garder = this._editeurNotesActif && edite != null; // l'éditeur de notes garde l'édition ouverte (voir reprendreEditionApresPartie)
+        // Éditeur ouvert sur une AUTRE partie que celle qu'on duplique : l'édition reste sur son accord (dont la partie recule d'un rang si elle
+        // était après la copie). Sinon la copie devient active, comme avant — et l'éditeur la suit, sur le même accord de la copie.
+        const autre = garder && this.activeSection !== s;
+        this.activeSection = autre ? (this.activeSection > s ? this.activeSection + 1 : this.activeSection) : s + 1;
         this.selectedIndex = null;
         // Une partie insérée décale les index des suivantes : plus sûr de redéfinir la plage à boucler
         // (si elle existe) que de tenter de la remapper.
         if (this.loopRange) this.loopRange = null;
+        if (garder) this.reprendreEditionApresPartie(this.activeSection, edite);
         this.loadProgression();
         this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
+    }
+
+    // UNE OPÉRATION DE PARTIE GARDE L'ÉDITION OUVERTE (sous-lot « Éditeur et clavier », décision du 05/11, point 5) : éditeur de notes ouvert,
+    // monter, dupliquer ou supprimer une partie terminait l'édition de l'accord — l'éditeur ne montrait plus que l'accord seul, sans sa partie ni
+    // ses voix. On rouvre ici l'accord à sa NOUVELLE place (partie déplacée, copie, ou partie qui prend la place d'une partie supprimée — même rang,
+    // borné à sa longueur). Par editChord et non en recopiant les index : la session d'annulation repart à neuf, sinon les retouches faites après
+    // l'opération se seraient fondues dans l'instantané de l'opération elle-même (un Ctrl+Z aurait défait les deux d'un coup). Ordinateur seulement
+    // (l'éditeur n'existe que là) : le téléphone et l'inspecteur seul gardent l'ancien comportement.
+    reprendreEditionApresPartie(section, index) {
+        const sec = loadProgressionSections()[section];
+        if (!sec || !sec.chords || !sec.chords.length) { if (this.editingIndex != null) this.exitEditMode(); return false; }
+        const i = Math.max(0, Math.min(index, sec.chords.length - 1));
+        this.selectedIndex = i;
+        this.editChord(section, i);
+        return true;
     }
 
     // Échange une partie entière avec sa voisine immédiate (haut/bas selon delta = -1/+1) — l'ordre
@@ -10189,13 +10240,16 @@ class HarmoHubApp {
         this.pushUndo(sections);
         [sections[s], sections[t]] = [sections[t], sections[s]];
         saveProgressionSections(sections);
-        if (this.editingIndex != null && (this.activeSection === s || this.activeSection === t)) this.exitEditMode();
+        const edite = this.editingIndex;
+        const garder = this._editeurNotesActif && edite != null; // l'éditeur de notes garde l'édition ouverte (voir reprendreEditionApresPartie)
+        if (!garder && this.editingIndex != null && (this.activeSection === s || this.activeSection === t)) this.exitEditMode();
         if (this.activeSection === s) this.activeSection = t;
         else if (this.activeSection === t) this.activeSection = s;
         this.selectedIndex = null;
         // Comme pour supprimer/dupliquer une partie : plus sûr de redéfinir la plage à boucler (si
         // elle existe) que de tenter de la remapper après cet échange.
         if (this.loopRange) this.loopRange = null;
+        if (garder) this.reprendreEditionApresPartie(this.activeSection, edite);
         this.loadProgression();
         this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
     }
@@ -11632,6 +11686,7 @@ class HarmoHubApp {
         this.updateKeyLabels();
         this.updateDurationOptions();
         this.applyZoomLevel('classicGrid'); // reflète l'échelle verticale DE CE MORCEAU + 1er rendu
+        this.restaurerVuesMorceau(id); // le tiroir Clavier / Guitare tel qu'on l'avait laissé dans CE morceau (voir memoriserVuesMorceau)
         this.refreshPreview();
         // Le séquenceur est une vue du panneau Accord, et rien ne le redessine tout seul : les
         // <select> viennent d'être remis à neuf en JS (voir resetChordPanel), ce qui ne déclenche
@@ -19646,7 +19701,43 @@ class HarmoHubApp {
     fermerVues() {
         localStorage.setItem('harmohubShowPiano', '0');
         localStorage.setItem('harmohubShowGuitar', '0');
+        this.memoriserVuesMorceau();
         this.applyVizVisibility();
+    }
+
+    // LE TIROIR SE SOUVIENT DE CHAQUE MORCEAU (sous-lot « Éditeur et clavier », décision du 05/11, point 9 : « se souvenir de mes derniers
+    // paramètres dans chaque morceau »). Clavier et Guitare, allumés ou non, sont retenus PAR MORCEAU : rouvrir un morceau rouvre le tiroir comme
+    // on l'y avait laissé. Un morceau jamais réglé garde l'état courant (le dernier choix fait, harmohubShowPiano / harmohubShowGuitar).
+    // Table LOCALE à l'appareil (harmohubVuesParMorceau), pas un champ du morceau : les instruments affichés décrivent l'écran, pas la musique
+    // (voir synchro-harmohub.js — un téléphone n'a pas l'écran d'un ordinateur), et le morceau enregistré ne change donc pas d'un octet. Ordinateur
+    // seulement : le tiroir n'existe que là, et le téléphone ne bouge pas avant le lot 10.
+    lireVuesParMorceau() {
+        try { const t = JSON.parse(localStorage.getItem(VUES_PAR_MORCEAU_KEY)); return t && typeof t === 'object' && !Array.isArray(t) ? t : {}; }
+        catch (e) { return {}; /* table illisible : on repart de l'état courant */ }
+    }
+
+    memoriserVuesMorceau() {
+        const id = getCurrentSongId();
+        if (!id || !window.matchMedia(SEQ_DOCK_MEDIA).matches) return;
+        const t = this.lireVuesParMorceau();
+        delete t[id];
+        t[id] = { p: this.showPianoViz() ? 1 : 0, g: this.showGuitarViz() ? 1 : 0 };
+        // Bornée aux VUES_PAR_MORCEAU_MAX derniers morceaux réglés (l'ordre d'insertion d'un objet est gardé : on retire le plus ancien).
+        const ids = Object.keys(t);
+        ids.slice(0, Math.max(0, ids.length - VUES_PAR_MORCEAU_MAX)).forEach(k => { delete t[k]; });
+        try { localStorage.setItem(VUES_PAR_MORCEAU_KEY, JSON.stringify(t)); } catch (e) { /* stockage plein : vaut pour la session */ }
+    }
+
+    // Au chargement d'un morceau (loadSong) : pose l'état retenu pour lui, s'il y en a un. Rien sinon.
+    restaurerVuesMorceau(id) {
+        if (!id || !window.matchMedia(SEQ_DOCK_MEDIA).matches) return;
+        const v = this.lireVuesParMorceau()[id];
+        if (!v) return;
+        const avantGuitare = this.showGuitarViz();
+        localStorage.setItem('harmohubShowPiano', v.p ? '1' : '0');
+        localStorage.setItem('harmohubShowGuitar', v.g ? '1' : '0');
+        this.applyVizVisibility();
+        if (v.g && !avantGuitare) this.refreshPreview(); // guitare rallumée : son diagramme se calcule, comme au clic sur son bouton
     }
 
     // ---------- CONSTRUIRE UN ACCORD AU CLAVIER (lot 8) ----------
@@ -22372,9 +22463,15 @@ class HarmoHubApp {
     // désactivé la lecture automatique à la sélection (Paramètres > Son) — l'accord reste alors
     // affiché (clavier/guitare) mais ne se joue pas.
     selectChord(section, index) {
+        const dejaEdite = this.editingIndex === index && this.activeSection === section;
         this.activeSection = section;
         this.selectedIndex = index;
         this.loadProgression(); // re-render pour afficher la surbrillance
+        // L'ÉDITEUR DE NOTES SUIT LA SÉLECTION (sous-lot « Éditeur et clavier », décision du 05/11, point 4) : éditeur ouvert, un clic sur une autre
+        // case de la grille (ou ← →, ou ‹ › de la bulle, qui passent tous par ici) y amène l'éditeur. Avant, la case se sélectionnait mais l'éditeur
+        // gardait l'accord d'avant : on ne changeait d'accord que par la zone de l'accord voisin, DANS l'éditeur. Même chemin que l'ouverture de
+        // l'éditeur sur un accord sélectionné (toggleSequencer) : editChord, sans le faire entendre une seconde fois (playSavedChord ci-dessous s'en charge).
+        if (this._editeurNotesActif && !dejaEdite) this.editChord(section, index);
         this.updateGridPlayhead(section, index); // la barre de lecture se pose à gauche de l'accord choisi
         this.playSavedChord(section, index, this.autoplaySelect);
     }

@@ -5654,3 +5654,39 @@ en baisse, d'où `--maj`. **Complet : 230 verts, 9 rouges, 6 sans verdict (245 s
 anciens ci-dessus, tous réparés ensuite ; le code de l'appli n'a pas bougé depuis ce balayage. Rejoués seuls avec `meta_suite` et `sentinelle_adresses` : tous verts.
 **Nouvelle ligne de base : 5 rouges (inchangés), 6 sans verdict** (`guitar_lock_click` a désormais un verdict). `glock_unlock_and_switch` n'est plus intermittent.
 Durées : 3290 s cumulées ; les plus lentes sont `synchro_cloud` 182 s, `verre` 88 s, `verre_compte` 74 s, `historique_versions` 71 s, `synchro_paroles` 65 s.
+
+## Sous-lot « Éditeur et clavier » : l'éditeur suit la sélection, garde l'édition aux opérations de partie, règle opaque, tiroir retenu par morceau (2026-11-06)
+
+Points 4, 5, 7 et 9 des décisions du 05/11. Nouveau banc `editeur_et_clavier` (28 vérifications, vrais gestes, téléphone compris).
+
+- **(4) L'éditeur suit la sélection.** `selectChord` (clic sur une case, ← →, ‹ › de la bulle) appelle `editChord` quand l'éditeur de notes est ouvert
+  (`_editeurNotesActif`, donc ordinateur seulement). Avant, la case se sélectionnait et l'éditeur gardait l'accord d'avant. Éditeur fermé ou téléphone :
+  inchangé (vérifié).
+- **(5) Une opération de partie garde l'édition ouverte.** `moveSection`, `duplicateSection` et `deleteSection` appellent
+  `reprendreEditionApresPartie`, éditeur ouvert : l'accord se rouvre à sa nouvelle place. Monter : même accord. Dupliquer la partie de l'accord : la copie
+  devient active, avec le même accord. Dupliquer une autre partie : l'édition reste sur son accord, dont la partie peut reculer d'un rang. Supprimer la partie de
+  l'accord : la partie qui prend sa place, au même rang (borné). Le passage par `editChord` fait repartir la session d'annulation.
+  `voice_leading_section_ops` (partie B) change de sens : il exige désormais une édition ouverte et la bande de la partie active, traits des voix compris.
+- **(7) Règle opaque.** `verre-surfaces.css` : `.seq-ruler-band` prend le même fond que la bande d'intensité (dégradé sur `--glass-select`) ; avant, 5,5 %
+  d'opacité verre allumé. `verre_test` vérifie aussi la règle (`plan` 68 / 69).
+- **(9) Tiroir retenu par morceau.** Table locale `harmohubVuesParMorceau` (`{ id: { p, g } }`, 200 morceaux au plus), écrite par les boutons Clavier / Guitare et
+  « Fermer », lue par `loadSong`. Table de l'appareil, pas un champ du morceau : les instruments affichés restent un réglage local (`synchro-harmohub.js`), et les
+  morceaux enregistrés ne changent pas d'un octet (vérifié). Un morceau jamais réglé garde l'état du moment. Ordinateur seulement.
+- **Défaut d'annulation trouvé par le banc (déjà là avant).** Chaque rendu de l'éditeur passe par `commitLiveEdit`, y compris celui de l'ouverture. Ouvrir un
+  accord, surtout un accord jamais ouvert, à qui l'ouverture écrit son motif résolu (`arpPattern`, `seqEdited`), empilait donc un instantané sans geste de
+  l'utilisateur. Le Ctrl+Z suivant ne défaisait que cette écriture : après une suppression de partie, il ne ramenait pas la partie. Désormais, rien ne
+  s'empile pendant l'ouverture (`_ouvertureEdition`), ni si l'accord écrit est identique ; l'instantané de session se prend au premier vrai changement.
+  Conséquence : un geste du séquenceur (note posée) note son instantané AVANT celui de la session. « Revenir à l'automatique » regardait la seule dernière
+  entrée du journal pour décider de prendre le sien : il regarde désormais toute la session (`_journalDebutSession`, posé par `editChord`). Sans ce
+  correctif, Ctrl+Z après « Revenir » ne rendait plus la note (attrapé par `notes_manuelles_intensite` au balayage ciblé). Un premier essai qui replaçait
+  l'entrée « grille » dans le journal inversait l'annulation du style de jeu (attrapé par `filet_moteur_edition`, au premier balayage complet) : abandonné.
+- **Trois bancs réécrits pour la décision (4)**, éditeur de notes ouvert : `grille_clic_et_double_clic` (section 2 : un clic charge l'accord dans l'éditeur),
+  `grille_raccourcis_clavier` (→ : la modification suit la sélection), `probe_suppression_pleinecran` (ferme l'éditeur avant d'éprouver « simple clic : pas
+  d'édition »). Leur ancien contrat (« promener la sélection ne doit pas rouvrir une modification ») tient toujours ÉDITEUR FERMÉ, et `editeur_et_clavier` le
+  vérifie.
+- **Sabotages** (chacun rouge, puis restauré) : suivre la sélection (5 rouges) ; monter (3) ; dupliquer (2) ; supprimer (2) ; règle translucide (1) ; tiroir non restauré (2) ;
+  annulation à l'ouverture (1).
+- **Balayage ciblé** (64 suites, élargi aux bancs d'annulation et du séquenceur) : 60 verts. Rouges : `probe_regle_voisins` et `probe_seq_finitions` (ligne de base) et
+  `notes_manuelles_intensite`, réparé ensuite (journal, voir plus haut ; 59 sur 59). Sans verdict : `smoke` (ligne de base).
+- **Balayages complets.** Premier : 231 verts, 9 rouges, 6 sans verdict. Hors ligne de base : `filet_moteur_edition` (vraie régression, corrigée) et les trois
+  bancs réécrits plus haut. Second, après correction : **235 verts, 5 rouges, 6 sans verdict (246 suites), exactement la ligne de base.**

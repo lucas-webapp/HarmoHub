@@ -69,7 +69,9 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
     ck(await p.evaluate(()=>window.app.classicGridZoomLevelX) < av, 'l\'échelle horizontale de la grille se règle toujours (affichage Compact)');
     await p.click('#grille-densites [data-densite="normal"]'); await p.waitForTimeout(400); // retour en Normal : les clics qui suivent visent y = 40px, plus haut qu'une case Compact (38px)
 
-    // Clic simple / double-clic inchangés
+    // Clic simple / double-clic inchangés — ÉDITEUR DE NOTES FERMÉ. Depuis le 06/11 (décision du 05/11, sous-lot « Éditeur et clavier »), l'éditeur
+    // ouvert SUIT la sélection : un simple clic y charge l'accord (voir editeur_et_clavier). Le contrat éprouvé ici est celui de la grille seule.
+    await p.click('#editeur-notes-fermer'); await p.waitForTimeout(400);
     await p.evaluate(()=>window.app.cancelEdit()); await p.waitForTimeout(400);
     await p.click('.grid-cell[data-index="1"]', {position:{x:40,y:40}}); await p.waitForTimeout(400);
     ck(await p.evaluate(()=>window.app.editingIndex)===null, 'simple clic : pas d\'édition');

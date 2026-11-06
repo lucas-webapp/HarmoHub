@@ -47,15 +47,18 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     // premier clic ; depuis, un clic SÉLECTIONNE (encadré vert) et seul un double-clic ouvre la
     // modification — sans quoi promener la sélection dans la grille rouvrait sans cesse une édition
     // qu'on n'avait pas demandée.
-    console.log('=== 2. Un clic sélectionne, sans ouvrir la modification ===');
+    // RÉÉCRIT LE 06/11 (sous-lot « Éditeur et clavier »). #grid-zoom ouvre, à l'ordinateur, l'ÉDITEUR DE NOTES, et l'utilisateur a décidé le 05/11
+    // qu'il SUIT la sélection : éditeur ouvert, un clic sur une case l'y amène (l'accord se charge pour être modifié). Le contrat ci-dessus (un clic
+    // sélectionne et rien de plus) tient toujours ÉDITEUR FERMÉ — vérifié par editeur_et_clavier, « Éditeur fermé : rien ne change ».
+    console.log('=== 2. Un clic sélectionne, et l\'éditeur de notes ouvert le charge ===');
     const cell0 = await page.$('.grid-cell[data-index="0"]');
     const box0 = await cell0.boundingBox();
     await page.mouse.click(box0.x + box0.width / 2, box0.y + 8);
     await page.waitForTimeout(200);
     r = await page.evaluate(() => ({ selectedIndex: window.app.selectedIndex, editingIndex: window.app.editingIndex, appMode: window.app.appMode }));
     console.log(JSON.stringify(r));
-    console.log((r.selectedIndex === 0 && r.editingIndex === null && r.appMode === 'add')
-        ? 'PASS (un clic sélectionne et rien de plus)' : 'FAIL');
+    console.log((r.selectedIndex === 0 && r.editingIndex === 0 && r.appMode === 'edit')
+        ? 'PASS (un clic sélectionne, l\'éditeur de notes ouvert le suit)' : 'FAIL');
 
     console.log('=== 2 bis. « Réglages du son », dans la bulle, charge bien cet accord pour le modifier ===');
     // LOT 6b : sur ordinateur, le simple clic ouvre la bulle, et c'est d'elle que l'accord se charge dans le panneau (« Réglages du son ») ;

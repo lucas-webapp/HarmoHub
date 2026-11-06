@@ -115,6 +115,13 @@ html[data-glass="1"] :is(.seq-grid-intensite .seq-vel-band, .seq-grid-intensite 
     background: linear-gradient(0deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .03)), var(--glass-select);
 }
 
+/* ---- RÈGLE DE L'ÉDITEUR DE NOTES (sous-lot « Éditeur et clavier », décision du 05/11, point 7 : « au plus cohérent, cela doit me faciliter
+   l'usage ») : collée en HAUT des notes qui défilent, elle prenait --card-bg, translucide verre allumé (mesuré : 5,5 % d'opacité) — les notes
+   se devinaient à travers ses chiffres. Opaque comme la bande d'intensité juste au-dessus, même dégradé, même fond des listes. ---- */
+html[data-glass="1"] .seq-ruler-band {
+    background: linear-gradient(180deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .03)), var(--glass-select);
+}
+
 /* ---- TÉLÉPHONE, LES ONGLETS (refonte, lot 10a) : le groupe segmenté Grille / Structure / Paroles de la seconde rangée de la barre du haut est un
    creux, comme le groupe de vitesse de la barre de lecture (.bl-seg) : le fond de verre de la barre se voit à travers, l'onglet allumé garde son
    liseré vert. Téléphone seulement : à l'ordinateur les onglets n'ont pas de fond de groupe. ---- */

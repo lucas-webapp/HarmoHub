@@ -70,7 +70,7 @@ async function toastEteint(p) {
 async function fermerTout(p) { await p.keyboard.press('Escape'); await p.waitForTimeout(150); await p.evaluate(() => { try { window.app.closeSettings(); } catch (e) {} window.app.editingIndex = null; window.app.loadProgression(); }); await p.waitForTimeout(150); }
 
 (async () => {
-    plan(A_APERCU ? 68 : 67);
+    plan(A_APERCU ? 69 : 68);
     const nav = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     try {
         // ===== 0. LES FICHIERS ET LEUR ORDRE (statique) ==========================================================================
@@ -156,6 +156,9 @@ async function fermerTout(p) { await p.keyboard.press('Escape'); await p.waitFor
             await p.click('#toggle-studio-mode'); await p.waitForTimeout(500);
             const bandeInt = await p.evaluate(() => [...document.querySelectorAll('.seq-grid-intensite .seq-vel-band, .seq-grid-intensite .seq-vel-lane-label')].map(e => getComputedStyle(e).backgroundColor));
             check(bandeInt.length === 2 && bandeInt.every(c => /^rgb\(\d+, \d+, \d+\)$/.test(c)), `la bande d'intensité de l'éditeur de notes et son étiquette sont OPAQUES (${bandeInt.join(', ')}) : translucides, les notes qui défilent dessous traverseraient ses barres`);
+            // LA RÈGLE de l'éditeur, collée en haut des mêmes notes (sous-lot « Éditeur et clavier », décision du 05/11) : même exigence.
+            const regle = await p.evaluate(() => { const r = document.querySelector('#arp-sequencer .seq-ruler-band'); return r ? getComputedStyle(r).backgroundColor : null; });
+            check(/^rgb\(\d+, \d+, \d+\)$/.test(regle || ''), `la bande de la règle de l'éditeur de notes est OPAQUE (${regle}) : translucide, les notes qui défilent dessous se devinaient à travers ses chiffres`);
             await p.click('#toggle-studio-mode'); await p.waitForTimeout(300);
             await p.click('#editeur-notes-fermer'); await p.waitForTimeout(500);
             await fermerTout(p);

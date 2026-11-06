@@ -10,7 +10,8 @@
 //
 // RÉÉCRIT POUR LE NOUVEAU GESTE (lot 9c). Sur ORDINATEUR, la conduite de voix est le calque Voix de l'éditeur de notes (docs/refonte.md) : la
 // partie B rejoue les trois opérations, éditeur ouvert et calque allumé, par le menu ⋯ de l'en-tête (lot 5c) — le calque reste unique, ne montre
-// jamais une partie disparue (la bande des accords de sa règle est celle d'une partie qui existe), et rien ne plante. Sur TÉLÉPHONE (< 900px),
+// jamais une partie disparue (la bande des accords de sa règle est celle d'une partie qui existe), et rien ne plante. Depuis le 06/11 (décision du
+// 05/11, point 5), l'édition reste OUVERTE après chaque opération : la bande est celle de la partie active, les traits des voix sont là. Sur TÉLÉPHONE (< 900px),
 // rien ne bouge avant le lot 10 : la partie A rejoue le contrat d'origine à 860px (depuis le lot 10c par le menu ⋯ de l'en-tête, comme à l'ordinateur).
 // Les parties ont des accords DIFFÉRENTS, pour que « la bonne partie » se lise dans ce que le calque affiche.
 // La police est chargée depuis Google Fonts : injoignable derrière le proxy du bac à sable, bruit filtré (estBruitReseau).
@@ -97,10 +98,10 @@ const graine = () => {
         const vu = [...document.querySelectorAll('#arp-sequencer .seq-voix-accord .seq-voix-nom')].filter(n => n.offsetParent !== null).map(n => n.textContent);
         const ed = window.app.editingIndex, traits = document.querySelectorAll('#arp-sequencer .seq-voix-trait').length;
         const calques = document.querySelectorAll('#arp-sequencer .seq-grid-voix').length;
-        // COHÉRENT = jamais une partie disparue. Une opération sur les parties termine l'édition de l'accord (déjà vrai avant le lot 9c, vérifié sur
-        // le commit d'avant) : l'éditeur montre alors l'accord seul, sans partie autour — donc un seul nom, aucun trait. Sinon, la bande des accords
-        // est EXACTEMENT celle de la partie active.
-        const coherent = calques <= 1 && (calques === 0 || (ed == null ? (vu.length <= 1 && traits === 0) : JSON.stringify(vu) === JSON.stringify(attendu)));
+        // COHÉRENT = jamais une partie disparue, et l'édition reste OUVERTE. Jusqu'au 06/11, une opération sur les parties terminait l'édition de
+        // l'accord (l'éditeur montrait alors l'accord seul) ; décision du 05/11 (point 5) : « une opération de partie garde l'édition ouverte » —
+        // la bande des accords est donc EXACTEMENT celle de la partie active, et un accord est en cours (sous-lot « Éditeur et clavier »).
+        const coherent = calques === 1 && ed != null && JSON.stringify(vu) === JSON.stringify(attendu) && traits > 0;
         return { vu, attendu, coherent, ed, parties: loadProgressionSections().map(s => s.title), calques, ouvert: window.app.seqMode === 'continu' };
     });
     const parMenu = async (n, action) => { await page.click(`.prog-section:nth-child(${n}) .prog-section-menu`); await page.waitForTimeout(150); await page.click(`#partie-menu [data-partie-action="${action}"]`); };
@@ -126,7 +127,7 @@ const graine = () => {
     await page.waitForTimeout(600);
     c = await calque();
     check(c.parties.length === 3, `une partie de moins (${c.parties.join(', ')})`);
-    check(c.coherent, `le calque s'est retiré, ou ne montre que ce qui est encore là (${c.vu.join(' ')} / ${c.attendu.join(' ')})`);
+    check(c.coherent, `l'édition reste ouverte, et le calque ne montre que ce qui est encore là (${c.vu.join(' ')} / ${c.attendu.join(' ')})`);
     check(await page.evaluate(() => !document.querySelector('.voice-leading-panel')), 'aucun ancien panneau à l\'ordinateur');
     await page.close();
 

@@ -39,18 +39,22 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     // sélection dans la grille ne doit pas rouvrir sans cesse une modification qu'on n'a pas
     // demandée. Le banc exigeait editingIndex === 2 ; il exige maintenant ce qui se passe vraiment,
     // et que l'accord OUVERT reste ouvert pendant qu'on regarde ailleurs.
-    console.log('--- Flèche droite : la sélection avance, l\'accord ouvert le reste ---');
+    // RÉÉCRIT LE 06/11 (sous-lot « Éditeur et clavier »). Le volet ouvert ici par #grid-zoom est, à l'ordinateur, l'ÉDITEUR DE NOTES, et
+    // l'utilisateur a décidé le 05/11 qu'il SUIT la sélection (« un clic sur une autre case de la grille l'y amène » ; ← → passent par le même
+    // chemin, selectChord). Éditeur ouvert, la modification avance donc avec la sélection ; éditeur fermé, l'ancien contrat (la sélection seule
+    // bouge) tient toujours — voir editeur_et_clavier, « Éditeur fermé : rien ne change ».
+    console.log('--- Flèche droite : la sélection avance, et l\'éditeur de notes ouvert la suit ---');
     await page.keyboard.press('ArrowRight');
     await page.waitForTimeout(150);
     let r = await page.evaluate(() => ({
         selectedIndex: window.app.selectedIndex,
         editingIndex: window.app.editingIndex,
         cell2Selected: document.querySelector('.grid-cell[data-section="0"][data-index="2"]').classList.contains('selected'),
-        cell1Editing: document.querySelector('.grid-cell[data-section="0"][data-index="1"]').classList.contains('editing'),
+        cell2Editing: document.querySelector('.grid-cell[data-section="0"][data-index="2"]').classList.contains('editing'),
     }));
     console.log(JSON.stringify(r));
-    console.log((r.selectedIndex === 2 && r.editingIndex === 1 && r.cell2Selected && r.cell1Editing)
-        ? 'PASS (la sélection avance, la modification reste sur son accord)' : 'FAIL');
+    console.log((r.selectedIndex === 2 && r.editingIndex === 2 && r.cell2Selected && r.cell2Editing)
+        ? 'PASS (la sélection avance, l\'éditeur de notes la suit)' : 'FAIL');
 
     // CE POINT-CI ÉTAIT UNE TAUTOLOGIE : il exigeait editingIndex === 1, qui n'avait jamais bougé.
     // Il vaut mieux qu'il éprouve ce qui était réellement cassé — les flèches repartaient de l'accord
