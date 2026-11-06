@@ -164,7 +164,7 @@ plan(15);
     const reperesVoletOuvert = await page.evaluate(() => document.querySelectorAll('.chord-grid .row-offbeat').length);
     console.log('repères — avant:', reperesAvant, '| volet ouvert:', reperesVoletOuvert);
     check(reperesVoletOuvert === reperesAvant, `les repères de la grille survivent à l'ouverture du volet (${reperesAvant} -> ${reperesVoletOuvert})`);
-    await page.click('#grid-zoom');   // même bouton = referme (voir toggleSequencer)
+    await page.click('#editeur-notes-fermer');   // lot 10f : au téléphone la feuille recouvre la porte ; Fermer referme
     await page.waitForTimeout(400);
     const reperesApres = await page.evaluate(() => document.querySelectorAll('.chord-grid .row-offbeat').length);
     console.log('| volet refermé:', reperesApres);

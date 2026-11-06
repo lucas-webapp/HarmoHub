@@ -19,7 +19,7 @@ const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('conduite de voix et opérations sur les parties');
 const { estBruitReseau } = require('./_harness');
 
-plan(19);
+plan(17);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const graine = () => {
@@ -48,88 +48,55 @@ const graine = () => {
         return page;
     };
 
-    // ======================================================================================================
-    console.log('\n=== A. TÉLÉPHONE (860px) : le panneau d\'avant, contrat d\'origine ===');
-    let page = await ouvrir({ width: 860, height: 1000 });
-    const etat = () => page.evaluate(() => {
-        const panneaux = [...document.querySelectorAll('.voice-leading-panel')];
-        return {
-            nombre: panneaux.length,
-            ouvert: !!window.app.voiceLeadingOpen,
-            partie: panneaux.map(p => { const s = p.closest('.prog-section'); return s ? s.querySelector('.prog-title').value : '(hors partie)'; }),
-            titresExistants: [...document.querySelectorAll('.prog-title')].map(t => t.value),
-        };
-    });
-    check((await etat()).nombre === 0, 'aucun panneau au départ');
-    await page.click('#toggle-voice-leading');
-    await page.waitForTimeout(300);
-    let e = await etat();
-    check(e.nombre === 1 && e.ouvert, `un panneau, un seul — obtenu ${JSON.stringify(e.partie)}`);
-    check(e.titresExistants.includes(e.partie[0]), `...posé dans une partie qui existe vraiment — « ${e.partie[0]} »`);
-    // Réécrit au lot 10c : au téléphone aussi, les outils de partie sont passés dans le menu ⋯ de l'en-tête (celui du lot 5c, à 44px) —
-    // monter, dupliquer, supprimer s'y font comme à l'ordinateur. Le panneau ⊱ d'avant, lui, reste au téléphone jusqu'au lot 10f.
-    const parMenuTel = async (n, action) => { await page.click(`.prog-section:nth-child(${n}) .prog-section-menu`); await page.waitForTimeout(150); await page.click(`#partie-menu [data-partie-action="${action}"]`); };
-    exiger(await page.locator('.prog-section:nth-child(2) .prog-section-menu').isVisible(), 'le menu ⋯ de la partie est là, sous 900px');
-    await parMenuTel(2, 'monter');
-    await page.waitForTimeout(300);
-    e = await etat();
-    check(e.nombre === 1 && e.ouvert, `le panneau reste ouvert après un échange de parties — obtenu ${e.nombre} panneau(x)`);
-    check(e.titresExistants.includes(e.partie[0]), `...et toujours rattaché à une partie réelle, pas à un index périmé — « ${e.partie[0]} »`);
-    await parMenuTel(1, 'dupliquer');
-    await page.waitForTimeout(300);
-    e = await etat();
-    check(e.nombre === 1, `pas de panneau en double après une duplication — obtenu ${e.nombre}`);
-    check(e.titresExistants.includes(e.partie[0]), `...et il désigne une partie existante — « ${e.partie[0]} » parmi ${JSON.stringify(e.titresExistants)}`);
-    const supprimee = (await etat()).titresExistants[0];
-    await parMenuTel(1, 'supprimer');
-    await page.waitForTimeout(400);
-    e = await etat();
-    check(e.titresExistants.length === 3, `une partie de moins (${JSON.stringify(e.titresExistants)}, la première était « ${supprimee} »)`);
-    check(e.nombre === 0 || e.titresExistants.includes(e.partie[0]), `le panneau s'est refermé, ou pointe une partie encore là — obtenu ${JSON.stringify(e.partie)}`);
-    await page.close();
+    // Lot 10f : le téléphone a le MÊME éditeur et le même calque que l'ordinateur (l'ancien panneau ⊱ n'existe plus) : mêmes vérifications aux deux largeurs.
+    for (const [nom, larg] of [['TÉLÉPHONE (860px)', 860], ['ORDINATEUR (1280px)', 1280]]) {
+        // ======================================================================================================
+        console.log(`\n=== ${nom} : le calque Voix, éditeur ouvert ===`);
+        const page = await ouvrir({ width: larg, height: 1000 });
+        // Ce que montre le calque, comparé à la partie que l'appli dit active : la bande des accords doit être EXACTEMENT ses accords.
+        const calque = () => page.evaluate(() => {
+            const sec = loadProgressionSections()[window.app.activeSection];
+            const attendu = sec ? sec.chords.map(c => chordSymbolForData(c, window.app.useFlatsForRoot(c.root))) : [];
+            const vu = [...document.querySelectorAll('#arp-sequencer .seq-voix-accord .seq-voix-nom')].filter(n => n.offsetParent !== null).map(n => n.textContent);
+            const ed = window.app.editingIndex, traits = document.querySelectorAll('#arp-sequencer .seq-voix-trait').length;
+            const calques = document.querySelectorAll('#arp-sequencer .seq-grid-voix').length;
+            // COHÉRENT = jamais une partie disparue, et l'édition reste OUVERTE. Jusqu'au 06/11, une opération sur les parties terminait l'édition de
+            // l'accord (l'éditeur montrait alors l'accord seul) ; décision du 05/11 (point 5) : « une opération de partie garde l'édition ouverte » —
+            // la bande des accords est donc EXACTEMENT celle de la partie active, et un accord est en cours (sous-lot « Éditeur et clavier »).
+            const coherent = calques === 1 && ed != null && JSON.stringify(vu) === JSON.stringify(attendu) && traits > 0;
+            return { vu, attendu, coherent, ed, parties: loadProgressionSections().map(s => s.title), calques, ouvert: window.app.seqMode === 'continu' };
+        });
+        // Téléphone : le menu ⋯ de la partie est sous la feuille plein écran (on ne le touche pas) : le clic lui est envoyé sans passer par l'écran ;
+        // à l'ordinateur, vrais clics. Ce que le banc vérifie — le calque après l'opération — se lit à l'écran dans les deux cas.
+        const cliquer = (sel) => larg < 900 ? page.locator(sel).dispatchEvent('click') : page.click(sel);
+        const parMenu = async (n, action) => { await cliquer(`.prog-section:nth-child(${n}) .prog-section-menu`); await page.waitForTimeout(150); await cliquer(`#partie-menu [data-partie-action="${action}"]`); };
+        await page.click('#progression-sections .grid-cell[data-section="1"][data-index="0"]');
+        await page.waitForTimeout(300);
+        await page.click('#grid-zoom');
+        await page.waitForTimeout(900);
+        await page.click('#editeur-notes-voix');
+        await page.waitForTimeout(700);
+        let c = await calque();
+        exiger(c.ouvert && c.calques === 1 && JSON.stringify(c.vu) === JSON.stringify(['Dm7', 'A7']), `le calque s'ouvre sur la partie B, la seule (${c.vu.join(' ')})`);
+        await parMenu(2, 'monter');
+        await page.waitForTimeout(500);
+        c = await calque();
+        check(c.coherent, `après un échange de parties, un seul calque, qui ne montre que ce qui existe (${c.vu.join(' ')} — accord en cours : ${c.ed})`);
+        check(!c.vu.includes('Cmaj7') && !c.vu.includes('G7'), '...et rien de la partie A, qui a pris l\'ancien index de B');
+        await parMenu(1, 'dupliquer');
+        await page.waitForTimeout(500);
+        c = await calque();
+        check(c.calques <= 1, `pas de calque en double après une duplication (${c.calques})`);
+        check(c.coherent, `...et il ne montre que ce qui existe (${c.vu.join(' ')} parmi ${c.parties.join(', ')})`);
+        await parMenu(1, 'supprimer');
+        await page.waitForTimeout(600);
+        c = await calque();
+        check(c.parties.length === 3, `une partie de moins (${c.parties.join(', ')})`);
+        check(c.coherent, `l'édition reste ouverte, et le calque ne montre que ce qui est encore là (${c.vu.join(' ')} / ${c.attendu.join(' ')})`);
+        check(await page.evaluate(() => !document.querySelector('.voice-leading-panel')), 'aucun ancien panneau');
+        await page.close();
 
-    // ======================================================================================================
-    console.log('\n=== B. ORDINATEUR (1280px) : le calque Voix, éditeur ouvert ===');
-    page = await ouvrir({ width: 1280, height: 1000 });
-    // Ce que montre le calque, comparé à la partie que l'appli dit active : la bande des accords doit être EXACTEMENT ses accords.
-    const calque = () => page.evaluate(() => {
-        const sec = loadProgressionSections()[window.app.activeSection];
-        const attendu = sec ? sec.chords.map(c => chordSymbolForData(c, window.app.useFlatsForRoot(c.root))) : [];
-        const vu = [...document.querySelectorAll('#arp-sequencer .seq-voix-accord .seq-voix-nom')].filter(n => n.offsetParent !== null).map(n => n.textContent);
-        const ed = window.app.editingIndex, traits = document.querySelectorAll('#arp-sequencer .seq-voix-trait').length;
-        const calques = document.querySelectorAll('#arp-sequencer .seq-grid-voix').length;
-        // COHÉRENT = jamais une partie disparue, et l'édition reste OUVERTE. Jusqu'au 06/11, une opération sur les parties terminait l'édition de
-        // l'accord (l'éditeur montrait alors l'accord seul) ; décision du 05/11 (point 5) : « une opération de partie garde l'édition ouverte » —
-        // la bande des accords est donc EXACTEMENT celle de la partie active, et un accord est en cours (sous-lot « Éditeur et clavier »).
-        const coherent = calques === 1 && ed != null && JSON.stringify(vu) === JSON.stringify(attendu) && traits > 0;
-        return { vu, attendu, coherent, ed, parties: loadProgressionSections().map(s => s.title), calques, ouvert: window.app.seqMode === 'continu' };
-    });
-    const parMenu = async (n, action) => { await page.click(`.prog-section:nth-child(${n}) .prog-section-menu`); await page.waitForTimeout(150); await page.click(`#partie-menu [data-partie-action="${action}"]`); };
-    await page.click('#progression-sections .grid-cell[data-section="1"][data-index="0"]');
-    await page.waitForTimeout(300);
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(900);
-    await page.click('#editeur-notes-voix');
-    await page.waitForTimeout(700);
-    let c = await calque();
-    exiger(c.ouvert && c.calques === 1 && JSON.stringify(c.vu) === JSON.stringify(['Dm7', 'A7']), `le calque s'ouvre sur la partie B, la seule (${c.vu.join(' ')})`);
-    await parMenu(2, 'monter');
-    await page.waitForTimeout(500);
-    c = await calque();
-    check(c.coherent, `après un échange de parties, un seul calque, qui ne montre que ce qui existe (${c.vu.join(' ')} — accord en cours : ${c.ed})`);
-    check(!c.vu.includes('Cmaj7') && !c.vu.includes('G7'), '...et rien de la partie A, qui a pris l\'ancien index de B');
-    await parMenu(1, 'dupliquer');
-    await page.waitForTimeout(500);
-    c = await calque();
-    check(c.calques <= 1, `pas de calque en double après une duplication (${c.calques})`);
-    check(c.coherent, `...et il ne montre que ce qui existe (${c.vu.join(' ')} parmi ${c.parties.join(', ')})`);
-    await parMenu(1, 'supprimer');
-    await page.waitForTimeout(600);
-    c = await calque();
-    check(c.parties.length === 3, `une partie de moins (${c.parties.join(', ')})`);
-    check(c.coherent, `l'édition reste ouverte, et le calque ne montre que ce qui est encore là (${c.vu.join(' ')} / ${c.attendu.join(' ')})`);
-    check(await page.evaluate(() => !document.querySelector('.voice-leading-panel')), 'aucun ancien panneau à l\'ordinateur');
-    await page.close();
+    }
 
     check(errors.length === 0, 'aucune erreur (' + JSON.stringify(errors) + ')');
     await browser.close();

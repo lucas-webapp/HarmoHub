@@ -11,7 +11,7 @@
 const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('pincement de la conduite de voix');
 
-plan(15);
+plan(17);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const graine = () => {
@@ -52,78 +52,51 @@ const graine = () => {
         return { cx: r.x + r.width / 2, cy: r.y + r.height / 2 };
     }, sel);
 
-    // ======================================================================================================
-    console.log('\n=== A. TÉLÉPHONE (860px) : le panneau d\'avant ===');
-    let page = await ouvrir({ width: 860, height: 900 });
-    await page.click('#toggle-voice-leading');
-    await page.waitForTimeout(200);
-    exiger(!!(await page.locator('.voice-leading-panel').boundingBox()), 'le panneau Conduite de voix est bien ouvert');
-    let { cx, cy } = await centre(page, '.voice-leading-scroll');
-    await page.waitForTimeout(200);
-    await page.evaluate(() => window.app.setZoomLevel('voiceLeading', 'x', 1)); // point de départ connu (réglage, pas un geste)
-    await page.evaluate(() => window.app.setZoomLevel('voiceLeading', 'y', 1));
-    await page.waitForTimeout(100);
-    let doigt = pointeur(page, '.voice-leading-scroll');
-    await doigt('pointerdown', 1, cx - 20, cy);
-    await doigt('pointerdown', 2, cx + 20, cy);
-    await page.waitForTimeout(20);
-    await doigt('pointermove', 1, cx - 40, cy);
-    await doigt('pointermove', 2, cx + 40, cy);
-    await page.waitForTimeout(30); // bien sous l'intervalle de reconstruction (150ms)
-    const midGestureScaleX = await page.evaluate(() => document.querySelector('.voice-leading-panel').style.getPropertyValue('--vl-zoom-scale-x'));
-    const midGestureScaleY = await page.evaluate(() => document.querySelector('.voice-leading-panel').style.getPropertyValue('--vl-zoom-scale-y'));
-    check(parseFloat(midGestureScaleX) > 1, "le transform de secours (--vl-zoom-scale-x) grandit IMMÉDIATEMENT pendant le geste, avant tout nouveau rendu réel");
-    check(parseFloat(midGestureScaleY) > 1, "idem pour --vl-zoom-scale-y");
-    check(await page.evaluate(() => window.app._zoomPinchActive), "_zoomPinchActive bien vrai pendant le geste (donc rendu complet différé)");
-    await doigt('pointerup', 1, cx - 40, cy);
-    await doigt('pointerup', 2, cx + 40, cy);
-    await page.waitForTimeout(150);
-    const finalScaleX = await page.evaluate(() => document.querySelector('.voice-leading-panel').style.getPropertyValue('--vl-zoom-scale-x'));
-    check(finalScaleX === '', "après relâchement, le panneau reconstruit n'a plus de transform de secours (repart de 1 par défaut)");
-    check(await page.evaluate(() => window.app.voiceLeadingZoomLevelX) > 1, "l'échelle horizontale réelle a bien augmenté après le pincement");
-    await page.close();
+    // Lot 10f : le téléphone pince le MÊME calque que l'ordinateur (l'ancien panneau ⊱ n'existe plus) : mêmes vérifications aux deux largeurs.
+    for (const [nom, larg] of [['TÉLÉPHONE (860px)', 860], ['ORDINATEUR (1280px)', 1280]]) {
+        // ======================================================================================================
+        console.log(`\n=== ${nom} : le calque Voix de l'éditeur de notes ===`);
+        const page = await ouvrir({ width: larg, height: 900 });
+        await page.click('#progression-sections .grid-cell[data-index="1"]');
+        await page.waitForTimeout(300);
+        await page.click('#grid-zoom');
+        await page.waitForTimeout(900);
+        await page.click('#editeur-notes-voix');
+        await page.waitForTimeout(700);
+        exiger(await page.evaluate(() => document.querySelectorAll('#arp-sequencer .seq-voix-mouvement').length > 0), 'le calque Voix est posé, avec ses traits');
+        // Écart maximal entre un trait et la frontière qu'il marque (le bord gauche de l'accord suivant).
+        const ecartTraits = () => page.evaluate(() => Math.max(...[...document.querySelectorAll('#arp-sequencer .seq-voix-mouvement')].map(t => {
+            const nav = document.querySelector(`#arp-sequencer .seq-ctx-nav[data-target-index="${t.dataset.accord}"]`);
+            const x = (nav || document.querySelector('#arp-sequencer .seq-cell[data-step="0"]')).getBoundingClientRect().left;
+            const r = t.getBoundingClientRect(); return Math.abs(r.left + r.width / 2 - x);
+        })));
+        const colonne = () => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#arp-sequencer .seq-grid-continuous')).getPropertyValue('--seq-col-w')));
+        const gen0 = await page.evaluate(() => window.app.seqRenderGen);
+        const col0 = await colonne();
+        const { cx, cy } = await centre(page, '#arp-sequencer .seq-scroll');
+        await page.waitForTimeout(200);
+        const doigt = pointeur(page, '#arp-sequencer .seq-scroll');
+        await doigt('pointerdown', 1, cx - 20, cy);
+        await doigt('pointerdown', 2, cx + 20, cy);
+        await page.waitForTimeout(20);
+        await doigt('pointermove', 1, cx - 45, cy);
+        await doigt('pointermove', 2, cx + 45, cy);
+        await page.waitForTimeout(30);
+        const col1 = await colonne();
+        check(col1 > col0, `pendant le geste, les colonnes s'élargissent aussitôt (${col0.toFixed(1)} → ${col1.toFixed(1)} px)`);
+        check(await ecartTraits() <= 2, 'et chaque trait reste sur sa frontière, sans attendre un rendu');
+        check(await page.evaluate((g) => window.app.seqRenderGen === g, gen0), 'aucun rendu n\'a eu lieu pour ça : les traits suivent la grille d\'eux-mêmes');
+        await doigt('pointerup', 1, cx - 45, cy);
+        await doigt('pointerup', 2, cx + 45, cy);
+        await page.waitForTimeout(400);
+        check(await page.evaluate(() => window.app.seqInlineZoomLevelX) > 1, 'l\'échelle horizontale réelle a bien augmenté après le pincement');
+        check(await ecartTraits() <= 2, 'après le geste, les traits sont toujours sur leurs frontières');
+        check(await page.evaluate(() => document.querySelectorAll('#arp-sequencer .seq-voix-accord').length === 4 && document.querySelectorAll('#arp-sequencer .seq-note-fn').length > 0),
+            'le calque est intact : les quatre accords dans la règle, les fonctions dans les notes');
+        check(await page.evaluate(() => !document.querySelector('.voice-leading-panel')), 'aucun ancien panneau');
+        await page.close();
 
-    // ======================================================================================================
-    console.log('\n=== B. ORDINATEUR (1280px) : le calque Voix de l\'éditeur de notes ===');
-    page = await ouvrir({ width: 1280, height: 900 });
-    await page.click('#progression-sections .grid-cell[data-index="1"]');
-    await page.waitForTimeout(300);
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(900);
-    await page.click('#editeur-notes-voix');
-    await page.waitForTimeout(700);
-    exiger(await page.evaluate(() => document.querySelectorAll('#arp-sequencer .seq-voix-mouvement').length > 0), 'le calque Voix est posé, avec ses traits');
-    // Écart maximal entre un trait et la frontière qu'il marque (le bord gauche de l'accord suivant).
-    const ecartTraits = () => page.evaluate(() => Math.max(...[...document.querySelectorAll('#arp-sequencer .seq-voix-mouvement')].map(t => {
-        const nav = document.querySelector(`#arp-sequencer .seq-ctx-nav[data-target-index="${t.dataset.accord}"]`);
-        const x = (nav || document.querySelector('#arp-sequencer .seq-cell[data-step="0"]')).getBoundingClientRect().left;
-        const r = t.getBoundingClientRect(); return Math.abs(r.left + r.width / 2 - x);
-    })));
-    const colonne = () => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#arp-sequencer .seq-grid-continuous')).getPropertyValue('--seq-col-w')));
-    const gen0 = await page.evaluate(() => window.app.seqRenderGen);
-    const col0 = await colonne();
-    ({ cx, cy } = await centre(page, '#arp-sequencer .seq-scroll'));
-    await page.waitForTimeout(200);
-    doigt = pointeur(page, '#arp-sequencer .seq-scroll');
-    await doigt('pointerdown', 1, cx - 20, cy);
-    await doigt('pointerdown', 2, cx + 20, cy);
-    await page.waitForTimeout(20);
-    await doigt('pointermove', 1, cx - 45, cy);
-    await doigt('pointermove', 2, cx + 45, cy);
-    await page.waitForTimeout(30);
-    const col1 = await colonne();
-    check(col1 > col0, `pendant le geste, les colonnes s'élargissent aussitôt (${col0.toFixed(1)} → ${col1.toFixed(1)} px)`);
-    check(await ecartTraits() <= 2, 'et chaque trait reste sur sa frontière, sans attendre un rendu');
-    check(await page.evaluate((g) => window.app.seqRenderGen === g, gen0), 'aucun rendu n\'a eu lieu pour ça : les traits suivent la grille d\'eux-mêmes');
-    await doigt('pointerup', 1, cx - 45, cy);
-    await doigt('pointerup', 2, cx + 45, cy);
-    await page.waitForTimeout(400);
-    check(await page.evaluate(() => window.app.seqInlineZoomLevelX) > 1, 'l\'échelle horizontale réelle a bien augmenté après le pincement');
-    check(await ecartTraits() <= 2, 'après le geste, les traits sont toujours sur leurs frontières');
-    check(await page.evaluate(() => document.querySelectorAll('#arp-sequencer .seq-voix-accord').length === 4 && document.querySelectorAll('#arp-sequencer .seq-note-fn').length > 0),
-        'le calque est intact : les quatre accords dans la règle, les fonctions dans les notes');
-    check(await page.evaluate(() => !document.querySelector('.voice-leading-panel')), 'aucun ancien panneau à l\'ordinateur');
-    await page.close();
+    }
 
     check(pageErrors.length === 0, "aucune erreur JS pendant les pincements — " + JSON.stringify(pageErrors));
     await browser.close();

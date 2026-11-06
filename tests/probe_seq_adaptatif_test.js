@@ -75,7 +75,7 @@ plan(14);
     ck(o.etendu.lignesVisibles > t.lignesVisibles, `...et un grand écran, éditeur étendu, montre plus de hauteurs qu'un téléphone — ${o.etendu.lignesVisibles} contre ${t.lignesVisibles} lignes sur ${o.lignesTotales}`);
     ck(o.mesuresVisibles >= 4.5, `ordinateur : on voit la structure du morceau — ${o.mesuresVisibles} mesures (2,5 avant)`);
     ck(pt.mesuresVisibles > 3, `portable : idem à sa mesure — ${pt.mesuresVisibles} mesures (2 avant)`);
-    ck(t.voletH === 300 || t.voletH < 400, `téléphone : le volet garde une taille raisonnable — ${t.voletH}px`);
+    ck(t.voletH >= 300 && t.voletH <= 700, `téléphone : l'éditeur est une feuille qui prend la place libre entre les deux barres — ${t.voletH}px`);
     ck(t.colW >= 14, `téléphone : les croches restent atteignables au doigt — ${t.colW}px par croche`);
 
     console.log('\n--- Un réglage à la main l\'emporte et se mémorise ---');

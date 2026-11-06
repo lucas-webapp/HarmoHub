@@ -1,6 +1,6 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 06/11/2026, après le lot 10e (panneau d'ajout du téléphone). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 07/11/2026, après le lot 10f (éditeur de notes du téléphone). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
@@ -39,9 +39,12 @@ Mis à jour le 06/11/2026, après le lot 10e (panneau d'ajout du téléphone). *
   (2) la durée « des prochains accords » n'est plus un réglage de la page au téléphone, chaque accord règle la sienne dans son panneau (« ça me va ») ;
   (3) le panneau d'accord qui défile en interne sur un écran court (664 px) : « ça me convient », rien à changer. Défaut trouvé et corrigé : le clic fantôme hors
   du panneau d'accord (`_paOuvertA`).
-- **Prochain : 10f (éditeur de notes au téléphone)**, voir « Lot 10 » plus bas : remplace « Séq. » et l'icône ⊱ ; `voice_leading`, `vl_loupe`, `vl_pinch`, `voice_leading_section_ops`
-  (partie A à 860 px) à réécrire ; `calque_voix` et `notes_manuelles_intensite` changent de sens. Le séquenceur compact n'est plus joignable qu'au travers d'un accord
-  ouvert (panneau agrandi) : les bancs l'ouvrent par `editerAccord`.
+- ✅ **10f livré** (07/11, banc `telephone_editeur_notes`) : « Séq. » devient « Notes », l'icône ⊱ disparaît, l'éditeur de l'ordinateur s'ouvre en feuille plein écran
+  entre la barre du haut et la barre de lecture ; douze bancs réécrits (liste dans `docs/dette-tests.md`, « lot 10f »). Piège : la porte `#grid-zoom` doit rester à 32px
+  (à 44px, le double toucher d'une case n'ouvrait plus le panneau d'accord).
+- **Prochain : 10g (Clavier / Guitare en plein écran au téléphone)**, reste du 10b : le tiroir n'existe pas au téléphone (cartes sous la grille) ; la maquette les veut en plein
+  écran depuis le panneau Lecture (⋯ › Clavier / Guitare). À cadrer avec `docs/refonte.md` (« Clavier / Guitare ») et la maquette `Telephone2.dc.html` avant de coder. Après lui :
+  « Rien de prévu » pour le lot 10, sauf retour de l'utilisateur.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
@@ -53,7 +56,7 @@ Mis à jour le 06/11/2026, après le lot 10e (panneau d'ajout du téléphone). *
   et quatre cases, Affichage, en-tête de partie), **« Paroles homogènes » livré** (supprimer un morceau supprime ses paroles partout, Ctrl+Z les
   ramène ; synchro des paroles dès l'ouverture une fois connecté, cadre Paroles chargé en arrière-plan ; versions des paroles dans Paramètres ›
   Historique, base `harmohub-historique-paroles` ; banc `paroles_homogenes`), **« Versions au cloud » livré** (les 5 plus récentes versions de
-  chaque morceau et de ses paroles dans Firestore, `synchro-versions.js`, banc `versions_cloud`), **« Éditeur et clavier » livré** (06/11), **10d livré** (06/11 : panneau d'accord), **10e livré** (06/11 : panneau d'ajout). **Prochain : 10f.**
+  chaque morceau et de ses paroles dans Firestore, `synchro-versions.js`, banc `versions_cloud`), **« Éditeur et clavier » livré** (06/11), **10d livré** (06/11 : panneau d'accord), **10e livré** (06/11 : panneau d'ajout), **10f livré** (07/11 : éditeur de notes). **Prochain : 10g.**
 - **Versions au cloud (livré 05/11)** : les deux points des « Paroles homogènes » sont réglés (versions au cloud, liste dans la page Paroles seule).
   Limite : les versions ne sont pas écoutées en continu ; celles des autres appareils arrivent à l'ouverture de l'historique ou des Options de Paroles.
 - **Deux décisions du 10c (confirmées le 05/11, voir « Suite à faire »)** : (1) la barre-résumé dit aussi le TEMPO (« C majeur · 120 BPM · 4/4 · Droit · Piano »),
@@ -61,7 +64,7 @@ Mis à jour le 06/11/2026, après le lot 10e (panneau d'ajout du téléphone). *
   Large et le pincement du téléphone sont une préférence de l'APPAREIL (`harmohubGrilleTelephone`), pas du morceau : les échelles du morceau restent
   celles de l'ordinateur (un morceau en Détaillé donnait des cases de 103 px au téléphone). Aussi : Transposer garde une ligne sous les cases (absent de
   la maquette, présent avant).
-- **Dernier balayage complet** (lot 10e, 06/11) : 235 verts + 2 bancs réparés puis rejoués verts, 5 rouges, 6 sans verdict sur 248 suites — exactement la ligne de base de
+- **Dernier balayage complet** (lot 10f, 07/11) : 238 verts, 5 rouges, 6 sans verdict sur 249 suites — exactement la ligne de base ; (avant : lot 10e, 235 verts + 2 bancs réparés puis rejoués verts, 5 rouges, 6 sans verdict sur 248 suites — exactement la ligne de base de
   `CLAUDE.md`. Le lancer en tâche d'arrière-plan avec le chien de garde dans la même commande : `(bash tests/watchdog.sh &) ; bash tests/run_all_fast.sh`.
 - **Dettes connues pour le lot 10** : au téléphone, hors barre du haut, onglets, barre de lecture et vues intégrées (10a, 10b), rien n'a bougé depuis
   le lot 6 ; 19 bancs sont joués à 860 px parce qu'ils éprouvent le mode « Ajout » de la carte Accord, qui n'existe plus que là (liste dans

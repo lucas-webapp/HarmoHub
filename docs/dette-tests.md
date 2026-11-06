@@ -5796,3 +5796,25 @@ s'ouvrait toute seule (`telephone_panneau_accord`). Un clic moins de 350ms aprè
 rejoués verts : `versions_cloud` (sa fonction locale `ajouterAccord` s'appelait elle-même une fois l'assistant importé sous le même nom, comme `historique_versions`) et
 `meta_suite` (la dette de bancs a diminué de 17 : les `.catch(() => {})` avalés des ajouts rapides ont disparu — référence figée avec `--maj`). Après correction : exactement la ligne de base.
 Point à voir au 10f : à 664px de haut (iPhone 13) le panneau d'accord défile en interne, la durée n'est visible qu'après un défilement du panneau.
+
+## Refonte de l'interface — lot 10f : l'éditeur de notes du téléphone (2026-11-07)
+
+**Ce que ça change.** Au téléphone, « Séq. » devient **« Notes »** (même bouton `#grid-zoom` que « Éditeur de notes » de l'ordinateur) et l'icône ⊱ disparaît (`#toggle-voice-leading`
+masqué partout ; l'ancien panneau de conduite de voix n'est plus joignable). Le séquenceur continu ouvre le MÊME éditeur qu'à l'ordinateur — mêmes nœuds, même code : en-tête
+Notes / Fermer, outils sélection-crayon-gomme, barre du séquenceur déplacée dans l'en-tête, calque Voix, Ajuster, bande d'intensité, notes manuelles en pointillés — en **feuille
+plein écran** (`position: fixed`) entre la barre du haut et la barre de lecture, qui reste utilisable (Lecture, Stop, tempo). Boutons de l'en-tête à 44px, chevrons « Étendre »
+et poignée de hauteur absents (la feuille prend toute la place). `majEditeurNotes` n'attend plus l'ordinateur ; seul le Compact PROVISOIRE de la grille reste à l'ordinateur (au
+téléphone l'affichage est une préférence de l'appareil, cachée derrière la feuille). CSS : les règles de l'éditeur (en-tête, calque Voix, pointillés, bande d'intensité) passent de
+`min-width: 900px` à `screen` ; le bloc du téléphone est en fin de feuille.
+
+**Décision de reprise** : Clavier / Guitare en plein écran au téléphone (point du 10b) n'est PAS fait dans ce lot : il reste « Suite à faire » (10g).
+
+**Bancs.**
+- Nouveau `telephone_editeur_notes` (32 vérifications, parties A à H) : porte « Notes », feuille plein écran entre les deux barres, boutons de 44px, crayon / gomme / sélection, calque
+  Voix, bande d'intensité, barre de lecture utilisable feuille ouverte, Fermer, porte ⋯ › Notes, 320px, l'ordinateur n'a pas bougé. **Sabotage** : l'éditeur de nouveau réservé à l'ordinateur → 3 vérifications rouges ; restauré.
+- **Réécrits pour le nouveau geste (rien supprimé)** : `voice_leading`, `vl_loupe`, `vl_pinch`, `voice_leading_section_ops` (leur partie A jouait l'ancien panneau ⊱ : les mêmes vérifications du calque Voix
+  sont désormais jouées aux deux largeurs, 860 et 1280/1440px) ; `calque_voix` (I, J), `notes_manuelles_intensite` (K), `editeur_notes` (I), `editeur_notes_outils` (H), `entete_grille_debordement`,
+  `editeur_et_clavier` (E : l'éditeur du téléphone change d'accord par la zone de l'accord voisin), `portes_sequenceur`, `probe_deux_boutons_seq`, `probe_seq_adaptatif`, `offbeat_dash`
+  (Fermer referme la feuille qui recouvre la porte), `sentinelle_atteignabilite` (la feuille est une surface au premier plan, comme un panneau).
+- Gestes impossibles à l'écran sous la feuille (le panneau d'accord et le menu ⋯ d'une partie sont dessous) : `voice_leading` et `voice_leading_section_ops` y envoient le clic par `dispatchEvent`, le résultat se lit à l'écran.
+- **Piège** : un bouton « Notes » porté à 44px (`#grid-zoom`) déplaçait la mise en page assez pour que le double toucher d'une case n'ouvre plus le panneau d'accord (`grid_beat_highlight`) : la porte reste à 32px.

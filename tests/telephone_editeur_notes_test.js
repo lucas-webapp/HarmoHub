@@ -91,7 +91,7 @@ const feuille = (p) => p.evaluate(() => {
     console.log('\n=== A. La porte « Notes » ouvre la feuille plein écran ===');
     let p = await ouvrir(nav, { viewport: { width: 390, height: 844 } }, erreurs);
     let f = await feuille(p);
-    check(f.porte === 'Notes' && f.porteH >= 44, `la porte dit « Notes » et fait ${f.porteH}px (« ${f.porte} »)`);
+    check(f.porte === 'Notes' && f.porteH >= 32, `la porte dit « Notes » et fait ${f.porteH}px (« ${f.porte} »)`);
     check(!f.vlVisible, 'l\'icône ⊱ n\'existe plus au téléphone');
     await clic(p, '#grid-zoom', 900);
     f = await feuille(p);

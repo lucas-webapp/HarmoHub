@@ -24,7 +24,7 @@ const { estBruitReseau } = require('./_harness');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 // La police vient de Google Fonts, injoignable derrière le proxy du bac à sable : bruit filtré.
 
-plan(24);
+plan(23);
 
 const mk = (root, q) => ({ root, quality: q, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held', instrument: 'piano', arpPattern: '', seqEdited: false, guitarLock: null, extraNotes: [], intensity: 75, intensityPerStep: {} });
 
@@ -56,102 +56,62 @@ const mk = (root, q) => ({ root, quality: q, beats: 4, inversion: 0, drop: 'none
         return !!(el && (el === b || b.contains(el)));
     }, id);
 
-    // ======================================================================================================
-    console.log('\n=== A. TÉLÉPHONE (860px) : panneau et séquenceur continu s\'excluent, comme avant ===');
-    let page = await ouvrir({ width: 860, height: 900 });
-    const vue = () => page.evaluate(() => {
-        const vl = document.querySelector('.voice-leading-panel');
-        return {
-            reglageActif: window.app.voiceLeadingOpen,
-            volet: window.app.seqMode === 'continu',
-            barresVisibles: !!(vl && vl.offsetParent !== null),
-            barresDansLeDom: !!vl,
-        };
-    });
-    check(!(await vue()).barresDansLeDom, 'aucune barre au départ');
-    await page.click('#toggle-voice-leading');
-    await page.waitForTimeout(600);
-    let v = await vue();
-    check(v.reglageActif && v.barresVisibles, 'un clic affiche bien les barres');
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(800);
-    v = await vue();
-    check(v.volet, 'le volet du séquenceur continu est ouvert');
-    check(!v.barresVisibles && !v.barresDansLeDom, 'les barres ne sont plus là — le séquenceur continu tient ce rôle dans cette zone');
-    check(!v.reglageActif, 'et le réglage est bien ÉTEINT, pas seulement masqué : les deux panneaux se ferment l\'un l\'autre');
-    // editChord remplace editChordFromGridZoom, supprimée avec la vue plein écran de la grille (voir le commentaire d'editChord dans script.js).
-    await page.evaluate(() => window.app.editChord(0, 0));
-    await page.waitForTimeout(700);
-    v = await vue();
-    check(!v.barresVisibles, 'toujours aucune barre une fois un accord chargé dans le volet');
-    check(await page.evaluate(() => document.getElementById('arp-sequencer').offsetParent !== null), '...et le séquenceur continu, lui, est bien affiché');
-    await page.click('#grid-zoom'); // même bouton pour refermer : #grid-zoom est une bascule
-    await page.waitForTimeout(800);
-    v = await vue();
-    check(!v.volet, 'le volet est refermé');
-    check(!v.barresVisibles && !v.reglageActif, 'aucune barre ne revient d\'elle-même — le réglage avait été éteint, pas mis en veille');
-    check(await atteignable(page, 'toggle-voice-leading'), 'le bouton est de nouveau atteignable, volet refermé');
-    await page.click('#toggle-voice-leading');
-    await page.waitForTimeout(600);
-    v = await vue();
-    check(v.reglageActif && v.barresVisibles, 'un clic les RALLUME (le réglage était éteint)');
-    await page.click('#toggle-voice-leading');
-    await page.waitForTimeout(600);
-    v = await vue();
-    check(!v.reglageActif && !v.barresVisibles, '...et un second clic les referme pour de bon');
-    await page.close();
+    let page;
+    // Lot 10f : le téléphone a le MÊME éditeur et le même calque que l'ordinateur (plus d'exclusion avec un ancien panneau) : mêmes vérifications aux deux largeurs.
+    for (const [nom, larg] of [['TÉLÉPHONE (860px)', 860], ['ORDINATEUR (1440px)', 1440]]) {
+        // ======================================================================================================
+        console.log(`\n=== ${nom} : un calque DANS l'éditeur, qu'on peut toujours enlever ===`);
+        page = await ouvrir({ width: larg, height: 900 });
+        const calque = () => page.evaluate(() => {
+            const ed = document.getElementById('seq-dock-panel');
+            // Ce qui se VOIT : fermé, le séquenceur garde son dernier dessin dans un hôte masqué (renderSequencer ne redessine pas un panneau fermé).
+            const el = [...document.querySelectorAll('.seq-voix-trait, .seq-note-fn, .seq-voix-accord')].filter(e => e.offsetParent !== null);
+            return {
+                volet: window.app.seqMode === 'continu', ancien: !!document.querySelector('.voice-leading-panel'),
+                presents: el.length, horsEditeur: el.filter(e => !ed.contains(e)).length,
+                presse: document.getElementById('editeur-notes-voix').getAttribute('aria-pressed'),
+            };
+        });
+        check(!(await page.locator('#toggle-voice-leading').isVisible()) && !(await page.locator('#editeur-notes-voix').isVisible()),
+            'éditeur fermé : aucune porte de conduite de voix (l\'icône ⊱ a quitté la page, Voix vit dans l\'éditeur)');
+        await page.click('#progression-sections .grid-cell[data-index="0"]');
+        await page.waitForTimeout(300);
+        await page.click('#grid-zoom');
+        await page.waitForTimeout(800);
+        exiger(await atteignable(page, 'editeur-notes-voix'), 'éditeur ouvert : le bouton Voix est atteignable, rien ne le recouvre');
+        await page.click('#editeur-notes-voix');
+        await page.waitForTimeout(700);
+        let c = await calque();
+        check(c.volet && c.presents > 0 && c.presse === 'true', 'un clic pose le calque, et l\'éditeur reste ouvert (plus d\'exclusion : le calque vit dedans)');
+        check(c.horsEditeur === 0 && !c.ancien, 'rien n\'en déborde hors de l\'éditeur, et aucun ancien panneau ne s\'affiche');
+        // Un autre accord, choisi DANS l'éditeur (la zone de l'accord voisin, le geste de l'éditeur pour changer d'accord) : le calque suit.
+        const zone = await page.locator('#arp-sequencer .seq-ctx-nav[data-target-index="2"]').boundingBox();
+        exiger(!!zone, 'la zone de l\'accord voisin F est à l\'écran');
+        await page.mouse.click(zone.x + 8, zone.y + 8);
+        await page.waitForTimeout(800);
+        c = await calque();
+        check(c.presents > 0 && await page.evaluate(() => window.app.editingIndex === 2 && document.getElementById('arp-sequencer').offsetParent !== null),
+            'un autre accord chargé dans l\'éditeur : le calque est toujours là, sur le séquenceur affiché');
+        await page.click('#editeur-notes-fermer');
+        await page.waitForTimeout(800);
+        c = await calque();
+        check(!c.volet && c.presents === 0, 'l\'éditeur fermé, il ne reste rien du calque dans la page');
+        await page.click('#grid-zoom');
+        await page.waitForTimeout(800);
+        c = await calque();
+        check(c.volet && c.presents > 0 && c.presse === 'true', 'rouvert, le calque revient (réglage mémorisé, décision du 05/11)');
+        check(await atteignable(page, 'editeur-notes-voix'), 'le bouton reste atteignable, calque allumé');
+        await page.click('#editeur-notes-voix');
+        await page.waitForTimeout(600);
+        c = await calque();
+        check(c.presents === 0 && c.presse === 'false', 'un clic l\'enlève pour de bon');
+        await page.click('#editeur-notes-voix');
+        await page.waitForTimeout(600);
+        c = await calque();
+        check(c.presents > 0 && c.presse === 'true', '...et un second le remet');
+        await page.close();
 
-    // ======================================================================================================
-    console.log('\n=== B. ORDINATEUR (1440px) : un calque DANS l\'éditeur, qu\'on peut toujours enlever ===');
-    page = await ouvrir({ width: 1440, height: 900 });
-    const calque = () => page.evaluate(() => {
-        const ed = document.getElementById('seq-dock-panel');
-        // Ce qui se VOIT : fermé, le séquenceur garde son dernier dessin dans un hôte masqué (renderSequencer ne redessine pas un panneau fermé).
-        const el = [...document.querySelectorAll('.seq-voix-trait, .seq-note-fn, .seq-voix-accord')].filter(e => e.offsetParent !== null);
-        return {
-            volet: window.app.seqMode === 'continu', ancien: !!document.querySelector('.voice-leading-panel'),
-            presents: el.length, horsEditeur: el.filter(e => !ed.contains(e)).length,
-            presse: document.getElementById('editeur-notes-voix').getAttribute('aria-pressed'),
-        };
-    });
-    check(!(await page.locator('#toggle-voice-leading').isVisible()) && !(await page.locator('#editeur-notes-voix').isVisible()),
-        'éditeur fermé : aucune porte de conduite de voix (l\'icône ⊱ a quitté l\'ordinateur, Voix vit dans l\'éditeur)');
-    await page.click('#progression-sections .grid-cell[data-index="0"]');
-    await page.waitForTimeout(300);
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(800);
-    exiger(await atteignable(page, 'editeur-notes-voix'), 'éditeur ouvert : le bouton Voix est atteignable, rien ne le recouvre');
-    await page.click('#editeur-notes-voix');
-    await page.waitForTimeout(700);
-    let c = await calque();
-    check(c.volet && c.presents > 0 && c.presse === 'true', 'un clic pose le calque, et l\'éditeur reste ouvert (plus d\'exclusion : le calque vit dedans)');
-    check(c.horsEditeur === 0 && !c.ancien, 'rien n\'en déborde hors de l\'éditeur, et aucun ancien panneau ne s\'affiche');
-    // Un autre accord, choisi DANS l'éditeur (la zone de l'accord voisin, le geste de l'éditeur pour changer d'accord) : le calque suit.
-    const zone = await page.locator('#arp-sequencer .seq-ctx-nav[data-target-index="2"]').boundingBox();
-    exiger(!!zone, 'la zone de l\'accord voisin F est à l\'écran');
-    await page.mouse.click(zone.x + 8, zone.y + 8);
-    await page.waitForTimeout(800);
-    c = await calque();
-    check(c.presents > 0 && await page.evaluate(() => window.app.editingIndex === 2 && document.getElementById('arp-sequencer').offsetParent !== null),
-        'un autre accord chargé dans l\'éditeur : le calque est toujours là, sur le séquenceur affiché');
-    await page.click('#editeur-notes-fermer');
-    await page.waitForTimeout(800);
-    c = await calque();
-    check(!c.volet && c.presents === 0, 'l\'éditeur fermé, il ne reste rien du calque dans la page');
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(800);
-    c = await calque();
-    check(c.volet && c.presents > 0 && c.presse === 'true', 'rouvert, le calque revient (réglage mémorisé, décision du 05/11)');
-    check(await atteignable(page, 'editeur-notes-voix'), 'le bouton reste atteignable, calque allumé');
-    await page.click('#editeur-notes-voix');
-    await page.waitForTimeout(600);
-    c = await calque();
-    check(c.presents === 0 && c.presse === 'false', 'un clic l\'enlève pour de bon');
-    await page.click('#editeur-notes-voix');
-    await page.waitForTimeout(600);
-    c = await calque();
-    check(c.presents > 0 && c.presse === 'true', '...et un second le remet');
-    await page.close();
+    }
 
     await browser.close();
     check(errs.length === 0, 'aucune erreur JavaScript' + (errs.length ? ' — ' + errs[0] : ''));

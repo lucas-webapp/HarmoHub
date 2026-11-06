@@ -184,26 +184,25 @@ const graine = () => {
     await p.close();
 
     // ======================================================================================================
-    console.log('\n=== I. Le téléphone n\'a pas bougé (lot 10) ===');
+    console.log('\n=== I. Le téléphone a le même calque (lot 10f) ===');
     p = await ouvrir({ width: 860, height: 900 });
     await p.evaluate(() => localStorage.setItem('harmohubSeqVoix', '1'));
     await p.reload(); await p.waitForTimeout(900);
-    exiger(await p.locator('#toggle-voice-leading').isVisible(), 'l\'icône ⊱ est toujours là sous 900px');
-    await clic(p, '#toggle-voice-leading', 700);
-    check(await p.evaluate(() => !!document.querySelector('.voice-leading-panel svg') && window.app.voiceLeadingOpen), 'elle ouvre toujours l\'ancien panneau de conduite de voix');
+    exiger(!(await p.locator('#toggle-voice-leading').isVisible()), 'l\'icône ⊱ a quitté le téléphone');
     await clic(p, '#progression-sections .grid-cell[data-index="1"]', 300);
     await clic(p, '#grid-zoom', 900);
-    const tel = await p.evaluate(() => ({ tete: !!document.getElementById('editeur-notes-tete').offsetParent, fn: document.querySelectorAll('.seq-note-fn').length, traits: document.querySelectorAll('.seq-voix-trait').length, seq: window.app.seqOpen }));
-    check(tel.seq && !tel.tete && tel.fn === 0 && tel.traits === 0, 'le séquenceur d\'avant s\'y ouvre, sans en-tête ni calque — même réglage Voix allumé');
+    const tel = await p.evaluate(() => ({ tete: !!document.getElementById('editeur-notes-tete').offsetParent, fn: document.querySelectorAll('.seq-note-fn').length, traits: document.querySelectorAll('.seq-voix-trait').length, seq: window.app.seqOpen, ancien: !!document.querySelector('.voice-leading-panel') }));
+    check(tel.seq && tel.tete && tel.fn > 0 && tel.traits > 0, 'l\'éditeur s\'y ouvre avec le calque Voix : fonctions dans les notes et chemin des voix');
+    check(!tel.ancien, 'sans ancien panneau de conduite de voix');
     await p.close();
 
     // ======================================================================================================
-    console.log('\n=== J. Élargir la fenêtre ne laisse pas l\'ancien panneau orphelin ===');
+    console.log('\n=== J. Élargir la fenêtre éditeur ouvert le rend à son volet ===');
     p = await ouvrir({ width: 860, height: 900 });
-    await clic(p, '#toggle-voice-leading', 700);
-    exiger(await p.evaluate(() => !!document.querySelector('.voice-leading-panel')), 'l\'ancien panneau est ouvert sous 900px');
+    await clic(p, '#grid-zoom', 900);
+    exiger(await p.evaluate(() => getComputedStyle(document.getElementById('seq-dock-panel')).position === 'fixed'), 'sous 900px l\'éditeur est une feuille plein écran');
     await p.setViewportSize({ width: 1440, height: 900 }); await p.waitForTimeout(800);
-    check(await p.evaluate(() => !document.querySelector('.voice-leading-panel') && !window.app.voiceLeadingOpen), 'passé au-dessus de 900px (où il n\'a plus de bouton), il se referme');
+    check(await p.evaluate(() => getComputedStyle(document.getElementById('seq-dock-panel')).position !== 'fixed' && window.app.seqOpen), 'passé au-dessus de 900px, il reste ouvert dans son volet sous la grille');
     await p.close();
 
     check(erreurs.length === 0, `aucune erreur JavaScript${erreurs.length ? ' — ' + erreurs.slice(0, 3).join(' | ') : ''}`);

@@ -99,8 +99,10 @@ const releverSurfaceActive = (minTactile) => {
     // recouvert est précisément ce qu'on attend d'une page derrière un panneau ouvert. Le défaut
     // n'était visible que depuis que ce panneau s'ouvre pour de bon (voir ouvrirPar plus haut) : tant
     // que le clic échouait en silence, le relevé portait sur une page au repos et paraissait sain.
-    const superposees = [...document.querySelectorAll('.settings-overlay:not([hidden]), .popover:not([hidden]), .song-settings.flottant:not([hidden]), [role="dialog"]')]
+    const superposees = [...document.querySelectorAll('.settings-overlay:not([hidden]), .popover:not([hidden]), .song-settings.flottant:not([hidden]), [role="dialog"], #seq-dock-panel:not([hidden])')]
         .filter(el => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
+            // Lot 10f : l'éditeur de notes est, au téléphone, une feuille plein écran au premier plan (à l'ordinateur il reste dans la page, sous la grille).
+            if (el.id === 'seq-dock-panel' && s.position !== 'fixed') return false;
             return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden'; });
     const hote = superposees.length ? superposees[superposees.length - 1] : document.body;
 

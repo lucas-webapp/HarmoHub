@@ -246,18 +246,18 @@ const AMBRE = 'rgb(224, 179, 106)';
     await p.close();
 
     // ======================================================================================================
-    console.log('\n=== K. Le téléphone n\'a pas bougé (lot 10) ===');
+    console.log('\n=== K. Le téléphone a la même bande et les mêmes pointillés (lot 10f) ===');
     p = await ouvrir({ width: 860, height: 900 });
     await clic(p, caseGrille(0), 400);
     await clic(p, '#grid-zoom', 900);
-    exiger(await p.evaluate(() => window.app.seqMode === 'continu' && !window.app._editeurNotesActif && window.app.editingIndex === 0), 'le séquenceur d\'ensemble est ouvert sur le premier accord, sans éditeur de notes');
+    exiger(await p.evaluate(() => window.app.seqMode === 'continu' && window.app._editeurNotesActif && window.app.editingIndex === 0), 'l\'éditeur de notes est ouvert sur le premier accord');
     exiger(await p.evaluate(() => document.querySelectorAll('#arp-sequencer .seq-ctx-note.manuelle').length >= 1), 'la note ajoutée à la main de F est à l\'écran (accord voisin)');
-    const tel = await p.evaluate(() => { const b = document.getElementById('toggle-studio-mode'); return { nom: b.getAttribute('aria-label'), groupe: b.closest('.seq-groupe').dataset.groupe, presse: b.hasAttribute('aria-pressed') }; });
-    check(tel.nom === 'Mode studio' && tel.groupe === 'motif' && !tel.presse, `le bouton est le « ${tel.nom} » d'avant, parmi le motif`);
+    const tel = await p.evaluate(() => { const b = document.getElementById('toggle-studio-mode'); return { nom: b.getAttribute('aria-label'), groupe: b.closest('#editeur-notes-barre') ? 'editeur' : 'autre', presse: b.hasAttribute('aria-pressed') }; });
+    check(tel.groupe === 'editeur' && tel.presse, `le bouton « ${tel.nom} » est rangé dans l'en-tête de l'éditeur`);
     await clic(p, '#toggle-studio-mode', 700);
-    const telBande = await p.evaluate(() => { const b = document.querySelector('#arp-sequencer .seq-vel-bar'); return { lbl: (document.querySelector('#arp-sequencer .seq-vel-lane-label') || {}).textContent, pos: b ? getComputedStyle(b).position : null, h: b ? Math.round(b.getBoundingClientRect().height) : 0, extra: !!document.querySelector('#arp-sequencer .seq-vel-band, #arp-sequencer .seq-vel-ctx, #arp-sequencer .seq-grid-intensite') }; });
-    check(telBande.lbl === 'Studio' && telBande.pos === 'relative' && telBande.h === 40 && !telBande.extra, `la rangée d'avant : « ${telBande.lbl} », barres de ${telBande.h}px qui suivent les notes (${telBande.pos}), ni bande ni voisins`);
-    check(await p.evaluate(() => { const n = [...document.querySelectorAll('#arp-sequencer .seq-ctx-note.manuelle, #arp-sequencer .seq-note.manuelle')]; return n.every(e => getComputedStyle(e).borderTopStyle === 'solid'); }), 'aucun pointillé : les notes ajoutées à la main gardent leur trait d\'avant');
+    const telBande = await p.evaluate(() => { const b = document.querySelector('#arp-sequencer .seq-vel-band'); const v = document.querySelector('#arp-sequencer .seq-vel-bar'); return { bande: !!b, pos: b ? getComputedStyle(b).position : null, h: v ? Math.round(v.getBoundingClientRect().height) : 0, voisins: document.querySelectorAll('#arp-sequencer .seq-vel-ctx').length }; });
+    check(telBande.bande && telBande.pos === 'sticky' && telBande.h === 32 && telBande.voisins > 0, `la bande collée sous les notes : barres de ${telBande.h}px, ${telBande.voisins} voisines pâles`);
+    check(await p.evaluate(() => { const n = [...document.querySelectorAll('#arp-sequencer .seq-ctx-note.manuelle')]; return n.length > 0 && n.every(e => getComputedStyle(e).borderTopStyle === 'dashed'); }), 'les notes ajoutées à la main sont en pointillés');
     await p.close();
 
     check(erreurs.length === 0, `aucune erreur dans la page (${erreurs.length}${erreurs.length ? ' : ' + erreurs.slice(0, 2).join(' | ') : ''})`);

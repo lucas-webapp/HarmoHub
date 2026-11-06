@@ -159,7 +159,7 @@ const graine = () => {
     await p.close();
 
     // ======================================================================================================
-    console.log('\n=== H. Le téléphone n\'a pas bougé (lot 10) ===');
+    console.log('\n=== H. Le téléphone : la barre rejoint l\'en-tête de la feuille (lot 10f) ===');
     p = await ouvrir({ width: 390, height: 844 });
     await p.locator('#grid-zoom').scrollIntoViewIfNeeded();
     await clic(p, '#grid-zoom', 900);
@@ -168,8 +168,8 @@ const graine = () => {
         tete: Math.round(document.getElementById('editeur-notes-tete').getBoundingClientRect().height),
         tout: (document.querySelector('#arp-sequencer [data-preset="clear"]') || {}).innerText,
     }));
-    check(t.dansSeq && t.tete === 0, 'la barre reste dans le séquenceur, sans en-tête d\'éditeur');
-    check(/tout/.test(t.tout || ''), `la corbeille garde son mot « tout » (« ${(t.tout || '').trim()} »)`);
+    check(!t.dansSeq && t.tete > 40, 'la barre a rejoint l\'en-tête de l\'éditeur, comme à l\'ordinateur');
+    check(!/tout/.test(t.tout || ''), `la corbeille est en icône seule (« ${(t.tout || '').trim()} »)`);
     await p.close();
 
     check(erreurs.length === 0, `aucune erreur de page${erreurs.length ? ' : ' + erreurs.slice(0, 3).join(' | ') : ''}`);

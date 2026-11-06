@@ -67,7 +67,9 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
         r = await lire(); console.log(JSON.stringify(r));
         ck(r.mode==='continu', `mode « continu » — ${r.mode}`);
         ck(r.dansVolet && r.voletVisible, 'il passe dans le volet, qui s\'affiche');
-        ck(r.sousLaGrille, 'le volet est bien SOUS la grille d\'accords');
+        // Lot 10f : au téléphone l'éditeur est une feuille plein écran (fixe, au-dessus de la grille) ; à l'ordinateur il reste sous la grille.
+        const feuille = await p.evaluate(() => getComputedStyle(document.getElementById('seq-dock-panel')).position === 'fixed');
+        ck(vp.mob ? feuille : r.sousLaGrille, vp.mob ? 'l\'éditeur est une feuille plein écran' : 'le volet est bien SOUS la grille d\'accords');
         ck(r.continu && r.contexte>0 && r.lignes>4,
             `continu : ${r.lignes} lignes (demi-tons), ${r.contexte} barres de contexte`);
         ck(r.visible, 'il est visible à l\'écran');
@@ -77,15 +79,20 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
 
         console.log('--- 3. Le volet est ajustable en hauteur ---');
         const h0 = r.hauteurVolet;
-        const box = await p.evaluate(()=>{const e=document.getElementById('seq-dock-resize');const b=e.getBoundingClientRect();return {x:b.x+b.width/2,y:b.y+b.height/2};});
-        await p.mouse.move(box.x, box.y); await p.mouse.down();
-        await p.mouse.move(box.x, box.y-120, {steps:10}); await p.mouse.up();
-        await p.waitForTimeout(600);
-        const h1 = await p.evaluate(()=>Math.round(document.getElementById('seq-dock-host').getBoundingClientRect().height));
-        ck(h1 > h0 + 60, `tirer la poignée vers le haut agrandit — ${h0}px → ${h1}px`);
+        if (vp.mob) {
+            // Téléphone : la feuille prend toute la place, sa poignée n'existe pas.
+            ck(await p.evaluate(() => document.getElementById('seq-dock-resize').offsetParent === null) && h0 > 250, `la feuille donne déjà toute la hauteur (${h0}px), sans poignée`);
+        } else {
+            const box = await p.evaluate(()=>{const e=document.getElementById('seq-dock-resize');const b=e.getBoundingClientRect();return {x:b.x+b.width/2,y:b.y+b.height/2};});
+            await p.mouse.move(box.x, box.y); await p.mouse.down();
+            await p.mouse.move(box.x, box.y-120, {steps:10}); await p.mouse.up();
+            await p.waitForTimeout(600);
+            const h1 = await p.evaluate(()=>Math.round(document.getElementById('seq-dock-host').getBoundingClientRect().height));
+            ck(h1 > h0 + 60, `tirer la poignée vers le haut agrandit — ${h0}px → ${h1}px`);
+        }
 
         console.log('--- 4. Rappuyer sur le même bouton referme ---');
-        await taper('#grid-zoom'); await p.waitForTimeout(900);
+        await taper(vp.mob ? '#editeur-notes-fermer' : '#grid-zoom'); await p.waitForTimeout(900); // lot 10f : au téléphone, la feuille recouvre la porte
         r = await lire(); console.log(JSON.stringify({mode:r.mode, voletVisible:r.voletVisible}));
         ck(r.mode===null && !r.voletVisible, 'tout est refermé');
 

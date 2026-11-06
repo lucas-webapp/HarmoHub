@@ -8372,6 +8372,3 @@ body.avec-barre-selection .toast { bottom: 132px; }
     .editeur-notes-legende { flex: 1 1 100%; justify-content: flex-start; order: 3; }
     #editeur-notes-voix { margin-left: 0; }
 }
-@media (max-width: 899px) {
-    #grid-zoom.btn-seq-court { height: var(--bouton-h-lg); min-height: var(--bouton-h-lg); }
-}

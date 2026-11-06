@@ -170,15 +170,17 @@ const graine = (verre) => {
     await p.close();
 
     // ======================================================================================================
-    console.log('\n=== E. Le téléphone n\'a pas bougé (lot 10) ===');
+    console.log('\n=== E. Le téléphone : l\'éditeur y est une feuille, le tiroir n\'y est pas (lot 10f) ===');
     p = await ouvrir({ width: 860, height: 1000 });
     await p.click(cellule(0, 0)); await p.waitForTimeout(300);
     await p.click('#grid-zoom'); await p.waitForTimeout(900);
     const avant = await edition(p);
-    await p.click(cellule(0, 2)); await p.waitForTimeout(500);
+    // La feuille recouvre la grille : on change d'accord par la zone de l'accord voisin, dans l'éditeur (le geste de l'éditeur, comme à l'ordinateur).
+    const zone = await p.locator('#arp-sequencer .seq-ctx-nav[data-target-index="1"]').boundingBox();
+    await p.mouse.click(zone.x + 8, zone.y + 8); await p.waitForTimeout(600);
     e = await edition(p);
-    check(avant.i === 0 && e.i === 0 && e.nom === 'Cmaj7', `au téléphone, « Séq. » garde l'accord d'avant quand on touche une autre case, comme avant (rang ${avant.i} puis ${e.i})`);
-    await p.click('#grid-zoom'); await p.waitForTimeout(400);
+    check(avant.i === 0 && e.i === 1 && e.nom === 'Gdom7', `au téléphone, la zone de l'accord voisin amène l'éditeur dessus (rang ${avant.i} puis ${e.i}, ${e.nom})`);
+    await p.click('#editeur-notes-fermer'); await p.waitForTimeout(400);
     await p.click('#toggle-viz-guitar'); await p.waitForTimeout(300);
     check(await p.evaluate(() => localStorage.getItem('harmohubVuesParMorceau') === null), 'au téléphone, rien n\'est retenu par morceau (il n\'a pas de tiroir)');
     check(await p.evaluate(() => document.getElementById('vues-tiroir').hidden), '...et le tiroir n\'y apparaît pas');
