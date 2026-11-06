@@ -1,6 +1,6 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 06/11/2026, après le sous-lot « Éditeur et clavier » (l'éditeur suit la sélection, l'édition reste ouverte aux opérations de partie, règle opaque, tiroir retenu par morceau). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 06/11/2026, après le lot 10d (panneau d'accord du téléphone). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
@@ -32,8 +32,11 @@ Mis à jour le 06/11/2026, après le sous-lot « Éditeur et clavier » (l'édit
   dupliquer, supprimer une partie rouvrent l'accord à sa nouvelle place (`reprendreEditionApresPartie`) ; `.seq-ruler-band` opaque verre allumé ; tiroir
   retenu par morceau dans une table de l'appareil (`harmohubVuesParMorceau`). Défaut ancien corrigé au passage : ouvrir un accord n'empile plus
   d'annulation (`_ouvertureEdition`, `_journalDebutSession` dans `commitLiveEdit`).
-- **Prochain : 10d (panneau d'accord)**, voir « Lot 10 » plus bas. On peut commencer sans rien demander.
-- **Ensuite, dans cet ordre** : 10e (panneau d'ajout), 10f (éditeur de notes au téléphone). L'utilisateur peut changer l'ordre en lançant `/reprise`.
+- ✅ **10d livré** (06/11, banc `telephone_panneau_accord`) : panneau d'accord du téléphone, détail dans « Lot 10 » et `docs/dette-tests.md`.
+- **Point ouvert du 10d, à proposer à l'utilisateur (d'avant le lot)** : à 320 px, une case fait 60 px et ses poignées de durée 22 px de chaque côté ; le
+  ciblage tactile attire un toucher au centre de la case vers la poignée gauche (la case n'est pas sélectionnée). Poignées plus étroites sur une case étroite ?
+- **Prochain : 10e (panneau d'ajout)**, voir « Lot 10 » plus bas. On peut commencer sans rien demander.
+- **Ensuite** : 10f (éditeur de notes au téléphone). L'utilisateur peut changer l'ordre en lançant `/reprise`.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
@@ -45,7 +48,7 @@ Mis à jour le 06/11/2026, après le sous-lot « Éditeur et clavier » (l'édit
   et quatre cases, Affichage, en-tête de partie), **« Paroles homogènes » livré** (supprimer un morceau supprime ses paroles partout, Ctrl+Z les
   ramène ; synchro des paroles dès l'ouverture une fois connecté, cadre Paroles chargé en arrière-plan ; versions des paroles dans Paramètres ›
   Historique, base `harmohub-historique-paroles` ; banc `paroles_homogenes`), **« Versions au cloud » livré** (les 5 plus récentes versions de
-  chaque morceau et de ses paroles dans Firestore, `synchro-versions.js`, banc `versions_cloud`), **« Éditeur et clavier » livré** (06/11). **Prochain : 10d.**
+  chaque morceau et de ses paroles dans Firestore, `synchro-versions.js`, banc `versions_cloud`), **« Éditeur et clavier » livré** (06/11), **10d livré** (06/11 : panneau d'accord). **Prochain : 10e.**
 - **Versions au cloud (livré 05/11)** : les deux points des « Paroles homogènes » sont réglés (versions au cloud, liste dans la page Paroles seule).
   Limite : les versions ne sont pas écoutées en continu ; celles des autres appareils arrivent à l'ouverture de l'historique ou des Options de Paroles.
 - **Deux décisions du 10c (confirmées le 05/11, voir « Suite à faire »)** : (1) la barre-résumé dit aussi le TEMPO (« C majeur · 120 BPM · 4/4 · Droit · Piano »),
@@ -53,7 +56,7 @@ Mis à jour le 06/11/2026, après le sous-lot « Éditeur et clavier » (l'édit
   Large et le pincement du téléphone sont une préférence de l'APPAREIL (`harmohubGrilleTelephone`), pas du morceau : les échelles du morceau restent
   celles de l'ordinateur (un morceau en Détaillé donnait des cases de 103 px au téléphone). Aussi : Transposer garde une ligne sous les cases (absent de
   la maquette, présent avant).
-- **Dernier balayage complet** (« Éditeur et clavier », 06/11) : 235 verts, 5 rouges, 6 sans verdict sur 246 suites — exactement la ligne de base de
+- **Dernier balayage complet** (lot 10d, 06/11) : 236 verts, 5 rouges, 6 sans verdict sur 247 suites — exactement la ligne de base de
   `CLAUDE.md`. Le lancer en tâche d'arrière-plan avec le chien de garde dans la même commande : `(bash tests/watchdog.sh &) ; bash tests/run_all_fast.sh`.
 - **Dettes connues pour le lot 10** : au téléphone, hors barre du haut, onglets, barre de lecture et vues intégrées (10a, 10b), rien n'a bougé depuis
   le lot 6 ; 19 bancs sont joués à 860 px parce qu'ils éprouvent le mode « Ajout » de la carte Accord, qui n'existe plus que là (liste dans
@@ -140,7 +143,11 @@ lecture (Lecture, Stop, « Mes. N » + frise, Boucle, ⋯ qui ouvre le panneau L
 3. ✅ **10c — Réglages du morceau et Affichage** (livré 05/11, banc `telephone_reglages`) : barre-résumé pleine largeur → quatre cases (Tonalité, Mesure, Swing, Son) sur deux colonnes ; bouton
    carré « Affichage » : Compact (4 mesures / ligne, noms seuls, 44 px), Normal (4 / ligne + degrés, 64 px), Large (2 / ligne, 72 px) ; les zooms H / V
    s'effacent, le pincement reste ; en-tête de partie : nom + « N mesures » + ×N + menu ⋯ (celui du lot 5c).
-4. **10d — Panneau d'accord** (remplace la carte Accord et le mode Modification au téléphone) : toucher une case → panneau à mi-hauteur, l'accord
+4. ✅ **10d — Panneau d'accord** (livré 06/11, banc `telephone_panneau_accord`). Décisions prises en route : seuls les GESTES de modification (double
+   toucher, « Réglages du son », « Modifier ») ouvrent le panneau agrandi — les autres chemins vers `editChord` (séquenceur, ⊱, Séq.) gardent la carte dans
+   la page jusqu'au 10f ; la barre-résumé reste collée sous la barre du haut tant que le panneau est ouvert (« toujours voir tonalité et tempo ») ; Supprimer
+   et Dupliquer en logo seul (avec les mots, la rangée ne tenait pas sur 390 px) ; types sur 6 colonnes. Le dock de secours ne sert plus que grand
+   séquenceur ouvert. Cahier d'origine : (remplace la carte Accord et le mode Modification au téléphone) : toucher une case → panneau à mi-hauteur, l'accord
    visible au-dessus ; contenu de la bulle (‹ ›, fondamentales 2 × 6, type, durée) puis « Réglages du son » = contenu de l'inspecteur ; Supprimer,
    Dupliquer ; une annulation par panneau. Bancs : `filet_toujours_visible` (mode Modification au téléphone), `barre_bas_telephone`, `mobile_edit_scroll`.
 5. **10e — Panneau d'ajout** (remplace le mode Ajout, la carte Nouvel accord et l'ajout rapide) : case « + » → saisie unique (syntaxe complète),

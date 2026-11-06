@@ -2775,6 +2775,8 @@ const ZONE_EDITION_SELECTEURS = [
     // Lot 10b : la barre de lecture du téléphone et son panneau Lecture. Toucher la frise, « Mes. N » ou le fond du panneau n'est pas quitter
     // la modification en cours (les boutons, eux, sont déjà couverts par `button`).
     '#barre-lecture', '#panneau-lecture',
+    // Lot 10d : le panneau d'accord du téléphone — agrandi, il porte la modification elle-même (la carte Accord y est déplacée).
+    '#panneau-accord',
 ].join(',');
 // Tiroir Clavier / Guitare retenu par morceau (sous-lot « Éditeur et clavier », voir memoriserVuesMorceau) : table locale { idMorceau: { p, g } }.
 const VUES_PAR_MORCEAU_KEY = 'harmohubVuesParMorceau';
@@ -4780,6 +4782,8 @@ class HarmoHubApp {
             if (!t) return;
             if (t.type === 'song') this.startInlineRenameSong(t.id);
             else if (t.type === 'folder') this.startInlineRenameFolder(t.name);
+            // Téléphone (lot 10d) : « Modifier », c'est le panneau d'accord agrandi, comme le double toucher.
+            else if (t.type === 'chord' && this.panneauAccordDisponible()) { this.selectChord(t.section, t.index); this.ouvrirPanneauAccord(t.section, t.index); this.etendrePanneauAccord(true); }
             else if (t.type === 'chord') this.editChord(t.section, t.index);
         };
         // Clic droit, ordinateur (lot 7b). Copier : la case visée — ou tout le groupe si elle en fait partie, comme Ctrl+C.
@@ -4913,6 +4917,9 @@ class HarmoHubApp {
             { id: 'rr-pop', ancre: '.rr-puce, #key-suggest-menu', close: () => this.fermerPuceReglage() },
             // La bulle « quel accord » (lot 6b) : un clic sur une AUTRE case ne la ferme pas, il la déplace (voir onGridPointerUp).
             { id: 'bulle-accord', ancre: '.grid-cell:not(.grid-cell-add)', close: () => this.fermerBulleAccord() },
+            // Son pendant au téléphone (lot 10d), même règle : toucher une autre case l'y amène, toucher à côté ou Échap le referme.
+            // `auClic` : PAS à l'appui (qui commence aussi un défilement) — il se referme au clic à côté, voir le gestionnaire de clic plus bas ; Échap ici.
+            { id: 'panneau-accord', ancre: '.grid-cell:not(.grid-cell-add)', auClic: true, close: () => this.fermerBulleAccord() },
             { id: 'quick-add-help', ancre: '#quick-add-help-btn', close: () => this.closeQuickAddHelp() },
             // Réglages du morceau (tempo/groove/mesure/tonalité), devenus un panneau flottant : une
             // ligne suffit pour hériter des DEUX façons de renoncer, le clic à côté et Échap. C'est
@@ -4943,6 +4950,7 @@ class HarmoHubApp {
 
         document.addEventListener('pointerdown', (e) => {
             for (const p of this._popups) {
+                if (p.auClic) continue;
                 const el = document.getElementById(p.id);
                 if (!el || el.hidden || el.contains(e.target)) continue;
                 // `closest` et non `e.target.id` : un clic tombe le plus souvent sur l'icône DANS le
@@ -5039,6 +5047,10 @@ class HarmoHubApp {
             const inGrid = inPath('.grid-cell, .cell-add, .section-head');
             // Lot 7b : la barre de sélection agit SUR la sélection — un clic dedans ne la perd pas (l'accord d'ancrage sert au Maj+clic et au collage).
             const inMenu = inPath('#context-menu, #barre-selection, #vues-tiroir, #bl-vues'); // le tiroir et ses boutons (lot 8) agissent SUR l'accord sélectionné
+            // Lot 10d : le panneau d'accord du téléphone se referme ICI, au clic à côté, et non à l'appui du doigt (table _popups) : cet appui est
+            // aussi le début d'un défilement, et « le mode modifier s'enlève dès que je veux scroller » (retour utilisateur) — les deux gardes
+            // ci-dessus (touchMoved, dernierDefilementA) l'écartent déjà. Une autre case le déplace (onGridPointerUp), l'appui long ouvre son menu.
+            if (this._bulle && this._bulle.telephone && !inPath('#panneau-accord, .grid-cell:not(.grid-cell-add), #context-menu')) this.fermerBulleAccord();
             // .seq-zoom-modal inclus : le séquenceur (déplacé dans la loupe séquenceur,
             // ou dans sa propre vue agrandie, voir openSeqZoom) et ses boutons (Enregistrer/Annuler/
             // replier, poignée de redimensionnement...) y vivent, hors de .chord-grid ET de .col-left —
@@ -8969,7 +8981,9 @@ class HarmoHubApp {
         const terminer = document.getElementById('dock-terminer');
         if (!rythme || !terminer) return;
         const surTelephone = window.matchMedia('(max-width: 899px)').matches;
-        const utile = surTelephone && this.appMode === 'edit' && this.editingIndex != null;
+        // Lot 10d : le panneau d'accord porte la modification et ses propres sorties (✕, Moins) ; le dock ne sert plus que si la modification se fait
+        // sans lui — le petit séquenceur du téléphone ouvert, qui le tient fermé jusqu'au lot 10f.
+        const utile = surTelephone && this.appMode === 'edit' && this.editingIndex != null && !(this._bulle && this._bulle.telephone);
         rythme.hidden = !utile;
         terminer.hidden = !utile;
         // L'état du bouton Rythme suit celui du panneau : ouvert, il le referme — sans quoi on aurait
@@ -8990,6 +9004,7 @@ class HarmoHubApp {
     // et une cible qui disparaît dès qu'on touche un accord ne peut pas servir de repère stable.
     applyAppModeTheme() {
         document.body.dataset.appMode = this.appMode;
+        this.synchroPanneauAccord(); // au téléphone, la modification d'un accord, c'est le panneau d'accord agrandi (lot 10d)
         // Accroché ici plutôt qu'aux quatre endroits qui changent de mode : applyAppModeTheme est
         // déjà LE point de passage de tout changement de mode, et les accès de secours de la barre du
         // bas ne dépendent que de ça (plus de la largeur d'écran, traitée au redimensionnement).
@@ -9577,9 +9592,8 @@ class HarmoHubApp {
     }
 
     setupBulleAccord() {
-        const b = document.getElementById('bulle-accord');
-        if (!b) return;
-        b.addEventListener('click', (e) => {
+        // La bulle (ordinateur) et le panneau d'accord (téléphone, lot 10d) portent les MÊMES boutons [data-bulle] : un seul aiguillage pour les deux.
+        const aiguiller = (e) => {
             const btn = e.target.closest('[data-bulle]');
             if (!btn || btn.disabled || !this._bulle) return;
             e.stopPropagation();
@@ -9594,16 +9608,23 @@ class HarmoHubApp {
                 const data = (loadProgressionSections()[z.section] || { chords: [] }).chords[z.index];
                 if (data) this.modifierAccordBulle({ beats: beatsFromData(data) + (action === 'duree-plus' ? 1 : -1) });
             } else if (action === 'son') this.ouvrirSonDepuisBulle();
-        });
-        b.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.fermerBulleAccord(); }
-        });
+        };
+        const b = document.getElementById('bulle-accord');
+        if (b) {
+            b.addEventListener('click', aiguiller);
+            b.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.fermerBulleAccord(); }
+            });
+        }
+        this.setupPanneauAccord(aiguiller);
     }
 
     ouvrirBulleAccord(section, index) {
+        if (this.panneauAccordDisponible()) { this.ouvrirPanneauAccord(section, index); return; }
         const b = document.getElementById('bulle-accord');
         const sections = loadProgressionSections();
         if (!b || !sections[section] || !sections[section].chords[index]) return;
+        if (this._bulle && this._bulle.telephone) this.fermerBulleAccord(); // le seuil vient d'être franchi : le panneau du téléphone rend la main
         const meme = this._bulle && this._bulle.section === section && this._bulle.index === index;
         // Une NOUVELLE bulle = une nouvelle étape d'annulation ; la même bulle rouverte (re-clic sur sa case) garde la sienne.
         this._bulle = { section, index, undoPousse: meme ? this._bulle.undoPousse : false };
@@ -9614,12 +9635,15 @@ class HarmoHubApp {
 
     fermerBulleAccord() {
         const b = document.getElementById('bulle-accord');
+        const z = this._bulle;
         this._bulle = null;
         if (b) b.hidden = true;
+        if (z && z.telephone) this.fermerPanneauAccord(z);
     }
 
     // Sous la case (son premier morceau, s'il est coupé de ligne), calée sur son bord gauche ; au-dessus s'il n'y a pas la place en bas.
     placerBulleAccord() {
+        if (this._bulle && this._bulle.telephone) { this.placerPanneauAccord(); return; }
         const b = document.getElementById('bulle-accord');
         const z = this._bulle;
         if (!b || !z || b.hidden) return;
@@ -9657,7 +9681,8 @@ class HarmoHubApp {
         if (n < 0 || n >= chords.length) return;
         this.selectChord(z.section, n);
         this.ouvrirBulleAccord(z.section, n);
-        const focus = document.querySelector(`#bulle-accord [data-bulle="${delta < 0 ? 'prec' : 'suiv'}"]:not([disabled])`);
+        if (this._bulle && this._bulle.telephone) this.assurerCaseVisiblePanneau();
+        const focus = document.querySelector(`:is(#bulle-accord, #panneau-accord) [data-bulle="${delta < 0 ? 'prec' : 'suiv'}"]:not([disabled])`);
         if (focus) focus.focus({ preventScroll: true });
     }
 
@@ -9666,6 +9691,7 @@ class HarmoHubApp {
     ouvrirSonDepuisBulle() {
         const z = this._bulle;
         if (!z) return;
+        if (z.telephone) { this.etendrePanneauAccord(!z.etendu); return; } // lot 10d : le panneau s'agrandit au lieu de céder la place
         this.fermerBulleAccord();
         this.editChord(z.section, z.index);
     }
@@ -9681,7 +9707,11 @@ class HarmoHubApp {
         const change = ('root' in patch && patch.root !== data.root) || ('quality' in patch && patch.quality !== data.quality)
             || ('bass' in patch && (patch.bass || null) !== (data.bass || null)) || ('beats' in patch && Math.max(1, patch.beats) !== avant);
         if (!change) return;
-        if (!z.undoPousse) { this.pushUndo(sections); z.undoPousse = true; }
+        // Panneau du téléphone agrandi (lot 10d) : ses réglages du son ont pu déposer l'instantané du panneau (commitLiveEdit) — « une annulation par
+        // panneau », pas une de plus parce qu'on remonte toucher la fondamentale.
+        const dejaPousse = z.undoPousse || (z.telephone && this._editSessionUndoPushed && this.editingIndex === z.index && this.activeSection === z.section);
+        if (!dejaPousse) this.pushUndo(sections);
+        z.undoPousse = true;
         if ('root' in patch || 'quality' in patch || 'bass' in patch) {
             // Comme la retape du nom : un doigté verrouillé a été calculé pour l'ancien accord, et une case « à nommer » vient d'être nommée.
             data.guitarLock = null;
@@ -9702,32 +9732,14 @@ class HarmoHubApp {
     }
 
     remplirBulleAccord() {
+        if (this._bulle && this._bulle.telephone) { this.remplirPanneauAccord(); return; }
         const b = document.getElementById('bulle-accord');
         const z = this._bulle;
         if (!b || !z) return;
-        const sections = loadProgressionSections();
-        const sec = sections[z.section];
-        const data = sec && sec.chords[z.index];
-        if (!data) { this.fermerBulleAccord(); return; }
+        const infos = this.infosBulle(z);
+        if (!infos) { this.fermerBulleAccord(); return; }
         const focusAvant = b.contains(document.activeElement) ? `[data-bulle="${document.activeElement.dataset.bulle}"]${document.activeElement.dataset.valeur != null ? `[data-valeur="${document.activeElement.dataset.valeur}"]` : ''}` : null;
-        const gRoot = document.getElementById('global-root').value, gMode = document.getElementById('global-mode').value;
-        const useFlats = useFlatsForKey(NOTES.indexOf(gRoot), gMode);
-        const flats = useFlatsForChordRoot(NOTES.indexOf(data.root), NOTES.indexOf(gRoot), gMode, useFlats);
-        const label = chordSymbolForData(data, flats);
-        const deg = this.getRomanNumeral(gRoot, gMode, data.root, data.quality);
-        const bpb = this.beatsPerBar();
-        let pos = 0;
-        for (let i = 0; i < z.index; i++) pos += beatsFromData(sec.chords[i]);
-        const ou = `mes. ${Math.floor(pos / bpb) + 1} · ${(sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${z.section + 1}`}`;
-        const nom = (pc) => noteNameForPc(pc, useFlats).replace('#', '♯');
-        const bouton = (action, valeur, libelle, actif, titre = '') =>
-            `<button type="button" data-bulle="${action}" data-valeur="${escapeHtml(valeur)}" aria-pressed="${actif}"${titre ? ` title="${escapeHtml(titre)}"` : ''}>${escapeHtml(libelle)}</button>`;
-        const fondamentales = NOTES.map((n, pc) => bouton('root', n, nom(pc), n === data.root)).join('');
-        const types = [...document.getElementById('quality').options].map(o => bouton('quality', o.value, o.text, o.value === data.quality)).join('');
-        const basses = bouton('bass', '', '—', !data.bass, 'Basse = fondamentale') + NOTES.map((n, pc) => bouton('bass', n, nom(pc), data.bass === n, `Basse ${nom(pc)}`)).join('');
-        const beats = beatsFromData(data);
-        const chevron = (d) => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
-        const dernier = sec.chords.length - 1;
+        const { label, deg, ou, fondamentales, types, basses, beats, bpb, chevron, dernier } = infos;
         b.setAttribute('aria-label', `Accord ${label}`);
         b.innerHTML =
             `<div class="bulle-tete">`
@@ -9751,6 +9763,274 @@ class HarmoHubApp {
             const c = b.querySelector(focusAvant + ':not([disabled])');
             if (c) c.focus({ preventScroll: true });
         }
+    }
+
+    // ---------- LE PANNEAU D'ACCORD DU TÉLÉPHONE (lot 10d) ----------
+    // « Toucher une case → panneau à mi-hauteur, l'accord visible au-dessus ; contenu de la bulle (‹ ›, fondamentales 2 × 6, type, durée) puis
+    // "Réglages du son" = contenu de l'inspecteur ; Supprimer, Dupliquer ; une annulation par panneau » (docs/refonte.md, CLAUDE-HARMOHUB.md, lot 10).
+    // Il remplace sous 900px la carte Accord dans la page et le mode Modification (avec son dock de secours de 45px) : c'est la bulle de l'ordinateur,
+    // posée en bas de l'écran. Il partage son état (this._bulle, marqué `telephone`), ses boutons [data-bulle] et son annulation (modifierAccordBulle).
+    // Agrandi (`etendu`), il EST la modification de l'accord : editChord y est ouvert et la carte #accord-card y est déplacée (rangerCarteAccord).
+    // Le grand séquenceur du téléphone (Séq., sous la grille) reste celui d'avant jusqu'au lot 10f : tant qu'il est ouvert, le panneau ne s'ouvre pas (il le couvrirait).
+    // Le séquenceur COMPACT, lui, vit dans la carte Accord (#arp-sequencer) : ouvert DEPUIS le panneau agrandi, il y reste, avec le reste des réglages du
+    // son. Ouvert sans lui (sa porte de la carte dans la page), c'est le tiroir flottant d'avant : le panneau ne s'ouvre pas par-dessus, sa fermeture
+    // y deviendrait inatteignable (seq_tiroir_flottant, « je n'arrive plus à fermer le petit séquenceur »).
+    panneauAccordDisponible() {
+        if (!window.matchMedia('(max-width: 899px)').matches || this.vueOuverte()) return false;
+        if (!this.seqOpen) return true;
+        return this.seqMode === 'compact' && !!(this._bulle && this._bulle.telephone && this._bulle.etendu);
+    }
+
+    setupPanneauAccord(aiguiller) {
+        const p = document.getElementById('panneau-accord');
+        if (!p) return;
+        // LE CLIC FANTÔME. Le panneau s'ouvre (ou s'agrandit) au RELÂCHEMENT du doigt sur une case ; le navigateur envoie ensuite son clic de
+        // synthèse au même point de l'écran — où se trouve désormais le panneau. Sans cette garde, toucher un Em le changeait en Em9 (constaté au
+        // premier essai : le clic tombait sur « 9 » dans les types). Tout clic dans le panneau moins de 350ms après le geste qui l'a ouvert est donc
+        // avalé : c'est ce clic-là, ou le second toucher d'un double toucher que le défilement (assurerCaseVisiblePanneau) a fait tomber sur le
+        // panneau — jamais un choix (personne ne vise un bouton qui n'était pas là 350ms plus tôt).
+        p.addEventListener('click', (e) => {
+            if (this._paGardeClic && performance.now() - this._paGardeClic < 350) { e.stopPropagation(); e.preventDefault(); }
+        }, true);
+        // LE SECOND TOUCHER D'UN DOUBLE TOUCHER. Le premier ouvre le panneau et fait défiler la page pour garder la case visible : le second tombe
+        // alors sur le panneau, pas sur la case. Le doigt, lui, n'a pas bougé : un appui dans le panneau dans le temps du double toucher (420ms,
+        // comme onGridPointerUp), juste après l'avoir ouvert, EST ce second toucher — sur le nom, retaper ; ailleurs, modifier (agrandir).
+        p.addEventListener('pointerdown', (e) => {
+            const t = this._lastTap, z = this._bulle;
+            if (!t || !z || !z.telephone || t.section !== z.section || t.index !== z.index || Date.now() - t.time >= 420) return;
+            if (!this._paGardeClic || performance.now() - this._paGardeClic >= 420) return;
+            e.preventDefault(); e.stopPropagation();
+            this._lastTap = null;
+            this._paGardeClic = performance.now(); // le clic de ce second toucher est avalé à son tour
+            if (t.sym) {
+                const cell = document.querySelector(`#progression-sections .grid-cell[data-section="${z.section}"][data-index="${z.index}"]`);
+                this.fermerBulleAccord();
+                if (cell) this.startInlineChordSymbolEdit(z.section, z.index, cell);
+                return;
+            }
+            this.etendrePanneauAccord(true);
+            if (this.autoplaySelect) this.playCurrent();
+        }, true);
+        p.addEventListener('click', aiguiller);
+        const etendre = () => { if (this._bulle && this._bulle.telephone) this.etendrePanneauAccord(!this._bulle.etendu); };
+        document.getElementById('pa-poignee').addEventListener('click', etendre);
+        document.getElementById('pa-son-btn').addEventListener('click', etendre);
+        // Supprimer et Dupliquer comptent dans l'étape d'annulation du panneau quand il en a déjà déposé une : « une annulation par panneau ».
+        const dejaSauve = (z) => z.undoPousse || (this._editSessionUndoPushed && this.editingIndex === z.index && this.activeSection === z.section);
+        document.getElementById('pa-supprimer').addEventListener('click', () => {
+            const z = this._bulle;
+            if (!z || !z.telephone) return;
+            const deja = dejaSauve(z);
+            this.fermerBulleAccord();
+            // Pas de confirmation, contrairement au menu de l'appui long : ici le geste est nommé, à l'endroit qu'on regarde, et Annuler est en haut.
+            this.removeChord(z.section, z.index, deja);
+        });
+        document.getElementById('pa-dupliquer').addEventListener('click', () => {
+            const z = this._bulle;
+            if (!z || !z.telephone) return;
+            this.duplicateChord(z.section, z.index, dejaSauve(z));
+            // La copie est sélectionnée (duplicateChord) : le panneau la suit, comme il suit toute sélection.
+            this.ouvrirPanneauAccord(z.section, z.index + 1);
+        });
+    }
+
+    ouvrirPanneauAccord(section, index) {
+        const sections = loadProgressionSections();
+        if (!document.getElementById('panneau-accord') || !sections[section] || !sections[section].chords[index]) return;
+        const avant = this._bulle;
+        if (avant && !avant.telephone) { const b = document.getElementById('bulle-accord'); if (b) b.hidden = true; } // le seuil vient d'être franchi
+        const tel = avant && avant.telephone ? avant : null;
+        const meme = !!tel && tel.section === section && tel.index === index;
+        // Agrandi, le panneau le RESTE en passant à un autre accord (une autre case touchée, ‹ ›) : on règle le son d'un accord après l'autre, comme
+        // dans l'ancienne Modification « collante » et comme l'éditeur de notes qui suit la sélection (décision du 05/11, point 4).
+        this._bulle = { section, index, telephone: true, etendu: !!(tel && tel.etendu), undoPousse: meme ? tel.undoPousse : false };
+        if (this._bulle.etendu && !(this.editingIndex === index && this.activeSection === section)) this.editChord(section, index);
+        this.afficherPanneauAccord();
+        if (!meme) this.assurerCaseVisiblePanneau();
+    }
+
+    etendrePanneauAccord(oui) {
+        const z = this._bulle;
+        if (!z || !z.telephone || z.etendu === oui) return;
+        if (oui) {
+            z.etendu = true;
+            this.editChord(z.section, z.index);
+        } else {
+            // « Moins » : la modification se referme, le panneau reste. Ce que les réglages du son ont déposé reste l'étape du panneau.
+            if (this._editSessionUndoPushed && this.editingIndex === z.index && this.activeSection === z.section) z.undoPousse = true;
+            z.etendu = false;
+            this.exitEditMode();
+            this.loadProgression();
+        }
+        this.afficherPanneauAccord();
+        this.assurerCaseVisiblePanneau();
+    }
+
+    // Appelé par applyAppModeTheme, LE point de passage de toute entrée en modification ou sortie. Seuls les GESTES de modification ouvrent le
+    // panneau agrandi (double toucher, « Réglages du son », « Modifier » de l'appui long) : les autres chemins vers editChord au téléphone — le
+    // petit séquenceur, la conduite de voix ⊱, Séq. — gardent la carte dans la page jusqu'au lot 10f, qui les refait. Agrandi, le panneau suit
+    // l'accord que ces chemins ouvrent ; quitter la modification, par quelque chemin que ce soit, le referme.
+    synchroPanneauAccord() {
+        if (!this.panneauAccordDisponible()) return;
+        const z = this._bulle;
+        if (this.editingIndex != null) {
+            if (!z || !z.telephone || !z.etendu) return; // modification ouverte sans le panneau : voir plus haut, la carte reste dans la page
+            const meme = z.section === this.activeSection && z.index === this.editingIndex;
+            if (!meme) {
+                this._bulle = { section: this.activeSection, index: this.editingIndex, telephone: true, etendu: true, undoPousse: false };
+                this.afficherPanneauAccord();
+            }
+            // editChord vient d'ouvrir une session neuve : si le panneau a déjà son étape d'annulation, la session ne doit pas en déposer une seconde.
+            if (this._bulle.undoPousse) this._editSessionUndoPushed = true;
+        } else if (z && z.telephone && z.etendu) {
+            this.fermerBulleAccord();
+        }
+    }
+
+    afficherPanneauAccord() {
+        const p = document.getElementById('panneau-accord');
+        const z = this._bulle;
+        if (!p || !z || !z.telephone) return;
+        this.remplirPanneauAccord();
+        if (!this._bulle) return; // l'accord n'existe plus
+        this.rangerCarteAccord(z.etendu);
+        p.classList.toggle('pa-etendu', z.etendu);
+        document.getElementById('pa-son').hidden = !z.etendu;
+        const sonBtn = document.getElementById('pa-son-btn'), poignee = document.getElementById('pa-poignee');
+        sonBtn.textContent = z.etendu ? 'Moins' : 'Réglages du son';
+        sonBtn.setAttribute('aria-expanded', String(z.etendu));
+        poignee.setAttribute('aria-expanded', String(z.etendu));
+        const lib = z.etendu ? 'Réduire le panneau' : 'Agrandir le panneau';
+        poignee.setAttribute('aria-label', lib);
+        poignee.title = lib;
+        p.hidden = false;
+        document.body.classList.add('pa-ouvert');
+        this.placerPanneauAccord();
+    }
+
+    // `garderEdition` : le panneau s'efface sans que l'utilisateur l'ait refermé (seuil de 900px franchi, petit séquenceur ouvert) — la modification
+    // en cours continue ailleurs (l'inspecteur de l'ordinateur, la carte dans la page), elle ne se perd pas.
+    fermerPanneauAccord(z, garderEdition = false) {
+        const p = document.getElementById('panneau-accord');
+        if (p) { p.hidden = true; p.classList.remove('pa-etendu'); }
+        document.body.classList.remove('pa-ouvert');
+        this.rangerCarteAccord(false);
+        if (!garderEdition && z.etendu && this.editingIndex != null) { this.exitEditMode(); this.loadProgression(); }
+    }
+
+    // La carte Accord (l'inspecteur) est DÉPLACÉE dans le panneau agrandi, puis remise à sa place : jamais dupliquée (mêmes adresses, mêmes écouteurs),
+    // comme le dock (applySidebarCollapsed) ou le transport (placeGlobalTransport). Les diagrammes (nom de l'accord, clavier, guitare) la suivent : le
+    // DOIGTÉ fait partie des réglages du son (« rythme de l'accord, notes libres et doigté de guitare : même contenu que l'inspecteur du bureau, plus bas
+    // dans ce panneau », maquette) — restés dans la page, le panneau agrandi les recouvrait (glock_unlock_and_switch : plus de cadenas au doigt).
+    // Ils gardent leur ordre et placerVues continue de les ranger entre eux (titre avant l'enveloppe, carte des diagrammes dedans).
+    rangerCarteAccord(dansPanneau) {
+        const hote = document.getElementById('pa-son');
+        const noeuds = [document.getElementById('accord-card'), document.querySelector('.chord-header-row'), document.querySelector('.viz-wrap')].filter(Boolean);
+        if (!hote || !noeuds.length) return;
+        if (dansPanneau) {
+            if (noeuds[0].parentElement === hote) return;
+            this._origineCarteAccord = noeuds.map(n => ({ n, parent: n.parentElement, suivant: n.nextSibling }));
+            noeuds.forEach(n => hote.appendChild(n));
+        } else if (noeuds[0].parentElement === hote && this._origineCarteAccord) {
+            // À rebours : un nœud se replace devant son ancien voisin, qui doit déjà être revenu.
+            [...this._origineCarteAccord].reverse().forEach(o => {
+                if (o.n.parentElement !== hote) return;
+                o.parent.insertBefore(o.n, o.suivant && o.suivant.parentNode === o.parent ? o.suivant : null);
+            });
+        }
+    }
+
+    // La hauteur du panneau descend dans la page (--haut-panneau-accord) : la grille peut défiler jusqu'au-dessus de lui, et la case touchée y reste visible.
+    placerPanneauAccord() {
+        const p = document.getElementById('panneau-accord');
+        if (!p || p.hidden) return;
+        if (!this.panneauAccordDisponible()) {
+            const z = this._bulle;
+            this._bulle = null;
+            if (z) this.fermerPanneauAccord(z, true);
+            this.majBarreBasTelephone(); // la modification continue sans le panneau : le dock de secours reprend son rôle
+            return;
+        }
+        // La place à laisser au-dessus : la barre-résumé collante et une rangée de la grille (la case, ses numéros, un peu d'air).
+        const resume = document.getElementById('song-card'), cellule = document.querySelector('#progression-sections .grid-cell');
+        const reserve = (resume ? resume.offsetHeight : 0) + (cellule ? cellule.offsetHeight : 64) + 40;
+        document.documentElement.style.setProperty('--reserve-panneau-accord', `${reserve}px`);
+        document.documentElement.style.setProperty('--haut-panneau-accord', `${p.offsetHeight}px`);
+    }
+
+    // « L'accord modifié reste visible au-dessus » : la page défile juste ce qu'il faut pour que la case touchée tienne entre la barre du haut et le panneau.
+    assurerCaseVisiblePanneau() {
+        const z = this._bulle, p = document.getElementById('panneau-accord');
+        if (!z || !z.telephone || !p || p.hidden) return;
+        this.placerPanneauAccord();
+        const cell = document.querySelector(`#progression-sections .grid-cell[data-section="${z.section}"][data-index="${z.index}"]`);
+        if (!cell) return;
+        const r = cell.getBoundingClientRect();
+        // Le plafond : la barre-résumé, collée sous la barre du haut tant que le panneau est ouvert (style.css), sinon la barre du haut elle-même.
+        const barre = document.querySelector('.top-bar'), resume = document.getElementById('song-card');
+        const plafond = Math.max(barre ? barre.getBoundingClientRect().bottom : 0, resume && resume.getBoundingClientRect().height > 0 ? resume.getBoundingClientRect().bottom : 0);
+        const haut = plafond + 8, bas = p.getBoundingClientRect().top - 8;
+        let d = 0;
+        if (r.bottom > bas) d = Math.min(r.bottom - bas, r.top - haut);
+        else if (r.top < haut) d = r.top - haut;
+        if (Math.abs(d) >= 1) window.scrollBy(0, Math.round(d));
+    }
+
+    remplirPanneauAccord() {
+        const host = document.getElementById('pa-quel'), p = document.getElementById('panneau-accord');
+        const z = this._bulle;
+        if (!host || !p || !z) return;
+        const i = this.infosBulle(z);
+        if (!i) { this.fermerBulleAccord(); return; }
+        const focusAvant = p.contains(document.activeElement) && document.activeElement.dataset.bulle ? `[data-bulle="${document.activeElement.dataset.bulle}"]${document.activeElement.dataset.valeur != null ? `[data-valeur="${document.activeElement.dataset.valeur}"]` : ''}` : null;
+        p.setAttribute('aria-label', `Accord ${i.label}`);
+        host.innerHTML =
+            `<div class="pa-tete">`
+            + `<button type="button" class="icon-btn pa-nav" data-bulle="prec" aria-label="Accord précédent" title="Accord précédent"${z.index > 0 ? '' : ' disabled'}>${i.chevron('M15 6l-6 6 6 6')}</button>`
+            + `<div class="pa-titre"><span class="pa-nom">${flatTight(escapeHtml(i.label))}</span>`
+            + `<span class="pa-ou">${i.deg ? `<span class="pa-degre">${escapeHtml(i.deg)}</span> · ` : ''}${escapeHtml(i.ou)}</span></div>`
+            + `<button type="button" class="icon-btn pa-nav" data-bulle="suiv" aria-label="Accord suivant" title="Accord suivant"${z.index < i.dernier ? '' : ' disabled'}>${i.chevron('M9 6l6 6-6 6')}</button>`
+            + `<button type="button" class="icon-btn pa-nav" data-bulle="fermer" aria-label="Fermer" title="Fermer">${i.chevron('M6 6l12 12M18 6L6 18')}</button>`
+            + `</div>`
+            + `<div class="rr-lbl">Fondamentale</div><div class="rr-grille pa-g6">${i.fondamentales}</div>`
+            + `<div class="rr-lbl">Type</div><div class="rr-grille pa-g6">${i.types}</div>`
+            + `<div class="pa-ligne"><span class="rr-lbl">Durée</span>`
+            + `<span class="partie-rep-seg"><button type="button" data-bulle="duree-moins" aria-label="Un temps de moins"${i.beats > 1 ? '' : ' disabled'}>−</button>`
+            + `<span class="partie-rep-val pa-duree" aria-live="polite">${escapeHtml(dureeEnMots(i.beats, i.bpb))}</span>`
+            + `<button type="button" data-bulle="duree-plus" aria-label="Un temps de plus">+</button></span></div>`
+            // La basse vient avec les réglages du son, comme dans la maquette : à mi-hauteur, la place va à ce qu'on change le plus souvent.
+            + (z.etendu ? `<div class="rr-lbl">Basse</div><div class="rr-grille pa-g7">${i.basses}</div>` : '');
+        if (focusAvant) {
+            const c = host.querySelector(focusAvant + ':not([disabled])');
+            if (c) c.focus({ preventScroll: true });
+        }
+    }
+
+    // Ce que la bulle et le panneau disent d'un même accord (nom, degré, où, boutons) : écrit une fois pour les deux.
+    infosBulle(z) {
+        const sections = loadProgressionSections();
+        const sec = sections[z.section];
+        const data = sec && sec.chords[z.index];
+        if (!data) return null;
+        const gRoot = document.getElementById('global-root').value, gMode = document.getElementById('global-mode').value;
+        const useFlats = useFlatsForKey(NOTES.indexOf(gRoot), gMode);
+        const flats = useFlatsForChordRoot(NOTES.indexOf(data.root), NOTES.indexOf(gRoot), gMode, useFlats);
+        const bpb = this.beatsPerBar();
+        let pos = 0;
+        for (let k = 0; k < z.index; k++) pos += beatsFromData(sec.chords[k]);
+        const nom = (pc) => noteNameForPc(pc, useFlats).replace('#', '♯');
+        const bouton = (action, valeur, libelle, actif, titre = '') =>
+            `<button type="button" data-bulle="${action}" data-valeur="${escapeHtml(valeur)}" aria-pressed="${actif}"${titre ? ` title="${escapeHtml(titre)}"` : ''}>${escapeHtml(libelle)}</button>`;
+        return {
+            sec, data, bpb, beats: beatsFromData(data), dernier: sec.chords.length - 1,
+            label: chordSymbolForData(data, flats),
+            deg: this.getRomanNumeral(gRoot, gMode, data.root, data.quality),
+            ou: `mes. ${Math.floor(pos / bpb) + 1} · ${(sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${z.section + 1}`}`,
+            fondamentales: NOTES.map((n, pc) => bouton('root', n, nom(pc), n === data.root)).join(''),
+            types: [...document.getElementById('quality').options].map(o => bouton('quality', o.value, o.text, o.value === data.quality)).join(''),
+            basses: bouton('bass', '', '—', !data.bass, 'Basse = fondamentale') + NOTES.map((n, pc) => bouton('bass', n, nom(pc), data.bass === n, `Basse ${nom(pc)}`)).join(''),
+            chevron: (d) => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`,
+        };
     }
 
     // ---------- RANGÉE DE RÉGLAGES DU MORCEAU (lot 6a) ----------
@@ -10135,7 +10415,8 @@ class HarmoHubApp {
         window.addEventListener('scroll', () => { if (this._menuPartie != null) this.placerMenuPartie(); }, true);
         window.addEventListener('scroll', () => { if (this._puceOuverte) this.placerPuceReglage(); }, true);
         window.addEventListener('scroll', () => { if (this._bulle) this.placerBulleAccord(); }, true);
-        window.addEventListener('resize', () => { if (this._bulle) this.placerBulleAccord(); });
+        // Au téléphone, l'écran qui change sous le panneau (rotation, clavier virtuel) peut faire passer la case dessous : on la recale.
+        window.addEventListener('resize', () => { if (this._bulle) { this.placerBulleAccord(); this.assurerCaseVisiblePanneau(); } });
         this.setupBulleAccord();
         this.setupAideAjout();
         this.setupBarreSelection();
@@ -16155,6 +16436,16 @@ class HarmoHubApp {
                     this.startInlineChordSymbolEdit(d.section, d.index, d.cell);
                     return;
                 }
+                // Téléphone (lot 10d) : le second toucher garde ses deux sens — sur le nom, le retaper ; ailleurs, « modifier », c'est-à-dire
+                // agrandir le panneau d'accord ouvert au premier toucher (ses réglages du son), là où il ouvrait la carte Accord dans la page.
+                if (this.panneauAccordDisponible()) {
+                    if (d.symTarget) { this.fermerBulleAccord(); this.startInlineChordSymbolEdit(d.section, d.index, d.cell); return; }
+                    this._paGardeClic = performance.now(); // voir setupPanneauAccord : le clic de synthèse de ce toucher tomberait sur le panneau agrandi
+                    this.ouvrirPanneauAccord(d.section, d.index);
+                    this.etendrePanneauAccord(true);
+                    if (this.autoplaySelect) this.playCurrent();
+                    return;
+                }
                 if (d.symTarget) {
                     this.startInlineChordSymbolEdit(d.section, d.index, d.cell);
                 } else {
@@ -16163,7 +16454,7 @@ class HarmoHubApp {
                 }
                 return;
             }
-            this._lastTap = { section: d.section, index: d.index, time: now };
+            this._lastTap = { section: d.section, index: d.index, time: now, sym: !!d.symTarget }; // `sym` : voir setupPanneauAccord (double toucher)
             // UN SEUL comportement, sans réglage : simple clic = écouter, double-clic = modifier
             // (voir plus haut). Un réglage « un clic sur un accord » proposait auparavant d'éditer dès
             // le premier clic — retiré (retour utilisateur : « je veux une seule possibilité : double
@@ -16172,6 +16463,8 @@ class HarmoHubApp {
             this.selectChord(d.section, d.index);
             // Ordinateur (lot 6b) : « clic = sélectionne et ouvre la bulle ».
             if (this.bulleDisponible()) this.ouvrirBulleAccord(d.section, d.index);
+            // Téléphone (lot 10d) : « toucher une case → panneau à mi-hauteur, l'accord visible au-dessus ».
+            else if (this.panneauAccordDisponible()) { this._paGardeClic = performance.now(); this.ouvrirPanneauAccord(d.section, d.index); }
             return;
         }
         if (d.copy) {
@@ -22602,11 +22895,12 @@ class HarmoHubApp {
         Tone.Transport.start();
     }
 
-    removeChord(section, index) {
+    // `dejaSauve` : l'étape d'annulation du geste est déjà déposée (panneau d'accord du téléphone, « une annulation par panneau »).
+    removeChord(section, index, dejaSauve = false) {
         const sections = loadProgressionSections();
         const history = sections[section] && sections[section].chords;
         if (!history) return;
-        this.pushUndo(sections);
+        if (!dejaSauve) this.pushUndo(sections);
         history.splice(index, 1);
         saveProgressionSections(sections);
 
@@ -23618,11 +23912,11 @@ class HarmoHubApp {
     }
 
     // Duplique un accord donné (bouton ⧉) : la copie se place juste après, dans la même partie
-    duplicateChord(section, index) {
+    duplicateChord(section, index, dejaSauve = false) {
         const sections = loadProgressionSections();
         const history = sections[section] && sections[section].chords;
         if (!history || !history[index]) return;
-        this.pushUndo(sections);
+        if (!dejaSauve) this.pushUndo(sections);
         history.splice(index + 1, 0, { ...history[index] });
         saveProgressionSections(sections);
         this.activeSection = section;

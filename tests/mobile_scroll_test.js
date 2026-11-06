@@ -29,8 +29,16 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.click('.grid-cell[data-index="0"]');
     await page.waitForTimeout(400); // let any smooth-scroll animation finish
     const after = await page.evaluate(() => window.scrollY);
-    console.log('scrollY before:', before, 'after:', after);
-    console.log((Math.abs(after - before) < 5) ? 'PASS (no scroll jump on mobile)' : 'FAIL');
+    // Depuis le lot 10d, toucher la case ouvre le panneau d'accord, et la page peut bouger de QUELQUES pixels pour garder la case entre la
+    // barre-résumé (collante tant que le panneau est là) et le panneau — c'est voulu (« l'accord visible au-dessus »). Ce que ce banc interdit, le saut
+    // vers le diagramme d'avant, reste interdit : le déplacement est borné à une demi-case, et la case est à l'écran, non recouverte.
+    const vue = await page.evaluate(() => {
+        const c = document.querySelector('.grid-cell[data-index="0"]').getBoundingClientRect();
+        const dessus = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2);
+        return { haut: Math.round(c.top), bas: Math.round(c.bottom), libre: !!dessus && !!dessus.closest('.grid-cell[data-index="0"]') };
+    });
+    console.log('scrollY before:', before, 'after:', after, 'case:', JSON.stringify(vue));
+    console.log((Math.abs(after - before) <= 32 && vue.libre) ? 'PASS (no scroll jump on mobile)' : 'FAIL');
     await page.close();
 
     console.log('--- Desktop (1280px): clicking a chord in Modification STILL scrolls the diagram into view ---');

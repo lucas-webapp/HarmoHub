@@ -196,7 +196,9 @@ const panneauOuvert = (p) => p.evaluate(() => !document.getElementById('panneau-
             `Échap, un toucher à côté, « ⋯ » et la croix le referment (${[apresEchap, apresCote, apresPlus, apresCroix].join(', ')})`);
 
         // ===== D. LA MODIFICATION ====================================================================================================
-        // Au téléphone (jusqu'au lot 10d), on y entre par un DOUBLE toucher sur une case — le geste de filet_toujours_visible_test.
+        // On y entre par un DOUBLE toucher sur une case — le geste de filet_toujours_visible_test. Depuis le lot 10d, la modification est le panneau
+        // d'accord agrandi, posé sur la barre (il remplace le dock de secours « Rythme / Terminer » de 45px qui s'y posait jusque-là) : le banc
+        // vérifie la même chose qu'avant — rien ne chevauche la barre, la sortie est au doigt — sur le nouveau porteur.
         const cdp = await ctx.newCDPSession(p);
         const caseB = await p.locator('.grid-cell >> nth=1').boundingBox();
         for (let i = 0; i < 2; i++) {
@@ -207,14 +209,14 @@ const panneauOuvert = (p) => p.evaluate(() => !document.getElementById('panneau-
         await p.waitForTimeout(500);
         exiger(await p.evaluate(() => window.app.appMode === 'edit'), 'un double toucher sur une case entre en Modification');
         const modif = await p.evaluate(() => {
-            const d = document.getElementById('footer-dock').getBoundingClientRect(), b = document.getElementById('barre-lecture').getBoundingClientRect();
-            const enfants = [...document.getElementById('footer-dock').querySelectorAll('#dock-rythme, #dock-terminer')].map(e => e.getBoundingClientRect());
-            return { haut: Math.round(d.height), bas: d.bottom, barre: b.top, uneRangee: enfants.every(a => enfants.every(c => Math.abs(a.top - c.top) < 1)), droite: enfants.every(r => r.right > innerWidth / 2) };
+            const pa = document.getElementById('panneau-accord').getBoundingClientRect(), b = document.getElementById('barre-lecture').getBoundingClientRect();
+            const dock = ['dock-rythme', 'dock-terminer'].some(id => { const e = document.getElementById(id); return !e.hidden && e.getBoundingClientRect().height > 0; });
+            return { bas: pa.bottom, barre: b.top, h: Math.round(pa.height), dock, etendu: document.getElementById('panneau-accord').classList.contains('pa-etendu') };
         });
-        check(Math.abs(modif.bas - modif.barre) < 1 && modif.haut <= 48 && modif.uneRangee && modif.droite,
-            `en Modification, les accès de secours se posent sur la barre sans la chevaucher, une rangée calée à droite de ${modif.haut}px (${JSON.stringify(modif)})`);
-        check(await atteint(p, '#dock-rythme') && await atteint(p, '#dock-terminer'), 'et le doigt les atteint tous les deux');
-        await toucher(p, '#dock-terminer', 400);
+        check(Math.abs(modif.bas - modif.barre) < 1 && modif.etendu && !modif.dock,
+            `en Modification, le panneau d'accord agrandi se pose sur la barre sans la chevaucher, plus de dock de secours (${JSON.stringify(modif)})`);
+        check(await atteint(p, '#pa-son-btn') && await atteint(p, '#panneau-accord [data-bulle="fermer"]'), 'et le doigt atteint « Moins » et la croix qui termine');
+        await toucher(p, '#panneau-accord [data-bulle="fermer"]', 400);
 
         // ===== E. LES VUES INTÉGRÉES =================================================================================================
         const hautBarre = await p.evaluate(() => document.querySelector('.top-bar').getBoundingClientRect().bottom);

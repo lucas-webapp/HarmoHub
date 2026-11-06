@@ -5690,3 +5690,53 @@ Points 4, 5, 7 et 9 des décisions du 05/11. Nouveau banc `editeur_et_clavier` (
   `notes_manuelles_intensite`, réparé ensuite (journal, voir plus haut ; 59 sur 59). Sans verdict : `smoke` (ligne de base).
 - **Balayages complets.** Premier : 231 verts, 9 rouges, 6 sans verdict. Hors ligne de base : `filet_moteur_edition` (vraie régression, corrigée) et les trois
   bancs réécrits plus haut. Second, après correction : **235 verts, 5 rouges, 6 sans verdict (246 suites), exactement la ligne de base.**
+
+## Refonte de l'interface — lot 10d : le panneau d'accord du téléphone (2026-11-06)
+
+« Toucher une case → panneau à mi-hauteur, l'accord visible au-dessus ; contenu de la bulle (‹ ›, fondamentales 2 × 6, type, durée) puis
+"Réglages du son" = contenu de l'inspecteur ; Supprimer, Dupliquer ; une annulation par panneau. » Banc : `telephone_panneau_accord` (37 vérifications).
+
+- **Le panneau** (`#panneau-accord`, `index.html` à côté du panneau Lecture) : il partage avec la bulle de l'ordinateur son état (`this._bulle`, marqué
+  `telephone`), ses boutons `[data-bulle]` (un seul aiguillage, `setupBulleAccord`) et son annulation (`modifierAccordBulle`). Les noms, degrés et boutons
+  sont écrits une fois pour les deux (`infosBulle`). Posé sur la barre de lecture, sous la barre du haut (z-index 38 : le menu du morceau passe devant).
+  Fondamentales et types sur 6 colonnes (une rangée de moins que les 5 de la maquette, alignées).
+- **« Réglages du son » l'agrandit** : `editChord` y est ouvert et la carte `#accord-card` y est DÉPLACÉE (`rangerCarteAccord`, comme le dock ou le transport),
+  sans en-tête, fondamentale / type / durée ni liste Basse (la grille Basse du panneau la remplace). C'est exactement le contenu de l'inspecteur de
+  l'ordinateur (octave, renversement, drop, Séquenceur) ; le séquenceur compact s'ouvre dedans. Les diagrammes (nom, clavier, guitare) y sont déplacés
+  aussi, sous la carte : le doigté fait partie des réglages du son (« même contenu que l'inspecteur du bureau, plus bas dans ce panneau », maquette) —
+  restés dans la page, le panneau les recouvrait (trouvé par `glock_unlock_and_switch` au premier balayage complet). « Moins » termine la modification,
+  le panneau reste.
+- **Une annulation par panneau** : retouches de la bulle, réglages du son, « Moins » puis retouche, Dupliquer : une étape. `removeChord` et
+  `duplicateChord` prennent `dejaSauve` ; `synchroPanneauAccord` (appelé par `applyAppModeTheme`) empêche la session d'`editChord` d'en déposer une seconde.
+- **Quels chemins l'ouvrent agrandi** : les GESTES de modification (double toucher hors du nom — le second toucher sur le nom retape toujours le nom —,
+  « Réglages du son », « Modifier » de l'appui long). Les autres chemins vers `editChord` au téléphone (petit séquenceur, ⊱, Séq.) gardent la carte dans la
+  page jusqu'au 10f ; agrandi, le panneau suit l'accord qu'ils ouvrent ; quitter la modification le referme. Le grand séquenceur ouvert le tient fermé,
+  et le petit aussi quand il est ouvert sans lui (le tiroir flottant d'avant : sa fermeture serait passée sous le panneau, trouvé par `seq_tiroir_flottant`).
+  Le dock de secours Rythme / Terminer ne sert plus que dans ce dernier cas.
+- **Trois défauts trouvés en chemin** : (1) le CLIC FANTÔME — le panneau s'ouvre au relâchement du doigt, et le clic de synthèse tombait sur lui (toucher Em
+  le changeait en Em9) : tout clic dans le panneau moins de 350 ms après son ouverture est avalé ; (2) le DOUBLE TOUCHER sur une case basse — le premier
+  fait défiler la page pour garder la case visible, le second tombait sur le panneau : un appui dans le panneau dans les 420 ms est ce second toucher ;
+  (3) le panneau se refermait à l'APPUI (table `_popups`), donc au début d'un défilement — l'ancien « le mode modifier s'enlève dès que je veux scroller » :
+  il se ferme au clic à côté, derrière les gardes de défilement existantes (`auClic`), Échap reste dans la table.
+- **« Toujours voir la tonalité et le tempo »** : panneau ouvert, la barre-résumé est collante sous la barre du haut, et le panneau laisse une rangée de cases
+  entre elle et lui (`--reserve-panneau-accord`). Sur 664 px, mi-hauteur et agrandi ont donc presque la même taille (le contenu défile dedans).
+- **Seuil** : panneau agrandi puis fenêtre élargie, la modification continue dans l'inspecteur (`fermerPanneauAccord(z, true)`). Au redimensionnement, la case
+  est recalée au-dessus du panneau.
+- **Verre** : `verre-surfaces.css`, fond des menus et creux des groupes ; le banc vérifie qu'aucun texte du panneau ne devient illisible.
+- **Point ouvert, constaté, d'avant ce lot** : à 320 px les cases font 60 px et leurs poignées de durée 22 px de chaque côté ; le ciblage tactile de Chromium
+  attire un toucher au centre de la case vers la poignée gauche (mesuré : toucher à x=111, poignée 83–105, la case n'est pas sélectionnée). Le banc
+  ouvre donc son panneau à 390 px avant de rétrécir l'écran. À proposer à l'utilisateur (poignées plus étroites sur une case étroite ?).
+- **Bancs réécrits pour le nouveau geste** : `telephone_barre_lecture` (partie D : le double toucher ouvre le panneau agrandi posé sur la barre, plus de dock ;
+  la sortie est au doigt) ; `mobile_scroll` (le toucher ne fait toujours pas sauter la page vers le diagramme ; il peut la recaler d'au plus 32 px pour garder
+  la case visible sous la barre-résumé collante) ; `inspecteur_sujet` (partie C : la page ne bouge que pour garder la case au-dessus du panneau — elle est
+  à l'écran, non recouverte, son bas au plus 28 px au-dessus du panneau ; le reproche protégé, « ça scrolle tout de suite en bas », était la perte de la
+  grille) ; `glock_unlock_and_switch` (à 860 px, « terminer » passe par la croix du panneau : celle de la carte y est masquée). `filet_toujours_visible`, `barre_bas_telephone`, `mobile_edit_scroll`, `sentinelle_atteignabilite` (poignée
+  portée à 32 px) et les bancs du séquenceur repassent sans changement.
+- **Sabotages** (chacun rouge, puis restauré) : sans la garde du clic fantôme (2 rouges) ; session qui redépose une annulation (2) ; carte non déplacée (2 + arrêt) ;
+  case non recalée (1 + arrêt) ; agrandi qui ne suit pas la case (1 + arrêt) ; second toucher non reconnu (2).
+- **Balayage ciblé** (72 suites) : premier passage 58 verts, 13 rouges — le panneau agrandi recouvrait ce que les bancs touchaient après un `editChord` de mise
+  en place, et les trois défauts plus haut ; second passage 68 verts, rouges de la ligne de base seulement (`probe_defilement_tactile`, `seq_notes_libres_clavier`)
+  et `mobile_scroll`, réécrit ensuite ; `smoke` sans verdict (ligne de base).
+- **Balayages complets.** Premier : 233 verts, 8 rouges, 6 sans verdict. Hors ligne de base : `inspecteur_sujet`, `seq_tiroir_flottant` (le panneau ouvert
+  par-dessus le tiroir flottant, corrigé) et `glock_unlock_and_switch` (les diagrammes recouverts, corrigé ; banc réécrit pour la croix du panneau). Second,
+  après correction : **236 verts, 5 rouges, 6 sans verdict (247 suites), exactement la ligne de base.**

@@ -8212,3 +8212,71 @@ body.avec-barre-selection .toast { bottom: 132px; }
    ====================================================================================================== */
 .hist-sous-titre { margin: 18px 0 8px; font-size: var(--fs-sm); font-weight: 700; color: var(--text-main); }
 .hist-extrait { font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ======================================================================================================
+   TÉLÉPHONE, LE PANNEAU D'ACCORD (refonte, lot 10d — maquette « Téléphone (v2) ») : « toucher une case → panneau à mi-hauteur, l'accord visible
+   au-dessus ». Il monte du bas et se pose sur la barre de lecture, comme le panneau Lecture (même fond, même arrondi de 12px, ce qui flotte).
+   À mi-hauteur il laisse au moins une rangée et demie de grille au-dessus de lui ; agrandi (« Réglages du son »), il garde encore la rangée de la
+   case touchée. Tout y est à 44px, la jauge du téléphone. En fin de fichier : voir « Cascade CSS » dans CLAUDE.md.
+   ====================================================================================================== */
+.panneau-accord { display: none; }
+@media (max-width: 899px) {
+    .panneau-accord:not([hidden]) {
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        left: 0; right: 0;
+        bottom: var(--haut-barre-lecture, 68px);
+        z-index: 38;                /* sous la barre du haut (40) : le menu du morceau, qui en descend, passe devant lui */
+        box-sizing: border-box;
+        /* --reserve-panneau-accord : la barre-résumé (collante, ci-dessous) et une rangée de cases au-dessus du panneau. */
+        max-height: min(500px, calc(100dvh - var(--haut-barre, 111px) - var(--haut-barre-lecture, 68px) - var(--reserve-panneau-accord, 150px)));
+        background: #181b20;
+        border-top: 1px solid #333;
+        border-radius: var(--rayon-surface, 12px) var(--rayon-surface, 12px) 0 0;
+        box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.55);
+    }
+    .panneau-accord.pa-etendu:not([hidden]) {
+        height: calc(100dvh - var(--haut-barre, 111px) - var(--haut-barre-lecture, 68px) - var(--reserve-panneau-accord, 150px));
+        max-height: none;
+    }
+    /* « Toujours voir la tonalité et le tempo » (filet_toujours_visible, décision du lot 10c) : panneau ouvert, la page défile pour garder la case au-dessus
+       de lui — la barre-résumé partirait avec. Elle reste donc collée sous la barre du haut tant que le panneau est là. */
+    body.pa-ouvert #song-card { position: sticky; top: var(--haut-barre, 111px); z-index: 30; background: var(--bg, #0a0a0a); }
+    /* La page s'arrête au-dessus du panneau : la dernière rangée de la grille peut toujours venir au-dessus de lui. */
+    body.pa-ouvert main { padding-bottom: calc(var(--haut-panneau-accord, 0px) + var(--haut-barre-lecture, 68px) + 16px); }
+    /* La poignée (la maquette) : toucher agrandit ou réduit, comme « Réglages du son » / « Moins ». 32px de haut (le plancher de sentinelle_atteignabilite), toute la largeur. */
+    .pa-poignee { flex: none; display: grid; place-items: center; width: 100%; height: 32px; min-height: 0; padding: 0; border: 0; background: transparent; box-shadow: none; cursor: pointer; }
+    .pa-poignee > span { width: 40px; height: 4px; border-radius: 2px; background: #4a4f57; }
+    .pa-corps { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 12px 10px; }
+    .pa-quel { display: flex; flex-direction: column; gap: 8px; }
+    .pa-tete { display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .pa-titre { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+    .pa-nom { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 22px; font-weight: 800; line-height: 1.2; color: var(--text-main); }
+    .pa-ou { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text-muted); }
+    .pa-degre { font-weight: 700; color: #8fe3b3; }
+    .pa-nav { flex: none; width: var(--bouton-h-lg, 44px); height: var(--bouton-h-lg, 44px); border-radius: var(--rayon-bouton, 7px); }
+    .pa-nav .icon { width: 18px; height: 18px; }
+    .pa-nav:disabled { opacity: 0.35; }
+    .pa-g6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .pa-g7 { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+    .pa-g6 button, .pa-g7 button { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pa-ligne { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .pa-duree { min-width: 112px; }
+    /* Les réglages du son : la carte Accord elle-même, sans son cadre de carte ni son en-tête (le panneau dit déjà de quel accord il s'agit, et sa
+       croix le referme) — et sans fondamentale, type ni durée : « rien aux deux endroits », comme l'inspecteur de l'ordinateur. */
+    .pa-son:not([hidden]) { display: block; margin-top: 12px; padding-top: 10px; border-top: 1px solid #2a2e35; }
+    .pa-son > #accord-card { margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
+    .pa-son > #accord-card > .card-head, .pa-son > #accord-card .accord-grid { display: none; }
+    /* La liste Basse de la carte : la grille Basse du panneau, juste au-dessus, règle la même chose (même champ, data.bass). */
+    .pa-son > #accord-card .voicing-group-basse { display: none; }
+    /* Les actions, au pied, toujours à portée du pouce — même agrandi, quand les réglages du son défilent. Rouge = supprimer, bleu = modifier. */
+    .pa-actions { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px 10px; border-top: 1px solid #2a2e35; }
+    .pa-actions .icon-btn { width: auto; height: var(--bouton-h-lg, 44px); padding: 0 14px; border-radius: var(--rayon-bouton, 7px); font-size: 14px; font-weight: 600; white-space: nowrap; }
+    .pa-actions .pa-supprimer { background-image: linear-gradient(160deg, var(--btn-red-1), var(--btn-red-2) 70%); border-color: var(--btn-red-border); color: #ffd9d4; }
+    .pa-actions .icon-btn .icon { width: 18px; height: 18px; flex: none; }
+    /* Logo seul (règle 3 : « une icône par fonction, sans mot ») : avec leurs mots, les trois ne tenaient pas sur 390px. Le nom reste dans l'infobulle. */
+    .pa-actions :is(.pa-supprimer, .pa-dupliquer) { width: var(--bouton-h-lg, 44px); padding: 0; justify-content: center; }
+    .pa-actions :is(.pa-supprimer, .pa-dupliquer) .btn-label { display: none; }
+    .pa-actions .pa-son-btn { margin-left: auto; background-image: linear-gradient(160deg, var(--btn-blue-1), var(--btn-blue-2) 70%); border-color: var(--btn-blue-border); color: var(--btn-text, #e8eef6); }
+}

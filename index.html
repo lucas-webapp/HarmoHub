@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611060100">
+    <link rel="stylesheet" href="style.css?v=202611061200">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611061000">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611061200">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1959,6 +1959,30 @@
             <button type="button" id="pl-notes" class="icon-btn pl-vue" data-source="grid-zoom" aria-pressed="false"><span class="pl-logo"></span><span class="btn-label">Notes</span></button>
         </div>
     </div>
+    <!-- PANNEAU D'ACCORD DU TÉLÉPHONE (lot 10d, maquette « Téléphone (v2) ») : « toucher une case → panneau à mi-hauteur, l'accord visible au-dessus ».
+         Il remplace la carte Accord et le mode Modification sous 900px. Haut : ce que la bulle de l'ordinateur règle (‹ ›, fondamentales 2 × 6, type, durée),
+         écrit par remplirBulleAccord dans #pa-quel. « Réglages du son » l'agrandit : la basse, puis l'inspecteur — la carte #accord-card elle-même,
+         DÉPLACÉE dans #pa-son le temps de l'agrandissement (jamais dupliquée : ses adresses et ses écouteurs restent les siens). Les actions restent
+         au pied, toujours à portée. Masqué à l'ordinateur, où la bulle et l'inspecteur font ce travail. -->
+    <div id="panneau-accord" class="panneau-accord" role="dialog" aria-label="Accord" hidden>
+        <button type="button" id="pa-poignee" class="pa-poignee" aria-expanded="false" aria-label="Agrandir le panneau" title="Agrandir le panneau"><span aria-hidden="true"></span></button>
+        <div id="pa-corps" class="pa-corps">
+            <div id="pa-quel" class="pa-quel"></div>
+            <div id="pa-son" class="pa-son" hidden></div>
+        </div>
+        <div class="pa-actions">
+            <!-- Les logos du menu de l'appui long (Supprimer, Dupliquer), repris tels quels, seuls (le mot reste pour les lecteurs d'écran). -->
+            <button type="button" id="pa-supprimer" class="icon-btn pa-supprimer" aria-label="Supprimer l'accord" title="Supprimer l'accord">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                <span class="btn-label">Supprimer</span>
+            </button>
+            <button type="button" id="pa-dupliquer" class="icon-btn pa-dupliquer" aria-label="Dupliquer l'accord" title="Dupliquer l'accord">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                <span class="btn-label">Dupliquer</span>
+            </button>
+            <button type="button" id="pa-son-btn" class="icon-btn pa-son-btn" aria-expanded="false" aria-controls="pa-son">Réglages du son</button>
+        </div>
+    </div>
     <div id="print-export" class="print-export"></div>
 
     <!-- Transport GLOBAL, flottant en colonne verticale sur le bord DROIT de l'écran (retour
@@ -2052,7 +2076,7 @@
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
     <script src="historique.js?v=202611060300"></script>
-    <script src="script.js?v=202611061000"></script>
+    <script src="script.js?v=202611061200"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->

@@ -144,3 +144,11 @@ html[data-glass="1"] .seq-ruler-band {
     html[data-glass="1"] #song-card.control-card { background: none; box-shadow: none; }
     html[data-glass="1"] :is(.tel-affichage-panneau, .tel-densites) { background: var(--glass-inp); }
 }
+
+/* ---- TÉLÉPHONE, LE PANNEAU D'ACCORD (refonte, lot 10d) : il flotte au-dessus de la grille et de la barre de lecture, comme le panneau Lecture :
+   le fond plus opaque des menus, pour que la grille qui passe dessous ne brouille ni les fondamentales ni les réglages du son. Ses groupes
+   (fondamentale, type, basse, durée) gardent le creux des groupes. ---- */
+@media (max-width: 899px) {
+    html[data-glass="1"] .panneau-accord { background: var(--glass-pop-fond); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-hi), 0 -24px 50px -24px rgba(0, 0, 0, .65); }
+    html[data-glass="1"] .panneau-accord :is(.rr-grille, .partie-rep-seg) { background: var(--glass-inp); }
+}

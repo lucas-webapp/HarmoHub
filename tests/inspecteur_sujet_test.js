@@ -184,8 +184,17 @@ async function eprouverLesDeuxEtats(page, contexte) {
         const apres = await m.evaluate(() => Math.round((document.scrollingElement || document.documentElement).scrollTop));
         const mode = await m.evaluate(() => window.app.appMode);
         exiger(mode === 'edit', `téléphone : le double-tap entre bien en Modification — mode ${mode}`);
-        check(apres === avant,
-            `téléphone : la page n'a pas bougé d'un pixel — défilement ${avant} puis ${apres} (« ça scrolle tout de suite en bas », retour utilisateur)`);
+        // Depuis le lot 10d, la modification est le panneau d'accord, qui monte du bas : la page bouge alors JUSTE ce qu'il faut pour que la case touchée
+        // reste visible au-dessus de lui (« l'accord visible au-dessus », maquette) — le contraire de « ça scrolle tout de suite en bas », où l'on perdait la
+        // grille. Ce que la garde protège reste donc protégé : la case touchée est à l'écran, non recouverte, et la page n'a pas bougé de plus que le
+        // panneau ne l'exigeait (le bas de la case remonte au plus jusqu'au haut du panneau).
+        const vue = await m.evaluate(() => {
+            const c = document.querySelectorAll('.grid-cell')[1].getBoundingClientRect(), pa = document.getElementById('panneau-accord').getBoundingClientRect();
+            const dessus = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2);
+            return { bas: Math.round(c.bottom), haut: Math.round(c.top), panneau: Math.round(pa.top), libre: !!dessus && dessus.closest('.grid-cell') === document.querySelectorAll('.grid-cell')[1] };
+        });
+        check(vue.libre && vue.bas <= vue.panneau && vue.bas >= vue.panneau - 20 - 8,
+            `téléphone : la page ne bouge que pour garder la case au-dessus du panneau — défilement ${avant} puis ${apres}, case ${vue.haut}-${vue.bas}, panneau à ${vue.panneau} (« ça scrolle tout de suite en bas », retour utilisateur)`);
     }
 
     check(erreurs.length === 0, `aucune erreur JavaScript — ${erreurs.join(' | ') || 'aucune'}`);

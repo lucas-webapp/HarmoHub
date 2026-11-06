@@ -7,6 +7,9 @@ async function cellBox(page, section, index) {
     await page.waitForSelector(sel);
     return page.locator(sel).boundingBox();
 }
+// Terminer la modification. À 860px (disposition téléphone), la modification est depuis le lot 10d le panneau d'accord agrandi : sa croix la termine
+// (celle de la carte, #accord-card > .card-head, y est masquée — le panneau dit déjà de quel accord il s'agit).
+const TERMINER = '#panneau-accord [data-bulle="fermer"]';
 async function dblclickCellSafe(page, section, index) {
     const box = await cellBox(page, section, index);
     await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height - 6);
@@ -63,7 +66,7 @@ async function scenario(browser, retardImages) {
     check(!!lockedShape0, tag + "accord 0 verrouillé");
 
     // Switch (real single click, sticky edit mode off -> use double click again) directly to chord 1, edit and preview it WITHOUT locking
-    await page.click('#accord-close');
+    await page.click(TERMINER);
     await page.waitForTimeout(150);
     await dblclickCellSafe(page, 0, 1);
     await page.waitForTimeout(150);
@@ -71,7 +74,7 @@ async function scenario(browser, retardImages) {
     check(!lockedAtChord1, tag + "accord 1 (jamais verrouillé) montre bien le cadenas OUVERT en édition");
 
     // Go back to chord 0, verify STILL locked (survives the round trip through chord 1 + all the autoplay/stopAll churn)
-    await page.click('#accord-close');
+    await page.click(TERMINER);
     await page.waitForTimeout(150);
     await dblclickCellSafe(page, 0, 0);
     await page.waitForTimeout(150);
@@ -89,11 +92,11 @@ async function scenario(browser, retardImages) {
     check(savedAfterUnlock === null, tag + "accord 0 : guitarLock bien remis à null dans le stockage après déverrouillage");
 
     // Close, click elsewhere, come back: should STAY unlocked (not resurrect)
-    await page.click('#accord-close');
+    await page.click(TERMINER);
     await page.waitForTimeout(150);
     await dblclickCellSafe(page, 0, 1);
     await page.waitForTimeout(150);
-    await page.click('#accord-close');
+    await page.click(TERMINER);
     await page.waitForTimeout(150);
     await dblclickCellSafe(page, 0, 0);
     await page.waitForTimeout(150);
