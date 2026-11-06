@@ -35,11 +35,13 @@ Mis à jour le 06/11/2026, après le lot 10e (panneau d'ajout du téléphone). *
 - ✅ **10d livré** (06/11, banc `telephone_panneau_accord`) : panneau d'accord du téléphone, détail dans « Lot 10 » et `docs/dette-tests.md`.
 - ✅ **Point du 10d réglé** (06/11, commité sans balayage complet, qui vient en fin de 10e) : poignées de durée proportionnelles à la case au doigt (`clamp(12px, 25%, 22px)`).
 - ✅ **10e livré** (06/11, banc `telephone_panneau_ajout`, assistant `tests/_ajout.js`) : panneau d'ajout du téléphone, détail dans « Lot 10 » et `docs/dette-tests.md`.
-  Décision en route : le curseur n'est pas mis d'office dans la saisie à l'ouverture du panneau (le clavier virtuel recouvrirait les accords proposés) — à confirmer
-  avec l'utilisateur. Défaut trouvé et corrigé : le clic fantôme hors du panneau d'accord (`_paOuvertA`).
+  **Confirmé par l'utilisateur le 06/11** : (1) le curseur n'est pas mis d'office dans la saisie à l'ouverture du panneau (« c'est mieux comme cela, on garde ») ;
+  (2) la durée « des prochains accords » n'est plus un réglage de la page au téléphone, chaque accord règle la sienne dans son panneau (« ça me va ») ;
+  (3) le panneau d'accord qui défile en interne sur un écran court (664 px) : « ça me convient », rien à changer. Défaut trouvé et corrigé : le clic fantôme hors
+  du panneau d'accord (`_paOuvertA`).
 - **Prochain : 10f (éditeur de notes au téléphone)**, voir « Lot 10 » plus bas : remplace « Séq. » et l'icône ⊱ ; `voice_leading`, `vl_loupe`, `vl_pinch`, `voice_leading_section_ops`
   (partie A à 860 px) à réécrire ; `calque_voix` et `notes_manuelles_intensite` changent de sens. Le séquenceur compact n'est plus joignable qu'au travers d'un accord
-  ouvert (panneau agrandi) : les bancs l'ouvrent par `editerAccord`. À voir aussi : à 664 px de haut le panneau d'accord défile en interne (la durée y est sous le pli).
+  ouvert (panneau agrandi) : les bancs l'ouvrent par `editerAccord`.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
