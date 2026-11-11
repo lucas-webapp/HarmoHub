@@ -5913,3 +5913,4 @@ de l'accord. Échap ou clic à côté referme ; la sélection reste. »
   « double-clic = retaper le nom », réécrite en « double-clic = bulle » + « Renommer ») et `probe_seq_adaptatif`, qui a trouvé un **vrai défaut du point C** : séquenceur ouvert,
   l'inspecteur flottant descendait sur la droite de sa barre d'outils et cachait « Étendre ». Il s'arrête désormais au-dessus du séquenceur (`--max-inspecteur`, calculé par
   `placerInspecteurFlottant`, recalculé par un `ResizeObserver` sur le volet et la colonne) et défile en interne s'il manque de place.
+- **Troisième balayage complet** (après ce correctif) : 241 verts, 5 rouges, 6 sans verdict sur 252 suites — exactement la ligne de base. Poussé.

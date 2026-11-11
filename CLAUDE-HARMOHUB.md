@@ -1,6 +1,6 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 11/11/2026, après la taille des diagrammes à la poignée (lot 10f livré le 07/11). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 11/11/2026 (soir), après les points A, C et B de la refonte du séquenceur. **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
@@ -44,11 +44,20 @@ Mis à jour le 11/11/2026, après la taille des diagrammes à la poignée (lot 1
   (à 44px, le double toucher d'une case n'ouvrait plus le panneau d'accord).
 - ✅ **Taille des diagrammes à la poignée livrée** (11/11, banc `vues_taille`) : poignée sur le bord haut du tiroir épinglé, coin de la fenêtre libre qui agrandit aussi le contenu, échelle 0,6 à 2 par appareil
   (`poserEchelleVues`). **Décision du 11/11 : « je n'ai pas besoin des diagrammes en plein écran »** → le 10g (Clavier / Guitare en plein écran au téléphone) est ABANDONNÉ.
-- **Prochain : « Refonte du séquenceur » (décidé le 11/11)** — tout est noté dans **`docs/refonte-sequenceur.md`** (lire en entier avant de coder) : A. la grille ne change plus
-  d'affichage quand le séquenceur s'ouvre (supprimer le Compact provisoire du lot 9a) ; C. le panneau ne recadre plus l'écran ; B. un clic sur un accord le fait entendre sans
-  ouvrir le panneau (double-clic ou second toucher = ouvrir) ; D. un seul séquenceur à une ligne par voix (maquette : https://claude.ai/artifact/38sqeQZK1q1HDnUYf6PvJT, version 17).
-  
-  **Cahier compilé le 11/11** : la section 3 bis de `docs/refonte-sequenceur.md` reprend la planche A validée (https://claude.ai/artifact/PFwjW5A61rHhBUX3cPFCuQ, version 26 : bloc « Vues », disposition du bas de l'écran, fenêtre d'accord unique avec « Ajouter une note » et question de renommage, onglets, tempo). L'utilisateur fera `/clear` puis relancera pour faire **les bancs un par un** ; il a demandé de tout faire « à la suite », dans une session dédiée. **Décisions du 11/11 (soir)** : formes enregistrées sur le COMPTE (`synchro-formes.js`) ; chemin des voix SUPPRIMÉ ; clic = écouter, double-clic = ouvrir ; basse différente gardée (« Basse » dans Réglages du son, renommage proposé en accord sur basse, ex. Cmin7/Bb). Notes en plus des accords de 5 ou 6 notes : rythme commun des voix du haut s'il existe, sinon celui de la basse (confirmé le 11/11). Plus aucune question ouverte : tout est prêt pour coder.
+- ✅ **Refonte du séquenceur, points A, C, B livrés** (11/11, une seule session, détail dans `docs/dette-tests.md`, cases cochées dans `docs/refonte-sequenceur.md`) :
+  - **A** (banc `editeur_notes`) : le Compact provisoire du lot 9a est retiré, la grille garde exactement son affichage séquenceur ouvert (empreinte de chaque case).
+  - **C** (banc `recadrage_panneau`) : l'inspecteur **flotte** au bord droit au lieu de réserver une colonne (la grille sautait de 190 px et la rangée de réglages passait sur deux
+    lignes à chaque mise en modification, donc à chaque clic séquenceur ouvert) ; il part sous l'ajout rapide et s'arrête au-dessus du séquenceur (`placerInspecteurFlottant`) ;
+    l'éditeur qui suit la sélection ne le fait plus apparaître (`editionParSuivi`) ; `editChord` ne recentre plus rien.
+  - **B** (banc `clic_ecouter`, assistant `tests/_geste_accord.js`) : un clic / un toucher = sélectionner et entendre ; double-clic / toucher une case déjà choisie = ouvrir (bulle,
+    panneau) ; un panneau ouvert suit la case cliquée ; le clic à côté qui le referme garde la sélection ; **retaper le nom** = « Renommer » au clic droit ou à l'appui long
+    (nouvelle entrée `rename-chord`), ou une lettre tapée. 33 bancs réécrits pour le geste (liste dans le journal).
+  - **À signaler à l'utilisateur (pas bloquant)** : l'inspecteur flottant est un état intermédiaire jusqu'à la fenêtre d'accord unique (3 bis) ; sous ~1150 px de large il peut
+    recouvrir la droite d'une fenêtre de grille élargie à la poignée.
+- **Prochain : D — le nouveau séquenceur**, premier sous-lot : **module `sequenceur.js` écrit de zéro + intégration ordinateur** (sections 3 et 3 bis de
+  `docs/refonte-sequenceur.md`, à relire en entier ; maquettes v17 et planche A v26). Ordre du cahier (section 5) : module + ordinateur, puis formes enregistrées
+  (`synchro-formes.js`) et notes libres, puis téléphone, puis retrait de l'ancien code et réécriture des bancs. L'ancien séquenceur reste en place jusqu'à la bascule.
+  Aucune question ouverte (décisions du 11/11 dans la section 4 du cahier).
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
@@ -68,7 +77,7 @@ Mis à jour le 11/11/2026, après la taille des diagrammes à la poignée (lot 1
   Large et le pincement du téléphone sont une préférence de l'APPAREIL (`harmohubGrilleTelephone`), pas du morceau : les échelles du morceau restent
   celles de l'ordinateur (un morceau en Détaillé donnait des cases de 103 px au téléphone). Aussi : Transposer garde une ligne sous les cases (absent de
   la maquette, présent avant).
-- **Dernier balayage complet** (poignée des diagrammes, 11/11) : 238 verts, 6 rouges, 6 sans verdict sur 250 suites — la ligne de base plus `historique_versions`, rouge sous charge seulement (vert 3 fois sur 3 rejoué seul, sans lien avec le tiroir) ; lot 10f (07/11) : 238 verts, 5 rouges, 6 sans verdict sur 249 suites ; (avant : lot 10e, 235 verts + 2 bancs réparés puis rejoués verts, 5 rouges, 6 sans verdict sur 248 suites — exactement la ligne de base de
+- **Dernier balayage complet** (refonte du séquenceur A, C, B, 11/11 soir) : **241 verts, 5 rouges, 6 sans verdict sur 252 suites — exactement la ligne de base** (3175 s cumulées) ; poignée des diagrammes (11/11) : 238 verts, 6 rouges, 6 sans verdict sur 250 suites — la ligne de base plus `historique_versions`, rouge sous charge seulement (vert 3 fois sur 3 rejoué seul, sans lien avec le tiroir) ; lot 10f (07/11) : 238 verts, 5 rouges, 6 sans verdict sur 249 suites ; (avant : lot 10e, 235 verts + 2 bancs réparés puis rejoués verts, 5 rouges, 6 sans verdict sur 248 suites — exactement la ligne de base de
   `CLAUDE.md`. Le lancer en tâche d'arrière-plan avec le chien de garde dans la même commande : `(bash tests/watchdog.sh &) ; bash tests/run_all_fast.sh`.
 - **Dettes connues pour le lot 10** : au téléphone, hors barre du haut, onglets, barre de lecture et vues intégrées (10a, 10b), rien n'a bougé depuis
   le lot 6 ; 19 bancs sont joués à 860 px parce qu'ils éprouvent le mode « Ajout » de la carte Accord, qui n'existe plus que là (liste dans
