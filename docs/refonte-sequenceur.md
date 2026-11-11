@@ -102,6 +102,7 @@ onglet « Rythme » à côté de « Accord » et « Son »).
   5. Deux notes en plus (accord de 6 notes) : chacune suit la même règle (même décision pour les deux).
   6. La règle ne fait que **proposer un point de départ** : les lignes en plus restent des lignes normales, qu'on retouche à la main ; une retouche est gardée (l'accord passe « À la main »).
   7. Les formes enregistrées par l'utilisateur (4 positions) suivent la même règle.
+  **Confirmée le 11/11** (« Ok ça me va »).
   **Banc à écrire** : chaque motif fourni × accord à 5 et 6 notes, avec le rythme attendu de chaque ligne en plus (bloc commun ou basse) ; sabotage : inverser les deux cas.
 
 ### Modifier un schéma (clic droit sur une vignette, 11/11 — fait dans la maquette)
@@ -193,7 +194,7 @@ Réponses de l'utilisateur, 11/11 :
 5. **Basse différente** : gardée, dans « Réglages du son », comme une note libre à la basse avec proposition de renommage en accord sur basse (voir 3 bis).
 
 Restent à trancher :
-4. **Notes en plus des accords de 5 ou 6 notes** : règle écrite le 11/11 d'après l'idée de l'utilisateur (section « Accords de 3, 5 ou 6 notes ») : rythme commun des voix du haut s'il existe, sinon celui de la basse. **À confirmer**.
+4. **Notes en plus des accords de 5 ou 6 notes** : règle écrite le 11/11 d'après l'idée de l'utilisateur (section « Accords de 3, 5 ou 6 notes ») : rythme commun des voix du haut s'il existe, sinon celui de la basse. **Confirmée par l'utilisateur le 11/11** (« Ok ça me va »).
 6. Les commentaires de la maquette du séquenceur (version 17) et ceux de la planche A (version 26) ont tous été traités.
 
 ## 5. Ordre de travail proposé
