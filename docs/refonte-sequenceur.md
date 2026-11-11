@@ -51,7 +51,7 @@ onglet « Rythme » à côté de « Accord » et « Son »).
 1. **Pas de Lecture / Stop propres au séquenceur** (décision finale du 11/11, après un premier essai en tête de barre) : la **barre de lecture de l'application** (en bas) pilote
    la grille ET le séquenceur. Pour jouer un ou deux accords en boucle, on place la **barre orange** au-dessus du séquenceur ; « Lecture » ne joue alors que cette plage.
    Retirer le Lecture / Stop du séquenceur actuel (`#seq-play`, `#seq-stop`) et ses bancs (`pinned_seq_toolbar`, `probe_seq_*`).
-2. **Motifs** en vignettes (Plaqué, Arpège ↑, Arpège ↓, Pompe, Ballade, À la main) + **formes enregistrées par l'utilisateur** (vignette, nom, petit × pour la
+2. **Motifs** en vignettes (**pas de titre « Rythme »**, il n'apporte rien : la barre commence directement par les vignettes) (Plaqué, Arpège ↑, Arpège ↓, Pompe, Ballade, À la main) + **formes enregistrées par l'utilisateur** (vignette, nom, petit × pour la
    supprimer). Un motif s'applique à « Toute la partie » ou à « Cet accord » (groupe segmenté à droite). Appliquer un motif **ne réécrit que les quatre voix** : les
    notes libres restent.
 3. **Enregistrer la forme** : logo « marque-page » **repris de TrainHub** (réglages de paliers du métronome, `M6 4h12v17l-6-4-6 4z`). Un clic propose d'office un nom
@@ -68,8 +68,9 @@ onglet « Rythme » à côté de « Accord » et « Son »).
 
 ### Règle, boucle, lignes
 - **Règle** : seulement les **numéros de temps** (1 2 3 4). **Pas de petits points de contretemps** (essayés puis retirés : « pas jolis »). Pas de légende dans l'appli.
-- **Plage à boucler** : **barre orange au-dessus de la règle**, aux extrémités arrondies, **comme GarageBand**. On la pose en **tirant sur la règle** ; on la
-  **retire en cliquant dessus** (pas de bouton). « Lecture » ne joue que cette plage tant qu'elle existe. Orange = plage à boucler (règle du chantier).
+- **Plage à boucler** : **barre orange DANS la règle, au droit des numéros de temps** (pas une rangée à part au-dessus), **translucide** (dégradé orange à ~50 % puis ~28 %, liseré
+  fin ; les chiffres se lisent à travers ; la plage reçoit aussi une teinte orange légère, ~13 %, dans la règle et les cases vides), aux extrémités arrondies, **comme GarageBand**.
+  On la pose en **tirant sur la règle** ; on la **retire en cliquant dessus** (pas de bouton). Une seule pièce, alignée sur les colonnes. « Lecture » ne joue que cette plage tant qu'elle existe. Orange = plage à boucler (règle du chantier).
 - **Étiquettes** à gauche : le **nom de la note avec son octave** (C3, E3, G3, B3 pour l'accord choisi), calées à droite, **colonne étroite (≈ 46 px)**, marges de page
   et de cadre resserrées (16 px / 12 px), **petit jour de ≈ 10 px** avant les mesures : « tout serrer vers la gauche, mais laisser un petit espace ».
 - **Une note tenue = une barre continue** (croches voisines soudées : sans coins ni espace) ; une croche seule reste un plot court (staccato). Le nom de la note
