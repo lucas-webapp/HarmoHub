@@ -16,7 +16,7 @@ notes », `Telephone.dc.html`, `Clic.dc.html` le clic sur un accord). Les commen
 
 ## 2. Modifications à faire dans l'appli (ordre proposé)
 
-### A. La grille ne bouge plus quand le séquenceur s'ouvre (le plus simple, à faire en premier)
+### A. La grille ne bouge plus quand le séquenceur s'ouvre — ✅ livré le 11/11 (banc `editeur_notes`, empreinte de la grille)
 - Supprimer le **Compact provisoire** de l'éditeur de notes (décision du 05/11, lot 9a, **annulée**) : `entrerCompactProvisoire`, `sortirCompactProvisoire`,
   `poserAffichageGrilleProvisoire`, `abandonnerCompactProvisoire`, `_affichageAvantEditeur`, et leurs appels dans `majEditeurNotes` et au changement de morceau
   (`script.js`, autour de 19740 et 11997).

@@ -61,8 +61,8 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
 
     // Zoom de la grille (classicGrid) toujours opérant
     // Lot 5a : au bureau, l'échelle horizontale de la grille se règle par l'affichage (Compact = 8 mesures par ligne) et non plus par le bouton H+.
-    // Lot 9a : l'éditeur de notes (ouvert juste au-dessus) met déjà la grille en Compact PROVISOIRE. On choisit d'abord Normal — un vrai choix,
-    // qui l'emporte sur le provisoire — pour que Compact ait encore une échelle à resserrer.
+    // On part de Normal (choix explicite, sans dépendre de l'affichage d'arrivée) pour que Compact ait encore une échelle à resserrer. Depuis la refonte
+    // du séquenceur (point A), l'éditeur ouvert au-dessus ne touche plus à l'affichage de la grille.
     await p.click('#grille-densites [data-densite="normal"]'); await p.waitForTimeout(400);
     const av = await p.evaluate(()=>window.app.classicGridZoomLevelX);
     await p.click('#grille-densites [data-densite="compact"]'); await p.waitForTimeout(400);

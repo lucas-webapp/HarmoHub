@@ -5832,3 +5832,17 @@ il reste à la même taille. Et c'est un peu petit sur ordinateur. » **Le 10g (
 - Banc `vues_taille` (20 vérifications) : poignée, agrandir / réduire / double-clic, mémoire après rechargement, clavier jouable et centré sur le manche agrandi, plafond de 60 %, coin de la fenêtre libre,
   téléphone inchangé. **Sabotage** : la règle `zoom` retirée → 7 vérifications rouges ; restaurée.
 - Balayage complet : 238 verts, 6 rouges, 6 sans verdict (250 suites) ; hors ligne de base, `historique_versions` rouge sous charge seulement (vert 3 fois sur 3 rejoué seul).
+
+## Refonte du séquenceur — A. La grille ne bouge plus quand le séquenceur s'ouvre (11/11)
+
+« Ouvrir le séquenceur ne doit jamais changer l'affichage de la grille […] je ne veux absolument pas ça » (`docs/refonte-sequenceur.md`, point A). Le **Compact provisoire** du lot 9a
+(décision du 05/11, annulée) est retiré : `entrerCompactProvisoire`, `sortirCompactProvisoire`, `poserAffichageGrilleProvisoire`, `abandonnerCompactProvisoire`, `_affichageAvantEditeur`
+et leurs appels (`majEditeurNotes`, changement de morceau, `choisirDensiteGrille`, poignée de largeur, `setZoomLevel`, `zoomSettingsForSong`, `memoriserAffichageGrille`). Ouvrir ou fermer
+l'éditeur ne touche plus à l'affichage, à la largeur de la fenêtre ni à la hauteur des cases ; un affichage choisi éditeur ouvert reste un vrai réglage du morceau.
+
+**Bancs.**
+- `editeur_notes` réécrit (45 vérifications, rien supprimé) : une **empreinte de la grille** (affichage, largeur de la fenêtre, taille de CHAQUE case) relevée avant l'ouverture doit être
+  identique éditeur ouvert, après Ctrl+S et après la fermeture ; parties B, C, F, G, H. **Sabotages** : les cases rétrécies de 15 % à l'ouverture → 4 vérifications rouges ; la fenêtre portée
+  à 700 px à l'ouverture → 3 rouges ; restauré.
+- `telephone_editeur_notes` (H : l'ordinateur garde Normal), `probe_suppression_pleinecran` (commentaire) suivent.
+- Balayage ciblé (58 suites, avec `editeur_et_clavier`, `editeur_notes_outils`, `calque_voix`) : 55 verts, rouges et sans verdict de la ligne de base seulement.

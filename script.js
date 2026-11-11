@@ -4005,11 +4005,11 @@ class HarmoHubApp {
         // 0 = jamais réglé à la main : la hauteur suit alors l'écran (voir hauteurVoletSequenceur).
         // Dès que l'utilisateur touche la poignée, sa valeur est mémorisée et l'emporte pour de bon.
         this.seqDockHeight = parseInt(localStorage.getItem(SEQ_DOCK_HEIGHT_KEY)) || 0;
-        // ÉDITEUR DE NOTES (lot 9a, ordinateur) : étendu ou réduit (réduit à chaque ouverture : « réduit par défaut »), s'il est ouvert, et
-        // l'affichage de grille d'avant son ouverture tant qu'il impose le Compact provisoire (voir majEditeurNotes / entrerCompactProvisoire).
+        // ÉDITEUR DE NOTES (lot 9a, ordinateur) : étendu ou réduit (réduit à chaque ouverture : « réduit par défaut ») et s'il est ouvert.
+        // Refonte du séquenceur (11/11, point A) : il n'impose plus aucun affichage à la grille — « ouvrir le séquenceur ne doit jamais changer
+        // l'affichage de la grille […] je ne veux absolument pas ça ». Le Compact provisoire du lot 9a est retiré.
         this.editeurNotesEtendu = false;
         this._editeurNotesActif = false;
-        this._affichageAvantEditeur = null;
         // Lot 9b : l'outil de l'éditeur (Sélection par défaut, qui garde les gestes d'avant) et « Ajuster » (lignes limitées aux notes présentes),
         // mémorisé par appareil. Éteint par défaut : « voir toutes les notes possibles » avait été demandé, c'est donc la vue d'arrivée.
         this.seqOutil = 'selection';
@@ -10833,7 +10833,7 @@ class HarmoHubApp {
         this._glisserPoignee(droite, {
             debut: () => ({ w0: cadre.getBoundingClientRect().width }),
             bouger: (d, dx) => { cadre.style.maxWidth = this.borneLargeurGrille(d.w0 + 2 * dx) + 'px'; },
-            fin: (d, dx) => { this.abandonnerCompactProvisoire(); this.grilleLargeur = this.borneLargeurGrille(d.w0 + 2 * dx); this.rafraichirAffichageGrille(); marquerModifie(); },
+            fin: (d, dx) => { this.grilleLargeur = this.borneLargeurGrille(d.w0 + 2 * dx); this.rafraichirAffichageGrille(); marquerModifie(); },
         });
         // HAUTEUR DES CASES : le bord bas suit la souris — l'écart se répartit sur toutes les rangées de cases au-dessus. Pendant le geste, seule la variable
         // CSS bouge (pas de nouveau rendu à chaque pixel) ; l'échelle est posée pour de bon au relâchement.
@@ -10886,10 +10886,8 @@ class HarmoHubApp {
     }
 
     memoriserAffichageGrille() {
-        // Compact provisoire de l'éditeur de notes (lot 9a) : l'appareil garde l'affichage d'AVANT, celui que la fermeture rendra.
-        const a = this._affichageAvantEditeur;
-        const densite = a ? a.densite : (this.grilleDensite || 'normal');
-        const largeur = a ? a.largeur : this.grilleLargeur;
+        const densite = this.grilleDensite || 'normal';
+        const largeur = this.grilleLargeur;
         try {
             localStorage.setItem(GRILLE_DENSITE_KEY, densite);
             if (largeur) localStorage.setItem(GRILLE_LARGEUR_KEY, String(largeur)); else localStorage.removeItem(GRILLE_LARGEUR_KEY);
@@ -10922,7 +10920,6 @@ class HarmoHubApp {
     choisirDensiteGrille(densite) {
         const d = DENSITES_GRILLE[densite];
         if (!d) return;
-        this.abandonnerCompactProvisoire(); // choisi pendant que l'éditeur de notes est ouvert : c'est son choix qui reste (lot 9a)
         this.grilleDensite = densite;
         this.grilleLargeur = null;
         this.setZoomLevel('classicGrid', 'x', d.x);
@@ -11893,16 +11890,14 @@ class HarmoHubApp {
     // morceau sur un autre ordinateur (après export/import du fichier, voir exportCurrentSong) doit
     // retrouver les derniers réglages de zoom mis en place dessus, pas ceux de l'appareil courant.
     zoomSettingsForSong() {
-        // Compact provisoire de l'éditeur de notes (lot 9a) : Enregistrer pendant qu'il est ouvert enregistre l'affichage CHOISI, pas le provisoire.
-        const a = this._affichageAvantEditeur;
         return {
-            classicGridZoomLevelX: a ? a.x : this.classicGridZoomLevelX,
-            classicGridZoomLevelY: a ? a.y : this.classicGridZoomLevelY,
+            classicGridZoomLevelX: this.classicGridZoomLevelX,
+            classicGridZoomLevelY: this.classicGridZoomLevelY,
             seqZoomLevelX: this.seqZoomLevelX,
             seqZoomLevelY: this.seqZoomLevelY,
             seqInlineZoomLevelX: this.seqInlineZoomLevelX,
-            grilleDensite: a ? a.densite : (this.grilleDensite || 'normal'),   // lot 5a : l'affichage de la grille et la largeur de sa fenêtre suivent le morceau, comme ses échelles
-            grilleLargeur: (a ? a.largeur : this.grilleLargeur) || null,
+            grilleDensite: this.grilleDensite || 'normal',   // lot 5a : l'affichage de la grille et la largeur de sa fenêtre suivent le morceau, comme ses échelles
+            grilleLargeur: this.grilleLargeur || null,
         };
     }
 
@@ -11994,11 +11989,7 @@ class HarmoHubApp {
             this.classicGridZoomLevelX = DENSITES_GRILLE.normal.x;
             this.classicGridZoomLevelY = DENSITES_GRILLE.normal.h / GRILLE_CASE_BASE;
         }
-        // Un autre morceau s'ouvre pendant que l'éditeur de notes est ouvert (lot 9a) : l'affichage d'avant à rendre est désormais le SIEN, et la
-        // grille repasse en Compact provisoire par-dessus — « tant que l'éditeur de notes est ouvert ».
-        this._affichageAvantEditeur = null;
         if (this.rafraichirAffichageGrille) this.rafraichirAffichageGrille();
-        if (this._editeurNotesActif && window.matchMedia(SEQ_DOCK_MEDIA).matches) this.entrerCompactProvisoire();
     }
 
     // Au tout premier rendu de la page (voir constructeur) : un morceau reste "ouvert" d'une session à
@@ -19304,7 +19295,6 @@ class HarmoHubApp {
             this.closeSeqZoom(); // rien à agrandir une fois le panneau lui-même refermé
         }
         document.getElementById('grid-zoom').classList.toggle('active', this.seqMode === 'continu');
-        // Éditeur de notes (lot 9a) : AVANT renderSequencer, pour que la grille soit déjà en Compact quand le volet mesure la place qu'il lui reste.
         this.majEditeurNotes();
         // « Séquenceur » n'est plus masqué quand le séquenceur est fermé : c'est LUI qui l'ouvre
         // désormais. Il s'allume quand la vue compacte est celle qui est ouverte, pour dire d'où l'on
@@ -19750,17 +19740,14 @@ class HarmoHubApp {
     // Ouvert = le séquenceur continu est dans son volet, sur ordinateur. Appelé à chaque ouverture / fermeture (toggleSequencer, la conduite de voix
     // qui prend la place, le passage du seuil de 900px). Idempotent : ne fait quelque chose qu'au CHANGEMENT d'état.
     majEditeurNotes() {
-        // Lot 10f : l'éditeur existe aussi au téléphone (feuille plein écran au-dessus de la barre de lecture) ; seul le Compact PROVISOIRE de la grille
-        // reste à l'ordinateur (au téléphone la grille est cachée derrière la feuille et son affichage est une préférence de l'appareil).
+        // Lot 10f : l'éditeur existe aussi au téléphone (feuille plein écran au-dessus de la barre de lecture). Refonte du séquenceur (point A) :
+        // ni l'ouverture ni la fermeture ne touchent plus à l'affichage de la grille (plus de Compact provisoire).
         const ouvert = this.seqMode === 'continu';
-        const bureau = window.matchMedia(SEQ_DOCK_MEDIA).matches;
         if (ouvert && !this._editeurNotesActif) {
             this._editeurNotesActif = true;
             this.editeurNotesEtendu = false; // « réduit par défaut », à chaque ouverture
-            if (bureau) this.entrerCompactProvisoire();
         } else if (!ouvert && this._editeurNotesActif) {
             this._editeurNotesActif = false;
-            this.sortirCompactProvisoire(); // sans effet quand rien n'a été mis de côté (téléphone)
         }
         this.majBoutonEditeurNotes();
     }
@@ -19797,52 +19784,6 @@ class HarmoHubApp {
         else if (poignee) poignee.title = 'Glisser pour ajuster la hauteur';
     }
 
-    // « La grille passe d'elle-même en affichage Compact tant que l'éditeur de notes est ouvert » (maquette), et PROVISOIREMENT (décision du 05/11) :
-    // le morceau n'est pas marqué modifié, ce qui s'enregistre (zoomSettingsForSong) et ce que garde l'appareil (memoriserAffichageGrille) restent
-    // l'affichage d'avant, et la fermeture le rend. Si l'utilisateur choisit lui-même un affichage pendant ce temps, c'est le sien qui reste
-    // (abandonnerCompactProvisoire). Une grille déjà en Compact n'est pas touchée : ses réglages fins (poignées) sont à lui.
-    entrerCompactProvisoire() {
-        this._affichageAvantEditeur = null;
-        if ((this.grilleDensite || 'normal') === 'compact') return;
-        this._affichageAvantEditeur = {
-            densite: this.grilleDensite || 'normal', largeur: this.grilleLargeur || null,
-            x: this.classicGridZoomLevelX, y: this.classicGridZoomLevelY,
-        };
-        const c = DENSITES_GRILLE.compact;
-        this.poserAffichageGrilleProvisoire('compact', null, c.x, c.h / GRILLE_CASE_BASE);
-    }
-
-    sortirCompactProvisoire() {
-        const a = this._affichageAvantEditeur;
-        if (!a) return;
-        this._affichageAvantEditeur = null;
-        this.poserAffichageGrilleProvisoire(a.densite, a.largeur, a.x, a.y);
-    }
-
-    // Les échelles sont posées DIRECTEMENT, pas par setZoomLevel : celui-ci marque le morceau modifié et écrit la mémoire de l'appareil, deux choses
-    // qu'un affichage provisoire ne doit pas faire.
-    poserAffichageGrilleProvisoire(densite, largeur, x, y) {
-        this.grilleDensite = densite;
-        this.grilleLargeur = largeur;
-        this.classicGridZoomLevelX = x;
-        this.classicGridZoomLevelY = y;
-        this.rafraichirAffichageGrille();
-        this.applyZoomLevel('classicGrid'); // pose l'échelle verticale et redessine la grille (noms seuls en Compact)
-        this.updateZoomControls();
-    }
-
-    // L'utilisateur règle LUI-MÊME l'affichage pendant que l'éditeur est ouvert (Compact / Normal / Détaillé, poignées de la grille, Ctrl+molette) :
-    // ce qu'il voit devient son réglage, et la fermeture n'y touchera plus. La mémoire de l'appareil reçoit alors les deux échelles, pas seulement
-    // celle que son geste vient de changer.
-    abandonnerCompactProvisoire() {
-        if (!this._affichageAvantEditeur) return;
-        this._affichageAvantEditeur = null;
-        try {
-            localStorage.setItem(CLASSIC_GRID_ZOOM_LEVEL_X_KEY, String(this.classicGridZoomLevelX));
-            localStorage.setItem(CLASSIC_GRID_ZOOM_LEVEL_Y_KEY, String(this.classicGridZoomLevelY));
-        } catch (e) { /* stockage refusé : le morceau garde les siennes */ }
-        this.memoriserAffichageGrille();
-    }
 
     // Suit le franchissement du seuil ordinateur/téléphone pour replacer le séquenceur (voir
     // placeSequencer) : redimensionner la fenêtre, faire pivoter un téléphone ou ouvrir les outils de
@@ -21040,7 +20981,6 @@ class HarmoHubApp {
         // exactement ce qui se produisait avant ce correctif).
         if (kind === 'seqInline' && axis === 'y') return;
         if (kind === 'gridTel') { this.reglerEchelleTelephone(axis, value); return; }
-        if (kind === 'classicGrid') this.abandonnerCompactProvisoire(); // geste de l'utilisateur sur la grille : l'affichage provisoire devient le sien (lot 9a)
         const levelKey = `${kind}ZoomLevel${axis === 'x' ? 'X' : 'Y'}`;
         const storageKey = kind === 'seq'
             ? (axis === 'x' ? SEQ_ZOOM_LEVEL_X_KEY : SEQ_ZOOM_LEVEL_Y_KEY)

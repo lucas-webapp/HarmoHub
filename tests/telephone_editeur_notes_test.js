@@ -187,7 +187,8 @@ const feuille = (p) => p.evaluate(() => {
     f = await feuille(p);
     exiger(f.ouvert, 'l\'éditeur s\'ouvre');
     check(f.pos !== 'fixed', `il reste dans son volet sous la grille (${f.pos})`);
-    check(f.densite === 'compact' && f.modifie === false, `avec le Compact provisoire d'avant (${f.densite})`);
+    // Refonte du séquenceur (11/11, point A) : le Compact provisoire du lot 9a est annulé — la grille de l'ordinateur garde son affichage.
+    check(f.densite === 'normal' && f.modifie === false, `la grille garde son affichage, sans Compact provisoire (${f.densite})`);
     check(await p.evaluate(() => document.getElementById('seq-dock-resize').offsetParent !== null), 'et sa poignée de hauteur');
     await p.context().close();
 
