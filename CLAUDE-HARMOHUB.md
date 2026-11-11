@@ -44,7 +44,11 @@ Mis à jour le 11/11/2026, après la taille des diagrammes à la poignée (lot 1
   (à 44px, le double toucher d'une case n'ouvrait plus le panneau d'accord).
 - ✅ **Taille des diagrammes à la poignée livrée** (11/11, banc `vues_taille`) : poignée sur le bord haut du tiroir épinglé, coin de la fenêtre libre qui agrandit aussi le contenu, échelle 0,6 à 2 par appareil
   (`poserEchelleVues`). **Décision du 11/11 : « je n'ai pas besoin des diagrammes en plein écran »** → le 10g (Clavier / Guitare en plein écran au téléphone) est ABANDONNÉ.
-- **Rien de prévu** : le lot 10 est terminé (10a à 10f), plus de plein écran pour les diagrammes. `/reprise` demandera à l'utilisateur ce qui vient ensuite.
+- **Prochain : « Refonte du séquenceur » (décidé le 11/11)** — tout est noté dans **`docs/refonte-sequenceur.md`** (lire en entier avant de coder) : A. la grille ne change plus
+  d'affichage quand le séquenceur s'ouvre (supprimer le Compact provisoire du lot 9a) ; C. le panneau ne recadre plus l'écran ; B. un clic sur un accord le fait entendre sans
+  ouvrir le panneau (double-clic ou second toucher = ouvrir) ; D. un seul séquenceur à une ligne par voix (maquette : https://claude.ai/artifact/38sqeQZK1q1HDnUYf6PvJT, version 17).
+  Questions ouvertes à poser avant de coder : formes enregistrées sur le compte ou par morceau ; chemin des voix permanent ou supprimé ; geste exact du clic sur ordinateur.
+  L'utilisateur a demandé de tout faire « à la suite », dans une session dédiée, après avoir noté les modifications.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
