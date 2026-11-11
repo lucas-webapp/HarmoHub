@@ -91,7 +91,7 @@ onglet « Rythme » à côté de « Accord » et « Son »).
   changent (les rôles 1, 3, 5, 7 gardent leurs couleurs). Une **basse différente** (`C_E`) est une voix à part tout en bas, même hors de l'accord ; elle prend le rythme de la basse du
   motif (ou, si elle double une autre voix, celui de la basse seule). Un arpège « monte » donc toujours du plus grave au plus aigu, jamais dans l'ordre des degrés.
   **Banc à écrire** : chaque motif × position fondamentale / renversements / basse différente / drop 2 et 3.
-- Questions à confirmer avec l'utilisateur : la règle de fusion pour les accords à 5 ou 6 notes (9es, 11es, 13es).
+- Question restante pour l'utilisateur : la règle de fusion pour les accords à 5 ou 6 notes (9es, 11es, 13es), voir section 4.
 
 ### Modifier un schéma (clic droit sur une vignette, 11/11 — fait dans la maquette)
 - **Un schéma SANS notes** (4 voix × 8 croches, de l'aiguë à la basse) retouché dans une petite bande dépliée sous la barre d'outils, **pas sur la vraie grille** : la grille est liée à un
@@ -106,7 +106,7 @@ au codage : bascule Voix / Toutes les notes dans la barre.
 
 ### Ce qui disparaît (à retirer proprement, bancs réécrits, jamais supprimés)
 Bulle d'accord et inspecteur de droite (remplacés par la fenêtre d'accord unique, 3 bis), bouton « Séq. » `#grid-zoom` (remplacé par le bloc « Vues » de la barre de lecture), grand séquenceur et petit séquenceur (deux affichages), zoom H / V, loupe, « Étendre », poignée `#seq-dock-resize`, outils crayon / gomme / sélection, calque Voix à
-allumer (le chemin des voix peut devenir permanent et discret : à trancher), bande d'intensité séparée, mode studio comme mode à part (son logo est repris pour le
+allumer (le chemin des voix est supprimé, décision du 11/11), bande d'intensité séparée, mode studio comme mode à part (son logo est repris pour le
 bouton Intensité). Les bancs `probe_seq_*`, `seq_*`, `voice_leading*`, `vl_*`, `calque_voix`, `notes_manuelles_intensite`, `editeur_notes*`, `pinned_seq_toolbar`,
 `loupe_*`, `sidebar_collapse_seq_height`, `volet_hauteur_poignee` (voir « Lot 9 » dans `CLAUDE-HARMOHUB.md`) sont à réécrire pour les nouveaux gestes.
 
@@ -152,12 +152,16 @@ réelles de l'application d'aujourd'hui). **La planche A fait foi** pour la disp
   séparé : **« Réglages du son » déplie la même fenêtre** (plus de colonne à droite).
 - Haut : ‹ nom de l'accord, degré, « mes. N » › et ×. ‹ › passent à l'accord voisin sans fermer.
 - **Fondamentale** (12 touches) ; **Type** : les **13 types courants** puis un bouton **« ⋯ »** qui déplie les autres (Add9, Add11, Maj 9, Min 9, 9, 11, 13) ; **Durée**.
-  La basse différente n'a pas de ligne dans la maquette : à reprendre au codage (la laisser dans la fenêtre dépliée) et à confirmer avec l'utilisateur.
-- **« Réglages du son ›»** (dépliant) : **Octave** − / + ; **Renversement** 0 à 3 ; **Drop** Non / 2 / 3 ; **Ajouter une note** (voir ci-dessous). **Rien d'autre** :
+- **« Réglages du son ›»** (dépliant) : **Octave** − / + ; **Renversement** 0 à 3 ; **Drop** Non / 2 / 3 ; **Ajouter une note** et **Basse** (voir ci-dessous). **Rien d'autre** :
   pas de ligne « Rythme » ni de légende (le rythme se règle dans le séquenceur, sans le dire), **pas de doigté de guitare** (« je le ferai directement dans les diagrammes »).
 - **Ajouter une note** : **une seule ligne** — les noms de notes (C à B, dièses compris) **défilent à l'horizontale** dans leur cadre, l'octave − / + et un bouton **« + » carré de 32 px**
   (même gabarit que les autres « + » de l'appli, pas de texte « Ajouter D4 » : la note visée est dite par l'infobulle et `aria-label`) restent fixes à droite. La note choisie s'entend au clic ; la note
   ajoutée s'entend aussi. Les notes ajoutées apparaissent en **puces mauves** (× pour retirer) sur la ligne du titre de la section.
+- **Basse différente** (décision du 11/11) : dans « Réglages du son », une ligne **« Basse »** sur le même modèle que « Ajouter une note » (noms C à B qui défilent, octave − / +, bouton « + » de 32 px) : l'utilisateur
+  peut poser **une note différente à la basse** s'il le souhaite (« c'est un peu comme une note libre »). Elle devient la voix la plus grave (voir « Renversements, basses différentes » en section 3), avec son
+  puce et son × pour la retirer. **Même question de renommage** : l'appli propose automatiquement de renommer l'accord en tenant compte de cette basse, en accord sur basse (Cmin7 + si bémol à la basse → **« Cmin7/Bb »** ; une basse
+  qui est déjà une note de l'accord, comme Cmaj7 + E à la basse, propose le renversement « Cmaj7/E »). Boutons « Renommer en Cmin7/Bb » et « Garder Cmin7 » ; retirer la basse ferme la question et remet le nom d'origine
+  si l'accord avait été renommé pour elle.
 - **Renommage : l'appli DEMANDE, elle ne renomme jamais d'office** (11/11). Si les notes ajoutées forment un autre nom d'accord (triade majeure + septième majeure = maj7 ; Cmaj7 + ré = Cmaj9…), une question
   s'affiche sous la ligne de saisie : « Ces notes forment Cmaj9. Renommer l'accord ? » avec deux boutons, « Renommer en Cmaj9 » et « Garder Cmaj7 ». Les notes restent dans l'accord dans les deux cas ;
   retirer une note ferme la question. (L'appli renomme aujourd'hui toute seule : à changer pour cette question.)
@@ -166,15 +170,20 @@ réelles de l'application d'aujourd'hui). **La planche A fait foi** pour la disp
 ### Captures réelles à traiter (observé en les prenant)
 - Le toast « Sons du piano pas encore chargés » passe par-dessus le clavier du tiroir ; sur téléphone, le nom de l'accord est sélectionné dans son champ à l'ouverture du panneau d'accord.
 
-## 4. Questions encore ouvertes (à poser à l'utilisateur avant de coder)
+## 4. Décisions et questions (11/11)
 
-1. **Où vivent les formes enregistrées ?** Sur le compte (tous les morceaux et appareils, comme les morceaux dans Firestore) ou propres à un morceau ? *(question posée
-   dans la maquette, pas de réponse)*.
-2. **Le chemin des voix** (traits blancs entre accords) : permanent et discret, ou on le supprime ?
-3. **Clic sur un accord à l'ordinateur** : confirmer « un clic = écouter, double-clic = ouvrir » (option A) ou le réglage oui / non (option B).
-4. **Fusion des voix** pour les accords à 5 ou 6 notes (section 3) : règle proposée, non confirmée.
-5. **Basse différente** : elle n'a plus de ligne dans la fenêtre d'accord de la maquette A ; la garder dans « Réglages du son » ? (proposition : oui).
-6. Les commentaires de la maquette du séquenceur (version 17) et ceux de la planche A (version 26) ont tous été traités ; les questions 1 à 5 restent sans réponse.
+Réponses de l'utilisateur, 11/11 :
+1. **Les formes enregistrées vivent sur le compte** (tous les morceaux et tous les appareils), comme les morceaux et les paroles dans Firestore : même principe que `synchro-versions.js`
+   (un document par compte, fusion sans doublon, suppression tracée, hors ligne d'abord). Une forme supprimée disparaît partout ; les accords qui la suivaient passent « À la main ».
+   Ne pas toucher `synchro-cloud.js` ni `compte-cloud.js` (fichiers partagés, voir `docs/fichiers-partages.md`) : nouveau fichier `synchro-formes.js`.
+2. **Le chemin des voix (traits entre accords) est SUPPRIMÉ** (« trop compliqué ») : retirer le calque Voix et son bouton à l'ordinateur ; au téléphone, l'ancien panneau ⊱ avait déjà disparu au 10f.
+   Bancs `calque_voix`, `voice_leading*`, `vl_*` : réécrits pour ce qui reste (légende des rôles 1 / 3 / 5 / 7 et couleurs), jamais supprimés.
+3. **Clic sur un accord à l'ordinateur : un clic = écouter, double-clic = ouvrir la fenêtre** (option A) — confirmé.
+5. **Basse différente** : gardée, dans « Réglages du son », comme une note libre à la basse avec proposition de renommage en accord sur basse (voir 3 bis).
+
+Restent à trancher :
+4. **Fusion des voix pour les accords de 5 ou 6 notes** (9es, 11es, 13es) — question à reposer à l'utilisateur (voir la section « Accords de 3, 5 ou 6 notes » plus haut).
+6. Les commentaires de la maquette du séquenceur (version 17) et ceux de la planche A (version 26) ont tous été traités.
 
 ## 5. Ordre de travail proposé
 A (grille qui ne bouge plus) → C (plus de recadrage) → B (clic = écouter) → D (séquenceur, par sous-lots : module + ordinateur, puis formes enregistrées et notes libres,
