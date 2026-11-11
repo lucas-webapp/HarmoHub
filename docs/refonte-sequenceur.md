@@ -51,7 +51,7 @@ onglet « Rythme » à côté de « Accord » et « Son »).
 1. **Pas de Lecture / Stop propres au séquenceur** (décision finale du 11/11, après un premier essai en tête de barre) : la **barre de lecture de l'application** (en bas) pilote
    la grille ET le séquenceur. Pour jouer un ou deux accords en boucle, on place la **barre orange** au-dessus du séquenceur ; « Lecture » ne joue alors que cette plage.
    Retirer le Lecture / Stop du séquenceur actuel (`#seq-play`, `#seq-stop`) et ses bancs (`pinned_seq_toolbar`, `probe_seq_*`).
-2. **Motifs** en vignettes (**pas de titre « Rythme »**, il n'apporte rien : la barre commence directement par les vignettes) (Plaqué, Arpège ↑, Arpège ↓, Pompe, Ballade, À la main) + **formes enregistrées par l'utilisateur** (vignette, nom, petit × pour la
+2. **Motifs** en vignettes dessinées **comme le vrai séquenceur** (croches voisines soudées en barres aux bouts arrondis, croche isolée = petit plot ; « Plaqué » = quatre longues barres) (**pas de titre « Rythme »**, il n'apporte rien : la barre commence directement par les vignettes) (Plaqué, Arpège ↑, Arpège ↓, Pompe, Ballade, À la main) + **formes enregistrées par l'utilisateur** (vignette, nom, petit × pour la
    supprimer). Un motif s'applique à « Toute la partie » ou à « Cet accord » (groupe segmenté à droite). Appliquer un motif **ne réécrit que les quatre voix** : les
    notes libres restent.
 3. **Enregistrer la forme** : logo « marque-page » **repris de TrainHub** (réglages de paliers du métronome, `M6 4h12v17l-6-4-6 4z`). Un clic propose d'office un nom
@@ -60,7 +60,7 @@ onglet « Rythme » à côté de « Accord » et « Son »).
 4. **Intensité** : bouton avec le **logo du mode studio existant**. Éteint (par défaut) : un clic pose ou enlève une note, tout au même niveau (normal). Allumé :
    un clic sur une note fait tourner **normal → fort → doux → enlevée**. Niveaux lus à l'opacité de la note, liseré plus épais pour « fort ». Les intensités réglées
    sont gardées quand on éteint. **Le premier temps n'est pas plus appuyé que les autres** dans les motifs fournis (tout en « normal »).
-5. **Note libre** : bouton « note de musique » dans la barre (au-dessus des notes, **pas en dessous** : il se déplaçait à chaque ligne ajoutée). Il déplie une bande :
+5. **Note libre** : bouton « note de musique » **à gauche, dans la colonne des noms de notes, juste au-dessus d'eux, en face de la règle** (ni en dessous, où il se déplaçait à chaque ligne ajoutée, ni dans la barre d'outils). Il déplie une bande :
    nom de la note (C … B, dièses) + octave − / + + « Ajouter C4 ». Crée une **ligne en pointillés** sur **tous les accords** (cases toutes normales et cliquables : on
    pose les croches là où on veut). Petit × sur la ligne pour la retirer. **Décision finale du 11/11 : pas de choix « seulement cet accord / toute la partie », pas
    de cases grisées** (« c'est bizarre »).
@@ -78,6 +78,14 @@ onglet « Rythme » à côté de « Accord » et « Son »).
 - **Aucune légende, aucune ligne d'aide** dans l'appli (la maquette en avait pour être lisible seule).
 - **Le son** : un clic sur une case de la grille joue l'accord ; poser ou changer une note la fait entendre à son niveau ; « Lecture » joue avec les intensités. Dans
   l'appli : l'instrument du morceau.
+
+### Accords de 3, 5 ou 6 notes (question de l'utilisateur, 11/11 — règle proposée, à confirmer)
+- **Pas de filtre** à mettre dans les enregistrements. Le nombre de lignes suit l'accord ; une partie affiche autant de lignes que son accord le plus riche, un accord plus pauvre laisse
+  les lignes qu'il n'a pas **vides (sans hachures)**.
+- Un **motif** ou une **forme enregistrée** est écrit **par position** (basse, aiguë, voix du milieu), pas par note. Appliqué à un accord de moins de voix : on garde toujours la basse
+  et l'aiguë, les voix du milieu en trop **se fondent** dans la voisine (leurs croches s'ajoutent). Avec plus de voix : les voix du milieu en plus reprennent le rythme de leur voisine.
+- **Rien n'est perdu** : le rythme d'origine reste stocké avec l'accord ; repasser un accord de 3 à 4 notes rend les croches de la voix en trop.
+- Questions à confirmer avec l'utilisateur : la règle de fusion pour les accords à 5 ou 6 notes (9es, 11es, 13es).
 
 ### Vue « Toutes les notes » (planche 2)
 Seulement les **hauteurs utilisées** par la partie (jamais 60 lignes) pour ajouter une note hors de l'accord ; notes ajoutées à la main en pointillés. À préciser
