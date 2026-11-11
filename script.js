@@ -22956,13 +22956,15 @@ class HarmoHubApp {
         }
     }
 
-    async playSavedChord(section, index, play = true) {
+    // `essai` : un accord à jouer À LA PLACE de celui enregistré, sans rien écrire — le ▶ du séquenceur qui fait entendre un schéma retouché sur
+    // l'accord choisi (sequenceur.js, ecouterSchema). La place (section, index) reste celle de l'accord, pour la tête de lecture et le clavier.
+    async playSavedChord(section, index, play = true, essai = null) {
         await Tone.start();
         this.stopAll();
         const myGen = this._playGen;
 
         const sections = loadProgressionSections();
-        const data = sections[section] && sections[section].chords[index];
+        const data = essai || (sections[section] && sections[section].chords[index]);
         if (!data) return;
 
         const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);

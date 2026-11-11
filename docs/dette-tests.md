@@ -5955,3 +5955,49 @@ planche A v26). Premier des quatre sous-lots de D (section 5 du cahier) : le mod
 interne, barre collée ; tête de lecture ; × ; téléphone inchangé. **Sabotages** (neuf, tous rouges puis restaurés) : règle des notes en plus inversée (2 rouges), note posée non
 soudée (2), une annulation par case peinte (1), lecture qui ignore `intensiteVoix` (1), modification qui l'efface (1), clic dans le séquenceur qui désélectionne (1), pas de borne de
 hauteur (1), panneau visible au téléphone (1), séquenceur sous le tiroir (5). Balayage ciblé : 28 verts, 2 sans verdict de la ligne de base (`ctx_nav_scroll`, `smoke`).
+
+## Refonte du séquenceur — D, deuxième sous-lot : formes enregistrées, notes libres, schéma au clic droit, « Toutes les notes » (11/11, nuit)
+
+Cahier : `docs/refonte-sequenceur.md`, section 3 (barre d'outils, points 3 et 5 ; « Modifier un schéma » ; « Vue Toutes les notes ») et section 4 (point 1 : les formes au compte).
+Maquette v17 (`project/Main.dc.html`, `project/Notes.dc.html`). L'ancien séquenceur reste en place jusqu'au retrait (dernier sous-lot de D).
+
+- **Formes enregistrées** : marque-page (logo de TrainHub, `M6 4h12v17l-6-4-6 4z`) après les motifs ; un clic propose le premier nom libre (« Forme 1 », « Forme 2 »…), sélectionné ;
+  Entrée valide, Échap annule, Enregistrer grisé sur un nom vide. La forme est prise sur l'accord choisi PAR POSITION (basse, voix 2, voix 3, aiguë) sur une mesure de huit croches,
+  croches, soudures (notes tenues) ET intensités ; l'inverse exact de la règle « par position » : prise sur un accord de trois sons, elle s'y rejoue à l'identique ; une basse
+  différente n'est pas une position (elle joue la basse du motif). Les formes s'affichent après les motifs (vignette, nom, ×), s'appliquent comme eux (« Toute la partie » / « Cet
+  accord ») ; l'accord dont on prend la forme la suit. Supprimer une forme : elle disparaît partout, les accords qui la suivaient gardent leurs notes et passent « À la main » —
+  sans réécrire aucun morceau (`motifActuel` ne la trouve plus).
+- **Au compte** (`synchro-formes.js`, nouveau, chargé AVANT `sequenceur.js`) : un document `users/{uid}/apps/harmohub-formes` (règles déjà en place), une entrée par forme et par
+  retouche, dessin en chaîne JSON (Firestore refuse les tableaux imbriqués) ; fusion entrée par entrée, la plus récente gagne, suppression TRACÉE (six mois) qui l'emporte sur une
+  copie plus ancienne ; hors ligne d'abord (tout s'écrit ici, part dès la connexion, drapeau `harmohubFormesAEnvoyer`). Pas de `synchro-cloud.js` (fichier partagé, un document par
+  page, déjà pris) : on réutilise la connexion du moteur (`SYNCHRO.etat`) et on ÉCOUTE ce seul document (`onSnapshot`) ; un battement d'une seconde suit la connexion sans rien lire.
+- **Notes libres** : bouton « note de musique » dans la colonne des noms, en face de la règle (32 px) ; bande : nom (C … B, dièses, groupe segmenté), octave − / + (1 à 6),
+  « Ajouter C4 », Annuler ; choisir une note la fait entendre. La note devient une LIGNE de la partie (nouveau champ de partie `notesLibres`, [{note, octave}]) en pointillés, avec
+  un × ; ses cases sont normales et cliquables sur tous les accords. **Choix fait** : un accord ne porte la note (`extraNotes`) qu'une fois une croche posée, et la perd avec sa
+  dernière croche — sinon chaque accord aurait reçu une voix muette, comptée dans ses diagrammes et sa pastille « voicing personnalisé ». Les lignes libres sont désormais
+  rangées PAR HAUTEUR (avant : par rang dans la liste de l'accord). Ajouter ou retirer une note renumérote les voix qui la suivent (la basse différente est rangée après elles) :
+  la basse garde son rythme. Le × retire la ligne et la note de chaque accord, une annulation ; un motif, Effacer, Coller ne touchent pas aux notes libres.
+- **Clic droit sur une vignette** (pas « À la main ») : bande « Modifier le schéma » sous la barre : schéma 4 voix × 8 croches sans notes (croches voisines soudées), nom, ▶ qui le
+  fait entendre sur l'accord choisi sans rien écrire (`playSavedChord` accepte un accord d'essai), Enregistrer (Entrée), Annuler (Échap), « Rétablir l'original » sur un motif
+  fourni retouché, « Supprimer » sur une forme. La retouche d'un motif fourni est une entrée du même document (les originaux de `MOTIFS` ne changent jamais) ; sa vignette se
+  redessine et son nom est souligné en pointillés. À l'enregistrement (ou au rétablissement), les accords du MORCEAU OUVERT qui suivent ce motif le reprennent (une annulation).
+- **Vue « Toutes les notes »** : groupe segmenté Voix / Toutes les notes dans la barre, retenu par l'appareil (`harmohubSequenceurVue`) ; une ligne par hauteur utilisée par la
+  partie (étiquettes en touches de piano) ; une case d'une hauteur que l'accord n'a pas y ajoute une note libre (en pointillés), qui devient une ligne libre en vue Voix.
+- **Mise en page** : la règle générique `button { flex: 1; min-width: 120px }` étirait les nouveaux boutons (× à 120 px, cases du schéma superposées) : `.sequenceur button` la
+  neutralise. Verre : les deux bandes sont opaques (`verre-surfaces.css`), comme la barre d'outils.
+- **À signaler** (pas bloquant) : (1) la barre d'outils tient sur DEUX rangées à 1440 px (formes et groupe Voix / Toutes les notes en plus) — le cahier offre de ranger les motifs
+  derrière un bouton « Motifs » si l'on veut une seule rangée ; (2) une retouche de schéma ne réécrit que le morceau ouvert : les accords d'autres morceaux qui suivent ce motif
+  gardent leurs notes jusqu'à ce qu'on y réapplique le motif ; (3) en « Toutes les notes » une partie riche donne beaucoup de lignes : le séquenceur défile en interne (règle du
+  premier sous-lot, jamais plus que la place libre).
+
+**Banc** `sequenceur_formes` (75 vérifications, de vrais gestes, deux appareils sur le faux nuage `_firebase_faux.js`) : A — nom proposé et sélectionné, Échap, nom vide, Entrée,
+croches et intensités par position, vignette, application à la partie et son Ctrl+Z, noms suivants, suppression (notes gardées, « À la main », trace), accord de trois sons ;
+B — envoi au cloud (chaîne JSON), réception sans recharger, hors ligne puis retour (suppression et nouvelle forme), « À la main » sur l'autre appareil, fusion pure ; C — place et
+gabarit du bouton, bande, ligne ajoutée sans changer aucun son, cases cliquables, Ctrl+Z / Ctrl+Y, croche posée sur l'accord à basse différente (renumérotation), glissé d'un
+accord à l'autre d'une annulation, motif qui garde la note, pas de voix fantôme, × et son Ctrl+Z ; D — pas de clic droit sur « À la main », schéma fidèle, grille à sa place,
+▶ sans écriture, retouche gardée et original intact, accords qui suivent, vignette, Ctrl+Z, Échap, Rétablir, forme renommée puis supprimée ; E — hauteurs utilisées, note hors
+de l'accord, voix existante touchée sans ajout, retour en vue Voix, préférence retenue ; F — bandes opaques verre allumé, téléphone inchangé ; aucune erreur de page.
+**Sabotages** (onze, tous rouges puis restaurés) : fusion qui ignore les suppressions (4 rouges), note libre muette gardée (1), basse non renumérotée (5), forme sans intensités (2),
+schéma enregistré sans réappliquer (2), forme supprimée encore suivie (2), clic droit permis sur « À la main » (1 — il fallait retirer les DEUX gardes, celle du clic droit et celle
+d'`ouvrirSchema`), ▶ qui écrit (1), dessin envoyé en tableaux imbriqués (3 + couverture), ligne libre grisée sur les accords qui ne la portent pas (1 + couverture), « Toutes les notes »
+à l'envers (1). Balayage ciblé : 24 verts, 2 sans verdict de la ligne de base (`ctx_nav_scroll`, `smoke`), sur 26 suites.

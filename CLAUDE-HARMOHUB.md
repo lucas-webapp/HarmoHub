@@ -1,6 +1,6 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 11/11/2026 (nuit), après le premier sous-lot du point D de la refonte du séquenceur. **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 11/11/2026 (nuit), après le deuxième sous-lot du point D de la refonte du séquenceur. **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
@@ -60,11 +60,17 @@ Mis à jour le 11/11/2026 (nuit), après le premier sous-lot du point D de la re
   poignée des lignes 22–48. L'ancien séquenceur reste en place. Détail et choix faits en route dans `docs/dette-tests.md`.
   - **À signaler à l'utilisateur (pas bloquant)** : la plage tirée au séquenceur s'aligne sur des accords entiers (la boucle de l'appli repose sur des index d'accords) ; un vieux motif
     à la double-croche s'affiche à la croche et n'est réécrit à la croche que si on retouche l'accord ; ajouter une basse différente après un motif ne réapplique pas le motif.
-- **Prochain : D, deuxième sous-lot** — **formes enregistrées** (`synchro-formes.js`, un document par compte, fusion sans doublon, suppression tracée ; marque-page de TrainHub ;
-  « Forme 1 » proposé, Entrée / Échap ; supprimer une forme → accords « À la main ») et **notes libres** (bouton note de musique dans la colonne des noms, en face de la règle ; bande
-  nom + octave + « + » ; ligne en pointillés sur tous les accords, × pour la retirer), puis **clic droit sur une vignette** (modifier un schéma, « Rétablir l'original ») et la vue
-  **« Toutes les notes »**. Relire les sections 3 et 4 de `docs/refonte-sequenceur.md` et la maquette v17 (`project/Main.dc.html`). Ensuite : téléphone, puis retrait de l'ancien code.
-  Aucune question ouverte.
+- ✅ **D, deuxième sous-lot livré** (11/11 nuit, banc `sequenceur_formes`, 75 vérifications, onze sabotages) : **formes enregistrées** au compte (`synchro-formes.js`, chargé AVANT
+  `sequenceur.js` ; document `harmohub-formes`, entrées en chaîne JSON, fusion entrée par entrée, suppression tracée, hors ligne d'abord, écoute du seul document via `SYNCHRO.etat`) —
+  marque-page, « Forme N » proposé, Entrée / Échap, croches + soudures + intensités par position, × qui supprime (accords « À la main », notes gardées) ; **notes libres** (bouton en face
+  de la règle, bande nom + octave + « Ajouter C4 », ligne retenue par la PARTIE — nouveau champ `notesLibres` —, l'accord ne porte la note qu'une fois une croche posée ; voix renumérotées) ;
+  **clic droit sur une vignette** (schéma 4 × 8, ▶ via `playSavedChord(…, essai)`, retouche par-dessus le motif fourni, « Rétablir l'original », réapplication au morceau ouvert) ;
+  **« Toutes les notes »** (hauteurs utilisées, préférence de l'appareil). Détail et choix dans `docs/dette-tests.md`.
+  - **À signaler à l'utilisateur (pas bloquant)** : la barre d'outils passe sur deux rangées à 1440 px (option du cahier : ranger les motifs derrière un bouton « Motifs ») ; une retouche
+    de schéma ne réécrit que le morceau ouvert (les autres morceaux la prennent quand on y réapplique le motif) ; en « Toutes les notes » une partie riche fait défiler le séquenceur.
+- **Prochain : D, troisième sous-lot — le téléphone** : le séquenceur dans le panneau d'accord, onglet « Rythme » à côté de « Accord » et « Son » ; « Notes » → « Séquenceur »
+  (`docs/refonte-sequenceur.md`, sections 3 et 3 bis, cases « Téléphone » ; maquette v17, planche `Telephone.dc.html`). Ensuite : retrait de l'ancien séquenceur (« Séq. », « Éditeur de
+  notes », `#seq-dock-panel`, loupe, calque Voix) et réécriture de ses bancs (jamais supprimés). Aucune question ouverte.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est

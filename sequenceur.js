@@ -31,6 +31,24 @@
     ];
     const MOTIF_PAR_ID = Object.fromEntries(MOTIFS.map(m => [m.id, m]));
 
+    // DEUXIÈME SOUS-LOT : les FORMES de l'utilisateur et les RETOUCHES des motifs fournis (synchro-formes.js, au compte). Un motif, quel qu'il soit,
+    // a la même forme : { id, nom, v: croches des quatre positions, s: soudures (null = croches voisines soudées), n: intensités (null = tout normal) }.
+    // Une retouche se pose PAR-DESSUS le motif fourni (« l'original n'est jamais perdu » : MOTIFS ne change pas, « Rétablir l'original » la retire).
+    const magasin = () => (typeof window !== 'undefined' && window.FormesSequenceur) ? window.FormesSequenceur : null;
+    function motifParId(id) {
+        if (!id) return null;
+        const f = magasin();
+        const base = MOTIF_PAR_ID[id];
+        if (base) {
+            const r = id !== 'main' && f ? f.retouche(id) : null;
+            return r ? { id, nom: r.nom || base.nom, v: r.v, s: r.s, n: r.n, fourni: true, retouche: true }
+                     : { id, nom: base.nom, v: base.v, s: null, n: null, fourni: true, retouche: false };
+        }
+        const x = f ? f.lire(id) : null;
+        return x && x.type === 'forme' ? { id, nom: x.nom, v: x.v, s: x.s, n: x.n, fourni: false, forme: true } : null;
+    }
+    const formesUtilisateur = () => { const f = magasin(); return f ? f.formes() : []; };
+
     // Trois niveaux seulement (maquette : « normal → fort → doux → enlevée »). « Normal » = pas de réglage propre : la note suit l'intensité de
     // l'accord (data.intensity) ; doux et fort reprennent les valeurs des cinq niveaux de l'appli (NIVEAUX_INTENSITE : Doux 55, Fort 90).
     const NIVEAU_VALEUR = { doux: 55, fort: 90 };
@@ -40,6 +58,11 @@
     const CLE_LIGNE = 'harmohubSequenceurLigne';
     const CLE_OUVERT = 'harmohubSequenceurOuvert';
     const CLE_PORTEE = 'harmohubSequenceurPortee';
+    const CLE_VUE = 'harmohubSequenceurVue';   // 'voix' (une ligne par voix) ou 'notes' (« Toutes les notes » : une ligne par hauteur utilisée)
+    const NOMS_LIBRES = NOTES_SQ();            // C, C#, D… : les noms proposés par la bande « Note libre » (maquette v17)
+    function NOTES_SQ() { return ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; }
+    const midiDe = (note, octave) => NOMS_LIBRES.indexOf(note) + 12 * (octave + 1);
+    const noteDe = (midi) => ({ note: NOMS_LIBRES[((midi % 12) + 12) % 12], octave: Math.floor(midi / 12) - 1 });
     const GRILLE_MIN = 40; // ce que la poignée laisse au moins à la grille au-dessus (l'en-tête de partie reste lisible)
 
     const cle = (v, k) => v + ':' + k;
@@ -110,8 +133,10 @@
 
     // Le motif que l'accord suit : celui qu'on lui a appliqué (data.motifSeq), « Plaqué » pour un accord jamais retouché qui se joue tenu (le
     // réglage d'origine de tout accord), « À la main » pour le reste.
+    // Une forme supprimée (ici ou sur un autre appareil) n'existe plus : l'accord qui la suivait passe « À la main » en gardant ses notes (cahier,
+    // section 4 : « les accords qui la suivaient passent À la main ») — sans réécrire aucun morceau.
     function motifActuel(data) {
-        if (data.motifSeq && (MOTIF_PAR_ID[data.motifSeq])) return data.motifSeq;
+        if (data.motifSeq && motifParId(data.motifSeq)) return data.motifSeq;
         if (!data.seqEdited && (data.playStyle || 'held') === 'held') return 'plaque';
         return 'main';
     }
@@ -142,11 +167,32 @@
 
     // Les croches d'une position du motif sur toute la durée de l'accord : le motif fait une mesure de 4/4 (8 croches), il se répète au-delà et
     // s'arrête où l'accord s'arrête (une mesure de 3/4 en garde les six premières).
-    const crochesPosition = (liste, croches) => {
-        const r = new Set();
-        for (let k = 0; k < croches; k++) if (liste.includes(k % 8)) r.add(k);
-        return r;
-    };
+    // Une POSITION du motif sur la durée de l'accord : ses croches (ks), celles qui sont soudées à la précédente (sd : une note tenue) et les niveaux
+    // de ses attaques (nv). Motif fourni : croches voisines soudées, tout en « normal ». Forme ou retouche : soudures et intensités enregistrées
+    // (« la forme garde les croches ET leurs intensités »). La croche 0 soudée = soudée à la croche 7 de la mesure d'avant (le motif qui se répète).
+    function positionDe(motif, p, croches) {
+        const liste = motif.v[p] || [], s = motif.s ? (motif.s[p] || []) : null, n = motif.n ? (motif.n[p] || {}) : null;
+        const ks = new Set(), sd = new Set(), nv = new Map();
+        for (let k = 0; k < croches; k++) if (liste.includes(k % 8)) ks.add(k);
+        ks.forEach(k => {
+            if (k > 0 && ks.has(k - 1) && (!s || s.includes(k % 8))) sd.add(k);
+            else if (n && n[k % 8]) nv.set(k, n[k % 8]);
+        });
+        return { ks, sd, nv };
+    }
+    // Deux positions fondues en une voix (accord de moins de quatre sons) : leurs croches s'ajoutent ; une croche reste soudée seulement si elle
+    // l'est partout où elle sonne (une attaque d'une des deux voix se réentend).
+    function unionPositions(...P) {
+        const ks = new Set(), sd = new Set(), nv = new Map();
+        P.forEach(x => x.ks.forEach(k => ks.add(k)));
+        ks.forEach(k => {
+            const ou = P.filter(x => x.ks.has(k));
+            if (ks.has(k - 1) && ou.every(x => x.sd.has(k))) sd.add(k);
+            else { const a = ou.find(x => x.nv.has(k)); if (a) nv.set(k, a.nv.get(k)); }
+        });
+        return { ks, sd, nv };
+    }
+    const copiePosition = (x) => ({ ks: new Set(x.ks), sd: new Set(x.sd), nv: new Map(x.nv) });
     const memesCroches = (a, b) => a.size === b.size && [...a].every(k => b.has(k));
 
     // APPLIQUER UN MOTIF À UN ACCORD (cahier, « Accords de 3, 5 ou 6 notes » et « Renversements, basses différentes ») : renvoie, pour chaque
@@ -157,32 +203,63 @@
     //    celui de la basse (Arpège) — règle confirmée le 11/11 (« Ok ça me va ») ; basse muette → la voix la plus proche en hauteur ;
     //  - une basse différente (C_E) est la voix la plus grave : elle prend le rythme de la basse, et le corps de l'accord se range au-dessus comme
     //    un accord sans elle.
+    // Rend, pour chaque voix, une position { ks, sd, nv } (voir positionDe). La règle des notes en plus compare les croches seules (« sans tenir
+    // compte des intensités ») ; la note en plus prend ensuite les intensités de la voix qu'elle suit.
     function motifSurVoix(motif, info) {
-        const P = motif.v.map(l => crochesPosition(l, info.croches)); // [basse, voix 2, voix 3, aiguë]
+        const P = [0, 1, 2, 3].map(p => positionDe(motif, p, info.croches)); // [basse, voix 2, voix 3, aiguë]
         const out = new Map();
         let ordre = info.positions.slice();
         if (info.basse != null) {
-            out.set(info.basse, new Set(P[0]));
+            out.set(info.basse, copiePosition(P[0]));
             ordre = ordre.filter(i => i !== info.basse);
         }
         const n = ordre.length;
-        const union = (...ens) => { const r = new Set(); ens.forEach(e => e.forEach(k => r.add(k))); return r; };
         if (n === 0) return out;
-        if (n === 1) { out.set(ordre[0], union(...P)); return out; }
-        if (n === 2) { out.set(ordre[0], union(P[0], P[1])); out.set(ordre[1], union(P[2], P[3])); return out; }
-        if (n === 3) { out.set(ordre[0], P[0]); out.set(ordre[1], union(P[1], P[2])); out.set(ordre[2], P[3]); return out; }
-        out.set(ordre[0], P[0]); out.set(ordre[1], P[1]); out.set(ordre[n - 2], P[2]); out.set(ordre[n - 1], P[3]);
+        if (n === 1) { out.set(ordre[0], unionPositions(...P)); return out; }
+        if (n === 2) { out.set(ordre[0], unionPositions(P[0], P[1])); out.set(ordre[1], unionPositions(P[2], P[3])); return out; }
+        if (n === 3) { out.set(ordre[0], copiePosition(P[0])); out.set(ordre[1], unionPositions(P[1], P[2])); out.set(ordre[2], copiePosition(P[3])); return out; }
+        out.set(ordre[0], copiePosition(P[0])); out.set(ordre[1], copiePosition(P[1])); out.set(ordre[n - 2], copiePosition(P[2])); out.set(ordre[n - 1], copiePosition(P[3]));
         if (n > 4) {
-            const hautCommun = memesCroches(P[1], P[2]) && memesCroches(P[2], P[3]);
+            const hautCommun = memesCroches(P[1].ks, P[2].ks) && memesCroches(P[2].ks, P[3].ks);
             for (let j = 2; j < n - 2; j++) {
                 let r;
                 if (hautCommun) r = P[1];
-                else if (P[0].size > 0) r = P[0];
+                else if (P[0].ks.size > 0) r = P[0];
                 else r = (j - 1 <= (n - 2) - j) ? P[1] : P[2]; // basse muette : la voix la plus proche (voix 2 en dessous, voix 3 au-dessus)
-                out.set(ordre[j], new Set(r));
+                out.set(ordre[j], copiePosition(r));
             }
         }
         return out;
+    }
+
+    // ENREGISTRER LA FORME (cahier, barre d'outils, point 3) : le rythme de l'accord choisi PAR POSITION, sur une mesure de huit croches — l'inverse
+    // de motifSurVoix, pour qu'une forme prise sur un accord de trois sons se rejoue à l'identique sur lui (et par position sur les autres). Une basse
+    // différente n'est pas une position : elle joue la basse du motif, c'est la voix juste au-dessus qui la dit. Les notes libres n'en font pas partie
+    // (une forme a quatre voix).
+    function formeDepuisEtat(etat) {
+        const { info } = etat;
+        let ordre = info.positions.filter(v => v !== info.basse);
+        if (!ordre.length) ordre = info.positions.slice();
+        const n = ordre.length;
+        const source = n >= 4 ? [ordre[0], ordre[1], ordre[n - 2], ordre[n - 1]]
+                     : n === 3 ? [ordre[0], ordre[1], ordre[1], ordre[2]]
+                     : n === 2 ? [ordre[0], ordre[0], ordre[1], ordre[1]]
+                     : n === 1 ? [ordre[0], ordre[0], ordre[0], ordre[0]] : [null, null, null, null];
+        const v = [], s = [], niv = [];
+        source.forEach((voix, p) => {
+            v[p] = []; s[p] = []; niv[p] = {};
+            if (voix == null) return;
+            for (let k = 0; k < Math.min(8, info.croches); k++) {
+                const c = cle(voix, k);
+                if (!etat.on.has(c)) continue;
+                v[p].push(k);
+                if (etat.soude.has(c)) s[p].push(k);
+                else if (etat.niveaux.has(c)) niv[p][k] = etat.niveaux.get(c);
+            }
+            // La croche 0 soudée à la mesure d'avant : l'accord tient sa note d'une mesure à l'autre.
+            if (info.croches > 8 && etat.soude.has(cle(voix, 8)) && v[p].includes(0) && v[p].includes(7)) s[p].push(0);
+        });
+        return { v, s, n: niv };
     }
 
     // État d'un accord une fois le motif appliqué : les voix de l'accord prennent le motif (croches voisines soudées : une note tenue), niveaux
@@ -198,10 +275,53 @@
                 if (etat.niveaux.has(c)) niveaux.set(c, etat.niveaux.get(c));
             }
         });
-        motifSurVoix(motif, info).forEach((ks, v) => {
-            ks.forEach(k => { on.add(cle(v, k)); if (ks.has(k - 1)) soude.add(cle(v, k)); });
+        motifSurVoix(motif, info).forEach((x, v) => {
+            x.ks.forEach(k => {
+                on.add(cle(v, k));
+                if (x.sd.has(k)) soude.add(cle(v, k));
+                else if (x.nv.has(k)) niveaux.set(cle(v, k), x.nv.get(k));
+            });
         });
         return { info, on, soude, niveaux };
+    }
+
+    // ---- Notes libres (cahier, barre d'outils, point 5) ----------------------------------------------------------------------------------------
+    // Une note libre est une LIGNE de la partie (« une ligne en pointillés sur tous les accords ») : la partie la retient (sec.notesLibres), et un
+    // accord ne la porte dans ses notes (data.extraNotes) que lorsqu'on y pose une croche — une note libre sans croche n'est pas une voix fantôme
+    // de l'accord (comptée dans ses diagrammes, sa pastille « voicing personnalisé »). Ajouter ou retirer une note libre décale l'index des voix qui
+    // la suivent (la basse différente est rangée après elles, voir getSeqVoices) : l'état est donc RENUMÉROTÉ, jamais réécrit à la main.
+    function renumeroter(etat, info2, f) {
+        const on = new Set(), soude = new Set(), niveaux = new Map();
+        const map = (c) => { const [v, k] = c.split(':').map(Number); const w = f(v); return w == null ? null : cle(w, k); };
+        etat.on.forEach(c => { const d = map(c); if (d) on.add(d); });
+        etat.soude.forEach(c => { const d = map(c); if (d) soude.add(d); });
+        etat.niveaux.forEach((n, c) => { const d = map(c); if (d) niveaux.set(d, n); });
+        return { info: info2, on, soude, niveaux };
+    }
+    // `m` : { etat, extraNotes } d'un accord en cours d'écriture ; `data` : l'accord (pour ses autres réglages). Rend l'index de la nouvelle voix.
+    function ajouterLibre(m, data, midi) {
+        const extra = (m.extraNotes || []).concat([noteDe(midi)]);
+        const info2 = voixDe({ ...data, extraNotes: extra });
+        const ancienne = m.etat.info.basse;
+        m.etat = renumeroter(m.etat, info2, v => (ancienne != null && v === ancienne) ? info2.basse : v);
+        m.extraNotes = extra;
+        return info2.libres[info2.libres.length - 1];
+    }
+    function retirerLibre(m, data, v) {
+        const corps = m.etat.info.corps, j = v - corps;
+        const extra = (m.extraNotes || []).filter((_, i) => i !== j);
+        const info2 = voixDe({ ...data, extraNotes: extra });
+        m.etat = renumeroter(m.etat, info2, w => w < v ? w : (w === v ? null : w - 1));
+        m.extraNotes = extra;
+    }
+    // La voix d'un accord à une hauteur donnée : une voix de l'accord d'abord, une note libre ensuite (vue « Toutes les notes ») ; `libre` : parmi
+    // les notes libres seulement (vue Voix).
+    function voixALaHauteur(info, midi, libre) {
+        const ok = (x) => x.midi === midi && (libre ? x.libre : true);
+        const corps = info.voix.find(x => ok(x) && !x.libre);
+        if (corps && !libre) return corps.index;
+        const l = info.voix.find(x => ok(x) && x.libre);
+        return l ? l.index : null;
     }
 
     // Allumer / éteindre une croche en gardant le reste : une croche posée se soude à ses voisines ; une croche enlevée coupe la barre en deux.
@@ -249,8 +369,14 @@
             this.ligne = borner(isNaN(h) ? LIGNE_DEFAUT : h, LIGNE_MIN, LIGNE_MAX);
             this._tete = null;
             this._geste = null;
+            this.vue = lireLocal(CLE_VUE) === 'notes' ? 'notes' : 'voix';
+            this.schema = null;          // le schéma en cours de retouche (clic droit sur une vignette), voir ouvrirSchema
+            this.libre = { ouvert: false, note: 'C', octave: 4 };   // la bande « Note libre » (maquette : « Ajouter C4 »)
             if (!this.racine || !this.grille) return;
             this.brancher();
+            // Une forme enregistrée, retouchée ou supprimée — ici, dans un autre onglet ou sur un autre appareil : les vignettes et le motif suivi changent.
+            const f = magasin();
+            if (f) f.surChangement(() => this.rafraichir());
         }
 
         estOrdinateur() { return window.matchMedia('(min-width: 900px)').matches; }
@@ -304,15 +430,26 @@
             const etats = accords.map(d => lireAccord(d, this.app));
             this._etats = etats;
             const nPos = Math.max(...etats.map(e => e.info.positions.length));
-            const nLib = Math.max(0, ...etats.map(e => e.info.libres.length));
-            // Lignes de haut en bas : notes libres (en pointillés), puis les voix de l'aiguë à la basse. Un accord plus pauvre que le plus riche de
-            // la partie laisse ses lignes du haut vides (cahier : « vides, sans hachures »).
+            // Les notes libres de la partie, PAR HAUTEUR : celles qu'elle retient (ajoutées par la bande « Note libre ») et celles que ses accords
+            // portent déjà (posées avec l'ancien séquenceur). Une ligne par hauteur, la même sur tous les accords.
+            const midisLibres = new Set();
+            (sec.notesLibres || []).forEach(x => { const m = midiDe(x.note, x.octave); if (!isNaN(m)) midisLibres.add(m); });
+            etats.forEach(e => e.info.libres.forEach(v => midisLibres.add(e.info.voix[v].midi)));
             const lignes = [];
-            for (let j = nLib - 1; j >= 0; j--) lignes.push({ type: 'libre', j });
-            for (let p = nPos - 1; p >= 0; p--) lignes.push({ type: 'voix', p });
+            if (this.vue === 'notes') {
+                // « TOUTES LES NOTES » (planche 2) : seulement les hauteurs utilisées par la partie (jamais 60 lignes), de la plus aiguë à la plus grave.
+                const toutes = new Set(midisLibres);
+                etats.forEach(e => e.info.voix.forEach(x => toutes.add(x.midi)));
+                [...toutes].sort((a, b) => b - a).forEach(midi => lignes.push({ type: 'hauteur', midi }));
+            } else {
+                // Lignes de haut en bas : notes libres (en pointillés), puis les voix de l'aiguë à la basse. Un accord plus pauvre que le plus riche de
+                // la partie laisse ses lignes du haut vides (cahier : « vides, sans hachures »).
+                [...midisLibres].sort((a, b) => b - a).forEach(midi => lignes.push({ type: 'libre', midi }));
+                for (let p = nPos - 1; p >= 0; p--) lignes.push({ type: 'voix', p });
+            }
             this._lignes = lignes;
-            const voixLigne = (e, L) => L.type === 'libre' ? (e.info.libres[L.j] != null ? e.info.libres[L.j] : null)
-                                                       : (e.info.positions[L.p] != null ? e.info.positions[L.p] : null);
+            const voixLigne = (e, L) => L.type === 'voix' ? (e.info.positions[L.p] != null ? e.info.positions[L.p] : null)
+                                                      : voixALaHauteur(e.info, L.midi, L.type === 'libre');
             this._voixLigne = voixLigne;
 
             const bpb = this.app.beatsPerBar();
@@ -362,13 +499,20 @@
                 html.push(`<div class="sq-boucle" role="button" tabindex="0" aria-label="Retirer la plage à boucler" title="Cliquer pour retirer la plage à boucler" style="grid-row:2;grid-column:${a} / ${fin}"></div>`);
             }
             // Les lignes : étiquette (le nom de la note de l'accord choisi, dessiné comme une touche de piano), puis les cases.
+            // NOTE LIBRE : le bouton « note de musique » est À GAUCHE, dans la colonne des noms de notes, juste au-dessus d'eux, en face de la règle
+            // (« ni en dessous, où il se déplaçait à chaque ligne ajoutée, ni dans la barre d'outils », 11/11).
+            html.push(`<button type="button" class="sq-libre-btn" aria-pressed="${this.libre.ouvert}" aria-label="Ajouter une note libre" title="Ajouter une note libre : choisir son nom et son octave, puis la poser dans le séquenceur" style="grid-row:1 / 3;grid-column:1"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/><path d="M4 4h4M6 2v4"/></svg></button>`);
+            const flatsPartie = flats(accords[i != null ? i : 0]);
             const eSel = i != null ? etats[i] : etats[0], dSel = i != null ? accords[i] : accords[0];
             lignes.forEach((L, ri) => {
                 const row = ri + 3;
                 const vSel = voixLigne(eSel, L);
-                const nomSel = vSel != null ? nomNote(eSel, vSel, dSel) : '';
-                const diese = /[#♯♭b]/.test(nomSel.replace(/^[A-G]/, '').replace(/-?\d+$/, ''));
-                html.push(`<div class="sq-etiq${diese ? ' diese' : ''}${L.type === 'libre' ? ' libre' : ''}" style="grid-row:${row};grid-column:1">${escapeHtml(nomSel)}</div>`);
+                // Vue Voix : le nom de la note de l'accord choisi ; une note libre ou une ligne de « Toutes les notes » : SA hauteur, la même partout.
+                const nomSel = L.type === 'voix' ? (vSel != null ? nomNote(eSel, vSel, dSel) : '') : midiToDisplayName(L.midi, flatsPartie);
+                const diese = L.type === 'voix' ? /[#♯♭b]/.test(nomSel.replace(/^[A-G]/, '').replace(/-?\d+$/, '')) : [1, 3, 6, 8, 10].includes(((L.midi % 12) + 12) % 12);
+                const retirer = L.type === 'libre'
+                    ? `<button type="button" class="sq-libre-retirer" data-midi="${L.midi}" aria-label="Retirer la note libre ${escapeHtml(nomSel)}" title="Retirer la note libre ${escapeHtml(nomSel)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : '';
+                html.push(`<div class="sq-etiq${diese ? ' diese' : ''}${L.type === 'libre' ? ' libre' : ''}" style="grid-row:${row};grid-column:1">${retirer}${escapeHtml(nomSel)}</div>`);
                 accords.forEach((d, c) => {
                     const e = etats[c], v = voixLigne(e, L), col = colDebut[c];
                     for (let k = 0; k < e.info.croches; k++) {
@@ -378,8 +522,14 @@
                         if (c === i) cls.push('choisi');
                         if (boucle && c >= boucle[0] && c <= boucle[1]) cls.push('dans-boucle');
                         if (ri % 2 === 1) cls.push('pair');
-                        if (v == null) {
+                        if (v == null && L.type === 'voix') {
                             html.push(`<div class="${cls.join(' ')} sans-voix" style="grid-row:${row};grid-column:${col + k}"></div>`);
+                            continue;
+                        }
+                        if (v == null) {
+                            // Une note libre (ou une hauteur) que cet accord ne porte pas encore : case normale et cliquable (« c'est bizarre », les cases
+                            // grisées) — y poser une croche ajoute la note à l'accord.
+                            html.push(`<div class="${cls.join(' ')}" role="gridcell" aria-label="${escapeHtml(`${nomSel}, croche ${k + 1} : vide`)}" data-c="${c}" data-k="${k}" data-r="${ri}" style="grid-row:${row};grid-column:${col + k}"></div>`);
                             continue;
                         }
                         const x = e.info.voix[v];
@@ -411,19 +561,44 @@
         majBarreOutils(accords, i) {
             const d = i != null ? accords[i] : null;
             const actuel = d ? motifActuel(d) : null;
+            // Les formes de l'utilisateur, après les motifs fournis : vignette, nom, petit × pour la supprimer (maquette v17).
+            const zone = document.getElementById('sq-formes');
+            if (zone) {
+                const formes = formesUtilisateur();
+                const sig = formes.map(f => f.id + '@' + f.at).join('|');
+                if (zone.dataset.sig !== sig) {
+                    zone.dataset.sig = sig;
+                    zone.innerHTML = formes.map(f => `<span class="sq-forme"><button type="button" class="sq-motif" data-sq-motif="${escapeHtml(f.id)}" aria-pressed="false" title="${escapeHtml(f.nom)} — clic droit : modifier ce schéma"><span class="sq-vignette" aria-hidden="true"></span><span>${escapeHtml(f.nom)}</span></button><button type="button" class="sq-forme-suppr" data-sq-suppr="${escapeHtml(f.id)}" aria-label="Supprimer la forme « ${escapeHtml(f.nom)} »" title="Supprimer la forme « ${escapeHtml(f.nom)} »"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></span>`).join('');
+                }
+            }
             this.racine.querySelectorAll('[data-sq-motif]').forEach(b => {
-                const id = b.dataset.sqMotif, m = MOTIF_PAR_ID[id];
+                const id = b.dataset.sqMotif, m = motifParId(id);
+                if (!m) return;
                 b.setAttribute('aria-pressed', String(id === actuel));
+                b.classList.toggle('retouche', !!m.retouche);
+                const nom = b.querySelector('span:not(.sq-vignette)');
+                if (nom && nom.textContent !== m.nom) nom.textContent = m.nom;
+                if (id !== 'main') b.title = `${m.nom} — clic droit : modifier ce schéma${m.retouche ? ' (retouché)' : ''}`;
                 const vg = b.querySelector('.sq-vignette');
-                if (vg && !vg.childElementCount) {
+                if (vg) {
+                    // Redessinée à chaque fois : une retouche (ici ou ailleurs) change le dessin d'un motif fourni.
                     const p = [];
-                    for (let pos = 3; pos >= 0; pos--) for (let k = 0; k < 8; k++) {
-                        const lit = m.v[pos].includes(k), av = lit && m.v[pos].includes(k - 1), ap = lit && m.v[pos].includes(k + 1);
-                        p.push(`<span class="${lit ? 'lit' : ''}${av ? ' g' : ''}${ap ? ' d' : ''}"></span>`);
+                    for (let pos = 3; pos >= 0; pos--) {
+                        const x = positionDe(m, pos, 8);
+                        for (let k = 0; k < 8; k++) {
+                            const lit = x.ks.has(k), av = lit && x.sd.has(k), ap = lit && x.sd.has(k + 1);
+                            p.push(`<span class="${lit ? 'lit' : ''}${av ? ' g' : ''}${ap ? ' d' : ''}"></span>`);
+                        }
                     }
-                    vg.innerHTML = p.join('');
+                    const html = p.join('');
+                    if (vg.innerHTML !== html) vg.innerHTML = html;
                 }
             });
+            const enreg = document.getElementById('sq-forme-enregistrer');
+            if (enreg) enreg.disabled = !d;
+            const vv = document.getElementById('sq-vue-voix'), vn = document.getElementById('sq-vue-notes');
+            if (vv) vv.setAttribute('aria-pressed', String(this.vue === 'voix'));
+            if (vn) vn.setAttribute('aria-pressed', String(this.vue === 'notes'));
             const pp = document.getElementById('sq-portee-partie'), pa = document.getElementById('sq-portee-accord');
             if (pp) pp.setAttribute('aria-pressed', String(this.portee === 'partie'));
             if (pa) pa.setAttribute('aria-pressed', String(this.portee === 'accord'));
@@ -461,7 +636,8 @@
 
         // ---- Écriture dans le morceau ---------------------------------------------------------------------------------------------
         // Un geste = une annulation (pushUndo AVANT d'écrire, une seule fois). `modifs` reçoit les données de chaque accord touché (index → état).
-        ecrire(modifs, geste) {
+        // `surPartie(sec)` : ce que le geste change à la partie elle-même (ses notes libres), dans la même annulation.
+        ecrire(modifs, geste, surPartie) {
             const sections = loadProgressionSections();
             const sec = sections[this._s];
             if (!sec) return;
@@ -469,9 +645,22 @@
                 this.app.pushUndo(sections);
                 if (geste) geste.annulationPosee = true;
             }
+            if (surPartie) surPartie(sec);
             modifs.forEach((m, c) => {
                 const d = sec.chords[c];
                 if (!d) return;
+                if (m.extraNotes) {
+                    // Une note libre sans plus une croche dans cet accord le quitte (pas de voix fantôme) ; la LIGNE reste, retenue par la partie,
+                    // jusqu'à son × (cahier : « petit × sur la ligne pour la retirer »).
+                    let muette;
+                    while ((muette = m.etat.info.libres.find(v => ![...m.etat.on].some(c2 => c2.startsWith(v + ':')))) != null) {
+                        const x = m.etat.info.voix[muette];
+                        const liste = sec.notesLibres || (sec.notesLibres = []);
+                        if (!liste.some(n => midiDe(n.note, n.octave) === x.midi)) liste.push(noteDe(x.midi));
+                        retirerLibre(m, d, muette);
+                    }
+                    d.extraNotes = m.extraNotes.map(x => ({ note: x.note, octave: x.octave }));
+                }
                 ecrireAccord(d, m.etat);
                 // « À la main » n'est pas écrit : c'est ce que suit tout accord retouché sans motif (voir motifActuel).
                 if (m.motif !== undefined) { if (m.motif && m.motif !== 'main') d.motifSeq = m.motif; else delete d.motifSeq; }
@@ -494,16 +683,14 @@
             this.app.loadProgression();
         }
 
-        async jouerNote(c, v, niveau) {
-            const e = this._etats && this._etats[c];
-            const x = e && e.info.voix[v];
-            if (!x || !window.Tone) return;
+        async jouerNote(c, midi, niveau) {
+            if (midi == null || !window.Tone) return;
             try {
                 await Tone.start();
                 const inst = this.app.getInstrument(this.app.songInstrument);
                 const pct = niveau === 'normal' ? (this.accord(c).intensity || 75) : NIVEAU_VALEUR[niveau];
                 const vel = Math.max(0.05, Math.min(1, (pct / 75) * 0.8 * 0.85));
-                inst.triggerAttackRelease(Tone.Frequency(x.midi, 'midi').toNote(), 0.35, undefined, vel);
+                inst.triggerAttackRelease(Tone.Frequency(midi, 'midi').toNote(), 0.35, undefined, vel);
             } catch (err) {
                 console.warn('Note du séquenceur non jouée (instrument pas encore prêt) :', err.message);
             }
@@ -519,6 +706,33 @@
             window.addEventListener('pointercancel', () => { this._geste = null; });
             this.grille.addEventListener('keydown', (e) => {
                 if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('sq-boucle')) { e.preventDefault(); this.retirerBoucle(); }
+            });
+            // CLIC DROIT SUR UNE VIGNETTE (sauf « À la main ») : modifier ce schéma. Le menu du navigateur n'a rien à faire ici.
+            this.racine.addEventListener('contextmenu', (e) => {
+                const b = e.target.closest('[data-sq-motif]');
+                if (!b || b.dataset.sqMotif === 'main') return;
+                e.preventDefault();
+                e.stopPropagation();
+                this.ouvrirSchema(b.dataset.sqMotif);
+            });
+            // Les champs de nom : Entrée valide, Échap annule (et rien d'autre de l'appli ne réagit à ces touches pendant qu'on tape).
+            const touches = (id, valider, annuler) => {
+                const champ = document.getElementById(id);
+                if (!champ) return;
+                champ.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); valider(); }
+                    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); annuler(); }
+                });
+            };
+            touches('sq-forme-nom', () => this.enregistrerForme(), () => this.ouvrirSaisieForme(false));
+            touches('sq-schema-nom', () => this.enregistrerSchema(), () => this.fermerSchema());
+            const nomForme = document.getElementById('sq-forme-nom');
+            if (nomForme) nomForme.addEventListener('input', () => this.majSaisieForme());
+            // Échap dans une bande ouverte (hors champ) la referme.
+            this.racine.addEventListener('keydown', (e) => {
+                if (e.key !== 'Escape') return;
+                if (this.schema) { e.stopPropagation(); this.fermerSchema(); }
+                else if (this.libre.ouvert) { e.stopPropagation(); this.ouvrirBandeLibre(false); }
             });
             if (this.bouton) this.bouton.addEventListener('click', () => this.basculer());
             const fermer = document.getElementById('sq-fermer');
@@ -536,18 +750,83 @@
             const b = e.target.closest('button');
             if (!b || !this.racine.contains(b) || b.disabled) return;
             if (b.dataset.sqMotif) { this.appliquerMotif(b.dataset.sqMotif); return; }
+            if (b.dataset.sqSuppr) { this.supprimerForme(b.dataset.sqSuppr); return; }
+            if (b.dataset.sqNote) { this.libre.note = b.dataset.sqNote; this.majBandeLibre(); this.jouerMidi(this.midiLibre()); return; }
+            if (b.dataset.sqSchema) { this.basculerSchema(+b.dataset.sqSchema, +b.dataset.k); return; }
+            if (b.classList.contains('sq-libre-btn')) { this.ouvrirBandeLibre(!this.libre.ouvert); return; }
+            if (b.classList.contains('sq-libre-retirer')) { this.retirerLigneLibre(+b.dataset.midi); return; }
             switch (b.id) {
                 case 'sq-portee-partie': this.portee = 'partie'; ecrireLocal(CLE_PORTEE, 'partie'); this.rafraichir(); break;
                 case 'sq-portee-accord': this.portee = 'accord'; ecrireLocal(CLE_PORTEE, 'accord'); this.rafraichir(); break;
+                case 'sq-vue-voix': this.vue = 'voix'; ecrireLocal(CLE_VUE, 'voix'); this.rafraichir(); break;
+                case 'sq-vue-notes': this.vue = 'notes'; ecrireLocal(CLE_VUE, 'notes'); this.rafraichir(); break;
                 case 'sq-intensite': this.intensite = !this.intensite; this.rafraichir(); break;
                 case 'sq-copier': this.copier(); break;
                 case 'sq-coller': this.coller(); break;
                 case 'sq-effacer': this.effacer(); break;
+                case 'sq-forme-enregistrer': this.ouvrirSaisieForme(true); break;
+                case 'sq-forme-valider': this.enregistrerForme(); break;
+                case 'sq-forme-annuler': this.ouvrirSaisieForme(false); break;
+                case 'sq-libre-moins': this.libre.octave = Math.max(1, this.libre.octave - 1); this.majBandeLibre(); this.jouerMidi(this.midiLibre()); break;
+                case 'sq-libre-plus': this.libre.octave = Math.min(6, this.libre.octave + 1); this.majBandeLibre(); this.jouerMidi(this.midiLibre()); break;
+                case 'sq-libre-ajouter': this.ajouterLigneLibre(); break;
+                case 'sq-libre-annuler': this.ouvrirBandeLibre(false); break;
+                case 'sq-schema-ecouter': this.ecouterSchema(); break;
+                case 'sq-schema-enregistrer': this.enregistrerSchema(); break;
+                case 'sq-schema-annuler': this.fermerSchema(); break;
+                case 'sq-schema-retablir': this.retablirMotif(); break;
+                case 'sq-schema-supprimer': { const id = this.schema && this.schema.id; this.fermerSchema(); if (id) this.supprimerForme(id); break; }
             }
         }
 
+        // ---- Formes enregistrées (cahier, barre d'outils, point 3) ------------------------------------------------------------------------------
+        // Un clic sur le marque-page propose d'office un nom (« Forme 1 », sélectionné) ; Entrée valide, Échap annule.
+        ouvrirSaisieForme(ouvrir) {
+            const zone = document.getElementById('sq-forme-saisie'), b = document.getElementById('sq-forme-enregistrer'), champ = document.getElementById('sq-forme-nom');
+            if (!zone || !b || !champ) return;
+            if (ouvrir && this._i == null) return;
+            zone.hidden = !ouvrir;
+            b.hidden = !!ouvrir;
+            if (!ouvrir) { b.focus(); return; }
+            const pris = new Set(formesUtilisateur().map(f => f.nom));
+            let n = 1;
+            while (pris.has('Forme ' + n)) n++;
+            champ.value = 'Forme ' + n;
+            this.majSaisieForme();
+            champ.focus();
+            champ.select();
+        }
+        majSaisieForme() {
+            const champ = document.getElementById('sq-forme-nom'), ok = document.getElementById('sq-forme-valider');
+            if (champ && ok) ok.disabled = !champ.value.trim();
+        }
+        enregistrerForme() {
+            const champ = document.getElementById('sq-forme-nom'), f = magasin();
+            const nom = champ ? champ.value.trim() : '';
+            if (!nom || !f || this._i == null) return;
+            const dessin = formeDepuisEtat(this._etats[this._i]);
+            const forme = f.enregistrer({ id: f.nouvelId(), type: 'forme', nom, v: dessin.v, s: dessin.s, n: dessin.n });
+            this.ouvrirSaisieForme(false);
+            if (!forme) return;
+            // L'accord dont on vient de prendre la forme la suit désormais (ses notes sont déjà les siennes : rien n'est réécrit).
+            const e = this._etats[this._i];
+            this.ecrire(new Map([[this._i, { etat: e, motif: forme.id }]]));
+            this.app.flashHint && this.app.flashHint(`Forme « ${forme.nom} » enregistrée`);
+        }
+        // Supprimer une forme : elle disparaît partout (synchro-formes.js) ; les accords qui la suivaient gardent leurs notes et passent « À la main »
+        // (motifActuel ne la trouve plus).
+        supprimerForme(id) {
+            const f = magasin();
+            if (!f) return;
+            const x = f.lire(id);
+            if (!x || x.type !== 'forme') return;
+            if (this.schema && this.schema.id === id) this.fermerSchema();
+            f.supprimer(id);
+            this.app.flashHint && this.app.flashHint(`Forme « ${x.nom} » supprimée`);
+        }
+
         appliquerMotif(id) {
-            const m = MOTIF_PAR_ID[id];
+            const m = motifParId(id);
             if (!m || id === 'main' || !this._etats || !this._etats.length) return; // « À la main » : rien à appliquer, il s'allume tout seul
             const cibles = this.portee === 'partie' ? this._etats.map((_, c) => c) : (this._i != null ? [this._i] : []);
             const modifs = new Map();
@@ -597,6 +876,174 @@
             this.ecrire(new Map([[this._i, { etat, motif: 'main' }]]));
         }
 
+        // ---- La bande « Note libre » : nom (C … B, dièses), octave − / +, « Ajouter C4 » --------------------------------------------------------
+        midiLibre() { return midiDe(this.libre.note, this.libre.octave); }
+        ouvrirBandeLibre(ouvrir) {
+            this.libre.ouvert = !!ouvrir;
+            if (ouvrir) this.fermerSchema();
+            this.majBandeLibre();
+            const btn = this.grille.querySelector('.sq-libre-btn');
+            if (btn) btn.setAttribute('aria-pressed', String(this.libre.ouvert));
+            if (ouvrir) { const a = document.getElementById('sq-libre-ajouter'); if (a) a.focus(); }
+            this.limiterHauteur();
+        }
+        majBandeLibre() {
+            const bande = document.getElementById('sq-libre-bande');
+            if (!bande) return;
+            bande.hidden = !this.libre.ouvert;
+            bande.querySelectorAll('[data-sq-note]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.sqNote === this.libre.note)));
+            const o = document.getElementById('sq-libre-octave');
+            if (o) o.textContent = String(this.libre.octave);
+            const a = document.getElementById('sq-libre-ajouter');
+            if (a) a.textContent = 'Ajouter ' + this.libre.note + this.libre.octave;
+        }
+        // Crée la LIGNE (cahier : « une ligne en pointillés sur tous les accords, cases toutes normales et cliquables : on pose les croches là où on
+        // veut ») : la partie la retient, aucun accord ne change de son. Une annulation.
+        ajouterLigneLibre() {
+            const midi = this.midiLibre();
+            const deja = (this._lignes || []).some(L => L.type !== 'voix' && L.midi === midi);
+            this.ouvrirBandeLibre(false);
+            if (deja) { this.app.flashHint && this.app.flashHint(`${this.libre.note}${this.libre.octave} est déjà une ligne du séquenceur`); return; }
+            this.ecrire(new Map(), null, (sec) => { (sec.notesLibres || (sec.notesLibres = [])).push(noteDe(midi)); });
+        }
+        // Le × d'une ligne : la note quitte la partie ET chacun de ses accords (avec ses croches). Une annulation.
+        retirerLigneLibre(midi) {
+            const { accords } = this.cible();
+            const modifs = new Map();
+            (this._etats || []).forEach((e, c) => {
+                const d = accords[c];
+                if (!d) return;
+                const m = { etat: e, extraNotes: (d.extraNotes || []).map(x => ({ ...x })), motif: undefined };
+                let v, touche = false;
+                while ((v = voixALaHauteur(m.etat.info, midi, true)) != null) { retirerLibre(m, d, v); touche = true; }
+                if (touche) modifs.set(c, m);
+            });
+            this.ecrire(modifs, null, (sec) => {
+                sec.notesLibres = (sec.notesLibres || []).filter(n => midiDe(n.note, n.octave) !== midi);
+                if (!sec.notesLibres.length) delete sec.notesLibres;
+            });
+        }
+
+        // ---- Modifier un schéma (clic droit sur une vignette) -------------------------------------------------------------------------------
+        // « Un schéma SANS notes (4 voix × 8 croches) retouché dans une petite bande dépliée sous la barre d'outils, pas sur la vraie grille » : la grille
+        // est liée à un accord, le schéma vaut pour tous (règle « par position »). « À la main » n'a pas de clic droit (rien à retoucher).
+        ouvrirSchema(id) {
+            const m = motifParId(id);
+            if (!m || id === 'main') return;
+            this.ouvrirBandeLibre(false);
+            this.ouvrirSaisieForme(false);
+            // L'état de travail : une « voix » par position (0 = basse … 3 = aiguë), les soudures et intensités du motif.
+            const info = { croches: 8 };
+            const on = new Set(), soude = new Set(), niveaux = new Map();
+            for (let p = 0; p < 4; p++) {
+                const x = positionDe(m, p, 8);
+                x.ks.forEach(k => { on.add(cle(p, k)); if (x.sd.has(k)) soude.add(cle(p, k)); else if (x.nv.has(k)) niveaux.set(cle(p, k), x.nv.get(k)); });
+                if (m.s && (m.s[p] || []).includes(0)) soude.add(cle(p, 0)); // tenue d'une mesure à l'autre : gardée telle quelle
+            }
+            this.schema = { id, fourni: m.fourni, retouche: !!m.retouche, etat: { info, on, soude, niveaux } };
+            const champ = document.getElementById('sq-schema-nom');
+            if (champ) champ.value = m.nom;
+            this.majSchema();
+            const bande = document.getElementById('sq-schema');
+            if (bande) bande.hidden = false;
+            if (champ) champ.focus();
+            this.limiterHauteur();
+        }
+        fermerSchema() {
+            const ouvert = !!this.schema;
+            this.schema = null;
+            const bande = document.getElementById('sq-schema');
+            if (bande) bande.hidden = true;
+            if (ouvert) this.limiterHauteur();
+        }
+        majSchema() {
+            const S = this.schema, g = document.getElementById('sq-schema-grille');
+            if (!S || !g) return;
+            const h = [];
+            for (let p = 3; p >= 0; p--) for (let k = 0; k < 8; k++) {
+                const c = cle(p, k), lit = S.etat.on.has(c);
+                const sg = lit && k > 0 && S.etat.soude.has(c), sd = lit && S.etat.soude.has(cle(p, k + 1)) && S.etat.on.has(cle(p, k + 1));
+                h.push(`<button type="button" class="sq-schema-case${lit ? ' on' : ''}${sg ? ' g' : ''}${sd ? ' d' : ''}${k % 2 === 0 ? ' temps' : ''}" data-sq-schema="${p}" data-k="${k}" aria-pressed="${lit}" aria-label="Voix ${p + 1}, croche ${k + 1} : ${lit ? 'posée' : 'vide'}" style="grid-row:${4 - p};grid-column:${k + 1}"></button>`);
+            }
+            g.innerHTML = h.join('');
+            const ret = document.getElementById('sq-schema-retablir'), sup = document.getElementById('sq-schema-supprimer');
+            if (ret) ret.hidden = !(S.fourni && S.retouche);
+            if (sup) sup.hidden = S.fourni;
+        }
+        basculerSchema(p, k) {
+            const S = this.schema;
+            if (!S) return;
+            const c = cle(p, k);
+            poserCroche(S.etat, p, k, !S.etat.on.has(c));
+            this.majSchema();
+        }
+        dessinSchema() {
+            const S = this.schema, v = [[], [], [], []], s = [[], [], [], []], n = [{}, {}, {}, {}];
+            for (let p = 0; p < 4; p++) for (let k = 0; k < 8; k++) {
+                const c = cle(p, k);
+                if (!S.etat.on.has(c)) continue;
+                v[p].push(k);
+                if (S.etat.soude.has(c)) s[p].push(k);
+                else if (S.etat.niveaux.has(c)) n[p][k] = S.etat.niveaux.get(c);
+            }
+            return { v, s, n };
+        }
+        // ▶ : le schéma retouché, joué sur l'accord choisi (sans rien écrire).
+        ecouterSchema() {
+            if (!this.schema || this._i == null) return;
+            const d = this.accord(this._i);
+            const essai = JSON.parse(JSON.stringify(d));
+            ecrireAccord(essai, etatAvecMotif(lireAccord(essai, this.app), { ...this.dessinSchema(), id: this.schema.id }));
+            this.app.playSavedChord(this._s, this._i, true, essai);
+        }
+        // Enregistrer : la retouche (motif fourni) ou la forme, au compte ; « les accords qui suivent ce schéma le suivent dans sa nouvelle version ».
+        enregistrerSchema() {
+            const S = this.schema, f = magasin();
+            if (!S || !f) return;
+            const champ = document.getElementById('sq-schema-nom');
+            const base = motifParId(S.id);
+            const nom = (champ && champ.value.trim()) || (base ? base.nom : '');
+            f.enregistrer({ id: S.id, type: S.fourni ? 'retouche' : 'forme', nom, ...this.dessinSchema() });
+            this.fermerSchema();
+            this.reappliquer(S.id);
+        }
+        retablirMotif() {
+            const S = this.schema, f = magasin();
+            if (!S || !S.fourni || !f) return;
+            f.supprimer(S.id);
+            this.fermerSchema();
+            this.reappliquer(S.id);
+        }
+        // Les accords du morceau qui suivent ce motif reprennent sa version du moment (toutes les parties, une annulation). Ceux d'AUTRES morceaux la
+        // prendront quand on y réappliquera le motif : réécrire toute la bibliothèque d'un clic droit serait une surprise, et il faudrait l'annuler morceau
+        // par morceau.
+        reappliquer(id) {
+            const m = motifParId(id);
+            if (!m) return;
+            const sections = loadProgressionSections();
+            const touches = [];
+            sections.forEach((sec, s) => (sec.chords || []).forEach((d, c) => { if (motifActuel(d) === id) touches.push([s, c]); }));
+            if (!touches.length) { this.rafraichir(); return; }
+            this.app.pushUndo(sections);
+            touches.forEach(([s, c]) => {
+                const d = sections[s].chords[c];
+                ecrireAccord(d, etatAvecMotif(lireAccord(d, this.app), m));
+                if (id !== 'main') d.motifSeq = id;
+            });
+            saveProgressionSections(sections);
+            const app = this.app;
+            if (app.editingIndex != null && touches.some(([s, c]) => s === app.activeSection && c === app.editingIndex)) app.editionParSuivi(app.activeSection, app.editingIndex);
+            else app.loadProgression();
+        }
+
+        jouerMidi(midi) {
+            if (!window.Tone || isNaN(midi)) return;
+            Promise.resolve().then(() => Tone.start()).then(() => {
+                const inst = this.app.getInstrument(this.app.songInstrument);
+                inst.triggerAttackRelease(Tone.Frequency(midi, 'midi').toNote(), 0.35, undefined, 0.6);
+            }).catch(err => console.warn('Note libre non jouée (instrument pas encore prêt) :', err.message));
+        }
+
         retirerBoucle() {
             this.app.loopRange = null;
             this.app.loadProgression();
@@ -621,13 +1068,32 @@
             }
             const nom = t.closest('.sq-nom');
             if (nom) { e.preventDefault(); this.app.selectChord(this._s, +nom.dataset.c); return; }
-            const caseEl = t.closest('.sq-case[data-v]');
+            const caseEl = t.closest('.sq-case[data-r]');
             if (!caseEl) return;
             e.preventDefault();
-            const c = +caseEl.dataset.c, v = +caseEl.dataset.v, k = +caseEl.dataset.k, r = +caseEl.dataset.r;
+            const c = +caseEl.dataset.c, k = +caseEl.dataset.k, r = +caseEl.dataset.r;
+            const v = caseEl.dataset.v != null ? +caseEl.dataset.v : null;
             const etat = this._etats[c];
-            const allume = etat.on.has(cle(v, k));
-            this._geste = { type: this.intensite ? 'intensite' : 'peinture', r, mode: allume ? 'off' : 'on', depart: { c, v, k }, faites: new Set(), etats: new Map(), annulationPosee: false, bouge: false };
+            const allume = v != null && etat.on.has(cle(v, k));
+            this._geste = { type: this.intensite ? 'intensite' : 'peinture', r, mode: allume ? 'off' : 'on', depart: { c, k }, faites: new Set(), etats: new Map(), annulationPosee: false, bouge: false };
+        }
+
+        // L'accord `c` en cours d'écriture par un geste : une copie de son état et de ses notes libres (voir ecrire).
+        enCours(g, c) {
+            if (!g.etats.has(c)) {
+                const e = this._etats[c], d = this.accord(c);
+                g.etats.set(c, { etat: { info: e.info, on: new Set(e.on), soude: new Set(e.soude), niveaux: new Map(e.niveaux) }, motif: 'main', extraNotes: (d.extraNotes || []).map(x => ({ ...x })) });
+            }
+            return g.etats.get(c);
+        }
+        // La voix de la ligne `r` dans l'accord en cours d'écriture ; une note libre (ou une hauteur de « Toutes les notes ») qu'il ne porte pas encore
+        // y est AJOUTÉE si `creer` (on pose une croche).
+        voixDuGeste(m, c, r, creer) {
+            const L = this._lignes[r];
+            if (!L) return null;
+            const v = this._voixLigne(m.etat, L);
+            if (v != null || !creer || L.type === 'voix') return v;
+            return ajouterLibre(m, this.accord(c), L.midi);
         }
 
         surMouvement(e) {
@@ -643,25 +1109,23 @@
             }
             if (g.type !== 'peinture') return;
             const el = document.elementFromPoint(e.clientX, e.clientY);
-            const caseEl = el && el.closest && el.closest('#sq-grille .sq-case[data-v]');
+            const caseEl = el && el.closest && el.closest('#sq-grille .sq-case[data-r]');
             if (!caseEl || +caseEl.dataset.r !== g.r) return; // on peint sur la ligne de départ seulement
-            const c = +caseEl.dataset.c, v = +caseEl.dataset.v, k = +caseEl.dataset.k;
+            const c = +caseEl.dataset.c, k = +caseEl.dataset.k;
             if (c === g.depart.c && k === g.depart.k && !g.bouge) return;
-            if (!g.bouge) { g.bouge = true; this.peindre(g, g.depart.c, g.depart.v, g.depart.k); }
-            this.peindre(g, c, v, k);
+            if (!g.bouge) { g.bouge = true; this.peindre(g, g.depart.c, g.depart.k); }
+            this.peindre(g, c, k);
         }
 
-        peindre(g, c, v, k) {
+        peindre(g, c, k) {
             const id = c + '/' + k;
             if (g.faites.has(id)) return;
             g.faites.add(id);
-            if (!g.etats.has(c)) {
-                const e = this._etats[c];
-                g.etats.set(c, { etat: { info: e.info, on: new Set(e.on), soude: new Set(e.soude), niveaux: new Map(e.niveaux) }, motif: 'main' });
-            }
-            const m = g.etats.get(c);
+            const m = this.enCours(g, c);
+            const v = this.voixDuGeste(m, c, g.r, g.mode === 'on');
+            if (v == null) return;
             if (!poserCroche(m.etat, v, k, g.mode === 'on')) return;
-            if (g.mode === 'on') this.jouerNote(c, v, 'normal');
+            if (g.mode === 'on') this.jouerNote(c, m.etat.info.voix[v].midi, 'normal');
             // Écrit à chaque case traversée (le dessin suit le doigt), sous UNE seule annulation pour tout le geste.
             this.ecrire(new Map([[c, m]]), g);
             this._etats[c] = { ...m.etat, motif: 'main' };
@@ -674,9 +1138,11 @@
             if (g.type === 'retirer-boucle') { this.retirerBoucle(); return; }
             if (g.type === 'boucle') { this.app.setLoopRange(this._s, g.c0, this._s, g.c1); return; }
             if (g.bouge) return; // un glissé : tout est déjà peint
-            const { c, v, k } = g.depart;
-            const lu = this._etats[c];
-            const etat = { info: lu.info, on: new Set(lu.on), soude: new Set(lu.soude), niveaux: new Map(lu.niveaux) };
+            const { c, k } = g.depart;
+            const m = this.enCours(g, c);
+            const v = this.voixDuGeste(m, c, g.r, true);
+            if (v == null) return;
+            const etat = m.etat;
             let entendre = null;
             if (g.type === 'intensite' && etat.on.has(cle(v, k))) {
                 // normal → fort → doux → enlevée, porté par l'attaque de la barre (une barre a un seul niveau : celui de sa première croche).
@@ -689,9 +1155,11 @@
                 poserCroche(etat, v, k, true);
                 entendre = niveauDe(etat, v, k);
             }
+            // La hauteur est lue AVANT d'écrire : une note libre muette élaguée par l'écriture renumérote les voix qui la suivent.
+            const midi = etat.info.voix[v] ? etat.info.voix[v].midi : null;
             this.choisirSansJouer(c);
-            this.ecrire(new Map([[c, { etat, motif: 'main' }]]));
-            if (entendre) this.jouerNote(c, v, entendre);
+            this.ecrire(new Map([[c, m]]));
+            if (entendre && midi != null) this.jouerNote(c, midi, entendre);
         }
 
         // ---- Poignée de hauteur des lignes (cahier 3 bis, « règle définitive ») ------------------------------------------------------
@@ -754,5 +1222,5 @@
         }
     }
 
-    window.SequenceurHarmo = { Sequenceur, MOTIFS, lireAccord, ecrireAccord, motifSurVoix, etatAvecMotif, voixDe, LIGNE_MIN, LIGNE_MAX, LIGNE_DEFAUT };
+    window.SequenceurHarmo = { Sequenceur, MOTIFS, lireAccord, ecrireAccord, motifSurVoix, etatAvecMotif, voixDe, motifParId, motifActuel, formeDepuisEtat, LIGNE_MIN, LIGNE_MAX, LIGNE_DEFAUT };
 })();

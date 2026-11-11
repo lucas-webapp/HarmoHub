@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611112100">
+    <link rel="stylesheet" href="style.css?v=202611120100">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611112100">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611120100">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1857,8 +1857,25 @@
                 <button type="button" id="sq-motif-pompe" class="sq-motif" data-sq-motif="pompe" aria-pressed="false"><span class="sq-vignette" aria-hidden="true"></span><span>Pompe</span></button>
                 <button type="button" id="sq-motif-ballade" class="sq-motif" data-sq-motif="ballade" aria-pressed="false"><span class="sq-vignette" aria-hidden="true"></span><span>Ballade</span></button>
                 <button type="button" id="sq-motif-main" class="sq-motif" data-sq-motif="main" aria-pressed="false" title="À la main : s'allume dès qu'on retouche une note"><span class="sq-vignette" aria-hidden="true"></span><span>À la main</span></button>
+                <!-- Les formes enregistrées par l'utilisateur (vignette, nom, ×), au compte : synchro-formes.js ; dessinées par sequenceur.js. -->
+                <span id="sq-formes" class="sq-formes"></span>
+                <!-- Enregistrer la forme : logo « marque-page » repris tel quel de TrainHub (réglages de paliers enregistrés du métronome). -->
+                <button type="button" id="sq-forme-enregistrer" class="icon-btn" aria-label="Enregistrer la forme de l'accord choisi" title="Enregistrer la forme de l'accord choisi sous un nom">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12v17l-6-4-6 4z"/></svg>
+                </button>
+                <span id="sq-forme-saisie" class="sq-forme-saisie" hidden>
+                    <label for="sq-forme-nom">Nom</label>
+                    <input id="sq-forme-nom" type="text" autocomplete="off" maxlength="40">
+                    <button type="button" id="sq-forme-valider" class="sq-bouton-bleu">Enregistrer</button>
+                    <button type="button" id="sq-forme-annuler">Annuler</button>
+                </span>
             </div>
             <span class="sq-espace"></span>
+            <!-- Vue « Toutes les notes » (planche 2) : une ligne par hauteur utilisée par la partie, pour poser une note hors de l'accord. -->
+            <div class="sq-seg" role="group" aria-label="Lignes du séquenceur">
+                <button type="button" id="sq-vue-voix" aria-pressed="true">Voix</button>
+                <button type="button" id="sq-vue-notes" aria-pressed="false">Toutes les notes</button>
+            </div>
             <div class="sq-seg" role="group" aria-label="Le motif s'applique à">
                 <button type="button" id="sq-portee-partie" aria-pressed="true">Toute la partie</button>
                 <button type="button" id="sq-portee-accord" aria-pressed="false">Cet accord</button>
@@ -1882,6 +1899,30 @@
             <button type="button" id="sq-fermer" class="icon-btn" title="Fermer le séquenceur" aria-label="Fermer le séquenceur">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
+        </div>
+        <!-- MODIFIER UN SCHÉMA (clic droit sur une vignette) : un schéma SANS notes — quatre voix × huit croches — qu'on retouche puis qu'on réenregistre. -->
+        <div id="sq-schema" class="sq-bande sq-schema" role="dialog" aria-label="Modifier le schéma" hidden>
+            <div id="sq-schema-grille" class="sq-schema-grille"></div>
+            <div class="sq-schema-droite">
+                <span class="sq-rangee"><label for="sq-schema-nom">Nom</label><input id="sq-schema-nom" type="text" autocomplete="off" maxlength="40"></span>
+                <span class="sq-rangee">
+                    <button type="button" id="sq-schema-ecouter" class="icon-btn" aria-label="Écouter ce schéma sur l'accord choisi" title="Écouter sur l'accord choisi"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg></button>
+                    <button type="button" id="sq-schema-enregistrer" class="sq-bouton-bleu">Enregistrer</button>
+                    <button type="button" id="sq-schema-annuler">Annuler</button>
+                    <button type="button" id="sq-schema-retablir" hidden>Rétablir l'original</button>
+                    <button type="button" id="sq-schema-supprimer" hidden>Supprimer</button>
+                </span>
+            </div>
+        </div>
+        <!-- NOTE LIBRE : nom de la note (C … B, dièses), octave − / +, « Ajouter C4 ». Ouverte par le bouton « note de musique » de la colonne des noms. -->
+        <div id="sq-libre-bande" class="sq-bande sq-libre-bande" role="group" aria-label="Note libre" hidden>
+            <span class="sq-bande-titre">Note libre</span>
+            <span class="sq-bande-mot">Note</span>
+            <span class="sq-seg sq-noms-notes" role="group" aria-label="Nom de la note"><button type="button" data-sq-note="C" aria-pressed="true">C</button><button type="button" data-sq-note="C#" aria-pressed="false">C#</button><button type="button" data-sq-note="D" aria-pressed="false">D</button><button type="button" data-sq-note="D#" aria-pressed="false">D#</button><button type="button" data-sq-note="E" aria-pressed="false">E</button><button type="button" data-sq-note="F" aria-pressed="false">F</button><button type="button" data-sq-note="F#" aria-pressed="false">F#</button><button type="button" data-sq-note="G" aria-pressed="false">G</button><button type="button" data-sq-note="G#" aria-pressed="false">G#</button><button type="button" data-sq-note="A" aria-pressed="false">A</button><button type="button" data-sq-note="A#" aria-pressed="false">A#</button><button type="button" data-sq-note="B" aria-pressed="false">B</button></span>
+            <span class="sq-bande-mot">Octave</span>
+            <span class="sq-octave"><button type="button" id="sq-libre-moins" aria-label="Octave plus grave">−</button><span id="sq-libre-octave">4</span><button type="button" id="sq-libre-plus" aria-label="Octave plus aiguë">+</button></span>
+            <button type="button" id="sq-libre-ajouter" class="sq-bouton-bleu">Ajouter C4</button>
+            <button type="button" id="sq-libre-annuler">Annuler</button>
         </div>
         <div id="sq-grille" class="sq-grille" role="grid" aria-label="Notes de la partie, une ligne par voix"></div>
     </section>
@@ -2132,8 +2173,10 @@
     <script src="synchro-cloud.js?v=202610281200"></script>
     <script src="historique.js?v=202611060300"></script>
     <!-- sequenceur.js AVANT script.js : l'appli (window.app) est créée à la fin de script.js et construit le séquenceur dans la foulée. -->
-    <script src="sequenceur.js?v=202611112100"></script>
-    <script src="script.js?v=202611112100"></script>
+    <!-- Les formes du séquenceur (au compte) : AVANT sequenceur.js, qui s'y abonne à sa construction ; la connexion (SYNCHRO) n'est lue qu'à l'usage. -->
+    <script src="synchro-formes.js?v=202611120100"></script>
+    <script src="sequenceur.js?v=202611120100"></script>
+    <script src="script.js?v=202611120100"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->

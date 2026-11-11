@@ -8510,3 +8510,76 @@ body.avec-barre-selection .toast { bottom: 132px; }
     /* Les noms de notes disparaissent des cases sous ~24 px de haut (cahier 3 bis). */
     .sequenceur.lignes-basses .sq-note { font-size: 0; }
 }
+
+/* ======================================================================================================
+   LE SÉQUENCEUR, DEUXIÈME SOUS-LOT (formes enregistrées, notes libres, schéma au clic droit, « Toutes les notes » — sequenceur.js, synchro-formes.js).
+   En fin de fichier, après le bloc du premier sous-lot, pour l'emporter sur lui. Ordinateur seulement, comme lui.
+   ====================================================================================================== */
+@media (min-width: 900px) {
+    /* La règle générique `button { flex: 1; min-width: 120px }` (bouton pleine largeur du téléphone) étirait les nouveaux boutons du séquenceur
+       (le × d'une forme à 120 px, les cases du schéma les unes sur les autres) : chacun garde la taille qu'on lui donne ici. */
+    .sequenceur button { min-width: 0; flex: none; }
+    .sq-formes { display: contents; }
+    /* Une forme de l'utilisateur : sa vignette et son × dans un même cadre (maquette v17). */
+    .sq-forme { display: inline-flex; align-items: center; height: var(--bouton-h); box-sizing: border-box; border: 1px solid var(--btn-neutral-border); border-radius: var(--rayon-bouton); overflow: hidden; background: var(--fond-bouton-sombre); }
+    .sq-forme:has(.sq-motif[aria-pressed="true"]) { border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); }
+    .sq-outils .sq-forme > button { height: 30px; border: 0; border-radius: 0; background: transparent; }
+    .sq-outils .sq-forme > .sq-motif[aria-pressed="true"] { background: transparent; }
+    .sq-outils .sq-forme-suppr { width: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-left: 1px solid var(--btn-neutral-border) !important; color: var(--text-muted); }
+    .sq-forme-suppr svg { width: 12px; height: 12px; }
+    .sq-outils .sq-forme-suppr:hover { color: #ff8a80; }
+    /* Un motif fourni retouché : un petit point sous son nom dit qu'il n'est plus l'original (clic droit › « Rétablir l'original »). */
+    .sq-motif.retouche > span:last-child { text-decoration: underline dotted rgba(207, 224, 255, 0.6); text-underline-offset: 3px; }
+    .sq-forme-saisie { display: inline-flex; align-items: center; gap: 6px; }
+    .sq-forme-saisie[hidden] { display: none; }
+    .sq-forme-saisie label, .sq-bande label, .sq-bande-mot { font-size: 12px; color: var(--text-muted); }
+    .sq-forme-saisie input, .sq-bande input[type="text"] {
+        height: var(--bouton-h); width: 150px; box-sizing: border-box; padding: 0 10px; border-radius: var(--rayon-bouton);
+        border: 1px solid var(--btn-blue-border-hover); background: #0f1218; color: var(--text-main); font: 600 12px var(--font);
+    }
+    .sq-outils button.sq-bouton-bleu, .sq-bande button.sq-bouton-bleu { padding: 0 12px; color: #e9f3ec; border-color: #33507c; background: linear-gradient(160deg, #253a5c, #182640 70%); }
+    .sq-outils button.sq-bouton-bleu:disabled, .sq-bande button.sq-bouton-bleu:disabled { color: #6a7080; border-color: #2a3040; background: var(--fond-bouton-sombre); }
+    .sq-outils .sq-forme-saisie > button:not(.sq-bouton-bleu) { padding: 0 10px; }
+
+    /* Les deux bandes dépliées sous la barre d'outils (schéma, note libre). */
+    .sq-bande { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 8px; padding: 10px 12px; border: 1px solid #33507c; border-radius: 12px; background: #12161d; }
+    .sq-bande[hidden] { display: none; }
+    .sq-bande button {
+        height: var(--bouton-h); box-sizing: border-box; border-radius: var(--rayon-bouton); padding: 0 10px; margin: 0;
+        border: 1px solid var(--btn-neutral-border); background: var(--fond-bouton-sombre); color: #c8c8c8; font: 700 12px var(--font); cursor: pointer;
+    }
+    .sq-bande button[hidden] { display: none; }
+    .sq-bande .icon-btn { width: var(--bouton-h); padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+    .sq-bande .icon-btn .icon { width: 14px; height: 14px; }
+    .sq-bande-titre { font-size: 12px; font-weight: 800; color: #cfe0ff; }
+    .sq-bande .sq-seg button { height: 26px; padding: 0 7px; border: 0; border-radius: 5px; background: transparent; color: var(--text-muted); }
+    .sq-bande .sq-seg button[aria-pressed="true"] { color: #cfe0ff; background: rgba(47, 129, 247, 0.22); }
+    .sq-octave { display: inline-flex; align-items: center; height: var(--bouton-h); box-sizing: border-box; border: 1px solid var(--btn-neutral-border); border-radius: var(--rayon-bouton); background: var(--fond-bouton-sombre); }
+    .sq-bande .sq-octave button { width: 28px; height: 30px; padding: 0; border: 0; background: transparent; color: var(--text-main); font-size: 15px; }
+    #sq-libre-octave { min-width: 18px; text-align: center; font-size: 13px; font-weight: 800; }
+    .sq-schema-droite { display: flex; flex-direction: column; gap: 8px; }
+    .sq-rangee { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    /* La grille du schéma : quatre voix (aiguë en haut) × huit croches, croches voisines soudées en barre (comme le vrai séquenceur). */
+    .sq-schema-grille { display: grid; grid-template-columns: repeat(8, 22px); grid-template-rows: repeat(4, 18px); row-gap: 3px; }
+    .sq-bande button.sq-schema-case { width: 22px; height: 18px; padding: 0; border: 0; border-left: 1px solid #262626; border-radius: 0; background: #1b1b1b; position: relative; }
+    .sq-bande button.sq-schema-case.temps { border-left-color: #3a3a3a; }
+    .sq-schema-case.on::after { content: ''; position: absolute; inset: 2px 1px; border-radius: 4px; background: linear-gradient(180deg, rgba(47, 129, 247, 0.7), rgba(47, 129, 247, 0.45)); border: 1px solid rgba(120, 170, 255, 0.9); box-sizing: border-box; }
+    .sq-schema-case.on.g::after { left: -1px; border-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+    .sq-schema-case.on.d::after { right: 0; border-right: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+
+    /* Le bouton « note libre » : dans la colonne des noms, en face de la règle (rangées 1 et 2 de la grille). */
+    .sq-libre-btn {
+        align-self: end; justify-self: end; width: var(--bouton-h); height: var(--bouton-h); padding: 0; margin: 0 6px 0 0; box-sizing: border-box;
+        display: inline-flex; align-items: center; justify-content: center; border-radius: var(--rayon-bouton);
+        border: 1px solid var(--btn-neutral-border); background: var(--fond-bouton-sombre); color: #c8c8c8; cursor: pointer;
+    }
+    .sq-libre-btn .icon { width: 16px; height: 16px; }
+    .sq-libre-btn:hover { border-color: var(--btn-neutral-border-hover); }
+    .sq-libre-btn[aria-pressed="true"] { color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); }
+    /* Le × d'une ligne de note libre, au début de son étiquette. */
+    .sq-etiq.libre { justify-content: space-between; gap: 2px; padding-left: 2px; }
+    .sq-libre-retirer { flex: none; width: 18px; height: 18px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; border: 1px solid #3a3a3a; background: #16191e; color: #a0a0a0; cursor: pointer; }
+    .sq-libre-retirer svg { width: 10px; height: 10px; }
+    .sq-libre-retirer:hover { color: #ff8a80; border-color: #6a3a3a; }
+    .sequenceur.lignes-basses .sq-libre-retirer { width: 14px; height: 14px; }
+}
