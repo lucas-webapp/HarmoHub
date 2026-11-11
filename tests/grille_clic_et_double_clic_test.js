@@ -3,6 +3,7 @@
 // gauche et mode séquenceur grille font tous les deux quasiment pareil », le rythme tapé en entier
 // (voir fc7b776). Ce qui restait à éprouver est devenu le sujet du banc, et son nom : dans la grille
 // ordinaire, un clic SÉLECTIONNE et un double-clic CHARGE l'accord pour le modifier.
+const { retaperNom } = require('./_geste_accord');
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // La police est chargée depuis Google Fonts : injoignable derrière le proxy du bac à sable,
@@ -65,7 +66,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     // le double-clic retape le nom (section 3). Même vérification — accord chargé, séquenceur toujours ouvert dessus — avec le geste d'aujourd'hui.
     const cell1 = await page.$('.grid-cell[data-index="1"]');
     const box1 = await cell1.boundingBox();
-    await page.mouse.click(box1.x + box1.width / 2, box1.y + box1.height * 0.85);
+    await page.mouse.dblclick(box1.x + box1.width / 2, box1.y + box1.height * 0.85); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
     await page.waitForTimeout(250);
     await page.click('#bulle-accord [data-bulle="son"]');
     await page.waitForTimeout(250);
@@ -74,17 +75,24 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     console.log((r.editingIndex === 1 && r.appMode === 'edit' && r.seqOpen)
         ? 'PASS (« Réglages du son » : accord chargé, séquenceur toujours ouvert dessus)' : 'FAIL');
 
-    console.log('=== 3. Double-click on the symbol still opens inline rename (unaffected) ===');
+    // REFONTE DU SÉQUENCEUR, POINT B (11/11) : le double-clic sur le symbole OUVRE l'accord (sa bulle) au lieu de retaper le nom ; la retape passe par
+    // « Renommer » au clic droit. Les deux moitiés du contrat sont éprouvées, avec de vrais gestes.
+    console.log('=== 3. Double-clic sur le symbole : la bulle, pas la retape ; « Renommer » retape le nom ===');
+    await page.keyboard.press('Escape'); await page.waitForTimeout(200);
     const cellNow = await page.$('.grid-cell[data-index="1"]');
     const symEl = await cellNow.$('.cell-sym');
     const symBox = await symEl.boundingBox();
     await page.mouse.click(symBox.x + symBox.width / 2, symBox.y + symBox.height / 2);
     await page.waitForTimeout(50);
     await page.mouse.click(symBox.x + symBox.width / 2, symBox.y + symBox.height / 2);
-    await page.waitForTimeout(150);
-    r = await page.evaluate(() => ({ hasInlineInput: !!document.querySelector('.cell-sym-input') }));
+    await page.waitForTimeout(250);
+    r = await page.evaluate(() => ({ hasInlineInput: !!document.querySelector('.cell-sym-input'), bulle: !document.getElementById('bulle-accord').hidden }));
     console.log(JSON.stringify(r));
-    console.log(r.hasInlineInput ? 'PASS (double-click on symbol still opens inline rename)' : 'FAIL');
+    console.log(r.bulle && !r.hasInlineInput ? 'PASS (double-clic sur le symbole : la bulle de l\'accord, sans retape)' : 'FAIL');
+    await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+    await retaperNom(page, 0, 1, 250);
+    r = await page.evaluate(() => ({ hasInlineInput: !!document.querySelector('.cell-sym-input') }));
+    console.log(r.hasInlineInput ? 'PASS (« Renommer » au clic droit ouvre la retape du nom)' : 'FAIL');
     if (r.hasInlineInput) await page.keyboard.press('Escape');
     await page.waitForTimeout(100);
 

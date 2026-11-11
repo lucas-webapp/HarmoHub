@@ -47,7 +47,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
     // l'INSPECTEUR « son de l'accord » (344px à droite de la grille), qui s'ouvre avec un accord et se ferme par sa croix. Le défaut gardé ici est
     // le même : une colonne qui change de largeur sans que la hauteur automatique du volet séquenceur la suive.
     const ouvrirInspecteur = async (i) => {
-        await page.click(`#progression-sections .grid-cell[data-index="${i}"]`); await page.waitForTimeout(300);
+        await page.dblclick(`#progression-sections .grid-cell[data-index="${i}"]`); await page.waitForTimeout(300); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
         await page.click('#bulle-accord [data-bulle="son"]'); await page.waitForTimeout(500);
     };
     const fermerInspecteur = async () => { await page.click('#accord-close'); await page.waitForTimeout(500); };

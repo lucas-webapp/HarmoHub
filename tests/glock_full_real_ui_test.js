@@ -14,7 +14,7 @@ async function dblclickCellSafe(page, section, index) {
     const box = await cellBox(page, section, index);
     const x = box.x + box.width / 2;
     const y = box.y + box.height - 6;
-    await page.mouse.click(x, y);
+    await page.mouse.dblclick(x, y); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
     await page.waitForTimeout(250);
     await page.click('#bulle-accord [data-bulle="son"]');
     await page.waitForTimeout(250);

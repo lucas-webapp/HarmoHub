@@ -37,7 +37,7 @@ const pointNu = (page, idx) => page.evaluate((i) => {
 // Ouvrir un accord dans le panneau, comme l'utilisateur sur ordinateur depuis le lot 6b : un clic sur la case (la bulle s'ouvre), puis « Réglages du son ».
 const ouvrirSon = async (page, i) => {
     const pt = await pointNu(page, i);
-    await page.mouse.click(pt.x, pt.y); await page.waitForTimeout(300);
+    await page.mouse.dblclick(pt.x, pt.y); await page.waitForTimeout(300); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
     await page.click('#bulle-accord [data-bulle="son"]'); await page.waitForTimeout(600);
 };
 

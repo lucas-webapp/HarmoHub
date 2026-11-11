@@ -8,7 +8,10 @@
 // bulles font deux étapes ; ‹ › et les flèches la déplacent ; Échap, × et le clic à côté la ferment, un clic sur une autre case la déplace ; le
 // double-clic retape le nom ; « Réglages du son » ouvre la carte Accord sur cet accord ; la sélection est bleue ; un clic n'est plus un « mode » ;
 // le téléphone n'a pas bougé (lot 10).
+// REFONTE DU SÉQUENCEUR, POINT B (11/11) : « un clic = écouter, double-clic = ouvrir ». La bulle s'ouvre donc au DOUBLE-clic ; ouverte, elle suit un clic
+// simple sur une autre case ; la retape du nom passe par « Renommer » au clic droit. Le banc tient tout le reste à l'identique, avec ces gestes-là.
 const { chromium } = require('playwright');
+const { retaperNom } = require('./_geste_accord');
 const { check, exiger, plan, bilan } = require('./_harness')('bulle « quel accord »');
 const { estBruitReseau } = require('./_harness');
 
@@ -48,11 +51,11 @@ const graine = () => {
             haut: r.top, bas: r.bottom, gauche: r.left, droite: r.right, l: Math.round(r.width) };
     });
     const accord = (p, i) => p.evaluate((i) => { const c = loadProgressionSections()[0].chords[i]; return { root: c.root, quality: c.quality, bass: c.bass || null, beats: c.beats }; }, i);
-    const cliquer = async (p, i) => { await p.click(`#progression-sections .grid-cell[data-index="${i}"]`); await p.waitForTimeout(250); };
+    const cliquer = async (p, i) => { await p.dblclick(`#progression-sections .grid-cell[data-index="${i}"]`); await p.waitForTimeout(250); }; // ouvrir = double-clic
     const choisir = async (p, action, valeur) => { await p.click(`#bulle-accord [data-bulle="${action}"]${valeur != null ? `[data-valeur="${valeur}"]` : ''}`); await p.waitForTimeout(250); };
 
     // ======================================================================================================
-    console.log('\n=== A. Un clic : la case est choisie, la bulle s\'ouvre et dit quel accord ===');
+    console.log('\n=== A. Un double-clic : la case est choisie, la bulle s\'ouvre et dit quel accord ===');
     let p = await ouvrir({ width: 1440, height: 900 });
     await cliquer(p, 1);
     let b = await bulle(p);
@@ -122,7 +125,7 @@ const graine = () => {
     await choisir(p, 'fermer');
     check(await bulle(p) === null, '× la ferme');
     await cliquer(p, 0);
-    await cliquer(p, 3);
+    await p.click('#progression-sections .grid-cell[data-index="3"]'); await p.waitForTimeout(250); // un clic SIMPLE, bulle ouverte
     b = await bulle(p);
     check(b && b.nom === 'G7', `un clic sur une autre case DÉPLACE la bulle (${b && b.nom})`);
     // « À côté » pour de vrai : un point hors de la bulle ET de la grille (la bulle du dernier accord est calée sur le bord droit de l'écran).
@@ -140,8 +143,9 @@ const graine = () => {
     await p.keyboard.press('Escape'); await p.waitForTimeout(150);
 
     // ======================================================================================================
-    console.log('\n=== E. Double-clic : retaper le nom ===');
-    await p.dblclick('#progression-sections .grid-cell[data-index="2"]'); await p.waitForTimeout(300);
+    console.log('\n=== E. « Renommer » : retaper le nom ===');
+    await cliquer(p, 2); // bulle ouverte : « Renommer » la retire devant la saisie
+    await retaperNom(p, 0, 2, 300);
     const saisie = await p.evaluate(() => { const i = document.querySelector('#progression-sections .grid-cell[data-index="2"] .cell-sym-input'); return i ? i.value : null; });
     check(saisie === 'Dm7', `un champ apparaît dans la case, avec le nom (« ${saisie} »)`);
     check(await bulle(p) === null, 'la bulle s\'efface devant la saisie');
@@ -167,7 +171,7 @@ const graine = () => {
     const sel = `#progression-sections .grid-cell[data-section="${derniere}"][data-index="0"]`;
     await p.evaluate((sel) => document.querySelector(sel).scrollIntoView({ block: 'end' }), sel);
     await p.waitForTimeout(300);
-    await p.click(sel); await p.waitForTimeout(300);
+    await p.dblclick(sel); await p.waitForTimeout(300);
     b = await bulle(p);
     const ctop = await p.evaluate((sel) => document.querySelector(sel).getBoundingClientRect().top, sel);
     exiger(ctop > 500, `la case visée est bien en bas de l'écran (${Math.round(ctop)}px sur 900)`);
@@ -177,7 +181,7 @@ const graine = () => {
     // ======================================================================================================
     console.log('\n=== H. Le téléphone n\'a pas bougé (lot 10) ===');
     p = await ouvrir({ width: 860, height: 900 });
-    await cliquer(p, 1);
+    await p.click('#progression-sections .grid-cell[data-index="1"]'); await p.waitForTimeout(250);
     check(await bulle(p) === null && await p.evaluate(() => window.app.selectedIndex) === 1, 'sous 900px (la mise en page du téléphone), même à la souris : la case est choisie, sans bulle');
     await p.close();
     p = await ouvrir({ width: 390, height: 844 }, { hasTouch: true, isMobile: true });

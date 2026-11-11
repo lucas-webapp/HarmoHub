@@ -19,6 +19,7 @@
 // La police est chargée depuis Google Fonts : injoignable derrière le proxy du bac à sable, bruit filtré (estBruitReseau).
 const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('conduite de voix (le calque Voix, au téléphone comme à l\'ordinateur)');
+const { ouvrirSon } = require('./_geste_accord');
 const { estBruitReseau } = require('./_harness');
 
 plan(33);
@@ -118,6 +119,10 @@ const graine = () => {
         dupIds = await idsEnDouble();
         check(dupIds.length === 0, 'aucun id dupliqué dans le DOM — ' + JSON.stringify(dupIds));
         const lireTraits = () => page.evaluate(() => [...document.querySelectorAll('#arp-sequencer .seq-voix-trait')].map(t => t.dataset.accord + ':' + t.dataset.de + '>' + t.dataset.vers).sort().join(' '));
+        // À l'ordinateur, l'éditeur de notes qui suit la sélection ne montre plus l'inspecteur (refonte du séquenceur, point C) : on le demande comme
+        // l'utilisateur — éditeur réduit (étendu, il ne laisse que 34px à la grille, sous la rangée collante), double-clic sur l'accord (sa bulle,
+        // point B), « Réglages du son ».
+        if (larg >= 900) { await page.click('#editeur-notes-etendre'); await page.waitForTimeout(600); await ouvrirSon(page, 0, 1); }
         const avant = await lireTraits();
         // Téléphone : le panneau d'accord est sous la feuille plein écran (il ne se touche pas) ; le clic est donc envoyé au segment sans passer par
         // l'écran (dispatchEvent), le reste — calque, traits, fonctions — se lit à l'écran. À l'ordinateur : un vrai clic.

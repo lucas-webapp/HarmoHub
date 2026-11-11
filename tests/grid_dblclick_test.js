@@ -4,8 +4,11 @@
 // la durée sur les bords, sélectionner dans ce qui restait — et il fallait viser pour obtenir celui
 // qu'on voulait. Désormais : premier clic = sélectionner, PARTOUT ; second clic rapproché = renommer
 // si l'on a visé le symbole, ouvrir le panneau sinon. Le geste fréquent est uniforme, le rare ciblé.
+// REFONTE DU SÉQUENCEUR, POINT B (11/11) : à l'ordinateur, le double-clic OUVRE l'accord (sa bulle), où qu'il tombe ; retaper le nom passe par « Renommer »
+// au clic droit (ou une lettre tapée). Le banc tient ce contrat-là, avec les mêmes points visés (symbole, zone nue) et la même règle du champ de retape.
 const { chromium } = require('playwright')
 const { ajouterAccord } = require('./_ajout');
+const { retaperNom } = require('./_geste_accord');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -57,12 +60,17 @@ const centreSymbole = (page, idx) => page.evaluate((i) => {
     e = await etat();
     check(e.sel === 1 && !e.retape, `clic sur une zone NUE : exactement pareil (${JSON.stringify(e)})`);
 
-    console.log('=== 2. Le SECOND clic dépend de ce qu\'on a visé ===');
+    console.log('=== 2. Le double-clic OUVRE l\'accord, où qu\'il tombe ; « Renommer » retape le nom ===');
+    const bulle = () => page.evaluate(() => !document.getElementById('bulle-accord').hidden);
     await page.mouse.dblclick(sym.x, sym.y);
     await page.waitForTimeout(700);
     e = await etat();
-    check(e.retape, 'double-clic sur le SYMBOLE : ouvre la retape du texte');
+    check(await bulle() && !e.retape, 'double-clic sur le SYMBOLE : ouvre la bulle de l\'accord, sans retape du texte');
     check(e.ed === null, '...et n\'ouvre PAS le panneau au passage');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(400);
+    await retaperNom(page, 0, 1);
+    check((await etat()).retape, '« Renommer » au clic droit : ouvre la retape du texte');
     await page.keyboard.press('Escape');
     await page.waitForTimeout(400);
 
@@ -75,11 +83,7 @@ const centreSymbole = (page, idx) => page.evaluate((i) => {
     await page.mouse.dblclick(nu2.x, nu2.y);
     await page.waitForTimeout(700);
     e = await etat();
-    check(e.retape && e.ed === null, `double-clic sur une zone NUE : retape aussi le nom, sans ouvrir le panneau (${JSON.stringify(e)})`);
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(400);
-    await page.mouse.click(nu2.x, nu2.y);
-    await page.waitForTimeout(400);
+    check(await bulle() && !e.retape && e.ed === null, `double-clic sur une zone NUE : la bulle aussi, sans retape ni panneau (${JSON.stringify(e)})`);
     await page.click('#bulle-accord [data-bulle="son"]');
     await page.waitForTimeout(600);
     e = await etat();
@@ -105,9 +109,8 @@ const centreSymbole = (page, idx) => page.evaluate((i) => {
     await page.evaluate(() => { if (window.app.editingIndex != null) window.app.exitEditMode(); window.app.loadProgression(); });
     await page.waitForTimeout(400);
     const sym0 = await centreSymbole(page, 0);
-    await page.mouse.dblclick(sym0.x, sym0.y);
-    await page.waitForTimeout(600);
-    check((await etat()).retape, 'retape ouverte');
+    await retaperNom(page, 0, 0, 600);
+    check((await etat()).retape, 'retape ouverte (« Renommer »)');
     await page.mouse.dblclick(sym0.x, sym0.y);
     await page.waitForTimeout(600);
     e = await etat();

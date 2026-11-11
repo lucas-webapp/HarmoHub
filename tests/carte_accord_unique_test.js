@@ -249,6 +249,9 @@ const atteignable = (sel) => {
     await m.evaluate(() => window.app.exitEditMode());
     await m.evaluate(() => window.scrollTo(0, 0));
     await m.waitForTimeout(400);
+    // Point B de la refonte du séquenceur : le premier toucher choisit l'accord, le second (sur la case choisie) ouvre le panneau.
+    await m.tap('#progression-sections .grid-cell[data-section="0"][data-index="1"]');
+    await m.waitForTimeout(500);
     await m.tap('#progression-sections .grid-cell[data-section="0"][data-index="1"]');
     await m.waitForTimeout(500);
     // Sur cet écran court (664px) le panneau défile : le doigt amène d'abord la durée sous le pouce.

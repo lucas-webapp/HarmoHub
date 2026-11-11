@@ -4788,6 +4788,15 @@ class HarmoHubApp {
             else if (t.type === 'chord' && this.panneauAccordDisponible()) { this.selectChord(t.section, t.index); this.ouvrirPanneauAccord(t.section, t.index); this.etendrePanneauAccord(true); }
             else if (t.type === 'chord') this.editChord(t.section, t.index);
         };
+        // Retaper le nom d'un accord (refonte du séquenceur, point B) : c'était le double-clic, qui ouvre désormais le panneau de l'accord.
+        document.querySelector('[data-ctx-action="rename-chord"]').onclick = () => {
+            const t = this.contextMenuTarget;
+            this.closeContextMenu();
+            if (!t || t.type !== 'chord') return;
+            this.fermerBulleAccord();
+            this.selectChord(t.section, t.index); // nouveau rendu de la grille : la case est relue juste après
+            this.startInlineChordSymbolEdit(t.section, t.index, document.querySelector(`#progression-sections .grid-cell[data-section="${t.section}"][data-index="${t.index}"]`));
+        };
         // Clic droit, ordinateur (lot 7b). Copier : la case visée — ou tout le groupe si elle en fait partie, comme Ctrl+C.
         document.querySelector('[data-ctx-action="copy-chord"]').onclick = () => {
             const t = this.contextMenuTarget;
@@ -4918,7 +4927,7 @@ class HarmoHubApp {
             // Le choix d'une puce de la rangée de réglages (lot 6a). La suggestion de tonalité s'ouvre DEPUIS lui : la cliquer ne doit pas le refermer.
             { id: 'rr-pop', ancre: '.rr-puce, #key-suggest-menu', close: () => this.fermerPuceReglage() },
             // La bulle « quel accord » (lot 6b) : un clic sur une AUTRE case ne la ferme pas, il la déplace (voir onGridPointerUp).
-            { id: 'bulle-accord', ancre: '.grid-cell:not(.grid-cell-add)', close: () => this.fermerBulleAccord() },
+            { id: 'bulle-accord', ancre: '.grid-cell:not(.grid-cell-add)', close: () => { this._bulleFermeeA = performance.now(); this.fermerBulleAccord(); } },
             // Son pendant au téléphone (lot 10d), même règle : toucher une autre case l'y amène, toucher à côté ou Échap le referme.
             // `auClic` : PAS à l'appui (qui commence aussi un défilement) — il se referme au clic à côté, voir le gestionnaire de clic plus bas ; Échap ici.
             { id: 'panneau-accord', ancre: '.grid-cell:not(.grid-cell-add)', auClic: true, close: () => this.fermerBulleAccord() },
@@ -4946,6 +4955,7 @@ class HarmoHubApp {
             // Le seuil téléphone/ordinateur décide de l'affichage des accès de secours : faire pivoter
             // un appareil ou redimensionner une fenêtre doit les faire apparaître ou disparaître.
             this.majBarreBasTelephone();
+            this.placerInspecteurFlottant();
         };
         window.addEventListener('resize', suivreAncre);
         window.addEventListener('scroll', suivreAncre, { passive: true, capture: true });
@@ -5052,6 +5062,9 @@ class HarmoHubApp {
             // Lot 10d : le panneau d'accord du téléphone se referme ICI, au clic à côté, et non à l'appui du doigt (table _popups) : cet appui est
             // aussi le début d'un défilement, et « le mode modifier s'enlève dès que je veux scroller » (retour utilisateur) — les deux gardes
             // ci-dessus (touchMoved, dernierDefilementA) l'écartent déjà. Une autre case le déplace (onGridPointerUp), l'appui long ouvre son menu.
+            // Refonte du séquenceur, point B : « Échap ou clic à côté referme ; la sélection reste ». Le clic qui referme la bulle ou le panneau ne
+            // désélectionne donc PAS (un clic suivant, panneau fermé, le fera comme avant) — d'où ce relevé, pris AVANT la fermeture.
+            const fermeUnPanneau = !!this._bulle && !inPath('#bulle-accord, #panneau-accord, .grid-cell:not(.grid-cell-add), #context-menu');
             if (this._bulle && this._bulle.telephone && !inPath('#panneau-accord, .grid-cell:not(.grid-cell-add), #context-menu')) this.fermerBulleAccord();
             // .seq-zoom-modal inclus : le séquenceur (déplacé dans la loupe séquenceur,
             // ou dans sa propre vue agrandie, voir openSeqZoom) et ses boutons (Enregistrer/Annuler/
@@ -5138,7 +5151,8 @@ class HarmoHubApp {
             // surbrillance »).
             const opensZoomView = inPath('#grid-zoom') || inPath('#seq-zoom');
             let changed = false;
-            if (!opensZoomView && !inGrid && !inMenu && this.selectedIndex != null) { this.selectedIndex = null; changed = true; }
+            const fermeAvant = this._bulleFermeeA && performance.now() - this._bulleFermeeA < 800; // la bulle de l'ordinateur se ferme à l'appui (table _popups)
+            if (!opensZoomView && !inGrid && !inMenu && !fermeUnPanneau && !fermeAvant && this.selectedIndex != null) { this.selectedIndex = null; changed = true; }
             if (!opensZoomView && !inGrid && !inMenu && !inEditor && this.editingIndex != null) { this.exitEditMode(); changed = true; }
             if (changed) this.loadProgression();
         });
@@ -9006,11 +9020,24 @@ class HarmoHubApp {
     // et une cible qui disparaît dès qu'on touche un accord ne peut pas servir de repère stable.
     applyAppModeTheme() {
         document.body.dataset.appMode = this.appMode;
+        this.placerInspecteurFlottant();
         this.synchroPanneauAccord(); // au téléphone, la modification d'un accord, c'est le panneau d'accord agrandi (lot 10d)
         // Accroché ici plutôt qu'aux quatre endroits qui changent de mode : applyAppModeTheme est
         // déjà LE point de passage de tout changement de mode, et les accès de secours de la barre du
         // bas ne dépendent que de ça (plus de la largeur d'écran, traitée au redimensionnement).
         this.majBarreBasTelephone();
+    }
+
+    // L'inspecteur flotte au bord droit (refonte du séquenceur, point C) : il part SOUS la rangée de réglages et l'ajout rapide, dont les boutons du bout
+    // droit (Ajouter, aide) restaient sinon cachés dessous (sentinelle_atteignabilite). La hauteur suit la mise en page (une rangée qui passe sur deux lignes).
+    placerInspecteurFlottant() {
+        if (!this.bulleDisponible || !this.bulleDisponible()) return;
+        const main = document.querySelector('main'), qa = document.getElementById('quick-add-panel'), tete = document.querySelector('.grid-head-sticky');
+        if (!main) return;
+        const repere = qa && qa.getBoundingClientRect().height > 0 ? qa : tete;
+        if (!repere) return;
+        const haut = Math.max(56, Math.round(repere.getBoundingClientRect().bottom - main.getBoundingClientRect().top + 8));
+        document.documentElement.style.setProperty('--haut-inspecteur', haut + 'px');
     }
 
     // ---------- Sujet du panneau d'accord (voir #accord-title) ----------
@@ -14181,6 +14208,7 @@ class HarmoHubApp {
         const isChord = target && target.type === 'chord';
         menu.querySelector('[data-ctx-action="rename"] .ctx-label').textContent = isChord ? 'Modifier' : 'Renommer';
         menu.querySelector('[data-ctx-action="duplicate"]').hidden = !isChord;
+        menu.querySelector('[data-ctx-action="rename-chord"]').hidden = !isChord; // point B : le double-clic ouvre désormais l'accord, le renommage passe ici
         // Lot 7b : ordinateur seulement (le téléphone garde son menu jusqu'au lot 10). « Coller après » n'apparaît qu'avec quelque chose à coller.
         const bureau = isChord && this.bulleDisponible();
         menu.querySelector('[data-ctx-action="copy-chord"]').hidden = !bureau;
@@ -16486,34 +16514,39 @@ class HarmoHubApp {
             // Un clic normal (sans Ctrl/Cmd) ailleurs referme toujours la sélection multiple en cours,
             // comme dans la plupart des grilles/explorateurs de fichiers.
             this.multiSelect = new Set();
-            // UN SEUL sens pour le premier clic, où qu'il tombe dans la case. Le symbole ouvrait
-            // auparavant la retape de son texte dès le PREMIER clic : trois gestes différents
-            // cohabitaient donc dans une case de 83x56px au téléphone — renommer au centre, changer
-            // la durée sur les bords, sélectionner dans ce qui restait — et il fallait viser pour
-            // obtenir le geste voulu. Désormais : premier clic = sélectionner (ou modifier, selon le
-            // réglage), partout ; second clic rapproché = renommer si l'on a visé le symbole, ouvrir
-            // le panneau sinon. Le geste fréquent devient uniforme, le rare reste ciblé.
+            // UN SEUL sens pour le premier clic, où qu'il tombe dans la case (le symbole ouvrait autrefois la retape dès le premier clic : il fallait viser).
+            // REFONTE DU SÉQUENCEUR, POINT B (11/11) : « parfois on veut seulement entendre l'accord » — un clic ou un toucher SÉLECTIONNE et FAIT ENTENDRE,
+            // rien ne s'ouvre ; un double-clic, ou un toucher sur une case déjà choisie, ouvre le panneau de l'accord (bulle à l'ordinateur, panneau du bas
+            // au téléphone). Le double-clic ne retape plus le nom : « Renommer » au clic droit / à l'appui long, ou une lettre tapée sur l'accord choisi.
+            // Un panneau DÉJÀ ouvert suit la case cliquée, comme il suit ← → et ‹ › (la sélection est suivie, décision du 05/11).
             const now = Date.now();
             const isSecondTap = this._lastTap && this._lastTap.section === d.section && this._lastTap.index === d.index && (now - this._lastTap.time) < 420;
+            const dejaChoisie = this.selectedIndex === d.index && this.activeSection === d.section;
+            if (this.bulleDisponible()) {
+                if (isSecondTap) { this._lastTap = null; this.ouvrirBulleAccord(d.section, d.index); return; } // le premier clic a déjà sélectionné et joué
+                this._lastTap = { section: d.section, index: d.index, time: now, sym: !!d.symTarget };
+                const suivre = !!this._bulle;
+                this.selectChord(d.section, d.index);
+                if (suivre) this.ouvrirBulleAccord(d.section, d.index);
+                return;
+            }
+            if (this.panneauAccordDisponible()) {
+                const ouvert = !!(this._bulle && this._bulle.telephone);
+                if (isSecondTap || (dejaChoisie && !ouvert)) {
+                    // Second toucher (rapproché ou non) sur la case choisie : le panneau s'ouvre. Pas de second son quand le premier toucher vient de jouer.
+                    this._lastTap = null;
+                    if (!isSecondTap) this.selectChord(d.section, d.index);
+                    this._paGardeClic = performance.now(); // voir setupPanneauAccord : le clic de synthèse de ce toucher tomberait sur le panneau
+                    this.ouvrirPanneauAccord(d.section, d.index);
+                    return;
+                }
+                this._lastTap = { section: d.section, index: d.index, time: now, sym: !!d.symTarget };
+                this.selectChord(d.section, d.index);
+                if (ouvert) { this._paGardeClic = performance.now(); this.ouvrirPanneauAccord(d.section, d.index); }
+                return;
+            }
             if (isSecondTap) {
                 this._lastTap = null;
-                // Ordinateur (lot 6b) : « double-clic = retaper le nom », où que tombe le clic dans la case — la bulle (ouverte au premier clic)
-                // fait déjà tout le reste, et l'inspecteur s'ouvre depuis elle.
-                if (this.bulleDisponible()) {
-                    this.fermerBulleAccord();
-                    this.startInlineChordSymbolEdit(d.section, d.index, d.cell);
-                    return;
-                }
-                // Téléphone (lot 10d) : le second toucher garde ses deux sens — sur le nom, le retaper ; ailleurs, « modifier », c'est-à-dire
-                // agrandir le panneau d'accord ouvert au premier toucher (ses réglages du son), là où il ouvrait la carte Accord dans la page.
-                if (this.panneauAccordDisponible()) {
-                    if (d.symTarget) { this.fermerBulleAccord(); this.startInlineChordSymbolEdit(d.section, d.index, d.cell); return; }
-                    this._paGardeClic = performance.now(); // voir setupPanneauAccord : le clic de synthèse de ce toucher tomberait sur le panneau agrandi
-                    this.ouvrirPanneauAccord(d.section, d.index);
-                    this.etendrePanneauAccord(true);
-                    if (this.autoplaySelect) this.playCurrent();
-                    return;
-                }
                 if (d.symTarget) {
                     this.startInlineChordSymbolEdit(d.section, d.index, d.cell);
                 } else {
@@ -16522,17 +16555,9 @@ class HarmoHubApp {
                 }
                 return;
             }
-            this._lastTap = { section: d.section, index: d.index, time: now, sym: !!d.symTarget }; // `sym` : voir setupPanneauAccord (double toucher)
-            // UN SEUL comportement, sans réglage : simple clic = écouter, double-clic = modifier
-            // (voir plus haut). Un réglage « un clic sur un accord » proposait auparavant d'éditer dès
-            // le premier clic — retiré (retour utilisateur : « je veux une seule possibilité : double
-            // clic pour modifier »). Une préférence qui n'a qu'une bonne réponse n'est pas une
-            // préférence, c'est un choix à faire pour rien.
+            this._lastTap = { section: d.section, index: d.index, time: now, sym: !!d.symTarget };
+            // Ni bulle ni panneau (séquenceur du téléphone ouvert) : simple clic = écouter, double-clic = modifier, sans réglage (« je veux une seule possibilité »).
             this.selectChord(d.section, d.index);
-            // Ordinateur (lot 6b) : « clic = sélectionne et ouvre la bulle ».
-            if (this.bulleDisponible()) this.ouvrirBulleAccord(d.section, d.index);
-            // Téléphone (lot 10d) : « toucher une case → panneau à mi-hauteur, l'accord visible au-dessus ».
-            else if (this.panneauAccordDisponible()) { this._paGardeClic = performance.now(); this.ouvrirPanneauAccord(d.section, d.index); }
             return;
         }
         if (d.copy) {

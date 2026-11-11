@@ -174,9 +174,10 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
     check(await rect(p, '#kb-construction') === null && await bleues(p) === 0, 'choisir un autre accord de la grille efface les notes tapées');
     // Ajouter en fin de partie : celle de l'accord sélectionné.
     await p.click(cellule(1, 0)); await p.waitForTimeout(300);
-    // La bulle (~430 px de haut) d'une case de la 2ᵉ partie descend jusque sur les touches faute de place : on la ferme, l'accord reste sélectionné.
-    await p.click('[data-bulle="fermer"]'); await p.waitForTimeout(250);
-    check(await p.evaluate(() => window.app.selectedIndex === 0 && window.app.activeSection === 1), 'fermer la bulle garde l\'accord sélectionné (Remplacer / Ajouter le visent encore)');
+    // Refonte du séquenceur, point B : un clic sélectionne et fait entendre sans ouvrir la bulle (~430 px, qui descendait jusque sur les touches et qu'il
+    // fallait fermer d'abord). Les touches restent donc libres, l'accord est choisi.
+    check(await p.evaluate(() => window.app.selectedIndex === 0 && window.app.activeSection === 1 && document.getElementById('bulle-accord').hidden),
+        'un clic choisit l\'accord sans ouvrir de bulle sur les touches (Remplacer / Ajouter le visent)');
     await touche(p, dod); await touche(p, dod + 4); await touche(p, dod + 7);
     check(await p.textContent('#kb-nom') === 'C', `Do · Mi · Sol : ${await p.textContent('#kb-nom')}`);
     await p.click('#kb-ajouter'); await p.waitForTimeout(500);
@@ -202,7 +203,7 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
     await p.click('#kb-effacer');
 
     // Pendant une modification (inspecteur ouvert) : taper une touche n'en fait pas sortir, et ne désélectionne pas.
-    await p.click(cellule(0, 1)); await p.waitForTimeout(300);
+    await p.dblclick(cellule(0, 1)); await p.waitForTimeout(300); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
     await p.click('[data-bulle="son"]'); await p.waitForTimeout(400);
     const enEdition = await p.evaluate(() => window.app.editingIndex);
     exiger(enEdition === 1, 'l\'inspecteur « son de l\'accord » est ouvert sur l\'accord 2');

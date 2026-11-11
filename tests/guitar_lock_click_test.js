@@ -32,12 +32,15 @@ const { plan, check, bilan } = require('./_harness')('Cadenas : ajouter puis ouv
     // Double-clic sur le bas de la case (le centre porte le symbole) : l'accord s'ouvre en modification, le cadenas de la guitare en vue.
     const box = await page.locator('#progression-sections .grid-cell[data-index="0"]').boundingBox();
     await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height - 6);
+    await page.waitForTimeout(450);
+    // Point B de la refonte du séquenceur : le double-clic ouvre le panneau d'accord ; « Réglages du son » l'agrandit, c'est la Modification.
+    await page.click('#pa-son-btn');
     await page.waitForTimeout(400);
     const ouvert = await page.evaluate(() => {
         const b = document.getElementById('guitar-lock-btn'); const r = b && b.getBoundingClientRect();
         return { ed: window.app.editingIndex, cadenas: !!r && r.width > 0 && r.height > 0 };
     });
-    check(ouvert.ed === 0 && ouvert.cadenas, `le double-clic ouvre l'accord, cadenas visible (édition ${ouvert.ed}, cadenas ${ouvert.cadenas})`);
+    check(ouvert.ed === 0 && ouvert.cadenas, `le double-clic puis « Réglages du son » ouvrent l'accord, cadenas visible (édition ${ouvert.ed}, cadenas ${ouvert.cadenas})`);
     await browser.close();
     bilan();
 })().catch((e) => { console.error('FATAL', e); process.exit(2); });

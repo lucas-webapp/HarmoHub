@@ -16,7 +16,7 @@ const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('ouvrir sans recadrer');
 const { estBruitReseau } = require('./_harness');
 
-plan(35);
+plan(37);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const graine = () => {
@@ -52,8 +52,8 @@ const graine = () => {
     }), SEL);
     const centre = async (p, i) => { const b = await p.locator(SEL).nth(i).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2, b }; };
     const cliquer = async (p, i, ms = 700) => { const c = await centre(p, i); await p.mouse.click(c.x, c.y); await p.waitForTimeout(ms); };
-    // LE GESTE QUI OUVRE LA BULLE (ordinateur) : un clic aujourd'hui ; il deviendra le double-clic au point B.
-    const ouvrirBulle = async (p, i) => { await cliquer(p, i); };
+    // LE GESTE QUI OUVRE LA BULLE (ordinateur) : le double-clic depuis le point B (un clic seul ne fait qu'entendre l'accord).
+    const ouvrirBulle = async (p, i) => { const c = await centre(p, i); await p.mouse.dblclick(c.x, c.y); await p.waitForTimeout(700); };
     const inspecteur = (p) => p.evaluate(() => {
         const f = document.querySelector('.sidebar-frame'), r = f.getBoundingClientRect(), g = document.getElementById('grille-cadre').getBoundingClientRect();
         return { visible: r.width > 0 && r.height > 0 && getComputedStyle(f).display !== 'none', g: Math.round(r.left), d: Math.round(r.right), haut: Math.round(r.top), grilleD: Math.round(g.right), edition: window.app.editingIndex };
@@ -73,8 +73,11 @@ const graine = () => {
         const t1 = await ecran(p);
         check(t1 === t0, `l'inspecteur ne déplace aucune case, la rangée de réglages garde sa hauteur${t1 === t0 ? '' : ' — avant ' + t0 + ' / après ' + t1}`);
         check(i1.g >= i1.grilleD && i1.d <= vp.width, `il flotte à droite de la fenêtre de grille sans la recouvrir (grille jusqu'à ${i1.grilleD}, inspecteur ${i1.g}-${i1.d})`);
+        // Piège relevé par sentinelle_atteignabilite : flottant tout en haut, il cachait Ajouter et l'aide au bout de l'ajout rapide.
+        const ajout = await p.evaluate(() => Math.round(document.getElementById('quick-add-panel').getBoundingClientRect().bottom));
+        check(i1.haut >= ajout, `il part sous la rangée de réglages et l'ajout rapide, sans cacher leurs boutons (haut ${i1.haut}, ajout rapide jusqu'à ${ajout})`);
         await cliquer(p, 3);
-        check(await ecran(p) === t0 && await p.locator('#bulle-accord').isVisible(), 'un clic sur un autre accord, inspecteur ouvert : sa bulle s\'ouvre, rien ne bouge');
+        check(await ecran(p) === t0, 'un clic sur un autre accord, inspecteur ouvert : rien ne bouge');
         await p.keyboard.press('Escape'); await p.waitForTimeout(500);
         await p.keyboard.press('Escape'); await p.waitForTimeout(500);
         check(await ecran(p) === t0, 'Échap referme : toujours rien de déplacé');
@@ -115,8 +118,8 @@ const graine = () => {
     console.log('\n=== C. Téléphone : la page ne défile que si la case finirait sous le panneau, et du strict minimum ===');
     p = await ouvrir({ width: 390, height: 844 }, true);
     const toucher = async (i) => { const c = await centre(p, i); await p.touchscreen.tap(c.x, c.y); await p.waitForTimeout(800); };
-    // LE GESTE QUI OUVRE LE PANNEAU (téléphone) : un toucher aujourd'hui ; au point B, toucher une case déjà sélectionnée.
-    const ouvrirPanneau = async (i) => { await toucher(i); };
+    // LE GESTE QUI OUVRE LE PANNEAU (téléphone) : depuis le point B, toucher une case déjà choisie (le premier toucher la choisit et la fait entendre).
+    const ouvrirPanneau = async (i) => { await toucher(i); await toucher(i); };
     const mesure = (i) => p.evaluate(([sel, i]) => {
         const c = document.querySelectorAll(sel)[i].getBoundingClientRect(), pa = document.getElementById('panneau-accord'), r = pa.getBoundingClientRect();
         const resume = document.getElementById('song-card').getBoundingClientRect(), barre = document.querySelector('.top-bar').getBoundingClientRect();

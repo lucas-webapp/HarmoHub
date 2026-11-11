@@ -144,7 +144,7 @@ async function fermerMenu(page) {
     // depuis la bulle, par « Réglages du son » — le double-clic, lui, retape le nom. C'est donc ce geste-là, réel, qui fait apparaître le panneau
     // d'édition, et lui qui pourrait recouvrir ou repousser le reste.
     await fermerMenu(page);
-    await page.click('.grid-cell:not(.grid-cell-add)');
+    await page.dblclick('.grid-cell:not(.grid-cell-add)'); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
     await page.waitForTimeout(300);
     await page.click('#bulle-accord [data-bulle="son"]');
     await page.waitForTimeout(450);
@@ -182,9 +182,11 @@ async function fermerMenu(page) {
             if (i === 0) await m.waitForTimeout(120);
         }
         await m.waitForTimeout(500);
+        // Point B de la refonte du séquenceur : le double toucher OUVRE le panneau d'accord à mi-hauteur ; « Réglages du son » l'agrandit, c'est la Modification.
+        await m.click('#pa-son-btn'); await m.waitForTimeout(500);
     }
     const modeTel = await m.evaluate(() => window.app.appMode);
-    check(modeTel === 'edit', `téléphone : le toucher sur un accord fait entrer en mode Modification — mode ${modeTel}`);
+    check(modeTel === 'edit', `téléphone : double toucher puis « Réglages du son » font entrer en mode Modification — mode ${modeTel}`);
     await eprouver(m, 'téléphone, mode Modification', TELEPHONE);
     await eprouver(m, 'téléphone, mode Modification, menu du morceau ouvert', await ouvrirMenu(m, BUREAU_MENU));
 

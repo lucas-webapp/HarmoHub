@@ -12,7 +12,9 @@
 //   C. ‹ › passent au voisin (la sélection suit), un autre panneau = une autre annulation ; toucher une autre case l'y amène ;
 //   D. « Réglages du son » : le panneau s'agrandit, l'accord est en modification, la carte Accord (l'inspecteur) est DANS le panneau, sans
 //      fondamentale/type/durée ; la basse ; l'octave ; toujours une seule annulation ; « Moins » rend la carte à la page ;
-//   E. le double toucher hors du nom agrandit le panneau (il ouvrait la carte Accord) ; agrandi, il suit une autre case et reste agrandi ;
+//   E. le double toucher ouvre le panneau, « Réglages du son » l'agrandit ; agrandi, il suit une autre case et reste agrandi ;
+// REFONTE DU SÉQUENCEUR, POINT B (11/11) : « un toucher : la case est sélectionnée et l'accord est joué. Rien ne s'ouvre. […] toucher une case déjà
+// sélectionnée : ouvre le panneau ». Le banc ouvre donc le panneau par DEUX touchers (ouvrirCase), et la partie A vérifie que le premier n'ouvre rien.
 //      le dock de secours de la Modification a disparu ;
 //   F. Supprimer et Dupliquer, chacun d'une seule annulation ;
 //   G. ✕, Échap et le toucher à côté le referment ; agrandi, le refermer termine la modification ;
@@ -25,7 +27,7 @@ const { check, exiger, plan, bilan } = require('./_harness')('téléphone : pann
 const { estBruitReseau } = require('./_harness');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
-plan(38);
+plan(40);
 
 const mk = (root, quality) => ({ root, quality, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
 const SECTIONS = [
@@ -56,6 +58,8 @@ async function ouvrir(nav, contexte, erreurs, nom, reglages = {}) {
 const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1 };
 const CASE = (s, i) => `#progression-sections .grid-cell[data-section="${s}"][data-index="${i}"]`;
 const toucher = async (p, sel, ms = 300) => { await p.tap(sel); await p.waitForTimeout(ms); };
+// Ouvrir le panneau d'une case (point B) : un toucher la choisit, un second sur la case choisie ouvre le panneau. Panneau déjà ouvert, il la suit.
+const ouvrirCase = async (p, sel, ms = 400) => { await toucher(p, sel, 400); await toucher(p, sel, ms); };
 // Toucher une case HORS de son nom (la rangée d'octave, en bas de la case) : le second toucher y veut dire « modifier », sur le nom « renommer ».
 const toucherBas = async (p, sel, ms = 300) => {
     const b = await p.locator(sel).boundingBox();
@@ -83,8 +87,11 @@ const accord = (e, s, i) => e.secs[s].chords[i];
 
         // ===== A. TOUCHER UNE CASE ==================================================================================================
         await toucher(p, CASE(1, 2), 500);
+        const a0 = await etat(p);
+        check(!a0.ouvert && a0.sel[0] === 1 && a0.sel[1] === 2, `un premier toucher choisit la case et la fait entendre, sans ouvrir le panneau (${JSON.stringify(a0.sel)})`);
+        await toucher(p, CASE(1, 2), 500);
         const a1 = await etat(p);
-        exiger(a1.ouvert && JSON.stringify(a1.sur) === '[1,2]', `toucher une case ouvre le panneau d'accord sur elle (${JSON.stringify(a1.sur)})`);
+        exiger(a1.ouvert && JSON.stringify(a1.sur) === '[1,2]', `toucher la case choisie ouvre le panneau d'accord sur elle (${JSON.stringify(a1.sur)})`);
         const g = await p.evaluate((sel) => {
             const pa = document.getElementById('panneau-accord').getBoundingClientRect(), bl = document.getElementById('barre-lecture').getBoundingClientRect();
             const c = document.querySelector(sel).getBoundingClientRect(), haut = document.querySelector('.top-bar').getBoundingClientRect().bottom;
@@ -129,7 +136,7 @@ const accord = (e, s, i) => e.secs[s].chords[i];
         check(JSON.stringify(accord(b2, 1, 2)) === JSON.stringify(accord(e0, 1, 2)), `Annuler rend l'accord d'avant le panneau d'un coup (${JSON.stringify(accord(b2, 1, 2))})`);
 
         // ===== C. ‹ › ET UNE AUTRE CASE ==============================================================================================
-        await toucher(p, CASE(1, 2), 400);
+        await ouvrirCase(p, CASE(1, 2), 400);
         await toucher(p, '#pa-quel [data-bulle="suiv"]');
         const c1 = await etat(p);
         check(JSON.stringify(c1.sur) === '[1,3]' && JSON.stringify(c1.sel) === '[1,3]' && await p.evaluate(() => document.querySelector('#pa-quel .pa-nom').textContent) === 'Am',
@@ -179,9 +186,12 @@ const accord = (e, s, i) => e.secs[s].chords[i];
         exiger(bas.y > 300, `la case visée est sous la place du panneau (${Math.round(bas.y)})`);
         await p.touchscreen.tap(bas.x + bas.width / 2, bas.y + bas.height - 6); await p.waitForTimeout(120);
         await p.touchscreen.tap(bas.x + bas.width / 2, bas.y + bas.height - 6); await p.waitForTimeout(500);
+        const e05 = await etat(p);
+        check(e05.ouvert && !e05.etendu && JSON.stringify(e05.sur) === '[0,4]', `le double toucher ouvre le panneau de la case, à mi-hauteur (${JSON.stringify({ sur: e05.sur, etendu: e05.etendu })})`);
+        await toucher(p, '#pa-son-btn', 500);
         const e1 = await etat(p);
         check(e1.etendu && e1.edit === 4 && e1.sel[0] === 0 && e1.carte === 'pa-son' && JSON.stringify(accord(e1, 0, 4)) === JSON.stringify(accord(e0, 0, 4)),
-            `le double toucher hors du nom agrandit le panneau (il ouvrait la carte Accord), sans rien changer à l'accord (${JSON.stringify({ edit: e1.edit, etendu: e1.etendu })})`);
+            `« Réglages du son » l'agrandit (il ouvrait la carte Accord), sans rien changer à l'accord (${JSON.stringify({ edit: e1.edit, etendu: e1.etendu })})`);
         const dock = await p.evaluate(() => ['dock-terminer', 'dock-rythme'].map(id => { const e = document.getElementById(id); return !e.hidden && e.getBoundingClientRect().height > 0; }));
         check(dock.every(v => !v), `le dock de secours de la Modification n'est plus là : le panneau porte ses sorties (${JSON.stringify(dock)})`);
         await toucher(p, CASE(0, 5), 500);
@@ -204,26 +214,26 @@ const accord = (e, s, i) => e.secs[s].chords[i];
         check((await etat(p)).secs[0].chords.length === f1.secs[0].chords.length, 'Annuler ramène l\'accord supprimé');
 
         // ===== G. TROIS FAÇONS DE REFERMER ===========================================================================================
-        await toucher(p, CASE(0, 1), 400);
+        await ouvrirCase(p, CASE(0, 1), 400);
         await toucher(p, '#pa-quel [data-bulle="fermer"]');
         const g1 = await etat(p);
-        await toucher(p, CASE(0, 1), 400);
+        await ouvrirCase(p, CASE(0, 1), 400);
         await p.keyboard.press('Escape'); await p.waitForTimeout(250);
         const g2 = await etat(p);
-        await toucher(p, CASE(0, 1), 400);
+        await ouvrirCase(p, CASE(0, 1), 400);
         // Le doigt ne touche pas pendant que la page défile (le garde « dernierDefilementA » l'écarte, voir le clic à côté) : on amène d'abord la cible
         // à l'écran et on attend la fin du défilement. Sans carte « Nouvel accord » (lot 10e) la page est plus courte, et la cible exige ce défilement.
         await p.locator('.prog-section-measures').first().scrollIntoViewIfNeeded(); await p.waitForTimeout(700);
         await toucher(p, '.prog-section-measures');
         const g3 = await etat(p);
         check(!g1.ouvert && !g2.ouvert && !g3.ouvert, `✕, Échap et le toucher à côté referment le panneau (${[g1.ouvert, g2.ouvert, g3.ouvert]})`);
-        await toucher(p, CASE(0, 1), 400);
+        await ouvrirCase(p, CASE(0, 1), 400);
         await toucher(p, '#pa-son-btn', 400);
         await toucher(p, '#pa-quel [data-bulle="fermer"]', 400);
         const g4 = await etat(p);
         check(!g4.ouvert && g4.mode !== 'edit' && g4.edit == null && g4.carte !== 'pa-son', `agrandi, le refermer termine la modification et rend la carte à la page (${g4.mode}, ${g4.carte})`);
         // Le petit séquenceur de la carte s'ouvre DANS le panneau agrandi (il fait partie des réglages du son).
-        await toucher(p, CASE(0, 2), 400);
+        await ouvrirCase(p, CASE(0, 2), 400);
         await toucher(p, '#pa-son-btn', 400);
         await toucher(p, '#pa-son #seq-zoom', 600);
         const g5 = await p.evaluate(() => ({ ouvert: !document.getElementById('panneau-accord').hidden, seq: window.app.seqMode, dans: !!document.querySelector('#pa-son #arp-sequencer'),
@@ -237,7 +247,7 @@ const accord = (e, s, i) => e.secs[s].chords[i];
         {
             const off = await ouvrir(nav, TEL, erreurs, 'verre éteint : ');
             const on = await ouvrir(nav, TEL, erreurs, 'verre allumé : ', { 'harmohub.glass.v1': '1' });
-            for (const pg of [off.p, on.p]) { await toucher(pg, CASE(0, 1), 500); await toucher(pg, '#pa-son-btn', 500); }
+            for (const pg of [off.p, on.p]) { await ouvrirCase(pg, CASE(0, 1), 500); await toucher(pg, '#pa-son-btn', 500); }
             const fond = (pg) => pg.evaluate(() => { const cs = getComputedStyle(document.getElementById('panneau-accord')); return cs.backgroundColor + ' ' + cs.backdropFilter; });
             const [fOff, fOn] = [await fond(off.p), await fond(on.p)];
             check(fOff !== fOn && /blur/.test(fOn), `verre allumé : le panneau prend le fond dépoli des menus (${fOff} → ${fOn})`);
@@ -253,8 +263,8 @@ const accord = (e, s, i) => e.secs[s].chords[i];
         {
             // Au CENTRE d'une case de 60px, comme un pouce : les poignées de durée, proportionnelles à la case (12px ici), ne volent plus le toucher.
             const { p, ctx } = await ouvrir(nav, { ...TEL, viewport: { width: 320, height: 640 } }, erreurs, '320px : ');
-            await toucher(p, CASE(0, 1), 500);
-            check(await p.evaluate(() => !document.getElementById('panneau-accord').hidden && window.app.selectedIndex === 1), 'à 320px, un toucher au centre d\'une case la sélectionne et ouvre le panneau (les poignées de durée ne le volent plus)');
+            await ouvrirCase(p, CASE(0, 1), 500);
+            check(await p.evaluate(() => !document.getElementById('panneau-accord').hidden && window.app.selectedIndex === 1), 'à 320px, deux touchers au centre d\'une case la sélectionnent et ouvrent le panneau (les poignées de durée ne le volent plus)');
             const t = await p.evaluate(() => {
                 const pa = document.getElementById('panneau-accord'), r = pa.getBoundingClientRect();
                 const dehors = [...pa.querySelectorAll('button')].filter(b => { const q = b.getBoundingClientRect(); return q.width > 0 && (q.left < 0 || q.right > innerWidth + 0.5); }).length;
@@ -269,9 +279,9 @@ const accord = (e, s, i) => e.secs[s].chords[i];
         // ===== J. L'ORDINATEUR N'A PAS BOUGÉ, ET LE SEUIL NE PERD RIEN =================================================================
         {
             const { p, ctx } = await ouvrir(nav, { viewport: { width: 1320, height: 820 } }, erreurs, 'ordinateur : ');
-            await p.click(CASE(0, 1)); await p.waitForTimeout(400);
+            await p.dblclick(CASE(0, 1)); await p.waitForTimeout(400); // point B : le double-clic ouvre la bulle
             const o1 = await p.evaluate(() => ({ bulle: !document.getElementById('bulle-accord').hidden, panneau: document.getElementById('panneau-accord').getBoundingClientRect().height }));
-            check(o1.bulle && o1.panneau === 0, `ordinateur : un clic ouvre la bulle, jamais le panneau du téléphone (${JSON.stringify(o1)})`);
+            check(o1.bulle && o1.panneau === 0, `ordinateur : un double-clic ouvre la bulle, jamais le panneau du téléphone (${JSON.stringify(o1)})`);
             await p.click('#bulle-accord [data-bulle="son"]'); await p.waitForTimeout(400);
             const o2 = await p.evaluate(() => ({ mode: document.body.dataset.appMode, carte: document.getElementById('accord-card').parentElement.className,
                 inspecteur: document.querySelector('.sidebar-frame').getBoundingClientRect().width }));
@@ -280,7 +290,7 @@ const accord = (e, s, i) => e.secs[s].chords[i];
         }
         {
             const { p, ctx } = await ouvrir(nav, TEL, erreurs, 'seuil : ');
-            await toucher(p, CASE(0, 2), 500);
+            await ouvrirCase(p, CASE(0, 2), 500);
             await toucher(p, '#pa-son-btn', 500);
             const avant = await etat(p);
             await p.setViewportSize({ width: 1320, height: 820 }); await p.waitForTimeout(500);

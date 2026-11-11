@@ -24,7 +24,7 @@ notes », `Telephone.dc.html`, `Clic.dc.html` le clic sur un accord). Les commen
 - Bancs à réécrire (jamais supprimer) : `editeur_notes` (partie « Compact provisoire »), `editeur_et_clavier`, `editeur_notes_outils`, `calque_voix`, `vues_tiroir` s'ils
   lisent `densite-compact` à l'ouverture ; ajouter une vérification « la grille a exactement le même affichage séquenceur ouvert ».
 
-### B. Le clic sur un accord : écouter sans ouvrir (planche 4 de la maquette)
+### B. Le clic sur un accord : écouter sans ouvrir (planche 4 de la maquette) — ✅ livré le 11/11 (banc `clic_ecouter` ; renommer : « Renommer » au clic droit)
 - **Un clic ou un toucher** sur une case : la case est sélectionnée (bleu) et l'accord est joué (halo vert le temps du son). **Rien ne s'ouvre.**
 - **Double-clic**, ou toucher une case **déjà sélectionnée** : ouvre le panneau de l'accord (bulle à l'ordinateur, panneau du bas au téléphone).
 - Échap ou clic à côté referme ; la sélection reste.

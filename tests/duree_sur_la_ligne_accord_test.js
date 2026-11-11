@@ -62,7 +62,8 @@ async function ouvrir(page, vp) {
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const case1 = '#progression-sections .grid-cell[data-section="0"][data-index="1"]';
-    const ouvrirPanneau = async (p) => { await p.tap(case1); await p.waitForTimeout(500); };
+    // Point B de la refonte du séquenceur : un premier toucher choisit l'accord (et le fait entendre), un second sur la case choisie ouvre le panneau.
+    const ouvrirPanneau = async (p) => { await p.tap(case1); await p.waitForTimeout(500); await p.tap(case1); await p.waitForTimeout(500); };
     const duree = (p) => p.evaluate(() => {
         const q = (s) => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); return { l: Math.round(r.width), h: Math.round(r.height), t: Math.round(r.top) }; };
         const lbl = document.querySelector('#pa-quel .pa-duree');
@@ -143,10 +144,10 @@ async function ouvrir(page, vp) {
     o.on('pageerror', e => erreurs.push('ordinateur : ' + e.message));
     check(await o.evaluate(() => getComputedStyle(document.querySelector('.accord-grid')).display === 'none' || document.querySelector('.accord-grid').getBoundingClientRect().width === 0),
         'ordinateur : la ligne de l\'accord n\'est pas affichée (rien aux deux endroits)');
-    await o.click('#progression-sections .grid-cell[data-index="0"]');
+    await o.dblclick('#progression-sections .grid-cell[data-index="0"]'); // point B : le double-clic ouvre la bulle
     await o.waitForTimeout(300);
     const bulleDuree = await o.evaluate(() => { const b = document.getElementById('bulle-accord'); const d = b && !b.hidden && b.querySelector('.bulle-duree'); return d ? { txt: d.textContent.trim(), l: Math.round(d.getBoundingClientRect().width) } : null; });
-    check(!!bulleDuree && bulleDuree.l > 0 && /mes|temps/.test(bulleDuree.txt), `ordinateur : un clic sur la case ouvre la bulle, qui dit la durée — « ${bulleDuree && bulleDuree.txt} »`);
+    check(!!bulleDuree && bulleDuree.l > 0 && /mes|temps/.test(bulleDuree.txt), `ordinateur : un double-clic sur la case ouvre la bulle, qui dit la durée — « ${bulleDuree && bulleDuree.txt} »`);
     await o.close();
 
     check(erreurs.length === 0, `aucune erreur JavaScript — ${erreurs.join(' | ') || 'aucune'}`);

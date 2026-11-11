@@ -5870,3 +5870,42 @@ donc **à chaque clic**, et le séquenceur se resserrait de 1400 à 1020 px.
 - **Réécrits (contrat changé, rien supprimé)** : `inspecteur_son` (à droite de la fenêtre de grille, qui ne bouge pas d'un pixel), `sidebar_collapse` et
   `sidebar_collapse_seq_height` (la colonne garde sa largeur, inspecteur ouvert ou fermé).
 - Balayage ciblé (33 suites) : vert, hors ligne de base (`probe_defilement_tactile`, `smoke`).
+
+## Refonte du séquenceur — B. Un clic = écouter, double-clic = ouvrir (11/11)
+
+« Cliquer un accord ne doit pas forcément ouvrir le panneau : parfois on veut seulement entendre l'accord. » Décision du 11/11 (option A, planche 4 de la maquette) :
+« un clic ou un toucher : la case est sélectionnée (bleu) et l'accord est joué. Rien ne s'ouvre. Double-clic, ou toucher une case déjà sélectionnée : ouvre le panneau
+de l'accord. Échap ou clic à côté referme ; la sélection reste. »
+
+- `onGridPointerUp` : **ordinateur**, un clic sélectionne et fait entendre ; le double-clic ouvre la bulle (il ne retape plus le nom) ; une bulle déjà ouverte suit un clic sur
+  une autre case (comme ← → et ‹ ›). **Téléphone**, un toucher choisit et fait entendre ; un second toucher sur la case choisie, rapide ou lent, ouvre le panneau à mi-hauteur
+  (sans second son pour un double toucher) ; un panneau ouvert suit un toucher sur une autre case. L'ancien « double toucher = panneau agrandi » devient « double toucher = panneau » ;
+  on l'agrandit par « Réglages du son » (ou « Modifier » à l'appui long).
+- **Renommer** : nouvelle entrée `data-ctx-action="rename-chord"` au clic droit et à l'appui long d'un accord (le crayon de « Renommer », repris tel quel), à côté de « Modifier »
+  (l'inspecteur). Taper une lettre sur l'accord choisi ouvre toujours la retape.
+- **Clic à côté** : le clic qui referme la bulle ou le panneau ne désélectionne plus (`fermeUnPanneau`, `_bulleFermeeA`) ; un clic suivant à côté, panneau fermé, désélectionne comme avant.
+- **Piège trouvé par `sentinelle_atteignabilite`** (dû au point C) : l'inspecteur flottant, collé en haut de la colonne, cachait « Ajouter » et l'aide au bout de l'ajout rapide
+  et, vers 1280 px, le bouton « Éditeur de notes ». Il part désormais sous l'ajout rapide (`placerInspecteurFlottant`, variable `--haut-inspecteur`, recalculée à chaque
+  changement de mode et au redimensionnement) ; `recadrage_panneau` le vérifie aux deux largeurs. **Limite connue** : sous ~1150 px de large, l'inspecteur flottant peut recouvrir
+  la droite d'une fenêtre de grille large (Détaillé tiré à la poignée). La fenêtre d'accord unique (point D, 3 bis) le remplacera.
+
+**Bancs.**
+- Nouveau `clic_ecouter` (31 vérifications) : ordinateur (clic = entendre sans rien ouvrir, même recliqué ; double-clic = bulle sans retape, un seul son ; la bulle suit un clic ; Échap
+  et le clic à côté la referment en gardant la sélection, un second clic à côté désélectionne ; « Renommer » au clic droit ; une lettre tapée) ; téléphone (toucher = entendre sans
+  ouvrir ni défiler ; second toucher lent ou rapide = panneau à mi-hauteur ; Échap ; le panneau suit ; appui long → « Renommer », par de vrais événements tactiles CDP) ; séquenceur
+  ouvert (un clic l'y amène sans bulle ni inspecteur, le double-clic ouvre la bulle). **Sabotages** : le clic rouvre la bulle → 6 rouges ; le premier toucher rouvre le panneau → 1 rouge ;
+  le double-clic retape le nom → 6 rouges ; restauré.
+- Assistant partagé **`tests/_geste_accord.js`** (`ouvrirBulle`, `ouvrirSon`, `ouvrirPanneau`, `retaperNom`, `centreCase`).
+- **33 bancs réécrits pour le nouveau geste, aucun supprimé** (premier balayage complet après le changement : 208 verts, 38 rouges) :
+  - clic → double-clic avant « Réglages du son » : `ajout_modif`, `filet_toujours_visible`, `glock_full_real_ui`, `grille_clic_et_double_clic`, `inspecteur_son`, `portes_sequenceur`,
+    `probe_instrument_pendant_edition`, `probe_suppression_pleinecran`, `sidebar_collapse`, `sidebar_collapse_seq_height`, `vues_tiroir`, `bulle_accord`, `barre_selection`,
+    `duree_sur_la_ligne_accord` (partie ordinateur), `telephone_panneau_accord` (partie ordinateur) ;
+  - double-clic = retaper le nom → « Renommer » au clic droit : `grid_dblclick`, `grid_errors`, `midi_unnamed`, `barre_selection` (G), `bulle_accord` (E), `grille_clic_et_double_clic` (3) ;
+  - un toucher → deux touchers pour ouvrir le panneau : `telephone_panneau_accord` (assistant `ouvrirCase`, et la partie A vérifie que le premier n'ouvre rien), `duree_sur_la_ligne_accord`,
+    `carte_accord_unique`, `telephone_panneau_ajout` (G) ;
+  - double toucher (ou double-clic à 860 px) → panneau puis « Réglages du son » pour la Modification : `filet_toujours_visible`, `inspecteur_sujet`, `telephone_barre_lecture`,
+    `glock_unlock_and_switch`, `guitar_lock_click`, `song_panel` ;
+  - contrat inversé : `mobile_scroll` (un toucher ne fait plus rien défiler ; l'ordinateur ne recentre plus la carte : il vérifiait le `scrollIntoView` retiré au point C) ;
+  - l'inspecteur demandé par son geste (le suivi ne le montre plus, point C) : `voice_leading` (éditeur réduit, double-clic, « Réglages du son ») ;
+  - inspecteur flottant qui couvrait `#grid-zoom` vers 1280 px (réglé par `placerInspecteurFlottant`) : `continuous_scroll`, `highlight_diagnostic`, `loupe_open_selected_chord`,
+    `seqplay_looprange`, `three_more_features`, `sentinelle_atteignabilite`.

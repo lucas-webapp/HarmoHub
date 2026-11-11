@@ -11,10 +11,13 @@ async function cellBox(page, section, index) {
 // Terminer la modification. À 860px (disposition téléphone), la modification est depuis le lot 10d le panneau d'accord agrandi : sa croix la termine
 // (celle de la carte, #accord-card > .card-head, y est masquée — le panneau dit déjà de quel accord il s'agit).
 const TERMINER = '#panneau-accord [data-bulle="fermer"]';
+// Point B de la refonte du séquenceur : à 860px, le double-clic OUVRE le panneau d'accord à mi-hauteur ; « Réglages du son » l'agrandit (la Modification).
+// Panneau déjà agrandi (on passe d'un accord à l'autre), il le reste : le bouton n'est alors pas retouché (il le replierait).
 async function dblclickCellSafe(page, section, index) {
     const box = await cellBox(page, section, index);
     await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height - 6);
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(450);
+    if (!(await page.evaluate(() => !!(window.app._bulle && window.app._bulle.etendu)))) { await page.click('#pa-son-btn'); await page.waitForTimeout(250); }
 }
 async function clickCellSafe(page, section, index) {
     const box = await cellBox(page, section, index);

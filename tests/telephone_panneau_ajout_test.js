@@ -150,9 +150,11 @@ const etat = (p) => p.evaluate(() => {
         check(await p.evaluate(() => document.getElementById('quick-add-help').hidden), `un second toucher sur « ? » la referme`);
 
         // ===== G. L'ACCORD ET L'AJOUT SE CÈDENT LA PLACE ===============================================================================
+        // Point B de la refonte du séquenceur : un toucher CHOISIT la case (et referme l'ajout), un second toucher sur la case choisie ouvre son panneau.
+        await toucher(p, CASE(0, 0), 500);
         await toucher(p, CASE(0, 0), 500);
         const g1 = await p.evaluate(() => ({ ajout: !document.getElementById('ajout-aide').hidden, accord: !document.getElementById('panneau-accord').hidden, cible: window.app._cibleAjout }));
-        check(!g1.ajout && g1.accord && g1.cible === null, `toucher une case referme le panneau d'ajout et ouvre celui de l'accord (${JSON.stringify(g1)})`);
+        check(!g1.ajout && g1.accord && g1.cible === null, `toucher une case referme le panneau d'ajout, la retoucher ouvre celui de l'accord (${JSON.stringify(g1)})`);
         // Le panneau de l'accord recouvre le bas de la page : on fait défiler la grille (le doigt le ferait) jusqu'à la case « + » de l'autre partie.
         await p.evaluate((sel) => document.querySelector(sel).scrollIntoView({ block: 'start' }), PLUS(1));
         await p.evaluate(() => window.scrollBy(0, -(document.getElementById('song-card').offsetHeight + 160))); await p.waitForTimeout(300);

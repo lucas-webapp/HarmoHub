@@ -4,6 +4,7 @@
 // repère : il doit disparaître dès qu'on nomme la case, et nulle part ailleurs dans l'appli l'accord
 // de remplissage ne doit réapparaître sous son vrai nom.
 const { chromium } = require('playwright')
+const { retaperNom } = require('./_geste_accord');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -130,12 +131,11 @@ function plaqueBar(midis) {
     // clic = sélectionner (partout), second clic rapproché = renommer si l'on a visé le symbole.
     // Nommer une case « à nommer » demande donc un double-clic, comme renommer n'importe quel autre
     // accord — et c'est bien l'intérêt : un seul geste à retenir, pas un cas particulier de plus.
-    const cellSym = await page.$('.grid-cell[data-index="1"] .cell-sym');
-    const box = await cellSym.boundingBox();
-    await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
-    await page.waitForTimeout(250);
+    // REFONTE DU SÉQUENCEUR, POINT B (11/11) : le double-clic ouvre désormais l'accord ; retaper le nom passe par « Renommer » au clic droit — le même
+    // geste pour une case « à nommer » que pour tout autre accord.
+    await retaperNom(page, 0, 1, 250);
     const enEdition = await page.$('.cell-sym-input');
-    check(!!enEdition, 'double-cliquer le nom d\'une case « à nommer » ouvre bien la saisie');
+    check(!!enEdition, '« Renommer » sur une case « à nommer » ouvre bien la saisie');
     if (enEdition) {
         await enEdition.fill('Dm7');
         await enEdition.press('Enter');

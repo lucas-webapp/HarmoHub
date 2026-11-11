@@ -36,15 +36,20 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         const c = document.querySelector('.grid-cell[data-index="0"]').getBoundingClientRect();
         const dessus = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2);
         const pa = document.getElementById('panneau-accord').getBoundingClientRect();
-        return { haut: Math.round(c.top), bas: Math.round(c.bottom), libre: !!dessus && !!dessus.closest('.grid-cell[data-index="0"]'), auDessusDuPanneau: c.bottom <= pa.top + 1 };
+        return { haut: Math.round(c.top), bas: Math.round(c.bottom), libre: !!dessus && !!dessus.closest('.grid-cell[data-index="0"]'), auDessusDuPanneau: c.bottom <= pa.top + 1,
+            panneauCache: document.getElementById('panneau-accord').hidden };
     });
     console.log('scrollY before:', before, 'after:', after, 'case:', JSON.stringify(vue));
     // Lot 10e : sans la carte « Nouvel accord » la page est plus courte et le panneau, plus haut que ce qui reste à défiler, la fait descendre davantage pour
     // garder la case entre la barre-résumé et lui (110px ici) : c'est le défilement voulu du lot 10d, pas le saut vers le diagramme. Borné à deux cases (128px).
-    console.log((Math.abs(after - before) <= 128 && vue.libre && vue.auDessusDuPanneau) ? 'PASS (no scroll jump on mobile)' : 'FAIL');
+    // Refonte du séquenceur, point B (11/11) : un toucher CHOISIT la case et la fait entendre, il n'ouvre plus le panneau — donc plus aucun défilement :
+    // la page doit rester EXACTEMENT où elle était, la case libre à l'écran (le saut vers le diagramme reste interdit, et même le petit défilement du 10d n'a plus lieu).
+    console.log((after === before && vue.libre && vue.panneauCache) ? 'PASS (no scroll jump on mobile : un toucher ne fait rien défiler)' : 'FAIL');
     await page.close();
 
-    console.log('--- Desktop (1280px): clicking a chord in Modification STILL scrolls the diagram into view ---');
+    // Refonte du séquenceur, point C (11/11) : « il recadre l'écran à chaque fois » — editChord ne fait PLUS défiler vers la carte à l'ordinateur (la grille ne
+    // doit pas bouger). Contrat inversé : le scrollIntoView ne doit plus être appelé.
+    console.log('--- Desktop (1280px): opening a chord in Modification does NOT scroll the diagram into view anymore ---');
     page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
     await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
     await page.waitForTimeout(200);
@@ -79,7 +84,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         });
     });
     console.log('scrollIntoView called on desktop:', r2);
-    console.log(r2 ? 'PASS (desktop still scrolls to the diagram)' : 'FAIL');
+    console.log(!r2 ? 'PASS (desktop ne recentre plus rien à l\'ouverture)' : 'FAIL');
     await page.close();
 
     console.log('Errors:', JSON.stringify(errors));

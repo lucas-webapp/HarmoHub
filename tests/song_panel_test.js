@@ -138,14 +138,17 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
         }
         return null;
     });
+    // Refonte du séquenceur, point B : le double-clic OUVRE le panneau d'accord (à mi-hauteur) ; « Réglages du son » l'agrandit, c'est la Modification.
     await page.mouse.dblclick(pointNu.x, pointNu.y);
+    await page.waitForTimeout(400);
+    await page.click('#pa-son-btn');
     await page.waitForTimeout(400);
     const enEdition = await page.evaluate(() => ({
         mode: document.body.dataset.appMode,
         accordCharge: window.app.editingIndex,
     }));
     check(enEdition.mode === 'edit' && enEdition.accordCharge === 1,
-        `un double-clic charge bien l'accord en Modification — index ${enEdition.accordCharge}`);
+        `un double-clic puis « Réglages du son » chargent bien l'accord en Modification — index ${enEdition.accordCharge}`);
     // Les cases sont DANS la page (elles poussent la grille, comme la maquette) : elles ne peuvent pas recouvrir la carte de l'accord. On l'éprouve
     // quand même, mesuré, parce que c'est exactement le défaut qu'avait produit le premier placement de l'ancien panneau flottant (96 % recouverts).
     const cohabitation = await page.evaluate(() => {

@@ -10,6 +10,7 @@
 const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('barre de sélection');
 const { estBruitReseau } = require('./_harness');
+const { retaperNom } = require('./_geste_accord');
 
 plan(49);
 
@@ -60,8 +61,9 @@ const graine = () => {
     await p.click(cellule(0, 3), { button: 'right' }); await p.waitForTimeout(300);
     check(!(await menu(p)).includes('Coller après'), 'rien de copié encore : le clic droit ne propose pas « Coller après »');
     await p.keyboard.press('Escape'); await p.waitForTimeout(200);
-    await p.click(cellule(0, 0)); await p.waitForTimeout(300);
-    check(await barre(p) === null && await p.evaluate(() => !document.getElementById('bulle-accord').hidden), 'un accord : la bulle, pas la barre');
+    // Point B de la refonte du séquenceur : le double-clic ouvre la bulle (un clic seul ne fait qu'entendre l'accord).
+    await p.dblclick(cellule(0, 0)); await p.waitForTimeout(300);
+    check(await barre(p) === null && await p.evaluate(() => !document.getElementById('bulle-accord').hidden), 'un accord (double-clic) : la bulle, pas la barre');
     await p.click(cellule(0, 1), { modifiers: ['Control'] }); await p.waitForTimeout(300);
     let b = await barre(p);
     exiger(!!b, 'Ctrl+clic sur un second accord fait apparaître la barre');
@@ -167,10 +169,11 @@ const graine = () => {
     await p.keyboard.press('Escape'); await p.waitForTimeout(200);
 
     // ======================================================================================================
-    console.log('\n=== G. Double-clic = retaper le nom ; Tab = la case suivante ===');
-    await p.dblclick(cellule(0, 2)); await p.waitForTimeout(400);
+    // Refonte du séquenceur, point B : le double-clic ouvre l'accord ; la retape du nom passe par « Renommer » au clic droit.
+    console.log('\n=== G. « Renommer » = retaper le nom ; Tab = la case suivante ===');
+    await retaperNom(p, 0, 2, 400);
     const retape = () => p.evaluate(() => { const i = document.querySelector('#progression-sections .cell-sym-input'); if (!i) return null; const c = i.closest('.grid-cell'); return c.dataset.section + ':' + c.dataset.index; });
-    exiger(await retape() === '0:2', 'le double-clic ouvre la retape du nom');
+    exiger(await retape() === '0:2', '« Renommer » ouvre la retape du nom');
     await p.keyboard.type('Em7'); await p.keyboard.press('Tab'); await p.waitForTimeout(400);
     check(await partie(p, 0) === 'C:maj7 A:min7 E:min7 G:dom7' && await retape() === '0:3', `Tab valide Em7 et passe à la case suivante (${await retape()})`);
     check(await p.evaluate(() => document.activeElement && document.activeElement.classList.contains('cell-sym-input')), 'le curseur y est : on tape tout de suite');

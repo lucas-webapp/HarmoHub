@@ -40,7 +40,7 @@ const graine = (opts) => {
     const boite = (p, sel) => p.evaluate((sel) => { const e = document.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); return { g: r.left, d: r.right, h: r.top, l: Math.round(r.width), haut: Math.round(r.height) }; }, sel);
     const visible = async (p, sel) => { const b = await boite(p, sel); return !!b && b.l > 0 && b.haut > 0; };
     const ouvrirSon = async (p, i) => {
-        await p.click(`#progression-sections .grid-cell[data-index="${i}"]`); await p.waitForTimeout(300);
+        await p.dblclick(`#progression-sections .grid-cell[data-index="${i}"]`); await p.waitForTimeout(300); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
         await p.click('#bulle-accord [data-bulle="son"]'); await p.waitForTimeout(500);
     };
 

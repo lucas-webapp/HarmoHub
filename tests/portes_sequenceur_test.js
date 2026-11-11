@@ -60,7 +60,7 @@ const atteignable = (sel) => {
     await page.waitForTimeout(1000);
     // LOT 6c : sur ordinateur, la porte « Séquenceur » de la carte Accord vit dans l'inspecteur, qui n'existe qu'en modification d'un accord. On en
     // ouvre un, comme l'utilisateur (clic sur la case, puis « Réglages du son » dans la bulle) : les deux portes sont alors à l'écran ensemble.
-    await page.click('#progression-sections .grid-cell[data-index="0"]');
+    await page.dblclick('#progression-sections .grid-cell[data-index="0"]'); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
     await page.waitForTimeout(300);
     await page.click('#bulle-accord [data-bulle="son"]');
     await page.waitForTimeout(500);

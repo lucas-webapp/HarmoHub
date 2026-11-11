@@ -180,10 +180,13 @@ async function eprouverLesDeuxEtats(page, contexte) {
             await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
             if (i === 0) await m.waitForTimeout(120);
         }
+        await m.waitForTimeout(500);
+        // Point B de la refonte du séquenceur : le double toucher OUVRE le panneau à mi-hauteur ; « Réglages du son » l'agrandit, c'est la Modification.
+        await m.click('#pa-son-btn');
         await m.waitForTimeout(900); // large : un défilement doux mettrait du temps à se voir
         const apres = await m.evaluate(() => Math.round((document.scrollingElement || document.documentElement).scrollTop));
         const mode = await m.evaluate(() => window.app.appMode);
-        exiger(mode === 'edit', `téléphone : le double-tap entre bien en Modification — mode ${mode}`);
+        exiger(mode === 'edit', `téléphone : le double-tap puis « Réglages du son » entrent bien en Modification — mode ${mode}`);
         // Depuis le lot 10d, la modification est le panneau d'accord, qui monte du bas : la page bouge alors JUSTE ce qu'il faut pour que la case touchée
         // reste visible au-dessus de lui (« l'accord visible au-dessus », maquette) — le contraire de « ça scrolle tout de suite en bas », où l'on perdait la
         // grille. Ce que la garde protège reste donc protégé : la case touchée est à l'écran, non recouverte, et la page n'a pas bougé de plus que le

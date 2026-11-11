@@ -209,7 +209,9 @@ const panneauOuvert = (p) => p.evaluate(() => !document.getElementById('panneau-
             if (i === 0) await p.waitForTimeout(120);
         }
         await p.waitForTimeout(500);
-        exiger(await p.evaluate(() => window.app.appMode === 'edit'), 'un double toucher sur une case entre en Modification');
+        // Point B de la refonte du séquenceur : le double toucher OUVRE le panneau à mi-hauteur ; « Réglages du son » l'agrandit, c'est la Modification.
+        await p.click('#pa-son-btn'); await p.waitForTimeout(500);
+        exiger(await p.evaluate(() => window.app.appMode === 'edit'), 'un double toucher sur une case puis « Réglages du son » entrent en Modification');
         const modif = await p.evaluate(() => {
             const pa = document.getElementById('panneau-accord').getBoundingClientRect(), b = document.getElementById('barre-lecture').getBoundingClientRect();
             const dock = ['dock-rythme', 'dock-terminer'].some(id => { const e = document.getElementById(id); return !e.hidden && e.getBoundingClientRect().height > 0; });

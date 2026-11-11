@@ -2,6 +2,7 @@
 // G1 = Suppr respecte la sélection multiple ; G2 = cible d'édition du symbole utilisable ;
 // G3 = une édition inline sans changement ne laisse aucune trace.
 const { chromium } = require('playwright')
+const { retaperNom } = require('./_geste_accord');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -96,10 +97,12 @@ async function addChords(page, syms) {
         const r = sym.getBoundingClientRect();
         return { x: r.left - 8, y: r.top + r.height / 2 }; // 8px à gauche du texte
     });
+    // REFONTE DU SÉQUENCEUR, POINT B (11/11) : à l'ordinateur, le double-clic OUVRE l'accord où qu'il tombe, et le nom se retape par « Renommer »
+    // au clic droit. Viser à côté du texte ne peut donc plus rien rater : c'est ce que tient la vérification, avec le geste d'aujourd'hui.
     await page.mouse.dblclick(nearMiss.x, nearMiss.y);
     await page.waitForTimeout(250);
-    check(await page.isVisible('.cell-sym-input'),
-        'un double-clic 8px à côté du texte ouvre bien l\'édition (la cible ne se rate plus au pixel près)');
+    check(await page.isVisible('#bulle-accord') && !(await page.isVisible('.cell-sym-input')),
+        'un double-clic 8px à côté du texte ouvre bien l\'accord (sa bulle), sans rien rater au pixel près');
     await page.keyboard.press('Escape');
     await page.waitForTimeout(200);
 
@@ -122,8 +125,7 @@ async function addChords(page, syms) {
         const r = document.querySelector('.grid-cell[data-index="0"] .cell-sym').getBoundingClientRect();
         return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     });
-    await page.mouse.dblclick(symBox.x, symBox.y); // double-clic : voir le contrat expliqué en G2
-    await page.waitForTimeout(200);
+    await retaperNom(page, 0, 0, 200); // « Renommer » au clic droit : voir le contrat expliqué en G2
     check(await page.isVisible('.cell-sym-input'), 'l\'édition inline est bien ouverte');
     const hint = await page.evaluate(() => {
         const champ = document.querySelector('.cell-sym-input');
@@ -140,8 +142,7 @@ async function addChords(page, syms) {
         `...et ne touche évidemment pas aux accords — obtenu ${JSON.stringify(after.roots)}`);
 
     // ...mais une vraie modification passe toujours.
-    await page.mouse.dblclick(symBox.x, symBox.y);
-    await page.waitForTimeout(200);
+    await retaperNom(page, 0, 0, 200);
     await page.fill('.cell-sym-input', 'Bb7');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(300);
