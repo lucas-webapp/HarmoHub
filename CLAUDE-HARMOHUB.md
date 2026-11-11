@@ -1,6 +1,6 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 11/11/2026 (soir), après les points A, C et B de la refonte du séquenceur. **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 11/11/2026 (nuit), après le premier sous-lot du point D de la refonte du séquenceur. **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
@@ -54,10 +54,17 @@ Mis à jour le 11/11/2026 (soir), après les points A, C et B de la refonte du s
     (nouvelle entrée `rename-chord`), ou une lettre tapée. 33 bancs réécrits pour le geste (liste dans le journal).
   - **À signaler à l'utilisateur (pas bloquant)** : l'inspecteur flottant est un état intermédiaire jusqu'à la fenêtre d'accord unique (3 bis) ; sous ~1150 px de large il peut
     recouvrir la droite d'une fenêtre de grille élargie à la poignée.
-- **Prochain : D — le nouveau séquenceur**, premier sous-lot : **module `sequenceur.js` écrit de zéro + intégration ordinateur** (sections 3 et 3 bis de
-  `docs/refonte-sequenceur.md`, à relire en entier ; maquettes v17 et planche A v26). Ordre du cahier (section 5) : module + ordinateur, puis formes enregistrées
-  (`synchro-formes.js`) et notes libres, puis téléphone, puis retrait de l'ancien code et réécriture des bancs. L'ancien séquenceur reste en place jusqu'à la bascule.
-  Aucune question ouverte (décisions du 11/11 dans la section 4 du cahier).
+- ✅ **D, premier sous-lot livré** (11/11, banc `sequenceur`, 76 vérifications) : module `sequenceur.js` (chargé AVANT `script.js`) + intégration ordinateur — bouton « Séquenceur »
+  dans le bloc « Vues », panneau dans le flux au-dessus du tiroir ; une ligne par voix, huit croches par mesure ; motifs fournis par position (règles 3 / 5 notes, basse différente) ;
+  clic, peinture, Intensité (nouveau champ `intensiteVoix`, lu par la lecture et les exports via `reglageIntensiteCroche`) ; copier / coller / effacer ; plage à boucler dans la règle ;
+  poignée des lignes 22–48. L'ancien séquenceur reste en place. Détail et choix faits en route dans `docs/dette-tests.md`.
+  - **À signaler à l'utilisateur (pas bloquant)** : la plage tirée au séquenceur s'aligne sur des accords entiers (la boucle de l'appli repose sur des index d'accords) ; un vieux motif
+    à la double-croche s'affiche à la croche et n'est réécrit à la croche que si on retouche l'accord ; ajouter une basse différente après un motif ne réapplique pas le motif.
+- **Prochain : D, deuxième sous-lot** — **formes enregistrées** (`synchro-formes.js`, un document par compte, fusion sans doublon, suppression tracée ; marque-page de TrainHub ;
+  « Forme 1 » proposé, Entrée / Échap ; supprimer une forme → accords « À la main ») et **notes libres** (bouton note de musique dans la colonne des noms, en face de la règle ; bande
+  nom + octave + « + » ; ligne en pointillés sur tous les accords, × pour la retirer), puis **clic droit sur une vignette** (modifier un schéma, « Rétablir l'original ») et la vue
+  **« Toutes les notes »**. Relire les sections 3 et 4 de `docs/refonte-sequenceur.md` et la maquette v17 (`project/Main.dc.html`). Ensuite : téléphone, puis retrait de l'ancien code.
+  Aucune question ouverte.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
@@ -77,7 +84,7 @@ Mis à jour le 11/11/2026 (soir), après les points A, C et B de la refonte du s
   Large et le pincement du téléphone sont une préférence de l'APPAREIL (`harmohubGrilleTelephone`), pas du morceau : les échelles du morceau restent
   celles de l'ordinateur (un morceau en Détaillé donnait des cases de 103 px au téléphone). Aussi : Transposer garde une ligne sous les cases (absent de
   la maquette, présent avant).
-- **Dernier balayage complet** (refonte du séquenceur A, C, B, 11/11 soir) : **241 verts, 5 rouges, 6 sans verdict sur 252 suites — exactement la ligne de base** (3175 s cumulées) ; poignée des diagrammes (11/11) : 238 verts, 6 rouges, 6 sans verdict sur 250 suites — la ligne de base plus `historique_versions`, rouge sous charge seulement (vert 3 fois sur 3 rejoué seul, sans lien avec le tiroir) ; lot 10f (07/11) : 238 verts, 5 rouges, 6 sans verdict sur 249 suites ; (avant : lot 10e, 235 verts + 2 bancs réparés puis rejoués verts, 5 rouges, 6 sans verdict sur 248 suites — exactement la ligne de base de
+- **Dernier balayage complet** (séquenceur D, premier sous-lot, 11/11 nuit) : **242 verts, 5 rouges, 6 sans verdict sur 253 suites — exactement la ligne de base** (3092 s cumulées) ; refonte du séquenceur A, C, B (11/11 soir) : **241 verts, 5 rouges, 6 sans verdict sur 252 suites — exactement la ligne de base** (3175 s cumulées) ; poignée des diagrammes (11/11) : 238 verts, 6 rouges, 6 sans verdict sur 250 suites — la ligne de base plus `historique_versions`, rouge sous charge seulement (vert 3 fois sur 3 rejoué seul, sans lien avec le tiroir) ; lot 10f (07/11) : 238 verts, 5 rouges, 6 sans verdict sur 249 suites ; (avant : lot 10e, 235 verts + 2 bancs réparés puis rejoués verts, 5 rouges, 6 sans verdict sur 248 suites — exactement la ligne de base de
   `CLAUDE.md`. Le lancer en tâche d'arrière-plan avec le chien de garde dans la même commande : `(bash tests/watchdog.sh &) ; bash tests/run_all_fast.sh`.
 - **Dettes connues pour le lot 10** : au téléphone, hors barre du haut, onglets, barre de lecture et vues intégrées (10a, 10b), rien n'a bougé depuis
   le lot 6 ; 19 bancs sont joués à 860 px parce qu'ils éprouvent le mode « Ajout » de la carte Accord, qui n'existe plus que là (liste dans

@@ -1379,6 +1379,14 @@ const NIVEAUX_INTENSITE = [
 // dans les Paramètres.
 const VELOCITE_NIVEAU_NORMAL = 0.8;
 
+// Réglage d'intensité d'une attaque : celui que le nouveau séquenceur pose PAR VOIX (data.intensiteVoix, clé « voix:case », voir sequenceur.js) passe
+// avant l'ancien réglage par case, commun à toutes les voix (intensityPerStep, mode studio) — la maquette règle chaque note, pas chaque colonne.
+function reglageIntensiteCroche(intensiteVoix, intensityPerStep, voix, pas) {
+    const propre = intensiteVoix ? intensiteVoix[voix + ':' + pas] : undefined;
+    if (propre != null) return propre;
+    return intensityPerStep ? intensityPerStep[pas] : undefined;
+}
+
 function computeVelocity(held, onBeat, intensityPercent, stepOverride) {
     const base = held ? 1 : (onBeat ? 0.78 + Math.random() * 0.1 : 0.6 + Math.random() * 0.12);
     const percent = (stepOverride != null) ? stepOverride : (intensityPercent != null ? intensityPercent : DEFAULT_INTENSITY);
@@ -2777,6 +2785,9 @@ const ZONE_EDITION_SELECTEURS = [
     '#barre-lecture', '#panneau-lecture',
     // Lot 10d : le panneau d'accord du téléphone — agrandi, il porte la modification elle-même (la carte Accord y est déplacée).
     '#panneau-accord',
+    // Refonte du séquenceur, point D : le nouveau séquenceur (sequenceur.js) règle le rythme de l'accord choisi — y poser une note, tracer la plage
+    // à boucler ou choisir un motif n'est ni désélectionner l'accord ni quitter sa modification (ses cases sont des <div>, aucun `button` ne les couvre).
+    '#sequenceur',
 ].join(',');
 // Tiroir Clavier / Guitare retenu par morceau (sous-lot « Éditeur et clavier », voir memoriserVuesMorceau) : table locale { idMorceau: { p, g } }.
 const VUES_PAR_MORCEAU_KEY = 'harmohubVuesParMorceau';
@@ -4214,6 +4225,8 @@ class HarmoHubApp {
         this.setupGlobalTransportPlacement();
         this.setupBarreLecture(); // la barre de lecture du bas (ordinateur) : blocs, tempo, frise (voir plus bas)
         this.setupVues(); // le tiroir Clavier / Guitare : épinglé au-dessus de la barre de lecture, ou fenêtre libre (lot 8)
+        // Le nouveau séquenceur (refonte du séquenceur, point D) : au-dessus du tiroir, ouvert par son bouton du bloc « Vues ». Ordinateur seulement.
+        this.sequenceur = window.SequenceurHarmo ? new window.SequenceurHarmo.Sequenceur(this) : null;
         this.setupBarreMorceau(); // la barre du haut (ordinateur) : titre + menu du morceau, Enregistrer et son voyant
         this.setupMenuPartie(); // le menu ⋯ des en-têtes de partie (lot 5c)
         this.setupRangeeReglages(); // Tonalité, Mesure, Swing, Son, Transposer au-dessus de la grille (lot 6a)
@@ -5058,7 +5071,7 @@ class HarmoHubApp {
             // utilisateur, voir ZONE_EDITION_SELECTEURS plus haut, même correctif.
             const inGrid = inPath('.grid-cell, .cell-add, .section-head');
             // Lot 7b : la barre de sélection agit SUR la sélection — un clic dedans ne la perd pas (l'accord d'ancrage sert au Maj+clic et au collage).
-            const inMenu = inPath('#context-menu, #barre-selection, #vues-tiroir, #bl-vues'); // le tiroir et ses boutons (lot 8) agissent SUR l'accord sélectionné
+            const inMenu = inPath('#context-menu, #barre-selection, #vues-tiroir, #bl-vues, #sequenceur'); // le tiroir et ses boutons (lot 8) agissent SUR l'accord sélectionné
             // Lot 10d : le panneau d'accord du téléphone se referme ICI, au clic à côté, et non à l'appui du doigt (table _popups) : cet appui est
             // aussi le début d'un défilement, et « le mode modifier s'enlève dès que je veux scroller » (retour utilisateur) — les deux gardes
             // ci-dessus (touchMoved, dernierDefilementA) l'écartent déjà. Une autre case le déplace (onGridPointerUp), l'appui long ouvre son menu.
@@ -6659,6 +6672,7 @@ class HarmoHubApp {
         this._playMode = null;
         this._progChordSlots = new Map();
         this.updateSeqPlayhead(null);
+        if (this.sequenceur) this.sequenceur.effacerTete();
     }
 
     // Reflète un réglage tout juste changé (accord, style de jeu, séquenceur...) pendant qu'on écoute
@@ -6774,7 +6788,7 @@ class HarmoHubApp {
     // — Tone.Transport.clear(id) permet d'annuler UN SEUL évènement sans toucher au reste du calendrier
     // ni au transport lui-même (voir liveUpdateProgressionChord, qui patche un accord de la chanson en
     // cours de lecture en direct, sans à-coup, grâce à cette liste).
-    schedulePlayback(notes, midis, seqPattern, seqTie, secPerBeat, timeOffset, roleMap = {}, instrumentKey = 'piano', chord = null, trackPlayhead = false, gridPos = null, intensityPercent = 75, intensityPerStep = null) {
+    schedulePlayback(notes, midis, seqPattern, seqTie, secPerBeat, timeOffset, roleMap = {}, instrumentKey = 'piano', chord = null, trackPlayhead = false, gridPos = null, intensityPercent = 75, intensityPerStep = null, intensiteVoix = null) {
         const eventIds = [];
         const instrument = this.getInstrument(instrumentKey);
         const stepDur = secPerBeat / SEQ_STEPS_PER_BEAT;
@@ -6841,6 +6855,7 @@ class HarmoHubApp {
                         if (trackPlayhead) this.updateSeqPlayhead(s);
                         else if (gridPos) this.updateSeqPlayheadDepuisGrille(gridPos.section, gridPos.index, s);
                         if (gridPos && chord) this.setGridPlayheadProgress(gridPos.section, gridPos.index, s / SEQ_STEPS_PER_BEAT, chord.beats);
+                        if (gridPos && this.sequenceur) this.sequenceur.tete(gridPos.section, gridPos.index, s); // la croche qui sonne s'allume au séquenceur
                     } catch (e) {
                         console.warn('Mise à jour visuelle ignorée (croche', s, ') :', e.message);
                     }
@@ -6860,7 +6875,7 @@ class HarmoHubApp {
                 const runLen = s - runStart;
                 const held = (runLen === steps);          // actif du début à la fin -> accord tenu
                 const onBeat = (runStart % SEQ_STEPS_PER_BEAT === 0);
-                const stepOverride = intensityPerStep && intensityPerStep[runStart];
+                const stepOverride = reglageIntensiteCroche(intensiteVoix, intensityPerStep, voice, runStart);
                 const vel = computeVelocity(held, onBeat, intensityPercent, stepOverride);
                 const humanize = held ? 0 : Math.random() * 0.02;
                 const t0 = stepTime(runStart);
@@ -6904,7 +6919,7 @@ class HarmoHubApp {
         // `chord` (jamais substitué) passé tel quel : schedulePlayback relit this.guitarOverride à
         // CHAQUE croche pour le diagramme (voir son bloc de mise à jour visuelle), toujours à jour
         // même si le substitut change en cours de lecture (voir #guitar-name-input).
-        this.schedulePlayback(notes, chord.getSeqMidiNotes(), seqPattern, seqTie, secPerBeat, start, chord.getRoleMap(), instrumentKey, chord, true, null, +document.getElementById('intensity').value, this.intensityPerStep);
+        this.schedulePlayback(notes, chord.getSeqMidiNotes(), seqPattern, seqTie, secPerBeat, start, chord.getRoleMap(), instrumentKey, chord, true, null, +document.getElementById('intensity').value, this.intensityPerStep, this.reglagesNouveauSequenceurGardes().intensiteVoix || null);
         this.isPlaying = true;
 
         // Attend que l'instrument (Piano notamment : ses sons se chargent depuis internet) soit prêt
@@ -6961,7 +6976,7 @@ class HarmoHubApp {
         // `chord` (jamais substitué) passé tel quel : schedulePlayback relit data.guitarOverride depuis
         // les données à CHAQUE croche pour le diagramme (voir son bloc de mise à jour visuelle),
         // toujours à jour même si le substitut change pendant que cet accord sonne encore.
-        const eventIds = this.schedulePlayback(notes, chord.getSeqMidiNotes(), seqPattern, seqTie, secPerBeat, timeOffset, chord.getRoleMap(), this.songInstrument, chord, false, { section, index }, data.intensity, data.intensityPerStep);
+        const eventIds = this.schedulePlayback(notes, chord.getSeqMidiNotes(), seqPattern, seqTie, secPerBeat, timeOffset, chord.getRoleMap(), this.songInstrument, chord, false, { section, index }, data.intensity, data.intensityPerStep, data.intensiteVoix);
 
         // Métronome maintenu pendant la lecture (option activée) : un clic par temps de l'accord,
         // accentué sur le 1er temps de chaque mesure — indépendant des notes de l'accord jouées.
@@ -7308,8 +7323,21 @@ class HarmoHubApp {
             // qu'en mémoire pendant l'édition en cours, jamais dans les données sauvegardées.
             extraNotes: this.extraNotes.map(({ note, octave }) => ({ note, octave })),
             intensity: +document.getElementById('intensity').value,
-            intensityPerStep: { ...this.intensityPerStep }
+            intensityPerStep: { ...this.intensityPerStep },
+            ...this.reglagesNouveauSequenceurGardes()
         };
+    }
+
+    // Intensités par voix et motif suivi du nouveau séquenceur (voir editChord) : repris si l'accord ouvert est bien celui chargé et que son motif
+    // n'a pas changé depuis ; un motif retouché par l'ancien éditeur repart sans eux (ses intensités sont alors celles de intensityPerStep).
+    reglagesNouveauSequenceurGardes() {
+        const m = this._seqAuChargement;
+        if (!m || this.editingIndex !== m.index || this.activeSection !== m.section) return {};
+        if (document.getElementById('arpPattern').value !== m.arp) return {};
+        const r = {};
+        if (m.intensiteVoix) r.intensiteVoix = { ...m.intensiteVoix };
+        if (m.motifSeq) r.motifSeq = m.motifSeq;
+        return r;
     }
 
     // `insertAfter` (optionnel) : index après lequel insérer le nouvel accord, dans la partie active
@@ -7822,6 +7850,10 @@ class HarmoHubApp {
         // Restaure les réglages fins d'intensité par croche (mode studio) de CET accord, clonés pour la
         // même raison — jamais muter directement l'objet stocké dans sections[].chords[].
         this.intensityPerStep = { ...(d.intensityPerStep || {}) };
+        // Ce que le NOUVEAU séquenceur (sequenceur.js) a écrit dans l'accord et que l'édition vivante ne porte pas : ses intensités par voix
+        // (intensiteVoix) et le motif suivi (motifSeq). Gardés tels quels à l'enregistrement tant que le motif n'a pas bougé (voir buildLiveChordData) :
+        // sans cela, la moindre retouche dans la bulle effaçait les « fort » et « doux » posés au séquenceur.
+        this._seqAuChargement = { section, index, arp: d.arpPattern, intensiteVoix: d.intensiteVoix ? { ...d.intensiteVoix } : null, motifSeq: d.motifSeq || null };
         // this.studioMode N'EST PLUS remis à zéro ici (voir STUDIO_MODE_KEY) : réglage global de
         // l'appareil désormais, pas un état propre à CET accord.
         // Les rendus qui suivent l'ouverture repassent par commitLiveEdit : ce qu'ils écrivent n'est pas une action à annuler (voir commitLiveEdit).
@@ -7852,6 +7884,7 @@ class HarmoHubApp {
     // de editingIndex (voir son getter), et cette fonction est le seul endroit qui le remet à null.
     exitEditMode() {
         this.editingIndex = null;
+        this._seqAuChargement = null;
         document.body.classList.remove('inspecteur-suivi');
         document.getElementById('save').innerHTML = svgIcon('plus') + ' Ajouter';
         document.getElementById('cancel-edit').hidden = true;
@@ -8548,6 +8581,7 @@ class HarmoHubApp {
         this.afficherDureeAccord();
         this.rafraichirBarreSelection();
         if (this._bulle) { this.remplirBulleAccord(); this.placerBulleAccord(); } // la grille vient d'être redessinée : la bulle relit l'accord et se recale
+        if (this.sequenceur) this.sequenceur.rafraichir(); // le séquenceur montre la partie et l'accord choisis : il suit chaque rendu de la grille
     }
 
     // LA DURÉE AFFICHÉE PENDANT QU'ON L'ÉTIRE (lot 5d) : une petite bulle au-dessus du bord droit de l'accord, « 2 mesures », mise à jour à chaque
@@ -14902,7 +14936,7 @@ class HarmoHubApp {
                         const runLen = s - runStart;
                         const held = (runLen === steps);
                         const onBeat = (runStart % SEQ_STEPS_PER_BEAT === 0);
-                        const stepOverride = data.intensityPerStep && data.intensityPerStep[runStart];
+                        const stepOverride = reglageIntensiteCroche(data.intensiteVoix, data.intensityPerStep, voice, runStart);
                         const velocity = Math.round(computeVelocity(held, onBeat, data.intensity, stepOverride) * 127);
                         const startTick = tick + Math.round(grooveStepOffset(runStart, ticksPerStep, grooveRatio));
                         const endTick = tick + Math.round(grooveStepOffset(runStart + runLen, ticksPerStep, grooveRatio));
@@ -15234,7 +15268,7 @@ class HarmoHubApp {
                             const runLen = s - runStart;
                             const held = (runLen === steps);
                             const onBeat = (runStart % SEQ_STEPS_PER_BEAT === 0);
-                            const stepOverride = data.intensityPerStep && data.intensityPerStep[runStart];
+                            const stepOverride = reglageIntensiteCroche(data.intensiteVoix, data.intensityPerStep, voice, runStart);
                             const vel = computeVelocity(held, onBeat, data.intensity, stepOverride);
                             const humanize = held ? 0 : Math.random() * 0.02;
                             const t0 = stepTime(runStart);
@@ -22965,7 +22999,7 @@ class HarmoHubApp {
         // toujours à jour même si le substitut change pendant que cet accord sonne encore (voir le bug
         // observé lors des tests de cette fonctionnalité : le bandeau revenait périodiquement à
         // l'ancien substitut tant que guitarChord, figé, restait passé ici).
-        this.schedulePlayback(notes, midis, seqPattern, seqTie, secPerBeat, 0.1, roleMap, this.songInstrument, chord, false, { section, index }, data.intensity, data.intensityPerStep);
+        this.schedulePlayback(notes, midis, seqPattern, seqTie, secPerBeat, 0.1, roleMap, this.songInstrument, chord, false, { section, index }, data.intensity, data.intensityPerStep, data.intensiteVoix);
         this.isPlaying = true;
 
         // Attend que l'instrument soit prêt avant de démarrer le transport (voir playCurrent)

@@ -41,6 +41,11 @@ notes », `Telephone.dc.html`, `Clic.dc.html` le clic sur un accord). Les commen
 
 ### D. Un seul séquenceur (remplace le grand séquenceur, le petit séquenceur de l'inspecteur / du panneau, la loupe)
 Voir la section 3 : c'est le gros morceau (module `sequenceur.js` écrit de zéro, dessiné d'un seul bloc ; l'ancien reste en place jusqu'à la bascule).
+- ✅ **Premier sous-lot livré le 11/11** (banc `sequenceur`) : module `sequenceur.js` + intégration à l'ordinateur (bouton du bloc « Vues », au-dessus du tiroir ; motifs fournis par
+  position, peinture, Intensité, copier / coller / effacer, plage à boucler dans la règle, poignée des lignes). Détail et choix faits en route : `docs/dette-tests.md`.
+- [ ] Formes enregistrées (`synchro-formes.js`) et notes libres (bouton dans la colonne des noms), clic droit sur une vignette, vue « Toutes les notes ».
+- [ ] Téléphone (onglet « Rythme » du panneau d'accord, « Notes » → « Séquenceur »).
+- [ ] Retrait de l'ancien séquenceur (et de « Séq. » / « Éditeur de notes ») et réécriture de ses bancs.
 
 ## 3. Le nouveau séquenceur — décisions de la maquette
 

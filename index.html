@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611111900">
+    <link rel="stylesheet" href="style.css?v=202611112100">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611111900">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611112100">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1842,6 +1842,49 @@
         </div>
         <iframe id="paroles-cadre" class="paroles-cadre" title="Paroles du morceau"></iframe>
     </div>
+    <!-- LE SÉQUENCEUR (refonte du séquenceur, point D — docs/refonte-sequenceur.md, sections 3 et 3 bis ; maquette v17, planche A v26). En bas de l'écran,
+         au-dessus des diagrammes et de la barre de lecture ; la grille prend le reste. Une ligne par voix, huit croches par mesure, toute la partie à
+         l'écran. La barre d'outils est ici (adresses fixes, lues par les bancs) ; les lignes sont dessinées dans #sq-grille par sequenceur.js.
+         Ordinateur seulement (le téléphone ne change pas dans ce sous-lot). -->
+    <section id="sequenceur" class="sequenceur" aria-label="Séquenceur" hidden>
+        <div id="sq-poignee" class="sq-poignee" role="separator" aria-orientation="horizontal" aria-label="Hauteur des lignes du séquenceur" title="Tirer vers le haut pour des lignes plus hautes, vers le bas pour plus basses — double-clic : hauteur d'origine"></div>
+        <div class="sq-outils" role="toolbar" aria-label="Rythme">
+            <!-- Motifs : vignettes dessinées comme le séquenceur (croches voisines soudées en barre), pas de titre « Rythme » (maquette v17). -->
+            <div class="sq-motifs" role="group" aria-label="Motif">
+                <button type="button" id="sq-motif-plaque" class="sq-motif" data-sq-motif="plaque" aria-pressed="false"><span class="sq-vignette" aria-hidden="true"></span><span>Plaqué</span></button>
+                <button type="button" id="sq-motif-monte" class="sq-motif" data-sq-motif="monte" aria-pressed="false"><span class="sq-vignette" aria-hidden="true"></span><span>Arpège ↑</span></button>
+                <button type="button" id="sq-motif-descend" class="sq-motif" data-sq-motif="descend" aria-pressed="false"><span class="sq-vignette" aria-hidden="true"></span><span>Arpège ↓</span></button>
+                <button type="button" id="sq-motif-pompe" class="sq-motif" data-sq-motif="pompe" aria-pressed="false"><span class="sq-vignette" aria-hidden="true"></span><span>Pompe</span></button>
+                <button type="button" id="sq-motif-ballade" class="sq-motif" data-sq-motif="ballade" aria-pressed="false"><span class="sq-vignette" aria-hidden="true"></span><span>Ballade</span></button>
+                <button type="button" id="sq-motif-main" class="sq-motif" data-sq-motif="main" aria-pressed="false" title="À la main : s'allume dès qu'on retouche une note"><span class="sq-vignette" aria-hidden="true"></span><span>À la main</span></button>
+            </div>
+            <span class="sq-espace"></span>
+            <div class="sq-seg" role="group" aria-label="Le motif s'applique à">
+                <button type="button" id="sq-portee-partie" aria-pressed="true">Toute la partie</button>
+                <button type="button" id="sq-portee-accord" aria-pressed="false">Cet accord</button>
+            </div>
+            <!-- Logo du mode studio, repris tel quel (ICONS.studio de script.js). -->
+            <button type="button" id="sq-intensite" class="icon-btn" aria-pressed="false" aria-label="Intensité">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21v-6"/><path d="M5 11V3"/><circle cx="5" cy="13" r="2" fill="currentColor" stroke="none"/><path d="M12 21v-2"/><path d="M12 15V3"/><circle cx="12" cy="17" r="2" fill="currentColor" stroke="none"/><path d="M19 21v-10"/><path d="M19 7V3"/><circle cx="19" cy="9" r="2" fill="currentColor" stroke="none"/></svg>
+            </button>
+            <!-- Le rythme de l'accord choisi : copier, coller sur un autre accord, effacer. Logos du menu du clic droit (Copier, Coller) et poubelle de l'appli. -->
+            <div class="sq-rythme" role="group" aria-label="Rythme de l'accord choisi">
+                <button type="button" id="sq-copier" class="icon-btn" title="Copier le rythme de cet accord" aria-label="Copier le rythme de cet accord">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+                </button>
+                <button type="button" id="sq-coller" class="icon-btn" disabled title="Coller un rythme copié (rien de copié)" aria-label="Coller un rythme copié (rien de copié)">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9z"/></svg>
+                </button>
+                <button type="button" id="sq-effacer" class="icon-btn" title="Effacer le rythme de cet accord" aria-label="Effacer le rythme de cet accord">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                </button>
+            </div>
+            <button type="button" id="sq-fermer" class="icon-btn" title="Fermer le séquenceur" aria-label="Fermer le séquenceur">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+        </div>
+        <div id="sq-grille" class="sq-grille" role="grid" aria-label="Notes de la partie, une ligne par voix"></div>
+    </section>
     <!-- TIROIR CLAVIER / GUITARE (refonte, lot 8) : « épinglés en bas par défaut, ou détachés en fenêtre libre (barre de titre qui déplace, coin qui
          redimensionne, punaise pour réépingler) ». Ordinateur seulement : sous 900px les diagrammes restent dans leur carte (lot 10). Il ne porte AUCUNE
          logique d'instrument : il ACCUEILLE la carte des diagrammes existante (.viz-card, déplacée par placerVues, jamais dupliquée) et le titre de
@@ -1928,7 +1971,13 @@
             <button type="button" id="bl-metro" class="icon-btn" aria-pressed="false"></button>
         </div>
         <!-- Bloc « Vues » (lot 8) : Clavier et Guitare. Les deux boutons existants (.viz-toggle) y sont déplacés sur ordinateur par placerVues. -->
-        <div class="bl-bloc bl-vues" data-bloc="vues" id="bl-vues"></div>
+        <div class="bl-bloc bl-vues" data-bloc="vues" id="bl-vues">
+            <!-- Refonte du séquenceur (cahier 3 bis, « Nom et accès ») : le séquenceur, le Clavier et la Guitare s'ouvrent par trois boutons-bascules réunis ici.
+                 Logo de « Séq. » (#grid-zoom) repris tel quel. Ordinateur seulement : au téléphone le séquenceur viendra dans le panneau d'accord. -->
+            <button type="button" id="vue-sequenceur" class="icon-btn vue-sequenceur" aria-pressed="false" title="Séquenceur : le rythme de chaque voix de la partie" aria-label="Séquenceur">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h6M14 7h6M4 12h3M11 12h9M4 17h11M19 17h1"/></svg>
+            </button>
+        </div>
         <div class="bl-fin">
             <button type="button" id="bl-reinit" class="icon-btn bl-reinit" hidden title="Remettre les blocs dans l'ordre d'origine">Ordre d'origine</button>
             <button type="button" id="bl-reorg" class="icon-btn" aria-pressed="false" title="Réorganiser les blocs de la barre" aria-label="Réorganiser les blocs de la barre">
@@ -2082,7 +2131,9 @@
     <script src="compte-cloud.js?v=202610281200"></script>
     <script src="synchro-cloud.js?v=202610281200"></script>
     <script src="historique.js?v=202611060300"></script>
-    <script src="script.js?v=202611111900"></script>
+    <!-- sequenceur.js AVANT script.js : l'appli (window.app) est créée à la fin de script.js et construit le séquenceur dans la foulée. -->
+    <script src="sequenceur.js?v=202611112100"></script>
+    <script src="script.js?v=202611112100"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->

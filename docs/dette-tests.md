@@ -5914,3 +5914,44 @@ de l'accord. Échap ou clic à côté referme ; la sélection reste. »
   l'inspecteur flottant descendait sur la droite de sa barre d'outils et cachait « Étendre ». Il s'arrête désormais au-dessus du séquenceur (`--max-inspecteur`, calculé par
   `placerInspecteurFlottant`, recalculé par un `ResizeObserver` sur le volet et la colonne) et défile en interne s'il manque de place.
 - **Troisième balayage complet** (après ce correctif) : 241 verts, 5 rouges, 6 sans verdict sur 252 suites — exactement la ligne de base. Poussé.
+
+## Refonte du séquenceur — D, premier sous-lot : le module `sequenceur.js` et son intégration à l'ordinateur (11/11)
+
+« Le séquenceur est très compliqué à utiliser, beaucoup de problèmes d'affichage » : refonte complète (cahier `docs/refonte-sequenceur.md`, sections 3 et 3 bis ; maquette v17,
+planche A v26). Premier des quatre sous-lots de D (section 5 du cahier) : le module écrit de zéro et son intégration à l'ordinateur. **L'ancien séquenceur reste en place**
+(« Éditeur de notes », `#grid-zoom`) jusqu'à la bascule ; les deux écrivent le même motif enregistré (`arpPattern`), lu par la lecture de toujours.
+
+- **`sequenceur.js`** (nouveau, chargé AVANT `script.js` : l'appli est créée à la fin de `script.js` et construit le séquenceur dans la foulée ; premier dessin une micro-tâche
+  plus tard, l'état de l'appli n'étant pas entier pendant sa construction — sans cela, rouvrir l'appli séquenceur ouvert la faisait planter). Une ligne par voix (de la basse à
+  l'aiguë, d'après les notes réellement jouées), huit croches par mesure, toute la partie à l'écran ; les notes libres de l'accord en pointillés au-dessus ; un accord plus pauvre
+  laisse ses lignes du haut vides. Le stockage ne change pas (cases de double-croche + liaisons) : le module lit et écrit à la CROCHE (2 cases) ; une croche posée à côté d'une autre
+  s'y soude (une note tenue = une barre continue), les soudures qu'on ne touche pas sont gardées (un ancien « Noire maintenu » garde ses quatre attaques).
+- **Motifs fournis par position** (Plaqué, Arpège ↑, Arpège ↓, Pompe, Ballade, À la main — ceux de la maquette), sur « Toute la partie » ou « Cet accord » : trois sons → la basse et
+  l'aiguë gardées, le milieu fondu ; cinq ou six sons → la note en plus prend le rythme commun des voix du haut s'il existe, sinon celui de la basse (règle confirmée le 11/11) ;
+  basse différente → la voix la plus grave, au rythme de la basse ; un motif ne touche jamais les notes libres. Motif suivi retenu dans l'accord (`motifSeq`).
+- **Gestes** : un clic pose ou enlève ; un glissé PEINT sur la ligne de départ (pose ou enlève selon la première case) ; Intensité (logo du mode studio) allumée : normal → fort → doux →
+  enlevée, porté par l'attaque de la barre. Intensités **par voix** : nouveau champ `intensiteVoix` (« voix:case »), lu par la lecture, l'export MIDI et l'export audio avant l'ancien
+  `intensityPerStep` (`reglageIntensiteCroche`). Copier / Coller (par position) / Effacer. Règle : numéros de temps seulement ; la plage à boucler se tire sur la règle (bande orange
+  translucide DANS la règle) et se retire d'un clic. Clic sur le nom d'un accord = le choisir (et l'entendre) ; toucher une note la fait entendre sans rejouer l'accord.
+  Une annulation par geste (un glissé entier = un Ctrl+Z).
+- **Place et accès** : bouton « Séquenceur » (logo de « Séq. » repris tel quel) dans le bloc « Vues » de la barre de lecture ; le panneau se pose dans le flux, juste au-dessus du
+  tiroir des diagrammes, la grille cède la place sans changer d'affichage. Poignée : hauteur des LIGNES seulement, 22 à 48 px (30 par défaut, double-clic), jamais plus que la place
+  entre la barre du haut et le tiroir ; écran trop court : défilement interne, barre d'outils collée. Ouvert / fermé, hauteur et portée : réglages de l'appareil. Tête de lecture verte.
+  Ordinateur seulement (`min-width: 900px`) ; au téléphone ni panneau ni bouton.
+- **Intégration** : `#sequenceur` déclaré dans `ZONE_EDITION_SELECTEURS` et `inMenu` (un clic dedans ne désélectionne pas, ne quitte pas la modification) ; surface verre
+  (`verre-surfaces.css`, barre d'outils collée opaque) ; un accord en modification relit ses réglages après une écriture du séquenceur (`editionParSuivi`), et la modification garde
+  `intensiteVoix` / `motifSeq` tant que son motif n'a pas bougé (`reglagesNouveauSequenceurGardes`) — sans cela, monter l'accord d'une octave dans l'inspecteur effaçait les « fort ».
+- **Choix faits en route, à signaler** : (1) la plage tirée dans le séquenceur s'aligne sur des accords entiers (la plage à boucler de l'appli repose sur des index d'accords ;
+  la maquette la posait à la croche) ; (2) un vieux motif à la double-croche s'affiche à la croche (une croche est allumée si l'une de ses moitiés sonne) et n'est réécrit à la croche
+  que si on retouche cet accord ; (3) ajouter une basse différente APRÈS avoir appliqué un motif ne réapplique pas le motif (le renversement et le drop, eux, suivent : l'ordre des
+  voix stockées est déjà celui des positions) ; (4) le degré sous le nom d'accord vient de `getRomanNumeral`.
+- **Pas encore** (sous-lots suivants) : formes enregistrées (`synchro-formes.js`, marque-page), note libre (bouton dans la colonne des noms), clic droit sur une vignette (modifier
+  un schéma), vue « Toutes les notes », téléphone (onglet « Rythme »), retrait de l'ancien séquenceur et réécriture de ses bancs.
+
+**Banc** `sequenceur` (76 vérifications, de vrais gestes) : ouverture par le bloc « Vues », place au-dessus du tiroir, empreinte de la grille inchangée ; quatre lignes, huit croches,
+étiquettes ; Plaqué d'origine ; Arpège ↑ sur la partie d'un Ctrl+Z ; « Cet accord » ; clic / soudure / sélection gardée ; glissé qui peint et qui efface d'une annulation ; Intensité
+(fort, doux, enlevée, niveau de la suite de barre, lecture par voix) ; copier / coller ; plage à boucler ; édition ouverte qui ne réécrit pas le motif ni les intensités ; accords de
+3 et 5 notes, basse différente, renversement ; poignée à 600, 700, 900 px (bornes 22 / 48, double-clic, boutons à 32 px, noms masqués sous 24 px) ; 600 px et six lignes : défilement
+interne, barre collée ; tête de lecture ; × ; téléphone inchangé. **Sabotages** (neuf, tous rouges puis restaurés) : règle des notes en plus inversée (2 rouges), note posée non
+soudée (2), une annulation par case peinte (1), lecture qui ignore `intensiteVoix` (1), modification qui l'efface (1), clic dans le séquenceur qui désélectionne (1), pas de borne de
+hauteur (1), panneau visible au téléphone (1), séquenceur sous le tiroir (5). Balayage ciblé : 28 verts, 2 sans verdict de la ligne de base (`ctx_nav_scroll`, `smoke`).

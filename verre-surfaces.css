@@ -168,3 +168,9 @@ html[data-glass="1"] .seq-ruler-band {
         box-shadow: var(--glass-hi), 0 24px 50px -24px rgba(0, 0, 0, .65);
     }
 }
+
+/* ---- LE SÉQUENCEUR (refonte du séquenceur, point D) : une barre de plus au-dessus du tiroir, comme lui (fond et flou des barres). Sa barre d'outils,
+   COLLÉE en haut quand il défile en interne, reste OPAQUE (même décision que la bande de la règle, 05/11, point 7) : translucide, les notes qui
+   passent dessous traverseraient ses boutons. Les notes gardent leurs couleurs de rôle (1 vert, 3 bleu, 5 rouge, 7 ambre) : ce sont des repères. ---- */
+html[data-glass="1"] .sequenceur { background: var(--glass-bar); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-hi); }
+html[data-glass="1"] .sq-outils { background: rgb(17, 18, 20); }

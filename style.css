@@ -8400,3 +8400,113 @@ body.avec-barre-selection .toast { bottom: 132px; }
     /* L'éditeur de notes qui suit la sélection met l'accord en modification sans montrer l'inspecteur (editionParSuivi). */
     body.inspecteur-suivi .sidebar-frame { display: none; }
 }
+
+/* ======================================================================================================
+   LE SÉQUENCEUR (refonte du séquenceur, point D, premier sous-lot — docs/refonte-sequenceur.md, sections 3 et 3 bis ; sequenceur.js).
+   En bas de l'écran, dans le flux, juste au-dessus du tiroir des diagrammes : la grille (main, flex: 1) cède la place, rien n'est recouvert.
+   Bloc EN FIN DE FICHIER, comme le tiroir : il doit l'emporter sur les règles génériques de bouton plus haut.
+   Ordinateur seulement : sous 900px, ni le panneau ni son bouton (le téléphone ne bouge pas dans ce sous-lot).
+   ====================================================================================================== */
+.sequenceur, .vue-sequenceur { display: none; }
+@media (min-width: 900px) {
+    .vue-sequenceur { display: inline-flex; }
+    .vue-sequenceur[aria-pressed="true"] { color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); }
+    .sequenceur:not([hidden]) {
+        --sq-ligne: 30px;
+        display: flex;
+        flex-direction: column;
+        flex: none;
+        position: relative;
+        box-sizing: border-box;
+        min-height: 0;
+        /* Écran trop court : il défile en interne, barre d'outils et règle collées en haut (max-height posé par limiterHauteur). */
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 0 16px 10px;
+        background: rgba(17, 18, 20, 0.97);
+        border-top: 1px solid var(--border);
+        z-index: 28;
+    }
+    body.vue-ouverte .sequenceur { display: none; }
+    .sq-poignee { position: sticky; top: 0; height: 10px; margin: 0 -16px -10px; z-index: 6; cursor: ns-resize; touch-action: none; flex: none; }
+    .sq-poignee::after { content: ''; position: absolute; left: 50%; top: 3px; width: 44px; height: 4px; margin-left: -22px; border-radius: 2px; background: var(--btn-neutral-border-hover); opacity: 0.7; }
+    .sq-poignee:hover::after { background: var(--accent); opacity: 1; }
+
+    .sq-outils {
+        position: sticky; top: 0; z-index: 5;
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        padding: 10px 0 8px;
+        background: rgba(17, 18, 20, 0.97);
+    }
+    .sq-motifs, .sq-rythme { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .sq-rythme { gap: 4px; }
+    .sq-espace { flex: 1; }
+    .sq-outils button {
+        height: var(--bouton-h); box-sizing: border-box; border-radius: var(--rayon-bouton);
+        border: 1px solid var(--btn-neutral-border); background: var(--fond-bouton-sombre); color: #c8c8c8;
+        font: 700 12px var(--font); cursor: pointer; margin: 0;
+    }
+    .sq-outils .icon-btn { width: var(--bouton-h); padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+    .sq-outils .icon-btn .icon { width: 16px; height: 16px; }
+    .sq-outils button:hover:not(:disabled) { border-color: var(--btn-neutral-border-hover); background: var(--fond-bouton-sombre-survol); }
+    .sq-outils button:disabled { color: #4a4a4a; cursor: default; }
+    .sq-outils button[aria-pressed="true"] { color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); }
+    .sq-motif { padding: 0 10px; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+    .sq-outils .sq-seg button { white-space: nowrap; }
+    .sq-vignette { display: grid; grid-template-columns: repeat(8, 5px); grid-template-rows: repeat(4, 4px); row-gap: 2px; }
+    .sq-vignette span { border-radius: 2px; }
+    .sq-vignette span.lit { background: #8a8f98; }
+    .sq-motif[aria-pressed="true"] .sq-vignette span.lit { background: #cfe0ff; }
+    .sq-vignette span.g { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+    .sq-vignette span.d { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+    .sq-motif[data-sq-motif="main"] .sq-vignette span:not(.lit) { background: #2a2d33; width: 4px; border-radius: 1px; }
+    /* Groupe segmenté (moins de huit choix) : 32 px tout compris. */
+    .sq-seg { display: flex; padding: 2px; height: var(--bouton-h); box-sizing: border-box; border: 1px solid var(--btn-neutral-border); border-radius: var(--rayon-bouton); background: var(--fond-bouton-sombre); }
+    .sq-outils .sq-seg button { height: 26px; padding: 0 10px; border: 0; border-radius: 5px; background: transparent; color: var(--text-muted); }
+    .sq-outils .sq-seg button[aria-pressed="true"] { color: #cfe0ff; background: rgba(47, 129, 247, 0.22); }
+
+    /* La grille des notes : étiquettes (46 px), un petit jour, puis les croches (colonnes posées par sequenceur.js). Rangées : noms d'accords, règle, voix. */
+    .sq-grille { display: grid; column-gap: 0; row-gap: 3px; align-items: stretch; user-select: none; -webkit-user-select: none; touch-action: none; }
+    .sq-vide { margin: 8px 0; font-size: var(--fs-sm, 13px); color: var(--text-muted); }
+    .sq-nom { font-size: 12px; font-weight: 800; padding: 0 0 2px 6px; border-left: 2px solid var(--btn-neutral-border); color: var(--text-main); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sq-nom.choisi { border-left-color: var(--btn-blue-border-hover); color: #cfe0ff; }
+    .sq-degre { color: var(--text-muted); font-weight: 600; }
+    /* Règle : les numéros de temps seulement, pas de points de contretemps (« pas jolis »). Tirer dessus pose la plage à boucler. */
+    .sq-temps { position: relative; font-size: 10px; font-weight: 700; color: #8a8a8a; padding-left: 3px; line-height: 20px; cursor: ew-resize; border-radius: 3px; overflow: hidden; }
+    .sq-temps.dans-boucle { background: rgba(255, 179, 0, 0.13); }
+    .sq-temps.tete { color: var(--accent); }
+    /* La plage à boucler : DANS la règle, translucide (les chiffres se lisent à travers), bouts arrondis, comme GarageBand. Un clic la retire. */
+    .sq-boucle { position: relative; z-index: 2; height: 20px; box-sizing: border-box; border: 1px solid rgba(255, 179, 0, 0.85); border-radius: 4px; background: linear-gradient(180deg, rgba(255, 179, 0, 0.5), rgba(255, 179, 0, 0.28)); cursor: pointer; }
+    /* Étiquettes : nom de la note et son octave (accord choisi), dessinées comme des touches de piano, calées à droite. */
+    .sq-etiq { display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; border-radius: 4px; font-size: 11px; font-weight: 800; background: #d8d8d8; color: #141414; overflow: hidden; }
+    .sq-etiq.diese { background: #2a2a2a; color: #e0e0e0; border: 1px solid #3a3a3a; }
+    .sq-etiq.libre { background: transparent; color: #e0b0ff; border: 1px dashed rgba(224, 176, 255, 0.6); }
+    .sq-etiq:empty { background: transparent; border: 0; }
+    /* Les cases : bandes alternées, un trait à chaque temps, un trait plus marqué à chaque début de mesure. */
+    .sq-case { position: relative; min-width: 0; background: #1b1b1b; border-left: 1px solid #222; cursor: pointer; }
+    .sq-case.pair { background: #181818; }
+    .sq-case.temps { border-left-color: #2c2c2c; }
+    .sq-case.mesure { border-left: 1px solid #4a4a4a; }
+    .sq-case.choisi { background: #1c2230; }
+    .sq-case.pair.choisi { background: #1a1f2b; }
+    .sq-case.dans-boucle { background-image: linear-gradient(rgba(255, 179, 0, 0.13), rgba(255, 179, 0, 0.13)); }
+    .sq-case.sans-voix { cursor: default; }
+    .sq-case.tete { box-shadow: inset 0 0 0 2px var(--accent); }
+    /* UNE NOTE TENUE = UNE BARRE CONTINUE : des croches soudées n'ont ni coins ni espace entre elles ; une croche seule reste un plot court. */
+    .sq-note {
+        position: absolute; inset: 2px 1px; z-index: 1;
+        display: flex; align-items: center; padding-left: 3px; overflow: hidden; white-space: nowrap;
+        font-size: 10px; font-weight: 800; color: #f2f5f3; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+        border-radius: 5px; box-sizing: border-box;
+        background: linear-gradient(180deg, rgba(var(--sq-rgb), 0.55), rgba(var(--sq-rgb), 0.35));
+        border: 1px solid rgba(var(--sq-rgb), 0.75);
+    }
+    .sq-case.soude-g .sq-note { left: -1px; border-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+    .sq-case.soude-d .sq-note { right: 0; border-right: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+    /* Intensité lue à l'opacité de la note, liseré plus épais pour « fort ». */
+    .sq-case.niv-doux .sq-note { background: linear-gradient(180deg, rgba(var(--sq-rgb), 0.32), rgba(var(--sq-rgb), 0.18)); border-color: rgba(var(--sq-rgb), 0.55); }
+    .sq-case.niv-fort .sq-note { background: linear-gradient(180deg, rgba(var(--sq-rgb), 0.85), rgba(var(--sq-rgb), 0.6)); border-width: 2px; border-color: rgb(var(--sq-rgb)); }
+    .sq-case.libre .sq-note { border-style: dashed; }
+    /* Les noms de notes disparaissent des cases sous ~24 px de haut (cahier 3 bis). */
+    .sequenceur.lignes-basses .sq-note { font-size: 0; }
+}
