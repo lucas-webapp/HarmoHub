@@ -11,6 +11,7 @@
 //   3. appMode est DÉDUIT de editingIndex, et ce qui restait de la bascule est un réglage.
 const { chromium } = require('playwright')
 const { ajouterAccord } = require('./_ajout');
+const { retaperNom } = require('./_geste_accord');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -157,7 +158,7 @@ const etat = (page) => page.evaluate(() => ({
     // #quality y est masqué, c'est là que le banc plantait) mais dans la bulle : on rouvre la bulle de l'accord en cours d'édition et on y
     // choisit « Min 7 », le geste de l'utilisateur d'aujourd'hui. Ce qui est prouvé ne change pas : le titre de l'inspecteur suit en direct.
     const pc = await pointNu(page, 0);
-    await page.mouse.click(pc.x, pc.y); await page.waitForTimeout(300);
+    await page.mouse.dblclick(pc.x, pc.y); await page.waitForTimeout(300); // point B : le double-clic ouvre la bulle
     await page.click('#bulle-accord [data-bulle="quality"][data-valeur="min7"]'); await page.waitForTimeout(500);
     e = await etat(page);
     check(e.titre.replace(/\s+/g, '') === 'ModifierCm7', `le titre suit la modification en direct (${e.titre})`);
@@ -285,11 +286,15 @@ const etat = (page) => page.evaluate(() => ({
 
     // LOT 6b (la maquette validée) : sur ordinateur, « double-clic = retaper le nom », et l'accord se charge dans le panneau depuis la bulle que
     // le simple clic a ouverte (« Réglages du son »). La règle reste UNIQUE — c'est ce que cette section tient — mais ce n'est plus la même.
+    // REFONTE DU SÉQUENCEUR, POINT B (11/11) : le double-clic OUVRE l'accord (sa bulle) ; retaper le nom passe par « Renommer » au clic droit.
     await page.mouse.click(p2.x, p2.y); await page.waitForTimeout(80);
     await page.mouse.click(p2.x, p2.y); await page.waitForTimeout(600);
     e = await etat(page);
-    const retape = await page.evaluate(() => !!document.querySelector('.grid-cell[data-index="2"] .cell-sym-input'));
-    check(e.ed === null && retape, 'un double-clic retape le nom (un champ dans la case), sans ouvrir le panneau');
+    const bulle = await page.evaluate(() => !document.getElementById('bulle-accord').hidden && !document.querySelector('.grid-cell[data-index="2"] .cell-sym-input'));
+    check(e.ed === null && bulle, 'un double-clic ouvre la bulle de l\'accord (sans retaper le nom), sans ouvrir le panneau');
+    await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+    await retaperNom(page, 0, 2, 500);
+    check(await page.evaluate(() => !!document.querySelector('.grid-cell[data-index="2"] .cell-sym-input')) && (await etat(page)).ed === null, '« Renommer » au clic droit retape le nom (un champ dans la case), sans ouvrir le panneau');
     await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     await ouvrirSon(page, 2);
     e = await etat(page);
@@ -308,7 +313,7 @@ const etat = (page) => page.evaluate(() => ({
     // puis « F » dans la bulle rouverte sur le même accord.
     await ouvrirSon(page, 1);
     const pf = await pointNu(page, 1);
-    await page.mouse.click(pf.x, pf.y); await page.waitForTimeout(300);
+    await page.mouse.dblclick(pf.x, pf.y); await page.waitForTimeout(300); // point B : le double-clic rouvre la bulle
     await page.click('#bulle-accord [data-bulle="root"][data-valeur="F"]'); await page.waitForTimeout(300);
     check(await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[1].root === 'F'),
         'changer la fondamentale s\'écrit tout de suite, sans bouton Valider');

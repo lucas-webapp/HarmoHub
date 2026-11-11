@@ -8391,7 +8391,7 @@ body.avec-barre-selection .toast { bottom: 132px; }
     body[data-app-mode="edit"] .sidebar-frame {
         position: absolute; z-index: 40;   /* au-dessus de la rangée de réglages collante (z-index 30), qui court désormais sous lui */
         top: var(--haut-inspecteur, 56px); right: 20px; width: 344px;   /* sous la rangée de réglages et l'ajout rapide (placerInspecteurFlottant) */
-        max-height: calc(100% - var(--haut-inspecteur, 56px) - 20px);    /* il épouse son contenu, sans descendre plus bas que la colonne */
+        max-height: var(--max-inspecteur, calc(100% - var(--haut-inspecteur, 56px) - 20px));   /* il épouse son contenu, sans descendre sur le séquenceur ni sous la colonne */
         border-radius: 12px; overflow: auto;
         background: var(--card-bg);
         box-shadow: 0 18px 44px -18px rgba(0, 0, 0, .7), 0 0 0 1px var(--border);

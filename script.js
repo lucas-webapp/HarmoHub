@@ -9036,8 +9036,21 @@ class HarmoHubApp {
         if (!main) return;
         const repere = qa && qa.getBoundingClientRect().height > 0 ? qa : tete;
         if (!repere) return;
-        const haut = Math.max(56, Math.round(repere.getBoundingClientRect().bottom - main.getBoundingClientRect().top + 8));
+        const m = main.getBoundingClientRect();
+        const haut = Math.max(56, Math.round(repere.getBoundingClientRect().bottom - m.top + 8));
+        // Le BAS : au-dessus du séquenceur quand il est ouvert sous la grille — descendu jusqu'en bas, l'inspecteur cachait la droite de sa barre d'outils
+        // (« Étendre », zooms : probe_seq_adaptatif). Sinon le bas de la colonne. Trop court, il défile en interne (overflow: auto).
+        const dock = document.getElementById('seq-dock-panel');
+        const dr = dock && !dock.hidden ? dock.getBoundingClientRect() : null;
+        const bas = dr && dr.height > 0 && dr.top > m.top + haut ? dr.top - m.top - 8 : m.height - 20;
         document.documentElement.style.setProperty('--haut-inspecteur', haut + 'px');
+        document.documentElement.style.setProperty('--max-inspecteur', Math.max(120, Math.round(bas - haut)) + 'px');
+        // La place change aussi quand le séquenceur s'ouvre, se ferme ou change de hauteur (poignée) : on observe le volet une fois pour toutes.
+        if (!this._obsInspecteur && dock && window.ResizeObserver) {
+            this._obsInspecteur = new ResizeObserver(() => this.placerInspecteurFlottant());
+            this._obsInspecteur.observe(dock);
+            this._obsInspecteur.observe(main);
+        }
     }
 
     // ---------- Sujet du panneau d'accord (voir #accord-title) ----------

@@ -5909,3 +5909,7 @@ de l'accord. Échap ou clic à côté referme ; la sélection reste. »
   - l'inspecteur demandé par son geste (le suivi ne le montre plus, point C) : `voice_leading` (éditeur réduit, double-clic, « Réglages du son ») ;
   - inspecteur flottant qui couvrait `#grid-zoom` vers 1280 px (réglé par `placerInspecteurFlottant`) : `continuous_scroll`, `highlight_diagnostic`, `loupe_open_selected_chord`,
     `seqplay_looprange`, `three_more_features`, `sentinelle_atteignabilite`.
+- **Second balayage complet** : 239 verts, 7 rouges, 6 sans verdict. Hors ligne de base : `ajout_modif` (deux clics simples qui rouvraient la bulle, et sa vérification
+  « double-clic = retaper le nom », réécrite en « double-clic = bulle » + « Renommer ») et `probe_seq_adaptatif`, qui a trouvé un **vrai défaut du point C** : séquenceur ouvert,
+  l'inspecteur flottant descendait sur la droite de sa barre d'outils et cachait « Étendre ». Il s'arrête désormais au-dessus du séquenceur (`--max-inspecteur`, calculé par
+  `placerInspecteurFlottant`, recalculé par un `ResizeObserver` sur le volet et la colonne) et défile en interne s'il manque de place.
