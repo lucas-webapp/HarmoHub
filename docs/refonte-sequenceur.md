@@ -48,7 +48,9 @@ loupe, pas de poignée de hauteur, pas de « Étendre »** : toute la partie tie
 onglet « Rythme » à côté de « Accord » et « Son »).
 
 ### Barre d'outils, de gauche à droite
-1. **Lecture** puis **Stop**, en tête (« comme d'habitude » : logos et couleurs de HarmoHub, vert / rouge). « Lecture » ne joue que la plage à boucler quand elle existe.
+1. **Pas de Lecture / Stop propres au séquenceur** (décision finale du 11/11, après un premier essai en tête de barre) : la **barre de lecture de l'application** (en bas) pilote
+   la grille ET le séquenceur. Pour jouer un ou deux accords en boucle, on place la **barre orange** au-dessus du séquenceur ; « Lecture » ne joue alors que cette plage.
+   Retirer le Lecture / Stop du séquenceur actuel (`#seq-play`, `#seq-stop`) et ses bancs (`pinned_seq_toolbar`, `probe_seq_*`).
 2. **Motifs** en vignettes (Plaqué, Arpège ↑, Arpège ↓, Pompe, Ballade, À la main) + **formes enregistrées par l'utilisateur** (vignette, nom, petit × pour la
    supprimer). Un motif s'applique à « Toute la partie » ou à « Cet accord » (groupe segmenté à droite). Appliquer un motif **ne réécrit que les quatre voix** : les
    notes libres restent.
@@ -85,6 +87,9 @@ Grand séquenceur et petit séquenceur (deux affichages), zoom H / V, loupe, « 
 allumer (le chemin des voix peut devenir permanent et discret : à trancher), bande d'intensité séparée, mode studio comme mode à part (son logo est repris pour le
 bouton Intensité). Les bancs `probe_seq_*`, `seq_*`, `voice_leading*`, `vl_*`, `calque_voix`, `notes_manuelles_intensite`, `editeur_notes*`, `pinned_seq_toolbar`,
 `loupe_*`, `sidebar_collapse_seq_height`, `volet_hauteur_poignee` (voir « Lot 9 » dans `CLAUDE-HARMOHUB.md`) sont à réécrire pour les nouveaux gestes.
+
+**Position de la barre d'outils** (décision du 11/11) : elle reste **au-dessus** des notes (toujours visible, place habituelle des logiciels de musique, ne bouge pas quand
+des lignes s'ajoutent). Option offerte, non demandée : ranger les vignettes de motifs derrière un seul bouton « Motifs » si elles prennent trop de place.
 
 ## 4. Questions encore ouvertes (à poser à l'utilisateur avant de coder)
 
