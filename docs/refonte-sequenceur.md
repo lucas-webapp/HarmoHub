@@ -92,6 +92,13 @@ onglet « Rythme » à côté de « Accord » et « Son »).
   **Banc à écrire** : chaque motif × position fondamentale / renversements / basse différente / drop 2 et 3.
 - Questions à confirmer avec l'utilisateur : la règle de fusion pour les accords à 5 ou 6 notes (9es, 11es, 13es).
 
+### Modifier un schéma (clic droit sur une vignette, 11/11 — fait dans la maquette)
+- **Un schéma SANS notes** (4 voix × 8 croches, de l'aiguë à la basse) retouché dans une petite bande dépliée sous la barre d'outils, **pas sur la vraie grille** : la grille est liée à un
+  accord (notes, renversement) et on risquerait d'écraser un vrai rythme ; le schéma vaut pour tous les accords (règle « par position »).
+- La bande : la grille du schéma (un clic pose ou enlève une croche ; croches voisines soudées en barre), le nom modifiable, ▶ pour l'entendre sur l'accord choisi, Enregistrer,
+  Annuler ; « Rétablir l'original » sur un motif fourni (les retouches se posent PAR-DESSUS, l'original n'est jamais perdu) ; « Supprimer » sur une forme de l'utilisateur.
+- À l'enregistrement, les accords qui suivent ce schéma le suivent dans sa nouvelle version. « À la main » n'a pas de clic droit (rien à retoucher).
+
 ### Vue « Toutes les notes » (planche 2)
 Seulement les **hauteurs utilisées** par la partie (jamais 60 lignes) pour ajouter une note hors de l'accord ; notes ajoutées à la main en pointillés. À préciser
 au codage : bascule Voix / Toutes les notes dans la barre.
