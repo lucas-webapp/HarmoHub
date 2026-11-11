@@ -85,6 +85,11 @@ onglet « Rythme » à côté de « Accord » et « Son »).
 - Un **motif** ou une **forme enregistrée** est écrit **par position** (basse, aiguë, voix du milieu), pas par note. Appliqué à un accord de moins de voix : on garde toujours la basse
   et l'aiguë, les voix du milieu en trop **se fondent** dans la voisine (leurs croches s'ajoutent). Avec plus de voix : les voix du milieu en plus reprennent le rythme de leur voisine.
 - **Rien n'est perdu** : le rythme d'origine reste stocké avec l'accord ; repasser un accord de 3 à 4 notes rend les croches de la voix en trop.
+- **Renversements, basses différentes, drops, octaves** (11/11 : « bien adapter les rythmes types lorsqu'il y a des renversements ») : les voix sont rangées de la plus grave à la plus
+  aiguë **d'après les notes réellement jouées** (renversement, octave, drop compris). La voix 1 est toujours la note la plus grave ; le rythme reste le même, seules les notes
+  changent (les rôles 1, 3, 5, 7 gardent leurs couleurs). Une **basse différente** (`C_E`) est une voix à part tout en bas, même hors de l'accord ; elle prend le rythme de la basse du
+  motif (ou, si elle double une autre voix, celui de la basse seule). Un arpège « monte » donc toujours du plus grave au plus aigu, jamais dans l'ordre des degrés.
+  **Banc à écrire** : chaque motif × position fondamentale / renversements / basse différente / drop 2 et 3.
 - Questions à confirmer avec l'utilisateur : la règle de fusion pour les accords à 5 ou 6 notes (9es, 11es, 13es).
 
 ### Vue « Toutes les notes » (planche 2)
