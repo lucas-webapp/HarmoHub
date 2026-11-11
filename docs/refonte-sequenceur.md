@@ -84,14 +84,25 @@ onglet « Rythme » à côté de « Accord » et « Son »).
 - **Pas de filtre** à mettre dans les enregistrements. Le nombre de lignes suit l'accord ; une partie affiche autant de lignes que son accord le plus riche, un accord plus pauvre laisse
   les lignes qu'il n'a pas **vides (sans hachures)**.
 - Un **motif** ou une **forme enregistrée** est écrit **par position** (basse, aiguë, voix du milieu), pas par note. Appliqué à un accord de moins de voix : on garde toujours la basse
-  et l'aiguë, les voix du milieu en trop **se fondent** dans la voisine (leurs croches s'ajoutent). Avec plus de voix : les voix du milieu en plus reprennent le rythme de leur voisine.
+  et l'aiguë, les voix du milieu en trop **se fondent** dans la voisine (leurs croches s'ajoutent). Avec plus de voix : voir la règle des notes en plus ci-dessous.
 - **Rien n'est perdu** : le rythme d'origine reste stocké avec l'accord ; repasser un accord de 3 à 4 notes rend les croches de la voix en trop.
 - **Renversements, basses différentes, drops, octaves** (11/11 : « bien adapter les rythmes types lorsqu'il y a des renversements ») : les voix sont rangées de la plus grave à la plus
   aiguë **d'après les notes réellement jouées** (renversement, octave, drop compris). La voix 1 est toujours la note la plus grave ; le rythme reste le même, seules les notes
   changent (les rôles 1, 3, 5, 7 gardent leurs couleurs). Une **basse différente** (`C_E`) est une voix à part tout en bas, même hors de l'accord ; elle prend le rythme de la basse du
   motif (ou, si elle double une autre voix, celui de la basse seule). Un arpège « monte » donc toujours du plus grave au plus aigu, jamais dans l'ordre des degrés.
   **Banc à écrire** : chaque motif × position fondamentale / renversements / basse différente / drop 2 et 3.
-- Question restante pour l'utilisateur : la règle de fusion pour les accords à 5 ou 6 notes (9es, 11es, 13es), voir section 4.
+- **Notes en plus (accords de 5 ou 6 notes : 9es, 11es, 13es)** — règle du 11/11, d'après l'idée de l'utilisateur (« suivre la basse si les autres notes sont jouées que de temps
+  en temps ; si toutes les notes sont jouées de la même façon, la note en plus doit suivre le schéma des autres notes ») :
+  1. On regarde les voix **au-dessus de la basse** dans le motif (voix 2, 3 et aiguë), croches seules, sans tenir compte des intensités.
+  2. **Si elles ont toutes le même rythme** (elles frappent ensemble : Plaqué, Pompe, accords répétés), la note en plus **prend ce rythme commun** : elle sonne avec le bloc de l'accord.
+     Son intensité est celle de la voix voisine, croche par croche.
+  3. **Sinon** (elles jouent chacune à son tour : Arpège ↑, Arpège ↓, rythmes croisés), la note en plus **suit la basse** : elle colore la basse sans casser le dessin de l'arpège.
+     Intensité : celle de la basse.
+  4. Cas limites : basse muette dans le motif → la note en plus suit la voix la plus proche d'elle en hauteur ; motif vide (« À la main » sans rien) → ligne vide.
+  5. Deux notes en plus (accord de 6 notes) : chacune suit la même règle (même décision pour les deux).
+  6. La règle ne fait que **proposer un point de départ** : les lignes en plus restent des lignes normales, qu'on retouche à la main ; une retouche est gardée (l'accord passe « À la main »).
+  7. Les formes enregistrées par l'utilisateur (4 positions) suivent la même règle.
+  **Banc à écrire** : chaque motif fourni × accord à 5 et 6 notes, avec le rythme attendu de chaque ligne en plus (bloc commun ou basse) ; sabotage : inverser les deux cas.
 
 ### Modifier un schéma (clic droit sur une vignette, 11/11 — fait dans la maquette)
 - **Un schéma SANS notes** (4 voix × 8 croches, de l'aiguë à la basse) retouché dans une petite bande dépliée sous la barre d'outils, **pas sur la vraie grille** : la grille est liée à un
@@ -182,7 +193,7 @@ Réponses de l'utilisateur, 11/11 :
 5. **Basse différente** : gardée, dans « Réglages du son », comme une note libre à la basse avec proposition de renommage en accord sur basse (voir 3 bis).
 
 Restent à trancher :
-4. **Fusion des voix pour les accords de 5 ou 6 notes** (9es, 11es, 13es) — question à reposer à l'utilisateur (voir la section « Accords de 3, 5 ou 6 notes » plus haut).
+4. **Notes en plus des accords de 5 ou 6 notes** : règle écrite le 11/11 d'après l'idée de l'utilisateur (section « Accords de 3, 5 ou 6 notes ») : rythme commun des voix du haut s'il existe, sinon celui de la basse. **À confirmer**.
 6. Les commentaires de la maquette du séquenceur (version 17) et ceux de la planche A (version 26) ont tous été traités.
 
 ## 5. Ordre de travail proposé
