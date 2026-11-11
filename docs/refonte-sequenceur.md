@@ -34,7 +34,7 @@ notes », `Telephone.dc.html`, `Clic.dc.html` le clic sur un accord). Les commen
 - Bancs concernés : `bulle_accord*`, `telephone_panneau_accord`, `filet_*`, `mobile_*`, `probe_clic_accord_voisin`, `sentinelle_atteignabilite` (nombreux : lancer
   `bash tests/run_cible.sh --liste` après le changement de `selectChord` / `ouvrirBulle` / `ouvrirPanneauAccord`).
 
-### C. Le panneau ne recadre plus l'écran
+### C. Le panneau ne recadre plus l'écran — ✅ livré le 11/11 (banc `recadrage_panneau` ; l'inspecteur flotte au lieu de réserver une colonne)
 - `ouvrirPanneauAccord` appelle `assurerCaseVisiblePanneau` ; la bulle à l'ordinateur fait défiler la page : supprimer les défilements automatiques à l'ouverture.
 - Règle : **ne bouger l'écran que si la case touchée finit cachée sous le panneau, et du strict minimum** (jamais de recentrage).
 - Bancs : `telephone_panneau_accord`, `mobile_edit_scroll`, `mobile_scroll`, `bulle_*`.

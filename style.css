@@ -8379,3 +8379,24 @@ body.avec-barre-selection .toast { bottom: 132px; }
     .editeur-notes-legende { flex: 1 1 100%; justify-content: flex-start; order: 3; }
     #editeur-notes-voix { margin-left: 0; }
 }
+
+/* ======================================================================================================
+   REFONTE DU SÉQUENCEUR, POINT C (11/11) : « il recadre l'écran à chaque fois ». L'inspecteur réservait une colonne de 344px à droite : la zone de la
+   grille rétrécissait (1400 → 1020px à 1440px), la rangée de réglages passait sur deux lignes (+42px) et la grille, centrée, partait de 190px à gauche
+   — à chaque mise en modification, donc à chaque clic sur un accord séquenceur ouvert. Il FLOTTE désormais au-dessus du bord droit, sans rien réserver
+   (planche A : « ni marge de droite réservée »), jusqu'à la fenêtre d'accord unique qui le remplacera. En FIN de feuille (règles de colonnes plus haut).
+   ====================================================================================================== */
+@media (min-width: 900px) {
+    main { position: relative; }
+    body[data-app-mode="edit"] .sidebar-frame {
+        position: absolute; z-index: 40;   /* au-dessus de la rangée de réglages collante (z-index 30), qui court désormais sous lui */
+        top: 56px; right: 20px; width: 344px;
+        max-height: calc(100% - 76px);      /* il épouse son contenu, sans descendre plus bas que la colonne (56px en haut, 20px en bas) */
+        border-radius: 12px; overflow: auto;
+        background: var(--card-bg);
+        box-shadow: 0 18px 44px -18px rgba(0, 0, 0, .7), 0 0 0 1px var(--border);
+    }
+    body.sidebar-collapsed[data-app-mode="edit"] .sidebar-frame { width: 344px; }
+    /* L'éditeur de notes qui suit la sélection met l'accord en modification sans montrer l'inspecteur (editionParSuivi). */
+    body.inspecteur-suivi .sidebar-frame { display: none; }
+}

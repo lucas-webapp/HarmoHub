@@ -70,8 +70,10 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
         attendu: `${window.app.hauteurVoletSequenceur()}px`,
     }));
     check(apres.seqOuvert, 'le séquenceur continu reste ouvert quand on ferme l\'inspecteur');
-    check(apres.colRightWidth > avant.colRightWidth + 200,
-        `.col-right a bien regagné une largeur substantielle en fermant l'inspecteur — ${avant.colRightWidth.toFixed(0)} -> ${apres.colRightWidth.toFixed(0)}`);
+    // Refonte du séquenceur (point C, 11/11) : l'inspecteur FLOTTE au bord droit au lieu de réserver une colonne (« il recadre l'écran à chaque fois ») —
+    // .col-right ne change donc plus de largeur en l'ouvrant ou en le fermant, et c'est ce que ce banc tient désormais (la hauteur auto, plus bas, reste juste).
+    check(Math.abs(apres.colRightWidth - avant.colRightWidth) <= 1,
+        `.col-right garde exactement sa largeur, inspecteur ouvert puis fermé — ${avant.colRightWidth.toFixed(0)} -> ${apres.colRightWidth.toFixed(0)}`);
     check(apres.hostHeight === apres.attendu,
         `la hauteur du volet suit la nouvelle largeur — obtenu ${apres.hostHeight}, attendu ${apres.attendu}`);
 

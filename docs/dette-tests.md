@@ -5846,3 +5846,27 @@ l'éditeur ne touche plus à l'affichage, à la largeur de la fenêtre ni à la 
   à 700 px à l'ouverture → 3 rouges ; restauré.
 - `telephone_editeur_notes` (H : l'ordinateur garde Normal), `probe_suppression_pleinecran` (commentaire) suivent.
 - Balayage ciblé (58 suites, avec `editeur_et_clavier`, `editeur_notes_outils`, `calque_voix`) : 55 verts, rouges et sans verdict de la ligne de base seulement.
+
+## Refonte du séquenceur — C. Le panneau ne recadre plus l'écran (11/11)
+
+« Cliquer un accord ouvre le panneau, mais il recadre l'écran à chaque fois. » Règle : « ne bouger l'écran que si la case touchée finit cachée sous le panneau, et du strict minimum ».
+
+**Ce qui sautait, mesuré à 1440 × 900** : l'inspecteur réservait une colonne de 344 px. La zone de la grille passait de 1400 à 1020 px, la rangée de réglages passait sur deux lignes
+(36 → 78 px) et la grille centrée partait de 190 px à gauche. Séquenceur ouvert, chaque clic sur un accord le met en modification (l'éditeur suit la sélection) : la grille sautait
+donc **à chaque clic**, et le séquenceur se resserrait de 1400 à 1020 px.
+- **L'inspecteur flotte** au bord droit (`position: absolute` dans `main`, 344 px, arrondi 12 px, fond de carte ; verre : fond des fenêtres dans `verre-surfaces.css`). Il épouse
+  son contenu (`max-height`) et passe au-dessus de la rangée collante (`z-index` 40 contre 30). Rien n'est réservé (planche A : « ni marge de droite réservée »), jusqu'à la fenêtre d'accord unique qui le remplacera.
+- **L'éditeur qui suit la sélection ne montre plus l'inspecteur** (`editionParSuivi`, classe `inspecteur-suivi`) : séquenceur ouvert, un clic sur un accord l'amène dans l'éditeur sans
+  faire apparaître l'inspecteur par-dessus la droite des notes. Un inspecteur déjà demandé (« Réglages du son ») reste et suit l'accord.
+- `editChord` perd son `scrollIntoView` (`block: 'center'`) de la carte : il ne déplaçait rien de visible, mais c'était un recentrage.
+- Téléphone : `assurerCaseVisiblePanneau` ne défilait déjà que du minimum ; rien changé, le banc le tient désormais. Le panneau fait jusqu'à 500 px de haut et ne laisse
+  qu'une rangée au-dessus de lui : c'est le point B (un toucher n'ouvre plus rien) qui supprime la plupart de ces défilements.
+
+**Bancs.**
+- Nouveau `recadrage_panneau` (35 vérifications) : position de chaque case à l'écran identique à l'ouverture de la bulle, avec « Réglages du son », sur un autre accord et après Échap
+  (1440 × 900 et 1280 × 760) ; séquenceur ouvert, un clic suit l'accord sans inspecteur ni décalage, séquenceur pleine largeur ; téléphone : une case qui tient au-dessus du panneau ne
+  fait rien défiler, une case qui finirait dessous se pose juste au-dessus (bas de case = haut du panneau − 8 px), retoucher ou `›` vers un voisin visible ne défile pas.
+  **Sabotages** : inspecteur remis dans sa colonne → 9 rouges ; suivi qui montre l'inspecteur → 2 rouges ; téléphone qui recentre la case → 1 rouge ; restauré.
+- **Réécrits (contrat changé, rien supprimé)** : `inspecteur_son` (à droite de la fenêtre de grille, qui ne bouge pas d'un pixel), `sidebar_collapse` et
+  `sidebar_collapse_seq_height` (la colonne garde sa largeur, inspecteur ouvert ou fermé).
+- Balayage ciblé (33 suites) : vert, hors ligne de base (`probe_defilement_tactile`, `smoke`).

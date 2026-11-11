@@ -58,10 +58,11 @@ const graine = (opts) => {
     await ouvrirSon(p, 1);
     exiger(await p.evaluate(() => window.app.editingIndex === 1), 'l\'accord est ouvert');
     const insp = await boite(p, '.sidebar-frame'), col = await boite(p, '.col-right'), cadre = await boite(p, '#grille-cadre');
-    check(insp && insp.l === 344 && insp.g >= col.d - 1, `un panneau de 344px, à DROITE de la grille (${insp && insp.l}px, de ${insp && Math.round(insp.g)} ; grille jusqu'à ${Math.round(col.d)})`);
+    // Refonte du séquenceur (point C) : il FLOTTE au bord droit au lieu de réserver une colonne — la grille n'est plus resserrée ni déplacée.
+    check(insp && insp.l === 344 && insp.g >= cadre.d - 1 && Math.round(insp.d) <= Math.round(col.d) + 1, `un panneau de 344px, à DROITE de la fenêtre de grille (${insp && insp.l}px, de ${insp && Math.round(insp.g)} ; fenêtre jusqu'à ${Math.round(cadre.d)})`);
     check(cadre.d <= insp.g, 'il ne recouvre pas la grille');
     check(!(await visible(p, '#toggle-sidebar')), 'et l\'ancienne étiquette de repli ne revient pas avec lui');
-    check(Math.abs((cadre.g + cadre.d) / 2 - (col.g + col.d) / 2) <= 2 && Math.abs(sansInsp.l - cadre.l) <= 1, 'la fenêtre de grille reste centrée dans sa place, à sa largeur');
+    check(Math.abs(cadre.g - sansInsp.g) <= 1 && Math.abs(sansInsp.l - cadre.l) <= 1, `la fenêtre de grille ne bouge pas d'un pixel, à sa largeur (${Math.round(sansInsp.g)} → ${Math.round(cadre.g)})`);
     const titre = await p.evaluate(() => document.getElementById('accord-title').textContent.replace(/\s+/g, ''));
     check(titre === 'ModifierAm7', `il nomme l'accord qu'il règle (« ${titre} »)`);
     check(!(await visible(p, '#root')) && !(await visible(p, '#quality')) && !(await visible(p, '#duration-dd')), '« rien aux deux endroits » : ni fondamentale, ni type, ni durée — c\'est la bulle');

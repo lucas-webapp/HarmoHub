@@ -7752,6 +7752,10 @@ class HarmoHubApp {
         if (!d) return;
         this._editSessionUndoPushed = false; // nouvelle session : un seul futur instantané Annuler, pour CET accord
         this.activeSection = section;
+        // Refonte du séquenceur, point C : quand l'éditeur de notes SUIT la sélection (selectChord, ouverture de l'éditeur sur un accord choisi), la
+        // modification ne fait PAS apparaître l'inspecteur — il recouvrait la droite de l'éditeur à chaque clic. Il ne s'ouvre que sur un geste qui le
+        // demande (« Réglages du son », « Modifier »), et un inspecteur déjà ouvert suit l'accord.
+        document.body.classList.toggle('inspecteur-suivi', !!this._editionParSuivi);
 
         document.getElementById('root').value = d.root;
         // Plus rien à « révéler » ici : la basse a rejoint la rangée voicing et les accords enrichis
@@ -7816,16 +7820,9 @@ class HarmoHubApp {
             this._ouvertureEdition = false;
         }
         this._journalDebutSession = this._journalUndo.length; // début de la session dans le journal (voir revenirVoicingAutomatique)
-        // Remonte vers les contrôles pour voir ce qu'on modifie — UNIQUEMENT sur bureau (au-delà du
-        // seuil où .col-left/.col-right redeviennent deux vraies colonnes séparées, voir le même
-        // seuil dans style.css) : en dessous, la grille et #current-chord-display partagent le MÊME
-        // flux de défilement vertical (une seule colonne empilée), donc ce scrollIntoView emportait
-        // toute la page loin de la grille à chaque accord touché (retour utilisateur : "ça scrolle
-        // tout de suite en bas" en Modification, sur téléphone) — sur bureau, ce sont deux panneaux
-        // vraiment distincts, où ça reste utile et sans effet de bord.
-        if (window.innerWidth > 899) {
-            document.getElementById('current-chord-display').scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+        // Plus AUCUN défilement à l'ouverture (refonte du séquenceur, 11/11, point C : « il recadre l'écran à chaque fois »). Il y avait ici un
+        // scrollIntoView 'center' de #current-chord-display, à l'ordinateur seulement : il faisait aussi défiler la GRILLE (son conteneur), de 42px
+        // mesurés à chaque « Réglages du son ». L'inspecteur est une colonne déjà à l'écran ; la case cliquée, elle, ne doit pas bouger.
     }
 
     // Bouton « Fermer » : referme CET accord. Rien à valider (tout est déjà appliqué en direct, voir
@@ -7841,6 +7838,7 @@ class HarmoHubApp {
     // de editingIndex (voir son getter), et cette fonction est le seul endroit qui le remet à null.
     exitEditMode() {
         this.editingIndex = null;
+        document.body.classList.remove('inspecteur-suivi');
         document.getElementById('save').innerHTML = svgIcon('plus') + ' Ajouter';
         document.getElementById('cancel-edit').hidden = true;
         this.updateEditActionsDocking();
@@ -19312,7 +19310,7 @@ class HarmoHubApp {
         // ce qui a du sens quand on navigue d'un accord à l'autre dans le séquenceur, pas quand on se
         // contente d'ouvrir une vue sur l'accord qu'on vient de cliquer — le clic l'a déjà joué.
         if (this.seqMode === 'continu' && this.editingIndex == null && this.selectedIndex != null) {
-            this.editChord(this.activeSection, this.selectedIndex);
+            this.editionParSuivi(this.activeSection, this.selectedIndex); // ouvrir le séquenceur ne fait pas apparaître l'inspecteur (point C)
         }
         this.renderSequencer();
         this.updateGlobalUndoRedoButtons(); // le bouton unique repointe vers l'historique du séquenceur
@@ -22824,9 +22822,16 @@ class HarmoHubApp {
         // case de la grille (ou ← →, ou ‹ › de la bulle, qui passent tous par ici) y amène l'éditeur. Avant, la case se sélectionnait mais l'éditeur
         // gardait l'accord d'avant : on ne changeait d'accord que par la zone de l'accord voisin, DANS l'éditeur. Même chemin que l'ouverture de
         // l'éditeur sur un accord sélectionné (toggleSequencer) : editChord, sans le faire entendre une seconde fois (playSavedChord ci-dessous s'en charge).
-        if (this._editeurNotesActif && !dejaEdite) this.editChord(section, index);
+        if (this._editeurNotesActif && !dejaEdite) this.editionParSuivi(section, index);
         this.updateGridPlayhead(section, index); // la barre de lecture se pose à gauche de l'accord choisi
         this.playSavedChord(section, index, this.autoplaySelect);
+    }
+
+    // L'éditeur de notes amène l'accord choisi en modification sans ouvrir l'inspecteur (voir editChord), sauf s'il était déjà là.
+    editionParSuivi(section, index) {
+        const inspecteurVisible = this.editingIndex != null && !document.body.classList.contains('inspecteur-suivi');
+        this._editionParSuivi = !inspecteurVisible;
+        try { this.editChord(section, index); } finally { this._editionParSuivi = false; }
     }
 
     // Ctrl/Cmd+clic sur une case (voir onGridPointerUp) : ajoute/retire son index de la sélection

@@ -159,3 +159,12 @@ html[data-glass="1"] .seq-ruler-band {
     html[data-glass="1"] .ajout-aide:not([hidden]) { background: var(--glass-pop-fond); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-hi), 0 -24px 50px -24px rgba(0, 0, 0, .65); }
     html[data-glass="1"] .ajout-aide :is(.ajout-tuile, .ajout-7e) { background: var(--glass-inp); }
 }
+
+/* ---- l'inspecteur flottant (refonte du séquenceur, point C) : il passe au-dessus du séquenceur, donc fond des fenêtres (plus opaque que les cartes) ---- */
+@media (min-width: 900px) {
+    html[data-glass="1"] body[data-app-mode="edit"] .sidebar-frame {
+        background: var(--glass-pop-fond);
+        -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
+        box-shadow: var(--glass-hi), 0 24px 50px -24px rgba(0, 0, 0, .65);
+    }
+}

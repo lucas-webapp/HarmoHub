@@ -44,7 +44,8 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     console.log(JSON.stringify(r));
     console.log((r.cadre === 0 && r.repli === 0) ? 'PASS (ni bandeau ni bouton de repli sur ordinateur)' : 'FAIL');
 
-    console.log('--- Un accord ouvert : l\'inspecteur prend sa place à droite, la grille se resserre ---');
+    // Refonte du séquenceur (point C) : l'inspecteur FLOTTE au bord droit, la grille ne se resserre plus (« il recadre l'écran à chaque fois »).
+    console.log('--- Un accord ouvert : l\'inspecteur flotte à droite, la grille garde sa place ---');
     const largeAvant = await page.evaluate(() => document.querySelector('.col-right').getBoundingClientRect().width);
     await ouvrirInspecteur(0);
     r = await page.evaluate(() => ({
@@ -52,7 +53,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         colRight: document.querySelector('.col-right').getBoundingClientRect(),
     }));
     console.log(JSON.stringify({ i: Math.round(r.inspecteur.width), c: Math.round(r.colRight.width) }));
-    console.log((r.inspecteur.width === 344 && r.inspecteur.left >= r.colRight.right - 1 && r.colRight.width < largeAvant) ? 'PASS (inspecteur à droite, grille resserrée)' : 'FAIL');
+    console.log((r.inspecteur.width === 344 && r.inspecteur.right <= r.colRight.right + 1 && r.inspecteur.left > r.colRight.left && Math.abs(r.colRight.width - largeAvant) <= 1) ? 'PASS (inspecteur à droite, grille à sa largeur)' : 'FAIL');
 
     // REFONTE, LOT 2 : le transport vit dans la BARRE DE LECTURE du bas (#bl-lecture), qui ne dépend d'aucun panneau — c'était le risque que ce banc
     // surveillait (un panneau qui emporte le transport avec lui). On éprouve donc toujours le résultat : transport affiché, entier, hors du panneau.
