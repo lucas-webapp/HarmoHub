@@ -112,6 +112,27 @@ bouton Intensité). Les bancs `probe_seq_*`, `seq_*`, `voice_leading*`, `vl_*`, 
 **Position de la barre d'outils** (décision du 11/11) : elle reste **au-dessus** des notes (toujours visible, place habituelle des logiciels de musique, ne bouge pas quand
 des lignes s'ajoutent). Option offerte, non demandée : ranger les vignettes de motifs derrière un seul bouton « Motifs » si elles prennent trop de place.
 
+## 3 bis. Intégration dans l'application (artefact « HarmoHub — intégration et affichage », planche A, 11/11)
+Artefact : https://claude.ai/artifact/PFwjW5A61rHhBUX3cPFCuQ (planche A = proposition cliquable ; B1 à B7 = captures réelles de l'application d'aujourd'hui, à commenter pour les soucis d'affichage).
+- **Onglets Grille / Structure / Paroles** : de VRAIS onglets, larges (150 px minimum, 28 px de marge de chaque côté), sur toute la hauteur de la barre du haut, sans cadre de bouton ;
+  actif = vert, gras, trait de 3 px dessous et léger fond vert ; les autres gris, sans trait. (Aujourd'hui : un groupe segmenté qui ressemble à des boutons.)
+- **Barre de lecture unique**, tout le bloc à **44 px** de haut (Lecture, Stop, cadran du tempo et ses chevrons, frise des parties, boutons de droite) ; la **frise des parties est
+  réduite** (≈ 260 px de large au lieu de toute la largeur, la place libérée reste vide avant le tempo).
+- **Tempo comme TrainHub** : un cadran avec le chiffre ; glisser vers le haut ou le bas règle (1 BPM tous les 4 px), la molette affine d'un cran, un clic sur le chiffre ouvre la saisie
+  au clavier (30 à 300, Entrée valide, Échap annule) ; **deux petits chevrons ‹ › sans cadre** (20 px) de part et d'autre du chiffre, pas de gros boutons − / +.
+- **La fenêtre d'un accord** (double-clic) ne s'ouvre PLUS par-dessus la grille : elle se pose **dans la marge de droite**, à côté de la grille, qui ne bouge pas et ne défile pas ;
+  ‹ › passent à l'accord voisin sans fermer. Contenu inchangé (fondamentale, type, basse, durée, Réglages du son). Voir aussi la section 2 (B et C).
+- **Poignée de hauteur du séquenceur, règle définitive** (« je veux régler ça une bonne fois pour toutes ») : (1) le séquenceur prend seulement la place de ses lignes (son cadre épouse
+  ses lignes, plus de grand vide noir) ; (2) la poignée ne règle que la hauteur des LIGNES, de 22 à 48 px (30 par défaut), double-clic = hauteur d'origine ; barre d'outils (boutons de 32 px),
+  règle et noms de notes ne changent JAMAIS de taille ; (3) la poignée ne peut pas dépasser la place libre : elle s'arrête quand le séquenceur toucherait le bas de l'écran, **rien n'est
+  jamais caché** ; (4) écran trop court : le séquenceur défile en interne, barre d'outils et règle collées en haut. **Banc** : fenêtres de 600, 700, 900 px de haut, aucune partie du
+  séquenceur hors écran, poignée toujours atteignable. Les noms de notes disparaissent des cases sous ~24 px de haut.
+- **Aspect des lignes** (proche du vrai séquenceur) : bandes alternées, un trait à chaque temps, un trait plus marqué à chaque début de mesure ; noms de notes à gauche dessinés comme des
+  touches de piano (blanches pour les naturelles, sombres pour les dièses).
+- **Vignettes de motifs** : si la place manque pour le diagramme ET le nom du rythme type, **garder le diagramme** (« c'est plus parlant ») et ne mettre le nom que dans l'infobulle.
+- **Captures réelles à traiter** (observé en les prenant) : le toast « Sons du piano pas encore chargés » passe par-dessus le clavier du tiroir ; sur téléphone, le nom de l'accord est
+  sélectionné dans son champ à l'ouverture du panneau d'accord.
+
 ## 4. Questions encore ouvertes (à poser à l'utilisateur avant de coder)
 
 1. **Où vivent les formes enregistrées ?** Sur le compte (tous les morceaux et appareils, comme les morceaux dans Firestore) ou propres à un morceau ? *(question posée
