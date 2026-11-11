@@ -6001,3 +6001,4 @@ de l'accord, voix existante touchée sans ajout, retour en vue Voix, préférenc
 schéma enregistré sans réappliquer (2), forme supprimée encore suivie (2), clic droit permis sur « À la main » (1 — il fallait retirer les DEUX gardes, celle du clic droit et celle
 d'`ouvrirSchema`), ▶ qui écrit (1), dessin envoyé en tableaux imbriqués (3 + couverture), ligne libre grisée sur les accords qui ne la portent pas (1 + couverture), « Toutes les notes »
 à l'envers (1). Balayage ciblé : 24 verts, 2 sans verdict de la ligne de base (`ctx_nav_scroll`, `smoke`), sur 26 suites.
+Balayage complet : **243 verts, 5 rouges, 6 sans verdict sur 254 suites — exactement la ligne de base** (3111 s cumulées).
