@@ -28,6 +28,7 @@ notes », `Telephone.dc.html`, `Clic.dc.html` le clic sur un accord). Les commen
 - **Un clic ou un toucher** sur une case : la case est sélectionnée (bleu) et l'accord est joué (halo vert le temps du son). **Rien ne s'ouvre.**
 - **Double-clic**, ou toucher une case **déjà sélectionnée** : ouvre le panneau de l'accord (bulle à l'ordinateur, panneau du bas au téléphone).
 - Échap ou clic à côté referme ; la sélection reste.
+- **Fenêtre d'accord** (planche A, voir 3 bis) : le double-clic ouvre une fenêtre sous la case, qui remplace la bulle et l'inspecteur de droite.
 - À confirmer avec l'utilisateur au moment de coder : le geste exact sur ordinateur (aujourd'hui le clic ouvre la bulle, lot 6b) — l'option B proposée était un
   réglage « Ouvrir le panneau au clic » oui / non ; l'option A (ci-dessus) a été préférée dans la maquette.
 - Bancs concernés : `bulle_accord*`, `telephone_panneau_accord`, `filet_*`, `mobile_*`, `probe_clic_accord_voisin`, `sentinelle_atteignabilite` (nombreux : lancer
@@ -44,7 +45,7 @@ Voir la section 3 : c'est le gros morceau (module `sequenceur.js` écrit de zér
 ## 3. Le nouveau séquenceur — décisions de la maquette
 
 **Principe** : UN seul séquenceur, **une ligne par voix** (basse, voix 2, voix 3, aiguë) et non une ligne par demi-ton. Huit croches par accord. **Pas de zoom, pas de
-loupe, pas de poignée de hauteur, pas de « Étendre »** : toute la partie tient à l'écran. Placé sous la grille (ordinateur), dans le panneau de l'accord (téléphone,
+loupe, pas de poignée de hauteur, pas de « Étendre »** : toute la partie tient à l'écran. Placé **en bas de l'écran, au-dessus de la barre de lecture et sous les diagrammes** (ordinateur, voir 3 bis), dans le panneau de l'accord (téléphone,
 onglet « Rythme » à côté de « Accord » et « Son »).
 
 ### Barre d'outils, de gauche à droite
@@ -104,7 +105,7 @@ Seulement les **hauteurs utilisées** par la partie (jamais 60 lignes) pour ajou
 au codage : bascule Voix / Toutes les notes dans la barre.
 
 ### Ce qui disparaît (à retirer proprement, bancs réécrits, jamais supprimés)
-Grand séquenceur et petit séquenceur (deux affichages), zoom H / V, loupe, « Étendre », poignée `#seq-dock-resize`, outils crayon / gomme / sélection, calque Voix à
+Bulle d'accord et inspecteur de droite (remplacés par la fenêtre d'accord unique, 3 bis), bouton « Séq. » `#grid-zoom` (remplacé par le bloc « Vues » de la barre de lecture), grand séquenceur et petit séquenceur (deux affichages), zoom H / V, loupe, « Étendre », poignée `#seq-dock-resize`, outils crayon / gomme / sélection, calque Voix à
 allumer (le chemin des voix peut devenir permanent et discret : à trancher), bande d'intensité séparée, mode studio comme mode à part (son logo est repris pour le
 bouton Intensité). Les bancs `probe_seq_*`, `seq_*`, `voice_leading*`, `vl_*`, `calque_voix`, `notes_manuelles_intensite`, `editeur_notes*`, `pinned_seq_toolbar`,
 `loupe_*`, `sidebar_collapse_seq_height`, `volet_hauteur_poignee` (voir « Lot 9 » dans `CLAUDE-HARMOHUB.md`) sont à réécrire pour les nouveaux gestes.
@@ -112,26 +113,58 @@ bouton Intensité). Les bancs `probe_seq_*`, `seq_*`, `voice_leading*`, `vl_*`, 
 **Position de la barre d'outils** (décision du 11/11) : elle reste **au-dessus** des notes (toujours visible, place habituelle des logiciels de musique, ne bouge pas quand
 des lignes s'ajoutent). Option offerte, non demandée : ranger les vignettes de motifs derrière un seul bouton « Motifs » si elles prennent trop de place.
 
-## 3 bis. Intégration dans l'application (artefact « HarmoHub — intégration et affichage », planche A, 11/11)
-Artefact : https://claude.ai/artifact/PFwjW5A61rHhBUX3cPFCuQ (planche A = proposition cliquable ; B1 à B7 = captures réelles de l'application d'aujourd'hui, à commenter pour les soucis d'affichage).
-- **Onglets Grille / Structure / Paroles** : de VRAIS onglets, larges (150 px minimum, 28 px de marge de chaque côté), sur toute la hauteur de la barre du haut, sans cadre de bouton ;
-  actif = vert, gras, trait de 3 px dessous et léger fond vert ; les autres gris, sans trait. (Aujourd'hui : un groupe segmenté qui ressemble à des boutons.)
-- **Barre de lecture unique**, tout le bloc à **44 px** de haut (Lecture, Stop, cadran du tempo et ses chevrons, frise des parties, boutons de droite) ; la **frise des parties est
-  réduite** (≈ 260 px de large au lieu de toute la largeur, la place libérée reste vide avant le tempo).
-- **Tempo comme TrainHub** : un cadran avec le chiffre ; glisser vers le haut ou le bas règle (1 BPM tous les 4 px), la molette affine d'un cran, un clic sur le chiffre ouvre la saisie
-  au clavier (30 à 300, Entrée valide, Échap annule) ; **deux petits chevrons ‹ › sans cadre** (20 px) de part et d'autre du chiffre, pas de gros boutons − / +.
-- **La fenêtre d'un accord** (double-clic) ne s'ouvre PLUS par-dessus la grille : elle se pose **dans la marge de droite**, à côté de la grille, qui ne bouge pas et ne défile pas ;
-  ‹ › passent à l'accord voisin sans fermer. Contenu inchangé (fondamentale, type, basse, durée, Réglages du son). Voir aussi la section 2 (B et C).
+## 3 bis. Intégration dans l'application (artefact « HarmoHub — intégration et affichage », planche A, version 26, 11/11)
+Artefact : https://claude.ai/artifact/PFwjW5A61rHhBUX3cPFCuQ (planche A = proposition cliquable, **validée par l'utilisateur le 11/11 : « l'affichage me paraît bien maintenant »** ; B1 à B7 = captures
+réelles de l'application d'aujourd'hui). **La planche A fait foi** pour la disposition générale ; la maquette du séquenceur (section 3) fait foi pour le séquenceur lui-même.
+
+### Nom et accès
+- Le « grand séquenceur » / « éditeur de notes » s'appelle désormais **« Séquenceur »** partout (boutons, infobulles, journal). Au téléphone, le bouton « Notes » du panneau Lecture devient « Séquenceur ».
+- Le bouton « Séq. » de la rangée de réglages (`#grid-zoom`) **disparaît à l'ordinateur** : le séquenceur, le Clavier et la Guitare s'ouvrent et se ferment par **trois boutons-bascules**
+  réunis dans un bloc « Vues » à droite de la barre de lecture (logos existants repris tels quels ; le bloc n'a pas de titre en dehors d'une infobulle).
+- La rangée Tonalité / Mesure / Swing / Son / Transposer et le groupe Compact / Normal / Détaillé ne changent pas.
+
+### Disposition de l'écran (ordinateur) — règle générale
+- **Du bas vers le haut : barre de lecture, diagrammes (Clavier / Guitare), séquenceur ; la grille prend tout le reste** et défile en interne si besoin. Les panneaux ouverts se collent en bas ;
+  la grille garde son affichage (règle A) et ne saute pas quand un panneau s'ouvre ou se ferme. Rien n'est jamais caché derrière la barre de lecture.
+- **Tiroir des diagrammes** : poignée sur son bord haut (déjà livrée, échelle 0,6 à 2 par appareil). Proportions : guitare 200 × 96 px, piano 270 × 60 px (échelle 1) ; écarts de 64 px entre
+  deux diagrammes à l'échelle 1 et de 48 px entre le clavier et la guitare. Si la place manque pour le diagramme ET le nom du rythme type dans une vignette, **garder le diagramme** (nom en infobulle).
 - **Poignée de hauteur du séquenceur, règle définitive** (« je veux régler ça une bonne fois pour toutes ») : (1) le séquenceur prend seulement la place de ses lignes (son cadre épouse
   ses lignes, plus de grand vide noir) ; (2) la poignée ne règle que la hauteur des LIGNES, de 22 à 48 px (30 par défaut), double-clic = hauteur d'origine ; barre d'outils (boutons de 32 px),
-  règle et noms de notes ne changent JAMAIS de taille ; (3) la poignée ne peut pas dépasser la place libre : elle s'arrête quand le séquenceur toucherait le bas de l'écran, **rien n'est
+  règle et noms de notes ne changent JAMAIS de taille ; (3) la poignée ne peut pas dépasser la place libre : elle s'arrête quand le séquenceur et le tiroir toucheraient la barre du haut, **rien n'est
   jamais caché** ; (4) écran trop court : le séquenceur défile en interne, barre d'outils et règle collées en haut. **Banc** : fenêtres de 600, 700, 900 px de haut, aucune partie du
   séquenceur hors écran, poignée toujours atteignable. Les noms de notes disparaissent des cases sous ~24 px de haut.
 - **Aspect des lignes** (proche du vrai séquenceur) : bandes alternées, un trait à chaque temps, un trait plus marqué à chaque début de mesure ; noms de notes à gauche dessinés comme des
   touches de piano (blanches pour les naturelles, sombres pour les dièses).
-- **Vignettes de motifs** : si la place manque pour le diagramme ET le nom du rythme type, **garder le diagramme** (« c'est plus parlant ») et ne mettre le nom que dans l'infobulle.
-- **Captures réelles à traiter** (observé en les prenant) : le toast « Sons du piano pas encore chargés » passe par-dessus le clavier du tiroir ; sur téléphone, le nom de l'accord est
-  sélectionné dans son champ à l'ouverture du panneau d'accord.
+- **Geste de pose** : cliquer-glisser sur les cases **peint** plusieurs croches d'un coup (on pose ou on enlève selon l'état de la première case touchée) ; pas de glisser-déposer au pixel près.
+
+### Barre du haut, onglets, barre de lecture
+- **Onglets Grille / Structure / Paroles** : de VRAIS onglets, larges (150 px minimum, 28 px de marge de chaque côté), sur toute la hauteur de la barre du haut, sans cadre de bouton ;
+  actif = vert, gras, trait de 3 px dessous et léger fond vert ; les autres gris, sans trait. (Aujourd'hui : un groupe segmenté qui ressemble à des boutons.)
+- **Barre de lecture unique**, tout le bloc à **44 px** de haut : Lecture, Stop, « Mes. N », **frise des parties réduite (≈ 260 px de large**, la place libérée reste vide avant le tempo), cadran du
+  tempo et ses chevrons, bloc « Vues » (Séquenceur / Clavier / Guitare).
+- **Couleurs de la frise = couleurs des parties de la Structure** (même famille : `#00e676`, `#40c4ff`, `#ffb300`, `#ff6f61`, `#b388ff`, `#4db6ac`, `#f06292`, `#aed581`), pour qu'une partie ait la
+  même couleur dans la frise et dans l'onglet Structure.
+- **Tempo comme TrainHub** : un cadran avec le chiffre ; glisser vers le haut ou le bas règle (1 BPM tous les 4 px), la molette affine d'un cran, un clic sur le chiffre ouvre la saisie
+  au clavier (30 à 300, Entrée valide, Échap annule) ; **deux petits chevrons ‹ › sans cadre** (20 px) de part et d'autre du chiffre, pas de gros boutons − / +.
+
+### La fenêtre d'un accord (double-clic) — remplace la bulle ET l'inspecteur de droite
+- Elle s'ouvre **juste sous la case cliquée** (bord gauche aligné sur la case, rabattue vers la gauche près du bord droit de l'écran), **sans recadrer ni faire défiler la grille**. Ni marge de droite réservée, ni inspecteur
+  séparé : **« Réglages du son » déplie la même fenêtre** (plus de colonne à droite).
+- Haut : ‹ nom de l'accord, degré, « mes. N » › et ×. ‹ › passent à l'accord voisin sans fermer.
+- **Fondamentale** (12 touches) ; **Type** : les **13 types courants** puis un bouton **« ⋯ »** qui déplie les autres (Add9, Add11, Maj 9, Min 9, 9, 11, 13) ; **Durée**.
+  La basse différente n'a pas de ligne dans la maquette : à reprendre au codage (la laisser dans la fenêtre dépliée) et à confirmer avec l'utilisateur.
+- **« Réglages du son ›»** (dépliant) : **Octave** − / + ; **Renversement** 0 à 3 ; **Drop** Non / 2 / 3 ; **Ajouter une note** (voir ci-dessous). **Rien d'autre** :
+  pas de ligne « Rythme » ni de légende (le rythme se règle dans le séquenceur, sans le dire), **pas de doigté de guitare** (« je le ferai directement dans les diagrammes »).
+- **Ajouter une note** : **une seule ligne** — les noms de notes (C à B, dièses compris) **défilent à l'horizontale** dans leur cadre, l'octave − / + et un bouton **« + » carré de 32 px**
+  (même gabarit que les autres « + » de l'appli, pas de texte « Ajouter D4 » : la note visée est dite par l'infobulle et `aria-label`) restent fixes à droite. La note choisie s'entend au clic ; la note
+  ajoutée s'entend aussi. Les notes ajoutées apparaissent en **puces mauves** (× pour retirer) sur la ligne du titre de la section.
+- **Renommage : l'appli DEMANDE, elle ne renomme jamais d'office** (11/11). Si les notes ajoutées forment un autre nom d'accord (triade majeure + septième majeure = maj7 ; Cmaj7 + ré = Cmaj9…), une question
+  s'affiche sous la ligne de saisie : « Ces notes forment Cmaj9. Renommer l'accord ? » avec deux boutons, « Renommer en Cmaj9 » et « Garder Cmaj7 ». Les notes restent dans l'accord dans les deux cas ;
+  retirer une note ferme la question. (L'appli renomme aujourd'hui toute seule : à changer pour cette question.)
+- Échap ou clic à côté ferme (`this._popups`, `ZONE_EDITION_SELECTEURS`) ; la sélection reste.
+
+### Captures réelles à traiter (observé en les prenant)
+- Le toast « Sons du piano pas encore chargés » passe par-dessus le clavier du tiroir ; sur téléphone, le nom de l'accord est sélectionné dans son champ à l'ouverture du panneau d'accord.
 
 ## 4. Questions encore ouvertes (à poser à l'utilisateur avant de coder)
 
@@ -139,7 +172,9 @@ Artefact : https://claude.ai/artifact/PFwjW5A61rHhBUX3cPFCuQ (planche A = propos
    dans la maquette, pas de réponse)*.
 2. **Le chemin des voix** (traits blancs entre accords) : permanent et discret, ou on le supprime ?
 3. **Clic sur un accord à l'ordinateur** : confirmer « un clic = écouter, double-clic = ouvrir » (option A) ou le réglage oui / non (option B).
-4. Les commentaires restés ouverts sur la maquette (fils non envoyés à Claude) ont tous été traités dans la version 17 ; seule la question 1 reste sans réponse.
+4. **Fusion des voix** pour les accords à 5 ou 6 notes (section 3) : règle proposée, non confirmée.
+5. **Basse différente** : elle n'a plus de ligne dans la fenêtre d'accord de la maquette A ; la garder dans « Réglages du son » ? (proposition : oui).
+6. Les commentaires de la maquette du séquenceur (version 17) et ceux de la planche A (version 26) ont tous été traités ; les questions 1 à 5 restent sans réponse.
 
 ## 5. Ordre de travail proposé
 A (grille qui ne bouge plus) → C (plus de recadrage) → B (clic = écouter) → D (séquenceur, par sous-lots : module + ordinateur, puis formes enregistrées et notes libres,

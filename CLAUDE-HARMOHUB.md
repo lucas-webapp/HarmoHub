@@ -48,7 +48,7 @@ Mis à jour le 11/11/2026, après la taille des diagrammes à la poignée (lot 1
   d'affichage quand le séquenceur s'ouvre (supprimer le Compact provisoire du lot 9a) ; C. le panneau ne recadre plus l'écran ; B. un clic sur un accord le fait entendre sans
   ouvrir le panneau (double-clic ou second toucher = ouvrir) ; D. un seul séquenceur à une ligne par voix (maquette : https://claude.ai/artifact/38sqeQZK1q1HDnUYf6PvJT, version 17).
   Questions ouvertes à poser avant de coder : formes enregistrées sur le compte ou par morceau ; chemin des voix permanent ou supprimé ; geste exact du clic sur ordinateur.
-  L'utilisateur a demandé de tout faire « à la suite », dans une session dédiée, après avoir noté les modifications.
+  **Cahier compilé le 11/11** : la section 3 bis de `docs/refonte-sequenceur.md` reprend la planche A validée (https://claude.ai/artifact/PFwjW5A61rHhBUX3cPFCuQ, version 26 : bloc « Vues », disposition du bas de l'écran, fenêtre d'accord unique avec « Ajouter une note » et question de renommage, onglets, tempo). L'utilisateur fera `/clear` puis relancera pour faire **les bancs un par un** ; il a demandé de tout faire « à la suite », dans une session dédiée. Questions ouvertes : section 4 du cahier (cinq).
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
