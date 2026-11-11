@@ -7548,6 +7548,13 @@ body.avec-barre-selection .toast { bottom: 132px; }
     .vues-espace { flex: 1; }
     .vues-barre .icon-btn { width: var(--bouton-h); height: var(--bouton-h); padding: 0; border-radius: var(--rayon-bouton, 7px); }
     .vues-barre .icon-btn[aria-pressed="true"] { color: var(--accent); }
+    /* TAILLE DES DIAGRAMMES (11/11) : l'échelle posée par la poignée (épinglé) ou le coin (libre) grossit le clavier et la guitare ; le titre de l'accord et la
+       bande de construction gardent leur taille. */
+    .vues-corps .viz-diagrams { zoom: var(--vues-echelle, 1); }
+    .vues-poignee { position: absolute; left: 0; right: 0; top: -5px; height: 10px; z-index: 4; cursor: ns-resize; touch-action: none; }
+    .vues-poignee::after { content: ''; position: absolute; left: 50%; top: 3px; width: 44px; height: 4px; margin-left: -22px; border-radius: 2px; background: var(--border-strong, #3a3f47); opacity: 0.7; transition: opacity 0.12s, background 0.12s; }
+    .vues-poignee:hover::after { background: var(--accent); opacity: 1; }
+    .vues-poignee[hidden] { display: none; }
 
     /* Libre : une vraie fenêtre. La barre de titre (44px) se tire, le coin en bas à droite redimensionne, le corps défile si besoin. */
     .vues-tiroir.vues-libre:not([hidden]) {

@@ -2780,6 +2780,8 @@ const ZONE_EDITION_SELECTEURS = [
 ].join(',');
 // Tiroir Clavier / Guitare retenu par morceau (sous-lot « Éditeur et clavier », voir memoriserVuesMorceau) : table locale { idMorceau: { p, g } }.
 const VUES_PAR_MORCEAU_KEY = 'harmohubVuesParMorceau';
+const VUES_ECHELLE_KEY = 'harmohubVuesEchelle';
+const VUES_ECHELLE_MIN = 0.6, VUES_ECHELLE_MAX = 2; // au-delà de 2, clavier et manche ne tiennent plus côte à côte à 1440 px
 const VUES_PAR_MORCEAU_MAX = 200;
 const SEQ_INLINE_ZOOM_LEVEL_X_KEY = 'harmohubSeqInlineZoomLevelX';
 // Échelles horizontale/verticale du panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) —
@@ -6539,7 +6541,9 @@ class HarmoHubApp {
         const rDiag = diagramme.getBoundingClientRect();
         if (!rPiano.height || !rDiag.height) return;
         const decalage = Math.round(((rDiag.top + rDiag.bottom) - (rPiano.top + rPiano.bottom)) / 2);
-        if (decalage) piano.style.transform = `translateY(${decalage}px)`;
+        // Le décalage est mesuré à l'écran, la transformation s'applique DANS .viz-diagrams, zoomé par l'échelle du tiroir : on divise.
+        const echelle = (this._vues && this._vues.echelle) || 1;
+        if (decalage) piano.style.transform = `translateY(${Math.round(decalage / echelle)}px)`;
     }
 
     // Rattrape les cas où RIEN ne redessine les diagrammes mais où la place disponible change quand
@@ -19928,7 +19932,10 @@ class HarmoHubApp {
         const barre = document.getElementById('vues-barre');
         const coin = document.getElementById('vues-coin');
         if (!tiroir || !barre || !coin || !document.getElementById('bl-vues')) return; // index.html servi depuis un cache plus ancien
-        this._vues = { mode: 'epingle', fen: null, geste: null };
+        this._vues = { mode: 'epingle', fen: null, geste: null, echelle: 1 };
+        // « J'aimerais pouvoir modifier leur taille comme je le veux avec une poignée » (11/11) : UNE échelle des diagrammes (clavier, guitare), tirée à la
+        // poignée du haut du tiroir épinglé ou au coin de la fenêtre libre. Par appareil, comme le mode et la géométrie.
+        try { const e = parseFloat(localStorage.getItem(VUES_ECHELLE_KEY)); if (Number.isFinite(e)) this._vues.echelle = Math.min(VUES_ECHELLE_MAX, Math.max(VUES_ECHELLE_MIN, e)); } catch (e) { /* mémoire illisible : taille d'origine */ }
         try { if (localStorage.getItem('harmohubVuesMode') === 'libre') this._vues.mode = 'libre'; } catch (e) { /* mémoire illisible : épinglé */ }
         try {
             const f = JSON.parse(localStorage.getItem('harmohubVuesFenetre'));
@@ -19964,22 +19971,44 @@ class HarmoHubApp {
             if (this._vues.mode !== 'libre' || e.button !== 0) return;
             e.stopPropagation();
             coin.setPointerCapture(e.pointerId);
-            this._vues.geste = { type: 'taille', x0: e.clientX, y0: e.clientY, f: this.geometrieVues() };
+            this._vues.geste = { type: 'taille', x0: e.clientX, y0: e.clientY, f: this.geometrieVues(), e0: this._vues.echelle };
         });
+        // Épinglé : la poignée du bord haut du tiroir. Tirer vers le HAUT agrandit les diagrammes (le tiroir prend la hauteur qu'il faut, la grille cède la
+        // place), vers le bas les réduit ; double-clic = taille d'origine.
+        const poignee = document.getElementById('vues-poignee');
+        if (poignee) {
+            poignee.addEventListener('pointerdown', (e) => {
+                if (this._vues.mode === 'libre' || e.button !== 0) return;
+                e.preventDefault();
+                poignee.setPointerCapture(e.pointerId);
+                const corps = document.getElementById('vues-corps').getBoundingClientRect().height;
+                this._vues.geste = { type: 'echelle', y0: e.clientY, e0: this._vues.echelle, h0: Math.max(1, corps) };
+            });
+            poignee.addEventListener('dblclick', () => this.poserEchelleVues(1, true));
+        }
         const bouge = (e) => {
             const g = this._vues.geste;
             if (!g) return;
+            if (g.type === 'echelle') {
+                // La hauteur du corps est proportionnelle à l'échelle : on vise la hauteur d'avant + le chemin parcouru, sans dépasser 60 % de l'écran.
+                const cible = Math.min(g.h0 + (g.y0 - e.clientY), window.innerHeight * 0.6);
+                this.poserEchelleVues(g.e0 * cible / g.h0, false);
+                return;
+            }
             const dx = e.clientX - g.x0, dy = e.clientY - g.y0;
             const f = g.type === 'deplace' ? { ...g.f, x: g.f.x + dx, y: g.f.y + dy } : { ...g.f, w: g.f.w + dx, h: g.f.h + dy };
             this._vues.fen = this.bornerVues(f);
+            // Fenêtre libre : agrandir la fenêtre agrandit aussi les diagrammes (« même si j'agrandis la fenêtre, il reste à la même taille »), au rythme
+            // de la moyenne géométrique des deux rapports — tirer dans un seul sens les change moins que tirer en diagonale.
+            if (g.type === 'taille') this.poserEchelleVues(g.e0 * Math.sqrt((this._vues.fen.w / g.f.w) * (this._vues.fen.h / g.f.h)), false);
             this.syncVues(false);
         };
         const fin = () => {
             if (!this._vues.geste) return;
             this._vues.geste = null;
-            try { localStorage.setItem('harmohubVuesFenetre', JSON.stringify(this._vues.fen)); } catch (e) { /* stockage plein */ }
+            try { localStorage.setItem('harmohubVuesFenetre', JSON.stringify(this._vues.fen)); localStorage.setItem(VUES_ECHELLE_KEY, String(this._vues.echelle)); } catch (e) { /* stockage plein */ }
         };
-        [barre, coin].forEach(el => {
+        [barre, coin, poignee].filter(Boolean).forEach(el => {
             el.addEventListener('pointermove', bouge);
             el.addEventListener('pointerup', fin);
             el.addEventListener('pointercancel', fin);
@@ -19991,6 +20020,16 @@ class HarmoHubApp {
         if (mq.addEventListener) mq.addEventListener('change', surChangement);
         else mq.addListener(surChangement); // Safari < 14
         this.placerVues();
+    }
+
+    // Pose l'échelle des diagrammes du tiroir (variable CSS lue par `zoom` sur .viz-diagrams) ; `memoriser` pour un geste fini (double-clic), pas pendant un glissé.
+    poserEchelleVues(e, memoriser) {
+        if (!this._vues) return;
+        this._vues.echelle = Math.round(Math.min(VUES_ECHELLE_MAX, Math.max(VUES_ECHELLE_MIN, e)) * 100) / 100;
+        const tiroir = document.getElementById('vues-tiroir');
+        if (tiroir) tiroir.style.setProperty('--vues-echelle', String(this._vues.echelle));
+        if (memoriser) { try { localStorage.setItem(VUES_ECHELLE_KEY, String(this._vues.echelle)); } catch (err) { /* stockage plein : vaut pour la session */ } }
+        this.alignPianoOnGuitarDiagram();
     }
 
     // Fenêtre libre : position et taille courantes (celles mémorisées, ou une position de départ au-dessus de la barre de lecture, centrée).
@@ -20045,6 +20084,9 @@ class HarmoHubApp {
         tiroir.hidden = !(ordinateur && (piano || guitare));
         if (tiroir.hidden) return;
         tiroir.classList.toggle('vues-libre', libre);
+        tiroir.style.setProperty('--vues-echelle', String(this._vues.echelle));
+        const poigneeHaut = document.getElementById('vues-poignee');
+        if (poigneeHaut) poigneeHaut.hidden = libre;
         if (libre) {
             const f = this.geometrieVues();
             Object.assign(tiroir.style, { left: f.x + 'px', top: f.y + 'px', width: f.w + 'px', height: f.h + 'px' });

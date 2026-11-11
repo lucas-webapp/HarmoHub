@@ -5818,3 +5818,17 @@ téléphone l'affichage est une préférence de l'appareil, cachée derrière la
   (Fermer referme la feuille qui recouvre la porte), `sentinelle_atteignabilite` (la feuille est une surface au premier plan, comme un panneau).
 - Gestes impossibles à l'écran sous la feuille (le panneau d'accord et le menu ⋯ d'une partie sont dessous) : `voice_leading` et `voice_leading_section_ops` y envoient le clic par `dispatchEvent`, le résultat se lit à l'écran.
 - **Piège** : un bouton « Notes » porté à 44px (`#grid-zoom`) déplaçait la mise en page assez pour que le double toucher d'une case n'ouvre plus le panneau d'accord (`grid_beat_highlight`) : la porte reste à 32px.
+
+## Demande du 11/11 : la taille du clavier et de la guitare, à la poignée (ordinateur)
+
+« Je n'ai pas besoin des diagrammes en plein écran. Cependant, j'aimerais pouvoir modifier leur taille comme je le veux avec une poignée. Pour l'instant, même si j'agrandis la fenêtre,
+il reste à la même taille. Et c'est un peu petit sur ordinateur. » **Le 10g (Clavier / Guitare en plein écran au téléphone) est donc abandonné.**
+
+- **Une échelle des diagrammes** (`_vues.echelle`, 0,6 à 2, mémoire de l'appareil `harmohubVuesEchelle`), posée en variable CSS `--vues-echelle` sur le tiroir et lue par `zoom` sur `.viz-diagrams` : le
+  titre de l'accord et la bande de construction gardent leur taille. Plafond 2 : au-delà, clavier et manche ne tiennent plus côte à côte à 1440 px.
+- **Épinglé** : poignée `#vues-poignee` sur le bord haut du tiroir — vers le haut on agrandit (la grille cède la place, jamais plus de 60 % de l'écran), vers le bas on réduit, double-clic = taille d'origine.
+- **Fenêtre libre** : tirer le coin agrandit aussi les diagrammes (moyenne géométrique des deux rapports de taille) ; c'était le défaut signalé (la fenêtre grandissait, pas son contenu).
+- `alignPianoOnGuitarDiagram` divise son décalage par l'échelle (il est mesuré à l'écran, appliqué dans l'élément zoomé).
+- Banc `vues_taille` (20 vérifications) : poignée, agrandir / réduire / double-clic, mémoire après rechargement, clavier jouable et centré sur le manche agrandi, plafond de 60 %, coin de la fenêtre libre,
+  téléphone inchangé. **Sabotage** : la règle `zoom` retirée → 7 vérifications rouges ; restaurée.
+- Balayage complet : 238 verts, 6 rouges, 6 sans verdict (250 suites) ; hors ligne de base, `historique_versions` rouge sous charge seulement (vert 3 fois sur 3 rejoué seul).
