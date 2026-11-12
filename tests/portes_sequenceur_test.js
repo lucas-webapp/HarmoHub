@@ -85,7 +85,7 @@ const atteignable = (sel) => {
                  vuesNom: (document.getElementById('vue-sequenceur') || { getAttribute: () => null }).getAttribute('aria-label'), edite: window.app.editingIndex };
     });
     check(!a.ancien, 'le pictogramme de l\'en-tête a disparu : il faisait doublon sans le dire');
-    exiger(!!a.seq && !!a.plein && a.edite === 0, 'les deux anciennes portes existent encore pour le téléphone, et l\'inspecteur est ouvert sur le premier accord');
+    exiger(!!a.seq && !!a.plein && a.edite === 0, 'les deux anciennes portes sont encore dans la page (masquées partout depuis la 4c), et l\'inspecteur est ouvert sur le premier accord');
     check(!a.seq.visible, 'au-dessus de la grille, plus de porte à l\'ordinateur (4a)');
     check(!a.plein.visible && !a.petit.visible, `dans l'inspecteur, plus de porte « Séquenceur » ni de petit séquenceur (4b) — porte ${a.plein.visible}, petit ${a.petit.visible}`);
     check(a.vues && a.vues.visible && a.vues.svg && a.vuesNom === 'Séquenceur', `la porte du séquenceur est dans le bloc « Vues », avec son logo et son nom (« ${a.vuesNom} »)`);
@@ -139,30 +139,24 @@ const atteignable = (sel) => {
     await m.evaluate(seed);
     await m.reload({ waitUntil: 'load' });
     await m.waitForTimeout(1200);
-    // Lot 10e : la porte « Séquenceur » vit dans la carte Accord, qui n'est plus dans la page en mode Ajout : elle suit un accord ouvert en modification.
-    await m.evaluate(() => window.app.editChord(0, 0));
-    await m.waitForTimeout(500);
-    const tailles = await m.evaluate(() => ['grid-zoom', 'seq-zoom'].map(id => {
-        const r = document.getElementById(id).getBoundingClientRect();
-        return { id, l: Math.round(r.width), h: Math.round(r.height) };
-    }));
-    check(await m.evaluate(() => document.getElementById('grid-zoom').innerText.trim()) === 'Notes', 'téléphone : la porte dit « Notes » (lot 10f)');
-    check(tailles.every(t => t.h >= 24 && t.l >= 40),
-        `téléphone : les deux portes restent des cibles — ${tailles.map(t => t.id + ' ' + t.l + 'x' + t.h).join(', ')}`);
-    await m.evaluate(() => document.getElementById('seq-zoom').scrollIntoView({ block: 'center' }));
-    await m.waitForTimeout(400);
-    const r1 = await m.evaluate(atteignable, '#seq-zoom');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11) : au téléphone aussi, les deux portes d'avant (« Notes » au-dessus de la grille, « Séquenceur » de la
+    // carte Accord) et le petit séquenceur ont disparu. UNE porte, nommée : « Séquenceur » du panneau Lecture (⋯), qui ouvre l'onglet Rythme du panneau d'accord.
+    const rt0 = await R.porteTelephoneAbsente(m);
+    check(rt0.ok, `téléphone : plus de porte « Notes » ni « Séquenceur » dans la carte, plus de petit séquenceur (${rt0.detail})`);
+    await m.tap('#bl-plus'); await m.waitForTimeout(400);
+    const taille = await m.evaluate(() => { const b = document.getElementById('pl-notes'), r = b.getBoundingClientRect(); return { l: Math.round(r.width), h: Math.round(r.height), nom: b.querySelector('.btn-label').textContent, svg: !!b.querySelector('svg') }; });
+    check(taille.h === 44 && taille.l >= 44 && taille.nom === 'Séquenceur' && taille.svg, `téléphone : la porte « ${taille.nom} » du panneau Lecture, logo et nom, ${taille.l}x${taille.h}px`);
+    const r1 = await m.evaluate(atteignable, '#pl-notes');
     exiger(r1.ok, `téléphone : « Séquenceur » est atteignable — ${r1.ok ? r1.taille : r1.pourquoi}`);
-    await m.tap('#seq-zoom');
-    await m.waitForTimeout(1000);
-    check(await m.evaluate(() => window.app.seqOpen === true && window.app.seqZoomOpen === false),
-        'téléphone : un vrai appui ouvre le PETIT séquenceur, comme au clic');
-    // 4b : ouvert au téléphone, le petit séquenceur n'a plus de place à l'ordinateur — passé 900 px, il se referme (sans quoi il resterait affiché sans porte pour
-    // le refermer).
+    await m.tap('#pl-notes');
+    await m.waitForTimeout(900);
+    check(await m.evaluate(() => !!(window.app._bulle && window.app._bulle.rythme) && document.getElementById('sequenceur').parentElement.id === 'pa-rythme' && !window.app.seqOpen),
+        'téléphone : un vrai appui ouvre l\'onglet Rythme, le séquenceur dedans — l\'ancien séquenceur reste fermé');
+    // Ouvert au téléphone, l'onglet Rythme n'a pas de sens à l'ordinateur : passé 900 px, le panneau se referme et le séquenceur retourne à sa place.
     await m.setViewportSize({ width: 1300, height: 900 });
     await m.waitForTimeout(700);
-    const elargi = await m.evaluate(() => { const a = document.getElementById('arp-sequencer'); return { ouvert: window.app.seqOpen, mode: window.app.seqMode, vu: a.offsetParent !== null && a.getBoundingClientRect().height > 0 }; });
-    check(!elargi.ouvert && !elargi.vu, `fenêtre élargie au-delà de 900 px : le petit séquenceur se referme — ouvert ${elargi.ouvert}, mode ${elargi.mode}, visible ${elargi.vu}`);
+    const elargi = await m.evaluate(() => ({ panneau: !document.getElementById('panneau-accord').hidden, place: document.getElementById('sequenceur').parentElement === document.getElementById('vues-tiroir').parentElement, ancien: window.app.seqOpen }));
+    check(!elargi.panneau && elargi.place && !elargi.ancien, `fenêtre élargie au-delà de 900 px : panneau refermé ${!elargi.panneau}, séquenceur à sa place ${elargi.place}, ancien fermé ${!elargi.ancien}`);
 
     check(erreurs.length === 0, `aucune erreur JavaScript — ${erreurs.join(' | ') || 'aucune'}`);
     await browser.close();

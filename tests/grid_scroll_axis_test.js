@@ -48,7 +48,9 @@ async function touchDrag(page, from, to, { holdMs = 0, steps = 14, stepDelay = 1
 (async () => {
     const browser = await chromium.launch();
     // Fenêtre étroite/basse : mise en page mobile, c'est la PAGE elle-même qui défile.
-    const page = await browser.newPage({ viewport: { width: 420, height: 640 }, hasTouch: true });
+    // 4c (12/11) : la rangée « Séq. » a quitté le téléphone, la page est 32 px plus courte ; à 640 px de haut la case 2 était déjà au-dessus du centre et la page ne
+    // pouvait plus « descendre » (précondition du banc). On resserre la fenêtre de 80 px : même situation qu'avant (page descendue, de quoi remonter).
+    const page = await browser.newPage({ viewport: { width: 420, height: 560 }, hasTouch: true });
     const errors = [];
     page.on('pageerror', e => errors.push('pageerror: ' + e.message));
 

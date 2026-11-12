@@ -20,7 +20,7 @@
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('en-tête de la grille');
-plan(14);
+plan(15);
 
 const GRAINE = { sections: [{ title: 'Couplet', chords: [
     { root: 'G', quality: 'maj', beats: 4, inversion: 0, drop: 'none', octave: 4, bass: null, playStyle: 'held' },
@@ -77,8 +77,10 @@ const GRAINE = { sections: [{ title: 'Couplet', chords: [
         // de voix (⊱, au téléphone jusqu'au lot 10f) et « Séq. ».
         // Lot 10f : ⊱ et « Séq. » ont quitté le téléphone, qui n'a plus que la porte « Notes » (#grid-zoom) dans cette barre.
         // Retrait de l'ancien séquenceur (4a, 12/11) : « Éditeur de notes » (#grid-zoom) a quitté l'ordinateur — le séquenceur s'ouvre au bloc « Vues ».
-        const attendues = nom === 'ordinateur' ? ['grille-densites'] : ['grid-zoom'];
-        if (!exiger(i && i.enfants.length >= attendues.length && attendues.every(q => i.enfants.some(e => e.q === q)),
+        // Retrait de l'ancien séquenceur (4c, 12/11) : « Notes » a quitté le téléphone aussi — la barre n'y porte plus de commande (le séquenceur s'ouvre par
+        // « Séquenceur » du panneau Lecture, l'affichage par le bouton à côté de la barre-résumé) ; ce qui suit vérifie qu'il n'en reste rien qui déborde.
+        const attendues = nom === 'ordinateur' ? ['grille-densites'] : [];
+        if (!exiger(i && (nom === 'ordinateur' ? i.enfants.length >= 1 : i.enfants.length === 0) && attendues.every(q => i.enfants.some(e => e.q === q)),
             `${nom} : la barre de la grille et ses commandes sont bien là (${i ? i.enfants.length : 0} éléments visibles${attendues.length ? ', dont ' + attendues.join(' et ') : ''})`)) continue;
 
         const dedans = i.enfants.filter(e => e.l >= 0 && e.r <= i.vw + 1);

@@ -110,6 +110,7 @@ window._mesurerSignal = async () => {
         transport: Tone.Transport.state,
         secondes: +Tone.Transport.seconds.toFixed(2),
         enLecture: window.app.isPlaying,
+        rythme: !!(window.app._bulle && window.app._bulle.rythme),
     }));
     check(apresRafale.transport === 'started' && apresRafale.secondes > 0,
         `trois appuis rapprochés finissent bien par jouer, au lieu de s'annuler entre eux — ${JSON.stringify(apresRafale)}`);
@@ -145,20 +146,23 @@ window._mesurerSignal = async () => {
     // ============================================================
     const p2 = await page(browser, true);
     p2.on('pageerror', e => errors.push('pageerror(seq): ' + e.message));
-    await p2.evaluate(() => { const a = window.app; a.selectedIndex = 0; a.loadProgression(); });
-    await p2.waitForTimeout(300);
-    const seqOuvert = await p2.evaluate(() => !!window.app.seqOpen);
-    if (!seqOuvert) await p2.evaluate(() => window.app.toggleSequencer('compact'));
-    await p2.waitForTimeout(500);
-    await p2.evaluate(() => document.getElementById('seq-play').click());
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11) : le petit séquenceur et sa propre touche Lecture (#seq-play) ont disparu. Le séquenceur du téléphone
+    // est l'onglet Rythme du panneau d'accord, et c'est la barre de lecture de l'appli qui joue (décision du 11/11 : pas de Lecture propre au séquenceur).
+    // Ce qui doit tenir reste le même : onglet Rythme ouvert, la lecture démarre sans échantillons.
+    const R = require('./_retrait_ancien');
+    const ouvertSeq = await R.ouvrirRythmeTel(p2);
+    check(ouvertSeq.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${ouvertSeq.detail})`);
+    await p2.tap('#play-prog');
     await p2.waitForTimeout(1600);
     const seq = await p2.evaluate(() => ({
         transport: Tone.Transport.state,
         secondes: +Tone.Transport.seconds.toFixed(2),
         enLecture: window.app.isPlaying,
+        rythme: !!(window.app._bulle && window.app._bulle.rythme),
     }));
-    check(seq.transport === 'started' && seq.secondes > 0,
-        `la lecture du séquenceur démarre elle aussi sans échantillons — ${JSON.stringify(seq)}`);
+    check(seq.transport === 'started' && seq.secondes > 0 && seq.rythme,
+        `onglet Rythme ouvert, la lecture démarre elle aussi sans échantillons — ${JSON.stringify(seq)}`);
+    await p2.tap('#stop');
     await p2.close();
 
     console.log('\n=== Bilan :', PASS, 'PASS /', FAIL, 'FAIL ===');

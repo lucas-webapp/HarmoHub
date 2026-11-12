@@ -53,7 +53,7 @@ const sonde = (sel) => {
 };
 
 (async () => {
-    plan(18);
+    plan(15);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
 
@@ -77,7 +77,11 @@ const sonde = (sel) => {
 
     await m.evaluate(() => window.app.editChord(0, 1));
     await m.waitForTimeout(500);
-    for (const [sel, nom] of [['#dock-rythme', 'l\'accès au rythme'], ['#dock-terminer', 'la sortie du mode']]) {
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11) : l'accès « Rythme » ouvrait le petit séquenceur d'avant, qui a disparu ; le rythme d'un accord se
+    // règle dans l'onglet Rythme du panneau d'accord (ou « Séquenceur » du panneau Lecture). Le dock ne garde que la sortie du mode.
+    check(await m.evaluate(() => { const e = document.getElementById('dock-rythme'); return e.hidden || getComputedStyle(e).display === 'none'; }),
+        'l\'accès au rythme a disparu avec l\'ancien séquenceur : il n\'apparaît plus en mode Modification');
+    for (const [sel, nom] of [['#dock-terminer', 'la sortie du mode']]) {
         const s = await m.evaluate(sonde, sel);
         if (!exiger(s.present && s.visible, `${nom} apparaît en mode Modification`)) continue;
         check(s.dansEcran && s.atteignable, `${nom} est à l'écran et le doigt l'atteint — ${s.taille}`);
@@ -97,13 +101,11 @@ const sonde = (sel) => {
         await m.waitForTimeout(700);
         return true;
     };
-    if (exiger(await toucher('#dock-rythme'), 'le bouton Rythme a bien été touché')) {
-        check(await m.evaluate(() => window.app.seqOpen === true), 'il ouvre le rythme de l\'accord');
-        check(await m.evaluate(() => document.getElementById('dock-rythme').classList.contains('active')),
-            'et il se marque comme actif : ouvert, il referme — sans quoi on aurait deux boutons qui ouvrent et aucun qui ferme');
-        await toucher('#dock-rythme');
-        check(await m.evaluate(() => window.app.seqOpen === false), 'un second toucher le referme bien');
-    }
+    // RÉÉCRIT (4c) : ce que touchait le bouton Rythme — régler le rythme de l'accord — se fait par la porte du séquenceur du téléphone, par un vrai toucher.
+    const R = require('./_retrait_ancien');
+    const rythme = await R.ouvrirRythmeTel(m);
+    check(rythme.ok && !(await m.evaluate(() => window.app.seqOpen)), `le rythme de l'accord s'ouvre dans l'onglet Rythme, l'ancien séquenceur reste fermé (${rythme.detail})`);
+    await m.tap('#panneau-accord [data-bulle="fermer"]'); await m.waitForTimeout(400);
     await m.evaluate(() => { if (window.app.appMode !== 'edit') window.app.editChord(0, 1); });
     await m.waitForTimeout(400);
     if (exiger(await toucher('#dock-terminer'), 'le bouton Terminer a bien été touché')) {
@@ -130,7 +132,7 @@ const sonde = (sel) => {
         const uneRangee = rects.every(a => rects.every(b => Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 4));
         const secours = [...d.querySelectorAll('#dock-rythme, #dock-terminer')].map(e => e.getBoundingClientRect());
         const lecture = document.getElementById('barre-lecture').getBoundingClientRect();
-        return { h: Math.round(r.height), nb: enfants.length, uneRangee, rangeeSecours: secours.length === 2 && Math.abs(secours[0].top - secours[1].top) < 1, surLaBarre: Math.abs(r.bottom - lecture.top) < 1 };
+        return { h: Math.round(r.height), nb: enfants.length, uneRangee, rangeeSecours: secours.filter(s => s.height > 0).length === 1 /* la sortie du mode seule (4c) */, surLaBarre: Math.abs(r.bottom - lecture.top) < 1 };
     });
     check(barre.h <= 81, `la barre ne dépasse pas sa hauteur d'avant le lot — ${barre.h}px (81px avant)`);
     check(barre.uneRangee && barre.rangeeSecours && barre.surLaBarre,

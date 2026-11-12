@@ -15,7 +15,7 @@ const { check, exiger, plan, bilan } = require('./_harness')('éditeur de notes'
 const R = require('./_retrait_ancien');
 const { estBruitReseau } = require('./_harness');
 
-plan(14);
+plan(12);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const graine = () => {
@@ -34,8 +34,8 @@ const graine = () => {
 (async () => {
     const nav = await chromium.launch();
     const erreurs = [];
-    const ouvrir = async (viewport) => {
-        const p = await nav.newPage({ viewport });
+    const ouvrir = async (viewport, extra = {}) => {
+        const p = await nav.newPage({ viewport, ...extra });
         p.on('pageerror', e => erreurs.push(e.message));
         p.on('console', m => { if (m.type() === 'error' && !estBruitReseau(m.text()) && !/AudioContext/.test(m.text())) erreurs.push('console: ' + m.text()); });
         await p.goto(`${BASE}/index.html`);
@@ -102,18 +102,18 @@ const graine = () => {
     await p.close();
 
     // ======================================================================================================
-    console.log('\n=== I. Le téléphone : l\'éditeur de notes est une feuille plein écran (lot 10f) ===');
-    p = await ouvrir({ width: 390, height: 844 });
-    e = await etat(p);
-    check(e.btnTexte === 'Notes', `la porte dit « Notes » (« ${e.btnTexte} »)`);
-    check(e.btnLabel === 'Éditeur de notes', 'et son aria-label est celui de l\'ordinateur');
-    await p.locator('#grid-zoom').scrollIntoViewIfNeeded();
-    await clic(p, '#grid-zoom', 900);
-    e = await etat(p);
-    exiger(e.ouvert, 'elle ouvre l\'éditeur');
-    check(e.tete > 40, `avec son en-tête (${e.tete}px)`);
-    check(e.densiteEcran === 'normal' && e.modifie === false, `la grille garde l\'affichage de l\'appareil (${e.densiteEcran})`);
-    check(e.bande > 230, `la feuille donne toute la place aux notes (${e.bande}px de bande)`);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, « réécriture courte ») : la feuille plein écran « Notes » du téléphone (lot 10f) a disparu avec sa porte.
+    // Le séquenceur du téléphone est l'onglet Rythme du panneau d'accord ; la règle A y vaut aussi : l'ouvrir et le fermer ne changent pas la grille.
+    console.log('\n=== I. Le téléphone : plus de feuille « Notes », l\'onglet Rythme ne touche pas à la grille ===');
+    p = await ouvrir({ width: 390, height: 844 }, { hasTouch: true, isMobile: true });
+    r = await R.porteTelephoneAbsente(p);
+    check(r.ok, `ni « Notes » ni petit séquenceur au téléphone (${r.detail})`);
+    const avantTel = await empreinte(p);
+    r = await R.ouvrirRythmeTel(p);
+    exiger(r.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${r.detail})`);
+    check(await empreinte(p) === avantTel && await p.evaluate(() => hasUnsavedChanges) === false, 'ouvert : la grille garde exactement son affichage, rien n\'est « modifié »');
+    r = await R.fermerRythmeTel(p);
+    check(r.ok && await empreinte(p) === avantTel, `fermé par × : la grille n'a pas bougé (${r.detail})`);
     await p.close();
 
     check(erreurs.length === 0, `aucune erreur de page${erreurs.length ? ' : ' + erreurs.slice(0, 3).join(' | ') : ''}`);

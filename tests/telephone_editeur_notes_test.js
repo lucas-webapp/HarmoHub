@@ -20,7 +20,7 @@ const R = require('./_retrait_ancien');
 const { estBruitReseau } = require('./_harness');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
-plan(32);
+plan(17);
 
 const mk = (root, quality) => ({ root, quality, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
 const SECTIONS = [
@@ -88,95 +88,53 @@ const feuille = (p) => p.evaluate(() => {
     const nav = await chromium.launch();
     const erreurs = [];
 
-    // ======================================================================================================
-    console.log('\n=== A. La porte « Notes » ouvre la feuille plein écran ===');
-    let p = await ouvrir(nav, { viewport: { width: 390, height: 844 } }, erreurs);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, « réécriture courte ») : la feuille plein écran « Séq. » / « Notes » du téléphone a disparu avec sa
+    // porte (#grid-zoom), ses outils (crayon, gomme, sélection), son calque Voix et sa bande d'intensité. Le séquenceur du téléphone est celui de l'onglet Rythme
+    // du panneau d'accord, ouvert par « Séquenceur » du panneau Lecture (banc sequenceur_telephone). Ce qui reste vérifié ici, par de vrais gestes : l'ancienne
+    // porte n'existe plus, la nouvelle ouvre le séquenceur sans toucher à l'affichage de la grille, un toucher pose / enlève une croche (crayon et gomme),
+    // Intensité (bande d'intensité), la barre de lecture joue sous le panneau (E), × referme (F), 320 px tient (G). Le calque Voix n'a pas de remplaçant
+    // au téléphone (il a disparu le 11/11 à l'ordinateur : couleurs des rôles dans le séquenceur, vérifiées par calque_voix).
+    console.log('\n=== A. Plus de feuille « Séq. » : « Séquenceur » ouvre l\'onglet Rythme ===');
+    let p = await ouvrir(nav, { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }, erreurs);
+    let r = await R.porteTelephoneAbsente(p);
+    check(r.ok, `ni « Séq. » ni petit séquenceur au téléphone (${r.detail})`);
+    r = await R.ouvrirRythmeTel(p);
+    exiger(r.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${r.detail})`);
     let f = await feuille(p);
-    check(f.porte === 'Notes' && f.porteH >= 32, `la porte dit « Notes » et fait ${f.porteH}px (« ${f.porte} »)`);
-    check(!f.vlVisible, 'l\'icône ⊱ n\'existe plus au téléphone');
-    await clic(p, '#grid-zoom', 900);
-    f = await feuille(p);
-    exiger(f.ouvert, 'la porte ouvre l\'éditeur');
-    check(f.pos === 'fixed' && f.gauche === 0 && f.droite === f.larg, `la feuille couvre la largeur (${f.gauche} → ${f.droite} / ${f.larg})`);
-    check(Math.abs(f.haut - f.hautBarre) <= 1 && Math.abs(f.bas - f.hautLecture) <= 1, `entre la barre du haut (${f.hautBarre}) et la barre de lecture (${f.hautLecture}) : ${f.haut} → ${f.bas}`);
-    check(f.tailles.length >= 6 && f.tailles.every(t => t.h >= 44), `les boutons de l'en-tête font 44px au moins (${f.tailles.map(t => t.h).join(',')})`);
-    check(f.densite === 'normal' && f.modifie === false, `la grille garde l'affichage de l'appareil, morceau non modifié (${f.densite})`);
-    check(!f.ancien && !f.vlVisible, 'aucun ancien panneau de conduite de voix');
-    const notesAvant = f.notes;
+    check(f.densite === 'normal' && f.modifie === false && !f.ouvert, `la grille garde l'affichage de l'appareil, morceau non modifié, pas de feuille (${f.densite})`);
 
-    // ======================================================================================================
-    console.log('\n=== B. Les outils : crayon, gomme, sélection ===');
-    await clic(p, '#en-outil-crayon', 300);
-    check(await p.locator('#en-outil-crayon').getAttribute('aria-pressed') === 'true', 'le crayon est enfoncé');
-    const cible = await p.evaluate(() => {
-        const g = document.querySelector('#arp-sequencer .seq-grid-continuous').getBoundingClientRect();
-        const e = [...document.querySelectorAll('#arp-sequencer .seq-label')].find(l => /^A3$/.test(l.textContent.trim()));
-        const r = e.getBoundingClientRect();
-        return { x: g.left + 90, y: r.top + r.height / 2 };
-    });
-    await p.mouse.move(cible.x, cible.y); await p.mouse.down(); await p.mouse.up();
-    await p.waitForTimeout(500);
-    f = await feuille(p);
-    check(f.notes === notesAvant + 1, `un toucher au crayon dessine une note (${notesAvant} → ${f.notes})`);
-    await clic(p, '#en-outil-gomme', 300);
-    const note = await p.evaluate(() => { const r = document.querySelector('#arp-sequencer .seq-note').getBoundingClientRect(); return { x: r.left + Math.min(20, r.width / 2), y: r.top + r.height / 2 }; });
-    await p.mouse.move(note.x, note.y); await p.mouse.down(); await p.mouse.up();
-    await p.waitForTimeout(500);
-    f = await feuille(p);
-    check(f.notes === notesAvant, `la gomme efface la note touchée (${notesAvant + 1} → ${f.notes})`);
-    await clic(p, '#en-outil-selection', 300);
-    check(await p.locator('#en-outil-selection').getAttribute('aria-pressed') === 'true', 'Sélection revient');
+    console.log('\n=== D. Intensité (remplace la bande d\'intensité) ===');
+    r = await R.intensiteTel(p);
+    check(r.ok, `Intensité : toucher une note la passe en « fort » (${r.detail})`);
 
-    // ======================================================================================================
-    console.log('\n=== C. Le calque Voix ===');
-    await clic(p, '#editeur-notes-voix', 600);
-    f = await feuille(p);
-    check(f.fn > 0 && f.legende, `Voix écrit la fonction dans les notes (${f.fn}) et montre la légende`);
-    await clic(p, '#editeur-notes-voix', 400);
-    f = await feuille(p);
-    check(f.fn === 0 && !f.legende, 'éteint, les fonctions et la légende disparaissent');
+    console.log('\n=== B. Toucher pose, retoucher enlève (remplace crayon et gomme) ===');
+    r = await R.poserCrocheTel(p);
+    check(r.ok, `une croche posée puis enlevée au doigt (${r.detail})`);
 
-    // ======================================================================================================
-    console.log('\n=== D. La bande d\'intensité ===');
-    await clic(p, '#toggle-studio-mode', 600);
-    f = await feuille(p);
-    check(f.bande, 'le bouton Intensité ajoute la bande sous les notes');
-    await clic(p, '#toggle-studio-mode', 400);
-    f = await feuille(p);
-    check(!f.bande, 'il la retire');
-
-    // ======================================================================================================
     console.log('\n=== E. La barre de lecture reste utilisable ===');
-    await clic(p, '#barre-lecture #global-play, #barre-lecture .transport > button:first-child', 900);
-    const joue = await p.evaluate(() => !!(window.app && (window.app.isPlaying || window.app.playing)));
-    check(joue, 'Lecture de la barre démarre la lecture, feuille ouverte');
-    await clic(p, '#barre-lecture .btn-stop', 500);
-    check(!(await p.evaluate(() => !!(window.app.isPlaying || window.app.playing))), 'Stop l\'arrête');
-    f = await feuille(p);
-    check(f.ouvert, 'et la feuille reste ouverte');
+    r = await R.teteLectureTel(p);
+    check(r.ok, `Lecture joue sous le panneau, la croche qui sonne s'allume, Stop l'éteint (${r.detail})`);
 
-    // ======================================================================================================
-    console.log('\n=== F. Fermer, puis la porte de la barre Lecture ===');
-    await clic(p, '#editeur-notes-fermer', 700);
-    f = await feuille(p);
-    check(!f.ouvert, 'Fermer referme la feuille');
-    check(f.densite === 'normal', 'la grille est telle qu\'avant (affichage de l\'appareil)');
-    // RÉÉCRIT AU 3e SOUS-LOT DE D : « Notes » du panneau Lecture est devenu « Séquenceur » (le NOUVEAU séquenceur, onglet Rythme du panneau d'accord,
-    // banc sequenceur_telephone). L'éditeur d'avant garde sa porte « Séq. » jusqu'à son retrait : on vérifie qu'elle le rouvre après fermeture.
-    await clic(p, '#grid-zoom', 900);
-    f = await feuille(p);
-    check(f.ouvert, 'la porte « Séq. » rouvre l\'éditeur après fermeture (« Notes » du panneau Lecture mène désormais au nouveau séquenceur)');
-    await clic(p, '#editeur-notes-fermer', 600);
+    console.log('\n=== F. × referme ===');
+    r = await R.fermerRythmeTel(p);
+    check(r.ok, `× referme le panneau et rend le séquenceur à sa place (${r.detail})`);
+    // La GARDE des appels de programme (toggleSequencer, appelé par l'ancien code et par des bancs d'avant) : ce n'est pas un geste de l'utilisateur — aucun
+    // geste n'y mène plus —, c'est le filet qui empêche l'ancien séquenceur de se rouvrir au téléphone. Appelé exprès ici, dans ses deux modes.
+    const garde = [];
+    for (const mode of ['continu', 'compact']) {
+        await p.evaluate((m) => window.app.toggleSequencer(m), mode); await p.waitForTimeout(500);
+        garde.push(await p.evaluate(() => ({ ancien: window.app.seqOpen, rythme: !!(window.app._bulle && window.app._bulle.rythme) })));
+        await p.tap('#panneau-accord [data-bulle="fermer"]'); await p.waitForTimeout(400);
+    }
+    check(garde.every(g => !g.ancien && g.rythme), `un appel de programme n'ouvre plus l'ancien séquenceur au téléphone : il ouvre l'onglet Rythme (${JSON.stringify(garde)})`);
     await p.context().close();
 
-    // ======================================================================================================
     console.log('\n=== G. 320px : tout tient ===');
-    p = await ouvrir(nav, { viewport: { width: 320, height: 640 } }, erreurs);
-    await clic(p, '#grid-zoom', 900);
-    f = await feuille(p);
-    exiger(f.ouvert, 'ouvert à 320px');
-    check(f.tailles.every(t => t.droite <= f.larg), `aucun bouton de l'en-tête ne déborde (${Math.max(...f.tailles.map(t => t.droite))} / ${f.larg})`);
-    check(f.bas - f.haut > 200, `la feuille garde de la place (${f.bas - f.haut}px)`);
+    p = await ouvrir(nav, { viewport: { width: 320, height: 640 }, hasTouch: true, isMobile: true }, erreurs);
+    r = await R.ouvrirRythmeTel(p);
+    exiger(r.ok, `ouvert à 320 px (${r.detail})`);
+    const larg = await p.evaluate(() => { const g = document.getElementById('sq-grille'); const cs = [...g.querySelectorAll('.sq-case[data-r]')]; return { droite: Math.max(...cs.map(c => c.getBoundingClientRect().right)), deborde: g.scrollWidth - g.clientWidth }; });
+    check(larg.droite <= 320 && larg.deborde <= 1, `les huit croches tiennent (bord droit ${Math.round(larg.droite)}, débord ${larg.deborde})`);
     check(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'pas de défilement horizontal de la page');
     await p.context().close();
 
@@ -189,7 +147,7 @@ const feuille = (p) => p.evaluate(() => {
     f = await feuille(p);
     const porte = await R.porteAbsente(p);
     check(porte.ok && !f.vlVisible, `plus de porte « Éditeur de notes » à l'ordinateur, ⊱ absent (${porte.detail})`);
-    const r = await R.ouvrirNouveau(p);
+    r = await R.ouvrirNouveau(p);
     exiger(r.ok, `le séquenceur s'ouvre par son bouton (${r.detail})`);
     f = await feuille(p);
     check(!f.ouvert && await p.evaluate(() => getComputedStyle(document.getElementById('sequenceur')).position !== 'fixed'), 'aucune feuille plein écran : le séquenceur est posé dans la page');

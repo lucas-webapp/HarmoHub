@@ -14,7 +14,7 @@ const { check, exiger, plan, bilan } = require('./_harness')('éditeur de notes 
 const R = require('./_retrait_ancien');
 const { estBruitReseau } = require('./_harness');
 
-plan(10);
+plan(11);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const graine = () => {
@@ -80,17 +80,18 @@ const graine = () => {
     await p.close();
 
     // ======================================================================================================
-    console.log('\n=== H. Le téléphone : la barre rejoint l\'en-tête de la feuille (lot 10f) ===');
-    p = await ouvrir({ width: 390, height: 844 });
-    await p.locator('#grid-zoom').scrollIntoViewIfNeeded();
-    await clic(p, '#grid-zoom', 900);
-    const t = await p.evaluate(() => ({
-        dansSeq: !!document.querySelector('#arp-sequencer .seq-presets #seq-play'),
-        tete: Math.round(document.getElementById('editeur-notes-tete').getBoundingClientRect().height),
-        tout: (document.querySelector('#arp-sequencer [data-preset="clear"]') || {}).innerText,
-    }));
-    check(!t.dansSeq && t.tete > 40, 'la barre a rejoint l\'en-tête de l\'éditeur, comme à l\'ordinateur');
-    check(!/tout/.test(t.tout || ''), `la corbeille est en icône seule (« ${(t.tout || '').trim()} »)`);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, « réécriture courte ») : la feuille « Notes » du téléphone et sa barre d'outils ont disparu ; le
+    // séquenceur du téléphone (onglet Rythme du panneau d'accord) a ses outils en icônes de 44 px, sans mot.
+    console.log('\n=== H. Le téléphone : les outils de l\'onglet Rythme ===');
+    p = await nav.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    p.on('pageerror', e => erreurs.push(e.message));
+    await p.goto(`${BASE}/index.html`); await p.evaluate(graine); await p.reload(); await p.waitForTimeout(900);
+    r = await R.porteTelephoneAbsente(p);
+    check(r.ok, `ni « Notes » ni petit séquenceur au téléphone (${r.detail})`);
+    r = await R.ouvrirRythmeTel(p);
+    exiger(r.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${r.detail})`);
+    r = await R.outilsTel(p);
+    check(r.ok, `ses outils en icônes de 44 px, sans mot (${r.detail})`);
     await p.close();
 
     check(erreurs.length === 0, `aucune erreur de page${erreurs.length ? ' : ' + erreurs.slice(0, 3).join(' | ') : ''}`);

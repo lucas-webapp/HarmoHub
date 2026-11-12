@@ -104,26 +104,32 @@ const graine = () => {
     await p.close();
 
     // ======================================================================================================
-    console.log('\n=== I. Le téléphone a le même calque (lot 10f) ===');
-    p = await ouvrir({ width: 860, height: 900 });
-    await p.evaluate(() => localStorage.setItem('harmohubSeqVoix', '1'));
-    await p.reload(); await p.waitForTimeout(900);
-    exiger(!(await p.locator('#toggle-voice-leading').isVisible()), 'l\'icône ⊱ a quitté le téléphone');
-    await clic(p, '#progression-sections .grid-cell[data-index="1"]', 300);
-    await clic(p, '#grid-zoom', 900);
-    const tel = await p.evaluate(() => ({ tete: !!document.getElementById('editeur-notes-tete').offsetParent, fn: document.querySelectorAll('.seq-note-fn').length, traits: document.querySelectorAll('.seq-voix-trait').length, seq: window.app.seqOpen, ancien: !!document.querySelector('.voice-leading-panel') }));
-    check(tel.seq && tel.tete && tel.fn > 0 && tel.traits > 0, 'l\'éditeur s\'y ouvre avec le calque Voix : fonctions dans les notes et chemin des voix');
-    check(!tel.ancien, 'sans ancien panneau de conduite de voix');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, « réécriture courte ») : la feuille « Notes » du téléphone emportait le dernier calque Voix (fonctions
+    // dans les notes, chemin des voix). Comme à l'ordinateur (partie A), ce qui le remplace : les couleurs des rôles dans le séquenceur de l'onglet Rythme.
+    const ouvrirTel = async () => {
+        const q = await nav.newPage({ viewport: { width: 860, height: 900 }, hasTouch: true, isMobile: true });
+        q.on('pageerror', e => erreurs.push(e.message));
+        await q.goto(`${BASE}/index.html`); await q.evaluate(graine); await q.reload(); await q.waitForTimeout(900);
+        return q;
+    };
+    console.log('\n=== I. Le téléphone : plus de calque Voix, les couleurs des rôles dans l\'onglet Rythme ===');
+    p = await ouvrirTel();
+    r = await R.porteTelephoneAbsente(p);
+    check(r.ok, `ni « Notes » ni petit séquenceur au téléphone (${r.detail})`);
+    r = await R.ouvrirRythmeTel(p);
+    exiger(r.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${r.detail})`);
+    r = await R.couleursRoles(p, 0);
+    check(r.ok, `les notes y portent les couleurs de leur rôle (${r.detail})`);
     await p.close();
 
     // ======================================================================================================
-    console.log('\n=== J. Élargir la fenêtre éditeur ouvert le rend à son volet ===');
-    p = await ouvrir({ width: 860, height: 900 });
-    await clic(p, '#grid-zoom', 900);
-    exiger(await p.evaluate(() => getComputedStyle(document.getElementById('seq-dock-panel')).position === 'fixed'), 'sous 900px l\'éditeur est une feuille plein écran');
+    console.log('\n=== J. Élargir la fenêtre onglet Rythme ouvert rend le séquenceur à l\'ordinateur ===');
+    p = await ouvrirTel();
+    r = await R.ouvrirRythmeTel(p);
+    exiger(r.ok, `onglet Rythme ouvert sous 900 px (${r.detail})`);
     await p.setViewportSize({ width: 1440, height: 900 }); await p.waitForTimeout(800);
-    // RÉÉCRIT (4a) : l'ancien éditeur n'existe plus à l'ordinateur — passé le seuil, il se referme (plus de porte pour le fermer là-haut).
-    check(await p.evaluate(() => !window.app.seqOpen && !document.getElementById('seq-dock-panel').offsetParent), 'passé au-dessus de 900px, l\'ancien éditeur se referme : il n\'existe plus à l\'ordinateur');
+    check(await p.evaluate(() => document.getElementById('panneau-accord').hidden && document.getElementById('sequenceur').parentElement === document.getElementById('vues-tiroir').parentElement && !window.app.seqOpen),
+        'passé au-dessus de 900 px, le panneau se referme et le séquenceur retourne à sa place ; l\'ancien séquenceur reste fermé');
     await p.close();
 
     check(erreurs.length === 0, `aucune erreur JavaScript${erreurs.length ? ' — ' + erreurs.slice(0, 3).join(' | ') : ''}`);

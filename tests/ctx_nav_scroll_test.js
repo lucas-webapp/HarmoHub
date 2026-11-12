@@ -1,71 +1,45 @@
-const { chromium } = require('playwright')
-const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
+// RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, décision « réécriture courte ») : il éprouvait le défilement de l'ancien petit séquenceur vers l'accord
+// voisin touché, au téléphone. L'ancien séquenceur a disparu ; l'onglet Rythme montre l'accord seul, rien à faire défiler, et ‹ › changent d'accord. Le
+// banc vérifie que l'ancienne porte n'existe plus ET ces deux points.
+// De vrais gestes (souris, toucher, clavier) ; window.app sert à relire l'état. Voir tests/_retrait_ancien.js.
+const { chromium } = require('playwright');
+const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
+const { check, exiger, plan, bilan } = require('./_harness')('ctx_nav_scroll');
+const { estBruitReseau } = require('./_harness');
+const R = require('./_retrait_ancien');
 
-// Ces zones de navigation contextuelle sont VASTES (224x213px mesurés en 420px de large) et
-// débordent la partie visible du séquenceur, qui défile horizontalement. Playwright vise le CENTRE
-// d'un élément : ici, ce centre tombe hors de la zone visible, sur le corps de la loupe — d'où un
-// « intercepts pointer events » qui n'a rien à voir avec la fonctionnalité. Elle marche : vérifié
-// en cliquant un point réellement atteignable, ce que fait ce helper. On teste le geste de
-// l'utilisateur (il vise ce qu'il voit), pas la géométrie interne de l'élément.
-const cliqueZone = async (page, sel) => {
-    const pt = await page.evaluate((s) => {
-        const z = document.querySelector(s);
-        if (!z) return null;
-        // Un accord lointain peut être entierement hors de la partie visible : le sequenceur defile
-        // horizontalement. L'utilisateur fait defiler avant de viser, on fait pareil.
-        z.scrollIntoView({ block: 'nearest', inline: 'center' });
-        const r = z.getBoundingClientRect();
-        for (let j = 1; j < 20; j++) for (let i = 1; i < 20; i++) {
-            const x = r.left + r.width * i / 20, y = r.top + r.height * j / 20;
-            const el = document.elementFromPoint(x, y);
-            if (el && el.closest(s.split('[')[0])) return { x, y };
-        }
-        return null;
-    }, sel);
-    if (!pt) throw new Error('aucun point atteignable dans ' + sel);
-    await page.mouse.click(pt.x, pt.y);
-};
+plan(5);
 
 (async () => {
-    const browser = await chromium.launch({
-        args: ['--autoplay-policy=no-user-gesture-required'],
-    });
-    const page = await browser.newPage({ viewport: { width: 420, height: 800 } });
-    await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
-    await page.waitForTimeout(200);
-    await page.evaluate(() => {
-        const mk = (root, quality) => ({ root, quality, beats: 4, inversion: 0, drop: 0, octave: 4, bass: null, playStyle: 'held' });
-        const sections = [{ title: 'Couplet', chords: [mk('C', 'maj'), mk('A', 'min7'), mk('F', 'maj7'), mk('G', '7')] }];
-        localStorage.setItem('myProgression', JSON.stringify({ sections }));
-    });
-    await page.reload({ waitUntil: 'load' });
-    await page.waitForTimeout(200);
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(150);
-    await page.evaluate(() => window.app.editChordFromSequencer(0, 1));
-    await page.waitForTimeout(200);
-
-    const check = async (label) => {
-        const r = await page.evaluate(() => {
-            const scrollEl = document.querySelector('#arp-sequencer .seq-scroll');
-            const grid = document.querySelector('#arp-sequencer .seq-grid');
-            const colOffset = +grid.dataset.colOffset;
-            return {
-                scrollLeft: scrollEl.scrollLeft,
-                expectedCentered: colOffset * 14,
-                scrollWidth: scrollEl.scrollWidth,
-                clientWidth: scrollEl.clientWidth,
-            };
+    const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+    const errs = [];
+    const ouvrir = async (viewport, tel) => {
+        const p = await b.newPage(tel ? { viewport, hasTouch: true, isMobile: true } : { viewport });
+        p.on('pageerror', e => errs.push(e.message));
+        p.on('console', m => { if (m.type() === 'error' && !estBruitReseau(m.text()) && !/AudioContext/.test(m.text())) errs.push('console: ' + m.text()); });
+        await p.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load' });
+        await p.evaluate(() => {
+            const mk = (r, q) => ({ root: r, quality: q, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
+            localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), mk('F', 'maj7'), mk('G', 'dom7')] }] }));
+            sessionStorage.setItem('cc_accueil_vu', '1');
         });
-        console.log(label, JSON.stringify(r));
-        return r;
+        await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(800);
+        return p;
     };
-    await check('after opening chord 1 (initial)');
+    let p, r;
+    console.log('\n=== Téléphone (420 px) ===');
+    p = await ouvrir({ width: 420, height: 900 }, true);
+    r = await R.porteTelephoneAbsente(p);
+    check(r.ok, `ni « Séq. » ni petit séquenceur au téléphone (${r.detail})`);
+    r = await R.ouvrirRythmeTel(p);
+    exiger(r.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${r.detail})`);
+    r = await R.tientTel(p);
+    check(r.ok, `l'accord, ses huit croches et une ligne par voix tiennent, cases de 44 px : rien à zoomer, pincer ni faire défiler (${r.detail})`);
+    r = await R.suivantTel(p);
+    check(r.ok, `› et ‹ changent d'accord, le panneau reste sur Rythme (${r.detail})`);
+    await p.close();
 
-    await cliqueZone(page, '.seq-ctx-nav-next');
-    await page.waitForTimeout(150);
-    await check('after clicking NEXT to chord 2');
-
-    await browser.close();
-    process.exit(0);
-})().catch((e) => { console.error('FATAL', e); process.exit(2); });
+    check(errs.length === 0, `aucune erreur JavaScript (${errs.slice(0, 3).join(' | ') || 'rien'})`);
+    await b.close();
+    bilan();
+})().catch(e => { console.error('FATAL', e); process.exit(2); });

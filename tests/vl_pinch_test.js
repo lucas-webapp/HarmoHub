@@ -12,7 +12,7 @@ const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('pincement de la conduite de voix');
 const R = require('./_retrait_ancien');
 
-plan(14);
+plan(11);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const graine = () => {
@@ -28,8 +28,8 @@ const graine = () => {
 (async () => {
     const browser = await chromium.launch();
     const pageErrors = [];
-    const ouvrir = async (viewport) => {
-        const page = await browser.newPage({ viewport, hasTouch: true });
+    const ouvrir = async (viewport, extra = {}) => {
+        const page = await browser.newPage({ viewport, hasTouch: true, ...extra });
         page.on('pageerror', (e) => pageErrors.push(e.message));
         await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
         await page.evaluate(graine);
@@ -53,51 +53,21 @@ const graine = () => {
         return { cx: r.x + r.width / 2, cy: r.y + r.height / 2 };
     }, sel);
 
-    // Lot 10f : le téléphone pince le MÊME calque que l'ordinateur (l'ancien panneau ⊱ n'existe plus) : mêmes vérifications aux deux largeurs.
-    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : la passe ORDINATEUR est remplacée par le bloc court plus bas ; le téléphone garde la sienne (4c).
-    for (const [nom, larg] of [['TÉLÉPHONE (860px)', 860]]) {
-        // ======================================================================================================
-        console.log(`\n=== ${nom} : le calque Voix de l'éditeur de notes ===`);
-        const page = await ouvrir({ width: larg, height: 900 });
-        await page.click('#progression-sections .grid-cell[data-index="1"]');
-        await page.waitForTimeout(300);
-        await page.click('#grid-zoom');
-        await page.waitForTimeout(900);
-        await page.click('#editeur-notes-voix');
-        await page.waitForTimeout(700);
-        exiger(await page.evaluate(() => document.querySelectorAll('#arp-sequencer .seq-voix-mouvement').length > 0), 'le calque Voix est posé, avec ses traits');
-        // Écart maximal entre un trait et la frontière qu'il marque (le bord gauche de l'accord suivant).
-        const ecartTraits = () => page.evaluate(() => Math.max(...[...document.querySelectorAll('#arp-sequencer .seq-voix-mouvement')].map(t => {
-            const nav = document.querySelector(`#arp-sequencer .seq-ctx-nav[data-target-index="${t.dataset.accord}"]`);
-            const x = (nav || document.querySelector('#arp-sequencer .seq-cell[data-step="0"]')).getBoundingClientRect().left;
-            const r = t.getBoundingClientRect(); return Math.abs(r.left + r.width / 2 - x);
-        })));
-        const colonne = () => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#arp-sequencer .seq-grid-continuous')).getPropertyValue('--seq-col-w')));
-        const gen0 = await page.evaluate(() => window.app.seqRenderGen);
-        const col0 = await colonne();
-        const { cx, cy } = await centre(page, '#arp-sequencer .seq-scroll');
-        await page.waitForTimeout(200);
-        const doigt = pointeur(page, '#arp-sequencer .seq-scroll');
-        await doigt('pointerdown', 1, cx - 20, cy);
-        await doigt('pointerdown', 2, cx + 20, cy);
-        await page.waitForTimeout(20);
-        await doigt('pointermove', 1, cx - 45, cy);
-        await doigt('pointermove', 2, cx + 45, cy);
-        await page.waitForTimeout(30);
-        const col1 = await colonne();
-        check(col1 > col0, `pendant le geste, les colonnes s'élargissent aussitôt (${col0.toFixed(1)} → ${col1.toFixed(1)} px)`);
-        check(await ecartTraits() <= 2, 'et chaque trait reste sur sa frontière, sans attendre un rendu');
-        check(await page.evaluate((g) => window.app.seqRenderGen === g, gen0), 'aucun rendu n\'a eu lieu pour ça : les traits suivent la grille d\'eux-mêmes');
-        await doigt('pointerup', 1, cx - 45, cy);
-        await doigt('pointerup', 2, cx + 45, cy);
-        await page.waitForTimeout(400);
-        check(await page.evaluate(() => window.app.seqInlineZoomLevelX) > 1, 'l\'échelle horizontale réelle a bien augmenté après le pincement');
-        check(await ecartTraits() <= 2, 'après le geste, les traits sont toujours sur leurs frontières');
-        check(await page.evaluate(() => document.querySelectorAll('#arp-sequencer .seq-voix-accord').length === 4 && document.querySelectorAll('#arp-sequencer .seq-note-fn').length > 0),
-            'le calque est intact : les quatre accords dans la règle, les fonctions dans les notes');
-        check(await page.evaluate(() => !document.querySelector('.voice-leading-panel')), 'aucun ancien panneau');
-        await page.close();
-
+    // TÉLÉPHONE — RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, « réécriture courte ») : la feuille « Notes » du téléphone emportait le dernier calque
+    // Voix (fonctions dans les notes, chemin des voix, son zoom et son pincement). Comme à l'ordinateur (plus bas), ce qui reste : les couleurs des rôles, dans
+    // le séquenceur de l'onglet Rythme du panneau d'accord, ouvert par « Séquenceur » du panneau Lecture.
+    console.log('\n=== TÉLÉPHONE (860px) : plus de calque Voix ; l\'onglet Rythme garde les couleurs des rôles ===');
+    {
+        const pt = await ouvrir({ width: 860, height: 1000 }, { hasTouch: true, isMobile: true });
+        let r = await R.porteTelephoneAbsente(pt);
+        check(r.ok, `la feuille « Notes » et son calque Voix ont quitté le téléphone (${r.detail})`);
+        check(!(await pt.locator('#toggle-voice-leading').isVisible()), 'l\'icône ⊱ n\'y est pas non plus');
+        r = await R.ouvrirRythmeTel(pt);
+        exiger(r.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${r.detail})`);
+        check(await pt.evaluate(() => document.querySelectorAll('.seq-voix-trait, .seq-note-fn, .voice-leading-panel').length === 0), 'ni trait du chemin des voix, ni chiffre de fonction, ni ancien panneau');
+        r = await R.couleursRoles(pt, 0);
+        check(r.ok, `les notes y gardent les couleurs de leur rôle (${r.detail})`);
+        await pt.close();
     }
 
     check(pageErrors.length === 0, "aucune erreur JS pendant les pincements — " + JSON.stringify(pageErrors));

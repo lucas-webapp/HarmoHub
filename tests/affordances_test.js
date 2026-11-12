@@ -7,22 +7,16 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 let PASS = 0, FAIL = 0;
 function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label); } else { FAIL++; console.log('FAIL - ' + label); } }
 
+// RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11) : le petit séquenceur (ses bords de note, ses curseurs ew-resize / grab, son liseré au survol, ses
+// poignées de note sélectionnée, sa barre continue) a disparu. Le séquenceur du téléphone est l'onglet Rythme du panneau d'accord, ouvert ici par de vrais
+// clics (⋯, « Séquenceur ») ; ses affordances : le réticule de précision sur chaque case (« je veux ce curseur uniquement dans le séquenceur »), et les
+// couleurs des rôles sur les notes. Les affordances de la GRILLE (poignées de durée, fantôme de glissé) restent éprouvées telles quelles.
+const R = require('./_retrait_ancien');
 async function openSeqWithNote(page) {
     await ajouterAccord(page, 'C');
     await page.waitForTimeout(250);
     await editerAccord(page); // lot 10e : plus de séquenceur compact en mode Ajout
-    if (!(await page.evaluate(() => window.app.seqOpen))) await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(400);
-    // Note de 4 croches sur la voix 0 : il lui faut un corps (croches 1 et 2) en plus de ses bords.
-    await page.evaluate(() => {
-        const app = window.app;
-        const { pattern } = app.getLiveSeqPattern(app.readChord());
-        for (let s = 0; s < pattern.length; s++) app.applySeqCell(0, s, false);
-        for (let s = 0; s < 4; s++) app.applySeqCell(0, s, true, s !== 0);
-        app.seqSelections = [];
-        app.renderSequencer();
-    });
-    await page.waitForTimeout(200);
+    await R.cliquer(page, '#bl-plus', 400); await R.cliquer(page, '#pl-notes', 700);
 }
 
 (async () => {
@@ -41,64 +35,15 @@ async function openSeqWithNote(page) {
     await page.waitForTimeout(700);
     await openSeqWithNote(page);
 
-    const cls = await page.evaluate(() => {
-        const at = (s) => document.querySelector(`.seq-cell[data-voice="0"][data-step="${s}"]`).className;
-        return { s0: at(0), s1: at(1), s3: at(3), s8: at(8) };
+    const seqC = await page.evaluate(() => {
+        const c = document.querySelector('#pa-rythme #sq-grille .sq-case[data-r]');
+        return { rythme: !!(window.app._bulle && window.app._bulle.rythme), ancien: window.app.seqOpen, curseur: c ? getComputedStyle(c).cursor : null };
     });
-    check(cls.s0.includes('seq-cell-edge-start') && !cls.s0.includes('seq-cell-edge-end'),
-        `la 1re croche est marquée bord GAUCHE seulement — obtenu ${cls.s0}`);
-    check(cls.s3.includes('seq-cell-edge-end') && !cls.s3.includes('seq-cell-edge-start'),
-        `la dernière croche est marquée bord DROIT seulement — obtenu ${cls.s3}`);
-    check(!cls.s1.includes('seq-cell-edge') && cls.s1.includes('on'),
-        `le CORPS de la note n'est marqué d'aucun bord — obtenu ${cls.s1}`);
-
-    // Curseurs : ew-resize sur un bord, grab sur le corps, pointer sur une case vide.
-    const cursors = await page.evaluate(() => {
-        const cur = (s) => {
-            const el = document.querySelector(`.seq-cell[data-voice="0"][data-step="${s}"]`);
-            // getComputedStyle ne tient pas compte de :hover ; on lit donc la règle applicable en
-            // simulant la spécificité via matches() sur les sélecteurs qu'on a écrits.
-            return {
-                edge: el.matches('.seq-cell-edge'),
-                bodyGrab: el.matches('.seq-cell.on:not(.seq-cell-edge)'),
-            };
-        };
-        return { s0: cur(0), s1: cur(1), s8: cur(8) };
-    });
-    check(cursors.s0.edge, 'un bord de note correspond bien à la règle de curseur ew-resize');
-    check(cursors.s1.bodyGrab, 'le corps de la note correspond bien à la règle de curseur grab (déplacement)');
-    check(!cursors.s8.edge && !cursors.s8.bodyGrab, 'une case vide ne correspond à aucune des deux (curseur pointer par défaut)');
-
-    // Repère visible du bord au survol (pseudo-élément ::before/::after).
-    const hoverMarker = await page.evaluate(() => {
-        const el = document.querySelector('.seq-cell[data-voice="0"][data-step="0"]');
-        const r = el.getBoundingClientRect();
-        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-    });
-    await page.mouse.move(hoverMarker.x, hoverMarker.y);
-    await page.waitForTimeout(150);
-    const markerShown = await page.evaluate(() => {
-        const el = document.querySelector('.seq-cell[data-voice="0"][data-step="0"]');
-        return getComputedStyle(el, '::before').content !== 'none';
-    });
-    check(markerShown, 'au survol d\'un bord, un liseré apparaît bien (pseudo-élément ::before actif)');
-
-    // Poignées de la note sélectionnée (équivalent tactile du survol).
-    await page.evaluate(() => {
-        window.app.seqSelections = [{ voice: 0, start: 0, end: 3 }];
-        window.app.renderSequencer();
-    });
-    await page.waitForTimeout(200);
-    const grips = await page.evaluate(() => {
-        const note = document.querySelector('.seq-note.selected');
-        if (!note) return null;
-        return {
-            before: getComputedStyle(note, '::before').content !== 'none',
-            after: getComputedStyle(note, '::after').content !== 'none',
-        };
-    });
-    check(grips && grips.before && grips.after,
-        `la note sélectionnée montre une poignée à CHAQUE extrémité — obtenu ${JSON.stringify(grips)}`);
+    check(seqC.rythme && !seqC.ancien, 'le séquenceur s\'ouvre dans l\'onglet Rythme, l\'ancien reste fermé');
+    check(/url\(/.test(seqC.curseur || ''), `chaque case du séquenceur porte le réticule de précision — ${seqC.curseur}`);
+    const roles = await R.couleursRoles(page, 0);
+    check(roles.ok, `les notes portent les couleurs de leur rôle (${roles.detail})`);
+    await R.cliquer(page, '#panneau-accord [data-bulle="fermer"]', 400);
 
     // ============================================================
     // === H. Poignées de durée de la grille ===
@@ -148,21 +93,10 @@ async function openSeqWithNote(page) {
     // ============================================================
     // === Lot 4 : une note tenue se lit comme UNE barre continue ===
     // ============================================================
-    await openSeqWithNote(page);
-    const barLook = await page.evaluate(() => {
-        const host = document.getElementById('arp-sequencer');
-        const body = document.querySelector('.seq-cell[data-voice="0"][data-step="1"]');
-        return {
-            liveOff: !host.classList.contains('seq-live'),
-            // Hors geste, une case couverte par une barre ne repeint plus son propre fond vert :
-            // c'est la barre seule qui représente la note (sinon l'intérieur des cases ressortait
-            // plus clair que les 4px qui les séparent, et une note tenue se lisait en morceaux).
-            bodyBg: getComputedStyle(body).backgroundColor,
-        };
-    });
-    check(barLook.liveOff, 'hors geste, le séquenceur n\'est pas en mode « retour visuel direct » (.seq-live)');
-    check(!barLook.bodyBg.includes('0, 230, 118'),
-        `hors geste, une case sous une barre ne repeint plus de vert par-dessus — obtenu ${barLook.bodyBg}`);
+    // RÉÉCRIT (4c) : la barre continue de l'ancien séquenceur a disparu ; au séquenceur d'aujourd'hui, un glissé peint d'un geste les croches d'une note tenue.
+    await R.cliquer(page, '#bl-plus', 400); await R.cliquer(page, '#pl-notes', 700);
+    const peint = await R.peindreTel(page);
+    check(peint.ok, `un glissé peint d'un geste les croches d'une note tenue, d'une seule annulation (${peint.detail})`);
     await page.close();
 
     // ============================================================

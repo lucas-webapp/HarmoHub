@@ -56,20 +56,11 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
             const insp = await R.porteInspecteurAbsente(p, 0, 5);
             ck(insp.ok, `plus de petit séquenceur dans l'inspecteur — ${insp.detail}`);
         } else {
-                    console.log('--- 1. Porte « Séquenceur » de la carte Accord -> petit séquenceur DANS la carte ---');
-            // Elle s'appelait « Agrandir » et ne faisait qu'agrandir ce qu'un bouton icône avait ouvert.
-            // Ce bouton-là n'existe plus (retour utilisateur : « tu peux laisser uniquement le bouton
-            // agrandir car il est plus visible ») : « Séquenceur » ouvre ET agrandit. On referme donc le
-            // plein écran juste après, pour retrouver la vue compacte que cette section éprouve.
-            await taper('#seq-zoom'); await p.waitForTimeout(1200);
-            await p.evaluate(() => window.app.closeSeqZoom()); await p.waitForTimeout(600);
-            let r = await lire(); console.log(JSON.stringify(r));
-            ck(r.mode==='compact', `mode « compact » — ${r.mode}`);
-            ck(!r.dansVolet, 'il reste dans le module, pas dans le volet sous la grille');
-            ck(!r.voletVisible, '...et le volet sous la grille reste fermé');
-            ck(!r.continu && r.contexte===0 && r.lignes===4,
-                `simplifié : ${r.lignes} lignes (une par voix), ${r.contexte} case(s) de contexte`);
-            ck(r.visible, 'il est visible à l\'écran');
+            // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, « réécriture courte ») : au téléphone aussi, la porte « Séquenceur » de la carte Accord et le
+            // petit séquenceur ont disparu (comme la porte au-dessus de la grille, partie 2). Le séquenceur du téléphone est l'onglet Rythme du panneau d'accord.
+            console.log('--- 1. Plus de porte « Séquenceur » ni de petit séquenceur au téléphone ---');
+            const tel = await R.porteTelephoneAbsente(p, 5);
+            ck(tel.ok, `plus de petit séquenceur au téléphone — ${tel.detail}`);
         }
 
         if (!vp.mob) {
@@ -95,39 +86,15 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
             await R.cliquer(p, '#vue-sequenceur', 600);
             ck(await p.evaluate(() => document.getElementById('sequenceur').hidden), 'tout est refermé');
         } else {
-            console.log('--- 2. Bouton au-dessus de la grille -> séquenceur CONTINU sous la grille ---');
-            await taper('#grid-zoom'); await p.waitForTimeout(1200);
-            r = await lire(); console.log(JSON.stringify(r));
-            ck(r.mode==='continu', `mode « continu » — ${r.mode}`);
-            ck(r.dansVolet && r.voletVisible, 'il passe dans le volet, qui s\'affiche');
-            // Lot 10f : au téléphone l'éditeur est une feuille plein écran (fixe, au-dessus de la grille) ; à l'ordinateur il reste sous la grille.
-            const feuille = await p.evaluate(() => getComputedStyle(document.getElementById('seq-dock-panel')).position === 'fixed');
-            ck(vp.mob ? feuille : r.sousLaGrille, vp.mob ? 'l\'éditeur est une feuille plein écran' : 'le volet est bien SOUS la grille d\'accords');
-            ck(r.continu && r.contexte>0 && r.lignes>4,
-                `continu : ${r.lignes} lignes (demi-tons), ${r.contexte} barres de contexte`);
-            ck(r.visible, 'il est visible à l\'écran');
-            // Lot 9a/9b : l'éditeur de notes s'ouvre RÉDUIT (« ~170 px de notes ») + la règle, soit ~194px, et sa barre est passée dans l'en-tête, hors de
-            // cet hôte. « En gros » se juge donc face au petit séquenceur de la carte (une poignée de lignes) : au moins les 170px de notes et la règle.
-            ck(r.hauteurVolet >= 190, `volet en GROS — ${r.hauteurVolet}px de haut`);
-
-            console.log('--- 3. Le volet est ajustable en hauteur ---');
-            const h0 = r.hauteurVolet;
-            if (vp.mob) {
-                // Téléphone : la feuille prend toute la place, sa poignée n'existe pas.
-                ck(await p.evaluate(() => document.getElementById('seq-dock-resize').offsetParent === null) && h0 > 250, `la feuille donne déjà toute la hauteur (${h0}px), sans poignée`);
-            } else {
-                const box = await p.evaluate(()=>{const e=document.getElementById('seq-dock-resize');const b=e.getBoundingClientRect();return {x:b.x+b.width/2,y:b.y+b.height/2};});
-                await p.mouse.move(box.x, box.y); await p.mouse.down();
-                await p.mouse.move(box.x, box.y-120, {steps:10}); await p.mouse.up();
-                await p.waitForTimeout(600);
-                const h1 = await p.evaluate(()=>Math.round(document.getElementById('seq-dock-host').getBoundingClientRect().height));
-                ck(h1 > h0 + 60, `tirer la poignée vers le haut agrandit — ${h0}px → ${h1}px`);
-            }
-
-            console.log('--- 4. Rappuyer sur le même bouton referme ---');
-            await taper(vp.mob ? '#editeur-notes-fermer' : '#grid-zoom'); await p.waitForTimeout(900); // lot 10f : au téléphone, la feuille recouvre la porte
-            r = await lire(); console.log(JSON.stringify({mode:r.mode, voletVisible:r.voletVisible}));
-            ck(r.mode===null && !r.voletVisible, 'tout est refermé');
+            // RÉÉCRIT (4c) : le bouton au-dessus de la grille (« Notes ») et sa feuille ont disparu ; la porte est « Séquenceur » du panneau Lecture.
+            console.log('--- 2. « Séquenceur » du panneau Lecture -> l\'onglet Rythme du panneau d\'accord ---');
+            let rt = await R.ouvrirRythmeTel(p);
+            ck(rt.ok, `il ouvre l'onglet Rythme, le séquenceur dedans — ${rt.detail}`);
+            rt = await R.tientTel(p);
+            ck(rt.ok, `l'accord y tient entier, une ligne par voix, cases de 44 px — ${rt.detail}`);
+            console.log('--- 4. × referme ---');
+            rt = await R.fermerRythmeTel(p);
+            ck(rt.ok, `tout est refermé — ${rt.detail}`);
         }
         ck(errs.length===0, `aucune erreur JavaScript — ${JSON.stringify(errs)}`);
         await ctx.close();

@@ -232,13 +232,16 @@ const accord = (e, s, i) => e.secs[s].chords[i];
         await toucher(p, '#pa-quel [data-bulle="fermer"]', 400);
         const g4 = await etat(p);
         check(!g4.ouvert && g4.mode !== 'edit' && g4.edit == null && g4.carte !== 'pa-son', `agrandi, le refermer termine la modification et rend la carte à la page (${g4.mode}, ${g4.carte})`);
-        // Le petit séquenceur de la carte s'ouvre DANS le panneau agrandi (il fait partie des réglages du son).
+        // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11) : le petit séquenceur de la carte (et sa porte « Séquenceur ») ne s'ouvre plus dans le panneau
+        // agrandi : il a disparu. Le rythme de l'accord se règle dans l'onglet Rythme du même panneau ; on y passe depuis Son par l'onglet, sans fermer le panneau.
         await ouvrirCase(p, CASE(0, 2), 400);
         await toucher(p, '#pa-son-btn', 400);
-        await toucher(p, '#pa-son #seq-zoom', 600);
-        const g5 = await p.evaluate(() => ({ ouvert: !document.getElementById('panneau-accord').hidden, seq: window.app.seqMode, dans: !!document.querySelector('#pa-son #arp-sequencer'),
-            vu: document.getElementById('arp-sequencer').getBoundingClientRect().height > 0 }));
-        check(g5.ouvert && g5.seq === 'compact' && g5.dans && g5.vu, `« Séquenceur » ouvre le séquenceur de l'accord dans le panneau agrandi (${JSON.stringify(g5)})`);
+        const g5a = await p.evaluate(() => { const z = document.getElementById('seq-zoom'); return !!z && z.getBoundingClientRect().height > 0; });
+        await toucher(p, '#pa-quel [data-bulle="onglet"][data-valeur="rythme"]', 600);
+        const g5 = await p.evaluate(() => ({ ouvert: !document.getElementById('panneau-accord').hidden, rythme: !!(window.app._bulle && window.app._bulle.rythme), sur: window.app._bulle && window.app._bulle.index,
+            dans: document.getElementById('sequenceur').parentElement.id, ancien: window.app.seqMode }));
+        check(!g5a && g5.ouvert && g5.rythme && g5.sur === 2 && g5.dans === 'pa-rythme' && g5.ancien == null,
+            `plus de porte « Séquenceur » dans Son ; l'onglet Rythme montre le séquenceur de l'accord dans le même panneau (porte visible ${g5a}, ${JSON.stringify(g5)})`);
         await toucher(p, '#pa-quel [data-bulle="fermer"]', 400);
         check(erreurs.length === 0, `aucune erreur JavaScript au téléphone (${erreurs.length}) ${erreurs.slice(0, 2).join(' | ')}`);
         await ctx.close();

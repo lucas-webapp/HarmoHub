@@ -35,28 +35,11 @@
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('barre du séquenceur en volet');
-plan(9);
+plan(10);
 
 (async () => {
     const browser = await chromium.launch();
 
-    // ---- Scène commune : une seule partie, un seul accord, volet du séquenceur continu ouvert sur lui ----
-    const ouvrirVolet = async (page) => {
-        await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
-        await page.waitForTimeout(200);
-        await page.evaluate(() => {
-            localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Couplet', chords: [
-                { root: 'C', quality: 'maj7', beats: 4, inversion: 0, drop: 'none', octave: 4, bass: null, playStyle: 'held' },
-            ] }] }));
-            localStorage.removeItem('harmohubSeqDockHeight'); // hauteur AUTOMATIQUE, pas celle d'une campagne précédente
-        });
-        await page.reload({ waitUntil: 'load' });
-        await page.waitForTimeout(400);
-        await page.evaluate(() => window.app.editChord(0, 0));
-        await page.waitForTimeout(200);
-        await page.click('#grid-zoom');      // ouvre le volet en mode continu
-        await page.waitForTimeout(700);
-    };
 
     // La rangée tient-elle dans la boîte du volet ? C'est la seule question qui intéresse
     // l'utilisateur : voit-il ses boutons, ou sont-ils rognés hors du cadre.
@@ -125,28 +108,38 @@ plan(9);
     await R.cliquer(court, '#sq-vue-voix', 300);
     await court.close();
 
-    console.log('\n=== Écran TÉLÉPHONE (390px) : la rangée ne se disloque pas ===');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11) : au téléphone, le volet d'avant et sa barre (.seq-presets) ont disparu avec la feuille « Séq. ».
+    // Le séquenceur du téléphone est dans l'onglet Rythme du panneau d'accord ; même exigence pour SA barre : aucun bouton hors de l'écran, pas d'escalier,
+    // et la barre reste dans le panneau.
+    console.log('\n=== Écran TÉLÉPHONE (390px) : la barre de l\'onglet Rythme ne se disloque pas ===');
     const tel = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-    await ouvrirVolet(tel);
-    // On ne peut pas exiger UNE seule ligne (huit boutons pour 390px, un retour à la ligne est
-    // légitime) ; ce qui ne l'est pas, c'est qu'un bouton sorte de l'écran, ou que la rangée s'étale
-    // sur trois niveaux.
+    await tel.goto(`${BASE}/index.html`);
+    await tel.evaluate(() => {
+        const mk = (r, q) => ({ root: r, quality: q, beats: 4, inversion: 0, drop: 'none', octave: 4, bass: null, playStyle: 'held' });
+        localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), mk('D', 'min7'), mk('G', 'dom7')] }] }));
+        sessionStorage.setItem('cc_accueil_vu', '1');
+    });
+    await tel.reload(); await tel.waitForTimeout(900);
+    const ouvertTel = await R.ouvrirRythmeTel(tel);
+    exiger(ouvertTel.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${ouvertTel.detail})`);
     const rangee = await tel.evaluate(() => {
-        const barre = document.querySelector('.seq-presets');
-        const enfants = [...barre.children].filter(e => e.getBoundingClientRect().width > 0);
+        const sq = document.getElementById('sequenceur'), hote = document.getElementById('panneau-accord').getBoundingClientRect();
+        const enfants = [...sq.querySelectorAll('button')].filter(e => !e.closest('#sq-grille') && e.getBoundingClientRect().width > 0);
         return {
-            lignes: [...new Set(enfants.map(e => Math.round(e.getBoundingClientRect().top)))].sort((a, b) => a - b),
-            dehors: enfants.filter(e => { const r = e.getBoundingClientRect(); return r.left < -1 || r.right > window.innerWidth + 1; })
-                .map(e => e.id || e.className.split(' ')[0]),
+            // Une rangée à TOUT défiler de côté (les motifs, .sq-motifs, choix du 3e sous-lot de D) n'est pas une dislocation : on mesure la rangée, pas ses boutons.
+            // Les hauts à moins de 8 px les uns des autres sont une même rangée (boutons de hauteurs différentes).
+            dehors: enfants.map(e => { const d = e.parentElement; return ['auto', 'scroll'].includes(getComputedStyle(d).overflowX) ? d : e; })
+                .filter((e, i, l) => l.indexOf(e) === i)
+                .filter(e => { const r = e.getBoundingClientRect(); return r.left < -1 || r.right > window.innerWidth + 1; }).map(e => e.id || e.className.split(' ')[0]),
+            lignes: enfants.map(e => Math.round(e.getBoundingClientRect().top)).sort((a, b) => a - b).filter((y, i, l) => i === 0 || y - l[i - 1] >= 8),
+            horsPanneau: enfants.filter(e => { const r = e.getBoundingClientRect(); return r.top < hote.top - 1 || r.bottom > hote.bottom + 1; }).map(e => e.id),
             nb: enfants.length,
         };
     });
     console.log(JSON.stringify(rangee));
-    check(rangee.dehors.length === 0, `aucun bouton de la barre ne sort de l'écran à 390px (${rangee.nb} boutons) — fautifs : ${JSON.stringify(rangee.dehors)}`);
-    check(rangee.lignes.length <= 2, `la barre tient sur 2 lignes au plus, pas en escalier (${rangee.lignes.length} niveau(x) : ${rangee.lignes.join(', ')})`);
-    const telDedans = await barreDansHote(tel);
-    console.log('téléphone, barre dans le volet :', JSON.stringify(telDedans));
-    check(telDedans.dedans, `sur téléphone aussi la rangée tient dans le volet (barre ${telDedans.hautBarre}→${telDedans.basBarre}, volet ${telDedans.hautHote}→${telDedans.basHote})`);
+    check(rangee.nb > 0 && rangee.dehors.length === 0, `aucun bouton de la barre ne sort de l'écran à 390px (${rangee.nb} boutons) — fautifs : ${JSON.stringify(rangee.dehors)}`);
+    check(rangee.lignes.length <= 4, `la barre tient sur 4 rangées au plus (motifs, vue, portée, copier), pas en escalier (${rangee.lignes.length} niveau(x) : ${rangee.lignes.join(', ')})`);
+    check(rangee.horsPanneau.length === 0, `sur téléphone la barre reste dans le panneau d'accord — hors panneau : ${JSON.stringify(rangee.horsPanneau)}`);
     await tel.close();
 
     await browser.close();

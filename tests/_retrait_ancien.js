@@ -12,6 +12,9 @@ const centre = async (p, sel) => {
     if (!b) throw new Error(`élément introuvable ou invisible : ${sel}`);
     return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
 };
+// Un toucher au doigt si la page le permet (contexte hasTouch), sinon un vrai clic au centre : les assistants « Tel » servent aussi aux bancs joués sous 900 px
+// à la souris.
+const toucher = async (p, sel) => { if (await p.evaluate(() => navigator.maxTouchPoints > 0)) await p.tap(sel); else { const q = await centre(p, sel); await p.mouse.click(q.x, q.y); } };
 const cliquer = async (p, sel, ms = 300) => { const q = await centre(p, sel); await p.mouse.click(q.x, q.y); await p.waitForTimeout(ms); };
 
 // L'ancienne porte (« Éditeur de notes », #grid-zoom) a disparu de l'ordinateur ; le bouton « Séquenceur » du bloc « Vues » est là.
@@ -217,4 +220,137 @@ async function choisirParNom(p, c = 2) {
     return { ok: r.choisi === c && r.sel === c, detail: `choisi ${r.choisi}, sélection de la grille ${r.sel}` };
 }
 
-module.exports = { porteInspecteurAbsente, choisirParNom, peindre, reperes, effacerAccord, lignesParVoix, sansLecturePropre, poigneeLignes, centre, cliquer, porteAbsente, ouvrirNouveau, toutePartie, poserCroche, intensite, noteLibre, plageBoucle, teteLecture, couleursRoles, suitSelection, motif, lire };
+// ÉTAPE 4c : au TÉLÉPHONE aussi, l'ancien séquenceur a perdu ses portes — « Séq. » de la rangée d'affichage (#grid-zoom), « Séquenceur » de la carte Accord
+// dans l'onglet Son (#seq-zoom) et le petit séquenceur (#arp-sequencer). Le seul séquenceur du téléphone est celui de l'onglet Rythme du panneau d'accord.
+// On ouvre l'onglet Son par le vrai geste (toucher deux fois une case, puis l'onglet « Son ») avant de relever ; le panneau est refermé (×) en sortant.
+async function porteTelephoneAbsente(p, index = 0) {
+    const vis = () => p.evaluate(() => {
+        const v = (id) => { const e = document.getElementById(id); return !!e && !e.hidden && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0; };
+        return { seq: v('grid-zoom'), porte: v('seq-zoom'), petit: v('arp-sequencer'), secours: v('dock-rythme') };
+    });
+    const r0 = await vis();
+    const cel = `#progression-sections .grid-cell[data-section="0"][data-index="${index}"]`;
+    await toucher(p, cel); await p.waitForTimeout(350); await toucher(p, cel); await p.waitForTimeout(600);
+    const son = await p.evaluate(() => !!document.querySelector('#pa-quel [data-bulle="onglet"][data-valeur="son"]'));
+    if (son) { await toucher(p, '#pa-quel [data-bulle="onglet"][data-valeur="son"]'); await p.waitForTimeout(600); }
+    const r1 = await vis();
+    const carte = await p.evaluate(() => document.getElementById('accord-card').parentElement.id);
+    if (await p.evaluate(() => !document.getElementById('panneau-accord').hidden)) { await toucher(p, '#panneau-accord [data-bulle="fermer"]'); await p.waitForTimeout(400); }
+    const ok = !r0.seq && son && carte === 'pa-son' && !r1.porte && !r1.petit && !r1.secours;
+    return { ok, detail: `« Séq. » visible ${r0.seq}, onglet Son ${son} (carte dans ${carte}), porte « Séquenceur » ${r1.porte}, petit séquenceur ${r1.petit}, « Rythme » du dock ${r1.secours}` };
+}
+
+// Ouvre le séquenceur du téléphone par sa porte : ⋯ de la barre de lecture, puis « Séquenceur » du panneau Lecture → panneau d'accord, onglet Rythme.
+async function ouvrirRythmeTel(p) {
+    await toucher(p, '#bl-plus'); await p.waitForTimeout(400);
+    await toucher(p, '#pl-notes'); await p.waitForTimeout(700);
+    const r = await p.evaluate(() => { const z = window.app._bulle, sq = document.getElementById('sequenceur'); return { rythme: !!(z && z.rythme), parent: sq.parentElement.id, cases: document.querySelectorAll('#sq-grille .sq-case[data-r]').length }; });
+    return { ok: r.rythme && r.parent === 'pa-rythme' && r.cases > 0, detail: `onglet Rythme ${r.rythme}, séquenceur dans ${r.parent}, ${r.cases} cases` };
+}
+
+// Au téléphone, toucher une case de l'onglet Rythme pose une croche, la retoucher l'enlève (remplace le crayon et la gomme de la feuille « Séq. »).
+async function poserCrocheTel(p) {
+    const c = await p.evaluate(() => window.app._bulle.index);
+    await toucher(p, '#sq-effacer'); await p.waitForTimeout(300);
+    const e0 = await lire(p, c);
+    const v = e0.positions[e0.positions.length - 1], sel = `#sq-grille .sq-case[data-c="${c}"][data-v="${v}"][data-k="2"]`;
+    await toucher(p, sel); await p.waitForTimeout(300);
+    const e1 = await lire(p, c);
+    await toucher(p, sel); await p.waitForTimeout(300);
+    const e2 = await lire(p, c);
+    const ok = e0.pos.every(x => x === '') && e1.pos[e1.pos.length - 1] === '2' && e2.pos.every(x => x === '');
+    return { ok, detail: `vide → aiguë « ${e1.pos[e1.pos.length - 1]} » → retouchée « ${e2.pos.join('|')} »` };
+}
+
+// Au téléphone, onglet Rythme ouvert : « Lecture » de la barre de lecture joue, la croche qui sonne s'allume dans le séquenceur du panneau, « Stop » l'éteint
+// (remplace la lecture vue dans la feuille « Séq. »). Le panneau reste sur Rythme.
+async function teteLectureTel(p) {
+    await toucher(p, '#play-prog'); await p.waitForTimeout(100);
+    const vu = await p.waitForFunction(() => !!document.querySelector('#pa-rythme #sq-grille .sq-case.tete'), null, { timeout: 5000 }).then(() => true, () => false);
+    await toucher(p, '#stop'); await p.waitForTimeout(300);
+    const r = await p.evaluate(() => ({ eteint: !document.querySelector('#sq-grille .tete'), rythme: !!(window.app._bulle && window.app._bulle.rythme) }));
+    return { ok: vu && r.eteint && r.rythme, detail: `tête vue ${vu}, éteinte au Stop ${r.eteint}, panneau toujours sur Rythme ${r.rythme}` };
+}
+
+// Au téléphone, onglet Rythme ouvert : Intensité allumée, toucher une note qui joue la passe en « fort » (remplace la bande d'intensité de la feuille).
+async function intensiteTel(p) {
+    const c = await p.evaluate(() => window.app._bulle.index);
+    const e0 = await lire(p, c);
+    const v = e0.positions[0], k0 = e0.pos[0] ? +e0.pos[0].split(',')[0] : null;
+    if (k0 == null) return { ok: false, detail: 'la basse ne joue pas : rien à régler' };
+    await toucher(p, '#sq-intensite'); await p.waitForTimeout(300);
+    await toucher(p, `#sq-grille .sq-case[data-c="${c}"][data-v="${v}"][data-k="${k0}"]`); await p.waitForTimeout(300);
+    const e1 = await lire(p, c);
+    await toucher(p, '#sq-intensite'); await p.waitForTimeout(300);
+    return { ok: / ?\d+:\d+=fort/.test(' ' + e1.niveaux), detail: `niveaux « ${e1.niveaux} »` };
+}
+
+// Au téléphone : × referme le panneau, le séquenceur retourne à sa place (caché) ; la grille n'a pas changé d'affichage.
+async function fermerRythmeTel(p) {
+    await toucher(p, '#panneau-accord [data-bulle="fermer"]'); await p.waitForTimeout(500);
+    const r = await p.evaluate(() => ({ ferme: document.getElementById('panneau-accord').hidden, place: document.getElementById('sequenceur').parentElement === document.getElementById('vues-tiroir').parentElement, cache: document.getElementById('sequenceur').getBoundingClientRect().height === 0 }));
+    return { ok: r.ferme && r.place && r.cache, detail: `panneau fermé ${r.ferme}, séquenceur à sa place ${r.place}, caché ${r.cache}` };
+}
+
+// Au téléphone, onglet Rythme ouvert : les outils du séquenceur (Intensité, copier, coller, effacer) en icônes de 44 px sans mot (remplace la barre d'outils
+// de la feuille « Séq. » : sélection, crayon, gomme, corbeille).
+async function outilsTel(p) {
+    const r = await p.evaluate(() => ['sq-intensite', 'sq-copier', 'sq-coller', 'sq-effacer'].map(id => { const b = document.getElementById(id), q = b.getBoundingClientRect(); return { id, h: Math.round(q.height), w: Math.round(q.width), mot: b.innerText.trim() }; }));
+    return { ok: r.every(b => b.h === 44 && b.w === 44 && b.mot === ''), detail: r.map(b => `${b.id} ${b.w}×${b.h}${b.mot ? ' « ' + b.mot + ' »' : ''}`).join(', ') };
+}
+
+// Au téléphone, onglet Rythme ouvert : le glissé (souris : Playwright ne sait pas glisser au doigt) PEINT plusieurs croches, d'une seule annulation
+// (remplace l'étirement de note, le déplacement, la pose « clic puis glisse » de la feuille « Séq. »).
+async function peindreTel(p) {
+    const c = await p.evaluate(() => window.app._bulle.index);
+    await toucher(p, '#sq-effacer'); await p.waitForTimeout(300);
+    const e0 = await lire(p, c);
+    const v = e0.positions[e0.positions.length - 1];
+    const u0 = await p.evaluate(() => window.app.undoStack.length);
+    const a = await centre(p, `#sq-grille .sq-case[data-c="${c}"][data-v="${v}"][data-k="1"]`);
+    const b = await centre(p, `#sq-grille .sq-case[data-c="${c}"][data-v="${v}"][data-k="5"]`);
+    await p.mouse.move(a.x, a.y); await p.mouse.down();
+    for (let s = 1; s <= 8; s++) await p.mouse.move(a.x + (b.x - a.x) * s / 8, a.y, { steps: 2 });
+    await p.mouse.up(); await p.waitForTimeout(400);
+    const e1 = await lire(p, c);
+    const u1 = await p.evaluate(() => window.app.undoStack.length);
+    return { ok: e1.pos[e1.pos.length - 1] === '1,2,3,4,5' && u1 === u0 + 1, detail: `aiguë « ${e1.pos[e1.pos.length - 1]} », ${u1 - u0} annulation(s)` };
+}
+
+// Au téléphone, onglet Rythme ouvert : l'accord seul, ses huit croches et une ligne par voix tiennent dans la largeur, des cases de 44 px — rien à zoomer,
+// à pincer ni à faire défiler de côté (remplace les zooms, le pincement, les défilements et la loupe de la feuille « Séq. »).
+async function tientTel(p) {
+    const r = await p.evaluate(() => {
+        const g = document.getElementById('sq-grille'), cs = [...g.querySelectorAll('.sq-case[data-r]')];
+        const d = loadProgressionSections()[window.app.activeSection || 0].chords[window.app._bulle.index];
+        return { n: cs.length, lignes: new Set(cs.map(x => x.dataset.r)).size, voix: SequenceurHarmo.voixDe(d).positions.length, h: Math.round(cs[0].getBoundingClientRect().height),
+            droite: Math.round(Math.max(...cs.map(x => x.getBoundingClientRect().right))), larg: window.innerWidth, deborde: g.scrollWidth - g.clientWidth };
+    });
+    return { ok: r.lignes === r.voix && r.n === r.lignes * 8 && r.h === 44 && r.droite <= r.larg && r.deborde <= 1,
+        detail: `${r.lignes} lignes pour ${r.voix} voix, ${r.n} cases de ${r.h} px, bord droit ${r.droite} / ${r.larg}, débord ${r.deborde}` };
+}
+
+// Au téléphone, onglet Rythme ouvert : « Effacer » vide le rythme de l'accord, Ctrl+Z le rend (remplace la corbeille et la suppression de notes de la feuille).
+async function effacerTel(p) {
+    const c = await p.evaluate(() => window.app._bulle.index);
+    const e0 = await lire(p, c);
+    await toucher(p, '#sq-effacer'); await p.waitForTimeout(300);
+    const e1 = await lire(p, c);
+    await p.keyboard.press('Control+z'); await p.waitForTimeout(400);
+    const e2 = await lire(p, c);
+    return { ok: e0.pos.some(Boolean) && e1.pos.every(x => x === '') && e2.pos.join('|') === e0.pos.join('|'), detail: `« ${e0.pos.join('|')} » → vide → Ctrl+Z « ${e2.pos.join('|')} »` };
+}
+
+// Au téléphone, onglet Rythme ouvert : › passe à l'accord suivant, ‹ revient, le panneau reste sur Rythme et le séquenceur montre l'accord seul (remplace les
+// zones d'accord voisin et la règle des voisins de la feuille « Séq. »).
+async function suivantTel(p) {
+    const lireTel = () => p.evaluate(() => ({ i: window.app._bulle.index, rythme: !!window.app._bulle.rythme, col: [...new Set([...document.querySelectorAll('#sq-grille .sq-case[data-r]')].map(x => x.dataset.c))].join(',') }));
+    const a = await lireTel();
+    await toucher(p, '#pa-quel [data-bulle="suiv"]'); await p.waitForTimeout(500);
+    const b = await lireTel();
+    await toucher(p, '#pa-quel [data-bulle="prec"]'); await p.waitForTimeout(500);
+    const c = await lireTel();
+    return { ok: b.i === a.i + 1 && b.rythme && b.col === String(b.i) && c.i === a.i && c.rythme && c.col === String(a.i), detail: `${a.i} → › ${b.i} (colonnes ${b.col}) → ‹ ${c.i} (colonnes ${c.col})` };
+}
+
+module.exports = { suivantTel, peindreTel, tientTel, effacerTel, outilsTel, teteLectureTel, intensiteTel, fermerRythmeTel, porteTelephoneAbsente, ouvrirRythmeTel, poserCrocheTel, porteInspecteurAbsente, choisirParNom, peindre, reperes, effacerAccord, lignesParVoix, sansLecturePropre, poigneeLignes, centre, cliquer, porteAbsente, ouvrirNouveau, toutePartie, poserCroche, intensite, noteLibre, plageBoucle, teteLecture, couleursRoles, suitSelection, motif, lire };

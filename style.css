@@ -8670,3 +8670,12 @@ body.avec-barre-selection .toast { bottom: 132px; }
 @media (min-width: 900px) {
     .seq-inline-toolbar, #arp-sequencer { display: none; }
 }
+
+
+/* ======================================================================================================
+   RETRAIT DE L'ANCIEN SÉQUENCEUR, ÉTAPE 4c (refonte du séquenceur, D, dernier sous-lot) : au téléphone aussi, les portes de l'ancien séquenceur disparaissent —
+   « Séq. » de la rangée d'affichage (#grid-zoom), « Séquenceur » de la carte Accord dans l'onglet Son (#seq-zoom, .seq-inline-toolbar), le petit séquenceur
+   (#arp-sequencer) et le bouton « Rythme » du dock de secours (#dock-rythme). « Un seul séquenceur » : au téléphone, c'est l'onglet Rythme du panneau d'accord,
+   ouvert aussi par « Séquenceur » du panneau Lecture. Les règles 4a et 4b ci-dessus valent donc désormais partout. En fin de fichier (cascade).
+   ====================================================================================================== */
+#grid-zoom, .seq-inline-toolbar, #arp-sequencer, #dock-rythme { display: none !important; }

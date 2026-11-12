@@ -159,17 +159,16 @@ const graine = (verre) => {
     await p.close();
 
     // ======================================================================================================
-    console.log('\n=== E. Le téléphone : l\'éditeur y est une feuille, le tiroir n\'y est pas (lot 10f) ===');
-    p = await ouvrir({ width: 860, height: 1000 });
-    await p.click(cellule(0, 0)); await p.waitForTimeout(300);
-    await p.click('#grid-zoom'); await p.waitForTimeout(900);
-    const avant = await edition(p);
-    // La feuille recouvre la grille : on change d'accord par la zone de l'accord voisin, dans l'éditeur (le geste de l'éditeur, comme à l'ordinateur).
-    const zone = await p.locator('#arp-sequencer .seq-ctx-nav[data-target-index="1"]').boundingBox();
-    await p.mouse.click(zone.x + 8, zone.y + 8); await p.waitForTimeout(600);
-    e = await edition(p);
-    check(avant.i === 0 && e.i === 1 && e.nom === 'Gdom7', `au téléphone, la zone de l'accord voisin amène l'éditeur dessus (rang ${avant.i} puis ${e.i}, ${e.nom})`);
-    await p.click('#editeur-notes-fermer'); await p.waitForTimeout(400);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11) : la feuille « Notes » du téléphone (et sa zone de l'accord voisin) a disparu. Le séquenceur du
+    // téléphone est l'onglet Rythme du panneau d'accord, ouvert sur l'accord choisi ; on y change d'accord par › (le geste du panneau), le séquenceur suit.
+    console.log('\n=== E. Le téléphone : le séquenceur suit le panneau, le tiroir n\'y est pas (4c) ===');
+    p = await nav.newPage({ viewport: { width: 860, height: 1000 }, hasTouch: true, isMobile: true });
+    p.on('pageerror', e => erreurs.push(e.message));
+    await p.goto(`${BASE}/index.html`); await p.evaluate(graine); await p.reload(); await p.waitForTimeout(900);
+    const ouvertTel = await R.ouvrirRythmeTel(p);
+    const suivi = await R.suivantTel(p);
+    check(ouvertTel.ok && suivi.ok, `au téléphone, l'onglet Rythme s'ouvre et › / ‹ y amènent le séquenceur sur l'accord voisin (${ouvertTel.detail} ; ${suivi.detail})`);
+    await p.tap('#panneau-accord [data-bulle="fermer"]'); await p.waitForTimeout(400);
     await p.click('#toggle-viz-guitar'); await p.waitForTimeout(300);
     check(await p.evaluate(() => localStorage.getItem('harmohubVuesParMorceau') === null), 'au téléphone, rien n\'est retenu par morceau (il n\'a pas de tiroir)');
     check(await p.evaluate(() => document.getElementById('vues-tiroir').hidden), '...et le tiroir n\'y apparaît pas');

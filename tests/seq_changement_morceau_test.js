@@ -53,49 +53,39 @@ const mk = (root, q) => ({ root, quality: q, beats: 4, inversion: 0, drop: 'none
         };
     });
 
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11) : le petit séquenceur de la carte et sa porte « Séquenceur » ont disparu. Le séquenceur du
+    // téléphone est l'onglet Rythme du panneau d'accord (ouvert ici par de vrais clics : ⋯, « Séquenceur ») ; l'exigence reste la même : changer de morceau ne
+    // laisse RIEN de l'ancien à l'écran — ce que le séquenceur montre est l'accord que dit le panneau.
+    const R = require('./_retrait_ancien');
+    const vueTel = () => page.evaluate(() => {
+        const z = window.app._bulle, s = loadProgressionSections(), d = z && s[z.section] && s[z.section].chords[z.index];
+        return { rangees: [...document.querySelectorAll('#sq-grille .sq-etiq')].map(e => e.textContent.trim()).filter(Boolean), rythme: !!(z && z.rythme),
+            visible: document.getElementById('sequenceur').getBoundingClientRect().height > 0, accord: d ? d.root + d.quality : null, voix: d ? SequenceurHarmo.voixDe(d).positions.length : 0,
+            motifSurMesure: window.app.seqTouched, notesLibres: window.app.extraNotes.length };
+    });
     console.log('\n=== A. Le séquenceur ouvert sur un accord du morceau UN ===');
-    await page.evaluate(() => window.app.editChord(0, 0));
-    await page.waitForTimeout(300);
-    await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(600);
-    let v = await vue();
-    check(v.seqOpen && v.rangees.length >= 3, `le séquenceur est ouvert et garni — ${JSON.stringify(v.rangees)}`);
-    check(v.accordDuPanneau === 'A#min7', `le panneau porte bien l'accord ouvert — ${v.accordDuPanneau}`);
+    await R.cliquer(page, '#bl-plus', 400); await R.cliquer(page, '#pl-notes', 700);
+    let v = await vueTel();
+    check(v.rythme && v.visible && v.rangees.length >= 3, `le séquenceur est ouvert et garni — ${JSON.stringify(v.rangees)}`);
+    check(v.accord === 'A#min7', `le panneau porte bien l'accord ouvert — ${v.accord}`);
     const rangeesAvant = JSON.stringify(v.rangees);
 
     console.log('\n=== B. On passe au morceau DEUX ===');
     await page.evaluate(() => { window.hasUnsavedChanges = false; window.app.loadSong('s2'); });
     await page.waitForTimeout(900);
-    v = await vue();
-    check(v.accordDuPanneau !== 'A#min7',
-        `le panneau ne garde PAS l'accord du morceau précédent — obtenu ${v.accordDuPanneau}`);
-    check(JSON.stringify(v.rangees) !== rangeesAvant,
-        `...et le séquenceur ne montre plus ses notes — ${JSON.stringify(v.rangees)} au lieu de ${rangeesAvant}`);
-    // La vraie exigence : ce qui s'affiche correspond à ce que dit le panneau. C'est CE lien qui
-    // était rompu, et c'est lui qui rendait la vue incompréhensible.
-    const attendu = await page.evaluate(() => {
-        const c = window.app.readChord();
-        return c.getSeqDisplayNotes ? c.getSeqDisplayNotes(window.app.useFlatsForRoot(c.root)).slice().reverse() : null;
-    });
-    if (attendu) {
-        check(JSON.stringify(v.rangees) === JSON.stringify(attendu),
-            `le séquenceur affiche exactement les notes de l'accord du panneau — ${JSON.stringify(v.rangees)} vs ${JSON.stringify(attendu)}`);
-    }
-    check(v.motifSurMesure === false,
-        'le motif rythmique repart du style de jeu, il ne suit pas le morceau précédent');
+    v = await vueTel();
+    check(v.accord !== 'A#min7', `le panneau ne garde PAS l'accord du morceau précédent — obtenu ${v.accord}`);
+    check(JSON.stringify(v.rangees) !== rangeesAvant, `...et le séquenceur ne montre plus ses notes — ${JSON.stringify(v.rangees)} au lieu de ${rangeesAvant}`);
+    // La vraie exigence : ce qui s'affiche correspond à ce que dit le panneau (une ligne par voix de SON accord).
+    check(v.rythme && v.visible && v.rangees.length === v.voix, `le panneau reste sur Rythme et le séquenceur affiche les voix de l'accord du panneau — ${v.rangees.length} lignes pour ${v.voix} voix (${v.accord})`);
+    check(v.motifSurMesure === false, 'le motif rythmique repart du style de jeu, il ne suit pas le morceau précédent');
     check(v.notesLibres === 0, 'aucune note libre héritée de l\'ancien morceau');
 
     console.log('\n=== C. Et il reste refermable ===');
-    // Le bouton icône de l'en-tête a disparu (voir portes_sequenceur_test) : la porte de la carte
-    // Accord s'appelle « Séquenceur » et reste visible en permanence, séquenceur ouvert ou fermé.
-    // Lot 10e : la porte « Séquenceur » vit dans la carte Accord, qui n'est plus dans la page en mode Ajout : on rouvre l'accord pour la voir.
-    await page.evaluate(() => window.app.editChord(0, 0));
-    await page.waitForTimeout(400);
-    check(await page.evaluate(() => document.getElementById('seq-zoom').offsetParent !== null),
-        'le bouton qui le referme est bien atteignable');
-    await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(500);
-    check(!(await page.evaluate(() => window.app.seqOpen)), 'un clic le referme');
+    const fermer = await page.evaluate(() => { const e = document.querySelector('#panneau-accord [data-bulle="fermer"]'); return !!e && e.getBoundingClientRect().height > 0; });
+    check(fermer, 'le bouton qui le referme est bien atteignable');
+    await R.cliquer(page, '#panneau-accord [data-bulle="fermer"]', 500);
+    check(await page.evaluate(() => !(window.app._bulle && window.app._bulle.rythme) && !window.app.seqOpen), 'un clic le referme');
 
     console.log('\n=== D. Un morceau vierge (« + ») ne garde rien non plus ===');
     await page.evaluate(() => { window.hasUnsavedChanges = false; window.app.loadSong('s1'); });

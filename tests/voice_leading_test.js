@@ -23,7 +23,7 @@ const R = require('./_retrait_ancien');
 const { ouvrirSon } = require('./_geste_accord');
 const { estBruitReseau } = require('./_harness');
 
-plan(22);
+plan(11);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const graine = () => {
@@ -43,8 +43,8 @@ const graine = () => {
 (async () => {
     const browser = await chromium.launch();
     const errors = [];
-    const ouvrir = async (viewport) => {
-        const page = await browser.newPage({ viewport });
+    const ouvrir = async (viewport, extra = {}) => {
+        const page = await browser.newPage({ viewport, ...extra });
         page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
         page.on('console', (msg) => { if (msg.type() === 'error' && !estBruitReseau(msg.text()) && !/AudioContext/.test(msg.text())) errors.push('console.error: ' + msg.text()); });
         await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
@@ -57,100 +57,21 @@ const graine = () => {
     let page;
     let dupIds;
     const idsEnDouble = () => page.evaluate(() => { const seen = {}; document.querySelectorAll('[id]').forEach(el => { seen[el.id] = (seen[el.id] || 0) + 1; }); return Object.entries(seen).filter(([, n]) => n > 1).map(([id, n]) => id + ' x' + n); });
-    // Lot 10f : le téléphone a le MÊME éditeur que l'ordinateur (l'ancien panneau ⊱ a disparu) : les mêmes vérifications sont jouées aux deux largeurs.
-    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : la passe ORDINATEUR est remplacée par le bloc court plus bas ; le téléphone garde la sienne (4c).
-    for (const [nom, larg] of [['TÉLÉPHONE (860px)', 860]]) {
-        // ======================================================================================================
-        console.log(`\n=== ${nom} : le calque Voix de l'éditeur de notes ===`);
-        page = await ouvrir({ width: larg, height: 1000 });
-        check(!(await page.locator('#toggle-voice-leading').isVisible()) && await page.evaluate(() => document.querySelectorAll('#editeur-notes-voix').length === 1),
-            'un seul bouton : Voix, dans l\'éditeur de notes (l\'icône ⊱ a quitté la rangée de réglages)');
-        // Le Couplet : un clic sur Am7 dans la grille, puis l'éditeur de notes, puis Voix.
-        await page.click('#progression-sections .grid-cell[data-section="0"][data-index="1"]');
-        await page.waitForTimeout(300);
-        await page.click('#grid-zoom');
-        await page.waitForTimeout(900);
-        check(await page.evaluate(() => document.querySelectorAll('.seq-voix-trait, .seq-note-fn').length === 0), 'calque absent au départ (éteint par défaut)');
-        await page.click('#editeur-notes-voix');
-        await page.waitForTimeout(700);
-        let v = await page.evaluate(() => ({
-            notes: document.querySelectorAll('#arp-sequencer .seq-note').length, voisines: document.querySelectorAll('#arp-sequencer .seq-ctx-note').length,
-            chiffrees: document.querySelectorAll('#arp-sequencer .seq-note .seq-note-fn, #arp-sequencer .seq-ctx-note .seq-note-fn').length,
-            colorees: [...document.querySelectorAll('#arp-sequencer .seq-note, #arp-sequencer .seq-ctx-note')].filter(n => /role-(root|third|fifth|seventh|ext)/.test(n.className)).length,
-            traits: document.querySelectorAll('#arp-sequencer .seq-voix-trait').length, accord: window.app.editingIndex, partie: window.app.activeSection,
-            presse: document.getElementById('editeur-notes-voix').getAttribute('aria-pressed'),
-        }));
-        exiger(v.partie === 0 && v.accord === 1 && v.presse === 'true', 'l\'éditeur montre le Couplet autour de Am7, calque allumé');
-        check(v.notes + v.voisines === 16 && v.colorees === 16 && v.chiffrees === 16, `16 notes colorées ET chiffrées : l'accord en cours + ses trois voisins (${v.notes} + ${v.voisines}, ${v.chiffrees} chiffres)`);
-        check(v.traits === 12, `le chemin des voix : 4 voix x 3 enchaînements = 12 traits (${v.traits})`);
-        const touches = await page.evaluate(() => {
-            const b = document.querySelector('#arp-sequencer .seq-label.seq-key-white'), n = document.querySelector('#arp-sequencer .seq-label.seq-key-black');
-            return { pos: b && getComputedStyle(b).position, blanc: b && getComputedStyle(b).backgroundImage, noir: n && getComputedStyle(n).backgroundImage, horsNotes: !!b && !b.closest('.seq-note') };
-        });
-        check(touches.pos === 'sticky' && touches.horsNotes, 'les touches sont à part des notes et restent fixes au défilement (gouttière collante)');
-        check(/243, 237, 224/.test(touches.blanc || '') && /23, 19, 16/.test(touches.noir || ''), 'touches ivoire et noires, les couleurs du clavier de l\'appli');
-        const alignees = await page.evaluate(() => [...document.querySelectorAll('#arp-sequencer .seq-label[data-row-voice]:not([data-row-voice="-1"])')].every(l => {
-            const c = document.querySelector(`#arp-sequencer .seq-cell[data-voice="${l.dataset.rowVoice}"]`); if (!c) return false;
-            const a = l.getBoundingClientRect(), b = c.getBoundingClientRect(); return Math.abs(a.top - b.top) <= 1 && Math.abs(a.height - b.height) <= 1;
-        }));
-        check(alignees, 'chaque touche fait face à SA ligne de notes, même hauteur');
-        const largeur = () => page.evaluate(() => document.querySelector('#arp-sequencer .seq-cell[data-step="0"]').getBoundingClientRect().width);
-        const ecartTraits = () => page.evaluate(() => Math.max(0, ...[...document.querySelectorAll('#arp-sequencer .seq-voix-mouvement')].map(t => {
-            const nav = document.querySelector(`#arp-sequencer .seq-ctx-nav[data-target-index="${t.dataset.accord}"]`);
-            const x = (nav || document.querySelector('#arp-sequencer .seq-cell[data-step="0"]')).getBoundingClientRect().left;
-            const r = t.getBoundingClientRect(); return Math.abs(r.left + r.width / 2 - x);
-        })));
-        const l0 = await largeur();
-        await page.click('#seq-zoom-in-h-inline');
-        await page.click('#seq-zoom-in-h-inline');
-        await page.waitForTimeout(500);
-        const l1 = await largeur();
-        check(l1 > l0, `largeur augmentée après 2 clics zoom + (${l0.toFixed(1)} -> ${l1.toFixed(1)} px par case)`);
-        check(await ecartTraits() <= 2, 'les traits suivent le zoom, sur leurs frontières');
-        const hauteurBande = () => page.evaluate(() => Math.round(document.querySelector('#arp-sequencer .seq-scroll').getBoundingClientRect().height));
-        const h0 = await hauteurBande();
-        // Téléphone : la feuille occupe déjà toute la place, les chevrons n'y sont pas (rien à étendre) ; ordinateur : on étend.
-        if (larg < 900) {
-            check(!(await page.locator('#editeur-notes-etendre').isVisible()) && h0 > 250, `la feuille donne déjà toute la hauteur (${h0} px), sans chevrons`);
-        } else {
-            await page.click('#editeur-notes-etendre');
-            await page.waitForTimeout(700);
-            const h1 = await hauteurBande();
-            check(h1 > h0, `plus de hauteurs à voir : on étend l'éditeur (la hauteur des lignes reste bloquée) — ${h0} -> ${h1} px`);
-        }
-        dupIds = await idsEnDouble();
-        check(dupIds.length === 0, 'aucun id dupliqué dans le DOM — ' + JSON.stringify(dupIds));
-        const lireTraits = () => page.evaluate(() => [...document.querySelectorAll('#arp-sequencer .seq-voix-trait')].map(t => t.dataset.accord + ':' + t.dataset.de + '>' + t.dataset.vers).sort().join(' '));
-        // À l'ordinateur, l'éditeur de notes qui suit la sélection ne montre plus l'inspecteur (refonte du séquenceur, point C) : on le demande comme
-        // l'utilisateur — éditeur réduit (étendu, il ne laisse que 34px à la grille, sous la rangée collante), double-clic sur l'accord (sa bulle,
-        // point B), « Réglages du son ».
-        if (larg >= 900) { await page.click('#editeur-notes-etendre'); await page.waitForTimeout(600); await ouvrirSon(page, 0, 1); }
-        const avant = await lireTraits();
-        // Téléphone : le panneau d'accord est sous la feuille plein écran (il ne se touche pas) ; le clic est donc envoyé au segment sans passer par
-        // l'écran (dispatchEvent), le reste — calque, traits, fonctions — se lit à l'écran. À l'ordinateur : un vrai clic.
-        if (larg < 900) await page.locator('#inversion-seg .voicing-segment[data-valeur="1"]').dispatchEvent('click');
-        else await page.click('#inversion-seg .voicing-segment[data-valeur="1"]');
-        await page.waitForTimeout(600);
-        const apres = await lireTraits();
-        check(apres !== '' && apres !== avant, 'le calque a bien changé après la modification de l\'accord en cours');
-        await page.click('#editeur-notes-voix');
-        await page.waitForTimeout(500);
-        check(await page.evaluate(() => document.querySelectorAll('.seq-voix-trait, .seq-note-fn, .seq-voix-accord').length === 0 && document.getElementById('editeur-notes-voix').getAttribute('aria-pressed') === 'false'),
-            'un second clic sur Voix retire tout le calque');
-        check(await page.evaluate(() => !document.querySelector('.voice-leading-panel')), 'aucun ancien panneau');
-        // Une partie d'UN seul accord : on ferme, on choisit le Refrain dans la grille, on rouvre ; Voix rallumé.
-        await page.click('#editeur-notes-fermer');
-        await page.waitForTimeout(500);
-        await page.click('#progression-sections .grid-cell[data-section="1"][data-index="0"]');
-        await page.waitForTimeout(300);
-        await page.click('#grid-zoom');
-        await page.waitForTimeout(900);
-        await page.click('#editeur-notes-voix');
-        await page.waitForTimeout(700);
-        v = await page.evaluate(() => ({ fn: document.querySelectorAll('#arp-sequencer .seq-note-fn').length, traits: document.querySelectorAll('#arp-sequencer .seq-voix-trait').length, partie: window.app.activeSection, presse: document.getElementById('editeur-notes-voix').getAttribute('aria-pressed') }));
-        check(v.partie === 1 && v.presse === 'true' && v.fn === 3 && v.traits === 0, `partie d'un seul accord : les fonctions s'écrivent, aucun trait — rien à enchaîner (${v.fn} chiffres, ${v.traits} traits)`);
-        await page.close();
-
+    // TÉLÉPHONE — RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, « réécriture courte ») : la feuille « Notes » du téléphone emportait le dernier calque
+    // Voix (fonctions dans les notes, chemin des voix, son zoom et son pincement). Comme à l'ordinateur (plus bas), ce qui reste : les couleurs des rôles, dans
+    // le séquenceur de l'onglet Rythme du panneau d'accord, ouvert par « Séquenceur » du panneau Lecture.
+    console.log('\n=== TÉLÉPHONE (860px) : plus de calque Voix ; l\'onglet Rythme garde les couleurs des rôles ===');
+    {
+        const pt = await ouvrir({ width: 860, height: 1000 }, { hasTouch: true, isMobile: true });
+        let r = await R.porteTelephoneAbsente(pt);
+        check(r.ok, `la feuille « Notes » et son calque Voix ont quitté le téléphone (${r.detail})`);
+        check(!(await pt.locator('#toggle-voice-leading').isVisible()), 'l\'icône ⊱ n\'y est pas non plus');
+        r = await R.ouvrirRythmeTel(pt);
+        exiger(r.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${r.detail})`);
+        check(await pt.evaluate(() => document.querySelectorAll('.seq-voix-trait, .seq-note-fn, .voice-leading-panel').length === 0), 'ni trait du chemin des voix, ni chiffre de fonction, ni ancien panneau');
+        r = await R.couleursRoles(pt, 0);
+        check(r.ok, `les notes y gardent les couleurs de leur rôle (${r.detail})`);
+        await pt.close();
     }
 
     // ======================================================================================================

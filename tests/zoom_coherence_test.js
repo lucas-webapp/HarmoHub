@@ -12,8 +12,7 @@ async function openSeq(page) {
     await ajouterAccord(page, 'C');
     await page.waitForTimeout(250);
     await editerAccord(page); // lot 10e : plus de séquenceur compact en mode Ajout
-    if (!(await page.evaluate(() => window.app.seqOpen))) await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(400); // (4c) le petit séquenceur n'existe plus : le séquenceur s'ouvre plus bas, par sa porte
 }
 
 (async () => {
@@ -63,54 +62,24 @@ async function openSeq(page) {
     // et l'axe horizontal, lui, est resté.
     check(!(await page.$('#seq-zoom-in-v-inline')) && !(await page.$('#seq-zoom-out-v-inline')),
         'la paire V du séquenceur a bien été retirée (la poignée du volet la remplace)');
-    check(!!(await page.$('#seq-zoom-in-h-inline')),
-        'l\'axe horizontal du séquenceur, lui, est conservé — il change vraiment l\'échelle du temps');
-
-    // ============================================================
-    // === Z4. Niveau visible + retour à 100 % ===
-    // ============================================================
-    // Éprouvé sur l'axe HORIZONTAL du séquenceur : c'est celui qui reste depuis le retrait de la paire
-    // V. Le contrat vérifié est inchangé (étiquette qui s'allume, niveau exact annoncé, retour à 100 %
-    // au clic, boutons grisés aux bornes) — seul l'axe qui le porte a changé.
-    const AXE_H = '.zoom-axis-group[data-zoom-kind="seqInline"][data-zoom-axis="x"]';
-    await page.click('#seq-zoom-in-h-inline');
-    await page.waitForTimeout(300);
-    const tagState = await page.evaluate((sel) => {
-        const tag = document.querySelector(sel + ' .zoom-axis-tag');
-        return { off: tag.classList.contains('zoom-axis-tag-off'), title: tag.title, role: tag.getAttribute('role') };
-    }, AXE_H);
-    check(tagState.off, 'l\'étiquette s\'allume dès que l\'échelle s\'écarte de 100 %');
-    // 125 % : un cran vaut une PROPORTION (x1,25, voir ZOOM_LEVEL_RATIO/adjustZoom) et non plus +0,1 —
-    // le plafond x4, relevé à la demande, demandait sinon trente clics.
-    check(/125\s*%/.test(tagState.title), `l'infobulle annonce le niveau exact — obtenu "${tagState.title}"`);
-    check(tagState.role === 'button', 'l\'étiquette est annoncée comme un bouton (atteignable au clavier)');
-
-    await page.click(AXE_H + ' .zoom-axis-tag');
-    await page.waitForTimeout(300);
-    const afterReset = await page.evaluate((sel) => ({
-        level: window.app.seqInlineZoomLevelX,
-        off: document.querySelector(sel + ' .zoom-axis-tag').classList.contains('zoom-axis-tag-off'),
-    }), AXE_H);
-    check(afterReset.level === 1 && !afterReset.off,
-        `cliquer l'étiquette ramène l'échelle à 100 % — obtenu ${JSON.stringify(afterReset)}`);
-
-    // Boutons désactivés une fois la borne atteinte (plafond x4 sur cet axe).
-    await page.evaluate(() => window.app.setZoomLevel('seqInline', 'x', 4));
-    await page.waitForTimeout(300);
-    const atMax = await page.evaluate((sel) => {
-        const b = document.querySelector(sel).querySelectorAll('.zoom-axis-btn');
-        return { plus: b[0].disabled, minus: b[1].disabled };
-    }, AXE_H);
-    check(atMax.plus && !atMax.minus, `à la borne haute, « + » est désactivé et « - » reste actif — obtenu ${JSON.stringify(atMax)}`);
-    await page.evaluate(() => window.app.setZoomLevel('seqInline', 'x', 1));
-    await page.waitForTimeout(200);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, « réécriture courte ») : l'axe horizontal du petit séquenceur (#seq-zoom-in-h-inline), son étiquette
+    // de niveau, son retour à 100 % et ses bornes ont disparu avec lui (Z4). Le séquenceur du téléphone est l'onglet Rythme du panneau d'accord, où il n'y a
+    // RIEN à zoomer (cahier : « pas de zoom, pas de loupe ») : l'accord y tient entier, huit croches dans la largeur, des cases de 44 px.
+    const R = require('./_retrait_ancien');
+    await R.cliquer(page, '#bl-plus', 400); await R.cliquer(page, '#pl-notes', 700);
+    check(await page.evaluate(() => !!(window.app._bulle && window.app._bulle.rythme) && !document.querySelector('#sequenceur .zoom-axis-group, #seq-zoom-in-h-inline')),
+        'le séquenceur de l\'onglet Rythme n\'a aucun bouton de zoom');
+    const tient = await R.tientTel(page);
+    check(tient.ok, `rien à zoomer : l'accord y tient entier (${tient.detail})`);
+    await R.cliquer(page, '#panneau-accord [data-bulle="fermer"]', 400);
 
     // Groupes réellement déclarés aujourd'hui. « grid/x » et « grid/y » ont disparu avec la vue plein
     // écran de la grille, « seqInline/y » avec la paire V : les exiger revenait à réclamer le retour de
     // fonctionnalités supprimées à la demande.
     const groups = await page.evaluate(() => [...document.querySelectorAll('.zoom-axis-group[data-zoom-kind]')]
         .map(g => `${g.dataset.zoomKind}/${g.dataset.zoomAxis}`));
-    for (const expected of ['seq/x', 'seq/y', 'classicGrid/x', 'classicGrid/y', 'seqInline/x']) {
+    // « seqInline/x » a disparu avec le petit séquenceur (4c).
+    for (const expected of ['seq/x', 'seq/y', 'classicGrid/x', 'classicGrid/y']) {
         check(groups.includes(expected), `le groupe ${expected} est déclaré et pris en charge par updateZoomControls`);
     }
 

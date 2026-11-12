@@ -28,58 +28,20 @@ plan(15);
         await page.waitForTimeout(120);
     }
 
-    // === 1. Séquenceur : le repère est un trait (span), plus le caractère "•", et bien centré ===
+    // === 1. Séquenceur : les repères de temps ===
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11) : le petit séquenceur (et son tiret vertical de contretemps .seq-beat-offbeat) a disparu. Le
+    // séquenceur du téléphone est l'onglet Rythme du panneau d'accord (vrais clics : ⋯, « Séquenceur ») ; il marque chaque temps d'un trait, chaque mesure
+    // d'un trait plus fort, numérote les temps — et aucun caractère « • » n'y revient (le retour d'origine : « juste le trait »).
     await editerAccord(page); // lot 10e : plus de séquenceur compact en mode Ajout
-    await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(300);
-
-    const seqCheck = await page.evaluate(() => {
-        const off = document.querySelector('.seq-beat-offbeat');
-        if (!off) return null;
-        const dash = off.querySelector('.offbeat-dash');
-        const offRect = off.getBoundingClientRect();
-        const dashRect = dash ? dash.getBoundingClientRect() : null;
-        // Colonne du 1er temps (step 0) et de la 2e croche (step 2, où débute l'ancien repère)
-        const cell0 = document.querySelector('.seq-cell[data-voice="0"][data-step="0"]');
-        const cell1 = document.querySelector('.seq-cell[data-voice="0"][data-step="1"]');
-        const cell2 = document.querySelector('.seq-cell[data-voice="0"][data-step="2"]');
-        const cell3 = document.querySelector('.seq-cell[data-voice="0"][data-step="3"]');
-        const r0 = cell0.getBoundingClientRect(), r3 = cell3.getBoundingClientRect();
-        // Bord droit VISIBLE du temps, pas le bord de la boîte. L'écart de 4px après la 2e croche d'un
-        // binôme se fait par une bordure transparente (voir .seq-cell-b : elle remplace une marge, qui
-        // laissait une bande morte non cliquable). Le rectangle englobe donc cette bordure, alors que
-        // le fond — ce que l'œil voit, et ce dont parlait le retour utilisateur « le tiret n'est pas
-        // complètement centré, très légèrement à droite » — s'arrête 4px avant. Mesurer r3.right
-        // brut déplacerait la référence de 2px et accuserait le trait d'un décalage qu'il n'a pas :
-        // c'est précisément l'interstice VISUEL que compense le translateX(-2px) de .seq-beat-offbeat.
-        const bordD = parseFloat(getComputedStyle(cell3).borderRightWidth) || 0;
-        const beatLeft = r0.left, beatRight = r3.right - bordD;
-        const trueMid = (beatLeft + beatRight) / 2;
-        return {
-            text: off.textContent,
-            hasDash: !!dash,
-            offCenter: offRect ? (offRect.left + offRect.right) / 2 : null,
-            dashCenter: dashRect ? (dashRect.left + dashRect.right) / 2 : null,
-            trueMid,
-        };
-    });
-    console.log('seqCheck:', JSON.stringify(seqCheck));
-    check(seqCheck && seqCheck.text.trim() === '', "le séquenceur n'affiche plus le caractère « • » (texte vide, juste le trait CSS)");
-    check(seqCheck && seqCheck.hasDash, 'le trait .offbeat-dash est bien présent dans .seq-beat-offbeat');
-    check(seqCheck && Math.abs(seqCheck.dashCenter - seqCheck.trueMid) <= 2, `le trait est centré sur le VRAI milieu du temps (écart <= 2px, obtenu ${seqCheck ? Math.abs(seqCheck.dashCenter - seqCheck.trueMid).toFixed(1) : '?'}px)`);
-
-    // Orientation : trait vertical (haut > large), pas horizontal (retour utilisateur : "je veux un
-    // trait vertical, pas horizontal").
-    const seqDashSize = await page.evaluate(() => {
-        const d = document.querySelector('.seq-beat-offbeat .offbeat-dash');
-        const r = d.getBoundingClientRect();
-        return { w: r.width, h: r.height };
-    });
-    console.log('seqDashSize:', JSON.stringify(seqDashSize));
-    check(seqDashSize.h > seqDashSize.w, `le trait du séquenceur est bien VERTICAL (hauteur ${seqDashSize.h} > largeur ${seqDashSize.w})`);
-
-    await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(150);
+    const R = require('./_retrait_ancien');
+    await R.cliquer(page, '#bl-plus', 400); await R.cliquer(page, '#pl-notes', 700);
+    check(await page.evaluate(() => !!(window.app._bulle && window.app._bulle.rythme) && !window.app.seqOpen), 'l\'onglet Rythme s\'ouvre, l\'ancien séquenceur reste fermé');
+    const rq = await R.reperes(page);
+    check(rq.ok, `un trait par temps, un plus marqué par mesure, les temps numérotés (${rq.detail})`);
+    check(await page.evaluate(() => !document.getElementById('sq-grille').textContent.includes('•')), 'le séquenceur n\'affiche aucun caractère « • »');
+    check(await page.evaluate(() => ![...document.querySelectorAll('.seq-beat-offbeat')].some(e => e.getBoundingClientRect().height > 0)), 'l\'ancien tiret de contretemps n\'est plus à l\'écran');
+    await R.cliquer(page, '#panneau-accord [data-bulle="fermer"]', 400);
+    await R.cliquer(page, '#dock-terminer', 300); // sortir de la modification ouverte par editerAccord, comme l'utilisateur
 
     // === 2. Grille d'accords (classique) : UN SEUL repère .row-offbeat par mesure, à son vrai milieu ===
     // 8 accords d'1 temps en 4/4 -> exactement 2 mesures pleines -> exactement 2 repères attendus,
@@ -139,16 +101,17 @@ plan(15);
     const prominence = await page.evaluate(() => {
         const rm = getComputedStyle(document.querySelector('.row-measure'));
         const dot = getComputedStyle(document.querySelector('.offbeat-dot'));
-        const sbl = getComputedStyle(document.querySelector('.seq-beat-label'));
-        const dash = getComputedStyle(document.querySelector('.offbeat-dash'));
+        // RÉÉCRIT (4c) : l'ancien séquenceur (son numéro de temps .seq-beat-label, son tiret .offbeat-dash) a disparu ; le numéro de temps du séquenceur
+        // d'aujourd'hui (.sq-temps, rendu à l'ouverture de l'onglet Rythme plus haut) doit rester pleinement lisible.
+        const sq = [...document.querySelectorAll('#sq-grille .sq-temps')].find(e => e.textContent.trim());
         return {
             rowMeasureOpacity: +rm.opacity, offbeatDotOpacity: +dot.opacity,
-            seqBeatLabelOpacity: +sbl.opacity, offbeatDashOpacity: +dash.opacity,
+            seqBeatLabelOpacity: sq ? +getComputedStyle(sq).opacity : null,
         };
     });
     console.log('prominence:', JSON.stringify(prominence));
     check(prominence.rowMeasureOpacity > prominence.offbeatDotOpacity, `le numéro de mesure (opacité ${prominence.rowMeasureOpacity}) est plus visible que le point de contretemps (opacité ${prominence.offbeatDotOpacity})`);
-    check(prominence.seqBeatLabelOpacity > prominence.offbeatDashOpacity, `le numéro de temps du séquenceur (opacité ${prominence.seqBeatLabelOpacity}) est plus visible que son trait de contretemps (opacité ${prominence.offbeatDashOpacity})`);
+    check(prominence.seqBeatLabelOpacity >= 0.9, `le numéro de temps du séquenceur est pleinement lisible (opacité ${prominence.seqBeatLabelOpacity})`);
 
     // === 3. Les repères survivent à l'ouverture ET à la fermeture du volet du séquenceur ===
     // Cette section visait la LOUPE GRILLE : elle comptait les repères dans #grid-zoom-host puis
@@ -159,12 +122,12 @@ plan(15);
     // refermer le volet (qui provoque un rendu complet, voir renderSequencer/loadProgression) ne fait
     // pas disparaître ses repères en route.
     const reperesAvant = await page.evaluate(() => document.querySelectorAll('.chord-grid .row-offbeat').length);
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(500);
+    // RÉÉCRIT (4c) : le volet d'avant n'a plus de porte ; le séquenceur du téléphone (onglet Rythme du panneau d'accord) provoque lui aussi un rendu complet.
+    await R.cliquer(page, '#bl-plus', 400); await R.cliquer(page, '#pl-notes', 700);
     const reperesVoletOuvert = await page.evaluate(() => document.querySelectorAll('.chord-grid .row-offbeat').length);
     console.log('repères — avant:', reperesAvant, '| volet ouvert:', reperesVoletOuvert);
     check(reperesVoletOuvert === reperesAvant, `les repères de la grille survivent à l'ouverture du volet (${reperesAvant} -> ${reperesVoletOuvert})`);
-    await page.click('#editeur-notes-fermer');   // lot 10f : au téléphone la feuille recouvre la porte ; Fermer referme
+    await R.cliquer(page, '#panneau-accord [data-bulle="fermer"]', 400); // × referme le panneau
     await page.waitForTimeout(400);
     const reperesApres = await page.evaluate(() => document.querySelectorAll('.chord-grid .row-offbeat').length);
     console.log('| volet refermé:', reperesApres);

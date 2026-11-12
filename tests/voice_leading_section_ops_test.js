@@ -20,7 +20,7 @@ const { check, exiger, plan, bilan } = require('./_harness')('conduite de voix e
 const R = require('./_retrait_ancien');
 const { estBruitReseau } = require('./_harness');
 
-plan(14);
+plan(11);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const graine = () => {
@@ -37,8 +37,8 @@ const graine = () => {
 (async () => {
     const browser = await chromium.launch();
     const errors = [];
-    const ouvrir = async (viewport) => {
-        const page = await browser.newPage({ viewport });
+    const ouvrir = async (viewport, extra = {}) => {
+        const page = await browser.newPage({ viewport, ...extra });
         page.on('dialog', (d) => d.accept());
         page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
         page.on('console', (msg) => { if (msg.type() === 'error' && !estBruitReseau(msg.text()) && !/AudioContext/.test(msg.text())) errors.push('console.error: ' + msg.text()); });
@@ -49,55 +49,21 @@ const graine = () => {
         return page;
     };
 
-    // Lot 10f : le téléphone a le MÊME éditeur et le même calque que l'ordinateur (l'ancien panneau ⊱ n'existe plus) : mêmes vérifications aux deux largeurs.
-    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : la passe ORDINATEUR est remplacée par le bloc court plus bas ; le téléphone garde la sienne (4c).
-    for (const [nom, larg] of [['TÉLÉPHONE (860px)', 860]]) {
-        // ======================================================================================================
-        console.log(`\n=== ${nom} : le calque Voix, éditeur ouvert ===`);
-        const page = await ouvrir({ width: larg, height: 1000 });
-        // Ce que montre le calque, comparé à la partie que l'appli dit active : la bande des accords doit être EXACTEMENT ses accords.
-        const calque = () => page.evaluate(() => {
-            const sec = loadProgressionSections()[window.app.activeSection];
-            const attendu = sec ? sec.chords.map(c => chordSymbolForData(c, window.app.useFlatsForRoot(c.root))) : [];
-            const vu = [...document.querySelectorAll('#arp-sequencer .seq-voix-accord .seq-voix-nom')].filter(n => n.offsetParent !== null).map(n => n.textContent);
-            const ed = window.app.editingIndex, traits = document.querySelectorAll('#arp-sequencer .seq-voix-trait').length;
-            const calques = document.querySelectorAll('#arp-sequencer .seq-grid-voix').length;
-            // COHÉRENT = jamais une partie disparue, et l'édition reste OUVERTE. Jusqu'au 06/11, une opération sur les parties terminait l'édition de
-            // l'accord (l'éditeur montrait alors l'accord seul) ; décision du 05/11 (point 5) : « une opération de partie garde l'édition ouverte » —
-            // la bande des accords est donc EXACTEMENT celle de la partie active, et un accord est en cours (sous-lot « Éditeur et clavier »).
-            const coherent = calques === 1 && ed != null && JSON.stringify(vu) === JSON.stringify(attendu) && traits > 0;
-            return { vu, attendu, coherent, ed, parties: loadProgressionSections().map(s => s.title), calques, ouvert: window.app.seqMode === 'continu' };
-        });
-        // Téléphone : le menu ⋯ de la partie est sous la feuille plein écran (on ne le touche pas) : le clic lui est envoyé sans passer par l'écran ;
-        // à l'ordinateur, vrais clics. Ce que le banc vérifie — le calque après l'opération — se lit à l'écran dans les deux cas.
-        const cliquer = (sel) => larg < 900 ? page.locator(sel).dispatchEvent('click') : page.click(sel);
-        const parMenu = async (n, action) => { await cliquer(`.prog-section:nth-child(${n}) .prog-section-menu`); await page.waitForTimeout(150); await cliquer(`#partie-menu [data-partie-action="${action}"]`); };
-        await page.click('#progression-sections .grid-cell[data-section="1"][data-index="0"]');
-        await page.waitForTimeout(300);
-        await page.click('#grid-zoom');
-        await page.waitForTimeout(900);
-        await page.click('#editeur-notes-voix');
-        await page.waitForTimeout(700);
-        let c = await calque();
-        exiger(c.ouvert && c.calques === 1 && JSON.stringify(c.vu) === JSON.stringify(['Dm7', 'A7']), `le calque s'ouvre sur la partie B, la seule (${c.vu.join(' ')})`);
-        await parMenu(2, 'monter');
-        await page.waitForTimeout(500);
-        c = await calque();
-        check(c.coherent, `après un échange de parties, un seul calque, qui ne montre que ce qui existe (${c.vu.join(' ')} — accord en cours : ${c.ed})`);
-        check(!c.vu.includes('Cmaj7') && !c.vu.includes('G7'), '...et rien de la partie A, qui a pris l\'ancien index de B');
-        await parMenu(1, 'dupliquer');
-        await page.waitForTimeout(500);
-        c = await calque();
-        check(c.calques <= 1, `pas de calque en double après une duplication (${c.calques})`);
-        check(c.coherent, `...et il ne montre que ce qui existe (${c.vu.join(' ')} parmi ${c.parties.join(', ')})`);
-        await parMenu(1, 'supprimer');
-        await page.waitForTimeout(600);
-        c = await calque();
-        check(c.parties.length === 3, `une partie de moins (${c.parties.join(', ')})`);
-        check(c.coherent, `l'édition reste ouverte, et le calque ne montre que ce qui est encore là (${c.vu.join(' ')} / ${c.attendu.join(' ')})`);
-        check(await page.evaluate(() => !document.querySelector('.voice-leading-panel')), 'aucun ancien panneau');
-        await page.close();
-
+    // TÉLÉPHONE — RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, « réécriture courte ») : la feuille « Notes » du téléphone emportait le dernier calque
+    // Voix (fonctions dans les notes, chemin des voix, son zoom et son pincement). Comme à l'ordinateur (plus bas), ce qui reste : les couleurs des rôles, dans
+    // le séquenceur de l'onglet Rythme du panneau d'accord, ouvert par « Séquenceur » du panneau Lecture.
+    console.log('\n=== TÉLÉPHONE (860px) : plus de calque Voix ; l\'onglet Rythme garde les couleurs des rôles ===');
+    {
+        const pt = await ouvrir({ width: 860, height: 1000 }, { hasTouch: true, isMobile: true });
+        let r = await R.porteTelephoneAbsente(pt);
+        check(r.ok, `la feuille « Notes » et son calque Voix ont quitté le téléphone (${r.detail})`);
+        check(!(await pt.locator('#toggle-voice-leading').isVisible()), 'l\'icône ⊱ n\'y est pas non plus');
+        r = await R.ouvrirRythmeTel(pt);
+        exiger(r.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${r.detail})`);
+        check(await pt.evaluate(() => document.querySelectorAll('.seq-voix-trait, .seq-note-fn, .voice-leading-panel').length === 0), 'ni trait du chemin des voix, ni chiffre de fonction, ni ancien panneau');
+        r = await R.couleursRoles(pt, 0);
+        check(r.ok, `les notes y gardent les couleurs de leur rôle (${r.detail})`);
+        await pt.close();
     }
 
     // ======================================================================================================

@@ -6130,3 +6130,55 @@ Sabotages de l'étape 4b (trois, tous rouges puis restaurés) : porte « Séquen
 `seq_marquee` 1) ; petit séquenceur qui ne se referme plus au passage des 900 px (`portes_sequenceur` 1) ; « Coller » du séquenceur sans effet (`seq_pattern_kbd` 2). Balayage
 ciblé : 21 verts, `meta_suite` rouge pour dette diminuée (figée ensuite, vert), `smoke` sans verdict de la ligne de base. Balayage complet : **249 verts, 1 rouge, 5 sans verdict sur 255 suites**
 (3109 s cumulées) — le rouge est `seq_notes_libres_clavier` (ligne de base, partie téléphone) ; `item1_hzoom_out` a quitté les « sans verdict » (vert).
+
+## Refonte du séquenceur — D, quatrième sous-lot, étape 4c : retrait de la feuille « Séq. » du téléphone (12/11)
+
+Cahier : `docs/refonte-sequenceur.md`, section D (« un seul séquenceur ») et « Ce qui disparaît » ; section 3 (au téléphone, « le séquenceur est dans le panneau d'accord,
+onglet Rythme »).
+
+- **Ce qui change dans l'appli** : au téléphone aussi, les portes de l'ancien séquenceur disparaissent (style.css, fin de fichier, règle valable partout) — « Séq. » / « Notes »
+  de la rangée d'affichage (`#grid-zoom`), « Séquenceur » de la carte Accord dans l'onglet Son (`#seq-zoom`, `.seq-inline-toolbar`), le petit séquenceur (`#arp-sequencer`)
+  et le bouton « Rythme » du dock de secours (`#dock-rythme`). Avec eux, la feuille plein écran du 10f (outils crayon / gomme / sélection, calque Voix, bande d'intensité,
+  zooms, pincement, défilement de côté, zones d'accord voisin). Le seul séquenceur du téléphone est l'onglet Rythme du panneau d'accord (porte : « Séquenceur » du panneau
+  Lecture). `toggleSequencer` : un appel de programme qui ouvrirait l'ancien séquenceur, dans l'un ou l'autre mode, ouvre le séquenceur de l'appareil (bloc « Vues » à
+  l'ordinateur, onglet Rythme au téléphone) ; le refermer reste permis. Le code de l'ancien séquenceur reste dans `script.js`, sans porte (son nettoyage n'est pas demandé).
+- **Trois défauts trouvés et corrigés en route** : (1) toucher ⋯ vidait la sélection (« clic à côté ») — « Séquenceur » du panneau Lecture, qui doit ouvrir « l'accord
+  choisi » (`ouvrirRythmeTelephone`), s'ouvrait toujours sur le premier accord : `#bl-plus` et `#panneau-lecture` rejoignent `inMenu`, comme le bloc « Vues » à l'ordinateur ;
+  (2) Lecture / Stop de la barre de lecture refermaient le panneau ouvert sur Rythme (la feuille « Séq. » laissait la barre « à portée ») : ils ne le referment plus sur
+  Rythme ; (3) une modification ouverte SANS le panneau puis passée par Rythme et × restait sans sortie (« Terminer » du dock caché tant que le panneau est ouvert, jamais
+  remontré) : `fermerPanneauAccord` remet le dock à jour.
+- **Essai à blanc** (portes masquées et garde de `toggleSequencer` en place, puis `grep -l` sur les 86 bancs qui citent l'ancien séquenceur) : **52 rouges ou plantés**. Comme
+  à la 4b, plusieurs bancs à largeur d'ORDINATEUR ouvraient encore le séquenceur continu par `toggleSequencer('continu')` — une vue sans porte depuis la 4a, que la garde
+  n'avait pas couverte (elle ne gardait que le mode « compact ») : `apercu_barre_tracee`, `sidebar_collapse_seq_height`, `seq_glisser_molette_align_piano`,
+  `seq_selection_et_cadre_diagrammes`, `seq_tap_imprecis_petite_barre`.
+- **Bancs réécrits (52)**, décision « réécriture courte » du 12/11 :
+  - **parties téléphone** (le reste du banc inchangé) : `telephone_editeur_notes` (A à G : porte, onglet Rythme, toucher pose / enlève, Intensité, Lecture sous le panneau,
+    ×, 320 px ; plus la garde des appels de programme), `editeur_notes` (I : règle A au téléphone), `editeur_notes_outils` (H : outils à 44 px), `calque_voix` (I, J),
+    `notes_manuelles_intensite` (K : note libre en pointillés, Intensité), `voice_leading`, `vl_loupe`, `vl_pinch`, `voice_leading_section_ops` (passe téléphone → couleurs des
+    rôles), `pinned_seq_toolbar` (barre de l'onglet Rythme : rien hors écran, la rangée des motifs défile exprès), `probe_defilement_tactile`, `probe_mobile_seq_visible`,
+    `seq_notes_libres_clavier` (G : « Toutes les notes » au doigt — **le dernier rouge de la ligne de base passe au vert**), `portes_sequenceur` (F), `probe_deux_boutons_seq`,
+    `probe_regle_voisins` (6), `probe_touches_piano` (6), `probe_seq_adaptatif`, `editeur_et_clavier` (E), `filet_sequenceur_et_sortie` (E : un glissé du doigt depuis le nom
+    d'une note ne pose rien et ne referme pas le panneau), `carte_accord_unique` (D), `telephone_panneau_accord` (de Son à Rythme), `barre_bas_telephone` (le dock ne garde que
+    « Terminer »), `audio_fallback` (D : lecture sans échantillons, onglet Rythme ouvert), `entete_grille_debordement` (la barre de la grille n'a plus de commande au
+    téléphone), `grid_beat_highlight`, `offbeat_dash` (repères du séquenceur : traits de temps et de mesure, temps numérotés, plus de « • »), `affordances` (réticule,
+    couleurs des rôles, peinture), `zoom_coherence` (Z3–Z4 : rien à zoomer), `seq_changement_morceau` (A–C : changer de morceau, onglet Rythme ouvert, montre l'accord du
+    nouveau morceau), `seq_tiroir_flottant` (A–E → le panneau d'accord) ;
+  - **bancs courts en entier** (au gabarit de la 4b, générés par un seul modèle : en-tête qui dit ce qui a disparu, ancienne porte absente, nouveau séquenceur ouvert par sa
+    porte, gestes qui remplacent) : `avant_seq_short_note_body`, `seq_short_note_body`, `avant_seq_snap_sticky`, `apercu_barre_tracee`, `loupe_zoom_gestures`,
+    `pinch_smoothness_centering`, `seq_beat_highlight`, `seq_handle_feedback`, `seq_hscroll`, `seq_move_note`, `seq_num_mobile_clip`, `seq_tap_imprecis_petite_barre`,
+    `seq_tiroir_barre_outils`, `seq_twofinger_zoom`, `seq_vscroll_and_cancel`, `sidebar_collapse_seq_height`, `ctx_nav`, `ctx_nav_scroll`, `extra_note_rhythm`,
+    `seq_note_libre_clic_puis_glisse`, `seq_glisser_molette_align_piano` (1 et 3 ; 2, l'alignement piano / guitare, inchangé), `seq_selection_et_cadre_diagrammes` (1 ; 2 et 3
+    inchangés).
+  - Assistants ajoutés à `tests/_retrait_ancien.js` : `porteTelephoneAbsente`, `ouvrirRythmeTel`, `poserCrocheTel`, `peindreTel`, `effacerTel`, `intensiteTel`,
+    `teteLectureTel`, `outilsTel`, `tientTel`, `suivantTel`, `fermerRythmeTel` (un toucher si la page le permet, sinon un vrai clic : ils servent aussi aux bancs joués à
+    860 px à la souris).
+- **La ligne de base change** : `seq_notes_libres_clavier` passe au vert ; `ctx_nav_scroll`, l'un des « sans verdict », rend désormais un verdict (vert). Méta-suite : dette
+  diminuée (18 améliorations), référence figée (`--maj`).
+- **À signaler à l'utilisateur (pas bloquant, déjà vrai depuis le 3e sous-lot)** : à 390 × 844, dans l'onglet Rythme, la barre d'outils du séquenceur (motifs, vue, portée,
+  copier / coller) prend le haut du panneau : la grille commence vers 660 px et il faut faire défiler le panneau pour en voir toutes les lignes.
+
+Sabotages de l'étape 4c (six, tous rouges puis restaurés) : « Séq. » de nouveau visible au téléphone (`telephone_editeur_notes` 1, `portes_sequenceur` 1) ; petit séquenceur de
+nouveau dans Son (`telephone_panneau_accord` 1, `editeur_notes_outils` 1) ; ⋯ qui vide la sélection (`notes_manuelles_intensite` 3) ; Lecture qui referme Rythme
+(`telephone_editeur_notes` 3, `audio_fallback` 1) ; « Terminer » absent après × (`barre_bas_telephone` 2) ; garde de `toggleSequencer` retirée au téléphone
+(`telephone_editeur_notes` : plantage, compté rouge — aucun banc ne la gardait avant, ni à la 4b : vérification ajoutée). Relevé des 89 bancs touchés et gardiens : tous verts
+(6 vieux bancs sans bilan, sortis en code 0).

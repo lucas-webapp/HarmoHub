@@ -5,7 +5,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // vue continue — l'inverse de ce qu'on attend d'un « réglage à l'échelle du morceau en grand écran ».
 // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur, le volet d'avant (« Éditeur de notes », réduit / étendu, hauteur automatique) a disparu.
 // L'ENJEU RESTE ENTIER pour le séquenceur du bloc « Vues » : sur un grand écran comme sur un portable, il tient ENTIER dans l'écran (rien n'est caché, cahier 3 bis),
-// montre TOUTE la partie (« pas de zoom »), et la hauteur des lignes réglée à la main se retrouve. Le téléphone garde sa feuille d'avant jusqu'à l'étape 4c.
+// montre TOUTE la partie (« pas de zoom »), et la hauteur des lignes réglée à la main se retrouve. Le téléphone : sa feuille d'avant a disparu à l'étape 4c, voir plus bas.
 const { check: ck, exiger, plan, bilan } = require('./_harness')('volet adaptatif');
 const R = require('./_retrait_ancien');
 plan(12);
@@ -35,7 +35,7 @@ plan(12);
         await p.context().close();
     }
 
-    console.log('\n--- Le téléphone : la feuille d\'avant (jusqu\'à l\'étape 4c) ---');
+    console.log('\n--- Le téléphone : l\'onglet Rythme du panneau d\'accord (4c) ---');
     {
         const ctx = await b.newContext({viewport:{width:390,height:844}, isMobile:true, hasTouch:true});
         const p = await ctx.newPage();
@@ -43,12 +43,19 @@ plan(12);
         await p.goto(`${BASE}/index.html?nocache=`+Date.now(),{waitUntil:'load'});
         await p.evaluate(graine, [12, null]);
         await p.reload({waitUntil:'load'}); await p.waitForTimeout(700);
-        await p.evaluate(()=>window.app.editChord(0,6)); await p.waitForTimeout(400);
-        await p.tap('#grid-zoom'); await p.waitForTimeout(1300);
-        const t = await p.evaluate(()=>{ const g=document.querySelector('.seq-scroll .seq-grid'); return { voletH: Math.round(document.getElementById('seq-dock-panel').getBoundingClientRect().height), colW: Math.round(parseFloat(getComputedStyle(g).getPropertyValue('--seq-col-w'))*10)/10 }; });
+        // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11) : la feuille « Notes » a disparu. Le séquenceur du téléphone est l'onglet Rythme du panneau
+        // d'accord : il tient entre le haut du panneau et la barre de lecture, et ses croches font 44 px au doigt.
+        await p.tap('.grid-cell[data-index="6"]'); await p.waitForTimeout(400);
+        const o = await R.ouvrirRythmeTel(p);
+        // Le panneau défile en interne sur un écran court (accepté au 10e : « ça me convient ») : on mesure le PANNEAU, et on amène la dernière ligne du
+        // séquenceur à l'écran comme le ferait le doigt, en faisant défiler le panneau.
+        const t = await p.evaluate(()=>{ const pa=document.getElementById('panneau-accord').getBoundingClientRect(), l=document.getElementById('barre-lecture').getBoundingClientRect();
+            const cs=[...document.querySelectorAll('#sq-grille .sq-case[data-r]')], der=cs[cs.length-1]; der.scrollIntoView({ block: 'nearest' });
+            const d=der.getBoundingClientRect(), c=cs[0].getBoundingClientRect();
+            return { sur: window.app._bulle && window.app._bulle.index, haut: Math.round(pa.top), bas: Math.round(pa.bottom), barre: Math.round(l.top), derniere: Math.round(d.bottom), colW: Math.round(c.width), colH: Math.round(c.height), page: document.documentElement.scrollTop }; });
         console.log('telephone  ', JSON.stringify(t));
-        ck(t.voletH >= 300 && t.voletH <= 700, `téléphone : l'éditeur est une feuille qui prend la place libre entre les deux barres — ${t.voletH}px`);
-        ck(t.colW >= 14, `téléphone : les croches restent atteignables au doigt — ${t.colW}px par croche`);
+        ck(o.ok && t.sur === 6 && t.haut >= 0 && t.bas <= t.barre + 1 && t.derniere <= t.bas + 1, `téléphone : l'onglet Rythme s'ouvre sur l'accord choisi, le panneau tient au-dessus de la barre de lecture et sa dernière ligne s'y atteint en le faisant défiler (${o.detail}, panneau ${t.haut}→${t.bas}, barre ${t.barre}, dernière ligne ${t.derniere}, page ${t.page})`);
+        ck(t.colH === 44 && t.colW >= 30, `téléphone : les croches restent atteignables au doigt — ${t.colW}×${t.colH}px par croche`);
         ck(errs.length===0, 'téléphone : aucune erreur JavaScript');
         await ctx.close();
     }

@@ -38,45 +38,6 @@ const prep = async (p, chords) => {
     await p.waitForTimeout(900);
 };
 
-// Ouvre la loupe grille et met l'accord `i` en édition : c'est la seule vue « continue ».
-const ouvrirLoupe = async (p, i) => {
-    await p.click('#grid-zoom');
-    await p.waitForTimeout(700);
-    // editChord remplace editChordFromGridZoom, supprimée avec la vue plein écran de la grille (voir
-    // le commentaire d'editChord dans script.js). L'appel à la méthode disparue faisait échouer la
-    // MISE EN PLACE de ce banc, qui mourait donc avant sa première assertion : il ne surveillait plus
-    // rien, sans le dire.
-    await p.evaluate((idx) => window.app.editChord(0, idx), i);
-    await p.waitForTimeout(800);
-};
-
-// Relève une ligne par étiquette, dans l'ordre d'affichage (grid-row), avec son aspect de touche.
-const relever = (p) => p.evaluate(() => {
-    const grille = document.querySelector('#arp-sequencer .seq-grid');
-    if (!grille) return null;
-    const lignes = [...grille.querySelectorAll('.seq-label')].map(el => {
-        const inp = el.querySelector('input');
-        return {
-            rang: parseInt(el.style.gridRow) || 0,
-            nom: inp ? inp.value : el.textContent.trim(),
-            touche: el.classList.contains('seq-key-black') ? 'noire'
-                : el.classList.contains('seq-key-white') ? 'blanche' : null,
-            contexte: el.classList.contains('seq-label-context'),
-            libre: el.classList.contains('seq-label-extra'),
-            voix: el.dataset.voice != null ? +el.dataset.voice : null,
-        };
-    }).sort((a, b) => a.rang - b.rang);
-    const casesLibres = [...grille.querySelectorAll('.seq-cell-free')];
-    return {
-        lignes,
-        continu: !!grille.classList.contains('seq-grid-continuous'),
-        nbCasesLibres: casesLibres.length,
-        midisLibres: [...new Set(casesLibres.map(c => +c.dataset.midi))].sort((a, b) => b - a),
-        voixDesCasesLibres: [...new Set(casesLibres.map(c => c.dataset.voice))],
-        barres: grille.querySelectorAll('.seq-note').length,
-    };
-});
-
 (async () => {
     const browser = await chromium.launch();
     const errs = [];
@@ -135,53 +96,33 @@ const relever = (p) => p.evaluate(() => {
     await R.cliquer(g, '#sq-vue-voix', 300);
     await g.close();
 
-    console.log('\n=== G. Téléphone : la même chose au doigt ===');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11) : au téléphone, la feuille « Séq. » (sa vue continue chromatique, son clavier en gouttière) a
+    // disparu. La même chose au doigt, c'est « Toutes les notes » dans l'onglet Rythme du panneau d'accord : une ligne par hauteur, des étiquettes en touches
+    // de piano, et toucher une hauteur que l'accord n'a pas lui ajoute la note.
+    console.log('\n=== G. Téléphone : la même chose au doigt, dans l\'onglet Rythme ===');
     const m = await browser.newPage({ viewport: { width: 390, height: 800 }, hasTouch: true, isMobile: true });
     brancher(m, 'mobile: ');
     await prep(m, [['C', 'maj7'], ['A', 'min7'], ['F', 'maj7']]);
-    await ouvrirLoupe(m, 1);
-    const vm = await relever(m);
-    check(vm && vm.continu && vm.nbCasesLibres > 0, 'lignes chromatiques et cases libres au téléphone aussi');
-    check(vm.lignes.every(l => l.touche !== null), 'le clavier y est complet');
-    const cibleM = vm.midisLibres[Math.floor(vm.midisLibres.length / 2)];
-    // ON NE SUPPOSE PLUS UNE STRATÉGIE DE DÉFILEMENT, ON VÉRIFIE LE RÉSULTAT.
-    // Ce banc codait `block:'start'` en dur, avec un commentaire expliquant que centrer échouait parce
-    // que la rangée de transport collée en bas mangeait la moitié de la hauteur visible. C'était vrai
-    // de la fenêtre épinglée plein écran ; depuis que le séquenceur vit dans un volet ANCRÉ sous la
-    // grille, la géométrie s'est inversée — mesuré : 'start' remonte désormais la case derrière
-    // .top-bar (y=7) et échoue, tandis que 'center' et 'nearest' tombent juste. Coder l'un ou l'autre
-    // en dur revient à parier sur une mise en page, et le pari se reperd au prochain changement.
-    // On essaie donc les quatre points d'ancrage et on garde le premier réellement atteignable, ce
-    // qu'on vérifie par elementFromPoint — même leçon que caseTouchable dans
-    // probe_defilement_tactile : un rectangle n'est pas une garantie d'atteignabilité.
-    const pos = await m.evaluate((midi) => {
-        const c = document.querySelector(`.seq-cell-free[data-midi="${midi}"]`);
-        for (const block of ['nearest', 'center', 'start', 'end']) {
-            c.scrollIntoView({ block });
-            const b = c.getBoundingClientRect();
-            const x = b.left + b.width / 2, y = b.top + b.height / 2;
-            if (document.elementFromPoint(x, y) === c) return { x, y, atteignable: true, block };
-        }
-        const b = c.getBoundingClientRect();
-        return { x: b.left + b.width / 2, y: b.top + b.height / 2, atteignable: false, block: null };
-    }, cibleM);
-    check(pos.atteignable, `la case visée est bien la cible du point qu'on va toucher (ancrage retenu : ${pos.block})`);
-    await m.touchscreen.tap(pos.x, pos.y);
-    await m.waitForTimeout(700);
-    check(await m.evaluate((midi) => window.app.readChord().getSeqMidiNotes().includes(midi), cibleM),
-        `un simple toucher crée la note visée — MIDI ${cibleM}`);
-    // La colonne d'étiquettes est COLLÉE à gauche pendant le défilement horizontal : si une touche
-    // n'était pas opaque, la grille défilante réapparaîtrait au travers.
-    check(await m.evaluate(() => {
-        const l = document.querySelector('#arp-sequencer .seq-label.seq-key');
-        const f = getComputedStyle(l).background;
-        return /rgb\(/.test(f) && !/^rgba\(0, 0, 0, 0\)/.test(f);
-    }), 'les touches restent opaques — la colonne collée à gauche ne laisse pas transparaître la grille');
-    check(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-        'rien ne déborde de l\'écran');
+    await m.tap('#progression-sections .grid-cell[data-section="0"][data-index="1"]'); await m.waitForTimeout(400); // choisir A-7 (un toucher)
+    rr = await R.ouvrirRythmeTel(m);
+    check(rr.ok && await m.evaluate(() => window.app._bulle.index) === 1, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme sur l'accord choisi (${rr.detail})`);
+    await m.tap('#sq-vue-notes'); await m.waitForTimeout(500);
+    const vm = await m.evaluate(() => {
+        const lignes = new Set([...document.querySelectorAll('#pa-rythme #sq-grille .sq-case[data-r]')].map(x => x.dataset.r)).size;
+        const etiq = [...document.querySelectorAll('#pa-rythme #sq-grille .sq-etiq')].filter(e => e.textContent.trim()).map(e => ({ diese: e.classList.contains('diese'), fond: getComputedStyle(e).backgroundColor }));
+        const vide = document.querySelector('#pa-rythme #sq-grille .sq-case[data-r][data-c="1"]:not([data-v])');
+        return { lignes, etiq, vide: vide ? { r: vide.dataset.r, k: vide.dataset.k } : null, voix: SequenceurHarmo.voixDe(loadProgressionSections()[0].chords[1]).positions.length };
+    });
+    check(vm.lignes > vm.voix && vm.etiq.length === vm.lignes, `« Toutes les notes » : plus de lignes que l'accord n'a de voix (${vm.lignes} lignes, ${vm.voix} voix), chacune nommée`);
+    check(vm.etiq.filter(e => !e.diese).every(e => clair(e.fond)) && vm.etiq.filter(e => e.diese).every(e => !clair(e.fond)), 'les étiquettes y sont des touches de piano');
+    check(!!vm.vide, 'une hauteur que l\'accord ne porte pas est proposée');
+    if (vm.vide) await m.tap(`#pa-rythme #sq-grille .sq-case[data-c="1"][data-r="${vm.vide.r}"][data-k="${vm.vide.k}"]`);
+    await m.waitForTimeout(400);
+    check(await m.evaluate(() => (loadProgressionSections()[0].chords[1].extraNotes || []).length) === 1, 'la toucher ajoute la note à l\'accord (une note libre)');
+    check(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'et rien ne déborde de la page en largeur');
+    await m.tap('#sq-vue-voix'); await m.waitForTimeout(300);
     await m.close();
 
-    await browser.close();
     check(errs.length === 0, 'aucune erreur JavaScript' + (errs.length ? ' — ' + errs[0] : ''));
     console.log(`\n=== ${PASS} PASS / ${FAIL} FAIL ===`);
     process.exit(FAIL ? 1 : 0);

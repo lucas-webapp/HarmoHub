@@ -28,6 +28,7 @@ plan(16);
 
 const mk = (root, quality, octave, beats) => ({ root, quality, beats: beats || 4, inversion: 0, drop: 0, octave, bass: null, playStyle: 'held' });
 
+const R = require('./_retrait_ancien');
 (async () => {
     const browser = await chromium.launch();
     const errors = [];
@@ -52,95 +53,22 @@ const mk = (root, quality, octave, beats) => ({ root, quality, beats: beats || 4
     // Accords longs (16 temps) : la vue continue déborde alors des DEUX côtés, sinon un axe sans
     // débordement passerait le test sans rien prouver.
     await ouvrir(page, [mk('C', 'min', 3, 16), mk('A', 'maj', 3, 16), mk('F', 'maj7', 4, 16)], '0', '0');
-    await page.evaluate(() => { window.app.editChord(0, 1); window.app.toggleSequencer('continu'); });
-    await page.waitForTimeout(700);
-
-    const etat = () => page.evaluate(() => {
-        const sc = document.querySelector('#arp-sequencer .seq-scroll');
-        if (!sc) return null;
-        return {
-            sl: Math.round(sc.scrollLeft), st: Math.round(sc.scrollTop),
-            slMax: Math.round(sc.scrollWidth - sc.clientWidth),
-            stMax: Math.round(sc.scrollHeight - sc.clientHeight),
-        };
-    });
-
-    const ouverture = await etat();
-    console.log('à l\'ouverture :', JSON.stringify(ouverture));
-    if (!exiger(!!ouverture, 'la bande du séquenceur continu est mesurable')) bilan();
-    check(ouverture.slMax > 0 && ouverture.stMax > 0,
-        `la scène déborde bien sur les deux axes, il y a quelque chose à préserver (${ouverture.slMax} x ${ouverture.stMax})`);
-    // Le cadrage d'OUVERTURE, lui, reste : c'est le seul moment où déplacer la vue rend service.
-    check(ouverture.st > 0,
-        `ouvrir un accord CADRE toujours ses hauteurs (scrollTop ${ouverture.st}, et non 0 tout en haut de l'étendue)`);
-
-    // On se place volontairement AILLEURS, à un endroit qu'aucun recentrage ne choisirait.
-    await page.evaluate(() => {
-        const sc = document.querySelector('#arp-sequencer .seq-scroll');
-        const n = sc.querySelector('.seq-note');
-        const rs = sc.getBoundingClientRect(), r = n.getBoundingClientRect();
-        sc.scrollLeft += (r.left - rs.left) - rs.width * 0.25;
-        sc.scrollTop += (r.top - rs.top) - rs.height * 0.25;
-    });
-    await page.waitForTimeout(250);
-    const avant = await etat();
-    console.log('après défilement manuel :', JSON.stringify(avant));
-
-    const cible = await page.evaluate(() => {
-        const sc = document.querySelector('#arp-sequencer .seq-scroll');
-        const rs = sc.getBoundingClientRect();
-        for (const n of sc.querySelectorAll('.seq-note')) {
-            const r = n.getBoundingClientRect();
-            const x1 = Math.max(r.left, rs.left + 40), x2 = Math.min(r.right, rs.right - 40);
-            if (x2 > x1 && r.top > rs.top + 4 && r.bottom < rs.bottom - 4)
-                return { x: Math.round((x1 + x2) / 2), y: Math.round(r.top + r.height / 2) };
-        }
-        return null;
-    });
-    if (!exiger(!!cible, `une barre entièrement visible a été trouvée pour le clic — ${JSON.stringify(cible)}`)) bilan();
-    await page.mouse.click(cible.x, cible.y);
-    await page.waitForTimeout(700);
-    const apres = await etat();
-    console.log('après clic sur une barre :', JSON.stringify(apres));
-    check(apres.st === avant.st, `l'axe VERTICAL n'a pas bougé (${avant.st} -> ${apres.st})`);
-    check(apres.sl === avant.sl, `l'axe HORIZONTAL non plus (${avant.sl} -> ${apres.sl})`);
-    const selection = await page.evaluate(() => window.app.seqSelections.length);
-    check(selection > 0, `et la barre a bien été sélectionnée pour autant (${selection} sélection(s))`);
-
-    // Sélection MULTIPLE : c'est le cas que l'utilisateur redoutait. Ctrl+clic sur une seconde barre.
-    const cible2 = await page.evaluate(() => {
-        const sc = document.querySelector('#arp-sequencer .seq-scroll');
-        const rs = sc.getBoundingClientRect();
-        const vues = [...sc.querySelectorAll('.seq-note')].filter(n => {
-            const r = n.getBoundingClientRect();
-            return r.top > rs.top + 4 && r.bottom < rs.bottom - 4 && Math.min(r.right, rs.right - 40) > Math.max(r.left, rs.left + 40);
-        });
-        const n = vues[1] || null;
-        if (!n) return null;
-        const r = n.getBoundingClientRect();
-        const x1 = Math.max(r.left, rs.left + 40), x2 = Math.min(r.right, rs.right - 40);
-        return { x: Math.round((x1 + x2) / 2), y: Math.round(r.top + r.height / 2) };
-    });
-    if (exiger(!!cible2, 'une seconde barre visible est disponible pour la sélection multiple')) {
-        await page.keyboard.down('Control');
-        await page.mouse.click(cible2.x, cible2.y);
-        await page.keyboard.up('Control');
-        await page.waitForTimeout(600);
-        const apres2 = await etat();
-        const n2 = await page.evaluate(() => window.app.seqSelections.length);
-        console.log('après Ctrl+clic :', JSON.stringify(apres2), 'sélections', n2);
-        check(apres2.st === avant.st && apres2.sl === avant.sl,
-            `la vue reste immobile pendant une sélection multiple (${avant.sl}/${avant.st} -> ${apres2.sl}/${apres2.st})`);
-        check(n2 >= 2, `les deux barres sont sélectionnées ensemble (${n2})`);
-    }
-
-    // Changer d'accord, lui, DOIT recadrer : c'est une autre scène, les pixels d'avant n'y désignent rien.
-    await page.evaluate(() => window.app.editChordFromSequencer(0, 2));
-    await page.waitForTimeout(700);
-    const autre = await etat();
-    console.log('après changement d\'accord :', JSON.stringify(autre));
-    check(autre.st !== avant.st || autre.sl !== avant.sl,
-        `passer à un AUTRE accord recadre bien la vue (${avant.sl}/${avant.st} -> ${autre.sl}/${autre.st})`);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, « réécriture courte ») : la vue continue (sa bande qui débordait des deux côtés, la barre qu'on
+    // sélectionnait, le recadrage à l'accord suivant) était ouverte ici par toggleSequencer('continu'), un appel de programme : elle n'avait plus de porte depuis
+    // la 4a, et l'appel ouvre désormais le séquenceur du bloc « Vues ». Là, rien ne défile ni ne se recadre : toute la partie est à l'écran, choisir un accord ne
+    // déplace rien, et le séquenceur suit la sélection de la grille.
+    let rr = await R.porteAbsente(page);
+    check(rr.ok, `la vue continue n'a plus de porte (${rr.detail})`);
+    rr = await R.ouvrirNouveau(page);
+    check(rr.ok, `le séquenceur du bloc « Vues » s'ouvre (${rr.detail})`);
+    rr = await R.toutePartie(page);
+    check(rr.ok, `toute la partie est à l'écran : rien à faire défiler ni à recadrer (${rr.detail})`);
+    const cadre0 = await page.evaluate(() => { const g = document.getElementById('sq-grille'); return [g.scrollLeft, g.scrollTop, Math.round(g.getBoundingClientRect().top)].join(','); });
+    rr = await R.choisirParNom(page, 2);
+    const cadre1 = await page.evaluate(() => { const g = document.getElementById('sq-grille'); return [g.scrollLeft, g.scrollTop, Math.round(g.getBoundingClientRect().top)].join(','); });
+    check(rr.ok && cadre1 === cadre0, `choisir un autre accord ne déplace rien (${rr.detail} ; ${cadre0} → ${cadre1})`);
+    rr = await R.suitSelection(page, 1);
+    check(rr.ok, `et le séquenceur suit la sélection de la grille (${rr.detail})`);
     await page.close();
 
     // ---------------------------------------------------------------------------------------------

@@ -53,7 +53,7 @@ const atteignable = (sel) => {
 };
 
 (async () => {
-    plan(22);
+    plan(27);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     // LOT 6c : sur ordinateur, la carte Accord n'existe plus qu'en modification — c'est l'inspecteur « son de l'accord », SANS la rangée « quel accord »
@@ -191,25 +191,20 @@ const atteignable = (sel) => {
     await page.setViewportSize({ width: 860, height: 950 });
     await page.waitForTimeout(400);
 
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11) : la porte « Séquenceur » de la carte et le petit séquenceur qu'elle déployait DANS la carte ont
+    // disparu (ils restent dans la page, masqués). La fonction, elle, reste : régler le rythme de l'accord, par la porte du séquenceur du téléphone —
+    // « Séquenceur » du panneau Lecture —, qui ouvre l'onglet Rythme du panneau d'accord. Un vrai clic, pas un appel de méthode.
     console.log('\n=== D. Le séquenceur s\'ouvre toujours, depuis son bouton ===');
-    // La cloison a disparu, pas les fonctions. Un vrai clic, pas un appel de méthode.
-    const r0 = await page.evaluate(atteignable, '#seq-zoom');
-    exiger(r0.ok, `la porte « Séquenceur » est réellement atteignable — ${r0.ok ? r0.taille : r0.pourquoi}`);
-    await page.click('#seq-zoom');
+    const vu = (id) => page.evaluate((id) => { const e = document.getElementById(id); return !!e && e.offsetParent !== null && e.getBoundingClientRect().height > 0; }, id);
+    check(!(await vu('seq-zoom')) && !(await vu('arp-sequencer')), 'la carte ne montre plus ni la porte « Séquenceur » ni le petit séquenceur');
+    await page.click('#bl-plus'); await page.waitForTimeout(400);
+    const r0 = await page.evaluate(atteignable, '#pl-notes');
+    exiger(r0.ok, `la porte « Séquenceur » du panneau Lecture est réellement atteignable — ${r0.ok ? r0.taille : r0.pourquoi}`);
+    await page.click('#pl-notes');
     await page.waitForTimeout(900);
-    // Elle ouvre ET agrandit : on referme le plein écran pour mesurer le séquenceur là où il vit
-    // normalement, c'est-à-dire dans la carte — ce que la vérification suivante éprouve.
-    await page.evaluate(() => window.app.closeSeqZoom());
-    await page.waitForTimeout(600);
-    const d = await page.evaluate(() => ({
-        ouvert: window.app.seqOpen === true,
-        grille: !!document.querySelector('.seq-grid'),
-        dansCarte: !!document.querySelector('#accord-card .seq-grid'),
-        agrandirVisible: (() => { const z = document.getElementById('seq-zoom'); return !!z && z.offsetParent !== null; })(),
-    }));
-    check(d.ouvert && d.grille, 'un vrai clic ouvre le séquenceur');
-    check(d.dansCarte, 'et il se déploie DANS la carte Accord, là où il a atterri');
-    check(d.agrandirVisible, 'la porte « Séquenceur » reste visible, séquenceur ouvert');
+    const d = await page.evaluate(() => ({ rythme: !!(window.app._bulle && window.app._bulle.rythme), dansPanneau: document.getElementById('sequenceur').parentElement.id === 'pa-rythme', cases: document.querySelectorAll('#pa-rythme .sq-case[data-r]').length, ancien: window.app.seqOpen }));
+    check(d.rythme && d.dansPanneau && d.cases > 0, `un vrai clic ouvre le séquenceur, dans l'onglet Rythme du panneau d'accord (${JSON.stringify(d)})`);
+    check(!d.ancien, 'l\'ancien séquenceur reste fermé');
     await page.close();
 
     console.log('\n=== E. Téléphone : les mêmes gestes, au doigt ===');

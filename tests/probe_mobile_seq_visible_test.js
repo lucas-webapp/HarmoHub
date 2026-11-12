@@ -18,12 +18,14 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
         await p.reload({waitUntil:'load'}); await p.waitForTimeout(600);
         console.log(`--- ${vp.nom} ---`);
         // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur, « Éditeur de notes » n'existe plus ; le séquenceur s'ouvre par le bouton
-        // « Séquenceur » du bloc « Vues » (barre de lecture) et doit être VISIBLE à l'écran dès l'ouverture. Le téléphone garde sa porte d'avant jusqu'à l'étape 4c.
-        if (vp.mob) await p.tap('#grid-zoom'); else await p.click('#vue-sequenceur');
+        // « Séquenceur » du bloc « Vues » (barre de lecture) et doit être VISIBLE à l'écran dès l'ouverture.
+        // RÉÉCRIT DE NOUVEAU (4c, 12/11) : au téléphone, « Séq. » au-dessus de la grille a disparu ; la porte est « Séquenceur » du panneau Lecture (⋯), qui
+        // ouvre le panneau d'accord sur l'onglet Rythme, le séquenceur dedans — lui aussi doit être visible à l'écran dès l'ouverture.
+        if (vp.mob) { await p.tap('#bl-plus'); await p.waitForTimeout(400); await p.tap('#pl-notes'); } else await p.click('#vue-sequenceur');
         await p.waitForTimeout(1400); // le défilement est animé (smooth)
         const r = await p.evaluate((mob)=>{
-            const s=document.getElementById(mob ? 'arp-sequencer' : 'sequenceur'); const b=s.getBoundingClientRect();
-            return {seqOpen: mob ? window.app.seqOpen : !s.hidden, haut:Math.round(b.top), bas:Math.round(b.bottom),
+            const s=document.getElementById('sequenceur'); const b=s.getBoundingClientRect();
+            return {seqOpen: mob ? !!(window.app._bulle && window.app._bulle.rythme) && s.parentElement.id === 'pa-rythme' : !s.hidden, haut:Math.round(b.top), bas:Math.round(b.bottom),
                     hauteur:Math.round(b.height), ecran:window.innerHeight};
         }, vp.mob);
         console.log(JSON.stringify(r));

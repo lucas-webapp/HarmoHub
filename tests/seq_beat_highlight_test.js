@@ -1,87 +1,45 @@
-const { chromium } = require('playwright')
-const { editerAccord } = require('./_ajout');
-const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
+// RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, décision « réécriture courte ») : il éprouvait les chiffres de temps de l'ancien séquenceur (data-beat-index)
+// et leur allumage pendant la lecture. L'ancien séquenceur a disparu ; au séquenceur de l'onglet Rythme, les temps sont numérotés dans la règle et la croche
+// qui sonne s'allume. Le banc vérifie que l'ancienne porte n'existe plus ET ces deux repères.
+// De vrais gestes (souris, toucher, clavier) ; window.app sert à relire l'état. Voir tests/_retrait_ancien.js.
+const { chromium } = require('playwright');
+const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
+const { check, exiger, plan, bilan } = require('./_harness')('seq_beat_highlight');
+const { estBruitReseau } = require('./_harness');
+const R = require('./_retrait_ancien');
 
-let PASS = 0, FAIL = 0;
-function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label); } else { FAIL++; console.log('FAIL - ' + label); } }
+plan(5);
 
 (async () => {
-    const browser = await chromium.launch();
-    const page = await browser.newPage({ viewport: { width: 700, height: 900 } });
-    const errors = [];
-    page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-    page.on('console', msg => { if (msg.type() === 'error' && !msg.text().includes('ERR_CONNECTION_RESET') && !msg.text().includes('ERR_TUNNEL_CONNECTION_FAILED') && !msg.text().includes('ERR_CERT_AUTHORITY_INVALID')) errors.push('console: ' + msg.text()); });
-
-    await page.goto(`${BASE}/index.html`);
-    await page.waitForTimeout(600);
-    await page.waitForTimeout(150);
-    await editerAccord(page); // lot 10e : plus de séquenceur compact en mode Ajout
-    await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(300);
-
-    // === 1. Repères de base : chiffres de temps + points de contretemps ===
-    const info = await page.evaluate(() => {
-        const labels = Array.from(document.querySelectorAll('.seq-beat-label')).map(el => ({ text: el.textContent, beatIndex: el.dataset.beatIndex }));
-        const offbeats = document.querySelectorAll('.seq-beat-offbeat').length;
-        return { labels, offbeats };
-    });
-    console.log('labels:', JSON.stringify(info.labels), '| offbeats:', info.offbeats);
-    check(info.labels.length > 0 && info.labels.every(l => l.beatIndex !== undefined && l.beatIndex !== ''), "chaque chiffre de temps porte bien data-beat-index");
-    check(info.offbeats === info.labels.length || info.offbeats === info.labels.length - 1, "un point de contretemps par temps affiché (à la dernière mesure près)");
-
-    // === 2. Peindre une note courte, puis étirer son bord droit : le chiffre de temps atteint doit s'allumer ===
-    const cells = await page.$$('.seq-cell[data-voice="0"]');
-    const box0 = await cells[0].boundingBox();
-    await page.mouse.click(box0.x + box0.width / 2, box0.y + box0.height / 2);
-    await page.waitForTimeout(150);
-
-    // Trouve la case de fin de la note tout juste peinte, pour démarrer un étirement depuis son bord.
-    const noteEndBox = await page.evaluate(() => {
-        // Le séquenceur est sous la ligne de flottaison sur ce gabarit : sans l'y amener, la souris
-        // de Playwright vise un point hors fenêtre et le glissé ne touche rien.
-        const sc = document.querySelector('.seq-scroll');
-        if (sc) sc.scrollIntoView({ block: 'center' });
-        const note = document.querySelector('.seq-note[data-voice="0"]');
-        if (!note) return null;
-        const end = +note.dataset.end;
-        const cell = document.querySelector(`.seq-cell[data-voice="0"][data-step="${end}"]`);
-        const r = cell.getBoundingClientRect();
-        return { x: r.x, y: r.y, width: r.width, height: r.height, end };
-    });
-    console.log('noteEndBox:', JSON.stringify(noteEndBox));
-
-    if (noteEndBox) {
-        const startX = noteEndBox.x + noteEndBox.width - 2, startY = noteEndBox.y + noteEndBox.height / 2;
-        await page.mouse.move(startX, startY);
-        await page.mouse.down();
-        // Étire vers la droite d'environ 3 temps (12 croches à 14px/pas environ, large marge)
-        await page.mouse.move(startX + 200, startY, { steps: 8 });
-        await page.waitForTimeout(150);
-
-        const reachedDuring = await page.evaluate(() => {
-            const el = document.querySelector('.seq-beat-label.seq-beat-reached');
-            return el ? el.textContent : null;
+    const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+    const errs = [];
+    const ouvrir = async (viewport, tel) => {
+        const p = await b.newPage(tel ? { viewport, hasTouch: true, isMobile: true } : { viewport });
+        p.on('pageerror', e => errs.push(e.message));
+        p.on('console', m => { if (m.type() === 'error' && !estBruitReseau(m.text()) && !/AudioContext/.test(m.text())) errs.push('console: ' + m.text()); });
+        await p.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load' });
+        await p.evaluate(() => {
+            const mk = (r, q) => ({ root: r, quality: q, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
+            localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), mk('F', 'maj7'), mk('G', 'dom7')] }] }));
+            sessionStorage.setItem('cc_accueil_vu', '1');
         });
-        console.log('temps allumé pendant le glissé:', reachedDuring);
-        check(reachedDuring !== null, "un chiffre de temps est bien allumé (.seq-beat-reached) pendant l'étirement");
+        await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(800);
+        return p;
+    };
+    let p, r;
+    console.log('\n=== Téléphone (700 px) ===');
+    p = await ouvrir({ width: 700, height: 900 }, true);
+    r = await R.porteTelephoneAbsente(p);
+    check(r.ok, `ni « Séq. » ni petit séquenceur au téléphone (${r.detail})`);
+    r = await R.ouvrirRythmeTel(p);
+    exiger(r.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${r.detail})`);
+    r = await R.reperes(p);
+    check(r.ok, `les repères : un trait par temps, un plus marqué par mesure, les temps numérotés, chaque note nommée (${r.detail})`);
+    r = await R.teteLectureTel(p);
+    check(r.ok, `Lecture joue sous le panneau, la croche qui sonne s'allume, Stop l'éteint (${r.detail})`);
+    await p.close();
 
-        await page.mouse.up();
-        await page.waitForTimeout(200);
-
-        const reachedAfter = await page.evaluate(() => !!document.querySelector('.seq-beat-label.seq-beat-reached'));
-        check(reachedAfter === false, "le repère s'éteint bien une fois le glissé terminé");
-    } else {
-        check(false, 'note introuvable pour tester l\'étirement');
-    }
-
-    // Capture visuelle de la ligne de temps (chiffres + contretemps) au repos
-    await page.evaluate(() => document.getElementById('arp-sequencer').scrollIntoView({ block: 'center' }));
-    await page.waitForTimeout(150);
-    const seqBox = await page.$eval('#arp-sequencer', el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: Math.min(r.height, 260) }; });
-    await page.screenshot({ path: 'beat_labels_visual.png', clip: seqBox });
-
-    console.log('=== Bilan :', PASS, 'PASS /', FAIL, 'FAIL ===');
-    console.log('Errors:', JSON.stringify(errors));
-    await browser.close();
-    process.exit(FAIL > 0 ? 1 : 0);
-})();
+    check(errs.length === 0, `aucune erreur JavaScript (${errs.slice(0, 3).join(' | ') || 'rien'})`);
+    await b.close();
+    bilan();
+})().catch(e => { console.error('FATAL', e); process.exit(2); });

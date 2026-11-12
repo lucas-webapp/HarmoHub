@@ -1,166 +1,43 @@
-const { chromium } = require('playwright')
-const { editerAccord } = require('./_ajout');
-const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
+// RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, décision « réécriture courte ») : il éprouvait le défilement de côté de l'ancien séquenceur quand un
+// accord dépassait la largeur (.seq-scroll-wide). L'ancien séquenceur a disparu ; l'onglet Rythme montre l'accord seul, huit croches dans la largeur. Le banc
+// vérifie que l'ancienne porte n'existe plus ET que rien n'y déborde.
+// De vrais gestes (souris, toucher, clavier) ; window.app sert à relire l'état. Voir tests/_retrait_ancien.js.
+const { chromium } = require('playwright');
+const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
+const { check, exiger, plan, bilan } = require('./_harness')('seq_hscroll');
+const { estBruitReseau } = require('./_harness');
+const R = require('./_retrait_ancien');
 
-let PASS = 0, FAIL = 0;
-function check(cond, label) {
-    if (cond) { PASS++; console.log('PASS - ' + label); }
-    else { FAIL++; console.log('FAIL - ' + label); }
-}
+plan(4);
 
 (async () => {
-    const browser = await chromium.launch();
-    const page = await browser.newPage({ viewport: { width: 480, height: 900 } }); // mobile-ish, plus susceptible de déborder
-    const errors = [];
-    page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-    page.on('console', msg => { if (msg.type() === 'error' && !msg.text().includes('ERR_CONNECTION_RESET') && !msg.text().includes('ERR_TUNNEL_CONNECTION_FAILED') && !msg.text().includes('ERR_CERT_AUTHORITY_INVALID')) errors.push('console: ' + msg.text()); });
-
-    await page.goto(`${BASE}/index.html`);
-    await page.waitForTimeout(600);
-    await page.waitForTimeout(200);
-
-    // Accord de 2 mesures (8 croches/mesure en 4/4 -> 16 croches -> 8 temps = 2 mesures)
-    await page.evaluate(() => {
-        const sel = document.getElementById('duration');
-        sel.value = '8';
-        sel.dispatchEvent(new Event('change'));
-    });
-    await page.waitForTimeout(200);
-
-    await editerAccord(page); // lot 10e : plus de séquenceur compact en mode Ajout
-
-    await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(300);
-
-    const info = await page.evaluate(() => {
-        const scrollEl = document.querySelector('#arp-sequencer .seq-scroll');
-        const gridEl = document.querySelector('#arp-sequencer .seq-grid');
-        return {
-            hasWideScrollCls: scrollEl ? scrollEl.classList.contains('seq-scroll-wide') : null,
-            hasWideGridCls: gridEl ? gridEl.classList.contains('seq-grid-wide') : null,
-            scrollWidth: scrollEl ? scrollEl.scrollWidth : null,
-            clientWidth: scrollEl ? scrollEl.clientWidth : null,
-            hasPageNav: !!document.getElementById('seq-page-nav') || !!document.querySelector('.seq-page-nav'),
-        };
-    });
-    console.log('info:', JSON.stringify(info));
-    check(info.hasWideScrollCls === true, 'accord de 2 mesures -> .seq-scroll-wide posée (mode scrollable)');
-    check(info.hasWideGridCls === true, '.seq-grid-wide posée sur la grille');
-    check(info.scrollWidth > info.clientWidth, 'le contenu déborde réellement (scrollWidth > clientWidth)');
-
-    // Molette SANS ctrl -> scroll horizontal
-    // Le séquenceur est plus bas que l'écran de 480x900 utilisé ici : sans l'amener à l'écran, la
-    // molette est envoyée dans le vide (elementFromPoint y renvoie null) et rien ne défile — un
-    // faux négatif, vérifié en envoyant l'événement directement sur l'élément, qui défile bien.
-    await page.evaluate(() => document.querySelector('#arp-sequencer .seq-scroll').scrollIntoView({ block: 'center' }));
-    await page.waitForTimeout(250);
-    const before = await page.evaluate(() => document.querySelector('#arp-sequencer .seq-scroll').scrollLeft);
-    const scrollBox = await page.$eval('#arp-sequencer .seq-scroll', el => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
-    await page.mouse.move(scrollBox.x, scrollBox.y);
-    await page.mouse.wheel(0, 200);
-    await page.waitForTimeout(200);
-    const afterWheel = await page.evaluate(() => document.querySelector('#arp-sequencer .seq-scroll').scrollLeft);
-    console.log('scrollLeft before/after wheel:', before, afterWheel);
-    check(afterWheel > before, 'la molette (sans Ctrl) fait défiler horizontalement');
-
-    // Bouton "Mesure suivante" : reparti du tout début (le test précédent a pu déjà scroller jusqu'au
-    // bout, ce qui désactiverait légitimement ce bouton — comportement correct, pas un bug).
-    await page.evaluate(() => { document.querySelector('#arp-sequencer .seq-scroll').scrollLeft = 0; });
-    await page.waitForTimeout(250);
-    const beforeBtn = await page.evaluate(() => document.querySelector('#arp-sequencer .seq-scroll').scrollLeft);
-    await page.click('#seq-page-next');
-    await page.waitForTimeout(500);
-    const afterBtn = await page.evaluate(() => document.querySelector('#arp-sequencer .seq-scroll').scrollLeft);
-    console.log('scrollLeft before/after next button:', beforeBtn, afterBtn);
-    check(afterBtn > beforeBtn, 'le bouton "mesure suivante" fait défiler');
-    const label = await page.$eval('#seq-page-label', el => el.textContent).catch(() => null);
-    const diag = await page.evaluate(() => {
-        const cells = Array.from(document.querySelectorAll('.seq-cell[data-voice="0"]'));
-        const r0 = cells[0].getBoundingClientRect(), r1 = cells[1].getBoundingClientRect();
-        return { stepPx: r1.left - r0.left, totalSteps: cells.length, scrollLeft: document.querySelector('#arp-sequencer .seq-scroll').scrollLeft };
-    });
-    console.log('label après clic suivant:', label, '| diag:', JSON.stringify(diag));
-    check(!!label && !label.includes('1 /') , 'le label de mesure se met à jour après le clic (plus "1")');
-
-    // Revenir au début pour le test d'étirement auto-scroll
-    await page.evaluate(() => { document.querySelector('#arp-sequencer .seq-scroll').scrollLeft = 0; });
-    await page.waitForTimeout(200);
-
-    // Peins une note de 4 croches en tout début de voix 0, puis étire son bord droit vers le bord
-    // droit du conteneur pour déclencher l'auto-scroll et vérifier qu'elle peut s'étendre jusque sur
-    // la 2e mesure sans qu'on ait eu besoin de zoomer/scroller manuellement au préalable.
-    await page.evaluate(() => {
-        // Le style de lecture par défaut ("Tenu") peint déjà TOUTE la durée de l'accord comme une
-        // seule note continue liée : il faut d'abord l'effacer pour isoler une note COURTE avec un
-        // vrai bord à étirer, sinon le clic sur la "croche 3" tombe en plein milieu d'une note qui va
-        // en réalité jusqu'à la toute dernière croche (aucun bord là où on croit cliquer).
-        const steps = document.querySelectorAll('.seq-cell[data-voice="0"]').length;
-        for (let s = 0; s < steps; s++) app.applySeqCell(0, s, false);
-        for (let s = 0; s < 4; s++) app.applySeqCell(0, s, true, s !== 0);
-        app.renderSequencer();
-    });
-    await page.waitForTimeout(200);
-
-    // Clique précisément sur la CASE (.seq-cell) de la dernière croche peinte (step 3), pas sur le
-    // bord visuel de la pilule .seq-note (pointer-events:none de toute façon, voir style.css) — même
-    // élément que onSeqPointerDown lit réellement (e.target.closest('.seq-cell')).
-    const patternDiag = await page.evaluate(() => {
-        const chord = app.readChord();
-        const { pattern, tie } = app.getLiveSeqPattern(chord);
-        return { voice0steps: pattern.slice(0, 6).map(v => v.includes(0)), voices: chord.getSeqMidiNotes().length };
-    });
-    console.log('patternDiag:', JSON.stringify(patternDiag));
-    const lastCellBox = await page.$eval('.seq-cell[data-voice="0"][data-step="3"]', el => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, height: r.height, hasOn: el.classList.contains('on'), cls: el.className }; }).catch(() => null);
-    const scrollRect = await page.$eval('#arp-sequencer .seq-scroll', el => el.getBoundingClientRect());
-    console.log('lastCellBox:', JSON.stringify(lastCellBox), 'scrollRect right:', scrollRect.right);
-
-    if (lastCellBox) {
-        const startX = lastCellBox.right - 3, startY = lastCellBox.top + lastCellBox.height / 2;
-        const edgeX = scrollRect.right - 10; // tout près du bord droit du conteneur
-        await page.mouse.move(startX, startY);
-        await page.mouse.down();
-        await page.mouse.move(startX + 6, startY, { steps: 2 });
-        await page.waitForTimeout(50);
-        const dragState1 = await page.evaluate(() => {
-            const d = app.seqDrag;
-            return d ? { hasResize: !!d.resize, edge: d.resize && d.resize.edge, crossedThreshold: d.crossedThreshold, voice: d.voice } : null;
+    const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+    const errs = [];
+    const ouvrir = async (viewport, tel) => {
+        const p = await b.newPage(tel ? { viewport, hasTouch: true, isMobile: true } : { viewport });
+        p.on('pageerror', e => errs.push(e.message));
+        p.on('console', m => { if (m.type() === 'error' && !estBruitReseau(m.text()) && !/AudioContext/.test(m.text())) errs.push('console: ' + m.text()); });
+        await p.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load' });
+        await p.evaluate(() => {
+            const mk = (r, q) => ({ root: r, quality: q, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
+            localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), mk('F', 'maj7'), mk('G', 'dom7')] }] }));
+            sessionStorage.setItem('cc_accueil_vu', '1');
         });
-        console.log('état du glissé après le 1er mouvement:', JSON.stringify(dragState1));
-        check(dragState1 && dragState1.hasResize, "le glissé démarré sur la dernière croche de la note déclenche bien un étirement (resize)");
+        await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(800);
+        return p;
+    };
+    let p, r;
+    console.log('\n=== Téléphone (480 px) ===');
+    p = await ouvrir({ width: 480, height: 900 }, true);
+    r = await R.porteTelephoneAbsente(p);
+    check(r.ok, `ni « Séq. » ni petit séquenceur au téléphone (${r.detail})`);
+    r = await R.ouvrirRythmeTel(p);
+    exiger(r.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${r.detail})`);
+    r = await R.tientTel(p);
+    check(r.ok, `l'accord, ses huit croches et une ligne par voix tiennent, cases de 44 px : rien à zoomer, pincer ni faire défiler (${r.detail})`);
+    await p.close();
 
-        await page.mouse.move(edgeX, startY, { steps: 3 });
-        await page.waitForTimeout(100);
-        const dragState2 = await page.evaluate(() => {
-            const d = app.seqDrag;
-            return d ? { scrollElFound: !!d.scrollEl, lastX: d._lastClientX, autoScrollRAF: !!d._autoScrollRAF, dir: d._autoScrollDir, speed: d._autoScrollSpeed, curEnd: d.curEnd } : null;
-        });
-        console.log('état du glissé près du bord droit:', JSON.stringify(dragState2));
-        // Le contenu total ne déborde ici que de 55px (voir scrollWidth/clientWidth plus haut) : la
-        // boucle RAF peut déjà avoir atteint le bout et s'être arrêtée d'elle-même (correctement) dans
-        // les 100ms qui précèdent cette lecture — d'où curEnd déjà avancé, un signal plus fiable que
-        // "la RAF est active pile à cet instant", intrinsèquement dépendant du minutage exact des frames.
-        check(dragState2 && dragState2.curEnd > 3, "l'étirement a déjà progressé au-delà de la croche cliquée grâce à l'auto-scroll");
-
-        // Reste immobile près du bord un moment pour laisser l'auto-scroll (boucle RAF) agir
-        await page.waitForTimeout(900);
-        const scrollDuringDrag = await page.evaluate(() => document.querySelector('#arp-sequencer .seq-scroll').scrollLeft);
-        console.log('scrollLeft pendant le glissé (immobile près du bord):', scrollDuringDrag);
-        check(scrollDuringDrag > 0, "l'auto-scroll avance tout seul quand on reste près du bord pendant l'étirement");
-        await page.mouse.up();
-        await page.waitForTimeout(300);
-
-        const finalEnd = await page.evaluate(() => {
-            const sels = app.seqSelections;
-            return sels && sels.length ? sels[0].end : null;
-        });
-        console.log('fin de la note étirée:', finalEnd);
-        check(finalEnd != null && finalEnd >= 8, "la note s'est bien étendue au-delà de la 1ère mesure (>= croche 8) grâce à l'auto-scroll");
-    } else {
-        check(false, 'case introuvable pour le test d\'étirement');
-    }
-
-    console.log('=== Bilan :', PASS, 'PASS /', FAIL, 'FAIL ===');
-    console.log('Errors:', JSON.stringify(errors));
-    await browser.close();
-    process.exit(FAIL > 0 ? 1 : 0);
-})();
+    check(errs.length === 0, `aucune erreur JavaScript (${errs.slice(0, 3).join(' | ') || 'rien'})`);
+    await b.close();
+    bilan();
+})().catch(e => { console.error('FATAL', e); process.exit(2); });

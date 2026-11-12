@@ -1,59 +1,45 @@
-const { chromium } = require('playwright')
-const { ajouterAccord } = require('./_ajout');
-const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
+// RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, décision « réécriture courte ») : il éprouvait que les numéros de temps de l'ancien séquenceur ne soient
+// pas rognés au téléphone. L'ancien séquenceur a disparu ; au séquenceur de l'onglet Rythme, les temps sont numérotés dans la règle et tout tient dans la
+// largeur. Le banc vérifie que l'ancienne porte n'existe plus ET ces repères.
+// De vrais gestes (souris, toucher, clavier) ; window.app sert à relire l'état. Voir tests/_retrait_ancien.js.
+const { chromium } = require('playwright');
+const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
+const { check, exiger, plan, bilan } = require('./_harness')('seq_num_mobile_clip');
+const { estBruitReseau } = require('./_harness');
+const R = require('./_retrait_ancien');
 
-let PASS = 0, FAIL = 0;
-function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label); } else { FAIL++; console.log('FAIL - ' + label); } }
+plan(5);
 
 (async () => {
-    const browser = await chromium.launch();
-    // Viewport mobile (iPhone-like), là où le bug a été signalé.
-    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-    const errors = [];
-    page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-    page.on('console', msg => { if (msg.type() === 'error' && !msg.text().includes('ERR_CONNECTION_RESET') && !msg.text().includes('ERR_TUNNEL_CONNECTION_FAILED') && !msg.text().includes('ERR_CERT_AUTHORITY_INVALID')) errors.push('console: ' + msg.text()); });
+    const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+    const errs = [];
+    const ouvrir = async (viewport, tel) => {
+        const p = await b.newPage(tel ? { viewport, hasTouch: true, isMobile: true } : { viewport });
+        p.on('pageerror', e => errs.push(e.message));
+        p.on('console', m => { if (m.type() === 'error' && !estBruitReseau(m.text()) && !/AudioContext/.test(m.text())) errs.push('console: ' + m.text()); });
+        await p.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load' });
+        await p.evaluate(() => {
+            const mk = (r, q) => ({ root: r, quality: q, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
+            localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), mk('F', 'maj7'), mk('G', 'dom7')] }] }));
+            sessionStorage.setItem('cc_accueil_vu', '1');
+        });
+        await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(800);
+        return p;
+    };
+    let p, r;
+    console.log('\n=== Téléphone (390 px) ===');
+    p = await ouvrir({ width: 390, height: 844 }, true);
+    r = await R.porteTelephoneAbsente(p);
+    check(r.ok, `ni « Séq. » ni petit séquenceur au téléphone (${r.detail})`);
+    r = await R.ouvrirRythmeTel(p);
+    exiger(r.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${r.detail})`);
+    r = await R.reperes(p);
+    check(r.ok, `les repères : un trait par temps, un plus marqué par mesure, les temps numérotés, chaque note nommée (${r.detail})`);
+    r = await R.tientTel(p);
+    check(r.ok, `l'accord, ses huit croches et une ligne par voix tiennent, cases de 44 px : rien à zoomer, pincer ni faire défiler (${r.detail})`);
+    await p.close();
 
-    await page.goto(`${BASE}/index.html`);
-    await page.waitForTimeout(600);
-    await page.waitForTimeout(150);
-    for (const sym of ['C', 'G', 'Am', 'F']) {
-        await ajouterAccord(page, sym);
-        await page.waitForTimeout(120);
-    }
-    await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(2000); // laisse le toast "X ajouté" disparaître avant la capture
-
-    const info = await page.evaluate(() => {
-        const label = document.querySelector('.seq-beat-label[data-beat-index="0"]');
-        const num = label.querySelector('.seq-beat-num');
-        const labelRect = label.getBoundingClientRect();
-        const numRect = num.getBoundingClientRect();
-        // La ligne (.seq-beat-label) doit avoir une hauteur RÉELLE (pas quasi nulle) : c'était
-        // exactement le bug (position:absolute retirait le chiffre du flux, la ligne s'écrasait).
-        return {
-            labelHeight: labelRect.height,
-            numHeight: numRect.height,
-            numTop: numRect.top, numBottom: numRect.bottom,
-            labelTop: labelRect.top, labelBottom: labelRect.bottom,
-            text: num.textContent,
-        };
-    });
-    console.log('mobile info:', JSON.stringify(info));
-    check(info.labelHeight >= info.numHeight - 1, `la ligne des numéros a une hauteur réelle (${info.labelHeight.toFixed(1)}px) qui contient le chiffre (${info.numHeight.toFixed(1)}px), pas écrasée à presque 0`);
-    // Le chiffre entier doit être visuellement DANS les bornes de sa ligne (pas coupé en haut/bas).
-    const fullyInside = info.numTop >= info.labelTop - 1 && info.numBottom <= info.labelBottom + 1;
-    check(fullyInside, `le chiffre "${info.text}" est entièrement contenu dans sa ligne (haut ${info.numTop.toFixed(1)} >= ${info.labelTop.toFixed(1)}, bas ${info.numBottom.toFixed(1)} <= ${info.labelBottom.toFixed(1)}), pas coupé`);
-
-    // Capture pour vérification visuelle directe.
-    const box = await page.evaluate(() => {
-        const el = document.querySelector('.seq-scroll');
-        const r = el.getBoundingClientRect();
-        return { x: Math.max(0, r.x - 4), y: Math.max(0, r.y - 4), width: r.width + 8, height: Math.min(r.height + 8, 260) };
-    });
-    await page.screenshot({ path: 'seq_mobile_numbers.png', clip: box });
-
-    console.log('=== Bilan :', PASS, 'PASS /', FAIL, 'FAIL ===');
-    console.log('Errors:', JSON.stringify(errors));
-    await browser.close();
-    process.exit(FAIL > 0 ? 1 : 0);
-})();
+    check(errs.length === 0, `aucune erreur JavaScript (${errs.slice(0, 3).join(' | ') || 'rien'})`);
+    await b.close();
+    bilan();
+})().catch(e => { console.error('FATAL', e); process.exit(2); });

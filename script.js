@@ -4790,7 +4790,7 @@ class HarmoHubApp {
         // « un seul séquenceur » (docs/refonte-sequenceur.md, section D) : celui du bloc « Vues » de la barre de lecture (sequenceur.js). La garde ci-dessous
         // couvre un clic de programme : à l'ordinateur, il ouvre le nouveau. Au téléphone, la feuille d'avant garde sa porte jusqu'à l'étape 4c.
         document.getElementById('grid-zoom').onclick = () => {
-            if (window.matchMedia(SEQ_DOCK_MEDIA).matches) { if (this.sequenceur) this.sequenceur.basculer(true); return; }
+            // Étape 4c : au téléphone, la porte a disparu aussi (style.css) ; un clic de programme ouvre l'onglet Rythme (voir toggleSequencer).
             this.toggleSequencer('continu');
         };
         this.setupEditeurNotes();
@@ -5078,14 +5078,19 @@ class HarmoHubApp {
             // utilisateur, voir ZONE_EDITION_SELECTEURS plus haut, même correctif.
             const inGrid = inPath('.grid-cell, .cell-add, .section-head');
             // Lot 7b : la barre de sélection agit SUR la sélection — un clic dedans ne la perd pas (l'accord d'ancrage sert au Maj+clic et au collage).
-            const inMenu = inPath('#context-menu, #barre-selection, #vues-tiroir, #bl-vues, #sequenceur'); // le tiroir et ses boutons (lot 8) agissent SUR l'accord sélectionné
+            const inMenu = inPath('#context-menu, #barre-selection, #vues-tiroir, #bl-vues, #sequenceur, #bl-plus, #panneau-lecture'); // le tiroir et ses boutons (lot 8) agissent SUR l'accord sélectionné
+            // Retrait de l'ancien séquenceur (4c) : au téléphone, « Séquenceur » du panneau Lecture (⋯) est LA porte du séquenceur et ouvre « l'accord choisi »
+            // (ouvrirRythmeTelephone) — toucher ⋯ vidait la sélection, et le séquenceur s'ouvrait toujours sur le premier accord. Même règle que le bloc « Vues ».
             // Lot 10d : le panneau d'accord du téléphone se referme ICI, au clic à côté, et non à l'appui du doigt (table _popups) : cet appui est
             // aussi le début d'un défilement, et « le mode modifier s'enlève dès que je veux scroller » (retour utilisateur) — les deux gardes
             // ci-dessus (touchMoved, dernierDefilementA) l'écartent déjà. Une autre case le déplace (onGridPointerUp), l'appui long ouvre son menu.
             // Refonte du séquenceur, point B : « Échap ou clic à côté referme ; la sélection reste ». Le clic qui referme la bulle ou le panneau ne
             // désélectionne donc PAS (un clic suivant, panneau fermé, le fera comme avant) — d'où ce relevé, pris AVANT la fermeture.
             const fermeUnPanneau = !!this._bulle && !inPath('#bulle-accord, #panneau-accord, .grid-cell:not(.grid-cell-add), #context-menu');
-            if (this._bulle && this._bulle.telephone && !inPath('#panneau-accord, .grid-cell:not(.grid-cell-add), #context-menu')) this.fermerBulleAccord();
+            // Retrait de l'ancien séquenceur (4c) : la feuille « Séq. » laissait la barre de lecture « à portée » (Lecture, Stop, feuille ouverte). L'onglet Rythme
+            // qui la remplace fait de même : on y règle un rythme pour l'ENTENDRE, Lecture et Stop ne referment pas le panneau.
+            const transportSurRythme = !!(this._bulle && this._bulle.rythme) && inPath('#play-prog, #stop');
+            if (this._bulle && this._bulle.telephone && !transportSurRythme && !inPath('#panneau-accord, .grid-cell:not(.grid-cell-add), #context-menu')) this.fermerBulleAccord();
             // .seq-zoom-modal inclus : le séquenceur (déplacé dans la loupe séquenceur,
             // ou dans sa propre vue agrandie, voir openSeqZoom) et ses boutons (Enregistrer/Annuler/
             // replier, poignée de redimensionnement...) y vivent, hors de .chord-grid ET de .col-left —
@@ -10076,6 +10081,9 @@ class HarmoHubApp {
         if (hoteRythme) hoteRythme.hidden = true;
         if (this.sequenceur) this.sequenceur.placerTelephone(false);
         if (!garderEdition && z.etendu && this.editingIndex != null) { this.exitEditMode(); this.loadProgression(); }
+        // Retrait de l'ancien séquenceur (4c) : une modification ouverte SANS le panneau (editChord) qui passe par l'onglet Rythme puis × restait sans sortie —
+        // le dock cache « Terminer » tant que le panneau est ouvert, et rien ne le remontrait à sa fermeture (barre_bas_telephone).
+        this.majBarreBasTelephone();
     }
 
     // Les onglets du panneau : « Accord » (le panneau à mi-hauteur), « Son » (agrandi, la modification de l'accord — editChord), « Rythme » (le
@@ -19417,8 +19425,12 @@ class HarmoHubApp {
         // sa porte « Séquenceur » (style.css) — la fenêtre d'accord n'a « pas de ligne Rythme » (le rythme se règle dans le séquenceur, sans le dire ;
         // docs/refonte-sequenceur.md, 3 bis). Un appel de programme qui l'ouvrirait ouvre le séquenceur du bloc « Vues » ; le refermer reste permis (l'état
         // d'avant peut traîner d'une fenêtre étroite). Au téléphone, rien ne change avant l'étape 4c.
-        if (mode === 'compact' && this.seqMode !== 'compact' && window.matchMedia(SEQ_DOCK_MEDIA).matches) {
-            if (this.sequenceur) this.sequenceur.basculer(true);
+        // ÉTAPE 4c : au téléphone aussi, l'ancien séquenceur (feuille « Séq. », petit séquenceur de la carte) ne s'ouvre plus — « un seul séquenceur »,
+        // celui de l'onglet Rythme du panneau d'accord (sequenceur.placerTelephone). Un appel de programme qui l'ouvrirait, dans l'un ou l'autre mode, ouvre
+        // le séquenceur de l'appareil ; le refermer reste permis.
+        if (mode && this.seqMode !== mode) {
+            if (window.matchMedia(SEQ_DOCK_MEDIA).matches) { if (this.sequenceur) this.sequenceur.basculer(true); }
+            else this.ouvrirRythmeTelephone();
             return;
         }
         // Même bouton = on referme ; autre bouton = on bascule de mode sans refermer, pour passer du

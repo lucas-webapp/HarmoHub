@@ -57,7 +57,7 @@ const boiteDe = (sel) => {
 };
 
 (async () => {
-    plan(21);
+    plan(20);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
 
@@ -209,21 +209,18 @@ const boiteDe = (sel) => {
     await m.evaluate(seed);
     await m.reload({ waitUntil: 'load' });
     await m.waitForTimeout(600);
-    await m.evaluate(() => { window.app.editChord(0, 0); window.app.toggleSequencer('compact'); });
-    await m.waitForTimeout(700);
-    exiger(await m.evaluate(() => window.app.seqOpen === true), 'téléphone : le petit séquenceur est ouvert');
-
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11) : le petit séquenceur (et son défilement reproduit en JS, _scrollableSeqAncestor) a disparu. Le
+    // séquenceur du téléphone est l'onglet Rythme du panneau d'accord ; le défaut historique s'y traduit ainsi : un glissé vertical du doigt dans le panneau
+    // (depuis le nom d'une note, là où l'on pose le pouce pour faire défiler) ne pose AUCUNE croche et ne referme pas le panneau.
+    const ouvertTel = await R.ouvrirRythmeTel(m);
+    exiger(ouvertTel.ok, `téléphone : l'onglet Rythme est ouvert (${ouvertTel.detail})`);
     const cdp = await ctx.newCDPSession(m);
-    const boite = await m.evaluate(boiteDe, '#arp-sequencer .seq-cell[data-voice][data-step]');
-    if (exiger(!!boite, 'téléphone : une case du séquenceur est atteignable au doigt')) {
-        const motifAvant = await m.evaluate(motif);
-        const posAvant = await m.evaluate(() => {
-            const a = window.app._scrollableSeqAncestor();
-            return { defile: a.scrollTop, page: (document.scrollingElement || document.documentElement).scrollTop };
-        });
+    const boite = await m.evaluate(boiteDe, '#pa-rythme #sq-grille .sq-etiq');
+    if (exiger(!!boite, 'téléphone : le nom d\'une note du séquenceur est atteignable au doigt')) {
+        const lireCroches = () => m.evaluate(() => JSON.stringify(SequenceurHarmo.lireAccord(loadProgressionSections()[0].chords[window.app._bulle.index]).on ? [...SequenceurHarmo.lireAccord(loadProgressionSections()[0].chords[window.app._bulle.index]).on].sort() : null));
+        const avant = await lireCroches();
         const x = boite.x, y = boite.y;
-        // VRAI toucher via CDP : un element.dispatchEvent(new TouchEvent(...)) ne synthétise pas les
-        // évènements pointeur dans Chromium, et tout le code de geste serait contourné.
+        // VRAI toucher via CDP : un element.dispatchEvent(new TouchEvent(...)) ne synthétise pas les évènements pointeur dans Chromium.
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
         for (let d = 8; d <= 120; d += 14) {
             await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - d }] });
@@ -231,15 +228,8 @@ const boiteDe = (sel) => {
         }
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
         await m.waitForTimeout(450);
-
-        const posApres = await m.evaluate(() => {
-            const a = window.app._scrollableSeqAncestor();
-            return { defile: a.scrollTop, page: (document.scrollingElement || document.documentElement).scrollTop };
-        });
-        const aDefile = posApres.defile !== posAvant.defile || posApres.page !== posAvant.page;
-        check(aDefile, `téléphone : le glissé vertical fait défiler — conteneur ${posAvant.defile}→${posApres.defile}, page ${posAvant.page}→${posApres.page}`);
-        check(await m.evaluate(motif) === motifAvant, 'téléphone : ce glissé de défilement ne pose AUCUNE note');
-        check(await m.evaluate(() => window.app.appMode === 'edit'), 'téléphone : ce glissé ne sort PAS du mode Modification');
+        check(await lireCroches() === avant, 'téléphone : ce glissé ne pose AUCUNE croche');
+        check(await m.evaluate(() => !!(window.app._bulle && window.app._bulle.rythme) && !document.getElementById('panneau-accord').hidden), 'téléphone : ce glissé ne referme PAS le panneau, toujours sur Rythme');
     }
 
     check(erreurs.length === 0, `aucune erreur JavaScript pendant le parcours — ${erreurs.join(' | ') || 'aucune'}`);

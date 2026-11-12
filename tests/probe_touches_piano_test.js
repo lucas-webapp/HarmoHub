@@ -22,9 +22,8 @@ async function ouvrir(page) {
     await page.waitForTimeout(400);
     await page.evaluate(() => window.app.editChord(0, 1));
     await page.waitForTimeout(300);
-    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur, le séquenceur s'ouvre par le bloc « Vues » ; au téléphone, par la porte d'avant (4c).
-    const ordi = await page.evaluate(() => window.matchMedia('(min-width: 900px)').matches);
-    await page.click(ordi ? '#vue-sequenceur' : '#grid-zoom');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur, le séquenceur s'ouvre par le bloc « Vues ». (4c : le téléphone a sa propre scène, partie 6.)
+    await page.click('#vue-sequenceur');
     await page.waitForTimeout(700);
 }
 
@@ -67,29 +66,21 @@ async function ouvrir(page) {
     console.log('--- 6. Téléphone ---');
     const mob = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
     mob.on('pageerror', e => errors.push('mobile pageerror: ' + e.message));
-    await ouvrir(mob);
-    const surMobile = await mob.evaluate(() => {
-        const g = document.querySelector('.seq-grid-continuous');
-        if (!g) return { absent: true };
-        const labels = [...g.querySelectorAll('.seq-label.seq-key')];
-        const vus = labels.map(l => {
-            const sp = l.querySelector('.seq-key-name');
-            return sp && getComputedStyle(sp).visibility === 'visible' ? sp.textContent.trim() : null;
-        }).filter(Boolean);
-        // Même raison qu'au point 1 : une touche jouée porte la couleur de sa fonction, pas l'ivoire.
-        const b = g.querySelector('.seq-key-white:not(.seq-key-jouee)');
-        return {
-            visibles: vus, total: labels.length,
-            teintes: (getComputedStyle(b).backgroundImage.match(/rgba?\([^)]+\)/g) || []),
-            largeurGouttiere: Math.round(b.getBoundingClientRect().width),
-        };
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, « réécriture courte ») : la feuille « Séq. » du téléphone (son clavier en gouttière, ivoire) a
+    // disparu. Au séquenceur de l'onglet Rythme, comme à l'ordinateur (partie 1) : chaque ligne nomme sa note avec son octave, sur une touche claire (naturelle)
+    // ou sombre (dièse).
+    await mob.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
+    await mob.evaluate(() => {
+        const mk = (r, q, b) => ({ root: r, quality: q, beats: b, inversion: 0, drop: 0, octave: 3, bass: null, playStyle: 'held' });
+        localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Couplet', chords: [mk('C', 'maj', 4), mk('A', 'min7', 4), mk('F#', 'maj', 4)] }] }));
     });
-    console.log(JSON.stringify(surMobile));
-    check(surMobile.visibles.every(t => /^[A-G][#b]?-?\d+$/.test(t)) && surMobile.visibles.length > 0
-        && surMobile.visibles.length < surMobile.total / 3,
-        `DO + touches jouées sur téléphone aussi — ${surMobile.visibles.join(', ')} sur ${surMobile.total} touches`);
-    check(surMobile.teintes.includes('rgb(243, 237, 224)'), 'et le même ivoire');
-    await mob.screenshot({ path: SCR + 'touches_mobile.png' });
+    await mob.reload({ waitUntil: 'load' }); await mob.waitForTimeout(500);
+    await mob.tap('.grid-cell[data-index="2"]'); await mob.waitForTimeout(400); // F♯ : une touche sombre au moins
+    const rt = await R.ouvrirRythmeTel(mob);
+    const etiqTel = await mob.evaluate(() => [...document.querySelectorAll('#pa-rythme #sq-grille .sq-etiq')].filter(e => e.textContent.trim()).map(e => ({ nom: e.textContent.trim(), diese: e.classList.contains('diese'), fond: getComputedStyle(e).backgroundColor })));
+    console.log(JSON.stringify(etiqTel));
+    check(rt.ok && etiqTel.length >= 3 && etiqTel.every(e => /^[A-G][#♯b♭]?-?\d+$/.test(e.nom)), `sur téléphone aussi, chaque ligne nomme sa note avec son octave (${rt.detail}) — ${etiqTel.map(e => e.nom).join(', ')}`);
+    check(etiqTel.some(e => e.diese) && etiqTel.filter(e => !e.diese).every(e => clair(e.fond)) && etiqTel.filter(e => e.diese).every(e => !clair(e.fond)), 'et les mêmes touches : claires pour les naturelles, sombres pour les dièses');
 
     console.log('Errors:', JSON.stringify(errors));
     check(errors.length === 0, 'aucune erreur JavaScript');

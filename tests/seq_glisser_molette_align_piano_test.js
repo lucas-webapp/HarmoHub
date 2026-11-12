@@ -28,8 +28,9 @@
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('glisser molette, alignement piano/guitare, opacité du contexte');
-plan(19);
+plan(14);
 
+const R = require('./_retrait_ancien');
 const mk = (root, quality, octave, beats) => ({ root, quality, beats: beats || 4, inversion: 0, drop: 0, octave, bass: null, playStyle: 'held' });
 
 (async () => {
@@ -48,74 +49,17 @@ const mk = (root, quality, octave, beats) => ({ root, quality, beats: beats || 4
     }, [mk('C', 'min', 3, 16), mk('A', 'maj', 3, 16), mk('F', 'maj7', 4, 16), mk('G', '7', 3, 16)]);
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(500);
-    await page.evaluate(() => { window.app.editChord(0, 0); window.app.toggleSequencer('continu'); });
-    await page.waitForTimeout(700);
-
-    const etat = () => page.evaluate(() => {
-        const sc = document.querySelector('#arp-sequencer .seq-scroll');
-        return { sl: Math.round(sc.scrollLeft), st: Math.round(sc.scrollTop), panning: sc.classList.contains('seq-scroll-panning') };
-    });
-    const rBande = await page.evaluate(() => document.querySelector('#arp-sequencer .seq-scroll').getBoundingClientRect());
-    const cx = rBande.left + rBande.width / 2, cy = rBande.top + rBande.height / 2;
-
-    const avant = await etat();
-    console.log('avant :', JSON.stringify(avant));
-    check(!avant.panning, "la classe de survol n'est pas posée avant le geste");
-
-    await page.mouse.move(cx, cy);
-    await page.mouse.down({ button: 'middle' });
-    await page.waitForTimeout(60);
-    const pendant = await etat();
-    console.log('bouton enfoncé :', JSON.stringify(pendant));
-    check(pendant.panning, 'la classe seq-scroll-panning est posée dès que le bouton molette est enfoncé (curseur "main")');
-
-    // Glisse vers la gauche et le haut : « attraper » le contenu et le tirer dans ce sens doit RÉVÉLER
-    // ce qui est à droite/en bas, donc scrollLeft ET scrollTop doivent AUGMENTER.
-    await page.mouse.move(cx - 150, cy - 80, { steps: 8 });
-    await page.waitForTimeout(80);
-    const enCours = await etat();
-    console.log('glissé (-150,-80) :', JSON.stringify(enCours));
-    check(enCours.sl > avant.sl, `glisser vers la GAUCHE fait avancer le défilement horizontal (${avant.sl} -> ${enCours.sl})`);
-    check(enCours.st > avant.st, `glisser vers le HAUT fait avancer le défilement vertical (${avant.st} -> ${enCours.st})`);
-
-    await page.mouse.up({ button: 'middle' });
-    await page.waitForTimeout(80);
-    const apres = await etat();
-    console.log('relâché :', JSON.stringify(apres));
-    check(!apres.panning, 'la classe de survol disparaît au relâchement');
-    check(apres.sl === enCours.sl && apres.st === enCours.st, "la position atteinte est conservée après le relâchement, rien ne revient en arrière");
-
-    // Le glisser molette ne doit RIEN perturber du clic gauche normal (sélection d'une barre).
-    const trouveBarreVisible = () => page.evaluate(() => {
-        const sc = document.querySelector('#arp-sequencer .seq-scroll');
-        const rs = sc.getBoundingClientRect();
-        for (const n of sc.querySelectorAll('.seq-note')) {
-            const r = n.getBoundingClientRect();
-            const x1 = Math.max(r.left, rs.left + 40), x2 = Math.min(r.right, rs.right - 40);
-            // SOUS la règle des temps (24px), qui est collante en haut de la bande : l'éditeur de notes réduit (lot 9a, ~170px de notes) laisse
-            // souvent une barre à demi glissée dessous — le clic tombait alors sur la règle, pas sur la barre.
-            if (x2 > x1 && r.top > rs.top + 24 + 2 && r.bottom < rs.bottom - 4)
-                return { x: Math.round((x1 + x2) / 2), y: Math.round(r.top + r.height / 2) };
-        }
-        return null;
-    });
-    // L'éditeur de notes s'ouvre RÉDUIT (lot 9a, ~170px de notes, moins sur cette fenêtre de 720px) : après le glissé, les barres de l'accord ont pu
-    // sortir de la bande. On ramène la plus proche au milieu (défilement seul : le glisser molette a déjà été vérifié ci-dessus) avant de cliquer.
-    await page.evaluate(() => {
-        const sc = document.querySelector('#arp-sequencer .seq-scroll');
-        const n = sc.querySelector('.seq-note');
-        if (!n) return;
-        const rs = sc.getBoundingClientRect(), r = n.getBoundingClientRect();
-        sc.scrollTop += (r.top + r.height / 2) - (rs.top + 24 + (rs.height - 24) / 2);
-    });
-    await page.waitForTimeout(150);
-    const barre = await trouveBarreVisible();
-    if (exiger(!!barre, 'une barre est visible après le glisser molette pour vérifier le clic gauche')) {
-        await page.mouse.click(barre.x, barre.y);
-        await page.waitForTimeout(300);
-        const sel = await page.evaluate(() => window.app.seqSelections.length);
-        check(sel > 0, `un clic GAUCHE normal sélectionne toujours une barre après un glisser molette (${sel} sélection(s))`);
-    }
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, « réécriture courte ») : le séquenceur continu (sa bande à faire défiler, le glisser au clic molette)
+    // était ouvert ici par toggleSequencer('continu'), un appel de programme : il n'avait plus de porte depuis la 4a, et l'appel ouvre désormais le séquenceur du
+    // bloc « Vues ». Là, rien à faire défiler de côté : toute la partie est à l'écran (« pas de zoom ») ; et le clic gauche normal pose toujours une croche.
+    let rr = await R.porteAbsente(page);
+    check(rr.ok, `l'ancien séquenceur continu n'a plus de porte (${rr.detail})`);
+    rr = await R.ouvrirNouveau(page);
+    check(rr.ok, `le séquenceur du bloc « Vues » s'ouvre (${rr.detail})`);
+    rr = await R.toutePartie(page);
+    check(rr.ok, `rien à faire défiler : toute la partie (quatre accords de quatre mesures) est à l'écran (${rr.detail})`);
+    rr = await R.poserCroche(page, 1);
+    check(rr.ok, `un clic GAUCHE normal pose toujours une croche (${rr.detail})`);
     await page.close();
 
     // ---------------------------------------------------------------------------------------------
@@ -178,24 +122,15 @@ const mk = (root, quality, octave, beats) => ({ root, quality, beats: beats || 4
     }, [mk('C', 'min', 3, 8), mk('A', 'maj', 3, 8), mk('F', 'maj7', 4, 8)]);
     await p3.reload({ waitUntil: 'load' });
     await p3.waitForTimeout(500);
-    await p3.evaluate(() => { window.app.editChord(0, 1); window.app.toggleSequencer('continu'); });
-    await p3.waitForTimeout(700);
-    const opac = await p3.evaluate(() => {
-        const ctx = document.querySelector('.seq-ctx-note');
-        const lbl = document.querySelector('.seq-label-context');
-        return {
-            ctxNote: ctx ? parseFloat(getComputedStyle(ctx).opacity) : null,
-            label: lbl ? parseFloat(getComputedStyle(lbl).opacity) : null,
-        };
-    });
-    console.log('opacités mesurées :', JSON.stringify(opac));
-    if (exiger(opac.ctxNote !== null, 'une barre de contexte (.seq-ctx-note) est présente et mesurable')) {
-        check(Math.abs(opac.ctxNote - 0.6) < 0.01, `.seq-ctx-note est passée à 0.6 d'opacité (mesuré ${opac.ctxNote}, était 0.45)`);
-        check(opac.ctxNote < 0.9, "reste nettement SOUS l'opacité d'une barre éditable (pas de confusion possible)");
-    }
-    if (opac.label !== null) {
-        check(Math.abs(opac.label - 0.7) < 0.01, `.seq-label-context est passée à 0.7 d'opacité (mesuré ${opac.label}, était 0.55)`);
-    }
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, « réécriture courte ») : les accords voisins EN TRANSPARENCE (.seq-ctx-note) étaient ceux du séquenceur
+    // continu, ouvert par un appel de programme qui ouvre désormais le séquenceur du bloc « Vues ». Là, chaque accord de la partie est montré en entier, avec les
+    // couleurs de ses rôles (rien n'est plus « en transparence » à deviner) ; un clic sur le nom d'un voisin le choisit.
+    let r3 = await R.ouvrirNouveau(p3);
+    check(r3.ok, `le séquenceur du bloc « Vues » s'ouvre (${r3.detail})`);
+    r3 = await R.couleursRoles(p3, 0);
+    check(r3.ok, `un accord non choisi est montré en entier, avec les couleurs de ses rôles (${r3.detail})`);
+    r3 = await R.choisirParNom(p3, 2);
+    check(r3.ok, `un clic sur le nom d'un accord voisin le choisit (${r3.detail})`);
     await p3.close();
 
     console.log('Errors:', JSON.stringify(errors));

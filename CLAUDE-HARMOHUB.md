@@ -1,6 +1,6 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 12/11/2026, après l'étape 4b du dernier sous-lot du point D (retrait du petit séquenceur de l'inspecteur). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 12/11/2026, après l'étape 4c, dernière du point D (retrait de la feuille « Séq. » du téléphone : l'ancien séquenceur n'a plus aucune porte). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
@@ -74,7 +74,7 @@ Mis à jour le 12/11/2026, après l'étape 4b du dernier sous-lot du point D (re
 - ✅ **Deux retours de l'utilisateur livrés le 12/11** (ordinateur) : « toute une barre noire juste pour le bouton fichier » → `#file-menu-btn` après « Enregistrer » dans la barre du haut
   (`placerBoutonFichier`), la rangée du bas disparaît ; « le saut de hauteur pour les diagrammes […] empêcher le piano de se superposer » → le tiroir épinglé reste sur UNE rangée, les
   diagrammes rapetissent quand la largeur manque (`ajusterEchelleVues`), l'échelle choisie reste retenue (banc `vues_taille`, partie G).
-- **Prochain : D, quatrième et dernier sous-lot — retrait de l'ancien séquenceur**, à découper (inventaire du 12/11 : **114 bancs sur 255** le touchent, 66 par `#grid-zoom`) :
+- ✅ **D, quatrième et dernier sous-lot livré (12/11) — retrait de l'ancien séquenceur** (découpé en 4a, 4b, 4c) (inventaire du 12/11 : **114 bancs sur 255** le touchent, 66 par `#grid-zoom`) :
   **4a** ordinateur : bouton « Éditeur de notes » (`#grid-zoom`), grand séquenceur `#seq-dock-panel` et sa poignée, loupe, calque Voix ; **4b** le petit séquenceur de l'inspecteur
   (`#arp-sequencer`) ; **4c** la feuille « Séq. » du téléphone (porte `#grid-zoom`, `telephone_editeur_notes`). Chaque étape : bancs RÉÉCRITS pour le nouveau séquenceur (jamais
   supprimés), sabotages, balayage.
@@ -92,12 +92,16 @@ Mis à jour le 12/11/2026, après l'étape 4b du dernier sous-lot du point D (re
     « Vues », et le petit séquenceur ouvert au téléphone se referme passé 900 px. **27 bancs réécrits** (liste dans `docs/dette-tests.md`), assistant
     `porteInspecteurAbsente` (`tests/_retrait_ancien.js`). Piège retenu : beaucoup de bancs ouvraient le petit séquenceur par `toggleSequencer()` SANS argument — la recherche
     par nom ne les voit pas, seul un passage avec la garde en place les révèle.
-- **Prochain : 4c — la feuille « Séq. » du téléphone** (porte `#grid-zoom` sous 900 px, `toggleSequencer('continu')` au téléphone, petit séquenceur `#seq-zoom` du panneau
-  d'accord, `#dock-rythme`) : le séquenceur du téléphone est celui de l'onglet Rythme. Parties téléphone de `calque_voix`, `voice_leading*`, `vl_*`, `telephone_editeur_notes`,
-  `seq_notes_libres_clavier` (G, le rouge de la ligne de base), `seq_tiroir_flottant` (A à E), `portes_sequenceur` (F), `probe_deux_boutons_seq` (téléphone),
-  `aspect_boutons_volet` (E)… Même méthode : essai à blanc AVEC la garde (rediriger aussi `toggleSequencer` au téléphone avant de rejouer
-  `grep -l "toggleSequencer\|seq-zoom\|arp-sequencer\|grid-zoom\|seqOpen\|\.seq-cell" tests/*_test.js`), réécriture courte, sabotages, balayage. Aucune question ouverte.
-  Après la 4c, plus rien de prévu dans la feuille de route : la **fenêtre d'accord unique** (3 bis) n'a ni lot ni découpage — à proposer à l'utilisateur.
+  - ✅ **4c livrée (12/11)** : au téléphone aussi, plus de porte vers l'ancien séquenceur (« Séq. » / « Notes », « Séquenceur » de la carte Accord, petit séquenceur,
+    « Rythme » du dock) ; le seul séquenceur du téléphone est l'onglet Rythme du panneau d'accord (porte : « Séquenceur » du panneau Lecture) ; un `toggleSequencer` de
+    programme ouvre le séquenceur de l'appareil. **52 bancs réécrits** (liste dans `docs/dette-tests.md`), assistants `porteTelephoneAbsente`, `ouvrirRythmeTel`,
+    `poserCrocheTel`… dans `tests/_retrait_ancien.js`. Défauts trouvés et corrigés : ⋯ vidait la sélection, Lecture / Stop refermaient l'onglet Rythme, « Terminer »
+    absent après × sur une modification sans panneau. **Le retrait de l'ancien séquenceur (point D) est terminé** ; son code reste dans `script.js` sans porte (nettoyage
+    non demandé).
+- **Rien de prévu** dans la feuille de route : `/reprise` demandera à l'utilisateur ce qui vient ensuite. À lui proposer : la **fenêtre d'accord unique** (3 bis de
+  `docs/refonte-sequenceur.md`, sans lot ni découpage), le nettoyage du code mort de l'ancien séquenceur, et le point à signaler ci-dessous.
+  - **À signaler à l'utilisateur (pas bloquant)** : à 390 × 844, dans l'onglet Rythme, la barre d'outils du séquenceur prend le haut du panneau (la grille de croches commence
+    vers 660 px) : il faut faire défiler le panneau pour voir toutes les lignes ; déjà vrai depuis le 3e sous-lot.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
@@ -117,7 +121,9 @@ Mis à jour le 12/11/2026, après l'étape 4b du dernier sous-lot du point D (re
   Large et le pincement du téléphone sont une préférence de l'APPAREIL (`harmohubGrilleTelephone`), pas du morceau : les échelles du morceau restent
   celles de l'ordinateur (un morceau en Détaillé donnait des cases de 103 px au téléphone). Aussi : Transposer garde une ligne sous les cases (absent de
   la maquette, présent avant).
-- **Dernier balayage complet** (retrait de l'ancien séquenceur, étape 4b, 12/11) : **249 verts, 1 rouge, 5 sans verdict sur 255 suites** (3109 s cumulées) — le rouge est
+- **Dernier balayage complet** (retrait de l'ancien séquenceur, étape 4c, 12/11) : **251 verts, 0 rouge, 4 sans verdict sur 255 suites** (3131 s cumulées) — après correction de
+  `grid_scroll_axis` (page 32 px plus courte sans la rangée « Séq. » : fenêtre du banc resserrée). **Nouvelle ligne de base** : **0 rouge** (`seq_notes_libres_clavier` est vert) et
+  4 « sans verdict » (`detune`, `instrument_stress`, `probe_cache_perime`, `smoke` ; `ctx_nav_scroll` rend un verdict). Précédent : étape 4b (12/11) : **249 verts, 1 rouge, 5 sans verdict sur 255 suites** (3109 s cumulées) — le rouge est
   `seq_notes_libres_clavier` (ligne de base, sa partie téléphone). **Ligne de base de fait** : 1 rouge (`seq_notes_libres_clavier`) et 5 « sans verdict » (`ctx_nav_scroll`,
   `detune`, `instrument_stress`, `probe_cache_perime`, `smoke`) ; `item1_hzoom_out` rend désormais un verdict (vert). Étape 4a (12/11) : 247 verts, 2 rouges, 6 sans verdict.
 - **Balayage précédent** (séquenceur D, troisième sous-lot, 12/11) : **243 verts, 6 rouges, 6 sans verdict sur 255 suites** (3213 s cumulées) — la ligne de base plus

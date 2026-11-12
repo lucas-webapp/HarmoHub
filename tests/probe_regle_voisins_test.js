@@ -23,9 +23,8 @@ async function ouvrir(page) {
     await page.waitForTimeout(400);
     await page.evaluate(() => window.app.editChord(0, 1));
     await page.waitForTimeout(300);
-    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur, le séquenceur s'ouvre par le bloc « Vues » ; au téléphone, par la porte d'avant (4c).
-    const ordi = await page.evaluate(() => window.matchMedia('(min-width: 900px)').matches);
-    await page.click(ordi ? '#vue-sequenceur' : '#grid-zoom');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur, le séquenceur s'ouvre par le bloc « Vues ». (4c : le téléphone a sa propre scène, partie 6.)
+    await page.click('#vue-sequenceur');
     await page.waitForTimeout(600);
 }
 
@@ -84,34 +83,23 @@ async function ouvrir(page) {
     console.log('--- 6. Mobile ---');
     const mob = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
     mob.on('pageerror', e => errors.push('mobile pageerror: ' + e.message));
-    await ouvrir(mob);
-    const surMobile = await mob.evaluate(() => {
-        const grille = document.querySelector('.seq-grid-continuous');
-        if (!grille) return { absent: true };
-        const labels = [...grille.querySelectorAll('.seq-beat-label')];
-        const lus = labels.filter(l => +getComputedStyle(l.querySelector('.seq-beat-num')).opacity > 0.05)
-            .map(l => l.querySelector('.seq-beat-num').textContent);
-        const bande = grille.querySelector('.seq-ruler-band');
-        const cs = getComputedStyle(grille);
-        const ctx = [...grille.querySelectorAll('.seq-ctx-note')];
-        return {
-            suite: lus.join(' '),
-            bandeLargeur: bande && Math.round(bande.getBoundingClientRect().width),
-            grilleLargeur: Math.round(grille.getBoundingClientRect().width),
-            fondY: cs.backgroundPosition.split(',')[0].trim().split(' ')[1],
-            hRegle: cs.getPropertyValue('--seq-ruler-h').trim(),
-            nbCtx: ctx.length,
-            ctxUnPas: ctx.filter(c => !/span/.test(c.style.gridColumn)).length,
-        };
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, « réécriture courte ») : la feuille « Séq. » du téléphone (sa règle de mesures, ses voisins en barres)
+    // a disparu. Le séquenceur du téléphone est l'onglet Rythme du panneau d'accord : l'accord seul, sa règle compte en temps, et l'on passe à l'accord voisin
+    // par ‹ › du panneau.
+    await mob.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
+    await mob.evaluate(() => {
+        const mk = (r, q, b) => ({ root: r, quality: q, beats: b, inversion: 0, drop: 0, octave: 3, bass: null, playStyle: 'held' });
+        localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Couplet', chords: [mk('C', 'maj', 4), mk('A', 'min7', 4), mk('D', 'min7', 2), mk('G', '7', 6), mk('C', 'maj7', 4)] }] }));
     });
-    console.log(JSON.stringify(surMobile));
-    check(surMobile.suite === '1 2 3 4 5', `même règle de mesures sur téléphone — « ${surMobile.suite} »`);
-    check(surMobile.bandeLargeur === surMobile.grilleLargeur,
-        `le bandeau couvre toute la section sur téléphone — ${surMobile.bandeLargeur}px sur ${surMobile.grilleLargeur}px`);
-    check(surMobile.fondY === surMobile.hRegle, `quadrillage sous la règle sur téléphone — ${surMobile.fondY}`);
-    check(surMobile.nbCtx > 0 && surMobile.ctxUnPas === 0,
-        `voisins en vraies barres sur téléphone — ${surMobile.nbCtx} barres, aucune d'une seule case`);
-    await mob.screenshot({ path: SCR + 'regle_APRES_mobile.png' });
+    await mob.reload({ waitUntil: 'load' }); await mob.waitForTimeout(500);
+    let rt = await R.porteTelephoneAbsente(mob);
+    check(rt.ok, `téléphone : plus de feuille « Séq. » (${rt.detail})`);
+    rt = await R.ouvrirRythmeTel(mob);
+    check(rt.ok, `téléphone : « Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${rt.detail})`);
+    const regleTel = await mob.evaluate(() => [...document.querySelectorAll('#pa-rythme #sq-grille .sq-temps')].map(x => x.textContent).filter(Boolean).join(''));
+    check(regleTel === '1234', `téléphone : la règle compte les temps de l'accord, de 1 à 4 — « ${regleTel} »`);
+    rt = await R.suivantTel(mob);
+    check(rt.ok, `téléphone : on passe à l'accord voisin par ‹ ›, le séquenceur le suit (${rt.detail})`);
 
     console.log('Errors:', JSON.stringify(errors));
     check(errors.length === 0, 'aucune erreur JavaScript');

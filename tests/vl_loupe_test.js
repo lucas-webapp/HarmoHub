@@ -25,15 +25,15 @@ const { estBruitReseau } = require('./_harness');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 // La police vient de Google Fonts, injoignable derrière le proxy du bac à sable : bruit filtré.
 
-plan(17);
+plan(11);
 
 const mk = (root, q) => ({ root, quality: q, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held', instrument: 'piano', arpPattern: '', seqEdited: false, guitarLock: null, extraNotes: [], intensity: 75, intensityPerStep: {} });
 
 (async () => {
     const browser = await chromium.launch();
     const errs = [];
-    const ouvrir = async (viewport) => {
-        const page = await browser.newPage({ viewport });
+    const ouvrir = async (viewport, extra = {}) => {
+        const page = await browser.newPage({ viewport, ...extra });
         page.on('pageerror', e => errs.push(e.message));
         page.on('console', m => { if (m.type() === 'error' && !estBruitReseau(m.text()) && !/AudioContext/.test(m.text())) errs.push('console: ' + m.text()); });
         await page.goto(`${BASE}/index.html`);
@@ -58,61 +58,21 @@ const mk = (root, q) => ({ root, quality: q, beats: 4, inversion: 0, drop: 'none
     }, id);
 
     let page;
-    // Lot 10f : le téléphone a le MÊME éditeur et le même calque que l'ordinateur (plus d'exclusion avec un ancien panneau) : mêmes vérifications aux deux largeurs.
-    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : la passe ORDINATEUR est remplacée par le bloc court plus bas ; le téléphone garde la sienne (4c).
-    for (const [nom, larg] of [['TÉLÉPHONE (860px)', 860]]) {
-        // ======================================================================================================
-        console.log(`\n=== ${nom} : un calque DANS l'éditeur, qu'on peut toujours enlever ===`);
-        page = await ouvrir({ width: larg, height: 900 });
-        const calque = () => page.evaluate(() => {
-            const ed = document.getElementById('seq-dock-panel');
-            // Ce qui se VOIT : fermé, le séquenceur garde son dernier dessin dans un hôte masqué (renderSequencer ne redessine pas un panneau fermé).
-            const el = [...document.querySelectorAll('.seq-voix-trait, .seq-note-fn, .seq-voix-accord')].filter(e => e.offsetParent !== null);
-            return {
-                volet: window.app.seqMode === 'continu', ancien: !!document.querySelector('.voice-leading-panel'),
-                presents: el.length, horsEditeur: el.filter(e => !ed.contains(e)).length,
-                presse: document.getElementById('editeur-notes-voix').getAttribute('aria-pressed'),
-            };
-        });
-        check(!(await page.locator('#toggle-voice-leading').isVisible()) && !(await page.locator('#editeur-notes-voix').isVisible()),
-            'éditeur fermé : aucune porte de conduite de voix (l\'icône ⊱ a quitté la page, Voix vit dans l\'éditeur)');
-        await page.click('#progression-sections .grid-cell[data-index="0"]');
-        await page.waitForTimeout(300);
-        await page.click('#grid-zoom');
-        await page.waitForTimeout(800);
-        exiger(await atteignable(page, 'editeur-notes-voix'), 'éditeur ouvert : le bouton Voix est atteignable, rien ne le recouvre');
-        await page.click('#editeur-notes-voix');
-        await page.waitForTimeout(700);
-        let c = await calque();
-        check(c.volet && c.presents > 0 && c.presse === 'true', 'un clic pose le calque, et l\'éditeur reste ouvert (plus d\'exclusion : le calque vit dedans)');
-        check(c.horsEditeur === 0 && !c.ancien, 'rien n\'en déborde hors de l\'éditeur, et aucun ancien panneau ne s\'affiche');
-        // Un autre accord, choisi DANS l'éditeur (la zone de l'accord voisin, le geste de l'éditeur pour changer d'accord) : le calque suit.
-        const zone = await page.locator('#arp-sequencer .seq-ctx-nav[data-target-index="2"]').boundingBox();
-        exiger(!!zone, 'la zone de l\'accord voisin F est à l\'écran');
-        await page.mouse.click(zone.x + 8, zone.y + 8);
-        await page.waitForTimeout(800);
-        c = await calque();
-        check(c.presents > 0 && await page.evaluate(() => window.app.editingIndex === 2 && document.getElementById('arp-sequencer').offsetParent !== null),
-            'un autre accord chargé dans l\'éditeur : le calque est toujours là, sur le séquenceur affiché');
-        await page.click('#editeur-notes-fermer');
-        await page.waitForTimeout(800);
-        c = await calque();
-        check(!c.volet && c.presents === 0, 'l\'éditeur fermé, il ne reste rien du calque dans la page');
-        await page.click('#grid-zoom');
-        await page.waitForTimeout(800);
-        c = await calque();
-        check(c.volet && c.presents > 0 && c.presse === 'true', 'rouvert, le calque revient (réglage mémorisé, décision du 05/11)');
-        check(await atteignable(page, 'editeur-notes-voix'), 'le bouton reste atteignable, calque allumé');
-        await page.click('#editeur-notes-voix');
-        await page.waitForTimeout(600);
-        c = await calque();
-        check(c.presents === 0 && c.presse === 'false', 'un clic l\'enlève pour de bon');
-        await page.click('#editeur-notes-voix');
-        await page.waitForTimeout(600);
-        c = await calque();
-        check(c.presents > 0 && c.presse === 'true', '...et un second le remet');
-        await page.close();
-
+    // TÉLÉPHONE — RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, « réécriture courte ») : la feuille « Notes » du téléphone emportait le dernier calque
+    // Voix (fonctions dans les notes, chemin des voix, son zoom et son pincement). Comme à l'ordinateur (plus bas), ce qui reste : les couleurs des rôles, dans
+    // le séquenceur de l'onglet Rythme du panneau d'accord, ouvert par « Séquenceur » du panneau Lecture.
+    console.log('\n=== TÉLÉPHONE (860px) : plus de calque Voix ; l\'onglet Rythme garde les couleurs des rôles ===');
+    {
+        const pt = await ouvrir({ width: 860, height: 1000 }, { hasTouch: true, isMobile: true });
+        let r = await R.porteTelephoneAbsente(pt);
+        check(r.ok, `la feuille « Notes » et son calque Voix ont quitté le téléphone (${r.detail})`);
+        check(!(await pt.locator('#toggle-voice-leading').isVisible()), 'l\'icône ⊱ n\'y est pas non plus');
+        r = await R.ouvrirRythmeTel(pt);
+        exiger(r.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${r.detail})`);
+        check(await pt.evaluate(() => document.querySelectorAll('.seq-voix-trait, .seq-note-fn, .voice-leading-panel').length === 0), 'ni trait du chemin des voix, ni chiffre de fonction, ni ancien panneau');
+        r = await R.couleursRoles(pt, 0);
+        check(r.ok, `les notes y gardent les couleurs de leur rôle (${r.detail})`);
+        await pt.close();
     }
 
     // ======================================================================================================

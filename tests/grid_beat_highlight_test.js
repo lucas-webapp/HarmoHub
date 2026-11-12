@@ -8,7 +8,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 // `cellsZoom[0]` undefined, et sa section 3 — la seule qui reste vraiment distincte, le repère de temps
 // dans la vue AGRANDIE du séquenceur — n'était donc jamais atteinte.
 const { check, exiger, plan, bilan } = require('./_harness')('repères de mesure et de temps');
-plan(8);
+plan(10);
 
 (async () => {
     const browser = await chromium.launch();
@@ -31,29 +31,20 @@ plan(8);
     // pixel près sur la colonne, et l'utilisateur a tranché entre cinq propositions (« j'aime bien
     // le petit rond pour la grille d'accords, mais laisse un tiret pour le séquenceur »). Ce qui
     // reste à éprouver est le besoin, pas le moyen : le repère existe, et il se voit.
-    await editerAccord(page); // lot 10e : plus de séquenceur compact en mode Ajout
-    await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(250);
-    const offbeatCss = await page.evaluate(() => {
-        const el = document.querySelector('.seq-beat-offbeat');
-        if (!el) return null;
-        const trait = el.querySelector('.offbeat-dash');
-        const cs = getComputedStyle(trait || el);
-        const r = (trait || el).getBoundingClientRect();
-        return {
-            opacity: cs.opacity, forme: trait ? 'CSS' : 'texte',
-            taille: [Math.round(r.width), Math.round(r.height)],
-            couleurPosee: cs.backgroundColor,
-        };
-    });
-    console.log('offbeat css:', JSON.stringify(offbeatCss));
-    check(offbeatCss && parseFloat(offbeatCss.opacity) >= 0.5, 'le repère de contretemps est nettement opaque (>= 0.5)');
-    check(offbeatCss && offbeatCss.forme === 'CSS' && offbeatCss.taille[0] > 0 && offbeatCss.taille[1] > 0,
-        `le repère est une forme dessinée, pas un caractère — ${JSON.stringify(offbeatCss && offbeatCss.taille)}`);
-    check(offbeatCss && offbeatCss.taille[1] > offbeatCss.taille[0],
-        `...et c'est bien un trait VERTICAL pour le séquenceur, comme demandé — ${JSON.stringify(offbeatCss && offbeatCss.taille)}`);
-    await page.evaluate(() => window.app.toggleSequencer('compact')); // referme
-    await page.waitForTimeout(150);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11) : le petit séquenceur (et son tiret de contretemps .seq-beat-offbeat) a disparu. Le séquenceur du
+    // téléphone est l'onglet Rythme du panneau d'accord, ouvert par « Séquenceur » du panneau Lecture (vrais clics) ; ses repères : un trait à chaque temps, un
+    // plus marqué à chaque mesure, les temps numérotés dans la règle. Le besoin (« le repère existe, et il se voit ») est éprouvé sur eux.
+    await editerAccord(page); // lot 10e : il faut un accord ; editerAccord en pose un et l'ouvre
+    const R = require('./_retrait_ancien');
+    await R.cliquer(page, '#bl-plus', 400); await R.cliquer(page, '#pl-notes', 700);
+    check(await page.evaluate(() => !!(window.app._bulle && window.app._bulle.rythme) && document.getElementById('sequenceur').parentElement.id === 'pa-rythme' && !window.app.seqOpen),
+        'l\'onglet Rythme s\'ouvre, l\'ancien séquenceur reste fermé');
+    const rq = await R.reperes(page);
+    check(rq.ok, `les repères du séquenceur : un trait par temps, un plus marqué par mesure, les temps numérotés (${rq.detail})`);
+    check(await page.evaluate(() => { const c = document.querySelector('#sq-grille .sq-case.temps'); return !!c && getComputedStyle(c).opacity >= 0.5; }), 'le repère de temps est nettement opaque (>= 0.5)');
+    await R.cliquer(page, '#panneau-accord [data-bulle="fermer"]', 400);
+    // L'accord reste en modification (editerAccord) : un premier toucher sur « + » ne ferait qu'en sortir. « Terminer » du dock en sort, comme l'utilisateur.
+    await R.cliquer(page, '#dock-terminer', 300);
 
     // Ajoute plusieurs accords pour avoir de la marge d'étirement (case "+" toujours présente après)
     for (const sym of ['C', 'G', 'Am', 'F']) {
@@ -97,56 +88,13 @@ plan(8);
     check(afterGridResize.reached === false, "le repère de mesure s'éteint bien une fois l'étirement de grille terminé");
     check(afterGridResize.beatTicks === 0, "les traits de temps disparaissent bien une fois l'étirement de grille terminé");
 
-    // === 2. Le repère de temps du SÉQUENCEUR, dans sa vue AGRANDIE ===
-    // Édite le 1er accord, ouvre la vue agrandie du séquenceur, isole une note courte, étire son bord.
-    const gridCellsNow = await page.$$('.grid-cell');
-    await gridCellsNow[0].dblclick();
-    await page.waitForTimeout(300);
-    await editerAccord(page); // lot 10e : la modification de l'accord (le double clic n'y mène plus depuis que la carte Accord a quitté le mode Ajout)
-    await page.click('#pa-son-btn'); // lot 10e : le séquenceur compact vit dans « Réglages du son » du panneau d'accord
-    await page.waitForTimeout(300);
-    if (!(await page.evaluate(() => window.app.seqOpen))) await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(300);
-        // LA PORTE DU PLEIN ÉCRAN A DÉMÉNAGÉ DANS LE SÉQUENCEUR : c'est la loupe de sa barre d'outils
-    // (#seq-plein-ecran). « Séquenceur » (#seq-zoom), dans le volet, n'ouvre plus que la vue
-    // compacte — et comme il BASCULE, le cliquer ici REFERMAIT le panneau qu'on venait d'ouvrir.
-    // Retour utilisateur à l'origine des deux changements : « le bouton séquenceur dans le volet de
-    // gauche ne devrait ouvrir que le "Petit séquenceur" […] sinon, je ne peux jamais ouvrir le
-    // petit », puis « je propose d'ajouter un bouton loupe dans le petit séquenceur ».
-await page.click('#seq-plein-ecran');
-    await page.waitForTimeout(300);
-
-    await page.evaluate(() => {
-        const steps = document.querySelectorAll('#seq-zoom-host .seq-cell[data-voice="0"]').length;
-        for (let s = 0; s < steps; s++) app.applySeqCell(0, s, false);
-        for (let s = 0; s < 4; s++) app.applySeqCell(0, s, true, s !== 0);
-        app.renderSequencer();
-    });
-    await page.waitForTimeout(200);
-
-    const noteEndBox = await page.evaluate(() => {
-        const note = document.querySelector('#seq-zoom-host .seq-note[data-voice="0"]');
-        if (!note) return null;
-        const end = +note.dataset.end;
-        const cell = document.querySelector(`#seq-zoom-host .seq-cell[data-voice="0"][data-step="${end}"]`);
-        const r = cell.getBoundingClientRect();
-        return { x: r.x, y: r.y, width: r.width, height: r.height };
-    });
-    if (exiger(!!noteEndBox, 'la note à étirer est bien atteignable dans la vue agrandie')) {
-        const sx = noteEndBox.x + noteEndBox.width - 2, sy = noteEndBox.y + noteEndBox.height / 2;
-        await page.mouse.move(sx, sy);
-        await page.mouse.down();
-        await page.mouse.move(sx + 150, sy, { steps: 6 });
-        await page.waitForTimeout(150);
-        const reachedInLoupeSeq = await page.evaluate(() => {
-            const el = document.querySelector('#seq-zoom-host .seq-beat-label.seq-beat-reached');
-            return el ? el.textContent : null;
-        });
-        console.log('temps allumé en loupe séquenceur:', reachedInLoupeSeq);
-        check(reachedInLoupeSeq !== null, "le repère de temps du séquenceur fonctionne aussi dans la VUE AGRANDIE");
-        await page.mouse.up();
-        await page.waitForTimeout(200);
-    }
+    // === 2. Le repère de temps du SÉQUENCEUR ===
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11) : la vue agrandie du séquenceur (et le temps allumé quand on étirait une note) a disparu. Au
+    // séquenceur de l'onglet Rythme, c'est la croche qui sonne qui s'allume pendant la lecture de la barre de lecture.
+    await R.cliquer(page, '#bl-plus', 400); await R.cliquer(page, '#pl-notes', 700);
+    exiger(await page.evaluate(() => !!(window.app._bulle && window.app._bulle.rythme)), 'l\'onglet Rythme est rouvert');
+    const tl = await R.teteLecture(page);
+    check(tl.ok, `le repère de temps du séquenceur suit la lecture : la croche qui sonne s'allume, Stop l'éteint (${tl.detail})`);
 
     console.log('Errors:', JSON.stringify(errors));
     check(errors.length === 0, 'aucune erreur JavaScript pendant tout le scénario');
