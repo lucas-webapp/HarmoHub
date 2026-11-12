@@ -1,6 +1,6 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 11/11/2026 (nuit), après le deuxième sous-lot du point D de la refonte du séquenceur. **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 12/11/2026, après le troisième sous-lot du point D de la refonte du séquenceur (et deux retours de l'utilisateur). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
@@ -68,9 +68,16 @@ Mis à jour le 11/11/2026 (nuit), après le deuxième sous-lot du point D de la 
   **« Toutes les notes »** (hauteurs utilisées, préférence de l'appareil). Détail et choix dans `docs/dette-tests.md`.
   - **À signaler à l'utilisateur (pas bloquant)** : la barre d'outils passe sur deux rangées à 1440 px (option du cahier : ranger les motifs derrière un bouton « Motifs ») ; une retouche
     de schéma ne réécrit que le morceau ouvert (les autres morceaux la prennent quand on y réapplique le motif) ; en « Toutes les notes » une partie riche fait défiler le séquenceur.
-- **Prochain : D, troisième sous-lot — le téléphone** : le séquenceur dans le panneau d'accord, onglet « Rythme » à côté de « Accord » et « Son » ; « Notes » → « Séquenceur »
-  (`docs/refonte-sequenceur.md`, sections 3 et 3 bis, cases « Téléphone » ; maquette v17, planche `Telephone.dc.html`). Ensuite : retrait de l'ancien séquenceur (« Séq. », « Éditeur de
-  notes », `#seq-dock-panel`, loupe, calque Voix) et réécriture de ses bancs (jamais supprimés). Aucune question ouverte.
+- ✅ **D, troisième sous-lot livré** (12/11, banc `sequenceur_telephone`, 47 vérifications, cinq sabotages) : onglets Accord / Son / Rythme dans le panneau d'accord du téléphone ;
+  Rythme y DÉPLACE le séquenceur (`sequenceur.placerTelephone`), réduit à l'accord du panneau (cases de 44 px) ; « Notes » du panneau Lecture → « Séquenceur ». Défaut corrigé :
+  colonnes rangées par rang au lieu de l'index d'accord (`colDebut`). Constaté, déjà vrai avant : « Réglages du son » vide la sélection au téléphone.
+- ✅ **Deux retours de l'utilisateur livrés le 12/11** (ordinateur) : « toute une barre noire juste pour le bouton fichier » → `#file-menu-btn` après « Enregistrer » dans la barre du haut
+  (`placerBoutonFichier`), la rangée du bas disparaît ; « le saut de hauteur pour les diagrammes […] empêcher le piano de se superposer » → le tiroir épinglé reste sur UNE rangée, les
+  diagrammes rapetissent quand la largeur manque (`ajusterEchelleVues`), l'échelle choisie reste retenue (banc `vues_taille`, partie G).
+- **Prochain : D, quatrième et dernier sous-lot — retrait de l'ancien séquenceur**, à découper (inventaire du 12/11 : **114 bancs sur 255** le touchent, 66 par `#grid-zoom`) :
+  **4a** ordinateur : bouton « Éditeur de notes » (`#grid-zoom`), grand séquenceur `#seq-dock-panel` et sa poignée, loupe, calque Voix ; **4b** le petit séquenceur de l'inspecteur
+  (`#arp-sequencer`) ; **4c** la feuille « Séq. » du téléphone (porte `#grid-zoom`, `telephone_editeur_notes`). Chaque étape : bancs RÉÉCRITS pour le nouveau séquenceur (jamais
+  supprimés), sabotages, balayage. Aucune question ouverte.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
@@ -90,7 +97,9 @@ Mis à jour le 11/11/2026 (nuit), après le deuxième sous-lot du point D de la 
   Large et le pincement du téléphone sont une préférence de l'APPAREIL (`harmohubGrilleTelephone`), pas du morceau : les échelles du morceau restent
   celles de l'ordinateur (un morceau en Détaillé donnait des cases de 103 px au téléphone). Aussi : Transposer garde une ligne sous les cases (absent de
   la maquette, présent avant).
-- **Dernier balayage complet** (séquenceur D, deuxième sous-lot, 11/11 nuit) : **243 verts, 5 rouges, 6 sans verdict sur 254 suites — exactement la ligne de base** (3111 s cumulées) ; séquenceur D, premier sous-lot (11/11 nuit) : **242 verts, 5 rouges, 6 sans verdict sur 253 suites — exactement la ligne de base** (3092 s cumulées) ; refonte du séquenceur A, C, B (11/11 soir) : **241 verts, 5 rouges, 6 sans verdict sur 252 suites — exactement la ligne de base** (3175 s cumulées) ; poignée des diagrammes (11/11) : 238 verts, 6 rouges, 6 sans verdict sur 250 suites — la ligne de base plus `historique_versions`, rouge sous charge seulement (vert 3 fois sur 3 rejoué seul, sans lien avec le tiroir) ; lot 10f (07/11) : 238 verts, 5 rouges, 6 sans verdict sur 249 suites ; (avant : lot 10e, 235 verts + 2 bancs réparés puis rejoués verts, 5 rouges, 6 sans verdict sur 248 suites — exactement la ligne de base de
+- **Dernier balayage complet** (séquenceur D, troisième sous-lot, 12/11) : **243 verts, 6 rouges, 6 sans verdict sur 255 suites** (3213 s cumulées) — la ligne de base plus
+  `glock_playprogression` (« la lecture affiche le doigté verrouillé », mesure en temps réel), rouge sous la charge du balayage seulement : vert 3 fois sur 3 seul et 4 fois sur 4 en quatre
+  copies parallèles ; séquenceur D, deuxième sous-lot (11/11 nuit) : **243 verts, 5 rouges, 6 sans verdict sur 254 suites — exactement la ligne de base** (3111 s cumulées) ; séquenceur D, premier sous-lot (11/11 nuit) : **242 verts, 5 rouges, 6 sans verdict sur 253 suites — exactement la ligne de base** (3092 s cumulées) ; refonte du séquenceur A, C, B (11/11 soir) : **241 verts, 5 rouges, 6 sans verdict sur 252 suites — exactement la ligne de base** (3175 s cumulées) ; poignée des diagrammes (11/11) : 238 verts, 6 rouges, 6 sans verdict sur 250 suites — la ligne de base plus `historique_versions`, rouge sous charge seulement (vert 3 fois sur 3 rejoué seul, sans lien avec le tiroir) ; lot 10f (07/11) : 238 verts, 5 rouges, 6 sans verdict sur 249 suites ; (avant : lot 10e, 235 verts + 2 bancs réparés puis rejoués verts, 5 rouges, 6 sans verdict sur 248 suites — exactement la ligne de base de
   `CLAUDE.md`. Le lancer en tâche d'arrière-plan avec le chien de garde dans la même commande : `(bash tests/watchdog.sh &) ; bash tests/run_all_fast.sh`.
 - **Dettes connues pour le lot 10** : au téléphone, hors barre du haut, onglets, barre de lecture et vues intégrées (10a, 10b), rien n'a bougé depuis
   le lot 6 ; 19 bancs sont joués à 860 px parce qu'ils éprouvent le mode « Ajout » de la carte Accord, qui n'existe plus que là (liste dans

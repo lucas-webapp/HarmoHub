@@ -6056,3 +6056,10 @@ l'échelle 1,5, la guitare tombait sous le clavier (tiroir de 140 → 317 px) ; 
 - Banc `vues_taille`, partie G (5 vérifications) : une rangée à 900 px / 1,5, diagrammes réduits et échelle retenue, poignée tirée sans saut, bande de construction sur la même
   rangée, retour de l'échelle à 1440 px. Sabotages : pas d'ajustement (4 rouges), poignée qui écrase l'échelle retenue (1). Le seul retrait du CSS ne rougit pas : l'ajustement
   suffit à tout faire tenir (le CSS est un second garde-fou).
+
+Balayage complet (12/11, les trois changements ci-dessus) : **243 verts, 6 rouges, 6 sans verdict sur 255 suites** (3213 s cumulées) — la ligne de base plus `glock_playprogression`
+(1 PASS / 1 FAIL : « la lecture de toute la grille affiche bien le doigté verrouillé de l'accord en cours », relevé pendant la lecture), vert 3 fois sur 3 rejoué seul et 4 fois sur 4 en
+quatre copies parallèles, comme sur la version d'avant (`e9098a1`) : rouge sous la charge du balayage, sans lien avec ces changements (même cas que `historique_versions` le 11/11).
+Balayage ciblé avant lui : 68 verts, 4 rouges (`telephone_barre_lecture`, `telephone_editeur_notes`, `volet_hauteur_poignee` qui visaient « Notes » ou l'ancienne place de « Fichier »,
+réécrits ; `verre` qui comptait un `backdrop-filter: none` comme flou en dur, corrigé par un sélecteur), 2 sans verdict de la ligne de base.
+
