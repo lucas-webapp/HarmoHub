@@ -14,8 +14,12 @@
 //
 // CORRECTIF : un second chercheur (solveGuitarVoicings) qui raisonne en CLASSES DE HAUTEUR, réservé au
 // cas où le voicing n'a pas été personnalisé. Dès qu'il y a renversement, drop ou basse imposée, ce
-// choix est délibéré et le doigté doit rester fidèle à la note près — c'est la dernière vérification
-// de ce banc, et c'est elle qui empêche le correctif d'aller trop loin.
+// choix est délibéré : les doigtés EXACTS (à la note près) restent en tête.
+//
+// COMPLÉTÉ LE 13/11 — « Pourquoi cet accord n'est-il pas jouable à la guitare ? C'est un accord commun. » (un Fm7 ; « cela peut se jouer sur 4 ou 5 cordes, pas obligatoirement les 6 »).
+// Mesuré avant : 358 renversements sur 648, 108 drops sur 480 et 283 accords sur basse sur 660 n'avaient AUCUN doigté (Fm7 : tous ses renversements, toutes ses basses), parce que le chercheur
+// exact exige l'octave de chaque note. Désormais, quand les doigtés exacts manquent, des positions qui gardent la NOTE LA PLUS GRAVE (renversement ou basse) complètent la liste ; pour un drop,
+// seulement s'il n'y en a aucun exact. La dernière vérification de fidélité devient : les exacts restent en tête, et tout doigté ajouté garde la bonne basse.
 const { chromium } = require('playwright');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('accords complexes à la guitare');
@@ -24,7 +28,7 @@ const RACINES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'
 // Les qualités qui n'ont AUCUNE forme enseignée dans le code (BARRE_QUALITIES/OPEN_SHAPES) : elles
 // dépendent donc entièrement du nouveau chercheur. Ce sont exactement celles que l'utilisateur signale.
 const COMPLEXES = ['maj9', 'm9', 'dom11', 'dom13', 'add9', 'add11', 'dim7', 'm7b5', 'aug', 'sus2', 'sus4', 'dim'];
-plan(RACINES.length * 2 + COMPLEXES.length * 2 + 14);
+plan(RACINES.length * 2 + COMPLEXES.length * 2 + 29);
 
 (async () => {
     const navigateur = await chromium.launch();
@@ -135,23 +139,76 @@ plan(RACINES.length * 2 + COMPLEXES.length * 2 + 14);
         check(t.proposes.length >= t.enseignee.length, `${root} majeur : la liste ne perd aucune forme enseignée`);
     }
 
-    // NON-RÉGRESSION, la garde du correctif : un voicing PERSONNALISÉ reste rendu à la note près par le
-    // chercheur exact. Renversement, drop, basse imposée — trois personnalisations, trois vérifications.
+    // NON-RÉGRESSION, la garde du correctif : un voicing PERSONNALISÉ garde en TÊTE ses doigtés exacts (à la note près), et tout doigté ajouté pour compléter garde la BONNE NOTE GRAVE et
+    // ne sonne que des notes de l'accord (plus la basse). Renversement, drop, basse imposée — trois personnalisations, trois vérifications.
     const fidelite = await page.evaluate(() => {
         const cas = [
             { libelle: 'renversement', accord: new Chord('C', 'maj7', 4, 1, 'none', 3, null, null, []) },
             { libelle: 'drop2', accord: new Chord('C', 'maj7', 4, 0, 'drop2', 3, null, null, []) },
             { libelle: 'basse imposée', accord: new Chord('C', 'maj', 4, 0, 'none', 3, 'E', null, []) },
         ];
+        const cle = (f) => f.map(e => (e ? e.fret : 'x')).join('-');
         return cas.map(({ libelle, accord }) => {
             const doigtes = guitarFingeringsForChord(accord, null);
-            const voulu = accord.getVoiced().map(v => v.midi).sort((a, b) => a - b).join(',');
-            const fideles = doigtes.every(f => f.filter(e => e).map(e => e.midi).sort((a, b) => a - b).join(',') === voulu);
-            return { libelle, n: doigtes.length, fideles, voulu };
+            const exacts = solveGuitarFingerings(accord.getVoiced());
+            const voix = accord.getVoiced().map(v => v.midi);
+            const basPc = ((Math.min(...voix) % 12) + 12) % 12;
+            const enTete = exacts.every((f, i) => doigtes[i] && cle(doigtes[i]) === cle(f));
+            const bonneBasse = doigtes.every(f => ((Math.min(...f.filter(e => e).map(e => e.midi)) % 12) + 12) % 12 === basPc);
+            return { libelle, n: doigtes.length, nExacts: exacts.length, enTete, bonneBasse };
         });
     });
-    fidelite.forEach(c => check(c.n === 0 || c.fideles,
-        `voicing personnalisé (${c.libelle}) : le doigté reproduit les hauteurs EXACTES demandées (${c.voulu})`));
+    fidelite.forEach(c => check(c.n > 0 && c.enTete && c.bonneBasse,
+        `voicing personnalisé (${c.libelle}) : ${c.nExacts} doigté(s) exact(s) en tête, ${c.n} au total, tous sur la bonne note grave`));
+
+    // ---------- LE CAS SIGNALÉ : Fm7, renversé ou sur une basse (13/11) ----------
+    const fm7 = await page.evaluate(() => {
+        const liste = (inv, drop, bass) => {
+            const c = new Chord('F', 'min7', 4, inv, drop, 3, bass, null, []);
+            return guitarFingeringsForChord(c, null).map(f => f.map(e => (e ? { fret: e.fret, midi: e.midi } : null)));
+        };
+        const pcBasse = (f) => ((Math.min(...f.filter(e => e).map(e => e.midi)) % 12) + 12) % 12;
+        const pcs = (f, pc) => f.filter(e => e && (((e.midi % 12) + 12) % 12) === pc).length;
+        const accord = [5, 8, 0, 3]; // F, Ab, C, Eb
+        const basses = {};
+        NOTES.forEach((n, pc) => { if (pc !== 5) basses[n] = liste(0, 'none', n); });
+        const exactsDrop2 = solveGuitarFingerings(new Chord('F', 'min7', 4, 0, 'drop2', 3, null, null, []).getVoiced());
+        return {
+            plein: liste(0, 'none', null).length,
+            R1: liste(1, 'none', null).length, R2: liste(2, 'none', null).length, R3: liste(3, 'none', null).length,
+            videsBasses: Object.entries(basses).filter(([, l]) => l.length === 0).map(([n]) => n),
+            mauvaiseBasse: Object.entries(basses).filter(([n, l]) => l.some(f => pcBasse(f) !== NOTES.indexOf(n))).map(([n]) => n),
+            basseEtrangereRepetee: Object.entries(basses).filter(([n, l]) => !accord.includes(NOTES.indexOf(n)) && l.some(f => pcs(f, NOTES.indexOf(n)) !== 1)).map(([n]) => n),
+            drop2: liste(0, 'drop2', null).length, drop2Exacts: exactsDrop2.length,
+        };
+    });
+    check(fm7.plein >= 2, `Fm7 en position fondamentale propose toujours ses doigtés (${fm7.plein})`);
+    check(fm7.R1 >= 2, `Fm7 au 1er renversement (Ab à la basse) propose des doigtés (${fm7.R1}) — avant : aucun, « Non jouable à la guitare »`);
+    check(fm7.R2 >= 2, `Fm7 au 2e renversement (C à la basse) propose des doigtés (${fm7.R2})`);
+    check(fm7.R3 >= 2, `Fm7 au 3e renversement (Eb à la basse) propose des doigtés (${fm7.R3})`);
+    check(fm7.videsBasses.length === 0, `Fm7 sur n'importe laquelle des onze autres basses propose un doigté — sans : ${fm7.videsBasses.join(' ') || 'aucune'}`);
+    check(fm7.mauvaiseBasse.length === 0, `et la note la plus grave de chaque doigté EST la basse demandée — écarts : ${fm7.mauvaiseBasse.join(' ') || 'aucun'}`);
+    check(fm7.basseEtrangereRepetee.length === 0, `une basse étrangère à l'accord (Fm7/D…) ne sonne qu'une fois, tout en bas — répétée sur : ${fm7.basseEtrangereRepetee.join(' ') || 'aucune'}`);
+    check(fm7.drop2 === fm7.drop2Exacts && fm7.drop2 > 0, `Fm7 en drop 2 : ses doigtés exacts, et rien de plus quand il y en a (${fm7.drop2} / ${fm7.drop2Exacts})`);
+
+    // ---------- LE RELEVÉ COMPLET (13/11) : plus de renversement, de drop ni d'accord sur basse « courant » sans doigté ----------
+    const releve = await page.evaluate(() => {
+        const sans = { inv: [], drop: [], basse: [] };
+        const rares = ['maj9', 'm9', 'dom9']; // cinq notes serrées : quelques renversements et drops restent sans doigté
+        NOTES.forEach(root => Object.keys(CHORD_INTERVALS).forEach(q => {
+            if (rares.includes(q)) return;
+            const n = new Chord(root, q, 4, 0, 'none', 3, null, null, []).getIntervals().length;
+            for (let inv = 1; inv < n; inv++) if (!guitarFingeringsForChord(new Chord(root, q, 4, inv, 'none', 3, null, null, []), null).length) sans.inv.push(`${root}${q}/R${inv}`);
+            if (n >= 3) ['drop2', 'drop3'].forEach(d => { if (!guitarFingeringsForChord(new Chord(root, q, 4, 0, d, 3, null, null, []), null).length) sans.drop.push(`${root}${q}/${d}`); });
+        }));
+        NOTES.forEach(root => ['maj', 'min', 'dom7', 'maj7', 'min7'].forEach(q => NOTES.forEach(b => {
+            if (b !== root && !guitarFingeringsForChord(new Chord(root, q, 4, 0, 'none', 3, b, null, []), null).length) sans.basse.push(`${root}${q}/${b}`);
+        })));
+        return sans;
+    });
+    check(releve.inv.length === 0, `aucun renversement sans doigté (hors maj9, m9, dom9) — ${releve.inv.slice(0, 5).join(' ') || 'aucun'} (avant : 358 sur 648)`);
+    check(releve.drop.length === 0, `aucun drop sans doigté (hors maj9, m9, dom9) — ${releve.drop.slice(0, 5).join(' ') || 'aucun'} (avant : 108 sur 480)`);
+    check(releve.basse.length === 0, `aucun accord sur basse sans doigté (5 qualités courantes × 11 basses × 12 tons) — ${releve.basse.slice(0, 5).join(' ') || 'aucun'} (avant : 283 sur 660)`);
 
     // ---------- COUCHE CÂBLAGE : le musicien, dans le panneau, voit bien « 1/4 » et peut naviguer ----------
     if (!(await page.evaluate(() => document.getElementById('toggle-viz-guitar').getAttribute('aria-pressed') === 'true'))) {
@@ -185,6 +242,23 @@ plan(RACINES.length * 2 + COMPLEXES.length * 2 + 14);
     }));
     check(apres.html !== avant, 'la flèche « suivant » change réellement le diagramme dessiné');
     check((apres.libelle || '').startsWith('2/'), `le compteur suit : « ${apres.libelle} »`);
+
+    // Le cas signalé le 13/11, dans le panneau : Fm7 renversé, puis Fm7 sur une basse — « Non jouable à la guitare » avant, plusieurs doigtés maintenant.
+    for (const [libelle, inversion, basse] of [['Fm7 au 1er renversement', '1', ''], ['Fm7/D (basse ré)', '0', 'D']]) {
+        await page.evaluate(([inv, bass]) => {
+            document.getElementById('root').value = 'F';
+            document.getElementById('quality').value = 'min7';
+            document.getElementById('inversion').value = inv;
+            document.getElementById('bass').value = bass;
+            window.app.refreshPreview();
+        }, [inversion, basse]);
+        await page.waitForTimeout(200);
+        const panneau = await page.evaluate(() => ({
+            introuvable: !!document.querySelector('#guitar-viz .guitar-unplayable'),
+            libelle: (document.getElementById('guitar-nav-label') || {}).textContent,
+        }));
+        check(!panneau.introuvable && /^1\/[2-9]$/.test(panneau.libelle || ''), `${libelle} : le panneau n'affiche plus « Non jouable à la guitare » et annonce plusieurs doigtés (« ${panneau.libelle} »)`);
+    }
 
     check(erreurs.length === 0, `aucune erreur JavaScript (${erreurs.slice(0, 2).join(' | ')})`);
     await navigateur.close();

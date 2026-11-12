@@ -2077,9 +2077,18 @@ function comparerRangs(a, b) {
 // hauteurs exactes du voicing. Retourne au plus `limit` formes (tableau de 6 cases, `null` = corde
 // étouffée), une seule par position de manche, de la plus facile à tenir à la plus difficile (voir le
 // classement en fin de fonction, et pourquoi ce n'est PAS l'ordre d'un recueil imprimé).
-function solveGuitarVoicings(root, quality, limit = GUITAR_MAX_SUGGESTIONS) {
+//
+// `basPc` (13/11) : la CLASSE DE HAUTEUR de la note la plus grave qu'on veut entendre quand ce n'est pas la fondamentale — un renversement (la tierce, la quinte, la septième à la
+// basse) ou une basse différente (Fm7/D). RETOUR UTILISATEUR : « Pourquoi cet accord n'est-il pas jouable à la guitare ? C'est un accord commun » (un Fm7), « cela peut se jouer sur 4 ou
+// 5 cordes, pas obligatoirement les 6 ». La note grave est ce que l'oreille attend d'un renversement ou d'une basse ; les autres notes se répartissent librement, comme pour un accord
+// en position fondamentale. La note de basse, même étrangère à l'accord, est admise sur les cordes.
+function solveGuitarVoicings(root, quality, limit = GUITAR_MAX_SUGGESTIONS, basPc = null) {
     const { rootPc, toutes, essentielles } = guitarChordPcs(root, quality);
     if (!toutes.size) return [];
+    const basse = basPc == null ? rootPc : (((basPc % 12) + 12) % 12);
+    // Une basse étrangère à l'accord (Fm7/D, Cmaj/D) ne sonne QU'UNE fois, tout en bas : sinon un ré à vide sur une corde aiguë changerait l'accord en autre chose.
+    const basseEtrangere = basPc != null && !toutes.has(basse);
+    toutes.add(basse);
 
     // Cases autorisées corde par corde : uniquement celles qui tombent sur une note de l'accord. Cinq
     // à sept possibilités par corde au lieu des seize cases — c'est ce qui rend la recherche exhaustive
@@ -2107,9 +2116,10 @@ function solveGuitarVoicings(root, quality, limit = GUITAR_MAX_SUGGESTIONS) {
             // la corde de la à vide donne un la2, plus grave). Chercher la basse par numéro de corde
             // laissait passer des renversements déguisés — 8-0-0-9-11-0 pour un C13, basse la2.
             const grave = Math.min(...byString.filter(e => e).map(e => e.midi));
-            if ((((grave % 12) + 12) % 12) !== rootPc) return;   // fondamentale à la basse : voicing non renversé
+            if ((((grave % 12) + 12) % 12) !== basse) return;   // la basse voulue : la fondamentale (voicing non renversé) ou, si on l'a demandé, une autre note
             const pcs = new Set(byString.filter(e => e).map(e => (((e.midi % 12) + 12) % 12)));
             for (const pc of essentielles) if (!pcs.has(pc)) return;
+            if (basseEtrangere && byString.filter(e => e && (((e.midi % 12) + 12) % 12) === basse).length !== 1) return;
             // Une corde à vide veut dire que la main est au SILLET. Elle ne coûte aucun doigt et
             // n'entre donc dans aucun écartement — c'est justement le piège : sans cette règle, un do
             // à la case 8 accompagné de quatre cordes à vide passait pour la forme la plus facile de
@@ -2324,7 +2334,24 @@ function guitarFingeringsForChord(chord, lockedShape = chord.guitarLock) {
         // que pas de diagramme du tout.
         if (!list.length) list = solveGuitarFingerings(chord.getVoiced());
     } else {
+        // Voicing PERSONNALISÉ (renversement, drop, basse imposée) : les doigtés EXACTS, à la note près, passent en premier — c'est le choix délibéré de l'utilisateur.
         list = solveGuitarFingerings(chord.getVoiced());
+        // Mais exiger l'octave exacte de chaque note ne laisse presque rien à une main : 98 renversements sur 240, 283 accords sur basse sur 660 n'avaient AUCUN doigté
+        // (« Non jouable à la guitare » sur un Fm7 renversé). On complète donc avec des positions qui gardent la NOTE LA PLUS GRAVE et répartissent les autres librement
+        // (quatre à six cordes, la quinte juste pouvant manquer) — pour un drop, seulement quand il n'y a aucun doigté exact : sa disposition des voix est justement ce
+        // qu'il définit, on ne la noie pas dans des positions qui n'en ont que la basse.
+        const voix = chord.getVoiced();
+        if (voix.length && (hasDrop ? list.length === 0 : list.length < GUITAR_MAX_SUGGESTIONS)) {
+            // La basse est lue sur l'accord SANS ses notes libres : une note ajoutée au séquenceur plus bas que lui ne doit pas devenir la basse des doigtés.
+            const nu = new Chord(chord.root, chord.quality, chord.beats, chord.inversion, chord.drop, chord.octave, chord.bass, null, []);
+            const grave = nu.getVoiced()[0].midi;
+            const dejaLa = new Set(list.map(fingeringShapeKey));
+            const dejaPris = new Set(list.map(f => guitarShapeScore(f).position));
+            const complement = solveGuitarVoicings(chord.root, chord.quality, GUITAR_MAX_SUGGESTIONS, grave)
+                .map(shape => shapeToByString(shape, chord.root, chord.quality))
+                .filter(f => !dejaLa.has(fingeringShapeKey(f)) && !dejaPris.has(guitarShapeScore(f).position));
+            list = [...list, ...complement].slice(0, GUITAR_MAX_SUGGESTIONS);
+        }
     }
     if (!lockedShape) return list;
     const lockedFingering = shapeToByString(lockedShape, chord.root, chord.quality);

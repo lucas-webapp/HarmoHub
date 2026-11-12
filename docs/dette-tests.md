@@ -6281,7 +6281,7 @@ Trois demandes de l'utilisateur dans un même message : (1) « Pourquoi cet acco
 Il va falloir qu'on établisse une règle claire pour chaque type d'écran, la gestion par zoom comme avant était trop compliquée. Propose-moi 3 artefacts avec des tailles d'écran différentes et l'application en entier avec le séquenceur, je te dirai ce que je veux ».
 Le message ne contenait pas de capture : **on ne sait pas de quel accord il parle** (à demander).
 
-### 1. Guitare : relevé des accords sans doigté (RIEN d'écrit dans l'appli, propositions seulement)
+### 1. Guitare : relevé des accords sans doigté (livré dans la suite du soir : voir « Suite : Fm7 » plus bas)
 - **Mesuré** (sonde jetable sur `guitarFingeringsForChord`, 12 tons × 20 qualités) : **en position fondamentale, aucun des 240 accords n'est sans doigté** (et aucun n'en a un seul : le banc `accords_complexes_guitare` tient). Le défaut est AILLEURS :
   les accords **renversés, avec un « drop » ou sur une basse** passent par `solveGuitarFingerings`, qui exige les hauteurs EXACTES du voicing (toutes les notes, dans l'octave 3), un empilement qu'aucune main ne tient. Résultat : renversement 1 : 98 accords sur 240 sans
   doigté ; renversement 2 : 126 / 240 ; renversement 3 : 134 / 168 ; drop 2 : 40 / 240 ; drop 3 : 68 / 240 ; **accords sur basse (5 qualités courantes × 11 basses) : 283 sur 660**. Parmi les accords communs (maj, min, dom7, maj7, min7) : 77 renversements sur 156 sont vides
@@ -6306,3 +6306,15 @@ Le message ne contenait pas de capture : **on ne sait pas de quel accord il parl
 - **Proposé** : une hauteur de ligne et une largeur MAXIMALE de croche par classe d'écran, sans zoom : grand écran (≥ 1600 px) 26 / 34, portable (1200 à 1599 px) 24 / 30, petit écran (900 à 1199 px) 22 / 26 ; colonne `minmax(10px, Wpx)` (le plafond remplace le `1fr`, la grille reste calée à gauche). Téléphone inchangé.
   Trois artefacts de vraies captures (grand écran, portable, petit écran), chacun avec « Actuel / Proposé / Plus serré » : à choisir par l'utilisateur avant d'écrire quoi que ce soit.
 - **Reste à faire une fois le choix donné** : implanter la règle (`poserLigne` et le gabarit de colonnes de `rafraichir`, `LIGNE_DEFAUT` par classe), banc par classe d'écran, journal.
+
+### Suite : Fm7 — doigtés pour les renversements, les drops et les accords sur basse (13/11, soir)
+L'utilisateur a précisé : « Guitare : c'est le Fmin7 sur ma capture ». **Mesuré** sur Fm7 : position fondamentale 4 doigtés ; **1er, 2e, 3e renversement : aucun** ; **les onze autres basses : aucun** ; drop 2 : 3 ; drop 3 : 2. Son Fm7 était donc renversé ou sur une basse.
+- **Correction** (`script.js`) : `solveGuitarVoicings(root, quality, limit, basPc)` accepte la CLASSE DE HAUTEUR de la note la plus grave voulue (au lieu de « la fondamentale ») et admet cette note sur les cordes ; une basse étrangère à l'accord (Fm7/D) ne sonne qu'une fois, tout en bas
+  (mesuré avant ce garde-fou : `/G` donnait `3-3-3-0-4-4`, un sol à vide sur une corde aiguë). `guitarFingeringsForChord` : pour un voicing personnalisé, les doigtés EXACTS passent en premier (inchangés), puis des positions à basse respectée complètent jusqu'à quatre ; **pour un drop, seulement quand il n'y a aucun
+  doigté exact** (sa disposition est justement ce qu'il définit). La basse est lue sur l'accord SANS ses notes libres. Quatre à six cordes, la quinte juste pouvant manquer (règles déjà en place).
+- **Mesuré après** (les mêmes 240 accords × variantes, la vraie fonction) : accords sur basse sans doigté **0 sur 660** (avant 283) ; renversements **16 sur 648** (avant 358, tous sur maj9, m9, dom9) ; drops **7 sur 480** (avant 108, dom9 et m9). Fm7 : 4 doigtés à chaque renversement, 2 à 4 sur chaque basse
+  (ex. Fm7/Ab `4-3-1-1-1-1`, `x-x-6-8-6-8` ; Fm7/C `x-3-1-1-1-1` ; Fm7/D `x-5-1-1-1-1`). Les 23 cas restants sont des accords de neuf, cinq notes serrées renversées ou en drop : le message « Non jouable à la guitare » reste pour eux (le bouton d'édition du manche aussi).
+- **Banc** `accords_complexes_guitare` (77 vérifications, dont 13 nouvelles) : la garde « un voicing personnalisé est rendu à la note près » devient « les doigtés exacts restent en tête et tout doigté ajouté garde la bonne note grave » ; la partie Fm7 (renversements, onze basses, note grave exacte, basse étrangère
+  une seule fois, drop 2 inchangé) ; le relevé complet (zéro renversement, drop ou accord sur basse courant sans doigté) ; deux vérifications dans le panneau (Fm7 1er renversement, Fm7/D : « 1/4 »). **Cinq sabotages**, tous détectés (complément retiré : 7 rouges ; basse ignorée : 3 ; drop complété : 1 ;
+  basse étrangère répétée : 1 ; complément devant les exacts : 1).
+- **À signaler à l'utilisateur** : un doigté ajouté n'est plus « à la note près » (les notes hautes peuvent changer d'octave) ; seule la note grave est garantie. Les exacts, quand ils existent, restent en tête.
