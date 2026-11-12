@@ -76,7 +76,8 @@ const GRAINE = { sections: [{ title: 'Couplet', chords: [
         // Lot 10c : au téléphone les H± V± s'effacent aussi (son Affichage est à côté de la barre-résumé) — restent DEUX commandes, la conduite
         // de voix (⊱, au téléphone jusqu'au lot 10f) et « Séq. ».
         // Lot 10f : ⊱ et « Séq. » ont quitté le téléphone, qui n'a plus que la porte « Notes » (#grid-zoom) dans cette barre.
-        const attendues = nom === 'ordinateur' ? ['grille-densites', 'grid-zoom'] : ['grid-zoom'];
+        // Retrait de l'ancien séquenceur (4a, 12/11) : « Éditeur de notes » (#grid-zoom) a quitté l'ordinateur — le séquenceur s'ouvre au bloc « Vues ».
+        const attendues = nom === 'ordinateur' ? ['grille-densites'] : ['grid-zoom'];
         if (!exiger(i && i.enfants.length >= attendues.length && attendues.every(q => i.enfants.some(e => e.q === q)),
             `${nom} : la barre de la grille et ses commandes sont bien là (${i ? i.enfants.length : 0} éléments visibles${attendues.length ? ', dont ' + attendues.join(' et ') : ''})`)) continue;
 

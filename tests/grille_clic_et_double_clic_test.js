@@ -32,34 +32,31 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     // (retour utilisateur : « mets ce même bouton au-dessus de la grille à la place du logo qui n'est
     // pas clair, mais moins large »). Il ouvre le séquenceur ET laisse la grille cliquable — c'est
     // justement ce qui rend la suite du banc possible.
-    console.log('=== 1. Le bouton Séq. ouvre le séquenceur sans emporter la grille ===');
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(250);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : « Éditeur de notes » (#grid-zoom) a quitté l'ordinateur ; le séquenceur s'ouvre au bloc « Vues »,
+    // laisse la grille cliquable, et ne met aucun accord en modification : un clic SÉLECTIONNE (et le séquenceur choisit cet accord), rien de plus.
+    console.log('=== 1. Le bouton Séquenceur ouvre le séquenceur sans emporter la grille ===');
+    const R = require('./_retrait_ancien');
+    const porte = await R.porteAbsente(page);
+    console.log(porte.ok ? 'PASS (« Éditeur de notes » a quitté l\'ordinateur, le séquenceur est au bloc « Vues »)' : 'FAIL ' + porte.detail);
+    await R.ouvrirNouveau(page);
     let r = await page.evaluate(() => ({
         appMode: window.app.appMode,
-        seqOpen: window.app.seqOpen,
+        sqOuvert: !document.getElementById('sequenceur').hidden,
         grilleCliquable: !!document.querySelector('.grid-cell[data-index="0"]'),
     }));
     console.log(JSON.stringify(r));
-    console.log((r.appMode === 'add' && r.seqOpen && r.grilleCliquable)
+    console.log((r.appMode === 'add' && r.sqOuvert && r.grilleCliquable)
         ? 'PASS (séquenceur ouvert, mode Ajout intact, grille toujours là)' : 'FAIL');
 
-    // UN CLIC NE CHARGE PLUS L'ACCORD, ET C'EST VOULU. Le banc exigeait editingIndex === 0 dès le
-    // premier clic ; depuis, un clic SÉLECTIONNE (encadré vert) et seul un double-clic ouvre la
-    // modification — sans quoi promener la sélection dans la grille rouvrait sans cesse une édition
-    // qu'on n'avait pas demandée.
-    // RÉÉCRIT LE 06/11 (sous-lot « Éditeur et clavier »). #grid-zoom ouvre, à l'ordinateur, l'ÉDITEUR DE NOTES, et l'utilisateur a décidé le 05/11
-    // qu'il SUIT la sélection : éditeur ouvert, un clic sur une case l'y amène (l'accord se charge pour être modifié). Le contrat ci-dessus (un clic
-    // sélectionne et rien de plus) tient toujours ÉDITEUR FERMÉ — vérifié par editeur_et_clavier, « Éditeur fermé : rien ne change ».
-    console.log('=== 2. Un clic sélectionne, et l\'éditeur de notes ouvert le charge ===');
+    console.log('=== 2. Un clic sélectionne ; le séquenceur choisit l\'accord, sans modification ===');
     const cell0 = await page.$('.grid-cell[data-index="0"]');
     const box0 = await cell0.boundingBox();
     await page.mouse.click(box0.x + box0.width / 2, box0.y + 8);
-    await page.waitForTimeout(200);
-    r = await page.evaluate(() => ({ selectedIndex: window.app.selectedIndex, editingIndex: window.app.editingIndex, appMode: window.app.appMode }));
+    await page.waitForTimeout(300);
+    r = await page.evaluate(() => { const n = document.querySelector('#sq-grille .sq-nom.choisi'); return { selectedIndex: window.app.selectedIndex, editingIndex: window.app.editingIndex, appMode: window.app.appMode, choisi: n ? +n.dataset.c : null }; });
     console.log(JSON.stringify(r));
-    console.log((r.selectedIndex === 0 && r.editingIndex === 0 && r.appMode === 'edit')
-        ? 'PASS (un clic sélectionne, l\'éditeur de notes ouvert le suit)' : 'FAIL');
+    console.log((r.selectedIndex === 0 && r.editingIndex == null && r.appMode === 'add' && r.choisi === 0)
+        ? 'PASS (un clic sélectionne, le séquenceur le choisit, rien ne passe en modification)' : 'FAIL');
 
     console.log('=== 2 bis. « Réglages du son », dans la bulle, charge bien cet accord pour le modifier ===');
     // LOT 6b : sur ordinateur, le simple clic ouvre la bulle, et c'est d'elle que l'accord se charge dans le panneau (« Réglages du son ») ;
@@ -70,9 +67,9 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.waitForTimeout(250);
     await page.click('#bulle-accord [data-bulle="son"]');
     await page.waitForTimeout(250);
-    r = await page.evaluate(() => ({ editingIndex: window.app.editingIndex, appMode: window.app.appMode, seqOpen: window.app.seqOpen }));
+    r = await page.evaluate(() => ({ editingIndex: window.app.editingIndex, appMode: window.app.appMode, sqOuvert: !document.getElementById('sequenceur').hidden }));
     console.log(JSON.stringify(r));
-    console.log((r.editingIndex === 1 && r.appMode === 'edit' && r.seqOpen)
+    console.log((r.editingIndex === 1 && r.appMode === 'edit' && r.sqOuvert)
         ? 'PASS (« Réglages du son » : accord chargé, séquenceur toujours ouvert dessus)' : 'FAIL');
 
     // REFONTE DU SÉQUENCEUR, POINT B (11/11) : le double-clic sur le symbole OUVRE l'accord (sa bulle) au lieu de retaper le nom ; la retape passe par

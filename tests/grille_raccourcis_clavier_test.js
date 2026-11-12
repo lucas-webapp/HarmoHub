@@ -26,8 +26,9 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(200);
 
-    await page.click('#grid-zoom'); // ouvre le volet du séquenceur continu sous la grille
-    await page.waitForTimeout(400);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : « Éditeur de notes » a quitté l'ordinateur ; c'est le séquenceur du bloc « Vues » qui est ouvert ici.
+    // Il ne met aucun accord en modification : les flèches déplacent la sélection (et le séquenceur la suit), l'accord OUVERT reste ouvert — le contrat d'avant le 06/11.
+    await require('./_retrait_ancien').ouvrirNouveau(page);
     // editChord remplace editChordFromGridZoom, supprimée avec la vue plein écran de la grille (voir
     // le commentaire d'editChord dans script.js). L'appel à la méthode disparue faisait échouer la
     // MISE EN PLACE de ce banc : il mourait avant sa première assertion, donc ne surveillait plus rien
@@ -43,18 +44,18 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     // l'utilisateur a décidé le 05/11 qu'il SUIT la sélection (« un clic sur une autre case de la grille l'y amène » ; ← → passent par le même
     // chemin, selectChord). Éditeur ouvert, la modification avance donc avec la sélection ; éditeur fermé, l'ancien contrat (la sélection seule
     // bouge) tient toujours — voir editeur_et_clavier, « Éditeur fermé : rien ne change ».
-    console.log('--- Flèche droite : la sélection avance, et l\'éditeur de notes ouvert la suit ---');
+    console.log('--- Flèche droite : la sélection avance, le séquenceur la suit, l\'accord ouvert reste ouvert ---');
     await page.keyboard.press('ArrowRight');
-    await page.waitForTimeout(150);
-    let r = await page.evaluate(() => ({
+    await page.waitForTimeout(250);
+    let r = await page.evaluate(() => { const n = document.querySelector('#sq-grille .sq-nom.choisi'); return {
         selectedIndex: window.app.selectedIndex,
         editingIndex: window.app.editingIndex,
         cell2Selected: document.querySelector('.grid-cell[data-section="0"][data-index="2"]').classList.contains('selected'),
-        cell2Editing: document.querySelector('.grid-cell[data-section="0"][data-index="2"]').classList.contains('editing'),
-    }));
+        choisi: n ? +n.dataset.c : null,
+    }; });
     console.log(JSON.stringify(r));
-    console.log((r.selectedIndex === 2 && r.editingIndex === 2 && r.cell2Selected && r.cell2Editing)
-        ? 'PASS (la sélection avance, l\'éditeur de notes la suit)' : 'FAIL');
+    console.log((r.selectedIndex === 2 && r.editingIndex === 1 && r.cell2Selected && r.choisi === 2)
+        ? 'PASS (la sélection avance, le séquenceur la suit, l\'accord ouvert reste A min7)' : 'FAIL');
 
     // CE POINT-CI ÉTAIT UNE TAUTOLOGIE : il exigeait editingIndex === 1, qui n'avait jamais bougé.
     // Il vaut mieux qu'il éprouve ce qui était réellement cassé — les flèches repartaient de l'accord

@@ -30,6 +30,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // explicitement — « gridHead n'accueille plus rien : conservé comme point d'ancrage vide ». Le banc
 // échouait donc sur « visible au chargement », et sa section E cliquait en plus #grid-zoom-close, le
 // bouton de fermeture de la vue plein écran supprimée : rien après n'était atteint.
+const R = require('./_retrait_ancien');
 const { check, exiger, plan, bilan } = require('./_harness')('transport global');
 plan(40);
 
@@ -194,33 +195,25 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
     // disparu — il n'y a plus qu'un transport, et la seule fenêtre restante est celle du séquenceur
     // agrandi, qui se pose PAR-DESSUS sans rien déplacer. On vérifie donc l'inverse de l'ancien
     // contrat : un seul transport, toujours en place, et le verrou de défilement bien posé.
-    await p.evaluate(() => window.app.editChord(0, 0));
-    await p.waitForTimeout(300);
-    // LA PORTE DU PLEIN ÉCRAN A DÉMÉNAGÉ DANS LE SÉQUENCEUR : c'est la loupe de sa barre d'outils
-    // (#seq-plein-ecran), le bouton du volet n'ouvrant plus que la vue compacte, à la demande. Il faut
-    // donc toujours ouvrir le séquenceur d'abord — la loupe n'existe pas tant que sa barre n'est pas
-    // rendue —, et l'ancien enchaînement (#grid-zoom puis #seq-zoom) aurait ici REFERMÉ le panneau.
-    await p.click('#grid-zoom');
-    await p.waitForTimeout(700);
-    await p.click('#seq-plein-ecran');
-    await p.waitForTimeout(700);
-    const pendantAgrandi = await p.evaluate(() => ({
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11, « réécriture courte ») : la loupe (#seq-plein-ecran) et la vue agrandie du séquenceur ont disparu avec
+    // l'éditeur de notes (cahier : « pas de zoom, pas de loupe »). Le séquenceur du bloc « Vues » s'ouvre DANS la page : le contrat devient — un seul transport,
+    // toujours dans la barre, aucune fenêtre par-dessus, donc aucun verrou de défilement.
+    let rr = await R.porteAbsente(p);
+    check(rr.ok, `plus de porte vers la vue agrandie d'avant (${rr.detail})`);
+    rr = await R.ouvrirNouveau(p);
+    exiger(rr.ok, `le séquenceur du bloc « Vues » s'ouvre (${rr.detail})`);
+    const pendantSq = await p.evaluate(() => ({
         bodyLocked: document.body.classList.contains('body-scroll-locked'),
         nbTransports: document.querySelectorAll('.transport').length,
         toujoursDansLaBarre: document.getElementById('bl-lecture').contains(document.querySelector('.transport')),
-        jumeauDeLaLoupe: !!document.getElementById('grid-zoom-play-prog') || !!document.getElementById('grid-zoom-play-chord'),
+        jumeau: !!document.getElementById('grid-zoom-play-prog') || !!document.getElementById('grid-zoom-play-chord') || !!document.getElementById('seq-play'),
     }));
-    console.log(JSON.stringify(pendantAgrandi));
-    check(pendantAgrandi.bodyLocked, 'body.body-scroll-locked est bien posé pendant la vue agrandie');
-    check(pendantAgrandi.nbTransports === 1, `un SEUL transport dans la page — ${pendantAgrandi.nbTransports}`);
-    check(pendantAgrandi.toujoursDansLaBarre, "...toujours ancré au même endroit, la fenêtre se pose par-dessus sans le déplacer");
-    check(!pendantAgrandi.jumeauDeLaLoupe, 'plus aucun bouton jumeau hérité de la vue plein écran');
-    await p.keyboard.press('Escape');
-    await p.waitForTimeout(500);
-    check(await p.evaluate(() => !document.body.classList.contains('body-scroll-locked')),
-        'le verrou de défilement est levé à la fermeture de la vue agrandie');
-    await p.click('#grid-zoom');   // referme aussi le volet, pour repartir d'un état neutre
-    await p.waitForTimeout(400);
+    console.log(JSON.stringify(pendantSq));
+    check(!pendantSq.bodyLocked, 'séquenceur ouvert : pas de verrou de défilement (il est dans la page, pas par-dessus)');
+    check(pendantSq.nbTransports === 1, `un SEUL transport dans la page — ${pendantSq.nbTransports}`);
+    check(pendantSq.toujoursDansLaBarre, '...toujours ancré dans la barre de lecture');
+    check(!pendantSq.jumeau, 'aucun bouton de lecture jumeau (ni de la vue agrandie, ni propre au séquenceur)');
+    await R.cliquer(p, '#sq-fermer', 400);
 
     console.log('\n=== F. Édition d\'un accord : Ajouter/Annuler restent où ils étaient (pas de régression) ===');
     await p.evaluate(() => window.app.editChord(0, 0));

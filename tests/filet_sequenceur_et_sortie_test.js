@@ -159,21 +159,17 @@ const boiteDe = (sel) => {
     // LOT 9c : à l'ordinateur, la conduite de voix n'est plus un panneau voisin (l'icône ⊱ a quitté la rangée de réglages), c'est le calque Voix
     // de l'éditeur de notes. Ce qui doit rester vrai : rien de la conduite de voix ne se pose sur le PETIT séquenceur — même calque allumé dans
     // l'éditeur (le réglage est mémorisé), et aucun ancien panneau ne peut plus s'ouvrir à côté.
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(800);
-    await page.click('#editeur-notes-voix');
-    await page.waitForTimeout(600);
-    await page.click('#editeur-notes-fermer');
-    await page.waitForTimeout(600);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur, l'éditeur de notes et son calque Voix ont disparu (le chemin des voix est supprimé,
+    // décision du 11/11). Ce qui doit rester vrai : rien de la conduite de voix ne se pose sur le petit séquenceur, ni ne peut plus s'ouvrir à côté.
     await page.evaluate(() => { if (!window.app.seqOpen) window.app.toggleSequencer('compact'); });
     await page.waitForTimeout(300);
-    exiger(await page.evaluate(() => window.app.seqOpen === true && window.app.seqMode === 'compact'), 'le petit séquenceur est rouvert avant l\'essai, calque Voix allumé dans l\'éditeur');
+    exiger(await page.evaluate(() => window.app.seqOpen === true && window.app.seqMode === 'compact'), 'le petit séquenceur est ouvert avant l\'essai');
     const etat = await page.evaluate(() => ({
         bouton: !!document.getElementById('toggle-voice-leading').offsetParent, panneau: !!document.querySelector('.voice-leading-panel'),
         calque: [...document.querySelectorAll('.seq-note-fn, .seq-voix-trait, .seq-voix-accord')].filter(e => e.offsetParent !== null).length,
-        voix: window.app.seqVoix,
+        porte: !!document.getElementById('grid-zoom').offsetParent,
     }));
-    check(etat.voix && !etat.bouton && !etat.panneau && etat.calque === 0, `ni ancien panneau, ni calque sur le petit séquenceur — bouton ⊱ ${etat.bouton}, panneau ${etat.panneau}, calque ${etat.calque}`);
+    check(!etat.porte && !etat.bouton && !etat.panneau && etat.calque === 0, `ni éditeur de notes, ni ancien panneau, ni calque sur le petit séquenceur — porte ${etat.porte}, bouton ⊱ ${etat.bouton}, panneau ${etat.panneau}, calque ${etat.calque}`);
 
     console.log('\n=== D. Sortie du mode Modification : ce qui sort, ce qui ne sort pas ===');
     await page.evaluate(() => window.app.editChord(0, 0));
