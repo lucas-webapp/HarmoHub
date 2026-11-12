@@ -15,7 +15,8 @@
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('séquenceur continu en volet');
-plan(12);
+const R = require('./_retrait_ancien');
+plan(9);
 
 (async () => {
     const browser = await chromium.launch({
@@ -54,89 +55,29 @@ plan(12);
     const avant = await verrou();
     check(!avant.classe, `au repos, .body-scroll-locked n'est pas posée sur le corps de page (overflow calculé : « ${avant.overflow} »)`);
 
-    console.log('--- Ouvre le volet, édite l\'accord du MILIEU, inspecte la mise en page continue ---');
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(500);
-    await page.evaluate(() => window.app.editChordFromSequencer(0, 1));
-    await page.waitForTimeout(600);
-
-    const mise = await page.evaluate(() => {
-        const hote = document.getElementById('arp-sequencer');
-        const grille = hote.querySelector('.seq-grid');
-        const defilant = hote.querySelector('.seq-scroll');
-        return {
-            colOffset: grille ? +grille.dataset.colOffset : null,
-            colPx: grille ? +grille.dataset.colPx : null,
-            scrollLeft: defilant ? Math.round(defilant.scrollLeft) : null,
-            scrollWidth: defilant ? Math.round(defilant.scrollWidth) : null,
-            clientWidth: defilant ? Math.round(defilant.clientWidth) : null,
-            classeContinue: !!hote.querySelector('.seq-grid-continuous'),
-            classeDefilementContinu: !!hote.querySelector('.seq-scroll-continuous'),
-            // Nombre de colonnes du gabarit : 1 pour la gouttière des noms de note, puis une par
-            // double croche de TOUTE la partie.
-            colonnes: grille ? getComputedStyle(grille).gridTemplateColumns.split(' ').length : null,
-            // Le contexte des accords VOISINS s'affiche en barres grisées, une par VOIX (les croches
-            // liées d'une même voix ne forment qu'une barre, voir paintCtxSeg). On relève la colonne de
-            // départ et la portée de chacune : c'est ce qui dit de quel côté de l'accord édité elle se
-            // trouve, donc si l'on voit bien ce qui précède ET ce qui suit.
-            ctx: [...hote.querySelectorAll('.seq-ctx-note')].map(e => {
-                const m = /(\d+)\s*\/\s*span\s*(\d+)/.exec(e.style.gridColumn) || [];
-                return { debut: +m[1], portee: +m[2] };
-            }),
-            ctxNav: hote.querySelectorAll('.seq-ctx-nav').length,
-            cellules: hote.querySelectorAll('.seq-cell').length,
-            dansVolet: document.getElementById('seq-dock-host').contains(hote),
-        };
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11, « réécriture courte ») : le volet continu d'avant (« Éditeur de notes », #seq-dock-panel) n'existe plus à
+    // l'ordinateur. L'ENJEU DU BANC RESTE : le séquenceur du bloc « Vues » vit lui aussi DANS la page (au-dessus du tiroir) et ne doit jamais verrouiller son défilement.
+    console.log('--- Ouvre le séquenceur : toute la partie, aucun verrou ---');
+    let r = await R.porteAbsente(page);
+    check(r.ok, `l'ancien volet n'a plus de porte à l'ordinateur (${r.detail})`);
+    r = await R.ouvrirNouveau(page);
+    exiger(r.ok, `le séquenceur du bloc « Vues » s'ouvre (${r.detail})`);
+    r = await R.toutePartie(page);
+    check(r.ok, `il montre toute la partie, chaque accord à sa place, sans défilement de côté (${r.detail})`);
+    const place = await page.evaluate(() => {
+        const s = document.getElementById('sequenceur');
+        return { pos: getComputedStyle(s).position, dansLeFlux: s.parentElement === document.getElementById('vues-tiroir').parentElement };
     });
-    console.log(JSON.stringify(mise, null, 1));
-
-    if (!exiger(mise.classeContinue && mise.classeDefilementContinu && mise.dansVolet,
-        'le volet affiche bien la vue CONTINUE (.seq-grid-continuous + .seq-scroll-continuous dans #seq-dock-host)')) {
-        bilan();
-    }
-
-    // L'accord du milieu commence après le premier : 4 temps x 4 doubles croches = 16 colonnes.
-    check(mise.colOffset === 16,
-        `la vue commence bien à la colonne de l'accord édité, pas au début de la partie (colOffset ${mise.colOffset}, attendu 16)`);
-    check(mise.colPx > 0, `la largeur de colonne est bien publiée pour les gestes de zoom (colPx ${mise.colPx})`);
-    // Trois accords de 4 temps = 48 doubles croches, plus la gouttière des noms de note. C'est
-    // l'invariant de la vue « d'ensemble » : elle couvre TOUTE la partie, pas seulement l'accord édité.
-    // (On ne vérifie pas que la partie dépasse la vue : à 14px la colonne, ces 48 pas tiennent dans
-    // 1280px — il n'y a alors rien à défiler, et c'est correct.)
-    check(mise.colonnes === 49,
-        `la grille couvre toute la partie : 48 doubles croches + la gouttière des noms (${mise.colonnes} colonnes)`);
-    check(mise.ctxNav === 2,
-        `les deux zones de navigation (accord précédent / suivant) sont là — ${mise.ctxNav}`);
-    // L'accord édité occupe les colonnes 18 à 33 (colOffset 16, +1 pour la gouttière, +1 car les
-    // colonnes CSS comptent à partir de 1). Le contexte doit donc apparaître AVANT (colonne 2) et
-    // APRÈS (colonne 34) : c'est la promesse de la vue continue, voir ce qui précède et ce qui suit.
-    const avantAccord = mise.ctx.filter(c => c.debut === 2);
-    const apresAccord = mise.ctx.filter(c => c.debut === 34);
-    console.log('contexte :', JSON.stringify(mise.ctx));
-    check(avantAccord.length > 0 && apresAccord.length > 0,
-        `le contexte grisé apparaît des DEUX côtés de l'accord édité — ${avantAccord.length} voix avant, ${apresAccord.length} après`);
-    // Chaque voisin est joué « held » : chacune de ses voix tient ses 4 temps entiers, soit 16 pas.
-    check(mise.ctx.length > 0 && mise.ctx.every(c => c.portee === 16),
-        `chaque barre de contexte couvre les 16 doubles croches de son accord (portées : ${[...new Set(mise.ctx.map(c => c.portee))].join(', ')})`);
-    check(mise.cellules > 0, `la grille éditable de l'accord courant est bien dessinée (${mise.cellules} cases)`);
-
-    console.log('--- Le volet vit DANS la page : il ne doit jamais verrouiller son défilement ---');
+    check(place.pos !== 'fixed' && place.dansLeFlux, `il est posé dans la page, pas en fenêtre par-dessus (position ${place.pos})`);
     const pendant = await verrou();
-    console.log(JSON.stringify(pendant));
-    check(!pendant.classe,
-        `volet ouvert, .body-scroll-locked n'est toujours pas posée — c'est un volet EN PLACE, pas une fenêtre par-dessus (overflow calculé : « ${pendant.overflow} »)`);
+    check(!pendant.classe, `séquenceur ouvert, .body-scroll-locked n'est pas posée (overflow calculé : « ${pendant.overflow} »)`);
+    r = await R.poserCroche(page, 1);
+    check(r.ok, `on y pose une croche sur l'accord du milieu, Ctrl+Z la retire (${r.detail})`);
 
-    console.log('--- Referme par le même bouton ---');
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(400);
-    const apres = await page.evaluate(() => ({
-        verrou: document.body.classList.contains('body-scroll-locked'),
-        seqOpen: window.app.seqOpen,
-        voletVisible: !document.getElementById('seq-dock-panel').hidden,
-    }));
-    console.log(JSON.stringify(apres));
-    check(!apres.verrou && !apres.seqOpen && !apres.voletVisible,
-        'refermé, le volet est masqué et aucun verrou de défilement ne subsiste');
+    console.log('--- Referme par son × ---');
+    await R.cliquer(page, '#sq-fermer', 400);
+    const apres = await page.evaluate(() => ({ verrou: document.body.classList.contains('body-scroll-locked'), cache: document.getElementById('sequenceur').hidden, presse: document.getElementById('vue-sequenceur').getAttribute('aria-pressed') }));
+    check(!apres.verrou && apres.cache && apres.presse === 'false', `refermé, le séquenceur est masqué, son bouton éteint, aucun verrou (${JSON.stringify(apres)})`);
 
     console.log('Errors:', JSON.stringify(errors, null, 2));
     check(errors.length === 0, 'aucune erreur JavaScript pendant tout le scénario');

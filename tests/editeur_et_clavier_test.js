@@ -6,13 +6,15 @@
 //   (5) une opération de partie (monter, dupliquer, supprimer) garde l'édition OUVERTE (avant : elle la terminait, l'éditeur montrait l'accord seul) ;
 //   (7) la bande de la règle : « au plus cohérent, cela doit me faciliter l'usage » → opaque comme la bande d'intensité, verre allumé ;
 //   (9) « se souvenir de mes derniers paramètres dans chaque morceau » → l'état ouvert / fermé du tiroir Clavier / Guitare est retenu PAR MORCEAU.
+// RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : A, B, C valent pour le séquenceur du bloc « Vues » (l'éditeur de notes a quitté l'ordinateur).
 // Et le téléphone (< 900px) n'a pas bougé : ni l'éditeur (lot 10f), ni la mémoire du tiroir (il n'a pas de tiroir).
 // La police est chargée depuis Google Fonts : injoignable derrière le proxy du bac à sable, bruit filtré (estBruitReseau).
 const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('éditeur et clavier');
 const { estBruitReseau } = require('./_harness');
+const R = require('./_retrait_ancien');
 
-plan(28);
+plan(23);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const graine = (verre) => {
@@ -70,78 +72,65 @@ const graine = (verre) => {
         await p.click(`#partie-menu [data-partie-action="${action}"]`); await p.waitForTimeout(500);
     };
 
-    // ======================================================================================================
-    console.log('\n=== A. L\'éditeur de notes suit la sélection (point 4) ===');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : « Éditeur de notes » n'existe plus à l'ordinateur. Les points 4, 5 et 7 valent pour le séquenceur du
+    // bloc « Vues », qui ne met aucun accord en modification : il montre la partie de l'accord choisi et suit la sélection (4), suit la partie déplacée, dupliquée
+    // ou supprimée (5), et sa barre d'outils reste opaque verre allumé (7).
+    // Ce que montre le séquenceur : les accords de la partie (noms de la règle, dans l'ordre) et l'accord choisi ; et ce que le morceau en dit.
+    const sq = (p) => p.evaluate(() => {
+        const a = window.app, sec = loadProgressionSections()[a.activeSection];
+        const n = document.querySelector('#sq-grille .sq-nom.choisi');
+        return {
+            noms: [...document.querySelectorAll('#sq-grille .sq-nom')].map(x => x.firstChild.textContent.trim()).join(' '),
+            choisi: n ? +n.dataset.c : null, s: a.activeSection, sel: a.selectedIndex, edition: a.editingIndex,
+            titres: loadProgressionSections().map(x => x.title).join(','), partie: sec ? sec.title : null,
+        };
+    });
+    console.log('\n=== A. Le séquenceur suit la sélection (point 4) ===');
     let p = await ouvrir({ width: 1400, height: 900 });
+    let r = await R.porteAbsente(p);
+    check(r.ok, `l'éditeur de notes n'a plus de porte à l'ordinateur (${r.detail})`);
     await p.click(cellule(0, 0)); await p.waitForTimeout(300);
-    await p.click('#grid-zoom'); await p.waitForTimeout(900);
-    let e = await edition(p);
-    exiger(e.editeur && e.s === 0 && e.i === 0 && e.nom === 'Cmaj7', `l'éditeur s'ouvre sur l'accord choisi (${JSON.stringify(e)})`);
+    r = await R.ouvrirNouveau(p);
+    exiger(r.ok, `le séquenceur s'ouvre par son bouton du bloc « Vues » (${r.detail})`);
+    let e = await sq(p);
+    check(e.noms === 'Cmaj7 G7 Em7' && e.choisi === 0 && e.edition == null, `il montre la partie de l'accord choisi, sans le mettre en modification (${JSON.stringify(e)})`);
     await p.click(cellule(0, 2)); await p.waitForTimeout(500);
-    e = await edition(p);
-    check(e.editeur && e.s === 0 && e.i === 2 && e.nom === 'Emin7', `un clic sur une autre case de la grille y amène l'éditeur (${e.nom}, rang ${e.i})`);
-    check(e.marquee === '0:2', `...et c'est elle que la grille marque « en édition » (${e.marquee})`);
+    e = await sq(p);
+    check(e.choisi === 2, `un clic sur une autre case de la grille l'y amène (accord ${e.choisi})`);
     await p.click(cellule(1, 1)); await p.waitForTimeout(500);
-    e = await edition(p);
-    check(e.s === 1 && e.i === 1 && e.nom === 'Adom7' && e.marquee === '1:1', `une case d'une AUTRE partie aussi (${e.nom}, partie ${e.s})`);
-    check(await p.evaluate(() => document.getElementById('root').value === 'A' && document.getElementById('quality').value === 'dom7'),
-        'les réglages de l\'accord ouvert sont ceux de la nouvelle case (fondamentale, type)');
+    e = await sq(p);
+    check(e.noms === 'Dm7 A7' && e.choisi === 1, `une case d'une AUTRE partie : il montre cette partie et choisit l'accord (${e.noms}, ${e.choisi})`);
     await p.keyboard.press('ArrowLeft'); await p.waitForTimeout(500);
-    e = await edition(p);
-    check(e.s === 1 && e.i === 0 && e.nom === 'Dmin7', `← (qui déplace la sélection) emmène aussi l'éditeur (${e.nom})`);
+    e = await sq(p);
+    check(e.noms === 'Dm7 A7' && e.choisi === 0, `← (qui déplace la sélection) l'emmène aussi (${e.choisi})`);
 
     // ======================================================================================================
-    console.log('\n=== B. Une opération de partie garde l\'édition ouverte (point 5) ===');
+    console.log('\n=== B. Une opération de partie : le séquenceur suit la partie (point 5) ===');
     await parMenu(p, 2, 'monter');
-    e = await edition(p);
-    check(e.titres === 'B,A,C' && e.editeur && e.s === 0 && e.i === 0 && e.nom === 'Dmin7', `monter la partie : l'édition reste ouverte sur Dm7, à la nouvelle place de B (${JSON.stringify(e)})`);
-    check(e.marquee === '0:0', `...la grille la marque toujours (${e.marquee})`);
-    await parMenu(p, 1, 'dupliquer');
-    e = await edition(p);
-    check(e.titres === 'B,B (copie),A,C' && e.s === 1 && e.i === 0 && e.nom === 'Dmin7', `dupliquer la partie : l'édition passe sur la copie, devenue active, même accord (${JSON.stringify(e)})`);
-    // Dupliquer une AUTRE partie que celle de l'accord ouvert : l'édition ne quitte pas son accord (sa partie recule d'un rang si la copie est avant).
-    await p.click(cellule(3, 1)); await p.waitForTimeout(500); // Bm7, dans C
-    await parMenu(p, 1, 'dupliquer');
-    e = await edition(p);
-    check(e.titres === 'B,B (copie),B (copie),A,C' && e.s === 4 && e.i === 1 && e.nom === 'Bmin7', `dupliquer une autre partie : l'édition reste sur Bm7, dans C repoussée d'un rang (${JSON.stringify(e)})`);
-    await p.click(cellule(0, 1)); await p.waitForTimeout(500); // A7, dans B
+    e = await sq(p);
+    check(e.titres === 'B,A,C' && e.partie === 'B' && e.noms === 'Dm7 A7' && e.choisi === 0, `monter la partie : il montre toujours B, à sa nouvelle place, Dm7 choisi (${JSON.stringify(e)})`);
     await parMenu(p, 1, 'supprimer');
-    e = await edition(p);
-    check(e.titres === 'B (copie),B (copie),A,C' && e.editeur && e.i != null && e.s === 0 && e.nom === 'Adom7', `supprimer la partie de l'accord ouvert : l'édition passe à la partie qui prend sa place, même rang (${JSON.stringify(e)})`);
-    check(await p.evaluate(() => document.querySelectorAll('#arp-sequencer .seq-cell').length > 0), 'l\'éditeur montre toujours des notes à travailler');
-    // Une annulation par opération : Ctrl+Z ramène la partie supprimée, et rien d'autre.
+    e = await sq(p);
+    const ACCORDS = { A: 'Cmaj7 G7 Em7', B: 'Dm7 A7', C: 'Fmaj7 Bm7' };
+    check(e.titres === 'A,C' && e.noms === ACCORDS[e.partie], `supprimer la partie montrée : il passe à la partie qui prend sa place, rien de périmé (${JSON.stringify(e)})`);
     await p.keyboard.press('Control+z'); await p.waitForTimeout(500);
-    e = await edition(p);
-    check(e.titres === 'B,B (copie),B (copie),A,C', `Ctrl+Z défait la suppression seule (${e.titres})`);
-
-    console.log('\n--- Éditeur fermé : rien ne change ---');
-    await p.click('#editeur-notes-fermer'); await p.waitForTimeout(500);
-    await p.mouse.click(5, 450); await p.waitForTimeout(300); // à côté : l'édition se referme
+    e = await sq(p);
+    check(e.titres === 'B,A,C' && e.noms === ACCORDS[e.partie], `Ctrl+Z ramène la partie supprimée, d'une seule annulation, et le séquenceur montre la partie active (${e.titres}, ${e.partie} : ${e.noms})`);
+    await R.cliquer(p, '#sq-fermer', 400);
     await p.click(cellule(0, 0)); await p.waitForTimeout(400);
-    e = await edition(p);
-    check(!e.editeur && e.i == null, `éditeur fermé, un clic sur une case ne fait que la sélectionner, comme avant (rang en édition : ${e.i})`);
+    e = await sq(p);
+    check(e.edition == null && await p.evaluate(() => document.getElementById('sequenceur').hidden), `séquenceur fermé, un clic sur une case ne fait que la sélectionner (en modification : ${e.edition})`);
     await p.close();
 
     // ======================================================================================================
-    console.log('\n=== C. La règle de l\'éditeur est opaque, verre allumé (point 7) ===');
+    console.log('\n=== C. La barre d\'outils du séquenceur est opaque, verre allumé (point 7) ===');
     p = await ouvrir({ width: 1400, height: 900 }, true);
     exiger(await p.evaluate(() => document.documentElement.getAttribute('data-glass') === '1'), 'le verre est allumé');
     await p.click(cellule(0, 0)); await p.waitForTimeout(300);
-    await p.click('#grid-zoom'); await p.waitForTimeout(900);
-    const fonds = await p.evaluate(() => {
-        const r = document.querySelector('#arp-sequencer .seq-ruler-band');
-        const b = document.querySelector('#arp-sequencer .seq-ruler-band ~ .seq-beat-label');
-        return { regle: r ? getComputedStyle(r).backgroundColor : null, img: r ? getComputedStyle(r).backgroundImage : null, etiquette: b ? getComputedStyle(b).backgroundColor : null };
-    });
-    check(/^rgb\(\d+, \d+, \d+\)$/.test(fonds.regle || ''), `la bande de la règle est OPAQUE (${fonds.regle}) : translucide, les notes qui défilent dessous se devinaient à travers ses chiffres`);
-    check(/gradient/.test(fonds.img || ''), 'elle garde son léger dégradé, comme la bande d\'intensité');
-    // Rouvrir un accord JAMAIS ouvert (ici le premier de B, qui prend la place de A supprimée) écrit son motif résolu, mais ce n'est pas un geste
-    // de l'utilisateur : rien ne s'empile, et le Ctrl+Z qui suit défait la suppression elle-même (avant, il ne défaisait que cette écriture).
-    await parMenu(p, 1, 'supprimer');
-    e = await edition(p);
-    await p.keyboard.press('Control+z'); await p.waitForTimeout(500);
-    const apres = await edition(p);
-    check(e.titres === 'B,C' && e.nom === 'Dmin7' && apres.titres === 'A,B,C', `accord jamais ouvert : un seul Ctrl+Z ramène la partie supprimée (${e.titres} → ${apres.titres})`);
+    r = await R.ouvrirNouveau(p);
+    exiger(r.ok, `séquenceur ouvert (${r.detail})`);
+    const fond = await p.evaluate(() => getComputedStyle(document.querySelector('#sequenceur .sq-outils')).backgroundColor);
+    check(/^rgb\(\d+, \d+, \d+\)$/.test(fond), `la barre d'outils, collée en haut quand il défile, est OPAQUE (${fond}) : les notes qui passent dessous ne traversent pas ses boutons`);
     await p.close();
 
     // ======================================================================================================

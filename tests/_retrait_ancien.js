@@ -53,6 +53,7 @@ const lire = (p, c) => p.evaluate((c) => {
 
 // Poser puis enlever une croche (remplace le crayon, la gomme, la pipette, le déplacement de note) : un clic pose, Ctrl+Z l'enlève.
 async function poserCroche(p, c = 0) {
+    await cliquer(p, `#sq-grille .sq-nom[data-c="${c}"]`); // choisir l'accord visé (Effacer agit sur l'accord choisi)
     await cliquer(p, '#sq-effacer');
     const e0 = await lire(p, c);
     const v = e0.positions[e0.positions.length - 1];
@@ -66,6 +67,7 @@ async function poserCroche(p, c = 0) {
 
 // Intensité (remplace le mode studio et la bande d'intensité) : allumée, un clic sur une note la passe en « fort ».
 async function intensite(p, c = 0) {
+    await cliquer(p, `#sq-grille .sq-nom[data-c="${c}"]`);
     const e0 = await lire(p, c);
     const v = e0.positions[0];
     const k0 = e0.pos[0] ? +e0.pos[0].split(',')[0] : null;
