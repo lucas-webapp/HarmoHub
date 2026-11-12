@@ -1,3 +1,4 @@
+// RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : le séquenceur est désormais celui du bloc « Vues » (voir le corps du banc).
 // Ouvrir le VOLET du séquenceur continu (bouton #grid-zoom, au-dessus de la grille) doit charger
 // l'accord déjà SÉLECTIONNÉ, sans obliger à le recliquer une seconde fois.
 //
@@ -16,7 +17,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 // jamais un problème chez l'utilisateur. Ces échecs réseau sont donc filtrés — sinon ils font
 // échouer « aucune erreur console » et masquent les vraies erreurs au milieu du bruit.
 const { check, exiger, plan, bilan } = require('./_harness')('ouverture sur l\'accord sélectionné');
-plan(9);
+plan(8);
 
 (async () => {
     const browser = await chromium.launch({
@@ -54,50 +55,43 @@ plan(9);
         ctxNav: document.querySelectorAll('#arp-sequencer .seq-ctx-nav').length,
     }));
 
-    console.log('=== Sans rien sélectionner ni éditer : ouvrir le volet ne charge aucun accord ===');
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(600);
-    const vierge = await etat();
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : le volet d'avant (« Éditeur de notes ») a quitté l'ordinateur. L'ENJEU RESTE — le séquenceur ne doit
+    // jamais s'ouvrir « sur du vide » ni sur un autre accord que celui qu'on a choisi — et vaut pour le séquenceur du bloc « Vues », qui montre la partie et
+    // CHOISIT l'accord sélectionné (sans le mettre en édition).
+    const R = require('./_retrait_ancien');
+    const sq = () => page.evaluate(() => { const n = document.querySelector('#sq-grille .sq-nom.choisi'); return { ouvert: !document.getElementById('sequenceur').hidden, choisi: n ? +n.dataset.c : null, noms: document.querySelectorAll('#sq-grille .sq-nom').length, cases: document.querySelectorAll('#sq-grille .sq-case[data-r]').length, editingIndex: window.app.editingIndex, selectedIndex: window.app.selectedIndex }; });
+    console.log('=== Sans rien sélectionner : le séquenceur s\'ouvre sur la partie, premier accord choisi ===');
+    const porte = await R.porteAbsente(page);
+    check(porte.ok, `l'ancien volet n'a plus de porte (${porte.detail})`);
+    await R.ouvrirNouveau(page);
+    const vierge = await sq();
     console.log(JSON.stringify(vierge));
-    check(vierge.editingIndex == null, "sans sélection préalable, aucun accord n'est chargé (comportement inchangé)");
-    check(vierge.seqOpen === true && vierge.seqMode === 'continu', 'le volet est bien ouvert en mode continu');
-    check(vierge.voletVisible && vierge.seqDansVolet, 'le volet affiche bien le VRAI #arp-sequencer (déplacé, pas dupliqué)');
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(400);
-    const ferme = await etat();
-    check(ferme.seqOpen === false && !ferme.voletVisible, 'un second clic sur le même bouton referme le volet');
+    const nb = await page.evaluate(() => loadProgressionSections()[0].chords.length);
+    check(vierge.ouvert && vierge.noms === nb && vierge.cases > 0 && vierge.choisi === 0, `il montre toute la partie, le premier accord choisi, jamais du vide (${JSON.stringify(vierge)})`);
+    check(vierge.editingIndex == null, "aucun accord n'est chargé en édition");
+    await R.cliquer(page, '#vue-sequenceur', 400);
+    check(!(await sq()).ouvert, 'un second clic sur le même bouton le referme');
 
-    console.log('=== VRAI simple clic (pas « Modifier ») sur l\'accord d\'index 2, puis ouverture du volet ===');
+    console.log('=== VRAI simple clic sur l\'accord d\'index 2, puis ouverture ===');
     await page.click('.grid-cell[data-index="2"]', { position: { x: 40, y: 40 } });
     await page.waitForTimeout(400);
     const apresClic = await etat();
-    console.log('après le clic simple :', JSON.stringify(apresClic));
     if (!exiger(apresClic.selectedIndex === 2 && apresClic.editingIndex == null,
-        'le simple clic SÉLECTIONNE l\'accord 2 sans le passer en édition (la scène est bien celle du scénario)')) {
-        console.log('Scène impossible à monter, on ne peut rien conclure de la suite.');
-        bilan();
-    }
+        'le simple clic SÉLECTIONNE l\'accord 2 sans le passer en édition (la scène est bien celle du scénario)')) bilan();
+    await R.ouvrirNouveau(page);
+    const apresOuverture = await sq();
+    console.log('après ouverture :', JSON.stringify(apresOuverture));
+    check(apresOuverture.choisi === 2, `l'accord SÉLECTIONNÉ (index 2) est celui que le séquenceur choisit dès l'ouverture (${apresOuverture.choisi})`);
 
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(800);
-    const apresOuverture = await etat();
-    console.log('après ouverture du volet :', JSON.stringify(apresOuverture));
-    check(apresOuverture.editingIndex === 2,
-        "l'accord SÉLECTIONNÉ (index 2, sans passer par « Modifier ») est bien chargé pour édition dès l'ouverture du volet");
-    check(apresOuverture.ctxNav > 0,
-        `le volet montre les zones de navigation vers les accords voisins — donc il montre bien un accord (${apresOuverture.ctxNav})`);
-    check(apresOuverture.reperes > vierge.reperes,
-        `le volet affiche plus de temps qu'à vide, il ne s'ouvre plus sur du néant (${vierge.reperes} -> ${apresOuverture.reperes} repères)`);
-
-    console.log('=== Un accord DÉJÀ en édition n\'est pas remplacé par la sélection ===');
-    await page.click('#grid-zoom'); await page.waitForTimeout(300);   // referme
-    await page.evaluate(() => window.app.editChord(0, 1));            // édite l'accord 1
+    // Le séquenceur règle le rythme de l'accord SÉLECTIONNÉ dans la grille (ce que montre le cadre bleu), même si un autre est ouvert dans l'inspecteur.
+    console.log('=== Un accord en édition pendant qu\'un autre est sélectionné ===');
+    await R.cliquer(page, '#sq-fermer', 300);
+    await page.evaluate(() => window.app.editChord(0, 1));
     await page.waitForTimeout(300);
-    await page.click('#grid-zoom'); await page.waitForTimeout(700);   // rouvre
-    const dejaEnEdition = await etat();
+    await R.ouvrirNouveau(page);
+    const dejaEnEdition = await sq();
     console.log(JSON.stringify(dejaEnEdition));
-    check(dejaEnEdition.editingIndex === 1,
-        "l'accord déjà en édition reste celui affiché, la sélection ne le supplante pas");
+    check(dejaEnEdition.choisi === dejaEnEdition.selectedIndex && dejaEnEdition.editingIndex === 1, `le séquenceur suit la sélection de la grille (${dejaEnEdition.choisi} = ${dejaEnEdition.selectedIndex}), l'accord 1 reste en édition`);
 
     console.log('Errors:', JSON.stringify(errors));
     check(errors.length === 0, 'aucune erreur JavaScript pendant tout le scénario');

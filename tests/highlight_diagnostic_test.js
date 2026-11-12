@@ -1,4 +1,5 @@
 // La mise en évidence d'un accord dans la grille doit SURVIVRE à l'ouverture du volet du séquenceur :
+// (RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR, 4a, 12/11 : le séquenceur est celui du bloc « Vues », qui ne charge aucun accord en édition.)
 // l'accord sélectionné garde son cadre, celui en édition garde le sien, et les deux ne se confondent
 // pas.
 //
@@ -67,31 +68,28 @@ plan(10);
     check(a1[1].fond !== fondNeutre,
         `la case sélectionnée se distingue VISUELLEMENT des autres (${a1[1].fond} vs ${fondNeutre})`);
 
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(700);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : le volet d'avant (« Éditeur de notes ») a quitté l'ordinateur ; c'est le séquenceur du bloc « Vues »
+    // qui s'ouvre ici. Il ne charge aucun accord en édition : la case sélectionnée doit garder SON cadre, sans en gagner un second.
+    const R = require('./_retrait_ancien');
+    await R.ouvrirNouveau(page);
     const a2 = await cases();
-    console.log('volet ouvert :', JSON.stringify(a2));
-    // Depuis la réparation de toggleSequencer, ouvrir le volet charge l'accord sélectionné : la case
-    // porte alors les DEUX états. Ce qui ne doit pas arriver, c'est qu'elle perde sa mise en évidence.
-    check(a2[1].selected || a2[1].editing,
-        'la case garde sa mise en évidence après l\'ouverture du volet — elle ne redevient pas neutre');
-    check(a2[1].editing, 'et elle est bien passée en édition, l\'accord sélectionné étant chargé (voir toggleSequencer)');
+    console.log('séquenceur ouvert :', JSON.stringify(a2));
+    check(a2[1].selected, 'la case garde sa mise en évidence après l\'ouverture du séquenceur — elle ne redevient pas neutre');
+    check(!a2[1].editing, 'et elle n\'est PAS passée en édition : le séquenceur ne charge aucun accord');
     check(a2[1].fond !== fondNeutre,
         `elle reste visuellement distincte des cases voisines (${a2[1].fond} vs ${a2[0].fond})`);
     check(neutre(a2[0]) && neutre(a2[2]), 'aucune case voisine n\'a attrapé la mise en évidence au passage');
 
-    console.log('=== Scénario B : accord DÉJÀ en édition avant l\'ouverture du volet ===');
-    await page.click('#grid-zoom');                                  // referme
-    await page.waitForTimeout(300);
+    console.log('=== Scénario B : accord DÉJÀ en édition avant l\'ouverture du séquenceur ===');
+    await R.cliquer(page, '#sq-fermer', 300);                       // referme
     await page.evaluate(() => window.app.editChord(0, 2));
     await page.waitForTimeout(300);
     const b1 = await cases();
     exiger(b1[2].editing, 'l\'accord 2 est bien en édition avant l\'ouverture');
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(700);
+    await R.ouvrirNouveau(page);
     const b2 = await cases();
-    console.log('volet ouvert sur l\'accord déjà en édition :', JSON.stringify(b2));
-    check(b2[2].editing, 'il reste en édition après l\'ouverture du volet');
+    console.log('séquenceur ouvert sur l\'accord déjà en édition :', JSON.stringify(b2));
+    check(b2[2].editing, 'il reste en édition après l\'ouverture du séquenceur');
     check(!b2[0].editing && !b2[1].editing, 'et il est le SEUL en édition — le cadre d\'édition ne se duplique pas');
 
     console.log('Errors:', JSON.stringify(errors));

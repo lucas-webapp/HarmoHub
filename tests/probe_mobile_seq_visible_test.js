@@ -1,3 +1,4 @@
+// RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : la partie ordinateur ouvre le séquenceur du bloc « Vues ».
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // Sur téléphone, le séquenceur vit dans la carte Lecture, bien plus bas que le bouton de la barre de
@@ -16,13 +17,15 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
           localStorage.setItem('myProgression',JSON.stringify({sections:[{title:'Couplet',chords:[mk('C','maj'),mk('A','min7')]}]}));});
         await p.reload({waitUntil:'load'}); await p.waitForTimeout(600);
         console.log(`--- ${vp.nom} ---`);
-        if (vp.mob) await p.tap('#grid-zoom'); else await p.click('#grid-zoom');
+        // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur, « Éditeur de notes » n'existe plus ; le séquenceur s'ouvre par le bouton
+        // « Séquenceur » du bloc « Vues » (barre de lecture) et doit être VISIBLE à l'écran dès l'ouverture. Le téléphone garde sa porte d'avant jusqu'à l'étape 4c.
+        if (vp.mob) await p.tap('#grid-zoom'); else await p.click('#vue-sequenceur');
         await p.waitForTimeout(1400); // le défilement est animé (smooth)
-        const r = await p.evaluate(()=>{
-            const s=document.getElementById('arp-sequencer'); const b=s.getBoundingClientRect();
-            return {seqOpen:window.app.seqOpen, haut:Math.round(b.top), bas:Math.round(b.bottom),
+        const r = await p.evaluate((mob)=>{
+            const s=document.getElementById(mob ? 'arp-sequencer' : 'sequenceur'); const b=s.getBoundingClientRect();
+            return {seqOpen: mob ? window.app.seqOpen : !s.hidden, haut:Math.round(b.top), bas:Math.round(b.bottom),
                     hauteur:Math.round(b.height), ecran:window.innerHeight};
-        });
+        }, vp.mob);
         console.log(JSON.stringify(r));
         ck(r.seqOpen === true, `${vp.nom} : le séquenceur s'ouvre`);
         ck(r.hauteur > 0 && r.haut < r.ecran && r.bas > 0,

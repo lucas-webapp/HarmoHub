@@ -128,4 +128,73 @@ async function motif(p) {
     return { ok: m.motif === 'monte', detail: `motif suivi : ${m.motif}` };
 }
 
-module.exports = { centre, cliquer, porteAbsente, ouvrirNouveau, toutePartie, poserCroche, intensite, noteLibre, plageBoucle, teteLecture, couleursRoles, suitSelection, motif, lire };
+// Le glissé PEINT plusieurs croches d'un coup, d'une seule annulation (remplace la pose fluide « comme GarageBand » et le glisser-déposer de notes).
+async function peindre(p, c = 0) {
+    await cliquer(p, `#sq-grille .sq-nom[data-c="${c}"]`);
+    await cliquer(p, '#sq-effacer');
+    const e0 = await lire(p, c);
+    const v = e0.positions[e0.positions.length - 1];
+    const u0 = await p.evaluate(() => window.app.undoStack.length);
+    const a = await centre(p, `#sq-grille .sq-case[data-c="${c}"][data-v="${v}"][data-k="1"]`);
+    const b = await centre(p, `#sq-grille .sq-case[data-c="${c}"][data-v="${v}"][data-k="5"]`);
+    await p.mouse.move(a.x, a.y); await p.mouse.down();
+    for (let s = 1; s <= 8; s++) await p.mouse.move(a.x + (b.x - a.x) * s / 8, a.y, { steps: 2 });
+    await p.mouse.up(); await p.waitForTimeout(400);
+    const e1 = await lire(p, c);
+    const u1 = await p.evaluate(() => window.app.undoStack.length);
+    return { ok: e1.pos[e1.pos.length - 1] === '1,2,3,4,5' && u1 === u0 + 1, detail: `aiguë « ${e1.pos[e1.pos.length - 1]} », ${u1 - u0} annulation(s)` };
+}
+
+// Les repères (remplace le quadrillage et les étiquettes de l'ancien séquenceur) : un trait à chaque temps, un plus marqué à chaque mesure, les numéros de temps
+// dans la règle, le nom de chaque note à gauche, toujours visible.
+async function reperes(p) {
+    const r = await p.evaluate(() => {
+        const g = document.getElementById('sq-grille');
+        const temps = [...g.querySelectorAll('.sq-temps')].map(x => x.textContent).filter(Boolean);
+        const etiq = [...g.querySelectorAll('.sq-etiq')].filter(e => e.textContent.trim() && e.getBoundingClientRect().width > 0);
+        return { mesures: g.querySelectorAll('.sq-case.mesure').length, traits: g.querySelectorAll('.sq-case.temps').length, temps: temps.slice(0, 4).join(''), etiq: etiq.length, lignes: new Set([...g.querySelectorAll('.sq-case[data-r]')].map(x => x.dataset.r)).size };
+    });
+    return { ok: r.mesures > 0 && r.traits > r.mesures && r.temps === '1234' && r.etiq === r.lignes, detail: `${r.mesures} débuts de mesure, ${r.traits} temps, règle « ${r.temps} », ${r.etiq} noms de notes pour ${r.lignes} lignes` };
+}
+
+// Effacer le rythme d'un accord (remplace la suppression de notes du plein écran) : il se vide, Ctrl+Z le rend.
+async function effacerAccord(p, c = 0) {
+    await cliquer(p, `#sq-grille .sq-nom[data-c="${c}"]`);
+    const e0 = await lire(p, c);
+    await cliquer(p, '#sq-effacer');
+    const e1 = await lire(p, c);
+    await p.keyboard.press('Control+z'); await p.waitForTimeout(300);
+    const e2 = await lire(p, c);
+    return { ok: e0.pos.some(Boolean) && e1.pos.every(x => x === '') && e2.pos.join('|') === e0.pos.join('|'), detail: `« ${e0.pos.join('|')} » → vide → Ctrl+Z « ${e2.pos.join('|')} »` };
+}
+
+// Une ligne par VOIX, pas par demi-ton (remplace les deux séquenceurs d'avant, chromatique et simplifié).
+async function lignesParVoix(p) {
+    const r = await p.evaluate(() => {
+        const sec = loadProgressionSections()[window.app.activeSection || 0];
+        const max = Math.max(...sec.chords.map(d => SequenceurHarmo.voixDe(d).positions.length));
+        return { max, lignes: new Set([...document.querySelectorAll('#sq-grille .sq-case[data-r]')].map(x => x.dataset.r)).size };
+    });
+    return { ok: r.lignes === r.max, detail: `${r.lignes} lignes pour un accord le plus riche de ${r.max} sons` };
+}
+
+// Pas de Lecture / Stop propres au séquenceur (décision du 11/11) : c'est la barre de lecture de l'appli qui joue.
+async function sansLecturePropre(p) {
+    const r = await p.evaluate(() => ({ propre: !!document.querySelector('#sequenceur #seq-play, #sequenceur #seq-stop, #sequenceur [aria-label="Lecture"]'), barre: document.querySelectorAll('.transport').length }));
+    return { ok: !r.propre && r.barre === 1, detail: `bouton de lecture dans le séquenceur : ${r.propre}, transports : ${r.barre}` };
+}
+
+// La poignée règle la hauteur des LIGNES (22 à 48 px), double-clic = 30 px.
+async function poigneeLignes(p) {
+    const h = () => p.evaluate(() => Math.round(document.querySelector('#sq-grille .sq-case[data-r]').getBoundingClientRect().height));
+    const h0 = await h();
+    const q = await centre(p, '#sq-poignee');
+    await p.mouse.move(q.x, q.y); await p.mouse.down(); await p.mouse.move(q.x, q.y - 60, { steps: 10 }); await p.mouse.up(); await p.waitForTimeout(300);
+    const h1 = await h();
+    const q2 = await centre(p, '#sq-poignee');
+    await p.mouse.dblclick(q2.x, q2.y); await p.waitForTimeout(300);
+    const h2 = await h();
+    return { ok: h1 > h0 && h1 <= 48 && h2 === 30, detail: `${h0} → ${h1} px, double-clic ${h2} px` };
+}
+
+module.exports = { peindre, reperes, effacerAccord, lignesParVoix, sansLecturePropre, poigneeLignes, centre, cliquer, porteAbsente, ouvrirNouveau, toutePartie, poserCroche, intensite, noteLibre, plageBoucle, teteLecture, couleursRoles, suitSelection, motif, lire };
