@@ -10,85 +10,44 @@
 // Le contrat n'a pas changé — seule la vue qui l'active a changé de nom (loupe grille -> mode
 // 'continu' du volet). On y rebranche, et on passe par les VRAIS boutons plutôt que par des appels
 // de méthode : c'est le câblage du bouton qui est en cause ici, pas la logique qu'il appelle.
-const { chromium } = require('playwright')
+//
+// RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11, décision « réécriture courte ») : #seq-play et ses deux sens ont disparu (pas de Lecture propre au séquenceur, décision du 11/11) : la plage à boucler se tire dans la règle, et la barre de lecture de l'appli la joue. Ce que la sonde gardait n'existe plus à l'ordinateur avec
+// l'éditeur de notes ; elle vérifie désormais que l'ancienne porte a disparu ET que le geste du séquenceur du bloc « Vues » qui le remplace fonctionne
+// (de vrais gestes ; voir tests/_retrait_ancien.js).
+const { chromium } = require('playwright');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
-const { check, exiger, plan, bilan } = require('./_harness')('seq-play et la plage à boucler');
-plan(7);
+const { check, exiger, plan, bilan } = require('./_harness')('seqplay_looprange');
+const { estBruitReseau } = require('./_harness');
+const R = require('./_retrait_ancien');
+
+plan(6);
 
 (async () => {
-    const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
-    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-    const errors = [];
-    page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
-
-    await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
-    await page.waitForTimeout(200);
-    await page.evaluate(() => localStorage.removeItem('myProgression'));
-    await page.reload({ waitUntil: 'load' });
-    await page.waitForTimeout(400);
-
-    // Deux accords, une plage à boucler qui couvre les deux.
-    await page.evaluate(() => { window.app.saveCurrent(); });
-    await page.waitForTimeout(150);
-    await page.evaluate(() => { window.app.saveCurrent(); });
-    await page.waitForTimeout(150);
-    await page.evaluate(() => { window.app.setLoopRange(0, 0, 0, 1); });
-    await page.waitForTimeout(150);
-    exiger(await page.evaluate(() => !!window.app.loopRange), 'la plage à boucler est bien posée sur les deux accords');
-
-    // Espionne les deux chemins de lecture pour savoir lequel le bouton emprunte réellement.
-    const espionner = () => page.evaluate(() => {
-        window.__appels = [];
-        if (window.__espionPose) return;
-        window.__espionPose = true;
-        const cur = window.app.playCurrent.bind(window.app);
-        window.app.playCurrent = function (...a) { window.__appels.push('playCurrent'); return cur(...a); };
-        const prog = window.app.playProgression.bind(window.app);
-        window.app.playProgression = function (...a) { window.__appels.push('playProgression'); return prog(...a); };
+    const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+    const p = await b.newPage({ viewport: { width: 1500, height: 1000 } });
+    const errs = [];
+    p.on('pageerror', e => errs.push(e.message));
+    p.on('console', m => { if (m.type() === 'error' && !estBruitReseau(m.text()) && !/AudioContext/.test(m.text())) errs.push('console: ' + m.text()); });
+    await p.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load' });
+    await p.evaluate(() => {
+        const mk = (r, q) => ({ root: r, quality: q, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
+        const c = []; for (let i = 0; i < 4; i++) c.push(mk(['C', 'A', 'F', 'G'][i % 4], i % 2 ? 'min7' : 'maj7'));
+        localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Couplet', chords: c }] }));
+        sessionStorage.setItem('cc_accueil_vu', '1');
     });
+    await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(800);
 
-    console.log('=== Séquenceur COMPACT (bouton du module) : joue le seul accord en cours ===');
-    await page.evaluate(() => window.app.editChord(0, 0));
-    await page.waitForTimeout(250);
-    await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(500);
-    const modeCompact = await page.evaluate(() => window.app.seqMode);
-    exiger(modeCompact === 'compact', `le séquenceur est bien ouvert en mode compact — trouvé « ${modeCompact} »`);
-
-    await espionner();
-    await page.click('#seq-play');
-    await page.waitForTimeout(300);
-    const appels1 = await page.evaluate(() => window.__appels);
-    console.log('appels en compact :', JSON.stringify(appels1));
-    check(appels1.includes('playCurrent') && !appels1.includes('playProgression'),
-        'en compact, #seq-play appelle playCurrent() (jamais playProgression) même avec une plage à boucler active');
-    check(!await page.evaluate(() => document.getElementById('seq-play').classList.contains('btn-loop-range')),
-        "en compact, #seq-play n'affiche pas la couleur de la plage à boucler");
-
-    await page.evaluate(() => window.app.stopAll());
-    await page.waitForTimeout(200);
-
-    console.log('=== Séquenceur CONTINU (bouton de la barre de grille) : le MÊME bouton joue la plage ===');
-    // Passer d'un mode à l'autre sans refermer : « autre bouton = on bascule de mode » (toggleSequencer).
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(700);
-    const modeContinu = await page.evaluate(() => window.app.seqMode);
-    exiger(modeContinu === 'continu', `le séquenceur est bien passé en mode continu — trouvé « ${modeContinu} »`);
-
-    check(await page.evaluate(() => document.getElementById('seq-play').classList.contains('btn-loop-range')),
-        'en continu, #seq-play prend bien la couleur de la plage à boucler');
-
-    await espionner();
-    await page.click('#seq-play');
-    await page.waitForTimeout(300);
-    const appels2 = await page.evaluate(() => window.__appels);
-    console.log('appels en continu :', JSON.stringify(appels2));
-    check(appels2.includes('playProgression'),
-        'en continu, #seq-play honore bien la plage à boucler (playProgression)');
-
-    await page.evaluate(() => window.app.stopAll());
-    console.log('Errors:', JSON.stringify(errors));
-    check(errors.length === 0, 'aucune erreur JavaScript pendant tout le scénario');
-    await browser.close();
+    let r = await R.porteAbsente(p);
+    check(r.ok, `l'ancienne porte a disparu de l'ordinateur (${r.detail})`);
+    r = await R.ouvrirNouveau(p);
+    exiger(r.ok, `le séquenceur s'ouvre par son bouton du bloc « Vues » (${r.detail})`);
+    r = await R.sansLecturePropre(p);
+    check(r.ok, `pas de Lecture / Stop propres au séquenceur : la barre de lecture de l'appli joue (${r.detail})`);
+    r = await R.plageBoucle(p);
+    check(r.ok, `la plage à boucler se tire sur la règle et se retire d'un clic (${r.detail})`);
+    r = await R.teteLecture(p);
+    check(r.ok, `pendant la lecture, la croche qui sonne s'allume au séquenceur (${r.detail})`);
+    check(errs.length === 0, `aucune erreur JavaScript (${errs.slice(0, 3).join(' | ') || 'rien'})`);
+    await b.close();
     bilan();
-})().catch((e) => { console.error('FATAL', e); process.exit(2); });
+})().catch(e => { console.error('FATAL', e); process.exit(2); });

@@ -8657,4 +8657,7 @@ body.avec-barre-selection .toast { bottom: 132px; }
 @media (min-width: 900px) {
     #grid-zoom { display: none; }
 }
+/* Le curseur de précision de l'ancien séquenceur passe au nouveau (« j'ai besoin de quelque chose de fin pour le séquenceur », « je veux ce curseur uniquement
+   dans le séquenceur ») : le réticule à espace central sur ses cases, et nulle part ailleurs. */
+.sq-case:not(.sans-voix), .sq-case .sq-note { cursor: var(--seq-cursor-reticle), pointer; }
 
