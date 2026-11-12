@@ -8818,3 +8818,31 @@ body.avec-barre-selection .toast { bottom: 132px; }
     html:has(body.pa-rythme-ouvert), body.pa-rythme-ouvert { overflow: hidden; overscroll-behavior: none; }
     body.pa-rythme-ouvert .panneau-accord { overscroll-behavior: none; }
 }
+
+/* ======================================================================================================
+   LES POIGNÉES D'UNE NOTE DU SÉQUENCEUR (13/11) : « ajoute des poignées à droite et à gauche des notes pour pouvoir les étirer ou les raccourcir. On l'avait mis en place
+   pour HarmoHub. L'icône du curseur doit changer en survolant la poignée. » Une poignée est un liseré de quelques pixels au bord de la note (son attaque à gauche, sa dernière
+   croche à droite ; une note d'une croche porte les deux) : au repos presque invisible, elle s'éclaire quand on survole la note, et le curseur y devient « ⇔ » (le réticule du
+   séquenceur reste sur le reste de la note). Pendant le glissé, `body.sq-etire` garde ce curseur même quand le pointeur quitte la poignée. Au doigt : poignée plus large, toujours
+   visible, et `touch-action: none` pour que le glissé étire la note au lieu de faire défiler la grille. En fin de fichier (cascade) : après les règles de `.sq-note`.
+   ====================================================================================================== */
+.sq-bord {
+    position: absolute; top: 0; bottom: 0; z-index: 2;
+    width: clamp(4px, 30%, 8px);
+    cursor: ew-resize; touch-action: none;
+}
+.sq-bord.g { left: 0; }
+.sq-bord.d { right: 0; }
+.sq-bord::after {
+    content: ''; position: absolute; top: 24%; bottom: 24%; width: 2px; border-radius: 1px;
+    background: rgba(255, 255, 255, 0); transition: background 0.12s;
+}
+.sq-bord.g::after { left: 2px; }
+.sq-bord.d::after { right: 2px; }
+.sq-case.on:hover .sq-bord::after { background: rgba(255, 255, 255, 0.4); }
+.sq-bord:hover::after { background: rgba(255, 255, 255, 0.95); }
+@media (pointer: coarse) {
+    .sq-bord { width: clamp(9px, 34%, 14px); }
+    .sq-bord::after { background: rgba(255, 255, 255, 0.45); width: 3px; }
+}
+body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }

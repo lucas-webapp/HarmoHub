@@ -388,6 +388,31 @@
         return true;
     }
 
+    // ÉTIRER / RACCOURCIR UNE NOTE AUX POIGNÉES (13/11 : « ajoute des poignées à droite et à gauche des notes pour pouvoir les étirer ou les raccourcir. On l'avait mis
+    // en place pour HarmoHub »). `fixe` est une croche de la note qui ne bougera pas (son attaque quand on tire la poignée de DROITE, sa dernière croche quand on tire
+    // celle de GAUCHE) ; `k` est la croche sous le pointeur, qui devient le nouveau bout. Une note garde au moins UNE croche, et ne passe jamais sur sa voisine : elle
+    // s'arrête contre elle (rien n'est écrasé en silence). Le niveau d'intensité est porté par l'attaque : il la suit quand c'est le bord gauche qui bouge.
+    function etirerNote(etat, v, fixe, cote, k, croches) {
+        if (!etat.on.has(cle(v, fixe))) return false;
+        const [d, f] = bornesBarre(etat, v, fixe);
+        let nd = d, nf = f;
+        if (cote === 'd') {
+            let haut = croches - 1;
+            for (let j = f + 1; j < croches; j++) if (etat.on.has(cle(v, j))) { haut = j - 1; break; }
+            nf = borner(k, d, haut);
+        } else {
+            let bas = 0;
+            for (let j = d - 1; j >= 0; j--) if (etat.on.has(cle(v, j))) { bas = j + 1; break; }
+            nd = borner(k, bas, f);
+        }
+        if (nd === d && nf === f) return false;
+        const niveau = niveauDe(etat, v, d);
+        for (let j = d; j <= f; j++) { const x = cle(v, j); etat.on.delete(x); etat.soude.delete(x); etat.niveaux.delete(x); }
+        for (let j = nd; j <= nf; j++) { const x = cle(v, j); etat.on.add(x); if (j > nd) etat.soude.add(x); }
+        if (niveau !== 'normal') etat.niveaux.set(cle(v, nd), niveau);
+        return true;
+    }
+
     // Début de la barre qui contient la croche k, et son niveau (il est porté par l'attaque).
     function debutBarre(etat, v, k) {
         let d = k;
@@ -646,7 +671,10 @@
                             if (dr) cls.push('soude-d');
                             if (x.libre) cls.push('libre');
                             cls.push('niv-' + niv);
-                            note = `<span class="sq-note" style="--sq-rgb:${rgb(x.role)}">${g ? '' : escapeHtml(nomNote(e, v, d))}</span>`;
+                            // Les POIGNÉES aux deux bouts de la note (13/11) : à gauche sur son attaque, à droite sur sa dernière croche ; une note d'une croche porte les deux.
+                            const poigneeG = g ? '' : '<i class="sq-bord g" title="Tirer pour étirer ou raccourcir la note" aria-hidden="true"></i>';
+                            const poigneeD = dr ? '' : '<i class="sq-bord d" title="Tirer pour étirer ou raccourcir la note" aria-hidden="true"></i>';
+                            note = `<span class="sq-note" style="--sq-rgb:${rgb(x.role)}">${poigneeG}${g ? '' : escapeHtml(nomNote(e, v, d))}${poigneeD}</span>`;
                             label += ` : ${niv}`;
                         } else label += ' : vide';
                         html.push(`<div class="${cls.join(' ')}" role="gridcell" aria-label="${escapeHtml(label)}" data-c="${c}" data-v="${v}" data-k="${k}" data-r="${ri}" style="grid-row:${row};grid-column:${col + k}">${note}</div>`);
@@ -1210,6 +1238,14 @@
             const allume = v != null && etat.on.has(cle(v, k));
             const g = { type: this.intensite ? 'intensite' : 'peinture', r, mode: allume ? 'off' : 'on', depart: { c, k }, faites: new Set(), etats: new Map(), annulationPosee: false, bouge: false,
                 touch, dessin: touch && this.dessin, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, el: caseEl, minuteur: null };
+            // Une POIGNÉE de note (13/11) : le glissé étire ou raccourcit CETTE note au lieu de peindre. Sans glissé (un simple clic sur le bord de la note), le geste reste celui de
+            // la case : la note s'enlève, comme avant — un bord de 8 px n'est pas un piège pour qui veut juste effacer.
+            const poignee = t.closest('.sq-bord');
+            if (poignee && v != null && allume) {
+                const cote = poignee.classList.contains('g') ? 'g' : 'd';
+                const [debut, fin] = bornesBarre(etat, v, k);
+                g.etire = { cote, v, fixe: cote === 'd' ? debut : fin };
+            }
             // AU DOIGT (12/11, « interférence entre scroll horizontal et création / modification d'une note ») : un appui bref pose ou enlève ; un glissé fait DÉFILER (la
             // grille n'est plus en touch-action: none) sans toucher à aucune note ; l'appui long sur une note ouvre son menu. Pour PEINDRE d'un trait au doigt, le mode
             // « Dessiner » (crayon de la barre d'outils) : la grille y est en touch-action: none, le doigt peint et ne fait plus défiler. Pourquoi un mode et pas un appui long
@@ -1222,6 +1258,7 @@
             const g = this._geste;
             if (g && g.minuteur) clearTimeout(g.minuteur);
             this._geste = null;
+            document.body.classList.remove('sq-etire');
         }
 
         // Le doigt est resté posé sur une note : son menu (Scinder, Prolonger, Supprimer). Sur une case vide, rien de plus qu'un appui.
@@ -1259,8 +1296,9 @@
                 const ecart = Math.hypot(e.clientX - g.x0, e.clientY - g.y0);
                 // Un doigt qui s'écarte de plus de 8 px ne fait plus d'appui long ; hors mode Dessiner, il DÉFILE : aucune note ne bouge (le navigateur enverra aussi pointercancel).
                 if (ecart > 8 && g.minuteur) { clearTimeout(g.minuteur); g.minuteur = null; }
-                if (!g.dessin && g.type !== 'boucle' && g.type !== 'retirer-boucle' && ecart > 8) { this.annulerGeste(); return; }
+                if (!g.dessin && !g.etire && g.type !== 'boucle' && g.type !== 'retirer-boucle' && ecart > 8) { this.annulerGeste(); return; }
             }
+            if (g.etire) { this.etirer(g, e); return; }
             if (g.type === 'boucle') {
                 // elementsFromPoint : la bande orange déjà posée passe AU-DESSUS de la règle, la case visée est dessous.
                 const tp = document.elementsFromPoint(e.clientX, e.clientY).find(el => el.matches && el.matches('#sq-grille [data-c]'));
@@ -1277,6 +1315,34 @@
             if (c === g.depart.c && k === g.depart.k && !g.bouge) return;
             if (!g.bouge) { g.bouge = true; this.peindre(g, g.depart.c, g.depart.k); }
             this.peindre(g, c, k);
+        }
+
+        // La croche de la ligne `r` de l'accord `c` qui est sous l'abscisse `x` — le bout de la note est celle-là, pas un point au pixel. Hors de l'accord, la première ou la
+        // dernière : la poignée suit le pointeur jusqu'au bord de l'accord et s'y arrête (une note ne déborde pas sur l'accord voisin).
+        crocheSous(c, r, x) {
+            const cases = [...this.grille.querySelectorAll(`.sq-case[data-c="${c}"][data-r="${r}"]`)];
+            if (!cases.length) return null;
+            const bornes = cases.map(el => el.getBoundingClientRect());
+            if (x <= bornes[0].left) return +cases[0].dataset.k;
+            const dernier = cases.length - 1;
+            if (x >= bornes[dernier].right) return +cases[dernier].dataset.k;
+            const i = bornes.findIndex(b => x >= b.left && x < b.right);
+            return +cases[i >= 0 ? i : dernier].dataset.k;
+        }
+
+        // Le glissé d'une poignée : une seule annulation pour tout le geste (comme la peinture), l'écriture suit le pointeur croche par croche.
+        etirer(g, e) {
+            const ecart = Math.hypot(e.clientX - g.x0, e.clientY - g.y0);
+            if (!g.bouge && ecart < 4) return;   // pas encore un glissé : un clic sur le bord enlève toujours la note
+            if (!g.bouge) { g.bouge = true; document.body.classList.add('sq-etire'); } // le curseur reste « ⇔ » même si le pointeur quitte la poignée
+            const { c } = g.depart;
+            const k = this.crocheSous(c, g.r, e.clientX);
+            if (k == null) return;
+            const m = this.enCours(g, c);
+            if (!etirerNote(m.etat, g.etire.v, g.etire.fixe, g.etire.cote, k, m.etat.info.croches)) return;
+            if (!g.annulationPosee) this.choisirSansJouer(c);
+            this.ecrire(new Map([[c, m]]), g);
+            this._etats[c] = { ...m.etat, motif: 'main' };
         }
 
         // Peindre d'un trait = UNE note tenue (le cahier : « une note longue est faite de croches soudées, qu'on peint d'un glissé ») : les croches posées par le
@@ -1315,6 +1381,7 @@
             const g = this._geste;
             if (g && g.minuteur) clearTimeout(g.minuteur);
             this._geste = null;
+            document.body.classList.remove('sq-etire');
             if (!g) return;
             if (g.type === 'retirer-boucle') { this.retirerBoucle(); return; }
             if (g.type === 'boucle') { this.app.setLoopRange(this._s, g.c0, this._s, g.c1); return; }

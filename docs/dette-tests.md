@@ -6273,3 +6273,36 @@ Les points 3 et 4 sont des défauts du MODULE (ordinateur comme téléphone, `se
   (bloc en fin de `style.css`) : la page est figée derrière le séquenceur et retrouve sa place à la fermeture.
 - **Bancs** : `sequenceur_toucher` partie F (21 vérifications en tout : un glissé sur la grille puis sur les outils ne fait pas défiler la page à 844 px, la page est figée tant que l'onglet est ouvert, elle est rendue à la fermeture) ; deux sabotages
   (règle CSS retirée : 3 rouges ; classe non retirée à la fermeture : 1 rouge) ; `seq_tiroir_flottant` : « il ne verrouille pas la page » devient « la page est figée derrière le séquenceur plein écran ».
+
+## Session du 13/11 (soir) : poignées des notes du séquenceur, relevé des accords de guitare sans doigté, tailles du séquenceur par écran
+
+Trois demandes de l'utilisateur dans un même message : (1) « Pourquoi cet accord n'est-il pas jouable à la guitare ? C'est un accord commun. Recherche les anomalies sans accord possible comme celles-ci et propose-moi des solutions. Cela peut se jouer sur 4 ou 5 cordes » ;
+(2) « Dans le séquenceur, ajoute des poignées à droite et à gauche des notes pour pouvoir les étirer ou les raccourcir. On l'avait mis en place pour HarmoHub. L'icône du curseur doit changer en survolant la poignée » ; (3) « les barres sont trop hautes et trop larges.
+Il va falloir qu'on établisse une règle claire pour chaque type d'écran, la gestion par zoom comme avant était trop compliquée. Propose-moi 3 artefacts avec des tailles d'écran différentes et l'application en entier avec le séquenceur, je te dirai ce que je veux ».
+Le message ne contenait pas de capture : **on ne sait pas de quel accord il parle** (à demander).
+
+### 1. Guitare : relevé des accords sans doigté (RIEN d'écrit dans l'appli, propositions seulement)
+- **Mesuré** (sonde jetable sur `guitarFingeringsForChord`, 12 tons × 20 qualités) : **en position fondamentale, aucun des 240 accords n'est sans doigté** (et aucun n'en a un seul : le banc `accords_complexes_guitare` tient). Le défaut est AILLEURS :
+  les accords **renversés, avec un « drop » ou sur une basse** passent par `solveGuitarFingerings`, qui exige les hauteurs EXACTES du voicing (toutes les notes, dans l'octave 3), un empilement qu'aucune main ne tient. Résultat : renversement 1 : 98 accords sur 240 sans
+  doigté ; renversement 2 : 126 / 240 ; renversement 3 : 134 / 168 ; drop 2 : 40 / 240 ; drop 3 : 68 / 240 ; **accords sur basse (5 qualités courantes × 11 basses) : 283 sur 660**. Parmi les accords communs (maj, min, dom7, maj7, min7) : 77 renversements sur 156 sont vides
+  (tous les renversements de Dmaj7, Dm7, D7, D#maj7, D#m7, D#7, Fm7, F7…), les accords sur basse comme C/D, C/B, Cm/D ou C7/E.
+- **Ce que voit l'utilisateur** : « Non jouable à la guitare » (`renderGuitarDiagram`, liste vide) et le bouton d'édition du manche est grisé : impossible même de dessiner le doigté à la main.
+- **Cause** : la décision du banc `accords_complexes_guitare` (« dès qu'il y a renversement, drop ou basse imposée, le doigté doit rester fidèle à la note près ») impose la voix exacte, y compris l'octave, alors que ce qui compte pour l'oreille est la NOTE LA PLUS GRAVE.
+- **Prototype mesuré** (copié en page, jamais écrit dans `script.js`) : le chercheur par classes de hauteur (`solveGuitarVoicings`) avec une **basse imposée** (la classe de hauteur de la note la plus grave du voicing demandé) à la place de « la fondamentale », quatre à six cordes, les autres notes libres d'octave
+  (la quinte juste peut manquer à partir de quatre notes, comme déjà). Sur les mêmes cas : renversement 1 : 93 retrouvés sur 98 ; renversement 2 : 115 sur 126 ; renversement 3 : 134 sur 134 ; drop 2 : 40 sur 40 ; drop 3 : 61 sur 68 ; accords sur basse : **283 sur 283**.
+  Il reste 23 cas sans doigté (surtout drop 3 de triades et quelques renversements de septièmes) : à signaler par un message clair plutôt qu'un diagramme vide. Exemples proposés : Cmaj/E `x-x-2-0-1-0`, G/B `x-2-0-0-0-x`, D/F# `x-x-4-2-3-2`, Am/G `3-0-2-0-1-0`, Cmaj7/G `3-3-2-0-0-0`.
+- **À décider avec l'utilisateur** : (a) basse imposée + autres notes libres (proposé) ; (b) garder le doigté exact quand il existe et ne compléter que quand il n'y en a pas ; (c) ne rien changer pour le drop (il est défini par l'espacement des voix, pas par la basse).
+
+### 2. Séquenceur : poignées de note (livré, banc `sequenceur_poignees`)
+- **Données** : `etirerNote(etat, v, fixe, cote, k, croches)` : le bout visé est la croche sous le pointeur ; une note garde une croche au moins, s'arrête contre sa voisine (rien n'est écrasé) et au bout de son accord ; le niveau d'intensité, porté par l'attaque, suit quand c'est le bord gauche qui bouge.
+- **Gestes** (`sequenceur.js`) : `<i class="sq-bord g|d">` dans chaque note (gauche sur l'attaque, droite sur la dernière croche ; une note d'une croche porte les deux) ; `surAppui` ajoute `g.etire` ; `etirer` écrit à chaque croche franchie, sous UNE annulation (`annulationPosee`) ; `crocheSous` lit la croche sous
+  l'abscisse ; un clic sur le bord sans glisser (moins de 4 px) enlève toujours la note. `body.sq-etire` garde le curseur « ⇔ » pendant le glissé. Au doigt : poignée plus large (`@media (pointer: coarse)`), `touch-action: none` sur la poignée.
+- **Piège trouvé en route** : la classe `.sq-poignee` EXISTAIT (poignée de hauteur des lignes, `position: sticky`, `ns-resize`) : mes poignées de note, nommées pareil, se retrouvaient avec hauteur 10 px et décalées de 16 px (mesuré : `offsetLeft −16`, curseur du réticule). Renommées **`sq-bord`**.
+- **Banc** `sequenceur_poignees` (24 vérifications : poignées présentes, curseur « ⇔ » au survol et pas au milieu de la note, étirer des deux côtés, raccourcir, butée contre la voisine, une croche au moins, intensité qui suit l'attaque, clic sur le bord, bout de l'accord, doigt) ; **six sabotages**,
+  tous détectés (butée retirée : 2 rouges ; niveau non transféré : 1 ; zéro croche permis : 1 ; une annulation par déplacement : 2 ; curseur retiré : 1 ; `touch-action` rendu : 1). Balayage ciblé : 10 verts, 0 rouge, `smoke` sans verdict (ligne de base).
+
+### 3. Séquenceur : tailles par type d'écran (proposition, trois artefacts, RIEN d'écrit dans l'appli)
+- **Mesuré** (quatre accords, « Toute la partie ») : ligne de 30 px (barre de 26 px), croche de **57 px à 1920**, 42 px à 1440, 29 px à 1024 (la colonne `minmax(10px, 1fr)` remplit tout l'écran : avec deux accords elle fait plus de 100 px).
+- **Proposé** : une hauteur de ligne et une largeur MAXIMALE de croche par classe d'écran, sans zoom : grand écran (≥ 1600 px) 26 / 34, portable (1200 à 1599 px) 24 / 30, petit écran (900 à 1199 px) 22 / 26 ; colonne `minmax(10px, Wpx)` (le plafond remplace le `1fr`, la grille reste calée à gauche). Téléphone inchangé.
+  Trois artefacts de vraies captures (grand écran, portable, petit écran), chacun avec « Actuel / Proposé / Plus serré » : à choisir par l'utilisateur avant d'écrire quoi que ce soit.
+- **Reste à faire une fois le choix donné** : implanter la règle (`poserLigne` et le gabarit de colonnes de `rafraichir`, `LIGNE_DEFAUT` par classe), banc par classe d'écran, journal.
