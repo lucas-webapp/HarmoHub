@@ -15,6 +15,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // téléchargement déclenché par un bouton inexistant, expirait au bout de dix secondes, et ses sept
 // verdicts suivants — sections 2 et 3, sans aucun rapport — n'étaient jamais atteints.
 const { check, exiger, plan, bilan } = require('./_harness')('trois correctifs');
+const R = require('./_retrait_ancien');
 plan(14);
 
 (async () => {
@@ -148,82 +149,24 @@ plan(14);
     check(r.beatsAfter === 12 && r.addedZoneAllOn,
         `le chemin du glissé à la souris étend lui aussi en notes tenues — ${r.beatsAfter} temps, zone ajoutée tenue : ${r.addedZoneAllOn}`);
 
-    console.log('=== 3. Dragging from the MIDDLE of an existing note no longer splits it ===');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11, décision « réécriture courte ») : le petit séquenceur de l'inspecteur, où l'on étirait une note par son
+    // BORD et où un glissé depuis son MILIEU ne devait plus la couper, a quitté l'ordinateur. Le séquenceur du bloc « Vues » n'a ni poignée de bord ni déplacement
+    // (cahier, « Ce qui disparaît ») : une note longue est faite de croches soudées, qu'on peint d'un glissé. Le banc vérifie que la porte a disparu ET que ces gestes-là
+    // fonctionnent : peindre plusieurs croches d'une seule annulation (remplace l'étirement au bord), poser une croche sur une case vide (non-régression d'origine).
+    console.log('=== 3. Plus de petit séquenceur ; une note longue se peint, une case vide se remplit ===');
     await page.evaluate(() => {
         const mk = (root, quality, beats) => ({ root, quality, beats, inversion: 0, drop: 'none', octave: 4, bass: null, playStyle: 'held' });
         localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Test', chords: [mk('C', 'maj7', 4)] }] }));
     });
     await page.reload({ waitUntil: 'load' });
-    await page.waitForTimeout(200);
-    await page.evaluate(() => { window.app.editChord(0, 0); if (!window.app.seqOpen) window.app.toggleSequencer(); });
-    await page.waitForTimeout(150);
-
-    const patternBefore = await page.evaluate(() => {
-        const app = window.app;
-        const { pattern } = app.getLiveSeqPattern(app.readChord());
-        return JSON.stringify(pattern);
-    });
-
-    // Trouve deux cellules adjacentes, toutes deux "on" (voix 0), ni la première ni la dernière du run —
-    // avec un accord tenu de 16 pas, les cases 5 et 6 (0-indexed) conviennent.
-    const cellA = await page.$('.seq-cell[data-voice="0"][data-step="5"]');
-    const cellB = await page.$('.seq-cell[data-voice="0"][data-step="6"]');
-    const boxA = await cellA.boundingBox();
-    const boxB = await cellB.boundingBox();
-    await page.mouse.move(boxA.x + boxA.width / 2, boxA.y + boxA.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(boxB.x + boxB.width / 2, boxB.y + boxB.height / 2, { steps: 5 });
-    await page.mouse.up();
-    await page.waitForTimeout(100);
-
-    const patternAfter = await page.evaluate(() => {
-        const app = window.app;
-        const { pattern } = app.getLiveSeqPattern(app.readChord());
-        return JSON.stringify(pattern);
-    });
-    check(patternBefore === patternAfter,
-        "glisser depuis le MILIEU d'une note ne la coupe plus ni ne l'efface : le motif est identique avant/après");
-
-    console.log('--- Regression: dragging from an EDGE still resizes normally ---');
-    const edgeCell = await page.$('.seq-cell[data-voice="0"][data-step="0"]');
-    const edgeBox = await edgeCell.boundingBox();
-    const targetCell = await page.$('.seq-cell[data-voice="0"][data-step="3"]');
-    const targetBox = await targetCell.boundingBox();
-    await page.mouse.move(edgeBox.x + edgeBox.width / 2, edgeBox.y + edgeBox.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 5 });
-    await page.mouse.up();
-    await page.waitForTimeout(100);
-    r = await page.evaluate(() => {
-        const app = window.app;
-        const { pattern } = app.getLiveSeqPattern(app.readChord());
-        return pattern.slice(0, 4).map(s => s.includes(0));
-    });
-    console.log('voice0 on for steps 0-3 after edge-drag shrink (start moved to step 3):', JSON.stringify(r));
-    check(JSON.stringify(r) === JSON.stringify([false, false, false, true]),
-        `glisser depuis un BORD redimensionne toujours normalement — voix 0 sur les pas 0 à 3 : ${JSON.stringify(r)}, attendu [false,false,false,true]`);
-
-    console.log('--- Non-régression : poser une note sur une case VIDE marche toujours ---');
-    // Le banc se contentait de vérifier que la case existait, et n'appelait cela « ok » que dans un
-    // console.log — il ne posait aucune note. On peint pour de vrai, et on regarde le résultat.
-    // On vise la voix 0 au pas 0 : la vérification précédente vient d'établir qu'elle est VIDE (le
-    // glissé depuis le bord a ramené le début de la note au pas 3). La voix 1, elle, est tenue de bout
-    // en bout sur cet accord — la case n'y est jamais vide, et peindre dessus ne prouverait rien.
-    r = await page.evaluate(() => {
-        const app = window.app;
-        const avant = app.getLiveSeqPattern(app.readChord()).pattern.map(s => s.includes(0));
-        const cell = document.querySelector('.seq-cell[data-voice="0"][data-step="0"]');
-        if (!cell) return null;
-        const b = cell.getBoundingClientRect();
-        const ev = (type) => new PointerEvent(type, { pointerId: 9, pointerType: 'mouse', bubbles: true, cancelable: true, clientX: b.left + b.width / 2, clientY: b.top + b.height / 2 });
-        cell.dispatchEvent(ev('pointerdown'));
-        cell.dispatchEvent(ev('pointerup'));
-        const apres = app.getLiveSeqPattern(app.readChord()).pattern.map(s => s.includes(0));
-        return { avant: avant[0], apres: apres[0] };
-    });
-    console.log(JSON.stringify(r));
-    check(r && r.avant === false && r.apres === true,
-        `poser une note sur une case VIDE la remplit bien — voix 0, pas 0 : ${r ? r.avant + ' -> ' + r.apres : 'case introuvable'}`);
+    await page.waitForTimeout(600);
+    const porte = await R.porteInspecteurAbsente(page, 0, 0);
+    check(porte.ok, `plus de porte « Séquenceur » ni de petit séquenceur dans l'inspecteur (${porte.detail})`);
+    await R.ouvrirNouveau(page);
+    const peint = await R.peindre(page, 0);
+    check(peint.ok, `un glissé peint une note longue (croches soudées), d'une seule annulation — remplace l'étirement par le bord (${peint.detail})`);
+    const pose = await R.poserCroche(page, 0);
+    check(pose.ok, `poser une croche sur une case VIDE la remplit bien, Ctrl+Z la retire (${pose.detail})`);
 
     console.log('Errors:', JSON.stringify(errors));
     check(errors.length === 0, 'aucune erreur JavaScript pendant tout le scénario');

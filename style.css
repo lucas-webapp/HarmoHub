@@ -8661,3 +8661,12 @@ body.avec-barre-selection .toast { bottom: 132px; }
    dans le séquenceur ») : le réticule à espace central sur ses cases, et nulle part ailleurs. */
 .sq-case:not(.sans-voix), .sq-case .sq-note { cursor: var(--seq-cursor-reticle), pointer; }
 
+
+/* ======================================================================================================
+   RETRAIT DE L'ANCIEN SÉQUENCEUR, ÉTAPE 4b (refonte du séquenceur, D, dernier sous-lot) : à l'ordinateur, le petit séquenceur de l'inspecteur (#arp-sequencer)
+   disparaît avec sa porte « Séquenceur » (#seq-zoom) — la fenêtre d'accord n'a « pas de ligne Rythme » : le rythme se règle dans le séquenceur du bloc « Vues »
+   (docs/refonte-sequenceur.md, 3 bis). Au téléphone, rien ne change avant l'étape 4c. En fin de fichier (cascade).
+   ====================================================================================================== */
+@media (min-width: 900px) {
+    .seq-inline-toolbar, #arp-sequencer { display: none; }
+}

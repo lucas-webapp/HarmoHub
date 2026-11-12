@@ -16,6 +16,7 @@ const { chromium } = require('playwright');
 // exactement le terrain où l'appel mort s'était caché. Ce banc garde donc sa raison d'être et vise la
 // nouvelle porte : le sélecteur des réglages du morceau.
 const creerHarnais = require('./_harness');
+const R = require('./_retrait_ancien');
 const { plan, check, exiger, bilan } = creerHarnais('Instrument : le changer pendant une modification');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 (async () => {
@@ -55,9 +56,11 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
     // version affirmait « le séquenceur est toujours là » sans l'avoir ouvert : .seq-grid était
     // absent AVANT comme APRÈS, et le banc accusait le changement de son d'une disparition qui
     // n'avait jamais eu lieu. Le relevé « avant » ci-dessous rend l'erreur impossible à refaire.
-    await page.evaluate(() => { if (!window.app.seqOpen) window.app.toggleSequencer('compact'); });
-    await page.waitForTimeout(800);
-    const seqAvant = await page.evaluate(() => !!document.querySelector('.seq-grid'));
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : le petit séquenceur de l'inspecteur a quitté l'ordinateur ; le séquenceur de l'accord ouvert est
+    // celui du bloc « Vues », ouvert par son bouton (vrai clic). Le danger gardé par ce banc est le même : changer le son ne doit ni le faire disparaître, ni
+    // sortir l'accord de la modification.
+    await R.cliquer(page, '#vue-sequenceur', 800);
+    const seqAvant = await page.evaluate(() => !document.getElementById('sequenceur').hidden && !!document.querySelector('#sq-grille .sq-case[data-c="1"]'));
     check(seqAvant, 'le séquenceur de l\'accord ouvert est bien affiché AVANT le changement');
 
     await page.click('#rangee-reglages .rr-puce[data-puce="son"]');
@@ -68,7 +71,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
         son: window.app.songInstrument,
         // Le séquenceur de l'accord ouvert doit avoir survécu : c'est lui que l'appel mort empêchait
         // de se redessiner, et son absence était le symptôme visible du défaut d'origine.
-        seqPresent: !!document.querySelector('.seq-grid'),
+        seqPresent: !document.getElementById('sequenceur').hidden && !!document.querySelector('#sq-grille .sq-case[data-c="1"]'),
         editeToujours: window.app.editingIndex === 1,
         // Aucun accord ne porte de son à lui : le réglage est unique pour le morceau.
         parAccord: JSON.parse(localStorage.getItem('myProgression')).sections[0].chords.filter(c => 'instrument' in c).length,

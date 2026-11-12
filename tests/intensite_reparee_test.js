@@ -19,6 +19,7 @@
 // ensuite (sections B à E).
 const { chromium, devices } = require('playwright');
 const creerHarnais = require('./_harness');
+const R = require('./_retrait_ancien');
 const { plan, check, exiger, bilan } = creerHarnais('Intensité : cinq niveaux qui s\'entendent, rangés hors de vue');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
@@ -47,7 +48,7 @@ const clicDroitSurCase = async (page, i) => {
 };
 
 (async () => {
-    plan(22);
+    plan(27);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -142,28 +143,23 @@ const clicDroitSurCase = async (page, i) => {
     console.log('\n=== E. Le mode studio a suivi l\'intensité, dans le séquenceur ===');
     // Il fermait la rangée d'intensité de la carte ; celle-ci partie, sa place est là où il dessine
     // ses barres. Construit à chaque rendu, donc son câblage devait déménager avec lui.
-    await page.evaluate(() => { window.app.editChord(0, 0); if (!window.app.seqOpen) window.app.toggleSequencer('compact'); });
-    await page.waitForTimeout(900);
-    check(await page.evaluate(() => !!document.querySelector('#arp-sequencer #toggle-studio-mode')),
-        'le bouton du mode studio est dans la barre d\'outils du séquenceur');
-    const avantStudio = await page.evaluate(() => window.app.studioMode);
-    await page.click('#arp-sequencer #toggle-studio-mode');
-    await page.waitForTimeout(600);
-    check(await page.evaluate(() => window.app.studioMode) !== avantStudio,
-        'il bascule toujours le mode studio, malgré le déménagement');
-    // Et il survit à un re-rendu : c'est le piège d'un bouton reconstruit à chaque fois.
-    await page.evaluate(() => window.app.renderSequencer());
-    await page.waitForTimeout(500);
-    const apresRendu = await page.evaluate(() => {
-        const b = document.querySelector('#arp-sequencer #toggle-studio-mode');
-        return { present: !!b, actif: !!b && b.classList.contains('active') };
-    });
-    check(apresRendu.present && apresRendu.actif === !avantStudio,
-        'après un re-rendu du séquenceur, il est toujours là ET reflète toujours l\'état');
-    await page.click('#arp-sequencer #toggle-studio-mode');
-    await page.waitForTimeout(500);
-    check(await page.evaluate(() => window.app.studioMode) === avantStudio,
-        'et le bouton reconstruit répond encore : son câblage n\'a pas été perdu au rendu');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : le petit séquenceur et son mode studio ont quitté l'ordinateur ; « le mode studio comme mode à part
+    // disparaît, son logo est repris pour le bouton Intensité » du séquenceur du bloc « Vues » (cahier, « Ce qui disparaît »). Ce que la partie gardait reste
+    // vrai : le réglage croche par croche est DANS le séquenceur, il bascule, et un clic sur une note y change sa force.
+    await page.evaluate(() => window.app.editChord(0, 0)); // l'accord en modification (relevé d'état, pas un geste éprouvé ici)
+    await page.waitForTimeout(400);
+    const ouvertE = await R.ouvrirNouveau(page);
+    exiger(ouvertE.ok, `le séquenceur du bloc « Vues » s'ouvre par son bouton (${ouvertE.detail})`);
+    check(await page.evaluate(() => !!document.querySelector('#sequenceur .sq-outils #sq-intensite') && !document.querySelector('#toggle-studio-mode')),
+        'le bouton Intensité est dans la barre d\'outils du séquenceur, l\'ancien mode studio n\'est plus là');
+    const presse = () => page.evaluate(() => document.getElementById('sq-intensite').getAttribute('aria-pressed'));
+    const avantI = await presse();
+    await R.cliquer(page, '#sq-intensite', 400);
+    check(await presse() !== avantI, `il bascule l'intensité — ${avantI} → ${await presse()}`);
+    await R.cliquer(page, '#sq-intensite', 400);
+    check(await presse() === avantI, 'un second clic la rend comme avant : son câblage tient d\'un rendu à l\'autre');
+    const fort = await R.intensite(page, 0);
+    check(fort.ok, `allumée, un clic sur une note la passe en « fort » (${fort.detail})`);
     await page.close();
 
     console.log('\n=== F. Téléphone : le menu reste atteignable au doigt ===');

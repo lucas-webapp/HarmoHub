@@ -71,25 +71,15 @@ async function ouvrir(page) {
     rr = await R.plageBoucle(page);
     check(rr.ok, `dans la règle, c'est bien la règle qu'on touche : un glissé y tire la plage à boucler (${rr.detail})`);
 
-    console.log('--- 5. Le petit séquenceur garde ses NUMÉROS DE TEMPS (1 2 3 4) ---');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11, décision « réécriture courte ») : le petit séquenceur de l'inspecteur a quitté l'ordinateur. Ce que la
+    // partie gardait — compter en temps (1 2 3 4), sans bandeau superflu — est tenu par le séquenceur du bloc « Vues », dont la règle numérote chaque temps.
+    console.log('--- 5. Plus de petit séquenceur ; la règle du séquenceur compte en temps (1 2 3 4) ---');
     await R.cliquer(page, '#sq-fermer');
-    await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(500);
-    const petit = await page.evaluate(() => {
-        const g = document.querySelector('#arp-sequencer .seq-grid');
-        if (!g) return { absent: true };
-        const nums = [...g.querySelectorAll('.seq-beat-label .seq-beat-num')].map(s => s.textContent);
-        return {
-            continu: g.classList.contains('seq-grid-continuous'),
-            suite: nums.join(' '),
-            visibles: [...g.querySelectorAll('.seq-beat-label .seq-beat-num')].every(s => +getComputedStyle(s).opacity > 0.5),
-            bande: g.querySelectorAll('.seq-ruler-band').length,
-        };
-    });
-    console.log(JSON.stringify(petit));
-    check(!petit.continu && petit.suite === '1 2 3 4' && petit.visibles,
-        `le petit séquenceur compte toujours en temps, tous visibles — « ${petit.suite} »`);
-    check(petit.bande === 0, 'pas de bandeau de règle dans le petit séquenceur (il ne couvre qu\'un accord)');
+    const petit = await R.porteInspecteurAbsente(page, 0, 0);
+    check(petit.ok, `plus de porte « Séquenceur » ni de petit séquenceur dans l'inspecteur (${petit.detail})`);
+    const rouvert = await R.ouvrirNouveau(page);
+    const temps = await page.evaluate(() => [...document.querySelectorAll('#sq-grille .sq-temps')].map(x => x.textContent.trim()).filter(Boolean).join(''));
+    check(rouvert.ok && temps.length >= 8 && /^(1234)+$/.test(temps), `le séquenceur du bloc « Vues » compte en temps, chaque mesure de 1 à 4 (${rouvert.detail} ; règle « ${temps} »)`);
 
     console.log('--- 6. Mobile ---');
     const mob = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });

@@ -1,4 +1,5 @@
 // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur la porte au-dessus de la grille est devenue le bouton « Séquenceur » du bloc « Vues ».
+// RÉÉCRIT DE NOUVEAU (4b, 12/11) : la porte « Séquenceur » de la carte Accord a quitté l'ordinateur avec le petit séquenceur et sa loupe (sections A à C).
 // Deux portes vers le séquenceur, et toutes deux portent un nom.
 //
 // RETOUR UTILISATEUR : « Vu qu'on a gagné de la place, le bouton agrandir est pas mal, mais il fait
@@ -23,6 +24,7 @@
 // sinon elle ne fait rien du tout — et rien n'est plus silencieux qu'un bouton qui rend la main.
 const { chromium, devices } = require('playwright');
 const creerHarnais = require('./_harness');
+const R = require('./_retrait_ancien');
 const { plan, check, exiger, bilan } = creerHarnais('Deux portes nommées vers le séquenceur');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
@@ -49,7 +51,7 @@ const atteignable = (sel) => {
 };
 
 (async () => {
-    plan(31);
+    plan(22);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -66,119 +68,50 @@ const atteignable = (sel) => {
     await page.click('#bulle-accord [data-bulle="son"]');
     await page.waitForTimeout(500);
 
-    console.log('=== A. Deux portes, deux noms, et plus aucun pictogramme muet ===');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : à l'ordinateur, la porte « Séquenceur » de la carte Accord (petit séquenceur, sa loupe « plein écran »)
+    // a disparu à son tour — la fenêtre d'accord n'a « pas de ligne Rythme » : le rythme se règle dans le séquenceur, sans le dire (cahier 3 bis). Il ne reste qu'UNE
+    // porte à l'ordinateur, le bouton « Séquenceur » du bloc « Vues ». Les sections B, B bis et E éprouvaient la porte de la carte (ouvrir sans agrandir, la loupe, l'écart
+    // avec ce qui la précède) : réécriture courte (décision du 12/11) — la porte n'existe plus, et le geste qui la remplace règle bien le rythme de l'accord ouvert.
+    console.log('=== A. Une seule porte à l\'ordinateur, nommée, et plus aucun pictogramme muet ===');
     const a = await page.evaluate(() => {
         const lire = (id) => {
             const e = document.getElementById(id);
             if (!e) return null;
             const r = e.getBoundingClientRect();
-            // innerText et non textContent : le bouton porte les deux libellés (« Séq. » au téléphone, « Éditeur de notes » à l'ordinateur, lot 9a),
-            // et seul celui que l'écran MONTRE compte.
             return { texte: (e.innerText || '').trim(), l: Math.round(r.width), h: Math.round(r.height),
-                     visible: e.offsetParent !== null, svg: !!e.querySelector('svg') };
+                     visible: e.offsetParent !== null && r.width > 0, svg: !!e.querySelector('svg') };
         };
-        return { ancien: !!document.getElementById('toggle-sequencer'), seq: lire('grid-zoom'), plein: lire('seq-zoom'), vues: lire('vue-sequenceur'),
-                 vuesNom: (document.getElementById('vue-sequenceur') || { getAttribute: () => null }).getAttribute('aria-label') };
+        return { ancien: !!document.getElementById('toggle-sequencer'), seq: lire('grid-zoom'), plein: lire('seq-zoom'), petit: lire('arp-sequencer'), vues: lire('vue-sequenceur'),
+                 vuesNom: (document.getElementById('vue-sequenceur') || { getAttribute: () => null }).getAttribute('aria-label'), edite: window.app.editingIndex };
     });
     check(!a.ancien, 'le pictogramme de l\'en-tête a disparu : il faisait doublon sans le dire');
-    exiger(!!a.seq && !!a.plein, 'les deux portes existent');
-    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : la porte au-dessus de la grille (« Éditeur de notes ») a quitté l'ordinateur — « Le bouton « Séq. »
-    // de la rangée de réglages disparaît à l'ordinateur » (cahier 3 bis) ; le séquenceur s'ouvre par le bouton « Séquenceur » du bloc « Vues » (logo repris, nom dans
-    // l'infobulle et l'aria-label). La porte de la carte Accord (« Séquenceur », petit séquenceur) reste jusqu'à l'étape 4b.
-    check(!a.seq.visible, 'au-dessus de la grille, plus de porte à l\'ordinateur');
+    exiger(!!a.seq && !!a.plein && a.edite === 0, 'les deux anciennes portes existent encore pour le téléphone, et l\'inspecteur est ouvert sur le premier accord');
+    check(!a.seq.visible, 'au-dessus de la grille, plus de porte à l\'ordinateur (4a)');
+    check(!a.plein.visible && !a.petit.visible, `dans l'inspecteur, plus de porte « Séquenceur » ni de petit séquenceur (4b) — porte ${a.plein.visible}, petit ${a.petit.visible}`);
     check(a.vues && a.vues.visible && a.vues.svg && a.vuesNom === 'Séquenceur', `la porte du séquenceur est dans le bloc « Vues », avec son logo et son nom (« ${a.vuesNom} »)`);
-    check(a.plein.texte === 'Séquenceur', `dans la carte Accord, « ${a.plein.texte} » et non plus « Agrandir »`);
-    // « Moins large » : la porte du bloc « Vues » est un bouton-logo à la jauge de la barre (32 px), plus étroit que « Séquenceur » de la carte Accord.
-    check(a.vues.l === 32 && a.vues.h === 32 && a.vues.l < a.plein.l, `le bouton du bloc « Vues » est à la jauge, plus étroit que « Séquenceur » — ${a.vues.l}px contre ${a.plein.l}px`);
+    check(a.vues.l === 32 && a.vues.h === 32, `le bouton du bloc « Vues » est à la jauge de la barre — ${a.vues.l}x${a.vues.h}px`);
 
-    console.log('\n=== B. « Séquenceur » ouvre ET agrandit, d\'un seul geste ===');
-    // LE point du lot. Séquenceur fermé, openSeqZoom() rendait la main sans rien faire.
-    exiger(await page.evaluate(() => window.app.seqOpen === false), 'on part séquenceur fermé');
-    const r0 = await page.evaluate(atteignable, '#seq-zoom');
-    exiger(r0.ok, `la porte est réellement atteignable, séquenceur fermé — ${r0.ok ? r0.taille : r0.pourquoi}`);
-    await page.click('#seq-zoom');
-    await page.waitForTimeout(900);
-    const b = await page.evaluate(() => ({
-        ouvert: window.app.seqOpen, mode: window.app.seqMode, zoom: window.app.seqZoomOpen,
-        overlay: !document.getElementById('seq-zoom-overlay').hidden,
-        grilleDansLePleinEcran: !!document.querySelector('#seq-zoom-host .seq-grid'),
-    }));
-    check(b.ouvert && b.mode === 'compact', `un seul clic ouvre le séquenceur — mode ${b.mode}`);
-    // ELLE N'AGRANDIT PLUS, ET C'ÉTAIT UN BLOCAGE. Retour utilisateur : « le bouton séquenceur dans
-    // le volet de gauche ne devrait ouvrir que le "Petit séquenceur", pas le grand séquenceur en
-    // continu. Sinon, je ne peux jamais ouvrir le petit... » — et c'est exact : la porte ouvrait le
-    // compact PUIS l'agrandissait aussitôt, si bien que la vue compacte n'existait à aucun moment.
-    check(!b.zoom && !b.overlay, 'elle n\'agrandit plus : le petit séquenceur reste visible, c\'était tout le problème');
-    // Elle BASCULE désormais : un second appui referme. C'est cohérent avec « Séq. » juste à côté, et
-    // avec l'état allumé que le bouton porte déjà quand sa vue est ouverte — un bouton qui s'allume
-    // annonce qu'il s'éteint.
-    await page.click('#seq-zoom');
-    await page.waitForTimeout(700);
-    check(await page.evaluate(() => window.app.seqOpen === false),
-        'un second appui referme le petit séquenceur : le bouton allumé annonce qu\'il s\'éteint');
-    await page.click('#seq-zoom');
-    await page.waitForTimeout(700);
-
-    // === B bis. Le plein écran se demande DEPUIS le séquenceur, par sa loupe ===
-    // « Je propose d'ajouter un bouton loupe dans le petit séquenceur, qui permettra d'afficher ce
-    // dernier en grand écran […] car je n'aurais pas souvent besoin d'ouvrir le séquenceur en grand. »
-    // Agrandir est une opération SUR le séquenceur : sa commande lui appartient.
-    exiger(await page.evaluate(() => !!document.getElementById('seq-plein-ecran')),
-        'la loupe est présente dans la barre du séquenceur');
-    const casePetite = await page.evaluate(() => {
-        const c = document.querySelector('.seq-cell');
-        return c ? Math.round(c.getBoundingClientRect().width) : null;
-    });
-    exiger(casePetite > 0, `la taille d'une case du petit séquenceur est mesurable — ${casePetite}px`);
-    await page.click('#seq-plein-ecran');
-    await page.waitForTimeout(800);
-    check(await page.evaluate(() => window.app.seqZoomOpen === true), 'la loupe ouvre bien le plein écran');
-    check(await page.evaluate(() => !document.getElementById('seq-plein-ecran')),
-        'et disparaît une fois en plein écran : il n\'y a plus rien à agrandir');
-    // AGRANDIR NE CHANGE PAS DE VUE, IL CHANGE DE TAILLE. Retour utilisateur : « il y a peut-être un
-    // malentendu pour la loupe […] j'aimerais juste voir le petit séquenceur simple, mais en plus gros
-    // pour le modifier plus facilement. Donc pas besoin de voir les demi-tons ni les accords
-    // adjacents. » C'était bien un malentendu : la loupe basculait dans la vue continue.
-    const agrandi = await page.evaluate(() => {
-        const g = document.querySelector('.seq-grid');
-        const c = document.querySelector('.seq-cell');
-        return {
-            continu: g.className.includes('continuous'),
-            plafonnee: g.className.includes('plafonnee'),
-            voisins: document.querySelectorAll('.seq-ctx-note').length,
-            lignes: document.querySelectorAll('.seq-row-name, .seq-label').length,
-            largeurCase: Math.round(c.getBoundingClientRect().width),
-            largeurGrille: Math.round(g.getBoundingClientRect().width),
-            fenetre: window.innerWidth,
-        };
-    });
-    check(!agrandi.continu, 'la loupe garde la vue SIMPLE : ni axe chromatique, ni demi-tons');
-    check(agrandi.voisins === 0, `et aucun accord voisin en lecture seule — ${agrandi.voisins}`);
-    check(agrandi.largeurCase > casePetite,
-        `mais des cases plus GRANDES, ce qui est tout l'objet de la loupe — ${casePetite}px puis ${agrandi.largeurCase}px`);
-    // « Pour des accords très courts, il faudra limiter la largeur du séquenceur pour que ça garde du
-    // sens » : sans plafond, `1fr` étire seize doubles croches sur toute la largeur de l'écran.
-    check(agrandi.plafonnee && agrandi.largeurGrille < agrandi.fenetre - 100,
-        `la largeur est plafonnée plutôt que d'occuper tout l'écran — grille ${agrandi.largeurGrille}px pour une fenêtre de ${agrandi.fenetre}px`);
-
-    await page.evaluate(() => window.app.closeSeqZoom());
-    await page.waitForTimeout(500);
-
-    console.log('\n=== C. « Séquenceur » (bloc Vues) ouvre la vue d\'ensemble, et les deux portes s\'annoncent ===');
-    await page.evaluate(() => window.app.closeSeqZoom());
-    await page.waitForTimeout(400);
-    if (await page.evaluate(() => window.app.seqOpen)) await page.click('#seq-zoom'); // referme le petit séquenceur de la section B
-    await page.waitForTimeout(400);
+    console.log('\n=== B. Le rythme de l\'accord ouvert se règle au séquenceur du bloc « Vues » ===');
+    exiger(await page.evaluate(() => window.app.seqOpen === false && document.getElementById('sequenceur').hidden), 'on part séquenceur fermé');
+    const r0 = await page.evaluate(atteignable, '#vue-sequenceur');
+    exiger(r0.ok, `la porte est réellement atteignable, inspecteur ouvert — ${r0.ok ? r0.taille : r0.pourquoi}`);
     await page.click('#vue-sequenceur');
-    await page.waitForTimeout(900);
-    const c = await page.evaluate(() => ({
-        ouvert: !document.getElementById('sequenceur').hidden, noms: document.querySelectorAll('#sq-grille .sq-nom').length,
-        seqAllume: document.getElementById('vue-sequenceur').getAttribute('aria-pressed') === 'true',
-        pleinAllume: document.getElementById('seq-zoom').classList.contains('active'),
-    }));
-    check(c.ouvert && c.noms > 0, `« Séquenceur » ouvre la vue d'ensemble (toute la partie : ${c.noms} accords)`);
-    // Chacune dit si c'est SA vue qui est ouverte : sans ça, deux portes nommées mais muettes.
-    check(c.seqAllume && !c.pleinAllume, 'la porte ouverte s\'allume, l\'autre non');
+    await page.waitForTimeout(700);
+    const b = await page.evaluate(() => {
+        const n = document.querySelector('#sq-grille .sq-nom.choisi');
+        return { ouvert: !document.getElementById('sequenceur').hidden, choisi: n ? +n.dataset.c : null, ancien: window.app.seqMode };
+    });
+    check(b.ouvert && b.choisi === 0, `un clic ouvre le séquenceur sur l'accord ouvert dans l'inspecteur — accord choisi ${b.choisi}`);
+    check(b.ancien === null, `l'ancien petit séquenceur ne s'ouvre pas avec lui — mode ${b.ancien}`);
+    const croche = await R.poserCroche(page, 0);
+    check(croche.ok, `le rythme de l'accord s'y règle : un clic pose une croche, Ctrl+Z la retire (${croche.detail})`);
+
+    console.log('\n=== C. La porte s\'allume quand sa vue est ouverte, et referme au second appui ===');
+    check(await page.evaluate(() => document.getElementById('vue-sequenceur').getAttribute('aria-pressed') === 'true'), 'la porte ouverte s\'allume');
+    await page.click('#vue-sequenceur');
+    await page.waitForTimeout(500);
+    check(await page.evaluate(() => document.getElementById('sequenceur').hidden && document.getElementById('vue-sequenceur').getAttribute('aria-pressed') !== 'true'),
+        'un second appui referme le séquenceur : le bouton allumé annonce qu\'il s\'éteint');
 
     console.log('\n=== D. Rien ne déborde, sur aucun format ===');
     for (const [w, h] of [[1440, 950], [1024, 768], [768, 900]]) {
@@ -195,20 +128,6 @@ const atteignable = (sel) => {
     }
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.waitForTimeout(300);
-
-    console.log('\n=== E. « Séquenceur » ne colle plus ce qui la précède ===');
-    // Retour utilisateur : « Il faut l'abaisser un peu, il colle d'autres boutons. » Mesuré avant : 0px.
-    const ecart = await page.evaluate(() => {
-        const z = document.getElementById('seq-zoom').getBoundingClientRect();
-        const dessus = [...document.querySelectorAll('#accord-card *')]
-            .filter(e => e.offsetParent !== null && e.getBoundingClientRect().height > 4
-                         && e.getBoundingClientRect().bottom <= z.top + 1)
-            .sort((x, y) => y.getBoundingClientRect().bottom - x.getBoundingClientRect().bottom)[0];
-        return dessus ? { px: Math.round(z.top - dessus.getBoundingClientRect().bottom),
-                          quoi: dessus.id || dessus.className } : null;
-    });
-    exiger(!!ecart, 'il y a bien quelque chose au-dessus d\'elle à mesurer');
-    check(ecart.px >= 10, `elle est détachée de ${ecart.px}px de « ${ecart.quoi} », contre 0px avant`);
     await page.close();
 
     console.log('\n=== F. Téléphone : les deux portes au doigt ===');
@@ -238,6 +157,12 @@ const atteignable = (sel) => {
     await m.waitForTimeout(1000);
     check(await m.evaluate(() => window.app.seqOpen === true && window.app.seqZoomOpen === false),
         'téléphone : un vrai appui ouvre le PETIT séquenceur, comme au clic');
+    // 4b : ouvert au téléphone, le petit séquenceur n'a plus de place à l'ordinateur — passé 900 px, il se referme (sans quoi il resterait affiché sans porte pour
+    // le refermer).
+    await m.setViewportSize({ width: 1300, height: 900 });
+    await m.waitForTimeout(700);
+    const elargi = await m.evaluate(() => { const a = document.getElementById('arp-sequencer'); return { ouvert: window.app.seqOpen, mode: window.app.seqMode, vu: a.offsetParent !== null && a.getBoundingClientRect().height > 0 }; });
+    check(!elargi.ouvert && !elargi.vu, `fenêtre élargie au-delà de 900 px : le petit séquenceur se referme — ouvert ${elargi.ouvert}, mode ${elargi.mode}, visible ${elargi.vu}`);
 
     check(erreurs.length === 0, `aucune erreur JavaScript — ${erreurs.join(' | ') || 'aucune'}`);
     await browser.close();

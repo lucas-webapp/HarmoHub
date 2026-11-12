@@ -34,6 +34,7 @@
 const { chromium, devices } = require('playwright');
 const { ajouterAccord } = require('./_ajout');
 const creerHarnais = require('./_harness');
+const R = require('./_retrait_ancien');
 const { plan, check, exiger, bilan } = creerHarnais('Rythme et durée : mode Ajout, tampon annulable, rythme par partie');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
@@ -60,7 +61,7 @@ const grille = () => JSON.parse(localStorage.getItem('myProgression')).sections
 const POSER_AIDES = `window.visible = (sel) => { const e = document.querySelector(sel); return !!e && e.offsetParent !== null; };`;
 
 (async () => {
-    plan(24);
+    plan(26);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -161,48 +162,29 @@ const POSER_AIDES = `window.visible = (sel) => { const e = document.querySelecto
 
     console.log('\n=== D. Le tampon de rythme est devenu ANNULABLE ===');
     // Le défaut mesuré : un clic sur un préréglage effaçait un rythme dessiné, sans retour.
-    await page.evaluate(() => { if (!window.app.seqOpen) window.app.toggleSequencer('compact'); });
-    await page.waitForTimeout(800);
-    // On part d'un motif clairsemé, pour avoir des cases vides où dessiner.
-    await page.evaluate(() => {
-        const s = document.getElementById('playStyle');
-        s.value = 'noire_staccato';
-        s.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    await page.waitForTimeout(700);
-    const dessiner = async () => {
-        const c = await page.evaluate(() => {
-            const x = document.querySelector('#arp-sequencer .seq-cell[data-voice][data-step]:not(.on):not(.seq-cell-edge)');
-            if (!x) return null;
-            const r = x.getBoundingClientRect();
-            return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width };
-        });
-        if (!c) return false;
-        await page.mouse.move(c.x, c.y); await page.mouse.down();
-        await page.mouse.move(c.x + c.w * 2, c.y, { steps: 6 }); await page.mouse.up();
-        await page.waitForTimeout(500);
-        return true;
-    };
-    exiger(await dessiner(), 'une note a pu être dessinée à la main dans le séquenceur');
-    const monRythme = await page.evaluate(() => document.getElementById('arpPattern').value);
-    const pileAvant = await page.evaluate(() => window.app.seqUndoStack.length);
-    await page.evaluate(() => {
-        const s = document.getElementById('playStyle');
-        s.value = 'croche_maintenu';
-        s.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    await page.waitForTimeout(700);
-    const pileApres = await page.evaluate(() => window.app.seqUndoStack.length);
-    check(await page.evaluate(() => document.getElementById('arpPattern').value) !== monRythme,
-        'le tampon a bien écrasé le rythme dessiné (c\'est son rôle)');
-    // LE point : la pile ne doit plus être vidée, elle doit avoir GRANDI d'un cran.
-    check(pileApres === pileAvant + 1,
-        `l'historique du séquenceur a gagné un instantané au lieu d'être vidé — ${pileAvant} → ${pileApres}`);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : le petit séquenceur de l'inspecteur a quitté l'ordinateur, et avec lui le tampon de l'ancien
+    // séquenceur (un style de jeu qui écrasait le rythme dessiné). Le tampon d'aujourd'hui, ce sont les MOTIFS du séquenceur du bloc « Vues » ; le défaut
+    // gardé ici reste le même : poser un motif sur un rythme dessiné à la main l'écrase, mais UN SEUL Ctrl+Z le retrouve. Éprouvé EN ENTIER, par de vrais clics.
+    await R.ouvrirNouveau(page);
+    await R.cliquer(page, '#sq-grille .sq-nom[data-c="0"]');
+    await R.cliquer(page, '#sq-effacer');
+    const e0 = await R.lire(page, 0);
+    const vAig = e0.positions[e0.positions.length - 1];
+    await R.cliquer(page, `#sq-grille .sq-case[data-c="0"][data-v="${vAig}"][data-k="2"]`);
+    await R.cliquer(page, `#sq-grille .sq-case[data-c="0"][data-v="${vAig}"][data-k="5"]`);
+    const monRythme = (await R.lire(page, 0)).pos.join('|');
+    exiger(monRythme.endsWith('2,5') && (await R.lire(page, 0)).pos.slice(0, -1).every(x => x === ''), `deux croches ont été dessinées à la main dans le séquenceur — « ${monRythme} »`);
+    const pileAvant = await page.evaluate(() => window.app.undoStack.length);
+    await R.cliquer(page, '#sq-portee-accord');
+    await R.cliquer(page, '#sq-motif-monte', 500);
+    const pileApres = await page.evaluate(() => window.app.undoStack.length);
+    check((await R.lire(page, 0)).pos.join('|') !== monRythme, 'le motif a bien écrasé le rythme dessiné (c\'est son rôle)');
+    check(pileApres === pileAvant + 1, `l'historique a gagné un instantané au lieu d'être vidé — ${pileAvant} → ${pileApres}`);
     await page.evaluate(() => document.activeElement && document.activeElement.blur());
     await page.keyboard.press('Control+z');
-    await page.waitForTimeout(700);
-    check(await page.evaluate(() => document.getElementById('arpPattern').value) === monRythme,
-        'et UN SEUL Ctrl+Z retrouve le rythme dessiné à la main');
+    await page.waitForTimeout(500);
+    check((await R.lire(page, 0)).pos.join('|') === monRythme, 'et UN SEUL Ctrl+Z retrouve le rythme dessiné à la main');
+    await R.cliquer(page, '#vue-sequenceur', 400); // refermé pour la suite
 
     console.log('\n=== E. Un rythme pour toute la partie ===');
     await page.evaluate(() => window.app.exitEditMode());

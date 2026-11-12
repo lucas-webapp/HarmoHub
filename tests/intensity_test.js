@@ -1,5 +1,6 @@
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
+const R = require('./_retrait_ancien');
 // La police est chargée depuis Google Fonts : injoignable derrière le proxy du bac à sable,
 // jamais un problème chez l'utilisateur. Ces échecs réseau sont donc filtrés — sinon ils font
 // échouer « aucune erreur console » et masquent les vraies erreurs au milieu du bruit.
@@ -108,52 +109,18 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     console.log('re-opened chord slider value:', r);
     console.log((+r === 40) ? 'PASS (round-trips back into the slider on re-edit)' : 'FAIL');
 
-    console.log('--- Studio mode: bars appear only on attack steps, drag sets a per-step override ---');
-    await page.evaluate(() => {
-        // motif net et connu : voix 0 attaque au pas 0 (tenue 4 pas), rien ensuite
-        const app = window.app;
-        const chord = app.readChord();
-        const voices = chord.getSeqMidiNotes().length;
-        const steps = chord.beats * 4;
-        const pattern = Array.from({ length: steps }, () => []);
-        const tie = Array.from({ length: steps }, () => []);
-        for (let s = 0; s < 4; s++) { pattern[s].push(0); if (s > 0) tie[s].push(0); }
-        app.setLiveSeqPattern(pattern, tie);
-        if (!app.seqOpen) app.toggleSequencer();
-        document.getElementById('toggle-studio-mode').click();
-    });
-    await page.waitForTimeout(150);
-    r = await page.evaluate(() => Array.from(document.querySelectorAll('.seq-vel-bar')).map(b => +b.dataset.step));
-    console.log('bars rendered at steps:', JSON.stringify(r));
-    console.log((JSON.stringify(r) === JSON.stringify([0])) ? 'PASS (exactly one bar, at the attack step, none on tied continuations)' : 'FAIL');
-
-    // Glissé simulé : pointerdown près du haut de la barre (haute intensité), vérifie intensityPerStep
-    const bar = await page.$('.seq-vel-bar');
-    const box = await bar.boundingBox();
-    await page.mouse.move(box.x + box.width / 2, box.y + 2);
-    await page.mouse.down();
-    await page.mouse.up();
-    await page.waitForTimeout(50);
-    r = await page.evaluate(() => window.app.intensityPerStep[0]);
-    console.log('intensityPerStep[0] after drag near the top:', r);
-    console.log((r >= 90) ? 'PASS (drag near top sets a high value)' : 'FAIL');
-
-    // Double-clic efface le réglage
-    await page.evaluate(() => {
-        const bar = document.querySelector('.seq-vel-bar');
-        bar.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    });
-    await page.waitForTimeout(100);
-    r = await page.evaluate(() => window.app.intensityPerStep[0]);
-    console.log('intensityPerStep[0] after double-click:', r);
-    console.log((r === undefined) ? 'PASS (double-click clears the per-step override)' : 'FAIL');
-
-    console.log('--- Toggling studio mode off removes the lane ---');
-    await page.evaluate(() => document.getElementById('toggle-studio-mode').click());
-    await page.waitForTimeout(100);
-    r = await page.evaluate(() => document.querySelectorAll('.seq-vel-bar').length);
-    console.log('bars after closing studio mode:', r);
-    console.log((r === 0) ? 'PASS (lane removed when studio mode is off)' : 'FAIL');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : le petit séquenceur de l'inspecteur et son mode studio (une barre par attaque, glissé, double-clic
+    // qui efface) ont quitté l'ordinateur — « le mode studio comme mode à part disparaît, son logo est repris pour le bouton Intensité » (cahier, « Ce qui disparaît »).
+    // L'intensité croche par croche se règle désormais au séquenceur du bloc « Vues » : allumée, un clic sur une note change sa force ; éteinte, le clic repose les notes.
+    console.log('--- Intensité croche par croche : le bouton Intensité du séquenceur du bloc Vues ---');
+    r = await R.ouvrirNouveau(page);
+    console.log((r.ok ? 'PASS' : 'FAIL') + ' (le séquenceur du bloc « Vues » s\'ouvre par son bouton — ' + r.detail + ')');
+    console.log(await page.evaluate(() => !document.getElementById('toggle-studio-mode')) ? 'PASS (l\'ancien mode studio n\'est plus là)' : 'FAIL (l\'ancien mode studio est encore là)');
+    r = await R.intensite(page, 0);
+    console.log((r.ok ? 'PASS' : 'FAIL') + ' (Intensité allumée, un clic sur une note la passe en « fort » — ' + r.detail + ')');
+    r = await page.evaluate(() => document.getElementById('sq-intensite').getAttribute('aria-pressed'));
+    console.log((r === 'false') ? 'PASS (un second clic éteint l\'Intensité)' : 'FAIL (Intensité restée ' + r + ')');
+    await R.cliquer(page, '#vue-sequenceur', 300);
 
     console.log('--- MIDI export does not throw with a custom intensity + per-step override set ---');
     await page.evaluate(() => {

@@ -1,143 +1,38 @@
-const { chromium } = require('playwright')
-const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
+// RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11, décision « réécriture courte ») : il éprouvait la SÉLECTION AU RECTANGLE (Shift+glisser, Ctrl+Shift+glisser pour ajouter, Suppr sur la sélection, Shift+clic qui vide).
+// Le petit séquenceur de l'inspecteur, qui portait ce geste, a quitté l'ordinateur avec sa porte « Séquenceur » ; l'outil de sélection n'existe plus dans le nouveau séquenceur (cahier « Ce qui disparaît ») : on efface l'accord choisi d'un bouton, on peint ou on retire les croches une à une.
+// Le banc vérifie désormais que l'ancienne porte n'existe plus ET que le geste du séquenceur du bloc « Vues » qui le remplace fonctionne : « Effacer » vide l'accord choisi et Ctrl+Z le rend (remplace Suppr sur une sélection) ; un glissé peint plusieurs croches d'une seule annulation (le glissé sans Shift).
+// De vrais gestes (souris, clavier) ; window.app sert à relire l'état. Voir tests/_retrait_ancien.js.
+const { chromium } = require('playwright');
+const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
+const { check, exiger, plan, bilan } = require('./_harness')('seq_marquee');
+const { estBruitReseau } = require('./_harness');
+const R = require('./_retrait_ancien');
+
+plan(5);
 
 (async () => {
-    const browser = await chromium.launch({
-        args: ['--autoplay-policy=no-user-gesture-required'],
+    const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+    const p = await b.newPage({ viewport: { width: 1400, height: 1000 } });
+    const errs = [];
+    p.on('pageerror', e => errs.push(e.message));
+    p.on('console', m => { if (m.type() === 'error' && !estBruitReseau(m.text()) && !/AudioContext/.test(m.text())) errs.push('console: ' + m.text()); });
+    await p.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load' });
+    await p.evaluate(() => {
+        const mk = (r, q) => ({ root: r, quality: q, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
+        localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), mk('F', 'maj7'), mk('G', '7')] }] }));
+        sessionStorage.setItem('cc_accueil_vu', '1');
     });
-    const page = await browser.newPage({ viewport: { width: 1400, height: 1400 } });
-    const errors = [];
-    page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
-    page.on('console', (msg) => { if (msg.type() === 'error' && !msg.text().includes('CONNECTION') && !msg.text().includes('TUNNEL')) errors.push('console.error: ' + msg.text()); });
+    await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(800);
 
-    await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
-    await page.waitForTimeout(200);
-    await page.evaluate(() => {
-        localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Couplet', chords: [
-            { root: 'C', quality: 'maj7', beats: 4, inversion: 0, drop: 'none', octave: 4, bass: null, playStyle: 'held' },
-        ] }] }));
-    });
-    await page.reload({ waitUntil: 'load' });
-    await page.waitForTimeout(200);
-    await page.evaluate(() => {
-        window.app.editChord(0, 0);
-        if (!window.app.seqOpen) window.app.toggleSequencer();
-    });
-    await page.waitForTimeout(100);
-    // Motif : voix 0 a une note aux pas 2-3, voix 2 a une note aux pas 2-3, voix 1 et 3 restent vides.
-    await page.evaluate(() => {
-        const app = window.app;
-        const chord = app.readChord();
-        const steps = chord.beats * 4;
-        const pattern = Array.from({ length: steps }, () => []);
-        const tie = Array.from({ length: steps }, () => []);
-        pattern[2] = [0, 2]; pattern[3] = [0, 2]; tie[3] = [0, 2];
-        app.setLiveSeqPattern(pattern, tie);
-        app.renderSequencer();
-    });
-    await page.waitForTimeout(100);
-
-    const cellRect = (voice, step) => page.evaluate(({ voice, step }) => {
-        const el = document.querySelector(`.seq-cell[data-voice="${voice}"][data-step="${step}"]`);
-        if (!el) return null;
-        const r = el.getBoundingClientRect();
-        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-    }, { voice, step });
-
-    console.log('=== Glisser SANS Shift sur du vide peint toujours une note (comportement inchangé) ===');
-    let src = await cellRect(1, 8);
-    let dst = await cellRect(1, 10);
-    await page.mouse.move(src.x, src.y);
-    await page.mouse.down();
-    await page.mouse.move(dst.x, dst.y, { steps: 5 });
-    await page.waitForTimeout(50);
-    await page.mouse.up();
-    await page.waitForTimeout(100);
-    let painted = await page.evaluate(() => {
-        const app = window.app;
-        const chord = app.readChord();
-        const { pattern } = app.getLiveSeqPattern(chord);
-        return pattern.map(p => p.includes(1));
-    });
-    console.log(JSON.stringify(painted));
-    console.log((painted[8] && painted[9] && painted[10]) ? 'PASS (glissé normal peint toujours une note)' : 'FAIL');
-    // Nettoie ce qu'on vient de peindre pour la suite du test.
-    await page.evaluate(() => { for (let s = 8; s <= 10; s++) window.app.applySeqCell(1, s, false); window.app.renderSequencer(); });
-
-    console.log('=== Shift+glisser depuis du vide, couvrant les deux notes (voix 0 et 2) : les sélectionne toutes les deux ===');
-    src = await cellRect(3, 0); // coin en haut à gauche de la zone (voix la plus basse listée en dernier visuellement, peu importe)
-    dst = await cellRect(0, 5); // coin en bas à droite, au-delà des deux notes (pas 2-3 sur voix 0 et 2)
-    await page.keyboard.down('Shift');
-    await page.mouse.move(src.x, src.y);
-    await page.mouse.down();
-    await page.mouse.move(dst.x, dst.y, { steps: 8 });
-    await page.waitForTimeout(50);
-    const rectVisible = await page.evaluate(() => !!document.querySelector('.seq-marquee-rect'));
-    const hitsWhileDragging = await page.evaluate(() => Array.from(document.querySelectorAll('.seq-note.marquee-hit')).map(n => n.dataset.voice + ':' + n.dataset.start + '-' + n.dataset.end));
-    console.log('rectangle visible:', rectVisible, '| notes en surbrillance:', JSON.stringify(hitsWhileDragging));
-    await page.mouse.up();
-    await page.keyboard.up('Shift');
-    await page.waitForTimeout(100);
-
-    const selections = await page.evaluate(() => window.app.seqSelections.slice().sort((a, b) => a.voice - b.voice));
-    console.log('sélection finale:', JSON.stringify(selections));
-    console.log(rectVisible ? 'PASS (rectangle visible pendant le glissé)' : 'FAIL');
-    console.log((hitsWhileDragging.length === 2) ? 'PASS (les 2 notes en surbrillance pendant le glissé)' : 'FAIL');
-    const gotBoth = selections.length === 2 && selections.some(s => s.voice === 0 && s.start === 2 && s.end === 3) && selections.some(s => s.voice === 2 && s.start === 2 && s.end === 3);
-    console.log(gotBoth ? 'PASS (les 2 notes sélectionnées après relâchement, sur des voix différentes)' : 'FAIL');
-
-    const rectGone = await page.evaluate(() => !document.querySelector('.seq-marquee-rect'));
-    console.log(rectGone ? 'PASS (rectangle retiré après relâchement)' : 'FAIL');
-
-    console.log('=== Suppr sur la sélection obtenue supprime bien les 2 notes ===');
-    await page.keyboard.press('Delete');
-    await page.waitForTimeout(50);
-    const afterDelete = await page.evaluate(() => {
-        const app = window.app;
-        const chord = app.readChord();
-        const { pattern } = app.getLiveSeqPattern(chord);
-        return { v0: pattern.map(p => p.includes(0)), v2: pattern.map(p => p.includes(2)) };
-    });
-    console.log((!afterDelete.v0.some(Boolean) && !afterDelete.v2.some(Boolean)) ? 'PASS (les 2 notes supprimées via la sélection rectangle)' : 'FAIL');
-
-    console.log('=== Rétablit pour la suite : Ctrl+Z ===');
-    await page.evaluate(() => window.app.seqUndo());
-    await page.waitForTimeout(50);
-
-    console.log('=== Ctrl+Shift+glisser AJOUTE à une sélection existante ===');
-    await page.evaluate(() => { window.app.seqSelections = [{ voice: 0, start: 2, end: 3 }]; window.app.renderSequencer(); });
-    await page.waitForTimeout(50);
-    src = await cellRect(3, 0);
-    dst = await cellRect(2, 5);
-    await page.keyboard.down('Shift');
-    await page.keyboard.down('Control');
-    await page.mouse.move(src.x, src.y);
-    await page.mouse.down();
-    await page.mouse.move(dst.x, dst.y, { steps: 8 });
-    await page.waitForTimeout(50);
-    await page.mouse.up();
-    await page.keyboard.up('Control');
-    await page.keyboard.up('Shift');
-    await page.waitForTimeout(100);
-    const additiveSel = await page.evaluate(() => window.app.seqSelections.slice().sort((a, b) => a.voice - b.voice));
-    console.log(JSON.stringify(additiveSel));
-    const additiveOk = additiveSel.length === 2 && additiveSel.some(s => s.voice === 0) && additiveSel.some(s => s.voice === 2);
-    console.log(additiveOk ? 'PASS (Ctrl+Shift+glisser ajoute à la sélection existante)' : 'FAIL');
-
-    console.log('=== Shift+clic SANS glisser sur du vide : ne peint rien, vide juste la sélection ===');
-    await page.evaluate(() => { window.app.seqSelections = [{ voice: 0, start: 2, end: 3 }]; window.app.renderSequencer(); });
-    await page.waitForTimeout(50);
-    const emptySpot = await cellRect(3, 14);
-    await page.keyboard.down('Shift');
-    await page.mouse.move(emptySpot.x, emptySpot.y);
-    await page.mouse.down();
-    await page.mouse.up();
-    await page.keyboard.up('Shift');
-    await page.waitForTimeout(50);
-    const afterTap = await page.evaluate(() => ({ sel: window.app.seqSelections, painted: window.app.getLiveSeqPattern(window.app.readChord()).pattern[14].includes(3) }));
-    console.log(JSON.stringify(afterTap));
-    console.log((afterTap.sel.length === 0 && !afterTap.painted) ? 'PASS (tap Shift sans glisser : rien peint, sélection vidée)' : 'FAIL');
-
-    console.log('Errors:', JSON.stringify(errors));
-    await browser.close();
-})().catch((e) => { console.error('FATAL', e); process.exit(2); });
+    let r = await R.porteInspecteurAbsente(p, 0, 0);
+    check(r.ok, `plus de porte « Séquenceur » ni de petit séquenceur dans l'inspecteur (${r.detail})`);
+    r = await R.ouvrirNouveau(p);
+    exiger(r.ok, `le séquenceur du bloc « Vues » s'ouvre par son bouton (${r.detail})`);
+    r = await R.effacerAccord(p, 0);
+    check(r.ok, `« Effacer » vide l'accord choisi, Ctrl+Z le rend (remplace Suppr sur une sélection au rectangle) (${r.detail})`);
+    r = await R.peindre(p, 1);
+    check(r.ok, `un glissé sur du vide peint toujours plusieurs croches, d'une seule annulation (${r.detail})`);
+    check(errs.length === 0, `aucune erreur JavaScript (${errs.slice(0, 3).join(' | ') || 'rien'})`);
+    await b.close();
+    bilan();
+})().catch(e => { console.error('FATAL', e); process.exit(2); });

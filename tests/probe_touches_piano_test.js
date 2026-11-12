@@ -56,22 +56,13 @@ async function ouvrir(page) {
     await page.keyboard.press('Control+z'); await page.waitForTimeout(300);
     await page.keyboard.press('Control+z'); await page.waitForTimeout(300);
 
-    console.log('--- 5. Le PETIT séquenceur garde ses noms (pas de clavier chromatique) ---');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11, décision « réécriture courte ») : le petit séquenceur de l'inspecteur a quitté l'ordinateur. Ce qu'il
+    // gardait — une ligne par voix, des noms tous lisibles, pas de clavier chromatique — est tenu par le séquenceur du bloc « Vues » (parties 1 à 4 ci-dessus) ;
+    // il reste à vérifier que la porte a bien disparu de l'inspecteur.
+    console.log('--- 5. Plus de petit séquenceur dans l\'inspecteur ---');
     await R.cliquer(page, '#sq-fermer');
-    await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(500);
-    const petit = await page.evaluate(() => {
-        const g = document.querySelector('#arp-sequencer .seq-grid');
-        const labels = [...g.querySelectorAll('.seq-label')];
-        return {
-            touches: g.querySelectorAll('.seq-key').length,
-            noms: labels.map(l => l.textContent.trim()).filter(Boolean),
-            tousVisibles: labels.every(l => l.getBoundingClientRect().width > 0),
-        };
-    });
-    console.log(JSON.stringify(petit));
-    check(petit.touches === 0 && petit.noms.length >= 3 && petit.tousVisibles,
-        `lignes par voix, noms tous lisibles — ${petit.noms.join(', ')}`);
+    const petit = await R.porteInspecteurAbsente(page, 0, 0);
+    check(petit.ok, `plus de porte « Séquenceur » ni de petit séquenceur dans l'inspecteur (${petit.detail})`);
 
     console.log('--- 6. Téléphone ---');
     const mob = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });

@@ -6100,3 +6100,33 @@ ligne de base. Balayage complet : **247 verts, 2 rouges, 6 sans verdict sur 255 
 `grille_raccourcis_clavier`, réécrit avant que l'inspecteur suive la sélection séquenceur ouvert : sa première vérification attendait encore l'accord ouvert immobile ; réalignée
 sur le contrat du 06/11 (« la modification avance avec la sélection »), verte 3 fois sur 3 — seul ce fichier de banc a changé après le balayage.
 
+
+## Refonte du séquenceur — D, quatrième sous-lot, étape 4b : retrait du petit séquenceur de l'inspecteur (12/11)
+
+Cahier : `docs/refonte-sequenceur.md`, section D et « Ce qui disparaît » (« petit séquenceur ») ; section 3 bis (la fenêtre d'accord n'a « pas de ligne Rythme » : « le rythme
+se règle dans le séquenceur, sans le dire »).
+
+- **Ce qui change dans l'appli** : à l'ordinateur, la porte « Séquenceur » (`#seq-zoom`, `.seq-inline-toolbar`) et le petit séquenceur (`#arp-sequencer`) disparaissent de
+  l'inspecteur (style.css, fin de fichier) ; avec eux sa vue agrandie, ses zooms H / V, son mode studio, ses outils (sélection au rectangle, déplacement, duplication,
+  étirement par le bord, repère de glissé). Un appel de programme qui l'ouvrirait (`toggleSequencer('compact')`) ouvre le séquenceur du bloc « Vues » ; ouvert au
+  téléphone puis élargi au-delà de 900 px, il se referme. Le code reste : le téléphone s'en sert jusqu'à l'étape 4c.
+- **Essai à blanc** (porte masquée seulement) : 7 bancs touchés sur 71 cités. **La garde de `toggleSequencer`** en a révélé davantage : ces bancs ouvraient le petit séquenceur
+  par `window.app.toggleSequencer()` (sans argument, donc « compact ») et éprouvaient ses fonctions ; la recherche par nom (`seq-zoom`, `arp-sequencer`) ne les voyait pas tous.
+- **Bancs réécrits (27)**, décision « réécriture courte » du 12/11 — en entier (le sujet reste) : `filet_sequenceur_et_sortie` (A, C : le séquenceur écrit le rythme de l'accord
+  ouvert, Ctrl+Z ; D1 vise un segment de drop), `undo_derniere_action` (« la dernière action gagne », séquenceur du bloc Vues à côté de l'inspecteur), `rythme_duree` (D : le
+  tampon annulable devient le MOTIF posé sur un rythme dessiné, un seul Ctrl+Z), `intensite_reparee` (E) et `intensity` (mode studio → bouton Intensité), `seq_pattern_kbd`
+  (Ctrl+C / Ctrl+V du petit séquenceur → Copier / Coller du séquenceur, croches et intensités), `probe_instrument_pendant_edition`, `aspect_boutons_volet` (D, E : le même
+  séquenceur, à l'ordinateur et dans l'onglet Rythme du téléphone, garde son aspect), `portes_sequenceur` (A à C, plus le passage du seuil), `probe_deux_boutons_seq` (1),
+  `inspecteur_son`, `gabarit_boutons` (entrée `seq-zoom` retirée de HORS_JAUGE), `verre` (l'état « séquenceur » relève celui du bloc Vues) ; courts (la fonction disparaît) :
+  `item1_2`, `item1_hzoom_out`, `zoom` (zooms → poignée des lignes et toute la partie à l'écran), `three_more_features` (3), `seq_num_and_grid_end` (1 : numéros de la règle),
+  `seq_tiroir_flottant` (F), `probe_regle_voisins` (5), `probe_touches_piano` (5), `seq_repere_glisse` (repère de glissé → noms des lignes, nom de la note posée, une écoute par
+  croche peinte), `seq_dup_drag`, `seq_marquee`, `seq_voicedrag` (duplication, rectangle, déplacement → peindre, effacer, poser), `tap_removal`, `three_fixes` (3). Assistant
+  commun : `porteInspecteurAbsente` dans `tests/_retrait_ancien.js` (l'inspecteur ouvert par le vrai geste, ni porte ni petit séquenceur, « Séquenceur » du bloc Vues présent).
+  Les parties TÉLÉPHONE de ces bancs ne changent pas (4c).
+- **La ligne de base change** : `item1_hzoom_out`, l'un des six « sans verdict », n'imprimait qu'un relevé ; réécrit sur le harnais, il rend un verdict (4 vérifications).
+  Méta-suite : dette diminuée (5 améliorations), référence figée (`--maj`).
+
+Sabotages de l'étape 4b (trois, tous rouges puis restaurés) : porte « Séquenceur » de nouveau visible dans l'inspecteur (`inspecteur_son` 1, `portes_sequenceur` 1, `item1_hzoom_out` 1,
+`seq_marquee` 1) ; petit séquenceur qui ne se referme plus au passage des 900 px (`portes_sequenceur` 1) ; « Coller » du séquenceur sans effet (`seq_pattern_kbd` 2). Balayage
+ciblé : 21 verts, `meta_suite` rouge pour dette diminuée (figée ensuite, vert), `smoke` sans verdict de la ligne de base. Balayage complet : **249 verts, 1 rouge, 5 sans verdict sur 255 suites**
+(3109 s cumulées) — le rouge est `seq_notes_libres_clavier` (ligne de base, partie téléphone) ; `item1_hzoom_out` a quitté les « sans verdict » (vert).

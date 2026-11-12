@@ -19413,6 +19413,14 @@ class HarmoHubApp {
     // clique dessus, et vice-versa »). Deux panneaux empilés au même endroit se disputaient sinon la
     // hauteur, la ressource la plus rare de cette vue.
     toggleSequencer(mode = 'compact') {
+        // RETRAIT DE L'ANCIEN SÉQUENCEUR, ÉTAPE 4b (refonte du séquenceur, D, dernier sous-lot) : à l'ordinateur, le petit séquenceur de l'inspecteur disparaît avec
+        // sa porte « Séquenceur » (style.css) — la fenêtre d'accord n'a « pas de ligne Rythme » (le rythme se règle dans le séquenceur, sans le dire ;
+        // docs/refonte-sequenceur.md, 3 bis). Un appel de programme qui l'ouvrirait ouvre le séquenceur du bloc « Vues » ; le refermer reste permis (l'état
+        // d'avant peut traîner d'une fenêtre étroite). Au téléphone, rien ne change avant l'étape 4c.
+        if (mode === 'compact' && this.seqMode !== 'compact' && window.matchMedia(SEQ_DOCK_MEDIA).matches) {
+            if (this.sequenceur) this.sequenceur.basculer(true);
+            return;
+        }
         // Même bouton = on referme ; autre bouton = on bascule de mode sans refermer, pour passer du
         // réglage fin d'un accord à la vue d'ensemble (et retour) d'un seul geste.
         this.seqMode = (this.seqMode === mode) ? null : mode;
@@ -20008,6 +20016,8 @@ class HarmoHubApp {
             // Retrait de l'ancien séquenceur (4a) : ouvert au téléphone (feuille « Séq. »), il n'a plus de porte ni de place à l'ordinateur — passé le seuil,
             // il se referme (le séquenceur de l'ordinateur est celui du bloc « Vues »).
             if (mq.matches && this.seqMode === 'continu') this.toggleSequencer('continu');
+            // Étape 4b, même raison : le petit séquenceur ouvert au téléphone n'a plus de place dans l'inspecteur de l'ordinateur.
+            if (mq.matches && this.seqMode === 'compact') this.toggleSequencer('compact');
         };
         if (mq.addEventListener) mq.addEventListener('change', onChange);
         else mq.addListener(onChange); // Safari < 14

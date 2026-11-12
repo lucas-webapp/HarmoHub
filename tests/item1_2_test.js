@@ -1,5 +1,6 @@
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
+const R = require('./_retrait_ancien');
 // La police est chargée depuis Google Fonts : injoignable derrière le proxy du bac à sable,
 // jamais un problème chez l'utilisateur. Ces échecs réseau sont donc filtrés — sinon ils font
 // échouer « aucune erreur console » et masquent les vraies erreurs au milieu du bruit.
@@ -24,59 +25,17 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(200);
 
-    console.log('--- Item 1: compact sequencer inline H zoom buttons exist and work ---');
-    await page.evaluate(() => {
-        window.app.editChord(0, 0);
-        if (!window.app.seqOpen) window.app.toggleSequencer();
-    });
-    await page.waitForTimeout(150);
-    let r = await page.evaluate(() => {
-        const label = document.querySelector('#arp-sequencer .seq-page-label');
-        return {
-            hasInlineZoomBtns: !!document.getElementById('seq-zoom-in-h-inline') && !!document.getElementById('seq-zoom-out-h-inline'),
-            defaultLabel: label ? label.textContent : null,
-        };
-    });
-    console.log('default compact view:', JSON.stringify(r));
-    // Le bouton se DÉSACTIVE une fois la butée atteinte : on s'arrête là, au lieu
-    // d'attendre 30s qu'un bouton grisé redevienne cliquable.
-    for (let i = 0; i < 15; i++) {
-        if (await page.evaluate(() => document.getElementById('seq-zoom-in-h-inline').disabled)) break;
-        await page.click('#seq-zoom-in-h-inline');
-        await page.waitForTimeout(60);
-    }
-    await page.waitForTimeout(100);
-    r = await page.evaluate(() => {
-        const label = document.querySelector('#arp-sequencer .seq-page-label');
-        return { label: label ? label.textContent : null, level: window.app.seqInlineZoomLevelX };
-    });
-    console.log('after H+ to max (compact, should show fewer bars/page):', JSON.stringify(r));
-
-    // reset for cleanliness
-    // Le bouton se DÉSACTIVE une fois la butée atteinte : on s'arrête là, au lieu
-    // d'attendre 30s qu'un bouton grisé redevienne cliquable.
-    for (let i = 0; i < 15; i++) {
-        if (await page.evaluate(() => document.getElementById('seq-zoom-out-h-inline').disabled)) break;
-        await page.click('#seq-zoom-out-h-inline');
-        await page.waitForTimeout(60);
-    }
-
-    console.log('--- Item 1: loupe séquenceur H zoom is UNAFFECTED/separate from inline zoom ---');
-    // LA PORTE DE LA LOUPE A CHANGÉ. #seq-zoom n'ouvre plus que le PETIT séquenceur ; la loupe est
-    // désormais derrière #seq-plein-ecran, dans la barre du séquenceur (voir
-    // ouvrirSequenceurPleinEcran, qui le dit noir sur blanc). Ce banc cliquait donc l'ancienne porte,
-    // n'ouvrait rien, puis attendait trente secondes un bouton « Fermer » qui ne pouvait pas paraître
-    // — il mourait avant d'avoir rendu le moindre verdict, sans que rien ne signale pourquoi.
-    await page.click('#seq-plein-ecran');
-    await page.waitForTimeout(150);
-    r = await page.evaluate(() => ({
-        seqZoomLevelX: window.app.seqZoomLevelX,
-        seqInlineZoomLevelX: window.app.seqInlineZoomLevelX,
-        hasInlineButtonsInLoupe: !!document.querySelector('#seq-zoom-host #seq-zoom-in-h-inline'),
-    }));
-    console.log('in loupe séquenceur:', JSON.stringify(r));
-    await page.click('#seq-zoom-close');
-    await page.waitForTimeout(100);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11, décision « réécriture courte ») : le petit séquenceur de l'inspecteur, ses boutons de zoom horizontal
+    // (#seq-zoom-in-h-inline / #seq-zoom-out-h-inline) et sa loupe ont quitté l'ordinateur — « pas de zoom, pas de loupe : toute la partie tient à l'écran » (cahier,
+    // section D). L'item 1 vérifie désormais que la porte a disparu de l'inspecteur ET que le séquenceur du bloc « Vues » montre toute la partie sans zoom.
+    console.log('--- Item 1: plus de petit séquenceur ni de zoom H ; le séquenceur du bloc Vues montre toute la partie ---');
+    let r = await R.porteInspecteurAbsente(page, 0, 0);
+    console.log((r.ok ? 'PASS' : 'FAIL') + ' - plus de porte « Séquenceur » ni de petit séquenceur dans l\'inspecteur (' + r.detail + ')');
+    r = await R.ouvrirNouveau(page);
+    console.log((r.ok ? 'PASS' : 'FAIL') + ' - le séquenceur du bloc « Vues » s\'ouvre par son bouton (' + r.detail + ')');
+    r = await R.toutePartie(page);
+    console.log((r.ok ? 'PASS' : 'FAIL') + ' - toute la partie à l\'écran, sans zoom ni défilement de côté (' + r.detail + ')');
+    await R.cliquer(page, '#vue-sequenceur', 400); // refermé pour la suite
 
     // CONTRAT PÉRIMÉ : comparait la hauteur du triangle de #play (« Accord ») à celle de #play-prog
     // (« Grille ») — #play a disparu (retour utilisateur : « un seul bouton lecture pour toute la

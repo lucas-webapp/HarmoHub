@@ -22,31 +22,19 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     await page.waitForTimeout(150);
     await page.evaluate(() => { window.app.editChord(0, 0); });
     await page.waitForTimeout(150);
-    await page.evaluate(() => { window.app.toggleSequencer(); });
-    await page.waitForTimeout(200);
-
-    check(await page.isVisible('#seq-play'), "#seq-play visible");
-    check(await page.isVisible('#seq-stop'), "#seq-stop visible");
-    // LE BOUTON BOUCLE DU SÉQUENCEUR A DISPARU, remplacé par l'anneau du bouton Lecture (même
-    // traitement que le transport, façon Pro Tools — retour utilisateur : « c'est brouillon à
-    // l'affichage »). Ce point-ci ne servait qu'à s'assurer que le retrait du rythme tapé n'avait pas
-    // emporté ses voisins : il vise donc le voisin qui a pris sa place, sinon il ne garde plus rien.
-    check(await page.isVisible('#seq-play'), '#seq-play est bien là, et porte désormais la boucle');
-    check(await page.evaluate(() => !document.getElementById('seq-loop-play')),
-        'le bouton boucle séparé a bien disparu de la barre');
-    check(await page.isVisible('#seq-add-note'), "#seq-add-note visible");
-    check(await page.isVisible('#seq-row-pipette'), "#seq-row-pipette visible");
-    check(await page.$('[data-preset="clear"]') !== null, "bouton Supprimer tout présent");
-    check(await page.isVisible('#seq-delete-selection'), "#seq-delete-selection visible");
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : le petit séquenceur de l'inspecteur, dont la barre portait l'ancien rythme tapé et ses voisins
+    // (#seq-play, #seq-stop, #seq-add-note, #seq-row-pipette, « Supprimer tout », #seq-delete-selection), a quitté l'ordinateur. Le séquenceur du bloc « Vues » n'a pas
+    // de lecture propre (la barre de lecture de l'appli joue) ; ce que ce point gardait — le retrait du rythme tapé n'a pas emporté ses voisins — se vérifie sur SA barre.
+    const R = require('./_retrait_ancien');
+    const ouvert = await R.ouvrirNouveau(page);
+    check(ouvert.ok, `le séquenceur du bloc « Vues » s'ouvre par son bouton (${ouvert.detail})`);
+    for (const [sel, nom] of [['#sq-effacer', 'Effacer'], ['#sq-copier', 'Copier'], ['#sq-coller', 'Coller'], ['#sq-intensite', 'Intensité'], ['#sequenceur .sq-libre-btn', 'Notes libres'], ['#sq-motif-monte', 'motif Arpège ↑']]) {
+        check(await page.isVisible(sel), `${nom} est dans la barre du séquenceur (${sel})`);
+    }
+    check(await page.evaluate(() => !document.getElementById('seq-play') || document.getElementById('seq-play').offsetParent === null), 'pas de lecture propre au séquenceur : la barre de lecture de l\'appli joue');
     check(await page.$('#seq-tap-record') === null, "#seq-tap-record n'existe plus dans le DOM");
     check(await page.$('#seq-tap-zone') === null, "#seq-tap-zone n'existe plus dans le DOM");
-
-    // Check the button order in .seq-presets
-    const order = await page.evaluate(() => {
-        const row = document.querySelector('.seq-presets');
-        return Array.from(row.children).map(el => el.id || el.dataset.preset || el.className).filter(Boolean);
-    });
-    console.log('Ordre des boutons .seq-presets:', JSON.stringify(order));
+    await R.cliquer(page, '#vue-sequenceur', 300);
 
     // Open Settings > Son (audio tab)
     await page.evaluate(() => { window.app.settingsOpen = true; document.getElementById('settings-overlay').hidden = false; window.app.renderAudioPanel(); });

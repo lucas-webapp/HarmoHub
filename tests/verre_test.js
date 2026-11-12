@@ -42,7 +42,9 @@ const ETATS = {
     // Le menu du morceau (barre du haut, lot 3) : une surface de plus à relever, éteinte comme allumée.
     menuMorceau: async (p) => { await p.click('#tb-titre'); await p.waitForTimeout(250); },
     confirmation: async (p) => { await p.evaluate(() => { window.app.openUnsavedModal(); }); await p.waitForTimeout(300); },
-    sequenceur: async (p) => { await p.evaluate(() => window.app.editChord(0, 1)); await p.waitForTimeout(300); await p.click('#seq-zoom'); await p.waitForTimeout(600); },
+    // RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : la porte « Séquenceur » de l'inspecteur a quitté l'ordinateur avec le petit séquenceur ; l'état « séquenceur »
+    // relève désormais celui du bloc « Vues », ouvert par son bouton, un accord en modification (fermerTout le referme par le même bouton).
+    sequenceur: async (p) => { await p.evaluate(() => window.app.editChord(0, 1)); await p.waitForTimeout(300); await p.click('#vue-sequenceur'); await p.waitForTimeout(600); },
     // Le tiroir Clavier / Guitare (lot 8) : détaché en fenêtre libre, clavier ET guitare ouverts, un accord en construction (sa bande, ses puces, ses
     // touches bleues). DERNIER de la liste : il laisse le tiroir ouvert, et rien ne doit le suivre.
     tiroir: async (p) => {
@@ -67,7 +69,7 @@ if (A_APERCU) ETATS.apercu = async (p) => { await p.click('#structure-btn'); awa
 async function toastEteint(p) {
     await p.waitForFunction(() => { const t = document.getElementById('toast'); return !t || (!t.classList.contains('show') && getComputedStyle(t).opacity === '0'); }, null, { timeout: 15000 });
 }
-async function fermerTout(p) { await p.keyboard.press('Escape'); await p.waitForTimeout(150); await p.evaluate(() => { try { window.app.closeSettings(); } catch (e) {} window.app.editingIndex = null; window.app.loadProgression(); }); await p.waitForTimeout(150); }
+async function fermerTout(p) { if (await p.evaluate(() => !document.getElementById('sequenceur').hidden)) { await p.click('#vue-sequenceur'); await p.waitForTimeout(200); } await p.keyboard.press('Escape'); await p.waitForTimeout(150); await p.evaluate(() => { try { window.app.closeSettings(); } catch (e) {} window.app.editingIndex = null; window.app.loadProgression(); }); await p.waitForTimeout(150); }
 
 (async () => {
     plan(A_APERCU ? 69 : 68);

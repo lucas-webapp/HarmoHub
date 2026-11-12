@@ -25,6 +25,7 @@
 //      revanche la même FORME : fond plat, cadre 1px, rayon 7px.
 const { chromium, devices } = require('playwright');
 const creerHarnais = require('./_harness');
+const R = require('./_retrait_ancien');
 const { plan, check, exiger, bilan } = creerHarnais('Un seul aspect de bouton dans le volet');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
@@ -65,7 +66,7 @@ const relever = () => {
 const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${x.ombre}`;
 
 (async () => {
-    plan(18);
+    plan(20);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -83,7 +84,10 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     await page.waitForTimeout(500);
     console.log('=== A. Combien de familles d\'aspect cohabitent ? ===');
     const vus = await page.evaluate(relever);
-    exiger(!!vus && vus.length >= 10, `le volet porte assez de boutons pour que la question se pose — ${vus ? vus.length : 0}`);
+    // RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : la porte « Séquenceur » (#seq-zoom) a quitté l'inspecteur de l'ordinateur avec le petit séquenceur — un
+    // bouton de moins au relevé (neuf au lieu de dix) ; la question des familles se pose toujours. Sa famille d'exception n'a plus lieu d'être ici
+    // (au plus trois familles), elle reste nommée pour le téléphone (partie plus bas), où la porte demeure jusqu'à l'étape 4c.
+    exiger(!!vus && vus.length >= 9, `le volet porte assez de boutons pour que la question se pose — ${vus ? vus.length : 0}`);
     const familles = new Map();
     const exemples = new Map(); // un bouton RÉEL par famille : retrouver un bouton par son nom ne marche pas quand il n'a pas d'id (nom = « icon-btn », partagé)
     for (const x of vus) { const k = cle(x); if (!familles.has(k)) { familles.set(k, []); exemples.set(k, x); } familles.get(k).push(x.nom); }
@@ -160,12 +164,13 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     // C'EST LA RAISON D'ÊTRE DE L'EXCLUSION. #arp-sequencer vit dans la carte Accord sur téléphone et
     // sous la grille sur ordinateur (voir placeSequencer). Une règle de volet l'aurait donc repeint
     // sur l'un des deux seulement — un même outil avec deux aspects selon la largeur de l'écran.
-    await page.evaluate(() => window.app.ouvrirSequenceurPleinEcran());
-    await page.waitForTimeout(800);
-    await page.evaluate(() => window.app.closeSeqZoom());
-    await page.waitForTimeout(600);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : le petit séquenceur a quitté le volet de l'ordinateur ; il n'y a plus qu'UN séquenceur, celui du
+    // bloc « Vues » (ouvert ici par son bouton), que le téléphone affiche dans l'onglet Rythme du panneau d'accord. L'exclusion garde son sens : ce séquenceur-là
+    // ne prend pas l'aspect du volet, et il garde le même aspect sur les deux formats (partie E).
+    const ouvert = await R.ouvrirNouveau(page);
+    exiger(ouvert.ok, `le séquenceur du bloc « Vues » s'ouvre par son bouton (${ouvert.detail})`);
     const seqBureau = await page.evaluate(() => {
-        const b = document.querySelector('.seq-presets .seq-icon-btn');
+        const b = document.querySelector('#sequenceur .sq-outils .icon-btn');
         if (!b) return null;
         const st = getComputedStyle(b);
         return { fond: st.backgroundColor, rayon: st.borderTopLeftRadius, degrade: st.backgroundImage !== 'none' };
@@ -195,12 +200,12 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     check(famillesTelMap.size <= 3 || seulesTel.includes('seq-zoom'),
         `téléphone : la famille en trop est la même exception nommée — seule(s) : ${seulesTel.join(', ') || 'aucune'}`);
 
-    await m.evaluate(() => window.app.ouvrirSequenceurPleinEcran());
-    await m.waitForTimeout(1000);
-    await m.evaluate(() => window.app.closeSeqZoom());
-    await m.waitForTimeout(800);
+    // 4b : au téléphone, le même séquenceur s'ouvre dans l'onglet Rythme du panneau d'accord, par « Séquenceur » du panneau Lecture (vrais touchers).
+    await m.keyboard.press('Escape'); await m.waitForTimeout(300);
+    await m.tap('#bl-plus'); await m.waitForTimeout(400);
+    await m.tap('#pl-notes'); await m.waitForTimeout(800);
     const seqTel = await m.evaluate(() => {
-        const b = document.querySelector('.seq-presets .seq-icon-btn');
+        const b = document.querySelector('#pa-rythme #sequenceur .sq-outils .icon-btn');
         if (!b) return null;
         const st = getComputedStyle(b);
         return { fond: st.backgroundColor, rayon: st.borderTopLeftRadius, degrade: st.backgroundImage !== 'none' };

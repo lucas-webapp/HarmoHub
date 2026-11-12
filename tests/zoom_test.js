@@ -18,6 +18,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 // jamais un problème chez l'utilisateur. Ces échecs réseau sont donc filtrés — sinon ils font
 // échouer « aucune erreur console » et masquent les vraies erreurs au milieu du bruit.
 const { check, exiger, plan, bilan } = require('./_harness')('zoom de la vue agrandie');
+const R = require('./_retrait_ancien');
 plan(8);
 
 (async () => {
@@ -46,65 +47,31 @@ plan(8);
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(400);
 
-    console.log('--- Ouvre la vue agrandie du séquenceur sur le 1er accord ---');
-    await page.evaluate(() => { window.app.editChord(0, 0); if (!window.app.seqOpen) window.app.toggleSequencer(); });
-    await page.waitForTimeout(300);
-        // LA PORTE DU PLEIN ÉCRAN A DÉMÉNAGÉ DANS LE SÉQUENCEUR : c'est la loupe de sa barre d'outils
-    // (#seq-plein-ecran). « Séquenceur » (#seq-zoom), dans le volet, n'ouvre plus que la vue
-    // compacte — et comme il BASCULE, le cliquer ici REFERMAIT le panneau qu'on venait d'ouvrir.
-    // Retour utilisateur à l'origine des deux changements : « le bouton séquenceur dans le volet de
-    // gauche ne devrait ouvrir que le "Petit séquenceur" […] sinon, je ne peux jamais ouvrir le
-    // petit », puis « je propose d'ajouter un bouton loupe dans le petit séquenceur ».
-await page.click('#seq-plein-ecran');
-    await page.waitForTimeout(600);
-
-    // On mesure la case RÉELLEMENT calculée, pas la variable : c'est ce que voit l'utilisateur.
-    const mesure = () => page.evaluate(() => {
-        const cell = document.querySelector('#seq-zoom-host .seq-cell');
-        if (!cell) return null;
-        const r = cell.getBoundingClientRect();
-        return {
-            hauteur: Math.round(r.height * 10) / 10,
-            largeur: Math.round(r.width * 10) / 10,
-            x: window.app.seqZoomLevelX,
-            y: window.app.seqZoomLevelY,
-        };
-    });
-
-    const depart = await mesure();
-    console.log('départ :', JSON.stringify(depart));
-    if (!exiger(depart && depart.hauteur > 0 && depart.largeur > 0,
-        `la vue agrandie est ouverte et ses cases sont mesurables — ${JSON.stringify(depart)}`)) bilan();
-    check(depart.x === 1 && depart.y === 1, `les deux échelles partent bien de 1 — ${depart.x}/${depart.y}`);
-
-    console.log('--- V+ trois fois : la HAUTEUR de case doit grandir pour de vrai ---');
-    for (let i = 0; i < 3; i++) await page.click('#seq-zoom-in-v');
-    await page.waitForTimeout(400);
-    const apresV = await mesure();
-    console.log(JSON.stringify(apresV));
-    check(apresV.y > depart.y, `l'échelle verticale a augmenté (${depart.y} -> ${apresV.y})`);
-    check(apresV.hauteur > depart.hauteur,
-        `et la hauteur CALCULÉE de la case a suivi — ${depart.hauteur}px -> ${apresV.hauteur}px (un zoom qui ne se voit pas serait un défaut)`);
-
-    console.log('--- H+ trois fois : la LARGEUR de case doit grandir, la hauteur rester où elle est ---');
-    for (let i = 0; i < 3; i++) await page.click('#seq-zoom-in-h');
-    await page.waitForTimeout(400);
-    const apresH = await mesure();
-    console.log(JSON.stringify(apresH));
-    check(apresH.x > depart.x, `l'échelle horizontale a augmenté (${depart.x} -> ${apresH.x})`);
-    check(apresH.largeur > depart.largeur,
-        `et la largeur CALCULÉE de la case a suivi — ${depart.largeur}px -> ${apresH.largeur}px`);
-    check(Math.abs(apresH.hauteur - apresV.hauteur) <= 1,
-        `le zoom horizontal n'a pas touché à la hauteur (${apresV.hauteur}px -> ${apresH.hauteur}px) : les deux axes restent indépendants`);
-
-    console.log('--- Les échelles de la vue agrandie sont bien mémorisées sur l\'appareil ---');
-    const memorise = await page.evaluate(() => ({
-        sx: parseFloat(localStorage.getItem('harmohubSeqZoomLevelX')),
-        sy: parseFloat(localStorage.getItem('harmohubSeqZoomLevelY')),
-    }));
-    console.log(JSON.stringify(memorise));
-    check(memorise.sx === apresH.x && memorise.sy === apresH.y,
-        `les deux échelles sont écrites en mémoire locale — ${memorise.sx}/${memorise.sy}`);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11, décision « réécriture courte ») : le petit séquenceur de l'inspecteur, sa vue agrandie (#seq-plein-ecran,
+    // #seq-zoom-host) et ses zooms H / V ont quitté l'ordinateur — « pas de zoom, pas de loupe […] toute la partie tient à l'écran » ; la hauteur des lignes se règle
+    // à la poignée du séquenceur (docs/refonte-sequenceur.md, section D). Ce que le banc gardait — un réglage qui SE VOIT, mesuré sur la case réellement calculée, et
+    // retenu par l'appareil — est éprouvé sur le séquenceur du bloc « Vues », par de vrais gestes.
+    console.log('--- Plus de petit séquenceur ni de vue agrandie ; le séquenceur du bloc Vues ---');
+    const porte = await R.porteInspecteurAbsente(page, 0, 0);
+    check(porte.ok, `plus de porte « Séquenceur » ni de petit séquenceur dans l'inspecteur (${porte.detail})`);
+    check(await page.evaluate(() => !document.getElementById('seq-plein-ecran') && document.getElementById('seq-zoom-overlay').hidden), 'ni loupe, ni vue agrandie à ouvrir');
+    const ouvert = await R.ouvrirNouveau(page);
+    exiger(ouvert.ok, `le séquenceur du bloc « Vues » s'ouvre par son bouton (${ouvert.detail})`);
+    const hauteur = () => page.evaluate(() => Math.round(document.querySelector('#sq-grille .sq-case[data-r]').getBoundingClientRect().height * 10) / 10);
+    const h0 = await hauteur();
+    const q = await R.centre(page, '#sq-poignee');
+    await page.mouse.move(q.x, q.y); await page.mouse.down(); await page.mouse.move(q.x, q.y - 60, { steps: 10 }); await page.mouse.up(); await page.waitForTimeout(400);
+    const h1 = await hauteur();
+    check(h1 > h0, `la poignée agrandit la hauteur CALCULÉE des lignes (remplace le zoom V) — ${h0}px → ${h1}px`);
+    const tout = await R.toutePartie(page);
+    check(tout.ok, `la largeur suit la place disponible, toute la partie à l'écran (remplace le zoom H) — ${tout.detail}`);
+    await R.cliquer(page, '#vue-sequenceur', 400);
+    await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(600);
+    await R.ouvrirNouveau(page);
+    const h2 = await hauteur();
+    check(Math.abs(h2 - h1) <= 1, `la hauteur choisie est retenue par l'appareil, après rechargement — ${h1}px puis ${h2}px`);
+    const poignee = await R.poigneeLignes(page);
+    check(poignee.ok, `le double-clic sur la poignée rend la hauteur d'origine (${poignee.detail})`);
 
     console.log('Errors:', JSON.stringify(errors));
     check(errors.length === 0, 'aucune erreur JavaScript pendant tout le scénario');

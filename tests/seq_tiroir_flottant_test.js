@@ -18,6 +18,7 @@
 // et son rythme — d'où un défilement qui vise la case éditée au lieu de centrer le séquenceur.
 const { chromium, devices } = require('playwright');
 const creerHarnais = require('./_harness');
+const R = require('./_retrait_ancien');
 const { plan, check, exiger, bilan } = creerHarnais('Petit séquenceur : tiroir flottant sur téléphone');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
@@ -59,7 +60,7 @@ const etat = () => {
 };
 
 (async () => {
-    plan(19);
+    plan(21);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
 
@@ -190,17 +191,19 @@ const etat = () => {
     await page.evaluate(seed);
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(650);
-    await page.evaluate(() => window.app.editChord(0, 1));
-    await page.waitForTimeout(350);
-    const avantB = await page.evaluate(etat);
-    await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(700);
-    const apresB = await page.evaluate(etat);
-    exiger(apresB.ouvert, 'ordinateur : le petit séquenceur s\'ouvre bien');
-    check(!apresB.tiroir && apresB.position !== 'fixed',
-        `ordinateur : PAS de tiroir flottant — classe ${apresB.tiroir}, position ${apresB.position}`);
-    check(apresB.grilleTop === avantB.grilleTop,
-        `ordinateur : la grille ne bouge pas d'un pixel — ${avantB.grilleTop}px puis ${apresB.grilleTop}px`);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : à l'ordinateur, le petit séquenceur de l'inspecteur a disparu (la fenêtre d'accord n'a « pas de ligne
+    // Rythme », cahier 3 bis) ; le rythme de l'accord ouvert se règle au séquenceur du bloc « Vues ». Ce que la partie gardait reste vrai pour lui : il ne flotte pas en
+    // tiroir, la grille ne bouge pas d'un pixel, aucun défilement n'est déclenché. L'accord est ouvert par le vrai geste (double-clic, « Réglages du son »).
+    const porteB = await R.porteInspecteurAbsente(page, 0, 1);
+    exiger(porteB.ok, `ordinateur : l'inspecteur n'a plus de petit séquenceur (${porteB.detail})`);
+    const grilleTop = () => page.evaluate(() => Math.round(document.querySelector('#progression-sections').getBoundingClientRect().top));
+    const avantTop = await grilleTop();
+    await R.cliquer(page, '#vue-sequenceur', 700);
+    const apresB = await page.evaluate(() => { const q = document.getElementById('sequenceur'); return { ouvert: !q.hidden, position: getComputedStyle(q).position, tiroir: q.classList.contains('seq-tiroir') }; });
+    const apresTop = await grilleTop();
+    check(apresB.ouvert && !apresB.tiroir && apresB.position !== 'fixed',
+        `ordinateur : le séquenceur s'ouvre dans la page, PAS en tiroir flottant — ouvert ${apresB.ouvert}, position ${apresB.position}`);
+    check(apresTop === avantTop, `ordinateur : la grille ne bouge pas d'un pixel — ${avantTop}px puis ${apresTop}px`);
     check(await page.evaluate(() => Math.round((document.scrollingElement || document.documentElement).scrollTop)) === 0,
         'ordinateur : aucune page à faire défiler, donc aucun défilement déclenché');
 

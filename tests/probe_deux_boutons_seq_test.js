@@ -48,26 +48,34 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
         });
 
         console.log(`\n======== ${vp.nom} ========`);
-        console.log('--- 1. Porte « Séquenceur » de la carte Accord -> petit séquenceur DANS la carte ---');
-        // Elle s'appelait « Agrandir » et ne faisait qu'agrandir ce qu'un bouton icône avait ouvert.
-        // Ce bouton-là n'existe plus (retour utilisateur : « tu peux laisser uniquement le bouton
-        // agrandir car il est plus visible ») : « Séquenceur » ouvre ET agrandit. On referme donc le
-        // plein écran juste après, pour retrouver la vue compacte que cette section éprouve.
-        await taper('#seq-zoom'); await p.waitForTimeout(1200);
-        await p.evaluate(() => window.app.closeSeqZoom()); await p.waitForTimeout(600);
-        let r = await lire(); console.log(JSON.stringify(r));
-        ck(r.mode==='compact', `mode « compact » — ${r.mode}`);
-        ck(!r.dansVolet, 'il reste dans le module, pas dans le volet sous la grille');
-        ck(!r.voletVisible, '...et le volet sous la grille reste fermé');
-        ck(!r.continu && r.contexte===0 && r.lignes===4,
-            `simplifié : ${r.lignes} lignes (une par voix), ${r.contexte} case(s) de contexte`);
-        ck(r.visible, 'il est visible à l\'écran');
+        if (!vp.mob) {
+            // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : à l'ordinateur, la porte « Séquenceur » de la carte Accord et le petit séquenceur ont disparu —
+            // la fenêtre d'accord n'a « pas de ligne Rythme » (cahier 3 bis). Réécriture courte : l'inspecteur, ouvert par le vrai geste, n'a plus ni l'une ni l'autre ;
+            // le rythme se règle au séquenceur du bloc « Vues » (sections 2 à 4 ci-dessous).
+            console.log('--- 1. L\'inspecteur n\'a plus de porte « Séquenceur » ni de petit séquenceur ---');
+            const insp = await R.porteInspecteurAbsente(p, 0, 5);
+            ck(insp.ok, `plus de petit séquenceur dans l'inspecteur — ${insp.detail}`);
+        } else {
+                    console.log('--- 1. Porte « Séquenceur » de la carte Accord -> petit séquenceur DANS la carte ---');
+            // Elle s'appelait « Agrandir » et ne faisait qu'agrandir ce qu'un bouton icône avait ouvert.
+            // Ce bouton-là n'existe plus (retour utilisateur : « tu peux laisser uniquement le bouton
+            // agrandir car il est plus visible ») : « Séquenceur » ouvre ET agrandit. On referme donc le
+            // plein écran juste après, pour retrouver la vue compacte que cette section éprouve.
+            await taper('#seq-zoom'); await p.waitForTimeout(1200);
+            await p.evaluate(() => window.app.closeSeqZoom()); await p.waitForTimeout(600);
+            let r = await lire(); console.log(JSON.stringify(r));
+            ck(r.mode==='compact', `mode « compact » — ${r.mode}`);
+            ck(!r.dansVolet, 'il reste dans le module, pas dans le volet sous la grille');
+            ck(!r.voletVisible, '...et le volet sous la grille reste fermé');
+            ck(!r.continu && r.contexte===0 && r.lignes===4,
+                `simplifié : ${r.lignes} lignes (une par voix), ${r.contexte} case(s) de contexte`);
+            ck(r.visible, 'il est visible à l\'écran');
+        }
 
         if (!vp.mob) {
             // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur, le « bouton au-dessus de la grille » (Éditeur de notes) et son volet continu
             // ont disparu. Le second bouton est désormais « Séquenceur », dans le bloc « Vues » : le séquenceur s'ouvre en GROS sous la grille (au-dessus du
             // tiroir), une ligne par voix, sa poignée règle la hauteur des lignes, et le même bouton le referme.
-            await p.evaluate(() => window.app.closeSeqZoom && window.app.toggleSequencer && window.app.seqMode && window.app.toggleSequencer(window.app.seqMode)); // referme le petit séquenceur de la section 1 (réglage, pas un geste éprouvé ici)
             console.log('--- 2. Bouton « Séquenceur » du bloc Vues -> le séquenceur sous la grille ---');
             const porte = await R.porteAbsente(p);
             ck(porte.ok, `le bouton au-dessus de la grille a disparu, « Séquenceur » est au bloc Vues — ${porte.detail}`);

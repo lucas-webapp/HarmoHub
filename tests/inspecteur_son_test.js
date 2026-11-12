@@ -66,7 +66,10 @@ const graine = (opts) => {
     const titre = await p.evaluate(() => document.getElementById('accord-title').textContent.replace(/\s+/g, ''));
     check(titre === 'ModifierAm7', `il nomme l'accord qu'il règle (« ${titre} »)`);
     check(!(await visible(p, '#root')) && !(await visible(p, '#quality')) && !(await visible(p, '#duration-dd')), '« rien aux deux endroits » : ni fondamentale, ni type, ni durée — c\'est la bulle');
-    check(await visible(p, '#voicing-row') && await visible(p, '#seq-zoom'), 'le COMMENT il sonne y est : voicing (octave, renversement, drop, basse), séquenceur');
+    // RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : la porte « Séquenceur » et le petit séquenceur ont quitté l'inspecteur — la fenêtre d'accord n'a « pas de ligne
+    // Rythme », le rythme se règle au séquenceur du bloc « Vues » (docs/refonte-sequenceur.md, 3 bis).
+    check(await visible(p, '#voicing-row') && !(await visible(p, '#seq-zoom')) && !(await visible(p, '#arp-sequencer')) && await visible(p, '#vue-sequenceur'),
+        'le COMMENT il sonne y est : voicing (octave, renversement, drop, basse) ; le rythme n\'y est plus, il se règle au séquenceur du bloc « Vues »');
     check(await p.evaluate(() => /126, 166, 224/.test(getComputedStyle(document.getElementById('accord-title')).color)), 'en bleu, comme la case choisie — fini l\'orange');
 
     // ======================================================================================================

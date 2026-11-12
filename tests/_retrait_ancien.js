@@ -23,6 +23,19 @@ async function porteAbsente(p) {
     return { ok: !r.ancienne && r.nouveau && r.dansVues, detail: `« Éditeur de notes » visible : ${r.ancienne}, « Séquenceur » du bloc Vues : ${r.nouveau}` };
 }
 
+// ÉTAPE 4b : le petit séquenceur de l'inspecteur (#arp-sequencer) et sa porte « Séquenceur » (#seq-zoom) ont disparu de l'ordinateur — la fenêtre d'accord
+// n'a « pas de ligne Rythme » (docs/refonte-sequenceur.md, 3 bis). L'inspecteur est ouvert par le vrai geste (double-clic, « Réglages du son »), puis on relève.
+async function porteInspecteurAbsente(p, section = 0, index = 0) {
+    const G = require('./_geste_accord');
+    await G.ouvrirSon(p, section, index);
+    const r = await p.evaluate(() => {
+        const vis = (id) => { const e = document.getElementById(id); return !!e && !e.hidden && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0; };
+        return { inspecteur: window.app.editingIndex != null, porte: vis('seq-zoom'), petit: vis('arp-sequencer'), nouveau: vis('vue-sequenceur') };
+    });
+    return { ok: r.inspecteur && !r.porte && !r.petit && r.nouveau,
+        detail: `inspecteur ouvert ${r.inspecteur}, porte « Séquenceur » visible ${r.porte}, petit séquenceur visible ${r.petit}, « Séquenceur » du bloc Vues ${r.nouveau}` };
+}
+
 // Ouvre le nouveau séquenceur par son bouton (vrai clic), s'il ne l'est pas déjà.
 async function ouvrirNouveau(p) {
     const ouvert = await p.evaluate(() => !document.getElementById('sequenceur').hidden);
@@ -204,4 +217,4 @@ async function choisirParNom(p, c = 2) {
     return { ok: r.choisi === c && r.sel === c, detail: `choisi ${r.choisi}, sélection de la grille ${r.sel}` };
 }
 
-module.exports = { choisirParNom, peindre, reperes, effacerAccord, lignesParVoix, sansLecturePropre, poigneeLignes, centre, cliquer, porteAbsente, ouvrirNouveau, toutePartie, poserCroche, intensite, noteLibre, plageBoucle, teteLecture, couleursRoles, suitSelection, motif, lire };
+module.exports = { porteInspecteurAbsente, choisirParNom, peindre, reperes, effacerAccord, lignesParVoix, sansLecturePropre, poigneeLignes, centre, cliquer, porteAbsente, ouvrirNouveau, toutePartie, poserCroche, intensite, noteLibre, plageBoucle, teteLecture, couleursRoles, suitSelection, motif, lire };

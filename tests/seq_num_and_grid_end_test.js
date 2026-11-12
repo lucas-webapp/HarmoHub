@@ -1,5 +1,6 @@
 const { chromium } = require('playwright')
 const { ajouterAccord } = require('./_ajout');
+const R = require('./_retrait_ancien');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -33,27 +34,24 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
         saveProgressionSections(sections);
         app.loadProgression();
     });
-    await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(300);
-
-    const seqSymmetry = await page.evaluate(() => {
-        const num2 = document.querySelector('.seq-beat-label[data-beat-index="1"] .seq-beat-num');
-        const num3 = document.querySelector('.seq-beat-label[data-beat-index="2"] .seq-beat-num');
-        const dashes = Array.from(document.querySelectorAll('.seq-beat-offbeat .offbeat-dash'));
-        const dash2 = dashes[1]; // contretemps du 2e temps (entre num2 et num3)
-        const c = el => { const r = el.getBoundingClientRect(); return (r.left + r.right) / 2; };
-        return {
-            num2: c(num2), dash2: c(dash2), num3: c(num3),
-            gapNumToDash: c(dash2) - c(num2),
-            gapDashToNum: c(num3) - c(dash2),
-        };
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : le petit séquenceur de l'inspecteur (et ses traits de contretemps) a quitté l'ordinateur. Ce que la
+    // partie gardait — un numéro de temps à sa place, à égale distance de ses voisins — est éprouvé sur la règle du séquenceur du bloc « Vues », ouvert par son
+    // bouton : chaque numéro est posé sur la colonne de son temps, et l'écart entre deux numéros est le même partout (deux croches).
+    const ouvert = await R.ouvrirNouveau(page);
+    check(ouvert.ok, `le séquenceur du bloc « Vues » s'ouvre par son bouton (${ouvert.detail})`);
+    const regle = await page.evaluate(() => {
+        const nums = [...document.querySelectorAll('#sq-grille .sq-temps[data-c="0"]')].filter(t => t.textContent.trim());
+        return nums.map(t => {
+            const r = t.getBoundingClientRect(), c = document.querySelector(`#sq-grille .sq-case[data-c="0"][data-k="${t.dataset.k}"]`).getBoundingClientRect();
+            return { n: t.textContent.trim(), k: +t.dataset.k, g: r.left, ecart: Math.abs(r.left - c.left) };
+        });
     });
-    console.log('seqSymmetry:', JSON.stringify(seqSymmetry));
-    const diff = Math.abs(seqSymmetry.gapNumToDash - seqSymmetry.gapDashToNum);
-    check(diff <= 2, `écart temps->trait (${seqSymmetry.gapNumToDash.toFixed(1)}px) ≈ écart trait->temps suivant (${seqSymmetry.gapDashToNum.toFixed(1)}px) — différence ${diff.toFixed(1)}px, plus d'asymétrie visible`);
-
-    await page.evaluate(() => window.app.toggleSequencer('compact'));
-    await page.waitForTimeout(150);
+    console.log('regle:', JSON.stringify(regle));
+    const pas = regle.slice(1).map((x, i) => x.g - regle[i].g);
+    const diff = pas.length ? Math.max(...pas) - Math.min(...pas) : 99;
+    check(regle.length === 8 && regle.every((x, i) => x.n === String(i % 4 + 1) && x.k === 2 * i && x.ecart <= 1) && diff <= 2,
+        `chaque numéro de temps est sur la colonne de son temps, à égale distance de ses voisins (${regle.map(x => x.n).join('')}, pas ${pas.map(Math.round).join('/')}, différence ${diff.toFixed(1)}px)`);
+    await R.cliquer(page, '#vue-sequenceur', 300); // refermé pour la suite
 
     // === 2. Grille : le numéro de fin de contenu (ex "2" après 1 mesure) apparaît SANS prolonger
     // l'accord — dérivé de cursor/beatsPerBar, pas d'un vrai accord === (repart d'1 seule mesure,

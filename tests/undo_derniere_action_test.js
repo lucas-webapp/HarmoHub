@@ -34,7 +34,9 @@ const seed = () => {
 };
 const etat = () => {
     const c = JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[0];
-    return { inversion: String(c.inversion), motif: c.arpPattern, octave: String(c.octave) };
+    // 4b : le motif est relu tel que le séquenceur du bloc « Vues » le lit (croches posées), et non plus dans le champ de l'ancien séquenceur.
+    const e = SequenceurHarmo.lireAccord(c);
+    return { inversion: String(c.inversion), motif: [...e.on].sort().join(' '), octave: String(c.octave) };
 };
 const boiteDe = (sel) => {
     const el = document.querySelector(sel);
@@ -45,7 +47,7 @@ const boiteDe = (sel) => {
 };
 
 (async () => {
-    plan(15);
+    plan(17);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -69,19 +71,23 @@ const boiteDe = (sel) => {
         await page.click(sel);
         await page.waitForTimeout(300);
     };
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : le petit séquenceur de l'inspecteur a quitté l'ordinateur ; la retouche de rythme se fait dans le
+    // séquenceur du bloc « Vues », ouvert à côté de l'inspecteur : un clic sur une croche libre de la voix aiguë du premier accord y pose une note.
     const retoucherSequenceur = async () => {
-        const c = await page.evaluate(boiteDe, '#arp-sequencer .seq-cell[data-voice][data-step]:not(.on):not(.seq-cell-edge)');
-        if (!c) return false;
-        // Clic-PUIS-GLISSÉ : poser une note se fait en définissant sa longueur (« je veux cliquer,
-        // puis définir sa longueur en glissant »). Un clic seul ne crée rien.
-        const l = await page.evaluate(() => {
-            const x = document.querySelector('#arp-sequencer .seq-cell[data-voice][data-step]');
-            return x ? x.getBoundingClientRect().width : 20;
+        const c = await page.evaluate(() => {
+            const e = SequenceurHarmo.lireAccord(loadProgressionSections()[0].chords[0]);
+            const v = e.info.positions[e.info.positions.length - 1];
+            for (let k = 0; k < e.info.croches; k++) {
+                if (e.on.has(v + ':' + k)) continue;
+                const x = document.querySelector(`#sq-grille .sq-case[data-c="0"][data-v="${v}"][data-k="${k}"]`);
+                if (!x) return null;
+                const r = x.getBoundingClientRect();
+                return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+            }
+            return null;
         });
-        await page.mouse.move(c.x, c.y);
-        await page.mouse.down();
-        await page.mouse.move(c.x + l * 1.5, c.y, { steps: 6 });
-        await page.mouse.up();
+        if (!c) return false;
+        await page.mouse.click(c.x, c.y);
         await page.waitForTimeout(350);
         return true;
     };
@@ -91,9 +97,11 @@ const boiteDe = (sel) => {
         await page.waitForTimeout(350);
     };
 
-    await page.evaluate(() => { window.app.editChord(0, 0); window.app.toggleSequencer('compact'); });
+    await page.evaluate(() => window.app.editChord(0, 0)); // l'accord en modification (relevé d'état, pas un geste éprouvé ici)
+    await page.waitForTimeout(400);
+    await page.click('#vue-sequenceur'); // le séquenceur du bloc « Vues », par son bouton
     await page.waitForTimeout(600);
-    exiger(await page.evaluate(() => window.app.seqOpen === true), 'le séquenceur est ouvert — c\'est la situation où le défaut se produisait');
+    exiger(await page.evaluate(() => !document.getElementById('sequenceur').hidden && window.app.editingIndex === 0), 'le séquenceur est ouvert à côté de l\'accord en modification — c\'est la situation où le défaut se produisait');
 
     console.log('=== A. Séquenceur ouvert, dernière action = un RÉGLAGE D\'ACCORD ===');
     // Le cas exact du signalement. Avant ce lot, Ctrl+Z partait dans le séquenceur parce qu'il était
@@ -131,6 +139,8 @@ const boiteDe = (sel) => {
     // l'oublier. On éprouve donc ce qui est VRAIMENT garanti, et qui compte tout autant : l'historique
     // du séquenceur est bien vidé, et Ctrl+Z ne reste pas coincé dessus à ne rien faire — il enchaîne
     // sur la grille.
+    // 4b : l'ancien séquenceur et sa pile à part ont disparu de l'ordinateur ; le séquenceur du bloc « Vues » écrit dans l'historique de la grille. Ce qui reste
+    // garanti est le même : aucune pile « séquenceur » ne retient le Ctrl+Z.
     const pilesApres = await page.evaluate(() => ({
         seq: window.app.seqUndoStack.length,
         journalSeq: window.app._journalUndo.filter(x => x === 'sequenceur').length,
@@ -140,7 +150,8 @@ const boiteDe = (sel) => {
 
     console.log('\n=== C. L\'inverse : dernière action = le SÉQUENCEUR ===');
     // Le symétrique doit valoir aussi, sinon on aurait juste déplacé le défaut.
-    await page.evaluate(() => { if (window.app.appMode !== 'edit') window.app.editChord(0, 0); if (!window.app.seqOpen) window.app.toggleSequencer('compact'); });
+    await page.evaluate(() => { if (window.app.appMode !== 'edit') window.app.editChord(0, 0); });
+    if (await page.evaluate(() => document.getElementById('sequenceur').hidden)) await page.click('#vue-sequenceur');
     await page.waitForTimeout(500);
     const base = await page.evaluate(etat);
     await retoucherAccord('1');

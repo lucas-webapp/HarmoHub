@@ -30,7 +30,7 @@ const HORS_JAUGE = {
     'voicing-step': 'lot 6',
     'voicing-segment': 'lot 6',
     'bass': 'lot 6',
-    'seq-zoom': 'lot 9 — le « Séquenceur » de la carte devient « Éditeur de notes »',
+    // 'seq-zoom' (le « Séquenceur » de l'inspecteur) est sorti d'ici au retrait de l'ancien séquenceur, étape 4b (12/11) : la porte a quitté l'ordinateur.
     'add-section': 'lot 5 — « Nouvelle section », à 7px',
 };
 
