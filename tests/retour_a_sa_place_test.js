@@ -1,3 +1,4 @@
+// RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : le trajet éprouvé est celui du séquenceur du bloc « Vues » et de l'onglet « Rythme » du téléphone.
 // Tout élément que l'appli DÉPLACE doit revenir exactement à sa place — et la grille, elle, ne doit
 // jamais bouger du tout.
 //
@@ -69,47 +70,40 @@ plan(15);
     const hoteInitialSeq = repos.parentSeq;
     check(repos.symboles.length === 2, `les 2 accords sont bien là au départ — ${JSON.stringify(repos.symboles)}`);
 
-    console.log('=== Ouvre le volet du séquenceur continu, édite un accord ===');
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(700);
-    await page.evaluate(() => window.app.editChordFromSequencer(0, 0));
-    await page.waitForTimeout(500);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur, le volet continu (qui déménageait #arp-sequencer) et la vue agrandie ont disparu. LE
+    // PRINCIPE RESTE : ouvrir le séquenceur du bloc « Vues » ne déplace ni la grille ni le petit séquenceur ; et le séquenceur lui-même, que le téléphone DÉPLACE dans
+    // l'onglet « Rythme » du panneau d'accord, revient exactement à sa place (même parent, même voisin) quand l'onglet se referme ou qu'on repasse à l'ordinateur.
+    const R = require('./_retrait_ancien');
+    const placeSq = () => page.evaluate(() => { const s = document.getElementById('sequenceur'); return { parent: s.parentElement.id || s.parentElement.tagName, suivant: s.nextElementSibling ? (s.nextElementSibling.id || s.nextElementSibling.className) : null, nb: document.querySelectorAll('#sequenceur').length }; });
+    const place0 = await placeSq();
+    console.log('=== Ouvre le séquenceur du bloc « Vues », pose une croche ===');
+    let rr = await R.ouvrirNouveau(page);
+    exiger(rr.ok, `le séquenceur s'ouvre (${rr.detail})`);
+    rr = await R.poserCroche(page, 0);
+    check(rr.ok, `on y travaille (${rr.detail})`);
     const ouvert = await ou();
-    console.log(JSON.stringify(ouvert));
-    check(ouvert.parentSeq === 'seq-dock-host', `le séquenceur a bien rejoint le volet sous la grille — parent « ${ouvert.parentSeq} »`);
-    check(ouvert.nbSequenceurs === 1, `il a été DÉPLACÉ, pas dupliqué — ${ouvert.nbSequenceurs} séquenceur(s) dans la page`);
-    check(ouvert.grilleDansHistory && !ouvert.grilleDansColLeft,
-        'la grille n\'a PAS bougé : elle reste dans .history-section (c\'est là que le défaut d\'origine la perdait)');
+    check(ouvert.parentSeq === hoteInitialSeq && ouvert.nbSequenceurs === 1, `le petit séquenceur n'a pas bougé de son hôte (« ${ouvert.parentSeq} »), toujours un seul`);
+    check(ouvert.grilleDansHistory && !ouvert.grilleDansColLeft, 'la grille n\'a PAS bougé : elle reste dans .history-section');
+    check(JSON.stringify(await placeSq()) === JSON.stringify(place0), `le séquenceur reste à sa place dans la page (${JSON.stringify(place0)})`);
+    await R.cliquer(page, '#sq-fermer', 400);
 
-    console.log('=== Passe par la vue AGRANDIE, puis en revient ===');
-        // LA PORTE DU PLEIN ÉCRAN A DÉMÉNAGÉ DANS LE SÉQUENCEUR : c'est la loupe de sa barre d'outils
-    // (#seq-plein-ecran). « Séquenceur » (#seq-zoom), dans le volet, n'ouvre plus que la vue
-    // compacte — et comme il BASCULE, le cliquer ici REFERMAIT le panneau qu'on venait d'ouvrir.
-    // Retour utilisateur à l'origine des deux changements : « le bouton séquenceur dans le volet de
-    // gauche ne devrait ouvrir que le "Petit séquenceur" […] sinon, je ne peux jamais ouvrir le
-    // petit », puis « je propose d'ajouter un bouton loupe dans le petit séquenceur ».
-await page.click('#seq-plein-ecran');
-    await page.waitForTimeout(800);
-    const agrandi = await ou();
-    console.log(JSON.stringify(agrandi));
-    check(agrandi.parentSeq === 'seq-zoom-host', `agrandi, le séquenceur est dans la fenêtre — parent « ${agrandi.parentSeq} »`);
-    check(agrandi.nbSequenceurs === 1, `toujours un seul séquenceur — ${agrandi.nbSequenceurs}`);
-    check(agrandi.grilleDansHistory, 'la grille reste en place même fenêtre agrandie ouverte');
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(700);
-    const revenu = await ou();
-    console.log(JSON.stringify(revenu));
-    check(revenu.parentSeq === 'seq-dock-host',
-        `en refermant la fenêtre, le séquenceur retourne dans le volet, pas ailleurs — parent « ${revenu.parentSeq} »`);
-
-    console.log('=== Referme le volet : le séquenceur retrouve son hôte d\'origine ===');
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(600);
+    console.log('=== Au téléphone, l\'onglet « Rythme » le déplace dans le panneau d\'accord, puis le rend ===');
+    await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(700);
+    await page.click('#bl-plus'); await page.waitForTimeout(400);
+    await page.click('#pl-notes'); await page.waitForTimeout(800);
+    const dansPanneau = await placeSq();
+    check(dansPanneau.parent === 'pa-rythme' && dansPanneau.nb === 1, `il est DÉPLACÉ dans l'onglet Rythme, pas dupliqué — parent « ${dansPanneau.parent} », ${dansPanneau.nb} séquenceur(s)`);
+    await page.click('#pa-quel [data-bulle="onglet"][data-valeur="accord"]'); await page.waitForTimeout(500);
+    const apresAccord = await placeSq();
+    check(JSON.stringify(apresAccord) === JSON.stringify(place0), `onglet Accord : il retourne EXACTEMENT à sa place (même parent, même voisin) — ${JSON.stringify(apresAccord)} pour ${JSON.stringify(place0)}`);
+    await page.click('#pa-quel [data-bulle="onglet"][data-valeur="rythme"]'); await page.waitForTimeout(500);
+    await page.setViewportSize({ width: 1400, height: 900 }); await page.waitForTimeout(800);
     const ferme = await ou();
     console.log(JSON.stringify(ferme));
+    check(JSON.stringify(await placeSq()) === JSON.stringify(place0), 'élargi pendant que l\'onglet Rythme était ouvert : il retourne aussi exactement à sa place');
     check(ferme.parentSeq === hoteInitialSeq,
-        `le séquenceur est revenu exactement à son hôte de départ (« ${hoteInitialSeq} ») — trouvé « ${ferme.parentSeq} »`);
-    check(ferme.nbSequenceurs === 1, `toujours un seul séquenceur après tout l'aller-retour — ${ferme.nbSequenceurs}`);
+        `le petit séquenceur est à son hôte de départ (« ${hoteInitialSeq} ») — trouvé « ${ferme.parentSeq} »`);
+    check(ferme.nbSequenceurs === 1, `toujours un seul petit séquenceur après tout l'aller-retour — ${ferme.nbSequenceurs}`);
 
     console.log('=== La grille et son bouton « Ajouter une partie » sont intacts après tout le parcours ===');
     check(ferme.grilleDansHistory, 'la grille est bien dans .history-section');

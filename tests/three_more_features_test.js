@@ -140,19 +140,21 @@ const accord = (root, quality, beats) => ({ root, quality, beats, inversion: 0, 
     await page.waitForTimeout(400);
     await page.evaluate(() => window.app.editChord(0, 0));
     await page.waitForTimeout(250);
-    await page.click('#grid-zoom');       // volet du séquenceur CONTINU
-    await page.waitForTimeout(800);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : la vue continue d'avant (« Éditeur de notes ») a quitté l'ordinateur. Le séquenceur du bloc « Vues »
+    // ne défile JAMAIS de côté (toute la partie à l'écran, « pas de zoom ») : ses noms de notes, dans leur colonne de gauche, restent donc toujours visibles —
+    // même avec un accord de 16 temps à côté d'un accord de 4.
+    const R = require('./_retrait_ancien');
+    await R.ouvrirNouveau(page);
     const continu = await page.evaluate(() => {
-        const nom = document.querySelector('.seq-scroll-continuous .seq-label');
-        if (!nom) return { trouve: false };
-        const cs = getComputedStyle(nom);
-        return { trouve: true, position: cs.position, left: cs.left, fond: cs.backgroundColor };
+        const g = document.getElementById('sq-grille'), noms = [...g.querySelectorAll('.sq-etiq')].filter(e => e.textContent.trim()), s = document.getElementById('sequenceur').getBoundingClientRect();
+        return { trouve: noms.length > 0, deborde: g.scrollWidth - g.clientWidth, visibles: noms.every(n => { const b = n.getBoundingClientRect(); return b.left >= s.left - 1 && b.width > 0; }) };
     });
     console.log(JSON.stringify(continu));
-    if (exiger(continu.trouve, 'les noms de note de la vue continue sont bien là')) {
-        check(continu.position === 'sticky',
-            `ils restent collés à gauche quand on défile (position « ${continu.position} »)`);
+    if (exiger(continu.trouve, 'les noms de note du séquenceur sont bien là')) {
+        check(continu.deborde <= 1 && continu.visibles,
+            `rien ne défile de côté (débord ${continu.deborde}px) : les noms restent toujours visibles à gauche`);
     }
+    await R.cliquer(page, '#sq-fermer', 300);
 
     // La règle n'est PAS « continu = collant, compact = pas collant » : elle suit ce qui DÉFILE
     // horizontalement. `.seq-scroll-continuous .seq-label, .seq-scroll-wide .seq-label` — et
@@ -161,7 +163,7 @@ const accord = (root, quality, beats) => ({ root, quality, beats, inversion: 0, 
     // accord de 16 temps, c'est-à-dire précisément le cas où le collant est voulu. On distingue donc
     // les deux compacts.
     console.log('--- Séquenceur COMPACT, accord qui TIENT sur une page : rien à coller ---');
-    await page.evaluate(() => window.app.toggleSequencer('compact'));   // bascule de mode sans refermer (voir toggleSequencer)
+    await page.evaluate(() => window.app.toggleSequencer('compact'));   // ouvre le petit séquenceur de l'inspecteur (il reste jusqu'à l'étape 4b)
     await page.waitForTimeout(600);
     await page.evaluate(() => window.app.editChordFromSequencer(0, 1)); // le G, 4 temps : tient
     await page.waitForTimeout(500);
