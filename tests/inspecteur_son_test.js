@@ -9,6 +9,7 @@
 // (Ctrl+Z comme filet) ; sa croix le ferme ; un ancien repli mémorisé ne le vide pas ; le téléphone garde sa colonne (lot 10).
 const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('inspecteur « son de l\'accord »');
+const { dblclickHorsNom } = require('./_geste_accord');
 const { estBruitReseau } = require('./_harness');
 
 plan(25);
@@ -40,7 +41,7 @@ const graine = (opts) => {
     const boite = (p, sel) => p.evaluate((sel) => { const e = document.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); return { g: r.left, d: r.right, h: r.top, l: Math.round(r.width), haut: Math.round(r.height) }; }, sel);
     const visible = async (p, sel) => { const b = await boite(p, sel); return !!b && b.l > 0 && b.haut > 0; };
     const ouvrirSon = async (p, i) => {
-        await p.dblclick(`#progression-sections .grid-cell[data-index="${i}"]`); await p.waitForTimeout(300); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
+        await dblclickHorsNom(p, `#progression-sections .grid-cell[data-index="${i}"]`); await p.waitForTimeout(300); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
         await p.click('#bulle-accord [data-bulle="son"]'); await p.waitForTimeout(500);
     };
 

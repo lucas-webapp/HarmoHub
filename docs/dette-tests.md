@@ -6182,3 +6182,55 @@ nouveau dans Son (`telephone_panneau_accord` 1, `editeur_notes_outils` 1) ; ⋯ 
 (`telephone_editeur_notes` 3, `audio_fallback` 1) ; « Terminer » absent après × (`barre_bas_telephone` 2) ; garde de `toggleSequencer` retirée au téléphone
 (`telephone_editeur_notes` : plantage, compté rouge — aucun banc ne la gardait avant, ni à la 4b : vérification ajoutée). Relevé des 89 bancs touchés et gardiens : tous verts
 (6 vieux bancs sans bilan, sortis en code 0).
+
+## Session du 12/11 (après la 4c) : renommage au double-clic (B2), sélection grise claire (B1), hauteur du panneau Rythme (A3)
+
+Trois demandes de l'utilisateur, un seul balayage complet en fin de session (« je ne veux pas de régression complète pour ces deux points simples » : balayage CIBLÉ pendant le travail).
+Le nettoyage de l'ancien séquenceur (A2) et la fenêtre d'accord unique (A1) ne sont PAS faits dans cette session : voir « Reste à faire » plus bas.
+
+### B2 — renommer un accord au double-clic sur le texte du nom (ordinateur)
+- **Mesuré d'abord** (sonde jetable, vrais gestes, 1440 × 900, case 110 × 52, nom 37 × 17) : **aucun clic simple n'ouvrait l'encart** (depuis le point B du 11/11) ; au double-clic, le nom comme le reste de
+  la case ouvrait la bulle ; le seul chemin « sans le vouloir » est une **lettre A–G tapée** après un clic (voulu au point B, gardé). La zone du nom (`_isSymbolHit`) valait 36 × 26 px au minimum,
+  avec un halo de 7 px : trois fois la largeur d'un nom court.
+- **Décision de l'utilisateur (12/11)** : « double-clic sur le TEXTE du nom = renommer, SANS ouvrir la bulle (c'est pour aller plus vite) » ; la bulle s'ouvre par le double-clic sur le reste de la case.
+- **Code** : `onGridPointerUp` (script.js) — second clic rapproché sur le texte (`d.symTarget`) → `fermerBulleAccord()` puis `startInlineChordSymbolEdit` (le premier clic a déjà choisi et fait entendre : un seul son) ;
+  `_isSymbolHit` : à la souris, le texte à **3 px** près (au doigt : 40 × 28 px au minimum, inchangé) ; halo du nom ramené à 2 / 3 px à la souris (bloc B2 en fin de `style.css`, `@media (hover: hover) and (pointer: fine)`),
+  accordé à la zone. **Téléphone inchangé** : un second toucher sur le nom ouvre le panneau, il ne retape pas (appui long → « Renommer »).
+- **Banc** `renommer_double_clic` (16 vérifications, rouge d'abord : 5 échecs) ; **quatre sabotages** rouges puis restaurés : zone élargie à 15 px (2 rouges), branche « retape » retirée (4), `fermerBulleAccord` retiré (1), halo remis à 7 px (1).
+- **Bancs réécrits** (le double-clic « au centre de la case » tombait sur le nom : il vise maintenant le bas de la case, hors du texte) : `barre_selection`, `bulle_accord`, `clic_ecouter`, `duree_sur_la_ligne_accord`,
+  `filet_toujours_visible`, `grid_dblclick` (le double-clic sur le symbole retape désormais), `grid_errors` (la zone = le texte à 3 px près, plus de plancher absolu à la souris), `grille_clic_et_double_clic` (section 3),
+  `inspecteur_son`, `portes_sequenceur`, `recadrage_panneau`, `sequenceur_telephone`, `sidebar_collapse`, `telephone_panneau_accord`, `vues_tiroir`. Assistants de `tests/_geste_accord.js` : `ouvrirBulle` vise le bas de la case ;
+  nouveau `dblclickHorsNom(page, sélecteur)`.
+- **À faire à la fenêtre d'accord unique (A1)** : y mettre le nom en champ actif dès l'ouverture, puis décider SEUL si ce double-clic-sur-le-texte devient redondant (l'utilisateur : « fais ce qui te semble le plus rapide »).
+
+### B1 — la sélection est GRISE CLAIRE (ordinateur et téléphone)
+- **Trois propositions** rendues sur de vraies cases (artefacts privés : Reflet, Brillance, Liseré lumineux ; verre éteint et allumé, ordinateur et téléphone, case seule, sélection multiple, à côté de la case en lecture
+  verte et de la plage à boucler orange). **Choix de l'utilisateur, par commentaires sur l'artefact Brillance** : « Brillance » ; d'abord un reflet en haut et sur les côtés à l'extérieur, **rien en bas** (« en bas il y a la barre
+  de lecture, ça risque d'être trop dense ») ; puis **gris clair à la place du bleu** (« la couleur bleue dénote avec l'appli ») ; le renfort pour mieux distinguer la case en modification doit porter sur les **bords**,
+  pas sur le corps (« l'effet renforcé dans la case dénote trop avec les cases adjacentes »). **Écartés avec raisons** : le gris-vert (trop proche du vert de la lecture, se fond dans la partie verte de l'aurore) et l'orange
+  (déjà la plage à boucler et « modifié, pas enregistré » : un sens par couleur).
+- **Code** : bloc B1 en fin de `style.css` — `.grid-cell.selected` / `.multi-selected` / `.editing` : reflet de 28 % sous le bord haut, bordure presque pleine (gris 214, 219, 226 à 0,9), liseré clair du bord haut, halo
+  extérieur en haut et sur les côtés (trois ombres décalées, flou serré), **aucune ombre vers le bas**, corps de la case inchangé (`background-color: var(--card-bg)`), nom blanc ; **en modification** : bord plein, second
+  fil clair à l'intérieur, halo plus dense ; `.selected.playing` garde le vert de la lecture. L'anneau bleu de la sélection multiple (`#2f81f7`) disparaît ; `.drop-target-copy` (cible d'une copie) reste bleu : c'est un autre sens.
+- **Règle changée** : « Sélection BLEUE » devient « sélection GRISE CLAIRE » dans `docs/refonte.md` (règle 5) et dans la ligne des règles de fond de `CLAUDE.md` (seule ligne touchée de ce fichier, à la demande implicite de la décision).
+- **Contraste mesuré** dans l'appli, sur les pixels affichés (bord de la case choisie contre le corps de sa voisine) : 7,7:1 verre éteint, 5,5 à 6,9:1 sur les sept fonds du verre allumé (seuil de 3:1). L'ancien bleu
+  tombait à 2,5–3,0:1 sur quatre fonds (mesuré sur l'artefact).
+- **Banc** `selection_grise` (25 vérifications, rouge d'abord : 10 échecs) ; **six sabotages** rouges puis restaurés : ombre vers le bas, corps teinté, `.selected.playing` retiré, `.editing` retiré, bord remis en bleu (9 rouges, dont
+  4 sur le contraste), `.multi-selected` retiré. `bulle_accord` réécrit (deux vérifications de couleur : bleue → grise claire).
+- **Constaté** : « choisie ET en lecture » n'arrive pas par un geste (la lecture efface la sélection, un clic pendant la lecture l'arrête) ; la règle `.selected.playing` est une garde de cascade, éprouvée en posant la classe.
+
+### A3 — la hauteur du panneau Rythme au téléphone
+- **Mesuré** (390 × 844) : barre d'outils du séquenceur en quatre rangées (212 px), grille de croches à 660 px, quatrième ligne à 845 px pour un panneau qui s'arrête à 776 : il fallait le faire défiler.
+- **Correction** (CSS, < 900 px, en fin de `style.css`) : les deux groupes segmentés côte à côte (boutons à 6 px de marge latérale), les quatre icônes sur une rangée (trois rangées, 152 px), marges resserrées, et le panneau de
+  l'onglet Rythme prend 24 px de plus (la réserve au-dessus ne garde que la case, ses numéros et un peu d'air). Cibles à 44 px inchangées. **Résultat à 390 × 844** : dernière ligne à 757 px (panneau jusqu'à 776).
+- **390 × 664 : impossible sans défiler** — la place entre barre du haut et barre de lecture est de 485 px et il en faut ~535 pour le titre, les onglets, les trois rangées d'outils et quatre lignes. La barre d'outils compacte (152 px)
+  réduit seulement le défilement. Pistes si l'utilisateur le demande : en-tête et onglets collants avec défilement des seuls outils, ou ouverture du panneau déjà défilé sur les lignes.
+- **Banc** `sequenceur_telephone` (partie B : 47 → 49 vérifications : barre d'outils ≤ 154 px, quatre lignes dans le panneau et dans l'écran) ; sabotages : bloc retiré (2 rouges), panneau sans les 24 px (1), marges des segments (sans
+  effet ici : garde de robustesse seulement).
+
+### Reste à faire (A2 et A1, non commencés)
+- **A2 — nettoyage du code mort de l'ancien séquenceur** : inventaire du 12/11 (occurrences script.js / style.css / index.html / bancs) : `renderSequencer` 122 / 25 / 2 / 7 (la méthode seule fait 1223 lignes et sort dès que
+  `#arp-sequencer` est absent) ; `setupSequencerInteractions` 6 / 1 ; `seqMode` 22 ; `seqOpen` 32 (16 bancs) ; `seqZoomOpen` 16 ; `openSeqZoom` 16 ; `closeSeqZoom` 7 ; `#seq-zoom-overlay` 4 / 5 / 1 ; `#arp-sequencer` 47 / 13 / 3 (18 bancs) ;
+  `#grid-zoom` 20 / 23 / 6 (26 bancs) ; `#seq-zoom` 37 / 34 / 11 (21 bancs) ; `#dock-rythme` 2 / 3 / 1 ; `#seq-dock-panel` 9 / 15 / 1 ; `#seq-dock-resize` 4 / 5 / 1 ; `setupEditeurNotes` 2 ; `#editeur-notes*` 12 / 47 / 9 ;
+  `calqueVoix*` 7 ; `buildVoiceLeadingPanelHtml` 12 ; `toggleVoiceLeadingPanel` 4 ; `seqInline` 26 ; `toggleSequencer` 16 (reste : garde des appels de programme). Méthode : petits paquets, `run_cible` à chaque paquet, bancs réécrits jamais supprimés.
+- **A1 — fenêtre d'accord unique** : accordée, à découper d'abord (voir « Suite à faire »).

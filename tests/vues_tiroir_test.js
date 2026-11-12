@@ -10,6 +10,7 @@
 // notes tapées ; le manche travaille dans le tiroir comme dans son ancienne carte (doigtés, cadenas, dessin, envoi dans la grille) ; le téléphone n'a pas bougé.
 const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('tiroir clavier / guitare');
+const { dblclickHorsNom } = require('./_geste_accord');
 const { estBruitReseau } = require('./_harness');
 
 plan(98);
@@ -203,7 +204,7 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
     await p.click('#kb-effacer');
 
     // Pendant une modification (inspecteur ouvert) : taper une touche n'en fait pas sortir, et ne désélectionne pas.
-    await p.dblclick(cellule(0, 1)); await p.waitForTimeout(300); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
+    await dblclickHorsNom(p, cellule(0, 1)); await p.waitForTimeout(300); // B2 (12/11) : hors du texte du nom ; point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
     await p.click('[data-bulle="son"]'); await p.waitForTimeout(400);
     const enEdition = await p.evaluate(() => window.app.editingIndex);
     exiger(enEdition === 1, 'l\'inspecteur « son de l\'accord » est ouvert sur l\'accord 2');

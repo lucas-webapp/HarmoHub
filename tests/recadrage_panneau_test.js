@@ -14,6 +14,7 @@
 // défile JUSTE assez pour se poser au-dessus de lui (jamais plus).
 const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('ouvrir sans recadrer');
+const { dblclickHorsNom } = require('./_geste_accord');
 const { estBruitReseau } = require('./_harness');
 
 plan(37);
@@ -53,7 +54,7 @@ const graine = () => {
     const centre = async (p, i) => { const b = await p.locator(SEL).nth(i).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2, b }; };
     const cliquer = async (p, i, ms = 700) => { const c = await centre(p, i); await p.mouse.click(c.x, c.y); await p.waitForTimeout(ms); };
     // LE GESTE QUI OUVRE LA BULLE (ordinateur) : le double-clic depuis le point B (un clic seul ne fait qu'entendre l'accord).
-    const ouvrirBulle = async (p, i) => { const c = await centre(p, i); await p.mouse.dblclick(c.x, c.y); await p.waitForTimeout(700); };
+    const ouvrirBulle = async (p, i) => { const c = await centre(p, i); await p.mouse.dblclick(c.x, c.b.y + c.b.height - 6); await p.waitForTimeout(700); }; // B2 (12/11) : le bas de la case, hors du texte du nom que le double-clic retape
     const inspecteur = (p) => p.evaluate(() => {
         const f = document.querySelector('.sidebar-frame'), r = f.getBoundingClientRect(), g = document.getElementById('grille-cadre').getBoundingClientRect();
         return { visible: r.width > 0 && r.height > 0 && getComputedStyle(f).display !== 'none', g: Math.round(r.left), d: Math.round(r.right), haut: Math.round(r.top), grilleD: Math.round(g.right), edition: window.app.editingIndex };

@@ -1,4 +1,5 @@
 const { chromium } = require('playwright')
+const { dblclickHorsNom } = require('./_geste_accord');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // La police est chargée depuis Google Fonts : injoignable derrière le proxy du bac à sable,
 // jamais un problème chez l'utilisateur. Ces échecs réseau sont donc filtrés — sinon ils font
@@ -33,7 +34,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     // Ce que ce banc protégeait reste vrai, avec ce geste-là : la grille regagne sa place, le transport ne bouge pas, la lecture marche, et rien
     // ne reste « replié » au rechargement.
     const ouvrirInspecteur = async (i) => {
-        await page.dblclick(`#progression-sections .grid-cell[data-index="${i}"]`); await page.waitForTimeout(300); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
+        await dblclickHorsNom(page, `#progression-sections .grid-cell[data-index="${i}"]`); await page.waitForTimeout(300); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
         await page.click('#bulle-accord [data-bulle="son"]'); await page.waitForTimeout(400);
     };
     console.log('--- Au départ : plus de bandeau, la grille a toute la place ---');

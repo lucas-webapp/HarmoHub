@@ -10,7 +10,7 @@
 const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('barre de sélection');
 const { estBruitReseau } = require('./_harness');
-const { retaperNom } = require('./_geste_accord');
+const { retaperNom, dblclickHorsNom } = require('./_geste_accord');
 
 plan(49);
 
@@ -62,7 +62,7 @@ const graine = () => {
     check(!(await menu(p)).includes('Coller après'), 'rien de copié encore : le clic droit ne propose pas « Coller après »');
     await p.keyboard.press('Escape'); await p.waitForTimeout(200);
     // Point B de la refonte du séquenceur : le double-clic ouvre la bulle (un clic seul ne fait qu'entendre l'accord).
-    await p.dblclick(cellule(0, 0)); await p.waitForTimeout(300);
+    await dblclickHorsNom(p, cellule(0, 0)); await p.waitForTimeout(300); // B2 (12/11) : sur le texte du nom, le double-clic le retape ; la bulle s'ouvre sur le reste de la case
     check(await barre(p) === null && await p.evaluate(() => !document.getElementById('bulle-accord').hidden), 'un accord (double-clic) : la bulle, pas la barre');
     await p.click(cellule(0, 1), { modifiers: ['Control'] }); await p.waitForTimeout(300);
     let b = await barre(p);

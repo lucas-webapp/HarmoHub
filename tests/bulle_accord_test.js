@@ -2,7 +2,7 @@
 //
 // CE QUE DEMANDE LA MAQUETTE VALIDÉE (docs/refonte.md) : « clic = sélectionne et ouvre la bulle » ; la bulle dit QUEL accord — fondamentale, type,
 // basse, durée, ‹ › vers le voisin ; « une bulle = UNE étape d'annulation. Modification directe, Ctrl+Z comme filet » ; « double-clic = retaper le
-// nom » ; « Sélection BLEUE, lecture VERTE ».
+// nom » ; « Sélection BLEUE, lecture VERTE » (devenue GRISE CLAIRE le 12/11, B1).
 //
 // CE QUE LE BANC TIENT : la bulle dit le vrai accord et le modifie pour de bon ; toutes les retouches d'une bulle s'annulent d'UN Ctrl+Z, et deux
 // bulles font deux étapes ; ‹ › et les flèches la déplacent ; Échap, × et le clic à côté la ferment, un clic sur une autre case la déplace ; le
@@ -11,7 +11,7 @@
 // REFONTE DU SÉQUENCEUR, POINT B (11/11) : « un clic = écouter, double-clic = ouvrir ». La bulle s'ouvre donc au DOUBLE-clic ; ouverte, elle suit un clic
 // simple sur une autre case ; la retape du nom passe par « Renommer » au clic droit. Le banc tient tout le reste à l'identique, avec ces gestes-là.
 const { chromium } = require('playwright');
-const { retaperNom } = require('./_geste_accord');
+const { retaperNom, dblclickHorsNom } = require('./_geste_accord');
 const { check, exiger, plan, bilan } = require('./_harness')('bulle « quel accord »');
 const { estBruitReseau } = require('./_harness');
 
@@ -51,7 +51,7 @@ const graine = () => {
             haut: r.top, bas: r.bottom, gauche: r.left, droite: r.right, l: Math.round(r.width) };
     });
     const accord = (p, i) => p.evaluate((i) => { const c = loadProgressionSections()[0].chords[i]; return { root: c.root, quality: c.quality, bass: c.bass || null, beats: c.beats }; }, i);
-    const cliquer = async (p, i) => { await p.dblclick(`#progression-sections .grid-cell[data-index="${i}"]`); await p.waitForTimeout(250); }; // ouvrir = double-clic
+    const cliquer = async (p, i) => { await dblclickHorsNom(p, `#progression-sections .grid-cell[data-index="${i}"]`); await p.waitForTimeout(250); }; // ouvrir = double-clic hors du nom (B2, 12/11)
     const choisir = async (p, action, valeur) => { await p.click(`#bulle-accord [data-bulle="${action}"]${valeur != null ? `[data-valeur="${valeur}"]` : ''}`); await p.waitForTimeout(250); };
 
     // ======================================================================================================
@@ -65,7 +65,8 @@ const graine = () => {
     check(JSON.stringify([b.root, b.quality, b.bass]) === JSON.stringify([['A'], ['Min 7'], ['—']]) && b.duree === '1 mesure', `l'accord est coché tel qu'il est : ${b.root} / ${b.quality} / ${b.bass} / ${b.duree}`);
     const cel = await p.evaluate(() => { const c = document.querySelector('#progression-sections .grid-cell[data-index="1"]'); const r = c.getBoundingClientRect(); return { bas: r.bottom, gauche: r.left, bord: getComputedStyle(c).borderTopColor, cls: c.className }; });
     check(b.haut >= cel.bas && Math.abs(b.gauche - cel.gauche) <= 1 && b.l === 404, `sous la case, calée sur son bord gauche, 404px (${Math.round(b.haut)} sous ${Math.round(cel.bas)})`);
-    check(/selected/.test(cel.cls) && /rgba\(76, 141, 255/.test(cel.bord), `la case choisie est BLEUE (${cel.bord})`);
+    // B1 (12/11) : la sélection est GRISE CLAIRE (elle était bleue, rgba(76, 141, 255) : « ne va pas avec le design de l'application ») ; le détail est tenu par `selection_grise`.
+    check(/selected/.test(cel.cls) && /rgba\(214, 219, 226/.test(cel.bord), `la case choisie est GRISE CLAIRE (${cel.bord})`);
     check(await p.evaluate(() => window.app.appMode === 'add' && window.app.editingIndex == null), 'un clic n\'est plus un « mode » : l\'appli ne bascule pas en modification');
     check(await p.evaluate(() => !hasUnsavedChanges), 'ouvrir la bulle ne modifie rien');
 
@@ -159,7 +160,7 @@ const graine = () => {
     await choisir(p, 'son');
     check(await p.evaluate(() => window.app.editingIndex === 3 && window.app.appMode === 'edit'), 'la carte Accord s\'ouvre sur CET accord (le comment il sonne)');
     check(await bulle(p) === null, 'la bulle se retire');
-    check(await p.evaluate(() => /rgba\(76, 141, 255/.test(getComputedStyle(document.querySelector('#progression-sections .grid-cell[data-index="3"]')).borderTopColor)), 'la case en modification est bleue elle aussi — fini l\'orange');
+    check(await p.evaluate(() => /rgba?\(214, 219, 226/.test(getComputedStyle(document.querySelector('#progression-sections .grid-cell[data-index="3"]')).borderTopColor)), 'la case en modification est grise claire elle aussi (B1, 12/11) — fini l\'orange');
     await p.evaluate(() => window.app.cancelEdit()); await p.waitForTimeout(200);
 
     // ======================================================================================================
@@ -171,7 +172,7 @@ const graine = () => {
     const sel = `#progression-sections .grid-cell[data-section="${derniere}"][data-index="0"]`;
     await p.evaluate((sel) => document.querySelector(sel).scrollIntoView({ block: 'end' }), sel);
     await p.waitForTimeout(300);
-    await p.dblclick(sel); await p.waitForTimeout(300);
+    await dblclickHorsNom(p, sel); await p.waitForTimeout(300);
     b = await bulle(p);
     const ctop = await p.evaluate((sel) => document.querySelector(sel).getBoundingClientRect().top, sel);
     exiger(ctop > 500, `la case visée est bien en bas de l'écran (${Math.round(ctop)}px sur 900)`);

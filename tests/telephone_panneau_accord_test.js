@@ -24,6 +24,7 @@
 const { chromium } = require('playwright');
 const V = require('./_verre_commun');
 const { check, exiger, plan, bilan } = require('./_harness')('téléphone : panneau d\'accord (lot 10d)');
+const { dblclickHorsNom } = require('./_geste_accord');
 const { estBruitReseau } = require('./_harness');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
@@ -282,7 +283,7 @@ const accord = (e, s, i) => e.secs[s].chords[i];
         // ===== J. L'ORDINATEUR N'A PAS BOUGÉ, ET LE SEUIL NE PERD RIEN =================================================================
         {
             const { p, ctx } = await ouvrir(nav, { viewport: { width: 1320, height: 820 } }, erreurs, 'ordinateur : ');
-            await p.dblclick(CASE(0, 1)); await p.waitForTimeout(400); // point B : le double-clic ouvre la bulle
+            await dblclickHorsNom(p, CASE(0, 1)); await p.waitForTimeout(400); // point B : le double-clic ouvre la bulle (B2, 12/11 : hors du texte du nom, que le double-clic retape)
             const o1 = await p.evaluate(() => ({ bulle: !document.getElementById('bulle-accord').hidden, panneau: document.getElementById('panneau-accord').getBoundingClientRect().height }));
             check(o1.bulle && o1.panneau === 0, `ordinateur : un double-clic ouvre la bulle, jamais le panneau du téléphone (${JSON.stringify(o1)})`);
             await p.click('#bulle-accord [data-bulle="son"]'); await p.waitForTimeout(400);

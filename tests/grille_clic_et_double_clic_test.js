@@ -72,9 +72,10 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     console.log((r.editingIndex === 1 && r.appMode === 'edit' && r.sqOuvert)
         ? 'PASS (« Réglages du son » : accord chargé, séquenceur toujours ouvert dessus)' : 'FAIL');
 
-    // REFONTE DU SÉQUENCEUR, POINT B (11/11) : le double-clic sur le symbole OUVRE l'accord (sa bulle) au lieu de retaper le nom ; la retape passe par
-    // « Renommer » au clic droit. Les deux moitiés du contrat sont éprouvées, avec de vrais gestes.
-    console.log('=== 3. Double-clic sur le symbole : la bulle, pas la retape ; « Renommer » retape le nom ===');
+    // B2 (12/11), DÉCISION DE L'UTILISATEUR : « double-clic sur le TEXTE du nom = renommer, SANS ouvrir la bulle » (le point B du 11/11 avait donné la bulle au
+    // double-clic partout) ; la bulle reste au double-clic sur le reste de la case (section 2 bis), et « Renommer » au clic droit garde son sens.
+    // Les deux moitiés du contrat sont éprouvées, avec de vrais gestes.
+    console.log('=== 3. Double-clic sur le symbole : la retape du nom, pas la bulle ; « Renommer » retape le nom ===');
     await page.keyboard.press('Escape'); await page.waitForTimeout(200);
     const cellNow = await page.$('.grid-cell[data-index="1"]');
     const symEl = await cellNow.$('.cell-sym');
@@ -85,7 +86,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.waitForTimeout(250);
     r = await page.evaluate(() => ({ hasInlineInput: !!document.querySelector('.cell-sym-input'), bulle: !document.getElementById('bulle-accord').hidden }));
     console.log(JSON.stringify(r));
-    console.log(r.bulle && !r.hasInlineInput ? 'PASS (double-clic sur le symbole : la bulle de l\'accord, sans retape)' : 'FAIL');
+    console.log(!r.bulle && r.hasInlineInput ? 'PASS (double-clic sur le symbole : la retape du nom, sans la bulle de l\'accord)' : 'FAIL');
     await page.keyboard.press('Escape'); await page.waitForTimeout(200);
     await retaperNom(page, 0, 1, 250);
     r = await page.evaluate(() => ({ hasInlineInput: !!document.querySelector('.cell-sym-input') }));

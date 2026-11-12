@@ -21,10 +21,11 @@
 //      ouvert, rend le séquenceur à sa place.
 const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('séquenceur au téléphone');
+const { dblclickHorsNom } = require('./_geste_accord');
 const { estBruitReseau } = require('./_harness');
 const V = require('./_verre_commun');
 
-plan(47);
+plan(49);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const mk = (r, q, extra = {}) => ({ root: r, quality: q, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held', ...extra });
@@ -114,6 +115,15 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
     check(!vue.poignee && !vue.fermer && !vue.nom, 'ni poignée de hauteur, ni ×, ni nom d\'accord : le panneau a les siens');
     check(vue.deborde <= 1 && vue.droite <= 390, `les huit croches tiennent dans la largeur (débord ${vue.deborde}, bord droit ${vue.droite})`);
     check(vue.outils.length >= 8 && vue.outils.every(h => h === 44), `les outils du séquenceur à 44 px (${vue.outils.join(' ')})`);
+    // A3 (12/11), « règle ce défaut de hauteur » : à 390 × 844 la barre d'outils tenait sur quatre rangées (212 px), la grille commençait à 660 px et la quatrième ligne sortait du
+    // panneau (bas à 845 px, panneau arrêté à 776). Trois rangées (motifs, les deux groupes segmentés côte à côte, les quatre icônes) et toutes les lignes d'un accord de 4 sons à l'écran.
+    const haut = await p.evaluate(() => {
+        const pa = document.getElementById('panneau-accord').getBoundingClientRect(), o = document.querySelector('#pa-rythme .sq-outils').getBoundingClientRect();
+        const lignes = [...new Set([...document.querySelectorAll('#sq-grille .sq-case[data-v]')].map(c => c.dataset.v))].map(v => document.querySelector(`#sq-grille .sq-case[data-v="${v}"]`).getBoundingClientRect());
+        return { outils: Math.round(o.height), derniere: Math.round(lignes[lignes.length - 1].bottom), panneau: Math.round(pa.bottom), vh: innerHeight, n: lignes.length };
+    });
+    check(haut.outils <= 154, `la barre d'outils tient sur trois rangées (${haut.outils} px au lieu de 212 mesurés avant)`);
+    check(haut.n === 4 && haut.derniere <= haut.panneau && haut.derniere <= haut.vh, `les quatre lignes se voient sans faire défiler le panneau (dernière ligne à ${haut.derniere} px, panneau jusqu'à ${haut.panneau}, écran ${haut.vh})`);
 
     console.log('\n=== C. Toucher une case pose, retoucher enlève ===');
     // Plaqué d'origine : la basse tient toute la mesure ; on vide la voix de l'aiguë d'abord par « Effacer », puis on y pose une croche.
@@ -220,7 +230,7 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
 
     console.log('\n=== K. L\'ordinateur ===');
     ({ p, ctx } = await ouvrir({ viewport: { width: 1440, height: 900 } }));
-    await p.mouse.dblclick(...Object.values(await centre(p, '#progression-sections .grid-cell[data-section="0"][data-index="1"]')));
+    await dblclickHorsNom(p, '#progression-sections .grid-cell[data-section="0"][data-index="1"]'); // B2 (12/11) : hors du texte du nom, que le double-clic retape
     await p.waitForTimeout(500);
     const bulle = await p.evaluate(() => ({ ouverte: !document.getElementById('bulle-accord').hidden, onglets: document.querySelectorAll('#bulle-accord .pa-onglets').length, pa: document.getElementById('panneau-accord').hidden }));
     check(bulle.ouverte && bulle.onglets === 0 && bulle.pa, 'à l\'ordinateur, la bulle s\'ouvre, sans onglets, le panneau du téléphone reste caché');

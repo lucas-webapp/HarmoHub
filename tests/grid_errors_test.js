@@ -79,11 +79,13 @@ async function addChords(page, syms) {
     // autour (retour utilisateur : « j'ai du mal à cliquer autour »). Ramenée à 36x26 (40x28 au
     // doigt) : 24 % de l'aire, 22px et 14px de marge. On borne donc désormais des DEUX côtés — assez
     // grande pour rester visable, assez petite pour laisser la case respirer.
-    check(target.hitW >= 34 && target.hitW <= 42,
-        `la zone de clic du symbole reste visable sans avaler la case — obtenu ${target.hitW}px de large (texte ${target.textW}px)`);
-    check(target.hitH >= 24 && target.hitH <= 30,
+    // CONTRAT CHANGÉ UNE TROISIÈME FOIS (B2, 12/11) : « sa zone de fonctionnement semble trop large ». À la souris, la zone est le TEXTE à 3 px près de chaque côté
+    // (+6 px en tout, ±2 pour l'arrondi) ; le double-clic sur le nom le retape, donc la zone se voit (halo de 3 px) et ne dépasse pas le texte de plus que ça.
+    check(target.hitW >= target.textW + 4 && target.hitW <= target.textW + 8,
+        `la zone de clic du symbole est le texte à 3 px près — obtenu ${target.hitW}px de large (texte ${target.textW}px)`);
+    check(target.hitH >= target.textH + 4 && target.hitH <= target.textH + 8,
         `...idem en hauteur — obtenu ${target.hitH}px (texte ${target.textH}px)`);
-    check(target.hitW >= target.textW * 2, `la cible ne rétrécit PAS avec le texte (elle a un plancher absolu) — cible ${target.hitW}px pour un texte de ${target.textW}px`);
+    check(target.hitW < 34 && target.hitH < 24, `plus de plancher absolu à la souris : la zone suit le texte — cible ${target.hitW} × ${target.hitH}px pour un texte de ${target.textW} × ${target.textH}px`);
 
     // Viser LÉGÈREMENT à côté du texte doit quand même atteindre le symbole : c'est tout l'objet du
     // halo, la cible ne doit pas se rater au pixel près.

@@ -46,6 +46,8 @@ const graine = () => {
     };
     const caseSel = (s, i) => `#progression-sections .grid-cell[data-section="${s}"][data-index="${i}"]`;
     const centre = async (p, s, i) => { const b = await p.locator(caseSel(s, i)).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+    // B2 (12/11) : le double-clic sur le TEXTE du nom le retape (banc `renommer_double_clic`) ; la bulle s'ouvre sur le reste de la case — on vise le bas, loin du nom.
+    const nu = async (p, s, i) => { const b = await p.locator(caseSel(s, i)).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height - 6 }; };
     const etat = (p) => p.evaluate(() => ({
         sel: window.app.selectedIndex, section: window.app.activeSection, ecoutes: window.__ecoutes, edition: window.app.editingIndex, y: Math.round(scrollY),
         bulle: !document.getElementById('bulle-accord').hidden && document.getElementById('bulle-accord').getBoundingClientRect().height > 0,
@@ -73,7 +75,7 @@ const graine = () => {
     check(!e.bulle && e.ecoutes === 2, `recliquer la case choisie la fait réentendre, sans rien ouvrir (${e.ecoutes} écoutes)`);
 
     console.log('\n=== B. Ordinateur : double-clic = ouvrir la bulle ===');
-    c = await centre(p, 1, 2);
+    c = await nu(p, 1, 2);
     await p.mouse.dblclick(c.x, c.y); await p.waitForTimeout(700);
     e = await etat(p);
     exiger(e.bulle && e.bulleIndex === 2 && e.section === 1, 'le double-clic ouvre la bulle de cet accord');
@@ -86,7 +88,7 @@ const graine = () => {
     await p.keyboard.press('Escape'); await p.waitForTimeout(500);
     e = await etat(p);
     check(!e.bulle && e.sel === 3, 'Échap la referme, la sélection reste');
-    c = await centre(p, 1, 3);
+    c = await nu(p, 1, 3);
     await p.mouse.dblclick(c.x, c.y); await p.waitForTimeout(700);
     exiger((await etat(p)).bulle, 'rouverte au double-clic');
     await p.mouse.click(1300, 300); await p.waitForTimeout(1000);
@@ -159,6 +161,7 @@ const graine = () => {
     e = await etat(p);
     const choisiSq = await p.evaluate(() => { const n = document.querySelector('#sq-grille .sq-nom.choisi'); return n ? +n.dataset.c : null; });
     check(choisiSq === 2 && !e.bulle && !e.inspecteur, `le séquenceur suit l'accord cliqué (${choisiSq}), sans bulle ni inspecteur`);
+    c = await nu(p, 0, 2);
     await p.mouse.dblclick(c.x, c.y); await p.waitForTimeout(800);
     check((await etat(p)).bulle, 'le double-clic ouvre la bulle, séquenceur ouvert aussi');
     await p.context().close();

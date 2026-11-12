@@ -24,6 +24,7 @@
 //     readChord et les exports. Déplacer un bouton ne doit rien changer à ce qu'il commande.
 const { chromium } = require('playwright');
 const creerHarnais = require('./_harness');
+const { dblclickHorsNom } = require('./_geste_accord');
 const { plan, check, exiger, bilan } = creerHarnais('La durée sur la ligne de l\'accord');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
@@ -144,7 +145,7 @@ async function ouvrir(page, vp) {
     o.on('pageerror', e => erreurs.push('ordinateur : ' + e.message));
     check(await o.evaluate(() => getComputedStyle(document.querySelector('.accord-grid')).display === 'none' || document.querySelector('.accord-grid').getBoundingClientRect().width === 0),
         'ordinateur : la ligne de l\'accord n\'est pas affichée (rien aux deux endroits)');
-    await o.dblclick('#progression-sections .grid-cell[data-index="0"]'); // point B : le double-clic ouvre la bulle
+    await dblclickHorsNom(o, '#progression-sections .grid-cell[data-index="0"]'); // point B : le double-clic ouvre la bulle (B2, 12/11 : hors du texte du nom, que le double-clic retape)
     await o.waitForTimeout(300);
     const bulleDuree = await o.evaluate(() => { const b = document.getElementById('bulle-accord'); const d = b && !b.hidden && b.querySelector('.bulle-duree'); return d ? { txt: d.textContent.trim(), l: Math.round(d.getBoundingClientRect().width) } : null; });
     check(!!bulleDuree && bulleDuree.l > 0 && /mes|temps/.test(bulleDuree.txt), `ordinateur : un double-clic sur la case ouvre la bulle, qui dit la durée — « ${bulleDuree && bulleDuree.txt} »`);

@@ -12,10 +12,20 @@ async function centreCase(page, section, index, bas = false) {
 }
 
 // Ordinateur : le double-clic ouvre la bulle de l'accord (le premier clic le choisit et le fait entendre).
+// B2 (12/11) : un double-clic sur le TEXTE du nom le retape (sans bulle). Le centre d'une case tombe sur ce texte, ou à un pixel : on vise donc le bas de la case,
+// loin du nom — la zone nue qui reste « le reste de la case ».
 async function ouvrirBulle(page, section, index, attente = 500) {
-    const c = await centreCase(page, section, index);
+    const c = await centreCase(page, section, index, true);
     await page.mouse.dblclick(c.x, c.y);
     await page.waitForTimeout(attente);
+}
+
+// Même geste pour un sélecteur quelconque (les bancs qui visaient `page.dblclick('.grid-cell…')`, donc le centre de la case, donc le nom).
+async function dblclickHorsNom(page, selecteur) {
+    const loc = page.locator(selecteur).first();
+    await loc.scrollIntoViewIfNeeded();
+    const b = await loc.boundingBox();
+    await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height - 6);
 }
 
 // Ordinateur : la bulle, puis « Réglages du son » — l'inspecteur sur cet accord.
@@ -44,4 +54,4 @@ async function retaperNom(page, section, index, attente = 400) {
     await page.waitForTimeout(attente);
 }
 
-module.exports = { caseSel, centreCase, ouvrirBulle, ouvrirSon, ouvrirPanneau, retaperNom };
+module.exports = { caseSel, centreCase, ouvrirBulle, dblclickHorsNom, ouvrirSon, ouvrirPanneau, retaperNom };

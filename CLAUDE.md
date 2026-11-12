@@ -48,7 +48,7 @@ Navigateur : Playwright et Chromium sont préinstallés, ne rien réinstaller.
 - **Les logos existants sont repris tels quels** ; une icône n'est créée que pour une fonction qui n'en a pas.
 - **Gabarit** : boutons de 32 px (ordinateur) ou 44 px (bloc de lecture et téléphone), arrondi 7 px, 12 px pour ce qui flotte, quatre familles de couleur de
   `style.css`, jamais d'aplat vert vif, un groupe segmenté pour un choix parmi moins de huit. Un nouveau bouton qui sort de la jauge fait rougir `gabarit_boutons`.
-- **Sélection bleue, lecture verte, plage à boucler orange.** Notation internationale des tonalités.
+- **Sélection grise claire (depuis le 12/11, B1 ; elle était bleue), lecture verte, plage à boucler orange.** Notation internationale des tonalités.
 - **Verre dépoli** : toute nouvelle surface est ajoutée à `verre-surfaces.css` dans le même lot, avec ses contrôles de lisibilité (`verre_test`).
 - **Téléphone (< 900 px) inchangé jusqu'au lot 10** : tout code ordinateur est gardé par `bulleDisponible()` ou une media query `min-width: 900px`.
 - **Fichiers partagés avec TabHub et TrainHub, à garder tels quels** : `compte-cloud.js`, `synchro-cloud.js`, `verre.js`, `verre.css`, `tests/_verre_commun.js`

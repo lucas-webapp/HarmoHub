@@ -60,12 +60,13 @@ const centreSymbole = (page, idx) => page.evaluate((i) => {
     e = await etat();
     check(e.sel === 1 && !e.retape, `clic sur une zone NUE : exactement pareil (${JSON.stringify(e)})`);
 
-    console.log('=== 2. Le double-clic OUVRE l\'accord, où qu\'il tombe ; « Renommer » retape le nom ===');
+    console.log('=== 2. Le double-clic sur le NOM le retape (sans bulle) ; sur le reste de la case il OUVRE l\'accord ===');
     const bulle = () => page.evaluate(() => !document.getElementById('bulle-accord').hidden);
     await page.mouse.dblclick(sym.x, sym.y);
     await page.waitForTimeout(700);
     e = await etat();
-    check(await bulle() && !e.retape, 'double-clic sur le SYMBOLE : ouvre la bulle de l\'accord, sans retape du texte');
+    // B2 (12/11, décision de l'utilisateur) : « double-clic sur le TEXTE du nom = renommer, SANS ouvrir la bulle » ; la bulle reste au double-clic sur le reste de la case.
+    check(!(await bulle()) && e.retape, 'double-clic sur le SYMBOLE : ouvre la retape du nom, sans la bulle de l\'accord');
     check(e.ed === null, '...et n\'ouvre PAS le panneau au passage');
     await page.keyboard.press('Escape');
     await page.waitForTimeout(400);

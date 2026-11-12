@@ -8679,3 +8679,88 @@ body.avec-barre-selection .toast { bottom: 132px; }
    ouvert aussi par « Séquenceur » du panneau Lecture. Les règles 4a et 4b ci-dessus valent donc désormais partout. En fin de fichier (cascade).
    ====================================================================================================== */
 #grid-zoom, .seq-inline-toolbar, #arp-sequencer, #dock-rythme { display: none !important; }
+
+
+/* ======================================================================================================
+   B2 (12/11) — RENOMMER AU DOUBLE-CLIC SUR LE TEXTE DU NOM, ZONE LIMITÉE AU TEXTE. « Sa zone de fonctionnement semble trop large » : à la souris, la zone qui réagit
+   (_isSymbolHit, script.js) est le texte du nom à 3 px près, et le halo qu'on voit autour du nom s'y accorde — on voit exactement ce qui réagit. Il faisait 6 / 7 px
+   (anneau plein + liseré), pour une zone d'au moins 36 × 26 px. Au doigt (curseur absent), la zone et son halo ne changent pas : ils restent ceux d'avant. En fin de
+   fichier (cascade : ces règles doivent passer après celles de .grid-cell:hover .cell-sym et .grid-cell.selected .cell-sym).
+   ====================================================================================================== */
+@media (hover: hover) and (pointer: fine) {
+    .grid-cell:hover .cell-sym,
+    .grid-cell.selected .cell-sym,
+    .grid-cell.editing .cell-sym {
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.07), 0 0 0 3px rgba(255, 255, 255, 0.16);
+    }
+}
+
+
+/* ======================================================================================================
+   B1 (12/11) — LA CASE SÉLECTIONNÉE EST GRISE CLAIRE. « La couleur bleue des cases sélectionnées […] ne va pas avec le design de l'application. » Trois effets ont été
+   rendus sur de vraies cases (verre éteint et allumé, ordinateur et téléphone) ; CHOIX DE L'UTILISATEUR : « Brillance » en gris clair — « on laisse en gris clair » —
+   avec le renfort sur les BORDS et non sur le corps (« l'effet renforcé dans la case dénote trop avec les cases adjacentes »). L'orange est écarté (déjà la plage à
+   boucler et « modifié, pas enregistré »), le gris-vert aussi (trop proche du vert de la lecture : on garde un sens par couleur, gris = sélection, vert = lecture,
+   orange = boucle). La règle 5 de docs/refonte.md se lit donc « sélection GRISE CLAIRE ».
+
+   Le dessin : un reflet court sous le bord haut (28 % de la hauteur), une bordure presque pleine, un liséré clair sur le bord haut, un halo extérieur en haut et sur les
+   côtés — trois ombres décalées vers l'extérieur, au flou serré pour qu'il s'estompe vite — et AUCUNE ombre vers le bas, où passe la barre de lecture (« En bas il y a
+   la barre de lecture, ça risque d'être trop dense »). Le CORPS de la case ne change pas : il garde le fond de ses voisines. Mesuré : le bord contraste de 8,8 à 11,8:1 avec
+   son entourage (seuil de 3:1 pour délimiter un élément), verre éteint comme allumé (banc selection_grise).
+   La case EN MODIFICATION (.editing) pousse l'effet d'un cran, toujours sur les bords : bord plein, second fil clair à l'intérieur de la bordure, halo plus dense.
+   Plusieurs cases choisies (.multi-selected) portent le même habillage que la case choisie : l'anneau bleu d'avant disparaît.
+   En fin de fichier (cascade) : ces règles doivent passer après .grid-cell.selected / .editing / .multi-selected / .playing d'en haut.
+   ====================================================================================================== */
+.grid-cell.selected,
+.grid-cell.multi-selected,
+.grid-cell.editing {
+    background-color: var(--card-bg);   /* le corps de la case NE change PAS : le fond bleu translucide d'avant (.selected, .editing) disparaît */
+    background-image:
+        linear-gradient(180deg, rgba(214, 219, 226, 0.24) 0%, rgba(214, 219, 226, 0) 28%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 45%);
+    border-color: rgba(214, 219, 226, 0.9);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.4),
+        0 -4px 8px -4px rgba(214, 219, 226, 0.7),
+        -4px 0 8px -4px rgba(214, 219, 226, 0.7),
+        4px 0 8px -4px rgba(214, 219, 226, 0.7);
+    z-index: 2;
+}
+.grid-cell.selected .cell-sym,
+.grid-cell.multi-selected .cell-sym,
+.grid-cell.editing .cell-sym { color: #f6f8fa; text-shadow: 0 0 8px rgba(214, 219, 226, 0.4); }
+.grid-cell.editing {
+    border-color: rgba(214, 219, 226, 1);
+    box-shadow:
+        inset 0 0 0 1px rgba(214, 219, 226, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5),
+        0 -4px 9px -4px rgba(214, 219, 226, 0.85),
+        -4px 0 9px -4px rgba(214, 219, 226, 0.85),
+        4px 0 9px -4px rgba(214, 219, 226, 0.85);
+}
+/* La lecture reste verte, même sur une case choisie (la règle .playing d'en haut est plus ancienne, donc écrasée sans ces lignes) : le vert dit « ça sonne », le bord gris
+   dit « c'est elle qui est choisie ». */
+.grid-cell.selected.playing,
+.grid-cell.multi-selected.playing,
+.grid-cell.editing.playing {
+    background-color: #0a1a0f;
+    box-shadow: inset 0 0 0 1.5px rgba(0, 230, 118, 0.55), 0 0 10px rgba(0, 230, 118, 0.2);
+}
+
+
+/* ======================================================================================================
+   A3 (12/11) — LA HAUTEUR DU PANNEAU RYTHME AU TÉLÉPHONE (« règle ce défaut de hauteur »). Mesuré à 390 × 844 : la barre d'outils du séquenceur tenait sur QUATRE rangées (212 px :
+   motifs, Voix / Toutes les notes, Toute la partie / Cet accord + intensité, copier / coller / effacer), la grille de croches commençait à 660 px et la quatrième ligne sortait
+   du panneau (bas à 845 px pour un panneau qui s'arrête à 776) : il fallait le faire défiler pour voir toutes les voix d'un accord de quatre sons. Maintenant : motifs sur une seule
+   ligne qui défile de côté (déjà), les deux groupes segmentés côte à côte (boutons à 6 px de marge latérale au lieu de 10), puis les quatre icônes sur une rangée — trois rangées au
+   lieu de quatre — et le panneau de l'onglet Rythme prend 24 px de plus (la réserve au-dessus de lui ne garde que la case, ses numéros et un peu d'air : la barre-résumé est collante).
+   Les cibles restent à 44 px (la jauge du doigt). Téléphone seulement (< 900 px). En fin de fichier (cascade).
+   ====================================================================================================== */
+@media (max-width: 899px) {
+    .pa-rythme:not([hidden]) { margin-top: 6px; }
+    .pa-rythme .sq-outils { gap: 6px; padding: 0 0 6px; }
+    .pa-rythme .sq-outils .sq-seg button { padding: 0 6px; }
+    .panneau-accord.pa-onglet-rythme:not([hidden]) {
+        height: calc(100dvh - var(--haut-barre, 111px) - var(--haut-barre-lecture, 68px) - var(--reserve-panneau-accord, 150px) + 24px);
+    }
+}

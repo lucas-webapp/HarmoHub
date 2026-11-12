@@ -50,6 +50,7 @@ plan(10);
             editing: c.classList.contains('editing'),
             fond: cs.backgroundColor,
             bordure: cs.borderColor,
+            ombre: cs.boxShadow,
             // Une case mise en évidence doit l'être VISUELLEMENT, pas seulement dans son attribut
             // class : un jour où la règle CSS disparaîtrait, la classe seule ne prouverait rien.
             contour: cs.outlineStyle + ' ' + cs.outlineWidth,
@@ -64,9 +65,11 @@ plan(10);
     console.log('après le clic simple :', JSON.stringify(a1));
     if (!exiger(a1[1].selected && !a1[1].editing, 'le simple clic pose bien .selected sur la case 1, sans .editing')) bilan();
     check(neutre(a1[0]) && neutre(a1[2]), 'les autres cases restent neutres après le clic simple');
-    const fondNeutre = a1[0].fond;
-    check(a1[1].fond !== fondNeutre,
-        `la case sélectionnée se distingue VISUELLEMENT des autres (${a1[1].fond} vs ${fondNeutre})`);
+    // B1 (12/11) : le CORPS de la case choisie reste celui de ses voisines (« l'effet renforcé dans la case dénote trop avec les cases adjacentes ») ; elle se distingue par ses
+    // BORDS (bordure gris clair presque pleine, halo en haut et sur les côtés). On compare donc la bordure et l'ombre, plus le fond (banc `selection_grise` pour le détail).
+    const bordNeutre = a1[0].bordure + ' | ' + a1[0].ombre;
+    check(a1[1].bordure + ' | ' + a1[1].ombre !== bordNeutre,
+        `la case sélectionnée se distingue VISUELLEMENT des autres par ses bords (${a1[1].bordure} vs ${a1[0].bordure})`);
 
     // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : le volet d'avant (« Éditeur de notes ») a quitté l'ordinateur ; c'est le séquenceur du bloc « Vues »
     // qui s'ouvre ici. Il ne charge aucun accord en édition : la case sélectionnée doit garder SON cadre, sans en gagner un second.
@@ -76,8 +79,8 @@ plan(10);
     console.log('séquenceur ouvert :', JSON.stringify(a2));
     check(a2[1].selected, 'la case garde sa mise en évidence après l\'ouverture du séquenceur — elle ne redevient pas neutre');
     check(!a2[1].editing, 'et elle n\'est PAS passée en édition : le séquenceur ne charge aucun accord');
-    check(a2[1].fond !== fondNeutre,
-        `elle reste visuellement distincte des cases voisines (${a2[1].fond} vs ${a2[0].fond})`);
+    check(a2[1].bordure + ' | ' + a2[1].ombre !== bordNeutre,
+        `elle reste visuellement distincte des cases voisines (${a2[1].bordure} vs ${a2[0].bordure})`);
     check(neutre(a2[0]) && neutre(a2[2]), 'aucune case voisine n\'a attrapé la mise en évidence au passage');
 
     console.log('=== Scénario B : accord DÉJÀ en édition avant l\'ouverture du séquenceur ===');

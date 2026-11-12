@@ -26,6 +26,7 @@
 // résumé (aujourd'hui la barre-résumé du téléphone, #song-summary-tel-ton / -bpm), et non sur les réglages qu'elle déplie.
 const { chromium, devices } = require('playwright');
 const creerHarnais = require('./_harness');
+const { dblclickHorsNom } = require('./_geste_accord');
 const { plan, check, exiger, bilan } = creerHarnais('Filet : ce qui doit TOUJOURS rester visible');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
@@ -144,7 +145,7 @@ async function fermerMenu(page) {
     // depuis la bulle, par « Réglages du son » — le double-clic, lui, retape le nom. C'est donc ce geste-là, réel, qui fait apparaître le panneau
     // d'édition, et lui qui pourrait recouvrir ou repousser le reste.
     await fermerMenu(page);
-    await page.dblclick('.grid-cell:not(.grid-cell-add)'); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
+    await dblclickHorsNom(page, '.grid-cell:not(.grid-cell-add)'); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord) ; B2 (12/11) : hors du texte du nom, que le double-clic retape
     await page.waitForTimeout(300);
     await page.click('#bulle-accord [data-bulle="son"]');
     await page.waitForTimeout(450);

@@ -1,6 +1,6 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 12/11/2026, après l'étape 4c, dernière du point D (l'ancien séquenceur n'a plus aucune porte) ; la session suivante (nettoyage, hauteur du panneau Rythme, sélection de la grille, renommage) est décrite dans « Suite à faire ». **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 12/11/2026, après la session « renommage, sélection grise, hauteur du panneau Rythme » (B2, B1, A3 livrés) ; restent A2 (nettoyage du code mort de l'ancien séquenceur) puis A1 (fenêtre d'accord unique), décrits dans « Suite à faire ». **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
@@ -98,16 +98,16 @@ Mis à jour le 12/11/2026, après l'étape 4c, dernière du point D (l'ancien s�
     `poserCrocheTel`… dans `tests/_retrait_ancien.js`. Défauts trouvés et corrigés : ⋯ vidait la sélection, Lecture / Stop refermaient l'onglet Rythme, « Terminer »
     absent après × sur une modification sans panneau. **Le retrait de l'ancien séquenceur (point D) est terminé** ; son code reste dans `script.js` sans porte (nettoyage
     non demandé).
-- **Prochain : session « Nettoyage, hauteur du panneau Rythme, sélection de la grille, renommage » — décidée par l'utilisateur le 12/11 (après la 4c)**. Une seule session, un seul
-  balayage complet en fin de session (c'est lui qui autorise le push, voir `CLAUDE.md`) ; pendant le travail, balayage CIBLÉ seulement (`bash tests/run_cible.sh`).
-  **Consigne de l'utilisateur pour les deux points B : « je ne veux pas de régression complète pour ces deux points simples »** → ne pas lancer de balayage complet pour eux seuls ;
-  ils partent avec le balayage complet de fin de session. Ordre conseillé : B1, B2 (petits, visibles), puis A2 et A3, puis la fenêtre d'accord unique (A1) en lot séparé.
-  - **A1 — fenêtre d'accord unique : ACCORDÉE par l'utilisateur le 12/11 (« oui je veux bien la fenêtre d'accord unique »)**. C'est le point 3 bis de `docs/refonte-sequenceur.md` :
-    au lieu de la bulle d'accord (double-clic) ET de l'inspecteur de droite (« Réglages du son », flottant depuis le point C), UNE seule fenêtre sous la case, qui porte tout ce qui
-    règle l'accord, **sans ligne Rythme** (le rythme se règle dans le séquenceur, sans le dire). Elle n'a ni lot ni découpage : **la découper d'abord** (lire 3 bis et la planche A
-    de l'artefact https://claude.ai/artifact/PFwjW5A61rHhBUX3cPFCuQ avec l'outil Artifact, `read`), annoncer le découpage à l'utilisateur, puis la faire APRÈS A2, A3, B1, B2 (elle
-    touche `bulle-accord`, l'inspecteur, `placerInspecteurFlottant`, `ZONE_EDITION_SELECTEURS`, `this._popups` et beaucoup de bancs — un lot à part, avec son propre balayage
-    complet). Le téléphone (< 900 px) reste inchangé : son panneau d'accord existe déjà (10d).
+- ✅ **Session du 12/11 (après la 4c) : B2, B1, A3 livrés** (détail, mesures et sabotages dans `docs/dette-tests.md`, section « Session du 12/11 (après la 4c) ») :
+  - **B2 — renommage au double-clic** (banc `renommer_double_clic`, 16 vérifications, quatre sabotages) : double-clic sur le TEXTE du nom = saisie du nom SANS la bulle ; sur le reste de la case = bulle ; zone = le texte à 3 px près
+    (`_isSymbolHit`, souris seulement) et halo accordé (2 / 3 px). **Mesuré avant** : aucun clic simple n'ouvrait l'encart (depuis le point B), seule une lettre A–G tapée après un clic l'ouvre (voulu, gardé). Téléphone inchangé.
+    Seize bancs réécrits (le double-clic « au centre » tombait sur le nom : `dblclickHorsNom` et `ouvrirBulle` de `tests/_geste_accord.js` visent le bas de la case).
+  - **B1 — sélection GRISE CLAIRE** (banc `selection_grise`, 25 vérifications, six sabotages) : choix de l'utilisateur après trois artefacts : « Brillance » en gris clair, reflet en haut, bords renforcés, halo en haut et sur les côtés, RIEN en bas
+    (barre de lecture), corps de la case inchangé, un cran de plus pour la case en modification. Contraste mesuré dans l'appli : 5,5 à 7,7:1 sur les sept fonds du verre et verre éteint. Orange et gris-vert écartés (un sens par couleur :
+    gris = sélection, vert = lecture, orange = boucle). **La règle « sélection bleue » est devenue « sélection grise claire »** (`docs/refonte.md` règle 5 et ligne des règles de fond de `CLAUDE.md`). `.drop-target-copy` reste bleu (autre sens).
+  - **A3 — hauteur du panneau Rythme au téléphone** : barre d'outils en trois rangées (152 px au lieu de 212) et panneau +24 px ; à 390 × 844 les quatre lignes tiennent (dernière ligne à 757 px pour un panneau qui s'arrête à 776) ; banc
+    `sequenceur_telephone` (49 vérifications). **390 × 664 : impossible sans défiler** (485 px disponibles, ~535 nécessaires) ; pistes si l'utilisateur le demande : en-tête et onglets collants, ou ouverture déjà défilée sur les lignes.
+- **Prochain : A2 (nettoyage) puis A1 (fenêtre d'accord unique), deux sessions séparées, chacune avec son balayage complet.** Restes de la session du 12/11, non commencés (A2 est un chantier à part : `renderSequencer` fait 1 223 lignes et est cité 122 fois).
   - **A2 — nettoyage du code mort de l'ancien séquenceur** (accordé : « tu pourras faire le nettoyage »). Retirer de `script.js`, `style.css`, `index.html` ce que la 4a, 4b, 4c
     ont laissé sans porte : `renderSequencer` et `setupSequencerInteractions`, `seqMode` / `seqOpen` / `seqZoomOpen`, `openSeqZoom` / `closeSeqZoom` et `#seq-zoom-overlay`,
     `#arp-sequencer`, `#grid-zoom`, `#seq-zoom`, `#dock-rythme`, `#seq-dock-panel` et `#seq-dock-resize`, l'éditeur de notes (`setupEditeurNotes`, `#editeur-notes-*`), le calque Voix et
@@ -115,31 +115,13 @@ Mis à jour le 12/11/2026, après l'étape 4c, dernière du point D (l'ancien s�
     ne rien retirer qui serve encore au nouveau séquenceur (`sequenceur.js`) ni aux exports / à la lecture (`getLiveSeqPattern`, `applySeqCell`, `readChord`… à vérifier un par un) ;
     `toggleSequencer` reste (garde des appels de programme, bancs `telephone_editeur_notes`). Les bancs qui citent un id retiré sont **réécrits, jamais supprimés** ; la méta-suite
     et la sentinelle d'adresses diront ce qui manque. Incrémenter `?v=`.
-  - **A3 — défaut de hauteur du panneau Rythme au téléphone** (« règle ce défaut de hauteur »). À 390 × 844, la barre d'outils du séquenceur (motifs, vue, portée, copier / coller)
-    prend le haut du panneau d'accord : la grille de croches commence vers 660 px et il faut faire défiler le panneau pour voir toutes les lignes. Objectif : toutes les lignes visibles
-    d'un accord de 4 sons sans défiler, sur 390 × 844 ET 390 × 664 si possible (la rangée des motifs peut passer sur une seule ligne défilante de côté, la portée et les outils se ranger sur
-    une seule rangée de boutons de 44 px, le titre du panneau se raccourcir). Banc : `sequenceur_telephone` (partie B) + une vérification de hauteur ; le téléphone reste gardé par
-    `bulleDisponible()` / media query.
-  - **B1 — nouvelle apparence de la case sélectionnée de la grille** (ordinateur ET téléphone, sélection = bleue, règle de `CLAUDE.md` : « Sélection bleue, lecture verte, plage à boucler
-    orange »). L'utilisateur : « la couleur bleue des cases sélectionnées […] ne va pas avec le design de l'application ». **Demande : lui proposer 3 artefacts** (outil Artifact, la
-    skill `artifact-design` à charger d'abord), chacun avec un effet DIFFÉRENT — par exemple reflet, brillance, liseré lumineux — rendus sur de vraies cases de la grille (mêmes
-    dimensions, verre éteint et allumé, une case sélectionnée seule, une sélection multiple, la case en lecture verte à côté, la case de la plage à boucler orange à côté) pour qu'il
-    CHOISISSE. Ne rien modifier dans l'appli avant son choix. Le choix fait : changer `style.css` (bloc en fin de fichier), `verre-surfaces.css` + `verre_test` si une surface change,
-    et les bancs qui lisent la couleur de sélection (chercher `rgb` bleus de `.grid-cell.selected` dans `tests/`). **Rappeler que la sélection reste identifiable comme « bleue »
-    pour les bancs et pour le sens** (ne pas la mélanger au vert de la lecture ni à l'orange de la boucle).
-  - **B2 — renommage de l'accord directement dans la grille** (retour : « souvent je clique sur la case et je me retrouve dans l'encart de modification de texte ; sa zone de
-    fonctionnement semble trop large »). État d'origine : depuis le point B de la refonte du séquenceur, **retaper le nom** d'un accord est « Renommer » au clic droit / appui long
-    (`rename-chord`) ou une lettre tapée ; le clic sur le nom d'une case choisie déclenche encore `startInlineChordSymbolEdit` (à chercher : le gestionnaire du clic sur le symbole
-    dans `loadProgression` / `onGridPointerUp`). **À trouver d'abord** : par quel geste exact l'encart s'ouvre sans qu'on le veuille (clic sur une case déjà sélectionnée ? clic sur la
-    zone du nom, qui est large ?) — le MESURER avec un banc avant de corriger. Proposition de l'utilisateur : « au double-clic sur le centre du texte » ; il laisse le choix des
-    meilleures idées : (a) la zone active se limite au TEXTE du nom (`getBoundingClientRect` du `.chord-name` ou équivalent, pas toute la case) ; (b) double-clic (ordinateur) /
-    double toucher (téléphone) sur ce texte ; (c) un clic simple sur une case ne l'ouvre JAMAIS. **Attention** : le double-clic ouvre déjà la bulle d'accord (point B, `clic_ecouter`) :
-    **Décision de l'utilisateur, 12/11 : double-clic sur le TEXTE du nom = renommer, SANS ouvrir la bulle** (« c'est pour aller plus vite ») ; la bulle s'ouvre par le double-clic
-    sur le reste de la case (ou « Modifier »). Il demande s'il est utile : réponse donnée — oui, peu coûteux, mais il fera double emploi avec la fenêtre d'accord unique (A1). **À faire à
-    la fenêtre d'accord unique** : y mettre le NOM de l'accord en champ de saisie actif dès l'ouverture (taper « Dm7 », Entrée), puis décider SEUL si le
-    double-clic-sur-le-texte devenu redondant reste ou part (l'utilisateur a répondu le 12/11 : « fais ce qui te semble le plus rapide ») : le retirer seulement si la fenêtre ouvre
-    bien le champ du nom actif au double-clic ET que c'est aussi rapide ; le dire dans le compte rendu du lot. Bancs : `clic_ecouter`, `grille_clic_et_double_clic`, `probe_clic_accord_voisin`, `telephone_panneau_accord`, `editeur_et_clavier` ; réécrire,
-    jamais supprimer ; un banc d'abord ROUGE pour le défaut mesuré, puis vert.
+  - **A1 — fenêtre d'accord unique : ACCORDÉE par l'utilisateur le 12/11 (« oui je veux bien la fenêtre d'accord unique »)**. C'est le point 3 bis de `docs/refonte-sequenceur.md` :
+    au lieu de la bulle d'accord (double-clic) ET de l'inspecteur de droite (« Réglages du son », flottant depuis le point C), UNE seule fenêtre sous la case, qui porte tout ce qui
+    règle l'accord, **sans ligne Rythme** (le rythme se règle dans le séquenceur, sans le dire). Elle n'a ni lot ni découpage : **la découper d'abord** (lire 3 bis et la planche A
+    de l'artefact https://claude.ai/artifact/PFwjW5A61rHhBUX3cPFCuQ avec l'outil Artifact, `read`), annoncer le découpage à l'utilisateur, puis la faire APRÈS A2, A3, B1, B2 (elle
+    touche `bulle-accord`, l'inspecteur, `placerInspecteurFlottant`, `ZONE_EDITION_SELECTEURS`, `this._popups` et beaucoup de bancs — un lot à part, avec son propre balayage
+    complet). Le téléphone (< 900 px) reste inchangé : son panneau d'accord existe déjà (10d).
+    **Décision de l'utilisateur du 12/11 sur le renommage (B2 livré)** : à la fenêtre d'accord unique, y mettre le NOM de l'accord en champ de saisie actif dès l'ouverture (taper « Dm7 », Entrée), puis décider SEUL si le double-clic-sur-le-texte (livré au B2, sans bulle) devient redondant (« fais ce qui te semble le plus rapide ») : ne le retirer que si la fenêtre ouvre bien le champ actif au double-clic ET que c'est aussi rapide ; le dire dans le compte rendu. Bancs concernés : `renommer_double_clic`, `clic_ecouter`, `grille_clic_et_double_clic`, `telephone_panneau_accord`, `editeur_et_clavier`.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
@@ -159,7 +141,7 @@ Mis à jour le 12/11/2026, après l'étape 4c, dernière du point D (l'ancien s�
   Large et le pincement du téléphone sont une préférence de l'APPAREIL (`harmohubGrilleTelephone`), pas du morceau : les échelles du morceau restent
   celles de l'ordinateur (un morceau en Détaillé donnait des cases de 103 px au téléphone). Aussi : Transposer garde une ligne sous les cases (absent de
   la maquette, présent avant).
-- **Dernier balayage complet** (retrait de l'ancien séquenceur, étape 4c, 12/11) : **251 verts, 0 rouge, 4 sans verdict sur 255 suites** (3131 s cumulées) — après correction de
+- **Dernier balayage complet** (session du 12/11 : B2, B1, A3) : **252 verts, 1 rouge, 4 sans verdict sur 257 suites** (3137 s cumulées) ; le rouge, `highlight_diagnostic` (il comparait le FOND de la case choisie à celui des autres : le corps ne change plus, voir B1), est réécrit pour comparer bordure et ombre et rejoué seul **vert (11 / 11)**, ce qui donne 253 verts, 0 rouge. **Ligne de base inchangée** : 0 rouge et 4 « sans verdict » (`detune`, `instrument_stress`, `probe_cache_perime`, `smoke`). Précédent : étape 4c (12/11) : **251 verts, 0 rouge, 4 sans verdict sur 255 suites** (3131 s cumulées) — après correction de
   `grid_scroll_axis` (page 32 px plus courte sans la rangée « Séq. » : fenêtre du banc resserrée). **Nouvelle ligne de base** : **0 rouge** (`seq_notes_libres_clavier` est vert) et
   4 « sans verdict » (`detune`, `instrument_stress`, `probe_cache_perime`, `smoke` ; `ctx_nav_scroll` rend un verdict). Précédent : étape 4b (12/11) : **249 verts, 1 rouge, 5 sans verdict sur 255 suites** (3109 s cumulées) — le rouge est
   `seq_notes_libres_clavier` (ligne de base, sa partie téléphone). **Ligne de base de fait** : 1 rouge (`seq_notes_libres_clavier`) et 5 « sans verdict » (`ctx_nav_scroll`,

@@ -16443,10 +16443,13 @@ class HarmoHubApp {
         const r = sym.getBoundingClientRect();
         if (!r.width) return false;
         const coarse = window.matchMedia('(hover: none), (pointer: coarse)').matches;
-        // Ces quatre nombres doivent rester accordés au halo de .cell-sym en CSS : le repère visuel
+        // Ces nombres doivent rester accordés au halo de .cell-sym en CSS : le repère visuel
         // et la zone réellement cliquable ne peuvent pas dire deux choses différentes.
-        const padX = Math.max(7, ((coarse ? 40 : 36) - r.width) / 2);
-        const padY = Math.max(5, ((coarse ? 28 : 26) - r.height) / 2);
+        // B2 (12/11) : « sa zone de fonctionnement semble trop large ». À la souris, la zone est le TEXTE à 3 px près (le halo de .cell-sym fait de même, voir
+        // le bloc B2 en fin de style.css) ; elle valait 36 × 26 px au minimum, donc trois fois la largeur d'un nom court. Au doigt (écran tactile) rien ne change :
+        // sans curseur pour viser, 40 × 28 px au minimum.
+        const padX = coarse ? Math.max(7, (40 - r.width) / 2) : 3;
+        const padY = coarse ? Math.max(5, (28 - r.height) / 2) : 3;
         return clientX >= r.left - padX && clientX <= r.right + padX
             && clientY >= r.top - padY && clientY <= r.bottom + padY;
     }
@@ -16634,13 +16637,22 @@ class HarmoHubApp {
             // UN SEUL sens pour le premier clic, où qu'il tombe dans la case (le symbole ouvrait autrefois la retape dès le premier clic : il fallait viser).
             // REFONTE DU SÉQUENCEUR, POINT B (11/11) : « parfois on veut seulement entendre l'accord » — un clic ou un toucher SÉLECTIONNE et FAIT ENTENDRE,
             // rien ne s'ouvre ; un double-clic, ou un toucher sur une case déjà choisie, ouvre le panneau de l'accord (bulle à l'ordinateur, panneau du bas
-            // au téléphone). Le double-clic ne retape plus le nom : « Renommer » au clic droit / à l'appui long, ou une lettre tapée sur l'accord choisi.
+            // au téléphone). Le nom se retape par « Renommer » au clic droit / à l'appui long, par une lettre tapée sur l'accord choisi, et — B2, 12/11 — par le double-clic
+            // sur le TEXTE du nom à l'ordinateur (sans bulle ; le double-clic sur le reste de la case ouvre la bulle).
             // Un panneau DÉJÀ ouvert suit la case cliquée, comme il suit ← → et ‹ › (la sélection est suivie, décision du 05/11).
             const now = Date.now();
             const isSecondTap = this._lastTap && this._lastTap.section === d.section && this._lastTap.index === d.index && (now - this._lastTap.time) < 420;
             const dejaChoisie = this.selectedIndex === d.index && this.activeSection === d.section;
             if (this.bulleDisponible()) {
-                if (isSecondTap) { this._lastTap = null; this.ouvrirBulleAccord(d.section, d.index); return; } // le premier clic a déjà sélectionné et joué
+                if (isSecondTap) {
+                    this._lastTap = null;
+                    // B2 (12/11), décision de l'utilisateur : « double-clic sur le TEXTE du nom = renommer, SANS ouvrir la bulle (c'est pour aller plus vite) » ;
+                    // la bulle s'ouvre par le double-clic sur le reste de la case. La zone du texte est celle de _isSymbolHit (le texte à quelques pixels près).
+                    // Le premier clic a déjà sélectionné et joué : la saisie ne refait pas de son. Une bulle déjà ouverte se referme (une seule fenêtre à la fois).
+                    if (d.symTarget) { this.fermerBulleAccord(); this.startInlineChordSymbolEdit(d.section, d.index); return; }
+                    this.ouvrirBulleAccord(d.section, d.index);
+                    return;
+                }
                 this._lastTap = { section: d.section, index: d.index, time: now, sym: !!d.symTarget };
                 const suivre = !!this._bulle;
                 this.selectChord(d.section, d.index);

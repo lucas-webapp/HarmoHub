@@ -27,8 +27,10 @@ ne le redécouvre pas.
    - **une icône par fonction, sans mot** (« uniquement logo ») ; un mot seulement quand aucune icône n'est évidente.
 4. **Couleurs douces.** Les rôles des notes gardent les teintes translucides de `.seq-note.role-*` (38 %, liseré 85 %).
    Jamais d'aplat plein.
-5. **Sélection BLEUE, lecture VERTE, plage à boucler ORANGE** (l'orange de la règle actuelle). Fini l'orange du mode
-   modification.
+5. **Sélection GRISE CLAIRE, lecture VERTE, plage à boucler ORANGE** (l'orange de la règle actuelle). Fini l'orange du mode
+   modification. **Changé le 12/11 (B1)** : la sélection était bleue ; « la couleur bleue des cases sélectionnées ne va pas avec le design de l'application » →
+   gris clair neutre, éclairé par les bords (reflet en haut, halo sur les côtés, rien en bas où passe la barre de lecture), corps de la case inchangé ; la case en
+   modification pousse l'effet d'un cran. Un sens par couleur : gris = sélection, vert = lecture, orange = boucle (ni orange, ni gris-vert pour la sélection).
 6. **Verre dépoli** (`verre-surfaces.css`) : chaque nouvelle surface y est ajoutée dans le même lot que sa création,
    avec ses contrôles de lisibilité en pixels (`verre_test`). Option par appareil, inchangée.
 7. **Notation internationale** pour les tonalités (C majeur, E♭ majeur) ; le nom du mode reste en français.
