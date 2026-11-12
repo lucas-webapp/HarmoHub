@@ -47,7 +47,8 @@ Voir la section 3 : c'est le gros morceau (module `sequenceur.js` écrit de zér
   dans la colonne des noms, ligne retenue par la partie), clic droit sur une vignette (retouche par-dessus, « Rétablir l'original »), vue « Toutes les notes ». Détail : `docs/dette-tests.md`.
 - ✅ **Troisième sous-lot livré le 12/11** (banc `sequenceur_telephone`) : onglets Accord / Son / Rythme dans le panneau d'accord ; le séquenceur y est déplacé, réduit à l'accord du
   panneau (cases de 44 px) ; « Notes » → « Séquenceur » dans le panneau Lecture. Détail : `docs/dette-tests.md`.
-- [ ] Retrait de l'ancien séquenceur (et de « Séq. » / « Éditeur de notes ») et réécriture de ses bancs.
+- [ ] Retrait de l'ancien séquenceur (et de « Séq. » / « Éditeur de notes ») et réécriture de ses bancs — en trois étapes : ✅ **4a ordinateur** (12/11 : « Éditeur de notes »,
+  grand séquenceur, loupe, calque Voix ; 49 bancs réécrits), [ ] 4b petit séquenceur de l'inspecteur, [ ] 4c feuille « Séq. » du téléphone.
 
 ## 3. Le nouveau séquenceur — décisions de la maquette
 

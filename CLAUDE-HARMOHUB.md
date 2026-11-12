@@ -1,6 +1,6 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 12/11/2026, après le troisième sous-lot du point D de la refonte du séquenceur (et deux retours de l'utilisateur). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 12/11/2026, après l'étape 4a du dernier sous-lot du point D (retrait de l'ancien séquenceur à l'ordinateur). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
@@ -84,12 +84,14 @@ Mis à jour le 12/11/2026, après le troisième sous-lot du point D de la refont
     poignée `#seq-dock-resize`) devient une vérification COURTE : l'ancienne porte n'existe plus ET le geste du nouveau séquenceur qui la remplace fonctionne (vrai geste). Ce qui
     RESTE (notes libres, intensité, plage à boucler, copier / coller, motifs, lecture et tête de lecture, sélection suivie) est réécrit EN ENTIER pour le nouveau séquenceur. Le nom du
     banc et son fichier restent ; l'en-tête dit « RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a) » et ce qui a disparu. Durée estimée : 2 à 3 sessions.
-  - **4a EN COURS (12/11, commits locaux, rien de poussé)** : « Éditeur de notes » masqué à l'ordinateur (style.css, fin ; clic de programme → nouveau séquenceur ;
-    l'ancien se referme au franchissement du seuil) ; réticule repris par le nouveau séquenceur ; assistant `tests/_retrait_ancien.js` (gestes du nouveau séquenceur)
-    et générateur de sondes (scratchpad, `sonde.py`, à refaire si besoin). **Restent à réécrire** : notes_manuelles_intensite, pinned_seq_toolbar, portes_sequenceur,
-    probe_touches_piano, recadrage_panneau, retour_a_sa_place, three_more_features, verre, vl_loupe, vl_pinch, voice_leading_section_ops, voice_leading,
-    volet_hauteur_poignee, telephone_editeur_notes (partie ordinateur), et les cinq rouges de la ligne de base (probe_clic_accord_voisin, probe_defilement_tactile,
-    probe_regle_voisins, probe_seq_finitions, seq_notes_libres_clavier). Puis : sabotages, balayage complet, journal, push.
+  - ✅ **4a livrée (12/11)** : « Éditeur de notes » a quitté l'ordinateur (et avec lui grand séquenceur, loupe, zooms, poignée, calque Voix) ; réticule repris par le
+    nouveau séquenceur ; inspecteur qui suit la sélection séquenceur ouvert ; l'ancien éditeur ouvert au téléphone se referme passé 900 px. **49 bancs réécrits** (liste et
+    détail dans `docs/dette-tests.md`), assistant `tests/_retrait_ancien.js`. Le code de l'ancien séquenceur reste (téléphone, inspecteur).
+- **Prochain : 4b — le petit séquenceur de l'inspecteur** (`#arp-sequencer` dans la carte Accord, porte « Séquenceur » `#seq-zoom`, `#dock-rythme`, vue compacte de
+  `toggleSequencer('compact')`) : le rythme se règle au séquenceur du bloc « Vues » (cahier 3 bis : la fenêtre d'accord n'a « pas de ligne Rythme »). Même méthode :
+  essai à blanc (masquer la porte, rejouer `grep -l "seq-zoom\|arp-sequencer\|toggleSequencer('compact')" tests/*_test.js`), réécriture courte, sabotages, balayage.
+  Puis **4c** — la feuille « Séq. » du téléphone (porte `#grid-zoom` sous 900 px ; parties téléphone de `calque_voix`, `voice_leading*`, `vl_*`, `telephone_editeur_notes`,
+  `seq_notes_libres_clavier` G…). Aucune question ouverte.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
@@ -109,7 +111,11 @@ Mis à jour le 12/11/2026, après le troisième sous-lot du point D de la refont
   Large et le pincement du téléphone sont une préférence de l'APPAREIL (`harmohubGrilleTelephone`), pas du morceau : les échelles du morceau restent
   celles de l'ordinateur (un morceau en Détaillé donnait des cases de 103 px au téléphone). Aussi : Transposer garde une ligne sous les cases (absent de
   la maquette, présent avant).
-- **Dernier balayage complet** (séquenceur D, troisième sous-lot, 12/11) : **243 verts, 6 rouges, 6 sans verdict sur 255 suites** (3213 s cumulées) — la ligne de base plus
+- **Dernier balayage complet** (retrait de l'ancien séquenceur, étape 4a, 12/11) : **247 verts, 2 rouges, 6 sans verdict sur 255 suites** (3008 s cumulées) — `seq_notes_libres_clavier`
+  (ligne de base, sa partie téléphone) et `grille_raccourcis_clavier`, banc réécrit en 4a avant le suivi de la sélection séquenceur ouvert, réaligné ensuite (vert 3 fois sur 3, seul
+  fichier changé, aucun fichier servi). **Nouvelle ligne de base de fait** : de ses 5 rouges, seul `seq_notes_libres_clavier` reste rouge (`probe_clic_accord_voisin`,
+  `probe_defilement_tactile`, `probe_regle_voisins`, `probe_seq_finitions` sont verts depuis 4a) ; les 6 « sans verdict » sont inchangés.
+- **Balayage précédent** (séquenceur D, troisième sous-lot, 12/11) : **243 verts, 6 rouges, 6 sans verdict sur 255 suites** (3213 s cumulées) — la ligne de base plus
   `glock_playprogression` (« la lecture affiche le doigté verrouillé », mesure en temps réel), rouge sous la charge du balayage seulement : vert 3 fois sur 3 seul et 4 fois sur 4 en quatre
   copies parallèles ; séquenceur D, deuxième sous-lot (11/11 nuit) : **243 verts, 5 rouges, 6 sans verdict sur 254 suites — exactement la ligne de base** (3111 s cumulées) ; séquenceur D, premier sous-lot (11/11 nuit) : **242 verts, 5 rouges, 6 sans verdict sur 253 suites — exactement la ligne de base** (3092 s cumulées) ; refonte du séquenceur A, C, B (11/11 soir) : **241 verts, 5 rouges, 6 sans verdict sur 252 suites — exactement la ligne de base** (3175 s cumulées) ; poignée des diagrammes (11/11) : 238 verts, 6 rouges, 6 sans verdict sur 250 suites — la ligne de base plus `historique_versions`, rouge sous charge seulement (vert 3 fois sur 3 rejoué seul, sans lien avec le tiroir) ; lot 10f (07/11) : 238 verts, 5 rouges, 6 sans verdict sur 249 suites ; (avant : lot 10e, 235 verts + 2 bancs réparés puis rejoués verts, 5 rouges, 6 sans verdict sur 248 suites — exactement la ligne de base de
   `CLAUDE.md`. Le lancer en tâche d'arrière-plan avec le chien de garde dans la même commande : `(bash tests/watchdog.sh &) ; bash tests/run_all_fast.sh`.

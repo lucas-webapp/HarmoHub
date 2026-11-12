@@ -6093,3 +6093,10 @@ l'ordinateur »). Le dernier sous-lot de D est découpé en trois étapes (inven
 - **La ligne de base change** : `probe_defilement_tactile`, `probe_regle_voisins`, `probe_seq_finitions` et `probe_clic_accord_voisin` passent au VERT (leurs échecs d'avant
   étaient tous dans la partie ordinateur de l'ancien séquenceur, disparue) ; `seq_notes_libres_clavier` reste rouge (son échec est au téléphone : « un simple toucher crée la note
   visée », la feuille d'avant). `probe_cache_perime` donne désormais un verdict lisible (« le séquenceur s'ouvre »). Méta-suite : dette diminuée, référence figée (`--maj`).
+
+Sabotages de l'étape 4a (trois, tous rouges puis restaurés) : porte « Éditeur de notes » encore visible à l'ordinateur (`editeur_notes` 1, `portes_sequenceur` 1) ; réticule retiré du
+nouveau séquenceur (`sequencer_reticle_cursor` 3) ; inspecteur qui ne suit plus la sélection (`recadrage_panneau` 1). Balayage ciblé : 36 verts, 1 rouge et 1 sans verdict de la
+ligne de base. Balayage complet : **247 verts, 2 rouges, 6 sans verdict sur 255 suites** (3008 s cumulées) — `seq_notes_libres_clavier` (ligne de base, partie téléphone) et
+`grille_raccourcis_clavier`, réécrit avant que l'inspecteur suive la sélection séquenceur ouvert : sa première vérification attendait encore l'accord ouvert immobile ; réalignée
+sur le contrat du 06/11 (« la modification avance avec la sélection »), verte 3 fois sur 3 — seul ce fichier de banc a changé après le balayage.
+
