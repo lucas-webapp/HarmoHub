@@ -8760,7 +8760,49 @@ body.avec-barre-selection .toast { bottom: 132px; }
     .pa-rythme:not([hidden]) { margin-top: 6px; }
     .pa-rythme .sq-outils { gap: 6px; padding: 0 0 6px; }
     .pa-rythme .sq-outils .sq-seg button { padding: 0 6px; }
+    /* PLEIN ÉCRAN (12/11, « sur portable, il serait peut-être plus simple de l'afficher en plein écran » ; « l'affichage est grand et je ne vois pas beaucoup de barres ») :
+       l'onglet Rythme prend toute la place entre la barre du haut et la barre de lecture, sans pied (Supprimer, Dupliquer, Réglages du son n'ont rien à faire ici : leurs onglets
+       sont à un toucher). Le pied rognait de plus la dernière ligne (mesuré : la quatrième ligne d'un accord de quatre sons restait sous « Réglages du son »). */
     .panneau-accord.pa-onglet-rythme:not([hidden]) {
-        height: calc(100dvh - var(--haut-barre, 111px) - var(--haut-barre-lecture, 68px) - var(--reserve-panneau-accord, 150px) + 24px);
+        height: calc(100dvh - var(--haut-barre, 111px) - var(--haut-barre-lecture, 68px));
+        max-height: none;
     }
+    .panneau-accord.pa-onglet-rythme .pa-actions { display: none; }
+    /* « Toute la partie » : la grille défile de côté, les étiquettes de notes restent collées à gauche (opaques : les notes passent dessous). */
+    .pa-rythme .sq-grille { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+    .pa-rythme .sq-grille::-webkit-scrollbar { display: none; }
+    .pa-rythme .sq-etiq, .pa-rythme .sq-libre-btn { position: sticky; left: 0; z-index: 4; }
+    /* Les noms d'accords reviennent : avec toute la partie à l'écran, ils disent quel accord est où (ils étaient masqués quand le panneau ne montrait que le sien). */
+    #pa-rythme .sq-nom { display: block; }
 }
+
+
+/* ======================================================================================================
+   SÉQUENCEUR — LE MENU D'UNE NOTE (12/11, retour de l'utilisateur sur le séquenceur du téléphone : « si je veux scinder : clic droit / scinder la note »). Il reprend la
+   forme et le verre du menu contextuel de la grille (.context-menu, déjà dans verre-surfaces.css) ; ici seulement la jauge des boutons (32 px, 44 px au doigt) et l'état
+   grisé d'une action impossible (Scinder sur une attaque, Prolonger sans place). En fin de fichier (cascade).
+   ====================================================================================================== */
+.sq-menu-note { z-index: 220; min-width: 190px; }
+.sq-menu-note button { min-height: var(--bouton-h); min-width: 0; flex: none; }
+.sq-menu-note button:disabled { color: var(--text-muted); opacity: 0.45; cursor: default; }
+.sq-menu-note button:disabled:hover { background: none; }
+@media (max-width: 899px) {
+    .sq-menu-note button { min-height: var(--bouton-h-lg); font-size: 14px; }
+}
+
+
+/* ======================================================================================================
+   SÉQUENCEUR AU DOIGT (12/11, retour de l'utilisateur : « interférence entre scroll horizontal et création / modification d'une note »). La grille était en
+   `touch-action: none` : aucun glissé ne pouvait la faire défiler, ni elle ni le panneau qui la porte, et le même glissé peignait des notes. Maintenant elle laisse le
+   navigateur défiler dans les deux sens (sequenceur.js : un appui bref pose ou enlève, un glissé défile sans toucher aux notes, l'appui long ouvre le menu de la note ou
+   commence un trait peint). La règle et la bande de boucle gardent `none` : on y TRACE la plage à boucler au doigt. En fin de fichier (cascade).
+   ====================================================================================================== */
+.sq-grille { touch-action: pan-x pan-y; -webkit-touch-callout: none; }
+.sq-grille .sq-temps, .sq-grille .sq-boucle { touch-action: none; }
+
+
+/* Le mode « Dessiner » : un bouton crayon au doigt seulement (à la souris, le glissé peint déjà), et la grille passe en touch-action: none tant qu'il est allumé. */
+#sq-dessin { display: none; }
+@media (pointer: coarse) { #sq-dessin { display: inline-flex; } }
+.sequenceur.sq-dessin .sq-grille { touch-action: none; }
+.sq-outils #sq-dessin[aria-pressed="true"] { color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); }

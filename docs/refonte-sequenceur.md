@@ -82,7 +82,7 @@ onglet « Rythme » à côté de « Accord » et « Son »).
   On la pose en **tirant sur la règle** ; on la **retire en cliquant dessus** (pas de bouton). Une seule pièce, alignée sur les colonnes. « Lecture » ne joue que cette plage tant qu'elle existe. Orange = plage à boucler (règle du chantier).
 - **Étiquettes** à gauche : le **nom de la note avec son octave** (C3, E3, G3, B3 pour l'accord choisi), calées à droite, **colonne étroite (≈ 46 px)**, marges de page
   et de cadre resserrées (16 px / 12 px), **petit jour de ≈ 10 px** avant les mesures : « tout serrer vers la gauche, mais laisser un petit espace ».
-- **Une note tenue = une barre continue** (croches voisines soudées : sans coins ni espace) ; une croche seule reste un plot court (staccato). Le nom de la note
+- **Une note tenue = une barre continue** (croches soudées : sans coins ni espace) ; une croche seule reste un plot court (staccato). **Changé le 13/11 (retour de l'utilisateur sur le séquenceur du téléphone) : deux notes posées côte à côte restent DEUX attaques** (« 2 notes consécutives ne doivent pas constituer une note tenue ») ; une note tenue se fait exprès — en peignant d'un trait (glissé à la souris, mode « Dessiner » au doigt) ou par « Prolonger d'une croche » (clic droit, appui long). **Enlever une croche d'une note tenue enlève la note ENTIÈRE** ; « Scinder la note » (clic droit, appui long) la coupe à la croche visée. Au téléphone, le séquenceur est en **plein écran** (onglet Rythme : toute la place entre la barre du haut et la barre de lecture, sans pied de panneau), « Toute la partie » défile de côté, un glissé au doigt défile sans toucher aux notes. Le nom de la note
   est écrit au début de la barre. Couleurs des rôles inchangées (1 vert, 3 bleu, 5 rouge, 7 ambre ; note libre violette).
 - **Aucune légende, aucune ligne d'aide** dans l'appli (la maquette en avait pour être lisible seule).
 - **Le son** : un clic sur une case de la grille joue l'accord ; poser ou changer une note la fait entendre à son niveau ; « Lecture » joue avec les intensités. Dans
@@ -116,7 +116,7 @@ onglet « Rythme » à côté de « Accord » et « Son »).
 ### Modifier un schéma (clic droit sur une vignette, 11/11 — fait dans la maquette)
 - **Un schéma SANS notes** (4 voix × 8 croches, de l'aiguë à la basse) retouché dans une petite bande dépliée sous la barre d'outils, **pas sur la vraie grille** : la grille est liée à un
   accord (notes, renversement) et on risquerait d'écraser un vrai rythme ; le schéma vaut pour tous les accords (règle « par position »).
-- La bande : la grille du schéma (un clic pose ou enlève une croche ; croches voisines soudées en barre), le nom modifiable, ▶ pour l'entendre sur l'accord choisi, Enregistrer,
+- La bande : la grille du schéma (un clic pose ou enlève une croche — dans ce petit éditeur sans menu, enlever une croche d'une barre la coupe en deux, comme avant ; des croches posées une à une ne se soudent plus), le nom modifiable, ▶ pour l'entendre sur l'accord choisi, Enregistrer,
   Annuler ; « Rétablir l'original » sur un motif fourni (les retouches se posent PAR-DESSUS, l'original n'est jamais perdu) ; « Supprimer » sur une forme de l'utilisateur.
 - À l'enregistrement, les accords qui suivent ce schéma le suivent dans sa nouvelle version. « À la main » n'a pas de clic droit (rien à retoucher).
 

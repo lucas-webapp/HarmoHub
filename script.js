@@ -2773,7 +2773,7 @@ const ZONE_EDITION_SELECTEURS = [
     '#arp-sequencer', '.seq-dock-panel', '#global-undo-btn', '#global-redo-btn', '.zoom-axis-group',
     '#toggle-sidebar', '#toggle-voice-leading', '#footer-dock', '.transport', '.dock',
     '#quick-add-help-btn', '#quick-add-help', '.grid-cell', '.cell-add',
-    '.section-head', '.grid-head-sticky', '#context-menu', '.overlay', '.modal', '.settings-overlay',
+    '.section-head', '.grid-head-sticky', '#context-menu', '#sq-menu-note', '.overlay', '.modal', '.settings-overlay',
     '#files-overlay', 'button', 'input', 'select', 'textarea', 'label', 'a', '[role="button"]',
     // Lot 6 : la bulle « quel accord », la rangée de réglages et leurs choix — travailler dedans n'est pas quitter son travail.
     '#bulle-accord', '#rangee-reglages', '#rr-pop', '#partie-menu',
@@ -4938,6 +4938,8 @@ class HarmoHubApp {
         // le travail deux fois.
         this._popups = [
             { id: 'context-menu', close: () => this.closeContextMenu() },
+            // Le menu d'une note du séquenceur (clic droit, appui long) : clic à côté et Échap le referment.
+            { id: 'sq-menu-note', close: () => { if (this.sequenceur) this.sequenceur.fermerMenuNote(); } },
             { id: 'section-picker-menu', close: () => this.closeSectionPicker() },       // « où insérer ? »
             { id: 'intensity-menu', close: () => this.fermerMenuIntensite() },           // les cinq niveaux d'un accord
             { id: 'backup-scope-menu', close: () => this.closeTransferScopeMenu() },       // « ce morceau / toute la bibliothèque ? »
@@ -5086,11 +5088,11 @@ class HarmoHubApp {
             // ci-dessus (touchMoved, dernierDefilementA) l'écartent déjà. Une autre case le déplace (onGridPointerUp), l'appui long ouvre son menu.
             // Refonte du séquenceur, point B : « Échap ou clic à côté referme ; la sélection reste ». Le clic qui referme la bulle ou le panneau ne
             // désélectionne donc PAS (un clic suivant, panneau fermé, le fera comme avant) — d'où ce relevé, pris AVANT la fermeture.
-            const fermeUnPanneau = !!this._bulle && !inPath('#bulle-accord, #panneau-accord, .grid-cell:not(.grid-cell-add), #context-menu');
+            const fermeUnPanneau = !!this._bulle && !inPath('#bulle-accord, #panneau-accord, .grid-cell:not(.grid-cell-add), #context-menu, #sq-menu-note');
             // Retrait de l'ancien séquenceur (4c) : la feuille « Séq. » laissait la barre de lecture « à portée » (Lecture, Stop, feuille ouverte). L'onglet Rythme
             // qui la remplace fait de même : on y règle un rythme pour l'ENTENDRE, Lecture et Stop ne referment pas le panneau.
             const transportSurRythme = !!(this._bulle && this._bulle.rythme) && inPath('#play-prog, #stop');
-            if (this._bulle && this._bulle.telephone && !transportSurRythme && !inPath('#panneau-accord, .grid-cell:not(.grid-cell-add), #context-menu')) this.fermerBulleAccord();
+            if (this._bulle && this._bulle.telephone && !transportSurRythme && !inPath('#panneau-accord, .grid-cell:not(.grid-cell-add), #context-menu, #sq-menu-note')) this.fermerBulleAccord();
             // .seq-zoom-modal inclus : le séquenceur (déplacé dans la loupe séquenceur,
             // ou dans sa propre vue agrandie, voir openSeqZoom) et ses boutons (Enregistrer/Annuler/
             // replier, poignée de redimensionnement...) y vivent, hors de .chord-grid ET de .col-left —
@@ -10163,6 +10165,7 @@ class HarmoHubApp {
     assurerCaseVisiblePanneau() {
         const z = this._bulle, p = document.getElementById('panneau-accord');
         if (!z || !z.telephone || !p || p.hidden) return;
+        if (z.rythme) return; // l'onglet Rythme est en PLEIN ÉCRAN (12/11) : la case n'a plus de place au-dessus de lui, rien à recadrer
         this.placerPanneauAccord();
         const cell = document.querySelector(`#progression-sections .grid-cell[data-section="${z.section}"][data-index="${z.index}"]`);
         if (!cell) return;

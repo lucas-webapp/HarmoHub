@@ -63,6 +63,7 @@
     function NOTES_SQ() { return ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; }
     const midiDe = (note, octave) => NOMS_LIBRES.indexOf(note) + 12 * (octave + 1);
     const noteDe = (midi) => ({ note: NOMS_LIBRES[((midi % 12) + 12) % 12], octave: Math.floor(midi / 12) - 1 });
+    const APPUI_LONG_MS = 380; // l'appui long au doigt : menu de la note, ou début d'un trait peint
     const GRILLE_MIN = 40; // ce que la poignée laisse au moins à la grille au-dessus (l'en-tête de partie reste lisible)
 
     const cle = (v, k) => v + ':' + k;
@@ -324,21 +325,66 @@
         return l ? l.index : null;
     }
 
-    // Allumer / éteindre une croche en gardant le reste : une croche posée se soude à ses voisines ; une croche enlevée coupe la barre en deux.
+    // Allumer / éteindre une croche en gardant le reste.
+    // RETOUR DE L'UTILISATEUR (12/11, séquenceur du téléphone) : « 2 notes créées côte à côte = une note longue de 2 temps au lieu de 2 temps staccato. 2 notes
+    // consécutives ne doivent pas constituer une note tenue » — une croche posée reste donc une attaque À PART, même collée à une autre. Une note tenue se fait
+    // exprès : en peignant d'un trait (le glissé à la souris, l'appui long puis le glissé au doigt, voir peindre), ou par « Prolonger » au clic droit.
+    // « Il est difficile de supprimer une note longue : elle se scinde en plusieurs notes au lieu de se supprimer complètement » — enlever UNE croche d'une note
+    // longue enlève la note ENTIÈRE ; pour la scinder on le demande (« clic droit / Scinder la note », voir scinderNote).
     function poserCroche(etat, v, k, allumer) {
-        const c = cle(v, k), apres = cle(v, k + 1);
+        const c = cle(v, k);
         if (allumer) {
             if (etat.on.has(c)) return false;
             etat.on.add(c);
-            if (etat.on.has(cle(v, k - 1))) { etat.soude.add(c); etat.niveaux.delete(c); }
-            if (etat.on.has(apres)) { etat.soude.add(apres); etat.niveaux.delete(apres); }
+            etat.soude.delete(c); etat.niveaux.delete(c);
             return true;
         }
         if (!etat.on.has(c)) return false;
+        const [d, f] = bornesBarre(etat, v, k);
+        for (let j = d; j <= f; j++) { const x = cle(v, j); etat.on.delete(x); etat.soude.delete(x); etat.niveaux.delete(x); }
+        return true;
+    }
+
+    // Enlever UNE croche d'une note tenue en coupant la barre en deux (l'ancien geste) : réservé à l'éditeur de schéma d'un motif (clic droit sur une vignette),
+    // petite grille de 4 × 8 sans menu où « Plaqué » est fait de longues barres qu'on raccourcit croche par croche.
+    function couperCroche(etat, v, k) {
+        const c = cle(v, k), apres = cle(v, k + 1);
+        if (!etat.on.has(c)) return false;
         const niveauBarre = niveauDe(etat, v, k);
         etat.on.delete(c); etat.soude.delete(c); etat.niveaux.delete(c);
-        // La suite de la barre devient une note à part entière : elle garde le niveau de la barre dont elle sort.
         if (etat.soude.has(apres)) { etat.soude.delete(apres); if (niveauBarre !== 'normal') etat.niveaux.set(apres, niveauBarre); }
+        return true;
+    }
+
+    // Les croches de la note qui contient k : de son attaque à sa dernière croche soudée (une note seule : [k, k]).
+    function bornesBarre(etat, v, k) {
+        let d = k, f = k;
+        while (d > 0 && etat.on.has(cle(v, d - 1)) && etat.soude.has(cle(v, d))) d--;
+        while (etat.on.has(cle(v, f + 1)) && etat.soude.has(cle(v, f + 1))) f++;
+        return [d, f];
+    }
+
+    // Soude la croche k à la précédente (la note devient tenue) : la croche de droite ne porte plus de niveau propre, c'est l'attaque de la barre qui le porte.
+    function souder(etat, v, k) {
+        if (!etat.on.has(cle(v, k)) || !etat.on.has(cle(v, k - 1))) return false;
+        etat.soude.add(cle(v, k)); etat.niveaux.delete(cle(v, k));
+        return true;
+    }
+
+    // « Scinder la note » : la croche k devient l'attaque d'une nouvelle note, qui garde le niveau de la barre dont elle sort. Impossible sur une attaque.
+    function scinderNote(etat, v, k) {
+        if (!etat.on.has(cle(v, k)) || !etat.soude.has(cle(v, k))) return false;
+        const niveau = niveauDe(etat, v, k);
+        etat.soude.delete(cle(v, k));
+        if (niveau !== 'normal') etat.niveaux.set(cle(v, k), niveau);
+        return true;
+    }
+
+    // « Prolonger » : la note qui contient k tient une croche de plus, si la place est libre et dans la mesure montrée.
+    function prolongerNote(etat, v, k, croches) {
+        const f = bornesBarre(etat, v, k)[1];
+        if (!etat.on.has(cle(v, k)) || f + 1 >= croches || etat.on.has(cle(v, f + 1))) return false;
+        etat.on.add(cle(v, f + 1)); etat.soude.add(cle(v, f + 1)); etat.niveaux.delete(cle(v, f + 1));
         return true;
     }
 
@@ -387,6 +433,19 @@
         estOuvert() { return !!this.racine && !this.racine.hidden; }
         // Au téléphone, dans le panneau d'accord : on ne montre que l'accord du panneau (maquette `Telephone.dc.html` : huit croches, une ligne par voix).
         modeTel() { return !this.estOrdinateur() && !!this.racine && !!this.racine.closest('#pa-rythme'); }
+        // Au téléphone, le séquenceur occupe tout l'écran entre la barre du haut et la barre de lecture (12/11 : « sur portable, il serait peut-être plus simple de
+        // l'afficher en plein écran ») : « Toute la partie » y montre tous les accords, qu'on fait défiler de côté, « Cet accord » le seul accord du panneau.
+        uneSeule() { return this.modeTel() && this.portee === 'accord'; }
+        // Mode « Dessiner » (au doigt seulement) : la grille ne défile plus, le doigt peint d'un trait une note tenue. Éteint tant qu'on ne l'allume pas.
+        basculerDessin(oui) { this.dessin = oui === undefined ? !this.dessin : !!oui; this.majDessin(); }
+        majDessin() {
+            const b = document.getElementById('sq-dessin');
+            if (b) {
+                b.setAttribute('aria-pressed', String(!!this.dessin));
+                b.title = this.dessin ? 'Dessiner allumé : le doigt peint d\'un trait une note tenue et la grille ne défile plus. Cliquer pour revenir au défilement' : 'Dessiner éteint : le doigt fait défiler, un toucher pose ou enlève une note. Cliquer pour peindre d\'un trait une note tenue';
+            }
+            if (this.racine) this.racine.classList.toggle('sq-dessin', !!this.dessin);
+        }
 
         // Ouvert ou fermé : retenu par l'appareil À L'ORDINATEUR. Au téléphone, le séquenceur n'existe que dans le panneau d'accord (onglet
         // « Rythme ») : le bouton « Séquenceur » du panneau Lecture ouvre ce panneau sur l'onglet (app.ouvrirRythmeTelephone), sans toucher au réglage
@@ -418,6 +477,8 @@
                 o.parent.insertBefore(this.racine, o.suivant && o.suivant.parentNode === o.parent ? o.suivant : null);
             }
             this.synchroniser();
+            // L'onglet vient de s'afficher : sa grille n'avait pas de mise en page au premier dessin (offsetLeft à 0), on la replace sur l'accord du panneau.
+            if (this._telVisible) requestAnimationFrame(() => { this._vuAccord = null; this.rafraichir(); });
         }
 
         synchroniser() {
@@ -498,14 +559,14 @@
             // Colonnes : étiquettes (46 px), un petit jour (10 px), puis les croches de chaque accord, un trait de 4 px entre deux accords.
             // (On compte les PISTES une à une : un « repeat(8, …) » en vaut huit.)
             // Au téléphone : l'accord du panneau seul (les autres sont à un ‹ › de là). Les index restent ceux de la partie (data-c, écriture).
-            const montres = this.modeTel() && i != null ? [i] : accords.map((_, c) => c);
+            const montres = this.uneSeule() && i != null ? [i] : accords.map((_, c) => c);
             const cols = ['46px', '10px'];
             const colDebut = [];
             let piste = 3;
             montres.forEach((c, n) => {
                 if (n > 0) { cols.push('4px'); piste++; }
                 colDebut[c] = piste; // indexé par l'accord (au téléphone, un seul est montré : l'index n'est pas le rang)
-                cols.push(`repeat(${etats[c].info.croches}, minmax(10px, 1fr))`);
+                cols.push(`repeat(${etats[c].info.croches}, minmax(${this.modeTel() ? 26 : 10}px, 1fr))`); // au doigt : une croche garde 26 px au moins, la grille défile de côté
                 piste += etats[c].info.croches;
             });
             this.grille.style.gridTemplateColumns = cols.join(' ');
@@ -592,8 +653,16 @@
                     }
                 });
             });
+            const defile = this.grille.scrollLeft; // le défilement de côté survit aux rendus (poser une croche redessine toute la grille)
             this.grille.innerHTML = html.join('');
             this._colDebut = colDebut;
+            if (this.modeTel()) {
+                // Au téléphone, l'accord du panneau vient sous le doigt dès qu'il change (‹ ›, un autre accord touché) ; sinon on garde la place où l'on était.
+                const el = i != null ? this.grille.querySelector(`.sq-nom[data-c="${i}"]`) : null;
+                const changement = this._vuAccord !== `${s}/${i}`;
+                this._vuAccord = `${s}/${i}`;
+                this.grille.scrollLeft = changement && el ? Math.max(0, el.offsetLeft - 56 - 12) : defile;
+            }
             this._tete = null;
             this.limiterHauteur();
         }
@@ -644,6 +713,7 @@
             const pp = document.getElementById('sq-portee-partie'), pa = document.getElementById('sq-portee-accord');
             if (pp) pp.setAttribute('aria-pressed', String(this.portee === 'partie'));
             if (pa) pa.setAttribute('aria-pressed', String(this.portee === 'accord'));
+            this.majDessin();
             const bi = document.getElementById('sq-intensite');
             if (bi) {
                 bi.setAttribute('aria-pressed', String(this.intensite));
@@ -746,9 +816,21 @@
             this.grille.addEventListener('pointerdown', (e) => this.surAppui(e));
             window.addEventListener('pointermove', (e) => this.surMouvement(e));
             window.addEventListener('pointerup', (e) => this.surRelache(e));
-            window.addEventListener('pointercancel', () => { this._geste = null; });
+            window.addEventListener('pointercancel', () => this.annulerGeste());
             this.grille.addEventListener('keydown', (e) => {
                 if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('sq-boucle')) { e.preventDefault(); this.retirerBoucle(); }
+            });
+            // CLIC DROIT SUR UNE NOTE (12/11 : « si je veux scinder : clic droit / scinder la note ») : son menu. Ailleurs dans la grille, le menu du navigateur n'a
+            // rien à faire non plus. Au doigt, l'appui long ouvre le même menu (surAppui) ; sur Android l'évènement natif arrive aussi : même chemin.
+            this.grille.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                const el = e.target.closest('.sq-case.on');
+                if (el) this.ouvrirMenuNote(el, e.clientX, e.clientY);
+            });
+            const menu = document.getElementById('sq-menu-note');
+            if (menu) menu.addEventListener('click', (e) => {
+                const b = e.target.closest('button[data-sq-acte]');
+                if (b && !b.disabled) this.agirNote(b.dataset.sqActe);
             });
             // CLIC DROIT SUR UNE VIGNETTE (sauf « À la main ») : modifier ce schéma. Le menu du navigateur n'a rien à faire ici.
             this.racine.addEventListener('contextmenu', (e) => {
@@ -804,6 +886,7 @@
                 case 'sq-vue-voix': this.vue = 'voix'; ecrireLocal(CLE_VUE, 'voix'); this.rafraichir(); break;
                 case 'sq-vue-notes': this.vue = 'notes'; ecrireLocal(CLE_VUE, 'notes'); this.rafraichir(); break;
                 case 'sq-intensite': this.intensite = !this.intensite; this.rafraichir(); break;
+                case 'sq-dessin': this.basculerDessin(); break;
                 case 'sq-copier': this.copier(); break;
                 case 'sq-coller': this.coller(); break;
                 case 'sq-effacer': this.effacer(); break;
@@ -1017,7 +1100,7 @@
             const S = this.schema;
             if (!S) return;
             const c = cle(p, k);
-            poserCroche(S.etat, p, k, !S.etat.on.has(c));
+            if (S.etat.on.has(c)) couperCroche(S.etat, p, k); else poserCroche(S.etat, p, k, true);
             this.majSchema();
         }
         dessinSchema() {
@@ -1110,15 +1193,44 @@
                 return;
             }
             const nom = t.closest('.sq-nom');
-            if (nom) { e.preventDefault(); this.app.selectChord(this._s, +nom.dataset.c); return; }
+            if (nom) {
+                e.preventDefault();
+                this.app.selectChord(this._s, +nom.dataset.c);
+                // Au téléphone le séquenceur couvre la grille : c'est ici qu'on change d'accord, et le panneau l'y suit (comme avec ‹ ›).
+                if (this.modeTel()) this.app.ouvrirPanneauAccord(this._s, +nom.dataset.c);
+                return;
+            }
             const caseEl = t.closest('.sq-case[data-r]');
             if (!caseEl) return;
-            e.preventDefault();
+            const touch = e.pointerType === 'touch';
+            if (!touch) e.preventDefault(); // au doigt on laisse le navigateur défiler : c'est lui qui annule le geste (pointercancel) si le doigt glisse
             const c = +caseEl.dataset.c, k = +caseEl.dataset.k, r = +caseEl.dataset.r;
             const v = caseEl.dataset.v != null ? +caseEl.dataset.v : null;
             const etat = this._etats[c];
             const allume = v != null && etat.on.has(cle(v, k));
-            this._geste = { type: this.intensite ? 'intensite' : 'peinture', r, mode: allume ? 'off' : 'on', depart: { c, k }, faites: new Set(), etats: new Map(), annulationPosee: false, bouge: false };
+            const g = { type: this.intensite ? 'intensite' : 'peinture', r, mode: allume ? 'off' : 'on', depart: { c, k }, faites: new Set(), etats: new Map(), annulationPosee: false, bouge: false,
+                touch, dessin: touch && this.dessin, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, el: caseEl, minuteur: null };
+            // AU DOIGT (12/11, « interférence entre scroll horizontal et création / modification d'une note ») : un appui bref pose ou enlève ; un glissé fait DÉFILER (la
+            // grille n'est plus en touch-action: none) sans toucher à aucune note ; l'appui long sur une note ouvre son menu. Pour PEINDRE d'un trait au doigt, le mode
+            // « Dessiner » (crayon de la barre d'outils) : la grille y est en touch-action: none, le doigt peint et ne fait plus défiler. Pourquoi un mode et pas un appui long
+            // suivi d'un glissé : le navigateur annule le geste (pointercancel) dès que le doigt bouge sur une zone qui défile — mesuré, la peinture s'arrêtait à la 2e croche.
+            if (touch) g.minuteur = setTimeout(() => this.appuiLong(g), APPUI_LONG_MS);
+            this._geste = g;
+        }
+
+        annulerGeste() {
+            const g = this._geste;
+            if (g && g.minuteur) clearTimeout(g.minuteur);
+            this._geste = null;
+        }
+
+        // Le doigt est resté posé sur une note : son menu (Scinder, Prolonger, Supprimer). Sur une case vide, rien de plus qu'un appui.
+        appuiLong(g) {
+            g.minuteur = null;
+            if (this._geste !== g || g.bouge || !g.el.classList.contains('on')) return;
+            if (navigator.vibrate) { try { navigator.vibrate(12); } catch (err) { /* pas de vibreur : sans conséquence */ } }
+            this._geste = null;
+            this.ouvrirMenuNote(g.el, g.x, g.y);
         }
 
         // L'accord `c` en cours d'écriture par un geste : une copie de son état et de ses notes libres (voir ecrire).
@@ -1142,6 +1254,13 @@
         surMouvement(e) {
             const g = this._geste;
             if (!g) return;
+            if (g.touch) {
+                g.x = e.clientX; g.y = e.clientY;
+                const ecart = Math.hypot(e.clientX - g.x0, e.clientY - g.y0);
+                // Un doigt qui s'écarte de plus de 8 px ne fait plus d'appui long ; hors mode Dessiner, il DÉFILE : aucune note ne bouge (le navigateur enverra aussi pointercancel).
+                if (ecart > 8 && g.minuteur) { clearTimeout(g.minuteur); g.minuteur = null; }
+                if (!g.dessin && g.type !== 'boucle' && g.type !== 'retirer-boucle' && ecart > 8) { this.annulerGeste(); return; }
+            }
             if (g.type === 'boucle') {
                 // elementsFromPoint : la bande orange déjà posée passe AU-DESSUS de la règle, la case visée est dessous.
                 const tp = document.elementsFromPoint(e.clientX, e.clientY).find(el => el.matches && el.matches('#sq-grille [data-c]'));
@@ -1160,15 +1279,33 @@
             this.peindre(g, c, k);
         }
 
+        // Peindre d'un trait = UNE note tenue (le cahier : « une note longue est faite de croches soudées, qu'on peint d'un glissé ») : les croches posées par le
+        // même glissé, côte à côte sur la même ligne, se soudent entre elles — et à elles seules : une note déjà là, ou posée par un autre geste, n'est jamais
+        // soudée par ricochet (12/11 : « 2 notes consécutives ne doivent pas constituer une note tenue »). Un pointeur rapide saute des cases : celles du milieu
+        // sont peintes aussi, dans l'ordre du trait. En mode « enlever », chaque case touchée enlève sa note ENTIÈRE.
         peindre(g, c, k) {
+            const d = g.derniere;
+            if (d && d.c === c && Math.abs(k - d.k) > 1) {
+                const pas = k > d.k ? 1 : -1;
+                for (let j = d.k + pas; j !== k; j += pas) this.peindreUne(g, c, j);
+            }
+            this.peindreUne(g, c, k);
+        }
+
+        peindreUne(g, c, k) {
             const id = c + '/' + k;
             if (g.faites.has(id)) return;
             g.faites.add(id);
             const m = this.enCours(g, c);
             const v = this.voixDuGeste(m, c, g.r, g.mode === 'on');
             if (v == null) return;
-            if (!poserCroche(m.etat, v, k, g.mode === 'on')) return;
-            if (g.mode === 'on') this.jouerNote(c, m.etat.info.voix[v].midi, 'normal');
+            const d = g.derniere;
+            if (!poserCroche(m.etat, v, k, g.mode === 'on')) { g.derniere = null; return; }
+            if (g.mode === 'on') {
+                if (d && d.c === c && d.v === v && Math.abs(k - d.k) === 1) souder(m.etat, v, Math.max(k, d.k));
+                g.derniere = { c, k, v };
+                this.jouerNote(c, m.etat.info.voix[v].midi, 'normal');
+            }
             // Écrit à chaque case traversée (le dessin suit le doigt), sous UNE seule annulation pour tout le geste.
             this.ecrire(new Map([[c, m]]), g);
             this._etats[c] = { ...m.etat, motif: 'main' };
@@ -1176,6 +1313,7 @@
 
         surRelache(e) {
             const g = this._geste;
+            if (g && g.minuteur) clearTimeout(g.minuteur);
             this._geste = null;
             if (!g) return;
             if (g.type === 'retirer-boucle') { this.retirerBoucle(); return; }
@@ -1203,6 +1341,53 @@
             this.choisirSansJouer(c);
             this.ecrire(new Map([[c, m]]));
             if (entendre && midi != null) this.jouerNote(c, midi, entendre);
+        }
+
+        // ---- Le menu d'une note ---------------------------------------------------------------------------------------------------
+        ouvrirMenuNote(el, x, y) {
+            const menu = document.getElementById('sq-menu-note');
+            if (!menu || el.dataset.v == null) return;
+            const c = +el.dataset.c, k = +el.dataset.k, v = +el.dataset.v;
+            const etat = this._etats[c];
+            if (!etat || !etat.on.has(cle(v, k))) return;
+            this._menuNote = { c, k, v };
+            const copie = { on: new Set(etat.on), soude: new Set(etat.soude), niveaux: new Map(etat.niveaux) };
+            const peut = {
+                scinder: etat.soude.has(cle(v, k)),
+                prolonger: prolongerNote(copie, v, k, etat.info.croches),
+                supprimer: true,
+            };
+            menu.querySelectorAll('button[data-sq-acte]').forEach(b => { b.disabled = !peut[b.dataset.sqActe]; });
+            menu.hidden = false;
+            // Posé près du doigt ou du pointeur, jamais hors de l'écran.
+            const larg = menu.offsetWidth, haut = menu.offsetHeight;
+            menu.style.left = Math.max(8, Math.min(x, window.innerWidth - larg - 8)) + 'px';
+            menu.style.top = Math.max(8, Math.min(y, window.innerHeight - haut - 8)) + 'px';
+        }
+
+        fermerMenuNote() {
+            const menu = document.getElementById('sq-menu-note');
+            if (menu) menu.hidden = true;
+            this._menuNote = null;
+        }
+
+        // Scinder, prolonger ou supprimer la note du menu : une seule annulation, comme tout geste d'écriture.
+        agirNote(acte) {
+            const cible = this._menuNote;
+            this.fermerMenuNote();
+            if (!cible) return;
+            const { c, k, v } = cible;
+            const g = { etats: new Map(), annulationPosee: false };
+            const m = this.enCours(g, c);
+            const etat = m.etat;
+            let fait = false;
+            if (acte === 'scinder') fait = scinderNote(etat, v, k);
+            else if (acte === 'prolonger') fait = prolongerNote(etat, v, k, etat.info.croches);
+            else if (acte === 'supprimer') fait = poserCroche(etat, v, k, false);
+            if (!fait) return;
+            this.choisirSansJouer(c);
+            this.ecrire(new Map([[c, m]]), g);
+            this._etats[c] = { ...m.etat, motif: 'main' };
         }
 
         // ---- Poignée de hauteur des lignes (cahier 3 bis, « règle définitive ») ------------------------------------------------------
@@ -1244,7 +1429,7 @@
         // Les noms de notes disparaissent des cases sous ~24 px de haut (cahier 3 bis) : ils n'y tiendraient plus.
         // Au téléphone, des lignes de 44 px, la jauge du doigt (maquette `Telephone.dc.html`) : pas de poignée.
         poserLigne() {
-            const h = this.modeTel() ? 44 : this.ligne;
+            const h = this.modeTel() ? 40 : this.ligne; // plein écran au téléphone : des lignes de 40 px, pour voir plus de voix (elles étaient à 44)
             this.racine.style.setProperty('--sq-ligne', h + 'px');
             this.racine.classList.toggle('lignes-basses', h < 24);
         }

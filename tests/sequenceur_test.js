@@ -107,13 +107,14 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     check(d1.motif === null && d1.pos[0] === '0,1,2,3,4,5,6,7', 'l\'accord voisin n\'a pas bougé');
     check(d2.soude.includes(d2.positions[0] + ':1') && !d2.soude.includes(d2.positions[0] + ':4'), 'la basse de Pompe : deux notes tenues d\'un temps (croches 1-2 et 5-6 soudées, deux attaques)');
 
-    console.log('\n=== E. Un clic pose ou enlève une note, à côté d\'une autre elle s\'y soude ===');
+    console.log('\n=== E. Un clic pose ou enlève une note, à côté d\'une autre elle reste une attaque à part ===');
     const vAigu = d2.positions[3];
     await cliquer(p, caseSq(2, vAigu, 3));
     let e2 = await croches(p, 2);
     check(e2.pos[3] === '2,3,6' && e2.motif === null, `clic sur une case vide : la note est posée (aiguë ${e2.pos[3]}), l'accord passe « À la main »`);
     check(await presse(p, 'sq-motif-main') === 'true', 'la vignette « À la main » s\'enfonce');
-    check(e2.soude.split(' ').includes(vAigu + ':3'), 'posée juste après une autre, elle s\'y soude : une seule note tenue');
+    // 12/11, retour de l'utilisateur : « 2 notes créées côte à côte = une note longue de 2 temps au lieu de 2 temps staccato. 2 notes consécutives ne doivent pas constituer une note tenue ».
+    check(!e2.soude.split(' ').includes(vAigu + ':3') && !e2.soude.split(' ').includes(vAigu + ':2'), 'posée juste après une autre, elle reste une attaque à part : deux notes, pas une note tenue');
     check(await p.evaluate(() => window.app.selectedIndex) === 2, 'toucher une note garde l\'accord choisi (rien n\'est désélectionné)');
     await cliquer(p, caseSq(2, vAigu, 3));
     e2 = await croches(p, 2);
@@ -143,7 +144,8 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     await p.mouse.move(g0.x, g0.y); await p.mouse.down();
     for (let i = 1; i <= 6; i++) await p.mouse.move(g0.x + (g1.x - g0.x) * i / 6, g0.y, { steps: 2 });
     await p.mouse.up(); await p.waitForTimeout(300);
-    check((await croches(p, 1)).pos[1] === '0,1,6,7', `parti d'une note, le glissé enlève les croches traversées (${(await croches(p, 1)).pos[1]})`);
+    // 12/11 : enlever UNE croche d'une note longue enlève la note ENTIÈRE (elle se scindait en plusieurs notes) ; scinder se demande au clic droit (banc `sequenceur_notes`).
+    check((await croches(p, 1)).pos[1] === '', `parti d'une note longue, le glissé enlève la note touchée EN ENTIER (${(await croches(p, 1)).pos[1]})`);
 
     console.log('\n=== G. Intensité : normal → fort → doux → enlevée ===');
     await cliquer(p, '#sq-intensite');
@@ -156,12 +158,15 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     check(await p.evaluate(({ v }) => reglageIntensiteCroche(loadProgressionSections()[0].chords[1].intensiteVoix, {}, v, 0), { v: vB1 }) === 90, 'la lecture lit ce réglage pour CETTE voix (reglageIntensiteCroche)');
     await cliquer(p, caseSq(1, vB1, 3));
     check(JSON.parse((await croches(p, 1)).iv)[vB1 + ':0'] === 55, 'second clic : « doux »');
-    await cliquer(p, caseSq(1, vB1, 3));
-    g = await croches(p, 1);
-    check(!g.pos[0].split(',').includes('3') && g.pos[0].split(',').includes('2') && g.pos[0].split(',').includes('4'), `troisième clic : la croche est enlevée, la barre coupée en deux (${g.pos[0]})`);
-    check(JSON.parse(g.iv)[vB1 + ':8'] === 55, 'la suite de la barre garde le niveau de la barre dont elle sort');
+    // Éteinte, les intensités réglées restent (vérifié AVANT le troisième clic : la note enlevée emporte son intensité).
     await cliquer(p, '#sq-intensite');
     check(await presse(p, 'sq-intensite') === 'false' && JSON.parse((await croches(p, 1)).iv)[vB1 + ':0'] === 55, 'éteinte, les intensités réglées restent');
+    await cliquer(p, '#sq-intensite');
+    await cliquer(p, caseSq(1, vB1, 3));
+    g = await croches(p, 1);
+    check(g.pos[0] === '', `troisième clic : la note est enlevée EN ENTIER, pas coupée en deux (${g.pos[0]})`);
+    check(JSON.parse(g.iv)[vB1 + ':0'] === undefined && JSON.parse(g.iv)[vB1 + ':8'] === undefined, 'son intensité disparaît avec elle');
+    await cliquer(p, '#sq-intensite');
 
     console.log('\n=== H. Copier, coller sur un autre accord ===');
     check(await p.evaluate(() => document.getElementById('sq-coller').disabled), 'Coller est grisé tant que rien n\'est copié');

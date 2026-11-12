@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611122300">
+    <link rel="stylesheet" href="style.css?v=202611130900">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611122300">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611130900">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1884,6 +1884,10 @@
             <button type="button" id="sq-intensite" class="icon-btn" aria-pressed="false" aria-label="Intensité">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21v-6"/><path d="M5 11V3"/><circle cx="5" cy="13" r="2" fill="currentColor" stroke="none"/><path d="M12 21v-2"/><path d="M12 15V3"/><circle cx="12" cy="17" r="2" fill="currentColor" stroke="none"/><path d="M19 21v-10"/><path d="M19 7V3"/><circle cx="19" cy="9" r="2" fill="currentColor" stroke="none"/></svg>
             </button>
+            <!-- Mode « Dessiner » (au doigt seulement, voir style.css) : le doigt peint d'un trait une note tenue au lieu de faire défiler. Logo du crayon de l'appli (ICONS.pencil de script.js), repris tel quel. -->
+            <button type="button" id="sq-dessin" class="icon-btn" aria-pressed="false" aria-label="Dessiner">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            </button>
             <!-- Le rythme de l'accord choisi : copier, coller sur un autre accord, effacer. Logos du menu du clic droit (Copier, Coller) et poubelle de l'appli. -->
             <div class="sq-rythme" role="group" aria-label="Rythme de l'accord choisi">
                 <button type="button" id="sq-copier" class="icon-btn" title="Copier le rythme de cet accord" aria-label="Copier le rythme de cet accord">
@@ -1926,6 +1930,12 @@
         </div>
         <div id="sq-grille" class="sq-grille" role="grid" aria-label="Notes de la partie, une ligne par voix"></div>
     </section>
+    <!-- Menu d'une note du séquenceur (clic droit à l'ordinateur, appui long au doigt) : Scinder la note, Prolonger, Supprimer. Fermé par la table _popups (clic à côté, Échap). -->
+    <div id="sq-menu-note" class="context-menu sq-menu-note" role="menu" aria-label="Note" hidden>
+        <button type="button" role="menuitem" data-sq-acte="scinder">Scinder la note</button>
+        <button type="button" role="menuitem" data-sq-acte="prolonger">Prolonger d'une croche</button>
+        <button type="button" role="menuitem" data-sq-acte="supprimer">Supprimer la note</button>
+    </div>
     <!-- TIROIR CLAVIER / GUITARE (refonte, lot 8) : « épinglés en bas par défaut, ou détachés en fenêtre libre (barre de titre qui déplace, coin qui
          redimensionne, punaise pour réépingler) ». Ordinateur seulement : sous 900px les diagrammes restent dans leur carte (lot 10). Il ne porte AUCUNE
          logique d'instrument : il ACCUEILLE la carte des diagrammes existante (.viz-card, déplacée par placerVues, jamais dupliquée) et le titre de
@@ -2177,9 +2187,9 @@
     <script src="historique.js?v=202611060300"></script>
     <!-- sequenceur.js AVANT script.js : l'appli (window.app) est créée à la fin de script.js et construit le séquenceur dans la foulée. -->
     <!-- Les formes du séquenceur (au compte) : AVANT sequenceur.js, qui s'y abonne à sa construction ; la connexion (SYNCHRO) n'est lue qu'à l'usage. -->
-    <script src="synchro-formes.js?v=202611122300"></script>
-    <script src="sequenceur.js?v=202611122300"></script>
-    <script src="script.js?v=202611122300"></script>
+    <script src="synchro-formes.js?v=202611130900"></script>
+    <script src="sequenceur.js?v=202611130900"></script>
+    <script src="script.js?v=202611130900"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->

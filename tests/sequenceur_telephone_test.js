@@ -25,7 +25,7 @@ const { dblclickHorsNom } = require('./_geste_accord');
 const { estBruitReseau } = require('./_harness');
 const V = require('./_verre_commun');
 
-plan(49);
+plan(50);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const mk = (r, q, extra = {}) => ({ root: r, quality: q, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held', ...extra });
@@ -107,23 +107,30 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
         return {
             n: cases.length, lignes: new Set(cases.map(x => x.dataset.r)).size, h: Math.round(cases[0].getBoundingClientRect().height),
             poignee: vis('#sq-poignee'), fermer: vis('#sq-fermer'), nom: vis('#sq-grille .sq-nom'), deborde: g.scrollWidth - g.clientWidth,
-            droite: Math.round(cases[cases.length - 1].getBoundingClientRect().right), outils,
+            droite: Math.round(cases.filter(x => x.dataset.c === '0').pop().getBoundingClientRect().right), outils,
         };
     });
-    check(vue.n === 32 && vue.lignes === 4, `l'accord du panneau seul : quatre lignes × huit croches (${vue.n} cases, ${vue.lignes} lignes)`);
-    check(vue.h === 44, `des cases de 44 px de haut (${vue.h})`);
-    check(!vue.poignee && !vue.fermer && !vue.nom, 'ni poignée de hauteur, ni ×, ni nom d\'accord : le panneau a les siens');
-    check(vue.deborde <= 1 && vue.droite <= 390, `les huit croches tiennent dans la largeur (débord ${vue.deborde}, bord droit ${vue.droite})`);
+    // PLEIN ÉCRAN (12/11, « sur portable, il serait peut-être plus simple de l'afficher en plein écran » ; « je ne vois pas beaucoup de barres ») : « Toute la partie » (le choix de
+    // l'appareil, enfoncé d'office) montre TOUS les accords, qu'on fait défiler de côté ; « Cet accord » le seul accord du panneau. Avant, le choix était affiché mais sans effet au téléphone.
+    check(vue.n === 128 && vue.lignes === 4, `toute la partie : quatre accords × quatre lignes × huit croches (${vue.n} cases, ${vue.lignes} lignes)`);
+    check(vue.h === 40, `des lignes de 40 px de haut, pour voir plus de voix (${vue.h}, elles étaient à 44)`);
+    check(!vue.poignee && !vue.fermer && vue.nom, 'ni poignée de hauteur ni ×, mais les noms d\'accords sont de retour : ils disent quel accord est où');
+    check(vue.deborde > 0 && vue.droite <= 390, `la partie dépasse l'écran, la grille défile de côté (débord ${vue.deborde} px) ; les huit croches de l'accord du panneau tiennent dans la largeur (bord droit ${vue.droite})`);
+    await toucher(p, '#sq-portee-accord');
+    check(await p.evaluate(() => document.querySelectorAll('#sq-grille .sq-case[data-r]').length) === 32, '« Cet accord » : le seul accord du panneau, quatre lignes × huit croches (32 cases)');
+    await toucher(p, '#sq-portee-partie');
     check(vue.outils.length >= 8 && vue.outils.every(h => h === 44), `les outils du séquenceur à 44 px (${vue.outils.join(' ')})`);
     // A3 (12/11), « règle ce défaut de hauteur » : à 390 × 844 la barre d'outils tenait sur quatre rangées (212 px), la grille commençait à 660 px et la quatrième ligne sortait du
     // panneau (bas à 845 px, panneau arrêté à 776). Trois rangées (motifs, les deux groupes segmentés côte à côte, les quatre icônes) et toutes les lignes d'un accord de 4 sons à l'écran.
+    // Mesuré une seconde fois le 13/11 : le contrôle comparait la dernière ligne au bas du PANNEAU, or le pied du panneau (« Réglages du son ») et le défilement de .pa-corps rognaient
+    // la quatrième ligne sans que rien ne le dise. On compare maintenant au bas de la zone qui défile (.pa-corps), et le pied n'existe plus sur l'onglet Rythme (plein écran).
     const haut = await p.evaluate(() => {
-        const pa = document.getElementById('panneau-accord').getBoundingClientRect(), o = document.querySelector('#pa-rythme .sq-outils').getBoundingClientRect();
+        const pa = document.querySelector('#panneau-accord .pa-corps').getBoundingClientRect(), o = document.querySelector('#pa-rythme .sq-outils').getBoundingClientRect();
         const lignes = [...new Set([...document.querySelectorAll('#sq-grille .sq-case[data-v]')].map(c => c.dataset.v))].map(v => document.querySelector(`#sq-grille .sq-case[data-v="${v}"]`).getBoundingClientRect());
         return { outils: Math.round(o.height), derniere: Math.round(lignes[lignes.length - 1].bottom), panneau: Math.round(pa.bottom), vh: innerHeight, n: lignes.length };
     });
     check(haut.outils <= 154, `la barre d'outils tient sur trois rangées (${haut.outils} px au lieu de 212 mesurés avant)`);
-    check(haut.n === 4 && haut.derniere <= haut.panneau && haut.derniere <= haut.vh, `les quatre lignes se voient sans faire défiler le panneau (dernière ligne à ${haut.derniere} px, panneau jusqu'à ${haut.panneau}, écran ${haut.vh})`);
+    check(haut.n === 4 && haut.derniere <= haut.panneau && haut.derniere <= haut.vh && await p.evaluate(() => getComputedStyle(document.querySelector('#panneau-accord .pa-actions')).display) === 'none', `les quatre lignes se voient sans faire défiler, et sans pied de panneau par-dessus (dernière ligne à ${haut.derniere} px, zone visible jusqu'à ${haut.panneau}, écran ${haut.vh})`);
 
     console.log('\n=== C. Toucher une case pose, retoucher enlève ===');
     // Plaqué d'origine : la basse tient toute la mesure ; on vide la voix de l'aiguë d'abord par « Effacer », puis on y pose une croche.
@@ -153,15 +160,19 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
     console.log('\n=== E. ‹ › : le séquenceur suit l\'accord ===');
     await toucher(p, '#pa-quel [data-bulle="suiv"]', 500);
     e = await etat(p);
-    check(JSON.stringify(e.sur) === '[0,1]' && e.rythme && e.colonnes === '1', `› passe à l'accord suivant, toujours sur Rythme, le séquenceur le montre seul (${JSON.stringify(e.sur)}, colonnes ${e.colonnes})`);
+    const vers = () => p.evaluate(() => ({ sl: Math.round(document.getElementById('sq-grille').scrollLeft), choisi: (document.querySelector('#sq-grille .sq-nom.choisi') || {}).dataset ? document.querySelector('#sq-grille .sq-nom.choisi').dataset.c : null }));
+    let ve = await vers();
+    check(JSON.stringify(e.sur) === '[0,1]' && e.rythme && e.colonnes === '0,1,2,3' && ve.choisi === '1' && ve.sl > 100, `› passe à l'accord suivant, toujours sur Rythme : la partie reste à l'écran, défilée jusqu'à lui (${JSON.stringify(e.sur)}, colonne choisie ${ve.choisi}, défilement ${ve.sl} px)`);
     check(await p.evaluate(() => window.app.selectedIndex) === 1, 'la sélection de la grille suit');
     await toucher(p, '#pa-quel [data-bulle="prec"]', 500);
     e = await etat(p);
-    check(JSON.stringify(e.sur) === '[0,0]' && e.colonnes === '0', '‹ revient au premier accord');
-    // Toucher une autre case de la grille (point B : un toucher la choisit, le panneau ouvert la suit).
-    await toucher(p, '#progression-sections .grid-cell[data-section="0"][data-index="2"]', 600);
+    ve = await vers();
+    check(JSON.stringify(e.sur) === '[0,0]' && ve.choisi === '0' && ve.sl === 0, '‹ revient au premier accord, la grille revient avec lui');
+    // Le séquenceur couvre la grille (plein écran) : on change d'accord en touchant son NOM dans la grille de croches, et le panneau l'y suit.
+    await toucher(p, '#sq-grille .sq-nom[data-c="2"]', 600);
     e = await etat(p);
-    check(JSON.stringify(e.sur) === '[0,2]' && e.rythme && e.colonnes === '2', `toucher une autre case : le panneau l'y suit, sur Rythme (${JSON.stringify(e.sur)}, ${e.rythme})`);
+    ve = await vers();
+    check(JSON.stringify(e.sur) === '[0,2]' && e.rythme && e.colonnes === '0,1,2,3' && ve.choisi === '2', `toucher le nom d'un autre accord : le panneau l'y suit, sur Rythme (${JSON.stringify(e.sur)}, ${e.rythme}, colonne choisie ${ve.choisi})`);
 
     console.log('\n=== F. Le glissé peint d\'une seule annulation ===');
     await toucher(p, '#sq-effacer');
@@ -190,10 +201,11 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
     e = await etat(p);
     check(e.rythme && !e.etendu && e.edit == null && e.parent === 'pa-rythme' && e.visible, `Rythme : la modification se referme, le séquenceur revient (${e.edit}, ${e.parent})`);
     check(e.carte !== 'pa-son' && await p.evaluate(() => window.app.selectedIndex) === 2, 'la carte Accord est rendue à la page, la sélection est restée sur l\'accord');
-    // « Réglages du son » (le bouton du pied) mène aussi à Son.
+    // « Réglages du son » (le bouton du pied) mène aussi à Son. 13/11 : l'onglet Rythme est en plein écran, SANS pied ; il revient avec l'onglet Accord, d'où l'on y va.
+    await toucher(p, '#pa-quel [data-bulle="onglet"][data-valeur="accord"]');
     await toucher(p, '#pa-son-btn');
     e = await etat(p);
-    check(e.etendu && !e.rythme && !e.visible, '« Réglages du son » passe de Rythme à Son');
+    check(e.etendu && !e.rythme && !e.visible, '« Réglages du son » (le bouton du pied, de l\'onglet Accord) mène à Son');
     await toucher(p, '#pa-quel [data-bulle="onglet"][data-valeur="rythme"]');
 
     console.log('\n=== H. × referme ===');
@@ -223,9 +235,10 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
     await toucher(p, '#bl-plus'); await toucher(p, '#pl-notes', 700);
     const etroit = await p.evaluate(() => {
         const g = document.getElementById('sq-grille'), cases = [...g.querySelectorAll('.sq-case[data-r]')];
-        return { n: cases.length, deborde: g.scrollWidth - g.clientWidth, droite: Math.round(cases[cases.length - 1].getBoundingClientRect().right), page: document.documentElement.scrollWidth };
+        return { n: cases.length, deborde: g.scrollWidth - g.clientWidth, droite: Math.round(cases.filter(x => x.dataset.c === '0').pop().getBoundingClientRect().right), page: document.documentElement.scrollWidth };
     });
-    check(etroit.n === 32 && etroit.deborde <= 1 && etroit.droite <= 320 && etroit.page <= 320, `à 320 px, les huit croches tiennent, pas de défilement de côté (${etroit.droite}, page ${etroit.page})`);
+    // Plein écran (13/11) : toute la partie est montrée, la GRILLE défile de côté (jamais la page), et les huit croches du premier accord tiennent à 320 px.
+    check(etroit.n === 128 && etroit.deborde > 0 && etroit.droite <= 320 && etroit.page <= 320, `à 320 px, les huit croches du premier accord tiennent, la grille défile de côté et la page non (${etroit.droite}, page ${etroit.page}, grille +${etroit.deborde})`);
     await ctx.close();
 
     console.log('\n=== K. L\'ordinateur ===');
