@@ -96,8 +96,9 @@ async function ouvrir(page) {
     check(rt.ok, `téléphone : plus de feuille « Séq. » (${rt.detail})`);
     rt = await R.ouvrirRythmeTel(mob);
     check(rt.ok, `téléphone : « Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${rt.detail})`);
-    const regleTel = await mob.evaluate(() => [...document.querySelectorAll('#pa-rythme #sq-grille .sq-temps')].map(x => x.textContent).filter(Boolean).join(''));
-    check(regleTel === '1234', `téléphone : la règle compte les temps de l'accord, de 1 à 4 — « ${regleTel} »`);
+    // 13/11, PLEIN ÉCRAN : « Toute la partie » montre tous les accords ; la règle de l'accord du panneau (le premier ici) compte 1 à 4, comme avant.
+    const regleTel = await mob.evaluate(() => { const i = window.app._bulle.index; return [...document.querySelectorAll(`#pa-rythme #sq-grille .sq-temps[data-c="${i}"]`)].map(x => x.textContent).filter(Boolean).join(''); });
+    check(regleTel === '1234', `téléphone : la règle de l'accord du panneau compte les temps de 1 à 4 — « ${regleTel} »`);
     rt = await R.suivantTel(mob);
     check(rt.ok, `téléphone : on passe à l'accord voisin par ‹ ›, le séquenceur le suit (${rt.detail})`);
 

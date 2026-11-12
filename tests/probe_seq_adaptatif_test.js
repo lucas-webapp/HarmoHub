@@ -55,7 +55,7 @@ plan(12);
             return { sur: window.app._bulle && window.app._bulle.index, haut: Math.round(pa.top), bas: Math.round(pa.bottom), barre: Math.round(l.top), derniere: Math.round(d.bottom), colW: Math.round(c.width), colH: Math.round(c.height), page: document.documentElement.scrollTop }; });
         console.log('telephone  ', JSON.stringify(t));
         ck(o.ok && t.sur === 6 && t.haut >= 0 && t.bas <= t.barre + 1 && t.derniere <= t.bas + 1, `téléphone : l'onglet Rythme s'ouvre sur l'accord choisi, le panneau tient au-dessus de la barre de lecture et sa dernière ligne s'y atteint en le faisant défiler (${o.detail}, panneau ${t.haut}→${t.bas}, barre ${t.barre}, dernière ligne ${t.derniere}, page ${t.page})`);
-        ck(t.colH === 44 && t.colW >= 30, `téléphone : les croches restent atteignables au doigt — ${t.colW}×${t.colH}px par croche`);
+        ck(t.colH === 40 && t.colW >= 30, `téléphone (plein écran, 13/11 : lignes de 40 px) : les croches restent atteignables au doigt — ${t.colW}×${t.colH}px par croche`);
         ck(errs.length===0, 'téléphone : aucune erreur JavaScript');
         await ctx.close();
     }

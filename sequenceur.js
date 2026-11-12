@@ -566,7 +566,7 @@
             montres.forEach((c, n) => {
                 if (n > 0) { cols.push('4px'); piste++; }
                 colDebut[c] = piste; // indexé par l'accord (au téléphone, un seul est montré : l'index n'est pas le rang)
-                cols.push(`repeat(${etats[c].info.croches}, minmax(${this.modeTel() ? 26 : 10}px, 1fr))`); // au doigt : une croche garde 26 px au moins, la grille défile de côté
+                cols.push(`repeat(${etats[c].info.croches}, minmax(${this.modeTel() ? 30 : 10}px, 1fr))`); // au doigt : une croche garde 30 px au moins (le plancher de probe_seq_adaptatif), la grille défile de côté
                 piste += etats[c].info.croches;
             });
             this.grille.style.gridTemplateColumns = cols.join(' ');

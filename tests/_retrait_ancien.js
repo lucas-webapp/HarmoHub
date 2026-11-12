@@ -348,13 +348,20 @@ async function effacerTel(p) {
 // Au téléphone, onglet Rythme ouvert : › passe à l'accord suivant, ‹ revient, le panneau reste sur Rythme et le séquenceur montre l'accord seul (remplace les
 // zones d'accord voisin et la règle des voisins de la feuille « Séq. »).
 async function suivantTel(p) {
-    const lireTel = () => p.evaluate(() => ({ i: window.app._bulle.index, rythme: !!window.app._bulle.rythme, col: [...new Set([...document.querySelectorAll('#sq-grille .sq-case[data-r]')].map(x => x.dataset.c))].join(',') }));
+    // 13/11, PLEIN ÉCRAN : le séquenceur montre toute la partie (« Toute la partie », le choix de l'appareil) ; › / ‹ déplacent l'accord CHOISI (le nom en surbrillance) et font défiler la
+    // grille jusqu'à lui. Avant, la grille ne montrait que l'accord du panneau (une seule colonne). On relit donc la colonne choisie et le défilement, plus « toutes les colonnes présentes ».
+    const lireTel = () => p.evaluate(() => {
+        const g = document.getElementById('sq-grille'), ch = g.querySelector('.sq-nom.choisi');
+        return { i: window.app._bulle.index, rythme: !!window.app._bulle.rythme, choisi: ch ? +ch.dataset.c : null, sl: Math.round(g.scrollLeft),
+                 col: [...new Set([...g.querySelectorAll('.sq-case[data-r]')].map(x => x.dataset.c))].join(',') };
+    });
     const a = await lireTel();
     await toucher(p, '#pa-quel [data-bulle="suiv"]'); await p.waitForTimeout(500);
     const b = await lireTel();
     await toucher(p, '#pa-quel [data-bulle="prec"]'); await p.waitForTimeout(500);
     const c = await lireTel();
-    return { ok: b.i === a.i + 1 && b.rythme && b.col === String(b.i) && c.i === a.i && c.rythme && c.col === String(a.i), detail: `${a.i} → › ${b.i} (colonnes ${b.col}) → ‹ ${c.i} (colonnes ${c.col})` };
+    return { ok: b.i === a.i + 1 && b.rythme && b.choisi === b.i && b.sl >= a.sl && c.i === a.i && c.rythme && c.choisi === a.i && c.col === a.col,
+        detail: `${a.i} → › ${b.i} (accord choisi ${b.choisi}, défilement de ${a.sl} à ${b.sl} px (la grille ne défile que si la partie dépasse la largeur : banc sequenceur_telephone), colonnes ${b.col}) → ‹ ${c.i} (accord choisi ${c.choisi})` };
 }
 
 module.exports = { suivantTel, peindreTel, tientTel, effacerTel, outilsTel, teteLectureTel, intensiteTel, fermerRythmeTel, porteTelephoneAbsente, ouvrirRythmeTel, poserCrocheTel, porteInspecteurAbsente, choisirParNom, peindre, reperes, effacerAccord, lignesParVoix, sansLecturePropre, poigneeLignes, centre, cliquer, porteAbsente, ouvrirNouveau, toutePartie, poserCroche, intensite, noteLibre, plageBoucle, teteLecture, couleursRoles, suitSelection, motif, lire };

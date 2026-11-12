@@ -316,7 +316,8 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     check((cA.extraNotes || []).length === 1 && cA.extraNotes[0].note === 'A' && cA.extraNotes[0].octave === 3 && crA.libres['57'] === '3', 'y poser une croche ajoute A3 à Cmaj7 (note hors de l\'accord), sur la croche touchée');
     check(await p.evaluate((r) => document.querySelector(`#sq-grille .sq-case[data-c="0"][data-r="${r}"][data-k="3"]`).classList.contains('libre'), rA3), 'elle est en pointillés (ajoutée à la main)');
     await cliquer(p, caseL(1, rA3, 3));
-    check((await croches(p, 1)).pos[0] === '0,1,2,4,5,6,7' && !((await accord(p, 1)).extraNotes || []).length, 'sur Am7, la même ligne est sa basse : la case touche sa voix, rien n\'est ajouté');
+    // 13/11 : enlever une croche d'une note longue enlève la note ENTIÈRE (elle se coupait en deux) — la basse de Am7, « Plaqué », est une seule note de huit croches.
+    check((await croches(p, 1)).pos[0] === '' && !((await accord(p, 1)).extraNotes || []).length, 'sur Am7, la même ligne est sa basse : la case touche sa voix (la note entière est enlevée), rien n\'est ajouté');
     await cliquer(p, '#sq-vue-voix');
     check((await etiquettes(p))[0] === 'A3' && await p.evaluate(() => document.querySelector('#sq-grille .sq-etiq').classList.contains('libre')), 'en vue Voix, la note ajoutée devient une ligne de note libre');
     await cliquer(p, '#sq-vue-notes');

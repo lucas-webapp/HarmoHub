@@ -133,8 +133,9 @@ const feuille = (p) => p.evaluate(() => {
     p = await ouvrir(nav, { viewport: { width: 320, height: 640 }, hasTouch: true, isMobile: true }, erreurs);
     r = await R.ouvrirRythmeTel(p);
     exiger(r.ok, `ouvert à 320 px (${r.detail})`);
-    const larg = await p.evaluate(() => { const g = document.getElementById('sq-grille'); const cs = [...g.querySelectorAll('.sq-case[data-r]')]; return { droite: Math.max(...cs.map(c => c.getBoundingClientRect().right)), deborde: g.scrollWidth - g.clientWidth }; });
-    check(larg.droite <= 320 && larg.deborde <= 1, `les huit croches tiennent (bord droit ${Math.round(larg.droite)}, débord ${larg.deborde})`);
+    // 13/11, PLEIN ÉCRAN : toute la partie est montrée et la GRILLE défile de côté ; ce qui doit tenir à 320 px, ce sont les huit croches de l'accord du panneau.
+    const larg = await p.evaluate(() => { const g = document.getElementById('sq-grille'); const i = window.app._bulle.index; const cs = [...g.querySelectorAll(`.sq-case[data-r][data-c="${i}"]`)]; return { droite: Math.max(...cs.map(c => c.getBoundingClientRect().right)), page: document.documentElement.scrollWidth, n: cs.length }; });
+    check(larg.n === 32 && larg.droite <= 320 && larg.page <= 320, `les huit croches de l'accord du panneau tiennent (bord droit ${Math.round(larg.droite)}, page ${larg.page})`);
     check(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'pas de défilement horizontal de la page');
     await p.context().close();
 

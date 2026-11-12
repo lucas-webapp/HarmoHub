@@ -82,10 +82,12 @@ const etat = () => {
     exiger(rt.ok, `l'onglet Rythme est ouvert sur l'accord choisi (${rt.detail})`);
     const tel = await m.evaluate(() => {
         const pa = document.getElementById('panneau-accord').getBoundingClientRect(), bl = document.getElementById('barre-lecture').getBoundingClientRect();
-        const cel = document.querySelector(`#progression-sections .grid-cell[data-section="0"][data-index="${window.app._bulle.index}"]`).getBoundingClientRect();
-        return { sur: window.app._bulle.index, recouvreBarre: pa.bottom > bl.top + 1, caseVisible: cel.bottom > 0 && cel.top < pa.top, verrou: getComputedStyle(document.body).overflow === 'hidden' };
+        const haut = document.querySelector('.top-bar').getBoundingClientRect(), nom = document.querySelector('#panneau-accord .pa-nom'), ch = document.querySelector('#sq-grille .sq-nom.choisi');
+        return { sur: window.app._bulle.index, recouvreBarre: pa.bottom > bl.top + 1, plein: Math.abs(pa.top - haut.bottom) <= 2, nomVisible: !!nom && nom.getBoundingClientRect().height > 0 && !!ch && ch.getBoundingClientRect().height > 0, verrou: getComputedStyle(document.body).overflow === 'hidden' };
     });
-    check(tel.sur === 1 && tel.caseVisible, `il laisse voir l'accord qu'on travaille, au-dessus du panneau (accord ${tel.sur})`);
+    // 13/11, PLEIN ÉCRAN (« sur portable, il serait peut-être plus simple de l'afficher en plein écran ») : le panneau Rythme couvre la grille, de la barre du haut à la barre de lecture ;
+    // l'accord qu'on travaille se lit dans son en-tête et en surbrillance dans la grille de croches (avant : la case restait visible AU-DESSUS du panneau).
+    check(tel.sur === 1 && tel.plein && tel.nomVisible, `il occupe tout l'écran entre les deux barres, l'accord qu'on travaille se lit dans son en-tête et dans la grille de croches (accord ${tel.sur})`);
     check(!tel.recouvreBarre, 'il ne recouvre pas la barre de lecture');
     check(!tel.verrou, 'il ne verrouille pas le défilement de la page : ce n\'est pas une fenêtre modale');
 
@@ -97,10 +99,10 @@ const etat = () => {
     rt = await R.suivantTel(m);
     check(rt.ok, `› / ‹ ne referment pas le panneau, le séquenceur suit (${rt.detail})`);
 
-    console.log('\n=== D. Toucher une autre case de la grille ne le referme pas ===');
-    await m.tap('#progression-sections .grid-cell[data-section="0"][data-index="2"]'); await m.waitForTimeout(600);
+    console.log('\n=== D. Toucher le nom d\'un autre accord ne le referme pas ===');
+    await m.tap('#sq-grille .sq-nom[data-c="2"]'); await m.waitForTimeout(600);
     check(await m.evaluate(() => !!(window.app._bulle && window.app._bulle.rythme) && window.app._bulle.index === 2 && !document.getElementById('panneau-accord').hidden),
-        'toucher une autre case : le panneau l\'y suit, toujours sur Rythme');
+        'toucher le nom d\'un autre accord dans la grille de croches : le panneau l\'y suit, toujours sur Rythme (13/11 : la grille d\'accords est couverte)');
 
     console.log('\n=== E. LA SORTIE : atteignable, et éprouvée par un vrai geste ===');
     rt = await R.fermerRythmeTel(m);
