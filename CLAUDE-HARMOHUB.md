@@ -136,8 +136,9 @@ Mis à jour le 12/11/2026, après l'étape 4c, dernière du point D (l'ancien s�
     double toucher (téléphone) sur ce texte ; (c) un clic simple sur une case ne l'ouvre JAMAIS. **Attention** : le double-clic ouvre déjà la bulle d'accord (point B, `clic_ecouter`) :
     **Décision de l'utilisateur, 12/11 : double-clic sur le TEXTE du nom = renommer, SANS ouvrir la bulle** (« c'est pour aller plus vite ») ; la bulle s'ouvre par le double-clic
     sur le reste de la case (ou « Modifier »). Il demande s'il est utile : réponse donnée — oui, peu coûteux, mais il fera double emploi avec la fenêtre d'accord unique (A1). **À faire à
-    la fenêtre d'accord unique** : y mettre le NOM de l'accord en champ de saisie actif dès l'ouverture (taper « Dm7 », Entrée), puis demander à l'utilisateur s'il veut retirer le
-    double-clic-sur-le-texte devenu redondant (ne le retirer que sur sa réponse). Bancs : `clic_ecouter`, `grille_clic_et_double_clic`, `probe_clic_accord_voisin`, `telephone_panneau_accord`, `editeur_et_clavier` ; réécrire,
+    la fenêtre d'accord unique** : y mettre le NOM de l'accord en champ de saisie actif dès l'ouverture (taper « Dm7 », Entrée), puis décider SEUL si le
+    double-clic-sur-le-texte devenu redondant reste ou part (l'utilisateur a répondu le 12/11 : « fais ce qui te semble le plus rapide ») : le retirer seulement si la fenêtre ouvre
+    bien le champ du nom actif au double-clic ET que c'est aussi rapide ; le dire dans le compte rendu du lot. Bancs : `clic_ecouter`, `grille_clic_et_double_clic`, `probe_clic_accord_voisin`, `telephone_panneau_accord`, `editeur_et_clavier` ; réécrire,
     jamais supprimer ; un banc d'abord ROUGE pour le défaut mesuré, puis vert.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
