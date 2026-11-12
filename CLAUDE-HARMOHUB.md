@@ -84,6 +84,12 @@ Mis à jour le 12/11/2026, après le troisième sous-lot du point D de la refont
     poignée `#seq-dock-resize`) devient une vérification COURTE : l'ancienne porte n'existe plus ET le geste du nouveau séquenceur qui la remplace fonctionne (vrai geste). Ce qui
     RESTE (notes libres, intensité, plage à boucler, copier / coller, motifs, lecture et tête de lecture, sélection suivie) est réécrit EN ENTIER pour le nouveau séquenceur. Le nom du
     banc et son fichier restent ; l'en-tête dit « RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a) » et ce qui a disparu. Durée estimée : 2 à 3 sessions.
+  - **4a EN COURS (12/11, commits locaux, rien de poussé)** : « Éditeur de notes » masqué à l'ordinateur (style.css, fin ; clic de programme → nouveau séquenceur ;
+    l'ancien se referme au franchissement du seuil) ; réticule repris par le nouveau séquenceur ; assistant `tests/_retrait_ancien.js` (gestes du nouveau séquenceur)
+    et générateur de sondes (scratchpad, `sonde.py`, à refaire si besoin). **Restent à réécrire** : notes_manuelles_intensite, pinned_seq_toolbar, portes_sequenceur,
+    probe_touches_piano, recadrage_panneau, retour_a_sa_place, three_more_features, verre, vl_loupe, vl_pinch, voice_leading_section_ops, voice_leading,
+    volet_hauteur_poignee, telephone_editeur_notes (partie ordinateur), et les cinq rouges de la ligne de base (probe_clic_accord_voisin, probe_defilement_tactile,
+    probe_regle_voisins, probe_seq_finitions, seq_notes_libres_clavier). Puis : sabotages, balayage complet, journal, push.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est

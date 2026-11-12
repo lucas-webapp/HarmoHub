@@ -10,11 +10,13 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await p.goto(`${BASE}/index.html?nocache=`+Date.now(),{waitUntil:'load'});
     await p.waitForTimeout(600);
     console.log('erreurs au chargement :', JSON.stringify(errs));
-    const avant = await p.evaluate(()=>window.app && window.app.seqOpen);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur, l'ancien bouton #grid-zoom est masqué ; un clic qui l'atteint quand même (un index.html
+    // périmé qui l'afficherait encore) ouvre le séquenceur du bloc « Vues » au lieu de ne rien faire.
+    const avant = await p.evaluate(()=>!!window.app && !document.getElementById('sequenceur').hidden);
     const clic = await p.evaluate(()=>{ const b=document.getElementById('grid-zoom'); if(!b) return 'bouton absent'; b.click(); return 'cliqué'; });
     await p.waitForTimeout(600);
-    const apres = await p.evaluate(()=>window.app && window.app.seqOpen);
-    console.log(`clic sur l'ancien bouton #grid-zoom : ${clic} — seqOpen ${avant} -> ${apres}`);
+    const apres = await p.evaluate(()=>!!window.app && !document.getElementById('sequenceur').hidden);
+    console.log(`clic sur l'ancien bouton #grid-zoom : ${clic} — séquenceur ouvert ${avant} -> ${apres}`);
     console.log(apres === true ? 'OK : le séquenceur s\'ouvre' : 'REPRODUIT : le bouton ne fait RIEN');
     await b.close();
 })();

@@ -47,7 +47,9 @@ const SORTIES_LEGITIMES = new Set([
         await page.reload({ waitUntil: 'load' });
         await page.waitForTimeout(300);
         await page.evaluate(() => window.app.editChord(0, 1));
-        await page.click('#grid-zoom');
+        // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : « Éditeur de notes » a quitté l'ordinateur ; on ouvre le séquenceur du bloc « Vues », dont les
+        // boutons entrent ainsi dans l'inventaire (aucun ne doit faire sortir de la modification).
+        if (await page.evaluate(() => document.getElementById('sequenceur').hidden)) await page.click('#vue-sequenceur');
         await page.waitForTimeout(500);
     };
 
@@ -173,10 +175,11 @@ const SORTIES_LEGITIMES = new Set([
         fautifs.length ? `des contrôles font sortir de l'édition : ${fautifs.join(', ')}`
                        : `aucun contrôle ne fait sortir de l'édition (${cibles.length} éprouvés)`);
 
-    // Et le corollaire visible : tant qu'on édite, le séquenceur reste en vue CONTINUE.
+    // Et le corollaire visible : tant qu'on édite, le séquenceur reste celui de TOUTE la partie (« des fois le séquenceur saute et redevient un séquenceur
+    // sommaire »). RÉÉCRIT (4a) : c'est le séquenceur du bloc « Vues », qui montre toujours la partie entière.
     await preparer();
-    const vue = await page.evaluate(() => document.querySelector('.seq-grid-continuous') ? 'continue' : 'sommaire');
-    check(vue === 'continue', `le séquenceur reste en vue continue pendant la modification — ${vue}`);
+    const vue = await page.evaluate(() => { const sec = loadProgressionSections()[window.app.activeSection]; return { ouvert: !document.getElementById('sequenceur').hidden, noms: document.querySelectorAll('#sq-grille .sq-nom').length, accords: sec.chords.length, edition: window.app.editingIndex }; });
+    check(vue.ouvert && vue.noms === vue.accords && vue.edition === 1, `le séquenceur reste celui de toute la partie pendant la modification — ${JSON.stringify(vue)}`);
 
     check(errors.length === 0, 'aucune erreur JavaScript — ' + JSON.stringify(errors));
     console.log(`\n=== Bilan : ${PASS} PASS / ${FAIL} FAIL ===`);
