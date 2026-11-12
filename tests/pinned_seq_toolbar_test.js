@@ -1,3 +1,4 @@
+// RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : la partie ordinateur porte sur la barre du séquenceur du bloc « Vues » ; le téléphone reste (4c).
 // La barre de boutons du séquenceur continu, dans son VOLET sous la grille (#seq-dock-host) :
 // boutons dans le bon ordre, et rangée qui reste entièrement visible — volet réduit à la poignée
 // comme sur un écran de 390px.
@@ -77,46 +78,52 @@ plan(9);
         };
     });
 
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur, le volet d'avant et sa barre (Lecture en tête, zoom H en dernier) ont disparu. LE SUJET
+    // RESTE — une barre d'outils dans un ordre lisible, qui reste ENTIÈREMENT visible même quand le séquenceur doit défiler — pour celle du bloc « Vues » : motifs
+    // d'abord (pas de Lecture propre, décision du 11/11), le × en dernier ; écran court, elle reste collée en haut pendant que les lignes défilent dessous.
+    const R = require('./_retrait_ancien');
+    // La même scène que ouvrirVolet, sans l'ancienne porte (absente à l'ordinateur) : une partie de quatre accords, l'un en modification.
+    const monter = async (page) => {
+        await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
+        await page.evaluate(() => {
+            const mk = (r, q) => ({ root: r, quality: q, beats: 4, inversion: 0, drop: 'none', octave: 4, bass: null, playStyle: 'held' });
+            localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), mk('D', 'min7'), mk('G', 'dom7')] }] }));
+            localStorage.removeItem('harmohubSequenceurLigne');
+        });
+        await page.reload({ waitUntil: 'load' });
+        await page.waitForTimeout(500);
+        await page.evaluate(() => window.app.editChord(0, 0));
+        await page.waitForTimeout(200);
+    };
     console.log('=== Écran ORDINATEUR ===');
     const bureau = await browser.newPage({ viewport: { width: 1400, height: 900 } });
-    await ouvrirVolet(bureau);
-    exiger(await bureau.evaluate(() => !!document.querySelector('#seq-dock-host .seq-grid-continuous')),
-        'la grille continue est bien dans le volet sous la grille (#seq-dock-host)');
-
-    console.log('=== Ordre des boutons : transport -> actions -> zoom H EN DERNIER ===');
-    // LA BARRE EST DÉSORMAIS GROUPÉE PAR FAMILLES (retour utilisateur : « c'est brouillon à
-    // l'affichage »), donc les enfants directs de .seq-presets sont des .seq-groupe et non plus les
-    // boutons eux-mêmes. On aplatit d'abord — ce banc éprouve un ORDRE, pas une profondeur de DOM, et
-    // l'ordre visuel n'a pas changé : transport, motif, suppression, affichage.
-    const ordre = await bureau.evaluate(() => [...document.querySelectorAll('.seq-presets button, .seq-presets .btn-wrap-group')]
-        .map(el => el.id || el.className.split(' ')[0]));
+    await monter(bureau);
+    let rr = await R.porteAbsente(bureau);
+    check(rr.ok, `l'ancien volet n'a plus de porte (${rr.detail})`);
+    rr = await R.ouvrirNouveau(bureau);
+    exiger(rr.ok, `le séquenceur du bloc « Vues » s'ouvre (${rr.detail})`);
+    const ordre = await bureau.evaluate(() => [...document.querySelectorAll('#sequenceur .sq-outils button')].filter(b => b.offsetParent).map(b => b.id || b.dataset.sqMotif || b.className.split(' ')[0]));
     console.log('ordre:', JSON.stringify(ordre));
-    const familles = await bureau.evaluate(() => [...document.querySelectorAll('.seq-presets > .seq-groupe')].map(g => g.dataset.groupe));
-    console.log('familles:', JSON.stringify(familles));
-    const iZoom = ordre.findIndex(x => x === 'btn-wrap-group');
-    const iDerniereAction = ordre.findIndex(x => x === 'seq-delete-selection');
-    check(iZoom > iDerniereAction && iDerniereAction !== -1,
-        `le groupe de zoom arrive bien APRÈS seq-delete-selection, dernier bouton d'action (${iDerniereAction} -> ${iZoom})`);
-    check(ordre[0] === 'seq-play', `seq-play toujours en premier (transport) — trouvé « ${ordre[0]} »`);
-    // Le groupement lui-même, tant qu'on y est : c'est lui qui rend l'ordre lisible plutôt que subi.
-    check(JSON.stringify(familles) === JSON.stringify(['transport', 'motif', 'suppression', 'affichage']),
-        `quatre familles, dans l'ordre écouter -> fabriquer -> défaire -> regarder — ${familles.join(', ')}`);
-
-    console.log('=== La rangée reste dans le cadre, hauteur normale puis volet réduit ===');
-    const normal = await barreDansHote(bureau);
-    console.log('hauteur normale :', JSON.stringify(normal));
-    check(normal.flex.startsWith('0 0') || normal.flex === 'none',
-        `la barre est un enfant flex non rétrécissable dans le volet — flex: « ${normal.flex} »`);
-    check(normal.dedans, `la rangée tient dans le volet à sa hauteur normale (${normal.hauteurHote}px : barre ${normal.hautBarre}→${normal.basBarre}, volet ${normal.hautHote}→${normal.basHote})`);
-
-    // Simule la poignée #seq-dock-resize tirée vers le haut : c'est bien la hauteur de l'HÔTE qu'elle
-    // écrit (voir hauteurVoletSequenceur, qui insiste sur ce point), pas celle du panneau autour.
-    await bureau.evaluate(() => { document.getElementById('seq-dock-host').style.height = '140px'; });
-    await bureau.waitForTimeout(250);
-    const reduit = await barreDansHote(bureau);
-    console.log('volet réduit :', JSON.stringify(reduit));
-    check(reduit.dedans, `la rangée reste dans le volet une fois réduit à 140px (barre ${reduit.hautBarre}→${reduit.basBarre}, volet ${reduit.hautHote}→${reduit.basHote})`);
+    check(ordre[0] === 'sq-motif-plaque' && ordre[ordre.length - 1] === 'sq-fermer', `motifs en tête, × en dernier — trouvé « ${ordre[0]} » … « ${ordre[ordre.length - 1]} »`);
+    rr = await R.sansLecturePropre(bureau);
+    check(rr.ok, `pas de Lecture propre en tête de barre (${rr.detail})`);
+    const dansLeCadre = (page) => page.evaluate(() => { const s = document.getElementById('sequenceur').getBoundingClientRect(), b = document.querySelector('#sequenceur .sq-outils').getBoundingClientRect(); return { dedans: b.top >= s.top - 1 && b.bottom <= s.bottom + 1 && b.height > 0, colle: getComputedStyle(document.querySelector('#sequenceur .sq-outils')).position }; });
+    const normal = await dansLeCadre(bureau);
+    check(normal.dedans && normal.colle === 'sticky', `la barre tient dans le séquenceur, collée en haut (${JSON.stringify(normal)})`);
     await bureau.close();
+
+    console.log('=== Écran court (600 px), « Toutes les notes » : le séquenceur défile, la barre reste visible ===');
+    const court = await browser.newPage({ viewport: { width: 1400, height: 600 } });
+    await monter(court);
+    await R.ouvrirNouveau(court);
+    await R.cliquer(court, '#sq-vue-notes', 400);
+    const avant = await court.evaluate(() => { const s = document.getElementById('sequenceur'); return { defile: s.scrollHeight > s.clientHeight + 1 }; });
+    await court.evaluate(() => { document.getElementById('sequenceur').scrollTop = 9999; }); // le défilement interne, comme la molette
+    await court.waitForTimeout(200);
+    const apres = await dansLeCadre(court);
+    check(apres.dedans, `séquenceur défilé jusqu'en bas${avant.defile ? '' : ' (rien à défiler)'}, la barre d'outils reste entière à l'écran (${JSON.stringify(apres)})`);
+    await R.cliquer(court, '#sq-vue-voix', 300);
+    await court.close();
 
     console.log('\n=== Écran TÉLÉPHONE (390px) : la rangée ne se disloque pas ===');
     const tel = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
