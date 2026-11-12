@@ -8649,3 +8649,12 @@ body.avec-barre-selection .toast { bottom: 132px; }
     .vues-tiroir:not(.vues-libre) .vues-corps .viz-diagrams > * { flex-shrink: 0; }
 }
 
+/* ======================================================================================================
+   RETRAIT DE L'ANCIEN SÉQUENCEUR, ÉTAPE 4a (refonte du séquenceur, D, dernier sous-lot — docs/refonte-sequenceur.md, section D et « Ce qui disparaît ») : à l'ordinateur,
+   « Éditeur de notes » (#grid-zoom) disparaît de la rangée Compact / Normal / Détaillé ; avec lui le grand séquenceur d'avant, sa loupe, ses zooms et son calque Voix,
+   qu'on n'ouvrait que par lui. Le séquenceur s'ouvre par le bloc « Vues » de la barre de lecture. Au téléphone, rien ne change avant l'étape 4c. En fin de fichier (cascade).
+   ====================================================================================================== */
+@media (min-width: 900px) {
+    #grid-zoom { display: none; }
+}
+

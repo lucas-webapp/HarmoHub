@@ -1,4 +1,5 @@
 // L'ÉDITEUR DE NOTES : LE CALQUE VOIX (refonte, lot 9c), avec de vrais gestes.
+// RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur le calque a disparu (partie A, courte) ; le téléphone le garde jusqu'à l'étape 4c.
 //
 // CE QUE DEMANDE LA MAQUETTE VALIDÉE (docs/refonte.md) : « Calque Voix = l'ancienne conduite de voix : fonction 1/3/5/7 écrite dans la note (la
 // couleur n'est plus seule), trait blanc du chemin des voix. Chaque fonction de l'ancien panneau (règles de voix, loupe, pincement) est vérifiée une
@@ -15,8 +16,9 @@
 const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('éditeur de notes : calque Voix');
 const { estBruitReseau } = require('./_harness');
+const R = require('./_retrait_ancien');
 
-plan(46);
+plan(12);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 // Une partie choisie pour son chemin des voix : C (48 52 55) → F 2e renversement (48 53 57) garde le DO en commun à la voix grave (un trait PLEIN),
@@ -83,104 +85,22 @@ const graine = () => {
     });
 
     // ======================================================================================================
-    console.log('\n=== A. La porte : un seul bouton, le logo d\'avant, éteint au départ ===');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, décision du 12/11 « réécriture courte ») : à l'ordinateur, le calque Voix et le chemin des voix sont SUPPRIMÉS
+    // (« trop compliqué », 11/11), avec l'éditeur de notes qui les portait. Restent les COULEURS des rôles (1 vert, 3 bleu, 5 rouge, 7 ambre) dans le séquenceur
+    // du bloc « Vues ». Les parties A à H d'avant (porte, fonctions dans les notes, traits, règle, zoom, mémoire) n'ont plus d'objet ; I et J (téléphone) restent
+    // jusqu'à l'étape 4c.
+    console.log('\n=== A. Ordinateur : plus de calque Voix, les couleurs des rôles au séquenceur ===');
     let p = await ouvrir({ width: 1440, height: 900 });
     check(!(await p.locator('#toggle-voice-leading').isVisible()), 'l\'icône ⊱ de la rangée de réglages a quitté l\'ordinateur');
-    await clic(p, '#grid-zoom', 900);
-    const porte = await p.evaluate(() => {
-        const b = document.getElementById('editeur-notes-voix'), r = b.getBoundingClientRect();
-        return { vis: !!b.offsetParent, h: Math.round(r.height), w: Math.round(r.width), rayon: getComputedStyle(b).borderTopLeftRadius, nom: b.getAttribute('aria-label'),
-            memeLogo: b.querySelector('svg').innerHTML === document.querySelector('#toggle-voice-leading svg').innerHTML,
-            dansLaRangee: b.closest('#editeur-notes-tete') !== null };
-    });
-    exiger(porte.vis && porte.dansLaRangee, 'le bouton Voix est dans la rangée de l\'éditeur de notes');
-    check(porte.memeLogo, 'il porte le logo de l\'ancienne conduite de voix, repris tel quel');
-    check(porte.h === 32 && porte.w === 32 && porte.rayon === '7px' && porte.nom === 'Voix', `à la jauge, sans mot (${porte.w}×${porte.h}, ${porte.rayon}, « ${porte.nom} »)`);
-    let c = await calque(p);
-    check(c.presse === 'false' && !c.legende && c.chiffres === 0 && c.traits === 0 && c.accords.length === 0, 'éteint au départ : ni chiffre, ni trait, ni légende, ni bande des accords');
-    const bandeEteint = c.bande;
-
-    // ======================================================================================================
-    console.log('\n=== B. Allumé sans accord choisi : le premier accord, et toute la partie ===');
-    exiger(await p.evaluate(() => window.app.editingIndex == null), 'aucun accord en cours à l\'ouverture');
-    await clic(p, '#editeur-notes-voix', 900);
-    c = await calque(p);
-    check(await p.evaluate(() => window.app.editingIndex === 0 && window.app.seqMode === 'continu'), 'Voix ouvre le premier accord de la partie, l\'éditeur reste ouvert');
-    check(c.presse === 'true' && c.legende, 'le bouton dit qu\'il est allumé, la légende 1 / 3 / 5 / 7 / Autres apparaît');
-    check(c.chiffresVoisins.length >= 11, `les accords voisins sont là, chacun avec ses fonctions (${c.chiffresVoisins.length} notes)`);
-    check(await p.evaluate(() => !document.querySelector('.voice-leading-panel')), 'aucun ancien panneau ne s\'ouvre à côté');
-
-    // ======================================================================================================
-    console.log('\n=== C. La fonction écrite dans la note ===');
-    const notes = await p.evaluate(() => [...document.querySelectorAll('#arp-sequencer .seq-note')].map(n => ({ role: (n.className.match(/role-(\w+)/) || [])[1], fn: (n.querySelector('.seq-note-fn') || {}).textContent })));
-    const attendu = { root: '1', third: '3', fifth: '5', seventh: '7' };
-    check(notes.length === 3 && notes.every(n => n.fn === attendu[n.role]), `chaque note de l'accord porte sa fonction, d'accord avec sa couleur (${notes.map(n => n.role + '=' + n.fn).join(', ')})`);
-    check(c.chiffresVoisins.includes('9') && !c.chiffresVoisins.includes('·'), `les couleurs « Autres » disent leur vrai degré : le 9 de Cadd9 (${c.chiffresVoisins.join(' ')})`);
-    check(c.chiffresVoisins.filter(x => x === '7').length === 1, 'le 7 de G7 est écrit, et lui seul (aucune septième ailleurs)');
-
-    // ======================================================================================================
-    console.log('\n=== D. Le chemin des voix ===');
-    check(c.traits === 10, `un trait par voix d'un accord au suivant, jusqu'au plus petit nombre de voix : 3 + 3 + 4 = 10 (${c.traits})`);
-    check(c.tenues.length === 1 && c.tenues[0] === '1:48>48', `la note commune tenue (le DO grave, de C à F) est un trait PLEIN, et c'est la seule (${c.tenues.join(', ')})`);
-    const appariement = await p.evaluate(() => [...document.querySelectorAll('#arp-sequencer .seq-voix-trait[data-accord="2"]')].map(t => t.dataset.de + '>' + t.dataset.vers).sort().join(' '));
-    check(appariement === '48>47 53>50 57>53', `appariement par rang, du grave à l'aigu (F → G7 : ${appariement})`);
-    let g = await geometrie(p);
-    check(g.mv.length === 9 && g.mv.every(t => t.pointilles), 'chaque mouvement est en pointillés');
-    check(g.mv.every(t => t.ecartX <= 2), `posé sur la frontière entre les deux accords (écarts ${g.mv.map(t => t.ecartX.toFixed(1)).join(' ')} px)`);
-    check(g.mv.every(t => t.ecartHaut <= 2 && t.ecartBas <= 2), 'du milieu de la ligne de départ au milieu de celle d\'arrivée');
-    check(g.tn.length === 1 && g.tn[0].enjambe && g.tn[0].plein && g.tn[0].horizontal && g.tn[0].ecartY <= 2, 'la tenue enjambe la frontière, pleine, sur la ligne de sa note');
-    // Un clic sur le trait plein (posé sur la fin de la note grave) doit atteindre la note dessous : le calque ne prend aucun geste.
-    const tenue = await p.locator('#arp-sequencer .seq-voix-tenue').boundingBox();
-    exiger(!!tenue, 'le trait plein est à l\'écran');
-    await p.mouse.click(tenue.x + 3, tenue.y + tenue.height / 2); await p.waitForTimeout(500);
-    check(await p.evaluate(() => window.app.seqSelections.length === 1 && window.app.seqSelections[0].voice === 0), 'un clic sur le trait choisit la note dessous : le calque ne prend aucun clic');
-
-    // ======================================================================================================
-    console.log('\n=== E. Nom et degré de chaque accord, dans la règle ===');
-    check(JSON.stringify(c.accords) === JSON.stringify(['CI', 'FIV', 'G7V7', 'Cadd9I9']), `les quatre accords, nom puis degré (${c.accords.join(' | ')})`);
-    check(g.etiquettes.length === 4 && g.etiquettes.every(e => e.ecart <= 2), 'chacun commence là où commence son accord');
-    check(g.etiquettes.every(e => e.bas <= g.mesureHaut + 1), 'la bande est AU-DESSUS des numéros de mesure, qui restent lisibles');
-    check(c.bande - bandeEteint === 14 && c.bande >= 199 && c.bande <= 214, `la règle grandit de sa bande, les notes gardent leurs ~170px (bande ${bandeEteint} → ${c.bande} px)`);
-
-    // ======================================================================================================
-    console.log('\n=== F. Le zoom horizontal emporte les traits ===');
-    const largeur0 = await p.evaluate(() => document.querySelector('#arp-sequencer .seq-cell[data-step="0"]').getBoundingClientRect().width);
-    await clic(p, '#seq-zoom-in-h-inline', 400);
-    await clic(p, '#seq-zoom-in-h-inline', 600);
-    const largeur1 = await p.evaluate(() => document.querySelector('#arp-sequencer .seq-cell[data-step="0"]').getBoundingClientRect().width);
-    exiger(largeur1 > largeur0 * 1.2, `le zoom a bien élargi les cases (${largeur0.toFixed(1)} → ${largeur1.toFixed(1)} px)`);
-    g = await geometrie(p);
-    check(g.mv.every(t => t.ecartX <= 2) && g.tn.every(t => t.enjambe), 'les traits restent sur leurs frontières');
-    check(g.etiquettes.every(e => e.ecart <= 2), 'les noms d\'accord suivent aussi');
-
-    // ======================================================================================================
-    console.log('\n=== G. Une édition redessine le calque (renversement de l\'accord en cours) ===');
-    exiger(!!(await p.$('#inversion-seg .voicing-segment[data-valeur="1"]')), 'les segments de renversement sont dans l\'inspecteur');
-    await clic(p, '#inversion-seg .voicing-segment[data-valeur="1"]', 800);
-    c = await calque(p);
-    const apres = await p.evaluate(() => [...document.querySelectorAll('#arp-sequencer .seq-voix-trait[data-accord="1"]')].map(t => t.dataset.de + '>' + t.dataset.vers).sort().join(' '));
-    check(apres === '52>48 55>53 60>57', `C au 1er renversement (52 55 60) : les traits partent des nouvelles hauteurs (${apres})`);
-    check(c.tenues.length === 0, 'et le DO n\'est plus tenu : plus de trait plein');
-    check(await p.evaluate(() => [...document.querySelectorAll('#arp-sequencer .seq-note .seq-note-fn')].map(e => e.textContent).sort().join('')) === '135', 'les fonctions suivent les notes déplacées');
-
-    // ======================================================================================================
-    console.log('\n=== H. Mémorisé par appareil ; pas d\'id en double ===');
-    check(await p.evaluate(() => { const ids = [...document.querySelectorAll('[id]')].map(e => e.id); return ids.length === new Set(ids).size; }), 'aucun id en double dans la page');
-    await p.reload(); await p.waitForTimeout(900);
-    await clic(p, '#progression-sections .grid-cell[data-index="2"]', 300);
-    await clic(p, '#grid-zoom', 900);
-    c = await calque(p);
-    check(c.presse === 'true' && c.chiffres > 0 && c.traits > 0, 'rouvert après rechargement : le calque est resté allumé');
-    await clic(p, '#editeur-notes-voix', 700);
-    c = await calque(p);
-    check(c.presse === 'false' && c.chiffres === 0 && c.traits === 0 && c.accords.length === 0 && !c.legende, 'éteint d\'un clic : tout le calque s\'en va');
-    check(c.bande === bandeEteint, `la règle reprend sa hauteur d'avant (${c.bande} px)`);
-    check(await p.evaluate(() => window.app.editingIndex === 2), 'éteindre ne touche pas à l\'accord en cours');
-    await p.reload(); await p.waitForTimeout(900);
-    await clic(p, '#grid-zoom', 900);
-    c = await calque(p);
-    check(c.presse === 'false' && c.chiffres === 0, 'et il reste éteint au rechargement');
-    check(await p.evaluate(() => window.app.editingIndex == null), 'éteint, l\'éditeur s\'ouvre comme avant (aucun accord pris d\'office)');
+    let r = await R.porteAbsente(p);
+    check(r.ok, `l'éditeur de notes (et son bouton Voix) a disparu, le séquenceur est au bloc « Vues » (${r.detail})`);
+    r = await R.ouvrirNouveau(p);
+    exiger(r.ok, `le séquenceur s'ouvre par son bouton (${r.detail})`);
+    check(await p.evaluate(() => !document.querySelector('#editeur-notes-voix:not([hidden])') || !document.getElementById('editeur-notes-voix').offsetParent) && await p.evaluate(() => document.querySelectorAll('.seq-voix-trait, .seq-note-fn').length === 0), 'ni bouton Voix, ni trait du chemin des voix, ni chiffre de fonction à l\'écran');
+    r = await R.couleursRoles(p, 0);
+    check(r.ok, `les notes gardent les couleurs de leur rôle (${r.detail})`);
+    r = await R.toutePartie(p);
+    check(r.ok, `toute la partie est à l'écran, sans zoom (${r.detail})`);
     await p.close();
 
     // ======================================================================================================
@@ -202,7 +122,8 @@ const graine = () => {
     await clic(p, '#grid-zoom', 900);
     exiger(await p.evaluate(() => getComputedStyle(document.getElementById('seq-dock-panel')).position === 'fixed'), 'sous 900px l\'éditeur est une feuille plein écran');
     await p.setViewportSize({ width: 1440, height: 900 }); await p.waitForTimeout(800);
-    check(await p.evaluate(() => getComputedStyle(document.getElementById('seq-dock-panel')).position !== 'fixed' && window.app.seqOpen), 'passé au-dessus de 900px, il reste ouvert dans son volet sous la grille');
+    // RÉÉCRIT (4a) : l'ancien éditeur n'existe plus à l'ordinateur — passé le seuil, il se referme (plus de porte pour le fermer là-haut).
+    check(await p.evaluate(() => !window.app.seqOpen && !document.getElementById('seq-dock-panel').offsetParent), 'passé au-dessus de 900px, l\'ancien éditeur se referme : il n\'existe plus à l\'ordinateur');
     await p.close();
 
     check(erreurs.length === 0, `aucune erreur JavaScript${erreurs.length ? ' — ' + erreurs.slice(0, 3).join(' | ') : ''}`);

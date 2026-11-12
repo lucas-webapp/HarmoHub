@@ -4786,7 +4786,13 @@ class HarmoHubApp {
         // simplement le SÉQUENCEUR, en place ; la vue agrandie et tout son attirail (transport dupliqué,
         // annuler/rétablir relayés, zoom H/V propre, séquenceur épinglé redimensionnable) ont été
         // supprimés — masquer le volet de gauche donne la même largeur sans recouvrir l'appli.
-        document.getElementById('grid-zoom').onclick = () => this.toggleSequencer('continu');
+        // RETRAIT DE L'ANCIEN SÉQUENCEUR, ÉTAPE 4a (refonte du séquenceur, D, dernier sous-lot) : à l'ordinateur, « Éditeur de notes » disparaît (style.css) —
+        // « un seul séquenceur » (docs/refonte-sequenceur.md, section D) : celui du bloc « Vues » de la barre de lecture (sequenceur.js). La garde ci-dessous
+        // couvre un clic de programme : à l'ordinateur, il ouvre le nouveau. Au téléphone, la feuille d'avant garde sa porte jusqu'à l'étape 4c.
+        document.getElementById('grid-zoom').onclick = () => {
+            if (window.matchMedia(SEQ_DOCK_MEDIA).matches) { if (this.sequenceur) this.sequenceur.basculer(true); return; }
+            this.toggleSequencer('continu');
+        };
         this.setupEditeurNotes();
 
         // Menu contextuel (clic droit / appui long) : Renommer/Modifier, Dupliquer (accords
@@ -19997,7 +20003,12 @@ class HarmoHubApp {
     // fenêtre peut basculer d'une mise en page à l'autre sans qu'aucun rendu ne soit déclenché.
     setupGlobalTransportPlacement() {
         const mq = window.matchMedia(SEQ_DOCK_MEDIA);
-        const onChange = () => { this.placeGlobalTransport(); this.placerBoutonFichier(); };
+        const onChange = () => {
+            this.placeGlobalTransport(); this.placerBoutonFichier();
+            // Retrait de l'ancien séquenceur (4a) : ouvert au téléphone (feuille « Séq. »), il n'a plus de porte ni de place à l'ordinateur — passé le seuil,
+            // il se referme (le séquenceur de l'ordinateur est celui du bloc « Vues »).
+            if (mq.matches && this.seqMode === 'continu') this.toggleSequencer('continu');
+        };
         if (mq.addEventListener) mq.addEventListener('change', onChange);
         else mq.addListener(onChange); // Safari < 14
     }

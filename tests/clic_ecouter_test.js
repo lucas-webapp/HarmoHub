@@ -150,13 +150,15 @@ const graine = () => {
     await p.context().close();
 
     // ======================================================================================================
-    console.log('\n=== E. Séquenceur ouvert (ordinateur) : un clic choisit l\'accord à éditer, sans bulle ===');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a) : « Éditeur de notes » n'existe plus à l'ordinateur ; c'est le séquenceur du bloc « Vues » qui suit l'accord cliqué.
+    console.log('\n=== E. Séquenceur ouvert (ordinateur) : un clic choisit l\'accord au séquenceur, sans bulle ===');
     p = await ouvrir({ width: 1440, height: 900 });
-    await p.click('#grid-zoom'); await p.waitForTimeout(800);
+    { const v = await p.locator('#vue-sequenceur').boundingBox(); await p.mouse.click(v.x + v.width / 2, v.y + v.height / 2); await p.waitForTimeout(800); }
     c = await centre(p, 0, 2);
     await p.mouse.click(c.x, c.y); await p.waitForTimeout(800);
     e = await etat(p);
-    check(e.edition === 2 && !e.bulle && !e.inspecteur, 'l\'éditeur suit l\'accord cliqué, sans bulle ni inspecteur');
+    const choisiSq = await p.evaluate(() => { const n = document.querySelector('#sq-grille .sq-nom.choisi'); return n ? +n.dataset.c : null; });
+    check(choisiSq === 2 && !e.bulle && !e.inspecteur, `le séquenceur suit l'accord cliqué (${choisiSq}), sans bulle ni inspecteur`);
     await p.mouse.dblclick(c.x, c.y); await p.waitForTimeout(800);
     check((await etat(p)).bulle, 'le double-clic ouvre la bulle, séquenceur ouvert aussi');
     await p.context().close();
