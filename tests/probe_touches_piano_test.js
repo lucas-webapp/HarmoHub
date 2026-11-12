@@ -8,6 +8,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 let PASS = 0, FAIL = 0;
 const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { FAIL++; console.log('FAIL - ' + l); } };
 const SCR = __dirname + '/';
+const R = require('./_retrait_ancien');
 
 async function ouvrir(page) {
     await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
@@ -21,7 +22,9 @@ async function ouvrir(page) {
     await page.waitForTimeout(400);
     await page.evaluate(() => window.app.editChord(0, 1));
     await page.waitForTimeout(300);
-    await page.click('#grid-zoom');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur, le séquenceur s'ouvre par le bloc « Vues » ; au téléphone, par la porte d'avant (4c).
+    const ordi = await page.evaluate(() => window.matchMedia('(min-width: 900px)').matches);
+    await page.click(ordi ? '#vue-sequenceur' : '#grid-zoom');
     await page.waitForTimeout(700);
 }
 
@@ -34,246 +37,27 @@ async function ouvrir(page) {
 
     await ouvrir(page);
 
-    console.log('--- 1. Vraies couleurs de touches, les mêmes que le clavier de l\'appli ---');
-    const couleurs = await page.evaluate(() => {
-        const g = document.querySelector('.seq-grid-continuous');
-        // `:not(.seq-key-jouee)` : une touche jouée reçoit une SURBRILLANCE qui remplace son fond (voir
-        // le retour « les notes présentes dans l'accord ne restent pas affichées sur le piano », puis
-        // « éclairer uniquement via une surbrillance, et enlève les couleurs sur les touches »). Pour
-        // contrôler l'ivoire et le noir de base, il faut donc une touche que l'accord ne joue PAS.
-        const b = g.querySelector('.seq-label.seq-key-white:not(.seq-key-jouee)');
-        const n = g.querySelector('.seq-label.seq-key-black:not(.seq-key-jouee)');
-        // Le clavier fixe de l'appli, référence de teinte.
-        const refB = document.querySelector('.key.white');
-        const refN = document.querySelector('.key.black');
-        const fond = e => e && getComputedStyle(e).backgroundImage;
-        // Un dégradé peut être écrit de mille façons : on ne compare que les triplets rgb() qu'il cite.
-        const teintes = s => (s || '').match(/rgba?\([^)]+\)/g) || [];
-        return {
-            blanche: fond(b), noire: fond(n),
-            teintesBlanche: teintes(fond(b)), teintesRefBlanche: teintes(fond(refB)),
-            teintesNoire: teintes(fond(n)),
-            // Le clavier fixe écrit son noir en background-COLOR (raccourci `background: dégradé,
-            // #171310`) : il n'apparaît donc pas dans background-image. Lire les deux, sinon on
-            // compare à une liste vide et l'assertion ne prouve rien.
-            teintesRefNoire: teintes(fond(refN)).concat(refN ? [getComputedStyle(refN).backgroundColor] : []),
-            couleurTexteBlanche: b && getComputedStyle(b).color,
-            couleurTexteNoire: n && getComputedStyle(n).color,
-            nbBlanches: g.querySelectorAll('.seq-label.seq-key-white').length,
-            nbNoires: g.querySelectorAll('.seq-label.seq-key-black').length,
-            // Les notes de l'accord, allumées. PLUS de teinte par fonction : elle a été retirée sur
-            // retour utilisateur (« éclairer uniquement via une surbrillance, et enlève les couleurs sur
-            // les touches ») — le code couleur par rôle vit désormais sur les barres du séquenceur, le
-            // clavier fixe et la légende, plus sur les touches. On relève donc ce qui EST là : la
-            // surbrillance, et le nom rendu visible avec elle.
-            jouees: [...g.querySelectorAll('.seq-label.seq-key-jouee')].map(l => {
-                const nom = l.querySelector('.seq-key-name');
-                return {
-                    note: nom.textContent,
-                    nomVisible: getComputedStyle(nom).visibility === 'visible',
-                    halo: getComputedStyle(l).boxShadow,
-                    // Aucune classe de rôle ne doit subsister : ce serait le retour de la couleur retirée.
-                    roleResiduel: (l.className.match(/seq-key-role-(\w+)/) || [])[1] || null,
-                };
-            }),
-        };
-    });
-    console.log(JSON.stringify(couleurs));
-    // #f3ede0 -> rgb(243, 237, 224) et #e7dcc4 -> rgb(231, 220, 196) : l'ivoire exact de .key.white.
-    check(couleurs.teintesBlanche.includes('rgb(243, 237, 224)') && couleurs.teintesBlanche.includes('rgb(231, 220, 196)'),
-        `touche blanche : l'ivoire du clavier de l'appli — ${couleurs.teintesBlanche.slice(0, 2).join(' / ')}`);
-    check(couleurs.teintesRefBlanche.includes('rgb(243, 237, 224)'),
-        'et c\'est bien la teinte que porte le clavier fixe (référence non dérivée)');
-    // #171310 -> rgb(23, 19, 16) : le noir exact de .key.black.
-    check(couleurs.teintesNoire.includes('rgb(23, 19, 16)') && couleurs.teintesRefNoire.includes('rgb(23, 19, 16)'),
-        `touche noire : le même noir que le clavier de l'appli — ${couleurs.teintesNoire.join(' / ')}`);
-    // Une touche noire ne laisse pas voir l'écran derrière : son décrochement de gauche est ivoire.
-    check(couleurs.teintesNoire.includes('rgb(231, 220, 196)'),
-        'le décrochement à gauche de la touche noire est ivoire, pas transparent');
-    check(couleurs.nbBlanches > 0 && couleurs.nbNoires > 0,
-        `les deux sortes de touches sont présentes — ${couleurs.nbBlanches} blanches, ${couleurs.nbNoires} noires`);
-    // ATTENTE CORRIGÉE. Le banc exigeait « une couleur par fonction » sur les touches — exactement ce
-    // que l'utilisateur a fait RETIRER (« éclairer uniquement via une surbrillance, et enlève les
-    // couleurs sur les touches »). Il réclamait donc le contraire d'une décision prise, et rougissait à
-    // chaque campagne sans qu'aucun défaut n'existe. Ce qui est promis aujourd'hui : les quatre notes de
-    // Am7 sont mises en surbrillance, leur nom devient lisible, et aucune classe de rôle ne subsiste.
-    const jouees = couleurs.jouees;
-    console.log('touches jouées :', JSON.stringify(jouees));
-    check(jouees.length === 4,
-        `les quatre notes de Am7 sont allumées — ${jouees.map(j => j.note).join(', ')}`);
-    check(jouees.every(j => j.nomVisible),
-        'et leur nom est rendu lisible avec la surbrillance, pas seulement celui du DO');
-    check(jouees.every(j => /inset/.test(j.halo) && j.halo !== 'none'),
-        `chacune porte bien le halo de surbrillance — ${jouees[0] ? jouees[0].halo : 'aucune'}`);
-    check(jouees.every(j => j.roleResiduel === null),
-        `aucune couleur par fonction n'est revenue sur les touches — ${JSON.stringify(jouees.map(j => j.roleResiduel))}`);
-
-    console.log('--- 2. Un seul nom écrit : le DO, avec son octave ---');
-    const noms = await page.evaluate(() => {
-        const g = document.querySelector('.seq-grid-continuous');
-        const labels = [...g.querySelectorAll('.seq-label.seq-key')];
-        const lisible = l => {
-            const sp = l.querySelector('.seq-key-name');
-            return sp && getComputedStyle(sp).visibility === 'visible' ? sp.textContent.trim() : null;
-        };
-        const vus = labels.map(lisible).filter(Boolean);
-        return {
-            total: labels.length,
-            visibles: vus,
-            // Le texte reste dans le DOM (il doit pouvoir réapparaître) : c'est bien l'AFFICHAGE
-            // qui est coupé, pas le contenu.
-            tousEcritsDansLeDom: labels.every(l => (l.querySelector('.seq-key-name') || {}).textContent),
-            // La place est réservée : la gouttière ne doit pas changer de largeur quand un nom
-            // réapparaît en cours de geste.
-            largeurGouttiere: Math.round(labels[0].getBoundingClientRect().width),
-        };
-    });
-    console.log(JSON.stringify(noms));
-    // CONTRAT ÉLARGI (retour utilisateur : « on ne voit plus toujours le nom des notes avec les
-    // touches colorées ») : au repos, portent un nom les DO **et** les touches que l'accord JOUE
-    // vraiment (.seq-key-jouee). Toutes les autres restent nues — c'est ce que vérifie l'assertion
-    // suivante, qui reste la vraie garde contre le retour du mur de texte.
-    check(noms.visibles.length > 0 && noms.visibles.every(t => /^[A-G][#b]?-?\d+$/.test(t)),
-        `au repos, seuls les DO et les touches jouées sont nommés — ${noms.visibles.join(', ')} (sur ${noms.total} touches)`);
-    check(noms.visibles.every(t => /\d/.test(t)), `...et chacun porte son octave — ${noms.visibles.join(', ')}`);
-    // Seuil desserré de total/4 à total/3 : un accord de quatre sons plus le DO de repère fait 5 noms
-    // pour 20 touches, soit le quart PILE — la borne stricte d'origine ne laissait littéralement aucune
-    // place aux noms qu'on vient d'ajouter. Un tiers garde tout son sens de garde-fou (elle interdit
-    // toujours le mur de texte d'origine, qui nommait les 20 touches).
-    check(noms.visibles.length < noms.total / 3,
-        `la grande majorité des touches reste nue — ${noms.visibles.length} noms pour ${noms.total} touches`);
-    check(noms.tousEcritsDansLeDom, 'les noms masqués restent dans le DOM (ils doivent pouvoir réapparaître)');
-
-    await page.screenshot({ path: SCR + 'touches_apres.png' });
-    const clip = await page.evaluate(() => {
-        const r = document.querySelector('.seq-scroll-continuous').getBoundingClientRect();
-        return { x: r.x, y: r.y, width: Math.min(r.width, 620), height: Math.min(r.height, 320) };
-    });
-    await page.screenshot({ path: SCR + 'touches_gros_plan.png', clip });
-
-    console.log('--- 3. Le nom réapparaît PENDANT le déplacement d\'une barre ---');
-    // Prendre une note existante par son corps et la faire glisser vers le HAUT : c'est le geste
-    // « changer de hauteur », celui où l'on doit lire où l'on va poser la note.
-    const depart = await page.evaluate(() => {
-        // Uniquement une note dont le CENTRE tombe dans la fenêtre visible de la bande, et assez bas
-        // pour qu'on puisse encore glisser de 45px vers le haut sans sortir.
-        const vue = document.querySelector('.seq-scroll-continuous').getBoundingClientRect();
-        // Viser une CASE allumée, pas le centre de la barre : en vue continue une case sur deux
-        // (.seq-cell-b) recule de 4px, si bien que le centre d'une barre peut tomber dans cette bande
-        // morte — elementFromPoint y renvoie la grille, aucun geste ne démarre, et l'assertion
-        // échouerait pour une raison sans rapport avec ce qu'elle teste.
-        // Le CORPS de la barre, jamais un de ses bords (.seq-cell-edge) : depuis un bord, un glissé
-        // vertical étire/fait défiler au lieu de changer de hauteur — ce n'est pas le geste testé ici.
-        const c = [...document.querySelectorAll('.seq-cell.on:not(.seq-cell-edge)')].map(e => ({ e, r: e.getBoundingClientRect() }))
-            .filter(({ r }) => r.top > vue.top + 60 && r.bottom < vue.bottom - 4
-                && r.left > vue.left + 8 && r.right < vue.right - 8 && r.width > 2)
-            .sort((a, b) => b.r.top - a.r.top)[0];
-        if (!c) return null;
-        return { x: Math.round(c.r.left + c.r.width / 2), y: Math.round(c.r.top + c.r.height / 2), voix: c.e.dataset.voice };
-    });
-    check(depart != null, 'un cas de test a été trouvé (une barre bien visible dans la bande)');
-    // Les deux hauteurs de contrôle : le milieu de deux AUTRES lignes réellement jouées par l'accord.
-    // Viser « 45px plus haut » au jugé tombe une fois sur deux sur une ligne de contexte (une hauteur
-    // que l'accord ne joue pas) — le glissé de voix n'y désigne aucune voix, et l'assertion échouerait
-    // pour une raison sans rapport avec ce qu'elle teste.
-    const cibles = await page.evaluate((yDepart) => {
-        const vue = document.querySelector('.seq-scroll-continuous').getBoundingClientRect();
-        return [...document.querySelectorAll('.seq-label[data-row-voice]')]
-            .filter(l => +l.dataset.rowVoice >= 0)
-            .map(l => { const r = l.getBoundingClientRect(); return {
-                y: Math.round(r.top + r.height / 2),
-                nom: l.querySelector('.seq-key-name').textContent.trim() }; })
-            .filter(o => o.y < yDepart - 8 && o.y > vue.top + 30)
-            .sort((a, b) => b.y - a.y);
-    }, depart.y);
-    check(cibles.length >= 2, `au moins deux autres lignes jouées au-dessus — ${cibles.map(c => c.nom).join(', ')}`);
-    await page.mouse.move(depart.x, depart.y);
-    await page.mouse.down();
-    await page.mouse.move(depart.x, depart.y - 6, { steps: 2 });
-    const lireRevele = () => page.evaluate(() => {
-        const rev = document.querySelector('.seq-label.seq-key-reveal');
-        const sp = rev && rev.querySelector('.seq-key-name');
-        return sp ? sp.textContent.trim() : null;
-    });
-    // Le repère doit SUIVRE la ligne visée, pas rester sur celle de départ : on lit sur deux lignes
-    // différentes du même geste. Sans ça, une classe posée une fois pour toutes passerait le test.
-    await page.mouse.move(depart.x, cibles[0].y, { steps: 8 });
-    await page.waitForTimeout(200);
-    const nom1 = await lireRevele();
-    await page.mouse.move(depart.x, cibles[1].y, { steps: 6 });
-    await page.waitForTimeout(200);
-    const nom2 = await lireRevele();
-    check(nom1 === cibles[0].nom && nom2 === cibles[1].nom,
-        `le nom suit la ligne survolée — attendu « ${cibles[0].nom} » puis « ${cibles[1].nom} », lu « ${nom1} » puis « ${nom2} »`);
-    check([nom1, nom2].some(n => n && !/^C-?\d+$/.test(n)),
-        `au moins une des deux n'est pas un DO : c'est bien une révélation, pas le nom déjà écrit — ${nom1} / ${nom2}`);
-    const pendant = await page.evaluate(() => {
-        const rev = document.querySelector('.seq-label.seq-key-reveal');
-        const sp = rev && rev.querySelector('.seq-key-name');
-        const flot = document.querySelector('.seq-drag-readout');
-        return {
-            revele: !!rev,
-            nom: sp ? sp.textContent.trim() : null,
-            visible: sp ? getComputedStyle(sp).visibility : null,
-            estUnDo: rev ? rev.classList.contains('seq-key-c') : null,
-            // Le repère flottant près du doigt existe déjà : les deux doivent dire la MÊME note.
-            flottant: flot && !flot.hidden ? flot.textContent.trim() : null,
-        };
-    });
-    console.log(JSON.stringify(pendant));
-    check(pendant.revele && pendant.visible === 'visible' && pendant.nom,
-        `pendant le glissé, la note visée s'écrit sur sa touche — « ${pendant.nom} »`);
-    check(pendant.flottant && pendant.flottant.replace(/[^A-G#b0-9]/g, '') === (pendant.nom || '').replace(/[^A-G#b0-9]/g, ''),
-        `le repère du doigt et la touche annoncent la même note — « ${pendant.flottant} » / « ${pendant.nom} »`);
-    await page.screenshot({ path: SCR + 'touches_pendant_glisse.png', clip });
-
-    await page.mouse.up();
-    await page.waitForTimeout(300);
-    const apres = await page.evaluate(() => ({
-        encoreRevele: !!document.querySelector('.seq-label.seq-key-reveal'),
-        visibles: [...document.querySelectorAll('.seq-grid-continuous .seq-label.seq-key .seq-key-name')]
-            .filter(s => getComputedStyle(s).visibility === 'visible').map(s => s.textContent.trim()),
-    }));
-    console.log(JSON.stringify(apres));
-    check(!apres.encoreRevele && apres.visibles.every(t => /^[A-G][#b]?-?\d+$/.test(t)),
-        `au relâchement, la gouttière se rétracte aux DO + touches jouées — ${apres.visibles.join(', ')}`);
-
-    console.log('--- 4. ...et pendant qu\'on AJOUTE une barre ---');
-    // Un accord TENU remplit toutes les cases de ses voix : il n'y aurait aucune case vide où tester
-    // l'ajout. Croches piquées -> une case sur deux est libre.
-    await page.evaluate(() => {
-        const sel = document.getElementById('playStyle');
-        sel.value = 'croche_staccato';
-        sel.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    await page.waitForTimeout(500);
-    const vide = await page.evaluate(() => {
-        const vue = document.querySelector('.seq-scroll-continuous').getBoundingClientRect();
-        const c = [...document.querySelectorAll('.seq-cell:not(.on):not(.seq-cell-free)')]
-            .map(e => ({ e, r: e.getBoundingClientRect() }))
-            .filter(({ r }) => r.top > vue.top + 60 && r.bottom < vue.bottom - 4
-                && r.left > vue.left + 8 && r.right < vue.right - 8 && r.width > 2)[10];
-        if (!c) return null;
-        return { x: Math.round(c.r.left + c.r.width / 2), y: Math.round(c.r.top + c.r.height / 2), voix: c.e.dataset.voice };
-    });
-    check(vide != null, 'un cas de test a été trouvé (une case vide bien visible)');
-    await page.mouse.move(vide.x, vide.y);
-    await page.mouse.down();
-    await page.waitForTimeout(150);
-    const pendantAjout = await page.evaluate(() => {
-        const rev = document.querySelector('.seq-label.seq-key-reveal');
-        const sp = rev && rev.querySelector('.seq-key-name');
-        return { revele: !!rev, nom: sp ? sp.textContent.trim() : null, voix: rev ? rev.dataset.rowVoice : null };
-    });
-    console.log(JSON.stringify(pendantAjout));
-    check(pendantAjout.revele && pendantAjout.voix === vide.voix,
-        `dès l'appui, la ligne où l'on pose la note s'annonce — « ${pendantAjout.nom} » (voix ${pendantAjout.voix})`);
-    await page.mouse.up();
-    await page.waitForTimeout(200);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11, « réécriture courte ») : l'échelle chromatique du séquenceur continu (une touche par demi-ton, le DO seul
+    // nommé, le nom qui réapparaît pendant un déplacement de barre) a disparu avec lui. Le nouveau séquenceur a une ligne PAR VOIX : chaque étiquette dit sa note et son
+    // octave (cahier, « Étiquettes ») et se dessine comme une touche de piano — claire pour une note naturelle, sombre pour un dièse.
+    console.log('--- 1. Les étiquettes du séquenceur : la note et son octave, dessinées comme des touches ---');
+    const etiq = await page.evaluate(() => [...document.querySelectorAll('#sq-grille .sq-etiq')].filter(e => e.textContent.trim()).map(e => ({ nom: e.textContent.trim(), diese: e.classList.contains('diese'), fond: getComputedStyle(e).backgroundColor })));
+    console.log(JSON.stringify(etiq));
+    check(etiq.length >= 3 && etiq.every(e => /^[A-G][#♯b♭]?-?\d+$/.test(e.nom)), `chaque ligne nomme sa note avec son octave — ${etiq.map(e => e.nom).join(', ')}`);
+    const clair = (c) => { const m = c.match(/\d+/g).map(Number); return (m[0] + m[1] + m[2]) / 3 > 150; };
+    check(etiq.filter(e => !e.diese).every(e => clair(e.fond)) && etiq.filter(e => e.diese).every(e => !clair(e.fond)), 'les notes naturelles sur une touche claire, les dièses sur une touche sombre');
+    // Une note posée s'entend et porte son nom au début de sa barre (le nom n'a plus à « réapparaître » : il est écrit dans la note).
+    await R.cliquer(page, '#sq-effacer');
+    const vAig = await page.evaluate(() => { const e = SequenceurHarmo.lireAccord(loadProgressionSections()[0].chords[window.app.selectedIndex != null ? window.app.selectedIndex : 1]); return e.info.positions[e.info.positions.length - 1]; });
+    const choisi = await page.evaluate(() => +document.querySelector('#sq-grille .sq-nom.choisi').dataset.c);
+    await R.cliquer(page, `#sq-grille .sq-case[data-c="${choisi}"][data-v="${vAig}"][data-k="2"]`);
+    const pose = await page.evaluate(([c, v]) => { const n = document.querySelector(`#sq-grille .sq-case[data-c="${c}"][data-v="${v}"][data-k="2"] .sq-note`); return n ? n.textContent.trim() : null; }, [choisi, vAig]);
+    check(!!pose && /^[A-G][#♯b♭]?-?\d+$/.test(pose), `une note posée porte son nom au début de sa barre — « ${pose} »`);
+    await page.keyboard.press('Control+z'); await page.waitForTimeout(300);
+    await page.keyboard.press('Control+z'); await page.waitForTimeout(300);
 
     console.log('--- 5. Le PETIT séquenceur garde ses noms (pas de clavier chromatique) ---');
-    await page.click('#grid-zoom');
-    await page.waitForTimeout(300);
+    await R.cliquer(page, '#sq-fermer');
     await page.evaluate(() => window.app.toggleSequencer('compact'));
     await page.waitForTimeout(500);
     const petit = await page.evaluate(() => {
