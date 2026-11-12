@@ -19,10 +19,11 @@
 // La police est chargée depuis Google Fonts : injoignable derrière le proxy du bac à sable, bruit filtré (estBruitReseau).
 const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('conduite de voix (le calque Voix, au téléphone comme à l\'ordinateur)');
+const R = require('./_retrait_ancien');
 const { ouvrirSon } = require('./_geste_accord');
 const { estBruitReseau } = require('./_harness');
 
-plan(33);
+plan(22);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const graine = () => {
@@ -57,7 +58,8 @@ const graine = () => {
     let dupIds;
     const idsEnDouble = () => page.evaluate(() => { const seen = {}; document.querySelectorAll('[id]').forEach(el => { seen[el.id] = (seen[el.id] || 0) + 1; }); return Object.entries(seen).filter(([, n]) => n > 1).map(([id, n]) => id + ' x' + n); });
     // Lot 10f : le téléphone a le MÊME éditeur que l'ordinateur (l'ancien panneau ⊱ a disparu) : les mêmes vérifications sont jouées aux deux largeurs.
-    for (const [nom, larg] of [['TÉLÉPHONE (860px)', 860], ['ORDINATEUR (1280px)', 1280]]) {
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : la passe ORDINATEUR est remplacée par le bloc court plus bas ; le téléphone garde la sienne (4c).
+    for (const [nom, larg] of [['TÉLÉPHONE (860px)', 860]]) {
         // ======================================================================================================
         console.log(`\n=== ${nom} : le calque Voix de l'éditeur de notes ===`);
         page = await ouvrir({ width: larg, height: 1000 });
@@ -149,6 +151,23 @@ const graine = () => {
         check(v.partie === 1 && v.presse === 'true' && v.fn === 3 && v.traits === 0, `partie d'un seul accord : les fonctions s'écrivent, aucun trait — rien à enchaîner (${v.fn} chiffres, ${v.traits} traits)`);
         await page.close();
 
+    }
+
+    // ======================================================================================================
+    // ORDINATEUR — RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11, « réécriture courte ») : la conduite de voix (calque Voix, chemin des voix, loupe, zoom) a disparu
+    // de l'ordinateur avec l'éditeur de notes (« le chemin des voix est supprimé », décision du 11/11). Restent les couleurs des rôles au séquenceur du bloc « Vues ».
+    console.log('\n=== ORDINATEUR : plus de calque Voix ; le séquenceur garde les couleurs des rôles ===');
+    {
+        const pg = await ouvrir({ width: 1280, height: 1000 });
+        let r = await R.porteAbsente(pg);
+        check(r.ok, `l'éditeur de notes et son calque Voix ont quitté l'ordinateur (${r.detail})`);
+        check(!(await pg.locator('#toggle-voice-leading').isVisible()), 'l\'icône ⊱ n\'y est pas non plus');
+        r = await R.ouvrirNouveau(pg);
+        exiger(r.ok, `le séquenceur s'ouvre (${r.detail})`);
+        check(await pg.evaluate(() => document.querySelectorAll('.seq-voix-trait, .seq-note-fn, .voice-leading-panel').length === 0), 'ni trait du chemin des voix, ni chiffre de fonction, ni ancien panneau');
+        r = await R.couleursRoles(pg, 0);
+        check(r.ok, `les notes gardent les couleurs de leur rôle (${r.detail})`);
+        await pg.close();
     }
 
     check(errors.length === 0, 'aucune erreur (' + JSON.stringify(errors) + ')');
