@@ -6063,3 +6063,33 @@ quatre copies parallèles, comme sur la version d'avant (`e9098a1`) : rouge sous
 Balayage ciblé avant lui : 68 verts, 4 rouges (`telephone_barre_lecture`, `telephone_editeur_notes`, `volet_hauteur_poignee` qui visaient « Notes » ou l'ancienne place de « Fichier »,
 réécrits ; `verre` qui comptait un `backdrop-filter: none` comme flou en dur, corrigé par un sélecteur), 2 sans verdict de la ligne de base.
 
+
+## Refonte du séquenceur — D, quatrième sous-lot, étape 4a : retrait de l'ancien séquenceur à l'ordinateur (12/11)
+
+Cahier : `docs/refonte-sequenceur.md`, section D et « Ce qui disparaît » (« un seul séquenceur ») ; section 3 bis (« Le bouton « Séq. » de la rangée de réglages disparaît à
+l'ordinateur »). Le dernier sous-lot de D est découpé en trois étapes (inventaire du 12/11 : 114 bancs sur 255 touchent l'ancien séquenceur) : **4a ordinateur** (celle-ci),
+4b le petit séquenceur de l'inspecteur, 4c la feuille « Séq. » du téléphone.
+
+- **Ce qui change dans l'appli** : « Éditeur de notes » (`#grid-zoom`) disparaît de la rangée Compact / Normal / Détaillé à l'ordinateur (style.css, fin de fichier) ; avec lui
+  le grand séquenceur d'avant, sa loupe, ses zooms, sa poignée et son calque Voix, qu'on n'ouvrait que par lui. Un clic de programme sur l'ancien bouton ouvre le nouveau
+  séquenceur ; ouvert au téléphone puis élargi au-delà de 900 px, l'ancien éditeur se referme (il n'aurait plus eu de porte pour se fermer). Le code de l'ancien séquenceur
+  reste en place : le téléphone (4c) et l'inspecteur (4b) s'en servent encore.
+- **Repris par le nouveau séquenceur** (pour ne rien perdre de ce que l'utilisateur avait demandé) : le **curseur réticule** (« j'ai besoin de quelque chose de fin pour le
+  séquenceur », « uniquement dans le séquenceur ») sur ses cases ; **l'inspecteur qui suit la sélection** séquenceur ouvert (avant : l'éditeur ouvert faisait suivre la
+  modification ; sans cela l'inspecteur réglait un accord pendant que le séquenceur en montrait un autre — `selectChord`).
+- **Décision de l'utilisateur, 12/11 (« Réécriture courte »)** : un banc qui éprouvait une fonction qui DISPARAÎT devient une vérification courte — l'ancienne porte n'existe
+  plus ET le geste du nouveau séquenceur qui la remplace fonctionne (vrai geste) ; ce qui RESTE est réécrit en entier. Aucun banc supprimé. Assistant commun
+  `tests/_retrait_ancien.js` (porte absente, ouverture, toute la partie à l'écran, poser une croche, peindre, Intensité, note libre, plage à boucler, tête de lecture,
+  couleurs des rôles, sélection suivie, choix par le nom, motif, repères, effacer, une ligne par voix, pas de lecture propre, poignée des lignes).
+- **Bancs réécrits (49)** — courts (la fonction disparaît) : `calque_voix`, `editeur_notes`, `editeur_notes_outils`, `continuous_scroll`, `notes_manuelles_intensite`,
+  `probe_centrage_continu`, `probe_deux_sequenceurs`, `probe_seq_continu_daw`, `probe_seq_reperes`, `probe_suppression_pleinecran`, `real_click_loupe_selection`,
+  `seq_buttons_removed`, `seq_centrage_molette_diagrammes`, `seqplay_looprange`, `seqplay_orange`, `probe_clic_accord_voisin`, `probe_seq_finitions`, et la passe ordinateur de
+  `voice_leading`, `vl_loupe`, `vl_pinch`, `voice_leading_section_ops` ; en entier (le sujet reste) : `clic_ecouter` (E), `editeur_et_clavier` (A, B, C), `entete_grille_debordement`,
+  `filet_sequenceur_et_sortie` (C), `global_transport` (E), `grille_clic_et_double_clic`, `grille_raccourcis_clavier`, `highlight_diagnostic`, `loupe_open_selected_chord`,
+  `probe_mobile_seq_visible`, `probe_deux_boutons_seq`, `probe_seq_adaptatif`, `sequencer_reticle_cursor`, `sortie_edition_involontaire`, `probe_cache_perime`, `pinned_seq_toolbar`,
+  `portes_sequenceur`, `recadrage_panneau` (B), `probe_touches_piano`, `retour_a_sa_place` (le séquenceur déplacé par l'onglet Rythme revient exactement à sa place),
+  `three_more_features` (3), `verre`, `volet_hauteur_poignee`, `telephone_editeur_notes` (H), `probe_defilement_tactile`, `probe_regle_voisins`, `seq_notes_libres_clavier`.
+  Les parties TÉLÉPHONE de ces bancs ne changent pas (4c).
+- **La ligne de base change** : `probe_defilement_tactile`, `probe_regle_voisins`, `probe_seq_finitions` et `probe_clic_accord_voisin` passent au VERT (leurs échecs d'avant
+  étaient tous dans la partie ordinateur de l'ancien séquenceur, disparue) ; `seq_notes_libres_clavier` reste rouge (son échec est au téléphone : « un simple toucher crée la note
+  visée », la feuille d'avant). `probe_cache_perime` donne désormais un verdict lisible (« le séquenceur s'ouvre »). Méta-suite : dette diminuée, référence figée (`--maj`).
