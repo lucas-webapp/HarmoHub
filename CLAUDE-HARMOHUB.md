@@ -101,10 +101,13 @@ Mis à jour le 12/11/2026, après l'étape 4c, dernière du point D (l'ancien s�
 - **Prochain : session « Nettoyage, hauteur du panneau Rythme, sélection de la grille, renommage » — décidée par l'utilisateur le 12/11 (après la 4c)**. Une seule session, un seul
   balayage complet en fin de session (c'est lui qui autorise le push, voir `CLAUDE.md`) ; pendant le travail, balayage CIBLÉ seulement (`bash tests/run_cible.sh`).
   **Consigne de l'utilisateur pour les deux points B : « je ne veux pas de régression complète pour ces deux points simples »** → ne pas lancer de balayage complet pour eux seuls ;
-  ils partent avec le balayage complet de fin de session. Ordre conseillé : B1, B2 (petits, visibles), puis A2 et A3.
-  - **A1 (réponse donnée à l'utilisateur le 12/11, rien à faire)** : la « fenêtre d'accord unique » est le point 3 bis de `docs/refonte-sequenceur.md` : au lieu de la bulle d'accord
-    (double-clic) ET de l'inspecteur de droite (« Réglages du son », qui flotte depuis le point C), UNE seule fenêtre sous la case qui porte tout ce qui règle l'accord, **sans ligne
-    Rythme** (le rythme se règle dans le séquenceur). Elle n'a ni lot ni découpage : **ne la commencer que si l'utilisateur la redemande.**
+  ils partent avec le balayage complet de fin de session. Ordre conseillé : B1, B2 (petits, visibles), puis A2 et A3, puis la fenêtre d'accord unique (A1) en lot séparé.
+  - **A1 — fenêtre d'accord unique : ACCORDÉE par l'utilisateur le 12/11 (« oui je veux bien la fenêtre d'accord unique »)**. C'est le point 3 bis de `docs/refonte-sequenceur.md` :
+    au lieu de la bulle d'accord (double-clic) ET de l'inspecteur de droite (« Réglages du son », flottant depuis le point C), UNE seule fenêtre sous la case, qui porte tout ce qui
+    règle l'accord, **sans ligne Rythme** (le rythme se règle dans le séquenceur, sans le dire). Elle n'a ni lot ni découpage : **la découper d'abord** (lire 3 bis et la planche A
+    de l'artefact https://claude.ai/artifact/PFwjW5A61rHhBUX3cPFCuQ avec l'outil Artifact, `read`), annoncer le découpage à l'utilisateur, puis la faire APRÈS A2, A3, B1, B2 (elle
+    touche `bulle-accord`, l'inspecteur, `placerInspecteurFlottant`, `ZONE_EDITION_SELECTEURS`, `this._popups` et beaucoup de bancs — un lot à part, avec son propre balayage
+    complet). Le téléphone (< 900 px) reste inchangé : son panneau d'accord existe déjà (10d).
   - **A2 — nettoyage du code mort de l'ancien séquenceur** (accordé : « tu pourras faire le nettoyage »). Retirer de `script.js`, `style.css`, `index.html` ce que la 4a, 4b, 4c
     ont laissé sans porte : `renderSequencer` et `setupSequencerInteractions`, `seqMode` / `seqOpen` / `seqZoomOpen`, `openSeqZoom` / `closeSeqZoom` et `#seq-zoom-overlay`,
     `#arp-sequencer`, `#grid-zoom`, `#seq-zoom`, `#dock-rythme`, `#seq-dock-panel` et `#seq-dock-resize`, l'éditeur de notes (`setupEditeurNotes`, `#editeur-notes-*`), le calque Voix et
