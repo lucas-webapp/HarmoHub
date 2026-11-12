@@ -42,7 +42,8 @@ const partie = (titre) => {
         await page.waitForTimeout(500);
         await page.evaluate(() => window.app.editChord(0, 0));
         await page.waitForTimeout(250);
-        await page.click('#grid-zoom');
+        // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur, le séquenceur s'ouvre par le bloc « Vues ».
+        await page.click('#vue-sequenceur');
         await page.waitForTimeout(800);
     };
 
@@ -83,45 +84,43 @@ const partie = (titre) => {
         return mesurer(page);
     };
 
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : le volet d'avant (hôte #seq-dock-host, poignée #seq-dock-resize, deux plafonds) a disparu avec l'éditeur
+    // de notes. LE DÉFAUT GARDÉ RESTE le même pour la poignée du séquenceur du bloc « Vues » (cahier 3 bis, « règle définitive ») : elle doit RÉPONDRE dans les deux
+    // sens, avec et sans diagrammes — tirée vers le haut, les LIGNES grandissent (22 à 48 px) et la grille cède la place ; jamais plus que la place libre (la barre
+    // du haut reste à l'écran) ; tirée vers le bas, elles rapetissent et la grille reprend sa place ; double-clic = 30 px.
+    const R = require('./_retrait_ancien');
+    const mesurerSq = (page) => page.evaluate(() => {
+        const s = document.getElementById('sequenceur').getBoundingClientRect(), h = document.querySelector('.top-bar').getBoundingClientRect();
+        return { ligne: Math.round(document.querySelector('#sq-grille .sq-case[data-r]').getBoundingClientRect().height), haut: Math.round(s.top), plafond: Math.round(h.bottom),
+            grille: Math.round(document.querySelector('.history-section').getBoundingClientRect().height), classeCachee: document.querySelector('.col-right').classList.contains('diagrams-hidden') };
+    });
+    const tirerSq = async (page, dy) => {
+        const q = await R.centre(page, '#sq-poignee');
+        await page.mouse.move(q.x, q.y); await page.mouse.down(); await page.mouse.move(q.x, q.y + dy, { steps: 14 }); await page.waitForTimeout(150); await page.mouse.up(); await page.waitForTimeout(400);
+        return mesurerSq(page);
+    };
     for (const diagrammes of [false, true]) {
         const nom = diagrammes ? 'diagrammes affichés' : 'diagrammes masqués';
         const page = await browser.newPage({ viewport: { width: 1905, height: 900 } });
         page.on('pageerror', (e) => errors.push(`${nom}: ` + e.message));
         await ouvrir(page, diagrammes);
-
-        const repos = await mesurer(page);
+        const repos = await mesurerSq(page);
         console.log(`--- ${nom} ---`, JSON.stringify(repos));
-        if (!exiger(repos.hote > 0 && repos.max > 0, `${nom} : le volet est ouvert et mesurable (${repos.hote}px pour un maximum de ${repos.max}px)`)) { await page.close(); continue; }
+        exiger(repos.ligne > 0, `${nom} : le séquenceur est ouvert et mesurable (lignes de ${repos.ligne}px)`);
         check(repos.classeCachee === !diagrammes, `${nom} : l'état des diagrammes est bien celui du scénario`);
-
-        // La marge des deux côtés : c'est elle qui rend la poignée utile dans les DEUX sens.
-        check(repos.hote < repos.max, `${nom} : le volet s'ouvre EN DESSOUS de son maximum, il reste de quoi agrandir (${repos.hote} < ${repos.max})`);
-        // DEUX plafonds distincts, et c'est le fond de l'affaire : la poignée peut monter jusqu'au titre,
-        // l'OUVERTURE s'arrête bien avant. Sans cette séparation, le volet s'ouvrait par-dessus la grille,
-        // qui disparaissait de l'écran — alors que l'utilisateur venait de demander à en voir plus.
-        check(repos.maxAuto < repos.max,
-            `${nom} : le plafond d'OUVERTURE est plus bas que celui de la poignée (${repos.maxAuto} < ${repos.max})`);
-        check(repos.uneCaseVisible || diagrammes,
-            `${nom} : sans diagramme, une rangée d'accords entière reste visible à l'ouverture (${repos.grille}px de grille)`);
-
-        const agrandi = await tirer(page, -400);
-        console.log('  agrandi :', JSON.stringify({ hote: agrandi.hote, grille: agrandi.grille, memo: agrandi.memo, barre: agrandi.barre }));
-        check(agrandi.hote > repos.hote, `${nom} : tirer la poignée vers le haut AGRANDIT vraiment le volet (${repos.hote} -> ${agrandi.hote}px)`);
-        check(agrandi.memo === agrandi.hote, `${nom} : la hauteur obtenue est bien celle mémorisée (${agrandi.memo})`);
-        // CONTRAT CHANGÉ, et volontairement : le banc exigeait auparavant que la grille garde 140px même
-        // volet tiré à fond. L'utilisateur a demandé l'inverse — « tu peux me permettre d'étirer la
-        // poignée jusqu'en haut si j'ai envie [...] si ça me pose problème lors de l'édition, je
-        // baisserai la poignée ». Ce qui reste garanti est le strict nécessaire : la barre de titre
-        // collante, qui porte le bouton refermant le volet. Sans elle on serait enfermé dedans.
-        check(agrandi.barre > 0,
-            `${nom} : la barre de titre de la grille survit au volet tiré à fond, la sortie reste atteignable (${agrandi.barre}px)`);
-        check(agrandi.grille <= repos.grille,
-            `${nom} : la grille a bien cédé sa place au volet (${repos.grille} -> ${agrandi.grille}px)`);
-
-        const reduit = await tirer(page, 200);
-        console.log('  réduit  :', JSON.stringify({ hote: reduit.hote, grille: reduit.grille }));
-        check(reduit.hote < agrandi.hote, `${nom} : tirer vers le bas RÉDUIT le volet (${agrandi.hote} -> ${reduit.hote}px)`);
+        check(repos.ligne === 30, `${nom} : il s'ouvre à la hauteur de lignes d'origine, il reste de quoi agrandir (${repos.ligne}px)`);
+        const agrandi = await tirerSq(page, -400);
+        console.log('  agrandi :', JSON.stringify(agrandi));
+        check(agrandi.ligne > repos.ligne && agrandi.ligne <= 48, `${nom} : tirer la poignée vers le haut AGRANDIT vraiment les lignes (${repos.ligne} -> ${agrandi.ligne}px, au plus 48)`);
+        check(agrandi.haut >= agrandi.plafond, `${nom} : jamais plus que la place libre — le séquenceur s'arrête sous la barre du haut (${agrandi.haut} ≥ ${agrandi.plafond})`);
+        check(agrandi.grille <= repos.grille, `${nom} : la grille a bien cédé sa place (${repos.grille} -> ${agrandi.grille}px)`);
+        const reduit = await tirerSq(page, 200);
+        console.log('  réduit  :', JSON.stringify(reduit));
+        check(reduit.ligne < agrandi.ligne && reduit.ligne >= 22, `${nom} : tirer vers le bas RÉDUIT les lignes (${agrandi.ligne} -> ${reduit.ligne}px, au moins 22)`);
         check(reduit.grille > agrandi.grille, `${nom} : la place rendue profite à la grille (${agrandi.grille} -> ${reduit.grille}px)`);
+        const q = await R.centre(page, '#sq-poignee');
+        await page.mouse.dblclick(q.x, q.y); await page.waitForTimeout(300);
+        check((await mesurerSq(page)).ligne === 30, `${nom} : double-clic sur la poignée, hauteur d'origine (30 px)`);
         await page.close();
     }
 
@@ -129,6 +128,7 @@ const partie = (titre) => {
     const page = await browser.newPage({ viewport: { width: 1905, height: 900 } });
     page.on('pageerror', (e) => errors.push('bas de page: ' + e.message));
     await ouvrir(page, false);
+    await page.click('#sq-fermer'); await page.waitForTimeout(400); // cette partie mesure la page SANS séquenceur (la mise en place l'ouvre)
     const bas = await mesurer(page);
     console.log(JSON.stringify({ carte: bas.carte, exp: bas.exp, vizWrap: bas.vizWrap }));
     if (exiger(!!bas.carte && !!bas.exp, 'la carte des boutons et les boutons Paroles/Fichier sont mesurables')) {

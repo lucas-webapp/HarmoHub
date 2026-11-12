@@ -148,19 +148,15 @@ async function fermerTout(p) { await p.keyboard.press('Escape'); await p.waitFor
             check(/blur\(24px\)/.test(await flou('#context-menu')), 'le menu contextuel aussi');
             const menu = await p.evaluate(() => { const cs = getComputedStyle(document.getElementById('context-menu')); return { img: cs.backgroundImage, couleur: cs.backgroundColor }; });
             check(/gradient/.test(menu.img) && /rgba\(7, 11, 18, 0\.6\)/.test(menu.couleur), 'et lui aussi a sa sous-couche sombre (sinon il grisonne sur ce qu\'il recouvre)');
-            // LA BANDE D'INTENSITÉ DE L'ÉDITEUR DE NOTES (lot 9d) est collée sous les notes qui défilent : même raison, même exigence. Le geste de
-            // l'utilisateur : une case, « Éditeur de notes », puis « Intensité » (rendu éteint à la fin : le réglage est mémorisé par appareil).
+            // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : la bande d'intensité et la règle de l'éditeur de notes ont disparu avec lui. LA MÊME EXIGENCE vaut
+            // pour le séquenceur du bloc « Vues » : sa barre d'outils, collée en haut quand ses lignes défilent dessous, est OPAQUE ; lui-même floute comme les autres barres.
             await fermerTout(p);
             await p.click('.grid-cell >> nth=0'); await p.waitForTimeout(300);
-            await p.click('#grid-zoom'); await p.waitForTimeout(700);
-            await p.click('#toggle-studio-mode'); await p.waitForTimeout(500);
-            const bandeInt = await p.evaluate(() => [...document.querySelectorAll('.seq-grid-intensite .seq-vel-band, .seq-grid-intensite .seq-vel-lane-label')].map(e => getComputedStyle(e).backgroundColor));
-            check(bandeInt.length === 2 && bandeInt.every(c => /^rgb\(\d+, \d+, \d+\)$/.test(c)), `la bande d'intensité de l'éditeur de notes et son étiquette sont OPAQUES (${bandeInt.join(', ')}) : translucides, les notes qui défilent dessous traverseraient ses barres`);
-            // LA RÈGLE de l'éditeur, collée en haut des mêmes notes (sous-lot « Éditeur et clavier », décision du 05/11) : même exigence.
-            const regle = await p.evaluate(() => { const r = document.querySelector('#arp-sequencer .seq-ruler-band'); return r ? getComputedStyle(r).backgroundColor : null; });
-            check(/^rgb\(\d+, \d+, \d+\)$/.test(regle || ''), `la bande de la règle de l'éditeur de notes est OPAQUE (${regle}) : translucide, les notes qui défilent dessous se devinaient à travers ses chiffres`);
-            await p.click('#toggle-studio-mode'); await p.waitForTimeout(300);
-            await p.click('#editeur-notes-fermer'); await p.waitForTimeout(500);
+            await p.click('#vue-sequenceur'); await p.waitForTimeout(700);
+            const sqVerre = await p.evaluate(() => ({ outils: getComputedStyle(document.querySelector('#sequenceur .sq-outils')).backgroundColor, flou: getComputedStyle(document.getElementById('sequenceur')).backdropFilter }));
+            check(/^rgb\(\d+, \d+, \d+\)$/.test(sqVerre.outils), `la barre d'outils du séquenceur, collée en haut, est OPAQUE (${sqVerre.outils}) : translucide, les notes qui défilent dessous traverseraient ses boutons`);
+            check(/blur\(24px\)/.test(sqVerre.flou || ''), `le séquenceur floute ce qu'il recouvre, comme les autres barres (${sqVerre.flou})`);
+            await p.click('#sq-fermer'); await p.waitForTimeout(400);
             await fermerTout(p);
             const fond = await p.evaluate(() => getComputedStyle(document.body).backgroundImage);
             check(/linear-gradient/.test(fond), 'le fond de la page est le dégradé « aurore »');
