@@ -77,7 +77,13 @@ Mis à jour le 12/11/2026, après le troisième sous-lot du point D de la refont
 - **Prochain : D, quatrième et dernier sous-lot — retrait de l'ancien séquenceur**, à découper (inventaire du 12/11 : **114 bancs sur 255** le touchent, 66 par `#grid-zoom`) :
   **4a** ordinateur : bouton « Éditeur de notes » (`#grid-zoom`), grand séquenceur `#seq-dock-panel` et sa poignée, loupe, calque Voix ; **4b** le petit séquenceur de l'inspecteur
   (`#arp-sequencer`) ; **4c** la feuille « Séq. » du téléphone (porte `#grid-zoom`, `telephone_editeur_notes`). Chaque étape : bancs RÉÉCRITS pour le nouveau séquenceur (jamais
-  supprimés), sabotages, balayage. Aucune question ouverte.
+  supprimés), sabotages, balayage.
+  - **Essai à blanc du 12/11** (bouton masqué à l'ordinateur, non commité) : sur les 65 bancs qui citent `#grid-zoom`, **~50 rougissent ou plantent** (liste reproductible : masquer
+    `#grid-zoom` sous `min-width: 900px` et rejouer `grep -l grid-zoom tests/*_test.js`).
+  - **Décision du 12/11 (« Réécriture courte »)** : un banc qui éprouve une fonction qui DISPARAÎT (loupe, zooms H / V, calque Voix, chemin des voix, l'éditeur de notes lui-même,
+    poignée `#seq-dock-resize`) devient une vérification COURTE : l'ancienne porte n'existe plus ET le geste du nouveau séquenceur qui la remplace fonctionne (vrai geste). Ce qui
+    RESTE (notes libres, intensité, plage à boucler, copier / coller, motifs, lecture et tête de lecture, sélection suivie) est réécrit EN ENTIER pour le nouveau séquenceur. Le nom du
+    banc et son fichier restent ; l'en-tête dit « RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a) » et ce qui a disparu. Durée estimée : 2 à 3 sessions.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
