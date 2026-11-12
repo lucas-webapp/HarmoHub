@@ -134,8 +134,10 @@ Mis à jour le 12/11/2026, après l'étape 4c, dernière du point D (l'ancien s�
     zone du nom, qui est large ?) — le MESURER avec un banc avant de corriger. Proposition de l'utilisateur : « au double-clic sur le centre du texte » ; il laisse le choix des
     meilleures idées : (a) la zone active se limite au TEXTE du nom (`getBoundingClientRect` du `.chord-name` ou équivalent, pas toute la case) ; (b) double-clic (ordinateur) /
     double toucher (téléphone) sur ce texte ; (c) un clic simple sur une case ne l'ouvre JAMAIS. **Attention** : le double-clic ouvre déjà la bulle d'accord (point B, `clic_ecouter`) :
-    il faut arbitrer et le dire à l'utilisateur AVANT de coder si le double-clic sur le nom doit renommer plutôt qu'ouvrir la bulle (alors la bulle s'ouvre par le double-clic
-    HORS du texte, ou par « Modifier »). Bancs : `clic_ecouter`, `grille_clic_et_double_clic`, `probe_clic_accord_voisin`, `telephone_panneau_accord`, `editeur_et_clavier` ; réécrire,
+    **Décision de l'utilisateur, 12/11 : double-clic sur le TEXTE du nom = renommer, SANS ouvrir la bulle** (« c'est pour aller plus vite ») ; la bulle s'ouvre par le double-clic
+    sur le reste de la case (ou « Modifier »). Il demande s'il est utile : réponse donnée — oui, peu coûteux, mais il fera double emploi avec la fenêtre d'accord unique (A1). **À faire à
+    la fenêtre d'accord unique** : y mettre le NOM de l'accord en champ de saisie actif dès l'ouverture (taper « Dm7 », Entrée), puis demander à l'utilisateur s'il veut retirer le
+    double-clic-sur-le-texte devenu redondant (ne le retirer que sur sa réponse). Bancs : `clic_ecouter`, `grille_clic_et_double_clic`, `probe_clic_accord_voisin`, `telephone_panneau_accord`, `editeur_et_clavier` ; réécrire,
     jamais supprimer ; un banc d'abord ROUGE pour le défaut mesuré, puis vert.
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
