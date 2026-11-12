@@ -1,3 +1,4 @@
+// RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur la porte au-dessus de la grille est devenue le bouton « Séquenceur » du bloc « Vues ».
 // Deux portes vers le séquenceur, et toutes deux portent un nom.
 //
 // RETOUR UTILISATEUR : « Vu qu'on a gagné de la place, le bouton agrandir est pas mal, mais il fait
@@ -48,7 +49,7 @@ const atteignable = (sel) => {
 };
 
 (async () => {
-    plan(32);
+    plan(31);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -76,30 +77,19 @@ const atteignable = (sel) => {
             return { texte: (e.innerText || '').trim(), l: Math.round(r.width), h: Math.round(r.height),
                      visible: e.offsetParent !== null, svg: !!e.querySelector('svg') };
         };
-        return { ancien: !!document.getElementById('toggle-sequencer'), seq: lire('grid-zoom'), plein: lire('seq-zoom') };
+        return { ancien: !!document.getElementById('toggle-sequencer'), seq: lire('grid-zoom'), plein: lire('seq-zoom'), vues: lire('vue-sequenceur'),
+                 vuesNom: (document.getElementById('vue-sequenceur') || { getAttribute: () => null }).getAttribute('aria-label') };
     });
     check(!a.ancien, 'le pictogramme de l\'en-tête a disparu : il faisait doublon sans le dire');
     exiger(!!a.seq && !!a.plein, 'les deux portes existent');
-    // LOT 9a : sur ordinateur, cette porte est devenue l'« Éditeur de notes » (« un bouton bleu libellé Éditeur de notes dans la rangée de
-    // réglages ») — toujours un mot et non un logo seul ; le téléphone garde « Séq. » jusqu'au lot 10 (vérifié en F).
-    check(a.seq.texte === 'Éditeur de notes', `au-dessus de la grille, un mot et non un logo — « ${a.seq.texte} »`);
-    // LE LOGO EST REVENU, et ce n'est pas un retour en arrière. Ce qui posait problème, c'était le
-    // logo SEUL — rien ne disait ce qu'il ouvrait. Le mot répond à cela ; l'icône, à côté de lui,
-    // redevient ce qu'elle sait faire de mieux : rendre le bouton repérable dans une barre de texte
-    // (retour utilisateur : « je veux garder l'ancien logo séquenceur en petit à côté de l'écriture
-    // Séq. On peut l'élargir un peu pour le mettre en valeur »).
-    check(a.seq.svg, 'le logo est de retour À CÔTÉ du mot — c\'est le logo seul qui ne disait rien');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : la porte au-dessus de la grille (« Éditeur de notes ») a quitté l'ordinateur — « Le bouton « Séq. »
+    // de la rangée de réglages disparaît à l'ordinateur » (cahier 3 bis) ; le séquenceur s'ouvre par le bouton « Séquenceur » du bloc « Vues » (logo repris, nom dans
+    // l'infobulle et l'aria-label). La porte de la carte Accord (« Séquenceur », petit séquenceur) reste jusqu'à l'étape 4b.
+    check(!a.seq.visible, 'au-dessus de la grille, plus de porte à l\'ordinateur');
+    check(a.vues && a.vues.visible && a.vues.svg && a.vuesNom === 'Séquenceur', `la porte du séquenceur est dans le bloc « Vues », avec son logo et son nom (« ${a.vuesNom} »)`);
     check(a.plein.texte === 'Séquenceur', `dans la carte Accord, « ${a.plein.texte} » et non plus « Agrandir »`);
-    // « Moins large » : la demande était explicite, et c'est ce qui distingue les deux jumeaux à l'œil.
-    check(a.seq.l < a.plein.l, `« Séq. » est plus étroit que « Séquenceur » — ${a.seq.l}px contre ${a.plein.l}px`);
-    // Le piège de la règle générique `button { min-width: 120px }` : sans neutralisation explicite,
-    // ce bouton faisait 120px, soit près de trois fois le logo de 44px qu'il remplace.
-    // « On peut l'élargir un peu » : la borne monte donc, mais elle RESTE — sans elle, la règle
-    // générique `button { min-width: 120px }` reprendrait la main en silence, ce qu'elle a déjà fait
-    // une fois (mesuré : 120px, près de trois fois le logo de 44px qu'il remplaçait).
-    // Lot 9a : le libellé long (« Éditeur de notes ») fait ~140px. La borne garde son rôle — le bouton suit son texte, sans `flex: 1` qui
-    // l'étirerait dans la rangée — et elle est donc relevée à la largeur de ce texte, pas supprimée.
-    check(a.seq.l <= 150, `élargi pour loger son logo et son libellé, sans s'étirer dans la rangée — ${a.seq.l}px`);
+    // « Moins large » : la porte du bloc « Vues » est un bouton-logo à la jauge de la barre (32 px), plus étroit que « Séquenceur » de la carte Accord.
+    check(a.vues.l === 32 && a.vues.h === 32 && a.vues.l < a.plein.l, `le bouton du bloc « Vues » est à la jauge, plus étroit que « Séquenceur » — ${a.vues.l}px contre ${a.plein.l}px`);
 
     console.log('\n=== B. « Séquenceur » ouvre ET agrandit, d\'un seul geste ===');
     // LE point du lot. Séquenceur fermé, openSeqZoom() rendait la main sans rien faire.
@@ -174,17 +164,19 @@ const atteignable = (sel) => {
     await page.evaluate(() => window.app.closeSeqZoom());
     await page.waitForTimeout(500);
 
-    console.log('\n=== C. « Séq. » ouvre l\'autre vue, et les deux s\'annoncent ===');
+    console.log('\n=== C. « Séquenceur » (bloc Vues) ouvre la vue d\'ensemble, et les deux portes s\'annoncent ===');
     await page.evaluate(() => window.app.closeSeqZoom());
     await page.waitForTimeout(400);
-    await page.click('#grid-zoom');
+    if (await page.evaluate(() => window.app.seqOpen)) await page.click('#seq-zoom'); // referme le petit séquenceur de la section B
+    await page.waitForTimeout(400);
+    await page.click('#vue-sequenceur');
     await page.waitForTimeout(900);
     const c = await page.evaluate(() => ({
-        mode: window.app.seqMode, ouvert: window.app.seqOpen,
-        seqAllume: document.getElementById('grid-zoom').classList.contains('active'),
+        ouvert: !document.getElementById('sequenceur').hidden, noms: document.querySelectorAll('#sq-grille .sq-nom').length,
+        seqAllume: document.getElementById('vue-sequenceur').getAttribute('aria-pressed') === 'true',
         pleinAllume: document.getElementById('seq-zoom').classList.contains('active'),
     }));
-    check(c.ouvert && c.mode === 'continu', `« Séq. » ouvre la vue d'ensemble — mode ${c.mode}`);
+    check(c.ouvert && c.noms > 0, `« Séquenceur » ouvre la vue d'ensemble (toute la partie : ${c.noms} accords)`);
     // Chacune dit si c'est SA vue qui est ouverte : sans ça, deux portes nommées mais muettes.
     check(c.seqAllume && !c.pleinAllume, 'la porte ouverte s\'allume, l\'autre non');
 

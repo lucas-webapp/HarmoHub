@@ -23039,7 +23039,10 @@ class HarmoHubApp {
         // case de la grille (ou ← →, ou ‹ › de la bulle, qui passent tous par ici) y amène l'éditeur. Avant, la case se sélectionnait mais l'éditeur
         // gardait l'accord d'avant : on ne changeait d'accord que par la zone de l'accord voisin, DANS l'éditeur. Même chemin que l'ouverture de
         // l'éditeur sur un accord sélectionné (toggleSequencer) : editChord, sans le faire entendre une seconde fois (playSavedChord ci-dessous s'en charge).
-        if (this._editeurNotesActif && !dejaEdite) this.editionParSuivi(section, index);
+        // Retrait de l'ancien séquenceur (4a) : le séquenceur du bloc « Vues » suit lui aussi la sélection ; un accord déjà en modification (inspecteur ouvert)
+        // le suit de même, sinon l'inspecteur réglerait un accord pendant que le séquenceur en montre un autre (c'était le comportement éditeur ouvert).
+        const sqSuit = this.sequenceur && this.sequenceur.estOuvert() && this.editingIndex != null;
+        if ((this._editeurNotesActif || sqSuit) && !dejaEdite) this.editionParSuivi(section, index);
         this.updateGridPlayhead(section, index); // la barre de lecture se pose à gauche de l'accord choisi
         this.playSavedChord(section, index, this.autoplaySelect);
     }

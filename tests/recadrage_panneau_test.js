@@ -87,19 +87,21 @@ const graine = () => {
     // ======================================================================================================
     console.log('\n=== B. Ordinateur : séquenceur ouvert, un clic sur un accord le suit sans recadrer ===');
     let p = await ouvrir({ width: 1440, height: 900 });
-    await p.click('#grid-zoom'); await p.waitForTimeout(900);
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : le séquenceur est celui du bloc « Vues » ; il suit l'accord cliqué sans le mettre en modification.
+    const choisiSq = () => p.evaluate(() => { const n = document.querySelector('#sq-grille .sq-nom.choisi'); return n ? +n.dataset.c : null; });
+    { const v = await p.locator('#vue-sequenceur').boundingBox(); await p.mouse.click(v.x + v.width / 2, v.y + v.height / 2); await p.waitForTimeout(900); }
     const s0 = await ecran(p);
     await cliquer(p, 1);
     let i = await inspecteur(p);
-    exiger(i.edition === 1, 'l\'éditeur de notes suit l\'accord cliqué (il passe en modification)');
+    exiger(await choisiSq() === 1 && i.edition == null, 'le séquenceur suit l\'accord cliqué, sans le mettre en modification');
     check(!i.visible, 'sans faire apparaître l\'inspecteur (il recouvrait la droite de l\'éditeur)');
     let s1 = await ecran(p);
     check(s1 === s0, `aucune case ne bouge${s1 === s0 ? '' : ' — avant ' + s0 + ' / après ' + s1}`);
     await p.keyboard.press('Escape'); await p.waitForTimeout(400);
     await cliquer(p, 3);
     i = await inspecteur(p);
-    check(i.edition === 3 && !i.visible && await ecran(p) === s0, 'un autre accord : même chose, la grille reste en place');
-    check(await p.evaluate(() => document.getElementById('seq-dock-panel').getBoundingClientRect().width) >= 1390, 'le séquenceur garde toute la largeur');
+    check(await choisiSq() === 3 && !i.visible && await ecran(p) === s0, 'un autre accord : même chose, la grille reste en place');
+    check(await p.evaluate(() => document.getElementById('sequenceur').getBoundingClientRect().width) >= 1390, 'le séquenceur garde toute la largeur');
     // Inspecteur demandé, séquenceur ouvert : il apparaît, puis suit les accords suivants sans rien déplacer.
     await p.keyboard.press('Escape'); await p.waitForTimeout(400);
     await ouvrirBulle(p, 2);
@@ -110,8 +112,8 @@ const graine = () => {
     await cliquer(p, 0);
     i = await inspecteur(p);
     check(i.visible && i.edition === 0 && await ecran(p) === s0, 'déjà ouvert, il suit l\'accord suivant');
-    await p.click('#editeur-notes-fermer'); await p.waitForTimeout(700);
-    check(await ecran(p) === s0, 'fermer l\'éditeur ne déplace rien');
+    { const f = await p.locator('#sq-fermer').boundingBox(); await p.mouse.click(f.x + f.width / 2, f.y + f.height / 2); await p.waitForTimeout(700); }
+    check(await ecran(p) === s0, 'fermer le séquenceur ne déplace rien');
     await p.context().close();
 
     // ======================================================================================================
