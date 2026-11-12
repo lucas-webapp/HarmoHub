@@ -10056,6 +10056,8 @@ class HarmoHubApp {
         this.rangerCarteAccord(z.etendu);
         p.classList.toggle('pa-etendu', z.etendu);
         p.classList.toggle('pa-onglet-rythme', !!z.rythme);
+        // Plein écran (13/11, « au lieu de scroller sur le séquenceur, c'est l'arrière-plan qui défile ») : tant que l'onglet Rythme couvre la page, la page ne défile plus derrière lui.
+        document.body.classList.toggle('pa-rythme-ouvert', !!z.rythme);
         document.getElementById('pa-son').hidden = !z.etendu;
         const hoteRythme = document.getElementById('pa-rythme');
         if (hoteRythme) hoteRythme.hidden = !z.rythme;
@@ -10077,7 +10079,7 @@ class HarmoHubApp {
     fermerPanneauAccord(z, garderEdition = false) {
         const p = document.getElementById('panneau-accord');
         if (p) { p.hidden = true; p.classList.remove('pa-etendu', 'pa-onglet-rythme'); }
-        document.body.classList.remove('pa-ouvert');
+        document.body.classList.remove('pa-ouvert', 'pa-rythme-ouvert');
         this.rangerCarteAccord(false);
         const hoteRythme = document.getElementById('pa-rythme');
         if (hoteRythme) hoteRythme.hidden = true;

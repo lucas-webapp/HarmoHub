@@ -89,7 +89,8 @@ const etat = () => {
     // l'accord qu'on travaille se lit dans son en-tête et en surbrillance dans la grille de croches (avant : la case restait visible AU-DESSUS du panneau).
     check(tel.sur === 1 && tel.plein && tel.nomVisible, `il occupe tout l'écran entre les deux barres, l'accord qu'on travaille se lit dans son en-tête et dans la grille de croches (accord ${tel.sur})`);
     check(!tel.recouvreBarre, 'il ne recouvre pas la barre de lecture');
-    check(!tel.verrou, 'il ne verrouille pas le défilement de la page : ce n\'est pas une fenêtre modale');
+    // 13/11 : en PLEIN ÉCRAN, la page est figée derrière lui (« au lieu de scroller sur le séquenceur, c'est l'arrière-plan qui défile ») ; elle est rendue à la fermeture (parties E ci-dessous).
+    check(tel.verrou, 'la page est figée derrière le séquenceur plein écran (le glissé ne la fait plus défiler)');
 
     console.log('\n=== B. Ses cases restent atteignables : un toucher pose, un autre enlève ===');
     rt = await R.poserCrocheTel(m);

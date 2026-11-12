@@ -8806,3 +8806,15 @@ body.avec-barre-selection .toast { bottom: 132px; }
 @media (pointer: coarse) { #sq-dessin { display: inline-flex; } }
 .sequenceur.sq-dessin .sq-grille { touch-action: none; }
 .sq-outils #sq-dessin[aria-pressed="true"] { color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); }
+
+
+/* ======================================================================================================
+   SÉQUENCEUR PLEIN ÉCRAN : LA PAGE NE DÉFILE PLUS DERRIÈRE LUI (13/11, retour de l'utilisateur : « au lieu de scroller sur le séquenceur, c'est l'arrière-plan qui défile »).
+   Mesuré à 390 × 844 : le contenu du panneau tient en entier, `.pa-corps` n'a donc rien à défiler, et `overscroll-behavior: contain` ne retient que ce qui défile — le glissé
+   passait à la page (61 → 163 px en un geste). Tant que l'onglet Rythme couvre la page (classe posée par afficherPanneauAccord), la page est figée ; elle retrouve sa place
+   à la fermeture. À 664 px, `.pa-corps` défile de 31 px et garde le glissé (déjà vrai). Téléphone seulement. En fin de fichier (cascade).
+   ====================================================================================================== */
+@media (max-width: 899px) {
+    html:has(body.pa-rythme-ouvert), body.pa-rythme-ouvert { overflow: hidden; overscroll-behavior: none; }
+    body.pa-rythme-ouvert .panneau-accord { overscroll-behavior: none; }
+}

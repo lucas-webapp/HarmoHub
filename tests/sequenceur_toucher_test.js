@@ -10,7 +10,7 @@ const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('séquenceur au doigt');
 const { estBruitReseau } = require('./_harness');
 
-plan(17);
+plan(21);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const graine = () => {
@@ -121,6 +121,35 @@ const graine = () => {
     check(await defile() === y0 && await lateral() === l0, 'et ni la page ni la grille n\'ont défilé pendant le trait');
     await toucher('#sq-dessin');
     check((await p.evaluate(() => getComputedStyle(document.getElementById('sq-grille')).touchAction)) === 'pan-x pan-y', 'le crayon éteint, la grille laisse de nouveau défiler');
+
+    console.log('\n=== F. Plein écran : la page ne défile pas derrière le séquenceur ===');
+    // 13/11, retour de l'utilisateur : « au lieu de scroller sur le séquenceur, c'est l'arrière-plan qui défile ». Mesuré à 390 × 844 : le contenu du panneau tient en entier, `.pa-corps` n'a
+    // rien à défiler et `overscroll-behavior: contain` ne retient que ce qui défile : le glissé passait à la page (61 → 163 px en un geste).
+    const ctxf = await nav.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    const pf = await ctxf.newPage();
+    pf.on('pageerror', e => erreurs.push(e.message));
+    const cdpf = await ctxf.newCDPSession(pf);
+    await pf.goto(`${BASE}/index.html`); await pf.evaluate(graine); await pf.reload(); await pf.waitForTimeout(1000);
+    const tapf = async (sel) => { const r = await pf.locator(sel).boundingBox(); await pf.touchscreen.tap(r.x + r.width / 2, r.y + r.height / 2); await pf.waitForTimeout(500); };
+    const b1 = await pf.locator('#progression-sections .grid-cell[data-section="0"][data-index="0"]').boundingBox();
+    await pf.touchscreen.tap(b1.x + b1.width / 2, b1.y + b1.height - 6); await pf.waitForTimeout(600);
+    await tapf('#bl-plus'); await tapf('#pl-notes'); await pf.waitForTimeout(700);
+    const glissef = async (x0, y0, dy) => {
+        await cdpf.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y: y0 }] });
+        for (let i = 1; i <= 10; i++) { await cdpf.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0, y: Math.round(y0 + dy * i / 10) }] }); await pf.waitForTimeout(20); }
+        await cdpf.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await pf.waitForTimeout(500);
+    };
+    const hors = await pf.evaluate(() => { const c = document.querySelector('.pa-corps'); return { page: scrollY, tient: c.scrollHeight <= c.clientHeight, verrou: getComputedStyle(document.body).overflow }; });
+    const cg = await pf.locator('#sq-grille .sq-case[data-c="0"][data-r="1"][data-k="2"]').boundingBox();
+    await glissef(Math.round(cg.x + cg.width / 2), Math.round(cg.y + cg.height / 2), -100);
+    await glissef(Math.round(cg.x + cg.width / 2), Math.round(cg.y + cg.height / 2), 100);
+    check(hors.tient && await pf.evaluate(() => scrollY) === hors.page, `à 844 px le panneau tient en entier (rien à défiler) ET un glissé sur la grille, vers le haut puis vers le bas, ne fait pas défiler la page (${hors.page} → ${await pf.evaluate(() => scrollY)} px)`);
+    await glissef(195, 400, -150);
+    check(await pf.evaluate(() => scrollY) === hors.page, 'ni un glissé sur la barre d\'outils');
+    check(hors.verrou === 'hidden', `la page est figée tant que l'onglet Rythme est ouvert (overflow ${hors.verrou})`);
+    await tapf('#pa-quel [data-bulle="fermer"]');
+    check(await pf.evaluate(() => getComputedStyle(document.body).overflow) !== 'hidden', 'et elle est rendue à la fermeture du panneau');
+    await ctxf.close();
 
     check(erreurs.length === 0, `aucune erreur de page${erreurs.length ? ' : ' + erreurs.slice(0, 3).join(' | ') : ''}`);
     await ctx.close();

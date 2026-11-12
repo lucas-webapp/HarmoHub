@@ -6265,3 +6265,11 @@ Les points 3 et 4 sont des défauts du MODULE (ordinateur comme téléphone, `se
   (`avant_seq_short_note_body`, `seq_hscroll`, `seq_vscroll_and_cancel`, `ctx_nav`, `ctx_nav_scroll`, `loupe_zoom_gestures`, `pinch_smoothness_centering`, `probe_deux_boutons_seq`) n'ont changé que d'un libellé.
 - **À signaler à l'utilisateur** : au téléphone, « Toute la partie » est le choix par défaut de l'appareil (il l'était déjà, sans effet) ; la grille de croches y défile de côté, les croches font 30 × 40 px ; l'ancien geste « appui long puis glissé pour peindre »
   est impossible au doigt (voir plus haut), d'où le crayon ; 390 × 664 garde 31 px de défilement vertical.
+
+### Suite du 13/11 : « au lieu de scroller sur le séquenceur, c'est l'arrière-plan qui défile »
+- **Mesuré** (vrais évènements tactiles, 390 × 844) : le contenu du panneau Rythme plein écran tient en entier, `.pa-corps` n'a rien à défiler, et `overscroll-behavior: contain` ne retient que ce qui défile : un glissé sur la grille ou sur les outils
+  faisait défiler la PAGE derrière le panneau (61 → 163 → 237 px). À 390 × 664 (`.pa-corps` défile de 31 px) le glissé restait dans le panneau.
+- **Correction** : `afficherPanneauAccord` pose `body.pa-rythme-ouvert` tant que l'onglet Rythme est ouvert (retirée à la fermeture, avec `pa-ouvert`) ; au téléphone, `html:has(body.pa-rythme-ouvert), body.pa-rythme-ouvert { overflow: hidden; overscroll-behavior: none }`
+  (bloc en fin de `style.css`) : la page est figée derrière le séquenceur et retrouve sa place à la fermeture.
+- **Bancs** : `sequenceur_toucher` partie F (21 vérifications en tout : un glissé sur la grille puis sur les outils ne fait pas défiler la page à 844 px, la page est figée tant que l'onglet est ouvert, elle est rendue à la fermeture) ; deux sabotages
+  (règle CSS retirée : 3 rouges ; classe non retirée à la fermeture : 1 rouge) ; `seq_tiroir_flottant` : « il ne verrouille pas la page » devient « la page est figée derrière le séquenceur plein écran ».
