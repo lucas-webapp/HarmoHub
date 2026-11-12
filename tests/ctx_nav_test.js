@@ -36,7 +36,7 @@ plan(5);
     r = await R.suivantTel(p);
     check(r.ok, `› et ‹ changent d'accord, le panneau reste sur Rythme (${r.detail})`);
     r = await R.tientTel(p);
-    check(r.ok, `l'accord, ses huit croches et une ligne par voix tiennent, cases de 44 px : rien à zoomer, pincer ni faire défiler (${r.detail})`);
+    check(r.ok, `l'accord, ses huit croches et une ligne par voix tiennent, lignes de 40 px : rien à zoomer, pincer ni faire défiler (${r.detail})`);
     await p.close();
 
     check(errs.length === 0, `aucune erreur JavaScript (${errs.slice(0, 3).join(' | ') || 'rien'})`);

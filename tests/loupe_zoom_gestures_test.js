@@ -1,7 +1,7 @@
 // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4c, 12/11, décision « réécriture courte ») : il éprouvait Ctrl+molette et pincement sur l'ancien séquenceur du
 // téléphone (quels axes zoomer, et où). L'ancien séquenceur a disparu avec ses zooms (cahier, « Ce qui disparaît » : « pas de zoom, pas de loupe »). Le
 // séquenceur du téléphone est l'onglet Rythme du panneau d'accord, où l'accord tient tout entier. Le banc vérifie que l'ancienne porte n'existe plus ET que
-// rien n'y est à zoomer : huit croches, une ligne par voix, des cases de 44 px dans la largeur.
+// rien n'y est à zoomer : huit croches, une ligne par voix, des lignes de 40 px dans la largeur (plein écran, 13/11).
 // De vrais gestes (souris, toucher, clavier) ; window.app sert à relire l'état. Voir tests/_retrait_ancien.js.
 const { chromium } = require('playwright');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
@@ -35,7 +35,7 @@ plan(5);
     r = await R.ouvrirRythmeTel(p);
     exiger(r.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${r.detail})`);
     r = await R.tientTel(p);
-    check(r.ok, `l'accord, ses huit croches et une ligne par voix tiennent, cases de 44 px : rien à zoomer, pincer ni faire défiler (${r.detail})`);
+    check(r.ok, `l'accord, ses huit croches et une ligne par voix tiennent, lignes de 40 px : rien à zoomer, pincer ni faire défiler (${r.detail})`);
     r = await R.poserCrocheTel(p);
     check(r.ok, `un toucher pose une croche exactement sur la case visée, un autre l'enlève (${r.detail})`);
     await p.close();

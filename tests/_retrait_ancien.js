@@ -320,14 +320,18 @@ async function peindreTel(p) {
 // Au téléphone, onglet Rythme ouvert : l'accord seul, ses huit croches et une ligne par voix tiennent dans la largeur, des cases de 44 px — rien à zoomer,
 // à pincer ni à faire défiler de côté (remplace les zooms, le pincement, les défilements et la loupe de la feuille « Séq. »).
 async function tientTel(p) {
+    // 13/11, PLEIN ÉCRAN : « Toute la partie » montre tous les accords et la grille défile de côté ; ce qui doit tenir, c'est l'accord DU PANNEAU : huit croches par ligne, une ligne
+    // par voix, des lignes de 40 px, dans la largeur de la grille (elle l'a fait défiler jusqu'à lui). Les autres accords sont à un glissé de côté.
     const r = await p.evaluate(() => {
-        const g = document.getElementById('sq-grille'), cs = [...g.querySelectorAll('.sq-case[data-r]')];
-        const d = loadProgressionSections()[window.app.activeSection || 0].chords[window.app._bulle.index];
+        const g = document.getElementById('sq-grille'), idx = window.app._bulle.index;
+        const cs = [...g.querySelectorAll(`.sq-case[data-r][data-c="${idx}"]`)];
+        const d = loadProgressionSections()[window.app.activeSection || 0].chords[idx];
+        const gr = g.getBoundingClientRect();
         return { n: cs.length, lignes: new Set(cs.map(x => x.dataset.r)).size, voix: SequenceurHarmo.voixDe(d).positions.length, h: Math.round(cs[0].getBoundingClientRect().height),
-            droite: Math.round(Math.max(...cs.map(x => x.getBoundingClientRect().right))), larg: window.innerWidth, deborde: g.scrollWidth - g.clientWidth };
+            gauche: Math.round(Math.min(...cs.map(x => x.getBoundingClientRect().left)) - gr.left), droite: Math.round(Math.max(...cs.map(x => x.getBoundingClientRect().right)) - gr.right), larg: window.innerWidth };
     });
-    return { ok: r.lignes === r.voix && r.n === r.lignes * 8 && r.h === 44 && r.droite <= r.larg && r.deborde <= 1,
-        detail: `${r.lignes} lignes pour ${r.voix} voix, ${r.n} cases de ${r.h} px, bord droit ${r.droite} / ${r.larg}, débord ${r.deborde}` };
+    return { ok: r.lignes === r.voix && r.n === r.lignes * 8 && r.h === 40 && r.gauche >= -1 && r.droite <= 1,
+        detail: `${r.lignes} lignes pour ${r.voix} voix, ${r.n} cases de ${r.h} px, l'accord du panneau dans la grille (gauche ${r.gauche}, droite ${r.droite})` };
 }
 
 // Au téléphone, onglet Rythme ouvert : « Effacer » vide le rythme de l'accord, Ctrl+Z le rend (remplace la corbeille et la suppression de notes de la feuille).

@@ -91,7 +91,7 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
             let rt = await R.ouvrirRythmeTel(p);
             ck(rt.ok, `il ouvre l'onglet Rythme, le séquenceur dedans — ${rt.detail}`);
             rt = await R.tientTel(p);
-            ck(rt.ok, `l'accord y tient entier, une ligne par voix, cases de 44 px — ${rt.detail}`);
+            ck(rt.ok, `l'accord y tient entier, une ligne par voix, lignes de 40 px — ${rt.detail}`);
             console.log('--- 4. × referme ---');
             rt = await R.fermerRythmeTel(p);
             ck(rt.ok, `tout est refermé — ${rt.detail}`);

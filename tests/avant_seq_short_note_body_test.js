@@ -36,7 +36,7 @@ plan(9);
     r = await R.ouvrirRythmeTel(p);
     exiger(r.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${r.detail})`);
     r = await R.tientTel(p);
-    check(r.ok, `l'accord, ses huit croches et une ligne par voix tiennent, cases de 44 px : rien à zoomer, pincer ni faire défiler (${r.detail})`);
+    check(r.ok, `l'accord, ses huit croches et une ligne par voix tiennent, lignes de 40 px : rien à zoomer, pincer ni faire défiler (${r.detail})`);
     r = await R.poserCrocheTel(p);
     check(r.ok, `un toucher pose une croche exactement sur la case visée, un autre l'enlève (${r.detail})`);
     r = await R.peindreTel(p);
