@@ -197,4 +197,11 @@ async function poigneeLignes(p) {
     return { ok: h1 > h0 && h1 <= 48 && h2 === 30, detail: `${h0} → ${h1} px, double-clic ${h2} px` };
 }
 
-module.exports = { peindre, reperes, effacerAccord, lignesParVoix, sansLecturePropre, poigneeLignes, centre, cliquer, porteAbsente, ouvrirNouveau, toutePartie, poserCroche, intensite, noteLibre, plageBoucle, teteLecture, couleursRoles, suitSelection, motif, lire };
+// Un clic sur le NOM d'un accord voisin, dans la règle du séquenceur, le choisit (et la grille le sélectionne).
+async function choisirParNom(p, c = 2) {
+    await cliquer(p, `#sq-grille .sq-nom[data-c="${c}"]`, 400);
+    const r = await p.evaluate(() => { const n = document.querySelector('#sq-grille .sq-nom.choisi'); return { choisi: n ? +n.dataset.c : null, sel: window.app.selectedIndex }; });
+    return { ok: r.choisi === c && r.sel === c, detail: `choisi ${r.choisi}, sélection de la grille ${r.sel}` };
+}
+
+module.exports = { choisirParNom, peindre, reperes, effacerAccord, lignesParVoix, sansLecturePropre, poigneeLignes, centre, cliquer, porteAbsente, ouvrirNouveau, toutePartie, poserCroche, intensite, noteLibre, plageBoucle, teteLecture, couleursRoles, suitSelection, motif, lire };

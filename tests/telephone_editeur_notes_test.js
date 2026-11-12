@@ -16,6 +16,7 @@
 //   H. l'ordinateur n'a pas bougé : l'éditeur reste dans son volet sous la grille (pas de feuille), la porte dit « Éditeur de notes », ⊱ absent.
 const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('téléphone : éditeur de notes (lot 10f)');
+const R = require('./_retrait_ancien');
 const { estBruitReseau } = require('./_harness');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
@@ -180,17 +181,20 @@ const feuille = (p) => p.evaluate(() => {
     await p.context().close();
 
     // ======================================================================================================
-    console.log('\n=== H. L\'ordinateur n\'a pas bougé ===');
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur, l'éditeur de notes (et sa feuille, sa poignée) a disparu ; la feuille du téléphone reste
+    // jusqu'à l'étape 4c. Ce qui doit tenir à l'ordinateur : pas de feuille, plus de porte « Éditeur de notes », ⊱ absent, et le séquenceur du bloc « Vues » ne change
+    // pas l'affichage de la grille (règle A).
+    console.log('\n=== H. L\'ordinateur : plus d\'éditeur de notes, le séquenceur du bloc « Vues » ===');
     p = await ouvrir(nav, { viewport: { width: 1280, height: 900 } }, erreurs);
     f = await feuille(p);
-    check(f.porte === 'Éditeur de notes' && !f.vlVisible, 'la porte dit « Éditeur de notes », ⊱ absent');
-    await clic(p, '#grid-zoom', 900);
+    const porte = await R.porteAbsente(p);
+    check(porte.ok && !f.vlVisible, `plus de porte « Éditeur de notes » à l'ordinateur, ⊱ absent (${porte.detail})`);
+    const r = await R.ouvrirNouveau(p);
+    exiger(r.ok, `le séquenceur s'ouvre par son bouton (${r.detail})`);
     f = await feuille(p);
-    exiger(f.ouvert, 'l\'éditeur s\'ouvre');
-    check(f.pos !== 'fixed', `il reste dans son volet sous la grille (${f.pos})`);
-    // Refonte du séquenceur (11/11, point A) : le Compact provisoire du lot 9a est annulé — la grille de l'ordinateur garde son affichage.
-    check(f.densite === 'normal' && f.modifie === false, `la grille garde son affichage, sans Compact provisoire (${f.densite})`);
-    check(await p.evaluate(() => document.getElementById('seq-dock-resize').offsetParent !== null), 'et sa poignée de hauteur');
+    check(!f.ouvert && await p.evaluate(() => getComputedStyle(document.getElementById('sequenceur')).position !== 'fixed'), 'aucune feuille plein écran : le séquenceur est posé dans la page');
+    check(f.densite === 'normal' && f.modifie === false, `la grille garde son affichage (${f.densite})`);
+    check(await p.evaluate(() => !!document.getElementById('sq-poignee').offsetParent), 'et le séquenceur a sa poignée (hauteur des lignes)');
     await p.context().close();
 
     check(erreurs.length === 0, `aucune erreur de page${erreurs.length ? ' : ' + erreurs.slice(0, 3).join(' | ') : ''}`);

@@ -1,3 +1,4 @@
+// RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : la partie ORDINATEUR porte sur le séquenceur du bloc « Vues » ; la partie téléphone reste (4c).
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // Retour utilisateur : « j'ai encore beaucoup de mal à scroller dans le séquenceur sur le téléphone.
@@ -277,108 +278,29 @@ const etatDefil = (page) => page.evaluate(() => {
     check(defApres4.left === defAvant4.left,
         `et la vue n'a pas glissé sous le doigt — ${defAvant4.left}px avant, ${defApres4.left}px après`);
 
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11, « réécriture courte ») : à l'ordinateur, le séquenceur continu (ses bandes mortes, sa molette, sa barre de
+    // défilement, sa règle à empoigner) a disparu. Le séquenceur du bloc « Vues » ne défile JAMAIS de côté (toute la partie à l'écran) ; à la souris, un clic pose
+    // tout de suite et un glissé peint tout de suite. Le téléphone garde sa feuille d'avant, éprouvée plus haut, jusqu'à l'étape 4c.
     console.log('=== ORDINATEUR ===');
+    const R = require('./_retrait_ancien');
     const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
-    page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-    await ouvrir(page);
-
-    console.log('--- 4-bis. Plus de bandes mortes entre les cases (balayage pixel par pixel) ---');
-    const mortesOrdi = await page.evaluate(() => {
-        // Toutes les cases d'UNE MÊME ligne, pour ne balayer que la plage réellement couverte : une
-        // ligne de contexte n'a de cases que sous l'accord édité.
-        const parLigne = {};
-        [...document.querySelectorAll('.seq-cell')].forEach(e => {
-            const r = e.getBoundingClientRect();
-            if (r.top < 4 || r.bottom > window.innerHeight - 4) return;
-            (parLigne[e.style.gridRow] = parLigne[e.style.gridRow] || []).push(r);
-        });
-        const meilleure = Object.values(parLigne).sort((a, b) => b.length - a.length)[0];
-        if (!meilleure || meilleure.length < 8) return null;
-        const gauche = Math.max(Math.min(...meilleure.map(r => r.left)), 4);
-        const droite = Math.min(Math.max(...meilleure.map(r => r.right)), window.innerWidth - 4);
-        const y = meilleure[0].top + meilleure[0].height / 2;
-        let vides = 0, total = 0, exemples = [];
-        for (let x = Math.ceil(gauche) + 1; x < droite - 1; x += 1) {
-            total++;
-            const el = document.elementFromPoint(x, y);
-            if (!el || !el.closest('.seq-cell')) { vides++; if (exemples.length < 5) exemples.push(Math.round(x - gauche)); }
-        }
-        return { vides, total, exemples, largeurLigne: Math.round(droite - gauche) };
+    page.on('pageerror', e => errors.push('ordinateur: ' + e.message));
+    await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load', timeout: 15000 });
+    await page.evaluate(() => {
+        const mk = (r, q, b) => ({ root: r, quality: q, beats: b, inversion: 0, drop: 0, octave: 3, bass: null, playStyle: 'held' });
+        localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Couplet', chords: [mk('C', 'maj', 4), mk('A', 'min7', 4), mk('D', 'min7', 2), mk('G', '7', 6), mk('C', 'maj7', 4)] }] }));
     });
-    console.log(JSON.stringify(mortesOrdi));
-    // Avant : une bande morte de 4px toutes les 28px (une case sur deux recule pour creuser l'écart
-    // visuel entre paires de doubles croches) — soit ~14 % de la ligne qui ne répond à rien.
-    check(mortesOrdi && mortesOrdi.vides === 0,
-        `aucun pixel sans case sur toute une ligne — ${mortesOrdi ? mortesOrdi.vides : '?'} vides sur ${mortesOrdi ? mortesOrdi.total : '?'}px`);
-
-    console.log('--- 5. La souris n\'attend pas : un glissé dessine tout de suite ---');
-    const c5 = await caseVoixReelle(page); // voix réelle : c'est le glissé d'ÉDITION qu'on éprouve ici
-    check(c5 != null, 'un cas de test a été trouvé (case de voix réelle)');
-    const emp5 = await empreinte(page);
-    await page.mouse.move(c5.x, c5.y);
-    await page.mouse.down();
-    await page.mouse.move(c5.x + 60, c5.y, { steps: 8 });
-    const pendant5 = await page.evaluate(() => !!window.app.seqDrag);
-    await page.mouse.up();
-    await page.waitForTimeout(300);
-    check(pendant5, 'aucun appui long à la souris : le geste est ouvert immédiatement');
-    check(emp5 !== await empreinte(page), 'et il dessine bien');
-
-    console.log('--- 6. La molette fait défiler, la barre horizontale est là et se prend ---');
-    const molette = await page.evaluate(async () => {
-        const s = document.querySelector('.seq-scroll-continuous');
-        const cs = getComputedStyle(s);
-        return {
-            avantTop: s.scrollTop, avantLeft: s.scrollLeft,
-            overflow: cs.overflow,
-            barreH: s.offsetHeight - s.clientHeight, // épaisseur réelle de la barre horizontale
-            barreV: s.offsetWidth - s.clientWidth,
-            debordeH: s.scrollWidth - s.clientWidth,
-        };
-    });
-    console.log(JSON.stringify(molette));
-    // L'épaisseur de barre n'est PAS mesurable ici : Chromium sans interface graphique dessine des
-    // barres en surimpression, qui ne prennent aucune place (barreH vaut 0 même quand la feuille de
-    // style en habille une de 14px). On vérifie donc ce qui est vérifiable : la bande déborde bien,
-    // et le style de barre existe pour l'habiller.
-    check(molette.debordeH > 0, `la bande déborde horizontalement de ${molette.debordeH}px`);
-    const boite = await page.evaluate(() => {
-        const r = document.querySelector('.seq-scroll-continuous').getBoundingClientRect();
-        return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
-    });
-    // Geste horizontal d'un pavé tactile à deux doigts : deltaX seul. Il était purement ignoré —
-    // pire, le preventDefault du gestionnaire coupait aussi le défilement natif qui l'aurait fait.
-    await page.mouse.move(boite.x, boite.y);
-    await page.mouse.wheel(200, 0);
-    await page.waitForTimeout(250);
-    const apresH = await etatDefil(page);
-    check(apresH.left > molette.avantLeft,
-        `un geste horizontal (deltaX, pavé tactile) fait défiler — ${molette.avantLeft}px puis ${apresH.left}px`);
-    // Molette verticale seule : avance dans le morceau tant que les hauteurs tiennent dans la bande.
-    // Revenir au début d'abord : le geste précédent a poussé la bande jusqu'à sa butée droite, où
-    // plus rien ne peut bouger — l'assertion échouerait sans rapport avec ce qu'elle teste.
-    await page.evaluate(() => { document.querySelector('.seq-scroll-continuous').scrollLeft = 0; });
-    await page.waitForTimeout(150);
-    const remis = await etatDefil(page);
-    await page.mouse.wheel(0, 150);
-    await page.waitForTimeout(250);
-    const apresV = await etatDefil(page);
-    check(apresV.maxTop === 0 ? apresV.left > remis.left : apresV.top > remis.top,
-        `la molette seule ${apresV.maxTop === 0 ? 'avance dans le morceau' : 'parcourt les hauteurs'} — ` +
-        `gauche ${remis.left}->${apresV.left}, haut ${remis.top}->${apresV.top}`);
-
-    console.log('--- 7. Rien n\'a bougé pour les zones qui faisaient déjà défiler (règle, gouttière) ---');
-    const bords = await page.evaluate(() => {
-        const g = document.querySelector('.seq-grid-continuous');
-        return {
-            regle: getComputedStyle(g.querySelector('.seq-beat-label')).touchAction,
-            gouttiere: getComputedStyle(g.querySelector('.seq-label')).touchAction,
-            curseurRegle: getComputedStyle(g.querySelector('.seq-beat-label')).cursor,
-        };
-    });
-    console.log(JSON.stringify(bords));
-    check(bords.regle === 'pan-x pan-y' && bords.gouttiere === 'pan-x pan-y' && bords.curseurRegle === 'grab',
-        'règle et gouttière restent les surfaces de préhension qu\'elles étaient');
+    await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(500);
+    let rr = await R.porteAbsente(page);
+    check(rr.ok, `l'ancien séquenceur continu n'a plus de porte (${rr.detail})`);
+    rr = await R.ouvrirNouveau(page);
+    check(rr.ok, `le séquenceur du bloc « Vues » s'ouvre (${rr.detail})`);
+    rr = await R.toutePartie(page);
+    check(rr.ok, `rien à faire défiler de côté : toute la partie est à l'écran (${rr.detail})`);
+    rr = await R.poserCroche(page, 1);
+    check(rr.ok, `la souris n'attend pas : un clic pose tout de suite (${rr.detail})`);
+    rr = await R.peindre(page, 1);
+    check(rr.ok, `un glissé peint tout de suite, d'une seule annulation (${rr.detail})`);
 
     console.log('Errors:', JSON.stringify(errors));
     check(errors.length === 0, 'aucune erreur JavaScript');

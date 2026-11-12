@@ -1,4 +1,5 @@
 // Séquenceur continu : toutes les hauteurs présentes, et un clavier pour s'y repérer.
+// (RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR, 4a, 12/11 : à l'ordinateur, c'est la vue « Toutes les notes » du séquenceur du bloc « Vues » ; voir plus bas.)
 // Retour utilisateur : « 2. Voir toutes les notes possibles. Pour le moment, les notes non utilisées
 // ne sont pas présentées dans le séquenceur. 3. M'aider à l'aide d'un diagramme de piano à gauche
 // pour mieux me repérer, faire comme pour le voice leading. »
@@ -84,117 +85,54 @@ const relever = (p) => p.evaluate(() => {
         p.on('console', m => { if (m.type() === 'error' && !/ERR_CONNECTION_RESET|ERR_TUNNEL_CONNECTION_FAILED|ERR_CERT_AUTHORITY_INVALID|fonts\.googleapis|fonts\.gstatic/.test(m.text())) errs.push(tag + 'console: ' + m.text()); });
     };
 
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11, « réécriture courte ») : à l'ordinateur, la vue continue chromatique (et son clavier en gouttière) a disparu.
+    // Les deux demandes restent tenues par le séquenceur du bloc « Vues » : « voir toutes les notes » = sa vue « Toutes les notes » (les hauteurs utilisées par la
+    // partie, jamais 60 lignes, cahier planche 2) où l'on pose aussi une note hors de l'accord ; « un diagramme de piano à gauche » = ses étiquettes dessinées comme
+    // des touches (claires pour les naturelles, sombres pour les dièses). Le téléphone garde la vue d'avant jusqu'à l'étape 4c (partie G).
+    const R = require('./_retrait_ancien');
     const p = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     brancher(p);
     await prep(p, [['C', 'maj7'], ['A', 'min7'], ['F', 'maj7']]);
-    await ouvrirLoupe(p, 1);
-
-    console.log('\n=== A. Toutes les hauteurs de l\'étendue, pas seulement celles qui sonnent ===');
-    let v = await relever(p);
-    check(v && v.continu, 'la vue continue est bien celle qu\'on mesure');
-    const midis = v.lignes.map(l => nomVersMidi(l.nom));
-    check(midis.every(m => m !== null), `toutes les étiquettes sont des hauteurs lisibles — ${v.lignes.map(l => l.nom).join(' ')}`);
-    const contigu = midis.every((m, i) => i === 0 || m === midis[i - 1] - 1);
-    check(contigu, 'les lignes descendent par demi-tons, sans trou — un clavier en regard peut alors dire vrai');
-    check(midis.length === midis[0] - midis[midis.length - 1] + 1,
-        `une ligne par demi-ton de l'étendue — ${midis.length} lignes de ${midis[midis.length - 1]} à ${midis[0]}`);
-    // Avant : seules les hauteurs jouées par un accord de la section apparaissaient — les cases
-    // libres (posées UNIQUEMENT sur les demi-tons muets, voir section C) sont donc, par construction,
-    // les hauteurs nouvellement montrées. `voix` vaut -1 (donc `!== null`) même sur une ligne libre :
-    // ce n'est pas ce champ qui distingue une ligne muette d'une ligne qui sonne, c'est nbCasesLibres.
-    check(v.nbCasesLibres > 0,
-        `des hauteurs NOUVELLES (jusque-là invisibles) sont apparues — ${v.midisLibres.length} demi-tons muets sur ${midis.length} lignes`);
-
-    console.log('\n=== B. Le clavier : chaque étiquette prend l\'aspect de SA touche ===');
-    const NOIRES = new Set([1, 3, 6, 8, 10]);
-    const bonnesTouches = v.lignes.every((l, i) => {
-        const attendu = NOIRES.has(((midis[i] % 12) + 12) % 12) ? 'noire' : 'blanche';
-        return l.touche === attendu;
+    console.log('\n=== A. Ordinateur : « Toutes les notes », et des étiquettes en touches de piano ===');
+    let rr = await R.porteAbsente(p);
+    check(rr.ok, `l'ancienne vue continue n'a plus de porte (${rr.detail})`);
+    rr = await R.ouvrirNouveau(p);
+    check(rr.ok, `le séquenceur s'ouvre (${rr.detail})`);
+    await R.cliquer(p, '#sq-vue-notes', 500);
+    const toutes = await p.evaluate(() => {
+        const sec = loadProgressionSections()[0];
+        const utilisees = new Set(); sec.chords.forEach(d => SequenceurHarmo.voixDe(d).voix.forEach(x => utilisees.add(x.midi)));
+        const lignes = new Set([...document.querySelectorAll('#sq-grille .sq-case[data-r]')].map(x => x.dataset.r)).size;
+        const etiq = [...document.querySelectorAll('#sq-grille .sq-etiq')].filter(e => e.textContent.trim()).map(e => ({ diese: e.classList.contains('diese'), fond: getComputedStyle(e).backgroundColor }));
+        return { lignes, utilisees: utilisees.size, etiq };
     });
-    check(bonnesTouches, 'blanches et noires correspondent exactement aux classes de hauteur');
-    check(v.lignes.every(l => l.touche !== null),
-        'aucune ligne sans touche — y compris les lignes de contexte et les notes libres, sinon le clavier serait troué');
-    const motif = v.lignes.map(l => l.touche === 'noire' ? 'N' : 'B').join('');
-    check(/N.?N|NN/.test(motif) || motif.length < 12, `le motif 2+3 des noires se lit dans la colonne — ${motif}`);
-
-    console.log('\n=== C. Une hauteur non jouée reste cliquable ===');
-    check(v.nbCasesLibres > 0, `des cases libres sont posées sur ces lignes — ${v.nbCasesLibres}`);
-    check(v.voixDesCasesLibres.length === 1 && v.voixDesCasesLibres[0] === '-1',
-        'elles se déclarent toutes voix -1 : la voix n\'existe pas encore, c\'est la HAUTEUR qui identifie la ligne');
-    const cibleMidi = v.midisLibres[Math.floor(v.midisLibres.length / 2)];
-    const barresAvant = v.barres;
-    const clic = await p.evaluate((midi) => {
-        const c = document.querySelector(`.seq-cell-free[data-midi="${midi}"][data-step="4"]`)
-            || document.querySelector(`.seq-cell-free[data-midi="${midi}"]`);
-        c.scrollIntoView({ block: 'center' });
-        const b = c.getBoundingClientRect();
-        return { x: b.left + b.width / 2, y: b.top + b.height / 2, step: +c.dataset.step };
-    }, cibleMidi);
-    await p.mouse.click(clic.x, clic.y);
-    await p.waitForTimeout(700);
-
-    const apres = await p.evaluate(() => ({
-        notes: window.app.readChord().getSeqMidiNotes(),
-        libres: window.app.extraNotes.map(n => n.note + n.octave),
-    }));
-    check(apres.notes.includes(cibleMidi),
-        `le clic crée la note à CETTE hauteur exacte — MIDI ${cibleMidi} joué, notes libres ${JSON.stringify(apres.libres)}`);
-    v = await relever(p);
-    check(v.barres === barresAvant + 1, `...et la peint aussitôt — ${barresAvant} barres puis ${v.barres}`);
-    check(!v.midisLibres.includes(cibleMidi), 'sa ligne n\'est plus une ligne libre : elle est devenue une voix');
-    check(v.lignes.find(l => nomVersMidi(l.nom) === cibleMidi)?.libre === true,
-        'l\'étiquette est devenue le champ éditable des notes libres (on peut encore la renommer)');
-    check(v.lignes.find(l => nomVersMidi(l.nom) === cibleMidi)?.touche !== null,
-        'sa touche est toujours peinte — pas de trou dans le clavier là où on vient de poser la note');
-    check(v.lignes.length === midis.length, `aucune ligne ajoutée ou perdue au passage — ${v.lignes.length}`);
-
-    console.log('\n=== D. Annuler efface la note ET la voix créée ===');
-    await p.evaluate(() => window.app.seqUndo());
-    await p.waitForTimeout(600);
-    const annule = await p.evaluate(() => ({
-        notes: window.app.readChord().getSeqMidiNotes(),
-        libres: window.app.extraNotes.length,
-    }));
-    check(!annule.notes.includes(cibleMidi), 'la note n\'est plus jouée');
-    check(annule.libres === 0,
-        'et la voix libre a disparu avec elle — sinon il resterait une ligne muette impossible à enlever');
-
-    console.log('\n=== E. Rien ne change en vue COMPACTE (lignes = voix, pas demi-tons) ===');
-    await p.click('#grid-zoom') // même bouton pour refermer : #grid-zoom est une bascule;
-    await p.waitForTimeout(700);
-    await p.evaluate(() => window.app.editChord(0, 1));
-    await p.waitForTimeout(500);
-    await p.evaluate(() => { if (!window.app.seqOpen) window.app.toggleSequencer('compact'); });
-    await p.waitForTimeout(700);
-    const compact = await relever(p);
-    check(compact && !compact.continu, 'on est bien revenu sur le séquenceur compact');
-    check(compact.nbCasesLibres === 0, 'aucune case libre ici — une ligne compacte est une VOIX, pas un demi-ton');
-    check(compact.lignes.every(l => l.touche === null),
-        'et aucune touche de clavier : sur des lignes non chromatiques, elle mentirait sur les écarts');
-    check(compact.lignes.length === (await p.evaluate(() => window.app.readChord().getSeqMidiNotes().length)),
-        `une ligne par voix de l'accord, comme avant — ${compact.lignes.length}`);
+    check(toutes.lignes === toutes.utilisees, `« Toutes les notes » : une ligne par hauteur utilisée par la partie (${toutes.lignes} lignes, ${toutes.utilisees} hauteurs)`);
+    const clair = (c) => { const m = c.match(/\d+/g).map(Number); return (m[0] + m[1] + m[2]) / 3 > 150; };
+    check(toutes.etiq.some(e => e.diese) === toutes.etiq.some(e => !clair(e.fond)) && toutes.etiq.filter(e => !e.diese).every(e => clair(e.fond)), 'les étiquettes sont dessinées comme des touches de piano (naturelles claires, dièses sombres)');
+    // Une case d'une hauteur que l'accord n'a pas : y poser une croche ajoute la note (une note libre).
+    const vide = await p.evaluate(() => { const c = document.querySelector('#sq-grille .sq-case[data-r][data-c="1"]:not([data-v])'); return c ? { r: c.dataset.r, k: c.dataset.k } : null; });
+    check(!!vide, 'une hauteur que l\'accord du milieu ne porte pas est bien proposée');
+    if (!vide) { await browser.close(); process.exit(1); }
+    await R.cliquer(p, `#sq-grille .sq-case[data-c="1"][data-r="${vide.r}"][data-k="${vide.k}"]`, 400);
+    const libres = await p.evaluate(() => (loadProgressionSections()[0].chords[1].extraNotes || []).length);
+    check(libres === 1, `y poser une croche ajoute la note à l'accord (${libres} note libre)`);
+    await R.cliquer(p, '#sq-vue-voix', 300);
     await p.close();
 
     console.log('\n=== F. Cas défavorable : une section très étendue reste bornée ===');
     const g = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     brancher(g, 'étendue: ');
-    // Basse à l'octave 1 face à un accord à l'octave 6 : l'étendue maximale que l'appli permet.
     await prep(g, [['C', 'maj', 1], ['B', 'maj7', 6], ['F', 'maj7', 3]]);
+    await R.ouvrirNouveau(g);
     const t0 = Date.now();
-    await ouvrirLoupe(g, 2);
+    await R.cliquer(g, '#sq-vue-notes', 300);
     const dt = Date.now() - t0;
-    const large = await relever(g);
-    // Pas de plafond précis attendu ici (l'étendue dépend de l'octave choisie par l'utilisateur, sans
-    // borne dans l'appli) — seule compte l'absence d'explosion/débordement, vérifiée juste après.
-    check(large.lignes.length > 20 && large.lignes.length < 150,
-        `l'étendue la plus large reste dans un ordre de grandeur raisonnable — ${large.lignes.length} lignes`);
-    check(dt < 5000, `et se rend sans peiner — ${dt}ms pour ouvrir la loupe`);
-    check(await g.evaluate(() => {
-        const s = document.querySelector('#arp-sequencer .seq-scroll');
-        return s.scrollHeight > s.clientHeight ? getComputedStyle(s).overflowY !== 'visible' : true;
-    }), 'ce qui dépasse en hauteur se fait défiler, ça ne sort pas du panneau');
-    check(await g.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-        'et rien ne déborde de la page en largeur');
+    const large = await g.evaluate(() => { const s = document.getElementById('sequenceur'), b = document.getElementById('barre-lecture').getBoundingClientRect(); return { lignes: new Set([...document.querySelectorAll('#sq-grille .sq-case[data-r]')].map(x => x.dataset.r)).size, bas: Math.round(s.getBoundingClientRect().bottom), barre: Math.round(b.top), defile: getComputedStyle(s).overflowY }; });
+    check(large.lignes > 6 && large.lignes < 40, `l'étendue la plus large reste dans un ordre de grandeur raisonnable — ${large.lignes} lignes (les hauteurs utilisées seulement)`);
+    check(dt < 5000, `et se rend sans peiner — ${dt}ms`);
+    check(large.bas <= large.barre + 1 && large.defile === 'auto', `ce qui dépasse en hauteur défile dans le séquenceur, rien ne passe sous la barre de lecture (${large.bas} ≤ ${large.barre})`);
+    check(await g.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'et rien ne déborde de la page en largeur');
+    await R.cliquer(g, '#sq-vue-voix', 300);
     await g.close();
 
     console.log('\n=== G. Téléphone : la même chose au doigt ===');
