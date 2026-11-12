@@ -32,8 +32,10 @@ const SCR = __dirname + '/';
     check(rt.ok, `la feuille « Séq. » n'a plus de porte au téléphone (${rt.detail})`);
     rt = await R.ouvrirRythmeTel(mob);
     check(rt.ok, `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme (${rt.detail})`);
-    const largeur = await mob.evaluate(() => { const g = document.getElementById('sq-grille'); return { deborde: g.scrollWidth - g.clientWidth, droite: Math.max(...[...g.querySelectorAll('.sq-case[data-r]')].map(c => c.getBoundingClientRect().right)) }; });
-    check(largeur.deborde <= 1 && largeur.droite <= 390, `rien à faire défiler de côté sous le doigt (débord ${largeur.deborde}, bord droit ${Math.round(largeur.droite)})`);
+    // 13/11, PLEIN ÉCRAN : « Toute la partie » montre tous les accords et la GRILLE défile de côté (touch-action: pan-x pan-y : le défilement est celui du navigateur, un glissé ne touche à aucune note,
+    // voir `sequenceur_toucher`). Ce que la sonde tient : la PAGE ne défile pas de côté, et les huit croches de l'accord du panneau sont sous le doigt, dans la largeur.
+    const largeur = await mob.evaluate(() => { const g = document.getElementById('sq-grille'), i = window.app._bulle.index; return { page: document.documentElement.scrollWidth, ta: getComputedStyle(g).touchAction, droite: Math.max(...[...g.querySelectorAll(`.sq-case[data-r][data-c="${i}"]`)].map(c => c.getBoundingClientRect().right)) }; });
+    check(largeur.page <= 390 && largeur.ta === 'pan-x pan-y' && largeur.droite <= 390, `la page ne défile pas de côté, la grille laisse faire le navigateur (${largeur.ta}), les huit croches de l'accord du panneau sont dans la largeur (page ${largeur.page}, bord droit ${Math.round(largeur.droite)})`);
     rt = await R.poserCrocheTel(mob);
     check(rt.ok, `un toucher pose une croche, un autre l'enlève (${rt.detail})`);
     await mob.close();
