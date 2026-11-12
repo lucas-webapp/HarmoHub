@@ -45,7 +45,8 @@ Voir la section 3 : c'est le gros morceau (module `sequenceur.js` écrit de zér
   position, peinture, Intensité, copier / coller / effacer, plage à boucler dans la règle, poignée des lignes). Détail et choix faits en route : `docs/dette-tests.md`.
 - ✅ **Deuxième sous-lot livré le 11/11 (nuit)** (banc `sequenceur_formes`) : formes enregistrées au compte (`synchro-formes.js`, document `harmohub-formes`), notes libres (bouton
   dans la colonne des noms, ligne retenue par la partie), clic droit sur une vignette (retouche par-dessus, « Rétablir l'original »), vue « Toutes les notes ». Détail : `docs/dette-tests.md`.
-- [ ] Téléphone (onglet « Rythme » du panneau d'accord, « Notes » → « Séquenceur »).
+- ✅ **Troisième sous-lot livré le 12/11** (banc `sequenceur_telephone`) : onglets Accord / Son / Rythme dans le panneau d'accord ; le séquenceur y est déplacé, réduit à l'accord du
+  panneau (cases de 44 px) ; « Notes » → « Séquenceur » dans le panneau Lecture. Détail : `docs/dette-tests.md`.
 - [ ] Retrait de l'ancien séquenceur (et de « Séq. » / « Éditeur de notes ») et réécriture de ses bancs.
 
 ## 3. Le nouveau séquenceur — décisions de la maquette

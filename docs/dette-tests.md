@@ -6002,3 +6002,57 @@ schéma enregistré sans réappliquer (2), forme supprimée encore suivie (2), c
 d'`ouvrirSchema`), ▶ qui écrit (1), dessin envoyé en tableaux imbriqués (3 + couverture), ligne libre grisée sur les accords qui ne la portent pas (1 + couverture), « Toutes les notes »
 à l'envers (1). Balayage ciblé : 24 verts, 2 sans verdict de la ligne de base (`ctx_nav_scroll`, `smoke`), sur 26 suites.
 Balayage complet : **243 verts, 5 rouges, 6 sans verdict sur 254 suites — exactement la ligne de base** (3111 s cumulées).
+
+## Refonte du séquenceur — D, troisième sous-lot : le téléphone (onglet « Rythme ») (12/11)
+
+Cahier : `docs/refonte-sequenceur.md`, sections 3 et 3 bis, cases « Téléphone » ; maquette v17, planche `Telephone.dc.html`. L'ancien séquenceur reste en place jusqu'au
+retrait (dernier sous-lot de D).
+
+- **Trois onglets dans le panneau d'accord** (groupe segmenté sous l'en-tête ‹ nom › ×) : **Accord** (le panneau à mi-hauteur d'avant), **Son** (le panneau agrandi d'avant,
+  la modification de l'accord, la carte Accord dedans) et **Rythme**. « Réglages du son » / « Moins » et la poignée restent (Son ↔ Accord). L'onglet se garde en passant
+  d'un accord à l'autre (‹ ›, une autre case touchée), comme l'agrandissement.
+- **Rythme** : le séquenceur de l'ordinateur (`#sequenceur`) est DÉPLACÉ dans `#pa-rythme` (`sequenceur.placerTelephone`), jamais dupliqué, et remis à sa place à la sortie
+  de l'onglet, à la fermeture du panneau et au franchissement du seuil. Il n'y montre que l'accord du panneau (`modeTel`, `cible` lit `app._bulle`) : huit croches, une ligne
+  par voix, des cases de 44 px ; ni poignée, ni ×, ni rangée des noms d'accord (le panneau a les siens) ; motifs en rangée qui défile à l'horizontale ; outils à 44 px. Tous
+  les gestes de l'ordinateur y valent (toucher = poser / enlever, Intensité, motifs et portée, copier / coller / effacer, notes libres, formes, schéma). Le panneau prend sur
+  cet onglet la hauteur du panneau agrandi ; ce qui dépasse défile dans le panneau (sur 844 px, les deux lignes du bas demandent un petit défilement).
+- **« Notes » → « Séquenceur »** dans le panneau Lecture (`#pl-notes` pilote désormais `#vue-sequenceur`, logo repris tel quel) : il ouvre le panneau de l'accord choisi (sinon
+  du premier de la partie active) sur Rythme, sans le faire entendre ni rien écrire. L'ancien éditeur de notes du téléphone (10f) n'a plus que la porte `#grid-zoom` jusqu'au retrait.
+- **Le CSS du séquenceur vaut pour les deux appareils** (les deux blocs passent de `min-width: 900px` à `all`, le bouton du bloc « Vues » reste ordinateur) ; bloc « TÉLÉPHONE,
+  L'ONGLET RYTHME » en fin de `style.css` ; verre : dans le panneau, pas de second fond ni de second flou (`verre-surfaces.css`).
+- **Défauts trouvés en route** : (1) le clic du bouton « Séquenceur » remontait jusqu'au document, où la fermeture « au clic à côté » refermait aussitôt le panneau qu'il
+  venait d'ouvrir → ouverture reportée après ce clic ; (2) les colonnes du séquenceur étaient rangées par RANG d'affichage (`colDebut.push`) : au téléphone, sur tout accord
+  autre que le premier, les 32 cases s'empilaient dans une colonne de 9 px → indexées par accord ; (3) la classe `pa-rythme` posée sur le panneau se confondait avec l'hôte
+  (le panneau passait en `display: block` et débordait sous la barre de lecture) → `pa-onglet-rythme`.
+- **Constaté, déjà vrai avant ce sous-lot** (vérifié sur `e9098a1`) : au téléphone, « Réglages du son » vide la sélection de la grille (`selectedIndex` à null, l'accord reste
+  en modification). Le banc ne s'appuie donc pas sur la sélection après « Son ».
+
+**Banc** `sequenceur_telephone` (47 vérifications, de vrais touchers ; souris pour le glissé) : A — « Séquenceur » (nom, logo, 44 px), ouverture sur Rythme, premier accord, rien
+d'écrit, trois onglets ; B — 4 × 8 cases de 44 px, l'accord seul, ni poignée ni × ni nom, tout tient, outils à 44 px ; C — Effacer, toucher pose / retoucher enlève, une
+annulation chacun, « À la main » ; D — Arpège ↑ sur la partie, une annulation ; E — ‹ › et une autre case : le séquenceur suit ; F — glissé d'une annulation ; G — Accord / Son /
+Rythme (séquenceur rendu à sa place, modification ouverte puis refermée, carte rendue), « Réglages du son » ; H — × (rendu à sa place, bouton éteint), réouverture ; I — verre ;
+J — 320 px ; K — ordinateur (bulle sans onglets, bloc « Vues »), seuil franchi onglet ouvert. **Sabotages** (cinq, tous rouges puis restaurés) : colonnes par rang (1 rouge),
+ouverture sans report (6), toute la partie au téléphone (7), séquenceur pas rendu à sa place (4), second verre (1).
+
+## Retour du 11/11 : le bouton « Fichier » dans la barre du haut (ordinateur)
+
+« Il y a toute une barre noire juste pour le bouton "fichier". Place ce bouton ailleurs et supprime l'espace perdu. » Depuis le lot 4 (Structure et Paroles devenus onglets),
+`#file-menu-btn` restait seul dans `.viz-export-actions`, en bas de `.viz-wrap` : une rangée de 34 px (et l'écart de la colonne) pour un bouton.
+- `placerBoutonFichier` (script.js, appelé au démarrage et au franchissement du seuil) DÉPLACE le bouton dans la barre du haut, juste après « Enregistrer » (les deux gestes qui
+  font sortir le morceau de l'appli) ; un seul nœud, même menu (il s'ouvre sous lui). `body.fichier-en-haut` retire la rangée devenue vide (`.viz-wrap` sans rien d'autre :
+  `display: none`). La grille gagne ~40 px. Téléphone inchangé (le bouton y garde sa place sous la grille).
+- Bancs : `onglets` réécrit (« le coin bas droit ne garde que Fichier » devient « Fichier dans la barre du haut, après Enregistrer, rangée disparue » ; aller-retour 600 ↔ 1440 ;
+  nouveau : le menu s'ouvre sous le bouton, dans l'écran). Sabotage : bouton non déplacé → 1 rouge.
+
+## Retour du 11/11 : le tiroir des diagrammes ne passe plus sur deux rangées (ordinateur)
+
+« Je n'aime pas le saut de hauteur pour les diagrammes d'accords lorsqu'ils se superposent. Peux-tu empêcher le piano de se superposer ? » Mesuré : à 900 px de large et à
+l'échelle 1,5, la guitare tombait sous le clavier (tiroir de 140 → 317 px) ; à 1280 px et à l'échelle 2, le nom de l'accord descendait.
+- Épinglé, le tiroir garde **une seule rangée** : `ajusterEchelleVues` / `echelleQuiTientVues` calculent l'échelle la plus grande à laquelle clavier, guitare, nom de l'accord et
+  bande de construction (à sa largeur minimale) tiennent côte à côte, et affichent la plus petite des deux (celle-là ou celle réglée à la poignée). L'échelle réglée reste
+  RETENUE : elle revient dès que la place revient. Relancé par un `ResizeObserver` (largeur du tiroir, taille des diagrammes). La poignée s'arrête là où tout remplit la largeur
+  (tirer plus haut ne change pas l'échelle retenue) et part de la taille affichée. Second garde-fou CSS : `nowrap` et `flex-shrink: 0` en fin de `style.css`. La fenêtre libre garde
+  l'échelle demandée (on la redimensionne à la main).
+- Banc `vues_taille`, partie G (5 vérifications) : une rangée à 900 px / 1,5, diagrammes réduits et échelle retenue, poignée tirée sans saut, bande de construction sur la même
+  rangée, retour de l'échelle à 1440 px. Sabotages : pas d'ajustement (4 rouges), poignée qui écrase l'échelle retenue (1). Le seul retrait du CSS ne rougit pas : l'ajustement
+  suffit à tout faire tenir (le CSS est un second garde-fou).

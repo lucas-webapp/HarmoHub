@@ -17,7 +17,7 @@ const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('onglets');
 const { estBruitReseau } = require('./_harness');
 
-plan(34);
+plan(35);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const NOM_LONG = 'Ballade en mi bémol pour quatuor à cordes et piano, version longue';
@@ -112,21 +112,31 @@ const graine = (src) => {
         n: ['structure-btn', 'lyrics-btn', 'tab-grille'].map(i => document.querySelectorAll('#' + i).length),
         ilsSontLa: ['structure-btn', 'lyrics-btn'].map(i => !!document.getElementById(i).closest('#tb-onglets')),
         fichierSeul: [...document.querySelectorAll('.viz-export-actions > button')].map(x => x.id),
+        fichierHaut: !!document.getElementById('file-menu-btn').closest('.top-bar .tb-gauche') && document.getElementById('file-menu-btn').previousElementSibling.id === 'tb-save',
+        rangeeVide: getComputedStyle(document.querySelector('.viz-wrap')).display,
         logoStruct: !!document.querySelector('#structure-btn svg rect'), logoParoles: !!document.querySelector('#lyrics-btn svg rect'),
     }));
     check(JSON.stringify(b.n) === '[1,1,1]', 'un seul nœud par identifiant : jamais deux copies (benches, lecteurs d\'écran)');
     check(b.ilsSontLa.every(Boolean), '#structure-btn et #lyrics-btn sont les boutons d\'origine, maintenant dans la barre du haut');
-    check(JSON.stringify(b.fichierSeul) === '["file-menu-btn"]', 'le coin bas droit ne garde que « Fichier » (les exports PDF / MIDI / MP3)');
+    // Retour du 11/11 : « Il y a toute une barre noire juste pour le bouton "fichier". Place ce bouton ailleurs et supprime l'espace perdu » : à
+    // l'ordinateur, « Fichier » (les exports PDF / MIDI / MP3) quitte le coin bas de la grille pour la barre du haut, juste après « Enregistrer ».
+    check(b.fichierSeul.length === 0 && b.fichierHaut && b.rangeeVide === 'none', `« Fichier » est dans la barre du haut, après « Enregistrer », et la rangée du bas a disparu (${b.fichierSeul.join(',')}, ${b.rangeeVide})`);
     check(b.logoStruct && b.logoParoles, 'les logos d\'origine (lignes de structure, micro) sont conservés');
     // aller-retour téléphone ↔ ordinateur : toujours un nœud, au bon endroit. Depuis le lot 10a le « bon endroit » est le même aux deux formats : le
     // téléphone a lui aussi ses onglets (seconde rangée de la barre du haut) ; avant, les deux boutons redescendaient à côté de Fichier.
     await p.setViewportSize({ width: 600, height: 900 }); await p.waitForTimeout(250);
     const tel = await p.evaluate(() => ({ n: ['structure-btn', 'lyrics-btn'].map(i => document.querySelectorAll('#' + i).length), onglets: ['structure-btn', 'lyrics-btn'].map(i => !!document.getElementById(i).closest('#tb-onglets')), ordre: [...document.querySelectorAll('#tb-onglets > button')].map(x => x.id), fichier: [...document.querySelectorAll('.viz-export-actions > button')].map(x => x.id), visible: ['tab-grille', 'structure-btn', 'lyrics-btn', 'file-menu-btn'].map(i => document.getElementById(i).getBoundingClientRect().width > 0) }));
     check(JSON.stringify(tel.n) === '[1,1]' && tel.onglets.every(Boolean) && JSON.stringify(tel.ordre) === '["tab-grille","structure-btn","lyrics-btn"]', `à 600px ils restent dans les onglets, dans le même ordre (${tel.ordre.join(', ')})`);
-    check(tel.visible.every(Boolean) && JSON.stringify(tel.fichier) === '["file-menu-btn"]', 'téléphone : les trois onglets sont visibles ; « Fichier » garde seul le coin bas de la grille, comme à l\'ordinateur');
+    check(tel.visible.every(Boolean) && JSON.stringify(tel.fichier) === '["file-menu-btn"]', 'téléphone : les trois onglets sont visibles ; « Fichier » garde seul le coin bas de la grille (à l\'ordinateur il est dans la barre du haut)');
     await p.setViewportSize({ width: 1440, height: 900 }); await p.waitForTimeout(250);
-    const retour = await p.evaluate(() => ({ n: ['structure-btn', 'lyrics-btn'].map(i => document.querySelectorAll('#' + i).length), ontglets: ['structure-btn', 'lyrics-btn'].map(i => !!document.getElementById(i).closest('#tb-onglets')) }));
-    check(JSON.stringify(retour.n) === '[1,1]' && retour.ontglets.every(Boolean), 'de retour à 1440px : de nouveau dans les onglets, toujours un seul nœud chacun');
+    const retour = await p.evaluate(() => ({ n: ['structure-btn', 'lyrics-btn'].map(i => document.querySelectorAll('#' + i).length), ontglets: ['structure-btn', 'lyrics-btn'].map(i => !!document.getElementById(i).closest('#tb-onglets')), fichier: document.querySelectorAll('#file-menu-btn').length === 1 && !!document.getElementById('file-menu-btn').closest('.tb-gauche') }));
+    check(JSON.stringify(retour.n) === '[1,1]' && retour.ontglets.every(Boolean) && retour.fichier, 'de retour à 1440px : de nouveau dans les onglets (et « Fichier » dans la barre du haut), toujours un seul nœud chacun');
+    // Le menu Fichier s'ouvre sous son bouton, dans l'écran, depuis sa nouvelle place (un vrai clic).
+    const bf = await p.locator('#file-menu-btn').boundingBox();
+    await p.mouse.click(bf.x + bf.width / 2, bf.y + bf.height / 2); await p.waitForTimeout(250);
+    const menuF = await p.evaluate(() => { const m = document.getElementById('file-menu'), r = m.getBoundingClientRect(), b = document.getElementById('file-menu-btn').getBoundingClientRect(); return { ouvert: !m.hidden, sous: r.top >= b.bottom - 1, dedans: r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, entrees: m.querySelectorAll('button').length }; });
+    check(menuF.ouvert && menuF.sous && menuF.dedans && menuF.entrees > 3, `un clic sur « Fichier » ouvre son menu sous lui, dans l'écran (${JSON.stringify(menuF)})`);
+    await p.keyboard.press('Escape'); await p.waitForTimeout(150);
 
     // ======================================================================================================
     console.log('\n=== C. L\'onglet allumé dit la vérité ===');

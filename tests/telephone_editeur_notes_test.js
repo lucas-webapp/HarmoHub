@@ -160,10 +160,11 @@ const feuille = (p) => p.evaluate(() => {
     f = await feuille(p);
     check(!f.ouvert, 'Fermer referme la feuille');
     check(f.densite === 'normal', 'la grille est telle qu\'avant (affichage de l\'appareil)');
-    await clic(p, '#bl-plus', 500);
-    await clic(p, '#pl-notes', 800);
+    // RÉÉCRIT AU 3e SOUS-LOT DE D : « Notes » du panneau Lecture est devenu « Séquenceur » (le NOUVEAU séquenceur, onglet Rythme du panneau d'accord,
+    // banc sequenceur_telephone). L'éditeur d'avant garde sa porte « Séq. » jusqu'à son retrait : on vérifie qu'elle le rouvre après fermeture.
+    await clic(p, '#grid-zoom', 900);
     f = await feuille(p);
-    check(f.ouvert, '⋯ › Notes ouvre l\'éditeur');
+    check(f.ouvert, 'la porte « Séq. » rouvre l\'éditeur après fermeture (« Notes » du panneau Lecture mène désormais au nouveau séquenceur)');
     await clic(p, '#editeur-notes-fermer', 600);
     await p.context().close();
 

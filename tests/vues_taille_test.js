@@ -8,13 +8,14 @@
 //   C. agrandi, le clavier se joue encore : un clic sur une touche construit un accord, et le piano reste centré sur le manche ;
 //   D. fenêtre libre : la poignée du haut disparaît, tirer le coin agrandit les diagrammes avec la fenêtre (c'était le défaut : la fenêtre grandissait, pas eux) ;
 //   E. le tiroir agrandi ne mange pas plus de 60 % de l'écran ;
-//   F. le téléphone n'a pas bougé : ni poignée ni échelle.
+//   F. le téléphone n'a pas bougé : ni poignée ni échelle ;
+//   G. (retour du 11/11) épinglé, tout tient sur UNE rangée : quand la largeur manque, les diagrammes rapetissent au lieu de passer à la ligne.
 const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('taille des diagrammes (poignée)');
 const { estBruitReseau } = require('./_harness');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
-plan(20);
+plan(25);
 
 const graine = () => {
     const mk = (r, q) => ({ root: r, quality: q, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
@@ -108,6 +109,35 @@ const graine = () => {
     await p.click('#vues-detacher'); await p.waitForTimeout(400);
     const l2 = await mesure(p);
     check(l2.poigneeVisible && l2.echelle === l1.echelle, 'réépinglé, la poignée revient et la taille est gardée');
+    await p.context().close();
+
+    // ======================================================================================================
+    // Retour du 11/11 : « Je n'aime pas le saut de hauteur pour les diagrammes d'accords lorsqu'ils se superposent. Peux-tu empêcher le piano de se
+    // superposer ? » — à 900 px et à l'échelle 1,5, la guitare tombait sous le clavier et le tiroir passait de 140 à 317 px.
+    console.log('\n=== G. Une seule rangée, jamais de saut de hauteur ===');
+    p = await ouvrir({ width: 900, height: 900 }, () => { localStorage.setItem('harmohubShowGuitar', '1'); localStorage.setItem('harmohubShowPiano', '1'); localStorage.setItem('harmohubVuesEchelle', '1.5'); localStorage.removeItem('harmohubVuesMode'); });
+    const rangee = (p) => p.evaluate(() => {
+        const q = (s) => document.querySelector(s).getBoundingClientRect();
+        const a = q('#piano-viz'), b = q('#guitar-viz'), t = q('#vues-tiroir .chord-header-row'), c = q('#vues-corps');
+        return { cote: a.top < b.bottom && b.top < a.bottom && b.left >= a.right - 1, titre: t.top < a.bottom && t.left >= b.right - 1, dedans: a.left >= c.left - 1 && t.right <= c.right + 1,
+            h: q('#vues-tiroir').height, w: a.width, echelle: window.app._vues.echelle };
+    });
+    const g0 = await rangee(p);
+    check(g0.cote && g0.titre && g0.dedans, `à 900 px et à l'échelle 1,5 : clavier, guitare et nom de l'accord restent sur UNE rangée, dans le tiroir (${JSON.stringify(g0)})`);
+    check(g0.h < 160 && g0.w < 450 && g0.echelle === 1.5, `les diagrammes rapetissent au lieu de passer à la ligne (tiroir ${Math.round(g0.h)} px, clavier ${Math.round(g0.w)} px), l'échelle choisie reste retenue (${g0.echelle})`);
+    const pg = await mesure(p);
+    await glisser(p, centre(pg.poignee), { x: centre(pg.poignee).x, y: centre(pg.poignee).y - 200 });
+    const g1 = await rangee(p);
+    check(g1.cote && g1.titre && Math.abs(g1.h - g0.h) <= 4, `tirer la poignée vers le haut quand la largeur est pleine : rien ne passe à la ligne, le tiroir ne saute pas (${Math.round(g0.h)} → ${Math.round(g1.h)} px)`);
+    // La bande de construction (une touche tapée) prend sa place à côté, sur la même rangée.
+    const t9 = await p.evaluate(() => { const k = document.querySelector('#piano-viz .key.white'); const r = k.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height - 6 }; });
+    await p.mouse.click(t9.x, t9.y); await p.waitForTimeout(400);
+    const g2 = await p.evaluate(() => { const a = document.getElementById('piano-viz').getBoundingClientRect(), k = document.getElementById('kb-construction').getBoundingClientRect(); return { meme: !document.getElementById('kb-construction').hidden && k.top < a.bottom && k.bottom > a.top, h: document.getElementById('vues-tiroir').getBoundingClientRect().height }; });
+    check(g2.meme && g2.h < 170, `la bande de construction se range sur la même rangée (tiroir ${Math.round(g2.h)} px)`);
+    await p.click('#kb-effacer'); await p.waitForTimeout(150);
+    await p.setViewportSize({ width: 1440, height: 900 }); await p.waitForTimeout(500);
+    const g3 = await rangee(p);
+    check(g3.cote && g3.w > g0.w + 20, `la place revenue (1440 px), l'échelle retenue revient (clavier ${Math.round(g0.w)} → ${Math.round(g3.w)} px)`);
     await p.context().close();
 
     // ======================================================================================================

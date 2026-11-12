@@ -142,7 +142,14 @@ const partie = (titre) => {
         });
         check(dansLaBarre.dedans && !dansLaBarre.tiroir, 'les boutons sont dans la barre de lecture, et sans diagramme le tiroir ne prend aucune place');
         check(Math.abs(dansLaBarre.ecart - 20) <= 3, `la colonne de la grille descend jusqu'à ~20px de la barre (${dansLaBarre.ecart}px)`);
-        check(bas.carte.r < bas.exp.l, `sans recouvrir Paroles/Fichier (fin à ${bas.carte.r}, qui commencent à ${bas.exp.l})`);
+        // RÉÉCRIT LE 11/11 : « Il y a toute une barre noire juste pour le bouton "fichier". Place ce bouton ailleurs et supprime l'espace perdu » —
+        // à l'ordinateur, « Fichier » a quitté ce coin pour la barre du haut (placerBoutonFichier) : plus rien à recouvrir ici, et rien ne le recouvre là-haut.
+        const fichier = await page.evaluate(() => {
+            const b = document.getElementById('file-menu-btn'), r = b.getBoundingClientRect(), h = document.querySelector('.top-bar').getBoundingClientRect();
+            const dessus = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            return { haut: r.top >= h.top && r.bottom <= h.bottom, libre: !!dessus && b.contains(dessus), coin: getComputedStyle(document.querySelector('.viz-wrap')).display };
+        });
+        check(fichier.haut && fichier.libre && fichier.coin === 'none', `« Fichier » est dans la barre du haut, rien ne le recouvre, le coin bas n'existe plus (${JSON.stringify(fichier)})`);
         check(bas.vizWrap <= 40, `la bande des diagrammes ne coûte plus qu'une hauteur de boutons (${bas.vizWrap}px, contre 142 avant)`);
         // Retour utilisateur : « il reste encore de la place optimisable entre le séquenceur et les
         // boutons diagrammes ». Elle venait de deux enfants de colonne à 0px de haut qui consommaient

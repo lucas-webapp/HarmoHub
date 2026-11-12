@@ -173,13 +173,19 @@ const panneauOuvert = (p) => p.evaluate(() => !document.getElementById('panneau-
             `Guitare ouvre la guitare (le bouton d'origine), se marque allumé et referme le panneau (${guitareAvant} → ${JSON.stringify(guitare)})`);
         check(carte.y >= 0 && carte.b <= barre.y + 0.5, `et la carte des diagrammes vient à l'écran, au-dessus de la barre (${Math.round(carte.y)}→${Math.round(carte.b)})`);
         await p.evaluate(() => window.scrollTo(0, 0)); await p.waitForTimeout(200);
+        // RÉÉCRIT AU 3e SOUS-LOT DE D (refonte du séquenceur) : « le bouton « Notes » du panneau Lecture devient « Séquenceur » » ; il ouvre le panneau
+        // d'accord sur l'onglet Rythme, où le séquenceur est déplacé (détail : sequenceur_telephone).
         await toucher(p, '#bl-plus'); await toucher(p, '#pl-notes', 900);
-        const notes = await p.evaluate(() => ({ src: document.getElementById('grid-zoom').getAttribute('aria-pressed'), ouvert: window.app.seqOpen }));
-        const seq = await boite(p, '#seq-dock-panel');
-        check(notes.src === 'true' && notes.ouvert === true && seq.vis && seq.y < barre.y && seq.b <= barre.y + 0.5,
-            `Notes ouvre l'éditeur de notes du téléphone (« Séq. ») et l'amène à l'écran, au-dessus de la barre (${JSON.stringify(notes)}, ${Math.round(seq.y)}→${Math.round(seq.b)})`);
-        await toucher(p, '#bl-plus'); await toucher(p, '#pl-notes', 600);
-        check(await p.evaluate(() => document.getElementById('grid-zoom').getAttribute('aria-pressed') === 'false'), 'un second toucher sur Notes le referme');
+        const notes = await p.evaluate(() => ({ src: document.getElementById('vue-sequenceur').getAttribute('aria-pressed'), rythme: !!(window.app._bulle && window.app._bulle.rythme), hote: document.getElementById('sequenceur').parentElement.id }));
+        const seq = await boite(p, '#sequenceur');
+        check(notes.src === 'true' && notes.rythme && notes.hote === 'pa-rythme' && seq.vis && seq.y < barre.y,
+            `« Séquenceur » ouvre le panneau d'accord sur l'onglet Rythme, au-dessus de la barre (${JSON.stringify(notes)}, ${Math.round(seq.y)}→${Math.round(seq.b)})`);
+        // Un panneau à la fois : toucher ⋯ (à côté du panneau d'accord) le referme ; « Séquenceur » le rouvre sur Rythme.
+        await toucher(p, '#bl-plus');
+        const ferme = await p.evaluate(() => document.getElementById('panneau-accord').hidden && document.getElementById('vue-sequenceur').getAttribute('aria-pressed') === 'false');
+        await toucher(p, '#pl-notes', 700);
+        const rouvert = await p.evaluate(() => !document.getElementById('panneau-accord').hidden && !!(window.app._bulle && window.app._bulle.rythme));
+        check(ferme && rouvert, `⋯ referme le panneau d'accord (un panneau à la fois), « Séquenceur » le rouvre sur Rythme (${ferme}, ${rouvert})`);
         await toucher(p, '#bl-plus');
         await p.keyboard.press('Escape'); await p.waitForTimeout(200);
         const apresEchap = await panneauOuvert(p);

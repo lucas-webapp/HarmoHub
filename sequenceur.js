@@ -361,6 +361,10 @@
             this.app = app;
             this.racine = document.getElementById('sequenceur');
             this.grille = document.getElementById('sq-grille');
+            // TÉLÉPHONE (troisième sous-lot de D) : le même nœud est DÉPLACÉ dans le panneau d'accord, onglet « Rythme » (placerTelephone), jamais
+            // dupliqué — mêmes adresses, mêmes écouteurs, comme la carte Accord dans « Réglages du son ». On retient sa place pour l'y remettre.
+            this._origine = this.racine ? { parent: this.racine.parentElement, suivant: this.racine.nextSibling } : null;
+            this._telVisible = false;
             this.bouton = document.getElementById('vue-sequenceur');
             this.intensite = false;
             this.presse = null;          // rythme copié : { de: nom, voix: [ [croches], ... ] par position, niveaux }
@@ -381,19 +385,44 @@
 
         estOrdinateur() { return window.matchMedia('(min-width: 900px)').matches; }
         estOuvert() { return !!this.racine && !this.racine.hidden; }
+        // Au téléphone, dans le panneau d'accord : on ne montre que l'accord du panneau (maquette `Telephone.dc.html` : huit croches, une ligne par voix).
+        modeTel() { return !this.estOrdinateur() && !!this.racine && !!this.racine.closest('#pa-rythme'); }
 
-        // Ouvert ou fermé : retenu par l'appareil. Ordinateur seulement (« téléphone inchangé » : il viendra dans le panneau d'accord, onglet
-        // « Rythme », au sous-lot du téléphone).
+        // Ouvert ou fermé : retenu par l'appareil À L'ORDINATEUR. Au téléphone, le séquenceur n'existe que dans le panneau d'accord (onglet
+        // « Rythme ») : le bouton « Séquenceur » du panneau Lecture ouvre ce panneau sur l'onglet (app.ouvrirRythmeTelephone), sans toucher au réglage
+        // de l'ordinateur.
         voulu() { return lireLocal(CLE_OUVERT) === '1'; }
         basculer(ouvrir) {
+            if (!this.estOrdinateur()) {
+                // APRÈS le clic qui nous appelle : il remonte encore jusqu'au document, où la fermeture « au clic à côté » (this._popups) refermerait
+                // aussitôt le panneau qu'on vient d'ouvrir (le bouton n'est pas dans le panneau). Constaté au premier essai : le panneau ne s'ouvrait pas.
+                const voulu = ouvrir == null ? !this._telVisible : !!ouvrir;
+                if (this.app.ouvrirRythmeTelephone) setTimeout(() => this.app.ouvrirRythmeTelephone(voulu), 0);
+                return;
+            }
             const o = ouvrir == null ? !this.voulu() : !!ouvrir;
             ecrireLocal(CLE_OUVERT, o ? '1' : '0');
             this.synchroniser();
         }
 
+        // Appelé par le panneau d'accord du téléphone : onglet « Rythme » ouvert (le séquenceur y vient) ou quitté (il retourne à sa place, au-dessus du
+        // tiroir, où l'ordinateur le retrouve si l'écran s'élargit).
+        placerTelephone(oui) {
+            if (!this.racine || !this._origine) return;
+            const hote = document.getElementById('pa-rythme');
+            this._telVisible = !!(oui && hote);
+            if (this._telVisible) {
+                if (this.racine.parentElement !== hote) hote.appendChild(this.racine);
+            } else if (this.racine.parentElement !== this._origine.parent) {
+                const o = this._origine;
+                o.parent.insertBefore(this.racine, o.suivant && o.suivant.parentNode === o.parent ? o.suivant : null);
+            }
+            this.synchroniser();
+        }
+
         synchroniser() {
             if (!this.racine) return;
-            const montrer = this.estOrdinateur() && this.voulu();
+            const montrer = this.estOrdinateur() ? (this.voulu() && !this._telVisible) : this._telVisible;
             this.racine.hidden = !montrer;
             if (this.bouton) {
                 this.bouton.setAttribute('aria-pressed', String(montrer));
@@ -410,6 +439,12 @@
             const accords = (sec && sec.chords) || [];
             let i = this.app.selectedIndex;
             if (i == null && this.app.editingIndex != null) i = this.app.editingIndex;
+            // Au téléphone, l'accord du panneau (‹ › le changent) : c'est lui qu'on règle.
+            const z = this.app._bulle;
+            if (this.modeTel() && z && z.telephone && sections[z.section] && sections[z.section].chords[z.index]) {
+                const sz = sections[z.section];
+                return { sections, s: z.section, sec: sz, accords: sz.chords, i: z.index };
+            }
             if (i == null || i >= accords.length) i = accords.length ? 0 : null;
             return { sections, s, sec, accords, i };
         }
@@ -462,12 +497,14 @@
 
             // Colonnes : étiquettes (46 px), un petit jour (10 px), puis les croches de chaque accord, un trait de 4 px entre deux accords.
             // (On compte les PISTES une à une : un « repeat(8, …) » en vaut huit.)
+            // Au téléphone : l'accord du panneau seul (les autres sont à un ‹ › de là). Les index restent ceux de la partie (data-c, écriture).
+            const montres = this.modeTel() && i != null ? [i] : accords.map((_, c) => c);
             const cols = ['46px', '10px'];
             const colDebut = [];
             let piste = 3;
-            accords.forEach((d, c) => {
-                if (c > 0) { cols.push('4px'); piste++; }
-                colDebut.push(piste);
+            montres.forEach((c, n) => {
+                if (n > 0) { cols.push('4px'); piste++; }
+                colDebut[c] = piste; // indexé par l'accord (au téléphone, un seul est montré : l'index n'est pas le rang)
                 cols.push(`repeat(${etats[c].info.croches}, minmax(10px, 1fr))`);
                 piste += etats[c].info.croches;
             });
@@ -475,12 +512,16 @@
             this.grille.style.gridTemplateRows = `auto 20px repeat(${lignes.length}, var(--sq-ligne))`;
 
             const r = this.app.loopRange;
-            const boucle = r && r.startSection === s && r.endSection === s ? [r.startIndex, r.endIndex] : null;
+            let boucle = r && r.startSection === s && r.endSection === s ? [r.startIndex, r.endIndex] : null;
+            // Au téléphone, la bande orange ne couvre que ce qui est montré : l'accord du panneau, s'il est dans la plage.
+            if (boucle && montres.length === 1) boucle = (montres[0] >= boucle[0] && montres[0] <= boucle[1]) ? [montres[0], montres[0]] : null;
             const html = [];
             // Rangée 1 : nom et degré de chaque accord (un clic le choisit) ; rangée 2 : la règle, numéros de temps seulement.
             const gRoot = (document.getElementById('global-root') || {}).value, gMode = (document.getElementById('global-mode') || {}).value;
             let tempsAvant = 0;
-            accords.forEach((d, c) => {
+            for (let c = 0; c < montres[0]; c++) tempsAvant += etats[c].info.croches / 2; // le premier temps montré : celui de l'accord dans la partie
+            montres.forEach((c) => {
+                const d = accords[c];
                 const e = etats[c], col = colDebut[c];
                 const nom = flatTight(e.info.chord.getLabel(flats(d)));
                 let degre = '';
@@ -513,7 +554,8 @@
                 const retirer = L.type === 'libre'
                     ? `<button type="button" class="sq-libre-retirer" data-midi="${L.midi}" aria-label="Retirer la note libre ${escapeHtml(nomSel)}" title="Retirer la note libre ${escapeHtml(nomSel)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : '';
                 html.push(`<div class="sq-etiq${diese ? ' diese' : ''}${L.type === 'libre' ? ' libre' : ''}" style="grid-row:${row};grid-column:1">${retirer}${escapeHtml(nomSel)}</div>`);
-                accords.forEach((d, c) => {
+                montres.forEach((c) => {
+                    const d = accords[c];
                     const e = etats[c], v = voixLigne(e, L), col = colDebut[c];
                     for (let k = 0; k < e.info.croches; k++) {
                         const cls = ['sq-case'];
@@ -631,6 +673,7 @@
         }
         limiterHauteur() {
             if (!this.estOuvert()) return;
+            if (this.modeTel()) { this.racine.style.maxHeight = ''; return; } // au téléphone, c'est le panneau d'accord qui défile
             this.racine.style.maxHeight = Math.floor(this.placeLibre()) + 'px';
         }
 
@@ -1199,9 +1242,11 @@
         }
 
         // Les noms de notes disparaissent des cases sous ~24 px de haut (cahier 3 bis) : ils n'y tiendraient plus.
+        // Au téléphone, des lignes de 44 px, la jauge du doigt (maquette `Telephone.dc.html`) : pas de poignée.
         poserLigne() {
-            this.racine.style.setProperty('--sq-ligne', this.ligne + 'px');
-            this.racine.classList.toggle('lignes-basses', this.ligne < 24);
+            const h = this.modeTel() ? 44 : this.ligne;
+            this.racine.style.setProperty('--sq-ligne', h + 'px');
+            this.racine.classList.toggle('lignes-basses', h < 24);
         }
 
         // ---- Tête de lecture ----------------------------------------------------------------------------------------------------

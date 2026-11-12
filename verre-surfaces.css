@@ -172,8 +172,16 @@ html[data-glass="1"] .seq-ruler-band {
 /* ---- LE SÉQUENCEUR (refonte du séquenceur, point D) : une barre de plus au-dessus du tiroir, comme lui (fond et flou des barres). Sa barre d'outils,
    COLLÉE en haut quand il défile en interne, reste OPAQUE (même décision que la bande de la règle, 05/11, point 7) : translucide, les notes qui
    passent dessous traverseraient ses boutons. Les notes gardent leurs couleurs de rôle (1 vert, 3 bleu, 5 rouge, 7 ambre) : ce sont des repères. ---- */
-html[data-glass="1"] .sequenceur { background: var(--glass-bar); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-hi); }
+html[data-glass="1"] .sequenceur { background: var(--glass-bar); box-shadow: var(--glass-hi); }
+html[data-glass="1"] .sequenceur:not(.pa-rythme .sequenceur) { -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
 html[data-glass="1"] .sq-outils { background: rgb(17, 18, 20); }
 /* Deuxième sous-lot : les bandes dépliées sous la barre d'outils (schéma au clic droit, note libre) restent OPAQUES, pour la même raison que la barre
    (les notes qui défilent dessous traverseraient leurs boutons et leur champ de nom). Contrôle : banc `sequenceur_formes`, partie verre. */
 html[data-glass="1"] .sq-bande { background: rgb(18, 22, 29); }
+/* Sous-lot du téléphone : dans l'onglet « Rythme » du panneau d'accord, le séquenceur n'est pas une barre de plus mais une partie du panneau, qui a déjà son
+   verre (.panneau-accord, ci-dessus) : ni second fond ni second flou (un verre sur un verre brouillait les cases). La barre d'outils n'y est pas collée,
+   rien ne passe dessous : elle prend le fond du panneau. Contrôle : banc `sequenceur_telephone`, partie verre. */
+html[data-glass="1"] .pa-rythme .sequenceur { background: transparent; box-shadow: none; }
+/* Le flou de la règle générale du séquenceur (ci-dessus, var(--glass-filter)) n'est pas annulé par un « none » écrit en dur, que le repli du verre
+   n'atteindrait pas (verre_test) : il est retiré en ne s'appliquant qu'hors du panneau. */
+html[data-glass="1"] .pa-rythme .sq-outils { background: transparent; }

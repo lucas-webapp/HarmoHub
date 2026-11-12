@@ -8411,6 +8411,10 @@ body.avec-barre-selection .toast { bottom: 132px; }
 @media (min-width: 900px) {
     .vue-sequenceur { display: inline-flex; }
     .vue-sequenceur[aria-pressed="true"] { color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); }
+}
+/* Le séquenceur lui-même vaut pour les DEUX appareils depuis le sous-lot du téléphone : sequenceur.js ne le montre au téléphone que dans l'onglet
+   « Rythme » du panneau d'accord (#pa-rythme), où le bloc « TÉLÉPHONE, L'ONGLET RYTHME » en fin de fichier l'ajuste au doigt. */
+@media all {
     .sequenceur:not([hidden]) {
         --sq-ligne: 30px;
         display: flex;
@@ -8513,9 +8517,9 @@ body.avec-barre-selection .toast { bottom: 132px; }
 
 /* ======================================================================================================
    LE SÉQUENCEUR, DEUXIÈME SOUS-LOT (formes enregistrées, notes libres, schéma au clic droit, « Toutes les notes » — sequenceur.js, synchro-formes.js).
-   En fin de fichier, après le bloc du premier sous-lot, pour l'emporter sur lui. Ordinateur seulement, comme lui.
+   En fin de fichier, après le bloc du premier sous-lot, pour l'emporter sur lui. Les deux appareils, comme lui (onglet « Rythme » au téléphone).
    ====================================================================================================== */
-@media (min-width: 900px) {
+@media all {
     /* La règle générique `button { flex: 1; min-width: 120px }` (bouton pleine largeur du téléphone) étirait les nouveaux boutons du séquenceur
        (le × d'une forme à 120 px, les cases du schéma les unes sur les autres) : chacun garde la taille qu'on lui donne ici. */
     .sequenceur button { min-width: 0; flex: none; }
@@ -8583,3 +8587,65 @@ body.avec-barre-selection .toast { bottom: 132px; }
     .sq-libre-retirer:hover { color: #ff8a80; border-color: #6a3a3a; }
     .sequenceur.lignes-basses .sq-libre-retirer { width: 14px; height: 14px; }
 }
+
+/* ======================================================================================================
+   TÉLÉPHONE, L'ONGLET RYTHME (refonte du séquenceur, D, sous-lot du téléphone — docs/refonte-sequenceur.md, sections 3 et 3 bis ; maquette v17,
+   planche `Telephone.dc.html`). Le panneau d'accord gagne trois onglets en groupe segmenté (Accord, Son, Rythme) ; « Rythme » y fait venir le séquenceur,
+   réduit à l'accord du panneau : huit croches, une ligne par voix, des cases de 44 px (la jauge du doigt). Pas de poignée ni de fermeture propre : le
+   panneau a les siennes ; le nom de l'accord est déjà en tête du panneau. Les motifs défilent à l'horizontale (maquette). En fin de fichier (cascade).
+   ====================================================================================================== */
+.pa-onglets { display: none; }
+@media (max-width: 899px) {
+    .pa-onglets { display: flex; flex: none; padding: 2px; border: 1px solid var(--btn-neutral-border); border-radius: var(--rayon-bouton, 7px); background: var(--fond-bouton-sombre); }
+    .pa-onglets button { flex: 1 1 0; min-width: 0; height: 40px; padding: 0; border: 0; border-radius: 5px; box-shadow: none; font-size: 13px; font-weight: 700; color: var(--text-muted); background: transparent; }
+    .pa-onglets button[aria-pressed="true"] { color: #cfe0ff; background: rgba(47, 129, 247, 0.22); }
+    /* L'onglet Rythme prend la hauteur du panneau agrandi (« Son ») : quatre lignes de 44 px, la règle et les outils ; le reste défile dans le panneau. */
+    .panneau-accord.pa-onglet-rythme:not([hidden]) {
+        height: calc(100dvh - var(--haut-barre, 111px) - var(--haut-barre-lecture, 68px) - var(--reserve-panneau-accord, 150px));
+        max-height: none;
+    }
+    .pa-rythme[hidden] { display: none; }
+    .pa-rythme:not([hidden]) { display: block; margin-top: 10px; }
+    .pa-rythme .sequenceur:not([hidden]) { --bouton-h: 44px; padding: 0; overflow: visible; max-height: none; background: transparent; border-top: 0; z-index: auto; }
+    .pa-rythme :is(.sq-poignee, #sq-fermer, .sq-nom, .sq-espace) { display: none; }
+    .pa-rythme .sq-outils { position: static; gap: 8px; padding: 0 0 10px; background: transparent; }
+    .pa-rythme .sq-motifs { flex-wrap: nowrap; overflow-x: auto; width: 100%; padding-bottom: 2px; scrollbar-width: none; }
+    .pa-rythme .sq-motifs::-webkit-scrollbar { display: none; }
+    .pa-rythme .sq-outils .sq-seg button { height: 38px; }
+    .pa-rythme .sq-outils .sq-forme > button { height: 42px; }
+    .pa-rythme .sq-outils .icon-btn .icon { width: 18px; height: 18px; }
+    .pa-rythme .sq-libre-btn { margin-right: 4px; }
+    .pa-rythme .sq-note { font-size: 9px; }
+    .pa-rythme .sq-bande { gap: 8px; padding: 10px; }
+}
+
+/* ======================================================================================================
+   LE BOUTON « FICHIER » DANS LA BARRE DU HAUT (ordinateur, retour du 11/11 : « Il y a toute une barre noire juste pour le bouton "fichier". Place ce
+   bouton ailleurs et supprime l'espace perdu »). placerBoutonFichier (script.js) le déplace à côté d'« Enregistrer » ; le pied de la colonne de la
+   grille (.viz-wrap), qui ne portait plus que lui, ne réserve plus sa rangée de 34 px. Le téléphone garde le bouton à sa place d'origine.
+   En fin de fichier (cascade).
+   ====================================================================================================== */
+@media (min-width: 900px) {
+    body.fichier-en-haut .viz-wrap { padding-bottom: 0; }
+    /* Plus rien dedans à l'ordinateur (les diagrammes sont dans le tiroir depuis le lot 8) : il ne prend même plus l'écart de la colonne. */
+    body.fichier-en-haut .viz-wrap:not(:has(> :not(.viz-export-actions):not(input):not([hidden]))) { display: none; }
+    .top-bar .tb-gauche > .file-menu-btn { flex: none; }
+}
+
+/* ======================================================================================================
+   TIROIR ÉPINGLÉ : UNE SEULE RANGÉE (retour du 11/11 : « Je n'aime pas le saut de hauteur pour les diagrammes d'accords lorsqu'ils se superposent.
+   Peux-tu empêcher le piano de se superposer ? »). Clavier, guitare, nom de l'accord et bande de construction restent côte à côte ; quand la largeur
+   manque, ajusterEchelleVues (script.js) rapetisse les diagrammes au lieu de les laisser passer à la ligne. La fenêtre libre garde son retour à la ligne :
+   on la redimensionne à la main. En fin de fichier (cascade).
+   ====================================================================================================== */
+@media (min-width: 900px) {
+    .vues-tiroir:not(.vues-libre) .vues-corps,
+    .vues-tiroir:not(.vues-libre) .vues-corps .viz-card,
+    .vues-tiroir:not(.vues-libre) .vues-corps .viz-diagrams { flex-wrap: nowrap; }
+    .vues-tiroir:not(.vues-libre) .vues-corps { overflow: hidden; }
+    /* Chacun garde sa largeur naturelle (sinon le manche se tassait et se repliait en hauteur) : c'est l'échelle qui cède, pas la forme. */
+    .vues-tiroir:not(.vues-libre) .vues-corps > :not(.kb-construction),
+    .vues-tiroir:not(.vues-libre) .vues-corps .viz-card > *,
+    .vues-tiroir:not(.vues-libre) .vues-corps .viz-diagrams > * { flex-shrink: 0; }
+}
+

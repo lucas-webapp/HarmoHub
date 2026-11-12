@@ -4223,6 +4223,7 @@ class HarmoHubApp {
         // premier franchissement du seuil ordinateur/téléphone.
         this.placeGlobalTransport();
         this.setupGlobalTransportPlacement();
+        this.placerBoutonFichier();
         this.setupBarreLecture(); // la barre de lecture du bas (ordinateur) : blocs, tempo, frise (voir plus bas)
         this.setupVues(); // le tiroir Clavier / Guitare : épinglé au-dessus de la barre de lecture, ou fenêtre libre (lot 8)
         // Le nouveau séquenceur (refonte du séquenceur, point D) : au-dessus du tiroir, ouvert par son bouton du bloc « Vues ». Ordinateur seulement.
@@ -6569,7 +6570,7 @@ class HarmoHubApp {
         if (!rPiano.height || !rDiag.height) return;
         const decalage = Math.round(((rDiag.top + rDiag.bottom) - (rPiano.top + rPiano.bottom)) / 2);
         // Le décalage est mesuré à l'écran, la transformation s'applique DANS .viz-diagrams, zoomé par l'échelle du tiroir : on divise.
-        const echelle = (this._vues && this._vues.echelle) || 1;
+        const echelle = this.echelleAfficheeVues();
         if (decalage) piano.style.transform = `translateY(${Math.round(decalage / echelle)}px)`;
     }
 
@@ -9743,6 +9744,7 @@ class HarmoHubApp {
                 const data = (loadProgressionSections()[z.section] || { chords: [] }).chords[z.index];
                 if (data) this.modifierAccordBulle({ beats: beatsFromData(data) + (action === 'duree-plus' ? 1 : -1) });
             } else if (action === 'son') this.ouvrirSonDepuisBulle();
+            else if (action === 'onglet') this.ongletPanneauAccord(v);
         };
         const b = document.getElementById('bulle-accord');
         if (b) {
@@ -9985,7 +9987,8 @@ class HarmoHubApp {
         const meme = !!tel && tel.section === section && tel.index === index;
         // Agrandi, le panneau le RESTE en passant à un autre accord (une autre case touchée, ‹ ›) : on règle le son d'un accord après l'autre, comme
         // dans l'ancienne Modification « collante » et comme l'éditeur de notes qui suit la sélection (décision du 05/11, point 4).
-        this._bulle = { section, index, telephone: true, etendu: !!(tel && tel.etendu), undoPousse: meme ? tel.undoPousse : false };
+        // L'onglet « Rythme » se garde de même : ‹ › et une autre case touchée règlent le rythme d'un accord après l'autre.
+        this._bulle = { section, index, telephone: true, etendu: !!(tel && tel.etendu), rythme: !!(tel && tel.rythme && !tel.etendu), undoPousse: meme ? tel.undoPousse : false };
         if (!meme) this._paOuvertA = performance.now(); // voir le clic à côté : le clic de synthèse du toucher d'ouverture n'est pas un « à côté »
         if (this._bulle.etendu && !(this.editingIndex === index && this.activeSection === section)) this.editChord(section, index);
         this.afficherPanneauAccord();
@@ -9997,6 +10000,7 @@ class HarmoHubApp {
         if (!z || !z.telephone || z.etendu === oui) return;
         if (oui) {
             z.etendu = true;
+            z.rythme = false; // « Son » et « Rythme » sont deux onglets : on passe de l'un à l'autre
             this.editChord(z.section, z.index);
         } else {
             // « Moins » : la modification se referme, le panneau reste. Ce que les réglages du son ont déposé reste l'étape du panneau.
@@ -10038,7 +10042,11 @@ class HarmoHubApp {
         if (!this._bulle) return; // l'accord n'existe plus
         this.rangerCarteAccord(z.etendu);
         p.classList.toggle('pa-etendu', z.etendu);
+        p.classList.toggle('pa-onglet-rythme', !!z.rythme);
         document.getElementById('pa-son').hidden = !z.etendu;
+        const hoteRythme = document.getElementById('pa-rythme');
+        if (hoteRythme) hoteRythme.hidden = !z.rythme;
+        if (this.sequenceur) this.sequenceur.placerTelephone(!!z.rythme);
         const sonBtn = document.getElementById('pa-son-btn'), poignee = document.getElementById('pa-poignee');
         sonBtn.textContent = z.etendu ? 'Moins' : 'Réglages du son';
         sonBtn.setAttribute('aria-expanded', String(z.etendu));
@@ -10055,10 +10063,46 @@ class HarmoHubApp {
     // en cours continue ailleurs (l'inspecteur de l'ordinateur, la carte dans la page), elle ne se perd pas.
     fermerPanneauAccord(z, garderEdition = false) {
         const p = document.getElementById('panneau-accord');
-        if (p) { p.hidden = true; p.classList.remove('pa-etendu'); }
+        if (p) { p.hidden = true; p.classList.remove('pa-etendu', 'pa-onglet-rythme'); }
         document.body.classList.remove('pa-ouvert');
         this.rangerCarteAccord(false);
+        const hoteRythme = document.getElementById('pa-rythme');
+        if (hoteRythme) hoteRythme.hidden = true;
+        if (this.sequenceur) this.sequenceur.placerTelephone(false);
         if (!garderEdition && z.etendu && this.editingIndex != null) { this.exitEditMode(); this.loadProgression(); }
+    }
+
+    // Les onglets du panneau : « Accord » (le panneau à mi-hauteur), « Son » (agrandi, la modification de l'accord — editChord), « Rythme » (le
+    // séquenceur, déplacé dans #pa-rythme par sequenceur.placerTelephone). Quitter « Son » referme la modification, comme « Moins ».
+    ongletPanneauAccord(v) {
+        const z = this._bulle;
+        if (!z || !z.telephone) return;
+        if (v === 'son') {
+            if (!z.etendu) this.etendrePanneauAccord(true);
+            return;
+        }
+        if (z.etendu) this.etendrePanneauAccord(false);
+        if (!this._bulle) return;
+        this._bulle.rythme = v === 'rythme';
+        this.afficherPanneauAccord();
+        this.assurerCaseVisiblePanneau();
+    }
+
+    // Le bouton « Séquenceur » du panneau Lecture (au téléphone, il remplace « Notes ») : le panneau de l'accord choisi — sinon du premier accord de
+    // la partie active — ouvert sur l'onglet « Rythme ». Choisir l'accord ne le fait pas entendre : on vient régler un rythme, pas écouter.
+    ouvrirRythmeTelephone(oui = true) {
+        const z = this._bulle;
+        if (!oui) { if (z && z.telephone && z.rythme) this.fermerBulleAccord(); return; }
+        if (!this.panneauAccordDisponible()) return;
+        const sections = loadProgressionSections();
+        let s = Math.max(0, Math.min(this.activeSection || 0, sections.length - 1));
+        const chords = (sections[s] && sections[s].chords) || [];
+        let i = this.selectedIndex;
+        if (i == null || !chords[i]) i = chords.length ? 0 : null;
+        if (i == null) { this.flashHint('Ajoute un accord pour régler son rythme'); return; }
+        if (this.activeSection !== s || this.selectedIndex !== i) { this.activeSection = s; this.selectedIndex = i; this.loadProgression(); }
+        this.ouvrirPanneauAccord(s, i);
+        this.ongletPanneauAccord('rythme');
     }
 
     // La carte Accord (l'inspecteur) est DÉPLACÉE dans le panneau agrandi, puis remise à sa place : jamais dupliquée (mêmes adresses, mêmes écouteurs),
@@ -10127,7 +10171,7 @@ class HarmoHubApp {
         if (!i) { this.fermerBulleAccord(); return; }
         const focusAvant = p.contains(document.activeElement) && document.activeElement.dataset.bulle ? `[data-bulle="${document.activeElement.dataset.bulle}"]${document.activeElement.dataset.valeur != null ? `[data-valeur="${document.activeElement.dataset.valeur}"]` : ''}` : null;
         p.setAttribute('aria-label', `Accord ${i.label}`);
-        host.innerHTML =
+        const html =
             `<div class="pa-tete">`
             + `<button type="button" class="icon-btn pa-nav" data-bulle="prec" aria-label="Accord précédent" title="Accord précédent"${z.index > 0 ? '' : ' disabled'}>${i.chevron('M15 6l-6 6 6 6')}</button>`
             + `<div class="pa-titre"><span class="pa-nom">${flatTight(escapeHtml(i.label))}</span>`
@@ -10135,6 +10179,18 @@ class HarmoHubApp {
             + `<button type="button" class="icon-btn pa-nav" data-bulle="suiv" aria-label="Accord suivant" title="Accord suivant"${z.index < i.dernier ? '' : ' disabled'}>${i.chevron('M9 6l6 6-6 6')}</button>`
             + `<button type="button" class="icon-btn pa-nav" data-bulle="fermer" aria-label="Fermer" title="Fermer">${i.chevron('M6 6l12 12M18 6L6 18')}</button>`
             + `</div>`
+            // TROIS ONGLETS (refonte du séquenceur, D, sous-lot du téléphone — maquette v17, planche `Telephone.dc.html`) : « Accord » (ce qui suit),
+            // « Son » (les réglages du son, le panneau agrandi d'avant) et « Rythme » (le séquenceur, réduit à cet accord, dans #pa-rythme).
+            + `<div class="pa-onglets" role="group" aria-label="Accord, son ou rythme">`
+            + [['accord', 'Accord', !z.etendu && !z.rythme], ['son', 'Son', !!z.etendu], ['rythme', 'Rythme', !!z.rythme]]
+                .map(([v, mot, actif]) => `<button type="button" data-bulle="onglet" data-valeur="${v}" aria-pressed="${actif}">${mot}</button>`).join('')
+            + `</div>`;
+        if (z.rythme) {
+            host.innerHTML = html;
+            if (focusAvant) { const c = host.querySelector(focusAvant + ':not([disabled])'); if (c) c.focus({ preventScroll: true }); }
+            return;
+        }
+        host.innerHTML = html
             + `<div class="rr-lbl">Fondamentale</div><div class="rr-grille pa-g6">${i.fondamentales}</div>`
             + `<div class="rr-lbl">Type</div><div class="rr-grille pa-g6">${i.types}</div>`
             + `<div class="pa-ligne"><span class="rr-lbl">Durée</span>`
@@ -19914,12 +19970,34 @@ class HarmoHubApp {
         }
     }
 
+    // LE BOUTON « FICHIER » DANS LA BARRE DU HAUT (ordinateur). Depuis que Structure et Paroles sont devenus des onglets (lot 4), il restait SEUL dans
+    // le pied de la colonne de la grille (.viz-export-actions, en bas de .viz-wrap) : une rangée de 34 px réservée pour un bouton (retour utilisateur,
+    // 11/11 : « Il y a toute une barre noire juste pour le bouton "fichier". Place ce bouton ailleurs et supprime l'espace perdu »). Il rejoint
+    // « Enregistrer », juste après lui : ce sont les deux gestes qui font sortir le morceau de l'appli. UN SEUL nœud, déplacé (même identifiant, même
+    // logo, même menu), comme le transport ; le téléphone le garde à sa place d'origine (sa barre du haut, sur deux rangées, n'a pas la place).
+    // body.fichier-en-haut retire la rangée devenue vide (style.css).
+    placerBoutonFichier() {
+        const btn = document.getElementById('file-menu-btn');
+        const hote = document.querySelector('.top-bar .tb-gauche');
+        const etat = document.getElementById('tb-etat');
+        if (!btn || !hote) return;
+        if (!this._origineFichier) this._origineFichier = { parent: btn.parentElement, suivant: btn.nextSibling };
+        const enHaut = window.matchMedia(SEQ_DOCK_MEDIA).matches;
+        if (enHaut) {
+            if (btn.parentElement !== hote) hote.insertBefore(btn, etat && etat.parentElement === hote ? etat : null);
+        } else if (btn.parentElement !== this._origineFichier.parent) {
+            const o = this._origineFichier;
+            o.parent.insertBefore(btn, o.suivant && o.suivant.parentNode === o.parent ? o.suivant : null);
+        }
+        document.body.classList.toggle('fichier-en-haut', enHaut);
+    }
+
     // Suit le franchissement du seuil ordinateur/téléphone pour replacer le transport (voir
     // placeGlobalTransport) — même raison que setupSequencerPlacement ci-dessus : redimensionner la
     // fenêtre peut basculer d'une mise en page à l'autre sans qu'aucun rendu ne soit déclenché.
     setupGlobalTransportPlacement() {
         const mq = window.matchMedia(SEQ_DOCK_MEDIA);
-        const onChange = () => this.placeGlobalTransport();
+        const onChange = () => { this.placeGlobalTransport(); this.placerBoutonFichier(); };
         if (mq.addEventListener) mq.addEventListener('change', onChange);
         else mq.addListener(onChange); // Safari < 14
     }
@@ -19993,7 +20071,8 @@ class HarmoHubApp {
                 e.preventDefault();
                 poignee.setPointerCapture(e.pointerId);
                 const corps = document.getElementById('vues-corps').getBoundingClientRect().height;
-                this._vues.geste = { type: 'echelle', y0: e.clientY, e0: this._vues.echelle, h0: Math.max(1, corps) };
+                // Le geste part de la taille AFFICHÉE (elle peut être plus petite que la retenue quand la largeur manque, voir ajusterEchelleVues).
+                this._vues.geste = { type: 'echelle', y0: e.clientY, e0: this.echelleAfficheeVues(), h0: Math.max(1, corps) };
             });
             poignee.addEventListener('dblclick', () => this.poserEchelleVues(1, true));
         }
@@ -20026,6 +20105,16 @@ class HarmoHubApp {
         });
         // Une fenêtre libre ne doit jamais rester hors d'un écran devenu plus petit.
         window.addEventListener('resize', () => { if (this._vues.mode === 'libre') this.syncVues(false); });
+        // La largeur du tiroir change (fenêtre), ou celle de son contenu (un autre accord élargit le clavier, la bande de construction apparaît) : on
+        // revoit l'échelle qui tient sur une rangée. Elle ne bouge que si elle change vraiment (pas de boucle avec le zoom qu'elle pose).
+        const corpsVues = document.getElementById('vues-corps');
+        if (corpsVues && window.ResizeObserver) {
+            const ro = new ResizeObserver(() => this.ajusterEchelleVues());
+            ro.observe(corpsVues);
+            // Les diagrammes ne sont pas encore dans le tiroir à ce stade (placerVues les y déplace) : on les cherche dans tout le document.
+            const diag = document.querySelector('.viz-diagrams');
+            if (diag) ro.observe(diag);
+        }
         const mq = window.matchMedia(SEQ_DOCK_MEDIA);
         const surChangement = () => this.placerVues();
         if (mq.addEventListener) mq.addEventListener('change', surChangement);
@@ -20036,11 +20125,54 @@ class HarmoHubApp {
     // Pose l'échelle des diagrammes du tiroir (variable CSS lue par `zoom` sur .viz-diagrams) ; `memoriser` pour un geste fini (double-clic), pas pendant un glissé.
     poserEchelleVues(e, memoriser) {
         if (!this._vues) return;
-        this._vues.echelle = Math.round(Math.min(VUES_ECHELLE_MAX, Math.max(VUES_ECHELLE_MIN, e)) * 100) / 100;
-        const tiroir = document.getElementById('vues-tiroir');
-        if (tiroir) tiroir.style.setProperty('--vues-echelle', String(this._vues.echelle));
+        let x = Math.min(VUES_ECHELLE_MAX, Math.max(VUES_ECHELLE_MIN, e));
+        // Épinglé, la poignée S'ARRÊTE quand clavier, guitare et nom de l'accord remplissent la largeur : plus haut, ils passeraient sur deux rangées.
+        // Si l'échelle retenue dépasse déjà ce qui tient (fenêtre rétrécie), tirer plus haut ne la change pas : elle reviendra avec la place.
+        if (this._vues.mode !== 'libre') {
+            const tient = this.echelleQuiTientVues();
+            if (tient != null && tient >= VUES_ECHELLE_MIN && x > tient) { if (this._vues.echelle > tient) return; x = tient; }
+        }
+        this._vues.echelle = Math.round(x * 100) / 100;
         if (memoriser) { try { localStorage.setItem(VUES_ECHELLE_KEY, String(this._vues.echelle)); } catch (err) { /* stockage plein : vaut pour la session */ } }
+        this.ajusterEchelleVues(true);
+    }
+
+    // UNE SEULE RANGÉE, JAMAIS DE SAUT DE HAUTEUR (retour du 11/11 : « Je n'aime pas le saut de hauteur pour les diagrammes d'accords lorsqu'ils se
+    // superposent. Peux-tu empêcher le piano de se superposer ? »). Épinglé, le tiroir ne passe plus à la ligne (style.css, .vues-corps en nowrap) : quand
+    // la largeur manque (fenêtre étroite, grande échelle), clavier et guitare RAPETISSENT juste ce qu'il faut au lieu que la guitare tombe sous le clavier
+    // (le tiroir passait de 140 à 317 px à 900 px de large, échelle 1,5). L'échelle réglée à la poignée reste celle retenue : elle revient dès que la place
+    // revient. `echelleVue` = celle réellement affichée. La fenêtre libre, elle, se redimensionne à la main : elle garde l'échelle demandée.
+    echelleAfficheeVues() { return (this._vues && (this._vues.echelleVue || this._vues.echelle)) || 1; }
+    ajusterEchelleVues(force = false) {
+        const tiroir = document.getElementById('vues-tiroir');
+        if (!tiroir || !this._vues || tiroir.hidden) return;
+        let e = this._vues.echelle;
+        if (this._vues.mode !== 'libre') { const tient = this.echelleQuiTientVues(); if (tient != null) e = Math.min(e, Math.max(0.4, tient)); }
+        if (!force && Math.abs((this._vues.echelleVue || 0) - e) < 0.005) return;
+        this._vues.echelleVue = e;
+        tiroir.style.setProperty('--vues-echelle', String(e));
         this.alignPianoOnGuitarDiagram();
+    }
+    // L'échelle la plus grande à laquelle tout le contenu du tiroir épinglé tient sur une rangée : la largeur des diagrammes est proportionnelle à
+    // l'échelle (`zoom`), le reste (nom de l'accord, bande de construction à sa largeur minimale, écarts) ne bouge pas.
+    echelleQuiTientVues() {
+        const corps = document.getElementById('vues-corps');
+        const diag = corps && corps.querySelector('.viz-diagrams');
+        if (!corps || !diag) return null;
+        const wd = diag.getBoundingClientRect().width;
+        if (!wd) return null;
+        const cs = getComputedStyle(corps);
+        const dispo = corps.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+        const enfants = [...corps.children].filter(c => c.getBoundingClientRect().width > 0 && getComputedStyle(c).position !== 'absolute');
+        const ecart = parseFloat(cs.columnGap) || 0;
+        let total = ecart * Math.max(0, enfants.length - 1);
+        enfants.forEach(c => {
+            const w = c.getBoundingClientRect().width;
+            const mini = parseFloat(getComputedStyle(c).minWidth) || 0;
+            total += c.id === 'kb-construction' && mini ? Math.min(w, mini) : w;
+        });
+        const parUnite = wd / this.echelleAfficheeVues();
+        return Math.floor(((dispo - (total - wd)) / parUnite) * 100) / 100;
     }
 
     // Fenêtre libre : position et taille courantes (celles mémorisées, ou une position de départ au-dessus de la barre de lecture, centrée).
@@ -20095,7 +20227,7 @@ class HarmoHubApp {
         tiroir.hidden = !(ordinateur && (piano || guitare));
         if (tiroir.hidden) return;
         tiroir.classList.toggle('vues-libre', libre);
-        tiroir.style.setProperty('--vues-echelle', String(this._vues.echelle));
+        if (!this._vues.echelleVue || libre) tiroir.style.setProperty('--vues-echelle', String(this._vues.echelle));
         const poigneeHaut = document.getElementById('vues-poignee');
         if (poigneeHaut) poigneeHaut.hidden = libre;
         if (libre) {
@@ -20118,7 +20250,7 @@ class HarmoHubApp {
         detacher.querySelector('svg').innerHTML = libre
             ? '<path d="M12 17v5"/><path d="M9 3h6l-1 6 4 4H6l4-4z"/>'
             : '<rect x="3" y="8" width="13" height="13" rx="2"/><path d="M12 12l9-9"/><path d="M15 3h6v6"/>';
-        this.alignPianoOnGuitarDiagram();
+        this.ajusterEchelleVues(true); // une seule rangée (épinglé) ; aligne aussi le clavier sur le manche
     }
 
     // « Fermer » éteint les deux instruments : le tiroir n'a plus rien à montrer. Même état persistant que les boutons de la barre.
@@ -20499,6 +20631,8 @@ class HarmoHubApp {
                 this.fermerPanneauLecture();
                 source.click();
                 if (source.getAttribute('aria-pressed') !== 'true') return; // refermé : rien à montrer
+                // « Séquenceur » (sous-lot du téléphone de D) : il s'ouvre dans le panneau d'accord, déjà à l'écran — rien à faire défiler.
+                if (b.dataset.source === 'vue-sequenceur') return;
                 const cible = b.dataset.source === 'grid-zoom' ? document.getElementById('seq-dock-panel') : document.querySelector('.viz-card');
                 if (cible) requestAnimationFrame(() => cible.scrollIntoView({ block: 'nearest' }));
             });
