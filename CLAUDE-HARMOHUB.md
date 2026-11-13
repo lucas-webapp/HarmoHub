@@ -150,10 +150,33 @@ Mis à jour le 12/11/2026, après la session « renommage, sélection grise, hau
 - ✅ **Guitare : doigtés pour les renversements, drops et accords sur basse livrés** (13/11 soir ; l'utilisateur : « c'est le Fmin7 sur ma capture » — Fm7 renversé ou sur une basse n'avait AUCUN doigté, « Non jouable à la guitare » ; détail dans `docs/dette-tests.md`, « Suite : Fm7 ») :
   `solveGuitarVoicings(…, basPc)` cherche à basse imposée (4 à 6 cordes, basse étrangère une seule fois) ; `guitarFingeringsForChord` garde les doigtés exacts en tête puis complète (drop : seulement s'il n'y en a aucun exact). Mesuré : accords sur basse sans doigté 283 → 0 sur 660, renversements 358 → 16 sur 648, drops 108 → 7 sur 480
   (restent maj9, m9, dom9). Banc `accords_complexes_guitare` réécrit (77 vérifications, cinq sabotages). **À signaler** : un doigté ajouté ne reproduit plus les octaves exactes, seule la note grave est garantie. Balayage ciblé vert (5 verts, `smoke` sans verdict) ; **balayage complet : 256 verts, 0 rouge, 4 sans verdict sur 260 suites** (2854 s cumulées), exactement la ligne de base.
+- **PROCHAIN (décidé le 13/11 au soir, à commencer après `/clear`) : DIAGRAMMES GUITARE + PIANO, d'abord en ARTEFACT COMMENTABLE, puis dans l'appli.**
+  Demande de l'utilisateur (13/11) : « Parfois, certains accords sont dits non réalisables alors que ce sont des accords communs à la guitare » ; « je me retrouve assez souvent à dessiner moi-même les accords manuellement » ;
+  « ces diagrammes sont très pratiques […] notamment grâce au cadenas ». Réponse à mes propositions : « Oui toutes tes idées sont bonnes ». **Décisions** :
+  1. **Renversements et drops : les VRAIS doigtés d'abord.** Chercher la MÊME FORME (même ordre des voix de bas en haut, mêmes écarts) n'importe où sur le manche, à l'octave près (un drop 2 se joue sur quatre cordes voisines : 1-4, 2-5, 3-6 ;
+     un drop 3 saute une corde) ; à défaut, les « plus proches » (même note grave + même ordre des notes au-dessus) ; en dernier recours, la note grave seule (le complément livré le 13/11, `solveGuitarVoicings(…, basPc)`).
+     Aujourd'hui `solveGuitarFingerings` exige les hauteurs EXACTES de l'octave 3 : c'est trop étroit.
+  2. **Plus de diagrammes : 8 au plus par accord** (« pour plus de lisibilité »), dont des **triades sur 3 cordes** et des **tétrades sur 4 cordes voisines** (aujourd'hui `GUITAR_MIN_STRINGS = 4`, `GUITAR_MAX_SUGGESTIONS = 4`, et UNE forme par
+     position de manche — `meilleureParPosition` — d'où le plafond : passer à une forme par position ET par jeu de cordes). **Choix par VIGNETTES** sous le grand diagramme (au lieu du seul « 1/4 ») : « je peux cliquer dessus pour le mettre
+     en valeur, puis le verrouiller » (clic = il devient le grand diagramme ; le cadenas verrouille celui-là).
+  3. **Notes omises** : « J'accepte la quinte omise » — SEULE la quinte JUSTE peut manquer (déjà la règle de `guitarChordPcs`), jamais la tierce, la septième ni l'extension ; le diagramme le DIT (étiquette « sans quinte »). Mesuré le 13/11
+     (12 tons, sonde `scratchpad/guitare/complet.js`) : exiger TOUTES les notes ferait tomber m9 à 1,2 diagramme en moyenne (0 pour certains tons), 9 à 0,9, maj9 à 1,8, 13 à 1,7 ; avec la quinte omise permise : 3 à 6.
+     Rappel : dans l'appli, « 11 » est déjà défini sans tierce et « 13 » sans quinte ni onzième (`CHORD_INTERVALS`).
+  4. **Nom des notes en petit** sur les diagrammes ET sur le manche vide de la fenêtre de dessin, case à cocher dans les Paramètres (à décocher). Manche vide : notes de l'accord en couleur, les autres très pâles (90 noms sinon) ;
+     dièses / bémols selon la tonalité du morceau (Ab plutôt que G#), comme le reste de l'appli.
+  5. **Étiquette courte sous chaque diagramme** : « Barré forme E », « Drop 2, cordes 2 à 5 », « Triade, cordes 1 à 3 », « Sans quinte », « Basse respectée »…
+  6. **« Mes doigtés »** : un doigté verrouillé ou dessiné pour un accord (ex. Fm7) est proposé EN PREMIER pour le même accord dans TOUS les morceaux, synchronisé au compte (sur le modèle de `synchro-formes.js` : un document par compte,
+     fusion, suppression tracée, hors ligne d'abord ; ne pas toucher `synchro-cloud.js` / `compte-cloud.js`).
+  7. **Le cadenas reste tel quel** : le doigté verrouillé passe toujours en tête ; rien de ce qui change ne touche aux doigtés déjà verrouillés.
+  8. **PIANO AUSSI dans l'artefact** : « Je veux aussi voir avec le piano, car les deux se gênent souvent, ou il y a des choses à régler » — montrer le tiroir clavier + guitare ensemble (tiroir épinglé, échelle de la poignée, vignettes,
+     noms des notes) pour repérer ce qui se gêne ; RELEVER d'abord dans l'appli ce qui se gêne aujourd'hui (captures réelles à 1920, 1440, 1024 px : recouvrements, tailles, place des vignettes) et le montrer dans l'artefact.
+  **Méthode** : l'artefact calcule les diagrammes avec le VRAI générateur (fonctions copiées de `script.js`, modifiées pour les règles 1 à 3) sur une douzaine d'accords témoins (Fm7 et ses trois renversements, Fm7/D, Cmaj7 drop 2 et
+  drop 3, G/B, Am, C, Cmaj9, Dm9, G13) : rangée de vignettes, étiquettes, case « nom des notes », manche vide de dessin, et le clavier. Publier, faire commenter, PUIS seulement écrire dans l'appli (par sous-lots : générateur + banc
+  `accords_complexes_guitare` ; vignettes ; noms des notes ; « Mes doigtés »), chacun avec bancs, sabotages et balayage complet.
 - **EN ATTENTE DE L'UTILISATEUR (13/11 soir, proposition faite, RIEN d'écrit dans l'appli)** :
   - **Tailles du séquenceur par type d'écran** — « les barres sont trop hautes et trop larges […] une règle claire pour chaque type d'écran, la gestion par zoom était trop compliquée ». Trois artefacts de vraies captures (grand écran 1920 × 1080 https://claude.ai/artifact/3aAiKnHmpi6Y4ZAbG2qUD2, portable 1440 × 900 https://claude.ai/artifact/ChP7PTHixyZAtrhLCrWwQL,
     petit écran 1024 × 768 https://claude.ai/artifact/9nRqCQLJ1buhLQUCTCbU7L), chacun « Actuel / Proposé / Plus serré ». Proposé : ligne 26 / 24 / 22 px et croche plafonnée à 34 / 30 / 26 px (colonne `minmax(10px, Wpx)`, grille calée à gauche), téléphone inchangé. Quand l'utilisateur a choisi : `poserLigne` et le gabarit de colonnes de `rafraichir`, banc par classe d'écran.
-  - Ce point passe AVANT A1 et A2 (l'utilisateur vient de le demander) ; A1 reste en attente de son avis sur l'ordre (voir « Écarts entre la planche A et l'appli »).
+  - Ce point et les diagrammes passent AVANT A1 et A2 (l'utilisateur vient de les demander) ; A1 reste en attente de son avis sur l'ordre (voir « Écarts entre la planche A et l'appli »).
 - **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
 
 ## Où on en est
