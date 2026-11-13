@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611131800">
+    <link rel="stylesheet" href="style.css?v=202611132300">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611131800">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611132300">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -802,44 +802,6 @@
         </div>
     </div>
 
-    <!-- Vue agrandie du séquenceur (voir openSeqZoom/closeSeqZoom dans script.js) : #arp-sequencer
-         est DÉPLACÉ ici (jamais dupliqué) le temps que la fenêtre est ouverte, puis remis à sa place
-         d'origine (juste après #arpPattern) à la fermeture — toutes ses interactions (glisser,
-         étirer, sélectionner...) restent donc celles du vrai séquenceur, sans rien recâbler. -->
-    <div id="seq-zoom-overlay" class="settings-overlay" hidden>
-        <div class="seq-zoom-modal" role="dialog" aria-modal="true" aria-labelledby="seq-zoom-title">
-            <div class="settings-header">
-                <h2 id="seq-zoom-title">Séquenceur</h2>
-                <div class="zoom-header-actions">
-                    <div class="btn-wrap-group">
-                        <div class="zoom-axis-group" data-zoom-kind="seq" data-zoom-axis="x" title="Échelle horizontale">
-                            <span class="zoom-axis-tag">H</span>
-                            <button type="button" id="seq-zoom-in-h" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                            </button>
-                            <button type="button" id="seq-zoom-out-h" class="icon-btn zoom-axis-btn" title="Réduire l'échelle horizontale" aria-label="Réduire l'échelle horizontale">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>
-                            </button>
-                        </div>
-                        <div class="zoom-axis-group" data-zoom-kind="seq" data-zoom-axis="y" title="Échelle verticale">
-                            <span class="zoom-axis-tag">V</span>
-                            <button type="button" id="seq-zoom-in-v" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle verticale" aria-label="Agrandir l'échelle verticale">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                            </button>
-                            <button type="button" id="seq-zoom-out-v" class="icon-btn zoom-axis-btn" title="Réduire l'échelle verticale" aria-label="Réduire l'échelle verticale">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>
-                            </button>
-                        </div>
-                    </div>
-                    <button type="button" id="seq-zoom-close" class="icon-btn" title="Fermer" aria-label="Fermer">
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
-                    </button>
-                </div>
-            </div>
-            <div id="seq-zoom-host" class="seq-zoom-host"></div>
-        </div>
-    </div>
-
     <!-- Vue agrandie de la grille d'accords (voir openGridZoom/closeGridZoom dans script.js) : même
          principe que la vue agrandie du séquenceur ci-dessus — #progression-sections et le bouton
          "Ajouter une partie" sont DÉPLACÉS ici (jamais dupliqués) le temps que la fenêtre est
@@ -1386,7 +1348,6 @@
                             <span>Séquenceur</span>
                         </button>
                     </div>
-                    <div id="arp-sequencer" class="arp-seq" hidden></div>
                 </section>
 
 
@@ -1502,17 +1463,6 @@
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>
                             </button>
                         </div>
-                        <!-- Bouton global "Conduite de voix" (voir toggleVoiceLeadingPanel dans script.js) :
-                             affiche/masque un piano-roll continu de la partie ACTIVE sous la grille. Un
-                             seul bouton ici plutôt qu'un par partie (retour utilisateur, "plus de logique"
-                             à côté des autres vues de la grille) — désactivé tant que la partie active a
-                             moins de 2 accords (rien à enchaîner), voir loadProgression. Icône : deux
-                             paires de notes reliées par des pointillés, chacune bougeant en sens contraire
-                             (voir ICONS.voiceLeading) — pas des barres verticales, confondues avec un
-                             réglage de volume (retour utilisateur sur le premier dessin). -->
-                        <button type="button" id="toggle-voice-leading" class="icon-btn icon-btn-wide" title="Conduite de voix" aria-label="Conduite de voix" aria-pressed="false">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><rect x="10" y="7.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M8 5.3 10 8.8" stroke-width="1.5" stroke-dasharray="1.5 1.5"/><rect x="3" y="15.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><rect x="13" y="11.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M9 16.8 13 12.8" stroke-width="1.5" stroke-dasharray="1.5 1.5"/></svg>
-                        </button>
                         <!-- « SÉQ. », ET PLUS UN LOGO. Retour utilisateur : « Mettre le même bouton
                              au-dessus de la grille au lieu du logo peu clair, mais en moins large. Par
                              exemple "Séq." ? » — repris tel quel. Le dessin de barres ne disait pas ce
@@ -1597,69 +1547,6 @@
                 </div>
             </section>
 
-            <!-- Volet du séquenceur CONTINU, sous la grille (voir placeSequencer dans script.js).
-                 Ouvert par le bouton de la barre de grille (#grid-zoom), il reprend le rôle qu'avait le
-                 séquenceur épinglé de l'ancienne vue plein écran : toute la partie côte à côte, hauteur
-                 ajustable à la poignée — mais en place, sans recouvrir l'appli (retour utilisateur :
-                 « il doit afficher le séquenceur continu en gros sous la grille, avec volet ajustable
-                 en hauteur, comme il faisait avant dans le mode loupe qui n'existe plus »).
-                 Le bouton du module Ajouter/Modifier (#toggle-sequencer) ouvre l'autre mode : le petit
-                 séquenceur simplifié, qui reste DANS le module. #arp-sequencer est DÉPLACÉ de l'un à
-                 l'autre, jamais dupliqué. -->
-            <div id="seq-dock-panel" class="seq-dock-panel" hidden>
-                <div id="seq-dock-resize" class="seq-dock-resize" title="Glisser pour ajuster la hauteur" aria-label="Ajuster la hauteur du séquenceur"></div>
-                <!-- EN-TÊTE DE L'ÉDITEUR DE NOTES (refonte, lot 9a), ordinateur seulement (masqué sous 900px : le téléphone ne bouge pas avant le lot 10).
-                     « fermé par Fermer » ; « Étendre ou non : réduit par défaut (~170 px de notes), bouton à chevrons, double-clic sur la poignée, ou
-                     poignée tirée ». Écrit ICI et pas dans la barre du séquenceur : celle-ci est reconstruite à chaque rendu (innerHTML), et les adresses
-                     des commandes doivent exister dans la page (sentinelle_adresses_test). -->
-                <div id="editeur-notes-tete" class="editeur-notes-tete">
-                    <span class="editeur-notes-titre">Notes</span>
-                    <button type="button" id="editeur-notes-fermer" class="editeur-notes-btn" title="Fermer l'éditeur de notes et revenir à la grille" aria-label="Fermer l'éditeur de notes">
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
-                        <span>Fermer</span>
-                    </button>
-                    <!-- OUTILS (lot 9b) : « sélection, crayon, gomme » en groupe segmenté (un choix parmi trois). Décision du 05/11 : Sélection, l'outil par
-                         défaut, garde EXACTEMENT les gestes d'avant ; Crayon ne fait que dessiner (même en partant d'une note) ; Gomme efface ce qu'elle
-                         touche. Icônes de la maquette : ces trois fonctions n'avaient pas de logo. Pas de choix de calage (décision du 05/11 : « il faut que les
-                         notes s'accrochent à la double croche automatiquement » prime sur la maquette). -->
-                    <div id="editeur-notes-outils" class="editeur-notes-outils" role="group" aria-label="Outil">
-                        <button type="button" id="en-outil-selection" data-outil="selection" aria-pressed="true" title="Sélection : choisir, déplacer, étirer (et dessiner sur du vide, comme avant)" aria-label="Sélection">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3l14 8-6 2-3 6z"/></svg>
-                        </button>
-                        <button type="button" id="en-outil-crayon" data-outil="crayon" aria-pressed="false" title="Crayon : cliquer ou glisser dessine des notes" aria-label="Crayon">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-5L16 4l4 4L9 19z"/><path d="M14 6l4 4"/></svg>
-                        </button>
-                        <button type="button" id="en-outil-gomme" data-outil="gomme" aria-pressed="false" title="Gomme : cliquer ou glisser efface les notes touchées" aria-label="Gomme">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 21h13"/><path d="M5 13l8-8 6 6-8 8H8z"/></svg>
-                        </button>
-                    </div>
-                    <!-- La barre du séquenceur (Lecture, Stop, note libre, intensité, pipette, effacer, loupe, zoom) est DÉPLACÉE ici à chaque rendu sur
-                         ordinateur (voir renderSequencer) : une seule rangée, comme la maquette, et les 39px que l'en-tête prenait au lot 9a reviennent aux
-                         notes. Décision du 05/11 : tous les boutons d'avant restent, en icônes. -->
-                    <div id="editeur-notes-barre" class="editeur-notes-barre"></div>
-                    <!-- CALQUE VOIX (lot 9c) : « l'ancienne conduite de voix : fonction 1/3/5/7 écrite dans la note, trait blanc du chemin des voix ». Le logo
-                         est celui de l'ancien bouton #toggle-voice-leading, REPRIS tel quel (règle 2). La légende est celle de l'ancien panneau
-                         (.piano-legend), visible calque allumé ; elle prend la place libre de la rangée sans jamais la faire passer sur deux lignes. -->
-                    <div id="editeur-notes-legende" class="piano-legend editeur-notes-legende" hidden aria-label="Légende du calque Voix">
-                        <span class="lg"><span class="dot dot-root"></span>1</span>
-                        <span class="lg"><span class="dot dot-third"></span>3</span>
-                        <span class="lg"><span class="dot dot-fifth"></span>5</span>
-                        <span class="lg"><span class="dot dot-seventh"></span>7</span>
-                        <span class="lg"><span class="dot dot-ext"></span>Autres</span>
-                    </div>
-                    <button type="button" id="editeur-notes-voix" class="editeur-notes-btn editeur-notes-icone" aria-pressed="false" title="Voix : la fonction de chaque note (1, 3, 5, 7) et le chemin de chaque voix" aria-label="Voix">
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><rect x="10" y="7.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M8 5.3 10 8.8" stroke-width="1.5" stroke-dasharray="1.5 1.5"/><rect x="3" y="15.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><rect x="13" y="11.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M9 16.8 13 12.8" stroke-width="1.5" stroke-dasharray="1.5 1.5"/></svg>
-                    </button>
-                    <button type="button" id="editeur-notes-ajuster" class="editeur-notes-btn editeur-notes-icone" aria-pressed="false" title="Ajuster la hauteur aux notes présentes" aria-label="Ajuster">
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v6M9 6l3 3 3-3M12 21v-6M9 18l3-3 3 3"/></svg>
-                    </button>
-                    <button type="button" id="editeur-notes-etendre" class="editeur-notes-btn editeur-notes-icone" title="Étendre l'éditeur de notes" aria-label="Étendre l'éditeur de notes" aria-pressed="false">
-                        <svg class="icon en-chevrons-ouvrir" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9l5-5 5 5"/><path d="M7 15l5 5 5-5"/></svg>
-                        <svg class="icon en-chevrons-fermer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4l5 5 5-5"/><path d="M7 20l5-5 5 5"/></svg>
-                    </button>
-                </div>
-                <div id="seq-dock-host" class="seq-dock-host"></div>
-            </div>
 
             <!-- Titre d'accord + boutons piano/guitare sur la MÊME ligne (voir retour utilisateur : les
                  boutons prenaient trop de place en pleine largeur) — bascule calée à GAUCHE (retour
@@ -2189,11 +2076,11 @@
     <!-- Les formes du séquenceur (au compte) : AVANT sequenceur.js, qui s'y abonne à sa construction ; la connexion (SYNCHRO) n'est lue qu'à l'usage. -->
     <script src="synchro-formes.js?v=202611131800"></script>
     <script src="sequenceur.js?v=202611131800"></script>
-    <script src="script.js?v=202611131800"></script>
+    <script src="script.js?v=202611132300"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611060100"></script>
+    <script src="synchro-harmohub.js?v=202611132300"></script>
     <!-- Les versions au cloud (sous-lot « Versions au cloud ») : après l'adaptateur, dont elles réutilisent la connexion (SYNCHRO). -->
     <script src="synchro-versions.js?v=202611060400"></script>
 </body>

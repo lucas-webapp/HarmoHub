@@ -49,40 +49,6 @@ const graine = () => {
         return p;
     };
     const clic = async (p, sel, ms = 500) => { await p.click(sel); await p.waitForTimeout(ms); };
-    // Le calque tel qu'on le VOIT : chiffres, traits, bande des accords, légende, bouton.
-    const calque = (p) => p.evaluate(() => {
-        const q = (s) => [...document.querySelectorAll(s)];
-        return {
-            presse: document.getElementById('editeur-notes-voix').getAttribute('aria-pressed'),
-            legende: !document.getElementById('editeur-notes-legende').hidden && !!document.getElementById('editeur-notes-legende').offsetParent,
-            chiffres: q('#arp-sequencer .seq-note .seq-note-fn').length,
-            chiffresVoisins: q('#arp-sequencer .seq-ctx-note .seq-note-fn').map(e => e.textContent),
-            traits: q('#arp-sequencer .seq-voix-trait').length,
-            tenues: q('#arp-sequencer .seq-voix-tenue').map(t => t.dataset.accord + ':' + t.dataset.de + '>' + t.dataset.vers),
-            accords: q('#arp-sequencer .seq-voix-accord').map(e => e.textContent.trim()),
-            bande: Math.round(document.querySelector('#arp-sequencer .seq-scroll').getBoundingClientRect().height),
-        };
-    });
-    // Bord gauche d'un accord dans la vue : sa première case s'il est en cours, sinon la zone qui le désigne.
-    const geometrie = (p) => p.evaluate(() => {
-        const bordAccord = (i) => {
-            const nav = document.querySelector(`#arp-sequencer .seq-ctx-nav[data-target-index="${i}"]`);
-            const el = nav || document.querySelector('#arp-sequencer .seq-cell[data-step="0"]');
-            return el.getBoundingClientRect().left;
-        };
-        const centreLigne = (m) => { const r = document.querySelector(`#arp-sequencer .seq-label[data-row-midi="${m}"]`).getBoundingClientRect(); return r.top + r.height / 2; };
-        const mv = [...document.querySelectorAll('#arp-sequencer .seq-voix-mouvement')].map(t => {
-            const r = t.getBoundingClientRect(), hi = Math.max(+t.dataset.de, +t.dataset.vers), lo = Math.min(+t.dataset.de, +t.dataset.vers);
-            return { ecartX: Math.abs(r.left + r.width / 2 - bordAccord(+t.dataset.accord)), ecartHaut: Math.abs(r.top - centreLigne(hi)), ecartBas: Math.abs(r.bottom - centreLigne(lo)), pointilles: /repeating-linear-gradient/.test(getComputedStyle(t).backgroundImage) };
-        });
-        const tn = [...document.querySelectorAll('#arp-sequencer .seq-voix-tenue')].map(t => {
-            const r = t.getBoundingClientRect(), x = bordAccord(+t.dataset.accord);
-            return { enjambe: r.left < x - 2 && r.right > x + 2, ecartY: Math.abs(r.top + r.height / 2 - centreLigne(+t.dataset.de)), plein: !/gradient/.test(getComputedStyle(t).backgroundImage), horizontal: r.width > r.height };
-        });
-        const etiquettes = [...document.querySelectorAll('#arp-sequencer .seq-voix-accord')].map(e => ({ i: +e.dataset.accord, ecart: Math.abs(e.getBoundingClientRect().left - bordAccord(+e.dataset.accord)), bas: e.getBoundingClientRect().bottom }));
-        const mesure = document.querySelector('#arp-sequencer .seq-beat-label[data-mesure] .seq-beat-num').getBoundingClientRect();
-        return { mv, tn, etiquettes, mesureHaut: mesure.top };
-    });
 
     // ======================================================================================================
     // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, décision du 12/11 « réécriture courte ») : à l'ordinateur, le calque Voix et le chemin des voix sont SUPPRIMÉS
@@ -91,12 +57,12 @@ const graine = () => {
     // jusqu'à l'étape 4c.
     console.log('\n=== A. Ordinateur : plus de calque Voix, les couleurs des rôles au séquenceur ===');
     let p = await ouvrir({ width: 1440, height: 900 });
-    check(!(await p.locator('#toggle-voice-leading').isVisible()), 'l\'icône ⊱ de la rangée de réglages a quitté l\'ordinateur');
+    check(!(await p.locator('#toggle-voice-leading').isVisible()), 'l\'icône ⊱ de la rangée de réglages n\'existe plus (supprimée, A2)');
     let r = await R.porteAbsente(p);
     check(r.ok, `l'éditeur de notes (et son bouton Voix) a disparu, le séquenceur est au bloc « Vues » (${r.detail})`);
     r = await R.ouvrirNouveau(p);
     exiger(r.ok, `le séquenceur s'ouvre par son bouton (${r.detail})`);
-    check(await p.evaluate(() => !document.querySelector('#editeur-notes-voix:not([hidden])') || !document.getElementById('editeur-notes-voix').offsetParent) && await p.evaluate(() => document.querySelectorAll('.seq-voix-trait, .seq-note-fn').length === 0), 'ni bouton Voix, ni trait du chemin des voix, ni chiffre de fonction à l\'écran');
+    check(await p.evaluate(() => document.getElementById('editeur-notes-voix') === null) && await p.evaluate(() => document.querySelectorAll('.seq-voix-trait, .seq-note-fn').length === 0), 'ni bouton Voix, ni trait du chemin des voix, ni chiffre de fonction à l\'écran');
     r = await R.couleursRoles(p, 0);
     check(r.ok, `les notes gardent les couleurs de leur rôle (${r.detail})`);
     r = await R.toutePartie(p);

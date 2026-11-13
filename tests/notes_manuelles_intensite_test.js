@@ -73,15 +73,6 @@ const AMBRE = 'rgb(224, 179, 106)';
     const cliquerEn = async (p, pt, ms = 500) => { await p.mouse.move(pt.x, pt.y); await p.mouse.down(); await p.mouse.up(); await p.waitForTimeout(ms); };
     const sauve = (p, i) => p.evaluate((i) => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[i], i);
     const pastilles = (p) => p.evaluate(() => [...document.querySelectorAll('#progression-sections .cell-perso')].map(e => +e.closest('.grid-cell').dataset.index));
-    const manuelles = (p) => p.evaluate(() => [...document.querySelectorAll('#arp-sequencer .seq-note.manuelle')].map(n => ({ bord: getComputedStyle(n).borderTopStyle, fond: getComputedStyle(n).backgroundColor })));
-    const bande = (p) => p.evaluate(() => {
-        const sc = document.querySelector('#arp-sequencer .seq-scroll');
-        const b = sc.querySelector('.seq-vel-band');
-        const rs = sc.getBoundingClientRect();
-        // Le bas de ce qu'on VOIT des notes : le bord de la vue, ou la fin de la grille si on est tout en bas (sous elle, la marge de la vue est vide).
-        const basGrille = sc.querySelector('.seq-grid').getBoundingClientRect().bottom;
-        return { present: !!b, bas: b ? Math.round(b.getBoundingClientRect().bottom) : null, basVue: Math.round(Math.min(rs.top + sc.clientTop + sc.clientHeight, basGrille)), haut: sc.clientHeight, scrollTop: sc.scrollTop, scrollMax: sc.scrollHeight - sc.clientHeight };
-    });
 
     // ======================================================================================================
     // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11, « réécriture courte ») : à l'ordinateur, la bande d'intensité séparée et le mode studio comme mode à

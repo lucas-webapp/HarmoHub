@@ -57,25 +57,14 @@ async function clic(p, sel, attente = 500) {
     await p.waitForTimeout(attente);
 }
 
+// Relevé de l'état de la page. A2 (13/11) : la feuille (#seq-dock-panel), son en-tête (#editeur-notes-*), le petit séquenceur (#arp-sequencer) et l'icône ⊱
+// (#toggle-voice-leading) ne sont plus dans la page : leur absence EST le relevé (« ouvert » faux, rien de visible).
 const feuille = (p) => p.evaluate(() => {
     const f = document.getElementById('seq-dock-panel');
-    const r = f.getBoundingClientRect();
-    const haut = document.querySelector('.top-bar').getBoundingClientRect();
-    const bas = document.getElementById('barre-lecture').getBoundingClientRect();
-    const btns = [...document.querySelectorAll('#editeur-notes-tete button')].filter(b => b.offsetParent);
-    const tete = document.getElementById('editeur-notes-tete').getBoundingClientRect();
     return {
-        ouvert: !f.hidden && r.height > 0, pos: getComputedStyle(f).position,
-        haut: Math.round(r.top), bas: Math.round(r.bottom), gauche: Math.round(r.left), droite: Math.round(r.right),
-        hautBarre: Math.round(haut.bottom), hautLecture: Math.round(bas.top), larg: window.innerWidth,
-        tailles: btns.map(b => { const q = b.getBoundingClientRect(); return { id: b.id, w: Math.round(q.width), h: Math.round(q.height), droite: Math.round(q.right) }; }),
-        teteDroite: Math.round(tete.right),
-        notes: document.querySelectorAll('#arp-sequencer .seq-note').length,
-        fn: document.querySelectorAll('#arp-sequencer .seq-note-fn').length,
-        legende: !document.getElementById('editeur-notes-legende').hidden,
-        bande: !!document.querySelector('#arp-sequencer .seq-vel-band'),
-        ancien: !!document.querySelector('.voice-leading-panel'),
-        vlVisible: (() => { const e = document.getElementById('toggle-voice-leading'); return !!(e && e.offsetParent); })(),
+        ouvert: !!f && !f.hidden && f.getBoundingClientRect().height > 0,
+        ancien: !!document.querySelector('.voice-leading-panel') || !!document.getElementById('arp-sequencer'),
+        vlAbsent: document.getElementById('toggle-voice-leading') === null,
         densite: ['compact', 'normal', 'detail'].find(d => document.querySelector('.history-section').classList.contains('densite-' + d)),
         modifie: hasUnsavedChanges,
         porte: document.getElementById('grid-zoom').innerText.trim(),
@@ -147,7 +136,7 @@ const feuille = (p) => p.evaluate(() => {
     p = await ouvrir(nav, { viewport: { width: 1280, height: 900 } }, erreurs);
     f = await feuille(p);
     const porte = await R.porteAbsente(p);
-    check(porte.ok && !f.vlVisible, `plus de porte « Éditeur de notes » à l'ordinateur, ⊱ absent (${porte.detail})`);
+    check(porte.ok && f.vlAbsent, `plus de porte « Éditeur de notes » à l'ordinateur, ⊱ absent (${porte.detail})`);
     r = await R.ouvrirNouveau(p);
     exiger(r.ok, `le séquenceur s'ouvre par son bouton (${r.detail})`);
     f = await feuille(p);

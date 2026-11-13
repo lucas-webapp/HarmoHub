@@ -44,7 +44,6 @@ const mk = (root, q) => ({ root, quality: q, beats: 4, inversion: 0, drop: 'none
     const vue = () => page.evaluate(() => {
         const c = window.app.readChord();
         return {
-            rangees: [...document.querySelectorAll('#arp-sequencer .seq-label')].map(e => e.textContent.trim()),
             accordDuPanneau: c ? c.root + c.quality : null,
             seqOpen: window.app.seqOpen,
             editingIndex: window.app.editingIndex,

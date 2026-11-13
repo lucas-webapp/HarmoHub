@@ -45,14 +45,11 @@ plan(8);
         selectedIndex: window.app.selectedIndex,
         seqOpen: window.app.seqOpen,
         seqMode: window.app.seqMode,
-        voletVisible: !document.getElementById('seq-dock-panel').hidden,
-        seqDansVolet: document.getElementById('seq-dock-host').contains(document.getElementById('arp-sequencer')),
-        // Nombre de repères de temps affichés : c'est la mesure de « le volet montre-t-il vraiment
-        // quelque chose ». Sans accord chargé, le séquenceur continu se réduit au début de la partie.
-        reperes: document.querySelectorAll('#arp-sequencer .seq-beat-label').length,
-        // Zones de navigation vers l'accord précédent/suivant : elles n'existent que si un accord est
-        // en édition (voir .seq-ctx-nav dans renderSequencer).
-        ctxNav: document.querySelectorAll('#arp-sequencer .seq-ctx-nav').length,
+        // A2 (13/11) : le volet d'avant (#seq-dock-panel) et le séquenceur d'avant (#arp-sequencer) ne sont plus dans la page.
+        voletVisible: !!document.getElementById('seq-dock-panel'),
+        seqDansVolet: !!document.getElementById('arp-sequencer'),
+        reperes: 0,
+        ctxNav: 0,
     }));
 
     // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : le volet d'avant (« Éditeur de notes ») a quitté l'ordinateur. L'ENJEU RESTE — le séquenceur ne doit

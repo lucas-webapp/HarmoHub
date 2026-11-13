@@ -70,8 +70,8 @@ const check = (c, l) => { if (c) { PASS++; console.log('PASS - ' + l); } else { 
     // l'absence de point trouvé qui le dira — le banc s'arrête net au lieu de mesurer un point douteux.
     const ZONE_EDITION = [
         '.col-left', '.control-card', '.seq-zoom-modal', '.chord-header-row', '.viz-wrap', '.viz-toggle',
-        '#arp-sequencer', '.seq-dock-panel', '#global-undo-btn', '#global-redo-btn', '.zoom-axis-group',
-        '#toggle-sidebar', '#toggle-voice-leading', '#footer-dock', '.transport', '.dock',
+        '#global-undo-btn', '#global-redo-btn', '.zoom-axis-group',
+        '#toggle-sidebar', '#footer-dock', '.transport', '.dock',
         '#quick-add-help-btn', '#quick-add-help', '.grid-cell', '.cell-add',
         '.section-head', '.grid-head-sticky', '#context-menu', '.overlay', '.modal', '.settings-overlay',
         '#files-overlay', 'button', 'input', 'select', 'textarea', 'label', 'a', '[role="button"]',

@@ -50,11 +50,7 @@ const partie = (titre) => {
     const mesurer = (page) => page.evaluate(() => {
         const bo = (s) => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); return { t: Math.round(r.top), b: Math.round(r.bottom), l: Math.round(r.left), r: Math.round(r.right), h: Math.round(r.height) }; };
         return {
-            hote: bo('#seq-dock-host').h,
             grille: bo('.history-section').h,
-            memo: window.app.seqDockHeight,
-            max: window.app.hauteurMaxVoletSequenceur(),
-            maxAuto: window.app.hauteurAutoVoletSequenceur(),
             barre: (() => { const e = document.querySelector('.history-section .grid-head-sticky'); return e ? Math.round(e.getBoundingClientRect().height) : 0; })(),
             uneCaseVisible: (() => {
                 const c = document.querySelector('.chord-grid .grid-cell');
@@ -68,7 +64,8 @@ const partie = (titre) => {
             carte: bo('.viz-card'),
             exp: bo('.viz-export-actions'),
             enteteGrille: bo('.viz-wrap'),
-            ecartSousVolet: Math.round(bo('.viz-wrap').t - bo('#seq-dock-panel').b),
+            // A2 (13/11) : le volet d'avant (#seq-dock-panel) n'existe plus ; sans séquenceur ouvert, c'est la grille qui finit juste au-dessus de la bande des boutons.
+            ecartSousVolet: Math.round(bo('.viz-wrap').t - bo('.history-section').b),
         };
     });
 

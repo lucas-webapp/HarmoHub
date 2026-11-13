@@ -1,311 +1,55 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 12/11/2026, après la session « renommage, sélection grise, hauteur du panneau Rythme » (B2, B1, A3 livrés) ; restent A2 (nettoyage du code mort de l'ancien séquenceur) puis A1 (fenêtre d'accord unique), décrits dans « Suite à faire ». **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route).
+Mis à jour le 13/11/2026 (nettoyage A2 livré, fichier compacté). **Seul fichier où s'écrit l'état du chantier** (`CLAUDE.md` n'en recopie rien). À lire avec `CLAUDE.md` (consignes) et `docs/refonte.md` (règles, feuille de route). Le détail de chaque lot (mesures, sabotages, bancs réécrits) est dans `docs/dette-tests.md` : ce fichier-ci ne garde que ce qui sert à reprendre.
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
-- **Décisions du 05/11 (soir), réponses aux points en attente** — elles remplacent les questions « à confirmer » plus bas :
-  - **Versions au cloud** : « toutes les versions stockées dans le firestore », celles des **morceaux** ET des **paroles**, donc sur tous les appareils ;
-    « s'il y a un problème de place, il faut garder moins de versions que prévu […] le minimum acceptable (environ 3 à 5 versions) ». La page
-    Paroles ouverte SEULE doit aussi lister et restaurer ses versions (« oui on restaure »).
-  - 10c : (1) le tempo reste dans la barre-résumé ; (2) Compact / Normal / Large et le pincement restent une préférence de l'appareil ; (3) Transposer :
-    « fais au plus logique, le but est de garder une option me permettant de transposer le morceau d'un seul clic » → la ligne sous les cases reste.
-  - Éditeur de notes : (4) l'éditeur SUIT la sélection (un clic sur une autre case de la grille l'y amène) ; (5) une opération de partie (monter,
-    dupliquer, supprimer) garde l'édition OUVERTE ; (6) ouverture sur un accord grave : pas de recentrage (« tu peux me laisser scroller », comme
-    GarageBand), rien à changer ; (7) bande de la règle : « au plus cohérent, cela doit me faciliter l'usage » → opaque comme la bande d'intensité ;
-    (8) gestes de la bande d'intensité : garder glisser / double-clic (cohérent avec le mode studio).
-  - Clavier : (9) « se souvenir de mes derniers paramètres dans chaque morceau » → l'état ouvert / fermé du clavier (tiroir) est retenu PAR MORCEAU ;
-    (10) la bulle qui recouvre les touches d'un accord grave : OK tel quel.
-  - (11) Clavier / Guitare en plein écran au téléphone avec le 10f, dock de la Modification jusqu'au 10d : OK.
-  - Bancs : (12) le relevé compte un FATAL comme rouge, et `ajout_modif` / `duree_sur_la_ligne_accord` sont réparés ; (13) corriger
-    `glock_unlock_and_switch` (doigté verrouillé rouvert déverrouillé ; « ce problème était déjà arrivé plusieurs fois et tu avais réussi à le
-    réparer » : chercher l'ancien correctif dans `git log`) ; (14) durées par suite dans le relevé et raccourcir les plus lentes, « uniquement si cela
-    n'altère pas la qualité des bancs » — et si cela réduit la consommation de tokens.
-- ✅ **« Versions au cloud » livré** (05/11, banc `versions_cloud`, `synchro-versions.js`) : un document par morceau (5 + 5 au plus, moins si lourd),
-  index `harmohub-versions`, fusion sans doublon, liste et restauration dans les Options de la page Paroles seule.
-- ✅ **« Bancs fiables » livré** (05/11, points 12 à 14) : un FATAL ou une trace de plantage de Node compte ROUGE (les deux relevés) ; huit bancs qui
-  plantaient en silence sont réparés (`ajout_modif`, `duree_sur_la_ligne_accord`, `glock_full_real_ui`, `guitar_lock_click`, `grille_raccourcis_clavier`,
-  `rangement_fichiers`, `guitar_override`, `zoom_coherence`) ; deux vrais défauts corrigés : le cadenas effacé par une croche de dessin en retard
-  (`schedulePlayback`, `_playGen`) et le focus de la case « + » perdu quand on l'engage pendant une modification ; durées dans le relevé, les plus longues
-  partent d'abord. Aucun banc raccourci (voir `docs/dette-tests.md`).
-- ✅ **« Éditeur et clavier » livré** (06/11, points 4, 5, 7, 9 ; banc `editeur_et_clavier`) : l'éditeur suit la sélection (`selectChord`) ; monter,
-  dupliquer, supprimer une partie rouvrent l'accord à sa nouvelle place (`reprendreEditionApresPartie`) ; `.seq-ruler-band` opaque verre allumé ; tiroir
-  retenu par morceau dans une table de l'appareil (`harmohubVuesParMorceau`). Défaut ancien corrigé au passage : ouvrir un accord n'empile plus
-  d'annulation (`_ouvertureEdition`, `_journalDebutSession` dans `commitLiveEdit`).
-- ✅ **10d livré** (06/11, banc `telephone_panneau_accord`) : panneau d'accord du téléphone, détail dans « Lot 10 » et `docs/dette-tests.md`.
-- ✅ **Point du 10d réglé** (06/11, commité sans balayage complet, qui vient en fin de 10e) : poignées de durée proportionnelles à la case au doigt (`clamp(12px, 25%, 22px)`).
-- ✅ **10e livré** (06/11, banc `telephone_panneau_ajout`, assistant `tests/_ajout.js`) : panneau d'ajout du téléphone, détail dans « Lot 10 » et `docs/dette-tests.md`.
-  **Confirmé par l'utilisateur le 06/11** : (1) le curseur n'est pas mis d'office dans la saisie à l'ouverture du panneau (« c'est mieux comme cela, on garde ») ;
-  (2) la durée « des prochains accords » n'est plus un réglage de la page au téléphone, chaque accord règle la sienne dans son panneau (« ça me va ») ;
-  (3) le panneau d'accord qui défile en interne sur un écran court (664 px) : « ça me convient », rien à changer. Défaut trouvé et corrigé : le clic fantôme hors
-  du panneau d'accord (`_paOuvertA`).
-- ✅ **10f livré** (07/11, banc `telephone_editeur_notes`) : « Séq. » devient « Notes », l'icône ⊱ disparaît, l'éditeur de l'ordinateur s'ouvre en feuille plein écran
-  entre la barre du haut et la barre de lecture ; douze bancs réécrits (liste dans `docs/dette-tests.md`, « lot 10f »). Piège : la porte `#grid-zoom` doit rester à 32px
-  (à 44px, le double toucher d'une case n'ouvrait plus le panneau d'accord).
-- ✅ **Taille des diagrammes à la poignée livrée** (11/11, banc `vues_taille`) : poignée sur le bord haut du tiroir épinglé, coin de la fenêtre libre qui agrandit aussi le contenu, échelle 0,6 à 2 par appareil
-  (`poserEchelleVues`). **Décision du 11/11 : « je n'ai pas besoin des diagrammes en plein écran »** → le 10g (Clavier / Guitare en plein écran au téléphone) est ABANDONNÉ.
-- ✅ **Refonte du séquenceur, points A, C, B livrés** (11/11, une seule session, détail dans `docs/dette-tests.md`, cases cochées dans `docs/refonte-sequenceur.md`) :
-  - **A** (banc `editeur_notes`) : le Compact provisoire du lot 9a est retiré, la grille garde exactement son affichage séquenceur ouvert (empreinte de chaque case).
-  - **C** (banc `recadrage_panneau`) : l'inspecteur **flotte** au bord droit au lieu de réserver une colonne (la grille sautait de 190 px et la rangée de réglages passait sur deux
-    lignes à chaque mise en modification, donc à chaque clic séquenceur ouvert) ; il part sous l'ajout rapide et s'arrête au-dessus du séquenceur (`placerInspecteurFlottant`) ;
-    l'éditeur qui suit la sélection ne le fait plus apparaître (`editionParSuivi`) ; `editChord` ne recentre plus rien.
-  - **B** (banc `clic_ecouter`, assistant `tests/_geste_accord.js`) : un clic / un toucher = sélectionner et entendre ; double-clic / toucher une case déjà choisie = ouvrir (bulle,
-    panneau) ; un panneau ouvert suit la case cliquée ; le clic à côté qui le referme garde la sélection ; **retaper le nom** = « Renommer » au clic droit ou à l'appui long
-    (nouvelle entrée `rename-chord`), ou une lettre tapée. 33 bancs réécrits pour le geste (liste dans le journal).
-  - **À signaler à l'utilisateur (pas bloquant)** : l'inspecteur flottant est un état intermédiaire jusqu'à la fenêtre d'accord unique (3 bis) ; sous ~1150 px de large il peut
-    recouvrir la droite d'une fenêtre de grille élargie à la poignée.
-- ✅ **D, premier sous-lot livré** (11/11, banc `sequenceur`, 76 vérifications) : module `sequenceur.js` (chargé AVANT `script.js`) + intégration ordinateur — bouton « Séquenceur »
-  dans le bloc « Vues », panneau dans le flux au-dessus du tiroir ; une ligne par voix, huit croches par mesure ; motifs fournis par position (règles 3 / 5 notes, basse différente) ;
-  clic, peinture, Intensité (nouveau champ `intensiteVoix`, lu par la lecture et les exports via `reglageIntensiteCroche`) ; copier / coller / effacer ; plage à boucler dans la règle ;
-  poignée des lignes 22–48. L'ancien séquenceur reste en place. Détail et choix faits en route dans `docs/dette-tests.md`.
-  - **À signaler à l'utilisateur (pas bloquant)** : la plage tirée au séquenceur s'aligne sur des accords entiers (la boucle de l'appli repose sur des index d'accords) ; un vieux motif
-    à la double-croche s'affiche à la croche et n'est réécrit à la croche que si on retouche l'accord ; ajouter une basse différente après un motif ne réapplique pas le motif.
-- ✅ **D, deuxième sous-lot livré** (11/11 nuit, banc `sequenceur_formes`, 75 vérifications, onze sabotages) : **formes enregistrées** au compte (`synchro-formes.js`, chargé AVANT
-  `sequenceur.js` ; document `harmohub-formes`, entrées en chaîne JSON, fusion entrée par entrée, suppression tracée, hors ligne d'abord, écoute du seul document via `SYNCHRO.etat`) —
-  marque-page, « Forme N » proposé, Entrée / Échap, croches + soudures + intensités par position, × qui supprime (accords « À la main », notes gardées) ; **notes libres** (bouton en face
-  de la règle, bande nom + octave + « Ajouter C4 », ligne retenue par la PARTIE — nouveau champ `notesLibres` —, l'accord ne porte la note qu'une fois une croche posée ; voix renumérotées) ;
-  **clic droit sur une vignette** (schéma 4 × 8, ▶ via `playSavedChord(…, essai)`, retouche par-dessus le motif fourni, « Rétablir l'original », réapplication au morceau ouvert) ;
-  **« Toutes les notes »** (hauteurs utilisées, préférence de l'appareil). Détail et choix dans `docs/dette-tests.md`.
-  - **À signaler à l'utilisateur (pas bloquant)** : la barre d'outils passe sur deux rangées à 1440 px (option du cahier : ranger les motifs derrière un bouton « Motifs ») ; une retouche
-    de schéma ne réécrit que le morceau ouvert (les autres morceaux la prennent quand on y réapplique le motif) ; en « Toutes les notes » une partie riche fait défiler le séquenceur.
-- ✅ **D, troisième sous-lot livré** (12/11, banc `sequenceur_telephone`, 47 vérifications, cinq sabotages) : onglets Accord / Son / Rythme dans le panneau d'accord du téléphone ;
-  Rythme y DÉPLACE le séquenceur (`sequenceur.placerTelephone`), réduit à l'accord du panneau (cases de 44 px) ; « Notes » du panneau Lecture → « Séquenceur ». Défaut corrigé :
-  colonnes rangées par rang au lieu de l'index d'accord (`colDebut`). Constaté, déjà vrai avant : « Réglages du son » vide la sélection au téléphone.
-- ✅ **Deux retours de l'utilisateur livrés le 12/11** (ordinateur) : « toute une barre noire juste pour le bouton fichier » → `#file-menu-btn` après « Enregistrer » dans la barre du haut
-  (`placerBoutonFichier`), la rangée du bas disparaît ; « le saut de hauteur pour les diagrammes […] empêcher le piano de se superposer » → le tiroir épinglé reste sur UNE rangée, les
-  diagrammes rapetissent quand la largeur manque (`ajusterEchelleVues`), l'échelle choisie reste retenue (banc `vues_taille`, partie G).
-- ✅ **D, quatrième et dernier sous-lot livré (12/11) — retrait de l'ancien séquenceur** (découpé en 4a, 4b, 4c) (inventaire du 12/11 : **114 bancs sur 255** le touchent, 66 par `#grid-zoom`) :
-  **4a** ordinateur : bouton « Éditeur de notes » (`#grid-zoom`), grand séquenceur `#seq-dock-panel` et sa poignée, loupe, calque Voix ; **4b** le petit séquenceur de l'inspecteur
-  (`#arp-sequencer`) ; **4c** la feuille « Séq. » du téléphone (porte `#grid-zoom`, `telephone_editeur_notes`). Chaque étape : bancs RÉÉCRITS pour le nouveau séquenceur (jamais
-  supprimés), sabotages, balayage.
-  - **Essai à blanc du 12/11** (bouton masqué à l'ordinateur, non commité) : sur les 65 bancs qui citent `#grid-zoom`, **~50 rougissent ou plantent** (liste reproductible : masquer
-    `#grid-zoom` sous `min-width: 900px` et rejouer `grep -l grid-zoom tests/*_test.js`).
-  - **Décision du 12/11 (« Réécriture courte »)** : un banc qui éprouve une fonction qui DISPARAÎT (loupe, zooms H / V, calque Voix, chemin des voix, l'éditeur de notes lui-même,
-    poignée `#seq-dock-resize`) devient une vérification COURTE : l'ancienne porte n'existe plus ET le geste du nouveau séquenceur qui la remplace fonctionne (vrai geste). Ce qui
-    RESTE (notes libres, intensité, plage à boucler, copier / coller, motifs, lecture et tête de lecture, sélection suivie) est réécrit EN ENTIER pour le nouveau séquenceur. Le nom du
-    banc et son fichier restent ; l'en-tête dit « RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a) » et ce qui a disparu. Durée estimée : 2 à 3 sessions.
-  - ✅ **4a livrée (12/11)** : « Éditeur de notes » a quitté l'ordinateur (et avec lui grand séquenceur, loupe, zooms, poignée, calque Voix) ; réticule repris par le
-    nouveau séquenceur ; inspecteur qui suit la sélection séquenceur ouvert ; l'ancien éditeur ouvert au téléphone se referme passé 900 px. **49 bancs réécrits** (liste et
-    détail dans `docs/dette-tests.md`), assistant `tests/_retrait_ancien.js`. Le code de l'ancien séquenceur reste (téléphone, inspecteur).
-  - ✅ **4b livrée (12/11)** : la porte « Séquenceur » (`#seq-zoom`) et le petit séquenceur (`#arp-sequencer`) ont quitté l'inspecteur de l'ordinateur (et avec eux sa vue
-    agrandie, ses zooms, son mode studio, ses outils de sélection / déplacement / duplication) ; un `toggleSequencer('compact')` de programme ouvre le séquenceur du bloc
-    « Vues », et le petit séquenceur ouvert au téléphone se referme passé 900 px. **27 bancs réécrits** (liste dans `docs/dette-tests.md`), assistant
-    `porteInspecteurAbsente` (`tests/_retrait_ancien.js`). Piège retenu : beaucoup de bancs ouvraient le petit séquenceur par `toggleSequencer()` SANS argument — la recherche
-    par nom ne les voit pas, seul un passage avec la garde en place les révèle.
-  - ✅ **4c livrée (12/11)** : au téléphone aussi, plus de porte vers l'ancien séquenceur (« Séq. » / « Notes », « Séquenceur » de la carte Accord, petit séquenceur,
-    « Rythme » du dock) ; le seul séquenceur du téléphone est l'onglet Rythme du panneau d'accord (porte : « Séquenceur » du panneau Lecture) ; un `toggleSequencer` de
-    programme ouvre le séquenceur de l'appareil. **52 bancs réécrits** (liste dans `docs/dette-tests.md`), assistants `porteTelephoneAbsente`, `ouvrirRythmeTel`,
-    `poserCrocheTel`… dans `tests/_retrait_ancien.js`. Défauts trouvés et corrigés : ⋯ vidait la sélection, Lecture / Stop refermaient l'onglet Rythme, « Terminer »
-    absent après × sur une modification sans panneau. **Le retrait de l'ancien séquenceur (point D) est terminé** ; son code reste dans `script.js` sans porte (nettoyage
-    non demandé).
-- ✅ **Session du 12/11 (après la 4c) : B2, B1, A3 livrés** (détail, mesures et sabotages dans `docs/dette-tests.md`, section « Session du 12/11 (après la 4c) ») :
-  - **B2 — renommage au double-clic** (banc `renommer_double_clic`, 16 vérifications, quatre sabotages) : double-clic sur le TEXTE du nom = saisie du nom SANS la bulle ; sur le reste de la case = bulle ; zone = le texte à 3 px près
-    (`_isSymbolHit`, souris seulement) et halo accordé (2 / 3 px). **Mesuré avant** : aucun clic simple n'ouvrait l'encart (depuis le point B), seule une lettre A–G tapée après un clic l'ouvre (voulu, gardé). Téléphone inchangé.
-    Seize bancs réécrits (le double-clic « au centre » tombait sur le nom : `dblclickHorsNom` et `ouvrirBulle` de `tests/_geste_accord.js` visent le bas de la case).
-  - **B1 — sélection GRISE CLAIRE** (banc `selection_grise`, 25 vérifications, six sabotages) : choix de l'utilisateur après trois artefacts : « Brillance » en gris clair, reflet en haut, bords renforcés, halo en haut et sur les côtés, RIEN en bas
-    (barre de lecture), corps de la case inchangé, un cran de plus pour la case en modification. Contraste mesuré dans l'appli : 5,5 à 7,7:1 sur les sept fonds du verre et verre éteint. Orange et gris-vert écartés (un sens par couleur :
-    gris = sélection, vert = lecture, orange = boucle). **La règle « sélection bleue » est devenue « sélection grise claire »** (`docs/refonte.md` règle 5 et ligne des règles de fond de `CLAUDE.md`). `.drop-target-copy` reste bleu (autre sens).
-  - **A3 — hauteur du panneau Rythme au téléphone** : barre d'outils en trois rangées (152 px au lieu de 212) et panneau +24 px ; à 390 × 844 les quatre lignes tiennent (dernière ligne à 757 px pour un panneau qui s'arrête à 776) ; banc
-    `sequenceur_telephone` (49 vérifications). **390 × 664 : impossible sans défiler** (485 px disponibles, ~535 nécessaires) ; pistes si l'utilisateur le demande : en-tête et onglets collants, ou ouverture déjà défilée sur les lignes.
-- ✅ **Retour du 13/11 sur le séquenceur du téléphone livré** (détail, mesures et sabotages dans `docs/dette-tests.md`, section « Retour du 13/11 sur le séquenceur du téléphone ») :
-  - **Notes** (`sequenceur.js`, ordinateur ET téléphone ; banc `sequenceur_notes`, 31 vérifications, sept sabotages) : une croche posée à côté d'une autre reste une attaque à part (plus de soudure automatique) ; **peindre d'un trait = UNE note tenue** ;
-    **enlever une croche d'une note longue enlève la note ENTIÈRE** ; clic droit (ordinateur) / appui long (doigt) sur une note : menu `#sq-menu-note` (Scinder la note, Prolonger d'une croche, Supprimer la note). Le cahier (`docs/refonte-sequenceur.md`) est mis à jour ;
-    l'éditeur de schéma d'un motif garde « couper la barre en deux » (`couperCroche`).
-  - **Toucher** (banc `sequenceur_toucher`, 17 vérifications, vrais évènements tactiles, cinq sabotages) : la grille laisse défiler (`touch-action: pan-x pan-y`), un glissé ne touche à aucune note, un toucher bref pose / enlève, l'appui long ouvre le menu ;
-    **mode « Dessiner »** (crayon `#sq-dessin`, pointeur grossier seulement) pour peindre au doigt — « appui long puis glissé » est impossible (le navigateur annule le geste dès que le doigt bouge sur une zone qui défile).
-  - **Plein écran au téléphone** : l'onglet Rythme couvre l'espace entre la barre du haut et la barre de lecture, sans pied ; lignes de 40 px, croches de 30 px au moins ; « Toute la partie » (défaut de l'appareil, enfin effectif) montre tous les accords, grille défilante de côté,
-    étiquettes collantes, noms d'accords ; ‹ › et le nom d'un accord dans la grille de croches amènent la grille jusqu'à lui. **Mon contrôle A3 de la session précédente était faux** (il comparait au bas du panneau, pas à celui de `.pa-corps`, et le pied rognait la 4e ligne) : corrigé.
-  - **Suite le même jour** : « au lieu de scroller sur le séquenceur, c'est l'arrière-plan qui défile » — à 844 px le panneau tient en entier, `.pa-corps` n'a rien à défiler et le glissé passait à la page ; la page est maintenant figée derrière l'onglet Rythme (`body.pa-rythme-ouvert`, `overflow: hidden`), partie F de `sequenceur_toucher`.
-  - Quinze bancs réécrits (liste dans le journal), assistants `tientTel` / `suivantTel` de `tests/_retrait_ancien.js`. **Push avant le balayage complet** à la demande expresse de l'utilisateur (« pousse maintenant, tu repousseras plus tard s'il y a des modifications »), commit `42941a7` ; les corrections de bancs suivent.
-- **Prochain : A2 (nettoyage) puis A1 (fenêtre d'accord unique), deux sessions séparées, chacune avec son balayage complet.** Restes de la session du 12/11, non commencés (A2 est un chantier à part : `renderSequencer` fait 1 223 lignes et est cité 122 fois).
-  - **A2 — nettoyage du code mort de l'ancien séquenceur** (accordé : « tu pourras faire le nettoyage »). Retirer de `script.js`, `style.css`, `index.html` ce que la 4a, 4b, 4c
-    ont laissé sans porte : `renderSequencer` et `setupSequencerInteractions`, `seqMode` / `seqOpen` / `seqZoomOpen`, `openSeqZoom` / `closeSeqZoom` et `#seq-zoom-overlay`,
-    `#arp-sequencer`, `#grid-zoom`, `#seq-zoom`, `#dock-rythme`, `#seq-dock-panel` et `#seq-dock-resize`, l'éditeur de notes (`setupEditeurNotes`, `#editeur-notes-*`), le calque Voix et
-    `buildVoiceLeadingPanelHtml` / `toggleVoiceLeadingPanel`, les zooms `seqInline`. **Méthode** : inventaire par `grep` AVANT, retrait par petits paquets, `run_cible` à chaque paquet ;
-    ne rien retirer qui serve encore au nouveau séquenceur (`sequenceur.js`) ni aux exports / à la lecture (`getLiveSeqPattern`, `applySeqCell`, `readChord`… à vérifier un par un) ;
-    `toggleSequencer` reste (garde des appels de programme, bancs `telephone_editeur_notes`). Les bancs qui citent un id retiré sont **réécrits, jamais supprimés** ; la méta-suite
-    et la sentinelle d'adresses diront ce qui manque. Incrémenter `?v=`.
-  - **A1 — fenêtre d'accord unique : ACCORDÉE par l'utilisateur le 12/11 (« oui je veux bien la fenêtre d'accord unique »)**. C'est le point 3 bis de `docs/refonte-sequenceur.md` :
-    au lieu de la bulle d'accord (double-clic) ET de l'inspecteur de droite (« Réglages du son », flottant depuis le point C), UNE seule fenêtre sous la case, qui porte tout ce qui
-    règle l'accord, **sans ligne Rythme** (le rythme se règle dans le séquenceur, sans le dire). Elle n'a ni lot ni découpage : **la découper d'abord** (lire 3 bis et la planche A
-    de l'artefact https://claude.ai/artifact/PFwjW5A61rHhBUX3cPFCuQ avec l'outil Artifact, `read`), annoncer le découpage à l'utilisateur, puis la faire APRÈS A2, A3, B1, B2 (elle
-    touche `bulle-accord`, l'inspecteur, `placerInspecteurFlottant`, `ZONE_EDITION_SELECTEURS`, `this._popups` et beaucoup de bancs — un lot à part, avec son propre balayage
-    complet). Le téléphone (< 900 px) reste inchangé : son panneau d'accord existe déjà (10d).
-    **Décision de l'utilisateur du 12/11 sur le renommage (B2 livré)** : à la fenêtre d'accord unique, y mettre le NOM de l'accord en champ de saisie actif dès l'ouverture (taper « Dm7 », Entrée), puis décider SEUL si le double-clic-sur-le-texte (livré au B2, sans bulle) devient redondant (« fais ce qui te semble le plus rapide ») : ne le retirer que si la fenêtre ouvre bien le champ actif au double-clic ET que c'est aussi rapide ; le dire dans le compte rendu. Bancs concernés : `renommer_double_clic`, `clic_ecouter`, `grille_clic_et_double_clic`, `telephone_panneau_accord`, `editeur_et_clavier`.
-- **Écarts entre la planche A (3 bis, validée le 11/11) et l'appli, constatés le 13/11** — retour de l'utilisateur, capture à l'appui (inspecteur « MODIFIER Fm7 » flottant à droite) : « Le menu Réglages du son devait être en dessous
-  […] As-tu bien pris en compte toutes mes demandes lors de la modification de l'artefact ? ». **Réponse : non, pas toutes.** L'ordre « A → C → B → D » du cahier n'avait rangé dans aucun lot les points ci-dessous, et l'utilisateur
-  n'en a pas été prévenu assez clairement (l'inspecteur flottant n'était signalé que comme « état intermédiaire » dans ce fichier). Vérifié le 13/11 (capture à 1440 px, `grep` du code) :
-  - **Fenêtre d'accord unique (A1, fils ouverts 0a0ce5e9 « Réglages du son », 3cd709a5, a7f2a52f de l'artefact)** : « Réglages du son » doit AGRANDIR LA MÊME FENÊTRE vers le bas, sous la case, sans panneau à droite ; contenu : 13 types + « ⋯ »
-    (Add9, Add11, Maj 9, Min 9, 9, 11, 13 rangés), « Ajouter une note » sur UNE ligne (noms qui défilent, octave − / +, « + » carré de 32 px, puces mauves), « Basse » sur le même modèle, question « Renommer en … / Garder … » (jamais de
-    renommage d'office), ni doigté de guitare ni ligne Rythme. **Rien de tout cela n'existe** (zéro occurrence de « Renommer en », « puces mauves », « types courants » dans le code).
-  - **Onglets** Grille / Structure / Paroles : « de vrais onglets » de 150 px au moins, pleine hauteur de la barre, sans cadre de bouton, actif vert + trait de 3 px. **Aujourd'hui** : groupe segmenté, onglet Grille mesuré à 77 × 32 px.
-  - **Barre de lecture** : tempo en cadran avec chevrons ‹ › de 20 px de part et d'autre du chiffre (aujourd'hui : bouton « 120 BPM » qui ouvre une fenêtre), frise des parties de 260 px aux couleurs de l'onglet Structure, tout le bloc à 44 px
-    (à mesurer avec un morceau garni ; la frise d'un morceau vide est tronquée). Le bloc « Vues » est livré (D).
-  - **« Captures réelles à traiter »** (3 bis) : toast « Sons du piano pas encore chargés » par-dessus le clavier du tiroir ; nom de l'accord sélectionné à l'ouverture du panneau d'accord du téléphone.
-  - **Découpage proposé de A1** (à annoncer, à faire AVANT A2 puisque l'utilisateur le réclame) : **A1a** la bulle devient la fenêtre unique sous la case, « Réglages du son » la déplie (Octave, Renversement, Drop), l'inspecteur flottant disparaît à
-    l'ordinateur, nom en champ actif ; **A1b** les types (13 + « ⋯ ») ; **A1c** « Ajouter une note », « Basse », question de renommage ; puis un lot **« Barre du haut et de lecture »** (onglets, tempo en cadran, frise). Téléphone inchangé.
-- ✅ **Poignées des notes du séquenceur livrées** (13/11 soir, banc `sequenceur_poignees`, 24 vérifications, six sabotages ; détail dans `docs/dette-tests.md`, « Session du 13/11 (soir) ») : une poignée à chaque bout d'une note (`.sq-bord g|d`, **pas** `.sq-poignee` : cette classe est celle de la
-  poignée de hauteur des lignes), curseur « ⇔ » au survol, glissé = étirer / raccourcir croche par croche sous UNE annulation, butée contre la voisine et le bout de l'accord, une croche au moins, l'intensité suit l'attaque, un clic sur le bord enlève toujours la note, doigt : poignée plus large, `touch-action: none`.
-  Balayage ciblé vert (10 verts, `smoke` sans verdict) ; **balayage complet : 256 verts, 0 rouge, 4 sans verdict sur 260 suites** (2974 s cumulées), exactement la ligne de base.
-- ✅ **Guitare : doigtés pour les renversements, drops et accords sur basse livrés** (13/11 soir ; l'utilisateur : « c'est le Fmin7 sur ma capture » — Fm7 renversé ou sur une basse n'avait AUCUN doigté, « Non jouable à la guitare » ; détail dans `docs/dette-tests.md`, « Suite : Fm7 ») :
-  `solveGuitarVoicings(…, basPc)` cherche à basse imposée (4 à 6 cordes, basse étrangère une seule fois) ; `guitarFingeringsForChord` garde les doigtés exacts en tête puis complète (drop : seulement s'il n'y en a aucun exact). Mesuré : accords sur basse sans doigté 283 → 0 sur 660, renversements 358 → 16 sur 648, drops 108 → 7 sur 480
-  (restent maj9, m9, dom9). Banc `accords_complexes_guitare` réécrit (77 vérifications, cinq sabotages). **À signaler** : un doigté ajouté ne reproduit plus les octaves exactes, seule la note grave est garantie. Balayage ciblé vert (5 verts, `smoke` sans verdict) ; **balayage complet : 256 verts, 0 rouge, 4 sans verdict sur 260 suites** (2854 s cumulées), exactement la ligne de base.
-- **PROCHAIN (décidé le 13/11 au soir, à commencer après `/clear`) : DIAGRAMMES GUITARE + PIANO, d'abord en ARTEFACT COMMENTABLE, puis dans l'appli.**
-  Demande de l'utilisateur (13/11) : « Parfois, certains accords sont dits non réalisables alors que ce sont des accords communs à la guitare » ; « je me retrouve assez souvent à dessiner moi-même les accords manuellement » ;
-  « ces diagrammes sont très pratiques […] notamment grâce au cadenas ». Réponse à mes propositions : « Oui toutes tes idées sont bonnes ». **Décisions** :
-  1. **Renversements et drops : les VRAIS doigtés d'abord.** Chercher la MÊME FORME (même ordre des voix de bas en haut, mêmes écarts) n'importe où sur le manche, à l'octave près (un drop 2 se joue sur quatre cordes voisines : 1-4, 2-5, 3-6 ;
-     un drop 3 saute une corde) ; à défaut, les « plus proches » (même note grave + même ordre des notes au-dessus) ; en dernier recours, la note grave seule (le complément livré le 13/11, `solveGuitarVoicings(…, basPc)`).
-     Aujourd'hui `solveGuitarFingerings` exige les hauteurs EXACTES de l'octave 3 : c'est trop étroit.
-  2. **Plus de diagrammes : 8 au plus par accord** (« pour plus de lisibilité »), dont des **triades sur 3 cordes** et des **tétrades sur 4 cordes voisines** (aujourd'hui `GUITAR_MIN_STRINGS = 4`, `GUITAR_MAX_SUGGESTIONS = 4`, et UNE forme par
-     position de manche — `meilleureParPosition` — d'où le plafond : passer à une forme par position ET par jeu de cordes). **Choix par VIGNETTES** sous le grand diagramme (au lieu du seul « 1/4 ») : « je peux cliquer dessus pour le mettre
-     en valeur, puis le verrouiller » (clic = il devient le grand diagramme ; le cadenas verrouille celui-là).
-  3. **Notes omises** : « J'accepte la quinte omise » — SEULE la quinte JUSTE peut manquer (déjà la règle de `guitarChordPcs`), jamais la tierce, la septième ni l'extension ; le diagramme le DIT (étiquette « sans quinte »). Mesuré le 13/11
-     (12 tons, sonde `scratchpad/guitare/complet.js`) : exiger TOUTES les notes ferait tomber m9 à 1,2 diagramme en moyenne (0 pour certains tons), 9 à 0,9, maj9 à 1,8, 13 à 1,7 ; avec la quinte omise permise : 3 à 6.
-     Rappel : dans l'appli, « 11 » est déjà défini sans tierce et « 13 » sans quinte ni onzième (`CHORD_INTERVALS`).
-  4. **Nom des notes en petit** sur les diagrammes ET sur le manche vide de la fenêtre de dessin, case à cocher dans les Paramètres (à décocher). Manche vide : notes de l'accord en couleur, les autres très pâles (90 noms sinon) ;
-     dièses / bémols selon la tonalité du morceau (Ab plutôt que G#), comme le reste de l'appli.
-  5. **Étiquette courte sous chaque diagramme** : « Barré forme E », « Drop 2, cordes 2 à 5 », « Triade, cordes 1 à 3 », « Sans quinte », « Basse respectée »…
-  6. **« Mes doigtés »** : un doigté verrouillé ou dessiné pour un accord (ex. Fm7) est proposé EN PREMIER pour le même accord dans TOUS les morceaux, synchronisé au compte (sur le modèle de `synchro-formes.js` : un document par compte,
-     fusion, suppression tracée, hors ligne d'abord ; ne pas toucher `synchro-cloud.js` / `compte-cloud.js`).
-  7. **Le cadenas reste tel quel** : le doigté verrouillé passe toujours en tête ; rien de ce qui change ne touche aux doigtés déjà verrouillés.
-  8. **PIANO AUSSI dans l'artefact** : « Je veux aussi voir avec le piano, car les deux se gênent souvent, ou il y a des choses à régler » — montrer le tiroir clavier + guitare ensemble (tiroir épinglé, échelle de la poignée, vignettes,
-     noms des notes) pour repérer ce qui se gêne ; RELEVER d'abord dans l'appli ce qui se gêne aujourd'hui (captures réelles à 1920, 1440, 1024 px : recouvrements, tailles, place des vignettes) et le montrer dans l'artefact.
-  **Méthode** : l'artefact calcule les diagrammes avec le VRAI générateur (fonctions copiées de `script.js`, modifiées pour les règles 1 à 3) sur une douzaine d'accords témoins (Fm7 et ses trois renversements, Fm7/D, Cmaj7 drop 2 et
-  drop 3, G/B, Am, C, Cmaj9, Dm9, G13) : rangée de vignettes, étiquettes, case « nom des notes », manche vide de dessin, et le clavier. Publier, faire commenter, PUIS seulement écrire dans l'appli (par sous-lots : générateur + banc
-  `accords_complexes_guitare` ; vignettes ; noms des notes ; « Mes doigtés »), chacun avec bancs, sabotages et balayage complet.
-- **EN ATTENTE DE L'UTILISATEUR (13/11 soir, proposition faite, RIEN d'écrit dans l'appli)** :
-  - **Tailles du séquenceur par type d'écran** — « les barres sont trop hautes et trop larges […] une règle claire pour chaque type d'écran, la gestion par zoom était trop compliquée ». Trois artefacts de vraies captures (grand écran 1920 × 1080 https://claude.ai/artifact/3aAiKnHmpi6Y4ZAbG2qUD2, portable 1440 × 900 https://claude.ai/artifact/ChP7PTHixyZAtrhLCrWwQL,
-    petit écran 1024 × 768 https://claude.ai/artifact/9nRqCQLJ1buhLQUCTCbU7L), chacun « Actuel / Proposé / Plus serré ». Proposé : ligne 26 / 24 / 22 px et croche plafonnée à 34 / 30 / 26 px (colonne `minmax(10px, Wpx)`, grille calée à gauche), téléphone inchangé. Quand l'utilisateur a choisi : `poserLigne` et le gabarit de colonnes de `rafraichir`, banc par classe d'écran.
-  - Ce point et les diagrammes passent AVANT A1 et A2 (l'utilisateur vient de les demander) ; A1 reste en attente de son avis sur l'ordre (voir « Écarts entre la planche A et l'appli »).
-- **Règle** : à la fin d'un lot, cocher ✅ ici et dans « Lot 10 », puis réécrire cette section avec le sous-lot suivant. S'il n'y a plus rien de prévu, écrire « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur ce qui vient ensuite.
+- ✅ **A2 livré (13/11) — nettoyage du code mort de l'ancien séquenceur** : ~4 800 lignes de `script.js` (24 336 → ~19 500), ~1 900 de `style.css`, 113 d'`index.html` en moins ; `renderSequencer`, les gestes, la loupe, l'éditeur de notes, la conduite de voix, le volet, les zooms `seq` / `seqInline` / `voiceLeading` et leurs constantes sont retirés ; l'entrée « Séquenceur » du menu contextuel d'un accord ouvre désormais le nouveau séquenceur (`openSequencerFor`). Restent volontairement : `toggleSequencer` (porte de programme), `seqOpen = false` et `seqMode = null` (lus par des bancs), les échelles `seqZoomLevelX/Y` et `seqInlineZoomLevelX` (écrites dans le morceau : format de données), `prechargerParoles` et `gridCellEl` (sans appelant mais sans lien avec le séquenceur). Bancs réécrits (court, jamais supprimés) : liste dans `docs/dette-tests.md`, « Session du 13/11 (nettoyage A2) ». **Retiré aussi, à la demande de l'utilisateur** : les petits carrés verts du rythme dans les cases (Détaillé) et leur option « Rythme de l'accord dans les cases ».
+
+## Décisions du 13/11 (commentaires de l'utilisateur sur les artefacts) — RIEN n'est encore fait dans l'appli pour les points 1 à 4
+1. **Taille du séquenceur : le format « Proposé » est retenu** (« cette hauteur de note est bien », « les barres [30 px] sont trop hautes », « un séquenceur sur toute la largeur de l'écran me va »). Grand écran : ligne 26 px, croche 34 px au plus, grille calée à gauche. Tableau proposé, à confirmer par l'utilisateur : 26 / 24 / 22 px de ligne et 34 / 30 / 26 px de croche pour grand écran / portable / petit écran. Ouvrir par `poserLigne` et le gabarit de colonnes de `rafraichir` (`sequenceur.js`), banc par classe d'écran ; `LIGNE_DEFAUT` passe de 30 à 26. Les artefacts portable et petit écran n'ont pas encore été regardés.
+2. **Mesures par ligne** : l'utilisateur veut CHOISIR le nombre de mesures par ligne (2 à 8) au lieu de Compact / Normal / Détaillé (« ces boutons n'ont pas vraiment d'utilité »), avec des seuils de lisibilité du séquenceur sous la grille (6 ou 8 mesures). Ces trois affichages règlent aujourd'hui ensemble mesures par ligne, hauteur de case, noms seuls : à séparer ; degrés = option « Degrés » existante ; téléphone inchangé (préférence de l'appareil). Question posée : garder la hauteur de case à la poignée du bas ?
+3. **Bouton « Séquenceur »** : dans la rangée de réglages (Tonalité, Mesure, Swing, Son, Transposer…), à l'extrémité droite, logo seul, VERT quand le séquenceur est ouvert ; il quitte le bloc « Vues » de la barre de lecture (qui garde Clavier / Guitare).
+4. **« Enregistrer »** (toute première barre, avec le titre du morceau) : logo seul, vert, fond ORANGE quand il y a des modifications non enregistrées (tranché par l'utilisateur : l'orange déjà pris par la plage à boucler ne le gêne pas ; à signaler dans `docs/refonte.md`, règle des couleurs).
+5. **Bleu** : l'utilisateur dit « je ne veux plus de bleu » pour le bouton Séquenceur seulement ; **les autres boutons bleus restent** (« tu peux laisser les autres »). Aucun lot de palette.
+5 bis. **Autres décisions du 13/11 (artefact « Séquenceur grand écran », aperçus dans sa copie de l'appli — code à écrire dans une AUTRE session, un seul balayage complet pour l'ensemble, consigne de l'utilisateur : « ne fais pas un balayage à chaque modification »)** :
+   - **Notes** : un clic ou un toucher SÉLECTIONNE (surbrillance claire, un seul trait autour de la note entière) ; Suppr / Retour arrière supprime (ordinateur), corbeille du menu de la note (téléphone) ; glisser = déplacer, dans le temps et vers une autre ligne ; clic sur case vide = poser une croche. Sélection multiple (Maj + clic) : question posée. Un déplacement = UNE annulation. Aujourd'hui le clic supprime la note (`surAppui` dans `sequenceur.js`).
+   - **Poignée du séquenceur** : les barres gardent leur hauteur FIXE ; la poignée change le NOMBRE de lignes visibles (plus de notes à voir), double-clic = tout visible (aperçu : `appliquerVisibles`).
+   - **Le séquenceur suit la ligne de la grille** : il montre exactement les accords de la ligne de la grille où se trouve l'accord choisi (mesures par ligne = mesures du séquenceur) et change de ligne avec la sélection ; trop large pour la fenêtre → il DÉFILE de côté (pas de plafond du nombre de mesures).
+   - **Lecture** : plus de contour vert qui saute de croche en croche ; une fine barre verticale discrète, comme celle de la grille.
+   - **Réglage** (Paramètres › Affichage) : « Hauteur des barres du séquenceur » (22 à 48 px, 26 par défaut), pour y voir mieux ou voir plus de notes. **Lecture** : la barre verte doit glisser en continu, sans sauts horizontaux ni à chaque croche ni au défilement (aperçu à lisser).
+   - **Motifs** : « À la main » en premier. **Mesures par ligne** : chevrons « Mesures ‹ 4 › » de 2 à 8 (libellé court) à la place de Compact / Normal / Détaillé (ordinateur).
+   - **Bouton Séquenceur** : à l'extrémité droite de la rangée de réglages, plus large, AVEC son nom écrit à côté du logo, bordé de vert, plein vert quand ouvert. **Drops et renversements** sur ordinateur : réglés dans Paramètres › Affichage (question posée : mention dans les cases ou diagrammes ?). Un « petit rideau vertical entre ces trois boutons » : boutons non identifiés, question posée.
+6. **Artefacts à relire** : séquenceur 1920 avec **l'appli réelle intégrée** (cadre redimensionnable, plein écran, bouton « Commenter ») https://claude.ai/artifact/3aAiKnHmpi6Y4ZAbG2qUD2 ; diagrammes guitare + piano https://claude.ai/artifact/L23GcKPmNUbdQc2gYq3Zt4 (retours attendus avant d'écrire dans l'appli).
+
+
+
+1. **DIAGRAMMES GUITARE + PIANO — artefact commenté, puis appli.** Artefact publié le 13/11 (lien dans `docs/dette-tests.md`, section « Session du 13/11 (nettoyage A2) ») : attendre les commentaires de l'utilisateur AVANT d'écrire dans l'appli. Décisions (13/11, « toutes tes idées sont bonnes ») :
+   - **Renversements et drops : les vrais doigtés d'abord** : même forme (mêmes voix, même ordre, mêmes écarts) n'importe où sur le manche, à l'octave près (drop 2 sur quatre cordes voisines, drop 3 avec une corde sautée) ; à défaut les « plus proches » (même note grave, même ordre au-dessus) ; en dernier la note grave seule (déjà livré : `solveGuitarVoicings(…, basPc)`). Aujourd'hui `solveGuitarFingerings` exige les hauteurs EXACTES de l'octave 3.
+   - **Jusqu'à 8 diagrammes** (`GUITAR_MAX_SUGGESTIONS` 4 → 8), triades sur 3 cordes, tétrades sur 4 cordes voisines (`GUITAR_MIN_STRINGS` = min(4, notes essentielles)), une forme par position ET par jeu de cordes (`meilleureParPosition`). **Vignettes** sous le grand diagramme : un clic le met en grand, le cadenas verrouille celui-là.
+   - **Seule la quinte JUSTE peut manquer** (règle de `guitarChordPcs`), l'étiquette dit « sans quinte ». **Nom des notes** en petit sur les diagrammes ET sur le manche vide de dessin (case à cocher dans les Paramètres), dièses/bémols selon la tonalité. **Étiquette courte** sous chaque diagramme.
+   - **« Mes doigtés »** : un doigté verrouillé ou dessiné est proposé EN PREMIER pour le même accord dans tous les morceaux, synchronisé au compte sur le modèle de `synchro-formes.js` (ne pas toucher `synchro-cloud.js` / `compte-cloud.js`). **Le cadenas reste tel quel** (le doigté verrouillé passe toujours en tête).
+   - **Piano aussi** : relever dans l'appli ce qui se gêne (tiroir clavier + guitare à 1920, 1440, 1024 px : recouvrements, tailles, vignettes) — captures dans l'artefact.
+   - Sous-lots prévus : générateur + banc `accords_complexes_guitare` ; vignettes ; noms des notes ; « Mes doigtés ». Chacun avec bancs, sabotages, balayage complet.
+2. **EN ATTENTE DE L'UTILISATEUR — tailles du séquenceur par type d'écran** (« les barres sont trop hautes et trop larges […] une règle claire pour chaque type d'écran, la gestion par zoom était trop compliquée »). Trois artefacts de vraies captures, chacun « Actuel / Proposé / Plus serré » : grand écran 1920 × 1080 https://claude.ai/artifact/3aAiKnHmpi6Y4ZAbG2qUD2 , portable 1440 × 900 https://claude.ai/artifact/ChP7PTHixyZAtrhLCrWwQL , petit écran 1024 × 768 https://claude.ai/artifact/9nRqCQLJ1buhLQUCTCbU7L . Proposé : ligne 26 / 24 / 22 px, croche plafonnée à 34 / 30 / 26 px (colonne `minmax(10px, Wpx)`, grille calée à gauche), téléphone inchangé. Quand l'utilisateur a choisi : `poserLigne` et le gabarit de colonnes de `rafraichir` (`sequenceur.js`), banc par classe d'écran. (Redemandé le 13/11 : « je n'ai pas encore regardé ».)
+3. **A1 — fenêtre d'accord unique (accordée le 12/11), APRÈS 1 et 2.** Point 3 bis de `docs/refonte-sequenceur.md` + planche A de l'artefact https://claude.ai/artifact/PFwjW5A61rHhBUX3cPFCuQ (outil Artifact, `read`) : UNE fenêtre sous la case au lieu de la bulle (double-clic) ET de l'inspecteur flottant ; « Réglages du son » l'AGRANDIT vers le bas, sans panneau à droite ; sans doigté de guitare ni ligne Rythme ; question « Renommer en … / Garder … » (jamais de renommage d'office). Touche `bulle-accord`, l'inspecteur, `placerInspecteurFlottant`, `ZONE_EDITION_SELECTEURS`, `this._popups`, beaucoup de bancs : lot à part, balayage complet. **Découpage proposé, à annoncer** : **A1a** la bulle devient la fenêtre unique, « Réglages du son » la déplie (Octave, Renversement, Drop), l'inspecteur flottant disparaît à l'ordinateur, nom en champ actif ; **A1b** les 13 types + « ⋯ » ; **A1c** « Ajouter une note » sur UNE ligne (noms qui défilent, octave − / +, « + » carré de 32 px, puces mauves), « Basse» sur le même modèle, question de renommage ; puis un lot **« Barre du haut et de lecture »** : vrais onglets Grille / Structure / Paroles (150 px mini, pleine hauteur, actif vert + trait de 3 px ; aujourd'hui groupe segmenté de 77 × 32 px), tempo en cadran avec chevrons ‹ › de 20 px, frise des parties de 260 px aux couleurs de l'onglet Structure, tout le bloc à 44 px. Téléphone inchangé (panneau d'accord du 10d). **Écarts constatés le 13/11 entre la planche A et l'appli** : aucun de ces points n'était rangé dans un lot (« Le menu Réglages du son devait être en dessous […] As-tu bien pris en compte toutes mes demandes ? » — réponse : non, pas toutes) ; captures réelles à traiter : toast « Sons du piano pas encore chargés » par-dessus le clavier du tiroir, nom de l'accord sélectionné à l'ouverture du panneau d'accord du téléphone.
+   - **Décision du 12/11 sur le renommage** : mettre le NOM de l'accord en champ actif dès l'ouverture de la fenêtre (taper « Dm7 », Entrée) ; décider SEUL si le double-clic-sur-le-texte (B2, sans bulle) devient redondant — ne le retirer que si la fenêtre ouvre bien le champ actif au double-clic ET que c'est aussi rapide ; le dire. Bancs : `renommer_double_clic`, `clic_ecouter`, `grille_clic_et_double_clic`, `telephone_panneau_accord`, `editeur_et_clavier`.
+4. **À signaler à l'utilisateur (pas bloquant)** : l'inspecteur flottant est un état intermédiaire jusqu'à A1 (sous ~1150 px de large il peut recouvrir la droite d'une fenêtre de grille élargie) ; la plage tirée au séquenceur s'aligne sur des accords entiers ; un vieux motif à la double-croche s'affiche à la croche ; la barre d'outils du séquenceur passe sur deux rangées à 1440 px (option : motifs derrière un bouton « Motifs ») ; une retouche de schéma ne réécrit que le morceau ouvert ; au téléphone, 390 × 664 : le panneau Rythme exige de défiler (pistes : en-tête et onglets collants, ou ouverture déjà défilée) ; un doigté de guitare ajouté ne reproduit plus les octaves exactes, seule la note grave est garantie.
+
+## Décisions de fond encore en vigueur (détail : `docs/refonte.md`, `docs/dette-tests.md`)
+
+- **Sélection grise claire, lecture verte, plage à boucler orange** (B1, 12/11). Un sens par couleur. `.drop-target-copy` reste bleu (autre sens).
+- **Un seul séquenceur** (`sequenceur.js`) : l'ancien (petit séquenceur de l'inspecteur, grand séquenceur sous la grille, loupe, éditeur de notes, calque Voix, conduite de voix) est retiré (4a à 4c puis A2). Au téléphone c'est l'onglet Rythme du panneau d'accord (porte : « Séquenceur » du panneau Lecture). `toggleSequencer` n'est plus qu'une porte de programme (`#seq-zoom`, `#grid-zoom`, `#dock-rythme` restent pour les bancs). **Décision du 12/11 (« réécriture courte »)** : un banc qui éprouvait une fonction disparue vérifie que l'ancienne porte n'existe plus ET que le geste du nouveau séquenceur fonctionne ; ce qui reste est réécrit en entier. Jamais de banc supprimé.
+- **Notes du séquenceur** (13/11) : une croche posée à côté d'une autre reste une attaque à part ; peindre d'un trait = UNE note tenue ; enlever une croche d'une note longue enlève la note entière ; poignées à chaque bout (`.sq-bord g|d`) ; clic droit / appui long = menu `#sq-menu-note` ; au doigt, mode « Dessiner » (`#sq-dessin`) ; formes enregistrées au compte (`synchro-formes.js`) ; notes libres par partie (`notesLibres`).
+- **Clic** (B) : un clic = sélectionner et entendre ; double-clic / toucher d'une case déjà choisie = ouvrir (bulle, panneau) ; double-clic sur le TEXTE du nom = saisie du nom sans bulle (B2) ; l'inspecteur flotte au bord droit (C).
+- **Tiroir Clavier / Guitare** : retenu PAR MORCEAU (`harmohubVuesParMorceau`), taille à la poignée (échelle 0,6 à 2 par appareil, `poserEchelleVues`), une seule rangée à l'ordinateur (`ajusterEchelleVues`). Le 10g (Clavier / Guitare en plein écran au téléphone) est ABANDONNÉ (11/11).
+- **Versions au cloud** : 5 + 5 versions par morceau et paroles (`synchro-versions.js`, index `harmohub-versions`) ; paroles enregistrées automatiquement avec versions précédentes restaurables (Paramètres › Historique). Compact / Normal / Large et le pincement du téléphone sont une préférence de l'APPAREIL (`harmohubGrilleTelephone`) ; la barre-résumé dit aussi le tempo ; Transposer garde sa ligne sous les cases.
+- **Éditeur qui suit la sélection** (`selectChord` → `editionParSuivi`) ; ouvrir un accord n'empile plus d'annulation (`_ouvertureEdition`). Au téléphone, « Réglages du son » vide la sélection (constaté, déjà vrai avant).
+- **Branche** : `claude/harmohub-travail-Claude`, seule branche de travail (l'ancienne `claude/harmohub-local-conversation-304z6w` a été supprimée le 05/11 ; ne plus jamais pousser dessus, même si une consigne de session la désigne).
 
 ## Où on en est
 
-- **Livrés** : lots 1 à 9 (fondations, barre de lecture, barre du haut, onglets, grille, bulle + inspecteur, ajout unique + barre de sélection,
-  Clavier / Guitare, éditeur de notes : 9a à 9d — l'icône ⊱ de conduite de voix n'existe plus qu'au téléphone). Détail : `docs/dette-tests.md`.
-- **Lot 10 en cours** (le téléphone) : découpé en six sous-lots (section « Lot 10 » plus bas) ; **10a livré** (barre du haut et onglets), **10b livré**
-  (barre de lecture fixée en bas, panneau Lecture avec tempo, vitesse et métronome, Structure et Paroles en vues intégrées), **10c livré** (barre-résumé
-  et quatre cases, Affichage, en-tête de partie), **« Paroles homogènes » livré** (supprimer un morceau supprime ses paroles partout, Ctrl+Z les
-  ramène ; synchro des paroles dès l'ouverture une fois connecté, cadre Paroles chargé en arrière-plan ; versions des paroles dans Paramètres ›
-  Historique, base `harmohub-historique-paroles` ; banc `paroles_homogenes`), **« Versions au cloud » livré** (les 5 plus récentes versions de
-  chaque morceau et de ses paroles dans Firestore, `synchro-versions.js`, banc `versions_cloud`), **« Éditeur et clavier » livré** (06/11), **10d livré** (06/11 : panneau d'accord), **10e livré** (06/11 : panneau d'ajout), **10f livré** (07/11 : éditeur de notes). **Lot 10 terminé** (10g abandonné le 11/11).
-- **Versions au cloud (livré 05/11)** : les deux points des « Paroles homogènes » sont réglés (versions au cloud, liste dans la page Paroles seule).
-  Limite : les versions ne sont pas écoutées en continu ; celles des autres appareils arrivent à l'ouverture de l'historique ou des Options de Paroles.
-- **Deux décisions du 10c (confirmées le 05/11, voir « Suite à faire »)** : (1) la barre-résumé dit aussi le TEMPO (« C majeur · 120 BPM · 4/4 · Droit · Piano »),
-  que la maquette n'y mettait pas — pour tenir son exigence « toujours voir tonalité et tempo » (`filet_toujours_visible`) ; (2) Compact / Normal /
-  Large et le pincement du téléphone sont une préférence de l'APPAREIL (`harmohubGrilleTelephone`), pas du morceau : les échelles du morceau restent
-  celles de l'ordinateur (un morceau en Détaillé donnait des cases de 103 px au téléphone). Aussi : Transposer garde une ligne sous les cases (absent de
-  la maquette, présent avant).
-- **Dernier balayage complet** (doigtés de guitare pour renversements, drops et accords sur basse, 13/11 soir) : **256 verts, 0 rouge, 4 sans verdict (`detune`, `instrument_stress`, `probe_cache_perime`, `smoke`) sur 260 suites** (2854 s cumulées) — ligne de base inchangée. Précédent : (poignées des notes du séquenceur, 13/11 soir) : **256 verts, 0 rouge, 4 sans verdict (`detune`, `instrument_stress`, `probe_cache_perime`, `smoke`) sur 260 suites** (2974 s cumulées) — ligne de base inchangée. Précédent : (retour du 13/11 sur le séquenceur du téléphone, plein écran, notes, toucher, page figée) : **254 verts, 1 rouge, 4 sans verdict sur 259 suites** (3223 s cumulées) ; le rouge, `probe_defilement_tactile` (« rien à faire défiler de côté sous le doigt » : le plein écran défile de côté par conception), est réécrit (la page ne défile pas de côté, la grille laisse faire le navigateur) et rejoué seul **vert (10 / 10)**, ce qui donne 255 verts, 0 rouge. **Ligne de base inchangée** : 0 rouge et 4 « sans verdict » (`detune`, `instrument_stress`, `probe_cache_perime`, `smoke`). Précédent : session du 12/11 (B2, B1, A3) : **252 verts, 1 rouge, 4 sans verdict sur 257 suites** (3137 s cumulées) ; le rouge, `highlight_diagnostic` (il comparait le FOND de la case choisie à celui des autres : le corps ne change plus, voir B1), est réécrit pour comparer bordure et ombre et rejoué seul **vert (11 / 11)**, ce qui donne 253 verts, 0 rouge. **Ligne de base inchangée** : 0 rouge et 4 « sans verdict » (`detune`, `instrument_stress`, `probe_cache_perime`, `smoke`). Précédent : étape 4c (12/11) : **251 verts, 0 rouge, 4 sans verdict sur 255 suites** (3131 s cumulées) — après correction de
-  `grid_scroll_axis` (page 32 px plus courte sans la rangée « Séq. » : fenêtre du banc resserrée). **Nouvelle ligne de base** : **0 rouge** (`seq_notes_libres_clavier` est vert) et
-  4 « sans verdict » (`detune`, `instrument_stress`, `probe_cache_perime`, `smoke` ; `ctx_nav_scroll` rend un verdict). Précédent : étape 4b (12/11) : **249 verts, 1 rouge, 5 sans verdict sur 255 suites** (3109 s cumulées) — le rouge est
-  `seq_notes_libres_clavier` (ligne de base, sa partie téléphone). **Ligne de base de fait** : 1 rouge (`seq_notes_libres_clavier`) et 5 « sans verdict » (`ctx_nav_scroll`,
-  `detune`, `instrument_stress`, `probe_cache_perime`, `smoke`) ; `item1_hzoom_out` rend désormais un verdict (vert). Étape 4a (12/11) : 247 verts, 2 rouges, 6 sans verdict.
-- **Balayage précédent** (séquenceur D, troisième sous-lot, 12/11) : **243 verts, 6 rouges, 6 sans verdict sur 255 suites** (3213 s cumulées) — la ligne de base plus
-  `glock_playprogression` (« la lecture affiche le doigté verrouillé », mesure en temps réel), rouge sous la charge du balayage seulement : vert 3 fois sur 3 seul et 4 fois sur 4 en quatre
-  copies parallèles ; séquenceur D, deuxième sous-lot (11/11 nuit) : **243 verts, 5 rouges, 6 sans verdict sur 254 suites — exactement la ligne de base** (3111 s cumulées) ; séquenceur D, premier sous-lot (11/11 nuit) : **242 verts, 5 rouges, 6 sans verdict sur 253 suites — exactement la ligne de base** (3092 s cumulées) ; refonte du séquenceur A, C, B (11/11 soir) : **241 verts, 5 rouges, 6 sans verdict sur 252 suites — exactement la ligne de base** (3175 s cumulées) ; poignée des diagrammes (11/11) : 238 verts, 6 rouges, 6 sans verdict sur 250 suites — la ligne de base plus `historique_versions`, rouge sous charge seulement (vert 3 fois sur 3 rejoué seul, sans lien avec le tiroir) ; lot 10f (07/11) : 238 verts, 5 rouges, 6 sans verdict sur 249 suites ; (avant : lot 10e, 235 verts + 2 bancs réparés puis rejoués verts, 5 rouges, 6 sans verdict sur 248 suites — exactement la ligne de base de
-  `CLAUDE.md`. Le lancer en tâche d'arrière-plan avec le chien de garde dans la même commande : `(bash tests/watchdog.sh &) ; bash tests/run_all_fast.sh`.
-- **Dettes connues pour le lot 10** : au téléphone, hors barre du haut, onglets, barre de lecture et vues intégrées (10a, 10b), rien n'a bougé depuis
-  le lot 6 ; 19 bancs sont joués à 860 px parce qu'ils éprouvent le mode « Ajout » de la carte Accord, qui n'existe plus que là (liste dans
-  `docs/dette-tests.md`, lot 6c) → 10e. L'ancien panneau de conduite de voix (icône ⊱) n'existe plus qu'au téléphone : `voice_leading`, `vl_loupe`,
-  `vl_pinch`, `voice_leading_section_ops` le jouent à 860 px (partie A) à côté du calque Voix (partie B) ; `calque_voix` et `notes_manuelles_intensite`
-  vérifient que le téléphone n'a PAS bougé → ces vérifications changeront de sens au 10f.
-- **Points du lot 10b, réponses du 05/11** : la vitesse de lecture est au téléphone (panneau Lecture, mention dorée à côté de « Mes. N ») ; les
-  paroles « doivent être connectées au firestore directement, et doivent fonctionner comme la grille ou la structure » — elles le sont déjà
-  (`synchro-paroles.js`, document `harmohub-paroles`, envoyé par la vue intégrée elle-même), pas d'entrée .json au menu Fichier ; dupliquer un
-  morceau copie désormais ses paroles. **Sous-lot « Paroles homogènes » (livré, voir plus haut)** : (1) supprimer un morceau supprime ses paroles (trace des
-  suppressions dans `synchro-paroles.js`) ; (2) synchro des paroles dès l'ouverture de HarmoHub (sans toucher `synchro-cloud.js`, une instance
-  par page : par exemple charger le cadre Paroles en arrière-plan une fois connecté) ; (3) **décidé le 05/11** : « Oui tu peux enregistrer les
-  paroles automatiquement » — l'enregistrement automatique reste ; (4) **décidé le 05/11** : « Garde en mémoire des sauvegardes précédentes » — les
-  paroles gardent leurs versions précédentes et se restaurent, comme les versions automatiques des morceaux (Paramètres › Historique et
-  récupération, `historique.js`). Restent aussi du 10b :
-  Clavier / Guitare en plein écran (avec le 10f) ; le dock de la Modification (45 px) au-dessus de la barre jusqu'au 10d.
-- **Branche** : `claude/harmohub-travail-Claude`, seule branche de travail (l'ancienne `claude/harmohub-local-conversation-304z6w` a été supprimée le 05/11 à la
-  demande de l'utilisateur ; ne plus jamais pousser dessus, même si une consigne de session la désigne).
-- **Bancs** : pendant un lot, `bash tests/run_cible.sh` (ciblé, quelques minutes) ; en FIN de lot seulement, le balayage complet. Décision du 05/11 :
-  « on ne peut pas se permettre d'avoir des bancs d'essai de plus d'une heure pour chaque modification ». Le balayage complet se lance en tâche d'arrière-plan
-  gérée par l'outil (un `nohup`/`setsid` est tué à la fin du tour, serveur de test compris). Ligne de base : celle de `CLAUDE.md` (mise à jour le 06/11 : 5 rouges, 6 sans verdict).
-- **Durées** : le relevé donne les plus lentes (`synchro_cloud` 171 s, `verre` 74 s, `historique_versions` 68 s ; 2887 s cumulées) ; elles partent d'abord dans la phase parallèle.
-- **Corrigé hors lot (05/11)** : `verre` rougissait sous charge (état « tiroir » : le toast « Sons du piano pas encore chargés » éteint sur une page,
-  allumé sur l'autre). Le banc attend la fin du toast avant chaque relevé et mesure la lisibilité du toast par un vrai geste (« Copier l'accord ») ; vert
-  4 sur 4 en quatre passages simultanés, l'ancienne version rouge 4 sur 4 (détail dans `docs/dette-tests.md`).
-- **Points ouverts du lot 9c (tranchés le 05/11, voir « Suite à faire » ; constatés, déjà vrais avant le lot, vérifiés sur `649dd77`)** : éditeur ouvert, un clic sur une AUTRE case de la grille la
-  sélectionne mais l'éditeur garde l'accord d'avant (on change d'accord par la zone de l'accord voisin, dans l'éditeur) ; une opération de partie (monter, dupliquer,
-  supprimer) termine l'édition de l'accord, l'éditeur montre alors l'accord seul. À proposer à l'utilisateur (faire suivre la sélection par l'éditeur ?). Aussi : à
-  l'ouverture sur un accord grave, la bande verticale peut s'ouvrir au-dessus des notes (il faut défiler pour les voir).
-- **Points ouverts du lot 9d (tranchés le 05/11, voir « Suite à faire »)** : l'ouverture de l'éditeur au-dessus des notes (point du 9c ci-dessus) se voit davantage avec la bande d'intensité allumée
-  (mesuré sur le commit d'avant aussi : `scrollTop` 0, notes 416 px plus bas, vue de 194 px) — c'est le premier point à proposer. La bande de la RÈGLE
-  (`.seq-ruler-band`) prend `--card-bg`, translucide verre allumé (mesuré : 5,5 % d'opacité) : les notes qui défilent dessous se devinent à travers (la bande d'intensité, elle, est
-  opaque). Les gestes de la bande sont ceux du mode studio (glisser, double-clic) ; la maquette faisait tourner les valeurs au clic : à confirmer.
-- **Points ouverts du lot 8 (tranchés le 05/11, voir « Suite à faire »)** : le clavier s'ouvre allumé par défaut (la maquette part tiroir fermé) ; la bulle d'accord (~430 px)
-  peut recouvrir les touches pour un accord d'une partie basse (on la ferme, la sélection reste).
-
-## Lot 9 — l'éditeur de notes (livré ; repères utiles au 10f)
-
-Cahier des charges : `docs/refonte.md`, section « Éditeur de notes ». Maquette : page `project/Notes2.dc.html` de l'artefact (lire avec l'outil Artifact, `path`).
-
-### Ce qui existe aujourd'hui (repérage du 05/11)
-
-- **Grand séquenceur** : bouton `#grid-zoom` (« Séq. », dans la rangée sous les réglages, à côté de Compact / Normal / Détaillé), `toggleSequencer('continu')`,
-  rendu par `renderSequencer` (script.js ~19808), dans `#seq-dock-panel` sous la grille, poignée `#seq-dock-resize`. Barre d'outils construite en JS : Lecture, Stop,
-  « + » note libre, « ||| » mode studio (intensité croche par croche), « tout » / « sélection » (supprimer), loupe (« afficher en grand »), zoom H. Vue compacte :
-  `#seq-zoom` (`toggleSequencer('compact')`). Interactions : `setupSequencerInteractions` (~16372).
-- **Conduite de voix** (depuis le 9c : TÉLÉPHONE seulement ; à l'ordinateur c'est le calque Voix, `calqueVoixActif` / `calqueVoixHtml`) : bouton `#toggle-voice-leading` (icône « ⊱ » à côté de Détaillé), `toggleVoiceLeadingPanel` (~8335), panneau construit par
-  `buildVoiceLeadingPanelHtml` (~8366) DANS `loadProgression` ; légende 1/3/5/7/Autres, zooms H et V, traits des voix (plein = note tenue, pointillé = mouvement).
-  Les deux panneaux partagent la zone : ouvrir l'un ferme l'autre.
-- **Bancs qui les protègent** (à garder verts, à réécrire pour le nouveau geste, jamais supprimer) : `voice_leading*`, `vl_loupe`, `vl_pinch`, `new_voice_rule`,
-  `probe_seq_*`, `seq_*` (une quarantaine), `pinned_seq_toolbar`, `loupe_*`, `grid_loupe_pinch_undo`, `sidebar_collapse_seq_height`, `volet_hauteur_poignee`.
-
-Découpage et livraison (9a à 9d) : `docs/dette-tests.md` et `docs/refonte.md`. Ce qui suit sert encore au lot 10f (éditeur de notes au téléphone).
-
-### Risques connus
-
-- Le panneau de conduite de voix n'est construit QUE par `loadProgression` ; le séquenceur par `renderSequencer` : un seul des deux appels oublié = panneau figé
-  (déjà arrivé, voir le commentaire de `toggleSequencer`).
-- `ZONE_EDITION_SELECTEURS` et `this._popups` (voir `CLAUDE.md`) : tout élément déplacé ou ajouté doit y être déclaré.
-- Hauteur : `SEQ_DOCK_RESERVE_CONFORT` et `hauteurMaxVoletSequenceur` mesurent la place libre ; le tiroir du lot 8 en prend déjà (épinglé).
-- Le téléphone (< 900 px) ne bouge pas avant le lot 10.
-
-## Lot 10 — le téléphone (découpé le 05/11)
-
-Cahier des charges : `docs/refonte.md`, section « Téléphone » ; maquette : page `project/Telephone2.dc.html` de l'artefact (lire avec l'outil Artifact,
-`path`). Rien n'avait bougé sous 900 px depuis le lot 6. Composition de la maquette : barre du haut (logo, titre-menu, Enregistrer, Annuler, compte) ;
-onglets en groupe segmenté ; barre-résumé des réglages du morceau (→ quatre grosses cases) + bouton carré « Affichage » ; grille ; panneau qui monte du
-bas (accord : ‹ ›, fondamentales 2 × 6, type, durée, « Réglages du son » qui l'agrandit — basse, octave, renversement, jeu, rythme, doigté —, Supprimer,
-Dupliquer ; ajout : saisie unique, aide, suggestions, accords de la tonalité ; lecture : tempo −/+/Tap, métronome, Clavier / Guitare / Notes) ; barre de
-lecture (Lecture, Stop, « Mes. N » + frise, Boucle, ⋯ qui ouvre le panneau Lecture).
-
-### Découpage (un commit par sous-lot, banc + sabotages à chaque fois)
-
-1. ✅ **10a — Barre du haut et onglets** (livré 05/11, banc `telephone_barre_haut`). Même barre qu'à l'ordinateur, en 44 px, sur deux rangées :
-   logo, titre (menu du morceau ; chevron masqué, 14 px), voyant (point seul), Enregistrer (icône seule), Paramètres, compte CARRÉ (habillage CSS) ;
-   rangée 2 : onglets Grille / Structure / Paroles (groupe segmenté), Annuler sous Paramètres, Rétablir sous le compte — **décision du 05/11** (la
-   maquette n'a ni Rétablir ni Paramètres ; tout sur la 1re rangée laissait ~75 px au titre). La carte Morceau perd son en-tête (liste, six icônes) ;
-   Structure s'ouvre en fenêtre SOUS la barre ; Paroles ouvre encore sa page (vue intégrée au 10b). Mots seuls dans les onglets sous 400 px.
-2. ✅ **10b — Barre de lecture** (livré 05/11, banc `telephone_barre_lecture`) : `#barre-lecture` au téléphone à la façon de la maquette (Lecture, Stop, « Mes. N » + frise, Boucle, ⋯ → panneau
-   Lecture : tempo −/+/Tap, métronome, Clavier / Guitare / Notes) ; le transport quitte `#footer-dock`. Structure et Paroles deviennent des vues
-   intégrées au-dessus d'elle (`vuesIntegrees()` vrai partout) : `vues_integrees` (partie F), `onglets` (partie E), `export_lyrics*`,
-   `paroles_autoload_back` (qui cliquent `#lyrics-btn` à 800 px pour l'export en nouvel onglet) changent de sens. Risque : `barre_bas_telephone`
-   (accès de secours du dock), `mobile_*`, `sentinelle_atteignabilite`.
-3. ✅ **10c — Réglages du morceau et Affichage** (livré 05/11, banc `telephone_reglages`) : barre-résumé pleine largeur → quatre cases (Tonalité, Mesure, Swing, Son) sur deux colonnes ; bouton
-   carré « Affichage » : Compact (4 mesures / ligne, noms seuls, 44 px), Normal (4 / ligne + degrés, 64 px), Large (2 / ligne, 72 px) ; les zooms H / V
-   s'effacent, le pincement reste ; en-tête de partie : nom + « N mesures » + ×N + menu ⋯ (celui du lot 5c).
-4. ✅ **10d — Panneau d'accord** (livré 06/11, banc `telephone_panneau_accord`). Décisions prises en route : seuls les GESTES de modification (double
-   toucher, « Réglages du son », « Modifier ») ouvrent le panneau agrandi — les autres chemins vers `editChord` (séquenceur, ⊱, Séq.) gardent la carte dans
-   la page jusqu'au 10f ; la barre-résumé reste collée sous la barre du haut tant que le panneau est ouvert (« toujours voir tonalité et tempo ») ; Supprimer
-   et Dupliquer en logo seul (avec les mots, la rangée ne tenait pas sur 390 px) ; types sur 6 colonnes. Le dock de secours ne sert plus que grand
-   séquenceur ouvert. Cahier d'origine : (remplace la carte Accord et le mode Modification au téléphone) : toucher une case → panneau à mi-hauteur, l'accord
-   visible au-dessus ; contenu de la bulle (‹ ›, fondamentales 2 × 6, type, durée) puis « Réglages du son » = contenu de l'inspecteur ; Supprimer,
-   Dupliquer ; une annulation par panneau. Bancs : `filet_toujours_visible` (mode Modification au téléphone), `barre_bas_telephone`, `mobile_edit_scroll`.
-5. ✅ **10e — Panneau d'ajout** (livré 06/11, banc `telephone_panneau_ajout` ; remplace le mode Ajout, la carte Nouvel accord et l'ajout rapide) : case « + » → saisie unique (syntaxe complète),
-   aide « ? », suggestions après l'accord précédent, accords de la tonalité. Les **19 bancs joués à 860 px** pour le mode « Ajout » (liste dans
-   `docs/dette-tests.md`, lot 6c) sont réécrits pour ce geste.
-6. **10f — Éditeur de notes au téléphone** (remplace « Séq. » et l'icône ⊱) : plein écran au-dessus de la barre de lecture, en-tête, outils, calque
-   Voix, bande d'intensité, pointillés. `voice_leading`, `vl_loupe`, `vl_pinch`, `voice_leading_section_ops` (partie A à 860 px) réécrits ;
-   `calque_voix` et `notes_manuelles_intensite` changent de sens (ils vérifient aujourd'hui que le téléphone n'a pas bougé).
-
-### Dettes connues, à reprendre au fil des sous-lots (liste détaillée dans `docs/dette-tests.md`)
-- 19 bancs joués à 860 px parce qu'ils éprouvent le mode « Ajout » de la carte Accord, qui n'existe plus que là (lot 6c) → 10e ;
-- l'ancien panneau de conduite de voix (icône ⊱) n'existe plus qu'au téléphone : `voice_leading`, `vl_loupe`, `vl_pinch`, `voice_leading_section_ops` le jouent
-  à 860 px (partie A) à côté du calque Voix (partie B) → 10f ;
-- l'éditeur de notes au téléphone : « Séq. » ouvre encore le séquenceur d'avant → 10f.
+- **Livrés** : lots 1 à 10 (refonte complète de l'ordinateur et du téléphone), « Paroles homogènes », « Versions au cloud », « Bancs fiables » (un FATAL compte rouge), « Éditeur et clavier », taille des diagrammes à la poignée, refonte du séquenceur A, B, C, D (quatre sous-lots, retrait de l'ancien), B2 renommage, B1 sélection grise, A3 hauteur du panneau Rythme, retour du 13/11 sur le séquenceur du téléphone (notes, toucher, plein écran, page figée), poignées des notes, doigtés de guitare pour renversements / drops / accords sur basse (Fm7), nettoyage A2.
+- **Dernier balayage complet** : (nettoyage A2, 13/11) **256 verts, 0 rouge, 4 sans verdict sur 260 suites** (3 056 s cumulées) — ligne de base inchangée. Ligne de base de `CLAUDE.md` : 0 rouge réel, `detune`, `instrument_stress`, `probe_cache_perime`, `smoke` sans verdict.
+- **Durées** : le relevé donne les plus lentes (`synchro_cloud` ~170 s, `verre` ~75 s, `historique_versions` ~70 s ; ~2900 s cumulées) ; elles partent d'abord dans la phase parallèle.
+- **Règle** : à la fin d'un lot, cocher ✅ ici et dans `docs/refonte.md`, réécrire « Suite à faire » (sous-lot suivant, ou « **Rien de prévu** » : `/reprise` demandera alors à l'utilisateur), mettre le dernier balayage à jour.

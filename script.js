@@ -1289,14 +1289,6 @@ function seqVoiceCoverage(pattern, tie, voiceIndex) {
     return { onSteps, totalSteps: pattern.length, longestRun };
 }
 
-// Une voix est-elle jouée assez longtemps pour compter comme une vraie voix de l'accord (voir les
-// seuils ci-dessus) ? Tenue assez longtemps EN CONTINU, ou à défaut assez de couverture totale
-// (staccato).
-function seqCoverageQualifies(cov) {
-    if (cov.longestRun >= SEQ_HELD_MIN_STEPS) return true;
-    return cov.totalSteps > 0 && (cov.onSteps / cov.totalSteps) >= SEQ_STACCATO_MIN_COVERAGE;
-}
-
 // ---------- Groove (droit / shuffle / ternaire) ----------
 // La grille du séquenceur reste TOUJOURS affichée droite (comme dans la plupart des séquenceurs/DAW) :
 // le groove ne change rien à son édition, seulement l'instant réel où chaque case tombe à la lecture
@@ -1735,11 +1727,6 @@ class Chord {
         return this._computeVoices().map(v => Tone.Frequency(v.midi, "midi").toNote());
     }
 
-    getSeqDisplayNotes(useFlats = false, withOctave = true) {
-        const rootPc = NOTES.indexOf(this.root);
-        return this._computeVoices().map(v => spellChordTone(rootPc, useFlats, v.degree, v.midi, withOctave));
-    }
-
     // { 60: "root", 64: "third", ... } pour colorer le clavier (indexé par MIDI, indépendant de l'orthographe)
     getRoleMap() {
         const map = {};
@@ -1747,25 +1734,6 @@ class Chord {
             map[v.midi] = v.role;
         });
         return map;
-    }
-
-    // CHIFFRE DE FONCTION de chaque voix, dans l'ordre STABLE de _computeVoices (donc par index de voix du séquenceur) — calque Voix de l'éditeur
-    // de notes (lot 9c) : « fonction 1/3/5/7 écrite dans la note (la couleur n'est plus seule) ». Les couleurs « Autres » de la légende disent leur
-    // vrai degré (2, 4, 6, 9, 11, 13, avec ♭ ou ♯ s'il est altéré) plutôt qu'un point : la même teinte violette couvre une 9e et une sixte, le
-    // chiffre les distingue. « · » seulement pour une note étrangère à l'accord (note libre ou basse sans classe de hauteur commune).
-    getFonctionsVoix() {
-        const intervalles = this.getIntervals();
-        const GAMME = [0, 2, 4, 5, 7, 9, 11]; // demi-tons de chaque degré dans la gamme majeure : le repère du ♭ / ♯
-        const PAR_ROLE = { root: '1', third: '3', fifth: '5', seventh: '7' };
-        return this._computeVoices().map(v => {
-            if (PAR_ROLE[v.role]) return PAR_ROLE[v.role];
-            const iv = v.degree == null ? null : intervalles.find(n => n.degree === v.degree);
-            if (!iv) return '·';
-            const auDessus = iv.semi >= 12; // au-dessus de l'octave : 9, 11, 13 et non 2, 4, 6
-            const naturel = GAMME[v.degree] + (auDessus ? 12 : 0);
-            const alt = iv.semi === naturel - 1 ? '♭' : (iv.semi === naturel + 1 ? '♯' : '');
-            return alt + (v.degree + 1 + (auDessus ? 7 : 0));
-        });
     }
 
     // Suffixe renversement/drop seul (ex. "1er renv. · Drop 2", '' si voicing de base) : version
@@ -2579,68 +2547,6 @@ const SEQ_EDIT_AUDIO_KEY = 'harmohubSeqEditAudio';
 // équivalente en CSS (min-width: 900px) : c'est lui qui décide où vit le séquenceur (voir
 // placeSequencer/#seq-dock-host) autant que la mise en page à une ou deux colonnes.
 const SEQ_DOCK_MEDIA = '(min-width: 900px)';
-// Volet du séquenceur continu sous la grille (voir #seq-dock-panel/setupSeqDockResize) : hauteur
-// ajustable à la poignée, mémorisée par appareil comme les niveaux de zoom.
-const SEQ_DOCK_HEIGHT_KEY = 'harmohubSeqDockHeight';
-const SEQ_DOCK_HEIGHT_MIN = 140;
-// ÉDITEUR DE NOTES RÉDUIT (refonte, lot 9a) : « réduit par défaut (~170 px de notes) » — la bande des notes seule, sans la règle ni la barre
-// d'outils, qui s'y ajoutent (voir hauteurVoletSequenceur). Ordinateur seulement : le téléphone garde la hauteur d'avant jusqu'au lot 10.
-const EDITEUR_NOTES_REDUIT_PX = 170;
-// « Ajuster la hauteur aux notes présentes » (lot 9b) : ne montrer que les demi-tons des notes jouées, plus cette marge de part et d'autre (maquette).
-const SEQ_AJUSTER_KEY = 'harmohubSeqAjuster';
-const SEQ_AJUSTER_MARGE = 2;
-// CALQUE « VOIX » (lot 9c) : « l'ancienne conduite de voix : fonction 1/3/5/7 écrite dans la note (la couleur n'est plus seule), trait blanc du
-// chemin des voix ». Décisions du 05/11 : éteint au premier usage puis mémorisé par appareil (comme Ajuster) ; le nom et le degré de chaque accord
-// reviennent dans la règle, calque allumé seulement — une bande de cette hauteur AU-DESSUS des numéros de mesure, que la règle gagne alors.
-const SEQ_VOIX_KEY = 'harmohubSeqVoix';
-const SEQ_REGLE_ACCORDS_PX = 14;
-// BANDE D'INTENSITÉ (lot 9d) : « Bande d'intensité (le mode studio actuel) sous les notes ». Dans l'éditeur de notes, la rangée du mode studio
-// devient une bande collée en BAS de la vue (comme la règle l'est en haut) : avant, elle suivait la dernière hauteur, à 400px sous la partie
-// visible du volet réduit (mesuré) — on ne la voyait qu'en défilant jusqu'en bas. Sa hauteur s'AJOUTE au volet : les 170px de notes du réduit
-// restent 170px (la maquette fait de même).
-const SEQ_BANDE_INTENSITE_PX = 40;
-// Hauteur d'ouverture du volet quand l'utilisateur ne l'a jamais réglé : une PART de l'écran, pas une
-// valeur fixe. 300px partout était calibré pour un téléphone — sur un écran de 1080px, ça laissait
-// 222px inutilisés juste sous le volet et coupait 3 des 20 lignes chromatiques (mesuré).
-// Deux ratios, et pas un seul : « la hauteur de base du séquenceur est insuffisante » a été dit de la
-// vue PLEIN ÉCRAN sur ordinateur, où la colonne de droite a de la place à donner. Appliquer les mêmes
-// 0,55 sur un téléphone donnait un volet de 480px sur un écran de 844 — plus de la moitié de la hauteur
-// pour le seul séquenceur, dans une mise en page à une colonne où tout le reste défile en dessous
-// (mesuré, et attrapé par probe_seq_adaptatif_test, qui exige justement « une taille raisonnable » là).
-// La borne réelle reste dans les deux cas la place libre mesurée (voir hauteurMaxVoletSequenceur) : ces
-// ratios ne décident que de la part qu'on prend quand il y a de la marge.
-const SEQ_DOCK_HEIGHT_RATIO = 0.45;          // téléphone/tablette, une seule colonne
-const SEQ_DOCK_HEIGHT_RATIO_LARGE = 0.55;    // ordinateur, deux colonnes
-const SEQ_DOCK_HEIGHT_AUTO_MIN = 300;  // jamais moins que l'ancienne valeur : rien ne rétrécit
-const SEQ_DOCK_HEIGHT_AUTO_MAX = 700;  // au-delà, le volet mangerait la grille d'accords au-dessus
-// DEUX réserves, parce qu'il y a deux plafonds distincts (voir hauteurMaxVoletSequenceur et
-// hauteurAutoVoletSequenceur) :
-//   - à la POIGNÉE, l'utilisateur peut monter jusqu'au titre de la grille, seule la barre collante est
-//     préservée — elle porte le bouton qui referme le volet, sans elle on serait enfermé. Sa hauteur est
-//     mesurée sur place, cette constante n'est qu'un repli si la mesure échoue.
-//   - à l'OUVERTURE, l'appli s'arrête bien avant : de quoi travailler dans la grille (barre de titre,
-//     saisie rapide, un titre de partie, une rangée d'accords). Écraser la grille est un choix qui
-//     revient à l'utilisateur, pas un défaut imposé.
-const SEQ_DOCK_RESERVE_REPLI = 48;
-// 225 et non 190 (refonte, lot 2) : 190 ne laissait PAS la rangée d'accords annoncée — mesuré, il en faut ~220 (barre de titre 36,
-// saisie rapide, titre de partie, rangée d'accords avec sa règle de mesures). Personne ne le voyait tant que la fenêtre avait de la
-// marge ; la barre de lecture du bas retire 60px de hauteur et le défaut est apparu (volet_hauteur_poignee_test).
-const SEQ_DOCK_RESERVE_CONFORT = 225;
-// Part de la place disponible que la hauteur AUTOMATIQUE s'autorise. Volontairement inférieure à 1 :
-// un volet ouvert d'emblée à son maximum ne pourrait plus que rétrécir, et tirer la poignée vers le
-// haut ne ferait toujours rien — exactement le symptôme qu'on vient de corriger, avec une autre cause.
-// Ces 12 % de marge garantissent que la poignée répond dans les DEUX sens, diagrammes affichés ou non.
-const SEQ_DOCK_MARGE_POIGNEE = 0.88;
-// Nombre de mesures qu'on cherche à faire tenir dans la vue continue à l'échelle 1. La largeur de
-// colonne était fixe (28px sur ordinateur), ce qui ne montrait que 2,5 mesures sur un écran de
-// 1920px — l'inverse de ce qu'on attend d'une vue « à l'échelle du morceau ». Elle se déduit
-// désormais de la place disponible.
-const SEQ_MESURES_VISIBLES_CIBLE = 6;
-// Bornes de la largeur de colonne. 14px est la valeur historique du téléphone : plus fin, une croche
-// n'est plus atteignable au doigt — c'est donc le plancher, y compris sur un grand écran étroit.
-// 28px était la valeur historique de l'ordinateur : au-delà, on ne gagne plus rien en lisibilité.
-const SEQ_COL_PX_MIN = 14;
-const SEQ_COL_PX_MAX = 28;
 // Pas d'aimantation proposés, EN CROCHES de la grille du séquenceur (SEQ_STEPS_PER_BEAT = 4 croches
 // par temps) : 4 = le temps entier, 2 = la demi-mesure du temps, 1 = la croche elle-même, c'est-à-dire
 // aucune aimantation (comportement historique, valeur par défaut — rien ne change tant qu'on n'y
@@ -2675,28 +2581,10 @@ const SEQ_COL_PX_MAX = 28;
 // clic de lecture, assez court pour ne pas donner l'impression que le bouton ne répond pas.
 const BOUCLE_APPUI_LONG_MS = 500;
 
-// Largeur maximale d'une case en vue AGRANDIE compacte, À L'ÉCHELLE 1 (voir renderSequencer :
-// le plafond est multiplié par le niveau de zoom horizontal). 34px, soit le double environ d'une
-// case du petit séquenceur : assez grand pour viser au doigt, assez mesuré pour qu'un accord d'une
-// seule mesure ne s'étale pas sur toute la largeur d'un écran.
-// IL PLAFONNE L'ÉTIREMENT AUTOMATIQUE, PAS LE GESTE. Premier jet : un plafond fixe. Le banc de zoom
-// l'a aussitôt attrapé — « la largeur calculée de la case a suivi : 34px -> 34px » — c'est-à-dire
-// que le bouton H+ ne faisait plus rien une fois la loupe ouverte. Empêcher la grille de s'étaler
-// toute seule est utile ; empêcher l'utilisateur d'agrandir quand il le demande est un défaut.
-const SEQ_CASE_MAX_AGRANDIE = 34;
-
-const SEQ_ZONE_HANDLE_RATIO = 0.25;
-const SEQ_ZONE_HANDLE_MIN_PX = 5;
-const SEQ_ZONE_HANDLE_MAX_PX = 18;
-// En dessous de cette largeur de corps, on bascule sur le partage en deux décrit ci-dessus plutôt que
-// de rendre la note inéplaçable.
-const SEQ_ZONE_MIN_BODY_PX = 6;
-
 const METRONOME_SUBDIVISION_KEY = 'harmohubMetronomeSubdivision';
 const SHOW_ROMAN_KEY = 'harmohubShowRomanNumerals';
 // Les petits carrés du rythme dans les cases, en affichage Détaillé (refonte, lot 5b) : « c'est pas débile, je pense qu'on peut les garder avec une option
 // dans les paramètres pour les afficher ou pas ». Allumé par défaut (choisir Détaillé est déjà un choix). Synchronisé, comme les degrés.
-const SHOW_CELL_RHYTHM_KEY = 'harmohubRythmeDansCases';
 // Date de dernière modification à côté du nom des morceaux (liste déroulante ET fenêtre « Mes
 // morceaux »). Retour utilisateur : « tous les fichiers ont aujourd'hui un titre avec la version entre
 // parenthèses. J'aimerais que cela soit précisé comme une option pour pouvoir ou non voir la date de
@@ -2797,8 +2685,8 @@ const CLASSIC_GRID_ZOOM_LEVEL_Y_KEY = 'harmohubClassicGridZoomLevelY';
 // partie fait toujours partie du travail en cours.
 const ZONE_EDITION_SELECTEURS = [
     '.col-left', '.control-card', '.seq-zoom-modal', '.chord-header-row', '.viz-wrap', '.viz-toggle',
-    '#arp-sequencer', '.seq-dock-panel', '#global-undo-btn', '#global-redo-btn', '.zoom-axis-group',
-    '#toggle-sidebar', '#toggle-voice-leading', '#footer-dock', '.transport', '.dock',
+    '#global-undo-btn', '#global-redo-btn', '.zoom-axis-group',
+    '#toggle-sidebar', '#footer-dock', '.transport', '.dock',
     '#quick-add-help-btn', '#quick-add-help', '.grid-cell', '.cell-add',
     '.section-head', '.grid-head-sticky', '#context-menu', '#sq-menu-note', '.overlay', '.modal', '.settings-overlay',
     '#files-overlay', 'button', 'input', 'select', 'textarea', 'label', 'a', '[role="button"]',
@@ -2822,34 +2710,8 @@ const VUES_ECHELLE_KEY = 'harmohubVuesEchelle';
 const VUES_ECHELLE_MIN = 0.6, VUES_ECHELLE_MAX = 2; // au-delà de 2, clavier et manche ne tiennent plus côte à côte à 1440 px
 const VUES_PAR_MORCEAU_MAX = 200;
 const SEQ_INLINE_ZOOM_LEVEL_X_KEY = 'harmohubSeqInlineZoomLevelX';
-// Échelles horizontale/verticale du panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) —
-// mêmes bornes/pas que les autres (ZOOM_LEVEL_MIN/MAX/STEP ci-dessous), un seul réglage GLOBAL
-// (pas par partie, comme voiceLeadingOpen) puisqu'un seul panneau est jamais affiché à la fois.
-const VOICE_LEADING_ZOOM_LEVEL_X_KEY = 'harmohubVoiceLeadingZoomLevelX';
-const VOICE_LEADING_ZOOM_LEVEL_Y_KEY = 'harmohubVoiceLeadingZoomLevelY';
 const ZOOM_LEVEL_MIN = 0.7;
 const ZOOM_LEVEL_MAX = 2;
-// Plafond propre à l'axe horizontal du séquenceur (voir zoomMaxFor) : 4 fois la base, soit ~112px la
-// double croche, de quoi placer une note au pixel près sans deviner.
-const SEQ_ZOOM_X_MAX = 4;
-// Gabarit vertical de la vue continue, à l'échelle 1. Doivent rester d'accord avec le CSS
-// (.seq-grid-continuous .seq-cell pour la ligne, --seq-ruler-h pour la règle) : ils servent à calculer
-// la hauteur de RÉFÉRENCE du contenu, celle que le zoom vertical ne doit pas faire varier (voir
-// hauteurVoletSequenceur).
-const SEQ_LIGNE_PX = 14;
-const SEQ_RULER_PX = 24;
-// Plage TOUJOURS visible en vue continue (grille de fond + clavier de repère), même si aucune note de
-// l'accord ni de son contexte ne s'y trouve — retour utilisateur : « La grille en fond et le piano
-// doivent toujours être visibles jusqu'à l'octave 1, et au-dessus jusqu'à l'octave 5... comme ça je
-// peux directement ajouter des notes à la souris, graves ou aigües. » Avant, la fenêtre se bornait
-// strictement aux demi-tons SONNANTS (accord + contexte voisin) : cliquer une hauteur grave ou aiguë
-// absente de tout ça obligeait à passer par le bouton « + » (case au hasard, à renommer à la main).
-// C1 à B5 (MIDI 24-83, même convention d'octave que le reste de l'appli — voir computePianoWindow,
-// « C3..C5 par défaut » pour MIDI 48-72) : cinq octaves pleines, un compromis entre « toujours
-// atteignable direct » et une grille trop haute par défaut. Un accord/contexte qui déborde de cette
-// plage l'étend quand même au-delà (voir rowOrder plus bas) : ce plancher ne RÉDUIT jamais rien.
-const SEQ_MIDI_TOUJOURS_VISIBLE_MIN = 24;  // C1
-const SEQ_MIDI_TOUJOURS_VISIBLE_MAX = 83;  // B5
 // Le SIGNE seul de cette constante est encore lu (boutons et Ctrl+molette disent « plus » ou
 // « moins ») ; son amplitude, elle, ne sert plus — un cran vaut désormais une PROPORTION, voir
 // ZOOM_LEVEL_RATIO et adjustZoom.
@@ -2886,12 +2748,6 @@ const GRILLE_LARGEUR_KEY = 'harmohubGrilleLargeur';
 // (plancher commun), et chaque clic se voit autant que le précédent, quelle que soit l'échelle
 // atteinte. C'est le pas habituel des stations audio.
 const ZOOM_LEVEL_RATIO = 1.25;
-// Borne basse plus large QUE ZOOM_LEVEL_MIN, pour ce seul réglage : la cible de base y est bien
-// plus petite que celle des fenêtres agrandies (4 temps plutôt que 8, voir seqPageBars) — sur une
-// mesure à 4 temps, rester à 0.7 ne suffirait même pas à passer d'1 à 2 mesures par page (le zoom
-// n'aurait litéralement aucun effet visible). Plage volontairement plus large pour que réduire
-// l'échelle affiche vraiment plus de mesures d'un coup.
-const SEQ_INLINE_ZOOM_MIN = 0.3;
 // Panneau de gauche masqué ou non (voir #toggle-sidebar/toggleSidebar) : préférence de l'APPAREIL,
 // pas du morceau (contrairement aux échelles de zoom) — une préférence d'espace d'écran, pas un
 // réglage propre à un morceau donné.
@@ -3833,7 +3689,6 @@ class HarmoHubApp {
         // dernier reprenant toujours ce qui est affiché à l'écran plutôt qu'un réglage à part (voir
         // loadProgression et buildPrintExportHtml).
         this.showRomanNumerals = localStorage.getItem(SHOW_ROMAN_KEY) !== '0';
-        this.showCellRhythm = localStorage.getItem(SHOW_CELL_RHYTHM_KEY) !== '0';
         // Fonction harmonique (T/SD/D, voir chordFunction) partageant la même ligne que le chiffrage
         // romain — DÉSACTIVÉE par défaut (voir SHOW_CHORD_FUNCTION_KEY), contrairement à celui-ci.
         this.showChordFunction = localStorage.getItem(SHOW_CHORD_FUNCTION_KEY) === '1';
@@ -4030,37 +3885,11 @@ class HarmoHubApp {
                                    // savoir QUOI relancer quand on modifie un réglage en cours de lecture
         this._progChordSlots = new Map(); // voir scheduleProgressionChord/liveUpdateProgressionChord :
                                    // patcher un accord de la chanson en cours de lecture sans redémarrer
-        // Deux boutons, deux séquenceurs (retour utilisateur : « il faut différencier les 2 boutons
-        // séquenceurs »). Un seul #arp-sequencer, DÉPLACÉ de l'un à l'autre, jamais dupliqué :
-        //   'compact' — bouton du module Ajouter/Modifier : séquenceur simplifié, DANS le module,
-        //               une ligne par voix jouée, la seule durée de l'accord ;
-        //   'continu' — bouton de la barre de grille : volet sous la grille, hauteur ajustable,
-        //               toute la partie côte à côte en demi-tons absolus.
-        // seqOpen reste le booléen « un séquenceur est ouvert » dont dépend tout le reste du fichier.
-        this.seqMode = null;       // null | 'compact' | 'continu'
-        this.seqOpen = false;      // panneau séquenceur ouvert ou non (indépendant du style de lecture)
-        // Hauteur du volet continu, ajustée à la poignée et mémorisée d'une session à l'autre.
-        // 0 = jamais réglé à la main : la hauteur suit alors l'écran (voir hauteurVoletSequenceur).
-        // Dès que l'utilisateur touche la poignée, sa valeur est mémorisée et l'emporte pour de bon.
-        this.seqDockHeight = parseInt(localStorage.getItem(SEQ_DOCK_HEIGHT_KEY)) || 0;
-        // ÉDITEUR DE NOTES (lot 9a, ordinateur) : étendu ou réduit (réduit à chaque ouverture : « réduit par défaut ») et s'il est ouvert.
-        // Refonte du séquenceur (11/11, point A) : il n'impose plus aucun affichage à la grille — « ouvrir le séquenceur ne doit jamais changer
-        // l'affichage de la grille […] je ne veux absolument pas ça ». Le Compact provisoire du lot 9a est retiré.
-        this.editeurNotesEtendu = false;
-        this._editeurNotesActif = false;
-        // Lot 9b : l'outil de l'éditeur (Sélection par défaut, qui garde les gestes d'avant) et « Ajuster » (lignes limitées aux notes présentes),
-        // mémorisé par appareil. Éteint par défaut : « voir toutes les notes possibles » avait été demandé, c'est donc la vue d'arrivée.
-        this.seqOutil = 'selection';
-        this.seqAjuster = localStorage.getItem(SEQ_AJUSTER_KEY) === '1';
-        // Lot 9c : le calque Voix (voir SEQ_VOIX_KEY). Ne vaut que dans l'éditeur de notes (voir calqueVoixActif).
-        this.seqVoix = localStorage.getItem(SEQ_VOIX_KEY) === '1';
-        this.seqZoomOpen = false;  // fenêtre agrandie du séquenceur ouverte ou non (voir openSeqZoom)
-        // Panneau "Conduite de voix" ouvert ou non (voir toggleVoiceLeadingPanel/buildVoiceLeadingPanelHtml)
-        // — un seul bouton global (#toggle-voice-leading, à côté de #grid-zoom), pas un par partie : le
-        // panneau affiché suit simplement la partie ACTIVE (this.activeSection) à chaque rendu. Comme
-        // seqOpen, volontairement pas persisté : état d'affichage de la session, pas une
-        // donnée du morceau.
-        this.voiceLeadingOpen = false;
+        // L'ancien séquenceur (petit séquenceur de l'inspecteur, grand séquenceur sous la grille, loupe, éditeur de notes, conduite de voix) est RETIRÉ
+        // (étapes 4a à 4c, puis nettoyage A2 du 13/11) : il n'y a plus qu'un séquenceur (sequenceur.js). Ces deux constantes restent lues par des bancs
+        // (« l'ancien séquenceur reste fermé ») ; rien ne les change plus.
+        this.seqMode = null;
+        this.seqOpen = false;
         // Échelles horizontale/verticale (1 = taille normale), INDÉPENDANTES l'une de l'autre, des deux
         // fenêtres agrandies ci-dessus — réglables une fois ouvertes via les boutons dédiés ou
         // Ctrl+molette/Ctrl+Maj+molette (voir adjustZoom) — mémorisées d'une session à l'autre comme
@@ -4074,15 +3903,6 @@ class HarmoHubApp {
         // fenêtre agrandie à ouvrir), 1 par défaut pour garder l'affichage actuel.
         this.classicGridZoomLevelX = parseFloat(localStorage.getItem(CLASSIC_GRID_ZOOM_LEVEL_X_KEY)) || 1;
         this.classicGridZoomLevelY = parseFloat(localStorage.getItem(CLASSIC_GRID_ZOOM_LEVEL_Y_KEY)) || 1;
-        // Panneau "Conduite de voix" (voir VOICE_LEADING_ZOOM_LEVEL_X_KEY) : mémorisé comme les autres.
-        this.voiceLeadingZoomLevelX = parseFloat(localStorage.getItem(VOICE_LEADING_ZOOM_LEVEL_X_KEY)) || 1;
-        this.voiceLeadingZoomLevelY = parseFloat(localStorage.getItem(VOICE_LEADING_ZOOM_LEVEL_Y_KEY)) || 1;
-        // Échelle EFFECTIVEMENT posée dans les coordonnées SVG lors de la DERNIÈRE construction réelle
-        // du panneau (voir buildVoiceLeadingPanelHtml/applyZoomLevel) : sert de référence pendant un
-        // pincer-zoomer pour un transform: scale() de secours instantané (--vl-zoom-scale-x/-y, voir
-        // style.css), tant que la vraie reconstruction (~150ms) n'a pas rattrapé l'échelle ci-dessus.
-        this._voiceLeadingBuiltZoomX = this.voiceLeadingZoomLevelX;
-        this._voiceLeadingBuiltZoomY = this.voiceLeadingZoomLevelY;
         // Échelle du séquenceur COMPACT (hors loupe), voir SEQ_INLINE_ZOOM_LEVEL_X_KEY. Réglage
         // distinct de celui des fenêtres agrandies (seqZoomLevelX/Y), géré par la MÊME API que les
         // autres (kind 'seqInline' dans setZoomLevel/applyZoomLevel). UN SEUL axe, l'horizontal :
@@ -4241,9 +4061,6 @@ class HarmoHubApp {
         // tout calcul de coordonnées qui suit (repéré en étendant la plage vers une partie inactive).
         this.setupLoopRangeInteractions();
         this.setupGridInteractions();
-        this.setupSequencerInteractions();
-        this.setupSequencerPlacement();
-        this.setupSeqDockResize(); // poignée de hauteur du volet continu sous la grille
         // Placement initial (voir placeGlobalTransport) : contrairement au séquenceur, replacé à
         // chaque renderSequencer(), le transport n'a pas de cycle de rendu propre — sans cet appel ici,
         // il resterait à sa position de départ dans le HTML (.dock) même sur ordinateur, jusqu'au
@@ -4278,7 +4095,6 @@ class HarmoHubApp {
         this.updateDurationOptions();
         this.applyZoomLevel('classicGrid'); // pose --grid-zoom-scale-v sur .history-section + 1er rendu
         this.refreshPreview();       // affiche l'accord courant + cadre le clavier dès l'ouverture
-        this.renderSequencer();      // prépare le motif (masqué tant que le panneau n'est pas ouvert)
         this.refreshSongList();      // remplit le sélecteur de morceaux enregistrés
         this.updateGlobalUndoRedoButtons();
         this.updateGlobalUndoRedoButtons();
@@ -4484,7 +4300,6 @@ class HarmoHubApp {
             this.updateDurationOptions();
             this.loadProgression();
             this.refreshPreview();
-            this.renderSequencer();
             this.liveRestartForGlobalChange();
         };
         // Le groove ne change rien à l'affichage (la grille du séquenceur reste visuellement droite,
@@ -4500,7 +4315,6 @@ class HarmoHubApp {
             // note — on changeait de groove et rien ne bougeait, ce qui est exactement l'inverse de ce
             // que ce repère est censé faire. Sans effet quand le panneau est fermé (garde de
             // renderSequencer).
-            this.renderSequencer();
         };
 
         // Aperçu en direct : nom de l'accord, clavier et séquenceur mis à jour dès qu'on change un réglage
@@ -4515,7 +4329,6 @@ class HarmoHubApp {
                 this.seqSelections = []; // les positions des cases peuvent ne plus correspondre au même accord
                 this.clearSeqHistory(); // l'historique portait sur une autre forme d'accord
                 this.refreshPreview();
-                this.renderSequencer();
                 this.livePreviewUpdate(); // entendre le changement tout de suite si une lecture est en cours
                 this.commitLiveEdit(true);
             });
@@ -4558,7 +4371,6 @@ class HarmoHubApp {
             this.seqSelections = [];
             const { pattern, tie } = seqPreset(document.getElementById('playStyle').value, chord.getSeqMidiNotes().length, chord.beats * SEQ_STEPS_PER_BEAT);
             this.setLiveSeqPattern(pattern, tie);
-            this.renderSequencer();
             this.refreshPreview();
             this.livePreviewUpdate();
             this.commitLiveEdit(true);
@@ -4577,35 +4389,9 @@ class HarmoHubApp {
                 this.applyIntensityToSelection(+e.target.value);
                 return;
             }
-            if (this.studioMode) this.renderSequencer();
             this.livePreviewUpdate();
             this.commitLiveEdit(false); // n'affecte pas le symbole affiché dans la case
         };
-        // Le câblage du mode studio a DÉMÉNAGÉ avec son bouton, dans la barre d'outils du séquenceur
-        // (voir setupSequencerInteractions) : il y est reconstruit à chaque rendu, un onclick posé une
-        // seule fois au démarrage aurait donc visé un bouton détruit dès le premier re-rendu.
-
-        // Glissé sur une barre de vélocité (mode studio, voir renderSequencer) : posés UNE SEULE FOIS ici
-        // (pas à chaque renderSequencer(), qui recrée les barres à chaque rendu) — this._velDragStep
-        // identifie la croche en cours plutôt qu'une référence DOM directe, justement parce que le
-        // séquenceur peut se re-rendre (barre remplacée) pendant un même glissé sans l'interrompre.
-        document.addEventListener('pointermove', (e) => {
-            if (this._velDragStep == null) return;
-            const bar = document.querySelector(`.seq-vel-bar[data-step="${this._velDragStep}"]`);
-            if (bar) this.applyStudioVelocityFromClientY(bar, e.clientY);
-        });
-        document.addEventListener('pointerup', () => {
-            if (this._velDragStep == null) return;
-            this._velDernierLacher = { step: this._velDragStep, t: performance.now() }; // voir le double-clic, au pointerdown des barres
-            this._velDragStep = null;
-            this.seqTouched = true;
-            // Dans le morceau DÈS le relâchement (lot 9d) : le réglage n'était écrit qu'au rendu suivant du séquenceur — un Ctrl+S juste après
-            // un glissé enregistrait la valeur d'avant. Pas de rendu ici : il remplacerait la barre entre les deux appuis d'un double-clic.
-            this.commitLiveEdit(false);
-        });
-        document.addEventListener('pointercancel', () => { this._velDragStep = null; });
-
-
         document.getElementById('cancel-edit').onclick = () => this.cancelEdit();
         this._cabler('accord-close', 'click', () => this.cancelEdit());
         this.setupSortieEditionAuClic();
@@ -4748,52 +4534,10 @@ class HarmoHubApp {
             if (e.target.id === 'midi-export-modal' && this._midiExportModalCancel) this._midiExportModalCancel();
         });
 
-        // Vue agrandie du séquenceur (voir openSeqZoom/closeSeqZoom) : ne fait que déplacer
-        // #arp-sequencer dans une fenêtre plus grande, jamais le dupliquer.
-        // LA PORTE DU VOLET N'OUVRE QUE LE PETIT SÉQUENCEUR. Retour utilisateur : « le bouton
-        // séquenceur dans le volet de gauche ne devrait ouvrir que le "Petit séquenceur", pas le grand
-        // séquenceur en continu. Sinon, je ne peux jamais ouvrir le petit... »
-        // C'était un vrai blocage, pas une préférence : ouvrirSequenceurPleinEcran ouvrait le compact
-        // PUIS l'agrandissait aussitôt, si bien que la vue compacte n'était visible à aucun moment.
-        // Le plein écran se demande maintenant depuis le séquenceur lui-même (#seq-plein-ecran).
+        // RETRAIT DU CODE MORT DE L'ANCIEN SÉQUENCEUR (A2, 13/11) : la loupe « Séquenceur » (#seq-zoom-overlay), son zoom et celui du petit séquenceur
+        // n'avaient plus de porte depuis les étapes 4a à 4c ; il n'y a plus qu'un séquenceur (sequenceur.js).
+        // Reste le bouton #seq-zoom / #grid-zoom / #dock-rythme : un clic de programme ouvre le séquenceur de l'appareil (toggleSequencer).
         document.getElementById('seq-zoom').onclick = () => this.toggleSequencer('compact');
-        document.getElementById('seq-zoom-close').onclick = () => this.closeSeqZoom();
-        document.getElementById('seq-zoom-overlay').addEventListener('click', (e) => {
-            if (e.target.id === 'seq-zoom-overlay') this.closeSeqZoom(); // clic sur le fond, pas la fenêtre
-        });
-        this._bindZoomButtons('seq', { inH: 'seq-zoom-in-h', outH: 'seq-zoom-out-h', inV: 'seq-zoom-in-v', outV: 'seq-zoom-out-v' });
-        // Ctrl+molette : ne zoome qu'une fois la fenêtre agrandie déjà ouverte (elle seule reçoit
-        // l'évènement, cachée sinon) — jamais sur le séquenceur "en place" dans le panneau Lecture.
-        // Zoome les deux axes à la fois (voir adjustZoomBothAxes) — retour utilisateur, plus simple
-        // et plus prévisible qu'un axe séparé selon Maj.
-        this._bindCtrlWheelZoom('seq-zoom-host', 'seq');
-        // Pincer-zoomer (2 doigts, voir setupPinchZoom) : équivalent tactile du Ctrl+molette ci-dessus,
-        // pour mobile où ni Ctrl ni molette n'existent (retour utilisateur).
-        this.setupPinchZoom(document.getElementById('seq-zoom-host'), 'seq');
-        // DEUX DOIGTS = ZOOM, ET RIEN D'AUTRE. Ils faisaient AUSSI défiler (option `pan`), retirée :
-        // le défilement à un doigt est déjà assuré NATIVEMENT par le navigateur (touch-action:
-        // pan-x pan-y sur la bande et ses cases, voir style.css) — mesuré, un vrai glissé à un doigt
-        // fait bien défiler la bande sans jamais toucher au motif. Une émulation en JS ne pouvait donc
-        // qu'être moins bonne que l'originale (ni inertie, ni effet de rebond, ni cohérence avec le
-        // reste du système), et surtout elle se battait avec le zoom du même geste : chaque pointermove
-        // appliquait un cran de zoom, dont le recentrage réécrivait scrollLeft juste avant que le pan
-        // n'ajoute son pas — le défilement oscillait entre deux valeurs au lieu d'avancer (mesuré). En
-        // prime, deux doigts qui glissent ensemble modifient toujours un peu leur écart : impossible de
-        // deviner « il voulait défiler, pas zoomer ». Un seul sens par geste, plus rien à départager.
-        // Posé UNE FOIS sur #arp-sequencer (stable, jamais reconstruit ni dupliqué — voir
-        // renderSequencer/openSeqZoom/pinSequencerHost) plutôt que sur chacun de ses hôtes possibles :
-        // il reste actif tel quel qu'on édite en place (compact), dans la loupe séquenceur, ou dans le
-        // séquenceur épinglé de la loupe grille, sans rien câbler de plus à ces deux derniers.
-        // Le ZOOM au pincement, lui, n'est actif ici que HORS fenêtre agrandie (voir le garde-fou) et
-        // porte alors sur l'échelle du séquenceur compact — il n'y en avait aucun jusqu'ici, c'était la
-        // seule surface zoomable de l'appli où pincer ne faisait rien. En loupe, le garde-fou le coupe
-        // et laisse la main à l'hôte agrandi (#seq-zoom-host ci-dessus et plus
-        // bas), qui zooment 'seq' : sans lui, un même pincement zoomerait les deux réglages à la fois.
-        this.setupPinchZoom(document.getElementById('arp-sequencer'), 'seqInline', {
-            zoom: true, guard: () => this.seqZoomOpen,
-        });
-        // Ctrl+molette sur le séquenceur compact, même garde-fou et même raison.
-        this._bindCtrlWheelZoom('arp-sequencer', 'seqInline', () => this.seqZoomOpen);
 
         // Échelles horizontale/verticale de la grille d'accords (voir currentGridHZoom/
         // applyZoomLevel('classicGrid')), au Ctrl+molette comme au pincement. Les garde-fous qui
@@ -4804,23 +4548,7 @@ class HarmoHubApp {
         this._bindCtrlWheelZoom('progression-sections', 'classicGrid');
         this.setupPinchZoom(document.getElementById('progression-sections'), 'classicGrid');
 
-        document.getElementById('toggle-voice-leading').onclick = () => this.toggleVoiceLeadingPanel();
-
-        // Ce bouton de la barre de la grille ouvrait la VUE AGRANDIE plein écran (grille +
-        // séquenceur épinglé). Retour utilisateur : « les boutons "masquer panneau de gauche" et
-        // "mode séquenceur grille" font tous les deux quasiment pareil = ils agrandissent la grille » —
-        // deux chemins pour le même résultat, dont un qui recouvrait tout l'écran. Il ouvre désormais
-        // simplement le SÉQUENCEUR, en place ; la vue agrandie et tout son attirail (transport dupliqué,
-        // annuler/rétablir relayés, zoom H/V propre, séquenceur épinglé redimensionnable) ont été
-        // supprimés — masquer le volet de gauche donne la même largeur sans recouvrir l'appli.
-        // RETRAIT DE L'ANCIEN SÉQUENCEUR, ÉTAPE 4a (refonte du séquenceur, D, dernier sous-lot) : à l'ordinateur, « Éditeur de notes » disparaît (style.css) —
-        // « un seul séquenceur » (docs/refonte-sequenceur.md, section D) : celui du bloc « Vues » de la barre de lecture (sequenceur.js). La garde ci-dessous
-        // couvre un clic de programme : à l'ordinateur, il ouvre le nouveau. Au téléphone, la feuille d'avant garde sa porte jusqu'à l'étape 4c.
-        document.getElementById('grid-zoom').onclick = () => {
-            // Étape 4c : au téléphone, la porte a disparu aussi (style.css) ; un clic de programme ouvre l'onglet Rythme (voir toggleSequencer).
-            this.toggleSequencer('continu');
-        };
-        this.setupEditeurNotes();
+        document.getElementById('grid-zoom').onclick = () => this.toggleSequencer('continu'); // clic de programme : ouvre le séquenceur de l'appareil
 
         // Menu contextuel (clic droit / appui long) : Renommer/Modifier, Dupliquer (accords
         // uniquement), Supprimer — réutilisé pour les morceaux, les dossiers ET les accords de la
@@ -6712,7 +6440,6 @@ class HarmoHubApp {
         this.isPlaying = false;
         this._playMode = null;
         this._progChordSlots = new Map();
-        this.updateSeqPlayhead(null);
         if (this.sequenceur) this.sequenceur.effacerTete();
     }
 
@@ -6788,39 +6515,6 @@ class HarmoHubApp {
         this.flashHint('Sons du piano pas encore chargés (réseau) — son de secours en attendant', 4200);
     }
 
-    // Écoute rapide d'une seule voix du séquenceur (clic sur son étiquette à gauche) : ne coupe pas
-    // une lecture en cours (contrairement à playCurrent/playSavedChord, pas de stopAll ici) — juste
-    // une note isolée, pour vérifier une hauteur à l'oreille sans interrompre le reste.
-    async previewSeqNote(voiceIndex) {
-        await Tone.start();
-        const chord = this.readChord();
-        const note = chord.getSeqNotes()[voiceIndex];
-        if (!note) return;
-        const instrumentKey = document.getElementById('instrument').value;
-        const inst = this.getInstrument(instrumentKey);
-        try {
-            inst.triggerAttackRelease(note, 0.5, Tone.now(), 0.85);
-        } catch (e) {
-            console.warn('Aperçu de note ignoré (instrument pas encore prêt) :', e.message);
-        }
-    }
-
-    // Retour sonore d'édition (voir this.seqEditAudio) : fait entendre la note de CETTE voix dès qu'on
-    // la pose, la sélectionne, la déplace ou la change de ligne — uniquement à l'ARRÊT. Pendant la
-    // lecture, livePreviewUpdate reboucle déjà l'accord modifié : ajouter un bip par-dessus ne ferait
-    // que doubler ce qu'on entend au lieu de renseigner. S'appuie sur previewSeqNote (une note isolée,
-    // qui n'interrompt rien) ; volontairement silencieux si la voix demandée n'existe pas/plus, pour
-    // qu'un geste sur une ligne qui vient de disparaître ne lève jamais d'erreur au milieu d'un glissé.
-    seqEditFeedback(voiceIndex) {
-        if (!this.seqEditAudio || this.isPlaying || voiceIndex == null) return;
-        // .catch explicite : previewSeqNote attend Tone.start(), qui rejette tant que le navigateur
-        // n'a pas encore débloqué l'audio. Sur un simple clic isolé (étiquette de voix) ce rejet
-        // passait inaperçu ; ici le retour est branché sur CHAQUE geste d'édition, donc un rejet non
-        // capturé remonterait en boucle dans la console — et casserait les tests, qui échouent sur
-        // toute erreur de page. Un retour sonore muet est sans conséquence : ce n'est qu'un confort.
-        this.previewSeqNote(voiceIndex).catch(() => {});
-    }
-
     // Joue un motif de séquenceur (résolution croche) : regroupe les cases actives contiguës d'une
     // même voix en une seule note tenue plutôt que de rejouer une attaque à chaque croche — c'est ce
     // qui permet à un motif « tout allumé » de sonner comme un accord soutenu (Maintenu), tout en
@@ -6887,14 +6581,6 @@ class HarmoHubApp {
                             displayChord = guitarChordFor(chord, this.guitarOverride);
                         }
                         if (displayChord) this.ensureGuitarDiagram(displayChord, trackPlayhead);
-                        // Écoute de l'accord seul : la croche est déjà comptée depuis l'accord édité.
-                        // Lecture de toute la grille : elle est comptée depuis l'accord QUI SONNE, qui
-                        // n'est pas forcément celui qu'on édite — d'où la conversion (voir
-                        // updateSeqPlayheadDepuisGrille). Sans cette seconde branche, le curseur du
-                        // séquenceur et la barre orange de sa règle ne bougeaient jamais quand on
-                        // lançait la grille.
-                        if (trackPlayhead) this.updateSeqPlayhead(s);
-                        else if (gridPos) this.updateSeqPlayheadDepuisGrille(gridPos.section, gridPos.index, s);
                         if (gridPos && chord) this.setGridPlayheadProgress(gridPos.section, gridPos.index, s / SEQ_STEPS_PER_BEAT, chord.beats);
                         if (gridPos && this.sequenceur) this.sequenceur.tete(gridPos.section, gridPos.index, s); // la croche qui sonne s'allume au séquenceur
                     } catch (e) {
@@ -6993,7 +6679,6 @@ class HarmoHubApp {
                 Tone.Draw.schedule(() => {
                     try {
                         this.isPlaying = false;
-                        this.updateSeqPlayhead(null);
                     } catch (e) {
                         console.warn('Fin de lecture ignorée :', e.message);
                         this.isPlaying = false;
@@ -7810,24 +7495,6 @@ class HarmoHubApp {
         if (menu) menu.hidden = true;
     }
 
-    // Bascule l'édition sur un accord voisin depuis le SÉQUENCEUR CONTINU (voir les zones
-    // .seq-ctx-nav dans renderSequencer) — la navigation d'accord en accord sans quitter le
-    // séquenceur, demandée par l'utilisateur.
-    // Remplace editChordFromGridZoom, supprimé avec la vue plein écran de la grille : son APPEL, lui,
-    // était resté ici. Un clic sur un accord voisin levait donc « editChordFromGridZoom is not a
-    // function » et ne faisait rien du tout. Les bancs d'essai qui couvraient ce chemin appelaient
-    // eux-mêmes la méthode disparue pour préparer leur scène : ils échouaient à la mise en place,
-    // avant d'atteindre l'assertion — le défaut restait invisible derrière une erreur d'outillage.
-    // Rien à épingler ni à ouvrir ici, contrairement à l'ancienne version : le volet est déjà là
-    // quand on clique. Changer d'accord suffit — renderSequencer recentre ensuite la vue sur lui
-    // (voir centrerSurAccordEdite).
-    editChordFromSequencer(section, index) {
-        this.editChord(section, index);
-        // Comme un clic sur la grille normale (voir selectChord) : fait entendre l'accord touché,
-        // sinon la navigation d'un accord à l'autre resterait muette.
-        if (this.autoplaySelect) this.playCurrent();
-    }
-
     // Passe les contrôles en mode « modification » d'un accord existant
     editChord(section, index) {
         const sections = loadProgressionSections();
@@ -7901,7 +7568,6 @@ class HarmoHubApp {
         this._ouvertureEdition = true;
         try {
             this.refreshPreview();
-            this.renderSequencer();
             this.loadProgression();     // met en évidence la case en édition
         } finally {
             this._ouvertureEdition = false;
@@ -8233,7 +7899,6 @@ class HarmoHubApp {
                     ? `grid-template-rows: repeat(${chordRows}, ${rowTemplate}); grid-template-columns: repeat(${beatsPerRow}, 1fr) var(--col-plus);`
                     : `grid-template-rows: repeat(${rows}, ${rowTemplate}); grid-template-columns: repeat(${beatsPerRow}, 1fr);`;
                 const loopRange = this.loopRangeForSection(si, history.length);
-                const motifsRythme = new Map(); // un motif par accord, calculé une fois même si l'accord est coupé sur deux lignes (lot 5b)
                 // Mesure ATTEINTE par un étirement de durée d'accord EN COURS (voir onResizeStart/
                 // onResizeMove) : même principe que _highlightSeqBeatLabel pour le séquenceur (retour
                 // utilisateur : "je veux faire pareil pour les étirements des accords de la grille") —
@@ -8351,10 +8016,8 @@ class HarmoHubApp {
                     const badgeParts = [];
                     const bureau = window.matchMedia('(min-width: 900px)').matches; // les affichages sont ceux de l'ORDINATEUR : le téléphone ne change pas avant le lot 10
                     const nomsSeuls = bureau ? this.grilleDensite === 'compact' : !this.densiteTelephone().degres; // Compact : noms seuls (lot 5a ; téléphone, lot 10c)
-                    // Détaillé + option allumée + case assez haute pour une rangée de plus (la poignée du bas peut l'avoir réduite) : les carrés du rythme (lot 5b).
-                    const rythmeEl = (bureau && this.grilleDensite === 'detail' && this.showCellRhythm && this.hauteurCaseGrille() >= 64)
-                        ? this.htmlRythmeCase(h, s, cells, motifsRythme) : '';
-                    if (rythmeEl) cls += ' has-rythme';
+                    // Les petits carrés du rythme (lot 5b) sont retirés (13/11, retour de l'utilisateur : « je ne veux plus ces petits points verts qui représentent le rythme […]
+                    // je comprendrai directement avec le séquenceur »).
                     if (this.showGridOctave && !nomsSeuls) badgeParts.push(`O${octaveFromData(h)}`);
                     if (this.showGridVoicing && !nomsSeuls) badgeParts.push(...gridVoicingParts(h));
                     const hasMeta = !!(s.isFirst && badgeParts.length);
@@ -8417,7 +8080,6 @@ class HarmoHubApp {
                         ${persoEl}
                         ${insEl}
                         ${metaEl}
-                        ${rythmeEl}
                         ${ticksEl}
                         ${beatTicksEl}
                         ${resizeLeftEl}
@@ -8461,15 +8123,6 @@ class HarmoHubApp {
             // (voir repetitionsDansStructure), jamais une seconde notion de répétition. Rien à 1 : une partie jouée une fois n'a rien à signaler.
             const nbRep = this.repetitionsDansStructure(sec);
             const repEl = nbRep > 1 ? `<span class="prog-section-rep" title="Jouée ${nbRep} fois dans la structure">×${nbRep}</span>` : '';
-            // Conduite de voix : un seul bouton global (voir #toggle-voice-leading, à côté de
-            // #grid-zoom) plutôt qu'un par partie — mais le panneau lui-même reste posé ICI, juste
-            // sous la partie ACTIVE (this.activeSection), pas ailleurs : suit donc automatiquement la
-            // partie sur laquelle on travaille, sans bouton à rechercher à chaque fois.
-            // On masque, on n'éteint pas : voiceLeadingOpen reste vrai et les barres reviennent
-            // d'elles-mêmes en refermant la loupe — un réglage ne se perd pas en changeant de vue.
-            const voiceLeadingPanel = (si === this.activeSection && this.voiceLeadingOpen && history.length >= 2)
-                ? this.buildVoiceLeadingPanelHtml(si, history, gRoot, gMode, useFlats)
-                : '';
             return `
             <div class="prog-section">
                 <div class="prog-section-head">
@@ -8486,42 +8139,8 @@ class HarmoHubApp {
                     <button type="button" class="prog-section-menu" data-section="${si}" aria-haspopup="menu" aria-expanded="false" title="Répéter, renommer, déplacer, dupliquer, supprimer" aria-label="Actions de la partie ${escapeHtml(sec.title || `${si + 1}`)}"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
                 </div>
                 <div class="chord-grid" data-section="${si}" data-beats-per-row="${beatsPerRowFor(beatsPerBar, false, this.currentGridHZoom())}" style="${gridStyle}">${gridInner}</div>
-                ${voiceLeadingPanel}
             </div>`;
         }).join('');
-
-        // Bouton global (voir index.html, à côté de #grid-zoom) : reflète l'état ouvert/fermé et se
-        // désactive si la partie ACTIVE a moins de 2 accords (rien à enchaîner) — jamais retiré du DOM
-        // (contrairement au panneau lui-même), donc mis à jour ici plutôt que dans le gabarit ci-dessus.
-        const toggleVoiceLeadingBtn = document.getElementById('toggle-voice-leading');
-        if (toggleVoiceLeadingBtn) {
-            const activeSec = sections[this.activeSection];
-            const available = !!activeSec && activeSec.chords.length >= 2;
-            toggleVoiceLeadingBtn.disabled = !available;
-            toggleVoiceLeadingBtn.classList.toggle('active', this.voiceLeadingOpen && available);
-            toggleVoiceLeadingBtn.setAttribute('aria-pressed', String(this.voiceLeadingOpen && available));
-        }
-
-        // Zoom H/V + pincer-zoomer du panneau "Conduite de voix" — un seul panneau possible à la fois
-        // (voir buildVoiceLeadingPanelHtml), donc pas besoin de data-section ici comme pour les autres
-        // boutons de cette rangée : this.activeSection suffit déjà à savoir de quelle partie il s'agit.
-        const voiceLeadingPanelEl = host.querySelector('.voice-leading-panel');
-        if (voiceLeadingPanelEl) {
-            this._bindZoomButtons('voiceLeading', {
-                inH: voiceLeadingPanelEl.querySelector('.voice-leading-zoom-in-h'),
-                outH: voiceLeadingPanelEl.querySelector('.voice-leading-zoom-out-h'),
-                inV: voiceLeadingPanelEl.querySelector('.voice-leading-zoom-in-v'),
-                outV: voiceLeadingPanelEl.querySelector('.voice-leading-zoom-out-v'),
-            }, { stopPropagation: true });
-            // Ctrl+molette : zoome les deux axes à la fois, comme les autres fenêtres zoomables de
-            // l'appli (voir adjustZoomBothAxes) — posé sur le corps du panneau (touches + notes), pas
-            // seulement la zone qui défile, pour rester cohérent même quand la souris est sur les touches.
-            const body = voiceLeadingPanelEl.querySelector('.voice-leading-body');
-            if (body) {
-                this._bindCtrlWheelZoom(body, 'voiceLeading');
-                this.setupPinchZoom(body, 'voiceLeading');
-            }
-        }
 
         host.querySelectorAll('.prog-title').forEach(input => {
             input.addEventListener('focus', () => {
@@ -8662,165 +8281,6 @@ class HarmoHubApp {
         }
     }
 
-    // Ouvre/ferme le panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) — un seul bouton
-    // global (#toggle-voice-leading), le panneau affiché suit toujours this.activeSection tout seul
-    // (voir loadProgression), donc rien à cibler ici : un simple booléen + rappel de loadProgression.
-    toggleVoiceLeadingPanel() {
-        this.voiceLeadingOpen = !this.voiceLeadingOpen;
-        // Symétrique de toggleSequencer (voir son commentaire) : les deux panneaux partagent la même
-        // zone, on n'en montre jamais deux à la fois. On referme le séquenceur SANS repasser par
-        // toggleSequencer() : celle-ci ne rappelle que renderSequencer(), pas loadProgression() — le
-        // panneau de conduite de voix, lui, n'est construit QUE par loadProgression (voir
-        // buildVoiceLeadingPanelHtml), et restait donc invisible. Un seul loadProgression() à la fin
-        // redessine correctement les deux.
-        if (this.voiceLeadingOpen && this.seqOpen) {
-            this.seqOpen = false;
-            this.seqMode = null;
-            this.seqSelections = [];
-            this.closeSeqZoom();
-            document.getElementById('seq-zoom').classList.remove('active');
-            document.getElementById('grid-zoom').classList.remove('active');
-            this.majEditeurNotes(); // l'éditeur de notes vient de se fermer par ce chemin-là : la grille retrouve son affichage
-            this.renderSequencer();
-            this.updateGlobalUndoRedoButtons();
-        }
-        this.loadProgression();
-    }
-
-    // Piano-roll continu de TOUTE une partie (pas accord par accord comme le séquenceur) : chaque
-    // accord de `history` est voisé (Chord.getVoiced(), triée du grave à l'aigu, mêmes rôles/couleurs
-    // que le clavier/le PDF) et posé côte à côte, largeur proportionnelle à sa durée réelle (h.beats).
-    // Des traits relient chaque voix à la voix de même rang (après tri par hauteur) de l'accord
-    // suivant — une ligne PLEINE et épaisse marque une note commune tenue (aucun mouvement), une ligne
-    // fine en pointillés un déplacement. Objectif : rendre visible d'un coup d'œil ce qui, dans la
-    // grille elle-même, ne se voit qu'accord par accord — notes tenues, mouvements parallèles, sauts.
-    // Accords de tailles différentes (triade à côté d'une 7e, extensions, basse séparée...) : relie
-    // seulement jusqu'au plus petit des deux nombres de voix (en partant du grave), les voix en trop
-    // de l'accord le plus fourni restent sans trait — approximation simple mais correcte dans
-    // l'immense majorité des cas.
-    buildVoiceLeadingPanelHtml(si, history, gRoot, gMode, useFlats) {
-        // Cette construction reflète exactement l'échelle courante : le transform de secours pendant
-        // un pincement (--vl-zoom-scale-x/-y, voir applyZoomLevel/style.css) repart donc de 1 jusqu'au
-        // prochain cran de zoom.
-        this._voiceLeadingBuiltZoomX = this.voiceLeadingZoomLevelX;
-        this._voiceLeadingBuiltZoomY = this.voiceLeadingZoomLevelY;
-        const PX_PER_BEAT = 56 * this.voiceLeadingZoomLevelX, ROW_H = 18 * this.voiceLeadingZoomLevelY;
-        const KEY_GUTTER = 34, PAD_TOP = 30, PAD_BOTTOM = 14;
-        const ROLE_GRADIENT = {
-            root: ['#3fe3a0', '#00a855'], third: ['#5b98f0', '#1f5fc0'],
-            fifth: ['#ff6f66', '#d42a20'], seventh: ['#ffc247', '#cc8f00'], ext: ['#dba8ee', '#c48ce6'],
-        };
-
-        const chordsInfo = history.map(h => {
-            const beats = beatsFromData(h);
-            const chord = new Chord(h.root, h.quality, beats, h.inversion, h.drop, octaveFromData(h), h.bass, h.guitarLock, h.extraNotes);
-            const chordUseFlats = useFlatsForChordRoot(NOTES.indexOf(h.root), NOTES.indexOf(gRoot), gMode, useFlats);
-            const symbol = chordSymbolForData(h, chordUseFlats);
-            const roman = this.getRomanNumeral(gRoot, gMode, h.root, h.quality);
-            const voiced = chord.getVoiced(); // déjà triée du grave à l'aigu
-            const labeled = voiced.map(v => ({ ...v, label: spellChordTone(NOTES.indexOf(h.root), chordUseFlats, v.degree, v.midi, false) }));
-            return { beats, width: beats * PX_PER_BEAT, symbol, roman, voiced: labeled };
-        });
-
-        const allMidis = chordsInfo.flatMap(c => c.voiced.map(v => v.midi));
-        if (allMidis.length === 0) return '';
-        const minMidi = Math.min(...allMidis) - 1, maxMidi = Math.max(...allMidis) + 1;
-        const rows = maxMidi - minMidi + 1;
-        const totalWidth = chordsInfo.reduce((sum, c) => sum + c.width, 0);
-        const height = PAD_TOP + rows * ROW_H + PAD_BOTTOM;
-        const yFor = (midi) => PAD_TOP + (maxMidi - midi) * ROW_H;
-        const gid = (role) => `vlg-${si}-${role}`; // ids UNIQUES par partie : plusieurs panneaux peuvent
-                                                     // coexister dans le DOM (voir le bug corrigé sur la
-                                                     // maquette — des ids d'SVG dupliqués cassent le
-                                                     // rendu des dégradés dès qu'une copie est masquée).
-
-        // Colonne des touches de piano SÉPARÉE de la zone défilante (jamais dans le même <svg>, voir
-        // .voice-leading-keys/.voice-leading-scroll dans style.css) : reste fixe pendant que la partie
-        // notes défile horizontalement — retour utilisateur, l'ancienne version (touches DANS le même
-        // SVG que les notes) défilait avec le reste, perdant le repère de hauteur dès qu'on avançait
-        // dans une partie longue. Ivoire/noir IDENTIQUES à .key.white/.key.black (voir style.css) — pas
-        // les gris presque indiscernables d'avant (retour utilisateur : "elles sont toutes foncées").
-        let keysSvg = `<svg viewBox="0 0 ${KEY_GUTTER} ${height}" width="${KEY_GUTTER}" height="${height}" role="img" aria-hidden="true">`;
-        for (let m = minMidi; m <= maxMidi; m++) {
-            const isBlack = [1, 3, 6, 8, 10].includes(((m % 12) + 12) % 12);
-            keysSvg += `<rect x="0" y="${yFor(m)}" width="${KEY_GUTTER}" height="${ROW_H}" fill="${isBlack ? '#171310' : '#ece1cd'}" stroke="${isBlack ? '#000' : '#2a2a2a'}" stroke-width="1"/>`;
-            if (m % 12 === 0) keysSvg += `<text x="${KEY_GUTTER - 5}" y="${yFor(m) + ROW_H / 2 + 3}" font-size="9" fill="#2a2a2a" text-anchor="end" font-family="ui-monospace, monospace" font-weight="700">C${Math.floor(m / 12) - 1}</text>`;
-        }
-        keysSvg += `</svg>`;
-
-        let svg = `<svg viewBox="0 0 ${totalWidth} ${height}" width="${totalWidth}" height="${height}" role="img" aria-label="Conduite de voix">`;
-        svg += `<defs>${Object.entries(ROLE_GRADIENT).map(([role, [c1, c2]]) => `
-            <linearGradient id="${gid(role)}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient>`).join('')}</defs>`;
-
-        for (let m = minMidi; m <= maxMidi; m++) {
-            svg += `<rect x="0" y="${yFor(m)}" width="${totalWidth}" height="${ROW_H}" fill="${m % 12 === 0 ? '#161616' : 'transparent'}"/>`;
-            svg += `<line x1="0" x2="${totalWidth}" y1="${yFor(m)}" y2="${yFor(m)}" stroke="#232323" stroke-width="1"/>`;
-        }
-
-        // en-têtes d'accord + séparateurs
-        let x = 0;
-        chordsInfo.forEach((c, i) => {
-            svg += `<line x1="${x}" x2="${x}" y1="6" y2="${height - PAD_BOTTOM}" stroke="#2c2c2c" stroke-width="${i === 0 ? 0 : 1}"/>`;
-            svg += `<text x="${x + c.width / 2}" y="16" font-size="12.5" font-weight="800" fill="#e0e0e0" text-anchor="middle">${escapeHtml(c.symbol)}</text>`;
-            if (c.roman) svg += `<text x="${x + c.width / 2}" y="27" font-size="9" font-weight="700" fill="#6b6b6b" text-anchor="middle">${escapeHtml(c.roman)}</text>`;
-            x += c.width;
-        });
-        svg += `<line x1="${x}" x2="${x}" y1="6" y2="${height - PAD_BOTTOM}" stroke="#2c2c2c" stroke-width="1"/>`;
-
-        // lignes de conduite de voix
-        x = 0;
-        for (let i = 0; i < chordsInfo.length - 1; i++) {
-            const a = chordsInfo[i].voiced, b = chordsInfo[i + 1].voiced;
-            const xEnd = x + chordsInfo[i].width - 4, xStart = x + chordsInfo[i].width + 4;
-            for (let v = 0; v < Math.min(a.length, b.length); v++) {
-                const y1 = yFor(a[v].midi) + ROW_H / 2, y2 = yFor(b[v].midi) + ROW_H / 2;
-                const flat = a[v].midi === b[v].midi;
-                svg += `<line x1="${xEnd}" y1="${y1}" x2="${xStart}" y2="${y2}" stroke="${flat ? '#4a4a4a' : '#5a5a5a'}" stroke-width="${flat ? 2.5 : 1.6}" stroke-dasharray="${flat ? 'none' : '3,2'}"/>`;
-            }
-            x += chordsInfo[i].width;
-        }
-
-        // notes (par-dessus les lignes de conduite)
-        x = 0;
-        chordsInfo.forEach(c => {
-            c.voiced.forEach(v => {
-                svg += `<rect x="${x + 3}" y="${yFor(v.midi) + 2}" width="${c.width - 6}" height="${ROW_H - 4}" rx="5" fill="url(#${gid(v.role)})" stroke="rgba(0,0,0,0.35)"/>`;
-                svg += `<text x="${x + 10}" y="${yFor(v.midi) + ROW_H / 2 + 3.5}" font-size="9.5" font-weight="700" fill="#06170f" font-family="ui-monospace, monospace">${escapeHtml(v.label)}</text>`;
-            });
-            x += c.width;
-        });
-        svg += `</svg>`;
-
-        return `
-        <div class="voice-leading-panel" data-section="${si}">
-            <div class="voice-leading-toolbar">
-                <div class="piano-legend voice-leading-legend">
-                    <span class="lg"><span class="dot dot-root"></span>1</span>
-                    <span class="lg"><span class="dot dot-third"></span>3</span>
-                    <span class="lg"><span class="dot dot-fifth"></span>5</span>
-                    <span class="lg"><span class="dot dot-seventh"></span>7</span>
-                    <span class="lg"><span class="dot dot-ext"></span>Autres</span>
-                </div>
-                <div class="btn-wrap-group">
-                    <div class="zoom-axis-group" title="Échelle horizontale">
-                        <span class="zoom-axis-tag">H</span>
-                        <button type="button" class="icon-btn zoom-axis-btn voice-leading-zoom-in-h" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">${svgIcon('plus')}</button>
-                        <button type="button" class="icon-btn zoom-axis-btn voice-leading-zoom-out-h" title="Réduire l'échelle horizontale" aria-label="Réduire l'échelle horizontale">${svgIcon('minus')}</button>
-                    </div>
-                    <div class="zoom-axis-group" title="Échelle verticale">
-                        <span class="zoom-axis-tag">V</span>
-                        <button type="button" class="icon-btn zoom-axis-btn voice-leading-zoom-in-v" title="Agrandir l'échelle verticale" aria-label="Agrandir l'échelle verticale">${svgIcon('plus')}</button>
-                        <button type="button" class="icon-btn zoom-axis-btn voice-leading-zoom-out-v" title="Réduire l'échelle verticale" aria-label="Réduire l'échelle verticale">${svgIcon('minus')}</button>
-                    </div>
-                </div>
-            </div>
-            <div class="voice-leading-body">
-                <div class="voice-leading-keys">${keysSvg}</div>
-                <div class="voice-leading-scroll">${svg}</div>
-            </div>
-        </div>`;
-    }
-
     // Une plage à boucler (bande orange/dorée glissée sur les numéros de mesure, voir setLoopRange)
     // rend le bouton « Accord » (lire seulement l'accord sélectionné/en édition) redondant à côté du
     // bouton « Grille », qui lit déjà cette plage en priorité (voir playProgression) : un seul bouton
@@ -8891,18 +8351,6 @@ class HarmoHubApp {
         this.bouclerLecture = neuf;
         this.syncAnneauBoucle();
         if (this._playMode === 'progression') this.liveRestartForGlobalChange();
-    }
-
-    // Boucle du bouton Lecture DU SÉQUENCEUR. Il lance tantôt la grille (quand une plage est tracée
-    // et qu'on voit tout le morceau), tantôt le seul accord en édition — son anneau doit donc parler
-    // de la lecture qu'il lance vraiment, sans quoi il mentirait la moitié du temps.
-    basculerBoucleSequenceur() {
-        if (this._seqPlayLanceGrille) { this.basculerBoucle(); return; }
-        this.seqLoopPlay = !this.seqLoopPlay;
-        this.syncAnneauBoucle();
-        // Applique tout de suite si un accord est déjà en train de jouer, plutôt que d'attendre la
-        // fin (figée) de la lecture en cours pour en tenir compte (voir playCurrent).
-        if (this.isPlaying) this.livePreviewUpdate();
     }
 
     // Un seul endroit qui pose l'anneau, sur les DEUX boutons Lecture — mais chacun d'après SA
@@ -9079,9 +8527,9 @@ class HarmoHubApp {
         terminer.hidden = !utile;
         // L'état du bouton Rythme suit celui du panneau : ouvert, il le referme — sans quoi on aurait
         // deux boutons qui ouvrent et aucun qui ferme, exactement le défaut signalé sur le tiroir.
-        rythme.classList.toggle('active', utile && this.seqOpen);
+        rythme.classList.remove('active'); // le séquenceur d'avant (seqOpen) n'existe plus : ce bouton ne fait qu'ouvrir celui de l'appareil
         if (utile) {
-            rythme.title = this.seqOpen ? 'Fermer le rythme' : 'Rythme de cet accord';
+            rythme.title = 'Rythme de cet accord';
             rythme.setAttribute('aria-label', rythme.title);
         }
     }
@@ -9113,17 +8561,13 @@ class HarmoHubApp {
         if (!repere) return;
         const m = main.getBoundingClientRect();
         const haut = Math.max(56, Math.round(repere.getBoundingClientRect().bottom - m.top + 8));
-        // Le BAS : au-dessus du séquenceur quand il est ouvert sous la grille — descendu jusqu'en bas, l'inspecteur cachait la droite de sa barre d'outils
-        // (« Étendre », zooms : probe_seq_adaptatif). Sinon le bas de la colonne. Trop court, il défile en interne (overflow: auto).
-        const dock = document.getElementById('seq-dock-panel');
-        const dr = dock && !dock.hidden ? dock.getBoundingClientRect() : null;
-        const bas = dr && dr.height > 0 && dr.top > m.top + haut ? dr.top - m.top - 8 : m.height - 20;
+        // Le BAS : le bas de la colonne (A2, 13/11 : l'ancien volet du séquenceur sous la grille, au-dessus duquel il s'arrêtait, n'existe plus). Trop court, il défile en interne (overflow: auto).
+        const bas = m.height - 20;
         document.documentElement.style.setProperty('--haut-inspecteur', haut + 'px');
         document.documentElement.style.setProperty('--max-inspecteur', Math.max(120, Math.round(bas - haut)) + 'px');
-        // La place change aussi quand le séquenceur s'ouvre, se ferme ou change de hauteur (poignée) : on observe le volet une fois pour toutes.
-        if (!this._obsInspecteur && dock && window.ResizeObserver) {
+        // La place change aussi quand la colonne change de hauteur : on observe la colonne une fois pour toutes.
+        if (!this._obsInspecteur && window.ResizeObserver) {
             this._obsInspecteur = new ResizeObserver(() => this.placerInspecteurFlottant());
-            this._obsInspecteur.observe(dock);
             this._obsInspecteur.observe(main);
         }
     }
@@ -9607,7 +9051,6 @@ class HarmoHubApp {
             if (r && r.startSection === s && r.endSection === s && r.startIndex === indices[0] && r.endIndex === indices[indices.length - 1]) {
                 this.loopRange = null;
                 this.loadProgression();
-                this.renderSequencer();
                 this.liveRestartForGlobalChange();
                 return;
             }
@@ -9754,7 +9197,6 @@ class HarmoHubApp {
         this.guitarKey = null;
         this.guitarIdentityKey = null;
         this.refreshPreview();
-        this.renderSequencer();
         this.commitLiveEdit(true);
     }
 
@@ -9948,14 +9390,9 @@ class HarmoHubApp {
     // Il remplace sous 900px la carte Accord dans la page et le mode Modification (avec son dock de secours de 45px) : c'est la bulle de l'ordinateur,
     // posée en bas de l'écran. Il partage son état (this._bulle, marqué `telephone`), ses boutons [data-bulle] et son annulation (modifierAccordBulle).
     // Agrandi (`etendu`), il EST la modification de l'accord : editChord y est ouvert et la carte #accord-card y est déplacée (rangerCarteAccord).
-    // Le grand séquenceur du téléphone (Séq., sous la grille) reste celui d'avant jusqu'au lot 10f : tant qu'il est ouvert, le panneau ne s'ouvre pas (il le couvrirait).
-    // Le séquenceur COMPACT, lui, vit dans la carte Accord (#arp-sequencer) : ouvert DEPUIS le panneau agrandi, il y reste, avec le reste des réglages du
-    // son. Ouvert sans lui (sa porte de la carte dans la page), c'est le tiroir flottant d'avant : le panneau ne s'ouvre pas par-dessus, sa fermeture
-    // y deviendrait inatteignable (seq_tiroir_flottant, « je n'arrive plus à fermer le petit séquenceur »).
+    // Plus de séquenceur d'avant qui le tienne fermé (A2) : seul le téléphone, hors vue intégrée, l'ouvre.
     panneauAccordDisponible() {
-        if (!window.matchMedia('(max-width: 899px)').matches || this.vueOuverte()) return false;
-        if (!this.seqOpen) return true;
-        return this.seqMode === 'compact' && !!(this._bulle && this._bulle.telephone && this._bulle.etendu);
+        return window.matchMedia('(max-width: 899px)').matches && !this.vueOuverte();
     }
 
     setupPanneauAccord(aiguiller) {
@@ -10700,20 +10137,15 @@ class HarmoHubApp {
         sections.splice(s, 1);
         saveProgressionSections(sections);
 
-        const edite = this.editingIndex;
-        const garder = this._editeurNotesActif && edite != null; // l'éditeur de notes garde l'édition ouverte (voir reprendreEditionApresPartie)
-        if (!garder && this.activeSection === s && this.editingIndex != null) this.exitEditMode();
+        if (this.activeSection === s && this.editingIndex != null) this.exitEditMode();
         if (this.activeSection >= sections.length) this.activeSection = sections.length - 1;
         else if (this.activeSection > s) this.activeSection--;
         this.selectedIndex = null;
         // Une partie supprimée décale les index des suivantes : plus sûr de redéfinir la plage à
         // boucler (si elle existe) que de tenter de la remapper.
         if (this.loopRange) this.loopRange = null;
-        // L'accord ouvert était DANS la partie supprimée : l'édition passe à la partie qui prend sa place (même rang d'accord, ou son dernier).
-        if (garder) this.reprendreEditionApresPartie(this.activeSection, edite);
 
         this.loadProgression();
-        this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
     }
 
     // Duplique une partie entière (titre + tous ses accords), juste après elle — même esprit que
@@ -10727,34 +10159,12 @@ class HarmoHubApp {
         const copy = { title: sec.title ? `${sec.title} (copie)` : '', chords: sec.chords.map(c => ({ ...c })) };
         sections.splice(s + 1, 0, copy);
         saveProgressionSections(sections);
-        const edite = this.editingIndex;
-        const garder = this._editeurNotesActif && edite != null; // l'éditeur de notes garde l'édition ouverte (voir reprendreEditionApresPartie)
-        // Éditeur ouvert sur une AUTRE partie que celle qu'on duplique : l'édition reste sur son accord (dont la partie recule d'un rang si elle
-        // était après la copie). Sinon la copie devient active, comme avant — et l'éditeur la suit, sur le même accord de la copie.
-        const autre = garder && this.activeSection !== s;
-        this.activeSection = autre ? (this.activeSection > s ? this.activeSection + 1 : this.activeSection) : s + 1;
+        this.activeSection = s + 1;
         this.selectedIndex = null;
         // Une partie insérée décale les index des suivantes : plus sûr de redéfinir la plage à boucler
         // (si elle existe) que de tenter de la remapper.
         if (this.loopRange) this.loopRange = null;
-        if (garder) this.reprendreEditionApresPartie(this.activeSection, edite);
         this.loadProgression();
-        this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
-    }
-
-    // UNE OPÉRATION DE PARTIE GARDE L'ÉDITION OUVERTE (sous-lot « Éditeur et clavier », décision du 05/11, point 5) : éditeur de notes ouvert,
-    // monter, dupliquer ou supprimer une partie terminait l'édition de l'accord — l'éditeur ne montrait plus que l'accord seul, sans sa partie ni
-    // ses voix. On rouvre ici l'accord à sa NOUVELLE place (partie déplacée, copie, ou partie qui prend la place d'une partie supprimée — même rang,
-    // borné à sa longueur). Par editChord et non en recopiant les index : la session d'annulation repart à neuf, sinon les retouches faites après
-    // l'opération se seraient fondues dans l'instantané de l'opération elle-même (un Ctrl+Z aurait défait les deux d'un coup). Ordinateur seulement
-    // (l'éditeur n'existe que là) : le téléphone et l'inspecteur seul gardent l'ancien comportement.
-    reprendreEditionApresPartie(section, index) {
-        const sec = loadProgressionSections()[section];
-        if (!sec || !sec.chords || !sec.chords.length) { if (this.editingIndex != null) this.exitEditMode(); return false; }
-        const i = Math.max(0, Math.min(index, sec.chords.length - 1));
-        this.selectedIndex = i;
-        this.editChord(section, i);
-        return true;
     }
 
     // Échange une partie entière avec sa voisine immédiate (haut/bas selon delta = -1/+1) — l'ordre
@@ -10766,18 +10176,14 @@ class HarmoHubApp {
         this.pushUndo(sections);
         [sections[s], sections[t]] = [sections[t], sections[s]];
         saveProgressionSections(sections);
-        const edite = this.editingIndex;
-        const garder = this._editeurNotesActif && edite != null; // l'éditeur de notes garde l'édition ouverte (voir reprendreEditionApresPartie)
-        if (!garder && this.editingIndex != null && (this.activeSection === s || this.activeSection === t)) this.exitEditMode();
+        if (this.editingIndex != null && (this.activeSection === s || this.activeSection === t)) this.exitEditMode();
         if (this.activeSection === s) this.activeSection = t;
         else if (this.activeSection === t) this.activeSection = s;
         this.selectedIndex = null;
         // Comme pour supprimer/dupliquer une partie : plus sûr de redéfinir la plage à boucler (si
         // elle existe) que de tenter de la remapper après cet échange.
         if (this.loopRange) this.loopRange = null;
-        if (garder) this.reprendreEditionApresPartie(this.activeSection, edite);
         this.loadProgression();
-        this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
     }
 
     // Transpose TOUT le morceau (toutes les parties) de `semitones` demi-tons, et décale la tonalité
@@ -12054,7 +11460,6 @@ class HarmoHubApp {
         this.updateDurationOptions();
         this.loadProgression();
         this.refreshPreview();
-        this.renderSequencer(); // même raison que dans loadSong : la vue doit suivre le panneau remis à neuf
         this.refreshSongList();
     }
 
@@ -12210,7 +11615,6 @@ class HarmoHubApp {
         // aucun `change`, et refreshPreview ne s'occupe que du piano et de la guitare. Sans cette
         // ligne, un séquenceur ouvert restait figé sur les notes du morceau PRÉCÉDENT. Ici, à la fin :
         // le motif et la pagination dépendent de la grille et de editingIndex, tous deux à jour.
-        this.renderSequencer();
         // Le volet Structure peut être OUVERT pendant qu'un morceau se recharge — typiquement quand la synchro
         // apporte la version modifiée sur un autre appareil. Sans ce redessin il montrait l'ancienne
         // structure jusqu'au prochain rechargement de la page (reproduit : une note ajoutée sur l'appareil A
@@ -13275,13 +12679,6 @@ class HarmoHubApp {
                     <span class="switch-thumb"></span>
                 </button>
             </div>
-            <div class="settings-toggle-row">
-                <label for="toggle-show-cell-rhythm" title="Seize petits carrés par mesure sous le nom de l'accord : plein = une note jouée, pâle = une note tenue, vide = un silence">Rythme de l'accord dans les cases
-                    <span class="reglage-indice">En affichage Détaillé.</span></label>
-                <button type="button" id="toggle-show-cell-rhythm" class="switch" role="switch" aria-checked="${this.showCellRhythm}" aria-label="Rythme de l'accord dans les cases">
-                    <span class="switch-thumb"></span>
-                </button>
-            </div>
             <div class="settings-select-row">
                 <label for="grid-voicing-badge" title="Petite mention sous chaque accord : son octave, et son renversement/drop s'il en a un">Position d'accord</label>
                 <select id="grid-voicing-badge">
@@ -13315,7 +12712,6 @@ class HarmoHubApp {
                 </div>
             </details>`;
         document.getElementById('toggle-show-roman').onclick = () => this.setShowRomanNumerals(!this.showRomanNumerals);
-        document.getElementById('toggle-show-cell-rhythm').onclick = () => this.setShowCellRhythm(!this.showCellRhythm);
         document.getElementById('toggle-show-function').onclick = () => this.setShowChordFunction(!this.showChordFunction);
         document.getElementById('toggle-show-saved-date').onclick = () => this.setShowSavedDate(!this.showSavedDate);
         document.getElementById('grid-voicing-badge').onchange = (e) => {
@@ -13326,38 +12722,6 @@ class HarmoHubApp {
         document.getElementById('grid-beat-marks').onchange = (e) => this.setShowAllBeats(e.target.value === 'tous');
     }
 
-    setShowCellRhythm(on) {
-        this.showCellRhythm = on;
-        localStorage.setItem(SHOW_CELL_RHYTHM_KEY, on ? '1' : '0');
-        const btn = document.getElementById('toggle-show-cell-rhythm');
-        if (btn) btn.setAttribute('aria-checked', on);
-        this.loadProgression();
-    }
-
-    // LES PETITS CARRÉS DU RYTHME (lot 5b) : seize par mesure — une double croche chacun —, lus dans le MOTIF que joue réellement l'accord (le même que
-    // celui du séquenceur et de la lecture : resolveSeqPatternForData). Plein = une note attaquée sur ce pas ; pâle = des notes tenues (liées depuis le pas
-    // d'avant) ; vide = silence. Un accord coupé sur deux lignes montre, sur chaque morceau, les pas qui lui reviennent.
-    htmlRythmeCase(h, s, cells, cache) {
-        let motif = cache.get(s.index);
-        if (!motif) {
-            try {
-                const chord = new Chord(h.root, h.quality, beatsFromData(h), h.inversion, h.drop, octaveFromData(h), h.bass, h.guitarLock, h.extraNotes);
-                motif = this.resolveSeqPatternForData(chord, h);
-            } catch (e) { motif = { pattern: [], tie: [] }; }
-            cache.set(s.index, motif);
-        }
-        // Temps de CET accord qui précèdent ce morceau de case (segments précédents du même accord).
-        const avant = cells.filter(c => c.index === s.index && c !== s && (c.row < s.row || (c.row === s.row && c.col < s.col))).reduce((n, c) => n + c.span, 0);
-        const debut = avant * SEQ_STEPS_PER_BEAT, n = s.span * SEQ_STEPS_PER_BEAT;
-        let html = '';
-        for (let i = 0; i < n; i++) {
-            const voix = motif.pattern[debut + i] || [];
-            const liees = motif.tie[debut + i] || [];
-            const etat = !voix.length ? '' : (voix.every(v => liees.includes(v)) ? 't' : 'a');
-            html += `<i class="${etat}"></i>`;
-        }
-        return `<span class="cell-rythme" aria-hidden="true" title="Rythme de l'accord">${html}</span>`;
-    }
 
     setShowRomanNumerals(on) {
         this.showRomanNumerals = on;
@@ -16599,7 +15963,6 @@ class HarmoHubApp {
                     // Le séquenceur (loupe grille) doit suivre en direct l'accord qui vient de prendre
                     // la place de celui en édition, ou le contexte grisé si c'est un voisin qui bouge —
                     // sans effet si le panneau n'est pas ouvert (voir la garde de renderSequencer).
-                    this.renderSequencer();
                 } else {
                     this.loadProgression();
                     d.index = targetIndex;
@@ -16733,7 +16096,6 @@ class HarmoHubApp {
         // chaque case survolée (voir onGridPointerMove) — rien de plus à recalculer ici, un second
         // décalage sur des valeurs déjà à jour les fausserait (double décalage).
         this.loadProgression();
-        this.renderSequencer(); // au cas où le tout dernier survol n'aurait pas déclenché son propre rendu
     }
 
     // Insère une COPIE de l'accord `fromIndex` à la position `toIndex` (voir onGridPointerUp,
@@ -16888,32 +16250,6 @@ class HarmoHubApp {
             // Tab / Maj+Tab : valide CETTE case et passe à la voisine (lot 7b) — sinon le navigateur promènerait le focus sur un bouton quelconque.
             else if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); commit(); this.retaperVoisin(section, index, e.shiftKey ? -1 : 1); }
         });
-    }
-
-    // Monte/descend l'accord `index` d'une octave entière — borné à la plage du sélecteur Octave
-    // (2 à 5) du panneau Accord, pour ne jamais produire une case dont l'octave serait ensuite
-    // impossible à régler depuis ce même panneau.
-    // SANS APPELANT AUJOURD'HUI. Son seul déclencheur était la pastille flottante de la vue plein
-    // écran de la grille, supprimée avec elle. La méthode est conservée telle quelle plutôt que
-    // retirée : elle implémente un geste que l'utilisateur peut vouloir retrouver (monter un accord
-    // d'une octave depuis la grille, sans ouvrir le panneau Accord), et lui redonner un bouton est une
-    // décision de produit, pas un nettoyage. Ce commentaire existe pour qu'on ne la croie pas branchée.
-    shiftChordOctave(section, index, delta) {
-        const sections = loadProgressionSections();
-        const data = sections[section] && sections[section].chords[index];
-        if (!data) return;
-        const next = Math.max(2, Math.min(5, octaveFromData(data) + delta));
-        if (next === octaveFromData(data)) return;
-        this.pushUndo(sections);
-        data.octave = next;
-        // Voir changeChordOctave : un doigté verrouillé peut ne plus correspondre à la nouvelle octave.
-        data.guitarLock = null;
-        saveProgressionSections(sections);
-        marquerModifie();
-        // Si c'est l'accord actuellement en édition, resynchronise le panneau Accord (dont le
-        // sélecteur Octave) plutôt que de le laisser périmé — comme startInlineChordSymbolEdit.
-        if (this.editingIndex === index && this.activeSection === section) this.editChord(section, index);
-        else this.loadProgression();
     }
 
     // Accord de la grille "actif" pour tout ce qui n'a qu'UNE case à la fois en tête : la pastille
@@ -17116,7 +16452,6 @@ class HarmoHubApp {
         if (d && d.mode === 'bar-tap' && !d.moved && this.sectionInLoopRange(d.anchor.section)) {
             this.loopRange = null;
             this.loadProgression();
-            this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
             // Retire la chanson entière de la boucle : une lecture en cours doit refléter ça tout de
             // suite (voir liveRestartForGlobalChange), sinon elle continuerait à boucler l'ancienne
             // plage jusqu'à un Stop manuel.
@@ -17143,7 +16478,6 @@ class HarmoHubApp {
         this.bouclerLecture = true;
         this.syncAnneauBoucle();
         this.loadProgression();
-        this.renderSequencer(); // #seq-play reflète la plage (voir renderSequencer) — sans effet si fermé
         // Une lecture de toute la chanson en cours doit se mettre à boucler cette plage tout de suite
         // (voir liveRestartForGlobalChange) plutôt que d'attendre un Stop/Lecture manuel — sans effet
         // sur l'audition d'un seul accord (playCurrent), sans rapport avec cette plage.
@@ -17295,7 +16629,6 @@ class HarmoHubApp {
         // change) ou l'un de ses voisins immédiats (leur rythme réel, affiché en contexte grisé dans
         // la vue continue, dépend aussi de leur durée — voir renderSequencer). Sans effet si le
         // panneau n'est pas ouvert (voir la garde tout en haut de renderSequencer).
-        this.renderSequencer();
     }
 
     onResizeEnd() {
@@ -17360,7 +16693,6 @@ class HarmoHubApp {
         if (section === this.activeSection && this.editingIndex === index) {
             document.getElementById('arpPattern').value = data.arpPattern;
             this.seqTouched = true;
-            this.renderSequencer();
         }
     }
 
@@ -17507,184 +16839,6 @@ class HarmoHubApp {
         return resizeSeqPattern(pattern, tie, steps, voices);
     }
 
-    // Glisser sur la grille pour étirer/effacer une note sur plusieurs croches d'affilée (souris et
-    // tactile) : on délègue depuis le conteneur stable #arp-sequencer, qui survit aux re-rendus de
-    // la grille (contrairement aux cases elles-mêmes, reconstruites à chaque renderSequencer()).
-    setupSequencerInteractions() {
-        const host = document.getElementById('arp-sequencer');
-        host.addEventListener('pointerdown', (e) => this.onSeqPointerDown(e));
-        // Fin du retour visuel « case par case » propre au glissé (voir .seq-live en CSS et
-        // onSeqPointerDown) : retiré au relâchement QUEL QUE SOIT le pointeur et où qu'il se lève —
-        // y compris hors du séquenceur, et y compris sur les chemins de sortie anticipée de
-        // onSeqPointerDown (pipette armée, second doigt d'un pincer-zoomer...), qui ne passent jamais
-        // par onSeqPointerUp. #arp-sequencer étant déplacé mais jamais recréé (voir openSeqZoom/
-        // pinSequencerHost), la classe posée dessus survit aux re-rendus, qui ne touchent que ses enfants.
-        const endLive = () => { host.classList.remove('seq-live'); };
-        window.addEventListener('pointerup', endLive);
-        window.addEventListener('pointercancel', endLive);
-
-        // Le navigateur fait défiler la grille nativement au doigt (voir touch-action sur .seq-cell,
-        // et l'appui long dans onSeqPointerDown qui décide entre défiler et éditer). Deux moments où
-        // il faut au contraire lui retirer la main, et un seul écouteur suffit pour les deux :
-        //   - une édition est engagée (appui long tenu) : la vue ne doit surtout pas glisser sous le
-        //     doigt pendant qu'on dessine. Le navigateur n'a alors PAS encore commencé à défiler
-        //     (l'appui a été maintenu immobile), donc preventDefault est encore honoré ;
-        //   - deux doigts ou plus sont posés : c'est un pincer-zoomer (voir setupPinchZoom), et un pan
-        //     natif à 2 doigts venait s'y ajouter au petit bonheur selon l'endroit exact où chaque
-        //     doigt tombait — perçu tantôt comme un défilement parasite, tantôt comme des à-coups
-        //     (retour utilisateur d'alors). C'est ce cas précis qui avait motivé touch-action:none sur
-        //     toute la surface ; le viser directement rend le défilement à un doigt sans le ramener.
-        // `passive: false` : sans lui, preventDefault serait ignoré.
-        host.addEventListener('touchmove', (e) => {
-            if (this.seqDrag || this.seqMarquee || (e.touches && e.touches.length > 1)) e.preventDefault();
-        }, { passive: false });
-
-        // Survol : met en évidence la note ENTIÈRE qu'on s'apprête à toucher, pas seulement la case
-        // sous le pointeur. Le curseur (ew-resize/grab) dit déjà QUEL geste partira d'ici, mais pas
-        // SUR QUOI — et entre deux notes voisines et courtes, c'est justement là qu'on se trompe de
-        // cible. Voir aussi le liseré du bord survolé, qui dit de quel côté part l'étirement : les
-        // trois signaux répondent à trois questions différentes (quel geste, quel bord, quelle note).
-        // Réservé au pointeur fin : au doigt il n'y a pas de survol, c'est la note SÉLECTIONNÉE qui
-        // montre ses poignées (voir .seq-note.selected).
-        host.addEventListener('pointerover', (e) => {
-            if (e.pointerType === 'touch') return;
-            const cell = e.target.closest('.seq-cell.on');
-            this.setSeqHoveredNote(cell ? cell : null, e.clientX);
-        });
-        // Sur une note COURTE, le geste ne dépend plus de la case survolée mais de l'endroit PRÉCIS où
-        // l'on est dans la note (voir seqShortNoteZone) : il faut donc suivre le pointeur À L'INTÉRIEUR
-        // d'une même case, ce que pointerover ne fait pas (il ne se déclenche qu'au changement de case).
-        host.addEventListener('pointermove', (e) => {
-            if (e.pointerType === 'touch' || this.seqDrag || this.seqMarquee) return;
-            const cell = e.target.closest('.seq-cell.on');
-            this.setSeqHoveredNote(cell ? cell : null, e.clientX);
-        });
-        host.addEventListener('pointerout', (e) => {
-            if (e.pointerType === 'touch') return;
-            if (!e.relatedTarget || !host.contains(e.relatedTarget)) this.setSeqHoveredNote(null);
-        });
-        // Nettoyage du suivi des doigts actifs (voir this._seqActiveTouchIds/onSeqPointerDown) : posé
-        // sur window, pas sur `host`, pour retirer un doigt même s'il se lève hors du séquenceur (glissé
-        // qui sort de la zone pendant un pincer-zoomer, par exemple).
-        window.addEventListener('pointerup', (e) => { if (e.pointerType === 'touch') this._seqActiveTouchIds.delete(e.pointerId); });
-        window.addEventListener('pointercancel', (e) => { if (e.pointerType === 'touch') this._seqActiveTouchIds.delete(e.pointerId); });
-    }
-
-    // Le geste n'est appliqué qu'à la fin (voir onSeqPointerUp) : un simple tap sur une note déjà
-    // posée la SÉLECTIONNE au lieu de l'effacer immédiatement ; ce n'est qu'un vrai glissé (mouvement
-    // détecté) qui peint/efface plusieurs croches d'affilée.
-    // Zone d'une note COURTE (1 ou 2 croches) sous un point donné : 'start' | 'end' | 'body', ou null
-    // si la note est trop étroite pour qu'un milieu soit visable — auquel cas l'appelant garde le
-    // comportement historique (toute la note est une poignée). Voir SEQ_ZONE_* pour le pourquoi.
-    seqShortNoteZone(voice, noteStart, noteEnd, clientX) {
-        if (noteEnd - noteStart + 1 > 2) return null; // assez longue : elle a déjà des cases de corps
-        const bar = document.querySelector(
-            `.seq-note[data-voice="${voice}"][data-start="${noteStart}"][data-end="${noteEnd}"]`
-        );
-        if (!bar) return null; // barre introuvable (note coupée par la page) : on ne devine rien
-        const r = bar.getBoundingClientRect();
-        const handle = Math.min(SEQ_ZONE_HANDLE_MAX_PX, Math.max(SEQ_ZONE_HANDLE_MIN_PX, r.width * SEQ_ZONE_HANDLE_RATIO));
-        // Note trop étroite pour trois zones : deux suffisent, et le corps passe devant. On ne renvoie
-        // plus null — c'était condamner la note à ne jamais pouvoir être déplacée.
-        if (r.width - 2 * handle < SEQ_ZONE_MIN_BODY_PX) {
-            return clientX > r.left + r.width * 0.6 ? 'end' : 'body';
-        }
-        if (clientX < r.left + handle) return 'start';
-        if (clientX > r.right - handle) return 'end';
-        return 'body';
-    }
-
-    // Bornes de la note qui couvre (voice, step) dans `pattern`, ou null si la case est vide.
-    // Extrait pour être utilisé aussi bien à la prise du geste qu'au simple survol, sans dupliquer
-    // les deux boucles de remontée le long des croches liées.
-    seqNoteBoundsAt(pattern, tie, voice, step) {
-        if (!pattern[step] || !pattern[step].includes(voice)) return null;
-        let start = step, end = step;
-        while (start > 0 && pattern[start - 1].includes(voice) && tie[start].includes(voice)) start--;
-        while (end + 1 < pattern.length && pattern[end + 1].includes(voice) && tie[end + 1].includes(voice)) end++;
-        return { start, end };
-    }
-
-    // Met en évidence la barre de note qui couvre `cell` (null = plus rien de survolé). La barre est
-    // un élément à part, posé PAR-DESSUS les cases (voir .seq-note dans renderSequencer) : c'est donc
-    // en JS qu'on fait le lien, un sélecteur CSS ne pouvant pas remonter d'une case à la barre qui la
-    // recouvre.
-    setSeqHoveredNote(cell, clientX = null) {
-        // On retient la CASE survolée (voix + croche), pas la barre trouvée : les barres sont
-        // reconstruites à chaque renderSequencer(), et garder une référence à l'ancienne perdait le
-        // surlignage jusqu'au prochain mouvement de souris — le pointeur restait pourtant au même
-        // endroit, ce qui donnait l'impression que l'appli avait cessé de suivre. On retient aussi
-        // l'abscisse du pointeur, seule façon de savoir dans quelle ZONE d'une note courte on se
-        // trouve (voir seqShortNoteZone) — l'information n'est pas dans la case.
-        this._seqHover = cell ? { voice: +cell.dataset.voice, step: +cell.dataset.step, x: clientX } : null;
-        this.applySeqHoverHighlight();
-    }
-
-    // Repose la mise en évidence sur la barre qui couvre la case survolée. Appelée au survol ET à la
-    // fin de chaque rendu du séquenceur, pour que le surlignage survive à une reconstruction.
-    applySeqHoverHighlight() {
-        const cible = this._seqHover
-            ? Array.from(document.querySelectorAll(`.seq-note[data-voice="${this._seqHover.voice}"]`))
-                .find(n => this._seqHover.step >= +n.dataset.start && this._seqHover.step <= +n.dataset.end) || null
-            : null;
-        document.querySelectorAll('.seq-note.hovered').forEach(n => { if (n !== cible) n.classList.remove('hovered'); });
-        if (cible) cible.classList.add('hovered');
-
-        // Zone d'une note courte : le CSS ne peut pas la déduire (il ne sait que « la souris est sur
-        // cette case », pas OÙ dans la case), donc c'est ici qu'on marque les cases dont le milieu est
-        // survolé — pour que le curseur y annonce un déplacement (main) et non un étirement, et que le
-        // liseré de bord s'efface. Signature comparée avant d'écrire : pointermove tire à chaque pixel,
-        // et repeindre le DOM en continu pour un résultat identique serait du gaspillage pur.
-        const corps = (cible && this._seqHover.x != null
-            && this.seqShortNoteZone(+cible.dataset.voice, +cible.dataset.start, +cible.dataset.end, this._seqHover.x) === 'body')
-            ? { voice: +cible.dataset.voice, start: +cible.dataset.start, end: +cible.dataset.end }
-            : null;
-        const signature = corps ? `${corps.voice}:${corps.start}-${corps.end}` : '';
-        if (signature === this._seqBodyZoneSig) return;
-        this._seqBodyZoneSig = signature;
-        document.querySelectorAll('.seq-cell.seq-zone-body').forEach(c => c.classList.remove('seq-zone-body'));
-        if (corps) {
-            for (let s = corps.start; s <= corps.end; s++) {
-                document.querySelectorAll(`.seq-cell[data-voice="${corps.voice}"][data-step="${s}"]`)
-                    .forEach(c => c.classList.add('seq-zone-body'));
-            }
-        }
-    }
-
-    onSeqPointerDown(e) {
-        if (e.button != null && e.button !== 0) return; // clic gauche / toucher uniquement
-
-        // Second doigt qui se pose (voir this._seqActiveTouchIds) : un pincer-zoomer démarre (voir
-        // setupPinchZoom, posé sur un ancêtre — #seq-zoom-host — qui reçoit LE
-        // MÊME évènement par bouillonnement) — abandonne proprement tout peindre/glisser/rectangle déjà
-        // amorcé par le premier doigt plutôt que de laisser les deux se disputer la même case.
-        if (e.pointerType === 'touch') {
-            this._seqActiveTouchIds.add(e.pointerId);
-            if (this._seqActiveTouchIds.size > 1) {
-                this.cancelSeqGestureForPinch();
-                this._annulerAppuiLongSeq();
-                return;
-            }
-        }
-
-        const cell = e.target.closest('.seq-cell');
-        if (!cell) return;
-
-        // AU DOIGT, RIEN NE COMMENCE TOUT DE SUITE. Un glissé sur la grille servait à peindre, jamais à
-        // faire défiler : sur téléphone, la moindre tentative de se déplacer dans le morceau créait une
-        // note ou en déformait une (retour utilisateur : « à chaque fois que je veux scroller, je crée
-        // une note non voulue ou je modifie une note sans faire exprès... c'est trop aléatoire »). Le
-        // partage se fait maintenant par la DURÉE de l'appui, pas par l'endroit touché :
-        //   - glissé immédiat  -> défilement, natif, avec sa barre et son inertie (voir touch-action
-        //     sur .seq-cell) ; le navigateur nous retire alors le pointeur (pointercancel) ;
-        //   - appui maintenu (SEQ_APPUI_LONG_MS) sans bouger -> l'édition prend la main ;
-        //   - appui bref -> tap, exactement comme avant (poser une note, sélectionner la voisine).
-        // Souris et stylet ne sont pas concernés : ils ont molette et barres de défilement, et un
-        // glissé y est sans ambiguïté une édition.
-        if (e.pointerType === 'touch') { this._armerAppuiLongSeq(e, cell); return; }
-        this._demarrerGesteSeq(e, cell);
-    }
-
     // Attente avant qu'un appui tactile ne devienne une édition (voir onSeqPointerDown) : assez long
     // pour qu'un vrai départ de défilement ait le temps de se déclarer, assez court pour ne pas se
     // faire remarquer quand on vient réellement dessiner.
@@ -17692,239 +16846,6 @@ class HarmoHubApp {
     // Tremblement admis pendant cette attente. Au-delà, c'est un glissé : on rend la main au
     // navigateur, qui fait défiler.
     static get SEQ_APPUI_TOLERANCE_PX() { return 10; }
-
-    _armerAppuiLongSeq(e, cell) {
-        this._annulerAppuiLongSeq();
-        // Instantané de l'évènement : `_demarrerGesteSeq` s'exécutera plus tard (minuterie) ou après
-        // coup (tap), quand l'évènement d'origine n'est plus réutilisable. Aucune touche de clavier au
-        // doigt, d'où les modificateurs tous à faux.
-        const instant = {
-            clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, pointerType: 'touch',
-            shiftKey: false, ctrlKey: false, metaKey: false, altKey: false,
-            target: cell, preventDefault() {},
-        };
-        const a = { instant, cell, x: e.clientX, y: e.clientY, engage: false, minuterie: null };
-        this._seqAppuiLong = a;
-
-        a.minuterie = setTimeout(() => {
-            a.minuterie = null;
-            if (this._seqAppuiLong !== a) return;
-            // Les écouteurs d'attente cèdent la place à ceux du geste lui-même (posés par
-            // _demarrerGesteSeq) : sans ça, le relâchement serait traité deux fois.
-            this._detacherEcouteursAppuiSeq(a);
-            this._seqAppuiLong = null;
-            a.engage = true;
-            this._demarrerGesteSeq(instant, cell);
-            // Le doigt masque la case : sans signal, on ne sait pas que l'édition a pris la main et on
-            // dessine à l'aveugle. Liseré sur la grille + petite vibration, comme un « attrapé ».
-            const hote = document.getElementById('arp-sequencer');
-            if (hote) hote.classList.add('seq-edition-armee');
-            if (navigator.vibrate) { try { navigator.vibrate(12); } catch (_) { /* refus du navigateur : sans conséquence */ } }
-        }, HarmoHubApp.SEQ_APPUI_LONG_MS);
-
-        a.surMove = (ev) => {
-            if (ev.pointerId !== a.instant.pointerId || a.engage) return;
-            if (Math.hypot(ev.clientX - a.x, ev.clientY - a.y) > HarmoHubApp.SEQ_APPUI_TOLERANCE_PX) {
-                this._annulerAppuiLongSeq(); // c'est un défilement : le navigateur s'en charge, on s'efface
-            }
-        };
-        a.surUp = (ev) => {
-            if (ev.pointerId !== a.instant.pointerId) return;
-            const bref = !a.engage;
-            this._annulerAppuiLongSeq();
-            // Appui bref sans glissé = tap. On rejoue le geste complet en accéléré (ouverture puis
-            // fermeture immédiate) plutôt que de dupliquer ici la logique du tap : poser une note,
-            // sélectionner la note voisine, (dé)sélectionner... tout cela vit dans onSeqPointerUp et
-            // doit continuer d'y vivre à un seul endroit.
-            if (bref) { this._demarrerGesteSeq(instant, cell); this.onSeqPointerUp(); }
-        };
-        a.surCancel = (ev) => { if (ev.pointerId === a.instant.pointerId) this._annulerAppuiLongSeq(); };
-        window.addEventListener('pointermove', a.surMove, { passive: true });
-        window.addEventListener('pointerup', a.surUp);
-        window.addEventListener('pointercancel', a.surCancel);
-    }
-
-    _detacherEcouteursAppuiSeq(a) {
-        window.removeEventListener('pointermove', a.surMove);
-        window.removeEventListener('pointerup', a.surUp);
-        window.removeEventListener('pointercancel', a.surCancel);
-    }
-
-    _annulerAppuiLongSeq() {
-        const a = this._seqAppuiLong;
-        if (!a) return;
-        this._seqAppuiLong = null;
-        if (a.minuterie) clearTimeout(a.minuterie);
-        this._detacherEcouteursAppuiSeq(a);
-    }
-
-    _demarrerGesteSeq(e, cell) {
-        // Le geste commence : les cases peuvent de nouveau s'allumer une à une pour suivre le doigt en
-        // direct (voir .seq-live en CSS/applySeqCell). Retiré au relâchement, voir setupSequencerInteractions.
-        const hote = document.getElementById('arp-sequencer');
-        if (hote) hote.classList.add('seq-live');
-
-        let voice = +cell.dataset.voice, step = +cell.dataset.step;
-        // OUTILS DE L'ÉDITEUR DE NOTES (lot 9b). Gomme : efface ce qu'elle touche, rien d'autre. Crayon : la case est traitée comme VIDE, donc le
-        // geste dessine toujours (pas de sélection, de déplacement ni d'étirement d'une note existante). Sélection : rien ne change.
-        const outil = this.outilSeq();
-        if (outil === 'gomme') { this.commencerGommeSeq(e, cell); return; }
-        const crayon = outil === 'crayon';
-        const wasOn = cell.classList.contains('on') && !crayon;
-        // Posé UNIQUEMENT dans la branche voix<0 ci-dessous : un seul instantané d'annulation doit
-        // couvrir À LA FOIS la création de la ligne ET la note qui la peint, sinon `seqUndo()` ne
-        // ferait reculer que la moitié du geste (voir le garde-fou `d.undoPushed` plus bas, sur les
-        // deux points où le geste générique appelle normalement pushSeqUndo() lui-même).
-        let voixLibreUndoDejaPousse = false;
-
-        // Ligne d'une hauteur que l'accord ne joue pas encore (voir renderSequencer, .seq-cell-free) :
-        // le clic la CRÉE comme note libre à cette hauteur exacte. Avant, il fallait presser « + » —
-        // qui pose la note trois demi-tons au-dessus de la plus aiguë — puis retaper la hauteur voulue
-        // à la main. Ici on clique la note qu'on voit, à sa place sur le clavier.
-        // On ne peint PLUS rien ici, contrairement à avant (retour utilisateur : « la note se crée
-        // directement au clic, alors que je veux cliquer, puis définir sa longueur en glissant » — un
-        // simple appui posait aussitôt la longueur collante, et le glissé qui suivait ne faisait plus
-        // rien : ce geste-ci se terminait au clic, avant même le premier mouvement). On crée seulement
-        // la VOIX (la ligne) ici, puis `voice` est réassigné vers elle : le reste de la fonction, plus
-        // bas, retombe alors sur EXACTEMENT le même geste générique qu'une case vide de n'importe quelle
-        // autre voix — un simple clic peint la longueur collante au relâchement (voir onSeqPointerUp),
-        // un vrai glissé dessine la longueur voulue (voir onSeqPointerMove) : la note libre en profite
-        // enfin comme toutes les autres, sans code dédié.
-        if (voice < 0 && cell.dataset.midi) {
-            // Maj+glisser garde son sens habituel : un rectangle de sélection part aussi bien d'ici que
-            // de n'importe quelle case vide (voir beginSeqMarqueeSelect, qui ne se sert de la voix de
-            // départ que comme repère). Pipette de motif armée : cette ligne n'est pas une voix, il n'y
-            // a rien à y coller — on ne fait rien plutôt que de créer une note à contretemps du geste
-            // demandé (voir applySeqRowPipette, qui attend un index de voix réel).
-            if (e.shiftKey) { this.beginSeqMarqueeSelect(voice, step, e); return; }
-            if (this.seqRowPipette) return;
-            e.preventDefault();
-            const midi = +cell.dataset.midi;
-            this.pushSeqUndo();
-            voixLibreUndoDejaPousse = true;
-            const pc = ((midi % 12) + 12) % 12;
-            // _new (voir addSequencerNote/pruneEmptyExtraNotes) : cette voix n'a encore AUCUNE croche
-            // peinte — sans ce drapeau, la moindre synchronisation live (commitLiveEdit) intervenant
-            // entre la prise et le relâchement du geste la jugerait « note libre jamais utilisée » et
-            // la supprimerait aussitôt. applySeqCell lève ce drapeau tout seul dès la première case
-            // peinte (glissé ou clic simple, voir plus bas).
-            this.extraNotes.push({ note: NOTES[pc], octave: Math.floor(midi / 12) - 1, _new: true });
-            this.seqTouched = true; // le motif doit garder cette voix (voir syncSeqPatternForCurrentChord)
-            // La voix de la note qu'on vient d'ajouter est la DERNIÈRE des notes libres, elles-mêmes
-            // placées juste après les voix de la qualité (voir _computeVoices/extraStart).
-            const chordApres = this.readChord();
-            voice = chordApres.getIntervals().length + this.extraNotes.length - 1;
-            this.renderSequencer();
-        }
-
-        // Pipette de motif armée (voir toggleSeqRowPipette) : n'importe quel clic sur cette ligne
-        // dépose le motif prélevé dessus, au lieu de peindre/étirer/sélectionner normalement — reste
-        // armée pour enchaîner d'autres lignes (voir applySeqRowPipette).
-        if (this.seqRowPipette) {
-            e.preventDefault();
-            this.applySeqRowPipette(voice);
-            return;
-        }
-
-        // Sélection par rectangle (Maj/Shift + glisser depuis une case VIDE, retour utilisateur :
-        // sélectionner plusieurs notes à la fois, même sur des voix différentes, sans les Ctrl+clic
-        // une par une) : état séparé de this.seqDrag ci-dessous (qui suppose toujours une seule voix
-        // de départ), voir beginSeqMarqueeSelect. Réservé à une case VIDE pour ne rien changer au
-        // glissé normal (peindre/effacer/étirer) qui, lui, ignore Maj. Ctrl/Cmd déjà enfoncé = ajoute
-        // à la sélection existante au lieu de la remplacer, même convention que Ctrl+clic.
-        if (!wasOn && e.shiftKey) {
-            this.beginSeqMarqueeSelect(voice, step, e);
-            return;
-        }
-
-        const chord = this.readChord();
-        const { pattern, tie } = this.getLiveSeqPattern(chord);
-
-        // Si la croche touchée appartient à une note existante ET qu'elle en est le DÉBUT, la FIN,
-        // ou l'unique croche, un glissé pourra étirer/raccourcir la note depuis ce bord. Mais un
-        // simple tap (sans glisser) se contente TOUJOURS de sélectionner, exactement comme au milieu
-        // d'une note : cliquer ne modifie jamais rien, seul un vrai glissé le fait.
-        let resize = null;
-        let noteStart = null, noteEnd = null, isStart = false, isEnd = false;
-        if (wasOn) {
-            const bounds = this.seqNoteBoundsAt(pattern, tie, voice, step);
-            noteStart = bounds.start; noteEnd = bounds.end;
-            isStart = (step === noteStart); isEnd = (step === noteEnd);
-            if (isStart || isEnd) {
-                const { minStart, maxEnd } = this.seqNeighborBounds(pattern, voice, noteStart, noteEnd);
-                // 'auto' pour une note d'une seule croche : le sens du tout premier glissé décide du bord
-                const edge = (isStart && isEnd) ? 'auto' : (isStart ? 'start' : 'end');
-                // Note courte (1 ou 2 croches) assez large pour être découpée au pixel : son MILIEU
-                // devient un corps (on la prend et on la déplace), ses extrémités restent des poignées.
-                // Avant, toutes ses cases étant des bords, elle n'avait aucun corps : on ne pouvait que
-                // l'étirer, jamais la déplacer par glissé. On ne touche QU'À ÇA : quel bord est saisi
-                // reste décidé comme avant (par la case, ou 'auto' pour une note d'une seule croche),
-                // et sous le seuil de largeur seqShortNoteZone rend null — rien ne change du tout.
-                if (this.seqShortNoteZone(voice, noteStart, noteEnd, e.clientX) !== 'body') {
-                    resize = { edge, noteStart, noteEnd, minStart, maxEnd };
-                }
-            }
-        }
-
-        // Plusieurs notes sélectionnées (Ctrl/Cmd+clic, voir selectSeqNoteAt) ET le geste démarre sur
-        // L'UNE d'entre elles : étirer/déplacer TOUTES les notes sélectionnées ensemble, du même nombre
-        // de croches (voir onSeqMultiDragMove) — plutôt que de ne toucher que celle sous le doigt.
-        // Démarrer sur une note NON sélectionnée retombe sur le comportement habituel (une seule note).
-        let multi = null;
-        if (wasOn && this.seqSelections.length > 1) {
-            const ownSel = this.seqSelections.find(s => s.voice === voice && noteStart === s.start && noteEnd === s.end);
-            if (ownSel) {
-                // Reprend le bord décidé ci-dessus plutôt que de le recalculer : sans ça, une note
-                // courte saisie par son CORPS (resize null) retomberait ici sur un étirement.
-                const edge = resize ? resize.edge : null;
-                multi = {
-                    edge,
-                    startStep: step,
-                    selections: this.seqSelections.map(s => ({ ...s })), // instantané des positions de départ
-                    steps: pattern.length,
-                    appliedDelta: 0,
-                };
-            }
-        }
-
-        // Ctrl/Cmd enfoncé : le tap (sans glisser) ajoutera/retirera cette note de la sélection au
-        // lieu de la remplacer — voir onSeqPointerUp. N'affecte pas le glissé de peinture/effacement.
-        // Réutilisé aussi comme repère « copier » pour un changement de voix (voir beginSeqVoiceDrag) :
-        // Ctrl/Cmd déjà enfoncé à la prise = copie, sinon déplacement, même convention que la grille.
-        this.seqDrag = {
-            mode: 'paint', voice, wasOn, startStep: step, lastStep: step, moved: false,
-            rowCells: null, touched: {}, additive: e.ctrlKey || e.metaKey,
-            resize, resizeChanged: false, crossedThreshold: false, multi,
-            curStart: resize ? resize.noteStart : null, curEnd: resize ? resize.noteEnd : null,
-            noteEl: null, startX: e.clientX, startY: e.clientY, pointerType: e.pointerType,
-            // Bornes de la note sous le doigt (même hors bord, contrairement à resize.noteStart/End
-            // ci-dessus qui ne sont posés QUE si le geste a démarré pile sur un bord) : nécessaires
-            // pour basculer en changement de voix depuis N'IMPORTE quel point de la note (voir
-            // onSeqPointerMove/beginSeqVoiceDrag), pas seulement ses extrémités.
-            noteStart, noteEnd,
-            // Alt/Option déjà enfoncée à la prise, sur une note existante : un glissé horizontal
-            // dominant posera une COPIE plus loin sur la MÊME voix, au lieu de DÉPLACER la note comme
-            // le fait désormais le même geste sans Alt (voir beginSeqHDrag, appelé avec `copy`).
-            altDuplicate: wasOn && e.altKey,
-            gestureDecided: false, voiceDrag: null, hDrag: null,
-            // Voir le commentaire sur voixLibreUndoDejaPousse plus haut : uniquement vrai quand ce
-            // geste vient de créer une ligne de note libre (pushSeqUndo() déjà appelé une fois pour
-            // TOUT le geste), faux dans tous les autres cas — comportement inchangé partout ailleurs.
-            undoPushed: voixLibreUndoDejaPousse,
-            crayon, // lot 9b : un tap au crayon pose une note là où l'on clique, sans « rattraper » une note voisine (voir onSeqPointerUp)
-        };
-
-        // Dès la prise, pas seulement au premier mouvement : ajouter une note d'un simple appui est un
-        // geste complet à lui seul, et c'est là qu'on veut lire sur quelle note on tombe (voir
-        // _revelerToucheSeq).
-        this._revelerToucheSeq(voice);
-
-        this._onSeqMove = (ev) => this.onSeqPointerMove(ev);
-        this._onSeqUp = () => this.onSeqPointerUp();
-        window.addEventListener('pointermove', this._onSeqMove, { passive: false });
-        window.addEventListener('pointerup', this._onSeqUp);
-        window.addEventListener('pointercancel', this._onSeqUp);
-    }
 
     // FIN DE MODIFICATION PAR CLIC AILLEURS (retour utilisateur : « la fin de la modification prendra
     // lieu quand je cliquerai ailleurs dans l'application »). Le geste remplace le gros bouton
@@ -17966,221 +16887,6 @@ class HarmoHubApp {
         }, true);
     }
 
-    // Amorce une sélection par rectangle (voir onSeqPointerDown) : réutilise les MÊMES écouteurs
-    // fenêtre que this.seqDrag (posés ici, pas dans un doublon) — onSeqPointerMove/onSeqPointerUp
-    // vérifient this.seqMarquee EN PREMIER et s'y branchent avant de toucher this.seqDrag.
-    beginSeqMarqueeSelect(voice, step, e) {
-        this.seqMarquee = {
-            startVoice: voice, startStep: step, startX: e.clientX, startY: e.clientY,
-            curX: e.clientX, curY: e.clientY, moved: false,
-            additive: e.ctrlKey || e.metaKey, el: null,
-        };
-        this._onSeqMove = (ev) => this.onSeqPointerMove(ev);
-        this._onSeqUp = () => this.onSeqPointerUp();
-        window.addEventListener('pointermove', this._onSeqMove, { passive: false });
-        window.addEventListener('pointerup', this._onSeqUp);
-        window.addEventListener('pointercancel', this._onSeqUp);
-    }
-
-    // Glissé du rectangle de sélection (voir beginSeqMarqueeSelect) : un simple rectangle en pixels
-    // (position:fixed), pas calé sur la grille — au contraire du fantôme de duplication (voir
-    // beginSeqHDrag), il n'a pas besoin de suivre une case précise, seule sa FORME compte pour
-    // savoir quelles notes il touche. Chaque note dont le rectangle DOM (getBoundingClientRect)
-    // chevauche celui du rectangle reçoit une classe transitoire (.marquee-hit) en retour visuel
-    // immédiat ; la sélection réelle (this.seqSelections) n'est posée qu'au relâchement.
-    onSeqMarqueeMove(e) {
-        const m = this.seqMarquee;
-        if (!m.moved) {
-            const dx = e.clientX - m.startX, dy = e.clientY - m.startY;
-            if (Math.hypot(dx, dy) < 10) return; // seuil, comme les autres gestes séquenceur
-            m.moved = true;
-            m.el = document.createElement('div');
-            m.el.className = 'seq-marquee-rect';
-            document.body.appendChild(m.el);
-        }
-        e.preventDefault();
-        m.curX = e.clientX; m.curY = e.clientY;
-        const x1 = Math.min(m.startX, m.curX), x2 = Math.max(m.startX, m.curX);
-        const y1 = Math.min(m.startY, m.curY), y2 = Math.max(m.startY, m.curY);
-        m.el.style.left = `${x1}px`;
-        m.el.style.top = `${y1}px`;
-        m.el.style.width = `${x2 - x1}px`;
-        m.el.style.height = `${y2 - y1}px`;
-
-        document.querySelectorAll('.seq-note').forEach(note => {
-            const r = note.getBoundingClientRect();
-            const hit = r.left < x2 && r.right > x1 && r.top < y2 && r.bottom > y1;
-            note.classList.toggle('marquee-hit', hit);
-        });
-    }
-
-    // Relâchement du rectangle (voir onSeqPointerUp) : les notes actuellement en surbrillance
-    // (.marquee-hit, posée en direct par onSeqMarqueeMove) deviennent la sélection réelle — remplacée
-    // si Ctrl/Cmd n'était pas enfoncé à la prise, sinon ajoutée à celle déjà en place (même convention
-    // que Ctrl+clic sur une seule note, voir selectSeqNoteAt). Un simple Maj+clic SANS glisser ne
-    // sélectionne rien de spécial (repart de la sélection existante, vidée si pas additive).
-    finalizeSeqMarqueeSelect() {
-        const m = this.seqMarquee;
-        this.seqMarquee = null;
-        if (!m.moved) {
-            if (!m.additive) this.seqSelections = [];
-            this.renderSequencer();
-            return;
-        }
-        if (m.el) m.el.remove();
-        const hits = [];
-        document.querySelectorAll('.seq-note.marquee-hit').forEach(note => {
-            hits.push({ voice: +note.dataset.voice, start: +note.dataset.start, end: +note.dataset.end });
-            note.classList.remove('marquee-hit');
-        });
-        if (!m.additive) {
-            this.seqSelections = hits;
-        } else {
-            hits.forEach(h => {
-                if (!this.seqSelections.some(s => s.voice === h.voice && s.start === h.start && s.end === h.end)) {
-                    this.seqSelections.push(h);
-                }
-            });
-        }
-        this.renderSequencer();
-    }
-
-    // ---------- Aimantation ----------
-    // Pas d'aimantation courant, en croches. Toujours >= 1 : 1 signifie « aucune aimantation », et
-    // toutes les fonctions ci-dessous deviennent alors l'identité — c'est ce qui garantit que le
-    // comportement historique est rigoureusement conservé tant qu'on n'a rien changé.
-    // Aimantation FIXE à la double croche : une case de la grille EST une double croche
-    // (SEQ_STEPS_PER_BEAT = 4), donc « se caler sur la case » ne restreint rien — c'est la précision
-    // maximale que la vue permet. Le sélecteur qui proposait 1/4 et 1/8 a été retiré (retour
-    // utilisateur) : il fallait le régler avant de dessiner, et l'oublier posait des notes au mauvais
-    // endroit. Le penchant pour la croche vit dans snapSeqBoundary, pas ici.
-    seqSnap() {
-        return 1;
-    }
-
-    // Léger AIMANT sur les croches (voir snapSeqBoundary/onSeqPointerMove) : quand la position tombe
-    // pile sur un début de croche, on l'y garde ; sinon on reste à la double croche visée. Concrètement
-    // la croche gagne un peu de « poids » sans jamais empêcher d'atteindre une double croche — retour
-    // utilisateur : « si tu penses qu'il faut renforcer légèrement l'accrochage sur les croches par
-    // rapport à l'accrochage en double croche, tu peux mettre cela en place ». 0.3 : on ne bascule sur
-    // la croche que dans le tiers de case qui la borde, la majorité de la case restant à elle-même.
-    _aimantCroche(posFractionnaire) {
-        const PAS_CROCHE = 2; // 2 doubles croches = 1 croche
-        const croche = Math.round(posFractionnaire / PAS_CROCHE) * PAS_CROCHE;
-        return Math.abs(posFractionnaire - croche) <= 0.3 ? croche : Math.round(posFractionnaire);
-    }
-
-    // DÉBUT d'une note : arrondi vers le BAS, au cran qui CONTIENT ce pas. On vise une zone et la note
-    // se pose au début de cette zone — plus prévisible qu'un arrondi au plus proche, qui ferait sauter
-    // la note en avant alors qu'on a cliqué à l'intérieur d'un temps.
-    snapSeqStepDown(step) {
-        const n = this.seqSnap();
-        return Math.floor(step / n) * n;
-    }
-
-    // FIN d'une note : dernière croche du cran qui CONTIENT ce pas. Avec snapSeqStepDown ci-dessus,
-    // ça donne une règle unique et facile à anticiper — « la note couvre en entier tout cran que le
-    // pointeur touche ». Un arrondi au cran le plus proche avait été essayé d'abord : il rendait le
-    // geste imprévisible (sur un temps de 4 croches, une seule permettait de raccourcir, les trois
-    // autres ne faisaient rien), et pouvait EXCLURE la case pourtant survolée.
-    snapSeqStepUp(step) {
-        const n = this.seqSnap();
-        return Math.floor(step / n) * n + n - 1;
-    }
-
-    // POSITION libre (décalage d'un déplacement, où aucune case n'est « couverte » ou non) : arrondi au
-    // cran le plus proche, qui est ici le bon compromis — la note suit le pointeur au plus près sans
-    // jamais se poser de travers.
-    snapSeqBoundary(pos) {
-        return this._aimantCroche(pos);
-    }
-
-    // Longueur, en doubles croches, d'une note créée par un simple clic/tap : celle de la dernière
-    // note réellement dessinée ou étirée (voir this.seqStickyLen — même principe que GarageBand/Logic,
-    // qui réutilisent la dernière durée éditée). À défaut, une CROCHE : c'est la durée la plus
-    // courante, et l'ancien repli (le pas d'aimantation) n'existe plus depuis que celui-ci est fixe.
-    seqNewNoteLen() {
-        return Math.max(1, this.seqStickyLen || 2);
-    }
-
-    // Mémorise la longueur d'une note qu'on vient de dessiner/étirer, pour que la SUIVANTE créée d'un
-    // simple clic la reprenne. Ignoré pour une longueur absurde (garde-fou : une note fait toujours au
-    // moins une croche).
-    rememberSeqNoteLen(len) {
-        if (len >= 1) this.seqStickyLen = len;
-    }
-
-    // Bornes dans lesquelles une note peut être étirée sans empiéter sur la note voisine de LA MÊME
-    // voix (celle qu'on redimensionne étant elle-même exclue du calcul, puisqu'on cherche la première
-    // croche occupée au-delà de ses propres bornes actuelles, dans chaque direction).
-    seqNeighborBounds(pattern, voice, start, end) {
-        let minStart = 0;
-        for (let s = start - 1; s >= 0; s--) {
-            if (pattern[s].includes(voice)) { minStart = s + 1; break; }
-        }
-        let maxEnd = pattern.length - 1;
-        for (let s = end + 1; s < pattern.length; s++) {
-            if (pattern[s].includes(voice)) { maxEnd = s - 1; break; }
-        }
-        return { minStart, maxEnd };
-    }
-
-    // Retrouve la croche survolée par une recherche géométrique dans la voix d'origine, plutôt qu'un
-    // elementFromPoint strict : une souris/un doigt qui dérive légèrement dans un interstice (gap entre
-    // cases, bordure...) ne doit pas interrompre le glissé — c'est ce qui rendait l'étirement peu fiable.
-    findSeqStepAt(d, clientX, clientY) {
-        if (!d.rowCells) {
-            d.rowCells = Array.from(document.querySelectorAll(`.seq-cell[data-voice="${d.voice}"]`))
-                .map(el => ({ step: +el.dataset.step, rect: el.getBoundingClientRect() }));
-        }
-        let best = null, bestDist = Infinity;
-        for (const c of d.rowCells) {
-            if (clientY < c.rect.top - 40 || clientY > c.rect.bottom + 40) continue; // hors de cette ligne
-            const dist = clientX < c.rect.left ? c.rect.left - clientX : (clientX > c.rect.right ? clientX - c.rect.right : 0);
-            if (dist < bestDist) { bestDist = dist; best = c; }
-        }
-        return best ? best.step : null;
-    }
-
-    // Défilement automatique de la bande séquenceur (voir renderSequencer, wideCompact/continu)
-    // pendant peindre/étirer/déplacer/dupliquer une note, dès que le pointeur approche du bord gauche
-    // ou droit de .seq-scroll (retour utilisateur : sinon impossible d'étirer une note jusque sur la
-    // mesure suivante sans d'abord zoomer arrière pour la voir). `d.scrollEl` mis en cache sur le
-    // geste (comme d.rowCells), retrouvé une seule fois. N'agit que s'il y a réellement de quoi
-    // défiler : sans effet en dehors de wideCompact/continu (page qui tient déjà entière).
-    _updateSeqAutoScroll(d) {
-        if (d.scrollEl === undefined) d.scrollEl = document.querySelector('#arp-sequencer .seq-scroll');
-        const el = d.scrollEl;
-        if (!el || el.scrollWidth <= el.clientWidth + 1) { this._stopSeqAutoScroll(d); return; }
-        const rect = el.getBoundingClientRect();
-        const EDGE = 36, MAX_SPEED = 16;
-        const x = d._lastClientX;
-        let dir = 0, dist = 0;
-        if (x < rect.left + EDGE) { dir = -1; dist = (rect.left + EDGE) - x; }
-        else if (x > rect.right - EDGE) { dir = 1; dist = x - (rect.right - EDGE); }
-        const atStart = el.scrollLeft <= 0;
-        const atEnd = el.scrollLeft >= el.scrollWidth - el.clientWidth - 1;
-        if (dir === 0 || (dir < 0 && atStart) || (dir > 0 && atEnd)) { this._stopSeqAutoScroll(d); return; }
-        d._autoScrollDir = dir;
-        d._autoScrollSpeed = Math.min(MAX_SPEED, 4 + dist * 0.35);
-        if (!d._autoScrollRAF) this._runSeqAutoScrollTick(d);
-    }
-
-    _stopSeqAutoScroll(d) {
-        if (d._autoScrollRAF) { cancelAnimationFrame(d._autoScrollRAF); d._autoScrollRAF = null; }
-    }
-
-    // Ancêtre RÉELLEMENT défilant verticalement autour de #arp-sequencer, retrouvé en remontant le DOM
-    // plutôt que ciblé par id fixe : #arp-sequencer se déplace entre plusieurs hôtes sans être dupliqué
-    // (panneau compact -> .panel-controls, loupe séquenceur -> #seq-zoom-host, loupe grille épinglée ->
-    // voir openSeqZoom), chacun son propre ancêtre défilant.
-    // Utilisé pour reproduire en JS le défilement vertical qu'un doigt sur une case faisait avant
-    // nativement (voir .seq-cell/touch-action:none en CSS, retiré pour laisser le pan à 2 doigts, voir
-    // setupPinchZoom, garder un contrôle fiable sur cet axe aussi).
-    _scrollableSeqAncestor() {
-        return this._scrollableAncestorOf(document.getElementById('arp-sequencer'));
-    }
-
     // Même recherche, pour n'importe quel point de départ : la grille d'accords en a besoin elle aussi
     // (voir onGridPointerMove — ses cases sont en touch-action:none, donc le défilement vertical au
     // doigt doit y être reproduit en JS exactement comme dans le séquenceur), et elle vit tantôt dans
@@ -18204,1356 +16910,18 @@ class HarmoHubApp {
         return null;
     }
 
-    // Met en évidence, dans la ligne de temps sous la grille (voir renderSequencer/.seq-beat-label),
-    // le chiffre du temps JUSTE ATTEINT par un étirement/peindre/étirement multiple en cours — retour
-    // utilisateur : "je ne vois pas exactement où est le temps 4" pendant un glissé. `step` peut être
-    // null pour tout éteindre (fin/annulation du geste, voir onSeqPointerUp/cancelSeqGestureForPinch).
-    // Un seul chiffre allumé à la fois (pas de traînée) : le repère le plus lisible reste "où j'en
-    // suis maintenant", pas l'historique du geste.
-    _highlightSeqBeatLabel(step) {
-        const prev = document.querySelector('.seq-beat-label.seq-beat-reached');
-        if (prev) prev.classList.remove('seq-beat-reached');
-        if (step == null) return;
-        const beatIndex = Math.floor(step / SEQ_STEPS_PER_BEAT);
-        const label = document.querySelector(`.seq-beat-label[data-beat-index="${beatIndex}"]`);
-        if (label) label.classList.add('seq-beat-reached');
-    }
-
-    // Allume le nom de la note sur la touche de gauche, le temps d'un geste. Les noms sont masqués au
-    // repos — seul le DO garde le sien (voir toucheCls/.seq-key-name) parce qu'une colonne de vingt
-    // noms mangeait la gouttière (retour utilisateur : « le nom des notes prend trop de place sur les
-    // touches »). Mais au moment PRÉCIS où l'on pose ou déplace une barre, c'est l'information qu'on
-    // cherche : « quand je déplace ou ajoute une barre dans l'accord, tu dois faire apparaître la note
-    // sur la gauche, même pendant le déplacement pour pouvoir poser la note au bon endroit sans faire
-    // d'erreur ». Le nom apparaît donc pendant le geste, à hauteur de la ligne visée, et s'éteint au
-    // relâchement. Appelé à CHAQUE mouvement (pas seulement au changement de ligne) : la grille peut
-    // se reconstruire en cours de geste (défilement automatique), ce qui effacerait la classe.
-    // `midi` (optionnel) : repli quand `voice` ne désigne aucune voix RÉELLE (null/-1) mais qu'une
-    // hauteur précise est quand même visée — cas d'un changement de voix vertical déposé sur une ligne
-    // encore libre (voir onSeqVoiceDragMove) : -1 y vaut pour TOUTES les cases seq-cell-free à la fois
-    // (voir data-voice dans renderSequencer), donc pas un repère utilisable pour retrouver LA bonne
-    // étiquette — data-row-midi, lui, est unique par ligne (une seule hauteur par ligne).
-    _revelerToucheSeq(voice, midi = null) {
-        const precedent = document.querySelector('.seq-label.seq-key-reveal');
-        let cible = null;
-        if (voice != null && voice >= 0) cible = document.querySelector(`.seq-label[data-row-voice="${voice}"]`);
-        else if (midi != null) cible = document.querySelector(`.seq-label[data-row-midi="${midi}"]`);
-        if (precedent === cible) return;
-        if (precedent) precedent.classList.remove('seq-key-reveal');
-        if (cible) cible.classList.add('seq-key-reveal');
-    }
-
-    // Avance le défilement d'un cran et REJOUE le geste en cours à la même position écran : le
-    // contenu a bougé dessous, donc la croche visée change même si le doigt/la souris, eux, n'ont pas
-    // bougé pendant que la vue défile — sans ce rejeu, rien ne suivrait tant qu'un vrai mouvement du
-    // pointeur ne serait pas détecté. d.rowCells invalidé À CHAQUE défilement : ses rects mis en cache
-    // (voir findSeqStepAt) deviennent faux dès que .seq-scroll bouge sous eux.
-    _runSeqAutoScrollTick(d) {
-        if (this.seqDrag !== d) { this._stopSeqAutoScroll(d); return; } // le geste s'est terminé entretemps
-        const el = d.scrollEl;
-        el.scrollLeft += d._autoScrollDir * d._autoScrollSpeed;
-        d.rowCells = null;
-        const fakeEvent = { clientX: d._lastClientX, clientY: d._lastClientY, preventDefault() {} };
-        d._autoScrollRAF = requestAnimationFrame(() => {
-            d._autoScrollRAF = null;
-            this.onSeqPointerMove(fakeEvent);
-        });
-    }
-
-    // Mémorise l'état d'origine (avant ce glissé) d'une croche la première fois qu'elle est touchée,
-    // pour pouvoir la restaurer fidèlement si le geste revient en arrière et la sort de la plage.
-    rememberSeqOriginalState(d, step) {
-        if (d.touched[step]) return;
-        const chord = this.readChord();
-        const { pattern, tie } = this.getLiveSeqPattern(chord);
-        d.touched[step] = { on: pattern[step].includes(d.voice), tied: tie[step].includes(d.voice) };
-    }
-
-    onSeqPointerMove(e) {
-        if (this.seqMarquee) { this.onSeqMarqueeMove(e); return; }
-        const d = this.seqDrag;
-        if (!d) return;
-
-        // Défilement automatique près du bord gauche/droit (voir _updateSeqAutoScroll) : posé tout en
-        // haut, avant même le routage ci-dessous, pour couvrir peindre/étirer/déplacer/dupliquer d'un
-        // même geste — retour utilisateur, un accord qui déborde d'une page (voir wideCompact dans
-        // renderSequencer) ne doit plus obliger à zoomer arrière pour étirer une note jusque sur la
-        // mesure suivante : glisser jusqu'au bord suffit désormais, la vue défile toute seule.
-        d._lastClientX = e.clientX;
-        d._lastClientY = e.clientY;
-        this._updateSeqAutoScroll(d);
-        // Nom de la note écrit sur sa touche pendant tout le geste (voir _revelerToucheSeq). Posé ici,
-        // en amont du routage, pour couvrir d'un coup peindre / étirer / déplacer dans le temps ; un
-        // changement de LIGNE, lui, le repose sur la ligne visée (voir onSeqVoiceDragMove, appelé
-        // après et qui l'emporte donc).
-        this._revelerToucheSeq(d.voice);
-
-        // Défilement vertical de secours, À LA SOURIS UNIQUEMENT : décidé une seule fois, au tout
-        // premier vrai mouvement de CE geste, et seulement pour étirer (d.resize) ou peindre sur une
-        // case vide (!d.wasOn) — les deux seuls cas qui n'avaient pas déjà un sens pour une dominante
-        // verticale. Un geste démarré sur le CORPS d'une note existante garde le SIEN (changer de voix,
-        // voir juste plus bas), jamais détourné vers un défilement.
-        // Plus jamais au DOIGT : le défilement tactile est redevenu natif (voir touch-action sur
-        // .seq-cell et l'appui long dans onSeqPointerDown), et un geste tactile n'arrive plus jusqu'ici
-        // qu'après un appui maintenu — c'est-à-dire quand l'utilisateur a explicitement demandé à
-        // éditer. Le détourner alors vers un défilement serait précisément le hasard qu'on vient
-        // d'éliminer (retour utilisateur : « c'est trop aléatoire »).
-        // La condition portait `(d.resize || !d.wasOn)`, en croyant dire « étirement ou case vide ».
-        // Elle disait en réalité tout autre chose sur les notes COURTES : une note d'une ou deux
-        // doubles croches n'a que des bords (voir isStartEdge/isEndEdge dans renderSequencer), donc
-        // d.resize y est vrai partout — et ce bloc-ci passant AVANT l'arbitrage du geste, un glissé
-        // vertical y partait toujours en défilement. Résultat mesuré : une note de deux croches ne
-        // pouvait PAS être déplacée sur une autre hauteur, jamais, alors qu'une note de trois croches
-        // ou plus le pouvait depuis son milieu. C'est le défaut que reproduit seq_voicedrag_test.js
-        // (sa note fait exactement deux croches) — vérifié identique sur a25163a, donc antérieur à ce
-        // travail. La règle voulue est celle qu'énonce déjà le commentaire ci-dessus : un geste parti
-        // d'une note EXISTANTE garde le sien (changer de voix), le défilement de secours ne concerne
-        // que les cases vides.
-        if (!d.axisDecided && d.pointerType !== 'touch' && !d.wasOn) {
-            const dx0 = e.clientX - d.startX, dy0 = e.clientY - d.startY;
-            if (Math.hypot(dx0, dy0) < 10) return;
-            d.axisDecided = true;
-            if (Math.abs(dy0) > Math.abs(dx0)) { d.verticalScroll = true; d._vScrollLastY = e.clientY; }
-        }
-        if (d.verticalScroll) {
-            const dy = e.clientY - d._vScrollLastY;
-            d._vScrollLastY = e.clientY;
-            const target = this._scrollableSeqAncestor();
-            if (target) target.scrollTop -= dy;
-            e.preventDefault();
-            return;
-        }
-
-        // Démarré SUR une note déjà posée, hors sélection multiple : le sens du tout premier vrai
-        // mouvement (seuil commun aux autres gestes séquenceur) décide de la nature du glissé.
-        // Dominante VERTICALE = change de voix (la barre suit le pointeur vers une autre ligne,
-        // copiée/déplacée selon Ctrl/Cmd, voir beginSeqVoiceDrag). Dominante HORIZONTALE : depuis un
-        // BORD de la note, on étire comme avant (d.resize, traité plus bas) ; depuis son CORPS, on la
-        // DÉPLACE dans le temps (voir beginSeqHDrag) — retour utilisateur : c'est le geste de base
-        // d'un séquenceur type GarageBand, et il ne faisait jusqu'ici strictement rien ici (il fallait
-        // effacer puis redessiner la note, ou passer par Maj+←/→). Alt/Option déjà enfoncée à la prise
-        // en fait une DUPLICATION plutôt qu'un déplacement, comme avant. Décidé une seule fois pour
-        // tout le geste, comme le changement de voix.
-        if (d.wasOn && !d.multi && !d.gestureDecided) {
-            const dx0 = e.clientX - d.startX, dy0 = e.clientY - d.startY;
-            if (Math.hypot(dx0, dy0) < 10) return;
-            d.gestureDecided = true;
-            if (Math.abs(dy0) > Math.abs(dx0)) this.beginSeqVoiceDrag(d);
-            else if (d.altDuplicate) this.beginSeqHDrag(d, true);
-            else if (!d.resize) this.beginSeqHDrag(d, false);
-        }
-        if (d.voiceDrag) { this.onSeqVoiceDragMove(e, d); return; }
-        if (d.hDrag) { this.onSeqHDragMove(e, d); return; }
-
-        if (d.multi) { this.onSeqMultiDragMove(e, d); return; }
-        if (d.resize) { this.onSeqResizeMove(e, d); return; }
-
-        // Filet de sécurité : un glissé démarré sur une note existante a normalement déjà été routé
-        // plus haut (changement de voix, déplacement/duplication horizontale, étirement depuis un
-        // bord). On n'arrive ici que si beginSeqHDrag a renoncé (barre introuvable dans le DOM : page
-        // du séquenceur changée entretemps). Surtout ne rien peindre/effacer dans ce cas — retour
-        // utilisateur d'origine : glisser depuis le corps d'une note la scindait en deux par accident
-        // bien trop souvent. Un simple tap, lui, continue de sélectionner normalement (voir
-        // onSeqPointerUp).
-        if (d.wasOn) return;
-
-        // Même garde-fou que pour le redimensionnement (voir onSeqResizeMove) : sans lui, le moindre
-        // tremblement de souris/doigt au clic — surtout sur des cases étroites — peut franchir la
-        // case voisine et être lu comme un glissé, ce qui écrase la sélection au lieu de simplement
-        // sélectionner/Ctrl+sélectionner (peindre une note neuve, elle, part toujours d'une case vide).
-        if (!d.crossedThreshold) {
-            const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
-            if (Math.hypot(dx, dy) < 10) return;
-            d.crossedThreshold = true;
-        }
-
-        const step = this.findSeqStepAt(d, e.clientX, e.clientY);
-        if (step == null) return;
-        // Retour utilisateur : "je ne vois pas exactement où est le temps 4" pendant un glissé — voir
-        // le même repère sur onSeqResizeMove ; ici avant le "pas bougé depuis, rien à faire" pour
-        // rester à jour même si on revient pile sur le même pas (le repère ne doit jamais rester figé
-        // sur une valeur périmée pendant qu'on hésite/ajuste).
-        this._highlightSeqBeatLabel(step);
-        if (step === d.lastStep && d.moved) return;
-
-        e.preventDefault(); // glissé horizontal reconnu -> on empêche le scroll de page de le voler
-        // Un seul instantané pour tout le glissé, pas un par croche traversée — et pas un second si la
-        // ligne de note libre a déjà posé le sien à la prise (voir voixLibreUndoDejaPousse/d.undoPushed
-        // dans _demarrerGesteSeq) : sinon `seqUndo()` ne ferait reculer que la moitié du geste.
-        if (!d.undoPushed) { this.pushSeqUndo(); d.undoPushed = true; }
-        d.moved = true;
-
-        // Le point de départ décide : geste commencé sur une case éteinte -> on peint (note tenue,
-        // liée à partir de la 2e croche parcourue) ; commencé sur une case allumée -> on efface.
-        const paintOn = !d.wasOn;
-        // Aimantation (voir seqSnap) : le DÉBUT se cale sur le cran qui le contient, la FIN sur la
-        // frontière de cran la plus proche — et la note fait toujours au moins un cran entier, sinon
-        // choisir « 1/4 » laisserait quand même dessiner des bouts de temps. Sans aimantation (pas de
-        // 1 croche, valeur par défaut), les deux fonctions sont l'identité : on retrouve exactement le
-        // min/max d'origine, au pas près.
-        // Nombre total de croches de l'accord, mis en cache sur le geste : il ne change pas pendant un
-        // glissé, et le relire à chaque croche traversée relancerait readChord/getLiveSeqPattern en rafale.
-        if (d.totalSteps == null) d.totalSteps = this.getLiveSeqPattern(this.readChord()).pattern.length;
-        const newFrom = this.snapSeqStepDown(Math.min(step, d.startStep));
-        const newTo = Math.min(d.totalSteps - 1, this.snapSeqStepUp(Math.max(step, d.startStep)));
-
-        // Toujours un nouvel appui, MÊME juste à côté d'une note déjà là (jamais fusionnée avec elle,
-        // retour utilisateur : garder deux appuis séparés plutôt qu'une seule note liée) — un geste qui
-        // veut au contraire ÉTENDRE une note existante part de son propre bord (voir onSeqResizeMove),
-        // pas d'une case vide adjacente.
-        // Aller-retour du geste : restaure hors de la nouvelle plage les croches déjà modifiées
-        if (d.rangeFrom != null) {
-            for (let s = d.rangeFrom; s <= d.rangeTo; s++) {
-                if (s < newFrom || s > newTo) {
-                    const orig = d.touched[s];
-                    this.applySeqCell(d.voice, s, orig.on, orig.tied);
-                }
-            }
-        }
-        for (let s = newFrom; s <= newTo; s++) {
-            this.rememberSeqOriginalState(d, s);
-            this.applySeqCell(d.voice, s, paintOn, paintOn && s !== newFrom);
-        }
-        d.rangeFrom = newFrom;
-        d.rangeTo = newTo;
-        d.lastStep = step;
-        this.majApercuBarrePeinte(d, newFrom, newTo, paintOn);
-    }
-
-    // LA BARRE QUI MANQUAIT. Retour utilisateur : « dans le grand séquenceur, lorsque je crée une note
-    // et définis sa longueur avec la souris, j'ai des problèmes d'accrochage lors du survol : certains
-    // 1/4 de tons sont grisés et la barre refuse de s'accrocher. »
-    //
-    // LE RELEVÉ : pendant un tracé de 10 croches, 11 cases passaient bien à l'état `on` — donc grises,
-    // exactement la teinte décrite — et le compte de barres dessinées restait à ZÉRO tout du long. La
-    // barre n'apparaissait qu'au relâchement. Elle ne « refusait » pas de s'accrocher : elle n'existait
-    // pas encore. Le moteur, lui, était juste (note obtenue correcte, et findSeqStepAt n'a pas perdu un
-    // seul pas sur 167 positions balayées).
-    //
-    // LA CAUSE est un choix délibéré : applySeqCell met à jour le modèle et bascule la classe de la
-    // case, sans jamais toucher aux pilules — celles-ci ne naissent que d'un renderSequencer(), qu'on
-    // se garde bien d'appeler pendant le geste (il détruirait les .seq-cell actuellement sous les
-    // doigts). L'étirement d'une note EXISTANTE, lui, n'avait pas ce défaut : il déplace en direct la
-    // pilule déjà là (voir onSeqResizeMove, d.noteEl). Il manquait le pendant pour une note NEUVE,
-    // qui n'a pas encore de pilule à déplacer — on la fabrique donc, et on la jette au relâchement.
-    //
-    // GÉOMÉTRIE LUE SUR LES CASES ELLES-MÊMES, jamais recalculée : la colonne d'une croche dépend de la
-    // page affichée et du décalage des accords voisins (voir renderSequencer, colOffset/pageStart).
-    // Refaire ce calcul ici, c'était s'exposer à ce qu'il diverge un jour de celui du rendu — la case
-    // du pas visé porte déjà la bonne réponse dans son style inline.
-    majApercuBarrePeinte(d, from, to, paintOn) {
-        // On efface (geste parti d'une case allumée) : rien à prévisualiser, les cases s'éteignent
-        // d'elles-mêmes.
-        if (!paintOn) { this.retirerApercuBarrePeinte(d); return; }
-        const caseDebut = document.querySelector(`.seq-cell[data-voice="${d.voice}"][data-step="${from}"]`);
-        if (!caseDebut) { this.retirerApercuBarrePeinte(d); return; } // pas hors de la page affichée
-        const colonne = parseInt(caseDebut.style.gridColumn, 10);
-        if (!Number.isFinite(colonne)) return;
-        let el = d.apercuEl;
-        if (!el) {
-            const chord = this.readChord();
-            const roleMap = chord.getRoleMap();
-            const midis = chord.getMidiNotes();
-            const role = roleMap[midis[d.voice]] || 'ext';
-            el = document.createElement('div');
-            // Mêmes classes que la vraie pilule (voir renderSequencer) : même couleur, même forme,
-            // même arrondi. L'aperçu ne doit pas se distinguer de ce qu'on obtiendra — sinon on
-            // remplacerait « rien ne suit » par « quelque chose d'autre suit ».
-            el.className = `seq-note run role-${role} seq-note-apercu`;
-            el.innerHTML = '<span class="seq-note-head"></span>';
-            caseDebut.parentElement.appendChild(el);
-            d.apercuEl = el;
-        }
-        el.style.gridRow = caseDebut.style.gridRow;
-        el.style.gridColumn = `${colonne} / span ${to - from + 1}`;
-        // Même retrait de 4px que la vraie pilule : une note qui s'arrête sur la 2e moitié d'un
-        // rectangle laisse l'interstice qui la sépare de la paire suivante (voir .seq-cell-b, dont la
-        // bordure transparente porte cet écart).
-        el.style.marginRight = (to % 2 === 1) ? '4px' : '0';
-    }
-
-    // L'aperçu ne survit jamais au geste : le renderSequencer() de fin dessine la VRAIE pilule, et deux
-    // barres superposées au même endroit se verraient (opacités qui s'additionnent).
-    retirerApercuBarrePeinte(d) {
-        if (d && d.apercuEl) { d.apercuEl.remove(); d.apercuEl = null; }
-    }
-
-    // Glissé démarré sur le bord d'une note existante (ou son unique croche) : étend/raccourcit
-    // depuis ce bord, sans jamais empiéter sur la note voisine de la même voix (bornes calculées une
-    // seule fois à la prise, cf. seqNeighborBounds). Un simple clic sans glisser réel ne modifie
-    // jamais rien : onSeqPointerUp retombe alors sur le comportement de sélection habituel.
-    onSeqResizeMove(e, d) {
-        // Seuil avant de considérer que c'est un vrai glissé (et non un simple tap pour sélectionner) :
-        // le moindre tremblement au clic/toucher (souris, trackpad, doigt) ne doit jamais être lu
-        // comme une intention de modifier. Tant que ce seuil n'est pas franchi, on ne touche à rien.
-        if (!d.crossedThreshold) {
-            const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
-            if (Math.hypot(dx, dy) < 10) return;
-            d.crossedThreshold = true;
-        }
-
-        const step = this.findSeqStepAt(d, e.clientX, e.clientY);
-        if (step == null) return;
-
-        // Note d'une seule croche : le sens du tout premier mouvement décide quel bord on manipule
-        if (d.resize.edge === 'auto') {
-            if (step > d.resize.noteStart) d.resize.edge = 'end';
-            else if (step < d.resize.noteStart) d.resize.edge = 'start';
-            else return; // toujours sur la même case : direction pas encore déterminée
-        }
-
-        // Aimantation du bord qui bouge (voir seqSnap) : même règle que le dessin — le cran survolé est
-        // couvert en entier, donc le bord droit va jusqu'à sa dernière croche et le bord gauche remonte
-        // à sa première. Les bornes de voisinage (minStart/maxEnd) et la longueur minimale d'une croche
-        // (noteStart/noteEnd) priment toujours. Sans aimantation (pas de 1 croche, par défaut), les deux
-        // fonctions sont l'identité : on retrouve exactement le clamp d'origine.
-        let newStart = d.curStart, newEnd = d.curEnd;
-        if (d.resize.edge === 'end') {
-            newEnd = Math.min(d.resize.maxEnd, Math.max(d.resize.noteStart, this.snapSeqStepUp(step)));
-        } else {
-            newStart = Math.max(d.resize.minStart, Math.min(d.resize.noteEnd, this.snapSeqStepDown(step)));
-        }
-        // Retour utilisateur : "je ne vois pas exactement où est le temps 4" pendant un glissé — le
-        // bord qui bouge réellement (borné par minStart/maxEnd, pas le doigt brut) décide du temps
-        // mis en évidence, avant même de savoir si ce mouvement change quoi que ce soit de plus.
-        this._highlightSeqBeatLabel(d.resize.edge === 'end' ? newEnd : newStart);
-        // Plus d'étiquette flottante annonçant la durée obtenue (retour utilisateur : « lorsque
-        // j'étire une note, je n'ai pas besoin de voir écrit dans une fenêtre la longueur de la note
-        // pendant l'étirement »). Elle disait en chiffres ce que la barre elle-même montre déjà en
-        // s'allongeant contre la règle de mesure — et elle le disait SOUS le pointeur, donc juste
-        // par-dessus l'endroit qu'on est en train de viser. Le repère de temps mis en évidence
-        // ci-dessus suffit : il dit où l'on s'arrête, sans rien recouvrir.
-        if (newStart === d.curStart && newEnd === d.curEnd) return;
-
-        e.preventDefault();
-        if (!d.resizeChanged) {
-            this.pushSeqUndo(); // un seul instantané pour tout le glissé de redimensionnement
-            // Repère l'élément visuel de la note pour l'étirer en direct pendant le glissé
-            d.noteEl = document.querySelector(
-                `.seq-note[data-voice="${d.voice}"][data-start="${d.resize.noteStart}"][data-end="${d.resize.noteEnd}"]`
-            );
-        }
-        d.resizeChanged = true;
-
-        // Réapplique toute la plage traversée par ce geste : les croches désormais hors [newStart,
-        // newEnd] s'éteignent, celles qui y entrent s'allument (liées entre elles, sauf la toute
-        // première = attaque). Un seul passage suffit même en cas d'aller-retour du pointeur.
-        const lo = Math.min(d.curStart, newStart, d.resize.noteStart);
-        const hi = Math.max(d.curEnd, newEnd, d.resize.noteEnd);
-        for (let s = lo; s <= hi; s++) {
-            const within = s >= newStart && s <= newEnd;
-            this.applySeqCell(d.voice, s, within, within && s !== newStart);
-        }
-        d.curStart = newStart;
-        d.curEnd = newEnd;
-        // AUCUNE étiquette flottante pendant un ÉTIREMENT (retour utilisateur : « lorsque j'étire une
-        // barre du séquenceur, je n'ai pas besoin de l'encadré vert qui se met à jour à l'étirement à
-        // droite de la souris, pour m'indiquer le nombre de croches de la barre »). Elle annonçait en
-        // chiffres (« 2 temps · fin mes. 1 temps 3 ») ce que la barre montre déjà d'elle-même en
-        // s'allongeant contre la règle de mesure — et elle le posait SOUS le pointeur, donc par-dessus
-        // l'endroit précis qu'on est en train de viser. Le repère de temps mis en évidence sur la règle
-        // (voir _highlightSeqBeatLabel plus haut dans cette même fonction) dit déjà où l'on s'arrête,
-        // sans rien recouvrir.
-        // Les DEUX AUTRES gestes gardent le leur, et c'est voulu : changer de hauteur (onSeqVoiceDragMove)
-        // annonce le NOM de la note visée, déplacer dans le temps (onSeqHDragMove) annonce la POSITION
-        // d'arrivée — deux informations que rien d'autre à l'écran ne donne, contrairement à une longueur.
-
-        // Étire/déplace la pilule visuelle EN DIRECT, sans attendre le renderSequencer() final
-        // (les cases en dessous, elles, sont déjà mises à jour case par case via applySeqCell ci-dessus)
-        if (d.noteEl) {
-            d.noteEl.style.gridColumn = `${newStart + 2} / span ${newEnd - newStart + 1}`;
-            d.noteEl.style.marginRight = (newEnd % 2 === 1) ? '4px' : '0';
-        }
-    }
-
-    // Bornes du décalage (en croches, un seul delta partagé par toutes les notes) qui gardent CHAQUE
-    // note de `selections` dans la grille et loin de toute case occupée qui ne fait PAS partie de la
-    // sélection — les autres notes sélectionnées, qui se décalent avec elle, ne comptent jamais comme
-    // un obstacle. `edge` : null (déplacement, les deux bords bougent) | 'start' | 'end' (étirement,
-    // un seul bord bouge, l'autre reste fixe). Voir onSeqMultiDragMove.
-    computeMultiDragDeltaBounds(selections, steps, edge) {
-        const chord = this.readChord();
-        const { pattern } = this.getLiveSeqPattern(chord);
-        const isOwn = (voice, s) => selections.some(sel => sel.voice === voice && s >= sel.start && s <= sel.end);
-        let minDelta = -Infinity, maxDelta = Infinity;
-        selections.forEach(sel => {
-            let lowBound = 0;
-            for (let s = sel.start - 1; s >= 0; s--) {
-                if (pattern[s].includes(sel.voice) && !isOwn(sel.voice, s)) { lowBound = s + 1; break; }
-            }
-            let highBound = steps - 1;
-            for (let s = sel.end + 1; s < steps; s++) {
-                if (pattern[s].includes(sel.voice) && !isOwn(sel.voice, s)) { highBound = s - 1; break; }
-            }
-            if (edge === 'end') {
-                minDelta = Math.max(minDelta, sel.start - sel.end); // jamais moins d'une croche
-                maxDelta = Math.min(maxDelta, highBound - sel.end);
-            } else if (edge === 'start') {
-                minDelta = Math.max(minDelta, lowBound - sel.start);
-                maxDelta = Math.min(maxDelta, sel.end - sel.start); // jamais moins d'une croche
-            } else {
-                minDelta = Math.max(minDelta, lowBound - sel.start);
-                maxDelta = Math.min(maxDelta, highBound - sel.end);
-            }
-        });
-        if (minDelta > maxDelta) { minDelta = 0; maxDelta = 0; }
-        return { minDelta, maxDelta };
-    }
-
-    // Glissé démarré sur l'une des notes d'une sélection multiple (voir onSeqPointerDown) : étire
-    // (depuis le bord touché) ou déplace (depuis le corps de la note) TOUTES les notes sélectionnées
-    // du MÊME nombre de croches à la fois — jamais une seule, contrairement au glissé habituel.
-    onSeqMultiDragMove(e, d) {
-        if (!d.crossedThreshold) {
-            const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
-            if (Math.hypot(dx, dy) < 10) return;
-            d.crossedThreshold = true;
-        }
-
-        const m = d.multi;
-        const step0 = this.findSeqStepAt(d, e.clientX, e.clientY);
-        if (step0 == null) return;
-        // Retour utilisateur : "je ne vois pas exactement où est le temps 4" pendant un glissé — voir
-        // le même repère sur onSeqResizeMove/la queue "peindre" ; basé sur le pas sous le doigt, pas
-        // sur la position finale (bornée) de chaque note, qui peut différer d'une sélection à l'autre.
-        this._highlightSeqBeatLabel(step0);
-        // Note d'une seule croche démarrée en 'auto' : le sens du tout premier mouvement décide du bord
-        if (m.edge === 'auto') {
-            if (step0 > m.startStep) m.edge = 'end';
-            else if (step0 < m.startStep) m.edge = 'start';
-            else return;
-        }
-
-        const { minDelta, maxDelta } = this.computeMultiDragDeltaBounds(m.selections, m.steps, m.edge);
-        let delta = step0 - m.startStep;
-        // Aimantation (voir seqSnap) : un seul delta pour TOUTE la sélection, donc on le cale sur un
-        // multiple entier de crans plutôt que sur la position d'une note en particulier — les notes
-        // sélectionnées gardent ainsi leurs écarts exacts les unes par rapport aux autres, ce qui est
-        // tout l'intérêt de les déplacer ensemble. Identité sans aimantation.
-        delta = this.snapSeqBoundary(delta);
-        delta = Math.max(minDelta, Math.min(maxDelta, delta));
-        if (delta === m.appliedDelta && d.moved) return;
-
-        e.preventDefault();
-        if (!d.moved) this.pushSeqUndo(); // un seul instantané pour tout le glissé, quel que soit le nombre de notes
-        d.moved = true;
-
-        // Repeint chaque note sélectionnée à sa nouvelle position — toujours calculée depuis sa
-        // position de DÉPART (m.selections) et le delta actuel/précédent, jamais de façon incrémentale :
-        // un aller-retour du pointeur revient ainsi exactement sur ses pas, sans croche orpheline.
-        // edge === null (déplacement) : les DEUX bords suivent le delta. edge === 'start'/'end' :
-        // seul ce bord-là bouge, l'autre reste fixe (étirement).
-        const movesStart = m.edge === 'start' || m.edge === null;
-        const movesEnd = m.edge === 'end' || m.edge === null;
-        m.selections.forEach(sel => {
-            const newStart = movesStart ? sel.start + delta : sel.start;
-            const newEnd = movesEnd ? sel.end + delta : sel.end;
-            const prevStart = movesStart ? sel.start + m.appliedDelta : sel.start;
-            const prevEnd = movesEnd ? sel.end + m.appliedDelta : sel.end;
-            const lo = Math.min(prevStart, newStart);
-            const hi = Math.max(prevEnd, newEnd);
-            for (let s = lo; s <= hi; s++) {
-                const within = s >= newStart && s <= newEnd;
-                this.applySeqCell(sel.voice, s, within, within && s !== newStart);
-            }
-        });
-        m.appliedDelta = delta;
-    }
-
-    // Bascule un glissé démarré sur une note déjà posée (n'importe où dessus, pas juste un bord) en
-    // changement de VOIX (retour utilisateur : recopier/décaler un motif de jeu — ex. 2 croches
-    // staccato — d'une ligne à l'autre) : la note quitte visuellement sa ligne pour suivre le
-    // pointeur (fantôme flottant), jusqu'au dépôt (voir onSeqVoiceDragMove/finalizeSeqVoiceDrag).
-    // N'affecte QUE l'affichage tant qu'on n'a pas relâché — rien n'est peint avant.
-    beginSeqVoiceDrag(d) {
-        const noteEl = document.querySelector(
-            `.seq-note[data-voice="${d.voice}"][data-start="${d.noteStart}"][data-end="${d.noteEnd}"]`
-        );
-        if (!noteEl) return; // page/scroll a changé entretemps : abandonne, reste un glissé "même ligne"
-        this.pushSeqUndo(); // un seul instantané pour tout le geste, comme les autres gestes séquenceur
-        const rect = noteEl.getBoundingClientRect();
-        const ghost = noteEl.cloneNode(true);
-        ghost.className = noteEl.className.replace(/\bclip-(start|end)\b/g, '').trim(); // forme pleine, jamais coupée, une fois flottante
-        ghost.classList.add('seq-note-ghost');
-        ghost.style.gridColumn = '';
-        ghost.style.gridRow = '';
-        ghost.style.marginRight = '';
-        ghost.style.left = `${rect.left}px`;
-        ghost.style.top = `${rect.top}px`;
-        ghost.style.width = `${rect.width}px`;
-        ghost.style.height = `${rect.height}px`;
-        document.body.appendChild(ghost);
-        noteEl.style.visibility = 'hidden'; // l'original reste en place (annulation = rien à refaire) tant qu'on ne relâche pas
-        d.voiceDrag = {
-            origVoice: d.voice, start: d.noteStart, end: d.noteEnd,
-            // targetMidi initialisé à la hauteur d'ORIGINE (pas juste targetVoice) : c'est maintenant
-            // LUI la référence pour détecter un vrai changement de cible (voir onSeqVoiceDragMove), une
-            // ligne libre n'ayant pas de voix propre pour s'en charger seule.
-            targetVoice: d.voice, targetMidi: this.readChord().getSeqMidiNotes()[d.voice], copy: d.additive,
-            ghost, noteEl,
-            offsetX: d.startX - rect.left, offsetY: d.startY - rect.top,
-        };
-    }
-
-    // Fantôme flottant recoloré selon la voix survolée (voir beginSeqVoiceDrag) : `.seq-cell` étant
-    // la seule case sous le pointeur (les notes elles-mêmes ont pointer-events:none, voir
-    // renderSequencer), elementFromPoint donne directement la voix survolée sans détour.
-    onSeqVoiceDragMove(e, d) {
-        e.preventDefault();
-        const vd = d.voiceDrag;
-        vd.ghost.style.left = `${e.clientX - vd.offsetX}px`;
-        vd.ghost.style.top = `${e.clientY - vd.offsetY}px`;
-
-        const under = document.elementFromPoint(e.clientX, e.clientY);
-        const cell = under && under.closest ? under.closest('.seq-cell') : null;
-        const cellVoice = cell ? +cell.dataset.voice : null;
-        // Case sur une voix EXISTANTE (>= 0) OU sur une ligne encore LIBRE (-1, .seq-cell-free, voir
-        // renderSequencer) : les deux sont désormais des cibles valides, depuis que la plage TOUJOURS
-        // visible dépasse largement les seules voix déjà posées (voir
-        // SEQ_MIDI_TOUJOURS_VISIBLE_MIN/MAX) — retour utilisateur : « perte de la note en cours de
-        // déplacement » en glissant vers une ligne qui n'appartenait encore à aucune voix, parce que
-        // -1 (une case libre PARMI D'AUTRES, pas une identité unique) finissait traité comme un
-        // vrai index de voix par la suite du code. targetMidi, pas targetVoice, est maintenant la
-        // vraie référence de CE geste : une voix existante ou une hauteur encore libre s'y ramènent
-        // toutes les deux à UNE hauteur, ce que le dépôt sait déjà traiter (voir finalizeSeqVoiceDrag).
-        const targetVoice = (cellVoice != null && cellVoice >= 0) ? cellVoice : null;
-        const chord = this.readChord();
-        const midis = chord.getSeqMidiNotes();
-        const targetMidi = !cell ? null : (targetVoice != null ? midis[targetVoice] : +cell.dataset.midi);
-        // Le repère suit le doigt à CHAQUE mouvement, même quand la ligne visée n'a pas changé :
-        // sinon il resterait figé loin derrière pendant qu'on longe une ligne.
-        // Le nom s'écrit à DEUX endroits pendant ce geste, et ce n'est pas un doublon : à côté du doigt
-        // (repère flottant) pour lire sans quitter la barre des yeux, et sur la touche de gauche (voir
-        // _revelerToucheSeq) pour la situer sur le clavier — c'est ce second repère qui dit « je suis
-        // bien sur la bonne ligne » avant de lâcher.
-        this._revelerToucheSeq(targetVoice, targetMidi);
-        if (targetMidi != null) {
-            this.showSeqDragReadout(midiToDisplayName(targetMidi, this.useFlatsForRoot(chord.root)), e.clientX, e.clientY);
-        } else {
-            this.hideSeqDragReadout(); // hors grille : rien à annoncer, le fantôme dit déjà « invalide »
-        }
-        if (targetMidi === vd.targetMidi) return;
-        vd.targetVoice = targetVoice;
-        vd.targetMidi = targetMidi;
-        vd.ghost.classList.toggle('seq-note-ghost-invalid', targetMidi == null);
-        if (targetMidi != null) {
-            const role = chord.getRoleMap()[targetMidi] || 'ext';
-            vd.ghost.className = vd.ghost.className.replace(/\brole-\S+/g, '').trim() + ` role-${role}`;
-            // La hauteur visée vient de changer : la faire ENTENDRE tout de suite, sans attendre le
-            // dépôt. C'est le geste de GarageBand — on cherche une note à l'oreille en glissant, pas
-            // en lâchant puis en réécoutant. Ce test d'égalité juste au-dessus garantit un seul son
-            // par ligne traversée, pas un par pixel parcouru. Silencieux sur une ligne encore libre
-            // (targetVoice null) : previewSeqNote ne sait faire entendre qu'une voix déjà posée dans
-            // l'accord, pas une hauteur qui n'existe pas encore — le repère visuel suffit à la situer.
-            if (targetVoice != null) this.seqEditFeedback(targetVoice);
-        }
-    }
-
-    // Éteint entièrement toute note déjà présente sur `voice` qui chevauche (même partiellement) la
-    // plage [start, end] — étendue jusqu'aux bords RÉELS de chaque note trouvée (même logique que
-    // seqNeighborBounds/onSeqPointerDown), pas seulement la portion qui déborde. Sans ça, déposer une
-    // note par-dessus une autre plus longue laisserait un fragment de l'ancienne accroché de part et
-    // d'autre — voir finalizeSeqVoiceDrag.
-    clearSeqRunsOverlapping(voice, start, end) {
-        const chord = this.readChord();
-        const { pattern, tie } = this.getLiveSeqPattern(chord);
-        let lo = null, hi = null;
-        for (let s = start; s <= end; s++) {
-            if (!pattern[s].includes(voice)) continue;
-            let a = s, b = s;
-            while (a > 0 && pattern[a - 1].includes(voice) && tie[a].includes(voice)) a--;
-            while (b + 1 < pattern.length && pattern[b + 1].includes(voice) && tie[b + 1].includes(voice)) b++;
-            lo = lo == null ? a : Math.min(lo, a);
-            hi = hi == null ? b : Math.max(hi, b);
-        }
-        if (lo == null) return;
-        for (let s = lo; s <= hi; s++) this.applySeqCell(voice, s, false);
-    }
-
-    // ---------- Repère flottant pendant un glissé de séquenceur ----------
-    // Ce qu'on est en train de régler, écrit noir sur blanc à côté du doigt : la note visée quand on
-    // change de hauteur, la position (mesure · temps) quand on déplace dans le temps, la longueur
-    // quand on étire. Le fantôme suivait bien le pointeur, mais il fallait deviner SUR QUOI on
-    // tombait — retour utilisateur : « voir exactement la note où je déplace les barres (son + grille
-    // lors du déplacement, comme GarageBand) ». Un seul repère réutilisé pour les trois gestes, posé
-    // sur <body> (position fixe) : la grille du séquenceur défile et se reconstruit pendant le geste,
-    // un enfant y serait emporté au premier rendu.
-    showSeqDragReadout(texte, clientX, clientY) {
-        let el = this._seqDragReadout;
-        if (!el) {
-            el = document.createElement('div');
-            el.className = 'seq-drag-readout';
-            document.body.appendChild(el);
-            this._seqDragReadout = el;
-        }
-        el.textContent = texte;
-        // Au-DESSUS du doigt et légèrement à droite : au doigt, la main masque tout ce qui est en
-        // dessous, et c'est précisément l'endroit qu'on regarde.
-        el.style.left = `${clientX + 14}px`;
-        el.style.top = `${clientY - 34}px`;
-        el.hidden = false;
-    }
-
-    hideSeqDragReadout() {
-        if (this._seqDragReadout) this._seqDragReadout.hidden = true;
-    }
-
-    // « mes. 2 · temps 3 » à partir d'un numéro de croche, pour le repère ci-dessus. Compté depuis le
-    // début de l'ACCORD édité (pas du morceau) : c'est la seule référence qu'on ait sous les yeux dans
-    // le séquenceur, et celle qui rend la position lisible sans calcul mental.
-    seqStepLabel(step) {
-        const parTemps = SEQ_STEPS_PER_BEAT;
-        const parMesure = this.beatsPerBar() * parTemps;
-        const mesure = Math.floor(step / parMesure) + 1;
-        const temps = Math.floor((step % parMesure) / parTemps) + 1;
-        const croche = (step % parTemps) + 1;
-        // La subdivision n'est affichée que si l'on n'est PAS pile sur le temps : sinon elle
-        // n'apprend rien et allonge le repère pour rien.
-        return croche === 1 ? `mes. ${mesure} · temps ${temps}` : `mes. ${mesure} · temps ${temps}.${croche}`;
-    }
-
-    // Dépôt d'un changement de voix (voir beginSeqVoiceDrag/onSeqVoiceDragMove) : peint le même motif
-    // (attaque + tenue, positions temporelles inchangées) sur la voix cible, puis efface l'original
-    // SEULEMENT si ce n'est pas une copie (Ctrl/Cmd déjà enfoncé à la prise, voir d.additive) — sinon
-    // les deux lignes jouent désormais le même motif.
-    finalizeSeqVoiceDrag(d) {
-        const vd = d.voiceDrag;
-        vd.ghost.remove();
-        if (vd.noteEl) vd.noteEl.style.visibility = '';
-
-        if (vd.targetMidi == null || vd.targetVoice === vd.origVoice) {
-            // Déposé hors grille, ou revenu sur sa ligne d'origine : rien à changer.
-            this.renderSequencer();
-            return;
-        }
-
-        const { start, end, origVoice, copy } = vd;
-        let targetVoice = vd.targetVoice;
-        if (targetVoice == null) {
-            // Déposé sur une ligne encore LIBRE (voir onSeqVoiceDragMove) : crée la voix manquante à
-            // cette hauteur précise — même geste qu'un simple clic sur une case seq-cell-free (voir
-            // onSeqPointerDown) — au lieu de peindre à tort sur la voix -1 (retour utilisateur :
-            // « perte de la note en cours de déplacement », la note glissée s'évaporait quand la ligne
-            // visée n'avait encore aucune voix propre à elle).
-            const midi = vd.targetMidi;
-            const pc = ((midi % 12) + 12) % 12;
-            this.extraNotes.push({ note: NOTES[pc], octave: Math.floor(midi / 12) - 1 });
-            const chordApres = this.readChord();
-            targetVoice = chordApres.getIntervals().length + this.extraNotes.length - 1;
-        }
-        this.clearSeqRunsOverlapping(targetVoice, start, end);
-        for (let s = start; s <= end; s++) this.applySeqCell(targetVoice, s, true, s !== start);
-        if (!copy) for (let s = start; s <= end; s++) this.applySeqCell(origVoice, s, false);
-
-        this.seqTouched = true;
-        this.seqSelections = [{ voice: targetVoice, start, end }];
-        this.renderSequencer();
-        this.seqEditFeedback(targetVoice); // la hauteur a changé : la faire entendre (voir seqEditFeedback)
-        this.livePreviewUpdate();
-    }
-
-    // Bascule un glissé horizontal démarré sur le CORPS d'une note (voir onSeqPointerMove) en
-    // DÉPLACEMENT dans le temps (`copy` faux, le cas courant) ou en DUPLICATION (`copy` vrai, Alt/
-    // Option déjà enfoncée à la prise). Les deux partagent toute la mécanique — un fantôme calé sur
-    // la grille suit le pointeur sur LA MÊME voix jusqu'au dépôt (voir onSeqHDragMove/
-    // finalizeSeqHDrag) — et ne diffèrent que sur deux points, portés par `copy` :
-    //   - déplacement : l'originale est masquée pendant le geste (la barre a l'air de suivre le
-    //     doigt, comme dans un séquenceur classique) et effacée au dépôt ;
-    //   - duplication : l'originale reste affichée et intacte, le fantôme est en pointillés (voir
-    //     .seq-note-dup-ghost) pour bien montrer qu'une SECONDE note va être posée.
-    beginSeqHDrag(d, copy) {
-        const noteEl = document.querySelector(
-            `.seq-note[data-voice="${d.voice}"][data-start="${d.noteStart}"][data-end="${d.noteEnd}"]`
-        );
-        if (!noteEl) return; // page/scroll a changé entretemps : abandonne, reste un glissé "sur place"
-        this.pushSeqUndo(); // un seul instantané pour tout le geste, comme les autres gestes séquenceur
-        const ghost = noteEl.cloneNode(true);
-        ghost.classList.add(copy ? 'seq-note-dup-ghost' : 'seq-note-move-ghost');
-        ghost.removeAttribute('data-start'); // pas encore une vraie note posée
-        ghost.removeAttribute('data-end');
-        noteEl.insertAdjacentElement('afterend', ghost); // même grille CSS que l'original (grid-row/column)
-        if (!copy) noteEl.style.visibility = 'hidden'; // déplacement : une seule barre à l'écran, celle qui suit le doigt
-        // Repart de la colonne EXACTE déjà affichée (aucune reformulation du calcul page/décalage,
-        // voir renderSequencer) : seul le premier nombre ("N / span L") bougera avec le glissé.
-        const [colStart] = noteEl.style.gridColumn.split('/').map(s => s.trim());
-        d.hDrag = {
-            voice: d.voice, origStart: d.noteStart, origEnd: d.noteEnd,
-            colStart: parseInt(colStart, 10), ghost, noteEl, copy, appliedDelta: 0,
-        };
-    }
-
-    // Fantôme du glissé horizontal (voir beginSeqHDrag) : suit le pointeur, calé sur la grille (jamais
-    // entre deux cases) et borné à la page actuellement affichée (mêmes limites que findSeqStepAt, qui
-    // ne connaît que les cases réellement visibles).
-    // Une DUPLICATION ne peut jamais chevaucher l'originale (sinon dupliquer une note reviendrait à en
-    // effacer un bout, voir clearSeqRunsOverlapping/finalizeSeqHDrag) : la zone de chevauchement se
-    // traverse sans que le fantôme n'y bouge, comme une résistance, jusqu'à en ressortir de l'autre
-    // côté. Un DÉPLACEMENT, lui, n'a pas cette contrainte — la note quitte sa position d'origine, se
-    // chevaucher elle-même n'a aucun sens : décaler d'une seule croche doit rester possible.
-    onSeqHDragMove(e, d) {
-        if (!d.crossedThreshold) {
-            const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
-            if (Math.hypot(dx, dy) < 10) return;
-            d.crossedThreshold = true;
-        }
-        const step0 = this.findSeqStepAt(d, e.clientX, e.clientY);
-        if (step0 == null) return;
-
-        const hd = d.hDrag;
-        const visibleSteps = d.rowCells.map(c => c.step);
-        const minVisible = Math.min(...visibleSteps), maxVisible = Math.max(...visibleSteps);
-        const len = hd.origEnd - hd.origStart + 1;
-        let delta = step0 - d.startStep;
-        // Aimantation (voir seqSnap) : c'est le DÉBUT de la note déplacée qu'on cale sur la grille, pas
-        // le delta lui-même — sans quoi une note qui partait déjà de travers resterait de travers en
-        // arrivant. Arrondi au cran le plus proche, comme les bords d'étirement. Sans aimantation, le
-        // delta ressort inchangé (snapSeqBoundary est alors l'identité).
-        delta = this.snapSeqBoundary(hd.origStart + delta) - hd.origStart;
-        delta = Math.max(minVisible - hd.origStart, Math.min(maxVisible - hd.origEnd, delta));
-        if (hd.copy && delta !== 0 && Math.abs(delta) < len) delta = hd.appliedDelta; // chevauchement : ignoré
-        if (delta === hd.appliedDelta && d.moved) return;
-
-        e.preventDefault();
-        d.moved = true;
-        // Même repère que pour l'étirement : la position VISÉE, pendant qu'on y va (voir
-        // showSeqDragReadout). Sans lui il fallait lâcher pour savoir où la note était tombée.
-        this.showSeqDragReadout(this.seqStepLabel(hd.origStart + delta), e.clientX, e.clientY);
-        hd.appliedDelta = delta;
-        hd.ghost.style.gridColumn = `${hd.colStart + delta} / span ${len}`;
-        // Même repère que l'étirement/la peinture (voir _highlightSeqBeatLabel) : le temps que le
-        // DÉBUT de la note vient d'atteindre s'allume sous la grille, pour viser sans compter les cases.
-        this._highlightSeqBeatLabel(hd.origStart + delta);
-    }
-
-    // Dépôt d'un glissé horizontal (voir beginSeqHDrag/onSeqHDragMove) : si le fantôme a bien bougé,
-    // repeint le même motif (attaque + tenue, longueur inchangée) à sa nouvelle position sur la MÊME
-    // voix. Pour un DÉPLACEMENT, l'originale est effacée D'ABORD — avant clearSeqRunsOverlapping, sans
-    // quoi une note déplacée de moins que sa propre longueur (chevauchement avec elle-même) se ferait
-    // effacer par le nettoyage de sa propre destination. Pour une DUPLICATION, l'originale n'est jamais
-    // touchée (voir finalizeSeqVoiceDrag pour le changement de voix, qui lui peut l'effacer).
-    finalizeSeqHDrag(d) {
-        const hd = d.hDrag;
-        hd.ghost.remove();
-        if (hd.noteEl) hd.noteEl.style.visibility = '';
-        this._highlightSeqBeatLabel(null);
-        if (!d.moved || hd.appliedDelta === 0) {
-            // Jamais vraiment glissé (ou revenu pile sur sa position de départ) : rien à écrire.
-            this.renderSequencer();
-            return;
-        }
-
-        const newStart = hd.origStart + hd.appliedDelta, newEnd = hd.origEnd + hd.appliedDelta;
-        if (!hd.copy) for (let s = hd.origStart; s <= hd.origEnd; s++) this.applySeqCell(hd.voice, s, false);
-        this.clearSeqRunsOverlapping(hd.voice, newStart, newEnd);
-        for (let s = newStart; s <= newEnd; s++) this.applySeqCell(hd.voice, s, true, s !== newStart);
-
-        this.seqTouched = true;
-        this.seqSelections = [{ voice: hd.voice, start: newStart, end: newEnd }];
-        this.renderSequencer();
-        this.seqEditFeedback(hd.voice);
-        this.livePreviewUpdate();
-    }
-
-    // Abandonne le glisser/rectangle en cours SANS le finaliser (contrairement à onSeqPointerUp, qui
-    // sélectionne/peint une note isolée pour un simple tap) — voir onSeqPointerDown, appelé quand un
-    // second doigt se pose pendant qu'un pincer-zoomer démarre. Restaure les croches déjà peintes par
-    // ce début de glissé (voir rememberSeqOriginalState/d.touched) si le geste avait déjà bougé ; sinon
-    // (cas le plus courant : les deux doigts d'une pince se posent avant tout mouvement réel) il n'y a
-    // rien à défaire — et surtout PAS de renderSequencer() dans ce cas : reconstruire les .seq-cell
-    // ici détacherait du DOM celle qu'un doigt tactile a implicitement capturée (voir spec Pointer
-    // Events), coupant net la réception de ses pointermove/pointerup suivants — cassant justement le
-    // pincer-zoomer qu'on cherche à laisser continuer tranquillement.
-    cancelSeqGestureForPinch() {
-        window.removeEventListener('pointermove', this._onSeqMove);
-        window.removeEventListener('pointerup', this._onSeqUp);
-        window.removeEventListener('pointercancel', this._onSeqUp);
-        const hotePince = document.getElementById('arp-sequencer');
-        if (hotePince) hotePince.classList.remove('seq-edition-armee');
-        const d = this.seqDrag;
-        this.seqDrag = null;
-        if (d) this._stopSeqAutoScroll(d);
-        this._highlightSeqBeatLabel(null); // éteint le repère de temps (voir onSeqResizeMove/paint), geste annulé
-        let painted = false;
-        // Restaure EXACTEMENT l'état d'avant ce début de geste, quel que soit son type — un 2e doigt
-        // qui se pose (typiquement pour le pan à 2 doigts, voir setupPinchZoom) peut survenir APRÈS
-        // que le 1er doigt a déjà légèrement bougé (les deux doigts d'une vraie pince ne se posent
-        // jamais parfaitement en même temps) : sans un rattrapage complet ici, ce tout petit geste
-        // resterait appliqué à moitié — une note laissée dans un état intermédiaire incohérent avec
-        // les autres voix du même accord (retour utilisateur : bug visible après un geste à 2 doigts).
-        if (d) {
-            // d.moved N'EST posé que par la queue "peindre" et onSeqMultiDragMove — jamais par
-            // onSeqResizeMove, qui a son PROPRE indicateur (d.resizeChanged) : chaque branche vérifie
-            // donc la sienne, plutôt qu'un seul garde-fou commun qui aurait sauté le redimensionnement.
-            if (d.moved && d.touched && !d.resize && !d.multi && !d.voiceDrag && !d.hDrag) {
-                // Peindre/effacer (voir onSeqPointerMove, queue "paint") : chaque croche touchée est
-                // déjà mémorisée avant sa toute première modification.
-                Object.keys(d.touched).forEach(key => {
-                    const orig = d.touched[key];
-                    this.applySeqCell(d.voice, +key, orig.on, orig.tied);
-                });
-                painted = true;
-            } else if (d.resize && d.resizeChanged) {
-                // Étirement (voir onSeqResizeMove) : d.resize.noteStart/noteEnd gardent les bornes
-                // D'ORIGINE de la note (jamais mises à jour pendant le geste, contrairement à
-                // d.curStart/curEnd) — remet tout ce que le geste a pu toucher entre les deux dans son
-                // état d'origine (note d'origine SEULE allumée sur cette plage).
-                const lo = Math.min(d.curStart, d.resize.noteStart);
-                const hi = Math.max(d.curEnd, d.resize.noteEnd);
-                for (let s = lo; s <= hi; s++) {
-                    const within = s >= d.resize.noteStart && s <= d.resize.noteEnd;
-                    this.applySeqCell(d.voice, s, within, within && s !== d.resize.noteStart);
-                }
-                painted = true;
-            } else if (d.multi) {
-                // Étirement/déplacement de plusieurs notes sélectionnées (voir onSeqMultiDragMove) :
-                // d.multi.selections garde un instantané des positions de DÉPART de chacune, jamais
-                // muté pendant le geste — remet chaque note exactement là où elle était.
-                const m = d.multi;
-                const movesStart = m.edge === 'start' || m.edge === null;
-                const movesEnd = m.edge === 'end' || m.edge === null;
-                m.selections.forEach(sel => {
-                    const curStart = movesStart ? sel.start + m.appliedDelta : sel.start;
-                    const curEnd = movesEnd ? sel.end + m.appliedDelta : sel.end;
-                    const lo = Math.min(sel.start, curStart), hi = Math.max(sel.end, curEnd);
-                    for (let s = lo; s <= hi; s++) {
-                        const within = s >= sel.start && s <= sel.end;
-                        this.applySeqCell(sel.voice, s, within, within && s !== sel.start);
-                    }
-                });
-                painted = true;
-            }
-        }
-        // Changement de voix / déplacement / duplication (voir beginSeqVoiceDrag/beginSeqHDrag) : rien
-        // n'est encore écrit dans les données à ce stade (seul un fantôme visuel suit le doigt, voir
-        // finalizeSeqVoiceDrag/finalizeSeqHDrag pour l'écriture réelle, jamais atteinte ici) — mais
-        // le fantôme lui-même, posé dans le DOM en dehors du rendu normal, doit être retiré, et la
-        // note d'origine (masquée pendant un changement de voix ou un déplacement) redevenue visible,
-        // sans quoi elle resterait invisible jusqu'au prochain rendu sans rapport (même bug visuel
-        // que ci-dessus).
-        // Le repère flottant (voir showSeqDragReadout) disparaît avec le geste, quel qu'il soit et
-        // quelle qu'en soit l'issue — ici, dans le nettoyage COMMUN à tous les glissés : c'est le seul
-        // endroit par lequel ils passent tous, y compris ceux qu'on annule en sortant de la grille.
-        this.hideSeqDragReadout();
-        // Même raison, même endroit : l'aperçu de la barre en cours de tracé (voir
-        // majApercuBarrePeinte) vit lui aussi hors du rendu normal, il doit disparaître avec le geste.
-        this.retirerApercuBarrePeinte(d);
-        if (d && d.voiceDrag) {
-            d.voiceDrag.ghost.remove();
-            if (d.voiceDrag.noteEl) d.voiceDrag.noteEl.style.visibility = '';
-        }
-        if (d && d.hDrag) {
-            d.hDrag.ghost.remove();
-            if (d.hDrag.noteEl) d.hDrag.noteEl.style.visibility = '';
-        }
-        if (this.seqMarquee) {
-            if (this.seqMarquee.el) this.seqMarquee.el.remove();
-            document.querySelectorAll('.seq-note.marquee-hit').forEach(n => n.classList.remove('marquee-hit'));
-            this.seqMarquee = null;
-        }
-        if (painted) this.renderSequencer();
-    }
-
-    onSeqPointerUp() {
-        window.removeEventListener('pointermove', this._onSeqMove);
-        window.removeEventListener('pointerup', this._onSeqUp);
-        window.removeEventListener('pointercancel', this._onSeqUp);
-        // Le liseré « l'édition a la main » s'éteint avec le geste (voir _armerAppuiLongSeq).
-        const hoteSeq = document.getElementById('arp-sequencer');
-        if (hoteSeq) hoteSeq.classList.remove('seq-edition-armee');
-        // Le repère flottant (voir showSeqDragReadout) s'éteint AVANT tout retour anticipé : le geste
-        // est fini quoi qu'il advienne ensuite, y compris quand on sort d'ici sans rien appliquer.
-        this.hideSeqDragReadout();
-        this._revelerToucheSeq(null); // le nom de la note se rétracte : le geste est fini (voir _revelerToucheSeq)
-        if (this.seqMarquee) { this.finalizeSeqMarqueeSelect(); return; }
-        const d = this.seqDrag;
-        this.seqDrag = null;
-        if (!d) return;
-        this._stopSeqAutoScroll(d);
-        this._highlightSeqBeatLabel(null); // éteint le repère de temps (voir onSeqResizeMove/paint), geste terminé
-        // L'aperçu de la barre en cours de tracé (voir majApercuBarrePeinte) s'efface AVANT tout
-        // retour anticipé de cette fonction — comme le repère flottant juste au-dessus, et pour la même
-        // raison : le geste est fini quoi qu'il advienne ensuite, et une barre d'aperçu oubliée
-        // resterait posée par-dessus la vraie, deux opacités qui s'additionnent.
-        this.retirerApercuBarrePeinte(d);
-
-        // Défilement vertical (voir onSeqPointerMove) : jamais une modification, rien à valider ici —
-        // sans ce retour anticipé, une case vide (!d.wasOn) jamais peinte serait lue comme un simple
-        // tap au relâchement (voir plus bas, "!d.moved") et peindrait une note isolée non voulue là où
-        // le geste a commencé, alors qu'on cherchait juste à faire défiler la page verticalement.
-        if (d.verticalScroll) return;
-
-        if (d.voiceDrag) {
-            this.finalizeSeqVoiceDrag(d);
-            return;
-        }
-
-        if (d.hDrag) {
-            this.finalizeSeqHDrag(d);
-            return;
-        }
-
-        if (d.multi) {
-            if (d.moved) {
-                const m = d.multi;
-                this.seqTouched = true;
-                // Toutes les notes déplacées/étirées RESTENT sélectionnées (positions mises à jour),
-                // contrairement au redimensionnement d'une seule note qui, lui, réduit la sélection.
-                this.seqSelections = m.selections.map(sel => ({
-                    voice: sel.voice,
-                    start: (m.edge === 'start' || m.edge === null) ? sel.start + m.appliedDelta : sel.start,
-                    end: (m.edge === 'end' || m.edge === null) ? sel.end + m.appliedDelta : sel.end,
-                }));
-                this.renderSequencer();
-                this.livePreviewUpdate();
-                return;
-            }
-            // Sinon : simple tap sans glissé réel -> retombe sur le comportement de sélection habituel.
-        }
-
-        if (d.resize) {
-            if (d.resizeChanged) {
-                this.seqTouched = true;
-                this.seqSelections = [{ voice: d.voice, start: d.curStart, end: d.curEnd }];
-                // La longueur qu'on vient de régler à la main devient la durée par défaut des
-                // prochaines notes créées d'un simple clic (voir seqNewNoteLen).
-                this.rememberSeqNoteLen(d.curEnd - d.curStart + 1);
-                this.renderSequencer();
-                this.livePreviewUpdate();
-                return;
-            }
-            // Sinon : simple tap sur le bord d'une note, sans glissé réel -> retombe sur le
-            // comportement de sélection habituel juste en dessous (c'est exactement le point :
-            // cliquer ne doit jamais modifier une note, seul un vrai glissé le fait).
-        }
-
-        if (!d.moved) {
-            // Simple tap, sans glisser
-            if (d.wasOn) {
-                this.selectSeqNoteAt(d.voice, d.startStep, d.additive); // sélectionne (ou ajoute/retire si Ctrl), ne la touche pas
-                this.seqEditFeedback(d.voice); // fait entendre la ligne touchée (voir seqEditFeedback)
-            } else if (!d.additive) {
-                // Ctrl/Cmd enfoncé sur une case vide : ne peint rien (Ctrl sert uniquement à sélectionner)
-                // Clic JUSTE À CÔTÉ d'une note existante : on sélectionne cette note plutôt que d'en
-                // créer une seconde collée à elle (retour utilisateur : « si tu vois que je fais un
-                // simple clic juste à côté d'une note existante, il faut sélectionner cette note.
-                // Actuellement ça crée une double croche juste à côté, c'est assez rare que je veuille
-                // faire cela »). Viser à une croche près à cette échelle est une erreur bien plus
-                // probable qu'une intention. Un vrai GLISSÉ, lui, dessine toujours : c'est ce qui
-                // permet quand même de poser une note collée à une autre quand on le veut vraiment.
-                const voisine = d.crayon ? null : this._noteSeqVoisine(d.voice, d.startStep, d.startX);
-                if (voisine) {
-                    this.selectSeqNoteAt(d.voice, voisine.start, false);
-                    this.seqEditFeedback(d.voice);
-                } else {
-                    // Idem : pas de second instantané si la ligne de note libre a déjà posé le sien à
-                    // la prise (voir d.undoPushed dans _demarrerGesteSeq).
-                    if (!d.undoPushed) { this.pushSeqUndo(); d.undoPushed = true; }
-                    this.paintNewSeqNoteAt(d.voice, d.startStep);
-                    this.seqEditFeedback(d.voice);
-                }
-            }
-        } else {
-            // Glissé terminé : sélectionne la note qui vient d'être dessinée, ou rien si on a effacé
-            if (d.wasOn) this.seqSelections = [];
-            else {
-                // La longueur qu'on vient de dessiner devient la durée par défaut des prochaines notes
-                // créées d'un simple clic (voir seqNewNoteLen).
-                if (d.rangeFrom != null) this.rememberSeqNoteLen(d.rangeTo - d.rangeFrom + 1);
-                this.selectSeqNoteAt(d.voice, d.startStep);
-                this.seqEditFeedback(d.voice);
-            }
-        }
-        this.renderSequencer();
-        // Une seule fois ici, à la fin du geste (voir applySeqCell, appelé en rafale pendant le
-        // glissé lui-même) : pas à chaque case peinte, qui redémarrerait le son en boucle pendant le drag.
-        this.livePreviewUpdate();
-    }
-
     // Distance minimale garantie autour d'une note pour ce repêchage (voir _noteSeqVoisine), quel
     // que soit le zoom horizontal. PLANCHER, pas remplacement : une croche large la dépasse déjà et
     // le comportement d'avant est inchangé — elle ne change quelque chose qu'en dessous.
     static get SEQ_TAP_TOLERANCE_MIN_PX() { return 16; }
 
-    // Note collée à cette croche sur la MÊME voix — ses bornes, ou null. Sert au clic sur case vide
-    // (voir onSeqPointerUp) : à côté d'une note, on la sélectionne au lieu d'en créer une nouvelle.
-    // Tolérance d'ENVIRON une croche, volontairement : au-delà, l'intention de créer redevient la
-    // plus probable (retour utilisateur d'origine : « si je fais un simple clic juste à côté d'une
-    // note existante, il faut sélectionner cette note »).
-    // MESURÉE EN PIXELS RÉELLEMENT RENDUS désormais, plus en nombre de croches : à un zoom serré,
-    // une croche peut ne faire que 14px de large à l'écran, bien en dessous des ~44px recommandés au
-    // doigt (Apple/Google) — un tap qui ratait la barre d'un rien tombait alors hors de portée du
-    // voisin, et rien n'était jamais sélectionné (retour utilisateur : « lorsqu'une petite barre est
-    // sélectionnée, je ne peux pas cliquer sur "supprimer sélection" » — mesuré : le tap manquait
-    // réellement la barre, elle n'était jamais sélectionnée du tout, malgré ce qu'on croyait avoir
-    // touché). `clientX` (position RÉELLE du tap, voir d.startX) remplace donc `step±1` : plus juste
-    // dans tous les cas, sans plus dépendre d'un simple compte de croches. Choisit la note la plus
-    // PROCHE, pas la première trouvée à droite : plus juste dans les cas ambigus, et sans perdre le
-    // cas courant (juste après la fin d'une note) qu'un simple ±1 croche couvrait déjà.
-    _noteSeqVoisine(voice, step, clientX = null) {
-        const chord = this.readChord();
-        const { pattern, tie } = this.getLiveSeqPattern(chord);
-        if (!pattern || !pattern.length) return null;
-        if (clientX != null) {
-            let meilleure = null, meilleureDist = Infinity;
-            document.querySelectorAll(`.seq-note[data-voice="${voice}"]`).forEach(bar => {
-                const r = bar.getBoundingClientRect();
-                const debut = +bar.dataset.start, fin = +bar.dataset.end;
-                // Largeur d'UNE croche déduite de CETTE barre elle-même (sa largeur totale sur son
-                // nombre de croches) : pas besoin d'aller mesurer une case à part, et ça reste juste
-                // même sur une note liée à cheval sur deux doubles-croches.
-                const colPx = r.width / Math.max(1, fin - debut + 1);
-                const tolerance = Math.max(colPx, HarmoHubApp.SEQ_TAP_TOLERANCE_MIN_PX);
-                const dist = clientX < r.left ? r.left - clientX : clientX > r.right ? clientX - r.right : 0;
-                if (dist <= tolerance && dist < meilleureDist) {
-                    meilleureDist = dist;
-                    meilleure = { start: debut, end: fin };
-                }
-            });
-            return meilleure;
-        }
-        for (const delta of [-1, 1]) {
-            const s = step + delta;
-            if (s < 0 || s >= pattern.length) continue;
-            if (pattern[s] && pattern[s].includes(voice)) {
-                return this.seqNoteBoundsAt(pattern, tie, voice, s);
-            }
-        }
-        return null;
-    }
-
-    // Allume/éteint une case précise (et sa liaison à la précédente) et met à jour le motif stocké,
-    // sans reconstruire toute la grille (indispensable pour que le glissé reste fluide, au doigt aussi)
-    applySeqCell(voice, step, on, tied = false) {
-        const chord = this.readChord();
-        const { pattern, tie } = this.getLiveSeqPattern(chord);
-        const wasOn = pattern[step].includes(voice);
-        const wasTied = tie[step].includes(voice);
-        if (on && wasOn && wasTied === tied) return;  // rien à changer
-        if (!on && !wasOn) return;                    // déjà silencieuse
-
-        if (on) {
-            if (!wasOn) pattern[step].push(voice);
-            if (tied && !wasTied) tie[step].push(voice);
-            if (!tied && wasTied) tie[step].splice(tie[step].indexOf(voice), 1);
-            // Première case peinte pour une voix libre toute neuve (voir addSequencerNote/_new) : lève
-            // sa protection contre pruneEmptyExtraNotes, elle a désormais un vrai rythme à perdre si on
-            // l'efface entièrement plus tard (comportement normal, inchangé, pour toute autre voix).
-            const extraStart = chord.getIntervals().length;
-            if (voice >= extraStart && this.extraNotes[voice - extraStart]) {
-                delete this.extraNotes[voice - extraStart]._new;
-            }
-        } else {
-            pattern[step].splice(pattern[step].indexOf(voice), 1);
-            if (wasTied) tie[step].splice(tie[step].indexOf(voice), 1);
-            // la croche suivante ne peut plus être liée à une croche désormais silencieuse
-            if (step + 1 < tie.length) {
-                const nt = tie[step + 1].indexOf(voice);
-                if (nt >= 0) tie[step + 1].splice(nt, 1);
-            }
-        }
-
-        this.seqTouched = true;
-        this.setLiveSeqPattern(pattern, tie);
-        const cell = document.querySelector(`.seq-cell[data-step="${step}"][data-voice="${voice}"]`);
-        if (cell) cell.classList.toggle('on', on);
-    }
-
-    // Pose une note NEUVE d'un simple clic/tap sur une case vide, à la bonne place et à la bonne
-    // longueur : début calé sur le cran d'aimantation qui contient la case touchée (voir
-    // snapSeqStepDown), longueur reprise de la dernière note dessinée/étirée (voir seqNewNoteLen).
-    // Deux garde-fous, dans les deux sens, pour ne JAMAIS écraser une note voisine déjà posée :
-    //   - vers l'arrière, l'aimantation ne fait pas reculer le début par-dessus une note existante
-    //     (on repart juste après elle) ;
-    //   - vers l'avant, la longueur est rabotée avant la première croche déjà occupée.
-    // Sans aimantation et sans durée mémorisée (réglages par défaut), tout ceci retombe exactement sur
-    // le comportement d'origine : une croche isolée, pile là où on a cliqué.
-    paintNewSeqNoteAt(voice, step) {
-        const { pattern } = this.getLiveSeqPattern(this.readChord());
-        let start = this.snapSeqStepDown(step);
-        for (let s = step - 1; s >= start; s--) {
-            if (pattern[s].includes(voice)) { start = s + 1; break; }
-        }
-        let end = Math.min(pattern.length - 1, start + this.seqNewNoteLen() - 1);
-        for (let s = start + 1; s <= end; s++) {
-            if (pattern[s].includes(voice)) { end = s - 1; break; }
-        }
-        for (let s = start; s <= end; s++) this.applySeqCell(voice, s, true, s !== start);
-        this.selectSeqNoteAt(voice, start);
-    }
-
-    // Sélectionne la note (isolée ou pilule) à laquelle appartient cette croche, pour cette voix.
-    // `additive` (Ctrl/Cmd enfoncé) : ajoute/retire cette note de la sélection au lieu de la
-    // remplacer, pour permettre d'en sélectionner plusieurs à la fois (ex. avant une suppression groupée).
-    selectSeqNoteAt(voice, step, additive = false) {
-        const chord = this.readChord();
-        const { pattern, tie } = this.getLiveSeqPattern(chord);
-        if (!pattern[step] || !pattern[step].includes(voice)) {
-            if (!additive) this.seqSelections = [];
-            return;
-        }
-        let start = step, end = step;
-        while (start > 0 && pattern[start - 1].includes(voice) && tie[start].includes(voice)) start--;
-        while (end + 1 < pattern.length && pattern[end + 1].includes(voice) && tie[end + 1].includes(voice)) end++;
-
-        if (!additive) { this.seqSelections = [{ voice, start, end }]; return; }
-        const idx = this.seqSelections.findIndex(s => s.voice === voice && s.start === start);
-        if (idx >= 0) this.seqSelections.splice(idx, 1); // déjà sélectionnée -> Ctrl+clic la retire
-        else this.seqSelections.push({ voice, start, end });
-    }
-
-    // Supprime entièrement toutes les notes actuellement sélectionnées (touche Suppr/Retour arrière,
-    // bouton dédié, ou double-tap tactile) — une seule lecture/écriture du motif même à plusieurs.
-    // Retire des notes {voice, start, end} du motif (et leurs liaisons) — partagé par Suppr et par la gomme de l'éditeur de notes (lot 9b).
-    retirerNotesSeq(pattern, tie, notes) {
-        notes.forEach(sel => {
-            for (let s = sel.start; s <= sel.end; s++) {
-                const at = pattern[s].indexOf(sel.voice);
-                if (at >= 0) pattern[s].splice(at, 1);
-                const ti = tie[s].indexOf(sel.voice);
-                if (ti >= 0) tie[s].splice(ti, 1);
-            }
-            if (sel.end + 1 < tie.length) {
-                const nt = tie[sel.end + 1].indexOf(sel.voice);
-                if (nt >= 0) tie[sel.end + 1].splice(nt, 1);
-            }
-        });
-    }
-
-    // GOMME (lot 9b) : « cliquer ou glisser efface les notes touchées ». Une seule étape d'annulation pour tout le geste, posée à la première note
-    // effacée (un geste qui ne touche rien n'en laisse pas de vide). Seules les cases de l'accord en édition comptent : celles des voisins se
-    // montrent en contexte mais ne s'effacent pas d'ici (on y passe en cliquant leur accord, comme avant).
-    commencerGommeSeq(e, cell) {
-        if (e.preventDefault) e.preventDefault();
-        let annulationPosee = false, efface = false;
-        const effacer = (c) => {
-            if (!c || !c.classList.contains('on')) return;
-            const voice = +c.dataset.voice, step = +c.dataset.step;
-            if (!(voice >= 0)) return;
-            const { pattern, tie } = this.getLiveSeqPattern(this.readChord());
-            if (!(step >= 0 && step < pattern.length) || !pattern[step].includes(voice)) return;
-            const b = this.seqNoteBoundsAt(pattern, tie, voice, step);
-            if (!annulationPosee) { this.pushSeqUndo(); annulationPosee = true; }
-            this.retirerNotesSeq(pattern, tie, [{ voice, start: b.start, end: b.end }]);
-            this.seqTouched = true;
-            this.setLiveSeqPattern(pattern, tie);
-            this.seqSelections = [];
-            efface = true;
-            this.renderSequencer();
-        };
-        effacer(cell);
-        const bouger = (ev) => {
-            const sous = document.elementFromPoint(ev.clientX, ev.clientY);
-            effacer(sous && sous.closest('#arp-sequencer .seq-cell'));
-        };
-        const lacher = () => {
-            window.removeEventListener('pointermove', bouger);
-            window.removeEventListener('pointerup', lacher);
-            window.removeEventListener('pointercancel', lacher);
-            const hote = document.getElementById('arp-sequencer');
-            if (hote) hote.classList.remove('seq-live');
-            if (efface) this.livePreviewUpdate();
-        };
-        window.addEventListener('pointermove', bouger);
-        window.addEventListener('pointerup', lacher);
-        window.addEventListener('pointercancel', lacher);
-    }
-
-    deleteSelectedSeqNote() {
-        if (this.seqSelections.length === 0) return;
-        this.pushSeqUndo();
-        const chord = this.readChord();
-        const { pattern, tie } = this.getLiveSeqPattern(chord);
-        this.retirerNotesSeq(pattern, tie, this.seqSelections);
-        this.seqTouched = true;
-        this.setLiveSeqPattern(pattern, tie);
-        this.seqSelections = [];
-        this.renderSequencer();
-        this.livePreviewUpdate();
-    }
-
-    // Étire (delta > 0) ou raccourcit (delta < 0) TOUTES les notes sélectionnées d'une croche, chacune
-    // depuis sa fin — tout ou rien : si une seule des notes sélectionnées ne peut pas bouger (bord de
-    // grille, ou déjà collée à une autre note de sa voix), aucune n'est modifiée, pour ne jamais
-    // désynchroniser un groupe qu'on étire ensemble. Pour redimensionner depuis le DÉBUT d'une note,
-    // utiliser les poignées de la souris/du doigt (resize à une seule note à la fois).
-    resizeSelectedSeqNote(delta) {
-        if (this.seqSelections.length === 0) return;
-        const chord = this.readChord();
-        const { pattern, tie } = this.getLiveSeqPattern(chord);
-        const steps = pattern.length;
-
-        for (const sel of this.seqSelections) {
-            if (delta > 0) {
-                const next = sel.end + 1;
-                if (next >= steps || pattern[next].includes(sel.voice)) return; // bord de grille, ou déjà occupé
-            } else if (sel.end <= sel.start) {
-                return; // une seule croche : Suppr pour l'effacer entièrement
-            }
-        }
-
-        this.seqSelections.forEach(sel => {
-            if (delta > 0) {
-                const next = sel.end + 1;
-                pattern[next].push(sel.voice);
-                tie[next].push(sel.voice); // prolonge la même note tenue
-                sel.end = next;
-            } else {
-                const last = sel.end;
-                pattern[last].splice(pattern[last].indexOf(sel.voice), 1);
-                const ti = tie[last].indexOf(sel.voice);
-                if (ti >= 0) tie[last].splice(ti, 1);
-                sel.end = last - 1;
-            }
-        });
-
-        this.seqTouched = true;
-        this.setLiveSeqPattern(pattern, tie);
-        this.renderSequencer();
-        this.livePreviewUpdate();
-    }
-
-    // Décale TOUTES les notes sélectionnées d'une croche vers la gauche (delta<0) ou la droite
-    // (delta>0), en bloc — tout ou rien, comme resizeSelectedSeqNote : si une seule ne peut pas se
-    // décaler (bord de grille, ou collision avec une note non sélectionnée de sa voix), aucune ne
-    // bouge. Les croches couvertes par la sélection elle-même ne comptent jamais comme un obstacle,
-    // puisqu'elles se libèrent avec ce même geste.
-    moveSelectedSeqNotes(delta) {
-        if (this.seqSelections.length === 0 || delta === 0) return;
-        const chord = this.readChord();
-        const { pattern, tie } = this.getLiveSeqPattern(chord);
-        const steps = pattern.length;
-        const ownStep = (voice, step) => this.seqSelections.some(s => s.voice === voice && step >= s.start && step <= s.end);
-
-        for (const sel of this.seqSelections) {
-            const newStart = sel.start + delta, newEnd = sel.end + delta;
-            if (newStart < 0 || newEnd >= steps) return;
-            for (let s = newStart; s <= newEnd; s++) {
-                if (!ownStep(sel.voice, s) && pattern[s].includes(sel.voice)) return;
-            }
-        }
-
-        // Vide d'abord TOUTES les anciennes positions, puis repeint les nouvelles, en deux passes
-        // séparées : sinon une note du groupe pourrait effacer ce qu'une autre note du MÊME groupe
-        // vient tout juste d'y écrire (ex. deux notes adjacentes qui glissent ensemble).
-        this.seqSelections.forEach(sel => {
-            for (let s = sel.start; s <= sel.end; s++) {
-                const at = pattern[s].indexOf(sel.voice);
-                if (at >= 0) pattern[s].splice(at, 1);
-                const ti = tie[s].indexOf(sel.voice);
-                if (ti >= 0) tie[s].splice(ti, 1);
-            }
-        });
-        this.seqSelections.forEach(sel => {
-            const newStart = sel.start + delta, newEnd = sel.end + delta;
-            for (let s = newStart; s <= newEnd; s++) {
-                pattern[s].push(sel.voice);
-                if (s !== newStart) tie[s].push(sel.voice);
-            }
-            sel.start = newStart;
-            sel.end = newEnd;
-        });
-
-        this.seqTouched = true;
-        this.setLiveSeqPattern(pattern, tie);
-        this.renderSequencer();
-        this.livePreviewUpdate();
-    }
-
-    // Bouton dédié dans le volet Lecture : ouvre/ferme le panneau, indépendamment du style choisi
-    // Séquenceur et conduite de voix occupent la MÊME zone sous la grille : ouvrir l'un referme donc
-    // l'autre (retour utilisateur : « le bouton voicing d'accords remplacera le séquenceur si je
-    // clique dessus, et vice-versa »). Deux panneaux empilés au même endroit se disputaient sinon la
-    // hauteur, la ressource la plus rare de cette vue.
-    toggleSequencer(mode = 'compact') {
-        // RETRAIT DE L'ANCIEN SÉQUENCEUR, ÉTAPE 4b (refonte du séquenceur, D, dernier sous-lot) : à l'ordinateur, le petit séquenceur de l'inspecteur disparaît avec
-        // sa porte « Séquenceur » (style.css) — la fenêtre d'accord n'a « pas de ligne Rythme » (le rythme se règle dans le séquenceur, sans le dire ;
-        // docs/refonte-sequenceur.md, 3 bis). Un appel de programme qui l'ouvrirait ouvre le séquenceur du bloc « Vues » ; le refermer reste permis (l'état
-        // d'avant peut traîner d'une fenêtre étroite). Au téléphone, rien ne change avant l'étape 4c.
-        // ÉTAPE 4c : au téléphone aussi, l'ancien séquenceur (feuille « Séq. », petit séquenceur de la carte) ne s'ouvre plus — « un seul séquenceur »,
-        // celui de l'onglet Rythme du panneau d'accord (sequenceur.placerTelephone). Un appel de programme qui l'ouvrirait, dans l'un ou l'autre mode, ouvre
-        // le séquenceur de l'appareil ; le refermer reste permis.
-        if (mode && this.seqMode !== mode) {
-            if (window.matchMedia(SEQ_DOCK_MEDIA).matches) { if (this.sequenceur) this.sequenceur.basculer(true); }
-            else this.ouvrirRythmeTelephone();
-            return;
-        }
-        // Même bouton = on referme ; autre bouton = on bascule de mode sans refermer, pour passer du
-        // réglage fin d'un accord à la vue d'ensemble (et retour) d'un seul geste.
-        this.seqMode = (this.seqMode === mode) ? null : mode;
-        this.seqOpen = this.seqMode !== null;
-        // Le panneau de conduite de voix n'est construit QUE par loadProgression (voir
-        // buildVoiceLeadingPanelHtml) : le refermer ici sans redessiner le laisserait affiché alors
-        // qu'il est logiquement fermé — mesuré. D'où ce drapeau, honoré en fin de méthode.
-        const vlVientDEtreFerme = this.seqOpen && this.voiceLeadingOpen;
-        if (vlVientDEtreFerme) this.voiceLeadingOpen = false;
-        if (!this.seqOpen) {
-            this.seqSelections = [];
-            this.closeSeqZoom(); // rien à agrandir une fois le panneau lui-même refermé
-        }
-        document.getElementById('grid-zoom').classList.toggle('active', this.seqMode === 'continu');
-        this.majEditeurNotes();
-        // « Séquenceur » n'est plus masqué quand le séquenceur est fermé : c'est LUI qui l'ouvre
-        // désormais. Il s'allume quand la vue compacte est celle qui est ouverte, pour dire d'où l'on
-        // vient — exactement ce que faisait le bouton icône disparu.
-        document.getElementById('seq-zoom').classList.toggle('active', this.seqMode === 'compact');
-        if (vlVientDEtreFerme) this.loadProgression(); // retire pour de bon le panneau de conduite de voix
-        // Un accord était déjà SÉLECTIONNÉ dans la grille (simple clic, sans passer par « Modifier »)
-        // au moment d'ouvrir le volet : on le charge pour édition, sinon le volet s'ouvre sur du vide
-        // et il faut recliquer l'accord une seconde fois pour voir quoi que ce soit. C'était le
-        // comportement de l'ancienne vue plein écran (voir openGridZoom, supprimée), ajouté à l'époque
-        // sur retour utilisateur explicite ; il s'est perdu avec elle, alors que le volet reprend
-        // exactement son rôle. Seul le mode 'continu' est concerné : le séquenceur compact vit DANS le
-        // module Ajouter/Modifier, où un accord en édition existe déjà de toute façon.
-        // On appelle editChord() et non editChordFromSequencer() : ce dernier fait ENTENDRE l'accord,
-        // ce qui a du sens quand on navigue d'un accord à l'autre dans le séquenceur, pas quand on se
-        // contente d'ouvrir une vue sur l'accord qu'on vient de cliquer — le clic l'a déjà joué.
-        if (this.seqMode === 'continu' && this.editingIndex == null && this.selectedIndex != null) {
-            this.editionParSuivi(this.activeSection, this.selectedIndex); // ouvrir le séquenceur ne fait pas apparaître l'inspecteur (point C)
-        }
-        this.renderSequencer();
-        this.updateGlobalUndoRedoButtons(); // le bouton unique repointe vers l'historique du séquenceur
-        // Sur téléphone, le séquenceur vit dans la carte Lecture, bien plus bas que le bouton de la
-        // barre de grille qui vient de l'ouvrir : mesuré à ~560px sous un écran de 844px, donc
-        // totalement invisible. Le bouton paraissait ne RIEN faire (retour utilisateur : « le
-        // séquenceur ne veut pas s'ouvrir avec le bouton au-dessus de la grille »). On l'amène donc à
-        // l'écran s'il n'y est pas déjà — sans effet sur ordinateur, où il est ancré juste sous la
-        // grille et déjà visible.
-        if (this.seqOpen) this.defilerVersSequenceur();
-    }
-
-    // Amène le séquenceur dans le champ de vision s'il en est sorti. Volontairement conditionnel :
-    // faire défiler alors qu'il est déjà visible déplacerait la page sous les doigts sans raison.
-    defilerVersSequenceur() {
-        const seq = document.getElementById('arp-sequencer');
-        if (!seq) return;
-        requestAnimationFrame(() => {
-            const r = seq.getBoundingClientRect();
-            if (r.height === 0) return; // rien à montrer
-
-            // TIROIR FLOTTANT : il est déjà à l'écran par construction — le faire défiler vers soi
-            // n'aurait aucun sens (on ne défile pas vers un élément en position fixe). Ce qu'il faut
-            // amener à la vue, c'est L'ACCORD QU'ON TRAVAILLE, dans la bande de fenêtre laissée
-            // libre au-dessus du tiroir. Mesuré : sans ça, ouvrir le rythme sur un téléphone laissait
-            // 0px de grille visible — le défilement « centrer le séquenceur » emportait la grille à
-            // -455px. L'arithmétique interdit de tout montrer (877px à loger dans 664), mais rien
-            // n'oblige à perdre justement l'accord dont on règle le rythme.
-            if (seq.classList.contains('seq-tiroir')) {
-                const cell = this.editingIndex != null ? this.gridCellEl(this.activeSection, this.editingIndex) : null;
-                if (!cell) return;
-                const c = cell.getBoundingClientRect();
-                const hautLibre = r.top - 8;            // bord supérieur du tiroir
-                if (c.top >= 8 && c.bottom <= hautLibre) return; // déjà dans la bande libre
-                // On vise le MILIEU de la bande libre plutôt que son bord : la case reste lisible même
-                // si la barre du haut ou l'en-tête collant mordent un peu dessus.
-                const page = document.scrollingElement || document.documentElement;
-                const vise = page.scrollTop + c.top - Math.max(8, (hautLibre - c.height) / 2);
-                page.scrollTo({ top: Math.max(0, vise), behavior: 'smooth' });
-                return;
-            }
-
-            const dejaVisible = r.top >= 0 && r.top < window.innerHeight * 0.9;
-            if (!dejaVisible) seq.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        });
+    // Porte de PROGRAMME vers le séquenceur : il n'y en a plus qu'un (sequenceur.js à l'ordinateur, onglet Rythme du panneau d'accord au téléphone).
+    // RETRAIT DU CODE MORT DE L'ANCIEN SÉQUENCEUR (A2, 13/11) : le petit séquenceur de l'inspecteur, le grand séquenceur sous la grille, la loupe et la
+    // conduite de voix sont retirés ; ne reste que cette garde, pour les appels de programme et les bancs (#seq-zoom, #grid-zoom, #dock-rythme).
+    // Le mode demandé ('compact' / 'continu') ne change plus rien : les deux ouvrent le séquenceur de l'appareil.
+    toggleSequencer() {
+        if (window.matchMedia(SEQ_DOCK_MEDIA).matches) { if (this.sequenceur) this.sequenceur.basculer(true); }
+        else this.ouvrirRythmeTelephone();
     }
 
     // Verrouille/libère le défilement de la page derrière une fenêtre agrandie ouverte (voir
@@ -19569,439 +16937,8 @@ class HarmoHubApp {
         if (this._bodyScrollLocks === 0) document.body.classList.remove('body-scroll-locked');
     }
 
-    // Déplace #arp-sequencer (jamais ne le duplique) dans la fenêtre agrandie : toutes ses
-    // interactions (glisser, étirer, sélectionner...) restent celles du vrai séquenceur, attachées
-    // une fois pour toutes dans setupSequencerInteractions — un simple changement de parent ne les
-    // perd pas. .seq-zoomed pilote uniquement la taille des cases/libellés (voir style.css).
-    // OUVRIR PUIS AGRANDIR, en un geste. Ce n'est plus la porte du volet de gauche (elle n'ouvre
-    // plus que le petit séquenceur, à la demande) mais celle de la LOUPE posée dans la barre du
-    // séquenceur — voir #seq-plein-ecran.
-    //
-    // openSeqZoom() refuse d'agir séquenceur fermé (`if (!this.seqOpen) return`) : passer par ici
-    // plutôt que par lui garde la loupe utile même si le panneau vient d'être refermé autrement,
-    // plutôt que de rendre la main en silence.
-    ouvrirSequenceurPleinEcran() {
-        if (!this.seqOpen) this.toggleSequencer('compact');
-        this.openSeqZoom();
-    }
 
-    openSeqZoom() {
-        if (!this.seqOpen) return;
-        this.seqZoomOpen = true;
-        const host = document.getElementById('arp-sequencer');
-        document.getElementById('seq-zoom-host').appendChild(host);
-        host.classList.add('seq-zoomed');
-        document.getElementById('seq-zoom-overlay').hidden = false;
-        this.lockBodyScroll();
-        // Ré-applique aussi l'échelle courante à ce nouvel hôte et redéclenche un rendu (la
-        // pagination dépend de this.seqZoomOpen — plus de mesures par page une fois agrandi, voir
-        // seqPageBars —, sinon elle resterait celle de la vue compacte jusqu'au prochain changement).
-        this.applyZoomLevel('seq');
-    }
-
-    // Place #arp-sequencer là où il a le plus de sens selon la largeur d'écran. Sur ORDINATEUR, il
-    // rejoint #seq-dock-host, sous la grille et sur toute la largeur de la colonne de droite — il
-    // restait sinon comprimé dans les 360px du panneau de gauche, au point d'être rogné en bas de
-    // fenêtre, pendant qu'une large bande vide s'étalait à droite (retour utilisateur sur la
-    // répartition de l'écran). Sur TÉLÉPHONE, il retourne à sa place d'origine, juste après
-    // #arpPattern : la mise en page n'y a qu'une colonne, et il doit rester au contact des réglages
-    // Lecture auxquels il appartient.
-    // Ne touche à rien tant qu'une loupe est ouverte : ces deux modes gèrent déjà leur propre hôte
-    // (voir openSeqZoom/pinSequencerHost) et reprendront la main à leur fermeture.
-    // Déplacement, jamais duplication — même principe que les loupes : toutes les interactions déjà
-    // câblées sur l'élément (glisser, étirer, pincer...) le suivent sans rien avoir à recâbler.
-    placeSequencer() {
-        if (this.seqZoomOpen) return;
-        const seq = document.getElementById('arp-sequencer');
-        const dock = document.getElementById('seq-dock-host');
-        const panneau = document.getElementById('seq-dock-panel');
-        if (!seq || !dock || !panneau) return;
-        // C'est le MODE choisi qui décide, plus la largeur de l'écran : le bouton de la barre de
-        // grille envoie le séquenceur dans son volet sous la grille, celui du module le garde dans le
-        // module. L'ancien placement au seuil 900px faisait qu'un tap sur téléphone ouvrait le
-        // séquenceur dans la carte Lecture, à 600px sous le bouton — donc invisible (retour
-        // utilisateur : « le séquenceur ne veut pas s'ouvrir avec le bouton au-dessus de la grille »).
-        const enVolet = this.seqMode === 'continu';
-        panneau.hidden = !enVolet;
-        if (enVolet) {
-            if (seq.parentElement !== dock) dock.appendChild(seq);
-            dock.style.height = `${this.hauteurVoletSequenceur()}px`;
-        } else if (seq.parentElement === dock) {
-            document.getElementById('arpPattern').insertAdjacentElement('afterend', seq);
-        }
-        this.appliquerTiroirSequenceur();
-        this.majBarreBasTelephone(); // l'état du bouton Rythme de la barre du bas suit l'ouverture
-    }
-
-    // TIROIR FLOTTANT DU PETIT SÉQUENCEUR, sur téléphone seulement (voir .arp-seq.seq-tiroir dans
-    // style.css). Posé ici, dans placeSequencer, parce que c'est LE seul endroit qui décide d'où vit
-    // #arp-sequencer — en ajouter un second aurait recréé la dérive « deux endroits qui déplacent le
-    // même nœud » que ce fichier connaît déjà trop bien.
-    // Le seuil est le MÊME que celui du CSS : au-delà, la colonne de gauche existe pour de bon et le
-    // séquenceur y tient sans rien coûter à la grille (mesuré : 0px de perte sur ordinateur).
-    // UNE SEULE définition de « le petit séquenceur est-il en tiroir ? ». Elle est lue par le
-    // placement (ci-dessous) ET par la barre d'outils du séquenceur (voir renderSequencer, qui n'y
-    // ajoute le raccourci de motif que dans ce cas). La recopier aurait suffi à les faire diverger —
-    // ce fichier en a déjà payé le prix plus d'une fois.
-    estSequenceurEnTiroir() {
-        return this.seqOpen && this.seqMode === 'compact'
-            && window.matchMedia('(max-width: 899px)').matches && !this.seqZoomOpen;
-    }
-
-    appliquerTiroirSequenceur() {
-        const seq = document.getElementById('arp-sequencer');
-        if (!seq) return;
-        const enTiroir = this.estSequenceurEnTiroir();
-        seq.classList.toggle('seq-tiroir', enTiroir);
-        if (!enTiroir) { document.documentElement.style.removeProperty('--tiroir-bas'); return; }
-        // Hauteur de la barre de lecture MESURÉE, jamais devinée : elle change selon ce qu'elle
-        // contient (le bloc Ajouter/Annuler y descend en mode Modification, voir
-        // updateEditActionsDocking). Un nombre en dur laisserait le tiroir flotter au-dessus d'un
-        // vide, ou recouvrir le bouton Lecture.
-        // Lot 10b : le bas de l'écran porte la BARRE DE LECTURE (fixée) et, en Modification, le dock posé dessus. On mesure donc la hauteur
-        // occupée depuis le bas de la fenêtre jusqu'au plus haut des deux — mesurer le seul dock posait le tiroir sur ses accès de secours.
-        const hauts = ['.dock', '#barre-lecture'].map(s => document.querySelector(s)).filter(e => e && e.getBoundingClientRect().height > 0).map(e => e.getBoundingClientRect().top);
-        const h = hauts.length ? Math.max(0, Math.round(window.innerHeight - Math.min(...hauts))) : 0;
-        document.documentElement.style.setProperty('--tiroir-bas', `${h}px`);
-    }
-
-    // Place libre dans la colonne de droite pour le volet, une fois `reserve` pixels laissés à la grille.
-    // Mesurée, jamais déduite d'un ratio d'écran — c'est ce qui fait que masquer les diagrammes profite
-    // au séquenceur : .viz-wrap rétrécit, la place libérée entre d'elle-même dans ce calcul, sans
-    // qu'aucune règle CSS n'ait à court-circuiter la hauteur réglée à la main (voir setupSeqDockResize,
-    // et le commentaire de .seq-dock-host dans style.css).
-    placeLibreDansLaColonne(reserve) {
-        const colonne = document.querySelector('.col-right');
-        const panneau = document.getElementById('seq-dock-panel');
-        const grille = document.querySelector('.history-section');
-        // Hors mise en page à deux colonnes (téléphone), le volet ne partage rien avec personne : on
-        // retombe sur une part de l'écran, comme avant.
-        if (!colonne || !panneau || !grille || !window.matchMedia(SEQ_DOCK_MEDIA).matches) {
-            return Math.round(window.innerHeight * 0.75);
-        }
-        // On somme les frères SAUF la grille : c'est elle, seule flex:1 de la colonne, qui cède la
-        // place au volet — sa hauteur du moment n'apprend donc rien sur celle qui est disponible. Les
-        // frères de hauteur nulle (une rangée vidée par un réglage) sont sautés : ils ne prennent pas de
-        // place, mais leur interligne, lui, en prendrait une — voir le décompte ci-dessous.
-        let occupe = 0, visibles = 0;
-        for (const enfant of colonne.children) {
-            const h = enfant.getBoundingClientRect().height;
-            if (h > 0) visibles++;
-            if (enfant === panneau || enfant === grille || enfant.hidden) continue;
-            occupe += h;
-        }
-        const styles = getComputedStyle(colonne);
-        // Un interligne par ESPACE entre frères visibles, pas un par frère : compter les invisibles
-        // retirait ici jusqu'à 32px que le volet aurait pu prendre.
-        const interlignes = (parseFloat(styles.rowGap) || 0) * Math.max(0, visibles - 1);
-        // La valeur rendue sert de hauteur à l'HÔTE (#seq-dock-host), alors que la colonne, elle, voit
-        // le PANNEAU — plus haut de sa poignée et de ses bordures. Sans retirer cet écart, la réserve
-        // était systématiquement rognée d'autant : mesuré, 164px laissés à la grille pour 190 demandés.
-        const panneauEnPlus = Math.max(0, Math.round(panneau.getBoundingClientRect().height
-            - (document.getElementById('seq-dock-host') || panneau).getBoundingClientRect().height));
-        const dispo = colonne.clientHeight - occupe - interlignes - reserve - panneauEnPlus;
-        return Math.max(SEQ_DOCK_HEIGHT_MIN, Math.round(dispo));
-    }
-
-    // PLAFOND DE LA POIGNÉE : jusqu'où l'utilisateur peut tirer, s'il le veut. Ne préserve que la barre
-    // de titre collante de la grille — pas un confort, une nécessité : elle porte le bouton qui referme
-    // le volet, et la laisser disparaître enfermerait l'utilisateur dans un volet plein écran sans porte
-    // de sortie (retour utilisateur : « tu peux me permettre d'étirer la poignée du séquenceur jusqu'en
-    // haut si j'ai envie. Jusqu'au titre "Grille d'accords" par exemple. Si ça me pose problème lors de
-    // l'édition, je baisserai la poignée »). Hauteur de la barre MESURÉE, pour la suivre si elle change.
-    hauteurMaxVoletSequenceur() {
-        const barre = document.querySelector('.history-section .grid-head-sticky');
-        const reserve = (barre && Math.round(barre.getBoundingClientRect().height)) || SEQ_DOCK_RESERVE_REPLI;
-        return this.placeLibreDansLaColonne(reserve);
-    }
-
-    // PLAFOND DE LA HAUTEUR AUTOMATIQUE : nettement plus bas que celui de la poignée, et c'est voulu.
-    // Écraser la grille est un choix que l'utilisateur fait à la poignée ; l'appli ne doit pas le faire
-    // pour lui à l'ouverture. Mesuré sans cette distinction : le volet s'ouvrait par-dessus la grille,
-    // qui disparaissait entièrement de l'écran alors que l'utilisateur venait justement de demander à
-    // en voir PLUS (en resserrant les en-têtes de partie). La réserve couvre ici de quoi travailler :
-    // barre de titre, saisie rapide, un titre de partie et une rangée d'accords.
-    hauteurAutoVoletSequenceur() {
-        return this.placeLibreDansLaColonne(SEQ_DOCK_RESERVE_CONFORT);
-    }
-
-    // Hauteur d'ouverture du volet : celle réglée à la main si elle existe, sinon une part de l'écran.
-    hauteurVoletSequenceur() {
-        // AUCUN facteur de zoom n'entre plus dans ce calcul — la paire V+/V− qui agissait ici a été
-        // retirée, la poignée du volet (#seq-dock-resize) rendant le même service plus directement
-        // (voir _bindZoomButtons). Et les barres, elles, gardent de toute façon une hauteur UNIQUE et
-        // fixe, aussi bien ici que dans le séquenceur compact (voir style.css .seq-cell) — retour
-        // utilisateur : « comme sur GarageBand, laisser une unique hauteur de barres. Juste éloigner
-        // la vue pour voir plus de notes. On se perd avec le grossissement vertical des barres et ça
-        // enlève de la fluidité », repris ensuite pour le petit séquenceur : « bloquer la hauteur des
-        // barres du petit séquenceur, et supprimer le V+/- ».
-        // Hauteur automatique : une part de l'écran, bornée par ce que la colonne peut réellement
-        // donner. Volontairement PLUS PETITE que ce maximum, pour que la poignée garde de la marge dans
-        // les deux sens — un volet ouvert d'emblée au maximum ne pourrait plus que rétrécir, et
-        // paraîtrait à nouveau bloqué en tirant vers le haut.
-        const dispo = this.hauteurMaxVoletSequenceur();       // ce que la POIGNÉE autorise
-        const dispoAuto = this.hauteurAutoVoletSequenceur();  // ce que l'OUVERTURE s'autorise
-        const ratio = window.matchMedia(SEQ_DOCK_MEDIA).matches ? SEQ_DOCK_HEIGHT_RATIO_LARGE : SEQ_DOCK_HEIGHT_RATIO;
-        const auto = Math.round(Math.min(dispoAuto, Math.max(SEQ_DOCK_HEIGHT_AUTO_MIN,
-            Math.min(SEQ_DOCK_HEIGHT_AUTO_MAX, window.innerHeight * ratio))));
-        const base = this.seqDockHeight || auto;
-        // Le plafond n'est plus un ratio d'écran mais la place libre mesurée : un volet plus grand que
-        // ça déborderait de la colonne et serait rogné en silence — c'est exactement ce qui faisait
-        // paraître la poignée inopérante (elle écrivait une hauteur que la mise en page ne pouvait pas
-        // honorer).
-        let h = Math.max(SEQ_DOCK_HEIGHT_MIN, Math.min(dispo, base));
-        // ...mais jamais plus haut que ce qu'il y a RÉELLEMENT à montrer. Sans ce plafond, agrandir la
-        // vue sur un accord de vingt demi-tons n'ajouterait que du vide sous les notes — exactement le
-        // reproche fait par ailleurs (« beaucoup trop d'espace perdu en bas de la page »). Le zoom
-        // vertical ne sert donc à quelque chose que lorsqu'il reste des hauteurs hors champ.
-        const grille = document.querySelector('#arp-sequencer .seq-grid-continuous');
-        // L'élément dont cette fonction calcule la hauteur est #seq-dock-host, jamais le panneau qui
-        // l'entoure : c'est lui qu'écrivent placeSeqHost ET la poignée de redimensionnement, et le
-        // panneau se contente d'ajouter sa poignée par-dessus. Les mesures ci-dessous doivent donc être
-        // prises sur le même élément que celui qu'on va écrire, sinon on compare deux boîtes
-        // différentes et la hauteur dérive à chaque rendu.
-        const hote = document.getElementById('seq-dock-host');
-        // Hauteur réglée à la POIGNÉE : elle prime, on ne la rabote pas. Quelqu'un qui s'est donné la
-        // peine de tirer le volet à la taille voulue veut cette taille-là, même si l'accord du moment
-        // n'a que trois notes à y montrer — le prochain en aura peut-être vingt, et le volet ne doit
-        // pas changer de taille sous ses yeux d'un accord à l'autre. Le plafond ne concerne que la
-        // hauteur AUTOMATIQUE.
-        if (grille && hote && !this.seqDockHeight) {
-            const bande = grille.parentElement;
-            // Ce que le volet ajoute AUTOUR de la bande défilante : rangée de boutons, poignée, marges.
-            // Mesuré sur la mise en page ACTUELLE (volet - bande), pas déduit de la hauteur qu'on est en
-            // train de calculer. La version précédente écrivait `h - bande.clientHeight`, ce qui rendait
-            // le plafond inopérant : plus `h` était grand, plus `autour` grandissait avec lui, et
-            // `min(h, contenu + autour)` revalait toujours `h`. Mesuré : V+ huit fois donnait un volet
-            // de 628px pour 234px de notes — le zoom vertical ne faisait qu'ajouter du noir sous la
-            // dernière ligne, exactement ce que le plafond devait empêcher.
-            const autour = Math.max(0, hote.clientHeight - (bande ? bande.clientHeight : hote.clientHeight));
-            // Hauteur de référence du contenu = NOMBRE DE LIGNES x hauteur d'une ligne à l'échelle 1,
-            // et non une mesure du DOM. Deux mesures ont été essayées avant celle-ci, toutes deux
-            // fausses pour la même raison — elles dépendaient du zoom, que ce plafond doit justement
-            // ignorer :
-            //   - `grille.scrollHeight` brut : il raccourcit quand on dézoome, donc la fenêtre se
-            //     rabotait à chaque V− (« la fenêtre du séquenceur se contracte au lieu de pouvoir voir
-            //     plus de notes ») ;
-            //   - le même, divisé par l'échelle : scrollHeight est plafonné par le conteneur dès que le
-            //     contenu y tient, si bien que la division le SURESTIME et la fenêtre enflait — 383px
-            //     pour 167px de notes, le retour du vide qu'on venait d'éliminer.
-            // Une ligne par demi-ton affiché, à 14px : le contenu ne dépend plus d'aucune échelle
-            // depuis que la hauteur de barre est fixe.
-            const nbLignes = grille.querySelectorAll('.seq-label').length;
-            // La règle gagne la bande des accords quand le calque Voix est allumé (lot 9c) : comptée ici, les 170px de notes du « réduit » restent 170px.
-            const regle = this.hauteurRegleSeq();
-            // La bande d'intensité (lot 9d), collée sous les notes, s'ajoute de la même façon : elle ne prend rien aux notes.
-            const bandeInt = this.hauteurBandeIntensite();
-            const contenuEchelle1 = regle + nbLignes * SEQ_LIGNE_PX + bandeInt;
-            h = Math.min(h, contenuEchelle1 + autour + 8);
-            // ÉDITEUR DE NOTES (lot 9a, ordinateur) : « réduit par défaut (~170 px de notes) », étendu = tout ce que la place permet (le plafond
-            // du contenu ci-dessus vaut toujours : étendre ne crée pas de noir sous la dernière note). Seulement sans hauteur tirée à la main.
-            if (this._editeurNotesActif) {
-                h = this.editeurNotesEtendu
-                    ? Math.min(dispo, contenuEchelle1 + autour + 8)
-                    : Math.min(h, regle + EDITEUR_NOTES_REDUIT_PX + bandeInt + autour);
-            }
-        }
-        return Math.round(h);
-    }
-
-    // Largeur d'une colonne (une croche) à l'échelle 1, déduite de la place réellement disponible
-    // pour y faire tenir SEQ_MESURES_VISIBLES_CIBLE mesures. Bornée : sous SEQ_COL_PX_MIN une croche
-    // n'est plus atteignable au doigt, au-dessus de SEQ_COL_PX_MAX on ne gagne plus en lisibilité.
-    // Le zoom de l'utilisateur (seqInlineZoomLevelX) multiplie ensuite cette base, comme avant.
-    largeurColonneBase() {
-        const hote = document.querySelector('.seq-scroll') || document.getElementById('arp-sequencer');
-        const dispo = (hote && hote.clientWidth) ? hote.clientWidth : window.innerWidth;
-        const pasParMesure = this.beatsPerBar() * SEQ_STEPS_PER_BEAT;
-        const cible = (dispo - 40) / (SEQ_MESURES_VISIBLES_CIBLE * pasParMesure); // 40 = gouttière des notes
-        return Math.max(SEQ_COL_PX_MIN, Math.min(SEQ_COL_PX_MAX, cible));
-    }
-
-    // Poignée en HAUT du volet : la tirer vers le haut l'agrandit (elle borde le côté qui grandit).
-    // Reprend le geste du séquenceur épinglé de l'ancienne vue plein écran, que l'utilisateur veut
-    // retrouver (« avec volet ajustable en hauteur, comme il faisait avant dans le mode loupe »).
-    setupSeqDockResize() {
-        const poignee = document.getElementById('seq-dock-resize');
-        const dock = document.getElementById('seq-dock-host');
-        if (!poignee || !dock) return;
-        let departY = 0, departH = 0, maxGeste = 0;
-        const bouger = (e) => {
-            // Plafond MESURÉ au début du geste, pas un ratio d'écran : au-delà de la place libre dans la
-            // colonne, la hauteur écrite était rognée par le panneau (overflow:hidden) et le geste
-            // paraissait ne rien faire passé un certain point. Figé au pointerdown pour que le plafond ne
-            // bouge pas sous les doigts pendant qu'on tire (la grille rétrécit en même temps).
-            const suivant = Math.max(SEQ_DOCK_HEIGHT_MIN, Math.min(maxGeste, departH - (e.clientY - departY)));
-            this.seqDockHeight = suivant;
-            dock.style.height = `${suivant}px`;
-        };
-        const lacher = () => {
-            window.removeEventListener('pointermove', bouger);
-            window.removeEventListener('pointerup', lacher);
-            localStorage.setItem(SEQ_DOCK_HEIGHT_KEY, String(this.seqDockHeight));
-            this.majBoutonEditeurNotes(); // une hauteur tirée compte comme « étendu » : le chevron propose désormais de réduire (lot 9a)
-            this.renderSequencer(); // la hauteur change le nombre de voix visibles
-        };
-        poignee.addEventListener('pointerdown', (e) => {
-            e.preventDefault();
-            departY = e.clientY;
-            departH = dock.getBoundingClientRect().height;
-            maxGeste = this.hauteurMaxVoletSequenceur();
-            window.addEventListener('pointermove', bouger);
-            window.addEventListener('pointerup', lacher);
-        });
-        // « double-clic sur la poignée » = étendre ou réduire (lot 9a). Ordinateur seulement : le téléphone ne bouge pas avant le lot 10.
-        poignee.addEventListener('dblclick', (e) => {
-            if (!this._editeurNotesActif) return;
-            e.preventDefault();
-            this.basculerEtendueEditeurNotes();
-        });
-    }
-
-    // ---------- L'ÉDITEUR DE NOTES (refonte, lot 9a — docs/refonte.md, « Éditeur de notes ») ----------
-    // « Ouvert par un bouton bleu libellé Éditeur de notes dans la rangée de réglages, fermé par Fermer. » C'est le séquenceur CONTINU dans son
-    // volet sous la grille (toggleSequencer('continu'), #grid-zoom) : ce lot ne crée pas un second éditeur à côté de l'ancien, il lui donne sa porte,
-    // sa sortie et sa hauteur. La conduite de voix garde son bouton jusqu'au lot 9c, où elle devient le calque Voix (décision du 05/11 : rien ne
-    // se perd entre-temps). Le téléphone (< 900px) garde tout comme avant : « Séq. », hauteur d'avant, pas de Compact provisoire.
-    setupEditeurNotes() {
-        const fermer = document.getElementById('editeur-notes-fermer');
-        const etendre = document.getElementById('editeur-notes-etendre');
-        if (fermer) fermer.addEventListener('click', () => { if (this.seqMode === 'continu') this.toggleSequencer('continu'); });
-        if (etendre) etendre.addEventListener('click', () => this.basculerEtendueEditeurNotes());
-        const outils = document.getElementById('editeur-notes-outils');
-        if (outils) outils.addEventListener('click', (e) => {
-            const b = e.target.closest('[data-outil]');
-            if (!b) return;
-            this.seqOutil = b.dataset.outil;
-            this.majBoutonEditeurNotes();
-        });
-        const ajuster = document.getElementById('editeur-notes-ajuster');
-        if (ajuster) ajuster.addEventListener('click', () => {
-            this.seqAjuster = !this.seqAjuster;
-            try { localStorage.setItem(SEQ_AJUSTER_KEY, this.seqAjuster ? '1' : '0'); } catch (e) { /* stockage refusé : le réglage vaut pour la session */ }
-            this.majBoutonEditeurNotes();
-            this.renderSequencer();
-        });
-        const voix = document.getElementById('editeur-notes-voix');
-        if (voix) voix.addEventListener('click', () => this.basculerCalqueVoix());
-        this.majBoutonEditeurNotes();
-    }
-
-    // CALQUE VOIX (lot 9c) : l'ancienne conduite de voix, fondue dans l'éditeur de notes. Ne vaut que là (ordinateur) : le petit séquenceur de
-    // l'inspecteur et le téléphone n'en ont pas (le téléphone garde son panneau de conduite de voix jusqu'au lot 10).
-    calqueVoixActif() { return !!(this._editeurNotesActif && this.seqVoix); }
-
-    basculerCalqueVoix() {
-        this.seqVoix = !this.seqVoix;
-        try { localStorage.setItem(SEQ_VOIX_KEY, this.seqVoix ? '1' : '0'); } catch (e) { /* stockage refusé : le réglage vaut pour la session */ }
-        this.majBoutonEditeurNotes();
-        // L'ancien panneau montrait TOUTE la partie sans qu'aucun accord soit choisi ; l'éditeur, lui, ne montre la partie qu'autour d'un accord en
-        // cours. Décision de l'utilisateur (05/11, choix proposé et retenu) : allumer Voix sans accord choisi ouvre le premier accord de la partie
-        // active — on voit aussitôt toute la partie et ses voix. Même chemin que l'ouverture de l'éditeur sur un accord sélectionné (toggleSequencer) : sélection puis editChord, sans
-        // faire entendre l'accord (le clic portait sur un bouton d'affichage, pas sur la musique).
-        if (this.seqVoix && this._editeurNotesActif && this.editingIndex == null) {
-            const sec = loadProgressionSections()[this.activeSection];
-            if (sec && sec.chords && sec.chords.length) {
-                this.selectedIndex = 0;
-                this.editChord(this.activeSection, 0);
-                return; // editChord redessine déjà le séquenceur et la grille
-            }
-        }
-        this.renderSequencer();
-    }
-
-    // La bande d'intensité n'est collée sous les notes (et comptée dans la hauteur) que dans l'éditeur de notes, mode studio allumé (lot 9d).
-    bandeIntensiteActive() { return !!(this._editeurNotesActif && this.studioMode && this.seqMode === 'continu'); }
-    hauteurBandeIntensite() { return this.bandeIntensiteActive() ? SEQ_BANDE_INTENSITE_PX : 0; }
-
-    // Hauteur de la règle de l'éditeur : la bande des accords (nom et degré) s'ajoute au-dessus des mesures quand le calque Voix est allumé.
-    hauteurRegleSeq() { return SEQ_RULER_PX + (this.calqueVoixActif() ? SEQ_REGLE_ACCORDS_PX : 0); }
-
-    // L'outil ne vaut QUE dans l'éditeur de notes (ordinateur) : ailleurs (petit séquenceur de l'inspecteur, téléphone) les gestes restent ceux d'avant.
-    outilSeq() { return this._editeurNotesActif ? this.seqOutil : 'selection'; }
-
-    // « Étendre ou non » : le bouton à chevrons et le double-clic sur la poignée font la même chose. Une hauteur tirée à la main compte comme
-    // « étendu » (c'est la maquette) : le chevron la défait et revient au réduit, sinon on ne pourrait plus jamais retrouver la hauteur d'origine.
-    basculerEtendueEditeurNotes() {
-        const etenduAffiche = this.editeurNotesEtendu || !!this.seqDockHeight;
-        this.editeurNotesEtendu = !etenduAffiche;
-        if (this.seqDockHeight) {
-            this.seqDockHeight = 0;
-            try { localStorage.removeItem(SEQ_DOCK_HEIGHT_KEY); } catch (e) { /* stockage refusé : la hauteur repart de toute façon de l'automatique */ }
-        }
-        this.majBoutonEditeurNotes();
-        this.renderSequencer(); // la hauteur se recalcule à la fin du rendu (ajusterHauteurVoletAuContenu), une fois les notes posées
-    }
-
-    // Ouvert = le séquenceur continu est dans son volet, sur ordinateur. Appelé à chaque ouverture / fermeture (toggleSequencer, la conduite de voix
-    // qui prend la place, le passage du seuil de 900px). Idempotent : ne fait quelque chose qu'au CHANGEMENT d'état.
-    majEditeurNotes() {
-        // Lot 10f : l'éditeur existe aussi au téléphone (feuille plein écran au-dessus de la barre de lecture). Refonte du séquenceur (point A) :
-        // ni l'ouverture ni la fermeture ne touchent plus à l'affichage de la grille (plus de Compact provisoire).
-        const ouvert = this.seqMode === 'continu';
-        if (ouvert && !this._editeurNotesActif) {
-            this._editeurNotesActif = true;
-            this.editeurNotesEtendu = false; // « réduit par défaut », à chaque ouverture
-        } else if (!ouvert && this._editeurNotesActif) {
-            this._editeurNotesActif = false;
-        }
-        this.majBoutonEditeurNotes();
-    }
-
-    majBoutonEditeurNotes() {
-        const bureau = window.matchMedia(SEQ_DOCK_MEDIA).matches;
-        const btn = document.getElementById('grid-zoom');
-        if (btn) {
-            const ouvert = this.seqMode === 'continu';
-            btn.setAttribute('aria-pressed', String(ouvert));
-            // Le libellé dit ce que fait le bouton sur CET écran : sur téléphone il reste « Séq. » et garde ses mots d'avant (lot 10).
-            btn.title = ouvert ? 'Fermer l\'éditeur de notes' : 'Ouvrir l\'éditeur de notes : séquenceur de tout le morceau';
-            btn.setAttribute('aria-label', 'Éditeur de notes');
-        }
-        const etendre = document.getElementById('editeur-notes-etendre');
-        if (etendre) {
-            const etendu = this.editeurNotesEtendu || !!this.seqDockHeight;
-            const mot = etendu ? 'Réduire l\'éditeur de notes' : 'Étendre l\'éditeur de notes';
-            etendre.setAttribute('aria-pressed', String(etendu));
-            etendre.title = mot;
-            etendre.setAttribute('aria-label', mot);
-        }
-        document.querySelectorAll('#editeur-notes-outils [data-outil]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.outil === this.seqOutil)));
-        const ajuster = document.getElementById('editeur-notes-ajuster');
-        if (ajuster) ajuster.setAttribute('aria-pressed', String(!!this.seqAjuster));
-        const voix = document.getElementById('editeur-notes-voix');
-        if (voix) voix.setAttribute('aria-pressed', String(!!this.seqVoix));
-        const legende = document.getElementById('editeur-notes-legende');
-        if (legende) legende.hidden = !this.seqVoix;
-        const hoteSeq = document.getElementById('arp-sequencer');
-        if (hoteSeq) hoteSeq.dataset.outil = this.outilSeq(); // le curseur suit l'outil (style.css)
-        const poignee = document.getElementById('seq-dock-resize');
-        if (poignee && bureau) poignee.title = 'Tirer pour changer la hauteur — double-clic : étendre ou réduire';
-        else if (poignee) poignee.title = 'Glisser pour ajuster la hauteur';
-    }
-
-
-    // Suit le franchissement du seuil ordinateur/téléphone pour replacer le séquenceur (voir
-    // placeSequencer) : redimensionner la fenêtre, faire pivoter un téléphone ou ouvrir les outils de
-    // développement peut basculer d'une mise en page à l'autre sans qu'aucun rendu ne soit déclenché.
-    // Un écouteur sur la MEDIA QUERY plutôt que sur 'resize' : il ne se déclenche qu'au franchissement
-    // réel du seuil, pas à chaque pixel d'un redimensionnement. Le rendu qui suit est nécessaire — le
-    // nombre de mesures par page dépend de la largeur disponible (voir seqPageBars/wideCompact).
-    setupSequencerPlacement() {
-        const mq = window.matchMedia(SEQ_DOCK_MEDIA);
-        const onChange = () => {
-            this.majEditeurNotes(); // passer sous 900px éditeur ouvert rend à la grille son affichage (le téléphone n'a pas de Compact provisoire)
-            this.placeSequencer();
-            if (this.seqOpen) this.renderSequencer();
-            // Lot 9c : au-dessus de 900px, l'ancien panneau de conduite de voix n'a plus de bouton (c'est le calque Voix de l'éditeur) : ouvert sur
-            // téléphone puis la fenêtre élargie, il resterait affiché sans rien pour le fermer.
-            if (mq.matches && this.voiceLeadingOpen) { this.voiceLeadingOpen = false; this.loadProgression(); }
-        };
-        if (mq.addEventListener) mq.addEventListener('change', onChange);
-        else mq.addListener(onChange); // Safari < 14
-    }
-
-    // Même principe que placeSequencer ci-dessus, pour le transport de lecture (Lecture/Boucle/Stop) :
+    // Transport de lecture (Lecture/Boucle/Stop) :
     // un seul nœud, déplacé (jamais dupliqué) entre .dock (téléphone, pied de colonne collant) et
     // #grid-head-transport-host (ordinateur, dans l'en-tête COLLANT de la grille — voir index.html).
     // Il a d'abord été une colonne flottante isolée sur le bord droit de l'écran ; retour utilisateur :
@@ -20062,18 +16999,13 @@ class HarmoHubApp {
         document.body.classList.toggle('fichier-en-haut', enHaut);
     }
 
-    // Suit le franchissement du seuil ordinateur/téléphone pour replacer le transport (voir
-    // placeGlobalTransport) — même raison que setupSequencerPlacement ci-dessus : redimensionner la
-    // fenêtre peut basculer d'une mise en page à l'autre sans qu'aucun rendu ne soit déclenché.
+    // Suit le franchissement du seuil ordinateur/téléphone pour replacer le transport (voir placeGlobalTransport) et remettre à jour le dock de
+    // secours du téléphone (majBarreBasTelephone) : redimensionner la fenêtre peut basculer d'une mise en page à l'autre sans qu'aucun rendu ne soit
+    // déclenché. (A2, 13/11 : l'ancien setupSequencerPlacement, qui replaçait aussi l'ancien séquenceur, n'existe plus.)
     setupGlobalTransportPlacement() {
         const mq = window.matchMedia(SEQ_DOCK_MEDIA);
         const onChange = () => {
-            this.placeGlobalTransport(); this.placerBoutonFichier();
-            // Retrait de l'ancien séquenceur (4a) : ouvert au téléphone (feuille « Séq. »), il n'a plus de porte ni de place à l'ordinateur — passé le seuil,
-            // il se referme (le séquenceur de l'ordinateur est celui du bloc « Vues »).
-            if (mq.matches && this.seqMode === 'continu') this.toggleSequencer('continu');
-            // Étape 4b, même raison : le petit séquenceur ouvert au téléphone n'a plus de place dans l'inspecteur de l'ordinateur.
-            if (mq.matches && this.seqMode === 'compact') this.toggleSequencer('compact');
+            this.placeGlobalTransport(); this.placerBoutonFichier(); this.majBarreBasTelephone();
         };
         if (mq.addEventListener) mq.addEventListener('change', onChange);
         else mq.addListener(onChange); // Safari < 14
@@ -20710,7 +17642,7 @@ class HarmoHubApp {
                 if (source.getAttribute('aria-pressed') !== 'true') return; // refermé : rien à montrer
                 // « Séquenceur » (sous-lot du téléphone de D) : il s'ouvre dans le panneau d'accord, déjà à l'écran — rien à faire défiler.
                 if (b.dataset.source === 'vue-sequenceur') return;
-                const cible = b.dataset.source === 'grid-zoom' ? document.getElementById('seq-dock-panel') : document.querySelector('.viz-card');
+                const cible = document.querySelector('.viz-card');
                 if (cible) requestAnimationFrame(() => cible.scrollIntoView({ block: 'nearest' }));
             });
         });
@@ -20880,19 +17812,6 @@ class HarmoHubApp {
         document.querySelectorAll('#bl-frise .bl-frise-part').forEach(el => el.classList.toggle('en-cours', +el.dataset.part === section));
     }
 
-    // Remet #arp-sequencer à sa place d'origine dans le volet Lecture (juste après #arpPattern,
-    // voir index.html) — sans effet si la fenêtre agrandie n'était pas ouverte.
-    closeSeqZoom() {
-        if (!this.seqZoomOpen) return;
-        this.seqZoomOpen = false;
-        document.getElementById('seq-zoom-overlay').hidden = true;
-        this.unlockBodyScroll();
-        const host = document.getElementById('arp-sequencer');
-        host.classList.remove('seq-zoomed');
-        document.getElementById('arpPattern').insertAdjacentElement('afterend', host);
-        this.renderSequencer();
-    }
-
     // La vue AGRANDIE plein écran de la grille (openGridZoom/closeGridZoom, son séquenceur épinglé
     // et sa navigation d'accord en accord) vivait ici. Retirée : retour utilisateur « les boutons
     // masquer panneau de gauche et mode séquenceur grille font tous les deux quasiment pareil = ils
@@ -20946,7 +17865,6 @@ class HarmoHubApp {
         // place sur le séquenceur » en repliant le panneau de gauche. Sans effet si le séquenceur est
         // fermé, ou si sa hauteur a été réglée à la main (seqDockHeight, voir
         // ajusterHauteurVoletAuContenu) : ce choix-là reste prioritaire, comme partout ailleurs.
-        this.renderSequencer();
     }
 
     // Pincer-zoomer à 2 doigts (retour utilisateur : équivalent tactile du Ctrl+molette existant, qui
@@ -20983,31 +17901,6 @@ class HarmoHubApp {
             const pts = [...pointers.values()];
             return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
         };
-        // Conteneur qui DÉFILE réellement (celui dont on lit/écrit scrollLeft pour ancrer le zoom,
-        // voir ancrageSousLesDoigts) : #arp-sequencer se déplace entre plusieurs hôtes (compact, loupe
-        // séquenceur, loupe grille épinglée, voir openSeqZoom/pinSequencerHost) sans jamais être
-        // dupliqué — retrouvé à CHAQUE geste plutôt que mis en cache, pour rester valide même après
-        // un rendu qui a reconstruit .seq-scroll entretemps (un zoom pincé redessine, voir
-        // _flushZoomPinchRender). C'est .seq-scroll qui déborde, jamais #arp-sequencer lui-même.
-        const conteneurDefilant = () => (kind === 'seq' || kind === 'seqInline')
-            ? document.querySelector('#arp-sequencer .seq-scroll')
-            : el;
-        // Point de contenu visé par le MILIEU des deux doigts, au début du pincement — exprimé en
-        // COLONNES (et non en pixels) pour rester valable à toute échelle, puisque c'est justement
-        // l'échelle qu'on s'apprête à changer. Relu par _appliquerEchelleHorizontale à chaque cran
-        // pour remettre ce même point sous le même endroit de l'écran : la musique ne glisse plus
-        // sous les doigts pendant qu'on zoome.
-        const ancrageSousLesDoigts = () => {
-            const sc = conteneurDefilant();
-            const grille = sc && sc.querySelector('.seq-grid-continuous, .seq-grid-wide');
-            if (!sc || !grille) return null;
-            const colPx = +grille.dataset.colPx || this.largeurColonneBase() * this[`${kind}ZoomLevelX`];
-            if (!(colPx > 0)) return null;
-            const pts = [...pointers.values()];
-            const milieuX = (pts[0].x + pts[1].x) / 2;
-            const ecranX = milieuX - sc.getBoundingClientRect().left;
-            return { colonne: (sc.scrollLeft + ecranX) / colPx, ecranX };
-        };
         el.addEventListener('pointerdown', (e) => {
             if (e.pointerType !== 'touch') return;
             pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -21029,7 +17922,6 @@ class HarmoHubApp {
                 genre = this.genreZoomGeste(kind);
                 baseZoomX = this[`${genre}ZoomLevelX`];
                 baseZoomY = this[`${genre}ZoomLevelY`];
-                this._ancrageZoomH = ancrageSousLesDoigts();
                 this._zoomPinchActive = true;
                 this._startZoomPinchFlushLoop();
             }
@@ -21052,9 +17944,6 @@ class HarmoHubApp {
             pointers.delete(e.pointerId);
             if (pointers.size < 2) {
                 baseDist = null;
-                // Le pincement est fini : les boutons +/− et les rendus suivants doivent retrouver
-                // leur recentrage habituel sur l'accord édité (voir _appliquerEchelleHorizontale).
-                this._ancrageZoomH = null;
                 // Un doigt se lève, il n'en reste plus 2 : le pincement est terminé — arrête la boucle
                 // de rattrapage périodique et applique un dernier rattrapage immédiat (voir
                 // _startZoomPinchFlushLoop/_flushZoomPinchRender), pour être certain de finir sur la
@@ -21105,16 +17994,8 @@ class HarmoHubApp {
     }
 
     _flushZoomPinchRender() {
-        if (this._seqZoomRenderPending) {
-            this._seqZoomRenderPending = false;
-            if (this.seqOpen) this.renderSequencer();
-        }
         if (this._gridZoomRenderPending) {
             this._gridZoomRenderPending = false;
-            this.loadProgression();
-        }
-        if (this._voiceLeadingZoomRenderPending) {
-            this._voiceLeadingZoomRenderPending = false;
             this.loadProgression();
         }
     }
@@ -21227,11 +18108,6 @@ class HarmoHubApp {
     // si bien qu'à 0,7 le réglage n'aurait littéralement aucun effet visible — voir SEQ_INLINE_ZOOM_MIN.
     // Exception isolée ICI plutôt que dispersée, pour que tout le reste partage vraiment les mêmes règles.
     zoomMinFor(kind, axis) {
-        // Séquenceur, axe HORIZONTAL : plancher remonté à 1. Descendre plus bas ne servait à rien —
-        // sous l'échelle 1 les doubles croches deviennent illisibles et intouchables (retour
-        // utilisateur : « voir trop petit ne me sert à rien »). L'échelle 1 montre déjà six mesures
-        // d'un coup. SEQ_INLINE_ZOOM_MIN (0,3), qui autorisait ce dézoom inutile, n'a plus d'emploi.
-        if (axis === 'x' && (kind === 'seq' || kind === 'seqInline')) return 1;
         // Grille (lot 5a) : l'affichage Compact descend à 0,5 (8 mesures par ligne), la poignée du bas à 30px de case.
         if (kind === 'classicGrid') return axis === 'x' ? DENSITES_GRILLE.compact.x : GRILLE_HAUTEUR_MIN / GRILLE_CASE_BASE;
         return ZOOM_LEVEL_MIN;
@@ -21242,7 +18118,6 @@ class HarmoHubApp {
     // et demie à l'écran alors qu'on veut pouvoir travailler une croche de près (retour utilisateur :
     // « le zoom horizontal est vite plafonné, je veux pouvoir voir plus gros »).
     zoomMaxFor(kind, axis) {
-        if (axis === 'x' && (kind === 'seq' || kind === 'seqInline')) return SEQ_ZOOM_X_MAX;
         if (kind === 'classicGrid' && axis === 'y') return GRILLE_HAUTEUR_MAX / GRILLE_CASE_BASE; // poignée du bas : jusqu'à 160px
         return ZOOM_LEVEL_MAX;
     }
@@ -21252,24 +18127,9 @@ class HarmoHubApp {
     // par crans — sinon le zoom au doigt semblait saccadé/à-coups (retour utilisateur), un cran entier
     // d'un coup au lieu de suivre le geste en direct.
     setZoomLevel(kind, axis, value) {
-        // Le séquenceur compact n'a PAS d'axe vertical (voir SEQ_INLINE_ZOOM_LEVEL_X_KEY) : ses barres
-        // gardent une hauteur unique, comme celles de la vue continue (même retour utilisateur, « une
-        // unique hauteur de barres »). Un seul garde-fou ICI protège tous les appelants d'un coup — les
-        // boutons dédiés ont disparu depuis un moment déjà, mais Ctrl+molette (adjustZoomBothAxes) et le
-        // pincement à 2 doigts (setupPinchZoom) zooment encore les DEUX axes sans discernement pour tous
-        // les autres réglages ; sans ce retour anticipé, ils auraient continué à faire varier une
-        // hauteur de barre en silence, sans plus aucun bouton pour la ramener à 1 (mesuré : c'est
-        // exactement ce qui se produisait avant ce correctif).
-        if (kind === 'seqInline' && axis === 'y') return;
         if (kind === 'gridTel') { this.reglerEchelleTelephone(axis, value); return; }
         const levelKey = `${kind}ZoomLevel${axis === 'x' ? 'X' : 'Y'}`;
-        const storageKey = kind === 'seq'
-            ? (axis === 'x' ? SEQ_ZOOM_LEVEL_X_KEY : SEQ_ZOOM_LEVEL_Y_KEY)
-            : kind === 'seqInline'
-            ? SEQ_INLINE_ZOOM_LEVEL_X_KEY // seul l'axe x existe pour ce kind, voir le garde-fou ci-dessus
-            : kind === 'classicGrid'
-            ? (axis === 'x' ? CLASSIC_GRID_ZOOM_LEVEL_X_KEY : CLASSIC_GRID_ZOOM_LEVEL_Y_KEY)
-            : (axis === 'x' ? VOICE_LEADING_ZOOM_LEVEL_X_KEY : VOICE_LEADING_ZOOM_LEVEL_Y_KEY);
+        const storageKey = axis === 'x' ? CLASSIC_GRID_ZOOM_LEVEL_X_KEY : CLASSIC_GRID_ZOOM_LEVEL_Y_KEY; // A2 : il ne reste que la grille (la loupe, le petit séquenceur et la conduite de voix sont retirés)
         // Arrondi au centième, SAUF la hauteur des cases de la grille (lot 5a) : elle se règle en pixels (52px = 0,8125) — arrondie à 0,81, la case
         // ferait 51,84px et l'affichage « Normal » ne tomberait jamais juste.
         const pas = (kind === 'classicGrid' && axis === 'y') ? 10000 : 100;
@@ -21292,32 +18152,8 @@ class HarmoHubApp {
     // style.css) posée UNE FOIS sur le conteneur de la fenêtre agrandie : elle est ensuite héritée
     // par chaque rendu ultérieur sans qu'il faille la reposer à chaque fois.
     applyZoomLevel(kind) {
-        if (kind === 'seq') {
-            const host = document.getElementById('seq-zoom-host');
-            if (host) host.style.setProperty('--seq-zoom-scale-v', String(this.seqZoomLevelY));
-            this._applySeqVerticalScale();
-            if (this.seqOpen) {
-                // Pincer-zoomer en cours (voir this._zoomPinchActive/setupPinchZoom) : reporte la
-                // reconstruction complète (qui détruirait les .seq-cell actuellement sous les doigts,
-                // coupant le geste) au relâchement — l'échelle verticale ci-dessus, elle, suit déjà les
-                // doigts en direct via la variable CSS.
-                if (this._zoomPinchActive) this._seqZoomRenderPending = true;
-                else this.renderSequencer();
-            }
-        } else if (kind === 'seqInline') {
-            // Séquenceur COMPACT/CONTINU : seule l'HORIZONTALE reste réglable (_appliquerEchelleHorizontale
-            // ci-dessous), sans reconstruire — une largeur de colonne est une variable CSS (voir
-            // renderSequencer/colTemplate), les notes suivent toutes seules. Plus de recalcul de la
-            // hauteur du volet ici : ça datait d'un temps où l'axe vertical de ce kind agissait dessus
-            // (hauteurVoletSequenceur ne dépend plus d'aucun zoom, voir son propre commentaire — « la
-            // paire V+/V− a été retirée, la poignée du volet rendant le même service plus directement »).
-            this._applySeqVerticalScale();
-            if (this.seqOpen && this._appliquerEchelleHorizontale(this.seqInlineZoomLevelX)) return;
-            if (this.seqOpen) {
-                if (this._zoomPinchActive) this._seqZoomRenderPending = true;
-                else this.renderSequencer();
-            }
-        } else if (kind === 'classicGrid') {
+        // A2 (13/11) : les échelles 'seq' (loupe) et 'seqInline' (petit séquenceur) n'ont plus de surface à régler ; leurs valeurs restent dans le morceau.
+        if (kind === 'classicGrid') {
             // .history-section : hôte de #progression-sections. --grid-zoom-scale-v (voir style.css)
             // garde son nom d'origine, du temps où une vue agrandie posait la même variable sur un
             // second hôte ; il n'en reste qu'un.
@@ -21329,1409 +18165,7 @@ class HarmoHubApp {
             }
             if (this._zoomPinchActive) this._gridZoomRenderPending = true;
             else this.loadProgression();
-        } else if (kind === 'voiceLeading') {
-            // Contrairement aux deux cas ci-dessus, PAS de calc() CSS direct sur les dimensions ici :
-            // le panneau est un SVG, ses coordonnées sont calculées et posées une fois pour toutes à
-            // la construction (voir buildVoiceLeadingPanelHtml) — les deux axes ont donc besoin d'un
-            // vrai nouveau rendu, jamais d'un simple redimensionnement de calc(). Pendant un pincement,
-            // ce vrai rendu reste différé (~150ms, voir _startZoomPinchFlushLoop) : sans retour visuel
-            // intermédiaire, le panneau restait figé tout du long puis sautait d'un coup, perçu comme
-            // saccadé et lent (retour utilisateur). --vl-zoom-scale-x/-y (voir style.css) applique un
-            // transform: scale() de secours, relatif à la DERNIÈRE construction réelle
-            // (_voiceLeadingBuiltZoomX/Y) plutôt qu'à l'échelle absolue — fluide en continu, la vraie
-            // reconstruction repart de 1 (voir buildVoiceLeadingPanelHtml).
-            if (this._zoomPinchActive) {
-                this._voiceLeadingZoomRenderPending = true;
-                const panel = document.querySelector('.voice-leading-panel');
-                if (panel) {
-                    panel.style.setProperty('--vl-zoom-scale-x', String(this.voiceLeadingZoomLevelX / this._voiceLeadingBuiltZoomX));
-                    panel.style.setProperty('--vl-zoom-scale-y', String(this.voiceLeadingZoomLevelY / this._voiceLeadingBuiltZoomY));
-                }
-            } else {
-                this.loadProgression();
-            }
         }
-    }
-
-    // Échelle VERTICALE du séquenceur : --seq-zoom-scale-v n'a plus qu'un seul réglage possible,
-    // celui de la fenêtre AGRANDIE (seqZoomLevelY), posé sur son hôte (#seq-zoom-host) par
-    // applyZoomLevel — jamais ici. Ni le compact ni le volet continu n'en ont plus besoin : les deux
-    // gardent une hauteur de barre unique et fixe (voir style.css .seq-cell), même principe que le
-    // retrait du V+/V− (retour utilisateur : « bloquer la hauteur des barres du petit séquenceur »).
-    // Le retrait explicite ci-dessous reste indispensable : #arp-sequencer est DÉPLACÉ dans l'hôte
-    // agrandi (voir openSeqZoom/pinSequencerHost), jamais recopié — une variable laissée dessus
-    // masquerait celle de l'hôte par héritage (l'élément le plus proche l'emporte), et le zoom
-    // vertical de la loupe n'aurait plus aucun effet.
-    // Applique l'échelle HORIZONTALE en place, sans reconstruire le HTML : une largeur de colonne
-    // est une variable CSS (voir renderSequencer/colTemplate), les notes étant placées par
-    // grid-column suivent toutes seules. C'est ce qui rend le zoom fluide plutôt que saccadé — la
-    // reconstruction, elle, ne sert plus qu'à changer ce que la grille CONTIENT. Recentre dans la
-    // foulée sur l'accord édité : à échelle changée, un défilement en pixels ne désigne plus rien.
-    // Renvoie false si aucune grille continue n'est à l'écran (l'appelant retombe alors sur un rendu).
-    _appliquerEchelleHorizontale(zoomH) {
-        const grille = document.querySelector('.seq-grid-continuous, .seq-grid-wide');
-        if (!grille) return false;
-        const colPx = this.largeurColonneBase() * zoomH;
-        const pasParMesure = this.beatsPerBar() * SEQ_STEPS_PER_BEAT;
-        grille.style.setProperty('--seq-col-w', `${colPx}px`);
-        grille.style.setProperty('--seq-bar-w', `${colPx * pasParMesure}px`);
-        grille.style.setProperty('--seq-beat-w', `${colPx * SEQ_STEPS_PER_BEAT}px`);
-        grille.dataset.colPx = String(colPx);
-        const sc = grille.closest('.seq-scroll');
-        if (sc) {
-            // ANCRAGE SOUS LES DOIGTS pendant un pincement (voir setupPinchZoom, _ancrageZoomH) : ce
-            // recentrage-ci vise l'accord ÉDITÉ, ce qu'il faut bien pour les boutons +/− (à échelle
-            // changée, un défilement en pixels ne désigne plus rien) mais jamais pour un pincement —
-            // il ramenait la vue sur l'accord édité à CHAQUE pointermove, donc arrachait la musique
-            // de sous les doigts en continu. Mesuré : le défilement oscillait entre deux valeurs
-            // fixes au lieu d'avancer, le recentrage réécrivant scrollLeft juste avant chaque pas.
-            // Comme toute carte ou photo sur téléphone, ce qui est sous les doigts doit y rester :
-            // on mémorise le point de contenu visé au début du geste (en COLONNES, indépendant de
-            // l'échelle) et on le remet sous le même point de l'écran à chaque cran.
-            const ancre = this._ancrageZoomH;
-            if (ancre) {
-                sc.scrollLeft = Math.max(0, ancre.colonne * colPx - ancre.ecranX);
-            } else {
-                const colOffset = +grille.dataset.colOffset || 0;
-                const pas = new Set([...grille.querySelectorAll('.seq-cell')]
-                    .map(e => parseInt((e.style.gridColumn || '').split('/')[0], 10)).filter(n => !isNaN(n))).size;
-                const centre = colOffset * colPx + (pas * colPx) / 2;
-                sc.scrollLeft = Math.max(0, centre - sc.clientWidth / 2);
-            }
-        }
-        return true;
-    }
-
-    _applySeqVerticalScale() {
-        const seq = document.getElementById('arp-sequencer');
-        if (!seq) return;
-        seq.style.removeProperty('--seq-zoom-scale-v');
-    }
-
-    // Position verticale du pointeur -> pourcentage d'intensité (0 en bas, 100 en haut) pour LA croche
-    // de cette barre (voir data-step, mode studio) — mutation directe du fill en cours de glissé plutôt
-    // qu'un renderSequencer() à chaque mouvement (même convention que le reste du séquenceur : un seul
-    // rendu complet à la FIN du geste, pas pendant).
-    applyStudioVelocityFromClientY(bar, clientY) {
-        const rect = bar.getBoundingClientRect();
-        let pct = Math.round(((rect.bottom - clientY) / rect.height) * 100);
-        pct = Math.max(0, Math.min(100, pct));
-        this.intensityPerStep[+bar.dataset.step] = pct;
-        bar.classList.add('reglee'); // réglée à la main : l'ambre (ordinateur, lot 9d) apparaît pendant le geste, pas au rendu suivant
-        const fill = bar.querySelector('.seq-vel-fill');
-        if (fill) fill.style.height = pct + '%';
-        // Valeur chiffrée affichée EN PLUS de la hauteur du remplissage (retour utilisateur : la
-        // hauteur seule manque de précision pour repérer la valeur exacte) — mise à jour en direct
-        // pendant le glissé, comme le remplissage juste au-dessus.
-        const valueEl = bar.querySelector('.seq-vel-value span');
-        if (valueEl) valueEl.textContent = pct + '%';
-    }
-
-    // Menu contextuel d'un accord de la grille (« Séquenceur ») : le charge dans le panneau Accord
-    // (comme Modifier) ET ouvre directement le séquenceur en grand, pour éviter l'aller-retour
-    // modifier-puis-ouvrir-le-panneau quand on veut juste peaufiner son rythme.
-    openSequencerFor(section, index) {
-        this.editChord(section, index);
-        this.seqOpen = true;
-        if (!this.seqMode) this.seqMode = 'compact';
-        this.majEditeurNotes();
-        document.getElementById('seq-zoom').classList.add('active');
-        this.renderSequencer();
-        this.updateGlobalUndoRedoButtons();
-        document.getElementById('arp-sequencer').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-
-    renderSequencer() {
-        const host = document.getElementById('arp-sequencer');
-        if (!host) return;
-        // Lot 9b : la barre déplacée dans l'éditeur de notes au rendu précédent s'en va AVANT tout — ses boutons portent des id, et
-        // getElementById, qui suit l'ordre du document, prendrait sinon l'ancien (plus haut dans la page) au lieu de celui qu'on va construire.
-        this.viderBarreEditeurNotes();
-        host.hidden = !this.seqOpen;
-        // Avant tout calcul de mise en page : le séquenceur doit d'abord être AU BON ENDROIT (colonne
-        // large sur ordinateur, colonne unique sur téléphone — voir placeSequencer), car la largeur
-        // disponible décide du nombre de mesures par page (voir seqPageBars/wideCompact plus bas).
-        this.placeSequencer();
-        // Échelle verticale : posée/retirée à chaque rendu selon qu'on est en compact ou en fenêtre
-        // agrandie (voir _applySeqVerticalScale) — le séquenceur passe de l'un à l'autre sans être
-        // recréé (openSeqZoom/pinSequencerHost), donc c'est le rendu qui doit retrancher la bonne.
-        this._applySeqVerticalScale();
-        // Retour visuel (curseur, voir style.css) tant que la pipette de motif entre voies reste armée
-        // (voir toggleSeqRowPipette) : posé ici, pas dans toggleSeqRowPipette/applySeqRowPipette
-        // eux-mêmes, pour rester synchronisé à CHAQUE rendu quelle que soit la méthode qui l'a déclenché.
-        host.classList.toggle('seq-row-pipette-active', !!this.seqRowPipette);
-        // Mode studio (voir #toggle-studio-mode) : réglage global mémorisé (this.studioMode), pas remis
-        // à zéro à chaque accord édité — resynchronise l'apparence du bouton à CHAQUE rendu, quelle que
-        // soit la méthode qui l'a déclenché (comme seq-row-pipette-active juste au-dessus).
-        const studioModeBtn = document.getElementById('toggle-studio-mode');
-        if (studioModeBtn) studioModeBtn.classList.toggle('active', this.studioMode);
-        // Toute reconstruction des .seq-cell rend caduque le suivi des doigts actifs par élément (voir
-        // this._seqActiveTouchIds/onSeqPointerDown) : un doigt encore posé pendant un pincer-zoomer (voir
-        // setupPinchZoom) peut perdre son pointerup/pointercancel si sa case a été détruite entretemps
-        // (plus aucun ancêtre DOM à traverser) — sans ce nettoyage, son id resterait bloqué dans le
-        // suivi, faisant à tort passer le PROCHAIN tap à un seul doigt pour un second doigt de pince.
-        this._seqActiveTouchIds.clear();
-        if (!this.seqOpen) return;
-        this.seqRenderGen++; // voir déclaration : identifie ce rendu pour les étiquettes éditables ci-dessous
-        // Position de défilement horizontal AVANT de reconstruire tout le HTML (voir plus bas, mode
-        // continu) : préservée d'un rendu à l'autre (peindre une note ne doit pas ramener la vue au
-        // début), sinon centrée sur l'accord édité par défaut (ni perdue dans le contexte gauche).
-        // Seulement si le rendu PRÉCÉDENT était LUI AUSSI en mode continu : sinon son scrollLeft (0,
-        // un rendu normal ne débordant jamais) n'a rien à voir avec la position à retrouver ici — voir
-        // le tout premier rendu continu d'un accord (ex. juste ouvert dans la loupe grille), qui
-        // partait par erreur de 0 au lieu du centrage par défaut sur l'accord édité.
-        // .seq-grid-continuous OU .seq-grid-wide (voir wideCompact plus bas) : les deux débordent et
-        // défilent, donc les deux méritent cette préservation — seul .seq-grid-continuous change en
-        // plus la hauteur des lignes (contexte voisin), .seq-grid-wide n'est qu'un simple repère.
-        const prevScrollEl = host.querySelector('.seq-scroll');
-        const prevGridEl = prevScrollEl ? prevScrollEl.querySelector('.seq-grid-continuous, .seq-grid-wide') : null;
-        const wasPrevContinuous = !!prevGridEl;
-        // Idem pour l'accord édité : basculer sur un accord VOISIN (clic sur le contexte grisé, voir
-        // .seq-ctx-nav) doit recentrer la vue sur ce nouvel accord comme à sa toute première ouverture
-        // — conserver le scrollLeft brut de l'ancien montrerait un bout de piste sans rapport (chaque
-        // accord a son propre découpage prev/actuel/next, donc sa propre colonne "centre").
-        // Le repère d'accord ne vaut QUE pour le mode continu, où chaque accord a son propre découpage
-        // prev/actuel/next. En compact large (.seq-grid-wide) il n'y a pas de contexte voisin —
-        // colOffset y vaut toujours 0 —, donc rien à recentrer : la position doit être gardée telle
-        // quelle, ce que dit déjà le commentaire de la restauration plus bas. Elle ne l'était pas :
-        // sans accord ouvert dans le panneau, data-editing-index vaut la chaîne "null", parseInt en
-        // fait NaN, et NaN n'égale jamais rien — la condition était donc TOUJOURS fausse ici. Un
-        // glissé à deux doigts défilait bien, puis revenait au tout début à la repeinture suivante
-        // (déclenchée par la fin du geste elle-même, voir _flushZoomPinchRender).
-        const wasPrevWide = !!(prevScrollEl && prevScrollEl.querySelector('.seq-grid-wide'));
-        const samePreviousChord = wasPrevContinuous
-            && (wasPrevWide || parseInt(prevGridEl.dataset.editingIndex) === this.editingIndex);
-        const prevScrollLeft = samePreviousChord ? prevScrollEl.scrollLeft : null;
-        // MÊME CHOSE SUR L'AXE VERTICAL, qui n'était préservé nulle part. Mesuré : après un simple clic
-        // sur une barre, scrollTop passait de 203 à 0 — la bande sautait tout en haut de l'étendue à
-        // chaque sélection, alors que scrollLeft, lui, était bien rendu à sa place. D'où le retour
-        // utilisateur : « le centrage de la barre sélectionnée était une mauvaise idée [...] ça va me
-        // gêner pour sélectionner plusieurs barres en même temps ». Ce n'était pas le centrage qu'il
-        // fallait retirer, c'était l'absence de préservation qu'il fallait combler : comme dans
-        // GarageBand, sélectionner ne déplace RIEN, ni en vertical ni en horizontal.
-        const prevScrollTop = samePreviousChord ? prevScrollEl.scrollTop : null;
-        // Hauteur d'une ligne au rendu PRÉCÉDENT, pendant vertical de prevColPx ci-dessous : restaurer
-        // un scrollTop en PIXELS n'a de sens que si les lignes font toujours la même hauteur (le zoom
-        // vertical de la vue agrandie la change, voir --seq-zoom-scale-v). Mesurée sur l'élément plutôt
-        // que recalculée depuis la formule CSS : c'est la hauteur réelle qui compte.
-        const prevRowEl = prevScrollEl && prevScrollEl.querySelector('.seq-cell, .seq-label');
-        const prevRowPx = prevRowEl ? prevRowEl.getBoundingClientRect().height : NaN;
-        // Largeur d'une colonne au rendu PRÉCÉDENT. Restaurer un scrollLeft en PIXELS n'a de sens que
-        // si cette largeur n'a pas changé : détailler ou resserrer la vue continue (Ctrl+molette,
-        // pincement, boutons H) change l'échelle, et les mêmes pixels désignent alors un tout autre
-        // endroit de la partie — on se retrouvait ailleurs sans savoir où (retour utilisateur :
-        // « lorsque je détaille le séquenceur continu, la vue doit rester centrée sur l'accord en
-        // cours de modification, sinon je me perds rapidement en horizontal »).
-        const prevColPx = prevGridEl ? parseFloat(prevGridEl.dataset.colPx) : NaN;
-        // Avant toute chose : une note libre jouée assez longtemps depuis le dernier rendu complète-
-        // t-elle désormais l'accord (voir reevaluateExtraNoteUpgrades) ? Peut changer la qualité/le
-        // nombre de voix, donc AVANT de (re)synchroniser le motif ci-dessous.
-        // Deux façons pour le symbole de changer pendant un rendu du séquenceur : le renommage
-        // automatique par note libre, et une annulation/rétablissement qui restaure une autre qualité
-        // (voir restaurerInstantaneSeq). Les deux doivent rafraîchir la grille — voir commitLiveEdit
-        // tout en bas.
-        const symboleRestaure = this._seqSymboleAChange;
-        this._seqSymboleAChange = false;
-        const accordRenomme = this.reevaluateExtraNoteUpgrades() || symboleRestaure;
-        const chord = this.syncSeqPatternForCurrentChord();
-
-        const midis = chord.getSeqMidiNotes();
-        const noteNames = chord.getSeqDisplayNotes(this.useFlatsForRoot(chord.root));
-        const roleMap = chord.getRoleMap(); // même code couleur que le clavier : fondamentale/tierce/quinte/7e/extensions
-        const voices = midis.length;
-        const steps = chord.beats * SEQ_STEPS_PER_BEAT;
-        const { pattern, tie } = this.getLiveSeqPattern(chord);
-
-        // Vue CONTINUE : axe vertical en demi-tons ABSOLUS plutôt qu'en voix relatives à CET accord,
-        // et toute la partie affichée côte à côte (barre de temps comprise), pour voir d'un coup
-        // d'œil comment le voicing et le rythme se placent par rapport aux accords voisins.
-        // Réservée à la VUE AGRANDIE du séquenceur (voir openSeqZoom/#seq-zoom). Le petit séquenceur
-        // du panneau Accord garde son affichage d'origine : la seule durée de l'accord, et uniquement
-        // les notes réellement jouées — retour utilisateur : « ça n'était pas le but de ce séquenceur,
-        // je voulais le garder comme avant : pas de séquenceur continu mais seulement durée de
-        // l'accord, afficher uniquement les notes jouées... il était plus précis pour les petites
-        // modifications. Le séquenceur continu en grand permettra un réglage à l'échelle du morceau
-        // en grand écran. » Deux outils, deux usages : retouche rapide d'un accord ici, réglage à
-        // l'échelle du morceau là.
-        // Réservée à la vue agrandie (seqZoomOpen) ou au séquenceur en volet (seqMode==='continu') —
-        // PLUS à un accord déjà présent dans la grille (this.editingIndex != null). Un accord en cours
-        // d'AJOUT (pas encore posé) restait bloqué sur l'affichage sommaire même agrandi, alors que la
-        // grille détaillée elle-même n'a besoin de rien de plus que l'accord en cours de composition
-        // (retour utilisateur : « le visuel est trop différent du grand séquenceur en continu » —
-        // mesuré : agrandir le petit séquenceur en Ajout ne changeait RIEN, contrairement à
-        // Modification, où ça donnait déjà le rendu détaillé). Seul le CONTEXTE voisin (accords
-        // avant/après, voir prevSegs/nextSegs juste en dessous) a réellement besoin d'une position dans
-        // la grille pour exister — lui seul reste donc gardé par editingIndex != null ci-dessous, pas la
-        // grille détaillée elle-même.
-        // AGRANDIR NE CHANGE PLUS DE VUE, IL CHANGE DE TAILLE. Retour utilisateur : « il y a peut-être
-        // un malentendu pour la loupe dans le petit séquenceur. Au lieu de voir le séquenceur en
-        // continu, j'aimerais juste voir le petit séquenceur simple, mais en plus gros pour le
-        // modifier plus facilement. Donc pas besoin de voir les demi-tons ni les accords adjacents. »
-        // C'était bien un malentendu de ma part : `|| this.seqZoomOpen` faisait basculer la loupe dans
-        // la vue continue (axe chromatique en demi-tons, accords voisins en lecture seule), alors que
-        // la loupe ne doit qu'AGRANDIR ce qu'on regarde déjà. La vue continue garde sa propre porte —
-        // « Séq. » au-dessus de la grille — et reste agrandissable, elle : c'est le MODE qui décide
-        // maintenant, plus la fenêtre.
-        const continuous = (this.seqMode === 'continu');
-        // Calque Voix (lot 9c) : seulement dans la vue continue de l'éditeur de notes (voir calqueVoixActif).
-        const voix = continuous && this.calqueVoixActif();
-        let prevMidiSet = new Set(), nextMidiSet = new Set();
-        // TOUS les accords de la partie active, avant/après celui en édition (pas seulement le plus
-        // proche, retour utilisateur : pouvoir défiler/cliquer directement n'importe quel accord de la
-        // grille, pas uniquement son voisin immédiat) — rythme/motif RÉELS de chacun, affichés en
-        // lecture seule de part et d'autre (voir la boucle de rendu plus bas), concaténés dans l'ordre
-        // chronologique de la grille. `colStart` : décalage cumulé (en cases) de CE segment au sein de
-        // son côté (prev ou next), posé une fois ici plutôt que recalculé à chaque ligne/case.
-        let prevSegs = [], nextSegs = [];
-        let prevSteps = 0, nextSteps = 0;
-        // this.editingIndex != null EN PLUS de `continuous` : un accord en Ajout n'a pas encore de
-        // position dans la grille, donc aucun voisin à afficher — prevSegs/nextSegs restent vides (voir
-        // leurs valeurs par défaut juste au-dessus), la grille détaillée de CET accord s'affiche quand
-        // même, simplement sans accords voisins de part et d'autre.
-        if (continuous && this.editingIndex != null) {
-            const ctxSections = loadProgressionSections();
-            const ctxSec = ctxSections[this.activeSection];
-            const history = (ctxSec && ctxSec.chords) || [];
-            const buildSeg = (data, index) => {
-                const c = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, null, data.extraNotes);
-                const segMidis = c.getSeqMidiNotes();
-                const resolved = this.resolveSeqPatternForData(c, data);
-                // roleMap : rôle (fondamentale/tierce/quinte/septième/extension) de chaque hauteur DANS
-                // CET accord voisin — c'est ce qui permet de teinter son rythme comme les barres de
-                // l'accord édité, au lieu d'un gris uniforme (voir .seq-ctx-note). Calculé ici, une
-                // fois par segment, plutôt qu'à chaque case peinte.
-                // `fonctions` : chiffre de fonction de chaque voix (calque Voix, lot 9c), dans l'ordre de `midis`.
-                // `libresDe` / `libresA` : les voix ajoutées à la main (notes libres) de ce voisin, juste après celles de sa qualité — dessinées en
-                // pointillés comme celles de l'accord en cours (lot 9d).
-                const libresDe = c.getIntervals().length;
-                return { data, midis: segMidis, midiSet: new Set(segMidis), roleMap: c.getRoleMap(), pattern: resolved.pattern, tie: resolved.tie, steps: c.beats * SEQ_STEPS_PER_BEAT, index,
-                    fonctions: voix ? c.getFonctionsVoix() : null, libresDe, libresA: libresDe + c.extraNotes.length };
-            };
-            let offset = 0;
-            for (let i = 0; i < this.editingIndex; i++) {
-                const seg = buildSeg(history[i], i);
-                seg.colStart = offset;
-                offset += seg.steps;
-                prevSegs.push(seg);
-            }
-            prevSteps = offset;
-            offset = 0;
-            for (let i = this.editingIndex + 1; i < history.length; i++) {
-                const seg = buildSeg(history[i], i);
-                seg.colStart = offset;
-                offset += seg.steps;
-                nextSegs.push(seg);
-            }
-            nextSteps = offset;
-            prevSegs.forEach(seg => seg.midiSet.forEach(m => prevMidiSet.add(m)));
-            nextSegs.forEach(seg => seg.midiSet.forEach(m => nextMidiSet.add(m)));
-        }
-
-        // Ordre d'AFFICHAGE des lignes (la plus aiguë en haut, comme un piano-roll), à ne jamais
-        // confondre avec l'index de voix (identité stable utilisée par le motif/pattern — voir
-        // getSeqMidiNotes) : la basse, si présente, garde toujours le DERNIER index mais doit
-        // s'afficher tout en BAS, pas en haut — d'où ce tri séparé, purement visuel.
-        // `rowOrder` : { voice, midi } du plus aigu au plus grave. voice=-1 = ligne de CONTEXTE (une
-        // hauteur jouée par l'accord précédent/suivant mais pas par celui-ci) : affichée en lecture
-        // seule (label + petit repère gauche/droite), sans case ni note éditable.
-        let rowOrder;
-        if (continuous) {
-            // TOUS les demi-tons de l'étendue, pas seulement ceux qui sonnent. Les hauteurs inutilisées
-            // n'apparaissaient nulle part : pour poser une note hors de l'accord il fallait passer par
-            // le bouton « + », qui la crée trois demi-tons au-dessus de la plus aiguë puis demande de
-            // la renommer à la main — on ne VOYAIT jamais la note qu'on visait (retour utilisateur :
-            // « voir toutes les notes possibles, pour le moment les notes non utilisées ne sont pas
-            // présentées »). Une ligne par demi-ton, c'est aussi ce qui rend un clavier en regard
-            // honnête : sans demi-tons manquants, chaque touche fait bien face à SA ligne.
-            // Mesuré : 20 lignes au lieu de 11 sur un cas courant, soit 320px pour 265 visibles — d'où
-            // le défilement vertical, déjà en place (voir .seq-scroll).
-            const sonnantes = new Set(midis);
-            prevMidiSet.forEach(m => sonnantes.add(m));
-            nextMidiSet.forEach(m => sonnantes.add(m));
-            // Plancher/plafond TOUJOURS visibles (voir SEQ_MIDI_TOUJOURS_VISIBLE_MIN/MAX) : n'ÉLARGIT
-            // jamais que vers l'extérieur, un accord/contexte qui déborde de octave 1-5 reste montré
-            // en entier comme avant.
-            // « Ajuster » (lot 9b, éditeur de notes) : seulement l'étendue des notes jouées, plus deux demi-tons de part et d'autre.
-            const ajuste = this._editeurNotesActif && this.seqAjuster && sonnantes.size > 0;
-            const bas = ajuste ? Math.min(...sonnantes) - SEQ_AJUSTER_MARGE : Math.min(SEQ_MIDI_TOUJOURS_VISIBLE_MIN, ...sonnantes);
-            const haut = ajuste ? Math.max(...sonnantes) + SEQ_AJUSTER_MARGE : Math.max(SEQ_MIDI_TOUJOURS_VISIBLE_MAX, ...sonnantes);
-            rowOrder = [];
-            for (let m = haut; m >= bas; m--) rowOrder.push({ voice: midis.indexOf(m), midi: m });
-        } else {
-            rowOrder = Array.from({ length: voices }, (_, i) => i)
-                .sort((a, b) => midis[b] - midis[a])
-                .map(i => ({ voice: i, midi: midis[i] }));
-        }
-        const rowCount = rowOrder.length;
-
-        // Un accord qui dure plusieurs mesures dépassait la largeur d'une « page » (une mesure en
-        // 4/4, deux en 2/4, une seule dès que la mesure est plus longue que 4 temps — voir
-        // seqPageBars) : sur mobile, un glissé pour étirer une note se confondait avec le geste de
-        // scroll natif du navigateur, d'où historiquement un vrai SAUT de page (boutons ‹ ›) plutôt
-        // qu'un scroll continu. Même geste réglé depuis pour la vue continue de la loupe grille
-        // ci-dessous (colonnes à largeur fixe + touch-action dédié par élément éditable) : réutilisé
-        // ici (voir wideCompact) pour un accord compact qui déborde d'une page — retour utilisateur :
-        // il fallait sinon zoomer arrière (H-) juste pour voir la mesure suivante avant d'y étirer
-        // une note, alors qu'un vrai défilement (à la molette, au doigt, ou auto pendant le glissé
-        // près du bord — voir _updateSeqAutoScroll) est bien plus direct.
-        const beatsPerBar = this.beatsPerBar();
-        const stepsPerBar = beatsPerBar * SEQ_STEPS_PER_BEAT;
-        const seqZoomed = this.seqZoomOpen;
-        // Tout ce qui n'est PAS la vue agrandie a droit au réglage d'échelle horizontale dédié
-        // (kind 'seqInline'/showInlineSeqZoom plus bas) ; la vue agrandie a le sien (seqZoomLevelX).
-        // La vue continue vivant exclusivement dans cette vue agrandie, tester seqZoomOpen suffit.
-        const showInlineSeqZoom = !this.seqZoomOpen;
-        const seqHZoom = seqZoomed ? this.seqZoomLevelX : (showInlineSeqZoom ? this.seqInlineZoomLevelX : 1);
-        const stepsPerPage = seqPageBars(beatsPerBar, seqZoomed, seqHZoom) * stepsPerBar;
-        const totalPages = continuous ? 1 : Math.max(1, Math.ceil(steps / stepsPerPage));
-        // Version compacte qui déborde d'une page : affiche tout l'accord d'un coup (comme la vue
-        // continue), scrollable, plutôt qu'une seule page à la fois — voir le commentaire plus haut.
-        const wideCompact = !continuous && totalPages > 1;
-        this.seqPage = Math.min(Math.max(0, this.seqPage), totalPages - 1);
-        // pageStart/pageEnd ne servent plus qu'à borner la fenêtre affichée pour une page COMPACTE qui
-        // tient déjà en entier (cas normal, majoritaire) : dès que le contenu déborde (continu ou
-        // wideCompact), tout s'affiche d'un coup et c'est le défilement qui fait le reste.
-        const pageStart = (continuous || wideCompact) ? 0 : this.seqPage * stepsPerPage;
-        const pageEnd = (continuous || wideCompact) ? steps : Math.min(steps, pageStart + stepsPerPage);
-        const pageSteps = pageEnd - pageStart;
-
-        // La colonne des noms de voix (max-content) se resserre à la largeur réelle du texte affiché
-        // (ex. "C3", "F#3") au lieu d'une largeur fixe généreuse qui laissait un vide à gauche.
-        // Colonnes de pas en 1fr PUR, sans largeur plancher, UNIQUEMENT quand tout tient déjà dans une
-        // page (cas normal) : une page doit alors TOUJOURS tenir sans le moindre débordement, quelle
-        // que soit la largeur d'écran — un plancher, même modeste, suffisait à forcer un débordement
-        // (et donc un vrai scroll tactile) sur les téléphones étroits pour une simple mesure en 4/4.
-        // data-page-start/steps : lus par updateSeqPlayhead pour savoir si le pas en cours de lecture
-        // tombe dans la page affichée (et à quelle colonne), sans dupliquer ce calcul côté lecture.
-        // .seq-grid-continuous : lignes plus basses (voir style.css) pour laisser tenir les demi-tons
-        // supplémentaires du contexte sans faire déborder la loupe grille (retour utilisateur) —
-        // wideCompact n'a pas de contexte voisin à faire tenir, garde donc la hauteur de ligne normale.
-        // Colonnes à largeur FIXE (pas 1fr) dès que ça déborde (continu OU wideCompact) : le contenu
-        // s'ajoute à la largeur totale plutôt que de se répartir dans l'espace visible, d'où le
-        // défilement horizontal voulu (voir .seq-scroll-continuous/.seq-scroll-wide ci-dessous et dans
-        // style.css) — en continu, seule la mesure éditée (au milieu) reste éditable, le contexte n'est
-        // que lecture seule ; en wideCompact, tout l'accord affiché reste éditable (pas de contexte).
-        const continuousCls = continuous ? ' seq-grid-continuous' : '';
-        // .seq-grid-wide : pas de style propre (contrairement à .seq-grid-continuous, qui resserre la
-        // hauteur des lignes) — juste un repère pour retrouver ce rendu au prochain (voir
-        // prevGridEl/wasPrevScrollable plus haut dans ce rendu) et préserver son défilement.
-        const wideCls = wideCompact ? ' seq-grid-wide' : '';
-        const plafondCls = (seqZoomed && !continuous && !wideCompact) ? ' seq-grid-plafonnee' : '';
-        const scrollCls = continuous ? ' seq-scroll-continuous' : (wideCompact ? ' seq-scroll-wide' : '');
-        const colOffset = continuous ? prevSteps : 0;
-        const totalCols = continuous ? (prevSteps + pageSteps + nextSteps) : pageSteps;
-        // Largeur de case FIXE (voir commentaire plus haut) mise à l'échelle par seqHZoom : sans quoi
-        // les boutons de zoom horizontal (zoom-axis-group, voir plus bas) resteraient sans le moindre
-        // effet visible en vue continue/wideCompact — seuls modes où ce réglage joue sur une largeur
-        // de case en pixels plutôt que sur le nombre de mesures par page. Base doublée sur ordinateur
-        // (retour utilisateur : la loupe grille est bien plus large qu'un téléphone, une base fixe
-        // unique laissait tout le côté droit vide dès qu'un accord n'avait que peu de temps) — même
-        // seuil (900px) que .col-left/.col-right en CSS et les autres bascules bureau/mobile du script.
-        // window.innerWidth (pas un média CSS) : cette largeur de case est un NOMBRE consommé par
-        // scrollLeft juste plus bas (colOffset * continuousColPx), pas seulement injecté dans le HTML.
-        const continuousColPx = this.largeurColonneBase() * seqHZoom;
-        // Largeur de colonne posée en VARIABLE CSS plutôt qu'en dur dans le gabarit : changer
-        // l'échelle horizontale devient alors l'écriture d'une seule variable, sans reconstruire le
-        // HTML. C'est ce qui rend le zoom continu et non plus saccadé (retour utilisateur : « le
-        // déplacement et zoom/dézoom de l'affichage est saccadé, je veux quelque chose de complètement
-        // fluide, comme sur les daw classiques ») — les notes étant placées par grid-column, elles
-        // suivent l'échelle toutes seules, sans un seul recalcul JS.
-        // Gouttière des noms de notes : largeur EXPLICITE plutôt que max-content. Deux raisons —
-        // le quadrillage de fond doit savoir où commence réellement la musique pour s'y caler (sinon
-        // toutes ses lignes tombent une gouttière trop tôt, mesuré à 32px de décalage), et la
-        // gouttière doit garder sa place quand ses étiquettes deviennent collantes (voir style.css,
-        // .seq-grid-continuous .seq-label : elles couvrent alors toutes les colonnes pour pouvoir
-        // rester accrochées à gauche, et ne dimensionnent donc plus la piste elles-mêmes).
-        const labelW = continuous ? 40 : 0;
-        // PLAFOND DE LARGEUR EN VUE AGRANDIE (retour utilisateur : « par contre pour des accords très
-        // courts, il faudra limiter la largeur du séquenceur pour que ça garde du sens »).
-        // Sans plafond, `1fr` étire les cases pour remplir la fenêtre : un accord d'une mesure y
-        // occupe seize cases sur toute la largeur d'un écran d'ordinateur, ce qui ne veut plus rien
-        // dire musicalement — une double croche large de 80px. Le plafond garde des cases GRANDES
-        // (c'est le but de la loupe) sans les laisser devenir absurdes, et la grille se centre alors
-        // dans la fenêtre au lieu de s'y coller à gauche (voir .seq-grid-plafonnee).
-        const plafonne = seqZoomed && !continuous;
-        const colTemplate = continuous
-            ? `${labelW}px repeat(${totalCols}, var(--seq-col-w))`
-            : (wideCompact ? `max-content repeat(${totalCols}, var(--seq-col-w))`
-                           : (plafonne ? `max-content repeat(${pageSteps}, minmax(0, ${SEQ_CASE_MAX_AGRANDIE * seqHZoom}px))`
-                                       : `max-content repeat(${pageSteps}, 1fr)`));
-        let html = `<div class="seq-scroll${scrollCls}"><div class="seq-grid${continuousCls}${wideCls}${plafondCls}${voix ? ' seq-grid-voix' : ''}${(continuous && this.bandeIntensiteActive()) ? ' seq-grid-intensite' : ''}" data-page-start="${pageStart}" data-page-steps="${pageSteps}" data-col-offset="${colOffset}" data-editing-index="${this.editingIndex}" data-col-px="${continuousColPx}" data-total-cols="${totalCols}" style="grid-template-columns: ${colTemplate}; --seq-col-w: ${continuousColPx}px; --seq-steps-per-bar: ${beatsPerBar * SEQ_STEPS_PER_BEAT}; --seq-bar-w: ${continuousColPx * beatsPerBar * SEQ_STEPS_PER_BEAT}px; --seq-beat-w: ${continuousColPx * SEQ_STEPS_PER_BEAT}px; --seq-label-w: ${labelW}px;">`;
-
-        // Cases de la grille : zones de clic/glisser (toujours présentes, sous les notes visuelles).
-        // Placement explicite (grid-row/grid-column) sur TOUT le monde : les notes ci-dessous se
-        // superposent volontairement aux cases, et le placement automatique de la grille CSS
-        // évite les zones déjà occupées par un élément placé explicitement — sans ça, les cases
-        // se retrouveraient décalées pour « fuir » les notes au lieu de rester dessous.
-        // Chaque paire de cases (double-croches s pair/impair) partage visuellement le même
-        // rectangle qu'avant (voir .seq-cell-a/.seq-cell-b dans le CSS) : la résolution de clic/
-        // glisser est fine, mais rien ne change à l'œil tant qu'une note n'utilise pas cette finesse.
-        // `data-step` garde l'indice ABSOLU (pas relatif à la page) : le glissé/étirement (voir
-        // onSeqPointerDown et findSeqStepAt, qui ne connaissent que les cases réellement dans le
-        // DOM, donc celles de la page affichée) continue de raisonner sur le motif complet.
-        // Les voix "notes libres" (voir addSequencerNote) occupent toujours les indices juste après
-        // les voix normales de la qualité, avant la basse éventuelle (voir _computeVoices) — leur
-        // étiquette devient un champ éditable au lieu d'un simple texte, seul endroit où renommer une
-        // note directement (voir commitExtraNoteLabel). `rowOrder` les replace déjà au bon endroit
-        // visuellement (tri par hauteur), sans rien à faire de spécial ici pour ça.
-        const extraStart = chord.getIntervals().length;
-        const extraEnd = extraStart + chord.extraNotes.length;
-
-        // Peint le rythme réel d'UN segment voisin (lecture seule) sur la ligne courante, à sa colonne
-        // (seg.colStart, voir plus haut) — appelé une fois par segment de chaque côté ci-dessous.
-        // Rien n'est rendu pour une croche silencieuse : c'est la présence d'une barre qui signale que
-        // ça sonne, pas besoin d'un état "off" visuellement distinct ici.
-        // MÊME DÉCOUPAGE EN NOTES que l'accord édité (voir notesHtml plus bas) : les croches actives et
-        // LIÉES d'une même voix ne forment qu'une seule barre continue, deux attaques séparées restent
-        // deux barres. Avant, chaque croche était peinte séparément : une blanche tenue apparaissait en
-        // chapelet de quatre pastilles, ce qui ne ressemblait plus du tout au séquenceur de l'accord
-        // qu'on modifie (retour utilisateur : « je n'aime pas trop la représentation des accords
-        // voisins sous forme de petites barres. Garder le séquenceur réel des accords à proximité »).
-        // On lit donc les vraies durées des voisins, exactement comme celles qu'on édite.
-        const paintCtxSeg = (seg, row, colBase, rowIndex) => {
-            const segVoice = seg.midis.indexOf(row.midi);
-            if (segVoice < 0) return '';
-            // Teinté par rôle, comme les barres de l'accord édité — en beaucoup plus sourd (voir
-            // .seq-ctx-note dans style.css). Le gris uniforme d'avant rendait le contexte illisible
-            // dès qu'on cherchait une note commune ou un mouvement de voix : on voyait QUAND ça sonne,
-            // jamais QUOI (retour utilisateur : « laisser en couleurs plus discrètes les barres des
-            // accords à côté, au lieu de les griser complètement »). Le rôle vient de l'accord VOISIN,
-            // pas de celui qu'on édite : une même hauteur peut être la tierce ici et la quinte à côté,
-            // et c'est précisément ce qui se lit dans une conduite de voix.
-            const role = seg.roleMap[row.midi] || 'ext';
-            let out = '';
-            let s = 0;
-            while (s < seg.steps) {
-                if (!seg.pattern[s].includes(segVoice)) { s++; continue; }
-                const runStart = s;
-                s++;
-                // `tie` : cette croche PROLONGE la précédente au lieu de réattaquer. Sans ce test, deux
-                // notes répétées à la suite fusionneraient en une seule longue barre et le rythme du
-                // voisin serait faux (même règle que pour l'accord édité).
-                while (s < seg.steps && seg.pattern[s].includes(segVoice) && seg.tie[s].includes(segVoice)) s++;
-                const runLen = s - runStart;
-                // Même retrait de fin que pour une barre éditable (voir trimEnd plus bas) : une note
-                // qui s'arrête sur la 2e moitié d'un rectangle laisse 4px avant la paire suivante. Sans
-                // lui, la MÊME note changerait de largeur selon qu'on l'édite ou qu'on la regarde
-                // depuis l'accord voisin.
-                const trimEnd = (s - 1) % 2 === 1 ? ' margin-right:4px;' : '';
-                // Jamais la classe .seq-note elle-même : le rectangle de sélection la cherche sans
-                // qualificatif (voir onSeqMarqueeMove/finalizeSeqMarqueeSelect) et happerait alors des
-                // barres de contexte, qui n'appartiennent pas à l'accord en cours d'édition.
-                const fnCtx = seg.fonctions ? `<span class="seq-note-fn">${seg.fonctions[segVoice]}</span>` : '';
-                const manuelleCtx = (segVoice >= seg.libresDe && segVoice < seg.libresA) ? ' manuelle' : '';
-                out += `<div class="seq-ctx-note ${runLen > 1 ? 'run' : 'single'} seq-ctx-role-${role}${manuelleCtx}" style="grid-row:${rowIndex}; grid-column:${colBase + seg.colStart + runStart + 2} / span ${runLen};${trimEnd}">${fnCtx}</div>`;
-            }
-            return out;
-        };
-
-        // Clavier de repérage à gauche (point demandé : « m'aider à l'aide d'un diagramme de piano à
-        // gauche pour mieux me repérer, faire comme pour le voice leading »). Chaque étiquette prend
-        // l'aspect de SA touche — blanche ou noire selon la classe de hauteur — au lieu d'un simple
-        // texte : l'œil retrouve alors le motif 2+3 des touches noires et situe une hauteur sans lire
-        // le nom. N'a de sens qu'avec des lignes CHROMATIQUES (voir rowOrder en vue continue) : sur
-        // des lignes trouées, des touches se feraient face sans respecter l'écart réel, et le repère
-        // mentirait. Hors vue continue, on garde donc l'étiquette texte telle quelle.
-        const PC_NOIRES = new Set([1, 3, 6, 8, 10]);
-        // `role` : passé seulement pour les hauteurs que l'accord JOUE vraiment (une valeur de rôle
-        // quelconque, ou null sinon) — sert ici uniquement de déclencheur booléen. La touche jouée
-        // n'emprunte plus la couleur du rôle (retour utilisateur : « éclairer uniquement via une
-        // surbrillance, et enlève les couleurs sur les touches » — le code couleur par rôle reste,
-        // lui, sur les barres du séquenceur/le clavier fixe/la légende, voir .seq-key-jouee en CSS).
-        const toucheCls = (midi, role) => {
-            if (!continuous) return '';
-            const pc = ((midi % 12) + 12) % 12;
-            // Le DO porte en plus sa propre classe : c'est la seule touche dont le nom reste écrit en
-            // permanence (voir .seq-key-name en CSS). Un nom sur chacune des vingt et quelques lignes
-            // mangeait toute la gouttière et se lisait comme un mur de texte (retour utilisateur :
-            // « le nom des notes prend trop de place sur les touches, laisser uniquement le Do avec
-            // son octave ») ; un DO tous les douze demi-tons suffit à se situer, exactement comme on
-            // repère une octave sur un vrai clavier.
-            let cls = PC_NOIRES.has(pc) ? ' seq-key seq-key-black' : ' seq-key seq-key-white';
-            if (pc === 0) cls += ' seq-key-c';
-            if (role) cls += ' seq-key-jouee';
-            return cls;
-        };
-
-        // La règle de mesure occupe la ligne 1 (voir beatRow) : les hauteurs commencent donc à 2.
-        // Elle était en bas, sous les notes ; en haut, elle se lit comme sur n'importe quel séquenceur
-        // et peut rester collée en défilant (retour utilisateur : « les boutons et règle de mesure ne
-        // restent pas visibles si je scroll vers le haut, il faut l'attacher sur la vue »).
-        let rowIndex = 1;
-        for (const row of rowOrder) {
-            rowIndex++;
-            const r = row.voice;
-            // Repère discret (voir style.css .seq-label-echo-*) : cette hauteur est aussi jouée par
-            // l'accord précédent/suivant — visible aussi bien sur une ligne de contexte que sur une
-            // vraie voix de l'accord en édition, pour situer d'un coup d'œil ce qui reste commun.
-            const echoCls = (prevMidiSet.has(row.midi) ? ' seq-label-echo-prev' : '') + (nextMidiSet.has(row.midi) ? ' seq-label-echo-next' : '');
-            if (r < 0) {
-                // Ligne de CONTEXTE : une hauteur jouée par un accord voisin mais pas par celui-ci —
-                // juste le nom de la note, en lecture seule, aucune case ni note éditable dessous
-                // pour l'accord en édition — mais le rythme du voisin, lui, s'affiche toujours.
-                const ctxName = midiToDisplayName(row.midi, this.useFlatsForRoot(chord.root));
-                html += `<div class="seq-label seq-label-context${toucheCls(row.midi, null)}${echoCls}" data-row-voice="${r}" data-row-midi="${row.midi}" style="grid-row:${rowIndex}; grid-column:1;"><span class="seq-key-name">${ctxName}</span></div>`;
-            } else if (r >= extraStart && r < extraEnd) {
-                const extraIdx = r - extraStart;
-                // La touche est peinte AUSSI sous une note libre (dont l'étiquette est un champ de
-                // saisie) : sans elle, le clavier de repérage se trouerait exactement là où l'on vient
-                // de poser une note — l'endroit qu'on regarde.
-                html += `<div class="seq-label seq-label-extra${toucheCls(row.midi, roleMap[row.midi] || 'ext')}${echoCls}" data-row-voice="${r}" data-row-midi="${row.midi}" style="grid-row:${rowIndex}; grid-column:1;">
-                    <input type="text" class="seq-label-input" data-extra-index="${extraIdx}" data-voice="${r}" value="${escapeHtml(noteNames[r])}" title="Note libre : tape une hauteur (ex. E3), ou vide pour la supprimer" autocomplete="off" autocapitalize="off" spellcheck="false">
-                </div>`;
-            } else {
-                // `data-row-voice` en plus de `data-voice` : le premier sert à RETROUVER la ligne (voir
-                // _revelerToucheSeq, qui allume le nom de la note pendant qu'on la déplace), le second
-                // à la faire ENTENDRE au clic. Deux attributs et non un seul parce qu'une note libre
-                // porte `data-voice` sur son champ de saisie, pas sur l'étiquette : lui en poser un
-                // second déclencherait l'écoute au moindre clic dans le champ.
-                html += `<div class="seq-label${toucheCls(row.midi, roleMap[row.midi] || 'ext')}${echoCls}" data-voice="${r}" data-row-voice="${r}" data-row-midi="${row.midi}" title="Cliquer pour écouter cette note" style="grid-row:${rowIndex}; grid-column:1;"><span class="seq-key-name">${noteNames[r]}</span></div>`;
-            }
-
-            // Contexte GAUCHE (TOUS les accords avant celui édité, voir prevSegs plus haut) : rythme
-            // réel de chacun, lecture seule — jamais de .seq-cell (classe réservée aux cases éditables,
-            // voir onSeqPointerDown qui la cible spécifiquement).
-            for (const seg of prevSegs) html += paintCtxSeg(seg, row, 0, rowIndex);
-            // Contexte DROIT (TOUS les accords après) : même principe, décalé après l'accord édité.
-            for (const seg of nextSegs) html += paintCtxSeg(seg, row, colOffset + pageSteps, rowIndex);
-
-            if (r < 0) {
-                // Hauteur que l'accord édité ne joue pas ENCORE. En vue continue, elle reste cliquable :
-                // un clic y crée la note libre correspondante (voir onSeqPointerDown, branche
-                // `voice < 0`) et la peint aussitôt — c'est le geste d'un piano-roll, et ça remplace
-                // le détour par le bouton « + » suivi d'un renommage à la main.
-                // `data-voice="-1"` + `data-midi` : la voix n'existe pas encore, c'est la HAUTEUR qui
-                // identifie la ligne. Hors vue continue on ne change rien (lignes non chromatiques :
-                // une case libre y désignerait un demi-ton absent de la colonne, donc un clic sans
-                // repère visuel en face).
-                if (continuous) {
-                    for (let s = pageStart; s < pageEnd; s++) {
-                        const col = colOffset + (s - pageStart);
-                        const beatStart = (s % SEQ_STEPS_PER_BEAT === 0) ? ' beat-start' : '';
-                        const pairCls = (s % 2 === 0) ? ' seq-cell-a' : ' seq-cell-b';
-                        html += `<div class="seq-cell seq-cell-free${pairCls}${beatStart}" data-voice="-1" data-midi="${row.midi}" data-step="${s}" style="grid-row:${rowIndex}; grid-column:${col + 2};"></div>`;
-                    }
-                }
-                continue;
-            }
-            for (let s = pageStart; s < pageEnd; s++) {
-                const col = colOffset + (s - pageStart);
-                const beatStart = (s % SEQ_STEPS_PER_BEAT === 0) ? ' beat-start' : '';
-                const pairCls = (s % 2 === 0) ? ' seq-cell-a' : ' seq-cell-b';
-                // Croche au début ou à la fin d'une note : un glissé depuis là étire/raccourcit la note,
-                // alors que depuis son CORPS il la déplace dans le temps (voir beginSeqHDrag). Les deux
-                // bords sont distingués (…-edge-start/…-edge-end) pour pouvoir poser le repère visuel
-                // du BON côté au survol, et le curseur qui va avec (voir style.css). Se base sur le
-                // motif COMPLET (pas la page) : une note qui continue sur la page suivante n'affiche
-                // jamais de bord à la coupure, seul son vrai début/sa vraie fin en portent un.
-                const isOn = pattern[s].includes(r);
-                const contPrev = s > 0 && pattern[s - 1].includes(r) && tie[s].includes(r);
-                const contNext = s + 1 < steps && pattern[s + 1].includes(r) && tie[s + 1].includes(r);
-                const isStartEdge = isOn && !contPrev;
-                const isEndEdge = isOn && !contNext;
-                const edgeCls = (isStartEdge || isEndEdge)
-                    ? ` seq-cell-edge${isStartEdge ? ' seq-cell-edge-start' : ''}${isEndEdge ? ' seq-cell-edge-end' : ''}`
-                    : '';
-                const onCls = isOn ? ' on' : '';
-                html += `<div class="seq-cell${pairCls}${beatStart}${edgeCls}${onCls}" data-step="${s}" data-voice="${r}" style="grid-row:${rowIndex}; grid-column:${col + 2};"></div>`;
-            }
-        }
-
-        // Notes posées par-dessus : les croches actives et LIÉES d'une même voix ne forment qu'un
-        // seul bloc (pilule si étiré au glissé, petit carré si une seule croche isolée) — deux notes
-        // adjacentes mais non liées (deux taps séparés) restent deux blocs bien distincts.
-        // Chaque note reste purement visuelle (pointer-events:none) : c'est la case en dessous qui
-        // gère le clic. Un glissé démarré sur sa première ou dernière croche l'étire/la raccourcit
-        // depuis ce bord (voir onSeqPointerDown) ; ailleurs, un glissé peint/efface comme avant.
-        let notesHtml = '';
-        const fonctionsVoix = voix ? chord.getFonctionsVoix() : null;
-        rowIndex = 1; // même décalage que ci-dessus : la ligne 1 est la règle de mesure
-        for (const row of rowOrder) {
-            rowIndex++;
-            const r = row.voice;
-            if (r < 0) continue; // ligne de contexte : aucune note éditable à dessiner ici
-            let s = pageStart;
-            while (s < pageEnd) {
-                if (!pattern[s].includes(r)) { s++; continue; }
-                const runStart = s;
-                // Une note déjà en cours dès le premier pas visible de la page (liée à la croche
-                // précédente, hors champ) est affichée « coupée » à ce bord plutôt que ronde, pour ne
-                // pas laisser croire qu'elle commence ici (voir .seq-note.clip-start).
-                const clipStart = (runStart === pageStart) && runStart > 0
-                    && pattern[runStart - 1].includes(r) && tie[runStart].includes(r);
-                s++;
-                while (s < steps && pattern[s].includes(r) && tie[s].includes(r)) s++;
-                const trueRunEnd = s - 1;
-                // Idem à l'autre bout : la note continue au-delà de la page affichée -> coupée aussi
-                // (voir .seq-note.clip-end), et le rendu s'arrête au dernier pas visible.
-                const runEnd = Math.min(trueRunEnd, pageEnd - 1);
-                const clipEnd = trueRunEnd > runEnd;
-                s = runEnd + 1;
-                const runLen = runEnd - runStart + 1;
-                const shape = runLen > 1 ? 'run' : 'single';
-                const role = roleMap[midis[r]] || 'ext';
-                const isSelected = this.seqSelections.some(sel => sel.voice === r && sel.start === runStart);
-                const sel = isSelected ? ' selected' : '';
-                const clipCls = (clipStart ? ' clip-start' : '') + (clipEnd ? ' clip-end' : '');
-                // Si la note finit sur la 2e moitié d'un rectangle (voir .seq-cell-b), la case de
-                // fond s'arrête 4px avant le bord de la piste (son margin-right) pour laisser le
-                // vrai espacement avant la paire suivante — sans ce même retrait, la pilule (qui
-                // occupe toute la piste) dépasserait légèrement de ce rectangle de fond. Pas de
-                // retrait si la note est coupée par la page : elle doit occuper toute la largeur.
-                const trimEnd = (!clipEnd && runEnd % 2 === 1) ? ' margin-right:4px;' : '';
-                // Petit repère à l'attaque (le tout début de la pilule, là où la note est réellement
-                // pincée) pour la distinguer de sa partie tenue — seulement sur une vraie note (pas une
-                // croche isolée, rien à distinguer) dont le début est réellement visible sur cette page
-                // (une note coupée par la page — voir clip-start — n'attaque pas ici, juste continue).
-                const headEl = (shape === 'run' && !clipStart) ? '<span class="seq-note-head"></span>' : '';
-                // Calque Voix (lot 9c) : la fonction écrite DANS la note, « la couleur n'est plus seule ».
-                const fnEl = fonctionsVoix ? `<span class="seq-note-fn">${fonctionsVoix[r]}</span>` : '';
-                // NOTE AJOUTÉE À LA MAIN (lot 9d) : « Notes ajoutées à la main en pointillés » (docs/refonte.md). Une voix libre (voir addSequencerNote)
-                // est la seule chose de l'accord que son nom ne dit pas — c'est elle qui allume la pastille ambre de la case. La classe est posée
-                // partout ; le dessin n'existe qu'à l'ordinateur (style.css, min-width 900px : le téléphone ne bouge pas avant le lot 10), dans l'éditeur
-                // comme dans le petit séquenceur de l'inspecteur (décision du 05/11 : « partout (ordinateur) », la même note a le même aspect).
-                const manuelle = (r >= extraStart && r < extraEnd) ? ' manuelle' : '';
-                notesHtml += `<div class="seq-note ${shape} role-${role}${sel}${clipCls}${manuelle}" data-voice="${r}" data-start="${runStart}" data-end="${trueRunEnd}" style="grid-row:${rowIndex}; grid-column:${colOffset + runStart - pageStart + 2} / span ${runLen};${trimEnd}">${headEl}${fnEl}</div>`;
-            }
-        }
-        html += notesHtml;
-        if (voix) html += this.calqueVoixHtml({ chord, midis, rowOrder, prevSegs, nextSegs, colOffset, pageSteps });
-
-        // RÈGLE DE MESURE, en haut de la grille : une graduation à chaque début de temps, et un chiffre
-        // dont la nature dépend de la vue — numéro de MESURE en vue continue (qui court sur toute la
-        // partie), numéro de TEMPS dans le petit séquenceur (qui ne couvre qu'un accord). Voir le détail
-        // au moment où le chiffre est choisi, plus bas.
-        // data-beat-index : repère stable (indépendant de la page/du décalage affiché) pour
-        // _highlightSeqBeatLabel, qui met ce chiffre en évidence au fur et à mesure qu'un étirement/
-        // peindre en cours l'atteint (retour utilisateur : "je ne vois pas exactement où est le temps 4"
-        // pendant un glissé).
-        const beatRow = 1; // tout en haut, et collée (voir .seq-beat-label en CSS)
-        // Bandeau PLEIN sous la règle, d'un bout à l'autre de la partie (grid-column: 1 / -1) : la règle
-        // n'était qu'une suite de petites étiquettes d'une colonne chacune, avec le quadrillage visible
-        // dans les trous — d'où une bande hachée qui se confondait avec la grille (retour utilisateur :
-        // « la règle de mesure doit être en dehors du quadrillage pour mieux la voir (cf. autres DAW) »
-        // et « elle doit suivre la section de grille en entier »). Le quadrillage, lui, ne commence
-        // maintenant qu'EN DESSOUS de ce bandeau (voir --seq-ruler-h et background-position/size dans
-        // style.css) : la règle est bien posée hors de la grille, comme sur une station audio.
-        // Émis AVANT les étiquettes pour rester derrière elles (même z-index, l'ordre du DOM tranche).
-        let beatLabelsHtml = continuous
-            ? `<div class="seq-ruler-band" style="grid-row:${beatRow}; grid-column: 1 / -1;"></div>`
-            : '';
-        // CE QU'ON VOIT N'EST PAS CE QU'ON ENTEND, et jusqu'ici rien ne le disait. En shuffle ou en
-        // ternaire, la grille reste dessinée DROITE (quatre colonnes égales par temps — c'est le choix
-        // de presque toutes les stations audio, et il est bon : on édite des positions, pas des durées
-        // réelles), mais la lecture, le métronome et l'export MIDI décalent bel et bien la 2e croche
-        // de chaque temps (voir GROOVE_RATIOS/grooveStepOffset). Une note posée pile sur une case ne
-        // tombe donc pas là où l'œil l'attend, sans que rien à l'écran ne l'explique — de quoi croire
-        // à un défaut de calage. Le repère est posé dans le coin haut-gauche de la règle, au-dessus de
-        // la gouttière des touches : le seul rectangle de l'en-tête qui était vide, donc aucun bouton
-        // de plus à caser (retour utilisateur sur « l'amas de boutons »). Rien d'affiché en droit,
-        // qui est le cas courant et n'a rien à signaler.
-        const grooveActif = document.getElementById('groove').value;
-        if (continuous && grooveActif && grooveActif !== 'straight') {
-            const libelle = grooveActif === 'ternary' ? 'Ter.' : 'Sh.';
-            const titre = grooveActif === 'ternary'
-                ? 'Groove ternaire : la grille reste droite, mais la 2e croche de chaque temps est jouée plus tard'
-                : 'Groove shuffle : la grille reste droite, mais la 2e croche de chaque temps est jouée plus tard';
-            // `grid-column: 1 / -1` et non `1`, pour la MÊME raison que .seq-label (voir son bloc CSS) :
-            // un élément de grille collant est confiné à sa propre case, et une case d'une seule colonne
-            // ne lui laisse nulle part où tenir — il repartirait avec le défilement horizontal dès la
-            // première mesure. Il couvre donc toutes les colonnes, sa largeur explicite (--seq-label-w)
-            // le gardant visuellement dans le coin.
-            beatLabelsHtml += `<div class="seq-groove-tag" title="${titre}" style="grid-row:${beatRow}; grid-column: 1 / -1;">${libelle}</div>`;
-        }
-        // En vue CONTINUE, la barre de temps couvre TOUTE la grille affichée (accords précédents +
-        // accord édité + accords suivants), pas seulement la tranche de l'accord en cours d'édition —
-        // retour utilisateur : « je veux voir la barre de décompte des mesures en entier, pas
-        // uniquement sous l'accord que je suis en train de modifier... si un accord commence sur un
-        // contre-temps de la mesure n°6, je pourrai donc le voir ». Les numéros sont alors ABSOLUS
-        // dans la partie (position réelle depuis son début), et non plus relatifs à l'accord édité :
-        // c'est justement ce qui permet de situer un départ décalé par rapport aux mesures voisines.
-        // `deltaColonne` réaligne la colonne de grille : en continu, la colonne 0 correspond au tout
-        // premier pas affiché (prevSteps pas AVANT l'accord édité), pas à pageStart.
-        const barreStart = continuous ? -prevSteps : pageStart;
-        const barreEnd = continuous ? pageSteps + nextSteps : pageEnd;
-        const deltaColonne = continuous ? colOffset : colOffset - pageStart;
-        // Décalage absolu de l'accord édité depuis le début de la partie, en pas : sans lui, tout
-        // repartirait de la mesure 1 sous l'accord édité, quel que soit son vrai rang. Comme plus haut :
-        // sans position dans la grille (Ajout), rien à décaler — reste à 0, la règle numérote alors
-        // depuis le tout début de CET accord, seul affiché.
-        let pasAvantAccordEdite = 0;
-        if (continuous && this.editingIndex != null) {
-            const secCourante = loadProgressionSections()[this.activeSection];
-            const accords = (secCourante && secCourante.chords) || [];
-            for (let i = 0; i < this.editingIndex; i++) pasAvantAccordEdite += beatsFromData(accords[i]) * SEQ_STEPS_PER_BEAT;
-        }
-        for (let s = barreStart; s < barreEnd; s += SEQ_STEPS_PER_BEAT) {
-            const beatIndex = Math.floor((s + pasAvantAccordEdite) / SEQ_STEPS_PER_BEAT);
-            const beatNum = ((beatIndex % beatsPerBar) + beatsPerBar) % beatsPerBar + 1;
-            // Le chiffre est dans un <span> à part, centré sur le VRAI début du temps (voir .seq-beat-num
-            // en CSS) plutôt que posé tel quel dans sa case (qui l'aurait calé à GAUCHE du repère, son
-            // texte partant de là et s'étirant vers la droite) : à côté du trait de contretemps, lui
-            // bien centré, ce calage à gauche donnait une impression d'asymétrie (retour utilisateur :
-            // "les traits sont centrés, mais plus les numéros").
-            // UNE RÈGLE DE MESURE NUMÉROTE DES MESURES, rien d'autre. L'essai précédent affichait le
-            // numéro de MESURE au 1er temps et le numéro de TEMPS aux autres : la rangée se lisait
-            // « 1 2 3 4 2 2 3 4 3 », deux séries de chiffres entremêlées qu'aucun œil ne démêle
-            // (retour utilisateur : « la règle de mesure est complètement incohérente »). En vue
-            // continue, seuls les débuts de mesure portent donc un chiffre — 1, 2, 3, 4, 5 d'un bout à
-            // l'autre de la partie —, les autres temps se contentant d'une graduation, comme sur
-            // n'importe quelle station audio. Le chiffre du temps n'est pas perdu pour autant : il
-            // réapparaît le temps d'un geste sur le temps atteint (voir .seq-beat-reached en CSS et
-            // _highlightSeqBeatLabel), ce qui répondait au retour « je ne vois pas exactement où est le
-            // temps 4 » pendant un étirement.
-            // Le petit séquenceur, lui, ne couvre qu'un accord : ses chiffres restent des NUMÉROS DE
-            // TEMPS (1 2 3 4), seule lecture qui ait un sens à cette échelle.
-            const debutMesure = beatNum === 1;
-            const noMesure = Math.floor(beatIndex / beatsPerBar) + 1;
-            const chiffre = (continuous && debutMesure) ? noMesure : beatNum;
-            beatLabelsHtml += `<div class="seq-beat-label" data-beat-index="${beatIndex}"${debutMesure ? ' data-mesure="' + noMesure + '"' : ''} style="grid-row:${beatRow}; grid-column:${deltaColonne + s + 2};"><span class="seq-beat-num">${chiffre}</span></div>`;
-            // Contretemps (le "et" du temps, 2e croche — voir SEQ_STEPS_PER_BEAT) : petit trait estompé,
-            // jamais un chiffre, pour rester bien plus discret que le numéro de temps lui-même (retour
-            // utilisateur : repère discret, pas une nouvelle ligne de chiffres à lire). Centré sur la
-            // frontière RÉELLE entre les deux croches du temps (le vrai milieu) plutôt que calé dans la
-            // seule colonne de la 2e croche : la case s'étend sur les deux colonnes qui encadrent cette
-            // frontière (offbeatStep-1 et offbeatStep) et le trait est centré dans cette case à deux
-            // colonnes — sans ça, le repère paraît décalé vers la 2e croche au lieu d'être pile au
-            // milieu (retour utilisateur : "pas aligné... pas à la moitié").
-            const offbeatStep = s + SEQ_STEPS_PER_BEAT / 2;
-            if (offbeatStep < barreEnd) {
-                beatLabelsHtml += `<div class="seq-beat-offbeat" style="grid-row:${beatRow}; grid-column:${deltaColonne + offbeatStep + 1} / span 2;"><span class="offbeat-dash"></span></div>`;
-            }
-        }
-        html += beatLabelsHtml;
-
-        // Mode studio (voir #toggle-studio-mode) : une barre de vélocité par croche où AU MOINS une voix
-        // attaque (jamais une simple continuation liée) — une seule valeur par croche, partagée par
-        // toutes les voix qui y sonnent (retour utilisateur : pas de réglage par voix). Glissée
-        // verticalement (voir applyStudioVelocityFromClientY) pour un réglage fin façon GarageBand ;
-        // double-clic efface le réglage propre à cette croche pour revenir à l'intensité globale de
-        // l'accord (#intensity). Mêmes colonnes que .seq-beat-label juste au-dessus, une ligne plus bas.
-        // LOT 9d — dans l'éditeur de notes (ordinateur), la rangée devient une BANDE COLLÉE EN BAS de la vue (voir SEQ_BANDE_INTENSITE_PX) : un fond
-        // plein d'un bout à l'autre (.seq-vel-band, comme le bandeau de la règle en haut), « Int. » dans la gouttière, et les barres des accords
-        // VOISINS, pâles et non modifiables comme leurs notes (décision du 05/11 : « voisins pâles »). Deux marques, à l'ordinateur : une croche
-        // dont l'intensité est réglée à la main passe en AMBRE (décision du 05/11 — l'ambre dit « touché à la main », comme la pastille de la
-        // case ; le double-clic la rend à l'accord, et au bleu) ; la barre de la note choisie est cerclée de blanc, comme la note. Le petit
-        // séquenceur et le téléphone gardent leur rangée d'avant (le téléphone ne bouge pas avant le lot 10).
-        if (this.studioMode) {
-            const velRow = rowCount + 2; // sous les hauteurs, la règle occupant désormais la ligne 1
-            const chordIntensity = +document.getElementById('intensity').value;
-            const bandeInt = continuous && this.bandeIntensiteActive();
-            let velHtml = bandeInt ? `<div class="seq-vel-band" style="grid-row:${velRow}; grid-column: 1 / -1;"></div>` : '';
-            velHtml += bandeInt
-                ? `<div class="seq-vel-lane-label" title="Intensité de chaque croche" style="grid-row:${velRow}; grid-column: 1 / -1;">Int.</div>`
-                : `<div class="seq-vel-lane-label" style="grid-row:${velRow}; grid-column:1;">Studio</div>`;
-            const debutsChoisis = new Set(this.seqSelections.map(sel => sel.start));
-            for (let s = pageStart; s < pageEnd; s++) {
-                const hasAttack = pattern[s].some(v => !tie[s].includes(v));
-                if (!hasAttack) continue;
-                const reglee = this.intensityPerStep[s] != null;
-                const val = reglee ? this.intensityPerStep[s] : chordIntensity;
-                velHtml += `<div class="seq-vel-bar${reglee ? ' reglee' : ''}${debutsChoisis.has(s) ? ' choisie' : ''}" data-step="${s}" style="grid-row:${velRow}; grid-column:${colOffset + s - pageStart + 2};" title="Intensité de cette croche — glisser pour régler, double-clic pour revenir à l'intensité de l'accord">
-                    <div class="seq-vel-fill" style="height:${val}%;"></div>
-                    <div class="seq-vel-value"><span>${val}%</span></div>
-                </div>`;
-            }
-            if (bandeInt) {
-                // Voisins : une barre par croche où une de leurs notes attaque, à la valeur qu'ils jouent vraiment (réglage propre, sinon leur
-                // intensité). Jamais la classe .seq-vel-bar : celle-là se règle au glissé, et seul l'accord en cours se règle ici.
-                const velVoisin = (seg, colBase) => {
-                    const propres = seg.data.intensityPerStep || {};
-                    const base = (seg.data.intensity != null) ? +seg.data.intensity : DEFAULT_INTENSITY;
-                    let out = '';
-                    for (let s = 0; s < seg.steps; s++) {
-                        if (!seg.pattern[s].some(v => !seg.tie[s].includes(v))) continue;
-                        const propre = propres[s] != null;
-                        out += `<div class="seq-vel-ctx${propre ? ' reglee' : ''}" data-accord="${seg.index}" data-step="${s}" aria-hidden="true" style="grid-row:${velRow}; grid-column:${colBase + seg.colStart + s + 2};"><div class="seq-vel-fill" style="height:${propre ? +propres[s] : base}%;"></div></div>`;
-                    }
-                    return out;
-                };
-                for (const seg of prevSegs) velHtml += velVoisin(seg, 0);
-                for (const seg of nextSegs) velHtml += velVoisin(seg, colOffset + pageSteps);
-            }
-            html += velHtml;
-        }
-
-        // Curseur de lecture (masqué par défaut, positionné/affiché par updateSeqPlayhead pendant la
-        // lecture) : ne couvre que les rangées de voix (contexte compris), jamais la règle de mesure.
-        // Départ à la ligne 2, pas 1 : la règle a pris la ligne 1 (voir beatRow) et les hauteurs
-        // commencent donc à 2 — la barre débordait sur la règle et s'arrêtait une voix trop tôt,
-        // laissant la ligne la plus grave sans curseur. Le repère de la règle, lui, est un élément à
-        // part (.seq-ruler-head, juste en dessous).
-        html += `<div class="seq-playhead" style="grid-row: 2 / span ${rowCount}; grid-column: 2 / span 1;"></div>`;
-        // Repère de lecture reporté DANS la règle (voir .seq-ruler-head) : sur une station audio,
-        // c'est là qu'on suit la position, pas seulement sur la barre qui traverse les notes.
-        // Déplacé par le même code que la barre (voir updateSeqPlayhead), donc toujours d'accord
-        // avec elle. Masqué à l'arrêt, comme elle.
-        if (continuous) html += `<div class="seq-ruler-head" hidden style="grid-row:${beatRow}; grid-column: 2 / span 1;"></div>`;
-
-        // Zones cliquables couvrant TOUT le contexte gauche/droite (accords voisins grisés, voir plus
-        // haut) : cliquer n'importe où dedans (pas seulement pile sur une note grisée, souvent fine)
-        // bascule l'édition sur CET accord précis (voir le câblage plus bas, qui rappelle
-        // editChordFromGridZoom) — le rectangle orangé de la grille suit alors automatiquement,
-        // puisque c'est la même méthode que pour un clic direct dans la grille (retour utilisateur :
-        // pouvoir défiler/cliquer directement N'IMPORTE QUEL accord de la grille sans quitter le
-        // séquenceur, pas seulement le voisin immédiat — une zone par accord, chacune ciblant son
-        // propre index plutôt qu'une seule grande zone qui ne menait qu'au plus proche). Toute la
-        // hauteur des voix (comme .seq-playhead), jamais la règle de mesure : elle occupe la ligne 1
-        // (voir beatRow) et sert justement de surface où GLISSER pour défiler (voir touch-action sur
-        // .seq-beat-label) — une zone de navigation posée par-dessus y transformait le moindre appui en
-        // changement d'accord. Les hauteurs commencent donc à la ligne 2, comme le curseur de lecture.
-        const ctxNavLabel = (seg) => chordSymbolForData(seg.data, this.useFlatsForRoot(seg.data.root));
-        if (continuous) {
-            prevSegs.forEach(seg => {
-                html += `<div class="seq-ctx-nav seq-ctx-nav-prev" data-target-index="${seg.index}" style="grid-row: 2 / span ${rowCount}; grid-column: ${seg.colStart + 2} / span ${seg.steps};" title="Modifier ${escapeHtml(ctxNavLabel(seg))}"></div>`;
-            });
-            nextSegs.forEach(seg => {
-                html += `<div class="seq-ctx-nav seq-ctx-nav-next" data-target-index="${seg.index}" style="grid-row: 2 / span ${rowCount}; grid-column: ${colOffset + pageSteps + seg.colStart + 2} / span ${seg.steps};" title="Modifier ${escapeHtml(ctxNavLabel(seg))}"></div>`;
-            });
-        }
-
-        html += `</div></div>`;
-
-        // Navigation par page (uniquement si l'accord déborde d'une page, voir wideCompact) : un vrai
-        // défilement désormais, pas un saut avec reconstruction — voir le câblage plus bas
-        // (updatePageNav), qui corrige l'étiquette et l'état désactivé juste après le montage, à
-        // partir de la position RÉELLE de défilement plutôt que d'un index de page.
-        if (totalPages > 1) {
-            const totalBars = Math.ceil(steps / stepsPerBar);
-            html += `<div class="seq-page-nav">
-                <button type="button" id="seq-page-prev" class="icon-btn" title="Mesure précédente" aria-label="Mesure précédente">${svgIcon('chevron-left')}</button>
-                <span class="seq-page-label" id="seq-page-label">Mesure 1 / ${totalBars}</span>
-                <button type="button" id="seq-page-next" class="icon-btn" title="Mesure suivante" aria-label="Mesure suivante">${svgIcon('chevron-right')}</button>
-            </div>`;
-        }
-        // Les préréglages rythmiques (Tenu, Noire...) se choisissent désormais uniquement via le
-        // menu déroulant Lecture ; cette rangée ne garde que l'écoute directe et le nettoyage.
-        const hasSelection = this.seqSelections.length > 0;
-        const countSuffix = this.seqSelections.length > 1 ? ` (${this.seqSelections.length})` : '';
-        // Ordre : transport (lecture/stop/boucle) -> actions sur le motif (ajouter/tout supprimer/
-        // taper le rythme/pipette/supprimer la sélection) -> zoom H/V en TOUT DERNIER (retour
-        // utilisateur : au milieu, ça coupait la suite logique des actions en deux). Le zoom est un
-        // réglage d'AFFICHAGE, pas une action sur le motif — même place (tout à droite de sa rangée)
-        // que partout ailleurs dans l'appli (en-tête de la grille, panneau Conduite de voix).
-        // #seq-play ne priorise une plage à boucler (voir plus bas) qu'en VUE AGRANDIE : là, le
-        // séquenceur montre toute la grille, on navigue dans son contexte entier, la plage a donc un
-        // sens. Le petit séquenceur reste lié au seul accord en édition, quelle que soit une plage
-        // définie par ailleurs (retour utilisateur : son bouton lecture se retrouvait à tort à jouer
-        // toute la grille).
-        // Idem ici : agrandir ne fait plus passer ce bouton du côté « toute la grille ». Il ne joue la
-        // plage que dans la vue CONTINUE, la seule où l'on voit le morceau entier — agrandi ou non.
-        const seqLoopRangeActive = !!this.loopRange && this.seqMode === 'continu';
-        // Retenu pour syncAnneauBoucle : ce bouton lance tantôt la grille, tantôt le seul accord en
-        // édition, et son anneau doit parler de la lecture qu'il lance VRAIMENT.
-        this._seqPlayLanceGrille = seqLoopRangeActive;
-        // QUATRE FAMILLES, SÉPARÉES. Retour utilisateur : « ça serait l'occasion de réorganiser les
-        // boutons sous le petit séquenceur. C'est brouillon à l'affichage. » Il avait raison, et le
-        // compte le dit : neuf boutons alignés à plat, sans aucune césure, dans un ordre qui mélangeait
-        // le transport, les actions sur le motif, les suppressions et les réglages d'affichage.
-        // Ils sont désormais groupés par ce qu'ils FONT, chaque groupe séparé du suivant par un filet :
-        //   transport (écouter) | motif (fabriquer) | suppression (défaire) | affichage (regarder)
-        // L'ordre à l'intérieur de chaque groupe ne change pas : c'est un regroupement, pas un
-        // remaniement, et rien de ce qu'on savait trouver ne change de voisin.
-        // MODE STUDIO = « Intensité » dans l'éditeur de notes (lot 9d). La maquette le range avec les commandes d'AFFICHAGE, juste après Voix (« Voix,
-        // Intensité, zoom, Ajuster ») : il montre ou cache une bande, comme Voix un calque. Même bouton, même id, même logo (règle 2 : le logo
-        // existant est repris), allumé en bleu comme Voix et Ajuster (aria-pressed, style.css). Ailleurs (petit séquenceur, téléphone), il garde
-        // sa place et ses mots d'avant.
-        const boutonStudio = this._editeurNotesActif
-            ? `<button type="button" id="toggle-studio-mode" class="icon-btn seq-icon-btn${this.studioMode ? ' active' : ''}" aria-pressed="${this.studioMode}" title="Intensité : une bande sous les notes, pour régler l'intensité croche par croche" aria-label="Intensité">${svgIcon('studio')}</button>`
-            : `<button type="button" id="toggle-studio-mode" class="icon-btn seq-icon-btn${this.studioMode ? ' active' : ''}" title="Mode studio : régler l'intensité croche par croche" aria-label="Mode studio">${svgIcon('studio')}</button>`;
-        html += `<div class="seq-presets">
-            <div class="seq-groupe" data-groupe="transport">
-            <button type="button" id="seq-play" class="btn-prog seq-icon-btn${seqLoopRangeActive ? ' btn-loop-range' : ''}" title="${seqLoopRangeActive ? 'Lire la plage à boucler' : 'Lecture'}" aria-label="${seqLoopRangeActive ? 'Lire la plage à boucler' : 'Lecture'}" aria-pressed="false">${svgIcon('play')}<svg class="icon transport-icon-boucle" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.2 2.6a9.4 9.4 0 1 1-6.85 2.75" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="butt"/><path d="M11.2 0 15.6 2.6l-4.4 2.6z" fill="currentColor"/><path d="M9 7.2v9.6l7.4-4.8z" fill="currentColor"/></svg></button>
-            <button type="button" id="seq-stop" class="btn-stop seq-icon-btn" title="Stop" aria-label="Stop">${svgIcon('stop')}</button>
-            </div>
-            <!-- LE BOUTON « REJOUER EN BOUCLE » A DISPARU D'ICI, comme celui du transport : la boucle
-                 est devenue un anneau autour du triangle de Lecture (voir setupBoucleLecture). Un
-                 bouton de moins dans une barre qu'on trouvait justement trop chargée, et le même
-                 geste partout — appui long ou clic droit.
-                 ATTENTION, ce bouton-ci ne commande PAS la même boucle que celui du transport : il
-                 lance le plus souvent le seul accord en édition (playCurrent/seqLoopPlay). Les fondre
-                 en un seul drapeau ferait qu'une plage tracée sur la grille mettrait l'AUDITION d'un
-                 accord en boucle sans fin — voir basculerBoucleSequenceur, qui choisit lequel des deux
-                 il bascule selon ce que le bouton lance réellement. -->
-            <div class="seq-groupe" data-groupe="motif">
-            <button type="button" id="seq-add-note" class="icon-btn seq-icon-btn" title="Ajouter une note libre (ex. note de passage)" aria-label="Ajouter une note libre">${svgIcon('plus')}</button>
-            <!-- LE BOUTON « MOTIF TYPE » N'EST PLUS ICI, et c'est un revirement assumé.
-                 Le lot précédent venait de l'étendre du tiroir mobile à tout le séquenceur, en
-                 argumentant que « poser un motif type est une action sur le rythme, sa place est dans
-                 l'outil du rythme ». L'argument tenait — mais il répondait à la mauvaise question.
-                 Retour utilisateur : « Je pense que je ne me servirai rarement du rythme. Pour
-                 diminuer le nombre de boutons, laisser uniquement un choix favori dans les
-                 paramètres. […] Supprime les boutons dans "Lecture" et dans le petit séquenceur. »
-                 Le bon endroit pour une commande dont on ne se sert pas, ce n'est aucun endroit : le
-                 choix se fait UNE fois dans Paramètres > Son (RYTHME_DEPART_CHOIX), et le rythme se
-                 dessine ensuite à la main dans le séquenceur, ce qui est justement le geste rapide. -->
-            <!-- Pipette de motif ENTRE VOIES du même accord (retour utilisateur : sélectionner une ou
-                 plusieurs notes/barres, voir seqSelections, puis les appliquer sur une AUTRE ligne du
-                 même séquenceur) — voir toggleSeqRowPipette/applySeqRowPipette. Distincte de Ctrl+C/V
-                 (copySeqPattern/pasteSeqPattern, tout le motif entre ACCORDS) : ici on ne touche jamais
-                 qu'une partie du motif, vers une autre voix du MÊME accord. Groupée avec les actions
-                 constructives (ajouter/prélever), avant les deux actions de suppression ci-dessous. -->
-            <!-- MODE STUDIO : réglage FIN de l'intensité, croche par croche. Il vivait au bout de la
-                 rangée d'intensité de la carte Lecture ; celle-ci est partie dans le menu contextuel
-                 (« c'est une option pour affiner le morceau seulement. À cacher »), et un réglage fin
-                 du rythme n'a de toute façon de sens qu'ici : il dessine ses barres DANS ce séquenceur.
-                 Construit à chaque rendu comme ses voisins, donc câblé au même endroit qu'eux. -->
-            ${this._editeurNotesActif ? '' : boutonStudio}
-            <button type="button" id="seq-row-pipette" class="icon-btn seq-icon-btn${this.seqRowPipette ? ' active' : ''}" ${(hasSelection || this.seqRowPipette) ? '' : 'disabled'} title="${this.seqRowPipette ? 'Clique une ligne pour y appliquer le motif prélevé (Échap pour annuler)' : 'Prélever le motif sélectionné pour le coller sur une autre ligne'}" aria-label="${this.seqRowPipette ? 'Appliquer le motif prélevé sur une ligne' : 'Prélever le motif sélectionné'}">${svgIcon('seqRowPipette')}</button>
-            </div>
-            <div class="seq-groupe" data-groupe="suppression">
-            ${this.estSequenceurEnTiroir() ? `
-            <!-- FERMER LE TIROIR, depuis le tiroir lui-même. Signalé par l'utilisateur : « je
-                 n'arrive plus à fermer le petit séquenceur une fois ouvert (test réalisé sur
-                 téléphone) ». Mesuré ensuite : le bouton qui l'ouvre (#toggle-sequencer, dans la
-                 carte Lecture) se trouve à 838px sur une fenêtre de 664 — hors écran, avant comme
-                 après l'ouverture. Le tiroir ne rejoignant volontairement PAS la table des popups
-                 (un clic sur la grille ne doit pas le refermer), il n'avait donc AUCUNE sortie
-                 atteignable. C'est le prix à payer de ce choix, et il se paie ici : un panneau
-                 flottant porte sa propre fermeture. -->
-            ` : ''}
-            <button type="button" data-preset="clear" class="seq-delete-btn" title="Effacer tout le rythme de l'accord" aria-label="Effacer tout le rythme de l'accord">${svgIcon('trash')}<span class="seq-mot"> tout</span></button>
-            <button type="button" id="seq-delete-selection" class="seq-delete-btn" ${hasSelection ? '' : 'disabled'} title="Supprimer la note (Suppr)" aria-label="Supprimer la note${countSuffix}">${svgIcon('trash')}
-                <span class="lbl-full">sélection${countSuffix}</span><span class="lbl-short">Sélect.${countSuffix}</span>
-            </button>
-            </div>
-            <div class="seq-groupe" data-groupe="affichage">
-            ${this._editeurNotesActif ? boutonStudio : ''}
-            <!-- LA PORTE DU PLEIN ÉCRAN EST ICI, et plus dans le volet de gauche. Retour utilisateur :
-                 « je propose d'ajouter un bouton loupe dans le petit séquenceur, qui permettra
-                 d'afficher ce dernier en grand écran (au lieu de l'ouvrir directement avec le bouton
-                 "Séquenceur" dans le volet), car je n'aurais pas souvent besoin d'ouvrir le séquenceur
-                 en grand. »
-                 C'est le bon rangement : agrandir est une opération SUR le séquenceur, sa commande
-                 appartient donc au séquenceur — et le bouton du volet redevient ce que son nom dit,
-                 une simple ouverture. Masquée en plein écran, où elle n'aurait plus rien à agrandir. -->
-            ${this.seqZoomOpen ? '' : `<button type="button" id="seq-plein-ecran" class="icon-btn seq-icon-btn" title="Afficher le séquenceur en grand" aria-label="Afficher le séquenceur en grand">${svgIcon('loupePlus')}</button>`}
-            ${this.estSequenceurEnTiroir() ? `<button type="button" id="seq-tiroir-close" class="icon-btn seq-icon-btn seq-tiroir-close" title="Fermer le séquenceur" aria-label="Fermer le séquenceur">${svgIcon('close')}</button>` : ''}
-            <!-- Le sélecteur d'aimantation (1/4, 1/8, 1/16) vivait ici. Retiré (retour utilisateur :
-                 « il faut enlever le bouton du choix d'aimantation, il faut que les notes s'accrochent
-                 à la double croche automatiquement ») : c'était un réglage à comprendre et à maintenir
-                 pour un choix que la grille rend déjà évident — une case EST une double croche. Voir
-                 snapSeqBoundary : l'aimantation est désormais fixe, avec un léger penchant pour la
-                 croche quand on en passe tout près. -->
-            ${showInlineSeqZoom ? `
-            <!-- Séquenceur COMPACT : il n'avait qu'un réglage horizontal, là où toutes les autres
-                 fenêtres ont H ET V — d'où une bonne part de l'impression d'incohérence. Il a
-                 désormais les deux, groupés comme ailleurs (voir .btn-wrap-group : H et V passent à
-                 la ligne ENSEMBLE sur téléphone, jamais scindés au hasard). -->
-            <div class="btn-wrap-group">
-                <div class="zoom-axis-group" data-zoom-kind="seqInline" data-zoom-axis="x" title="Échelle horizontale">
-                    <span class="zoom-axis-tag">H</span>
-                    <button type="button" id="seq-zoom-in-h-inline" class="icon-btn zoom-axis-btn" title="Agrandir l'échelle horizontale" aria-label="Agrandir l'échelle horizontale">${svgIcon('plus')}</button>
-                    <button type="button" id="seq-zoom-out-h-inline" class="icon-btn zoom-axis-btn" title="Réduire l'échelle horizontale" aria-label="Réduire l'échelle horizontale">${svgIcon('minus')}</button>
-                </div>
-            </div>` : ''}
-            </div>
-        </div>`;
-
-        host.innerHTML = html;
-
-        // Les barres de notes viennent d'être reconstruites : on repose le surlignage de survol sur la
-        // nouvelle barre qui couvre la case encore sous le pointeur (voir applySeqHoverHighlight).
-        // Sans ça, la mise en évidence disparaissait à chaque repeinture — pendant un étirement, par
-        // exemple — alors que la souris n'avait pas bougé d'un pixel. Le repère de zone (voir la
-        // signature dans applySeqHoverHighlight) est invalidé d'abord : les cases sont neuves, donc
-        // même identique il faut le reposer sur elles.
-        // Le bouton Lecture du séquenceur vient d'être reconstruit avec le reste de la barre : il
-        // repart donc sans anneau, quel que soit l'état réel de la boucle. On le repose ici, au même
-        // endroit que le surlignage — même raison, même piège.
-        this.syncAnneauBoucle();
-        this._seqBodyZoneSig = null;
-        this.applySeqHoverHighlight();
-
-        // Mode continu : place (ou garde) le défilement horizontal sur l'accord en édition, jamais
-        // perdu dans le contexte gauche par défaut — voir prevScrollLeft capturé plus haut, avant la
-        // reconstruction du HTML ci-dessus. Différé à la frame suivante : écrire scrollLeft sur un
-        // élément qui n'a pas encore de mise en page (panneau tout juste révélé) est silencieusement
-        // ignoré et retombe à 0.
-        // wideCompact (voir plus haut) : même préservation qu'en continu — un accord compact qui
-        // déborde d'une page ne doit pas revenir au tout début à chaque repeinture (ex. juste après
-        // l'auto-scroll d'un étirement près du bord, voir _updateSeqAutoScroll) ; colOffset y vaut
-        // toujours 0 (pas de contexte voisin), donc le repli par défaut est bien le tout début.
-        if (continuous || wideCompact) {
-            // L'échelle a-t-elle changé depuis le rendu précédent ? (Comparaison tolérante : ces
-            // largeurs sont des flottants issus d'un produit, jamais strictement égales.)
-            const echelleChangee = !isNaN(prevColPx) && Math.abs(prevColPx - continuousColPx) > 0.01;
-            requestAnimationFrame(() => {
-                const scrollEl = host.querySelector('.seq-scroll');
-                if (!scrollEl) return;
-                // Centre l'accord en édition dans la largeur visible. Utilisé au premier affichage
-                // (aucune position antérieure) ET à chaque changement d'échelle : c'est le seul repère
-                // qui garde un sens quand les pixels, eux, n'en ont plus.
-                const centrerSurAccordEdite = () => {
-                    const largeurAccord = steps * continuousColPx;
-                    const centreAccord = colOffset * continuousColPx + largeurAccord / 2;
-                    const cible = centreAccord - scrollEl.clientWidth / 2;
-                    scrollEl.scrollLeft = Math.max(0, cible);
-                };
-                // MÊME SERVICE SUR L'AXE VERTICAL, qui n'en avait aucun : la vue affiche toujours les
-                // soixante demi-tons de l'étendue (voir .seq-cell-free), dont la moitié seulement tient
-                // à l'écran, et scrollTop restait à 0 — c'est-à-dire tout en haut, sur les notes les plus
-                // AIGUËS. Un accord joué en octave 3 se retrouvait donc collé au bas de la bande, parfois
-                // à demi coupé (mesuré : barre à 66 % de la hauteur, scrollTop à 0) — « elle n'est pas du
-                // tout centrée dans le séquenceur, mais elle apparaît à la base du séquenceur ».
-                // On centre sur le MILIEU des hauteurs réellement jouées par l'accord édité, pas sur le
-                // milieu de l'étendue : c'est ce qu'on regarde, et deux accords d'octaves différentes ne
-                // doivent pas donner la même vue.
-                const centrerHauteursEditees = () => {
-                    const barres = [...scrollEl.querySelectorAll('.seq-note, .seq-cell[data-voice]:not([data-voice="-1"])')]
-                        .filter(e => e.classList.contains('seq-note'));
-                    // À défaut de barre posée (accord vide, rythme entièrement effacé), on se rabat sur
-                    // les libellés de voix de l'accord : ils occupent les mêmes lignes.
-                    const reperes = barres.length ? barres
-                        : [...scrollEl.querySelectorAll('.seq-label:not(.seq-label-context)')];
-                    if (!reperes.length) return;
-                    const rs = scrollEl.getBoundingClientRect();
-                    let haut = Infinity, bas = -Infinity;
-                    for (const el of reperes) {
-                        const r = el.getBoundingClientRect();
-                        haut = Math.min(haut, r.top - rs.top + scrollEl.scrollTop);
-                        bas = Math.max(bas, r.bottom - rs.top + scrollEl.scrollTop);
-                    }
-                    if (!isFinite(haut) || !isFinite(bas)) return;
-                    const cible = (haut + bas) / 2 - scrollEl.clientHeight / 2;
-                    scrollEl.scrollTop = Math.max(0, Math.min(scrollEl.scrollHeight - scrollEl.clientHeight, cible));
-                };
-                // Les deux axes sont décidés SÉPARÉMENT : chacun se recentre quand sa propre échelle a
-                // changé, et se contente de reprendre sa position sinon. Les mélanger faisait recentrer
-                // la hauteur pour une raison purement horizontale — « la barre se recentre également en
-                // horizontal, ce que je ne voulais pas produire » vaut aussi dans l'autre sens.
-                const rowEl = scrollEl.querySelector('.seq-cell, .seq-label');
-                const rowPx = rowEl ? rowEl.getBoundingClientRect().height : NaN;
-                const echelleVChangee = !isNaN(prevRowPx) && !isNaN(rowPx) && Math.abs(prevRowPx - rowPx) > 0.01;
-                if (prevScrollLeft == null || echelleChangee) centrerSurAccordEdite();
-                else scrollEl.scrollLeft = prevScrollLeft; // simple repeinture : on ne bouge pas sous les doigts
-                if (prevScrollTop == null || echelleVChangee) centrerHauteursEditees();
-                else scrollEl.scrollTop = prevScrollTop;
-            });
-        }
-
-        // Molette SANS Ctrl (Ctrl+molette reste le zoom, voir _bindCtrlWheelZoom). Trois axes d'entrée
-        // possibles, un seul comportement par cas, et jamais de preventDefault s'il n'y a rien à faire
-        // défiler — sinon la page cesserait de bouger sous la souris sans raison.
-        //   - deltaX (pavé tactile à deux doigts, molette inclinable) -> défilement horizontal, tel
-        //     quel. Il était purement et simplement IGNORÉ, alors même que le preventDefault ci-dessous
-        //     coupait le défilement natif qui l'aurait fait : à deux doigts sur un pavé tactile, la
-        //     bande restait donc figée.
-        //   - Maj+molette -> horizontal, convention universelle.
-        //   - molette seule -> les hauteurs si la bande déborde verticalement (zoom vertical poussé :
-        //     c'est alors la seule façon de les atteindre à la molette, l'ancien code envoyait TOUT en
-        //     horizontal), sinon la molette avance dans le morceau — le cas courant, et celui qui
-        //     avait été demandé (« rejoindre la mesure suivante à la souris »).
-        {
-            const wheelScrollEl = host.querySelector('.seq-scroll');
-            if (wheelScrollEl) {
-                wheelScrollEl.addEventListener('wheel', (e) => {
-                    if (e.ctrlKey) return;
-                    const peutH = wheelScrollEl.scrollWidth > wheelScrollEl.clientWidth;
-                    const peutV = wheelScrollEl.scrollHeight > wheelScrollEl.clientHeight;
-                    if (e.deltaX && peutH) { e.preventDefault(); wheelScrollEl.scrollLeft += e.deltaX; return; }
-                    if (!e.deltaY) return;
-                    if (e.shiftKey && peutH) { e.preventDefault(); wheelScrollEl.scrollLeft += e.deltaY; return; }
-                    // VERTICAL : on ne touche à RIEN, et c'est tout l'intérêt. Ce cas faisait
-                    // `preventDefault()` puis `scrollTop += e.deltaY`, ce qui remplace le défilement
-                    // natif — animé, avec inertie sur pavé tactile — par un saut sec de la valeur brute
-                    // du cran de molette, ~100px d'un coup sur Windows. D'où le « défilement par
-                    // à-coups, pas très fluide » signalé, et l'écart avec GarageBand : ce n'était pas un
-                    // manque d'animation à ajouter, c'était l'animation du navigateur qu'on lui retirait.
-                    // Laisser passer l'événement suffit : la bande déborde verticalement, le navigateur
-                    // la fait donc défiler lui-même, avec sa propre courbe.
-                    if (peutV) return;
-                    if (peutH) { e.preventDefault(); wheelScrollEl.scrollLeft += e.deltaY; }
-                }, { passive: false });
-
-                // Glisser au bouton du MILIEU de la souris (comme l'outil « main » d'une station audio :
-                // GarageBand, Logic...) : maintenir le bouton enfoncé et déplacer la souris fait défiler
-                // la bande dans les deux sens, sans avoir à viser une fine poignée (retour utilisateur :
-                // « j'aimerais pouvoir scroller en laissant cliquée la molette et en allant vers la
-                // droite ou la gauche avec la souris »). preventDefault() dès l'appui coupe le geste
-                // natif de Chrome/Windows/Linux (l'icône de défilement automatique qui apparaît sinon au
-                // clic molette et suit la souris SANS qu'on ait besoin de maintenir le bouton) : les deux
-                // modes se seraient sinon superposés et gênés l'un l'autre.
-                let glissePointeurId = null, glisseDepartX = 0, glisseDepartY = 0, glisseScrollL = 0, glisseScrollT = 0;
-                wheelScrollEl.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
-                wheelScrollEl.addEventListener('pointerdown', (e) => {
-                    if (e.button !== 1) return;
-                    e.preventDefault();
-                    glissePointeurId = e.pointerId;
-                    glisseDepartX = e.clientX; glisseDepartY = e.clientY;
-                    glisseScrollL = wheelScrollEl.scrollLeft; glisseScrollT = wheelScrollEl.scrollTop;
-                    // Capture explicite : le geste doit continuer à défiler même si la souris sort de la
-                    // bande pendant le glissé (même raison que le pincement tactile, voir plus haut).
-                    try { wheelScrollEl.setPointerCapture(e.pointerId); } catch (err) { /* ignoré, voir commentaire du pincement tactile plus haut */ }
-                    wheelScrollEl.classList.add('seq-scroll-panning');
-                });
-                wheelScrollEl.addEventListener('pointermove', (e) => {
-                    if (e.pointerId !== glissePointeurId) return;
-                    e.preventDefault();
-                    // Glisser vers la DROITE révèle ce qui est à GAUCHE (on « tire » le contenu vers
-                    // soi) : le scroll diminue quand la souris avance, d'où le signe moins.
-                    wheelScrollEl.scrollLeft = glisseScrollL - (e.clientX - glisseDepartX);
-                    wheelScrollEl.scrollTop = glisseScrollT - (e.clientY - glisseDepartY);
-                });
-                const finGlissePointeur = (e) => {
-                    if (e.pointerId !== glissePointeurId) return;
-                    glissePointeurId = null;
-                    wheelScrollEl.classList.remove('seq-scroll-panning');
-                };
-                wheelScrollEl.addEventListener('pointerup', finGlissePointeur);
-                wheelScrollEl.addEventListener('pointercancel', finGlissePointeur);
-            }
-        }
-
-        // Étiquette éditable d'une note libre (voir addSequencerNote) : Entrée valide (déclenche le
-        // blur ci-dessous), Échap annule sans valider — même schéma que les autres renommages en
-        // ligne de l'appli (morceau, dossier...).
-        const myRenderGen = this.seqRenderGen; // voir déclaration : capturé PAR rendu, pas par étiquette
-        host.querySelectorAll('.seq-label-input').forEach(input => {
-            const extraIdx = parseInt(input.dataset.extraIndex);
-            input.addEventListener('keydown', (e) => {
-                e.stopPropagation();
-                if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-                else if (e.key === 'Escape') { e.preventDefault(); input.value = input.defaultValue; input.blur(); }
-            });
-            // Un rendu ultérieur (autre accord chargé, ou même accord reconstruit pour une autre raison)
-            // remplace ce champ sans jamais le blurrer explicitement : le navigateur déclenche alors LUI-
-            // MÊME un blur natif au moment où `host.innerHTML` le détache, avec ce même écouteur toujours
-            // branché dessus. Sans le garde-fou ci-dessous, ce commit tardif s'appliquerait à `this.
-            // extraNotes` de l'accord ENTRETEMPS chargé (index de voix redevenu invalide, voire voix
-            // fantôme dupliquée) au lieu de celui pour lequel ce champ existait — voir pruneEmptyExtraNotes.
-            input.addEventListener('blur', () => {
-                if (this.seqRenderGen !== myRenderGen) return;
-                this.commitExtraNoteLabel(extraIdx, input.value);
-            });
-            // Écouter la hauteur au clic, comme les étiquettes normales ci-dessous : n'empêche pas le
-            // focus/l'édition du texte qui suit ce même clic (pas de preventDefault ici).
-            input.addEventListener('click', () => this.previewSeqNote(+input.dataset.voice));
-        });
-
-        // Étiquette normale (hauteur non modifiable) : clic = écouter cette voix, pratique pour
-        // vérifier une note à l'oreille sans avoir à lancer toute la lecture de l'accord.
-        host.querySelectorAll('.seq-label[data-voice]').forEach(label => {
-            label.addEventListener('click', () => this.previewSeqNote(+label.dataset.voice));
-        });
-
-        // Zones de contexte gauche/droite (voir plus haut, mode continu) : bascule l'édition sur
-        // l'accord voisin, exactement comme un clic dessus dans la grille (le rectangle orangé suit).
-        host.querySelectorAll('.seq-ctx-nav').forEach(zone => {
-            zone.addEventListener('click', () => this.editChordFromSequencer(this.activeSection, +zone.dataset.targetIndex));
-        });
-
-        const btnStudio = host.querySelector('#toggle-studio-mode');
-        if (btnStudio) {
-            btnStudio.addEventListener('click', (e) => {
-                this.studioMode = !this.studioMode;
-                localStorage.setItem(STUDIO_MODE_KEY, this.studioMode ? '1' : '0');
-                e.currentTarget.classList.toggle('active', this.studioMode);
-                this.renderSequencer();
-            });
-        }
-
-        const btnFermer = host.querySelector('#seq-tiroir-close');
-        if (btnFermer) btnFermer.addEventListener('click', () => this.toggleSequencer(this.seqMode));
-
-        // Bouton « X tout » (remplace tout le motif par du silence) : ciblé via [data-preset] pour
-        // ne pas capturer « X sélection » ci-dessous, qui a son propre câblage.
-        host.querySelectorAll('.seq-presets button[data-preset]').forEach(btn => {
-            btn.onclick = () => {
-                this.pushSeqUndo();
-                this.seqTouched = true;
-                this.seqSelections = [];
-                const { pattern: p, tie: t } = seqPreset(btn.dataset.preset, voices, steps);
-                this.setLiveSeqPattern(p, t);
-                this.renderSequencer();
-                this.livePreviewUpdate();
-            };
-        });
-
-        const delBtn = document.getElementById('seq-delete-selection');
-        if (delBtn) delBtn.onclick = () => this.deleteSelectedSeqNote();
-
-        const rowPipetteBtn = document.getElementById('seq-row-pipette');
-        if (rowPipetteBtn) rowPipetteBtn.onclick = () => this.toggleSeqRowPipette();
-
-
-        // Barres de vélocité du mode studio (voir plus haut dans ce rendu) : le pointerdown démarre le
-        // glissé (this._velDragStep, suivi par pointermove/pointerup posés une seule fois dans
-        // setupEventListeners), le double-clic efface le réglage propre à cette croche pour revenir à
-        // l'intensité globale de l'accord.
-        host.querySelectorAll('.seq-vel-bar').forEach(bar => {
-            bar.addEventListener('pointerdown', (e) => {
-                e.preventDefault();
-                const step = +bar.dataset.step;
-                // UNE ÉTAPE D'ANNULATION PAR GESTE (lot 9d) : le réglage d'une barre n'était dans aucun historique (Ctrl+Z ne le défaisait pas).
-                // Le second appui d'un double-clic (sur la même barre, moins d'une demi-seconde après le relâchement du premier) fait partie du
-                // même geste : il n'empile rien, et Ctrl+Z rend alors la valeur d'avant le premier appui.
-                const l = this._velDernierLacher;
-                const memeGeste = !!l && l.step === step && performance.now() - l.t < 500;
-                if (!memeGeste) this.pushSeqUndo();
-                this._velDragStep = step;
-                this.applyStudioVelocityFromClientY(bar, e.clientY);
-            });
-            bar.addEventListener('dblclick', (e) => {
-                e.preventDefault();
-                delete this.intensityPerStep[+bar.dataset.step];
-                this.renderSequencer();
-            });
-        });
-
-        const playBtn = document.getElementById('seq-play');
-        // Une plage à boucler (bande orange/dorée, voir setLoopRange) déjà en place ET on est EN LOUPE
-        // (grille ou séquenceur, voir seqLoopRangeActive ci-dessus) : lire TOUTE la plage (comme le
-        // bouton Grille, voir playProgression, qui la priorise déjà) plutôt que le seul accord en
-        // édition — cohérent avec le recolorage ci-dessus (voir updatePlayButtonsForLoopRange pour
-        // l'équivalent sur les boutons du pied de colonne/de l'en-tête loupe). Hors loupe, ce bouton
-        // reste toujours lié au seul accord en cours, quelle que soit une plage définie ailleurs.
-        if (playBtn) playBtn.onclick = () => (seqLoopRangeActive ? this.playProgression() : this.playCurrent());
-        const stopBtn = document.getElementById('seq-stop');
-        if (stopBtn) stopBtn.onclick = () => this.stopAll();
-        // La boucle se règle depuis le bouton Lecture lui-même (appui long / clic droit), comme dans le
-        // transport. Rebranché à CHAQUE rendu parce que le bouton est reconstruit avec sa barre —
-        // brancherAppuiLongBoucle pose un repère sur l'élément pour ne pas doubler les écouteurs.
-        if (playBtn) this.brancherAppuiLongBoucle(playBtn, () => this.basculerBoucleSequenceur());
-        // La porte du plein écran, désormais DANS le séquenceur (voir la barre plus haut).
-        const pleinEcranBtn = document.getElementById('seq-plein-ecran');
-        if (pleinEcranBtn) pleinEcranBtn.onclick = () => this.ouvrirSequenceurPleinEcran();
-        const addNoteBtn = document.getElementById('seq-add-note');
-        if (addNoteBtn) addNoteBtn.onclick = () => this.addSequencerNote();
-        // Séquenceur compact : câblé comme tous les autres panneaux zoomables désormais (voir
-        // _bindZoomButtons/setZoomLevel, kind 'seqInline') — il avait jusque-là ses propres fonctions.
-        this._bindZoomButtons('seqInline', {
-            inH: 'seq-zoom-in-h-inline', outH: 'seq-zoom-out-h-inline',
-        });
-        // (Ici se trouvait le câblage des boutons de zoom du séquenceur ÉPINGLÉ de la loupe grille :
-        // seq-zoom-in-h-pinned & co. Ces boutons ne sont plus produits par aucun rendu depuis la
-        // suppression de la vue plein écran de la grille — _bindZoomButtons ignorant silencieusement
-        // un id introuvable, l'appel ne faisait plus rien tout en laissant croire, à la lecture, que
-        // cette barre existait encore. Le volet continu n'a qu'un zoom HORIZONTAL, câblé juste
-        // au-dessus sous le kind 'seqInline' ; le vertical a été retiré volontairement, voir
-        // setZoomLevel qui sort d'emblée pour seqInline/axe y.)
-
-        // Navigation par page (seulement en wideCompact, voir plus haut — jamais en continu, qui n'a
-        // pas ce bloc) : un vrai défilement fluide d'une mesure (ou groupe de mesures), pas un saut
-        // avec reconstruction complète — le contenu est déjà tout affiché (voir wideCompact), scroller
-        // suffit. L'étiquette et l'état désactivé des boutons suivent la position réelle de défilement,
-        // pas un index de page qui n'existe plus vraiment ici (this.seqPage n'est plus utilisé que
-        // comme repli initial, voir prevScrollLeft/colOffset plus haut dans ce rendu).
-        const prevBtn = document.getElementById('seq-page-prev');
-        const nextBtn = document.getElementById('seq-page-next');
-        if (wideCompact && (prevBtn || nextBtn)) {
-            const pageNavScrollEl = host.querySelector('.seq-scroll');
-            const pageNavLabel = document.getElementById('seq-page-label');
-            const totalBars = Math.ceil(steps / stepsPerBar);
-            const pagePx = stepsPerPage * continuousColPx;
-            // Mesure RÉELLEMENT visible (bornes gauche ET droite de la fenêtre de défilement), pas un
-            // simple index de page multiplié par stepsPerPage : quand le débordement est modeste (peu
-            // de croches qui dépassent), les deux mesures peuvent déjà être quasi entièrement visibles
-            // à la fois même tout au bout du défilement — un calcul par page fixe restait alors bloqué
-            // sur "Mesure 1" malgré un vrai défilement jusqu'au bout (repéré en testant ce câblage).
-            const updatePageNav = () => {
-                if (!pageNavScrollEl) return;
-                const maxScroll = Math.max(0, pageNavScrollEl.scrollWidth - pageNavScrollEl.clientWidth);
-                const firstBar = Math.floor(pageNavScrollEl.scrollLeft / continuousColPx / stepsPerBar) + 1;
-                const lastBar = Math.min(totalBars, Math.ceil((pageNavScrollEl.scrollLeft + pageNavScrollEl.clientWidth) / continuousColPx / stepsPerBar));
-                if (pageNavLabel) pageNavLabel.textContent = (firstBar >= lastBar) ? `Mesure ${firstBar} / ${totalBars}` : `Mesures ${firstBar}-${lastBar} / ${totalBars}`;
-                if (prevBtn) prevBtn.disabled = pageNavScrollEl.scrollLeft <= 1;
-                if (nextBtn) nextBtn.disabled = pageNavScrollEl.scrollLeft >= maxScroll - 1;
-            };
-            if (pageNavScrollEl) pageNavScrollEl.addEventListener('scroll', updatePageNav, { passive: true });
-            if (prevBtn) prevBtn.onclick = () => pageNavScrollEl && pageNavScrollEl.scrollBy({ left: -pagePx, behavior: 'smooth' });
-            if (nextBtn) nextBtn.onclick = () => pageNavScrollEl && pageNavScrollEl.scrollBy({ left: pagePx, behavior: 'smooth' });
-            requestAnimationFrame(updatePageNav); // après le positionnement initial du scroll (voir plus haut)
-        }
-
-        // Mode Modification (voir commitLiveEdit) : toute mutation du séquenceur (peindre/étirer/
-        // déplacer une note, notes libres, verrou guitare, rythme tapé, barres de vélocité...) appelle
-        // déjà renderSequencer() pour se redessiner — un seul point d'accroche ici couvre donc TOUTES
-        // ces mutations sans avoir à répéter l'appel dans chacune. refreshGrid=false : ces changements
-        // ne modifient jamais ce qu'affiche la case dans la grille (symbole, etc.), et rappeler
-        // loadProgression() (qui peut redéclencher renderSequencer) rouvrirait une boucle.
-        // UNE SEULE EXCEPTION : le renommage automatique par note libre (voir
-        // reevaluateExtraNoteUpgrades). Là, le symbole CHANGE — ajouter un si bémol tenu à un do majeur
-        // en fait un C7 —, donc l'hypothèse ci-dessus tombe précisément dans ce cas. Sans ce
-        // rafraîchissement, le panneau annonçait « C7 » pendant que la case de la grille juste au-dessus
-        // continuait d'afficher « C », et il fallait sortir puis revenir dans l'accord pour que les deux
-        // se rejoignent. La boucle redoutée n'a pas lieu : `accordRenomme` n'est vrai qu'au rendu qui
-        // renomme, et le rendu déclenché par loadProgression trouve la note libre déjà absorbée.
-        this.commitLiveEdit(!!accordRenomme);
-        // LOT 9b : dans l'éditeur de notes, la barre (câblée ci-dessus, sur ses propres boutons) rejoint la rangée « Notes / Fermer ». Déplacée, jamais
-        // dupliquée ; la précédente, restée là-haut, est retirée au début du rendu suivant (voir viderBarreEditeurNotes).
-        this.viderBarreEditeurNotes();
-        const barreEn = document.getElementById('editeur-notes-barre');
-        const presets = host.querySelector('.seq-presets');
-        if (this._editeurNotesActif && barreEn && presets) barreEn.appendChild(presets);
-        this.ajusterHauteurVoletAuContenu();
-    }
-
-    viderBarreEditeurNotes() {
-        const barreEn = document.getElementById('editeur-notes-barre');
-        if (barreEn) barreEn.replaceChildren();
-    }
-
-    // CALQUE VOIX (lot 9c) — ce que l'ancien panneau de conduite de voix (buildVoiceLeadingPanelHtml) dessinait à part, posé DANS la grille de
-    // l'éditeur de notes : le chemin de chaque voix d'un accord au suivant, et le nom + le degré de chaque accord dans la règle.
-    // Même appariement que l'ancien panneau : la voix de rang v (après tri du grave à l'aigu) va à la voix de rang v de l'accord suivant, jusqu'au
-    // plus petit des deux nombres de voix. Même lecture aussi : un trait PLEIN pour une note commune tenue, un trait en POINTILLÉS pour un
-    // mouvement — en blanc (« trait blanc du chemin des voix », maquette), sur la frontière entre les deux accords.
-    // Tout est placé par la grille CSS (grid-row / grid-column), comme les notes : le zoom horizontal (boutons, Ctrl+molette, pincement), qui ne
-    // change qu'une variable de largeur de colonne, emporte les traits avec lui sans un seul recalcul — c'est ce qu'éprouvait vl_pinch sur
-    // l'ancien panneau, qui avait besoin d'un « transform de secours » pendant le geste.
-    calqueVoixHtml({ chord, midis, rowOrder, prevSegs, nextSegs, colOffset, pageSteps }) {
-        const ligneDe = new Map();
-        rowOrder.forEach((row, i) => { if (!ligneDe.has(row.midi)) ligneDe.set(row.midi, i + 2); }); // la ligne 1 est la règle
-        const sections = loadProgressionSections();
-        const accordsPartie = (sections[this.activeSection] && sections[this.activeSection].chords) || [];
-        const editData = this.editingIndex != null ? accordsPartie[this.editingIndex] : null;
-        const accords = [
-            ...prevSegs.map(s => ({ midis: s.midis, col: s.colStart + 2, steps: s.steps, data: s.data, index: s.index })),
-            { midis, col: colOffset + 2, steps: pageSteps, index: this.editingIndex,
-              data: { root: chord.root, quality: chord.quality, bass: chord.bass, unnamed: !!(editData && editData.unnamed) } },
-            ...nextSegs.map(s => ({ midis: s.midis, col: colOffset + pageSteps + s.colStart + 2, steps: s.steps, data: s.data, index: s.index })),
-        ];
-        let out = '';
-        for (let i = 0; i + 1 < accords.length; i++) {
-            const a = [...accords[i].midis].sort((x, y) => x - y);
-            const b = [...accords[i + 1].midis].sort((x, y) => x - y);
-            const frontiere = accords[i + 1].col; // ligne de grille = bord gauche de l'accord suivant
-            for (let v = 0; v < Math.min(a.length, b.length); v++) {
-                const la = ligneDe.get(a[v]), lb = ligneDe.get(b[v]);
-                if (la == null || lb == null) continue;
-                const attrs = `data-voix="${v}" data-de="${a[v]}" data-vers="${b[v]}" data-accord="${accords[i + 1].index}"`;
-                out += a[v] === b[v]
-                    ? `<div class="seq-voix-trait seq-voix-tenue" ${attrs} style="grid-row:${la}; grid-column:${frontiere - 1} / span 2;"></div>`
-                    : `<div class="seq-voix-trait seq-voix-mouvement" ${attrs} style="grid-row:${Math.min(la, lb)} / ${Math.max(la, lb) + 1}; grid-column:${frontiere} / span 1;"></div>`;
-            }
-        }
-        // Nom et degré de chaque accord, dans une bande AU-DESSUS des numéros de mesure (décision du 05/11 : « dans la règle, calque allumé ») — la
-        // grille passe en Compact quand l'éditeur est ouvert, sans degrés : c'est ici seulement qu'on les lit.
-        const gRoot = document.getElementById('global-root').value, gMode = document.getElementById('global-mode').value;
-        accords.forEach(c => {
-            const sym = chordSymbolForData(c.data, this.useFlatsForRoot(c.data.root));
-            const degre = c.data.unnamed ? '' : (this.getRomanNumeral(gRoot, gMode, c.data.root, c.data.quality) || '');
-            out += `<div class="seq-voix-accord" data-accord="${c.index}" title="${escapeHtml(sym + (degre ? ' — ' + degre : ''))}" style="grid-row:1; grid-column:${c.col} / span ${c.steps};"><span class="seq-voix-nom">${escapeHtml(sym)}</span>${degre ? `<span class="seq-voix-degre">${escapeHtml(degre)}</span>` : ''}</div>`;
-        });
-        return out;
-    }
-
-    // Recale la hauteur du volet sur ce qu'il y a VRAIMENT à montrer, une fois la grille dessinée.
-    // hauteurVoletSequenceur sait déjà ne pas dépasser le contenu, mais placeSeqHost l'appelle AVANT
-    // le rendu : à ce moment la grille est vide ou périmée, le plafond ne s'applique donc à rien et le
-    // volet s'ouvre à sa hauteur d'écran par défaut. Mesuré à l'ouverture : 384px de volet pour 234px
-    // de notes, soit 150px de noir sous la dernière ligne — précisément le reproche « il y a beaucoup
-    // trop d'espace perdu en bas de la page sous le séquenceur », qui survivait au correctif précédent
-    // parce que celui-ci ne se déclenchait qu'en zoomant. Jamais quand l'utilisateur a réglé la hauteur
-    // à la main (seqDockHeight) : c'est son choix, il prime.
-    ajusterHauteurVoletAuContenu() {
-        if (this.seqDockHeight) return;
-        const volet = document.getElementById('seq-dock-panel');
-        const hote = document.getElementById('seq-dock-host');
-        if (!volet || volet.hidden || !hote) return;
-        const voulue = `${this.hauteurVoletSequenceur()}px`;
-        // Comparé avant d'écrire : ce recalage suit CHAQUE rendu du séquenceur, y compris ceux qui
-        // tombent en plein glissé — réécrire une hauteur identique y déclencherait une remise en page
-        // à chaque pixel parcouru.
-        if (hote.style.height !== voulue) hote.style.height = voulue;
     }
 
     // Ajoute une voix "libre" au séquenceur (bouton dédié, voir #seq-add-note) : hauteur de départ
@@ -22762,7 +18196,6 @@ class HarmoHubApp {
         // un accord déjà enregistré"). Levé dans applySeqCell dès la toute première case peinte.
         this.extraNotes.push({ note: NOTES[pc], octave, _new: true });
         this.seqTouched = true; // le motif doit garder cette voix (voir syncSeqPatternForCurrentChord)
-        this.renderSequencer();
         this.refreshPreview();
         // Focus + sélection immédiate du champ fraîchement créé : la valeur par défaut n'a aucun sens
         // musical, autant la remplacer tout de suite sans avoir à cliquer.
@@ -22770,327 +18203,11 @@ class HarmoHubApp {
         if (input) { input.focus(); input.select(); }
     }
 
-    // Valide (ou annule) la saisie d'une note libre (voir addSequencerNote) : texte vide -> supprime
-    // cette voix ; hauteur reconnue (ex. "E3") -> mémorisée telle quelle. La hauteur seule ne décide
-    // JAMAIS de renommer l'accord (une note fraîchement tapée n'a encore aucun rythme peint, donc
-    // aucune durée) — c'est reevaluateExtraNoteUpgrades, appelé à chaque rendu du séquenceur, qui
-    // tranche une fois qu'on l'a réellement jouée (voir les seuils SEQ_HELD_MIN_STEPS/
-    // SEQ_STACCATO_MIN_COVERAGE plus haut).
-    commitExtraNoteLabel(extraIndex, text) {
-        const trimmed = text.trim();
-        if (!trimmed) {
-            this.extraNotes.splice(extraIndex, 1);
-            this.renderSequencer();
-            this.refreshPreview();
-            this.livePreviewUpdate();
-            return;
-        }
-        const parsed = parseNoteNameOctave(trimmed);
-        if (!parsed) {
-            this.flashHint('Note non reconnue (ex. E3, F#4, Bb2)');
-            this.renderSequencer(); // revient à l'ancienne valeur (le rendu relit this.extraNotes)
-            return;
-        }
-        // Note libre encore JAMAIS jouée (voir addSequencerNote/_new) : c'est ICI, et pas à sa
-        // création, qu'on lui donne enfin un rythme — sans quoi elle restait muette jusqu'à ce qu'on
-        // pense à peindre ses cases à la main (retour utilisateur : « souvent elle reste non jouée de
-        // base »). Une fois posé, ce rythme n'est plus jamais réécrit : reprendre la hauteur d'une note
-        // déjà jouée ne doit pas balayer le rythme qu'on lui a donné entretemps.
-        const wasNew = this.extraNotes[extraIndex] && this.extraNotes[extraIndex]._new;
-        this.extraNotes[extraIndex] = { note: parsed.note, octave: parsed.octave };
-        this.seqTouched = true;
-        // `_new` n'est levé que si un rythme a VRAIMENT pu être posé : dans le cas contraire (corps de
-        // l'accord entièrement muet, par exemple) la note reste protégée, sans quoi elle serait élaguée
-        // au rendu suivant faute de la moindre case peinte.
-        if (wasNew && !this.paintDefaultRhythmForExtraNote(extraIndex)) this.extraNotes[extraIndex]._new = true;
-        this.renderSequencer();
-        this.refreshPreview();
-        this.livePreviewUpdate();
-    }
-
-    // Donne son rythme de départ à une note libre tout juste nommée (voir commitExtraNoteLabel).
-    // MÊME RÈGLE que pour une voix neuve du corps de l'accord (voir applyNewVoiceDefaults, à qui elle
-    // était jusqu'ici volontairement refusée) : si toutes les voix du corps jouent EXACTEMENT le même
-    // rythme, la nouvelle le copie — accord tenu, note tenue ; accord battu à la noire, note à la
-    // noire. Sinon (arpège, voix désynchronisées) elle est TENUE sur toute la durée : c'est le seul
-    // choix qui garantit qu'on l'entende, quel que soit le motif en place.
-    //
-    // Pourquoi ici et pas dans addSequencerNote : au clic sur « + », la hauteur n'est qu'un espace
-    // réservé (plus haute note + 3 demi-tons — sur un do majeur, cela donne un Si bémol). Peindre un
-    // rythme dès cet instant l'aurait rendue assez présente pour franchir les seuils de
-    // reevaluateExtraNoteUpgrades, qui aurait renommé l'accord en C7 AVANT même qu'on ait tapé quoi
-    // que ce soit. On attend donc de connaître la vraie note.
-    // Renvoie vrai si un rythme a réellement été posé — l'appelant garde alors la protection `_new`
-    // en cas d'échec, sans quoi une note laissée sans rythme ET sans protection disparaîtrait
-    // silencieusement au rendu suivant (voir pruneEmptyExtraNotes).
-    paintDefaultRhythmForExtraNote(extraIndex) {
-        const chord = this.readChord();
-        const bodyVoices = chord.getIntervals().length;
-        const voice = bodyVoices + extraIndex; // même mappage que applySeqCell
-        if (voice >= chord.getSeqMidiNotes().length) return false; // voix pas (ou plus) dans le motif
-        const { pattern, tie } = this.getLiveSeqPattern(chord);
-        if (!pattern.length) return false;
-        const uniform = bodyVoices > 0 && seqPatternIsUniformAcrossVoices(pattern, tie, bodyVoices);
-        let painted = false;
-        for (let s = 0; s < pattern.length; s++) {
-            // `uniform` : on recopie la voix 0, qui vaut alors pour toutes. Sinon : tenue pleine durée
-            // (active partout, liée sauf la toute première croche, qui porte l'attaque).
-            const on = uniform ? pattern[s].includes(0) : true;
-            if (!on) continue;
-            if (!tie[s]) tie[s] = [];
-            if (!pattern[s].includes(voice)) { pattern[s].push(voice); painted = true; }
-            const tied = uniform ? (tie[s] || []).includes(0) : (s !== 0);
-            if (tied && !tie[s].includes(voice)) tie[s].push(voice);
-        }
-        if (!painted) return false; // le corps de l'accord est lui-même entièrement muet : rien à copier
-        this.setLiveSeqPattern(pattern, tie);
-        return true;
-    }
-
-    // Copie (Ctrl+C, voir setupKeyboardShortcuts — actif quand le séquenceur est ouvert) tout le motif
-    // rythmique de l'accord EN COURS D'ÉDITION (toutes les voix + l'intensité par croche du mode
-    // studio) dans this.seqPatternClipboard. L'adaptation à l'accord CIBLE (durée, nombre de voix) se
-    // fait au moment de coller (voir pasteSeqPattern), jamais ici.
-    copySeqPattern() {
-        const chord = this.readChord();
-        const { pattern, tie } = this.getLiveSeqPattern(chord);
-        this.seqPatternClipboard = {
-            pattern: pattern.map(voices => voices.slice()),
-            tie: tie.map(voices => voices.slice()),
-            intensityPerStep: { ...this.intensityPerStep },
-            steps: pattern.length,
-        };
-        this.flashHint('Motif copié — Ctrl+V sur un autre accord pour le coller');
-    }
-
-    // Colle le motif copié (Ctrl+V, voir copySeqPattern) sur l'accord en cours d'édition : adapté à SA durée
-    // (tronqué, ou répété en mosaïque si l'accord copié était plus court — voir resizeSeqPattern) et à
-    // SON nombre de voix (correspondance simple par index ; une voix EN PLUS dans l'accord cible reste
-    // silencieuse, exactement comme pour toute autre resynchronisation de motif, voir
-    // syncSeqPatternForCurrentChord). L'intensité par croche (mode studio) suit la même mosaïque.
-    pasteSeqPattern() {
-        const clip = this.seqPatternClipboard;
-        if (!clip) return;
-        const chord = this.readChord();
-        const steps = chord.beats * SEQ_STEPS_PER_BEAT;
-        const voices = chord.getSeqMidiNotes().length;
-
-        this.pushSeqUndo();
-        const { pattern, tie } = resizeSeqPattern(clip.pattern, clip.tie, steps, voices);
-        this.setLiveSeqPattern(pattern, tie);
-        // Contourne applySeqCell (qui lève x._new au fil de l'eau, voir addSequencerNote) : si le
-        // motif collé réveille une voix libre encore jamais peinte, la protection n'a plus lieu d'être.
-        const extraStart = chord.getIntervals().length;
-        this.extraNotes.forEach((x, i) => {
-            if (x._new && pattern.some(s => s.includes(extraStart + i))) delete x._new;
-        });
-
-        const outIntensity = {};
-        for (let i = 0; i < steps; i++) {
-            const srcIdx = clip.steps > 0 ? (i % clip.steps) : i;
-            if (clip.intensityPerStep[srcIdx] != null) outIntensity[i] = clip.intensityPerStep[srcIdx];
-        }
-        this.intensityPerStep = outIntensity;
-
-        this.seqTouched = true;
-        this.seqSelections = [];
-        this.renderSequencer();
-        this.livePreviewUpdate();
-        this.commitLiveEdit(true);
-        this.flashHint('Motif collé');
-    }
-
-    // Active/désactive la pipette de motif ENTRE VOIES (voir #seq-row-pipette, this.seqRowPipette) :
-    // prélève d'abord la sélection courante (this.seqSelections — clic, Ctrl+clic ou rectangle, voir
-    // finalizeSeqMarqueeSelect) sous forme de positions de croches ABSOLUES { start, end }, puis reste
-    // armée jusqu'à ce qu'on la désactive (re-clic sur ce bouton, ou Échap — voir onSeqPointerDown pour
-    // l'application elle-même) : permet d'appliquer le même motif sur plusieurs lignes à la suite sans
-    // avoir à ressélectionner à chaque fois. Un clic alors qu'aucune note n'est sélectionnée n'arme rien.
-    toggleSeqRowPipette() {
-        if (this.seqRowPipette) {
-            this.seqRowPipette = null;
-            this.renderSequencer();
-            return;
-        }
-        if (this.seqSelections.length === 0) {
-            this.flashHint("Sélectionne d'abord une ou plusieurs notes à prélever");
-            return;
-        }
-        this.seqRowPipette = this.seqSelections.map(s => ({ start: s.start, end: s.end }));
-        this.renderSequencer();
-        this.flashHint('Motif copié');
-    }
-
-    // Dépose le motif prélevé (voir toggleSeqRowPipette) sur `targetVoice`, une autre voix du MÊME
-    // accord en cours d'édition — jamais de changement de durée/nombre de voix à gérer ici (contrairement
-    // à pasteSeqPattern, qui traverse les accords) : les positions de croches captées restent valables
-    // telles quelles. Vide TOUTE la ligne cible au préalable (pas seulement la plage couverte par le
-    // motif, retour utilisateur : les anciennes croches avant/après restaient sinon en place), pour que
-    // seul le motif collé subsiste sur cette voix. Reste armée après coup (voir toggleSeqRowPipette)
-    // pour enchaîner d'autres lignes.
-    applySeqRowPipette(targetVoice) {
-        const motif = this.seqRowPipette;
-        if (!motif || motif.length === 0) return;
-        this.pushSeqUndo();
-        const chord = this.readChord();
-        const { pattern, tie } = this.getLiveSeqPattern(chord);
-        for (let s = 0; s < pattern.length; s++) {
-            const at = pattern[s].indexOf(targetVoice);
-            if (at >= 0) pattern[s].splice(at, 1);
-            const ti = tie[s].indexOf(targetVoice);
-            if (ti >= 0) tie[s].splice(ti, 1);
-        }
-        motif.forEach(m => {
-            for (let s = m.start; s <= m.end; s++) {
-                pattern[s].push(targetVoice);
-                if (s !== m.start) tie[s].push(targetVoice);
-            }
-        });
-        this.seqTouched = true;
-        this.setLiveSeqPattern(pattern, tie);
-        // Lève la protection _new (voir applySeqCell/addSequencerNote) si la voix ciblée était une note
-        // libre encore jamais peinte : elle a désormais un vrai rythme à perdre si on l'efface plus tard.
-        const extraStart = chord.getIntervals().length;
-        if (targetVoice >= extraStart && this.extraNotes[targetVoice - extraStart]) {
-            delete this.extraNotes[targetVoice - extraStart]._new;
-        }
-        // Pas de resélection sur la voix cible : le motif prélevé peut contenir plusieurs notes
-        // séparées par du silence (plusieurs entrées dans this.seqRowPipette), qu'une seule sélection
-        // { start: lo, end: hi } représenterait à tort comme UNE SEULE note continue (voir
-        // resizeSelectedSeqNote/moveSelectedSeqNotes, qui supposent une plage réellement contiguë).
-        this.seqSelections = [];
-        this.renderSequencer();
-        this.livePreviewUpdate();
-        this.flashHint('Motif appliqué sur cette ligne');
-    }
-
-    // Réévalue, à CHAQUE rendu du séquenceur (peindre/étirer/effacer une case, pas seulement taper le
-    // nom de la note), si une note libre est désormais jouée assez longtemps pour compléter l'accord
-    // (voir seqCoverageQualifies) : si oui, absorbée dans la qualité de l'accord comme
-    // commitExtraNoteLabel le faisait autrefois sur la seule hauteur ; sinon reste une note
-    // "étrangère" (de passage), même si sa hauteur complèterait pile une qualité reconnue — SEULE la
-    // durée réellement jouée décide désormais, jamais la hauteur seule (retour utilisateur).
-    // Rappelée en boucle tant qu'une note se qualifie : en fusionner une décale les index des
-    // suivantes (voir _computeVoices), plus sûr de tout recalculer depuis le début à chaque fois.
-    // Renvoie vrai si l'accord a VRAIMENT été renommé — l'appelant doit alors rafraîchir la grille,
-    // qui affiche encore l'ancien symbole (voir renderSequencer/commitLiveEdit).
-    reevaluateExtraNoteUpgrades() {
-        let renomme = false;
-        let again = this.extraNotes.length > 0;
-        while (again) {
-            again = false;
-            const chord = this.readChord();
-            const { pattern, tie } = this.getLiveSeqPattern(chord);
-            const extraStart = chord.getIntervals().length;
-
-            for (let i = 0; i < this.extraNotes.length; i++) {
-                const cov = seqVoiceCoverage(pattern, tie, extraStart + i);
-                if (!seqCoverageQualifies(cov)) continue;
-
-                const qualitySelect = document.getElementById('quality');
-                const rootPc = NOTES.indexOf(document.getElementById('root').value);
-                const relPc = ((NOTES.indexOf(this.extraNotes[i].note) - rootPc) % 12 + 12) % 12;
-                const currentSet = pitchClassSetForQuality(qualitySelect.value);
-                const unionSet = new Set([...currentSet, relPc]);
-                const matched = findQualityMatchingPitchClasses(unionSet);
-                if (!matched || matched === qualitySelect.value) continue; // jouée assez longtemps, mais ne complète rien de reconnu
-
-                // Toutes les qualités, y compris les enrichies, sont maintenant présentes en permanence
-                // dans le <select> (« mettre directement les accords complexes dans la liste »), donc
-                // l'affectation ne peut plus être silencieusement effacée par une option absente —
-                // c'était le piège que l'ancien « révéler d'ABORD » contournait.
-                qualitySelect.value = matched;
-
-                // La qualité gagne une voix (celle qu'on absorbe), qui vient toujours se placer en
-                // DERNIÈRE position du corps de l'accord (CHORD_INTERVALS n'ajoute jamais une extension
-                // qu'à la fin) : décale donc dans le motif déjà peint les voix des notes libres restées
-                // AVANT `i` (qui glissent chacune d'un cran), et fait pointer les cases qui visaient la
-                // note absorbée vers ce nouveau dernier index — sans ce remappage, le rythme peint
-                // continuait à référencer les mêmes numéros de voix qu'avant, qui ne désignaient plus
-                // les mêmes notes une fois le corps de l'accord agrandi (voir reevaluateExtraNoteUpgrades
-                // plus haut : la boucle recalcule tout, mais le motif lui-même doit suivre).
-                {
-                    const { pattern: livePattern, tie: liveTie } = parseSeqPattern(document.getElementById('arpPattern').value);
-                    const remapVoice = (v) => {
-                        if (v < extraStart || v > extraStart + i) return v;
-                        if (v === extraStart + i) return extraStart;
-                        return v + 1;
-                    };
-                    const remappedPattern = livePattern.map(voices => voices.map(remapVoice));
-                    const remappedTie = liveTie.map(tied => tied.map(remapVoice));
-                    this.setLiveSeqPattern(remappedPattern, remappedTie);
-                }
-
-                this.extraNotes.splice(i, 1);
-                // La voix absorbée fait maintenant partie du CORPS de l'accord, et elle arrive avec le
-                // rythme qu'on lui a peint. Sans cette mise à jour, la synchro suivante la voyait comme
-                // une voix « qui vient d'apparaître » et lui appliquait le rythme par défaut
-                // (applyNewVoiceDefaults) : une septième jouée seulement sur les temps 1 et 3 se
-                // retrouvait tenue du début à la fin, c'est-à-dire exactement le rythme qu'on venait de
-                // refuser en la peignant à la main.
-                this.seqLastChordToneVoices = (CHORD_INTERVALS[matched] || CHORD_INTERVALS.maj).length;
-                const label = QUALITY_LABEL[matched] || '';
-                this.flashHint(`Accord complété : ${document.getElementById('root').value}${label}`);
-                renomme = true;
-                again = this.extraNotes.length > 0;
-                break; // état changé (qualité + extraNotes) : on recommence le for depuis le début
-            }
-        }
-        return renomme;
-    }
-
-    // Déplace le curseur de lecture (petite ligne verticale) du séquenceur au pas `step` en cours ;
-    // `null` le masque (arrêt, ou pas hors de la page affichée). Ne fait rien si le panneau est fermé
-    // ou déjà démonté — la lecture continue même quand le séquenceur n'est pas ouvert (voir playCurrent).
-    updateSeqPlayhead(step) {
-        const host = document.getElementById('arp-sequencer');
-        if (!host || host.hidden) return;
-        const grid = host.querySelector('.seq-grid');
-        const ph = host.querySelector('.seq-playhead');
-        if (!grid || !ph) return;
-        // Repère jumeau dans la règle de mesure (voir .seq-ruler-head) : même position, même
-        // visibilité — piloté ici plutôt qu'ailleurs, sinon les deux finiraient par se contredire.
-        const tete = host.querySelector('.seq-ruler-head');
-        const cacher = () => { ph.style.display = 'none'; if (tete) tete.hidden = true; };
-        if (step == null) return cacher();
-        const pageStart = +grid.dataset.pageStart, pageSteps = +grid.dataset.pageSteps;
-        const colOffset = +grid.dataset.colOffset || 0; // voir renderSequencer, mode continu
-        const colonneVisee = colOffset + step - pageStart + 2;
-        // En vue CONTINUE, la grille affiche toute la partie : le curseur a le droit de sortir de
-        // l'accord édité, et c'est même tout l'intérêt pendant la lecture de la grille entière (voir
-        // updateSeqPlayheadDepuisGrille). Le bornage se fait alors sur les colonnes réellement
-        // dessinées, pas sur les pas du seul accord en cours de modification.
-        if (grid.classList.contains('seq-grid-continuous')) {
-            const totalCols = +grid.dataset.totalCols || (colOffset + pageSteps);
-            if (colonneVisee < 2 || colonneVisee > totalCols + 1) return cacher();
-        } else if (step < pageStart || step >= pageStart + pageSteps) {
-            return cacher();
-        }
-        ph.style.display = 'block';
-        const colonne = `${colonneVisee} / span 1`;
-        ph.style.gridColumn = colonne;
-        if (tete) { tete.hidden = false; tete.style.gridColumn = colonne; }
-    }
-
-    // Curseur de lecture pendant la lecture de TOUTE la grille (voir schedulePlayback/gridPos).
-    // Il ne bougeait pas du tout : updateSeqPlayhead n'était appelé que pour `trackPlayhead`,
-    // c'est-à-dire l'écoute de l'accord SEUL. En lançant la grille, la barre orange de la règle
-    // restait donc invisible (retour utilisateur : « la barre de lecture orange n'apparaît pas dans
-    // la règle de mesure du séquenceur comme demandé avant »). La vue continue montrant la partie
-    // entière, le curseur doit la traverser d'un accord à l'autre : on convertit la croche `step` de
-    // l'accord JOUÉ en croche comptée depuis l'accord ÉDITÉ, seul repère que connaisse la grille.
-    updateSeqPlayheadDepuisGrille(section, index, step) {
-        if (section !== this.activeSection || this.editingIndex == null) return;
-        // Vue compacte : elle ne montre que l'accord édité, un curseur venu d'ailleurs n'y aurait
-        // aucun sens — updateSeqPlayhead le masquerait de toute façon, autant s'arrêter ici.
-        if (!document.querySelector('#arp-sequencer .seq-grid-continuous')) return;
-        const accords = (loadProgressionSections()[section] || {}).chords || [];
-        const pasAvant = (i) => {
-            let n = 0;
-            for (let k = 0; k < i && k < accords.length; k++) n += beatsFromData(accords[k]) * SEQ_STEPS_PER_BEAT;
-            return n;
-        };
-        this.updateSeqPlayhead(pasAvant(index) - pasAvant(this.editingIndex) + step);
+    // Entrée « Séquenceur » du menu contextuel d'un accord : sélectionne l'accord (donc l'entend) et ouvre le séquenceur de l'appareil.
+    // RETRAIT DU CODE MORT DE L'ANCIEN SÉQUENCEUR (A2) : cette entrée ouvrait encore le petit séquenceur d'avant, resté sans autre porte.
+    openSequencerFor(section, index) {
+        this.selectChord(section, index);
+        this.toggleSequencer('compact');
     }
 
     // Clic sur une case : sélectionne (surbrillance) + écoute l'accord, sauf si l'utilisateur a
@@ -23108,7 +18225,7 @@ class HarmoHubApp {
         // Retrait de l'ancien séquenceur (4a) : le séquenceur du bloc « Vues » suit lui aussi la sélection ; un accord déjà en modification (inspecteur ouvert)
         // le suit de même, sinon l'inspecteur réglerait un accord pendant que le séquenceur en montre un autre (c'était le comportement éditeur ouvert).
         const sqSuit = this.sequenceur && this.sequenceur.estOuvert() && this.editingIndex != null;
-        if ((this._editeurNotesActif || sqSuit) && !dejaEdite) this.editionParSuivi(section, index);
+        if (sqSuit && !dejaEdite) this.editionParSuivi(section, index);
         this.updateGridPlayhead(section, index); // la barre de lecture se pose à gauche de l'accord choisi
         this.playSavedChord(section, index, this.autoplaySelect);
     }
@@ -23414,7 +18531,6 @@ class HarmoHubApp {
             // réglages (lot 6a). Seule la tonalité le faisait (par updateKeyLabels) : un Ctrl+Z sur la mesure, le swing ou le tempo laissait
             // l'ancienne valeur affichée — trouvé par le banc du lot 6a.
             this.updateSongSummary();
-            if (this.seqOpen) this.renderSequencer(); // affiche le nouveau groove/la nouvelle mesure
             this.liveRestartForGlobalChange();
         }
 
@@ -23513,7 +18629,7 @@ class HarmoHubApp {
         const pile = this.pileVisee(this._journalUndo);
         // Journal vide (ou historique purgé) : on retombe sur l'ancienne règle plutôt que de ne rien
         // faire — un chemin d'action qui oublierait de se journaliser resterait ainsi annulable.
-        if (pile === null) { if (this.seqOpen) this.seqUndo(); else this.undo(); return; }
+        if (pile === null) { this.undo(); return; }
         // On ne retire du journal que ce qui vient VRAIMENT d'être annulé : chaque undo peut refuser
         // (pile vide), et le journal doit rester d'accord avec les piles.
         const i = this._journalUndo.lastIndexOf(pile);
@@ -23535,7 +18651,7 @@ class HarmoHubApp {
     globalRedo() {
         if (this.vueParolesOuverte()) { this.appelerParoles('redo'); return; }
         const pile = this.pileVisee(this._journalRedo);
-        if (pile === null) { if (this.seqOpen) this.seqRedo(); else this.redo(); return; }
+        if (pile === null) { this.redo(); return; }
         const i = this._journalRedo.lastIndexOf(pile);
         if (pile === 'fichiers') {
             if (this.filesRedoStack.length === 0) { this.filesRedo(); return; }
@@ -23575,10 +18691,10 @@ class HarmoHubApp {
         const pileU = this.pileVisee(this._journalUndo);
         const pileR = this.pileVisee(this._journalRedo);
         undoBtn.disabled = pileU === null
-            ? (this.seqOpen ? this.seqUndoStack : this.undoStack).length === 0
+            ? this.undoStack.length === 0
             : parPile(pileU, true).length === 0;
         redoBtn.disabled = pileR === null
-            ? (this.seqOpen ? this.seqRedoStack : this.redoStack).length === 0
+            ? this.redoStack.length === 0
             : parPile(pileR, false).length === 0;
     }
 
@@ -23665,7 +18781,6 @@ class HarmoHubApp {
         this.restaurerInstantaneSeq(snapAnnule);
         this.seqTouched = true;
         this.seqSelections = [];
-        this.renderSequencer();
         this.refreshPreview();     // la qualité a pu changer : clavier, diagrammes et titre doivent suivre
         this.updateGlobalUndoRedoButtons();
         this.flashHint('Annulé');
@@ -23679,7 +18794,6 @@ class HarmoHubApp {
         this.restaurerInstantaneSeq(snapRetabli);
         this.seqTouched = true;
         this.seqSelections = [];
-        this.renderSequencer();
         this.refreshPreview();
         this.updateGlobalUndoRedoButtons();
         this.flashHint('Rétabli');
@@ -23743,14 +18857,12 @@ class HarmoHubApp {
             if (e.key === 'Escape' && !document.getElementById('unsaved-modal').hidden) { if (this._unsavedModalCancel) this._unsavedModalCancel(); return; }
             if (e.key === 'Escape' && !document.getElementById('midi-export-modal').hidden) { if (this._midiExportModalCancel) this._midiExportModalCancel(); return; }
             if (e.key === 'Escape' && !document.getElementById('duration-dd-menu').hidden) { this.closeDurationMenu(); return; }
-            if (e.key === 'Escape' && this.seqRowPipette) { this.seqRowPipette = null; this.renderSequencer(); return; }
             // La fenêtre Structure est un ONGLET depuis le lot 4 : Échap la referme, comme toutes les autres fenêtres (elle ne répondait qu'à la croix et au
             // clic sur le fond). L'aperçu avant impression, ouvert PAR-DESSUS, se referme d'abord — un seul niveau par appui.
             if (e.key === 'Escape' && document.getElementById('structure-apercu') && !document.getElementById('structure-apercu').hidden) { this.fermerApercuStructure(); return; }
             if (e.key === 'Escape' && this.fenetreStructureOuverte()) { this.closeStructureWindow(); return; }
             if (e.key === 'Escape' && this.filesOpen) { this.closeFilesWindow(); return; }
             if (e.key === 'Escape' && this.settingsOpen) { this.closeSettings(); return; }
-            if (e.key === 'Escape' && this.seqZoomOpen) { this.closeSeqZoom(); return; }
             if (e.key === 'Escape' && this.guitarEditOpen) { this.closeGuitarEditor(); return; }
             // VUES STRUCTURE / PAROLES (lot 4b) : la grille est CACHÉE. Ses raccourcis (lettres, Suppr, copier/coller, flèches…) agiraient sur un accord
             // qu'on ne voit pas — on les coupe. Restent l'espace (lecture), annuler / rétablir (routés vers la vue) et Ctrl+S. Échap ramène à la grille.
@@ -23783,7 +18895,6 @@ class HarmoHubApp {
             if ((e.key === ' ' || e.code === 'Space') && !typing && !mod) {
                 e.preventDefault();
                 if (this.isPlaying) this.stopAll();
-                else if (this.seqOpen) this.playCurrent();
                 else this.playProgression();
                 return;
             }
@@ -23794,12 +18905,10 @@ class HarmoHubApp {
             // séquenceur. Sinon, Ctrl+C/Ctrl+V retombent sur leur comportement habituel (copier/coller
             // tout un accord dans la grille, voir copySelected/pasteChord juste en dessous).
             if (mod && (e.key === 'c' || e.key === 'C')) {
-                if (!typing && this.seqOpen && this.editingIndex != null) { this.copySeqPattern(); e.preventDefault(); return; }
                 if (!typing && (this.multiSelect.size > 0 || this.selectedIndex != null)) { this.copySelected(); e.preventDefault(); }
                 return;
             }
             if (mod && (e.key === 'v' || e.key === 'V')) {
-                if (!typing && this.seqOpen && this.editingIndex != null && this.seqPatternClipboard) { this.pasteSeqPattern(); e.preventDefault(); return; }
                 if (!typing && this.clipboard && this.clipboard.length > 0) { this.pasteChord(); e.preventDefault(); }
                 return;
             }
@@ -23829,16 +18938,6 @@ class HarmoHubApp {
                 this.saveCurrentSong();
                 return;
             }
-            // Note(s) du séquenceur sélectionnée(s) : Suppr/Retour efface tout le groupe, ← → l'étire/
-            // raccourcit (chacune depuis sa fin), Maj+← → le déplace en bloc — mêmes touches que la
-            // grille d'accords (Maj = geste "structurel"), prioritaire ici sur elle, plus locale à
-            // l'édition en cours.
-            if (!typing && this.seqSelections.length > 0) {
-                if (e.key === 'Delete' || e.key === 'Backspace') { this.deleteSelectedSeqNote(); e.preventDefault(); return; }
-                if (e.key === 'ArrowRight') { if (e.shiftKey) this.moveSelectedSeqNotes(1); else this.resizeSelectedSeqNote(1); e.preventDefault(); return; }
-                if (e.key === 'ArrowLeft') { if (e.shiftKey) this.moveSelectedSeqNotes(-1); else this.resizeSelectedSeqNote(-1); e.preventDefault(); return; }
-            }
-
             // Accord ACTIF dans la grille : en loupe grille, cliquer un accord charge son édition
             // (this.editingIndex) plutôt que la simple sélection verte (this.selectedIndex, jamais
             // posée là — voir editChordFromGridZoom) ; activeGridChordIndex() suit lequel des deux

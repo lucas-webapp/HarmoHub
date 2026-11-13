@@ -24,12 +24,31 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(200);
 
+    // A2 (13/11) : applySeqCell (peinture d'une case de l'ancien séquenceur) n'existe plus. Ce banc éprouve la TAILLE des notes libres fantômes (pruneEmptyExtraNotes),
+    // pas le geste : il écrit donc directement le motif de l'accord, exactement comme le faisait cette méthode (motif + levée de la protection `_new`).
+    await page.evaluate(() => {
+        window.__peindre = (voice, step, on) => {
+            const chord = window.app.readChord();
+            const { pattern, tie } = window.app.getLiveSeqPattern(chord);
+            const dedans = pattern[step].includes(voice);
+            if (on && !dedans) {
+                pattern[step].push(voice);
+                const extraStart = chord.getIntervals().length;
+                if (voice >= extraStart && window.app.extraNotes[voice - extraStart]) delete window.app.extraNotes[voice - extraStart]._new;
+            } else if (!on && dedans) {
+                pattern[step].splice(pattern[step].indexOf(voice), 1);
+                const t = tie[step].indexOf(voice); if (t >= 0) tie[step].splice(t, 1);
+            }
+            window.app.seqTouched = true;
+            window.app.setLiveSeqPattern(pattern, tie);
+        };
+    });
+
     console.log('--- Add an extra note, paint some rhythm, save, reopen: note should persist (baseline) ---');
     let r = await page.evaluate(() => {
         window.app.editChord(0, 0);
-        window.app.seqOpen = true;
         window.app.addSequencerNote();
-        window.app.applySeqCell(3, 2, true, false); // voice 3 = the new extra note (C maj = 3 voices, extra at index 3)
+        window.__peindre(3, 2, true, false); // voice 3 = the new extra note (C maj = 3 voices, extra at index 3)
         window.app.saveCurrent();
         window.app.editChord(0, 0);
         return { extraNotesAfterReopen: window.app.extraNotes.length };
@@ -38,7 +57,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
     console.log('--- Now erase all its cells, save, reopen: ghost note should be GONE ---');
     r = await page.evaluate(() => {
-        window.app.applySeqCell(3, 2, false); // erase the only painted cell for the extra note
+        window.__peindre(3, 2, false); // erase the only painted cell for the extra note
         window.app.saveCurrent();
         window.app.editChord(0, 0);
         return {
@@ -51,8 +70,9 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     console.log('--- Two extra notes: keep the 2nd, erase the 1st, check remapping stays correct ---');
     r = await page.evaluate(() => {
         window.app.addSequencerNote(); // extra #0 at voice 3
+        delete window.app.extraNotes[0]._new; // A2 : l'ancien séquenceur validait le nom de la 1re note libre en perdant le focus (commitExtraNoteLabel) ; on le fait ici directement
         window.app.addSequencerNote(); // extra #1 at voice 4
-        window.app.applySeqCell(4, 5, true, false); // only the 2nd extra note gets rhythm
+        window.__peindre(4, 5, true, false); // only the 2nd extra note gets rhythm
         window.app.saveCurrent();
         window.app.editChord(0, 0);
         const chord = window.app.readChord();

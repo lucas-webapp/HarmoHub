@@ -81,7 +81,7 @@ const atteignable = (sel) => {
             // reste le même — la fusion n'a rien laissé derrière elle —, on vise juste la commande
             // plutôt que le conteneur qui l'entourait.
             rangeeDuree: dans('duration-dd'),
-            sequenceur: dans('arp-sequencer'),
+            sequenceur: !document.getElementById('arp-sequencer'), // A2 (13/11) : le petit séquenceur a quitté la page (il n'y a plus qu'UN séquenceur)
             agrandir: dans('seq-zoom'),
             sources: ['playStyle', 'duration', 'intensity', 'arpPattern'].filter(dans),
             // Le bouton icône remonté ici par la fusion a depuis disparu tout court : la porte de
@@ -94,7 +94,7 @@ const atteignable = (sel) => {
     exiger(a.nbAccord === 1, `il y a exactement une carte Accord — ${a.nbAccord}`);
     check(!a.lecture, 'la carte Lecture n\'existe plus du tout, pas même masquée');
     check(a.rangeeDuree && a.sequenceur && a.agrandir,
-        'la durée, le séquenceur et sa porte « Séquenceur » sont dans la carte Accord');
+        'la durée et la porte « Séquenceur » sont dans la carte Accord, et le petit séquenceur n\'existe plus dans la page');
     check(a.sources.length === 4,
         `les quatre champs sources ont suivi — ${a.sources.join(', ') || 'AUCUN'}`);
     check(a.boutonSeq, 'la porte « Séquenceur » est bien dans la carte Accord');

@@ -77,7 +77,7 @@ plan(6);
 
     console.log('--- Item 5 : l\'octave reste LISIBLE sur la case, dans son badge ---');
     // Remplace l'ancienne pastille flottante de la vue plein écran (voir l'en-tête du fichier).
-    await page.evaluate(() => window.app.editChordFromSequencer(0, 2));
+    await page.evaluate(() => window.app.editChord(0, 2));
     await page.waitForTimeout(300);
     const badge = await page.evaluate(() => {
         const cell = document.querySelector('.grid-cell[data-section="0"][data-index="2"]');

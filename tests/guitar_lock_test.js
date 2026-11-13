@@ -50,7 +50,8 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     console.log((r.locked && r.lockActive) ? 'PASS (lock survived adding a free note)' : 'FAIL');
 
     console.log('--- Edit the free note text: lock must still survive ---');
-    await page.evaluate(() => window.app.commitExtraNoteLabel(0, 'E3'));
+    // A2 (13/11) : la saisie du nom de la note libre (commitExtraNoteLabel) a quitté l'ancien séquenceur ; on règle la note comme le ferait le nouveau (notes libres posées sur l'accord), puis on enregistre la modification en direct.
+    await page.evaluate(() => { window.app.extraNotes[0] = { note: 'E', octave: 3 }; window.app.commitLiveEdit(true); });
     await page.waitForTimeout(150);
     r = await page.evaluate(() => ({ locked: !!window.app.guitarLock }));
     console.log(JSON.stringify(r));

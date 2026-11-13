@@ -44,33 +44,6 @@ const graine = () => {
         await p.waitForTimeout(900);
         return p;
     };
-    // Ce que l'écran montre (relu, jamais déclenché par window.app).
-    const etat = (p) => p.evaluate(() => {
-        const panneau = document.getElementById('seq-dock-panel');
-        const bande = document.querySelector('#seq-dock-host .seq-scroll');
-        const tete = document.getElementById('editeur-notes-tete');
-        const ext = document.getElementById('editeur-notes-etendre');
-        const btn = document.getElementById('grid-zoom');
-        const cs = getComputedStyle(btn);
-        const cas = document.querySelector('#progression-sections .grid-cell');
-        const densiteEcran = ['compact', 'normal', 'detail'].find(d => document.querySelector('.history-section').classList.contains('densite-' + d));
-        const presse = [...document.querySelectorAll('#grille-densites [data-densite]')].find(b => b.getAttribute('aria-pressed') === 'true');
-        return {
-            ouvert: !panneau.hidden && panneau.getBoundingClientRect().height > 0,
-            bande: bande && !panneau.hidden ? Math.round(bande.getBoundingClientRect().height) : 0,
-            hote: Math.round(document.getElementById('seq-dock-host').getBoundingClientRect().height),
-            tete: Math.round(tete.getBoundingClientRect().height),
-            titre: tete.querySelector('.editeur-notes-titre').textContent.trim(),
-            etenduPresse: ext.getAttribute('aria-pressed'), etenduLabel: ext.getAttribute('aria-label'),
-            btnTexte: btn.innerText.trim(), btnLabel: btn.getAttribute('aria-label'), btnPresse: btn.getAttribute('aria-pressed'),
-            btnH: Math.round(btn.getBoundingClientRect().height), btnRayon: cs.borderTopLeftRadius, btnBord: cs.borderTopColor,
-            caseH: cas ? Math.round(cas.getBoundingClientRect().height) : 0,
-            densiteEcran, densitePressee: presse ? presse.dataset.densite : null,
-            modifie: hasUnsavedChanges,
-            memoire: localStorage.getItem('harmohubGrilleDensite'),
-            hauteurTiree: localStorage.getItem('harmohubSeqDockHeight'),
-        };
-    });
     // L'empreinte de la grille : affichage, largeur de la fenêtre et taille de CHAQUE case — ce qui ne doit jamais changer à l'ouverture du séquenceur.
     const empreinte = (p) => p.evaluate(() => JSON.stringify({
         d: ['compact', 'normal', 'detail'].find(d => document.querySelector('.history-section').classList.contains('densite-' + d)),
@@ -92,7 +65,7 @@ const graine = () => {
     r = await R.ouvrirNouveau(p);
     exiger(r.ok, `le séquenceur s'ouvre par son bouton (${r.detail})`);
     check(await empreinte(p) === avantSq, 'ouvert : la grille garde EXACTEMENT son affichage (affichage, largeur, taille de chaque case)');
-    check(await p.evaluate(() => !document.getElementById('editeur-notes-etendre') || !document.getElementById('editeur-notes-etendre').offsetParent), 'ni en-tête « Notes / Fermer », ni chevrons d\'extension');
+    check(await p.evaluate(() => document.getElementById('editeur-notes-etendre') === null), 'ni en-tête « Notes / Fermer », ni chevrons d\'extension');
     const etatTb = await p.evaluate(() => document.getElementById('tb-etat').dataset.etat);
     check(etatTb !== 'modifie', `ouvrir le séquenceur ne marque rien « modifié » (${etatTb})`);
     r = await R.poserCroche(p, 1);

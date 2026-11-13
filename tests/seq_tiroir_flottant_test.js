@@ -33,31 +33,6 @@ const seed = () => {
     localStorage.setItem('myProgression', JSON.stringify({ sections: song.sections }));
 };
 
-const etat = () => {
-    const a = document.getElementById('arp-sequencer');
-    const r = a.getBoundingClientRect();
-    const cell = window.app.editingIndex != null ? window.app.gridCellEl(window.app.activeSection, window.app.editingIndex) : null;
-    const c = cell ? cell.getBoundingClientRect() : null;
-    const dock = document.querySelector('.dock');
-    const d = dock ? dock.getBoundingClientRect() : null;
-    const g = document.querySelector('#progression-sections').getBoundingClientRect();
-    return {
-        ouvert: window.app.seqOpen,
-        tiroir: a.classList.contains('seq-tiroir'),
-        position: getComputedStyle(a).position,
-        seq: { t: Math.round(r.top), b: Math.round(r.bottom), h: Math.round(r.height) },
-        // La case de l'accord édité doit être visible AU-DESSUS du tiroir : c'est tout l'objet du lot.
-        caseVisible: !!c && c.top >= 0 && c.bottom <= r.top,
-        case: c ? { t: Math.round(c.top), b: Math.round(c.bottom) } : null,
-        recouvreBarre: !!d && r.bottom > d.top + 1,
-        grilleVisible: Math.round(Math.max(0, Math.min(g.bottom, r.top) - Math.max(g.top, 0))),
-        grilleTop: Math.round(g.top),
-        // Le corps ne doit PAS être verrouillé : ce n'est pas une fenêtre modale, la page continue de
-        // défiler derrière le tiroir.
-        corpsVerrouille: document.body.classList.contains('body-scroll-locked'),
-        vh: window.innerHeight,
-    };
-};
 
 (async () => {
     plan(13);

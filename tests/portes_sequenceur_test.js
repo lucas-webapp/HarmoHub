@@ -88,7 +88,8 @@ const atteignable = (sel) => {
     check(!a.ancien, 'le pictogramme de l\'en-tête a disparu : il faisait doublon sans le dire');
     exiger(!!a.seq && !!a.plein && a.edite === 0, 'les deux anciennes portes sont encore dans la page (masquées partout depuis la 4c), et l\'inspecteur est ouvert sur le premier accord');
     check(!a.seq.visible, 'au-dessus de la grille, plus de porte à l\'ordinateur (4a)');
-    check(!a.plein.visible && !a.petit.visible, `dans l'inspecteur, plus de porte « Séquenceur » ni de petit séquenceur (4b) — porte ${a.plein.visible}, petit ${a.petit.visible}`);
+    // A2 (13/11) : le petit séquenceur (#arp-sequencer) a quitté la page ; son absence est la vérification.
+    check(!a.plein.visible && !a.petit, `dans l'inspecteur, plus de porte « Séquenceur » ni de petit séquenceur (4b, A2) — porte ${a.plein.visible}, petit séquenceur dans la page ${!!a.petit}`);
     check(a.vues && a.vues.visible && a.vues.svg && a.vuesNom === 'Séquenceur', `la porte du séquenceur est dans le bloc « Vues », avec son logo et son nom (« ${a.vuesNom} »)`);
     check(a.vues.l === 32 && a.vues.h === 32, `le bouton du bloc « Vues » est à la jauge de la barre — ${a.vues.l}x${a.vues.h}px`);
 

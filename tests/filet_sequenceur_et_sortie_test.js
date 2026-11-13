@@ -117,7 +117,7 @@ const boiteDe = (sel) => {
     const ouvert = await R.ouvrirNouveau(page);
     exiger(ouvert.ok, `le séquenceur du bloc « Vues » est ouvert avant l'essai (${ouvert.detail})`);
     const etat = await page.evaluate(() => ({
-        bouton: !!document.getElementById('toggle-voice-leading').offsetParent, panneau: !!document.querySelector('.voice-leading-panel'),
+        bouton: !!(document.getElementById('toggle-voice-leading') || {}).offsetParent, // A2 (13/11) : le bouton ⊱ n'est plus dans la page, son absence suffit panneau: !!document.querySelector('.voice-leading-panel'),
         calque: [...document.querySelectorAll('.seq-note-fn, .seq-voix-trait, .seq-voix-accord')].filter(e => e.offsetParent !== null).length,
         porte: !!document.getElementById('grid-zoom').offsetParent || !!document.getElementById('seq-zoom').offsetParent,
     }));
@@ -162,7 +162,7 @@ const boiteDe = (sel) => {
         // l'état d'aplomb — plein écran refermé, mode Modification retrouvé — pour que les essais
         // suivants partent tous du même point. Le plein écran est un vrai piège ici : laissé ouvert,
         // il recouvre la carte, et le clic suivant tomberait sur son fond au lieu de la commande visée.
-        await page.evaluate(() => { window.app.closeSeqZoom(); if (window.app.appMode !== 'edit') window.app.editChord(0, 0); });
+        await page.evaluate(() => { if (window.app.appMode !== 'edit') window.app.editChord(0, 0); });
         await page.waitForTimeout(200);
     }
 

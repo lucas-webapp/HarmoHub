@@ -25,7 +25,7 @@ const seed = () => {
 };
 
 (async () => {
-    plan(18);
+    plan(15);
     const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
@@ -40,10 +40,10 @@ const seed = () => {
     const barre = await page.evaluate(() => {
         const f = (s) => { const e = document.querySelector(s); if (!e) return null; const c = getComputedStyle(e);
             return { fond: c.backgroundColor, image: c.backgroundImage, rayon: c.borderTopLeftRadius }; };
-        return { voicing: f('#toggle-voice-leading'), voix: f('#editeur-notes-voix'), seq: f('#grid-zoom'),
-            voicingAffiche: !!document.getElementById('toggle-voice-leading').offsetParent };
+        // A2 (13/11) : l'icône ⊱ (#toggle-voice-leading) et le bouton Voix de l'éditeur de notes (#editeur-notes-voix) ont quitté la page avec l'ancien séquenceur.
+        return { voicing: document.getElementById('toggle-voice-leading') === null, voix: document.getElementById('editeur-notes-voix') === null, seq: f('#grid-zoom') };
     });
-    exiger(!!barre.voicing && !!barre.voix && !!barre.seq, 'les boutons de la conduite de voix et de l\'éditeur de notes sont là');
+    exiger(barre.voicing && barre.voix && !!barre.seq, 'la conduite de voix et le bouton Voix n\'existent plus ; la porte de programme « Éditeur de notes » reste');
     // LE POINT QUI COMPTE VRAIMENT : « Séq. » ne doit plus être transparent par accident. Un fond
     // transparent passerait ce banc si l'on se contentait de comparer les deux entre eux — d'où le
     // contrôle explicite qu'il est PEINT.
@@ -52,14 +52,6 @@ const seed = () => {
     // ici, l'Éditeur de notes est peint dans la matière des boutons bleus, et son voisin garde le fond sombre à plat qu'on lui avait donné.
     check(/linear-gradient/.test(barre.seq.image) && /rgb\(37, 58, 92\)/.test(barre.seq.image),
         `« Éditeur de notes » est peint, en bleu (dégradé --btn-blue) — ${barre.seq.image.slice(0, 60)}…`);
-    // LOT 9c : « Conduite de voix » a quitté la rangée de l'ordinateur ; elle est devenue le bouton Voix de l'éditeur de notes, qui reprend son logo.
-    // C'est lui qui garde maintenant la matière de l'ancien voisin : fond sombre du volet, à plat, même arrondi.
-    check(!barre.voicingAffiche && barre.voix.fond === 'rgb(22, 25, 30)',
-        `« Conduite de voix » a quitté la rangée ; Voix, dans l'éditeur, garde le fond sombre du volet (--fond-bouton-sombre) — ${barre.voix.fond}`);
-    check(barre.voix.image === 'none',
-        `et reste à plat, sans dégradé clair — ${barre.voix.image}`);
-    check(barre.voix.rayon === barre.seq.rayon,
-        `et le même arrondi que l'Éditeur de notes — ${barre.voix.rayon} / ${barre.seq.rayon}`);
     // La méprise annulée : les listes de la carte Accord n'avaient PAS à changer, aucun retour ne
     // l'avait demandé. Ce point garde la trace de ce retour en arrière.
     const listes = await page.evaluate(() => getComputedStyle(document.getElementById('root')).backgroundImage);
@@ -140,10 +132,10 @@ const seed = () => {
     // La paire d'avant, au TÉLÉPHONE (rien n'y bouge avant le lot 10) : même fond, à plat, même arrondi.
     const paire = await tel.evaluate(() => {
         const f = (s) => { const c = getComputedStyle(document.querySelector(s)); return { fond: c.backgroundColor, image: c.backgroundImage, rayon: c.borderTopLeftRadius }; };
-        return { v: f('#toggle-voice-leading'), s: f('#grid-zoom') };
+        return { v: document.getElementById('toggle-voice-leading') === null, s: f('#grid-zoom') };
     });
-    check(paire.s.fond !== 'rgba(0, 0, 0, 0)' && paire.v.fond === paire.s.fond && paire.v.image === 'none' && paire.s.image === 'none' && paire.v.rayon === paire.s.rayon,
-        `téléphone : « Séq. » et « Conduite de voix » gardent le même fond sombre, à plat — ${paire.s.fond} / ${paire.v.fond}`);
+    check(paire.s.fond !== 'rgba(0, 0, 0, 0)' && paire.s.image === 'none' && paire.v,
+        `téléphone : « Séq. » garde son fond sombre à plat, et « Conduite de voix » n'existe plus (A2) — ${paire.s.fond}`);
 
     check(erreurs.length === 0, `aucune erreur JavaScript — ${erreurs.join(' | ') || 'aucune'}`);
     await browser.close();

@@ -121,7 +121,7 @@ body {
     flex: none;
     vertical-align: -3px;
 }
-button, .icon-btn, .prog-section-del, .seq-presets button, .seq-delete-btn {
+button, .icon-btn, .prog-section-del{
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -399,269 +399,6 @@ body.body-scroll-locked { overflow: hidden !important; }
     flex-direction: column;
     overflow: hidden;
 }
-.seq-zoom-host {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    padding: 18px 20px;
-}
-/* #arp-sequencer n'a normalement pas besoin de sa propre marge/bordure supérieure une fois déplacé
-   ici (déjà dans un panneau dédié, .settings-header joue ce rôle de séparation) — évite un double
-   filet visuel juste sous l'en-tête de la fenêtre. */
-.seq-zoom-host .arp-seq { margin-top: 0; padding-top: 0; border-top: none; }
-
-/* Cases nettement plus grandes une fois dans la fenêtre agrandie — l'intérêt même de cet outil.
-   Sélecteur à 2 classes (spécificité 0,2,0) : l'emporte sur .seq-cell seul, y compris la variante
-   desktop plus bas (.seq-cell { height:30px } à 900px, spécificité 0,1,0), quel que soit l'ordre
-   dans la feuille. --seq-zoom-scale-v : échelle verticale réglable (voir adjustZoom/
-   applyZoomLevel), posée en JS sur #seq-zoom-host — vaut 1 par défaut (taille ci-dessous
-   inchangée) tant que l'utilisateur n'a pas zoomé plus/moins. */
-.seq-zoomed .seq-cell { height: calc(52px * var(--seq-zoom-scale-v, 1)); }
-.seq-zoomed .seq-label { font-size: calc(var(--fs-md) * var(--seq-zoom-scale-v, 1)); padding-right: 8px; }
-.seq-zoomed .seq-beat-label { font-size: calc(var(--fs-sm) * var(--seq-zoom-scale-v, 1)); }
-.seq-zoomed .seq-note-head { width: calc(6px * var(--seq-zoom-scale-v, 1)); }
-.seq-zoomed .seq-grid { gap: calc(6px * var(--seq-zoom-scale-v, 1)) 0; }
-
-/* La fenêtre agrandie plein écran de la grille (et son séquenceur épinglé, sa poignée de
-   redimensionnement, son transport dupliqué) était habillée ici. Retirée : masquer le volet de gauche
-   donne la même largeur sans recouvrir l'appli (voir index.html). */
-.seq-zoom-host { overflow: auto; }
-
-/* Repère de continuité (voir prevMidiSet/nextMidiSet dans renderSequencer) : cette hauteur est aussi
-   jouée par l'accord précédent (trait à gauche) et/ou suivant (trait à droite) — les deux peuvent
-   coexister sans se gêner, chacun de son côté. */
-.seq-label-echo-prev { border-left: 2px solid var(--accent); padding-left: 4px; }
-.seq-label-echo-next { border-right: 2px solid var(--accent); padding-right: 4px; }
-
-/* Ligne de contexte (accord voisin, hors édition) : nom de note seul, sans case ni glissé possible —
-   nettement plus discret qu'une vraie voix de l'accord en cours d'édition. 0.55 -> 0.7 (retour
-   utilisateur : « les accords non sélectionnés en transparence, je ne les vois pas assez, à rendre un
-   tout petit peu plus opaques »). */
-.seq-label-context { color: var(--text-muted); opacity: 0.7; font-style: italic; cursor: default; }
-
-/* Mode continu (voir renderSequencer, gridZoomOpen) : le défilement horizontal devient le mode de
-   navigation normal pour voir les accords voisins (retour utilisateur), pas un dernier recours comme
-   pour .seq-scroll ci-dessous — .seq-cell (éditable, uniquement l'accord en édition) garde son
-   touch-action dédié, qui laisse toujours le JS gérer un glissé dessus sans le confondre avec ce
-   défilement natif. Sélecteur à 2 classes (spécificité 0,2,0) : sans ça, ".seq-scroll" plus bas dans
-   la feuille (même spécificité à une seule classe, 0,1,0) l'emportait par ordre de déclaration et
-   retombait à pan-y seul — le glissé horizontal au doigt semblait alors ne plus répondre du tout
-   (retour utilisateur), bien que le défilement reste possible à la souris/molette. */
-.seq-scroll.seq-scroll-continuous { touch-action: pan-x pan-y; }
-/* .seq-scroll-wide (voir renderSequencer, wideCompact) : même principe pour un accord COMPACT qui
-   déborde d'une page — un accord de plusieurs mesures affiche désormais tout d'un coup sur une bande
-   qui défile, plutôt que de sauter d'une page à l'autre (retour utilisateur : il fallait sinon
-   zoomer arrière juste pour voir la mesure suivante avant d'y étirer une note). Même garde-fou
-   défilement/étirement que .seq-scroll-continuous ci-dessus, pour la même raison. */
-.seq-scroll.seq-scroll-wide { touch-action: pan-x pan-y; }
-/* Échelle de notes/octaves COLLÉE à gauche pendant le défilement horizontal (mode continu OU
-   wideCompact, voir ci-dessus — retour utilisateur : repère perdu de vue en glissant une note loin à
-   droite) — un fond opaque évite
-   que les cases défilantes ne transparaissent derrière. Sans effet ailleurs (page qui tient déjà
-   entière dans la largeur) : rien à faire défiler ni donc à fixer. */
-.seq-scroll-continuous .seq-label, .seq-scroll-wide .seq-label {
-    position: sticky;
-    left: 0;
-    z-index: 2;
-    background: var(--card-bg);
-}
-
-/* Clavier de repérage à gauche du séquenceur continu (voir toucheCls dans renderSequencer) :
-   chaque étiquette de ligne prend l'aspect de SA touche. L'œil retrouve le motif 2+3 des touches
-   noires et situe une hauteur sans lire le nom — même service que le piano fixe de la conduite de
-   voix, d'où la demande. Ne s'applique qu'en vue continue, seule vue où les lignes sont
-   chromatiques : sur des lignes trouées, les touches mentiraient sur les écarts réels.
-   Les couleurs sont volontairement sourdes : c'est un repère, pas un instrument à jouer — le
-   clavier cliquable de l'appli vit dans le panneau Accord. */
-.seq-label.seq-key {
-    padding-right: 6px;
-    border-radius: 0 3px 3px 0;
-    /* Filet de séparation en ombre INTERNE, pas en border-right : la bordure droite est déjà prise
-       par .seq-label-echo-next (repère de note commune avec l'accord suivant), et une règle à deux
-       classes l'aurait écrasée sans bruit. */
-    box-shadow: inset -2px 0 0 rgba(255, 255, 255, 0.12);
-    text-align: right;
-}
-/* VRAIES COULEURS DE TOUCHES (retour utilisateur : « mettre la vraie couleur des touches de piano
-   (blanc-beige et noir) »). Les teintes étaient de simples voiles clair/sombre posés sur le fond de
-   carte : le clavier se devinait plus qu'il ne se lisait. Ce sont maintenant EXACTEMENT l'ivoire et
-   le noir du clavier de l'appli (voir .key.white/.key.black) — deux repères qui montrent la même
-   chose ne doivent pas avoir deux couleurs.
-   L'aplat reste posé PAR-DESSUS var(--card-bg) opaque, jamais une teinte translucide seule : cette
-   colonne est collée à gauche pendant le défilement horizontal (voir .seq-scroll-continuous
-   .seq-label) et doit rester opaque, sinon les cases défilantes transparaissent au travers. */
-.seq-label.seq-key-white {
-    background: linear-gradient(180deg, #f3ede0 0%, #e7dcc4 100%), var(--card-bg);
-    color: #2a2a2a;
-}
-.seq-label.seq-key-black {
-    /* Légèrement en retrait, comme une touche noire plus courte qu'une blanche sur un vrai clavier :
-       c'est ce décrochement, plus que la couleur, qui fait lire le motif 2+3 d'un coup d'œil. Obtenu
-       par un dégradé à seuil net plutôt qu'une marge : la marge aurait laissé 10px transparents à
-       gauche, donc un filet par lequel la grille défilante réapparaît. Le segment de gauche n'est plus
-       transparent mais ivoire : une vraie touche noire est POSÉE sur les blanches, elle ne laisse pas
-       voir le fond de l'écran derrière elle. */
-    background: linear-gradient(to right, #e7dcc4 10px, #171310 10px), var(--card-bg);
-    color: #e4e0d8;
-}
-
-/* LES NOTES DE L'ACCORD RESTENT ALLUMÉES SUR LE CLAVIER (retour utilisateur : « les notes présentes
-   dans l'accord ne restent pas affichées sur le piano »). Le clavier de gauche disait où l'on est,
-   jamais ce qui sonne : pour retrouver l'accord, il fallait relire les barres.
-   Une SEULE surbrillance, plus de couleur par rôle (retour utilisateur : « je ne vois pas la note que
-   je suis en train d'entrer... éclairer uniquement via une surbrillance, et enlève les couleurs sur
-   les touches. Il faut écrire en blanc sur touches noires et en noir sur touches blanches » — le code
-   couleur par rôle vit déjà ailleurs dans l'appli, barres du séquenceur/clavier fixe/légende. Même halo accent que
-   .seq-key-reveal juste plus bas, dont ce traitement reprend le langage — reveal, plus intense, reste
-   au-dessus en cascade pour qu'on sente la DIFFÉRENCE entre « fait partie de l'accord » et « c'est
-   CETTE touche-ci qu'on vise là, maintenant ». Le texte, lui, reprend simplement la couleur de BASE de
-   la touche (color hérité de .seq-key-white/.seq-key-black juste au-dessus) plutôt qu'une teinte
-   propre au rôle : noir sur blanche, blanc sur noire, quelle que soit la fonction. */
-.seq-label.seq-key-jouee { font-weight: 700; }
-.seq-label.seq-key-white.seq-key-jouee {
-    background: linear-gradient(180deg, #ffffff 0%, #f6f0e2 100%), var(--card-bg);
-    box-shadow: inset -2px 0 0 var(--accent), 0 0 4px rgba(0, 230, 118, 0.3);
-}
-.seq-label.seq-key-black.seq-key-jouee {
-    background: linear-gradient(to right, #e7dcc4 10px, #171310 10px), var(--card-bg);
-    box-shadow: inset -2px 0 0 var(--accent), 0 0 4px rgba(0, 230, 118, 0.3);
-    color: #ffffff;
-}
-
-/* UN SEUL NOM ÉCRIT EN PERMANENCE : celui du DO, avec son octave. Vingt et quelques noms empilés
-   remplissaient la gouttière d'un mur de texte à travers lequel on ne voyait plus le clavier (retour
-   utilisateur : « le nom des notes prend trop de place sur les touches, laisser uniquement le Do avec
-   son octave »). Un DO par octave suffit à se repérer — c'est ce qu'on fait sur un vrai clavier.
-   `visibility` et non `display:none` : le nom garde sa place, donc la largeur de la gouttière ne
-   bouge pas quand un nom apparaît en cours de geste (voir .seq-key-reveal juste en dessous) — sinon
-   toute la grille se décalerait au moment précis où l'on vise une note. */
-.seq-label.seq-key .seq-key-name { visibility: hidden; }
-.seq-label.seq-key-c .seq-key-name { visibility: visible; font-weight: 700; }
-/* ...ET le nom de chaque touche COLORÉE, c'est-à-dire de chaque note que l'accord joue vraiment
-   (retour utilisateur : « on ne voit plus toujours le nom des notes avec les touches colorées »).
-   Cacher tous les noms sauf le DO répondait au bon problème — le mur de texte — mais l'a réglé trop
-   largement : les seules lignes dont on cherche VRAIMENT le nom sont celles qui sonnent, et ce sont
-   précisément celles qu'on avait rendues muettes. Les compter à partir du DO le plus proche, sur une
-   gouttière de 14px par demi-ton, est exactement le calcul mental qu'un nom écrit doit épargner.
-   Le compromis tient parce que ces noms-là sont peu nombreux (3 à 5 par accord) et posés sur un fond
-   coloré : ils se lisent comme l'étiquette de la touche, pas comme une colonne de texte. */
-.seq-label.seq-key-jouee .seq-key-name { visibility: visible; }
-
-/* ...sauf le temps d'un geste : poser ou déplacer une barre rallume le nom de la ligne visée (voir
-   _revelerToucheSeq dans script.js) — « quand je déplace ou ajoute une barre dans l'accord, tu dois
-   faire apparaître la note sur la gauche, même pendant le déplacement pour pouvoir poser la note au
-   bon endroit sans faire d'erreur ». La touche s'éclaire en même temps que son nom : sur une colonne
-   de vingt lignes de 14px, un texte seul se repère mal — c'est le contraste de la touche entière qui
-   ramène l'œil au bon endroit. */
-.seq-label.seq-key.seq-key-reveal .seq-key-name {
-    visibility: visible;
-    font-weight: 700;
-}
-.seq-label.seq-key-white.seq-key-reveal {
-    background: linear-gradient(180deg, #ffffff 0%, #f6f0e2 100%), var(--card-bg);
-    box-shadow: inset -2px 0 0 var(--accent), 0 0 6px rgba(0, 230, 118, 0.45);
-}
-.seq-label.seq-key-black.seq-key-reveal {
-    background: linear-gradient(to right, #f6f0e2 10px, #3a332c 10px), var(--card-bg);
-    box-shadow: inset -2px 0 0 var(--accent), 0 0 6px rgba(0, 230, 118, 0.45);
-    color: #ffffff;
-}
-
-/* Ligne d'une hauteur que l'accord ne joue pas encore (voir .seq-cell-free/renderSequencer) : une
-   case cliquable, mais sans le fond des cases éditables — elle doit se lire comme une place LIBRE,
-   pas comme une note éteinte. Le survol l'annonce comme cliquable. */
-.seq-cell.seq-cell-free { background: transparent; }
-.seq-cell.seq-cell-free:hover { background: rgba(0, 230, 118, 0.14); }
-
-/* Repère flottant pendant un glissé de séquenceur (voir showSeqDragReadout) : dit ce qu'on est en
-   train de régler — la note visée, la position dans la mesure, la longueur obtenue. Posé sur <body>
-   en position fixe, donc au-dessus de tout et insensible au défilement/reconstruction de la grille.
-   pointer-events:none : il suit le doigt, il ne doit jamais l'intercepter ni fausser
-   elementFromPoint, dont dépend justement la ligne visée (voir onSeqVoiceDragMove). */
-.seq-drag-readout {
-    position: fixed;
-    z-index: 3000;
-    pointer-events: none;
-    padding: 4px 9px;
-    border-radius: 6px;
-    background: rgba(10, 10, 10, 0.92);
-    border: 1px solid var(--accent);
-    color: var(--text-main);
-    font-size: var(--fs-sm);
-    font-weight: 700;
-    white-space: nowrap;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
-}
-.seq-drag-readout[hidden] { display: none; }
-
-/* Note de CONTEXTE : le séquenceur RÉEL d'un accord voisin, en lecture seule (voir renderSequencer/
-   paintCtxSeg, mode continu). Jamais .seq-cell — qui déclencherait le glissé d'édition (voir
-   onSeqPointerDown) — ni .seq-note, que le rectangle de sélection cherche sans qualificatif.
-   HISTORIQUE DU CONTRAT, en deux corrections successives :
-   1. Fond neutre, un fin trait gris par croche. On voyait QUAND l'accord voisin sonne, jamais QUOI —
-      or c'est exactement ce qu'on vient y chercher (suivre une note commune, lire un mouvement de
-      voix). D'où les teintes par rôle ci-dessous, mêmes couleurs que .seq-note.role-*.
-   2. Une pastille PAR CROCHE. Une blanche tenue apparaissait alors en chapelet de quatre pastilles :
-      le rythme du voisin était illisible et ne ressemblait plus au séquenceur qu'on modifie (retour
-      utilisateur : « je n'aime pas trop la représentation des accords voisins sous forme de petites
-      barres. Garder le séquenceur réel des accords à proximité »). Les croches liées sont donc
-      fusionnées en UNE barre côté rendu, exactement comme pour l'accord édité.
-   Reste la même forme que les barres éditables — dégradé, bordure, arrondi — à teinte et opacité
-   réduites : c'est la PÂLEUR qui dit « pas modifiable ici », pas la forme (retour utilisateur :
-   « laisse la même forme que l'accord que je suis en train de modifier, juste des couleurs plus
-   pâles »). L'opacité reste SOUS l'accord édité : 0.6 x 0.30 d'alpha donne ~0.18 de teinte effective,
-   contre 0.38 pour une barre éditable — qui porte en plus un halo. Remontée depuis 0.45 (~0.14
-   effectif, retour utilisateur : « les accords non sélectionnés en transparence, je ne les vois pas
-   assez, à rendre un tout petit peu plus opaques »). */
-.seq-ctx-note {
-    position: relative;
-    align-self: stretch;
-    pointer-events: none;
-    border-radius: 4px;
-    border: 1px solid;
-    opacity: 0.6;
-}
-.seq-ctx-note.seq-ctx-role-root {
-    background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%), rgba(0, 230, 118, 0.30);
-    border-color: rgba(0, 230, 118, 0.55);
-}
-.seq-ctx-note.seq-ctx-role-third {
-    background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%), rgba(47, 129, 247, 0.30);
-    border-color: rgba(47, 129, 247, 0.55);
-}
-.seq-ctx-note.seq-ctx-role-fifth {
-    background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%), rgba(255, 59, 48, 0.30);
-    border-color: rgba(255, 59, 48, 0.55);
-}
-.seq-ctx-note.seq-ctx-role-seventh {
-    background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%), rgba(255, 179, 0, 0.30);
-    border-color: rgba(255, 179, 0, 0.55);
-}
-.seq-ctx-note.seq-ctx-role-ext {
-    background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%), rgba(224, 176, 255, 0.30);
-    border-color: rgba(224, 176, 255, 0.55);
-}
-
-/* Zone cliquable couvrant tout un contexte gauche/droite (voir renderSequencer, mode continu) :
-   basculer l'édition sur l'accord voisin sans quitter le séquenceur (retour utilisateur). Toute la
-   hauteur des voix plutôt que juste les .seq-ctx-note (lecture seule) qu'elle recouvre sans
-   les gêner (celles-ci ignorent déjà le pointeur, voir plus haut) — plus tolérant qu'un clic pile
-   sur une note fine. Légère surbrillance au survol/tap pour signaler que c'est cliquable. */
-.seq-ctx-nav {
-    cursor: pointer;
-    border-radius: 4px;
-    transition: background 0.1s ease;
-    align-self: stretch; /* .seq-grid impose align-items:center (hauteur au contenu) : sans stretch,
-                             cet élément vide s'écraserait à 0px de haut au lieu de couvrir les voix
-                             (voir le même souci/la même parade sur .seq-playhead ci-dessus) */
-    /* Cette zone couvre TOUS les accords voisins, soit la plus grande partie de la vue continue :
-       la laisser en touch-action:none revenait à interdire le défilement au doigt presque partout
-       (voir .seq-cell, même correction). Elle n'écoute qu'un `click`, et un navigateur n'émet pas de
-       clic au bout d'un geste qu'il a interprété comme un défilement : glisser fait donc défiler,
-       taper change toujours d'accord. */
-    touch-action: pan-x pan-y;
-}
-.seq-ctx-nav:hover, .seq-ctx-nav:active { background: rgba(255, 255, 255, 0.06); }
 
 
 .settings-header {
@@ -676,39 +413,6 @@ body.body-scroll-locked { overflow: hidden !important; }
     flex: none;
 }
 .settings-header h2 { margin: 0; font-size: var(--fs-lg); }
-
-/* Sous-groupe qui ne doit JAMAIS se scinder au retour à la ligne (voir seq-zoom-overlay ET
-   .seq-presets dans index.html/script.js) : zoom H+V ensemble, Annuler/
-   Rétablir/Fermer ensemble — un seul bloc flex, donc un seul élément aux yeux du flex-wrap qui le
-   contient (qui, lui, passe CE bloc entier à la ligne si besoin, jamais un de ses boutons
-   isolément). Sans ça, deux boutons d'un même groupe pouvaient se retrouver chacun sur une ligne
-   différente selon l'endroit pile où le retour à la ligne tombait (retour utilisateur : "le
-   réarrangement en cas de double ligne n'est pas du tout optimal", répété ensuite pour la barre du
-   séquenceur : "beaucoup de décalages"). */
-.btn-wrap-group { display: flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; }
-
-/* Boutons loupe+/loupe-/fermer groupés à droite de l'en-tête (voir seq-zoom-overlay et
-   seq-zoom-overlay) : un seul groupe pour que .settings-header garde son simple titre/actions
-   de part et d'autre (justify-content: space-between), quel que soit le nombre de boutons.
-   flex-wrap (l'en-tête le plus fourni, avec Accord/Grille/Boucle/Stop +
-   Annuler/Rétablir + zoom H/V + fermer) : sur téléphone, ce groupe à lui seul dépasse déjà la
-   largeur de l'écran — sans passer les boutons en trop à la ligne, ils restaient purement coupés/
-   invisibles au-delà du bord (retour utilisateur, capture à l'appui : le bouton fermer et le zoom V
-   disparaissaient entièrement). .settings-header (voir plus haut) ne fait, lui, que déplacer ce
-   groupe ENTIER sous le titre s'il ne tient pas à côté — insuffisant seul si le groupe est encore
-   trop large une fois sur sa propre ligne. */
-.zoom-header-actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    /* flex-shrink autorisé (1, pas 0 comme "none") + min-width:0 : sinon ce groupe refuse de jamais
-       se réduire sous sa largeur de contenu, quel que soit le flex-wrap ci-dessous — il déborderait
-       toujours de l'en-tête au lieu de vraiment passer ses boutons en trop à la ligne. */
-    flex: 0 1 auto;
-    min-width: 0;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-}
 
 /* Groupe -/+ par axe (horizontal/vertical), voir seq-zoom-overlay dans
    index.html et adjustZoom/applyZoomLevel dans script.js : échelle horizontale (accords par
@@ -1154,42 +858,6 @@ main {
 /* (#quick-add-panel n'a plus d'`order` : il vit désormais DANS .history-section, sous le titre de la
    grille, donc il n'est plus un frère aplati de la colonne — il suit la carte qui le contient.) */
 .history-section { order: 2; }
-/* Volet du séquenceur CONTINU, juste SOUS la grille (voir #seq-dock-panel/placeSequencer) : sans
-   `order` explicite il vaudrait 0 et passerait devant tout le reste — le séquenceur s'afficherait
-   alors au-dessus de la grille. Masqué par [hidden] tant que ce mode n'est pas celui choisi. */
-.seq-dock-panel {
-    order: 3;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--card-bg);
-    overflow: hidden;
-}
-.seq-dock-panel[hidden] { display: none; }
-/* Hauteur pilotée en JS (seqDockHeight, mémorisée) ; c'est LUI qui défile, pas le volet. */
-.seq-dock-host { overflow: auto; min-height: 0; }
-
-/* Poignée en haut du volet : la tirer vers le haut agrandit (voir setupSeqDockResize). Zone de
-   préhension généreuse (14px) pour le doigt, trait fin centré comme seul repère visuel. */
-.seq-dock-resize {
-    flex: none;
-    height: 14px;
-    cursor: ns-resize;
-    touch-action: none; /* sinon le geste part en défilement de page avant d'atteindre pointermove */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.seq-dock-resize::after {
-    content: '';
-    width: 40px;
-    height: 3px;
-    border-radius: 2px;
-    background: var(--border);
-}
-.seq-dock-resize:hover::after { background: var(--text-muted); }
 /* Toutes les cartes de réglages au MÊME rang, juste après la grille et le séquenceur : elles sont
    FRÈRES les unes des autres dans .panel-controls aplatie, et sans `order` explicite elles vaudraient
    0 et remonteraient devant tout, y compris devant la grille — c'est ce qui la laissait à ~490px du
@@ -1390,7 +1058,7 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
     border-left: 1px solid rgba(255, 255, 255, 0.18);
 }
 .chord-note { white-space: nowrap; }
-/* Même code couleur que le clavier/la légende (voir .key.active.role-*/.dot-*), en pâle pour rester
+/* Même code couleur que le clavier/la légende (voir .key.active.role-*/ en pâle pour rester
    discret à cette taille de texte plutôt que reprendre les teintes vives du clavier. */
 .chord-note.role-root    { color: #8fd6b8; }
 .chord-note.role-third   { color: #9fb8e0; }
@@ -1500,82 +1168,6 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
    seconde règle écrivait l'ambre en dur et aurait survécu à la désaturation ci-dessous, laissant un
    titre criard sur un liseré éteint. */
 #accord-title { color: var(--sujet, var(--accent)); }
-
-/* ============================================================
-   PETIT SÉQUENCEUR EN TIROIR FLOTTANT (téléphone) — Lot 4 bis de la refonte
-   ============================================================
-   IDÉE DE L'UTILISATEUR : « J'ai bien envie de garder l'idée du "Petit séquenceur" pour l'ajout ou la
-   modification d'un accord... Il est plus simple à utiliser que le grand séquenceur qui demande un
-   grand écran », puis « Le séquenceur pourrait apparaitre dans un popover également, non ? »
-
-   MESURÉ D'ABORD, ET LA MESURE A RESTREINT LE LOT À UN SEUL FORMAT :
-     - Sur ORDINATEUR, ouvrir le petit séquenceur ne coûte RIEN : la grille reste à 162px avec ses
-       236px visibles, le séquenceur vivant dans la colonne de gauche, juste sous les commandes de
-       l'accord. Le faire flotter par-dessus la grille y serait une régression pure. On n'y touche pas.
-     - Sur TÉLÉPHONE, l'ouvrir laisse 0px de grille visible : le séquenceur vit tout en bas de la
-       colonne empilée, et le défilement automatique qui l'amène à l'écran emporte la grille à -455px.
-
-   L'ARITHMÉTIQUE DIT CE QU'ON PEUT ESPÉRER. Sur un iPhone 13 (664px) : 345px au-dessus de la grille,
-   230px de grille, 221px de séquenceur, 81px de barre de lecture — soit 877px à loger dans 664. Il
-   manque 213px, et aucune disposition ne montrera jamais la grille ENTIÈRE et le rythme en même
-   temps. L'objectif n'est donc pas celui-là : c'est de voir L'ACCORD QU'ON TRAVAILLE et son rythme.
-   Le tiroir laisse 362px de fenêtre au-dessus de lui, et le défilement vise désormais la case de
-   l'accord édité au lieu de centrer le séquenceur (voir defilerVersSequenceur dans script.js).
-
-   CE QU'IL NE FAIT PAS, ET C'EST VOULU :
-     - il ne rejoint PAS la table this._popups : un clic sur la grille ne doit pas le refermer, on
-       travaille le rythme d'un accord puis d'un autre sans le rouvrir à chaque fois (« il reste
-       ouvert » quand on change d'accord) ;
-     - il n'appelle PAS lockBodyScroll() : ce n'est pas une fenêtre modale, la page continue de
-       défiler derrière lui ;
-     - il ne détourne ni Ctrl+Z ni la barre d'espace — c'est tout l'objet du lot précédent. */
-@media (max-width: 899px) {
-    .arp-seq.seq-tiroir {
-        position: fixed;
-        left: 6px;
-        right: 6px;
-        /* Posé SUR la barre de lecture, jamais par-dessus : sa hauteur est mesurée puis passée ici
-           par placeSequencer — la barre change de hauteur selon ce qu'elle contient (le bloc
-           Ajouter/Annuler y descend en mode Modification, voir updateEditActionsDocking). */
-        bottom: calc(var(--tiroir-bas, 84px) + 6px);
-        z-index: 25; /* au-dessus de la grille et de son en-tête collant (30 ? non : voir plus bas) */
-        margin: 0;
-        padding: 8px 8px 6px;
-        /* 45 % de la fenêtre au plus : sur un écran très bas, le tiroir doit céder avant la grille.
-           Le contenu défile alors en lui-même (.seq-scroll a déjà son propre défilement). */
-        max-height: 45vh;
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-        background: #14171c;
-        border: 1px solid var(--btn-neutral-border-hover);
-        border-radius: 12px;
-        box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.55);
-    }
-    /* z-index 35 et non 25 : l'en-tête collant de la grille est à 30 et passerait devant le tiroir,
-       coupant sa première ligne de cases. Sous la barre de lecture (.dock, 20) il n'y a rien à
-       craindre — c'est le tiroir qui doit passer devant elle, d'où un rang plus haut que les deux.
-       Reste bien SOUS les fenêtres pleine page (100) et les menus contextuels (200). */
-    .arp-seq.seq-tiroir { z-index: 35; }
-    .arp-seq.seq-tiroir .seq-scroll { flex: 1 1 auto; min-height: 0; }
-    /* La barre d'outils du séquenceur ne défile pas avec les cases : lecture, stop et effacement
-       doivent rester sous le pouce quoi qu'il arrive. */
-    .arp-seq.seq-tiroir .seq-presets { flex: none; }
-
-    /* La fermeture du tiroir, toujours au BOUT de la barre, quelle que soit la façon dont celle-ci se
-       replie sur deux rangées : `order` la met en dernier et `margin-left: auto` la pousse contre le
-       bord droit. Sans les deux, elle se retrouvait au milieu d'une rangée, indistinguable des
-       outils — or c'est la seule sortie du tiroir (voir le commentaire du bouton dans script.js).
-       Teinte rouge discrète, la même famille que les boutons d'effacement : ce n'est pas une action
-       destructrice, mais c'est bien une action de sortie, et elle doit se repérer sans être lue. */
-    .arp-seq.seq-tiroir .seq-tiroir-close {
-        order: 99;
-        margin-left: auto;
-        border-color: var(--btn-red-border);
-        color: #e8a598;
-    }
-    .arp-seq.seq-tiroir .seq-tiroir-close:hover { border-color: var(--btn-red-border-hover); color: #fff; }
-}
 
 /* ============================================================
    COMMANDES DIRECTES DE VOICING — Lot 4 de la refonte
@@ -1836,11 +1428,6 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
     overflow: hidden;
     text-overflow: ellipsis;
 }
-
-/* La valeur exacte, dans l'étiquette. Un morceau écrit avant les cinq niveaux peut porter n'importe
-   quelle valeur (62, 85...) : le niveau le plus proche s'allume, mais le nombre reste lisible — et
-   la donnée n'est jamais réécrite en silence à la simple ouverture de l'accord. */
-.voicing-label-val { color: var(--text-main); font-variant-numeric: tabular-nums; }
 /* Allumé « à peu près » : la valeur de l'accord ne tombe sur aucun des cinq niveaux, on désigne le
    plus proche sans affirmer qu'il est exact. Le liseré passe en pointillé, seul signal qui distingue
    les deux cas sans ajouter de texte. */
@@ -1868,27 +1455,6 @@ body.body-scroll-locked .grid-head-transport-host { display: none; }
    la commande elle-même, désormais 3e colonne de .accord-grid. Toujours piloté par l'attribut posé
    sur <body>, LE point de passage unique de tout changement de mode. */
 body[data-app-mode="edit"] #duration-dd { display: none; }
-/* Deux règles vivaient ici pour étirer la bande d'intensité restée seule en Modification. Elles
-   sont parties avec elle, et la seconde valait qu'on la remarque : `.voicing-segment` ne désigne pas
-   que les cases d'intensité — c'est aussi la classe des cases de renversement et de drop de la carte
-   Accord, elles bien visibles en Modification. Elle les VISAIT donc aussi. Mesuré avant de le dire :
-   elles font 28 à 30px de large de 1440 à 390px, le plafond de 44px ne mordait donc nulle part. Ce
-   n'était pas un défaut visible, c'était une règle qui attendait de le devenir. */
-
-/* TÉLÉPHONES TRÈS ÉTROITS (320px, iPhone SE de 1re génération). Mesuré à l'époque où l'intensité
-   occupait encore la rangée : elle y prenait 126 des 233px disponibles, six cases incompressibles à
-   leur plancher tactile, et « 4 mes. » se retrouvait coupé en « 4 … ». Son départ au menu contextuel
-   a rendu cette place, mais les deux ajustements restent : à 320px, la durée est encore à l'étroit
-   quand le rythme prend trois parts sur cinq. Les deux groupes se partagent donc la place à parts
-   ÉGALES, et l'icône de rythme s'efface — c'est elle qu'on sacrifie et pas le texte : « 4 mes. » se
-   lit, un pictogramme de croche large de 20px sur un écran de 320px, non. Le menu ouvert, lui, garde
-   ses icônes : c'est là qu'on choisit. */
-@media (max-width: 340px) {
-    /* La durée a quitté cette rangée pour la ligne de définition de l'accord. À 320px, c'est donc
-       .accord-grid qu'il faut surveiller : trois colonnes y sont serrées, et « 4 mes. » est le
-       libellé le plus long. Mesuré après le déplacement — voir le banc — il tient ; ce bloc reste
-       le point d'accroche si un futur libellé plus long venait à déborder. */
-}
 
 /* ============================================================
    L'INSPECTEUR DIT DE QUOI IL PARLE — Lot 3 de la refonte
@@ -1965,15 +1531,6 @@ body[data-app-mode="edit"] #duration-dd { display: none; }
     letter-spacing: 0.04em;
 }
 #accord-title-sym { margin-left: 6px; }
-
-/* Regroupe un select (ex. #instrument) et .card-head-actions juste après, pour qu'ils restent collés
-   l'un à l'autre — sans lui, justify-content:space-between sur .card-head (3 enfants) les écarterait
-   comme s'ils étaient chacun un élément à part de la ligne (retour utilisateur). */
-.card-head-right {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
 
 /* Titre du morceau (#song-select) DANS l'en-tête Morceau — "Morceau" ET les boutons (+/enregistrer)
    restent ensemble sur la MÊME ligne, le titre passant seul en pleine largeur sur la ligne suivante
@@ -2075,16 +1632,6 @@ body[data-app-mode="edit"] #duration-dd { display: none; }
    toute l'appli plutôt qu'une variante visuellement différente juste pour cette carte. */
 .icon-btn-lg { width: 38px; height: 38px; }
 .icon-btn-lg .icon { width: 17px; height: 17px; }
-
-/* Variante élargie SEULEMENT (hauteur inchangée, 32px comme .icon-btn) : certains boutons méritent
-   un peu plus de présence horizontale, mais doivent rester alignés en hauteur avec leurs voisins
-   immédiats (les groupes -/+ H/V) plutôt que dépasser comme .icon-btn-lg. Les deux qui l'avaient
-   motivée — les ouvertures du séquenceur — n'en font plus partie : l'une a disparu, l'autre porte
-   désormais un mot et sa propre classe (.btn-seq-court). 44px, PAS
-   42 (retour utilisateur, homogénéisation) : tombe pile sur la même largeur que .seq-icon-btn
-   (Lecture/Stop/Boucle du séquenceur) — un seul chiffre "élargi" dans toute l'appli plutôt que deux
-   valeurs proches mais différentes. */
-.icon-btn-wide { width: 44px; }
 
 /* « SÉQ. » — LE MOT PLUTÔT QUE LE LOGO, au-dessus de la grille.
    Retour utilisateur : « Mettre le même bouton au-dessus de la grille au lieu du logo peu clair,
@@ -2207,33 +1754,6 @@ body[data-app-mode="edit"] #duration-dd { display: none; }
 
 .icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .icon-btn:disabled:active { transform: none; box-shadow: 0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03); }
-
-
-/* .select-group ET .intensity-row ONT ÉTÉ RETIRÉS. Retour utilisateur : « Le panneau lecture n'est
-   pas harmonieux non plus, mets en place le même principe de menu que pour accord au dessus. »
-   La carte Lecture empilait trois rangées de formes différentes : deux gros boutons de poids inégaux
-   (.select-group), puis une barre de réglage avec son étiquette à GAUCHE et son nombre à droite
-   (.intensity-row). Aucune ne suivait la mise en page de la carte Accord — étiquettes minuscules
-   AU-DESSUS, commandes compactes sur UNE rangée. Les deux sont désormais une seule .voicing-row
-   (voir .lecture-row plus bas) : les MÊMES classes que la rangée de voicing, pas une imitation.
-   Plus aucun élément ne portait ces deux classes : les règles n'avaient plus rien à habiller. */
-
-/* Le mode studio est devenu la DERNIÈRE CASE de la rangée d'intensité, à la suite des cinq niveaux :
-   c'est le réglage fin (une intensité par croche) de ce que ces cinq boutons règlent grossièrement.
-   Dans l'en-tête, parmi trois pictogrammes sans rapport entre eux, rien ne disait à quoi il se
-   rapportait. Il prend donc l'habillage des cases (.voicing-step) plutôt que celui d'une icône
-   flottante (.icon-btn) — d'où un état actif à réécrire ici : les fonds pleins de .icon-btn.active
-   ne s'appliquent plus. Un liseré, comme .voicing-segment.active, pour rester dans la même famille. */
-/* La largeur d'un niveau, pas plus : c'en est une sixième case, pas un bouton à part. Déclarée ICI
-   et nulle part ailleurs — une seconde déclaration dans le bloc de la carte Lecture aurait fini par
-   diverger de celle-ci, c'est le défaut que ce fichier a déjà connu plusieurs fois. */
-.voicing-studio { flex: none; width: 24px; padding: 0; border-left: 1px solid var(--border); }
-.voicing-studio .icon { width: 15px; height: 15px; display: block; margin: 0 auto; }
-#toggle-studio-mode.active {
-    background: var(--sujet-fond, rgba(255, 255, 255, 0.08));
-    color: var(--sujet, var(--accent));
-    box-shadow: inset 0 -2px 0 var(--sujet, var(--accent));
-}
 
 /* Durée de l'accord : bouton fermé (icône + libellé compact) qui ouvre un petit menu déroulant
    d'icônes — remplace un <select> texte ("Noire", "1 mesure"...) jugé trop lourd visuellement une
@@ -2385,18 +1905,6 @@ body[data-app-mode="edit"] .accord-grid { grid-template-columns: repeat(2, minma
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-/* Sélecteur de son, dans l'en-tête de la carte Lecture (à côté du titre, voir index.html) plutôt que
-   dans .select-group : évite un 3e menu déroulant en pleine largeur pour un réglage qu'on change bien
-   moins souvent que le style de jeu. flex-grow modéré : prend la place laissée par le titre et les
-   icônes d'action, sans jamais les pousser hors du en-tête. */
-.card-head-select {
-    flex: 1 1 auto;
-    min-width: 0;
-    max-width: 128px;
-    height: 32px; /* aligné sur les icônes juste à côté (.icon-btn), voir .card-head-right */
-    padding: 0 8px;
-    font-size: var(--fs-xs);
 }
 
 /* #advanced-fields ET .advanced-grid ONT ÉTÉ RETIRÉS. Renversement, drop et octave vivent désormais
@@ -2783,35 +2291,6 @@ button:active { transform: translateY(1px); }
 .key.active {
     box-shadow: inset 0 -3px 5px rgba(0,0,0,0.18), 0 2px 5px rgba(0,0,0,0.4);
 }
-
-/* Légende du code couleur sous le clavier */
-.piano-legend {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 6px 16px;
-    margin-top: 14px;
-    font-size: var(--fs-xs);
-    color: var(--text-muted);
-}
-.piano-legend .lg {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-.piano-legend .dot {
-    width: 11px;
-    height: 11px;
-    border-radius: 3px;
-    display: inline-block;
-    box-shadow: 0 1px 1px rgba(0,0,0,0.3);
-}
-/* Même satin mat que les touches actives (voir .key.active.role-*), en miniature */
-.dot-root    { background: linear-gradient(180deg, #3fe3a0, #00a855); }
-.dot-third   { background: linear-gradient(180deg, #5b98f0, #1f5fc0); }
-.dot-fifth   { background: linear-gradient(180deg, #ff6f66, #d42a20); }
-.dot-seventh { background: linear-gradient(180deg, #ffc247, #cc8f00); }
-.dot-ext     { background: linear-gradient(180deg, #dba8ee, #c48ce6); }
 
 /* align-items:center (pas flex-start) : le clavier (48px de haut, volontairement réduit — voir
    .piano-container) est bien plus bas que le diagramme guitare (~105px). Calés en haut, le clavier
@@ -3798,62 +3277,6 @@ button:active { transform: translateY(1px); }
     .partie-menu .tb-mi[data-danger="1"] .icon { color: #ff9a8f; }
 }
 
-/* Panneau "Conduite de voix" (voir buildVoiceLeadingPanelHtml) : piano-roll continu de toute la
-   partie, sous la grille elle-même (jamais au-dessus, pour ne pas déplacer la grille qu'on est en
-   train de modifier à chaque ouverture/fermeture — retour utilisateur sur la maquette). */
-.voice-leading-panel {
-    margin-top: 10px;
-    padding: 10px 12px 12px;
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-}
-.voice-leading-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 8px;
-}
-/* Reprend .piano-legend (même légende 1/3/5/7/Autres que sous le clavier) mais alignée à gauche,
-   pas centrée : ce panneau n'est pas sous un clavier centré, juste au-dessus d'un piano-roll. */
-.voice-leading-legend {
-    justify-content: flex-start;
-    margin-top: 0;
-}
-/* Colonne des touches (voir .voice-leading-keys) HORS de la zone qui défile : reste fixe pendant
-   qu'on avance dans la partie, contrairement à l'ancienne version (touches dans le même SVG que les
-   notes, qui défilaient donc AVEC elles — retour utilisateur : perdait tout repère de hauteur dès
-   qu'on avançait). Un simple flex row règle ça sans recourir à position:sticky : la colonne des
-   touches n'appartient tout simplement PAS au conteneur overflow-x, donc rien à fixer. */
-.voice-leading-body {
-    display: flex;
-    align-items: flex-start;
-}
-.voice-leading-keys {
-    flex: none;
-}
-/* --vl-zoom-scale-x/-y (voir applyZoomLevel) : retour visuel INSTANTANÉ pendant un pincer-zoomer —
-   contrairement à la grille/au séquenceur (CSS calc() sur des dimensions réelles, voir
-   --grid-zoom-scale-v/--seq-zoom-scale-v), ce panneau est un SVG dont les coordonnées sont figées à la
-   construction (voir buildVoiceLeadingPanelHtml) : un simple transform: scale() relatif à la DERNIÈRE
-   construction réelle (jamais 1:1 avec l'échelle absolue) donne un agrandissement fluide en continu
-   entre deux reconstructions différées (~150ms, voir _startZoomPinchFlushLoop) — sans lui, le panneau
-   restait visuellement figé tout du long puis sautait d'un coup, perçu comme saccadé et lent (retour
-   utilisateur). Colonne des touches : Y seulement (sa largeur reste fixe, ce n'est pas elle qu'on
-   étire horizontalement) — transform-origin en haut à gauche des deux côtés pour rester synchronisées
-   entre elles pendant le geste.
-*/
-.voice-leading-keys svg { display: block; transform: scaleY(var(--vl-zoom-scale-y, 1)); transform-origin: top left; }
-.voice-leading-scroll {
-    flex: 1;
-    min-width: 0;
-    overflow-x: auto;
-    border-radius: 0 8px 8px 0;
-}
-.voice-leading-scroll svg { display: block; transform: scale(var(--vl-zoom-scale-x, 1), var(--vl-zoom-scale-y, 1)); transform-origin: top left; }
-
 /* Réduit (retour utilisateur : « Réduis le bouton "Ajouter une partie" qui prend trop de place ») :
    largeur au contenu (pas 100%), padding standard plutôt que celui, généreux, des boutons du
    transport. Un second bouton dupliquant ce même geste a été essayé en tête de grille, à côté du
@@ -4426,13 +3849,6 @@ button:active { transform: translateY(1px); }
     pointer-events: none;
 }
 .row-extra-sep { color: var(--text-muted); opacity: 0.7; margin: 0 2px; }
-/* Fonction harmonique (voir chordFunction/showChordFunction) : un code couleur par fonction plutôt
-   que la couleur unique du chiffrage romain juste avant, pour la distinguer d'un coup d'œil — jamais
-   affichée du tout si elle n'est pas fiable (zone grise), seulement un "?" neutre et en italique
-   (comme .seq-label-context, même convention "incertain" que le reste de l'appli). */
-.fn-t { color: #3fe3a0; }
-.fn-sd { color: #ffc247; }
-.fn-d { color: #ff6f66; }
 .fn-unknown { color: var(--text-muted); opacity: 0.7; font-style: italic; font-weight: 400; }
 
 /* Numéro de mesure : fine ligne dédiée juste sous chaque ligne d'accords (voir gridStyle/loadProgression,
@@ -4589,64 +4005,6 @@ button:active { transform: translateY(1px); }
     z-index: 100;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-/* Séquenceur pas-à-pas */
-.arp-seq {
-    margin-top: 14px;
-    padding-top: 12px;
-    border-top: 1px solid var(--border);
-}
-
-/* Tant qu'un accord tient dans une page (voir seqPageBars/renderSequencer), les colonnes de pas
-   restent en 1fr PUR (pas de largeur plancher) : la page occupe TOUJOURS exactement la largeur
-   disponible, jamais plus — aucun débordement possible dans ce cas, donc rien à scroller, même au
-   doigt sur un petit téléphone. touch-action:pan-y (base, sans déborder) coupe court à toute
-   tentative du navigateur de faire défiler ce conteneur nativement (comme .seq-cell) : un scroll,
-   même résiduel, se confondait au doigt avec le geste d'étirement d'une note. Dès que ça déborde
-   (mode continu OU wideCompact, voir .seq-scroll-continuous/.seq-scroll-wide plus haut), pan-x
-   s'ajoute : le défilement devient alors le mécanisme normal de navigation, jamais un dernier
-   recours — chaque élément éditable garde son propre touch-action:none pour ne pas s'y confondre. */
-/* overflow-y EXPLICITE (retour utilisateur, séquenceur qui ne défilait plus jamais en vertical) :
-   poser overflow-x seul suffit, en CSS, à faire calculer l'AUTRE axe en `auto` lui aussi (jamais
-   `visible` dès qu'un axe ne l'est plus) — .seq-scroll devenait ainsi, sans le vouloir, son PROPRE
-   conteneur de défilement vertical (souvent de quelques pixels à peine, sa hauteur suivant tout
-   juste son contenu). La molette posée dessus (ex. sur .seq-ctx-nav, voir renderSequencer) restait
-   alors piégée à l'intérieur au lieu de remonter au VRAI ancêtre censé défiler (le conteneur du
-   body, .seq-zoom-host ou .panel-controls selon le contexte, tous déjà en overflow-y:auto) — hidden
-   ne cache ici aucun contenu réel (.seq-scroll n'a pas de hauteur propre, seulement celle de son
-   contenu), juste ce micro-conteneur accidentel. */
-.seq-scroll {
-    overflow-x: auto;
-    overflow-y: hidden;
-    touch-action: pan-y;
-    padding-bottom: 2px;
-}
-
-.seq-grid {
-    display: grid;
-    /* Espacement vertical, suivant la même échelle que la hauteur des cases (voir .seq-cell) pour que
-       les lignes ne se collent pas en réduisant ; l'horizontal est géré case par case (.seq-cell-b). */
-    gap: calc(4px * var(--seq-zoom-scale-v, 1)) 0;
-    align-items: center;
-    width: 100%;
-}
-
-.seq-label {
-    font-size: var(--fs-xs);
-    color: var(--text-muted);
-    text-align: right;
-    padding-right: 4px;
-    white-space: nowrap;
-    cursor: pointer; /* clic = écouter cette hauteur, voir previewSeqNote dans script.js */
-    touch-action: none; /* voir .seq-cell plus bas : même raison */
-}
-.seq-label:hover { color: var(--text-main); }
-
-/* Étiquette d'une note libre (voir addSequencerNote/commitExtraNoteLabel) : champ éditable au lieu
-   d'un simple texte, teinté comme les extensions "Autres" (même violet que .dot-ext) pour se
-   reconnaître au premier coup d'œil — bordure en pointillés plutôt qu'un cadre plein, discrète tant
-   qu'on n'y touche pas. */
-.seq-label-extra { padding-right: 0; }
 .seq-label-input {
     width: 3.4em;
     max-width: 100%;
@@ -4660,79 +4018,6 @@ button:active { transform: translateY(1px); }
     padding: 0 2px;
 }
 .seq-label-input:focus { outline: none; border-bottom-color: #dba8ee; }
-
-/* Numéro de temps sous la grille (recommence à 1 à chaque mesure) : repère discret, aligné sur le
-   début du temps plutôt que posé au milieu — même esprit que .row-measure dans la grille d'accords. */
-.seq-beat-label {
-    /* Plus mis en valeur que le trait de contretemps juste à côté (voir .offbeat-dash) : c'est LUI le
-       repère principal de cette ligne (retour utilisateur : "je veux mettre plus en valeur les numéros
-       de temps que les tirets"). */
-    font-size: calc(var(--fs-2xs) * 1.1);
-    font-weight: 700;
-    color: var(--text-muted);
-    opacity: 0.85;
-    padding-top: 3px;
-    font-variant-numeric: tabular-nums;
-    touch-action: none; /* voir .seq-cell plus bas : même raison */
-    transition: color 0.1s ease, opacity 0.1s ease;
-}
-/* Centre le CHIFFRE lui-même sur le vrai début du temps (le bord gauche de cette case, qui EST cette
-   frontière) plutôt que de le laisser posé tel quel (calé à gauche, s'étirant vers la droite) : même
-   principe que le trait de contretemps (.seq-beat-offbeat), qui lui est déjà centré sur SA frontière
-   (retour utilisateur : "les traits sont centrés, mais plus les numéros — asymétrie"). PURE transform
-   (pas position:absolute) : un enfant absolu sort du flux, donc ne contribue plus à la hauteur de
-   .seq-beat-label — sur mobile, où cette ligne dépend de la hauteur RÉELLE de son propre contenu
-   (pas d'une hauteur de ligne de grille fixe comme testé sur desktop), la ligne s'écrasait alors
-   quasiment à rien et le chiffre débordait bien plus bas, coupé par ce qui suit (retour utilisateur :
-   "je ne vois plus les chiffres, ils sont trop bas"). display:inline-block : donne au span une boîte
-   propre dont translateX(-50%) peut se baser sur la largeur, tout en restant dans le flux normal.
-   -2px : EXACTEMENT la même compensation que .seq-beat-offbeat (voir son commentaire) — une frontière
-   entre temps est composée des 2 mêmes types de colonnes (la dernière croche du temps précédent, case
-   "b" avec margin-right:4px, puis la 1ère croche "a" du temps suivant), donc soumise à la MÊME
-   asymétrie qu'une frontière interne au milieu d'un temps. */
-.seq-beat-num {
-    display: inline-block;
-    transform: translateX(calc(-50% - 2px));
-}
-/* Mis en évidence pendant un étirement/peindre en cours (voir _highlightSeqBeatLabel dans script.js) :
-   le temps que le geste vient d'atteindre ressort nettement, pour répondre au retour utilisateur "je
-   ne vois pas exactement où est le temps 4" pendant un glissé — jamais posé en dur, juste ce chiffre
-   déjà présent qui s'allume tour à tour au fil du geste. */
-.seq-beat-label.seq-beat-reached {
-    color: var(--accent);
-    opacity: 1;
-    font-weight: 700;
-}
-/* Contretemps (voir renderSequencer/SEQ_STEPS_PER_BEAT) : un petit trait estompé, sciemment beaucoup
-   plus discret que .seq-beat-label — un repère à avoir en coin d'œil, pas une deuxième ligne de
-   chiffres à lire (retour utilisateur : "je voudrais voir les contretemps, discrètement" puis "à la
-   place d'un point, un petit trait estompé et stylisé"). Case étendue sur 2 colonnes (voir
-   renderSequencer) centrée avec flex, plutôt qu'un simple texte centré dans 1 colonne : le trait tombe
-   ainsi pile sur la frontière réelle entre les deux croches du temps (retour utilisateur : "pas aligné
-   comme il faut... pas à la moitié"). */
-.seq-beat-offbeat {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding-top: 4px;
-    touch-action: none; /* voir .seq-cell plus bas : même raison */
-    /* Compense .seq-cell-b { margin-right: 4px } (voir plus bas) : les deux croches d'un même temps ne
-       forment PAS deux pistes de largeur identique visuellement — la 1ère (case "b", 2e croche du
-       binôme) recule de 4px pour laisser le vrai espacement avant la paire suivante, donc le vrai
-       INTERSTICE visuel entre les deux paires tombe 2px avant la frontière brute des colonnes de
-       grille, sur laquelle le trait est centré par défaut (retour utilisateur : "le tiret n'est pas
-       complètement centré... très légèrement à droite"). */
-    transform: translateX(-2px);
-}
-/* Trait du repère de contretemps du SÉQUENCEUR (voir .seq-beat-offbeat) : un temps a 4 cases (voir
-   SEQ_STEPS_PER_BEAT), un trait vertical y reste lisible comme repère de position fine. */
-.offbeat-dash {
-    width: 2px;
-    height: 9px;
-    border-radius: 1px;
-    background: var(--text-muted);
-    opacity: 0.55;
-}
 /* Repère de contretemps de la GRILLE D'ACCORDS (voir .row-offbeat/loadProgression) : petit point rond,
    pas un trait — choisi par l'utilisateur parmi 5 propositions ("j'aime bien le petit rond pour la
    grille d'accords, mais laisse un tiret pour le séquenceur"), moins voyant qu'un trait sur cette vue
@@ -4754,59 +4039,6 @@ body.all-beats .offbeat-dot {
     height: 6px;
     border-radius: 0;
     opacity: 0.45;
-}
-
-/* Mode studio (voir #toggle-studio-mode/renderSequencer) : une barre de vélocité par croche active,
-   glissée verticalement pour un réglage précis façon GarageBand (retour utilisateur). Même colonnes
-   que .seq-beat-label juste au-dessus, une ligne plus bas. touch-action:none : le glissé vertical
-   règle l'intensité, il ne doit jamais faire défiler la page en même temps sur mobile. */
-.seq-vel-lane-label {
-    font-size: var(--fs-2xs);
-    color: var(--text-muted);
-    opacity: 0.7;
-    padding-top: 6px;
-    white-space: nowrap;
-    touch-action: none; /* voir .seq-cell plus bas : même raison */
-}
-.seq-vel-bar {
-    position: relative;
-    height: 40px;
-    margin-top: 4px;
-    background: #1c1c1c;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    cursor: ns-resize;
-    touch-action: none;
-    overflow: hidden;
-}
-.seq-vel-fill {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(180deg, #4570d6, #2b4a99);
-    transition: height 0.03s linear;
-}
-/* Valeur chiffrée EN VERTICAL par-dessus la barre (retour utilisateur : la hauteur seule du
-   remplissage manque de précision) — pivotée plutôt qu'horizontale, la colonne est bien trop
-   étroite pour "100%" en travers. text-shadow au lieu d'un fond plein : reste lisible aussi bien
-   sur le fond sombre vide que sur le dégradé bleu du remplissage, quel que soit son niveau. */
-.seq-vel-value {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-}
-.seq-vel-value span {
-    display: inline-block;
-    transform: rotate(-90deg);
-    white-space: nowrap;
-    font-size: 9px;
-    font-weight: 600;
-    color: #fff;
-    text-shadow: 0 0 2px #000, 0 0 4px #000;
 }
 
 /* Accueil de #seq-zoom (voir index.html) : un simple `display:flex` aligné à droite — sans hauteur
@@ -4844,138 +4076,6 @@ body.all-beats .offbeat-dot {
 .seq-zoom-btn:hover { color: var(--accent); border-color: var(--accent); background: linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0) 50%), #262b33; }
 .seq-zoom-btn:active { transform: translateY(1px); }
 .seq-zoom-btn .icon { width: 13px; height: 13px; }
-
-.seq-cell {
-    /* Hauteur FIXE, jamais réglable : même principe que .seq-grid-continuous .seq-cell (14px, plus
-       bas) — retour utilisateur, deux fois : « comme sur GarageBand, laisser une unique hauteur de
-       barres » pour la vue continue, puis « bloquer la hauteur des barres du petit séquenceur, et
-       supprimer le V+/- » pour celui-ci. La fenêtre AGRANDIE (loupe) garde sa propre échelle, plus
-       spécifique (voir .seq-zoomed .seq-cell) — c'est la SEULE des trois vues du séquenceur où
-       « voir plus gros » a encore un sens réglable. */
-    height: 26px;
-    background: #202020;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    /* Réticule fin, retour utilisateur : « j'ai besoin de quelque chose de fin pour le séquenceur...
-       main trop imprécise » — la flèche/main par défaut du système ne dit pas assez précisément quel
-       pixel/quelle case elle désigne dans une grille aussi dense. Base de TOUTE la grille : posé ici,
-       jamais écrasé par le survol d'une note existante (voir .seq-cell.on ci-dessous) — second retour
-       utilisateur, une fois la 1re version livrée : « le curseur change de forme (main) lorsque je
-       suis sur une barre... il faut garder le curseur que tu viens de mettre en place ». Seul le
-       BORD garde encore son propre curseur (ew-resize, plus bas) : direction d'un étirement, une
-       information que le réticule ne porte pas. `pointer` en secours si l'image ne charge pas. */
-    cursor: var(--seq-cursor-reticle), pointer;
-    transition: background 0.1s ease, box-shadow 0.1s ease;
-    /* LE DÉFILEMENT TACTILE REDEVIENT NATIF, dans les deux axes.
-       Historique : c'était `touch-action: none`, pour empêcher le navigateur de s'emparer d'un geste
-       à 2 doigts destiné au pincer-zoomer (voir setupPinchZoom) — il le prenait ou non selon
-       l'endroit exact où chaque doigt tombait, d'où des à-coups. Mais tout retirer au navigateur a
-       coûté bien plus cher que ça ne rapportait : plus AUCUN glissé sur la grille ne faisait défiler,
-       et comme la grille EST la quasi-totalité de la surface, se déplacer dans le morceau au doigt
-       créait une note ou en déformait une à chaque tentative (retour utilisateur : « à chaque fois
-       que je veux scroller, je crée une note non voulue ou je modifie une note sans faire exprès...
-       des fois ça fonctionne bien et la barre de défilement apparaît. C'est trop aléatoire » — ça
-       fonctionnait quand le doigt tombait par chance sur la règle ou la gouttière, seules zones
-       restées en pan-x pan-y).
-       Le partage se fait donc maintenant par la DURÉE de l'appui et non par l'endroit touché (voir
-       onSeqPointerDown/_armerAppuiLongSeq) : glissé immédiat = défilement natif, appui maintenu =
-       édition. Le cas des 2 doigts, lui, est traité là où il se pose vraiment — un preventDefault
-       ciblé sur touchmove quand il y a plus d'un doigt (voir setupSequencerInteractions) — au lieu
-       de sacrifier tout le défilement à un doigt pour lui. */
-    touch-action: pan-x pan-y;
-    user-select: none;
-    -webkit-user-select: none;
-    /* Sans ça, Safari iOS peut quand même faire apparaître sa propre bulle de sélection/loupe native
-       après un appui un peu long — exactement le geste que l'appli utilise elle-même pour armer
-       l'édition (voir SEQ_APPUI_LONG_MS) — et cette bulle intercepte alors le tap SUIVANT au lieu de
-       le laisser atteindre le bouton visé juste après (retour utilisateur : « je ne peux pas cliquer
-       sur "supprimer sélection" » juste après avoir sélectionné une note). */
-    -webkit-touch-callout: none;
-}
-
-/* Pipette de motif entre voies armée (voir toggleSeqRowPipette dans script.js) : curseur "copier"
-   sur toute case du séquenceur, pour signaler qu'un clic dépose le motif prélevé sur cette ligne. */
-#arp-sequencer.seq-row-pipette-active .seq-cell {
-    cursor: copy;
-}
-
-/* Chaque rectangle de croche est en réalité deux cases (double-croches) collées l'une à l'autre :
-   pas de bordure/arrondi entre les deux, pas de gap non plus (repoussé après la 2e moitié) — pour
-   qu'elles se lisent comme UN SEUL rectangle tant qu'une note n'utilise pas cette finesse. */
-.seq-cell-a { border-right: none; border-top-right-radius: 0; border-bottom-right-radius: 0; }
-/* L'écart de 4px après la seconde moitié se fait par une BORDURE TRANSPARENTE, plus par une marge.
-   Les deux se voient pareil ; la différence est qu'une marge RETIRE ces 4px de l'élément, laissant
-   une bande MORTE entre deux paires de doubles croches — mesuré : elementFromPoint y renvoyait
-   .seq-grid, aucun geste ne démarrait, et viser le corps d'une note de 2 croches pour la déplacer
-   tombait précisément dedans une fois sur deux. C'est le même défaut que celui déjà corrigé pour la
-   vue continue (voir .seq-grid-continuous .seq-cell) ; il n'avait pas été reporté ici parce que ces
-   cases-ci, elles, ont un fond visible et que l'écart y sert vraiment à quelque chose. Avec une
-   bordure, la case garde toute sa largeur cliquable ET son fond s'arrête 4px avant (background-clip:
-   padding-box) : l'écart reste exactement aussi lisible, sans trou. */
-.seq-cell-b {
-    border-left: none;
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-    border-right: 4px solid transparent;
-    background-clip: padding-box;
-}
-
-/* Repère visuel du début de chaque temps (4 double-croches) */
-.seq-cell.beat-start { border-left: 2px solid #3a3a3a; }
-
-.seq-cell:hover { background: #2c2c2c; }
-
-/* Trois gestes différents partent des cases d'une note : depuis un BORD on étire, depuis le CORPS on
-   déplace la note dans le temps (voir beginSeqHDrag), depuis une case VIDE on dessine. Seul le BORD
-   garde son propre curseur (ew-resize, la SEULE de ces trois informations que le réticule ne porte
-   pas — la direction de l'étirement) ; corps et case vide gardent tous deux le réticule de base posé
-   sur .seq-cell (retour utilisateur, une fois la « main » livrée pour le corps : « le curseur change
-   de forme (main) lorsque je suis sur une barre pour la sélectionner... il faut garder le curseur que
-   tu viens de mettre en place »). Le liseré de bord (juste plus bas) reste, lui, le signal QUEL bord
-   sera étiré. (Au doigt, où il n'y a pas de survol, c'est la note SÉLECTIONNÉE qui montre ses
-   poignées, voir .seq-note.selected plus bas : même information, par un autre canal.) */
-.seq-cell-edge:hover { cursor: ew-resize; }
-
-/* Repère VISIBLE du bord survolé, en plus du curseur : un liseré clair du bon côté de la case, qui
-   montre exactement d'où part l'étirement. position:relative posé ici uniquement pour ancrer ce
-   pseudo-élément — sans effet sur le placement en grille, qui reste piloté par grid-row/grid-column. */
-.seq-cell-edge { position: relative; }
-.seq-cell-edge-start:hover::before,
-.seq-cell-edge-end:hover::after {
-    content: '';
-    position: absolute;
-    top: 15%;
-    bottom: 15%;
-    width: 3px;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.9);
-    pointer-events: none;
-    z-index: 4; /* au-dessus de la note posée (voir .seq-note), sinon masqué par elle */
-}
-.seq-cell-edge-start:hover::before { left: 1px; }
-.seq-cell-edge-end:hover::after { right: 1px; }
-
-/* Milieu d'une note COURTE (1 ou 2 croches) : ses cases sont toutes des bords, donc le CSS ci-dessus
-   y annoncerait un étirement alors qu'on peut désormais l'y prendre et la déplacer. La classe est
-   posée en JS (voir applySeqHoverHighlight), seul endroit qui sache OÙ dans la case est le pointeur —
-   une règle :hover ne le sait pas. Efface le liseré de bord — rétablir le curseur ne lui est en
-   revanche plus nécessaire : le réticule de .seq-cell (voir plus haut) n'est de toute façon jamais
-   remplacé ici non plus, `ew-resize` posé par .seq-cell-edge:hover ci-dessus est la seule chose à
-   neutraliser. */
-.seq-cell-edge.seq-zone-body:hover,
-.seq-cell-edge.seq-zone-body:active { cursor: var(--seq-cursor-reticle), pointer; }
-.seq-cell-edge-start.seq-zone-body:hover::before,
-.seq-cell-edge-end.seq-zone-body:hover::after { display: none; }
-
-/* La note ENTIÈRE que l'on s'apprête à toucher s'éclaire au survol (classe posée par
-   setSeqHoveredNote). Le curseur dit quel geste partira d'ici, le liseré de quel bord — mais ni l'un
-   ni l'autre ne disait SUR QUELLE NOTE il allait s'appliquer, et c'est entre deux notes voisines et
-   courtes qu'on se trompe de cible. Un simple éclaircissement, pas un changement de couleur : la
-   couleur de la pilule porte déjà une information (le rôle de la note dans l'accord). */
-.seq-note.hovered {
-    filter: brightness(1.35);
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55);
-}
 /* Les poignées elles-mêmes sont celles de la note SÉLECTIONNÉE, réutilisées telles quelles au survol
    (voir .seq-note.selected::before plus bas) : même dessin pour la même chose, plutôt qu'une seconde
    poignée légèrement différente selon qu'on survole ou qu'on a sélectionné. */
@@ -4997,332 +4097,6 @@ body.all-beats .offbeat-dot {
 }
 .dock .transport .transport-icon { width: 26px; height: 26px; }
 .dock .transport .icon { width: 24px; height: 24px; }
-
-/* Retour visuel immédiat PENDANT un glissé, le temps que renderSequencer() redessine la forme finale
-   (voir applySeqCell, qui allume/éteint les cases une à une sans reconstruire toute la grille).
-   Volontairement limité à la durée du geste (classe .seq-live posée sur #arp-sequencer, voir
-   onSeqPointerDown) : une fois le rendu fait, c'est la BARRE (.seq-note) qui représente la note, et
-   elle seule. Laisser en plus les cases allumées en dessous repeignait du vert par-dessus le sien —
-   l'intérieur des cases ressortait plus clair que les 4px qui les séparent (voir .seq-cell-b), si
-   bien qu'une note tenue de 6 croches se lisait comme TROIS notes collées. Impossible, dans ces
-   conditions, de voir d'un coup d'œil où une note commence et finit — donc de savoir où saisir pour
-   étirer plutôt que déplacer. */
-.seq-live .seq-cell.on {
-    background: rgba(0, 230, 118, 0.38);
-    border-color: rgba(0, 230, 118, 0.85);
-    box-shadow: 0 0 8px rgba(0, 230, 118, 0.3);
-}
-
-/* L'ÉDITION A PRIS LA MAIN, après un appui maintenu au doigt (voir _armerAppuiLongSeq dans
-   script.js). Sans signal, rien ne distingue « je viens de basculer en édition » de « il ne s'est
-   rien passé » : le doigt masque la case qu'il touche, et on dessinerait à l'aveugle. Un liseré vert
-   tout autour de la bande — visible du coin de l'œil, sans rien recouvrir de la musique. Il double
-   la petite vibration, qui n'existe pas sur tous les appareils. */
-#arp-sequencer.seq-edition-armee .seq-scroll {
-    box-shadow: inset 0 0 0 2px rgba(0, 230, 118, 0.65);
-    border-radius: 4px;
-}
-
-/* Note posée sur la grille (au-dessus des cases, qui restent les zones de clic/glisser en dessous).
-   Deux formes bien distinctes : un petit carré arrondi pour une note isolée (touchée une fois),
-   une pilule continue pour une note étirée au glissé — sa largeur seule raconte sa durée.
-   Remplissage légèrement transparent (le fond de la case se devine dessous) mais un contour bien
-   saturé garde chaque note nette et lisible même à côté d'une autre. */
-.seq-note {
-    position: relative;
-    align-self: stretch;
-    pointer-events: none;
-    cursor: pointer;
-    transition: box-shadow 0.12s ease, border-color 0.12s ease, background 0.12s ease;
-}
-
-.seq-note.single {
-    border-radius: 4px;
-}
-
-.seq-note.run {
-    border-radius: 4px; /* rectangle bien arrondi, sans aller jusqu'à la capsule complète */
-}
-
-/* Code couleur par fonction dans l'accord — mêmes teintes que les touches du piano */
-.seq-note.role-root {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.20), rgba(255, 255, 255, 0) 60%), rgba(0, 230, 118, 0.38);
-    border: 1.5px solid rgba(0, 230, 118, 0.85);
-    box-shadow: 0 0 8px rgba(0, 230, 118, 0.25);
-}
-.seq-note.role-third {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.20), rgba(255, 255, 255, 0) 60%), rgba(47, 129, 247, 0.38);
-    border: 1.5px solid rgba(47, 129, 247, 0.85);
-    box-shadow: 0 0 8px rgba(47, 129, 247, 0.25);
-}
-.seq-note.role-fifth {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.20), rgba(255, 255, 255, 0) 60%), rgba(255, 59, 48, 0.38);
-    border: 1.5px solid rgba(255, 59, 48, 0.85);
-    box-shadow: 0 0 8px rgba(255, 59, 48, 0.25);
-}
-.seq-note.role-seventh {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.20), rgba(255, 255, 255, 0) 60%), rgba(255, 179, 0, 0.38);
-    border: 1.5px solid rgba(255, 179, 0, 0.85);
-    box-shadow: 0 0 8px rgba(255, 179, 0, 0.25);
-}
-.seq-note.role-ext {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.20), rgba(255, 255, 255, 0) 60%), rgba(224, 176, 255, 0.38);
-    border: 1.5px solid rgba(224, 176, 255, 0.85);
-    box-shadow: 0 0 8px rgba(224, 176, 255, 0.25);
-}
-
-/* Note sélectionnée : liseré blanc net, prête à être supprimée (Suppr) ou redimensionnée (← → ou poignées).
-   Placée après les règles de rôle ci-dessus pour l'emporter sur leur bordure/ombre (même spécificité). */
-.seq-note.selected {
-    border-color: rgba(255, 255, 255, 0.85);
-    box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.7), 0 0 6px rgba(0, 230, 118, 0.35);
-}
-
-/* Rectangle de sélection (Maj/Shift + glisser depuis une case vide, voir beginSeqMarqueeSelect) : un
-   simple cadre en pixels par-dessus la grille, jamais calé sur les cases (contrairement au fantôme
-   de duplication, voir .seq-note-dup-ghost) — seule sa forme compte pour savoir ce qu'il touche. */
-.seq-marquee-rect {
-    position: fixed;
-    z-index: 998;
-    border: 1px dashed var(--accent);
-    background: rgba(0, 230, 118, 0.12);
-    pointer-events: none;
-}
-/* Surbrillance transitoire des notes actuellement touchées par le rectangle EN COURS de glissé (voir
-   onSeqMarqueeMove) — distincte de .selected (posée seulement au relâchement, une fois la sélection
-   réelle décidée) pour ne pas laisser croire que c'est déjà acquis avant de lâcher le bouton. */
-.seq-note.marquee-hit {
-    outline: 2px dashed rgba(255, 255, 255, 0.85);
-    outline-offset: 1px;
-}
-
-/* Note liée à une croche hors-page (mesure précédente/suivante, voir seqPageBars) : bord plat côté
-   coupure plutôt qu'arrondi, pour montrer qu'elle continue au-delà de ce qui est affiché. */
-.seq-note.clip-start { border-top-left-radius: 0; border-bottom-left-radius: 0; }
-.seq-note.clip-end { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-
-/* Poignées d'étirement de la note SÉLECTIONNÉE : deux petites barres à ses extrémités. C'est
-   l'équivalent tactile du liseré au survol (voir .seq-cell-edge-start/-end plus haut) — au doigt il
-   n'y a pas de survol, donc rien n'indiquait où saisir pour étirer plutôt que déplacer. Sélectionner
-   une note d'un tap fait apparaître ses poignées : l'information devient atteignable sans souris.
-   Portées par .seq-note (qui, lui, connaît l'état sélectionné) plutôt que par les cases en dessous.
-   Masquées du côté où la note est COUPÉE par la page (clip-start/clip-end ci-dessus) : ce bord-là
-   n'est pas un vrai bord, on n'y étire rien. */
-.seq-note.selected::before,
-.seq-note.selected::after,
-.seq-note.hovered::before,
-.seq-note.hovered::after {
-    content: '';
-    position: absolute;
-    top: 22%;
-    bottom: 22%;
-    width: 3px;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.92);
-    pointer-events: none;
-}
-.seq-note.selected::before,
-.seq-note.hovered::before { left: 2px; }
-.seq-note.selected::after,
-.seq-note.hovered::after { right: 2px; }
-/* Bord coupé par la page : ce n'est pas une vraie extrémité (voir clip-start/clip-end dans
-   renderSequencer), on n'y étire rien — donc pas de poignée qu'on ne pourrait pas attraper. */
-.seq-note.selected.clip-start::before,
-.seq-note.hovered.clip-start::before { content: none; }
-.seq-note.selected.clip-end::after,
-.seq-note.hovered.clip-end::after { content: none; }
-
-/* Fantôme flottant d'un changement de voix (glisser une barre vers une autre ligne, voir
-   beginSeqVoiceDrag/onSeqVoiceDragMove) : suit le pointeur en position fixe, recoloré (role-*, déjà
-   animé par la transition de .seq-note ci-dessus) selon la ligne survolée — retour visuel immédiat
-   du « saut de ligne » demandé. */
-.seq-note.seq-note-ghost {
-    position: fixed;
-    z-index: 999;
-    pointer-events: none;
-    cursor: grabbing;
-    opacity: 0.92;
-    transform: scale(1.05);
-    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.65);
-}
-/* Survole une case hors grille ou non éditable (ligne de contexte) : dépôt ici sans effet — grisé
-   plutôt que coloré pour une voix qui n'existe pas encore. */
-.seq-note.seq-note-ghost-invalid {
-    opacity: 0.45;
-    filter: grayscale(1);
-}
-
-/* Fantôme de duplication (Alt/Option+glisser depuis le corps d'une note, voir beginSeqHDrag appelé
-   avec `copy`) : contour en pointillés qui reste dans la grille (grid-row/column, pas un
-   positionnement en pixels comme .seq-note-ghost ci-dessus, qui lui change de VOIX) — se voit comme
-   « pas encore posé », l'originale restant pleine et inchangée à côté pendant tout le geste. */
-.seq-note.seq-note-dup-ghost {
-    pointer-events: none;
-    opacity: 0.6;
-    background: transparent;
-    border: 2px dashed currentColor;
-}
-
-/* Fantôme de DÉPLACEMENT (glisser horizontal depuis le corps d'une note, sans Alt — voir
-   beginSeqHDrag) : volontairement PLEIN et non pointillé, au contraire du fantôme de duplication
-   juste au-dessus. Rien n'est « en plus » ici : l'originale est masquée pendant le geste, donc cette
-   barre EST la note, simplement en train de suivre le doigt — la montrer en pointillés laisserait
-   croire qu'une seconde note va apparaître. Légèrement éclaircie + halo, pour qu'on la distingue
-   quand même des notes voisines réellement posées, et qu'on voie qu'un geste est en cours. */
-.seq-note.seq-note-move-ghost {
-    pointer-events: none;
-    opacity: 0.9;
-    box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.75), 0 2px 10px rgba(0, 0, 0, 0.45);
-}
-
-/* Repère d'attaque : fine bande plus claire au tout début d'une pilule tenue, pour distinguer d'un
-   coup d'œil où la note est réellement « pincée » de sa partie tenue ensuite (jamais sur une croche
-   isolée, ni sur une note coupée par la page qui n'attaque pas ici — voir renderSequencer). */
-.seq-note-head {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 4px;
-    background: rgba(255, 255, 255, 0.5);
-    border-top-left-radius: inherit;
-    border-bottom-left-radius: inherit;
-}
-
-/* Curseur de lecture : toute la colonne du pas en cours (pas juste un trait) reçoit un léger lavis +
-   un liseré des deux côtés, pour rester bien visible quelle que soit la couleur en dessous (case vide,
-   note colorée...) — parcourt le séquenceur pas par pas pendant playCurrent() (voir updateSeqPlayhead).
-   Masqué par défaut, jamais interactif. */
-.seq-playhead {
-    display: none;
-    align-self: stretch; /* .seq-grid impose align-items:center (hauteur au contenu) : sans stretch,
-                             cet élément vide s'écraserait à 0px de haut au lieu de couvrir la colonne */
-    pointer-events: none;
-    background: rgba(255, 255, 255, 0.14);
-    border-left: 2px solid var(--accent);
-    border-right: 2px solid var(--accent);
-    box-shadow: 0 0 10px rgba(0, 230, 118, 0.5), inset 0 0 10px rgba(0, 230, 118, 0.2);
-    z-index: 5;
-}
-
-/* Navigation par mesure(s) du séquenceur : un saut net d'une page à l'autre plutôt qu'un scroll
-   continu, qui se confondait au doigt avec le geste d'étirement d'une note (voir renderSequencer). */
-.seq-page-nav {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    margin-top: 8px;
-}
-.seq-page-label {
-    font-size: var(--fs-xs);
-    color: var(--text-muted);
-    font-variant-numeric: tabular-nums;
-    min-width: 9em;
-    text-align: center;
-}
-
-.seq-presets {
-    display: flex;
-    /* 18px entre les FAMILLES (les enfants directs sont les groupes, voir .seq-groupe juste après),
-       8px à l'intérieur de chacune. 10px de gouttière verticale : quand la barre se replie, les
-       lignes doivent respirer un peu plus que les boutons entre eux. */
-    column-gap: 18px;
-    row-gap: 10px;
-    margin-top: 12px;
-    flex-wrap: wrap;
-}
-
-/* Grille agrandie dont les cases sont plafonnées (voir renderSequencer/colTemplate) : elle ne remplit
-   plus la fenêtre, il faut donc la centrer plutôt que de la laisser collée à gauche avec un grand
-   vide à droite. C'est la contrepartie du plafond, et sans elle le gain de lisibilité serait annulé
-   par un cadrage bancal. */
-.seq-grid.seq-grid-plafonnee { justify-content: center; width: 100%; }
-
-/* QUATRE FAMILLES, SÉPARÉES PAR L'ESPACE (retour utilisateur : « c'est brouillon à l'affichage »).
-   Neuf boutons alignés à plat, sans césure, dans un ordre qui mélangeait écouter, fabriquer, défaire
-   et regarder : c'est cette absence de groupement qui se lisait comme du désordre, pas leur nombre.
-   Chaque groupe reste une rangée qui passe à la ligne D'UN BLOC — c'est tout l'intérêt : la barre se
-   replie par FAMILLE au lieu de couper au hasard entre deux boutons qui n'ont rien à voir.
-
-   PAS DE FILET, ET C'EST UNE CORRECTION. Mon premier jet séparait les groupes par un `border-left`
-   sur `.seq-groupe + .seq-groupe`. Mesuré aussitôt : à 1440px le groupe « suppression » passe à la
-   ligne (gauche 0, haut 40) EN GARDANT son filet — un trait orphelin collé au bord gauche de la
-   barre, exactement le genre de détail qui fait « brouillon ». Aucun sélecteur CSS ne sait dire
-   « premier de sa ligne » ; le filet était donc une impasse, pas un réglage à affiner.
-   L'espacement, lui, ne connaît pas ce problème : 18px entre les groupes contre 8px à l'intérieur.
-   Plus du double, c'est amplement lu comme une césure — et un groupe seul sur sa ligne reste juste
-   un groupe, sans rien qui dépasse. */
-.seq-groupe {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 0 1 auto;
-    min-width: 0;
-}
-/* Un groupe vide (ex. « affichage » réduit à rien en plein écran) ne doit pas laisser un écart
-   de 18px flotter au milieu de la barre. */
-.seq-groupe:empty { display: none; }
-
-/* Uniquement la mise en page ici : chaque bouton de cette rangée porte désormais sa propre couleur
-   sémantique (.btn-prog/.btn-stop/.seq-delete-btn) — un style gris générique ferait doublon et,
-   pire, l'emporterait sur elles par spécificité CSS (".seq-presets button" > ".btn-prog" seul). */
-.seq-presets button {
-    flex: 1;
-    min-width: 0;
-    height: 32px; /* niveau 2 : mêmes 32px que les icônes génériques, voir .icon-btn */
-    padding: 0 10px 0 6px; /* contenu recentré, voir le commentaire sur le button de base */
-    font-size: var(--fs-sm);
-}
-
-/* Lecture/Stop/Boucle : icône seule (déjà identifiés par leur couleur/forme une fois dans le
-   séquenceur), groupés à gauche — le texte "Lecture"/"Stop" prenait trop de place à côté des
-   boutons Supprimer sur mobile. Même hauteur fixe que le reste de la rangée (.seq-presets button),
-   pour rester alignés sur les boutons Supprimer juste à côté sans dépendre d'un étirement. Taille
-   d'origine (44px) : retour utilisateur, seuls les boutons qui OUVRENT le séquenceur devaient être
-   agrandis, pas ceux-ci. */
-.seq-presets .seq-icon-btn {
-    flex: none;
-    width: 44px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Échelle horizontale du séquenceur compact (voir showInlineSeqZoom/adjustSeqInlineZoom dans
-   script.js), même groupe -/+ que les fenêtres agrandies (.zoom-axis-group, voir plus haut) : reste
-   compact au lieu de s'étirer comme ".seq-presets button" ci-dessus le ferait par défaut. Largeur/
-   hauteur volontairement PAS redéfinies ici (contrairement à avant) : .zoom-axis-group .zoom-axis-btn
-   (même spécificité 0,2,0, mais déclarée plus haut dans la feuille) les fixe déjà — les redéclarer
-   ici les aurait de nouveau emporté par ordre de cascade, annulant l'empilement -/+ vertical.
-   Seuls flex/padding restent nécessaires pour contrer l'étirement de ".seq-presets button". */
-.seq-presets .zoom-axis-btn {
-    flex: none;
-    min-width: 0;
-    padding: 0;
-}
-
-/* Largeur au CONTENU (pas flex:1 hérité de .seq-presets button ci-dessus, qui les étirait pour
-   remplir tout l'espace restant sur leur ligne — largeur alors imprévisible/instable selon les
-   autres boutons déjà posés avant eux, contribuant aux "beaucoup de décalages" signalés par
-   l'utilisateur) : "tout" et "sélection (N)" gardent désormais une largeur stable, cohérente avec
-   les boutons icône à côté, quel que soit l'endroit où ils tombent sur la rangée. Préfixé par
-   ".seq-presets" (spécificité 0,2,0) : sinon ".seq-presets button" (0,1,1) l'emporterait quand même
-   quel que soit l'ordre dans la feuille, exactement le piège déjà noté pour .seq-icon-btn ci-dessus. */
-.seq-presets .seq-delete-btn { flex: 0 1 auto; }
-
-/* Bouton dédié : supprime uniquement les notes sélectionnées, sans toucher au reste du motif */
-.seq-delete-btn:not(:disabled) {
-    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.08), transparent 55%), linear-gradient(160deg, var(--btn-red-1), var(--btn-red-2) 70%);
-    border: 1px solid var(--btn-red-border);
-    color: var(--btn-text);
-}
-.seq-delete-btn:not(:disabled):hover {
-    background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.14), transparent 55%), linear-gradient(160deg, #6c3830, #452420 70%);
-    border-color: var(--btn-red-border-hover);
-}
-.seq-delete-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* Sélecteur de morceau enregistré (actions nouveau/enregistrer/renommer/supprimer : voir .card-head) —
    troncature propre (ellipsis) si le texte dépasse (nom long). */
@@ -5374,11 +4148,6 @@ select.song-select-narrow {
 .mode-field select { flex: 4; min-width: 0; }
 .mode-field .icon-btn { flex: 1; min-width: 30px; width: auto; height: auto; padding: 0; }
 
-
-/* Libellé de bouton en deux versions (ex. "sélection" / "Sélect.") : la version courte ne s'affiche
-   que sur écran étroit, là où la version complète ne rentre pas (voir #seq-delete-selection). */
-.lbl-short { display: none; }
-
 /* TÉLÉPHONE (lot 5a) : « rien ne change avant le lot 10 ». Les échelles de la grille sont celles du MORCEAU, partagées entre appareils — l'affichage
    Normal choisi sur l'ordinateur (cases de 52px, échelle 0,8125) aurait donc réduit les cases du téléphone de 56 à 45px. Le téléphone lit son échelle
    RAMENÉE à l'affichage Normal (--grid-zoom-scale-v-tel = échelle / 0,8125, posée par applyZoomLevel) : Normal y redonne exactement l'aspect d'avant. */
@@ -5392,9 +4161,6 @@ select.song-select-narrow {
 @media (max-width: 480px) {
     /* (La case de 56px sous 480px a disparu au lot 10c : la hauteur est celle de l'affichage du téléphone, voir la fin du fichier.) */
     .cell-sym { font-size: var(--fs-md); }
-    .seq-cell { height: 30px; }
-    .lbl-full { display: none; }
-    .lbl-short { display: inline; }
 }
 
 /* ============================================================
@@ -5494,24 +4260,6 @@ select.song-select-narrow {
        (voir plus bas) — .col-left n'a plus qu'à remplir cette enveloppe. */
     .sidebar-frame, .col-left, .col-right { display: flex; }
 
-    /* Accueil du séquenceur sous la grille (voir placeSequencer/#seq-dock-host) : il n'existe QUE sur
-       ordinateur, et seulement une fois le séquenceur ouvert — :empty le fait disparaître entièrement
-       le reste du temps, sans laisser d'espace ni de marge derrière lui. */
-    /* Pas de marge propre : l'espacement vient du gap de .col-right, et le display:none posé plus haut
-       (voir .seq-dock-host:empty) le retire quand l'accueil est vide — un élément masqué ne compte pas
-       dans un gap flex. */
-    .seq-dock-host {
-        flex: none;
-        min-width: 0;
-    }
-    /* Le séquenceur occupe alors toute la largeur de la colonne, et peut défiler seul en hauteur
-       plutôt que de pousser la grille hors de l'écran quand il y a beaucoup de voix. */
-    /* max-height:42vh a été retiré : il datait du temps où le séquenceur n'avait pas de volet à lui.
-       Depuis, c'est #seq-dock-panel qui fixe la hauteur (réglable à la poignée, mémorisée), et ce
-       plafond la contredisait — le séquenceur s'arrêtait 30px avant le bas du volet, laissant une
-       bande morte sous la rangée de boutons. Le défilement, lui, vit dans .seq-scroll. */
-    .seq-dock-host .arp-seq { width: 100%; }
-
     /* Largeur/flex-basis du panneau vivent ici, sur l'enveloppe, pas sur .col-left (voir juste en
        dessous) : c'est ELLE qui doit garder sa boîte — et donc sa position — quand .col-left, dedans,
        passe en display:none, sans quoi l'étiquette de repli (positionnée par rapport à elle, voir
@@ -5603,8 +4351,6 @@ select.song-select-narrow {
     /* Contrôles plus denses : pensés pour la souris, pas pour le doigt — moins de scroll à clic égal */
     .control-card { padding: 12px 14px; }
     .control-card h2 { font-size: var(--fs-sm); margin-bottom: 8px; }
-    .select-group { gap: 8px; }
-    .select-group + .select-group { margin-top: 8px; }
     /* TROIS colonnes ici aussi (fondamentale, type, durée) : cette règle d'ordinateur en imposait
        deux et l'emportait sur la règle de base, si bien que la durée repassait à la ligne — mesuré :
        grille de 321px pour trois colonnes de 157, donc débordement garanti. Seul l'espacement, plus
@@ -5965,390 +4711,6 @@ select.song-select-narrow {
     line-height: 1.3;
 }
 
-/* ============================================================================
-   SÉQUENCEUR CONTINU — densité, quadrillage et éléments collants
-   Retour utilisateur : « j'aimerais atteindre une réelle fluidité pour ne pas faire d'erreurs. Sur
-   GarageBand j'y arrive sans problème et avec précision. » Les cinq points traités ci-dessous.
-   ============================================================================ */
-
-/* 1. LIGNES CHROMATIQUES RESSERRÉES. Elles héritaient de la taille des vues « agrandies » (52px de
-   base + 6px d'écart), pensée pour 4 voix — appliquée à une vingtaine de demi-tons, ça donnait un
-   séquenceur trois fois trop haut où l'œil ne relie plus une note à sa voisine (retour utilisateur :
-   « trop d'espace entre les notes chromatiques, il faut resserrer les barres verticalement »).
-   14px de base, comme un piano-roll de station audio, et AUCUN écart vertical : ce sont les traits
-   du quadrillage (point 4) qui séparent les lignes, pas du vide. */
-.seq-grid-continuous {
-    gap: 0 !important;
-    /* Hauteur de la règle de mesure (ligne 1). Posée une seule fois ici parce que TROIS choses doivent
-       s'accorder dessus : la hauteur du bandeau et de ses étiquettes, celle du repère de lecture, et
-       surtout le point de départ vertical du quadrillage — qui commence sous elle (voir plus bas). */
-    --seq-ruler-h: 24px;
-    /* Largeur au CONTENU, pas au conteneur. Sans ça, la grille est un bloc large comme la bande et
-       ses colonnes débordent : `grid-column: 1 / -1` ne couvre alors que la largeur visible, et la
-       gouttière collante (voir plus bas) s'arrêtait au bout d'un écran — mesuré, elle décrochait
-       après 1022px et repartait avec le défilement. Avec max-content, l'étendue des colonnes EST la
-       largeur de la grille : la gouttière tient sur toute la longueur du morceau. */
-    width: max-content;
-    min-width: 100%;
-}
-/* 14px EST LE PLAFOND DE LA HAUTEUR DE BARRE, ET LE ZOOM VERTICAL NE PEUT QUE DESCENDRE EN DESSOUS.
-   Deux retours utilisateur à satisfaire ENSEMBLE, et c'est là que la première tentative s'était
-   trompée de dimension :
-     - « laisser une unique hauteur de barres, on se perd avec le grossissement vertical » : une barre
-       ne doit JAMAIS devenir plus grosse que sa taille de référence. D'où le plafond à l'échelle 1
-       (voir zoomMaxFor, axe Y du séquenceur compact) : V+ ne fait que revenir vers 14px.
-     - « juste éloigner la vue pour voir plus de notes » : dézoomer doit faire tenir PLUS de demi-tons
-       dans la fenêtre. La tentative précédente faisait varier la hauteur du VOLET, ce qui donne
-       exactement l'inverse — « lorsque je dézoome avec V−, la fenêtre du séquenceur se contracte, au
-       lieu de pouvoir voir plus de notes ». Rétrécir la fenêtre ne montre jamais rien de plus.
-   C'est donc la hauteur des LIGNES qui suit le zoom, la fenêtre gardant la sienne : à échelle 0,5, une
-   ligne fait 7px et il en tient deux fois plus à l'écran — le comportement d'une station audio. */
-/* La hauteur porte bien le facteur d'échelle : sans lui, tout ce qui précède restait une intention.
-   Mesuré : dans la fenêtre AGRANDIE, V+ et V− faisaient monter seqZoomLevelY jusqu'à 1,95 et posaient
-   --seq-zoom-scale-v sur l'hôte, sans que la moindre ligne ne bouge — les deux boutons ne servaient à
-   rien. La règle .seq-zoomed .seq-cell (plus haut) prévoyait pourtant le réglage, mais elle a la même
-   spécificité que celle-ci (0,2,0) et se trouve AVANT dans la feuille : c'est donc ce « 14px » nu qui
-   l'emportait, par simple ordre de déclaration. Le voisin immédiat trahissait l'oubli — la
-   line-height du même libellé, quelques règles plus bas, multiplie DÉJÀ ses 14px par cette variable.
-   Hors fenêtre agrandie la variable n'est jamais posée : elle retombe sur 1, et la ligne fait 14px
-   comme avant, partout. */
-.seq-grid-continuous .seq-cell,
-.seq-grid-continuous .seq-label { height: calc(14px * var(--seq-zoom-scale-v, 1)); }
-/* EXACTEMENT le gabarit des barres éditables : ni hauteur propre, ni marge — la barre remplit sa
-   ligne, comme .seq-note. Un reste de l'époque des fins repères de contexte lui donnait 14px de haut
-   plus 2px de marge en haut et en bas : mesuré, la barre voisine faisait 14px là où celle qu'on édite
-   en faisait 18 sur la MÊME ligne, décalée de 2px vers le bas — et cette marge gonflait au passage la
-   hauteur des lignes, contre le resserrement obtenu par ailleurs. Deux formes différentes pour la même
-   note selon qu'on l'édite ou qu'on la regarde : l'œil ne pouvait plus la suivre d'un accord au
-   suivant (retour utilisateur : « garder le séquenceur réel des accords à proximité »). */
-.seq-grid-continuous .seq-ctx-note { align-self: stretch; }
-/* Cases plates : arrondis et bordures leur donnaient l'aspect de boutons alignés. Une case de
-   piano-roll n'est qu'une zone de clic — ce qu'on doit voir, c'est le quadrillage et les notes. */
-.seq-grid-continuous .seq-cell {
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    /* Une case sur deux (.seq-cell-b) recule de 4px pour creuser l'écart visible entre deux paires de
-       doubles croches. Utile là où les cases ont un fond — dans le petit séquenceur. Ici elles sont
-       transparentes : ce retrait ne se voyait pas, mais il laissait une bande MORTE de 4px toutes les
-       28px, où rien ne répond au toucher (mesuré : elementFromPoint y renvoie la grille elle-même,
-       aucun geste ne démarre). Sur téléphone, une case sur sept qui ne réagit pas ressemble beaucoup à
-       « c'est aléatoire ». Les cases redeviennent donc jointives ; l'écart visuel entre notes vient
-       des barres elles-mêmes, qui gardent leur propre retrait de fin (voir trimEnd/.seq-note). */
-    margin-right: 0;
-}
-/* Le décalage de 2px des repères de la règle compensait exactement ce retrait de 4px (voir
-   .seq-beat-offbeat/.seq-beat-num) : sans retrait, plus de compensation à faire — sinon les traits
-   tomberaient 2px à côté de la frontière qu'ils désignent. */
-.seq-grid-continuous .seq-beat-offbeat { transform: none; }
-.seq-grid-continuous .seq-beat-label .seq-beat-num { transform: translateX(-50%); }
-.seq-grid-continuous .seq-cell:hover { background: rgba(255, 255, 255, 0.07); }
-/* 2. CLAVIER ET NOMS DE NOTES TOUJOURS VISIBLES À GAUCHE (retour utilisateur : « il faut laisser les
-   notes + piano visibles sur la gauche pour que je me repère »).
-   Ils étaient déjà `sticky left:0` — mais un élément de grille collant est confiné à SA propre case :
-   celle-ci ne fait que la largeur de la gouttière, si bien qu'il n'avait nulle part où coller et
-   partait avec le défilement (mesuré à 1351px hors de la bande). La parade : faire couvrir à
-   l'étiquette TOUTES les colonnes (grid-column: 1 / -1) tout en lui gardant la largeur de la
-   gouttière. Son bloc conteneur s'étend alors sur toute la grille, et `sticky` a enfin de quoi la
-   retenir sur toute la longueur du morceau. La piste, elle, garde sa place grâce à la largeur
-   explicite posée par renderSequencer (--seq-label-w). */
-.seq-grid-continuous .seq-label {
-    grid-column: 1 / -1 !important;
-    width: var(--seq-label-w, 40px);
-    justify-self: start;
-    position: sticky;
-    left: 0;
-    z-index: 6;
-    font-size: 10px;
-    line-height: calc(14px * var(--seq-zoom-scale-v, 1));
-    padding: 0 4px;
-    box-sizing: border-box;
-    box-shadow: inset -1px 0 0 var(--border);
-    overflow: hidden;
-}
-
-/* 4. QUADRILLAGE DE MESURE dessiné au FOND de la grille plutôt qu'avec un élément par case : trois
-   dégradés répétés superposés (mesure / temps / croche), calés sur les variables d'échelle posées
-   par renderSequencer. Coût nul au défilement, et la densité suit le zoom toute seule.
-   L'ancien affichage — un rectangle sombre par temps — ne disait ni où tombe la mesure ni où tombe
-   la croche (retour utilisateur : « l'affichage des temps est trop simpliste et trop grossier »).
-   Hiérarchie à trois niveaux, comme partout ailleurs : trait net à la mesure, moyen au temps,
-   à peine visible à la croche. Plus un aplat une mesure sur deux, qui donne le rythme à l'œil sans
-   qu'il ait à compter. */
-.seq-grid-continuous {
-    background-color: rgba(0, 0, 0, 0.18);
-    background-image:
-        repeating-linear-gradient(90deg, rgba(255,255,255,0.045) 0 var(--seq-bar-w), transparent var(--seq-bar-w) calc(var(--seq-bar-w) * 2)),
-        repeating-linear-gradient(90deg, rgba(255,255,255,0.55) 0 2px, transparent 2px var(--seq-bar-w)),
-        repeating-linear-gradient(90deg, rgba(255,255,255,0.20) 0 1px, transparent 1px var(--seq-beat-w)),
-        repeating-linear-gradient(90deg, rgba(255,255,255,0.085) 0 1px, transparent 1px calc(var(--seq-beat-w) / 2)),
-        /* Doubles croches : c'est l'unité d'aimantation, on doit voir où elles tombent — mais à peine,
-           sinon la grille devient une trame et on ne lit plus la pulsation par-dessus. */
-        repeating-linear-gradient(90deg, rgba(255,255,255,0.035) 0 1px, transparent 1px var(--seq-col-w));
-    /* Décalé de la gouttière : sans ça, chaque trait de mesure tombait une gouttière trop tôt et le
-       quadrillage ne disait plus rien du temps réel (retour utilisateur : « il faut que je puisse me
-       repérer dans le temps »). --seq-label-w est posée par renderSequencer.
-       Décalé AUSSI vers le bas de la hauteur de la règle : le quadrillage montait jusqu'en haut de la
-       grille, donc traversait la règle de part en part — celle-ci se confondait avec la zone de travail
-       au lieu de la surplomber (retour utilisateur : « la règle de mesure doit être en dehors du
-       quadrillage pour mieux la voir (cf. autres DAW) »). Le quadrillage commence maintenant sous elle,
-       exactement comme sur une station audio. `repeat-x` et non `repeat` : la taille verticale imposée
-       ci-dessous n'a de sens que si le motif ne se recopie pas au-dessus. */
-    background-position: var(--seq-label-w, 0px) var(--seq-ruler-h, 24px);
-    background-size: 100% calc(100% - var(--seq-ruler-h, 24px));
-    background-repeat: repeat-x;
-}
-/* Lignes horizontales : un filet par demi-ton, un peu plus marqué au changement d'octave (les
-   touches noires étant déjà teintées par .seq-key-black, l'octave se repère sans compter).
-   Uniquement sur les CASES : porté aussi par les barres de contexte, ce filet leur dessinait un trait
-   sombre en bas que les barres éditables n'ont pas — encore une différence de forme entre la même note
-   selon qu'on l'édite ou qu'on la regarde de côté. */
-.seq-grid-continuous .seq-cell { box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.045); }
-
-/* 5. RÈGLE DE MESURE ET BOUTONS COLLÉS À LA VUE. La règle est passée en ligne 1 (voir beatRow dans
-   renderSequencer) et s'y accroche : on la lit toujours, quelle que soit la hauteur qu'on regarde.
-   Fond opaque obligatoire — les notes défilent dessous. */
-.seq-grid-continuous .seq-beat-label,
-.seq-grid-continuous .seq-beat-offbeat {
-    position: sticky;
-    top: 0;
-    z-index: 3;
-    height: var(--seq-ruler-h, 24px);
-    align-self: start;
-}
-/* Règle (collée en haut) et gouttière de notes (collée à gauche) se croisent : la règle passe
-   devant, sinon la gouttière lui glisse par-dessus au coin haut-gauche. Le z-index de la gouttière
-   est posé plus haut avec le reste de ses propriétés collantes — ne pas le redéfinir ici, une
-   seconde règle de même spécificité l'écrasait et la gouttière repartait avec le défilement. */
-.seq-grid-continuous .seq-beat-label { z-index: 7; }
-
-/* Repère de groove, coin haut-gauche de la règle (voir renderSequencer/GROOVE_RATIOS). Il occupe le
-   seul rectangle vide de l'en-tête — au-dessus de la gouttière des touches —, donc il n'ajoute ni
-   bouton ni rangée. Discret par construction : c'est un rappel, pas une commande. Collé comme le
-   reste de la règle, et au même z-index que les étiquettes pour rester au-dessus des notes qui
-   défilent dessous. */
-.seq-grid-continuous .seq-groove-tag {
-    position: sticky;
-    left: 0;
-    top: 0;
-    z-index: 8;
-    width: var(--seq-label-w, 40px);
-    height: var(--seq-ruler-h, 24px);
-    justify-self: start;
-    align-self: start;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    color: var(--accent);
-    cursor: help;
-    pointer-events: auto;
-}
-
-/* BANDEAU DE LA RÈGLE : un seul élément couvrant toute la partie (grid-column: 1 / -1, voir
-   renderSequencer). Avant, la règle n'existait QUE là où il y avait un chiffre — une étiquette d'une
-   colonne par temps, chacune avec son propre fond — et le quadrillage se voyait dans tous les
-   intervalles : au lieu d'une règle, une rangée de vignettes hachées posée sur la grille (retour
-   utilisateur : « la règle de mesure est complètement incohérente » / « elle doit suivre la section de
-   grille en entier »). Ce bandeau lui donne enfin un corps continu d'un bout à l'autre, y compris
-   au-dessus de la gouttière des noms de notes, et le sépare nettement de la zone de travail : plus
-   clair que le fond, filet net en bas, ombre portée sur les notes qui défilent dessous.
-   Même z-index que les étiquettes, émis AVANT elles : l'ordre du DOM les laisse par-dessus. Il doit
-   en revanche passer DEVANT la gouttière (z-index 6), qui défile verticalement sous lui. */
-.seq-ruler-band {
-    position: sticky;
-    top: 0;
-    z-index: 7;
-    align-self: start;
-    height: var(--seq-ruler-h, 24px);
-    background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03)),
-        var(--card-bg);
-    box-shadow:
-        inset 0 -1px 0 var(--border),
-        0 2px 5px rgba(0, 0, 0, 0.45);
-    pointer-events: none;
-}
-
-/* La bande défile désormais dans les DEUX sens : c'est ce qui permet à la règle de rester collée en
-   haut ET à l'échelle de notes de rester collée à gauche, chacune dans le même conteneur — un
-   élément collant ne s'accroche qu'à un conteneur qui défile dans l'axe concerné. */
-.seq-scroll.seq-scroll-continuous {
-    overflow: auto;
-    max-height: 100%;
-    overscroll-behavior: contain; /* le geste ne remonte pas à la page une fois en butée */
-}
-/* Rangée de boutons ancrée en BAS du volet : elle sortait du champ dès qu'on descendait dans les
-   hauteurs, alors que c'est là que vivent Lecture, aimantation et échelles. Pas de `sticky` ici — le
-   volet n'est pas ce qui défile (c'est .seq-scroll à l'intérieur) : il suffit que la bande défilante
-   prenne la place restante (flex:1) et que la rangée garde la sienne (flex:none). Avec `sticky`, la
-   rangée se superposait au bas de la bande et se retrouvait coupée. */
-/* Sélecteur avec l'id (spécificité 1,1,0) : une règle #arp-sequencer ailleurs dans la feuille
-   l'emportait sur .seq-dock-panel .arp-seq (0,2,0) et laissait le panneau 30px plus court que son
-   hôte — d'où une bande morte sous la rangée de boutons. */
-/* L'hôte devient lui-même une colonne flex : le séquenceur s'y étire par flex plutôt que par
-   height:100%, qui laissait 30px morts sous la rangée de boutons. */
-/* overflow:hidden : c'est .seq-scroll à l'intérieur qui défile désormais dans les deux sens. En
-   laissant `auto` ici, l'hôte réservait la place d'une barre de défilement horizontale qu'il
-   n'utilisait jamais — 30px morts sous la rangée de boutons. */
-.seq-dock-panel #seq-dock-host { display: flex; flex-direction: column; overflow: hidden; }
-.seq-dock-panel #arp-sequencer {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    flex: 1 1 auto;
-    margin: 0;
-    padding: 0;
-    border-top: none;
-}
-.seq-dock-panel .seq-scroll { flex: 1 1 auto; min-height: 0; }
-.seq-dock-panel .seq-presets {
-    flex: none;
-    margin: 0;
-    padding: 6px 8px;
-    background: var(--card-bg);
-    box-shadow: inset 0 1px 0 var(--border);
-}
-
-
-/* ---------------------------------------------------------------------------
-   RÈGLE DE MESURE (vue continue) — retour utilisateur : « le style de la règle est basique et n'est
-   pas très beau... pour que le visuel soit plus pro et agréable ? Comme sur GarageBand, tu pourrais
-   aussi représenter la barre de lecture orange dans cette règle (en restant discret). »
-   --------------------------------------------------------------------------- */
-
-/* Les étiquettes ne portent plus de fond : c'est .seq-ruler-band (voir plus haut) qui fait corps de
-   règle, d'un bout à l'autre de la partie. Chacune n'apporte plus que sa graduation et son chiffre —
-   posés PAR-DESSUS le bandeau, sans coutures entre deux temps. */
-.seq-grid-continuous .seq-beat-label {
-    background: transparent;
-    box-shadow: none;
-    font-size: 10px;
-    font-variant-numeric: tabular-nums; /* les chiffres ne dansent plus d'un temps à l'autre */
-    letter-spacing: 0.02em;
-    color: var(--text-muted);
-    display: flex;
-    align-items: flex-end;
-    padding-bottom: 2px;
-}
-/* Graduation : un trait qui descend du HAUT de la règle. Court sur un temps ordinaire, pleine hauteur
-   sur un début de mesure — c'est LA hiérarchie de la règle, celle qui se lit sans rien déchiffrer.
-   Les temps n'ayant plus de chiffre au repos (voir plus bas), ces traits portent seuls le repérage
-   fin : ils sont donc un peu plus nets qu'avant. */
-.seq-grid-continuous .seq-beat-label::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 1px;
-    height: 7px;
-    background: rgba(255,255,255,0.34);
-}
-.seq-grid-continuous .seq-beat-label[data-mesure]::before {
-    height: 100%;
-    width: 2px;
-    background: rgba(255,255,255,0.70);
-}
-/* UNE RÈGLE DE MESURE NE NUMÉROTE QUE DES MESURES. Chiffres de mesure et chiffres de temps se
-   partageaient la même rangée, dans la même taille : la ligne se lisait « 1 2 3 4 2 2 3 4 3 », deux
-   séries entremêlées impossibles à démêler (retour utilisateur : « la règle de mesure est complètement
-   incohérente »). Seuls les débuts de mesure gardent donc un chiffre — 1, 2, 3, 4, 5 d'un bout à
-   l'autre —, calé JUSTE À DROITE de sa barre comme sur toutes les stations audio (le décalage de
-   centrage général de .seq-beat-num est annulé ici : un numéro de mesure appartient à la mesure qui
-   commence, pas à la frontière). */
-.seq-grid-continuous .seq-beat-label[data-mesure] .seq-beat-num {
-    color: var(--text-main);
-    font-weight: 700;
-    font-size: 11px;
-    transform: translateX(3px);
-}
-/* Les temps ordinaires n'affichent plus rien au repos : leur graduation suffit. Le chiffre n'est pas
-   perdu pour autant — il réapparaît sur le temps que le geste vient d'atteindre (voir
-   _highlightSeqBeatLabel), ce qui répondait au retour « je ne vois pas exactement où est le temps 4 »
-   pendant un étirement. Précisément là où on le cherche, et nulle part ailleurs. */
-.seq-grid-continuous .seq-beat-label:not([data-mesure]) .seq-beat-num {
-    opacity: 0;
-    font-weight: 600;
-    transition: opacity 0.1s ease;
-}
-.seq-grid-continuous .seq-beat-label.seq-beat-reached:not([data-mesure]) .seq-beat-num {
-    opacity: 1;
-    color: var(--accent);
-}
-.seq-grid-continuous .seq-beat-offbeat { background: transparent; box-shadow: none; }
-
-/* Tête de lecture reportée DANS la règle (repère orange, comme sur une station audio) : un curseur
-   fin posé sur la graduation courante, plus lisible que la seule barre verticale traversant les
-   notes. Discret par construction — 2px de large, et rien du tout à l'arrêt. */
-.seq-ruler-head {
-    position: sticky;
-    top: 0;
-    z-index: 8;
-    align-self: start;
-    height: var(--seq-ruler-h, 24px);
-    width: 2px;
-    justify-self: start;
-    background: var(--btn-orange-1, #ff9f1c);
-    box-shadow: 0 0 6px rgba(255, 159, 28, 0.55);
-    pointer-events: none;
-}
-/* Petit triangle en tête, comme le curseur d'une règle de station audio. */
-.seq-ruler-head::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -3px;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid var(--btn-orange-1, #ff9f1c);
-}
-
-
-/* ---------------------------------------------------------------------------
-   DÉFILEMENT DE LA VUE CONTINUE — retour utilisateur : « une fois zoomé, la barre de déplacement
-   horizontal disparaît. Avec mon téléphone, je n'arrive plus à scroller en horizontal ou vertical
-   sans toucher par erreur aux notes présentes dans le séquenceur. »
-   Deux réponses complémentaires : des barres de défilement qui RESTENT là, et deux surfaces où l'on
-   peut glisser sans jamais toucher une note.
-   --------------------------------------------------------------------------- */
-
-/* Barres toujours visibles et assez épaisses pour le doigt. Les barres « overlay » du système
-   s'effacent après une seconde et ne se rattrapent plus au toucher ; en les stylant, on force des
-   barres classiques, qui occupent leur place et restent saisissables. */
-.seq-scroll-continuous { scrollbar-width: auto; scrollbar-color: rgba(255,255,255,0.3) rgba(0,0,0,0.25); }
-.seq-scroll-continuous::-webkit-scrollbar { width: 14px; height: 14px; }
-.seq-scroll-continuous::-webkit-scrollbar-track { background: rgba(0,0,0,0.28); }
-.seq-scroll-continuous::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,0.30);
-    border-radius: 7px;
-    border: 3px solid transparent;
-    background-clip: padding-box;
-}
-.seq-scroll-continuous::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.48); background-clip: padding-box; }
-.seq-scroll-continuous::-webkit-scrollbar-corner { background: transparent; }
-/* Curseur "main qui attrape", posé le temps du glisser au clic molette (voir renderSequencer,
-   listener 'pointerdown' bouton 1) : mêmes deux états qu'un vrai outil main de station audio.
-   user-select:none évite qu'un déplacement de souris bouton enfoncé sélectionne du texte au passage
-   (les libellés de note, notamment) pendant qu'on ne fait que défiler. */
-.seq-scroll-panning, .seq-scroll-panning * { cursor: grabbing !important; user-select: none; }
-
-/* Deux surfaces de PRÉHENSION où glisser fait défiler, jamais éditer : la règle de mesure en haut et
-   la gouttière des notes à gauche. Elles bordent déjà la zone de travail sur ses deux axes, donc le
-   geste est à portée sans viser. `pan-x pan-y` laisse le navigateur faire défiler nativement — c'est
-   plus fluide que n'importe quel calcul en JS, et ça n'enlève rien au tap (jouer la note d'une ligne
-   marche toujours, seul un vrai glissé fait défiler). Les cases, elles, gardent `touch-action: none`
-   pour que dessiner reste possible. */
-.seq-grid-continuous .seq-beat-label,
-.seq-grid-continuous .seq-beat-offbeat,
-.seq-grid-continuous .seq-label {
-    touch-action: pan-x pan-y;
-    cursor: grab;
-}
-.seq-grid-continuous .seq-beat-label:active,
-.seq-grid-continuous .seq-label:active { cursor: grabbing; }
-
 
 /* ============================================================================
    ESPACE PERDU SOUS LE SÉQUENCEUR + AMAS DE BOUTONS EN HAUT À DROITE
@@ -6525,16 +4887,6 @@ select.song-select-narrow {
 /* Enregistrer partage désormais le fond des autres actions vertes : c'est le même geste (poser
    quelque chose), il n'y a pas de raison qu'il ait sa propre nuance. */
 .col-left .icon-btn-accent { background-color: var(--btn-green-2); }
-
-/* Aperçu de la barre pendant qu'on TRACE une note neuve (voir majApercuBarrePeinte dans script.js).
-   Retour utilisateur : « lorsque je crée une note et définis sa longueur avec la souris, j'ai des
-   problèmes d'accrochage lors du survol : certains 1/4 de tons sont grisés et la barre refuse de
-   s'accrocher. » Relevé : 11 cases passaient bien en gris, et ZÉRO barre était dessinée tant que le
-   bouton n'était pas relâché — la barre ne refusait pas de s'accrocher, elle n'existait pas.
-   Aucune mise en forme propre : l'aperçu porte exactement les classes d'une vraie pilule, pour qu'on
-   voie pendant le geste ce qu'on obtiendra après. Cette classe ne sert qu'à le RETROUVER et à
-   l'exclure des sélecteurs qui cherchent de vraies notes. */
-.seq-note-apercu { pointer-events: none; }
 
 /* ===== STRUCTURE DU MORCEAU (voir renderStructurePanel dans script.js) =====
    Une ligne par partie, et sur cette ligne tout ce qu'on cherche du regard : le nom, la longueur, les
@@ -7321,25 +5673,9 @@ body.impression-structure #structure-print-zone { display: block; }
 
 
 /* ======================================================================================================
-   LES CARRÉS DU RYTHME ET LE NOM SUR DEUX LIGNES (refonte, lot 5b).
-   Seize carrés par mesure sous le nom de l'accord, en affichage Détaillé (option « Rythme de l'accord dans les cases ») : plein = une note attaquée,
-   pâle = des notes tenues, vide = silence. Couleurs douces (règle 4 du cahier des charges) : jamais d'aplat vif.
+   LE NOM SUR DEUX LIGNES (refonte, lot 5b). Les petits carrés du rythme qui partageaient ce bloc sont retirés (13/11, A2 : « je ne veux plus ces petits points verts
+   qui représentent le rythme […] je comprendrai directement avec le séquenceur »).
    ====================================================================================================== */
-.cell-rythme {
-    position: absolute;
-    left: 6px; right: 6px; bottom: 6px;
-    display: flex;
-    gap: 1px;
-    height: 6px;
-    pointer-events: none;   /* on clique toujours la CASE à travers eux */
-}
-.cell-rythme i { flex: 1 1 0; min-width: 0; border-radius: 1px; background: rgba(255, 255, 255, 0.07); }
-.cell-rythme i:nth-child(4n):not(:last-child) { margin-right: 2px; }    /* un temps = quatre carrés : le temps se lit d'un coup d'œil */
-.cell-rythme i.a { background: rgba(74, 168, 118, 0.85); }
-.cell-rythme i.t { background: rgba(74, 168, 118, 0.38); }
-.grid-cell.has-rythme .cell-sym { margin-bottom: 10px; }
-.grid-cell.has-rythme.has-meta .cell-meta { bottom: 16px; }
-
 /* Nom de l'accord sur deux lignes quand la case est trop étroite pour une ligne lisible (voir fitCellSymbols). */
 .cell-sym.sym-2l { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.02; }
 .cell-sym.sym-2l .sym-l { display: block; white-space: nowrap; }
@@ -7623,7 +5959,6 @@ body.avec-barre-selection .toast { bottom: 132px; }
    En FIN de feuille, comme l'inspecteur : des règles du séquenceur plus bas l'écraseraient. Téléphone : le libellé « Séq. » et le volet d'avant,
    sans en-tête (rien ne bouge avant le lot 10). */
 #grid-zoom .gz-long { display: none; }
-.editeur-notes-tete { display: none; }
 @media (min-width: 900px) {
     /* « Un bouton BLEU libellé Éditeur de notes » : bleu = ajouter / modifier (règle 3). Ouvert, il reste bleu (le vert dit « lecture ») mais
        s'éclaire et s'enfonce, comme un segment choisi. */
@@ -7644,204 +5979,6 @@ body.avec-barre-selection .toast { bottom: 132px; }
         box-shadow: inset 0 1px 3px rgba(0,0,0,0.45);
     }
 
-}
-/* Lot 10f : tout ce qui suit vaut aussi au téléphone (la feuille plein écran, bloc final de la feuille). */
-@media screen {
-    /* L'EN-TÊTE : « Notes », Fermer, chevrons — une barre, une hauteur, une ligne de base (règle 3). Sans fond propre : c'est le volet
-       (déjà dans verre-surfaces.css) qui porte la surface, il n'y a donc pas de nouvelle surface à dépolir. */
-    .editeur-notes-tete {
-        display: flex; align-items: center; gap: 8px; flex: none;
-        padding: 0 12px 6px; border-bottom: 1px solid var(--border);
-    }
-    .editeur-notes-titre { font-size: var(--fs-sm); font-weight: 800; color: var(--text-main); margin-right: 4px; }
-    .editeur-notes-btn {
-        flex: none; min-width: 0; height: var(--bouton-h); padding: 0 12px; gap: 6px;
-        display: inline-flex; align-items: center; justify-content: center;
-        border-radius: var(--rayon-bouton, 7px); border: 1px solid var(--btn-neutral-border);
-        background: var(--fond-bouton-sombre); color: var(--text-muted);
-        font-size: var(--fs-sm); font-weight: 600; cursor: pointer;
-    }
-    .editeur-notes-btn:hover { background: var(--fond-bouton-sombre-survol); border-color: var(--btn-neutral-border-hover); color: var(--text-main); }
-    .editeur-notes-btn .icon { width: 15px; height: 15px; }
-    .editeur-notes-icone { width: var(--bouton-h); padding: 0; }
-    .editeur-notes-icone .icon { width: 16px; height: 16px; }
-    /* Deux chevrons : écartés = « étendre », rapprochés = « réduire » (maquette). */
-    #editeur-notes-etendre .en-chevrons-fermer { display: none; }
-    #editeur-notes-etendre[aria-pressed="true"] .en-chevrons-fermer { display: block; }
-    #editeur-notes-etendre[aria-pressed="true"] .en-chevrons-ouvrir { display: none; }
-
-    /* LOT 9b — UNE SEULE RANGÉE : Notes, Fermer, outils, la barre du séquenceur (déplacée ici par renderSequencer), Ajuster, chevrons. Elle se replie
-       sur deux lignes si la fenêtre est étroite, sans jamais rogner un bouton. */
-    .editeur-notes-tete { flex-wrap: wrap; row-gap: 6px; padding: 0 12px 6px; }
-    .editeur-notes-barre { display: contents; }
-    .editeur-notes-barre .seq-presets { display: contents; }
-    .editeur-notes-barre .seq-groupe { display: inline-flex; align-items: center; gap: 6px; flex: none; }
-    .editeur-notes-barre .seq-groupe + .seq-groupe { margin-left: 6px; }
-    .editeur-notes-barre .seq-groupe[data-groupe="affichage"] { margin-left: auto; }
-    /* « Uniquement logo » : les mots des deux corbeilles se taisent, leur infobulle et leur aria-label disent ce qu'elles font. « Supprimer la note »
-       n'apparaît que lorsqu'une note est choisie (maquette). */
-    .editeur-notes-barre .seq-delete-btn .lbl-full, .editeur-notes-barre .seq-delete-btn .lbl-short, .editeur-notes-barre .seq-delete-btn .seq-mot { display: none; }
-    .editeur-notes-barre .seq-delete-btn { width: var(--bouton-h); min-width: 0; padding: 0; justify-content: center; }
-    .editeur-notes-barre #seq-delete-selection:disabled { display: none; }
-    .editeur-notes-barre .zoom-axis-tag { display: none; }
-    /* À la jauge (règle 3) : chaque bouton de la rangée fait 32×32, arrondi 7px — Lecture et Stop gardent leur couleur. Le zoom devient deux boutons
-       côte à côte, − puis + comme la maquette, au lieu de la pastille empilée du petit séquenceur. */
-    .editeur-notes-barre .seq-icon-btn, .editeur-notes-barre .seq-delete-btn {
-        width: var(--bouton-h); height: var(--bouton-h); min-width: 0; padding: 0; border-radius: var(--rayon-bouton);
-    }
-    .editeur-notes-barre .btn-wrap-group, .editeur-notes-barre .zoom-axis-group {
-        display: inline-flex; flex-direction: row-reverse; align-items: center; gap: 6px; height: auto; padding: 0; border: 0; background: none; box-shadow: none;
-    }
-    .editeur-notes-barre .zoom-axis-group .zoom-axis-btn {
-        width: var(--bouton-h); height: var(--bouton-h); min-width: 0; padding: 0; border-radius: var(--rayon-bouton);
-        border: 1px solid var(--btn-neutral-border); background: var(--fond-bouton-sombre); color: var(--text-muted);
-    }
-    .editeur-notes-barre .zoom-axis-group .zoom-axis-btn:hover { color: var(--text-main); border-color: var(--btn-neutral-border-hover); }
-    .editeur-notes-barre .zoom-axis-group .zoom-axis-btn .icon { width: 16px; height: 16px; }
-
-    /* Le groupe segmenté des outils : la matière des segments d'Affichage (Compact / Normal / Détaillé), la sélection en BLEU (règle 5). */
-    .editeur-notes-outils { display: inline-flex; align-items: center; gap: 4px; flex: none; }
-    .editeur-notes-outils > button {
-        flex: none; box-sizing: border-box; min-width: 0; width: var(--bouton-h); height: var(--bouton-h); padding: 0;
-        display: inline-flex; align-items: center; justify-content: center;
-        border: 1px solid var(--border); border-radius: var(--rayon-bouton);
-        background: var(--fond-bouton-sombre); color: var(--text-muted); cursor: pointer;
-    }
-    .editeur-notes-outils > button .icon { width: 16px; height: 16px; }
-    .editeur-notes-outils > button:hover { color: var(--text-main); border-color: var(--btn-neutral-border-hover); }
-    .editeur-notes-outils > button[aria-pressed="true"] { color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); }
-    #editeur-notes-ajuster[aria-pressed="true"] { color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); }
-    /* Le curseur dit l'outil. */
-    #arp-sequencer[data-outil="crayon"] .seq-cell { cursor: crosshair; }
-    #arp-sequencer[data-outil="gomme"] .seq-cell { cursor: cell; }
-}
-
-/* ---------- CALQUE VOIX DE L'ÉDITEUR DE NOTES (refonte, lot 9c — docs/refonte.md, « Éditeur de notes ») ----------
-   « Calque Voix = l'ancienne conduite de voix : fonction 1/3/5/7 écrite dans la note (la couleur n'est plus seule), trait blanc du chemin des voix. »
-   En fin de feuille comme le reste de l'éditeur, et ordinateur seulement : le téléphone garde son panneau de conduite de voix jusqu'au lot 10.
-   Aucune surface nouvelle : la légende et la bande des accords n'ont pas de fond propre (le volet et la règle, déjà dépolis, les portent). */
-@media screen {
-    /* L'icône ⊱ de la rangée de réglages se retire de l'ordinateur : sa seule porte est désormais le bouton Voix de l'éditeur (décision du 05/11,
-       une fois chaque fonction de l'ancien panneau retrouvée dans le calque). */
-    #toggle-voice-leading { display: none; }
-
-    #editeur-notes-voix[aria-pressed="true"] { color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); }
-    /* PLACE DANS LA RANGÉE. Voix se range avec les commandes d'affichage, à droite (maquette : Voix, zoom, Ajuster, chevrons). Il prend lui-même
-       la marge automatique que portait le zoom : sinon, la légende qui apparaît le ferait sauter sous le pointeur au moment même du clic. */
-    #editeur-notes-voix { order: 1; margin-left: auto; }
-    .editeur-notes-barre .seq-groupe[data-groupe="affichage"], #editeur-notes-ajuster, #editeur-notes-etendre { order: 2; }
-    .editeur-notes-barre .seq-groupe[data-groupe="affichage"] { margin-left: 0; }
-    /* La légende prend la place LIBRE de la rangée (base 0, elle grandit) : elle ne la fait jamais passer sur deux lignes — sur une fenêtre
-       étroite, elle se rogne plutôt que de prendre 38px aux notes. */
-    .editeur-notes-legende {
-        order: 1; flex: 1 1 0; min-width: 0; overflow: hidden;
-        flex-wrap: nowrap; justify-content: flex-end; gap: 12px; margin: 0; white-space: nowrap;
-    }
-    .editeur-notes-legende[hidden] { display: none; }
-
-    /* LA FONCTION DANS LA NOTE. Chiffre sombre sur la teinte translucide (règle 4 : jamais d'aplat), calé à gauche comme dans la maquette. */
-    .seq-note-fn {
-        position: absolute; left: 3px; top: 50%; transform: translateY(-50%);
-        font-size: 9px; font-weight: 800; line-height: 1; letter-spacing: -0.02em;
-        color: #e9f0ec; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.55);
-        pointer-events: none; white-space: nowrap; max-width: calc(100% - 4px); overflow: hidden;
-    }
-    .seq-note.run .seq-note-fn { left: 6px; max-width: calc(100% - 7px); } /* après le repère d'attaque (.seq-note-head) */
-
-    /* LE CHEMIN DES VOIX, en blanc, sur la frontière entre deux accords. Plein = note commune tenue (un pont qui enjambe la frontière) ;
-       pointillés = la voix bouge (un trait vertical d'une hauteur à l'autre, du milieu d'une ligne au milieu de l'autre). Par-dessus les notes,
-       sous la règle et la gouttière collantes ; jamais cliquable : la case dessous garde ses gestes. */
-    .seq-voix-trait { position: relative; z-index: 2; pointer-events: none; align-self: stretch; }
-    .seq-voix-tenue {
-        align-self: center; height: 2px; border-radius: 1px;
-        background: rgba(255, 255, 255, 0.85);
-    }
-    .seq-voix-mouvement {
-        justify-self: start; width: 2px; margin-left: -1px;
-        margin-block: calc(7px * var(--seq-zoom-scale-v, 1));
-        background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0 4px, transparent 4px 6px);
-    }
-
-    /* LA BANDE DES ACCORDS dans la règle : nom et degré de chaque accord, au-dessus des numéros de mesure (décision du 05/11). La règle grandit
-       d'autant (--seq-ruler-h, que le quadrillage et le bandeau lisent déjà) ; mesures, graduations et tête de lecture descendent sous la bande
-       et y restent collées en défilant. */
-    .seq-grid-continuous.seq-grid-voix { --seq-ruler-h: 38px; }
-    .seq-grid-continuous.seq-grid-voix .seq-beat-label,
-    .seq-grid-continuous.seq-grid-voix .seq-beat-offbeat,
-    .seq-grid-voix .seq-ruler-head { top: 14px; margin-top: 14px; height: 24px; }
-    .seq-voix-accord {
-        position: sticky; top: 0; z-index: 8; align-self: start;
-        height: 14px; box-sizing: border-box; padding: 0 4px; min-width: 0; overflow: hidden;
-        display: flex; align-items: center; gap: 4px; white-space: nowrap;
-        border-left: 1px solid rgba(255, 255, 255, 0.22);
-        font-size: 10px; line-height: 1; pointer-events: none;
-    }
-    .seq-voix-nom { font-weight: 800; color: var(--text-main); }
-    .seq-voix-degre { font-weight: 700; color: var(--text-muted); font-size: 9px; }
-}
-
-/* ---------- NOTES MANUELLES ET INTENSITÉ DANS L'ÉDITEUR DE NOTES (refonte, lot 9d — docs/refonte.md, « Éditeur de notes ») ----------
-   « Notes ajoutées à la main en pointillés + pastille ambre sur la case + Revenir à l'automatique dans l'inspecteur. Bande d'intensité (le mode
-   studio actuel) sous les notes. » En fin de feuille comme le reste de l'éditeur ; ordinateur seulement (le téléphone ne bouge pas avant le lot 10). */
-@media screen {
-    /* UNE NOTE AJOUTÉE À LA MAIN : liseré en pointillés, presque vide (la maquette : fond à 8 %, liseré à 85 %). La teinte reste celle de son rôle
-       (règle 4) : ce qui change, c'est qu'elle ne vient pas du nom de l'accord. Partout à l'ordinateur — l'éditeur, le petit séquenceur de
-       l'inspecteur, les accords voisins (décision du 05/11). La sélection garde son liseré blanc (posé plus haut, même spécificité : la couleur
-       seule est reprise ici, pas le blanc). */
-    .seq-note.manuelle { border-style: dashed; }
-    .seq-note.manuelle:not(.selected) { box-shadow: none; }
-    .seq-note.manuelle.role-root { background: rgba(0, 230, 118, 0.08); }
-    .seq-note.manuelle.role-third { background: rgba(47, 129, 247, 0.08); }
-    .seq-note.manuelle.role-fifth { background: rgba(255, 59, 48, 0.08); }
-    .seq-note.manuelle.role-seventh { background: rgba(255, 179, 0, 0.08); }
-    .seq-note.manuelle.role-ext { background: rgba(224, 176, 255, 0.08); }
-    .seq-note.manuelle.selected { border-color: rgba(255, 255, 255, 0.85); }
-    .seq-ctx-note.manuelle { border-style: dashed; background: transparent; }
-}
-@media screen {
-    /* LE BOUTON INTENSITÉ (le mode studio, même logo) : rangé après Voix dans l'éditeur, allumé en BLEU comme Voix et Ajuster — le vert dit
-       « lecture » (règle 5). Ailleurs à l'ordinateur, il garde son allumage d'avant. */
-    .editeur-notes-barre #toggle-studio-mode[aria-pressed="true"] {
-        color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); box-shadow: none;
-    }
-
-    /* LA BANDE D'INTENSITÉ, collée en bas de la vue comme la règle l'est en haut : fond plein (les notes défilent dessous), filet net en haut,
-       ombre portée vers les notes — le bandeau de la règle, retourné. Elle PREND les clics qui tombent entre deux barres : sans ça, un clic sur
-       la bande irait à la case cachée dessous et y dessinerait une note qu'on ne voit pas. Pas une nouvelle surface : la même matière que le
-       bandeau de la règle, portée par le volet déjà dépoli (verre-surfaces.css). */
-    /* bottom: -2px et non 0 : la vue défilante a 2px de marge intérieure en bas, où `sticky` s'arrête — 2px de notes passaient sous la bande. */
-    .seq-grid-intensite .seq-vel-band {
-        position: sticky; bottom: -2px; z-index: 7; align-self: end;
-        height: 40px; box-sizing: border-box;
-        background: linear-gradient(0deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03)), var(--card-bg);
-        box-shadow: inset 0 1px 0 var(--border), 0 -2px 5px rgba(0, 0, 0, 0.45);
-    }
-    /* « Int. » dans la gouttière, collé à gauche ET en bas (même parade que les étiquettes de notes : il couvre toutes les colonnes pour que
-       `sticky` ait de quoi le retenir), fond plein pour que les barres des voisins passent dessous en défilant. */
-    .seq-grid-intensite .seq-vel-lane-label {
-        position: sticky; left: 0; bottom: -2px; z-index: 9; align-self: end; justify-self: start;
-        width: var(--seq-label-w, 40px); height: 40px; box-sizing: border-box; padding: 6px 0 0 5px; opacity: 1;
-        background: linear-gradient(0deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03)), var(--card-bg);
-        box-shadow: inset -1px 0 0 var(--border), inset 0 1px 0 var(--border);
-        font-size: 10px; color: var(--text-muted);
-    }
-    /* Les barres : 32px dans les 40 de la bande, centrées — à 4px du bas de la bande quand elle est collée. Celles des voisins ont la matière des
-       barres réglables, pâlies comme leurs notes (« c'est la pâleur qui dit pas modifiable ici »), et ne prennent aucun clic. */
-    .seq-grid-intensite .seq-vel-bar,
-    .seq-grid-intensite .seq-vel-ctx {
-        position: sticky; bottom: 2px; z-index: 8; align-self: center;
-        height: 32px; margin: 0 1px; box-sizing: border-box;
-    }
-    .seq-vel-ctx {
-        background: #1c1c1c; border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
-        opacity: 0.5; pointer-events: none;
-    }
-    .seq-vel-ctx .seq-vel-fill { transition: none; }
-
-    /* RÉGLÉE À LA MAIN = AMBRE (décision du 05/11) : l'ambre de la pastille de la case, « quelque chose ici n'est pas réglage d'origine ». En
-       dégradé, jamais en aplat (règle 4). La barre de la note choisie est cerclée de blanc, comme la note. Partout à l'ordinateur. */
-    .seq-vel-bar.reglee .seq-vel-fill, .seq-vel-ctx.reglee .seq-vel-fill { background: linear-gradient(180deg, #e0b36a, #9c7334); }
-    .seq-vel-bar.choisie { border-color: rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.7); }
 }
 
 
@@ -8029,7 +6166,7 @@ body.avec-barre-selection .toast { bottom: 132px; }
     .dock:not(:has(> *)) { display: none; }
     /* Les diagrammes et l'éditeur de notes ouverts depuis le panneau viennent à l'écran par scrollIntoView : sans cette marge, ils s'arrêteraient
        sous la barre de lecture. */
-    .viz-card, #seq-dock-panel { scroll-margin-top: calc(var(--haut-barre, 110px) + 8px); scroll-margin-bottom: calc(var(--haut-barre-lecture, 68px) + 8px); }
+    .viz-card{ scroll-margin-top: calc(var(--haut-barre, 110px) + 8px); scroll-margin-bottom: calc(var(--haut-barre-lecture, 68px) + 8px); }
 
     /* LE PANNEAU LECTURE : il monte du bas et se pose sur la barre (qui reste utilisable). 12px d'arrondi, ce qui flotte. Au-dessus des vues
        Structure et Paroles (35) : on règle le tempo en lisant ses paroles. */
@@ -8357,30 +6494,6 @@ body.avec-barre-selection .toast { bottom: 132px; }
 }
 
 /* ======================================================================================================
-   10f — L'ÉDITEUR DE NOTES AU TÉLÉPHONE (refonte, lot 10 — « Éditeur de notes accessible »).
-   Même éditeur qu'à l'ordinateur (mêmes nœuds, même code : en-tête, outils, calque Voix, bande d'intensité, pointillés), en feuille PLEIN ÉCRAN entre
-   la barre du haut et la barre de lecture (qui reste utilisable : Lecture, Stop, tempo). Il remplace « Séq. » et l'icône ⊱. En fin de feuille : les
-   règles de l'éditeur plus haut l'emporteraient sinon. Aucune surface nouvelle : le volet #seq-dock-panel est déjà dans verre-surfaces.css.
-   ====================================================================================================== */
-@media (max-width: 899px) {
-    #seq-dock-panel:not([hidden]) {
-        position: fixed; left: 0; right: 0; top: var(--haut-barre, 111px); bottom: var(--haut-barre-lecture, 68px);
-        z-index: 34; border-radius: 0; border-left: 0; border-right: 0; order: 0;
-    }
-    /* La hauteur automatique du volet est celle de l'ordinateur : ici la feuille donne toute la place aux notes. */
-    #seq-dock-panel #seq-dock-host { flex: 1 1 auto; height: auto !important; min-height: 0; }
-    #seq-dock-resize { display: none; }
-    #editeur-notes-etendre { display: none; }
-    .editeur-notes-tete { padding: 8px 10px 8px; row-gap: 8px; }
-    .editeur-notes-btn, .editeur-notes-outils > button, .editeur-notes-icone { height: var(--bouton-h-lg); min-height: var(--bouton-h-lg); }
-    .editeur-notes-icone, .editeur-notes-outils > button { width: var(--bouton-h-lg); min-width: var(--bouton-h-lg); }
-    .editeur-notes-barre .seq-icon-btn, .editeur-notes-barre .seq-delete-btn { height: var(--bouton-h-lg); min-width: var(--bouton-h-lg); }
-    .editeur-notes-barre .zoom-axis-group .zoom-axis-btn { height: var(--bouton-h-lg); min-width: var(--bouton-h-lg); }
-    .editeur-notes-legende { flex: 1 1 100%; justify-content: flex-start; order: 3; }
-    #editeur-notes-voix { margin-left: 0; }
-}
-
-/* ======================================================================================================
    REFONTE DU SÉQUENCEUR, POINT C (11/11) : « il recadre l'écran à chaque fois ». L'inspecteur réservait une colonne de 344px à droite : la zone de la
    grille rétrécissait (1400 → 1020px à 1440px), la rangée de réglages passait sur deux lignes (+42px) et la grille, centrée, partait de 190px à gauche
    — à chaque mise en modification, donc à chaque clic sur un accord séquenceur ouvert. Il FLOTTE désormais au-dessus du bord droit, sans rien réserver
@@ -8668,7 +6781,7 @@ body.avec-barre-selection .toast { bottom: 132px; }
    (docs/refonte-sequenceur.md, 3 bis). Au téléphone, rien ne change avant l'étape 4c. En fin de fichier (cascade).
    ====================================================================================================== */
 @media (min-width: 900px) {
-    .seq-inline-toolbar, #arp-sequencer { display: none; }
+    .seq-inline-toolbar{ display: none; }
 }
 
 
@@ -8678,7 +6791,7 @@ body.avec-barre-selection .toast { bottom: 132px; }
    (#arp-sequencer) et le bouton « Rythme » du dock de secours (#dock-rythme). « Un seul séquenceur » : au téléphone, c'est l'onglet Rythme du panneau d'accord,
    ouvert aussi par « Séquenceur » du panneau Lecture. Les règles 4a et 4b ci-dessus valent donc désormais partout. En fin de fichier (cascade).
    ====================================================================================================== */
-#grid-zoom, .seq-inline-toolbar, #arp-sequencer, #dock-rythme { display: none !important; }
+#grid-zoom, .seq-inline-toolbar, #dock-rythme { display: none !important; }
 
 
 /* ======================================================================================================

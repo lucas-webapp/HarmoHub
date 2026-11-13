@@ -30,7 +30,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     });
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(200);
-    await page.evaluate(() => window.app.openSequencerFor(0, 0));
+    await page.evaluate(() => window.app.editChord(0, 0));
     await page.waitForTimeout(100);
 
     // change quality min -> min7 (adds the 7th, voice index 3)
@@ -76,7 +76,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     });
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(200);
-    await page.evaluate(() => window.app.openSequencerFor(0, 0));
+    await page.evaluate(() => window.app.editChord(0, 0));
     await page.waitForTimeout(100);
 
     await page.evaluate(() => {

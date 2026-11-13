@@ -22,30 +22,6 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
         await p.evaluate(()=>window.app.editChord(0,5)); await p.waitForTimeout(500);
         const taper = (sel) => vp.mob ? p.tap(sel) : p.click(sel);
 
-        const lire = () => p.evaluate(()=>{
-            const seq=document.getElementById('arp-sequencer');
-            const g=document.querySelector('.seq-grid');
-            const dock=document.getElementById('seq-dock-host');
-            const panneau=document.getElementById('seq-dock-panel');
-            // La CARTE de la grille, pas #progression-sections : celui-ci défile à l'intérieur d'elle,
-            // son rectangle déborde donc sa propre carte et fausserait la comparaison.
-            const grille=document.querySelector('.history-section');
-            const r=seq.getBoundingClientRect();
-            return {
-                mode: window.app.seqMode,
-                hote: seq.parentElement.id || seq.parentElement.className,
-                dansVolet: dock.contains(seq),
-                voletVisible: !panneau.hidden && panneau.getBoundingClientRect().height>0,
-                continu: !!g && g.className.includes('continuous'),
-                lignes: document.querySelectorAll('.seq-label').length,
-                contexte: document.querySelectorAll('.seq-ctx-note').length,
-                visible: r.height>0 && r.top<innerHeight && r.bottom>0,
-                // Mesurer le VOLET, pas #arp-sequencer : celui-ci défile à l'intérieur du volet, son
-                // rectangle peut donc remonter au-dessus de lui et fausser la comparaison.
-                sousLaGrille: !panneau.hidden && panneau.getBoundingClientRect().top >= grille.getBoundingClientRect().bottom - 2,
-                hauteurVolet: Math.round(dock.getBoundingClientRect().height),
-            };
-        });
 
         console.log(`\n======== ${vp.nom} ========`);
         if (!vp.mob) {

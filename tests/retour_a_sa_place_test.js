@@ -42,7 +42,8 @@ plan(15);
     const ou = () => page.evaluate(() => {
         const grille = document.getElementById('progression-sections');
         const ajout = document.getElementById('add-section');
-        const seq = document.getElementById('arp-sequencer');
+        // A2 (13/11) : le petit séquenceur (#arp-sequencer) a quitté la page ; le séquenceur à suivre est le seul qui reste, celui du bloc « Vues » (#sequenceur).
+        const seq = document.getElementById('sequenceur');
         return {
             grilleDansHistory: !!grille.closest('.history-section'),
             grilleDansColLeft: !!grille.closest('.col-left'),
@@ -56,7 +57,7 @@ plan(15);
                 .map(e => e.id || e.className.split(' ')[0]),
             ajoutDansHistory: !!ajout.closest('.history-section'),
             // Un seul #arp-sequencer, toujours : le déménagement ne doit jamais devenir une copie.
-            nbSequenceurs: document.querySelectorAll('#arp-sequencer, [id="arp-sequencer"]').length,
+            nbSequenceurs: document.querySelectorAll('#sequenceur, [id="sequenceur"]').length,
             parentSeq: seq.parentElement.id || seq.parentElement.className.split(' ')[0],
             symboles: [...document.querySelectorAll('#progression-sections .cell-sym')].map(e => e.textContent.trim()),
         };

@@ -13,13 +13,13 @@
    ============================================================ */
 
 /* ---- grandes surfaces : flou + teinte ---- */
-html[data-glass="1"] :is(.control-card, .viz-card, .voice-leading-panel, .seq-dock-panel, .dock,
-        .settings-modal, .seq-zoom-modal, .context-menu, .duration-dd-menu, .playstyle-dd-menu, .toast) {
+html[data-glass="1"] :is(.control-card, .viz-card, .dock,
+        .settings-modal, .context-menu, .duration-dd-menu, .playstyle-dd-menu, .toast) {
     -webkit-backdrop-filter: var(--glass-filter);
     backdrop-filter: var(--glass-filter);
 }
 /* les fenêtres et les menus : plus opaques que les cartes, pour rester lisibles par-dessus n'importe quoi */
-html[data-glass="1"] :is(.settings-modal, .seq-zoom-modal, .context-menu, .duration-dd-menu, .playstyle-dd-menu, .toast) {
+html[data-glass="1"] :is(.settings-modal, .context-menu, .duration-dd-menu, .playstyle-dd-menu, .toast) {
     background: var(--glass-pop-fond);
     box-shadow: var(--glass-hi), 0 24px 50px -24px rgba(0, 0, 0, .65);
 }
@@ -79,7 +79,7 @@ html[data-glass="1"] :is(.icon-btn, .sidebar-tab, .seq-zoom-btn, .duration-dd-to
 html[data-glass="1"] .chord-grid { background: rgba(0, 0, 0, .2); }
 html[data-glass="1"] .grid-head-sticky { background: rgba(255, 255, 255, .045); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
 /* panneaux flottants et tiroirs */
-html[data-glass="1"] :is(.song-settings.flottant, .arp-seq.seq-tiroir) { background: var(--glass-pop-fond); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
+html[data-glass="1"] :is(.song-settings.flottant) { background: var(--glass-pop-fond); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
 
 /* ---- la page Paroles (paroles.html), qui suit le même réglage : sa barre du haut est une vraie barre collante, et sa réserve
    d'accords un creux ---- */
@@ -107,20 +107,6 @@ html[data-glass="1"] .bl-seg { background: var(--glass-inp); }
    les notes tapées gardent leurs couleurs (ce sont des repères musicaux) ; la bande de construction et ses puces n'ont pas de fond propre. ---- */
 html[data-glass="1"] .vues-tiroir { background: var(--glass-bar); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-hi); }
 html[data-glass="1"] .vues-tiroir.vues-libre { background: var(--glass-pop-fond); box-shadow: var(--glass-hi), 0 24px 50px -24px rgba(0, 0, 0, .65); }
-
-/* ---- BANDE D'INTENSITÉ DE L'ÉDITEUR DE NOTES (refonte, lot 9d) : collée sous les notes qui défilent, elle doit rester OPAQUE verre allumé —
-   comme les titres collants des Paramètres : translucide (--card-bg l'est ici), les notes qui passent dessous traverseraient ses barres. Le
-   même dégradé qu'éteint, sur le fond opaque des listes. Les barres gardent leurs couleurs (ce sont des repères musicaux). ---- */
-html[data-glass="1"] :is(.seq-grid-intensite .seq-vel-band, .seq-grid-intensite .seq-vel-lane-label) {
-    background: linear-gradient(0deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .03)), var(--glass-select);
-}
-
-/* ---- RÈGLE DE L'ÉDITEUR DE NOTES (sous-lot « Éditeur et clavier », décision du 05/11, point 7 : « au plus cohérent, cela doit me faciliter
-   l'usage ») : collée en HAUT des notes qui défilent, elle prenait --card-bg, translucide verre allumé (mesuré : 5,5 % d'opacité) — les notes
-   se devinaient à travers ses chiffres. Opaque comme la bande d'intensité juste au-dessus, même dégradé, même fond des listes. ---- */
-html[data-glass="1"] .seq-ruler-band {
-    background: linear-gradient(180deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .03)), var(--glass-select);
-}
 
 /* ---- TÉLÉPHONE, LES ONGLETS (refonte, lot 10a) : le groupe segmenté Grille / Structure / Paroles de la seconde rangée de la barre du haut est un
    creux, comme le groupe de vitesse de la barre de lecture (.bl-seg) : le fond de verre de la barre se voit à travers, l'onglet allumé garde son

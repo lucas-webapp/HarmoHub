@@ -1,4 +1,4 @@
-// LES CARRÉS DU RYTHME DANS LES CASES, ET LES ACCORDS COURTS (refonte, lot 5b), avec de vrais clics.
+// LES CARRÉS DU RYTHME (RETIRÉS le 13/11) ET LES ACCORDS COURTS (refonte, lot 5b), avec de vrais clics.
 //
 // CE QUE L'UTILISATEUR A DEMANDÉ : « pour les petits carrés du rythme, c'est pas débile, je pense qu'on peut les garder avec une option dans les paramètres
 // pour les afficher ou pas » ; puis, sur les accords d'un temps devenus minuscules dans la fenêtre de 480px : « ça peut arriver quelques fois. Fais au mieux
@@ -16,7 +16,7 @@ const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('carrés du rythme et accords courts');
 const { estBruitReseau } = require('./_harness');
 
-plan(27);
+plan(15);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 // Motif posé à la main (seqEdited) pour un accord de 4 temps à 3 voix : pas 0 attaque, pas 1 tenu (les 3 voix liées), pas 2-3 silence, pas 4 attaque,
@@ -47,59 +47,29 @@ const graine = ({ motif, court }) => {
         await p.waitForTimeout(900);
         return p;
     };
-    const carres = (p, index) => p.evaluate((i) => [...document.querySelectorAll(`#progression-sections .grid-cell[data-index="${i}"] .cell-rythme`)].map(r => [...r.children].map(x => x.className)), index);
 
     // ======================================================================================================
-    console.log('\n=== A. Les carrés disent le vrai rythme ===');
+    // RÉÉCRIT AU RETRAIT DES CARRÉS DU RYTHME (13/11, A2) : « je ne veux plus ces petits points verts qui représentent le rythme. Je trouve qu'ils faussent un peu la
+    // compréhension. Je comprendrai directement avec le séquenceur » (puis « supprimer ces options »). Les parties A à C d'avant éprouvaient ces carrés, leur condition
+    // (Détaillé, case assez haute) et leur option de Paramètres › Affichage : tout cela a disparu. Ce que le banc garde : plus aucun carré à aucun affichage, plus
+    // d'option, et la case se clique toujours. Les parties D et E (accords courts, téléphone) restent telles quelles.
+    console.log('\n=== A. Plus de carrés du rythme, plus d\'option ===');
     let p = await ouvrir({ width: 1440, height: 900 });
     exiger(await p.evaluate(() => window.app.grilleDensite === 'detail'), 'le morceau s\'ouvre en Détaillé');
-    let c = await carres(p, 0);
-    check(c.length === 1 && c[0].length === 16, `un accord de 4 temps porte 16 carrés (${c[0] ? c[0].length : 0})`);
-    check(JSON.stringify(c[0]) === JSON.stringify(ATTENDU), `ils suivent son motif, pas par pas : ${c[0] && c[0].map(x => x || '·').join('')} (attendu ${ATTENDU.map(x => x || '·').join('')})`);
-    const tenu = await carres(p, 1);
-    check(tenu[0] && tenu[0][0] === 'a' && tenu[0].slice(1).every(x => x === 't'), 'un accord « tenu » : une attaque, puis quinze carrés pâles (la note dure)');
-    // accord coupé en fin de ligne : 8 temps qui commencent au temps 12 → 4 temps sur la 1re ligne, 4 sur la 2e
-    const coupe = await carres(p, 3);
-    check(coupe.length === 2 && coupe[0].length === 16 && coupe[1].length === 16, `un accord coupé sur deux lignes : chaque morceau porte SES pas (${coupe.map(x => x.length).join(' + ')})`);
-    check(coupe[0][0] === 'a' && coupe[1][0] === 't', 'la note commence sur la 1re ligne (attaque) et se prolonge sur la 2e (tenue, pas une nouvelle attaque)');
-    const sousSymbole = await p.evaluate(() => { const cell = document.querySelector('#progression-sections .grid-cell[data-index="0"]'); const r = cell.querySelector('.cell-rythme').getBoundingClientRect(), s = cell.querySelector('.cell-sym').getBoundingClientRect(), k = cell.getBoundingClientRect(); return { sous: r.top >= s.bottom - 1, dans: r.bottom <= k.bottom && r.left >= k.left && r.right <= k.right }; });
-    check(sousSymbole.sous && sousSymbole.dans, 'ils sont sous le nom de l\'accord, dans la case');
-    // on clique la case à travers eux
-    const r0 = await p.locator('#progression-sections .grid-cell[data-index="1"] .cell-rythme').boundingBox();
-    await p.mouse.click(r0.x + r0.width / 2, r0.y + r0.height / 2);
-    await p.waitForTimeout(300);
-    check(await p.evaluate(() => window.app.selectedIndex === 1), 'un clic sur les carrés sélectionne bien la case (ils ne volent pas le clic)');
-
-    // ======================================================================================================
-    console.log('\n=== B. Seulement en Détaillé, et seulement si la case est assez haute ===');
+    check(await p.evaluate(() => document.querySelectorAll('#progression-sections .cell-rythme').length) === 0, 'Détaillé : aucun carré du rythme dans les cases');
     for (const d of ['normal', 'compact']) {
         await p.click(`#grille-densites [data-densite="${d}"]`); await p.waitForTimeout(300);
-        check(await p.evaluate(() => document.querySelectorAll('#progression-sections .cell-rythme').length) === 0, `${d === 'normal' ? 'Normal' : 'Compact'} : pas de carrés`);
+        check(await p.evaluate(() => document.querySelectorAll('#progression-sections .cell-rythme').length) === 0, `${d === 'normal' ? 'Normal' : 'Compact'} : aucun carré non plus`);
     }
-    // Normal avec des cases agrandies à la poignée (90px) : la place y est, mais ce n'est pas l'affichage Détaillé — pas de carrés. (Sans ce cas, la
-    // condition « Détaillé » n'était jamais éprouvée : les cases de Normal et Compact sont de toute façon trop basses — un sabotage l'a montré.)
-    await p.click('#grille-densites [data-densite="normal"]'); await p.waitForTimeout(300);
-    await p.evaluate(() => window.app.setZoomLevel('classicGrid', 'y', 90 / 64)); await p.waitForTimeout(300);
-    check(await p.evaluate(() => window.app.hauteurCaseGrille() >= 64 && document.querySelectorAll('#progression-sections .cell-rythme').length === 0), 'Normal avec des cases de 90px : toujours pas de carrés (c\'est le choix « Détaillé » qui les montre, pas la place)');
     await p.click('#grille-densites [data-densite="detail"]'); await p.waitForTimeout(300);
-    check(await p.evaluate(() => document.querySelectorAll('#progression-sections .cell-rythme').length) > 0, 'retour en Détaillé : ils reviennent');
-    await p.evaluate(() => window.app.setZoomLevel('classicGrid', 'y', 56 / 64)); await p.waitForTimeout(300);
-    check(await p.evaluate(() => document.querySelectorAll('#progression-sections .cell-rythme').length) === 0, 'cases ramenées à 56px (poignée du bas) : plus la place, ils s\'effacent au lieu de recouvrir le nom');
-    await p.dblclick('#grille-poignee-bas'); await p.waitForTimeout(300);
-
-    // ======================================================================================================
-    console.log('\n=== C. L\'option, dans Paramètres › Affichage ===');
     await p.click('#open-settings'); await p.waitForTimeout(300);
-    const bascule = await p.evaluate(() => { const b = document.getElementById('toggle-show-cell-rhythm'); return b ? { etat: b.getAttribute('aria-checked'), libelle: b.closest('.settings-toggle-row').textContent.replace(/\s+/g, ' ').trim(), dansAffichage: !!b.closest('#settings-panel-display') } : null; });
-    exiger(!!bascule, 'l\'interrupteur existe');
-    check(bascule.dansAffichage && /Rythme de l'accord dans les cases/.test(bascule.libelle) && bascule.etat === 'true', `dans Affichage, allumé par défaut : « ${bascule.libelle} »`);
-    await p.click('#toggle-show-cell-rhythm'); await p.waitForTimeout(300);
+    check(await p.evaluate(() => document.getElementById('toggle-show-cell-rhythm') === null), 'Paramètres › Affichage : l\'option « Rythme de l\'accord dans les cases » n\'existe plus');
     await p.click('#settings-close'); await p.waitForTimeout(200);
-    check(await p.evaluate(() => document.querySelectorAll('#progression-sections .cell-rythme').length) === 0, 'éteint : plus de carrés en Détaillé');
-    check(await p.evaluate(() => localStorage.getItem('harmohubRythmeDansCases')) === '0', 'mémorisé (harmohubRythmeDansCases = 0)');
-    check(await p.evaluate(() => Array.isArray(window.REGLAGES_SYNCHRONISES) && window.REGLAGES_SYNCHRONISES.includes('harmohubRythmeDansCases')), 'et SYNCHRONISÉ entre appareils, comme les degrés (dans REGLAGES_SYNCHRONISES)');
-    await p.reload(); await p.waitForTimeout(800);
-    check(await p.evaluate(() => document.querySelectorAll('#progression-sections .cell-rythme').length) === 0, 'toujours éteint après rechargement');
+    check(await p.evaluate(() => !(Array.isArray(window.REGLAGES_SYNCHRONISES) && window.REGLAGES_SYNCHRONISES.includes('harmohubRythmeDansCases'))), 'et son réglage n\'est plus synchronisé entre appareils');
+    const bas = await p.locator('#progression-sections .grid-cell[data-index="1"]').boundingBox();
+    await p.mouse.click(bas.x + bas.width / 2, bas.y + bas.height - 4);
+    await p.waitForTimeout(300);
+    check(await p.evaluate(() => window.app.selectedIndex === 1), 'un clic au bas d\'une case la sélectionne (plus rien n\'y est dessiné)');
     await p.close();
 
     // ======================================================================================================

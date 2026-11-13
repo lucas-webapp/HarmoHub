@@ -42,14 +42,6 @@ const graine = () => {
         return p;
     };
     const clic = async (p, sel, ms = 500) => { await p.click(sel); await p.waitForTimeout(ms); };
-    // `defiler` à faux pour la seconde extrémité d'un glissé : ramener une case à l'écran déplacerait la première, déjà mesurée.
-    const casePos = (p, v, s, defiler = true) => p.evaluate(([v, s, defiler]) => {
-        const c = document.querySelector(`#arp-sequencer .seq-cell[data-voice="${v}"][data-step="${s}"]`);
-        if (!c) return null;
-        if (defiler) c.scrollIntoView({ block: 'center', inline: 'nearest' });
-        const r = c.getBoundingClientRect();
-        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-    }, [v, s, defiler]);
     // Le motif de l'accord en édition, relu (jamais écrit) : pour chaque voix, les pas où elle sonne.
     const motif = (p) => p.evaluate(() => {
         const { pattern } = window.app.getLiveSeqPattern(window.app.readChord());

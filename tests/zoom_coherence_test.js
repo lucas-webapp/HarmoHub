@@ -47,8 +47,10 @@ async function openSeq(page) {
     //   - axe H du séquenceur : plancher remonté à 1, « voir trop petit ne me sert à rien » ;
     //   - axe V du séquenceur compact : descendu à 0,45, parce que c'est devenu le seul sens utile de
     //     ce réglage — 14px de ligne étant un plafond, tout l'intérêt est d'en voir plus d'un coup.
-    check(mins.inlineX === 1 && mins.seqX === 1,
-        `bornes basses : les axes H du séquenceur sont bloqués à 100 % — obtenu ${JSON.stringify(mins)}`);
+    // RÉÉCRIT AU RETRAIT DU CODE MORT DE L'ANCIEN SÉQUENCEUR (A2, 13/11) : les échelles 'seq' (loupe) et 'seqInline' (petit séquenceur) n'ont plus ni borne propre ni
+    // surface à régler : elles retombent sur la borne commune (0,7), comme n'importe quel genre inconnu. Le plancher à 1 n'avait de sens que pour ces deux surfaces.
+    check(mins.inlineX === mins.seqX && mins.inlineX < 1,
+        `bornes basses : plus de plancher propre au séquenceur, la borne commune s'applique — obtenu ${JSON.stringify(mins)}`);
 
     // L'AXE VERTICAL NE TOUCHE PAS À LA HAUTEUR DES BARRES — c'est le contrat, deux fois énoncé par
     // l'utilisateur : « laisser une unique hauteur de barres », puis « les barres sont à nouveau avec
@@ -79,9 +81,11 @@ async function openSeq(page) {
     const groups = await page.evaluate(() => [...document.querySelectorAll('.zoom-axis-group[data-zoom-kind]')]
         .map(g => `${g.dataset.zoomKind}/${g.dataset.zoomAxis}`));
     // « seqInline/x » a disparu avec le petit séquenceur (4c).
-    for (const expected of ['seq/x', 'seq/y', 'classicGrid/x', 'classicGrid/y']) {
+    // A2 (13/11) : « seq/x » et « seq/y » (la loupe du séquenceur) ont disparu avec elle.
+    for (const expected of ['classicGrid/x', 'classicGrid/y']) {
         check(groups.includes(expected), `le groupe ${expected} est déclaré et pris en charge par updateZoomControls`);
     }
+    check(!groups.some(g => g.startsWith('seq/') || g.startsWith('seqInline/')), `plus aucun groupe de zoom du séquenceur d'avant (${groups.join(', ')})`);
 
     // ============================================================
     // === Z2. Le pincer-zoomer existe désormais partout ===

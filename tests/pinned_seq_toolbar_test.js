@@ -41,25 +41,6 @@ plan(10);
     const browser = await chromium.launch();
 
 
-    // La rangée tient-elle dans la boîte du volet ? C'est la seule question qui intéresse
-    // l'utilisateur : voit-il ses boutons, ou sont-ils rognés hors du cadre.
-    const barreDansHote = (page) => page.evaluate(() => {
-        // LOT 9b : sur ordinateur, la barre a rejoint la rangée « Notes / Fermer » de l'éditeur de notes (#editeur-notes-tete), EN HAUT du même
-        // volet. La question reste la même — voit-on les boutons, ou sont-ils rognés ? — mais elle se pose alors à cette rangée dans le volet
-        // entier (#seq-dock-panel), et plus à une barre au bas de #seq-dock-host.
-        const tete = document.querySelector('#editeur-notes-tete .seq-presets') ? document.getElementById('editeur-notes-tete') : null;
-        const hote = tete ? document.getElementById('seq-dock-panel') : document.getElementById('seq-dock-host');
-        const barre = tete || document.querySelector('.seq-presets');
-        if (!hote || !barre) return null;
-        const rh = hote.getBoundingClientRect(), rb = barre.getBoundingClientRect();
-        return {
-            flex: getComputedStyle(barre).flex,
-            hauteurHote: Math.round(rh.height),
-            dedans: rb.bottom <= rh.bottom + 1 && rb.top >= rh.top - 1 && rb.height > 0,
-            basBarre: Math.round(rb.bottom), basHote: Math.round(rh.bottom),
-            hautBarre: Math.round(rb.top), hautHote: Math.round(rh.top),
-        };
-    });
 
     // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : à l'ordinateur, le volet d'avant et sa barre (Lecture en tête, zoom H en dernier) ont disparu. LE SUJET
     // RESTE — une barre d'outils dans un ordre lisible, qui reste ENTIÈREMENT visible même quand le séquenceur doit défiler — pour celle du bloc « Vues » : motifs

@@ -54,7 +54,7 @@ plan(8);
     console.log('--- Plus de petit séquenceur ni de vue agrandie ; le séquenceur du bloc Vues ---');
     const porte = await R.porteInspecteurAbsente(page, 0, 0);
     check(porte.ok, `plus de porte « Séquenceur » ni de petit séquenceur dans l'inspecteur (${porte.detail})`);
-    check(await page.evaluate(() => !document.getElementById('seq-plein-ecran') && document.getElementById('seq-zoom-overlay').hidden), 'ni loupe, ni vue agrandie à ouvrir');
+    check(await page.evaluate(() => !document.getElementById('seq-plein-ecran') && !document.getElementById('seq-zoom-overlay')), 'ni loupe, ni vue agrandie à ouvrir (A2, 13/11 : la fenêtre agrandie a quitté la page)');
     const ouvert = await R.ouvrirNouveau(page);
     exiger(ouvert.ok, `le séquenceur du bloc « Vues » s'ouvre par son bouton (${ouvert.detail})`);
     const hauteur = () => page.evaluate(() => Math.round(document.querySelector('#sq-grille .sq-case[data-r]').getBoundingClientRect().height * 10) / 10);
