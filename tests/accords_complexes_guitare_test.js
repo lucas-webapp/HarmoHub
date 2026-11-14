@@ -67,7 +67,8 @@ plan(RACINES.length * 2 + COMPLEXES.length * 2 + 29);
                 if ([...pcs].some(pc => !pcsAccord.has(pc))) defauts.push(`${ou} note étrangère à l'accord`);
                 if ([...essentiels].some(pc => !pcs.has(pc))) defauts.push(`${ou} degré essentiel absent`);
                 if ((((Math.min(...jouees.map(e => e.midi)) % 12) + 12) % 12) !== rootPc) defauts.push(`${ou} basse ≠ fondamentale`);
-                if (jouees.length < 4) defauts.push(`${ou} ${jouees.length} cordes seulement`);
+                // Triade sur trois cordes, tétrade sur quatre (moteur du 14/11) : le plancher est le nombre de notes essentielles, au plus quatre.
+                if (jouees.length < Math.min(4, essentiels.size)) defauts.push(`${ou} ${jouees.length} cordes seulement`);
                 const idx = forme.map((e, i) => (e ? i : -1)).filter(i => i >= 0);
                 if (idx[idx.length - 1] - idx[0] + 1 !== idx.length) defauts.push(`${ou} cordes jouées non contiguës`);
                 if (enseignees.has(cle)) return;
@@ -111,9 +112,10 @@ plan(RACINES.length * 2 + COMPLEXES.length * 2 + 29);
             const parTon = {};
             NOTES.forEach(root => {
                 const doigtes = guitarFingeringsForChord(new Chord(root, q, 4, 0, 'none', 3, null, null, []), null);
+                // Une position = la case la plus basse ET la corde la plus grave jouée (moteur du 14/11 : une forme par position et par jeu de cordes).
                 const pos = doigtes.map(f => {
                     const c = f.filter(e => e && e.fret > 0).map(e => e.fret);
-                    return c.length ? Math.min(...c) : 0;
+                    return (c.length ? Math.min(...c) : 0) + '|' + f.findIndex(e => e);
                 });
                 parTon[root] = { n: doigtes.length, distinctes: new Set(pos).size };
             });
@@ -172,14 +174,19 @@ plan(RACINES.length * 2 + COMPLEXES.length * 2 + 29);
         const accord = [5, 8, 0, 3]; // F, Ab, C, Eb
         const basses = {};
         NOTES.forEach((n, pc) => { if (pc !== 5) basses[n] = liste(0, 'none', n); });
+        const voixDrop2 = new Chord('F', 'min7', 4, 0, 'drop2', 3, null, null, []).getVoiced().map(v => v.midi);
         const exactsDrop2 = solveGuitarFingerings(new Chord('F', 'min7', 4, 0, 'drop2', 3, null, null, []).getVoiced());
+        // Moteur du 14/11 : les doigtés qui suivent les exacts sont la MÊME forme (mêmes écarts entre les voix) à une autre octave.
+        const ecarts = (midis) => { const t = midis.slice().sort((a, b) => a - b); return t.map(m => m - t[0]).join(','); };
+        const listeDrop2 = liste(0, 'drop2', null);
+        const memeForme = listeDrop2.slice(exactsDrop2.length).every(f => ecarts(f.filter(e => e).map(e => e.midi)) === ecarts(voixDrop2));
         return {
             plein: liste(0, 'none', null).length,
             R1: liste(1, 'none', null).length, R2: liste(2, 'none', null).length, R3: liste(3, 'none', null).length,
             videsBasses: Object.entries(basses).filter(([, l]) => l.length === 0).map(([n]) => n),
             mauvaiseBasse: Object.entries(basses).filter(([n, l]) => l.some(f => pcBasse(f) !== NOTES.indexOf(n))).map(([n]) => n),
             basseEtrangereRepetee: Object.entries(basses).filter(([n, l]) => !accord.includes(NOTES.indexOf(n)) && l.some(f => pcs(f, NOTES.indexOf(n)) !== 1)).map(([n]) => n),
-            drop2: liste(0, 'drop2', null).length, drop2Exacts: exactsDrop2.length,
+            drop2: listeDrop2.length, drop2Exacts: exactsDrop2.length, memeForme,
         };
     });
     check(fm7.plein >= 2, `Fm7 en position fondamentale propose toujours ses doigtés (${fm7.plein})`);
@@ -189,7 +196,7 @@ plan(RACINES.length * 2 + COMPLEXES.length * 2 + 29);
     check(fm7.videsBasses.length === 0, `Fm7 sur n'importe laquelle des onze autres basses propose un doigté — sans : ${fm7.videsBasses.join(' ') || 'aucune'}`);
     check(fm7.mauvaiseBasse.length === 0, `et la note la plus grave de chaque doigté EST la basse demandée — écarts : ${fm7.mauvaiseBasse.join(' ') || 'aucun'}`);
     check(fm7.basseEtrangereRepetee.length === 0, `une basse étrangère à l'accord (Fm7/D…) ne sonne qu'une fois, tout en bas — répétée sur : ${fm7.basseEtrangereRepetee.join(' ') || 'aucune'}`);
-    check(fm7.drop2 === fm7.drop2Exacts && fm7.drop2 > 0, `Fm7 en drop 2 : ses doigtés exacts, et rien de plus quand il y en a (${fm7.drop2} / ${fm7.drop2Exacts})`);
+    check(fm7.drop2 >= fm7.drop2Exacts && fm7.drop2Exacts > 0 && fm7.memeForme, `Fm7 en drop 2 : ses doigtés exacts d'abord, puis la MÊME forme à une autre octave, rien d'autre (${fm7.drop2} dont ${fm7.drop2Exacts} exacts)`);
 
     // ---------- LE RELEVÉ COMPLET (13/11) : plus de renversement, de drop ni d'accord sur basse « courant » sans doigté ----------
     const releve = await page.evaluate(() => {

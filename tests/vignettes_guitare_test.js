@@ -230,11 +230,14 @@ const graine = () => {
         await f.mouse.move(c.x + c.width / 2, c.y + c.height / 2); await f.mouse.down();
         await f.mouse.move(c.x + c.width / 2 + dx, c.y + c.height / 2 + dy, { steps: 8 }); await f.mouse.up(); await f.waitForTimeout(500);
     };
+    // Le redimensionnement se pose en deux temps (échelle puis mise en page) : sous charge, 500 ms ne suffisaient pas toujours (un rouge sur ~20 passages en parallèle, 14/11). On attend
+    // jusqu'à 2 s que la mise en page soit posée ; si elle ne l'est jamais, le contrôle qui suit rougit comme avant.
+    const poseeApres = async () => { let v = await toutVisible(); for (let i = 0; i < 8 && !(v.tout && v.sansDefilement); i++) { await f.waitForTimeout(250); v = await toutVisible(); } return v; };
     await reduire(-160, -50);
-    tv = await toutVisible();
+    tv = await poseeApres();
     check(tv.tout && tv.sansDefilement && tv.echelle < 1, `fenêtre réduite une fois : tout est visible, les diagrammes ont rapetissé (échelle ${tv.echelle})`);
     await reduire(-200, -60);
-    tv = await toutVisible();
+    tv = await poseeApres();
     check(tv.tout && tv.sansDefilement, `fenêtre réduite au plus petit : boutons, nom et clavier encore visibles (échelle ${tv.echelle})`);
     // Puis on l'agrandit en tirant le coin : les diagrammes grandissent avec la fenêtre (« trop petits alors que l'écran est large »), sans à-coup (« d'un coup, les diagrammes deviennent gros »).
     const echelles = [tv.echelle];

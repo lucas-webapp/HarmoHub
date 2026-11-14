@@ -1966,6 +1966,76 @@ function solveGuitarFingerings(voiced, limit = 4) {
         .map(r => r.byString);
 }
 
+// Clé d'une POSITION de manche : la case la plus basse tenue ET la corde la plus grave jouée (14/11, moteur des doigtés : « une forme par position ET par jeu de cordes »). La même
+// main posée sur A-D-G-B et sur D-G-B-e est deux propositions, pas deux cousines ; en revanche x-3-5-4-5-3 et x-3-5-4-5-x (une corde aiguë de plus ou de moins) restent UNE proposition.
+function guitarClePosition(byString) {
+    return guitarShapeScore(byString).position + '|' + byString.findIndex(e => e);
+}
+
+// Cordes jouées d'un doigté « de voicing » : voisines, ou voisines avec UNE seule corde sautée juste au-dessus de la basse (le drop 3 : basse, corde étouffée, puis trois voix
+// serrées). Une corde étouffée ailleurs au milieu d'un bloc ne se lit pas sur un diagramme et ne se pose pas sans y penser (même règle que solveGuitarVoicings).
+function guitarCordesVoisines(byString) {
+    const jouees = [];
+    byString.forEach((e, i) => { if (e) jouees.push(i); });
+    let trous = 0;
+    for (let k = 1; k < jouees.length; k++) trous += jouees[k] - jouees[k - 1] - 1;
+    return trous === 0 || (trous === 1 && jouees.length >= 3 && jouees[1] - jouees[0] === 2);
+}
+
+// Les VRAIS doigtés d'un renversement ou d'un drop (décision du 13/11, « toutes tes idées sont bonnes ») : la MÊME forme — mêmes voix, même ordre, mêmes écarts entre les notes —
+// jouée n'importe où sur le manche, c'est-à-dire la voix exacte transposée d'une ou deux octaves. Un drop 2 de Cmaj7 se tient sur quatre cordes voisines à l'octave 3 comme à
+// l'octave 4 : seul le chercheur exact, qui ne connaissait que l'octave 3, n'en trouvait presque jamais (98 renversements sur 240 n'avaient aucun doigté). Les doigtés exacts
+// (décalage 0) restent EN TÊTE sans autre condition — c'est le choix délibéré de l'utilisateur ; les décalés doivent tenir sur des cordes voisines (guitarCordesVoisines) et
+// sont classés comme partout (position, doigts, écart, cordes à vide), une seule proposition par position et par jeu de cordes.
+function solveGuitarMemeForme(voiced, limit = GUITAR_MAX_SUGGESTIONS) {
+    const exacts = solveGuitarFingerings(voiced, 99);
+    const vus = new Set(exacts.map(fingeringShapeKey));
+    const decales = [];
+    for (const d of [-12, 12, -24, 24]) {
+        const decale = voiced.map(v => Object.assign({}, v, { midi: v.midi + d }));
+        for (const f of solveGuitarFingerings(decale, 99)) {
+            if (!guitarCordesVoisines(f) || !guitarFormeTenable(f)) continue;
+            // Même règle que solveGuitarVoicings : une corde à vide veut dire main au sillet, pas à la case 15 ; et une octave de manche suffit.
+            const frettees = f.filter(e => e && e.fret > 0).map(e => e.fret);
+            if (frettees.length && (Math.max(...frettees) > GUITAR_VOICING_MAX_FRET || (f.some(e => e && e.fret === 0) && Math.max(...frettees) > GUITAR_MAX_SPAN))) continue;
+            const cle = fingeringShapeKey(f);
+            if (vus.has(cle)) continue;
+            vus.add(cle);
+            decales.push({ f, s: guitarShapeScore(f) });
+        }
+    }
+    decales.sort((a, b) => a.s.position - b.s.position || a.s.fingers - b.s.fingers || a.s.span - b.s.span || b.s.openCount - a.s.openCount);
+    const positions = new Set(exacts.map(guitarClePosition));
+    const sortie = exacts.slice();
+    for (const { f } of decales) {
+        const cp = guitarClePosition(f);
+        if (positions.has(cp)) continue;
+        positions.add(cp);
+        sortie.push(f);
+    }
+    return sortie.slice(0, limit);
+}
+
+// Étiquette courte d'un doigté (sous sa vignette de la popover) : « sans quinte » quand l'accord a une quinte juste et que ce doigté la laisse tomber (seule note dont on puisse se passer,
+// voir guitarChordPcs). Chaîne vide sinon : un doigté complet n'a rien à dire.
+function guitarEtiquetteDoigte(byString, root, quality) {
+    const ivs = CHORD_INTERVALS[quality] || [];
+    if (!ivs.some(iv => (((iv.semi % 12) + 12) % 12) === 7)) return '';
+    const quintePc = (((NOTES.indexOf(root) + 7) % 12) + 12) % 12;
+    return byString.some(e => e && (((e.midi % 12) + 12) % 12) === quintePc) ? '' : 'sans quinte';
+}
+
+// Ordre des classes de hauteur d'un voicing, de la plus grave à la plus aiguë (chaque classe comptée une fois, à sa première apparition) : « do mi sol si » pour un Cmaj7 en position
+// serrée. Sert à choisir, parmi des positions qui ont la bonne basse, celles qui gardent le même ordre des voix au-dessus (« les plus proches »).
+function guitarOrdreDesClasses(notes) {
+    const vus = [];
+    notes.filter(Boolean).slice().sort((a, b) => a.midi - b.midi).forEach(n => {
+        const pc = ((n.midi % 12) + 12) % 12;
+        if (!vus.includes(pc)) vus.push(pc);
+    });
+    return vus;
+}
+
 // Un accord n'a pas besoin de TOUTES ses notes pour sonner comme lui-même, et c'est justement ce qui
 // manquait ici. RETOUR UTILISATEUR : « je dois jouer un Cmaj9 à la guitare, je suis étonné qu'il y ait
 // un seul diagramme proposé sur l'appli, alors qu'il est facilement jouable à la guitare. […] Peux-tu
@@ -2055,13 +2125,15 @@ function comparerRangs(a, b) {
 // basse) ou une basse différente (Fm7/D). RETOUR UTILISATEUR : « Pourquoi cet accord n'est-il pas jouable à la guitare ? C'est un accord commun » (un Fm7), « cela peut se jouer sur 4 ou
 // 5 cordes, pas obligatoirement les 6 ». La note grave est ce que l'oreille attend d'un renversement ou d'une basse ; les autres notes se répartissent librement, comme pour un accord
 // en position fondamentale. La note de basse, même étrangère à l'accord, est admise sur les cordes.
-function solveGuitarVoicings(root, quality, limit = GUITAR_MAX_SUGGESTIONS, basPc = null) {
+function solveGuitarVoicings(root, quality, limit = GUITAR_MAX_SUGGESTIONS, basPc = null, ordreClasses = null) {
     const { rootPc, toutes, essentielles } = guitarChordPcs(root, quality);
     if (!toutes.size) return [];
     const basse = basPc == null ? rootPc : (((basPc % 12) + 12) % 12);
     // Une basse étrangère à l'accord (Fm7/D, Cmaj/D) ne sonne QU'UNE fois, tout en bas : sinon un ré à vide sur une corde aiguë changerait l'accord en autre chose.
     const basseEtrangere = basPc != null && !toutes.has(basse);
     toutes.add(basse);
+    // Une triade se joue sur trois cordes, une tétrade sur quatre (14/11) : on ne réclame pas quatre cordes à un accord qui n'a que trois notes essentielles.
+    const minCordes = Math.min(GUITAR_MIN_STRINGS, essentielles.size + (basseEtrangere ? 1 : 0));
 
     // Cases autorisées corde par corde : uniquement celles qui tombent sur une note de l'accord. Cinq
     // à sept possibilités par corde au lieu des seize cases — c'est ce qui rend la recherche exhaustive
@@ -2082,7 +2154,7 @@ function solveGuitarVoicings(root, quality, limit = GUITAR_MAX_SUGGESTIONS, basP
     // débutant ne devine pas — on ne propose que des formes qui se posent telles qu'elles se lisent.
     (function poser(corde, etat, jouees, minF, maxF) {
         if (corde === 6) {
-            if (jouees < GUITAR_MIN_STRINGS) return;
+            if (jouees < minCordes) return;
             const byString = courant.map((fret, i) => (fret == null ? null : { fret, midi: GUITAR_OPEN_MIDI[i] + fret }));
             // La note la plus GRAVE, pas la corde la plus grave : une corde à vide plus haut placée peut
             // très bien sonner plus bas que la corde d'en dessous frettée (mi grave case 8 = do3, mais
@@ -2136,8 +2208,15 @@ function solveGuitarVoicings(root, quality, limit = GUITAR_MAX_SUGGESTIONS, basP
         // Difficulté d'abord (doigts, puis écartement), qualité sonore ensuite (cordes qui sonnent,
         // cordes à vide), position la plus basse pour départager deux formes équivalentes.
         const rang = [s.fingers, s.span, -cordes, -s.openCount, s.position];
-        const dejaLa = meilleureParPosition.get(s.position);
-        if (!dejaLa || comparerRangs(rang, dejaLa.rang) < 0) meilleureParPosition.set(s.position, { forme, rang });
+        // Quand on cherche les « plus proches » d'un renversement (ordreClasses), garder le même ordre des voix au-dessus de la basse passe avant la facilité.
+        if (ordreClasses) {
+            const presentes = new Set(byString.filter(e => e).map(e => (((e.midi % 12) + 12) % 12)));
+            const attendu = ordreClasses.filter(pc => presentes.has(pc)).join(',');
+            rang.unshift(guitarOrdreDesClasses(byString).join(',') === attendu ? 0 : 1);
+        }
+        const cle = guitarClePosition(byString);
+        const dejaLa = meilleureParPosition.get(cle);
+        if (!dejaLa || comparerRangs(rang, dejaLa.rang) < 0) meilleureParPosition.set(cle, { forme, rang });
     }
     return [...meilleureParPosition.values()]
         .sort((a, b) => comparerRangs(a.rang, b.rang))
@@ -2297,10 +2376,10 @@ function guitarFingeringsForChord(chord, lockedShape = chord.guitarLock) {
         // identiques : sans cela, un Cmaj7 proposait x-3-5-4-5-3 puis x-3-5-4-5-x — la même forme à
         // une corde près, comptée comme un deuxième choix. Une position de manche, une proposition.
         const dejaLa = new Set(communes.map(fingeringShapeKey));
-        const dejaPris = new Set(communes.map(f => guitarShapeScore(f).position));
+        const dejaPris = new Set(communes.map(guitarClePosition));
         const ailleurs = solveGuitarVoicings(chord.root, chord.quality)
             .map(shape => shapeToByString(shape, chord.root, chord.quality))
-            .filter(f => !dejaLa.has(fingeringShapeKey(f)) && !dejaPris.has(guitarShapeScore(f).position));
+            .filter(f => !dejaLa.has(fingeringShapeKey(f)) && !dejaPris.has(guitarClePosition(f)));
         list = [...communes, ...ailleurs].slice(0, GUITAR_MAX_SUGGESTIONS);
         // Dernier recours : une qualité si particulière que même la recherche par classes de hauteur
         // ne trouve rien de tenable. Le solveur exact a encore sa chance — mieux vaut un doigté serré
@@ -2308,7 +2387,7 @@ function guitarFingeringsForChord(chord, lockedShape = chord.guitarLock) {
         if (!list.length) list = solveGuitarFingerings(chord.getVoiced());
     } else {
         // Voicing PERSONNALISÉ (renversement, drop, basse imposée) : les doigtés EXACTS, à la note près, passent en premier — c'est le choix délibéré de l'utilisateur.
-        list = solveGuitarFingerings(chord.getVoiced());
+        list = solveGuitarMemeForme(chord.getVoiced(), GUITAR_MAX_SUGGESTIONS);
         // Mais exiger l'octave exacte de chaque note ne laisse presque rien à une main : 98 renversements sur 240, 283 accords sur basse sur 660 n'avaient AUCUN doigté
         // (« Non jouable à la guitare » sur un Fm7 renversé). On complète donc avec des positions qui gardent la NOTE LA PLUS GRAVE et répartissent les autres librement
         // (quatre à six cordes, la quinte juste pouvant manquer) — pour un drop, seulement quand il n'y a aucun doigté exact : sa disposition des voix est justement ce
@@ -2319,10 +2398,10 @@ function guitarFingeringsForChord(chord, lockedShape = chord.guitarLock) {
             const nu = new Chord(chord.root, chord.quality, chord.beats, chord.inversion, chord.drop, chord.octave, chord.bass, null, []);
             const grave = nu.getVoiced()[0].midi;
             const dejaLa = new Set(list.map(fingeringShapeKey));
-            const dejaPris = new Set(list.map(f => guitarShapeScore(f).position));
-            const complement = solveGuitarVoicings(chord.root, chord.quality, GUITAR_MAX_SUGGESTIONS, grave)
+            const dejaPris = new Set(list.map(guitarClePosition));
+            const complement = solveGuitarVoicings(chord.root, chord.quality, GUITAR_MAX_SUGGESTIONS, grave, guitarOrdreDesClasses(nu.getVoiced()))
                 .map(shape => shapeToByString(shape, chord.root, chord.quality))
-                .filter(f => !dejaLa.has(fingeringShapeKey(f)) && !dejaPris.has(guitarShapeScore(f).position));
+                .filter(f => !dejaLa.has(fingeringShapeKey(f)) && !dejaPris.has(guitarClePosition(f)));
             list = [...list, ...complement].slice(0, GUITAR_MAX_SUGGESTIONS);
         }
     }
@@ -5529,6 +5608,7 @@ class HarmoHubApp {
         this.guitarKey = key;
         this.guitarDisplayLock = lockedShape; // voir updateGuitarLockButton : reflète TOUJOURS le diagramme réellement affiché
         this.guitarFingerings = guitarFingeringsForChord(chord, lockedShape);
+        this.guitarEtiqAccord = { root: chord.root, quality: chord.quality }; // pour les étiquettes courtes de la popover (guitarEtiquetteDoigte)
         this.guitarFingeringIndex = 0;
         this.renderGuitarDiagram();
         // Bandeau au-dessus du diagramme (voir renderGuitarOverrideRow, point 3 du retour utilisateur) :
@@ -6131,8 +6211,12 @@ class HarmoHubApp {
     rendreDoigtesGuitare() {
         const pop = document.getElementById('guitar-doigtes-pop'), bouton = document.getElementById('guitar-nav-label');
         const liste = this.guitarFingerings, idx = this.guitarFingeringIndex;
-        pop.innerHTML = liste.map((f, i) =>
-            `<button type="button" class="doigte-choix" data-i="${i}" aria-pressed="${i === idx}" title="Doigté ${i + 1} sur ${liste.length}" aria-label="Doigté ${i + 1} sur ${liste.length}">${this.buildGuitarDiagramSVG(f, false, false, true)}</button>`).join('');
+        const ac = this.guitarEtiqAccord;
+        pop.innerHTML = liste.map((f, i) => {
+            const etiq = ac ? guitarEtiquetteDoigte(f, ac.root, ac.quality) : '';
+            const titre = `Doigté ${i + 1} sur ${liste.length}${etiq ? ' — ' + etiq : ''}`;
+            return `<button type="button" class="doigte-choix" data-i="${i}" aria-pressed="${i === idx}" title="${titre}" aria-label="${titre}">${this.buildGuitarDiagramSVG(f, false, false, true)}${etiq ? `<span class="doigte-etiq">${etiq}</span>` : ''}</button>`;
+        }).join('');
         const r = bouton.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
         const bas = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--haut-barre-lecture')) || 60;
         pop.style.left = Math.round(Math.min(Math.max(r.left + r.width / 2 - w / 2, 8), window.innerWidth - w - 8)) + 'px';

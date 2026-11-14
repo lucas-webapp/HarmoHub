@@ -7051,7 +7051,10 @@ body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
 }
 .guitar-doigtes-pop .doigte-choix:hover { background: var(--fond-bouton-sombre-survol); }
 .guitar-doigtes-pop .doigte-choix[aria-pressed="true"] { border-color: rgba(255, 255, 255, .6); background: var(--fond-bouton-sombre-survol); }
+.guitar-doigtes-pop .doigte-choix { display: flex; flex-direction: column; align-items: stretch; }  /* sans cela, l'étiquette réduisait le diagramme à la largeur de son texte (117 px au lieu de 164) */
 .guitar-doigtes-pop .doigte-choix svg { display: block; width: 100%; height: auto; max-height: none; }
+/* Étiquette courte sous une vignette (« sans quinte ») : une ligne, sans cadre. */
+.guitar-doigtes-pop .doigte-etiq { display: block; margin-top: 4px; font-size: 11px; line-height: 1.2; color: var(--text-muted, #9aa0a6); text-align: center; }
 
 /* 7. Nom de l'accord CENTRÉ sur ses notes (« Je pense qu'il faut centrer l'écriture de l'accord sur les notes en dessous. ») : le bloc nom + notes est une colonne
       dont les deux lignes partagent le même axe vertical. */
