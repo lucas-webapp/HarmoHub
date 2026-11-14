@@ -61,11 +61,12 @@ plan(15);
     shape = await page.evaluate(() => window.app.guitarDrawShape.slice());
     check(shape[1] === 0, `clic avant le sillet pose une corde à vide (fret=0) — obtenu ${JSON.stringify(shape)}`);
 
-    // Couleur neutre, pas une couleur de fonction
+    // Couleur neutre, pas une couleur de fonction. RÉÉCRIT LE 14/11 : les notes sont des disques pleins (rayon 8,5 sur une case, 8 à vide) au dégradé « neutre » (gris), plus un rond de 4,6 rempli
+    // d'un gris plat ; le dégradé porte le rôle dans son nom (#gdot-neutral-…).
     const colors = await page.evaluate(() => [...document.querySelectorAll('#guitar-edit-neck svg circle')]
-        .filter(c => ['4.6', '2.4'].includes(c.getAttribute('r')))
+        .filter(c => ['8.5', '8'].includes(c.getAttribute('r')))
         .map(c => c.getAttribute('fill')));
-    check(colors.length > 0 && colors.every(c => c === '#9e9e9e'), `notes posées en couleur neutre grise (${JSON.stringify(colors)})`);
+    check(colors.length > 0 && colors.every(c => /^url\(#gdot-neutral-/.test(c)), `notes posées en couleur neutre grise (${JSON.stringify(colors)})`);
 
     // Clic sur la toute dernière case (24) — centre exact : marginLeft + (24-0.5)*fretGap = 20+23.5*30 = 725.
     await clickAt(725, 88);

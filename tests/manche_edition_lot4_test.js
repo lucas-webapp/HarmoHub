@@ -149,12 +149,16 @@ plan(18);
     await page.evaluate(() => window.app.selectChord(0, 1));
     await page.waitForTimeout(200);
     const beforeNav = await page.evaluate(() => window.app.guitarDisplayLock);
-    await page.click('#guitar-next');
-    await page.waitForTimeout(150);
-    await page.click('#guitar-prev');
-    await page.waitForTimeout(150);
+    // RÉÉCRIT LE 14/11 : verrouillé, les flèches sont BLOQUÉES (grisées, « Doigté verrouillé : cliquez le cadenas vert pour le libérer »). Playwright ne clique pas un bouton aria-disabled :
+    // vrai appui de souris, comme un doigt. Le verrou doit survivre à ces appuis, sans que le doigté affiché change.
+    const appuiSouris = async (sel) => {
+        const b = await page.locator(sel).boundingBox();
+        await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down(); await page.mouse.up(); await page.waitForTimeout(150);
+    };
+    await appuiSouris('#guitar-next');
+    await appuiSouris('#guitar-prev');
     const afterNav = await page.evaluate(() => window.app.guitarDisplayLock);
-    check(JSON.stringify(beforeNav) === JSON.stringify(afterNav) && beforeNav !== null, `le verrou survit à la navigation entre doigtés — avant ${JSON.stringify(beforeNav)}, après ${JSON.stringify(afterNav)}`);
+    check(JSON.stringify(beforeNav) === JSON.stringify(afterNav) && beforeNav !== null, `le verrou survit aux appuis sur les flèches (bloquées tant qu'il est posé) — avant ${JSON.stringify(beforeNav)}, après ${JSON.stringify(afterNav)}`);
     const dataFinal = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[1].guitarLock);
     check(JSON.stringify(dataFinal) === JSON.stringify([null, 0, 0, 10, null, null]), 'les données enregistrées restent inchangées après navigation');
     await page.close();

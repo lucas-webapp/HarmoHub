@@ -43,26 +43,28 @@ async function dblclickCellSafe(page, section, index) {
     console.log('locked to shape0:', JSON.stringify(shape0));
     check(await page.evaluate(() => document.getElementById('guitar-lock-btn').classList.contains('active')), "verrouillé sur le doigté 0");
 
-    // Now browse to fingering #1 via real click on "next" WHILE locked
-    await page.click('#guitar-next');
-    await page.waitForTimeout(150);
+    // RÉÉCRIT LE 14/11 (retour : « si le cadenas est verrouillé et que je clique sur un chevron pour changer de diagramme d'accord, j'aimerais que soit les chevrons soient bloqués, soit
+    // afficher un message d'alerte »). Verrouillé, « › » ne change plus de doigté : il est bloqué et le dit. Ce banc éprouvait l'ancien « on peut feuilleter un autre doigté sous un
+    // verrou posé » ; il vérifie maintenant ce que devient ce scénario : rien ne bouge, le verrou reste, puis le libérer rend les flèches.
+    // Un bouton marqué aria-disabled n'est pas « actionnable » pour Playwright (page.click attendrait pour rien) : vrai appui de souris, comme un doigt.
+    const appui = async (sel) => {
+        const b = await page.locator(sel).boundingBox();
+        await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down(); await page.mouse.up(); await page.waitForTimeout(250);
+    };
+    await appui('#guitar-next');
     const idxAfterNext = await page.evaluate(() => window.app.guitarFingeringIndex);
-    console.log('index after next (while locked):', idxAfterNext);
-    const lockStillActiveWhileBrowsing = await page.evaluate(() => document.getElementById('guitar-lock-btn').classList.contains('active'));
-    console.log('lock button state while browsing a DIFFERENT (non-locked) fingering:', lockStillActiveWhileBrowsing);
+    check(idxAfterNext === 0, `verrouillé, « › » ne change pas de doigté (index ${idxAfterNext})`);
+    check(await page.evaluate(() => document.getElementById('guitar-lock-btn').classList.contains('active')), 'le cadenas reste verrouillé');
+    check((await page.textContent('#toast')).includes('Doigté verrouillé'), 'et un message dit pourquoi');
     const savedLockStillShape0 = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[2].guitarLock);
-    check(JSON.stringify(savedLockStillShape0) === JSON.stringify(shape0), "le verrou enregistré reste bien celui du doigté 0, même en prévisualisant un autre doigté");
+    check(JSON.stringify(savedLockStillShape0) === JSON.stringify(shape0), "le verrou enregistré reste celui du doigté 0");
 
-    // Now click lock button WHILE browsing fingering #1 (not the locked one) -- what happens?
-    const shapeAtIdx1BeforeClick = await page.evaluate(() => window.app.guitarFingerings[window.app.guitarFingeringIndex].map(f => f ? f.fret : null));
-    await page.click('#guitar-lock-btn');
-    await page.waitForTimeout(150);
-    const lockAfterClickWhileBrowsing = await page.evaluate(() => document.getElementById('guitar-lock-btn').classList.contains('active'));
-    const savedAfterClickWhileBrowsing = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[2].guitarLock);
-    console.log('after clicking lock while browsing fingering#' + idxAfterNext + ' (' + JSON.stringify(shapeAtIdx1BeforeClick) + '):');
-    console.log('  lock button active now:', lockAfterClickWhileBrowsing);
-    console.log('  saved guitarLock now:', JSON.stringify(savedAfterClickWhileBrowsing));
-    console.log('  (was previously locked to shape0=' + JSON.stringify(shape0) + ')');
+    // Libérer le verrou : le cadenas se lève, et les flèches marchent de nouveau.
+    await appui('#guitar-lock-btn');
+    const savedAfterUnlock = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[2].guitarLock);
+    check(savedAfterUnlock === null || savedAfterUnlock === undefined, 'le cadenas libéré efface le verrou enregistré');
+    await appui('#guitar-next');
+    check(await page.evaluate(() => window.app.guitarFingeringIndex) === 1, 'libéré, « › » passe au doigté suivant');
 
     console.log('\n=== Bilan : ' + PASS + ' PASS / ' + FAIL + ' FAIL ===');
     await browser.close();

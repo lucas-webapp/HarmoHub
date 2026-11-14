@@ -2283,13 +2283,19 @@ button:active { transform: translateY(1px); }
 
 /* Code couleur par fonction dans l'accord — satin mat (dégradé 2 tons à peine perceptible, sans
    reflet ni brillant), même famille de teinte que .dot-* et ROLE_GRADIENT_STOPS (script.js). */
-.key.active.role-root    { background: linear-gradient(180deg, #3fe3a0 0%, #00a855 100%); }
-.key.active.role-third   { background: linear-gradient(180deg, #5b98f0 0%, #1f5fc0 100%); }
-.key.active.role-fifth   { background: linear-gradient(180deg, #ff6f66 0%, #d42a20 100%); }
-.key.active.role-seventh { background: linear-gradient(180deg, #ffc247 0%, #cc8f00 100%); }
-.key.active.role-ext     { background: linear-gradient(180deg, #dba8ee 0%, #c48ce6 100%); }
+.key.active.role-root    { background: linear-gradient(180deg, rgba(44, 190, 138, .65) 0%, rgba(20, 160, 106, .65) 100%); }
+.key.active.role-third   { background: linear-gradient(180deg, rgba(76, 138, 228, .65) 0%, rgba(50, 112, 210, .65) 100%); }
+.key.active.role-fifth   { background: linear-gradient(180deg, rgba(226, 80, 72, .65) 0%, rgba(200, 60, 52, .65) 100%); }
+.key.active.role-seventh { background: linear-gradient(180deg, rgba(236, 176, 48, .65) 0%, rgba(206, 146, 22, .65) 100%); }
+.key.active.role-ext     { background: linear-gradient(180deg, rgba(180, 140, 214, .65) 0%, rgba(158, 114, 200, .65) 100%); }
+/* Moins de reflets (« un peu trop de reflets dans les touches, ce qui altère un peu la vision de la couleur, diminue un peu cet effet ») : l'écart de clarté entre le haut et le bas de la
+   touche est réduit de moitié, et l'ombre intérieure est plus légère (voir .key.active plus bas). */
+/* Retouche du 14/11 : « Les couleurs sont légèrement trop sombres ici, comme sur la guitare, elles sont trop pâles. » : un milieu entre les couleurs d'origine (flashy) et la version sobre
+   (trop sombre au clavier, trop pâle à la guitare) ; 65 % d'opacité inchangés. */
+/* Couleurs du clavier plus sobres (14/11 : « les couleurs que j'avais choisies pour tonique, tierce, quinte et septième, etc., sont un peu flashy. Peux-tu les rendre un peu plus sobres,
+   c'est-à-dire peut-être un peu plus foncés ? ») : mêmes teintes (vert, bleu, rouge, ambre, mauve), saturation et clarté réduites d'un bon tiers ; le sens des couleurs ne change pas. */
 .key.active {
-    box-shadow: inset 0 -3px 5px rgba(0,0,0,0.18), 0 2px 5px rgba(0,0,0,0.4);
+    box-shadow: inset 0 -2px 3px rgba(0,0,0,0.10), 0 2px 5px rgba(0,0,0,0.4);
 }
 
 /* align-items:center (pas flex-start) : le clavier (48px de haut, volontairement réduit — voir
@@ -5880,7 +5886,7 @@ body.avec-barre-selection .toast { bottom: 132px; }
     }
     /* Épinglé : la barre n'est qu'un coin de boutons (pas de titre), pour ne pas ajouter une ligne de hauteur. */
     .vues-barre { position: absolute; top: 6px; right: 12px; z-index: 3; display: flex; align-items: center; gap: 8px; }
-    .vues-titre, .vues-aide { display: none; }
+    .vues-titre { display: none; }
     .vues-espace { flex: 1; }
     .vues-barre .icon-btn { width: var(--bouton-h); height: var(--bouton-h); padding: 0; border-radius: var(--rayon-bouton, 7px); }
     .vues-barre .icon-btn[aria-pressed="true"] { color: var(--accent); }
@@ -5915,8 +5921,6 @@ body.avec-barre-selection .toast { bottom: 132px; }
     }
     .vues-libre .vues-barre:active { cursor: grabbing; }
     .vues-libre .vues-titre { display: inline; font-size: var(--fs-sm); font-weight: 700; color: var(--text-main); }
-    .vues-libre .vues-aide { display: inline; margin-left: 4px; font-size: var(--fs-2xs); color: var(--text-muted); }
-    .vues-libre .vues-aide[hidden] { display: none; }
     .vues-libre .vues-corps { flex: 1 1 auto; min-height: 0; overflow: auto; }
     .vues-coin {
         position: absolute; right: 0; bottom: 0; width: 20px; height: 20px; padding: 0; min-width: 0;
@@ -6961,34 +6965,202 @@ body.avec-barre-selection .toast { bottom: 132px; }
 body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
 
 /* ======================================================================================================
-   VIGNETTES DES DOIGTÉS DE GUITARE (L8, 14/11) — sous le manche du tiroir : un petit diagramme par doigté proposé, un clic le
-   met en grand (le cadenas verrouille celui qui est en grand). Bloc en FIN de fichier : il doit l'emporter sur `button { min-width: 120px }`
-   et sur `.viz-diagrams .guitar-container svg { width: 119px }` plus haut. 50 px de large : cinq vignettes tiennent sur la largeur du manche
-   et de ses commandes (275 px), donc huit doigtés font deux rangées au plus.
+   RETOUCHES DU 14/11 (commentaires sur l'appli en direct)
+   1. (Les vignettes sous le manche ont été remplacées par la popover des doigtés, voir 6 ; l'écart de 12 px entre manche et boutons passe en marge, voir plus bas.)
+   2. Chanfrein des touches du piano réduit (« on pourrait croire que les touches sont rondes en bas ») : 6 px sur une touche de 20 px de large, c'était
+      presque un demi-cercle ; 3 px (blanches) et 2 px (noires) gardent le biseau sans l'arrondi.
    ====================================================================================================== */
-.guitar-vignettes {
-    flex: 0 0 100%;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 4px;
-    margin-top: 2px;
+.key.white { border-radius: 0 0 3px 3px; }
+.key.black { border-radius: 0 0 2px 2px; }
+
+/* 3. Bouton d'édition manuelle du manche (« Ce bouton est trop large et ses bords sont arrondis. J'aimerais qu'il ressemble aux autres boutons. ») :
+      c'était une pilule de 144 px (.btn-sec, arrondi 999 px) ; c'est maintenant un .icon-btn comme ‹ › et le cadenas : carré de 32 px, arrondi 7 px,
+      posé sous eux à gauche, sur le même bord que « ‹ ». */
+.guitar-viz-wrap .guitar-controls-cote .guitar-edit-btn { flex: none; width: var(--bouton-h); min-width: 0; min-height: var(--bouton-h); padding: 0; border-radius: var(--rayon-bouton, 7px); }
+.guitar-viz-wrap .guitar-controls-cote .guitar-niveau + .guitar-niveau { justify-content: space-between; } /* crayon sous ‹, cadenas sous › : mêmes bords que la rangée du dessus (« le cadenas sur la même ligne que le crayon ») */
+/* 1 (suite). L'écart de 12 px entre le manche et ses boutons passe en marge, pour ne plus compter dans la rangée des vignettes. */
+.guitar-viz-wrap { column-gap: 0; row-gap: 6px; }
+.guitar-viz-wrap .guitar-viz-col { margin-right: 12px; }
+
+/* 4. Nom de l'accord du tiroir (« L'emplacement du nom de l'accord n'est pas très logique et il prend beaucoup de place à lui tout seul alors que l'écriture
+      est trop petite. Je pense qu'il faudrait le placer tout à gauche ou au milieu avec un rideau entre le nom de l'accord et les diagrammes. Je te laisse
+      choisir au plus logique. ») : TOUT À GAUCHE (on lit le nom d'abord, puis ce qu'il se joue), en colonne : le nom en grand, les notes dessous, sans cadre
+      horizontal ; un trait vertical sur toute la hauteur (le « rideau ») le sépare des diagrammes. Réservé au tiroir d'ordinateur (.vues-corps) : le chip du
+      bandeau de substitution de la guitare et celui du téléphone ne changent pas. */
+@media (min-width: 900px) {
+    .vues-corps .chord-header-row {
+        order: -1;
+        align-self: stretch;
+        display: flex;
+        align-items: center;
+        padding-right: 20px;
+        border-right: 1px solid var(--border);
+    }
+    .vues-corps .chord-header-row #current-chord-display { flex: none; justify-content: flex-start; }
+    .vues-corps .chord-header-row .chord-chip {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        padding: 0;
+        background: none;
+        border: 0;
+    }
+    .vues-corps .chord-header-row .chord-chip .chord-title { font-size: 26px; line-height: 1.1; }
+    .vues-corps .chord-header-row .chord-chip .chord-notes { padding-left: 0; border-left: 0; font-size: var(--fs-sm); gap: 2px 10px; }
 }
-.guitar-vignettes[hidden] { display: none; }
-.guitar-vignettes .guitar-vignette {
-    min-width: 0 !important;
-    flex: 0 0 50px; /* une règle de bouton du tiroir pose flex: 1 : sans ça, quatre vignettes s'étirent à 120 px */
-    width: 50px;
-    height: auto;
-    padding: 2px;
-    border: 1px solid var(--border);
-    border-radius: var(--rayon-bouton, 7px);
-    background: var(--fond-bouton-sombre);
-    cursor: pointer;
-    opacity: .72;
-    line-height: 0;
+
+/* 5. Mise en page du tiroir (« Tu peux grossir un peu l'écriture. Et je te propose de bien étaler les diagrammes sur la largeur. Tu peux desserrer un peu les
+      affichages entre le piano et la guitare. D'ailleurs, je trouve que le piano est toujours trop gros par rapport aux manches de guitare. Je te propose
+      d'agrandir la guitare qui est vraiment petite. ») :
+      - le nom passe de 26 à 32 px, ses notes de 14 à 16 px ;
+      - les trois blocs (nom, diagrammes, bande de construction) se RÉPARTISSENT sur la largeur (espaces égaux) au lieu de rester groupés au centre : la
+        largeur propre des diagrammes ne change pas, ce que mesure echelleQuiTientVues pour l'échelle du tiroir épinglé ;
+      - 44 px entre le clavier et le manche (14 avant) ;
+      - le manche passe de 119 à 170 px de large (de 70 à 100 px de haut) : le clavier ne bouge pas (touches de 20 px pour les viser à la souris), c'est le manche
+        qui rattrape. */
+@media (min-width: 900px) {
+    .vues-corps { justify-content: space-evenly; }
+    .vues-corps .viz-diagrams { gap: 44px; }
+    .vues-corps .viz-diagrams .guitar-container svg { width: 170px; }
+    .vues-corps .chord-header-row .chord-chip .chord-title { font-size: 32px; }
+    .vues-corps .chord-header-row .chord-chip .chord-notes { font-size: 16px; }
 }
-.guitar-vignettes .guitar-vignette:hover { background: var(--fond-bouton-sombre-survol); opacity: 1; }
-/* Le doigté en grand : contour gris clair (sélection grise, jamais le vert réservé à la lecture). */
-.guitar-vignettes .guitar-vignette[aria-pressed="true"] { opacity: 1; border-color: rgba(255, 255, 255, .6); background: var(--fond-bouton-sombre-survol); }
-.guitar-vignettes .guitar-vignette svg { width: 100%; height: auto; max-height: none; display: block; }
+
+/* 6. Les doigtés en grand (« Est-ce que le bouton avec les chevrons n'est pas un peu redondant avec les vignettes en dessous ? […] on les voit assez mal […] Peut-être
+      qu'on peut laisser les chevrons et laisser un choix approfondi avec un popover où je vois mieux les diagrammes sur le manche. ») : la rangée de vignettes sous le
+      manche est retirée ; le compteur « 1/4 » (un bouton) ouvre cette popover, posée en fixe hors du tiroir (qui applique un zoom). Quatre colonnes de 176 px au plus. */
+.guitar-nav .guitar-nav-label {
+    min-width: 0 !important; width: auto; height: var(--bouton-h); padding: 0 8px;
+    border: 1px solid var(--border); background: var(--fond-bouton-sombre); border-radius: var(--rayon-bouton, 7px);
+    color: #e6e6e6; font: inherit; font-size: var(--fs-sm); font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer;
+}
+/* Mise en valeur du compteur (« L'affichage du nombre de diagrammes disponibles, pour moi, doit être un petit peu plus mis en valeur. Peux-tu l'afficher en gris plus clair ? Aurais-tu
+   des idées pour améliorer son affichage ? ») : gris clair (#e6e6e6) et gras, dans un cadre de bouton, puisqu'un clic dessus ouvre tous les doigtés ; le cadre et le survol le disent. */
+.guitar-nav .guitar-nav-label:hover, .guitar-nav .guitar-nav-label[aria-expanded="true"] { color: #fff; background: var(--fond-bouton-sombre-survol); border-color: var(--btn-neutral-border-hover, #4a4a4a); }
+.guitar-doigtes-pop {
+    position: fixed; z-index: 60; box-sizing: border-box;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 8px;
+    width: min(760px, calc(100vw - 16px)); padding: 12px;
+    background: rgba(24, 27, 32, 0.98); border: 1px solid var(--border-strong, #333); border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.guitar-doigtes-pop[hidden] { display: none; }
+.guitar-doigtes-pop .doigte-choix {
+    min-width: 0 !important; width: 100%; height: auto; padding: 6px; line-height: 0; cursor: pointer;
+    border: 1px solid var(--border); border-radius: var(--rayon-bouton, 7px); background: var(--fond-bouton-sombre);
+}
+.guitar-doigtes-pop .doigte-choix:hover { background: var(--fond-bouton-sombre-survol); }
+.guitar-doigtes-pop .doigte-choix[aria-pressed="true"] { border-color: rgba(255, 255, 255, .6); background: var(--fond-bouton-sombre-survol); }
+.guitar-doigtes-pop .doigte-choix svg { display: block; width: 100%; height: auto; max-height: none; }
+
+/* 7. Nom de l'accord CENTRÉ sur ses notes (« Je pense qu'il faut centrer l'écriture de l'accord sur les notes en dessous. ») : le bloc nom + notes est une colonne
+      dont les deux lignes partagent le même axe vertical. */
+@media (min-width: 900px) {
+    .vues-corps .chord-header-row .chord-chip { align-items: center; }
+    .vues-corps .chord-header-row .chord-chip .chord-title { text-align: center; }
+    .vues-corps .chord-header-row .chord-chip .chord-notes { justify-content: center; }
+    .vues-corps .chord-header-row #current-chord-display { justify-content: center; }
+}
+
+/* 8. Deuxième rangée du manche (« je pense déjà qu'il faut mettre le cadenas à gauche du crayon. Puis il faut élargir un peu ces boutons pour qu'il n'y ait pas trop
+      d'espace au milieu. ») : cadenas puis crayon, chacun la MOITIÉ de la largeur de la rangée des chevrons (même largeur totale, plus de vide au milieu). */
+.guitar-viz-wrap .guitar-controls-cote .guitar-niveau + .guitar-niveau { justify-content: stretch; }
+.guitar-viz-wrap .guitar-controls-cote .guitar-niveau + .guitar-niveau .icon-btn { flex: 1 1 0; width: auto; min-width: 0 !important; }
+
+/* 9. Nom de l'accord aligné sur la barre de lecture (voir alignerNomAccordVues), le reste du tiroir centré dans la place qui reste ; et 80 px entre le clavier et le manche
+      (« Éloigne un peu le diagramme piano du diagramme guitare, ils sont trop resserrés les deux. »). Le bloc du nom a sa largeur et sa marge posées en JS ; ici, sans
+      remplissage à droite : le trait vertical est le bord même du bloc. */
+@media (min-width: 900px) {
+    .vues-corps { justify-content: flex-start; }
+    .vues-corps .viz-card { margin: 0 auto; }
+    
+    .vues-corps .chord-header-row { box-sizing: border-box; justify-content: center; padding-right: 0; }
+}
+
+/* 10. Écart clavier / manche par taille d'écran (« Cela sera évidemment adapté en fonction de la taille de l'écran. Je te laisserai mettre les règles en place. ») :
+      120 px dès 1600 px de large (« sur le grand écran […] tu peux passer de 80 px à 120 px »), 80 px de 1180 à 1599, 40 px de 900 à 1179 ; en dessous, c'est l'échelle du tiroir qui prend le relais (les diagrammes rapetissent
+      avec leur écart). Le téléphone n'a pas de tiroir. */
+@media (min-width: 1600px) { .vues-corps .viz-diagrams { gap: 120px; } }
+@media (min-width: 1180px) and (max-width: 1599px) { .vues-corps .viz-diagrams { gap: 80px; } }
+@media (min-width: 900px) and (max-width: 1179px) { .vues-corps .viz-diagrams { gap: 40px; } }
+
+/* 11. Le cadenas en valeur (« un cadenas orange quand je n'ai pas choisi mon accord et un cadenas vert lorsque l'accord est bien verrouillé »), et les flèches bloquées
+      tant qu'il est vert. Couleur de l'icône et du liseré seulement : jamais d'aplat vif. */
+#guitar-lock-btn, #guitar-edit-lock { color: #f0b45a; border-color: var(--btn-orange-border); }
+#guitar-lock-btn:hover, #guitar-edit-lock:hover { color: #ffc978; border-color: var(--btn-orange-border-hover); }
+#guitar-lock-btn.active, #guitar-edit-lock.active { color: var(--accent); border-color: var(--btn-green-border-hover); }
+.doigte-verrouille { opacity: .4; cursor: not-allowed; }
+
+/* 12. Groupe segmenté des Paramètres (gabarit : boutons de 32 px, arrondi 7 px, un choix parmi moins de huit ; sélection grise claire, jamais d'aplat vert vif). Sert d'abord à
+       « Pastilles de la guitare : Rien | Notes | Degrés ». */
+.settings-seg { display: inline-flex; gap: 4px; }
+.settings-seg button {
+    min-width: 0 !important; width: auto; height: var(--bouton-h); padding: 0 12px;
+    border: 1px solid var(--border); border-radius: var(--rayon-bouton, 7px);
+    background: var(--fond-bouton-sombre); color: var(--text-muted); font: inherit; font-size: var(--fs-sm); font-weight: 600; cursor: pointer;
+}
+.settings-seg button:hover { background: var(--fond-bouton-sombre-survol); color: var(--text-main); }
+.settings-seg button[aria-checked="true"] { color: #fff; border-color: rgba(255, 255, 255, .55); background: var(--fond-bouton-sombre-survol); }
+
+/* 13. La roue des diagrammes et les étiquettes du clavier. La popover est posée en fixe hors du tiroir (qui applique un zoom). Sur les touches actives, le nom ou le degré s'écrit en
+       petit, en bas de la touche. */
+.vues-reglages-pop {
+    position: fixed; z-index: 60; box-sizing: border-box; min-width: 300px; padding: 12px 14px;
+    background: rgba(24, 27, 32, 0.98); border: 1px solid var(--border-strong, #333); border-radius: 12px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.vues-reglages-pop[hidden] { display: none; }
+.key.white { position: relative; }
+.key.active[data-etiquette]::after {
+    content: attr(data-etiquette); position: absolute; left: 0; right: 0; bottom: 3px; text-align: center; pointer-events: none;
+    font-size: 9px; font-weight: 700; line-height: 1; color: #fff; text-shadow: 0 0 2px rgba(0, 0, 0, .8), 0 0 1px rgba(0, 0, 0, .9);
+}
+.key.black.active[data-etiquette]::after { font-size: 8px; bottom: 2px; }
+
+/* 14. Boutons à droite du manche qui ne grossissent pas, et zone des boutons du tiroir réservée (« Lorsque je grossis la fenêtre en l'étirant, il y a des chevauchements entre les
+       paramètres et les boutons. Pour moi, les boutons à droite du diagramme guitare n'ont pas forcément à grossir. Le cadenas, accord manuel et le nombre de chevrons proposés par
+       exemple. ») : au-dessus de l'échelle 1 les flèches, le compteur, le cadenas et le crayon gardent leur taille de 32 px (contre-zoom), ils rapetissent seulement avec
+       les diagrammes quand la place manque ; et le tiroir ÉPINGLÉ laisse à droite la place de la roue, de l'épingle et de la croix (3 boutons + écarts + marge = 124 px). */
+@media (min-width: 900px) {
+    .vues-corps .guitar-controls-cote { zoom: calc(1 / max(1, var(--vues-echelle, 1))); }
+    .vues-tiroir:not(.vues-libre) .vues-corps { padding-right: 124px; }
+}
+
+/* 15. La fenêtre flottante soignée (« les diagrammes sont trop petits alors que l'écran est large, et des fois je le rétrécis, et puis d'un coup, les diagrammes deviennent gros. Également, à côté du
+       nom de l'accord, le petit rideau sur la droite interagit avec le nom de l'accord. Il faut bien le laisser décaler […] Soigne cette fenêtre flottante pour tous les affichages possibles. Et
+       supprime la légende tout en haut ») :
+       - UNE SEULE RANGÉE, comme à l'épinglé : le saut venait du retour à la ligne (le contenu passait sur deux rangées sous un seuil, et l'échelle qui tient remontait d'un coup) ;
+       - le nom rapetisse avec les diagrammes sous l'échelle 1 (zoom), et un vide de 20 px (12 épinglé) le sépare toujours du trait vertical ;
+       - la légende du haut (« glisser la barre […] ») est supprimée : la barre se tire, le coin se tire, c'est assez évident. */
+@media (min-width: 900px) {
+    .vues-tiroir.vues-libre .vues-corps,
+    .vues-tiroir.vues-libre .vues-corps .viz-card,
+    .vues-tiroir.vues-libre .vues-corps .viz-diagrams { flex-wrap: nowrap; }
+    .vues-tiroir.vues-libre .vues-corps > *,
+    .vues-tiroir.vues-libre .vues-corps .viz-card > *,
+    .vues-tiroir.vues-libre .vues-corps .viz-diagrams > * { flex-shrink: 0; }
+    .vues-tiroir.vues-libre .vues-corps .chord-header-row { padding-right: 20px; zoom: min(1, var(--vues-echelle, 1)); }
+    .vues-tiroir:not(.vues-libre) .vues-corps .chord-header-row { padding-left: 12px; padding-right: 12px; }
+}
+
+/* 16. Disposition étroite (< 900 px, là où le tiroir n'existe pas) : le cadre des diagrammes prend TOUTE la largeur de la page (« ils ne prennent même pas toute la largeur de la page »),
+       le clavier et le manche s'y répartissent, et le nom de l'accord est centré au-dessus, aux bords de la grille. Le reste du téléphone ne change pas. */
+@media (max-width: 899px) {
+    .viz-wrap .viz-card { width: 100%; box-sizing: border-box; }
+    .viz-wrap .viz-diagrams { width: 100%; justify-content: space-evenly; }
+}
+
+/* 17. Nom de l'accord intégré à la page, en haut à gauche, sous 900 px (« je sais pas si c'est une bonne idée qu'il soit dans une fenêtre flottante tout seul. Je l'aurais bien intégré dans la
+       fenêtre principale […] peut-être en haut à gauche. Garde les 3 ou 4 notes affichées sous l'accord. S'il n'y a pas de place, tu ne les affiches pas, c'est pas grave. ») : plus de cadre
+       isolé au milieu, le nom s'écrit en grand sur le bord gauche de la grille avec ses notes dessous, comme dans le tiroir ; les notes qui ne tiennent pas sur la ligne sont coupées, pas renvoyées
+       à la ligne. */
+@media (max-width: 899px) {
+    .chord-header-row { justify-content: flex-start; padding: 0; margin-bottom: 8px; }
+    .chord-header-row #current-chord-display { flex: 1; min-width: 0; justify-content: flex-start; }
+    .chord-header-row .chord-chip {
+        flex-direction: column; align-items: flex-start; gap: 2px; padding: 0; background: none; border: 0; border-radius: 0; max-width: 100%;
+    }
+    .chord-header-row .chord-chip .chord-title { font-size: 24px; line-height: 1.15; }
+    .chord-header-row .chord-chip .chord-notes {
+        flex-wrap: nowrap; overflow: hidden; max-width: 100%; padding-left: 0; border-left: 0; gap: 2px 10px; font-size: var(--fs-sm);
+    }
+}

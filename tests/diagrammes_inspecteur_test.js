@@ -28,7 +28,7 @@ const lire = () => {
     return {
         carte: q('.viz-card'), piano: q('#piano-viz'), manche: q('#guitar-viz'),
         colManche: q('.guitar-viz-col'), commandes: q('.guitar-controls-cote'),
-        nav: q('#guitar-nav'), edit: q('#guitar-edit-btn'), bascules: q('.viz-toggle'),
+        nav: q('#guitar-nav'), edit: q('#guitar-edit-btn'), lockEdit: q('#guitar-lock-btn'), bascules: q('.viz-toggle'),
         niveaux: [...document.querySelectorAll('.guitar-controls-cote .guitar-niveau')]
             .map(n => ({ h: Math.round(n.getBoundingClientRect().top), boutons: [...n.querySelectorAll('button')].map(b => b.id) })),
         debordePage: document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -70,17 +70,16 @@ async function avecGuitare(page) {
     // === B. Deux niveaux, et le découpage dit quelque chose ===
     check(m.niveaux.length === 2, `il y a bien deux niveaux — ${m.niveaux.length}`);
     check(m.niveaux[0].h < m.niveaux[1].h, 'le choix du doigté est au-dessus, l\'action en dessous');
-    // Niveau 1 = les commandes qui parlent du MÊME choix ; niveau 2 = l'action, isolée.
-    check(m.niveaux[0].boutons.includes('guitar-prev') && m.niveaux[0].boutons.includes('guitar-next')
-        && m.niveaux[0].boutons.includes('guitar-lock-btn'),
-        `niveau 1 : choix du doigté et verrou — ${m.niveaux[0].boutons.join(', ')}`);
-    check(m.niveaux[1].boutons.length === 1 && m.niveaux[1].boutons[0] === 'guitar-edit-btn',
-        `niveau 2 : la seule action, isolée — ${m.niveaux[1].boutons.join(', ')}`);
-    // L'action principale prend toute la largeur de sa colonne, ce qui la distingue des icônes du
-    // dessus. Mesuré au premier jet : 40px au lieu de 144 — `.guitar-controls-row` (0,1,0) posait
-    // `align-items: center` et, déclarée PLUS BAS dans la feuille, l'emportait à spécificité égale.
-    check(m.edit.l >= m.commandes.l - 2,
-        `l'action prend toute la largeur de sa colonne — bouton ${m.edit.l}px, colonne ${m.commandes.l}px`);
+    // MIS À JOUR LE 14/11 (retours sur l'appli en direct) : niveau 1 = les flèches et le compteur « 1/4 » (le choix du doigté) ; niveau 2 = le cadenas, à GAUCHE du crayon, sur la même ligne,
+    // les deux se partageant toute la largeur de la rangée du dessus (« mettre le cadenas à gauche du crayon. Puis […] élargir un peu ces boutons pour qu'il n'y ait pas trop d'espace au
+    // milieu »). Le crayon n'est plus une pilule de 144 px : c'est un bouton comme les autres.
+    check(m.niveaux[0].boutons.includes('guitar-prev') && m.niveaux[0].boutons.includes('guitar-next') && m.niveaux[0].boutons.includes('guitar-nav-label'),
+        `niveau 1 : choix du doigté — ${m.niveaux[0].boutons.join(', ')}`);
+    check(m.niveaux[1].boutons.join() === 'guitar-lock-btn,guitar-edit-btn',
+        `niveau 2 : cadenas puis crayon, sur la même ligne — ${m.niveaux[1].boutons.join(', ')}`);
+    // Les deux boutons de la rangée du bas ont ensemble la largeur de la colonne (2 px de tolérance pour l'écart entre eux).
+    check(m.lockEdit.l + m.edit.l + 6 >= m.commandes.l - 2,
+        `cadenas + crayon prennent toute la largeur de leur colonne — ${m.lockEdit.l}px + ${m.edit.l}px (+ écart) pour ${m.commandes.l}px`);
 
     // === C. Les bascules d'affichage restent à part, en bord de carte ===
     // Décision prise avec l'utilisateur : elles commandent QUELS diagrammes s'affichent, pas le

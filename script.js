@@ -1795,11 +1795,13 @@ const ROLE_COLOR = { root: '#00c853', third: '#2f81f7', fifth: '#e53922', sevent
 // style.css), pour un rendu plus joli qu'un simple disque plat. Pas utilisés à l'export PDF
 // (forPrint) : l'encre sur papier reste en aplat ROLE_COLOR, plus fiable à l'impression qu'un dégradé.
 const ROLE_GRADIENT_STOPS = {
-    root:    ['#7dffc2', '#00e676', '#00a855'],
-    third:   ['#7fb2ff', '#2f81f7', '#1f5fc0'],
-    fifth:   ['#ff8f87', '#ff3b30', '#d42a20'],
-    seventh: ['#ffd166', '#ffb300', '#cc8f00'],
-    ext:     ['#f0d4ff', '#e0b0ff', '#c48ce6'],
+    // [reflet, teinte, ombre] : entre les couleurs d'origine (trop flashy) et la version sobre du 14/11, avec un écart réduit entre reflet et ombre (« un peu trop de reflets […] ce qui
+    // altère un peu la vision de la couleur »). Mêmes teintes que les touches actives du clavier (style.css, .key.active.role-*) pour que les deux instruments s'accordent.
+    root:    ['#3fcb95', '#2fc18a', '#1f9a69'],
+    third:   ['#5a93ea', '#3f7fe0', '#2f67c4'],
+    fifth:   ['#ea5f55', '#e2483e', '#bb362d'],
+    seventh: ['#efb133', '#e8a317', '#bf8209'],
+    ext:     ['#c29ae6', '#b48ae0', '#9a72c8'],
     neutral: ['#e4e4e4', '#9e9e9e', '#6e6e6e'],
 };
 let guitarSvgIdSeq = 0; // suffixe unique par diagramme, pour ne jamais dupliquer un id de <radialGradient> quand plusieurs schémas cohabitent dans la page (ex. export PDF, plusieurs doigtés)
@@ -1983,7 +1985,10 @@ function solveGuitarFingerings(voiced, limit = 4) {
 // guitarFingeringsForChord) — dès qu'il y a renversement, drop ou basse imposée, ce choix est
 // délibéré et le doigté doit rester fidèle à la note près.
 const GUITAR_MIN_STRINGS = 4;      // en dessous de quatre cordes, ce n'est plus un accord mais un fragment
-const GUITAR_MAX_SUGGESTIONS = 4;  // ce que le navigateur « 1/4 » sous le manche sait présenter
+const GUITAR_MAX_KEY = 'harmohubMaxDoigtes';
+// Nombre de doigtés de guitare proposés au plus (réglable dans la roue des diagrammes, 14/11 : « régler le nombre d'accords qui me seront proposés pour la guitare »).
+// 4 par défaut : ce que le navigateur « 1/4 » sous le manche présentait d'abord ; la popover des doigtés en montre jusqu'à 8.
+let GUITAR_MAX_SUGGESTIONS = (() => { try { const n = parseInt(localStorage.getItem(GUITAR_MAX_KEY), 10); return n >= 2 && n <= 8 ? n : 4; } catch (e) { return 4; } })();
 // Une octave de manche suffit : au-delà de la 12e case, toute forme est le décalque exact de la même
 // forme une octave plus bas. Chercher jusqu'à GUITAR_MAX_FRET (15) revenait à proposer x-15-0-0-0-0
 // à côté de x-3-0-0-0-0 — deux fois le même doigté, dont un injouable, au lieu de deux positions.
@@ -2595,7 +2600,8 @@ const SHOW_ROMAN_KEY = 'harmohubShowRomanNumerals';
 const SHOW_SAVED_DATE_KEY = 'harmohubShowSavedDate';
 // Noms des notes en petit sur les pastilles des diagrammes de guitare (L8, 14/11 : « nom des notes en petit sur
 // les diagrammes »). Par appareil, désactivé par défaut : le diagramme reste net tant qu'on ne le demande pas.
-const SHOW_GUITAR_NOTE_NAMES_KEY = 'harmohubNomsNotesGuitare';
+const SHOW_GUITAR_NOTE_NAMES_KEY = 'harmohubNomsNotesGuitare'; // valeurs : 'rien' | 'notes' | 'degres' (ancienne valeur '1' = notes)
+const PIANO_LABEL_KEY = 'harmohubEtiquettesPiano';          // même chose pour les touches du clavier (14/11 : « un affichage différent possible entre le piano et la guitare »)
 // Octave / renversement-drop sous chaque accord de la GRILLE (voir gridVoicingParts, Paramètres >
 // Affichage) — remplacent l'ancien réglage unique "Style de jeu" (icône sous la case), retiré.
 const SHOW_GRID_OCTAVE_KEY = 'harmohubShowGridOctave';
@@ -3696,7 +3702,11 @@ class HarmoHubApp {
         // romain — DÉSACTIVÉE par défaut (voir SHOW_CHORD_FUNCTION_KEY), contrairement à celui-ci.
         this.showChordFunction = localStorage.getItem(SHOW_CHORD_FUNCTION_KEY) === '1';
         this.showSavedDate = localStorage.getItem(SHOW_SAVED_DATE_KEY) !== '0';
-        this.showGuitarNoteNames = localStorage.getItem(SHOW_GUITAR_NOTE_NAMES_KEY) === '1';
+        { const lire = (v) => v === 'degres' ? 'degres' : (v === 'notes' || v === '1' ? 'notes' : 'rien');
+          this.guitarLabelMode = lire(localStorage.getItem(SHOW_GUITAR_NOTE_NAMES_KEY));
+          // Le clavier a son propre réglage ; tant qu'il n'a jamais été touché, il suit celui de la guitare (comportement d'avant la séparation).
+          const vp = localStorage.getItem(PIANO_LABEL_KEY);
+          this.pianoLabelMode = vp === null ? this.guitarLabelMode : lire(vp); }
 
         // Octave / renversement-drop sous chaque accord de la grille (voir .cell-meta,
         // gridVoicingParts) — remplace l'ancienne icône de style de jeu (retour utilisateur :
@@ -4722,6 +4732,10 @@ class HarmoHubApp {
             { id: 'panneau-lecture', ancre: '#bl-plus', close: () => this.fermerPanneauLecture() },
             // L'affichage de la grille du téléphone (lot 10c) : son bouton gère sa propre bascule. Pincer la grille le referme aussi (toucher à côté).
             { id: 'tel-affichage-panneau', ancre: '#tel-affichage', close: () => this.fermerAffichageTelephone() },
+            // Les doigtés de guitare en grand (L8) : le compteur « 1/4 » gère sa propre bascule.
+            { id: 'guitar-doigtes-pop', ancre: '#guitar-nav-label', close: () => this.basculerDoigtesGuitare(false) },
+            // La roue des diagrammes (L8) : son bouton gère sa propre bascule.
+            { id: 'vues-reglages-pop', ancre: '#vues-reglages', close: () => this.basculerReglagesVues(false) },
         ];
         // Le panneau flottant est posé en coordonnées d'écran : il faut le replacer dès que son ancre
         // bouge. Sur téléphone, la page défile pour de bon (contrairement à l'ordinateur, où seules
@@ -4985,12 +4999,14 @@ class HarmoHubApp {
         };
         document.getElementById('guitar-prev').onclick = () => this.cycleGuitarFingering(-1);
         document.getElementById('guitar-next').onclick = () => this.cycleGuitarFingering(1);
-        // Vignettes sous le manche (L8) : un clic met ce doigté en grand, comme ‹ › ; le cadenas, lui,
-        // verrouille celui qui est en grand (voir toggleGuitarLock). Délégué : les boutons sont refaits à chaque rendu.
-        document.getElementById('guitar-vignettes').onclick = (e) => {
-            const b = e.target.closest('.guitar-vignette');
+        // Le compteur « 1/4 » ouvre tous les doigtés EN GRAND (L8, retour du 14/11 : les chevrons et une rangée de vignettes se doublaient, et les vignettes
+        // se distinguaient mal : « laisser les chevrons et laisser un choix approfondi avec un popover où je vois mieux les diagrammes »). Choisir en ferme la popover.
+        document.getElementById('guitar-nav-label').onclick = () => this.basculerDoigtesGuitare();
+        document.getElementById('guitar-doigtes-pop').onclick = (e) => {
+            const b = e.target.closest('.doigte-choix');
             if (!b) return;
             this.guitarFingeringIndex = +b.dataset.i;
+            this.basculerDoigtesGuitare(false);
             this.renderGuitarDiagram();
         };
         document.getElementById('guitar-lock-btn').onclick = () => this.toggleGuitarLock();
@@ -5448,10 +5464,13 @@ class HarmoHubApp {
             });
             return;
         }
+        document.querySelectorAll('.key[data-etiquette]').forEach(k => k.removeAttribute('data-etiquette'));
         midis.forEach(m => {
             const el = document.querySelector(`.key[data-midi="${m}"]`);
             if (el) {
                 el.classList.add('active', 'role-' + (roleMap[m] || 'ext'));
+                const texte = this.etiquetteNote(m, this.pianoLabelMode);
+                if (texte) el.dataset.etiquette = texte;
             }
         });
     }
@@ -5478,6 +5497,9 @@ class HarmoHubApp {
     // contentait d'écouter l'accord, cf. #guitar-lock-btn resté désaccordé de l'accord réellement
     // affiché).
     ensureGuitarDiagram(chord, useLiveLock = true) {
+        // Racine et qualité de l'accord affiché : pour les degrés écrits sur le clavier et la guitare (etiquetteNote), même guitare masquée.
+        this.guitarChordRootPc = NOTES.indexOf(chord.root); this.guitarChordQuality = chord.quality;
+        this._dernierAccordGuitare = { chord, useLiveLock };
         if (!this.showGuitarViz()) return;
         // Un changement RÉEL d'accord invalide un verrou EN COURS D'ÉDITION : la forme mémorisée (case
         // par corde) ne correspondrait plus aux bonnes notes. « Réel » se juge sur l'IDENTITÉ de
@@ -5529,9 +5551,8 @@ class HarmoHubApp {
         // effacerait le dessin en cours à chaque frappe dans le panneau Accord.
         const wideViz = this.guitarEditTab === 'draw' ? null : document.getElementById('guitar-edit-neck');
         const editBtn = document.getElementById('guitar-edit-btn');
-        const vignettes = document.getElementById('guitar-vignettes');
         if (!fingerings.length) {
-            if (vignettes) { vignettes.hidden = true; vignettes.innerHTML = ''; }
+            this.basculerDoigtesGuitare(false);
             viz.innerHTML = `<div class="guitar-unplayable">Non jouable à la guitare</div>`;
             if (wideViz) wideViz.innerHTML = `<div class="guitar-unplayable">Non jouable à la guitare</div>`;
             if (nav) nav.style.display = 'none';
@@ -5544,11 +5565,9 @@ class HarmoHubApp {
         this.guitarFingeringIndex = idx;
         viz.innerHTML = this.buildGuitarDiagramSVG(fingerings[idx]);
         if (wideViz) wideViz.innerHTML = this.buildGuitarDiagramSVG(fingerings[idx], false, true);
-        if (vignettes) {
-            vignettes.hidden = fingerings.length < 2;
-            vignettes.innerHTML = fingerings.length < 2 ? '' : fingerings.map((f, i) =>
-                `<button type="button" class="guitar-vignette" data-i="${i}" aria-pressed="${i === idx}" title="Doigté ${i + 1} sur ${fingerings.length}" aria-label="Doigté ${i + 1} sur ${fingerings.length}">${this.buildGuitarDiagramSVG(f, false, false, true)}</button>`).join('');
-        }
+        // La popover des doigtés, si elle est ouverte, suit l'accord : même liste, ou fermée s'il n'y a plus de choix.
+        const pop = document.getElementById('guitar-doigtes-pop');
+        if (pop && !pop.hidden) { if (fingerings.length < 2) this.basculerDoigtesGuitare(false); else this.rendreDoigtesGuitare(); }
         if (nav) {
             nav.style.display = fingerings.length > 1 ? '' : 'none';
             const label = document.getElementById('guitar-nav-label');
@@ -6071,7 +6090,15 @@ class HarmoHubApp {
         const shown = this.guitarFingerings[this.guitarFingeringIndex];
         const shownShape = shown ? shown.map(f => f ? f.fret : null) : null;
         const locked = !!this.guitarDisplayLock && !!shownShape && JSON.stringify(this.guitarDisplayLock) === JSON.stringify(shownShape);
-        const titre = locked ? 'Doigté verrouillé pour cet accord (cliquer pour libérer)' : 'Verrouiller ce doigté pour cet accord';
+        const titre = locked ? 'Doigté verrouillé pour cet accord (cliquer pour libérer ; les flèches sont bloquées)' : 'Verrouiller ce doigté pour cet accord';
+        // Un verrou existe pour cet accord : les flèches et le compteur sont bloqués (grisés, et ils disent pourquoi au toucher, voir cycleGuitarFingering).
+        const verrou = !!this.guitarDisplayLock;
+        ['guitar-prev', 'guitar-next', 'guitar-nav-label', 'guitar-edit-prev', 'guitar-edit-next'].forEach(id => {
+            const b = document.getElementById(id);
+            if (!b) return;
+            b.classList.toggle('doigte-verrouille', verrou);
+            if (verrou) b.setAttribute('aria-disabled', 'true'); else b.removeAttribute('aria-disabled');
+        });
         const dessin = locked
             ? `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`
             : `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>`;
@@ -6087,8 +6114,42 @@ class HarmoHubApp {
         });
     }
 
+    // Ouvre / ferme la popover de tous les doigtés (`ouvrir` omis : bascule). Rien à ouvrir s'il n'y a qu'un doigté.
+    basculerDoigtesGuitare(ouvrir) {
+        const pop = document.getElementById('guitar-doigtes-pop'), bouton = document.getElementById('guitar-nav-label');
+        if (!pop || !bouton) return;
+        if (ouvrir === undefined) ouvrir = pop.hidden;
+        if (ouvrir && this.guitarFingerings.length > 1 && this.guitarDisplayLock) { this.avertirDoigteVerrouille(); ouvrir = false; }
+        ouvrir = ouvrir && this.guitarFingerings.length > 1;
+        pop.hidden = !ouvrir;
+        bouton.setAttribute('aria-expanded', String(ouvrir));
+        if (!ouvrir) { pop.innerHTML = ''; return; }
+        this.rendreDoigtesGuitare();
+    }
+
+    // Un diagramme en grand par doigté, celui qui est affiché marqué ; posée AU-DESSUS du compteur (le tiroir est en bas de l'écran), en dessous si la place manque.
+    rendreDoigtesGuitare() {
+        const pop = document.getElementById('guitar-doigtes-pop'), bouton = document.getElementById('guitar-nav-label');
+        const liste = this.guitarFingerings, idx = this.guitarFingeringIndex;
+        pop.innerHTML = liste.map((f, i) =>
+            `<button type="button" class="doigte-choix" data-i="${i}" aria-pressed="${i === idx}" title="Doigté ${i + 1} sur ${liste.length}" aria-label="Doigté ${i + 1} sur ${liste.length}">${this.buildGuitarDiagramSVG(f, false, false, true)}</button>`).join('');
+        const r = bouton.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+        const bas = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--haut-barre-lecture')) || 60;
+        pop.style.left = Math.round(Math.min(Math.max(r.left + r.width / 2 - w / 2, 8), window.innerWidth - w - 8)) + 'px';
+        const dessus = r.top - 10 - h;
+        pop.style.top = Math.round(dessus >= 8 ? dessus : Math.min(r.bottom + 10, window.innerHeight - bas - h)) + 'px';
+    }
+
+    // Doigté VERROUILLÉ = définitif jusqu'à la prochaine modification de l'accord (retour du 14/11 : « Fais bien attention à verrouiller pour de bon l'accord […] si le
+    // cadenas est verrouillé et que je clique sur un chevron pour changer de diagramme d'accord, j'aimerais que soit les chevrons soient bloqués, soit afficher un message
+    // d'alerte. Je te laisse choisir le plus évident »). Les deux : les flèches et le compteur sont grisés, et les toucher dit pourquoi et comment libérer.
+    avertirDoigteVerrouille() {
+        this.flashHint('Doigté verrouillé : cliquez le cadenas vert pour le libérer', 2600);
+    }
+
     cycleGuitarFingering(delta) {
         if (!this.guitarFingerings.length) return;
+        if (this.guitarDisplayLock) { this.avertirDoigteVerrouille(); return; }
         const n = this.guitarFingerings.length;
         this.guitarFingeringIndex = (this.guitarFingeringIndex + delta + n) % n;
         this.renderGuitarDiagram();
@@ -12712,11 +12773,17 @@ class HarmoHubApp {
                     <span class="switch-thumb"></span>
                 </button>
             </div>
-            <div class="settings-toggle-row">
-                <label for="toggle-guitar-note-names" title="Écrit le nom de chaque note (C, E, G…) sur les pastilles des diagrammes de guitare, avec les dièses ou les bémols de la tonalité">Noms des notes (guitare)</label>
-                <button type="button" id="toggle-guitar-note-names" class="switch" role="switch" aria-checked="${this.showGuitarNoteNames}" aria-label="Noms des notes sur les diagrammes de guitare">
-                    <span class="switch-thumb"></span>
-                </button>
+            <div class="settings-select-row">
+                <label id="piano-label-mode-lbl" title="Ce qu'on écrit sur les touches actives du clavier : le nom de la note ou son degré dans l'accord (1, ♭3, 5, ♭7…)">Touches du piano</label>
+                <div id="piano-label-mode" class="settings-seg" role="radiogroup" aria-labelledby="piano-label-mode-lbl">
+                    ${[['rien', 'Rien'], ['notes', 'Notes'], ['degres', 'Degrés']].map(([m, t]) => `<button type="button" role="radio" data-mode="${m}" aria-checked="${this.pianoLabelMode === m}">${t}</button>`).join('')}
+                </div>
+            </div>
+            <div class="settings-select-row">
+                <label id="guitar-label-mode-lbl" title="Ce qu'on écrit dans les pastilles des diagrammes de guitare : le nom de la note (avec les dièses ou bémols de la tonalité) ou son degré dans l'accord (1, ♭3, 5, ♭7…)">Pastilles de la guitare</label>
+                <div id="guitar-label-mode" class="settings-seg" role="radiogroup" aria-labelledby="guitar-label-mode-lbl">
+                    ${[['rien', 'Rien'], ['notes', 'Notes'], ['degres', 'Degrés']].map(([m, t]) => `<button type="button" role="radio" data-mode="${m}" aria-checked="${this.guitarLabelMode === m}">${t}</button>`).join('')}
+                </div>
             </div>
             <details class="settings-advanced">
                 <summary>Options avancées</summary>
@@ -12739,7 +12806,8 @@ class HarmoHubApp {
         document.getElementById('toggle-show-roman').onclick = () => this.setShowRomanNumerals(!this.showRomanNumerals);
         document.getElementById('toggle-show-function').onclick = () => this.setShowChordFunction(!this.showChordFunction);
         document.getElementById('toggle-show-saved-date').onclick = () => this.setShowSavedDate(!this.showSavedDate);
-        document.getElementById('toggle-guitar-note-names').onclick = () => this.setShowGuitarNoteNames(!this.showGuitarNoteNames);
+        document.querySelectorAll('#guitar-label-mode button').forEach(b => { b.onclick = () => this.setGuitarLabelMode(b.dataset.mode); });
+        document.querySelectorAll('#piano-label-mode button').forEach(b => { b.onclick = () => this.setPianoLabelMode(b.dataset.mode); });
         document.getElementById('grid-voicing-badge').onchange = (e) => {
             const v = e.target.value;
             this.setShowGridOctave(v !== 'aucune');
@@ -12772,13 +12840,72 @@ class HarmoHubApp {
 
     // Ne touche ni la grille ni les accords : seuls les diagrammes de guitare se redessinent (le manche
     // d'édition large aussi, via renderGuitarDiagram, et l'aperçu de l'onglet « Dessiner »).
-    setShowGuitarNoteNames(on) {
-        this.showGuitarNoteNames = on;
-        localStorage.setItem(SHOW_GUITAR_NOTE_NAMES_KEY, on ? '1' : '0');
-        const btn = document.getElementById('toggle-guitar-note-names');
-        if (btn) btn.setAttribute('aria-checked', on);
+    // Ce qu'on écrit sur une note (nom ou degré), PARTAGÉ par le clavier et les pastilles de la guitare : orthographe de la tonalité du morceau pour les noms ; pour les
+    // degrés, l'intervalle avec la racine de l'accord affiché (1, ♭3, 5, ♭7…, 9 / 11 / 13 quand l'accord les contient).
+    etiquetteNote(midi, mode) {
+        if (mode === 'notes') {
+            const gRoot = document.getElementById('global-root').value, gMode = document.getElementById('global-mode').value;
+            return noteNameForPc(((midi % 12) + 12) % 12, useFlatsForKey(NOTES.indexOf(gRoot), gMode));
+        }
+        if (mode === 'degres') {
+            const racine = this.guitarChordRootPc;
+            if (!Number.isFinite(racine)) return '';
+            const BASE = ['1', '♭2', '2', '♭3', '3', '4', '♭5', '5', '♯5', '6', '♭7', '7'];
+            const EXT = { 13: '♭9', 14: '9', 15: '♯9', 17: '11', 18: '♯11', 20: '♭13', 21: '13' };
+            const iv = (((midi - racine) % 12) + 12) % 12;
+            const def = (CHORD_INTERVALS[this.guitarChordQuality] || []).find(x => (((x.semi % 12) + 12) % 12) === iv);
+            return def && EXT[def.semi] ? EXT[def.semi] : BASE[iv];
+        }
+        return '';
+    }
+
+    // La roue des diagrammes (L8, 14/11 : « un petit bouton de paramètres en haut à droite des diagrammes […] uniquement pour la partie diagramme ») : l'écriture sur les
+    // touches et les pastilles (la même préférence que Paramètres › Affichage), et combien de doigtés de guitare sont proposés.
+    basculerReglagesVues(ouvrir) {
+        const pop = document.getElementById('vues-reglages-pop'), bouton = document.getElementById('vues-reglages');
+        if (!pop || !bouton) return;
+        if (ouvrir === undefined) ouvrir = pop.hidden;
+        pop.hidden = !ouvrir;
+        bouton.setAttribute('aria-expanded', String(ouvrir));
+        if (!ouvrir) { pop.innerHTML = ''; return; }
+        const seg = (id, dataset, choix, actuel) => `<div id="${id}" class="settings-seg" role="radiogroup">${choix.map(([v, t]) => `<button type="button" role="radio" data-${dataset}="${v}" aria-checked="${String(actuel) === String(v)}">${t}</button>`).join('')}</div>`;
+        pop.innerHTML = `
+            <h3 class="settings-group-title">Diagrammes</h3>
+            <div class="settings-select-row"><label title="Ce qu'on écrit sur les touches actives du clavier : le nom de la note ou son degré dans l'accord">Affichage piano</label>${seg('vues-mode-piano', 'mode', [['rien', 'Rien'], ['notes', 'Notes'], ['degres', 'Degrés']], this.pianoLabelMode)}</div>
+            <div class="settings-select-row"><label title="Ce qu'on écrit dans les pastilles de la guitare : le nom de la note ou son degré dans l'accord">Affichage guitare</label>${seg('vues-mode-guitare', 'mode', [['rien', 'Rien'], ['notes', 'Notes'], ['degres', 'Degrés']], this.guitarLabelMode)}</div>
+            <div class="settings-select-row"><label title="Nombre de diagrammes de guitare proposés au plus pour un accord (le compteur « 1/4 » sous le manche)">Nb diagrammes</label>${seg('vues-max-doigtes', 'max', [[2, '2'], [3, '3'], [4, '4'], [6, '6'], [8, '8']], GUITAR_MAX_SUGGESTIONS)}</div>`;
+        pop.querySelectorAll('#vues-mode-piano [data-mode]').forEach(b => { b.onclick = () => this.setPianoLabelMode(b.dataset.mode); });
+        pop.querySelectorAll('#vues-mode-guitare [data-mode]').forEach(b => { b.onclick = () => this.setGuitarLabelMode(b.dataset.mode); });
+        pop.querySelectorAll('[data-max]').forEach(b => { b.onclick = () => this.setGuitarMax(+b.dataset.max); });
+        const r = bouton.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+        pop.style.left = Math.round(Math.min(Math.max(r.right - w, 8), window.innerWidth - w - 8)) + 'px';
+        const dessus = r.top - 8 - h;
+        pop.style.top = Math.round(dessus >= 8 ? dessus : r.bottom + 8) + 'px';
+    }
+
+    setGuitarMax(n) {
+        GUITAR_MAX_SUGGESTIONS = n >= 2 && n <= 8 ? n : 4;
+        try { localStorage.setItem(GUITAR_MAX_KEY, String(GUITAR_MAX_SUGGESTIONS)); } catch (e) { /* stockage plein : vaut pour la session */ }
+        document.querySelectorAll('#vues-max-doigtes [data-max]').forEach(b => b.setAttribute('aria-checked', String(+b.dataset.max === GUITAR_MAX_SUGGESTIONS)));
+        // Recalcule la liste pour l'accord affiché.
+        const d = this._dernierAccordGuitare;
+        if (d) { this.guitarKey = null; this.ensureGuitarDiagram(d.chord, d.useLiveLock); }
+    }
+
+    setGuitarLabelMode(mode) {
+        this.guitarLabelMode = mode === 'notes' || mode === 'degres' ? mode : 'rien';
+        localStorage.setItem(SHOW_GUITAR_NOTE_NAMES_KEY, this.guitarLabelMode);
+        // Les deux endroits qui règlent la même chose (Paramètres › Affichage et la roue des diagrammes) restent d'accord.
+        document.querySelectorAll('#guitar-label-mode button, #vues-mode-guitare button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.mode === this.guitarLabelMode)));
         this.renderGuitarDiagram();
         if (this.guitarEditTab === 'draw') this.renderGuitarDrawNeck();
+    }
+
+    setPianoLabelMode(mode) {
+        this.pianoLabelMode = mode === 'notes' || mode === 'degres' ? mode : 'rien';
+        localStorage.setItem(PIANO_LABEL_KEY, this.pianoLabelMode);
+        document.querySelectorAll('#piano-label-mode button, #vues-mode-piano button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.mode === this.pianoLabelMode)));
+        this.updateViz(...this.derniersAffichagesViz());
     }
 
     setShowChordFunction(on) {
@@ -13917,17 +14044,14 @@ class HarmoHubApp {
         const nutColor = forPrint ? '#1a1a1a' : '#e8e8e8';
         const openColor = forPrint ? '#333' : '#ccc';
         const markerColor = forPrint ? '#999' : '#3a3a3a';
-        const labelColor = forPrint ? '#333' : '#999';
-        // Noms des notes sur les pastilles (Paramètres › Affichage) : jamais à l'impression (encre) ni sur
-        // une vignette (trop petite pour être lue), orthographe de la tonalité du morceau.
-        const noms = !forPrint && !mini && !!this.showGuitarNoteNames;
-        let nomDe = null;
-        if (noms) {
-            const gRoot = document.getElementById('global-root').value;
-            const gMode = document.getElementById('global-mode').value;
-            const useFlats = useFlatsForKey(NOTES.indexOf(gRoot), gMode);
-            nomDe = e => noteNameForPc(((e.midi % 12) + 12) % 12, useFlats);
-        }
+        // Numéros de case sous le manche (retour du 14/11 : « agrandir très légèrement les numéros de ce fret sur la guitare ? Ou les mettre un petit peu plus clairs ? C'est un peu
+        // compliqué à voir des fois. ») : 10 au lieu de 8, et #d6d6d6 au lieu de #999 sur fond sombre ; à l'impression l'encre et la taille restent celles d'avant.
+        const labelColor = forPrint ? '#333' : '#d6d6d6';
+        const labelSize = forPrint ? 8 : 10;
+        // Ce qu'on écrit DANS les pastilles (Paramètres › Affichage › Pastilles de la guitare) : rien, le nom de la note (orthographe de la tonalité du morceau) ou son
+        // degré dans l'accord. Jamais à l'impression (encre) ni sur une petite vignette (trop petite pour être lue).
+        const mode = (!forPrint && !mini) ? this.guitarLabelMode : 'rien';
+        const etiquetteDe = mode === 'rien' ? () => '' : e => this.etiquetteNote(e.midi, mode);
 
         // Corde aiguë (Mi aigu, index 5) en haut, grave (Mi grave, index 0) en bas : y croît avec
         // l'index de corde à l'envers.
@@ -13966,13 +14090,17 @@ class HarmoHubApp {
             const usedRoles = new Set(byString.filter(e => e).map(e => ROLE_GRADIENT_STOPS[e.role] ? e.role : 'ext'));
             svg += '<defs>';
             usedRoles.forEach(role => {
-                const [light, mid] = ROLE_GRADIENT_STOPS[role];
-                // r="50%" (plutôt que 70%) : la lueur s'éteint avant d'atteindre le bord du cercle qui
-                // la porte, pour une diffusion plus resserrée sans changer le diamètre du cercle lui-même.
+                const [light, mid, dark] = ROLE_GRADIENT_STOPS[role];
+                // PASTILLE PLEINE + LUEUR TRÈS DISCRÈTE (retour du 14/11, « le halo de lumière sur les touches […] un peu bizarre […] garder un peu l'idée de cette lumière diffuse » ;
+                // « Ok, tu peux faire cela » à ma proposition) : la lueur n'est plus qu'un voile large à 30 % d'opacité qui s'éteint au bord, et la pastille est un vrai disque au
+                // dégradé foncé (reflet en haut à gauche), aux couleurs sobres du clavier.
                 svg += `<radialGradient id="gglow-${role}-${uid}" cx="50%" cy="50%" r="50%">` +
-                    `<stop offset="0%" stop-color="${light}" stop-opacity=".95"/>` +
-                    `<stop offset="55%" stop-color="${mid}" stop-opacity=".6"/>` +
+                    `<stop offset="0%" stop-color="${mid}" stop-opacity=".30"/>` +
+                    `<stop offset="60%" stop-color="${mid}" stop-opacity=".14"/>` +
                     `<stop offset="100%" stop-color="${mid}" stop-opacity="0"/>` +
+                    `</radialGradient>`;
+                svg += `<radialGradient id="gdot-${role}-${uid}" cx="50%" cy="50%" r="62%" fx="34%" fy="28%">` +
+                    `<stop offset="0%" stop-color="${light}"/><stop offset="55%" stop-color="${mid}"/><stop offset="100%" stop-color="${dark}"/>` +
                     `</radialGradient>`;
             });
             svg += '</defs>';
@@ -14016,19 +14144,20 @@ class HarmoHubApp {
             if (marker < baseFret + 1 || marker > baseFret + FRET_WINDOW) return;
             const x = MARGIN_LEFT + (marker - baseFret - 0.5) * FRET_GAP;
             svg += `<circle cx="${x}" cy="${midY}" r="3" fill="${markerColor}"/>`;
-            svg += `<text x="${x}" y="${labelY}" font-size="8" fill="${labelColor}" text-anchor="middle">${marker}</text>`;
+            svg += `<text x="${x}" y="${labelY}" font-size="${labelSize}" fill="${labelColor}" text-anchor="middle">${marker}</text>`;
         });
         DOUBLE_MARKERS.forEach(marker => {
             if (marker < baseFret + 1 || marker > baseFret + FRET_WINDOW) return;
             const x = MARGIN_LEFT + (marker - baseFret - 0.5) * FRET_GAP;
             svg += `<circle cx="${x}" cy="${midY - STRING_GAP}" r="3" fill="${markerColor}"/>`;
             svg += `<circle cx="${x}" cy="${midY + STRING_GAP}" r="3" fill="${markerColor}"/>`;
-            svg += `<text x="${x}" y="${labelY}" font-size="8" fill="${labelColor}" text-anchor="middle">${marker}</text>`;
+            svg += `<text x="${x}" y="${labelY}" font-size="${labelSize}" fill="${labelColor}" text-anchor="middle">${marker}</text>`;
         });
         byString.forEach((e, s) => {
             const y = stringY(s) + 3;
-            const ox = MARGIN_LEFT - 9;
-            if (!e) { svg += `<text x="${ox}" y="${y}" font-size="9" fill="#e53922" text-anchor="middle">X</text>`; return; }
+            const ox = MARGIN_LEFT - 10;
+            // Les X des cordes étouffées : 12 (9 avant), « agrandir légèrement les X des ghost notes ».
+            if (!e) { svg += `<text x="${ox}" y="${y + 1}" font-size="12" font-weight="700" fill="#e53922" text-anchor="middle">X</text>`; return; }
             if (e.fret !== 0) return;
             // Corde à vide jouée : même pastille de rôle que les cases frettées, en plus petit (hors
             // manche) — le "O" reste lisible par-dessus grâce à son propre contour sombre (paint-order),
@@ -14038,12 +14167,15 @@ class HarmoHubApp {
             if (forPrint) {
                 svg += `<circle cx="${ox}" cy="${oy}" r="4" fill="${ROLE_COLOR[role] || ROLE_COLOR.ext}" stroke="#000" stroke-width="0.5"/>`;
             } else {
-                const mid = ROLE_GRADIENT_STOPS[role][1];
-                svg += `<circle cx="${ox}" cy="${oy}" r="7" fill="url(#gglow-${role}-${uid})"/>`;
-                svg += `<circle cx="${ox}" cy="${oy}" r="2.4" fill="${mid}"/>`;
+                // 7 de rayon (6 avant) : « agrandir de quelques pixels les notes jouées, mais qui sont sur le sillet […] trop de différence entre ces notes-là et celles qui sont
+                // jouées sur les frettes » (7,5 pour une case frettée). Le sillet est à 9 px de l'axe : le disque le frôle sans le recouvrir.
+                svg += `<circle cx="${ox}" cy="${oy}" r="${Math.min(11, oy, ox)}" fill="url(#gglow-${role}-${uid})"/>`;
+                svg += `<circle cx="${ox}" cy="${oy}" r="8" fill="url(#gdot-${role}-${uid})" stroke="rgba(0,0,0,.35)" stroke-width=".6"/>`;
             }
-            if (nomDe) svg += `<text x="${ox}" y="${oy + 2.5}" font-size="7" font-weight="700" fill="#fff" stroke="#000" stroke-width="1.2" paint-order="stroke" text-anchor="middle">${nomDe(e)}</text>`;
-            else svg += `<text x="${ox}" y="${y}" font-size="9" fill="${openColor}" stroke="#000" stroke-width="0.6" paint-order="stroke" text-anchor="middle">O</text>`;
+            // Plus de « O » blanc DANS la pastille d'une corde à vide à l'écran (« supprimer les deux petits cercles blancs qui sont affichés dans les touches sur la gauche ») : la pastille posée
+            // avant le sillet dit déjà « corde à vide ». Le nom ou le degré, eux, s'y écrivent si le réglage le demande ; à l'impression le « O » à l'encre reste.
+            const texteOuvert = etiquetteDe(e) || (forPrint ? 'O' : '');
+            if (texteOuvert) svg += `<text x="${ox}" y="${oy + 3.4}" font-size="${forPrint ? 9 : 10}" font-weight="700" fill="${forPrint ? openColor : '#fff'}" stroke="${forPrint ? '#fff' : 'rgba(0,0,0,.5)'}" stroke-width="${forPrint ? 0.6 : 0.8}" paint-order="stroke" text-anchor="middle">${texteOuvert}</text>`;
         });
         byString.forEach((e, s) => {
             if (!e || e.fret === 0) return;
@@ -14054,13 +14186,12 @@ class HarmoHubApp {
             if (forPrint) {
                 svg += `<circle cx="${x}" cy="${y}" r="6" fill="${ROLE_COLOR[role] || ROLE_COLOR.ext}" stroke="#000" stroke-width="0.5"/>`;
             } else {
-                // Verre rétroéclairé : une lueur resserrée (voir gglow-*, défini plus haut) derrière un
-                // cœur plein un peu plus large — moins de diffusion, même diamètre global qu'avant.
-                const mid = ROLE_GRADIENT_STOPS[role][1];
-                svg += `<circle cx="${x}" cy="${y}" r="11" fill="url(#gglow-${role}-${uid})"/>`;
-                svg += `<circle cx="${x}" cy="${y}" r="4.6" fill="${mid}"/>`;
+                svg += `<circle cx="${x}" cy="${y}" r="${Math.min(13, y)}" fill="url(#gglow-${role}-${uid})"/>`; // la lueur ne dépasse pas du haut du dessin (corde aiguë à 8 px du bord)
+                svg += `<circle cx="${x}" cy="${y}" r="8.5" fill="url(#gdot-${role}-${uid})" stroke="rgba(0,0,0,.35)" stroke-width=".6"/>`;
             }
-            if (nomDe) svg += `<text x="${x}" y="${y + 2.5}" font-size="7" font-weight="700" fill="#fff" stroke="#000" stroke-width="1.2" paint-order="stroke" text-anchor="middle">${nomDe(e)}</text>`;
+            const texte = etiquetteDe(e);
+            // Texte à 10 dans un disque de 8,5 de rayon (8 de texte dans 7,5 avant : « les chiffres sont difficilement visibles […] les cercles doivent être agrandis un petit peu pour que tout passe »).
+            if (texte) svg += `<text x="${x}" y="${y + 3.4}" font-size="10" font-weight="700" fill="#fff" stroke="rgba(0,0,0,.5)" stroke-width=".8" paint-order="stroke" text-anchor="middle">${texte}</text>`;
         });
         svg += `</svg>`;
         return svg;
@@ -17094,6 +17225,7 @@ class HarmoHubApp {
             this.syncVues();
         });
         document.getElementById('vues-fermer').addEventListener('click', () => this.fermerVues());
+        document.getElementById('vues-reglages').addEventListener('click', () => this.basculerReglagesVues());
         // Construction d'accord : un clic sur une touche du clavier du tiroir, puis la bande (nom reconnu, Remplacer, Ajouter, Effacer).
         document.getElementById('piano-viz').addEventListener('click', (e) => {
             const touche = e.target.closest('.key');
@@ -17201,15 +17333,75 @@ class HarmoHubApp {
     // (le tiroir passait de 140 à 317 px à 900 px de large, échelle 1,5). L'échelle réglée à la poignée reste celle retenue : elle revient dès que la place
     // revient. `echelleVue` = celle réellement affichée. La fenêtre libre, elle, se redimensionne à la main : elle garde l'échelle demandée.
     echelleAfficheeVues() { return (this._vues && (this._vues.echelleVue || this._vues.echelle)) || 1; }
+    // LE NOM DE L'ACCORD SUR LA BARRE DE LECTURE (retour du 14/11 : « On a encore beaucoup d'espace libre sur la gauche. […] centrer l'affichage de l'accord avec les boutons de
+    // lecture en bas. Par exemple, centrer l'accord sur le bouton stop. Essaye d'aligner le rideau avec quelque chose, par exemple le bord du bouton boucle. ») : épinglé, le bloc
+    // du nom occupe exactement la largeur des trois boutons Lecture / Stop / Boucle, juste au-dessus d'eux : le nom est donc centré sur Stop, et le trait vertical (bord
+    // droit du bloc) tombe sur le bord droit de Boucle. Mesuré sur les vrais boutons, donc juste à toutes les largeurs. Fenêtre libre : elle flotte, rien à aligner.
+    alignerNomAccordVues() {
+        const tiroir = document.getElementById('vues-tiroir'), corps = document.getElementById('vues-corps');
+        const titre = corps && corps.querySelector('.chord-header-row');
+        if (!titre) return;
+        const play = document.getElementById('play-prog'), boucle = document.getElementById('boucle-btn');
+        const g = play && play.getBoundingClientRect(), l = boucle && boucle.getBoundingClientRect();
+        if (!tiroir || tiroir.hidden || !this._vues || this._vues.mode === 'libre' || !g || !l || !g.width || !l.width) {
+            titre.style.marginLeft = ''; titre.style.width = '';
+            return;
+        }
+        titre.style.marginLeft = Math.round(g.left - corps.getBoundingClientRect().left) + 'px';
+        // Largeur de la barre de lecture, mais jamais moins que le nom + 12 px de chaque côté (un nom long, « C♯m7♭5/G♯ », ne doit pas toucher le trait).
+        const puce = titre.querySelector('.chord-chip');
+        titre.style.width = Math.max(Math.round(l.right - g.left), puce ? Math.ceil(puce.getBoundingClientRect().width) + 24 : 0) + 'px';
+    }
     ajusterEchelleVues(force = false) {
         const tiroir = document.getElementById('vues-tiroir');
         if (!tiroir || !this._vues || tiroir.hidden) return;
+        this.alignerNomAccordVues();
         let e = this._vues.echelle;
         if (this._vues.mode !== 'libre') { const tient = this.echelleQuiTientVues(); if (tient != null) e = Math.min(e, Math.max(0.4, tient)); }
+        else e = this.echelleQuiTientFenetreLibre(e);
         if (!force && Math.abs((this._vues.echelleVue || 0) - e) < 0.005) return;
         this._vues.echelleVue = e;
         tiroir.style.setProperty('--vues-echelle', String(e));
         this.alignPianoOnGuitarDiagram();
+    }
+    // FENÊTRE LIBRE : TOUT RESTE VISIBLE (retour du 14/11 : « En fenêtre flottante, lorsque je réduis l'application, je perds de l'information. Il y a des
+    // choses que je ne vois plus en bas et assez rapidement. Il faut que l'application se réorganise pour que les boutons soient quasiment toujours
+    // visibles. »). Avant, la fenêtre gardait l'échelle demandée et son corps défilait : les boutons du manche, les vignettes et la bande de construction
+    // sortaient par le bas dès qu'on rétrécissait. Maintenant, comme à l'épinglé, les diagrammes rapetissent juste ce qu'il faut pour que rien ne dépasse
+    // (en largeur comme en hauteur : le contenu passe d'abord sur une seule rangée, puis se resserre). Recherche par dichotomie de la plus grande échelle
+    // (entre 0,4 et celle demandée) qui tient sans défilement ; en dessous de 0,4 le corps défile, c'est le dernier recours. Laisse la variable posée à
+    // la valeur trouvée.
+    echelleQuiTientFenetreLibre(demandee) {
+        const tiroir = document.getElementById('vues-tiroir'), corps = document.getElementById('vues-corps');
+        if (!tiroir || !corps) return demandee;
+        const tient = (x) => {
+            tiroir.style.setProperty('--vues-echelle', String(x));
+            if (corps.scrollHeight > corps.clientHeight + 1 || corps.scrollWidth > corps.clientWidth + 1) return false;
+            // Le contenu est centré en hauteur : trop haut, il déborde AUSSI par le haut, où le défilement ne le voit pas. On mesure donc aussi sa position réelle.
+            const cr = corps.getBoundingClientRect();
+            return ['.viz-card', '.chord-header-row'].every(sel => {
+                const e = corps.querySelector(sel);
+                if (!e) return true;
+                const r = e.getBoundingClientRect();
+                return r.top >= cr.top - 1 && r.bottom <= cr.bottom + 1 && r.left >= cr.left - 1 && r.right <= cr.right + 1;
+            });
+        };
+        // La fenêtre libre REMPLIT sa place (retour du 14/11 : « les diagrammes sont trop petits alors que l'écran est large, et des fois je le rétrécis, et puis d'un coup, les diagrammes
+        // deviennent gros ») : l'échelle n'est plus plafonnée à celle demandée, elle monte jusqu'à 3 quand la fenêtre est grande ; et comme le contenu reste sur UNE rangée (style.css),
+        // elle varie sans à-coup quand on tire le coin.
+        const PLANCHER = 0.4, PLAFOND = 3;
+        if (tient(PLAFOND)) return PLAFOND;
+        if (!tient(PLANCHER)) return PLANCHER;
+        let bas = PLANCHER, haut = PLAFOND;
+        for (let i = 0; i < 9; i++) {
+            const milieu = (bas + haut) / 2;
+            if (tient(milieu)) bas = milieu; else haut = milieu;
+        }
+        let e = Math.floor(bas * 100) / 100;
+        // Contrôle final : l'arrondi peut laisser dépasser d'un pixel ; on recule d'un cran à la fois jusqu'à ce que tout tienne vraiment.
+        while (e > PLANCHER && !tient(e)) e = Math.round((e - 0.02) * 100) / 100;
+        tiroir.style.setProperty('--vues-echelle', String(e));
+        return e;
     }
     // L'échelle la plus grande à laquelle tout le contenu du tiroir épinglé tient sur une rangée : la largeur des diagrammes est proportionnelle à
     // l'échelle (`zoom`), le reste (nom de l'accord, bande de construction à sa largeur minimale, écarts) ne bouge pas.
@@ -17244,8 +17436,10 @@ class HarmoHubApp {
     // Garde la fenêtre entièrement dans l'écran, au-dessus de la barre de lecture, et ni plus petite que ses commandes ni plus grande que l'écran.
     bornerVues(f) {
         const bas = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--haut-barre-lecture')) || 60;
-        const w = Math.round(Math.min(Math.max(f.w, 360), window.innerWidth));
-        const h = Math.round(Math.min(Math.max(f.h, 150), window.innerHeight - bas));
+        // 480 px au plus étroit (360 avant) : sur UNE seule rangée (voir style.css, fenêtre libre), le nom, le clavier, le manche et ses boutons ont besoin de ~410 px même à 0,4 d'échelle.
+        const w = Math.round(Math.min(Math.max(f.w, 480), window.innerWidth));
+        // 190 px au plus bas (150 avant) : à 0,4 d'échelle, le plancher des diagrammes, le contenu a besoin de ~135 px sous la barre de titre pour que boutons, nom et clavier restent visibles.
+        const h = Math.round(Math.min(Math.max(f.h, 190), window.innerHeight - bas));
         const x = Math.round(Math.min(Math.max(f.x, 0), window.innerWidth - w));
         const y = Math.round(Math.min(Math.max(f.y, 0), window.innerHeight - bas - h));
         return { x, y, w, h };
@@ -17295,7 +17489,6 @@ class HarmoHubApp {
             ['left', 'top', 'width', 'height'].forEach(k => { tiroir.style[k] = ''; });
         }
         document.getElementById('vues-coin').hidden = !libre;
-        document.getElementById('vues-aide').hidden = !libre;
         if (!complet) return;
         document.getElementById('vues-titre').textContent = piano && guitare ? 'Clavier et guitare' : (guitare ? 'Guitare' : 'Clavier');
         tiroir.setAttribute('role', libre ? 'dialog' : 'region');
@@ -17304,10 +17497,10 @@ class HarmoHubApp {
         detacher.setAttribute('aria-pressed', String(libre));
         detacher.title = message;
         detacher.setAttribute('aria-label', message);
-        // Punaise quand la fenêtre est libre (« punaise pour réépingler »), flèche de sortie quand elle est épinglée (« détacher »).
-        detacher.querySelector('svg').innerHTML = libre
-            ? '<path d="M12 17v5"/><path d="M9 3h6l-1 6 4 4H6l4-4z"/>'
-            : '<rect x="3" y="8" width="13" height="13" rx="2"/><path d="M12 12l9-9"/><path d="M15 3h6v6"/>';
+        // L'ÉPINGLE, dans les deux états (retour du 14/11 : « Peux-tu modifier ce logo par une épingle ? On a du mal à comprendre ce qu'il veut dire. Essaye d'harmoniser les
+        // affichages entre HarmoHub et TrainHub »). Épinglé en bas : l'épingle (cliquer détache). Fenêtre libre : l'épingle barrée (cliquer épingle). Même vocabulaire que les
+        // épingles du reste de l'appli.
+        detacher.querySelector('svg').innerHTML = libre ? '<path d="M12 17v5"/><path d="M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89"/><path d="m2 2 20 20"/><path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11"/>' : '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>';
         this.ajusterEchelleVues(true); // une seule rangée (épinglé) ; aligne aussi le clavier sur le manche
     }
 

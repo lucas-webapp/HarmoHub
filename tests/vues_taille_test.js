@@ -119,7 +119,8 @@ const graine = () => {
     const rangee = (p) => p.evaluate(() => {
         const q = (s) => document.querySelector(s).getBoundingClientRect();
         const a = q('#piano-viz'), b = q('#guitar-viz'), t = q('#vues-tiroir .chord-header-row'), c = q('#vues-corps');
-        return { cote: a.top < b.bottom && b.top < a.bottom && b.left >= a.right - 1, titre: t.top < a.bottom && t.left >= b.right - 1, dedans: a.left >= c.left - 1 && t.right <= c.right + 1,
+        // Depuis le 14/11 le nom de l'accord est tout à GAUCHE (calé sur la barre de lecture) : il est sur la même rangée que le clavier, à sa gauche.
+        return { cote: a.top < b.bottom && b.top < a.bottom && b.left >= a.right - 1, titre: t.top < a.bottom && a.top < t.bottom && t.right <= a.left + 1, dedans: t.left >= c.left - 5 && a.left >= t.right - 1 && b.right <= c.right + 1,
             h: q('#vues-tiroir').height, w: a.width, echelle: window.app._vues.echelle };
     });
     const g0 = await rangee(p);

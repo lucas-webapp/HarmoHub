@@ -101,7 +101,7 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
     check(t.b <= barre.y + 1 && t.y >= 0 && t.x >= 0 && t.r <= 1440, `elle est dans l'écran, au-dessus de la barre de lecture (${Math.round(t.x)},${Math.round(t.y)} ${Math.round(t.w)}×${Math.round(t.h)})`);
     check(await p.evaluate(() => getComputedStyle(document.getElementById('vues-tiroir')).borderTopLeftRadius === '12px'), 'arrondi de 12 px, comme tout ce qui flotte');
     check(await p.evaluate(() => document.getElementById('vues-detacher').getAttribute('aria-pressed') === 'true' && /Épingler/.test(document.getElementById('vues-detacher').title)), 'le bouton devient la punaise : « Épingler en bas de l\'écran »');
-    check(await rect(p, '#vues-aide') !== null && await rect(p, '#vues-coin') !== null, 'la barre de titre explique le geste, le coin est là');
+    check(await p.evaluate(() => !document.getElementById('vues-tiroir').textContent.includes('glisser la barre')) && await rect(p, '#vues-coin') !== null, 'plus de légende en haut de la fenêtre (« glisser la barre… », supprimée le 14/11) ; le coin est là');
     const barreTitre = await rect(p, '#vues-barre');
     await p.mouse.move(t.x + 60, barreTitre.y + barreTitre.h / 2);
     await p.mouse.down(); await p.mouse.move(t.x + 60 - 150, barreTitre.y + barreTitre.h / 2 - 120, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(200);

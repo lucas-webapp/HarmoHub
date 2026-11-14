@@ -47,12 +47,14 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
             isSmall: chip ? chip.classList.contains('chord-chip-sm') : null,
             titleFontSize: title ? getComputedStyle(title).fontSize : null,
             notesHasBorderLeft: notes ? getComputedStyle(notes).borderLeftWidth !== '0px' : null,
+            // Depuis le 14/11 le nom de l'accord du tiroir est EMPILÉ sur ses notes (nom en grand, notes dessous, sans cadre) : la séparation n'est plus un trait vertical mais la place elle-même.
+            notesSousLeNom: title && notes ? notes.getBoundingClientRect().top >= title.getBoundingClientRect().bottom - 1 : null,
         };
     });
     console.log('chip piano:', JSON.stringify(pianoChipInfo));
     check(pianoChipInfo.hasChip, 'le titre piano est bien enveloppé dans le même chip bordé que la guitare');
     check(pianoChipInfo.isSmall === false, "le chip piano N'A PAS le modificateur .chord-chip-sm (police plus grosse que la guitare)");
-    check(pianoChipInfo.notesHasBorderLeft === true, 'une séparation (bordure) sépare bien le nom de l\'accord et ses notes, dans le chip piano');
+    check(pianoChipInfo.notesHasBorderLeft === true || pianoChipInfo.notesSousLeNom === true, 'une séparation (bordure, ou notes empilées sous le nom depuis le 14/11) sépare bien le nom de l\'accord et ses notes, dans le chip piano');
 
     // Le crayon de substitut manuscrit vit maintenant dans la fenêtre d'édition manuelle (voir
     // #guitar-edit-btn/openGuitarEditor dans script.js — retour utilisateur : « j'ai déjà beaucoup de

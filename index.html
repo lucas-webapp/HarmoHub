@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611142010">
+    <link rel="stylesheet" href="style.css?v=202611142290">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611142010">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611142290">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1619,15 +1619,11 @@
                                 <button type="button" id="guitar-prev" class="icon-btn" title="Doigté précédent" aria-label="Doigté précédent">
                                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
                                 </button>
-                                <span id="guitar-nav-label" class="guitar-nav-label">1/1</span>
+                                <button type="button" id="guitar-nav-label" class="guitar-nav-label" title="Voir tous les doigtés" aria-label="Voir tous les doigtés" aria-haspopup="dialog" aria-expanded="false" aria-controls="guitar-doigtes-pop">1/1</button>
                                 <button type="button" id="guitar-next" class="icon-btn" title="Doigté suivant" aria-label="Doigté suivant">
                                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
                                 </button>
                             </div>
-                            <!-- Verrouille le doigté affiché (voir toggleGuitarLock dans script.js). -->
-                            <button type="button" id="guitar-lock-btn" class="icon-btn guitar-lock-btn" title="Verrouiller ce doigté pour cet accord" aria-label="Verrouiller ce doigté pour cet accord" aria-pressed="false" style="display:none">
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>
-                            </button>
                             </div>
                             <!-- NIVEAU 2 : l'action, séparée des choix. Ouvrir une fenêtre d'édition
                                  n'est pas du même ordre que feuilleter des doigtés — les mettre sur la
@@ -1636,13 +1632,15 @@
                             <!-- Ouvre la fenêtre d'édition manuelle (manche complet + substitut
                                  manuscrit). Désactivé quand l'accord n'est pas jouable à la guitare
                                  (voir renderGuitarDiagram) : rien à éditer dans ce cas. -->
-                            <button type="button" id="guitar-edit-btn" class="btn-sec guitar-edit-btn" title="Édition manuelle de l'accord à la guitare" aria-label="Édition manuelle de l'accord à la guitare">
+                            <!-- Verrouille le doigté affiché (voir toggleGuitarLock dans script.js). -->
+                            <button type="button" id="guitar-lock-btn" class="icon-btn guitar-lock-btn" title="Verrouiller ce doigté pour cet accord" aria-label="Verrouiller ce doigté pour cet accord" aria-pressed="false" style="display:none">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>
+                            </button>
+                            <button type="button" id="guitar-edit-btn" class="icon-btn guitar-edit-btn" title="Édition manuelle de l'accord à la guitare" aria-label="Édition manuelle de l'accord à la guitare">
                                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                             </button>
                         </div>
                     </div>
-                        <!-- Un petit diagramme par doigté proposé, SOUS le grand (L8) : un clic le met en grand. Masqué à un seul doigté. -->
-                        <div id="guitar-vignettes" class="guitar-vignettes" role="group" aria-label="Doigtés proposés" hidden></div>
                 </div>
                 </div>
                 <!-- BOUTONS DES DIAGRAMMES, descendus SOUS les diagrammes qu'ils commandent (retour
@@ -1833,10 +1831,12 @@
         <div id="vues-poignee" class="vues-poignee" role="separator" aria-orientation="horizontal" aria-label="Taille du clavier et de la guitare" title="Tirer vers le haut pour agrandir, vers le bas pour réduire — double-clic : taille d'origine"></div>
         <div id="vues-barre" class="vues-barre">
             <span id="vues-titre" class="vues-titre">Clavier</span>
-            <span id="vues-aide" class="vues-aide" hidden>glisser la barre pour déplacer · tirer le coin pour agrandir</span>
             <span class="vues-espace"></span>
+            <button type="button" id="vues-reglages" class="icon-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="vues-reglages-pop" title="Réglages des diagrammes" aria-label="Réglages des diagrammes">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.04.05a2 2 0 1 1-2.83 2.83l-.05-.04a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.05.04a2 2 0 1 1-2.83-2.83l.04-.05a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.04-.05a2 2 0 1 1 2.83-2.83l.05.04a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.05-.04a2 2 0 1 1 2.83 2.83l-.04.05a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
             <button type="button" id="vues-detacher" class="icon-btn" aria-pressed="false" title="Détacher en fenêtre libre" aria-label="Détacher en fenêtre libre">
-                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="13" height="13" rx="2"/><path d="M12 12l9-9"/><path d="M15 3h6v6"/></svg>
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
             </button>
             <button type="button" id="vues-fermer" class="icon-btn" title="Fermer" aria-label="Fermer le clavier et la guitare">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -1862,6 +1862,9 @@
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M17 8L8 17M17 13l-4 4"/></svg>
         </button>
     </div>
+    <!-- Les doigtés proposés pour l'accord, EN GRAND (L8) : s'ouvre en cliquant le compteur « 1/4 » sous le manche. Hors du tiroir : le tiroir applique un zoom à ses diagrammes. -->
+    <div id="vues-reglages-pop" class="vues-reglages-pop" role="dialog" aria-label="Réglages des diagrammes" hidden></div>
+    <div id="guitar-doigtes-pop" class="guitar-doigtes-pop" role="dialog" aria-label="Doigtés proposés" hidden></div>
     <div id="barre-lecture" class="barre-lecture" role="toolbar" aria-label="Lecture">
         <div class="bl-bloc" data-bloc="lecture" id="bl-lecture"></div>
         <div class="bl-bloc bl-parties" data-bloc="parties">
@@ -2078,11 +2081,11 @@
     <!-- Les formes du séquenceur (au compte) : AVANT sequenceur.js, qui s'y abonne à sa construction ; la connexion (SYNCHRO) n'est lue qu'à l'usage. -->
     <script src="synchro-formes.js?v=202611131800"></script>
     <script src="sequenceur.js?v=202611131800"></script>
-    <script src="script.js?v=202611142010"></script>
+    <script src="script.js?v=202611142290"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611142010"></script>
+    <script src="synchro-harmohub.js?v=202611142290"></script>
     <!-- Les versions au cloud (sous-lot « Versions au cloud ») : après l'adaptateur, dont elles réutilisent la connexion (SYNCHRO). -->
     <script src="synchro-versions.js?v=202611060400"></script>
 </body>
