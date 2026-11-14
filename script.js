@@ -2593,6 +2593,9 @@ const SHOW_ROMAN_KEY = 'harmohubShowRomanNumerals';
 // Allumée par défaut : la fenêtre « Mes morceaux » la montrait déjà, et c'est elle qui permet de s'y
 // retrouver entre deux versions d'un même morceau. Ce réglage sert à la RETIRER, pas à l'obtenir.
 const SHOW_SAVED_DATE_KEY = 'harmohubShowSavedDate';
+// Noms des notes en petit sur les pastilles des diagrammes de guitare (L8, 14/11 : « nom des notes en petit sur
+// les diagrammes »). Par appareil, désactivé par défaut : le diagramme reste net tant qu'on ne le demande pas.
+const SHOW_GUITAR_NOTE_NAMES_KEY = 'harmohubNomsNotesGuitare';
 // Octave / renversement-drop sous chaque accord de la GRILLE (voir gridVoicingParts, Paramètres >
 // Affichage) — remplacent l'ancien réglage unique "Style de jeu" (icône sous la case), retiré.
 const SHOW_GRID_OCTAVE_KEY = 'harmohubShowGridOctave';
@@ -3693,6 +3696,7 @@ class HarmoHubApp {
         // romain — DÉSACTIVÉE par défaut (voir SHOW_CHORD_FUNCTION_KEY), contrairement à celui-ci.
         this.showChordFunction = localStorage.getItem(SHOW_CHORD_FUNCTION_KEY) === '1';
         this.showSavedDate = localStorage.getItem(SHOW_SAVED_DATE_KEY) !== '0';
+        this.showGuitarNoteNames = localStorage.getItem(SHOW_GUITAR_NOTE_NAMES_KEY) === '1';
 
         // Octave / renversement-drop sous chaque accord de la grille (voir .cell-meta,
         // gridVoicingParts) — remplace l'ancienne icône de style de jeu (retour utilisateur :
@@ -4981,6 +4985,14 @@ class HarmoHubApp {
         };
         document.getElementById('guitar-prev').onclick = () => this.cycleGuitarFingering(-1);
         document.getElementById('guitar-next').onclick = () => this.cycleGuitarFingering(1);
+        // Vignettes sous le manche (L8) : un clic met ce doigté en grand, comme ‹ › ; le cadenas, lui,
+        // verrouille celui qui est en grand (voir toggleGuitarLock). Délégué : les boutons sont refaits à chaque rendu.
+        document.getElementById('guitar-vignettes').onclick = (e) => {
+            const b = e.target.closest('.guitar-vignette');
+            if (!b) return;
+            this.guitarFingeringIndex = +b.dataset.i;
+            this.renderGuitarDiagram();
+        };
         document.getElementById('guitar-lock-btn').onclick = () => this.toggleGuitarLock();
         // Saisie du nom, désormais DANS la fenêtre (voir #guitar-name-input dans index.html) : plus de
         // crayon à cliquer pour la faire apparaître, elle est là dès qu'on ouvre l'onglet. Entrée et
@@ -5517,7 +5529,9 @@ class HarmoHubApp {
         // effacerait le dessin en cours à chaque frappe dans le panneau Accord.
         const wideViz = this.guitarEditTab === 'draw' ? null : document.getElementById('guitar-edit-neck');
         const editBtn = document.getElementById('guitar-edit-btn');
+        const vignettes = document.getElementById('guitar-vignettes');
         if (!fingerings.length) {
+            if (vignettes) { vignettes.hidden = true; vignettes.innerHTML = ''; }
             viz.innerHTML = `<div class="guitar-unplayable">Non jouable à la guitare</div>`;
             if (wideViz) wideViz.innerHTML = `<div class="guitar-unplayable">Non jouable à la guitare</div>`;
             if (nav) nav.style.display = 'none';
@@ -5530,6 +5544,11 @@ class HarmoHubApp {
         this.guitarFingeringIndex = idx;
         viz.innerHTML = this.buildGuitarDiagramSVG(fingerings[idx]);
         if (wideViz) wideViz.innerHTML = this.buildGuitarDiagramSVG(fingerings[idx], false, true);
+        if (vignettes) {
+            vignettes.hidden = fingerings.length < 2;
+            vignettes.innerHTML = fingerings.length < 2 ? '' : fingerings.map((f, i) =>
+                `<button type="button" class="guitar-vignette" data-i="${i}" aria-pressed="${i === idx}" title="Doigté ${i + 1} sur ${fingerings.length}" aria-label="Doigté ${i + 1} sur ${fingerings.length}">${this.buildGuitarDiagramSVG(f, false, false, true)}</button>`).join('');
+        }
         if (nav) {
             nav.style.display = fingerings.length > 1 ? '' : 'none';
             const label = document.getElementById('guitar-nav-label');
@@ -12693,6 +12712,12 @@ class HarmoHubApp {
                     <span class="switch-thumb"></span>
                 </button>
             </div>
+            <div class="settings-toggle-row">
+                <label for="toggle-guitar-note-names" title="Écrit le nom de chaque note (C, E, G…) sur les pastilles des diagrammes de guitare, avec les dièses ou les bémols de la tonalité">Noms des notes (guitare)</label>
+                <button type="button" id="toggle-guitar-note-names" class="switch" role="switch" aria-checked="${this.showGuitarNoteNames}" aria-label="Noms des notes sur les diagrammes de guitare">
+                    <span class="switch-thumb"></span>
+                </button>
+            </div>
             <details class="settings-advanced">
                 <summary>Options avancées</summary>
                 <div class="settings-advanced-body">
@@ -12714,6 +12739,7 @@ class HarmoHubApp {
         document.getElementById('toggle-show-roman').onclick = () => this.setShowRomanNumerals(!this.showRomanNumerals);
         document.getElementById('toggle-show-function').onclick = () => this.setShowChordFunction(!this.showChordFunction);
         document.getElementById('toggle-show-saved-date').onclick = () => this.setShowSavedDate(!this.showSavedDate);
+        document.getElementById('toggle-guitar-note-names').onclick = () => this.setShowGuitarNoteNames(!this.showGuitarNoteNames);
         document.getElementById('grid-voicing-badge').onchange = (e) => {
             const v = e.target.value;
             this.setShowGridOctave(v !== 'aucune');
@@ -12742,6 +12768,17 @@ class HarmoHubApp {
         if (btn) btn.setAttribute('aria-checked', on);
         this.refreshSongList();
         if (this.filesOpen) this.renderFilesPanel();
+    }
+
+    // Ne touche ni la grille ni les accords : seuls les diagrammes de guitare se redessinent (le manche
+    // d'édition large aussi, via renderGuitarDiagram, et l'aperçu de l'onglet « Dessiner »).
+    setShowGuitarNoteNames(on) {
+        this.showGuitarNoteNames = on;
+        localStorage.setItem(SHOW_GUITAR_NOTE_NAMES_KEY, on ? '1' : '0');
+        const btn = document.getElementById('toggle-guitar-note-names');
+        if (btn) btn.setAttribute('aria-checked', on);
+        this.renderGuitarDiagram();
+        if (this.guitarEditTab === 'draw') this.renderGuitarDrawNeck();
     }
 
     setShowChordFunction(on) {
@@ -13868,7 +13905,7 @@ class HarmoHubApp {
     // openGuitarEditor) affiche le manche COMPLET depuis le sillet plutôt qu'une fenêtre glissante de
     // 5 cases centrée sur le doigté : c'est la vue d'édition manuelle, où il faut voir tout le manche
     // pour y cliquer, pas seulement les quelques cases utiles au doigté déjà choisi.
-    buildGuitarDiagramSVG(byString, forPrint = false, wide = false) {
+    buildGuitarDiagramSVG(byString, forPrint = false, wide = false, mini = false) {
         const FRET_WINDOW = wide ? GUITAR_NECK_DISPLAY_FRETS : 5; // nombre de cases visibles
         const SINGLE_MARKERS = [3, 5, 7, 9, 15, 17, 19, 21];
         const DOUBLE_MARKERS = [12, 24];
@@ -13881,6 +13918,16 @@ class HarmoHubApp {
         const openColor = forPrint ? '#333' : '#ccc';
         const markerColor = forPrint ? '#999' : '#3a3a3a';
         const labelColor = forPrint ? '#333' : '#999';
+        // Noms des notes sur les pastilles (Paramètres › Affichage) : jamais à l'impression (encre) ni sur
+        // une vignette (trop petite pour être lue), orthographe de la tonalité du morceau.
+        const noms = !forPrint && !mini && !!this.showGuitarNoteNames;
+        let nomDe = null;
+        if (noms) {
+            const gRoot = document.getElementById('global-root').value;
+            const gMode = document.getElementById('global-mode').value;
+            const useFlats = useFlatsForKey(NOTES.indexOf(gRoot), gMode);
+            nomDe = e => noteNameForPc(((e.midi % 12) + 12) % 12, useFlats);
+        }
 
         // Corde aiguë (Mi aigu, index 5) en haut, grave (Mi grave, index 0) en bas : y croît avec
         // l'index de corde à l'envers.
@@ -13995,7 +14042,8 @@ class HarmoHubApp {
                 svg += `<circle cx="${ox}" cy="${oy}" r="7" fill="url(#gglow-${role}-${uid})"/>`;
                 svg += `<circle cx="${ox}" cy="${oy}" r="2.4" fill="${mid}"/>`;
             }
-            svg += `<text x="${ox}" y="${y}" font-size="9" fill="${openColor}" stroke="#000" stroke-width="0.6" paint-order="stroke" text-anchor="middle">O</text>`;
+            if (nomDe) svg += `<text x="${ox}" y="${oy + 2.5}" font-size="7" font-weight="700" fill="#fff" stroke="#000" stroke-width="1.2" paint-order="stroke" text-anchor="middle">${nomDe(e)}</text>`;
+            else svg += `<text x="${ox}" y="${y}" font-size="9" fill="${openColor}" stroke="#000" stroke-width="0.6" paint-order="stroke" text-anchor="middle">O</text>`;
         });
         byString.forEach((e, s) => {
             if (!e || e.fret === 0) return;
@@ -14012,6 +14060,7 @@ class HarmoHubApp {
                 svg += `<circle cx="${x}" cy="${y}" r="11" fill="url(#gglow-${role}-${uid})"/>`;
                 svg += `<circle cx="${x}" cy="${y}" r="4.6" fill="${mid}"/>`;
             }
+            if (nomDe) svg += `<text x="${x}" y="${y + 2.5}" font-size="7" font-weight="700" fill="#fff" stroke="#000" stroke-width="1.2" paint-order="stroke" text-anchor="middle">${nomDe(e)}</text>`;
         });
         svg += `</svg>`;
         return svg;

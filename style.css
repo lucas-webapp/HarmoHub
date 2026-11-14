@@ -6959,3 +6959,36 @@ body.avec-barre-selection .toast { bottom: 132px; }
     .sq-bord::after { background: rgba(255, 255, 255, 0.45); width: 3px; }
 }
 body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
+
+/* ======================================================================================================
+   VIGNETTES DES DOIGTÉS DE GUITARE (L8, 14/11) — sous le manche du tiroir : un petit diagramme par doigté proposé, un clic le
+   met en grand (le cadenas verrouille celui qui est en grand). Bloc en FIN de fichier : il doit l'emporter sur `button { min-width: 120px }`
+   et sur `.viz-diagrams .guitar-container svg { width: 119px }` plus haut. 50 px de large : cinq vignettes tiennent sur la largeur du manche
+   et de ses commandes (275 px), donc huit doigtés font deux rangées au plus.
+   ====================================================================================================== */
+.guitar-vignettes {
+    flex: 0 0 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 2px;
+}
+.guitar-vignettes[hidden] { display: none; }
+.guitar-vignettes .guitar-vignette {
+    min-width: 0 !important;
+    flex: 0 0 50px; /* une règle de bouton du tiroir pose flex: 1 : sans ça, quatre vignettes s'étirent à 120 px */
+    width: 50px;
+    height: auto;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: var(--rayon-bouton, 7px);
+    background: var(--fond-bouton-sombre);
+    cursor: pointer;
+    opacity: .72;
+    line-height: 0;
+}
+.guitar-vignettes .guitar-vignette:hover { background: var(--fond-bouton-sombre-survol); opacity: 1; }
+/* Le doigté en grand : contour gris clair (sélection grise, jamais le vert réservé à la lecture). */
+.guitar-vignettes .guitar-vignette[aria-pressed="true"] { opacity: 1; border-color: rgba(255, 255, 255, .6); background: var(--fond-bouton-sombre-survol); }
+.guitar-vignettes .guitar-vignette svg { width: 100%; height: auto; max-height: none; display: block; }
