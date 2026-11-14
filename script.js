@@ -2350,6 +2350,32 @@ function guitarChordFor(chord, override) {
     return c;
 }
 
+// « Mes doigtés » (L8, fin ; synchro-doigtes.js) : ceux que l'utilisateur a verrouillés au cadenas ou dessinés sur le manche pour CET accord, dans n'importe quel morceau, le plus
+// récent d'abord. Chacun porte `mesDoigtesId` (la popover y met son repère et son retrait). Pour un voicing PERSONNALISÉ (renversement, drop, basse imposée), seuls comptent ceux dont
+// la corde la plus grave est la basse voulue : un doigté de la position fondamentale n'a pas à passer en tête d'un renversement, c'est le choix délibéré de la case qui prime.
+function guitarMesDoigtes(chord) {
+    if (typeof MesDoigtes === 'undefined') return [];
+    const entrees = MesDoigtes.mes(chord.root, chord.quality, chord.bass);
+    if (!entrees.length) return [];
+    const hasDrop = chord.drop === 'drop2' || chord.drop === 'drop3';
+    let basPc = null;
+    if (!(chord.getEffectiveInversion() === 0 && !hasDrop && !chord.bass)) {
+        // La basse est lue sur l'accord SANS ses notes libres, comme pour les doigtés calculés plus bas.
+        const nu = new Chord(chord.root, chord.quality, chord.beats, chord.inversion, chord.drop, chord.octave, chord.bass, null, []);
+        const voix = nu.getVoiced();
+        if (voix.length) basPc = ((voix[0].midi % 12) + 12) % 12;
+    }
+    return entrees.map(e => {
+        const f = shapeToByString(e.cases, chord.root, chord.quality);
+        if (basPc !== null) {
+            const grave = f.find(x => x);
+            if (!grave || ((grave.midi % 12) + 12) % 12 !== basPc) return null;
+        }
+        f.mesDoigtesId = e.id;
+        return f;
+    }).filter(Boolean);
+}
+
 // Point d'entrée unique pour la vue live et l'export PDF : privilégie les formes communément
 // enseignées quand elles existent ET que l'accord est en position simple (fondamentale, sans drop
 // ni basse différente) — dès que l'utilisateur a personnalisé le voicing (renversement/drop/basse),
@@ -2404,6 +2430,12 @@ function guitarFingeringsForChord(chord, lockedShape = chord.guitarLock) {
                 .filter(f => !dejaLa.has(fingeringShapeKey(f)) && !dejaPris.has(guitarClePosition(f)));
             list = [...list, ...complement].slice(0, GUITAR_MAX_SUGGESTIONS);
         }
+    }
+    // Mes doigtés avant les doigtés calculés ; le cadenas (ci-dessous) passe toujours avant eux (« le cadenas reste tel quel »). Un doigté déjà dans la liste n'y est pas compté deux fois.
+    const miens = guitarMesDoigtes(chord);
+    if (miens.length) {
+        const cles = new Set(miens.map(fingeringShapeKey));
+        list = [...miens, ...list.filter(f => !cles.has(fingeringShapeKey(f)))];
     }
     if (!lockedShape) return list;
     const lockedFingering = shapeToByString(lockedShape, chord.root, chord.quality);
@@ -2680,6 +2712,9 @@ const SHOW_SAVED_DATE_KEY = 'harmohubShowSavedDate';
 // Noms des notes en petit sur les pastilles des diagrammes de guitare (L8, 14/11 : « nom des notes en petit sur
 // les diagrammes »). Par appareil, désactivé par défaut : le diagramme reste net tant qu'on ne le demande pas.
 const SHOW_GUITAR_NOTE_NAMES_KEY = 'harmohubNomsNotesGuitare'; // valeurs : 'rien' | 'notes' | 'degres' (ancienne valeur '1' = notes)
+// Noms des notes sur le manche VIDE de l'onglet « Dessiner » (L8, 14/11 : « noms des notes sur le manche vide de dessin », case à cocher dans les Paramètres) : pour poser un doigté à
+// l'oreille OU en connaissant ses notes, sans compter les cases. Par appareil, éteint par défaut : le manche reste net tant qu'on ne le demande pas.
+const SHOW_NECK_NOTE_NAMES_KEY = 'harmohubNomsMancheDessin'; // '1' : allumé
 const PIANO_LABEL_KEY = 'harmohubEtiquettesPiano';          // même chose pour les touches du clavier (14/11 : « un affichage différent possible entre le piano et la guitare »)
 // Octave / renversement-drop sous chaque accord de la GRILLE (voir gridVoicingParts, Paramètres >
 // Affichage) — remplacent l'ancien réglage unique "Style de jeu" (icône sous la case), retiré.
@@ -3781,6 +3816,7 @@ class HarmoHubApp {
         // romain — DÉSACTIVÉE par défaut (voir SHOW_CHORD_FUNCTION_KEY), contrairement à celui-ci.
         this.showChordFunction = localStorage.getItem(SHOW_CHORD_FUNCTION_KEY) === '1';
         this.showSavedDate = localStorage.getItem(SHOW_SAVED_DATE_KEY) !== '0';
+        this.neckNoteNames = localStorage.getItem(SHOW_NECK_NOTE_NAMES_KEY) === '1';
         { const lire = (v) => v === 'degres' ? 'degres' : (v === 'notes' || v === '1' ? 'notes' : 'rien');
           this.guitarLabelMode = lire(localStorage.getItem(SHOW_GUITAR_NOTE_NAMES_KEY));
           // Le clavier a son propre réglage ; tant qu'il n'a jamais été touché, il suit celui de la guitare (comportement d'avant la séparation).
@@ -5082,12 +5118,22 @@ class HarmoHubApp {
         // se distinguaient mal : « laisser les chevrons et laisser un choix approfondi avec un popover où je vois mieux les diagrammes »). Choisir en ferme la popover.
         document.getElementById('guitar-nav-label').onclick = () => this.basculerDoigtesGuitare();
         document.getElementById('guitar-doigtes-pop').onclick = (e) => {
+            // Le « × » d'un doigté de Mes doigtés retire celui-là sans le choisir (il est DANS le bouton : on le traite avant).
+            const x = e.target.closest('.doigte-retirer');
+            if (x) { e.stopPropagation(); this.retirerDoigteMien(+x.dataset.i, x); return; }
             const b = e.target.closest('.doigte-choix');
             if (!b) return;
             this.guitarFingeringIndex = +b.dataset.i;
             this.basculerDoigtesGuitare(false);
             this.renderGuitarDiagram();
         };
+        // Au clavier, Entrée ou Espace sur le « × » (un <span> dans le bouton du doigté) font le même retrait que le clic.
+        document.getElementById('guitar-doigtes-pop').onkeydown = (e) => {
+            const x = e.target.closest && e.target.closest('.doigte-retirer');
+            if (x && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); this.retirerDoigteMien(+x.dataset.i, x); }
+        };
+        // Mes doigtés (synchro-doigtes.js) : un doigté ajouté, retiré ou reçu du compte recalcule la liste de l'accord affiché.
+        if (typeof MesDoigtes !== 'undefined') MesDoigtes.surChangement(() => this.rafraichirDoigtesMiens());
         document.getElementById('guitar-lock-btn').onclick = () => this.toggleGuitarLock();
         // Saisie du nom, désormais DANS la fenêtre (voir #guitar-name-input dans index.html) : plus de
         // crayon à cliquer pour la faire apparaître, elle est là dès qu'on ouvre l'onglet. Entrée et
@@ -5759,6 +5805,19 @@ class HarmoHubApp {
         const stringY = s => marginTop + (5 - s) * stringGap;
         const xFor = fret => (fret === 0 ? marginLeft - 9 : marginLeft + (fret - 0.5) * fretGap);
         let extra = '';
+        // Noms des notes sur les cases LIBRES (Paramètres › Affichage › Notes du manche de dessin) : une case déjà tenue, fantôme ou survolée porte sa propre marque.
+        // Orthographe de la tonalité du morceau, comme les pastilles (voir etiquetteNote).
+        if (this.neckNoteNames) {
+            const bemols = useFlatsForKey(NOTES.indexOf(document.getElementById('global-root').value), document.getElementById('global-mode').value);
+            const survol = this.guitarDrawHoverPos;
+            for (let s = 0; s < 6; s++) {
+                for (let fret = 0; fret <= GUITAR_NECK_DISPLAY_FRETS; fret++) {
+                    if (this.guitarDrawShape[s] === fret || this.guitarDrawGhostStrings[s] === fret) continue;
+                    if (survol && survol.string === s && survol.fret === fret) continue;
+                    extra += `<text class="guitar-neck-nom" x="${xFor(fret)}" y="${stringY(s) + 3}" text-anchor="middle">${noteNameForPc(GUITAR_OPEN_MIDI[s] + fret, bemols)}</text>`;
+                }
+            }
+        }
         this.guitarDrawGhostStrings.forEach((fret, s) => {
             if (fret == null) return;
             extra += `<text x="${xFor(fret)}" y="${stringY(s) + 3}" font-size="10" font-weight="700" fill="${ROLE_COLOR.neutral}" text-anchor="middle">×</text>`;
@@ -6086,6 +6145,7 @@ class HarmoHubApp {
             const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
             this.guitarKey = null;
             this.ensureGuitarDiagram(guitarChordFor(chord, data.guitarOverride), false);
+            this.memoriserDoigte(override || data, shape); // dessiné et verrouillé : il rejoint Mes doigtés, pour l'accord joué à la guitare (le substitut s'il y en a un)
             this.loadProgression();
         } else {
             this.guitarOverride = override;
@@ -6094,6 +6154,7 @@ class HarmoHubApp {
             this.guitarKey = null;
             this.ensureGuitarDiagram(guitarChordFor(this.readChord(), this.guitarOverride));
             this.commitLiveEdit(false); // n'affecte pas le symbole affiché dans la case
+            this.memoriserDoigte(override || this.readChord(), shape);
         }
         this.flashHint(samePiano ? 'Doigté verrouillé pour cet accord' : 'Substitut guitare verrouillé sur ce doigté');
         this.closeGuitarEditor();
@@ -6147,6 +6208,7 @@ class HarmoHubApp {
             this.saveCurrent(this.selectedIndex != null ? this.selectedIndex : undefined);
             this.flashHint(`${nom} ajouté à la grille`);
         }
+        this.memoriserDoigte({ root: chosen.root, quality: chosen.quality, bass }, shape); // le doigté dessiné rejoint Mes doigtés
         this.closeGuitarEditor();
     }
 
@@ -6213,9 +6275,12 @@ class HarmoHubApp {
         const liste = this.guitarFingerings, idx = this.guitarFingeringIndex;
         const ac = this.guitarEtiqAccord;
         pop.innerHTML = liste.map((f, i) => {
-            const etiq = ac ? guitarEtiquetteDoigte(f, ac.root, ac.quality) : '';
+            // Un doigté de Mes doigtés le dit en tête de son étiquette (« Mon doigté · sans quinte ») et porte un « × » qui le retire (voir retirerDoigteMien).
+            const mien = !!f.mesDoigtesId;
+            const etiq = [mien ? 'Mon doigté' : '', ac ? guitarEtiquetteDoigte(f, ac.root, ac.quality) : ''].filter(Boolean).join(' · ');
             const titre = `Doigté ${i + 1} sur ${liste.length}${etiq ? ' — ' + etiq : ''}`;
-            return `<button type="button" class="doigte-choix" data-i="${i}" aria-pressed="${i === idx}" title="${titre}" aria-label="${titre}">${this.buildGuitarDiagramSVG(f, false, false, true)}${etiq ? `<span class="doigte-etiq">${etiq}</span>` : ''}</button>`;
+            const retirer = mien ? `<span class="doigte-retirer" role="button" tabindex="0" data-i="${i}" title="Retirer de Mes doigtés" aria-label="Retirer de Mes doigtés">×</span>` : '';
+            return `<button type="button" class="doigte-choix${mien ? ' doigte-mien' : ''}" data-i="${i}" aria-pressed="${i === idx}" title="${titre}" aria-label="${titre}">${this.buildGuitarDiagramSVG(f, false, false, true)}${etiq ? `<span class="doigte-etiq">${etiq}</span>` : ''}${retirer}</button>`;
         }).join('');
         const r = bouton.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
         const bas = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--haut-barre-lecture')) || 60;
@@ -6281,6 +6346,7 @@ class HarmoHubApp {
             // (guitarChordFor, voir #guitar-name-input) s'il y en a un pour CET accord, sinon
             // l'accord réellement joué, comme avant cette fonctionnalité.
             this.ensureGuitarDiagram(guitarChordFor(chord, data.guitarOverride), false);
+            if (!shownIsLocked) this.memoriserDoigte(data.guitarOverride || data, currentShape); // le doigté verrouillé rejoint Mes doigtés, pour cet accord dans tous les morceaux
             this.loadProgression();
             return;
         }
@@ -6291,6 +6357,37 @@ class HarmoHubApp {
         this.guitarKey = null; // force le recalcul de la liste (racine/qualité inchangées, sinon ignoré)
         this.ensureGuitarDiagram(guitarChordFor(this.readChord(), this.guitarOverride));
         this.commitLiveEdit(false); // n'affecte pas le symbole affiché dans la case
+        if (!shownIsLocked) this.memoriserDoigte(this.guitarOverride || this.readChord(), currentShape);
+    }
+
+    // « Mes doigtés » (synchro-doigtes.js) : retient le doigté verrouillé ou dessiné pour l'accord JOUÉ À LA GUITARE (le substitut s'il y en a un, sinon l'accord de la case). Appelée après
+    // que le verrou est posé et le diagramme redessiné : l'abonnement (rafraichirDoigtesMiens) recalcule alors la liste avec lui en tête.
+    memoriserDoigte(accord, forme) {
+        if (typeof MesDoigtes === 'undefined' || !accord || !forme) return;
+        MesDoigtes.memoriser(accord.root, accord.quality, accord.bass || '', forme);
+    }
+
+    // Un doigté a été ajouté, retiré ou reçu du compte : la liste de l'accord affiché se recalcule (même principe que setGuitarMax).
+    rafraichirDoigtesMiens() {
+        const d = this._dernierAccordGuitare;
+        if (!d) return;
+        this.guitarKey = null;
+        this.ensureGuitarDiagram(d.chord, d.useLiveLock);
+    }
+
+    // Retrait d'un doigté de Mes doigtés, depuis la popover : deux appuis (le premier arme « Retirer ? » trois secondes), parce que le retrait part aussi au compte.
+    retirerDoigteMien(i, el) {
+        const f = this.guitarFingerings[i];
+        if (!f || !f.mesDoigtesId || typeof MesDoigtes === 'undefined') return;
+        if (el.dataset.arme !== '1') {
+            el.dataset.arme = '1'; el.textContent = 'Retirer ?'; el.classList.add('arme');
+            clearTimeout(el._desarmer);
+            el._desarmer = setTimeout(() => { if (el.isConnected) { el.dataset.arme = ''; el.textContent = '×'; el.classList.remove('arme'); } }, 3000);
+            return;
+        }
+        clearTimeout(el._desarmer);
+        MesDoigtes.retirer(f.mesDoigtesId);
+        this.flashHint('Retiré de Mes doigtés');
     }
 
     // ---------- Accord de substitution à la guitare (voir #guitar-name-input) ----------
@@ -12869,6 +12966,12 @@ class HarmoHubApp {
                     ${[['rien', 'Rien'], ['notes', 'Notes'], ['degres', 'Degrés']].map(([m, t]) => `<button type="button" role="radio" data-mode="${m}" aria-checked="${this.guitarLabelMode === m}">${t}</button>`).join('')}
                 </div>
             </div>
+            <div class="settings-toggle-row">
+                <label for="toggle-neck-note-names" title="Écrit le nom de chaque note sur le manche vide de la fenêtre « Dessiner » (avec les dièses ou bémols de la tonalité), pour poser un doigté sans compter les cases">Notes du manche de dessin</label>
+                <button type="button" id="toggle-neck-note-names" class="switch" role="switch" aria-checked="${this.neckNoteNames}" aria-label="Noms des notes sur le manche vide de dessin">
+                    <span class="switch-thumb"></span>
+                </button>
+            </div>
             <details class="settings-advanced">
                 <summary>Options avancées</summary>
                 <div class="settings-advanced-body">
@@ -12890,6 +12993,7 @@ class HarmoHubApp {
         document.getElementById('toggle-show-roman').onclick = () => this.setShowRomanNumerals(!this.showRomanNumerals);
         document.getElementById('toggle-show-function').onclick = () => this.setShowChordFunction(!this.showChordFunction);
         document.getElementById('toggle-show-saved-date').onclick = () => this.setShowSavedDate(!this.showSavedDate);
+        document.getElementById('toggle-neck-note-names').onclick = () => this.setNeckNoteNames(!this.neckNoteNames);
         document.querySelectorAll('#guitar-label-mode button').forEach(b => { b.onclick = () => this.setGuitarLabelMode(b.dataset.mode); });
         document.querySelectorAll('#piano-label-mode button').forEach(b => { b.onclick = () => this.setPianoLabelMode(b.dataset.mode); });
         document.getElementById('grid-voicing-badge').onchange = (e) => {
@@ -12974,6 +13078,15 @@ class HarmoHubApp {
         // Recalcule la liste pour l'accord affiché.
         const d = this._dernierAccordGuitare;
         if (d) { this.guitarKey = null; this.ensureGuitarDiagram(d.chord, d.useLiveLock); }
+    }
+
+    // Ne redessine que le manche de dessin, et seulement s'il est ouvert sur l'onglet « Dessiner » : rien d'autre ne porte ces noms.
+    setNeckNoteNames(on) {
+        this.neckNoteNames = on;
+        try { localStorage.setItem(SHOW_NECK_NOTE_NAMES_KEY, on ? '1' : '0'); } catch (e) { /* stockage plein : vaut pour la session */ }
+        const btn = document.getElementById('toggle-neck-note-names');
+        if (btn) btn.setAttribute('aria-checked', String(on));
+        if (this.guitarEditTab === 'draw') this.renderGuitarDrawNeck();
     }
 
     setGuitarLabelMode(mode) {

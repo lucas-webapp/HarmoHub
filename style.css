@@ -7167,3 +7167,24 @@ body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
         flex-wrap: nowrap; overflow: hidden; max-width: 100%; padding-left: 0; border-left: 0; gap: 2px 10px; font-size: var(--fs-sm);
     }
 }
+
+/* 18. Noms des notes sur le manche vide de l'onglet « Dessiner » (L8, 14/11 ; Paramètres › Affichage › Notes du manche de dessin). Gris discret, avec un liseré de la couleur de la
+       fenêtre qui interrompt la corde sous la lettre (paint-order) : le nom se lit sans cacher les notes posées, et sans recevoir de clic (le manche écoute au-dessous). */
+.guitar-edit-neck svg .guitar-neck-nom {
+    font-size: 8.5px; font-weight: 600; fill: var(--text-muted); opacity: 0.85;
+    stroke: var(--card-bg); stroke-width: 3px; paint-order: stroke; pointer-events: none; user-select: none;
+}
+
+/* 19. Mes doigtés dans la popover des doigtés (L8, fin, 14/11 ; synchro-doigtes.js) : l'étiquette « Mon doigté » dit d'où vient la vignette ; le « × » qui la retire n'apparaît qu'au survol
+       (ou au clavier), pour ne pas charger des vignettes que l'on choisit d'un coup d'œil. Un seul appui l'arme (« Retirer ? »), le second retire : le retrait part aussi au compte. */
+.guitar-doigtes-pop .doigte-choix { position: relative; }
+.guitar-doigtes-pop .doigte-mien .doigte-etiq { color: var(--text-main); }
+.guitar-doigtes-pop .doigte-retirer {
+    position: absolute; top: 4px; right: 4px; box-sizing: border-box; min-width: 20px; height: 20px; padding: 0 5px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 14px; line-height: 1; font-weight: 600; color: var(--text-muted); background: rgba(24, 27, 32, .9);
+    border: 1px solid var(--border); border-radius: 6px; cursor: pointer; opacity: 0;
+}
+.guitar-doigtes-pop .doigte-choix:hover .doigte-retirer, .guitar-doigtes-pop .doigte-retirer:focus-visible, .guitar-doigtes-pop .doigte-retirer.arme { opacity: 1; }
+.guitar-doigtes-pop .doigte-retirer:hover, .guitar-doigtes-pop .doigte-retirer.arme { color: #fff; border-color: var(--btn-red-border-hover); background: var(--btn-red-2); }
+.guitar-doigtes-pop .doigte-retirer.arme { font-size: 11px; font-weight: 700; }
