@@ -13,7 +13,10 @@ Reprends le travail sur HarmoHub. Tout se dit et s'écrit en français.
 3. **Suite** :
    - si l'utilisateur a précisé quelque chose en lançant la commande, cela prime : $ARGUMENTS
    - si « Suite à faire » dit « **Rien de prévu** », demande à l'utilisateur ce qui vient ensuite, et arrête-toi là ;
-   - sinon, commence le sous-lot prévu en suivant « Boucle d'un lot » de `CLAUDE.md` : lire sa section dans `docs/refonte.md` et dans
-     `CLAUDE-HARMOHUB.md`, puis le code par plages.
+   - si « Suite à faire » commence par une **ÉTAPE 0**, fais-la d'abord (elle demande d'envoyer un lien à l'utilisateur et d'attendre ses commentaires :
+     ne commence aucun code avant) ;
+   - sinon, commence le prochain lot non coché de « Les lots » en suivant « Boucle d'un lot » de `CLAUDE.md`. **Économie de contexte : ne lis PAS
+     les gros fichiers en entier** (`docs/decisions-13-14-11.md`, `docs/commentaires-14-11.md`, `docs/dette-tests.md`, `docs/apercu-14-11/`) : `grep -n` puis `sed -n`
+     sur la plage du lot (le tableau en tête de `CLAUDE-HARMOHUB.md` dit où est quoi), puis le code réel par plages.
 4. **Pas d'écriture inutile** : ne touche ni à `CLAUDE.md` ni à `CLAUDE-HARMOHUB.md` en reprenant. L'état ne s'écrit qu'à la FIN d'un lot, et
    seulement dans `CLAUDE-HARMOHUB.md` (« Suite à faire » réécrite, « Où on en est » à jour) ; le détail va dans `docs/dette-tests.md`.

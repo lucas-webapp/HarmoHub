@@ -1,0 +1,91 @@
+--- /home/user/HarmoHub/sequenceur.js	2026-11-12 21:32:33.948718895 +0000
++++ sequenceur.js	2026-11-14 08:58:23.337487058 +0000
+@@ -27,7 +27,7 @@
+         { id: 'descend', nom: 'Arpège ↓', v: [TOUT, [3, 7], [2, 6], [1, 5]] },
+         { id: 'pompe', nom: 'Pompe', v: [[0, 1, 4, 5], [2, 6], [2, 6], [2, 6]] },
+         { id: 'ballade', nom: 'Ballade', v: [TOUT, [1, 4, 7], [2, 5], [0, 3, 6]] },
+-        { id: 'main', nom: 'À la main', v: [[], [], [], []] },
++        { id: 'main', nom: '+', v: [[], [], [], []] },
+     ];
+     const MOTIF_PAR_ID = Object.fromEntries(MOTIFS.map(m => [m.id, m]));
+ 
+@@ -422,6 +422,7 @@
+     function niveauDe(etat, v, k) {
+         return etat.niveaux.get(cle(v, debutBarre(etat, v, k))) || 'normal';
+     }
++    window.__sqModele = { cle, bornesBarre, etirerNote, niveauDe };   // APERÇU (artefact) : le déplacement et l'étirement en groupe écrivent dans le modèle
+ 
+     // ---------------------------------------------------------------------------------------------------------------------------------
+     // LE COMPOSANT
+@@ -584,14 +585,14 @@
+             // Colonnes : étiquettes (46 px), un petit jour (10 px), puis les croches de chaque accord, un trait de 4 px entre deux accords.
+             // (On compte les PISTES une à une : un « repeat(8, …) » en vaut huit.)
+             // Au téléphone : l'accord du panneau seul (les autres sont à un ‹ › de là). Les index restent ceux de la partie (data-c, écriture).
+-            const montres = this.uneSeule() && i != null ? [i] : accords.map((_, c) => c);
++            const montres = this.uneSeule() && i != null ? [i] : (window.DEMO_LIGNE ? window.DEMO_LIGNE(this._s, accords, i) : accords.map((_, c) => c)); // APERÇU : le séquenceur montre la ligne de la grille
+             const cols = ['46px', '10px'];
+             const colDebut = [];
+             let piste = 3;
+             montres.forEach((c, n) => {
+-                if (n > 0) { cols.push('4px'); piste++; }
++                if (n > 0) { cols.push('0px'); piste++; }   // APERÇU 14/11 : l'espace entre deux accords passe de 4 px à 0 (les notes gardent leur marge de 1-2 px : ~3 px visibles, comme entre deux notes voisines)
+                 colDebut[c] = piste; // indexé par l'accord (au téléphone, un seul est montré : l'index n'est pas le rang)
+-                cols.push(`repeat(${etats[c].info.croches}, minmax(${this.modeTel() ? 30 : 10}px, 1fr))`); // au doigt : une croche garde 30 px au moins (le plancher de probe_seq_adaptatif), la grille défile de côté
++                cols.push(`repeat(${etats[c].info.croches}, minmax(${this.modeTel() ? 30 : 14}px, ${window.REGLE_CROCHE ? window.REGLE_CROCHE + 'px' : '1fr'}))`); // COPIE DE DÉMONSTRATION // au doigt : une croche garde 30 px au moins (le plancher de probe_seq_adaptatif), la grille défile de côté
+                 piste += etats[c].info.croches;
+             });
+             this.grille.style.gridTemplateColumns = cols.join(' ');
+@@ -769,7 +770,17 @@
+             const hL = lecture ? lecture.getBoundingClientRect().height : 0;
+             return Math.max(120, window.innerHeight - yHaut - hT - hL - GRILLE_MIN);
+         }
++        appliquerVisibles() {
++            const g = this.grille, nb = (this._lignes || []).length;
++            if (!g) return;
++            const c = g.querySelector('.sq-case[data-r]');
++            if (!this._visibles || this._visibles >= nb || !c) { g.style.maxHeight = ''; g.style.overflowY = ''; return; }
++            const haut = c.offsetTop - g.offsetTop;
++            g.style.maxHeight = Math.round(haut + this._visibles * (this.ligne + 3)) + 'px'; g.style.overflowY = 'auto';
++        }
++
+         limiterHauteur() {
++            if (this.appliquerVisibles) this.appliquerVisibles();
+             if (!this.estOuvert()) return;
+             if (this.modeTel()) { this.racine.style.maxHeight = ''; return; } // au téléphone, c'est le panneau d'accord qui défile
+             this.racine.style.maxHeight = Math.floor(this.placeLibre()) + 'px';
+@@ -1466,13 +1477,13 @@
+                 e.preventDefault();
+                 p.setPointerCapture(e.pointerId);
+                 const nb = Math.max(1, (this._lignes || []).length);
+-                const depart = { y: e.clientY, h: this.ligne, haut: this.racine.getBoundingClientRect().height };
++                const depart = { y: e.clientY, h: this.ligne, haut: this.racine.getBoundingClientRect().height, vis: Math.min(this._visibles || nb, nb) };
+                 const bouger = (ev) => {
+                     // Vers le haut = plus haut. Jamais plus que la place libre : la poignée s'arrête avant que rien ne passe sous la barre du haut.
++                    // APERÇU (artefact, 13/11) : la poignée ne change plus la hauteur des barres (elle reste fixe) mais le NOMBRE de lignes visibles (« je préfère pouvoir voir plus de notes »).
+                     const dy = depart.y - ev.clientY;
+-                    const maxParPlace = depart.h + Math.floor((this.placeLibre() - depart.haut) / nb);
+-                    this.ligne = borner(Math.round(depart.h + dy / nb), LIGNE_MIN, Math.max(LIGNE_MIN, Math.min(LIGNE_MAX, maxParPlace)));
+-                    this.poserLigne();
++                    this._visibles = borner(Math.round((depart.vis || nb) + dy / (this.ligne + 3)), 2, nb);
++                    this.appliquerVisibles();
+                 };
+                 const finir = () => {
+                     p.removeEventListener('pointermove', bouger);
+@@ -1486,6 +1497,7 @@
+                 p.addEventListener('pointercancel', finir);
+             });
+             p.addEventListener('dblclick', () => {
++                this._visibles = 0; this.appliquerVisibles(); return;
+                 this.ligne = LIGNE_DEFAUT;
+                 ecrireLocal(CLE_LIGNE, String(this.ligne));
+                 this.poserLigne();
+@@ -1498,7 +1510,8 @@
+         poserLigne() {
+             const h = this.modeTel() ? 40 : this.ligne; // plein écran au téléphone : des lignes de 40 px, pour voir plus de voix (elles étaient à 44)
+             this.racine.style.setProperty('--sq-ligne', h + 'px');
+-            this.racine.classList.toggle('lignes-basses', h < 24);
++            this.racine.classList.toggle('lignes-basses', h < 18);                       // APERÇU 14/11 : les noms disparaissent sous 18 px (22 avant)
++            this.racine.classList.toggle('lignes-moyennes', h >= 18 && h < 24);          // et rapetissent de 18 à 23 px
+         }
+ 
+         // ---- Tête de lecture ----------------------------------------------------------------------------------------------------

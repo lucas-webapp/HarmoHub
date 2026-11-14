@@ -1,0 +1,59 @@
+--- /home/user/HarmoHub/script.js	2026-11-13 17:14:00.872154773 +0000
++++ script.js	2026-11-14 11:23:37.691614030 +0000
+@@ -9707,7 +9707,8 @@
+             sec, data, bpb, beats: beatsFromData(data), dernier: sec.chords.length - 1,
+             label: chordSymbolForData(data, flats),
+             deg: this.getRomanNumeral(gRoot, gMode, data.root, data.quality),
+-            ou: `mes. ${Math.floor(pos / bpb) + 1} · ${(sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${z.section + 1}`}`,
++            ou: `mes. ${Math.floor(pos / bpb) + 1}`, // APERÇU 14/11 (« j'ai deux fois l'information […] la partie à côté du nom de l'accord, puis à gauche des petites barres ») : la partie n'est dite qu'une fois, dans le repère sous l'en-tête
++            ouComplet: `mes. ${Math.floor(pos / bpb) + 1} · ${(sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${z.section + 1}`}`,
+             fondamentales: NOTES.map((n, pc) => bouton('root', n, nom(pc), n === data.root)).join(''),
+             types: [...document.getElementById('quality').options].map(o => bouton('quality', o.value, o.text, o.value === data.quality)).join(''),
+             basses: bouton('bass', '', '—', !data.bass, 'Basse = fondamentale') + NOTES.map((n, pc) => bouton('bass', n, nom(pc), data.bass === n, `Basse ${nom(pc)}`)).join(''),
+@@ -9800,11 +9801,16 @@
+             const set = (id, t) => { const el = document.getElementById(id); if (el && el.textContent !== t) el.textContent = t; };
+             const bpm = `${(document.getElementById('bpm') || {}).value || ''} BPM`;
+             const reste = [vals.mesure, vals.swing, vals.son].filter(Boolean).map(v => ' · ' + v).join('');
+-            set('song-summary-tel-ton', vals.tonalite);
++            // APERÇU 14/11 (« trop de texte et ça dépasse de la fenêtre […] les noms d'accords sont encore écrits en français ») : la barre ne dit plus que
++            // « C · 120 BPM · 4/4 » (tonalité en notation internationale courte : C, Am, D dor…) ; le groove et le son sont dans les réglages qu'elle ouvre, le détail dans l'infobulle.
++            const COURT = { majeur: '', mineur: 'm', dorien: ' dor', phrygien: ' phr', lydien: ' lyd', mixolydien: ' mix', locrien: ' loc' };
++            const mt = /^(\S+)\s+(majeur|mineur|dorien|phrygien|lydien|mixolydien|locrien)$/.exec(String(vals.tonalite || '').trim());
++            const tonCourt = mt ? mt[1] + COURT[mt[2]] : vals.tonalite;
++            set('song-summary-tel-ton', tonCourt);
+             set('song-summary-tel-bpm', bpm);
+-            set('song-summary-tel-reste', reste);
++            set('song-summary-tel-reste', vals.mesure ? ' · ' + vals.mesure : '');
+             const resume = document.getElementById('song-summary');
+-            if (resume && !window.matchMedia('(min-width: 900px)').matches) resume.setAttribute('aria-label', `Réglages du morceau : ${vals.tonalite} · ${bpm}${reste}`);
++            if (resume && !window.matchMedia('(min-width: 900px)').matches) { resume.setAttribute('aria-label', `Réglages du morceau : ${vals.tonalite} · ${bpm}${reste}`); resume.title = `${vals.tonalite} · ${bpm}${reste} — régler le tempo, la mesure et la tonalité`; }
+         }
+         if (this._puceOuverte) this.remplirPuceReglage();
+     }
+@@ -9864,11 +9870,11 @@
+             // L'icône d'origine du bouton de suggestion (étincelle) : « les logos de l'utilisateur ne se perdent pas ».
+             const iconeSuggestion = (document.querySelector('#key-suggest-btn svg') || {}).outerHTML || '';
+             const toniques = NOTES.map((n, pc) => `<button type="button" data-rr-action="tonique" data-rr-valeur="${n}" aria-pressed="${n === root}">${noteNameForPc(pc, useFlatsForKey(pc, mode)).replace('#', '♯')}</button>`).join('');
+-            const modes = Object.keys(MODE_LABELS).map(m => `<button type="button" data-rr-action="mode" data-rr-valeur="${m}" aria-pressed="${m === mode}">${MODE_LABELS[m].charAt(0).toUpperCase() + MODE_LABELS[m].slice(1)}</button>`).join('');
++            const modes = Object.keys(MODE_LABELS).map(m => `<button type="button" data-rr-action="mode" data-rr-valeur="${m}" aria-pressed="${m === mode}" title="${MODE_LABELS[m].charAt(0).toUpperCase() + MODE_LABELS[m].slice(1)}" aria-label="${MODE_LABELS[m]}">${{ maj: 'Maj', min: 'Min', dorian: 'Dor', phrygian: 'Phr', lydian: 'Lyd', mixolydian: 'Mix', locrian: 'Loc' }[m]}</button>`).join(''); // APERÇU 14/11 : noms de mode courts (comme sur la puce : « D dor »), le nom complet en infobulle
+             html = `<div class="rr-lbl">Tonique</div><div class="rr-grille rr-g6">${toniques}</div>`
+                 + `<div class="rr-lbl">Mode</div><div class="rr-grille rr-g4">${modes}</div>`
+-                + `<button type="button" class="tb-mi rr-suggerer" data-rr-action="suggerer">${iconeSuggestion}<span class="tb-mi-libelle">Suggérer d'après les accords</span></button>`
+-                + `<p class="rr-aide">Change seulement la lecture des degrés : les accords ne bougent pas. Pour déplacer les accords, utilise Transposer.</p>`;
++                + `<button type="button" class="tb-mi rr-suggerer" data-rr-action="suggerer" title="Suggérer la tonalité d'après les accords (change seulement la lecture des degrés : les accords ne bougent pas ; pour les déplacer, utiliser Transposer)">${iconeSuggestion}<span class="tb-mi-libelle">Suggérer</span></button>`; // APERÇU 14/11 : « trop de texte » — « Suggérer d'après les accords » et la phrase d'aide passent en infobulle (title)
++            pop.title = '';
+         } else {
+             pop.setAttribute('role', 'listbox');
+             if (id === 'mesure') { pop.setAttribute('aria-label', 'Mesure'); html = listeDe('time-sig'); }
+@@ -11119,7 +11125,10 @@
+         if (c.root && c.mode) {
+             const pc = NOTES.indexOf(c.root);
+             const optMode = document.querySelector(`#global-mode option[value="${c.mode}"]`);
+-            if (pc >= 0) bouts.push(`${noteNameForPc(pc, useFlatsForKey(pc, c.mode))} ${(optMode ? optMode.textContent : c.mode).toLowerCase()}`);
++            // APERÇU 14/11 (« garde bien les notations internationales ») : « C », « Am », « D dor » au lieu de « C majeur »
++            const COURT = { majeur: '', mineur: 'm', dorien: ' dor', phrygien: ' phr', lydien: ' lyd', mixolydien: ' mix', locrien: ' loc' };
++            const nomMode = (optMode ? optMode.textContent : (MODE_LABELS[c.mode] || c.mode)).toLowerCase();
++            if (pc >= 0) bouts.push(`${noteNameForPc(pc, useFlatsForKey(pc, c.mode))}${nomMode in COURT ? COURT[nomMode] : ' ' + nomMode}`);
+         }
+         if (c.bpm) bouts.push(`${c.bpm} BPM`);
+         if (this.versionDAilleurs(v)) bouts.push('autre appareil');

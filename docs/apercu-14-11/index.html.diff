@@ -1,0 +1,2139 @@
+--- /home/user/HarmoHub/index.html	2026-11-13 17:17:41.549516986 +0000
++++ index.html	2026-11-14 11:23:26.738268931 +0000
+@@ -1,6 +1,27 @@
+ <!DOCTYPE html>
+ <html lang="fr">
+ <head>
++<script>/* COPIE DE DÉMONSTRATION (artefact) : morceau d'exemple, sans clavier ni guitare, séquenceur ouvert, règle « Proposé » (ligne 26 px, croche 34 px au plus). */
++try { if (!localStorage.getItem('demoHarmo2')) {
++  var mk = function (r, q) { return { root: r, quality: q, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' }; };
++  localStorage.setItem('myProgression', JSON.stringify({ sections: [{ title: 'Couplet', chords: [mk('C','maj7'), mk('A','min7'), mk('D','min7'), mk('G','dom7')] }, { title: 'Refrain', chords: [mk('F','maj7'), mk('G','dom7'), mk('E','min7'), mk('A','min7')] }] }));
++  localStorage.setItem('harmohubShowPiano', '0'); localStorage.setItem('harmohubShowGuitar', '0'); sessionStorage.setItem('cc_accueil_vu', '1'); localStorage.setItem('demoHarmo2', '1'); } } catch (e) {}
++window.REGLE_CROCHE = 34;
++window.DEMO_LIGNE = function (s, accords, i) {
++  var tous = accords.map(function (_, c) { return c; });
++  try {
++    var idx = i == null ? 0 : i, g = document.querySelector('#progression-sections .chord-grid[data-section="' + s + '"]');
++    if (!g) return tous;
++    var cell = g.querySelector('.grid-cell[data-index="' + idx + '"]'); if (!cell) return tous;
++    var ligne = getComputedStyle(cell).gridRowStart, garde = [];
++    g.querySelectorAll('.grid-cell[data-index]').forEach(function (x) { var k = +x.dataset.index; if (getComputedStyle(x).gridRowStart === ligne && garde.indexOf(k) < 0) garde.push(k); });
++    garde.sort(function (a, b) { return a - b; });
++    return garde.length ? garde : tous;
++  } catch (e) { return tous; }
++};
++</script>
++<style>#sq-grille { justify-content: start !important; } #demo-lect { position: fixed; right: 12px; top: 168px; z-index: 99999; background: #1b1f26; color: #aab2bf; border: 1px solid #3a4250; border-radius: 8px; padding: 4px 8px; font: 12px system-ui, sans-serif; }</style>
++
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+     <title>HarmoHub</title>
+@@ -12,19 +33,599 @@
+     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
+     <link rel="manifest" href="manifest.json?v=202607252000">
+     <meta name="theme-color" content="#0a0a0a">
+-    <link rel="stylesheet" href="style.css?v=202611132300">
++    <link rel="stylesheet" href="style.css?v=202611132100">
+     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
+          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
+          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
+          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
+          est propre à HarmoHub. -->
+     <link rel="stylesheet" href="verre.css?v=202610281900">
+-    <link rel="stylesheet" href="verre-surfaces.css?v=202611132300">
++    <link rel="stylesheet" href="verre-surfaces.css?v=202611132100">
+     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
+     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
+          bibliothèques ci-dessous — licence MIT. Version 14.8.49. -->
+     <script src="tone.min.js"></script>
++<style>
++/* APERÇU (artefact) des retouches demandées le 13/11 : Séquenceur dans la rangée de réglages, Enregistrer en logo seul, « À la main » en premier, mesures par ligne. */
++#tb-save .tb-save-mot { display: none !important; }
++#tb-save { background: #1f6b46 !important; border-color: #2f9467 !important; color: #fff !important; }
++body:has(#tb-etat[data-etat="modifie"]) #tb-save { background: #a8601a !important; border-color: #d98a2b !important; }
++#vue-sequenceur { margin-left: auto !important; width: auto !important; min-width: 124px; height: 32px; padding: 0 12px !important; display: inline-flex !important; align-items: center; justify-content: center; gap: 8px; border: 1px solid #2f9467 !important; color: #4fd08f !important; background: transparent !important; border-radius: 7px; font: 600 13px system-ui, sans-serif; }
++#vue-sequenceur[aria-pressed="true"] { background: #1f6b46 !important; color: #fff !important; }
++#vue-sequenceur .demo-nom { white-space: nowrap; }
++#grille-densites .dm-lab { font-size: 12px; opacity: .75; align-self: center; padding: 0 6px; }
++#grille-densites .dm-btn { min-width: 28px; } #grille-densites .dm-btn:disabled { opacity: .35; } #grille-densites .dm-val { min-width: 20px; text-align: center; font-weight: 600; align-self: center; }
++</style>
++<style>
++#sq-grille .sq-case.demo-sel { box-shadow: inset 0 2px 0 #e6e9ee, inset 0 -2px 0 #e6e9ee !important; filter: brightness(1.2); z-index: 3; }
++#sq-grille .sq-case.demo-sel.dg { box-shadow: inset 0 2px 0 #e6e9ee, inset 0 -2px 0 #e6e9ee, inset 2px 0 0 #e6e9ee !important; }
++#sq-grille .sq-case.demo-sel.dd { box-shadow: inset 0 2px 0 #e6e9ee, inset 0 -2px 0 #e6e9ee, inset -2px 0 0 #e6e9ee !important; }
++#sq-grille .sq-case.demo-sel.dg.dd { box-shadow: inset 0 0 0 2px #e6e9ee !important; }
++#sq-grille .sq-case.demo-cible { background: rgba(230,233,238,.22) !important; }
++#sq-grille .sq-case.demo-fantome { opacity: .3; }
++#demo-fantome { position: fixed; left: 0; top: 0; z-index: 60; pointer-events: none; border-radius: 4px; box-shadow: 0 0 0 2px #e6e9ee, 0 6px 16px rgba(0,0,0,.45); opacity: .92; display: none; }
++
++#sq-grille .sq-case.tete { box-shadow: inset 2px 0 0 rgba(79,208,143,.85) !important; filter: none !important; }
++#demo-aide { position: fixed; left: 12px; top: 168px; z-index: 99999; background: #1b1f26; color: #aab2bf; border: 1px solid #3a4250; border-radius: 8px; padding: 4px 8px; font: 12px system-ui, sans-serif; max-width: 300px; }
++</style>
++<style>
++/* APERÇU (artefact) : barre de lecture continue — plus de saut de croche en croche. */
++#sq-grille .sq-case.tete { box-shadow: none !important; filter: none !important; }
++#demo-tete { position: fixed; width: 2px; background: rgba(79,208,143,.9); border-radius: 1px; pointer-events: none; z-index: 40; display: none; }
++</style>
++<style>
++/* APERÇU (artefact) : onglets Grille / Structure / Paroles plus larges, séparés par un fin trait vertical. */
++@media (min-width: 900px) {
++  .tb-onglets { gap: 0 !important; }
++  .tb-onglets > button { min-width: 132px; justify-content: center; border-radius: 0 !important; position: relative; }
++  .tb-onglets > button + button::before { content: ""; position: absolute; left: 0; top: 22%; bottom: 22%; width: 1px; background: rgba(255,255,255,.22); }
++  .tb-onglets > button[aria-pressed="true"] + button::before, .tb-onglets > button:hover::before, .tb-onglets > button:hover + button::before { opacity: 0; }
++}
++</style>
++<style>
++/* APERÇU (artefact) : plus de barre « Ajout rapide » en permanence sous le titre. Elle n'apparaît que quand on ouvre un « + »
++   (la saisie rapide — « C/Am/F/G », « C_E », ligne vide = nouvelle partie — reste donc disponible, sans prendre de place). */
++@media (min-width: 900px) {
++  #quick-add-panel .quick-add-row { display: none !important; }
++  body:has(#ajout-aide:not([hidden])) #quick-add-panel .quick-add-row { display: flex !important; }
++  #quick-add-panel { margin-bottom: 0 !important; }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-section-barre : « Ajouter section » quitte sa ligne et va dans la rangée de réglages ; plus de bouton « + Accord » dans l'en-tête de partie. */
++@media (min-width: 900px) {
++  .prog-section-ajout { display: none !important; }
++  #add-section.demo-dans-barre { margin: 0 0 0 18px !important; align-self: center; position: static !important; transform: none !important; height: 32px; padding: 0 12px; border-radius: 7px; font-size: 13px; gap: 6px; white-space: nowrap; margin-left: 6px; }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-poignee-largeur : poignée au bord droit du séquenceur quand il ne couvre pas toute la largeur. */
++/* RÈGLE DES POIGNÉES (14/11) : toutes sont la même petite pastille de 4 × 44 px, CENTRÉE sur le bord qu'elle déplace (comme celle de la grille) ;
++   seule la zone qui accroche (12 px de large, tout le long du bord) est plus grande, et elle est invisible. */
++#demo-poignee-largeur { position: fixed; width: 18px; z-index: 4; cursor: ew-resize; display: none; touch-action: none; }
++/* LA languette (même forme partout, 14/11) : 10 × 44 px (44 × 10 à l'horizontale), trois points, bords arrondis, détachée du bord de 4 px. */
++#demo-poignee-largeur::before { content: ""; position: absolute; left: 4px; top: 50%; width: 10px; height: 44px; transform: translateY(-50%); border-radius: 5px; background-color: #2b3037; border: 1px solid #3f4650; box-sizing: border-box;
++  background-image: radial-gradient(circle at 4px 11px, #8b949f 1.4px, transparent 1.8px), radial-gradient(circle at 4px 21px, #8b949f 1.4px, transparent 1.8px), radial-gradient(circle at 4px 31px, #8b949f 1.4px, transparent 1.8px); background-size: auto; background-position: 0 0; background-repeat: no-repeat; transition: background-color .15s ease, border-color .15s ease; }
++#demo-poignee-largeur:hover::before, #demo-poignee-largeur.tire::before { background-color: #25374d; border-color: var(--btn-blue-border-hover, #4a8fd8); }
++body.demo-etire-largeur { cursor: ew-resize; user-select: none; }
++</style>
++<style>
++/* APERÇU (artefact) demo-section-bas : « + Section » devient un mince bandeau SOUS la dernière partie, visible seulement au survol
++   (aucune ligne permanente), plus un clic droit dans le vide de la grille. Le bouton de la rangée de réglages est retiré. */
++@media (min-width: 900px) {
++  #add-section.demo-dans-barre { display: none !important; }
++  #demo-section-bas { display: flex; align-items: center; justify-content: center; gap: 6px; height: 28px; margin: 6px auto 0; border: 1px dashed transparent; border-radius: 7px;
++    color: transparent; font-size: 13px; background: transparent; cursor: pointer; transition: color .15s, border-color .15s, background .15s; width: 100%; }
++  #demo-section-bas:hover, #demo-section-bas:focus-visible { color: var(--text, #cfd5dd); border-color: #3a4048; background: rgba(255,255,255,.04); }
++  #demo-section-bas svg { width: 14px; height: 14px; }
++  #demo-menu-section { position: fixed; z-index: 80; min-width: 190px; padding: 6px; border-radius: 12px; background: #1b1f25; border: 1px solid #343a43; box-shadow: 0 10px 28px rgba(0,0,0,.5); display: none; }
++  #demo-menu-section button { display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: #e6e9ee; font-size: 13px; cursor: pointer; text-align: left; }
++  #demo-menu-section button:hover { background: rgba(255,255,255,.08); }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-languette-grille : les poignées de la grille reprennent la languette du séquenceur (même forme, mêmes points, même bleu au survol). */
++@media (min-width: 900px) {
++  #grille-poignee-droite::after { top: 50%; left: 1px; width: 10px; height: 44px; transform: translateY(-50%); border-radius: 5px; background-color: #2b3037; border: 1px solid #3f4650; box-sizing: border-box;
++    background-image: radial-gradient(circle at 4px 11px, #8b949f 1.4px, transparent 1.8px), radial-gradient(circle at 4px 21px, #8b949f 1.4px, transparent 1.8px), radial-gradient(circle at 4px 31px, #8b949f 1.4px, transparent 1.8px); background-size: auto; background-position: 0 0; background-repeat: no-repeat; transition: background-color .15s ease, border-color .15s ease; }
++  #grille-poignee-droite:hover::after, #grille-poignee-droite.en-cours::after { background-color: #25374d; border-color: var(--btn-blue-border-hover, #4a8fd8); }
++  #grille-poignee-bas::after { left: 50%; top: 1px; width: 44px; height: 10px; transform: translateX(-50%); border-radius: 5px; background-color: #2b3037; border: 1px solid #3f4650; box-sizing: border-box;
++    background-image: radial-gradient(circle at 11px 4px, #8b949f 1.4px, transparent 1.8px), radial-gradient(circle at 21px 4px, #8b949f 1.4px, transparent 1.8px), radial-gradient(circle at 31px 4px, #8b949f 1.4px, transparent 1.8px); background-size: auto; background-position: 0 0; background-repeat: no-repeat; transition: background-color .15s ease, border-color .15s ease; }
++  #grille-poignee-bas:hover::after, #grille-poignee-bas.en-cours::after { background-color: #25374d; border-color: var(--btn-blue-border-hover, #4a8fd8); }
++}
++</style>
++<!-- demo-languette-grille -->
++<style>
++/* APERÇU (artefact) demo-languette-discrete — retour du 14/11 : « ces poignées ne sont pas assez discrètes » et, sur la grille, « une toute petite hauteur ».
++   AU REPOS : un simple trait fin (4 px), gris à peine plus clair que le fond, 72 px de long sur la grille (60 px sur le séquenceur, dont le bord est plus court).
++   AU SURVOL / EN TIRANT : il s'épaissit en languette (10 px) avec ses trois points et passe au bleu — c'est là qu'on comprend que c'est une poignée. */
++@media (min-width: 900px) {
++  #grille-poignee-droite::after { top: 50%; left: 4px; width: 4px; height: 72px; transform: translateY(-50%); border-radius: 3px; background-color: #2a2f36; border: 1px solid transparent; box-sizing: border-box; background-image: none;
++    transition: width .15s ease, left .15s ease, background-color .15s ease, border-color .15s ease; }
++  #grille-poignee-droite:hover::after, #grille-poignee-droite.en-cours::after { left: 1px; width: 10px; background-color: #25374d; border-color: var(--btn-blue-border-hover, #4a8fd8); background-image: radial-gradient(circle at 4px 25.0px, #9aa3ae 1.4px, transparent 1.8px), radial-gradient(circle at 4px 35.0px, #9aa3ae 1.4px, transparent 1.8px), radial-gradient(circle at 4px 45.0px, #9aa3ae 1.4px, transparent 1.8px); background-repeat: no-repeat; }
++  /* même écart (6 px) entre la grille et la poignée du bas qu'entre la grille et la poignée de droite */
++  #grille-poignee-bas { margin-top: -2px; }
++  #grille-poignee-bas::after { left: 50%; top: -2px; width: 72px; height: 4px; transform: translateX(-50%); border-radius: 3px; background-color: #2a2f36; border: 1px solid transparent; box-sizing: border-box; background-image: none;
++    transition: height .15s ease, top .15s ease, background-color .15s ease, border-color .15s ease; }
++  #grille-poignee-bas:hover::after, #grille-poignee-bas.en-cours::after { top: -5px; height: 10px; background-color: #25374d; border-color: var(--btn-blue-border-hover, #4a8fd8); background-image: radial-gradient(circle at 25.0px 4px, #9aa3ae 1.4px, transparent 1.8px), radial-gradient(circle at 35.0px 4px, #9aa3ae 1.4px, transparent 1.8px), radial-gradient(circle at 45.0px 4px, #9aa3ae 1.4px, transparent 1.8px); background-repeat: no-repeat; }
++  #demo-poignee-largeur::before { left: 7px; width: 4px; height: 60px; background-color: #2a2f36; border-color: transparent; background-image: none; transition: width .15s ease, left .15s ease, background-color .15s ease, border-color .15s ease; }
++  #demo-poignee-largeur:hover::before, #demo-poignee-largeur.tire::before { left: 4px; width: 10px; background-color: #25374d; border-color: var(--btn-blue-border-hover, #4a8fd8); background-image: radial-gradient(circle at 4px 19.0px, #9aa3ae 1.4px, transparent 1.8px), radial-gradient(circle at 4px 29.0px, #9aa3ae 1.4px, transparent 1.8px), radial-gradient(circle at 4px 39.0px, #9aa3ae 1.4px, transparent 1.8px); background-repeat: no-repeat; }
++}
++</style>
++<!-- demo-languette-discrete -->
++
++<style>
++/* APERÇU (artefact) demo-vue-large : bouton « Conduite des voix » en haut à droite, À DROITE du bouton Séquenceur (14/11 : « le bouton voicing doit sortir du séquenceur »).
++   Allumé : vue épurée, barres plus petites, grille simplifiée, plus de mesures d'un coup d'œil, et les accords dont les voix sautent beaucoup sont repérés. */
++@media (min-width: 900px) {
++  #demo-vue-large { position: fixed; right: 12px; left: auto; z-index: 50; width: 32px !important; min-width: 32px !important; max-width: 32px; height: 32px; padding: 0 !important; box-sizing: border-box; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; border: 1px solid #3a4048; background: transparent; color: #cfd5dd; cursor: pointer; }
++  #demo-vue-large:hover { background: rgba(255,255,255,.07); }
++  #demo-vue-large[aria-pressed="true"] { background: #1f6b46; border-color: #2f9467; color: #fff; }
++  #demo-vue-large svg { width: 18px; height: 18px; }
++  body.demo-vue-large #sq-grille .sq-temps { display: none !important; }
++  body.demo-vue-large #sq-grille .sq-case.on { font-size: 0 !important; }
++  body.demo-vue-large #sq-grille .sq-case { box-shadow-color: transparent; }
++  body.demo-vue-large #sq-grille .sq-case:not(.on) { background: transparent !important; border-color: transparent !important; }
++  body.demo-vue-large #sq-grille .sq-nom.demo-souci::after, body.demo-vue-large .grid-cell.demo-souci::after { content: "⚠"; position: absolute; top: 2px; right: 4px; font-size: 12px; line-height: 1; color: #f0a73c; }
++  body.demo-vue-large #sq-grille .sq-nom.demo-souci { color: #f0a73c; }
++  body.demo-vue-large #sq-grille .sq-nom { position: relative; }
++  body.demo-vue-large .grid-cell.demo-souci { box-shadow: inset 0 0 0 2px rgba(240,167,60,.85) !important; }
++  #demo-vue-large-msg { position: fixed; right: 12px; top: 100px; z-index: 90; max-width: 300px; padding: 8px 12px; border-radius: 12px; background: #1b1f25; border: 1px solid #343a43; color: #e6e9ee; font-size: 12px; display: none; box-shadow: 0 10px 28px rgba(0,0,0,.5); }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-masquer : on peut retirer N'IMPORTE QUEL rythme de la barre (14/11 : « supprimer des rythmes enregistrés comme je le souhaite »).
++   Les formes de l'utilisateur gardent leur × (suppression définitive) ; les rythmes fournis (Plaqué, Arpège, Pompe, Ballade) reçoivent un × au survol qui les MASQUE,
++   et un bouton « Rétablir » les ramène. « À la main » ne se masque pas (c'est le mode libre). */
++#demo-masquer { position: fixed; z-index: 60; width: 18px; height: 18px; padding: 0; display: none; align-items: center; justify-content: center; border-radius: 9px; border: 1px solid #3f4650; background: #1b1f25; color: #cfd5dd; font-size: 12px; line-height: 1; cursor: pointer; }
++#demo-masquer:hover { background: #3a2226; border-color: #a24a52; color: #fff; }
++#demo-retablir { font-size: 12px; opacity: .8; }
++.demo-masque { display: none !important; }
++</style>
++<style>
++/* APERÇU (artefact) demo-menu-rythme : on supprime un rythme par un MENU (clic droit sur son bouton), jamais par une croix au survol. */
++#sequenceur .sq-forme-suppr { display: none !important; }
++#demo-masquer { display: none !important; }
++#demo-menu-rythme { position: fixed; z-index: 100; min-width: 210px; padding: 6px; border-radius: 12px; background: #1b1f25; border: 1px solid #343a43; box-shadow: 0 10px 28px rgba(0,0,0,.5); display: none; }
++#demo-menu-rythme button { display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: #e6e9ee; font-size: 13px; cursor: pointer; text-align: left; }
++#demo-menu-rythme button:hover { background: rgba(255,255,255,.08); }
++#demo-menu-rythme button.danger { color: #ff9a9a; }
++#demo-menu-rythme button.danger.confirme { background: #5a2429; color: #fff; }
++#demo-menu-rythme .titre { padding: 4px 10px 6px; color: #8b949f; font-size: 11px; }
++</style>
++<style>
++/* APERÇU (artefact) demo-vue-mesures : « Vue ‹ 4 mes. › » (14/11) — l'unité est dans le chiffre (CSS), le texte reste numérique pour le code. */
++#grille-densites .dm-val::after { content: " mes."; font-weight: 400; font-size: 12px; color: #9aa3ae; }
++#grille-densites .dm-val { min-width: 0 !important; white-space: nowrap; }
++</style>
++<style>
++/* APERÇU (artefact) demo-bibliotheque : le petit signet n'AJOUTE plus de rythme : il OUVRE la liste de tous les rythmes (ceux qui ne sont pas dans la barre, ceux qu'on a masqués).
++   Enregistrer une forme se fait par clic droit sur « + ». */
++#demo-bibliotheque { position: fixed; z-index: 96; width: 280px; max-height: 60vh; overflow-y: auto; padding: 8px; border-radius: 12px; background: #1b1f25; border: 1px solid #343a43; box-shadow: 0 10px 28px rgba(0,0,0,.5); color: #e6e9ee; font-size: 13px; }
++#demo-bibliotheque[hidden] { display: none; }
++#demo-bibliotheque .bi-titre { padding: 4px 8px 8px; color: #8b949f; font-size: 11px; }
++#demo-bibliotheque .bi-sec { padding: 8px 8px 4px; color: #8b949f; font-size: 11px; text-transform: none; }
++#demo-bibliotheque .bi-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: inherit; font-size: 13px; cursor: pointer; text-align: left; }
++#demo-bibliotheque .bi-item:hover { background: rgba(255,255,255,.08); }
++#demo-bibliotheque .bi-item[aria-pressed="true"] { background: rgba(79,134,214,.18); }
++#demo-bibliotheque .bi-item .bi-nom { flex: 1; }
++#demo-bibliotheque .bi-item .bi-etat { color: #8b949f; font-size: 11px; }
++#demo-bibliotheque .bi-item .sq-vignette { flex: none; }
++</style>
++<style>
++/* APERÇU (artefact) demo-enreg-popover : enregistrer une forme se fait dans la POPOVER du signet (liste des rythmes › « Enregistrer… »), pas dans le séquenceur. */
++#demo-bibliotheque .bi-enreg { margin-top: 6px; border-top: 1px solid #2b3037; padding-top: 6px; }
++#demo-bibliotheque .bi-enreg .bi-item { color: #cfe3ff; }
++#demo-bibliotheque .bi-champ { width: 100%; box-sizing: border-box; height: 32px; margin: 4px 0 8px; padding: 0 10px; border-radius: 7px; border: 1px solid #3f4650; background: #11151a; color: #e6e9ee; font-size: 13px; }
++#demo-bibliotheque .bi-champ:focus { outline: none; border-color: #4f86d6; }
++#demo-bibliotheque .bi-actions { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 6px; }
++#demo-bibliotheque .bi-actions button { height: 32px; padding: 0 14px; border-radius: 7px; border: 1px solid #3f4650; background: transparent; color: #e6e9ee; font-size: 13px; cursor: pointer; }
++#demo-bibliotheque .bi-actions .bi-valider { background: #1f6b46; border-color: #2f9467; color: #fff; }
++#demo-bibliotheque .bi-actions .bi-valider:disabled { opacity: .4; cursor: not-allowed; }
++</style>
++<style>
++/* APERÇU (artefact) demo-sans-portee (14/11 : « ces boutons compliquent un peu l'application […] j'ai qu'à l'enregistrer et appuyer dessus sur chaque mesure »).
++   Le groupe « Toute la partie | Cet accord » disparaît : un rythme (ou « + ») s'applique à l'accord SÉLECTIONNÉ dans la grille. */
++#sq-portee-partie, #sq-portee-accord { display: none !important; }
++#sq-portee-partie:only-child { display: none; }
++.sq-seg:has(#sq-portee-partie) { display: none !important; }
++</style>
++<style>
++/* APERÇU (artefact) demo-tempo-pop (14/11) : fenêtre du tempo allégée — chevrons ‹ › qui défilent quand on les maintient, molette sur la valeur, un logo à la place de
++   « Contretemps au métronome », et plus de légende en bas. */
++#bl-tempo-pop .bl-pop-aide { display: none !important; }
++#bl-tempo-pop #bl-tempo-moins, #bl-tempo-pop #bl-tempo-plus { font-size: 20px; line-height: 1; padding-bottom: 3px; touch-action: none; user-select: none; }
++#bl-tempo-pop #bl-tempo-pop-val { cursor: ns-resize; min-width: 76px; text-align: center; font-variant-numeric: tabular-nums; }
++#bl-tempo-pop .demo-logo-contretemps { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; color: #cfd5dd; }
++#bl-tempo-pop .demo-logo-contretemps svg { width: 22px; height: 22px; }
++</style>
++<style>
++/* APERÇU (artefact) demo-creer-forme (14/11) : on CRÉE une forme dans la popover du signet, sans accord sélectionné : choix du nombre de lignes, petite grille à dessiner, nom, Enregistrer. */
++#demo-bibliotheque .cf-seg { display: flex; gap: 4px; margin: 4px 0 10px; }
++#demo-bibliotheque .cf-seg button { flex: 1; height: 32px; border-radius: 7px; border: 1px solid #3f4650; background: transparent; color: #cfd5dd; font-size: 12px; cursor: pointer; }
++#demo-bibliotheque .cf-seg button[aria-pressed="true"] { background: rgba(79,134,214,.2); border-color: #4f86d6; color: #fff; }
++#demo-bibliotheque .cf-grille { display: grid; grid-template-columns: 44px repeat(8, 1fr); gap: 3px; margin-bottom: 10px; user-select: none; touch-action: none; }
++#demo-bibliotheque .cf-tete { font-size: 10px; color: #8b949f; text-align: left; align-self: center; }
++#demo-bibliotheque .cf-ligne { font-size: 10px; color: #8b949f; align-self: center; }
++#demo-bibliotheque .cf-case { height: 20px; border-radius: 4px; background: #232830; border: 1px solid #2f353d; cursor: pointer; }
++#demo-bibliotheque .cf-case:nth-child(2n) { background: #20252c; }
++#demo-bibliotheque .cf-case.on { background: #4f86d6; border-color: #78a6ea; }
++#demo-bibliotheque .cf-case.on.g { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -4px; border-left-color: #4f86d6; }
++#demo-bibliotheque .cf-case.on.d { border-top-right-radius: 0; border-bottom-right-radius: 0; }
++</style>
++<style>
++/* APERÇU (artefact) demo-reglages-seq (14/11) : bouton « Réglages » à gauche de la croix du séquenceur ; actions Effacer de la création de forme moins serrées. */
++#demo-lect { display: none !important; }   /* l'étiquette d'aperçu « ligne … px · croche … px » recouvrait le bouton Réglages : retirée */
++#demo-bibliotheque { width: 300px !important; }
++#demo-bibliotheque .bi-actions { flex-wrap: wrap; }
++#demo-bibliotheque .bi-actions button { padding: 0 10px; }
++#demo-sq-pop { position: fixed; z-index: 97; width: 300px; padding: 12px 14px; border-radius: 12px; background: #1b1f25; border: 1px solid #343a43; box-shadow: 0 10px 28px rgba(0,0,0,.5); color: #e6e9ee; font-size: 13px; }
++#demo-sq-pop[hidden] { display: none; }
++#demo-sq-pop .rp-titre { font-weight: 600; margin-bottom: 10px; }
++#demo-sq-pop .rp-ligne { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; }
++#demo-sq-pop .rp-ligne label { flex: 1; }
++#demo-sq-pop .rp-val { min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
++#demo-sq-pop input[type=range] { width: 100%; margin: 2px 0 6px; }
++#demo-sq-pop .rp-btn { height: 28px; min-width: 28px; padding: 0 8px; border-radius: 7px; border: 1px solid #3f4650; background: transparent; color: #e6e9ee; cursor: pointer; font-size: 12px; }
++#demo-sq-pop .rp-btn[aria-pressed="true"] { background: rgba(79,134,214,.22); border-color: #4f86d6; }
++#demo-sq-pop .rp-note { color: #8b949f; font-size: 11px; margin: 2px 0 6px; }
++#demo-sq-pop .rp-sep { border-top: 1px solid #2b3037; margin: 10px 0 2px; }
++#demo-sq-reglages { }
++body.demo-sans-noms #sq-grille .sq-case.on, body.demo-sans-noms #sq-grille .sq-note { font-size: 0 !important; }   /* le nom est dans .sq-note, qui a sa propre taille */
++body.demo-sans-regle #sq-grille .sq-temps { display: none !important; }
++</style>
++<style>
++/* APERÇU (artefact) demo-vitesse-unique (14/11) : UN SEUL réglage de la vitesse de lecture — la barre verte, aimantée à 50, 75, 100, 150 et 200 % ; les cinq boutons rapides disparaissent. */
++#bl-vitesses { display: none !important; }
++.demo-graduations { position: relative; height: 22px; margin: -2px 9px 4px; font-size: 10px; color: #8b949f; }
++.demo-graduations span { position: absolute; top: 0; transform: translateX(-50%); text-align: center; line-height: 1.1; white-space: nowrap; }
++.demo-graduations span::before { content: ""; display: block; width: 1px; height: 5px; margin: 0 auto 2px; background: #5b636d; }
++.demo-graduations span.cent { color: #cfd5dd; }
++</style>
++<style>
++/* APERÇU (artefact) demo-subdivision-haut (14/11) : le logo du contretemps disparaît ; l'interrupteur noire / croche monte sur la rangée du tempo, à droite de TAP. */
++#bl-hote-subdivision { display: none !important; }
++.pl-ligne:has(> #pl-subdivision) { display: none !important; }
++#bl-tempo-ligne #toggle-metronome-subdivision { margin-left: 6px; flex: none; }
++</style>
++<style>
++/* APERÇU (artefact) demo-design-reglages (14/11) : la popover « Réglages du séquenceur » et mes ajouts dans Paramètres reprennent le gabarit des Paramètres (rangées, interrupteurs verts, curseurs verts). */
++#demo-sq-pop { width: 320px !important; padding: 14px 16px 12px !important; box-sizing: border-box; background: var(--surface-overlay, #151719) !important; }
++#demo-sq-pop .settings-group-title { margin: 0 0 6px; }
++#demo-sq-pop .settings-slider-row, #demo-sq-pop .settings-toggle-row { padding-left: 0; padding-right: 0; }
++#demo-sq-pop .rp-pied { display: flex; justify-content: flex-end; margin-top: 10px; }
++#demo-sq-pop .rp-pied .btn-sec { height: 32px; padding: 0 14px; border-radius: 7px; font-size: 13px; }
++</style>
++<style>
++/* APERÇU (artefact) demo-barre-droite (14/11) : boutons du bas à droite à écart identique (8 px) ; le bouton « Réorganiser » prend la roue des réglages pour se lire comme un réglage. */
++@media (min-width: 900px) {
++  .bl-bloc[data-bloc="vues"], .bl-fin { margin-left: -8px; }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-contenu-barres (14/11) : noms des notes plus petits entre 18 et 23 px (ils disparaissaient sous 24), supprimés sous 18 px ; réglage « Écrit sur les barres » : Rien / Notes / Degrés. */
++.sequenceur.lignes-moyennes .sq-note { font-size: 10px; letter-spacing: 0; }
++#demo-sq-pop .rp-contenu-ligne { gap: 10px; }
++#demo-sq-pop .rp-contenu { flex: none; }
++#demo-sq-pop .rp-contenu { display: inline-flex; width: auto; max-width: 200px; margin: 0; }
++#demo-sq-pop .rp-contenu button { flex: none; min-width: 0; width: auto; height: 28px; padding: 0 9px; font-size: 12px; }
++#demo-sq-pop .rp-contenu button { background: transparent; color: #aab2bc; border: 0; }
++#demo-sq-pop .rp-contenu button[aria-pressed="true"] { background: #1f3550; color: #fff; }
++</style>
++<style>
++/* APERÇU (artefact) demo-reorg-glisser (14/11, « la gestion des menus ne convient pas avec les chevrons […] des petites fenêtres flottantes que je peux attraper avec ma souris et déplacer […]
++   un réglage sur deux lignes incompréhensible ») : en mode « réorganiser », plus de flèches ◀ ▶ (elles élargissaient la barre qui passait sur deux lignes) :
++   on ATTRAPE un bloc à la souris et on le déplace ; le bouton « Ordre d'origine » devient un logo. */
++@media (min-width: 900px) {
++  #barre-lecture.reorganiser .bl-fleches { display: none !important; }
++  #barre-lecture.reorganiser .bl-bloc { cursor: grab; user-select: none; }
++  #barre-lecture.reorganiser .bl-bloc * { pointer-events: none; }
++  #barre-lecture.reorganiser .bl-bloc.demo-souleve { cursor: grabbing; box-shadow: 0 8px 22px rgba(0,0,0,.55), 0 0 0 2px #4f86d6; z-index: 5; background: rgba(79,134,214,.14); }
++  #bl-reinit { width: 32px; min-width: 32px; padding: 0 !important; font-size: 0 !important; display: inline-flex; align-items: center; justify-content: center; }
++  #bl-reinit::before { content: ""; width: 18px; height: 18px; background: currentColor; -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 12a9 9 0 1 0 3-6.7'/><path d='M3 4v5h5'/></svg>") center / contain no-repeat; mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 12a9 9 0 1 0 3-6.7'/><path d='M3 4v5h5'/></svg>") center / contain no-repeat; }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-reglage-barre (14/11, « je te laisse mettre en place d'autres paramètres […] par exemple la largeur de la barre de lecture, couplet et refrain, qui prend quasiment tout l'écran ») :
++   la roue de la barre ouvre une popover « Barre de lecture » (même gabarit que Paramètres). */
++#demo-barre-pop { position: fixed; z-index: 97; width: 320px; padding: 14px 16px 12px; border-radius: 12px; background: var(--surface-overlay, #151719); border: 1px solid #343a43; box-shadow: 0 10px 28px rgba(0,0,0,.5); color: #e6e9ee; font-size: 13px; box-sizing: border-box; }
++#demo-barre-pop[hidden] { display: none; }
++#demo-barre-pop .settings-group-title { margin: 0 0 6px; }
++#demo-barre-pop .rb-pied { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
++#demo-barre-pop .rb-pied .btn-sec { height: 32px; padding: 0 12px; border-radius: 7px; font-size: 13px; }
++body.demo-sans-noms-parties #bl-frise .bl-frise-part { font-size: 0 !important; }
++body.demo-sans-mesure #bl-mesure { display: none !important; }
++</style>
++<style>
++/* APERÇU (artefact) demo-structure-libre (14/11) :
++   (1) onglet Structure : les boutons − + ↑ ↓ restent à DROITE des barres (retour du 14/11) ; la liste « Ajouter une partie » est étroite, son chevron décollé du bord ;
++       la légende de droite est réduite à trois mots ; l'étiquette d'aperçu ne recouvre plus la page.
++   (2) séquenceur : le bouton « note libre » a la largeur des touches de notes qu'il surplombe. */
++@media (min-width: 900px) {
++  #structure-overlay .struct-ajout { display: flex; align-items: center; gap: 12px; }
++  /* le chevron de la liste décollé du bord : flèche dessinée, à 14 px du bord droit (la flèche native touchait le bord) */
++  #structure-overlay #struct-ajout-select { width: 200px; max-width: 100%; flex: none; -webkit-appearance: none; appearance: none; padding-right: 38px;
++    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23aab2bc' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
++    background-repeat: no-repeat; background-position: right 14px center; background-size: 14px 14px; }
++  #structure-overlay .struct-aide { font-size: 12px; white-space: nowrap; }
++  body:has(#structure-overlay:not([hidden])) #demo-aide { display: none; }
++  #sequenceur .sq-libre-btn { width: 100%; max-width: none; min-width: 0; box-sizing: border-box; justify-self: stretch; }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-adaptation-ecrans (14/11, « vérifie que tout soit compatible sur plein de tailles d'écran ») :
++   - téléphone / tablette étroite (< 900 px) : AUCUN des ajouts d'aperçu ne s'affiche (le téléphone reste inchangé) ;
++   - 900 à 1180 px : le bouton Séquenceur passe en logo seul (il recouvrait « Vue ‹ 4 mes. › »), « Fichiers » en logo seul (il recouvrait le titre), « Transposer » sans mot ;
++   - l'étiquette d'aperçu « clic = sélectionner… » ne recouvre plus la grille (cachée sous 1500 px). */
++@media (max-width: 899px) {
++  #vue-sequenceur, #demo-vue-large, #demo-poignee-largeur, #demo-section-bas, #demo-aide, #demo-lect, #demo-sq-reglages, #demo-menu-section { display: none !important; }
++}
++@media (min-width: 900px) and (max-width: 1180px) {
++  #vue-sequenceur .demo-nom { display: none !important; }
++  #vue-sequenceur { min-width: 32px !important; width: 32px !important; padding: 0 !important; }
++  #file-menu-btn .btn-label { display: none; }
++  #file-menu-btn { padding-left: 8px; padding-right: 8px; }
++}
++@media (max-width: 1499px) { #demo-aide { display: none !important; } }
++</style>
++<style>
++/* APERÇU (artefact) demo-bord-gauche (14/11) :
++   (1) « les boutons à gauche de la barre d'outils doivent être placés sur le bord gauche, aligné avec le logo HarmoHub » : la rangée de réglages, le séquenceur et la barre de lecture
++       commencent tous sur la verticale du logo (26 px) ; au-delà de 1600 px la colonne n'est plus centrée (elle laissait 180 px de vide à gauche à 1920) ;
++   (2) « élargis un peu le bouton voicing qu'on le voie mieux, tu peux mettre le texte voicing » : le bouton Conduite porte son nom (au-dessus de 1000 px). */
++@media (min-width: 900px) {
++  main { max-width: none !important; margin-left: 0 !important; margin-right: 0 !important; padding-left: 26px !important; }
++  #sequenceur, #barre-lecture { padding-left: 26px !important; }
++  #demo-vue-large { width: auto !important; max-width: none !important; min-width: 32px !important; padding: 0 12px !important; gap: 8px; font: inherit; font-size: 13px; font-weight: 500; }
++  #demo-vue-large .demo-nom { white-space: nowrap; }
++  #demo-aide { display: none !important; }
++}
++@media (min-width: 900px) and (max-width: 1180px) {
++  #demo-vue-large { width: 32px !important; padding: 0 !important; }
++  #demo-vue-large .demo-nom { display: none !important; }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-petit-ecran (14/11) :
++   (1) « sur petit écran, il faut resserrer un peu les onglets » : à 1024 px l'onglet Paroles touchait (puis recouvrait) les boutons annuler / rétablir : onglets de 132 px sous 1280 px,
++       raccourcis par paliers (112, 104, puis largeur naturelle) et pastille de compte plafonnée ;
++   (2) « au petit écran, tous les outils du séquenceur sur une seule ligne » : les rythmes types perdent leur NOM (la vignette et l'infobulle restent), puis, sous 960 px, seuls « + » et le signet
++       restent : le signet ouvre la liste de tous les rythmes dans sa popover ;
++   (3) « si les mesures sont trop étroites, un scroll horizontal » : le séquenceur défile de côté, la barre d'outils et la colonne des notes restent en place. */
++@media (min-width: 900px) {
++  .sq-outils { flex-wrap: nowrap !important; position: sticky; left: 0; }
++  .sq-motifs { flex-wrap: nowrap !important; }
++  #sequenceur { overflow-x: auto !important; }
++  #sq-grille .sq-etiq, #sq-grille .sq-libre-btn { position: sticky; left: 0; z-index: 4; }
++}
++@media (min-width: 900px) and (max-width: 1279px) {
++  .tb-onglets > button { min-width: 112px !important; }
++}
++@media (min-width: 900px) and (max-width: 1179px) {
++  #compte-cloud { width: auto !important; max-width: 170px !important; overflow: hidden; }
++}
++@media (min-width: 900px) and (max-width: 1339px) {
++  .demo-rien-ne-change-ici { font-size: 0 !important; gap: 0 !important; padding: 0 8px !important; }
++  .sq-motif .sq-vignette { font-size: 12px; }
++}
++@media (min-width: 900px) and (max-width: 1099px) {
++  .tb-onglets > button { min-width: 104px !important; }
++}
++@media (min-width: 900px) and (max-width: 999px) {
++  .tb-onglets > button { min-width: 0 !important; padding-left: 10px !important; padding-right: 10px !important; }
++  #compte-cloud { max-width: 150px !important; }
++}
++@media (min-width: 900px) and (max-width: 1019px) {
++  .sq-motif:not(#sq-motif-main) { display: none !important; }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-mesure-texte (14/11, « modifie le texte pour me montrer que je suis sur la première mesure, je ne le trouve pas très joli […] au plus logique ») :
++   « Mes. 1 » devient un petit libellé « MESURE » au-dessus du numéro en grand, suivi du total (« 1 / 8 ») : on voit où on en est dans le morceau. Ordinateur seulement. */
++@media (min-width: 900px) {
++  #bl-mesure { display: inline-flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; line-height: 1; min-width: 58px; }
++  #bl-mesure .bm-lab { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted, #8b949f); }
++  #bl-mesure .bm-val { display: inline-flex; align-items: baseline; gap: 4px; font-variant-numeric: tabular-nums; }
++  #bl-mesure .bm-val b { font-size: 20px; font-weight: 800; color: var(--text-main, #e6e9ee); }
++  #bl-mesure .bm-val i { font-style: normal; font-size: 12px; font-weight: 600; color: var(--text-muted, #8b949f); }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-tel-section (14/11, « au téléphone, le bouton d'ajout de section ne doit pas prendre une ligne à lui tout seul. Place-le ailleurs ») :
++   au téléphone « Ajouter section » quitte sa ligne et se range dans celle du bouton « Fichiers » (en bas de la grille) : « + Section » à gauche, « Fichiers » à droite. */
++@media (max-width: 899px) {
++  .viz-export-actions.demo-tel-ligne { display: flex !important; align-items: center; justify-content: space-between; gap: 8px; width: 100%; }
++  .viz-export-actions.demo-tel-ligne #add-section { margin: 0; width: auto; flex: none; height: 32px; padding: 0 12px; }
++  .viz-export-actions.demo-tel-ligne #file-menu-btn { margin-left: auto; }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-section-visible (14/11, « on voit pas le bouton sous l'onglet […] j'aimerais quand même voir un bouton ajouter section quelque part ») :
++   le bandeau « + Section » n'était visible qu'au survol (texte et trait transparents au repos) : il est maintenant TOUJOURS visible (trait en pointillés, texte atténué, « Ajouter section »)
++   et reste collé en bas de la zone de la grille quand la liste des parties est longue. Le clic droit dans le vide de la grille est conservé. */
++@media (min-width: 900px) {
++  #demo-section-bas { color: var(--text-muted, #8b949f); border-color: #3a4048; border-style: dashed; position: sticky; bottom: 4px; z-index: 3; background: rgba(17, 18, 20, .92); }
++  #demo-section-bas:hover, #demo-section-bas:focus-visible { color: var(--text, #e6e9ee); border-color: #4f86d6; background: rgba(31, 53, 80, .55); }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-toast (14/11, « je ne veux plus l'alerte du son de secours du piano […] les bords sont largement arrondis et des fois le texte dépasse de l'encadré ») :
++   les petits messages (.toast) passent de la pilule (rayon 999 px, qui laissait le texte sortir dès qu'il se mettait sur deux lignes) à 12 px, le rayon des éléments flottants,
++   avec retour à la ligne, largeur bornée et texte centré. */
++.toast { border-radius: 12px !important; max-width: min(92vw, 480px); width: max-content; white-space: normal; text-align: center; line-height: 1.35; box-sizing: border-box; overflow-wrap: anywhere; }
++</style>
++<style>
++/* APERÇU (artefact) demo-onglets-accord (14/11, retours sur « Réglages du son ») :
++   « au lieu de Son, appelle cela Voicing » ; « pas réafficher la fondamentale et le type sur l'onglet Voicing » ; « sur grand écran aussi, gérer l'ajout ou la modification d'accords via des onglets » ;
++   « le bouton Réglages du son n'est pas compréhensible » et « une fenêtre flottante apparaît ailleurs : si quelque chose s'affiche, c'est dans un autre onglet ou en dessous » ;
++   « la couleur bleue pour la modification d'un accord : blanc ou vert ».
++   ORDINATEUR : la bulle d'accord a trois onglets Accord | Voicing | Rythme ; Voicing contient octave / renversement / drop DANS la bulle (plus d'inspecteur flottant ni de bouton « Réglages du son »).
++   TÉLÉPHONE : l'onglet « Son » devient « Voicing » et ne répète plus fondamentale, type ni durée ; le bouton « Réglages du son » du pied disparaît ; onglet actif en vert. */
++#bulle-accord .bulle-son { display: none !important; }
++#bulle-accord .demo-onglets { display: flex; align-items: stretch; gap: 0; margin: 2px -2px 8px; border-bottom: 1px solid #2b3037; }
++#bulle-accord .demo-onglets button { flex: 1; height: 34px; border: 0; background: transparent; color: #98a2b3; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; position: relative; border-radius: 7px 7px 0 0; }
++#bulle-accord .demo-onglets button:hover { color: #e6e9ee; background: rgba(255,255,255,.04); }
++#bulle-accord .demo-onglets button[aria-pressed="true"] { color: #4fd08f; background: rgba(79,208,143,.07); box-shadow: inset 0 -3px 0 #4fd08f; }
++#bulle-accord[data-demo-onglet="voicing"] > .demo-accord, #bulle-accord[data-demo-onglet="rythme"] > .demo-accord { display: none !important; }
++#bulle-accord:not([data-demo-onglet="voicing"]) > .demo-pane-voicing, #bulle-accord:not([data-demo-onglet="rythme"]) > .demo-pane-rythme { display: none !important; }
++#bulle-accord .demo-pane-voicing { padding: 4px 2px 10px; }
++#bulle-accord .demo-pane-voicing #voicing-row { display: flex !important; flex-wrap: wrap; gap: 14px 18px; align-items: flex-end; }
++#bulle-accord .demo-pane-rythme { padding: 8px 4px 14px; display: grid; gap: 10px; color: #98a2b3; font-size: 13px; line-height: 1.45; }
++#bulle-accord .demo-pane-rythme button { justify-self: start; height: 32px; padding: 0 14px; border-radius: 7px; border: 1px solid #3f4650; background: transparent; color: #e6e9ee; font: inherit; cursor: pointer; }
++/* l'inspecteur flottant ne s'affiche plus tant que l'onglet Voicing de la bulle le tient */
++body.demo-voicing-bulle .sidebar-frame { visibility: hidden !important; pointer-events: none; }
++@media (max-width: 899px) {
++  .pa-son-btn { display: none !important; }
++  #pa-quel:has(.pa-onglets button[data-valeur="son"][aria-pressed="true"]) > :nth-child(n+3):nth-child(-n+7) { display: none !important; }
++}
++/* retaper le nom d'un accord : le texte sélectionné n'est plus surligné en bleu mais en BLANC (le contour du champ reste vert) */
++.cell-sym-input::selection, #bulle-accord input::selection { background: rgba(255,255,255,.88); color: #101214; }
++/* onglet actif en VERT (comme Grille / Structure / Paroles), plus de bleu */
++#pa-quel .pa-onglets button[aria-pressed="true"] { background: rgba(79,208,143,.08) !important; color: #4fd08f !important; box-shadow: inset 0 -3px 0 #4fd08f !important; border-color: transparent !important; }
++</style>
++<style>
++/* APERÇU (artefact) demo-rythme-bulle (14/11, « pour le rythme, propose un petit séquenceur qui s'adaptera dans le grand séquenceur en bas […] si c'est trop compliqué, on ne le met pas en place ») :
++   l'onglet Rythme de la fenêtre d'accord montre les rythmes types (même vignettes que la barre du séquenceur) : un clic l'applique à CET accord, le séquenceur du bas se met à jour ; le détail note par note reste au grand séquenceur. */
++#bulle-accord .demo-rythmes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; width: 100%; box-sizing: border-box; align-self: stretch; }
++#bulle-accord .demo-rythmes button { height: auto; min-height: 58px; padding: 8px 6px 6px; display: grid; justify-items: center; align-content: center; gap: 6px; border: 1px solid #343a43; border-radius: 7px; background: transparent; color: #cfd5dd; font: inherit; font-size: 12px; cursor: pointer; }
++#bulle-accord .demo-rythmes button:hover { border-color: #4a525d; background: rgba(255,255,255,.04); }
++#bulle-accord .demo-rythmes button[aria-pressed="true"] { border-color: #4fd08f; color: #4fd08f; background: rgba(79,208,143,.08); }
++#bulle-accord .demo-rythmes button:disabled { opacity: .45; cursor: default; }
++#bulle-accord .demo-rythmes .sq-vignette { margin: 0; zoom: 1.25; }
++#bulle-accord .demo-rythmes button { padding: 8px 2px 6px; min-height: 60px; min-width: 0 !important; width: 100% !important; box-sizing: border-box; justify-self: stretch; }
++#bulle-accord .demo-rythmes button > span:not(.sq-vignette) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
++</style>
++<style>
++/* APERÇU (artefact) demo-tel-plus (14/11, « au téléphone, je n'aime pas trop ce bouton plus à la suite qui n'est pas très compréhensible ») :
++   le « + » nu au bout de chaque ligne d'accords dit son nom au téléphone : « + Accord » (même case pointillée verte, texte vert). */
++@media (max-width: 899px) {
++  .grid-cell-add .cell-add-input { font-size: 12px; font-weight: 700; text-align: center; padding: 0 2px; }
++  .grid-cell-add .cell-add-input::placeholder { color: #00e676; opacity: .95; }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-moins-de-legendes (14/11, « enlève le plus de légendes possible dans l'application pour gagner de la place ») : les phrases d'aide sous les fenêtres et les panneaux disparaissent
++   (rr-aide : bulle d'accord et panneau d'accord ; struct-aide : onglet Structure ; tap-aide : réglage d'affichage du téléphone ; vues-aide : tiroir Clavier / Guitare). Les infobulles (title) restent. */
++.rr-aide, .struct-aide, .tap-aide, .vues-aide, #vues-aide, #tel-affichage-aide { display: none !important; }
++/* téléphone : le « + » nu au bout de chaque ligne disparaît, remplacé par « + Accord » dans l'en-tête de la partie */
++@media (max-width: 899px) {
++  .grid-cell-add { display: none !important; }
++  .prog-section-head .demo-tel-ajout { flex: none; min-width: 0 !important; width: auto !important; height: 28px; padding: 0 8px; border-radius: 7px; border: 1px solid #343a43; background: transparent; color: #98a2b3; font: inherit; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; margin-left: auto; }
++  .prog-section-head .demo-tel-ajout:active { color: #e6e9ee; border-color: #4a525d; }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-noms-rythmes (14/11, « dans les options, laisser afficher les noms sur les rythmes ou pas » ; « essaye d'aligner les boutons » ; « à droite de la corbeille, il n'y a pas le même espace qu'à gauche »)
++   Paramètres › Affichage : interrupteur « Noms des rythmes » (par appareil ; sans réglage : oui au-dessus de 1240 px, non en dessous, téléphone compris).
++   Téléphone : les trois rangées d'outils du séquenceur remplissent toute la largeur, mêmes marges à gauche et à droite. */
++body.demo-sans-noms-rythmes .sq-motif { font-size: 0 !important; gap: 0 !important; padding: 0 8px !important; }
++body.demo-sans-noms-rythmes .sq-motif .sq-vignette { font-size: 12px; }
++@media (max-width: 899px) {
++  .pa-rythme .sq-motifs { width: 100%; justify-content: space-between; overflow-x: visible; flex-wrap: nowrap; }
++  .pa-rythme .sq-motifs .sq-motif:not(#sq-forme-enregistrer) { flex: 1 1 0; min-width: 0; justify-content: center; }
++  .pa-rythme .sq-motifs .icon-btn { flex: none; }
++  .pa-rythme .sq-outils .sq-seg { flex: 1 1 auto; }
++  .pa-rythme .sq-outils .sq-seg button { flex: 1; justify-content: center; }
++  .pa-rythme .sq-outils .sq-rythme { width: 100%; gap: 6px; }
++  .pa-rythme .sq-outils .sq-rythme button { flex: 1; width: auto; }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-minigrille (14/11, « représenter en très petite miniature la grille que j'ai rentrée pour voir où j'en suis, par exemple mettre en surbrillance la case 3 sur 4 du couplet ») :
++   dans la fenêtre d'accord (ordinateur) et le panneau d'accord (téléphone), sous l'en-tête : une miniature de TOUTE la grille, une ligne par partie, un petit rectangle par accord
++   (largeur proportionnelle à sa durée), l'accord en cours en clair. Elle ne se clique pas : les flèches ‹ › de l'en-tête restent le seul moyen de changer d'accord. */
++.demo-mini { display: none !important; display: grid; gap: 5px; margin: 2px 0 8px; padding: 6px 8px; border-radius: 7px; background: rgba(255,255,255,.035); max-height: 96px; overflow: hidden; pointer-events: none; }
++.demo-mini .dm-sec { display: grid; gap: 2px; }
++.demo-mini .dm-ligne { display: flex; gap: 2px; height: 6px; }
++.demo-mini .dm-case { flex-basis: 0; min-width: 3px; border-radius: 2px; background: #3a4048; }
++.demo-mini .dm-case.cour { background: #e6e9ee; box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
++.demo-mini .dm-ligne.cour .dm-case:not(.cour) { background: #4a525d; }
++</style>
++<style>
++/* APERÇU (artefact) demo-tel-bas (14/11, « le plus section doit être un petit bouton gris, sobre comme sur ordinateur ; les boutons Fichiers et les diagrammes d'accord tout en bas, au-dessus de la barre de lecture ») :
++   téléphone : « + Section » reste sous la dernière partie mais devient un petit bouton gris en pointillés ; Clavier / Guitare et Fichiers forment une bande fixe juste au-dessus de la barre de lecture. */
++@media (max-width: 899px) {
++  #add-section { height: 28px; padding: 0 10px; border-radius: 7px; border: 1px dashed #3a4048; background: transparent; box-shadow: none; color: #8b949f; font-size: 12px; font-weight: 600; width: auto; min-width: 0; justify-self: start; }
++  #add-section .icon { width: 14px; height: 14px; }
++  .viz-wrap { position: fixed; left: 12px; right: 12px; bottom: calc(var(--haut-barre-lecture, 68px) + 8px); z-index: 12; display: flex !important; align-items: center; justify-content: space-between; gap: 8px; height: auto; min-height: 0; margin: 0; padding: 0; pointer-events: none; }
++  .viz-wrap > * { pointer-events: auto; }
++  .viz-wrap .viz-card { margin: 0; }
++  .viz-wrap .viz-export-actions { margin: 0 0 0 auto; width: auto; }
++  main { padding-bottom: calc(var(--haut-barre-lecture, 68px) + 82px); }
++  body:has(#panneau-accord:not([hidden])) .viz-wrap { display: none !important; }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-tel-seq (14/11) :
++   (1) « le bouton plus section est apparu au-dessus de la grille, au-dessus de couplet […] je voudrais le voir uniquement si je scrolle : tout en bas, juste sous la grille » : au chargement le bouton (statique dans la page) s'affichait avant que la grille
++       ne soit dessinée ; il est maintenant caché tant que la grille est vide, et la zone des parties occupe au moins la hauteur de l'écran, donc le bouton n'apparaît qu'en défilant (juste sous la dernière partie quand la liste est longue) ;
++   (2) « ajoute le petit bouton séquenceur juste à gauche du bouton fichier » : un bouton Séquenceur (logo seul) dans la bande du bas du téléphone, à gauche de Fichiers : un seul geste au lieu de deux. */
++@media (max-width: 899px) {
++  #progression-sections:empty ~ #add-section, #progression-sections:empty ~ .grille-poignee { display: none !important; }
++  #progression-sections { min-height: calc(100dvh - 270px); }
++  .viz-wrap .viz-export-actions { display: flex; align-items: center; gap: 8px; }
++  .tel-reglages-ligne .demo-tel-seq { flex: 0 0 44px; min-width: 0 !important; width: 44px !important; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; border: 1px solid #2f9467; background: var(--fond-bouton-sombre, #1b1f25); color: #4fd08f; cursor: pointer; }
++  .tel-reglages-ligne .demo-tel-seq svg { width: 20px; height: 20px; }
++}
++</style>
++<style>
++/* APERÇU (artefact) demo-ajout-pop (14/11, « si je double-clique sur le plus, afficher un popover comme la modification d'un accord : je n'aurais pas toujours envie d'utiliser le clavier ») :
++   ordinateur : un double-clic sur le « + » du bout d'une partie ouvre une fenêtre à la manière de celle de l'accord (fondamentale, type) ; « Ajouter » pose l'accord à la fin de la partie
++   et la fenêtre reste ouverte pour enchaîner. */
++#demo-ajout-pop { position: fixed; z-index: 96; width: 404px; max-width: calc(100vw - 16px); padding: 12px; border-radius: 12px; background: var(--surface-overlay, #151719); border: 1px solid #343a43; box-shadow: 0 10px 28px rgba(0,0,0,.5); color: #e6e9ee; box-sizing: border-box; }
++#demo-ajout-pop[hidden] { display: none; }
++#demo-ajout-pop .ap-tete { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-weight: 600; font-size: 14px; }
++#demo-ajout-pop .ap-tete button { width: 32px; height: 32px; border-radius: 7px; border: 1px solid #343a43; background: transparent; color: #cfd5dd; cursor: pointer; }
++#demo-ajout-pop .ap-pied { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 10px; }
++#demo-ajout-pop .ap-pied .ap-nom { margin-right: auto; color: #98a2b3; font-size: 13px; }
++#demo-ajout-pop .ap-pied button { height: 32px; padding: 0 16px; border-radius: 7px; border: 1px solid #4a525d; background: #222831; color: #e6e9ee; font: inherit; font-weight: 600; cursor: pointer; }
++#demo-ajout-pop .ap-pied button:hover { background: #2a313b; }
++</style>
++<style>
++/* APERÇU (artefact) demo-repere (14/11, « ok, tu peux faire comme cela alors ») : sous l'en-tête de la fenêtre / du panneau d'accord, UNE ligne fine : le nom de la partie puis un segment par accord de cette partie,
++   l'accord en cours en clair (jamais de retour à la ligne, hauteur fixe, plus de miniature de la grille). */
++.demo-repere { display: flex; align-items: center; gap: 10px; margin: 2px 0 8px; padding: 0 2px; height: 14px; pointer-events: none; }
++.demo-repere .dr-nom { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 600; color: #8b949f; }
++.demo-repere .dr-seg { flex: 1; display: flex; gap: 2px; min-width: 0; }
++.demo-repere .dr-case { flex: 1 1 0; min-width: 2px; height: 6px; border-radius: 2px; background: #3a4048; }
++.demo-repere .dr-case.cour { background: #e6e9ee; }
++</style>
++<style>/* demo-vu-seq (14/11) : « un trait continu avec une lumière un petit peu diffuse » sous les cases montrées par le séquenceur ; « je ne veux pas de séquenceur inerte » ;
++   « changer de ligne automatiquement sans avoir à recliquer sur les accords en dessous » (chevrons ▲ ▼ dans le coin du séquenceur, et suivi de la lecture). Ordinateur seulement. */
++@media (min-width: 900px) {
++  #progression-sections .chord-grid { position: relative; }
++  .demo-vu-trait { position: absolute; height: 3px; border-radius: 3px; pointer-events: none; z-index: 4;
++    background: linear-gradient(90deg, #8ea6c6, #b4c6df 50%, #8ea6c6);
++    box-shadow: 0 0 6px 1px rgba(142,166,198,.55), 0 0 14px 3px rgba(142,166,198,.22); transition: left .18s, width .18s, top .18s; }
++  /* navigation de ligne : une capsule « ▲ ▯ Couplet · 1/2 ▼ » juste à droite des rythmes ; son petit trait lumineux reprend celui qui souligne la ligne dans la grille */
++  .demo-sq-ligne { display: inline-flex; align-items: center; flex: 0 0 auto; height: 32px; margin-left: 12px; gap: 4px; }
++  /* deux boutons carrés SÉPARÉS (comme « ‹ 4 mes. › » du haut), jamais une capsule : une capsule avec une flèche au bout se lit comme un menu déroulant (retour du 14/11) */
++  .demo-sq-ligne .icon-btn { width: 32px; height: 32px; min-width: 0; padding: 0; border: 1px solid #5d6f88; background: rgba(127,147,173,.12); color: #cfe0f5; border-radius: 7px; }
++  .demo-sq-ligne .icon-btn:hover:not(:disabled) { background: rgba(127,147,173,.30); border-color: #8ea6c6; color: #fff; }
++  .demo-sq-ligne .icon-btn:disabled { opacity: .55; cursor: default; color: #7f8da1; border-color: #3a4250; background: transparent; }
++  .demo-sq-ligne .dsl-txt { display: inline-flex; align-items: center; gap: 7px; padding: 0 4px 0 0; font-size: 12px; font-weight: 600; color: #e6e9ee; white-space: nowrap; }
++  .demo-sq-ligne .dsl-trait { width: 16px; height: 3px; border-radius: 3px; background: linear-gradient(90deg, #8ea6c6, #b4c6df 50%, #8ea6c6); box-shadow: 0 0 6px 1px rgba(142,166,198,.55); }
++  .demo-sq-ligne .dsl-n { color: #b4c6df; font-weight: 500; }
++  .demo-sq-ligne .dsl-n:empty { display: none; }
++  @media (max-width: 1499px) { .demo-sq-ligne .dsl-nom { display: none; } .demo-sq-ligne { margin-left: 8px; } }
++  .demo-sq-ligne svg { width: 20px; height: 20px; stroke-width: 2.6; }
++}
++@media (max-width: 899px) { .demo-sq-ligne, .demo-vu-trait { display: none !important; } }
++</style>
++<style>/* demo-resume-aligne (14/11, « aligne la barre avec l'onglet Paroles sur la droite […] les boutons le plus alignés possible ») : au téléphone, la barre-résumé (« C · 120 BPM · 4/4 ») va du bord gauche
++   des onglets (10 px) au bord droit de l'onglet Paroles, et le bouton carré (affichage de la grille) se range sous le bouton Annuler (même largeur, même écart de 6 px). Le bord droit des onglets
++   est à (largeur − 60 px) : la même règle vaut de 320 à 900 px. */
++@media (max-width: 899px) {
++  .tel-reglages-ligne { margin-left: -10px; margin-right: -10px; gap: 6px; } /* 10 → largeur − 10 px : les trois boutons tombent sous Paroles, Annuler et Rétablir */
++  .tel-reglages-ligne #song-summary { flex: 1 1 auto; min-width: 0; width: auto; }
++  .tel-reglages-ligne #tel-affichage { width: 44px; min-width: 44px; flex: 0 0 44px; }
++}
++</style>
++<style>/* demo-legendes (14/11, « j'ai vraiment pas besoin de ces légendes, sauf si elles sont vraiment utiles ») : les phrases d'aide de l'historique des versions disparaissent (leur message
++   « Restaurer remet la version dans le brouillon… » est repris par l'infobulle du bouton) ; restent les messages d'ERREUR / d'indisponibilité (`.hist-indispo`), qui expliquent un état. */
++.hist-aide:not(.hist-indispo) { display: none !important; }
++</style>
+ </head>
+ <body>
+     <!-- BARRE DU HAUT (refonte, lot 3 — docs/refonte.md). Trois colonnes : à gauche le logo SEUL, le nom du morceau (un bouton qui ouvre
+@@ -972,9 +1573,7 @@
+                                 </button>
+                                 <button type="button" id="toggle-metronome" class="icon-btn icon-btn-lg" title="Garder le métronome pendant la lecture de la grille" aria-label="Garder le métronome pendant la lecture de la grille">
+                                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+-                                        <path d="M7 20h10L14 5h-4L7 20Z"/>
+-                                        <path d="M12 15V8"/>
+-                                        <circle cx="12" cy="6" r="1" fill="currentColor" stroke="none"/>
++                                        <path d="M10.6 2.6h2.8l4.1 18.8H6.5Z"/><path d="M7.7 17h8.6"/><path d="M12.1 13.8 18.7 6.2"/>
+                                     </svg>
+                                 </button>
+                             </div>
+@@ -1653,11 +2252,12 @@
+                     </button>
+                     <button type="button" id="toggle-viz-guitar" class="icon-btn viz-toggle-btn" title="Afficher la guitare" aria-label="Afficher la guitare" aria-pressed="false">
+                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+-                            <g transform="rotate(-32 12 13)">
+-                                <path d="M12 7C14.8 7 16.5 8.6 16.5 10.6C16.5 11.8 15.7 12.5 14.8 13.2C13.8 14 13.4 14.6 13.4 15.7C13.4 18.2 15.2 18.6 16.4 19.4C17.7 20.2 18.3 21.4 16.8 22.6C15.3 23.7 13.2 24 12 24C10.8 24 8.7 23.7 7.2 22.6C5.7 21.4 6.3 20.2 7.6 19.4C8.8 18.6 10.6 18.2 10.6 15.7C10.6 14.6 10.2 14 9.2 13.2C8.3 12.5 7.5 11.8 7.5 10.6C7.5 8.6 9.2 7 12 7Z"/>
+-                                <circle cx="12" cy="10.6" r="1.7"/>
+-                                <path d="M12 7V1.5"/>
+-                                <rect x="9.3" y="-0.3" width="5.4" height="2.2" rx="0.6"/>
++                            <g transform="rotate(40 12 11.6)">
++                                <path d="M12 8.6C14.3 8.6 15.7 9.8 15.7 11.5C15.7 12.7 14.7 13.3 14.7 14.4C14.7 15.3 16 15.9 16.7 17.2C17.6 19 16.8 22.6 12 22.6C7.2 22.6 6.4 19 7.3 17.2C8 15.9 9.3 15.3 9.3 14.4C9.3 13.3 8.3 12.7 8.3 11.5C8.3 9.8 9.7 8.6 12 8.6Z"/>
++                                <circle cx="12" cy="15.4" r="1.6"/>
++                                <path d="M10.4 19.4H13.6"/>
++                                <path d="M12 8.6V3.6"/>
++                                <rect x="10.3" y="0.7" width="3.4" height="3" rx="0.7"/>
+                             </g>
+                         </svg>
+                     </button>
+@@ -1698,7 +2298,7 @@
+                     </button>
+                     <button type="button" id="file-menu-btn" class="icon-btn file-menu-btn" title="Importer / exporter (PDF, MIDI, MP3, sauvegarde)" aria-label="Importer / exporter" aria-haspopup="menu" aria-expanded="false">
+                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+-                        <span class="btn-label">Fichier</span>
++                        <span class="btn-label">Fichiers</span>
+                     </button>
+                 </div>
+                 <input type="file" id="import-midi-input" accept=".mid,.midi,audio/midi,audio/x-midi" hidden>
+@@ -1743,7 +2343,7 @@
+                 <button type="button" id="sq-motif-descend" class="sq-motif" data-sq-motif="descend" aria-pressed="false"><span class="sq-vignette" aria-hidden="true"></span><span>Arpège ↓</span></button>
+                 <button type="button" id="sq-motif-pompe" class="sq-motif" data-sq-motif="pompe" aria-pressed="false"><span class="sq-vignette" aria-hidden="true"></span><span>Pompe</span></button>
+                 <button type="button" id="sq-motif-ballade" class="sq-motif" data-sq-motif="ballade" aria-pressed="false"><span class="sq-vignette" aria-hidden="true"></span><span>Ballade</span></button>
+-                <button type="button" id="sq-motif-main" class="sq-motif" data-sq-motif="main" aria-pressed="false" title="À la main : s'allume dès qu'on retouche une note"><span class="sq-vignette" aria-hidden="true"></span><span>À la main</span></button>
++                <button type="button" id="sq-motif-main" class="sq-motif" data-sq-motif="main" aria-pressed="false" title="« + » : à la main — s'allume dès qu'on retouche une note"><span class="sq-vignette" aria-hidden="true"></span><span>+</span></button>
+                 <!-- Les formes enregistrées par l'utilisateur (vignette, nom, ×), au compte : synchro-formes.js ; dessinées par sequenceur.js. -->
+                 <span id="sq-formes" class="sq-formes"></span>
+                 <!-- Enregistrer la forme : logo « marque-page » repris tel quel de TrainHub (réglages de paliers enregistrés du métronome). -->
+@@ -1760,16 +2360,16 @@
+             <span class="sq-espace"></span>
+             <!-- Vue « Toutes les notes » (planche 2) : une ligne par hauteur utilisée par la partie, pour poser une note hors de l'accord. -->
+             <div class="sq-seg" role="group" aria-label="Lignes du séquenceur">
+-                <button type="button" id="sq-vue-voix" aria-pressed="true">Voix</button>
+-                <button type="button" id="sq-vue-notes" aria-pressed="false">Toutes les notes</button>
++                <button type="button" id="sq-vue-voix" aria-pressed="true" title="Les accords : une ligne par note de l’accord (4 lignes pour une septième)"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="width:16px;height:16px;margin-right:5px;vertical-align:-3px"><path d="M6 6h12M6 10.5h12M6 15h12M6 19.5h12"/></svg>Accords</button>
++                <button type="button" id="sq-vue-notes" aria-pressed="false" title="Piano : toutes les hauteurs de la partie, pour poser une note hors de l’accord (comme un piano-roll)"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:16px;height:16px;margin-right:5px;vertical-align:-3px"><rect x="3" y="3" width="6" height="18" rx="1.5"/><path d="M13 7h8M13 12h5M13 17h8"/></svg>Piano</button>
+             </div>
+             <div class="sq-seg" role="group" aria-label="Le motif s'applique à">
+-                <button type="button" id="sq-portee-partie" aria-pressed="true">Toute la partie</button>
+-                <button type="button" id="sq-portee-accord" aria-pressed="false">Cet accord</button>
++                <button type="button" id="sq-portee-partie" aria-pressed="true" aria-label="Toute la partie" title="Toute la partie : le rythme choisi s’applique à tous les accords de la partie"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px;vertical-align:-5px"><rect x="3.2" y="6" width="3.4" height="12" rx="1.3" fill="currentColor"/><rect x="10.3" y="6" width="3.4" height="12" rx="1.3" fill="currentColor"/><rect x="17.4" y="6" width="3.4" height="12" rx="1.3" fill="currentColor"/></svg></button>
++                <button type="button" id="sq-portee-accord" aria-pressed="false" aria-label="Cet accord" title="Cet accord : le rythme choisi ne s’applique qu’à l’accord sélectionné dans la grille"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px;vertical-align:-5px"><rect x="3.2" y="6" width="3.4" height="12" rx="1.3" /><rect x="10.3" y="6" width="3.4" height="12" rx="1.3" fill="currentColor"/><rect x="17.4" y="6" width="3.4" height="12" rx="1.3" /></svg></button>
+             </div>
+             <!-- Logo du mode studio, repris tel quel (ICONS.studio de script.js). -->
+-            <button type="button" id="sq-intensite" class="icon-btn" aria-pressed="false" aria-label="Intensité">
+-                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21v-6"/><path d="M5 11V3"/><circle cx="5" cy="13" r="2" fill="currentColor" stroke="none"/><path d="M12 21v-2"/><path d="M12 15V3"/><circle cx="12" cy="17" r="2" fill="currentColor" stroke="none"/><path d="M19 21v-10"/><path d="M19 7V3"/><circle cx="19" cy="9" r="2" fill="currentColor" stroke="none"/></svg>
++            <button type="button" id="sq-intensite" class="icon-btn" aria-pressed="false" aria-label="Intensité des notes" title="Intensité des notes : doux, normal, fort — touchez une note pour changer son intensité">
++                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><text x="12" y="13" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-weight="700" font-size="15" fill="currentColor" stroke="none">mf</text><path d="M3.5 19.5l17-3.2M3.5 19.5l17 3.2" transform="translate(0 -1)"/></svg>
+             </button>
+             <!-- Mode « Dessiner » (au doigt seulement, voir style.css) : le doigt peint d'un trait une note tenue au lieu de faire défiler. Logo du crayon de l'appli (ICONS.pencil de script.js), repris tel quel. -->
+             <button type="button" id="sq-dessin" class="icon-btn" aria-pressed="false" aria-label="Dessiner">
+@@ -2076,12 +2676,1434 @@
+     <!-- Les formes du séquenceur (au compte) : AVANT sequenceur.js, qui s'y abonne à sa construction ; la connexion (SYNCHRO) n'est lue qu'à l'usage. -->
+     <script src="synchro-formes.js?v=202611131800"></script>
+     <script src="sequenceur.js?v=202611131800"></script>
+-    <script src="script.js?v=202611132300"></script>
++    <script src="script.js?v=202611132100"></script>
+     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
+          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
+          `typeof` : rien ne casse s'il manque. -->
+-    <script src="synchro-harmohub.js?v=202611132300"></script>
++    <script src="synchro-harmohub.js?v=202611060100"></script>
+     <!-- Les versions au cloud (sous-lot « Versions au cloud ») : après l'adaptateur, dont elles réutilisent la connexion (SYNCHRO). -->
+     <script src="synchro-versions.js?v=202611060400"></script>
++<span id="demo-lect"></span>
++<script>
++(function () {
++  function lire() { var c = document.querySelector('#sq-grille .sq-case[data-r]'), l = document.getElementById('demo-lect'); if (!c || !l) return; var b = c.getBoundingClientRect(); l.textContent = 'ligne ' + Math.round(b.height) + ' px · croche ' + (Math.round(b.width * 10) / 10) + ' px'; }
++  function proposer() { var a = window.app; if (!a || !a.sequenceur) return; window.REGLE_CROCHE = 34; a.sequenceur.ligne = 26; a.sequenceur.rafraichir(); setTimeout(lire, 60); }
++  window.addEventListener('resize', function () { setTimeout(lire, 200); });
++  setInterval(lire, 800);
++  setTimeout(function () { var s = document.getElementById('sequenceur'), b = document.getElementById('vue-sequenceur'); if (s && s.hidden && b) b.click(); setTimeout(proposer, 300); }, 1800);
++})();
++</script>
++<script>
++(function () {
++  var essais = 0;
++  var t = setInterval(function () {
++    var a = window.app;
++    if (a && a.sequenceur && document.getElementById('rangee-reglages') && document.getElementById('grille-densites')) { clearInterval(t); go(a); }
++    else if (++essais > 80) clearInterval(t);
++  }, 250);
++  function go(a) {
++    var b = document.getElementById('vue-sequenceur'), r = document.getElementById('rangee-reglages');
++    var gd = document.getElementById('grille-densites');
++    function caler() { var rr = document.getElementById('rangee-reglages'), q = document.getElementById('vue-sequenceur'); if (!rr || !q) return; var m = rr.getBoundingClientRect(); q.style.position = 'fixed'; var vc = document.getElementById('demo-vue-large'); q.style.right = (12 + (vc && vc.offsetParent !== null || vc && getComputedStyle(vc).display !== 'none' ? Math.round(vc.getBoundingClientRect().width) : 0) + 12) + 'px'; q.style.left = 'auto'; q.style.top = Math.round(m.top + (m.height - 32) / 2) + 'px'; q.style.zIndex = 50; }
++    setInterval(caler, 500); window.addEventListener('resize', caler);
++    if (b && gd && gd.parentNode) { gd.parentNode.appendChild(b); if (!b.querySelector('.demo-nom')) { var sp = document.createElement('span'); sp.className = 'demo-nom'; sp.textContent = 'Séquenceur'; b.appendChild(sp); } }
++    var main = document.querySelector('[data-sq-motif="main"]');
++    if (main && main.parentNode) main.parentNode.insertBefore(main, main.parentNode.querySelector('[data-sq-motif]'));
++    var g = document.getElementById('grille-densites');
++    var n = 4, choix = [2, 3, 4, 5, 6, 7, 8];
++    g.innerHTML = '<span class="dm-lab">Vue</span><button type="button" class="dm-btn" data-dm="-1" aria-label="Une mesure de moins par ligne">‹</button><span class="dm-val" id="dm-val" aria-live="polite">4</span><button type="button" class="dm-btn" data-dm="1" aria-label="Une mesure de plus par ligne">›</button>';
++    // RÈGLE (aperçu) : chaque croche garde 14 px au moins (une mesure = 8 croches = 112 px), donc la ligne ne peut pas montrer plus de
++    // ⌊(largeur de la fenêtre − 54 px d'étiquettes − 24 px de marges) / 112⌋ mesures, au plus 8, au moins 2.
++    function maxMesures() { return Math.max(2, Math.min(8, Math.floor((window.innerWidth - 54 - 24) / 112))); }
++    function appliquer() {
++      if (n > maxMesures()) n = maxMesures();
++      choix = [2, 3, 4, 5, 6, 7, 8].filter(function (x) { return x <= maxMesures(); });
++      document.getElementById('dm-val').textContent = n;
++      g.querySelector('[data-dm="-1"]').disabled = n <= choix[0]; g.querySelector('[data-dm="1"]').disabled = n >= choix[choix.length - 1];
++      try { a.setZoomLevel('classicGrid', 'x', 4 / n); a.grilleLargeur = Math.max(360, Math.min(1100, n * 115)); a.appliquerLargeurGrille(); a.loadProgression(); setTimeout(function () { a.sequenceur.rafraichir(); }, 120); } catch (err) {}
++    }
++    window.addEventListener('resize', function () { var avant = n; if (n > maxMesures()) appliquer(); else { choix = [2, 3, 4, 5, 6, 7, 8].filter(function (x) { return x <= maxMesures(); }); g.querySelector('[data-dm="1"]').disabled = n >= choix[choix.length - 1]; } });
++    setTimeout(appliquer, 300);
++    g.addEventListener('click', function (e) { var x = e.target.closest('[data-dm]'); if (!x || x.disabled) return; n = Math.max(choix[0], Math.min(choix[choix.length - 1], n + (+x.dataset.dm))); appliquer(); });
++  }
++})();
++</script>
++<span id="demo-aide">Aperçu : clic = sélectionner une note · Ctrl + clic = en ajouter · glisser = déplacer · poignées = étirer · Suppr = supprimer · case vide = poser une croche</span>
++<script>
++/* APERÇU (artefact) : sélection d'une ou plusieurs notes (clic, Ctrl/Cmd + clic), déplacement et étirement en groupe, suppression.
++   Tout s'écrit dans le MODÈLE des croches (pas par des clics simulés) : une note garde sa longueur quand on la déplace, et ne se pose jamais sur une autre. */
++(function () {
++  var sel = [], drag = null, etire = null;   // sel : liste de { c, r, k } (k = une croche de la note)
++  function seq() { return window.app && window.app.sequenceur; }
++  function grille() { return document.getElementById('sq-grille'); }
++  function ca(el) { return { c: +el.dataset.c, k: +el.dataset.k, r: +el.dataset.r }; }
++  function cellule(c, k, r) { return grille().querySelector('.sq-case[data-r="' + r + '"][data-c="' + c + '"][data-k="' + k + '"]'); }
++  function note(el) { // les croches soudées d'une même note, autour de la case touchée
++    var o = ca(el), liste = [el], k;
++    for (k = o.k - 1; k >= 0; k--) { var p = cellule(o.c, k, o.r), s = cellule(o.c, k + 1, o.r); if (p && p.classList.contains('on') && s.classList.contains('soude-g')) liste.unshift(p); else break; }
++    for (k = o.k + 1; ; k++) { var q = cellule(o.c, k, o.r), s2 = cellule(o.c, k - 1, o.r); if (q && q.classList.contains('on') && s2.classList.contains('soude-d')) liste.push(q); else break; }
++    return liste;
++  }
++  // La note de l'élément de sélection, relue dans l'écran : début d, fin f, longueur n.
++  function info(it) {
++    var e = cellule(it.c, it.k, it.r); if (!e || !e.classList.contains('on')) return null;
++    var nn = note(e), d = ca(nn[0]).k, f = ca(nn[nn.length - 1]).k;
++    return { c: it.c, r: it.r, d: d, f: f, n: nn.length, cases: nn };
++  }
++  function cle(it) { var i = info(it); return i ? it.c + '/' + it.r + '/' + i.d : null; }
++  function dansSel(it) { var k = cle(it); return sel.some(function (x) { return cle(x) === k; }); }
++  function marquer() {
++    Array.prototype.forEach.call(grille().querySelectorAll('.demo-sel'), function (x) { x.classList.remove('demo-sel', 'dg', 'dd'); });
++    sel = sel.filter(function (it) { return info(it); });
++    sel.forEach(function (it) { var i = info(it); it.k = i.d; i.cases.forEach(function (x, j) { x.classList.add('demo-sel'); if (j === 0) x.classList.add('dg'); if (j === i.cases.length - 1) x.classList.add('dd'); }); });
++  }
++  function ecouter(c, r) { // entendre la hauteur de la ligne survolée (comme GarageBand), avec l'instrument du morceau
++    try {
++      var s = seq(); if (!s) return;
++      var L = s._lignes[r], e = s._etats[c]; if (!L || !e) return;
++      var midi = L.midi;
++      if (L.type === 'voix') { var v = s._voixLigne(e, L); if (v == null) return; midi = e.info.voix[v].midi; }
++      s.jouerNote(c, midi, 'normal');
++    } catch (err) { }
++  }
++  // Position « globale » d'une croche (toutes les croches des accords de la partie, bout à bout) pour déplacer d'un accord à l'autre.
++  function decalages() { var s = seq(), off = [], t = 0, c; for (c = 0; s._etats[c]; c++) { off.push(t); t += s._etats[c].info.croches; } return { off: off, total: t }; }
++  function placer(it, dG, dr, D) { // où va la note si on la décale de dG croches et dr lignes ; null si elle ne tient pas ENTIÈRE dans un accord
++    var s = seq(), i = info(it); if (!i) return null;
++    var G = D.off[i.c] + i.d + dG, c1 = -1, j;
++    for (j = 0; j < D.off.length; j++) if (G >= D.off[j]) c1 = j;
++    if (c1 < 0 || G < 0) return null;
++    var k1 = G - D.off[c1], cr = s._etats[c1].info.croches, r1 = i.r + dr;
++    if (k1 + i.n > cr || r1 < 0 || r1 >= s._lignes.length) return null;
++    return { c: c1, k: k1, r: r1, n: i.n };
++  }
++  function nettoyerCibles() { Array.prototype.forEach.call(grille().querySelectorAll('.demo-cible'), function (x) { x.classList.remove('demo-cible'); }); }
++  function nouveauGeste() { return { etats: new Map(), annulationPosee: false }; }
++  function ecrireTout(s, g) {
++    var m = new Map(); g.etats.forEach(function (v, c) { m.set(c, v); });
++    s.ecrire(m, g);
++    g.etats.forEach(function (v, c) { s._etats[c] = Object.assign({}, v.etat, { motif: 'main' }); });
++  }
++  function retirerCroches(etat, v, d, f) { var j; for (j = d; j <= f; j++) { var x = window.__sqModele.cle(v, j); etat.on.delete(x); etat.soude.delete(x); etat.niveaux.delete(x); } }
++
++  // Déplacer : toutes les notes choisies, du même écart, sous UNE annulation.
++  function deplacer(dG, dr) {
++    var s = seq(), M = window.__sqModele, D = decalages(), g = nouveauGeste(), liste = [];
++    var ok = sel.every(function (it) { var p = placer(it, dG, dr, D), i = info(it); if (!p || !i) return false; liste.push({ it: it, i: i, p: p }); return true; });
++    if (!ok) return false;
++    // 1) on retire toutes les notes qui bougent, en gardant leur niveau
++    liste.forEach(function (x) { var m = s.enCours(g, x.i.c), v = s.voixDuGeste(m, x.i.c, x.i.r, false); x.niveau = M.niveauDe(m.etat, v, x.i.d); retirerCroches(m.etat, v, x.i.d, x.i.f); });
++    // 2) on les repose ; si une case est prise par une AUTRE note, on annule tout (rien n'est écrasé en silence)
++    var pose = true;
++    liste.forEach(function (x) {
++      if (!pose) return;
++      var m = s.enCours(g, x.p.c), v = s.voixDuGeste(m, x.p.c, x.p.r, true); if (v == null) { pose = false; return; }
++      var j; for (j = 0; j < x.p.n; j++) if (m.etat.on.has(M.cle(v, x.p.k + j))) { pose = false; return; }
++      for (j = 0; j < x.p.n; j++) { var c = M.cle(v, x.p.k + j); m.etat.on.add(c); if (j > 0) m.etat.soude.add(c); }
++      if (x.niveau !== 'normal') m.etat.niveaux.set(M.cle(v, x.p.k), x.niveau);
++    });
++    if (!pose) return false;
++    ecrireTout(s, g);
++    sel = liste.map(function (x) { return { c: x.p.c, r: x.p.r, k: x.p.k }; });
++    return true;
++  }
++  function supprimer() {
++    var s = seq(), g = nouveauGeste();
++    sel.forEach(function (it) { var i = info(it); if (!i) return; var m = s.enCours(g, i.c), v = s.voixDuGeste(m, i.c, i.r, false); if (v != null) retirerCroches(m.etat, v, i.d, i.f); });
++    if (g.etats.size) ecrireTout(s, g);
++    sel = [];
++  }
++
++  function installer() {
++    var g = grille(); if (!g) return setTimeout(installer, 500);
++    g.addEventListener('pointerdown', function (e) {
++      if (e.button !== 0) return;
++      var t = e.target, ctrl = e.ctrlKey || e.metaKey, el = t.closest('.sq-case.on[data-r]'), bord = t.closest('.sq-bord');
++      if (!el) { if (!ctrl) { sel = []; marquer(); } return; }
++      var o = ca(el), it = { c: o.c, r: o.r, k: o.k }, i = info(it);
++      if (ctrl) { e.stopPropagation(); e.preventDefault(); if (dansSel(it)) { var kk = cle(it); sel = sel.filter(function (x) { return cle(x) !== kk; }); } else sel.push({ c: i.c, r: i.r, k: i.d }); marquer(); return; }
++      if (bord) {
++        // poignée : une seule note choisie → l'appli étire (geste d'origine) ; plusieurs → on les étire toutes du même écart
++        if (sel.length > 1 && dansSel(it)) {
++          e.stopPropagation(); e.preventDefault();
++          var cote = bord.classList.contains('g') ? 'g' : 'd';
++          etire = { cote: cote, c: i.c, r: i.r, k0: cote === 'd' ? i.f : i.d, fait: 0, g: nouveauGeste(), x0: e.clientX, bouge: false };
++        } else { sel = [{ c: i.c, r: i.r, k: i.d }]; marquer(); }
++        return;
++      }
++      e.stopPropagation(); e.preventDefault();
++      var dedans = dansSel(it);
++      if (!dedans) sel = [{ c: i.c, r: i.r, k: i.d }];
++      marquer();
++      var b0 = i.cases[0].getBoundingClientRect(), b1 = i.cases[i.cases.length - 1].getBoundingClientRect();
++      drag = { depart: o, cible: null, x0: e.clientX, y0: e.clientY, prise: { dx: e.clientX - b0.left, dy: e.clientY - b0.top }, larg: b1.right - b0.left, haut: b0.height,
++               couleur: getComputedStyle(i.cases[0]).backgroundColor, bouge: false, derniere: o.r + '/' + o.c, clique: it };
++    }, true);
++
++    window.addEventListener('pointermove', function (e) {
++      if (etire) {
++        var s = seq(), M = window.__sqModele, k = s.crocheSous(etire.c, etire.r, e.clientX);
++        if (k == null) return;
++        if (!etire.bouge && Math.abs(e.clientX - etire.x0) < 4) return;
++        etire.bouge = true;
++        var delta = k - etire.k0;
++        if (delta === etire.fait) return;
++        var pas = delta - etire.fait;
++        sel.forEach(function (it) {
++          var i = info(it); if (!i) return;
++          var m = s.enCours(etire.g, i.c), v = s.voixDuGeste(m, i.c, i.r, false); if (v == null) return;
++          var bord = etire.cote === 'd' ? i.f : i.d, fixe = etire.cote === 'd' ? i.d : i.f;
++          M.etirerNote(m.etat, v, fixe, etire.cote, bord + pas, m.etat.info.croches);
++        });
++        etire.fait = delta;
++        ecrireTout(s, etire.g);
++        setTimeout(marquer, 60);
++        return;
++      }
++      if (!drag) return;
++      if (!drag.bouge && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > 4) {
++        drag.bouge = true;
++        var f = document.getElementById('demo-fantome');
++        if (!f) { f = document.createElement('div'); f.id = 'demo-fantome'; document.body.appendChild(f); }
++        f.style.width = drag.larg + 'px'; f.style.height = drag.haut + 'px'; f.style.background = drag.couleur; f.style.display = 'block';
++        sel.forEach(function (it) { var i = info(it); if (i) i.cases.forEach(function (x) { x.classList.add('demo-fantome'); }); });
++      }
++      if (drag.bouge) { var fa = document.getElementById('demo-fantome'); fa.style.transform = 'translate(' + (e.clientX - drag.prise.dx) + 'px,' + (e.clientY - drag.prise.dy) + 'px)'; }
++      var el = document.elementFromPoint(e.clientX, e.clientY), c = el && el.closest && el.closest('.sq-case[data-r]');
++      nettoyerCibles(); drag.cible = null;
++      if (!c) return;
++      var oo = ca(c); drag.cible = oo;
++      if (drag.bouge && window.DEMO_ECOUTE_SURVOL !== false) { var cl = oo.r + '/' + oo.c; if (cl !== drag.derniere) { drag.derniere = cl; ecouter(oo.c, oo.r); } }
++      if (!drag.bouge) return;
++      var D = decalages(), dG = D.off[oo.c] + oo.k - (D.off[drag.depart.c] + drag.depart.k), dr = oo.r - drag.depart.r;
++      var places = sel.map(function (it) { return placer(it, dG, dr, D); });
++      if (places.every(function (p) { return p; })) places.forEach(function (p) { var j; for (j = 0; j < p.n; j++) { var d2 = cellule(p.c, p.k + j, p.r); if (d2) d2.classList.add('demo-cible'); } });
++    }, true);
++
++    window.addEventListener('pointerup', function () {
++      if (etire) { etire = null; setTimeout(marquer, 100); return; }
++      if (!drag) return;
++      var d = drag; drag = null;
++      var fa2 = document.getElementById('demo-fantome'); if (fa2) fa2.style.display = 'none';
++      Array.prototype.forEach.call(g.querySelectorAll('.demo-fantome'), function (x) { x.classList.remove('demo-fantome'); });
++      nettoyerCibles();
++      if (!d.bouge) { sel = [d.clique]; marquer(); return; }   // un simple clic sur une note d'un groupe garde cette seule note
++      var o = d.cible; if (!o) return;
++      var D = decalages();
++      var dG = D.off[o.c] + o.k - (D.off[d.depart.c] + d.depart.k), dr = o.r - d.depart.r;
++      if (dG === 0 && dr === 0) return;
++      deplacer(dG, dr);
++      setTimeout(marquer, 150);
++    }, true);
++
++    document.addEventListener('keydown', function (e) {
++      if (!sel.length || (e.key !== 'Delete' && e.key !== 'Backspace')) return;
++      var a = document.activeElement; if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
++      e.stopPropagation(); e.preventDefault(); supprimer(); setTimeout(marquer, 100);
++    }, true);
++    new MutationObserver(function () { if (sel.length) marquer(); }).observe(g, { childList: true });
++  }
++  installer();
++})();
++</script>
++<script>
++/* APERÇU (artefact) : réglage « Hauteur des barres du séquenceur » dans Paramètres › Affichage (22 à 48 px, 26 par défaut). */
++(function () {
++  var hauteur = 26;
++  function ajouter() {
++    var ref = document.getElementById('toggle-show-roman'); if (!ref || document.getElementById('demo-hauteur')) return;
++    var ligne = ref.closest('.settings-toggle-row'); if (!ligne) return;
++    var r = document.createElement('div'); r.className = 'settings-toggle-row'; r.id = 'demo-hauteur';
++    r.className = 'settings-slider-row'; r.innerHTML = '<div class="settings-slider-head"><label for="demo-h-range" title="Hauteur des barres du séquenceur">Barres du séquenceur</label><span class="val" id="demo-h-val">' + hauteur + ' px</span></div><input type="range" id="demo-h-range" min="22" max="48" step="2" value="' + hauteur + '">';
++    ligne.parentNode.insertBefore(r, ligne.nextSibling);
++    function poser(v) { hauteur = Math.max(22, Math.min(48, v)); document.getElementById('demo-h-val').textContent = hauteur + ' px'; var a = window.app; if (a && a.sequenceur) { a.sequenceur.ligne = hauteur; a.sequenceur.poserLigne(); if (a.sequenceur.limiterHauteur) a.sequenceur.limiterHauteur(); } }
++    document.getElementById('demo-h-range').addEventListener('input', function (e) { poser(+e.target.value); });
++  }
++  new MutationObserver(ajouter).observe(document.body, { childList: true, subtree: true });
++})();
++</script>
++<div id="demo-tete" aria-hidden="true"></div>
++<script>
++(function () {
++  var ligne = document.getElementById('demo-tete'), courante = null, t0 = 0, x = null, dernierTemps = 0;
++  function duree() { try { return 60 / (window.Tone && Tone.Transport.bpm.value ? Tone.Transport.bpm.value : 120) / 2 * 1000; } catch (e) { return 250; } }
++  function tick(now) {
++    var g = document.getElementById('sq-grille'), c = g && g.querySelector('.sq-case.tete');
++    if (!c) { ligne.style.display = 'none'; courante = null; x = null; requestAnimationFrame(tick); return; }
++    if (c !== courante && !(courante && courante.isConnected === false && false)) { courante = c; t0 = now; }
++    var b = c.getBoundingClientRect(), gb = g.getBoundingClientRect(), f = Math.min(1, (now - t0) / duree());
++    var cible = b.left + f * b.width;
++    // lissage : on glisse vers la cible au lieu d'y sauter (sauf grand écart : retour au début, changement de ligne)
++    x = (x == null || Math.abs(cible - x) > 3 * b.width) ? cible : x + (cible - x) * 0.35;
++    ligne.style.display = 'block'; ligne.style.left = (x - 1) + 'px'; ligne.style.top = gb.top + 'px'; ligne.style.height = gb.height + 'px';
++    requestAnimationFrame(tick);
++  }
++  requestAnimationFrame(tick);
++})();
++</script>
++<script>
++/* APERÇU (artefact) : réglage Paramètres › Audio « Entendre les notes survolées en déplaçant une note du séquenceur » (activé par défaut). */
++(function () {
++  window.DEMO_ECOUTE_SURVOL = true;
++  function ajouter() {
++    var p = document.getElementById('settings-panel-audio'); if (!p || !p.children.length || document.getElementById('demo-ecoute')) return;
++    var r = document.createElement('div'); r.className = 'settings-toggle-row'; r.id = 'demo-ecoute';
++    r.innerHTML = '<label for="demo-ecoute-case">Son au déplacement</label><button type="button" id="demo-ecoute-case" class="switch" role="switch" aria-checked="true" aria-label="Entendre les notes en déplaçant une note du séquenceur"><span class="switch-thumb"></span></button>';
++    p.appendChild(r);
++    document.getElementById('demo-ecoute-case').addEventListener('click', function (e) { var b = e.currentTarget, on = b.getAttribute('aria-checked') !== 'true'; b.setAttribute('aria-checked', String(on)); window.DEMO_ECOUTE_SURVOL = on; });
++  }
++  new MutationObserver(ajouter).observe(document.body, { childList: true, subtree: true });
++})();
++</script>
++<script>
++/* APERÇU (artefact) demo-tonalite-courte : la puce « Tonalité » écrit la tonalité en notation internationale courte :
++   C (majeur), Am (mineur), D dor, E phr, F lyd, G mix, B loc — au lieu de « C majeur ». */
++(function () {
++  var COURT = { 'majeur': '', 'mineur': 'm', 'dorien': ' dor', 'phrygien': ' phr', 'lydien': ' lyd', 'mixolydien': ' mix', 'locrien': ' loc' };
++  function raccourcir() {
++    var v = document.querySelector('#rr-tonalite .rr-val'); if (!v) return;
++    var m = /^(\S+)\s+(majeur|mineur|dorien|phrygien|lydien|mixolydien|locrien)$/.exec(v.textContent.trim()); if (!m) return;
++    v.textContent = m[1] + COURT[m[2]];
++    v.title = m[1] + ' ' + m[2];
++  }
++  new MutationObserver(raccourcir).observe(document.body, { childList: true, subtree: true, characterData: true });
++  raccourcir();
++})();
++</script>
++<script>
++(function () {
++  // demo-section-barre : « + Section » juste à droite du groupe « Mesures ‹ n › » (demande du 14/11), dans la même rangée visuelle.
++  function deplacer() {
++    if (window.innerWidth < 900) return;
++    var b = document.getElementById('add-section'), g = document.getElementById('grille-densites'); if (!b || !g) return;
++    if (b.previousElementSibling === g) return;
++    var ancien = b.parentElement;
++    g.parentElement.insertBefore(b, g.nextSibling);
++    b.classList.add('demo-dans-barre');
++    if (b.lastChild.nodeType === 3) b.lastChild.textContent = ' Section';
++    b.title = 'Ajouter une section (couplet, refrain…)';
++    if (ancien && ancien !== g.parentElement && !ancien.querySelector('button, input, select')) ancien.style.display = 'none';
++  }
++  setInterval(deplacer, 500);
++})();
++</script>
++<div id="demo-poignee-largeur" role="separator" aria-orientation="vertical" aria-label="Largeur du séquenceur" title="Tirer pour élargir ou resserrer les croches — double-clic : largeur d'origine"></div>
++<script>
++(function () {
++  // demo-poignee-largeur
++  var po = document.getElementById('demo-poignee-largeur'), tire = null;
++  function cases() { var g = document.getElementById('sq-grille'); return g ? g.querySelectorAll('.sq-case[data-r="0"]') : []; }
++  function nb() { return cases().length; }
++  function placer() {
++    var g = document.getElementById('sq-grille'), c = cases();
++    if (!g || !c.length || g.getBoundingClientRect().width === 0) { po.style.display = 'none'; return; }
++    var gb = g.getBoundingClientRect(), dern = c[c.length - 1].getBoundingClientRect();
++    // centrée sur les LIGNES DE NOTES (pas sur l'en-tête des accords ni sur la règle des temps, qui la faisaient paraître trop haute)
++    var toutes = g.querySelectorAll('.sq-case[data-r]'), haut = Infinity, bas = -Infinity, k;
++    for (k = 0; k < toutes.length; k++) { var r = toutes[k].getBoundingClientRect(); if (r.bottom < gb.top || r.top > gb.bottom) continue; haut = Math.min(haut, r.top); bas = Math.max(bas, r.bottom); }
++    if (haut === Infinity) { po.style.display = 'none'; return; }
++    haut = Math.max(haut, gb.top); bas = Math.min(bas, gb.bottom);
++    var x = Math.min(dern.right, gb.right, window.innerWidth - 18);   // une languette détachée du bord de 8 px
++    po.style.display = 'block'; po.style.left = x + 'px'; po.style.top = haut + 'px'; po.style.height = (bas - haut) + 'px';
++  }
++  function boucle() { if (!tire) placer(); requestAnimationFrame(boucle); }
++  requestAnimationFrame(boucle);
++  function appliquer(w) {
++    window.REGLE_CROCHE = Math.max(14, Math.min(90, Math.round(w)));
++    var a = window.app; if (a && a.sequenceur) a.sequenceur.rafraichir();
++  }
++  po.addEventListener('pointerdown', function (e) {
++    e.preventDefault(); po.setPointerCapture(e.pointerId);
++    var c = cases(); if (!c.length) return;
++    var g0 = c[0].getBoundingClientRect().left, d0 = c[c.length - 1].getBoundingClientRect().right, w0 = c[0].getBoundingClientRect().width;
++    tire = { gauche: g0, n: nb(), extra: (d0 - g0) - nb() * w0 }; po.classList.add('tire'); document.body.classList.add('demo-etire-largeur');
++  });
++  po.addEventListener('pointermove', function (e) {
++    if (!tire) return;
++    // largeur d'une croche = (position de la souris − début des croches) / nombre de croches (les petits écarts entre accords sont négligés)
++    appliquer((e.clientX - tire.gauche - tire.extra) / tire.n);
++    po.style.left = (e.clientX - 4 - 5) + 'px';
++  });
++  function fin() { if (!tire) return; tire = null; po.classList.remove('tire'); document.body.classList.remove('demo-etire-largeur'); }
++  po.addEventListener('pointerup', fin); po.addEventListener('pointercancel', fin);
++  po.addEventListener('dblclick', function () { appliquer(34); });
++})();
++</script>
++<div id="demo-menu-section" role="menu"><button type="button" role="menuitem" id="demo-menu-section-ajout"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Ajouter une section</button></div>
++<script>
++(function () {
++  // demo-section-bas
++  var menu = document.getElementById('demo-menu-section');
++  function ajouterSection() { var b = document.getElementById('add-section'); if (b) b.click(); }
++  function bandeau() {
++    if (window.innerWidth < 900) return;
++    // Le bandeau se place SOUS la poignée du bas de la grille (et non entre la grille et elle : la poignée restait 46 px sous la grille).
++    var liste = document.getElementById('grille-poignee-bas') || document.getElementById('progression-sections'); if (!liste) return;
++    if (document.getElementById('demo-section-bas') && document.getElementById('demo-section-bas').previousElementSibling === liste) return;
++    var old = document.getElementById('demo-section-bas'); if (old) old.remove();
++    var b = document.createElement('button'); b.type = 'button'; b.id = 'demo-section-bas'; b.setAttribute('aria-label', 'Ajouter une section à la fin');
++    b.title = 'Ajouter une section à la fin (couplet, refrain…) — ou clic droit dans le vide de la grille';
++    b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Ajouter une section';
++    b.addEventListener('click', ajouterSection);
++    liste.parentNode.insertBefore(b, liste.nextSibling);
++  }
++  setInterval(bandeau, 500);
++  function fermer() { menu.style.display = 'none'; }
++  document.addEventListener('contextmenu', function (e) {
++    if (window.innerWidth < 900) return;
++    var t = e.target; if (!t.closest) return;
++    var zone = t.closest('main .history-section, #progression-sections, main');
++    if (!zone || t.closest('.grid-cell, .cell-ins, .grid-cell-add, button, input, textarea, select, a, #sq-grille, #sequenceur, #seq-dock-panel, .context-menu')) return;
++    if (t.closest('#sequenceur, #bloc-lecture, header, #settings-overlay, .vues-tiroir')) return;
++    e.preventDefault();
++    menu.style.display = 'block';
++    menu.style.left = Math.min(e.clientX, window.innerWidth - 210) + 'px'; menu.style.top = Math.min(e.clientY, window.innerHeight - 60) + 'px';
++  });
++  document.getElementById('demo-menu-section-ajout').addEventListener('click', function () { fermer(); ajouterSection(); });
++  document.addEventListener('pointerdown', function (e) { if (!e.target.closest('#demo-menu-section')) fermer(); }, true);
++  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fermer(); });
++  window.addEventListener('blur', fermer);
++})();
++</script>
++
++<button type="button" id="demo-vue-large" aria-pressed="false" title="Conduite des voix — vue large : barres plus petites, grille simplifiée, plus de mesures d’un coup d’œil, et les accords dont les voix sautent beaucoup sont repérés" aria-label="Conduite des voix, vue large"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="7" r="2"/><circle cx="19" cy="7" r="2"/><circle cx="5" cy="17" r="2"/><circle cx="19" cy="17" r="2"/><path d="M7 7h10"/><path d="M7 17c5 0 5-10 10-10" stroke-dasharray="2.5 3"/></svg></button>
++<div id="demo-vue-large-msg" role="status" hidden></div>
++<script>
++(function () {
++  // demo-conduite-pop : la conduite des voix dans une POPOVER (comme avant), minimaliste. Elle ne change rien au séquenceur ; pour voir un vrai voicing, on clique toujours « Toutes les notes ».
++  var bt = document.getElementById('demo-vue-large'), pop = document.createElement('div');
++  pop.id = 'demo-conduite-pop'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Conduite des voix'); pop.hidden = true; document.body.appendChild(pop);
++  var st = document.createElement('style');
++  st.textContent = '#demo-conduite-pop { position: fixed; z-index: 95; padding: 12px 14px 10px; border-radius: 12px; background: #1b1f25; border: 1px solid #343a43; box-shadow: 0 10px 28px rgba(0,0,0,.5); color: #e6e9ee; font-size: 12px; max-width: 92vw; overflow-x: auto; }'
++    + '#demo-conduite-pop[hidden] { display: none; } #demo-conduite-pop .cp-titre { font-weight: 600; margin-bottom: 8px; display: flex; gap: 8px; align-items: baseline; } #demo-conduite-pop .cp-titre small { color: #8b949f; font-weight: 400; }'
++    + '#demo-conduite-pop .cp-pied { margin-top: 8px; color: #8b949f; font-size: 11px; } #demo-conduite-pop svg text { font-family: inherit; }';
++  document.head.appendChild(st);
++  function caler() { var rr = document.getElementById('rangee-reglages'); if (!rr) return; var m = rr.getBoundingClientRect(); bt.style.top = Math.round(m.top + (m.height - 32) / 2) + 'px'; }
++  setInterval(caler, 500); window.addEventListener('resize', caler);
++  var NOMS = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
++  function nom(m) { return NOMS[((m % 12) + 12) % 12]; }
++  function voix(e) { var t = {}; e.on.forEach(function (k) { t[k.split(':')[0]] = 1; }); return Object.keys(t).map(function (v) { return e.info.voix[+v].midi; }).sort(function (a, b) { return b - a; }); }  // du plus aigu au plus grave
++  var COUL = ['#e0a030', '#d2554a', '#4f86d6', '#3fae6c', '#a583d8', '#c8c8c8'];
++  function dessiner() {
++    var s = window.app && window.app.sequenceur; if (!s || !s._etats || !s._etats.length) { pop.innerHTML = '<div class="cp-titre">Conduite des voix</div><div class="cp-pied">Ouvrez le séquenceur sur une partie.</div>'; return; }
++    var n = s._etats.length, noms = [], v = [], c, i, lig = 0;
++    for (c = 0; c < n; c++) { var d = (s.accord && s.accord(c)) || {}; var el = document.querySelector('#sq-grille .sq-nom[data-c="' + c + '"]'); noms.push(el ? el.textContent.replace(/\s+/g, ' ').trim().split(' ')[0] : 'Acc. ' + (c + 1)); v.push(voix(s._etats[c])); lig = Math.max(lig, v[c].length); }
++    var L = n > 6 ? 56 : 68, H = 24, g = 8, W = n * L, Ht = 22 + lig * H + 4, svg = ['<svg width="' + W + '" height="' + Ht + '" viewBox="0 0 ' + W + ' ' + Ht + '" role="img" aria-label="Chemin des voix d’un accord au suivant">'], souci = 0;
++    for (c = 0; c < n; c++) svg.push('<text x="' + (c * L + L / 2) + '" y="12" text-anchor="middle" fill="#cfd5dd" font-size="12" font-weight="600">' + noms[c] + '</text>');
++    for (c = 0; c < n - 1; c++) {
++      if (v[c].length !== v[c + 1].length) continue;
++      for (i = 0; i < v[c].length; i++) {
++        var x1 = c * L + L / 2 + 14, x2 = (c + 1) * L + L / 2 - 14, y = 22 + i * H + H / 2, saut = Math.abs(v[c + 1][i] - v[c][i]), mal = saut > 7;
++        if (mal) souci++;
++        svg.push('<line x1="' + x1 + '" y1="' + y + '" x2="' + x2 + '" y2="' + y + '" stroke="' + (mal ? '#f0a73c' : COUL[i % COUL.length]) + '" stroke-width="2"' + (saut ? ' stroke-dasharray="3 3"' : '') + ' opacity=".9"><title>' + (saut ? 'La voix bouge de ' + saut + ' demi-tons' : 'Note tenue') + '</title></line>');
++      }
++    }
++    for (c = 0; c < n; c++) for (i = 0; i < v[c].length; i++) {
++      var cx = c * L + L / 2, cy = 22 + i * H + H / 2;
++      svg.push('<rect x="' + (cx - 14) + '" y="' + (cy - 9) + '" width="28" height="18" rx="9" fill="' + COUL[i % COUL.length] + '" fill-opacity=".22" stroke="' + COUL[i % COUL.length] + '" stroke-opacity=".8"/><text x="' + cx + '" y="' + (cy + 4) + '" text-anchor="middle" fill="#fff" font-size="11">' + nom(v[c][i]) + '</text>');
++    }
++    svg.push('</svg>');
++    pop.innerHTML = '<div class="cp-titre">Conduite des voix <small>trait plein = note tenue · pointillé = la voix bouge' + (souci ? ' · ambre = grand saut' : '') + '</small></div>' + svg.join('') + '<div class="cp-pied">Pour voir un vrai voicing, cliquez « Toutes les notes » dans le séquenceur.</div>';
++  }
++  function ouvrir() { dessiner(); pop.hidden = false; var r = bt.getBoundingClientRect(); pop.style.top = (r.bottom + 8) + 'px'; pop.style.right = '12px'; pop.style.left = 'auto'; bt.setAttribute('aria-pressed', 'true'); }
++  function fermer() { pop.hidden = true; bt.setAttribute('aria-pressed', 'false'); }
++  bt.addEventListener('click', function (e) { e.stopPropagation(); if (pop.hidden) ouvrir(); else fermer(); });
++  document.addEventListener('pointerdown', function (e) { if (!pop.hidden && !e.target.closest('#demo-conduite-pop, #demo-vue-large')) fermer(); }, true);
++  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !pop.hidden) fermer(); });
++  setInterval(function () { if (!pop.hidden) dessiner(); }, 1200);   // suit le séquenceur quand on retouche une note ou qu'on change d'accord
++})();
++</script>
++<button type="button" id="demo-masquer" aria-label="Masquer ce rythme" title="Masquer ce rythme (on peut le rétablir)">×</button>
++<script>
++(function () {
++  // demo-masquer
++  var CLE = 'demoRythmesMasques', masques = [], bt = document.getElementById('demo-masquer'), survole = null, cache = null;
++  try { masques = JSON.parse(localStorage.getItem(CLE) || '[]'); } catch (e) { masques = []; }
++  function sauver() { try { localStorage.setItem(CLE, JSON.stringify(masques)); } catch (e) { } }
++  window.__demoRetablirUn = function (id) { masques = masques.filter(function (x) { return x !== id; }); sauver(); appliquer(); };
++  window.__demoMasquer = function (id) { if (masques.indexOf(id) < 0) masques.push(id); sauver(); appliquer(); };
++  function fournis() { return Array.prototype.filter.call(document.querySelectorAll('#sequenceur .sq-motif[data-sq-motif]'), function (b) { return b.dataset.sqMotif !== 'main' && !b.closest('.sq-forme'); }); }
++  function appliquer() {
++    fournis().forEach(function (b) { b.classList.toggle('demo-masque', masques.indexOf(b.dataset.sqMotif) >= 0); });
++    var r = document.getElementById('demo-retablir'), ref = document.getElementById('sq-forme-enregistrer');
++    if (!r && ref) { r = document.createElement('button'); r.type = 'button'; r.id = 'demo-retablir'; r.className = 'sq-motif'; r.title = 'Rétablir les rythmes masqués'; ref.parentNode.insertBefore(r, ref); r.addEventListener('click', function () { masques = []; sauver(); appliquer(); }); }
++    if (r) { r.hidden = !masques.length; r.textContent = '↺ Rétablir (' + masques.length + ')'; }
++  }
++  setInterval(appliquer, 600);
++  function placer(b) {
++    var r = b.getBoundingClientRect(); survole = b;
++    bt.style.display = 'inline-flex'; bt.style.left = (r.right - 12) + 'px'; bt.style.top = (r.top - 7) + 'px';
++  }
++  function cacher() { cache = setTimeout(function () { survole = null; bt.style.display = 'none'; }, 180); }
++  document.addEventListener('mouseover', function (e) {
++    var b = e.target.closest && e.target.closest('#sequenceur .sq-motif[data-sq-motif]');
++    if (false) { clearTimeout(cache); placer(b); }   // plus de croix au survol (14/11) : on passe par le clic droit
++    else if (e.target === bt) clearTimeout(cache);
++  });
++  document.addEventListener('mouseout', function (e) { if (e.target.closest && (e.target.closest('#sequenceur .sq-motif[data-sq-motif]') || e.target === bt)) cacher(); });
++  bt.addEventListener('mouseenter', function () { clearTimeout(cache); });
++  bt.addEventListener('click', function () {
++    if (!survole) return;
++    var id = survole.dataset.sqMotif; if (masques.indexOf(id) < 0) masques.push(id);
++    sauver(); bt.style.display = 'none'; survole = null; appliquer();
++  });
++})();
++</script>
++<div id="demo-menu-rythme" role="menu"></div>
++<script>
++(function () {
++  // demo-menu-rythme
++  var menu = document.getElementById('demo-menu-rythme'), cible = null, passe = false;
++  function fermer() { menu.style.display = 'none'; cible = null; }
++  function nomDe(b) { var s = b.querySelector(':scope > span:not(.sq-vignette)'); return s ? s.textContent.trim() : ''; }
++  function ouvrir(b, x, y) {
++    cible = b; var id = b.dataset.sqMotif, forme = !!b.closest('.sq-forme');
++    if (id === 'main') {
++      menu.innerHTML = '<button type="button" role="menuitem" data-a="creer">Créer une forme…</button><button type="button" role="menuitem" data-a="enregistrer" title="Garder le rythme de l’accord sélectionné dans « Mes formes »">Enregistrer la forme…</button>';
++      menu.style.display = 'block'; menu.style.left = Math.min(x, window.innerWidth - 300) + 'px'; menu.style.top = Math.min(y, window.innerHeight - 100) + 'px'; return;
++    }
++    menu.innerHTML = '<div class="titre">Rythme « ' + nomDe(b).replace(/</g, '&lt;') + ' »</div>'
++      + '<button type="button" role="menuitem" data-a="modifier">Modifier ce schéma…</button>'
++      + (forme ? '<button type="button" role="menuitem" class="danger" data-a="supprimer">Supprimer cette forme</button>' : '<button type="button" role="menuitem" class="danger" data-a="masquer">Masquer ce rythme</button>');
++    menu.style.display = 'block'; menu.style.left = Math.min(x, window.innerWidth - 230) + 'px'; menu.style.top = Math.min(y, window.innerHeight - 130) + 'px';
++  }
++  document.addEventListener('contextmenu', function (e) {
++    if (passe) return;
++    var b = e.target.closest && e.target.closest('#sequenceur .sq-motif[data-sq-motif]');
++    if (!b || b.id === 'demo-retablir') return;
++    e.preventDefault(); e.stopPropagation(); ouvrir(b, e.clientX, e.clientY);
++  }, true);
++  menu.addEventListener('click', function (e) {
++    var a = e.target.closest('button'); if (!a || !cible) return;
++    var b = cible, id = b.dataset.sqMotif, act = a.dataset.a;
++    if (act === 'creer') { fermer(); window.__demoOuvrirCreer && window.__demoOuvrirCreer(); return; }
++        if (act === 'enregistrer') { fermer(); window.__demoOuvrirEnreg && window.__demoOuvrirEnreg(); return; }   // demo-enreg-popover
++        if (act === 'modifier') { fermer(); passe = true; try { b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: 0, clientY: 0 })); } finally { passe = false; } return; }
++    if (act === 'masquer') { fermer(); window.__demoMasquer && window.__demoMasquer(id); return; }
++    if (act === 'supprimer') {
++      // la suppression d'une forme est DÉFINITIVE : une deuxième confirmation dans le menu
++      if (!a.classList.contains('confirme')) { a.classList.add('confirme'); a.textContent = 'Confirmer la suppression'; return; }
++      fermer(); var s = window.app && window.app.sequenceur; if (s) s.supprimerForme(id);
++    }
++  });
++  document.addEventListener('pointerdown', function (e) { if (menu.style.display !== 'none' && !e.target.closest('#demo-menu-rythme')) fermer(); }, true);
++  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fermer(); });
++})();
++</script>
++<script>
++setInterval(function () { var g = document.getElementById('grille-densites'); if (g && g.title !== 'Mesures visibles par ligne, dans la grille et dans le séquenceur') g.title = 'Mesures visibles par ligne, dans la grille et dans le séquenceur'; }, 800);   // demo-vue-mesures
++</script>
++<div id="demo-bibliotheque" role="dialog" aria-label="Tous les rythmes" hidden></div>
++<script>
++(function () {
++  // demo-bibliotheque
++  var pop = document.getElementById('demo-bibliotheque');
++  function motifs() { return Array.prototype.slice.call(document.querySelectorAll('#sequenceur .sq-motif[data-sq-motif]')).filter(function (b) { return b.dataset.sqMotif !== 'main'; }); }
++  function nom(b) { var s = b.querySelector(':scope > span:not(.sq-vignette)'); return s ? s.textContent.trim() : ''; }
++  function ligne(b) {
++    var mas = b.classList.contains('demo-masque'), vg = b.querySelector('.sq-vignette'), act = b.getAttribute('aria-pressed') === 'true';
++    return '<button type="button" class="bi-item" data-id="' + b.dataset.sqMotif + '" aria-pressed="' + act + '"><span class="sq-vignette" aria-hidden="true">' + (vg ? vg.innerHTML : '') + '</span><span class="bi-nom">' + nom(b).replace(/</g, '&lt;') + '</span><span class="bi-etat">' + (mas ? 'masqué · afficher' : (act ? 'actif' : '')) + '</span></button>';
++  }
++  function dessiner() {
++    var tous = motifs(), fournis = tous.filter(function (b) { return !b.closest('.sq-forme'); }), formes = tous.filter(function (b) { return !!b.closest('.sq-forme'); });
++    pop.innerHTML = fournis.map(ligne).join('')
++      + (formes.length ? '<div class="bi-sec">Mes formes</div>' + formes.map(ligne).join('') : '');
++    var ch = accordChoisi();
++    pop.innerHTML += '<div class="bi-enreg"><button type="button" class="bi-item bi-creer-btn" title="Dessiner un rythme de zéro, sans accord sélectionné"><span class="bi-nom">＋ Créer une forme…</span></button></div><div class="bi-enreg" style="border-top:0;margin-top:0;padding-top:0"><button type="button" class="bi-item bi-enreg-btn' + (ch == null ? ' demo-inactif' : '') + '" title="' + (ch == null ? 'Sélectionnez d’abord un accord dans la grille' : 'Garder le rythme de l’accord sélectionné dans « Mes formes »') + '"><span class="bi-nom">＋ Enregistrer la forme…</span></button>' + '' + '</div>';
++  }
++  function accordChoisi() { var ap = window.app, s = window.app && window.app.sequenceur; return (ap && s && ap.selectedIndex != null && ap.activeSection === s._s) ? ap.selectedIndex : null; }
++  function placer(bt) { bt = bt || document.getElementById('sq-forme-enregistrer'); var r = bt.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 308)) + 'px'; pop.style.top = Math.max(8, r.top - pop.offsetHeight - 8) + 'px'; }
++  function nomAccord(c) { var el = document.querySelector('#sq-grille .sq-nom[data-c="' + c + '"]'); return el ? el.textContent.replace(/\s+/g, ' ').trim().split(' ')[0] : 'choisi'; }
++  function nomLibre() { var pris = Array.prototype.map.call(document.querySelectorAll('#sq-formes .sq-forme > .sq-motif > span:not(.sq-vignette)'), function (x) { return x.textContent.trim(); }), n = 1; while (pris.indexOf('Forme ' + n) >= 0) n++; return 'Forme ' + n; }
++  function formulaire() {
++    var c = accordChoisi(); if (c == null) { dessiner(); placer(); return; }
++    pop.innerHTML = '<div class="bi-titre" title="Le rythme de l’accord ' + nomAccord(c).replace(/</g, '&lt;') + ' devient une forme, rangée dans « Mes formes »">Enregistrer la forme · <b>' + nomAccord(c).replace(/</g, '&lt;') + '</b></div>'
++      + '<input class="bi-champ" type="text" maxlength="30" aria-label="Nom de la forme" value="' + nomLibre() + '">'
++      + '<div class="bi-actions"><button type="button" class="bi-annuler">Annuler</button><button type="button" class="bi-valider">Enregistrer</button></div>';
++    placer(); var ch = pop.querySelector('.bi-champ'); ch.focus(); ch.select();
++    ch.addEventListener('input', function () { pop.querySelector('.bi-valider').disabled = !ch.value.trim(); });
++    ch.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); valider(); } });
++  }
++  // ---- Créer une forme de zéro (demo-creer-forme) ----
++  // Une forme s'écrit PAR POSITION (basse, voix 2, voix 3, aiguë) sur 8 croches (`formeDepuisEtat`) : 3 lignes = triade (la voix 2 sert aussi de voix 3),
++  // 4 lignes = tétrade. Un accord enrichi (5 notes ou plus) prend aussi quatre positions : basse, 2e, avant-dernière, aiguë (c'est déjà le cas dans l'appli).
++  var cf = { n: 4, cases: null, mode: null, derniere: null };
++  function cfVide() { cf.cases = []; for (var r = 0; r < cf.n; r++) { cf.cases.push([]); for (var k = 0; k < 8; k++) cf.cases[r].push({ on: false, soude: false }); } }
++  function cfRendre() {
++    var g = pop.querySelector('.cf-grille'); if (!g) return;
++    var html = '<span></span>' + [1, 2, 3, 4].map(function (t) { return '<span class="cf-tete" style="grid-column: span 2">' + t + '</span>'; }).join('');
++    for (var r = cf.n - 1; r >= 0; r--) {
++      html += '<span class="cf-ligne">' + (r === cf.n - 1 ? 'Aiguë' : (r === 0 ? 'Basse' : '')) + '</span>';
++      for (var k = 0; k < 8; k++) { var c = cf.cases[r][k]; html += '<span class="cf-case' + (c.on ? ' on' : '') + (c.on && c.soude ? ' g' : '') + (c.on && k < 7 && cf.cases[r][k + 1].on && cf.cases[r][k + 1].soude ? ' d' : '') + '" data-r="' + r + '" data-k="' + k + '"></span>'; }
++    }
++    g.innerHTML = html; cfMaj();
++  }
++  function cfMaj() { var v = pop.querySelector('.cf-valider'), nom = pop.querySelector('.bi-champ'), vide = !cf.cases.some(function (l) { return l.some(function (c) { return c.on; }); }); if (v) v.disabled = vide || !nom.value.trim(); }
++  function editeur() {
++    cf.mode = null; cfVide();
++    pop.innerHTML = '<div class="bi-titre" title="Dessinez le rythme : de haut en bas, de la note aiguë à la basse">Créer une forme</div>'
++      + '<div class="cf-seg" role="group" aria-label="Nombre de notes"><button type="button" data-n="3" aria-pressed="false" title="Triade : trois lignes">Triade · 3</button><button type="button" data-n="4" aria-pressed="true" title="Tétrade : quatre lignes">Tétrade · 4</button></div>'
++      + '<div class="cf-grille" role="grid" aria-label="Rythme sur huit croches" title="Cliquez ou glissez pour poser des croches (un glissé fait une note tenue). La forme s’appliquera à n’importe quel accord, voix par voix."></div>'
++      + '<input class="bi-champ" type="text" maxlength="30" aria-label="Nom de la forme" value="' + nomLibre() + '">'
++      + '<div class="bi-actions"><button type="button" class="cf-effacer">Effacer</button><button type="button" class="bi-annuler">Annuler</button><button type="button" class="bi-valider cf-valider" disabled>Enregistrer</button></div>';
++    cf.n = 4; cfRendre(); placer();
++    var ch = pop.querySelector('.bi-champ'); ch.addEventListener('input', cfMaj); ch.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); cfEnregistrer(); } });
++    ch.focus(); ch.select();
++  }
++  function cfEnregistrer() {
++    var f = window.FormesSequenceur, ch = pop.querySelector('.bi-champ'); if (!f || !ch || !ch.value.trim()) return;
++    var vide = !cf.cases.some(function (l) { return l.some(function (c) { return c.on; }); }); if (vide) return;
++    function pos(r) { var ks = [], s = []; cf.cases[r].forEach(function (c, k) { if (c.on) { ks.push(k); if (c.soude) s.push(k); } }); return { v: ks, s: s }; }
++    var P = cf.n === 3 ? [pos(0), pos(1), pos(1), pos(2)] : [pos(0), pos(1), pos(2), pos(3)];
++    var forme = f.enregistrer({ id: f.nouvelId(), type: 'forme', nom: ch.value.trim(), v: P.map(function (x) { return x.v; }), s: P.map(function (x) { return x.s; }), n: P.map(function () { return {}; }) });
++    var s = window.app.sequenceur; if (s && s.rafraichir) s.rafraichir();
++    window.app.flashHint && window.app.flashHint('Forme « ' + ch.value.trim() + ' » créée');
++    fermer();
++  }
++  document.addEventListener('pointerdown', function (e) {
++    var c = e.target.closest && e.target.closest('#demo-bibliotheque .cf-case'); if (!c) return;
++    e.preventDefault(); var r = +c.dataset.r, k = +c.dataset.k, cell = cf.cases[r][k];
++    cf.mode = cell.on ? 'off' : 'on'; cf.derniere = { r: r, k: k };
++    if (cf.mode === 'on') { cell.on = true; cell.soude = false; } else { for (var j = k; j >= 0 && cf.cases[r][j].on; j--) { var x = cf.cases[r][j]; var debut = !x.soude; x.on = false; x.soude = false; if (debut) break; } for (j = k + 1; j < 8 && cf.cases[r][j].on && cf.cases[r][j].soude; j++) { cf.cases[r][j].on = false; cf.cases[r][j].soude = false; } }
++    cfRendre();
++  }, true);
++  document.addEventListener('pointermove', function (e) {
++    if (!cf.mode || !(e.buttons & 1)) { cf.mode = null; return; }
++    var el = document.elementFromPoint(e.clientX, e.clientY), c = el && el.closest && el.closest('#demo-bibliotheque .cf-case'); if (!c) return;
++    var r = +c.dataset.r, k = +c.dataset.k; if (!cf.derniere || r !== cf.derniere.r || k === cf.derniere.k) return;
++    if (r !== cf.derniere.r) return;
++    var cell = cf.cases[r][k];
++    if (cf.mode === 'on') { var prec = cf.cases[r][k - 1]; cell.on = true; cell.soude = !!(prec && prec.on && Math.abs(k - cf.derniere.k) === 1 && k > cf.derniere.k); }
++    else { cell.on = false; cell.soude = false; }
++    cf.derniere = { r: r, k: k }; cfRendre();
++  }, true);
++  document.addEventListener('pointerup', function () { cf.mode = null; }, true);
++  document.addEventListener('click', function (e) {
++    var t = e.target.closest && e.target.closest('#demo-bibliotheque'); if (!t) return;
++    var n = e.target.closest('.cf-seg [data-n]');
++    if (n) { e.stopPropagation(); cf.n = +n.dataset.n; cfVide(); Array.prototype.forEach.call(pop.querySelectorAll('.cf-seg [data-n]'), function (b) { b.setAttribute('aria-pressed', String(b === n)); }); cfRendre(); placer(); return; }
++    if (e.target.closest('.cf-effacer')) { e.stopPropagation(); cfVide(); cfRendre(); return; }
++    if (e.target.closest('.cf-valider')) { e.stopPropagation(); e.preventDefault(); cfEnregistrer(); return; }
++    if (e.target.closest('.bi-creer-btn')) { e.stopPropagation(); e.preventDefault(); editeur(); return; }
++  }, true);
++  window.__demoOuvrirCreer = function () { dessiner(); pop.hidden = false; editeur(); };
++  function valider() {
++    var ch = pop.querySelector('.bi-champ'), s = window.app.sequenceur, c = accordChoisi(); if (!ch || !ch.value.trim() || c == null) return;
++    var champ = document.getElementById('sq-forme-nom'), avant = s._i;
++    champ.value = ch.value.trim(); s._i = c;            // la forme est prise sur l'accord SÉLECTIONNÉ dans la grille (jamais « le premier »)
++    try { s.enregistrerForme(); } finally { s._i = avant; }
++    fermer();
++  }
++  window.__demoOuvrirBiblio = function (bt) { if (pop.hidden) ouvrir(bt); else fermer(); };
++  window.__demoOuvrirEnreg = function () { var bt = document.getElementById('sq-forme-enregistrer'); dessiner(); pop.hidden = false; formulaire(); };
++  function ouvrir(bt) { dessiner(); pop.hidden = false; placer(bt); }
++  function fermer() { pop.hidden = true; }
++  document.addEventListener('click', function (e) {
++    var sig = e.target.closest && e.target.closest('#sq-forme-enregistrer');
++    if (sig) { e.stopPropagation(); e.preventDefault(); if (pop.hidden) ouvrir(sig); else fermer(); return; }
++    if (e.target.closest && e.target.closest('#demo-bibliotheque .bi-enreg-btn')) { e.stopPropagation(); e.preventDefault(); if (accordChoisi() == null) { window.app.flashHint && window.app.flashHint('Sélectionnez d’abord un accord dans la grille'); return; } formulaire(); return; }
++    if (e.target.closest && e.target.closest('#demo-bibliotheque .bi-valider:not(.cf-valider)')) { e.stopPropagation(); e.preventDefault(); valider(); return; }
++    if (e.target.closest && e.target.closest('#demo-bibliotheque .bi-annuler')) { e.stopPropagation(); e.preventDefault(); fermer(); return; }
++    var it = e.target.closest && e.target.closest('#demo-bibliotheque .bi-item:not(.bi-creer-btn):not(.bi-enreg-btn)');
++    if (it) {
++      var b = document.querySelector('#sequenceur .sq-motif[data-sq-motif="' + it.dataset.id + '"]');
++      if (b && b.classList.contains('demo-masque') && window.__demoRetablirUn) window.__demoRetablirUn(it.dataset.id);
++      if (b) b.click();
++      fermer(); return;
++    }
++    if (!pop.hidden && e.composedPath().indexOf(pop) < 0) fermer();   // composedPath : la cible a pu être retirée du DOM par un redessin de la popover
++  }, true);
++  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !pop.hidden) fermer(); });
++})();
++</script>
++<script>
++(function () {
++  // demo-bouton-plus (logique reprise le 14/11) : « + » = repartir d'un rythme VIDE, sur ce que dit « Cet accord | Toute la partie » :
++  //   - « Cet accord » : il faut un accord SÉLECTIONNÉ dans la grille ; sinon le bouton est grisé (jamais « le premier accord » par défaut) ;
++  //   - « Toute la partie » : vide tous les accords de la partie, avec une confirmation sur le bouton lui-même (un premier clic le change en « Vider la partie ? »).
++  // Dans les deux cas : une seule annulation, et le bouton s'allume.
++  var attente = null, minuteur = null;
++  function seq() { return window.app && window.app.sequenceur; }
++  function accordChoisi() { var a = window.app, s = seq(); return (a && s && a.selectedIndex != null && a.activeSection === s._s) ? a.selectedIndex : null; }
++  function etat() {
++    var b = document.getElementById('sq-motif-main'), s = seq(); if (!b || !s) return;
++    var accord = s.portee === 'accord', inactif = accord && accordChoisi() == null;
++    b.classList.toggle('demo-inactif', inactif);
++    if (!attente) b.title = inactif ? '« + » : sélectionnez d’abord un accord dans la grille' : (accord ? '« + » : vider l’accord choisi pour repartir d’un rythme à la main' : '« + » : vider toute la partie pour repartir d’un rythme à la main (confirmation)');
++  }
++  var st = document.createElement('style'); st.textContent = '#sq-motif-main.demo-inactif { opacity: .4; cursor: not-allowed; } #sq-motif-main.demo-confirme { background: #5a2429 !important; border-color: #a24a52 !important; color: #fff !important; }'; document.head.appendChild(st);
++  setInterval(etat, 400);
++  function annoncer(t) { var a = window.app; a && a.flashHint && a.flashHint(t); }
++  function reinit() { var b = document.getElementById('sq-motif-main'); attente = null; clearTimeout(minuteur); if (b) { b.classList.remove('demo-confirme'); var sp = b.querySelector(':scope > span:not(.sq-vignette)'); if (sp) sp.textContent = '+'; } etat(); }
++  function vider(cibles) {
++    var s = seq(), g = { etats: new Map(), annulationPosee: false }, modifs = new Map(), n = 0;
++    cibles.forEach(function (c) { var m = s.enCours(g, c); if (!m.etat.on.size) return; n++; m.etat.on.clear(); m.etat.soude.clear(); m.etat.niveaux.clear(); m.motif = 'main'; modifs.set(c, m); });
++    if (!n) { annoncer('Déjà vide : posez vos notes dans la grille'); return; }
++    s.ecrire(modifs, g);
++    modifs.forEach(function (m, c) { s._etats[c] = Object.assign({}, m.etat, { motif: 'main' }); });
++    annoncer((n > 1 ? 'Partie vidée' : 'Accord vidé') + ' : posez vos notes dans la grille (Ctrl+Z pour annuler)');
++  }
++  document.addEventListener('click', function (e) {
++    var b = e.target.closest && e.target.closest('#sq-motif-main'); if (!b) return;
++    e.stopPropagation(); e.preventDefault();
++    var s = seq(); if (!s || !s._etats || !s._etats.length) return;
++    if (s.portee === 'accord') {
++      var c = accordChoisi();
++      if (c == null) { annoncer('Sélectionnez d’abord un accord dans la grille (ou passez sur « Toute la partie »)'); return; }
++      reinit(); vider([c]); return;
++    }
++    if (!attente) {
++      attente = true; b.classList.add('demo-confirme'); var sp = b.querySelector(':scope > span:not(.sq-vignette)'); if (sp) sp.textContent = 'Vider la partie ?';
++      b.title = 'Cliquez encore pour vider tous les accords de la partie'; clearTimeout(minuteur); minuteur = setTimeout(reinit, 3500); return;
++    }
++    reinit(); vider(s._etats.map(function (_, c) { return c; }));
++  }, true);
++})();
++</script>
++<script>
++(function () {
++  // demo-rythmes-portee : la MÊME logique que « + » pour tous les rythmes (Plaqué, Arpèges, Pompe, Ballade, mes formes), 14/11 :
++  // « Cet accord » exige un accord SÉLECTIONNÉ dans la grille (sinon les rythmes sont grisés et un clic l'explique, au lieu d'écrire sur le premier accord) ;
++  // « Toute la partie » les applique à tous les accords de la partie. Une seule annulation dans les deux cas (c'est déjà le cas dans l'appli).
++  function seq() { return window.app && window.app.sequenceur; }
++  function accordChoisi() { var a = window.app, s = seq(); return (a && s && a.selectedIndex != null && a.activeSection === s._s) ? a.selectedIndex : null; }
++  function sansAccord() { var s = seq(); return !!s && s.portee === 'accord' && accordChoisi() == null; }
++  var st = document.createElement('style');
++  st.textContent = '#sequenceur .sq-motif.demo-inactif, #demo-bibliotheque .bi-item.demo-inactif { opacity: .4; cursor: not-allowed; }';
++  document.head.appendChild(st);
++  setInterval(function () {
++    var inactif = sansAccord();
++    Array.prototype.forEach.call(document.querySelectorAll('#sequenceur .sq-motif[data-sq-motif]:not(#sq-motif-main):not(#demo-retablir)'), function (b) {
++      b.classList.toggle('demo-inactif', inactif);
++      var base = b.getAttribute('data-titre-base'); if (base === null) { base = b.title; b.setAttribute('data-titre-base', base); }
++      b.title = inactif ? 'Sélectionnez d’abord un accord dans la grille (ou passez sur « Toute la partie »)' : base;
++    });
++    Array.prototype.forEach.call(document.querySelectorAll('#demo-bibliotheque .bi-item:not(.bi-enreg-btn):not(.bi-creer-btn)'), function (b) { b.classList.toggle('demo-inactif', inactif); });
++  }, 400);
++  document.addEventListener('click', function (e) {
++    var b = e.target.closest && e.target.closest('#sequenceur .sq-motif[data-sq-motif], #demo-bibliotheque .bi-item:not(.bi-enreg-btn):not(.bi-creer-btn)');
++    if (!b || b.id === 'sq-motif-main' || b.id === 'demo-retablir' || !sansAccord()) return;
++    e.stopPropagation(); e.preventDefault();
++    window.app.flashHint && window.app.flashHint('Sélectionnez d’abord un accord dans la grille (ou passez sur « Toute la partie »)');
++  }, true);
++})();
++</script>
++<script>
++setInterval(function () { var s = window.app && window.app.sequenceur; if (s && s.portee !== 'accord') { s.portee = 'accord'; try { s.rafraichir(); } catch (e) { } } }, 300);   // demo-sans-portee
++</script>
++<script>
++(function () {
++  // demo-grise (14/11, « lorsqu'aucun accord n'est sélectionné, ce bouton-là doit être grisé ? regarde s'il y en a d'autres comme ça ») :
++  // tout bouton qui agit sur « l'accord choisi » est grisé tant qu'aucun accord n'est sélectionné dans la grille : Copier le rythme, Coller le rythme, Effacer le rythme
++  // (les rythmes, « + » et « Enregistrer… » du signet le sont déjà). Un clic sur un bouton grisé dit pourquoi au lieu d'agir sur le premier accord.
++  var IDS = ['sq-copier', 'sq-coller', 'sq-effacer'];
++  function accordChoisi() { var a = window.app, s = a && a.sequenceur; return (a && s && a.selectedIndex != null && a.activeSection === s._s) ? a.selectedIndex : null; }
++  var st = document.createElement('style'); st.textContent = '#sequenceur .demo-grise { opacity: .4 !important; cursor: not-allowed !important; }'; document.head.appendChild(st);
++  var titres = {};
++  setInterval(function () {
++    var sans = accordChoisi() == null;
++    IDS.forEach(function (id) {
++      var b = document.getElementById(id); if (!b) return;
++      if (!(id in titres)) titres[id] = b.title;
++      b.classList.toggle('demo-grise', sans);
++      b.setAttribute('aria-disabled', sans ? 'true' : 'false');
++      if (sans) b.title = 'Sélectionnez d’abord un accord dans la grille'; else if (b.title === 'Sélectionnez d’abord un accord dans la grille') b.title = titres[id];
++    });
++  }, 400);
++  document.addEventListener('click', function (e) {
++    var b = e.target.closest && e.target.closest('#sq-copier, #sq-coller, #sq-effacer');
++    if (!b || accordChoisi() != null) return;
++    e.stopPropagation(); e.preventDefault();
++    window.app.flashHint && window.app.flashHint('Sélectionnez d’abord un accord dans la grille');
++  }, true);
++})();
++</script>
++<script>
++(function () {
++  // demo-tempo-pop
++  function app() { return window.app; }
++  function regler(delta) { var a = app(); if (!a || !a.reglerTempo) return; a.reglerTempo(a.tempoCourant() + delta); }
++  var rep = null, tempsDebut = 0, fait = false;
++  function arreter() { clearTimeout(rep); rep = null; }
++  function cran() {   // la vitesse du défilement augmente avec la durée de la pression : 8 / s, puis 15 / s, puis +5 par pas
++    // aligné sur TrainHub (attachNumberStepper) : un cran à l'appui, puis, après 420 ms, un cran toutes les 70 ms
++    return { pas: 1, delai: 70 };
++  }
++  function boucle(sens) { var c = cran(); regler(sens * c.pas); fait = true; rep = setTimeout(function () { boucle(sens); }, c.delai); }
++  function brancher() {
++    var m = document.getElementById('bl-tempo-moins'), p = document.getElementById('bl-tempo-plus'), v = document.getElementById('bl-tempo-pop-val');
++    if (!m || !p || m.dataset.demo) return; m.dataset.demo = '1';
++    m.textContent = '‹'; p.textContent = '›'; m.setAttribute('aria-label', 'Plus lent (maintenir pour défiler)'); p.setAttribute('aria-label', 'Plus rapide (maintenir pour défiler)');
++    m.title = 'Plus lent — maintenir pour défiler'; p.title = 'Plus rapide — maintenir pour défiler';
++    [[m, -1], [p, 1]].forEach(function (x) {
++      x[0].addEventListener('pointerdown', function (e) {
++        if (e.button !== 0) return; e.preventDefault(); x[0].setPointerCapture(e.pointerId);
++        arreter(); tempsDebut = Date.now(); fait = false; regler(x[1]);
++        rep = setTimeout(function () { boucle(x[1]); }, 420);   // un appui bref = un seul cran ; au-delà de 0,4 s le tempo défile
++      });
++      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) { x[0].addEventListener(t, arreter); });
++      // le clic (relâchement) ne doit pas ajouter un cran de plus ; au clavier (Entrée / Espace) il reste actif
++      x[0].addEventListener('click', function (e) { if (e.detail !== 0) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
++    });
++    v.addEventListener('wheel', function (e) { e.preventDefault(); regler((e.deltaY < 0 ? 1 : -1) * (e.shiftKey ? 5 : 1)); }, { passive: false });
++    v.title = 'Molette : ±1 (Maj : ±5)';
++    var hote = document.getElementById('bl-hote-subdivision');
++    if (hote && !hote.querySelector('.demo-logo-contretemps')) {
++      var lab = hote.querySelector('.bl-pop-etiquette');
++      var ico = document.createElement('span'); ico.className = 'demo-logo-contretemps'; ico.title = 'Contretemps au métronome : un clic de plus entre les temps';
++      ico.style.width = 'auto'; ico.style.gap = '3px'; ico.style.padding = '0 6px 0 2px';
++      ico.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.2 21 10.2 3.5h3.6L15.8 21Z"/><path d="M12 17 16.5 7"/><circle cx="15.3" cy="9.6" r="1.1" fill="currentColor"/></svg><b style="font-size:17px;line-height:1;font-weight:600" aria-hidden="true">&amp;</b>';
++      if (lab) lab.replaceWith(ico); else hote.prepend(ico);
++    }
++  }
++  setInterval(brancher, 500);
++})();
++</script>
++<div id="demo-sq-pop" role="dialog" aria-label="Réglages du séquenceur" hidden></div>
++<script>
++(function () {
++  // demo-reglages-seq (design repris le 14/11 : « il faut que ça colle avec les paramètres généraux de l'application, joli et aligné ») :
++  // la popover emploie les MÊMES composants que Paramètres : .settings-slider-row (nom à gauche, valeur verte à droite, curseur vert), .settings-toggle-row + .switch.
++  var CLE = 'demoSqReglages', R = { auto: false, ligne: 26, croche: 34, noms: true, regle: true, contenu: 'notes' };
++  try { var m = JSON.parse(localStorage.getItem(CLE) || 'null'); if (m) Object.keys(R).forEach(function (k) { if (k in m) R[k] = m[k]; }); } catch (e) { }
++  function sauver() { try { localStorage.setItem(CLE, JSON.stringify(R)); } catch (e) { } }
++  function seq() { return window.app && window.app.sequenceur; }
++  var pop = document.getElementById('demo-sq-pop');
++  function lignes() { return document.querySelectorAll('#sq-grille .sq-case[data-c="0"][data-k="0"]').length; }
++  function poserLigne(v) { var s = seq(); if (!s) return; v = Math.max(14, Math.min(48, Math.round(v))); if (s.ligne === v) return; s.ligne = v; s.poserLigne(); if (s.limiterHauteur) s.limiterHauteur(); }
++  function poserCroche(v) { v = Math.max(14, Math.min(60, Math.round(v))); R.croche = v; window.REGLE_CROCHE = v; var s = seq(); if (s) s.rafraichir(); }
++  function auto() {
++    var n = lignes(); if (!n) return; var dispo = Math.max(120, window.innerHeight * 0.32 - 60);
++    var v = Math.max(14, Math.min(48, Math.floor(dispo / n))); if (v !== R.ligne) { R.ligne = v; poserLigne(v); maj(); }
++  }
++  function classes() { if (R.noms === false && R.contenu === 'notes') R.contenu = 'rien'; document.body.classList.toggle('demo-sans-noms', R.contenu === 'rien'); document.body.classList.toggle('demo-sans-regle', !R.regle); window.__demoContenuBarres && window.__demoContenuBarres(R.contenu); }
++  function interrupteur(id, libelle, aide, on) {
++    return '<div class="settings-toggle-row"><label for="' + id + '"' + (aide ? ' title="' + aide + '"' : '') + '>' + libelle + '</label><button type="button" id="' + id + '" class="switch" role="switch" aria-checked="' + on + '" aria-label="' + libelle + '"><span class="switch-thumb"></span></button></div>';
++  }
++  function maj() {
++    var a = pop.querySelector('.rp-ligne-range'); if (!a) return;
++    a.value = R.ligne; a.disabled = R.auto; pop.querySelector('.rp-ligne-val').textContent = R.ligne + ' px';
++    pop.querySelector('.rp-croche-range').value = R.croche; pop.querySelector('.rp-croche-val').textContent = R.croche + ' px';
++    Array.prototype.forEach.call(pop.querySelectorAll('.rp-contenu [data-contenu]'), function (b) { b.setAttribute('aria-pressed', String(b.dataset.contenu === R.contenu)); });
++    [['rp-auto', R.auto], ['rp-regle', R.regle]].forEach(function (x) { var b = pop.querySelector('#' + x[0]); if (b) b.setAttribute('aria-checked', String(x[1])); });
++    pop.querySelector('.rp-ligne-range').style.opacity = R.auto ? '.45' : '';
++  }
++  function construire() {
++    pop.innerHTML = '<h3 class="settings-group-title rp-titre">Séquenceur</h3>'
++      + '<div class="settings-slider-row"><div class="settings-slider-head"><label for="rp-ligne" title="Hauteur des barres du séquenceur">Hauteur</label><span class="val rp-ligne-val"></span></div><input id="rp-ligne" class="rp-ligne-range" type="range" min="14" max="48" step="1"></div>'
++      + interrupteur('rp-auto', 'Auto', 'Adapter la hauteur au nombre de lignes : peu de lignes, barres plus hautes ; beaucoup (vue Piano), barres plus basses', R.auto)
++      + '<div class="settings-slider-sep"></div>'
++      + '<div class="settings-slider-row"><div class="settings-slider-head"><label for="rp-croche" title="Largeur des croches">Largeur</label><span class="val rp-croche-val"></span></div><input id="rp-croche" class="rp-croche-range" type="range" min="14" max="60" step="1"></div>'
++      + '<div class="settings-slider-sep"></div>'
++      + '<div class="settings-toggle-row rp-contenu-ligne"><label title="Ce qui est écrit sur les barres du séquenceur">Barres</label><div class="sq-seg rp-contenu" role="group" aria-label="Ce qui est écrit sur les barres"><button type="button" data-contenu="rien" aria-pressed="false" title="Rien">Rien</button><button type="button" data-contenu="notes" aria-pressed="true" title="Le nom des notes : C, E, G…">Notes</button><button type="button" data-contenu="degres" aria-pressed="false" title="Les degrés : 1 tonique, 3 tierce, 5 quinte, 7 septième…">Degrés</button></div></div>'
++      + interrupteur('rp-regle', 'Règle', 'La règle des temps (1 2 3 4) au-dessus des barres', R.regle)
++      + '<div class="rp-pied"><button type="button" class="btn-sec rp-defaut">Rétablir</button></div>';
++    maj();
++  }
++  function ouvrir(bt) { construire(); pop.hidden = false; var r = bt.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(r.right - 320, window.innerWidth - 328)) + 'px'; pop.style.top = Math.max(8, r.top - pop.offsetHeight - 8) + 'px'; bt.setAttribute('aria-expanded', 'true'); }
++  function fermer() { pop.hidden = true; var b = document.getElementById('demo-sq-reglages'); if (b) b.setAttribute('aria-expanded', 'false'); }
++  function installer() {
++    var f = document.getElementById('sq-fermer'); if (!f || document.getElementById('demo-sq-reglages')) return;
++    var b = document.createElement('button'); b.type = 'button'; b.id = 'demo-sq-reglages'; b.className = f.className; b.setAttribute('aria-haspopup', 'dialog'); b.setAttribute('aria-expanded', 'false');
++    b.title = 'Réglages du séquenceur : hauteur des barres, largeur des croches…'; b.setAttribute('aria-label', 'Réglages du séquenceur');
++    var roue = document.querySelector('#open-settings svg');
++    b.innerHTML = roue ? roue.outerHTML : '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/></svg>';
++    f.parentNode.insertBefore(b, f);
++    b.addEventListener('click', function (e) { e.stopPropagation(); if (pop.hidden) ouvrir(b); else fermer(); });
++    classes();
++    if (R.croche !== 34) { window.REGLE_CROCHE = R.croche; var s = seq(); if (s) s.rafraichir(); }
++    if (R.auto) auto(); else if (R.ligne !== 26) poserLigne(R.ligne);
++  }
++  setInterval(installer, 600);
++  setInterval(function () { if (R.auto) auto(); }, 700);
++  pop.addEventListener('input', function (e) {
++    if (e.target.classList.contains('rp-ligne-range')) { R.ligne = +e.target.value; poserLigne(R.ligne); sauver(); maj(); }
++    if (e.target.classList.contains('rp-croche-range')) { poserCroche(+e.target.value); sauver(); maj(); }
++  });
++  pop.addEventListener('click', function (e) {
++    var t = e.target.closest('button'); if (!t) return;
++    if (t.id === 'rp-auto') { R.auto = !R.auto; if (R.auto) auto(); }
++    if (t.dataset.contenu) { R.contenu = t.dataset.contenu; R.noms = R.contenu !== 'rien'; classes(); }
++    if (t.id === 'rp-regle') { R.regle = !R.regle; classes(); }
++    if (t.classList.contains('rp-defaut')) { R = { auto: false, ligne: 26, croche: 34, noms: true, regle: true, contenu: 'notes' }; poserLigne(26); poserCroche(34); classes(); }
++    sauver(); maj();
++  });
++  document.addEventListener('pointerdown', function (e) { if (!pop.hidden && !e.target.closest('#demo-sq-pop, #demo-sq-reglages')) fermer(); }, true);
++  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !pop.hidden) fermer(); });
++})();
++</script>
++<script>
++(function () {
++  // demo-tempo-glisse : sur le chiffre « 120 BPM » de la fenêtre du tempo, appuyer (clic gauche OU clic molette) puis glisser vers le haut (plus vite) ou le bas (plus lent) :
++  // un cran tous les 6 px (Maj : ×5), comme sur le bouton de la barre de lecture, où le clic molette + glisser existait déjà.
++  var g = null;
++  function lier() {
++    var v = document.getElementById('bl-tempo-pop-val'); if (!v || v.dataset.glisse) return; v.dataset.glisse = '1';
++    v.style.touchAction = 'none'; v.style.userSelect = 'none';
++    v.addEventListener('pointerdown', function (e) { if (e.button !== 0 && e.button !== 1) return; e.preventDefault(); try { v.setPointerCapture(e.pointerId); } catch (x) { } g = { y0: e.clientY, t0: window.app.tempoCourant() }; });
++    v.addEventListener('mousedown', function (e) { if (e.button === 1) e.preventDefault(); });
++    v.addEventListener('pointermove', function (e) { if (!g) return; window.app.reglerTempo(g.t0 + Math.round((g.y0 - e.clientY) / 5) * (e.shiftKey ? 5 : 1)); });
++    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) { v.addEventListener(t, function () { g = null; }); });
++    v.title = 'Molette : ±1 (Maj : ±5) · ou appuyer et glisser vers le haut / le bas';
++  }
++  setInterval(lier, 500);
++})();
++</script>
++<script>
++(function () {
++  // demo-vitesse-unique
++  var ARRETS = [50, 75, 100, 150, 200], SEUIL = 6;   // le curseur « colle » à un cran à moins de 6 points de pourcentage
++  document.addEventListener('input', function (e) {
++    if (!e.target || e.target.id !== 'bl-vitesse') return;
++    var v = +e.target.value, proche = ARRETS.reduce(function (m, a) { return Math.abs(a - v) < Math.abs(m - v) ? a : m; }, ARRETS[0]);
++    if (Math.abs(proche - v) <= SEUIL && proche !== v) e.target.value = proche;
++  }, true);
++  function graduer() {
++    var r = document.getElementById('bl-vitesse'); if (!r) return; var deja = document.querySelectorAll('.demo-graduations'); for (var k = 1; k < deja.length; k++) deja[k].remove(); if (deja.length) return;
++    var g = document.createElement('div'); g.className = 'demo-graduations'; g.setAttribute('aria-hidden', 'true');
++    g.innerHTML = ARRETS.map(function (a) { return '<span class="' + (a === 100 ? 'cent' : '') + '" style="left:' + ((a - 50) / 150 * 100) + '%">' + a + '</span>'; }).join('');
++    r.parentNode.insertBefore(g, r.nextSibling);
++    r.setAttribute('aria-label', 'Vitesse de lecture, de 50 à 200 % (aimantée à 50, 75, 100, 150, 200)');
++  }
++  setInterval(graduer, 500);
++})();
++</script>
++<script>
++(function () {
++  // demo-subdivision-haut
++  function monter() {
++    var b = document.getElementById('toggle-metronome-subdivision'), ligne = document.getElementById('bl-tempo-ligne'), tap = document.getElementById('bl-tap');
++    if (!b || !ligne || !tap || b.parentElement === ligne) return;
++    tap.insertAdjacentElement('afterend', b);
++    b.title = 'Clic du métronome : à la noire ♩ ou à la croche ♪ (contretemps)'; b.setAttribute('aria-label', 'Métronome : noire ou croche');
++  }
++  setInterval(monter, 500);
++})();
++</script>
++<script>
++(function () {
++  // demo-barre-droite : le bouton de réorganisation de la barre porte la ROUE (réglage), avec une infobulle qui dit ce qu'il règle.
++  function roue() {
++    var b = document.getElementById('bl-reorg'), r = document.querySelector('#open-settings svg'); if (!b || !r || b.dataset.roue) return; b.dataset.roue = '1';
++    var s = b.querySelector('svg'); if (s) s.outerHTML = r.outerHTML;
++    b.title = 'Réglage de la barre : réorganiser les blocs (tempo, vues…)'; b.setAttribute('aria-label', 'Réglage de la barre : réorganiser les blocs');
++  }
++  setInterval(roue, 500);
++})();
++</script>
++<script>
++(function () {
++  // demo-contenu-barres : « Degrés » — chaque barre porte son degré dans l'accord (1 tonique, ♭3 / 3 tierce, 5 quinte, ♭7 / 7 septième, 9, 11, 13…), calculé sur l'intervalle avec la fondamentale.
++  var mode = 'notes';
++  var DEG = { 0: '1', 1: '♭9', 2: '9', 3: '♭3', 4: '3', 5: '11', 6: '♭5', 7: '5', 8: '♯5', 9: '6', 10: '♭7', 11: '7' };
++  var NOMS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
++  function racinePc(info) {
++    var r = info.voix.filter(function (v) { return v.role === 'root'; })[0]; if (r) return ((r.midi % 12) + 12) % 12;
++    var c = info.chord && (info.chord.root || info.chord.rootName); var k = NOMS.indexOf(c); return k >= 0 ? k : 0;
++  }
++  function appliquer() {
++    var s = window.app && window.app.sequenceur, g = document.getElementById('sq-grille'); if (!s || !g) return;
++    var notes = g.querySelectorAll('.sq-case.on[data-v]');
++    Array.prototype.forEach.call(notes, function (cell) {
++      var sp = cell.querySelector('.sq-note'); if (!sp) return;
++      var tn = Array.prototype.filter.call(sp.childNodes, function (n) { return n.nodeType === 3; })[0];
++      if (!tn || !tn.textContent.trim()) return;
++      if (mode !== 'degres') { if (sp.dataset.nomNote) { tn.textContent = sp.dataset.nomNote; delete sp.dataset.nomNote; } return; }
++      if (!sp.dataset.nomNote) sp.dataset.nomNote = tn.textContent;
++      var e = s._etats[+cell.dataset.c], v = e && e.info.voix[+cell.dataset.v]; if (!v) return;
++      var iv = (((v.midi % 12) + 12) % 12 - racinePc(e.info) + 12) % 12;
++      tn.textContent = DEG[iv];
++    });
++  }
++  window.__demoContenuBarres = function (m) { mode = m; appliquer(); };
++  function lier() {
++    var g = document.getElementById('sq-grille'); if (!g || g.dataset.demoDeg) return; g.dataset.demoDeg = '1';
++    new MutationObserver(function () { if (mode === 'degres') appliquer(); }).observe(g, { childList: true, subtree: true });
++  }
++  setInterval(function () { lier(); if (mode === 'degres') appliquer(); }, 600);
++})();
++</script>
++<script>
++(function () {
++  // demo-reorg-glisser
++  var CLE = 'harmohubBarreLectureOrdre', drag = null;
++  function barre() { return document.getElementById('barre-lecture'); }
++  function blocs() { return Array.prototype.slice.call(barre().querySelectorAll('.bl-bloc')); }
++  function ordre() { return blocs().sort(function (a, b) { return (+getComputedStyle(a).getPropertyValue('--ordre') || 0) - (+getComputedStyle(b).getPropertyValue('--ordre') || 0); }); }
++  function poser(liste) {
++    liste.forEach(function (b, i) { b.style.setProperty('--ordre', String(i)); });
++    var noms = liste.map(function (b) { return b.dataset.bloc; });
++    try { localStorage.setItem(CLE, JSON.stringify(noms)); } catch (e) { }
++    if (window.app) window.app._blOrdre = noms;
++  }
++  document.addEventListener('pointerdown', function (e) {
++    var bar = barre(); if (!bar || !bar.classList.contains('reorganiser') || window.innerWidth < 900) return;
++    var b = e.target.closest && e.target.closest('#barre-lecture .bl-bloc'); if (!b || e.button !== 0) return;
++    e.preventDefault(); e.stopPropagation();
++    drag = { b: b }; b.classList.add('demo-souleve');
++    try { b.setPointerCapture(e.pointerId); } catch (x) { }
++  }, true);
++  document.addEventListener('pointermove', function (e) {
++    if (!drag) return;
++    // la position visée = le nombre d'AUTRES blocs dont le centre est à gauche du pointeur (même ligne)
++    var autres = ordre().filter(function (x) { return x !== drag.b; });
++    var cible = autres.filter(function (x) { var r = x.getBoundingClientRect(); return r.left + r.width / 2 < e.clientX; }).length;
++    var nouvelle = autres.slice(); nouvelle.splice(cible, 0, drag.b);
++    var avant = ordre().map(function (x) { return x.dataset.bloc; }).join(), apres = nouvelle.map(function (x) { return x.dataset.bloc; }).join();
++    if (avant !== apres) poser(nouvelle);
++  }, true);
++  function fin() { if (!drag) return; drag.b.classList.remove('demo-souleve'); drag = null; }
++  document.addEventListener('pointerup', fin, true); document.addEventListener('pointercancel', fin, true);
++  var ti = setInterval(function () {
++    var r = document.getElementById('bl-reinit'); if (!r) return;
++    r.title = 'Remettre l’ordre d’origine'; r.setAttribute('aria-label', 'Remettre l’ordre d’origine'); clearInterval(ti);
++  }, 400);
++  var tb = setInterval(function () {
++    var o = document.getElementById('bl-reorg'); if (!o) return; o.title = 'Réglage de la barre : attrapez un bloc à la souris et déplacez-le (tempo, vues…)'; clearInterval(tb);
++  }, 400);
++})();
++</script>
++<div id="demo-barre-pop" role="dialog" aria-label="Réglage de la barre de lecture" hidden></div>
++<script>
++(function () {
++  // demo-reglage-barre
++  var CLE = 'demoBarreReglages', R = { pleine: true, largeur: 520, noms: true, mesure: true };
++  try { var m = JSON.parse(localStorage.getItem(CLE) || 'null'); if (m) Object.keys(R).forEach(function (k) { if (k in m) R[k] = m[k]; }); } catch (e) { }
++  function sauver() { try { localStorage.setItem(CLE, JSON.stringify(R)); } catch (e) { } }
++  var pop = document.getElementById('demo-barre-pop');
++  function bloc() { return document.querySelector('#barre-lecture .bl-bloc[data-bloc="parties"]'); }
++  function appliquer() {
++    var b = bloc(); if (b) { if (R.pleine) { b.style.removeProperty('flex'); b.style.removeProperty('max-width'); } else { b.style.flex = '0 1 ' + R.largeur + 'px'; b.style.maxWidth = R.largeur + 'px'; } }
++    document.body.classList.toggle('demo-sans-noms-parties', !R.noms); document.body.classList.toggle('demo-sans-mesure', !R.mesure);
++  }
++  function sw(id, lib, on, aide) { return '<div class="settings-toggle-row"><label for="' + id + '"' + (aide ? ' title="' + aide + '"' : '') + '>' + lib + '</label><button type="button" id="' + id + '" class="switch" role="switch" aria-checked="' + on + '" aria-label="' + lib + '"><span class="switch-thumb"></span></button></div>'; }
++  function reorgActif() { var bar = document.getElementById('barre-lecture'); return !!bar && bar.classList.contains('reorganiser'); }
++  function maj() {
++    var r = pop.querySelector('#rb-largeur'); if (!r) return;
++    r.value = R.largeur; r.disabled = R.pleine; r.style.opacity = R.pleine ? '.45' : ''; pop.querySelector('.rb-val').textContent = R.pleine ? 'pleine' : R.largeur + ' px';
++    [['rb-pleine', R.pleine], ['rb-noms', R.noms], ['rb-mesure', R.mesure], ['rb-reorg', reorgActif()]].forEach(function (x) { var b = pop.querySelector('#' + x[0]); if (b) b.setAttribute('aria-checked', String(x[1])); });
++  }
++  function construire() {
++    pop.innerHTML = '<h3 class="settings-group-title">Barre de lecture</h3>'
++      + sw('rb-pleine', 'Frise pleine largeur', R.pleine, 'La frise des parties (Couplet, Refrain…) prend toute la place libre de la barre')
++      + '<div class="settings-slider-row"><div class="settings-slider-head"><label for="rb-largeur" title="Largeur de la frise des parties">Largeur</label><span class="val rb-val"></span></div><input type="range" id="rb-largeur" min="200" max="900" step="10"></div>'
++      + '<div class="settings-slider-sep"></div>'
++      + sw('rb-noms', 'Noms', R.noms, 'Noms des parties dans la frise (Couplet, Refrain…), ou seulement les tranches')
++      + sw('rb-mesure', 'Mesure', R.mesure, 'Le numéro de mesure (Mes. 1)')
++      + '<div class="settings-slider-sep"></div>'
++      + sw('rb-reorg', 'Réorganiser', reorgActif(), 'Réorganiser les blocs : attrapez-en un à la souris et déplacez-le')
++      + '<div class="rb-pied"><button type="button" class="btn-sec rb-ordre" title="Remettre l’ordre d’origine des blocs">Ordre</button><button type="button" class="btn-sec rb-defaut">Rétablir</button></div>';
++    maj();
++  }
++  function ouvrir(bt) { construire(); pop.hidden = false; var r = bt.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(r.right - 320, window.innerWidth - 328)) + 'px'; pop.style.top = Math.max(8, r.top - pop.offsetHeight - 10) + 'px'; bt.setAttribute('aria-expanded', 'true'); }
++  function fermer() { pop.hidden = true; var b = document.getElementById('bl-reorg'); if (b) b.setAttribute('aria-expanded', 'false'); }
++  // la roue ouvre la popover (au lieu de basculer directement le mode réorganiser, qui s'active désormais dans la popover)
++  document.addEventListener('click', function (e) {
++    var b = e.target.closest && e.target.closest('#bl-reorg'); if (!b) return;
++    e.stopImmediatePropagation(); e.preventDefault();
++    if (pop.hidden) ouvrir(b); else fermer();
++  }, true);
++  function basculerReorg() { var bar = document.getElementById('barre-lecture'), o = document.getElementById('bl-reorg'), ri = document.getElementById('bl-reinit'); var oui = !bar.classList.contains('reorganiser'); bar.classList.toggle('reorganiser', oui); if (o) o.setAttribute('aria-pressed', String(oui)); if (ri) ri.hidden = !oui; }
++  pop.addEventListener('input', function (e) { if (e.target.id === 'rb-largeur') { R.largeur = +e.target.value; appliquer(); sauver(); maj(); } });
++  pop.addEventListener('click', function (e) {
++    var t = e.target.closest('button'); if (!t) return;
++    if (t.id === 'rb-pleine') R.pleine = !R.pleine;
++    if (t.id === 'rb-noms') R.noms = !R.noms;
++    if (t.id === 'rb-mesure') R.mesure = !R.mesure;
++    if (t.id === 'rb-reorg') basculerReorg();
++    if (t.classList.contains('rb-ordre')) { var ri = document.getElementById('bl-reinit'); if (ri) { ri.hidden = false; ri.click(); } }
++    if (t.classList.contains('rb-defaut')) { R = { pleine: true, largeur: 520, noms: true, mesure: true }; }
++    appliquer(); sauver(); maj();
++  });
++  document.addEventListener('pointerdown', function (e) { if (!pop.hidden && !e.target.closest('#demo-barre-pop, #bl-reorg')) fermer(); }, true);
++  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !pop.hidden) fermer(); });
++  setInterval(appliquer, 700);
++})();
++</script>
++<script>
++(function () {
++  // demo-structure-libre : textes courts (la phrase complète passe dans l'infobulle)
++  setInterval(function () {
++    var sel = document.getElementById('struct-ajout-select');
++    if (sel) { var o = sel.querySelector('option[value=""]'); if (o && o.textContent !== '+ Partie…') o.textContent = '+ Partie…'; sel.title = 'Ajouter une partie à la structure'; }
++    var a = document.querySelector('#structure-overlay .struct-aide');
++    if (a && a.textContent !== 'Clic droit : options') { a.title = 'Clic droit (ou appui long) sur une partie : dupliquer, renommer, commenter, retirer'; a.textContent = 'Clic droit : options'; }
++  }, 400);
++})();
++</script>
++<script>
++(function () { // demo-bord-gauche : texte du bouton Voicing
++  var b = document.getElementById('demo-vue-large');
++  if (b && !b.querySelector('.demo-nom')) { var s = document.createElement('span'); s.className = 'demo-nom'; s.textContent = 'Voicing'; b.appendChild(s); }
++})();
++</script>
++<script>
++(function () { // demo-mesure-texte : « Mes. N » -> MESURE / N sur total (le vrai code écrit toujours « Mes. N » : on le met en forme à chaque écriture)
++  var m = document.getElementById('bl-mesure'); if (!m) return;
++  var courant = 0, ecrit = false;
++  function total() { try { var a = window.app, g = a.geometrieBarreLecture(); return Math.max(1, Math.round(g.total / (a.beatsPerBar() || 4))); } catch (e) { return 0; } }
++  function rendre(n) {
++    if (window.innerWidth < 900) return;
++    var t = total(), html = '<span class="bm-lab">Mesure</span><span class="bm-val"><b>' + n + '</b>' + (t ? '<i>/ ' + t + '</i>' : '') + '</span>';
++    ecrit = true; obs.disconnect(); courant = n; m.innerHTML = html; m.title = 'Mesure en cours : ' + n + (t ? ' sur ' + t : '');
++    obs.observe(m, { childList: true, characterData: true, subtree: true }); ecrit = false;
++  }
++  var obs = new MutationObserver(function () { if (ecrit) return; var r = /^Mes\. (\d+)$/.exec(m.textContent.trim()); if (r) rendre(+r[1]); });
++  obs.observe(m, { childList: true, characterData: true, subtree: true });
++  var r0 = /^Mes\. (\d+)$/.exec(m.textContent.trim()); if (r0) rendre(+r0[1]);
++  setInterval(function () { if (courant && m.querySelector('.bm-val i') && m.querySelector('.bm-val i').textContent !== '/ ' + total() && total()) rendre(courant); }, 800);
++})();
++</script>
++<script>
++(function () { // demo-toast : plus d'alerte « Sons du piano pas encore chargés » (le son de secours joue sans prévenir)
++  var t = setInterval(function () { var a = window.app; if (a && a.warnIfFallbackInstrument) { a.warnIfFallbackInstrument = function () { this._fallbackWarned = true; }; clearInterval(t); } }, 200);
++})();
++</script>
++<script>
++(function () { // demo-logo-boucle (14/11, « modifie le logo boucle, il faut l'améliorer ») : l'ancien arc unique à pointe de flèche se lisait « recharger » ;
++  // le logo « répéter » (deux flèches qui se suivent en rectangle arrondi) dit la boucle sans ambiguïté. Même trait que les autres logos de la barre (2, bouts ronds).
++  var NOUVEAU = '<path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>';
++  function poser() { var b = document.getElementById('boucle-btn'), s = b && b.querySelector('svg'); if (!s || s.dataset.demoBoucle) return; s.innerHTML = NOUVEAU; s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '2'); s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round'); s.dataset.demoBoucle = '1'; }
++  setInterval(poser, 400); poser();
++})();
++</script>
++<script>
++(function () { // demo-onglets-accord
++  var ORD = window.matchMedia('(min-width: 900px)');
++  function app() { return window.app; }
++  function rendreVoicing(a, b) {
++    var pane = b.querySelector('.demo-pane-voicing'), row = document.getElementById('voicing-row'), z = a._bulle;
++    if (!pane || !row || !z) return;
++    if (pane.contains(row)) return;
++    if (a.editingIndex !== z.index || a.activeSection !== z.section) { a.editChord(z.section, z.index); if (a._bulle !== z) a._bulle = z; b.hidden = false; }
++    pane = b.querySelector('.demo-pane-voicing'); row = document.getElementById('voicing-row'); if (!pane || !row) return;
++    if (pane.contains(row)) { document.body.classList.add('demo-voicing-bulle'); return; }
++    pane.appendChild(row);
++    [].forEach.call(row.querySelectorAll('.voicing-group'), function (g) { var l = g.querySelector('.voicing-label'); if (l && /Basse/i.test(l.textContent)) g.style.display = 'none'; });
++    document.body.classList.add('demo-voicing-bulle');
++    if (a.placerBulleAccord) a.placerBulleAccord();
++  }
++  function rendreRetour(a) { // la rangée voicing retourne dans la carte Accord (cachée) quand on quitte l'onglet
++    var row = document.getElementById('voicing-row'), carte = document.getElementById('accord-card');
++    if (row && carte && !carte.contains(row)) { carte.appendChild(row); [].forEach.call(row.querySelectorAll('.voicing-group'), function (g) { g.style.display = ''; }); }
++    document.body.classList.remove('demo-voicing-bulle');
++  }
++  function onglet(a, b, nom) {
++    b.dataset.demoOnglet = nom; window.__demoOnglet = nom;
++    [].forEach.call(b.querySelectorAll('.demo-onglets button'), function (x) { x.setAttribute('aria-pressed', String(x.dataset.o === nom)); });
++    if (nom === 'voicing') rendreVoicing(a, b);
++    else {
++      rendreRetour(a); if (a.editingIndex != null && a.cancelEdit) { try { a.cancelEdit(); } catch (e) {} }
++      if (nom === 'rythme') { var vs = document.getElementById('vue-sequenceur'), ouvert = vs && vs.getAttribute('aria-pressed') === 'true', pr = b.querySelector('.demo-pane-rythme');
++        if (pr) { var bo = pr.querySelector('[data-o-ouvrir]'); if (bo) bo.style.display = ouvert ? 'none' : ''; } }
++    }
++    if (a.placerBulleAccord) a.placerBulleAccord();
++  }
++  function habiller(a) {
++    var b = document.getElementById('bulle-accord'), z = a._bulle;
++    if (!b || !z || z.telephone || !ORD.matches) return;
++    var tete = b.querySelector('.bulle-tete'); if (!tete || b.querySelector('.demo-onglets')) return;
++    var bar = document.createElement('div'); bar.className = 'demo-onglets'; bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', 'Accord, voicing ou rythme');
++    bar.innerHTML = '<button type="button" data-o="accord">Accord</button><button type="button" data-o="voicing" title="Octave, renversement, drop">Voicing</button><button type="button" data-o="rythme" title="Le rythme de cet accord">Rythme</button>';
++    tete.insertAdjacentElement('afterend', bar);
++    [].forEach.call(b.children, function (c) { if (c !== tete && c !== bar) c.classList.add('demo-accord'); });
++    var pv = document.createElement('div'); pv.className = 'demo-pane-voicing'; b.appendChild(pv);
++    var pr = document.createElement('div'); pr.className = 'demo-pane-rythme';
++    pr.innerHTML = '<button type="button" data-o-ouvrir="1">Ouvrir le séquenceur</button>';
++    b.appendChild(pr);
++    bar.addEventListener('click', function (e) { var x = e.target.closest('button[data-o]'); if (x) { e.stopPropagation(); onglet(a, b, x.dataset.o); } });
++    pr.addEventListener('click', function (e) { if (e.target.closest('[data-o-ouvrir]')) { e.stopPropagation(); var vs = document.getElementById('vue-sequenceur'); if (vs && vs.getAttribute('aria-pressed') !== 'true') vs.click(); } });
++    onglet(a, b, window.__demoOnglet && z.index === window.__demoIndex ? window.__demoOnglet : 'accord'); window.__demoIndex = z.index;
++  }
++  var t = setInterval(function () {
++    var a = app(); if (!a || !a.remplirBulleAccord || a.__demoOnglets) return; a.__demoOnglets = true; clearInterval(t);
++    var orig = a.remplirBulleAccord.bind(a), fermer = a.fermerBulleAccord.bind(a);
++    a.remplirBulleAccord = function () { rendreRetour(a); orig(); habiller(a); };
++    a.fermerBulleAccord = function () { rendreRetour(a); window.__demoOnglet = null; fermer(); };
++  }, 200);
++  // téléphone : « Son » devient « Voicing »
++  setInterval(function () { [].forEach.call(document.querySelectorAll('#pa-quel .pa-onglets button[data-valeur="son"]'), function (x) { if (x.textContent.trim() !== 'Voicing') x.textContent = 'Voicing'; }); }, 300);
++})();
++</script>
++<script>
++(function () { // demo-rythme-bulle : les rythmes types dans l'onglet Rythme (ils pilotent les vrais boutons du séquenceur)
++  var IDS = ['sq-motif-main', 'sq-motif-plaque', 'sq-motif-monte', 'sq-motif-descend', 'sq-motif-pompe', 'sq-motif-ballade'];
++  var NOMS = { 'sq-motif-main': '+ Libre', 'sq-motif-plaque': 'Plaqué', 'sq-motif-monte': 'Arpège ↑', 'sq-motif-descend': 'Arpège ↓', 'sq-motif-pompe': 'Pompe', 'sq-motif-ballade': 'Ballade' };
++  // RÈGLE (14/11, « quatre diagrammes par ligne […] s'il y a plus de quatre lignes, il faut que j'aille dans Autres ») : la grille fait 4 colonnes et 4 lignes au plus, « Autres » est
++  // TOUJOURS la dernière case ; les rythmes types puis les formes de l'utilisateur y prennent les 15 premières places, le reste est derrière « Autres » (qui dit combien).
++  var COLONNES = 4, LIGNES_MAX = 4, PLACES = COLONNES * LIGNES_MAX - 1;
++  function peupler(zone) {
++    var items = [];
++    IDS.forEach(function (id) { var r = document.getElementById(id); if (r) items.push({ cle: 'rid', val: id, nom: NOMS[id], r: r }); });
++    [].forEach.call(document.querySelectorAll('#sq-formes .sq-motif[data-sq-motif]'), function (r) {
++      var s = r.querySelector('span:not(.sq-vignette)'); items.push({ cle: 'fid', val: r.dataset.sqMotif, nom: (r.title || (s && s.textContent) || 'Forme').split(' — ')[0].trim(), r: r });
++    });
++    var visibles = items.slice(0, PLACES), reste = items.length - visibles.length, h = '';
++    visibles.forEach(function (it) {
++      var r = it.r, v = r.querySelector('.sq-vignette');
++      h += '<button type="button" data-' + it.cle + '="' + it.val + '" aria-pressed="' + (r.getAttribute('aria-pressed') === 'true') + '"' + (r.getAttribute('aria-disabled') === 'true' || r.disabled ? ' disabled' : '') + ' title="' + it.nom.replace(/"/g, '&quot;') + '">' + (v ? v.outerHTML : '') + '<span>' + it.nom + '</span></button>';
++    });
++    h += '<button type="button" data-signet="1" title="' + (reste > 0 ? reste + ' autre' + (reste > 1 ? 's' : '') + ' rythme' + (reste > 1 ? 's' : '') + ' — tous les rythmes enregistrés' : 'Tous les rythmes enregistrés') + '" aria-label="Tous les rythmes enregistrés"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12v17l-6-4-6 4z"/></svg><span>Autres' + (reste > 0 ? ' +' + reste : '') + '</span></button>';
++    zone.innerHTML = h;
++  }
++  function maj() {
++    var pr = document.querySelector('#bulle-accord .demo-pane-rythme'); if (!pr || pr.offsetParent === null) return;
++    var zone = pr.querySelector('.demo-rythmes');
++    if (!zone) { zone = document.createElement('div'); zone.className = 'demo-rythmes'; pr.insertBefore(zone, pr.firstChild); zone.addEventListener('click', function (e) { var sg = e.target.closest('button[data-signet]'); if (sg) { e.stopPropagation(); if (window.__demoOuvrirBiblio) window.__demoOuvrirBiblio(sg); return; } var bt = e.target.closest('button[data-rid], button[data-fid]'); if (!bt || bt.disabled) return; e.stopPropagation(); var r = bt.dataset.rid ? document.getElementById(bt.dataset.rid) : document.querySelector('#sq-formes .sq-motif[data-sq-motif="' + bt.dataset.fid + '"]'); if (r) r.click(); setTimeout(maj, 80); }); }
++    peupler(zone);
++    var ouvert = (document.getElementById('vue-sequenceur') || {}).getAttribute && document.getElementById('vue-sequenceur').getAttribute('aria-pressed') === 'true';
++    var s = pr.querySelector('span:not(.sq-vignette):not(.lit)'); 
++  }
++  setInterval(maj, 700);
++})();
++</script>
++<script>
++(function () { // demo-tel-plus : libellé du « + » de fin de ligne (téléphone seulement)
++  var mq = window.matchMedia('(max-width: 899px)');
++  function lib() { [].forEach.call(document.querySelectorAll('.cell-add-input'), function (i) { var v = mq.matches ? '+ Accord' : '+'; if (i.placeholder !== v) i.placeholder = v; }); }
++  setInterval(lib, 400); lib();
++})();
++</script>
++<script>
++(function () { // demo-tel-ajout : « + Accord » dans l'en-tête de chaque partie, au téléphone
++  var mq = window.matchMedia('(max-width: 899px)');
++  function poser() {
++    [].forEach.call(document.querySelectorAll('.prog-section-head'), function (head) {
++      var deja = head.querySelector('.demo-tel-ajout');
++      if (!mq.matches) { if (deja) deja.remove(); return; }
++      if (deja) return;
++      var t = head.querySelector('.prog-title'); if (!t) return;
++      var n = t.dataset.section, b = document.createElement('button');
++      b.type = 'button'; b.className = 'demo-tel-ajout'; b.textContent = '+ Accord'; b.title = 'Ajouter un accord à la fin de cette partie'; b.setAttribute('aria-label', 'Ajouter un accord à la fin de la partie');
++      b.addEventListener('click', function (e) { e.stopPropagation(); var i = document.querySelector('.cell-add-input[data-section="' + n + '"]'); if (i) { i.focus(); i.click(); } });
++      head.appendChild(b);
++    });
++  }
++  setInterval(poser, 500); poser();
++})();
++</script>
++<script>
++(function () { // demo-noms-rythmes
++  var CLE = 'demoNomsRythmes';
++  function lire() { try { var v = localStorage.getItem(CLE); return v === '1' ? true : v === '0' ? false : null; } catch (e) { return null; } }
++  function ecrire(v) { try { localStorage.setItem(CLE, v ? '1' : '0'); } catch (e) { } }
++  function actif() { var v = lire(); return v === null ? window.innerWidth >= 1340 : v; }
++  function appliquer() { document.body.classList.toggle('demo-sans-noms-rythmes', !actif()); var b = document.getElementById('demo-noms-case'); if (b) b.setAttribute('aria-checked', String(actif())); }
++  function ajouter() {
++    var ref = document.getElementById('demo-hauteur') || document.getElementById('toggle-show-roman'); if (!ref || document.getElementById('demo-noms-rythmes')) return;
++    var r = document.createElement('div'); r.className = 'settings-toggle-row'; r.id = 'demo-noms-rythmes';
++    r.innerHTML = '<label for="demo-noms-case" title="Écrire le nom (Plaqué, Arpège…) sous la vignette de chaque rythme du séquenceur">Noms des rythmes</label><button type="button" id="demo-noms-case" class="switch" role="switch" aria-checked="' + actif() + '" aria-label="Noms des rythmes"><span class="switch-thumb"></span></button>';
++    var ligne = ref.closest('.settings-toggle-row, .settings-slider-row') || ref; ligne.insertAdjacentElement('afterend', r);
++    document.getElementById('demo-noms-case').addEventListener('click', function () { ecrire(!actif()); appliquer(); });
++  }
++  new MutationObserver(ajouter).observe(document.body, { childList: true, subtree: true });
++  window.addEventListener('resize', appliquer); appliquer();
++})();
++</script>
++<script>
++(function () { // demo-tablette-mesures (14/11, « sur tablette, mettre au minimum 2 mesures dans le séquenceur […] tu peux le mettre sur l'aperçu »)
++  // Sous 900 px le séquenceur du panneau d'accord montrait UN accord. Il montre maintenant les accords de la LIGNE de l'accord choisi, par pages de N, où N = mesures qui tiennent
++  // avec la croche tactile de 30 px : N = ⌊(largeur du panneau − 56) / 240⌋ (240 = 8 croches de 30 px ; 56 = colonne des notes et marge). 1 sous ~560 px, 2 de 560 à 800 px, 3 au-delà.
++  function nTel() { var p = document.getElementById('pa-rythme'), w = p ? p.clientWidth : window.innerWidth - 24; return Math.max(1, Math.floor((w - 56) / 240)); }
++  window.__demoNTel = nTel;
++  var t = setInterval(function () {
++    var a = window.app, s = a && a.sequenceur; if (!s || !window.DEMO_LIGNE || s.__demoTab) return; s.__demoTab = true; clearInterval(t);
++    var base = window.DEMO_LIGNE;
++    window.DEMO_LIGNE = function (sec, accords, i) {
++      var g = base(sec, accords, i);
++      if (s.modeTel && s.modeTel()) { var n = nTel(); if (g.length > n) { var p = Math.max(0, g.indexOf(i == null ? 0 : i)), debut = Math.floor(p / n) * n; g = g.slice(debut, debut + n); } }
++      return g;
++    };
++    Object.getPrototypeOf(s).uneSeule = function () { return this.modeTel() && this.portee === 'accord' && nTel() < 2; };
++  }, 200);
++})();
++</script>
++<script>
++(function () { // demo-tel-bas : libellé court du bouton d'ajout de section au téléphone
++  var mq = window.matchMedia('(max-width: 899px)');
++  function lib() { var b = document.getElementById('add-section'); if (!b) return; var t = b.lastChild; var v = mq.matches ? ' + Section' : null; if (mq.matches && t && t.nodeType === 3 && t.textContent !== ' Section') t.textContent = ' Section'; }
++  setInterval(lib, 500); lib();
++})();
++</script>
++<script>
++(function () { // demo-tel-seq
++  var mq = window.matchMedia('(max-width: 899px)');
++  function poser() {
++    var f = document.getElementById('tel-affichage'), zone = f && f.parentElement; if (!zone) return; // 14/11 : « place le bouton séquenceur ici finalement » : dans la rangée du résumé, sous Rétablir
++    var b = zone.querySelector('.demo-tel-seq');
++    if (!mq.matches) { if (b) b.remove(); return; }
++    if (b) return;
++    var src = document.querySelector('#vue-sequenceur svg');
++    b = document.createElement('button'); b.type = 'button'; b.className = 'demo-tel-seq'; b.title = 'Séquenceur'; b.setAttribute('aria-label', 'Ouvrir le séquenceur');
++    b.innerHTML = src ? src.outerHTML : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 12h4M12 12h8M4 17h12M20 17h0"/></svg>';
++    b.addEventListener('click', function (e) { e.stopPropagation(); var a = window.app; if (a && a.ouvrirRythmeTelephone) a.ouvrirRythmeTelephone(true); });
++    zone.insertBefore(b, f.nextSibling);
++  }
++  setInterval(poser, 500); poser();
++})();
++</script>
++<script>
++(function () { // demo-ajout-pop
++  var pop = document.createElement('div'); pop.id = 'demo-ajout-pop'; pop.hidden = true; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Ajouter un accord'); document.body.appendChild(pop);
++  var etat = { section: 0, root: 'C', quality: 'maj', ancre: null };
++  function nomAccord() { var q = (typeof QUALITY_LABEL !== 'undefined' && QUALITY_LABEL[etat.quality]) || ''; return etat.root + q; }
++  function libelle(n) { return n.replace('#', '♯'); }
++  function dessiner() {
++    var types = [].slice.call(document.getElementById('quality').options), titre = '';
++    try { var s = loadProgressionSections()[etat.section]; titre = (s && s.title && s.title.trim()) || ('Partie ' + (etat.section + 1)); } catch (e) { titre = 'la partie'; }
++    pop.innerHTML = '<div class="ap-tete"><span>Ajouter à ' + titre.replace(/</g, '&lt;') + '</span><button type="button" data-ap="fermer" aria-label="Fermer" title="Fermer (Échap)">✕</button></div>'
++      + '<div class="rr-lbl">Fondamentale</div><div class="rr-grille bulle-g12">' + NOTES.map(function (n) { return '<button type="button" data-ap="root" data-v="' + n + '" aria-pressed="' + (n === etat.root) + '">' + libelle(n) + '</button>'; }).join('') + '</div>'
++      + '<div class="rr-lbl">Type</div><div class="rr-grille bulle-g5">' + types.map(function (o) { return '<button type="button" data-ap="quality" data-v="' + o.value + '" aria-pressed="' + (o.value === etat.quality) + '">' + o.text + '</button>'; }).join('') + '</div>'
++      + '<div class="ap-pied"><span class="ap-nom">' + libelle(nomAccord()) + '</span><button type="button" data-ap="ajouter">Ajouter</button></div>';
++  }
++  function placer() {
++    var r = etat.ancre && etat.ancre.isConnected ? etat.ancre.getBoundingClientRect() : { left: 200, bottom: 200, top: 200 };
++    var w = Math.min(404, window.innerWidth - 16), h = pop.offsetHeight;
++    var gauche = Math.max(8, Math.min(r.left - 8, window.innerWidth - w - 8));
++    var bas = r.bottom + 8, haut = Math.min(bas, window.innerHeight - h - 8); pop.style.left = gauche + 'px'; pop.style.top = Math.max(8, haut) + 'px';
++  }
++  function ouvrir(section, ancre) { etat.section = section; etat.ancre = ancre; dessiner(); pop.hidden = false; placer(); var a = document.activeElement; if (a && a.blur && a.classList && a.classList.contains('cell-add-input')) a.blur(); }
++  function fermer() { pop.hidden = true; }
++  document.addEventListener('dblclick', function (e) {
++    if (window.innerWidth < 900) return;
++    var c = e.target.closest && e.target.closest('.grid-cell-add'); if (!c) return;
++    var i = c.querySelector('.cell-add-input'); if (!i) return;
++    e.preventDefault(); e.stopPropagation(); ouvrir(+i.dataset.section, c);
++  }, true);
++  pop.addEventListener('click', function (e) {
++    var b = e.target.closest('button[data-ap]'); if (!b) return; e.stopPropagation();
++    var k = b.dataset.ap;
++    if (k === 'fermer') { fermer(); return; }
++    if (k === 'root') { etat.root = b.dataset.v; dessiner(); return; }
++    if (k === 'quality') { etat.quality = b.dataset.v; dessiner(); return; }
++    if (k === 'ajouter') {
++      var a = window.app, nom = nomAccord();
++      try { if (a && a.addChordInputToSection) a.addChordInputToSection(etat.section, nom); } catch (x) { }
++      setTimeout(function () { etat.ancre = document.querySelector('.grid-cell-add .cell-add-input[data-section="' + etat.section + '"]'); etat.ancre = etat.ancre && etat.ancre.closest('.grid-cell-add'); dessiner(); placer(); }, 150);
++    }
++  });
++  document.addEventListener('pointerdown', function (e) { if (!pop.hidden && e.composedPath().indexOf(pop) < 0 && !(e.target.closest && e.target.closest('.grid-cell-add'))) fermer(); }, true);
++  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !pop.hidden) { fermer(); e.stopPropagation(); } }, true);
++})();
++</script>
++<script>
++(function () { // demo-repere : nom de la partie + un segment par accord de la partie, l'accord en cours en clair
++  function poser() {
++    var a = window.app, z = a && a._bulle; if (!z) return;
++    var s; try { s = loadProgressionSections(); } catch (e) { return; }
++    var p = s[z.section]; if (!p) return;
++    var n = (p.chords || []).length, nom = (p.title && p.title.trim()) || ('Partie ' + (z.section + 1));
++    var sig = nom + '|' + n + '|' + z.index;
++    var cibles = [document.querySelector('#bulle-accord:not([hidden]) .bulle-tete'), document.querySelector('#pa-quel .pa-tete')].filter(function (x) { return x && x.offsetParent !== null; });
++    cibles.forEach(function (tete) {
++      var r = tete.parentElement.querySelector(':scope > .demo-repere');
++      if (!r) { r = document.createElement('div'); r.className = 'demo-repere'; r.setAttribute('aria-hidden', 'true'); tete.insertAdjacentElement('afterend', r); r.dataset.sig = ''; }
++      if (r.dataset.sig !== sig) {
++        var segs = ''; for (var i = 0; i < n; i++) segs += '<span class="dr-case' + (i === z.index ? ' cour' : '') + '"></span>';
++        r.innerHTML = '<span class="dr-nom"></span><span class="dr-seg">' + segs + '</span>'; r.querySelector('.dr-nom').textContent = nom; r.dataset.sig = sig; r.title = nom + ' · accord ' + (z.index + 1) + ' sur ' + n;
++      }
++    });
++  }
++  setInterval(poser, 250);
++})();
++</script>
++<script>
++(function () { // demo-vu-seq
++  var mq = window.matchMedia('(min-width: 900px)');
++  var CH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M__P__"/></svg>';
++  // les lignes de la grille d'une partie (index d'accords groupés par rangée de grille CSS), comme DEMO_LIGNE
++  function lignesDe(k) {
++    var g = document.querySelector('#progression-sections .chord-grid[data-section="' + k + '"]'); if (!g) return [];
++    var rangs = {}, ordre = [];
++    g.querySelectorAll('.grid-cell[data-index]').forEach(function (x) { var r = getComputedStyle(x).gridRowStart; if (!rangs[r]) { rangs[r] = []; ordre.push(r); } rangs[r].push(+x.dataset.index); });
++    return ordre.map(function (r) { return rangs[r].sort(function (a, b) { return a - b; }); });
++  }
++  function ou(s, i) { var L = lignesDe(s); for (var n = 0; n < L.length; n++) { var r = L[n].indexOf(i); if (r >= 0) return { L: L, n: n, r: r }; } return null; }
++  function voisine(sq, delta) { // la ligne d'avant / d'après, en passant d'une partie à l'autre
++    var c = sq.cible(), o = ou(c.s, c.i); if (!o) return null;
++    var n = o.n + delta;
++    if (n >= 0 && n < o.L.length) return { s: c.s, i: o.L[n][Math.min(o.r, o.L[n].length - 1)] };
++    var k = c.s + delta, L = lignesDe(k); if (!L.length) return null;
++    var ligne = delta > 0 ? L[0] : L[L.length - 1]; return { s: k, i: ligne[Math.min(o.r, ligne.length - 1)] };
++  }
++  function aller(sq, delta) {
++    var v = voisine(sq, delta); if (!v) return; var a = sq.app;
++    if (a.selectedIndex != null) { sq._s = v.s; a.activeSection = v.s; a.selectedIndex = v.i; if (a.multiSelect) a.multiSelect = new Set(); a._vise = null; sq._vise = { s: v.s, i: v.i }; a.loadProgression(); }  // la sélection suit : plus besoin de recliquer
++    else { sq._vise = { s: v.s, i: v.i }; sq.rafraichir(); }
++  }
++  var t = setInterval(function () {
++    var a = window.app, s = a && a.sequenceur; if (!s || s.__demoVu) return; s.__demoVu = true; clearInterval(t);
++    var P = Object.getPrototypeOf(s);
++    var cib = P.cible, raf = P.rafraichir, tete = P.tete;
++    // sans accord sélectionné, le séquenceur reste là où il était (ou là où la lecture l'a mené) ; avec une sélection, la sélection décide
++    P.cible = function () {
++      var r = cib.call(this), a2 = this.app;
++      if (this._vise && a2.selectedIndex == null && a2.editingIndex == null && !this.modeTel()) {
++        var sec = r.sections[this._vise.s];
++        if (sec && sec.chords[this._vise.i]) return { sections: r.sections, s: this._vise.s, sec: sec, accords: sec.chords, i: this._vise.i };
++      }
++      return r;
++    };
++    P.rafraichir = function () {
++      raf.apply(this, arguments);
++      var barre = document.querySelector('#sequenceur .sq-outils'), mot = barre && barre.querySelector('.sq-motifs');
++      if (!this.estOuvert() || this.modeTel() || !mq.matches || !barre || !mot || barre.querySelector('.demo-sq-ligne')) return;
++      var d = document.createElement('div'); d.className = 'demo-sq-ligne'; d.setAttribute('role', 'group'); d.setAttribute('aria-label', 'Ligne de la grille montrée par le séquenceur');
++      d.innerHTML = '<span class="dsl-txt" id="sq-ligne-txt"><span class="dsl-trait" aria-hidden="true"></span><span class="dsl-nom"></span><span class="dsl-n"></span></span><button type="button" class="icon-btn" id="sq-ligne-prec" aria-label="Ligne précédente de la grille" title="Ligne précédente de la grille">' + CH.replace('__P__', '6 15l6-6 6 6') + '</button><button type="button" class="icon-btn" id="sq-ligne-suiv" aria-label="Ligne suivante de la grille" title="Ligne suivante de la grille">' + CH.replace('__P__', '6 9l6 6 6-6') + '</button>';
++      var self = this;
++      d.querySelector('#sq-ligne-prec').addEventListener('click', function () { aller(self, -1); });
++      d.querySelector('#sq-ligne-suiv').addEventListener('click', function () { aller(self, 1); });
++      barre.insertBefore(d, mot.nextSibling);
++      majChevrons(this);
++    };
++    // lecture : sans sélection, le séquenceur suit la ligne qui sonne
++    P.tete = function (section, index, step) {
++      try {
++        if (this.estOuvert() && !this.modeTel() && this.app.selectedIndex == null && mq.matches) {
++          var secs = loadProgressionSections(), sec = secs[section];
++          var montres = sec ? window.DEMO_LIGNE(section, sec.chords, index) : [];
++          if (section !== this._s || (this._montresCourantes && this._montresCourantes.indexOf(index) < 0)) { this._vise = { s: section, i: index }; this.rafraichir(); }
++        }
++      } catch (e) {}
++      return tete.apply(this, arguments);
++    };
++  }, 200);
++  function majChevrons(sq) {
++    var c = sq.cible(), o = ou(c.s, c.i), prec = document.getElementById('sq-ligne-prec'), suiv = document.getElementById('sq-ligne-suiv'); if (!prec || !suiv) return;
++    prec.disabled = !voisine(sq, -1); suiv.disabled = !voisine(sq, 1);
++    var nom = document.querySelector('#sq-ligne-txt .dsl-nom'), n = document.querySelector('#sq-ligne-txt .dsl-n');
++    if (nom && o) { var t = (c.sec && c.sec.title && c.sec.title.trim()) || ('Partie ' + (c.s + 1)), m = o.L.length > 1 ? (o.n + 1) + '/' + o.L.length : '';
++      if (nom.textContent !== t) nom.textContent = t; if (n.textContent !== m) n.textContent = m;
++      var tip = t + ' : ligne ' + (o.n + 1) + ' sur ' + o.L.length + ' — les flèches changent de ligne dans la grille'; if (document.getElementById('sq-ligne-txt').title !== tip) document.getElementById('sq-ligne-txt').title = tip; }
++  }
++  function trait() {
++    var a = window.app, s = a && a.sequenceur;
++    document.querySelectorAll('.demo-vu-trait').forEach(function (x) { x.remove(); });
++    if (!mq.matches || !s || !s.estOuvert || !s.estOuvert()) return;
++    var c = s.cible(), montres = window.DEMO_LIGNE ? window.DEMO_LIGNE(c.s, c.accords, c.i) : [];
++    s._montresCourantes = montres;
++    var g = document.querySelector('#progression-sections .chord-grid[data-section="' + c.s + '"]'); if (!g || !montres.length) return;
++    var gr = g.getBoundingClientRect(), x0 = 1e9, x1 = -1e9, bas = 0;
++    montres.forEach(function (k) { var el = g.querySelector('.grid-cell[data-index="' + k + '"]'); if (!el) return; var r = el.getBoundingClientRect(); x0 = Math.min(x0, r.left); x1 = Math.max(x1, r.right); bas = Math.max(bas, r.bottom); });
++    if (x1 < x0) return;
++    var d = document.createElement('div'); d.className = 'demo-vu-trait';
++    d.style.left = (x0 - gr.left + 4) + 'px'; d.style.width = Math.max(10, x1 - x0 - 8) + 'px'; d.style.top = (bas - gr.top - 2) + 'px';
++    g.appendChild(d);
++    majChevrons(s);
++  }
++  // garder la place d'un séquenceur dont on vient de désélectionner l'accord : il reste sur sa ligne
++  setInterval(function () {
++    var a = window.app, s = a && a.sequenceur; if (!s || !s.estOuvert || !s.estOuvert()) { trait(); return; }
++    if (a.selectedIndex != null && !s.modeTel()) { var c = s.cible(); s._vise = { s: c.s, i: c.i }; }
++    trait();
++  }, 250);
++  // un bouton du séquenceur qui agit sur un accord, sans accord sélectionné : cet accord (le premier de la ligne montrée) est d'abord sélectionné, pour qu'on le voie dans la grille
++  document.addEventListener('pointerdown', function (e) {
++    var a = window.app, s = a && a.sequenceur; if (!s || !s.estOuvert || !s.estOuvert() || s.modeTel() || a.selectedIndex != null) return;
++    var b = e.target.closest && e.target.closest('#sequenceur .sq-motifs button, #sq-copier, #sq-coller, #sq-effacer'); if (!b || b.disabled) return;
++    if (s._i != null) s.choisirSansJouer(s._i);
++  }, true);
++})();
++</script>
+ </body>
+ </html>
