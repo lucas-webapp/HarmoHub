@@ -6,6 +6,11 @@
 # plus vite, retour utilisateur du 12/08 : « accélère, travaille en série seulement pour les
 # tâches qui le nécessitent ».
 cd "$(dirname "$0")"
+DEBUT_MUR=$(date +%s)
+# DURÉE (14/11) : lancé SEUL, ce balayage dure ~15 min sur 4 cœurs (mesuré : 888 s de mur pour 3 046 s cumulées). Les « une heure » venaient de la concurrence : un autre navigateur ou un
+# autre banc lancé pendant le balayage lui vole du processeur (et peut donner de faux échecs, voir plus haut). On le dit en tête plutôt que de laisser croire que les bancs sont lents.
+AUTRES=$(pgrep -fc "headless_shell|chrome-linux|/chromium" 2>/dev/null || true)
+[ "${AUTRES:-0}" -gt 0 ] && echo "!! ATTENTION : ${AUTRES} processus de navigateur déjà en cours. Le balayage sera plus lent et peut donner de faux échecs : ne rien lancer d'autre pendant qu'il tourne."
 rm -rf /tmp/sweep_out
 mkdir -p /tmp/sweep_out
 
@@ -96,6 +101,7 @@ echo "Les plus lentes (secondes) :"
 for s in /tmp/sweep_out/*.sec; do echo "$(cat "$s") $(basename "$s" .sec)"; done | sort -rn | head -12 | sed 's/_test.js$//; s/^/  /'
 for s in /tmp/sweep_out/*.sec; do echo "$(cat "$s") $(basename "$s" .sec)"; done > /tmp/sweep_durees.txt
 echo "Temps cumulé des suites : $(cat /tmp/sweep_out/*.sec | awk '{s+=$1} END {print s}') s"
+echo "Durée réelle du balayage : $(( ($(date +%s) - DEBUT_MUR) / 60 )) min $(( ($(date +%s) - DEBUT_MUR) % 60 )) s (seul, ~15 min ; une heure veut dire qu'autre chose tournait en même temps)"
 echo
 echo "$verts verts, $rouges rouges, $muets sans verdict (sur $((verts+rouges+muets)) suites)"
 [ "$rouges" -eq 0 ] && [ "$muets" -eq 0 ]
