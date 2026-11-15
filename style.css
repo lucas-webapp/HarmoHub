@@ -7276,3 +7276,81 @@ body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
     body.sq-deplace { cursor: grabbing; user-select: none; -webkit-user-select: none; }
 }
 
+/* 25. Séquenceur, L3a (14/11) — barre d'outils : « + » en premier, vues « Accord | Piano » en logos, plus de choix de portée, intensité « mf ». Ordinateur : les mots du téléphone
+       (Voix, Toutes les notes) et l'ancien logo de l'intensité sont masqués ; le téléphone garde les siens jusqu'à L7. */
+.sq-vue-ordi, .sq-ico-ordi { display: none; }
+@media (min-width: 900px) {
+    .sq-vue-tel, .sq-ico-tel { display: none; }
+    .sq-vue-ordi { display: inline-flex; align-items: center; gap: 6px; }
+    .sq-vue-ordi .icon { width: 16px; height: 16px; }
+    .sq-ico-ordi { display: inline-block; }
+    .sq-outils .sq-portee { display: none; }
+    #sq-intensite .sq-ico-ordi { width: 22px; height: 22px; }
+}
+
+/* 26. Séquenceur, L3b (14/11) — rythmes : menu du clic droit, rythmes masqués, popover du signet (tous les rythmes, enregistrer / créer une forme). Le nom de « + » : « + » à
+       l'ordinateur, « À la main » au téléphone. Les popovers sont des .context-menu (le verre dépoli les habille déjà). Ordinateur seulement pour l'ensemble. */
+.sq-nom-ordi { display: none; }
+.sq-motif[hidden] { display: none; }
+@media (min-width: 900px) {
+    .sq-nom-tel { display: none; }
+    .sq-nom-ordi { display: inline; font-size: 18px; font-weight: 600; line-height: 1; }
+    .sq-retablir { height: var(--bouton-h); padding: 0 10px; border: 1px solid var(--btn-neutral-border); border-radius: var(--rayon-bouton); background: var(--fond-bouton-sombre); color: var(--text-muted); font-size: var(--fs-sm); white-space: nowrap; cursor: pointer; }
+    .sq-retablir:hover { color: var(--text-main); border-color: var(--btn-neutral-border-hover); }
+    .sq-retablir[hidden] { display: none; }
+    .sq-menu-rythme { min-width: 210px; }
+    .sq-menu-rythme .titre { padding: 6px 10px 4px; font-size: 11px; color: var(--text-muted); }
+    .sq-menu-rythme button.danger { color: #ff8a80; }
+    .sq-menu-rythme button.danger.confirme { background: rgba(255, 90, 80, 0.2); color: #ffb4ab; }
+    .sq-biblio { z-index: 96; width: 300px; max-height: 70vh; overflow-y: auto; padding: 8px; gap: 2px; }
+    .sq-biblio .bi-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+    .sq-biblio .bi-item:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); }
+    .sq-biblio .bi-item:disabled { opacity: 0.45; cursor: default; }
+    .sq-biblio .bi-item[aria-pressed="true"] { background: rgba(255, 255, 255, 0.07); }
+    .sq-biblio .bi-nom { flex: 1; }
+    .sq-biblio .bi-etat { color: var(--text-muted); font-size: 11px; }
+    .sq-biblio .bi-sec { padding: 8px 8px 2px; color: var(--text-muted); font-size: 11px; }
+    .sq-biblio .bi-actions { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+    .sq-biblio .bi-titre { padding: 4px 6px 8px; font-size: 13px; font-weight: 600; }
+    .sq-biblio .bi-champ { box-sizing: border-box; width: 100%; height: 32px; margin: 8px 0; padding: 0 10px; border-radius: 7px; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.25); color: var(--text-main); font-size: 13px; }
+    .sq-biblio .bi-champ:focus { outline: none; border-color: var(--btn-blue-border-hover); }
+    .sq-biblio .bi-pied { display: flex; justify-content: flex-end; gap: 8px; }
+    .sq-biblio .bi-pied .btn-sec { height: 32px; padding: 0 12px; border-radius: 7px; font-size: 13px; min-width: 0; }
+    .sq-biblio .bi-seg { display: flex; gap: 6px; margin-bottom: 8px; }
+    .sq-biblio .bi-seg button { flex: 1; height: 32px; min-width: 0; border: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--text-muted); font-size: 13px; cursor: pointer; }
+    .sq-biblio .bi-seg button[aria-pressed="true"] { color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.18); }
+    .sq-biblio .bi-grille { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; user-select: none; touch-action: none; }
+    .sq-biblio .bi-case { min-width: 0; height: 26px; padding: 0; border: 0; border-radius: 3px; background: #1b1b1b; cursor: pointer; }
+    .sq-biblio .bi-case.temps { background: #202020; }
+    .sq-biblio .bi-case.on { background: rgba(79, 208, 143, 0.75); }
+    .sq-biblio .bi-case.on.g { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -2px; }
+    .sq-biblio .bi-case.on.d { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+}
+
+/* 27. Séquenceur, L3c (14/11) — la roue des réglages, la barre sur UNE ligne, les noms des rythmes. Ordinateur seulement. La barre ne passe jamais à la ligne de 900 à 1920 px :
+       les noms des rythmes tombent sous 1340 px (ou si Paramètres › Affichage les retire), et sous 1020 px seuls « + » et le signet restent (les autres sont dans la popover du signet). */
+@media (min-width: 900px) {
+    .sq-outils { flex-wrap: nowrap; }
+    .sq-outils .sq-motifs { flex-wrap: nowrap; flex: 0 1 auto; min-width: 0; }
+    .sq-outils .sq-motif, .sq-outils .sq-ligne, .sq-outils .sq-seg, .sq-outils .icon-btn { flex: none; }
+    .sq-outils .sq-espace { flex: 1 1 0; min-width: 0; }
+    .sequenceur.sans-noms-rythmes .sq-motifs > .sq-motif:not([data-sq-motif="main"]) > span:not(.sq-vignette) { display: none; }
+    .sequenceur.sans-noms-rythmes .sq-motifs > .sq-motif:not([data-sq-motif="main"]) { padding-left: 6px; padding-right: 6px; }
+    .sq-reglages-pop { z-index: 96; width: 320px; padding: 14px 16px 12px; gap: 0; }
+    .sq-reglages-pop .settings-group-title { margin: 0 0 8px; }
+    .sq-reglages-pop .rb-pied { display: flex; justify-content: flex-end; margin-top: 10px; }
+    .sq-reglages-pop .rb-pied .btn-sec { height: 32px; padding: 0 12px; border-radius: 7px; font-size: 13px; min-width: 0; }
+    .sq-reglages-pop input[type="range"]:disabled { opacity: 0.4; }
+}
+@media (min-width: 900px) and (max-width: 1019px) {
+    .sq-outils .sq-motifs > .sq-motif:not([data-sq-motif="main"]), .sq-outils .sq-motifs > .sq-formes, .sq-outils .sq-retablir { display: none; }
+}
+.sequenceur.sans-regle .sq-temps, .sequenceur.sans-regle .sq-boucle { display: none; }
+/* La roue des réglages du séquenceur : à l'ordinateur seulement (le téléphone garde sa barre jusqu'à L7). */
+#sq-reglages { display: none; }
+@media (min-width: 900px) { #sq-reglages { display: inline-flex; } }
+/* Les noms des rythmes demandés à la main sous 1340 px (Paramètres › Affichage) : la barre n'y tient plus sur une ligne, elle passe alors à la ligne plutôt que de se chevaucher. */
+@media (min-width: 900px) and (max-width: 1339px) {
+    .sequenceur:not(.sans-noms-rythmes) .sq-outils, .sequenceur:not(.sans-noms-rythmes) .sq-outils .sq-motifs { flex-wrap: wrap; }
+}
+

@@ -4826,6 +4826,10 @@ class HarmoHubApp {
             { id: 'context-menu', close: () => this.closeContextMenu() },
             // Le menu d'une note du séquenceur (clic droit, appui long) : clic à côté et Échap le referment.
             { id: 'sq-menu-note', close: () => { if (this.sequenceur) this.sequenceur.fermerMenuNote(); } },
+            // Le menu d'un rythme de la barre du séquenceur (clic droit) et la popover du signet (tous les rythmes, enregistrer / créer une forme) — L3.
+            { id: 'sq-menu-rythme', close: () => { if (this.sequenceur) this.sequenceur.fermerMenuRythme(); } },
+            { id: 'sq-biblio', ancre: '#sq-forme-enregistrer', close: () => { if (this.sequenceur) this.sequenceur.fermerBiblio(); } },
+            { id: 'sq-reglages-pop', ancre: '#sq-reglages', close: () => { if (this.sequenceur) this.sequenceur.fermerReglages(); } },
             { id: 'section-picker-menu', close: () => this.closeSectionPicker() },       // « où insérer ? »
             { id: 'intensity-menu', close: () => this.fermerMenuIntensite() },           // les cinq niveaux d'un accord
             { id: 'backup-scope-menu', close: () => this.closeTransferScopeMenu() },       // « ce morceau / toute la bibliothèque ? »
@@ -13010,10 +13014,17 @@ class HarmoHubApp {
         const positionValeur = !this.showGridOctave ? 'aucune' : (this.showGridVoicing ? 'complete' : 'octave');
         // Hauteur des barres du séquenceur (14/11, L1) : la poignée du séquenceur règle désormais le NOMBRE de lignes visibles, la hauteur d'une barre se règle ici.
         const seqHauteur = this.sequenceur ? this.sequenceur.ligne : 26;
+        const seqNomsRythmes = this.sequenceur ? this.sequenceur.nomsRythmes() : true;
         host.innerHTML = `
             <div class="settings-toggle-row">
                 <label for="toggle-show-roman" title="Chiffrage en degrés (I, IV, V7…) au-dessus de chaque accord">Degrés</label>
                 <button type="button" id="toggle-show-roman" class="switch" role="switch" aria-checked="${this.showRomanNumerals}" aria-label="Degrés au-dessus de chaque accord">
+                    <span class="switch-thumb"></span>
+                </button>
+            </div>
+            <div class="settings-toggle-row">
+                <label for="toggle-noms-rythmes" title="Écrire le nom de chaque rythme dans la barre du séquenceur (sans réglage : oui au-dessus de 1340 px de large, non en dessous)">Noms des rythmes</label>
+                <button type="button" id="toggle-noms-rythmes" class="switch" role="switch" aria-checked="${seqNomsRythmes}" aria-label="Noms des rythmes dans la barre du séquenceur">
                     <span class="switch-thumb"></span>
                 </button>
             </div>
@@ -13074,6 +13085,11 @@ class HarmoHubApp {
                     </div>
                 </div>
             </details>`;
+        document.getElementById('toggle-noms-rythmes').onclick = (e) => {
+            const on = e.currentTarget.getAttribute('aria-checked') !== 'true';
+            e.currentTarget.setAttribute('aria-checked', String(on));
+            if (this.sequenceur) this.sequenceur.reglerNomsRythmes(on);
+        };
         document.getElementById('sq-hauteur').oninput = (e) => {
             if (this.sequenceur) this.sequenceur.reglerHauteur(+e.target.value);
             document.getElementById('sq-hauteur-val').textContent = e.target.value + ' px';

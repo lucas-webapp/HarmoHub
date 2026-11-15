@@ -48,6 +48,18 @@
         return x && x.type === 'forme' ? { id, nom: x.nom, v: x.v, s: x.s, n: x.n, fourni: false, forme: true } : null;
     }
     const formesUtilisateur = () => { const f = magasin(); return f ? f.formes() : []; };
+    // La vignette d'un rythme : quatre lignes de huit croches, dessinées comme le séquenceur (croches voisines soudées en barre).
+    function vignetteHtml(m) {
+        const p = [];
+        for (let pos = 3; pos >= 0; pos--) {
+            const x = positionDe(m, pos, 8);
+            for (let k = 0; k < 8; k++) {
+                const lit = x.ks.has(k), av = lit && x.sd.has(k), ap = lit && x.sd.has(k + 1);
+                p.push(`<span class="${lit ? 'lit' : ''}${av ? ' g' : ''}${ap ? ' d' : ''}"></span>`);
+            }
+        }
+        return p.join('');
+    }
 
     // Trois niveaux seulement (maquette : « normal → fort → doux → enlevée »). « Normal » = pas de réglage propre : la note suit l'intensité de
     // l'accord (data.intensity) ; doux et fort reprennent les valeurs des cinq niveaux de l'appli (NIVEAUX_INTENSITE : Doux 55, Fort 90).
@@ -56,13 +68,20 @@
 
     // 14/11, L1 (« Proposé ») : la ligne passe de 30 à 26 px par défaut, et la croche a sa propre largeur — 34 px au plus par défaut, entre 14 (une mesure = 112 px)
     // et 90 px (poignée de largeur, double-clic = 34). Les deux se retiennent par appareil.
-    const LIGNE_MIN = 22, LIGNE_MAX = 48, LIGNE_DEFAUT = 26;   // hauteur des LIGNES (Paramètres › Affichage : de 22 à 48 px, 26 par défaut)
+    const LIGNE_MIN = 14, LIGNE_MAX = 48, LIGNE_DEFAUT = 26;   // hauteur des LIGNES (Paramètres › Affichage : de 22 à 48 px, 26 par défaut)
     const CROCHE_MIN = 14, CROCHE_MAX = 90, CROCHE_DEFAUT = 34;
     const LARGEUR_POIGNEE = 18;                                // la piste de la poignée de largeur, juste après la dernière croche
     const CLE_CROCHE = 'harmohubSequenceurCroche';
     const CLE_LIGNE = 'harmohubSequenceurLigne';
     const CLE_OUVERT = 'harmohubSequenceurOuvert';
     const CLE_PORTEE = 'harmohubSequenceurPortee';
+    const CLE_CONTENU = 'harmohubSequenceurContenu';   // ce qu'écrivent les barres : 'rien', 'notes' ou 'degres'
+    const CLE_REGLE = 'harmohubSequenceurRegle';       // '0' : règle des temps masquée
+    const CLE_AUTO = 'harmohubSequenceurAuto';         // '1' : hauteur des barres adaptée au nombre de lignes
+    const CLE_NOMS_RYTHMES = 'harmohubNomsRythmes';    // '1' / '0' : noms des rythmes dans la barre ; sans réglage, oui au-dessus de 1340 px
+    const CROCHE_MAX_ROUE = 60;
+    const DEGRES = ['1', '♭2', '2', '♭3', '3', '4', '♭5', '5', '♯5', '6', '♭7', '7'];
+    const CLE_MASQUES = 'harmohubRythmesMasques';   // les rythmes FOURNIS masqués de la barre (clic droit › Masquer), par appareil
     const CLE_VUE = 'harmohubSequenceurVue';   // 'voix' (une ligne par voix) ou 'notes' (« Toutes les notes » : une ligne par hauteur utilisée)
     const NOMS_LIBRES = NOTES_SQ();            // C, C#, D… : les noms proposés par la bande « Note libre » (maquette v17)
     function NOTES_SQ() { return ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; }
@@ -457,6 +476,10 @@
             this.croche = borner(isNaN(w) ? CROCHE_DEFAUT : w, CROCHE_MIN, CROCHE_MAX);
             // Nombre de lignes montrées (« je préfère pouvoir voir plus de notes ») : 0 = toutes. Les barres gardent leur hauteur ; la poignée du haut change ce nombre.
             this._visibles = 0;
+            const contenu = lireLocal(CLE_CONTENU);
+            this.contenu = contenu === 'rien' || contenu === 'degres' ? contenu : 'notes';
+            this.regle = lireLocal(CLE_REGLE) !== '0';
+            this.auto = lireLocal(CLE_AUTO) === '1';
             // La ligne de la grille montrée (L1c) : { s, i } = la partie et l'accord où l'on était. Sans accord choisi, le séquenceur y reste (ou suit la lecture) au lieu de
             // sauter au premier accord ; `_montres` = les accords de cette ligne, `_s` / `_i` la partie et l'accord réglés (posés par rafraichir).
             // LA SÉLECTION DE NOTES (L2) : { c, k, midi } par note — l'accord, la croche d'attaque et la hauteur (pas un numéro de ligne : poser une note libre en ajoute une et
@@ -485,6 +508,8 @@
         // Au téléphone, le séquenceur occupe tout l'écran entre la barre du haut et la barre de lecture (12/11 : « sur portable, il serait peut-être plus simple de
         // l'afficher en plein écran ») : « Toute la partie » y montre tous les accords, qu'on fait défiler de côté, « Cet accord » le seul accord du panneau.
         uneSeule() { return this.modeTel() && this.portee === 'accord'; }
+        // À l'ordinateur tout agit sur l'accord choisi (L3, 14/11 : plus de choix de portée) ; le choix « Toute la partie | Cet accord » n'existe plus que pour le téléphone (L7).
+        porteeEffective() { return this.estOrdinateur() ? 'accord' : this.portee; }
         // Mode « Dessiner » (au doigt seulement) : la grille ne défile plus, le doigt peint d'un trait une note tenue. Éteint tant qu'on ne l'allume pas.
         basculerDessin(oui) { this.dessin = oui === undefined ? !this.dessin : !!oui; this.majDessin(); }
         majDessin() {
@@ -637,7 +662,9 @@
             this._plan = { croches: crochesParAccord, poignee: poigneeLargeur };
             this._nCroches = crochesParAccord.reduce((a, b) => a + b, 0);
             this.poserColonnes();
-            this.grille.style.gridTemplateRows = `auto 20px repeat(${lignes.length}, var(--sq-ligne))`;
+            const regle = this.estOrdinateur() ? this.regle : true;
+            this.racine.classList.toggle('sans-regle', !regle);
+            this.grille.style.gridTemplateRows = `auto ${regle ? '20px' : '0px'} repeat(${lignes.length}, var(--sq-ligne))`;
 
             const r = this.app.loopRange;
             let boucle = r && r.startSection === s && r.endSection === s ? [r.startIndex, r.endIndex] : null;
@@ -721,7 +748,7 @@
                             // Les POIGNÉES aux deux bouts de la note (13/11) : à gauche sur son attaque, à droite sur sa dernière croche ; une note d'une croche porte les deux.
                             const poigneeG = g ? '' : '<i class="sq-bord g" title="Tirer pour étirer ou raccourcir la note" aria-hidden="true"></i>';
                             const poigneeD = dr ? '' : '<i class="sq-bord d" title="Tirer pour étirer ou raccourcir la note" aria-hidden="true"></i>';
-                            note = `<span class="sq-note" style="--sq-rgb:${rgb(x.role)}">${poigneeG}${g ? '' : escapeHtml(nomNote(e, v, d))}${poigneeD}</span>`;
+                            note = `<span class="sq-note" style="--sq-rgb:${rgb(x.role)}">${poigneeG}${g ? '' : escapeHtml(this.texteBarre(e, v, d, nomNote))}${poigneeD}</span>`;
                             label += ` : ${niv}`;
                         } else label += ' : vide';
                         html.push(`<div class="${cls.join(' ')}" role="gridcell" aria-label="${escapeHtml(label)}" data-c="${c}" data-v="${v}" data-k="${k}" data-r="${ri}" style="grid-row:${row};grid-column:${col + k}">${note}</div>`);
@@ -744,9 +771,20 @@
             const cleSel = `${s}|${this.vue}|${montres.join()}`;
             if (cleSel !== this._selCle) { this._selCle = cleSel; this.sel = []; }
             this.marquerSelection();
+            if (this.auto && !this.modeTel()) this.poserLigne();   // le nombre de lignes vient d'être connu
+            this.majNomsRythmes();
             this.limiterHauteur();
             this.majLigne();
             this.majTrait();
+            this.placerReglages();
+        }
+
+        // Ce qu'écrit une barre (L3, roue des réglages : « Barres : Rien | Notes | Degrés ») : le nom de la note, son degré dans l'accord, ou rien. Le téléphone écrit toujours les noms.
+        texteBarre(e, v, d, nomNote) {
+            if (this.modeTel() || this.contenu === 'notes') return nomNote(e, v, d);
+            if (this.contenu === 'rien') return '';
+            const x = e.info.voix[v], racine = NOTES.indexOf(d.root);
+            return x && racine >= 0 ? DEGRES[(((x.midi - racine) % 12) + 12) % 12] : '';
         }
 
         // La ligne de la grille où se trouve l'accord `i` de la partie `s` : ses index d'accords (ceux qui y ont une case), dans l'ordre. Tous les accords de la partie si la grille
@@ -835,14 +873,15 @@
         majBarreOutils(accords, i) {
             const d = i != null ? accords[i] : null;
             const actuel = d ? motifActuel(d) : null;
-            // Les formes de l'utilisateur, après les motifs fournis : vignette, nom, petit × pour la supprimer (maquette v17).
+            // Les formes de l'utilisateur, après les motifs fournis : vignette et nom. AUCUNE croix (14/11, « un peu dangereux ») : on les modifie, on les supprime (avec
+            // confirmation) et on masque les rythmes fournis par un clic droit (menu du rythme).
             const zone = document.getElementById('sq-formes');
             if (zone) {
                 const formes = formesUtilisateur();
                 const sig = formes.map(f => f.id + '@' + f.at).join('|');
                 if (zone.dataset.sig !== sig) {
                     zone.dataset.sig = sig;
-                    zone.innerHTML = formes.map(f => `<span class="sq-forme"><button type="button" class="sq-motif" data-sq-motif="${escapeHtml(f.id)}" aria-pressed="false" title="${escapeHtml(f.nom)} — clic droit : modifier ce schéma"><span class="sq-vignette" aria-hidden="true"></span><span>${escapeHtml(f.nom)}</span></button><button type="button" class="sq-forme-suppr" data-sq-suppr="${escapeHtml(f.id)}" aria-label="Supprimer la forme « ${escapeHtml(f.nom)} »" title="Supprimer la forme « ${escapeHtml(f.nom)} »"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></span>`).join('');
+                    zone.innerHTML = formes.map(f => `<button type="button" class="sq-motif" data-sq-motif="${escapeHtml(f.id)}" aria-pressed="false" title="${escapeHtml(f.nom)} — clic droit : modifier, supprimer"><span class="sq-vignette" aria-hidden="true"></span><span>${escapeHtml(f.nom)}</span></button>`).join('');
                 }
             }
             this.racine.querySelectorAll('[data-sq-motif]').forEach(b => {
@@ -850,26 +889,23 @@
                 if (!m) return;
                 b.setAttribute('aria-pressed', String(id === actuel));
                 b.classList.toggle('retouche', !!m.retouche);
-                const nom = b.querySelector('span:not(.sq-vignette)');
-                if (nom && nom.textContent !== m.nom) nom.textContent = m.nom;
+                const nom = b.querySelector(':scope > span:not(.sq-vignette)');
+                if (nom && id !== 'main' && nom.textContent !== m.nom) nom.textContent = m.nom;   // « + » porte son propre balisage (« À la main » au téléphone, « + » à l'ordinateur)
                 if (id !== 'main') b.title = `${m.nom} — clic droit : modifier ce schéma${m.retouche ? ' (retouché)' : ''}`;
                 const vg = b.querySelector('.sq-vignette');
                 if (vg) {
                     // Redessinée à chaque fois : une retouche (ici ou ailleurs) change le dessin d'un motif fourni.
-                    const p = [];
-                    for (let pos = 3; pos >= 0; pos--) {
-                        const x = positionDe(m, pos, 8);
-                        for (let k = 0; k < 8; k++) {
-                            const lit = x.ks.has(k), av = lit && x.sd.has(k), ap = lit && x.sd.has(k + 1);
-                            p.push(`<span class="${lit ? 'lit' : ''}${av ? ' g' : ''}${ap ? ' d' : ''}"></span>`);
-                        }
-                    }
-                    const html = p.join('');
+                    const html = vignetteHtml(m);
                     if (vg.innerHTML !== html) vg.innerHTML = html;
                 }
             });
-            const enreg = document.getElementById('sq-forme-enregistrer');
-            if (enreg) enreg.disabled = !d;
+            // Les rythmes fournis masqués par l'utilisateur (clic droit) disparaissent de la barre ; « ↺ Rétablir (n) » les ramène.
+            const masq = this.masques();
+            this.racine.querySelectorAll('.sq-motifs > .sq-motif[data-sq-motif]').forEach(b => { b.hidden = b.dataset.sqMotif !== 'main' && masq.has(b.dataset.sqMotif); });
+            const retab = document.getElementById('sq-rythmes-retablir'), nm = document.getElementById('sq-n-masques');
+            const nMasques = [...masq].filter(x => MOTIF_PAR_ID[x] && x !== 'main').length;
+            if (retab) retab.hidden = nMasques === 0 || this.modeTel();
+            if (nm && nm.textContent !== String(nMasques)) nm.textContent = String(nMasques);
             const vv = document.getElementById('sq-vue-voix'), vn = document.getElementById('sq-vue-notes');
             if (vv) vv.setAttribute('aria-pressed', String(this.vue === 'voix'));
             if (vn) vn.setAttribute('aria-pressed', String(this.vue === 'notes'));
@@ -1032,14 +1068,41 @@
                 const b = e.target.closest('button[data-sq-acte]');
                 if (b && !b.disabled) this.agirNote(b.dataset.sqActe);
             });
-            // CLIC DROIT SUR UNE VIGNETTE (sauf « À la main ») : modifier ce schéma. Le menu du navigateur n'a rien à faire ici.
+            // CLIC DROIT SUR UN RYTHME (L3) : son menu — Modifier ce schéma, Supprimer cette forme (confirmation) ou Masquer ce rythme ; sur « + » : Créer / Enregistrer une forme.
+            // Au téléphone (appui long, L7 plus tard) rien ne change : le schéma s'ouvre directement, « À la main » n'a pas de menu.
             this.racine.addEventListener('contextmenu', (e) => {
                 const b = e.target.closest('[data-sq-motif]');
-                if (!b || b.dataset.sqMotif === 'main') return;
+                if (!b) return;
+                if (this.modeTel()) { if (b.dataset.sqMotif === 'main') return; e.preventDefault(); e.stopPropagation(); this.ouvrirSchema(b.dataset.sqMotif); return; }
                 e.preventDefault();
                 e.stopPropagation();
-                this.ouvrirSchema(b.dataset.sqMotif);
+                this.ouvrirMenuRythme(b, e.clientX, e.clientY);
             });
+            const menuRythme = document.getElementById('sq-menu-rythme');
+            if (menuRythme) menuRythme.addEventListener('click', (e) => { const a = (e.composedPath ? e.composedPath() : [e.target]).find(x => x.matches && x.matches('button[data-a]')); if (a) this.agirMenuRythme(a); });
+            // La popover du signet : clics (le formulaire redessine : composedPath), peinture de la grille de « Créer une forme », Entrée / Échap dans le champ de nom.
+            const biblio = document.getElementById('sq-biblio');
+            if (biblio) {
+                biblio.addEventListener('click', (e) => this.surBiblio(e));
+                biblio.addEventListener('pointerdown', (e) => {
+                    const t = (e.composedPath ? e.composedPath() : [e.target]).find(x => x.matches && x.matches('.bi-case'));
+                    if (!t || e.button !== 0 || !this.biblio || !this.biblio.creation) return;
+                    e.preventDefault();
+                    const pos = +t.dataset.biP, k = +t.dataset.biK, E = this.biblio.creation.etat;
+                    this._peinture = { mode: E.on.has(cle(pos, k)) ? 'off' : 'on', fait: new Set(), derniere: null };
+                    this.peindreCreation(pos, k);
+                });
+                biblio.addEventListener('pointerover', (e) => {
+                    const t = e.target.closest && e.target.closest('.bi-case');
+                    if (t && this._peinture && e.buttons & 1) this.peindreCreation(+t.dataset.biP, +t.dataset.biK);
+                });
+                window.addEventListener('pointerup', () => { this._peinture = null; });
+                biblio.addEventListener('keydown', (e) => {
+                    if (e.target.id !== 'sq-biblio-nom') return;
+                    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); this.surBiblio({ composedPath: () => [biblio.querySelector('.bi-ok')], target: biblio.querySelector('.bi-ok') }); }
+                    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.fermerBiblio(); const b = document.getElementById('sq-forme-enregistrer'); if (b) b.focus(); }
+                });
+            }
             // Les champs de nom : Entrée valide, Échap annule (et rien d'autre de l'appli ne réagit à ces touches pendant qu'on tape).
             const touches = (id, valider, annuler) => {
                 const champ = document.getElementById(id);
@@ -1049,10 +1112,7 @@
                     else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); annuler(); }
                 });
             };
-            touches('sq-forme-nom', () => this.enregistrerForme(), () => this.ouvrirSaisieForme(false));
             touches('sq-schema-nom', () => this.enregistrerSchema(), () => this.fermerSchema());
-            const nomForme = document.getElementById('sq-forme-nom');
-            if (nomForme) nomForme.addEventListener('input', () => this.majSaisieForme());
             // Échap dans une bande ouverte (hors champ) la referme.
             this.racine.addEventListener('keydown', (e) => {
                 if (e.key !== 'Escape') return;
@@ -1072,7 +1132,8 @@
             if (fermer) fermer.addEventListener('click', () => this.basculer(false));
             this.brancherPoignee();
             this.brancherPoigneeLargeur();
-            window.addEventListener('resize', () => { this.synchroniser(); });
+            this.brancherReglages();
+            window.addEventListener('resize', () => { this.synchroniser(); this.majNomsRythmes(); });
             // Le tiroir des diagrammes change de taille (poignée, clavier ou guitare allumés) : la place libre du séquenceur change avec lui.
             const tiroir = document.getElementById('vues-tiroir');
             if (tiroir && window.ResizeObserver) new ResizeObserver(() => this.limiterHauteur()).observe(tiroir);
@@ -1089,7 +1150,7 @@
             // JAMAIS INERTE (L1c, 14/11) : un bouton qui agit sur UN accord, sans accord choisi, choisit d'abord celui que le séquenceur montre — pour qu'on voie dans la grille ce
             // qui va être modifié. (« Toute la partie » agit sur tous les accords : rien à choisir.)
             if (!this.modeTel() && this._i != null && this.app.selectedIndex == null
-                && (b.id === 'sq-copier' || b.id === 'sq-coller' || b.id === 'sq-effacer' || b.id === 'sq-forme-enregistrer' || (b.dataset.sqMotif && this.portee === 'accord'))) this.choisirSansJouer(this._i);
+                && (b.id === 'sq-copier' || b.id === 'sq-coller' || b.id === 'sq-effacer' || (b.dataset.sqMotif && this.porteeEffective() === 'accord'))) this.choisirSansJouer(this._i);
             if (b.id === 'sq-ligne-prec') { this.allerLigne(-1); return; }
             if (b.id === 'sq-ligne-suiv') { this.allerLigne(1); return; }
             if (b.dataset.sqMotif) { this.appliquerMotif(b.dataset.sqMotif); return; }
@@ -1108,9 +1169,8 @@
                 case 'sq-copier': this.copier(); break;
                 case 'sq-coller': this.coller(); break;
                 case 'sq-effacer': this.effacer(); break;
-                case 'sq-forme-enregistrer': this.ouvrirSaisieForme(true); break;
-                case 'sq-forme-valider': this.enregistrerForme(); break;
-                case 'sq-forme-annuler': this.ouvrirSaisieForme(false); break;
+                case 'sq-forme-enregistrer': this.basculerBiblio(); break;
+                case 'sq-rythmes-retablir': this.retablirRythmes(); break;
                 case 'sq-libre-moins': this.libre.octave = Math.max(1, this.libre.octave - 1); this.majBandeLibre(); this.jouerMidi(this.midiLibre()); break;
                 case 'sq-libre-plus': this.libre.octave = Math.min(6, this.libre.octave + 1); this.majBandeLibre(); this.jouerMidi(this.midiLibre()); break;
                 case 'sq-libre-ajouter': this.ajouterLigneLibre(); break;
@@ -1123,40 +1183,254 @@
             }
         }
 
-        // ---- Formes enregistrées (cahier, barre d'outils, point 3) ------------------------------------------------------------------------------
-        // Un clic sur le marque-page propose d'office un nom (« Forme 1 », sélectionné) ; Entrée valide, Échap annule.
-        ouvrirSaisieForme(ouvrir) {
-            const zone = document.getElementById('sq-forme-saisie'), b = document.getElementById('sq-forme-enregistrer'), champ = document.getElementById('sq-forme-nom');
-            if (!zone || !b || !champ) return;
-            if (ouvrir && this._i == null) return;
-            zone.hidden = !ouvrir;
-            b.hidden = !!ouvrir;
-            if (!ouvrir) { b.focus(); return; }
+        // ---- Formes enregistrées, menu des rythmes, popover du signet (L3, 14/11) --------------------------------------------------------------
+        // Les rythmes fournis masqués par l'utilisateur, par appareil.
+        // Les noms des rythmes dans la barre : réglage de l'appareil (Paramètres › Affichage), sinon oui au-dessus de 1340 px (la barre tient alors sur une ligne).
+        nomsRythmes() { const v = lireLocal(CLE_NOMS_RYTHMES); return v === '1' ? true : v === '0' ? false : window.innerWidth >= 1340; }
+        reglerNomsRythmes(on) { ecrireLocal(CLE_NOMS_RYTHMES, on ? '1' : '0'); this.majNomsRythmes(); }
+        majNomsRythmes() { if (this.racine) this.racine.classList.toggle('sans-noms-rythmes', !this.nomsRythmes()); }
+        masques() { try { return new Set(JSON.parse(lireLocal(CLE_MASQUES) || '[]')); } catch (e) { return new Set(); } }
+        poserMasques(set) { ecrireLocal(CLE_MASQUES, JSON.stringify([...set])); this.rafraichir(); }
+        masquerRythme(id) { if (!MOTIF_PAR_ID[id] || id === 'main') return; const m = this.masques(); m.add(id); this.poserMasques(m); this.app.flashHint && this.app.flashHint('Rythme masqué : le signet les retrouve tous'); }
+        retablirRythmes() { this.poserMasques(new Set()); }
+
+        // Le MENU d'un rythme (clic droit) : Modifier ce schéma… / Supprimer cette forme (confirmation dans le menu) ou Masquer ce rythme ; sur « + » : Créer / Enregistrer une forme.
+        ouvrirMenuRythme(b, x, y) {
+            const menu = document.getElementById('sq-menu-rythme');
+            if (!menu) return;
+            const id = b.dataset.sqMotif, m = motifParId(id);
+            if (id !== 'main' && !m) return;
+            this._menuRythme = id;
+            const nom = id === 'main' ? '+' : m.nom;
+            const titre = id === 'main' ? 'Formes' : `Rythme « ${escapeHtml(nom)} »`;
+            const items = id === 'main'
+                ? '<button type="button" role="menuitem" data-a="creer">Créer une forme…</button><button type="button" role="menuitem" data-a="enregistrer">Enregistrer la forme…</button>'
+                : '<button type="button" role="menuitem" data-a="modifier">Modifier ce schéma…</button>'
+                    + (m.forme ? '<button type="button" role="menuitem" class="danger" data-a="supprimer">Supprimer cette forme</button>' : '<button type="button" role="menuitem" class="danger" data-a="masquer">Masquer ce rythme</button>');
+            menu.innerHTML = `<div class="titre">${titre}</div>${items}`;
+            menu.hidden = false;
+            const larg = menu.offsetWidth, haut = menu.offsetHeight;
+            menu.style.left = Math.max(8, Math.min(x, window.innerWidth - larg - 8)) + 'px';
+            menu.style.top = Math.max(8, Math.min(y, window.innerHeight - haut - 8)) + 'px';
+        }
+        fermerMenuRythme() { const menu = document.getElementById('sq-menu-rythme'); if (menu) menu.hidden = true; this._menuRythme = null; }
+        agirMenuRythme(a) {
+            const id = this._menuRythme, act = a.dataset.a;
+            if (!id) return;
+            if (act === 'supprimer' && !a.classList.contains('confirme')) {   // la suppression d'une forme est DÉFINITIVE : un deuxième clic la confirme
+                a.classList.add('confirme'); a.textContent = 'Confirmer la suppression'; return;
+            }
+            this.fermerMenuRythme();
+            if (act === 'modifier') this.ouvrirSchema(id);
+            else if (act === 'supprimer') this.supprimerForme(id);
+            else if (act === 'masquer') this.masquerRythme(id);
+            else if (act === 'creer') this.ouvrirBiblio('creer');
+            else if (act === 'enregistrer') this.ouvrirBiblio('enregistrer');
+        }
+
+        // LA POPOVER DU SIGNET : tous les rythmes (vignette + nom ; les masqués portent « masqué · afficher » ; « Mes formes » au-dessus des formes), puis « ＋ Enregistrer la forme… »
+        // et « ＋ Créer une forme… » qui y ouvrent leur petit formulaire. Aucune phrase d'aide : l'information est dans les infobulles.
+        basculerBiblio() { const o = document.getElementById('sq-biblio'); if (o && !o.hidden) this.fermerBiblio(); else this.ouvrirBiblio('liste'); }
+        ouvrirBiblio(vue = 'liste') {
+            const pop = document.getElementById('sq-biblio'), ancre = document.getElementById('sq-forme-enregistrer');
+            if (!pop || !ancre) return;
+            // Enregistrer une forme agit sur l'accord choisi : sans accord choisi, celui que le séquenceur vise (jamais inerte) ; la partie vide n'en a pas.
+            if (vue === 'enregistrer') {
+                if (this._i == null) { this.app.flashHint && this.app.flashHint('Ajoute d\'abord un accord pour en enregistrer la forme'); return; }
+                if (this.app.selectedIndex == null) this.choisirSansJouer(this._i);
+            }
+            this.biblio = { vue };
+            if (vue === 'creer') this.biblio.creation = { lignes: 4, etat: { info: { croches: 8 }, on: new Set(), soude: new Set(), niveaux: new Map() } };
+            this.dessinerBiblio();
+            pop.hidden = false;
+            const r = ancre.getBoundingClientRect(), larg = pop.offsetWidth;
+            pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - larg - 8)) + 'px';
+            // Le séquenceur est en bas de l'écran : la popover s'ouvre AU-DESSUS du signet (sans le recouvrir) quand elle ne tient pas dessous.
+            const h = pop.offsetHeight;
+            pop.style.top = (r.bottom + 6 + h <= window.innerHeight - 8 ? r.bottom + 6 : Math.max(8, r.top - h - 8)) + 'px';
+            const champ = pop.querySelector('input'); if (champ) { champ.focus(); champ.select(); }
+        }
+        fermerBiblio() { const pop = document.getElementById('sq-biblio'); if (pop) pop.hidden = true; this.biblio = null; this._peinture = null; }
+        nomDeForme() {
             const pris = new Set(formesUtilisateur().map(f => f.nom));
             let n = 1;
             while (pris.has('Forme ' + n)) n++;
-            champ.value = 'Forme ' + n;
-            this.majSaisieForme();
-            champ.focus();
-            champ.select();
+            return 'Forme ' + n;
         }
-        majSaisieForme() {
-            const champ = document.getElementById('sq-forme-nom'), ok = document.getElementById('sq-forme-valider');
-            if (champ && ok) ok.disabled = !champ.value.trim();
+        dessinerBiblio() {
+            const pop = document.getElementById('sq-biblio'), B = this.biblio;
+            if (!pop || !B) return;
+            const masq = this.masques(), actuel = this._i != null ? motifActuel(this.accord(this._i)) : null;
+            const ligne = (id) => {
+                const m = motifParId(id);
+                if (!m) return '';
+                const cache = masq.has(id), etat = cache ? 'masqué · afficher' : (id === actuel ? 'actif' : '');
+                return `<button type="button" class="bi-item" data-bi-id="${escapeHtml(id)}" aria-pressed="${id === actuel}"><span class="sq-vignette" aria-hidden="true">${vignetteHtml(m)}</span><span class="bi-nom">${escapeHtml(m.nom)}</span><span class="bi-etat">${etat}</span></button>`;
+            };
+            if (B.vue === 'liste') {
+                const formes = formesUtilisateur();
+                const tip = this._i == null ? ' title="Ajoute d\'abord un accord"' : '';
+                pop.innerHTML = MOTIFS.filter(m => m.id !== 'main').map(m => ligne(m.id)).join('')
+                    + (formes.length ? '<div class="bi-sec">Mes formes</div>' + formes.map(f => ligne(f.id)).join('') : '')
+                    + `<div class="bi-actions"><button type="button" class="bi-item" data-bi-a="enregistrer"${tip}${this._i == null ? ' disabled' : ''}>＋ Enregistrer la forme…</button><button type="button" class="bi-item" data-bi-a="creer">＋ Créer une forme…</button></div>`;
+            } else if (B.vue === 'enregistrer') {
+                const d = this.accord(this._i), nom = flatTight(chordDe(d).getLabel(this.app.useFlatsForRoot(d.root)));
+                pop.innerHTML = `<div class="bi-titre">Enregistrer la forme · ${escapeHtml(nom)}</div><input id="sq-biblio-nom" class="bi-champ" type="text" autocomplete="off" maxlength="40" aria-label="Nom de la forme" value="${escapeHtml(this.nomDeForme())}">`
+                    + '<div class="bi-pied"><button type="button" class="btn-sec" data-bi-a="liste">Annuler</button><button type="button" class="btn-sec bi-ok" data-bi-a="valider-enregistrer">Enregistrer</button></div>';
+            } else {
+                const C = B.creation, p = [];
+                const noms = C.lignes === 3 ? ['Aiguë', 'Milieu', 'Grave'] : ['Aiguë', '3e note', '2e note', 'Grave'];
+                for (let r = 0; r < C.lignes; r++) {
+                    const pos = C.lignes - 1 - r;
+                    for (let k = 0; k < 8; k++) {
+                        const c = cle(pos, k), lit = C.etat.on.has(c), sg = lit && C.etat.soude.has(c), sd = lit && C.etat.soude.has(cle(pos, k + 1)) && C.etat.on.has(cle(pos, k + 1));
+                        p.push(`<button type="button" class="bi-case${lit ? ' on' : ''}${sg ? ' g' : ''}${sd ? ' d' : ''}${k % 2 === 0 ? ' temps' : ''}" data-bi-p="${pos}" data-bi-k="${k}" aria-pressed="${lit}" aria-label="${noms[r]}, croche ${k + 1}"></button>`);
+                    }
+                }
+                pop.innerHTML = `<div class="bi-titre">Créer une forme</div>`
+                    + `<div class="bi-seg" role="group" aria-label="Nombre de lignes"><button type="button" data-bi-lignes="3" aria-pressed="${C.lignes === 3}" title="Triade : trois lignes">Triade · 3</button><button type="button" data-bi-lignes="4" aria-pressed="${C.lignes === 4}" title="Tétrade : quatre lignes">Tétrade · 4</button></div>`
+                    + `<div class="bi-grille" data-lignes="${C.lignes}">${p.join('')}</div>`
+                    + `<input id="sq-biblio-nom" class="bi-champ" type="text" autocomplete="off" maxlength="40" aria-label="Nom de la forme" value="${escapeHtml(B.nomCree || this.nomDeForme())}">`
+                    + '<div class="bi-pied"><button type="button" class="btn-sec" data-bi-a="effacer">Effacer</button><button type="button" class="btn-sec" data-bi-a="liste">Annuler</button><button type="button" class="btn-sec bi-ok" data-bi-a="valider-creer">Enregistrer</button></div>';
+            }
         }
-        enregistrerForme() {
-            const champ = document.getElementById('sq-forme-nom'), f = magasin();
-            const nom = champ ? champ.value.trim() : '';
+        surBiblio(e) {
+            const t = (e.composedPath ? e.composedPath() : [e.target]).find(x => x.matches && x.matches('button'));   // un clic qui redessine détache sa cible : composedPath
+            const B = this.biblio;
+            if (!t || !B || t.disabled) return;
+            if (t.dataset.biId) {
+                const id = t.dataset.biId, m = this.masques();
+                if (m.has(id)) { m.delete(id); ecrireLocal(CLE_MASQUES, JSON.stringify([...m])); }   // « masqué · afficher » : elle revient dans la barre, et s'applique
+                this.fermerBiblio();
+                if (this._i != null && this.app.selectedIndex == null) this.choisirSansJouer(this._i);
+                this.appliquerMotif(id);
+                this.rafraichir();
+                return;
+            }
+            if (t.dataset.biLignes) { B.creation.lignes = +t.dataset.biLignes; B.nomCree = (document.getElementById('sq-biblio-nom') || {}).value; this.dessinerBiblio(); return; }
+            const a = t.dataset.biA;
+            if (a === 'liste') { this.ouvrirBiblio('liste'); return; }
+            if (a === 'enregistrer') { this.ouvrirBiblio('enregistrer'); return; }
+            if (a === 'creer') { this.ouvrirBiblio('creer'); return; }
+            if (a === 'effacer') { B.creation.etat = { info: { croches: 8 }, on: new Set(), soude: new Set(), niveaux: new Map() }; B.nomCree = (document.getElementById('sq-biblio-nom') || {}).value; this.dessinerBiblio(); return; }
+            if (a === 'valider-enregistrer') this.enregistrerForme((document.getElementById('sq-biblio-nom') || {}).value);
+            if (a === 'valider-creer') this.creerForme((document.getElementById('sq-biblio-nom') || {}).value);
+        }
+        // Peindre dans la grille de « Créer une forme » : un clic pose ou enlève une croche, un glissé peint UNE note tenue (croches voisines soudées).
+        peindreCreation(pos, k) {
+            const C = this.biblio && this.biblio.creation, E = C && C.etat, g = this._peinture;
+            if (!E || !g) return;
+            if (g.fait.has(pos + ':' + k)) return;
+            g.fait.add(pos + ':' + k);
+            const c = cle(pos, k);
+            if (g.mode === 'on') { if (!E.on.has(c)) poserCroche(E, pos, k, true); if (g.derniere && g.derniere.pos === pos && Math.abs(k - g.derniere.k) === 1) souder(E, pos, Math.max(k, g.derniere.k)); g.derniere = { pos, k }; }
+            else if (E.on.has(c)) couperCroche(E, pos, k);
+            this.majGrilleCreation();
+        }
+        // Les cases de la grille de « Créer une forme » relues dans l'état, SANS les remplacer : un redessin pendant l'appui détacherait la cible avant que la fermeture « au clic à
+        // côté » (this._popups) ne la regarde, et la popover se refermerait sous le doigt.
+        majGrilleCreation() {
+            const E = this.biblio && this.biblio.creation && this.biblio.creation.etat;
+            if (!E) return;
+            document.querySelectorAll('#sq-biblio .bi-case').forEach(b => {
+                const pos = +b.dataset.biP, k = +b.dataset.biK, c = cle(pos, k), lit = E.on.has(c);
+                b.classList.toggle('on', lit);
+                b.classList.toggle('g', lit && E.soude.has(c));
+                b.classList.toggle('d', lit && E.soude.has(cle(pos, k + 1)) && E.on.has(cle(pos, k + 1)));
+                b.setAttribute('aria-pressed', String(lit));
+            });
+        }
+        // La forme créée de zéro, PAR POSITION comme formeDepuisEtat : une triade ([L0, L1, L1, L2]) ou une tétrade ([L0, L1, L2, L3]) ; le format a quatre positions.
+        creerForme(nom) {
+            const f = magasin(), B = this.biblio, C = B && B.creation;
+            nom = (nom || '').trim();
+            if (!f || !C || !nom) return;
+            const brut = { v: [], s: [], n: [] };
+            for (let p = 0; p < C.lignes; p++) {
+                const v = [], s = [], n = {};
+                for (let k = 0; k < 8; k++) { const c = cle(p, k); if (!C.etat.on.has(c)) continue; v.push(k); if (C.etat.soude.has(c)) s.push(k); else if (C.etat.niveaux.has(c)) n[k] = C.etat.niveaux.get(c); }
+                brut.v[p] = v; brut.s[p] = s; brut.n[p] = n;
+            }
+            const ordre = C.lignes === 3 ? [0, 1, 1, 2] : [0, 1, 2, 3];
+            const dessin = { v: ordre.map(p => brut.v[p].slice()), s: ordre.map(p => brut.s[p].slice()), n: ordre.map(p => ({ ...brut.n[p] })) };
+            if (!dessin.v.some(l => l.length)) { this.app.flashHint && this.app.flashHint('Pose au moins une croche pour créer une forme'); return; }
+            const forme = f.enregistrer({ id: f.nouvelId(), type: 'forme', nom, v: dessin.v, s: dessin.s, n: dessin.n });
+            this.fermerBiblio();
+            if (forme && this.app.flashHint) this.app.flashHint(`Forme « ${forme.nom} » créée`);
+        }
+        // Enregistrer le rythme de l'accord choisi comme forme (nom saisi dans la popover).
+        enregistrerForme(nomSaisi) {
+            const f = magasin();
+            const nom = (nomSaisi || '').trim();
             if (!nom || !f || this._i == null) return;
             const dessin = formeDepuisEtat(this._etats[this._i]);
             const forme = f.enregistrer({ id: f.nouvelId(), type: 'forme', nom, v: dessin.v, s: dessin.s, n: dessin.n });
-            this.ouvrirSaisieForme(false);
+            this.fermerBiblio();
             if (!forme) return;
             // L'accord dont on vient de prendre la forme la suit désormais (ses notes sont déjà les siennes : rien n'est réécrit).
             const e = this._etats[this._i];
             this.ecrire(new Map([[this._i, { etat: e, motif: forme.id }]]));
             this.app.flashHint && this.app.flashHint(`Forme « ${forme.nom} » enregistrée`);
         }
+        // ---- La roue des réglages du séquenceur (L3) --------------------------------------------------------------------------------------------
+        // Popover aux composants de Paramètres : hauteur des barres (14 à 48 px, « Auto » = adaptée au nombre de lignes), largeur des croches (14 à 60 px, 34 par défaut), ce
+        // qu'écrivent les barres (Rien | Notes | Degrés), règle des temps, Rétablir. Par appareil. La hauteur et la largeur sont celles de Paramètres › Affichage et de la poignée.
+        basculerReglages() { const p = document.getElementById('sq-reglages-pop'); if (p && !p.hidden) this.fermerReglages(); else this.ouvrirReglages(); }
+        ouvrirReglages() {
+            const pop = document.getElementById('sq-reglages-pop'), b = document.getElementById('sq-reglages');
+            if (!pop || !b) return;
+            this.dessinerReglages();
+            pop.hidden = false;
+            b.setAttribute('aria-expanded', 'true');
+            this.placerReglages();
+        }
+        // Posée au-dessus de la roue, sans jamais recouvrir la barre d'outils : relue à chaque changement (la hauteur des barres déplace toute la barre).
+        placerReglages() {
+            const pop = document.getElementById('sq-reglages-pop'), b = document.getElementById('sq-reglages');
+            if (!pop || !b || pop.hidden) return;
+            const r = b.getBoundingClientRect();
+            pop.style.left = Math.max(8, Math.min(r.right - pop.offsetWidth, window.innerWidth - pop.offsetWidth - 8)) + 'px';
+            pop.style.top = Math.max(8, r.top - pop.offsetHeight - 8) + 'px';
+        }
+        fermerReglages() { const p = document.getElementById('sq-reglages-pop'), b = document.getElementById('sq-reglages'); if (p) p.hidden = true; if (b) b.setAttribute('aria-expanded', 'false'); }
+        dessinerReglages() {
+            const pop = document.getElementById('sq-reglages-pop');
+            if (!pop) return;
+            const h = this.auto ? this.hauteurAuto() : this.ligne;
+            const seg = [['rien', 'Rien'], ['notes', 'Notes'], ['degres', 'Degrés']].map(([m, t]) => `<button type="button" role="radio" data-sq-contenu="${m}" aria-checked="${this.contenu === m}">${t}</button>`).join('');
+            pop.innerHTML = `<h3 class="settings-group-title">Séquenceur</h3>
+                <div class="settings-slider-row"><div class="settings-slider-head"><label for="sq-r-hauteur">Hauteur des barres</label><span class="val" id="sq-r-hauteur-val">${h} px</span></div><input type="range" id="sq-r-hauteur" min="${LIGNE_MIN}" max="${LIGNE_MAX}" step="2" value="${h}"${this.auto ? ' disabled' : ''}></div>
+                <div class="settings-toggle-row"><label for="sq-r-auto" title="Adapte la hauteur des barres au nombre de lignes : hautes en vue Accord, basses en vue Piano">Auto</label><button type="button" id="sq-r-auto" class="switch" role="switch" aria-checked="${this.auto}" aria-label="Hauteur des barres automatique"><span class="switch-thumb"></span></button></div>
+                <div class="settings-slider-sep"></div>
+                <div class="settings-slider-row"><div class="settings-slider-head"><label for="sq-r-croche">Largeur des croches</label><span class="val" id="sq-r-croche-val">${Math.min(this.croche, CROCHE_MAX_ROUE)} px</span></div><input type="range" id="sq-r-croche" min="${CROCHE_MIN}" max="${CROCHE_MAX_ROUE}" step="2" value="${Math.min(this.croche, CROCHE_MAX_ROUE)}"></div>
+                <div class="settings-slider-sep"></div>
+                <div class="settings-select-row"><label id="sq-r-contenu-lbl" title="Ce qu'on écrit dans les barres : le nom de la note, son degré dans l'accord, ou rien">Barres</label><div class="settings-seg" role="radiogroup" aria-labelledby="sq-r-contenu-lbl">${seg}</div></div>
+                <div class="settings-toggle-row"><label for="sq-r-regle" title="La règle des temps, au-dessus des barres (elle sert aussi à tirer une plage à boucler)">Règle</label><button type="button" id="sq-r-regle" class="switch" role="switch" aria-checked="${this.regle}" aria-label="Règle des temps"><span class="switch-thumb"></span></button></div>
+                <div class="rb-pied"><button type="button" id="sq-r-retablir" class="btn-sec">Rétablir</button></div>`;
+            this.placerReglages();
+        }
+        brancherReglages() {
+            const pop = document.getElementById('sq-reglages-pop'), roue = document.getElementById('sq-reglages');
+            if (roue) roue.addEventListener('click', () => this.basculerReglages());
+            if (!pop) return;
+            pop.addEventListener('input', (e) => {
+                if (e.target.id === 'sq-r-hauteur') { this.reglerHauteur(+e.target.value); pop.querySelector('#sq-r-hauteur-val').textContent = this.ligne + ' px'; this.placerReglages(); }
+                else if (e.target.id === 'sq-r-croche') { this.croche = borner(+e.target.value, CROCHE_MIN, CROCHE_MAX_ROUE); ecrireLocal(CLE_CROCHE, String(this.croche)); this.poserColonnes(); pop.querySelector('#sq-r-croche-val').textContent = this.croche + ' px'; }
+            });
+            pop.addEventListener('click', (e) => {
+                const t = (e.composedPath ? e.composedPath() : [e.target]).find(x => x.matches && x.matches('button'));
+                if (!t) return;
+                if (t.id === 'sq-r-auto') { this.auto = !this.auto; ecrireLocal(CLE_AUTO, this.auto ? '1' : '0'); this.poserLigne(); this.limiterHauteur(); this.dessinerReglages(); }
+                else if (t.id === 'sq-r-regle') { this.regle = !this.regle; ecrireLocal(CLE_REGLE, this.regle ? '1' : '0'); this.rafraichir(); this.dessinerReglages(); }
+                else if (t.dataset.sqContenu) { this.contenu = t.dataset.sqContenu; ecrireLocal(CLE_CONTENU, this.contenu); this.rafraichir(); this.dessinerReglages(); }
+                else if (t.id === 'sq-r-retablir') {
+                    this.ligne = LIGNE_DEFAUT; this.croche = CROCHE_DEFAUT; this.contenu = 'notes'; this.regle = true; this.auto = false;
+                    ecrireLocal(CLE_LIGNE, String(this.ligne)); ecrireLocal(CLE_CROCHE, String(this.croche)); ecrireLocal(CLE_CONTENU, 'notes'); ecrireLocal(CLE_REGLE, '1'); ecrireLocal(CLE_AUTO, '0');
+                    this.rafraichir(); this.dessinerReglages();
+                }
+            });
+        }
+
         // Supprimer une forme : elle disparaît partout (synchro-formes.js) ; les accords qui la suivaient gardent leurs notes et passent « À la main »
         // (motifActuel ne la trouve plus).
         supprimerForme(id) {
@@ -1171,11 +1445,15 @@
 
         appliquerMotif(id) {
             const m = motifParId(id);
-            if (!m || id === 'main' || !this._etats || !this._etats.length) return; // « À la main » : rien à appliquer, il s'allume tout seul
-            const cibles = this.portee === 'partie' ? this._etats.map((_, c) => c) : (this._i != null ? [this._i] : []);
+            if (!m || !this._etats || !this._etats.length) return;
+            // « + » (14/11) : à l'ordinateur il REPART D'UN RYTHME VIDE pour l'accord choisi (sans confirmation, une annulation) ; il s'allume ensuite tout seul, comme avant, dès qu'on
+            // retouche une note. Au téléphone il ne fait rien (rien à appliquer) jusqu'à L7.
+            if (id === 'main' && !this.estOrdinateur()) return;
+            const cibles = this.porteeEffective() === 'partie' ? this._etats.map((_, c) => c) : (this._i != null ? [this._i] : []);
             const modifs = new Map();
             cibles.forEach(c => modifs.set(c, { etat: etatAvecMotif(this._etats[c], m), motif: id }));
             if (modifs.size) this.ecrire(modifs);
+            if (id === 'main' && modifs.size && this.app.flashHint) this.app.flashHint('Rythme vidé (Ctrl+Z pour annuler)');
         }
 
         // Le rythme de l'accord choisi, PAR POSITION (de la basse à l'aiguë), pour qu'il se colle sur un accord d'un autre nombre de voix.
@@ -1275,7 +1553,7 @@
             const m = motifParId(id);
             if (!m || id === 'main') return;
             this.ouvrirBandeLibre(false);
-            this.ouvrirSaisieForme(false);
+            this.fermerBiblio();
             // L'état de travail : une « voix » par position (0 = basse … 3 = aiguë), les soudures et intensités du motif.
             const info = { croches: 8 };
             const on = new Set(), soude = new Set(), niveaux = new Map();
@@ -1927,10 +2205,13 @@
             });
         }
 
+        // « Auto » (roue des réglages) : la zone des notes vaut environ 32 % de la hauteur de la fenêtre (moins 60 px) répartie sur les lignes, de LIGNE_MIN à LIGNE_MAX :
+        // quatre lignes en vue Accord = barres hautes, douze en vue Piano = barres basses.
+        hauteurAuto() { const nb = Math.max(1, (this._lignes || []).length || 4); return borner(Math.round((window.innerHeight * 0.32 - 60) / nb), LIGNE_MIN, LIGNE_MAX); }
         // Les noms de notes disparaissent des cases sous ~24 px de haut (cahier 3 bis) : ils n'y tiendraient plus.
         // Au téléphone, des lignes de 44 px, la jauge du doigt (maquette `Telephone.dc.html`) : pas de poignée.
         poserLigne() {
-            const h = this.modeTel() ? 40 : this.ligne; // plein écran au téléphone : des lignes de 40 px, pour voir plus de voix (elles étaient à 44)
+            const h = this.modeTel() ? 40 : (this.auto ? this.hauteurAuto() : this.ligne); // plein écran au téléphone : des lignes de 40 px, pour voir plus de voix (elles étaient à 44)
             this.racine.style.setProperty('--sq-ligne', h + 'px');
             // Les noms de notes rapetissent de 18 à 23 px et disparaissent sous 18 px (ils disparaissaient sous 24 : à 22-23 px on les lit encore, en 10 px).
             this.racine.classList.toggle('lignes-basses', h < 18);
