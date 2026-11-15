@@ -1,0 +1,75 @@
+diff --git a/sequenceur.js b/sequenceur.js
+index a6dd357..6f704ce 100644
+--- a/sequenceur.js
++++ b/sequenceur.js
+@@ -92,7 +92,14 @@
+     // hors de C2-C7 — et douze lignes visibles au départ (le reste défile dans la grille). « Je ne peux pas tâtonner pour trouver une note aiguë qui n'est pas encore jouée ailleurs » (l'utilisateur).
+     const PIANO_MIN = 24, PIANO_MAX = 108, PIANO_SOUS = 5, PIANO_AU_DESSUS = 12, VISIBLES_PIANO = 12;
+     const CLE_OCT_HAUT = 'harmohubSequenceurOctavesHaut', CLE_OCT_BAS = 'harmohubSequenceurOctavesBas';   // octaves de marge de la vue Piano : au-dessus (1 au départ), en dessous (0 : cinq demi-tons)
+-    const GRILLE_MIN = 40; // ce que la poignée laisse au moins à la grille au-dessus (l'en-tête de partie reste lisible)
++    // Ce que la poignée laisse au moins à la grille au-dessus du séquenceur : UNE ligne d'accords (15/11, « étirer le séquenceur au-dessus de la barre d'outils […] une seule ligne visible si
++    // je suis en plein écran pour le séquenceur » ; réponse : « oui ok pour une ligne au-dessus »). 3 px de jour + une rangée (degré, case de 64 px, numéro de mesure) ; en dessous de GRILLE_SERREE
++    // la rangée de réglages (collante) s'efface pour lui laisser la place (voir majUneLigne).
++    // Mesurée sur la grille réelle (la case grandit avec le zoom vertical) : 3 px de jour, 18 px pour le degré au-dessus de la case, la case, 21 px pour le numéro de mesure dessous, puis les 20 px de marge basse de <main>.
++    const grilleMin = () => {
++        const c = document.querySelector('#progression-sections .grid-cell[data-index]');
++        return 3 + 18 + Math.round(c ? c.getBoundingClientRect().height : 52) + 21 + 20;   // + 20 px : le jour sous la fenêtre de la grille (marge basse de <main>)
++    };
+ 
+     const cle = (v, k) => v + ':' + k;
+     const lireLocal = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; /* stockage refusé : réglage par défaut */ } };
+@@ -1038,7 +1045,7 @@
+             const lecture = document.getElementById('barre-lecture');
+             const hT = tiroir && !tiroir.hidden && !tiroir.classList.contains('vues-libre') ? tiroir.getBoundingClientRect().height : 0;
+             const hL = lecture ? lecture.getBoundingClientRect().height : 0;
+-            return Math.max(120, window.innerHeight - yHaut - hT - hL - GRILLE_MIN);
++            return Math.max(120, window.innerHeight - yHaut - hT - hL - grilleMin());
+         }
+         // Voix | Piano : le réglage « lignes visibles » (poignée du haut) est retenu pour CHAQUE vue.
+         changerVue(v) {
+@@ -1060,6 +1067,25 @@
+             this.appliquerVisibles();
+             if (this.modeTel()) { this.racine.style.maxHeight = ''; return; } // au téléphone, c'est le panneau d'accord qui défile
+             this.racine.style.maxHeight = Math.floor(this.placeLibre()) + 'px';
++            this.majUneLigne();
++        }
++
++        // Séquenceur étiré au plus haut : la grille n'a plus de place que pour UNE ligne d'accords. La rangée de réglages, collée en haut de la grille, la mangerait (36 px sur 123) : elle cesse
++        // d'être collée (classe sur <body>, style.css) et la grille se pose sur la ligne que le séquenceur montre — celle de l'accord choisi.
++        majUneLigne() {
++            const aire = document.querySelector('.history-section');
++            const serree = !!aire && !this.modeTel() && this.estOuvert() && aire.clientHeight < grilleMin() + 30;   // la rangée de réglages (36 px) ne tient plus avec la ligne
++            document.body.classList.toggle('grille-une-ligne', serree);
++            if (serree) this.poserGrilleSurLigne();
++        }
++        poserGrilleSurLigne() {
++            const aire = document.querySelector('.history-section');
++            const c = this._montres && this._montres[0];
++            if (!aire || c == null) return;
++            const cellule = aire.querySelector(`.chord-grid[data-section="${this._s}"] .grid-cell[data-index="${c}"]`);
++            if (!cellule) return;
++            // La case, son degré au-dessus (18 px) puis le numéro de mesure en dessous tiennent dans la fenêtre : on aligne le haut du degré sur le haut de l'aire (3 px de jour).
++            aire.scrollTop += cellule.getBoundingClientRect().top - aire.getBoundingClientRect().top - 21;
+         }
+ 
+         // Les colonnes de la grille : étiquettes (46 px), un petit jour (10 px), puis les croches de chaque accord — de CROCHE_MIN px à `this.croche` px, calées à gauche : une grille
+diff --git a/style.css b/style.css
+index c6eee99..a411cdf 100644
+--- a/style.css
++++ b/style.css
+@@ -7850,3 +7850,15 @@ body.entetes-gauche #progression-sections .prog-section-menu { margin-left: 0; }
+     body[data-app-mode="edit"] .viz-bande, body[data-app-mode="edit"] .viz-wrap > .viz-export-actions { bottom: calc(var(--haut-barre-lecture, 68px) + 64px); }
+     .col-right.diagrams-hidden .viz-card { display: none; }
+ }
++
++
++/* ============================================================================================================================================================
++   L9a (15/11) — SÉQUENCEUR ÉTIRÉ AU PLUS HAUT : UNE LIGNE D'ACCORDS RESTE VISIBLE. L'utilisateur : « Peux-tu faire en sorte que je puisse étirer le séquenceur au-dessus de la barre d'outils ?
++   il y aura donc une seule ligne visible si je suis en plein écran pour le séquenceur » (réponse : « oui ok pour une ligne au-dessus »). Quand la grille n'a plus de place que pour une
++   ligne (sequenceur.js, majUneLigne), la rangée de réglages cesse d'être collée en haut de la grille : elle défile avec le reste, et la grille se pose sur la ligne que le séquenceur montre.
++   Ordinateur seulement.
++   ============================================================================================================================================================ */
++@media (min-width: 900px) {
++    body.grille-une-ligne .history-section .grid-head-sticky { position: static; }
++    body.grille-une-ligne #add-section { display: none; }   /* le bandeau collé en bas recouvrirait le reste de la ligne suivante */
++}
