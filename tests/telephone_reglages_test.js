@@ -171,11 +171,11 @@ const pincer = (p, ecart) => p.evaluate((ecart) => {
 
         // ===== D. LE CONTRETEMPS DANS LE PANNEAU LECTURE =============================================================================
         await toucher(p, '#bl-plus');
-        const sub = await p.evaluate(() => { const b = document.getElementById('toggle-metronome-subdivision'); const r = b.getBoundingClientRect(); return { hote: b.parentElement.id, w: Math.round(r.width), h: Math.round(r.height), avant: window.app.metronomeSubdivision }; });
+        const sub = await p.evaluate(() => { const b = document.getElementById('toggle-metronome-subdivision'); const r = b.getBoundingClientRect(); return { hote: b.parentElement.id, dansPanneau: !!b.closest('#panneau-lecture #bl-tempo-ligne'), w: Math.round(r.width), h: Math.round(r.height), avant: window.app.metronomeSubdivision }; });
         await toucher(p, '#toggle-metronome-subdivision');
         const subApres = await p.evaluate(() => window.app.metronomeSubdivision);
-        check(sub.hote === 'pl-subdivision' && sub.w === 44 && sub.h === 44 && subApres === !sub.avant && (await dansLEcran(p, '#toggle-metronome-subdivision')),
-            `le contretemps du métronome est dans le panneau Lecture, à 44px, et se bascule (${JSON.stringify(sub)} → ${subApres})`);
+        check(sub.hote === 'bl-hote-subdivision' && sub.dansPanneau && sub.w === 44 && sub.h === 44 && subApres === !sub.avant && (await dansLEcran(p, '#toggle-metronome-subdivision')),
+            `le contretemps du métronome est dans la rangée du tempo du panneau Lecture (L7b), à 44px, et se bascule (${JSON.stringify(sub)} → ${subApres})`);
         await toucher(p, '#bl-plus');
 
         // ===== E. AFFICHAGE ==========================================================================================================
@@ -304,7 +304,7 @@ const pincer = (p, ecart) => p.evaluate((ecart) => {
             await p.click('#song-summary'); await p.waitForTimeout(200);
             await p.setViewportSize({ width: 1320, height: 820 }); await p.waitForTimeout(400);
             const retour = await p.evaluate(() => ({ rangee: document.getElementById('rangee-reglages').parentElement.className, ferme: document.getElementById('tel-reglages-cases').hidden, puce: Math.round(document.getElementById('rr-tonalite').getBoundingClientRect().height) }));
-            check(tel.rangee === 'tel-reglages-cases' && tel.h === 72 && tel.sub === 'pl-subdivision' && /grid-head-sticky/.test(retour.rangee) && retour.ferme && retour.puce === 32,
+            check(tel.rangee === 'tel-reglages-cases' && tel.h === 72 && tel.sub === 'bl-hote-subdivision' && /grid-head-sticky/.test(retour.rangee) && retour.ferme && retour.puce === 32,
                 `franchir le seuil met les puces dans les cases (Large du téléphone : ${tel.h}px), puis les rend à la rangée de l'ordinateur, cases refermées (${JSON.stringify({ tel, retour })})`);
             await ctx.close();
         }

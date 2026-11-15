@@ -224,10 +224,10 @@ const graine = () => {
     p = await ouvrir(390, 844);
     await p.click('#bl-plus'); await p.waitForTimeout(400);
     const tel = await p.evaluate(() => ({ roue: document.getElementById('bl-reorg').getBoundingClientRect().width === 0 ? 'none' : 'visible', pop: document.getElementById('bl-reglages-pop').hidden, ligne: !!document.querySelector('#panneau-lecture #bl-tempo-ligne'),
-        sous: document.querySelector('#pl-subdivision #toggle-metronome-subdivision') ? 'pl-subdivision' : 'ailleurs', curseur: !!document.querySelector('#panneau-lecture #bl-vitesse'), boutons: document.querySelectorAll('#panneau-lecture [data-vitesse]').length,
+        sous: document.querySelector('#panneau-lecture #bl-tempo-ligne #bl-hote-subdivision #toggle-metronome-subdivision') ? 'ligne-du-tempo' : 'ailleurs', curseur: !!document.querySelector('#panneau-lecture #bl-vitesse'), boutons: document.querySelectorAll('#panneau-lecture [data-vitesse]').length,
         chev: document.getElementById('bl-tempo-plus').textContent }));
     check(tel.roue === 'none' && tel.pop, 'la barre n\'a pas de roue au téléphone (rien à ouvrir)');
-    check(tel.ligne && tel.sous === 'pl-subdivision' && tel.curseur && tel.boutons === 0, 'le panneau Lecture porte la rangée du tempo, le contretemps à sa place et UN curseur de vitesse');
+    check(tel.ligne && tel.sous === 'ligne-du-tempo' && tel.curseur && tel.boutons === 0, 'le panneau Lecture porte la rangée du tempo, le contretemps à droite de TAP (L7b : plus de ligne à part) et UN curseur de vitesse');
     const t1 = await bpm(p);
     const pl = await centre(p, '#bl-tempo-plus');
     await p.mouse.click(pl.x, pl.y); await p.waitForTimeout(250);

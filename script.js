@@ -10232,12 +10232,9 @@ class HarmoHubApp {
         const btn = document.getElementById('toggle-metronome-subdivision');
         const hote = document.getElementById('bl-hote-subdivision');
         if (!btn || !hote) return;
-        if (!this._origineSubdivision) this._origineSubdivision = { parent: btn.parentNode, suivant: btn.nextSibling };
-        // Lot 10c : au téléphone, la carte Morceau ne s'ouvre plus — le contretemps rejoint le panneau Lecture, sous le métronome.
-        const hoteTel = document.getElementById('pl-subdivision');
-        if (window.matchMedia('(min-width: 900px)').matches) { if (btn.parentNode !== hote) hote.appendChild(btn); }
-        else if (hoteTel) { if (btn.parentNode !== hoteTel) hoteTel.appendChild(btn); }
-        else if (btn.parentNode !== this._origineSubdivision.parent) this._origineSubdivision.parent.insertBefore(btn, this._origineSubdivision.suivant);
+        // L7b : à toutes les tailles le contretemps est à droite de TAP (#bl-hote-subdivision). Au téléphone la rangée du tempo, avec lui, est déplacée dans le panneau
+        // Lecture (placerPanneauLecture) : il n'a plus de ligne « Contretemps » à lui (avant L7b, lot 10c, il vivait seul dans #pl-subdivision, sous le métronome).
+        if (btn.parentNode !== hote) hote.appendChild(btn);
     }
 
     rafraichirRangeeReglages() {

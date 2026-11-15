@@ -165,9 +165,9 @@ const graine = () => {
     console.log('\n=== I. Le téléphone : les puces sont ses quatre cases, le contretemps est dans le panneau Lecture (lot 10c) ===');
     p = await ouvrir({ width: 390, height: 844 });
     const tel = await p.evaluate(() => ({ rangee: document.getElementById('rangee-reglages').getBoundingClientRect().height, carte: document.getElementById('song-card').getBoundingClientRect().height,
-        hote: document.getElementById('rangee-reglages').parentElement.id, sub: document.getElementById('toggle-metronome-subdivision').parentElement.id }));
+        hote: document.getElementById('rangee-reglages').parentElement.id, sub: document.getElementById('toggle-metronome-subdivision').parentElement.id, dansPanneau: !!document.querySelector('#panneau-lecture #bl-tempo-ligne #toggle-metronome-subdivision') }));
     check(tel.rangee === 0 && tel.carte > 0 && tel.hote === 'tel-reglages-cases', `les puces sont rangées dans les cases repliées, la barre-résumé est là (${tel.rangee}px / ${Math.round(tel.carte)}px, ${tel.hote})`);
-    check(tel.sub === 'pl-subdivision', `le contretemps est dans le panneau Lecture (${tel.sub})`);
+    check(tel.sub === 'bl-hote-subdivision' && tel.dansPanneau, `le contretemps est dans la rangée du tempo du panneau Lecture, à droite de TAP (L7b ; ${tel.sub})`);
     await p.close();
 
     check(erreurs.length === 0, `aucune erreur JavaScript (${erreurs.length ? erreurs.join(' | ') : 'aucune'})`);

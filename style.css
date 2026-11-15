@@ -7759,3 +7759,21 @@ body.entetes-gauche #progression-sections .prog-section-menu { margin-left: 0; }
     .tel-sequenceur .icon { width: 20px; height: 20px; }
     .col-left .tel-sequenceur:active { background: rgba(0, 230, 118, 0.12); }
 }
+
+
+/* ============================================================================================================================================================
+   L7b (15/11) — TÉLÉPHONE, PANNEAU « LECTURE » (lettre M). Une rangée de tempo complète : « ‹ 120 BPM › », TAP, puis le contretemps (noire / croche) À DROITE de TAP — la
+   ligne « Contretemps » du lot 10c n'existe plus. Le groupe segmenté se resserre (la valeur « 120 BPM » tient en 64 px) pour que les quatre éléments et le mot « Tempo » tiennent
+   de 360 à 899 px ; sous 360 px le mot s'efface, la valeur dit déjà « BPM ». Un seul curseur de vitesse, avec son échelle (déjà le cas : plus de cinq boutons rapides).
+   ============================================================================================================================================================ */
+@media (max-width: 899px) {
+    #pl-tempo .bl-seg-val { min-width: 64px; padding: 0 4px; }
+    #pl-tempo .bl-hote-sub { margin-left: 0; }
+    #pl-tempo .bl-hote-sub > #toggle-metronome-subdivision { flex: none; width: var(--bouton-h-lg, 44px); height: var(--bouton-h-lg, 44px); min-width: 0; padding: 0; }
+}
+@media (max-width: 359px) {
+    .panneau-lecture .pl-ligne:has(> #pl-tempo) > .pl-etiquette { display: none; }
+    /* « Séquenceur » débordait de son bouton à 320 px (trois boutons de 93 px pour 100 px de contenu) : mot et logo se resserrent. */
+    .panneau-lecture .pl-vue { gap: 4px; padding: 0 4px; font-size: 12.5px; }
+    .panneau-lecture .pl-vue .icon { width: 16px; height: 16px; }
+}
