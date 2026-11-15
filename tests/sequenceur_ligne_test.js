@@ -142,7 +142,6 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
     check(await p.evaluate(() => !!window.app.sequenceur.presse), 'et le rythme est bien copié');
     await deselectionner(p);
     await p.click('#sq-ligne-suiv'); await p.waitForTimeout(300);
-    await p.click('#sq-portee-accord'); await p.waitForTimeout(200);
     const vise2 = (await etat(p)).accord;
     const motifs = () => p.evaluate(() => loadProgressionSections()[0].chords.map(d => SequenceurHarmo.motifActuel(d)));
     const avant = await motifs();

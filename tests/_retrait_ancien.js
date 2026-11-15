@@ -157,9 +157,10 @@ async function suitSelection(p, i = 1) {
     return { ok: r === i, detail: `accord choisi au séquenceur : ${r}` };
 }
 
-// Un motif (remplace les rythmes types de l'inspecteur) : « Arpège ↑ » sur toute la partie.
+// Un motif (remplace les rythmes types de l'inspecteur) : « Arpège ↑ » sur l'accord choisi. (RÉÉCRIT À L3, 14/11 : plus de choix « Toute la partie | Cet accord » à l'ordinateur ;
+// le motif agit sur l'accord choisi.)
 async function motif(p) {
-    await cliquer(p, '#sq-portee-partie');
+    await choisirAccord(p, 0);
     await cliquer(p, '#sq-motif-monte', 400);
     const m = await lire(p, 0);
     return { ok: m.motif === 'monte', detail: `motif suivi : ${m.motif}` };

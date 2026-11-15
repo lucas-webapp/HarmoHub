@@ -65,6 +65,13 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
         return { pos: e.info.positions.map(par), niv: e.info.positions.map(niv), basse: e.info.basse != null ? par(e.info.basse) : null, libres, motif: d.motifSeq || null };
     }, { c, s });
     const etiquettes = (p) => p.evaluate(() => [...document.querySelectorAll('#sq-grille .sq-etiq')].map(e => e.textContent.trim()));
+    // L3 (14/11) : un clic droit sur un rythme ouvre un MENU (Modifier / Supprimer avec confirmation / Masquer) ; enregistrer une forme passe par le signet, dont la popover
+    // porte « Enregistrer la forme… » (formulaire, nom prérempli). Ces assistants jouent les vrais gestes.
+    const ouvrirEnreg = async (p) => { await cliquer(p, '#sq-forme-enregistrer'); await cliquer(p, '#sq-biblio [data-bi-a="enregistrer"]'); };
+    const enregistrer = async (p) => { await ouvrirEnreg(p); await p.keyboard.press('Enter'); await p.waitForTimeout(300); };
+    const schemaDe = async (p, sel) => { await cliquer(p, sel, { button: 'right' }); await cliquer(p, '#sq-menu-rythme [data-a="modifier"]'); };
+    const supprimerParMenu = async (p, sel) => { await cliquer(p, sel, { button: 'right' }); await cliquer(p, '#sq-menu-rythme [data-a="supprimer"]'); await cliquer(p, '#sq-menu-rythme [data-a="supprimer"]'); };
+
     const formes = (p) => p.evaluate(() => FormesSequenceur.formes().map(f => ({ id: f.id, nom: f.nom, v: f.v, n: f.n })));
     const presse = (p, sel) => p.evaluate((sel) => { const b = document.querySelector(sel); return b ? b.getAttribute('aria-pressed') : null; }, sel);
 
@@ -81,14 +88,14 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     await cliquer(p, '#sq-intensite');
     const avantForme = await croches(p, 0);
     exiger(avantForme.pos[0] === '0,4' && avantForme.pos[3] === '1,3,5,7' && avantForme.niv[0] === '0=fort', 'le rythme de départ est posé à la main (basse 1 et 3, la première forte ; aiguë sur les contretemps)');
-    await cliquer(p, '#sq-forme-enregistrer');
-    const saisie = await p.evaluate(() => { const c = document.getElementById('sq-forme-nom'); return { vu: !document.getElementById('sq-forme-saisie').hidden, val: c.value, focus: document.activeElement === c, sel: [c.selectionStart, c.selectionEnd], marque: !document.getElementById('sq-forme-enregistrer').hidden }; });
-    check(saisie.vu && saisie.val === 'Forme 1' && saisie.focus && saisie.sel[0] === 0 && saisie.sel[1] === 7 && !saisie.marque, 'le marque-page propose « Forme 1 », sélectionné, le curseur dans le champ (et le marque-page s\'efface)');
+    await ouvrirEnreg(p);
+    const saisie = await p.evaluate(() => { const c = document.getElementById('sq-biblio-nom'); return { vu: !document.getElementById('sq-biblio').hidden, val: c.value, focus: document.activeElement === c, sel: [c.selectionStart, c.selectionEnd] }; });
+    check(saisie.vu && saisie.val === 'Forme 1' && saisie.focus && saisie.sel[0] === 0 && saisie.sel[1] === 7, 'le signet › « Enregistrer la forme… » propose « Forme 1 », sélectionné, le curseur dans le champ (dans la popover)');
     await p.keyboard.press('Escape'); await p.waitForTimeout(200);
-    check((await formes(p)).length === 0 && await p.evaluate(() => document.getElementById('sq-forme-saisie').hidden), 'Échap annule : aucune forme, la saisie se referme');
-    await cliquer(p, '#sq-forme-enregistrer');
+    check((await formes(p)).length === 0 && await p.evaluate(() => document.getElementById('sq-biblio').hidden), 'Échap annule : aucune forme, la popover se referme');
+    await ouvrirEnreg(p);
     await p.keyboard.press('Control+a'); await p.keyboard.press('Delete'); await p.waitForTimeout(100);
-    check(await p.evaluate(() => document.getElementById('sq-forme-valider').disabled), 'un nom vide ne s\'enregistre pas (Enregistrer grisé)');
+    check(await p.evaluate(() => document.querySelector('#sq-biblio .bi-ok').disabled), 'un nom vide ne s\'enregistre pas (Enregistrer grisé)');
     await p.keyboard.type('Contretemps'); await p.keyboard.press('Enter'); await p.waitForTimeout(300);
     const f1 = await formes(p);
     check(f1.length === 1 && f1[0].nom === 'Contretemps', 'Entrée enregistre la forme sous son nom');
@@ -96,26 +103,25 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     const id1 = f1[0] && f1[0].id;
     check(await presse(p, `#sq-formes [data-sq-motif="${id1}"]`) === 'true' && (await croches(p, 0)).motif === id1, 'la forme apparaît après les motifs, enfoncée : l\'accord dont on l\'a prise la suit');
     check(await p.evaluate((id) => document.querySelectorAll(`#sq-formes [data-sq-motif="${id}"] .sq-vignette span.lit`).length, id1) === 2 + 4, 'sa vignette est dessinée comme le séquenceur (deux croches de basse, quatre de l\'aiguë)');
-    // Appliquée à toute la partie (portée par défaut) depuis Am7.
-    await cliquer(p, '#sq-grille .sq-nom[data-c="1"]');
-    await cliquer(p, `#sq-formes [data-sq-motif="${id1}"]`);
+    // Appliquée à chacun des accords (RÉÉCRIT À L3 : un rythme agit sur l'accord choisi, il n'y a plus de portée « Toute la partie »).
+    for (const c of [1, 2, 3]) { await cliquer(p, `#sq-grille .sq-nom[data-c="${c}"]`); await cliquer(p, `#sq-formes [data-sq-motif="${id1}"]`); }
     const apres = await Promise.all([1, 2, 3].map(c => croches(p, c)));
-    check(apres.every(e => e.pos[0] === '0,4' && e.pos[3] === '1,3,5,7' && e.pos[1] === '' && e.niv[0] === '0=fort' && e.motif === id1), 'appliquée à « Toute la partie » : chaque accord prend la forme par position, intensités comprises');
+    check(apres.every(e => e.pos[0] === '0,4' && e.pos[3] === '1,3,5,7' && e.pos[1] === '' && e.niv[0] === '0=fort' && e.motif === id1), 'appliquée à chaque accord : il prend la forme par position, intensités comprises');
     await ctrlZ(p);
-    check((await croches(p, 2)).pos[0] === '0,1,2,3,4,5,6,7' && (await croches(p, 2)).motif === null, 'un Ctrl+Z défait l\'application sur toute la partie');
+    check((await croches(p, 3)).pos[0] === '0,1,2,3,4,5,6,7' && (await croches(p, 3)).motif === null, 'un Ctrl+Z défait l\'application (une annulation par accord)');
     await cliquer(p, '#sq-grille .sq-nom[data-c="1"]');    // la forme suivante est prise sur Am7 (Cmaj7 suit toujours « Contretemps »)
-    await cliquer(p, '#sq-forme-enregistrer');
-    check(await p.inputValue('#sq-forme-nom') === 'Forme 1', 'la forme suivante se propose sous le premier nom libre (« Forme 1 », la première s\'appelle « Contretemps »)');
+    await ouvrirEnreg(p);
+    check(await p.inputValue('#sq-biblio-nom') === 'Forme 1', 'la forme suivante se propose sous le premier nom libre (« Forme 1 », la première s\'appelle « Contretemps »)');
     await p.keyboard.press('Enter'); await p.waitForTimeout(300);
-    await cliquer(p, '#sq-forme-enregistrer');
-    check(await p.inputValue('#sq-forme-nom') === 'Forme 2', 'puis « Forme 2 »');
-    await cliquer(p, '#sq-forme-annuler');
+    await ouvrirEnreg(p);
+    check(await p.inputValue('#sq-biblio-nom') === 'Forme 2', 'puis « Forme 2 »');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(200);
     // Supprimer la forme « Contretemps » : Cmaj7 la suivait.
     await cliquer(p, '#sq-grille .sq-nom[data-c="0"]');
     const avantSuppr = await accord(p, 0);
-    await cliquer(p, `#sq-formes [data-sq-suppr="${id1}"]`);
+    await supprimerParMenu(p, `#sq-formes [data-sq-motif="${id1}"]`);
     const apresSuppr = await accord(p, 0);
-    check((await formes(p)).every(f => f.id !== id1) && await p.locator(`#sq-formes [data-sq-motif="${id1}"]`).count() === 0, 'le × supprime la forme (elle quitte la barre)');
+    check((await formes(p)).every(f => f.id !== id1) && await p.locator(`#sq-formes [data-sq-motif="${id1}"]`).count() === 0, 'le menu du clic droit supprime la forme, après confirmation (elle quitte la barre)');
     check(apresSuppr.arpPattern === avantSuppr.arpPattern && await presse(p, '#sq-motif-main') === 'true', 'l\'accord qui la suivait garde ses notes et passe « À la main »');
     check(await p.evaluate(() => JSON.parse(localStorage.getItem('harmohubFormes')).supprimes) && await p.evaluate((id) => !!JSON.parse(localStorage.getItem('harmohubFormes')).supprimes[id], id1), 'la suppression est TRACÉE (elle partira au cloud et l\'emportera sur une copie plus ancienne)');
     // Accord de trois sons : la forme se rejoue à l'identique sur lui (la basse et l'aiguë gardées, le milieu fondu).
@@ -123,11 +129,10 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     p = await ouvrir({ width: 1440, height: 900 }, [{ title: 'Couplet', chords: [mk('C', 'maj'), mk('F', 'maj7')] }]);
     await cliquer(p, '#sq-grille .sq-nom[data-c="0"]');
     await cliquer(p, '#sq-motif-ballade');
-    await cliquer(p, '#sq-forme-enregistrer'); await p.keyboard.press('Enter'); await p.waitForTimeout(300);
+    await enregistrer(p);
     const tri = await croches(p, 0);
     const f3 = (await formes(p))[0];
     await cliquer(p, '#sq-grille .sq-nom[data-c="1"]');
-    await cliquer(p, '#sq-portee-accord');
     await cliquer(p, '#sq-motif-plaque');
     await cliquer(p, '#sq-grille .sq-nom[data-c="0"]');
     await cliquer(p, '#sq-motif-plaque');
@@ -152,21 +157,20 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     exiger(await attendre(() => A.p.evaluate(() => FormesSequenceur.connecte())) && await attendre(() => B.p.evaluate(() => FormesSequenceur.connecte())), 'les deux appareils sont connectés au même compte');
     await cliquer(A.p, '#sq-grille .sq-nom[data-c="0"]');
     await cliquer(A.p, '#sq-motif-pompe');
-    await cliquer(A.p, '#sq-forme-enregistrer'); await A.p.keyboard.type('Ma pompe'); await A.p.keyboard.press('Enter');
+    await ouvrirEnreg(A.p); await A.p.keyboard.type('Ma pompe'); await A.p.keyboard.press('Enter');
     check(await attendre(() => { const d = nuage.docs.get(DOC); return !!d && d.entrees.some(e => e.nom === 'Ma pompe'); }), 'la forme enregistrée sur A part au cloud, dans le document des formes du compte');
     const entree = (nuage.docs.get(DOC) || { entrees: [] }).entrees.find(e => e.nom === 'Ma pompe') || {};
     check(typeof entree.json === 'string' && JSON.parse(entree.json).v.length === 4, 'son dessin y est une chaîne JSON (Firestore refuse les tableaux imbriqués)');
     check(await attendre(() => B.p.evaluate(() => FormesSequenceur.formes().some(f => f.nom === 'Ma pompe'))) && await attendre(async () => (await B.p.locator('#sq-formes .sq-motif').count()) === 1), 'B la reçoit sans recharger : elle apparaît dans sa barre');
     const idP = await B.p.evaluate(() => FormesSequenceur.formes()[0].id);
     await cliquer(B.p, '#sq-grille .sq-nom[data-c="2"]');
-    await cliquer(B.p, '#sq-portee-accord');
     await cliquer(B.p, `#sq-formes [data-sq-motif="${idP}"]`);
     check((await croches(B.p, 2)).motif === idP, 'B l\'applique à un de ses accords');
     // A hors ligne : il supprime la forme et en crée une autre ; rien ne part. De retour en ligne, tout arrive.
     nuage.coupe.add('A');
-    await cliquer(A.p, `#sq-formes [data-sq-suppr="${idP}"]`);
+    await supprimerParMenu(A.p, `#sq-formes [data-sq-motif="${idP}"]`);
     await cliquer(A.p, '#sq-motif-plaque');
-    await cliquer(A.p, '#sq-forme-enregistrer'); await A.p.keyboard.type('Hors ligne'); await A.p.keyboard.press('Enter');
+    await ouvrirEnreg(A.p); await A.p.keyboard.type('Hors ligne'); await A.p.keyboard.press('Enter');
     await A.p.waitForTimeout(1500);
     check((nuage.docs.get(DOC) || { entrees: [] }).entrees.some(e => e.nom === 'Ma pompe') && !(nuage.docs.get(DOC) || { entrees: [] }).entrees.some(e => e.nom === 'Hors ligne'), 'hors ligne, rien ne part (et rien n\'est perdu ici : A a déjà sa nouvelle forme)');
     nuage.coupe.delete('A');
@@ -234,7 +238,6 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     check((await Promise.all([0, 1].map(c => accord(p, c)))).every(d => !(d.extraNotes || []).length), 'un seul Ctrl+Z défait tout le glissé (et les notes ajoutées)');
     // Appliquer un motif garde les notes libres.
     await cliquer(p, '#sq-grille .sq-nom[data-c="3"]');
-    await cliquer(p, '#sq-portee-accord');
     await cliquer(p, '#sq-motif-pompe');
     check((await croches(p, 3)).libres['76'] === '2', 'appliquer un motif ne réécrit que les voix de l\'accord : la note libre garde sa croche');
     // Enlever la dernière croche : la note quitte l'accord (pas de voix fantôme), la ligne reste. (RÉÉCRIT À L2, 14/11 : un clic sur une note la choisit, Suppr l'enlève.)
@@ -252,12 +255,13 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     // ======================================================================================================
     console.log('\n=== D. Clic droit sur une vignette : retoucher un schéma, l\'entendre, « Rétablir l\'original » ===');
     p = await ouvrir({ width: 1440, height: 900 });
+    // L3 : un rythme agit sur l'accord choisi — Arpège ↑ se pose donc sur chacun des quatre accords (ils tiennent sur la même ligne).
+    for (const c of [1, 0, 2, 3]) { await cliquer(p, `#sq-grille .sq-nom[data-c="${c}"]`); await cliquer(p, '#sq-motif-monte'); }
     await cliquer(p, '#sq-grille .sq-nom[data-c="1"]');
-    await cliquer(p, '#sq-portee-partie');
-    await cliquer(p, '#sq-motif-monte');
     await cliquer(p, '#sq-motif-main', { button: 'right' });
-    check(!(await p.isVisible('#sq-schema')), '« À la main » n\'a pas de clic droit (rien à retoucher)');
-    await cliquer(p, '#sq-motif-monte', { button: 'right' });
+    check(!(await p.isVisible('#sq-schema')) && await p.isVisible('#sq-menu-rythme'), '« + » n\'ouvre pas de schéma (rien à retoucher) : son clic droit propose de créer ou d\'enregistrer une forme');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+    await schemaDe(p, '#sq-motif-monte');
     const schema = await p.evaluate(() => ({ vu: !document.getElementById('sq-schema').hidden, cases: document.querySelectorAll('#sq-schema-grille .sq-schema-case').length, on: [...document.querySelectorAll('#sq-schema-grille .sq-schema-case.on')].map(b => b.dataset.sqSchema + ':' + b.dataset.k).sort().join(' '), nom: document.getElementById('sq-schema-nom').value, retablir: !document.getElementById('sq-schema-retablir').hidden, suppr: !document.getElementById('sq-schema-supprimer').hidden }));
     check(schema.vu && schema.cases === 32, 'le clic droit sur « Arpège ↑ » déplie un schéma SANS notes de 4 voix × 8 croches');
     check(schema.on === '0:0 0:1 0:2 0:3 0:4 0:5 0:6 0:7 1:1 1:5 2:2 2:6 3:3 3:7' && schema.nom === 'Arpège ↑' && !schema.retablir && !schema.suppr, 'il montre le motif tel qu\'il est (nom compris) ; ni « Rétablir » (pas encore retouché) ni « Supprimer » (motif fourni)');
@@ -277,21 +281,21 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     await ctrlZ(p);
     check((await croches(p, 2)).pos[3] === '3,7', 'un Ctrl+Z rend aux accords leur rythme d\'avant (une annulation)');
     await p.keyboard.press('Control+y'); await p.waitForTimeout(300);
-    await cliquer(p, '#sq-motif-monte', { button: 'right' });
+    await schemaDe(p, '#sq-motif-monte');
     check(await p.isVisible('#sq-schema-retablir'), 'retouché, son clic droit propose « Rétablir l\'original »');
     await p.keyboard.press('Escape'); await p.waitForTimeout(200);
     check(!(await p.isVisible('#sq-schema')) && await p.evaluate(() => !!FormesSequenceur.retouche('monte')), 'Échap referme le schéma sans rien changer');
-    await cliquer(p, '#sq-motif-monte', { button: 'right' });
+    await schemaDe(p, '#sq-motif-monte');
     await cliquer(p, '#sq-schema-retablir');
     check(await p.evaluate(() => !FormesSequenceur.retouche('monte')) && (await Promise.all([0, 1, 2, 3].map(c => croches(p, c)))).every(e => e.pos[3] === '3,7'), '« Rétablir l\'original » retire la retouche, les accords reprennent l\'arpège d\'origine');
     // Une forme de l'utilisateur : son clic droit propose « Supprimer », et un nom changé.
-    await cliquer(p, '#sq-forme-enregistrer'); await p.keyboard.press('Enter'); await p.waitForTimeout(300);
+    await enregistrer(p);
     const idF = (await formes(p))[0].id;
-    await cliquer(p, `#sq-formes [data-sq-motif="${idF}"]`, { button: 'right' });
+    await schemaDe(p, `#sq-formes [data-sq-motif="${idF}"]`);
     check(await p.isVisible('#sq-schema-supprimer') && !(await p.isVisible('#sq-schema-retablir')), 'sur une forme de l\'utilisateur : « Supprimer », pas de « Rétablir »');
     await p.fill('#sq-schema-nom', 'Renommée'); await p.keyboard.press('Enter'); await p.waitForTimeout(300);
     check((await formes(p))[0].nom === 'Renommée' && await p.textContent(`#sq-formes [data-sq-motif="${idF}"]`) === 'Renommée', 'Entrée dans le nom enregistre le schéma sous son nouveau nom');
-    await cliquer(p, `#sq-formes [data-sq-motif="${idF}"]`, { button: 'right' });
+    await schemaDe(p, `#sq-formes [data-sq-motif="${idF}"]`);
     await cliquer(p, '#sq-schema-supprimer');
     check((await formes(p)).length === 0 && !(await p.isVisible('#sq-schema')), '« Supprimer » retire la forme et referme le schéma');
     await p.close();
@@ -333,7 +337,7 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     await cliquer(p, '#sq-grille .sq-nom[data-c="0"]');
     await cliquer(p, '.sq-libre-btn');
     const fondLibre = await p.evaluate(() => getComputedStyle(document.getElementById('sq-libre-bande')).backgroundColor);
-    await cliquer(p, '#sq-motif-plaque', { button: 'right' });
+    await schemaDe(p, '#sq-motif-plaque');
     const fondSchema = await p.evaluate(() => getComputedStyle(document.getElementById('sq-schema')).backgroundColor);
     const verre = await p.evaluate(() => document.documentElement.dataset.glass);
     check(verre === '1' && /^rgb\(/.test(fondLibre) && /^rgb\(/.test(fondSchema), 'verre allumé, les bandes « Note libre » et « Schéma » sont opaques (les notes ne traversent pas leurs boutons)');
@@ -341,9 +345,9 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     p = await ouvrir({ width: 390, height: 844 });
     const tel = await p.evaluate(() => ({
         seq: getComputedStyle(document.getElementById('sequenceur')).display,
-        bandes: ['sq-schema', 'sq-libre-bande', 'sq-forme-saisie'].every(id => { const e = document.getElementById(id); return e.offsetParent === null; }),
+        bandes: ['sq-schema', 'sq-libre-bande', 'sq-biblio'].every(id => { const e = document.getElementById(id); return e.offsetParent === null; }),
     }));
-    check(tel.seq === 'none' && tel.bandes, 'au téléphone : ni séquenceur, ni bande, ni saisie de forme (rien n\'a bougé)');
+    check(tel.seq === 'none' && tel.bandes, 'au téléphone : ni séquenceur, ni bande, ni popover de formes (rien n\'a bougé)');
     await p.close();
 
     check(erreurs.length === 0, 'aucune erreur de page' + (erreurs.length ? ' : ' + erreurs.slice(0, 3).join(' | ') : ''));

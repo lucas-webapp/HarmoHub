@@ -86,19 +86,24 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     check(await presse(p, 'sq-motif-plaque') === 'true', 'un accord jamais retouché, joué tenu, montre « Plaqué » enfoncé');
     check(await p.evaluate(() => !!document.querySelector('#sq-grille .sq-case.on.soude-d') && document.querySelectorAll('#sq-grille .sq-note').length > 0), 'un accord tenu se dessine en barres continues (croches soudées)');
 
-    console.log('\n=== C. Un motif sur toute la partie, une annulation ===');
-    check(await presse(p, 'sq-portee-partie') === 'true', '« Toute la partie » est la portée de départ');
+    console.log('\n=== C. Un motif sur l\'accord choisi, une annulation ===');
+    // RÉÉCRIT À L3 (14/11) : plus de choix « Toute la partie | Cet accord » à l'ordinateur — un motif agit sur l'accord choisi (et choisit d'abord celui que le séquenceur vise).
+    check(await p.evaluate(() => getComputedStyle(document.querySelector('.sq-portee')).display) === 'none', 'plus de choix de portée à l\'ordinateur');
+    await cliquer(p, '#sq-grille .sq-nom[data-c="0"]');
     await cliquer(p, '#sq-motif-monte');
     const cm = await Promise.all([0, 1, 2].map(c => croches(p, c)));
-    check(cm.every(x => x.pos.join('|') === '0,1,2,3,4,5,6,7|1,5|2,6|3,7' && x.motif === 'monte'), `Arpège ↑ écrit par position sur chaque accord (${cm[0].pos.join('|')})`);
+    check(cm[0].pos.join('|') === '0,1,2,3,4,5,6,7|1,5|2,6|3,7' && cm[0].motif === 'monte', `Arpège ↑ écrit par position sur l'accord choisi (${cm[0].pos.join('|')})`);
+    check(cm[1].motif === null && cm[2].motif === null, 'les autres accords n\'ont pas bougé');
     check(await presse(p, 'sq-motif-monte') === 'true' && await presse(p, 'sq-motif-plaque') === 'false', 'la vignette du motif suivi s\'enfonce');
+    await cliquer(p, '#sq-grille .sq-nom[data-c="3"]');
+    await cliquer(p, '#sq-motif-monte');
     const c3 = await croches(p, 3);
     check(c3.pos.join('|') === '0,1,2,3,4,5,6,7|1,5|2,6|3,7', `G7 (quatre sons) prend aussi les quatre positions (${c3.pos.join('|')})`);
     await ctrlZ(p);
-    check((await croches(p, 1)).motif === null && (await croches(p, 1)).pos[1] === '0,1,2,3,4,5,6,7', 'un seul Ctrl+Z ramène toute la partie à Plaqué');
+    check((await croches(p, 3)).motif === null && (await croches(p, 3)).pos[1] === '0,1,2,3,4,5,6,7', 'un seul Ctrl+Z ramène l\'accord à Plaqué');
+    await ctrlZ(p);
 
-    console.log('\n=== D. « Cet accord » : seul l\'accord choisi change ===');
-    await cliquer(p, '#sq-portee-accord');
+    console.log('\n=== D. Seul l\'accord choisi change ===');
     await cliquer(p, '#sq-grille .sq-nom[data-c="2"]');
     check(await p.evaluate(() => window.app.selectedIndex) === 2, 'un clic sur le nom d\'un accord, au-dessus de la règle, le choisit');
     await cliquer(p, '#sq-motif-pompe');
@@ -128,7 +133,6 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
 
     console.log('\n=== F. Un glissé peint plusieurs croches, d\'une seule annulation ===');
     const vBasse = d2.positions[0];
-    await cliquer(p, '#sq-portee-partie');
     await cliquer(p, '#sq-grille .sq-nom[data-c="2"]'); // Ctrl+Z ne garde pas forcément l'accord choisi : on le rechoisit
     await cliquer(p, '#sq-effacer'); // efface l'accord choisi (2) — on repart d'une ligne vide sur l'accord 2
     exiger((await croches(p, 2)).pos.every(x => x === ''), '« Effacer » vide le rythme de l\'accord choisi');
@@ -179,7 +183,6 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     console.log('\n=== H. Copier, coller sur un autre accord ===');
     check(await p.evaluate(() => document.getElementById('sq-coller').disabled), 'Coller est grisé tant que rien n\'est copié');
     await cliquer(p, '#sq-grille .sq-nom[data-c="2"]');
-    await cliquer(p, '#sq-portee-accord');
     await cliquer(p, '#sq-motif-ballade');
     await cliquer(p, '#sq-copier');
     await cliquer(p, '#sq-grille .sq-nom[data-c="0"]');
@@ -230,12 +233,14 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     exiger(await p.evaluate(() => !document.getElementById('sequenceur').hidden), 'ouvert au rechargement : l\'appareil se souvient du séquenceur ouvert');
     check(await p.evaluate(() => document.querySelectorAll('#sq-grille .sq-etiq').length) === 5, 'la partie affiche autant de lignes que son accord le plus riche (cinq voix)');
     check(await p.evaluate(() => document.querySelectorAll('#sq-grille .sq-case.sans-voix[style*="grid-row:3"]').length) >= 8, 'un accord plus pauvre laisse ses lignes du haut vides');
-    await cliquer(p, '#sq-motif-monte');
+    // RÉÉCRIT À L3 (14/11) : un motif agit sur l'accord choisi — on le pose sur chacun des quatre, par leur nom dans la règle (les quatre tiennent sur la même ligne).
+    for (const c of [0, 1, 2, 3]) { await cliquer(p, `#sq-grille .sq-nom[data-c="${c}"]`); await cliquer(p, '#sq-motif-monte'); }
     const k0 = await croches(p, 0), k1 = await croches(p, 1), k2 = await croches(p, 2), k3 = await croches(p, 3);
     check(k0.pos.join('|') === '0,1,2,3,4,5,6,7|1,2,5,6|3,7', `trois sons : la basse et l'aiguë gardées, les voix du milieu fondues (${k0.pos.join('|')})`);
     check(k1.pos.join('|') === '0,1,2,3,4,5,6,7|1,5|0,1,2,3,4,5,6,7|2,6|3,7', `cinq sons en arpège : la note en plus suit la basse (${k1.pos.join('|')})`);
     check(k2.basse === '0,1,2,3,4,5,6,7' && k2.positions[0] === 4 && k2.pos.slice(1).join('|') === '0,1,2,3,4,5,6,7|1,5|2,6|3,7', `basse différente : la voix la plus grave, au rythme de la basse ; le corps au-dessus (${k2.pos.join('|')})`);
     check(k3.roleGrave === 'third' && k3.pos.join('|') === '0,1,2,3,4,5,6,7|1,5|2,6|3,7', 'renversement : le rythme de la basse va à la note la plus grave (la tierce), pas à la fondamentale');
+    await cliquer(p, '#sq-grille .sq-nom[data-c="1"]');
     await cliquer(p, '#sq-motif-pompe');
     const k1b = await croches(p, 1);
     check(k1b.pos[2] === '2,6', `cinq sons en Pompe (voix du haut ensemble) : la note en plus prend leur rythme commun (${k1b.pos[2]})`);

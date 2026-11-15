@@ -61,7 +61,7 @@ const graine = () => {
     check(r.ok, `plus d'éditeur de notes à l'ordinateur (${r.detail})`);
     r = await R.ouvrirNouveau(p);
     exiger(r.ok, `le séquenceur s'ouvre (${r.detail})`);
-    const jauge = await p.evaluate(() => ['sq-intensite', 'sq-copier', 'sq-coller', 'sq-effacer', 'sq-forme-enregistrer'].map(id => { const b = document.getElementById(id), q = b.getBoundingClientRect(); return { id, h: Math.round(q.height), w: Math.round(q.width), rayon: getComputedStyle(b).borderTopLeftRadius, mot: b.textContent.trim() }; }));
+    const jauge = await p.evaluate(() => ['sq-intensite', 'sq-copier', 'sq-coller', 'sq-effacer', 'sq-forme-enregistrer'].map(id => { const b = document.getElementById(id), q = b.getBoundingClientRect(); return { id, h: Math.round(q.height), w: Math.round(q.width), rayon: getComputedStyle(b).borderTopLeftRadius, mot: [...b.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim() }; }));   // le texte HTML du bouton : le logo « mf » (L3) est un dessin SVG, pas un mot
     check(jauge.every(b => b.h === 32 && b.w === 32 && b.rayon === '7px' && b.mot === ''), `icônes à la jauge (32 × 32, 7 px), sans mot (${JSON.stringify(jauge.map(b => b.id + ':' + b.w + 'x' + b.h))})`);
     check(await p.evaluate(() => document.querySelector('#sq-intensite svg').innerHTML.includes('M5 21v-6')), 'Intensité porte le logo du mode studio, repris tel quel');
     r = await R.poserCroche(p, 0);

@@ -777,6 +777,21 @@
             this.majLigne();
             this.majTrait();
             this.placerReglages();
+            this.ajusterBarre();
+        }
+
+        // La barre d'outils reste sur UNE ligne (L3) : quand les rythmes de l'utilisateur la font déborder, on serre d'abord (les noms disparaissent), puis les dernières formes
+        // quittent la barre une à une — elles restent dans la popover du signet (« Mes formes »), jamais perdues. Les rythmes fournis ne se masquent que par le clic droit.
+        ajusterBarre() {
+            const barre = this.racine && this.racine.querySelector('.sq-outils');
+            if (!barre || this.modeTel() || !this.estOuvert()) return;
+            this.racine.classList.remove('barre-serree');
+            barre.querySelectorAll('.sq-deborde').forEach(x => x.classList.remove('sq-deborde'));
+            const trop = () => barre.scrollWidth > barre.clientWidth + 1;
+            if (!trop()) return;
+            this.racine.classList.add('barre-serree');
+            const formes = [...barre.querySelectorAll('#sq-formes > .sq-motif')];
+            for (let i = formes.length - 1; i >= 0 && trop(); i--) formes[i].classList.add('sq-deborde');
         }
 
         // Ce qu'écrit une barre (L3, roue des réglages : « Barres : Rien | Notes | Degrés ») : le nom de la note, son degré dans l'accord, ou rien. Le téléphone écrit toujours les noms.
@@ -1097,6 +1112,8 @@
                     if (t && this._peinture && e.buttons & 1) this.peindreCreation(+t.dataset.biP, +t.dataset.biK);
                 });
                 window.addEventListener('pointerup', () => { this._peinture = null; });
+                // Un nom vide ne s'enregistre pas : « Enregistrer » se grise (enregistrer comme créer une forme).
+                biblio.addEventListener('input', (e) => { if (e.target.id !== 'sq-biblio-nom') return; const ok = biblio.querySelector('.bi-ok'); if (ok) ok.disabled = !e.target.value.trim(); });
                 biblio.addEventListener('keydown', (e) => {
                     if (e.target.id !== 'sq-biblio-nom') return;
                     if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); this.surBiblio({ composedPath: () => [biblio.querySelector('.bi-ok')], target: biblio.querySelector('.bi-ok') }); }
@@ -1133,7 +1150,7 @@
             this.brancherPoignee();
             this.brancherPoigneeLargeur();
             this.brancherReglages();
-            window.addEventListener('resize', () => { this.synchroniser(); this.majNomsRythmes(); });
+            window.addEventListener('resize', () => { this.synchroniser(); this.majNomsRythmes(); this.ajusterBarre(); });
             // Le tiroir des diagrammes change de taille (poignée, clavier ou guitare allumés) : la place libre du séquenceur change avec lui.
             const tiroir = document.getElementById('vues-tiroir');
             if (tiroir && window.ResizeObserver) new ResizeObserver(() => this.limiterHauteur()).observe(tiroir);

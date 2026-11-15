@@ -13,7 +13,7 @@ const { estBruitReseau } = require('./_harness');
 const V = require('./_verre_commun');
 const R = require('./_retrait_ancien');
 
-plan(77);
+plan(80);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const mk = (r, q) => ({ root: r, quality: q, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
@@ -190,6 +190,19 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
     check(await p.evaluate(() => !!document.querySelector('#sq-biblio .bi-grille')), 'le clic droit sur « + » › « Créer une forme… » ouvre le même éditeur');
     await p.keyboard.press('Escape'); await p.waitForTimeout(300);
     check(await p.evaluate(() => document.getElementById('sq-biblio').hidden), 'Échap referme la popover');
+    await p.close(); await ctx.close();
+
+    // ======================================================================================================
+    console.log('\n=== E2. Beaucoup de formes : la barre reste sur une ligne, les autres sont dans le signet ===');
+    // Douze formes enregistrées (le magasin des formes, comme le fait le signet) : la barre serre ses noms puis range les dernières dans la popover.
+    ({ p, ctx } = await ouvrir({ viewport: { width: 1440, height: 900 } }));
+    await p.evaluate(() => { for (let i = 1; i <= 12; i++) FormesSequenceur.enregistrer({ id: FormesSequenceur.nouvelId(), type: 'forme', nom: 'Forme numéro ' + i, v: [[0], [2], [4], [6]], s: [[], [], [], []], n: [{}, {}, {}, {}] }); });
+    await p.waitForTimeout(500);
+    const nb = await p.evaluate(() => { const o = document.querySelector('.sq-outils'), s = document.getElementById('sq-forme-enregistrer'), r = s.getBoundingClientRect(), top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return { h: Math.round(o.getBoundingClientRect().height), dessus: !!top && (top === s || s.contains(top)), cachees: document.querySelectorAll('#sq-formes .sq-deborde').length, visibles: [...document.querySelectorAll('#sq-formes .sq-motif')].filter(b => b.getBoundingClientRect().width > 0).length, deborde: o.scrollWidth - o.clientWidth }; });
+    check(nb.h <= 52 && nb.deborde <= 1 && nb.dessus, `douze formes : la barre reste sur une ligne (${nb.h} px), rien ne recouvre le signet`);
+    check(nb.cachees > 0 && nb.visibles + nb.cachees === 12, `les dernières formes quittent la barre (${nb.visibles} visibles, ${nb.cachees} rangées dans le signet)`);
+    await cliquer(p, '#sq-forme-enregistrer');
+    check(await p.evaluate(() => document.querySelectorAll('#sq-biblio .bi-item[data-bi-id]').length) === 5 + 12, 'la popover du signet les liste toutes (5 rythmes fournis + 12 formes)');
     await p.close(); await ctx.close();
 
     // ======================================================================================================

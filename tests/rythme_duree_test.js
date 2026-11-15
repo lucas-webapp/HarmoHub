@@ -175,7 +175,7 @@ const POSER_AIDES = `window.visible = (sel) => { const e = document.querySelecto
     const monRythme = (await R.lire(page, 0)).pos.join('|');
     exiger(monRythme.endsWith('2,5') && (await R.lire(page, 0)).pos.slice(0, -1).every(x => x === ''), `deux croches ont été dessinées à la main dans le séquenceur — « ${monRythme} »`);
     const pileAvant = await page.evaluate(() => window.app.undoStack.length);
-    await R.cliquer(page, '#sq-portee-accord');
+    // L3 (14/11) : plus de choix de portée à l'ordinateur — un motif agit sur l'accord choisi.
     await R.cliquer(page, '#sq-motif-monte', 500);
     const pileApres = await page.evaluate(() => window.app.undoStack.length);
     check((await R.lire(page, 0)).pos.join('|') !== monRythme, 'le motif a bien écrasé le rythme dessiné (c\'est son rôle)');

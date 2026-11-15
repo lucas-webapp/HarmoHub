@@ -7331,8 +7331,9 @@ body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
        les noms des rythmes tombent sous 1340 px (ou si Paramètres › Affichage les retire), et sous 1020 px seuls « + » et le signet restent (les autres sont dans la popover du signet). */
 @media (min-width: 900px) {
     .sq-outils { flex-wrap: nowrap; }
-    .sq-outils .sq-motifs { flex-wrap: nowrap; flex: 0 1 auto; min-width: 0; }
+    .sq-outils .sq-motifs { flex-wrap: nowrap; flex: none; }   /* ne rétrécit jamais : c'est la BARRE qui déborde, et ajusterBarre (sequenceur.js) serre les noms puis range les formes dans le signet */
     .sq-outils .sq-motif, .sq-outils .sq-ligne, .sq-outils .sq-seg, .sq-outils .icon-btn { flex: none; }
+    .sq-outils .sq-rythme { flex: none; flex-wrap: nowrap; }
     .sq-outils .sq-espace { flex: 1 1 0; min-width: 0; }
     .sequenceur.sans-noms-rythmes .sq-motifs > .sq-motif:not([data-sq-motif="main"]) > span:not(.sq-vignette) { display: none; }
     .sequenceur.sans-noms-rythmes .sq-motifs > .sq-motif:not([data-sq-motif="main"]) { padding-left: 6px; padding-right: 6px; }
@@ -7353,4 +7354,12 @@ body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
 @media (min-width: 900px) and (max-width: 1339px) {
     .sequenceur:not(.sans-noms-rythmes) .sq-outils, .sequenceur:not(.sans-noms-rythmes) .sq-outils .sq-motifs { flex-wrap: wrap; }
 }
+/* La barre serrée (sequenceur.js, ajusterBarre) : les noms des rythmes tombent, puis les dernières formes quittent la barre (elles restent dans la popover du signet). */
+@media (min-width: 900px) {
+    .sequenceur.barre-serree .sq-motifs > .sq-motif:not([data-sq-motif="main"]) > span:not(.sq-vignette),
+    .sequenceur.barre-serree #sq-formes > .sq-motif > span:not(.sq-vignette) { display: none; }
+    .sq-outils .sq-deborde { display: none; }
+}
+/* Les formes de l'utilisateur (#sq-formes) : leurs boutons sont des enfants à part entière de la barre (même écart, même « ne rétrécit jamais ») — l'enveloppe en ligne les faisait passer à la ligne. */
+@media (min-width: 900px) { .sq-outils #sq-formes { display: contents; } }
 

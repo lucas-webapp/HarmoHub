@@ -68,7 +68,7 @@ plan(10);
     exiger(rr.ok, `le séquenceur du bloc « Vues » s'ouvre (${rr.detail})`);
     const ordre = await bureau.evaluate(() => [...document.querySelectorAll('#sequenceur .sq-outils button')].filter(b => b.offsetParent).map(b => b.id || b.dataset.sqMotif || b.className.split(' ')[0]));
     console.log('ordre:', JSON.stringify(ordre));
-    check(ordre[0] === 'sq-motif-plaque' && ordre[ordre.length - 1] === 'sq-fermer', `motifs en tête, × en dernier — trouvé « ${ordre[0]} » … « ${ordre[ordre.length - 1]} »`);
+    check(ordre[0] === 'sq-motif-main' && ordre[1] === 'sq-motif-plaque' && ordre[ordre.length - 1] === 'sq-fermer', `« + » puis les motifs en tête, × en dernier (L3 : « + » passe en premier) — trouvé « ${ordre[0]} » … « ${ordre[ordre.length - 1]} »`);
     rr = await R.sansLecturePropre(bureau);
     check(rr.ok, `pas de Lecture propre en tête de barre (${rr.detail})`);
     const dansLeCadre = (page) => page.evaluate(() => { const s = document.getElementById('sequenceur').getBoundingClientRect(), b = document.querySelector('#sequenceur .sq-outils').getBoundingClientRect(); return { dedans: b.top >= s.top - 1 && b.bottom <= s.bottom + 1 && b.height > 0, colle: getComputedStyle(document.querySelector('#sequenceur .sq-outils')).position }; });
