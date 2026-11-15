@@ -35,8 +35,11 @@ plan(4);
     const avant = await nb();
     const pt = await p.locator(caseSel + '[data-c="0"]').first().boundingBox();
     await p.mouse.click(pt.x + pt.width / 2, pt.y + pt.height / 2); await p.waitForTimeout(250);
+    // RÉÉCRIT À L2 (14/11) : un clic sur une note la SÉLECTIONNE ; c'est Suppr qui la retire, en entier.
+    const choisie = await nb();
+    await p.keyboard.press('Delete'); await p.waitForTimeout(300);
     const apres = await nb();
-    check(apres !== avant, `un vrai clic change le motif au nouveau séquenceur : sur une note tenue il la retire en entier (${avant} -> ${apres} croches)`);
+    check(choisie === avant && apres !== avant, `un vrai clic sur une note tenue la choisit sans rien changer (${avant} -> ${choisie}), Suppr la retire en entier (${choisie} -> ${apres} croches)`);
     check(errs.length === 0, `aucune erreur JavaScript (${errs.slice(0, 3).join(' | ') || 'rien'})`);
     await b.close();
     bilan();

@@ -116,11 +116,15 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     // 12/11, retour de l'utilisateur : « 2 notes créées côte à côte = une note longue de 2 temps au lieu de 2 temps staccato. 2 notes consécutives ne doivent pas constituer une note tenue ».
     check(!e2.soude.split(' ').includes(vAigu + ':3') && !e2.soude.split(' ').includes(vAigu + ':2'), 'posée juste après une autre, elle reste une attaque à part : deux notes, pas une note tenue');
     check(await p.evaluate(() => window.app.selectedIndex) === 2, 'toucher une note garde l\'accord choisi (rien n\'est désélectionné)');
+    // RÉÉCRIT À L2 (14/11) : un clic sur une note la SÉLECTIONNE (il ne l'enlève plus) ; Suppr l'enlève, d'une annulation.
     await cliquer(p, caseSq(2, vAigu, 3));
     e2 = await croches(p, 2);
-    check(e2.pos[3] === '2,6', `second clic : la note est enlevée (${e2.pos[3]})`);
+    check(e2.pos[3] === '2,3,6', `second clic : la note est seulement choisie, elle reste (${e2.pos[3]})`);
+    await p.keyboard.press('Delete'); await p.waitForTimeout(300);
+    e2 = await croches(p, 2);
+    check(e2.pos[3] === '2,6', `Suppr l'enlève (${e2.pos[3]})`);
     await ctrlZ(p);
-    check((await croches(p, 2)).pos[3] === '2,3,6', 'Ctrl+Z la remet (une annulation par clic)');
+    check((await croches(p, 2)).pos[3] === '2,3,6', 'Ctrl+Z la remet (une annulation pour la suppression)');
 
     console.log('\n=== F. Un glissé peint plusieurs croches, d\'une seule annulation ===');
     const vBasse = d2.positions[0];
@@ -140,12 +144,16 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     await ctrlZ(p);
     check((await croches(p, 2)).pos[0] === '', 'un seul Ctrl+Z défait tout le glissé');
     // Un glissé qui part d'une note EFFACE (on enlève selon l'état de la première case).
+    const avantGlisse = (await croches(p, 1)).pos[1];
     const g0 = await centre(p, caseSq(1, d1.positions[1], 2)), g1 = await centre(p, caseSq(1, d1.positions[1], 5));
     await p.mouse.move(g0.x, g0.y); await p.mouse.down();
     for (let i = 1; i <= 6; i++) await p.mouse.move(g0.x + (g1.x - g0.x) * i / 6, g0.y, { steps: 2 });
     await p.mouse.up(); await p.waitForTimeout(300);
     // 12/11 : enlever UNE croche d'une note longue enlève la note ENTIÈRE (elle se scindait en plusieurs notes) ; scinder se demande au clic droit (banc `sequenceur_notes`).
-    check((await croches(p, 1)).pos[1] === '', `parti d'une note longue, le glissé enlève la note touchée EN ENTIER (${(await croches(p, 1)).pos[1]})`);
+    // RÉÉCRIT À L2 : un glissé qui part d'une note la DÉPLACE (elle garde sa longueur, ou le geste est refusé sans rien changer) ; Suppr l'enlève EN ENTIER.
+    check((await croches(p, 1)).pos[1] === avantGlisse, `parti d'une note longue, le glissé ne la coupe pas : elle ne tient pas plus loin, elle reste entière (${(await croches(p, 1)).pos[1]})`);
+    await p.keyboard.press('Delete'); await p.waitForTimeout(300);
+    check((await croches(p, 1)).pos[1] === '', `Suppr enlève la note choisie EN ENTIER (${(await croches(p, 1)).pos[1]})`);
 
     console.log('\n=== G. Intensité : normal → fort → doux → enlevée ===');
     await cliquer(p, '#sq-intensite');

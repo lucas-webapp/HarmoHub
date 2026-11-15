@@ -418,6 +418,11 @@
         return true;
     }
 
+    // Efface une note ENTIÈRE (de la croche d à la croche f de la voix v) : ses croches, leurs soudures et son niveau.
+    function retirerCroches(etat, v, d, f) {
+        for (let j = d; j <= f; j++) { const x = cle(v, j); etat.on.delete(x); etat.soude.delete(x); etat.niveaux.delete(x); }
+    }
+
     // Début de la barre qui contient la croche k, et son niveau (il est porté par l'attaque).
     function debutBarre(etat, v, k) {
         let d = k;
@@ -454,6 +459,10 @@
             this._visibles = 0;
             // La ligne de la grille montrée (L1c) : { s, i } = la partie et l'accord où l'on était. Sans accord choisi, le séquenceur y reste (ou suit la lecture) au lieu de
             // sauter au premier accord ; `_montres` = les accords de cette ligne, `_s` / `_i` la partie et l'accord réglés (posés par rafraichir).
+            // LA SÉLECTION DE NOTES (L2) : { c, k, midi } par note — l'accord, la croche d'attaque et la hauteur (pas un numéro de ligne : poser une note libre en ajoute une et
+            // décale les lignes). Elle ne vaut que pour la ligne montrée (`_selCle`) et se vide dès qu'on en change.
+            this.sel = [];
+            this._selCle = null;
             this._vise = null;
             this._viseActive = null;   // la partie active au moment où `_vise` a été posée : si elle change (monter, supprimer, ajouter une partie), la ligne visée est périmée
             this._montres = [];
@@ -731,6 +740,10 @@
                 this.grille.scrollLeft = changement && el ? Math.max(0, el.offsetLeft - 56 - 12) : defile;
             }
             this._tete = null;
+            // La sélection de notes ne survit qu'à un redessin de la MÊME ligne (poser, déplacer, étirer) : autre partie, autre ligne ou autre vue, elle se vide.
+            const cleSel = `${s}|${this.vue}|${montres.join()}`;
+            if (cleSel !== this._selCle) { this._selCle = cleSel; this.sel = []; }
+            this.marquerSelection();
             this.limiterHauteur();
             this.majLigne();
             this.majTrait();
@@ -1046,6 +1059,14 @@
                 if (this.schema) { e.stopPropagation(); this.fermerSchema(); }
                 else if (this.libre.ouvert) { e.stopPropagation(); this.ouvrirBandeLibre(false); }
             });
+            // Suppr / Retour arrière supprime les notes choisies (L2). En capture : sinon l'appli supprimerait l'ACCORD choisi dans la grille.
+            document.addEventListener('keydown', (e) => {
+                if (!this.sel.length || !this.estOuvert() || this.modeTel() || (e.key !== 'Delete' && e.key !== 'Backspace')) return;
+                const a = document.activeElement;
+                if (a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable)) return;
+                e.stopPropagation(); e.preventDefault();
+                this.supprimerSelection();
+            }, true);
             if (this.bouton) this.bouton.addEventListener('click', () => this.basculer());
             const fermer = document.getElementById('sq-fermer');
             if (fermer) fermer.addEventListener('click', () => this.basculer(false));
@@ -1407,6 +1428,40 @@
             const allume = v != null && etat.on.has(cle(v, k));
             const g = { type: this.intensite ? 'intensite' : 'peinture', r, mode: allume ? 'off' : 'on', depart: { c, k }, faites: new Set(), etats: new Map(), annulationPosee: false, bouge: false,
                 touch, dessin: touch && this.dessin, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, el: caseEl, minuteur: null };
+            // L2 (14/11) — À L'ORDINATEUR, à la souris : un clic sur une NOTE la sélectionne (Ctrl / Cmd + clic l'ajoute ou la retire), glisser la déplace avec toute la sélection,
+            // ses poignées étirent toutes les notes choisies, Suppr les supprime ; une case VIDE pose une croche, comme avant. Au doigt et au téléphone rien ne change (le clic
+            // sur une note l'enlève encore) ; en mode Intensité un clic règle la force de la note.
+            const geste = !touch && !this.modeTel() && !this.intensite;
+            const note = geste && allume && v != null ? this.noteDe({ c, k, midi: this.midiDeLigne(c, r) }) : null;
+            if (geste && !note && !(e.ctrlKey || e.metaKey) && this.sel.length) { this.sel = []; this.marquerSelection(); }
+            if (note) {
+                const it = { c, k: note.d, midi: note.midi };
+                if (e.ctrlKey || e.metaKey) {
+                    if (this.dansSel(note)) this.sel = this.sel.filter(x => !this.memeNote(x, note)); else this.sel.push(it);
+                    this.choisirSansJouer(c);   // toucher une note choisit aussi son accord dans la grille : jamais de séquenceur inerte
+                    this.marquerSelection();
+                    return;
+                }
+                const bord = t.closest('.sq-bord');
+                g.note = note;
+                g.selectionSeule = true;   // sans glissé : le clic choisit CETTE note seule (même sur un groupe)
+                if (bord) {
+                    const cote = bord.classList.contains('g') ? 'g' : 'd';
+                    if (this.sel.length > 1 && this.dansSel(note)) {
+                        // Les poignées d'une note choisie étirent TOUTES les notes choisies du même nombre de croches.
+                        g.type = 'etire-groupe'; g.cote = cote; g.k0 = cote === 'd' ? note.f : note.d; g.fait = 0; g.selectionSeule = false;
+                        this._geste = g;
+                        return;
+                    }
+                    this.sel = [it]; this.marquerSelection();
+                } else {
+                    g.type = 'deplace';
+                    const b0 = this.grille.querySelector(`.sq-case[data-c="${c}"][data-r="${r}"][data-k="${note.d}"]`), b1 = this.grille.querySelector(`.sq-case[data-c="${c}"][data-r="${r}"][data-k="${note.f}"]`);
+                    if (b0 && b1) { const r0 = b0.getBoundingClientRect(), r1 = b1.getBoundingClientRect(); g.prise = { dx: e.clientX - r0.left, dy: e.clientY - r0.top }; g.largeur = r1.right - r0.left; g.hauteur = r0.height; }
+                    this._geste = g;
+                    return;
+                }
+            }
             // Une POIGNÉE de note (13/11) : le glissé étire ou raccourcit CETTE note au lieu de peindre. Sans glissé (un simple clic sur le bord de la note), le geste reste celui de
             // la case : la note s'enlève, comme avant — un bord de 8 px n'est pas un piège pour qui veut juste effacer.
             const poignee = t.closest('.sq-bord');
@@ -1468,6 +1523,8 @@
                 if (!g.dessin && !g.etire && g.type !== 'boucle' && g.type !== 'retirer-boucle' && ecart > 8) { this.annulerGeste(); return; }
             }
             if (g.etire) { this.etirer(g, e); return; }
+            if (g.type === 'etire-groupe') { this.etirerGroupe(g, e); return; }
+            if (g.type === 'deplace') { this.deplacerGeste(g, e); return; }
             if (g.type === 'boucle') {
                 // elementsFromPoint : la bande orange déjà posée passe AU-DESSUS de la règle, la case visée est dessous.
                 const tp = document.elementsFromPoint(e.clientX, e.clientY).find(el => el.matches && el.matches('#sq-grille [data-c]'));
@@ -1554,6 +1611,9 @@
             if (!g) return;
             if (g.type === 'retirer-boucle') { this.retirerBoucle(); return; }
             if (g.type === 'boucle') { this.app.setLoopRange(this._s, g.c0, this._s, g.c1); return; }
+            if (g.type === 'deplace') { this.finDeplacement(g); return; }
+            if (g.type === 'etire-groupe') return;   // tout est déjà écrit, croche par croche
+            if (g.selectionSeule && !g.bouge && g.note) { this.sel = [{ c: g.note.c, k: g.note.d, midi: g.note.midi }]; this.choisirSansJouer(g.note.c); this.marquerSelection(); return; }
             if (g.bouge) return; // un glissé : tout est déjà peint
             const { c, k } = g.depart;
             const m = this.enCours(g, c);
@@ -1577,6 +1637,170 @@
             this.choisirSansJouer(c);
             this.ecrire(new Map([[c, m]]));
             if (entendre && midi != null) this.jouerNote(c, midi, entendre);
+        }
+
+        // ---- Sélection, déplacement et étirement en groupe (L2, 14/11) -----------------------------------------------------------------------
+        // Tout s'écrit dans le MODÈLE (enCours / voixDuGeste / ecrire), jamais par des clics simulés : le premier essai de l'aperçu raccourcissait les notes.
+        // La hauteur (midi) de la ligne `r` de l'accord `c` : celle de sa voix, ou celle de la note libre / de la hauteur de la ligne.
+        midiDeLigne(c, r) {
+            const L = this._lignes && this._lignes[r], e = this._etats && this._etats[c];
+            if (!L || !e) return null;
+            const v = this._voixLigne(e, L);
+            return v != null ? e.info.voix[v].midi : (L.midi != null ? L.midi : null);
+        }
+        // La note { c, k, midi } relue dans le modèle : sa ligne, sa voix, son début d et sa fin f, sa longueur n. Null si elle n'y est plus ou n'est pas à l'écran.
+        noteDe(it) {
+            const e = this._etats && this._etats[it.c];
+            if (!e || !this._lignes || !this._montres.includes(it.c)) return null;
+            for (let r = 0; r < this._lignes.length; r++) {
+                const v = this._voixLigne(e, this._lignes[r]);
+                if (v == null || e.info.voix[v].midi !== it.midi || !e.on.has(cle(v, it.k))) continue;
+                const [d, f] = bornesBarre(e, v, it.k);
+                return { c: it.c, r, v, d, f, n: f - d + 1, midi: it.midi };
+            }
+            return null;
+        }
+        memeNote(it, n) { return it.c === n.c && it.midi === n.midi && it.k >= n.d && it.k <= n.f; }
+        dansSel(n) { return this.sel.some(it => this.memeNote(it, n)); }
+        // Surbrillance claire : un seul trait autour de la NOTE entière (haut, bas, et les deux bouts), jamais autour de chaque croche.
+        marquerSelection() {
+            this.grille.querySelectorAll('.sq-sel').forEach(x => x.classList.remove('sq-sel', 'sq-sel-g', 'sq-sel-d'));
+            const vus = new Set();
+            this.sel = this.sel.map(it => this.noteDe(it)).filter(Boolean).map(n => ({ c: n.c, k: n.d, midi: n.midi })).filter(it => { const id = it.c + '/' + it.midi + '/' + it.k; if (vus.has(id)) return false; vus.add(id); return true; });
+            this.sel.forEach(it => {
+                const n = this.noteDe(it);
+                for (let k = n.d; k <= n.f; k++) {
+                    const el = this.grille.querySelector(`.sq-case[data-c="${n.c}"][data-r="${n.r}"][data-k="${k}"]`);
+                    if (!el) continue;
+                    el.classList.add('sq-sel');
+                    if (k === n.d) el.classList.add('sq-sel-g');
+                    if (k === n.f) el.classList.add('sq-sel-d');
+                }
+            });
+        }
+        // Les croches des accords montrés, bout à bout : de quoi déplacer une note d'un accord à l'autre.
+        decalages() {
+            const off = new Map(); let t = 0;
+            this._montres.forEach(c => { off.set(c, t); t += this._etats[c].info.croches; });
+            return { off, ordre: this._montres.slice() };
+        }
+        // Où va la note si on la décale de dG croches et dr lignes ; null si elle ne tient pas ENTIÈRE dans un accord, sort des lignes, ou n'a pas de voix à cet endroit.
+        placer(it, dG, dr, D) {
+            const n = this.noteDe(it);
+            if (!n) return null;
+            const G = D.off.get(n.c) + n.d + dG;
+            if (G < 0) return null;
+            let c1 = null;
+            D.ordre.forEach(c => { if (G >= D.off.get(c)) c1 = c; });
+            if (c1 == null) return null;
+            const k1 = G - D.off.get(c1), r1 = n.r + dr;
+            if (k1 + n.n > this._etats[c1].info.croches || r1 < 0 || r1 >= this._lignes.length) return null;
+            const L = this._lignes[r1];
+            if (L.type === 'voix' && this._voixLigne(this._etats[c1], L) == null) return null;
+            return { c: c1, k: k1, r: r1, n: n.n, midi: this.midiDeLigne(c1, r1) };
+        }
+        nettoyerCibles() { this.grille.querySelectorAll('.sq-cible').forEach(x => x.classList.remove('sq-cible')); }
+        // Le glissé d'une note : une copie la SUIT, l'originale reste pâle, les cases d'arrivée sont surlignées, chaque ligne survolée fait entendre sa note.
+        deplacerGeste(g, e) {
+            const ecart = Math.hypot(e.clientX - g.x0, e.clientY - g.y0);
+            if (!g.bouge) {
+                if (ecart < 4) return;
+                g.bouge = true;
+                if (!this.dansSel(g.note)) { this.sel = [{ c: g.note.c, k: g.note.d, midi: g.note.midi }]; this.marquerSelection(); }
+                this.sel.forEach(it => { const n = this.noteDe(it); for (let k = n.d; k <= n.f; k++) { const el = this.grille.querySelector(`.sq-case[data-c="${n.c}"][data-r="${n.r}"][data-k="${k}"]`); if (el) el.classList.add('sq-fantome'); } });
+                const f = document.getElementById('sq-fantome'), modele = g.el.querySelector('.sq-note');
+                if (f && modele) { f.innerHTML = ''; const copie = modele.cloneNode(true); copie.querySelectorAll('.sq-bord').forEach(x => x.remove()); f.appendChild(copie); f.style.width = (g.largeur || 34) + 'px'; f.style.height = (g.hauteur || 26) + 'px'; f.hidden = false; }
+                document.body.classList.add('sq-deplace');
+            }
+            const f = document.getElementById('sq-fantome');
+            if (f) f.style.transform = `translate(${Math.round(e.clientX - (g.prise ? g.prise.dx : 0))}px, ${Math.round(e.clientY - (g.prise ? g.prise.dy : 0))}px)`;
+            this.nettoyerCibles(); g.cible = null;
+            const el = document.elementFromPoint(e.clientX, e.clientY), cs = el && el.closest && el.closest('#sq-grille .sq-case[data-r]');
+            if (!cs) return;
+            const o = { c: +cs.dataset.c, k: +cs.dataset.k, r: +cs.dataset.r };
+            g.cible = o;
+            if (this.app.sonDeplacementSeq !== false) {
+                const id = o.r + '/' + o.c;
+                if (id !== g.derniere) { g.derniere = id; this.ecouterLigne(o.c, o.r); }
+            }
+            const D = this.decalages();
+            const dG = D.off.get(o.c) + o.k - (D.off.get(g.note.c) + g.note.d + (g.depart.k - g.note.d)), dr = o.r - g.note.r;
+            const places = this.sel.map(it => this.placer(it, dG, dr, D));
+            if (places.every(Boolean)) places.forEach(p => { for (let j = 0; j < p.n; j++) { const d2 = this.grille.querySelector(`.sq-case[data-c="${p.c}"][data-r="${p.r}"][data-k="${p.k + j}"]`); if (d2) d2.classList.add('sq-cible'); } });
+        }
+        // Entendre la hauteur de la ligne survolée (comme GarageBand), avec l'instrument du morceau.
+        ecouterLigne(c, r) {
+            const midi = this.midiDeLigne(c, r);
+            if (midi != null) this.jouerNote(c, midi, 'normal');
+        }
+        finDeplacement(g) {
+            const f = document.getElementById('sq-fantome');
+            if (f) { f.hidden = true; f.innerHTML = ''; }
+            document.body.classList.remove('sq-deplace');
+            this.grille.querySelectorAll('.sq-fantome').forEach(x => x.classList.remove('sq-fantome'));
+            this.nettoyerCibles();
+            if (!g.bouge) { this.sel = [{ c: g.note.c, k: g.note.d, midi: g.note.midi }]; this.choisirSansJouer(g.note.c); this.marquerSelection(); return; }   // un simple clic sur une note d'un groupe garde cette seule note
+            const o = g.cible;
+            if (!o) return;
+            const D = this.decalages();
+            const dG = D.off.get(o.c) + o.k - (D.off.get(g.note.c) + g.depart.k), dr = o.r - g.note.r;
+            if (dG === 0 && dr === 0) return;
+            if (!this.deplacer(dG, dr)) this.app.flashHint && this.app.flashHint('Déplacement impossible : la note ne tient pas là');
+        }
+        // Déplacer toutes les notes choisies du même écart, sous UNE annulation. Une note garde exactement sa longueur ; si l'une d'elles ne tient pas (hors de son accord, sur une
+        // autre note), RIEN ne change.
+        deplacer(dG, dr) {
+            const D = this.decalages(), g = { etats: new Map(), annulationPosee: false }, liste = [];
+            const ok = this.sel.every(it => { const n = this.noteDe(it), p = this.placer(it, dG, dr, D); if (!n || !p) return false; liste.push({ n, p }); return true; });
+            if (!ok) return false;
+            // 1) on retire toutes les notes qui bougent, en gardant leur force
+            liste.forEach(x => { const m = this.enCours(g, x.n.c); x.niveau = niveauDe(m.etat, x.n.v, x.n.d); retirerCroches(m.etat, x.n.v, x.n.d, x.n.f); });
+            // 2) on les repose ; si une case est prise par une AUTRE note, on abandonne tout (rien n'est écrasé en silence)
+            let pose = true;
+            liste.forEach(x => {
+                if (!pose) return;
+                const m = this.enCours(g, x.p.c), v = this.voixDuGeste(m, x.p.c, x.p.r, true);
+                if (v == null) { pose = false; return; }
+                for (let j = 0; j < x.p.n; j++) if (m.etat.on.has(cle(v, x.p.k + j))) { pose = false; return; }
+                for (let j = 0; j < x.p.n; j++) { const x2 = cle(v, x.p.k + j); m.etat.on.add(x2); if (j > 0) m.etat.soude.add(x2); }
+                if (x.niveau !== 'normal') m.etat.niveaux.set(cle(v, x.p.k), x.niveau);
+            });
+            if (!pose) return false;
+            this.choisirSansJouer(liste[0].p.c);   // l'accord d'arrivée est choisi dans la grille (avant la sélection : ce redessin-là vide ce qui n'est plus à sa place)
+            this.sel = liste.map(x => ({ c: x.p.c, k: x.p.k, midi: x.p.midi }));   // posée AVANT l'écriture : le redessin la marque
+            this.ecrire(new Map(g.etats), g);
+            return true;
+        }
+        // Étirer toutes les notes choisies du même nombre de croches que la poignée tenue (une seule annulation pour tout le geste).
+        etirerGroupe(g, e) {
+            const ecart = Math.hypot(e.clientX - g.x0, e.clientY - g.y0);
+            if (!g.bouge && ecart < 4) return;
+            if (!g.bouge) { g.bouge = true; document.body.classList.add('sq-etire'); }
+            const k = this.crocheSous(g.note.c, g.note.r, e.clientX);
+            if (k == null) return;
+            const delta = k - g.k0;
+            if (delta === g.fait) return;
+            const pas = delta - g.fait;
+            let touche = false;
+            this.sel.forEach(it => {
+                const n = this.noteDe(it);
+                if (!n) return;
+                const m = this.enCours(g, n.c);
+                const bord = g.cote === 'd' ? n.f : n.d, fixe = g.cote === 'd' ? n.d : n.f;
+                if (etirerNote(m.etat, n.v, fixe, g.cote, bord + pas, m.etat.info.croches)) touche = true;
+            });
+            g.fait = delta;
+            if (!touche) return;
+            this.ecrire(new Map(g.etats), g);
+            g.etats.forEach((m, c) => { this._etats[c] = { ...m.etat, motif: 'main' }; });
+        }
+        // Suppr / Retour arrière : toutes les notes choisies, d'une annulation.
+        supprimerSelection() {
+            const g = { etats: new Map(), annulationPosee: false };
+            this.sel.forEach(it => { const n = this.noteDe(it); if (!n) return; const m = this.enCours(g, n.c); retirerCroches(m.etat, n.v, n.d, n.f); });
+            this.sel = [];
+            if (g.etats.size) this.ecrire(new Map(g.etats), g);
+            else this.marquerSelection();
         }
 
         // ---- Le menu d'une note ---------------------------------------------------------------------------------------------------

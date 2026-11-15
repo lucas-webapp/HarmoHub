@@ -165,12 +165,13 @@ const graine = (S) => {
     check(e.pos[0] === '1,2,3,4' && e.niveaux[v + ':1'] === 'fort' && e.niveaux[v + ':4'] === undefined, `étirée par la gauche, la note garde son niveau, porté par sa nouvelle attaque (${JSON.stringify(e.niveaux)})`);
 
     // ======================================================================================================
-    console.log('\n=== H. Un clic sur le bord enlève toujours la note, et la poignée s\'arrête au bout de l\'accord ===');
+    console.log('\n=== H. Un clic sur le bord choisit la note, et la poignée s\'arrête au bout de l\'accord ===');
     await cliquer(p, '#sq-effacer');
     await cliquer(p, caseSq(0, v, 3));
     await cliquer(p, poignee(0, v, 3, 'd'));
     e = await etat(p);
-    check(e.pos[0] === '', `un clic sur la poignée, sans glisser, enlève la note comme un clic sur la note (${e.pos[0]})`);
+    // RÉÉCRIT À L2 (14/11) : un clic sur une note la choisit, il ne l'enlève plus ; il en va de même pour son bord.
+    check(e.pos[0] === '3' && await p.evaluate(() => window.app.sequenceur.sel.length) === 1, `un clic sur la poignée, sans glisser, choisit la note comme un clic sur la note, sans l'enlever (${e.pos[0]})`);
     await cliquer(p, caseSq(0, v, 5));
     const autre = await etat(p, 1);
     const rangee = await p.evaluate((sel) => document.querySelector(sel).dataset.r, caseSq(0, v, 5));
@@ -180,7 +181,7 @@ const graine = (S) => {
     await p.mouse.up(); await p.waitForTimeout(300);
     e = await etat(p);
     const apres = await etat(p, 1);
-    check(e.pos[0] === '5,6,7' && JSON.stringify(apres.pos) === JSON.stringify(autre.pos), `tirée jusque dans l'accord voisin, la note s'arrête au bout de SON accord (${e.pos[0]}) sans toucher l'autre`);
+    check(e.pos[0] === '3,5,6,7' && JSON.stringify(apres.pos) === JSON.stringify(autre.pos), `tirée jusque dans l'accord voisin, la note s'arrête au bout de SON accord (${e.pos[0]}, la croche 4 est restée) sans toucher l'autre`);
     await p.context().close();
 
     // ======================================================================================================

@@ -7262,3 +7262,17 @@ body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
     #sq-grille .sq-etiq, #sq-grille .sq-libre-btn { position: sticky; left: 0; z-index: 4; }
 }
 
+/* 24. Séquenceur, L2 (14/11) — notes : sélection, déplacement, étirement en groupe. Sélection GRISE CLAIRE (depuis le 12/11), un seul trait autour de la NOTE entière ;
+       la copie qui suit la souris, l'originale pâle, les cases d'arrivée surlignées. Ordinateur seulement (au doigt, le clic sur une note l'enlève encore). */
+@media (min-width: 900px) {
+    #sq-grille .sq-case.sq-sel { box-shadow: inset 0 2px 0 #e6e9ee, inset 0 -2px 0 #e6e9ee; filter: brightness(1.2); z-index: 3; }
+    #sq-grille .sq-case.sq-sel.sq-sel-g { box-shadow: inset 0 2px 0 #e6e9ee, inset 0 -2px 0 #e6e9ee, inset 2px 0 0 #e6e9ee; }
+    #sq-grille .sq-case.sq-sel.sq-sel-d { box-shadow: inset 0 2px 0 #e6e9ee, inset 0 -2px 0 #e6e9ee, inset -2px 0 0 #e6e9ee; }
+    #sq-grille .sq-case.sq-sel.sq-sel-g.sq-sel-d { box-shadow: inset 0 0 0 2px #e6e9ee; }
+    #sq-grille .sq-case.sq-cible { background: rgba(230, 233, 238, 0.22); }
+    #sq-grille .sq-case.sq-fantome { opacity: 0.3; }
+    .sq-fantome-copie { position: fixed; left: 0; top: 0; z-index: 60; pointer-events: none; border-radius: 5px; box-shadow: 0 0 0 2px #e6e9ee, 0 6px 16px rgba(0, 0, 0, 0.45); opacity: 0.92; }
+    .sq-fantome-copie[hidden] { display: none; }
+    body.sq-deplace { cursor: grabbing; user-select: none; -webkit-user-select: none; }
+}
+

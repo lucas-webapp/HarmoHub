@@ -2715,6 +2715,7 @@ const SHOW_GUITAR_NOTE_NAMES_KEY = 'harmohubNomsNotesGuitare'; // valeurs : 'rie
 // Noms des notes sur le manche VIDE de l'onglet « Dessiner » (L8, 14/11 : « noms des notes sur le manche vide de dessin », case à cocher dans les Paramètres) : pour poser un doigté à
 // l'oreille OU en connaissant ses notes, sans compter les cases. Par appareil, éteint par défaut : le manche reste net tant qu'on ne le demande pas.
 const SHOW_NECK_NOTE_NAMES_KEY = 'harmohubNomsMancheDessin'; // '1' : allumé
+const SON_DEPLACEMENT_SEQ_KEY = 'harmohubSonDeplacement';       // '0' : éteint (L2, 14/11 ; allumé par défaut) — entendre les notes survolées en déplaçant une note du séquenceur
 const PIANO_LABEL_KEY = 'harmohubEtiquettesPiano';          // même chose pour les touches du clavier (14/11 : « un affichage différent possible entre le piano et la guitare »)
 // Octave / renversement-drop sous chaque accord de la GRILLE (voir gridVoicingParts, Paramètres >
 // Affichage) — remplacent l'ancien réglage unique "Style de jeu" (icône sous la case), retiré.
@@ -3817,6 +3818,7 @@ class HarmoHubApp {
         this.showChordFunction = localStorage.getItem(SHOW_CHORD_FUNCTION_KEY) === '1';
         this.showSavedDate = localStorage.getItem(SHOW_SAVED_DATE_KEY) !== '0';
         this.neckNoteNames = localStorage.getItem(SHOW_NECK_NOTE_NAMES_KEY) === '1';
+        this.sonDeplacementSeq = localStorage.getItem(SON_DEPLACEMENT_SEQ_KEY) !== '0';
         { const lire = (v) => v === 'degres' ? 'degres' : (v === 'notes' || v === '1' ? 'notes' : 'rien');
           this.guitarLabelMode = lire(localStorage.getItem(SHOW_GUITAR_NOTE_NAMES_KEY));
           // Le clavier a son propre réglage ; tant qu'il n'a jamais été touché, il suit celui de la guitare (comportement d'avant la séparation).
@@ -12854,6 +12856,13 @@ class HarmoHubApp {
                 <input type="range" id="metronome-volume" min="0" max="100" value="${this.metronomeVolumePercent}">
             </div>
             <div class="settings-slider-sep"></div>
+            <div class="settings-toggle-row">
+                <label for="toggle-son-deplacement" title="Entendre chaque note survolée en déplaçant une note du séquenceur, comme dans une station audio">Son au déplacement</label>
+                <button type="button" id="toggle-son-deplacement" class="switch" role="switch" aria-checked="${this.sonDeplacementSeq}" aria-label="Entendre les notes en déplaçant une note du séquenceur">
+                    <span class="switch-thumb"></span>
+                </button>
+            </div>
+            <div class="settings-slider-sep"></div>
             <!-- UN SEUL CHOIX DE RYTHME, ET IL EST ICI — pas dans « Options avancées ».
                  Retour utilisateur : « laisser uniquement un choix favori dans les paramètres ».
                  Un réglage qu'on ne pose qu'une fois n'est pas pour autant un réglage à cacher : il
@@ -12903,6 +12912,11 @@ class HarmoHubApp {
 
         document.getElementById('general-volume').oninput = (e) => this.setGeneralVolume(+e.target.value);
         document.getElementById('metronome-volume').oninput = (e) => this.setMetronomeVolume(+e.target.value);
+        document.getElementById('toggle-son-deplacement').onclick = (e) => {
+            this.sonDeplacementSeq = !this.sonDeplacementSeq;
+            try { localStorage.setItem(SON_DEPLACEMENT_SEQ_KEY, this.sonDeplacementSeq ? '1' : '0'); } catch (err) { /* stockage plein : vaut pour la session */ }
+            e.currentTarget.setAttribute('aria-checked', String(this.sonDeplacementSeq));
+        };
         document.getElementById('metronome-sound').onchange = (e) => this.setMetronomeSound(e.target.value);
         document.getElementById('toggle-autoplay-select').onclick = () => this.setAutoplaySelect(!this.autoplaySelect);
         document.getElementById('toggle-metronome-countin').onclick = () => this.setMetronomeCountIn(!this.metronomeCountIn);

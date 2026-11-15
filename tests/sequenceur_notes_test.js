@@ -13,7 +13,7 @@ const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('notes du séquenceur');
 const { estBruitReseau } = require('./_harness');
 
-plan(31);
+plan(32);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const mk = (r, q) => ({ root: r, quality: q, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
@@ -120,14 +120,18 @@ const graine = (S) => {
     p = await demarrer();
     e = await etat(p);
     const v2 = e.positions[0];
+    // RÉÉCRIT À L2 (14/11) : un clic sur une note la SÉLECTIONNE, Suppr l'enlève ; un glissé qui en part la DÉPLACE (voir `sequenceur_selection`).
     await cliquer(p, caseSq(0, v2, 3));
     e = await etat(p);
-    check(e.pos[0] === '' && e.pos[1] === '0,1,2,3,4,5,6,7', `un clic sur la croche 4 d'une note de huit croches l'enlève EN ENTIER (${e.pos[0]}), les autres voix ne bougent pas`);
+    check(e.pos[0] === '0,1,2,3,4,5,6,7', `un clic sur la croche 4 d'une note de huit croches la choisit sans rien changer (${e.pos[0]})`);
+    await p.keyboard.press('Delete'); await p.waitForTimeout(300);
+    e = await etat(p);
+    check(e.pos[0] === '' && e.pos[1] === '0,1,2,3,4,5,6,7', `Suppr l'enlève EN ENTIER (${e.pos[0]}), les autres voix ne bougent pas`);
     await ctrlZ(p);
     e = await etat(p);
     check(e.pos[0] === '0,1,2,3,4,5,6,7' && e.soude === '1,2,3,4,5,6,7', 'une annulation rend la note tenue, soudures comprises');
     await glisser(p, caseSq(0, v2, 6), caseSq(0, v2, 4), 4);
-    check((await etat(p)).pos[0] === '', 'un glissé qui part d\'une note enlève la note touchée en entier, pas seulement les croches traversées');
+    check((await etat(p)).pos[0] === '0,1,2,3,4,5,6,7' && (await etat(p)).soude === '1,2,3,4,5,6,7', 'un glissé qui part d\'une note ne la coupe pas : de huit croches, elle ne tient nulle part ailleurs dans son accord, elle reste entière');
     await p.context().close();
 
     // ======================================================================================================
