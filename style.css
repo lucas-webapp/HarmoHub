@@ -7719,3 +7719,24 @@ body.entetes-gauche #progression-sections .prog-section-menu { margin-left: 0; }
 .proposition-nom { position: fixed; left: 50%; top: auto; bottom: 76px; width: max-content; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; border-radius: 12px; font-size: var(--fs-sm); color: var(--text-main); max-width: calc(100vw - 32px); }
 .proposition-nom[hidden] { display: none; }
 .proposition-nom-texte { min-width: 0; }
+
+
+/* ============================================================================================================================================================
+   L6bis (suite, 15/11) — LE CURSEUR ET LE SURVOL DU SÉQUENCEUR, ordinateur seulement. L'utilisateur : « J'aimerais que mon curseur ait une forme adaptée dans le séquenceur. Il a une forme de viseur […]
+   je te laisse voir si tu as de meilleures idées » et « En survolant des notes, j'aimerais voir ces dernières avec une légère surbrillance. Cela me permettra d'être sûr que je les sélectionne si je clique. »
+   Une case vide : « cell » (on y pose une croche) ; une note : la FLÈCHE ordinaire (« default », et le reste pendant qu'on la déplace) — l'utilisateur avait refusé la main sur une barre (« le curseur change de forme
+   (main) lorsque je suis sur une barre pour la sélectionner ») ; une poignée : « ew-resize ».
+   Au survol, la note s'éclaire et se cerne d'un fin trait blanc ; la sélection (gris), la lecture (vert) et la plage à boucler (orange) gardent leurs couleurs.
+   ============================================================================================================================================================ */
+@media (min-width: 900px) and (hover: hover) {
+    #sq-grille .sq-case:not(.on):not(.sans-voix) { cursor: cell; }
+    #sq-grille .sq-case.on, #sq-grille .sq-case.on .sq-note, body.sq-deplace #sq-grille .sq-case, body.sq-deplace #sq-grille .sq-case .sq-note { cursor: default; }
+    #sq-grille .sq-case.on .sq-bord { cursor: ew-resize; }
+    #sq-grille .sq-case.on .sq-note { transition: filter 0.08s, box-shadow 0.08s; }
+    #sq-grille .sq-case.on:hover .sq-note { filter: brightness(1.22); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45); }
+}
+
+/* Écran tactile large (ordinateur) : le glissé HORIZONTAL est au séquenceur (peindre, étirer, déplacer) ; le glissé vertical fait défiler la grille. Le téléphone garde `pan-x pan-y`. */
+@media (min-width: 900px) {
+    #sq-grille, #sq-grille .sq-case { touch-action: pan-y; }
+}

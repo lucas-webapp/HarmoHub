@@ -16,7 +16,7 @@ const { check, exiger, plan, bilan } = require('./_harness')('vue Piano du séqu
 const { estBruitReseau } = require('./_harness');
 const R = require('./_retrait_ancien');
 
-plan(37);
+plan(39);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const graine = () => {
@@ -183,6 +183,16 @@ const graine = () => {
     await p.click('#sq-r-retablir'); await p.waitForTimeout(350);
     check(await nbLignes() === n1, 'Rétablir remet une octave au-dessus et cinq demi-tons en dessous');
     await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+
+    // ======================================================================================================
+    console.log('\n=== D2. Le curseur et le survol (remarques du 15/11) ===');
+    await p.mouse.move(gg.x + 300, gg.y + 200); await p.mouse.wheel(0, -3000); await p.waitForTimeout(200); await p.mouse.wheel(0, 380); await p.waitForTimeout(300);
+    const pos = await p.evaluate(() => { const g = document.getElementById('sq-grille').getBoundingClientRect(); const ok = (c) => { const r = c.getBoundingClientRect(); return r.top >= g.top + 70 && r.bottom <= g.bottom - 2; }; const n = [...document.querySelectorAll('#sq-grille .sq-case.on')].find(ok), v = [...document.querySelectorAll('#sq-grille .sq-case:not(.on):not(.sans-voix)[data-c="1"]')].find(ok); const m = (c) => { const r = c.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }; return { note: m(n), vide: m(v), curN: getComputedStyle(n).cursor, curV: getComputedStyle(v).cursor, bord: !!n.querySelector('.sq-bord') && getComputedStyle(n.querySelector('.sq-bord')).cursor }; });
+    check(pos.curN === 'default' && pos.curV === 'cell' && pos.bord === 'ew-resize', `le curseur n'est plus un viseur : flèche sur une note (${pos.curN}), « cellule » sur une case vide (${pos.curV}), « ⇔ » sur une poignée (${pos.bord})`);
+    const avantSurvol = await p.evaluate((q) => { const e = document.elementFromPoint(q.x, q.y).closest('.sq-case'); return getComputedStyle(e.querySelector('.sq-note')).filter; }, pos.note);
+    await p.mouse.move(pos.note.x, pos.note.y); await p.waitForTimeout(250);
+    const survol = await p.evaluate((q) => { const e = document.elementFromPoint(q.x, q.y).closest('.sq-case'); const n = e.querySelector('.sq-note'); return { filtre: getComputedStyle(n).filter, ombre: getComputedStyle(n).boxShadow }; }, pos.note);
+    check(avantSurvol === 'none' && /brightness\(1\.22\)/.test(survol.filtre) && /255, 255, 255/.test(survol.ombre), `une note survolée s'éclaire légèrement et se cerne d'un fin trait (${survol.filtre})`);
     await ctx.close();
 
     // ======================================================================================================

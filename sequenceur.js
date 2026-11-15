@@ -1905,7 +1905,9 @@
             }
             const caseEl = t.closest('.sq-case[data-r]');
             if (!caseEl) return;
-            const touch = e.pointerType === 'touch';
+            // Un écran TACTILE de largeur d'ordinateur (portable à écran tactile, tablette large) se sert comme à la souris : un toucher sélectionne la note (Suppr l'enlève), un glissé peint ou étire. L'ancien
+            // comportement au doigt (toucher = enlever, glissé = défiler) reste celui du téléphone. « Maintenant que je clique sur une note, elle s'efface automatiquement » (l'utilisateur, 15/11).
+            const touch = e.pointerType === 'touch' && this.modeTel();
             if (!touch) e.preventDefault(); // au doigt on laisse le navigateur défiler : c'est lui qui annule le geste (pointercancel) si le doigt glisse
             const c = +caseEl.dataset.c, k = +caseEl.dataset.k, r = +caseEl.dataset.r;
             const v = caseEl.dataset.v != null ? +caseEl.dataset.v : null;

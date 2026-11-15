@@ -41,11 +41,12 @@ plan(6);
     // au survol et la note pendant le glissé gardent le réticule.
     const R = require('./_retrait_ancien');
     await R.ouvrirNouveau(page);
-    const isReticle = cur => !!cur && cur.startsWith('url("data:image/svg+xml;base64,') && cur.endsWith('pointer');
+    // 15/11 (l'utilisateur : « il a une forme de viseur […] je te laisse voir si tu as de meilleures idées ») : plus de réticule. Case vide : « cell » ; note : la flèche (il avait refusé la main sur une barre).
+    const isVide = cur => cur === 'cell', isNote = cur => cur === 'default';
     await R.cliquer(page, '#sq-effacer');
     const emptyCursor = await page.evaluate(() => { const cell = document.querySelector('#sq-grille .sq-case[data-r]:not(.on)'); return cell ? getComputedStyle(cell).cursor : null; });
     check(!!emptyCursor, "une case vide du séquenceur est bien trouvée");
-    check(isReticle(emptyCursor), `la case vide porte le réticule personnalisé — obtenu ${JSON.stringify(emptyCursor)}`);
+    check(isVide(emptyCursor), `la case vide porte le curseur « cellule » (plus de viseur) — obtenu ${JSON.stringify(emptyCursor)}`);
     await page.keyboard.press('Control+z'); await page.waitForTimeout(300); // le Plaqué d'origine revient : des notes à survoler
     const onCell = await page.$('#sq-grille .sq-case.on .sq-note');
     exiger(!!onCell, 'une note existe pour vérifier le curseur');
@@ -53,12 +54,12 @@ plan(6);
     await page.mouse.move(box.x + 6, box.y + box.height / 2);
     await page.waitForTimeout(120);
     const curHover = await page.evaluate(el => getComputedStyle(el).cursor, onCell);
-    check(isReticle(curHover), `une note existante garde le réticule au survol (pas de "main") — obtenu ${JSON.stringify(curHover)}`);
+    check(isNote(curHover), `une note existante garde la flèche au survol (pas de "main") — obtenu ${JSON.stringify(curHover)}`);
     await page.mouse.down();
     await page.waitForTimeout(80);
     const curActive = await page.evaluate(el => getComputedStyle(el).cursor, onCell);
     await page.mouse.up();
-    check(isReticle(curActive), `le réticule reste aussi pendant le geste (pas de "grabbing") — obtenu ${JSON.stringify(curActive)}`);
+    check(isNote(curActive), `la flèche reste aussi pendant le geste (pas de "grabbing") — obtenu ${JSON.stringify(curActive)}`);
     check(await page.evaluate(() => !document.querySelector('#sq-grille .seq-cell-edge')), 'plus de bord de note à étirer (on peint les croches) : le curseur « ew-resize » n\'a plus d\'objet');
 
     // Manche guitare / grille d'accords : PAS le réticule (scope explicitement limité au séquenceur).
