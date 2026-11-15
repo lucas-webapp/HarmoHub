@@ -52,12 +52,13 @@ let P=0,F=0; const ck=(c,l)=>{ if(c){P++;console.log('PASS - '+l);} else {F++;co
             console.log(JSON.stringify(s));
             ck(s.ouvert && s.visible && s.sous, 'il s\'ouvre, visible, sous la grille');
             ck(s.lignes === 4, `une ligne par voix (${s.lignes} lignes pour une partie dont l'accord le plus riche a quatre sons)`);
-            console.log('--- 3. Sa poignée règle la hauteur des lignes ---');
-            const l0 = await p.evaluate(() => document.querySelector('#sq-grille .sq-case[data-r]').getBoundingClientRect().height);
+            // RÉÉCRIT (L1a, 14/11) : la poignée ne change plus la hauteur des barres (Paramètres › Affichage) mais le NOMBRE de lignes visibles ; la grille défile pour le reste.
+            console.log('--- 3. Sa poignée règle le nombre de lignes visibles ---');
+            const l0 = await p.evaluate(() => ({ barre: document.querySelector('#sq-grille .sq-case[data-r]').getBoundingClientRect().height, grille: document.getElementById('sq-grille').getBoundingClientRect().height }));
             const q = await R.centre(p, '#sq-poignee');
-            await p.mouse.move(q.x, q.y); await p.mouse.down(); await p.mouse.move(q.x, q.y - 60, { steps: 10 }); await p.mouse.up(); await p.waitForTimeout(400);
-            const l1 = await p.evaluate(() => document.querySelector('#sq-grille .sq-case[data-r]').getBoundingClientRect().height);
-            ck(l1 > l0 + 5, `tirer la poignée vers le haut agrandit les lignes — ${Math.round(l0)}px → ${Math.round(l1)}px`);
+            await p.mouse.move(q.x, q.y); await p.mouse.down(); await p.mouse.move(q.x, q.y + 60, { steps: 10 }); await p.mouse.up(); await p.waitForTimeout(400);
+            const l1 = await p.evaluate(() => ({ barre: document.querySelector('#sq-grille .sq-case[data-r]').getBoundingClientRect().height, grille: document.getElementById('sq-grille').getBoundingClientRect().height }));
+            ck(l1.grille < l0.grille - 20 && Math.abs(l1.barre - l0.barre) < 1, `tirer la poignée vers le bas montre moins de lignes (grille ${Math.round(l0.grille)}px → ${Math.round(l1.grille)}px) sans changer les barres (${Math.round(l0.barre)}px)`);
             console.log('--- 4. Rappuyer sur le même bouton referme ---');
             await R.cliquer(p, '#vue-sequenceur', 600);
             ck(await p.evaluate(() => document.getElementById('sequenceur').hidden), 'tout est refermé');

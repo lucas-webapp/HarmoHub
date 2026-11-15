@@ -6533,7 +6533,7 @@ body.avec-barre-selection .toast { bottom: 132px; }
    « Rythme » du panneau d'accord (#pa-rythme), où le bloc « TÉLÉPHONE, L'ONGLET RYTHME » en fin de fichier l'ajuste au doigt. */
 @media all {
     .sequenceur:not([hidden]) {
-        --sq-ligne: 30px;
+        --sq-ligne: 26px;   /* 14/11 : 30 → 26 px (sequenceur.js : LIGNE_DEFAUT) */
         display: flex;
         flex-direction: column;
         flex: none;
@@ -7188,3 +7188,29 @@ body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
 .guitar-doigtes-pop .doigte-choix:hover .doigte-retirer, .guitar-doigtes-pop .doigte-retirer:focus-visible, .guitar-doigtes-pop .doigte-retirer.arme { opacity: 1; }
 .guitar-doigtes-pop .doigte-retirer:hover, .guitar-doigtes-pop .doigte-retirer.arme { color: #fff; border-color: var(--btn-red-border-hover); background: var(--btn-red-2); }
 .guitar-doigtes-pop .doigte-retirer.arme { font-size: 11px; font-weight: 700; }
+
+/* 20. Séquenceur, L1a (14/11) — tailles. Ordinateur seulement : au téléphone la croche garde ses 30 px et son contour de lecture, rien ne bouge.
+       En fin de fichier (cascade) : ces règles écrasent celles du séquenceur plus haut. */
+@media (min-width: 900px) {
+    /* Grille calée à gauche : une mesure plus étroite que la fenêtre laisse du vide à droite au lieu d'étirer les croches (elles font 34 px au plus). */
+    .sq-grille { justify-content: start; }
+    /* Les noms de notes rapetissent de 18 à 23 px de hauteur de barre (ils disparaissaient sous 24 px). */
+    .sequenceur.lignes-moyennes .sq-note { font-size: 10px; letter-spacing: 0; }
+    /* Tête de lecture : plus de contour qui saute de croche en croche, une fine barre verticale qui glisse (#sq-tete, sequenceur.js). */
+    .sq-case.tete { box-shadow: none; }
+    .sq-tete { position: absolute; z-index: 5; width: 2px; margin-left: -1px; border-radius: 1px; background: rgba(79, 208, 143, 0.9); pointer-events: none; }
+    /* Poignée de largeur : piste de 18 px de la grille, juste après la dernière croche, centrée sur les lignes de notes. Un trait de 4 × 60 px qui devient une languette
+       de 10 px (trois points) au survol et pendant qu'on tire — la forme de toutes les poignées de l'appli (« poignées unifiées », 14/11). */
+    .sq-poignee-largeur { position: relative; z-index: 4; cursor: ew-resize; touch-action: none; }
+    .sq-poignee-largeur::before {
+        content: ""; position: absolute; left: 7px; top: 50%; width: 4px; height: min(60px, 100%); transform: translateY(-50%); box-sizing: border-box;
+        border-radius: 5px; background-color: #2a2f36; border: 1px solid transparent;
+        transition: width .15s ease, left .15s ease, background-color .15s ease, border-color .15s ease;
+    }
+    .sq-poignee-largeur:hover::before, .sq-poignee-largeur.tire::before {
+        left: 4px; width: 10px; background-color: #25374d; border-color: var(--btn-blue-border-hover, #4a8fd8);
+        background-image: radial-gradient(circle at 4px 50%, #9aa3ae 1.4px, transparent 1.8px), radial-gradient(circle at 4px calc(50% - 10px), #9aa3ae 1.4px, transparent 1.8px), radial-gradient(circle at 4px calc(50% + 10px), #9aa3ae 1.4px, transparent 1.8px);
+        background-repeat: no-repeat;
+    }
+    body.sq-etire-largeur { cursor: ew-resize; user-select: none; -webkit-user-select: none; }
+}

@@ -12933,12 +12933,21 @@ class HarmoHubApp {
         const host = document.getElementById('settings-panel-display');
         if (!host) return;
         const positionValeur = !this.showGridOctave ? 'aucune' : (this.showGridVoicing ? 'complete' : 'octave');
+        // Hauteur des barres du séquenceur (14/11, L1) : la poignée du séquenceur règle désormais le NOMBRE de lignes visibles, la hauteur d'une barre se règle ici.
+        const seqHauteur = this.sequenceur ? this.sequenceur.ligne : 26;
         host.innerHTML = `
             <div class="settings-toggle-row">
                 <label for="toggle-show-roman" title="Chiffrage en degrés (I, IV, V7…) au-dessus de chaque accord">Degrés</label>
                 <button type="button" id="toggle-show-roman" class="switch" role="switch" aria-checked="${this.showRomanNumerals}" aria-label="Degrés au-dessus de chaque accord">
                     <span class="switch-thumb"></span>
                 </button>
+            </div>
+            <div class="settings-slider-row" id="sq-hauteur-row">
+                <div class="settings-slider-head">
+                    <label for="sq-hauteur" title="Hauteur des barres du séquenceur (22 à 48 px, 26 par défaut). Réglage propre à cet appareil">Barres du séquenceur</label>
+                    <span class="val" id="sq-hauteur-val">${seqHauteur} px</span>
+                </div>
+                <input type="range" id="sq-hauteur" min="22" max="48" step="2" value="${seqHauteur}">
             </div>
             <div class="settings-select-row">
                 <label for="grid-voicing-badge" title="Petite mention sous chaque accord : son octave, et son renversement/drop s'il en a un">Position d'accord</label>
@@ -12990,6 +12999,10 @@ class HarmoHubApp {
                     </div>
                 </div>
             </details>`;
+        document.getElementById('sq-hauteur').oninput = (e) => {
+            if (this.sequenceur) this.sequenceur.reglerHauteur(+e.target.value);
+            document.getElementById('sq-hauteur-val').textContent = e.target.value + ' px';
+        };
         document.getElementById('toggle-show-roman').onclick = () => this.setShowRomanNumerals(!this.showRomanNumerals);
         document.getElementById('toggle-show-function').onclick = () => this.setShowChordFunction(!this.showChordFunction);
         document.getElementById('toggle-show-saved-date').onclick = () => this.setShowSavedDate(!this.showSavedDate);

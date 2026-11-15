@@ -17,7 +17,7 @@
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const { check, exiger, plan, bilan } = require('./_harness')('hauteur du volet et en-têtes de partie');
-plan(27);
+plan(34);
 
 const partie = (titre) => {
     const mk = (r, q) => ({ root: r, quality: q, beats: 4, inversion: 0, drop: 0, octave: 3, bass: null, playStyle: 'held' });
@@ -81,15 +81,16 @@ const partie = (titre) => {
         return mesurer(page);
     };
 
-    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : le volet d'avant (hôte #seq-dock-host, poignée #seq-dock-resize, deux plafonds) a disparu avec l'éditeur
-    // de notes. LE DÉFAUT GARDÉ RESTE le même pour la poignée du séquenceur du bloc « Vues » (cahier 3 bis, « règle définitive ») : elle doit RÉPONDRE dans les deux
-    // sens, avec et sans diagrammes — tirée vers le haut, les LIGNES grandissent (22 à 48 px) et la grille cède la place ; jamais plus que la place libre (la barre
-    // du haut reste à l'écran) ; tirée vers le bas, elles rapetissent et la grille reprend sa place ; double-clic = 30 px.
+    // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11), puis À L1a (14/11) : le volet d'avant (hôte #seq-dock-host, poignée #seq-dock-resize, deux plafonds) a disparu avec
+    // l'éditeur de notes. LE DÉFAUT GARDÉ RESTE le même pour la poignée du séquenceur du bloc « Vues » (cahier 3 bis, « règle définitive ») : elle doit RÉPONDRE dans les deux
+    // sens, avec et sans diagrammes. Depuis L1a elle ne règle plus la hauteur des BARRES (Paramètres › Affichage, 26 px par défaut) mais le NOMBRE de lignes visibles :
+    // tirée vers le bas, le séquenceur montre moins de lignes et la grille reprend la place ; tirée vers le haut, les lignes reviennent et la grille cède la place, jamais
+    // plus que la place libre (la barre du haut reste à l'écran) ; double-clic = toutes les lignes.
     const R = require('./_retrait_ancien');
     const mesurerSq = (page) => page.evaluate(() => {
-        const s = document.getElementById('sequenceur').getBoundingClientRect(), h = document.querySelector('.top-bar').getBoundingClientRect();
-        return { ligne: Math.round(document.querySelector('#sq-grille .sq-case[data-r]').getBoundingClientRect().height), haut: Math.round(s.top), plafond: Math.round(h.bottom),
-            grille: Math.round(document.querySelector('.history-section').getBoundingClientRect().height), classeCachee: document.querySelector('.col-right').classList.contains('diagrams-hidden') };
+        const sq = document.getElementById('sequenceur'), s = sq.getBoundingClientRect(), h = document.querySelector('.top-bar').getBoundingClientRect();
+        return { ligne: Math.round(document.querySelector('#sq-grille .sq-case[data-r]').getBoundingClientRect().height), haut: Math.round(s.top), plafond: Math.round(h.bottom), sqH: Math.round(s.height),
+            visibles: window.app.sequenceur._visibles, grille: Math.round(document.querySelector('.history-section').getBoundingClientRect().height), classeCachee: document.querySelector('.col-right').classList.contains('diagrams-hidden') };
     });
     const tirerSq = async (page, dy) => {
         const q = await R.centre(page, '#sq-poignee');
@@ -105,19 +106,21 @@ const partie = (titre) => {
         console.log(`--- ${nom} ---`, JSON.stringify(repos));
         exiger(repos.ligne > 0, `${nom} : le séquenceur est ouvert et mesurable (lignes de ${repos.ligne}px)`);
         check(repos.classeCachee === !diagrammes, `${nom} : l'état des diagrammes est bien celui du scénario`);
-        check(repos.ligne === 30, `${nom} : il s'ouvre à la hauteur de lignes d'origine, il reste de quoi agrandir (${repos.ligne}px)`);
-        const agrandi = await tirerSq(page, -400);
-        console.log('  agrandi :', JSON.stringify(agrandi));
-        check(agrandi.ligne > repos.ligne && agrandi.ligne <= 48, `${nom} : tirer la poignée vers le haut AGRANDIT vraiment les lignes (${repos.ligne} -> ${agrandi.ligne}px, au plus 48)`);
-        check(agrandi.haut >= agrandi.plafond, `${nom} : jamais plus que la place libre — le séquenceur s'arrête sous la barre du haut (${agrandi.haut} ≥ ${agrandi.plafond})`);
-        check(agrandi.grille <= repos.grille, `${nom} : la grille a bien cédé sa place (${repos.grille} -> ${agrandi.grille}px)`);
+        check(repos.ligne === 26 && !repos.visibles, `${nom} : il s'ouvre avec toutes ses lignes, des barres de 26 px (${repos.ligne}px)`);
         const reduit = await tirerSq(page, 200);
         console.log('  réduit  :', JSON.stringify(reduit));
-        check(reduit.ligne < agrandi.ligne && reduit.ligne >= 22, `${nom} : tirer vers le bas RÉDUIT les lignes (${agrandi.ligne} -> ${reduit.ligne}px, au moins 22)`);
-        check(reduit.grille > agrandi.grille, `${nom} : la place rendue profite à la grille (${agrandi.grille} -> ${reduit.grille}px)`);
+        check(reduit.sqH < repos.sqH && reduit.visibles >= 2 && reduit.ligne === 26, `${nom} : tirer vers le bas MONTRE MOINS de lignes, les barres gardent 26 px (${repos.sqH} -> ${reduit.sqH}px de séquenceur, ${reduit.visibles} lignes)`);
+        check(reduit.grille >= repos.grille, `${nom} : la place rendue profite à la grille (${repos.grille} -> ${reduit.grille}px)`);
+        const agrandi = await tirerSq(page, -400);
+        console.log('  agrandi :', JSON.stringify(agrandi));
+        check(agrandi.sqH > reduit.sqH, `${nom} : tirer vers le haut REND des lignes (${reduit.sqH} -> ${agrandi.sqH}px de séquenceur)`);
+        check(agrandi.haut >= agrandi.plafond, `${nom} : jamais plus que la place libre — le séquenceur s'arrête sous la barre du haut (${agrandi.haut} ≥ ${agrandi.plafond})`);
+        check(agrandi.grille <= reduit.grille, `${nom} : la grille a bien cédé sa place (${reduit.grille} -> ${agrandi.grille}px)`);
+        await tirerSq(page, 200);
         const q = await R.centre(page, '#sq-poignee');
         await page.mouse.dblclick(q.x, q.y); await page.waitForTimeout(300);
-        check((await mesurerSq(page)).ligne === 30, `${nom} : double-clic sur la poignée, hauteur d'origine (30 px)`);
+        const dbl = await mesurerSq(page);
+        check(!dbl.visibles && dbl.sqH >= repos.sqH - 2, `${nom} : double-clic sur la poignée, toutes les lignes sont visibles (${dbl.sqH}px)`);
         await page.close();
     }
 

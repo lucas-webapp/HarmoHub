@@ -54,7 +54,12 @@
     const NIVEAU_VALEUR = { doux: 55, fort: 90 };
     const CYCLE_INTENSITE = { normal: 'fort', fort: 'doux', doux: null };
 
-    const LIGNE_MIN = 22, LIGNE_MAX = 48, LIGNE_DEFAUT = 30;   // hauteur des LIGNES (cahier 3 bis : « de 22 à 48 px (30 par défaut) »)
+    // 14/11, L1 (« Proposé ») : la ligne passe de 30 à 26 px par défaut, et la croche a sa propre largeur — 34 px au plus par défaut, entre 14 (une mesure = 112 px)
+    // et 90 px (poignée de largeur, double-clic = 34). Les deux se retiennent par appareil.
+    const LIGNE_MIN = 22, LIGNE_MAX = 48, LIGNE_DEFAUT = 26;   // hauteur des LIGNES (Paramètres › Affichage : de 22 à 48 px, 26 par défaut)
+    const CROCHE_MIN = 14, CROCHE_MAX = 90, CROCHE_DEFAUT = 34;
+    const LARGEUR_POIGNEE = 18;                                // la piste de la poignée de largeur, juste après la dernière croche
+    const CLE_CROCHE = 'harmohubSequenceurCroche';
     const CLE_LIGNE = 'harmohubSequenceurLigne';
     const CLE_OUVERT = 'harmohubSequenceurOuvert';
     const CLE_PORTEE = 'harmohubSequenceurPortee';
@@ -437,11 +442,16 @@
             this._origine = this.racine ? { parent: this.racine.parentElement, suivant: this.racine.nextSibling } : null;
             this._telVisible = false;
             this.bouton = document.getElementById('vue-sequenceur');
+            this.repere = document.getElementById('sq-tete');   // la fine barre verte de la tête de lecture (ordinateur)
             this.intensite = false;
             this.presse = null;          // rythme copié : { de: nom, voix: [ [croches], ... ] par position, niveaux }
             this.portee = lireLocal(CLE_PORTEE) === 'accord' ? 'accord' : 'partie';
             const h = parseInt(lireLocal(CLE_LIGNE), 10);
             this.ligne = borner(isNaN(h) ? LIGNE_DEFAUT : h, LIGNE_MIN, LIGNE_MAX);
+            const w = parseInt(lireLocal(CLE_CROCHE), 10);
+            this.croche = borner(isNaN(w) ? CROCHE_DEFAUT : w, CROCHE_MIN, CROCHE_MAX);
+            // Nombre de lignes montrées (« je préfère pouvoir voir plus de notes ») : 0 = toutes. Les barres gardent leur hauteur ; la poignée du haut change ce nombre.
+            this._visibles = 0;
             this._tete = null;
             this._geste = null;
             this.vue = lireLocal(CLE_VUE) === 'notes' ? 'notes' : 'voix';
@@ -585,16 +595,21 @@
             // (On compte les PISTES une à une : un « repeat(8, …) » en vaut huit.)
             // Au téléphone : l'accord du panneau seul (les autres sont à un ‹ › de là). Les index restent ceux de la partie (data-c, écriture).
             const montres = this.uneSeule() && i != null ? [i] : accords.map((_, c) => c);
-            const cols = ['46px', '10px'];
             const colDebut = [];
+            const crochesParAccord = [];
             let piste = 3;
             montres.forEach((c, n) => {
-                if (n > 0) { cols.push('4px'); piste++; }
+                // L'écart entre deux accords est nul (14/11, « les mesures se touchent ») : le trait de début de mesure suffit à les séparer.
                 colDebut[c] = piste; // indexé par l'accord (au téléphone, un seul est montré : l'index n'est pas le rang)
-                cols.push(`repeat(${etats[c].info.croches}, minmax(${this.modeTel() ? 30 : 10}px, 1fr))`); // au doigt : une croche garde 30 px au moins (le plancher de probe_seq_adaptatif), la grille défile de côté
+                crochesParAccord.push(etats[c].info.croches);
                 piste += etats[c].info.croches;
             });
-            this.grille.style.gridTemplateColumns = cols.join(' ');
+            // La poignée de largeur est une piste de la grille elle-même, juste après la dernière croche : elle suit les croches quand on les élargit et ne demande aucun calcul
+            // de position. Ordinateur seulement (au téléphone la croche reste à 30 px au moins et la grille défile de côté).
+            const poigneeLargeur = !this.modeTel() && lignes.length > 0;
+            this._plan = { croches: crochesParAccord, poignee: poigneeLargeur };
+            this._nCroches = crochesParAccord.reduce((a, b) => a + b, 0);
+            this.poserColonnes();
             this.grille.style.gridTemplateRows = `auto 20px repeat(${lignes.length}, var(--sq-ligne))`;
 
             const r = this.app.loopRange;
@@ -681,6 +696,7 @@
                     }
                 });
             });
+            if (poigneeLargeur) html.push(`<div class="sq-poignee-largeur" role="separator" aria-orientation="vertical" aria-label="Largeur des croches du séquenceur" title="Tirer pour élargir ou resserrer les croches — double-clic : largeur d'origine (${CROCHE_DEFAUT} px)" style="grid-row:3 / span ${lignes.length};grid-column:${piste}"></div>`);
             const defile = this.grille.scrollLeft; // le défilement de côté survit aux rendus (poser une croche redessine toute la grille)
             this.grille.innerHTML = html.join('');
             this._colDebut = colDebut;
@@ -771,8 +787,45 @@
         }
         limiterHauteur() {
             if (!this.estOuvert()) return;
+            this.appliquerVisibles();
             if (this.modeTel()) { this.racine.style.maxHeight = ''; return; } // au téléphone, c'est le panneau d'accord qui défile
             this.racine.style.maxHeight = Math.floor(this.placeLibre()) + 'px';
+        }
+
+        // Les colonnes de la grille : étiquettes (46 px), un petit jour (10 px), puis les croches de chaque accord — de CROCHE_MIN px à `this.croche` px, calées à gauche : une grille
+        // plus étroite que la fenêtre laisse du vide à droite au lieu d'étirer les croches (14/11, « la grille calée à gauche ») — et, à l'ordinateur, la piste de la poignée de
+        // largeur. Séparée de rafraichir() pour que la poignée puisse changer la largeur SANS redessiner la grille : redessiner détruirait la poignée qu'on tient.
+        poserColonnes() {
+            const plan = this._plan;
+            if (!plan || !this.grille) return;
+            const tel = this.modeTel();
+            const cols = ['46px', '10px'];
+            plan.croches.forEach(n => {
+                // au doigt : une croche garde 30 px au moins (le plancher de probe_seq_adaptatif), la grille défile de côté
+                cols.push(`repeat(${n}, minmax(${tel ? 30 : CROCHE_MIN}px, ${tel ? '1fr' : this.croche + 'px'}))`);
+            });
+            if (plan.poignee) cols.push(LARGEUR_POIGNEE + 'px');
+            this.grille.style.gridTemplateColumns = cols.join(' ');
+        }
+
+        // Hauteur : les barres gardent leur hauteur (Paramètres › Affichage), la poignée du haut règle le NOMBRE de lignes visibles ; au-delà la grille défile en interne.
+        // `_visibles` à 0 (ou au moins le nombre de lignes) = tout est visible, sans plafond.
+        appliquerVisibles() {
+            const g = this.grille, nb = (this._lignes || []).length;
+            if (!g) return;
+            const c = g.querySelector('.sq-case[data-r]');
+            if (this.modeTel() || !this._visibles || this._visibles >= nb || !c) { g.style.maxHeight = ''; g.style.overflowY = ''; return; }
+            const haut = c.offsetTop - g.offsetTop;   // ce qui précède la première ligne de notes : noms d'accords et règle
+            g.style.maxHeight = Math.round(haut + this._visibles * (this.ligne + 3)) + 'px';   // 3 px = l'écart entre deux lignes (row-gap)
+            g.style.overflowY = 'auto';
+        }
+
+        // Réglage Paramètres › Affichage « Barres du séquenceur ».
+        reglerHauteur(px) {
+            this.ligne = borner(Math.round(px), LIGNE_MIN, LIGNE_MAX);
+            ecrireLocal(CLE_LIGNE, String(this.ligne));
+            this.poserLigne();
+            this.limiterHauteur();
         }
 
         // ---- Écriture dans le morceau ---------------------------------------------------------------------------------------------
@@ -891,6 +944,7 @@
             const fermer = document.getElementById('sq-fermer');
             if (fermer) fermer.addEventListener('click', () => this.basculer(false));
             this.brancherPoignee();
+            this.brancherPoigneeLargeur();
             window.addEventListener('resize', () => { this.synchroniser(); });
             // Le tiroir des diagrammes change de taille (poignée, clavier ou guitare allumés) : la place libre du séquenceur change avec lui.
             const tiroir = document.getElementById('vues-tiroir');
@@ -1466,30 +1520,71 @@
                 e.preventDefault();
                 p.setPointerCapture(e.pointerId);
                 const nb = Math.max(1, (this._lignes || []).length);
-                const depart = { y: e.clientY, h: this.ligne, haut: this.racine.getBoundingClientRect().height };
+                const depart = { y: e.clientY, vis: Math.min(this._visibles || nb, nb), haut: this.racine.getBoundingClientRect().height };
                 const bouger = (ev) => {
-                    // Vers le haut = plus haut. Jamais plus que la place libre : la poignée s'arrête avant que rien ne passe sous la barre du haut.
+                    // 13/11 (« je préfère pouvoir voir plus de notes ») : la poignée ne change plus la hauteur des barres, elle change le NOMBRE de lignes visibles. Vers le haut = plus
+                    // de lignes. Jamais plus que la place libre : la poignée s'arrête avant que rien ne passe sous la barre du haut.
                     const dy = depart.y - ev.clientY;
-                    const maxParPlace = depart.h + Math.floor((this.placeLibre() - depart.haut) / nb);
-                    this.ligne = borner(Math.round(depart.h + dy / nb), LIGNE_MIN, Math.max(LIGNE_MIN, Math.min(LIGNE_MAX, maxParPlace)));
-                    this.poserLigne();
+                    const parPlace = depart.vis + Math.floor((this.placeLibre() - depart.haut) / (this.ligne + 3));
+                    this._visibles = borner(Math.round(depart.vis + dy / (this.ligne + 3)), Math.min(2, nb), Math.max(Math.min(2, nb), Math.min(nb, parPlace)));
+                    this.appliquerVisibles();
                 };
                 const finir = () => {
                     p.removeEventListener('pointermove', bouger);
                     p.removeEventListener('pointerup', finir);
                     p.removeEventListener('pointercancel', finir);
-                    ecrireLocal(CLE_LIGNE, String(this.ligne));
                     this.limiterHauteur();
                 };
                 p.addEventListener('pointermove', bouger);
                 p.addEventListener('pointerup', finir);
                 p.addEventListener('pointercancel', finir);
             });
+            // Double-clic : tout est visible.
             p.addEventListener('dblclick', () => {
-                this.ligne = LIGNE_DEFAUT;
-                ecrireLocal(CLE_LIGNE, String(this.ligne));
-                this.poserLigne();
+                this._visibles = 0;
                 this.limiterHauteur();
+            });
+        }
+
+        // LA POIGNÉE DE LARGEUR (14/11) : au bord droit des croches, centrée sur les lignes de notes. Elle change la largeur de la croche de 14 à 90 px (jamais plus que
+        // la place : la poignée reste dans la fenêtre), double-clic = 34 px. Retenue par appareil. La grille n'est pas redessinée pendant qu'on tire (poserColonnes) : la
+        // poignée qu'on tient resterait sinon sans élément.
+        brancherPoigneeLargeur() {
+            const g = this.grille;
+            const largeurMax = () => {
+                const n = Math.max(1, this._nCroches || 1);
+                return borner(Math.floor((g.clientWidth - 46 - 10 - LARGEUR_POIGNEE) / n), CROCHE_MIN, CROCHE_MAX);
+            };
+            const poser = (w, definitif) => {
+                this.croche = borner(Math.round(w), CROCHE_MIN, largeurMax());
+                this.poserColonnes();
+                if (definitif) ecrireLocal(CLE_CROCHE, String(this.croche));
+            };
+            g.addEventListener('pointerdown', (e) => {
+                const p = e.target.closest && e.target.closest('.sq-poignee-largeur');
+                if (!p || e.button !== 0) return;
+                e.preventDefault();
+                const premiere = g.querySelector('.sq-case[data-r="0"]');
+                if (!premiere) return;
+                const gauche = premiere.getBoundingClientRect().left;
+                const n = Math.max(1, this._nCroches || 1);
+                p.classList.add('tire');
+                document.body.classList.add('sq-etire-largeur');
+                const bouger = (ev) => poser((ev.clientX - gauche) / n, false);
+                const finir = () => {
+                    window.removeEventListener('pointermove', bouger);
+                    window.removeEventListener('pointerup', finir);
+                    window.removeEventListener('pointercancel', finir);
+                    p.classList.remove('tire');
+                    document.body.classList.remove('sq-etire-largeur');
+                    ecrireLocal(CLE_CROCHE, String(this.croche));
+                };
+                window.addEventListener('pointermove', bouger);
+                window.addEventListener('pointerup', finir);
+                window.addEventListener('pointercancel', finir);
+            });
+            g.addEventListener('dblclick', (e) => {
+                if (e.target.closest && e.target.closest('.sq-poignee-largeur')) poser(CROCHE_DEFAUT, true);
             });
         }
 
@@ -1498,26 +1593,60 @@
         poserLigne() {
             const h = this.modeTel() ? 40 : this.ligne; // plein écran au téléphone : des lignes de 40 px, pour voir plus de voix (elles étaient à 44)
             this.racine.style.setProperty('--sq-ligne', h + 'px');
-            this.racine.classList.toggle('lignes-basses', h < 24);
+            // Les noms de notes rapetissent de 18 à 23 px et disparaissent sous 18 px (ils disparaissaient sous 24 : à 22-23 px on les lit encore, en 10 px).
+            this.racine.classList.toggle('lignes-basses', h < 18);
+            this.racine.classList.toggle('lignes-moyennes', h >= 18 && h < 24);
         }
 
         // ---- Tête de lecture ----------------------------------------------------------------------------------------------------
-        // Appelée à chaque case de double-croche par la lecture (schedulePlayback) : la colonne de la croche qui sonne s'allume en vert.
+        // Appelée à chaque case de double-croche par la lecture (schedulePlayback) : la colonne de la croche qui sonne reçoit la classe `tete`.
+        // À l'ORDINATEUR (14/11, « plus de contour vert qui saute de croche en croche ») la classe n'a plus d'aspect : une fine barre verticale verte (#sq-tete) glisse en
+        // continu, de la gauche à la droite de la croche pendant sa durée. Cette durée est MESURÉE (le temps écoulé entre deux changements de croche) : elle suit le tempo, la
+        // vitesse et un changement de tempo en cours de route, sans rien lire de plus. Au téléphone rien ne change : la case reste entourée.
         tete(section, index, step) {
             if (!this.estOuvert() || section !== this._s) return;
             const k = Math.floor(step / 2);
             const id = index + '/' + k;
             if (this._tete === id) return;
-            this.effacerTete();
+            const maintenant = performance.now();
+            const avant = this._teteT0;
             this._tete = id;
+            this.grille.querySelectorAll('.tete').forEach(el => el.classList.remove('tete'));
             this.grille.querySelectorAll(`[data-c="${index}"][data-k="${k}"]`).forEach(el => el.classList.add('tete'));
+            if (this.modeTel() || !this.repere) return;
+            // La durée d'une croche : celle qu'on vient de mesurer si elle est plausible (60 ms à 2 s), sinon un quart de seconde (120 BPM).
+            const mesure = avant != null ? maintenant - avant : 0;
+            this._teteDuree = mesure >= 60 && mesure <= 2000 ? mesure : (this._teteDuree || 250);
+            this._teteT0 = maintenant;
+            this._teteCase = { c: index, k };
+            if (!this._teteImage) this._teteImage = requestAnimationFrame(() => this.animerTete());
+        }
+        animerTete() {
+            this._teteImage = 0;
+            const r = this.repere, cible = this._teteCase;
+            if (!r || !cible || !this.estOuvert()) { if (r) r.hidden = true; return; }
+            const cellule = this.grille.querySelector(`.sq-temps[data-c="${cible.c}"][data-k="${cible.k}"]`);
+            if (!cellule) { r.hidden = true; }
+            else {
+                const f = Math.min(1, (performance.now() - this._teteT0) / (this._teteDuree || 250));
+                const rr = this.racine.getBoundingClientRect(), b = cellule.getBoundingClientRect(), gb = this.grille.getBoundingClientRect();
+                r.hidden = false;
+                // Les coordonnées de la racine (elle défile en interne : la barre défile avec elle) ; de la règle au bas des lignes montrées.
+                r.style.left = Math.round((b.left - rr.left + this.racine.scrollLeft + f * b.width) * 10) / 10 + 'px';
+                r.style.top = Math.round(gb.top - rr.top + this.racine.scrollTop) + 'px';
+                r.style.height = Math.round(gb.height) + 'px';
+            }
+            this._teteImage = requestAnimationFrame(() => this.animerTete());
         }
         effacerTete() {
+            if (this._teteImage) { cancelAnimationFrame(this._teteImage); this._teteImage = 0; }
+            this._teteT0 = null; this._teteCase = null;
+            if (this.repere) this.repere.hidden = true;
             if (this._tete == null) return;
             this._tete = null;
             this.grille.querySelectorAll('.tete').forEach(el => el.classList.remove('tete'));
         }
     }
 
-    window.SequenceurHarmo = { Sequenceur, MOTIFS, lireAccord, ecrireAccord, motifSurVoix, etatAvecMotif, voixDe, motifParId, motifActuel, formeDepuisEtat, LIGNE_MIN, LIGNE_MAX, LIGNE_DEFAUT };
+    window.SequenceurHarmo = { Sequenceur, MOTIFS, lireAccord, ecrireAccord, motifSurVoix, etatAvecMotif, voixDe, motifParId, motifActuel, formeDepuisEtat, LIGNE_MIN, LIGNE_MAX, LIGNE_DEFAUT, CROCHE_MIN, CROCHE_MAX, CROCHE_DEFAUT };
 })();

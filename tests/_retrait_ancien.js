@@ -200,17 +200,18 @@ async function sansLecturePropre(p) {
     return { ok: !r.propre && r.barre === 1, detail: `bouton de lecture dans le séquenceur : ${r.propre}, transports : ${r.barre}` };
 }
 
-// La poignée règle la hauteur des LIGNES (22 à 48 px), double-clic = 30 px.
+// RÉÉCRIT À L1a (14/11) : la poignée ne règle plus la hauteur des BARRES (Paramètres › Affichage, 22 à 48 px, 26 par défaut) mais le NOMBRE de lignes visibles :
+// tirée vers le bas, le séquenceur en montre moins (la grille défile en interne, les barres gardent leur hauteur) ; double-clic = toutes les lignes.
 async function poigneeLignes(p) {
-    const h = () => p.evaluate(() => Math.round(document.querySelector('#sq-grille .sq-case[data-r]').getBoundingClientRect().height));
-    const h0 = await h();
+    const m = () => p.evaluate(() => ({ barre: Math.round(document.querySelector('#sq-grille .sq-case[data-r]').getBoundingClientRect().height), grille: Math.round(document.getElementById('sq-grille').getBoundingClientRect().height), visibles: window.app.sequenceur._visibles }));
+    const m0 = await m();
     const q = await centre(p, '#sq-poignee');
-    await p.mouse.move(q.x, q.y); await p.mouse.down(); await p.mouse.move(q.x, q.y - 60, { steps: 10 }); await p.mouse.up(); await p.waitForTimeout(300);
-    const h1 = await h();
+    await p.mouse.move(q.x, q.y); await p.mouse.down(); await p.mouse.move(q.x, q.y + 60, { steps: 10 }); await p.mouse.up(); await p.waitForTimeout(300);
+    const m1 = await m();
     const q2 = await centre(p, '#sq-poignee');
     await p.mouse.dblclick(q2.x, q2.y); await p.waitForTimeout(300);
-    const h2 = await h();
-    return { ok: h1 > h0 && h1 <= 48 && h2 === 30, detail: `${h0} → ${h1} px, double-clic ${h2} px` };
+    const m2 = await m();
+    return { ok: m1.grille < m0.grille && m1.barre === m0.barre && !m2.visibles && m2.grille >= m0.grille - 1, detail: `grille ${m0.grille} → ${m1.grille} px (barres ${m0.barre} → ${m1.barre} px), double-clic ${m2.grille} px` };
 }
 
 // Un clic sur le NOM d'un accord voisin, dans la règle du séquenceur, le choisit (et la grille le sélectionne).

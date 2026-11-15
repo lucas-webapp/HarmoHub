@@ -59,10 +59,14 @@ plan(8);
     exiger(ouvert.ok, `le séquenceur du bloc « Vues » s'ouvre par son bouton (${ouvert.detail})`);
     const hauteur = () => page.evaluate(() => Math.round(document.querySelector('#sq-grille .sq-case[data-r]').getBoundingClientRect().height * 10) / 10);
     const h0 = await hauteur();
-    const q = await R.centre(page, '#sq-poignee');
-    await page.mouse.move(q.x, q.y); await page.mouse.down(); await page.mouse.move(q.x, q.y - 60, { steps: 10 }); await page.mouse.up(); await page.waitForTimeout(400);
+    // RÉÉCRIT À L1a (14/11) : la hauteur d'une barre se règle dans Paramètres › Affichage (« Barres du séquenceur », 22 à 48 px) ; la poignée règle le nombre de lignes visibles.
+    await page.click('#open-settings'); await page.waitForTimeout(500);
+    await page.focus('#sq-hauteur');
+    for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowRight');
+    await page.waitForTimeout(300);
+    await page.click('#settings-close'); await page.waitForTimeout(300);
     const h1 = await hauteur();
-    check(h1 > h0, `la poignée agrandit la hauteur CALCULÉE des lignes (remplace le zoom V) — ${h0}px → ${h1}px`);
+    check(h1 > h0, `le réglage « Barres du séquenceur » agrandit la hauteur CALCULÉE des lignes (remplace le zoom V) — ${h0}px → ${h1}px`);
     const tout = await R.toutePartie(page);
     check(tout.ok, `la largeur suit la place disponible, toute la partie à l'écran (remplace le zoom H) — ${tout.detail}`);
     await R.cliquer(page, '#vue-sequenceur', 400);

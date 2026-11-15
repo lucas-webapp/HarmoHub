@@ -272,14 +272,20 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     const outilsAvant = await p.evaluate(() => document.querySelector('.sq-outils button').getBoundingClientRect().height);
     let m = await tirer(p, -600);
     check(m.haut >= m.barre && m.bas <= m.tiroir + 1 && m.poignee >= m.barre && m.poignee < m.vh, `fenêtre de 900 px : séquenceur entre la barre du haut et le tiroir, poignée atteignable (${Math.round(m.haut)}–${Math.round(m.bas)})`);
-    check(Math.round(m.ligne) === 48, `tirée tout en haut, les lignes s'arrêtent à 48 px (${m.ligne})`);
+    // RÉÉCRIT (L1a, 14/11) : la poignée ne règle plus la hauteur des barres (Paramètres › Affichage, 22 à 48 px, 26 par défaut) mais le NOMBRE de lignes visibles.
+    check(Math.round(m.ligne) === 26 && await p.evaluate(() => document.getElementById('sq-grille').style.maxHeight === ''), `tirée tout en haut, toutes les lignes sont visibles et les barres gardent 26 px (${m.ligne})`);
     check(m.outils === outilsAvant && m.outils === 32, 'la barre d\'outils garde ses boutons de 32 px');
-    const q = await centre(p, '#sq-poignee');
+    let q = await centre(p, '#sq-poignee');
+    await p.mouse.move(q.x, q.y); await p.mouse.down(); await p.mouse.move(q.x, q.y + 300, { steps: 12 }); await p.mouse.up(); await p.waitForTimeout(300);
+    check(await p.evaluate(() => window.app.sequenceur._visibles) === 2 && Math.round(await p.evaluate(() => document.querySelector('#sq-grille .sq-case[data-v]').getBoundingClientRect().height)) === 26,
+        'tirée vers le bas, la poignée s\'arrête à deux lignes visibles, les barres gardent 26 px');
+    q = await centre(p, '#sq-poignee');
     await p.mouse.dblclick(q.x, q.y); await p.waitForTimeout(300);
-    check(Math.round(await p.evaluate(() => document.querySelector('#sq-grille .sq-case[data-v]').getBoundingClientRect().height)) === 30, 'double-clic sur la poignée : hauteur d\'origine (30 px)');
-    m = await tirer(p, 300);
-    check(Math.round(m.ligne) === 22, `tirée vers le bas, les lignes s'arrêtent à 22 px (${m.ligne})`);
-    check(await p.evaluate(() => getComputedStyle(document.querySelector('#sq-grille .sq-note')).fontSize) === '0px', 'sous 24 px, les noms de notes disparaissent des cases');
+    check(await p.evaluate(() => window.app.sequenceur._visibles) === 0 && await p.evaluate(() => document.getElementById('sq-grille').style.maxHeight === ''), 'double-clic sur la poignée : toutes les lignes sont visibles');
+    await p.close();
+    // Les noms de notes rapetissent à 22-23 px de barre (ils disparaissaient sous 24) : réglage de l'appareil, 22 px.
+    p = await ouvrir({ width: 1440, height: 900 }, PARTIE, () => { localStorage.setItem('harmohubSequenceurOuvert', '1'); localStorage.setItem('harmohubSequenceurLigne', '22'); });
+    check(await p.evaluate(() => getComputedStyle(document.querySelector('#sq-grille .sq-case.on .sq-note')).fontSize) === '10px', 'à 22 px de barre, les noms de notes s\'écrivent en 10 px (ils ne disparaissent plus)');
     await p.close();
 
     console.log('\n=== M. La lecture allume la croche qui sonne ===');
