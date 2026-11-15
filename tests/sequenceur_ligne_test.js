@@ -225,7 +225,8 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
     const tel = await p.evaluate(() => ({ dans: document.getElementById('sequenceur').parentElement.id, flechesCachees: getComputedStyle(document.querySelector('.sq-ligne')).display === 'none', traits: document.querySelectorAll('.sq-vu-trait').length, noms: document.querySelectorAll('#sq-grille .sq-nom').length, montres: window.app.sequenceur._montres.length }));
     exiger(tel.dans === 'pa-rythme', `au téléphone le séquenceur est dans le panneau d'accord (${tel.dans})`);
     check(tel.flechesCachees && tel.traits === 0, 'ni flèches de ligne ni trait lumineux');
-    check(tel.noms === 8 && tel.montres === 8, `il montre toute la partie, comme avant (${tel.noms} accords)`);
+    // L7c : au téléphone il ne défile plus sur toute la partie : il montre la PAGE de la ligne de l'accord choisi (⌊(390 − 24 − 56) / 240⌋ = 1 mesure à 390 px).
+    check(tel.noms === 1 && tel.montres === 1, `il montre la page de la ligne de l'accord choisi, une mesure à 390 px (${tel.noms} accord)`);
     await p.close(); await ctx.close();
 
     check(erreurs.length === 0, `aucune erreur de page ni de console (${erreurs.slice(0, 3).join(' | ')})`);

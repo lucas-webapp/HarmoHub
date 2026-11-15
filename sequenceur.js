@@ -543,7 +543,15 @@
         modeTel() { return !this.estOrdinateur() && !!this.racine && !!this.racine.closest('#pa-rythme'); }
         // Au téléphone, le séquenceur occupe tout l'écran entre la barre du haut et la barre de lecture (12/11 : « sur portable, il serait peut-être plus simple de
         // l'afficher en plein écran ») : « Toute la partie » y montre tous les accords, qu'on fait défiler de côté, « Cet accord » le seul accord du panneau.
-        uneSeule() { return this.modeTel() && this.portee === 'accord'; }
+        // L7c (14/11, « sur tablette, mettre au minimum 2 mesures dans le séquenceur ») : sous 900 px le panneau d'accord montre PLUSIEURS mesures, celles de la LIGNE de la grille de l'accord
+        // choisi, par pages de N — N = mesures qui tiennent avec la croche tactile de 30 px : ⌊(largeur du panneau − 56) / 240⌋ (240 = 8 croches de 30 px ; 56 = colonne des notes et marge).
+        // Mesuré : 390 px → 1, 600 px → 2, 820 px → 3. Un seul accord n'est donc montré que si N vaut 1 (et que la portée est « Cet accord »).
+        nbMesuresTel() {
+            const p = document.getElementById('pa-rythme');
+            const l = p && p.clientWidth > 0 ? p.clientWidth : window.innerWidth - 24;
+            return Math.max(1, Math.floor((l - 56) / 240));
+        }
+        uneSeule() { return this.modeTel() && this.portee === 'accord' && this.nbMesuresTel() < 2; }
         // À l'ordinateur tout agit sur l'accord choisi (L3, 14/11 : plus de choix de portée) ; le choix « Toute la partie | Cet accord » n'existe plus que pour le téléphone (L7).
         porteeEffective() { return this.estOrdinateur() ? 'accord' : this.portee; }
         // Mode « Dessiner » (au doigt seulement) : la grille ne défile plus, le doigt peint d'un trait une note tenue. Éteint tant qu'on ne l'allume pas.
@@ -877,9 +885,15 @@
         // n'a pas (encore) de lignes, au téléphone, ou sans accord choisi.
         ligneMontree(s, i, accords) {
             const tous = accords.map((_, c) => c);
-            if (this.modeTel() || i == null || !this.app.lignesDePartie) return tous;
+            if (i == null || !this.app.lignesDePartie) return tous;
             const ligne = this.app.lignesDePartie(s).find(l => l.includes(i));
-            return ligne && ligne.length ? ligne : tous;
+            let g = ligne && ligne.length ? ligne : tous;
+            // L7c : au téléphone la ligne se montre par PAGES de N mesures (la page qui contient l'accord choisi) ; ‹ › du panneau tournent les pages d'eux-mêmes.
+            if (this.modeTel()) {
+                const n = this.nbMesuresTel();
+                if (g.length > n) { const rang = Math.max(0, g.indexOf(i)); const debut = Math.floor(rang / n) * n; g = g.slice(debut, debut + n); }
+            }
+            return g;
         }
         // La ligne voisine (delta = -1 ou 1), en passant d'une partie à l'autre ; l'accord visé garde son rang dans la ligne. Null au premier ou au dernier bout.
         voisine(delta) {

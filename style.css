@@ -7777,3 +7777,31 @@ body.entetes-gauche #progression-sections .prog-section-menu { margin-left: 0; }
     .panneau-lecture .pl-vue { gap: 4px; padding: 0 4px; font-size: 12.5px; }
     .panneau-lecture .pl-vue .icon { width: 16px; height: 16px; }
 }
+
+
+/* ============================================================================================================================================================
+   L7c (15/11) — TÉLÉPHONE : LES RANGÉES D'OUTILS DU SÉQUENCEUR S'ALIGNENT. L'utilisateur (14/11) : « essaye d'aligner les boutons » ; « à droite de la corbeille, il n'y a pas le
+   même espace qu'à gauche ». Les trois rangées (rythmes ; « Voix | Toutes les notes » et la portée ; intensité, dessin, copier, coller, corbeille) vont de la marge gauche à la marge
+   droite du panneau (12 px des deux côtés, 12 → 378 sur 390 px) : le premier bouton touche la marge de gauche, le dernier celle de droite. Sans les noms des rythmes (le réglage par
+   défaut sous 1340 px, téléphone compris : seuls les logos), six rythmes et le signet tiennent sur une ligne dès 320 px ; avec les noms (Paramètres › Affichage) la rangée défile de côté,
+   comme avant. Les rangées se remplissent sous 560 px (un téléphone) ; au-delà (une tablette) les boutons gardent leur taille. Les noms sont retirés sous 900 px.
+   ============================================================================================================================================================ */
+@media (max-width: 899px) {
+    .pa-rythme .sequenceur.sans-noms-rythmes .sq-motifs > .sq-motif > span:not(.sq-vignette) { display: none; }
+}
+@media (max-width: 559px) {
+    .pa-rythme .sq-outils { flex-wrap: wrap; column-gap: 6px; row-gap: 0; }
+    .pa-rythme .sq-outils > .sq-motifs, .pa-rythme .sq-outils > .sq-seg { margin-bottom: 6px; }   /* la dernière rangée n'a pas de marge sous elle : la barre garde ses 154 px au plus */
+    /* Trois rangées, dans l'ordre : les rythmes, les deux groupes segmentés, puis les boutons — le séparateur sans hauteur (::after, order 2) force le retour à la ligne. */
+    .pa-rythme .sq-outils::after { content: ""; order: 2; flex: 0 0 100%; height: 0; }
+    .pa-rythme .sq-outils > .sq-motifs { order: 0; flex: 0 0 100%; }
+    .pa-rythme .sq-outils > .sq-seg { order: 1; flex: 1 1 auto; }
+    .pa-rythme .sq-outils > .sq-seg > button { flex: 1 1 auto; justify-content: center; }
+    .pa-rythme .sq-outils > #sq-intensite, .pa-rythme .sq-outils > #sq-dessin, .pa-rythme .sq-outils > .sq-rythme { order: 3; }
+    .pa-rythme .sq-outils > #sq-intensite, .pa-rythme .sq-outils > #sq-dessin { flex: 1 1 0; min-width: 0; width: auto; }
+    .pa-rythme .sq-outils > .sq-rythme { flex: 3 1 0; min-width: 0; display: flex; gap: 6px; }
+    .pa-rythme .sq-outils > .sq-rythme > .icon-btn { flex: 1 1 0; min-width: 0; width: auto; }
+    .pa-rythme .sequenceur.sans-noms-rythmes .sq-motifs { width: 100%; flex-wrap: nowrap; overflow-x: visible; justify-content: space-between; }
+    .pa-rythme .sequenceur.sans-noms-rythmes .sq-motifs > .sq-motif:not(#sq-forme-enregistrer) { flex: 1 1 0; min-width: 0; justify-content: center; gap: 0; padding: 0 4px; }
+    .pa-rythme .sequenceur.sans-noms-rythmes .sq-motifs > #sq-forme-enregistrer { flex: none; }
+}

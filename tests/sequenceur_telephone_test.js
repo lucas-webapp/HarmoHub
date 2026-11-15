@@ -112,10 +112,11 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
     });
     // PLEIN ÉCRAN (12/11, « sur portable, il serait peut-être plus simple de l'afficher en plein écran » ; « je ne vois pas beaucoup de barres ») : « Toute la partie » (le choix de
     // l'appareil, enfoncé d'office) montre TOUS les accords, qu'on fait défiler de côté ; « Cet accord » le seul accord du panneau. Avant, le choix était affiché mais sans effet au téléphone.
-    check(vue.n === 128 && vue.lignes === 4, `toute la partie : quatre accords × quatre lignes × huit croches (${vue.n} cases, ${vue.lignes} lignes)`);
+    // L7c (15/11) : le séquenceur ne défile plus sur toute la partie ; il montre la PAGE de la ligne de la grille de l'accord choisi, de ⌊(largeur − 56) / 240⌋ mesures (une à 390 px).
+    check(vue.n === 32 && vue.lignes === 4, `la page à 390 px : un accord × quatre lignes × huit croches (${vue.n} cases, ${vue.lignes} lignes)`);
     check(vue.h === 40, `des lignes de 40 px de haut, pour voir plus de voix (${vue.h}, elles étaient à 44)`);
     check(!vue.poignee && !vue.fermer && vue.nom, 'ni poignée de hauteur ni ×, mais les noms d\'accords sont de retour : ils disent quel accord est où');
-    check(vue.deborde > 0 && vue.droite <= 390, `la partie dépasse l'écran, la grille défile de côté (débord ${vue.deborde} px) ; les huit croches de l'accord du panneau tiennent dans la largeur (bord droit ${vue.droite})`);
+    check(vue.deborde <= 1 && vue.droite <= 390, `la page tient dans la largeur, sans défilement de côté (débord ${vue.deborde} px) ; les huit croches de l'accord du panneau tiennent (bord droit ${vue.droite})`);
     await toucher(p, '#sq-portee-accord');
     check(await p.evaluate(() => document.querySelectorAll('#sq-grille .sq-case[data-r]').length) === 32, '« Cet accord » : le seul accord du panneau, quatre lignes × huit croches (32 cases)');
     await toucher(p, '#sq-portee-partie');
@@ -162,17 +163,21 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
     e = await etat(p);
     const vers = () => p.evaluate(() => ({ sl: Math.round(document.getElementById('sq-grille').scrollLeft), choisi: (document.querySelector('#sq-grille .sq-nom.choisi') || {}).dataset ? document.querySelector('#sq-grille .sq-nom.choisi').dataset.c : null }));
     let ve = await vers();
-    check(JSON.stringify(e.sur) === '[0,1]' && e.rythme && e.colonnes === '0,1,2,3' && ve.choisi === '1' && ve.sl > 100, `› passe à l'accord suivant, toujours sur Rythme : la partie reste à l'écran, défilée jusqu'à lui (${JSON.stringify(e.sur)}, colonne choisie ${ve.choisi}, défilement ${ve.sl} px)`);
+    // L7c : à 390 px le séquenceur montre une PAGE d'une mesure (⌊(largeur − 56) / 240⌋ = 1) : › tourne la page, plus de défilement de côté sur toute la partie.
+    check(JSON.stringify(e.sur) === '[0,1]' && e.rythme && e.colonnes === '1' && ve.choisi === '1' && ve.sl === 0, `› passe à l'accord suivant, toujours sur Rythme : la page tourne, sa mesure est seule à l'écran (${JSON.stringify(e.sur)}, colonnes ${e.colonnes}, colonne choisie ${ve.choisi}, défilement ${ve.sl} px)`);
     check(await p.evaluate(() => window.app.selectedIndex) === 1, 'la sélection de la grille suit');
     await toucher(p, '#pa-quel [data-bulle="prec"]', 500);
     e = await etat(p);
     ve = await vers();
-    check(JSON.stringify(e.sur) === '[0,0]' && ve.choisi === '0' && ve.sl === 0, '‹ revient au premier accord, la grille revient avec lui');
-    // Le séquenceur couvre la grille (plein écran) : on change d'accord en touchant son NOM dans la grille de croches, et le panneau l'y suit.
+    check(JSON.stringify(e.sur) === '[0,0]' && e.colonnes === '0' && ve.choisi === '0' && ve.sl === 0, '‹ revient au premier accord, la grille revient avec lui');
+    // Le séquenceur couvre la grille (plein écran) : on change d'accord en touchant son NOM dans la grille de croches, et le panneau l'y suit. L7c : à 390 px un seul nom est à l'écran, le geste
+    // se joue donc sur une tablette de 820 px (trois mesures par page : [1 2 3]) ; le téléphone reprend ensuite sa largeur, la page tournée sur l'accord 3.
+    await p.setViewportSize({ width: 820, height: 900 }); await p.waitForTimeout(700);
     await toucher(p, '#sq-grille .sq-nom[data-c="2"]', 600);
     e = await etat(p);
     ve = await vers();
-    check(JSON.stringify(e.sur) === '[0,2]' && e.rythme && e.colonnes === '0,1,2,3' && ve.choisi === '2', `toucher le nom d'un autre accord : le panneau l'y suit, sur Rythme (${JSON.stringify(e.sur)}, ${e.rythme}, colonne choisie ${ve.choisi})`);
+    check(JSON.stringify(e.sur) === '[0,2]' && e.rythme && e.colonnes === '0,1,2' && ve.choisi === '2', `toucher le nom d'un autre accord de la page : le panneau l'y suit, sur Rythme (${JSON.stringify(e.sur)}, ${e.rythme}, colonnes ${e.colonnes}, colonne choisie ${ve.choisi})`);
+    await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(700);
 
     console.log('\n=== F. Le glissé peint d\'une seule annulation ===');
     await toucher(p, '#sq-effacer');
@@ -238,7 +243,7 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
         return { n: cases.length, deborde: g.scrollWidth - g.clientWidth, droite: Math.round(cases.filter(x => x.dataset.c === '0').pop().getBoundingClientRect().right), page: document.documentElement.scrollWidth };
     });
     // Plein écran (13/11) : toute la partie est montrée, la GRILLE défile de côté (jamais la page), et les huit croches du premier accord tiennent à 320 px.
-    check(etroit.n === 128 && etroit.deborde > 0 && etroit.droite <= 320 && etroit.page <= 320, `à 320 px, les huit croches du premier accord tiennent, la grille défile de côté et la page non (${etroit.droite}, page ${etroit.page}, grille +${etroit.deborde})`);
+    check(etroit.n === 32 && etroit.deborde <= 1 && etroit.droite <= 320 && etroit.page <= 320, `à 320 px (L7c : une mesure par page), les huit croches du premier accord tiennent, ni la grille ni la page ne défilent de côté (${etroit.droite}, page ${etroit.page}, grille +${etroit.deborde})`);
     await ctx.close();
 
     console.log('\n=== K. L\'ordinateur ===');
