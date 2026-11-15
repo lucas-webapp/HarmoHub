@@ -7700,3 +7700,17 @@ body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
     #sq-grille .sq-libre-btn { position: sticky; left: 0; top: 23px; z-index: 7; width: 100%; margin: 0; }
     #sq-grille .sq-case.dans-boucle { background-image: none; }
 }
+
+
+/* ============================================================================================================================================================
+   L6bis (suite, 15/11) — GAGNER DE LA HAUTEUR : « Lorsque j'ai la place, je pense que ça peut être intéressant de gagner un peu de place en hauteur. Tu pourrais placer le mot couplet et le nombre
+   de mesures sur la gauche. […] Dans ce cas [pas la place], il faut les remettre au-dessus. Je pense qu'on peut faire un test, le problème est souvent le manque de place verticalement. » (l'utilisateur,
+   sur l'artefact). TEST : à partir de 1400 px de fenêtre, l'en-tête d'une partie passe à gauche de ses accords (nom au-dessus du nombre de mesures, ⋯ à droite du nom) ; en dessous, il reste au-dessus.
+   ============================================================================================================================================================ */
+/* Le nom et le nombre de mesures vont dans la MARGE de gauche du cadre de la grille (rien ne bouge dans la grille) ; la classe est posée par suivreEntetesGauche (script.js) seulement s'il y a
+   la place à gauche du cadre (au moins 200 px) : le cadre élargi jusqu'au bord, ou une fenêtre étroite, remet l'en-tête au-dessus. */
+body.entetes-gauche #progression-sections .prog-section { position: relative; }
+body.entetes-gauche #progression-sections .prog-section-head { position: absolute; right: calc(100% + 14px); top: 0; width: 176px; min-height: 0; flex-wrap: wrap; align-content: flex-start; align-items: flex-start; gap: 4px 6px; }
+body.entetes-gauche #progression-sections .psh-nom { flex-direction: column; align-items: flex-start; gap: 2px; flex: 1 1 0; min-width: 0; }
+body.entetes-gauche #progression-sections .psh-nom .prog-title { width: 100%; }
+body.entetes-gauche #progression-sections .prog-section-menu { margin-left: 0; }

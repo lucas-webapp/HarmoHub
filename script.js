@@ -4228,6 +4228,7 @@ class HarmoHubApp {
         this.setupBarreMorceau(); // la barre du haut (ordinateur) : titre + menu du morceau, Enregistrer et son voyant
         this.setupMenuPartie(); // le menu ⋯ des en-têtes de partie (lot 5c)
         this.setupMenuGrilleVide(); // L5b : le clic droit dans le vide de la grille
+        this.suivreEntetesGauche(); // L6bis : nom et mesures d'une partie à gauche du cadre quand il y a la place
         this.setupAjoutClic(); // L6c : le double-clic sur le « + » du bout d'une partie
         this.setupRangeeReglages(); // Tonalité, Mesure, Swing, Son, Transposer au-dessus de la grille (lot 6a)
         this.placerSubdivisionMetronome();
@@ -10441,6 +10442,20 @@ class HarmoHubApp {
     // « Ordinateur : double-clic sur le « + » du bout d'une partie = fenêtre d'ajout au clic » : fenêtre de 404 px dans le style de la bulle d'accord (titre « Ajouter à Couplet », fondamentale
     // en 12 notes, type en boutons issus de #quality, « Ajouter » neutre, pas vert), ancrée sous la case « + », qui reste ouverte pour enchaîner ; l'accord est posé par
     // addChordInputToSection(section, racine + QUALITY_LABEL[type]). Un clic simple sur le « + » reste un champ où l'on tape.
+    // TEST (15/11, l'utilisateur : « gagner un peu de place en hauteur : le mot couplet et le nombre de mesures sur la gauche ; s'il n'y a pas la place, au-dessus ») : l'en-tête de chaque partie passe
+    // dans la marge à gauche du cadre de la grille quand elle fait au moins 200 px (ordinateur, fenêtre d'au moins 1500 px) ; il revient au-dessus sinon (cadre élargi jusqu'au bord, fenêtre étroite).
+    suivreEntetesGauche() {
+        const poser = () => {
+            const cadre = document.getElementById('grille-cadre');
+            const place = !!cadre && window.matchMedia('(min-width: 1500px)').matches && cadre.getBoundingClientRect().left >= 200;
+            if (document.body.classList.contains('entetes-gauche') !== place) document.body.classList.toggle('entetes-gauche', place);
+        };
+        window.addEventListener('resize', poser);
+        const cadre = document.getElementById('grille-cadre');
+        if (cadre && window.ResizeObserver) new ResizeObserver(poser).observe(cadre);
+        poser();
+    }
+
     setupAjoutClic() {
         const f = document.getElementById('ajout-clic');
         if (!f) return; // index.html servi depuis un cache plus ancien
