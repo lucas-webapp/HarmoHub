@@ -12,7 +12,7 @@ Mis à jour le 14/11/2026 (fin de L8 livrée : noms des notes du manche de dessi
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
-**Prochaine étape : le lot L1** (séquenceur : tailles, lignes, repère), **puis L2 → L7** dans l'ordre, d'après l'aperçu validé le 14/11 (« ces artefacts me conviennent aujourd'hui […] on le modifiera directement dans le code de l'appli si besoin »). **L8 est terminé.** Question en attente de l'utilisateur : une décision de conception à lui faire valider — déverrouiller le cadenas n'efface PAS un doigté de « Mes doigtés » (sinon libérer le cadenas pour retrouver l'ordre calculé détruirait le favori) ; le retrait se fait par le « × » de la popover des doigtés (deux appuis).
+**Prochaine étape : le lot L1** (séquenceur : tailles, lignes, repère), **puis L2 → L7** dans l'ordre, d'après l'aperçu validé le 14/11 (« ces artefacts me conviennent aujourd'hui […] on le modifiera directement dans le code de l'appli si besoin »). **L8 est terminé.** Question en attente de l'utilisateur : aucune. **Validé le 15/11** (« Oui, ça me convient pour le cadenas ») : déverrouiller le cadenas n'efface PAS un doigté de « Mes doigtés » ; le retrait se fait par le « × » de la popover des doigtés (deux appuis).
 
 **Commandes (`.claude/commands/`, versionnées)** : `/reprise` (relire cet état et continuer), `/silencieux` (travailler sans rien dire entre deux étapes, UNE réponse de 5 phrases à la fin : économie de tokens), `/commentaires` (lire TOUS les commentaires de l'artefact d'un coup, tout traiter, republier une fois). L'utilisateur fait des `/clear` + `/reprise` de temps en temps ; il peut passer des semaines entre deux lots.
 
