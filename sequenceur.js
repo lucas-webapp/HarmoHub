@@ -88,6 +88,9 @@
     const midiDe = (note, octave) => NOMS_LIBRES.indexOf(note) + 12 * (octave + 1);
     const noteDe = (midi) => ({ note: NOMS_LIBRES[((midi % 12) + 12) % 12], octave: Math.floor(midi / 12) - 1 });
     const APPUI_LONG_MS = 380; // l'appui long au doigt : menu de la note, ou début d'un trait peint
+    // VUE PIANO (L6bis, 15/11) : de vraies lignes de demi-tons sur une fenêtre BORNÉE autour des notes de la partie — de 5 demi-tons sous la plus grave à une octave au-dessus de la plus aiguë, jamais
+    // hors de C2-C7 — et douze lignes visibles au départ (le reste défile dans la grille). « Je ne peux pas tâtonner pour trouver une note aiguë qui n'est pas encore jouée ailleurs » (l'utilisateur).
+    const PIANO_MIN = 36, PIANO_MAX = 96, PIANO_SOUS = 5, PIANO_AU_DESSUS = 12, VISIBLES_PIANO = 12;
     const GRILLE_MIN = 40; // ce que la poignée laisse au moins à la grille au-dessus (l'en-tête de partie reste lisible)
 
     const cle = (v, k) => v + ':' + k;
@@ -504,6 +507,7 @@
             this.croche = borner(isNaN(w) ? CROCHE_DEFAUT : w, CROCHE_MIN, CROCHE_MAX);
             // Nombre de lignes montrées (« je préfère pouvoir voir plus de notes ») : 0 = toutes. Les barres gardent leur hauteur ; la poignée du haut change ce nombre.
             this._visibles = 0;
+            this._visParVue = { voix: 0, notes: 0 };   // le nombre de lignes visibles se retient PAR VUE (douze lignes de piano ne doivent pas écraser les quatre voix)
             const contenu = lireLocal(CLE_CONTENU);
             this.contenu = contenu === 'rien' || contenu === 'degres' ? contenu : 'notes';
             this.regle = lireLocal(CLE_REGLE) !== '0';
@@ -648,7 +652,13 @@
                 // « TOUTES LES NOTES » (planche 2) : seulement les hauteurs utilisées par la partie (jamais 60 lignes), de la plus aiguë à la plus grave.
                 const toutes = new Set(midisLibres);
                 etats.forEach(e => e.info.voix.forEach(x => toutes.add(x.midi)));
-                [...toutes].sort((a, b) => b - a).forEach(midi => lignes.push({ type: 'hauteur', midi }));
+                const utilisees = [...toutes].sort((a, b) => b - a);
+                if (this.pianoLarge()) {
+                    // VUE PIANO (L6bis) : TOUS les demi-tons de la fenêtre, de l'aigu au grave ; les lignes que la partie utilise sont repérées (`utilisee`), les autres sont libres pour tâtonner.
+                    const haut = Math.max(utilisees[0], Math.min(PIANO_MAX, utilisees[0] + PIANO_AU_DESSUS));
+                    const bas = Math.min(utilisees[utilisees.length - 1], Math.max(PIANO_MIN, utilisees[utilisees.length - 1] - PIANO_SOUS));
+                    for (let m = haut; m >= bas; m--) lignes.push({ type: 'hauteur', midi: m, utilisee: toutes.has(m) });
+                } else utilisees.forEach(midi => lignes.push({ type: 'hauteur', midi }));
             } else {
                 // Lignes de haut en bas : notes libres (en pointillés), puis les voix de l'aiguë à la basse. Un accord plus pauvre que le plus riche de
                 // la partie laisse ses lignes du haut vides (cahier : « vides, sans hachures »).
@@ -741,7 +751,10 @@
                 const diese = L.type === 'voix' ? /[#♯♭b]/.test(nomSel.replace(/^[A-G]/, '').replace(/-?\d+$/, '')) : [1, 3, 6, 8, 10].includes(((L.midi % 12) + 12) % 12);
                 const retirer = L.type === 'libre'
                     ? `<button type="button" class="sq-libre-retirer" data-midi="${L.midi}" aria-label="Retirer la note libre ${escapeHtml(nomSel)}" title="Retirer la note libre ${escapeHtml(nomSel)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : '';
-                html.push(`<div class="sq-etiq${diese ? ' diese' : ''}${L.type === 'libre' ? ' libre' : ''}" style="grid-row:${row};grid-column:1">${retirer}${escapeHtml(nomSel)}</div>`);
+                // Vue Piano : l'étiquette est une TOUCHE qu'on joue (data-midi : un clic la fait entendre), les Do sont marqués, les lignes que la partie n'utilise pas sont plus discrètes.
+                const touche = L.type === 'hauteur' && this.pianoLarge();
+                const cl = `${diese ? ' diese' : ''}${L.type === 'libre' ? ' libre' : ''}${touche ? ` touche${L.utilisee ? ' utilisee' : ''}${((L.midi % 12) + 12) % 12 === 0 ? ' do' : ''}` : ''}`;
+                html.push(`<div class="sq-etiq${cl}" style="grid-row:${row};grid-column:1"${touche ? ` data-midi="${L.midi}" title="Jouer ${escapeHtml(nomSel)}"` : ''}>${retirer}${escapeHtml(nomSel)}</div>`);
                 montres.forEach((c) => {
                     const d = accords[c];
                     const e = etats[c], v = voixLigne(e, L), col = colDebut[c];
@@ -785,6 +798,7 @@
             });
             if (poigneeLargeur) html.push(`<div class="sq-poignee-largeur" role="separator" aria-orientation="vertical" aria-label="Largeur des croches du séquenceur" title="Tirer pour élargir ou resserrer les croches — double-clic : largeur d'origine (${CROCHE_DEFAUT} px)" style="grid-row:3 / span ${lignes.length};grid-column:${piste}"></div>`);
             const defile = this.grille.scrollLeft; // le défilement de côté survit aux rendus (poser une croche redessine toute la grille)
+            const defileV = this.grille.scrollTop; // idem pour le défilement vertical de la vue Piano
             this.grille.innerHTML = html.join('');
             this._colDebut = colDebut;
             if (this.modeTel()) {
@@ -802,10 +816,26 @@
             if (this.auto && !this.modeTel()) this.poserLigne();   // le nombre de lignes vient d'être connu
             this.majNomsRythmes();
             this.limiterHauteur();
+            if (this.pianoLarge()) {
+                // Une autre ligne de la grille ou une autre partie : la grille d'une douzaine de lignes se pose sur la note la plus aiguë utilisée (une ligne d'air au-dessus). Un simple redessin
+                // (poser une croche) garde la place où l'on était.
+                const cleDefile = `${s}|${montres.join()}`;
+                if (cleDefile !== this._cleDefilePiano) { this._cleDefilePiano = cleDefile; this.amenerPianoSurLesNotes(); }
+                // Même ligne : on garde la place. Si la fenêtre s'est agrandie vers l'aigu (une note posée tout en haut), les lignes d'avant descendent d'autant : on suit, pour que ce qu'on
+                // regarde ne saute pas.
+                else if (this.grille.style.overflowY === 'auto') this.grille.scrollTop = Math.max(0, defileV + (lignes[0].midi - (this._pianoHaut != null ? this._pianoHaut : lignes[0].midi)) * (this.ligne + 3));
+                this._pianoHaut = lignes[0].midi;
+            }
             this.majLigne();
             this.majTrait();
             this.placerReglages();
             this.ajusterBarre();
+        }
+
+        amenerPianoSurLesNotes() {
+            const g = this.grille, premiere = g.querySelector('.sq-case[data-r="0"]'), cible = g.querySelector('.sq-etiq.utilisee');
+            if (!premiere || !cible || g.style.overflowY !== 'auto') return;
+            g.scrollTop = Math.max(0, cible.offsetTop - premiere.offsetTop - (this.ligne + 3));
         }
 
         // La barre d'outils reste sur UNE ligne (L3) : quand les rythmes de l'utilisateur la font déborder, on serre d'abord (les noms disparaissent), puis les dernières formes
@@ -983,6 +1013,19 @@
             const hL = lecture ? lecture.getBoundingClientRect().height : 0;
             return Math.max(120, window.innerHeight - yHaut - hT - hL - GRILLE_MIN);
         }
+        // Voix | Piano : le réglage « lignes visibles » (poignée du haut) est retenu pour CHAQUE vue.
+        changerVue(v) {
+            if (this._visParVue) this._visParVue[this.vue] = this._visibles;
+            this.vue = v;
+            ecrireLocal(CLE_VUE, v);
+            this._visibles = (this._visParVue && this._visParVue[v]) || 0;
+            this._cleDefilePiano = null;   // on revient en Piano : la grille se repose sur les notes jouées
+            this.rafraichir();
+        }
+        // La vue Piano a ses lignes de demi-tons à l'ordinateur seulement : au téléphone elle garde « seulement les hauteurs utilisées » (rien n'y change avant L7).
+        pianoLarge() { return this.vue === 'notes' && !this.modeTel(); }
+        // Nombre de lignes visibles : le réglage de la poignée, sinon douze en vue Piano, sinon tout.
+        visiblesEffectives(nb) { return this._visibles || (this.pianoLarge() ? Math.min(VISIBLES_PIANO, nb) : nb); }
         limiterHauteur() {
             if (!this.estOuvert()) return;
             this.appliquerVisibles();
@@ -1012,9 +1055,10 @@
             const g = this.grille, nb = (this._lignes || []).length;
             if (!g) return;
             const c = g.querySelector('.sq-case[data-r]');
-            if (this.modeTel() || !this._visibles || this._visibles >= nb || !c) { g.style.maxHeight = ''; g.style.overflowY = ''; return; }
+            const vis = this.visiblesEffectives(nb);
+            if (this.modeTel() || !vis || vis >= nb || !c) { g.style.maxHeight = ''; g.style.overflowY = ''; return; }
             const haut = c.offsetTop - g.offsetTop;   // ce qui précède la première ligne de notes : noms d'accords et règle
-            g.style.maxHeight = Math.round(haut + this._visibles * (this.ligne + 3)) + 'px';   // 3 px = l'écart entre deux lignes (row-gap)
+            g.style.maxHeight = Math.round(haut + vis * (this.ligne + 3)) + 'px';   // 3 px = l'écart entre deux lignes (row-gap)
             g.style.overflowY = 'auto';
         }
 
@@ -1210,8 +1254,8 @@
             switch (b.id) {
                 case 'sq-portee-partie': this.portee = 'partie'; ecrireLocal(CLE_PORTEE, 'partie'); this.rafraichir(); break;
                 case 'sq-portee-accord': this.portee = 'accord'; ecrireLocal(CLE_PORTEE, 'accord'); this.rafraichir(); break;
-                case 'sq-vue-voix': this.vue = 'voix'; ecrireLocal(CLE_VUE, 'voix'); this.rafraichir(); break;
-                case 'sq-vue-notes': this.vue = 'notes'; ecrireLocal(CLE_VUE, 'notes'); this.rafraichir(); break;
+                case 'sq-vue-voix': this.changerVue('voix'); break;
+                case 'sq-vue-notes': this.changerVue('notes'); break;
                 case 'sq-intensite': this.intensite = !this.intensite; this.rafraichir(); break;
                 case 'sq-dessin': this.basculerDessin(); break;
                 case 'sq-copier': this.copier(); break;
@@ -1745,6 +1789,15 @@
                 this._geste = { type: 'boucle', c0: c, c1: c, bouge: false };
                 return;
             }
+            const touche = t.closest('.sq-etiq[data-midi]');
+            if (touche) {
+                // Une touche du piano : on l'entend (avec l'accord choisi, ou le premier montré), sans rien écrire.
+                e.preventDefault();
+                this.jouerNote(this._i != null ? this._i : (this._montres[0] || 0), +touche.dataset.midi, 'normal');
+                touche.classList.add('jouee');
+                setTimeout(() => touche.classList.remove('jouee'), 220);
+                return;
+            }
             const nom = t.closest('.sq-nom');
             if (nom) {
                 e.preventDefault();
@@ -2196,7 +2249,7 @@
                 p.setPointerCapture(e.pointerId);
                 p.classList.add('tire'); // L5b : la languette reste bleue pendant qu'on tire (poignées unifiées)
                 const nb = Math.max(1, (this._lignes || []).length);
-                const depart = { y: e.clientY, vis: Math.min(this._visibles || nb, nb), haut: this.racine.getBoundingClientRect().height };
+                const depart = { y: e.clientY, vis: Math.min(this.visiblesEffectives(nb), nb), haut: this.racine.getBoundingClientRect().height };
                 const bouger = (ev) => {
                     // 13/11 (« je préfère pouvoir voir plus de notes ») : la poignée ne change plus la hauteur des barres, elle change le NOMBRE de lignes visibles. Vers le haut = plus
                     // de lignes. Jamais plus que la place libre : la poignée s'arrête avant que rien ne passe sous la barre du haut.
@@ -2267,7 +2320,7 @@
 
         // « Auto » (roue des réglages) : la zone des notes vaut environ 32 % de la hauteur de la fenêtre (moins 60 px) répartie sur les lignes, de LIGNE_MIN à LIGNE_MAX :
         // quatre lignes en vue Accord = barres hautes, douze en vue Piano = barres basses.
-        hauteurAuto() { const nb = Math.max(1, (this._lignes || []).length || 4); return borner(Math.round((window.innerHeight * 0.32 - 60) / nb), LIGNE_MIN, LIGNE_MAX); }
+        hauteurAuto() { const nb = Math.max(1, Math.min((this._lignes || []).length || 4, this.pianoLarge() ? VISIBLES_PIANO : 1e9)); return borner(Math.round((window.innerHeight * 0.32 - 60) / nb), LIGNE_MIN, LIGNE_MAX); }
         // Les noms de notes disparaissent des cases sous ~24 px de haut (cahier 3 bis) : ils n'y tiendraient plus.
         // Au téléphone, des lignes de 44 px, la jauge du doigt (maquette `Telephone.dc.html`) : pas de poignée.
         poserLigne() {

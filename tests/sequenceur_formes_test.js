@@ -17,7 +17,7 @@ const { check, exiger, plan, bilan } = require('./_harness')('séquenceur : form
 const { estBruitReseau } = require('./_harness');
 const { creerNuage, installer } = require('./_firebase_faux');
 
-plan(75);
+plan(76);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const DOC = 'users/u1/apps/harmohub-formes';
@@ -306,13 +306,17 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     await cliquer(p, '#sq-grille .sq-nom[data-c="0"]');
     check(await presse(p, '#sq-vue-voix') === 'true' && await presse(p, '#sq-vue-notes') === 'false', 'la vue « Voix » est celle de départ (groupe segmenté Voix / Toutes les notes)');
     await cliquer(p, '#sq-vue-notes');
+    // L6bis : la vue Piano a de VRAIS demi-tons — de cinq sous la plus grave à une octave au-dessus de la plus aiguë (C2-C7 au plus) — et repère les hauteurs que la partie utilise.
     const hauteurs = await p.evaluate(() => {
         const t = new Set();
         loadProgressionSections()[0].chords.forEach(d => SequenceurHarmo.voixDe(d).voix.forEach(x => t.add(x.midi)));
-        return [...t].sort((a, b) => b - a).map(m => midiToDisplayName(m, false));
+        const u = [...t].sort((a, b) => b - a), haut = Math.min(96, u[0] + 12), bas = Math.max(36, u[u.length - 1] - 5), toutes = [];
+        for (let m = Math.max(haut, u[0]); m >= Math.min(bas, u[u.length - 1]); m--) toutes.push(midiToDisplayName(m, false));
+        return { toutes, utilisees: u.map(m => midiToDisplayName(m, false)) };
     });
     const etiqN = await etiquettes(p);
-    check(JSON.stringify(etiqN) === JSON.stringify(hauteurs) && etiqN.length < 20, 'une ligne par hauteur UTILISÉE par la partie, de la plus aiguë à la plus grave (pas 60 lignes)');
+    check(JSON.stringify(etiqN) === JSON.stringify(hauteurs.toutes) && etiqN.length < 60, `vue Piano : tous les demi-tons de la fenêtre, de la plus aiguë à la plus grave (${etiqN.length} lignes, jamais 60)`);
+    check(JSON.stringify(await p.evaluate(() => [...document.querySelectorAll('#sq-grille .sq-etiq.utilisee')].map(x => x.textContent.trim()))) === JSON.stringify(hauteurs.utilisees), 'les lignes que la partie utilise sont repérées, les autres sont libres');
     const rA3 = etiqN.indexOf('A3');
     exiger(rA3 >= 0, 'A3 (dans Am7 et Dm7) est une des lignes');
     check(await p.evaluate((r) => !document.querySelector(`#sq-grille .sq-case[data-c="0"][data-r="${r}"][data-k="0"]`).dataset.v, rA3), 'sur Cmaj7, qui n\'a pas de A3, la case est vide mais cliquable');

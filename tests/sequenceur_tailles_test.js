@@ -125,25 +125,27 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
     m = await mesures(p);
     const nb = m.nLignes;
     exiger(nb >= 6, `la vue « Toutes les notes » montre plusieurs lignes (${nb}) : de quoi en cacher`);
-    check(m.maxHauteur === '' && !m.defile, 'au départ, toutes les lignes sont visibles (rien ne défile)');
+    // L6bis : la vue Piano est faite de TOUS les demi-tons d'une fenêtre (37 lignes ici) ; elle en montre douze au départ, le reste défile dans la grille.
+    const visiblesDepart = await p.evaluate(() => window.app.sequenceur.visiblesEffectives(window.app.sequenceur._lignes.length));
+    check(m.maxHauteur !== '' && m.defile && visiblesDepart === 12, `au départ, douze lignes sont visibles et la grille défile pour le reste (${visiblesDepart} sur ${nb})`);
     const haut0 = m.grille.h;
     const pas = 26 + 3;   // une ligne + l'écart entre deux lignes
     let q = await centre(p, '#sq-poignee');
     await glisser(p, q, { x: q.x, y: q.y + 3 * pas });
     m = await mesures(p);
-    check(await p.evaluate(() => window.app.sequenceur._visibles) === nb - 3, `tirée de trois lignes vers le bas : ${nb - 3} lignes visibles`);
+    check(await p.evaluate(() => window.app.sequenceur._visibles) === 12 - 3, `tirée de trois lignes vers le bas : ${12 - 3} lignes visibles`);
     check(Math.abs((haut0 - m.grille.h) - 3 * pas) <= 3, `la grille a perdu trois lignes de hauteur (${Math.round(haut0 - m.grille.h)} px pour ${3 * pas})`);
     check(m.barre === 26 && m.defile, 'les barres gardent leur hauteur de 26 px, et la grille défile pour le reste');
     q = await centre(p, '#sq-poignee');
     await glisser(p, q, { x: q.x, y: q.y - 8 * pas });
     m = await mesures(p);
-    check(m.maxHauteur === '' && !m.defile, 'tirée vers le haut, elle ramène toutes les lignes (jamais plus que ce qui existe)');
+    check(await p.evaluate(() => window.app.sequenceur._visibles) > 12 - 3 && m.defile, 'tirée vers le haut, elle montre plus de lignes (jamais plus que la place libre : la grille défile pour le reste)');
     q = await centre(p, '#sq-poignee');
     await glisser(p, q, { x: q.x, y: q.y + 2 * pas });
     q = await centre(p, '#sq-poignee');
     await p.mouse.dblclick(q.x, q.y); await p.waitForTimeout(250);
     m = await mesures(p);
-    check(m.maxHauteur === '' && !m.defile && m.barre === 26, 'double-clic sur la poignée : toutes les lignes sont visibles');
+    check(await p.evaluate(() => window.app.sequenceur._visibles) === 0 && await p.evaluate(() => window.app.sequenceur.visiblesEffectives(window.app.sequenceur._lignes.length)) === 12 && m.barre === 26, 'double-clic sur la poignée : retour au réglage d\'origine (douze lignes en vue Piano)');
     check(await p.evaluate(() => { const r = document.getElementById('sequenceur').getBoundingClientRect(), t = document.querySelector('.top-bar').getBoundingClientRect(); return r.top >= t.bottom - 1; }), 'le séquenceur ne passe jamais sous la barre du haut');
     await p.close(); await ctx.close();
 

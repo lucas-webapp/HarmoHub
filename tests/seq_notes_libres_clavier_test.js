@@ -65,13 +65,19 @@ const prep = async (p, chords) => {
         const utilisees = new Set(); sec.chords.forEach(d => SequenceurHarmo.voixDe(d).voix.forEach(x => utilisees.add(x.midi)));
         const lignes = new Set([...document.querySelectorAll('#sq-grille .sq-case[data-r]')].map(x => x.dataset.r)).size;
         const etiq = [...document.querySelectorAll('#sq-grille .sq-etiq')].filter(e => e.textContent.trim()).map(e => ({ diese: e.classList.contains('diese'), fond: getComputedStyle(e).backgroundColor }));
-        return { lignes, utilisees: utilisees.size, etiq };
+        return { lignes, utilisees: utilisees.size, marquees: document.querySelectorAll('#sq-grille .sq-etiq.utilisee').length, etiq };
     });
-    check(toutes.lignes === toutes.utilisees, `« Toutes les notes » : une ligne par hauteur utilisée par la partie (${toutes.lignes} lignes, ${toutes.utilisees} hauteurs)`);
+    // L6bis : la vue Piano a TOUS les demi-tons d'une fenêtre autour de la partie ; les hauteurs qu'elle utilise sont repérées (`utilisee`).
+    check(toutes.lignes > toutes.utilisees && toutes.marquees === toutes.utilisees, `« Toutes les notes » : tous les demi-tons de la fenêtre, les hauteurs utilisées par la partie repérées (${toutes.lignes} lignes, ${toutes.marquees} repérées sur ${toutes.utilisees} hauteurs)`);
     const clair = (c) => { const m = c.match(/\d+/g).map(Number); return (m[0] + m[1] + m[2]) / 3 > 150; };
     check(toutes.etiq.some(e => e.diese) === toutes.etiq.some(e => !clair(e.fond)) && toutes.etiq.filter(e => !e.diese).every(e => clair(e.fond)), 'les étiquettes sont dessinées comme des touches de piano (naturelles claires, dièses sombres)');
     // Une case d'une hauteur que l'accord n'a pas : y poser une croche ajoute la note (une note libre).
-    const vide = await p.evaluate(() => { const c = document.querySelector('#sq-grille .sq-case[data-r][data-c="1"]:not([data-v])'); return c ? { r: c.dataset.r, k: c.dataset.k } : null; });
+    // (la grille défile en vue Piano : on vise une case VIDE qui est à l'écran, dans la zone visible de la grille)
+    const vide = await p.evaluate(() => {
+        const g = document.getElementById('sq-grille').getBoundingClientRect();
+        const c = [...document.querySelectorAll('#sq-grille .sq-case[data-r][data-c="1"]:not([data-v])')].find(x => { const r = x.getBoundingClientRect(); return r.top >= g.top + 60 && r.bottom <= g.bottom - 2; });
+        return c ? { r: c.dataset.r, k: c.dataset.k } : null;
+    });
     check(!!vide, 'une hauteur que l\'accord du milieu ne porte pas est bien proposée');
     if (!vide) { await browser.close(); process.exit(1); }
     await R.cliquer(p, `#sq-grille .sq-case[data-c="1"][data-r="${vide.r}"][data-k="${vide.k}"]`, 400);
@@ -89,7 +95,7 @@ const prep = async (p, chords) => {
     await R.cliquer(g, '#sq-vue-notes', 300);
     const dt = Date.now() - t0;
     const large = await g.evaluate(() => { const s = document.getElementById('sequenceur'), b = document.getElementById('barre-lecture').getBoundingClientRect(); return { lignes: new Set([...document.querySelectorAll('#sq-grille .sq-case[data-r]')].map(x => x.dataset.r)).size, bas: Math.round(s.getBoundingClientRect().bottom), barre: Math.round(b.top), defile: getComputedStyle(s).overflowY }; });
-    check(large.lignes > 6 && large.lignes < 40, `l'étendue la plus large reste dans un ordre de grandeur raisonnable — ${large.lignes} lignes (les hauteurs utilisées seulement)`);
+    check(large.lignes > 6 && large.lignes < 100, `l'étendue la plus large reste dans un ordre de grandeur raisonnable — ${large.lignes} lignes (les demi-tons de la fenêtre : de la plus grave à la plus aiguë, plus une octave)`);
     check(dt < 5000, `et se rend sans peiner — ${dt}ms`);
     check(large.bas <= large.barre + 1 && large.defile === 'auto', `ce qui dépasse en hauteur défile dans le séquenceur, rien ne passe sous la barre de lecture (${large.bas} ≤ ${large.barre})`);
     check(await g.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'et rien ne déborde de la page en largeur');
