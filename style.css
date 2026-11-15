@@ -7689,13 +7689,12 @@ body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
    ============================================================================================================================================================ */
 .sq-coin { display: none; }
 @media (min-width: 900px) {
-    #sq-grille .sq-nom { position: sticky; top: 0; z-index: 5; height: 20px; box-sizing: border-box; background: rgb(17, 18, 20); }
+    #sq-grille .sq-nom { position: sticky; top: 0; z-index: 5; height: 20px; box-sizing: border-box; background: rgb(17, 18, 20); box-shadow: 0 3px 0 rgb(17, 18, 20); }   /* l'ombre pleine bouche l'écart de 3 px sous les noms : « je vois l'arrière-plan défiler » */
     #sq-grille .sq-temps { position: sticky; top: 23px; z-index: 5; background: rgb(17, 18, 20); box-shadow: 0 3px 0 rgb(17, 18, 20); }   /* l'ombre pleine bouche l'écart de 3 px sous la règle : rien ne s'y voit défiler */
     #sq-grille .sq-boucle { position: sticky; top: 23px; z-index: 6; border-color: rgba(255, 179, 0, 0.55); background: linear-gradient(180deg, rgba(255, 179, 0, 0.26), rgba(255, 179, 0, 0.12)); }
-    /* « Les petits chiffres en haut de la règle ne sont pas parfaitement alignés avec les traits » : la règle porte les MÊMES traits que les cases (même épaisseur, même couleur, même bord gauche de colonne), les chiffres partent de 3 px après le trait. */
-    #sq-grille .sq-temps { border-left: 1px solid transparent; padding-left: 3px; box-sizing: border-box; border-radius: 0; }
-    #sq-grille .sq-temps.temps { border-left-color: #2c2c2c; }
-    #sq-grille .sq-temps.mesure { border-left-color: #4a4a4a; }
+    /* « Je ne veux pas des traits en plus. Je veux juste que les chiffres soient au-dessus du trait. » (l'utilisateur) : la règle ne dessine AUCUN trait ; les chiffres partent juste à droite du trait des cases
+       qui est dessous (le bord gauche de la colonne), à 2 px. */
+    #sq-grille .sq-temps { padding-left: 2px; box-sizing: border-box; border-radius: 0; }
     #sq-grille .sq-coin { display: block; position: sticky; top: 0; z-index: 5; background: rgb(17, 18, 20); }
     #sq-grille .sq-libre-btn { position: sticky; left: 0; top: 23px; z-index: 7; width: 100%; margin: 0; }
     #sq-grille .sq-case.dans-boucle { background-image: none; }
@@ -7714,3 +7713,9 @@ body.entetes-gauche #progression-sections .prog-section-head { position: absolut
 body.entetes-gauche #progression-sections .psh-nom { flex-direction: column; align-items: flex-start; gap: 2px; flex: 1 1 0; min-width: 0; }
 body.entetes-gauche #progression-sections .psh-nom .prog-title { width: 100%; }
 body.entetes-gauche #progression-sections .prog-section-menu { margin-left: 0; }
+
+
+/* PROPOSITION DE RENOMMER (L6bis, 15/11) : une petite fenêtre au-dessus de la barre de lecture, au centre ; un seul bouton (« Renommer »), un × pour ignorer. */
+.proposition-nom { position: fixed; left: 50%; top: auto; bottom: 76px; width: max-content; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; border-radius: 12px; font-size: var(--fs-sm); color: var(--text-main); max-width: calc(100vw - 32px); }
+.proposition-nom[hidden] { display: none; }
+.proposition-nom-texte { min-width: 0; }

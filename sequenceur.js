@@ -745,7 +745,8 @@
             // NOTE LIBRE : le bouton « note de musique » est À GAUCHE, dans la colonne des noms de notes, juste au-dessus d'eux, en face de la règle
             // (« ni en dessous, où il se déplaçait à chaque ligne ajoutée, ni dans la barre d'outils », 11/11).
             html.push('<div class="sq-coin" aria-hidden="true" style="grid-row:1 / span 2;grid-column:1 / 3"></div>'); // L6bis : le coin en haut à gauche, collé comme la règle (rien ne défile à travers)
-            html.push(`<button type="button" class="sq-libre-btn" aria-pressed="${this.libre.ouvert}" aria-label="Ajouter une note libre" title="Ajouter une note libre : choisir son nom et son octave, puis la poser dans le séquenceur" style="grid-row:1 / 3;grid-column:1"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/><path d="M4 4h4M6 2v4"/></svg></button>`);
+            // « En mode piano, tu peux enlever l'option ajouter une note, elles sont déjà toutes là » (l'utilisateur, 15/11) : pas de bouton « Note libre » en vue Piano ; il reste en vue Voix et au téléphone.
+            if (!this.pianoLarge()) html.push(`<button type="button" class="sq-libre-btn" aria-pressed="${this.libre.ouvert}" aria-label="Ajouter une note libre" title="Ajouter une note libre : choisir son nom et son octave, puis la poser dans le séquenceur" style="grid-row:1 / 3;grid-column:1"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/><path d="M4 4h4M6 2v4"/></svg></button>`);
             const flatsPartie = flats(accords[i != null ? i : 0]);
             const eSel = i != null ? etats[i] : etats[0], dSel = i != null ? accords[i] : accords[0];
             lignes.forEach((L, ri) => {
@@ -829,6 +830,13 @@
                 // Même ligne : on garde la place. Si la fenêtre s'est agrandie vers l'aigu (une note posée tout en haut), les lignes d'avant descendent d'autant : on suit, pour que ce qu'on
                 // regarde ne saute pas.
                 else if (this.grille.style.overflowY === 'auto') this.grille.scrollTop = Math.max(0, defileV + (lignes[0].midi - (this._pianoHaut != null ? this._pianoHaut : lignes[0].midi)) * (this.ligne + 3));
+                // Un geste en cours (peindre, étirer, déplacer) tient sa ligne par son NUMÉRO : si la fenêtre s'est agrandie vers l'aigu (la note qu'on vient de poser est tout en haut), les numéros ont glissé
+                // d'autant — sans cette correction la peinture continuait sur une autre hauteur (une 9e tirée sur quatre croches posait aussi une autre note).
+                if (this._geste && this._pianoHaut != null && lignes[0].midi !== this._pianoHaut) {
+                    const delta = lignes[0].midi - this._pianoHaut;
+                    if (this._geste.r != null) this._geste.r += delta;
+                    if (this._geste.note && this._geste.note.r != null) this._geste.note.r += delta;
+                }
                 this._pianoHaut = lignes[0].midi;
             }
             this.majLigne();
@@ -1024,6 +1032,7 @@
             this.vue = v;
             ecrireLocal(CLE_VUE, v);
             this._visibles = (this._visParVue && this._visParVue[v]) || 0;
+            if (v === 'notes' && this.libre && this.libre.ouvert && !this.modeTel()) this.ouvrirBandeLibre(false);   // plus de bande « Note libre » en vue Piano
             this._cleDefilePiano = null;   // on revient en Piano : la grille se repose sur les notes jouées
             this.rafraichir();
             this.dessinerReglages();   // les octaves ne se règlent qu'en vue Piano
@@ -1109,11 +1118,79 @@
             });
             saveProgressionSections(sections);
             const s = this._s, app = this.app;
+            if (!this.modeTel() && [...modifs.values()].some(m => m.extraNotes)) { clearTimeout(this._tProposition); this._tProposition = setTimeout(() => this.proposerRenommage([...modifs.keys()]), 800); }
             // L'accord ouvert en modification relit ses réglages (son motif vivant est dans #arpPattern) : sans cela, refermer la fenêtre réécrirait
             // l'ancien rythme par-dessus.
             if (app.editingIndex != null && app.activeSection === s && modifs.has(app.editingIndex)) app.editionParSuivi(s, app.editingIndex);
             else app.loadProgression();
             if (app.isPlaying && app._playMode === 'progression') modifs.forEach((m, c) => app.liveUpdateProgressionChord(s, c));
+        }
+
+        // ---- Proposer de renommer l'accord quand une note ajoutée le complète (« si j'ajoute une 9e, propose-moi un accord de 9e », 15/11) ----------------------------------------------
+        // Une note ajoutée au séquenceur (voix libre) qui, TENUE assez longtemps (au moins un temps de suite, ou la moitié de l'accord : mêmes seuils que l'ancien éditeur), complète exactement
+        // une AUTRE qualité d'accord sur la même fondamentale : une petite fenêtre propose « Cmaj7 + D : renommer en Cmaj9 ? ». Rien n'est jamais renommé sans le clic.
+        qualiteCompletee(d, info, etat) {
+            const racine = NOTES.indexOf(d.root);
+            if (racine < 0 || !info.libres.length) return null;
+            const pc = (m) => ((m - racine) % 12 + 12) % 12;
+            const tenues = info.libres.filter(v => {
+                let on = 0, serie = 0, max = 0;
+                for (let k = 0; k < info.croches; k++) { if (etat.on.has(cle(v, k))) { on++; serie = etat.soude.has(cle(v, k)) || serie === 0 ? serie + 1 : 1; max = Math.max(max, serie); } else serie = 0; }
+                return max >= 2 || on >= info.croches / 2;
+            });
+            if (!tenues.length) return null;
+            const ensemble = new Set(info.voix.filter(x => !x.basse && (!x.libre || tenues.includes(x.index))).map(x => pc(x.midi)));
+            const q = findQualityMatchingPitchClasses(ensemble);
+            if (!q || q === d.quality) return null;
+            const avant = new Set(info.voix.filter(x => !x.libre && !x.basse).map(x => pc(x.midi)));
+            const absorbees = tenues.filter(v => !avant.has(pc(info.voix[v].midi)));
+            return absorbees.length ? { q, absorbees } : null;
+        }
+        proposerRenommage(cs) {
+            const bloc = document.getElementById('proposition-nom');
+            if (!bloc || this._geste || this.modeTel()) return;
+            const sec = loadProgressionSections()[this._s];
+            if (!sec) return;
+            for (const c of cs) {
+                const d = sec.chords[c];
+                if (!d || !(d.extraNotes || []).length) continue;
+                const e = lireAccord(d, this.app), r = this.qualiteCompletee(d, e.info, e);
+                if (!r) continue;
+                const flats = this.app.useFlatsForRoot(d.root);
+                const nom = (qual) => flatTight(new Chord(d.root, qual, 4, 0, 'none', 3, null).getLabel(flats));
+                const ajout = r.absorbees.map(v => midiToDisplayName(e.info.voix[v].midi, flats).replace(/-?\d+$/, '')).join(' + ');
+                document.getElementById('proposition-nom-texte').textContent = `${nom(d.quality)} + ${ajout} : renommer en ${nom(r.q)} ?`;
+                this._proposition = { s: this._s, c, q: r.q, absorbees: r.absorbees.map(v => e.info.voix[v].midi) };
+                bloc.hidden = false;
+                clearTimeout(this._tFermeProposition);
+                this._tFermeProposition = setTimeout(() => this.fermerProposition(), 12000);
+                return;
+            }
+        }
+        fermerProposition() { const b = document.getElementById('proposition-nom'); if (b) b.hidden = true; this._proposition = null; }
+        // Le renommage : la qualité change, la note ajoutée devient une voix de l'accord, avec SON rythme (les voix sont renumérotées par hauteur, jamais réécrites à la main). Une annulation.
+        accepterRenommage() {
+            const P = this._proposition;
+            if (!P) return;
+            const sections = loadProgressionSections(), d = sections[P.s] && sections[P.s].chords[P.c];
+            this.fermerProposition();
+            if (!d) return;
+            const avant = lireAccord(d, this.app);
+            this.app.pushUndo(sections);
+            const d2 = { ...d, quality: P.q, inversion: 0, drop: 'none', extraNotes: (d.extraNotes || []).filter(x => !P.absorbees.includes(midiDe(x.note, x.octave))) };
+            const info2 = voixDe(d2), pris = new Set(), pc = (m) => ((m % 12) + 12) % 12;
+            const vers = (v) => {
+                const m = avant.info.voix[v].midi;
+                const w = info2.voix.find(y => y.midi === m && !pris.has(y.index)) || info2.voix.find(y => pc(y.midi) === pc(m) && !pris.has(y.index));
+                if (!w) return null; pris.add(w.index); return w.index;
+            };
+            const table = new Map(avant.info.voix.map(x => [x.index, vers(x.index)]));   // une correspondance PAR VOIX (calculée une fois), pas par croche
+            const etat = renumeroter(avant, info2, v => table.get(v));
+            Object.assign(d, d2);
+            ecrireAccord(d, etat);
+            saveProgressionSections(sections);
+            this.app.loadProgression();
+            this.app.flashHint && this.app.flashHint('Accord renommé (Ctrl+Z pour annuler)');
         }
 
         // Choisir un accord SANS le faire entendre en entier (on vient de toucher une de ses notes, c'est elle qu'on entend).
@@ -1518,7 +1595,13 @@
                 <div class="rb-pied"><button type="button" id="sq-r-retablir" class="btn-sec">Rétablir</button></div>`;
             this.placerReglages();
         }
+        brancherProposition() {
+            const ok = document.getElementById('proposition-nom-ok'), x = document.getElementById('proposition-nom-fermer');
+            if (ok) ok.addEventListener('click', () => this.accepterRenommage());
+            if (x) x.addEventListener('click', () => this.fermerProposition());
+        }
         brancherReglages() {
+            this.brancherProposition();
             const pop = document.getElementById('sq-reglages-pop'), roue = document.getElementById('sq-reglages');
             if (roue) roue.addEventListener('click', () => this.basculerReglages());
             if (!pop) return;

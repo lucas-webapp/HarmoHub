@@ -16,7 +16,7 @@ const { check, exiger, plan, bilan } = require('./_harness')('vue Piano du séqu
 const { estBruitReseau } = require('./_harness');
 const R = require('./_retrait_ancien');
 
-plan(35);
+plan(37);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const graine = () => {
@@ -141,16 +141,22 @@ const graine = () => {
     await p.mouse.move(gg.x + 300, gg.y + 200); await p.mouse.wheel(0, 600); await p.waitForTimeout(400);
     const fige = await p.evaluate(() => {
         const g = document.getElementById('sq-grille'), gr = g.getBoundingClientRect(), top = (s) => { const e = document.querySelector(s); return e ? Math.round(e.getBoundingClientRect().top - gr.top) : null; };
-        const btn = document.querySelector('#sq-grille .sq-libre-btn').getBoundingClientRect(), et = document.querySelector('#sq-grille .sq-etiq').getBoundingClientRect();
         const cases = [...document.querySelectorAll('#sq-grille .sq-case.dans-boucle')];
-        return { scroll: g.scrollTop, nom: top('#sq-grille .sq-nom'), temps: top('#sq-grille .sq-temps'), boucle: top('#sq-grille .sq-boucle'), btn: top('#sq-grille .sq-libre-btn'), largeurBtn: Math.round(btn.width), largeurTouche: Math.round(et.width),
+        return { scroll: g.scrollTop, nom: top('#sq-grille .sq-nom'), temps: top('#sq-grille .sq-temps'), boucle: top('#sq-grille .sq-boucle'), 
             teinte: cases.filter(x => getComputedStyle(x).backgroundImage !== 'none').length, nbBoucle: cases.length };
     });
-    check(fige.scroll > 100 && fige.nom === 0 && fige.temps === 23 && fige.boucle === 23 && fige.btn === 23, `grille défilée de ${fige.scroll} px : les noms d'accords, la règle, la plage à boucler et « Note libre » restent collés en haut (${JSON.stringify([fige.nom, fige.temps, fige.boucle, fige.btn])})`);
+    check(fige.scroll > 100 && fige.nom === 0 && fige.temps === 23 && fige.boucle === 23, `grille défilée de ${fige.scroll} px : les noms d'accords, la règle et la plage à boucler restent collés en haut (${JSON.stringify([fige.nom, fige.temps, fige.boucle])})`);
+    // (une ombre ne reçoit pas le pointeur : on lit donc ce qui est PEINT — une ombre pleine de 3 px, de la couleur du fond, sous la rangée des noms)
+    const ecart = await p.evaluate(() => { const nom = document.querySelector('#sq-grille .sq-nom'), t = document.querySelector('#sq-grille .sq-temps'); return { ecart: Math.round(t.getBoundingClientRect().top - nom.getBoundingClientRect().bottom), ombre: getComputedStyle(nom).boxShadow }; });
+    check(ecart.ecart === 3 && ecart.ombre === 'rgb(17, 18, 20) 0px 3px 0px 0px', `l'écart de 3 px entre les noms d'accords et la règle est bouché par une ombre pleine : rien n'y défile (${JSON.stringify(ecart)})`);
     check(fige.nbBoucle > 0 && fige.teinte === 0, `la plage à boucler ne teinte plus les cases en jaune (${fige.nbBoucle} cases dans la plage, ${fige.teinte} teintées)`);
-    const trait = await p.evaluate(() => { const g = document.getElementById('sq-grille'); const t = g.querySelector('.sq-temps[data-k="2"]'), c = g.querySelector('.sq-case[data-c="0"][data-k="2"]'); const rt = t.getBoundingClientRect(), rc = c.getBoundingClientRect(); const bt = getComputedStyle(t), bc = getComputedStyle(c); return { dx: Math.round((rt.left - rc.left) * 10) / 10, larg: bt.borderLeftWidth + '/' + bc.borderLeftWidth, couleur: bt.borderLeftColor === bc.borderLeftColor }; });
-    check(trait.dx === 0 && trait.larg === '1px/1px' && trait.couleur, `la règle porte le même trait que les cases, au même endroit (${JSON.stringify(trait)})`);
-    check(fige.largeurBtn === fige.largeurTouche, `« Note libre » a la largeur des touches de piano (${fige.largeurBtn} px et ${fige.largeurTouche} px)`);
+    const trait = await p.evaluate(() => { const g = document.getElementById('sq-grille'); const t = g.querySelector('.sq-temps[data-k="2"]'), c = g.querySelector('.sq-case[data-c="0"][data-k="2"]'); const bt = getComputedStyle(t); return { bord: bt.borderLeftWidth, dx: Math.round((t.getBoundingClientRect().left - c.getBoundingClientRect().left) * 10) / 10, retrait: bt.paddingLeft }; });
+    check(trait.bord === '0px' && trait.dx === 0 && trait.retrait === '2px', `la règle ne dessine aucun trait ; les chiffres partent à 2 px du trait des cases, juste au-dessus (${JSON.stringify(trait)})`);
+    check(await p.evaluate(() => document.querySelectorAll('#sq-grille .sq-libre-btn').length) === 0, 'en vue Piano, plus de bouton « Note libre » : toutes les notes sont déjà là');
+    await R.cliquer(p, '#sq-vue-voix', 400);
+    const largeurs = await p.evaluate(() => ({ btn: Math.round(document.querySelector('#sq-grille .sq-libre-btn').getBoundingClientRect().width), touche: Math.round(document.querySelector('#sq-grille .sq-etiq').getBoundingClientRect().width), top: Math.round(document.querySelector('#sq-grille .sq-libre-btn').getBoundingClientRect().top - document.getElementById('sq-grille').getBoundingClientRect().top) }));
+    check(largeurs.btn === largeurs.touche, `en vue Voix, « Note libre » a la largeur des touches (${largeurs.btn} px et ${largeurs.touche} px)`);
+    await R.cliquer(p, '#sq-vue-notes', 400);
 
     // ======================================================================================================
     console.log('\n=== G. Une barre qu\'on clique s\'entend ; des octaves en plus ou en moins ===');
