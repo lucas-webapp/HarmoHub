@@ -1,5 +1,5 @@
 // Ajouter un accord par le GESTE de l'utilisateur, quelle que soit la largeur (lot 10e, réécrit à L5b puis L6c).
-// Téléphone (< 900 px) : la saisie vit dans le panneau d'ajout, que la case « + » de la partie ouvre — on la touche d'abord, on tape, on valide, puis Échap referme le panneau.
+// Téléphone (< 900 px) : la saisie vit dans le panneau d'ajout, que le bouton « + Accord » de l'en-tête de la partie ouvre (L7d ; c'était la case « + » nue) — on le touche d'abord, on tape, on valide, puis Échap referme le panneau.
 // Ordinateur : « + Accord » n'existe plus (L6c) ; on tape le symbole DANS la case « + » du bout de la partie et on valide par Entrée (le même chemin que la saisie rapide :
 // addChordInputToSection, donc « C/Am/F/G » marche aussi) ; le double-clic sur cette case ouvre la fenêtre d'ajout au clic (banc ajout_clic).
 async function ajouterAccord(page, symbole, section = 0) {
@@ -11,7 +11,8 @@ async function ajouterAccord(page, symbole, section = 0) {
         return;
     }
     if (tel) {
-        await page.click(`#progression-sections .cell-add-input[data-section="${section}"]`);
+        // L7d (15/11) : le « + » nu du bout des lignes n'existe plus au téléphone ; le geste est le bouton gris « + Accord » de l'en-tête de la partie (même panneau d'ajout).
+        await page.click(`#progression-sections .prog-section-ajout[data-section="${section}"]`);
         await page.fill('#quick-add-input', symbole);
         await page.click('#quick-add-btn');
         await page.keyboard.press('Escape'); await page.waitForTimeout(150);

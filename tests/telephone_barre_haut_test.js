@@ -137,7 +137,7 @@ const nbAccords = (p) => p.evaluate(() => loadProgressionSections()[0].chords.le
         console.log('\n=== D. Le travail : voyant, Enregistrer, Annuler / Rétablir, Paramètres ===');
         const avant = await nbAccords(p);
         // Lot 10e : au téléphone la saisie vit dans le panneau d'ajout, que la case « + » de la partie ouvre.
-        await toucher(p, '#progression-sections .cell-add-input >> nth=0');
+        await toucher(p, '#progression-sections .prog-section-ajout >> nth=0'); // L7d : « + Accord » de l'en-tête de la partie
         await toucher(p, '#quick-add-input');
         await p.keyboard.type('Em7');
         await toucher(p, '#quick-add-btn'); // l'ajout se valide par « + » (Entrée y ouvre une nouvelle ligne)

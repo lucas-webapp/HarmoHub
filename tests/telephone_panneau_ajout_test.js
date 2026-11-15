@@ -52,7 +52,8 @@ async function ouvrir(nav, contexte, erreurs, nom, reglages = {}) {
 }
 
 const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1 };
-const PLUS = (s) => `#progression-sections .cell-add-input[data-section="${s}"]`;
+// L7d (15/11) : au téléphone la porte du panneau d'ajout est le petit bouton gris « + Accord » de l'en-tête de la partie (le « + » nu du bout des lignes n'existe plus sous 900 px).
+const PLUS = (s) => `#progression-sections .prog-section-ajout[data-section="${s}"]`;
 const CASE = (s, i) => `#progression-sections .grid-cell[data-section="${s}"][data-index="${i}"]`;
 const toucher = async (p, sel, ms = 300) => { await p.tap(sel); await p.waitForTimeout(ms); };
 const noms = (p, s) => p.evaluate((s) => JSON.parse(localStorage.getItem('myProgression')).sections[s].chords.map(c => c.root + ':' + c.quality + (c.bass ? '/' + c.bass : '')).join(' '), s);
@@ -200,10 +201,10 @@ const etat = (p) => p.evaluate(() => {
             const t = await p.evaluate(() => {
                 const pa = document.getElementById('ajout-aide'), r = pa.getBoundingClientRect();
                 const dehors = [...pa.querySelectorAll('button, textarea')].filter(b => { const q = b.getBoundingClientRect(); return q.width > 0 && (q.left < 0 || q.right > innerWidth + 0.5); }).length;
-                const plus = document.querySelector('.cell-add-input').getBoundingClientRect();
+                const plus = document.querySelector('.prog-section-ajout').getBoundingClientRect();
                 return { ouvert: !pa.hidden, dehors, debord: document.documentElement.scrollWidth > innerWidth, haut: Math.round(r.top), plusBas: Math.round(plus.bottom) };
             });
-            check(t.ouvert && t.dehors === 0 && !t.debord && t.plusBas <= t.haut, `à 320px tout tient, rien n'est coupé, la case « + » reste visible (${JSON.stringify(t)})`);
+            check(t.ouvert && t.dehors === 0 && !t.debord && t.plusBas <= t.haut, `à 320px tout tient, rien n'est coupé, le bouton « + Accord » reste visible (${JSON.stringify(t)})`);
             await ctx.close();
         }
 

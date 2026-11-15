@@ -110,12 +110,13 @@ const graine = () => {
     await p.keyboard.press('Escape'); await p.waitForTimeout(200);
     await p.close();
     p = await ouvrir({ width: 390, height: 844 }, { hasTouch: true, isMobile: true });
-    const tel = await p.evaluate(() => ({ dbl: !!document.getElementById('ajout-clic'), plusAcc: [...document.querySelectorAll('.prog-section-ajout')].filter(b => b.getBoundingClientRect().width > 0).length }));
-    check(tel.dbl && tel.plusAcc === 0, 'au téléphone rien n\'a changé (pas de « + Accord » avant L7)');
-    const tc = await p.locator('#progression-sections .cell-add-input[data-section="0"]').boundingBox();
+    const tel = await p.evaluate(() => ({ dbl: !!document.getElementById('ajout-clic'), plusAcc: [...document.querySelectorAll('.prog-section-ajout')].filter(b => b.getBoundingClientRect().width > 0).length, parties: document.querySelectorAll('.prog-section-head').length,
+        nus: [...document.querySelectorAll('.grid-cell-add')].filter(b => b.getBoundingClientRect().width > 0).length }));
+    check(tel.dbl && tel.plusAcc === tel.parties && tel.plusAcc > 0 && tel.nus === 0, `au téléphone (L7d) : « + Accord » dans l'en-tête de chaque partie, plus de « + » nu (${JSON.stringify(tel)})`);
+    const tc = await p.locator('#progression-sections .prog-section-ajout[data-section="0"]').boundingBox();
     await p.touchscreen.tap(tc.x + tc.width / 2, tc.y + tc.height / 2); await p.waitForTimeout(250);
     await p.touchscreen.tap(tc.x + tc.width / 2, tc.y + tc.height / 2); await p.waitForTimeout(400);
-    check(await p.evaluate(() => document.getElementById('ajout-clic').hidden), 'et un double toucher sur le « + » n\'ouvre pas la fenêtre (le panneau d\'ajout du téléphone l\'a déjà)');
+    check(await p.evaluate(() => document.getElementById('ajout-clic').hidden), 'et un double toucher sur « + Accord » n\'ouvre pas la fenêtre d\'ajout au clic (le panneau d\'ajout du téléphone l\'a déjà)');
     await p.close();
 
     check(erreurs.length === 0, `aucune erreur JavaScript (${erreurs.length ? erreurs.join(' | ') : 'aucune'})`);

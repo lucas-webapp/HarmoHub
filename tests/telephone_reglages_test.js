@@ -229,10 +229,12 @@ const pincer = (p, ecart) => p.evaluate((ecart) => {
             const h = document.querySelector('.prog-section-head');
             const m = h.querySelector('.prog-section-menu').getBoundingClientRect(), hr = h.getBoundingClientRect();
             const vus = [...h.querySelectorAll('.psh-ancien')].filter(b => b.getBoundingClientRect().width > 0).length;
-            return { mesures: h.querySelector('.prog-section-measures').innerText.trim(), w: Math.round(m.width), hh: Math.round(m.height), bout: Math.abs(m.right - hr.right) < 1.5, vus };
+            const aj = h.querySelector('.prog-section-ajout').getBoundingClientRect();
+            // L7d : « + Accord » (petit bouton gris) est TOUT à droite, après le ⋯ ; le ⋯ le précède, à 44 px.
+            return { mesures: h.querySelector('.prog-section-measures').innerText.trim(), w: Math.round(m.width), hh: Math.round(m.height), bout: Math.abs(aj.right - hr.right) < 1.5 && m.right <= aj.left + 1, vus };
         });
         check(tete.mesures === '8 mesures' && tete.w === 44 && tete.hh === 44 && tete.bout && tete.vus === 0,
-            `l'en-tête de partie : « ${tete.mesures} » en toutes lettres, ⋯ de ${tete.w}×${tete.hh}px au bout de la ligne, ▲▼⧉🗑 disparus (${tete.vus} visible)`);
+            `l'en-tête de partie : « ${tete.mesures} » en toutes lettres, ⋯ de ${tete.w}×${tete.hh}px suivi de « + Accord » tout au bout de la ligne (L7d), ▲▼⧉🗑 disparus (${tete.vus} visible)`);
         // La page a DÉFILÉ (le ⋯ de la seconde partie au milieu de l'écran) : un menu posé d'après l'écran mais non fixé tomberait à côté de son bouton.
         await p.evaluate(() => document.querySelector('.prog-section-menu[data-section="1"]').scrollIntoView({ block: 'center' }));
         await p.waitForTimeout(200);

@@ -6730,7 +6730,7 @@ body.avec-barre-selection .toast { bottom: 132px; }
 @media (min-width: 900px) {
     body.fichier-en-haut .viz-wrap { padding-bottom: 0; }
     /* Plus rien dedans à l'ordinateur (les diagrammes sont dans le tiroir depuis le lot 8) : il ne prend même plus l'écart de la colonne. */
-    body.fichier-en-haut .viz-wrap:not(:has(> :not(.viz-export-actions):not(input):not([hidden]))) { display: none; }
+    body.fichier-en-haut .viz-wrap:not(:has(> :not(.viz-export-actions):not(.viz-bande):not(input):not([hidden]))) { display: none; }   /* L7d : #viz-bande (la bande du bas du téléphone) est vide à l'ordinateur : il ne retient pas l'enveloppe */
     .top-bar .tb-gauche > .file-menu-btn { flex: none; }
 }
 
@@ -7804,4 +7804,49 @@ body.entetes-gauche #progression-sections .prog-section-menu { margin-left: 0; }
     .pa-rythme .sequenceur.sans-noms-rythmes .sq-motifs { width: 100%; flex-wrap: nowrap; overflow-x: visible; justify-content: space-between; }
     .pa-rythme .sequenceur.sans-noms-rythmes .sq-motifs > .sq-motif:not(#sq-forme-enregistrer) { flex: 1 1 0; min-width: 0; justify-content: center; gap: 0; padding: 0 4px; }
     .pa-rythme .sequenceur.sans-noms-rythmes .sq-motifs > #sq-forme-enregistrer { flex: none; }
+}
+
+
+/* ============================================================================================================================================================
+   L7d (15/11) — TÉLÉPHONE : « + ACCORD », « + SECTION » ET LA BANDE DU BAS (lettres O5, P2-P4, Q1, R2).
+   · « + Accord » : un petit bouton GRIS (28 px, contour gris, texte gris de 12 px) tout à droite de l'en-tête de chaque partie, après le ⋯ ; il remplace le « + » nu au bout de chaque
+     ligne d'accords, « pas très compréhensible » (le « + » nu est masqué sous 900 px) et ouvre le panneau d'ajout, comme avant.
+   · « + Section » : un petit bouton gris en pointillés sous la dernière partie, sobre comme à l'ordinateur (libellé court « + Section »). « On le voit uniquement si je scrolle, tout en bas,
+     juste sous la grille » : caché tant que la grille n'est pas dessinée, la zone des parties a la hauteur d'un écran (il reste sous le pli), et le défilement s'arrête 85 px sous lui.
+   · La bande du bas : Clavier / Guitare à gauche, Fichier à droite, FIXES juste au-dessus de la barre de lecture ; masquée quand le panneau d'accord ou d'ajout est ouvert.
+   ============================================================================================================================================================ */
+.viz-bande { display: none; }
+@media (max-width: 899px) {
+    .prog-section-head .prog-section-menu { order: 2; }
+    .prog-section-head .prog-section-ajout {
+        order: 3; display: inline-flex; align-items: center; gap: 4px; flex: none; box-sizing: border-box;
+        height: 28px; min-width: 0 !important; width: auto !important; margin: 0 0 0 4px; padding: 0 8px;
+        border: 1px solid #3a4048; border-radius: var(--rayon-bouton, 7px); background: transparent; box-shadow: none;
+        color: #8b949f; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .prog-section-ajout .icon { width: 12px; height: 12px; }
+    .grid-cell-add { display: none !important; }
+
+    #add-section.add-section-btn {
+        display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; justify-self: start; box-sizing: border-box;
+        height: 28px; min-width: 0; width: auto; margin: 8px 0 0; padding: 0 10px;
+        border: 1px dashed #3a4048; border-radius: var(--rayon-bouton, 7px); background: transparent; background-image: none; box-shadow: none;
+        color: #8b949f; font-size: 0; font-weight: 600;
+    }
+    #add-section.add-section-btn::after { content: "Section"; font-size: 12px; }   /* libellé court ; le nom complet reste dans l'aria-label et l'infobulle */
+    #add-section.add-section-btn .icon { width: 14px; height: 14px; }
+    #progression-sections:empty ~ #add-section, #progression-sections:empty ~ .grille-poignee { display: none !important; }
+    /* Hors Modification seulement : en Modification (la carte d'accord vit dans la page quand le panneau n'est pas là), cette hauteur d'écran repousserait la carte hors de la fenêtre. */
+    body:not([data-app-mode="edit"]) #progression-sections { min-height: calc(100dvh - 270px); }
+    main { padding-bottom: calc(var(--haut-barre-lecture, 68px) + 82px); }
+
+    .viz-wrap { padding-bottom: 0; }
+    .viz-bande { display: flex; align-items: center; position: fixed; left: 12px; bottom: calc(var(--haut-barre-lecture, 68px) + 8px); z-index: 12; }
+    .viz-bande .viz-toggle { align-self: auto; }
+    .viz-wrap > .viz-export-actions { position: fixed; right: 12px; bottom: calc(var(--haut-barre-lecture, 68px) + 8px); z-index: 12; }
+    body.pa-ouvert .viz-bande, body.pa-ouvert .viz-export-actions, body.aj-ouvert .viz-bande, body.aj-ouvert .viz-export-actions { display: none !important; }
+    /* En Modification sans le panneau d'accord (la modification continue après un redimensionnement), le dock de secours (Rythme, Terminer ; 56 px) prend le bas de l'écran, au-dessus
+       de la barre de lecture : la bande monte d'autant au lieu d'être recouverte par lui. */
+    body[data-app-mode="edit"] .viz-bande, body[data-app-mode="edit"] .viz-wrap > .viz-export-actions { bottom: calc(var(--haut-barre-lecture, 68px) + 64px); }
+    .col-right.diagrams-hidden .viz-card { display: none; }
 }

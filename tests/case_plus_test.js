@@ -101,9 +101,14 @@ const caseP = (p) => p.evaluate(() => {
     const m = await browser.newPage({ viewport: { width: 390, height: 800 }, hasTouch: true, isMobile: true });
     m.on('pageerror', e => errs.push('mobile: ' + e.message));
     await prep(m);
-    const cm = await caseP(m);
-    check(cm.w >= 44, `elle garde au moins 44px de large au doigt — ${cm.w}x${cm.h}`);
-    check(cm.placeholder === '+', 'même signe qu\'ailleurs');
+    // L7d (15/11, « je n'aime pas trop ce bouton plus à la suite qui n'est pas très compréhensible ») : au téléphone la case « + » nue du bout des lignes n'existe plus ; le petit bouton gris
+    // « + Accord » (28 px) de l'en-tête de la partie la remplace.
+    const cm = await m.evaluate(() => {
+        const nu = document.querySelector('.grid-cell-add'), b = document.querySelector('.prog-section-ajout'), r = b.getBoundingClientRect();
+        return { nu: getComputedStyle(nu).display, w: Math.round(r.width), h: Math.round(r.height), texte: b.textContent.trim(), deborde: r.right > window.innerWidth, pageDeborde: document.documentElement.scrollWidth > window.innerWidth };
+    });
+    check(cm.nu === 'none', `la case « + » nue a disparu du téléphone (${cm.nu})`);
+    check(cm.h === 28 && cm.w >= 60 && cm.texte === 'Accord', `« + Accord » la remplace, en petit (${cm.w}x${cm.h}, « ${cm.texte} »)`);
     check(!cm.deborde && !cm.pageDeborde, 'rien ne déborde de l\'écran du téléphone');
     await m.close();
 

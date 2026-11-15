@@ -205,7 +205,7 @@ const atteignable = (sel) => {
     const nbAvant = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords.length);
     // Lot 10e : plus de carte « Nouvel accord » en mode Ajout sous 900px — le raccourci « Entrée sur une commande ajoute l'accord » vit dans le panneau
     // d'ajout, dont les accords de la tonalité sont des BOUTONS (même piège : un <button> n'a pas l'identifiant d'un <select>).
-    await page.click('#progression-sections .cell-add-input >> nth=0');
+    await page.click('#progression-sections .prog-section-ajout >> nth=0'); // L7d : « + Accord » de l'en-tête (le « + » nu n'existe plus sous 900 px)
     await page.waitForTimeout(300);
     await page.focus('#ajout-aide .ajout-tuile[data-ajout-root="D"]');
     const cible = await page.evaluate(() => {

@@ -18313,7 +18313,10 @@ class HarmoHubApp {
             if (carte.parentElement !== corps) corps.insertBefore(carte, document.getElementById('kb-construction'));
         } else {
             if (carte.parentElement !== enveloppe) enveloppe.insertBefore(carte, enveloppe.firstChild);
-            if (bascule.parentElement !== carte) carte.appendChild(bascule);
+            // L7d : au téléphone la bascule Clavier / Guitare quitte la carte des diagrammes pour la bande fixe du bas (#viz-bande, à gauche de « Fichier »).
+            const bande = document.getElementById('viz-bande');
+            const hoteBascule = bande || carte;
+            if (bascule.parentElement !== hoteBascule) hoteBascule.appendChild(bascule);
             if (titre.parentElement !== enveloppe.parentElement) enveloppe.parentElement.insertBefore(titre, enveloppe);
         }
         this.syncVues();

@@ -144,9 +144,10 @@ const graine = () => {
     // ======================================================================================================
     console.log('\n=== F. Le téléphone n\'a pas bougé (lot 10) ===');
     p = await ouvrir({ width: 390, height: 844 });
-    const tel = await p.evaluate(() => ({ ajout: [...document.querySelectorAll('.prog-section-ajout')].filter(b => b.getBoundingClientRect().width > 0).length,
-        ins: [...document.querySelectorAll('.cell-ins')].filter(b => b.getBoundingClientRect().width > 0).length }));
-    check(tel.ajout === 0 && tel.ins === 0, `ni « + Accord » ni « + » entre les cases (${JSON.stringify(tel)})`);
+    const tel = await p.evaluate(() => ({ ajout: [...document.querySelectorAll('.prog-section-ajout')].filter(b => b.getBoundingClientRect().width > 0).length, parties: document.querySelectorAll('.prog-section-head').length,
+        ins: [...document.querySelectorAll('.cell-ins')].filter(b => b.getBoundingClientRect().width > 0).length, nus: [...document.querySelectorAll('.grid-cell-add')].filter(b => b.getBoundingClientRect().width > 0).length }));
+    // L7d (15/11) : au téléphone « + Accord » (petit bouton gris) est dans l'en-tête de CHAQUE partie, le « + » nu du bout des lignes disparaît ; pas de « + » entre les cases.
+    check(tel.ajout === tel.parties && tel.ajout > 0 && tel.ins === 0 && tel.nus === 0, `« + Accord » dans chaque en-tête, ni « + » nu ni « + » entre les cases (${JSON.stringify(tel)})`);
     await p.close();
 
     check(erreurs.length === 0, `aucune erreur JavaScript (${erreurs.length ? erreurs.join(' | ') : 'aucune'})`);

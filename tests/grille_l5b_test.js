@@ -200,10 +200,11 @@ const graine = () => {
         saisie: getComputedStyle(document.querySelector('#quick-add-panel > .quick-add-row')).display,
     }));
     check(tel.seq === 'none', 'le bouton Séquenceur n\'existe pas au téléphone (il est dans le panneau d\'accord)');
-    check(tel.bande !== 'dashed' && tel.pos !== 'sticky', `« Ajouter section » garde son bouton (${tel.bande}, ${tel.pos})`);
+    // L7d (15/11) : au téléphone « + Section » est un petit bouton gris en pointillés (sobre comme à l'ordinateur) sous la dernière partie, mais il n'y est pas COLLÉ en bas (position non sticky).
+    check(tel.bande === 'dashed' && tel.pos !== 'sticky', `« + Section » est un petit bouton en pointillés, non collé en bas (${tel.bande}, ${tel.pos})`);
     check(tel.poignee === 0, 'pas de poignée de grille');
     check(tel.saisie === 'none', 'la saisie rapide n\'est pas dans la page (elle est dans le panneau d\'ajout, comme avant)');
-    await p.click('#progression-sections .cell-add-input[data-section="0"]'); await p.waitForTimeout(500);
+    await p.click('#progression-sections .prog-section-ajout[data-section="0"]'); await p.waitForTimeout(500);   // L7d : « + Accord » de l'en-tête (le « + » nu n'existe plus au téléphone)
     check(await p.evaluate(() => { const i = document.querySelector('#aa-saisie #quick-add-input'); return !!i && i.getBoundingClientRect().width > 0; }), 'la case « + » ouvre le panneau d\'ajout, qui porte la saisie, comme avant');
     await p.keyboard.press('Escape'); await p.waitForTimeout(200);
     await p.mouse.click(200, 520, { button: 'right' }); await p.waitForTimeout(250);

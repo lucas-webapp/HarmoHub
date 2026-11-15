@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611160308">
+    <link rel="stylesheet" href="style.css?v=202611160314">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611160308">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611160314">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1582,7 +1582,7 @@
                 <div id="grille-cadre" class="grille-cadre">
                     <div id="progression-sections"></div>
                     <div id="grille-poignee-bas" class="grille-poignee grille-poignee-bas" role="separator" aria-orientation="horizontal" aria-label="Hauteur des cases" title="Glisser pour la hauteur des cases — double-clic : hauteur d'origine"></div>
-                    <button type="button" id="add-section" class="btn-green add-section-btn" title="Ajouter une section à la fin (couplet, refrain…) — ou clic droit dans le vide de la grille"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter section</button>
+                    <button type="button" id="add-section" class="btn-green add-section-btn" aria-label="Ajouter une section" title="Ajouter une section à la fin (couplet, refrain…) — ou clic droit dans le vide de la grille"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter section</button>
                     <div id="grille-poignee-droite" class="grille-poignee grille-poignee-droite" role="separator" aria-orientation="vertical" aria-label="Largeur de la grille" title="Glisser pour élargir la grille — double-clic : largeur d'origine"></div>
                 </div>
             </section>
@@ -1716,6 +1716,10 @@
                      mesuré, contre 44 recommandés). Ce sont des actions qu'on fait une fois par
                      séance, pas toutes les minutes : elles ont leur place derrière un menu, avec de
                      vrais libellés. Voir openFileMenu. -->
+                <!-- BANDE DU BAS DU TÉLÉPHONE (L7d, 15/11, lettre P4) : « les boutons Fichiers et les diagrammes d'accord tout en bas, au-dessus de la barre de lecture ». Clavier / Guitare
+                     (la bascule .viz-toggle, déplacée ici par placerVues sous 900 px : elle ne peut pas rester dans .viz-card, dont le verre dépoli fixerait son repère de position) à GAUCHE,
+                     Fichier (.viz-export-actions) à DROITE, tous deux fixes juste au-dessus de la barre de lecture. Vide et masqué à l'ordinateur, où la bascule est dans la barre de lecture (la règle `body.fichier-en-haut .viz-wrap:not(:has(…))` de style.css l'ignore exprès : sinon elle empêcherait de masquer l'enveloppe). -->
+                <div id="viz-bande" class="viz-bande"></div>
                 <div class="viz-export-actions">
                     <!-- Paroles ressortie du menu Fichier, dans son propre bouton (retour utilisateur :
                          "je trouve qu'il n'a pas trop sa place dans le bouton fichiers") — c'est le SEUL
@@ -2166,13 +2170,13 @@
     <!-- sequenceur.js AVANT script.js : l'appli (window.app) est créée à la fin de script.js et construit le séquenceur dans la foulée. -->
     <!-- Les formes du séquenceur (au compte) : AVANT sequenceur.js, qui s'y abonne à sa construction ; la connexion (SYNCHRO) n'est lue qu'à l'usage. -->
     <script src="synchro-formes.js?v=202611131800"></script>
-    <script src="synchro-doigtes.js?v=202611160308"></script>
-    <script src="sequenceur.js?v=202611160308"></script>
-    <script src="script.js?v=202611160308"></script>
+    <script src="synchro-doigtes.js?v=202611160314"></script>
+    <script src="sequenceur.js?v=202611160314"></script>
+    <script src="script.js?v=202611160314"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611160308"></script>
+    <script src="synchro-harmohub.js?v=202611160314"></script>
     <!-- Les versions au cloud (sous-lot « Versions au cloud ») : après l'adaptateur, dont elles réutilisent la connexion (SYNCHRO). -->
     <script src="synchro-versions.js?v=202611060400"></script>
 </body>

@@ -130,7 +130,7 @@ const lireAccord = (i) => JSON.parse(localStorage.getItem('myProgression')).sect
 
     // VRAI focus sur la commande, VRAIE touche Entrée : c'est tout l'enjeu du piège décrit en tête.
     // Lot 10e : le réglage d'accord de la carte n'existe plus en mode Ajout sous 900px — la commande qui ajoute est un accord du panneau d'ajout.
-    await page.click('#progression-sections .cell-add-input >> nth=0');
+    await page.click('#progression-sections .prog-section-ajout >> nth=0'); // L7d : « + Accord » de l'en-tête (le « + » nu n'existe plus sous 900 px)
     await page.waitForTimeout(300);
     await page.focus('#ajout-aide .ajout-tuile[data-ajout-root="D"]');
     const focusId = await page.evaluate(() => document.activeElement && document.activeElement.dataset.ajoutRoot);
