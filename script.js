@@ -5021,7 +5021,7 @@ class HarmoHubApp {
             // utilisateur, voir ZONE_EDITION_SELECTEURS plus haut, même correctif.
             const inGrid = inPath('.grid-cell, .cell-add, .section-head');
             // Lot 7b : la barre de sélection agit SUR la sélection — un clic dedans ne la perd pas (l'accord d'ancrage sert au Maj+clic et au collage).
-            const inMenu = inPath('#context-menu, #barre-selection, #vues-tiroir, #bl-vues, #vue-sequenceur, #sequenceur, #bl-plus, #panneau-lecture'); // L5b : #vue-sequenceur a quitté #bl-vues // le tiroir et ses boutons (lot 8) agissent SUR l'accord sélectionné
+            const inMenu = inPath('#context-menu, #barre-selection, #vues-tiroir, #bl-vues, #vue-sequenceur, #sequenceur, #bl-plus, #panneau-lecture, #tel-sequenceur'); // L7a : le bouton Séquenceur de la rangée du haut ouvre l'accord CHOISI, il ne doit pas le désélectionner // L5b : #vue-sequenceur a quitté #bl-vues // le tiroir et ses boutons (lot 8) agissent SUR l'accord sélectionné
             // Retrait de l'ancien séquenceur (4c) : au téléphone, « Séquenceur » du panneau Lecture (⋯) est LA porte du séquenceur et ouvre « l'accord choisi »
             // (ouvrirRythmeTelephone) — toucher ⋯ vidait la sélection, et le séquenceur s'ouvrait toujours sur le premier accord. Même règle que le bloc « Vues ».
             // Lot 10d : le panneau d'accord du téléphone se referme ICI, au clic à côté, et non à l'appui du doigt (table _popups) : cet appui est
@@ -5033,7 +5033,8 @@ class HarmoHubApp {
             // Retrait de l'ancien séquenceur (4c) : la feuille « Séq. » laissait la barre de lecture « à portée » (Lecture, Stop, feuille ouverte). L'onglet Rythme
             // qui la remplace fait de même : on y règle un rythme pour l'ENTENDRE, Lecture et Stop ne referment pas le panneau.
             const transportSurRythme = !!(this._bulle && this._bulle.rythme) && inPath('#play-prog, #stop');
-            if (this._bulle && this._bulle.telephone && !transportSurRythme && !inPath('#panneau-accord, .grid-cell:not(.grid-cell-add), #context-menu, #sq-menu-note')) this.fermerBulleAccord();
+            // L7a : le bouton Séquenceur de la rangée du haut OUVRE ce panneau : son clic ne doit pas le refermer aussitôt (il passait par ici après l'ouverture).
+            if (this._bulle && this._bulle.telephone && !transportSurRythme && !inPath('#panneau-accord, .grid-cell:not(.grid-cell-add), #context-menu, #sq-menu-note, #tel-sequenceur')) this.fermerBulleAccord();
             // .seq-zoom-modal inclus : le séquenceur (déplacé dans la loupe séquenceur,
             // ou dans sa propre vue agrandie, voir openSeqZoom) et ses boutons (Enregistrer/Annuler/
             // replier, poignée de redimensionnement...) y vivent, hors de .chord-grid ET de .col-left —
@@ -10263,18 +10264,27 @@ class HarmoHubApp {
                 if (b.title !== titre) b.title = titre;
             }
         });
-        // La barre-résumé du téléphone (lot 10c) dit les quatre mêmes valeurs, dans l'ordre des cases, et le tempo juste après la tonalité :
-        // « C majeur · 120 BPM · 4/4 · Droit · Piano » — tonalité et tempo « toujours visibles » (filet_toujours_visible), le reste peut s'abréger.
+        // La barre-résumé du téléphone (lot 10c) dit le tempo juste après la tonalité. L7a (14/11, « trop de texte et ça dépasse de la fenêtre […] les noms d'accords sont
+        // encore écrits en français ») : elle ne dit plus que « C · 120 BPM · 4/4 » — tonalité en notation internationale COURTE (C, Am, D dor), tempo, mesure ; le swing
+        // et le son restent dans les quatre cases qu'elle déplie, et tout le détail passe en infobulle et en aria-label.
         const tel = document.getElementById('song-summary-tel');
         if (tel) {
             const set = (id, t) => { const el = document.getElementById(id); if (el && el.textContent !== t) el.textContent = t; };
             const bpm = `${(document.getElementById('bpm') || {}).value || ''} BPM`;
-            const reste = [vals.mesure, vals.swing, vals.son].filter(Boolean).map(v => ' · ' + v).join('');
-            set('song-summary-tel-ton', vals.tonalite);
+            const reste = vals.mesure ? ' · ' + vals.mesure : '';
+            set('song-summary-tel-ton', this.libelleTonaliteCourt());
             set('song-summary-tel-bpm', bpm);
             set('song-summary-tel-reste', reste);
             const resume = document.getElementById('song-summary');
-            if (resume && !window.matchMedia('(min-width: 900px)').matches) resume.setAttribute('aria-label', `Réglages du morceau : ${vals.tonalite} · ${bpm}${reste}`);
+            if (resume) {
+                if (resume.dataset.titreOrigine === undefined) resume.dataset.titreOrigine = resume.title;
+                const detail = [vals.tonalite, bpm, vals.mesure, vals.swing, vals.son].filter(Boolean).join(' · ');
+                if (!window.matchMedia('(min-width: 900px)').matches) {
+                    resume.setAttribute('aria-label', `Réglages du morceau : ${detail}`);
+                    const titre = `${detail} — ${resume.dataset.titreOrigine}`;
+                    if (resume.title !== titre) resume.title = titre;
+                }
+            }
         }
         if (this._puceOuverte) this.remplirPuceReglage();
     }
@@ -10334,11 +10344,15 @@ class HarmoHubApp {
             // L'icône d'origine du bouton de suggestion (étincelle) : « les logos de l'utilisateur ne se perdent pas ».
             const iconeSuggestion = (document.querySelector('#key-suggest-btn svg') || {}).outerHTML || '';
             const toniques = NOTES.map((n, pc) => `<button type="button" data-rr-action="tonique" data-rr-valeur="${n}" aria-pressed="${n === root}">${noteNameForPc(pc, useFlatsForKey(pc, mode)).replace('#', '♯')}</button>`).join('');
-            const modes = Object.keys(MODE_LABELS).map(m => `<button type="button" data-rr-action="mode" data-rr-valeur="${m}" aria-pressed="${m === mode}">${MODE_LABELS[m].charAt(0).toUpperCase() + MODE_LABELS[m].slice(1)}</button>`).join('');
-            html = `<div class="rr-lbl">Tonique</div><div class="rr-grille rr-g6">${toniques}</div>`
-                + `<div class="rr-lbl">Mode</div><div class="rr-grille rr-g4">${modes}</div>`
-                + `<button type="button" class="tb-mi rr-suggerer" data-rr-action="suggerer">${iconeSuggestion}<span class="tb-mi-libelle">Suggérer d'après les accords</span></button>`
-                + `<p class="rr-aide">Change seulement la lecture des degrés : les accords ne bougent pas. Pour déplacer les accords, utilise Transposer.</p>`;
+            // L7a (14/11) : modes COURTS (Maj, Min, Dor, Phr, Lyd, Mix, Loc) — le nom complet passe en infobulle et en aria-label — et « Suggérer » (la phrase entière
+            // en infobulle) ; la phrase d'aide sous la fenêtre est retirée (« plus de phrase d'aide sous une fenêtre ») : elle passe en infobulle des deux titres.
+            const COURT = { maj: 'Maj', min: 'Min', dorian: 'Dor', phrygian: 'Phr', lydian: 'Lyd', mixolydian: 'Mix', locrian: 'Loc' };
+            const nomComplet = (m) => { const l = MODE_LABELS[m] || m; return l.charAt(0).toUpperCase() + l.slice(1); };
+            const modes = Object.keys(MODE_LABELS).map(m => `<button type="button" data-rr-action="mode" data-rr-valeur="${m}" aria-pressed="${m === mode}" title="${escapeHtml(nomComplet(m))}" aria-label="${escapeHtml(nomComplet(m))}">${escapeHtml(COURT[m] || nomComplet(m))}</button>`).join('');
+            const aideDegres = 'Change seulement la lecture des degrés : les accords ne bougent pas. Pour déplacer les accords, utilisez Transposer.';
+            html = `<div class="rr-lbl" title="${escapeHtml(aideDegres)}">Tonique</div><div class="rr-grille rr-g6">${toniques}</div>`
+                + `<div class="rr-lbl" title="${escapeHtml(aideDegres)}">Mode</div><div class="rr-grille rr-g4">${modes}</div>`
+                + `<button type="button" class="tb-mi rr-suggerer" data-rr-action="suggerer" title="Suggérer une tonalité d'après les accords du morceau" aria-label="Suggérer une tonalité d'après les accords du morceau">${iconeSuggestion}<span class="tb-mi-libelle">Suggérer</span></button>`;
         } else {
             pop.setAttribute('role', 'listbox');
             if (id === 'mesure') { pop.setAttribute('aria-label', 'Mesure'); html = listeDe('time-sig'); }
@@ -11290,6 +11304,9 @@ class HarmoHubApp {
         const panneau = document.getElementById('tel-affichage-panneau');
         if (!btn || !panneau) return; // index.html servi depuis un cache plus ancien
         btn.addEventListener('click', () => { if (panneau.hidden) this.ouvrirAffichageTelephone(); else this.fermerAffichageTelephone(true); });
+        // L7a : le bouton Séquenceur de la rangée (sous « Rétablir ») ouvre le panneau d'accord sur l'onglet « Rythme » : un geste au lieu de deux (« au lieu d'avoir deux clics »).
+        const seq = document.getElementById('tel-sequenceur');
+        if (seq) seq.addEventListener('click', () => { this.fermerAffichageTelephone(); this.ouvrirRythmeTelephone(true); });
         document.getElementById('tel-affichage-fermer').addEventListener('click', () => this.fermerAffichageTelephone(true));
         panneau.querySelectorAll('[data-densite-tel]').forEach(b => b.addEventListener('click', () => this.choisirDensiteTelephone(b.dataset.densiteTel)));
         panneau.addEventListener('keydown', (e) => {

@@ -101,10 +101,10 @@ const pincer = (p, ecart) => p.evaluate((ecart) => {
         exiger(resume && resume.vis && aff && aff.vis, 'au téléphone, la barre-résumé et le bouton Affichage sont à l\'écran');
         check(Math.abs(resume.h - 44) < 1 && resume.rayon === 7 && Math.abs(aff.w - 44) < 1 && Math.abs(aff.h - 44) < 1 && aff.rayon === 7,
             `barre-résumé de 44px et Affichage carré de 44px, angles de 7px (${Math.round(resume.h)} / ${Math.round(aff.w)}×${Math.round(aff.h)})`);
-        check(Math.abs(resume.y - aff.y) < 1 && aff.x > resume.rt && aff.x - resume.rt <= 8 && aff.rt <= 390 - 9 && resume.x <= 21 && resume.w >= 280,
-            `sur une ligne : la barre prend toute la largeur (${Math.round(resume.w)}px), Affichage collé à sa droite`);
+        check(Math.abs(resume.y - aff.y) < 1 && aff.x > resume.rt && aff.x - resume.rt <= 8 && aff.rt <= 390 - 9 && resume.x <= 21 && resume.w >= 260,
+            `sur une ligne : la barre prend la largeur des onglets (L7a : du bord gauche des onglets au bord droit de « Paroles », ${Math.round(resume.w)}px), Affichage collé à sa droite`);
         const texte = await p.evaluate(() => document.getElementById('song-summary').innerText.trim());
-        check(texte === 'C majeur · 120 BPM · 4/4 · Droit · Piano', `la barre résume les quatre réglages, le tempo juste après la tonalité (« ${texte} »)`);
+        check(texte === 'C · 120 BPM · 4/4', `L7a : la barre dit la tonalité courte, le tempo et la mesure (« ${texte} ») ; le swing et le son sont dans les cases qu'elle déplie`);
         const carte = await p.evaluate(() => { const cs = getComputedStyle(document.getElementById('song-card')); return { bord: cs.borderTopWidth, fond: cs.backgroundColor, img: cs.backgroundImage }; });
         check(carte.bord === '0px' && /rgba\(0, 0, 0, 0\)|transparent/.test(carte.fond) && carte.img === 'none', `plus de cadre de carte autour de la ligne (${JSON.stringify(carte)})`);
 
@@ -136,7 +136,7 @@ const pincer = (p, ecart) => p.evaluate((ecart) => {
             `la case Mesure ouvre son choix sous elle, dans l'écran, huit lignes d'au moins 44px (${choix.lignes.join(',')})`);
         await toucher(p, '#rr-pop [data-rr-valeur="3/4"]', 400);
         const apres34 = await p.evaluate(() => ({ sig: document.getElementById('time-sig').value, resume: document.getElementById('song-summary-tel').textContent, ferme: document.getElementById('rr-pop').hidden, temps: +document.querySelector('#progression-sections .chord-grid').dataset.beatsPerRow, modifie: hasUnsavedChanges === true }));
-        check(apres34.sig === '3/4' && apres34.resume === 'C majeur · 120 BPM · 3/4 · Droit · Piano' && apres34.ferme && apres34.temps === 15 && apres34.modifie,
+        check(apres34.sig === '3/4' && apres34.resume === 'C · 120 BPM · 3/4' && apres34.ferme && apres34.temps === 15 && apres34.modifie,
             `choisir 3/4 règle la vraie mesure, le résumé suit, la grille se refait en mesures de 3 temps (5 par ligne : la largeur d'une ligne reste celle de 16 temps, règle de beatsPerRowFor), le morceau est modifié (${JSON.stringify(apres34)})`);
         await toucher(p, '#global-undo-btn', 400);
         check(await p.evaluate(() => document.getElementById('time-sig').value === '4/4' && document.querySelector('#rr-mesure .rr-val').textContent === '4/4'),
@@ -152,8 +152,9 @@ const pincer = (p, ecart) => p.evaluate((ecart) => {
             `E♭ choisi : la tonalité change (notation internationale), pas les accords ; Échap referme le choix (${JSON.stringify(ton)})`);
         await toucher(p, '#rr-swing'); await toucher(p, '#rr-pop [data-rr-valeur="ternary"]');
         await toucher(p, '#rr-son'); await toucher(p, '#rr-pop [data-rr-valeur="pad"]');
-        const deux = await p.evaluate(() => ({ g: document.getElementById('groove').value, i: document.getElementById('instrument').value, resume: document.getElementById('song-summary-tel').textContent }));
-        check(deux.g === 'ternary' && deux.i === 'pad' && deux.resume === 'E♭ majeur · 120 BPM · 4/4 · Ternaire · Nappe', `Swing et Son se règlent de même, le résumé suit (« ${deux.resume} »)`);
+        const deux = await p.evaluate(() => ({ g: document.getElementById('groove').value, i: document.getElementById('instrument').value, resume: document.getElementById('song-summary').innerText.trim(), aria: document.getElementById('song-summary').getAttribute('aria-label') }));
+        check(deux.g === 'ternary' && deux.i === 'pad' && deux.resume === 'E♭ · 120 BPM · 4/4' && /Ternaire/.test(deux.aria) && /Nappe/.test(deux.aria),
+            `Swing et Son se règlent de même ; la barre (« ${deux.resume} ») ne les dit plus, son aria-label oui (« ${deux.aria} »)`);
         await toucher(p, '#rr-transposer-haut', 400);
         check(await p.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[0].root === 'C#'), 'la flèche ↑ de Transposer déplace les accords d\'un demi-ton');
         await toucher(p, '#rr-mesure');

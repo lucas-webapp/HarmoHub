@@ -6582,3 +6582,19 @@ Onze fils ; **faits** (bancs `sequenceur_piano` 35 et `sequenceur` 81, sabotages
 - **Curseur et survol** (remarques du 15/11) : plus de viseur — « cell » sur une case vide, la FLÈCHE sur une note (l'utilisateur avait refusé la main), « ew-resize » sur une poignée ; une note survolée s'éclaire (filtre 1,22, trait blanc fin). Banc `sequencer_reticle_cursor` réécrit, `sequenceur_piano` (39).
 - **Écran tactile de largeur d'ordinateur** (« maintenant que je clique sur une note, elle s'efface ») : à la souris un clic sélectionne déjà (mesuré) ; seul le toucher enlevait la note (ancien geste du doigt). Au-dessus de 900 px un toucher se comporte comme la souris (sélection, Suppr, glissé qui peint ou étire ; `touch-action: pan-y`) ; le téléphone garde l'ancien geste. Banc `sequenceur_tactile_large` (9) + sabotage rouge. **À confirmer avec l'utilisateur** que c'est bien un écran tactile.
 - Balayage ciblé : 16 suites, 15 verts, aucun rouge.
+
+## Session du 15/11 (suite 7) — L7 (en sous-lots) : le téléphone
+
+Le seul lot qui touche le téléphone depuis le lot 10 : toutes les règles « téléphone inchangé » tombent ici, point par point (lettres K, M, O, P, Q, S de `docs/decisions-13-14-11.md`). Quatre sous-lots : **L7a** la rangée du haut, **L7b** le panneau Lecture, **L7c** le séquenceur du panneau d'accord sur plusieurs mesures, **L7d** « + Accord », « + Section » et la bande du bas.
+
+### L7a — la rangée du haut (lettre S)
+
+**Ce que demande l'utilisateur** : « trop de texte et ça dépasse de la fenêtre […] les noms d'accords sont encore écrits en français » ; « place le bouton séquenceur ici finalement : il y a un espace à droite » ; « au lieu d'avoir deux clics ».
+
+**Ce qui est fait.**
+- **Barre-résumé** `#song-summary` : « C · 120 BPM · 4/4 » (tonalité courte `libelleTonaliteCourt` : C, Am, E♭, D dor…, tempo en vert, mesure). Le swing et le son restent dans les quatre cases qu'elle déplie ; tout le détail (« C majeur · 120 BPM · 4/4 · Droit · Piano ») est dans son `aria-label` et son infobulle. À 320 px elle tient sans être coupée.
+- **Rangée alignée sur celle des onglets** (`.tel-reglages-ligne`, marges de −10 px des deux côtés : la colonne a 20 px, les onglets et les deux boutons du dessus sont à 10 px du bord) : la barre part du bord gauche des onglets, `#tel-affichage` (44 px) tombe sous « Annuler », le nouveau **`#tel-sequenceur`** (44 px, logo de `#vue-sequenceur` repris tel quel, vert) sous « Rétablir », 6 px d'écart. Mesuré au pixel à 390, 360, 320 et 820 px (écarts 0 / 0 / 0 / 0).
+- **Le bouton Séquenceur** ouvre le panneau d'accord sur l'onglet « Rythme » de l'accord choisi, sinon du premier accord de la partie (`ouvrirRythmeTelephone`, inchangé). **Défaut trouvé en écrivant le banc** : le clic du bouton passait ensuite par le gestionnaire de clic du document, qui refermait aussitôt le panneau (« clic à côté ») ; `#tel-sequenceur` est maintenant dans la liste des éléments qui ne ferment pas le panneau et qui ne désélectionnent pas l'accord (`inMenu`).
+- **Fenêtre de la tonalité** (`remplirPuceReglage`, à TOUTES les tailles) : modes courts Maj, Min, Dor, Phr, Lyd, Mix, Loc (nom complet en infobulle et `aria-label`), « Suggérer » (phrase entière en infobulle), plus de phrase d'aide (elle passe en infobulle des deux titres « Tonique » et « Mode »).
+
+**Bancs.** Nouveau : `telephone_rangee_haut` (32 : alignement à quatre largeurs, texte court et détail, modes courts, bouton Séquenceur au doigt avec et sans accord choisi, ordinateur inchangé). Réécrit (jamais supprimé) : `telephone_reglages` (le texte de la barre, sa largeur de 270 px, le swing et le son dans l'aria-label). **6 sabotages**, tous rouges : le clic referme le panneau, résumé en noms complets, marges de la rangée, modes longs, phrase d'aide remise, swing et son remis dans la barre.

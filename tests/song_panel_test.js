@@ -73,7 +73,8 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
         replie: document.getElementById('tel-reglages-cases').hidden && document.getElementById('song-settings').hidden,
         visible: document.getElementById('song-summary').getBoundingClientRect().height > 0,
     }));
-    check(resume.visible && /120/.test(resume.texte) && /4\/4/.test(resume.texte) && /majeur/i.test(resume.texte),
+    // L7a : la barre dit « C · 120 BPM · 4/4 » (tonalité courte, notation internationale) ; le nom complet est dans son aria-label.
+    check(resume.visible && /120/.test(resume.texte) && /4\/4/.test(resume.texte) && /^C ·/.test(resume.texte),
         `tempo, mesure et tonalité sont lisibles d'emblée — « ${resume.texte} »`);
     check(resume.replie, 'les réglages, eux, restent repliés tant qu\'on n\'en a pas besoin');
 
@@ -98,13 +99,15 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
         `le résumé suit le tempo et la mesure qu'on vient de changer — « ${apres} »`);
     check(/A|La/.test(apres), `...et la tonalité — « ${apres} »`);
 
-    // Le swing : la barre-résumé de la maquette le dit toujours (« Droit » compris) — il suit donc le choix, dans les deux sens.
+    // Le swing : depuis L7a la barre ne le dit plus (« C · 120 BPM · 4/4 », « trop de texte ») ; il se lit dans sa case « Swing » et dans l'aria-label de la barre,
+    // et il suit le choix dans les deux sens.
+    const swingLu = () => page.evaluate(() => ({ case: document.querySelector('#rr-swing .rr-val').textContent, aria: document.getElementById('song-summary').getAttribute('aria-label'), barre: document.getElementById('song-summary').innerText.replace(/\s+/g, ' ').trim() }));
     await choisir('swing', 'ternary');
-    const avecGroove = await page.evaluate(() => document.getElementById('song-summary').innerText.replace(/\s+/g, ' ').trim());
-    check(/Ternaire/.test(avecGroove), `un swing non droit s'affiche dans le résumé — « ${avecGroove} »`);
+    const avecGroove = await swingLu();
+    check(avecGroove.case === 'Ternaire' && /Ternaire/.test(avecGroove.aria) && !/Ternaire/.test(avecGroove.barre), `un swing non droit se lit dans sa case et l'aria-label, plus dans la barre — « ${avecGroove.barre} » / « ${avecGroove.case} »`);
     await choisir('swing', 'straight');
-    const sansGroove = await page.evaluate(() => document.getElementById('song-summary').innerText.replace(/\s+/g, ' ').trim());
-    check(/Droit/.test(sansGroove) && !/Ternaire/.test(sansGroove), `revenu au swing droit, le résumé le dit — « ${sansGroove} »`);
+    const sansGroove = await swingLu();
+    check(sansGroove.case === 'Droit' && /Droit/.test(sansGroove.aria) && !/Ternaire/.test(sansGroove.aria), `revenu au swing droit, la case et l'aria-label le disent — « ${sansGroove.case} »`);
 
     // ============================================================
     // === D. Déplier les réglages ne masque plus RIEN (le vrai gain) ===

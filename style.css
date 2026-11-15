@@ -7740,3 +7740,22 @@ body.entetes-gauche #progression-sections .prog-section-menu { margin-left: 0; }
 @media (min-width: 900px) {
     #sq-grille, #sq-grille .sq-case { touch-action: pan-y; }
 }
+
+
+/* ============================================================================================================================================================
+   L7a (15/11) — TÉLÉPHONE : LA RANGÉE DU HAUT S'ALIGNE SUR CELLE DES ONGLETS. L'utilisateur : « place le bouton séquenceur ici finalement : il y a un espace à droite » ; la
+   barre-résumé « C · 120 BPM · 4/4 » va du bord gauche des onglets au bord droit de « Paroles », le bouton d'affichage de la grille tombe sous « Annuler » et le bouton
+   Séquenceur (logo vert, 44 px) sous « Rétablir » (écart de 6 px, comme les deux boutons du dessus). La rangée sort de 10 px des deux côtés de la colonne (qui a 20 px de marge) :
+   les onglets et les deux boutons de la barre du haut sont à 10 px du bord de l'écran. Le téléphone seulement : l'ordinateur n'a pas cette rangée.
+   ============================================================================================================================================================ */
+.tel-sequenceur { display: none; }
+@media (max-width: 899px) {
+    .tel-reglages-ligne { margin-left: -10px; margin-right: -10px; }
+    .col-left .tel-sequenceur {
+        display: inline-flex; align-items: center; justify-content: center; flex: none; box-sizing: border-box; min-width: 0;
+        width: var(--bouton-h-lg, 44px); height: var(--bouton-h-lg, 44px); padding: 0; border-radius: var(--rayon-bouton, 7px);
+        color: var(--accent); border-color: var(--btn-green-border);
+    }
+    .tel-sequenceur .icon { width: 20px; height: 20px; }
+    .col-left .tel-sequenceur:active { background: rgba(0, 230, 118, 0.12); }
+}

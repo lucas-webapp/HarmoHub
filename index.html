@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611160207">
+    <link rel="stylesheet" href="style.css?v=202611160301">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611160207">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611160301">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -933,6 +933,12 @@
                      est celui de la maquette, une grille de cases (règle 2 : une icône n'est créée que pour une fonction qui n'en a pas). -->
                 <button type="button" id="tel-affichage" class="icon-btn tel-affichage" aria-haspopup="dialog" aria-expanded="false" aria-controls="tel-affichage-panneau" title="Affichage de la grille : Normal" aria-label="Affichage de la grille : Normal">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v16H4zM4 9.3h16M4 14.7h16M9.3 4v16M14.7 4v16"/></svg>
+                </button>
+                <!-- SÉQUENCEUR AU TÉLÉPHONE (L7a, 15/11, lettre S) : « place le bouton séquenceur ici finalement : il y a un espace à droite ». Le bouton carré de 44 px, logo vert
+                     (celui de #vue-sequenceur, repris tel quel), tombe SOUS « Rétablir » comme #tel-affichage tombe sous « Annuler » ; il ouvre le panneau d'accord sur l'onglet
+                     « Rythme » (ouvrirRythmeTelephone), sans jouer l'accord. Masqué à l'ordinateur, où le bouton « Séquenceur » est dans l'en-tête de la grille. -->
+                <button type="button" id="tel-sequenceur" class="icon-btn tel-sequenceur" title="Séquenceur : le rythme de l'accord choisi" aria-label="Séquenceur">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h6M14 7h6M4 12h3M11 12h9M4 17h11M19 17h1"/></svg>
                 </button>
                 </div>
                 <div id="tel-reglages-cases" class="tel-reglages-cases" hidden></div>
@@ -2161,13 +2167,13 @@
     <!-- sequenceur.js AVANT script.js : l'appli (window.app) est créée à la fin de script.js et construit le séquenceur dans la foulée. -->
     <!-- Les formes du séquenceur (au compte) : AVANT sequenceur.js, qui s'y abonne à sa construction ; la connexion (SYNCHRO) n'est lue qu'à l'usage. -->
     <script src="synchro-formes.js?v=202611131800"></script>
-    <script src="synchro-doigtes.js?v=202611160207"></script>
-    <script src="sequenceur.js?v=202611160207"></script>
-    <script src="script.js?v=202611160207"></script>
+    <script src="synchro-doigtes.js?v=202611160301"></script>
+    <script src="sequenceur.js?v=202611160301"></script>
+    <script src="script.js?v=202611160301"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611160207"></script>
+    <script src="synchro-harmohub.js?v=202611160301"></script>
     <!-- Les versions au cloud (sous-lot « Versions au cloud ») : après l'adaptateur, dont elles réutilisent la connexion (SYNCHRO). -->
     <script src="synchro-versions.js?v=202611060400"></script>
 </body>
