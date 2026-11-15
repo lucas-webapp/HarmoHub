@@ -28,6 +28,16 @@ const graine = () => {
     sessionStorage.setItem('cc_accueil_vu', '1');
 };
 
+    // L1b (14/11) : Compact / Normal / Détaillé ont laissé la place à « Vue ‹ n mes. › » ; on atteint un nombre de mesures par les vrais chevrons.
+    const vue = async (p, n) => {
+        for (let i = 0; i < 9; i++) {
+            const v = +(await p.locator('#vue-mesures-val').textContent());
+            if (v === n) break;
+            await p.click(v < n ? '#vue-mesures-plus' : '#vue-mesures-moins', { force: true }); await p.waitForTimeout(200);
+        }
+        await p.waitForTimeout(250);
+    };
+
 (async () => {
     const nav = await chromium.launch();
     const erreurs = [];
@@ -61,10 +71,10 @@ const graine = () => {
     check(une.l === 6 && une.h === 6 && une.rond === '50%' && une.coin, `une petite pastille ronde de 6px dans le coin haut droit (${une.l}x${une.h}, ${une.rond})`);
     check(une.fond === 'rgb(224, 179, 106)', `ambre (${une.fond})`);
     check(pa.every(x => !/perso/i.test(x.texte)), 'jamais le mot « perso » dans une case');
-    await p.click('#grille-densites [data-densite="compact"]'); await p.waitForTimeout(300);
+    await vue(p, 8);
     pa = await pastilles();
-    check(pa.filter(x => x.n).length === 4, `en Compact (noms seuls) aussi : c'est une information sur le son, pas un détail (${pa.filter(x => x.n).length} pastilles)`);
-    await p.click('#grille-densites [data-densite="normal"]'); await p.waitForTimeout(300);
+    check(pa.filter(x => x.n).length === 4, `à 8 mesures par ligne aussi : c'est une information sur le son, pas un détail (${pa.filter(x => x.n).length} pastilles)`);
+    await vue(p, 4);
 
     // ======================================================================================================
     console.log('\n=== B. La durée affichée pendant qu\'on étire ===');
@@ -140,18 +150,18 @@ const graine = () => {
 
     // ======================================================================================================
     console.log('\n=== E. La case « + » ne dépasse jamais une mesure ===');
-    for (const d of ['compact', 'normal', 'detail']) {
-        await p.click(`#grille-densites [data-densite="${d}"]`); await p.waitForTimeout(300);
+    for (const d of [8, 4, 2]) {
+        await vue(p, d);
         const m = await p.evaluate(() => {
             const g = document.querySelector('.chord-grid'), plus = g.querySelector('.grid-cell-add').getBoundingClientRect();
             const mesure = g.getBoundingClientRect().width / (+g.dataset.beatsPerRow) * window.app.beatsPerBar();
             return { plus: Math.round(plus.width), mesure: Math.round(mesure) };
         });
-        check(m.plus <= m.mesure && m.plus >= 24, `${d} : la case « + » fait ${m.plus}px, une mesure fait ${m.mesure}px`);
+        check(m.plus <= m.mesure && m.plus >= 24, `${d} mesures par ligne : la case « + » fait ${m.plus}px, une mesure fait ${m.mesure}px`);
     }
     // Une partie avec un seul accord : beaucoup de place libre sur la ligne, la case ne la prend pas.
     await p.evaluate(() => { const s = loadProgressionSections(); s.push({ title: 'Pont', chords: [{ ...s[0].chords[1], beats: 4 }] }); saveProgressionSections(s); window.app.loadProgression(); });
-    await p.click('#grille-densites [data-densite="normal"]'); await p.waitForTimeout(300);
+    await vue(p, 4);
     const libre = await p.evaluate(() => {
         const g = document.querySelectorAll('.chord-grid')[1], plus = g.querySelector('.grid-cell-add').getBoundingClientRect(), gr = g.getBoundingClientRect();
         return { plus: Math.round(plus.width), reste: Math.round(gr.right - plus.left), mesure: Math.round(gr.width / (+g.dataset.beatsPerRow) * window.app.beatsPerBar()) };

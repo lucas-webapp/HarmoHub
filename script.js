@@ -8011,7 +8011,26 @@ class HarmoHubApp {
         // écran de 390px seraient illisibles, et le téléphone garde sa mise en page jusqu'au lot 10.
         // Lot 10c : le téléphone a désormais SES affichages (DENSITES_TELEPHONE) et son échelle à lui, réglée par le pincement.
         if (!window.matchMedia('(min-width: 900px)').matches) return this.gridTelZoomLevelX || 1;
-        return this.classicGridZoomLevelX;
+        // L1b (14/11) : la vue ne montre jamais plus de mesures par ligne que la fenêtre n'en porte (« le nombre redescend si on rétrécit ») ; le morceau garde ce qu'on
+        // avait choisi, la fenêtre élargie le retrouve.
+        const x = this.classicGridZoomLevelX, max = this.maxMesuresFenetre();
+        return this.mesuresParLigneGrille(x) > max ? this.echelleXPourMesures(max) : x;
+    }
+    // Mesures par ligne pour une échelle horizontale donnée (celle du morceau par défaut).
+    mesuresParLigneGrille(x = this.classicGridZoomLevelX) {
+        const bpb = this.beatsPerBar();
+        return Math.round(beatsPerRowFor(bpb, false, x) / bpb);
+    }
+    // L'échelle qui donne `n` mesures par ligne : beatsPerRowFor vise 16 / x temps, soit n × temps par mesure ; bornée comme les échelles de la grille (0,5 à 2).
+    echelleXPourMesures(n) { return Math.max(0.5, Math.min(2, 16 / (n * this.beatsPerBar()))); }
+    // Le plus de mesures que la fenêtre porte : une croche garde 14 px au moins, une mesure = 112 px, moins 78 px d'étiquettes et de marges ; de 2 à 8.
+    maxMesuresFenetre() { return Math.max(2, Math.min(8, Math.floor((window.innerWidth - 78) / 112))); }
+    // Les nombres de mesures que la vue peut vraiment montrer (selon la signature : en 6/8, 2 mesures = 12 temps, mais l'échelle plafonne à 2) et que la fenêtre porte.
+    mesuresPossiblesGrille() {
+        const max = this.maxMesuresFenetre(), vus = new Set();
+        for (let n = 2; n <= 8; n++) { const m = this.mesuresParLigneGrille(this.echelleXPourMesures(n)); if (m <= max) vus.add(m); }
+        if (!vus.size) vus.add(this.mesuresParLigneGrille(this.echelleXPourMesures(2)));
+        return [...vus].sort((a, b) => a - b);
     }
 
     // beatsPerRowOverride : échelle FIXE imposée (voir buildPrintExportHtml/pdfMeasuresPerLine) au lieu
@@ -10664,8 +10683,16 @@ class HarmoHubApp {
             }
         }
         if (!this.grilleDensite) this.grilleDensite = 'normal';
-        const groupe = document.getElementById('grille-densites');
-        if (groupe) groupe.querySelectorAll('[data-densite]').forEach(b => b.addEventListener('click', () => this.choisirDensiteGrille(b.dataset.densite)));
+        const moins = document.getElementById('vue-mesures-moins'), plus = document.getElementById('vue-mesures-plus');
+        if (moins) moins.addEventListener('click', () => this.changerMesuresGrille(-1));
+        if (plus) plus.addEventListener('click', () => this.changerMesuresGrille(1));
+        // La fenêtre change de taille : le nombre de mesures montrées suit (le morceau garde son choix) et le séquenceur avec lui.
+        let nVu = this.mesuresParLigneGrille(this.currentGridHZoom());
+        window.addEventListener('resize', () => {
+            const n = this.mesuresParLigneGrille(this.currentGridHZoom());
+            if (n !== nVu) { nVu = n; this.loadProgression(); if (this.sequenceur) this.sequenceur.rafraichir(); }
+            this.majVueMesures();
+        });
         const droite = document.getElementById('grille-poignee-droite');
         const bas = document.getElementById('grille-poignee-bas');
         const cadre = document.getElementById('grille-cadre');
@@ -10685,7 +10712,9 @@ class HarmoHubApp {
             fin: (d, dx, dy) => { this.setZoomLevel('classicGrid', 'y', this.borneHauteurCase(d.h0 + dy / d.rangees) / GRILLE_CASE_BASE); this.rafraichirAffichageGrille(); },
         });
         // Double-clic sur l'une ou l'autre : les valeurs de l'affichage en cours (« double-clic = valeurs d'origine »).
-        [droite, bas].forEach(p => p.addEventListener('dblclick', (e) => { e.preventDefault(); this.choisirDensiteGrille(this.grilleDensite || 'normal'); }));
+        // Double-clic : les valeurs d'origine — la largeur naturelle pour le nombre de mesures, la hauteur d'une case de 52 px (l'ancien Normal).
+        droite.addEventListener('dblclick', (e) => { e.preventDefault(); this.grilleLargeur = null; this.rafraichirAffichageGrille(); marquerModifie(); });
+        bas.addEventListener('dblclick', (e) => { e.preventDefault(); this.setZoomLevel('classicGrid', 'y', DENSITES_GRILLE.normal.h / GRILLE_CASE_BASE); this.rafraichirAffichageGrille(); });
         // Passer d'un format à l'autre (fenêtre redimensionnée) : ce que montrent les cases en dépend (noms seuls, carrés du rythme — ordinateur seulement).
         const bureau = window.matchMedia('(min-width: 900px)');
         const auChangement = () => this.loadProgression();
@@ -10740,7 +10769,8 @@ class HarmoHubApp {
     // La fenêtre s'élargit alors d'elle-même juste assez pour que l'accord le plus court ait ~56px (dans la limite de sa colonne) ; un morceau sans
     // accord de moins de deux temps garde exactement la largeur de la maquette.
     largeurAutoGrille(densite) {
-        const base = DENSITES_GRILLE[densite] ? DENSITES_GRILLE[densite].w : DENSITES_GRILLE.normal.w;
+        // L1b : la fenêtre se règle sur le nombre de mesures par ligne (120 px la mesure : 4 mesures = 480 px, comme l'ancien Normal), de 360 à 1100 px.
+        const base = Math.max(GRILLE_LARGEUR_MIN, Math.min(1100, this.mesuresParLigneGrille(this.currentGridHZoom()) * 120));
         let plusCourt = Infinity;
         try { loadProgressionSections().forEach(sec => sec.chords.forEach(c => { const b = beatsFromData(c); if (b > 0) plusCourt = Math.min(plusCourt, b); })); } catch (e) { return base; }
         if (!isFinite(plusCourt)) return base;
@@ -10758,22 +10788,36 @@ class HarmoHubApp {
         if (cadre.style.maxWidth !== px) cadre.style.maxWidth = px;
     }
 
-    choisirDensiteGrille(densite) {
-        const d = DENSITES_GRILLE[densite];
-        if (!d) return;
-        this.grilleDensite = densite;
-        this.grilleLargeur = null;
-        this.setZoomLevel('classicGrid', 'x', d.x);
-        this.setZoomLevel('classicGrid', 'y', d.h / GRILLE_CASE_BASE);
+    // « Vue ‹ n mes. › » (L1b, 14/11) : les trois affichages Compact / Normal / Détaillé réglaient ensemble les mesures par ligne, la hauteur des cases et les noms
+    // seuls — à séparer : ici seulement les mesures par ligne (le séquenceur montre la même ligne) ; la hauteur est à la poignée du bas, les degrés et la position
+    // d'accord à Paramètres › Affichage. Un morceau enregistré en Compact ou en Détaillé garde son échelle et sa hauteur (applySongSettingsToDom) mais s'ouvre en noms +
+    // degrés. `delta` = -1 ou 1 : le cran voisin dans la liste des nombres possibles.
+    changerMesuresGrille(delta) {
+        const liste = this.mesuresPossiblesGrille(), n = this.mesuresParLigneGrille(this.currentGridHZoom());
+        let i = liste.indexOf(n);
+        if (i < 0) i = liste.findIndex(m => m >= n) < 0 ? liste.length - 1 : liste.findIndex(m => m >= n);
+        const voulu = liste[Math.max(0, Math.min(liste.length - 1, i + delta))];
+        if (voulu === n && this.mesuresParLigneGrille() === n) { this.majVueMesures(); return; }
+        this.grilleLargeur = null;   // la fenêtre reprend sa largeur naturelle pour ce nombre de mesures
+        this.setZoomLevel('classicGrid', 'x', this.echelleXPourMesures(voulu));
         this.rafraichirAffichageGrille();
-        this.loadProgression(); // ce que montrent les cases dépend de l'affichage (noms seuls en Compact), même à échelles inchangées
-        marquerModifie(); // un réglage du morceau, comme ses échelles : Enregistrer le rend permanent
+        if (this.sequenceur) this.sequenceur.rafraichir();   // il montre la même ligne : ses mesures changent avec celles de la grille
+        marquerModifie();
+    }
+    // Le texte et l'état des deux chevrons : le nombre porte son unité (« 4 mes. », CSS), le ‹ ou le › se grise au bout de la liste.
+    majVueMesures() {
+        const n = this.mesuresParLigneGrille(this.currentGridHZoom()), liste = this.mesuresPossiblesGrille();
+        const val = document.getElementById('vue-mesures-val');
+        if (val) val.textContent = String(n);
+        const moins = document.getElementById('vue-mesures-moins'), plus = document.getElementById('vue-mesures-plus');
+        if (moins) moins.disabled = n <= liste[0];
+        if (plus) plus.disabled = n >= liste[liste.length - 1];
     }
 
     // Pose ce que montre l'écran d'après l'état : bouton allumé, largeur de la fenêtre, classe d'affichage (le CSS en tire ce que montrent les cases).
     rafraichirAffichageGrille() {
         const densite = this.grilleDensite || 'normal';
-        document.querySelectorAll('#grille-densites [data-densite]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.densite === densite)));
+        this.majVueMesures();
         this.appliquerLargeurGrille();
         this.memoriserAffichageGrille();
         const hote = document.querySelector('.history-section');
@@ -11821,7 +11865,9 @@ class HarmoHubApp {
         // et non avec ses anciennes échelles — c'est la demande même du lot (« les cases sont trop grosses »). Un morceau qui en porte un retrouve
         // l'affichage choisi ET ses échelles exactes (la poignée du bas a pu les affiner).
         if (song.grilleDensite && DENSITES_GRILLE[song.grilleDensite]) {
-            this.grilleDensite = song.grilleDensite;
+            // L1b (14/11) : plus de choix Compact / Normal / Détaillé — un morceau enregistré avec l'un des deux autres garde ses échelles (mesures par ligne, hauteur
+            // des cases) et sa largeur, mais s'ouvre en noms + degrés, la position d'accord et les degrés étant des réglages de Paramètres › Affichage.
+            this.grilleDensite = 'normal';
             this.grilleLargeur = song.grilleLargeur || null;
         } else {
             this.grilleDensite = 'normal';

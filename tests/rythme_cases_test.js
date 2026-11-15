@@ -37,6 +37,15 @@ const graine = ({ motif, court }) => {
 (async () => {
     const nav = await chromium.launch();
     const erreurs = [];
+    // L1b (14/11) : Compact / Normal / Détaillé ont laissé la place à « Vue ‹ n mes. › » ; on atteint un nombre de mesures par les vrais chevrons.
+    const vue = async (p, n) => {
+        for (let i = 0; i < 9; i++) {
+            const v = +(await p.locator('#vue-mesures-val').textContent());
+            if (v === n) break;
+            await p.click(v < n ? '#vue-mesures-plus' : '#vue-mesures-moins', { force: true }); await p.waitForTimeout(200);
+        }
+        await p.waitForTimeout(250);
+    };
     const ouvrir = async (viewport, opts = {}) => {
         const p = await nav.newPage({ viewport });
         p.on('pageerror', e => erreurs.push(e.message));
@@ -55,13 +64,14 @@ const graine = ({ motif, court }) => {
     // d'option, et la case se clique toujours. Les parties D et E (accords courts, téléphone) restent telles quelles.
     console.log('\n=== A. Plus de carrés du rythme, plus d\'option ===');
     let p = await ouvrir({ width: 1440, height: 900 });
-    exiger(await p.evaluate(() => window.app.grilleDensite === 'detail'), 'le morceau s\'ouvre en Détaillé');
-    check(await p.evaluate(() => document.querySelectorAll('#progression-sections .cell-rythme').length) === 0, 'Détaillé : aucun carré du rythme dans les cases');
-    for (const d of ['normal', 'compact']) {
-        await p.click(`#grille-densites [data-densite="${d}"]`); await p.waitForTimeout(300);
-        check(await p.evaluate(() => document.querySelectorAll('#progression-sections .cell-rythme').length) === 0, `${d === 'normal' ? 'Normal' : 'Compact'} : aucun carré non plus`);
+    // L1b (14/11) : un morceau enregistré en Détaillé s'ouvre désormais en noms + degrés (plus de choix Compact / Normal / Détaillé), avec « Vue ‹ n mes. ›.
+    exiger(await p.evaluate(() => window.app.grilleDensite === 'normal'), 'le morceau enregistré en Détaillé s\'ouvre en noms + degrés (plus d\'affichage Détaillé)');
+    check(await p.evaluate(() => document.querySelectorAll('#progression-sections .cell-rythme').length) === 0, 'à l\'ouverture : aucun carré du rythme dans les cases');
+    for (const d of [8, 2]) {
+        await vue(p, d);
+        check(await p.evaluate(() => document.querySelectorAll('#progression-sections .cell-rythme').length) === 0, `${d} mesures par ligne : aucun carré non plus`);
     }
-    await p.click('#grille-densites [data-densite="detail"]'); await p.waitForTimeout(300);
+    await vue(p, 4);
     await p.click('#open-settings'); await p.waitForTimeout(300);
     check(await p.evaluate(() => document.getElementById('toggle-show-cell-rhythm') === null), 'Paramètres › Affichage : l\'option « Rythme de l\'accord dans les cases » n\'existe plus');
     await p.click('#settings-close'); await p.waitForTimeout(200);
@@ -75,7 +85,7 @@ const graine = ({ motif, court }) => {
     // ======================================================================================================
     console.log('\n=== D. Un accord d\'un temps reste lisible ===');
     p = await ouvrir({ width: 1440, height: 900 }, { court: true });
-    await p.click('#grille-densites [data-densite="normal"]'); await p.waitForTimeout(400);
+    await vue(p, 4);
     const auto = await p.evaluate(() => {
         const cadre = document.getElementById('grille-cadre').getBoundingClientRect().width;
         const sym = document.querySelector('#progression-sections .grid-cell[data-index="1"] .cell-sym');
@@ -104,7 +114,7 @@ const graine = ({ motif, court }) => {
     // ======================================================================================================
     console.log('\n=== E. Téléphone : rien ne change avant le lot 10 ===');
     p = await ouvrir({ width: 390, height: 844 });
-    check(await p.evaluate(() => window.app.grilleDensite === 'detail' && document.querySelectorAll('#progression-sections .cell-rythme').length === 0), 'téléphone, morceau en Détaillé : pas de carrés');
+    check(await p.evaluate(() => window.app.grilleDensite === 'normal' && document.querySelectorAll('#progression-sections .cell-rythme').length === 0), 'téléphone, morceau enregistré en Détaillé : pas de carrés');
     await p.evaluate(() => { window.app.grilleDensite = 'compact'; window.app.loadProgression(); });
     await p.waitForTimeout(300);
     check(await p.evaluate(() => document.querySelectorAll('#progression-sections .row-roman').length > 0), 'téléphone, morceau en Compact : les degrés restent (« noms seuls » est un affichage d\'ordinateur)');
