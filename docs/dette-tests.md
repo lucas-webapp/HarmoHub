@@ -6430,3 +6430,5 @@ Source : `docs/decisions-13-14-11.md`, lettres A, E, I, S ; code d'essai : `docs
 - **`R.choisirAccord(p, c)`** (nouveau) : choisit un accord par son nom dans la règle du séquenceur s'il est sur la ligne montrée, sinon par un vrai clic dans la grille (case amenée à l'écran) ; utilisé par `poserCroche`, `choisirParNom` et leurs semblables.
 - **Défaut réel trouvé et corrigé** (`editeur_et_clavier`) : monter / supprimer une partie changeait les rangs des parties alors que `_vise` gardait l'ancien — le séquenceur montrait la mauvaise partie. `_vise` n'est maintenant valable que tant que la partie ACTIVE de l'appli est celle où elle a été posée (`_viseActive`).
 - `editeur_et_clavier` attend aussi la fin de l'écoute de l'accord choisi (2,6 s) avant de bouger les parties : une écoute en cours (rangs d'avant le déplacement) fait suivre au séquenceur une partie qui a changé de place — fenêtre de quatre temps, sans suite.
+
+- **Second balayage complet (15/11)** : **261 verts, 1 rouge (`probe_regle_voisins`, ligne de base), 4 sans verdict** (`detune`, `instrument_stress`, `probe_cache_perime`, `smoke`) sur 266 suites, 15 min 44 s, seul. Aucune régression : poussé.
