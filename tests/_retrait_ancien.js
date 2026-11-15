@@ -48,15 +48,23 @@ async function ouvrirNouveau(p) {
 }
 
 // Ce qui remplace la loupe, les zooms et les défilements : TOUTE la partie à l'écran, sans défilement de côté (cahier : « pas de zoom, pas de loupe »).
+// RÉÉCRIT À L1c (14/11) : le séquenceur ne montre plus TOUTE la partie mais LA LIGNE de la grille où se trouve l'accord choisi (au nombre de mesures de la Vue). Ce que le
+// helper garde : tout ce qu'il montre tient à l'écran, sans zoom ni défilement de côté — et il montre exactement les accords de la ligne de la grille (relus sur la grille,
+// pas sur le séquenceur).
 async function toutePartie(p) {
     const r = await p.evaluate(() => {
-        const sec = loadProgressionSections()[window.app.activeSection || 0];
+        const sq = window.app.sequenceur, sec = loadProgressionSections()[sq._s];
+        const grille = document.querySelector(`#progression-sections .chord-grid[data-section="${sq._s}"]`);
+        const ref = grille && grille.querySelector(`.grid-cell[data-index="${sq._i}"]`);
+        const ligne = new Set();
+        if (ref) { const haut = ref.getBoundingClientRect().top; grille.querySelectorAll('.grid-cell[data-index]').forEach(c => { if (Math.abs(c.getBoundingClientRect().top - haut) < 3) ligne.add(+c.dataset.index); }); }
         const g = document.getElementById('sq-grille'), s = document.getElementById('sequenceur').getBoundingClientRect();
         const noms = [...g.querySelectorAll('.sq-nom')];
         const dedans = noms.every(n => { const b = n.getBoundingClientRect(); return b.left >= s.left - 1 && b.right <= s.right + 1; });
-        return { accords: sec ? sec.chords.length : 0, noms: noms.length, dedans, deborde: g.scrollWidth - g.clientWidth };
+        const memes = JSON.stringify(noms.map(n => +n.dataset.c)) === JSON.stringify([...ligne].sort((a, b) => a - b));
+        return { accords: ligne.size, partie: sec ? sec.chords.length : 0, noms: noms.length, memes, dedans, deborde: g.scrollWidth - g.clientWidth };
     });
-    return { ok: r.accords > 0 && r.noms === r.accords && r.dedans && r.deborde <= 1, detail: `${r.noms} accords sur ${r.accords}, tous à l'écran ${r.dedans}, débord ${r.deborde}` };
+    return { ok: r.accords > 0 && r.noms === r.accords && r.memes && r.dedans && r.deborde <= 1, detail: `${r.noms} accords montrés, ${r.accords} sur la ligne de la grille (${r.partie} dans la partie), tous à l'écran ${r.dedans}, débord ${r.deborde}` };
 }
 
 // La voix (index) d'une position (0 = basse) d'un accord, et ses croches, relues dans le morceau enregistré.
@@ -67,9 +75,22 @@ const lire = (p, c) => p.evaluate((c) => {
     return { positions: e.info.positions, pos: e.info.positions.map(par), motif: SequenceurHarmo.motifActuel(d), niveaux: [...e.niveaux.entries()].map(x => x.join('=')).join(' ') };
 }, c);
 
+// RÉÉCRIT À L1c (14/11) : le séquenceur ne montre que LA LIGNE de la grille de l'accord choisi. Choisir un accord par son nom dans la règle du séquenceur marche s'il est sur
+// cette ligne ; sinon on le choisit où l'utilisateur le ferait, dans la grille (un vrai clic au milieu de sa case).
+async function choisirAccord(p, c, ms = 400) {
+    if (await p.locator(`#sq-grille .sq-nom[data-c="${c}"]`).count()) { await cliquer(p, `#sq-grille .sq-nom[data-c="${c}"]`, ms); return; }
+    const s = await p.evaluate(() => window.app.sequenceur._s);
+    const cellule = p.locator(`#progression-sections .chord-grid[data-section="${s}"] .grid-cell[data-index="${c}"]`).first();
+    await cellule.scrollIntoViewIfNeeded();   // la grille défile sous le séquenceur : on amène la case à l'écran, comme on le ferait à la molette
+    await p.waitForTimeout(150);
+    const b = await cellule.boundingBox();
+    await p.mouse.click(b.x + b.width / 2, b.y + b.height * 0.35);
+    await p.waitForTimeout(ms);
+}
+
 // Poser puis enlever une croche (remplace le crayon, la gomme, la pipette, le déplacement de note) : un clic pose, Ctrl+Z l'enlève.
 async function poserCroche(p, c = 0) {
-    await cliquer(p, `#sq-grille .sq-nom[data-c="${c}"]`); // choisir l'accord visé (Effacer agit sur l'accord choisi)
+    await choisirAccord(p, c); // choisir l'accord visé (Effacer agit sur l'accord choisi)
     await cliquer(p, '#sq-effacer');
     const e0 = await lire(p, c);
     const v = e0.positions[e0.positions.length - 1];
@@ -83,7 +104,7 @@ async function poserCroche(p, c = 0) {
 
 // Intensité (remplace le mode studio et la bande d'intensité) : allumée, un clic sur une note la passe en « fort ».
 async function intensite(p, c = 0) {
-    await cliquer(p, `#sq-grille .sq-nom[data-c="${c}"]`);
+    await choisirAccord(p, c);
     const e0 = await lire(p, c);
     const v = e0.positions[0];
     const k0 = e0.pos[0] ? +e0.pos[0].split(',')[0] : null;
@@ -146,7 +167,7 @@ async function motif(p) {
 
 // Le glissé PEINT plusieurs croches d'un coup, d'une seule annulation (remplace la pose fluide « comme GarageBand » et le glisser-déposer de notes).
 async function peindre(p, c = 0) {
-    await cliquer(p, `#sq-grille .sq-nom[data-c="${c}"]`);
+    await choisirAccord(p, c);
     await cliquer(p, '#sq-effacer');
     const e0 = await lire(p, c);
     const v = e0.positions[e0.positions.length - 1];
@@ -175,7 +196,7 @@ async function reperes(p) {
 
 // Effacer le rythme d'un accord (remplace la suppression de notes du plein écran) : il se vide, Ctrl+Z le rend.
 async function effacerAccord(p, c = 0) {
-    await cliquer(p, `#sq-grille .sq-nom[data-c="${c}"]`);
+    await choisirAccord(p, c);
     const e0 = await lire(p, c);
     await cliquer(p, '#sq-effacer');
     const e1 = await lire(p, c);
@@ -216,7 +237,7 @@ async function poigneeLignes(p) {
 
 // Un clic sur le NOM d'un accord voisin, dans la règle du séquenceur, le choisit (et la grille le sélectionne).
 async function choisirParNom(p, c = 2) {
-    await cliquer(p, `#sq-grille .sq-nom[data-c="${c}"]`, 400);
+    await choisirAccord(p, c, 400);
     const r = await p.evaluate(() => { const n = document.querySelector('#sq-grille .sq-nom.choisi'); return { choisi: n ? +n.dataset.c : null, sel: window.app.selectedIndex }; });
     return { ok: r.choisi === c && r.sel === c, detail: `choisi ${r.choisi}, sélection de la grille ${r.sel}` };
 }
@@ -365,4 +386,4 @@ async function suivantTel(p) {
         detail: `${a.i} → › ${b.i} (accord choisi ${b.choisi}, défilement de ${a.sl} à ${b.sl} px (la grille ne défile que si la partie dépasse la largeur : banc sequenceur_telephone), colonnes ${b.col}) → ‹ ${c.i} (accord choisi ${c.choisi})` };
 }
 
-module.exports = { suivantTel, peindreTel, tientTel, effacerTel, outilsTel, teteLectureTel, intensiteTel, fermerRythmeTel, porteTelephoneAbsente, ouvrirRythmeTel, poserCrocheTel, porteInspecteurAbsente, choisirParNom, peindre, reperes, effacerAccord, lignesParVoix, sansLecturePropre, poigneeLignes, centre, cliquer, porteAbsente, ouvrirNouveau, toutePartie, poserCroche, intensite, noteLibre, plageBoucle, teteLecture, couleursRoles, suitSelection, motif, lire };
+module.exports = { choisirAccord, suivantTel, peindreTel, tientTel, effacerTel, outilsTel, teteLectureTel, intensiteTel, fermerRythmeTel, porteTelephoneAbsente, ouvrirRythmeTel, poserCrocheTel, porteInspecteurAbsente, choisirParNom, peindre, reperes, effacerAccord, lignesParVoix, sansLecturePropre, poigneeLignes, centre, cliquer, porteAbsente, ouvrirNouveau, toutePartie, poserCroche, intensite, noteLibre, plageBoucle, teteLecture, couleursRoles, suitSelection, motif, lire };

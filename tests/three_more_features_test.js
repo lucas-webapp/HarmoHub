@@ -163,9 +163,9 @@ const accord = (root, quality, beats) => ({ root, quality, beats, inversion: 0, 
     const porte = await R.porteInspecteurAbsente(page, 0, 1);
     check(porte.ok, `plus de porte « Séquenceur » ni de petit séquenceur dans l'inspecteur (${porte.detail})`);
     await R.ouvrirNouveau(page);
-    await R.cliquer(page, '#sq-grille .sq-nom[data-c="0"]');
+    await R.choisirAccord(page, 0);
     const tout = await R.toutePartie(page);
-    check(tout.ok, `l'accord de 16 temps choisi, toute la partie reste à l'écran sans défiler de côté (${tout.detail})`);
+    check(tout.ok, `l'accord de 16 temps choisi, sa ligne reste à l'écran sans défiler de côté (${tout.detail})`);
     await R.cliquer(page, '#sq-fermer', 300);
 
     console.log('Errors:', JSON.stringify(errors));

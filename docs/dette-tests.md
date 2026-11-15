@@ -6385,3 +6385,48 @@ Demande de l'utilisateur : « tu peux supprimer le code restant inutile » ; pui
 - **Décision de conception à valider par l'utilisateur** : déverrouiller n'efface pas de Mes doigtés (sinon libérer le cadenas pour retrouver l'ordre calculé détruirait le favori) ; le retrait se fait par le « × » de la popover.
 
 - **Balayage ciblé** (44 suites, dont `guitar_lock*`, `guitar_override`, `synchro_cloud`, `compte_cloud` ajoutées par nom) : 43 verts, 0 rouge, `smoke` sans verdict. **Balayage complet** : **260 verts, 0 rouge, 4 sans verdict** (`detune`, `instrument_stress`, `probe_cache_perime`, `smoke`) sur 264 suites, **15 min 53 s** de mur, lancé seul. Version `?v=202611150110`. **L8 est terminé.**
+
+
+## Session du 15/11 — L1 : séquenceur, tailles, lignes et repère (quatre sous-lots : L1a à L1d)
+
+Source : `docs/decisions-13-14-11.md`, lettres A, E, I, S ; code d'essai : `docs/apercu-14-11/` (blocs `demo-poignee-largeur`, `demo-tete`, `demo-vue-mesures`, `demo-vu-seq`). Un commit par sous-lot, **un seul balayage complet** à la fin.
+
+### L1a — tailles et poignées (commit `42fcc60`)
+- **Ligne 30 → 26 px** (`LIGNE_DEFAUT`, `--sq-ligne`) ; **croche** `minmax(14px, 34px)` à l'ordinateur (grille calée à gauche, `justify-content: start`), **plus de piste de 4 px** entre deux accords (les croches se touchent ; le trait de début de mesure sépare). Téléphone : `minmax(30px, 1fr)` comme avant (`poserColonnes`, qui sépare le calcul des colonnes du rendu).
+- **Poignée du haut = NOMBRE de lignes visibles** (`_visibles`, `appliquerVisibles` : `max-height` de la grille, défilement interne), min 2, jamais plus que la place libre, double-clic = toutes. **Pas mémorisé** (comme l'aperçu validé).
+- **Hauteur des barres** : Paramètres › Affichage › « Barres du séquenceur » (`#sq-hauteur`, 22 à 48, pas de 2, `harmohubSequenceurLigne`) ; noms de notes en 10 px de 18 à 23 px de barre (`lignes-moyennes`), supprimés sous 18 px (inatteignable avec un minimum de 22).
+- **Poignée de largeur** : une PISTE de la grille (`.sq-poignee-largeur`, 18 px, juste après la dernière croche, centrée sur les lignes de notes) : elle suit les croches sans calcul de position et défile avec elles. Glisser = largeur de croche de 14 à 90 px (bornée à la place : la poignée reste dans la fenêtre), double-clic = 34 px, `harmohubSequenceurCroche`. La grille n'est PAS redessinée pendant le glissé (une poignée tenue ne doit pas être détruite). Forme finale « poignées unifiées » : trait de 4 × 60 px, languette de 10 px avec trois points au survol.
+- **Tête de lecture continue** (`#sq-tete`, `animerTete`) : une barre verte de 2 px qui glisse pendant la croche ; la durée est MESURÉE entre deux changements de croche (elle suit tempo, vitesse et changement de tempo). Le contour de la croche (`.tete`, `box-shadow`) est supprimé à l'ordinateur, conservé au téléphone.
+- Banc **`sequenceur_tailles`** (56) ; **8 sabotages** (ligne 30, poignée de hauteur inerte, écart de 4 px, barre qui ne glisse pas, colonnes du téléphone comme l'ordinateur, largeur non retenue, plus de plafond à 34, contour supprimé aussi au téléphone), tous rouges, tous restaurés. **Bancs réécrits** (jamais supprimés) : `probe_deux_boutons_seq`, `sequenceur` (section L), `volet_hauteur_poignee`, `zoom`, helper `poigneeLignes` de `_retrait_ancien` (aussi utilisé par `sidebar_collapse_seq_height`).
+
+### L1b — « Vue ‹ n mes. › » (commit `97bdbcd`)
+- `#grille-densites` ne porte plus Compact / Normal / Détaillé mais **Vue ‹ n mes. ›** (`#vue-mesures-moins`, `#vue-mesures-val`, `#vue-mesures-plus`) : de 2 à ⌊(largeur − 78) / 112⌋ (8 au plus), selon la signature (`mesuresPossiblesGrille`, l'échelle de la grille plafonne à 2). `échelleXPourMesures(n) = 16 / (n × temps par mesure)`.
+- **La fenêtre qui rétrécit** ramène le nombre à ce qu'elle porte SANS toucher au choix du morceau (`currentGridHZoom` plafonne ; `resize` redessine seulement si le nombre effectif change).
+- **Largeur de la fenêtre** : 120 px par mesure (4 mesures = 480 px, comme l'ancien Normal), de 360 à 1100 ; changer de vue rend à la fenêtre sa largeur naturelle (même tirée à la poignée). Double-clic sur la poignée droite = largeur naturelle ; sur la poignée basse = case de 52 px.
+- **Anciens morceaux** : `grilleDensite` 'compact' ou 'detail' → le morceau garde ses échelles (mesures, hauteur) et sa largeur, mais s'ouvre en noms + degrés (`grilleDensite = 'normal'`). Les degrés et la position d'accord sont des réglages de Paramètres › Affichage.
+- **Bancs réécrits** : `affichage_grille` (32), `finitions_grille`, `rythme_cases` (avec un petit assistant `vue(p, n)` qui clique les chevrons). **3 sabotages** (fenêtre ne limite plus, largeur non rendue, pas de › ×2), rouges, restaurés.
+
+### L1c — la ligne montrée, repère, ▲ ▼ (commit `850adde`)
+- `app.lignesDePartie(si)` : les lignes de la grille d'après `layoutProgression` (jamais en relisant le style) ; `Sequenceur.ligneMontree`, `voisine`, `allerLigne`, `majLigne`, `majTrait`. Sans accord choisi, **le séquenceur reste sur sa ligne** (`_vise`, remis à zéro à l'ouverture d'un morceau) et **suit la lecture** (`tete`) ; avec un accord choisi il ne bouge pas pendant la lecture.
+- **Trait lumineux** (`.sq-vu-trait`, 3 px, `#8ea6c6 → #b4c6df`, lumière diffuse) sous la ligne montrée, dans le `.chord-grid` de la partie ; réutilisé (il glisse) quand c'est la même grille, suit les redimensionnements (`ResizeObserver` sur `#progression-sections`).
+- **▲ ▼** (`#sq-ligne-prec`, `#sq-ligne-suiv`, deux boutons carrés de 32 px, séparés, à droite des rythmes ; nom de la partie et « n/total » à gauche, masqués sous 1500 px) : d'une partie à l'autre, la sélection SUIT, le rang est gardé ; grisés (mais visibles) aux deux bouts.
+- **Jamais inerte** : copier / coller / effacer / enregistrer une forme, et un rythme sous « Cet accord », choisissent d'abord l'accord visé (celui que le séquenceur montre, rang gardé, pas forcément le premier de la ligne). Sous « Toute la partie » rien à choisir.
+- La plage à boucler est **rognée à la ligne montrée** (une plage dont les index sont d'une autre ligne n'a pas de colonne : la bande orange plantait en `NaN`).
+- Banc **`sequenceur_ligne`** (43) ; **7 sabotages** (toute la partie montrée, plus de suivi de lecture, boutons qui ne choisissent plus, sélection qui ne suit pas, plus de trait, plus de défilement de côté, noms de notes non collés), rouges, restaurés.
+
+### L1d — défilement de côté (même commit)
+- `.sequenceur { overflow-x: auto }` (ordinateur) : à 974-1001 px la Vue porte 8 mesures mais la grille entière (étiquettes 56 + poignée 18 + marges 32) en demande jusqu'à 28 px de plus ; outils et noms de notes restent collés (`left: 0` : le sticky garde la place d'origine à 16 px, il ne va pas au bord).
+- **REPORTÉS, à faire là où la barre d'outils est refaite** : (1) la barre sur UNE ligne, noms des rythmes dès 1340 px, « + » et signet seuls sous 1020 px (il faut d'abord la popover du signet, L3, sinon les rythmes ne sont plus joignables à 900-1019 px) ; (2) les paliers d'onglets Grille / Structure / Paroles (132 / 112 / 104 px, pastille `#compte-cloud` plafonnée à 170 / 150 px) : ils n'ont de sens qu'avec les onglets élargis de L5.
+
+### Points de vigilance
+- **Écouter un accord** (clic sur une case) fait sonner ses quatre temps : tant qu'il sonne, SANS accord choisi, le séquenceur le suit (`tete`). Banal (même ligne), mais un banc qui désélectionne juste après doit attendre la fin de l'écoute (2,6 s).
+- **Lancer la lecture lève la sélection** (clic hors de la grille) : « avec un accord choisi il reste sur sa ligne » ne se teste qu'en choisissant l'accord PENDANT la lecture.
+- Piège de la **création de bancs par `s.index`** : un commentaire en tête de bloc peut apparaître deux fois (indentation de 4 puis 8 espaces) ; chercher avec le saut de ligne devant.
+- **En-têtes non collés** : quand la grille défile en interne (poignée du haut), les noms d'accords et la règle défilent avec les lignes. Non demandé, à proposer si gênant.
+
+### Premier balayage complet : 8 régressions, toutes du même contrat (« toute la partie » → « la ligne de la grille »)
+`editeur_et_clavier`, `probe_centrage_continu`, `probe_seq_adaptatif`, `probe_suppression_pleinecran`, `seq_centrage_molette_diagrammes`, `seq_glisser_molette_align_piano`, `seq_selection_et_cadre_diagrammes`, `three_more_features`. Réécrits (jamais supprimés) :
+- **`R.toutePartie`** (`_retrait_ancien.js`) → « tous les accords de LA LIGNE montrée, relus sur la grille, tiennent à l'écran sans défilement de côté ».
+- **`R.choisirAccord(p, c)`** (nouveau) : choisit un accord par son nom dans la règle du séquenceur s'il est sur la ligne montrée, sinon par un vrai clic dans la grille (case amenée à l'écran) ; utilisé par `poserCroche`, `choisirParNom` et leurs semblables.
+- **Défaut réel trouvé et corrigé** (`editeur_et_clavier`) : monter / supprimer une partie changeait les rangs des parties alors que `_vise` gardait l'ancien — le séquenceur montrait la mauvaise partie. `_vise` n'est maintenant valable que tant que la partie ACTIVE de l'appli est celle où elle a été posée (`_viseActive`).
+- `editeur_et_clavier` attend aussi la fin de l'écoute de l'accord choisi (2,6 s) avant de bouger les parties : une écoute en cours (rangs d'avant le déplacement) fait suivre au séquenceur une partie qui a changé de place — fenêtre de quatre temps, sans suite.

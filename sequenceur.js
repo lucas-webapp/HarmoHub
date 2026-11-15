@@ -455,6 +455,7 @@
             // La ligne de la grille montrée (L1c) : { s, i } = la partie et l'accord où l'on était. Sans accord choisi, le séquenceur y reste (ou suit la lecture) au lieu de
             // sauter au premier accord ; `_montres` = les accords de cette ligne, `_s` / `_i` la partie et l'accord réglés (posés par rafraichir).
             this._vise = null;
+            this._viseActive = null;   // la partie active au moment où `_vise` a été posée : si elle change (monter, supprimer, ajouter une partie), la ligne visée est périmée
             this._montres = [];
             this._tete = null;
             this._geste = null;
@@ -547,7 +548,7 @@
                 return { sections, s: z.section, sec: sz, accords: sz.chords, i: z.index };
             }
             // L1c (14/11, « je ne veux pas de séquenceur inerte ») : sans accord choisi, il reste sur la ligne où il était, au lieu de retomber sur le premier accord de la partie.
-            if (i == null && this._vise && !this.modeTel()) {
+            if (i == null && this._vise && !this.modeTel() && this._viseActive === (this.app.activeSection || 0)) {
                 const sv = sections[this._vise.s];
                 if (sv && sv.chords[this._vise.i]) return { sections, s: this._vise.s, sec: sv, accords: sv.chords, i: this._vise.i };
             }
@@ -560,7 +561,7 @@
             if (!this.estOuvert()) return;
             const { sec, accords, s, i } = this.cible();
             this._s = s; this._i = i;
-            if (!this.modeTel()) this._vise = i != null ? { s, i } : null;
+            if (!this.modeTel()) { this._vise = i != null ? { s, i } : null; this._viseActive = this.app.activeSection || 0; }
             this.poserLigne();
             this.majBarreOutils(accords, i);
             if (!sec || accords.length === 0) {
@@ -765,8 +766,10 @@
             const v = this.voisine(delta);
             if (!v) return;
             this._vise = v;
+            this._viseActive = this.app.activeSection || 0;
             if (this.app.selectedIndex != null) {
                 this.app.activeSection = v.s;
+                this._viseActive = v.s;
                 this.app.selectedIndex = v.i;
                 if (this.app.multiSelect) this.app.multiSelect = new Set();
                 this.app.loadProgression();   // redessine la grille, puis le séquenceur (fin de loadProgression)
@@ -1721,6 +1724,7 @@
             // grille sous les doigts pendant qu'on la modifie.
             if (!this.modeTel() && this.app.selectedIndex == null && this.app.editingIndex == null && (section !== this._s || !this._montres.includes(index))) {
                 this._vise = { s: section, i: index };
+                this._viseActive = this.app.activeSection || 0;
                 this.rafraichir();
             }
             if (section !== this._s) return;

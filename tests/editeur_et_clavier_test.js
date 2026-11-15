@@ -106,6 +106,9 @@ const graine = (verre) => {
 
     // ======================================================================================================
     console.log('\n=== B. Une opération de partie : le séquenceur suit la partie (point 5) ===');
+    // L1c : choisir un accord le fait sonner quatre temps, et sans accord choisi le séquenceur SUIT ce qui sonne ; on laisse finir l'écoute avant de bouger les parties
+    // (une écoute encore en cours, repérée par ses anciens rangs, ferait suivre une partie qui a changé de place).
+    await p.waitForTimeout(2600);
     await parMenu(p, 2, 'monter');
     e = await sq(p);
     check(e.titres === 'B,A,C' && e.partie === 'B' && e.noms === 'Dm7 A7' && e.choisi === 0, `monter la partie : il montre toujours B, à sa nouvelle place, Dm7 choisi (${JSON.stringify(e)})`);
