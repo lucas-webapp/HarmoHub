@@ -52,7 +52,7 @@ const graine = () => {
         return { dessus: r.bottom <= g.top, hauteurs: b.map(x => Math.round(x.height)), uneLigne: new Set(b.map(x => Math.round(x.top))).size === 1,
             carteMorceau: document.getElementById('song-card').getBoundingClientRect().height };
     });
-    check(JSON.stringify(await puces(p)) === JSON.stringify({ tonalite: 'C majeur', mesure: '4/4', swing: 'Droit', son: 'Piano' }), `les puces disent les vraies valeurs : ${JSON.stringify(await puces(p))}`);
+    check(JSON.stringify(await puces(p)) === JSON.stringify({ tonalite: 'C', mesure: '4/4', swing: 'Droit', son: 'Piano' }), `les puces disent les vraies valeurs (L5a : la tonalité en notation courte, « C ») : ${JSON.stringify(await puces(p))}`);
     check(geo.dessus && geo.uneLigne, 'sur une seule ligne, au-dessus de la grille');
     check(geo.hauteurs.length === 5 && geo.hauteurs.every(h => h === 32), `à la jauge : 32px (${geo.hauteurs.join(', ')})`);
     check(geo.carteMorceau === 0, `la carte Morceau du bandeau de gauche n'est plus affichée (${geo.carteMorceau}px)`);
@@ -100,7 +100,7 @@ const graine = () => {
     check(await p.evaluate(() => document.querySelectorAll('#rr-pop [data-rr-action="mode"]').length) === 7, 'sept modes, les modes rares compris');
     await p.click('#rr-pop [data-rr-action="tonique"][data-rr-valeur="A"]'); await p.waitForTimeout(200);
     await p.click('#rr-pop [data-rr-action="mode"][data-rr-valeur="min"]'); await p.waitForTimeout(250);
-    check((await puces(p)).tonalite === 'A mineur' && await popOuvert(p), `A mineur, et le panneau reste ouvert pour enchaîner (${(await puces(p)).tonalite})`);
+    check((await puces(p)).tonalite === 'Am' && await popOuvert(p), `A mineur se lit « Am » (L5a), et le panneau reste ouvert pour enchaîner (${(await puces(p)).tonalite})`);
     check(JSON.stringify(await racines(p)) === JSON.stringify(racAvant), `aucun accord n'a bougé (${(await racines(p)).join(' ')})`);
     const degApres = await degres(p);
     check(JSON.stringify(degApres) !== JSON.stringify(degAvant) && /i/.test(degApres[1] || ''), `les degrés suivent la nouvelle référence (${degAvant.join(' ')} → ${degApres.join(' ')})`);
@@ -108,7 +108,7 @@ const graine = () => {
     check(!(await popOuvert(p)) && await p.evaluate(() => document.activeElement && document.activeElement.dataset.puce === 'tonalite'), 'Échap referme, le focus revient à la puce');
     await p.keyboard.press('Control+z'); await p.waitForTimeout(200);
     await p.keyboard.press('Control+z'); await p.waitForTimeout(200);
-    check((await puces(p)).tonalite === 'C majeur', `deux Ctrl+Z : retour à C majeur (${(await puces(p)).tonalite})`);
+    check((await puces(p)).tonalite === 'C', `deux Ctrl+Z : retour à C majeur (« C ») (${(await puces(p)).tonalite})`);
     // La suggestion d'après les accords, depuis la puce.
     await ouvrirPuce(p, 'tonalite');
     await p.click('#rr-pop .rr-suggerer'); await p.waitForTimeout(250);
@@ -118,7 +118,7 @@ const graine = () => {
     {
         const choisie = await p.evaluate(() => { const b = document.querySelector('#key-suggest-menu button'); return b.dataset.keyRoot + '/' + b.dataset.keyMode; });
         await p.click('#key-suggest-menu button'); await p.waitForTimeout(250);
-        check(await p.evaluate(() => document.getElementById('global-root').value + '/' + document.getElementById('global-mode').value) === choisie && (await puces(p)).tonalite === await p.evaluate(() => window.app.libelleTonalite()),
+        check(await p.evaluate(() => document.getElementById('global-root').value + '/' + document.getElementById('global-mode').value) === choisie && (await puces(p)).tonalite === await p.evaluate(() => window.app.libelleTonaliteCourt()), // L5a : la puce dit la forme courte
             `en choisir une règle la tonalité, et la puce suit (${choisie} → « ${(await puces(p)).tonalite} »)`);
     }
 
@@ -128,7 +128,7 @@ const graine = () => {
     const vAvant = await p.evaluate(() => HistoriqueVersions.lister('s1').then(l => l.filter(v => v.motif === 'avant-transposition').length));
     await p.click('#rangee-reglages [data-rr-transposer="1"]'); await p.waitForTimeout(400);
     check(JSON.stringify(await racines(p)) === '["C#","A#","D#","G#"]', `+ : tous les accords montent d'un demi-ton (${(await racines(p)).join(' ')})`);
-    check((await puces(p)).tonalite === await p.evaluate(() => window.app.libelleTonalite()) && (await puces(p)).tonalite !== 'C majeur', `la tonalité suit la transposition (${(await puces(p)).tonalite})`);
+    check((await puces(p)).tonalite === await p.evaluate(() => window.app.libelleTonaliteCourt()) && (await puces(p)).tonalite !== 'C', `la tonalité (courte) suit la transposition (${(await puces(p)).tonalite})`);
     check(await p.evaluate(() => HistoriqueVersions.lister('s1').then(l => l.filter(v => v.motif === 'avant-transposition').length)) === vAvant + 1, 'une version « avant transposition » est gardée');
     await p.click('#rangee-reglages [data-rr-transposer="-1"]'); await p.waitForTimeout(400);
     check(JSON.stringify(await racines(p)) === '["C","A","D","G"]', `− : retour aux accords d'origine (${(await racines(p)).join(' ')})`);

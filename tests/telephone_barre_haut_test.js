@@ -217,8 +217,9 @@ const nbAccords = (p) => p.evaluate(() => loadProgressionSections()[0].chords.le
         });
         check(o.barre === 53 && o.hauteurs.every(h => h === 32) && o.uneLigne && o.centre < 1,
             `ordinateur : une seule rangée de 52px + filet (${o.barre}px), commandes à 32px (${o.hauteurs}), onglets EXACTEMENT au centre (écart ${o.centre.toFixed(1)}px)`);
-        check(o.chevron > 0 && o.mot !== 'none' && o.texte !== 'none' && o.logos && /rgba\(0, 0, 0, 0\)|transparent/.test(o.fondOnglets),
-            'ordinateur : le titre garde son chevron, Enregistrer son mot, le voyant son texte, les onglets leurs logos et aucun fond de groupe');
+        // RÉÉCRIT À L5a (14/11, « Enregistrer : logo seul ») : Enregistrer n'a plus son mot à l'ordinateur, c'est son logo (et son fond orange) qui parlent.
+        check(o.chevron > 0 && o.mot === 'none' && o.texte !== 'none' && o.logos && /rgba\(0, 0, 0, 0\)|transparent/.test(o.fondOnglets),
+            'ordinateur : le titre garde son chevron, Enregistrer son logo SEUL (sans mot), le voyant son texte, les onglets leurs logos et aucun fond de groupe');
         await ctx.close();
 
         console.log(`\nErreurs de page : ${erreurs.length}${erreurs.length ? '\n  ' + erreurs.slice(0, 6).join('\n  ') : ''}`);

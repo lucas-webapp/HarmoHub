@@ -10037,6 +10037,18 @@ class HarmoHubApp {
         return `${noteNameForPc(pc, useFlatsForKey(pc, mode.value)).replace('#', '♯')} ${MODE_LABELS[mode.value] || mode.value}`;
     }
 
+    // L5a (14/11, « tonalité en notation internationale courte sur la puce ») : « C », « Am », « B♭ », puis « D dor », « E phr », « F lyd », « G mix »,
+    // « B loc » pour les modes. Le nom complet (« A mineur ») reste dans l'infobulle de la puce, dans l'impression et dans les menus : seul le texte de la
+    // puce, qui doit tenir dans la rangée de réglages, s'abrège. Le téléphone garde le nom complet (sa barre-résumé est refaite au lot 7).
+    libelleTonaliteCourt() {
+        const root = document.getElementById('global-root'), mode = document.getElementById('global-mode');
+        if (!root || !mode) return '';
+        const pc = NOTES.indexOf(root.value);
+        const note = noteNameForPc(pc, useFlatsForKey(pc, mode.value)).replace('#', '♯'); // NOTES_FLAT écrit déjà « ♭ »
+        const SUFFIXE = { maj: '', min: 'm', dorian: ' dor', phrygian: ' phr', lydian: ' lyd', mixolydian: ' mix', locrian: ' loc' };
+        return note + (mode.value in SUFFIXE ? SUFFIXE[mode.value] : ' ' + mode.value);
+    }
+
     setupRangeeReglages() {
         const host = document.getElementById('rangee-reglages');
         if (!host) return; // index.html servi depuis un cache plus ancien
@@ -10099,9 +10111,17 @@ class HarmoHubApp {
             swing: SWING[groove] || texte('groove'),
             son: texte('instrument'),
         };
+        // L5a : à l'ordinateur la puce de tonalité dit « Am » et non « A mineur » (le nom complet passe en infobulle) ; au téléphone, rien ne change.
+        const bureau = window.matchMedia('(min-width: 900px)').matches;
         host.querySelectorAll('.rr-puce').forEach(b => {
             const v = b.querySelector('.rr-val');
-            if (v && v.textContent !== vals[b.dataset.puce]) v.textContent = vals[b.dataset.puce];
+            const dit = (b.dataset.puce === 'tonalite' && bureau) ? this.libelleTonaliteCourt() : vals[b.dataset.puce];
+            if (v && v.textContent !== dit) v.textContent = dit;
+            if (b.dataset.puce === 'tonalite') {
+                if (b.dataset.titreOrigine === undefined) b.dataset.titreOrigine = b.title;
+                const titre = bureau ? `Tonalité : ${vals.tonalite} — ${b.dataset.titreOrigine}` : b.dataset.titreOrigine;
+                if (b.title !== titre) b.title = titre;
+            }
         });
         // La barre-résumé du téléphone (lot 10c) dit les quatre mêmes valeurs, dans l'ordre des cases, et le tempo juste après la tonalité :
         // « C majeur · 120 BPM · 4/4 · Droit · Piano » — tonalité et tempo « toujours visibles » (filet_toujours_visible), le reste peut s'abréger.
@@ -10220,7 +10240,13 @@ class HarmoHubApp {
         };
         if (action === 'suggerer') { this.openKeySuggestMenu(b); return; }
         if (action === 'tonique') { regler('global-root', b.dataset.rrValeur); this.remplirPuceReglage(); return; }
-        if (action === 'mode') { regler('global-mode', b.dataset.rrValeur); this.remplirPuceReglage(); return; }
+        if (action === 'mode') {
+            // L5a : la fenêtre propose les sept modes, mais la liste du morceau ne contient que Majeur et Mineur tant que « plus de modes » n'est pas
+            // affiché (toggleSelectOptions retire les autres <option>) : sans ce rappel, choisir « Dorien » donnait un mode VIDE (puce « C »), défaut
+            // trouvé en écrivant le banc de la tonalité courte (« D dor »).
+            this.revealComplexModeIfNeeded(b.dataset.rrValeur);
+            regler('global-mode', b.dataset.rrValeur); this.remplirPuceReglage(); return;
+        }
         const SEL = { mesure: 'time-sig', swing: 'groove', son: 'instrument' };
         if (SEL[id] && b.dataset.rrValeur != null) {
             regler(SEL[id], b.dataset.rrValeur);
@@ -11217,7 +11243,12 @@ class HarmoHubApp {
         if (texte.textContent !== libelle) texte.textContent = libelle;
         zone.title = infobulle || libelle;
         const save = document.getElementById('tb-save');
-        if (save) save.dataset.modifie = etat === 'modifie' ? '1' : '0';
+        if (save) {
+            save.dataset.modifie = etat === 'modifie' ? '1' : '0';
+            // L5a : le bouton n'a plus de mot, c'est son fond orange et son infobulle qui disent qu'il y a quelque chose à enregistrer.
+            const titreSave = etat === 'modifie' ? 'Enregistrer les modifications (Ctrl+S)' : 'Enregistrer (Ctrl+S)';
+            if (save.title !== titreSave) save.title = titreSave;
+        }
     }
 
     ouvrirMenuMorceau() {
@@ -17670,6 +17701,11 @@ class HarmoHubApp {
             o.parent.insertBefore(btn, o.suivant && o.suivant.parentNode === o.parent ? o.suivant : null);
         }
         document.body.classList.toggle('fichier-en-haut', enHaut);
+        // L5a (14/11, « le bouton fait plein de choses : import, export PDF / MIDI / MP3, sauvegarde ») : « Fichiers » à l'ordinateur ; le téléphone garde
+        // « Fichier » jusqu'au lot 7 (sa bande du bas).
+        const mot = btn.querySelector('.btn-label');
+        const nom = enHaut ? 'Fichiers' : 'Fichier';
+        if (mot && mot.textContent !== nom) mot.textContent = nom;
     }
 
     // Suit le franchissement du seuil ordinateur/téléphone pour replacer le transport (voir placeGlobalTransport) et remettre à jour le dock de

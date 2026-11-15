@@ -7412,3 +7412,52 @@ body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
 .dot-fifth   { background: linear-gradient(180deg, #ff6f66, #d42a20); }
 .dot-seventh { background: linear-gradient(180deg, #ffc247, #cc8f00); }
 .dot-ext     { background: linear-gradient(180deg, #dba8ee, #c48ce6); }
+
+
+/* ======================================================================================================
+   L5a — BARRE DU HAUT, ONGLETS ET BORD GAUCHE (refonte, lettres D, H et I.1 — décisions des 13 et 14/11).
+   Ordinateur seulement : le téléphone (< 900 px) ne bouge pas avant le lot 7. En FIN de fichier : la cascade (voir CLAUDE.md, « Pièges »).
+   ====================================================================================================== */
+@media (min-width: 900px) {
+    /* BORD GAUCHE COMMUN (H.1, « les boutons à gauche de la barre d'outils doivent être placés sur le bord gauche, aligné avec le logo HarmoHub ») :
+       la rangée de réglages, la barre du séquenceur et la barre de lecture commencent toutes à 26 px, la verticale du logo (bouton à 16 px, dessin à
+       26 px). Avant : 20 / 16 / 16 px, et au-delà de 1600 px `main` (plafonné, centré) laissait 180 px de vide à 1920 : la colonne se cale à gauche. */
+    main { max-width: none; margin: 0; padding-left: 26px; }
+    .barre-lecture { padding-left: 26px; }
+    .sequenceur:not([hidden]) { padding-left: 26px; }
+    .sq-poignee { margin-left: -26px; }
+
+    /* ENREGISTRER (D, « logo seul, vert, fond ORANGE quand il y a des modifications non enregistrées ») : un carré de la jauge, sans mot (le mot
+       reste dans l'infobulle et le nom accessible). L'orange est celui de la famille « plage à boucler » ; le liseré vif de --etat-modifie reste. */
+    .tb-save { width: var(--bouton-h); padding: 0; justify-content: center; }
+    .tb-save-mot { display: none; }
+    .tb-save[data-modifie="1"] {
+        border-color: var(--etat-modifie);
+        background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(160deg, var(--btn-orange-1), var(--btn-orange-2) 70%);
+    }
+    .tb-save[data-modifie="1"]:hover {
+        border-color: var(--etat-modifie);
+        background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.16), transparent 55%), linear-gradient(160deg, #6b4e2c, #43301a 70%);
+    }
+
+    /* ONGLETS PLUS LARGES, SÉPARÉS PAR UN FIN TRAIT (D) : 132 px mini, un filet vertical entre deux onglets qui s'efface sous l'onglet allumé et
+       au survol. Les angles restent à 7 px sur chaque onglet : la jauge (gabarit_boutons) n'accorde aucune exception, et un onglet allumé garde ainsi la
+       forme d'un bouton posé contre le suivant. */
+    .tb-onglets { gap: 0; }
+    .tb-onglets > button { position: relative; min-width: 132px; justify-content: center; }
+    .tb-onglets > button + button::before {
+        content: ""; position: absolute; left: 0; top: 22%; bottom: 22%; width: 1px; background: rgba(255, 255, 255, 0.22); pointer-events: none;
+    }
+    .tb-onglets > button[aria-pressed="true"]::before, .tb-onglets > button[aria-pressed="true"] + button::before,
+    .tb-onglets > button.active::before, .tb-onglets > button.active + button::before,
+    .tb-onglets > button:hover::before, .tb-onglets > button:hover + button::before { opacity: 0; }
+}
+/* I.1 — PETIT ÉCRAN : à 1024 px « Paroles » recouvrait annuler / rétablir (colonne centrale de 396 px). La largeur d'onglet descend par paliers, et la
+   pastille du compte (compte-cloud.js, partagé : on ne touche qu'à la boîte qui la contient) est plafonnée. */
+@media (min-width: 900px) and (max-width: 1279px) { .tb-onglets > button { min-width: 112px; } }
+@media (min-width: 900px) and (max-width: 1179px) { #compte-cloud { width: auto; max-width: 170px; overflow: hidden; } }
+@media (min-width: 900px) and (max-width: 1099px) { .tb-onglets > button { min-width: 104px; } }
+@media (min-width: 900px) and (max-width: 999px) {
+    .tb-onglets > button { min-width: 0; padding-left: 10px; padding-right: 10px; }
+    #compte-cloud { max-width: 150px; }
+}
