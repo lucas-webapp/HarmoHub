@@ -60,7 +60,7 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     console.log('\n=== A. Ouverture par le bloc « Vues », place en bas, grille inchangée ===');
     let p = await ouvrir({ width: 1440, height: 900 });
     const avant = await empreinteGrille(p);
-    exiger(await p.evaluate(() => document.getElementById('vue-sequenceur').closest('#bl-vues') !== null && document.getElementById('sequenceur').hidden), 'le bouton Séquenceur est dans le bloc « Vues » de la barre de lecture, le séquenceur fermé au départ');
+    exiger(await p.evaluate(() => document.getElementById('vue-sequenceur').closest('.grid-head-sticky') !== null && document.getElementById('vue-sequenceur').closest('#bl-vues') === null && document.getElementById('sequenceur').hidden), 'le bouton Séquenceur est dans l\'en-tête de la grille (L5b : il a quitté le bloc « Vues » de la barre de lecture), le séquenceur fermé au départ');
     await cliquer(p, '#vue-sequenceur');
     exiger(await p.evaluate(() => !document.getElementById('sequenceur').hidden), 'un clic sur le bouton ouvre le séquenceur');
     check(await presse(p, 'vue-sequenceur') === 'true', 'le bouton dit qu\'il est allumé (aria-pressed)');

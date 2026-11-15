@@ -23,7 +23,7 @@ const { check, exiger, plan, bilan } = require('./_harness')('téléphone : pann
 const { estBruitReseau } = require('./_harness');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
-plan(34);
+plan(35);
 
 const mk = (root, quality) => ({ root, quality, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held' });
 const SECTIONS = [
@@ -212,8 +212,11 @@ const etat = (p) => p.evaluate(() => {
             const { p, ctx } = await ouvrir(nav, { viewport: { width: 1320, height: 820 } }, erreurs, 'ordinateur : ');
             const o1 = await p.evaluate(() => ({ readonly: document.querySelector('.cell-add-input').readOnly, saisie: document.getElementById('quick-add-input').getBoundingClientRect().height > 0,
                 dans: document.querySelector('.quick-add-row').parentElement.id }));
-            check(!o1.readonly && o1.saisie && o1.dans === 'quick-add-panel', `ordinateur : la case « + » reste un champ, la saisie reste dans la page (${JSON.stringify(o1)})`);
+            // RÉÉCRIT À L5b (14/11, « la barre Ajout rapide n'est plus permanente ») : la case « + » reste un champ ; la saisie reste DANS la page (pas dans le panneau du bas), mais elle n'est
+            // visible que panneau d'ajout ouvert (« + Accord »).
+            check(!o1.readonly && !o1.saisie && o1.dans === 'quick-add-panel', `ordinateur : la case « + » reste un champ, la saisie est dans la page mais fermée tant que le panneau l'est (${JSON.stringify(o1)})`);
             await p.click('#progression-sections .prog-section-ajout >> nth=0'); await p.waitForTimeout(400);
+            check(await p.evaluate(() => document.getElementById('quick-add-input').getBoundingClientRect().height > 0 && document.querySelector('.quick-add-row').parentElement.id === 'quick-add-panel'), 'ordinateur : « + Accord » montre la saisie, toujours dans la page');
             const o2 = await p.evaluate(() => { const pa = document.getElementById('ajout-aide'), r = pa.getBoundingClientRect();
                 return { ouvert: !pa.hidden, fixe: getComputedStyle(pa).position, bas: Math.round(r.bottom), ih: innerHeight, classe: document.body.classList.contains('aj-ouvert') }; });
             check(o2.ouvert && o2.fixe === 'absolute' && !o2.classe, `ordinateur : « + Accord » ouvre toujours le panneau sous la saisie, pas en feuille du bas (${JSON.stringify(o2)})`);

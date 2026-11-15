@@ -123,9 +123,9 @@ const panneauOuvert = (p) => p.evaluate(() => !document.getElementById('panneau-
         exiger(pan && pan.vis, '« ⋯ » ouvre le panneau Lecture');
         check(Math.abs(pan.b - barre.y) < 1 && pan.y >= 0 && pan.x === 0 && Math.abs(pan.w - 390) < 1 && plus.exp === 'true' && plus.pr === 'true',
             `il monte du bas et se pose sur la barre, pleine largeur, dans l'écran ; « ⋯ » se dit ouvert (${Math.round(pan.y)}→${Math.round(pan.b)}, barre à ${barre.y} ; ${JSON.stringify(plus)})`);
-        const noeuds = await p.evaluate(() => ({ ligne: !!document.querySelector('#panneau-lecture #bl-tempo-ligne'), vitesse: !!document.querySelector('#panneau-lecture #bl-vitesse-bloc'), metro: !!document.querySelector('#panneau-lecture #bl-metro'), n: ['bl-tempo-moins', 'bl-tempo-plus', 'bl-tap', 'bl-vitesse', 'bl-vitesses', 'bl-metro'].map(i => document.querySelectorAll('#' + i).length).join('') }));
-        check(noeuds.ligne && noeuds.vitesse && noeuds.metro && noeuds.n === '111111', `le tempo, la vitesse de lecture et le métronome du panneau sont ceux de la barre d'ordinateur, déplacés et non copiés (${JSON.stringify(noeuds)})`);
-        const jauge = await p.evaluate(() => ['#pl-fermer', '#bl-tap', '#bl-metro', '#pl-clavier', '#pl-guitare', '#pl-notes', '#pl-tempo .bl-seg', '#pl-vitesse .bl-seg'].map(s => Math.round(document.querySelector(s).getBoundingClientRect().height)));
+        const noeuds = await p.evaluate(() => ({ ligne: !!document.querySelector('#panneau-lecture #bl-tempo-ligne'), vitesse: !!document.querySelector('#panneau-lecture #bl-vitesse-bloc'), metro: !!document.querySelector('#panneau-lecture #bl-metro'), n: ['bl-tempo-moins', 'bl-tempo-plus', 'bl-tap', 'bl-vitesse', 'bl-metro'].map(i => document.querySelectorAll('#' + i).length).join('') })); // L5c : plus de cinq boutons de vitesses rapides
+        check(noeuds.ligne && noeuds.vitesse && noeuds.metro && noeuds.n === '11111', `le tempo, la vitesse de lecture et le métronome du panneau sont ceux de la barre d'ordinateur, déplacés et non copiés (${JSON.stringify(noeuds)})`);
+        const jauge = await p.evaluate(() => ['#pl-fermer', '#bl-tap', '#bl-metro', '#pl-clavier', '#pl-guitare', '#pl-notes', '#pl-tempo .bl-seg'].map(s => Math.round(document.querySelector(s).getBoundingClientRect().height)));
         check(jauge.every(h => h === 44), `toutes les commandes du panneau font 44px de haut (${jauge.join(', ')})`);
         const bpm = () => p.evaluate(() => +document.getElementById('bpm').value);
         const bpm0 = await bpm();
@@ -154,14 +154,16 @@ const panneauOuvert = (p) => p.evaluate(() => !document.getElementById('panneau-
         // LA VITESSE DE LECTURE (retour du 05/11 : « intègre-la au téléphone ») : 50 à 200 % du tempo, pour la LECTURE seulement — le tempo du morceau
         // ne bouge pas —, et la barre la rappelle en doré à côté de « Mes. N » tant qu'elle n'est pas 100 %.
         const tempoAvant = await bpm();
-        await toucher(p, '#bl-vitesses [data-vitesse="75"]');
+        // RÉÉCRIT À L5c (14/11, « UN SEUL réglage de vitesse ») : les cinq boutons de vitesses rapides n'existent plus, on TOUCHE le curseur, qui colle à 50, 75, 100, 150 et 200.
+        const toucherVitesse = async (v) => { const b = await p.locator('#bl-vitesse').boundingBox(); await p.tap('#bl-vitesse', { position: { x: 8 + (v - 50) / 150 * (b.width - 16), y: b.height / 2 } }); await p.waitForTimeout(250); };
+        await toucherVitesse(75);
         const v75 = await p.evaluate(() => {
             const t = document.getElementById('bl-vitesse-tel'), r = t.getBoundingClientRect(), b = document.getElementById('barre-lecture').getBoundingClientRect(), m = document.getElementById('bl-mesure').getBoundingClientRect();
             return { app: window.app.vitesseLecture, curseur: document.getElementById('bl-vitesse').value, texte: t.textContent, dansBarre: !t.hidden && r.width > 0 && r.top >= b.top && r.bottom <= b.bottom && r.left >= m.right, couleur: getComputedStyle(t).color, tempo: +document.getElementById('bpm').value };
         });
         check(v75.app === 75 && v75.curseur === '75' && v75.tempo === tempoAvant && v75.texte === '· 75 %' && v75.dansBarre && v75.couleur === 'rgb(255, 213, 79)',
             `la vitesse de lecture est dans le panneau : 75 % règle la lecture, pas le tempo du morceau, et la barre l'écrit en doré après « Mes. N » (${JSON.stringify(v75)})`);
-        await toucher(p, '#bl-vitesses [data-vitesse="100"]');
+        await toucherVitesse(100);
         check(await p.evaluate(() => window.app.vitesseLecture === 100 && document.getElementById('bl-vitesse-tel').hidden), 'revenue à 100 %, la mention dorée s\'efface');
         const logos = await p.evaluate(() => ['pl-clavier', 'pl-guitare', 'pl-notes'].map(i => { const b = document.getElementById(i); const src = document.getElementById(b.dataset.source); return !!b.querySelector('svg') && b.querySelector('svg').innerHTML === src.querySelector('svg').innerHTML; }));
         check(logos.every(Boolean), `Clavier, Guitare et Notes portent le logo de leur bouton d'origine (${JSON.stringify(logos)})`);

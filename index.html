@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611152320">
+    <link rel="stylesheet" href="style.css?v=202611160140">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611152320">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611160140">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -103,6 +103,11 @@
 
     <!-- Menu ⋯ d'un en-tête de partie (lot 5c) : un seul pour toutes les parties, rempli à l'ouverture (voir ouvrirMenuPartie). -->
     <div id="partie-menu" class="tb-menu partie-menu" role="menu" aria-label="Partie" hidden></div>
+    <!-- Clic droit dans le VIDE de la grille (L5b, 14/11, « le clic droit marche bien, on le laisse ») : « Ajouter une section ». Un seul article, mêmes classes que le
+         menu ⋯ d'une partie (le verre les habille déjà). Ordinateur seulement ; déclaré dans this._popups (voir ouvrirMenuGrilleVide). -->
+    <div id="grille-vide-menu" class="tb-menu partie-menu" role="menu" aria-label="Grille" hidden>
+        <button type="button" role="menuitem" class="tb-mi" id="gvm-section" data-vide-action="section"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="tb-mi-libelle">Ajouter une section</span></button>
+    </div>
     <!-- Choix ouvert par une puce de la rangée de réglages (lot 6a) : un seul, rempli à l'ouverture (voir ouvrirPuceReglage). -->
     <div id="rr-pop" class="tb-menu rr-pop" hidden></div>
     <!-- LA BULLE « QUEL ACCORD » (refonte, lot 6b) : un clic sur une case l'ouvre — fondamentale, type, basse, durée, ‹ › vers le voisin. Une seule,
@@ -964,17 +969,18 @@
                                 <!-- Icône reflétant l'état (noire seule = désactivé, deux croches reliées = activé)
                                      posée ici juste pour l'affichage initial avant JS ; syncMetroSubIcon() la
                                      réécrit ensuite à chaque changement d'état (voir script.js). -->
-                                <button type="button" id="toggle-metronome-subdivision" class="icon-btn icon-btn-lg" title="Ajouter un clic faible sur le contretemps (croches)" aria-label="Ajouter un clic faible sur le contretemps">
+                                <button type="button" id="toggle-metronome-subdivision" class="icon-btn icon-btn-lg" title="Clic du métronome : à la noire ♩ ou à la croche ♪ (contretemps)" aria-label="Clic du métronome à la croche (contretemps)" aria-pressed="false">
                                     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                                         <ellipse cx="9" cy="18" rx="4" ry="3" fill="currentColor"/>
                                         <path d="M13 18V4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                                     </svg>
                                 </button>
                                 <button type="button" id="toggle-metronome" class="icon-btn icon-btn-lg" title="Garder le métronome pendant la lecture de la grille" aria-label="Garder le métronome pendant la lecture de la grille">
+                                    <!-- L5c (14/11, « reprends le même logo métronome que sur TrainHub, il est parfait ») : le logo de #metronome-btn de TrainHub, tel quel (trait 2, viewBox 24). -->
                                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                        <path d="M7 20h10L14 5h-4L7 20Z"/>
-                                        <path d="M12 15V8"/>
-                                        <circle cx="12" cy="6" r="1" fill="currentColor" stroke="none"/>
+                                        <path d="M10.6 2.6h2.8l4.1 18.8H6.5Z"/>
+                                        <path d="M7.7 17h8.6"/>
+                                        <path d="M12.1 13.8 18.7 6.2"/>
                                     </svg>
                                 </button>
                             </div>
@@ -1498,6 +1504,14 @@
                             <span class="gz-court">Notes</span><span class="gz-long">Éditeur de notes</span>
                         </button>
                     </div>
+                    <!-- SÉQUENCEUR (L5b, 14/11, lettre D) : « à l'extrémité droite de la rangée de réglages, plus large, AVEC son nom à côté du logo, bordé de vert, plein vert
+                         quand ouvert ». Même nœud, même identifiant que dans la barre de lecture (sequenceur.js le câble par son id) : il a seulement changé de place — il
+                         quitte le bloc « Vues » (Clavier / Guitare). Il se range à gauche de « Voicing », 12 px d'écart ; sous 1181 px il garde le logo seul comme lui. Logo de
+                         « Séq. » (#grid-zoom) repris tel quel. Ordinateur seulement : au téléphone le séquenceur est dans le panneau d'accord, onglet Rythme. -->
+                    <button type="button" id="vue-sequenceur" class="icon-btn vue-sequenceur" aria-pressed="false" title="Séquenceur : le rythme de chaque voix de la partie" aria-label="Séquenceur">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h6M14 7h6M4 12h3M11 12h9M4 17h11M19 17h1"/></svg>
+                        <span class="vue-sequenceur-nom">Séquenceur</span>
+                    </button>
                     <!-- VOICING (L4, 15/11) : « Le bouton voicing doit sortir du séquenceur pour aller en haut à droite » ; « cette conduite de voix doit être dans une popover
                          comme avant » ; « il faut vraiment que tu copies la conduite de voix qu'on avait avant sur l'application ». Le LOGO est celui d'avant
                          (ICONS.voiceLeading : deux paires de notes reliées par des pointillés), le mot « Voicing » s'ajoute au-dessus de 1180 px. À L'EXTRÉMITÉ DROITE de l'en-tête de la grille (enfant de .card-head, après les réglages de vue) ; écrit ICI (pas fabriqué
@@ -1550,7 +1564,7 @@
                 <div id="grille-cadre" class="grille-cadre">
                     <div id="progression-sections"></div>
                     <div id="grille-poignee-bas" class="grille-poignee grille-poignee-bas" role="separator" aria-orientation="horizontal" aria-label="Hauteur des cases" title="Glisser pour la hauteur des cases — double-clic : hauteur d'origine"></div>
-                    <button type="button" id="add-section" class="btn-green add-section-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter section</button>
+                    <button type="button" id="add-section" class="btn-green add-section-btn" title="Ajouter une section à la fin (couplet, refrain…) — ou clic droit dans le vide de la grille"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Ajouter section</button>
                     <div id="grille-poignee-droite" class="grille-poignee grille-poignee-droite" role="separator" aria-orientation="vertical" aria-label="Largeur de la grille" title="Glisser pour élargir la grille — double-clic : largeur d'origine"></div>
                 </div>
             </section>
@@ -1661,11 +1675,12 @@
                     </button>
                     <button type="button" id="toggle-viz-guitar" class="icon-btn viz-toggle-btn" title="Afficher la guitare" aria-label="Afficher la guitare" aria-pressed="false">
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <g transform="rotate(-32 12 13)">
-                                <path d="M12 7C14.8 7 16.5 8.6 16.5 10.6C16.5 11.8 15.7 12.5 14.8 13.2C13.8 14 13.4 14.6 13.4 15.7C13.4 18.2 15.2 18.6 16.4 19.4C17.7 20.2 18.3 21.4 16.8 22.6C15.3 23.7 13.2 24 12 24C10.8 24 8.7 23.7 7.2 22.6C5.7 21.4 6.3 20.2 7.6 19.4C8.8 18.6 10.6 18.2 10.6 15.7C10.6 14.6 10.2 14 9.2 13.2C8.3 12.5 7.5 11.8 7.5 10.6C7.5 8.6 9.2 7 12 7Z"/>
-                                <circle cx="12" cy="10.6" r="1.7"/>
-                                <path d="M12 7V1.5"/>
-                                <rect x="9.3" y="-0.3" width="5.4" height="2.2" rx="0.6"/>
+                            <g transform="rotate(40 12 11.6)">
+                                <path d="M12 8.6C14.3 8.6 15.7 9.8 15.7 11.5C15.7 12.7 14.7 13.3 14.7 14.4C14.7 15.3 16 15.9 16.7 17.2C17.6 19 16.8 22.6 12 22.6C7.2 22.6 6.4 19 7.3 17.2C8 15.9 9.3 15.3 9.3 14.4C9.3 13.3 8.3 12.7 8.3 11.5C8.3 9.8 9.7 8.6 12 8.6Z"/>
+                                <circle cx="12" cy="15.4" r="1.6"/>
+                                <path d="M10.4 19.4H13.6"/>
+                                <path d="M12 8.6V3.6"/>
+                                <rect x="10.3" y="0.7" width="3.4" height="3" rx="0.7"/>
                             </g>
                         </svg>
                     </button>
@@ -1862,6 +1877,23 @@
     <!-- Les réglages du séquenceur (L3) : composants de Paramètres (curseur, interrupteur, choix). -->
     <div id="voicing-pop" class="context-menu voicing-pop" role="dialog" aria-label="Conduite des voix" hidden></div>
     <div id="sq-reglages-pop" class="context-menu sq-reglages-pop" role="dialog" aria-label="Réglages du séquenceur" hidden></div>
+    <!-- RÉGLAGE DE LA BARRE DE LECTURE (L5c, 14/11) : « d'autres paramètres : par exemple la largeur de la barre de lecture, couplet et refrain, qui prend quasiment tout l'écran ».
+         Gabarit des Paramètres (h3.settings-group-title, .settings-toggle-row + .switch, .settings-slider-row), libellés COURTS, phrase complète en infobulle. Ses adresses sont écrites
+         ICI (pas fabriquées par le script) ; setupBarreLectureReglages ne fait que les brancher. Mémorisé par appareil (harmohubBarreReglages), jamais synchronisé comme l'ordre. -->
+    <div id="bl-reglages-pop" class="context-menu bl-reglages-pop" role="dialog" aria-label="Barre de lecture" hidden>
+        <h3 class="settings-group-title">Barre de lecture</h3>
+        <div class="settings-toggle-row"><label for="bl-r-pleine" title="La frise des parties (couplet, refrain…) prend toute la place libre de la barre">Frise pleine largeur</label><button type="button" id="bl-r-pleine" class="switch" role="switch" aria-checked="true" aria-label="Frise des parties en pleine largeur"><span class="switch-thumb"></span></button></div>
+        <div class="settings-slider-row"><div class="settings-slider-head"><label for="bl-r-largeur" title="Largeur de la frise des parties quand elle n'est pas en pleine largeur">Largeur</label><span class="val" id="bl-r-largeur-val">480 px</span></div><input type="range" id="bl-r-largeur" min="200" max="900" step="10" value="480" disabled></div>
+        <div class="settings-slider-sep"></div>
+        <div class="settings-toggle-row"><label for="bl-r-noms" title="Les noms des parties (couplet, refrain…) écrits dans la frise">Noms</label><button type="button" id="bl-r-noms" class="switch" role="switch" aria-checked="true" aria-label="Noms des parties dans la frise"><span class="switch-thumb"></span></button></div>
+        <div class="settings-toggle-row"><label for="bl-r-mesure" title="Le numéro de la mesure en cours, à côté de la frise">Mesure</label><button type="button" id="bl-r-mesure" class="switch" role="switch" aria-checked="true" aria-label="Numéro de la mesure en cours"><span class="switch-thumb"></span></button></div>
+        <div class="settings-slider-sep"></div>
+        <div class="settings-toggle-row"><label for="bl-r-reorg" title="Attraper un bloc de la barre (lecture, parties, tempo, vues) pour le poser ailleurs">Réorganiser</label><button type="button" id="bl-r-reorg" class="switch" role="switch" aria-checked="false" aria-label="Réorganiser les blocs de la barre"><span class="switch-thumb"></span></button></div>
+        <div class="rb-pied">
+            <button type="button" id="bl-reinit" class="btn-sec" title="Remettre les blocs dans l'ordre d'origine" aria-label="Remettre les blocs dans l'ordre d'origine"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span>Ordre</span></button>
+            <button type="button" id="bl-r-retablir" class="btn-sec" title="Remettre les réglages de la barre à leur valeur d'origine (l'ordre des blocs aussi)">Rétablir</button>
+        </div>
+    </div>
     <div id="sq-menu-note" class="context-menu sq-menu-note" role="menu" aria-label="Note" hidden>
         <button type="button" role="menuitem" data-sq-acte="scinder">Scinder la note</button>
         <button type="button" role="menuitem" data-sq-acte="prolonger">Prolonger d'une croche</button>
@@ -1924,51 +1956,43 @@
                     <span class="bl-tempo-val" id="bl-tempo-val">120</span><span class="bl-tempo-unite">BPM</span><span id="bl-vitesse-tag" class="bl-vitesse-tag" hidden></span>
                 </button>
                 <div id="bl-tempo-pop" class="bl-pop" role="dialog" aria-label="Tempo et vitesse de lecture" hidden>
-                    <!-- #bl-tempo-ligne : la même rangée −/+/Tap passe dans le panneau Lecture au téléphone (lot 10b, placerPanneauLecture) — déplacée, jamais copiée. -->
+                    <!-- #bl-tempo-ligne : la même rangée passe dans le panneau Lecture au téléphone (lot 10b, placerPanneauLecture) — déplacée, jamais copiée.
+                         L5c (14/11, lettre D, « le BPM est un peu compliqué à régler […] trop de texte dans cette fenêtre ») : des chevrons ‹ › (un appui = un cran, maintenu =
+                         défilement), le chiffre se GLISSE (haut = plus vite) et se règle à la molette, l'interrupteur noire / croche est à droite de TAP (#bl-hote-subdivision,
+                         voir placerSubdivisionMetronome), UN SEUL réglage de vitesse (le curseur, aimanté), plus de légende. -->
                     <div class="bl-pop-ligne" id="bl-tempo-ligne">
                         <div class="bl-seg" role="group" aria-label="Tempo">
-                            <button type="button" id="bl-tempo-moins" aria-label="Plus lent">−</button>
-                            <span class="bl-seg-val" id="bl-tempo-pop-val">120 BPM</span>
-                            <button type="button" id="bl-tempo-plus" aria-label="Plus rapide">+</button>
+                            <button type="button" id="bl-tempo-moins" class="bl-chevron" aria-label="Plus lent" title="Plus lent — maintenir pour faire défiler">‹</button>
+                            <span class="bl-seg-val" id="bl-tempo-pop-val" title="Glisser vers le haut ou le bas pour régler le tempo (Maj : par 5) ; molette : ±1">120 BPM</span>
+                            <button type="button" id="bl-tempo-plus" class="bl-chevron" aria-label="Plus rapide" title="Plus rapide — maintenir pour faire défiler">›</button>
                         </div>
                         <button type="button" id="bl-tap" class="icon-btn bl-tap" title="Tape plusieurs fois au rythme voulu">TAP</button>
+                        <span class="bl-hote-sub" id="bl-hote-subdivision"></span>
                     </div>
                     <!-- #bl-vitesse-bloc : la vitesse de lecture passe elle aussi dans le panneau Lecture au téléphone (« intègre-la au téléphone », retour
-                         du 05/11). Sans boîte à l'ordinateur (display: contents) : la fenêtre du tempo y reste exactement celle d'avant. -->
+                         du 05/11). Sans boîte à l'ordinateur (display: contents). UN SEUL réglage depuis L5c : la barre verte, de 50 à 200 %, qui COLLE à 50, 75, 100, 150 et 200
+                         (à moins de 6 points) ; l'échelle dessous n'est pas cliquable. Les cinq boutons de vitesses rapides sont retirés. -->
                     <div id="bl-vitesse-bloc" class="bl-vitesse-bloc">
                     <div class="bl-pop-ligne bl-pop-ligne-espacee">
-                        <label for="bl-vitesse" class="bl-pop-etiquette">Vitesse de lecture</label>
+                        <label for="bl-vitesse" class="bl-pop-etiquette" title="50 à 200 % du tempo, pour travailler lentement un passage">Vitesse</label>
                         <span class="bl-seg-val" id="bl-vitesse-val">100 %</span>
                     </div>
                     <input type="range" id="bl-vitesse" min="50" max="200" step="5" value="100" aria-label="Vitesse de lecture, de 50 à 200 %">
-                    <div class="bl-seg bl-seg-plein" role="group" aria-label="Vitesses rapides" id="bl-vitesses">
-                        <button type="button" data-vitesse="50">50 %</button>
-                        <button type="button" data-vitesse="75">75 %</button>
-                        <button type="button" data-vitesse="100">100 %</button>
-                        <button type="button" data-vitesse="150">150 %</button>
-                        <button type="button" data-vitesse="200">200 %</button>
+                    <div class="bl-echelle" id="bl-echelle" aria-hidden="true"><span style="left: 0%">50</span><span style="left: 16.667%">75</span><span style="left: 33.333%">100</span><span style="left: 66.667%">150</span><span style="left: 100%">200</span></div>
                     </div>
-                    </div>
-                    <!-- Le clic de contretemps du métronome (#toggle-metronome-subdivision) vient ici sur ordinateur (lot 6a) : la carte Morceau où il
-                         vivait n'y est plus affichée. Même bouton, déplacé (voir placerSubdivisionMetronome). -->
-                    <div class="bl-pop-ligne bl-pop-ligne-espacee" id="bl-hote-subdivision"><span class="bl-pop-etiquette">Contretemps au métronome</span></div>
-                    <p class="bl-pop-aide">50 à 200 % du tempo, pour travailler lentement un passage. Décompte, son et volume du métronome : dans les Paramètres.</p>
                 </div>
             </div>
             <button type="button" id="bl-metro" class="icon-btn" aria-pressed="false"></button>
         </div>
-        <!-- Bloc « Vues » (lot 8) : Clavier et Guitare. Les deux boutons existants (.viz-toggle) y sont déplacés sur ordinateur par placerVues. -->
-        <div class="bl-bloc bl-vues" data-bloc="vues" id="bl-vues">
-            <!-- Refonte du séquenceur (cahier 3 bis, « Nom et accès ») : le séquenceur, le Clavier et la Guitare s'ouvrent par trois boutons-bascules réunis ici.
-                 Logo de « Séq. » (#grid-zoom) repris tel quel. Ordinateur seulement : au téléphone le séquenceur viendra dans le panneau d'accord. -->
-            <button type="button" id="vue-sequenceur" class="icon-btn vue-sequenceur" aria-pressed="false" title="Séquenceur : le rythme de chaque voix de la partie" aria-label="Séquenceur">
-                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h6M14 7h6M4 12h3M11 12h9M4 17h11M19 17h1"/></svg>
-            </button>
-        </div>
+        <!-- Bloc « Vues » (lot 8) : Clavier et Guitare. Les deux boutons existants (.viz-toggle) y sont déplacés sur ordinateur par placerVues.
+             L5b (14/11, lettre D) : le bouton « Séquenceur » QUITTE ce bloc : il est maintenant à l'extrémité droite de l'en-tête de la grille, à gauche de « Voicing »
+             (voir #vue-sequenceur plus haut, dans la page). -->
+        <div class="bl-bloc bl-vues" data-bloc="vues" id="bl-vues"></div>
         <div class="bl-fin">
-            <button type="button" id="bl-reinit" class="icon-btn bl-reinit" hidden title="Remettre les blocs dans l'ordre d'origine">Ordre d'origine</button>
-            <button type="button" id="bl-reorg" class="icon-btn" aria-pressed="false" title="Réorganiser les blocs de la barre" aria-label="Réorganiser les blocs de la barre">
-                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h16M4 16h16"/><path d="M8 4 4 8l4 4M16 12l4 4-4 4"/></svg>
+            <!-- RÉGLAGE DE LA BARRE (L5c, 14/11) : « le bouton de réorganisation des blocs prend la ROUE des Paramètres (pour comprendre que c'est un réglage) ». Il ouvre la popover
+                 « Barre de lecture » (#bl-reglages-pop, plus bas dans la page) au lieu de basculer directement le mode réorganiser. -->
+            <button type="button" id="bl-reorg" class="icon-btn" aria-haspopup="dialog" aria-expanded="false" aria-pressed="false" aria-controls="bl-reglages-pop" title="Réglage de la barre : réorganiser les blocs (tempo, vues…)" aria-label="Réglage de la barre de lecture">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"> <circle cx="12" cy="12" r="3"/> <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.04.05a2 2 0 1 1-2.83 2.83l-.05-.04a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.05.04a2 2 0 1 1-2.83-2.83l.04-.05a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.04-.05a2 2 0 1 1 2.83-2.83l.05.04a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82.33l.05-.04a2 2 0 1 1 2.83 2.83l-.04.05a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/> </svg>
             </button>
         </div>
         <!-- TÉLÉPHONE (lot 10b, maquette « Téléphone (v2) ») : « ⋯ » ouvre le panneau Lecture — le tempo, le métronome et les vues n'ont pas de place dans
@@ -2087,9 +2111,10 @@
                  masqué : la boucle y reste un état de Lecture (anneau, appui long), comme avant. Même mécanisme dans les deux
                  cas (basculerBoucle / syncAnneauBoucle). -->
             <button id="boucle-btn" type="button" class="btn-sec transport-icon-btn boucle-btn" title="Boucle" aria-label="Boucle" aria-pressed="false">
-                <svg class="icon transport-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12.2 2.6a9.4 9.4 0 1 1-6.85 2.75" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="butt"/>
-                    <path d="M11.2 0 15.6 2.6l-4.4 2.6z" fill="currentColor"/>
+                <!-- L5c (14/11, « il faut l'améliorer ») : le logo « répéter » (deux flèches en rectangle aux coins arrondis, trait 2, bouts ronds — ICONS.loop de script.js) à la place
+                     de l'arc à pointe de flèche, qu'on lisait comme « recharger ». Le bouton Lecture garde son anneau + triangle en mode boucle (question posée : l'harmoniser ?). -->
+                <svg class="icon transport-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M17 2 21 6 17 10"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22 3 18 7 14"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
                 </svg>
             </button>
         </div>
@@ -2124,13 +2149,13 @@
     <!-- sequenceur.js AVANT script.js : l'appli (window.app) est créée à la fin de script.js et construit le séquenceur dans la foulée. -->
     <!-- Les formes du séquenceur (au compte) : AVANT sequenceur.js, qui s'y abonne à sa construction ; la connexion (SYNCHRO) n'est lue qu'à l'usage. -->
     <script src="synchro-formes.js?v=202611131800"></script>
-    <script src="synchro-doigtes.js?v=202611152320"></script>
-    <script src="sequenceur.js?v=202611152320"></script>
-    <script src="script.js?v=202611152320"></script>
+    <script src="synchro-doigtes.js?v=202611160140"></script>
+    <script src="sequenceur.js?v=202611160140"></script>
+    <script src="script.js?v=202611160140"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611152320"></script>
+    <script src="synchro-harmohub.js?v=202611160140"></script>
     <!-- Les versions au cloud (sous-lot « Versions au cloud ») : après l'adaptateur, dont elles réutilisent la connexion (SYNCHRO). -->
     <script src="synchro-versions.js?v=202611060400"></script>
 </body>

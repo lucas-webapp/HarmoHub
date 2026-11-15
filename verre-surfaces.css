@@ -99,6 +99,9 @@ html[data-glass="1"] :is(.btn-primary, .btn-secondary, .btn-back, .mode-btn, .ch
    quel fond. Les boutons, eux, ont déjà leur habillage (.icon-btn, .btn-prog, .btn-stop, .btn-sec). La frise et la bande
    orange gardent leurs couleurs : ce sont des repères musicaux. ---- */
 html[data-glass="1"] .barre-lecture { background: var(--glass-bar); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-hi); }
+/* L5b : le bandeau « + Section » est collé en bas de la zone de la grille (du contenu défile dessous) : un fond de barre, pas un trou ; la popover « Barre de lecture » (#bl-reglages-pop,
+   .context-menu) et le menu du vide de la grille (#grille-vide-menu, .tb-menu) prennent déjà le flou et la sous-couche des menus. */
+html[data-glass="1"] #add-section.add-section-btn { background: var(--glass-bar); background-image: none; }
 html[data-glass="1"] .bl-pop { background: var(--glass-pop-fond); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-hi), 0 24px 50px -24px rgba(0, 0, 0, .65); }
 html[data-glass="1"] .bl-seg { background: var(--glass-inp); }
 

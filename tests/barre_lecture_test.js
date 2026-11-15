@@ -19,7 +19,7 @@ const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('barre de lecture du bas');
 const { estBruitReseau } = require('./_harness');
 
-plan(49);
+plan(57);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const mk = (root, quality, beats = 4) => ({ root, quality, beats, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held', instrument: 'piano', arpPattern: '', seqEdited: false, guitarLock: null, extraNotes: [], intensity: 75, intensityPerStep: {} });
@@ -58,14 +58,16 @@ const graine = (src) => {
     const a = await p.evaluate(() => {
         const b = document.getElementById('barre-lecture'), r = b.getBoundingClientRect();
         const blocs = [...b.querySelectorAll('.bl-bloc')].map(x => ({ nom: x.dataset.bloc, gauche: Math.round(x.getBoundingClientRect().left) }));
-        return { bas: Math.round(r.bottom), haut: Math.round(r.top), larg: Math.round(r.width), h: Math.round(r.height), fenetre: window.innerHeight, blocs, mesure: document.getElementById('bl-mesure').textContent, verticale: getComputedStyle(b).display };
+        return { bas: Math.round(r.bottom), haut: Math.round(r.top), larg: Math.round(r.width), h: Math.round(r.height), fenetre: window.innerHeight, blocs, mesure: (() => { const m = document.getElementById('bl-mesure'); return { n: (m.querySelector('.bm-val b') || {}).textContent, total: (m.querySelector('.bm-val i') || {}).textContent, lab: (m.querySelector('.bm-lab') || {}).textContent, titre: m.title }; })(), verticale: getComputedStyle(b).display };
     });
     check(a.verticale === 'flex' && a.bas === a.fenetre && a.larg === 1440, `barre collée au bas de l'écran, sur toute la largeur — bas ${a.bas}/${a.fenetre}, largeur ${a.larg}`);
     check(a.h >= 60 && a.h <= 61, `60px de haut — ${a.h}px`);
     // LOT 8 : le quatrième bloc est « Vues » (Clavier, Guitare), à la suite du tempo.
     check(a.blocs.map(x => x.nom).join() === 'lecture,parties,tempo,vues' && a.blocs[0].gauche < a.blocs[1].gauche && a.blocs[1].gauche < a.blocs[2].gauche && a.blocs[2].gauche < a.blocs[3].gauche,
         `quatre blocs, dans l'ordre d'origine : Lecture, Parties, Tempo, Vues — ${JSON.stringify(a.blocs)}`);
-    check(a.mesure === 'Mes. 1', `« Mes. N » seul, sans temps ni nom d'accord — « ${a.mesure} »`);
+    // RÉÉCRIT À L5c (J.1, « je ne le trouve pas très joli […] au plus logique ») : un petit « MESURE » au-dessus du numéro en grand, suivi du total « / 8 » ; plus de « Mes. N » à l'ordinateur.
+    check(a.mesure.n === '1' && a.mesure.lab === 'Mesure' && /^ \/ \d+$/.test(a.mesure.total) && a.mesure.titre === `Mesure en cours : 1 sur ${a.mesure.total.replace(/\D/g, '')}`,
+        `« MESURE 1 / n » : libellé, numéro, total, infobulle — ${JSON.stringify(a.mesure)}`);
 
     console.log('\n=== B. La frise : une tranche par partie, durée proportionnelle ===');
     const f = await p.evaluate(() => [...document.querySelectorAll('#bl-frise .bl-frise-part')].map(x => ({ t: x.textContent, w: Math.round(x.getBoundingClientRect().width) })));
@@ -77,9 +79,9 @@ const graine = (src) => {
     await p.waitForTimeout(300);
     const c = await p.evaluate(() => {
         const fr = document.getElementById('bl-frise').getBoundingClientRect(), t = document.querySelector('#bl-frise .bl-frise-tete').getBoundingClientRect();
-        return { mesure: document.getElementById('bl-mesure').textContent, pct: Math.round((t.left - fr.left) / fr.width * 100), actif: document.querySelector('#bl-frise .bl-frise-part.en-cours')?.textContent };
+        return { mesure: (document.getElementById('bl-mesure').querySelector('.bm-val b') || {}).textContent, pct: Math.round((t.left - fr.left) / fr.width * 100), actif: document.querySelector('#bl-frise .bl-frise-part.en-cours')?.textContent };
     });
-    check(c.mesure === 'Mes. 5', `le premier accord du Refrain (après 16 temps en 4/4) est à la mesure 5 — « ${c.mesure} »`);
+    check(c.mesure === '5', `le premier accord du Refrain (après 16 temps en 4/4) est à la mesure 5 — « ${c.mesure} »`);
     check(Math.abs(c.pct - 50) <= 2, `la tête est à mi-frise — ${c.pct} %`);
     check(c.actif === 'Refrain', `la partie en cours est surlignée — ${c.actif}`);
 
@@ -90,9 +92,9 @@ const graine = (src) => {
     await p.click('.chord-grid[data-section="0"] .grid-cell[data-index="0"]');
     await p.click('#play-prog');
     await p.waitForTimeout(2700);
-    const d = await p.evaluate(() => ({ mesure: document.getElementById('bl-mesure').textContent, jouee: window.app.isPlaying }));
+    const d = await p.evaluate(() => ({ mesure: (document.getElementById('bl-mesure').querySelector('.bm-val b') || {}).textContent, jouee: window.app.isPlaying }));
     check(d.jouee, 'la lecture est en cours');
-    check(/^Mes\. [2-9]$/.test(d.mesure), `après quelques secondes la mesure a avancé — « ${d.mesure} »`);
+    check(/^[2-9]$/.test(d.mesure), `après quelques secondes la mesure a avancé — « ${d.mesure} »`);
     await p.click('#stop');
     await p.waitForTimeout(200);
 
@@ -172,18 +174,22 @@ const graine = (src) => {
         return Math.max(...vus.filter(x => typeof x === 'number'));
     });
     const fin100 = await instants();
-    await p.click('#bl-vitesses button[data-vitesse="200"]');
+    // RÉÉCRIT À L5c (14/11, « UN SEUL réglage de vitesse ») : les cinq boutons de vitesses rapides n'existent plus ; on GLISSE / CLIQUE le curseur, qui colle à 50, 75, 100, 150 et 200.
+    const surCurseur = async (v) => { const b = await p.locator('#bl-vitesse').boundingBox(); await p.mouse.click(b.x + 8 + (v - 50) / 150 * (b.width - 16), b.y + b.height / 2); };
+    check(await p.evaluate(() => !document.getElementById('bl-vitesses') && document.querySelectorAll('#bl-tempo-pop [data-vitesse]').length === 0), 'les cinq boutons de vitesses rapides ont disparu : il n\'y a qu\'UN réglage');
+    await surCurseur(200);
     await p.waitForTimeout(150);
     const fin200 = await instants();
     check(fin200 > 0 && Math.abs(fin100 / fin200 - 2) < 0.08, `à 200 % le morceau se joue deux fois plus vite — dernier instant ${fin100.toFixed(2)}s → ${fin200.toFixed(2)}s`);
     check(await p.evaluate(() => +document.getElementById('bpm').value === 120), 'le tempo ENREGISTRÉ du morceau n\'a pas bougé (la vitesse ne réécrit pas le morceau)');
     const tag = await p.evaluate(() => { const t = document.getElementById('bl-vitesse-tag'); return { visible: !t.hidden, txt: t.textContent, couleur: getComputedStyle(t).color }; });
     check(tag.visible && tag.txt.includes('200'), `le bouton du tempo annonce la vitesse dès qu'elle diffère de 100 % — « ${tag.txt} »`);
-    await p.click('#bl-vitesses button[data-vitesse="50"]');
+    await surCurseur(50);
     await p.waitForTimeout(100);
     check(await p.evaluate(() => window.app.bpmLecture() === 60), 'à 50 %, le tempo de lecture est 60 pour un morceau à 120');
-    await p.click('#bl-vitesses button[data-vitesse="100"]');
+    await surCurseur(103); // à 3 points de 100 : le curseur colle
     await p.waitForTimeout(100);
+    check(await p.evaluate(() => document.getElementById('bl-vitesse').value === '100'), 'le curseur colle à 100 % (moins de 6 points)');
     check(await p.evaluate(() => document.getElementById('bl-vitesse-tag').hidden), '...et la mention disparaît à 100 %');
     await p.keyboard.press('Escape');
     await p.waitForTimeout(100);
@@ -206,29 +212,56 @@ const graine = (src) => {
     await p.waitForTimeout(150);
     check(await p.evaluate(() => document.getElementById('bl-metro').getAttribute('aria-pressed') === String(document.getElementById('toggle-metronome').classList.contains('active'))), '...et le bouton de la carte est répercuté dans la barre');
 
-    console.log('\n=== I. Réorganiser les blocs ===');
+    console.log('\n=== I. Réorganiser les blocs : on les ATTRAPE (plus de flèches) ===');
     const gauches = () => p.evaluate(() => Object.fromEntries([...document.querySelectorAll('.bl-bloc')].map(x => [x.dataset.bloc, Math.round(x.getBoundingClientRect().left)])));
-    check(await p.evaluate(() => getComputedStyle(document.querySelector('.bl-fleches')).display === 'none'), 'hors mode « réorganiser », aucune flèche ne s\'affiche');
+    // RÉÉCRIT À L5c (14/11, « des petites fenêtres flottantes que je peux attraper avec ma souris et déplacer ») : la roue ouvre la popover « Barre de lecture » ; « Réorganiser » y allume le
+    // mode ; on attrape alors un bloc à la souris et on le pose ailleurs. Plus de flèches ◀ ▶, plus de bouton « Ordre d'origine » dans la barre : il est dans la popover, en logo.
+    check(await p.evaluate(() => document.querySelectorAll('.bl-fleches').length === 0), 'il n\'y a plus de flèches ◀ ▶ sur les blocs');
     await p.click('#bl-reorg');
-    await p.waitForTimeout(150);
-    check(await p.evaluate(() => getComputedStyle(document.querySelector('.bl-fleches')).display !== 'none' && !document.getElementById('bl-reinit').hidden), 'le mode « réorganiser » montre les flèches et « Ordre d\'origine »');
-    // L'exemple de l'utilisateur : le bloc des boutons de lecture au centre, à droite des parties du morceau.
-    await p.click('.bl-bloc[data-bloc="lecture"] .bl-fleches button:last-child');
-    await p.waitForTimeout(150);
+    await p.waitForTimeout(200);
+    check(await p.evaluate(() => !document.getElementById('bl-reglages-pop').hidden && document.getElementById('bl-reorg').getAttribute('aria-expanded') === 'true'), 'la roue ouvre la popover « Barre de lecture »');
+    await p.click('#bl-r-reorg');
+    await p.waitForTimeout(200);
+    await p.mouse.click(200, 400); // un clic à côté (dans le vide à gauche de la grille) referme la popover, le mode reste allumé
+    await p.waitForTimeout(200);
+    const apresFermeture = await p.evaluate(() => ({ ferme: document.getElementById('bl-reglages-pop').hidden, mode: document.getElementById('barre-lecture').classList.contains('reorganiser') }));
+    check(apresFermeture.ferme && apresFermeture.mode, `le mode « réorganiser » reste allumé une fois la popover refermée — ${JSON.stringify(apresFermeture)}`);
+    // L'exemple de l'utilisateur : le bloc des boutons de lecture au centre, à droite des parties du morceau — on l'attrape et on le pose derrière la frise.
     let g = await gauches();
+    const bl = await p.locator('.bl-bloc[data-bloc="lecture"]').boundingBox();
+    await p.mouse.move(bl.x + bl.width / 2, bl.y + bl.height / 2); await p.mouse.down();
+    await p.mouse.move(bl.x + bl.width / 2 + 300, bl.y + bl.height / 2, { steps: 6 });
+    check(await p.evaluate(() => document.querySelector('.bl-bloc[data-bloc="lecture"]').classList.contains('souleve')), 'attrapé, le bloc se soulève (ombre et contour bleu)');
+    await p.mouse.move(g.parties + 700, bl.y + bl.height / 2, { steps: 10 });
+    await p.mouse.up();
+    await p.waitForTimeout(250);
+    g = await gauches();
     check(g.parties < g.lecture && g.lecture < g.tempo, `Lecture passe à droite des Parties du morceau — ${JSON.stringify(g)}`);
-    check(await p.evaluate(() => document.querySelector('.bl-bloc[data-bloc="parties"] .bl-fleches button:first-child').disabled), '...et la flèche gauche du premier bloc est grisée');
+    check(await p.evaluate(() => !document.querySelector('.bl-bloc.souleve') && document.querySelector('.bl-bloc[data-bloc="lecture"]').style.transform === ''), '...le bloc est reposé, plus soulevé');
+    check(await p.evaluate(() => document.getElementById('barre-lecture').getBoundingClientRect().height <= 82), 'la barre reste sur UNE ligne');
     await p.reload();
     await p.waitForTimeout(900);
     g = await gauches();
     check(g.parties < g.lecture, 'l\'ordre choisi est retrouvé au rechargement (mémorisé par appareil)');
     check(await p.evaluate(() => !!localStorage.getItem('harmohubBarreLectureOrdre')), '...dans le stockage de l\'appareil');
+    // Au clavier : Alt + ← remet Lecture avant Parties (l'accès que les flèches offraient).
+    await p.click('#bl-reorg'); await p.click('#bl-r-reorg'); await p.mouse.click(200, 400);
+    await p.waitForTimeout(150);
+    await p.locator('.bl-bloc[data-bloc="lecture"]').focus();
+    await p.keyboard.press('Alt+ArrowLeft');
+    await p.waitForTimeout(150);
+    g = await gauches();
+    check(g.lecture < g.parties, `Alt + ← déplace le bloc focalisé d'un rang — ${JSON.stringify(g)}`);
+    await p.keyboard.press('Alt+ArrowRight');
+    await p.waitForTimeout(150);
     await p.click('#bl-reorg');
     await p.click('#bl-reinit');
     await p.waitForTimeout(150);
     g = await gauches();
-    check(g.lecture < g.parties && g.parties < g.tempo, 'ordre d\'origine : tout revient en place');
-    await p.click('#bl-reorg');
+    check(g.lecture < g.parties && g.parties < g.tempo, 'ordre d\'origine (le logo « Ordre » de la popover) : tout revient en place');
+    check(await p.evaluate(() => { const b = document.getElementById('bl-reinit'); return !!b.querySelector('svg') && /Ordre/.test(b.textContent) && /origine/.test(b.title); }), '...c\'est un logo (flèche de retour) avec son infobulle');
+    await p.click('#bl-r-reorg'); // éteint le mode
+    await p.keyboard.press('Escape');
     // Le transport a bien suivi son bloc : un seul exemplaire, toujours dans #bl-lecture.
     check(await p.evaluate(() => document.querySelectorAll('.transport').length === 1 && document.getElementById('bl-lecture').contains(document.querySelector('.transport'))), 'le transport reste UN seul nœud, dans son bloc');
     // Le réglage est PAR APPAREIL : jamais dans les réglages synchronisés.

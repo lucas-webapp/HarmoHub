@@ -67,7 +67,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
     // Section fraîchement ajoutée : vérifie qu'elle est bien active avant d'y ajouter un accord (sinon
     // "G" pourrait atterrir dans la 1ère section par erreur — pas ce que ce test veut vérifier).
     await page.waitForFunction(() => app.activeSection === 1, { timeout: 3000 }).catch(() => {});
-    await ajouterAccord(page, 'G');
+    await ajouterAccord(page, 'G', 1); // L5b : l'assistant vise la partie demandée aussi à l'ordinateur (avant, la saisie permanente allait à la partie active)
     await page.waitForTimeout(200);
 
     let fichiers = 0; page.on('download', () => { fichiers++; });

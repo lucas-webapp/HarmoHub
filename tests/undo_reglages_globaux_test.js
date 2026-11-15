@@ -128,6 +128,8 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
     check(countAfterUndo === countBefore, `Ctrl+Z retire bien l'accord ajouté, comme avant ce correctif — ${countAfterUndo}`);
 
     console.log('\n=== F. Non-régression : #quick-add-input garde son exception (texte vide -> Ctrl+Z passe) ===');
+    // L5b (14/11) : la saisie rapide s'ouvre par « + Accord » (elle n'est plus permanente à l'ordinateur).
+    await page.click('#progression-sections .prog-section-ajout[data-section="0"]'); await page.waitForTimeout(300);
     await page.fill('#quick-add-input', '');
     await page.locator('#quick-add-input').focus();
     const countBeforeF = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords.length);

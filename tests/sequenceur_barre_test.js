@@ -230,7 +230,9 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
     await p.focus('#sq-r-croche');
     for (let i = 0; i < 4; i++) await p.keyboard.press('ArrowRight');
     await p.waitForTimeout(200);
-    check(Math.round(await p.evaluate(() => document.querySelector('#sq-grille .sq-case[data-r="0"]').getBoundingClientRect().width)) === 42 && await p.evaluate(() => localStorage.getItem('harmohubSequenceurCroche')) === '42', 'le curseur de largeur règle les croches (34 → 42 px)');
+    const largeurCroche = await p.evaluate(() => ({ w: Math.round(document.querySelector('#sq-grille .sq-case[data-r="0"]').getBoundingClientRect().width), ls: localStorage.getItem('harmohubSequenceurCroche'), v: (document.getElementById('sq-r-croche') || {}).value }));
+    // L5a (bord gauche à 26 px au lieu de 16) : à 1440 px les quatre mesures n'ont plus tout à fait la place de 42 px par croche, la grille cède 1 px (« jamais plus que la place ») — le réglage, lui, vaut bien 42.
+    check(Math.abs(largeurCroche.w - 42) <= 1 && largeurCroche.ls === '42' && largeurCroche.v === '42', `le curseur de largeur règle les croches (34 → 42 px) — ${JSON.stringify(largeurCroche)}`);
     await cliquer(p, '[data-sq-contenu="degres"]');
     const deg = await p.evaluate(() => [...document.querySelectorAll('#sq-grille .sq-case.on[data-c="0"] .sq-note')].map(n => n.textContent.trim()).filter(Boolean));
     check(deg.sort().join() === '1,3,5,7', `Barres : Degrés écrit 1, 3, 5, 7 sur Cmaj7 (${deg.join()})`);
@@ -241,7 +243,7 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
     await cliquer(p, '#sq-r-regle');
     check(!await visible(p, '#sq-grille .sq-temps') && !await visible(p, '#sq-grille .sq-boucle'), 'Règle éteinte : la règle des temps disparaît');
     await p.reload(); await p.waitForFunction(() => !!window.app); await p.waitForTimeout(900);
-    check(!await visible(p, '#sq-grille .sq-temps') && Math.round(await p.evaluate(() => document.querySelector('#sq-grille .sq-case[data-r="0"]').getBoundingClientRect().width)) === 42, 'tout cela est retenu après rechargement');
+    check(!await visible(p, '#sq-grille .sq-temps') && Math.abs(Math.round(await p.evaluate(() => document.querySelector('#sq-grille .sq-case[data-r="0"]').getBoundingClientRect().width)) - 42) <= 1 && await p.evaluate(() => localStorage.getItem('harmohubSequenceurCroche')) === '42', 'tout cela est retenu après rechargement');
     await cliquer(p, '#sq-reglages'); await cliquer(p, '#sq-r-retablir');
     check(Math.round(await p.evaluate(() => document.querySelector('#sq-grille .sq-case[data-r="0"]').getBoundingClientRect().width)) === 34 && Math.round(await p.evaluate(() => document.querySelector('#sq-grille .sq-case[data-r]').getBoundingClientRect().height)) === 26 && await visible(p, '#sq-grille .sq-temps'), 'Rétablir : barres de 26 px, croches de 34 px, règle visible');
     await p.mouse.click(60, 300); await p.waitForTimeout(250);

@@ -224,7 +224,7 @@ const graine = ({ src, noms, courant }) => {
     check((await nomsEnBase(p)).includes('Titre renommé') && !(await nomsEnBase(p)).some(n => n.endsWith('X')), 'Échap abandonne le renommage : le nom n\'a pas bougé');
 
     // DUPLIQUER : une copie, l'original ne bouge pas
-    await p.fill('#quick-add-input', 'B7'); await p.click('#quick-add-btn'); await p.waitForTimeout(200);
+    await ajouterAccord(p, 'B7'); await p.waitForTimeout(200); // L5b : la saisie s'ouvre par « + Accord »
     const idAvantDup = await idCourant(p);
     const nbAvant = (await nomsEnBase(p)).length;
     await p.click('#tb-titre'); await p.click('#tb-menu [data-tb-action="dupliquer"]');
@@ -258,7 +258,7 @@ const graine = ({ src, noms, courant }) => {
     console.log('\n=== E. Premier enregistrement d\'un morceau sans nom, dans la barre ===');
     const q = await ouvrir({ width: 1440, height: 900 }, [], null);
     check((await etat(q)).etat === 'neuf' && await q.evaluate(() => document.getElementById('tb-titre-nom').textContent) === 'Nouveau morceau', 'sans morceau ouvert : titre « Nouveau morceau », voyant gris');
-    await q.fill('#quick-add-input', 'C'); await q.click('#quick-add-btn'); await q.waitForTimeout(200);
+    await ajouterAccord(q, 'C'); await q.waitForTimeout(200); // L5b : la saisie s'ouvre par « + Accord »
     check((await etat(q)).etat === 'modifie', 'une modification sur un tampon vierge allume le voyant orange');
     await q.click('#tb-save');
     await q.waitForTimeout(250);

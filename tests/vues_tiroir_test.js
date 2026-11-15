@@ -63,7 +63,8 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
     check(bk.y >= barre.y && bk.b <= barre.b && bg.y >= barre.y && bg.b <= barre.b, 'entièrement dans la barre de lecture');
     check(Math.round(bk.h) === 32 && Math.round(bk.w) === 32 && Math.round(bg.h) === 32, `à la jauge de 32 px (${Math.round(bk.w)}×${Math.round(bk.h)})`);
     check(await p.evaluate(() => document.querySelectorAll('#barre-lecture .bl-bloc').length === 4 && window.app._blOrdre.includes('vues')), 'quatre blocs réordonnables, « vues » compris');
-    check(await p.evaluate(() => !!document.querySelector('#bl-vues .bl-fleches')), 'le bloc porte ses flèches ◀ ▶ en mode « réorganiser » comme les autres');
+    // RÉÉCRIT À L5c (14/11, « des petites fenêtres que je peux attraper ») : plus de flèches ◀ ▶ ; en mode « réorganiser » le bloc s'attrape comme les autres (geste joué dans barre_lecture).
+    check(await p.evaluate(() => document.querySelectorAll('.bl-fleches').length === 0 && !!document.querySelector('#bl-vues') && document.querySelector('#bl-vues').matches('.bl-bloc')), 'le bloc « Vues » est un bloc de la barre comme les autres (attrapable en mode « réorganiser », sans flèches)');
     check(await p.evaluate(() => document.getElementById('toggle-viz-piano').getAttribute('aria-pressed') === 'true' && document.getElementById('toggle-viz-guitar').getAttribute('aria-pressed') === 'false'), 'le clavier est allumé au départ, la guitare éteinte (comme avant)');
 
     // ======================================================================================================

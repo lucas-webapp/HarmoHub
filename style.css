@@ -4001,7 +4001,16 @@ button:active { transform: translateY(1px); }
     border: 1px solid var(--border);
     color: var(--text-main);
     padding: 10px 16px;
-    border-radius: 999px;
+    /* L5c (14/11, « les bords sont largement arrondis et des fois le texte dépasse de l'encadré ») : 12 px, le rayon de tout ce qui flotte (une pilule à 999 px laissait
+       le texte sortir dès qu'il passait sur deux lignes) ; la boîte épouse le texte jusqu'à 480 px, puis le texte revient à la ligne, centré. */
+    border-radius: 12px;
+    width: max-content;
+    max-width: min(92vw, 480px);
+    box-sizing: border-box;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
     font-size: var(--fs-sm);
     font-weight: 600;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
@@ -5308,11 +5317,9 @@ body.impression-structure #structure-print-zone { display: block; }
     .bl-seg-plein { display: flex; width: 100%; }
     .bl-seg-plein > button { flex: 1 1 0; padding: 0; }
 
-    /* Mode « réorganiser » : chaque bloc s'entoure de pointillés bleus (la couleur de la sélection) et montre ses flèches. */
-    .bl-fleches { display: none; }
+    /* Mode « réorganiser » : chaque bloc s'entoure de pointillés bleus (la couleur de la sélection). Depuis L5c il n'y a plus de flèches : on ATTRAPE le bloc (voir le bloc L5c en
+       fin de fichier). */
     .barre-lecture.reorganiser .bl-bloc { padding: 6px; border: 1px dashed #4570b0; border-radius: 10px; }
-    .barre-lecture.reorganiser .bl-fleches { display: inline-flex; }
-    .bl-reinit { width: auto; min-width: 0; padding: 0 12px; font-size: var(--fs-sm); font-weight: 600; }
 }
 
 
@@ -6123,7 +6130,7 @@ body.avec-barre-selection .toast { bottom: 132px; }
     .barre-lecture #boucle-btn { order: 4; }
     .barre-lecture .bl-plus { order: 5; }
     /* Le tempo, les vues et la réorganisation des blocs (un geste de souris) n'ont pas leur place dans 390px : tempo et vues sont dans le panneau. */
-    .barre-lecture [data-bloc="tempo"], .barre-lecture .bl-vues, .barre-lecture .bl-fin, .barre-lecture .bl-fleches { display: none; }
+    .barre-lecture [data-bloc="tempo"], .barre-lecture .bl-vues, .barre-lecture .bl-fin { display: none; }
 
     /* Lecture, Stop, Boucle, ⋯ : carrés de 44px identiques, angles de 7px — la règle du téléphone (.transport .transport-icon-btn) les étirait. */
     .barre-lecture .transport > button, .barre-lecture .bl-plus {
@@ -6527,7 +6534,7 @@ body.avec-barre-selection .toast { bottom: 132px; }
 .sequenceur, .vue-sequenceur { display: none; }
 @media (min-width: 900px) {
     .vue-sequenceur { display: inline-flex; }
-    .vue-sequenceur[aria-pressed="true"] { color: #cfe0ff; border-color: var(--btn-blue-border-hover); background: rgba(47, 129, 247, 0.16); }
+    /* L5b : le bouton est maintenant vert (voir le bloc L5b en fin de fichier) ; plus de bleu ici. */
 }
 /* Le séquenceur lui-même vaut pour les DEUX appareils depuis le sous-lot du téléphone : sequenceur.js ne le montre au téléphone que dans l'onglet
    « Rythme » du panneau d'accord (#pa-rythme), où le bloc « TÉLÉPHONE, L'ONGLET RYTHME » en fin de fichier l'ajuste au doigt. */
@@ -7460,4 +7467,169 @@ body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
 @media (min-width: 900px) and (max-width: 999px) {
     .tb-onglets > button { min-width: 0; padding-left: 10px; padding-right: 10px; }
     #compte-cloud { max-width: 150px; }
+}
+
+
+/* ======================================================================================================
+   L5b — RANGÉE DE RÉGLAGES ET GRILLE (refonte, lettres D, H, J, L — décisions des 13 et 14/11). Ordinateur seulement ; en FIN de fichier (cascade).
+   ====================================================================================================== */
+@media (min-width: 900px) {
+    /* LE BOUTON « SÉQUENCEUR » (D) : à l'extrémité droite de l'en-tête de la grille, à gauche de « Voicing » (12 px d'écart, comme eux deux), « plus large, AVEC son
+       nom à côté du logo, bordé de vert, plein vert quand ouvert ». Seul le bouton Séquenceur perd son bleu (« les autres boutons bleus restent »). */
+    #vue-sequenceur {
+        flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-sizing: border-box;
+        margin-left: auto; width: var(--bouton-h, 32px); min-width: 0; height: var(--bouton-h, 32px); padding: 0;
+        border: 1px solid var(--btn-green-border); border-radius: var(--rayon-bouton, 7px);
+        background: transparent; color: var(--accent); font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; cursor: pointer;
+    }
+    #vue-sequenceur .icon { width: 18px; height: 18px; flex: none; }
+    #vue-sequenceur:hover { border-color: var(--btn-green-border-hover); background: rgba(79, 208, 143, 0.08); }
+    #vue-sequenceur:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--btn-blue-border-hover); }
+    #vue-sequenceur[aria-pressed="true"] {
+        color: var(--btn-text); border-color: var(--btn-green-border-hover);
+        background-image: radial-gradient(120% 160% at 20% 0%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(160deg, var(--btn-green-1), var(--btn-green-2) 70%);
+    }
+    .vue-sequenceur-nom { display: none; }
+    /* « Voicing » reste le dernier : c'est le Séquenceur qui prend l'espace libre (marge automatique) ; l'écart de 12 px est le `gap` de 10 px de l'en-tête + 2 px. */
+    #vue-sequenceur + .rr-voicing { margin-left: 2px; }
+
+    /* LA SAISIE « AJOUT RAPIDE » N'EST PLUS PERMANENTE (D) : elle n'apparaît que lorsqu'on choisit OÙ ajouter (un « + » de la grille ouvre #ajout-aide). Elle garde tout :
+       « C/Am/F/G », « C_E », ligne vide = nouvelle partie. Le focus lui est donné APRÈS que le panneau est affiché (voir ouvrirAideAjout), donc elle est déjà visible. */
+    #quick-add-panel > .quick-add-row { display: none; }
+    body:has(#ajout-aide:not([hidden])) #quick-add-panel > .quick-add-row { display: flex; }
+    /* « + Accord » de l'en-tête de partie : la décision D le retire (« doublon des + »), MAIS son remplaçant — le double-clic sur le « + » du bout d'une partie, qui ouvre la
+       fenêtre d'ajout au clic — est au lot L6. Le retirer avant laisserait l'ordinateur sans accès au panneau d'ajout (palette de la tonalité, suggestions) : il reste donc
+       jusqu'à L6, et c'est lui qui ouvre la saisie rapide maintenant qu'elle n'est plus permanente. */
+
+    /* « + SECTION » : un mince bandeau en pointillés sous la dernière partie, TOUJOURS visible (L, « on voit pas le bouton sous l'onglet […] j'aimerais quand même voir un
+       bouton ajouter section quelque part »), collé en bas de la zone quand la liste des parties est longue. C'est le même bouton (#add-section) : seul son aspect change. */
+    #add-section.add-section-btn {
+        display: flex; align-items: center; justify-content: center; align-self: stretch; gap: 6px; box-sizing: border-box;
+        position: sticky; bottom: 4px; z-index: 3; width: 100%; height: var(--bouton-h, 32px); margin: 6px 0 0; padding: 0 12px;
+        border: 1px dashed #3a4048; border-radius: var(--rayon-bouton, 7px);
+        background: rgba(17, 18, 20, 0.92); background-image: none; box-shadow: none;
+        color: var(--text-muted); font-size: var(--fs-sm); font-weight: 500;
+    }
+    #add-section.add-section-btn .icon { width: 14px; height: 14px; flex: none; }
+    #add-section.add-section-btn:hover, #add-section.add-section-btn:focus-visible {
+        color: var(--text-main); border-color: var(--btn-blue-border-hover); background: rgba(31, 53, 80, 0.55); background-image: none; outline: none;
+    }
+    #grille-vide-menu { width: 210px; }
+}
+/* Au-dessus de 1180 px, le logo se fait accompagner de son nom (comme « Voicing ») ; en dessous, le logo seul : il recouvrait « Vue ‹ n mes. › ». */
+@media (min-width: 1181px) {
+    #vue-sequenceur { width: auto; min-width: 124px; padding: 0 12px; }
+    .vue-sequenceur-nom { display: inline; }
+}
+
+/* POIGNÉES UNIFIÉES (D, 14/11 : « UNE règle »). Au repos un trait fin de 4 px, gris à peine plus clair que le fond, 72 px de long sur la grille et 60 px sur le séquenceur et le
+   tiroir ; au survol ou en tirant il s'épaissit en LANGUETTE de 10 px avec trois points et passe au bleu ; la zone qui accroche (12 à 18 px) est invisible. Curseur ⇔ (largeur)
+   ou ⇕ (hauteur). La poignée de largeur du séquenceur (.sq-poignee-largeur) avait déjà cette forme depuis L1 : les quatre autres la rejoignent. */
+@media (min-width: 900px) {
+    /* ⇕ : le séquenceur (60 px), le tiroir (60 px) et le bas de la grille (72 px). */
+    .sq-poignee::after, .vues-poignee::after, .grille-poignee-bas::after {
+        content: ''; position: absolute; box-sizing: border-box; top: 3px; height: 4px; border-radius: 5px; opacity: 1;
+        background-color: #2a2f36; border: 1px solid transparent; background-repeat: no-repeat;
+        transition: height .15s ease, top .15s ease, background-color .15s ease, border-color .15s ease;
+    }
+    .sq-poignee::after, .vues-poignee::after { left: 50%; width: 60px; margin-left: -30px; }
+    .grille-poignee-bas::after { left: 50%; width: 72px; margin-left: -36px; transform: none; }
+    .sq-poignee:hover::after, .sq-poignee.tire::after, .vues-poignee:hover::after, .vues-poignee.tire::after,
+    .grille-poignee-bas:hover::after, .grille-poignee-bas.en-cours::after {
+        top: 0; height: 10px; background-color: #25374d; border-color: var(--btn-blue-border-hover, #4a8fd8); opacity: 1;
+        background-image: radial-gradient(circle at calc(50% - 10px) 4px, #9aa3ae 1.4px, transparent 1.8px), radial-gradient(circle at 50% 4px, #9aa3ae 1.4px, transparent 1.8px), radial-gradient(circle at calc(50% + 10px) 4px, #9aa3ae 1.4px, transparent 1.8px);
+    }
+    /* CENTRÉES SUR LE BORD QU'ELLES DÉPLACENT : la zone du bord droit (12 px) est à cheval sur le trait de la grille (l'enveloppe garde 10 px de marge à droite pour elle) ;
+       celle du bas est à 6 px sous la dernière partie, et le bandeau « + Section » vient SOUS elle. */
+    .grille-poignee-droite { right: 4px; }
+    .grille-poignee-bas { margin: -10px 0 0; }
+    /* ⇔ : le bord droit de la grille (72 px). */
+    .grille-poignee-droite::after { top: 50%; left: 4px; width: 4px; height: 72px; border-radius: 5px; box-sizing: border-box; transform: translateY(-50%);
+        background-color: #2a2f36; border: 1px solid transparent; background-repeat: no-repeat;
+        transition: width .15s ease, left .15s ease, background-color .15s ease, border-color .15s ease; }
+    .grille-poignee-droite:hover::after, .grille-poignee-droite.en-cours::after {
+        left: 1px; width: 10px; background-color: #25374d; border-color: var(--btn-blue-border-hover, #4a8fd8);
+        background-image: radial-gradient(circle at 4px calc(50% - 10px), #9aa3ae 1.4px, transparent 1.8px), radial-gradient(circle at 4px 50%, #9aa3ae 1.4px, transparent 1.8px), radial-gradient(circle at 4px calc(50% + 10px), #9aa3ae 1.4px, transparent 1.8px);
+    }
+}
+
+/* ======================================================================================================
+   L5c — BARRE DE LECTURE, FENÊTRES ET ONGLET STRUCTURE (refonte, lettres D, J, L — décisions des 13 et 14/11). En FIN de fichier (cascade).
+   ====================================================================================================== */
+/* ONGLET STRUCTURE (D, « le chevron trop à droite, la barre d'ajout de partie à la structure trop large, trop de texte dans la légende ») : le petit menu d'ajout fait 200 px
+   (il en faisait ~650), son texte est « + Partie… », et sa flèche est DESSINÉE à 14 px du bord droit (la flèche native touchait le bord). Les boutons − + ↑ ↓ de chaque partie
+   restent à droite des barres. */
+@media (min-width: 900px) {
+    .struct-ajout select {
+        flex: none; width: 200px; max-width: 100%; box-sizing: border-box; height: var(--bouton-h, 32px); padding: 0 38px 0 12px;
+        appearance: none; -webkit-appearance: none;
+        background-repeat: no-repeat; background-position: right 14px center; background-size: 12px 12px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b949f' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+        text-overflow: ellipsis;
+    }
+}
+
+/* « MESURE 1 / 8 » (J.1) : le petit libellé au-dessus du numéro en grand, suivi du total. Ordinateur seulement ; le téléphone garde « Mes. N ». */
+@media (min-width: 900px) {
+    .bl-mesure { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; min-width: 64px; line-height: 1.1; font-weight: 400; }
+    .bl-mesure .bm-lab { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+    .bl-mesure .bm-val { display: inline-flex; align-items: baseline; gap: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .bl-mesure .bm-val b { font-size: 20px; font-weight: 800; color: var(--text-main); }
+    .bl-mesure .bm-val i { font-size: 12px; font-style: normal; font-weight: 600; color: var(--text-muted); }
+}
+
+/* LA FENÊTRE DU TEMPO (D, 14/11) : chevrons ‹ › à la place de − / +, le chiffre qu'on glisse, l'interrupteur noire / croche à droite de TAP, une seule vitesse (barre aimantée avec son
+   échelle non cliquable), plus de légende. Les nœuds sont ceux du téléphone aussi (la rangée et la vitesse y sont déplacées dans le panneau Lecture, voir placerPanneauLecture). */
+.bl-seg > .bl-chevron { width: 30px; padding: 0; font-size: 20px; font-weight: 600; line-height: 1; cursor: pointer; }
+#bl-tempo-pop-val { cursor: ns-resize; user-select: none; -webkit-user-select: none; touch-action: none; }
+#bl-tempo-pop-val.tire { color: var(--accent); }
+.bl-hote-sub { display: inline-flex; align-items: center; margin-left: auto; }
+.bl-hote-sub:empty { display: none; }
+.bl-pop .bl-hote-sub > #toggle-metronome-subdivision { width: var(--bouton-h, 32px); height: var(--bouton-h, 32px); min-width: 0; padding: 0; }
+/* L'échelle de la vitesse : sous la barre, aux crans où elle colle. Les 8 px de marge sont la moitié de la poignée du curseur (la piste s'arrête là). */
+.bl-echelle { position: relative; height: 14px; margin: -4px 8px 0; pointer-events: none; user-select: none; -webkit-user-select: none; }
+.bl-echelle > span { position: absolute; top: 0; transform: translateX(-50%); font-size: 10px; line-height: 14px; font-variant-numeric: tabular-nums; color: var(--text-muted); }
+@media (min-width: 900px) {
+    .bl-pop { width: 290px; }
+}
+
+/* LA BARRE DE LECTURE : ÉCART DE 8 PX, BLOCS QU'ON ATTRAPE, POPOVER DE RÉGLAGE (L5c, 14/11). Ordinateur seulement. */
+@media (min-width: 900px) {
+    /* « écart identique de 8 px entre tous les boutons (tempo, métronome, clavier, guitare, réglage) — avant 8 / 16 / 8 / 16 » : l'écart entre blocs passe de 16 à 8 px ; la frise des
+       parties garde 16 px de chaque côté (8 + 8) pour ne pas coller à Lecture ni au tempo. */
+    .barre-lecture { gap: 8px; }
+    .bl-parties { margin: 0 8px; }
+
+    /* RÉORGANISER : « des petites fenêtres flottantes que je peux attraper avec ma souris et déplacer ». Plus de flèches ◀ ▶ : en mode réorganiser chaque bloc s'attrape (curseur main),
+       se soulève (ombre + contour bleu) et les autres se rangent en direct ; ses commandes sont inertes pendant le mode. La barre reste sur UNE ligne. */
+    .barre-lecture.reorganiser .bl-bloc { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+    .barre-lecture.reorganiser .bl-bloc > * { pointer-events: none; }
+    .barre-lecture.reorganiser .bl-bloc:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--btn-blue-border-hover); }
+    .barre-lecture.reorganiser .bl-bloc.souleve { cursor: grabbing; z-index: 60; border-style: solid; border-color: var(--btn-blue-border-hover); background: rgba(31, 53, 80, 0.55); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55); }
+    #bl-reorg[aria-pressed="true"] { border-color: var(--btn-blue-border-hover); color: #cfe0ff; }
+
+    /* Les réglages de la frise (mémorisés par appareil). */
+    .barre-lecture.frise-limitee .bl-parties { flex: 0 1 var(--bl-frise-w, 480px); max-width: var(--bl-frise-w, 480px); }
+    .barre-lecture.frise-limitee .bl-fin { margin-left: auto; }
+    .barre-lecture.sans-noms-parties .bl-frise-part { font-size: 0; }
+    .barre-lecture.sans-mesure .bl-mesure { display: none; }
+
+    /* La popover : le gabarit des Paramètres, comme « Réglages du séquenceur ». */
+    .bl-reglages-pop { z-index: 96; width: 300px; padding: 14px 16px 12px; gap: 0; }
+    .bl-reglages-pop .settings-group-title { margin: 0 0 8px; }
+    .bl-reglages-pop .rb-pied { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+    .bl-reglages-pop .rb-pied .btn-sec { display: inline-flex; align-items: center; gap: 6px; width: auto; height: 32px; padding: 0 12px; border-radius: 7px; font-size: 13px; min-width: 0; }
+    .bl-reglages-pop .rb-pied .btn-sec .icon { width: 15px; height: 15px; flex: none; }
+    .bl-reglages-pop input[type="range"]:disabled { opacity: 0.4; }
+}
+
+/* Les interrupteurs et les boutons de pied des popovers de réglages (« Réglages du séquenceur », « Barre de lecture ») : `.context-menu button` (pleine largeur, sans bord) les étirait
+   — l'interrupteur « Règle » du séquenceur courait jusqu'au bord de la fenêtre (vu sur la capture de L5c). Ils retrouvent leur gabarit de Paramètres. */
+@media (min-width: 900px) {
+    .context-menu .switch { flex: none; width: 38px; min-width: 0; height: 20px; padding: 0; border: 1px solid #333; border-radius: 999px; background: #1c2027; }
+    .context-menu .switch[aria-checked="true"] { background: rgba(0, 230, 118, 0.25); border-color: rgba(0, 230, 118, 0.45); }
+    .context-menu .switch .switch-thumb { top: 1px; left: 1px; }
+    .context-menu .rb-pied .btn-sec { width: auto; }
+    .bl-reglages-pop .settings-toggle-row { margin-bottom: 14px; }
+    .bl-reglages-pop .settings-toggle-row label { white-space: nowrap; }
 }

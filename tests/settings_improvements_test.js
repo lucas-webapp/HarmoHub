@@ -60,6 +60,9 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         return { c0: t(0) ? t(0).textContent : null, c1: t(1) ? t(1).textContent : null };
     });
 
+    // L5b (14/11) : la saisie rapide n'est plus permanente, « + Accord » l'ouvre (elle porte son ampoule d'aide).
+    await page.click('#progression-sections .prog-section-ajout[data-section="0"]');
+    await page.waitForTimeout(300);
     console.log('=== 1. L\'ampoule d\'aide a quitté les Paramètres pour la rangée du champ ===');
     let r = await page.evaluate(() => {
         const btn = document.getElementById('quick-add-help-btn');

@@ -195,6 +195,8 @@ const etat = (page) => page.evaluate(() => ({
     // même chose depuis l'ajout rapide
     await ouvrirSon(page, 2);
     check((await etat(page)).ed === 2, 'on rouvre un accord pour la suite');
+    // L5b (14/11) : la saisie rapide n'est plus permanente, « + Accord » l'ouvre d'abord (puis on y clique, comme avant).
+    await page.click('#progression-sections .prog-section-ajout[data-section="0"]'); await page.waitForTimeout(300);
     await page.click('#quick-add-input'); await page.waitForTimeout(400);
     e = await etat(page);
     check(e.ed === null && e.titre === 'Nouvel accord', 'engager l\'ajout rapide fait la même chose');

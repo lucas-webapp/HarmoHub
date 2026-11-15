@@ -2153,6 +2153,7 @@
                 if (e.button !== 0) return;
                 e.preventDefault();
                 p.setPointerCapture(e.pointerId);
+                p.classList.add('tire'); // L5b : la languette reste bleue pendant qu'on tire (poignées unifiées)
                 const nb = Math.max(1, (this._lignes || []).length);
                 const depart = { y: e.clientY, vis: Math.min(this._visibles || nb, nb), haut: this.racine.getBoundingClientRect().height };
                 const bouger = (ev) => {
@@ -2164,6 +2165,7 @@
                     this.appliquerVisibles();
                 };
                 const finir = () => {
+                    p.classList.remove('tire');
                     p.removeEventListener('pointermove', bouger);
                     p.removeEventListener('pointerup', finir);
                     p.removeEventListener('pointercancel', finir);

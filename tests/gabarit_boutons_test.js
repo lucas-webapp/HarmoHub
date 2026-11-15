@@ -31,7 +31,6 @@ const HORS_JAUGE = {
     'voicing-segment': 'lot 6',
     'bass': 'lot 6',
     // 'seq-zoom' (le « Séquenceur » de l'inspecteur) est sorti d'ici au retrait de l'ancien séquenceur, étape 4b (12/11) : la porte a quitté l'ordinateur.
-    'add-section': 'lot 5 — « Nouvelle section », à 7px',
 };
 
 const mk = (root, quality) => ({ root, quality, beats: 4, inversion: 0, drop: 'none', octave: 3, bass: null, playStyle: 'held', instrument: 'piano', arpPattern: '', seqEdited: false, guitarLock: null, extraNotes: [], intensity: 75, intensityPerStep: {} });

@@ -3,6 +3,7 @@
 // G3 = une édition inline sans changement ne laisse aucune trace.
 const { chromium } = require('playwright')
 const { retaperNom } = require('./_geste_accord');
+const { ajouterAccord } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -12,7 +13,7 @@ async function roots(page) {
     return page.evaluate(() => loadProgressionSections()[0].chords.map(c => c.root));
 }
 async function addChords(page, syms) {
-    for (const s of syms) { await page.fill('#quick-add-input', s); await page.click('#quick-add-btn'); await page.waitForTimeout(110); }
+    for (const s of syms) { await ajouterAccord(page, s); await page.waitForTimeout(110); } // L5b : la saisie s'ouvre par « + Accord »
     await page.evaluate(() => document.activeElement && document.activeElement.blur());
     await page.waitForTimeout(120);
 }

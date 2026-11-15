@@ -60,6 +60,11 @@ const cache = (page, id) => page.evaluate((i) => {
                     await page.click('#settings-close');
                     await page.waitForTimeout(300);
                 }
+                // L5b (14/11) : la saisie rapide (et son ampoule d'aide) n'est plus permanente, « + Accord » l'ouvre d'abord.
+                if (await page.evaluate(() => document.getElementById('quick-add-input').getBoundingClientRect().width === 0)) {
+                    await page.click('#progression-sections .prog-section-ajout[data-section="0"]');
+                    await page.waitForTimeout(250);
+                }
                 await page.click('#quick-add-help-btn');
             },
         },

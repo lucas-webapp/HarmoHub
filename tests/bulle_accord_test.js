@@ -170,7 +170,9 @@ const graine = () => {
     await p.waitForTimeout(300);
     const derniere = await p.evaluate(() => loadProgressionSections().length - 1);
     const sel = `#progression-sections .grid-cell[data-section="${derniere}"][data-index="0"]`;
-    await p.evaluate((sel) => document.querySelector(sel).scrollIntoView({ block: 'end' }), sel);
+    // L5b : le bandeau « + Section » est collé en bas de la zone (sticky) et RECOUVRE les dernières cases tant qu'on n'est pas au bout du défilement : un scrollIntoView('end') amenait
+    // la case sous lui. On défile donc jusqu'au bout de la zone de la grille (la dernière partie se pose alors juste au-dessus du bandeau, qui a retrouvé sa place naturelle).
+    await p.evaluate((sel) => { let e = document.querySelector(sel).parentElement; while (e && e.scrollHeight <= e.clientHeight + 1) e = e.parentElement; if (e) e.scrollTop = e.scrollHeight; }, sel);
     await p.waitForTimeout(300);
     await dblclickHorsNom(p, sel); await p.waitForTimeout(300);
     b = await bulle(p);

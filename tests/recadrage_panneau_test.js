@@ -75,7 +75,8 @@ const graine = () => {
         check(t1 === t0, `l'inspecteur ne déplace aucune case, la rangée de réglages garde sa hauteur${t1 === t0 ? '' : ' — avant ' + t0 + ' / après ' + t1}`);
         check(i1.g >= i1.grilleD && i1.d <= vp.width, `il flotte à droite de la fenêtre de grille sans la recouvrir (grille jusqu'à ${i1.grilleD}, inspecteur ${i1.g}-${i1.d})`);
         // Piège relevé par sentinelle_atteignabilite : flottant tout en haut, il cachait Ajouter et l'aide au bout de l'ajout rapide.
-        const ajout = await p.evaluate(() => Math.round(document.getElementById('quick-add-panel').getBoundingClientRect().bottom));
+        // L5b (14/11) : la saisie n'est plus permanente — fermée, le panneau d'ajout n'a plus de hauteur (il reste à 2 px sous l'en-tête) ; le repère est alors le bas de l'en-tête de la grille.
+        const ajout = await p.evaluate(() => { const qa = document.getElementById('quick-add-panel'); return Math.round((qa.getBoundingClientRect().height > 0 ? qa : document.querySelector('.grid-head-sticky')).getBoundingClientRect().bottom); });
         check(i1.haut >= ajout, `il part sous la rangée de réglages et l'ajout rapide, sans cacher leurs boutons (haut ${i1.haut}, ajout rapide jusqu'à ${ajout})`);
         await cliquer(p, 3);
         check(await ecran(p) === t0, 'un clic sur un autre accord, inspecteur ouvert : rien ne bouge');

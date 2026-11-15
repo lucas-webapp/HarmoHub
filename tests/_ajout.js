@@ -1,12 +1,17 @@
-// Ajouter un accord par le GESTE de l'utilisateur, quelle que soit la largeur (lot 10e).
-// Ordinateur : la saisie est dans la page, on tape et on valide. Téléphone (< 900px) : la saisie vit dans le panneau d'ajout, que la case « + » de la
-// partie ouvre — on la touche d'abord, on tape, on valide, puis Échap referme le panneau (il resterait sinon ouvert au-dessus de la grille).
+// Ajouter un accord par le GESTE de l'utilisateur, quelle que soit la largeur (lot 10e, réécrit à L5b).
+// La saisie n'est PLUS permanente à l'ordinateur (L5b, 14/11 : « la barre Ajout rapide n'est plus permanente, elle s'ouvre avec un + ») : comme au téléphone, on choisit d'abord
+// OÙ ajouter — la case « + » de la partie au téléphone, le bouton « + Accord » de son en-tête à l'ordinateur —, ce qui montre la saisie ; on tape, on valide, puis Échap
+// referme le panneau (il resterait sinon ouvert au-dessus de la grille). Si la saisie est déjà visible (un banc qui a ouvert le panneau lui-même), on s'en sert telle quelle.
 async function ajouterAccord(page, symbole, section = 0) {
     const tel = await page.evaluate(() => window.matchMedia('(max-width: 899px)').matches);
-    if (tel) await page.click(`#progression-sections .cell-add-input[data-section="${section}"]`);
+    const ouverte = await page.evaluate(() => { const i = document.getElementById('quick-add-input'); return !!i && i.getBoundingClientRect().width > 0; });
+    if (!ouverte) {
+        if (tel) await page.click(`#progression-sections .cell-add-input[data-section="${section}"]`);
+        else await page.click(`#progression-sections .prog-section-ajout[data-section="${section}"]`);
+    }
     await page.fill('#quick-add-input', symbole);
     await page.click('#quick-add-btn');
-    if (tel) { await page.keyboard.press('Escape'); await page.waitForTimeout(150); }
+    if (!ouverte) { await page.keyboard.press('Escape'); await page.waitForTimeout(150); }
 }
 
 // Le séquenceur compact et la carte Accord ne se montrent plus en mode Ajout sous 900px (lot 10e) : ils appartiennent à un accord ouvert en modification.

@@ -2815,12 +2815,12 @@ const ZONE_EDITION_SELECTEURS = [
     '.section-head', '.grid-head-sticky', '#context-menu', '#sq-menu-note', '.overlay', '.modal', '.settings-overlay',
     '#files-overlay', 'button', 'input', 'select', 'textarea', 'label', 'a', '[role="button"]',
     // Lot 6 : la bulle « quel accord », la rangée de réglages et leurs choix — travailler dedans n'est pas quitter son travail.
-    '#bulle-accord', '#rangee-reglages', '#rr-pop', '#partie-menu',
+    '#bulle-accord', '#rangee-reglages', '#rr-pop', '#partie-menu', '#grille-vide-menu',
     // Lot 8 : le tiroir Clavier / Guitare et ses deux boutons de la barre de lecture. Les touches du clavier y sont des <div> (aucun `button` ne les couvre),
     // et le clavier AGIT sur l'accord sélectionné : cliquer dedans ne doit ni le désélectionner ni sortir de sa modification.
     '#vues-tiroir', '#bl-vues',
     // L4 : la popover Voicing (le piano-roll est un <svg> : aucun `button` ne le couvre) — la consulter n'est pas quitter sa modification.
-    '#voicing-pop',
+    '#voicing-pop', '#bl-reglages-pop',
     // Lot 10b : la barre de lecture du téléphone et son panneau Lecture. Toucher la frise, « Mes. N » ou le fond du panneau n'est pas quitter
     // la modification en cours (les boutons, eux, sont déjà couverts par `button`).
     '#barre-lecture', '#panneau-lecture',
@@ -4211,6 +4211,7 @@ class HarmoHubApp {
         this.sequenceur = window.SequenceurHarmo ? new window.SequenceurHarmo.Sequenceur(this) : null;
         this.setupBarreMorceau(); // la barre du haut (ordinateur) : titre + menu du morceau, Enregistrer et son voyant
         this.setupMenuPartie(); // le menu ⋯ des en-têtes de partie (lot 5c)
+        this.setupMenuGrilleVide(); // L5b : le clic droit dans le vide de la grille
         this.setupRangeeReglages(); // Tonalité, Mesure, Swing, Son, Transposer au-dessus de la grille (lot 6a)
         this.placerSubdivisionMetronome();
         window.matchMedia('(min-width: 900px)').addEventListener('change', () => this.placerSubdivisionMetronome());
@@ -4336,6 +4337,7 @@ class HarmoHubApp {
         const metroSubBtn = document.getElementById('toggle-metronome-subdivision');
         const syncMetroSubIcon = () => {
             metroSubBtn.classList.toggle('active', this.metronomeSubdivision);
+            metroSubBtn.setAttribute('aria-pressed', String(!!this.metronomeSubdivision)); // L5c : c'est un interrupteur noire (éteint) / croche (allumé)
             metroSubBtn.innerHTML = svgIcon(this.metronomeSubdivision ? 'eighthNotes' : 'quarterNote');
         };
         syncMetroSubIcon();
@@ -4840,6 +4842,7 @@ class HarmoHubApp {
             { id: 'intensity-menu', close: () => this.fermerMenuIntensite() },           // les cinq niveaux d'un accord
             { id: 'backup-scope-menu', close: () => this.closeTransferScopeMenu() },       // « ce morceau / toute la bibliothèque ? »
             { id: 'file-menu', ancre: '#file-menu-btn', close: () => this.closeFileMenu() },
+            { id: 'grille-vide-menu', close: () => this.fermerMenuGrilleVide() },                 // L5b : clic droit dans le vide de la grille
             { id: 'struct-menu', close: () => this.fermerMenuStructure() },                       // clic droit sur une partie de la structure
             { id: 'key-suggest-menu', ancre: '#key-suggest-btn, .rr-suggerer', close: () => this.closeKeySuggestMenu() },
             // Le choix d'une puce de la rangée de réglages (lot 6a). La suggestion de tonalité s'ouvre DEPUIS lui : la cliquer ne doit pas le refermer.
@@ -4865,6 +4868,8 @@ class HarmoHubApp {
             { id: 'vues-reglages-pop', ancre: '#vues-reglages', close: () => this.basculerReglagesVues(false) },
             // La conduite des voix (L4) : son bouton gère sa propre bascule.
             { id: 'voicing-pop', ancre: '#voicing-btn', close: () => this.basculerVoicing(false) },
+            // Le réglage de la barre de lecture (L5c) : sa roue gère sa propre bascule.
+            { id: 'bl-reglages-pop', ancre: '#bl-reorg', close: () => { if (this._blFermerReglages) this._blFermerReglages(); } },
         ];
         // Le panneau flottant est posé en coordonnées d'écran : il faut le replacer dès que son ancre
         // bouge. Sur téléphone, la page défile pour de bon (contrairement à l'ordinateur, où seules
@@ -4983,7 +4988,7 @@ class HarmoHubApp {
             // utilisateur, voir ZONE_EDITION_SELECTEURS plus haut, même correctif.
             const inGrid = inPath('.grid-cell, .cell-add, .section-head');
             // Lot 7b : la barre de sélection agit SUR la sélection — un clic dedans ne la perd pas (l'accord d'ancrage sert au Maj+clic et au collage).
-            const inMenu = inPath('#context-menu, #barre-selection, #vues-tiroir, #bl-vues, #sequenceur, #bl-plus, #panneau-lecture'); // le tiroir et ses boutons (lot 8) agissent SUR l'accord sélectionné
+            const inMenu = inPath('#context-menu, #barre-selection, #vues-tiroir, #bl-vues, #vue-sequenceur, #sequenceur, #bl-plus, #panneau-lecture'); // L5b : #vue-sequenceur a quitté #bl-vues // le tiroir et ses boutons (lot 8) agissent SUR l'accord sélectionné
             // Retrait de l'ancien séquenceur (4c) : au téléphone, « Séquenceur » du panneau Lecture (⋯) est LA porte du séquenceur et ouvre « l'accord choisi »
             // (ouvrirRythmeTelephone) — toucher ⋯ vidait la sélection, et le séquenceur s'ouvrait toujours sur le premier accord. Même règle que le bloc « Vues ».
             // Lot 10d : le panneau d'accord du téléphone se referme ICI, au clic à côté, et non à l'appui du doigt (table _popups) : cet appui est
@@ -6779,17 +6784,8 @@ class HarmoHubApp {
         return inst;
     }
 
-    // Prévient UNE FOIS par session que le Piano joue sa doublure synthétisée faute d'avoir pu
-    // télécharger ses échantillons. Sans ce mot, on entend un son différent de d'habitude sans
-    // comprendre pourquoi — et surtout, avant la doublure, on n'entendait rien du tout et il n'y
-    // avait aucun moyen de savoir que le problème venait du réseau.
-    warnIfFallbackInstrument() {
-        if (this._fallbackWarned) return;
-        const piano = this.instrumentCache.get('piano');
-        if (!piano || !piano.usingFallback || !piano.usingFallback()) return;
-        this._fallbackWarned = true;
-        this.flashHint('Sons du piano pas encore chargés (réseau) — son de secours en attendant', 4200);
-    }
+    // (L5c, 14/11 : « je ne veux plus l'alerte du son de secours du piano ». Le son de secours continue de jouer tant que les échantillons ne sont pas là ; seul le MESSAGE
+    // « Sons du piano pas encore chargés (réseau) » est retiré — warnIfFallbackInstrument n'existe plus.)
 
     // Joue un motif de séquenceur (résolution croche) : regroupe les cases actives contiguës d'une
     // même voix en une seule note tenue plutôt que de rejouer une attaque à chaque croche — c'est ce
@@ -6930,7 +6926,6 @@ class HarmoHubApp {
         // notes le temps du chargement (voir schedulePlayback, qui les ignore désormais proprement,
         // mais autant vraiment les jouer plutôt que de les sauter en silence).
         await waitForAudioReady();
-        this.warnIfFallbackInstrument(); // le Piano joue-t-il sa doublure faute d'échantillons ?
         // Si un stopAll() (Stop, ou une autre lecture démarrée entre-temps) est survenu pendant cette
         // attente, ce jeton a changé : abandonner plutôt que redémarrer le transport après coup (voir
         // stopAll et le commentaire sur this._playGen dans le constructeur).
@@ -7193,7 +7188,6 @@ class HarmoHubApp {
         // qu'à attendre leur chargement. Sans ça, une note jouée trop tôt échouait silencieusement
         // (voir schedulePlayback, qui l'ignore désormais proprement), mais autant vraiment l'entendre.
         await waitForAudioReady();
-        this.warnIfFallbackInstrument(); // le Piano joue-t-il sa doublure faute d'échantillons ?
         // Voir playCurrent : abandonne si un stopAll() est survenu pendant cette attente.
         if (myGen !== this._playGen) return;
 
@@ -10298,6 +10292,50 @@ class HarmoHubApp {
         this.rafraichirMenuPartie();
     }
 
+    // ---------- CLIC DROIT DANS LE VIDE DE LA GRILLE (L5b) ----------
+    // « Ajouter section » n'a plus sa ligne : c'est un mince bandeau en pointillés sous la dernière partie (#add-section, toujours visible) ET, ici, un clic droit
+    // dans le vide de la grille (« le clic droit marche bien, on le laisse »). Ordinateur seulement ; sur une case, le menu de l'accord garde le clic droit.
+    setupMenuGrilleVide() {
+        const menu = document.getElementById('grille-vide-menu');
+        if (!menu) return; // index.html servi depuis un cache plus ancien
+        document.addEventListener('contextmenu', (e) => {
+            if (!this.bulleDisponible()) return;
+            const t = e.target;
+            if (!t || !t.closest || !t.closest('.history-section')) return;
+            // Les cases, les « + », les champs et les boutons ont leur propre menu (ou le menu natif des champs de texte) : seul le VIDE ouvre celui-ci.
+            if (t.closest('.grid-cell, .cell-ins, .cell-add-input, button, input, textarea, select, a, .context-menu, .tb-menu, .grid-head-sticky, #voicing-pop, #ajout-aide, #quick-add-panel')) return;
+            e.preventDefault();
+            this.ouvrirMenuGrilleVide(e.clientX, e.clientY);
+        });
+        menu.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-vide-action]');
+            if (!b) return;
+            e.stopPropagation();
+            this.fermerMenuGrilleVide();
+            if (b.dataset.videAction === 'section') this.addSection();
+        });
+        menu.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.fermerMenuGrilleVide(); }
+        });
+    }
+
+    ouvrirMenuGrilleVide(x, y) {
+        const menu = document.getElementById('grille-vide-menu');
+        if (!menu) return;
+        this.closeContextMenu();
+        menu.hidden = false;
+        const pad = 8;
+        menu.style.left = `${Math.round(Math.max(pad, Math.min(x, window.innerWidth - menu.offsetWidth - pad)))}px`;
+        menu.style.top = `${Math.round(Math.max(pad, Math.min(y, window.innerHeight - menu.offsetHeight - pad)))}px`;
+        const premier = menu.querySelector('.tb-mi');
+        if (premier) premier.focus({ preventScroll: true });
+    }
+
+    fermerMenuGrilleVide() {
+        const menu = document.getElementById('grille-vide-menu');
+        if (menu && !menu.hidden) menu.hidden = true;
+    }
+
     ouvrirMenuPartie(si) {
         const menu = document.getElementById('partie-menu');
         const btn = document.querySelector(`.prog-section-menu[data-section="${si}"]`);
@@ -12323,11 +12361,11 @@ class HarmoHubApp {
         const usages = (sid) => items.filter(it => it.sid === sid).length;
         const ajout = `
             <div class="struct-ajout">
-                <select id="struct-ajout-select" aria-label="Ajouter une partie à la structure">
-                    <option value="">+ Ajouter une partie à la structure…</option>
+                <select id="struct-ajout-select" aria-label="Ajouter une partie à la structure" title="Ajouter une partie à la structure">
+                    <option value="">+ Partie…</option>
                     ${parties.map((p, i) => `<option value="${escapeHtml(p.sid)}">${escapeHtml(nomPartie(p, i))}${usages(p.sid) ? ` (déjà ${usages(p.sid)}×)` : ' (pas encore utilisée)'}</option>`).join('')}
                 </select>
-                <span class="struct-aide">Clic droit (ou appui long) sur une partie : dupliquer, renommer, commenter, retirer.</span>
+                <span class="struct-aide" title="Clic droit (ou appui long) sur une partie : dupliquer, renommer, commenter, retirer.">Clic droit : options</span>
             </div>`;
 
         hote.innerHTML = `
@@ -17795,6 +17833,7 @@ class HarmoHubApp {
                 if (this._vues.mode === 'libre' || e.button !== 0) return;
                 e.preventDefault();
                 poignee.setPointerCapture(e.pointerId);
+                poignee.classList.add('tire'); // L5b : la languette reste bleue pendant qu'on tire
                 const corps = document.getElementById('vues-corps').getBoundingClientRect().height;
                 // Le geste part de la taille AFFICHÉE (elle peut être plus petite que la retenue quand la largeur manque, voir ajusterEchelleVues).
                 this._vues.geste = { type: 'echelle', y0: e.clientY, e0: this.echelleAfficheeVues(), h0: Math.max(1, corps) };
@@ -17821,6 +17860,7 @@ class HarmoHubApp {
         const fin = () => {
             if (!this._vues.geste) return;
             this._vues.geste = null;
+            if (poignee) poignee.classList.remove('tire');
             try { localStorage.setItem('harmohubVuesFenetre', JSON.stringify(this._vues.fen)); localStorage.setItem(VUES_ECHELLE_KEY, String(this._vues.echelle)); } catch (e) { /* stockage plein */ }
         };
         [barre, coin, poignee].filter(Boolean).forEach(el => {
@@ -18248,6 +18288,11 @@ class HarmoHubApp {
         this.syncAnneauBoucle();
         this.renduBarreLecture();
         this.syncBarreLecture();
+        // « Mesure 1 / 8 » à l'ordinateur, « Mes. 1 » au téléphone : on réécrit le libellé quand la fenêtre passe le seuil (sans lecture en cours, rien d'autre ne le ferait).
+        const bureauMesure = window.matchMedia('(min-width: 900px)');
+        const reecrireMesure = () => { if (this.playheadIndex != null) this.majBarreLecture(this.playheadSection, this.playheadIndex, 0, 1); else this.majBarreLecture(this.activeSection || 0, 0, 0, 1); };
+        if (bureauMesure.addEventListener) bureauMesure.addEventListener('change', reecrireMesure);
+        reecrireMesure(); // au chargement aussi : « MESURE 1 / 8 » dès l'ouverture (le HTML ne porte que « Mes. 1 »)
     }
 
     // Tempo de LECTURE : le tempo du morceau × la vitesse choisie dans la barre. Seule la lecture l'utilise ; le tempo
@@ -18302,7 +18347,6 @@ class HarmoHubApp {
         // Téléphone : la barre n'a pas de bouton BPM ; la même alerte dorée se pose à côté de « Mes. N » (masquée à l'ordinateur, style.css).
         const tel = document.getElementById('bl-vitesse-tel');
         if (tel) { tel.hidden = vitesse === 100; tel.textContent = '· ' + vitesse + ' %'; }
-        document.querySelectorAll('#bl-vitesses button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.vitesse === vitesse)));
     }
 
     setupBarreLectureMetro() {
@@ -18336,7 +18380,7 @@ class HarmoHubApp {
         const ouvrir = (oui) => {
             pop.hidden = !oui;
             bouton.setAttribute('aria-expanded', String(oui));
-            if (!oui) return;
+            if (!oui) { if (this._arretChevrons) this._arretChevrons(); return; }
             // Aligné sur le bord GAUCHE du bouton, ou sur son bord droit s'il dépasserait de l'écran : le bloc Tempo peut être
             // n'importe où dans la barre (il se déplace), la fenêtre doit toujours rester entièrement visible.
             pop.style.left = '0'; pop.style.right = 'auto';
@@ -18349,23 +18393,69 @@ class HarmoHubApp {
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && !pop.hidden) { ouvrir(false); bouton.focus(); }
         });
-        document.getElementById('bl-tempo-moins').addEventListener('click', () => this.reglerTempo(this.tempoCourant() - 1));
-        document.getElementById('bl-tempo-plus').addEventListener('click', () => this.reglerTempo(this.tempoCourant() + 1));
+        // CHEVRONS ‹ › À RÉPÉTITION (L5c, 14/11 : « que le BPM continue de défiler si je laisse appuyer sur les chevrons droite et gauche ») : un appui bref = un cran ; maintenu
+        // au-delà de 0,42 s, un cran toutes les 70 ms (la cadence de TrainHub) ; la répétition s'arrête au relâchement, n'importe où (pointerup / pointercancel / blur sur la fenêtre).
+        // Le « click » qui suit le relâchement n'ajoute pas de cran (le pointeur a déjà compté) ; au clavier (click sans pointeur : detail 0), un cran. Maj : par 5.
+        const arretRepetition = [];
+        const chevron = (id, sens) => {
+            const b = document.getElementById(id);
+            let attente = null, cadence = null;
+            const arreter = () => { clearTimeout(attente); clearInterval(cadence); attente = cadence = null; };
+            arretRepetition.push(arreter);
+            const cran = (e) => this.reglerTempo(this.tempoCourant() + sens * (e.shiftKey ? 5 : 1));
+            b.addEventListener('pointerdown', (e) => {
+                if (e.button !== 0) return;
+                cran(e);
+                arreter();
+                attente = setTimeout(() => { cadence = setInterval(() => cran(e), 70); }, 420);
+            });
+            b.addEventListener('click', (e) => { if (e.detail === 0) cran(e); });
+            ['pointerup', 'pointercancel', 'blur'].forEach(t => window.addEventListener(t, arreter, true));
+        };
+        chevron('bl-tempo-moins', -1);
+        chevron('bl-tempo-plus', 1);
+        this._arretChevrons = () => arretRepetition.forEach(f => f());
         document.getElementById('bl-tap').addEventListener('click', () => { this.handleTapTempo(); this.syncBarreLecture(); });
-        document.getElementById('bl-vitesse').addEventListener('input', (e) => this.reglerVitesse(+e.target.value));
-        document.querySelectorAll('#bl-vitesses button').forEach(b => b.addEventListener('click', () => this.reglerVitesse(+b.dataset.vitesse)));
+        // UN SEUL RÉGLAGE DE VITESSE (L5c) : la barre verte, aimantée à 50, 75, 100, 150 et 200 % (elle colle à moins de 6 points).
+        const AIMANTS = [50, 75, 100, 150, 200];
+        document.getElementById('bl-vitesse').addEventListener('input', (e) => {
+            const v = +e.target.value;
+            const m = AIMANTS.find(a => Math.abs(a - v) <= 6);
+            if (m !== undefined && m !== v) e.target.value = String(m);
+            this.reglerVitesse(m !== undefined ? m : v);
+        });
+        // LE CHIFFRE « 120 BPM » DE LA FENÊTRE se GLISSE (clic gauche ou clic molette ; vers le haut = plus vite, un cran tous les 5 px, Maj ×5) et se règle à la molette.
+        const chiffre = document.getElementById('bl-tempo-pop-val');
+        chiffre.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
+        chiffre.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0 && e.button !== 1) return;
+            e.preventDefault();
+            try { chiffre.setPointerCapture(e.pointerId); } catch (err) { /* capture facultative */ }
+            this._blGlisseChiffre = { y0: e.clientY, t0: this.tempoCourant() };
+            chiffre.classList.add('tire');
+        });
+        chiffre.addEventListener('pointermove', (e) => {
+            const g = this._blGlisseChiffre;
+            if (!g) return;
+            this.reglerTempo(g.t0 + Math.round((g.y0 - e.clientY) / 5) * (e.shiftKey ? 5 : 1));
+        });
+        const finChiffre = () => { this._blGlisseChiffre = null; chiffre.classList.remove('tire'); };
+        chiffre.addEventListener('pointerup', finChiffre);
+        chiffre.addEventListener('pointercancel', finChiffre);
 
         // MOLETTE : un cran = ±1 BPM (Maj : ±5). Un pavé tactile envoie de petits deltas en rafale : on les ACCUMULE par
         // tranches de 100 (un cran de molette ordinaire) au lieu de bouger à chaque événement.
         this._blRoue = 0;
-        bouton.addEventListener('wheel', (e) => {
+        const roue = (e) => {
             e.preventDefault();
             this._blRoue += (e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY);
             const crans = Math.trunc(-this._blRoue / 100);
             if (!crans) return;
             this._blRoue += crans * 100;
             this.reglerTempo(this.tempoCourant() + crans * (e.shiftKey ? 5 : 1));
-        }, { passive: false });
+        };
+        bouton.addEventListener('wheel', roue, { passive: false });
+        chiffre.addEventListener('wheel', roue, { passive: false });
 
         // CLIC MOLETTE + GLISSER vers le haut (plus vite) ou le bas (plus lent) : un cran tous les 6px, comme un curseur.
         // Le défilement automatique du navigateur sur le clic molette serait un parasite : on le coupe.
@@ -18476,8 +18566,11 @@ class HarmoHubApp {
         if (rendreFocus) plus.focus();
     }
 
-    // Les trois blocs, dans l'ordre choisi (mémorisé PAR APPAREIL : l'écran de chacun n'est pas celui de l'autre, comme
-    // le zoom — jamais synchronisé). En mode « réorganiser », chaque bloc montre deux flèches ◀ ▶.
+    // Les quatre blocs, dans l'ordre choisi (mémorisé PAR APPAREIL : l'écran de chacun n'est pas celui de l'autre, comme le zoom — jamais synchronisé).
+    // L5c (14/11, « la gestion des menus ne convient pas avec les chevrons […] des petites fenêtres flottantes que je peux attraper avec ma souris et déplacer ») : plus de flèches
+    // ◀ ▶ à chaque bloc ; en mode « réorganiser » (réglé dans la popover de la roue, voir setupBarreLectureReglages) on ATTRAPE un bloc : il se soulève (ombre + contour bleu), les
+    // autres se rangent en direct — un bloc prend le rang du nombre d'AUTRES blocs dont le centre est à gauche du pointeur — et l'ordre est mémorisé à chaque changement. Les
+    // commandes d'un bloc sont inertes pendant le mode (style.css), la barre reste sur UNE ligne. Au clavier (les flèches étaient le seul accès clavier) : Alt + ← / → sur un bloc.
     setupBarreLectureOrdre() {
         const barre = document.getElementById('barre-lecture');
         const CLE = 'harmohubBarreLectureOrdre';
@@ -18490,45 +18583,134 @@ class HarmoHubApp {
             return DEFAUT.slice();
         };
         this._blOrdre = lire();
-        const chevron = (sens) => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${sens < 0 ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'}"/></svg>`;
+        const bloc = (nom) => barre.querySelector(`.bl-bloc[data-bloc="${nom}"]`);
         const appliquer = () => {
-            this._blOrdre.forEach((nom, i) => {
-                const bloc = barre.querySelector(`.bl-bloc[data-bloc="${nom}"]`);
-                bloc.style.setProperty('--ordre', String(i));
-                const [g, d] = bloc.querySelectorAll('.bl-fleches button');
-                g.disabled = i === 0;
-                d.disabled = i === this._blOrdre.length - 1;
-            });
+            this._blOrdre.forEach((nom, i) => bloc(nom).style.setProperty('--ordre', String(i)));
             try { localStorage.setItem(CLE, JSON.stringify(this._blOrdre)); } catch (e) { /* stockage plein : l'ordre vaut pour la session */ }
         };
-        barre.querySelectorAll('.bl-bloc').forEach(bloc => {
-            const nom = bloc.dataset.bloc;
-            const fl = document.createElement('div');
-            fl.className = 'bl-fleches';
-            fl.setAttribute('role', 'group');
-            fl.setAttribute('aria-label', 'Déplacer ce bloc');
-            fl.innerHTML = `<button type="button" aria-label="Déplacer ce bloc vers la gauche" title="Vers la gauche">${chevron(-1)}</button>`
-                + `<button type="button" aria-label="Déplacer ce bloc vers la droite" title="Vers la droite">${chevron(1)}</button>`;
-            bloc.insertBefore(fl, bloc.firstChild);
-            fl.addEventListener('click', (e) => {
-                const b = e.target.closest('button');
-                if (!b || b.disabled) return;
-                const i = this._blOrdre.indexOf(nom), j = i + (b === fl.firstElementChild ? -1 : 1);
-                if (j < 0 || j >= this._blOrdre.length) return;
-                [this._blOrdre[i], this._blOrdre[j]] = [this._blOrdre[j], this._blOrdre[i]];
-                appliquer();
-            });
+        this._blAppliquerOrdre = appliquer;
+        this._blOrdreDefaut = DEFAUT;
+        // Attraper un bloc.
+        barre.addEventListener('pointerdown', (e) => {
+            if (!barre.classList.contains('reorganiser') || e.button !== 0) return;
+            const el = e.target.closest ? e.target.closest('.bl-bloc') : null;
+            if (!el || !barre.contains(el)) return;
+            e.preventDefault();
+            const nom = el.dataset.bloc;
+            const dx = e.clientX - el.getBoundingClientRect().left;
+            el.classList.add('souleve');
+            try { el.setPointerCapture(e.pointerId); } catch (err) { /* pointeur synthétique : le geste marche sans capture */ }
+            const bouge = (ev) => {
+                const autres = this._blOrdre.filter(n => n !== nom);
+                const rang = autres.filter(n => { const r = bloc(n).getBoundingClientRect(); return (r.left + r.right) / 2 < ev.clientX; }).length;
+                const ordre = autres.slice(); ordre.splice(rang, 0, nom);
+                if (ordre.join() !== this._blOrdre.join()) { this._blOrdre = ordre; appliquer(); }
+                el.style.transform = 'none';
+                el.style.transform = `translateX(${Math.round(ev.clientX - dx - el.getBoundingClientRect().left)}px)`;
+            };
+            const fin = () => {
+                el.removeEventListener('pointermove', bouge); el.removeEventListener('pointerup', fin); el.removeEventListener('pointercancel', fin);
+                el.classList.remove('souleve');
+                el.style.transform = '';
+            };
+            el.addEventListener('pointermove', bouge); el.addEventListener('pointerup', fin); el.addEventListener('pointercancel', fin);
         });
-        const reorg = document.getElementById('bl-reorg');
-        const reinit = document.getElementById('bl-reinit');
-        reorg.addEventListener('click', () => {
-            const oui = !barre.classList.contains('reorganiser');
-            barre.classList.toggle('reorganiser', oui);
-            reorg.setAttribute('aria-pressed', String(oui));
-            reinit.hidden = !oui;
+        // Au clavier : un bloc a le focus (tabindex posé avec le mode), Alt + ← / → le déplace d'un rang.
+        barre.addEventListener('keydown', (e) => {
+            if (!barre.classList.contains('reorganiser') || !e.altKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+            const el = e.target.closest ? e.target.closest('.bl-bloc') : null;
+            if (!el) return;
+            e.preventDefault();
+            const i = this._blOrdre.indexOf(el.dataset.bloc), j = i + (e.key === 'ArrowLeft' ? -1 : 1);
+            if (j < 0 || j >= this._blOrdre.length) return;
+            [this._blOrdre[i], this._blOrdre[j]] = [this._blOrdre[j], this._blOrdre[i]];
+            appliquer();
+            el.focus();
         });
-        reinit.addEventListener('click', () => { this._blOrdre = DEFAUT.slice(); appliquer(); });
         appliquer();
+        this.setupBarreLectureReglages();
+    }
+
+    // LE RÉGLAGE DE LA BARRE (L5c) : la roue (#bl-reorg) ouvre la popover « Barre de lecture » — frise en pleine largeur ou d'une largeur choisie, noms des parties, numéro de mesure,
+    // réorganiser, ordre d'origine, rétablir. Mémorisé PAR APPAREIL (harmohubBarreReglages), jamais synchronisé comme l'ordre.
+    setupBarreLectureReglages() {
+        const barre = document.getElementById('barre-lecture');
+        const roue = document.getElementById('bl-reorg');
+        const pop = document.getElementById('bl-reglages-pop');
+        if (!barre || !roue || !pop) return; // index.html servi depuis un cache plus ancien
+        const CLE = 'harmohubBarreReglages';
+        const DEFAUT = { pleine: true, largeur: 480, noms: true, mesure: true };
+        const lire = () => {
+            try { const o = JSON.parse(localStorage.getItem(CLE)); if (o && typeof o === 'object') return { ...DEFAUT, ...o }; } catch (e) { /* mémoire illisible : valeurs d'origine */ }
+            return { ...DEFAUT };
+        };
+        this._blReglages = lire();
+        const interrupteur = (id, oui) => { const b = document.getElementById(id); if (b) b.setAttribute('aria-checked', String(!!oui)); };
+        const montrer = () => {
+            const r = this._blReglages;
+            barre.classList.toggle('frise-limitee', !r.pleine);
+            barre.style.setProperty('--bl-frise-w', r.largeur + 'px');
+            barre.classList.toggle('sans-noms-parties', !r.noms);
+            barre.classList.toggle('sans-mesure', !r.mesure);
+            interrupteur('bl-r-pleine', r.pleine); interrupteur('bl-r-noms', r.noms); interrupteur('bl-r-mesure', r.mesure);
+            interrupteur('bl-r-reorg', barre.classList.contains('reorganiser'));
+            const curseur = document.getElementById('bl-r-largeur');
+            curseur.value = String(r.largeur); curseur.disabled = !!r.pleine;
+            document.getElementById('bl-r-largeur-val').textContent = r.largeur + ' px';
+            roue.setAttribute('aria-pressed', String(barre.classList.contains('reorganiser')));
+        };
+        const retenir = () => { try { localStorage.setItem(CLE, JSON.stringify(this._blReglages)); } catch (e) { /* stockage plein */ } montrer(); };
+        const modeReorganiser = (oui) => {
+            barre.classList.toggle('reorganiser', oui);
+            barre.querySelectorAll('.bl-bloc').forEach((b) => {
+                if (oui) { b.tabIndex = 0; b.setAttribute('role', 'group'); b.setAttribute('aria-label', `Bloc « ${b.dataset.bloc} » : Alt + flèches pour le déplacer`); }
+                else { b.removeAttribute('tabindex'); b.removeAttribute('role'); b.removeAttribute('aria-label'); }
+            });
+            montrer();
+        };
+        const placer = () => {
+            if (pop.hidden) return;
+            const r = roue.getBoundingClientRect();
+            pop.style.left = Math.max(8, Math.min(r.right - pop.offsetWidth, window.innerWidth - pop.offsetWidth - 8)) + 'px';
+            pop.style.top = Math.max(8, r.top - pop.offsetHeight - 8) + 'px';
+        };
+        this._blFermerReglages = () => { pop.hidden = true; roue.setAttribute('aria-expanded', 'false'); };
+        roue.addEventListener('click', () => {
+            if (window.matchMedia(SEQ_DOCK_MEDIA).matches === false) return; // téléphone : la barre n'a pas de roue (masquée) — rien à ouvrir
+            if (!pop.hidden) { this._blFermerReglages(); return; }
+            montrer();
+            pop.hidden = false;
+            roue.setAttribute('aria-expanded', 'true');
+            placer();
+        });
+        window.addEventListener('resize', placer);
+        pop.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this._blFermerReglages(); roue.focus(); } });
+        pop.addEventListener('input', (e) => {
+            if (e.target.id !== 'bl-r-largeur') return;
+            this._blReglages.largeur = Math.min(900, Math.max(200, +e.target.value));
+            retenir();
+        });
+        pop.addEventListener('click', (e) => {
+            const t = (e.composedPath ? e.composedPath() : [e.target]).find(x => x.matches && x.matches('button'));
+            if (!t) return;
+            const r = this._blReglages;
+            if (t.id === 'bl-r-pleine') { r.pleine = !r.pleine; retenir(); }
+            else if (t.id === 'bl-r-noms') { r.noms = !r.noms; retenir(); }
+            else if (t.id === 'bl-r-mesure') { r.mesure = !r.mesure; retenir(); }
+            else if (t.id === 'bl-r-reorg') modeReorganiser(!barre.classList.contains('reorganiser'));
+            else if (t.id === 'bl-reinit') { this._blOrdre = this._blOrdreDefaut.slice(); this._blAppliquerOrdre(); }
+            else if (t.id === 'bl-r-retablir') {
+                this._blReglages = { ...DEFAUT };
+                this._blOrdre = this._blOrdreDefaut.slice(); this._blAppliquerOrdre();
+                modeReorganiser(false);
+                retenir();
+            }
+        });
+        // Échap hors de la popover : sort du mode réorganiser (il n'a plus d'autre sortie visible quand la popover est fermée).
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && pop.hidden && barre.classList.contains('reorganiser')) modeReorganiser(false);
+        });
+        montrer();
     }
 
     // Géométrie du morceau EN TEMPS (début de chaque partie et de chaque accord), relue seulement quand le tampon de
@@ -18578,12 +18760,26 @@ class HarmoHubApp {
         if (!mesure) return;
         const g = this.geometrieBarreLecture();
         const p = g.parts[section];
-        const debut = p ? p.debuts[index] : undefined;
-        if (debut === undefined) return;
+        let debut = p ? p.debuts[index] : undefined;
+        // Un morceau sans accord (ou une partie vide) : la mesure dit quand même « 1 » (L5c : le libellé est écrit aussi au chargement, sans lecture).
+        if (debut === undefined) { if (this.playheadIndex != null) return; debut = 0; }
         const t = debut + Math.max(0, Math.min(ecoules || 0, duree || 0));
         const bpb = this.beatsPerBar() || 4;
-        const texte = 'Mes. ' + (Math.floor(t / bpb + 1e-9) + 1);
-        if (mesure.textContent !== texte) mesure.textContent = texte;
+        const n = Math.floor(t / bpb + 1e-9) + 1;
+        if (window.matchMedia('(min-width: 900px)').matches) {
+            // L5c (J.1, « je ne le trouve pas très joli […] au plus logique ») : à l'ordinateur, un petit « MESURE » (10 px, grisé) AU-DESSUS du numéro en grand (20 px), suivi du
+            // total « / 8 ». On compare sur data-cle (« 5/8 ») et non sur le texte : le texte est fait de trois éléments. Le téléphone garde « Mes. N » (sa barre est refaite au lot 7).
+            const total = Math.max(1, Math.ceil(g.total / bpb - 1e-9));
+            const cle = n + '/' + total;
+            if (mesure.dataset.cle !== cle || !mesure.querySelector('.bm-val')) {
+                mesure.dataset.cle = cle;
+                mesure.innerHTML = `<span class="bm-lab">Mesure</span><span class="bm-val"><b>${n}</b><i> / ${total}</i></span>`;
+                mesure.title = `Mesure en cours : ${n} sur ${total}`;
+            }
+        } else {
+            const texte = 'Mes. ' + n;
+            if (mesure.textContent !== texte || mesure.dataset.cle) { mesure.textContent = texte; delete mesure.dataset.cle; mesure.title = 'Mesure en cours'; }
+        }
         const tete = document.querySelector('#bl-frise .bl-frise-tete');
         if (tete) tete.style.left = (t / g.total * 100) + '%';
         document.querySelectorAll('#bl-frise .bl-frise-part').forEach(el => el.classList.toggle('en-cours', +el.dataset.part === section));
@@ -19114,7 +19310,6 @@ class HarmoHubApp {
 
         // Attend que l'instrument soit prêt avant de démarrer le transport (voir playCurrent)
         await waitForAudioReady();
-        this.warnIfFallbackInstrument(); // le Piano joue-t-il sa doublure faute d'échantillons ?
         // Voir playCurrent : abandonne si un stopAll() est survenu pendant cette attente.
         if (myGen !== this._playGen) return;
 
@@ -19604,8 +19799,10 @@ class HarmoHubApp {
             // donc la main à l'appli, mais UNIQUEMENT pour annuler/rétablir (voir plus bas). Les
             // autres raccourcis gardent le garde-fou `typing` complet — l'espace, par exemple, doit
             // rester une espace tant que le curseur est dans un champ de saisie.
+            // L5b : même remède pour le NOM d'une partie qu'on vient d'ajouter (« Ajouter section » lui donne le focus, champ vide) : Ctrl+Z doit retirer la partie, pas rester
+            // enfermé dans un champ sans rien à annuler (trouvé en écrivant le banc du bandeau « + Section »).
             const ajoutRapideVide = document.activeElement
-                && document.activeElement.id === 'quick-add-input'
+                && (document.activeElement.id === 'quick-add-input' || (document.activeElement.classList && document.activeElement.classList.contains('prog-title')))
                 && !document.activeElement.value;
             // Même symptôme, même remède, pour les 5 réglages globaux du morceau (tempo, tonalité,
             // mode, mesure, groove — voir captureGlobalSnapshot) : un <select> ou un curseur GARDE le

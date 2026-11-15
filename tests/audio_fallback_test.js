@@ -83,8 +83,10 @@ window._mesurerSignal = async () => {
     }));
     check(enCours.transport === 'started' && enCours.secondes > 0,
         `le curseur avance réellement — ${JSON.stringify(enCours)}`);
-    check(/secours|piano/i.test(enCours.toast),
-        `l'utilisateur est prévenu que le son de secours est utilisé — « ${enCours.toast} »`);
+    // RÉÉCRIT À L5c (14/11, « je ne veux plus l'alerte du son de secours du piano ») : le son de secours joue toujours (le curseur avance, juste au-dessus), mais plus aucun
+    // message ne prévient de son utilisation.
+    check(!/secours|Sons du piano/i.test(enCours.toast),
+        `plus d'alerte « son de secours » : aucun message n'est affiché — « ${enCours.toast} »`);
 
     // Un état incohérent (« je joue » alors que rien ne tourne) était la source de l'impression
     // d'aléatoire : on vérifie que les deux disent la même chose.

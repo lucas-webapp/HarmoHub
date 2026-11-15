@@ -11,7 +11,7 @@ const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('ajout unique');
 const { estBruitReseau } = require('./_harness');
 
-plan(29);
+plan(30);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const graine = () => {
@@ -129,9 +129,11 @@ const graine = () => {
     await p.click('#progression-sections .prog-section-ajout[data-section="0"]'); await p.waitForTimeout(300);
     await p.mouse.click(1380, 760); await p.waitForTimeout(200);
     check(await panneau(p) === null, 'un clic à côté le ferme aussi');
-    // Sans destination, la saisie redevient EXACTEMENT celle d'avant : avec deux parties, elle demande laquelle.
-    await p.fill('#quick-add-input', 'E7');
-    await p.click('#quick-add-btn'); await p.waitForTimeout(300);
+    // RÉÉCRIT À L5b (14/11, « la barre Ajout rapide n'est plus permanente ») : refermé, le panneau emporte la saisie ; il n'y a donc plus, à l'ordinateur, de saisie SANS destination.
+    check(await p.evaluate(() => document.getElementById('quick-add-input').getBoundingClientRect().width) === 0, 'refermé, le panneau emporte la saisie rapide (elle n\'est plus permanente)');
+    // Le repli « sans destination » (la saisie demande la partie) n'a plus de geste à l'ordinateur, mais le code reste (appels de programme) : on le contrôle directement.
+    await p.evaluate(() => { document.getElementById('quick-add-input').value = 'E7'; document.getElementById('quick-add-btn').click(); });
+    await p.waitForTimeout(300);
     check(await p.evaluate(() => { const m = document.getElementById('section-picker-menu'); return !!m && !m.hidden; }), 'sans destination choisie, la saisie demande la partie, comme avant');
     await p.keyboard.press('Escape'); await p.waitForTimeout(150);
     await p.close();

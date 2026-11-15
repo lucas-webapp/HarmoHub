@@ -90,8 +90,10 @@ const atteignable = (sel) => {
     check(!a.seq.visible, 'au-dessus de la grille, plus de porte à l\'ordinateur (4a)');
     // A2 (13/11) : le petit séquenceur (#arp-sequencer) a quitté la page ; son absence est la vérification.
     check(!a.plein.visible && !a.petit, `dans l'inspecteur, plus de porte « Séquenceur » ni de petit séquenceur (4b, A2) — porte ${a.plein.visible}, petit séquenceur dans la page ${!!a.petit}`);
-    check(a.vues && a.vues.visible && a.vues.svg && a.vuesNom === 'Séquenceur', `la porte du séquenceur est dans le bloc « Vues », avec son logo et son nom (« ${a.vuesNom} »)`);
-    check(a.vues.l === 32 && a.vues.h === 32, `le bouton du bloc « Vues » est à la jauge de la barre — ${a.vues.l}x${a.vues.h}px`);
+    // RÉÉCRIT À L5b (14/11) : la porte du séquenceur a quitté le bloc « Vues » de la barre de lecture pour l'extrémité droite de l'en-tête de la grille, avec son nom (1440 px) ; elle est plus
+    // large que 32 px (logo + mot), mais garde la jauge de 32 px de haut.
+    check(a.vues && a.vues.visible && a.vues.svg && a.vuesNom === 'Séquenceur', `la porte du séquenceur est dans l'en-tête de la grille, avec son logo et son nom (« ${a.vuesNom} »)`);
+    check(a.vues.l >= 124 && a.vues.h === 32, `le bouton Séquenceur est à la jauge (32 px de haut) et assez large pour son nom — ${a.vues.l}x${a.vues.h}px`);
 
     console.log('\n=== B. Le rythme de l\'accord ouvert se règle au séquenceur du bloc « Vues » ===');
     exiger(await page.evaluate(() => window.app.seqOpen === false && document.getElementById('sequenceur').hidden), 'on part séquenceur fermé');

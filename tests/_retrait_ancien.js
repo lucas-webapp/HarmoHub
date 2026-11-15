@@ -17,13 +17,14 @@ const centre = async (p, sel) => {
 const toucher = async (p, sel) => { if (await p.evaluate(() => navigator.maxTouchPoints > 0)) await p.tap(sel); else { const q = await centre(p, sel); await p.mouse.click(q.x, q.y); } };
 const cliquer = async (p, sel, ms = 300) => { const q = await centre(p, sel); await p.mouse.click(q.x, q.y); await p.waitForTimeout(ms); };
 
-// L'ancienne porte (« Éditeur de notes », #grid-zoom) a disparu de l'ordinateur ; le bouton « Séquenceur » du bloc « Vues » est là.
+// L'ancienne porte (« Éditeur de notes », #grid-zoom) a disparu de l'ordinateur ; le bouton « Séquenceur » est là. RÉÉCRIT À L5b (14/11) : il n'est plus dans le bloc « Vues » de la
+// barre de lecture mais à l'extrémité droite de l'en-tête de la grille (à gauche de « Voicing »).
 async function porteAbsente(p) {
     const r = await p.evaluate(() => {
         const vis = (id) => { const e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0; };
-        return { ancienne: vis('grid-zoom'), nouveau: vis('vue-sequenceur'), dansVues: !!document.getElementById('vue-sequenceur').closest('#bl-vues') };
+        return { ancienne: vis('grid-zoom'), nouveau: vis('vue-sequenceur'), dansEntete: !!document.getElementById('vue-sequenceur').closest('.grid-head-sticky') && !document.getElementById('vue-sequenceur').closest('#bl-vues') };
     });
-    return { ok: !r.ancienne && r.nouveau && r.dansVues, detail: `« Éditeur de notes » visible : ${r.ancienne}, « Séquenceur » du bloc Vues : ${r.nouveau}` };
+    return { ok: !r.ancienne && r.nouveau && r.dansEntete, detail: `« Éditeur de notes » visible : ${r.ancienne}, « Séquenceur » de l'en-tête de la grille : ${r.nouveau}` };
 }
 
 // ÉTAPE 4b : le petit séquenceur de l'inspecteur (#arp-sequencer) et sa porte « Séquenceur » (#seq-zoom) ont disparu de l'ordinateur — la fenêtre d'accord
@@ -36,7 +37,7 @@ async function porteInspecteurAbsente(p, section = 0, index = 0) {
         return { inspecteur: window.app.editingIndex != null, porte: vis('seq-zoom'), petit: vis('arp-sequencer'), nouveau: vis('vue-sequenceur') };
     });
     return { ok: r.inspecteur && !r.porte && !r.petit && r.nouveau,
-        detail: `inspecteur ouvert ${r.inspecteur}, porte « Séquenceur » visible ${r.porte}, petit séquenceur visible ${r.petit}, « Séquenceur » du bloc Vues ${r.nouveau}` };
+        detail: `inspecteur ouvert ${r.inspecteur}, porte « Séquenceur » visible ${r.porte}, petit séquenceur visible ${r.petit}, « Séquenceur » de l'en-tête de la grille ${r.nouveau}` };
 }
 
 // Ouvre le nouveau séquenceur par son bouton (vrai clic), s'il ne l'est pas déjà.

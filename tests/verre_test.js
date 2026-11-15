@@ -72,7 +72,7 @@ async function toastEteint(p) {
 async function fermerTout(p) { if (await p.evaluate(() => !document.getElementById('sequenceur').hidden)) { await p.click('#vue-sequenceur'); await p.waitForTimeout(200); } await p.keyboard.press('Escape'); await p.waitForTimeout(150); await p.evaluate(() => { try { window.app.closeSettings(); } catch (e) {} window.app.editingIndex = null; window.app.loadProgression(); }); await p.waitForTimeout(150); }
 
 (async () => {
-    plan(A_APERCU ? 69 : 68);
+    plan(A_APERCU ? 71 : 70);
     const nav = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
     try {
         // ===== 0. LES FICHIERS ET LEUR ORDRE (statique) ==========================================================================
@@ -150,6 +150,12 @@ async function fermerTout(p) { if (await p.evaluate(() => !document.getElementBy
             check(/blur\(24px\)/.test(await flou('#context-menu')), 'le menu contextuel aussi');
             const menu = await p.evaluate(() => { const cs = getComputedStyle(document.getElementById('context-menu')); return { img: cs.backgroundImage, couleur: cs.backgroundColor }; });
             check(/gradient/.test(menu.img) && /rgba\(7, 11, 18, 0\.6\)/.test(menu.couleur), 'et lui aussi a sa sous-couche sombre (sinon il grisonne sur ce qu\'il recouvre)');
+            // L5b / L5c : les surfaces nouvelles. La popover « Barre de lecture » (.context-menu) et le menu du vide de la grille (.tb-menu) prennent le flou des menus ; le bandeau
+            // « + Section », collé en bas de la zone de la grille (du contenu défile dessous), a un fond de barre translucide mais bien présent, jamais un trou.
+            check(/blur\(24px\)/.test(await flou('#bl-reglages-pop')) && /blur\(24px\)/.test(await flou('#grille-vide-menu')), 'la popover « Barre de lecture » et le menu du vide de la grille floutent comme les autres menus');
+            const bandeau = await p.evaluate(() => getComputedStyle(document.getElementById('add-section')).backgroundColor);
+            const alpha = (/rgba?\((\d+), (\d+), (\d+)(?:, ([\d.]+))?\)/.exec(bandeau) || [])[4];
+            check(alpha === undefined ? /rgb\(/.test(bandeau) : +alpha >= 0.3, `le bandeau « + Section » garde un fond de barre sous le verre (${bandeau})`);
             // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4a, 12/11) : la bande d'intensité et la règle de l'éditeur de notes ont disparu avec lui. LA MÊME EXIGENCE vaut
             // pour le séquenceur du bloc « Vues » : sa barre d'outils, collée en haut quand ses lignes défilent dessous, est OPAQUE ; lui-même floute comme les autres barres.
             await fermerTout(p);
