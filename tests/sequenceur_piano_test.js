@@ -16,7 +16,7 @@ const { check, exiger, plan, bilan } = require('./_harness')('vue Piano du séqu
 const { estBruitReseau } = require('./_harness');
 const R = require('./_retrait_ancien');
 
-plan(24);
+plan(35);
 
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 const graine = () => {
@@ -132,6 +132,51 @@ const graine = () => {
     await p.mouse.click(c0.x, c0.y); await p.waitForTimeout(400);
     // (une note posée tout en haut agrandit la fenêtre vers l'aigu : les lignes d'avant descendent d'autant, la grille les suit — ce qu'on regarde ne bouge pas)
     check(JSON.stringify((await etat(p)).visibles) === avantPose, `poser une croche ne fait pas sauter la grille : les mêmes lignes restent à l'écran (${avantPose})`);
+    // ======================================================================================================
+    console.log('\n=== F. La règle reste visible quand on défile ; pas de jaune sur les cases ; « Note libre » a la largeur des touches ===');
+    await R.cliquer(p, '#sq-vue-notes', 400);
+    const t0 = await p.locator('#sq-grille .sq-temps[data-c="0"]').first().boundingBox(), t1 = await p.locator('#sq-grille .sq-temps[data-c="0"]').nth(5).boundingBox();
+    await p.mouse.move(t0.x + 3, t0.y + 8); await p.mouse.down(); await p.mouse.move(t1.x + 10, t0.y + 8, { steps: 5 }); await p.mouse.up(); await p.waitForTimeout(400);
+    const gg = await p.locator('#sq-grille').boundingBox();
+    await p.mouse.move(gg.x + 300, gg.y + 200); await p.mouse.wheel(0, 600); await p.waitForTimeout(400);
+    const fige = await p.evaluate(() => {
+        const g = document.getElementById('sq-grille'), gr = g.getBoundingClientRect(), top = (s) => { const e = document.querySelector(s); return e ? Math.round(e.getBoundingClientRect().top - gr.top) : null; };
+        const btn = document.querySelector('#sq-grille .sq-libre-btn').getBoundingClientRect(), et = document.querySelector('#sq-grille .sq-etiq').getBoundingClientRect();
+        const cases = [...document.querySelectorAll('#sq-grille .sq-case.dans-boucle')];
+        return { scroll: g.scrollTop, nom: top('#sq-grille .sq-nom'), temps: top('#sq-grille .sq-temps'), boucle: top('#sq-grille .sq-boucle'), btn: top('#sq-grille .sq-libre-btn'), largeurBtn: Math.round(btn.width), largeurTouche: Math.round(et.width),
+            teinte: cases.filter(x => getComputedStyle(x).backgroundImage !== 'none').length, nbBoucle: cases.length };
+    });
+    check(fige.scroll > 100 && fige.nom === 0 && fige.temps === 23 && fige.boucle === 23 && fige.btn === 23, `grille défilée de ${fige.scroll} px : les noms d'accords, la règle, la plage à boucler et « Note libre » restent collés en haut (${JSON.stringify([fige.nom, fige.temps, fige.boucle, fige.btn])})`);
+    check(fige.nbBoucle > 0 && fige.teinte === 0, `la plage à boucler ne teinte plus les cases en jaune (${fige.nbBoucle} cases dans la plage, ${fige.teinte} teintées)`);
+    const trait = await p.evaluate(() => { const g = document.getElementById('sq-grille'); const t = g.querySelector('.sq-temps[data-k="2"]'), c = g.querySelector('.sq-case[data-c="0"][data-k="2"]'); const rt = t.getBoundingClientRect(), rc = c.getBoundingClientRect(); const bt = getComputedStyle(t), bc = getComputedStyle(c); return { dx: Math.round((rt.left - rc.left) * 10) / 10, larg: bt.borderLeftWidth + '/' + bc.borderLeftWidth, couleur: bt.borderLeftColor === bc.borderLeftColor }; });
+    check(trait.dx === 0 && trait.larg === '1px/1px' && trait.couleur, `la règle porte le même trait que les cases, au même endroit (${JSON.stringify(trait)})`);
+    check(fige.largeurBtn === fige.largeurTouche, `« Note libre » a la largeur des touches de piano (${fige.largeurBtn} px et ${fige.largeurTouche} px)`);
+
+    // ======================================================================================================
+    console.log('\n=== G. Une barre qu\'on clique s\'entend ; des octaves en plus ou en moins ===');
+    await p.mouse.move(gg.x + 300, gg.y + 200); await p.mouse.wheel(0, -3000); await p.waitForTimeout(200); await p.mouse.wheel(0, 380); await p.waitForTimeout(300);
+    await p.evaluate(() => { window.__joue = []; });
+    const barre = await p.evaluate(() => { const g = document.getElementById('sq-grille').getBoundingClientRect(); const x = [...document.querySelectorAll('#sq-grille .sq-case.on')].find(c => { const r = c.getBoundingClientRect(); return r.top >= g.top + 70 && r.bottom <= g.bottom - 2 && r.width > 0; }); if (!x) return null; const r = x.getBoundingClientRect(); const i = [...document.querySelectorAll('#sq-grille .sq-etiq[data-midi]')][+x.dataset.r]; return { x: r.left + r.width / 2, y: r.top + r.height / 2, midi: +i.dataset.midi }; });
+    exiger(!!barre, 'une barre existante est visible');
+    await p.mouse.click(barre.x, barre.y); await p.waitForTimeout(300);
+    check(JSON.stringify(await p.evaluate(() => window.__joue)) === JSON.stringify([barre.midi]), `un clic sur une barre fait entendre sa note (${barre.midi} ; ${JSON.stringify(await p.evaluate(() => window.__joue))})`);
+    const nbLignes = () => p.evaluate(() => document.querySelectorAll('#sq-grille .sq-etiq[data-midi]').length);
+    const n1 = await nbLignes();
+    await p.click('#sq-reglages'); await p.waitForTimeout(300);
+    await p.click('#sq-reglages-pop [data-sq-oct="haut"][data-valeur="2"]'); await p.waitForTimeout(350);
+    const n2 = await nbLignes();
+    check(n2 === n1 + 12, `« Octaves au-dessus » : 2 au lieu de 1 ajoute une octave de lignes (${n1} → ${n2})`);
+    await p.click('#sq-reglages-pop [data-sq-oct="bas"][data-valeur="1"]'); await p.waitForTimeout(350);
+    const n3 = await nbLignes();
+    check(n3 === n2 + 12, `« Octaves en dessous » : 1 ajoute une octave sous la plus grave (${n2} → ${n3})`);
+    await p.click('#sq-reglages-pop [data-sq-oct="haut"][data-valeur="0"]'); await p.waitForTimeout(350);
+    const n4 = await nbLignes();
+    check(n4 === n3 - 24, `« Octaves au-dessus » à 0 en enlève deux : la plus aiguë jouée est tout en haut (${n3} → ${n4})`);
+    await p.click('#sq-reglages-pop [data-sq-oct="bas"][data-valeur="2"]'); await p.waitForTimeout(350); // (0 au-dessus + 2 dessous ≠ le réglage d'origine : Rétablir doit les changer)
+    check(await p.evaluate(() => localStorage.getItem('harmohubSequenceurOctavesHaut') === '0' && localStorage.getItem('harmohubSequenceurOctavesBas') === '2'), 'les deux réglages sont retenus par appareil');
+    await p.click('#sq-r-retablir'); await p.waitForTimeout(350);
+    check(await nbLignes() === n1, 'Rétablir remet une octave au-dessus et cinq demi-tons en dessous');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(200);
     await ctx.close();
 
     // ======================================================================================================

@@ -7679,3 +7679,24 @@ body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
 #sq-grille .sq-etiq.touche.jouee { filter: brightness(0.82); box-shadow: inset 0 0 0 1px var(--accent); }
 #sq-grille .sq-etiq.touche:not(.utilisee) { opacity: 0.62; }
 #sq-grille .sq-etiq.touche.do { opacity: 1; font-weight: 900; box-shadow: inset 0 -2px 0 rgba(0, 230, 118, 0.55); }
+
+
+/* ============================================================================================================================================================
+   L6bis (suite, 15/11) — COMMENTAIRES DE L'UTILISATEUR SUR L'ARTEFACT, ordinateur seulement.
+   « Il faut que la règle en haut reste toujours visible. Il faut figer cette règle. Quand je scrolle, je dois pouvoir la voir. » : les noms d'accords et la règle des temps sont collés en haut de la
+   grille (qui défile en interne), avec le coin à gauche. « Je ne veux pas forcément que le reste du séquenceur soit éclairé en jaune. Je veux juste la barre pour être plus discret. » : plus de teinte
+   jaune sur les cases ni sur la règle, la bande de la plage à boucler est plus discrète. « Ce bouton doit faire la même largeur que les touches de piano » : « Note libre » remplit la colonne des touches.
+   ============================================================================================================================================================ */
+.sq-coin { display: none; }
+@media (min-width: 900px) {
+    #sq-grille .sq-nom { position: sticky; top: 0; z-index: 5; height: 20px; box-sizing: border-box; background: rgb(17, 18, 20); }
+    #sq-grille .sq-temps { position: sticky; top: 23px; z-index: 5; background: rgb(17, 18, 20); box-shadow: 0 3px 0 rgb(17, 18, 20); }   /* l'ombre pleine bouche l'écart de 3 px sous la règle : rien ne s'y voit défiler */
+    #sq-grille .sq-boucle { position: sticky; top: 23px; z-index: 6; border-color: rgba(255, 179, 0, 0.55); background: linear-gradient(180deg, rgba(255, 179, 0, 0.26), rgba(255, 179, 0, 0.12)); }
+    /* « Les petits chiffres en haut de la règle ne sont pas parfaitement alignés avec les traits » : la règle porte les MÊMES traits que les cases (même épaisseur, même couleur, même bord gauche de colonne), les chiffres partent de 3 px après le trait. */
+    #sq-grille .sq-temps { border-left: 1px solid transparent; padding-left: 3px; box-sizing: border-box; border-radius: 0; }
+    #sq-grille .sq-temps.temps { border-left-color: #2c2c2c; }
+    #sq-grille .sq-temps.mesure { border-left-color: #4a4a4a; }
+    #sq-grille .sq-coin { display: block; position: sticky; top: 0; z-index: 5; background: rgb(17, 18, 20); }
+    #sq-grille .sq-libre-btn { position: sticky; left: 0; top: 23px; z-index: 7; width: 100%; margin: 0; }
+    #sq-grille .sq-case.dans-boucle { background-image: none; }
+}

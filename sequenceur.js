@@ -90,7 +90,8 @@
     const APPUI_LONG_MS = 380; // l'appui long au doigt : menu de la note, ou début d'un trait peint
     // VUE PIANO (L6bis, 15/11) : de vraies lignes de demi-tons sur une fenêtre BORNÉE autour des notes de la partie — de 5 demi-tons sous la plus grave à une octave au-dessus de la plus aiguë, jamais
     // hors de C2-C7 — et douze lignes visibles au départ (le reste défile dans la grille). « Je ne peux pas tâtonner pour trouver une note aiguë qui n'est pas encore jouée ailleurs » (l'utilisateur).
-    const PIANO_MIN = 36, PIANO_MAX = 96, PIANO_SOUS = 5, PIANO_AU_DESSUS = 12, VISIBLES_PIANO = 12;
+    const PIANO_MIN = 24, PIANO_MAX = 108, PIANO_SOUS = 5, PIANO_AU_DESSUS = 12, VISIBLES_PIANO = 12;
+    const CLE_OCT_HAUT = 'harmohubSequenceurOctavesHaut', CLE_OCT_BAS = 'harmohubSequenceurOctavesBas';   // octaves de marge de la vue Piano : au-dessus (1 au départ), en dessous (0 : cinq demi-tons)
     const GRILLE_MIN = 40; // ce que la poignée laisse au moins à la grille au-dessus (l'en-tête de partie reste lisible)
 
     const cle = (v, k) => v + ':' + k;
@@ -510,6 +511,9 @@
             this._visParVue = { voix: 0, notes: 0 };   // le nombre de lignes visibles se retient PAR VUE (douze lignes de piano ne doivent pas écraser les quatre voix)
             const contenu = lireLocal(CLE_CONTENU);
             this.contenu = contenu === 'rien' || contenu === 'degres' ? contenu : 'notes';
+            const oh = parseInt(lireLocal(CLE_OCT_HAUT), 10), ob = parseInt(lireLocal(CLE_OCT_BAS), 10);
+            this.octHaut = borner(isNaN(oh) ? 1 : oh, 0, 3);
+            this.octBas = borner(isNaN(ob) ? 0 : ob, 0, 3);
             this.regle = lireLocal(CLE_REGLE) !== '0';
             this.auto = lireLocal(CLE_AUTO) === '1';
             // La ligne de la grille montrée (L1c) : { s, i } = la partie et l'accord où l'on était. Sans accord choisi, le séquenceur y reste (ou suit la lecture) au lieu de
@@ -655,8 +659,8 @@
                 const utilisees = [...toutes].sort((a, b) => b - a);
                 if (this.pianoLarge()) {
                     // VUE PIANO (L6bis) : TOUS les demi-tons de la fenêtre, de l'aigu au grave ; les lignes que la partie utilise sont repérées (`utilisee`), les autres sont libres pour tâtonner.
-                    const haut = Math.max(utilisees[0], Math.min(PIANO_MAX, utilisees[0] + PIANO_AU_DESSUS));
-                    const bas = Math.min(utilisees[utilisees.length - 1], Math.max(PIANO_MIN, utilisees[utilisees.length - 1] - PIANO_SOUS));
+                    const haut = Math.max(utilisees[0], Math.min(PIANO_MAX, utilisees[0] + 12 * this.octHaut));
+                    const bas = Math.min(utilisees[utilisees.length - 1], Math.max(PIANO_MIN, utilisees[utilisees.length - 1] - PIANO_SOUS - 12 * this.octBas));
                     for (let m = haut; m >= bas; m--) lignes.push({ type: 'hauteur', midi: m, utilisee: toutes.has(m) });
                 } else utilisees.forEach(midi => lignes.push({ type: 'hauteur', midi }));
             } else {
@@ -729,7 +733,7 @@
                     const temps = tempsAvant + k / 2;
                     const mot = k % 2 === 0 ? String((Math.floor(temps) % bpb) + 1) : '';
                     const dans = boucle && c >= boucle[0] && c <= boucle[1];
-                    html.push(`<div class="sq-temps${dans ? ' dans-boucle' : ''}${k % 2 === 0 ? ' temps' : ''}" data-c="${c}" data-k="${k}" style="grid-row:2;grid-column:${col + k}">${mot}</div>`);
+                    html.push(`<div class="sq-temps${dans ? ' dans-boucle' : ''}${k % 2 === 0 ? ' temps' : ''}${k === 0 ? ' mesure' : ''}" data-c="${c}" data-k="${k}" style="grid-row:2;grid-column:${col + k}">${mot}</div>`);
                 }
                 tempsAvant += e.info.croches / 2;
             });
@@ -740,6 +744,7 @@
             // Les lignes : étiquette (le nom de la note de l'accord choisi, dessiné comme une touche de piano), puis les cases.
             // NOTE LIBRE : le bouton « note de musique » est À GAUCHE, dans la colonne des noms de notes, juste au-dessus d'eux, en face de la règle
             // (« ni en dessous, où il se déplaçait à chaque ligne ajoutée, ni dans la barre d'outils », 11/11).
+            html.push('<div class="sq-coin" aria-hidden="true" style="grid-row:1 / span 2;grid-column:1 / 3"></div>'); // L6bis : le coin en haut à gauche, collé comme la règle (rien ne défile à travers)
             html.push(`<button type="button" class="sq-libre-btn" aria-pressed="${this.libre.ouvert}" aria-label="Ajouter une note libre" title="Ajouter une note libre : choisir son nom et son octave, puis la poser dans le séquenceur" style="grid-row:1 / 3;grid-column:1"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/><path d="M4 4h4M6 2v4"/></svg></button>`);
             const flatsPartie = flats(accords[i != null ? i : 0]);
             const eSel = i != null ? etats[i] : etats[0], dSel = i != null ? accords[i] : accords[0];
@@ -1021,6 +1026,7 @@
             this._visibles = (this._visParVue && this._visParVue[v]) || 0;
             this._cleDefilePiano = null;   // on revient en Piano : la grille se repose sur les notes jouées
             this.rafraichir();
+            this.dessinerReglages();   // les octaves ne se règlent qu'en vue Piano
         }
         // La vue Piano a ses lignes de demi-tons à l'ordinateur seulement : au téléphone elle garde « seulement les hauteurs utilisées » (rien n'y change avant L7).
         pianoLarge() { return this.vue === 'notes' && !this.modeTel(); }
@@ -1505,7 +1511,9 @@
                 <div class="settings-slider-sep"></div>
                 <div class="settings-slider-row"><div class="settings-slider-head"><label for="sq-r-croche">Largeur des croches</label><span class="val" id="sq-r-croche-val">${Math.min(this.croche, CROCHE_MAX_ROUE)} px</span></div><input type="range" id="sq-r-croche" min="${CROCHE_MIN}" max="${CROCHE_MAX_ROUE}" step="2" value="${Math.min(this.croche, CROCHE_MAX_ROUE)}"></div>
                 <div class="settings-slider-sep"></div>
-                <div class="settings-select-row"><label id="sq-r-contenu-lbl" title="Ce qu'on écrit dans les barres : le nom de la note, son degré dans l'accord, ou rien">Barres</label><div class="settings-seg" role="radiogroup" aria-labelledby="sq-r-contenu-lbl">${seg}</div></div>
+                ${this.pianoLarge() ? `<div class="settings-select-row"><label id="sq-r-oh-lbl" title="Vue Piano : combien d'octaves montrer au-dessus de la note la plus aiguë jouée">Octaves au-dessus</label><div class="settings-seg" role="radiogroup" aria-labelledby="sq-r-oh-lbl">${[0, 1, 2, 3].map(n => `<button type="button" role="radio" data-sq-oct="haut" data-valeur="${n}" aria-checked="${this.octHaut === n}">${n}</button>`).join('')}</div></div>
+                <div class="settings-select-row"><label id="sq-r-ob-lbl" title="Vue Piano : octaves de plus sous la note la plus grave jouée (0 : cinq demi-tons)">Octaves en dessous</label><div class="settings-seg" role="radiogroup" aria-labelledby="sq-r-ob-lbl">${[0, 1, 2, 3].map(n => `<button type="button" role="radio" data-sq-oct="bas" data-valeur="${n}" aria-checked="${this.octBas === n}">${n}</button>`).join('')}</div></div>
+                ` : ''}<div class="settings-select-row"><label id="sq-r-contenu-lbl" title="Ce qu'on écrit dans les barres : le nom de la note, son degré dans l'accord, ou rien">Barres</label><div class="settings-seg" role="radiogroup" aria-labelledby="sq-r-contenu-lbl">${seg}</div></div>
                 <div class="settings-toggle-row"><label for="sq-r-regle" title="La règle des temps, au-dessus des barres (elle sert aussi à tirer une plage à boucler)">Règle</label><button type="button" id="sq-r-regle" class="switch" role="switch" aria-checked="${this.regle}" aria-label="Règle des temps"><span class="switch-thumb"></span></button></div>
                 <div class="rb-pied"><button type="button" id="sq-r-retablir" class="btn-sec">Rétablir</button></div>`;
             this.placerReglages();
@@ -1523,9 +1531,14 @@
                 if (!t) return;
                 if (t.id === 'sq-r-auto') { this.auto = !this.auto; ecrireLocal(CLE_AUTO, this.auto ? '1' : '0'); this.poserLigne(); this.limiterHauteur(); this.dessinerReglages(); }
                 else if (t.id === 'sq-r-regle') { this.regle = !this.regle; ecrireLocal(CLE_REGLE, this.regle ? '1' : '0'); this.rafraichir(); this.dessinerReglages(); }
+                else if (t.dataset.sqOct) {
+                    const n = +t.dataset.valeur;
+                    if (t.dataset.sqOct === 'haut') { this.octHaut = n; ecrireLocal(CLE_OCT_HAUT, String(n)); } else { this.octBas = n; ecrireLocal(CLE_OCT_BAS, String(n)); }
+                    this.rafraichir(); this.dessinerReglages();
+                }
                 else if (t.dataset.sqContenu) { this.contenu = t.dataset.sqContenu; ecrireLocal(CLE_CONTENU, this.contenu); this.rafraichir(); this.dessinerReglages(); }
                 else if (t.id === 'sq-r-retablir') {
-                    this.ligne = LIGNE_DEFAUT; this.croche = CROCHE_DEFAUT; this.contenu = 'notes'; this.regle = true; this.auto = false;
+                    this.ligne = LIGNE_DEFAUT; this.croche = CROCHE_DEFAUT; this.contenu = 'notes'; this.regle = true; this.auto = false; this.octHaut = 1; this.octBas = 0; ecrireLocal(CLE_OCT_HAUT, '1'); ecrireLocal(CLE_OCT_BAS, '0');
                     ecrireLocal(CLE_LIGNE, String(this.ligne)); ecrireLocal(CLE_CROCHE, String(this.croche)); ecrireLocal(CLE_CONTENU, 'notes'); ecrireLocal(CLE_REGLE, '1'); ecrireLocal(CLE_AUTO, '0');
                     this.rafraichir(); this.dessinerReglages();
                 }
@@ -1789,6 +1802,7 @@
                 this._geste = { type: 'boucle', c0: c, c1: c, bouge: false };
                 return;
             }
+            this._dernierAppui = performance.now(); // la lecture cesse de changer de ligne sous la main qui dessine (voir tete)
             const touche = t.closest('.sq-etiq[data-midi]');
             if (touche) {
                 // Une touche du piano : on l'entend (avec l'accord choisi, ou le premier montré), sans rien écrire.
@@ -2011,8 +2025,11 @@
             let entendre = null;
             if (g.type === 'intensite' && etat.on.has(cle(v, k))) {
                 // normal → fort → doux → enlevée, porté par l'attaque de la barre (une barre a un seul niveau : celui de sa première croche).
-                const suite = CYCLE_INTENSITE[niveauDe(etat, v, k)];
-                if (suite) { etat.niveaux.set(cle(v, debutBarre(etat, v, k)), suite); entendre = suite; }
+                // À l'ORDINATEUR le cycle boucle : normal → fort → doux → normal. « Une fois que j'ai déterminé une intensité très basse pour une note, je ne peux plus revenir à une
+                // intensité haute. Si je reclique dessus, elle se supprime. » (l'utilisateur, 15/11) — on enlève une note par Suppr ou en éteignant l'Intensité. Le téléphone garde l'ancien cycle.
+                const niv = niveauDe(etat, v, k), suite = (niv === 'doux' && this.estOrdinateur()) ? 'normal' : CYCLE_INTENSITE[niv];
+                if (suite === 'normal') { etat.niveaux.delete(cle(v, debutBarre(etat, v, k))); entendre = 'normal'; }
+                else if (suite) { etat.niveaux.set(cle(v, debutBarre(etat, v, k)), suite); entendre = suite; }
                 else poserCroche(etat, v, k, false);
             } else if (etat.on.has(cle(v, k))) {
                 poserCroche(etat, v, k, false);
@@ -2127,7 +2144,12 @@
             document.body.classList.remove('sq-deplace');
             this.grille.querySelectorAll('.sq-fantome').forEach(x => x.classList.remove('sq-fantome'));
             this.nettoyerCibles();
-            if (!g.bouge) { this.sel = [{ c: g.note.c, k: g.note.d, midi: g.note.midi }]; this.choisirSansJouer(g.note.c); this.marquerSelection(); return; }   // un simple clic sur une note d'un groupe garde cette seule note
+            if (!g.bouge) {   // un simple clic sur une note d'un groupe garde cette seule note
+                this.sel = [{ c: g.note.c, k: g.note.d, midi: g.note.midi }]; this.choisirSansJouer(g.note.c); this.marquerSelection();
+                // « Quand je clique sur une barre déjà existante, j'aimerais pouvoir entendre le son » (l'utilisateur, 15/11) : un CLIC (pas un glissé : le déplacement a son propre réglage « Son au déplacement »).
+                this.jouerNote(g.note.c, g.note.midi, 'normal');
+                return;
+            }
             const o = g.cible;
             if (!o) return;
             const D = this.decalages();
@@ -2340,7 +2362,7 @@
             if (!this.estOuvert()) return;
             // Pendant la lecture, sans accord choisi, le séquenceur SUIT la ligne qui sonne (L1c) ; avec un accord choisi il reste sur le sien, pour ne pas faire sauter la
             // grille sous les doigts pendant qu'on la modifie.
-            if (!this.modeTel() && this.app.selectedIndex == null && this.app.editingIndex == null && (section !== this._s || !this._montres.includes(index))) {
+            if (!this.modeTel() && !this._geste && performance.now() - (this._dernierAppui || 0) > 4000 && this.app.selectedIndex == null && this.app.editingIndex == null && (section !== this._s || !this._montres.includes(index))) {
                 this._vise = { s: section, i: index };
                 this._viseActive = this.app.activeSection || 0;
                 this.rafraichir();

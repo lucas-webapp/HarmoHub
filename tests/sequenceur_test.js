@@ -159,7 +159,7 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     await p.keyboard.press('Delete'); await p.waitForTimeout(300);
     check((await croches(p, 1)).pos[1] === '', `Suppr enlève la note choisie EN ENTIER (${(await croches(p, 1)).pos[1]})`);
 
-    console.log('\n=== G. Intensité : normal → fort → doux → enlevée ===');
+    console.log('\n=== G. Intensité : normal → fort → doux → normal (le cycle boucle) ===');
     await cliquer(p, '#sq-intensite');
     check(await presse(p, 'sq-intensite') === 'true', 'le bouton Intensité (logo du mode studio) s\'allume');
     const vB1 = d1.positions[0];
@@ -176,9 +176,16 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     await cliquer(p, '#sq-intensite');
     await cliquer(p, caseSq(1, vB1, 3));
     g = await croches(p, 1);
-    check(g.pos[0] === '', `troisième clic : la note est enlevée EN ENTIER, pas coupée en deux (${g.pos[0]})`);
-    check(JSON.parse(g.iv)[vB1 + ':0'] === undefined && JSON.parse(g.iv)[vB1 + ':8'] === undefined, 'son intensité disparaît avec elle');
+    // 15/11 (l'utilisateur : « je ne peux plus revenir à une intensité haute, si je reclique dessus elle se supprime ») : à l'ordinateur le cycle BOUCLE, normal → fort → doux → normal.
+    check(g.pos[0] !== '' && JSON.parse(g.iv)[vB1 + ':0'] === undefined, `troisième clic : la note revient à « normal », elle n'est PAS enlevée (${g.pos[0]}, ${g.iv})`);
+    await cliquer(p, caseSq(1, vB1, 3));
+    check(JSON.parse((await croches(p, 1)).iv)[vB1 + ':0'] === 90, 'quatrième clic : « fort » de nouveau — on peut revenir à une intensité haute');
     await cliquer(p, '#sq-intensite');
+    await cliquer(p, caseSq(1, vB1, 3));
+    await p.keyboard.press('Delete'); await p.waitForTimeout(300);
+    g = await croches(p, 1);
+    check(g.pos[0] === '', `la note s'enlève EN ENTIER par Suppr, Intensité éteinte (${g.pos[0]})`);
+    check(JSON.parse(g.iv)[vB1 + ':0'] === undefined && JSON.parse(g.iv)[vB1 + ':8'] === undefined, 'son intensité disparaît avec elle');
 
     console.log('\n=== H. Copier, coller sur un autre accord ===');
     check(await p.evaluate(() => document.getElementById('sq-coller').disabled), 'Coller est grisé tant que rien n\'est copié');
@@ -198,7 +205,7 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     check(await p.evaluate(() => JSON.stringify(window.app.loopRange)) === JSON.stringify({ startSection: 0, startIndex: 0, endSection: 0, endIndex: 1 }), 'tirer sur la règle du premier au deuxième accord pose la plage à boucler sur eux');
     const bande = await p.evaluate(() => { const b = document.querySelector('#sq-grille .sq-boucle'); if (!b) return null; const r = b.getBoundingClientRect(), t = document.querySelector('#sq-grille .sq-temps[data-c="0"][data-k="0"]').getBoundingClientRect(); return { top: Math.round(r.top), tTop: Math.round(t.top), bg: getComputedStyle(b).backgroundImage }; });
     exiger(bande !== null, 'la bande orange est dessinée');
-    check(bande.top === bande.tTop && /255, 179, 0, 0\.5/.test(bande.bg), 'elle est DANS la règle, au droit des numéros, orange translucide');
+    check(bande.top === bande.tTop && /255, 179, 0, 0\.26/.test(bande.bg), 'elle est DANS la règle, au droit des numéros, orange translucide (plus discrète depuis le 15/11)');
     check(await p.evaluate(() => window.app.bouclerLecture === true), 'tracer une plage allume la boucle (même règle que la règle des mesures)');
     await cliquer(p, '#sq-grille .sq-boucle');
     check(await p.evaluate(() => window.app.loopRange === null && !document.querySelector('#sq-grille .sq-boucle')), 'un clic sur la bande la retire');

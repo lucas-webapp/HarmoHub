@@ -163,7 +163,7 @@ const graine = () => {
     check(Math.abs((hb.y + hb.h / 2) - bord.bas - 6) <= 1, `la poignée du bas est à 6 px sous la dernière partie (${Math.round(hb.y + hb.h / 2 - bord.bas)} px)`);
     check(Math.abs((hd.x + hd.w / 2) - bord.droite) <= 1, `celle de droite est centrée sur le bord de la grille (${Math.round(hd.x + hd.w / 2 - bord.droite)} px)`);
     const bandeau = await rect(p, '#add-section');
-    check(bandeau.y >= hb.b - 1, 'le bandeau « + Section » est SOUS la poignée du bas');
+    check(bandeau.y >= hb.b - 1, `le bandeau « + Section » est SOUS la poignée du bas (bandeau ${JSON.stringify(bandeau)}, poignée ${JSON.stringify(hb)})`);
     // On les tire vraiment : la poignée de largeur de la grille, celle du bas, celle du séquenceur, celle du tiroir.
     const l0 = (await rect(p, '#grille-cadre')).w;
     let b = await p.locator('#grille-poignee-droite').boundingBox();
