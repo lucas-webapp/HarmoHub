@@ -24,6 +24,7 @@
 // tout. D'où la section E : on charge la page pour de vrai et on écoute les erreurs.
 const { chromium, devices } = require('playwright');
 const creerHarnais = require('./_harness');
+const { dblclickHorsNom } = require('./_geste_accord');
 const { plan, check, exiger, bilan } = creerHarnais('Finitions : retraits, basse en rangée, RENV/DROP à bascule');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
@@ -64,6 +65,15 @@ const atteignable = (sel) => {
     const erreurs = [];
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     page.on('pageerror', e => erreurs.push('ordinateur : ' + e.message));
+    // L6a : à l'ordinateur la rangée « voicing » vit dans l'onglet Voicing de la fenêtre d'accord (plus d'inspecteur) : on l'ouvre par de vrais gestes (double-clic, onglet) ;
+    // fenêtre déjà ouverte sur l'onglet, un simple clic sur une autre case la fait suivre (la modification avec elle).
+    const ouvrirVoicing = async (i) => {
+        const etat = await page.evaluate(() => ({ ouverte: !document.getElementById('bulle-accord').hidden, onglet: window.app._bulle && window.app._bulle.onglet, index: window.app._bulle && window.app._bulle.index }));
+        if (!etat.ouverte) { await dblclickHorsNom(page, `#progression-sections .grid-cell[data-index="${i}"]`); await page.waitForTimeout(300); }
+        else if (etat.index !== i) { const c = await page.locator(`#progression-sections .grid-cell[data-index="${i}"]`).first().boundingBox(); await page.mouse.click(c.x + c.width / 2, c.y + c.height - 6); await page.waitForTimeout(400); }
+        console.log('DBG', i, JSON.stringify(etat), JSON.stringify(await page.evaluate(() => ({ b: window.app._bulle, hid: document.getElementById('bulle-accord').hidden }))));
+        if ((await page.evaluate(() => window.app._bulle && window.app._bulle.onglet)) !== 'voicing') { await page.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]'); await page.waitForTimeout(400); }
+    };
     await page.goto(`${BASE}/index.html?nocache=` + Date.now(), { waitUntil: 'load' });
     await page.waitForTimeout(300);
     await page.evaluate(seed);
@@ -105,8 +115,7 @@ const atteignable = (sel) => {
     check(qualites.cachees === 0, `aucune qualité n\'est masquée — ${qualites.cachees} option(s) cachée(s)`);
 
     console.log('\n=== C. Point 2 : la basse vit dans la rangée voicing, et elle est branchée ===');
-    await page.evaluate(() => window.app.editChord(0, 0));
-    await page.waitForTimeout(400);
+    await ouvrirVoicing(0);
     const place = await page.evaluate(() => {
         const b = document.getElementById('bass');
         return { dansRangee: !!(b && b.closest('#voicing-row')), etiquette: document.getElementById('bass-label') ? document.getElementById('bass-label').textContent.trim() : null };
@@ -125,8 +134,7 @@ const atteignable = (sel) => {
 
     console.log('\n=== D. Points 3 et 4 : l\'état initial n\'a pas de bouton, et le clic bascule ===');
     // On repart d'un accord propre (fondamentale, sans drop).
-    await page.evaluate(() => window.app.editChord(0, 0));
-    await page.waitForTimeout(400);
+    await ouvrirVoicing(0);
     const etiquettes = await page.evaluate(() => ({
         renv: [...document.querySelectorAll('#inversion-seg .voicing-segment')].map(b => b.textContent.trim()),
         drop: [...document.querySelectorAll('#drop-seg .voicing-segment')].map(b => b.textContent.trim()),
@@ -184,8 +192,7 @@ const atteignable = (sel) => {
     console.log('\n=== E. Un accord qui se servait de ce qui était caché s\'ouvre tel quel ===');
     // Le cas qui prouve qu'on n'a rien perdu : qualité enrichie + basse + renversement + drop, tous
     // enregistrés, tous à relire sans le moindre dépliage.
-    await page.evaluate(() => window.app.editChord(0, 1));
-    await page.waitForTimeout(500);
+    await ouvrirVoicing(1);
     const relu = await page.evaluate(() => ({
         quality: document.getElementById('quality').value,
         bass: document.getElementById('bass').value,

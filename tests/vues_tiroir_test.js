@@ -206,13 +206,13 @@ const DADD11 = [[1, 5], [2, 4], [3, 2], [4, 3], [5, 3]];
 
     // Pendant une modification (inspecteur ouvert) : taper une touche n'en fait pas sortir, et ne désélectionne pas.
     await dblclickHorsNom(p, cellule(0, 1)); await p.waitForTimeout(300); // B2 (12/11) : hors du texte du nom ; point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
-    await p.click('[data-bulle="son"]'); await p.waitForTimeout(400);
+    await p.click('[data-bulle="onglet"][data-valeur="voicing"]'); await p.waitForTimeout(400);
     const enEdition = await p.evaluate(() => window.app.editingIndex);
     exiger(enEdition === 1, 'l\'inspecteur « son de l\'accord » est ouvert sur l\'accord 2');
     await touche(p, await doDeLaFenetre(p) + 4);
     check(await p.evaluate(() => window.app.editingIndex === 1 && window.app.selectedIndex === 1), 'taper une touche pendant la modification n\'en fait pas sortir');
     await p.click('#kb-effacer');
-    await p.click('#accord-close'); await p.waitForTimeout(300); // la croix de l'inspecteur : la modification se ferme
+    await p.click('#bulle-accord [data-bulle="fermer"]'); await p.waitForTimeout(300); // la croix de l'inspecteur : la modification se ferme
     // Structure et Paroles recouvrent la grille : le tiroir attend derrière elles.
     await p.click('#structure-btn'); await p.waitForTimeout(500);
     check(await rect(p, '#vues-tiroir') === null, 'sous la vue Structure le tiroir est masqué');

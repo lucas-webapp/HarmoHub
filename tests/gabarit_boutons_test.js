@@ -26,10 +26,7 @@ const PASTILLES = new Set(['logo', 'cc-pill']);
 // Commande → lot qui la supprime ou la remet à la jauge. Clé = id, à défaut la première classe.
 const HORS_JAUGE = {
     // Lot 6c : fondamentale, type, durée, « Ajouter » et le repli du bandeau ne sont plus à l'écran sur ordinateur (bulle + inspecteur) — sortis d'ici.
-    // Les commandes de voicing restent : elles vivent dans l'inspecteur, à remettre à la jauge avec lui.
-    'voicing-step': 'lot 6',
-    'voicing-segment': 'lot 6',
-    'bass': 'lot 6',
+    // L6a (14/11) : l'inspecteur n'existe plus ; les commandes du voicing (voicing-step, voicing-segment, bass) vivent dans l'onglet Voicing de la bulle et sont à la jauge : sorties d'ici.
     // 'seq-zoom' (le « Séquenceur » de l'inspecteur) est sorti d'ici au retrait de l'ancien séquenceur, étape 4b (12/11) : la porte a quitté l'ordinateur.
 };
 

@@ -286,10 +286,10 @@ const accord = (e, s, i) => e.secs[s].chords[i];
             await dblclickHorsNom(p, CASE(0, 1)); await p.waitForTimeout(400); // point B : le double-clic ouvre la bulle (B2, 12/11 : hors du texte du nom, que le double-clic retape)
             const o1 = await p.evaluate(() => ({ bulle: !document.getElementById('bulle-accord').hidden, panneau: document.getElementById('panneau-accord').getBoundingClientRect().height }));
             check(o1.bulle && o1.panneau === 0, `ordinateur : un double-clic ouvre la bulle, jamais le panneau du téléphone (${JSON.stringify(o1)})`);
-            await p.click('#bulle-accord [data-bulle="son"]'); await p.waitForTimeout(400);
+            await p.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]'); await p.waitForTimeout(400);
             const o2 = await p.evaluate(() => ({ mode: document.body.dataset.appMode, carte: document.getElementById('accord-card').parentElement.className,
-                inspecteur: document.querySelector('.sidebar-frame').getBoundingClientRect().width }));
-            check(o2.mode === 'edit' && /panel-controls/.test(o2.carte) && o2.inspecteur > 300, `et « Réglages du son » ouvre l'inspecteur à droite, la carte à sa place (${JSON.stringify(o2)})`);
+                inspecteur: document.querySelector('.sidebar-frame').getBoundingClientRect().width, rangeeDansBulle: !!document.getElementById('voicing-row').closest('#bulle-accord') }));
+            check(o2.mode === 'edit' && /panel-controls/.test(o2.carte) && o2.inspecteur === 0 && o2.rangeeDansBulle, `et l'onglet Voicing ouvre la modification DANS la fenêtre (plus d'inspecteur), la carte à sa place (${JSON.stringify(o2)})`);
             await ctx.close();
         }
         {
@@ -299,9 +299,9 @@ const accord = (e, s, i) => e.secs[s].chords[i];
             const avant = await etat(p);
             await p.setViewportSize({ width: 1320, height: 820 }); await p.waitForTimeout(500);
             const apres = await etat(p);
-            const insp = await p.evaluate(() => document.querySelector('.sidebar-frame').getBoundingClientRect().width);
-            check(avant.carte === 'pa-son' && !apres.ouvert && apres.edit === 2 && apres.mode === 'edit' && /panel-controls/.test(apres.carte) && insp > 300,
-                `panneau agrandi puis fenêtre élargie : le panneau s'efface, la modification continue dans l'inspecteur (${JSON.stringify({ avant: avant.carte, edit: apres.edit, carte: apres.carte })})`);
+            const fen = await p.evaluate(() => ({ bulle: !document.getElementById('bulle-accord').hidden, onglet: window.app._bulle && window.app._bulle.onglet, rangee: !!document.getElementById('voicing-row').closest('#bulle-accord') }));
+            check(avant.carte === 'pa-son' && !apres.ouvert && apres.edit === 2 && apres.mode === 'edit' && /panel-controls/.test(apres.carte) && fen.bulle && fen.onglet === 'voicing' && fen.rangee,
+                `panneau agrandi puis fenêtre élargie : le panneau s'efface, la modification continue dans la fenêtre d'accord, onglet Voicing (${JSON.stringify({ avant: avant.carte, edit: apres.edit, carte: apres.carte, fen })})`);
             await ctx.close();
         }
         check(erreurs.length === 0, `aucune erreur JavaScript nulle part (${erreurs.length}) ${erreurs.slice(0, 2).join(' | ')}`);

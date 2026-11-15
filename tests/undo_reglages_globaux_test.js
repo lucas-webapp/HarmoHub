@@ -16,6 +16,7 @@
 // corrigé pour #quick-add-input (voir ajoutRapideVide). Et un clic-glissé RÉEL sur le curseur de tempo
 // (pas la poignée, le rail) fait sauter la valeur DÈS le mousedown, avant même l'évènement 'focus' :
 // capturer seulement sur 'focus' ratait donc ce premier saut (voir armGlobalSettingUndo/pointerdown).
+const { ouvrirSaisieRapide } = require('./_ajout');
 const { chromium } = require('playwright')
 const creerHarnais = require('./_harness');
 const { plan, check, bilan } = creerHarnais('Ctrl+Z : réglages globaux (tempo, mesure, groove, tonalité, nom)');
@@ -129,7 +130,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
     console.log('\n=== F. Non-régression : #quick-add-input garde son exception (texte vide -> Ctrl+Z passe) ===');
     // L5b (14/11) : la saisie rapide s'ouvre par « + Accord » (elle n'est plus permanente à l'ordinateur).
-    await page.click('#progression-sections .prog-section-ajout[data-section="0"]'); await page.waitForTimeout(300);
+    await ouvrirSaisieRapide(page, 0); // L6c : « + Accord » n'existe plus
     await page.fill('#quick-add-input', '');
     await page.locator('#quick-add-input').focus();
     const countBeforeF = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords.length);

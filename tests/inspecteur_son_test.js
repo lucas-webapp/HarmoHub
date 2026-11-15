@@ -42,7 +42,7 @@ const graine = (opts) => {
     const visible = async (p, sel) => { const b = await boite(p, sel); return !!b && b.l > 0 && b.haut > 0; };
     const ouvrirSon = async (p, i) => {
         await dblclickHorsNom(p, `#progression-sections .grid-cell[data-index="${i}"]`); await p.waitForTimeout(300); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
-        await p.click('#bulle-accord [data-bulle="son"]'); await p.waitForTimeout(500);
+        await p.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]'); await p.waitForTimeout(500);
     };
 
     // ======================================================================================================
@@ -55,61 +55,60 @@ const graine = (opts) => {
     const sansInsp = await boite(p, '#grille-cadre');
 
     // ======================================================================================================
-    console.log('\n=== B. « Réglages du son » : l\'inspecteur, à droite, sur cet accord ===');
+    // L6a : l'inspecteur flottant a disparu à l'ordinateur ; son contenu (« comment il sonne ») est l'onglet Voicing de la fenêtre d'accord. Le banc garde TOUT ce qu'il tenait
+    // (rien aux deux endroits, modification en direct, voicing personnalisé et retour à l'automatique, une annulation, fermeture, ancien repli) pour ce nouvel endroit.
+    console.log('\n=== B. L\'onglet Voicing de la fenêtre d\'accord, sur cet accord ===');
     await ouvrirSon(p, 1);
     exiger(await p.evaluate(() => window.app.editingIndex === 1), 'l\'accord est ouvert');
-    const insp = await boite(p, '.sidebar-frame'), col = await boite(p, '.col-right'), cadre = await boite(p, '#grille-cadre');
-    // Refonte du séquenceur (point C) : il FLOTTE au bord droit au lieu de réserver une colonne — la grille n'est plus resserrée ni déplacée.
-    check(insp && insp.l === 344 && insp.g >= cadre.d - 1 && Math.round(insp.d) <= Math.round(col.d) + 1, `un panneau de 344px, à DROITE de la fenêtre de grille (${insp && insp.l}px, de ${insp && Math.round(insp.g)} ; fenêtre jusqu'à ${Math.round(cadre.d)})`);
-    check(cadre.d <= insp.g, 'il ne recouvre pas la grille');
-    check(!(await visible(p, '#toggle-sidebar')), 'et l\'ancienne étiquette de repli ne revient pas avec lui');
+    const bul = await boite(p, '#bulle-accord'), cadre = await boite(p, '#grille-cadre');
+    check(bul && bul.l > 200 && !(await visible(p, '.sidebar-frame')), `le COMMENT il sonne est dans la fenêtre d'accord (${bul && bul.l}px), plus dans un panneau flottant à droite`);
     check(Math.abs(cadre.g - sansInsp.g) <= 1 && Math.abs(sansInsp.l - cadre.l) <= 1, `la fenêtre de grille ne bouge pas d'un pixel, à sa largeur (${Math.round(sansInsp.g)} → ${Math.round(cadre.g)})`);
-    const titre = await p.evaluate(() => document.getElementById('accord-title').textContent.replace(/\s+/g, ''));
-    check(titre === 'ModifierAm7', `il nomme l'accord qu'il règle (« ${titre} »)`);
-    check(!(await visible(p, '#root')) && !(await visible(p, '#quality')) && !(await visible(p, '#duration-dd')), '« rien aux deux endroits » : ni fondamentale, ni type, ni durée — c\'est la bulle');
-    // RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : la porte « Séquenceur » et le petit séquenceur ont quitté l'inspecteur — la fenêtre d'accord n'a « pas de ligne
-    // Rythme », le rythme se règle au séquenceur du bloc « Vues » (docs/refonte-sequenceur.md, 3 bis).
-    check(await visible(p, '#voicing-row') && !(await visible(p, '#seq-zoom')) && !(await p.evaluate(() => !!document.getElementById('arp-sequencer'))) && await visible(p, '#vue-sequenceur'),
-        'le petit séquenceur n\'existe plus ; le COMMENT il sonne y est : voicing (octave, renversement, drop, basse) ; le rythme n\'y est plus, il se règle au séquenceur du bloc « Vues »');
-    check(await p.evaluate(() => /126, 166, 224/.test(getComputedStyle(document.getElementById('accord-title')).color)), 'en bleu, comme la case choisie — fini l\'orange');
+    check(!(await visible(p, '#toggle-sidebar')), 'et l\'ancienne étiquette de repli ne revient pas');
+    const titre = await p.evaluate(() => document.querySelector('#bulle-accord .bulle-nom').textContent.replace(/\s+/g, ''));
+    check(titre === 'Am7', `elle nomme l'accord qu'elle règle (« ${titre} »)`);
+    check(!(await visible(p, '#root')) && !(await visible(p, '#quality')) && !(await visible(p, '#duration-dd')), '« rien aux deux endroits » : ni fondamentale, ni type, ni durée de l\'ancienne carte — l\'onglet Accord les porte');
+    // RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : la porte « Séquenceur » et le petit séquenceur ont quitté la fenêtre ; le rythme se règle au séquenceur du bloc « Vues » ou dans l'onglet Rythme.
+    check(await visible(p, '#bulle-accord #voicing-row') && !(await visible(p, '#seq-zoom')) && !(await p.evaluate(() => !!document.getElementById('arp-sequencer'))) && await visible(p, '#vue-sequenceur'),
+        'le petit séquenceur n\'existe plus ; le voicing (octave, renversement, drop, basse) est là, dans la fenêtre');
+    check(await p.evaluate(() => { const t = document.querySelector('#bulle-accord .bulle-onglets [data-valeur="voicing"]'); return t.getAttribute('aria-pressed') === 'true' && /0, 230, 118|rgb\(1[0-9]{2}, 2[0-9]{2}/.test(getComputedStyle(t).color); }), 'l\'onglet Voicing est l\'actif, en vert — fini l\'orange et le bleu');
 
     // ======================================================================================================
     console.log('\n=== C. Il modifie en direct ===');
-    await p.click('#voicing-row [data-octave-step="1"]'); await p.waitForTimeout(300);
+    await p.click('#bulle-accord #voicing-row [data-octave-step="1"]'); await p.waitForTimeout(300);
     check(await p.evaluate(() => Number(loadProgressionSections()[0].chords[1].octave)) === 4, 'octave + : l\'accord passe à l\'octave 4, sans bouton à valider');
 
     // ======================================================================================================
     console.log('\n=== D. Voicing personnalisé : dire pourquoi, et savoir en revenir ===');
-    const perso = await p.evaluate(() => { const b = document.getElementById('voicing-perso'); return { vu: !b.hidden && b.getBoundingClientRect().height > 0, texte: document.getElementById('voicing-perso-texte').textContent }; });
-    check(perso.vu && /une note ajoutée à la main/.test(perso.texte), `l'inspecteur dit pourquoi la case porte une pastille ambre (« ${perso.texte} »)`);
+    const perso = await p.evaluate(() => { const b = document.getElementById('voicing-perso'); return { vu: !b.hidden && b.getBoundingClientRect().height > 0, dans: !!b.closest('#bulle-accord'), texte: document.getElementById('voicing-perso-texte').textContent }; });
+    check(perso.vu && perso.dans && /une note ajoutée à la main/.test(perso.texte), `la fenêtre dit pourquoi la case porte une pastille ambre (« ${perso.texte} »)`);
     await p.click('#voicing-perso-auto'); await p.waitForTimeout(400);
     const apres = await p.evaluate(() => ({ libres: (loadProgressionSections()[0].chords[1].extraNotes || []).length, bloc: document.getElementById('voicing-perso').hidden,
         pastille: !!document.querySelector('#progression-sections .grid-cell[data-index="1"] .cell-perso'), octave: Number(loadProgressionSections()[0].chords[1].octave) }));
     check(apres.libres === 0 && apres.bloc && !apres.pastille, `« Revenir à l'automatique » : la note ajoutée part, le bloc et la pastille aussi (${JSON.stringify(apres)})`);
     check(apres.octave === 4, 'le reste du réglage (l\'octave) est gardé');
-    await p.click('#accord-close'); await p.waitForTimeout(300);
+    await p.click('#bulle-accord [data-bulle="fermer"]'); await p.waitForTimeout(300);
     await p.keyboard.press('Control+z'); await p.waitForTimeout(400);
     const repris = await p.evaluate(() => { const c = loadProgressionSections()[0].chords[1]; return { libres: (c.extraNotes || []).length, octave: Number(c.octave) }; });
-    check(repris.libres === 1 && repris.octave === 3, `Ctrl+Z défait la session de l'inspecteur d'un coup : la note revient, l'octave aussi (${JSON.stringify(repris)})`);
+    check(repris.libres === 1 && repris.octave === 3, `Ctrl+Z défait la session de la fenêtre d'un coup : la note revient, l'octave aussi (${JSON.stringify(repris)})`);
     check(await p.evaluate(() => !!document.querySelector('#progression-sections .grid-cell[data-index="1"] .cell-perso')), 'et la pastille ambre avec elle');
 
     // ======================================================================================================
-    console.log('\n=== E. La croix le ferme ===');
+    console.log('\n=== E. La croix la ferme ===');
     await ouvrirSon(p, 2);
-    check(await visible(p, '.sidebar-frame'), 'rouvert sur un autre accord');
+    check(await visible(p, '#bulle-accord #voicing-row'), 'rouverte sur un autre accord');
     check(await p.evaluate(() => document.getElementById('voicing-perso').hidden), 'un accord au voicing automatique n\'a pas le bloc « personnalisé »');
-    await p.click('#accord-close'); await p.waitForTimeout(300);
-    check(!(await visible(p, '.sidebar-frame')) && await p.evaluate(() => window.app.editingIndex == null), '× : l\'inspecteur se ferme, l\'accord n\'est plus en modification');
+    await p.click('#bulle-accord [data-bulle="fermer"]'); await p.waitForTimeout(300);
+    check(!(await visible(p, '#bulle-accord')) && await p.evaluate(() => window.app.editingIndex == null && !document.getElementById('voicing-row').closest('#bulle-accord')), '× : la fenêtre se ferme, l\'accord n\'est plus en modification, la rangée est rentrée dans sa carte');
     check(Math.abs((await boite(p, '#grille-cadre')).g - sansInsp.g) <= 1, 'la grille reprend sa place d\'origine');
     await p.close();
 
     // ======================================================================================================
-    console.log('\n=== F. Un ancien repli du bandeau, mémorisé, ne vide pas l\'inspecteur ===');
+    console.log('\n=== F. Un ancien repli du bandeau, mémorisé, ne vide pas la fenêtre ===');
     p = await ouvrir({ width: 1440, height: 900 }, { replie: true });
     await ouvrirSon(p, 0);
     const replie = await p.evaluate(() => document.body.classList.contains('sidebar-collapsed'));
     exiger(replie, 'le repli mémorisé est bien appliqué');
-    check(await visible(p, '#accord-card') && (await boite(p, '.sidebar-frame')).l === 344, 'l\'inspecteur est là, entier, malgré le repli d\'avant');
+    check(await visible(p, '#bulle-accord #voicing-row') && (await boite(p, '#voicing-row')).l > 100, 'la rangée du voicing est là, entière, malgré le repli d\'avant');
     await p.close();
 
     // ======================================================================================================

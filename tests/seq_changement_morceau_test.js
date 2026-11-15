@@ -106,7 +106,7 @@ const mk = (root, q) => ({ root, quality: q, beats: 4, inversion: 0, drop: 'none
     await page.waitForTimeout(700);
     await page.evaluate(() => window.app.editChord(0, 0));
     await page.waitForTimeout(300);
-    await page.click('#accord-close');
+    await page.evaluate(() => window.app.cancelEdit()); // L6a : l'inspecteur et sa croix n'existent plus ; la modification, ouverte ici par l'appel de l'appli, se referme de même
     await page.waitForTimeout(500);
     check((await vue()).accordDuPanneau === 'A#min7',
         'après « Fermer », l\'accord reste sous la main pour enchaîner une variante');

@@ -10,7 +10,7 @@
 //      « Ajouter » et la saisie de la page ont disparu, la case « + » reste visible au-dessus du panneau, le clavier virtuel ne s'ouvre pas ;
 //   B. un accord de la tonalité, d'un toucher : ajouté à la fin, UNE annulation, le panneau reste ouvert, le suivant se range après ;
 //   C. les suggestions « Souvent après » suivent l'accord précédent ; « avec 7e » passe aux accords de 7e ;
-//   D. la saisie unique, syntaxe complète : « Am7/F » (deux accords, une annulation), « C_E » (basse), puis un symbole inconnu ne change rien ;
+//   D. la saisie unique, syntaxe complète : « Am7//F » (deux accords, une annulation ; « / » seul serait une basse depuis le 15/11), « C_E » (basse), puis un symbole inconnu ne change rien ;
 //   E. l'aide « ? » s'ouvre dans l'écran et se referme ;
 //   F. ✕, Échap et le toucher à côté referment le panneau, la saisie rentre dans la page, la destination s'oublie ;
 //   G. ouvrir le panneau d'ajout ferme celui de l'accord, et l'inverse ; le mode Modification garde sa carte (10d) ;
@@ -124,11 +124,11 @@ const etat = (p) => p.evaluate(() => {
 
         // ===== D. LA SAISIE UNIQUE ===================================================================================================
         await toucher(p, '#quick-add-input', 300);
-        await p.keyboard.type('Am7/F', { delay: 20 });
+        await p.keyboard.type('Am7//F', { delay: 20 });
         const u1 = (await etat(p)).undo;
         await toucher(p, '#quick-add-btn', 400);
         const d1 = await etat(p);
-        check((await noms(p, 0)).endsWith('E:min A:min7 F:maj') && d1.undo === u1 + 1, `« Am7/F » : deux accords, une seule annulation (${await noms(p, 0)} ; ${u1} → ${d1.undo})`);
+        check((await noms(p, 0)).endsWith('E:min A:min7 F:maj') && d1.undo === u1 + 1, `« Am7//F » : deux accords, une seule annulation (${await noms(p, 0)} ; ${u1} → ${d1.undo})`);
         const champ = await p.evaluate(() => document.getElementById('quick-add-input').value);
         check(champ === '' && d1.ouvert, `la saisie se vide et le panneau reste ouvert pour enchaîner (« ${champ} »)`);
         await toucher(p, '#quick-add-input', 200);
@@ -144,7 +144,7 @@ const etat = (p) => p.evaluate(() => {
         // ===== E. L'AIDE « ? » ======================================================================================================
         await toucher(p, '#quick-add-help-btn', 300);
         const h1 = await p.evaluate(() => { const h = document.getElementById('quick-add-help'), r = h.getBoundingClientRect();
-            return { ouvert: !h.hidden, dedans: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, texte: /C\/Am\/F\/G/.test(h.textContent) }; });
+            return { ouvert: !h.hidden, dedans: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, texte: /C\/\/Am\/\/F\/\/G/.test(h.textContent) && /Bbadd9\/C/.test(h.textContent) }; });
         check(h1.ouvert && h1.dedans && h1.texte, `« ? » ouvre l'aide de la saisie, entière dans l'écran (${JSON.stringify(h1)})`);
         await toucher(p, '#quick-add-help-btn', 300);
         check(await p.evaluate(() => document.getElementById('quick-add-help').hidden), `un second toucher sur « ? » la referme`);
@@ -215,11 +215,12 @@ const etat = (p) => p.evaluate(() => {
             // RÉÉCRIT À L5b (14/11, « la barre Ajout rapide n'est plus permanente ») : la case « + » reste un champ ; la saisie reste DANS la page (pas dans le panneau du bas), mais elle n'est
             // visible que panneau d'ajout ouvert (« + Accord »).
             check(!o1.readonly && !o1.saisie && o1.dans === 'quick-add-panel', `ordinateur : la case « + » reste un champ, la saisie est dans la page mais fermée tant que le panneau l'est (${JSON.stringify(o1)})`);
-            await p.click('#progression-sections .prog-section-ajout >> nth=0'); await p.waitForTimeout(400);
-            check(await p.evaluate(() => document.getElementById('quick-add-input').getBoundingClientRect().height > 0 && document.querySelector('.quick-add-row').parentElement.id === 'quick-add-panel'), 'ordinateur : « + Accord » montre la saisie, toujours dans la page');
+            // L6c : « + Accord » n'existe plus à l'ordinateur ; le panneau d'ajout de la fin d'une partie s'ouvre par l'appel de l'appli (voir _ajout.js), et montre la saisie dans la page.
+            await p.evaluate(() => window.app.ouvrirAideAjout(0, null)); await p.waitForTimeout(400);
+            check(await p.evaluate(() => document.getElementById('quick-add-input').getBoundingClientRect().height > 0 && document.querySelector('.quick-add-row').parentElement.id === 'quick-add-panel'), 'ordinateur : le panneau d\'ajout montre la saisie, toujours dans la page');
             const o2 = await p.evaluate(() => { const pa = document.getElementById('ajout-aide'), r = pa.getBoundingClientRect();
                 return { ouvert: !pa.hidden, fixe: getComputedStyle(pa).position, bas: Math.round(r.bottom), ih: innerHeight, classe: document.body.classList.contains('aj-ouvert') }; });
-            check(o2.ouvert && o2.fixe === 'absolute' && !o2.classe, `ordinateur : « + Accord » ouvre toujours le panneau sous la saisie, pas en feuille du bas (${JSON.stringify(o2)})`);
+            check(o2.ouvert && o2.fixe === 'absolute' && !o2.classe, `ordinateur : le panneau d'ajout s'ouvre toujours sous la saisie, pas en feuille du bas (${JSON.stringify(o2)})`);
             await ctx.close();
         }
         {

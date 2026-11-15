@@ -47,7 +47,7 @@ const graine = () => {
         const presse = (a) => [...b.querySelectorAll(`[data-bulle="${a}"][aria-pressed="true"]`)].map(x => x.textContent);
         return { nom: b.querySelector('.bulle-nom').textContent, degre: (b.querySelector('.bulle-degre') || {}).textContent || '', ou: b.querySelector('.bulle-ou').textContent,
             racines: b.querySelectorAll('[data-bulle="root"]').length, types: b.querySelectorAll('[data-bulle="quality"]').length, basses: b.querySelectorAll('[data-bulle="bass"]').length,
-            root: presse('root'), quality: presse('quality'), bass: presse('bass'), duree: b.querySelector('.bulle-duree').textContent,
+            root: presse('root'), quality: presse('quality'), bass: presse('bass'), duree: (b.querySelector('.bulle-duree') || {}).textContent || '', // absent hors de l'onglet Accord (L6a)
             haut: r.top, bas: r.bottom, gauche: r.left, droite: r.right, l: Math.round(r.width) };
     });
     const accord = (p, i) => p.evaluate((i) => { const c = loadProgressionSections()[0].chords[i]; return { root: c.root, quality: c.quality, bass: c.bass || null, beats: c.beats }; }, i);
@@ -60,7 +60,7 @@ const graine = () => {
     await cliquer(p, 1);
     let b = await bulle(p);
     exiger(!!b, 'un clic sur une case ouvre la bulle');
-    check(b.nom === 'Am7' && b.degre === 'vi7' && b.ou === 'mes. 2 · Couplet', `elle dit l'accord, son degré et sa place : ${b.nom} · ${b.degre} · ${b.ou}`);
+    check(b.nom === 'Am7' && b.degre === 'vi7' && b.ou === 'mes. 2', `elle dit l'accord, son degré et sa place (L6a : « mes. N » seul, la partie est dans le repère) : ${b.nom} · ${b.degre} · ${b.ou}`);
     check(b.racines === 12 && b.types === 20 && b.basses === 13, `douze fondamentales, les vingt types, treize basses (${b.racines}/${b.types}/${b.basses})`);
     check(JSON.stringify([b.root, b.quality, b.bass]) === JSON.stringify([['A'], ['Min 7'], ['—']]) && b.duree === '1 mesure', `l'accord est coché tel qu'il est : ${b.root} / ${b.quality} / ${b.bass} / ${b.duree}`);
     const cel = await p.evaluate(() => { const c = document.querySelector('#progression-sections .grid-cell[data-index="1"]'); const r = c.getBoundingClientRect(); return { bas: r.bottom, gauche: r.left, bord: getComputedStyle(c).borderTopColor, cls: c.className }; });
@@ -101,7 +101,7 @@ const graine = () => {
     await choisir(p, 'root', 'E');
     await choisir(p, 'suiv');
     b = await bulle(p);
-    check(b && b.nom === 'Dm7' && b.ou === 'mes. 3 · Couplet', `› passe à l'accord suivant (${b && b.nom})`);
+    check(b && b.nom === 'Dm7' && b.ou === 'mes. 3', `› passe à l'accord suivant (${b && b.nom})`);
     check(await p.evaluate(() => window.app.selectedIndex) === 2, 'et le choisit dans la grille');
     await choisir(p, 'root', 'G');
     await p.keyboard.press('Escape'); await p.waitForTimeout(150);
@@ -130,7 +130,7 @@ const graine = () => {
     b = await bulle(p);
     check(b && b.nom === 'G7', `un clic sur une autre case DÉPLACE la bulle (${b && b.nom})`);
     // « À côté » pour de vrai : un point hors de la bulle ET de la grille (la bulle du dernier accord est calée sur le bord droit de l'écran).
-    const dehors = await p.evaluate(() => { const b = document.getElementById('bulle-accord').getBoundingClientRect(); return { x: 200, y: Math.min(innerHeight - 120, 760), dansBulle: 200 >= b.left && 200 <= b.right }; });
+    const dehors = await p.evaluate(() => { const b = document.getElementById('bulle-accord').getBoundingClientRect(); return { x: 200, y: 300, dansBulle: 200 >= b.left && 200 <= b.right }; }); // L6a : le tiroir Clavier / Guitare ne ferme plus la bulle (on y voit l'accord qu'on règle) : le « à côté » est le vide à gauche de la grille
     exiger(!dehors.dansBulle, 'le point visé est bien hors de la bulle');
     await p.mouse.click(dehors.x, dehors.y); await p.waitForTimeout(200);
     check(await bulle(p) === null, 'un clic à côté la ferme');
@@ -155,11 +155,11 @@ const graine = () => {
     await p.keyboard.press('Control+z'); await p.waitForTimeout(300);
 
     // ======================================================================================================
-    console.log('\n=== F. « Réglages du son » ===');
+    console.log('\n=== F. L\'onglet Voicing (ex-« Réglages du son », L6a) ===');
     await cliquer(p, 3);
-    await choisir(p, 'son');
-    check(await p.evaluate(() => window.app.editingIndex === 3 && window.app.appMode === 'edit'), 'la carte Accord s\'ouvre sur CET accord (le comment il sonne)');
-    check(await bulle(p) === null, 'la bulle se retire');
+    await p.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]'); await p.waitForTimeout(400);
+    check(await p.evaluate(() => window.app.editingIndex === 3 && window.app.appMode === 'edit'), 'l\'onglet Voicing ouvre la modification de CET accord (le comment il sonne)');
+    check(await bulle(p) !== null, 'la bulle reste là (plus de fenêtre qui s\'ouvre ailleurs)');
     check(await p.evaluate(() => /rgba?\(214, 219, 226/.test(getComputedStyle(document.querySelector('#progression-sections .grid-cell[data-index="3"]')).borderTopColor)), 'la case en modification est grise claire elle aussi (B1, 12/11) — fini l\'orange');
     await p.evaluate(() => window.app.cancelEdit()); await p.waitForTimeout(200);
 

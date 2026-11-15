@@ -182,12 +182,12 @@ const atteignable = (sel) => {
     // est justement ce qu'on cherchait. Exiger encore -30px reviendrait à réclamer la rangée perdue.
     check(hEdit.mode === 'edit' && !hEdit.dureeVisible,
         `mode Modification : la durée s'efface (carte ${hEdit.h}px contre ${hAjout}px en Ajout)`);
-    // Et sur ordinateur : la même carte, en modification, est l'inspecteur — la rangée « quel accord » n'y est plus du tout (« rien aux deux endroits »).
+    // Et sur ordinateur (L6a) : plus d'inspecteur — la modification continue dans la fenêtre d'accord, onglet Voicing ; la rangée « quel accord » de la carte n'y est plus du tout (« rien aux deux endroits »).
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.waitForTimeout(400);
     const bureau = await page.evaluate(() => ({ rangee: getComputedStyle(document.querySelector('.accord-grid')).display, voicing: document.getElementById('voicing-row').getBoundingClientRect().height > 0,
-        aDroite: document.querySelector('.sidebar-frame').getBoundingClientRect().left > document.querySelector('.col-right').getBoundingClientRect().left }));
-    check(bureau.rangee === 'none' && bureau.voicing && bureau.aDroite, `ordinateur, en modification : la carte est l'inspecteur, à droite, sans la rangée « quel accord » (${JSON.stringify(bureau)})`);
+        dansFenetre: !!document.getElementById('voicing-row').closest('#bulle-accord'), inspecteur: document.querySelector('.sidebar-frame').getBoundingClientRect().width }));
+    check(bureau.rangee === 'none' && bureau.voicing && bureau.dansFenetre && bureau.inspecteur === 0, `ordinateur, en modification : la rangée du voicing est dans la fenêtre d'accord, sans inspecteur ni rangée « quel accord » (${JSON.stringify(bureau)})`);
     await page.setViewportSize({ width: 860, height: 950 });
     await page.waitForTimeout(400);
 

@@ -219,7 +219,7 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     const ivAvant = (await croches(p, 3)).iv;
     await ouvrirSon(p, 0, 3);
     // Une vraie retouche dans l'inspecteur (une octave plus haut) : le motif ne change pas, l'accord est réécrit depuis son édition vivante.
-    await p.click('.control-card [aria-label="Monter d\'une octave"]'); await p.waitForTimeout(400);
+    await p.click('#bulle-accord [aria-label="Monter d\'une octave"]'); await p.waitForTimeout(400);
     await p.keyboard.press('Escape'); await p.waitForTimeout(300);
     await p.mouse.click(700, 420); await p.waitForTimeout(400);
     const j3b = await p.evaluate(() => String(loadProgressionSections()[0].chords[3].octave));

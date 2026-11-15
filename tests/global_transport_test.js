@@ -31,6 +31,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // échouait donc sur « visible au chargement », et sa section E cliquait en plus #grid-zoom-close, le
 // bouton de fermeture de la vue plein écran supprimée : rien après n'était atteint.
 const R = require('./_retrait_ancien');
+const { dblclickHorsNom } = require('./_geste_accord');
 const { check, exiger, plan, bilan } = require('./_harness')('transport global');
 plan(40);
 
@@ -216,15 +217,18 @@ const mk = (root, q, beats) => ({ root, quality: q, beats, inversion: 0, drop: '
     await R.cliquer(p, '#sq-fermer', 400);
 
     console.log('\n=== F. Édition d\'un accord : Ajouter/Annuler restent où ils étaient (pas de régression) ===');
-    await p.evaluate(() => window.app.editChord(0, 0));
-    await p.waitForTimeout(300);
+    // L6a : à l'ordinateur la modification s'ouvre par l'onglet Voicing de la fenêtre d'accord (vrais gestes) ; le pied de colonne (.dock) est dans la colonne de gauche,
+    // masquée depuis qu'il n'y a plus d'inspecteur : la sortie de la modification est la croix de la fenêtre (« Fermer », Échap).
+    await dblclickHorsNom(p, '#progression-sections .grid-cell[data-index="0"]'); await p.waitForTimeout(300);
+    await p.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]'); await p.waitForTimeout(400);
     const editUI = await p.evaluate(() => {
         const dock = document.getElementById('footer-dock');
         const editActions = document.getElementById('edit-actions');
-        return { dansLeDock: dock.contains(editActions), dockVisible: dock.offsetParent !== null };
+        const x = document.querySelector('#bulle-accord [data-bulle="fermer"]');
+        return { dansLeDock: dock.contains(editActions), sortie: !!x && x.offsetParent !== null && window.app.appMode === 'edit' };
     });
     check(editUI.dansLeDock, 'le bloc Ajouter/À la suite/Annuler est bien ancré dans .dock pendant l\'édition');
-    check(editUI.dockVisible, '...et ce pied de colonne est visible');
+    check(editUI.sortie, '...et la sortie de la modification est à l\'écran : la croix de la fenêtre d\'accord');
 
     console.log('\n=== G. Boucler une plage : le bouton unique se recolore, comme avant ===');
     await p.evaluate(() => window.app.cancelEdit && window.app.cancelEdit());

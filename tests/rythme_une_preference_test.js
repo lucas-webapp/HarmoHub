@@ -135,7 +135,7 @@ const ouvrir = async (p) => { await p.click('#open-settings'); await p.waitForTi
     // On SORT du mode Modification par le vrai geste : la croix de l'en-tête de la carte Accord.
     // window.app.exitEditMode() seul laisse « Ajouter » masqué jusqu'au prochain rendu de la grille —
     // état qu'aucun geste réel ne produit, et qu'un banc ne doit donc pas fabriquer pour lui-même.
-    await page.click('#accord-close');
+    await page.evaluate(() => window.app.cancelEdit()); // L6a : l'inspecteur et sa croix n'existent plus ; la modification, ouverte ici par l'appel de l'appli, se referme de même
     await page.waitForTimeout(700);
     const avant = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords.length);
     // Lot 10e : le geste d'ajout est la saisie du panneau d'ajout (plus de carte « Nouvel accord » ni de « Ajouter »).

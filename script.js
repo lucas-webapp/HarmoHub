@@ -212,9 +212,25 @@ const QUALITY_ALIASES = {
 // était déjà réglé (retour utilisateur : ce qu'on tape doit décrire le voicing ENTIER, pas juste un
 // correctif de racine/qualité — voir buildChordData et startInlineChordSymbolEdit, seuls appelants
 // qui donnent un sens à octave/inversion/drop).
+// DÉCOUPE d'une saisie en symboles d'accords. LA RÈGLE (retour du 15/11 : « on s'était mis d'accord sur la règle du // pour changer d'accord ») : « // » sépare deux accords ;
+// un « / » SEUL suivi d'un nom de note est la BASSE, comme sur une partition (« Bbadd9/C » = Bbadd9 avec un C à la basse, un seul accord). Habitude conservée : une liste
+// « C/Am/F/G » — où le « / » est suivi d'un accord, ou qui en compte plusieurs — se découpe encore comme avant (« C/G », deux notes seules, est en revanche C sur G : pour deux
+// accords on écrit C//G).
+function decouperSymbolesAccords(str) {
+    const out = [];
+    for (const g of String(str || '').split('//').map(x => x.trim()).filter(Boolean)) {
+        if (/^[^/]+\/\s*[A-Ga-g](?:#|b|♭)?$/.test(g)) { out.push(g); continue; } // accord sur basse : un seul accord
+        g.split('/').map(x => x.trim()).filter(Boolean).forEach(x => out.push(x));
+    }
+    return out;
+}
+
 function parseChordSymbol(input) {
-    const s = (input || '').trim();
+    let s = (input || '').trim();
     if (!s) return null;
+    // Accord sur basse « Bbadd9/C » : réécrit en « Bbadd9_C », la notation de basse d'origine (voir plus bas) ; fonctionne aussi pour la retape du nom d'une case.
+    const surBasse = s.match(/^([^/]+)\/\s*([A-Ga-g])(#|b|♭)?$/);
+    if (surBasse) s = `${surBasse[1].trim()}_${surBasse[2].toUpperCase()}${surBasse[3] || ''}`;
     const m = s.match(/^([A-Ga-g])(#|b|♭)?(.*)$/);
     if (!m) return null;
     const [, letter, accidental, rawRest] = m;
@@ -235,8 +251,8 @@ function parseChordSymbol(input) {
     // reconnu par sa FORME, pas sa position : "O"/"R"/"D" + un chiffre = octave/renversement/drop
     // (même notation que les badges "O4-R1-D2" du PDF/de la grille, voir getVoicingBadge) ; une
     // simple lettre de note SANS chiffre = basse (seul "D" est ambigu entre les deux — mais jamais
-    // suivi d'un chiffre pour une basse, ce qui les distingue sans équivoque). Volontairement pas
-    // "/" pour la basse (déjà pris par la saisie rapide pour séparer plusieurs accords).
+    // suivi d'un chiffre pour une basse, ce qui les distingue sans équivoque). Le « / » (Bbadd9/C) est
+    // réécrit en « _ » en tête de fonction ; la saisie rapide sépare les accords par « // ».
     let bass = null, octave = null, inversion = null, drop = null;
     const modIdx = rest.indexOf('_');
     if (modIdx !== -1) {
@@ -2815,7 +2831,7 @@ const ZONE_EDITION_SELECTEURS = [
     '.section-head', '.grid-head-sticky', '#context-menu', '#sq-menu-note', '.overlay', '.modal', '.settings-overlay',
     '#files-overlay', 'button', 'input', 'select', 'textarea', 'label', 'a', '[role="button"]',
     // Lot 6 : la bulle « quel accord », la rangée de réglages et leurs choix — travailler dedans n'est pas quitter son travail.
-    '#bulle-accord', '#rangee-reglages', '#rr-pop', '#partie-menu', '#grille-vide-menu',
+    '#bulle-accord', '#rangee-reglages', '#rr-pop', '#partie-menu', '#grille-vide-menu', '#ajout-clic',
     // Lot 8 : le tiroir Clavier / Guitare et ses deux boutons de la barre de lecture. Les touches du clavier y sont des <div> (aucun `button` ne les couvre),
     // et le clavier AGIT sur l'accord sélectionné : cliquer dedans ne doit ni le désélectionner ni sortir de sa modification.
     '#vues-tiroir', '#bl-vues',
@@ -4212,6 +4228,7 @@ class HarmoHubApp {
         this.setupBarreMorceau(); // la barre du haut (ordinateur) : titre + menu du morceau, Enregistrer et son voyant
         this.setupMenuPartie(); // le menu ⋯ des en-têtes de partie (lot 5c)
         this.setupMenuGrilleVide(); // L5b : le clic droit dans le vide de la grille
+        this.setupAjoutClic(); // L6c : le double-clic sur le « + » du bout d'une partie
         this.setupRangeeReglages(); // Tonalité, Mesure, Swing, Son, Transposer au-dessus de la grille (lot 6a)
         this.placerSubdivisionMetronome();
         window.matchMedia('(min-width: 900px)').addEventListener('change', () => this.placerSubdivisionMetronome());
@@ -4700,7 +4717,7 @@ class HarmoHubApp {
             else if (t.type === 'folder') this.startInlineRenameFolder(t.name);
             // Téléphone (lot 10d) : « Modifier », c'est le panneau d'accord agrandi, comme le double toucher.
             else if (t.type === 'chord' && this.panneauAccordDisponible()) { this.selectChord(t.section, t.index); this.ouvrirPanneauAccord(t.section, t.index); this.etendrePanneauAccord(true); }
-            else if (t.type === 'chord') this.editChord(t.section, t.index);
+            else if (t.type === 'chord') { if (this.bulleDisponible()) { this.selectChord(t.section, t.index); this.ouvrirBulleAccord(t.section, t.index); } else this.editChord(t.section, t.index); } // L6a : « Modifier » ouvre la bulle à l'ordinateur (plus d'inspecteur)
         };
         // Retaper le nom d'un accord (refonte du séquenceur, point B) : c'était le double-clic, qui ouvre désormais le panneau de l'accord.
         document.querySelector('[data-ctx-action="rename-chord"]').onclick = () => {
@@ -4842,13 +4859,14 @@ class HarmoHubApp {
             { id: 'intensity-menu', close: () => this.fermerMenuIntensite() },           // les cinq niveaux d'un accord
             { id: 'backup-scope-menu', close: () => this.closeTransferScopeMenu() },       // « ce morceau / toute la bibliothèque ? »
             { id: 'file-menu', ancre: '#file-menu-btn', close: () => this.closeFileMenu() },
+            { id: 'ajout-clic', ancre: '.grid-cell-add', close: () => this.fermerAjoutClic() },                      // L6c : fenêtre d'ajout au clic
             { id: 'grille-vide-menu', close: () => this.fermerMenuGrilleVide() },                 // L5b : clic droit dans le vide de la grille
             { id: 'struct-menu', close: () => this.fermerMenuStructure() },                       // clic droit sur une partie de la structure
             { id: 'key-suggest-menu', ancre: '#key-suggest-btn, .rr-suggerer', close: () => this.closeKeySuggestMenu() },
             // Le choix d'une puce de la rangée de réglages (lot 6a). La suggestion de tonalité s'ouvre DEPUIS lui : la cliquer ne doit pas le refermer.
             { id: 'rr-pop', ancre: '.rr-puce, #key-suggest-menu', close: () => this.fermerPuceReglage() },
             // La bulle « quel accord » (lot 6b) : un clic sur une AUTRE case ne la ferme pas, il la déplace (voir onGridPointerUp).
-            { id: 'bulle-accord', ancre: '.grid-cell:not(.grid-cell-add)', close: () => { this._bulleFermeeA = performance.now(); this.fermerBulleAccord(); } },
+            { id: 'bulle-accord', ancre: '.grid-cell:not(.grid-cell-add), #sq-biblio, #vues-tiroir, #vue-sequenceur, #sequenceur, #rangee-reglages, #rr-pop', close: () => { this._bulleFermeeA = performance.now(); this.fermerBulleAccord(); } },
             // Son pendant au téléphone (lot 10d), même règle : toucher une autre case l'y amène, toucher à côté ou Échap le referme.
             // `auClic` : PAS à l'appui (qui commence aussi un défilement) — il se referme au clic à côté, voir le gestionnaire de clic plus bas ; Échap ici.
             { id: 'panneau-accord', ancre: '.grid-cell:not(.grid-cell-add)', auClic: true, close: () => this.fermerBulleAccord() },
@@ -4889,8 +4907,22 @@ class HarmoHubApp {
         };
         window.addEventListener('resize', suivreAncre);
         window.addEventListener('scroll', suivreAncre, { passive: true, capture: true });
+        // L6a : une modification commencée au téléphone (dock « Terminer », sans panneau) et qu'un élargissement de la fenêtre amène à l'ordinateur n'a plus d'inspecteur où se
+        // continuer : elle s'ouvre dans la fenêtre d'accord, onglet Voicing. Seul le FRANCHISSEMENT du seuil compte (un redimensionnement ordinaire ne rouvre rien).
+        let etaitBureau = this.bulleDisponible();
+        window.addEventListener('resize', () => {
+            const bureau = this.bulleDisponible();
+            if (bureau && !etaitBureau && this.editingIndex != null && !this._bulle) {
+                this._bulle = { section: this.activeSection, index: this.editingIndex, onglet: 'voicing', undoPousse: false };
+                this.ouvrirBulleAccord(this.activeSection, this.editingIndex);
+            }
+            etaitBureau = bureau;
+        });
 
         document.addEventListener('pointerdown', (e) => {
+            // L6a : un appui sur la case « + » ferme la fenêtre d'accord ; si elle était sur l'onglet Voicing, la modification se termine SANS redessiner la grille (voir
+            // fermerEditionBulle) — sinon le champ « + » qu'on vient de toucher est reconstruit avant de prendre le focus et la frappe part dans le vide.
+            if (e.target.closest && e.target.closest('.grid-cell-add')) this._appuiSurAjout = performance.now();
             for (const p of this._popups) {
                 if (p.auClic) continue;
                 const el = document.getElementById(p.id);
@@ -7475,11 +7507,11 @@ class HarmoHubApp {
         return true;
     }
 
-    // Parse une liste "/" (ex. "CM7/Am7/F6/Bbm7") en tableau d'accords reconnus, ou renvoie null (en
+    // Parse une liste "//" (ex. "CM7//Am7//F6//Bbm7"; l'ancienne forme "CM7/Am7/F6" marche encore, voir decouperSymbolesAccords) en tableau d'accords reconnus, ou renvoie null (en
     // affichant lequel a échoué) si un seul symbole n'est pas valide — tout ou rien, un ajout partiel
     // serait déroutant, mieux vaut corriger et retaper la liste entière.
     parseChordSymbolList(listStr) {
-        const parts = listStr.split('/').map(p => p.trim()).filter(p => p.length > 0);
+        const parts = decouperSymbolesAccords(listStr);
         if (parts.length === 0) return null;
         const parsedList = parts.map(p => parseChordSymbol(p));
         const badIndex = parsedList.findIndex(p => !p);
@@ -7524,7 +7556,7 @@ class HarmoHubApp {
     // à la durée réglée dans le panneau ; plusieurs séparés par "/" ajoutent un accord par mesure
     // d'un coup (voir addChordsFromSymbolList).
     addChordInputToSection(section, value) {
-        return value.includes('/')
+        return decouperSymbolesAccords(value).length > 1
             ? this.addChordsFromSymbolList(section, value)
             : this.addChordFromSymbol(section, value);
     }
@@ -7551,7 +7583,7 @@ class HarmoHubApp {
     parseBlockLines(blockLines) {
         const items = [];
         for (const line of blockLines) {
-            if (line.includes('/')) {
+            if (decouperSymbolesAccords(line).length > 1) {
                 const list = this.parseChordSymbolList(line);
                 if (!list) return null;
                 list.forEach(p => items.push({ parsed: p, isBatch: true }));
@@ -7617,7 +7649,7 @@ class HarmoHubApp {
 
         if (block.length === 1) {
             const value = block[0];
-            if (!value.includes('/')) {
+            if (decouperSymbolesAccords(value).length <= 1) {
                 if (!parseChordSymbol(value)) { this.flashHint('Accord non reconnu (ex. Cm7, F#dim, Bbadd9)'); return; }
                 if (sections.length <= 1) {
                     if (this.addChordFromSymbol(0, value)) this.resetQuickAddInput();
@@ -7804,6 +7836,7 @@ class HarmoHubApp {
         const { pattern, tie } = this.resolveSeqPatternForData(chord, d);
         this.setLiveSeqPattern(pattern, tie);
         this.seqLastChordToneVoices = chord.getIntervals().length; // repère de départ pour applyNewVoiceDefaults
+        this.seqLastBassOui = !!chord.bass; // idem pour la basse (voir syncSeqPatternForCurrentChord)
 
         // C'est CETTE ligne qui fait désormais basculer tout le reste en « modification » : appMode
         // en est déduit (voir son getter), plus rien à tenir à jour à côté. Le thème suit juste après.
@@ -9122,7 +9155,7 @@ class HarmoHubApp {
     }
 
     // ---------- AJOUT UNIQUE (lot 7a) ----------
-    // « Ajouter : une seule saisie (syntaxe actuelle COMPLÈTE : C_E, C_O4-R1-D2, C/Am/F/G, plusieurs lignes, ligne vide = nouvelle partie, aide « ? »),
+    // « Ajouter : une seule saisie (syntaxe actuelle COMPLÈTE : C_E, C_O4-R1-D2, Bbadd9/C, C//Am//F//G, plusieurs lignes, ligne vide = nouvelle partie, aide « ? »),
     // accords de la tonalité, suggestions après l'accord précédent, « + » entre deux cases au survol » (docs/refonte.md). La saisie rapide reste LA
     // saisie ; ce qui s'ajoute ici, c'est la DESTINATION (une partie, ou un endroit précis dans une partie) et un panneau qui la dit et propose des
     // accords d'un clic. Il ne s'ouvre que quand on choisit une destination : taper vite dans la saisie reste exactement comme avant.
@@ -9289,7 +9322,7 @@ class HarmoHubApp {
             + `<div class="ajout-ligne"><span class="rr-lbl">Accords de ${escapeHtml(nomTonalite)}</span>`
             + `<button type="button" class="ajout-7e" data-ajout="avec7" aria-pressed="${avec7}">avec 7e</button></div>`
             + `<div class="ajout-tuiles">${this.accordsDeLaTonalite(avec7).map(a => tuile(a)).join('')}</div>`
-            + `<p class="rr-aide">Ou tapez dans la saisie ci-dessus (Cm7, C_E, C/Am/F/G…) — Entrée pour une nouvelle ligne, Ctrl+Entrée pour ajouter.</p>`;
+            + `<p class="rr-aide">Ou tapez dans la saisie ci-dessus (Cm7, Bbadd9/C, C//Am//F//G…) — Entrée pour une nouvelle ligne, Ctrl+Entrée pour ajouter.</p>`;
         if (this.ajoutTelephone()) { this.rangerSaisieAjout(true); this.placerPanneauAjout(); }
     }
 
@@ -9529,8 +9562,10 @@ class HarmoHubApp {
             else if (action === 'duree-moins' || action === 'duree-plus') {
                 const data = (loadProgressionSections()[z.section] || { chords: [] }).chords[z.index];
                 if (data) this.modifierAccordBulle({ beats: beatsFromData(data) + (action === 'duree-plus' ? 1 : -1) });
-            } else if (action === 'son') this.ouvrirSonDepuisBulle();
-            else if (action === 'onglet') this.ongletPanneauAccord(v);
+            } else if (action === 'onglet') { if (z.telephone) this.ongletPanneauAccord(v); else this.ongletBulle(v); }
+            else if (action === 'rythme') this.appliquerRythmeBulle(v);
+            else if (action === 'rythme-autres') this.ouvrirAutresRythmesBulle(btn);
+            else if (action === 'ouvrir-sequenceur') this.avecSequenceurOuvert(() => this.remplirBulleAccord());
         };
         const b = document.getElementById('bulle-accord');
         if (b) {
@@ -9550,15 +9585,94 @@ class HarmoHubApp {
         if (this._bulle && this._bulle.telephone) this.fermerBulleAccord(); // le seuil vient d'être franchi : le panneau du téléphone rend la main
         const meme = this._bulle && this._bulle.section === section && this._bulle.index === index;
         // Une NOUVELLE bulle = une nouvelle étape d'annulation ; la même bulle rouverte (re-clic sur sa case) garde la sienne.
-        this._bulle = { section, index, undoPousse: meme ? this._bulle.undoPousse : false };
+        // L'onglet courant se GARDE d'un accord à l'autre (‹ ›, une autre case) : on règle un voicing, un rythme après l'autre (L6a).
+        const onglet = (this._bulle && !this._bulle.telephone && this._bulle.onglet) || 'accord';
+        this._bulle = { section, index, onglet, undoPousse: meme ? this._bulle.undoPousse : false };
+        // Onglet Voicing : les commandes sont celles de la modification de l'accord (editChord les lie à CET accord), qui suit la bulle d'un accord à l'autre.
+        if (onglet === 'voicing') this.ouvrirEditionBulle();
         this.remplirBulleAccord();
         b.hidden = false;
         this.placerBulleAccord();
     }
 
+    // ---- LES TROIS ONGLETS DE LA BULLE (L6a, lettre N) : Accord | Voicing | Rythme ----
+    // « au lieu de Son, appelle cela Voicing » ; « le bouton Réglages du son n'est pas compréhensible » ; « lorsque je clique dessus, une fenêtre flottante apparaît ailleurs sur l'écran, c'est
+    // pas du tout logique : si quelque chose s'affiche, c'est dans un autre onglet ». Plus d'inspecteur flottant à l'ordinateur : l'onglet Voicing porte la rangée octave / renversement /
+    // drop / basse (#voicing-row, le MÊME nœud, déplacé comme le transport ou la carte Accord du téléphone) ; quitter l'onglet referme la modification (cancelEdit).
+    ongletBulle(v) {
+        const z = this._bulle;
+        if (!z || z.telephone || !['accord', 'voicing', 'rythme'].includes(v) || z.onglet === v) return;
+        const quittait = z.onglet === 'voicing';
+        z.onglet = v;
+        if (quittait) this.fermerEditionBulle();
+        if (v === 'voicing') this.ouvrirEditionBulle();
+        this.remplirBulleAccord();
+        this.placerBulleAccord();
+    }
+
+    ouvrirEditionBulle() {
+        const z = this._bulle;
+        if (!z || z.telephone) return;
+        if (!(this.editingIndex === z.index && this.activeSection === z.section)) this.editChord(z.section, z.index);
+        // editChord vient d'ouvrir une session neuve : si la bulle a déjà son étape d'annulation, la session ne doit pas en déposer une seconde (une annulation par bulle).
+        if (z.undoPousse) this._editSessionUndoPushed = true;
+    }
+
+    fermerEditionBulle() {
+        const z = this._bulle;
+        this.rangerVoicingRow();
+        if (this.editingIndex == null) return;
+        if (z && this._editSessionUndoPushed && this.editingIndex === z.index && this.activeSection === z.section) z.undoPousse = true;
+        if (this._appuiSurAjout && performance.now() - this._appuiSurAjout < 600) this.leaveEditForNewChord();
+        else { this.exitEditMode(); this.loadProgression(); }
+        // Quitter la modification peut redessiner la bulle encore ouverte, qui ré-emprunte alors la rangée : on la rend une seconde fois (bulle_onglets, Échap en Voicing).
+        this.rangerVoicingRow();
+    }
+
+    // La rangée octave / renversement / drop / basse vit dans la carte Accord (cachée à l'ordinateur) ; l'onglet Voicing l'emprunte. Elle rentre AVANT que la bulle ne réécrive son
+    // innerHTML (sinon le nœud disparaîtrait avec lui) et quand la bulle se ferme.
+    rangerVoicingRow() {
+        // La rangée ET le bloc « voicing personnalisé » (pastille ambre : pourquoi, et « Revenir à l'automatique ») : ils vont ensemble dans l'onglet Voicing.
+        this._originesVoicing = this._originesVoicing || {};
+        for (const id of ['voicing-row', 'voicing-perso']) {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            if (!this._originesVoicing[id]) this._originesVoicing[id] = { parent: el.parentElement, suivant: el.nextSibling };
+            const o = this._originesVoicing[id];
+            if (el.parentElement !== o.parent) o.parent.insertBefore(el, o.suivant && o.suivant.parentNode === o.parent ? o.suivant : null);
+        }
+    }
+
+    // ---- L'ONGLET RYTHME (L6b, lettre O) : les rythmes types, un clic = le rythme de CET accord (il pilote le bouton #sq-motif-* du séquenceur, qui se met à jour en bas) ----
+    avecSequenceurOuvert(fn) {
+        const vs = document.getElementById('vue-sequenceur');
+        if (!vs) return;
+        if (vs.getAttribute('aria-pressed') === 'true') { fn(); return; }
+        vs.click();
+        setTimeout(fn, 400);
+    }
+
+    appliquerRythmeBulle(id) {
+        const z = this._bulle;
+        if (!z || z.telephone) return;
+        this.avecSequenceurOuvert(() => {
+            // Le séquenceur règle l'accord CHOISI : celui de la bulle l'est (ouvrir la bulle le choisit) ; on s'en assure sans le rejouer.
+            if (this.selectedIndex !== z.index || this.activeSection !== z.section) { this.activeSection = z.section; this.selectedIndex = z.index; this.loadProgression(); }
+            const b = document.getElementById('sq-motif-' + id) || document.querySelector(`#sequenceur [data-sq-motif="${id}"]`);
+            if (b) b.click();
+            if (this._bulle) this.remplirBulleAccord();
+        });
+    }
+
+    ouvrirAutresRythmesBulle(ancre) {
+        this.avecSequenceurOuvert(() => { if (this.sequenceur && this.sequenceur.ouvrirBiblio) this.sequenceur.ouvrirBiblio('liste', ancre); });
+    }
+
     fermerBulleAccord() {
         const b = document.getElementById('bulle-accord');
         const z = this._bulle;
+        // Onglet Voicing : la modification ouverte pour lui se referme avec la bulle (la rangée rentre dans sa carte avant que la bulle ne soit vidée).
+        if (z && !z.telephone && z.onglet === 'voicing') { this._bulle = z; this.fermerEditionBulle(); }
         this._bulle = null;
         if (b) b.hidden = true;
         if (z && z.telephone) this.fermerPanneauAccord(z);
@@ -9609,16 +9723,6 @@ class HarmoHubApp {
         if (focus) focus.focus({ preventScroll: true });
     }
 
-    // « Réglages du son › » : le COMMENT il sonne (voicing, jeu, intensité, rythme, doigté) — la carte Accord, ouverte sur CET accord. Elle
-    // deviendra l'inspecteur au lot 6c.
-    ouvrirSonDepuisBulle() {
-        const z = this._bulle;
-        if (!z) return;
-        if (z.telephone) { this.etendrePanneauAccord(!z.etendu); return; } // lot 10d : le panneau s'agrandit au lieu de céder la place
-        this.fermerBulleAccord();
-        this.editChord(z.section, z.index);
-    }
-
     // Une retouche faite dans la bulle. La PREMIÈRE de la bulle dépose l'instantané d'annulation, les suivantes non : « une bulle = une étape ».
     modifierAccordBulle(patch) {
         const z = this._bulle;
@@ -9632,7 +9736,7 @@ class HarmoHubApp {
         if (!change) return;
         // Panneau du téléphone agrandi (lot 10d) : ses réglages du son ont pu déposer l'instantané du panneau (commitLiveEdit) — « une annulation par
         // panneau », pas une de plus parce qu'on remonte toucher la fondamentale.
-        const dejaPousse = z.undoPousse || (z.telephone && this._editSessionUndoPushed && this.editingIndex === z.index && this.activeSection === z.section);
+        const dejaPousse = z.undoPousse || ((z.telephone || z.onglet === 'voicing') && this._editSessionUndoPushed && this.editingIndex === z.index && this.activeSection === z.section);
         if (!dejaPousse) this.pushUndo(sections);
         z.undoPousse = true;
         if ('root' in patch || 'quality' in patch || 'bass' in patch) {
@@ -9640,11 +9744,13 @@ class HarmoHubApp {
             data.guitarLock = null;
             delete data.unnamed;
         }
+        const avantVoix = JSON.parse(JSON.stringify(data)); // pour que le rythme suive les voix qui changent (resynchroniser)
         if ('root' in patch) data.root = patch.root;
         // Un autre TYPE : renversement et drop repartent de zéro (ceux de l'ancien accord ne veulent rien dire pour le nouveau — la maquette).
         if ('quality' in patch) { data.quality = patch.quality; data.inversion = 0; data.drop = 'none'; }
         if ('bass' in patch) data.bass = patch.bass || null;
         if ('beats' in patch) data.beats = Math.max(1, patch.beats);
+        if (window.SequenceurHarmo && ('quality' in patch || 'bass' in patch)) window.SequenceurHarmo.resynchroniser(avantVoix, data, this);
         saveProgressionSections(sections);
         // Plus long : la partie ajoutée est TENUE, comme un étirement à la poignée (voir extendChordPatternToHold).
         if ('beats' in patch && data.beats > avant) this.extendChordPatternToHold(z.section, z.index, avant);
@@ -9662,26 +9768,51 @@ class HarmoHubApp {
         const infos = this.infosBulle(z);
         if (!infos) { this.fermerBulleAccord(); return; }
         const focusAvant = b.contains(document.activeElement) ? `[data-bulle="${document.activeElement.dataset.bulle}"]${document.activeElement.dataset.valeur != null ? `[data-valeur="${document.activeElement.dataset.valeur}"]` : ''}` : null;
-        const { label, deg, ou, fondamentales, types, basses, beats, bpb, chevron, dernier } = infos;
+        const { label, deg, ou, repere, fondamentales, types, basses, beats, bpb, chevron, dernier } = infos;
+        const onglet = z.onglet || 'accord';
+        // La rangée du voicing rentre dans sa carte AVANT la réécriture : elle disparaîtrait sinon avec l'innerHTML.
+        this.rangerVoicingRow();
         b.setAttribute('aria-label', `Accord ${label}`);
-        b.innerHTML =
-            `<div class="bulle-tete">`
-            + `<button type="button" class="bulle-nav" data-bulle="prec" aria-label="Accord précédent" title="Accord précédent"${z.index > 0 ? '' : ' disabled'}>${chevron('M15 6l-6 6 6 6')}</button>`
-            + `<span class="bulle-nom">${flatTight(escapeHtml(label))}</span>`
-            + (deg ? `<span class="bulle-degre">${escapeHtml(deg)}</span>` : '')
-            + `<span class="bulle-ou">${escapeHtml(ou)}</span>`
-            + `<button type="button" class="bulle-nav bulle-suiv" data-bulle="suiv" aria-label="Accord suivant" title="Accord suivant"${z.index < dernier ? '' : ' disabled'}>${chevron('M9 6l6 6-6 6')}</button>`
-            + `<button type="button" class="bulle-nav" data-bulle="fermer" aria-label="Fermer" title="Fermer (Échap)">${chevron('M6 6l12 12M18 6L6 18')}</button>`
-            + `</div>`
-            + `<div class="rr-lbl">Fondamentale</div><div class="rr-grille bulle-g12">${fondamentales}</div>`
+        b.dataset.onglet = onglet;
+        const panneAccord = `<div class="rr-lbl">Fondamentale</div><div class="rr-grille bulle-g12">${fondamentales}</div>`
             + `<div class="rr-lbl">Type</div><div class="rr-grille bulle-g5">${types}</div>`
             + `<div class="rr-lbl">Basse</div><div class="rr-grille bulle-g13">${basses}</div>`
             + `<div class="bulle-pied"><span class="rr-lbl">Durée</span>`
             + `<span class="partie-rep-seg"><button type="button" data-bulle="duree-moins" aria-label="Un temps de moins"${beats > 1 ? '' : ' disabled'}>−</button>`
             + `<span class="partie-rep-val bulle-duree" aria-live="polite">${escapeHtml(dureeEnMots(beats, bpb))}</span>`
-            + `<button type="button" data-bulle="duree-plus" aria-label="Un temps de plus">+</button></span>`
-            + `<button type="button" class="bulle-son" data-bulle="son">Réglages du son${chevron('M9 6l6 6-6 6')}</button></div>`
-            + `<p class="rr-aide">Ctrl+Z annule toute la bulle d'un coup · double-clic : taper le nom · bord droit de la case : tirer pour la durée</p>`;
+            + `<button type="button" data-bulle="duree-plus" aria-label="Un temps de plus">+</button></span></div>`;
+        const panneVoicing = `<div class="bulle-voicing" id="bulle-voicing-hote"></div>`;
+        let panneRythme = '';
+        if (onglet === 'rythme') {
+            // Les six rythmes types avec leur vignette (celles du séquenceur), puis « Autres +n » (la popover de tous les rythmes) : toujours la dernière case. Aucune phrase d'aide.
+            const r = this.sequenceur && this.sequenceur.rythmesPourBulle ? this.sequenceur.rythmesPourBulle() : { liste: [], autres: 0 };
+            const ouvert = !!(this.sequenceur && document.getElementById('vue-sequenceur').getAttribute('aria-pressed') === 'true');
+            panneRythme = `<div class="bulle-rythmes" role="group" aria-label="Rythme de l'accord">`
+                + r.liste.map(m => `<button type="button" class="bulle-rythme" data-bulle="rythme" data-valeur="${escapeHtml(m.id)}" aria-pressed="${m.actif}" title="${escapeHtml(m.nom)}"><span class="sq-vignette" aria-hidden="true">${m.vignette}</span><span>${escapeHtml(m.nom)}</span></button>`).join('')
+                + `<button type="button" class="bulle-rythme bulle-autres" data-bulle="rythme-autres" aria-haspopup="dialog" title="Tous les rythmes : fournis, enregistrés, à créer"><span class="sq-vignette" aria-hidden="true">${chevron('M6 3h12v18l-6-4-6 4z')}</span><span>Autres${r.autres ? ' +' + r.autres : ''}</span></button>`
+                + `</div>`
+                + (ouvert ? '' : `<button type="button" class="bulle-ouvrir-seq" data-bulle="ouvrir-sequenceur" title="Ouvrir le séquenceur en bas de l'écran">Ouvrir le séquenceur</button>`);
+        }
+        b.innerHTML =
+            `<div class="bulle-tete">`
+            + `<button type="button" class="bulle-nav" data-bulle="prec" aria-label="Accord précédent" title="Accord précédent"${z.index > 0 ? '' : ' disabled'}>${chevron('M15 6l-6 6 6 6')}</button>`
+            + `<span class="bulle-nom" title="Ctrl+Z annule toute la bulle d'un coup · double-clic sur la case : taper le nom · bord droit de la case : tirer pour la durée">${flatTight(escapeHtml(label))}</span>`
+            + (deg ? `<span class="bulle-degre">${escapeHtml(deg)}</span>` : '')
+            + `<span class="bulle-ou">${escapeHtml(ou)}</span>`
+            + `<button type="button" class="bulle-nav bulle-suiv" data-bulle="suiv" aria-label="Accord suivant" title="Accord suivant"${z.index < dernier ? '' : ' disabled'}>${chevron('M9 6l6 6-6 6')}</button>`
+            + `<button type="button" class="bulle-nav" data-bulle="fermer" aria-label="Fermer" title="Fermer (Échap)">${chevron('M6 6l12 12M18 6L6 18')}</button>`
+            + `</div>`
+            + repere
+            + `<div class="bulle-onglets" role="group" aria-label="Accord, voicing ou rythme">`
+            + [['accord', 'Accord', 'Fondamentale, type, basse, durée'], ['voicing', 'Voicing', 'Octave, renversement, drop'], ['rythme', 'Rythme', 'Le rythme de cet accord']]
+                .map(([v, mot, titre]) => `<button type="button" data-bulle="onglet" data-valeur="${v}" aria-pressed="${onglet === v}" title="${titre}">${mot}</button>`).join('')
+            + `</div>`
+            + (onglet === 'accord' ? panneAccord : onglet === 'voicing' ? panneVoicing : panneRythme);
+        if (onglet === 'voicing') {
+            const hote = b.querySelector('#bulle-voicing-hote'), row = document.getElementById('voicing-row'), perso = document.getElementById('voicing-perso');
+            if (hote && row) hote.appendChild(row);
+            if (hote && perso) hote.appendChild(perso);
+        }
         if (focusAvant) {
             const c = b.querySelector(focusAvant + ':not([disabled])');
             if (c) c.focus({ preventScroll: true });
@@ -9922,6 +10053,12 @@ class HarmoHubApp {
             this._bulle = null;
             if (z) this.fermerPanneauAccord(z, true);
             this.majBarreBasTelephone(); // la modification continue sans le panneau : le dock de secours reprend son rôle
+            // L6a : le seuil franchi vers l'ordinateur, la modification continue DANS la fenêtre d'accord (onglet Voicing si le panneau était agrandi) : il n'y a plus d'inspecteur flottant
+            // où la retrouver (avant, la carte Accord devenait l'inspecteur à droite de la grille).
+            if (z && z.telephone && this.bulleDisponible() && this.editingIndex === z.index && this.activeSection === z.section) {
+                this._bulle = { section: z.section, index: z.index, onglet: z.etendu ? 'voicing' : 'accord', undoPousse: !!z.undoPousse };
+                this.ouvrirBulleAccord(z.section, z.index);
+            }
             return;
         }
         // La place à laisser au-dessus : la barre-résumé collante et une rangée de la grille (la case, ses numéros, un peu d'air).
@@ -9966,10 +10103,11 @@ class HarmoHubApp {
             + `<button type="button" class="icon-btn pa-nav" data-bulle="suiv" aria-label="Accord suivant" title="Accord suivant"${z.index < i.dernier ? '' : ' disabled'}>${i.chevron('M9 6l6 6-6 6')}</button>`
             + `<button type="button" class="icon-btn pa-nav" data-bulle="fermer" aria-label="Fermer" title="Fermer">${i.chevron('M6 6l12 12M18 6L6 18')}</button>`
             + `</div>`
+            + i.repere // L6a : le repère d'une ligne (nom de la partie + un segment par accord), au téléphone aussi
             // TROIS ONGLETS (refonte du séquenceur, D, sous-lot du téléphone — maquette v17, planche `Telephone.dc.html`) : « Accord » (ce qui suit),
             // « Son » (les réglages du son, le panneau agrandi d'avant) et « Rythme » (le séquenceur, réduit à cet accord, dans #pa-rythme).
             + `<div class="pa-onglets" role="group" aria-label="Accord, son ou rythme">`
-            + [['accord', 'Accord', !z.etendu && !z.rythme], ['son', 'Son', !!z.etendu], ['rythme', 'Rythme', !!z.rythme]]
+            + [['accord', 'Accord', !z.etendu && !z.rythme], ['son', 'Voicing', !!z.etendu], ['rythme', 'Rythme', !!z.rythme]] // L6a : « Son » devient « Voicing » (libellé seul : la valeur reste « son »)
                 .map(([v, mot, actif]) => `<button type="button" data-bulle="onglet" data-valeur="${v}" aria-pressed="${actif}">${mot}</button>`).join('')
             + `</div>`;
         if (z.rythme) {
@@ -10011,7 +10149,14 @@ class HarmoHubApp {
             sec, data, bpb, beats: beatsFromData(data), dernier: sec.chords.length - 1,
             label: chordSymbolForData(data, flats),
             deg: this.getRomanNumeral(gRoot, gMode, data.root, data.quality),
-            ou: `mes. ${Math.floor(pos / bpb) + 1} · ${(sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${z.section + 1}`}`,
+            // L6a (14/11, « j'ai deux fois l'information […] la partie à côté du nom de l'accord, puis à gauche des petites barres ») : l'en-tête ne dit plus que « mes. 3 » ; la partie
+            // n'est dite qu'une fois, dans le repère d'une ligne (nom + un segment par accord).
+            ou: `mes. ${Math.floor(pos / bpb) + 1}`,
+            repere: (() => {
+                const nomPartie = (sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${z.section + 1}`;
+                const segs = sec.chords.map((c, k) => `<i${k === z.index ? ' class="en-cours"' : ''}></i>`).join('');
+                return `<div class="bulle-repere" title="${escapeHtml(nomPartie)} · accord ${z.index + 1} sur ${sec.chords.length}"><span class="bulle-repere-nom">${escapeHtml(nomPartie)}</span><span class="bulle-repere-segs" aria-hidden="true">${segs}</span></div>`;
+            })(),
             fondamentales: NOTES.map((n, pc) => bouton('root', n, nom(pc), n === data.root)).join(''),
             types: [...document.getElementById('quality').options].map(o => bouton('quality', o.value, o.text, o.value === data.quality)).join(''),
             basses: bouton('bass', '', '—', !data.bass, 'Basse = fondamentale') + NOTES.map((n, pc) => bouton('bass', n, nom(pc), data.bass === n, `Basse ${nom(pc)}`)).join(''),
@@ -10290,6 +10435,93 @@ class HarmoHubApp {
         });
         this.loadProgression(); // le « ×N » de l'en-tête
         this.rafraichirMenuPartie();
+    }
+
+    // ---------- L'AJOUT AU CLIC (L6c, lettre Q.3) ----------
+    // « Ordinateur : double-clic sur le « + » du bout d'une partie = fenêtre d'ajout au clic » : fenêtre de 404 px dans le style de la bulle d'accord (titre « Ajouter à Couplet », fondamentale
+    // en 12 notes, type en boutons issus de #quality, « Ajouter » neutre, pas vert), ancrée sous la case « + », qui reste ouverte pour enchaîner ; l'accord est posé par
+    // addChordInputToSection(section, racine + QUALITY_LABEL[type]). Un clic simple sur le « + » reste un champ où l'on tape.
+    setupAjoutClic() {
+        const f = document.getElementById('ajout-clic');
+        if (!f) return; // index.html servi depuis un cache plus ancien
+        document.addEventListener('dblclick', (e) => {
+            if (!this.bulleDisponible()) return;
+            const c = e.target.closest && e.target.closest('.grid-cell-add');
+            const champ = c && c.querySelector('.cell-add-input');
+            if (!champ) return;
+            e.preventDefault(); e.stopPropagation();
+            this.ouvrirAjoutClic(+champ.dataset.section);
+        }, true);
+        f.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-ajout-clic]');
+            if (!b || !this._ajoutClic) return;
+            e.stopPropagation();
+            const z = this._ajoutClic, a = b.dataset.ajoutClic;
+            if (a === 'fermer') { this.fermerAjoutClic(); return; }
+            if (a === 'root') { z.root = b.dataset.valeur; this.dessinerAjoutClic(); return; }
+            if (a === 'quality') { z.quality = b.dataset.valeur; this.dessinerAjoutClic(); return; }
+            if (a === 'ajouter') {
+                this.addChordInputToSection(z.section, z.root + (QUALITY_LABEL[z.quality] ?? ''));
+                // La grille vient d'être redessinée : le « + » a bougé (il suit le dernier accord) ; la fenêtre le suit, elle reste ouverte pour enchaîner.
+                requestAnimationFrame(() => { if (this._ajoutClic) { this.dessinerAjoutClic(); this.placerAjoutClic(); } });
+            }
+        });
+        f.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.fermerAjoutClic(); } });
+    }
+
+    ouvrirAjoutClic(section) {
+        const f = document.getElementById('ajout-clic');
+        if (!f || !loadProgressionSections()[section]) return;
+        // Pas de fermerBulleAccord() ici : l'appui sur la case « + » ferme déjà la fenêtre d'accord (table _popups) ; un sabotage de cette ligne restait vert (ajout_clic), elle était redondante.
+        if (this._cibleAjout) this.fermerAideAjout();
+        const racine = document.getElementById('global-root').value;
+        const memoire = this._ajoutClic || this._ajoutClicMemoire || {};
+        this._ajoutClic = { section, root: memoire.root || racine, quality: memoire.quality || 'maj' };
+        const a = document.activeElement;
+        if (a && a.blur && a.classList && a.classList.contains('cell-add-input')) { a.value = ''; a.blur(); }
+        this.dessinerAjoutClic();
+        f.hidden = false;
+        this.placerAjoutClic();
+    }
+
+    dessinerAjoutClic() {
+        const f = document.getElementById('ajout-clic'), z = this._ajoutClic;
+        if (!f || !z) return;
+        const sec = loadProgressionSections()[z.section];
+        if (!sec) { this.fermerAjoutClic(); return; }
+        const gRoot = document.getElementById('global-root').value, gMode = document.getElementById('global-mode').value;
+        const useFlats = useFlatsForKey(NOTES.indexOf(gRoot), gMode);
+        const nom = (n) => noteNameForPc(NOTES.indexOf(n), useFlats).replace('#', '♯');
+        const titre = (sec.title && sec.title.trim()) ? sec.title.trim() : `Partie ${z.section + 1}`;
+        const bouton = (a, v, libelle, actif) => `<button type="button" data-ajout-clic="${a}" data-valeur="${escapeHtml(v)}" aria-pressed="${actif}">${escapeHtml(libelle)}</button>`;
+        const chevron = (d) => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+        const symbole = nom(z.root) + (QUALITY_LABEL[z.quality] ?? '');
+        f.innerHTML = `<div class="bulle-tete"><span class="bulle-nom ajout-titre">Ajouter à ${escapeHtml(titre)}</span><button type="button" class="bulle-nav" data-ajout-clic="fermer" aria-label="Fermer" title="Fermer (Échap)">${chevron('M6 6l12 12M18 6L6 18')}</button></div>`
+            + `<div class="rr-lbl">Fondamentale</div><div class="rr-grille bulle-g12">${NOTES.map(n => bouton('root', n, nom(n), n === z.root)).join('')}</div>`
+            + `<div class="rr-lbl">Type</div><div class="rr-grille bulle-g5">${[...document.getElementById('quality').options].map(o => bouton('quality', o.value, o.text, o.value === z.quality)).join('')}</div>`
+            + `<div class="bulle-pied ajout-pied"><span class="ajout-symbole">${flatTight(escapeHtml(symbole))}</span><button type="button" class="ajout-valider" data-ajout-clic="ajouter">Ajouter</button></div>`;
+    }
+
+    // Sous la case « + » de la partie, calée sur elle ; au-dessus s'il n'y a pas la place en bas.
+    placerAjoutClic() {
+        const f = document.getElementById('ajout-clic'), z = this._ajoutClic;
+        if (!f || !z || f.hidden) return;
+        const champ = document.querySelector(`#progression-sections .cell-add-input[data-section="${z.section}"]`);
+        const c = champ && champ.closest('.grid-cell-add');
+        if (!c) { this.fermerAjoutClic(); return; }
+        const r = c.getBoundingClientRect(), pad = 8, h = f.offsetHeight, w = f.offsetWidth;
+        let top = r.bottom + 8;
+        if (top + h > window.innerHeight - pad) top = Math.max(pad, r.top - 8 - h);
+        f.style.top = `${Math.round(top)}px`;
+        f.style.left = `${Math.round(Math.max(pad, Math.min(r.left - 8, window.innerWidth - w - pad)))}px`;
+    }
+
+    fermerAjoutClic() {
+        const f = document.getElementById('ajout-clic');
+        // Le dernier choix (fondamentale, type) survit à la fermeture : on enchaîne les accords d'une partie à l'autre sans repartir de la tonique.
+        if (this._ajoutClic) this._ajoutClicMemoire = { root: this._ajoutClic.root, quality: this._ajoutClic.quality };
+        this._ajoutClic = null;
+        if (f && !f.hidden) f.hidden = true;
     }
 
     // ---------- CLIC DROIT DANS LE VIDE DE LA GRILLE (L5b) ----------
@@ -16964,12 +17196,14 @@ class HarmoHubApp {
                 && (data.bass || null) === (parsed.bass || null);
             if (unchanged) { this.loadProgression(); return; }
             this.pushUndo(sections);
+            const avantVoix = JSON.parse(JSON.stringify(data));
             data.root = parsed.root;
             data.quality = parsed.quality;
             data.octave = parsed.octave ?? 3;
             data.inversion = parsed.inversion ?? 0;
             data.drop = parsed.drop ?? 'none';
             data.bass = parsed.bass || null;
+            if (window.SequenceurHarmo) window.SequenceurHarmo.resynchroniser(avantVoix, data, this); // le rythme suit les voix (une basse neuve sonne)
             // Un doigté verrouillé (voir toggleGuitarLock) a été calculé pour l'ancien accord : le
             // garder afficherait un doigté ne jouant plus les notes du nouveau (voir changeChordOctave
             // pour le même principe appliqué à l'octave).
@@ -17559,11 +17793,24 @@ class HarmoHubApp {
             // (voir paintDefaultRhythmForExtraNote), la hauteur proposée à la création n'étant qu'un
             // espace réservé. Elle n'est donc jamais concernée ici.
             result = applyNewVoiceDefaults(result.pattern, result.tie, this.seqLastChordToneVoices, chordToneVoices);
+            // Une BASSE qui arrive (le sélecteur « Basse » de l'onglet Voicing) : la voix neuve, la dernière, reprend le rythme de la voix la plus grave des autres (retour de
+            // l'utilisateur : « pas de C mis à la basse »). Une basse qui était déjà là garde ce qu'on lui a écrit, muette comprise.
+            if (chord.bass && !this.seqLastBassOui) {
+                const midis = chord.getSeqMidiNotes(), vb = midis.length - 1;
+                let ref = -1;
+                midis.forEach((m, i) => { if (i !== vb && (ref < 0 || m < midis[ref])) ref = i; });
+                if (ref >= 0 && !result.pattern.some(st => st.includes(vb))) {
+                    const pat = result.pattern.map(st => st.slice()), te = result.tie.map(st => (st || []).slice());
+                    pat.forEach((st, i) => { if (st.includes(ref)) { st.push(vb); if (te[i].includes(ref)) te[i].push(vb); } });
+                    result = { pattern: pat, tie: te };
+                }
+            }
         } else {
             result = seqPreset(document.getElementById('playStyle').value, voices, steps);
         }
         this.setLiveSeqPattern(result.pattern, result.tie);
         this.seqLastChordToneVoices = chordToneVoices;
+        this.seqLastBassOui = !!chord.bass;
         return chord;
     }
 
@@ -19735,6 +19982,7 @@ class HarmoHubApp {
         // jour, la synchro suivante croirait à des voix « neuves » et leur repeindrait un rythme par
         // défaut (voir applyNewVoiceDefaults).
         this.seqLastChordToneVoices = (CHORD_INTERVALS[qualitySelect.value] || CHORD_INTERVALS.maj).length;
+        this.seqLastBassOui = !!(document.getElementById('bass') && document.getElementById('bass').value);
     }
 
     pushSeqUndo(avecGuitare = false) {

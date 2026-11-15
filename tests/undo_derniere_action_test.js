@@ -16,6 +16,7 @@
 // c'est ce que fait chaque famille ci-dessous — séquenceur puis accord, accord puis séquenceur, et
 // des séries qui remontent le temps à travers les deux.
 const { chromium } = require('playwright');
+const { dblclickHorsNom } = require('./_geste_accord');
 const creerHarnais = require('./_harness');
 const { plan, check, exiger, bilan } = creerHarnais('Ctrl+Z : la dernière action gagne');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
@@ -97,7 +98,9 @@ const boiteDe = (sel) => {
         await page.waitForTimeout(350);
     };
 
-    await page.evaluate(() => window.app.editChord(0, 0)); // l'accord en modification (relevé d'état, pas un geste éprouvé ici)
+    // L6a : la modification s'ouvre à l'ordinateur par l'onglet Voicing de la fenêtre d'accord (vrais gestes), plus par editChord.
+    await dblclickHorsNom(page, '#progression-sections .grid-cell[data-index="0"]'); await page.waitForTimeout(300);
+    await page.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]'); await page.waitForTimeout(400);
     await page.waitForTimeout(400);
     await page.click('#vue-sequenceur'); // le séquenceur du bloc « Vues », par son bouton
     await page.waitForTimeout(600);

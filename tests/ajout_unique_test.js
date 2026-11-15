@@ -7,6 +7,7 @@
 // la tonalité (triades ou 7e, avec leur degré) et les suites habituelles de l'accord précédent ; un clic ajoute là, d'UNE annulation, et la destination
 // avance ; la saisie (même syntaxe) va au même endroit, sans redemander la partie ; Échap ou un clic à côté referment et oublient la destination — la
 // saisie redevient exactement celle d'avant ; le téléphone n'a pas bougé (lot 10).
+const { ouvrirSaisieRapide } = require('./_ajout');
 const { chromium } = require('playwright');
 const { check, exiger, plan, bilan } = require('./_harness')('ajout unique');
 const { estBruitReseau } = require('./_harness');
@@ -59,9 +60,11 @@ const graine = () => {
     // ======================================================================================================
     console.log('\n=== A. « + Accord » : la destination, et ce qu\'on peut y mettre ===');
     let p = await ouvrir({ width: 1440, height: 900 });
-    check(await p.evaluate(() => document.querySelectorAll('#progression-sections .prog-section-ajout').length) === 2, 'chaque partie a son « + Accord »');
+    // RÉÉCRIT À L6c (14/11, « le bouton + Accord est retiré (doublon des +) ») : à l'ordinateur « + Accord » n'est plus affiché ; le panneau d'ajout À LA FIN d'une partie n'a plus de porte à
+    // l'écran (le double-clic sur le « + » ouvre la fenêtre d'ajout au clic, éprouvée par ajout_clic) : on l'ouvre par l'appel de l'appli, comme le fait la case « + » au téléphone.
+    check(await p.evaluate(() => [...document.querySelectorAll('#progression-sections .prog-section-ajout')].every(b => b.getBoundingClientRect().width === 0)), 'à l\'ordinateur, plus de « + Accord » dans l\'en-tête des parties');
     check(await panneau(p) === null, 'au départ, pas de panneau : taper dans la saisie reste comme avant');
-    await p.click('#progression-sections .prog-section-ajout[data-section="0"]'); await p.waitForTimeout(300);
+    await ouvrirSaisieRapide(p, 0);
     let a = await panneau(p);
     exiger(!!a, '« + Accord » ouvre le panneau d\'ajout');
     check(a.lieu === 'Couplet, à la fin, après G7', `il dit OÙ l'on ajoute : « ${a.lieu} »`);
@@ -85,7 +88,7 @@ const graine = () => {
 
     // ======================================================================================================
     console.log('\n=== C. La saisie va au même endroit, sans redemander la partie ===');
-    await p.click('#progression-sections .prog-section-ajout[data-section="1"]'); await p.waitForTimeout(300);
+    await ouvrirSaisieRapide(p, 1);
     check((await panneau(p)).lieu === 'Refrain, à la fin, après Fmaj7', 'le « + Accord » du refrain vise le refrain');
     await p.fill('#quick-add-input', 'Dm7/G7');
     await p.keyboard.press('Control+Enter'); await p.waitForTimeout(400);
@@ -122,11 +125,11 @@ const graine = () => {
 
     // ======================================================================================================
     console.log('\n=== E. Échap, clic à côté : on referme, et on oublie la destination ===');
-    await p.click('#progression-sections .prog-section-ajout[data-section="0"]'); await p.waitForTimeout(300);
+    await ouvrirSaisieRapide(p, 0);
     await p.keyboard.press('Escape'); await p.waitForTimeout(200);
     check(await panneau(p) === null && await p.evaluate(() => !window.app._cibleAjout), 'Échap ferme le panneau et oublie la destination');
     check(await p.evaluate(() => document.querySelectorAll('#progression-sections .cible-ajout').length) === 0, 'plus aucune case marquée');
-    await p.click('#progression-sections .prog-section-ajout[data-section="0"]'); await p.waitForTimeout(300);
+    await ouvrirSaisieRapide(p, 0);
     await p.mouse.click(1380, 760); await p.waitForTimeout(200);
     check(await panneau(p) === null, 'un clic à côté le ferme aussi');
     // RÉÉCRIT À L5b (14/11, « la barre Ajout rapide n'est plus permanente ») : refermé, le panneau emporte la saisie ; il n'y a donc plus, à l'ordinateur, de saisie SANS destination.

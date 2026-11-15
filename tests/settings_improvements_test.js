@@ -1,3 +1,4 @@
+const { ouvrirSaisieRapide } = require('./_ajout');
 const { chromium } = require('playwright')
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 // Réécrit après la refonte des Paramètres (retour utilisateur : « j'aimerais que tu réfléchisses à
@@ -61,8 +62,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     });
 
     // L5b (14/11) : la saisie rapide n'est plus permanente, « + Accord » l'ouvre (elle porte son ampoule d'aide).
-    await page.click('#progression-sections .prog-section-ajout[data-section="0"]');
-    await page.waitForTimeout(300);
+    await ouvrirSaisieRapide(page, 0); // L6c : « + Accord » n'existe plus
     console.log('=== 1. L\'ampoule d\'aide a quitté les Paramètres pour la rangée du champ ===');
     let r = await page.evaluate(() => {
         const btn = document.getElementById('quick-add-help-btn');

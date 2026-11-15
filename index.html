@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611160140">
+    <link rel="stylesheet" href="style.css?v=202611160174">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611160140">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611160174">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -108,6 +108,10 @@
     <div id="grille-vide-menu" class="tb-menu partie-menu" role="menu" aria-label="Grille" hidden>
         <button type="button" role="menuitem" class="tb-mi" id="gvm-section" data-vide-action="section"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="tb-mi-libelle">Ajouter une section</span></button>
     </div>
+    <!-- FENÊTRE D'AJOUT AU CLIC (L6c, 14/11, lettre Q.3 : « je n'aurais pas toujours envie d'utiliser le clavier ») : un double-clic sur le « + » du bout d'une partie ouvre cette fenêtre
+         (le style de la bulle d'accord) : la fondamentale en 12 notes, le type, « Ajouter » ; elle reste ouverte pour enchaîner. Remplace le bouton « + Accord » de l'en-tête de partie à
+         l'ordinateur. Remplie par ouvrirAjoutClic ; déclarée dans this._popups (Échap et clic à côté la ferment). La saisie au clavier dans le « + » est inchangée. -->
+    <div id="ajout-clic" class="tb-menu bulle-accord ajout-clic" role="dialog" aria-label="Ajouter un accord" hidden></div>
     <!-- Choix ouvert par une puce de la rangée de réglages (lot 6a) : un seul, rempli à l'ouverture (voir ouvrirPuceReglage). -->
     <div id="rr-pop" class="tb-menu rr-pop" hidden></div>
     <!-- LA BULLE « QUEL ACCORD » (refonte, lot 6b) : un clic sur une case l'ouvre — fondamentale, type, basse, durée, ‹ › vers le voisin. Une seule,
@@ -1534,13 +1538,14 @@
                             <li><code>Cm7</code> : accord seul, voicing par défaut</li>
                             <li><code>C_E</code> : basse différente</li>
                             <li><code>C_O4-R1-D2</code> : voicing précis (octave/renversement/drop, même notation que les badges) — combinables et partiels, ex. <code>C_D2</code> = juste un drop 2, ou avec une basse : <code>C_E_O4</code></li>
-                            <li><code>C/Am/F/G</code> : plusieurs accords, 1/mesure</li>
+                            <li><code>C//Am//F//G</code> : plusieurs accords, 1/mesure (« // » change d'accord)</li>
+                            <li><code>Bbadd9/C</code> : accord sur basse, le « / » seul met la note à la basse (comme <code>Bbadd9_C</code>)</li>
                             <li>Entrée : ligne — ligne vide : nouvelle partie</li>
                             <li>Ctrl+Entrée ou « + » : valider</li>
                         </ul>
                     </div>
                     <div class="quick-add-row">
-                        <textarea id="quick-add-input" class="quick-add-input" rows="1" placeholder="Ajout rapide" autocomplete="off" autocapitalize="off" spellcheck="false" title="Un accord seul (ex. Cm7), une basse et/ou un voicing via « _ » (C_E, C_O4-R1-D2, C_D2...), plusieurs accords séparés par « / » (un par mesure), ou une ligne vide pour démarrer une nouvelle partie (voir le bouton d'aide à côté)"></textarea>
+                        <textarea id="quick-add-input" class="quick-add-input" rows="1" placeholder="Ajout rapide" autocomplete="off" autocapitalize="off" spellcheck="false" title="Un accord seul (ex. Cm7), une basse et/ou un voicing via « _ » (C_E, C_O4-R1-D2, C_D2...), un accord sur basse (Bbadd9/C), plusieurs accords séparés par « // » (un par mesure), ou une ligne vide pour démarrer une nouvelle partie (voir le bouton d'aide à côté)"></textarea>
                         <!-- L'aide de l'ajout rapide vivait dans Paramètres > Affichage : une aide n'est
                              pas un réglage, et on la cherche ICI, au moment où on tape (retour
                              utilisateur sur le rangement des paramètres). Même popover, juste déclenché
@@ -1548,7 +1553,7 @@
                         <button type="button" id="quick-add-help-btn" class="icon-btn" title="Comment utiliser l'ajout rapide" aria-label="Comment utiliser l'ajout rapide" aria-expanded="false">
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.05V17h6v-2.25c0-.85.4-1.55 1-2.05A7 7 0 0 0 12 2Z"/></svg>
                         </button>
-                        <button type="button" id="quick-add-btn" class="icon-btn" title="Ajouter à la grille (Ctrl+Entrée) — « _ » pour une basse et/ou un voicing (C_E, C_O4-R1-D2), « / » pour plusieurs accords à la suite (C/Am/F/G), ligne vide pour une nouvelle partie" aria-label="Ajouter à la grille">
+                        <button type="button" id="quick-add-btn" class="icon-btn" title="Ajouter à la grille (Ctrl+Entrée) — « _ » pour une basse et/ou un voicing (C_E, C_O4-R1-D2), « / » pour une basse (Bbadd9/C), « // » pour plusieurs accords à la suite (C//Am//F//G), ligne vide pour une nouvelle partie" aria-label="Ajouter à la grille">
                             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                         </button>
                     </div>
@@ -2149,13 +2154,13 @@
     <!-- sequenceur.js AVANT script.js : l'appli (window.app) est créée à la fin de script.js et construit le séquenceur dans la foulée. -->
     <!-- Les formes du séquenceur (au compte) : AVANT sequenceur.js, qui s'y abonne à sa construction ; la connexion (SYNCHRO) n'est lue qu'à l'usage. -->
     <script src="synchro-formes.js?v=202611131800"></script>
-    <script src="synchro-doigtes.js?v=202611160140"></script>
-    <script src="sequenceur.js?v=202611160140"></script>
-    <script src="script.js?v=202611160140"></script>
+    <script src="synchro-doigtes.js?v=202611160174"></script>
+    <script src="sequenceur.js?v=202611160174"></script>
+    <script src="script.js?v=202611160174"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611160140"></script>
+    <script src="synchro-harmohub.js?v=202611160174"></script>
     <!-- Les versions au cloud (sous-lot « Versions au cloud ») : après l'adaptateur, dont elles réutilisent la connexion (SYNCHRO). -->
     <script src="synchro-versions.js?v=202611060400"></script>
 </body>

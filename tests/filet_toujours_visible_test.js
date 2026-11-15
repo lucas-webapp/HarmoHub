@@ -147,7 +147,7 @@ async function fermerMenu(page) {
     await fermerMenu(page);
     await dblclickHorsNom(page, '.grid-cell:not(.grid-cell-add)'); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord) ; B2 (12/11) : hors du texte du nom, que le double-clic retape
     await page.waitForTimeout(300);
-    await page.click('#bulle-accord [data-bulle="son"]');
+    await page.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]');
     await page.waitForTimeout(450);
     exiger(await page.evaluate(() => window.app.appMode === 'edit'), 'ordinateur : le clic sur un accord fait bien entrer en mode Modification');
     await eprouver(page, 'ordinateur, mode Modification', BUREAU);

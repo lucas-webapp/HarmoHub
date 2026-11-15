@@ -3143,28 +3143,7 @@ button:active { transform: translateY(1px); }
     .bulle-g5 button { font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .bulle-pied { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
     .bulle-duree { min-width: 104px; }
-    /* « Réglages du son › » : bleu = « modifier » (gabarit, règle 3). */
-    .bulle-son {
-        margin-left: auto;
-        flex: none;
-        box-sizing: border-box;
-        height: var(--bouton-h, 32px);
-        min-width: 0;
-        padding: 0 8px 0 12px;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        border: 1px solid var(--btn-blue-border, #2f4d6e);
-        border-radius: var(--rayon-bouton, 7px);
-        background-image: linear-gradient(160deg, var(--btn-blue-1, #1d2f47), var(--btn-blue-2, #142236) 70%);
-        color: var(--btn-text, #e8eef6);
-        font-size: var(--fs-sm);
-        font-weight: 600;
-        cursor: pointer;
-        white-space: nowrap;
-    }
-    .bulle-son .icon { width: 14px; height: 14px; }
-    .bulle-son:hover { border-color: var(--btn-blue-border-hover); }
+    /* (L6a : « Réglages du son » n'existe plus — l'onglet Voicing de la bulle le remplace.) */
 
     .voicing-perso { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 8px 10px; border-radius: var(--rayon-bouton, 7px); background: #241c10; border: 1px solid #5c4023; }
     .voicing-perso[hidden] { display: none; }
@@ -5736,8 +5715,7 @@ body.impression-structure #structure-print-zone { display: block; }
     }
     .prog-section-ajout .icon { width: 14px; height: 14px; }
     .prog-section-ajout:hover { border-color: var(--btn-neutral-border-hover); background: var(--fond-bouton-sombre-survol, #262b33); }
-    /* Le ⋯ suit « + Accord » : c'est lui qui pousse maintenant à droite. */
-    .prog-section-ajout ~ .prog-section-menu { margin-left: 0; }
+    /* L6c : « + Accord » n'est plus affiché à l'ordinateur (display: none en fin de fichier) : le ⋯ reprend seul le bout de la ligne (margin-left: auto, plus haut). */
 
     /* « + » entre deux cases : sur le bord gauche de la case, à mi-hauteur, visible au survol seulement (bleu = ajouter). */
     .cell-ins {
@@ -7499,7 +7477,7 @@ body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
     body:has(#ajout-aide:not([hidden])) #quick-add-panel > .quick-add-row { display: flex; }
     /* « + Accord » de l'en-tête de partie : la décision D le retire (« doublon des + »), MAIS son remplaçant — le double-clic sur le « + » du bout d'une partie, qui ouvre la
        fenêtre d'ajout au clic — est au lot L6. Le retirer avant laisserait l'ordinateur sans accès au panneau d'ajout (palette de la tonalité, suggestions) : il reste donc
-       jusqu'à L6, et c'est lui qui ouvre la saisie rapide maintenant qu'elle n'est plus permanente. */
+       jusqu'à L6, et c'est lui qui ouvre la saisie rapide maintenant qu'elle n'est plus permanente. (L6c : retiré, voir le bloc L6 en fin de fichier.) */
 
     /* « + SECTION » : un mince bandeau en pointillés sous la dernière partie, TOUJOURS visible (L, « on voit pas le bouton sous l'onglet […] j'aimerais quand même voir un
        bouton ajouter section quelque part »), collé en bas de la zone quand la liste des parties est longue. C'est le même bouton (#add-section) : seul son aspect change. */
@@ -7632,4 +7610,61 @@ body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
     .context-menu .rb-pied .btn-sec { width: auto; }
     .bl-reglages-pop .settings-toggle-row { margin-bottom: 14px; }
     .bl-reglages-pop .settings-toggle-row label { white-space: nowrap; }
+}
+
+/* ======================================================================================================
+   L6 — LA FENÊTRE D'ACCORD À TROIS ONGLETS : Accord | Voicing | Rythme (refonte, lettres N, O, R, Q — décisions des 13 et 14/11). En FIN de fichier (cascade).
+   ====================================================================================================== */
+/* LE REPÈRE D'UNE LIGNE (R) : le nom de la partie, puis un segment par accord de la partie (largeur égale), l'accord en cours en clair ; non cliquable. Ordinateur ET téléphone. */
+.bulle-repere { display: flex; align-items: center; gap: 8px; height: 14px; min-width: 0; flex: none; }
+.bulle-repere-nom { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 600; color: var(--text-muted); }
+.bulle-repere-segs { display: flex; flex: 1 1 auto; align-items: center; gap: 2px; height: 6px; min-width: 0; }
+.bulle-repere-segs > i { flex: 1 1 0; min-width: 0; height: 6px; border-radius: 2px; background: #2f353e; }
+.bulle-repere-segs > i.en-cours { background: #e6e9ee; }
+.pa-quel .bulle-repere { margin: 2px 2px 4px; }
+/* Téléphone : l'onglet actif est VERT (comme Grille / Structure / Paroles), jamais bleu. */
+.pa-onglets button[aria-pressed="true"] { color: var(--accent); background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 -2px 0 var(--accent); }
+/* Retaper le nom d'une case (N4) : le texte sélectionné est BLANC, le contour du champ vert. */
+.cell-sym-input::selection { background: #ffffff; color: #0b0d10; }
+.cell-sym-input:focus { box-shadow: 0 0 0 2px rgba(0, 230, 118, 0.35); }
+@media (min-width: 900px) {
+    /* PLUS D'INSPECTEUR FLOTTANT (N) : « si quelque chose s'affiche, c'est dans un autre onglet, soit en dessous ; je ne dois pas modifier l'affichage ». La carte Accord reste dans la
+       page, cachée : elle lie toujours les commandes à l'accord (editChord), mais seule la bulle les montre. */
+    .sidebar-frame, body[data-app-mode="edit"] .sidebar-frame { display: none; }
+    /* Les onglets de la bulle : texte vert + trait de 3 px pour l'actif, comme Grille / Structure / Paroles — jamais d'aplat, jamais de bleu. */
+    .bulle-onglets { display: flex; gap: 0; margin: 0 -4px; border-bottom: 1px solid var(--border); flex: none; }
+    .bulle-onglets button {
+        flex: 1 1 0; min-width: 0; height: 34px; padding: 0 6px; border: 0; border-radius: 7px 7px 0 0; background: transparent; box-shadow: none;
+        color: var(--text-muted); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+    .bulle-onglets button:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.05); }
+    .bulle-onglets button[aria-pressed="true"] { color: var(--accent); background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 -3px 0 var(--accent); }
+    .bulle-onglets button:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--btn-blue-border-hover); }
+    /* L'onglet Voicing : la rangée octave / renversement / drop / basse (le nœud de la carte Accord), à la largeur de la bulle. */
+    .bulle-voicing { display: flex; flex-direction: column; gap: 8px; }
+    .bulle-voicing .voicing-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; margin: 0; padding: 0; width: 100%; box-sizing: border-box; }
+    /* L'onglet Rythme : les rythmes types sur 4 colonnes, « Autres +n » toujours la dernière case ; aucune phrase d'aide. */
+    .bulle-rythmes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .bulle-rythme {
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; min-width: 0; width: auto; height: auto; min-height: 58px; padding: 8px 4px;
+        border: 1px solid var(--border); border-radius: var(--rayon-bouton, 7px); background: var(--fond-bouton-sombre, #1c2027); color: var(--text-main); font-size: var(--fs-xs); font-weight: 600; cursor: pointer;
+    }
+    .bulle-rythme:hover { border-color: var(--btn-neutral-border-hover); background: var(--fond-bouton-sombre-survol, #262b33); }
+    .bulle-rythme[aria-pressed="true"] { color: var(--accent); background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 -2px 0 var(--accent); }
+    .bulle-rythme[aria-pressed="true"] .sq-vignette span.lit { background: var(--accent); }
+    .bulle-rythme .sq-vignette .icon { width: 18px; height: 18px; grid-column: 1 / -1; grid-row: 1 / -1; justify-self: center; align-self: center; }
+    .bulle-ouvrir-seq { height: var(--bouton-h, 32px); min-width: 0; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--rayon-bouton, 7px); background: var(--fond-bouton-sombre, #1c2027); color: var(--text-main); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; }
+    .bulle-ouvrir-seq:hover { border-color: var(--btn-neutral-border-hover); background: var(--fond-bouton-sombre-survol, #262b33); }
+}
+
+@media (min-width: 900px) {
+    /* « + ACCORD » DE L'EN-TÊTE DE PARTIE (D, « doublon des + ») : retiré à l'ordinateur, remplacé par le double-clic sur le « + » du bout d'une partie (fenêtre d'ajout au clic). */
+    .prog-section-ajout { display: none; }
+    /* La fenêtre d'ajout au clic : la bulle d'accord, avec son pied « symbole + Ajouter » (Ajouter est NEUTRE, pas vert). */
+    .ajout-clic { z-index: 85; }
+    .ajout-titre { flex: 1 1 auto; font-size: var(--fs-md); }
+    .ajout-pied { justify-content: space-between; }
+    .ajout-symbole { font-size: var(--fs-lg); font-weight: 800; color: var(--text-main); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ajout-valider { flex: none; width: auto; min-width: 0; height: var(--bouton-h, 32px); padding: 0 16px; border: 1px solid var(--btn-neutral-border-hover); border-radius: var(--rayon-bouton, 7px); background: var(--fond-bouton-sombre, #1c2027); color: var(--text-main); font-size: var(--fs-sm); font-weight: 700; cursor: pointer; }
+    .ajout-valider:hover { background: var(--fond-bouton-sombre-survol, #262b33); }
 }

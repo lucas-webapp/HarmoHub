@@ -65,7 +65,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     const box1 = await cell1.boundingBox();
     await page.mouse.dblclick(box1.x + box1.width / 2, box1.y + box1.height * 0.85); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
     await page.waitForTimeout(250);
-    await page.click('#bulle-accord [data-bulle="son"]');
+    await page.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]');
     await page.waitForTimeout(250);
     r = await page.evaluate(() => ({ editingIndex: window.app.editingIndex, appMode: window.app.appMode, sqOuvert: !document.getElementById('sequenceur').hidden }));
     console.log(JSON.stringify(r));

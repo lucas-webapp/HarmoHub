@@ -95,7 +95,7 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
     check(JSON.stringify(e.sur) === '[0,0]', `rien n'était choisi : le panneau prend le premier accord de la partie (${JSON.stringify(e.sur)})`);
     check(await p.evaluate(() => document.getElementById('panneau-lecture').hidden), 'le panneau Lecture s\'est refermé');
     check(e.undo === undo0, 'ouvrir le séquenceur n\'écrit rien (pas d\'annulation déposée)');
-    check(e.onglets === 'Accord:false Son:false Rythme:true', `trois onglets, Rythme enfoncé (${e.onglets})`);
+    check(e.onglets === 'Accord:false Voicing:false Rythme:true', `trois onglets, Rythme enfoncé (${e.onglets})`);
     check(await p.evaluate(() => document.getElementById('pl-notes').getAttribute('aria-pressed')) === 'true', '« Séquenceur » se dit allumé dans le panneau Lecture');
 
     console.log('\n=== B. L\'onglet Rythme ===');
@@ -196,7 +196,7 @@ const TEL = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: t
     await toucher(p, '#pa-quel [data-bulle="onglet"][data-valeur="son"]');
     e = await etat(p);
     check(e.etendu && e.edit === 2 && e.carte === 'pa-son' && !e.visible, `Son : le panneau s'agrandit, l'accord en modification, la carte Accord dedans (${e.edit}, ${e.carte})`);
-    check(e.onglets === 'Accord:false Son:true Rythme:false', `Son enfoncé (${e.onglets})`);
+    check(e.onglets === 'Accord:false Voicing:true Rythme:false', `Voicing enfoncé (${e.onglets})`);
     await toucher(p, '#pa-quel [data-bulle="onglet"][data-valeur="rythme"]');
     e = await etat(p);
     check(e.rythme && !e.etendu && e.edit == null && e.parent === 'pa-rythme' && e.visible, `Rythme : la modification se referme, le séquenceur revient (${e.edit}, ${e.parent})`);

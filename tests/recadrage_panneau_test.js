@@ -55,9 +55,10 @@ const graine = () => {
     const cliquer = async (p, i, ms = 700) => { const c = await centre(p, i); await p.mouse.click(c.x, c.y); await p.waitForTimeout(ms); };
     // LE GESTE QUI OUVRE LA BULLE (ordinateur) : le double-clic depuis le point B (un clic seul ne fait qu'entendre l'accord).
     const ouvrirBulle = async (p, i) => { const c = await centre(p, i); await p.mouse.dblclick(c.x, c.b.y + c.b.height - 6); await p.waitForTimeout(700); }; // B2 (12/11) : le bas de la case, hors du texte du nom que le double-clic retape
+    // L6a : plus d'inspecteur flottant à l'ordinateur — « comment il sonne » est l'onglet Voicing de la fenêtre d'accord ; c'est elle qu'on mesure (le nom d'origine est gardé pour le diff).
     const inspecteur = (p) => p.evaluate(() => {
-        const f = document.querySelector('.sidebar-frame'), r = f.getBoundingClientRect(), g = document.getElementById('grille-cadre').getBoundingClientRect();
-        return { visible: r.width > 0 && r.height > 0 && getComputedStyle(f).display !== 'none', g: Math.round(r.left), d: Math.round(r.right), haut: Math.round(r.top), grilleD: Math.round(g.right), edition: window.app.editingIndex };
+        const f = document.getElementById('bulle-accord'), r = f.getBoundingClientRect(), g = document.getElementById('grille-cadre').getBoundingClientRect();
+        return { visible: !f.hidden && r.width > 0 && r.height > 0, g: Math.round(r.left), d: Math.round(r.right), haut: Math.round(r.top), grilleD: Math.round(g.right), edition: window.app.editingIndex };
     });
 
     // ======================================================================================================
@@ -68,18 +69,18 @@ const graine = () => {
         await ouvrirBulle(p, 1);
         exiger(await p.locator('#bulle-accord').isVisible(), 'la bulle s\'ouvre sur l\'accord');
         check(await ecran(p) === t0, 'ouvrir la bulle ne déplace aucune case');
-        await p.click('#bulle-accord [data-bulle="son"]'); await p.waitForTimeout(900);
+        await p.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]'); await p.waitForTimeout(900);
         const i1 = await inspecteur(p);
-        exiger(i1.visible && i1.edition === 1, '« Réglages du son » ouvre l\'inspecteur sur cet accord');
+        exiger(i1.visible && i1.edition === 1, 'l\'onglet Voicing ouvre la modification de cet accord, dans la même fenêtre');
         const t1 = await ecran(p);
-        check(t1 === t0, `l'inspecteur ne déplace aucune case, la rangée de réglages garde sa hauteur${t1 === t0 ? '' : ' — avant ' + t0 + ' / après ' + t1}`);
-        check(i1.g >= i1.grilleD && i1.d <= vp.width, `il flotte à droite de la fenêtre de grille sans la recouvrir (grille jusqu'à ${i1.grilleD}, inspecteur ${i1.g}-${i1.d})`);
+        check(t1 === t0, `l'onglet Voicing ne déplace aucune case, la rangée de réglages garde sa hauteur${t1 === t0 ? '' : ' — avant ' + t0 + ' / après ' + t1}`);
+        check(i1.g >= 0 && i1.d <= vp.width, `la fenêtre flotte sous sa case, tout entière dans l'écran (${i1.g}-${i1.d} sur ${vp.width})`);
         // Piège relevé par sentinelle_atteignabilite : flottant tout en haut, il cachait Ajouter et l'aide au bout de l'ajout rapide.
         // L5b (14/11) : la saisie n'est plus permanente — fermée, le panneau d'ajout n'a plus de hauteur (il reste à 2 px sous l'en-tête) ; le repère est alors le bas de l'en-tête de la grille.
         const ajout = await p.evaluate(() => { const qa = document.getElementById('quick-add-panel'); return Math.round((qa.getBoundingClientRect().height > 0 ? qa : document.querySelector('.grid-head-sticky')).getBoundingClientRect().bottom); });
-        check(i1.haut >= ajout, `il part sous la rangée de réglages et l'ajout rapide, sans cacher leurs boutons (haut ${i1.haut}, ajout rapide jusqu'à ${ajout})`);
+        check(i1.haut >= ajout, `elle part sous la rangée de réglages et l'ajout rapide, sans cacher leurs boutons (haut ${i1.haut}, ajout rapide jusqu'à ${ajout})`);
         await cliquer(p, 3);
-        check(await ecran(p) === t0, 'un clic sur un autre accord, inspecteur ouvert : rien ne bouge');
+        check(await ecran(p) === t0, 'un clic sur un autre accord, fenêtre ouverte : rien ne bouge');
         await p.keyboard.press('Escape'); await p.waitForTimeout(500);
         await p.keyboard.press('Escape'); await p.waitForTimeout(500);
         check(await ecran(p) === t0, 'Échap referme : toujours rien de déplacé');
@@ -96,7 +97,7 @@ const graine = () => {
     await cliquer(p, 1);
     let i = await inspecteur(p);
     exiger(await choisiSq() === 1 && i.edition == null, 'le séquenceur suit l\'accord cliqué, sans le mettre en modification');
-    check(!i.visible, 'sans faire apparaître l\'inspecteur (il recouvrait la droite de l\'éditeur)');
+    check(!i.visible, 'sans ouvrir de fenêtre (le séquenceur, en bas, montre l\'accord)');
     let s1 = await ecran(p);
     check(s1 === s0, `aucune case ne bouge${s1 === s0 ? '' : ' — avant ' + s0 + ' / après ' + s1}`);
     await p.keyboard.press('Escape'); await p.waitForTimeout(400);
@@ -104,16 +105,16 @@ const graine = () => {
     i = await inspecteur(p);
     check(await choisiSq() === 3 && !i.visible && await ecran(p) === s0, 'un autre accord : même chose, la grille reste en place');
     check(await p.evaluate(() => document.getElementById('sequenceur').getBoundingClientRect().width) >= 1390, 'le séquenceur garde toute la largeur');
-    // Inspecteur demandé, séquenceur ouvert : il apparaît, puis suit les accords suivants sans rien déplacer.
+    // Voicing demandé, séquenceur ouvert : la fenêtre apparaît, puis suit les accords suivants sans rien déplacer.
     await p.keyboard.press('Escape'); await p.waitForTimeout(400);
     await ouvrirBulle(p, 2);
     const bulleOk = await p.locator('#bulle-accord').isVisible();
     exiger(bulleOk, 'la bulle s\'ouvre aussi séquenceur ouvert');
-    await p.click('#bulle-accord [data-bulle="son"]'); await p.waitForTimeout(900);
-    check((await inspecteur(p)).visible && await ecran(p) === s0, '« Réglages du son » montre l\'inspecteur, sans rien déplacer');
+    await p.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]'); await p.waitForTimeout(900);
+    check((await inspecteur(p)).visible && await ecran(p) === s0, 'l\'onglet Voicing montre la fenêtre, sans rien déplacer');
     await cliquer(p, 0);
     i = await inspecteur(p);
-    check(i.visible && i.edition === 0 && await ecran(p) === s0, 'déjà ouvert, il suit l\'accord suivant');
+    check(i.visible && i.edition === 0 && await ecran(p) === s0, 'déjà ouvert, il suit l\'accord choisi');
     { const f = await p.locator('#sq-fermer').boundingBox(); await p.mouse.click(f.x + f.width / 2, f.y + f.height / 2); await p.waitForTimeout(700); }
     check(await ecran(p) === s0, 'fermer le séquenceur ne déplace rien');
     await p.context().close();

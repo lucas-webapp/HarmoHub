@@ -85,7 +85,7 @@ const centreSymbole = (page, idx) => page.evaluate((i) => {
     await page.waitForTimeout(700);
     e = await etat();
     check(await bulle() && !e.retape && e.ed === null, `double-clic sur une zone NUE : la bulle aussi, sans retape ni panneau (${JSON.stringify(e)})`);
-    await page.click('#bulle-accord [data-bulle="son"]');
+    await page.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]');
     await page.waitForTimeout(600);
     e = await etat();
     check(e.ed === 2 && !e.retape, `« Réglages du son », dans la bulle, ouvre le panneau — sans champ de retape orphelin (${JSON.stringify(e)})`);

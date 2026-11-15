@@ -66,7 +66,7 @@ const atteignable = (sel) => {
     // ouvre un, comme l'utilisateur (clic sur la case, puis « Réglages du son » dans la bulle) : les deux portes sont alors à l'écran ensemble.
     await dblclickHorsNom(page, '#progression-sections .grid-cell[data-index="0"]'); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
     await page.waitForTimeout(300);
-    await page.click('#bulle-accord [data-bulle="son"]');
+    await page.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]');
     await page.waitForTimeout(500);
 
     // RÉÉCRIT AU RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : à l'ordinateur, la porte « Séquenceur » de la carte Accord (petit séquenceur, sa loupe « plein écran »)

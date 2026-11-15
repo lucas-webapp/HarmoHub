@@ -25,6 +25,7 @@
 const { chromium, devices } = require('playwright');
 const creerHarnais = require('./_harness');
 const R = require('./_retrait_ancien');
+const { dblclickHorsNom } = require('./_geste_accord');
 const { plan, check, exiger, bilan } = creerHarnais('Filet : séquenceur volant et sortie d\'édition');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
 
@@ -124,9 +125,14 @@ const boiteDe = (sel) => {
     check(!etat.porte && !etat.bouton && !etat.panneau && etat.calque === 0, `ni ancienne porte, ni ancien panneau, ni calque Voix — porte ${etat.porte}, bouton ⊱ ${etat.bouton}, panneau ${etat.panneau}, calque ${etat.calque}`);
     await R.cliquer(page, '#vue-sequenceur', 400); // refermé : la suite éprouve la carte Accord seule, comme avant
 
+    // L6a : à l'ordinateur la modification d'un accord s'ouvre par l'onglet Voicing de la fenêtre d'accord (plus d'inspecteur ni de editChord direct) : vrais gestes.
+    const entrerModif = async () => {
+        if (await page.evaluate(() => !document.getElementById('bulle-accord').hidden && window.app._bulle && window.app._bulle.onglet === 'voicing')) return;
+        if (await page.evaluate(() => document.getElementById('bulle-accord').hidden)) { await dblclickHorsNom(page, '#progression-sections .grid-cell[data-index="0"]'); await page.waitForTimeout(300); }
+        await page.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]'); await page.waitForTimeout(400);
+    };
     console.log('\n=== D. Sortie du mode Modification : ce qui sort, ce qui ne sort pas ===');
-    await page.evaluate(() => window.app.editChord(0, 0));
-    await page.waitForTimeout(350);
+    await entrerModif();
     exiger(await page.evaluate(() => window.app.appMode === 'edit'), 'on est bien en mode Modification avant les essais');
 
     // D1. Toucher une COMMANDE d'accord ne doit pas sortir de l'édition. Éprouvé sur trois
@@ -162,14 +168,14 @@ const boiteDe = (sel) => {
         // l'état d'aplomb — plein écran refermé, mode Modification retrouvé — pour que les essais
         // suivants partent tous du même point. Le plein écran est un vrai piège ici : laissé ouvert,
         // il recouvre la carte, et le clic suivant tomberait sur son fond au lieu de la commande visée.
-        await page.evaluate(() => { if (window.app.appMode !== 'edit') window.app.editChord(0, 0); });
+        await entrerModif();
         await page.waitForTimeout(200);
     }
 
     // D2. Cliquer dans le VIDE de la grille doit, lui, sortir de l'édition — le pendant exact du
     // précédent, et une correction demandée explicitement (.chord-grid est volontairement absent de
     // la liste des sélecteurs pour ça).
-    await page.evaluate(() => { if (window.app.appMode !== 'edit') window.app.editChord(0, 0); });
+    await entrerModif();
     await page.waitForTimeout(250);
     const vide = await page.evaluate(() => {
         // Un point de la grille situé APRÈS la dernière case, donc sur le fond : on part du bas de la
@@ -180,10 +186,12 @@ const boiteDe = (sel) => {
         const grille = document.querySelector('.chord-grid');
         if (!grille) return null;
         const g = grille.getBoundingClientRect();
+        // L6a : la fenêtre d'accord flotte sous la case et couvre le milieu du vide : on cherche un point libre sur toute la largeur, hors de la fenêtre.
         for (let y = derniere.bottom + 8; y < g.bottom - 2; y += 6) {
-            const x = g.left + g.width / 2;
-            const sous = document.elementFromPoint(x, y);
-            if (sous && !sous.closest('.grid-cell, .cell-add, .section-head, button, input, select')) return { x, y };
+            for (const x of [g.left + g.width / 2, g.left + 40, g.right - 40, g.left + g.width * 0.75]) {
+                const sous = document.elementFromPoint(x, y);
+                if (sous && !sous.closest('.grid-cell, .cell-add, .section-head, button, input, select, #bulle-accord')) return { x, y };
+            }
         }
         return null;
     });

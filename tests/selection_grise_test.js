@@ -103,7 +103,7 @@ const FONDS = ['aurora', 'blue', 'green', 'violet', 'rose', 'amber', 'grey'];
 
     console.log('\n=== C. En modification : l\'effet monte d\'un cran, toujours sur les bords ===');
     await dblclickHorsNom(p, caseSel(3)); await p.waitForTimeout(500);
-    await p.click('#bulle-accord [data-bulle="son"]'); await p.waitForTimeout(600);
+    await p.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]'); await p.waitForTimeout(600);
     exiger(await p.locator(caseSel(3) + '.editing').count() === 1, '« Réglages du son » met la case en modification');
     const ed = await style(p, 3);
     check(grisClair(ed.bord) && ed.bord.a >= 0.95, `bord plein (opacité ${ed.bord.a})`);

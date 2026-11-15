@@ -31,7 +31,8 @@ async function dblclickHorsNom(page, selecteur) {
 // Ordinateur : la bulle, puis « Réglages du son » — l'inspecteur sur cet accord.
 async function ouvrirSon(page, section, index, attente = 500) {
     await ouvrirBulle(page, section, index, 300);
-    await page.click('#bulle-accord [data-bulle="son"]');
+    // RÉÉCRIT À L6a (14/11) : « Réglages du son » n'existe plus, ni l'inspecteur flottant ; on ouvre l'onglet « Voicing » de la bulle (les commandes du voicing y sont, liées à l'accord).
+    await page.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]');
     await page.waitForTimeout(attente);
 }
 

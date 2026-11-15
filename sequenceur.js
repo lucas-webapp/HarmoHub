@@ -190,6 +190,34 @@
         data.intensityPerStep = {};
     }
 
+    // UN ACCORD DONT LES VOIX CHANGENT HORS DE L'ÉDITEUR (la fenêtre d'accord : une basse arrive, un autre type ; la retape du nom) GARDE SON RYTHME. Retour de l'utilisateur : « l'ajout de la
+    // basse (C) n'a pas été comprise par l'appli : pas de C mis à la basse » — le motif stocké (arpPattern) ne connaissait pas la voix neuve, qui restait muette. Un motif NOMMÉ (data.motifSeq,
+    // jamais retouché à la main) est réappliqué aux nouvelles voix (la basse prend le rythme de la basse du motif, comme à l'application d'un motif) ; un rythme « À la main » garde ses
+    // notes et la basse neuve reprend celui de la voix la plus grave du corps de l'accord. Un accord au motif-type jamais retouché n'a rien à faire : son motif suit tout seul ses voix.
+    // `avant` : l'accord tel qu'il était (copie), `data` : tel qu'il vient d'être écrit (modifié en place). Rend vrai s'il a réécrit le rythme.
+    function resynchroniser(avant, data, app = window.app) {
+        const a = voixDe(avant), n = voixDe(data);
+        if (a.voix.length === n.voix.length && (a.basse == null) === (n.basse == null)) return false;
+        if (!data.seqEdited && (data.playStyle || 'held') !== 'arpeggio') return false;
+        const etat = lireAccord(data, app);
+        const m = data.motifSeq ? motifParId(data.motifSeq) : null;
+        if (m) { ecrireAccord(data, etatAvecMotif(etat, m)); return true; }
+        const v = etat.info.basse;
+        if (v == null) return false;
+        for (let k = 0; k < etat.info.croches; k++) if (etat.on.has(cle(v, k))) return false; // une basse qui sonne déjà (rythme déjà écrit pour elle) : rien à faire
+        const ref = etat.info.positions.find(x => x !== v);
+        if (ref == null) return false;
+        for (let k = 0; k < etat.info.croches; k++) {
+            const c = cle(ref, k);
+            if (!etat.on.has(c)) continue;
+            etat.on.add(cle(v, k));
+            if (etat.soude.has(c)) etat.soude.add(cle(v, k));
+            if (etat.niveaux.has(c)) etat.niveaux.set(cle(v, k), etat.niveaux.get(c));
+        }
+        ecrireAccord(data, etat);
+        return true;
+    }
+
     // Les croches d'une position du motif sur toute la durée de l'accord : le motif fait une mesure de 4/4 (8 croches), il se répète au-delà et
     // s'arrête où l'accord s'arrête (une mesure de 3/4 en garde les six premières).
     // Une POSITION du motif sur la durée de l'accord : ses croches (ks), celles qui sont soudées à la précédente (sd : une note tenue) et les niveaux
@@ -1080,6 +1108,9 @@
             });
             const menu = document.getElementById('sq-menu-note');
             if (menu) menu.addEventListener('click', (e) => {
+                // Au doigt, le menu s'ouvre SOUS l'appui long (ou calé contre le bas de l'écran) : le clic fabriqué au relâchement tombait sur un de ses boutons et l'exécutait (« Scinder »
+                // sans que personne l'ait voulu). Un clic tactile dans les 600 ms qui suivent l'ouverture n'est que ce relâchement.
+                if (e.pointerType === 'touch' && performance.now() - (this._menuNoteOuvertA || 0) < 600) return;
                 const b = e.target.closest('button[data-sq-acte]');
                 if (b && !b.disabled) this.agirNote(b.dataset.sqActe);
             });
@@ -1248,8 +1279,17 @@
         // LA POPOVER DU SIGNET : tous les rythmes (vignette + nom ; les masqués portent « masqué · afficher » ; « Mes formes » au-dessus des formes), puis « ＋ Enregistrer la forme… »
         // et « ＋ Créer une forme… » qui y ouvrent leur petit formulaire. Aucune phrase d'aide : l'information est dans les infobulles.
         basculerBiblio() { const o = document.getElementById('sq-biblio'); if (o && !o.hidden) this.fermerBiblio(); else this.ouvrirBiblio('liste'); }
-        ouvrirBiblio(vue = 'liste') {
-            const pop = document.getElementById('sq-biblio'), ancre = document.getElementById('sq-forme-enregistrer');
+        // Les rythmes types que la fenêtre d'accord (onglet Rythme, L6b) montre : Libre, puis les fournis non masqués, avec leur vignette ; « autres » = ce qui n'y est pas
+        // (les formes de l'utilisateur et les fournis masqués), pour « Autres +n ».
+        rythmesPourBulle() {
+            const masq = this.masques();
+            const actuel = this._i != null ? motifActuel(this.accord(this._i)) : null;
+            const liste = MOTIFS.filter(m => m.id === 'main' || !masq.has(m.id)).sort((x, y) => (y.id === 'main') - (x.id === 'main')).map(m => ({ id: m.id, nom: m.id === 'main' ? 'Libre' : m.nom, vignette: vignetteHtml(m), actif: m.id === actuel }));
+            const masques = MOTIFS.filter(m => m.id !== 'main' && masq.has(m.id)).length;
+            return { liste, autres: formesUtilisateur().length + masques };
+        }
+        ouvrirBiblio(vue = 'liste', ancreVoulue = null) {
+            const pop = document.getElementById('sq-biblio'), ancre = ancreVoulue || document.getElementById('sq-forme-enregistrer');
             if (!pop || !ancre) return;
             // Enregistrer une forme agit sur l'accord choisi : sans accord choisi, celui que le séquenceur vise (jamais inerte) ; la partie vide n'en a pas.
             if (vue === 'enregistrer') {
@@ -2114,6 +2154,7 @@
             };
             menu.querySelectorAll('button[data-sq-acte]').forEach(b => { b.disabled = !peut[b.dataset.sqActe]; });
             menu.hidden = false;
+            this._menuNoteOuvertA = performance.now();
             // Posé près du doigt ou du pointeur, jamais hors de l'écran.
             const larg = menu.offsetWidth, haut = menu.offsetHeight;
             menu.style.left = Math.max(8, Math.min(x, window.innerWidth - larg - 8)) + 'px';
@@ -2295,5 +2336,5 @@
         }
     }
 
-    window.SequenceurHarmo = { Sequenceur, MOTIFS, lireAccord, ecrireAccord, motifSurVoix, etatAvecMotif, voixDe, motifParId, motifActuel, formeDepuisEtat, LIGNE_MIN, LIGNE_MAX, LIGNE_DEFAUT, CROCHE_MIN, CROCHE_MAX, CROCHE_DEFAUT };
+    window.SequenceurHarmo = { Sequenceur, MOTIFS, lireAccord, ecrireAccord, resynchroniser, motifSurVoix, etatAvecMotif, voixDe, motifParId, motifActuel, formeDepuisEtat, LIGNE_MIN, LIGNE_MAX, LIGNE_DEFAUT, CROCHE_MIN, CROCHE_MAX, CROCHE_DEFAUT };
 })();

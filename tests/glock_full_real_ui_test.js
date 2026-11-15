@@ -16,7 +16,7 @@ async function dblclickCellSafe(page, section, index) {
     const y = box.y + box.height - 6;
     await page.mouse.dblclick(x, y); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
     await page.waitForTimeout(250);
-    await page.click('#bulle-accord [data-bulle="son"]');
+    await page.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]');
     await page.waitForTimeout(250);
 }
 async function clickCellSafe(page, section, index) {
@@ -105,7 +105,7 @@ async function clickCellSafe(page, section, index) {
         lockedShapes[i] = savedLock;
 
         // Close edit via real click on "Fermer"
-        await page.click('#accord-close');
+        await page.click('#bulle-accord [data-bulle="fermer"]');
         await page.waitForTimeout(150);
     }
 
@@ -150,7 +150,7 @@ async function clickCellSafe(page, section, index) {
         });
         check(btnActive, `après rechargement complet, accord ${i} : cadenas actif en édition`);
         check(JSON.stringify(shownFingering) === JSON.stringify(lockedShapes[i]), `après rechargement complet, accord ${i} : bon doigté affiché en édition`);
-        await page.click('#accord-close');
+        await page.click('#bulle-accord [data-bulle="fermer"]');
         // Refermer le panneau est asynchrone lui aussi : sans cette marge, le double-clic du TOUR
         // SUIVANT arrivait pendant la fermeture du précédent. C'est pourquoi l'accord 0 passait
         // toujours et les suivants non — un symptôme d'enchaînement, jamais de persistance.

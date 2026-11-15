@@ -3,7 +3,7 @@
 // (this._popups). Ce test existe pour ça : une consolidation qui laisserait UN popup au bord de la
 // route ne se verrait pas à l'œil nu — on ne rouvre pas les six menus à chaque relecture.
 const { chromium } = require('playwright')
-const { ajouterAccord } = require('./_ajout');
+const { ajouterAccord, ouvrirSaisieRapide } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -62,8 +62,7 @@ const cache = (page, id) => page.evaluate((i) => {
                 }
                 // L5b (14/11) : la saisie rapide (et son ampoule d'aide) n'est plus permanente, « + Accord » l'ouvre d'abord.
                 if (await page.evaluate(() => document.getElementById('quick-add-input').getBoundingClientRect().width === 0)) {
-                    await page.click('#progression-sections .prog-section-ajout[data-section="0"]');
-                    await page.waitForTimeout(250);
+                    await ouvrirSaisieRapide(page, 0); // L6c : « + Accord » n'existe plus
                 }
                 await page.click('#quick-add-help-btn');
             },

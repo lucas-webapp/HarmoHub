@@ -84,8 +84,8 @@ const graine = () => {
     check(await largeurSaisie() === 0, 'au repos : plus de barre « Ajout rapide » sous l\'en-tête');
     const calme = await p.evaluate(() => ({ haut: Math.round(document.getElementById('quick-add-panel').getBoundingClientRect().height), grille: Math.round(document.getElementById('progression-sections').getBoundingClientRect().top), tete: Math.round(document.querySelector('.grid-head-sticky').getBoundingClientRect().bottom) }));
     check(calme.haut === 0 && calme.grille - calme.tete <= 12, `et elle ne laisse aucun vide : la grille suit l'en-tête (${calme.grille - calme.tete} px d'écart)`);
-    await p.click('#progression-sections .prog-section-ajout[data-section="0"]'); await p.waitForTimeout(350);
-    check(await largeurSaisie() > 300, 'un « + Accord » ouvre le panneau : la saisie apparaît, en pleine largeur');
+    await p.evaluate(() => window.app.ouvrirAideAjout(0, null)); await p.waitForTimeout(350); // L6c : « + Accord » n'existe plus ; le panneau d'ajout s'ouvre aussi par le « + » entre deux cases
+    check(await largeurSaisie() > 300, 'le panneau d\'ajout s\'ouvre : la saisie apparaît, en pleine largeur');
     check(await p.evaluate(() => document.activeElement && document.activeElement.id === 'quick-add-input'), 'et le curseur y est, prêt à taper');
     await p.keyboard.type('F6'); await p.keyboard.press('Control+Enter'); await p.waitForTimeout(400);
     check(await p.evaluate(() => loadProgressionSections()[0].chords.map(c => c.root + ':' + c.quality).join(' ')) === 'C:maj7 A:min7 D:min7 G:dom7 F:6', 'elle fait toujours son travail (F6, Ctrl+Entrée) : l\'accord est ajouté');

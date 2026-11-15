@@ -233,7 +233,7 @@ function check(cond, label) { if (cond) { PASS++; console.log('PASS - ' + label)
         mode: window.app.appMode,
         quickAdd: document.getElementById('quick-add-panel').hidden,
     }));
-    await page.click('#accord-close');
+    await page.evaluate(() => window.app.cancelEdit()); // L6a : l'inspecteur et sa croix n'existent plus ; la modification, ouverte ici par l'appel de l'appli, se referme de même
     await page.waitForTimeout(300);
     const enAjout = await page.evaluate(() => ({
         reglages: !document.getElementById('tel-reglages-cases').hidden,

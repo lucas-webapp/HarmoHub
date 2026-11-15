@@ -4,7 +4,7 @@
 // de l'appli, au profit de l'annulation de TEXTE du navigateur — sur un champ vide, donc sans le
 // moindre effet. Il fallait cliquer ailleurs d'abord. Un champ vide n'a rien à annuler.
 const { chromium } = require('playwright')
-const { ajouterAccord } = require('./_ajout');
+const { ajouterAccord, ouvrirSaisieRapide } = require('./_ajout');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
 let PASS = 0, FAIL = 0;
@@ -22,8 +22,8 @@ function check(c, l) { if (c) { PASS++; console.log('PASS - ' + l); } else { FAI
     await page.waitForTimeout(1000);
 
     console.log('\n=== A. Annuler sans avoir à cliquer ailleurs ===');
-    // L5b (14/11) : la saisie n'est plus permanente, « + Accord » l'ouvre. On l'ouvre ICI, puis le banc continue comme avant (elle reste ouverte jusqu'à la section D).
-    await page.click('#progression-sections .prog-section-ajout[data-section="0"]'); await page.waitForTimeout(300);
+    // L5b / L6c (14/11) : la saisie n'est plus permanente et « + Accord » n'existe plus : on ouvre le panneau d'ajout ICI, puis le banc continue comme avant (elle reste ouverte jusqu'à la section D).
+    await ouvrirSaisieRapide(page, 0);
     await ajouterAccord(page, 'C/Am/F/G');
     await page.waitForTimeout(800);
     check(await page.evaluate(() => document.activeElement.id === 'quick-add-input'),

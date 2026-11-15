@@ -35,7 +35,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     // ne reste « replié » au rechargement.
     const ouvrirInspecteur = async (i) => {
         await dblclickHorsNom(page, `#progression-sections .grid-cell[data-index="${i}"]`); await page.waitForTimeout(300); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
-        await page.click('#bulle-accord [data-bulle="son"]'); await page.waitForTimeout(400);
+        await page.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]'); await page.waitForTimeout(400);
     };
     console.log('--- Au départ : plus de bandeau, la grille a toute la place ---');
     let r = await page.evaluate(() => ({
@@ -46,7 +46,8 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     console.log((r.cadre === 0 && r.repli === 0) ? 'PASS (ni bandeau ni bouton de repli sur ordinateur)' : 'FAIL');
 
     // Refonte du séquenceur (point C) : l'inspecteur FLOTTE au bord droit, la grille ne se resserre plus (« il recadre l'écran à chaque fois »).
-    console.log('--- Un accord ouvert : l\'inspecteur flotte à droite, la grille garde sa place ---');
+    // RÉÉCRIT À L6a (14/11) : l'inspecteur flottant n'existe plus ; un accord ouvert sur l'onglet Voicing de la bulle ne prend aucune place à droite : la grille garde la sienne.
+    console.log('--- Un accord ouvert (onglet Voicing) : plus d\'inspecteur à droite, la grille garde sa place ---');
     const largeAvant = await page.evaluate(() => document.querySelector('.col-right').getBoundingClientRect().width);
     await ouvrirInspecteur(0);
     r = await page.evaluate(() => ({
@@ -54,7 +55,7 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
         colRight: document.querySelector('.col-right').getBoundingClientRect(),
     }));
     console.log(JSON.stringify({ i: Math.round(r.inspecteur.width), c: Math.round(r.colRight.width) }));
-    console.log((r.inspecteur.width === 344 && r.inspecteur.right <= r.colRight.right + 1 && r.inspecteur.left > r.colRight.left && Math.abs(r.colRight.width - largeAvant) <= 1) ? 'PASS (inspecteur à droite, grille à sa largeur)' : 'FAIL');
+    console.log((r.inspecteur.width === 0 && Math.abs(r.colRight.width - largeAvant) <= 1) ? 'PASS (aucun inspecteur, grille à sa largeur)' : 'FAIL');
 
     // REFONTE, LOT 2 : le transport vit dans la BARRE DE LECTURE du bas (#bl-lecture), qui ne dépend d'aucun panneau — c'était le risque que ce banc
     // surveillait (un panneau qui emporte le transport avec lui). On éprouve donc toujours le résultat : transport affiché, entier, hors du panneau.
@@ -87,7 +88,8 @@ const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
     await page.waitForTimeout(300);
 
     console.log('--- La croix le ferme : la grille reprend toute sa place ---');
-    await page.click('#accord-close');
+    // L6a : il n'y a plus d'inspecteur ni de croix ; lancer la lecture a refermé la bulle (un clic à côté), la modification avec elle. Échap ferme ce qui resterait ouvert.
+    await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
     r = await page.evaluate(() => ({ cadre: document.querySelector('.sidebar-frame').getBoundingClientRect().width, colRight: document.querySelector('.col-right').getBoundingClientRect().width }));
     console.log(JSON.stringify(r));

@@ -25,6 +25,7 @@
 //      revanche la même FORME : fond plat, cadre 1px, rayon 7px.
 const { chromium, devices } = require('playwright');
 const creerHarnais = require('./_harness');
+const { dblclickHorsNom } = require('./_geste_accord');
 const R = require('./_retrait_ancien');
 const { plan, check, exiger, bilan } = creerHarnais('Un seul aspect de bouton dans le volet');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';
@@ -44,8 +45,8 @@ const seed = () => {
 //  - le séquenceur (.arp-seq), qui VOYAGE : dans la carte sur téléphone, sous la grille sur
 //    ordinateur. Une règle qui le prendrait au passage lui donnerait deux aspects selon la largeur
 //    de l'écran, exactement le contraire du but. C'est éprouvé en section D.
-const relever = () => {
-    const volet = document.querySelector('.col-left');
+const relever = (sel) => {
+    const volet = document.querySelector(sel || '.col-left');
     if (!volet) return null;
     const vus = [];
     for (const b of volet.querySelectorAll('button')) {
@@ -53,7 +54,7 @@ const relever = () => {
         if (b.closest('.transport') || b.closest('#global-transport') || b.closest('.arp-seq')) continue;
         const st = getComputedStyle(b);
         vus.push({
-            nom: b.id || b.className.split(' ')[0],
+            nom: b.id || b.className.split(' ')[0] || (b.dataset.valeur ? 'onglet-' + b.dataset.valeur : ''),
             fond: st.backgroundColor,
             degrade: st.backgroundImage !== 'none',
             cadreL: st.borderTopWidth, cadreC: st.borderTopColor,
@@ -80,10 +81,11 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     // LOT 6c : sur ordinateur, le « volet » n'existe plus qu'en modification d'un accord — c'est l'inspecteur « son de l'accord », à droite de la
     // grille (même cadre, mêmes boutons). On l'ouvre donc sur un accord au voicing personnalisé, pour que son bouton « Revenir à l'automatique »
     // soit du relevé.
-    await page.evaluate(() => window.app.editChord(0, 1));
-    await page.waitForTimeout(500);
+    // L6a : plus d'inspecteur à l'ordinateur — le « volet » de la modification est la fenêtre d'accord, onglet Voicing (vrais gestes : double-clic sur la case, onglet).
+    await dblclickHorsNom(page, '#progression-sections .grid-cell[data-index="1"]'); await page.waitForTimeout(300);
+    await page.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]'); await page.waitForTimeout(500);
     console.log('=== A. Combien de familles d\'aspect cohabitent ? ===');
-    const vus = await page.evaluate(relever);
+    const vus = await page.evaluate(relever, '#bulle-accord');
     // RETRAIT DE L'ANCIEN SÉQUENCEUR (4b, 12/11) : la porte « Séquenceur » (#seq-zoom) a quitté l'inspecteur de l'ordinateur avec le petit séquenceur — un
     // bouton de moins au relevé (neuf au lieu de dix) ; la question des familles se pose toujours. Sa famille d'exception n'a plus lieu d'être ici
     // (au plus trois familles), elle reste nommée pour le téléphone (partie plus bas), où la porte demeure jusqu'à l'étape 4c.
@@ -105,16 +107,17 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     // autre bouton, rougit toujours.
     const familleSeule = [...familles.entries()].filter(([, m]) => m.length === 1).map(([, m]) => m[0]);
     check(familles.size <= 4, `au plus quatre familles, contre dix avant — ${familles.size} : ${resume}`);
-    check(familles.size <= 3 || familleSeule.includes('seq-zoom'),
-        `la famille en trop est bien l'exception nommée (la porte du séquenceur) — seule(s) : ${familleSeule.join(', ') || 'aucune'}`);
+    // L6a : à l'ordinateur la famille en plus n'est plus la porte du séquenceur (partie du volet disparue) mais l'ONGLET ACTIF de la fenêtre d'accord, vert comme tous les onglets actifs.
+    check(familles.size <= 3 || familleSeule.includes('onglet-voicing'),
+        `la famille en trop est bien l'exception nommée (l'onglet actif, en vert) — seule(s) : ${familleSeule.join(', ') || 'aucune'}`);
 
     console.log('\n=== B. La référence désignée est une famille du volet ===');
     // « L'aspect sombre que tu viens de mettre en place pour les nouveaux boutons » : le menu de durée
     // de la rangée du dessous. On lit la référence SUR LUI plutôt que de recopier des valeurs en dur —
     // si elle change un jour, ce banc suit au lieu de mentir.
     const ref = await page.evaluate(() => {
-        // Lot 6c : le menu de durée est dans la bulle désormais ; la référence sombre se lit sur la croix de l'inspecteur, de la même famille.
-        const d = document.getElementById('accord-close');
+        // Lot 6c : le menu de durée est dans la bulle désormais ; L6a : la référence sombre se lit sur « Revenir à l'automatique », bouton sombre de la fenêtre d'accord.
+        const d = document.getElementById('voicing-perso-auto');
         if (!d) return null;
         const st = getComputedStyle(d);
         return { fond: st.backgroundColor, degrade: st.backgroundImage !== 'none',
@@ -138,7 +141,7 @@ const cle = (x) => `${x.fond}|${x.degrade}|${x.cadreL}|${x.cadreC}|${x.rayon}|${
     const membresRef = exempleRef ? familles.get(cle(exempleRef)) : [];
     // LOT 6a : le résumé du morceau a quitté le volet (ses réglages sont dans la rangée au-dessus de la grille, à la jauge — gabarit_boutons_test).
     // La référence sombre porte le bouton de durée ; elle doit rester PLATE et rester une famille du volet, c'est tout ce que le design demande.
-    check(!!exempleRef && membresRef.includes('accord-close') && membresRef.includes('voicing-perso-auto'),
+    check(!!exempleRef && membresRef.includes('voicing-perso-auto'),
         `la référence sombre (fond ${ref.fond}, rayon ${ref.rayon}, sans dégradé ni ombre) est une famille du volet : elle porte ${membresRef.join(' + ') || 'rien'}`);
     const dominanteNommee = (grande[0] === (exempleRef && cle(exempleRef))) || membres.every(n => /^voicing-/.test(n));
     check(dominanteNommee, `et la famille la plus nombreuse est l'une des deux décisions nommées (la référence, ou le sélecteur segmenté) — ${membres.slice(0, 3).join(', ')}…`);

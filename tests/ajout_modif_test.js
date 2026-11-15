@@ -10,7 +10,7 @@
 //   2. l'ajout a ses PROPRES cibles (case « + », ajout rapide), qui reprennent la main sur le sujet ;
 //   3. appMode est DÉDUIT de editingIndex, et ce qui restait de la bascule est un réglage.
 const { chromium } = require('playwright')
-const { ajouterAccord } = require('./_ajout');
+const { ajouterAccord, ouvrirSaisieRapide } = require('./_ajout');
 const { retaperNom } = require('./_geste_accord');
 const BASE = process.env.HARMOHUB_URL || 'http://localhost:8934';;
 
@@ -39,7 +39,7 @@ const pointNu = (page, idx) => page.evaluate((i) => {
 const ouvrirSon = async (page, i) => {
     const pt = await pointNu(page, i);
     await page.mouse.dblclick(pt.x, pt.y); await page.waitForTimeout(300); // point B : le double-clic ouvre la bulle (un clic seul fait entendre l'accord)
-    await page.click('#bulle-accord [data-bulle="son"]'); await page.waitForTimeout(600);
+    await page.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]'); await page.waitForTimeout(600);
 };
 
 const etat = (page) => page.evaluate(() => ({
@@ -159,9 +159,11 @@ const etat = (page) => page.evaluate(() => ({
     // choisit « Min 7 », le geste de l'utilisateur d'aujourd'hui. Ce qui est prouvé ne change pas : le titre de l'inspecteur suit en direct.
     const pc = await pointNu(page, 0);
     await page.mouse.dblclick(pc.x, pc.y); await page.waitForTimeout(300); // point B : le double-clic ouvre la bulle
+    await page.click('#bulle-accord [data-bulle="onglet"][data-valeur="accord"]'); await page.waitForTimeout(300); // L6a : la bulle est restée sur l'onglet Voicing ; le type est dans « Accord »
     await page.click('#bulle-accord [data-bulle="quality"][data-valeur="min7"]'); await page.waitForTimeout(500);
-    e = await etat(page);
-    check(e.titre.replace(/\s+/g, '') === 'ModifierCm7', `le titre suit la modification en direct (${e.titre})`);
+    // L6a : sur l'onglet Accord on ne « modifie » plus l'accord au sens de la carte (la modification, c'est l'onglet Voicing) ; le nom de la fenêtre suit, lui, le choix en direct.
+    const nomFenetre = await page.evaluate(() => document.querySelector('#bulle-accord .bulle-nom').textContent.replace(/\s+/g, ''));
+    check(nomFenetre === 'Cm7', `le nom de la fenêtre suit le choix en direct (${nomFenetre})`);
     await ouvrirSon(page, 1);
     e = await etat(page);
     check(e.titre.replace(/\s+/g, '') === 'ModifierDm', `passer à un autre accord renomme le sujet (${e.titre})`);
@@ -196,7 +198,7 @@ const etat = (page) => page.evaluate(() => ({
     await ouvrirSon(page, 2);
     check((await etat(page)).ed === 2, 'on rouvre un accord pour la suite');
     // L5b (14/11) : la saisie rapide n'est plus permanente, « + Accord » l'ouvre d'abord (puis on y clique, comme avant).
-    await page.click('#progression-sections .prog-section-ajout[data-section="0"]'); await page.waitForTimeout(300);
+    await ouvrirSaisieRapide(page, 0); // L6c : « + Accord » n'existe plus
     await page.click('#quick-add-input'); await page.waitForTimeout(400);
     e = await etat(page);
     check(e.ed === null && e.titre === 'Nouvel accord', 'engager l\'ajout rapide fait la même chose');
@@ -250,13 +252,15 @@ const etat = (page) => page.evaluate(() => ({
     // ============================================================
     check(await page.evaluate(() => window.app.appMode === 'add' && window.app.editingIndex === null),
         'aucun accord ouvert → mode « add »');
-    await page.evaluate(() => window.app.editChord(0, 0)); await page.waitForTimeout(400);
+    // La sélection d'un accord décale la grille d'un cran à cet endroit du banc (une rangée apparaît au-dessus) : le double-clic d'un seul geste tombait sur la règle des mesures. Un clic d'abord, puis le double-clic sur la case à sa nouvelle place.
+    { const p0 = await pointNu(page, 0); await page.mouse.click(p0.x, p0.y); await page.waitForTimeout(500); }
+    await ouvrirSon(page, 0); // L6a : la modification s'ouvre par l'onglet Voicing de la fenêtre d'accord (vrais gestes), plus par editChord
     check(await page.evaluate(() => window.app.appMode === 'edit' && document.body.dataset.appMode === 'edit'),
         'un accord ouvert → mode « edit », et le thème du corps suit');
     // Le large bouton « Fermer » du bas de colonne a été supprimé (retour utilisateur : « ne sert à
     // rien et est mal placé »). Ce qu'il faisait vit dans la croix de l'en-tête du panneau, et dans le
     // clic hors zone d'édition — l'assertion, elle, ne change pas : fermer doit ramener en « add ».
-    await page.click('#accord-close'); await page.waitForTimeout(400);
+    await page.click('#bulle-accord [data-bulle="fermer"]'); await page.waitForTimeout(400);
     check(await page.evaluate(() => window.app.appMode === 'add' && document.body.dataset.appMode === 'add'),
         'fermer la modification → retour à « add » (avant, le mode restait bloqué sur « edit »)');
     // Accesseur sans mutateur : l'affectation ne PREND PAS EFFET. (Elle ne lève pas ici — le code
@@ -301,7 +305,7 @@ const etat = (page) => page.evaluate(() => ({
     await ouvrirSon(page, 2);
     e = await etat(page);
     check(e.ed === 2 && e.titre.replace(/\s+/g, '') === 'ModifierEm', `« Réglages du son », dans la bulle, charge l'accord dans le panneau et le nomme (${e.titre})`);
-    await page.click('#accord-close'); await page.waitForTimeout(400);
+    await page.click('#bulle-accord [data-bulle="fermer"]'); await page.waitForTimeout(400);
 
     await page.reload(); await page.waitForTimeout(900);
     check(await page.evaluate(() => window.app.appMode === 'add'),
@@ -314,19 +318,17 @@ const etat = (page) => page.evaluate(() => ({
     // depuis le lot 6c (« rien aux deux endroits » : la fondamentale se règle dans la bulle). Vrais gestes : la bulle, « Réglages du son »,
     // puis « F » dans la bulle rouverte sur le même accord.
     await ouvrirSon(page, 1);
-    const pf = await pointNu(page, 1);
-    await page.mouse.dblclick(pf.x, pf.y); await page.waitForTimeout(300); // point B : le double-clic rouvre la bulle
+    await page.click('#bulle-accord [data-bulle="onglet"][data-valeur="accord"]'); await page.waitForTimeout(300); // L6a : la fondamentale est dans l'onglet Accord, le voicing dans l'onglet Voicing
     await page.click('#bulle-accord [data-bulle="root"][data-valeur="F"]'); await page.waitForTimeout(300);
     check(await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[1].root === 'F'),
         'changer la fondamentale s\'écrit tout de suite, sans bouton Valider');
-    // L'octave se règle désormais par le PAS-À-PAS de la rangée de voicing, plus par une liste
-    // déroulante : celle-ci existe toujours (elle reste la source de vérité que lit readChord) mais
-    // elle est masquée, et selectOption ne peut pas piloter un élément invisible. On clique donc la
-    // vraie commande, ce qui éprouve au passage le câblage complet plutôt que le seul moteur.
+    // L'octave se règle par le PAS-À-PAS de la rangée de voicing (onglet Voicing de la même fenêtre), plus par une liste déroulante : celle-ci existe toujours (elle reste la source
+    // de vérité que lit readChord) mais elle est masquée, et selectOption ne peut pas piloter un élément invisible. On clique donc la vraie commande.
+    await page.click('#bulle-accord [data-bulle="onglet"][data-valeur="voicing"]'); await page.waitForTimeout(400);
     for (let i = 0; i < 6; i++) {
         const v = await page.evaluate(() => +document.getElementById('octave').value);
         if (v >= 5) break;
-        await page.click('[data-octave-step="1"]');
+        await page.click('#bulle-accord [data-octave-step="1"]');
         await page.waitForTimeout(150);
     }
     check(await page.evaluate(() => document.getElementById('octave').value) === '5',
@@ -334,16 +336,11 @@ const etat = (page) => page.evaluate(() => ({
     await page.waitForTimeout(300);
     await page.keyboard.down('Control'); await page.keyboard.press('z'); await page.keyboard.up('Control');
     await page.waitForTimeout(400);
-    // Contrat de la refonte (docs/refonte.md : « Une bulle = UNE étape d'annulation ») : la fondamentale choisie dans la bulle et la session
-    // de l'inspecteur sont deux étapes. Un Ctrl+Z défait toute la session de l'inspecteur (l'octave), un second le choix de la bulle.
+    // Contrat de la refonte (docs/refonte.md : « Une bulle = UNE étape d'annulation »), tenu depuis L6a pour la fondamentale ET le voicing : ils sont dans la même fenêtre,
+    // un seul Ctrl+Z défait les deux (avant L6a, l'inspecteur avait sa propre étape : deux Ctrl+Z).
     const apres = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[1]);
-    check(apres.root === 'F' && String(apres.octave) === '4',
-        `un Ctrl+Z annule toute la session de l'inspecteur, pas le choix de la bulle (${apres.root}, octave ${apres.octave})`);
-    await page.keyboard.down('Control'); await page.keyboard.press('z'); await page.keyboard.up('Control');
-    await page.waitForTimeout(400);
-    const apres2 = await page.evaluate(() => JSON.parse(localStorage.getItem('myProgression')).sections[0].chords[1]);
-    check(apres2.root === 'D' && String(apres2.octave) === '4',
-        `un second Ctrl+Z annule le choix de la bulle (${apres2.root}, octave ${apres2.octave})`);
+    check(apres.root === 'D' && String(apres.octave) === '4',
+        `un seul Ctrl+Z défait toute la fenêtre : la fondamentale ET l'octave (${apres.root}, octave ${apres.octave})`);
 
     await browser.close();
     console.log('\nErreurs page : ' + (errors.length ? errors.join(' | ') : 'aucune'));
