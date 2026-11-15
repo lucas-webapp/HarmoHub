@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611152100">
+    <link rel="stylesheet" href="style.css?v=202611152220">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611152100">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611152220">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1498,6 +1498,11 @@
                             <span class="gz-court">Notes</span><span class="gz-long">Éditeur de notes</span>
                         </button>
                     </div>
+                    <!-- VOICING (L4, 15/11) : « Le bouton voicing doit sortir du séquenceur pour aller en haut à droite » ; « cette conduite de voix doit être dans une popover
+                         comme avant » ; « il faut vraiment que tu copies la conduite de voix qu'on avait avant sur l'application ». Le LOGO est celui d'avant
+                         (ICONS.voiceLeading : deux paires de notes reliées par des pointillés), le mot « Voicing » s'ajoute au-dessus de 1180 px. À L'EXTRÉMITÉ DROITE de l'en-tête de la grille (enfant de .card-head, après les réglages de vue) ; écrit ICI (pas fabriqué
+                         par le script) : son adresse doit exister dans la page. Ordinateur seulement : masqué sous 900 px. -->
+                    <button type="button" id="voicing-btn" class="rr-voicing" aria-haspopup="dialog" aria-expanded="false" aria-controls="voicing-pop" title="Conduite des voix : comment chaque voix bouge d'un accord à l'autre dans la partie choisie" aria-label="Conduite des voix"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><rect x="10" y="7.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M8 5.3 10 8.8" stroke-width="1.5" stroke-dasharray="1.5 1.5"/><rect x="3" y="15.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><rect x="13" y="11.5" width="6" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M9 16.8 13 12.8" stroke-width="1.5" stroke-dasharray="1.5 1.5"/></svg><span class="rr-voicing-nom">Voicing</span></button>
                 </div>
                 <!-- Saisie rapide : ajoute un accord tapé directement en fin de partie. Elle vit
                      SOUS LE TITRE DE LA GRILLE, avec ce qu'elle alimente — elle était auparavant en
@@ -1855,6 +1860,7 @@
     <!-- La popover du signet (L3) : tous les rythmes, « Enregistrer la forme… », « Créer une forme… ». -->
     <div id="sq-biblio" class="context-menu sq-biblio" role="dialog" aria-label="Tous les rythmes" hidden></div>
     <!-- Les réglages du séquenceur (L3) : composants de Paramètres (curseur, interrupteur, choix). -->
+    <div id="voicing-pop" class="context-menu voicing-pop" role="dialog" aria-label="Conduite des voix" hidden></div>
     <div id="sq-reglages-pop" class="context-menu sq-reglages-pop" role="dialog" aria-label="Réglages du séquenceur" hidden></div>
     <div id="sq-menu-note" class="context-menu sq-menu-note" role="menu" aria-label="Note" hidden>
         <button type="button" role="menuitem" data-sq-acte="scinder">Scinder la note</button>
@@ -2118,13 +2124,13 @@
     <!-- sequenceur.js AVANT script.js : l'appli (window.app) est créée à la fin de script.js et construit le séquenceur dans la foulée. -->
     <!-- Les formes du séquenceur (au compte) : AVANT sequenceur.js, qui s'y abonne à sa construction ; la connexion (SYNCHRO) n'est lue qu'à l'usage. -->
     <script src="synchro-formes.js?v=202611131800"></script>
-    <script src="synchro-doigtes.js?v=202611152100"></script>
-    <script src="sequenceur.js?v=202611152100"></script>
-    <script src="script.js?v=202611152100"></script>
+    <script src="synchro-doigtes.js?v=202611152220"></script>
+    <script src="sequenceur.js?v=202611152220"></script>
+    <script src="script.js?v=202611152220"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611152100"></script>
+    <script src="synchro-harmohub.js?v=202611152220"></script>
     <!-- Les versions au cloud (sous-lot « Versions au cloud ») : après l'adaptateur, dont elles réutilisent la connexion (SYNCHRO). -->
     <script src="synchro-versions.js?v=202611060400"></script>
 </body>

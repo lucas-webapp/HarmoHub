@@ -2819,6 +2819,8 @@ const ZONE_EDITION_SELECTEURS = [
     // Lot 8 : le tiroir Clavier / Guitare et ses deux boutons de la barre de lecture. Les touches du clavier y sont des <div> (aucun `button` ne les couvre),
     // et le clavier AGIT sur l'accord sélectionné : cliquer dedans ne doit ni le désélectionner ni sortir de sa modification.
     '#vues-tiroir', '#bl-vues',
+    // L4 : la popover Voicing (le piano-roll est un <svg> : aucun `button` ne le couvre) — la consulter n'est pas quitter sa modification.
+    '#voicing-pop',
     // Lot 10b : la barre de lecture du téléphone et son panneau Lecture. Toucher la frise, « Mes. N » ou le fond du panneau n'est pas quitter
     // la modification en cours (les boutons, eux, sont déjà couverts par `button`).
     '#barre-lecture', '#panneau-lecture',
@@ -2872,6 +2874,10 @@ const GRILLE_LARGEUR_KEY = 'harmohubGrilleLargeur';
 // (plancher commun), et chaque clic se voit autant que le précédent, quelle que soit l'échelle
 // atteinte. C'est le pas habituel des stations audio.
 const ZOOM_LEVEL_RATIO = 1.25;
+// Échelles horizontale / verticale de la popover « Voicing » (conduite des voix, L4) : mêmes bornes et même cran que les autres fenêtres zoomables,
+// UN réglage de l'appareil (une seule popover est jamais ouverte à la fois). Clés reprises à l'identique de l'ancien panneau.
+const VOICE_LEADING_ZOOM_LEVEL_X_KEY = 'harmohubVoiceLeadingZoomLevelX';
+const VOICE_LEADING_ZOOM_LEVEL_Y_KEY = 'harmohubVoiceLeadingZoomLevelY';
 // Panneau de gauche masqué ou non (voir #toggle-sidebar/toggleSidebar) : préférence de l'APPAREIL,
 // pas du morceau (contrairement aux échelles de zoom) — une préférence d'espace d'écran, pas un
 // réglage propre à un morceau donné.
@@ -4857,6 +4863,8 @@ class HarmoHubApp {
             { id: 'guitar-doigtes-pop', ancre: '#guitar-nav-label', close: () => this.basculerDoigtesGuitare(false) },
             // La roue des diagrammes (L8) : son bouton gère sa propre bascule.
             { id: 'vues-reglages-pop', ancre: '#vues-reglages', close: () => this.basculerReglagesVues(false) },
+            // La conduite des voix (L4) : son bouton gère sa propre bascule.
+            { id: 'voicing-pop', ancre: '#voicing-btn', close: () => this.basculerVoicing(false) },
         ];
         // Le panneau flottant est posé en coordonnées d'écran : il faut le replacer dès que son ancre
         // bouge. Sur téléphone, la page défile pour de bon (contrairement à l'ordinateur, où seules
@@ -4872,6 +4880,7 @@ class HarmoHubApp {
             // un appareil ou redimensionner une fenêtre doit les faire apparaître ou disparaître.
             this.majBarreBasTelephone();
             this.placerInspecteurFlottant();
+            if (this._voicingOuvert) this.placerVoicing();
         };
         window.addEventListener('resize', suivreAncre);
         window.addEventListener('scroll', suivreAncre, { passive: true, capture: true });
@@ -8542,6 +8551,7 @@ class HarmoHubApp {
         this.rafraichirBarreSelection();
         if (this._bulle) { this.remplirBulleAccord(); this.placerBulleAccord(); } // la grille vient d'être redessinée : la bulle relit l'accord et se recale
         if (this.sequenceur) this.sequenceur.rafraichir(); // le séquenceur montre la partie et l'accord choisis : il suit chaque rendu de la grille
+        if (this._voicingOuvert) this.majVoicing(); // la conduite des voix montre la partie active : elle suit chaque rendu de la grille
     }
 
     // LA DURÉE AFFICHÉE PENDANT QU'ON L'ÉTIRE (lot 5d) : une petite bulle au-dessus du bord droit de l'accord, « 2 mesures », mise à jour à chaque
@@ -13153,6 +13163,188 @@ class HarmoHubApp {
 
     // La roue des diagrammes (L8, 14/11 : « un petit bouton de paramètres en haut à droite des diagrammes […] uniquement pour la partie diagramme ») : l'écriture sur les
     // touches et les pastilles (la même préférence que Paramètres › Affichage), et combien de doigtés de guitare sont proposés.
+    // VOICING — LA CONDUITE DES VOIX (L4, 15/11). « Il faut vraiment que tu copies la conduite de voix qu'on avait avant sur l'application […] dans une popover comme
+    // avant. » C'est donc l'ancien piano-roll (buildVoiceLeadingPanelHtml, repris tel quel : colonne des touches fixe, un bloc par accord de largeur proportionnelle à sa
+    // durée, notes colorées par rôle, trait plein épais = note tenue, fin pointillé = mouvement), posé dans une popover ouverte par #voicing-btn au lieu d'un panneau sous
+    // la grille. Elle montre la partie ACTIVE et suit chaque rendu de la grille (loadProgression). Ordinateur seulement : le bouton est masqué sous 900 px.
+    basculerVoicing(ouvrir) {
+        const pop = document.getElementById('voicing-pop'), bouton = document.getElementById('voicing-btn');
+        if (!pop || !bouton) return;
+        if (ouvrir === undefined) ouvrir = pop.hidden;
+        if (ouvrir && !window.matchMedia('(min-width: 900px)').matches) ouvrir = false; // le téléphone n'a pas ce bouton
+        pop.hidden = !ouvrir;
+        this._voicingOuvert = ouvrir;
+        bouton.setAttribute('aria-expanded', String(ouvrir));
+        if (!ouvrir) { pop.innerHTML = ''; return; }
+        this.majVoicing();
+    }
+
+    // Échelle courante d'un axe (« x » ou « y ») : lue une fois dans le stockage de l'appareil, bornée comme les autres fenêtres zoomables.
+    niveauVoicing(axe) {
+        const cle = axe === 'x' ? 'voiceLeadingZoomLevelX' : 'voiceLeadingZoomLevelY';
+        if (!Number.isFinite(this[cle])) {
+            let v = NaN;
+            try { v = parseFloat(localStorage.getItem(axe === 'x' ? VOICE_LEADING_ZOOM_LEVEL_X_KEY : VOICE_LEADING_ZOOM_LEVEL_Y_KEY)); } catch (e) { /* stockage illisible : échelle 1 */ }
+            this[cle] = Number.isFinite(v) ? Math.min(ZOOM_LEVEL_MAX, Math.max(ZOOM_LEVEL_MIN, v)) : 1;
+        }
+        return this[cle];
+    }
+
+    // Un cran de zoom sur un axe : une PROPORTION (ZOOM_LEVEL_RATIO), comme adjustZoom des autres fenêtres, bornée de ZOOM_LEVEL_MIN à ZOOM_LEVEL_MAX.
+    zoomVoicing(axe, sens) {
+        const actuel = this.niveauVoicing(axe);
+        const neuf = Math.min(ZOOM_LEVEL_MAX, Math.max(ZOOM_LEVEL_MIN, Math.round(actuel * (sens > 0 ? ZOOM_LEVEL_RATIO : 1 / ZOOM_LEVEL_RATIO) * 1000) / 1000));
+        if (neuf === actuel) return;
+        this[axe === 'x' ? 'voiceLeadingZoomLevelX' : 'voiceLeadingZoomLevelY'] = neuf;
+        try { localStorage.setItem(axe === 'x' ? VOICE_LEADING_ZOOM_LEVEL_X_KEY : VOICE_LEADING_ZOOM_LEVEL_Y_KEY, String(neuf)); } catch (e) { /* stockage plein : vaut pour la session */ }
+        this.majVoicing();
+    }
+
+    // Redessine la popover pour la partie active (ouverture, changement de partie, accord modifié, zoom). Le défilement est gardé : changer l'échelle ne ramène pas au début.
+    majVoicing() {
+        const pop = document.getElementById('voicing-pop');
+        if (!pop || pop.hidden) return;
+        const sections = loadProgressionSections();
+        const si = Math.max(0, Math.min(this.activeSection, sections.length - 1));
+        const sec = sections[si];
+        const history = sec ? sec.chords : [];
+        const gRoot = document.getElementById('global-root').value, gMode = document.getElementById('global-mode').value;
+        const useFlats = useFlatsForKey(NOTES.indexOf(gRoot), gMode);
+        const ancien = pop.querySelector('.voice-leading-scroll');
+        const defil = ancien ? [ancien.scrollLeft, ancien.scrollTop] : [0, 0];
+        const nom = ((sec && sec.title) || '').trim() || `Partie ${si + 1}`;
+        pop.innerHTML = history.length >= 2
+            ? this.buildVoiceLeadingPanelHtml(si, history, gRoot, gMode, useFlats, nom)
+            : `<div class="voice-leading-vide">${escapeHtml(nom)} : il faut au moins deux accords pour voir comment les voix bougent.</div>`;
+        const neuf = pop.querySelector('.voice-leading-scroll');
+        if (neuf) { neuf.scrollLeft = defil[0]; neuf.scrollTop = defil[1]; }
+        this.placerVoicing();
+    }
+
+    // Posée en coordonnées d'écran sous le bouton, calée sur son bord droit ; plus de place que prévu : elle défile. Sous 900 px elle se ferme (le bouton n'y existe plus).
+    placerVoicing() {
+        const pop = document.getElementById('voicing-pop'), bouton = document.getElementById('voicing-btn');
+        if (!pop || !bouton || pop.hidden) return;
+        if (!window.matchMedia('(min-width: 900px)').matches) { this.basculerVoicing(false); return; }
+        const r = bouton.getBoundingClientRect();
+        pop.style.maxWidth = (window.innerWidth - 16) + 'px';
+        pop.style.maxHeight = Math.max(160, window.innerHeight - r.bottom - 16) + 'px';
+        const w = pop.offsetWidth;
+        pop.style.left = Math.round(Math.min(Math.max(r.right - w, 8), window.innerWidth - w - 8)) + 'px';
+        pop.style.top = Math.round(r.bottom + 8) + 'px';
+    }
+
+    // Le piano-roll lui-même : une copie de l'ancien buildVoiceLeadingPanelHtml. Seuls changements : les échelles viennent de niveauVoicing, les boutons H / V portent
+    // data-vl-zoom (délégation, voir setup) et la barre d'outils nomme la partie montrée.
+    buildVoiceLeadingPanelHtml(si, history, gRoot, gMode, useFlats, nomPartie) {
+        const PX_PER_BEAT = 56 * this.niveauVoicing('x'), ROW_H = 18 * this.niveauVoicing('y');
+        const KEY_GUTTER = 34, PAD_TOP = 30, PAD_BOTTOM = 14;
+        const ROLE_GRADIENT = {
+            root: ['#3fe3a0', '#00a855'], third: ['#5b98f0', '#1f5fc0'],
+            fifth: ['#ff6f66', '#d42a20'], seventh: ['#ffc247', '#cc8f00'], ext: ['#dba8ee', '#c48ce6'],
+        };
+
+        const chordsInfo = history.map(h => {
+            const beats = beatsFromData(h);
+            const chord = new Chord(h.root, h.quality, beats, h.inversion, h.drop, octaveFromData(h), h.bass, h.guitarLock, h.extraNotes);
+            const chordUseFlats = useFlatsForChordRoot(NOTES.indexOf(h.root), NOTES.indexOf(gRoot), gMode, useFlats);
+            const symbol = chordSymbolForData(h, chordUseFlats);
+            const roman = this.getRomanNumeral(gRoot, gMode, h.root, h.quality);
+            const voiced = chord.getVoiced(); // déjà triée du grave à l'aigu
+            const labeled = voiced.map(v => ({ ...v, label: spellChordTone(NOTES.indexOf(h.root), chordUseFlats, v.degree, v.midi, false) }));
+            return { beats, width: beats * PX_PER_BEAT, symbol, roman, voiced: labeled };
+        });
+
+        const allMidis = chordsInfo.flatMap(c => c.voiced.map(v => v.midi));
+        if (allMidis.length === 0) return '';
+        const minMidi = Math.min(...allMidis) - 1, maxMidi = Math.max(...allMidis) + 1;
+        const rows = maxMidi - minMidi + 1;
+        const totalWidth = chordsInfo.reduce((sum, c) => sum + c.width, 0);
+        const height = PAD_TOP + rows * ROW_H + PAD_BOTTOM;
+        const yFor = (midi) => PAD_TOP + (maxMidi - midi) * ROW_H;
+        const gid = (role) => `vlg-${si}-${role}`; // ids d'SVG UNIQUES par partie : des ids dupliqués cassent le rendu des dégradés
+
+        // Colonne des touches de piano SÉPARÉE de la zone défilante : elle reste fixe pendant que les notes défilent de côté (retour utilisateur : le repère de hauteur
+        // se perdait dès qu'on avançait dans une partie longue). Ivoire / noir IDENTIQUES à .key.white / .key.black (« elles sont toutes foncées » avant).
+        let keysSvg = `<svg viewBox="0 0 ${KEY_GUTTER} ${height}" width="${KEY_GUTTER}" height="${height}" role="img" aria-hidden="true">`;
+        for (let m = minMidi; m <= maxMidi; m++) {
+            const isBlack = [1, 3, 6, 8, 10].includes(((m % 12) + 12) % 12);
+            keysSvg += `<rect x="0" y="${yFor(m)}" width="${KEY_GUTTER}" height="${ROW_H}" fill="${isBlack ? '#171310' : '#ece1cd'}" stroke="${isBlack ? '#000' : '#2a2a2a'}" stroke-width="1"/>`;
+            if (m % 12 === 0) keysSvg += `<text x="${KEY_GUTTER - 5}" y="${yFor(m) + ROW_H / 2 + 3}" font-size="9" fill="#2a2a2a" text-anchor="end" font-family="ui-monospace, monospace" font-weight="700">C${Math.floor(m / 12) - 1}</text>`;
+        }
+        keysSvg += `</svg>`;
+
+        let svg = `<svg viewBox="0 0 ${totalWidth} ${height}" width="${totalWidth}" height="${height}" role="img" aria-label="Conduite de voix">`;
+        svg += `<defs>${Object.entries(ROLE_GRADIENT).map(([role, [c1, c2]]) => `
+            <linearGradient id="${gid(role)}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient>`).join('')}</defs>`;
+
+        for (let m = minMidi; m <= maxMidi; m++) {
+            svg += `<rect x="0" y="${yFor(m)}" width="${totalWidth}" height="${ROW_H}" fill="${m % 12 === 0 ? '#161616' : 'transparent'}"/>`;
+            svg += `<line x1="0" x2="${totalWidth}" y1="${yFor(m)}" y2="${yFor(m)}" stroke="#232323" stroke-width="1"/>`;
+        }
+
+        // en-têtes d'accord + séparateurs
+        let x = 0;
+        chordsInfo.forEach((c, i) => {
+            svg += `<line x1="${x}" x2="${x}" y1="6" y2="${height - PAD_BOTTOM}" stroke="#2c2c2c" stroke-width="${i === 0 ? 0 : 1}"/>`;
+            svg += `<text x="${x + c.width / 2}" y="16" font-size="12.5" font-weight="800" fill="#e0e0e0" text-anchor="middle">${escapeHtml(c.symbol)}</text>`;
+            if (c.roman) svg += `<text x="${x + c.width / 2}" y="27" font-size="9" font-weight="700" fill="#6b6b6b" text-anchor="middle">${escapeHtml(c.roman)}</text>`;
+            x += c.width;
+        });
+        svg += `<line x1="${x}" x2="${x}" y1="6" y2="${height - PAD_BOTTOM}" stroke="#2c2c2c" stroke-width="1"/>`;
+
+        // lignes de conduite de voix : chaque voix est reliée à la voix de même rang de l'accord suivant (jusqu'au plus petit nombre de voix, en partant du grave).
+        // Trait plein épais = note TENUE ; fin pointillé = mouvement. Les classes sont là pour le banc (vl-tenue / vl-mouvement).
+        x = 0;
+        for (let i = 0; i < chordsInfo.length - 1; i++) {
+            const a = chordsInfo[i].voiced, b = chordsInfo[i + 1].voiced;
+            const xEnd = x + chordsInfo[i].width - 4, xStart = x + chordsInfo[i].width + 4;
+            for (let v = 0; v < Math.min(a.length, b.length); v++) {
+                const y1 = yFor(a[v].midi) + ROW_H / 2, y2 = yFor(b[v].midi) + ROW_H / 2;
+                const flat = a[v].midi === b[v].midi;
+                svg += `<line class="${flat ? 'vl-tenue' : 'vl-mouvement'}" x1="${xEnd}" y1="${y1}" x2="${xStart}" y2="${y2}" stroke="${flat ? '#4a4a4a' : '#5a5a5a'}" stroke-width="${flat ? 2.5 : 1.6}" stroke-dasharray="${flat ? 'none' : '3,2'}"/>`;
+            }
+            x += chordsInfo[i].width;
+        }
+
+        // notes (par-dessus les lignes de conduite)
+        x = 0;
+        chordsInfo.forEach(c => {
+            c.voiced.forEach(v => {
+                svg += `<rect class="vl-note" data-role="${v.role}" x="${x + 3}" y="${yFor(v.midi) + 2}" width="${c.width - 6}" height="${ROW_H - 4}" rx="5" fill="url(#${gid(v.role)})" stroke="rgba(0,0,0,0.35)"/>`;
+                svg += `<text x="${x + 10}" y="${yFor(v.midi) + ROW_H / 2 + 3.5}" font-size="9.5" font-weight="700" fill="#06170f" font-family="ui-monospace, monospace">${escapeHtml(v.label)}</text>`;
+            });
+            x += c.width;
+        });
+        svg += `</svg>`;
+
+        const zoom = (axe, lettre, nom) => `
+                    <div class="zoom-axis-group" title="Échelle ${nom}">
+                        <span class="zoom-axis-tag">${lettre}</span>
+                        <button type="button" class="icon-btn zoom-axis-btn voice-leading-zoom-in-${lettre.toLowerCase()}" data-vl-zoom="${axe}+" title="Agrandir l'échelle ${nom}" aria-label="Agrandir l'échelle ${nom}">${svgIcon('plus')}</button>
+                        <button type="button" class="icon-btn zoom-axis-btn voice-leading-zoom-out-${lettre.toLowerCase()}" data-vl-zoom="${axe}-" title="Réduire l'échelle ${nom}" aria-label="Réduire l'échelle ${nom}">${svgIcon('minus')}</button>
+                    </div>`;
+        return `
+        <div class="voice-leading-panel" data-section="${si}">
+            <div class="voice-leading-toolbar">
+                <span class="voice-leading-titre" title="Partie montrée">${escapeHtml(nomPartie || '')}</span>
+                <div class="piano-legend voice-leading-legend">
+                    <span class="lg"><span class="dot dot-root"></span>1</span>
+                    <span class="lg"><span class="dot dot-third"></span>3</span>
+                    <span class="lg"><span class="dot dot-fifth"></span>5</span>
+                    <span class="lg"><span class="dot dot-seventh"></span>7</span>
+                    <span class="lg"><span class="dot dot-ext"></span>Autres</span>
+                </div>
+                <div class="btn-wrap-group">${zoom('x', 'H', 'horizontale')}${zoom('y', 'V', 'verticale')}
+                </div>
+            </div>
+            <div class="voice-leading-body">
+                <div class="voice-leading-keys">${keysSvg}</div>
+                <div class="voice-leading-scroll">${svg}</div>
+            </div>
+        </div>`;
+    }
+
     basculerReglagesVues(ouvrir) {
         const pop = document.getElementById('vues-reglages-pop'), bouton = document.getElementById('vues-reglages');
         if (!pop || !bouton) return;
@@ -17527,6 +17719,12 @@ class HarmoHubApp {
         });
         document.getElementById('vues-fermer').addEventListener('click', () => this.fermerVues());
         document.getElementById('vues-reglages').addEventListener('click', () => this.basculerReglagesVues());
+        // Voicing (L4) : le bouton ouvre / ferme la popover ; ses boutons H / V (délégués : la popover est redessinée) changent l'échelle.
+        document.getElementById('voicing-btn').addEventListener('click', () => this.basculerVoicing());
+        document.getElementById('voicing-pop').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-vl-zoom]');
+            if (b) this.zoomVoicing(b.dataset.vlZoom[0], b.dataset.vlZoom[1] === '+' ? 1 : -1);
+        });
         // Construction d'accord : un clic sur une touche du clavier du tiroir, puis la bande (nom reconnu, Remplacer, Ajouter, Effacer).
         document.getElementById('piano-viz').addEventListener('click', (e) => {
             const touche = e.target.closest('.key');
