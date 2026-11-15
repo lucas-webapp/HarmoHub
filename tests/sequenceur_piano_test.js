@@ -203,9 +203,11 @@ const graine = () => {
     for (let n = 0; n < 2; n++) { const b = await p.locator('#progression-sections .grid-cell[data-index="0"]').first().boundingBox(); await p.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); await p.waitForTimeout(600); } // un toucher choisit, le second ouvre le panneau
     const rr = await R.ouvrirRythmeTel(p);
     exiger(rr.ok, `le séquenceur du téléphone s'ouvre (${rr.detail})`);
-    const tel = await p.evaluate(() => ({ vue: window.app.sequenceur.vue, lignes: document.querySelectorAll('#sq-grille .sq-etiq').length, touches: document.querySelectorAll('#sq-grille .sq-etiq.touche, #sq-grille .sq-etiq[data-midi]').length, ov: document.getElementById('sq-grille').style.overflowY }));
+    const tel = await p.evaluate(() => ({ vue: window.app.sequenceur.vue, lignes: document.querySelectorAll('#sq-grille .sq-etiq').length, touches: document.querySelectorAll('#sq-grille .sq-etiq.touche, #sq-grille .sq-etiq[data-midi]').length, ov: document.getElementById('sq-grille').style.overflowY, corps: (() => { const c = document.querySelector('#panneau-accord .pa-corps'); return c.scrollHeight - c.clientHeight; })() }));
     const attendu = await p.evaluate(() => { const t = new Set(); loadProgressionSections()[0].chords.forEach(d => SequenceurHarmo.voixDe(d).voix.forEach(x => t.add(x.midi))); return t.size; });
-    check(tel.vue === 'notes' && tel.lignes === attendu && tel.touches === 0 && tel.ov === '', `téléphone : ${tel.lignes} lignes (les ${attendu} hauteurs utilisées), pas de touches, pas de défilement interne`);
+    // RÉÉCRIT À L9c (15/11) : huit lignes de 43 px ne tiennent pas dans le panneau d'accord à 390 × 844 ; c'est maintenant la GRILLE qui défile (règle et noms d'accords collés en haut, voir
+    // telephone_regle_collee) au lieu de tout le panneau. Les lignes restent « seulement les hauteurs utilisées », sans touches de piano.
+    check(tel.vue === 'notes' && tel.lignes === attendu && tel.touches === 0 && tel.ov === 'auto' && tel.corps <= 1, `téléphone : ${tel.lignes} lignes (les ${attendu} hauteurs utilisées), pas de touches, la grille défile d'elle-même (${tel.ov}) et non le panneau (${tel.corps} px de trop)`);
     await ctx.close();
 
     check(erreurs.length === 0, `aucune erreur JavaScript (${erreurs.length ? erreurs.join(' | ') : 'aucune'})`);

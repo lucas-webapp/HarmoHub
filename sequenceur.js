@@ -508,6 +508,7 @@
             this.croche = borner(isNaN(w) ? CROCHE_DEFAUT : w, CROCHE_MIN, CROCHE_MAX);
             // Nombre de lignes montrées (« je préfère pouvoir voir plus de notes ») : 0 = toutes. Les barres gardent leur hauteur ; la poignée du haut change ce nombre.
             this._visibles = 0;
+            this._plein = false;   // L9a : le séquenceur couvre toute la page sous la barre du haut (body.sequenceur-plein)
             this._visParVue = { voix: 0, notes: 0 };   // le nombre de lignes visibles se retient PAR VUE (douze lignes de piano ne doivent pas écraser les quatre voix)
             const contenu = lireLocal(CLE_CONTENU);
             this.contenu = contenu === 'rien' || contenu === 'degres' ? contenu : 'notes';
@@ -603,7 +604,7 @@
             if (!this.racine) return;
             const montrer = this.estOrdinateur() ? (this.voulu() && !this._telVisible) : this._telVisible;
             this.racine.hidden = !montrer;
-            if (!montrer) this.majTrait();   // fermé : plus de trait sous la ligne dans la grille
+            if (!montrer) { this.poserPlein(false); this.majTrait(); }   // fermé : la grille est de retour, et plus de trait sous la ligne dans la grille
             if (this.bouton) {
                 this.bouton.setAttribute('aria-pressed', String(montrer));
                 this.bouton.classList.toggle('active', montrer);
@@ -950,7 +951,7 @@
             const g = this.estOuvert() && !this.modeTel() && this._i != null && this._montres.length
                 ? document.querySelector(`#progression-sections .chord-grid[data-section="${this._s}"]`) : null;
             const ref = g ? g.querySelector(`.grid-cell[data-index="${this._i}"]`) : null;
-            if (!ref) { anciens.forEach(x => x.remove()); return; }
+            if (!ref || ref.getBoundingClientRect().width === 0) { anciens.forEach(x => x.remove()); return; }   // grille masquée (séquenceur en plein écran) : pas de trait
             const haut = ref.getBoundingClientRect().top, gr = g.getBoundingClientRect();
             let x0 = Infinity, x1 = -Infinity, bas = 0;
             g.querySelectorAll('.grid-cell[data-index]').forEach(el => {
@@ -1031,14 +1032,39 @@
 
         // Rien n'est jamais caché (cahier 3 bis, poignée, règle 3) : le séquenceur ne dépasse pas la place entre la barre du haut et le tiroir des
         // diagrammes (moins un peu de grille) ; au-delà il défile en interne, barre d'outils et règle collées en haut.
-        placeLibre() {
+        // L9a (15/11, « étirer le séquenceur au-dessus de la barre d'outils […] une seule ligne visible si je suis en plein écran pour le séquenceur ») :
+        // `placeTotale()` est TOUTE la place entre la barre du haut (la seule ligne de l'appli qui reste) et le tiroir + la barre de lecture ; `placeLibre()`
+        // en retire GRILLE_MIN, ce qu'on laisse à la grille tant qu'elle est là. Quand les lignes demandées par la poignée ne tiennent plus avec la grille,
+        // la grille est MASQUÉE (`body.sequenceur-plein`, voir limiterHauteur) et le séquenceur prend `placeTotale()` : la barre de lecture reste à l'écran.
+        placeTotale() {
             const haut = document.querySelector('.top-bar');
             const yHaut = haut ? haut.getBoundingClientRect().bottom : 0;
             const tiroir = document.getElementById('vues-tiroir');
             const lecture = document.getElementById('barre-lecture');
             const hT = tiroir && !tiroir.hidden && !tiroir.classList.contains('vues-libre') ? tiroir.getBoundingClientRect().height : 0;
             const hL = lecture ? lecture.getBoundingClientRect().height : 0;
-            return Math.max(120, window.innerHeight - yHaut - hT - hL - GRILLE_MIN);
+            return Math.max(120, window.innerHeight - yHaut - hT - hL);
+        }
+        placeLibre() { return Math.max(120, this.placeTotale() - GRILLE_MIN); }
+        // Le séquenceur occupe tout l'écran sous la barre du haut : la grille d'accords est masquée (CSS : body.sequenceur-plein).
+        poserPlein(oui) {
+            oui = !!oui;
+            if (this._plein === oui) return;
+            this._plein = oui;
+            document.body.classList.toggle('sequenceur-plein', oui);
+            // La grille (et son trait lumineux) change de place : la bulle d'accord, ancrée à sa case, se referme d'elle-même (case sans taille).
+            if (this.app && this.app._bulle && this.app.placerBulleAccord) this.app.placerBulleAccord();
+            this.majTrait();
+        }
+        // L9c (15/11) — « il faut que la règle en haut reste toujours visible, quand je scrolle je dois pouvoir la voir » (l'utilisateur, sur l'artefact ordinateur), porté au téléphone : quand les lignes
+        // ne tiennent pas dans le panneau d'accord (beaucoup de notes libres), la GRILLE défile elle-même sous la barre d'outils, et les noms d'accords et la règle des temps restent collés en haut
+        // (CSS : position sticky dans #pa-rythme). Avant, c'était tout le panneau qui défilait et la règle partait avec. Rien ne change tant que tout tient (cas courant : quatre voix).
+        limiterGrilleTel() {
+            const g = this.grille, corps = document.querySelector('#panneau-accord .pa-corps');
+            if (!g || !corps) return;
+            g.style.maxHeight = ''; g.style.overflowY = '';
+            const dispo = Math.floor(corps.getBoundingClientRect().bottom - 10 - g.getBoundingClientRect().top);   // 10 px = le pied de .pa-corps
+            if (dispo > 120 && g.scrollHeight > dispo + 1) { g.style.maxHeight = dispo + 'px'; g.style.overflowY = 'auto'; }
         }
         // Voix | Piano : le réglage « lignes visibles » (poignée du haut) est retenu pour CHAQUE vue.
         changerVue(v) {
@@ -1056,10 +1082,19 @@
         // Nombre de lignes visibles : le réglage de la poignée, sinon douze en vue Piano, sinon tout.
         visiblesEffectives(nb) { return this._visibles || (this.pianoLarge() ? Math.min(VISIBLES_PIANO, nb) : nb); }
         limiterHauteur() {
-            if (!this.estOuvert()) return;
+            if (!this.estOuvert()) { this.poserPlein(false); return; }
             this.appliquerVisibles();
-            if (this.modeTel()) { this.racine.style.maxHeight = ''; return; } // au téléphone, c'est le panneau d'accord qui défile
-            this.racine.style.maxHeight = Math.floor(this.placeLibre()) + 'px';
+            if (this.modeTel()) { this.racine.style.maxHeight = ''; this.racine.style.minHeight = ''; this.poserPlein(false); this.limiterGrilleTel(); return; } // au téléphone, c'est le panneau d'accord qui défile
+            // PLEIN ÉCRAN (L9a) : seulement quand la poignée a demandé plus de lignes que la grille n'en laisse la place (`_visibles` posé à la main ; « tout visible » et les
+            // douze lignes de départ de la vue Piano ne masquent jamais la grille). Mesuré SANS étirement : sa hauteur naturelle est ce que le séquenceur voudrait.
+            this.racine.style.minHeight = '';
+            this.racine.style.maxHeight = 'none';   // sans plafond, sa hauteur est celle de ses lignes (sous un plafond, la grille rétrécit et scrollHeight mentirait)
+            const total = Math.floor(this.placeTotale()), libre = Math.floor(this.placeLibre());
+            const plein = this._visibles > 0 && this.racine.offsetHeight > libre;
+            this.racine.style.maxHeight = (plein ? total : libre) + 'px';
+            // Il remplit alors la place jusqu'en bas (le reste d'une demi-ligne s'ajoute sous la dernière ligne au lieu de laisser un trou sous la barre du haut).
+            if (plein) this.racine.style.minHeight = total + 'px';
+            this.poserPlein(plein);
         }
 
         // Les colonnes de la grille : étiquettes (46 px), un petit jour (10 px), puis les croches de chaque accord — de CROCHE_MIN px à `this.croche` px, calées à gauche : une grille
@@ -1132,12 +1167,15 @@
             });
             saveProgressionSections(sections);
             const s = this._s, app = this.app;
-            if (!this.modeTel() && [...modifs.values()].some(m => m.extraNotes)) { clearTimeout(this._tProposition); this._tProposition = setTimeout(() => this.proposerRenommage([...modifs.keys()]), 800); }
+            if ([...modifs.values()].some(m => m.extraNotes)) { clearTimeout(this._tProposition); this._tProposition = setTimeout(() => this.proposerRenommage([...modifs.keys()]), 800); }
             // L'accord ouvert en modification relit ses réglages (son motif vivant est dans #arpPattern) : sans cela, refermer la fenêtre réécrirait
             // l'ancien rythme par-dessus.
             if (app.editingIndex != null && app.activeSection === s && modifs.has(app.editingIndex)) app.editionParSuivi(s, app.editingIndex);
             else app.loadProgression();
-            if (app.isPlaying && app._playMode === 'progression') modifs.forEach((m, c) => app.liveUpdateProgressionChord(s, c));
+            // La lecture reprend le nouveau rythme en direct. Une exception audio (Tone, instrument pas prêt) ne doit JAMAIS interrompre le geste : la note est déjà écrite et la grille redessinée.
+            if (app.isPlaying && app._playMode === 'progression') {
+                modifs.forEach((m, c) => { try { app.liveUpdateProgressionChord(s, c); } catch (err) { console.warn('Lecture en direct non mise à jour :', err && err.message); } });
+            }
         }
 
         // ---- Proposer de renommer l'accord quand une note ajoutée le complète (« si j'ajoute une 9e, propose-moi un accord de 9e », 15/11) ----------------------------------------------
@@ -1162,7 +1200,7 @@
         }
         proposerRenommage(cs) {
             const bloc = document.getElementById('proposition-nom');
-            if (!bloc || this._geste || this.modeTel()) return;
+            if (!bloc || this._geste) return;   // L9c (15/11) : aussi au téléphone (la fenêtre se pose au-dessus de la barre de lecture, voir style.css)
             const sec = loadProgressionSections()[this._s];
             if (!sec) return;
             for (const c of cs) {
@@ -1204,7 +1242,7 @@
             ecrireAccord(d, etat);
             saveProgressionSections(sections);
             this.app.loadProgression();
-            this.app.flashHint && this.app.flashHint('Accord renommé (Ctrl+Z pour annuler)');
+            this.app.flashHint && this.app.flashHint(this.modeTel() ? 'Accord renommé (Annuler pour revenir)' : 'Accord renommé (Ctrl+Z pour annuler)');
         }
 
         // Choisir un accord SANS le faire entendre en entier (on vient de toucher une de ses notes, c'est elle qu'on entend).
@@ -1234,6 +1272,9 @@
         brancher() {
             this.racine.addEventListener('click', (e) => this.surClic(e));
             this.grille.addEventListener('pointerdown', (e) => this.surAppui(e));
+            // La souris est-elle sur les cases ? (la lecture ne change alors pas la ligne montrée, voir tete). Souris seulement : le « survol » d'un doigt reste collé après le toucher.
+            this.grille.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') this._survol = true; });
+            this.grille.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') this._survol = false; });
             window.addEventListener('pointermove', (e) => this.surMouvement(e));
             window.addEventListener('pointerup', (e) => this.surRelache(e));
             window.addEventListener('pointercancel', () => this.annulerGeste());
@@ -2100,6 +2141,8 @@
                 this.jouerNote(c, m.etat.info.voix[v].midi, 'normal');
             }
             // Écrit à chaque case traversée (le dessin suit le doigt), sous UNE seule annulation pour tout le geste.
+            // L9b : le premier trait CHOISIT l'accord (comme un clic ou l'étirement d'une poignée) : sans accord choisi, la lecture emmènerait la vue sur la ligne qui sonne, loin de ce qu'on dessine.
+            if (!g.annulationPosee) this.choisirSansJouer(c);
             this.ecrire(new Map([[c, m]]), g);
             this._etats[c] = { ...m.etat, motif: 'main' };
         }
@@ -2125,8 +2168,8 @@
             if (g.type === 'intensite' && etat.on.has(cle(v, k))) {
                 // normal → fort → doux → enlevée, porté par l'attaque de la barre (une barre a un seul niveau : celui de sa première croche).
                 // À l'ORDINATEUR le cycle boucle : normal → fort → doux → normal. « Une fois que j'ai déterminé une intensité très basse pour une note, je ne peux plus revenir à une
-                // intensité haute. Si je reclique dessus, elle se supprime. » (l'utilisateur, 15/11) — on enlève une note par Suppr ou en éteignant l'Intensité. Le téléphone garde l'ancien cycle.
-                const niv = niveauDe(etat, v, k), suite = (niv === 'doux' && this.estOrdinateur()) ? 'normal' : CYCLE_INTENSITE[niv];
+                // intensité haute. Si je reclique dessus, elle se supprime. » (l'utilisateur, 15/11) — on enlève une note par Suppr ou en éteignant l'Intensité. L9c (15/11) : le téléphone aussi (« je ne peux plus revenir à une intensité haute » vaut pour le doigt comme pour la souris ; on y enlève une note en la touchant Intensité éteinte).
+                const niv = niveauDe(etat, v, k), suite = niv === 'doux' ? 'normal' : CYCLE_INTENSITE[niv];
                 if (suite === 'normal') { etat.niveaux.delete(cle(v, debutBarre(etat, v, k))); entendre = 'normal'; }
                 else if (suite) { etat.niveaux.set(cle(v, debutBarre(etat, v, k)), suite); entendre = suite; }
                 else poserCroche(etat, v, k, false);
@@ -2370,14 +2413,19 @@
                 p.setPointerCapture(e.pointerId);
                 p.classList.add('tire'); // L5b : la languette reste bleue pendant qu'on tire (poignées unifiées)
                 const nb = Math.max(1, (this._lignes || []).length);
+                // L9a : on part de sa hauteur NATURELLE (celle de ses lignes), pas de la hauteur qu'il a : en plein écran il est étiré jusqu'en bas, et sur une fenêtre basse il est
+                // plafonné (ses lignes y défilent) — le nombre de lignes que la place permet se compte depuis ce qu'elles demandent vraiment. limiterHauteur remet le plafond.
+                this.racine.style.minHeight = ''; this.racine.style.maxHeight = 'none';
                 const depart = { y: e.clientY, vis: Math.min(this.visiblesEffectives(nb), nb), haut: this.racine.getBoundingClientRect().height };
+                this.limiterHauteur();
                 const bouger = (ev) => {
                     // 13/11 (« je préfère pouvoir voir plus de notes ») : la poignée ne change plus la hauteur des barres, elle change le NOMBRE de lignes visibles. Vers le haut = plus
                     // de lignes. Jamais plus que la place libre : la poignée s'arrête avant que rien ne passe sous la barre du haut.
                     const dy = depart.y - ev.clientY;
-                    const parPlace = depart.vis + Math.floor((this.placeLibre() - depart.haut) / (this.ligne + 3));
+                    // L9a : au-delà de ce que la grille laisse de place, la poignée continue jusqu'à la barre du haut (la grille se masque, voir limiterHauteur).
+                    const parPlace = depart.vis + Math.floor((this.placeTotale() - depart.haut) / (this.ligne + 3));
                     this._visibles = borner(Math.round(depart.vis + dy / (this.ligne + 3)), Math.min(2, nb), Math.max(Math.min(2, nb), Math.min(nb, parPlace)));
-                    this.appliquerVisibles();
+                    this.limiterHauteur();
                 };
                 const finir = () => {
                     p.classList.remove('tire');
@@ -2461,7 +2509,9 @@
             if (!this.estOuvert()) return;
             // Pendant la lecture, sans accord choisi, le séquenceur SUIT la ligne qui sonne (L1c) ; avec un accord choisi il reste sur le sien, pour ne pas faire sauter la
             // grille sous les doigts pendant qu'on la modifie.
-            if (!this.modeTel() && !this._geste && performance.now() - (this._dernierAppui || 0) > 4000 && this.app.selectedIndex == null && this.app.editingIndex == null && (section !== this._s || !this._montres.includes(index))) {
+            // L9b (15/11, « pendant que la lecture est en cours, je n'arrive pas à créer des barres ») : il ne la suit pas non plus tant que la SOURIS est au-dessus de ses cases — sinon la ligne
+            // saute sous la main qui vise (mesuré : un glissé de trois secondes dessinait la barre, puis la vue passait à la ligne suivante : la barre « disparaissait »).
+            if (!this.modeTel() && !this._geste && !this._survol && performance.now() - (this._dernierAppui || 0) > 4000 && this.app.selectedIndex == null && this.app.editingIndex == null && (section !== this._s || !this._montres.includes(index))) {
                 this._vise = { s: section, i: index };
                 this._viseActive = this.app.activeSection || 0;
                 this.rafraichir();

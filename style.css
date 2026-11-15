@@ -7850,3 +7850,36 @@ body.entetes-gauche #progression-sections .prog-section-menu { margin-left: 0; }
     body[data-app-mode="edit"] .viz-bande, body[data-app-mode="edit"] .viz-wrap > .viz-export-actions { bottom: calc(var(--haut-barre-lecture, 68px) + 64px); }
     .col-right.diagrams-hidden .viz-card { display: none; }
 }
+
+/* ======================================================================================================
+   LE SÉQUENCEUR EN PLEIN ÉCRAN (L9a, 15/11). « Étirer le séquenceur au-dessus de la barre d'outils […] une seule ligne visible si je suis en plein écran pour le
+   séquenceur », puis, quand je l'avais pris pour une ligne de la grille : « Je veux une ligne de l'appli, c'est-à-dire celle avec le logo et l'enregistrement »
+   (l'utilisateur) : la barre du haut reste, la grille d'accords est ENTIÈREMENT recouverte (masquée, pas rétrécie : plus de rangée collée, plus de bandeau « Ajouter
+   section », plus de marge de 20 px), la barre de lecture reste en bas. Posé par sequenceur.js (poserPlein) quand les lignes demandées par la poignée du haut ne tiennent
+   plus avec la grille. En FIN de feuille : il doit l'emporter sur les règles de `main` plus haut. Ordinateur seulement (au téléphone la classe n'est jamais posée).
+   ====================================================================================================== */
+@media (min-width: 900px) {
+    body.sequenceur-plein:not(.vue-ouverte) main { flex: 0 0 var(--haut-barre); height: var(--haut-barre); min-height: 0; padding: 0; overflow: hidden; }
+    body.sequenceur-plein:not(.vue-ouverte) main > .col-right { display: none; }
+}
+
+/* ======================================================================================================
+   L9c (15/11) — ADAPTATION AU TÉLÉPHONE DES REMARQUES DE L'UTILISATEUR SUR L'ARTEFACT ORDINATEUR (« je te laisse faire les meilleurs choix pour l'adaptation téléphone »).
+   La proposition de renommer l'accord (« Cmaj7 + D : renommer en Cmaj9 ? ») apparaît aussi au téléphone : posée juste au-dessus de la barre de lecture, sur toute la largeur utile,
+   boutons de 44 px (jauge du téléphone). En FIN de feuille (cascade).
+   ====================================================================================================== */
+@media (max-width: 899px) {
+    .proposition-nom { bottom: calc(var(--haut-barre-lecture, 68px) + 8px); width: auto; left: 12px; right: 12px; max-width: none; transform: none; justify-content: space-between; padding: 6px 6px 6px 12px; }
+    .proposition-nom #proposition-nom-ok { min-height: 44px; min-width: 0 !important; padding: 0 14px; }
+    .proposition-nom #proposition-nom-fermer { width: 44px; height: 44px; flex: none; }
+}
+
+/* L9c (suite) — LA RÈGLE ET LES NOMS D'ACCORDS COLLÉS EN HAUT, au téléphone aussi (sequenceur.js : limiterGrilleTel fait défiler la grille elle-même quand les lignes ne tiennent pas). Le fond est celui du
+   panneau d'accord (#181b20) : les lignes passent dessous. L'ombre pleine bouche l'écart de 3 px entre rangées, comme à l'ordinateur. Rien ne bouge tant que tout tient. */
+@media (max-width: 899px) {
+    #pa-rythme #sq-grille .sq-nom { position: sticky; top: 0; z-index: 5; height: 21px; box-sizing: border-box; background: #181b20; box-shadow: 0 3px 0 #181b20; }
+    #pa-rythme #sq-grille .sq-temps { position: sticky; top: 24px; z-index: 5; background: #181b20; box-shadow: 0 3px 0 #181b20; }
+    #pa-rythme #sq-grille .sq-boucle { position: sticky; top: 24px; z-index: 6; }
+    #pa-rythme #sq-grille .sq-coin { display: block; position: sticky; top: 0; left: 0; z-index: 6; background: #181b20; }
+    #pa-rythme #sq-grille .sq-libre-btn { top: 0; z-index: 7; }   /* « Note libre » occupe le coin : au-dessus de lui, collé comme lui */
+}
