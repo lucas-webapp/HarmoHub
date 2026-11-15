@@ -452,6 +452,10 @@
             this.croche = borner(isNaN(w) ? CROCHE_DEFAUT : w, CROCHE_MIN, CROCHE_MAX);
             // Nombre de lignes montrées (« je préfère pouvoir voir plus de notes ») : 0 = toutes. Les barres gardent leur hauteur ; la poignée du haut change ce nombre.
             this._visibles = 0;
+            // La ligne de la grille montrée (L1c) : { s, i } = la partie et l'accord où l'on était. Sans accord choisi, le séquenceur y reste (ou suit la lecture) au lieu de
+            // sauter au premier accord ; `_montres` = les accords de cette ligne, `_s` / `_i` la partie et l'accord réglés (posés par rafraichir).
+            this._vise = null;
+            this._montres = [];
             this._tete = null;
             this._geste = null;
             this.vue = lireLocal(CLE_VUE) === 'notes' ? 'notes' : 'voix';
@@ -520,6 +524,7 @@
             if (!this.racine) return;
             const montrer = this.estOrdinateur() ? (this.voulu() && !this._telVisible) : this._telVisible;
             this.racine.hidden = !montrer;
+            if (!montrer) this.majTrait();   // fermé : plus de trait sous la ligne dans la grille
             if (this.bouton) {
                 this.bouton.setAttribute('aria-pressed', String(montrer));
                 this.bouton.classList.toggle('active', montrer);
@@ -541,6 +546,11 @@
                 const sz = sections[z.section];
                 return { sections, s: z.section, sec: sz, accords: sz.chords, i: z.index };
             }
+            // L1c (14/11, « je ne veux pas de séquenceur inerte ») : sans accord choisi, il reste sur la ligne où il était, au lieu de retomber sur le premier accord de la partie.
+            if (i == null && this._vise && !this.modeTel()) {
+                const sv = sections[this._vise.s];
+                if (sv && sv.chords[this._vise.i]) return { sections, s: this._vise.s, sec: sv, accords: sv.chords, i: this._vise.i };
+            }
             if (i == null || i >= accords.length) i = accords.length ? 0 : null;
             return { sections, s, sec, accords, i };
         }
@@ -550,12 +560,16 @@
             if (!this.estOuvert()) return;
             const { sec, accords, s, i } = this.cible();
             this._s = s; this._i = i;
+            if (!this.modeTel()) this._vise = i != null ? { s, i } : null;
             this.poserLigne();
             this.majBarreOutils(accords, i);
             if (!sec || accords.length === 0) {
                 this.grille.innerHTML = '<p class="sq-vide">Ajoute un accord à la partie pour régler son rythme ici.</p>';
                 this._etats = [];
+                this._montres = [];
                 this.limiterHauteur();
+                this.majLigne();
+                this.majTrait();
                 return;
             }
             const etats = accords.map(d => lireAccord(d, this.app));
@@ -594,7 +608,10 @@
             // Colonnes : étiquettes (46 px), un petit jour (10 px), puis les croches de chaque accord, un trait de 4 px entre deux accords.
             // (On compte les PISTES une à une : un « repeat(8, …) » en vaut huit.)
             // Au téléphone : l'accord du panneau seul (les autres sont à un ‹ › de là). Les index restent ceux de la partie (data-c, écriture).
-            const montres = this.uneSeule() && i != null ? [i] : accords.map((_, c) => c);
+            // À l'ordinateur (L1c) : les accords de LA LIGNE de la grille où se trouve l'accord choisi, comme elle est dessinée (au nombre de mesures de la Vue) ; au téléphone
+            // l'accord du panneau seul, ou toute la partie qui défile de côté — rien n'y change.
+            const montres = this.uneSeule() && i != null ? [i] : this.ligneMontree(s, i, accords);
+            this._montres = montres;
             const colDebut = [];
             const crochesParAccord = [];
             let piste = 3;
@@ -614,6 +631,11 @@
 
             const r = this.app.loopRange;
             let boucle = r && r.startSection === s && r.endSection === s ? [r.startIndex, r.endIndex] : null;
+            // La bande orange ne couvre que ce qui est montré (les index de la plage sont ceux de la partie : ceux d'une autre ligne n'ont pas de colonne ici).
+            if (boucle && montres.length > 1) {
+                const a = Math.max(boucle[0], montres[0]), b = Math.min(boucle[1], montres[montres.length - 1]);
+                boucle = a <= b ? [a, b] : null;
+            }
             // Au téléphone, la bande orange ne couvre que ce qui est montré : l'accord du panneau, s'il est dans la plage.
             if (boucle && montres.length === 1) boucle = (montres[0] >= boucle[0] && montres[0] <= boucle[1]) ? [montres[0], montres[0]] : null;
             const html = [];
@@ -709,6 +731,87 @@
             }
             this._tete = null;
             this.limiterHauteur();
+            this.majLigne();
+            this.majTrait();
+        }
+
+        // La ligne de la grille où se trouve l'accord `i` de la partie `s` : ses index d'accords (ceux qui y ont une case), dans l'ordre. Tous les accords de la partie si la grille
+        // n'a pas (encore) de lignes, au téléphone, ou sans accord choisi.
+        ligneMontree(s, i, accords) {
+            const tous = accords.map((_, c) => c);
+            if (this.modeTel() || i == null || !this.app.lignesDePartie) return tous;
+            const ligne = this.app.lignesDePartie(s).find(l => l.includes(i));
+            return ligne && ligne.length ? ligne : tous;
+        }
+        // La ligne voisine (delta = -1 ou 1), en passant d'une partie à l'autre ; l'accord visé garde son rang dans la ligne. Null au premier ou au dernier bout.
+        voisine(delta) {
+            if (this.modeTel()) return null;
+            const c = this.cible();
+            if (c.i == null) return null;
+            const L = this.app.lignesDePartie(c.s), n = L.findIndex(l => l.includes(c.i));
+            if (n < 0) return null;
+            const rang = L[n].indexOf(c.i), m = n + delta;
+            if (m >= 0 && m < L.length) return { s: c.s, i: L[m][Math.min(rang, L[m].length - 1)] };
+            for (let k = c.s + delta; k >= 0 && k < c.sections.length; k += delta) {
+                const L2 = this.app.lignesDePartie(k);
+                if (!L2.length) continue;
+                const ligne = delta > 0 ? L2[0] : L2[L2.length - 1];
+                return { s: k, i: ligne[Math.min(rang, ligne.length - 1)] };
+            }
+            return null;
+        }
+        // ▲ ▼ : changer de ligne sans recliquer. Avec un accord choisi la sélection SUIT (même rang sur la nouvelle ligne) ; sans, seul le séquenceur change.
+        allerLigne(delta) {
+            const v = this.voisine(delta);
+            if (!v) return;
+            this._vise = v;
+            if (this.app.selectedIndex != null) {
+                this.app.activeSection = v.s;
+                this.app.selectedIndex = v.i;
+                if (this.app.multiSelect) this.app.multiSelect = new Set();
+                this.app.loadProgression();   // redessine la grille, puis le séquenceur (fin de loadProgression)
+            } else this.rafraichir();
+        }
+        // Dans la barre d'outils : le nom de la partie, « n/total » s'il y a plusieurs lignes, et les deux flèches (grisées, mais visibles, à chaque bout).
+        majLigne() {
+            const prec = document.getElementById('sq-ligne-prec'), suiv = document.getElementById('sq-ligne-suiv'), txt = document.getElementById('sq-ligne-txt');
+            if (!prec || !suiv || !txt) return;
+            const ok = !this.modeTel() && this._i != null;
+            prec.disabled = !ok || !this.voisine(-1);
+            suiv.disabled = !ok || !this.voisine(1);
+            const nom = txt.querySelector('.sq-ligne-nom'), n = txt.querySelector('.sq-ligne-n');
+            const sec = loadProgressionSections()[this._s];
+            const L = ok ? this.app.lignesDePartie(this._s) : [], rang = ok ? L.findIndex(l => l.includes(this._i)) : -1;
+            const titre = sec ? ((sec.title && sec.title.trim()) || 'Partie ' + (this._s + 1)) : '';
+            const num = rang >= 0 && L.length > 1 ? (rang + 1) + '/' + L.length : '';
+            if (nom.textContent !== titre) nom.textContent = titre;
+            if (n.textContent !== num) n.textContent = num;
+            const tip = rang >= 0 ? `${titre} : ligne ${rang + 1} sur ${L.length} — les flèches changent de ligne dans la grille` : 'Ligne de la grille montrée par le séquenceur';
+            if (txt.title !== tip) txt.title = tip;
+        }
+        // LE TRAIT sous la ligne montrée, dans la grille (« un trait continu avec une lumière un petit peu diffuse », S1) : un seul élément, posé dans le .chord-grid de la partie, de
+        // la première à la dernière case de la ligne ; il glisse d'une ligne à l'autre quand c'est la même grille (▲ ▼). Retiré si le séquenceur est fermé ou au téléphone.
+        majTrait() {
+            const anciens = [...document.querySelectorAll('.sq-vu-trait')];
+            const g = this.estOuvert() && !this.modeTel() && this._i != null && this._montres.length
+                ? document.querySelector(`#progression-sections .chord-grid[data-section="${this._s}"]`) : null;
+            const ref = g ? g.querySelector(`.grid-cell[data-index="${this._i}"]`) : null;
+            if (!ref) { anciens.forEach(x => x.remove()); return; }
+            const haut = ref.getBoundingClientRect().top, gr = g.getBoundingClientRect();
+            let x0 = Infinity, x1 = -Infinity, bas = 0;
+            g.querySelectorAll('.grid-cell[data-index]').forEach(el => {
+                if (!this._montres.includes(+el.dataset.index)) return;
+                const r = el.getBoundingClientRect();
+                if (Math.abs(r.top - haut) > 3) return;   // un accord coupé sur deux lignes n'a ici que la case de SA ligne
+                x0 = Math.min(x0, r.left); x1 = Math.max(x1, r.right); bas = Math.max(bas, r.bottom);
+            });
+            if (x1 < x0) { anciens.forEach(x => x.remove()); return; }
+            let t = anciens.find(x => x.parentElement === g);
+            anciens.forEach(x => { if (x !== t) x.remove(); });
+            if (!t) { t = document.createElement('div'); t.className = 'sq-vu-trait'; t.setAttribute('aria-hidden', 'true'); g.appendChild(t); }
+            t.style.left = Math.round(x0 - gr.left + 4) + 'px';
+            t.style.width = Math.max(10, Math.round(x1 - x0 - 8)) + 'px';
+            t.style.top = Math.round(bas - gr.top - 2) + 'px';
         }
 
         // Barre d'outils : motif de l'accord choisi enfoncé, vignettes dessinées comme le séquenceur (croches voisines soudées en barre), portée,
@@ -949,6 +1052,9 @@
             // Le tiroir des diagrammes change de taille (poignée, clavier ou guitare allumés) : la place libre du séquenceur change avec lui.
             const tiroir = document.getElementById('vues-tiroir');
             if (tiroir && window.ResizeObserver) new ResizeObserver(() => this.limiterHauteur()).observe(tiroir);
+            // La grille change de taille (largeur de la fenêtre, hauteur des cases, fenêtre du navigateur) : le trait sous la ligne montrée la suit.
+            const hote = document.getElementById('progression-sections');
+            if (hote && window.ResizeObserver) new ResizeObserver(() => this.majTrait()).observe(hote);
             // Premier dessin APRÈS la construction de l'appli (une micro-tâche plus tard) : pendant celle-ci, l'état qu'il lit n'est pas encore entier.
             Promise.resolve().then(() => this.synchroniser());
         }
@@ -956,6 +1062,12 @@
         surClic(e) {
             const b = e.target.closest('button');
             if (!b || !this.racine.contains(b) || b.disabled) return;
+            // JAMAIS INERTE (L1c, 14/11) : un bouton qui agit sur UN accord, sans accord choisi, choisit d'abord celui que le séquenceur montre — pour qu'on voie dans la grille ce
+            // qui va être modifié. (« Toute la partie » agit sur tous les accords : rien à choisir.)
+            if (!this.modeTel() && this._i != null && this.app.selectedIndex == null
+                && (b.id === 'sq-copier' || b.id === 'sq-coller' || b.id === 'sq-effacer' || b.id === 'sq-forme-enregistrer' || (b.dataset.sqMotif && this.portee === 'accord'))) this.choisirSansJouer(this._i);
+            if (b.id === 'sq-ligne-prec') { this.allerLigne(-1); return; }
+            if (b.id === 'sq-ligne-suiv') { this.allerLigne(1); return; }
             if (b.dataset.sqMotif) { this.appliquerMotif(b.dataset.sqMotif); return; }
             if (b.dataset.sqSuppr) { this.supprimerForme(b.dataset.sqSuppr); return; }
             if (b.dataset.sqNote) { this.libre.note = b.dataset.sqNote; this.majBandeLibre(); this.jouerMidi(this.midiLibre()); return; }
@@ -1604,7 +1716,14 @@
         // continu, de la gauche à la droite de la croche pendant sa durée. Cette durée est MESURÉE (le temps écoulé entre deux changements de croche) : elle suit le tempo, la
         // vitesse et un changement de tempo en cours de route, sans rien lire de plus. Au téléphone rien ne change : la case reste entourée.
         tete(section, index, step) {
-            if (!this.estOuvert() || section !== this._s) return;
+            if (!this.estOuvert()) return;
+            // Pendant la lecture, sans accord choisi, le séquenceur SUIT la ligne qui sonne (L1c) ; avec un accord choisi il reste sur le sien, pour ne pas faire sauter la
+            // grille sous les doigts pendant qu'on la modifie.
+            if (!this.modeTel() && this.app.selectedIndex == null && this.app.editingIndex == null && (section !== this._s || !this._montres.includes(index))) {
+                this._vise = { s: section, i: index };
+                this.rafraichir();
+            }
+            if (section !== this._s) return;
             const k = Math.floor(step / 2);
             const id = index + '/' + k;
             if (this._tete === id) return;

@@ -8070,6 +8070,20 @@ class HarmoHubApp {
         return { cells, rows: Math.max(1, Math.ceil(cursor / beatsPerRow)), beatsPerRow, cursor };
     }
 
+    // Les lignes de la grille d'une partie, telles que l'écran les montre : pour chacune, les index des accords qui y ont une case (un accord coupé sur deux lignes figure
+    // dans les deux). Calculé d'après la mise en page (layoutProgression) et non en relisant le style des cases : c'est aussi ce qui fait que le séquenceur (L1c, 14/11)
+    // montre exactement « la ligne de la grille » de l'accord choisi, au nombre de mesures de la Vue.
+    lignesDePartie(si) {
+        const sec = loadProgressionSections()[si];
+        if (!sec) return [];
+        const lignes = [];
+        this.layoutProgression(sec.chords, this.beatsPerBar()).cells.forEach(c => {
+            const l = lignes[c.row] || (lignes[c.row] = []);
+            if (!l.includes(c.index)) l.push(c.index);
+        });
+        return lignes.filter(Boolean).map(l => l.sort((a, b) => a - b));
+    }
+
     // Rend TOUTES les parties (couplet, refrain, ...) : chacune a son titre éditable et sa propre
     // grille. Une seule est « active » à la fois (bordure d'accent) : c'est elle que ciblent les
     // contrôles (Ajouter/Modifier), Suppr, copier/coller, etc.
@@ -11856,6 +11870,7 @@ class HarmoHubApp {
         // que de laisser trainer celles du morceau précédemment ouvert sur cet appareil, ou de
         // dépendre de l'appareil courant — retour utilisateur : retrouver les mêmes réglages sur un
         // autre ordinateur, une fois ce morceau réimporté là-bas.
+        if (this.sequenceur) this.sequenceur._vise = null;   // un autre morceau : le séquenceur repart de son premier accord (L1c)
         this.classicGridZoomLevelX = song.classicGridZoomLevelX || 1;
         this.classicGridZoomLevelY = song.classicGridZoomLevelY || 1;
         this.seqZoomLevelX = song.seqZoomLevelX || 1;

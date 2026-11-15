@@ -7226,3 +7226,39 @@ body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
     .grille-densites .grille-vue-val::after { content: " mes."; font-weight: 400; font-size: 12px; color: var(--text-muted); }
 }
 
+/* 22. Séquenceur, L1c (14/11) — la ligne de la grille qu'il montre. Le TRAIT sous cette ligne dans la grille (un trait continu de 3 px, gris-bleu, avec une lumière
+       diffuse), et les deux flèches ▲ ▼ à droite des rythmes (deux boutons carrés de 32 px, séparés et bordés comme « ‹ 4 mes. › », la flèche grisée du premier ou du dernier
+       bout restant visible). Ordinateur seulement. */
+.sq-ligne { display: none; }
+@media (min-width: 900px) {
+    .chord-grid { position: relative; }
+    .sq-vu-trait {
+        position: absolute; height: 3px; border-radius: 3px; pointer-events: none; z-index: 3;
+        background: linear-gradient(90deg, #8ea6c6, #b4c6df);
+        box-shadow: 0 0 6px 1px rgba(142, 166, 198, 0.55), 0 0 14px 3px rgba(142, 166, 198, 0.22);
+        transition: left 0.18s ease, width 0.18s ease, top 0.18s ease;
+    }
+    .sq-ligne { display: inline-flex; align-items: center; flex: 0 0 auto; gap: 6px; margin-left: 12px; }
+    .sq-ligne .icon-btn { width: 32px; height: 32px; min-width: 0; padding: 0; border: 1px solid #5d6f88; background: rgba(127, 147, 173, 0.14); color: #cfdcef; }
+    .sq-ligne .icon-btn:hover:not(:disabled) { background: rgba(127, 147, 173, 0.3); border-color: #8ea6c6; color: #fff; }
+    .sq-ligne .icon-btn:disabled { opacity: 0.55; cursor: default; color: #7f8da1; border-color: #3a4250; background: transparent; }
+    .sq-ligne .icon-btn svg { width: 20px; height: 20px; stroke-width: 2.6; }
+    .sq-ligne-txt { display: inline-flex; align-items: center; gap: 7px; padding: 0 4px 0 0; font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+    .sq-ligne-trait { width: 16px; height: 3px; border-radius: 3px; background: linear-gradient(90deg, #8ea6c6, #b4c6df); box-shadow: 0 0 6px 1px rgba(142, 166, 198, 0.55); }
+    .sq-ligne-n { color: #b4c6df; font-weight: 500; }
+    .sq-ligne-n:empty { display: none; }
+}
+@media (min-width: 900px) and (max-width: 1499px) {
+    .sq-ligne { margin-left: 8px; }
+    .sq-ligne-nom { display: none; }
+}
+
+/* 23. Séquenceur, L1d (14/11) — défilement de côté. À 900-1000 px, la Vue peut montrer autant de mesures que la formule ⌊(largeur − 78) / 112⌋ le permet alors que la grille
+       (étiquettes, poignée de largeur, marges) en demande un peu plus : plutôt que de rogner la poignée, le séquenceur défile de côté. Les outils et les noms de notes restent collés
+       à gauche (piège : un « sticky » se mesure depuis le bord du conteneur, pas depuis son padding : left: 0, jamais 16 px). Ordinateur seulement. */
+@media (min-width: 900px) {
+    .sequenceur:not([hidden]) { overflow-x: auto; }
+    .sq-outils { left: 0; }
+    #sq-grille .sq-etiq, #sq-grille .sq-libre-btn { position: sticky; left: 0; z-index: 4; }
+}
+

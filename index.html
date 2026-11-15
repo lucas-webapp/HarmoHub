@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611151330">
+    <link rel="stylesheet" href="style.css?v=202611151430">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611151330">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611151430">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1760,6 +1760,17 @@
                     <button type="button" id="sq-forme-annuler">Annuler</button>
                 </span>
             </div>
+            <!-- LA LIGNE MONTRÉE (L1c, 14/11) : le séquenceur montre la ligne de la grille de l'accord choisi ; le nom de la partie (avec le petit trait lumineux, le même que
+                 sous la ligne dans la grille, et « n/total » s'il y a plusieurs lignes), puis DEUX boutons carrés séparés qui changent de ligne — d'une partie à l'autre aussi. -->
+            <div class="sq-ligne" role="group" aria-label="Ligne de la grille montrée par le séquenceur">
+                <span id="sq-ligne-txt" class="sq-ligne-txt"><span class="sq-ligne-trait" aria-hidden="true"></span><span class="sq-ligne-nom"></span><span class="sq-ligne-n"></span></span>
+                <button type="button" id="sq-ligne-prec" class="icon-btn" aria-label="Ligne précédente de la grille" title="Ligne précédente de la grille">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+                </button>
+                <button type="button" id="sq-ligne-suiv" class="icon-btn" aria-label="Ligne suivante de la grille" title="Ligne suivante de la grille">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+                </button>
+            </div>
             <span class="sq-espace"></span>
             <!-- Vue « Toutes les notes » (planche 2) : une ligne par hauteur utilisée par la partie, pour poser une note hors de l'accord. -->
             <div class="sq-seg" role="group" aria-label="Lignes du séquenceur">
@@ -2085,13 +2096,13 @@
     <!-- sequenceur.js AVANT script.js : l'appli (window.app) est créée à la fin de script.js et construit le séquenceur dans la foulée. -->
     <!-- Les formes du séquenceur (au compte) : AVANT sequenceur.js, qui s'y abonne à sa construction ; la connexion (SYNCHRO) n'est lue qu'à l'usage. -->
     <script src="synchro-formes.js?v=202611131800"></script>
-    <script src="synchro-doigtes.js?v=202611151330"></script>
-    <script src="sequenceur.js?v=202611151330"></script>
-    <script src="script.js?v=202611151330"></script>
+    <script src="synchro-doigtes.js?v=202611151430"></script>
+    <script src="sequenceur.js?v=202611151430"></script>
+    <script src="script.js?v=202611151430"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611151330"></script>
+    <script src="synchro-harmohub.js?v=202611151430"></script>
     <!-- Les versions au cloud (sous-lot « Versions au cloud ») : après l'adaptateur, dont elles réutilisent la connexion (SYNCHRO). -->
     <script src="synchro-versions.js?v=202611060400"></script>
 </body>
