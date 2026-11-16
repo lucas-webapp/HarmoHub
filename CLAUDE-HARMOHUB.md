@@ -24,7 +24,7 @@ Tout est dans `tests/PLAN.md` (§ 3 : modules, parcours, priorités, statut ; §
 - les modifications de l'appli pour la testabilité (`data-testid`, liste proposée dans `tests/reports/2026-11-16-demarrage.md`) attendent son accord ;
 - **phase 6** à la fin : compte rendu (ce qui a été créé, subtilités de l'appli, couverture par module, limites de la matrice — appareils émulés, WebKit ≠ Safari,
   ce qu'il doit vérifier lui-même sur Safari / iPhone —, bugs, actions à sa charge, phrase pour lancer le testeur).
-**Question en attente** : mettre `main` (secours, 63 commits de retard, état du 20/08) à jour avec la version actuelle ? Proposé le 16/11, **pas d'accord pour l'instant : ne pas y toucher**.
+**`main` (version de secours)** : mise à jour le 16/11 au soir en avance rapide (277 commits de retard, état du 20/08), avec l'accord explicite de l'utilisateur (« pousse sur main »), sur l'état de `claude/harmohub-travail-Claude` (tests verts). Elle n'est plus touchée sans un nouvel accord. Piège : le clone de la session est PARTIEL (`git fetch --unshallow` avant tout calcul d'écart entre branches, sinon les comptes sont faux).
 
 **À lui faire valider** (détail : `docs/dette-tests.md`, « Session du 15/11 (suite 9) » et « Session du 16/11 ») :
 1. **Plein écran du séquenceur** : il ne vient que de la poignée du haut (jamais des douze lignes de départ). La vue Voix ne masque jamais la grille. La bulle d'accord se referme à l'entrée. Le plein écran n'est pas retenu d'une session à l'autre.
