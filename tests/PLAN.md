@@ -92,7 +92,7 @@ Priorité : **P1** = parcours principal, **P2** = fonctionnalité importante, **
 
 | # | Module (`tests/e2e/<module>/`) | Parcours à tester | Prio. | Fichier prévu | Statut |
 |---|---|---|---|---|---|
-| 1 | `demarrage` | l'appli s'ouvre, morceau vide, ajouter trois accords, les lire (`@smoke`) ; garde-fou production ; état hors ligne (Firebase indisponible) | P1 | `demarrage/parcours-principal.spec.ts`, `demarrage/garde-fou.spec.ts` | ◐ smoke + garde-fou (16/11) |
+| 1 | `demarrage` | l'appli s'ouvre, morceau vide, ajouter trois accords, les lire (`@smoke`) ; garde-fou production ; état hors ligne (Firebase indisponible) | P1 | `demarrage/parcours-principal.spec.ts`, `demarrage/garde-fou.spec.ts`, `demarrage/hors-ligne.spec.ts` | ☑ 16/11 : 4 tests, 16 / 16 réussis sur les 7 projets (garde-fou : chromium seul) |
 | 2 | `grille` | ajout rapide (saisie « C Am F G », `//`, `/basse`), ajout au clic (double-clic sur « + »), sélection, sélection multiple, copier / coller, glisser une case, supprimer, annuler / rétablir, parties (ajouter, renommer, dupliquer, supprimer, réordonner), menu du clic droit | P1 | `grille/*.spec.ts` | ☐ |
 | 3 | `accord` | fenêtre d'accord à trois onglets (Accord, Voicing, Rythme) : fondamentale, qualité, basse, durée, renversement / drop, onglet Rythme ; au téléphone, le panneau d'accord | P1 | `accord/*.spec.ts` | ☐ |
 | 4 | `lecture` | lecture / stop, boucle sur une plage, tempo (chevrons, saisie, tap), métronome, vitesse, mesure affichée, réglages de la barre de lecture | P1 | `lecture/*.spec.ts` | ☐ |
