@@ -1,6 +1,6 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 16/11/2026. **Seul fichier où s'écrit l'état du chantier.** Volontairement COURT (chargé à chaque session) : le détail va dans `docs/dette-tests.md`, jamais ici. À lire avec `CLAUDE.md`.
+Mis à jour le 16/11/2026 au soir (tests Playwright e2e en place, phases 1 à 4 faites ; prochaine étape : phase 5). **Seul fichier où s'écrit l'état du chantier.** Volontairement COURT (chargé à chaque session) : le détail va dans `docs/dette-tests.md`, jamais ici. À lire avec `CLAUDE.md`.
 
 | Besoin | Fichier (ne jamais lire en entier : `grep -n` puis `sed -n`) |
 |---|---|
@@ -12,7 +12,19 @@ Mis à jour le 16/11/2026. **Seul fichier où s'écrit l'état du chantier.** Vo
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
-**RIEN DE PRÉVU.** Tous les lots sont livrés (dernier : L9d, commit `e54fbb5`). Demander à l'utilisateur ce qui vient ensuite.
+**PROCHAINE ÉTAPE : PHASE 5 DES TESTS E2E (couverture intégrale), demandée par l'utilisateur le 16/11 (« je ferai clear puis reprise »).**
+Tout est dans `tests/PLAN.md` (§ 3 : modules, parcours, priorités, statut ; § 7 : ce que les 288 bancs couvrent déjà, à ne pas réécrire) et dans la section
+« Tests » de `CLAUDE.md` (commandes, garde-fous, règle Git). Consignes de l'utilisateur pour cette phase :
+- traiter les modules de `tests/PLAN.md` un par un, **par priorité** (P1 d'abord : `grille`, `accord`, `lecture`, `sequenceur`, `fichiers`, `synchro`, `mobile` ; `demarrage` est ☑),
+  en confiant chacun au **sous-agent `testeur-e2e`** (« utilise testeur-e2e pour tester le module `<module>` », il tourne sur sonnet, effort élevé) ;
+- garder la conversation principale légère : ne pas recopier les journaux, **lire les rapports** (`tests/reports/latest.md`) ;
+- après chaque module : `tests/PLAN.md` à jour, commit, **push direct sur `claude/harmohub-travail-Claude`** (pas de pull request), puis un point de 3 lignes
+  à l'utilisateur (tests ajoutés, bugs trouvés, module suivant) ; **enchaîner sans attendre sa réponse**, sauf blocage ;
+- **ne pas corriger les bugs trouvés** : les lister dans `tests/reports/bugs.md` (l'utilisateur décidera) ; ne jamais affaiblir une vérification ;
+- les modifications de l'appli pour la testabilité (`data-testid`, liste proposée dans `tests/reports/2026-11-16-demarrage.md`) attendent son accord ;
+- **phase 6** à la fin : compte rendu (ce qui a été créé, subtilités de l'appli, couverture par module, limites de la matrice — appareils émulés, WebKit ≠ Safari,
+  ce qu'il doit vérifier lui-même sur Safari / iPhone —, bugs, actions à sa charge, phrase pour lancer le testeur).
+**Question en attente** : mettre `main` (secours, 63 commits de retard, état du 20/08) à jour avec la version actuelle ? Proposé le 16/11, **pas d'accord pour l'instant : ne pas y toucher**.
 
 **À lui faire valider** (détail : `docs/dette-tests.md`, « Session du 15/11 (suite 9) » et « Session du 16/11 ») :
 1. **Plein écran du séquenceur** : il ne vient que de la poignée du haut (jamais des douze lignes de départ). La vue Voix ne masque jamais la grille. La bulle d'accord se referme à l'entrée. Le plein écran n'est pas retenu d'une session à l'autre.
@@ -42,6 +54,7 @@ Mis à jour le 16/11/2026. **Seul fichier où s'écrit l'état du chantier.** Vo
 
   Les quatre autres rouges de la liste de `CLAUDE.md` sont verts ici. Tout autre rouge est une régression.
 - **Sabotages** : sur une copie du site servie sur le port 8935 (jamais les fichiers du dépôt pendant qu'un balayage tourne). Un banc qui ne voit pas un sabotage est durci, pas le sabotage affaibli.
+- **Avant tout envoi qui modifie l'appli** : `npm run test:e2e:avant-envoi` (`@smoke` et `@critique` sur Chromium) ; s'ils échouent, on ne pousse pas (en plus du balayage ciblé des bancs).
 - **Branche** : travailler sur la branche locale `claude/harmohub-travail-Claude`, alignée sur `origin` (remise d'aplomb le 16/11), et pousser `git push origin HEAD:claude/harmohub-travail-Claude`. L'environnement cloud peut créer au démarrage une branche locale `claude/harmohub-local-conversation-…` (consigne de session) : sans utilité, on bascule sur `claude/harmohub-travail-Claude` (`git checkout -B claude/harmohub-travail-Claude origin/claude/harmohub-travail-Claude`) et le hook qui réclame de la pousser est à ignorer ; elle n'existe pas sur GitHub.
 - **Ordinateur d'abord** : tout code ordinateur est gardé (`bulleDisponible()`, `modeTel()`, `min-width: 900px`). Au téléphone, seulement ce que l'utilisateur demande ou confie (« carte blanche »).
 - **Libellés courts** (phrase complète en `title`), aucune phrase d'aide sous une fenêtre, notation internationale (Dm7, Cmaj7, C, Am, D dor).
@@ -77,5 +90,6 @@ Mis à jour le 16/11/2026. **Seul fichier où s'écrit l'état du chantier.** Vo
   - L9d : notes ajoutées.
 - **Derniers bancs ajoutés** : `sequenceur_plein` (51), `sequenceur_pendant_lecture` (34), `telephone_adaptations` (26), `telephone_regle_collee` (14), `sequenceur_notes_ajoutees` (31).
 - **Dernier balayage complet** (16/11, après L9d) : 271 verts, 13 rouges, 4 sans verdict sur 288 suites, en 18 min 47 s. Aucune régression : les 11 rouges restants sont ceux de la ligne de base de ce conteneur, et les 2 bancs que L9d faisait rougir ont été réécrits puis sont repassés verts.
+- **Tests e2e (16/11)** : `@playwright/test` + émulateurs Firebase (`demo-harmohub`), 7 projets (Chromium, Firefox, WebKit, Edge, Android, iPhone, iPad) tous disponibles dans la VM, CI « Tests e2e » à chaque envoi (verte), bancs historiques chaque dimanche, sous-agent `testeur-e2e`. Module `demarrage` ☑ (4 tests). Vidéos du smoke : https://claude.ai/artifact/CK7d9FvPvuPuBD2TBV72xR.
 - **Ménage du 16/11** : retirés le code d'essai de l'aperçu (`docs/apercu-14-11/`), l'essai écarté de L9a (`docs/l9a-essai-une-ligne/`) et les anciens scripts `tests/cibler.sh` et `tests/run_all.sh` (remplacés par `run_cible.sh` et `run_all_fast.sh`). Tout reste dans l'historique git. Les sorties de bancs ignorées ont été effacées.
 - **Branches distantes anciennes** (`claude/festive-cray-0rlnbw`, `claude/tabhub-app-setup-0plidk`, `sauvegarde/sequenceur-avant-refonte-ux`) : à supprimer seulement sur demande.

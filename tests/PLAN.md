@@ -3,7 +3,8 @@
 État : **phases 3 et 4 faites, phase 5 (couverture intégrale) prête à démarrer** — 16/11/2026.
 Validation (phase 4) : le smoke passe sur les 7 projets dans la VM et en CI (PR n° 1, exécution 43948088655, 7 jobs verts) ; garde-fou éprouvé (requête de
 production bloquée → test en échec, `test.fail` ; projet non `demo-` refusé) ; le sous-agent `testeur-e2e` a produit `tests/reports/latest.md` ;
-vidéos du smoke : https://claude.ai/artifact/CK7d9FvPvuPuBD2TBV72xR (et artefacts `rapport-<projet>` de la CI). Prochain module : `grille` (P1). Branche : `claude/harmohub-travail-Claude` (fusion de `tests/playwright-setup`
+vidéos du smoke : https://claude.ai/artifact/CK7d9FvPvuPuBD2TBV72xR (et artefacts `rapport-<projet>` de la CI). Prochain module : `grille` (P1). Pull request n° 1 fermée, branche fusionnée le 16/11.
+**Reprise** : la phase 5 commence par `grille`, puis les autres P1 dans l'ordre du § 3 ; consignes dans `CLAUDE-HARMOHUB.md` (« Suite à faire »). Branche : `claude/harmohub-travail-Claude` (fusion de `tests/playwright-setup`
 le 16/11 ; elle publie le site par GitHub Pages). **Pas de pull request** (décision du 16/11) : on pousse directement, la CI tourne à chaque envoi. On ne touche pas à `main` sans accord.
 Ce fichier est la mémoire de ce chantier : le sous-agent `testeur-e2e` y lit l'état de chaque module ; après un `/clear`, c'est ici qu'on reprend.
 
