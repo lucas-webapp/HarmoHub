@@ -93,7 +93,8 @@ et les **tests de bout en bout `@playwright/test`** (`tests/e2e/`, toute la matr
   configuration `demo-harmohub` branchée sur les émulateurs ; l'appli n'est pas modifiée).
 - **Émulateurs** : `npm run emulateurs` (`firebase emulators:start --project demo-harmohub --only auth,firestore` ; Auth 9099, Firestore 8080 ; règles = `firestore.rules`, copie de la production).
 - **Tests complets** : `npm run test:e2e` (lance les émulateurs, puis tous les projets) ; **smoke** : `npm run test:e2e:smoke` ;
-  **un module** : `npm run test:e2e:module -- <module>` ; **la sélection des pull requests** : `npm run test:e2e:pr` ;
+  **un module** : `npm run test:e2e:module -- <module>` ; **la sélection de la CI à chaque envoi** : `npm run test:e2e:envoi` ;
+  **avant un envoi** : `npm run test:e2e:avant-envoi` (`@smoke` et `@critique` sur Chromium) ;
   **émulateurs déjà lancés** : `npx playwright test [tests/e2e/<module>] [--project=chromium]`. Projets : `chromium`, `firefox`, `webkit`, `edge`,
   `mobile-android`, `mobile-iphone`, `tablette` (tous disponibles dans la VM depuis le 16/11).
 - **Session playwright-cli** : `harmohub` (`playwright-cli -s=harmohub open http://127.0.0.1:8936/index.html`). Configuration : `.playwright/cli.config.json`
@@ -104,6 +105,10 @@ et les **tests de bout en bout `@playwright/test`** (`tests/e2e/`, toute la matr
 - **Rapports** : `tests/reports/latest.md` (+ copies datées), bugs dans `tests/reports/bugs.md` ; en CI, rapport HTML et vidéos en artefacts.
 - **Déroulé** : après une fonctionnalité, appeler le sous-agent `testeur-e2e` sur le module concerné (« utilise testeur-e2e pour tester le module `<module>` »),
   lire `tests/reports/latest.md`, corriger, relancer.
+- **Git (décision de l'utilisateur du 16/11)** : projet personnel, **aucune pull request**. On travaille et on pousse directement sur
+  `claude/harmohub-travail-Claude` (elle publie le site ; la CI « Tests e2e » tourne à chaque envoi). **Avant tout envoi qui modifie l'appli**, lancer
+  `npm run test:e2e:avant-envoi` dans la VM : **s'ils échouent, on ne pousse pas**. **Ne jamais toucher à `main`** (version de secours) sans l'accord
+  explicite de l'utilisateur.
 - **Reprise après `/clear`** : l'état d'avancement des tests est dans `tests/PLAN.md` ; dans le cloud, le hook installe tout.
 
 ## Mémoire de reprise (importée)

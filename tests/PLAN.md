@@ -3,8 +3,8 @@
 État : **phases 3 et 4 faites, phase 5 (couverture intégrale) prête à démarrer** — 16/11/2026.
 Validation (phase 4) : le smoke passe sur les 7 projets dans la VM et en CI (PR n° 1, exécution 43948088655, 7 jobs verts) ; garde-fou éprouvé (requête de
 production bloquée → test en échec, `test.fail` ; projet non `demo-` refusé) ; le sous-agent `testeur-e2e` a produit `tests/reports/latest.md` ;
-vidéos du smoke : https://claude.ai/artifact/CK7d9FvPvuPuBD2TBV72xR (et artefacts `rapport-<projet>` de la CI). Prochain module : `grille` (P1). Branche `tests/playwright-setup` ; la pull request vise
-`claude/harmohub-travail-Claude` (la branche que l'utilisateur regarde ET celle que publie GitHub Pages). On ne touche pas à `main`.
+vidéos du smoke : https://claude.ai/artifact/CK7d9FvPvuPuBD2TBV72xR (et artefacts `rapport-<projet>` de la CI). Prochain module : `grille` (P1). Branche : `claude/harmohub-travail-Claude` (fusion de `tests/playwright-setup`
+le 16/11 ; elle publie le site par GitHub Pages). **Pas de pull request** (décision du 16/11) : on pousse directement, la CI tourne à chaque envoi. On ne touche pas à `main` sans accord.
 Ce fichier est la mémoire de ce chantier : le sous-agent `testeur-e2e` y lit l'état de chaque module ; après un `/clear`, c'est ici qu'on reprend.
 
 ### Décisions de l'utilisateur (16/11)
@@ -14,7 +14,7 @@ Ce fichier est la mémoire de ce chantier : le sous-agent `testeur-e2e` y lit l'
 - Firebase : route de test **sans modifier l'appli** → réalisée par un petit serveur de test (`scripts/serveur-test.cjs`) qui substitue le SDK et
   la configuration à la volée (plus simple qu'une route Playwright, et utilisable aussi par `playwright-cli`).
 - Bancs historiques : gardés tels quels, hors de la CI des PR, dans un workflow à part (à la demande + chaque dimanche).
-- Matrice : PR = tout sur chromium + `@smoke|@critique` sur les six autres projets ; matrice complète à la demande et chaque lundi ; WebKit macOS à la demande.
+- Matrice : à chaque envoi = tout sur chromium + `@smoke|@critique` sur les six autres projets (au départ « à chaque PR » ; plus de PR depuis le 16/11) ; matrice complète à la demande et chaque lundi ; WebKit macOS à la demande.
 - Règles Firestore copiées de la console dans `firestore.rules` (émulateur seulement, jamais déployées).
 
 ## 1. Reconnaissance (16/11/2026)
@@ -171,7 +171,7 @@ requêtes Google interceptées : **0 tentative** vers Firebase pendant le charge
 
 ## 8. Ce qui reste à la charge de l'utilisateur
 
-1. **Fusionner** la pull request quand il le jugera bon (rien n'est fusionné par Claude).
+1. Décider s'il faut remettre `main` (version de secours) à jour : Claude n'y touche pas sans son accord.
 2. Si les règles Firestore changent dans la console, les recopier dans `firestore.rules` (l'émulateur doit appliquer les mêmes).
 3. GitHub Actions est **actif** sur le dépôt (571 exécutions de « pages build and deployment ») : rien à faire.
 

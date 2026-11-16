@@ -1,18 +1,20 @@
 # TESTS DE BOUT EN BOUT (@playwright/test) contre les ÉMULATEURS Firebase (projet demo-harmohub) — jamais la production.
-# - Pull request : TOUS les tests sur chromium ; les tests @smoke et @critique sur firefox, webkit, edge, mobile-android, mobile-iphone, tablette.
+# - À chaque envoi sur claude/harmohub-travail-Claude (la branche qui publie le site ; projet personnel, pas de pull request) : TOUS les tests sur
+#   chromium ; les tests @smoke et @critique sur firefox, webkit, edge, mobile-android, mobile-iphone, tablette.
 # - Lundi 5 h (UTC) et à la demande : la matrice complète (tous les tests sur tous les projets).
 # - À la demande seulement (case « webkit_macos ») : WebKit sur un runner macOS, plus proche du vrai Safari.
 # Chaque projet publie son rapport HTML (vidéos des tests @smoke comprises) et ses traces en artefacts. Plan : tests/PLAN.md.
 name: Tests e2e
 
 on:
-  pull_request:
+  push:
+    branches: [claude/harmohub-travail-Claude]
   workflow_dispatch:
     inputs:
       matrice:
-        description: "complete = tous les tests partout ; pr = sélection des pull requests"
+        description: "complete = tous les tests partout ; envoi = la sélection lancée à chaque envoi"
         type: choice
-        options: [complete, pr]
+        options: [complete, envoi]
         default: complete
       webkit_macos:
         description: "Lancer aussi WebKit sur macOS (10 × plus coûteux sur un dépôt privé ; gratuit sur un dépôt public)"
@@ -67,7 +69,7 @@ jobs:
       - name: Choix des tests
         id: choix
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ] || [ "${{ inputs.matrice }}" = "pr" ]; then
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.matrice }}" = "envoi" ]; then
             if [ "${{ matrix.projet }}" = "chromium" ]; then echo "filtre=" >> "$GITHUB_OUTPUT"; else echo "filtre=--grep='@smoke|@critique'" >> "$GITHUB_OUTPUT"; fi
           else echo "filtre=" >> "$GITHUB_OUTPUT"; fi
       - name: Tests (émulateurs demo-harmohub)

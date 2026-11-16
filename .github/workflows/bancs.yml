@@ -1,4 +1,4 @@
-# LES BANCS HISTORIQUES (tests/*_test.js : scripts Node qui pilotent Chromium, voir tests/README.md), gardés tels quels, HORS de la CI des pull requests.
+# LES BANCS HISTORIQUES (tests/*_test.js : scripts Node qui pilotent Chromium, voir tests/README.md), gardés tels quels, HORS de la CI lancée à chaque envoi.
 # Lancés à la demande et chaque dimanche (3 h UTC). Ils n'utilisent jamais la production Firebase : ils ne se connectent à aucun compte, et
 # les 8 bancs de synchro remplacent le SDK par un faux (tests/_firebase_faux.js) — vérifié le 16/11, voir tests/PLAN.md.
 # Ligne de base connue (rouges attendus) : CLAUDE-HARMOHUB.md, « Règles de travail en vigueur ».
