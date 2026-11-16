@@ -1,6 +1,9 @@
 # Plan des tests Playwright (`@playwright/test`) — HarmoHub
 
-État : **phase 3 faite (infrastructure), phase 4 en cours (validation)** — 16/11/2026. Branche `tests/playwright-setup` ; la pull request vise
+État : **phases 3 et 4 faites, phase 5 (couverture intégrale) prête à démarrer** — 16/11/2026.
+Validation (phase 4) : le smoke passe sur les 7 projets dans la VM et en CI (PR n° 1, exécution 43948088655, 7 jobs verts) ; garde-fou éprouvé (requête de
+production bloquée → test en échec, `test.fail` ; projet non `demo-` refusé) ; le sous-agent `testeur-e2e` a produit `tests/reports/latest.md` ;
+vidéos du smoke : https://claude.ai/artifact/CK7d9FvPvuPuBD2TBV72xR (et artefacts `rapport-<projet>` de la CI). Prochain module : `grille` (P1). Branche `tests/playwright-setup` ; la pull request vise
 `claude/harmohub-travail-Claude` (la branche que l'utilisateur regarde ET celle que publie GitHub Pages). On ne touche pas à `main`.
 Ce fichier est la mémoire de ce chantier : le sous-agent `testeur-e2e` y lit l'état de chaque module ; après un `/clear`, c'est ici qu'on reprend.
 
