@@ -2,7 +2,7 @@
 
 > **Ce fichier n'est PAS importé** : il garde, pour mémoire, l'ancien `CLAUDE-HARMOHUB.md` tel qu'il était le 14/11/2026 au soir, avec le détail de chaque décision
 > (sections **A à T**). On ne le lit jamais en entier : `grep -n "^\*\*[A-T]\. " docs/decisions-13-14-11.md` donne l'index, puis `sed -n` sur la section du lot en cours.
-> Les consignes exactes de l'utilisateur sont dans `docs/commentaires-14-11.md` ; le code d'essai de l'aperçu dans `docs/apercu-14-11/` ; l'état du chantier et
+> Les consignes exactes de l'utilisateur sont dans `docs/commentaires-14-11.md` ; le code d'essai de l'aperçu a été retiré le 16/11 (tous les lots faits ; il reste dans l'historique git, commit e54fbb5) ; l'état du chantier et
 > les lots à coder dans `CLAUDE-HARMOHUB.md`. Ce qui est ci-dessous peut contenir des points DÉPASSÉS (A1 « fenêtre d'accord unique » remplacée par N ; « tailles par type
 > d'écran en attente » tranchée ; miniature de la grille retirée) : en cas de contradiction, la lettre la plus RÉCENTE (S, T) l'emporte.
 
