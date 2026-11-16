@@ -42,7 +42,7 @@ Mis à jour le 16/11/2026. **Seul fichier où s'écrit l'état du chantier.** Vo
 
   Les quatre autres rouges de la liste de `CLAUDE.md` sont verts ici. Tout autre rouge est une régression.
 - **Sabotages** : sur une copie du site servie sur le port 8935 (jamais les fichiers du dépôt pendant qu'un balayage tourne). Un banc qui ne voit pas un sabotage est durci, pas le sabotage affaibli.
-- **Branche** : le dossier peut être sur `claude/harmohub-local-conversation-304z6w` (même contenu, sans branche distante). Le hook qui réclame un push de cette branche est à ignorer. On pousse TOUJOURS `git push origin HEAD:claude/harmohub-travail-Claude`. La branche locale `claude/harmohub-travail-Claude` est un très vieil état : ne pas s'en servir.
+- **Branche** : travailler sur la branche locale `claude/harmohub-travail-Claude`, alignée sur `origin` (remise d'aplomb le 16/11), et pousser `git push origin HEAD:claude/harmohub-travail-Claude`. L'environnement cloud peut créer au démarrage une branche locale `claude/harmohub-local-conversation-…` (consigne de session) : sans utilité, on bascule sur `claude/harmohub-travail-Claude` (`git checkout -B claude/harmohub-travail-Claude origin/claude/harmohub-travail-Claude`) et le hook qui réclame de la pousser est à ignorer ; elle n'existe pas sur GitHub.
 - **Ordinateur d'abord** : tout code ordinateur est gardé (`bulleDisponible()`, `modeTel()`, `min-width: 900px`). Au téléphone, seulement ce que l'utilisateur demande ou confie (« carte blanche »).
 - **Libellés courts** (phrase complète en `title`), aucune phrase d'aide sous une fenêtre, notation internationale (Dm7, Cmaj7, C, Am, D dor).
 - **Pièges** :
