@@ -83,6 +83,29 @@ Navigateur : Playwright et Chromium sont préinstallés, ne rien réinstaller.
 Fichiers très longs : lire par plages (`sed -n`, `offset`/`limit`), filtrer les sorties de bancs (`grep -E "^FAIL|FATAL|PASS /"`), ne jamais afficher un balayage
 entier. Une session par lot, `/clear` entre deux lots.
 
+## Tests
+
+Deux familles, à ne pas confondre : les **bancs** historiques (`tests/*_test.js`, scripts Node, Chromium, `run_all_fast.sh` / `run_cible.sh`, voir plus haut)
+et les **tests de bout en bout `@playwright/test`** (`tests/e2e/`, toute la matrice de navigateurs et d'appareils, émulateurs Firebase). Plan et état : `tests/PLAN.md`.
+
+- **Préparation** : `bash scripts/setup-tests.sh` (idempotent ; dans le cloud, le hook `SessionStart` de `.claude/settings.json` le lance tout seul).
+- **Appli en mode test** : `npm run app:test` → http://127.0.0.1:8936/index.html (serveur `scripts/serveur-test.cjs` : SDK Firebase servi depuis `node_modules`,
+  configuration `demo-harmohub` branchée sur les émulateurs ; l'appli n'est pas modifiée).
+- **Émulateurs** : `npm run emulateurs` (`firebase emulators:start --project demo-harmohub --only auth,firestore` ; Auth 9099, Firestore 8080 ; règles = `firestore.rules`, copie de la production).
+- **Tests complets** : `npm run test:e2e` (lance les émulateurs, puis tous les projets) ; **smoke** : `npm run test:e2e:smoke` ;
+  **un module** : `npm run test:e2e:module -- <module>` ; **la sélection des pull requests** : `npm run test:e2e:pr` ;
+  **émulateurs déjà lancés** : `npx playwright test [tests/e2e/<module>] [--project=chromium]`. Projets : `chromium`, `firefox`, `webkit`, `edge`,
+  `mobile-android`, `mobile-iphone`, `tablette` (tous disponibles dans la VM depuis le 16/11).
+- **Session playwright-cli** : `harmohub` (`playwright-cli -s=harmohub open http://127.0.0.1:8936/index.html`). Configuration : `.playwright/cli.config.json`
+  (origines de la production bloquées).
+- **Émulateurs UNIQUEMENT, aucune commande d'écriture Firebase** (`deploy`, `firestore:delete`, `use`, `login`… sont interdits dans `.claude/settings.json`).
+  Garde-fou : le `globalSetup` refuse un projet qui n'est pas `demo-…` ou des émulateurs absents ; la fixture commune (`tests/e2e/support/fixtures.ts`)
+  bloque toute requête vers la production Firebase et fait échouer le test.
+- **Rapports** : `tests/reports/latest.md` (+ copies datées), bugs dans `tests/reports/bugs.md` ; en CI, rapport HTML et vidéos en artefacts.
+- **Déroulé** : après une fonctionnalité, appeler le sous-agent `testeur-e2e` sur le module concerné (« utilise testeur-e2e pour tester le module `<module>` »),
+  lire `tests/reports/latest.md`, corriger, relancer.
+- **Reprise après `/clear`** : l'état d'avancement des tests est dans `tests/PLAN.md` ; dans le cloud, le hook installe tout.
+
 ## Mémoire de reprise (importée)
 
 @CLAUDE-HARMOHUB.md

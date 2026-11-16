@@ -1,0 +1,35 @@
+# LES BANCS HISTORIQUES (tests/*_test.js : scripts Node qui pilotent Chromium, voir tests/README.md), gardés tels quels, HORS de la CI des pull requests.
+# Lancés à la demande et chaque dimanche (3 h UTC). Ils n'utilisent jamais la production Firebase : ils ne se connectent à aucun compte, et
+# les 8 bancs de synchro remplacent le SDK par un faux (tests/_firebase_faux.js) — vérifié le 16/11, voir tests/PLAN.md.
+# Ligne de base connue (rouges attendus) : CLAUDE-HARMOHUB.md, « Règles de travail en vigueur ».
+name: Bancs historiques
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  bancs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Playwright (même version que les bancs) et Chromium
+        run: |
+          npm install -g playwright@1.63.0
+          npx playwright@1.63.0 install --with-deps chromium
+      - name: Serveur de l'appli (port 8934)
+        run: python3 -m http.server 8934 > /dev/null 2>&1 &
+      - name: Balayage complet
+        run: |
+          export NODE_PATH="$(npm root -g)"
+          bash tests/run_all_fast.sh 2>&1 | tee balayage.log
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with: { name: balayage-bancs, path: balayage.log, retention-days: 30 }

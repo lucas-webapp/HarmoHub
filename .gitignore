@@ -6,6 +6,11 @@ _local_backup_pre_git/
 # commitée, et les suivantes ne la voyaient pas (constat du 05/11).
 .claude/*
 !.claude/commands/
+# Tests (tests/PLAN.md) : réglages du projet (hook de préparation, permissions), sous-agent testeur et skill playwright-cli, VERSIONNÉS :
+# le dossier personnel ~/.claude n'est pas chargé dans une session cloud.
+!.claude/settings.json
+!.claude/agents/
+!.claude/skills/
 
 # Captures d'écran produites par les bancs d'essai (probe_touches_piano, loupe_fullscreen...) :
 # des artefacts de diagnostic régénérés à chaque exécution, jamais du code. Quatre d'entre elles se
@@ -37,3 +42,16 @@ sample_*.json
 #     (`const TMP = 'fixtures'`) — ce sont des entrées ÉCRITES par le banc, pas des fixtures versionnées.
 /exported_test.pdf
 /fixtures/
+
+# Tests @playwright/test (tests/PLAN.md) : dépendances et sorties régénérées. tests/reports/ reste versionné.
+node_modules/
+test-results/
+playwright-report/
+blob-report/
+.playwright-cli/
+.playwright/*
+!.playwright/cli.config.json
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.firebase/

@@ -1,8 +1,18 @@
 # Plan des tests Playwright (`@playwright/test`) — HarmoHub
 
-État : **phase 2 (plan), en attente de validation.** Rien n'est installé, l'appli n'a pas été modifiée.
-Branche : `tests/playwright-setup`, partie de `claude/harmohub-travail-Claude` au commit `eb130ba`.
-Ce fichier est la mémoire de ce chantier : le sous-agent `testeur-e2e` y lira l'état de chaque module, et l'état d'avancement s'y lira après un `/clear`.
+État : **phase 3 faite (infrastructure), phase 4 en cours (validation)** — 16/11/2026. Branche `tests/playwright-setup` ; la pull request vise
+`claude/harmohub-travail-Claude` (la branche que l'utilisateur regarde ET celle que publie GitHub Pages). On ne touche pas à `main`.
+Ce fichier est la mémoire de ce chantier : le sous-agent `testeur-e2e` y lit l'état de chaque module ; après un `/clear`, c'est ici qu'on reprend.
+
+### Décisions de l'utilisateur (16/11)
+- Pas de dépôt partagé : TrainHub et TabHub ont **leurs propres dépôts** (`lucas-webapp/TrainHub`, `lucas-webapp/TabHub`). Seuls quelques fichiers
+  sont recopiés de l'un à l'autre (`docs/fichiers-partages.md`). L'organisation « plusieurs applis dans un dépôt » ne s'applique donc pas ; le garde-fou,
+  les fixtures et le sous-agent restent néanmoins **génériques** (§ 9).
+- Firebase : route de test **sans modifier l'appli** → réalisée par un petit serveur de test (`scripts/serveur-test.cjs`) qui substitue le SDK et
+  la configuration à la volée (plus simple qu'une route Playwright, et utilisable aussi par `playwright-cli`).
+- Bancs historiques : gardés tels quels, hors de la CI des PR, dans un workflow à part (à la demande + chaque dimanche).
+- Matrice : PR = tout sur chromium + `@smoke|@critique` sur les six autres projets ; matrice complète à la demande et chaque lundi ; WebKit macOS à la demande.
+- Règles Firestore copiées de la console dans `firestore.rules` (émulateur seulement, jamais déployées).
 
 ## 1. Reconnaissance (16/11/2026)
 
@@ -82,21 +92,21 @@ Priorité : **P1** = parcours principal, **P2** = fonctionnalité importante, **
 
 | # | Module (`tests/e2e/<module>/`) | Parcours à tester | Prio. | Fichier prévu | Statut |
 |---|---|---|---|---|---|
-| 1 | `demarrage` | l'appli s'ouvre, morceau vide, ajouter trois accords, les lire (`@smoke`) ; état hors ligne (Firebase indisponible) | P1 | `demarrage/ouverture.spec.js` | ☐ |
-| 2 | `grille` | ajout rapide (saisie « C Am F G », `//`, `/basse`), ajout au clic (double-clic sur « + »), sélection, sélection multiple, copier / coller, glisser une case, supprimer, annuler / rétablir, parties (ajouter, renommer, dupliquer, supprimer, réordonner), menu du clic droit | P1 | `grille/*.spec.js` | ☐ |
-| 3 | `accord` | fenêtre d'accord à trois onglets (Accord, Voicing, Rythme) : fondamentale, qualité, basse, durée, renversement / drop, onglet Rythme ; au téléphone, le panneau d'accord | P1 | `accord/*.spec.js` | ☐ |
-| 4 | `lecture` | lecture / stop, boucle sur une plage, tempo (chevrons, saisie, tap), métronome, vitesse, mesure affichée, réglages de la barre de lecture | P1 | `lecture/*.spec.js` | ☐ |
-| 5 | `sequenceur` | ouvrir / fermer, rythmes prédéfinis, poser / étirer / déplacer / supprimer une note, intensité, vue Accord / Piano, notes ajoutées (renommage), plein écran, copier / coller un rythme, formes personnelles | P1 | `sequenceur/*.spec.js` | ☐ |
-| 6 | `fichiers` | nouveau morceau, enregistrer (dont « modifications non enregistrées »), liste et ouverture des morceaux, renommer, supprimer, doublons, export / import JSON, export MIDI, import MIDI, export PDF, rangement sur disque (`@disque`, Chromium et Edge) | P1 | `fichiers/*.spec.js` | ☐ |
-| 7 | `synchro` | connexion par l'émulateur Auth, envoi du morceau, relecture sur un 2ᵉ appareil (2ᵉ contexte), conflit, coupure du réseau puis reprise, déconnexion, versions (historique, restauration) | P1 | `synchro/*.spec.js` | ☐ |
-| 8 | `tonalite` | choix de la tonalité et du mode, suggestion, transposition, notation internationale | P2 | `tonalite/*.spec.js` | ☐ |
-| 9 | `voicing` | popover de conduite des voix, échelles, partie active | P2 | `voicing/*.spec.js` | ☐ |
-| 10 | `diagrammes` | tiroir clavier / guitare, doigtés (flèches, cadenas, « Mes doigtés »), fenêtre flottante, éditeur de manche | P2 | `diagrammes/*.spec.js` | ☐ |
-| 11 | `structure` | onglet Structure : ajouter, réordonner, modifier les blocs, aperçu | P2 | `structure/*.spec.js` | ☐ |
-| 12 | `paroles` | onglet Paroles (iframe) : écrire, accords au-dessus des paroles, glisser, annuler, export PDF des paroles | P2 | `paroles/*.spec.js` | ☐ |
-| 13 | `parametres` | réglages (affichage, son, instrument, notation), persistance après rechargement | P3 | `parametres/*.spec.js` | ☐ |
-| 14 | `mobile` | barre du haut et onglets au téléphone, panneau Lecture, bande Clavier / Guitare, « + Accord », « + Section », gestes tactiles (défilement, appui long) | P1 (sur les projets mobiles) | `mobile/*.spec.js` | ☐ |
-| 15 | `robustesse` | états vides, morceau très long, stockage plein ou refusé, rechargement en cours d'édition, deux onglets ouverts | P3 | `robustesse/*.spec.js` | ☐ |
+| 1 | `demarrage` | l'appli s'ouvre, morceau vide, ajouter trois accords, les lire (`@smoke`) ; garde-fou production ; état hors ligne (Firebase indisponible) | P1 | `demarrage/parcours-principal.spec.ts`, `demarrage/garde-fou.spec.ts` | ◐ smoke + garde-fou (16/11) |
+| 2 | `grille` | ajout rapide (saisie « C Am F G », `//`, `/basse`), ajout au clic (double-clic sur « + »), sélection, sélection multiple, copier / coller, glisser une case, supprimer, annuler / rétablir, parties (ajouter, renommer, dupliquer, supprimer, réordonner), menu du clic droit | P1 | `grille/*.spec.ts` | ☐ |
+| 3 | `accord` | fenêtre d'accord à trois onglets (Accord, Voicing, Rythme) : fondamentale, qualité, basse, durée, renversement / drop, onglet Rythme ; au téléphone, le panneau d'accord | P1 | `accord/*.spec.ts` | ☐ |
+| 4 | `lecture` | lecture / stop, boucle sur une plage, tempo (chevrons, saisie, tap), métronome, vitesse, mesure affichée, réglages de la barre de lecture | P1 | `lecture/*.spec.ts` | ☐ |
+| 5 | `sequenceur` | ouvrir / fermer, rythmes prédéfinis, poser / étirer / déplacer / supprimer une note, intensité, vue Accord / Piano, notes ajoutées (renommage), plein écran, copier / coller un rythme, formes personnelles | P1 | `sequenceur/*.spec.ts` | ☐ |
+| 6 | `fichiers` | nouveau morceau, enregistrer (dont « modifications non enregistrées »), liste et ouverture des morceaux, renommer, supprimer, doublons, export / import JSON, export MIDI, import MIDI, export PDF, rangement sur disque (`@disque`, Chromium et Edge) | P1 | `fichiers/*.spec.ts` | ☐ |
+| 7 | `synchro` | connexion par l'émulateur Auth, envoi du morceau, relecture sur un 2ᵉ appareil (2ᵉ contexte), conflit, coupure du réseau puis reprise, déconnexion, versions (historique, restauration) | P1 | `synchro/connexion-google.spec.ts` (+ à venir) | ◐ deux modes (16/11) |
+| 8 | `tonalite` | choix de la tonalité et du mode, suggestion, transposition, notation internationale | P2 | `tonalite/*.spec.ts` | ☐ |
+| 9 | `voicing` | popover de conduite des voix, échelles, partie active | P2 | `voicing/*.spec.ts` | ☐ |
+| 10 | `diagrammes` | tiroir clavier / guitare, doigtés (flèches, cadenas, « Mes doigtés »), fenêtre flottante, éditeur de manche | P2 | `diagrammes/*.spec.ts` | ☐ |
+| 11 | `structure` | onglet Structure : ajouter, réordonner, modifier les blocs, aperçu | P2 | `structure/*.spec.ts` | ☐ |
+| 12 | `paroles` | onglet Paroles (iframe) : écrire, accords au-dessus des paroles, glisser, annuler, export PDF des paroles | P2 | `paroles/*.spec.ts` | ☐ |
+| 13 | `parametres` | réglages (affichage, son, instrument, notation), persistance après rechargement | P3 | `parametres/*.spec.ts` | ☐ |
+| 14 | `mobile` | barre du haut et onglets au téléphone, panneau Lecture, bande Clavier / Guitare, « + Accord », « + Section », gestes tactiles (défilement, appui long) | P1 (sur les projets mobiles) | `mobile/*.spec.ts` | ☐ |
+| 15 | `robustesse` | états vides, morceau très long, stockage plein ou refusé, rechargement en cours d'édition, deux onglets ouverts | P3 | `robustesse/*.spec.ts` | ☐ |
 
 Tags : `@smoke`, `@critique` (parcours P1), `@<module>`, plus `@ordinateur` / `@mobile` (filtre par appareil) et `@disque`.
 
@@ -105,15 +115,20 @@ Tags : `@smoke`, `@critique` (parcours P1), `@<module>`, plus `@ordinateur` / `@
 | Projet | Profil Playwright | Tests | Dans la VM | En CI |
 |---|---|---|---|---|
 | `chromium` | Desktop Chrome 1440 × 900 | `@ordinateur` | ✔ (navigateur déjà là) | ✔ |
-| `firefox` | Desktop Firefox | `@ordinateur` | ✘ téléchargement bloqué | ✔ |
-| `webkit` | Desktop Safari | `@ordinateur` | ✘ téléchargement bloqué | ✔ (Linux ; option macOS ci-dessous) |
-| `edge` | Desktop Edge, canal `msedge` | `@ordinateur` | ≈ via `packages.microsoft.com` (à confirmer à l'installation) | ✔ |
+| `firefox` | Desktop Firefox | `@ordinateur` | ✔ (16/11 : le téléchargement passe maintenant) | ✔ |
+| `webkit` | Desktop Safari | `@ordinateur` | ✔ (idem) | ✔ (Linux ; option macOS ci-dessous) |
+| `edge` | Desktop Edge, canal `msedge` | `@ordinateur` | ✔ (installé via `packages.microsoft.com`) | ✔ |
 | `mobile-android` | Pixel 7 (Chromium, tactile) | `@mobile` | ✔ | ✔ |
-| `mobile-iphone` | iPhone 15 (WebKit, tactile) | `@mobile` | ✘ | ✔ |
-| `tablette` | iPad Pro 11 paysage (WebKit, tactile, ≥ 900 px) | `@ordinateur` | ✘ | ✔ |
+| `mobile-iphone` | iPhone 15 (WebKit, tactile) | `@mobile` | ✔ | ✔ |
+| `tablette` | iPad Pro 11 paysage (WebKit, tactile, ≥ 900 px) | `@ordinateur` | ✔ | ✔ |
+
+Constat du 16/11 : `cdn.playwright.dev` répond désormais depuis la VM (Firefox 1543 et WebKit 2359 se sont installés), alors qu'il renvoyait 403 en phase 1.
+`setup-tests.sh` essaie et le dit si c'est de nouveau bloqué ; dans ce cas ces projets ne tournent qu'en CI.
+**Sortie audio** : sans carte son, Firefox laisse l'AudioContext « suspended » et la lecture ne démarre jamais (Chromium et WebKit simulent une sortie).
+`setup-tests.sh` et la CI démarrent une sortie PulseAudio factice. Ce n'est pas un défaut de l'appli (un vrai utilisateur a une carte son).
 
 - **Façon de travailler** : on développe sur `chromium`, puis on passe le module sur tout ce qui est disponible dans la VM avant de le déclarer fini. La matrice complète tourne en CI.
-- **WebKit sur macOS** : un job `webkit-macos` facultatif, déclenché seulement à la demande (`workflow_dispatch`). Une minute macOS compte pour **10 minutes** du forfait GitHub (dépôt privé). Pour une suite estimée à 15 min, cela fait environ 150 minutes décomptées par passage. Je propose de ne pas le lancer sur chaque PR.
+- **WebKit sur macOS** : job `webkit-macos`, seulement à la demande (case à cocher du workflow). Le dépôt est **public** : les minutes GitHub Actions des runners standard, macOS compris, y sont **gratuites** (le facteur × 10 ne vaut que pour un dépôt privé).
 
 ## 5. Modifications de l'appli (pour la rendre testable)
 
@@ -123,28 +138,46 @@ Tags : `@smoke`, `@critique` (parcours P1), `@<module>`, plus `@ordinateur` / `@
 
 ## 6. Risque lié aux règles Firestore
 
-- Les règles ne sont **pas dans le dépôt** : je ne peux ni les lire ni les évaluer.
-- Le projet `lucas-apps-479b9` est **partagé par trois applis** : une règle trop large exposerait les données de toutes à la fois.
-- La clé d'API est publique (c'est normal pour Firebase). Seules les règles protègent les données.
-- Le risque à vérifier : si les règles contiennent `allow read, write: if true` (ou une date d'expiration de mode test), **n'importe qui** peut lire ou effacer les morceaux de tout le monde. La forme sûre est `match /users/{uid}/{document=**} { allow read, write: if request.auth != null && request.auth.uid == uid; }`.
-- Je ne change rien. Si tu copies les règles dans le dépôt (`firestore.rules`), l'émulateur les appliquera et un module de tests vérifiera qu'un autre utilisateur ne peut ni lire ni écrire chez toi.
+Règles fournies par l'utilisateur le 16/11 et copiées dans `firestore.rules` (appliquées par l'émulateur, **jamais déployées**) : seul un utilisateur
+connecté lit et écrit `users/{son uid}/apps/{appli}`. Le risque d'une base ouverte **ne s'applique pas**. Aucun test ne dépend d'un accès non connecté :
+le test `synchro/connexion-google.spec.ts` vérifie au contraire qu'un inconnu reçoit **403** sur le document d'un compte.
 
-## 7. Actions qui ne dépendent que de toi
+## 7. Ce que couvrent DÉJÀ les bancs historiques (ne pas écrire en double)
 
-1. **Ouvrir le réseau de l'environnement cloud** (claude.ai › Claude Code › Environnements › ton environnement › Réseau › Domaines autorisés) aux domaines suivants. C'est facultatif : sans eux, Firefox, WebKit, l'iPhone et l'iPad ne tournent qu'en CI.
-   - `cdn.playwright.dev`
-   - `playwright.download.prss.microsoft.com`
-   - `playwright.azureedge.net`
-   - si tu veux charger le SDK Firebase depuis son vrai CDN : `www.gstatic.com`
-   - si tu veux entendre les vrais échantillons de piano : `tonejs.github.io`
-2. **Règles Firestore** : copier les règles de la console (Firebase › `lucas-apps-479b9` › Firestore › Règles) dans un fichier `firestore.rules` à la racine du dépôt, ou me les coller dans le chat.
-3. **GitHub Actions** : vérifier qu'Actions est activé sur `lucas-webapp/HarmoHub` (Settings › Actions › General › « Allow all actions »). Une CI sur pull request consomme des minutes du forfait.
-4. **Fusionner** la pull request quand tu le jugeras bon. Je ne fusionne rien.
+288 bancs (`tests/*_test.js`, Chromium, 1440 px et 390 px tactile), écrits au fil des retours de l'utilisateur ; chacun dit en tête le retour qui l'a motivé.
+Ils éprouvent surtout les **gestes fins et les mesures au pixel** ; les nouveaux tests visent les **parcours**, sur **tous les navigateurs**.
 
-## 8. Questions
+| Module | Bancs (≈ nombre) | Ce qu'ils tiennent déjà | Ce qui reste aux tests e2e |
+|---|---|---|---|
+| `sequenceur` | ≈ 59 (`seq_*`, `sequenceur_*`) | tailles, poignées, notes (poser, étirer, déplacer, Suppr), intensité, vue Piano, plein écran, lecture pendant l'édition, notes ajoutées | les parcours sur Firefox / WebKit / Edge / iPhone / iPad |
+| `grille`, `accord` | ≈ 38 (`grid_*`, `ajout_*`, `bulle_*`, `case_*`, `accord_*`) | ajout rapide, `//` et `/basse`, ajout au clic, bulle à trois onglets, copier / coller, glisser, sélection | parcours multi-navigateurs, annuler / rétablir de bout en bout |
+| `diagrammes` | ≈ 37 (`guitar_*`, `manche_*`, `piano_*`, `vues_*`, `glock_*`) | doigtés, cadenas, « Mes doigtés » (avec faux Firestore), tiroir | parcours, et « Mes doigtés » contre l'émulateur |
+| `fichiers` | ≈ 28 (`export_*`, `import_*`, `midi_*`, `pdf_*`, `rangement_*`, `song_*`) | export / import JSON, MIDI, PDF, rangement disque (5 plantent dans ce conteneur, ligne de base) | repli téléchargement sur Firefox / Safari, parcours |
+| `mobile` | ≈ 20 (`telephone_*`, `mobile_*`) | rangée du haut, panneaux, bande du bas, gestes tactiles | iPhone (WebKit) et Android, absents des bancs |
+| `paroles` | ≈ 17 (`paroles_*`) | écriture, glisser, annuler, export | parcours multi-navigateurs |
+| `lecture` | ≈ 14 (`play_*`, `tempo_*`, `metro_*`, `boucle_*`, `live_*`) | transport, tempo, métronome, boucle, mise à jour en direct | lecture sous Firefox / WebKit (sortie audio factice) |
+| `voicing` | ≈ 10 (`voicing_*`, `vl_*`) | popover, échelles | parcours |
+| `synchro` | 7 + 8 avec le faux Firestore (`synchro_*`, `versions_cloud`, `compte_cloud`) | fusion, envoi, reprise après panne, refus du vrai Firestore (`undefined`, tableaux imbriqués, 1 Mo) | **le vrai SDK contre l'émulateur**, les **règles de sécurité**, la connexion Google (émulateur Auth) |
+| `structure`, `tonalite`, `parametres` | ≈ 3 + 2 + quelques-uns | — | presque tout |
+| transversal | ≈ 32 (`verre*`, `gabarit_*`, `barre_*`, `probe_*`, `meta_*`, `sentinelle_*`) | lisibilité du verre, jauge des boutons, gardiens des bancs | — (rester dans les bancs) |
 
-1. **Branche cible de la PR** : `main` est à `4bdeb9d`, **58 commits derrière** `claude/harmohub-travail-Claude`. Une PR de `tests/playwright-setup` vers `main` embarquerait toute la refonte. Viser `claude/harmohub-travail-Claude` à la place ? Et quelle branche publie le site (GitHub Pages) ?
-2. **Firebase** : d'accord pour **zéro modification de l'appli** (route Playwright qui remplace `firebase-config.js` et sert le SDK local), plutôt qu'une bascule `?emulateurs=1` dans `firebase-config.js` ?
-3. **Bancs existants** : on les garde tels quels à côté des nouveaux tests (je le recommande : ils sont la mémoire des décisions), sans les brancher sur la CI ? Ou faut-il les y lancer aussi (environ 19 min, Chromium seul) ?
-4. **Couverture « intégrale »** : 15 modules × 7 projets, cela fait beaucoup de minutes de CI. Faut-il lancer toute la matrice sur chaque PR et seulement `@smoke` + `@critique` sur les projets lents (WebKit, Firefox) ? Je le recommande.
-5. **Job WebKit sur macOS** : seulement à la demande (recommandé), ou jamais ?
+**Aucun banc ne contacte la production** (vérifié le 16/11) : les 22 qui touchent au réseau Firebase interrompent `gstatic` / `googleapis` ou servent un faux SDK ;
+les 266 autres chargent l'appli avec la vraie configuration mais **sans jamais se connecter** — mesure faite avec le vrai SDK (servi depuis npm) et toutes les
+requêtes Google interceptées : **0 tentative** vers Firebase pendant le chargement, les rechargements et 6 s d'attente, à 1440 px et à 390 px. Dans la VM, `gstatic`
+étant bloqué, le SDK ne se charge même pas.
+
+## 8. Ce qui reste à la charge de l'utilisateur
+
+1. **Fusionner** la pull request quand il le jugera bon (rien n'est fusionné par Claude).
+2. Si les règles Firestore changent dans la console, les recopier dans `firestore.rules` (l'émulateur doit appliquer les mêmes).
+3. GitHub Actions est **actif** sur le dépôt (571 exécutions de « pages build and deployment ») : rien à faire.
+
+## 9. À réutiliser dans TrainHub et TabHub (leurs propres dépôts)
+
+**Commun, à recopier tel quel** : `tests/e2e/support/emulateurs.ts` (projet `demo-`, domaines de production, remise à zéro, comptes fictifs),
+`tests/e2e/support/global-setup.ts`, `tests/e2e/support/fixtures.ts` (garde-fou ; seule la fonction `ouvrirAppli` décrit l'appli), `.claude/agents/testeur-e2e.md`,
+la structure de `.claude/settings.json` (hook + interdictions), `scripts/setup-tests.sh`, `.github/workflows/e2e.yml`.
+**Propre à chaque appli** : `tests/e2e/support/appli.ts` (graine de données, ressources externes coupées), `scripts/serveur-test.cjs` (pages HTML qui chargent
+le SDK, nom de `firebase-config.js`, slug `harmohub` → `trainhub` / `tabhub`, port), `firebase.json` (services utilisés), `package.json` (version du SDK chargée
+par le site), le projet `demo-<appli>`, le nom de session `playwright-cli`, et la section « Tests » de `CLAUDE.md`.
+Le projet Firebase de production est PARTAGÉ par les trois applis : le garde-fou bloque ses domaines quel que soit le slug.

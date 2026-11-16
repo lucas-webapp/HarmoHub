@@ -1,0 +1,11 @@
+// RÈGLES DE PRODUCTION, COPIÉES DE LA CONSOLE FIREBASE (projet partagé lucas-apps-479b9) le 16/11/2026, fournies par l'utilisateur.
+// Ce fichier ne sert QU'À L'ÉMULATEUR des tests (firebase.json) : il ne doit JAMAIS être déployé (`firebase deploy` est interdit
+// dans .claude/settings.json). S'il change dans la console, le recopier ici pour que l'émulateur applique les mêmes règles.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/apps/{appId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
