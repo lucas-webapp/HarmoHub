@@ -329,7 +329,11 @@ const PARTIE = [{ title: 'Couplet', chords: [mk('C', 'maj7'), mk('A', 'min7'), m
     // 13/11 : enlever une croche d'une note longue enlève la note ENTIÈRE (elle se coupait en deux) — la basse de Am7, « Plaqué », est une seule note de huit croches.
     check((await croches(p, 1)).pos[0] === '' && !((await accord(p, 1)).extraNotes || []).length, 'sur Am7, la même ligne est sa basse : la case touche sa voix (la note entière est enlevée), rien n\'est ajouté');
     await cliquer(p, '#sq-vue-voix');
-    check((await etiquettes(p))[0] === 'A3' && await p.evaluate(() => document.querySelector('#sq-grille .sq-etiq').classList.contains('libre')), 'en vue Voix, la note ajoutée devient une ligne de note libre');
+    // RÉÉCRIT À L9d (16/11, « lorsque j'ajoute une note, elle doit se mettre au bon endroit dans le piano ») : la note ajoutée est une ligne de note libre À SA HAUTEUR parmi les voix, plus tout en haut.
+    const nomsVoix = await etiquettes(p);
+    const hauteur = (n) => { const m = /^([A-G])(#?)(-?\d+)$/.exec(n); return m ? 12 * (+m[3] + 1) + { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1]] + (m[2] ? 1 : 0) : NaN; };
+    check(nomsVoix.includes('A3') && await p.evaluate(() => [...document.querySelectorAll('#sq-grille .sq-etiq')].filter(e => e.textContent.trim() === 'A3').some(e => e.classList.contains('libre')))
+        && nomsVoix.every((n, i) => i === 0 || hauteur(nomsVoix[i - 1]) >= hauteur(n)), `en vue Voix, la note ajoutée devient une ligne de note libre, placée à sa hauteur parmi les voix (${nomsVoix.join(' ')})`);
     await cliquer(p, '#sq-vue-notes');
     await p.reload(); await p.waitForTimeout(900);
     check(await presse(p, '#sq-vue-notes') === 'true', 'la vue choisie est retenue par l\'appareil');

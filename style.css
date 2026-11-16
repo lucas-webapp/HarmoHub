@@ -7883,3 +7883,22 @@ body.entetes-gauche #progression-sections .prog-section-menu { margin-left: 0; }
     #pa-rythme #sq-grille .sq-coin { display: block; position: sticky; top: 0; left: 0; z-index: 6; background: #181b20; }
     #pa-rythme #sq-grille .sq-libre-btn { top: 0; z-index: 7; }   /* « Note libre » occupe le coin : au-dessus de lui, collé comme lui */
 }
+
+/* ======================================================================================================
+   L9d (16/11) — REMARQUES DE L'UTILISATEUR SUR LE SÉQUENCEUR. « Les notes ajoutées ont un aspect très différent des autres sur la gauche (piano). Je pense qu'il faut homogénéiser un peu. Tu peux laisser
+   la croix pour les supprimer si besoin. » : une note ajoutée est une TOUCHE comme les autres (blanche ou sombre selon la note) ; seule la croix la distingue. « Permets-moi de renommer directement
+   dans le piano des notes que j'ajoute » : son nom est un champ au clic ; la bande « Note libre » a un champ où l'on tape le nom. En FIN de feuille (cascade).
+   ====================================================================================================== */
+#sq-grille .sq-etiq.libre { background: #d8d8d8; color: #141414; border: 0; }
+#sq-grille .sq-etiq.libre.diese { background: #2a2a2a; color: #e0e0e0; border: 1px solid #3a3a3a; }
+.sq-libre-nom { cursor: text; border-radius: 3px; }
+.sq-libre-nom:hover { text-decoration: underline dotted; }
+.sq-libre-nom:focus-visible { outline: 2px solid var(--btn-blue-border-hover); outline-offset: 1px; }
+.sq-etiq.renomme { justify-content: flex-end; padding-left: 2px; }
+.sq-etiq.renomme .sq-libre-retirer { display: none; }
+.sq-etiq.renomme .sq-libre-nom { flex: 1; min-width: 0; text-decoration: none; }
+.sq-libre-saisie { box-sizing: border-box; height: 18px; width: 100%; min-width: 0; margin: 0; padding: 0 3px; border: 1px solid var(--accent); border-radius: 4px; background: #fff; color: #141414; font: 800 11px var(--font); text-align: right; outline: none; }
+.sq-libre-saisie.invalide { border-color: #ff6b6b; color: #b00020; }
+.sq-libre-saisie.sq-libre-saisie-bande { width: 64px; height: var(--bouton-h, 32px); padding: 0 6px; background: #16191e; color: #e8e8e8; border: 1px solid var(--btn-neutral-border); border-radius: var(--rayon-bouton, 7px); font-size: 12px; text-align: center; }
+.sq-libre-saisie.sq-libre-saisie-bande:focus { border-color: var(--btn-blue-border-hover); }
+.sq-libre-saisie.sq-libre-saisie-bande.invalide { border-color: #ff6b6b; color: #ff8a80; }

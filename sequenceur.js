@@ -87,6 +87,15 @@
     function NOTES_SQ() { return ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; }
     const midiDe = (note, octave) => NOMS_LIBRES.indexOf(note) + 12 * (octave + 1);
     const noteDe = (midi) => ({ note: NOMS_LIBRES[((midi % 12) + 12) % 12], octave: Math.floor(midi / 12) - 1 });
+    // « Renommer directement » (l'utilisateur, 16/11) : un nom tapé (C, C#4, Db3, eb, B♭2…) devient une hauteur MIDI ; sans octave, celle de `octaveParDefaut`. Null si ce n'est pas une note (ou hors C1-C8).
+    function lireNomNote(texte, octaveParDefaut) {
+        const m = /^\s*([A-Ga-g])\s*([#♯b♭]?)\s*(-?\d{1,2})?\s*$/.exec(texte || '');
+        if (!m) return null;
+        const base = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1].toUpperCase()];
+        const alt = (m[2] === '#' || m[2] === '♯') ? 1 : ((m[2] === 'b' || m[2] === '♭') ? -1 : 0);
+        const midi = 12 * ((m[3] != null ? parseInt(m[3], 10) : octaveParDefaut) + 1) + base + alt;
+        return midi >= 24 && midi <= 108 ? midi : null;
+    }
     const APPUI_LONG_MS = 380; // l'appui long au doigt : menu de la note, ou début d'un trait peint
     // VUE PIANO (L6bis, 15/11) : de vraies lignes de demi-tons sur une fenêtre BORNÉE autour des notes de la partie — de 5 demi-tons sous la plus grave à une octave au-dessus de la plus aiguë, jamais
     // hors de C2-C7 — et douze lignes visibles au départ (le reste défile dans la grille). « Je ne peux pas tâtonner pour trouver une note aiguë qui n'est pas encore jouée ailleurs » (l'utilisateur).
@@ -675,8 +684,23 @@
             } else {
                 // Lignes de haut en bas : notes libres (en pointillés), puis les voix de l'aiguë à la basse. Un accord plus pauvre que le plus riche de
                 // la partie laisse ses lignes du haut vides (cahier : « vides, sans hachures »).
-                [...midisLibres].sort((a, b) => b - a).forEach(midi => lignes.push({ type: 'libre', midi }));
-                for (let p = nPos - 1; p >= 0; p--) lignes.push({ type: 'voix', p });
+                // L9d (16/11, « lorsque j'ajoute une note, elle doit se mettre au bon endroit dans le piano : là elle reste en haut, même si c'est une note grave ») : les notes libres
+                // s'intercalent entre les voix À LEUR HAUTEUR, d'après l'accord de référence (le choisi, sinon le premier) dont les noms sont écrits à gauche ; au-dessus de sa voix la plus
+                // aiguë elles restent tout en haut, en dessous de la basse tout en bas. Les voix gardent leur ordre (une ligne par voix : le rang, pas la hauteur, pour les autres accords).
+                const ref = etats[i != null ? i : 0];
+                const hauteurVoix = (p) => { const v = ref.info.positions[p]; return v != null && ref.info.voix[v] ? ref.info.voix[v].midi : null; };
+                const libresHaut = [...midisLibres].sort((a, b) => b - a);
+                const reels = [];
+                for (let p = nPos - 1; p >= 0; p--) { const h = hauteurVoix(p); if (h != null) reels.push(h); }
+                const hMax = reels.length ? Math.max(...reels) : Infinity;
+                const dessus = libresHaut.filter(m => m > hMax), reste = libresHaut.filter(m => m <= hMax);
+                dessus.forEach(midi => lignes.push({ type: 'libre', midi }));
+                for (let p = nPos - 1; p >= 0; p--) {
+                    const h = hauteurVoix(p);
+                    if (h != null) while (reste.length && reste[0] > h) lignes.push({ type: 'libre', midi: reste.shift() });
+                    lignes.push({ type: 'voix', p });
+                }
+                reste.forEach(midi => lignes.push({ type: 'libre', midi }));
             }
             this._lignes = lignes;
             const voixLigne = (e, L) => L.type === 'voix' ? (e.info.positions[L.p] != null ? e.info.positions[L.p] : null)
@@ -769,7 +793,10 @@
                 // Vue Piano : l'étiquette est une TOUCHE qu'on joue (data-midi : un clic la fait entendre), les Do sont marqués, les lignes que la partie n'utilise pas sont plus discrètes.
                 const touche = L.type === 'hauteur' && this.pianoLarge();
                 const cl = `${diese ? ' diese' : ''}${L.type === 'libre' ? ' libre' : ''}${touche ? ` touche${L.utilisee ? ' utilisee' : ''}${((L.midi % 12) + 12) % 12 === 0 ? ' do' : ''}` : ''}`;
-                html.push(`<div class="sq-etiq${cl}" style="grid-row:${row};grid-column:1"${touche ? ` data-midi="${L.midi}" title="Jouer ${escapeHtml(nomSel)}"` : ''}>${retirer}${escapeHtml(nomSel)}</div>`);
+                // L9d : le nom d'une note ajoutée se RENOMME au clic (ordinateur) : on tape D4, Eb3…, la note change de hauteur avec toutes ses croches.
+                const nomHtml = (L.type === 'libre' && !this.modeTel())
+                    ? `<span class="sq-libre-nom" data-midi="${L.midi}" role="button" tabindex="0" title="Renommer cette note : taper son nom (D4, Eb3…)">${escapeHtml(nomSel)}</span>` : escapeHtml(nomSel);
+                html.push(`<div class="sq-etiq${cl}" style="grid-row:${row};grid-column:1"${touche ? ` data-midi="${L.midi}" title="Jouer ${escapeHtml(nomSel)}"` : ''}>${retirer}${nomHtml}</div>`);
                 montres.forEach((c) => {
                     const d = accords[c];
                     const e = etats[c], v = voixLigne(e, L), col = colDebut[c];
@@ -1280,7 +1307,26 @@
             window.addEventListener('pointercancel', () => this.annulerGeste());
             this.grille.addEventListener('keydown', (e) => {
                 if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('sq-boucle')) { e.preventDefault(); this.retirerBoucle(); }
+                if ((e.key === 'Enter' || e.key === 'F2') && e.target.classList && e.target.classList.contains('sq-libre-nom') && !this.modeTel()) { e.preventDefault(); this.ouvrirRenommage(+e.target.dataset.midi); }
             });
+            // La bande « Note libre » : le nom se TAPE aussi (« dès la définition d'une note ») — C, Eb3, F#4… ; Entrée ajoute la note. Les puces et l'octave restent.
+            const saisie = document.getElementById('sq-libre-saisie');
+            if (saisie) {
+                saisie.addEventListener('input', () => {
+                    const m = lireNomNote(saisie.value, this.libre.octave);
+                    if (m == null) { saisie.classList.add('invalide'); return; }
+                    saisie.classList.remove('invalide');
+                    const n = noteDe(m);
+                    this.libre.note = n.note; this.libre.octave = n.octave;
+                    this.majBandeLibre(true);
+                });
+                saisie.addEventListener('keydown', (e) => {
+                    e.stopPropagation();
+                    if (e.key === 'Enter') { e.preventDefault(); if (!saisie.classList.contains('invalide') && saisie.value.trim()) this.ajouterLigneLibre(); }
+                    else if (e.key === 'Escape') { e.preventDefault(); this.ouvrirBandeLibre(false); }
+                });
+                saisie.addEventListener('change', () => { if (!saisie.classList.contains('invalide')) this.jouerMidi(this.midiLibre()); });
+            }
             // CLIC DROIT SUR UNE NOTE (12/11 : « si je veux scinder : clic droit / scinder la note ») : son menu. Ailleurs dans la grille, le menu du navigateur n'a
             // rien à faire non plus. Au doigt, l'appui long ouvre le même menu (surAppui) ; sur Android l'évènement natif arrive aussi : même chemin.
             this.grille.addEventListener('contextmenu', (e) => {
@@ -1375,6 +1421,8 @@
         }
 
         surClic(e) {
+            const nomLibre = e.target.closest && e.target.closest('.sq-libre-nom');
+            if (nomLibre && this.racine.contains(nomLibre) && !this.modeTel()) { this.ouvrirRenommage(+nomLibre.dataset.midi); return; }
             const b = e.target.closest('button');
             if (!b || !this.racine.contains(b) || b.disabled) return;
             // JAMAIS INERTE (L1c, 14/11) : un bouton qui agit sur UN accord, sans accord choisi, choisit d'abord celui que le séquenceur montre — pour qu'on voie dans la grille ce
@@ -1761,7 +1809,7 @@
             if (ouvrir) { const a = document.getElementById('sq-libre-ajouter'); if (a) a.focus(); }
             this.limiterHauteur();
         }
-        majBandeLibre() {
+        majBandeLibre(depuisSaisie) {
             const bande = document.getElementById('sq-libre-bande');
             if (!bande) return;
             bande.hidden = !this.libre.ouvert;
@@ -1770,6 +1818,8 @@
             if (o) o.textContent = String(this.libre.octave);
             const a = document.getElementById('sq-libre-ajouter');
             if (a) a.textContent = 'Ajouter ' + this.libre.note + this.libre.octave;
+            const saisie = document.getElementById('sq-libre-saisie');
+            if (saisie && !(depuisSaisie)) { saisie.value = this.libre.note + this.libre.octave; saisie.classList.remove('invalide'); }
         }
         // Crée la LIGNE (cahier : « une ligne en pointillés sur tous les accords, cases toutes normales et cliquables : on pose les croches là où on
         // veut ») : la partie la retient, aucun accord ne change de son. Une annulation.
@@ -1796,6 +1846,73 @@
                 sec.notesLibres = (sec.notesLibres || []).filter(n => midiDe(n.note, n.octave) !== midi);
                 if (!sec.notesLibres.length) delete sec.notesLibres;
             });
+        }
+
+        // RENOMMER UNE NOTE AJOUTÉE (16/11, « permets-moi de renommer directement dans le piano des notes que j'ajoute, ça sera plus rapide ») : un clic sur son nom en fait un champ ; on tape
+        // le nouveau nom (D4, Eb3, F#… sans octave : la même), Entrée valide, Échap annule. La note change de HAUTEUR avec toutes ses croches, dans chaque accord de la partie : une annulation.
+        ouvrirRenommage(midi) {
+            const nom = this.grille.querySelector(`.sq-libre-nom[data-midi="${midi}"]`);
+            if (!nom || nom.querySelector('input')) return;
+            const etiq = nom.closest('.sq-etiq'), avant = nom.textContent.trim();
+            const champ = document.createElement('input');
+            champ.type = 'text'; champ.className = 'sq-libre-saisie'; champ.value = avant; champ.maxLength = 5; champ.size = 3;
+            champ.setAttribute('aria-label', 'Nom de la note (D4, Eb3…)'); champ.setAttribute('autocomplete', 'off'); champ.spellcheck = false;
+            if (etiq) etiq.classList.add('renomme');
+            nom.textContent = '';
+            nom.appendChild(champ);
+            champ.focus(); champ.select();
+            let fini = false;
+            const finir = (valider) => {
+                if (fini) return;
+                fini = true;
+                const texte = champ.value.trim();
+                const annuler = () => { nom.textContent = avant; if (etiq) etiq.classList.remove('renomme'); };
+                if (!valider || texte === '' || texte === avant) { annuler(); return; }
+                const octaveDe = Math.floor(midi / 12) - 1;
+                const m2 = lireNomNote(texte, octaveDe);
+                if (m2 == null) { annuler(); this.app.flashHint && this.app.flashHint(`« ${texte} » n'est pas une note (essaie D4, Eb3, F#2…)`); return; }
+                if (!this.renommerLigneLibre(midi, m2)) annuler();
+            };
+            champ.addEventListener('keydown', (e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') { e.preventDefault(); finir(true); }
+                else if (e.key === 'Escape') { e.preventDefault(); finir(false); }
+            });
+            champ.addEventListener('blur', () => finir(true));
+        }
+        renommerLigneLibre(m1, m2) {
+            if (m1 === m2) return false;
+            const { accords } = this.cible();
+            const flats = this.app.useFlatsForRoot(accords[this._i != null ? this._i : 0].root);
+            const nom = midiToDisplayName(m2, flats);
+            if ((this._lignes || []).some(L => L.type !== 'voix' && L.midi === m2)) { this.app.flashHint && this.app.flashHint(`${nom} est déjà une ligne du séquenceur`); return false; }
+            const modifs = new Map();
+            let conflit = false;
+            (this._etats || []).forEach((e, c) => {
+                const d = accords[c];
+                if (!d || conflit) return;
+                const m = { etat: e, extraNotes: (d.extraNotes || []).map(x => ({ ...x })), motif: undefined };
+                const v = voixALaHauteur(m.etat.info, m1, true);
+                if (v == null) return;
+                if (voixALaHauteur(m.etat.info, m2, false) != null) { conflit = true; return; }   // m2 est déjà une note de cet accord
+                const deLaVoix = (c0) => +c0.split(':')[0] === v, croche = (c0) => +c0.split(':')[1];
+                const on = [...m.etat.on].filter(deLaVoix).map(croche), soude = [...m.etat.soude].filter(deLaVoix).map(croche);
+                const niveaux = [...m.etat.niveaux].filter(([c0]) => deLaVoix(c0)).map(([c0, n]) => [croche(c0), n]);
+                retirerLibre(m, d, v);
+                const v2 = ajouterLibre(m, d, m2);
+                on.forEach(k => m.etat.on.add(cle(v2, k)));
+                soude.forEach(k => m.etat.soude.add(cle(v2, k)));
+                niveaux.forEach(([k, n]) => m.etat.niveaux.set(cle(v2, k), n));
+                modifs.set(c, m);
+            });
+            if (conflit) { this.app.flashHint && this.app.flashHint(`${nom} est déjà une note d'un accord de la partie`); return false; }
+            this.sel = [];
+            this.ecrire(modifs, null, (sec) => {
+                const liste = (sec.notesLibres || []).filter(n => { const x = midiDe(n.note, n.octave); return x !== m1 && x !== m2; });
+                liste.push(noteDe(m2));
+                sec.notesLibres = liste;
+            });
+            return true;
         }
 
         // ---- Modifier un schéma (clic droit sur une vignette) -------------------------------------------------------------------------------

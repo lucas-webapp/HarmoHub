@@ -88,8 +88,9 @@ const AMBRE = 'rgb(224, 179, 106)';
     r = await R.intensite(p, 0);
     check(r.ok, `Intensité allumée, un clic passe la note en « fort » (${r.detail})`);
     r = await R.noteLibre(p);
-    check(r.ok, `une note ajoutée à la main est une ligne en pointillés (${r.detail})`);
-    check(await p.evaluate(() => getComputedStyle(document.querySelector('#sq-grille .sq-etiq.libre')).borderStyle.includes('dashed')), 'sa ligne est dessinée en pointillés');
+    check(r.ok, `une note ajoutée à la main est une ligne de plus (${r.detail})`);
+    // RÉÉCRIT À L9d (16/11, « les notes ajoutées ont un aspect très différent des autres sur la gauche (piano) : il faut homogénéiser, tu peux laisser la croix ») : plus de pointillés, une touche comme les autres + la croix.
+    check(await p.evaluate(() => { const e = document.querySelector('#sq-grille .sq-etiq.libre'); return !getComputedStyle(e).borderStyle.includes('dashed') && !!e.querySelector('.sq-libre-retirer'); }), 'sa ligne a l\'aspect d\'une touche (plus de pointillés) et garde sa croix');
     await p.close();
 
     // ======================================================================================================
@@ -108,7 +109,7 @@ const AMBRE = 'rgb(224, 179, 106)';
     exiger(r.ok && surF === '1,1', `(${surF}) ` + `« Séquenceur » du panneau Lecture ouvre l'onglet Rythme sur F (${r.detail})`);
     const libre = await p.evaluate(() => [...document.querySelectorAll('#pa-rythme #sq-grille .sq-etiq.libre')].map(e => getComputedStyle(e).borderStyle));
     check(libre.length >= 1, `la note ajoutée à la main a sa ligne (${libre.length})`);
-    check(libre.every(s => s.includes('dashed')), `en pointillés (${libre.join(' ')})`);
+    check(libre.every(s => !s.includes('dashed')), `à l'aspect d'une touche, sans pointillés (${libre.join(' ')}) (réécrit à L9d)`);
     await p.tap('#pa-quel [data-bulle="prec"]'); await p.waitForTimeout(500); // ‹ : retour sur C, joué à intensité normale (F a sa première croche à 30 %)
     r = await R.intensiteTel(p);
     check(r.ok, `Intensité : toucher une note la passe en « fort » (${r.detail})`);
