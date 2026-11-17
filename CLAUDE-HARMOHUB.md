@@ -15,7 +15,7 @@ Mis à jour le 16/11/2026 au soir (tests Playwright e2e en place, phases 1 à 4 
 **PROCHAINE ÉTAPE : PHASE 5 DES TESTS E2E (couverture intégrale), demandée par l'utilisateur le 16/11 (« je ferai clear puis reprise »).**
 Tout est dans `tests/PLAN.md` (§ 3 : modules, parcours, priorités, statut ; § 7 : ce que les 288 bancs couvrent déjà, à ne pas réécrire) et dans la section
 « Tests » de `CLAUDE.md` (commandes, garde-fous, règle Git). Consignes de l'utilisateur pour cette phase :
-- traiter les modules de `tests/PLAN.md` un par un, **par priorité** (P1 d'abord ; `grille` ◐ (93 tests) et `accord` ◐ (49 tests) faits les 16-17/11, bugs G-01 à G-04 et A-01 à A-03 dans `tests/reports/bugs.md`, tests de bugs en `test.fail` ; suite : `lecture`, `sequenceur`, `fichiers`, `synchro`, `mobile` ; `demarrage` est ☑),
+- traiter les modules de `tests/PLAN.md` un par un, **par priorité** (P1 d'abord ; `grille` ◐ (93 tests) et `accord` ◐ (49 tests) et `lecture` ◐ (58 tests) faits les 16-17/11, bugs G-01 à G-04, A-01 à A-03 et L-01 à L-05 dans `tests/reports/bugs.md`, tests de bugs en `test.fail` ; suite : `sequenceur`, `fichiers`, `synchro`, `mobile` ; `demarrage` est ☑),
   en confiant chacun au **sous-agent `testeur-e2e`** (« utilise testeur-e2e pour tester le module `<module>` », il tourne sur sonnet, effort élevé) ;
 - garder la conversation principale légère : ne pas recopier les journaux, **lire les rapports** (`tests/reports/latest.md`) ;
 - après chaque module : `tests/PLAN.md` à jour, commit, **push direct sur `claude/harmohub-travail-Claude`** (pas de pull request), puis un point de 3 lignes
