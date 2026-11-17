@@ -1,48 +1,48 @@
-# Rapport e2e — module `grille` (16/11/2026)
+# Rapport e2e — module `accord` (17/11/2026)
 
 ## Résumé
-- Testé : ajout rapide (« // », « / » et « _ » basse, ligne vide), ajout au clic sur « + », sélection (simple, Ctrl+clic, Maj+clic), copier / coller, glisser une case, supprimer, annuler / rétablir, parties (ajouter, renommer, dupliquer, supprimer, monter / descendre, répéter), menu du clic droit.
-- Résultat : 93 tests écrits (78 ordinateur, 15 téléphone). `@critique` sur les 7 projets : **136 / 136 réussis**. Module complet sur les 7 projets : **403 réussis / 17 échoués** (3 bugs avec test rouge : G-01, G-02, G-03 ; G-04 sans test rouge) ; Chromium seul : 75 réussis, 3 échoués ; stable sur 3 passages (222 / 222 hors tests rouges).
-- Suite conseillée : décider pour G-01 (Firefox) et G-02, puis module suivant `accord`.
+- Testé : fenêtre d'accord (ouverture et fermeture, onglets Accord, Voicing et Rythme, navigation entre accords, annuler / rétablir) et panneau d'accord du téléphone.
+- Résultat : 49 tests écrits (40 ordinateur, 9 téléphone, 16 `@critique`). Chromium, tout le dépôt : 124 réussis, 0 échoué (6 échecs attendus : G-02 ×2, G-03, A-01 à A-03). `@smoke|@critique` sur les 6 autres projets : tout vert (39 / 39 / 39 / 39 / 17 / 17).
+- Suite conseillée : arbitrer A-01 (types texte) et A-03, puis module suivant `lecture`.
 
 ## Environnement
 - Émulateurs Auth 9099 et Firestore 8080 sur `demo-harmohub` ; appli servie en mode test sur 127.0.0.1:8936. Je les ai lancés et arrêtés.
-- Exploration `playwright-cli` (session `harmohub`) : aucune requête vers la production Firebase. Seules les polices Google (bloquées) sont parties. Garde-fou : 0 requête bloquée dans les tests.
+- Exploration `playwright-cli` (session `harmohub`, ordinateur et Pixel 7) : aucune requête vers la production Firebase. Garde-fou : 0 requête bloquée dans les tests.
 
-## Résultats par projet (module complet)
-- chromium : 75 réussis, 3 échoués (G-02 ×2, G-03).
-- firefox : 73 réussis, 5 échoués (G-01 ×2, G-02 ×2, G-03).
-- webkit, edge, tablette : 75 réussis, 3 échoués chacun (G-02 ×2, G-03).
-- mobile-android, mobile-iphone : 15 réussis chacun.
+## Résultats par projet
+- chromium (tout le dépôt) : 124 réussis, 0 échoué, 1 ignoré (échecs attendus inclus : A-01 à A-03, G-02 ×2, G-03).
+- `@smoke|@critique` : firefox 39, webkit 39, edge 39, tablette 39, mobile-android 17, mobile-iphone 17 réussis, 0 échoué.
+- Module `accord` complet, répété ×2 sous firefox et webkit : 160 réussis, 0 échoué, 0 instable.
 
 ## Problèmes (détail et étapes dans `tests/reports/bugs.md`)
-- **G-01 gênant, Firefox ordinateur** : le premier clic sur une case d'une autre partie ne la sélectionne pas (il faut deux clics). Conséquence : Ctrl+V colle en fin de partie. Étapes : deux parties, cliquer une case de la partie non active. Attendu : sélection du premier coup. Observé : `selectedIndex` reste `null`. Trace : `test-results/grille-selection-…-premier-coup-firefox/`. Avis : bug de l'appli propre à Firefox (reproduit à chaque fois, même avec 800 ms d'attente).
-- **G-02 mineur, tous les ordinateurs et l'iPad** : après « Supprimer la partie » ou « Dupliquer », la barre de lecture garde l'ancien total (« 1 / 6 » au lieu de « 1 / 4 » ou « 1 / 10 »). Il se corrige au clic suivant sur une case. Trace : `test-results/grille-parties-…-barre-de-lecture-<projet>/`. Avis : bug de l'appli (rafraîchissement manquant).
-- **G-03 mineur, à arbitrer** : un double-clic sur le « + » d'une case ouvre le panneau d'ajout, la grille descend de 60 px, le second clic tombe à côté et referme tout. Le clic simple fonctionne. Trace : `test-results/grille-ajout-au-clic-…-ouvert-<projet>/`. Avis : probablement un bug, mais le plan parlait d'un « double-clic » : à arbitrer.
-- **G-04 mineur, à arbitrer** : « C Am F G » (espaces) et « xyz » sont refusés sans aucun message. Le séparateur voulu est « // ». Pas de test rouge : le comportement observé est figé par un test.
+- **A-01 mineur, tous** : la fenêtre d'accord enregistre durée, octave et renversement en TEXTE (`"3"`, `"1"`). Étapes : Am, « Un temps de moins », Voicing, octave +, 1er renv. ; lire `localStorage.myProgression`. Attendu : nombres. Observé : chaînes. Avis : bug de l'appli (export et cloud portent des chaînes). Trace : `test-results/accord-onglet-voicing-…-nombres-…`.
+- **A-02 mineur, à arbitrer, ordinateur** : basse = fondamentale s'écrit « Am/A ». Étapes : Am, onglet Accord, basse « A ». Attendu : « Am ». Avis : imperfection ; à arbitrer.
+- **A-03 mineur, ordinateur** : onglet Rythme, un accord tenu n'a aucune forme marquée séquenceur fermé, puis « Plaqué » se marque ~300 ms après l'ouverture du séquenceur. Attendu : « Plaqué » dans les deux cas. Avis : bug d'affichage ; à arbitrer.
+Ces trois tests restent en `test.fail` (vérification intacte), ils deviendront rouges à la correction : retirer alors le `test.fail`.
 
-Observations (pas des bugs) :
-- Le glisser d'une case reste dans sa partie : lâcher sur une autre partie ne déplace rien (test de non-perte).
-- « Supprimer » (menu du clic droit ou partie) passe par la boîte native `confirm` : Playwright la refuse par défaut, les tests la gèrent (`repondreAuxConfirmations`). La touche Suppr et le bouton de la barre de sélection suppriment sans confirmation.
-- Un clic sur la même case moins d'une seconde après un autre clic sur elle est pris pour un double-clic (le test « clic après Annuler » était donc fragile : retiré, pas un bug de l'appli).
-- Sous Firefox la sélection est posée quelques dizaines de ms après le clic : les tests attendent la classe `selected` avant tout raccourci clavier (aide `selectionner`).
-- Non couvert : appui long tactile (menu du clic droit au téléphone, glisser au doigt), car Playwright n'a pas d'appui long natif ; les bancs historiques tiennent ces gestes.
+## Instabilités
+- **WebKit ordinateur (~1 fois sur 120)** : le double-clic qui ouvre la fenêtre n'est parfois pas reconnu par l'appli (fenêtre jamais ouverte). Non reproduit sous les autres moteurs. Avis : test fragile OU défaut de reconnaissance du double-clic sous WebKit chargé ; l'aide `ouvrirFenetre` recommence jusqu'à 3 fois (comme un utilisateur) et attend le nom de LA case visée. Aucune vérification affaiblie.
+- **Téléphone** : après le double-tape, l'appli ignore les touchers pendant ~300 ms (garde anti « clic fantôme ») : un toucher immédiat sur « Dm » est perdu. L'aide attend 600 ms. Pas un bug (un humain n'est pas si rapide), à connaître.
 
-## Tests ajoutés (`tests/e2e/grille/`)
-- `ajout-rapide.spec.ts` : 13 tests (10 ordinateur, 3 téléphone). `@grille`, `@ordinateur`/`@mobile`, 4 `@critique`.
-- `ajout-au-clic.spec.ts` : 8 tests ordinateur, 2 `@critique` (dont le test rouge G-03).
-- `selection.spec.ts` : 11 tests (10 ordinateur, 1 téléphone), 4 `@critique` (dont le test rouge G-01).
-- `copier-coller.spec.ts` : 9 tests ordinateur, 2 `@critique`.
-- `glisser.spec.ts` : 6 tests ordinateur, 1 `@critique`.
-- `supprimer-annuler.spec.ts` : 14 tests (13 ordinateur, 1 téléphone), 5 `@critique`.
-- `parties.spec.ts` : 22 définitions = 10 ordinateur + 10 téléphone + 2 « compteur de mesures » (rouges, G-02), 10 `@critique`.
-- `menu-contextuel.spec.ts` : 10 tests ordinateur, 4 `@critique`.
-- `aide-grille.ts` : aides communes (pas une spec).
-- Total : 93 tests (78 ordinateur, 15 téléphone), 32 `@critique`. Aucun `waitForTimeout`, aucune vérification affaiblie.
+## Observations (pas des bugs)
+- Fenêtre d'accord : `#bulle-accord` (ordinateur), `#panneau-accord` (téléphone, feuille du bas) ; les deux sont des `dialog` « Accord <nom> ».
+- 20 types d'accord, 12 fondamentales, durée de 1 temps à plus de 10 mesures (le « + » n'a pas de butée), octave de 2 à 5.
+- Le 3e renversement n'existe que pour un accord à quatre sons ; changer le type remet renversement et drop à zéro.
+- Au téléphone, « Réglages du son » mène à l'onglet Voicing et « Moins » revient à Accord ; la rangée Basse et la durée sont dans la feuille défilante.
+- Non couvert : glisser le bord d'une case pour changer la durée (bancs historiques), appui long, vue Piano, intensité.
+
+## Tests ajoutés (`tests/e2e/accord/`)
+- `ouverture.spec.ts` : 7 tests ordinateur, 2 `@critique`.
+- `onglet-accord.spec.ts` : 10 tests ordinateur, 3 `@critique` (dont le test rouge A-02).
+- `onglet-voicing.spec.ts` : 9 tests ordinateur, 3 `@critique` (dont le test rouge A-01).
+- `onglet-rythme.spec.ts` : 9 tests ordinateur, 1 `@critique` (dont le test rouge A-03).
+- `navigation-annuler.spec.ts` : 5 tests ordinateur, 2 `@critique`.
+- `telephone.spec.ts` : 9 tests téléphone, 5 `@critique`.
+- `aide-accord.ts` : aides communes (pas une spec). Aucun `waitForTimeout`.
+- Total : 49 tests, 16 `@critique`. Tous étiquetés `@accord`, `@ordinateur` ou `@mobile`.
 
 ## Sélecteurs CSS faute de mieux (`data-testid` à proposer)
-- `#progression-sections .grid-cell[data-section][data-index]` et `.cell-sym`, `.cell-meta` : cases d'accord, nom, octave → `case-accord`, `case-nom`, `case-octave`.
-- `.cell-ins` : le « + » devant une case (le bouton a un `aria-label` mais la poignée de durée le recouvre pour Playwright) → `case-inserer`.
-- `.grid-cell-add` : la case « + » de fin de partie → `case-ajouter-fin`.
-- `.prog-title`, `.prog-section`, `.prog-section-menu`, `.prog-section-ajout` : titre, partie, menu « … », « + Accord » → `partie-titre`, `partie`, `partie-menu-bouton`, `partie-ajout`.
-- `#context-menu`, `#partie-menu`, `#barre-selection`, `#quick-add-panel`, `#quick-add-input`, `#quick-add-btn`, `#bl-mesure` : déjà des `id` stables, acceptables tels quels.
+- `.cell-meta` (octave / voicing sous le nom, cible du double-clic) → `case-octave`.
+- `[data-bulle="root"|"quality"|"bass"][data-valeur]` : attributs stables, acceptables tels quels.
+- `.bulle-duree` : valeur de durée → `fenetre-duree`.
+- `#sequenceur`, `#context-menu` : `id` stables.
