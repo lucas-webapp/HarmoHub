@@ -21,6 +21,10 @@ Gravité : **bloquant** (empêche un parcours principal), **gênant** (contourna
 | S-01 | 17/11 | sequenceur | tous les ordinateurs | mineur (à arbitrer) | Ajouter une note libre qui est déjà une note de l'accord (C4 sous Am) crée une seconde ligne « C4 » identique | ouvert |
 | S-02 | 17/11 | sequenceur | téléphones (Android, iPhone) | gênant | Au téléphone, « Enregistrer la forme… » (menu « Tous les rythmes ») ferme la feuille d'accord, donc le séquenceur, alors que le menu reste ouvert | ouvert |
 | S-03 | 17/11 | sequenceur | tous les ordinateurs et l'iPad | gênant (à arbitrer) | Le séquenceur ouvert, Suppr sans note sélectionnée supprime l'accord choisi de la grille, sans confirmation | ouvert |
+| F-01 | 17/11 | fichiers | tous | gênant | Exporter en JSON un morceau MODIFIÉ (« Ce morceau », ou « Exporter en JSON et continuer » de la fenêtre « Modifications non enregistrées ») livre la dernière version ENREGISTRÉE : les modifications de l'écran ne sont pas dans le fichier | ouvert |
+| F-02 | 17/11 | fichiers | tous | mineur (à arbitrer) | Supprimer le morceau ouvert (« Mes morceaux ») remet le titre à « Nouveau morceau » mais laisse ses accords affichés dans la grille | ouvert |
+| F-03 | 17/11 | fichiers | Chromium, Edge, Firefox (ordinateur, sans dossier de rangement) | gênant | « Export intégral » sans dossier de rangement : la « Sauvegarde du morceau » (.json) échoue (« 3 fichier(s) exporté(s) · échec : Sauvegarde du morceau ») alors qu'elle est cochée par défaut | ouvert |
+| F-04 | 17/11 | fichiers | Chromium headless de la VM (Edge : non) | environnement (à confirmer) | Avec un dossier de rangement, exporter (MIDI, PDF, intégral) pour un morceau ENREGISTRÉ fait mourir le navigateur de test (« Target page, context or browser has been closed ») ; sans enregistrement ou sous Edge, tout passe | ouvert |
 
 Tests qui échouent à cause de ces bugs : marqués `test.fail()` (échec attendu, vérification intacte) pour que la CI reste verte ; ils deviendront ROUGES le jour où le bug est corrigé : retirer alors le `test.fail` :
 G-01 → `grille/selection.spec.ts` « un clic sur une case d'une autre partie la sélectionne du premier coup » et `grille/copier-coller.spec.ts` « on peut coller dans une autre partie… » (Firefox seulement) ;
@@ -37,6 +41,10 @@ L-05 : pas de test rouge (intermittent : un `test.fail` passerait au hasard et f
 S-01 → `sequenceur/notes-ajoutees.spec.ts` « ajouter une note déjà présente dans l'accord ne crée pas une seconde ligne identique » ;
 S-02 → `sequenceur/formes.spec.ts` « « Enregistrer la forme… » laisse la feuille d'accord et le séquenceur ouverts » (téléphones) ;
 S-03 → `sequenceur/notes.spec.ts` « Suppr sans note sélectionnée ne supprime pas l'accord ».
+F-01 → `fichiers/export-import-json.spec.ts` « « Ce morceau » exporte les modifications non enregistrées de l'écran » et `fichiers/nouveau-enregistrer.spec.ts` « « Exporter en JSON et continuer » télécharge le morceau MODIFIÉ… » ;
+F-02 → `fichiers/liste-morceaux.spec.ts` « F-02 : supprimer le morceau ouvert vide aussi la grille » ;
+F-03 → `fichiers/pdf-export.spec.ts` « l'export intégral livre aussi la sauvegarde JSON du morceau (4 fichiers)… » ;
+F-04 : `fichiers/rangement-disque.spec.ts`, `test.fixme` sur le projet `chromium` seulement (lancer avec `E2E_DISQUE_CHROMIUM=1` pour réessayer) ; Edge exécute les mêmes tests.
 G-04 : pas de test rouge (le test `« C Am F G » (séparés par des espaces) n'ajoute rien` fige le comportement observé).
 
 ---
@@ -206,3 +214,47 @@ G-04 : pas de test rouge (le test `« C Am F G » (séparés par des espaces) n'
 **Attendu** : la première case (« C », indice 0). **Observé** : parfois l'indice 2 (« F »), une fois sur 10 à 15. Vu par le test `lecture/lecture-stop.spec.ts` « « Stop » en cours de route : la lecture repart du début… » : échec sur Chromium (envoi du 17/11, module `sequenceur`), sur Firefox (module complet), puis 1 échec sur 16 en le répétant 8 fois sur Chromium et Firefox ; vert aux autres passages.
 **Avis** : probablement le même défaut d'état après « Stop » que L-05 (rappel d'animation encore planifié) ; ou test sensible à la charge. Le test est laissé tel quel (vérification intacte) ; à surveiller, il peut faire échouer la CI au hasard. Pas de `test.fail` (un `test.fail` intermittent échouerait au hasard dans l'autre sens).
 **Trace** : `test-results/lecture-lecture-stop-Lectu-a7712--là-où-elle-s-était-arrêtée-<projet>/` (regénérer avec `--repeat-each=8`).
+
+## F-01 — Export JSON d'un morceau modifié : les modifications manquent (gênant)
+**Étapes**
+1. Ouvrir un morceau enregistré (ex. « Alpha », 2 accords). Le modifier sans enregistrer (ajouter un accord, ou changer le titre de la partie) : l'état affiche « Non enregistré ».
+2. Menu du nom › « Exporter… » › « Ce morceau » (ou : menu du nom › « Nouveau morceau » › « Exporter en JSON et continuer »).
+3. Ouvrir le fichier téléchargé.
+
+**Attendu** : le fichier reflète l'écran (3 accords / titre « Refrain »). Pour « Exporter en JSON et continuer », c'est le seul but du choix : sauver le travail avant de passer à autre chose.
+**Observé** : le fichier contient la dernière version ENREGISTRÉE (2 accords, titre « Couplet »). Avec « Exporter en JSON et continuer », les modifications sont donc perdues sans que rien ne le dise.
+**Appareil** : tous (Chromium mesuré, test vert-attendu sur les 7 projets).
+**Avis** : bug de l'appli (l'export lit le morceau rangé dans la bibliothèque et non la grille en mémoire).
+**Trace** : `test-results/fichiers-nouveau-enregistr-…-Exporter-en-JSON-et-continuer-…-<projet>/` et `…export-import-json-…-Ce-morceau-exporte-les-modifications…` (tests `test.fail`).
+
+## F-02 — Suppression du morceau ouvert : la grille garde ses accords (mineur, à arbitrer)
+**Étapes**
+1. Ouvrir « Alpha » (C, G). « Mes morceaux », « Supprimer » sur la ligne d'« Alpha », confirmer (boîte native).
+2. Fermer la fenêtre.
+
+**Attendu** : un morceau neuf et vide (titre « Nouveau morceau », grille vide).
+**Observé** : titre « Nouveau morceau », statut « Nouveau morceau », mais les accords C et G sont toujours dans la grille ; le morceau n'est plus dans la liste. Ctrl+Z remet le morceau dans la liste (sans le rouvrir).
+**Appareil** : tous (Chromium mesuré).
+**Avis** : à arbitrer : peut être voulu (« garder le travail à l'écran, il suffit de l'enregistrer de nouveau »). Je ne l'ai pas lu comme voulu : le titre dit « neuf » alors que la grille ne l'est pas.
+**Trace** : `test-results/fichiers-liste-morceaux-…-F-02-…-<projet>/` (test `test.fail`).
+
+## F-03 — Export intégral sans dossier : la sauvegarde JSON échoue (gênant)
+**Étapes**
+1. Ouvrir un morceau enregistré, sans avoir choisi de dossier de rangement. Menu « Fichiers » › « Export intégral du morceau » ; laisser les cases par défaut (sauvegarde, grille PDF, structure PDF, MIDI) › « Exporter ».
+
+**Attendu** : 4 fichiers téléchargés, dont « HarmoHub - Nom - Morceau - … .json ».
+**Observé** : 3 fichiers (2 PDF, MIDI) et le message « 3 fichier(s) exporté(s) · échec : Sauvegarde du morceau ». Console : `Export intégral — morceau Error: pas-de-dossier` (`lancerExportIntegral`). « Exporter… › Ce morceau » du menu du nom, lui, télécharge bien le JSON.
+**Appareil** : Chromium, Edge, Firefox (ordinateur) ; iPhone / iPad non mesurés pour ce parcours.
+**Avis** : bug de l'appli : la sauvegarde exige un dossier de rangement, alors qu'elle est cochée et annoncée « instantané » sans dossier.
+**Trace** : `test-results/fichiers-pdf-export-…-livre-aussi-la-sauvegarde-JSON-…-<projet>/` (test `test.fail`).
+
+## F-04 — Chromium headless : le navigateur meurt à l'export vers le dossier de rangement (environnement, à confirmer)
+**Étapes** (déterministe dans la VM)
+1. Chromium (projet `chromium`, headless), `showDirectoryPicker` remplacé par un répertoire OPFS. Ouvrir un morceau ENREGISTRÉ, « Choisir un dossier de rangement ».
+2. « Exporter en MIDI » (ou PDF, ou export intégral).
+
+**Attendu** : le fichier est écrit dans le dossier (comme sous Edge, qui écrit `MIDI/…`, `PDF/Accords/…`, `Morceaux/…`, `_versions/…`).
+**Observé** : toute la session du navigateur s'arrête (`Target page, context or browser has been closed`). Un morceau NON enregistré, ou Edge, passent. Écrire directement dans OPFS depuis une page de test fonctionne : ce n'est pas l'écriture OPFS seule.
+**Appareil** : Chromium 1243 headless (et `channel: 'chromium'`) dans la VM ; Edge non.
+**Avis** : environnement (même symptôme que les 5 bancs historiques qui plantent « au choix d'un dossier »). Pas de preuve que l'appli soit en cause ; à retenter avec un autre Chromium ou en CI. Les tests concernés sont en `test.fixme` sur `chromium` seulement, et passent sur Edge.
+**Trace** : `test-results/…-chromium/` en lançant `E2E_DISQUE_CHROMIUM=1 npx playwright test tests/e2e/fichiers/rangement-disque.spec.ts --project=chromium`.

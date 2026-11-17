@@ -1,64 +1,54 @@
-# Rapport e2e — module `sequenceur` (17/11/2026)
+# Rapport e2e — module `fichiers` (17/11/2026)
 
 ## Résumé
-- Testé : ouvrir / fermer, cinq rythmes prédéfinis, poser / étirer / raccourcir / déplacer / sélectionner / supprimer / annuler une note, intensité, vues Accord et Piano, notes ajoutées (ajout, renommage, retrait), poignée et plein écran, copier / coller un rythme, formes personnelles (enregistrer, créer, modifier, supprimer). Le son est factice : on vérifie l'état de la grille et le stockage, jamais l'audio.
-- Résultat : 117 tests écrits (95 ordinateur, 22 téléphone, 35 `@critique`). Module complet sur les 7 projets : 519 exécutions, toutes vertes, échecs attendus inclus (3 bugs avec test : S-01 à S-03). Aucune instabilité vue.
-- Suite conseillée : arbitrer S-02 (téléphone) et S-03 (Suppr), puis module suivant `fichiers`.
-- Vérification finale `npm run test:e2e:envoi` : 2ᵉ passage entièrement vert (voir la dernière section). Le 1ᵉʳ avait un échec dans le module `lecture`, pas dans `sequenceur` (L-06).
+- Testé : nouveau morceau, enregistrer, « modifications non enregistrées » (4 choix), liste « Mes morceaux » (ouvrir, renommer, dupliquer, supprimer, dossiers), export et import JSON (conflits), export et import MIDI, export PDF, export intégral, rangement sur disque (Edge), repli téléchargement.
+- Résultat : 93 tests écrits (87 ordinateur, 80 téléphone dont 74 communs, 43 `@critique`). Module complet sur les 7 projets : 559 réussis, 36 ignorés, 0 échoué (échecs attendus inclus : 3 bugs, F-01 à F-03). `CI=1 npm run test:e2e:envoi` entièrement vert (chromium 348 réussis ; 6 autres projets `@smoke|@critique` 685 réussis).
+- Suite conseillée : arbitrer F-01 (export JSON d'un morceau modifié) et F-03 (export intégral sans sauvegarde), puis module suivant `synchro`.
 
 ## Environnement
-- Émulateurs Auth 9099 et Firestore 8080 sur `demo-harmohub`, appli servie en mode test sur 127.0.0.1:8936. Je les ai lancés pour explorer, puis arrêtés avant `envoi` (qui lance les siens).
-- Exploration `playwright-cli` (session `harmohub`, ordinateur 1440 px puis Pixel 7) : aucune requête vers la production Firebase (seul `fonts.googleapis.com`, coupé par la configuration). Garde-fou : 0 requête bloquée dans les tests.
+- Émulateurs Auth 9099 et Firestore 8080 (`demo-harmohub`) et appli servie en mode test sur 127.0.0.1:8936, lancés par moi pour explorer, puis arrêtés avant `envoi` (qui lance les siens). Tous arrêtés à la fin.
+- Exploration `playwright-cli` puis scripts Playwright (Chromium, Edge, Firefox, WebKit) : aucune requête vers la production Firebase. Garde-fou : 0 requête bloquée dans les tests.
 
 ## Résultats par projet (module complet)
-- chromium : 95 réussis (dont 2 échecs attendus : S-01 et S-03).
-- firefox, webkit, edge, tablette : 95 réussis chacun.
-- mobile-android, mobile-iphone : 22 réussis chacun (dont 1 échec attendu : S-02).
-- Échecs attendus (`test.fail`, vérification intacte) : S-01 et S-03 sur les cinq projets ordinateur ; S-02 sur les deux téléphones.
+- chromium : 87 tests, 78 réussis, 9 ignorés (`@disque`, `test.fixme` F-04).
+- edge : 87 tests, tous réussis (dont les 10 `@disque`).
+- firefox, webkit, tablette : 87 tests, 78 réussis, 9 ignorés (pas de File System Access dans ces navigateurs).
+- mobile-android, mobile-iphone : 80 tests, tous réussis.
+- Échecs attendus (`test.fail`, vérification intacte) : F-01 (2 tests) et F-02 sur tous les projets ; F-03 sur les ordinateurs (et le test passe en échec attendu aussi sur les téléphones, car le défaut ne dépend pas de l'appareil).
 
-## Problèmes (détail et étapes dans `tests/reports/bugs.md`)
-- **S-02 gênant, téléphones** : toucher « Enregistrer la forme… » (menu « Tous les rythmes ») ferme la feuille d'accord, donc le séquenceur, alors que le menu reste ouvert.
-  1. Téléphone, « … » → « Séquenceur », aller sur « Am ». 2. Signet « Tous les rythmes ». 3. « Enregistrer la forme… ».
-  Attendu : la feuille reste ouverte. Observé : elle se ferme (la forme s'enregistre quand même). Avis : bug de l'appli (clic « à côté » après redessin du menu, hypothèse). Trace : `test-results/sequenceur-formes-…-laisse-la-feuille-…-<projet>/`.
-- **S-03 gênant (à arbitrer), ordinateurs** : le séquenceur ouvert, Suppr sans note sélectionnée supprime l'accord choisi de la grille, sans confirmation (Ctrl+Z le rend).
-  1. Ouvrir le séquenceur, choisir « Am ». 2. Appuyer sur Suppr sans toucher aucune note. Attendu : rien. Observé : « Am » disparaît. Avis : probablement le raccourci de la grille, à arbitrer. Trace : `…-sans-note-sélectionnée-…`.
-- **S-01 mineur (à arbitrer), ordinateurs** : ajouter la note libre « C4 » sous « Am » (qui contient déjà C4) crée une seconde ligne « C4 ». Ajouter deux fois « D4 » n'en crée qu'une. Trace : `…-seconde-ligne-identique-…`.
-Les trois tests restent en `test.fail` : retirer le `test.fail` le jour de la correction.
+## Problèmes (détail dans `tests/reports/bugs.md`)
+- **F-01 gênant, tous** : un morceau modifié mais non enregistré s'exporte en JSON avec sa dernière version ENREGISTRÉE.
+  1. Ouvrir un morceau enregistré, le modifier (état « Non enregistré »). 2. Menu du nom › « Exporter… » › « Ce morceau », ou « Nouveau morceau » › « Exporter en JSON et continuer ». 3. Lire le fichier.
+  Attendu : les modifications de l'écran. Observé : la version enregistrée ; avec « Exporter en JSON et continuer » le travail est perdu en silence. Avis : bug de l'appli. Trace : `test-results/fichiers-nouveau-enregistr-…-Exporter-en-JSON-et-continuer-…`.
+- **F-03 gênant, ordinateurs** : « Export intégral » sans dossier de rangement ne livre pas la sauvegarde JSON, pourtant cochée.
+  1. Morceau enregistré, menu « Fichiers » › « Export intégral du morceau ». 2. Cases par défaut › « Exporter ».
+  Attendu : 4 fichiers. Observé : 3 fichiers et « échec : Sauvegarde du morceau » (console : `pas-de-dossier`). Avis : bug de l'appli. Trace : `test-results/fichiers-pdf-export-…-livre-aussi-la-sauvegarde-JSON-…`.
+- **F-02 mineur (à arbitrer), tous** : supprimer le morceau ouvert laisse ses accords dans la grille sous le titre « Nouveau morceau ». Trace : `…liste-morceaux-…-F-02-…`.
+- **F-04 environnement, Chromium headless de la VM** : exporter vers le dossier de rangement simulé, pour un morceau enregistré, fait mourir le navigateur (« Target page, context or browser has been closed »), comme les 5 bancs historiques. Edge passe tous les mêmes tests. Les 9 tests concernés sont en `test.fixme` sur `chromium` seulement (`E2E_DISQUE_CHROMIUM=1` pour réessayer).
+Les quatre tests en échec attendu restent en `test.fail` : retirer le `test.fail` le jour de la correction.
 
 ## Instabilités
-- Aucune dans le module `sequenceur` sur les 519 exécutions (hors L-06, qui est dans `lecture`). Les tests n'utilisent aucune attente fixe ; chaque geste est suivi d'un `expect.poll` ou d'un `expect` sur l'état (case, classe, stockage).
-- Aucune vérification retirée ni affaiblie.
-
-## Vérification finale `npm run test:e2e:envoi`
-- 1ᵉʳ passage : chromium 269 réussis, **1 échoué** : `lecture/lecture-stop.spec.ts` « « Stop » en cours de route : la lecture repart du début » (la lecture est repartie à la case 2 au lieu de 0). Le script s'arrête là (`&&`), les autres projets n'ont pas tourné.
-- Ce test, qui n'est pas de moi, échoue au hasard (Chromium, Firefox) : voir L-06 dans `bugs.md`. Je ne l'ai ni retouché ni affaibli.
-- 2ᵉ passage : chromium 270 réussis, 0 échoué ; firefox, webkit, edge, mobile-android, mobile-iphone, tablette (`@smoke|@critique`) 418 réussis, 0 échoué (18 ignorés : molette sur WebKit mobile, etc.).
+- Aucune sur les 559 exécutions du module ni sur `envoi` (0 test rejoué).
+- Limite du navigateur de test (pas un bug de l'appli, vérifié sur une page vide) : sous Chromium et Edge, le nom de fichier proposé à un téléchargement devient « download » dès qu'il contient une lettre accentuée (« Démo »). Firefox et WebKit gardent « Été ». Les tests qui lisent le nom de fichier utilisent donc des noms sans accent (« Demo ») ; le nom accentué n'est pas vérifié sous Chromium.
+- Le sélecteur de fichiers natif (`showOpenFilePicker`, utilisé par « Importer une bibliothèque » sous Chromium et Edge) et le sélecteur de dossier sont hors de portée de Playwright : remplacés par un faux dans le test (le fichier lu est le vrai, le code d'import est celui de l'appli). Aucune vérification retirée ni affaiblie.
 
 ## Observations (pas des bugs)
-- Un clic sur une case vide pose une croche ; un clic sur une note la sélectionne (il ne la supprime pas) ; Suppr ou Retour arrière supprime la sélection ; Ctrl+clic ajoute à la sélection ; glisser sur des cases vides peint une note tenue (de la croche d'appui à celle de relâchement, comprises). Échap ne désélectionne pas.
-- Au téléphone, un toucher sur une case VIDE pose une croche, un toucher sur une NOTE l'enlève (sauf « Intensité » allumée : le cycle fort → doux → normal boucle sans jamais enlever). Les rythmes s'y appliquent à « Toute la partie » par défaut (« Cet accord » pour un seul accord) ; à l'ordinateur, toujours à l'accord choisi.
-- Intensité : fort = 90, doux = 55, enregistrés par note (`intensiteVoix`) ; une note étirée a une seule force.
-- Vue Piano : 34 lignes de G2 à E5 à l'ordinateur (moins au téléphone). Une note sur une hauteur étrangère à l'accord crée une note ajoutée. La ligne d'une note ajoutée n'est enregistrée dans l'accord qu'à la première note posée dedans.
-- Copier / coller : le rythme est copié avec ses forces, mais les coups sur une note ajoutée ne sont pas collés (la cible n'a pas cette ligne).
-- Plein écran : seulement en vue Piano (en vue Accord la poignée ne masque jamais la grille). Ni la hauteur ni le plein écran ne survivent à un rechargement ; la vue (Accord / Piano) et l'ouverture, si. Au rechargement, le premier accord est choisi.
-- Une forme enregistrée est un bouton ; clic droit : « Modifier ce schéma… » / « Supprimer cette forme » (confirmation en deux temps). Un rythme prédéfini se masque (« Masquer ce rythme ») et se rétablit (« ↺ Rétablir (n) »).
-- Non couvert : appui long et glisser au doigt (téléphone : peindre avec « Dessiner », défilement), marquise de sélection (il n'y en a pas : glisser peint), réglages du séquenceur (hauteur des barres, largeur des croches), son, lecture pendant l'édition (bancs historiques).
+- Un morceau neuf s'appelle « Nouveau morceau » et n'est dans aucune liste. « Enregistrer » demande le nom (Entrée valide, Échap abandonne) ; ensuite il ré-enregistre sans demander (message « Morceau enregistré »). Ctrl+S fait de même (ordinateur).
+- « Nouveau morceau » ouvre une fenêtre « Titre du morceau / Dossier » ; « Dupliquer » ajoute « Nom (2) », « (3) » sans quitter le morceau ouvert.
+- Renommer en un nom déjà pris est accepté (deux « Alpha (2) ») ; un nom vide est ignoré. À arbitrer vu le ménage des doublons déjà fait côté import.
+- L'export « Ce morceau » et celui de la liste sont des « sauvegardes de bibliothèque » (`kind: library-backup`) à un seul morceau. Import : un morceau déjà présent (même id ou même titre) ouvre « Ce morceau existe déjà » (écraser / garder les deux / ignorer, ou « Partout »), la version la plus récente est cochée d'office.
+- Export intégral avec toutes les cases décochées : « Exporter » ferme la fenêtre sans message ni fichier.
+- Sans nom de morceau, l'export MIDI et PDF est refusé (« Nomme d'abord ton morceau… »). Import MIDI : s'ajoute à la suite de la grille, état « Non enregistré », annulable ; un fichier non MIDI est refusé avec un message.
+- Sous Edge : le dossier de rangement reçoit `MIDI/`, `PDF/Accords/`, `PDF/Structure/`, `Morceaux/`, `Bibliotheque/`, et `_versions/` garde l'ancienne version à chaque réexport ; il est retenu après rechargement.
+- Non couvert : export MP3 (audio), historique du morceau (module `synchro`), sélecteur natif de dossier et de fichier, nom de fichier accentué sous Chromium, rangement sur Chromium (F-04), appui long et gestes tactiles de la liste.
 
-## Tests ajoutés (`tests/e2e/sequenceur/`, 117 tests, tous `@sequenceur`)
-- `ouverture.spec.ts` : 11 tests (4 `@critique`) : bouton, croix, barre d'outils, grille, choix de l'accord, « Coller » inactif, retenu au rechargement ; téléphone : panneau « Lecture », flèches, fermeture.
-- `rythmes.spec.ts` : 15 tests (4 `@critique`) : cinq rythmes, un accord seul, arpèges, pompe, remplacer / annuler, rythme par accord, rechargement, « Effacer », rythme libre « + », menu du clic droit (masquer / rétablir, modifier le schéma) ; téléphone : portée « Toute la partie » / « Cet accord ».
-- `notes.spec.ts` : 22 tests (7 `@critique`) : poser, étirer à droite et à gauche, raccourcir, déplacer, sélectionner, supprimer, Ctrl+clic, annuler / rétablir, peindre, rechargement, S-03 ; téléphone : toucher pose / enlève, « Dessiner ».
-- `intensite.spec.ts` : 10 tests (2 `@critique`) : bouton, cycle, éteinte, note par note, note étirée, case vide, annuler, rechargement ; téléphone : cycle bouclé.
-- `vues.spec.ts` : 10 tests (4 `@critique`) : vues Accord et Piano, mêmes notes dans les deux, hauteur étrangère, déplacer en hauteur, étirer / supprimer ; téléphone : « Voix » / « Toutes les notes ».
-- `notes-ajoutees.spec.ts` : 16 tests (4 `@critique`) : bande « Note libre », nom et octave, « Eb3 » → « D#3 », annuler, nom invalide, poser, renommer au clic (et Échap), retirer, par accord, rechargement, annuler, S-01 ; téléphone : ajout et retrait.
-- `plein-ecran.spec.ts` : 9 tests (2 `@critique`) : poignée, plus / moins de lignes, plein écran et sortie, double-clic, édition en plein écran, rechargement, vue Accord ; téléphone : pas de poignée.
-- `copier-coller.spec.ts` : 10 tests (1 `@critique` ordinateur + 1 téléphone) : copier / coller sur un autre accord, plusieurs collages, forces, annuler (ordinateur et téléphone) ; « Coller » actif, coller un rythme tenu.
-- `formes.spec.ts` : 14 tests (6 `@critique`) : liste, enregistrer, annuler, appliquer, rythme dessiné, créer (Tétrade et Triade, Effacer), renommer, supprimer (deux temps, renoncer), rechargement ; téléphone : enregistrer et appliquer, S-02.
-- `aide-sequenceur.ts` : aides communes (pas une spec). Aucun `waitForTimeout`.
-
-## Sélecteurs CSS faute de mieux (`data-testid` à proposer)
-- Les cases de la grille : `#sq-grille .sq-case[data-c][data-v][data-k]` (accord, voix, croche) → `sq-case` avec `data-testid="sq-case-<accord>-<voix>-<croche>"`. Elles ont un rôle `gridcell` et un nom (« E4, croche 3 : vide ») : les tests s'en servent pour lire l'état et pour la vue Piano.
-- `.sq-note`, `.sq-bord.g` / `.sq-bord.d` (note et poignées d'étirement) → `sq-note`, `sq-poignee-gauche`, `sq-poignee-droite`.
-- `.sq-nom[data-c]` (nom d'accord en tête de colonne), `.sq-etiq` / `.sq-etiq.libre` (étiquettes de lignes), `.sq-libre-nom` (nom renommable, rôle `button`), `.sq-case.sq-sel` (note sélectionnée), `.sq-bi-case`.
-- `#sq-…` (rythmes, vues, intensité, copier, coller, effacer, poignée, portée) : `id` stables, utilisés tels quels ; `getByRole` pour tout le reste (barre « Rythme », boutons nommés, dialogues « Tous les rythmes » et « Modifier le schéma »).
-- Les boutons de forme n'ont pour nom accessible que leur vignette : on les cible par leur `title` (`Ma forme — clic droit : …`).
+## Tests ajoutés (`tests/e2e/fichiers/`, 93 tests, tous `@fichiers`)
+- `aide-fichiers.ts` : aides (bibliothèque de départ, menus, téléchargements, import, dossier simulé, lecteur et fabricant de MIDI).
+- `nouveau-enregistrer.spec.ts` : 19 tests (11 `@critique`) : nouveau, enregistrer, Ctrl+S, quatre choix de « Modifications non enregistrées », menu du nom.
+- `liste-morceaux.spec.ts` : 17 tests (10 `@critique`) : liste, ouvrir, renommer, dupliquer, supprimer (confirmation, Ctrl+Z), dossiers, F-02.
+- `export-import-json.spec.ts` : 20 tests (9 `@critique`) : export d'un morceau ou de la bibliothèque, import, trois choix de conflit, fichiers invalides, aller-retour, F-01.
+- `midi.spec.ts` : 11 tests (7 `@critique`) : export relu octet par octet, import, aller-retour, refus.
+- `pdf-export.spec.ts` : 10 tests (5 `@critique`) : fenêtre d'options, PDF valide, export intégral, F-03.
+- `rangement-disque.spec.ts` : 10 tests (6 `@critique`, `@disque`) : dossier simulé, MIDI, PDF, versions, intégral, bibliothèque, « Ne plus ranger », rechargement ; repli sans File System Access.
+- `telephone.spec.ts` : 6 tests (4 `@critique`, `@mobile`) : menus et fenêtres dans l'écran, toucher.
+- Sélecteurs CSS faute de mieux : `#tb-titre`, `#tb-etat`, `#toast`, `.file-row`, `.file-name`, `#new-folder-input`, `.tb-titre-saisie`. `data-testid` utiles : `file-row` (avec le nom du morceau), `toast`, `etat-morceau`.
