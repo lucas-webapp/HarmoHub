@@ -17,6 +17,10 @@ Gravité : **bloquant** (empêche un parcours principal), **gênant** (contourna
 | L-03 | 17/11 | lecture | tous les ordinateurs et l'iPad | mineur (accessibilité) | Curseur de vitesse : l'accroche aux repères (50, 75, 100, 150, 200 %) rend les flèches du clavier sans effet depuis ces repères (100 % : impossible d'en sortir avec ← →) | ouvert |
 | L-05 | 17/11 | lecture | tous (Chromium, Firefox, WebKit, iPad) | mineur (intermittent) | Après « Stop », une case reste parfois allumée (classe `playing`) alors que la lecture est arrêtée ; elle le reste jusqu'à la prochaine lecture (≈ 3 % des arrêts en rafale) | ouvert |
 | L-04 | 17/11 | lecture | Firefox, WebKit, iPhone, iPad | mineur (à arbitrer) | Avec une case sélectionnée, « Lecture » démarre à cette case sous Chromium / Edge / Android, mais au début du morceau sous Firefox et WebKit | ouvert |
+| L-06 | 17/11 | lecture | Chromium, Firefox (vu 3 fois) | mineur (intermittent) | Après « Stop » en cours de lecture, la lecture suivante démarre parfois à la 3ᵉ case au lieu de la 1ʳᵉ (≈ 1 fois sur 10 à 15, plus souvent quand la machine est chargée) | ouvert |
+| S-01 | 17/11 | sequenceur | tous les ordinateurs | mineur (à arbitrer) | Ajouter une note libre qui est déjà une note de l'accord (C4 sous Am) crée une seconde ligne « C4 » identique | ouvert |
+| S-02 | 17/11 | sequenceur | téléphones (Android, iPhone) | gênant | Au téléphone, « Enregistrer la forme… » (menu « Tous les rythmes ») ferme la feuille d'accord, donc le séquenceur, alors que le menu reste ouvert | ouvert |
+| S-03 | 17/11 | sequenceur | tous les ordinateurs et l'iPad | gênant (à arbitrer) | Le séquenceur ouvert, Suppr sans note sélectionnée supprime l'accord choisi de la grille, sans confirmation | ouvert |
 
 Tests qui échouent à cause de ces bugs : marqués `test.fail()` (échec attendu, vérification intacte) pour que la CI reste verte ; ils deviendront ROUGES le jour où le bug est corrigé : retirer alors le `test.fail` :
 G-01 → `grille/selection.spec.ts` « un clic sur une case d'une autre partie la sélectionne du premier coup » et `grille/copier-coller.spec.ts` « on peut coller dans une autre partie… » (Firefox seulement) ;
@@ -30,6 +34,9 @@ L-02 → `lecture/vitesse-metronome.spec.ts` « maintenir « Plus rapide » enfo
 L-03 → `lecture/vitesse-metronome.spec.ts` « au clavier, les flèches font quitter un repère (100 %) » ;
 L-04 → `lecture/lecture-stop.spec.ts` « avec une case sélectionnée, la lecture démarre à cette case… » (échec attendu sur Firefox, WebKit, iPhone, iPad).
 L-05 : pas de test rouge (intermittent : un `test.fail` passerait au hasard et ferait échouer la CI) ; le premier test de `lecture/lecture-stop.spec.ts` vérifie quand même « plus aucune case allumée » après Stop, à un instant fixe où le défaut n'a pas été vu (40 / 40 sur Chromium et WebKit).
+S-01 → `sequenceur/notes-ajoutees.spec.ts` « ajouter une note déjà présente dans l'accord ne crée pas une seconde ligne identique » ;
+S-02 → `sequenceur/formes.spec.ts` « « Enregistrer la forme… » laisse la feuille d'accord et le séquenceur ouverts » (téléphones) ;
+S-03 → `sequenceur/notes.spec.ts` « Suppr sans note sélectionnée ne supprime pas l'accord ».
 G-04 : pas de test rouge (le test `« C Am F G » (séparés par des espaces) n'ajoute rien` fige le comportement observé).
 
 ---
@@ -157,3 +164,45 @@ G-04 : pas de test rouge (le test `« C Am F G » (séparés par des espaces) n'
 **Trace** : pas de trace dédiée (aucun test ne le vise : intermittent).
 
 > **À relire (17/11, module lecture)** : trois vérifications accessoires « plus aucune case allumée après Stop » ont été retirées de `lecture/boucle.spec.ts`, `lecture/tempo.spec.ts` et `lecture/lecture-stop.spec.ts` (tests qui ne portent pas sur Stop), parce que L-05 les faisait échouer au hasard (surtout iPad). La vérification subsiste dans le premier test de `lecture-stop.spec.ts`. À remettre quand L-05 sera corrigé.
+
+## S-01 — Note libre déjà présente dans l'accord : ligne en double (mineur, à arbitrer)
+**Étapes**
+1. Morceau C Am F G, ordinateur. Ouvrir le séquenceur (bouton « Séquenceur »), choisir « Am » (ses notes : E4, C4, A3).
+2. « Ajouter une note libre » (icône à gauche de la grille), taper « C4 », « Ajouter C4 ».
+
+**Attendu** : pas de nouvelle ligne (C4 existe déjà dans l'accord), ou un refus. Ajouter deux fois « D4 » n'en crée qu'une, l'appli sait donc éviter les doublons entre notes libres.
+**Observé** : la grille montre deux lignes « C4 » (E4, C4, C4, A3). Poser une note sur la seconde crée bien une note libre.
+**Appareil** : ordinateurs (Chromium mesuré) ; téléphone non vérifié.
+**Avis** : imperfection de l'appli, à arbitrer (le doublon libre / accord est peut-être voulu pour jouer deux fois la même hauteur).
+**Trace** : `test-results/sequenceur-notes-ajoutees-…-seconde-ligne-identique-<projet>/` (test `test.fail`).
+
+## S-02 — Téléphone : « Enregistrer la forme… » ferme la feuille d'accord (gênant)
+**Étapes**
+1. Morceau C Am F G, téléphone. « … » de la barre de lecture → « Séquenceur » (feuille d'accord sur « Rythme »), aller sur « Am ».
+2. Toucher le signet « Tous les rythmes » : le menu s'ouvre. Toucher « Enregistrer la forme… ».
+
+**Attendu** : le menu passe au champ « Nom de la forme » ; la feuille d'accord et le séquenceur restent ouverts (comme à l'ordinateur).
+**Observé** : la feuille d'accord et le séquenceur se ferment, le menu reste affiché. On peut finir l'enregistrement (la forme est bien créée), mais il faut rouvrir le séquenceur ensuite.
+**Appareil** : Android (Pixel 7) et iPhone (même code).
+**Avis** : bug de l'appli. Hypothèse : le menu se redessine entre l'appui et le relâchement, le « clic à côté » ne retrouve plus l'élément touché (piège « `e.target.closest()` après un redessin », `CLAUDE-HARMOHUB.md`), donc la feuille se ferme.
+**Trace** : `test-results/sequenceur-formes-…-laisse-la-feuille-…-<projet>/` (test `test.fail`).
+
+## S-03 — Suppr sans note sélectionnée supprime l'accord (gênant, à arbitrer)
+**Étapes**
+1. Morceau C Am F G, ordinateur. Ouvrir le séquenceur, cliquer le nom « Am » dans le séquenceur (ou choisir « Pompe »).
+2. Sans sélectionner de note, appuyer sur Suppr (ou Retour arrière).
+
+**Attendu** : rien ne se passe (Suppr sert à supprimer les notes sélectionnées).
+**Observé** : l'accord « Am » disparaît de la grille (C F G), sans confirmation. Ctrl+Z le rend.
+**Appareil** : tous les ordinateurs (Chromium mesuré).
+**Avis** : probablement le raccourci de la grille d'accords (« Suppr = supprimer l'accord choisi ») qui reste actif quand le séquenceur a le focus. À arbitrer : voulu ou dangereux pour qui travaille dans le séquenceur.
+**Trace** : `test-results/sequenceur-notes-…-sans-note-sélectionnée-…-<projet>/` (test `test.fail`).
+
+## L-06 — Après « Stop », la lecture suivante repart parfois de la 3ᵉ case (mineur, intermittent)
+**Étapes** (non déterministes)
+1. Morceau C Am F G. « Lecture », attendre quelques cases, « Stop ».
+2. Appuyer de nouveau sur « Lecture » et noter la première case allumée.
+
+**Attendu** : la première case (« C », indice 0). **Observé** : parfois l'indice 2 (« F »), une fois sur 10 à 15. Vu par le test `lecture/lecture-stop.spec.ts` « « Stop » en cours de route : la lecture repart du début… » : échec sur Chromium (envoi du 17/11, module `sequenceur`), sur Firefox (module complet), puis 1 échec sur 16 en le répétant 8 fois sur Chromium et Firefox ; vert aux autres passages.
+**Avis** : probablement le même défaut d'état après « Stop » que L-05 (rappel d'animation encore planifié) ; ou test sensible à la charge. Le test est laissé tel quel (vérification intacte) ; à surveiller, il peut faire échouer la CI au hasard. Pas de `test.fail` (un `test.fail` intermittent échouerait au hasard dans l'autre sens).
+**Trace** : `test-results/lecture-lecture-stop-Lectu-a7712--là-où-elle-s-était-arrêtée-<projet>/` (regénérer avec `--repeat-each=8`).

@@ -1,60 +1,64 @@
-# Rapport e2e — module `lecture` (17/11/2026)
+# Rapport e2e — module `sequenceur` (17/11/2026)
 
 ## Résumé
-- Testé : lecture et arrêt, boucle (tout le morceau, plage tracée sur la règle), tempo (chevrons, molette, glisser, TAP), vitesse, métronome, mesure affichée, frise des parties, fenêtre « Barre de lecture » et barre du téléphone. Le son est factice : on vérifie l'état (case allumée, mesure, boutons, clics demandés), jamais l'audio.
-- Résultat : 58 tests écrits. Module complet sur les 7 projets : tout vert, échecs attendus inclus (bugs L-01 à L-04). `npm run test:e2e:envoi` : 175 réussis (chromium, tout le dépôt) puis 294 réussis (`@smoke|@critique` sur les 6 autres projets), 0 échoué.
-- Suite conseillée : arbitrer L-01 (règle des mesures) et L-05 (case restée allumée après Stop), puis module suivant `sequenceur`.
+- Testé : ouvrir / fermer, cinq rythmes prédéfinis, poser / étirer / raccourcir / déplacer / sélectionner / supprimer / annuler une note, intensité, vues Accord et Piano, notes ajoutées (ajout, renommage, retrait), poignée et plein écran, copier / coller un rythme, formes personnelles (enregistrer, créer, modifier, supprimer). Le son est factice : on vérifie l'état de la grille et le stockage, jamais l'audio.
+- Résultat : 117 tests écrits (95 ordinateur, 22 téléphone, 35 `@critique`). Module complet sur les 7 projets : 519 exécutions, toutes vertes, échecs attendus inclus (3 bugs avec test : S-01 à S-03). Aucune instabilité vue.
+- Suite conseillée : arbitrer S-02 (téléphone) et S-03 (Suppr), puis module suivant `fichiers`.
+- Vérification finale `npm run test:e2e:envoi` : 2ᵉ passage entièrement vert (voir la dernière section). Le 1ᵉʳ avait un échec dans le module `lecture`, pas dans `sequenceur` (L-06).
 
 ## Environnement
-- Émulateurs Auth 9099 et Firestore 8080 sur `demo-harmohub`, appli servie en mode test sur 127.0.0.1:8936. Je les ai lancés et arrêtés (le script `envoi` lance les siens).
-- Exploration `playwright-cli` (session `harmohub`, ordinateur 1440 px puis Pixel 7) : aucune requête vers la production Firebase (seuls `fonts.googleapis.com` et `tonejs.github.io`, coupés par la configuration). Garde-fou : 0 requête bloquée dans les tests.
+- Émulateurs Auth 9099 et Firestore 8080 sur `demo-harmohub`, appli servie en mode test sur 127.0.0.1:8936. Je les ai lancés pour explorer, puis arrêtés avant `envoi` (qui lance les siens).
+- Exploration `playwright-cli` (session `harmohub`, ordinateur 1440 px puis Pixel 7) : aucune requête vers la production Firebase (seul `fonts.googleapis.com`, coupé par la configuration). Garde-fou : 0 requête bloquée dans les tests.
 
-## Résultats par projet
-- chromium (dépôt entier, `envoi`) : 175 réussis, 0 échoué, 1 ignoré.
-- firefox, webkit, edge, mobile-android, mobile-iphone, tablette (`@smoke|@critique`, `envoi`) : 294 réussis au total, 0 échoué.
-- Module `lecture` complet sur les 7 projets (dernier passage complet) : 306 réussis, 1 ignoré (molette impossible sur WebKit mobile), 2 échecs dus à mes tests (corrigés ensuite, voir Instabilités).
-- Échecs attendus (`test.fail`, vérification intacte) : L-01 ×2 et L-02, L-03 sur chromium, firefox, webkit, edge, tablette ; L-04 sur firefox, webkit, mobile-iphone, tablette.
+## Résultats par projet (module complet)
+- chromium : 95 réussis (dont 2 échecs attendus : S-01 et S-03).
+- firefox, webkit, edge, tablette : 95 réussis chacun.
+- mobile-android, mobile-iphone : 22 réussis chacun (dont 1 échec attendu : S-02).
+- Échecs attendus (`test.fail`, vérification intacte) : S-01 et S-03 sur les cinq projets ordinateur ; S-02 sur les deux téléphones.
 
 ## Problèmes (détail et étapes dans `tests/reports/bugs.md`)
-- **L-01 gênant, ordinateurs et iPad** : sur la règle des mesures, la zone sensible d'un numéro est décalée vers la droite (10 px sous le « 2 », 24 px sous le « 4 »).
-  1. Morceau C Am F G. 2. Appuyer au centre du numéro « 4 » sous la grille, glisser jusqu'au bout, relâcher.
-  Attendu : la plage commence à la mesure 4. Observé : à la mesure 3 (`app.loopRange.startIndex = 2`).
-  Avis : bug de l'appli. Trace : `test-results/lecture-boucle-Règle-des-mesures-…-numéro-4-…-<projet>/`.
-- **L-02 mineur, ordinateurs et iPad** : maintenir « Plus rapide » ne fait pas défiler le tempo, alors que l'infobulle le promet (+1 seulement). À confirmer à la main sur une vraie souris.
-- **L-03 mineur (accessibilité), ordinateurs et iPad** : le curseur de vitesse « s'accroche » à 50, 75, 100, 150 et 200 % ; les flèches du clavier restent donc bloquées sur ces repères (→ à 100 % : toujours 100 %). « Page haut », « Début » et « Fin » marchent.
-- **L-04 mineur, à arbitrer, Firefox / WebKit / iPhone / iPad** : avec une case sélectionnée, « Lecture » démarre à cette case sous Chromium, Edge et Android, mais au début du morceau ailleurs. Peut venir de l'audio factice de la VM.
-- **L-05 mineur, intermittent, tous** : après « Stop », une case reste parfois allumée (≈ 1 arrêt sur 30 en rafale), jusqu'à la lecture suivante. Pas de test dédié (un `test.fail` passerait au hasard) ; une vérification accessoire « plus aucune case allumée » a été retirée de 3 tests dont ce n'est pas le sujet (elle reste dans le premier test de `lecture-stop.spec.ts`, 40 / 40).
-Les tests de L-01 à L-04 restent en `test.fail` : retirer le `test.fail` le jour de la correction.
+- **S-02 gênant, téléphones** : toucher « Enregistrer la forme… » (menu « Tous les rythmes ») ferme la feuille d'accord, donc le séquenceur, alors que le menu reste ouvert.
+  1. Téléphone, « … » → « Séquenceur », aller sur « Am ». 2. Signet « Tous les rythmes ». 3. « Enregistrer la forme… ».
+  Attendu : la feuille reste ouverte. Observé : elle se ferme (la forme s'enregistre quand même). Avis : bug de l'appli (clic « à côté » après redessin du menu, hypothèse). Trace : `test-results/sequenceur-formes-…-laisse-la-feuille-…-<projet>/`.
+- **S-03 gênant (à arbitrer), ordinateurs** : le séquenceur ouvert, Suppr sans note sélectionnée supprime l'accord choisi de la grille, sans confirmation (Ctrl+Z le rend).
+  1. Ouvrir le séquenceur, choisir « Am ». 2. Appuyer sur Suppr sans toucher aucune note. Attendu : rien. Observé : « Am » disparaît. Avis : probablement le raccourci de la grille, à arbitrer. Trace : `…-sans-note-sélectionnée-…`.
+- **S-01 mineur (à arbitrer), ordinateurs** : ajouter la note libre « C4 » sous « Am » (qui contient déjà C4) crée une seconde ligne « C4 ». Ajouter deux fois « D4 » n'en crée qu'une. Trace : `…-seconde-ligne-identique-…`.
+Les trois tests restent en `test.fail` : retirer le `test.fail` le jour de la correction.
 
 ## Instabilités
-- **Machine chargée** : interroger la page par intervalles manque parfois une case (WebKit iPhone, 1 fois sur 8) ou une mesure. Les tests utilisent maintenant un observateur de la page (`observerPassages`, `observerMesures`) qui voit tous les changements, et vident ses changements en attente à chaque remise à zéro (Firefox, 1 fois sur 10, avant correction).
-- **Durées** : les tests de durée de mesure (240 BPM, 200 % contre 100 %) tolèrent ± 50 % (limite à 1500 ms entre 1 s et 2 s) : sous charge, une mesure peut en durer 1,4 s au lieu de 1.
-- **Temps** : à 120 BPM une mesure dure 2 s et la lecture commence par une mesure de décompte ; les tests passent la vitesse à 200 % pour rester courts (environ 5 à 15 s par test de lecture).
-- **iPad (WebKit mobile)** : `mouse.wheel` n'existe pas ; le test de molette est ignoré sur `tablette` (les bornes 60-240 et la durée à 240 BPM passent par le glisser).
+- Aucune dans le module `sequenceur` sur les 519 exécutions (hors L-06, qui est dans `lecture`). Les tests n'utilisent aucune attente fixe ; chaque geste est suivi d'un `expect.poll` ou d'un `expect` sur l'état (case, classe, stockage).
+- Aucune vérification retirée ni affaiblie.
+
+## Vérification finale `npm run test:e2e:envoi`
+- 1ᵉʳ passage : chromium 269 réussis, **1 échoué** : `lecture/lecture-stop.spec.ts` « « Stop » en cours de route : la lecture repart du début » (la lecture est repartie à la case 2 au lieu de 0). Le script s'arrête là (`&&`), les autres projets n'ont pas tourné.
+- Ce test, qui n'est pas de moi, échoue au hasard (Chromium, Firefox) : voir L-06 dans `bugs.md`. Je ne l'ai ni retouché ni affaibli.
+- 2ᵉ passage : chromium 270 réussis, 0 échoué ; firefox, webkit, edge, mobile-android, mobile-iphone, tablette (`@smoke|@critique`) 418 réussis, 0 échoué (18 ignorés : molette sur WebKit mobile, etc.).
 
 ## Observations (pas des bugs)
-- Le tempo n'a pas de saisie au clavier : chevrons (±1), molette (±1, Maj ±5), glisser vertical, TAP. Borné à 60-240 BPM, y compris par TAP. TAP : écarts moyens des 8 dernières touches ; plus de 2 s de pause : nouvelle série.
-- Le tempo est enregistré avec le morceau (bouton Enregistrer, champ `bpm`) ; la vitesse (50 à 200 %), non : elle revient à 100 % au rechargement. Le métronome, le clic à la croche et les réglages de la barre sont gardés (`localStorage`).
-- Le décompte d'une mesure sonne toujours (4 clics) ; le métronome allumé ajoute un clic par temps ; à la croche, deux fois plus.
-- Avec une plage tracée et la boucle coupée, « Lecture » lit la plage une fois, puis s'arrête. Insérer ou supprimer un accord efface la plage.
-- Après la fin de la lecture, le numéro de mesure reste sur la dernière mesure jouée.
-- Le bloc « Largeur » de la fenêtre de réglages règle le bloc mesure + frise (la frise = ce bloc moins la mesure).
-- Non couvert : appui long au doigt (boucle, chevrons), tracé de plage au doigt, réglages « Réorganiser » au toucher, son.
+- Un clic sur une case vide pose une croche ; un clic sur une note la sélectionne (il ne la supprime pas) ; Suppr ou Retour arrière supprime la sélection ; Ctrl+clic ajoute à la sélection ; glisser sur des cases vides peint une note tenue (de la croche d'appui à celle de relâchement, comprises). Échap ne désélectionne pas.
+- Au téléphone, un toucher sur une case VIDE pose une croche, un toucher sur une NOTE l'enlève (sauf « Intensité » allumée : le cycle fort → doux → normal boucle sans jamais enlever). Les rythmes s'y appliquent à « Toute la partie » par défaut (« Cet accord » pour un seul accord) ; à l'ordinateur, toujours à l'accord choisi.
+- Intensité : fort = 90, doux = 55, enregistrés par note (`intensiteVoix`) ; une note étirée a une seule force.
+- Vue Piano : 34 lignes de G2 à E5 à l'ordinateur (moins au téléphone). Une note sur une hauteur étrangère à l'accord crée une note ajoutée. La ligne d'une note ajoutée n'est enregistrée dans l'accord qu'à la première note posée dedans.
+- Copier / coller : le rythme est copié avec ses forces, mais les coups sur une note ajoutée ne sont pas collés (la cible n'a pas cette ligne).
+- Plein écran : seulement en vue Piano (en vue Accord la poignée ne masque jamais la grille). Ni la hauteur ni le plein écran ne survivent à un rechargement ; la vue (Accord / Piano) et l'ouverture, si. Au rechargement, le premier accord est choisi.
+- Une forme enregistrée est un bouton ; clic droit : « Modifier ce schéma… » / « Supprimer cette forme » (confirmation en deux temps). Un rythme prédéfini se masque (« Masquer ce rythme ») et se rétablit (« ↺ Rétablir (n) »).
+- Non couvert : appui long et glisser au doigt (téléphone : peindre avec « Dessiner », défilement), marquise de sélection (il n'y en a pas : glisser peint), réglages du séquenceur (hauteur des barres, largeur des croches), son, lecture pendant l'édition (bancs historiques).
 
-## Tests ajoutés (`tests/e2e/lecture/`, 58 tests, tous `@lecture`)
-- `lecture-stop.spec.ts` : 10 tests (3 `@critique`) : lecture / stop, ordre des cases, mesure affichée, fin de morceau, redémarrage, Espace, deux parties, accords de deux temps, case sélectionnée (L-04).
-- `boucle.spec.ts` : 14 tests (4 `@critique`) : bouton de boucle, boucle du morceau, plage tracée et lue, boucle coupée, clic droit, poignée, deux parties, plage effacée, règle (L-01 ×2 + contrôle), boucle au téléphone.
-- `tempo.spec.ts` : 10 tests (3 `@critique`) : fenêtre, chevrons, molette, glisser, bornes, TAP ×2, enregistrement, durée à 240 BPM, panneau du téléphone.
-- `vitesse-metronome.spec.ts` : 11 tests (3 `@critique`) : vitesse ×6 (L-03), métronome ×3 (clics comptés), chevron maintenu (L-02).
-- `barre-reglages.spec.ts` : 8 tests (2 `@critique`, ordinateur) : barre, frise, tête de lecture, fenêtre « Barre de lecture » (interrupteurs, largeur, rétablir, réorganiser).
-- `telephone.spec.ts` : 5 tests (2 `@critique`, téléphone) : barre du téléphone, panneau « Lecture », « Mes. N », parties, boucle.
-- `aide-lecture.ts` : aides communes (pas une spec). Aucun `waitForTimeout`.
-- Total : 58 tests ; 51 tournent sur les ordinateurs, 27 sur les téléphones (20 communs) ; `@critique` : 18 ordinateur, 16 téléphone.
+## Tests ajoutés (`tests/e2e/sequenceur/`, 117 tests, tous `@sequenceur`)
+- `ouverture.spec.ts` : 11 tests (4 `@critique`) : bouton, croix, barre d'outils, grille, choix de l'accord, « Coller » inactif, retenu au rechargement ; téléphone : panneau « Lecture », flèches, fermeture.
+- `rythmes.spec.ts` : 15 tests (4 `@critique`) : cinq rythmes, un accord seul, arpèges, pompe, remplacer / annuler, rythme par accord, rechargement, « Effacer », rythme libre « + », menu du clic droit (masquer / rétablir, modifier le schéma) ; téléphone : portée « Toute la partie » / « Cet accord ».
+- `notes.spec.ts` : 22 tests (7 `@critique`) : poser, étirer à droite et à gauche, raccourcir, déplacer, sélectionner, supprimer, Ctrl+clic, annuler / rétablir, peindre, rechargement, S-03 ; téléphone : toucher pose / enlève, « Dessiner ».
+- `intensite.spec.ts` : 10 tests (2 `@critique`) : bouton, cycle, éteinte, note par note, note étirée, case vide, annuler, rechargement ; téléphone : cycle bouclé.
+- `vues.spec.ts` : 10 tests (4 `@critique`) : vues Accord et Piano, mêmes notes dans les deux, hauteur étrangère, déplacer en hauteur, étirer / supprimer ; téléphone : « Voix » / « Toutes les notes ».
+- `notes-ajoutees.spec.ts` : 16 tests (4 `@critique`) : bande « Note libre », nom et octave, « Eb3 » → « D#3 », annuler, nom invalide, poser, renommer au clic (et Échap), retirer, par accord, rechargement, annuler, S-01 ; téléphone : ajout et retrait.
+- `plein-ecran.spec.ts` : 9 tests (2 `@critique`) : poignée, plus / moins de lignes, plein écran et sortie, double-clic, édition en plein écran, rechargement, vue Accord ; téléphone : pas de poignée.
+- `copier-coller.spec.ts` : 10 tests (1 `@critique` ordinateur + 1 téléphone) : copier / coller sur un autre accord, plusieurs collages, forces, annuler (ordinateur et téléphone) ; « Coller » actif, coller un rythme tenu.
+- `formes.spec.ts` : 14 tests (6 `@critique`) : liste, enregistrer, annuler, appliquer, rythme dessiné, créer (Tétrade et Triade, Effacer), renommer, supprimer (deux temps, renoncer), rechargement ; téléphone : enregistrer et appliquer, S-02.
+- `aide-sequenceur.ts` : aides communes (pas une spec). Aucun `waitForTimeout`.
 
 ## Sélecteurs CSS faute de mieux (`data-testid` à proposer)
-- `.grid-cell.playing` (case en lecture) → `case-en-lecture`.
-- `.row-measure` (numéros de la règle des mesures) → `regle-mesure`.
-- `.loop-range-bar`, `.loop-range-handle-right` (plage orange et sa poignée) → `plage-boucle`, `plage-poignee-droite`.
-- `[data-bloc="lecture|parties|tempo|vues"]` (blocs de la barre) : attributs stables, acceptables.
-- `#bl-frise .bl-frise-part`, `.bl-frise-tete`, `#bl-mesure`, `#bl-tempo-pop-val`, `#bl-vitesse-val`, `#bl-vitesse-tag` : `id` stables ; `getByRole` pour tout le reste (barre, boutons, curseur, interrupteurs).
-- Écoute des clics du métronome : espion sur `app.playMetronomeClick` (le son est factice) ; lecture de `app.tempoCourant()`, `app.bpmLecture()`, `app.loopRange`, `app.isPlaying` pour relire l'état, jamais pour déclencher.
+- Les cases de la grille : `#sq-grille .sq-case[data-c][data-v][data-k]` (accord, voix, croche) → `sq-case` avec `data-testid="sq-case-<accord>-<voix>-<croche>"`. Elles ont un rôle `gridcell` et un nom (« E4, croche 3 : vide ») : les tests s'en servent pour lire l'état et pour la vue Piano.
+- `.sq-note`, `.sq-bord.g` / `.sq-bord.d` (note et poignées d'étirement) → `sq-note`, `sq-poignee-gauche`, `sq-poignee-droite`.
+- `.sq-nom[data-c]` (nom d'accord en tête de colonne), `.sq-etiq` / `.sq-etiq.libre` (étiquettes de lignes), `.sq-libre-nom` (nom renommable, rôle `button`), `.sq-case.sq-sel` (note sélectionnée), `.sq-bi-case`.
+- `#sq-…` (rythmes, vues, intensité, copier, coller, effacer, poignée, portée) : `id` stables, utilisés tels quels ; `getByRole` pour tout le reste (barre « Rythme », boutons nommés, dialogues « Tous les rythmes » et « Modifier le schéma »).
+- Les boutons de forme n'ont pour nom accessible que leur vignette : on les cible par leur `title` (`Ma forme — clic droit : …`).
