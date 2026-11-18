@@ -1,46 +1,40 @@
-# Rapport — module `voicing` (18/11/2026)
+# Rapport — module `diagrammes` (18/11/2026)
 
 ## Résumé
-- Testé : la fenêtre « Conduite des voix » (bouton « Voicing », ouverture / fermeture, partie active, état vide), ce qu'elle dessine (barres par son, rôles et couleurs, traits tenus / mouvements, en-têtes, touches, défilement, redessin quand l'accord change), les échelles H et V, et le téléphone (pas de bouton). 57 tests, 4 fichiers.
-- Résultat : `CI=1 npm run test:e2e:envoi` vert (chromium 492 réussis / 11 ignorés ; 6 autres projets, `@smoke` et `@critique` : 968 réussis / 60 ignorés ; 0 échoué, 0 flaky). Module complet sur les 7 projets (chromium, firefox, webkit, edge, android, iphone, tablette) : 274 réussis, 2 ignorés (molette sur l'iPad), 0 échoué, échecs attendus inclus (V-01 et V-02 sur les 5 ordinateurs, G-01 sur Firefox).
-- Suite conseillée : arbitrer V-01 (focus au clavier) et V-02 (chiffre romain sans extension, famille T-04), puis module `diagrammes`.
+- Testé : tiroir clavier / guitare (épinglé, poignée, fenêtre libre, réglages), accord construit au clavier, doigtés (flèches, liste, cadenas), « Mes doigtés » (local et cloud, 2 appareils), éditeur de manche (dessiner, nommer, substitut, ajouter à la grille), version téléphone.
+- Résultat : 70 tests (59 ordinateur / 11 téléphone, 31 `@critique`) ; module complet sur les 7 projets : 314 réussis / 2 ignorés (D-04 sur WebKit et iPad) / 0 échoué, échecs attendus inclus (D-01 et D-02, `test.fail`) ; `CI=1 npm run test:e2e:envoi` : 551 + 1079 réussis, 1 « flaky » hors module (synchro, Y-03 connu, WebKit).
+- Suite conseillée : corriger D-01 et D-02 (gênants), arbitrer D-03 ; module suivant `structure`.
 
-## Problèmes (2 bugs avec test) — détail dans `tests/reports/bugs.md`
-**V-01 — le focus n'entre pas dans la fenêtre ouverte au clavier** (mineur, accessibilité, à arbitrer)
-- Étapes : 1. Morceau de quatre parties, ordinateur. 2. Focus sur le bouton « Voicing », Entrée : la fenêtre s'ouvre. 3. Tab.
-- Attendu : le focus passe dans la fenêtre (c'est un `dialog`), ou au moins l'atteint vite. Observé : Tab traverse la grille cachée derrière (14 appuis) avant d'arriver aux boutons H et V. Échap ferme bien la fenêtre.
-- Appareil : Chromium (mesuré) ; même structure partout. Trace : `ouverture.spec.ts` « au clavier : après Entrée sur le bouton, la touche Tab mène dans la fenêtre… » (`test.fail`, vidéo et trace gardées).
-- Avis : bug de l'appli (la fenêtre est le dernier élément du document et ne prend pas le focus) ; à arbitrer, gravité faible.
+## Bugs (détail dans `tests/reports/bugs.md`)
 
-**V-02 — le chiffre romain perd l'extension de l'accord** (mineur, à arbitrer)
-- Étapes : 1. Poser Cmaj9, Cdim7, Cdim, G9 en do majeur. 2. Ouvrir « Voicing » (ou lire la ligne de degrés de la grille).
-- Attendu : « I9 » (comme G9 « V9 »), « i°7 » distinct de « i° ». Observé : Cmaj9 « I », Cdim7 « i° » comme Cdim. La fenêtre écrit la même chose que la grille (vérifié).
-- Appareil : tous. Trace : `conduite-des-voix.spec.ts` « le chiffre romain garde l'extension de l'accord… » (`test.fail`).
-- Avis : bug de l'appli, de la même famille que T-04 (Fmaj7 et F7 sont tous deux « IV7 »).
+### D-02 — « Afficher la guitare » avec un accord choisi : le tiroir repasse sur Do (gênant)
+**Étapes** : 1. Morceau « Cmaj7, Am7, Dm7, G7 ». 2. Choisir « Am7 ». 3. « Afficher la guitare ».
+**Attendu** : manche d'Am7, clavier toujours sur Am7. **Observé** : nom « C », notes C E G, clavier et manche sur Do ; la case reste sélectionnée ; se corrige en choisissant un autre accord puis Am7.
+**Appareil** : tous (ordinateurs, iPad, Android, iPhone). **Trace** : `test-results/diagrammes-tiroir-…D-02…/` (échec attendu). **Avis** : bug de l'appli (le tiroir se redessine avec l'accord par défaut).
 
-**G-01 (déjà connu) sur Firefox** : le premier clic sur une case d'une autre partie ne la sélectionne pas. Le test « la fenêtre ouverte se ferme quand on clique sur une case de la grille ; la case est alors sélectionnée » est en `test.fail` sur Firefox ; les autres tests qui changent de partie recliquent une fois sous Firefox (aide `activerPartie`), comme le ferait l'utilisateur.
+### D-01 — Renommer l'accord choisi : le tiroir garde l'ancien accord (gênant)
+**Étapes** : 1. Afficher la guitare, choisir « G7 ». 2. Cliquer son nom dans la case, taper « Bm7 », Entrée.
+**Attendu** : clavier et manche passent à Bm7. **Observé** : la case dit Bm7, le tiroir garde G7 (notes et doigté), même après plusieurs secondes.
+**Appareil** : Chromium mesuré, test en échec attendu sur les 5 ordinateurs / iPad. **Avis** : bug de l'appli.
 
-## Instabilités
-- Une, corrigée côté test : sous WebKit (≈ 1 fois sur 3 sous charge) la colonne des touches se pose à 152 px au lieu de 151 puis revient à 151 après le premier défilement (arrondi de la mise en page, 1 px invisible, pas un bug de l'appli). Le test « molette horizontale… » tolère donc 1 px sur la position des touches (le défilement, lui, est de 400 px) ; 25 / 25 ensuite sous WebKit avec 3 travailleurs.
-- Ensuite : 0 flaky dans `CI=1 npm run test:e2e:envoi`, module complet sans réessai. Limite connue de l'outil : `mouse.wheel` n'existe pas sur WebKit mobile (iPad) ; les deux tests à la molette y sont ignorés (`test.skip`), le défilement du test « V + garde l'endroit » y est posé directement.
+### D-03 — Reconnaissance de l'éditeur (constat, sans test, à arbitrer)
+x02210 propose « Am, C6, Am7, Am6 » ; x32010 propose « C, C6, Cmaj7, C7 » : des noms dont une note manque sur le manche. Peut-être voulu (moteur partagé avec l'import MIDI).
 
-## Observations sans test rouge (pour mémoire)
-- La fenêtre couvre le haut de la grille : toute case de la grille cliquée la ferme (un clic « à côté »). Pour changer de partie active il faut donc fermer, cliquer une case de la partie, rouvrir. Cohérent, mais la fenêtre ne suit pas la sélection en direct.
-- Changer l'échelle V remet à zéro le défilement vertical de la fenêtre ; l'échelle H et le défilement horizontal sont gardés (testé).
-- Les boutons H et V ne se grisent pas aux butées (0,7 et 2) ; un clic de plus ne change rien (testé).
-- Lancer la lecture ferme la fenêtre (clic à côté).
+### D-04 — Cadenas périmé après Annuler / Rétablir (intermittent, WebKit)
+Sous WebKit et iPad, machine chargée (3 travailleurs en parallèle ; non reproduit à 1 ou 2), le bouton cadenas reste plusieurs secondes dans l'ancien état après « Annuler » ou « Rétablir » du verrouillage, alors que la donnée (doigté fixé) et le point orange sont déjà corrects (relevé : 5 fois sur 8). Test dédié `doigtes.spec.ts` « D-04 » en `test.fixme` sur WebKit (iPad compris) ; le test de parcours vérifie l'état réel en revenant sur l'accord. **Avis** : bug de l'appli probable (mise à jour différée du bouton) ; à confirmer. Ajouté à `bugs.md`.
 
-## Tests ajoutés (`tests/e2e/voicing/`, étiquette `@voicing`)
-- `ouverture.spec.ts` : 20 tests (4 `@critique`, 1 `test.fail` V-01, 1 `test.fail` G-01 sur Firefox) — bouton (place, état), ouverture, trois façons de fermer (Échap, clic à côté, bouton), clic dedans, clic sur une case, clavier, séquenceur ouvert, lecture, partie active (Couplet, Refrain, Long), partie d'un seul accord, morceau sans accord, annuler après Suppr, rechargement, sous 900 px, 1000 px, triades.
-- `conduite-des-voix.spec.ts` : 22 tests (4 `@critique`, 1 `test.fail` V-02) — une barre par son et leurs noms, en-têtes et chiffres, rôles et légende, autres sons (neuvième, quarte suspendue), tenues et mouvements, style des traits, tracé des traits, touches, molette, renversement / drop / octave / basse / type / fondamentale / transposition qui redessinent, largeur selon la durée, chiffres comme la grille, morceau inchangé.
-- `echelles.spec.ts` : 12 tests (3 `@critique`) — présence, H +, V + (touches alignées), retour, butées 0,7 et 2 (H et V), mémoire après rechargement, même échelle d'une partie à l'autre, défilement gardé, fenêtre basse (reste dans l'écran, défile), morceau inchangé.
-- `telephone.spec.ts` : 3 tests `@mobile` (1 `@critique`) — pas de bouton ni de fenêtre, onglet « Voicing » de la feuille d'accord intact, écran élargi à 1000 px.
-- Aide : `aide-voicing.ts`. Total : 57 tests, 54 ordinateur / iPad, 3 téléphone, 12 `@critique`. L'onglet « Voicing » de la fenêtre d'accord (octave, renversement, drop, basse) reste dans `accord/onglet-voicing.spec.ts` : non dupliqué.
+## Instabilités et choix du test (rien n'a été affaibli)
+- **G-01 (Firefox)** : le premier clic sur une case d'une autre partie ne la sélectionne pas ; l'aide `selectionner` reclique après 1,5 s (même méthode que le module `voicing`). Le tiroir suit aussi la sélection avec jusqu'à ~1 s de retard sous Firefox : l'aide attend que le tiroir montre l'accord de la case avant d'agir.
+- **iPad (1194 × 834)** : les dimensions attendues sont lues dans la fenêtre (plus de 1440 / 900 en dur). Test de la poignée : « le tiroir grandit d'au moins 15 % » (au lieu de +40 px) — sur un écran étroit la largeur limite la taille du clavier et du manche côte à côte (+24 % mesuré) ; la vérification « plafonné à 60 % », « plus petit vers le bas » et « double-clic = taille d'origine » reste intacte.
+- Au téléphone les diagrammes sont **à la suite de la grille** (bas de la page) : on les fait défiler à l'écran, puis on vérifie qu'ils tiennent au-dessus de la bande fixe.
+- `getByTestId` : aucun `data-testid` dans l'appli ; sélecteurs par `id` de l'appli (`#vues-tiroir`, `#piano-viz`, `#guitar-viz`, `#guitar-lock-btn`, `#guitar-edit-neck`…) quand le rôle ne suffit pas. **Manquent** : des `data-testid` ou rôles sur les cases du manche de l'éditeur (le dessin SVG reçoit le clic en entier : on clique à la position calculée), sur les touches du clavier (`data-midi` sert de repère) et sur les candidats de reconnaissance (classe `.guitar-draw-candidate`).
 
-## Sélecteurs et testabilité
-- Faute de mieux, sélecteurs CSS / attributs : `.vl-note` (une barre de note), `data-role` (root / third / fifth / seventh / ext), `line.vl-tenue`, `line.vl-mouvement`, `.voice-leading-scroll`, `.voice-leading-keys`, `.voice-leading-legend .lg`, les attributs SVG `x`, `y`, `width`, `stroke-width`. À proposer : `data-testid="vl-note"` (avec `data-note="E3"` et `data-accord`), `data-testid="vl-trait"` avec `data-type="tenue|mouvement"`, `data-testid="vl-defilement"`, `data-testid="vl-touches"`.
-- Groupes d'échelle : simples `div` portant un `title` (« Échelle horizontale ») sans rôle `group` ; les boutons, eux, ont un `aria-label`.
-- Aucun `waitForTimeout`. Aucune modification de l'appli.
-
-## Non couvert
-Pincement et loupe au doigt, tracé lu pendant la lecture, son, les couleurs rendues à l'écran (seuls les dégradés et les attributs sont vérifiés, pas les pixels), onglet « Voicing » de la fenêtre d'accord (module `accord`).
+## Tests ajoutés (`tests/e2e/diagrammes/`)
+- `tiroir.spec.ts` : 13 tests (`@ordinateur`, 6 `@critique`).
+- `clavier.spec.ts` : 7 (3 `@critique`).
+- `doigtes.spec.ts` : 14 (6 `@critique`), dont D-01 (`test.fail`) et D-04 (`test.fixme` WebKit).
+- `mes-doigtes.spec.ts` : 9 (4 `@critique`), dont un test cloud à deux appareils.
+- `editeur-manche.spec.ts` : 16 (6 `@critique`).
+- `telephone.spec.ts` : 11 (`@mobile`, 6 `@critique`), dont D-02 (`test.fail`).
+- `aide-diagrammes.ts` : aides communes (pas une spec).
+- Non couvert : son, appui long (note fantôme au doigt), diagrammes pendant la lecture sur téléphone, déplacement du tiroir au clavier, notation selon la tonalité (module `tonalite`).

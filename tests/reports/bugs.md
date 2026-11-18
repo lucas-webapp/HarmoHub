@@ -37,6 +37,10 @@ Gravité : **bloquant** (empêche un parcours principal), **gênant** (contourna
 | M-02 | 18/11 | mobile | téléphones (Android) ; même chose à la souris (Ctrl+glisser) | mineur (à arbitrer) | Appui long puis glisser une case vers une AUTRE partie : l'accord est copié juste après l'original (dans sa propre partie) au lieu de l'être dans la partie visée ; dans la même partie la copie se place AVANT la case visée, quel que soit le côté | ouvert, sans test |
 | V-01 | 18/11 | voicing | tous les ordinateurs et l'iPad | mineur (accessibilité, à arbitrer) | Au clavier, « Entrée » sur le bouton « Voicing » ouvre la fenêtre « Conduite des voix » mais le focus n'y entre pas : « Tab » traverse toute la grille (14 appuis) avant d'atteindre les boutons H et V | ouvert |
 | V-02 | 18/11 | voicing | tous | mineur (à arbitrer) | Le chiffre romain d'un accord à neuvième ou à septième diminuée perd l'extension : Cmaj9 est noté « I » (alors que G9 est noté « V9 »), Cdim7 « i° » comme Cdim (même cause que T-04 ; la grille écrit la même chose) | ouvert |
+| D-01 | 18/11 | diagrammes | tous les ordinateurs et l'iPad | gênant | Renommer l'accord choisi en cliquant sur son nom dans la case : la case change mais le clavier et le manche du tiroir gardent l'ANCIEN accord (G7 au lieu de Bm7) jusqu'au prochain changement de sélection | ouvert |
+| D-02 | 18/11 | diagrammes | tous (ordinateurs, iPad, téléphones) | gênant | « Afficher la guitare » alors qu'un accord est déjà choisi : le tiroir (nom, notes, touches du clavier, manche) passe sur Do, l'accord par défaut, alors que la case reste sélectionnée ; il faut cliquer un autre accord pour retrouver le bon | ouvert |
+| D-03 | 18/11 | diagrammes | tous | mineur (à arbitrer) | Éditeur de manche : le dessin d'un La mineur ouvert (x02210, notes A C E) propose « Am, C6, Am7, Am6 » ; Do ouvert (x32010) propose « C, C6, Cmaj7, C7 » : des accords dont une note (septième ou sixte) n'est pas sur le manche | ouvert, sans test |
+| D-04 | 18/11 | diagrammes | WebKit (Safari), iPad (intermittent, machine chargée) | mineur (intermittent) | Après « Annuler » / « Rétablir » du verrouillage d'un doigté, le bouton cadenas reste plusieurs secondes dans l'ancien état (le doigté fixé et le point orange sont déjà bons) | ouvert |
 
 Tests qui échouent à cause de ces bugs : marqués `test.fail()` (échec attendu, vérification intacte) pour que la CI reste verte ; ils deviendront ROUGES le jour où le bug est corrigé : retirer alors le `test.fail` :
 G-01 → `grille/selection.spec.ts` « un clic sur une case d'une autre partie la sélectionne du premier coup » et `grille/copier-coller.spec.ts` « on peut coller dans une autre partie… » (Firefox seulement) ;
@@ -68,6 +72,10 @@ T-04 → `tonalite/degres.spec.ts` « T-04 : un accord de septième majeure et u
 T-05 : constaté sans test (voir ci-dessous).
 V-01 → `voicing/ouverture.spec.ts` « au clavier : après Entrée sur le bouton, la touche Tab mène dans la fenêtre… » ;
 V-02 → `voicing/conduite-des-voix.spec.ts` « le chiffre romain garde l'extension de l'accord : Cmaj9 « I9 »… ».
+D-01 → `diagrammes/doigtes.spec.ts` « renommer l'accord choisi met aussitôt à jour le clavier et le manche (D-01) » ;
+D-02 → `diagrammes/tiroir.spec.ts` et `diagrammes/telephone.spec.ts` « afficher la guitare alors qu'un accord est déjà choisi… (D-02) » ;
+D-03 : pas de test rouge (constat).
+D-04 → `diagrammes/doigtes.spec.ts` « D-04 : juste après Annuler / Rétablir, le bouton cadenas… » (`test.fixme` sur WebKit, iPad compris).
 
 ---
 
@@ -374,3 +382,23 @@ En do phrygien, « Dm » est noté « biii », en do mixolydien « Bdim » est n
 **Attendu** : un chiffre qui garde l'extension : Cmaj9 « I9 » (comme G9 « V9 »), Cdim7 « i°7 » distinct de Cdim « i° ».
 **Observé** : Cmaj9 « I », Cdim7 « i° » (identique à Cdim). La fenêtre et la grille écrivent la même chose (vérifié par `conduite-des-voix.spec.ts`, test « les chiffres romains de la fenêtre sont ceux de la grille »).
 **Appareil** : tous. **Test** : `conduite-des-voix.spec.ts` (V-02, `test.fail`). **Gravité** : mineure ; apparentée à T-04 (septième majeure notée comme une septième de dominante).
+
+## D-01 — Renommer l'accord choisi : le tiroir garde l'ancien accord (gênant)
+**Étapes** : 1. Ordinateur, morceau « Cmaj7, Am7, Dm7, G7 ». 2. Afficher la guitare, cliquer la case « G7 » (le tiroir montre G7). 3. Cliquer le nom « G7 » dans la case, taper « Bm7 », Entrée.
+**Attendu** : la case dit « Bm7 » et le clavier et le manche passent aussitôt à Bm7 (B D F# A).
+**Observé** : la case dit « Bm7 », le tiroir dit toujours « G7 » (G B D F, doigté de G7), même après plusieurs secondes ; il se corrige quand on choisit une autre case puis celle-ci. Le point orange du doigté fixé est bien retiré.
+**Appareil** : Chromium (mesuré) ; à confirmer sur les autres ordinateurs par la matrice. **Test** : `doigtes.spec.ts` (« renommer l'accord choisi… (D-01) », `test.fail`). **Gravité** : gênante.
+
+## D-02 — « Afficher la guitare » avec un accord choisi : le tiroir repasse sur Do (gênant)
+**Étapes** : 1. Ordinateur (ou téléphone), morceau « Cmaj7, Am7, Dm7, G7 ». 2. Choisir « Am7 » (le clavier dit Am7). 3. Appuyer sur « Afficher la guitare ».
+**Attendu** : le manche apparaît avec le doigté d'Am7 et le clavier reste sur Am7.
+**Observé** : le nom devient « C » (notes C E G), le clavier allume C E G, le manche montre un Do ; la case Am7 reste pourtant sélectionnée. Choisir une autre case, puis Am7, rétablit l'affichage. Même effet quand on réaffiche la guitare après « Fermer ». Le contournement des tests : afficher la guitare AVANT de choisir l'accord.
+**Appareil** : tous. **Test** : `tiroir.spec.ts` et `telephone.spec.ts` (D-02, `test.fail`). **Gravité** : gênante (le geste « je choisis un accord puis je regarde comment le jouer » donne un faux accord).
+
+## D-03 — Éditeur de manche : des noms proposés dont une note manque (constat, sans test)
+Dessiner x02210 (A C E) propose « Am, C6, Am7, Am6 » ; x32010 propose « C, C6, Cmaj7, C7 ». Am7 / Am6 / Cmaj7 / C7 contiennent une note (septième, sixte) qui n'est pas sur le manche. C'est peut-être voulu (« plusieurs accords avec les mêmes notes », moteur partagé avec l'import MIDI) ; à arbitrer, aucun test ne fige la liste complète (seul le premier nom, C ou Am, est vérifié).
+
+## D-04 — Cadenas périmé après Annuler / Rétablir (mineur, intermittent, WebKit)
+**Étapes** : 1. Afficher la guitare, choisir « Am7 ». 2. Cliquer le cadenas (point orange sur la case). 3. « Annuler ». 4. Lire l'état du bouton cadenas.
+**Attendu** : bouton relâché (« Verrouiller ce doigté… ») et flèches actives. **Observé** : le point orange disparaît et le doigté n'est plus fixé (données exactes), mais le bouton reste « verrouillé » plusieurs secondes (5 fois sur 8 avec 3 travailleurs en parallèle ; non reproduit à 1 ou 2). Même chose dans l'autre sens après « Rétablir ». Revenir sur l'accord (autre case puis celle-ci) corrige l'affichage.
+**Appareil** : WebKit ordinateur et iPad ; non vu sur Chromium ni Firefox. **Test** : `doigtes.spec.ts` « D-04 » (`test.fixme` sur WebKit). **Gravité** : mineure, intermittente ; à confirmer (peut être un effet de charge du navigateur de test).
