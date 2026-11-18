@@ -28,6 +28,8 @@ Gravité : **bloquant** (empêche un parcours principal), **gênant** (contourna
 | Y-01 | 17/11 | synchro | tous (vu sur Chromium, WebKit, Firefox) | gênant (affichage trompeur, intermittent) | Après une coupure du réseau SANS rien à envoyer, la pastille reste « Hors ligne » quand le réseau revient (≈ 9 fois sur 10), jusqu'au prochain enregistrement ou à une modification venue d'un autre appareil | ouvert |
 | Y-02 | 17/11 | synchro | tous | mineur (à arbitrer) | Appareil partagé : après « Se déconnecter » puis connexion avec un AUTRE compte, les morceaux du premier compte, restés dans le navigateur, partent dans le cloud du second | ouvert |
 | Y-03 | 18/11 | synchro | WebKit, Android, iPhone (rare, sous charge) | mineur (intermittent) | Après une coupure du réseau, la pastille reste « Synchronisé » pendant 20 s ou plus alors que le réseau est coupé (≈ 2 à 3 fois sur 100 coupures) | ouvert |
+| M-01 | 18/11 | mobile | téléphones (Android, iPhone) | mineur | « Modifier » (menu de l'appui long) ouvre la feuille d'accord avec l'onglet « Voicing » marqué alors que le haut de la feuille montre le contenu de l'onglet Accord | ouvert |
+| M-02 | 18/11 | mobile | téléphones (Android) ; même chose à la souris (Ctrl+glisser) | mineur (à arbitrer) | Appui long puis glisser une case vers une AUTRE partie : l'accord est copié juste après l'original (dans sa propre partie) au lieu de l'être dans la partie visée ; dans la même partie la copie se place AVANT la case visée, quel que soit le côté | ouvert, sans test |
 
 Tests qui échouent à cause de ces bugs : marqués `test.fail()` (échec attendu, vérification intacte) pour que la CI reste verte ; ils deviendront ROUGES le jour où le bug est corrigé : retirer alors le `test.fail` :
 G-01 → `grille/selection.spec.ts` « un clic sur une case d'une autre partie la sélectionne du premier coup » et `grille/copier-coller.spec.ts` « on peut coller dans une autre partie… » (Firefox seulement) ;
@@ -297,3 +299,24 @@ Y-03 : pas de test dédié (intermittent, ≈ 2 %) ; il rend « flaky » (réuss
 **Attendu** : « Hors ligne » peu après la coupure. **Observé** : aucun changement, jusqu'à la prochaine activité réseau. Un enregistrement fait pendant cet état passe en « En attente » puis part au retour du réseau (rien n'est perdu) : seul l'indicateur est en retard.
 **Avis** : même famille que Y-01 (l'indicateur suit les évènements du SDK Firestore, pas l'état du réseau). Dans la CI, ces tests réussissent au 2ᵉ essai (2 essais de repli).
 **Trace** : CI du 18/11 : `test-results/synchro-envoi-relecture-En-5e12a--le-ressuscite-pas-critique-mobile-android/` (au 1ᵉʳ essai).
+
+## M-01 — « Modifier » (appui long) : onglet Voicing marqué, contenu Accord (mineur)
+**Étapes**
+1. Téléphone : un morceau « C Am F G ». Appui long (0,8 s) sur la case « Am » : le menu de la case s'ouvre.
+2. Toucher « Modifier ».
+3. Lire la feuille d'accord : le titre dit « Am », le haut montre FONDAMENTALE et TYPE (contenu de l'onglet Accord) et un bouton « Moins » en bas ; mais, dans le groupe « Accord, son ou rythme », c'est « Voicing » qui est marqué (`aria-pressed="true"`), « Accord » ne l'est pas.
+4. Contrôle : le double-tape sur la même case marque « Accord » et propose « Réglages du son ».
+
+**Attendu** : l'onglet marqué est celui du contenu visible (Accord), comme au double-tape. **Observé** : « Voicing » marqué, contenu Accord ; mode « développé » (bouton « Moins »).
+**Appareil** : Android (Pixel 7) et iPhone 15 émulés ; déterministe. **Avis** : bug de l'appli (état d'onglet incohérent), pas du test.
+**Trace** : `npx playwright test tests/e2e/mobile/gestes.spec.ts -g "comme le double-tape" --project=mobile-android` (test `test.fail`).
+
+## M-02 — Copie par appui long + glisser : la copie ne va pas dans la partie visée (mineur, à arbitrer)
+**Étapes**
+1. Téléphone, morceau « Couplet : C Am F G », « Refrain : F C ».
+2. Poser le doigt sur « Am » et le garder 0,8 s (le menu s'ouvre), puis glisser jusqu'à la case « C » du Refrain (l'étiquette « Copier » suit le doigt et la case visée s'éclaire) et relâcher.
+
+**Attendu** : un « Am » dans le Refrain (ou rien si la copie entre parties n'est pas voulue). **Observé** : un second « Am » apparaît juste après l'original, dans le Couplet (« C Am Am F G »), le Refrain ne change pas. Même résultat à la souris (Ctrl+glisser). Dans la même partie, la copie se place avant la case visée, que le doigt soit sur sa moitié gauche ou droite (le déplacement simple, lui, respecte le côté).
+**Appareil** : Android (appui long réel par DevTools) ; Chromium ordinateur (Ctrl+glisser). **Avis** : comportement à arbitrer (le déplacement simple entre parties ne fait rien, voulu d'après `grille/glisser.spec.ts`) ; pas de test, faute de comportement attendu décidé.
+**Trace** : aucune (constaté à l'exploration).
+

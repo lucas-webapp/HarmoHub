@@ -1,45 +1,45 @@
-# Rapport e2e — module `synchro` (18/11/2026)
+# Rapport — module `mobile` (18/11/2026)
 
 ## Résumé
-- Testé : connexion par l'émulateur Auth (compte fictif), envoi du morceau, relecture en direct sur un 2ᵉ appareil (2ᵉ contexte), fusion de deux bibliothèques, suppression, conflit, coupure du réseau puis reprise, menu du compte et déconnexion, versions (historique, restauration, limite cloud, versions automatiques), règles de sécurité Firestore.
-- Résultat : 49 tests dans le module (46 ajoutés + les 3 d'origine, intacts ; 175 exécutions `@critique` sur les 7 projets). Module complet sur les 7 projets : 297 réussis, 44 ignorés, 2 échecs d'un test corrigé depuis (attente du contenu, relancé 9 / 9 vert sur WebKit, iPhone, iPad). `CI=1 npm run test:e2e:envoi` : vert (chromium 393 réussis ; autres projets `@smoke|@critique` : 791 réussis au total, 57 ignorés, 2 « flaky » réussis au 2ᵉ essai = Y-03).
-- Suite : arbitrer Y-01 (pastille « Hors ligne » après la reprise) et Y-02 (appareil partagé) ; module suivant `mobile`.
+- Testé : la mise en page téléphone (< 900 px) : barre du haut et onglets, réglages et affichage de la grille, bande Clavier / Guitare / Fichier, bloc « Voir » du panneau Lecture, « + Accord », « + Section », appui long, défilement, glisser, pincement, largeurs 320 à 899 px, paysage, seuil de 900 px ; plus un test qui vérifie que l'ordinateur n'a rien du téléphone.
+- Résultat : 54 tests, module complet sur les 7 projets tout vert (1 échec attendu = M-01, `test.fail`). Trois passes de suite sur Android et iPhone : 303 réussis, 0 instabilité. `CI=1 npm run test:e2e:envoi` vert : chromium 394 réussis / 0 échoué ; autres projets (`@smoke|@critique`) 842 réussis / 0 échoué / 1 instable (synchro, iPhone, réussi au 2ᵉ essai : famille Y-03, pas ce module).
+- Suite conseillée : arbitrer M-01 et M-02 ; puis les modules P2 (`tonalite`, `voicing`, `diagrammes`, `structure`, `paroles`).
 
 ## Problèmes
-### Y-01 — pastille « Hors ligne » après le retour du réseau (gênant, intermittent)
-**Étapes** : 1. se connecter, pastille « Synchronisé » ; 2. couper le réseau ; 3. ne rien modifier, attendre 3 s, rétablir le réseau ; 4. regarder la pastille.
-**Attendu** : « Synchronisé » dès le retour. **Observé** : reste « Hors ligne » (100 s mesurées) jusqu'au prochain enregistrement ou changement distant ; ≈ 9 fois sur 10.
-**Appareil** : Chromium, WebKit, Firefox. **Trace** : relancer le test après avoir enlevé le `test.fixme`.
-**Avis** : bug de l'appli (l'indicateur ne suit que les évènements du SDK). Test en `test.fixme` (intermittent : un `test.fail` passerait au hasard).
 
-### Y-02 — appareil partagé (mineur, à arbitrer)
-**Étapes** : 1. compte 1 avec deux morceaux ; 2. « Se déconnecter » ; 3. se connecter avec le compte 2 sur le même navigateur.
-**Attendu** : à arbitrer (effacer ou demander). **Observé** : les morceaux du compte 1 partent dans le cloud du compte 2 ; le cloud du compte 1 n'est jamais touché.
-**Avis** : conception à arbitrer. Test de constat dans `deconnexion.spec.ts`.
+### M-01 — « Modifier » (appui long) : onglet Voicing marqué, contenu Accord
+1. Téléphone, morceau « C Am F G ». Appui long (0,8 s) sur « Am » : le menu s'ouvre.
+2. Toucher « Modifier ».
+3. La feuille montre FONDAMENTALE et TYPE (contenu de l'onglet Accord) mais « Voicing » est marqué (`aria-pressed`) ; au double-tape, « Accord » l'est.
+- **Attendu** : l'onglet marqué est celui du contenu visible. **Observé** : « Voicing » marqué.
+- **Appareil** : Android (Pixel 7) et iPhone 15 émulés, déterministe.
+- **Trace** : `npx playwright test tests/e2e/mobile/gestes.spec.ts -g "comme le double-tape" --project=mobile-android` (`test.fail`).
+- **Avis** : bug de l'appli (état d'onglet incohérent). Gravité : mineur.
 
-### Y-03 — la pastille ne passe pas toujours à « Hors ligne » (mineur, intermittent)
-**Étapes** : connecté, couper le réseau, attendre 20 s. **Observé** : parfois toujours « Synchronisé » (≈ 2 %, WebKit, Android, iPhone, sous charge).
-**Trace** : CI du 18/11, `test-results/synchro-envoi-relecture-En-5e12a--le-ressuscite-pas-critique-mobile-android/` (1ᵉʳ essai).
-**Avis** : même famille que Y-01 ; rien n'est perdu (un enregistrement fait pendant cet état part à la reprise). Pas de test dédié.
+### M-02 — Copie par appui long + glisser : pas dans la partie visée (à arbitrer, sans test)
+1. Téléphone, « Couplet : C Am F G », « Refrain : F C ». Doigt sur « Am » 0,8 s, glisser sur le « C » du Refrain, relâcher.
+- **Attendu** : un « Am » dans le Refrain (ou rien). **Observé** : « C Am Am F G », Refrain inchangé. Dans la même partie, la copie va avant la case visée, quel que soit le côté. Idem à la souris (Ctrl+glisser).
+- **Appareil** : Android (appui long réel), Chromium ordinateur. **Trace** : aucune (exploration).
+- **Avis** : comportement à arbitrer, pas de test faute d'attendu décidé. Gravité : mineur.
 
 ## Instabilités
-- 2 tests réussissent seulement au 2ᵉ essai en CI (Y-03), tous deux « supprimer un morceau sur A… » sur `mobile-android` et `mobile-iphone`.
-- Corrigé côté test : « un morceau neuf créé sur B apparaît dans la liste de A » lisait le morceau avant l'arrivée de son contenu (WebKit) ; il attend maintenant les accords dans le cloud puis sur A (rien d'affaibli : la même égalité finale).
+Aucune dans ce module (3 passes × 2 projets téléphone). Dans l'envoi : 1 test de `synchro` (iPhone, Y-03) réussi au 2ᵉ essai.
 
-## Ce qui a été observé de l'appli
-- Conflit : la version enregistrée EN DERNIER gagne ; l'autre est gardée en copie `arch_…` dans le dossier « Archives » (rien n'est perdu).
-- Suppression : suivie par un marqueur ; un appareil absent ne ressuscite pas le morceau.
-- Versions : une avant chaque transposition, suppression, import, restauration, à l'enregistrement et toutes les 5 minutes de travail (« Automatique »). L'appareil les garde toutes, le cloud les 5 plus récentes. Un morceau supprimé garde sa version sous « Bravo (supprimé) ».
-- Règles : seul le propriétaire lit et écrit `users/{uid}/apps/{appli}` ; tiers, inconnus et autres chemins reçoivent 403.
-- Aucune requête vers la production Firebase (garde-fou actif sur tous les contextes, y compris le 2ᵉ appareil).
+## Limites de la matrice (à savoir)
+- Appui long, glissé, pincement, durée au doigt : vrais évènements tactiles DevTools sur Android seulement. Sur iPhone (WebKit), Playwright n'a ni `touchmove` ni molette : l'appui long y est rejoué par des `touchstart` / `touchend` envoyés dans la page ; 5 tests de gestes composés y sont ignorés (raison dans le titre : glissé depuis une case, déplacement d'une case, durée au doigt, pincement, doigt qui bouge pendant l'appui). Le défilement de la barre fixe y passe par `scrollBy`.
+- Pas de clavier virtuel réel, pas de Safari / iPhone physiques.
+- Piège de pincement : un doigt posé sur la poignée de durée (bord d'une case) déclenche la durée, pas le zoom ; les tests posent les doigts sur le corps des cases.
 
-## Tests ajoutés (`tests/e2e/synchro/`)
-- `envoi-relecture.spec.ts` : 8 (`@synchro`, 5 `@critique`).
-- `conflit.spec.ts` : 5 (2 `@critique`).
-- `reseau.spec.ts` : 6 dont 1 `test.fixme` Y-01 (2 `@critique`).
-- `deconnexion.spec.ts` : 7 (3 `@critique`).
-- `versions.spec.ts` : 11 (3 `@critique`), dont 2 avec l'horloge simulée (`page.clock`).
-- `regles-securite.spec.ts` : 5, Chromium seul (4 `@critique`).
-- `connexion-google.spec.ts` : 3 d'origine intacts + 4 ajoutés (fenêtre d'accueil du compte).
-- `aide-synchro.ts` : aides communes + fixture `test` étendue de `support/fixtures` (2ᵉ appareil fermé en fin de test, garde-fou anti-production conservé).
-Non couvert : la vraie fenêtre Google (test existant, ignoré dans la VM faute d'accès à apis.google.com, joué en CI), synchro des formes / doigtés / paroles, coupure du réseau au rechargement.
+## Tests ajoutés (`tests/e2e/mobile/`, 54 tests, 24 `@critique`)
+- `barre-haut.spec.ts` : 6 (deux rangées, onglets Structure / Paroles / Grille, Annuler / Rétablir, Paramètres, barres fixes, rangée des réglages).
+- `reglages-affichage.spec.ts` : 7 (résumé déplié, Transposer, listes Mesure / Swing / Son, tonalité, Affichage Compact / Normal / Large + persistance, pincement, bouton Séquenceur).
+- `bande-du-bas.spec.ts` : 8 (placement, fixe au défilement, diagrammes et persistance, diagramme qui suit l'accord, bande cachée sous les panneaux, bloc « Voir », Séquenceur, Fichier).
+- `ajouts.spec.ts` : 8 (« + Accord » par partie, destination, suggestions, partie vide, « + Section » cachée puis visible, création et nom, plusieurs sections).
+- `gestes.spec.ts` : 15 (appui long : menu, Dupliquer, Octave, Renommer, Supprimer, Modifier (M-01), Séquenceur, Copier / Coller ; défilement depuis une case, déplacer, durée au doigt).
+- `mise-en-page.spec.ts` : 10 (6 largeurs, paysage, seuil 900 px, clavier non levé, ordinateur intact `@ordinateur`).
+- Aide : `aide-mobile.ts` (appui long, glissé, pincement, défilement).
+- Sélecteurs : identifiants (`#tb-titre`, `#song-summary`, `#tel-affichage`, `#toggle-viz-piano`, `#add-section`…) et rôles ; CSS seulement pour `.cell-meta`, `.cell-sym-input`, `.chord-header-row`, `#piano-viz`, `#guitar-viz-wrap`, `[title="Glisser pour changer la durée"]` (un `data-testid` aiderait : poignée de durée, en-tête du diagramme).
+
+## Observations sans bug
+- Toucher « Guitare » dans la bande désélectionne l'accord (le diagramme revient au premier) : cohérent avec « toucher à côté désélectionne ».
+- Notation : dièses affichés « # » dans les cases, « ♯ » dans la fenêtre de tonalité ; bémols « ♭ » partout.
