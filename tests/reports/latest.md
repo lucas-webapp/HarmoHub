@@ -1,45 +1,52 @@
-# Rapport — module `mobile` (18/11/2026)
+# Rapport — module `tonalite` (18/11/2026)
 
 ## Résumé
-- Testé : la mise en page téléphone (< 900 px) : barre du haut et onglets, réglages et affichage de la grille, bande Clavier / Guitare / Fichier, bloc « Voir » du panneau Lecture, « + Accord », « + Section », appui long, défilement, glisser, pincement, largeurs 320 à 899 px, paysage, seuil de 900 px ; plus un test qui vérifie que l'ordinateur n'a rien du téléphone.
-- Résultat : 54 tests, module complet sur les 7 projets tout vert (1 échec attendu = M-01, `test.fail`). Trois passes de suite sur Android et iPhone : 303 réussis, 0 instabilité. `CI=1 npm run test:e2e:envoi` vert : chromium 394 réussis / 0 échoué ; autres projets (`@smoke|@critique`) 842 réussis / 0 échoué / 1 instable (synchro, iPhone, réussi au 2ᵉ essai : famille Y-03, pas ce module).
-- Suite conseillée : arbitrer M-01 et M-02 ; puis les modules P2 (`tonalite`, `voicing`, `diagrammes`, `structure`, `paroles`).
+- Testé : choix de la tonalité et du mode, suggestion, transposition, notation (dièses / bémols selon la tonalité, « Eb » tapé enregistré « D# »), degrés romains, téléphone. 47 tests, 7 fichiers.
+- Résultat : `CI=1 npm run test:e2e:envoi` vert (922 réussis, 59 ignorés, 0 échoué, 1 flaky hors module) ; module complet sans réessai : chromium 44 / 44, et 264 / 264 sur firefox, webkit, edge, android, iphone, tablette. Y compris 5 échecs attendus (bugs T-01 à T-04).
+- Suite conseillée : arbitrer T-02 (« Suggérer » non annulable) et T-03 / T-04 (écriture des basses et chiffres), puis module `voicing`.
 
-## Problèmes
+## Problèmes (4 bugs avec test, 1 constat sans test) — détail dans `tests/reports/bugs.md`
+**T-01 — dièses écrits « # » ici, « ♯ » là** (mineur, à arbitrer)
+- Étapes : 1. Morceau « C Am F G ». 2. Tonalité « F♯ ». 3. Lire la puce, puis `#song-summary-key` (au téléphone : la ligne de résumé).
+- Attendu : « F♯ majeur » partout. Observé : puce « F♯ », résumé « F# majeur ».
+- Appareil : tous. Trace : `test-results/tonalite-notation-…T-01…` (test `test.fail`, vidéo / trace gardées à l'échec attendu).
+- Avis : bug de l'appli (cosmétique) ; la règle du 16/11 (« D# ») plaide peut-être pour « # » partout.
 
-### M-01 — « Modifier » (appui long) : onglet Voicing marqué, contenu Accord
-1. Téléphone, morceau « C Am F G ». Appui long (0,8 s) sur « Am » : le menu s'ouvre.
-2. Toucher « Modifier ».
-3. La feuille montre FONDAMENTALE et TYPE (contenu de l'onglet Accord) mais « Voicing » est marqué (`aria-pressed`) ; au double-tape, « Accord » l'est.
-- **Attendu** : l'onglet marqué est celui du contenu visible. **Observé** : « Voicing » marqué.
-- **Appareil** : Android (Pixel 7) et iPhone 15 émulés, déterministe.
-- **Trace** : `npx playwright test tests/e2e/mobile/gestes.spec.ts -g "comme le double-tape" --project=mobile-android` (`test.fail`).
-- **Avis** : bug de l'appli (état d'onglet incohérent). Gravité : mineur.
+**T-02 — « Suggérer » n'est pas annulable** (mineur)
+- Étapes : 1. « C Am F G ». 2. Tonalité, « Suggérer », « A mineur ». 3. Regarder « Annuler ».
+- Attendu : actif, un appui rend « C majeur ». Observé : grisé (un choix de tonique, lui, s'annule).
+- Appareil : tous. Trace : `suggestion.spec.ts` « la proposition choisie se défait… » (`test.fail`).
+- Avis : bug de l'appli (oubli d'un `pushUndo`).
 
-### M-02 — Copie par appui long + glisser : pas dans la partie visée (à arbitrer, sans test)
-1. Téléphone, « Couplet : C Am F G », « Refrain : F C ». Doigt sur « Am » 0,8 s, glisser sur le « C » du Refrain, relâcher.
-- **Attendu** : un « Am » dans le Refrain (ou rien). **Observé** : « C Am Am F G », Refrain inchangé. Dans la même partie, la copie va avant la case visée, quel que soit le côté. Idem à la souris (Ctrl+glisser).
-- **Appareil** : Android (appui long réel), Chromium ordinateur. **Trace** : aucune (exploration).
-- **Avis** : comportement à arbitrer, pas de test faute d'attendu décidé. Gravité : mineur.
+**T-03 — la basse ne suit pas la règle des fondamentales** (mineur, à arbitrer)
+- Étapes : 1. Ajout rapide « C/Eb//Eb » en do. 2. Mi majeur, « D/F#//F# ».
+- Attendu : C/E♭ comme E♭ ; D/F# comme F#. Observé : « C/D# » en do ; « D/G♭ » en mi.
+- Appareil : tous. Trace : `notation.spec.ts` (deux tests T-03, `test.fail`).
+- Avis : bug de l'appli ou règle volontaire (« Eb → D# en do » pour les notes) ; à arbitrer.
+
+**T-04 — chiffres romains : Fmaj7 = F7** (mineur, à arbitrer)
+- Étapes : 1. « Fmaj7 », « F7 », « Cmaj7 » en do. 2. Lire les chiffres. Attendu : distincts. Observé : « IV7 », « IV7 », « I7 ».
+- Appareil : tous. Trace : `degres.spec.ts` (T-04, `test.fail`). Avis : bug de l'appli (ambigu à la lecture).
+
+**T-05 — degrés hors échelle** (constat, sans test) : en do phrygien « Dm » = « biii », en do mixolydien « Bdim » = « bi° ». Cohérent mais inhabituel.
 
 ## Instabilités
-Aucune dans ce module (3 passes × 2 projets téléphone). Dans l'envoi : 1 test de `synchro` (iPhone, Y-03) réussi au 2ᵉ essai.
+- Aucune dans le module : 308 exécutions sans réessai (chromium + 6 projets), 0 flaky.
+- Hors module (dans la même passe `envoi`) : `synchro/versions.spec.ts` « un 2ᵉ appareil voit les versions… » a réussi au 2ᵉ essai sur Firefox (déjà connu : famille Y-03).
 
-## Limites de la matrice (à savoir)
-- Appui long, glissé, pincement, durée au doigt : vrais évènements tactiles DevTools sur Android seulement. Sur iPhone (WebKit), Playwright n'a ni `touchmove` ni molette : l'appui long y est rejoué par des `touchstart` / `touchend` envoyés dans la page ; 5 tests de gestes composés y sont ignorés (raison dans le titre : glissé depuis une case, déplacement d'une case, durée au doigt, pincement, doigt qui bouge pendant l'appui). Le défilement de la barre fixe y passe par `scrollBy`.
-- Pas de clavier virtuel réel, pas de Safari / iPhone physiques.
-- Piège de pincement : un doigt posé sur la poignée de durée (bord d'une case) déclenche la durée, pas le zoom ; les tests posent les doigts sur le corps des cases.
+## Tests ajoutés (`tests/e2e/tonalite/`, étiquette `@tonalite`)
+- `choix.spec.ts` : 9 tests (4 `@critique`) — fenêtre (12 toniques, 7 modes), tonique, mode, sept modes, annuler / rétablir, enregistrement et rechargement, nouveau morceau en do, fermeture.
+- `suggestion.spec.ts` : 8 (2 `@critique`, 1 `@ordinateur`, 1 `test.fail` T-02) — liste classée, choix d'une proposition, mineur, ii-V-I, morceau vide, suivi du morceau, Échap.
+- `transposition.spec.ts` : 9 (3 `@critique`) — haut, bas, retour, 12 pas, mode / types / basses, plusieurs parties, historique, enregistrement, durées.
+- `notation.spec.ts` : 12 (3 `@critique`, 3 `test.fail` T-01 / T-03) — fondamentales en do, saisie « Eb » / « D# », tableaux par tonalité (dièses, bémols, mineures), basses, fenêtre.
+- `notation-notes.spec.ts` : 1 `@ordinateur` — étiquettes du séquenceur selon la tonalité.
+- `degres.spec.ts` : 4 (1 `@critique`, 1 `test.fail` T-04) — qualité dans le chiffre, accord étranger, dominante secondaire.
+- `telephone.spec.ts` : 4 (1 `@critique`) — 3 `@mobile` (résumé, panneau, repli) et 1 `@ordinateur` (barre des réglages).
+- Aide : `aide-tonalite.ts`. Total : 47 tests, 44 sur ordinateur, 44 sur téléphone (14 `@critique`).
 
-## Tests ajoutés (`tests/e2e/mobile/`, 54 tests, 24 `@critique`)
-- `barre-haut.spec.ts` : 6 (deux rangées, onglets Structure / Paroles / Grille, Annuler / Rétablir, Paramètres, barres fixes, rangée des réglages).
-- `reglages-affichage.spec.ts` : 7 (résumé déplié, Transposer, listes Mesure / Swing / Son, tonalité, Affichage Compact / Normal / Large + persistance, pincement, bouton Séquenceur).
-- `bande-du-bas.spec.ts` : 8 (placement, fixe au défilement, diagrammes et persistance, diagramme qui suit l'accord, bande cachée sous les panneaux, bloc « Voir », Séquenceur, Fichier).
-- `ajouts.spec.ts` : 8 (« + Accord » par partie, destination, suggestions, partie vide, « + Section » cachée puis visible, création et nom, plusieurs sections).
-- `gestes.spec.ts` : 15 (appui long : menu, Dupliquer, Octave, Renommer, Supprimer, Modifier (M-01), Séquenceur, Copier / Coller ; défilement depuis une case, déplacer, durée au doigt).
-- `mise-en-page.spec.ts` : 10 (6 largeurs, paysage, seuil 900 px, clavier non levé, ordinateur intact `@ordinateur`).
-- Aide : `aide-mobile.ts` (appui long, glissé, pincement, défilement).
-- Sélecteurs : identifiants (`#tb-titre`, `#song-summary`, `#tel-affichage`, `#toggle-viz-piano`, `#add-section`…) et rôles ; CSS seulement pour `.cell-meta`, `.cell-sym-input`, `.chord-header-row`, `#piano-viz`, `#guitar-viz-wrap`, `[title="Glisser pour changer la durée"]` (un `data-testid` aiderait : poignée de durée, en-tête du diagramme).
+## Sélecteurs et testabilité
+- Sélecteurs CSS faute de mieux : `.row-roman` (chiffres romains : proposer `data-testid="degre"`), `.cell-sym` (déjà utilisé), `.key-suggest-label` / `.key-suggest-pct` (liste de suggestion), `#song-summary-key` (texte de la tonalité, masqué à l'ordinateur), `.sq-etiq`.
+- Aucun `waitForTimeout`. Aucune modification de l'appli.
 
-## Observations sans bug
-- Toucher « Guitare » dans la bande désélectionne l'accord (le diagramme revient au premier) : cohérent avec « toucher à côté désélectionne ».
-- Notation : dièses affichés « # » dans les cases, « ♯ » dans la fenêtre de tonalité ; bémols « ♭ » partout.
+## Non couvert
+Diagrammes clavier / guitare selon la tonalité, étiquettes de la fenêtre d'accord (déjà dans `accord`), tonalité dans les versions du cloud (`synchro`), export (MIDI / PDF) d'un morceau transposé, notes ajoutées du séquenceur (module `sequenceur`).

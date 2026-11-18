@@ -28,6 +28,11 @@ Gravité : **bloquant** (empêche un parcours principal), **gênant** (contourna
 | Y-01 | 17/11 | synchro | tous (vu sur Chromium, WebKit, Firefox) | gênant (affichage trompeur, intermittent) | Après une coupure du réseau SANS rien à envoyer, la pastille reste « Hors ligne » quand le réseau revient (≈ 9 fois sur 10), jusqu'au prochain enregistrement ou à une modification venue d'un autre appareil | ouvert |
 | Y-02 | 17/11 | synchro | tous | mineur (à arbitrer) | Appareil partagé : après « Se déconnecter » puis connexion avec un AUTRE compte, les morceaux du premier compte, restés dans le navigateur, partent dans le cloud du second | ouvert |
 | Y-03 | 18/11 | synchro | WebKit, Android, iPhone (rare, sous charge) | mineur (intermittent) | Après une coupure du réseau, la pastille reste « Synchronisé » pendant 20 s ou plus alors que le réseau est coupé (≈ 2 à 3 fois sur 100 coupures) | ouvert |
+| T-01 | 18/11 | tonalite | tous | mineur (à arbitrer) | Écriture des dièses incohérente : le résumé du morceau dit « F# majeur » (dièse ASCII) là où la fenêtre et la puce disent « F♯ » (les noms d'accords, eux, écrivent « C# » et « E♭ ») | ouvert |
+| T-02 | 18/11 | tonalite | tous | mineur | Une tonalité posée avec « Suggérer » n'entre pas dans l'historique : « Annuler » reste grisé (choisir une tonique ou transposer, eux, s'annulent) | ouvert |
+| T-03 | 18/11 | tonalite | tous | mineur (à arbitrer) | La basse d'un accord ne suit pas la règle d'écriture des fondamentales : en do « C/Eb » s'écrit C/D# (la fondamentale Eb s'écrit E♭) ; en mi majeur « D/F# » s'écrit D/G♭ (la fondamentale F# s'écrit F#) | ouvert |
+| T-04 | 18/11 | tonalite | tous | mineur (à arbitrer) | Chiffres romains : « Fmaj7 » et « F7 » sont tous deux notés « IV7 » (« Cmaj7 » : « I7 ») : la septième majeure ne se distingue pas de la septième de dominante | ouvert |
+| T-05 | 18/11 | tonalite | tous | mineur (à arbitrer) | Chiffres romains hors échelle : en do phrygien « Dm » est noté « biii », en do mixolydien « Bdim » « bi° » (bémol du degré supérieur au lieu d'un dièse) | ouvert, sans test |
 | M-01 | 18/11 | mobile | téléphones (Android, iPhone) | mineur | « Modifier » (menu de l'appui long) ouvre la feuille d'accord avec l'onglet « Voicing » marqué alors que le haut de la feuille montre le contenu de l'onglet Accord | ouvert |
 | M-02 | 18/11 | mobile | téléphones (Android) ; même chose à la souris (Ctrl+glisser) | mineur (à arbitrer) | Appui long puis glisser une case vers une AUTRE partie : l'accord est copié juste après l'original (dans sa propre partie) au lieu de l'être dans la partie visée ; dans la même partie la copie se place AVANT la case visée, quel que soit le côté | ouvert, sans test |
 
@@ -54,6 +59,11 @@ G-04 : pas de test rouge (le test `« C Am F G » (séparés par des espaces) n'
 Y-01 → `synchro/reseau.spec.ts` « Y-01 : après une coupure SANS rien à envoyer, la pastille repasse à « Synchronisé »… » en `test.fixme` (INTERMITTENT : un `test.fail` passerait au hasard et ferait échouer la CI) ; retirer le `fixme` (le test devient un test normal) quand le bug est corrigé.
 Y-02 : pas de test rouge ; `synchro/deconnexion.spec.ts` « Y-02 (constat, à arbitrer)… » fige le comportement observé et rougira le jour où il change.
 Y-03 : pas de test dédié (intermittent, ≈ 2 %) ; il rend « flaky » (réussis au 2ᵉ essai en CI) les tests de `synchro` qui commencent par couper le réseau, d'où leur place dans la rubrique « instabilités » du rapport.
+T-01 → `tonalite/notation.spec.ts` « T-01 : la tonalité s'écrit pareil dans la fenêtre et dans le résumé du morceau » ;
+T-02 → `tonalite/suggestion.spec.ts` « la proposition choisie se défait avec « Annuler » (comme un choix de tonique) » ;
+T-03 → `tonalite/notation.spec.ts` deux tests « T-03 : … » (do majeur : C/Eb ; mi majeur : D/F#) ;
+T-04 → `tonalite/degres.spec.ts` « T-04 : un accord de septième majeure et un accord de septième de dominante n'ont pas le même chiffre ».
+T-05 : constaté sans test (voir ci-dessous).
 
 ---
 
@@ -320,3 +330,31 @@ Y-03 : pas de test dédié (intermittent, ≈ 2 %) ; il rend « flaky » (réuss
 **Appareil** : Android (appui long réel par DevTools) ; Chromium ordinateur (Ctrl+glisser). **Avis** : comportement à arbitrer (le déplacement simple entre parties ne fait rien, voulu d'après `grille/glisser.spec.ts`) ; pas de test, faute de comportement attendu décidé.
 **Trace** : aucune (constaté à l'exploration).
 
+---
+
+## T-01 — Dièses écrits « # » ici, « ♯ » là (mineur, à arbitrer)
+**Étapes** : 1. Ouvrir un morceau (« C Am F G »). 2. Régler la tonalité sur « F♯ » (fenêtre « Tonalité de référence »). 3. Lire la puce (« F♯ »), puis le résumé du morceau (téléphone : ligne « Réglages du morceau », ordinateur : `#song-summary-key`).
+**Attendu** : la même écriture partout (« F♯ majeur »).
+**Observé** : la fenêtre et la puce écrivent « F♯ », le résumé écrit « F# majeur » ; les noms d'accords écrivent « C# » mais « E♭ » (mélange de « # » ASCII et de « ♭ »). Les boutons de la fenêtre d'accord, eux, écrivent « C♯ ».
+**Appareil** : tous. **Test** : `notation.spec.ts` (T-01, `test.fail`). **Gravité** : mineure, cosmétique ; à arbitrer (la règle du 16/11 dit « D# » pour les notes).
+
+## T-02 — « Suggérer » n'est pas annulable (mineur)
+**Étapes** : 1. Morceau « C Am F G », tonalité do majeur. 2. Ouvrir « Tonalité », « Suggérer », choisir « A mineur ». 3. Regarder « Annuler » dans la barre du haut.
+**Attendu** : « Annuler » actif ; un appui rend « C majeur » (comme après un choix de tonique, qui s'annule).
+**Observé** : « Annuler » reste grisé ; si on choisit ensuite une tonique, « Annuler » revient à « A mineur » (la suggestion devient le point de départ).
+**Appareil** : tous. **Test** : `suggestion.spec.ts` (T-02, `test.fail`). **Gravité** : mineure.
+
+## T-03 — La basse ne suit pas la règle d'écriture de la fondamentale (mineur, à arbitrer)
+**Étapes** : 1. Ajouter « C/Eb » et « Eb » (ajout rapide) en do majeur. 2. Régler la tonalité sur mi majeur, ajouter « D/F# » et « F# ».
+**Attendu** : la basse s'écrit comme une fondamentale de la même tonalité (do : C/E♭ comme E♭ ; mi : D/F# comme F#).
+**Observé** : en do majeur « C/D# » (dièse) alors que la fondamentale s'écrit « E♭ » ; en mi majeur « D/G♭ » alors que la fondamentale s'écrit « F# ». En fa, si bémol, ré et mi la basse s'écrit en bémols (sauf F# en ré), sans lien avec la table des fondamentales.
+**Appareil** : tous. **Tests** : `notation.spec.ts` (deux tests T-03, `test.fail`). **Gravité** : mineure ; à arbitrer (la règle « Eb tapé s'affiche D# en do » vaut peut-être aussi pour les basses).
+
+## T-04 — Chiffres romains : septième majeure = septième de dominante (mineur, à arbitrer)
+**Étapes** : 1. Poser « Fmaj7 », « F7 », « Cmaj7 » en do majeur. 2. Lire la ligne de chiffres romains au-dessus des cases.
+**Attendu** : des chiffres distincts (« IVmaj7 » / « IV7 », « Imaj7 »).
+**Observé** : « IV7 », « IV7 », « I7 ».
+**Appareil** : tous. **Test** : `degres.spec.ts` (T-04, `test.fail`). **Gravité** : mineure (ambigu à la lecture).
+
+## T-05 — Degrés hors de l'échelle écrits par rapprochement (constat, sans test)
+En do phrygien, « Dm » est noté « biii », en do mixolydien « Bdim » est noté « bi° » (au lieu de « #ii » / « #vii° ») : une note hors de l'échelle du mode est écrite comme le bémol du degré supérieur. Cohérent d'un mode à l'autre mais inhabituel ; à arbitrer, aucun test ne le fige (les tests de modes ne vérifient que le nom de la tonalité pour le phrygien et le mixolydien).
