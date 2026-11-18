@@ -25,6 +25,9 @@ Gravité : **bloquant** (empêche un parcours principal), **gênant** (contourna
 | F-02 | 17/11 | fichiers | tous | mineur (à arbitrer) | Supprimer le morceau ouvert (« Mes morceaux ») remet le titre à « Nouveau morceau » mais laisse ses accords affichés dans la grille | ouvert |
 | F-03 | 17/11 | fichiers | Chromium, Edge, Firefox (ordinateur, sans dossier de rangement) | gênant | « Export intégral » sans dossier de rangement : la « Sauvegarde du morceau » (.json) échoue (« 3 fichier(s) exporté(s) · échec : Sauvegarde du morceau ») alors qu'elle est cochée par défaut | ouvert |
 | F-04 | 17/11 | fichiers | Chromium headless de la VM (Edge : non) | environnement (à confirmer) | Avec un dossier de rangement, exporter (MIDI, PDF, intégral) pour un morceau ENREGISTRÉ fait mourir le navigateur de test (« Target page, context or browser has been closed ») ; sans enregistrement ou sous Edge, tout passe | ouvert |
+| Y-01 | 17/11 | synchro | tous (vu sur Chromium, WebKit, Firefox) | gênant (affichage trompeur, intermittent) | Après une coupure du réseau SANS rien à envoyer, la pastille reste « Hors ligne » quand le réseau revient (≈ 9 fois sur 10), jusqu'au prochain enregistrement ou à une modification venue d'un autre appareil | ouvert |
+| Y-02 | 17/11 | synchro | tous | mineur (à arbitrer) | Appareil partagé : après « Se déconnecter » puis connexion avec un AUTRE compte, les morceaux du premier compte, restés dans le navigateur, partent dans le cloud du second | ouvert |
+| Y-03 | 18/11 | synchro | WebKit, Android, iPhone (rare, sous charge) | mineur (intermittent) | Après une coupure du réseau, la pastille reste « Synchronisé » pendant 20 s ou plus alors que le réseau est coupé (≈ 2 à 3 fois sur 100 coupures) | ouvert |
 
 Tests qui échouent à cause de ces bugs : marqués `test.fail()` (échec attendu, vérification intacte) pour que la CI reste verte ; ils deviendront ROUGES le jour où le bug est corrigé : retirer alors le `test.fail` :
 G-01 → `grille/selection.spec.ts` « un clic sur une case d'une autre partie la sélectionne du premier coup » et `grille/copier-coller.spec.ts` « on peut coller dans une autre partie… » (Firefox seulement) ;
@@ -46,6 +49,9 @@ F-02 → `fichiers/liste-morceaux.spec.ts` « F-02 : supprimer le morceau ouvert
 F-03 → `fichiers/pdf-export.spec.ts` « l'export intégral livre aussi la sauvegarde JSON du morceau (4 fichiers)… » ;
 F-04 : `fichiers/rangement-disque.spec.ts`, `test.fixme` sur le projet `chromium` seulement (lancer avec `E2E_DISQUE_CHROMIUM=1` pour réessayer) ; Edge exécute les mêmes tests.
 G-04 : pas de test rouge (le test `« C Am F G » (séparés par des espaces) n'ajoute rien` fige le comportement observé).
+Y-01 → `synchro/reseau.spec.ts` « Y-01 : après une coupure SANS rien à envoyer, la pastille repasse à « Synchronisé »… » en `test.fixme` (INTERMITTENT : un `test.fail` passerait au hasard et ferait échouer la CI) ; retirer le `fixme` (le test devient un test normal) quand le bug est corrigé.
+Y-02 : pas de test rouge ; `synchro/deconnexion.spec.ts` « Y-02 (constat, à arbitrer)… » fige le comportement observé et rougira le jour où il change.
+Y-03 : pas de test dédié (intermittent, ≈ 2 %) ; il rend « flaky » (réussis au 2ᵉ essai en CI) les tests de `synchro` qui commencent par couper le réseau, d'où leur place dans la rubrique « instabilités » du rapport.
 
 ---
 
@@ -258,3 +264,36 @@ G-04 : pas de test rouge (le test `« C Am F G » (séparés par des espaces) n'
 **Appareil** : Chromium 1243 headless (et `channel: 'chromium'`) dans la VM ; Edge non.
 **Avis** : environnement (même symptôme que les 5 bancs historiques qui plantent « au choix d'un dossier »). Pas de preuve que l'appli soit en cause ; à retenter avec un autre Chromium ou en CI. Les tests concernés sont en `test.fixme` sur `chromium` seulement, et passent sur Edge.
 **Trace** : `test-results/…-chromium/` en lançant `E2E_DISQUE_CHROMIUM=1 npx playwright test tests/e2e/fichiers/rangement-disque.spec.ts --project=chromium`.
+
+## Y-01 — La pastille reste « Hors ligne » après le retour du réseau (gênant, intermittent)
+**Étapes**
+1. Se connecter (compte fictif de l'émulateur), attendre la pastille verte « Synchronisé avec le cloud ».
+2. Couper le réseau du navigateur : la pastille passe à « Hors ligne — les modifications partiront au retour du réseau ».
+3. Ne rien modifier. Attendre 3 s, rétablir le réseau (`navigator.onLine` redevient vrai).
+4. Attendre : la pastille reste grise « Hors ligne » (100 s sans changement mesurées).
+5. Contrôle : une modification enregistrée sur un autre appareil arrive bien sur celui-ci, et la pastille repasse alors à « Synchronisé » ; la connexion fonctionnait donc, c'est l'indicateur qui ment.
+
+**Attendu** : « Synchronisé » dès que le réseau revient. **Observé** : « Hors ligne » jusqu'au prochain évènement (enregistrer, ou un changement distant). Avec un enregistrement fait pendant la coupure, la reprise est correcte (pastille « En attente » puis « Synchronisé »).
+**Appareil** : Chromium, WebKit, Firefox (ordinateur) ; non essayé en plein sur téléphone. **Fréquence** : ≈ 9 fois sur 10 ; il arrive que la pastille revienne en 1 s quand la coupure est très courte.
+**Avis** : bug de l'appli (état de la pastille mis à jour seulement quand un instantané arrive), pas du test. Hypothèse : l'écouteur Firestore n'émet aucun évènement à la reconnexion si rien n'a changé.
+**Trace** : `npx playwright test tests/e2e/synchro/reseau.spec.ts -g Y-01 --project=chromium` après avoir enlevé le `test.fixme`.
+
+## Y-02 — Appareil partagé : les morceaux d'un compte partent chez le suivant (mineur, à arbitrer)
+**Étapes**
+1. Compte 1 connecté sur un navigateur avec deux morceaux (Alpha, Bravo) ; ils partent dans son cloud.
+2. Menu du compte → « Se déconnecter » (« Ce qui est déjà envoyé reste dans le cloud »).
+3. Se connecter avec le compte 2 dans le même navigateur.
+4. Le cloud du compte 2 contient Alpha et Bravo.
+
+**Attendu** (à arbitrer) : soit les morceaux locaux sont retirés à la déconnexion, soit on demande si on les envoie au nouveau compte. **Observé** : tout part sans question. Voulu pour les morceaux faits SANS compte (fusion à la connexion), discutable pour ceux d'un autre compte (appareil prêté).
+**Appareil** : tous. **Avis** : comportement de conception à arbitrer plutôt que défaut ; le cloud du premier compte n'est jamais modifié (vérifié).
+
+## Y-03 — La pastille ne passe pas toujours à « Hors ligne » à la coupure (mineur, intermittent)
+**Étapes**
+1. Connecté, pastille « Synchronisé ».
+2. Couper le réseau du navigateur (`context.setOffline(true)`).
+3. Attendre 20 s : parfois la pastille reste « Synchronisé » (WebKit, Android, iPhone ; vu 3 fois sur ≈ 100 coupures, plus souvent quand la machine est chargée).
+
+**Attendu** : « Hors ligne » peu après la coupure. **Observé** : aucun changement, jusqu'à la prochaine activité réseau. Un enregistrement fait pendant cet état passe en « En attente » puis part au retour du réseau (rien n'est perdu) : seul l'indicateur est en retard.
+**Avis** : même famille que Y-01 (l'indicateur suit les évènements du SDK Firestore, pas l'état du réseau). Dans la CI, ces tests réussissent au 2ᵉ essai (2 essais de repli).
+**Trace** : CI du 18/11 : `test-results/synchro-envoi-relecture-En-5e12a--le-ressuscite-pas-critique-mobile-android/` (au 1ᵉʳ essai).

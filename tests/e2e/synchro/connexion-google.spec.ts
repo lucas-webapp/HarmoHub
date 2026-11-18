@@ -50,3 +50,64 @@ test.describe('Connexion Google (émulateur) et synchro @critique @synchro', () 
     await expect(page.locator('#account-info')).toBeVisible({ timeout: 20_000 });
   });
 });
+
+// AJOUTS (17/11, phase 5) : la fenêtre d'accueil du compte et le comportement de la connexion. Les trois tests ci-dessus ne sont pas modifiés.
+test.describe('Fenêtre d\'accueil du compte @synchro', () => {
+  test('à la première visite, elle propose de se connecter ou de continuer sans compte @critique', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ accueil: 'garder' });
+    const accueil = page.locator('#cloud-guard-modal');
+    await expect(accueil).toBeVisible();
+    await expect(accueil).toContainText('Retrouve ton travail partout');
+    await expect(accueil.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
+    await expect(accueil.getByRole('button', { name: 'Continuer sans compte' })).toBeVisible();
+    await expect(accueil.getByRole('checkbox', { name: 'Ne plus me le proposer sur cet appareil' })).not.toBeChecked();
+  });
+
+  test('« Continuer sans compte » ferme la fenêtre : l\'appli reste en mode local, avec le bouton « Se connecter » dans la barre @critique', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ accords: [{ root: 'C', quality: 'maj' }], accueil: 'garder' });
+    await page.locator('#cloud-guard-continue').click();
+    await expect(page.locator('#cloud-guard-modal')).toBeHidden();
+    await expect(page.locator('#google-signin-btn')).toBeVisible();
+    await expect(page.locator('#account-info')).toBeHidden();
+    await expect(page.locator('#progression-sections .grid-cell[data-index]')).toHaveCount(1);   // le travail local est intact
+  });
+
+  test('la fenêtre revient à chaque nouvelle session, sauf si « Ne plus me le proposer » a été coché', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ accueil: 'garder' });
+    const accueil = page.locator('#cloud-guard-modal');
+    await page.locator('#cloud-guard-continue').click();
+    await expect(accueil).toBeHidden();
+    // Un rechargement de la même session ne la redemande pas.
+    await page.reload();
+    await page.waitForFunction(() => !!(window as any).app);
+    await expect(page.locator('#google-signin-btn')).toBeVisible({ timeout: 15_000 });
+    await expect(accueil).toBeHidden();
+
+    // Un nouvel onglet = une nouvelle session (même stockage local, autre stockage de session) : elle revient.
+    const onglet2 = await page.context().newPage();
+    await onglet2.goto('/index.html');
+    await expect(onglet2.locator('#cloud-guard-modal')).toBeVisible({ timeout: 15_000 });
+    await onglet2.locator('#cloud-guard-modal').getByRole('checkbox', { name: 'Ne plus me le proposer sur cet appareil' }).check();
+    await onglet2.locator('#cloud-guard-continue').click();
+    await expect(onglet2.locator('#cloud-guard-modal')).toBeHidden();
+
+    // Un 3ᵉ onglet : la case cochée la fait taire pour de bon.
+    const onglet3 = await page.context().newPage();
+    await onglet3.goto('/index.html');
+    await onglet3.waitForFunction(() => !!(window as any).app);
+    await expect(onglet3.locator('#google-signin-btn')).toBeVisible({ timeout: 15_000 });
+    await expect(onglet3.locator('#cloud-guard-modal')).toBeHidden();
+  });
+
+  test('se connecter pendant que la fenêtre est ouverte la referme et affiche le compte', async ({ ouvrirAppli }, testInfo) => {
+    const page = await ouvrirAppli({ accueil: 'garder' });
+    await expect(page.locator('#cloud-guard-modal')).toBeVisible();
+    const email = `e2e-accueil-${testInfo.project.name}-${testInfo.workerIndex}-${Date.now()}@exemple.test`;
+    await page.evaluate(async (email) => {
+      const fb = (window as any).firebase;
+      await fb.auth().signInWithCredential(fb.auth.GoogleAuthProvider.credential(JSON.stringify({ sub: 'g-' + email, email, email_verified: true, name: 'Accueil E2E' })));
+    }, email);
+    await expect(page.locator('#account-info')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('#cloud-guard-modal')).toBeHidden();
+  });
+});
