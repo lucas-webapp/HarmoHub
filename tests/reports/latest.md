@@ -1,52 +1,46 @@
-# Rapport — module `tonalite` (18/11/2026)
+# Rapport — module `voicing` (18/11/2026)
 
 ## Résumé
-- Testé : choix de la tonalité et du mode, suggestion, transposition, notation (dièses / bémols selon la tonalité, « Eb » tapé enregistré « D# »), degrés romains, téléphone. 47 tests, 7 fichiers.
-- Résultat : `CI=1 npm run test:e2e:envoi` vert (922 réussis, 59 ignorés, 0 échoué, 1 flaky hors module) ; module complet sans réessai : chromium 44 / 44, et 264 / 264 sur firefox, webkit, edge, android, iphone, tablette. Y compris 5 échecs attendus (bugs T-01 à T-04).
-- Suite conseillée : arbitrer T-02 (« Suggérer » non annulable) et T-03 / T-04 (écriture des basses et chiffres), puis module `voicing`.
+- Testé : la fenêtre « Conduite des voix » (bouton « Voicing », ouverture / fermeture, partie active, état vide), ce qu'elle dessine (barres par son, rôles et couleurs, traits tenus / mouvements, en-têtes, touches, défilement, redessin quand l'accord change), les échelles H et V, et le téléphone (pas de bouton). 57 tests, 4 fichiers.
+- Résultat : `CI=1 npm run test:e2e:envoi` vert (chromium 492 réussis / 11 ignorés ; 6 autres projets, `@smoke` et `@critique` : 968 réussis / 60 ignorés ; 0 échoué, 0 flaky). Module complet sur les 7 projets (chromium, firefox, webkit, edge, android, iphone, tablette) : 274 réussis, 2 ignorés (molette sur l'iPad), 0 échoué, échecs attendus inclus (V-01 et V-02 sur les 5 ordinateurs, G-01 sur Firefox).
+- Suite conseillée : arbitrer V-01 (focus au clavier) et V-02 (chiffre romain sans extension, famille T-04), puis module `diagrammes`.
 
-## Problèmes (4 bugs avec test, 1 constat sans test) — détail dans `tests/reports/bugs.md`
-**T-01 — dièses écrits « # » ici, « ♯ » là** (mineur, à arbitrer)
-- Étapes : 1. Morceau « C Am F G ». 2. Tonalité « F♯ ». 3. Lire la puce, puis `#song-summary-key` (au téléphone : la ligne de résumé).
-- Attendu : « F♯ majeur » partout. Observé : puce « F♯ », résumé « F# majeur ».
-- Appareil : tous. Trace : `test-results/tonalite-notation-…T-01…` (test `test.fail`, vidéo / trace gardées à l'échec attendu).
-- Avis : bug de l'appli (cosmétique) ; la règle du 16/11 (« D# ») plaide peut-être pour « # » partout.
+## Problèmes (2 bugs avec test) — détail dans `tests/reports/bugs.md`
+**V-01 — le focus n'entre pas dans la fenêtre ouverte au clavier** (mineur, accessibilité, à arbitrer)
+- Étapes : 1. Morceau de quatre parties, ordinateur. 2. Focus sur le bouton « Voicing », Entrée : la fenêtre s'ouvre. 3. Tab.
+- Attendu : le focus passe dans la fenêtre (c'est un `dialog`), ou au moins l'atteint vite. Observé : Tab traverse la grille cachée derrière (14 appuis) avant d'arriver aux boutons H et V. Échap ferme bien la fenêtre.
+- Appareil : Chromium (mesuré) ; même structure partout. Trace : `ouverture.spec.ts` « au clavier : après Entrée sur le bouton, la touche Tab mène dans la fenêtre… » (`test.fail`, vidéo et trace gardées).
+- Avis : bug de l'appli (la fenêtre est le dernier élément du document et ne prend pas le focus) ; à arbitrer, gravité faible.
 
-**T-02 — « Suggérer » n'est pas annulable** (mineur)
-- Étapes : 1. « C Am F G ». 2. Tonalité, « Suggérer », « A mineur ». 3. Regarder « Annuler ».
-- Attendu : actif, un appui rend « C majeur ». Observé : grisé (un choix de tonique, lui, s'annule).
-- Appareil : tous. Trace : `suggestion.spec.ts` « la proposition choisie se défait… » (`test.fail`).
-- Avis : bug de l'appli (oubli d'un `pushUndo`).
+**V-02 — le chiffre romain perd l'extension de l'accord** (mineur, à arbitrer)
+- Étapes : 1. Poser Cmaj9, Cdim7, Cdim, G9 en do majeur. 2. Ouvrir « Voicing » (ou lire la ligne de degrés de la grille).
+- Attendu : « I9 » (comme G9 « V9 »), « i°7 » distinct de « i° ». Observé : Cmaj9 « I », Cdim7 « i° » comme Cdim. La fenêtre écrit la même chose que la grille (vérifié).
+- Appareil : tous. Trace : `conduite-des-voix.spec.ts` « le chiffre romain garde l'extension de l'accord… » (`test.fail`).
+- Avis : bug de l'appli, de la même famille que T-04 (Fmaj7 et F7 sont tous deux « IV7 »).
 
-**T-03 — la basse ne suit pas la règle des fondamentales** (mineur, à arbitrer)
-- Étapes : 1. Ajout rapide « C/Eb//Eb » en do. 2. Mi majeur, « D/F#//F# ».
-- Attendu : C/E♭ comme E♭ ; D/F# comme F#. Observé : « C/D# » en do ; « D/G♭ » en mi.
-- Appareil : tous. Trace : `notation.spec.ts` (deux tests T-03, `test.fail`).
-- Avis : bug de l'appli ou règle volontaire (« Eb → D# en do » pour les notes) ; à arbitrer.
-
-**T-04 — chiffres romains : Fmaj7 = F7** (mineur, à arbitrer)
-- Étapes : 1. « Fmaj7 », « F7 », « Cmaj7 » en do. 2. Lire les chiffres. Attendu : distincts. Observé : « IV7 », « IV7 », « I7 ».
-- Appareil : tous. Trace : `degres.spec.ts` (T-04, `test.fail`). Avis : bug de l'appli (ambigu à la lecture).
-
-**T-05 — degrés hors échelle** (constat, sans test) : en do phrygien « Dm » = « biii », en do mixolydien « Bdim » = « bi° ». Cohérent mais inhabituel.
+**G-01 (déjà connu) sur Firefox** : le premier clic sur une case d'une autre partie ne la sélectionne pas. Le test « la fenêtre ouverte se ferme quand on clique sur une case de la grille ; la case est alors sélectionnée » est en `test.fail` sur Firefox ; les autres tests qui changent de partie recliquent une fois sous Firefox (aide `activerPartie`), comme le ferait l'utilisateur.
 
 ## Instabilités
-- Aucune dans le module : 308 exécutions sans réessai (chromium + 6 projets), 0 flaky.
-- Hors module (dans la même passe `envoi`) : `synchro/versions.spec.ts` « un 2ᵉ appareil voit les versions… » a réussi au 2ᵉ essai sur Firefox (déjà connu : famille Y-03).
+- Une, corrigée côté test : sous WebKit (≈ 1 fois sur 3 sous charge) la colonne des touches se pose à 152 px au lieu de 151 puis revient à 151 après le premier défilement (arrondi de la mise en page, 1 px invisible, pas un bug de l'appli). Le test « molette horizontale… » tolère donc 1 px sur la position des touches (le défilement, lui, est de 400 px) ; 25 / 25 ensuite sous WebKit avec 3 travailleurs.
+- Ensuite : 0 flaky dans `CI=1 npm run test:e2e:envoi`, module complet sans réessai. Limite connue de l'outil : `mouse.wheel` n'existe pas sur WebKit mobile (iPad) ; les deux tests à la molette y sont ignorés (`test.skip`), le défilement du test « V + garde l'endroit » y est posé directement.
 
-## Tests ajoutés (`tests/e2e/tonalite/`, étiquette `@tonalite`)
-- `choix.spec.ts` : 9 tests (4 `@critique`) — fenêtre (12 toniques, 7 modes), tonique, mode, sept modes, annuler / rétablir, enregistrement et rechargement, nouveau morceau en do, fermeture.
-- `suggestion.spec.ts` : 8 (2 `@critique`, 1 `@ordinateur`, 1 `test.fail` T-02) — liste classée, choix d'une proposition, mineur, ii-V-I, morceau vide, suivi du morceau, Échap.
-- `transposition.spec.ts` : 9 (3 `@critique`) — haut, bas, retour, 12 pas, mode / types / basses, plusieurs parties, historique, enregistrement, durées.
-- `notation.spec.ts` : 12 (3 `@critique`, 3 `test.fail` T-01 / T-03) — fondamentales en do, saisie « Eb » / « D# », tableaux par tonalité (dièses, bémols, mineures), basses, fenêtre.
-- `notation-notes.spec.ts` : 1 `@ordinateur` — étiquettes du séquenceur selon la tonalité.
-- `degres.spec.ts` : 4 (1 `@critique`, 1 `test.fail` T-04) — qualité dans le chiffre, accord étranger, dominante secondaire.
-- `telephone.spec.ts` : 4 (1 `@critique`) — 3 `@mobile` (résumé, panneau, repli) et 1 `@ordinateur` (barre des réglages).
-- Aide : `aide-tonalite.ts`. Total : 47 tests, 44 sur ordinateur, 44 sur téléphone (14 `@critique`).
+## Observations sans test rouge (pour mémoire)
+- La fenêtre couvre le haut de la grille : toute case de la grille cliquée la ferme (un clic « à côté »). Pour changer de partie active il faut donc fermer, cliquer une case de la partie, rouvrir. Cohérent, mais la fenêtre ne suit pas la sélection en direct.
+- Changer l'échelle V remet à zéro le défilement vertical de la fenêtre ; l'échelle H et le défilement horizontal sont gardés (testé).
+- Les boutons H et V ne se grisent pas aux butées (0,7 et 2) ; un clic de plus ne change rien (testé).
+- Lancer la lecture ferme la fenêtre (clic à côté).
+
+## Tests ajoutés (`tests/e2e/voicing/`, étiquette `@voicing`)
+- `ouverture.spec.ts` : 20 tests (4 `@critique`, 1 `test.fail` V-01, 1 `test.fail` G-01 sur Firefox) — bouton (place, état), ouverture, trois façons de fermer (Échap, clic à côté, bouton), clic dedans, clic sur une case, clavier, séquenceur ouvert, lecture, partie active (Couplet, Refrain, Long), partie d'un seul accord, morceau sans accord, annuler après Suppr, rechargement, sous 900 px, 1000 px, triades.
+- `conduite-des-voix.spec.ts` : 22 tests (4 `@critique`, 1 `test.fail` V-02) — une barre par son et leurs noms, en-têtes et chiffres, rôles et légende, autres sons (neuvième, quarte suspendue), tenues et mouvements, style des traits, tracé des traits, touches, molette, renversement / drop / octave / basse / type / fondamentale / transposition qui redessinent, largeur selon la durée, chiffres comme la grille, morceau inchangé.
+- `echelles.spec.ts` : 12 tests (3 `@critique`) — présence, H +, V + (touches alignées), retour, butées 0,7 et 2 (H et V), mémoire après rechargement, même échelle d'une partie à l'autre, défilement gardé, fenêtre basse (reste dans l'écran, défile), morceau inchangé.
+- `telephone.spec.ts` : 3 tests `@mobile` (1 `@critique`) — pas de bouton ni de fenêtre, onglet « Voicing » de la feuille d'accord intact, écran élargi à 1000 px.
+- Aide : `aide-voicing.ts`. Total : 57 tests, 54 ordinateur / iPad, 3 téléphone, 12 `@critique`. L'onglet « Voicing » de la fenêtre d'accord (octave, renversement, drop, basse) reste dans `accord/onglet-voicing.spec.ts` : non dupliqué.
 
 ## Sélecteurs et testabilité
-- Sélecteurs CSS faute de mieux : `.row-roman` (chiffres romains : proposer `data-testid="degre"`), `.cell-sym` (déjà utilisé), `.key-suggest-label` / `.key-suggest-pct` (liste de suggestion), `#song-summary-key` (texte de la tonalité, masqué à l'ordinateur), `.sq-etiq`.
+- Faute de mieux, sélecteurs CSS / attributs : `.vl-note` (une barre de note), `data-role` (root / third / fifth / seventh / ext), `line.vl-tenue`, `line.vl-mouvement`, `.voice-leading-scroll`, `.voice-leading-keys`, `.voice-leading-legend .lg`, les attributs SVG `x`, `y`, `width`, `stroke-width`. À proposer : `data-testid="vl-note"` (avec `data-note="E3"` et `data-accord`), `data-testid="vl-trait"` avec `data-type="tenue|mouvement"`, `data-testid="vl-defilement"`, `data-testid="vl-touches"`.
+- Groupes d'échelle : simples `div` portant un `title` (« Échelle horizontale ») sans rôle `group` ; les boutons, eux, ont un `aria-label`.
 - Aucun `waitForTimeout`. Aucune modification de l'appli.
 
 ## Non couvert
-Diagrammes clavier / guitare selon la tonalité, étiquettes de la fenêtre d'accord (déjà dans `accord`), tonalité dans les versions du cloud (`synchro`), export (MIDI / PDF) d'un morceau transposé, notes ajoutées du séquenceur (module `sequenceur`).
+Pincement et loupe au doigt, tracé lu pendant la lecture, son, les couleurs rendues à l'écran (seuls les dégradés et les attributs sont vérifiés, pas les pixels), onglet « Voicing » de la fenêtre d'accord (module `accord`).

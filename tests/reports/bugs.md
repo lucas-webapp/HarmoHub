@@ -35,6 +35,8 @@ Gravité : **bloquant** (empêche un parcours principal), **gênant** (contourna
 | T-05 | 18/11 | tonalite | tous | mineur (à arbitrer) | Chiffres romains hors échelle : en do phrygien « Dm » est noté « biii », en do mixolydien « Bdim » « bi° » (bémol du degré supérieur au lieu d'un dièse) | ouvert, sans test |
 | M-01 | 18/11 | mobile | téléphones (Android, iPhone) | mineur | « Modifier » (menu de l'appui long) ouvre la feuille d'accord avec l'onglet « Voicing » marqué alors que le haut de la feuille montre le contenu de l'onglet Accord | ouvert |
 | M-02 | 18/11 | mobile | téléphones (Android) ; même chose à la souris (Ctrl+glisser) | mineur (à arbitrer) | Appui long puis glisser une case vers une AUTRE partie : l'accord est copié juste après l'original (dans sa propre partie) au lieu de l'être dans la partie visée ; dans la même partie la copie se place AVANT la case visée, quel que soit le côté | ouvert, sans test |
+| V-01 | 18/11 | voicing | tous les ordinateurs et l'iPad | mineur (accessibilité, à arbitrer) | Au clavier, « Entrée » sur le bouton « Voicing » ouvre la fenêtre « Conduite des voix » mais le focus n'y entre pas : « Tab » traverse toute la grille (14 appuis) avant d'atteindre les boutons H et V | ouvert |
+| V-02 | 18/11 | voicing | tous | mineur (à arbitrer) | Le chiffre romain d'un accord à neuvième ou à septième diminuée perd l'extension : Cmaj9 est noté « I » (alors que G9 est noté « V9 »), Cdim7 « i° » comme Cdim (même cause que T-04 ; la grille écrit la même chose) | ouvert |
 
 Tests qui échouent à cause de ces bugs : marqués `test.fail()` (échec attendu, vérification intacte) pour que la CI reste verte ; ils deviendront ROUGES le jour où le bug est corrigé : retirer alors le `test.fail` :
 G-01 → `grille/selection.spec.ts` « un clic sur une case d'une autre partie la sélectionne du premier coup » et `grille/copier-coller.spec.ts` « on peut coller dans une autre partie… » (Firefox seulement) ;
@@ -64,6 +66,8 @@ T-02 → `tonalite/suggestion.spec.ts` « la proposition choisie se défait avec
 T-03 → `tonalite/notation.spec.ts` deux tests « T-03 : … » (do majeur : C/Eb ; mi majeur : D/F#) ;
 T-04 → `tonalite/degres.spec.ts` « T-04 : un accord de septième majeure et un accord de septième de dominante n'ont pas le même chiffre ».
 T-05 : constaté sans test (voir ci-dessous).
+V-01 → `voicing/ouverture.spec.ts` « au clavier : après Entrée sur le bouton, la touche Tab mène dans la fenêtre… » ;
+V-02 → `voicing/conduite-des-voix.spec.ts` « le chiffre romain garde l'extension de l'accord : Cmaj9 « I9 »… ».
 
 ---
 
@@ -358,3 +362,15 @@ T-05 : constaté sans test (voir ci-dessous).
 
 ## T-05 — Degrés hors de l'échelle écrits par rapprochement (constat, sans test)
 En do phrygien, « Dm » est noté « biii », en do mixolydien « Bdim » est noté « bi° » (au lieu de « #ii » / « #vii° ») : une note hors de l'échelle du mode est écrite comme le bémol du degré supérieur. Cohérent d'un mode à l'autre mais inhabituel ; à arbitrer, aucun test ne le fige (les tests de modes ne vérifient que le nom de la tonalité pour le phrygien et le mixolydien).
+
+## V-01 — Conduite des voix : le focus n'entre pas dans la fenêtre ouverte au clavier (mineur, accessibilité, à arbitrer)
+**Étapes** : 1. Ouvrir un morceau de quatre parties, ordinateur. 2. Mettre le focus sur le bouton « Voicing » (Tab depuis « Séquenceur » ou `focus()`). 3. Appuyer sur Entrée : la fenêtre s'ouvre. 4. Appuyer sur Tab.
+**Attendu** : le focus passe dans la fenêtre (premier bouton, H +) : c'est un `dialog` ; au minimum, Tab depuis le bouton atteint ses boutons en quelques appuis.
+**Observé** : Tab va au champ « Section » puis au bouton « Actions de la partie Couplet » de la grille cachée derrière la fenêtre ; les boutons H et V ne sont atteints qu'au 14ᵉ appui (la fenêtre est le dernier élément du document). Échap ferme bien la fenêtre, focus dedans ou non.
+**Appareil** : Chromium (mesuré) ; même structure sur tous les ordinateurs et l'iPad. **Test** : `ouverture.spec.ts` (V-01, `test.fail`). **Gravité** : mineure (accessibilité) ; à arbitrer.
+
+## V-02 — Conduite des voix : le chiffre romain perd l'extension de l'accord (mineur, à arbitrer)
+**Étapes** : 1. Poser « Cmaj9 », « Cdim7 », « Cdim », « G9 » en do majeur (fenêtre d'accord, onglet Accord). 2. Ouvrir « Voicing » et lire le chiffre sous chaque nom (ou la ligne de degrés de la grille).
+**Attendu** : un chiffre qui garde l'extension : Cmaj9 « I9 » (comme G9 « V9 »), Cdim7 « i°7 » distinct de Cdim « i° ».
+**Observé** : Cmaj9 « I », Cdim7 « i° » (identique à Cdim). La fenêtre et la grille écrivent la même chose (vérifié par `conduite-des-voix.spec.ts`, test « les chiffres romains de la fenêtre sont ceux de la grille »).
+**Appareil** : tous. **Test** : `conduite-des-voix.spec.ts` (V-02, `test.fail`). **Gravité** : mineure ; apparentée à T-04 (septième majeure notée comme une septième de dominante).
