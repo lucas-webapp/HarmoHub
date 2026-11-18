@@ -430,3 +430,59 @@ Dessiner x02210 (A C E) propose « Am, C6, Am7, Am6 » ; x32010 propose « C, C6
 - La lecture audio ne suit pas la structure (la barre de lecture compte 9 mesures quand la structure en annonce 16) : documenté comme « document de travail et d'impression » ; aucun test ne le fige.
 - Retirer toutes les occurrences laisse une structure vide sans message (« 0 mesures », liste « + Partie… » seule). Cohérent, mais le message « Aucun accord pour l'instant » n'apparaît que pour une grille vide.
 
+
+## P-01 — Paroles : le bouton « Nommer le morceau » garde la taille d'un bouton-icône de 32 px (mineur)
+**Étapes** : 1. Ordinateur, morceau sans nom (ouverture à vide). 2. Ouvrir l'onglet « Paroles ». 3. Regarder le bouton « Nommer le morceau » sous la phrase « Donne un nom à ton morceau… ».
+**Attendu** : un bouton assez large pour son libellé (comme « Enregistrer » ou « Fichiers » de la barre du haut).
+**Observé** : le bouton mesure 32 × 32 px (classe `tb-save`, celle du bouton-icône « Enregistrer ») ; le libellé de 123 px déborde de chaque côté : on ne voit qu'un carré vert derrière le milieu du texte (« Nomm|er le mo|rceau »). Le clic fonctionne (le champ du nom s'ouvre).
+**Appareil** : Chromium (mesuré) ; même code partout. **Test** : `ecrire.spec.ts` « le bouton « Nommer le morceau » est assez large pour son libellé » (`test.fail`). **Gravité** : mineure (cosmétique).
+
+## P-02 — Paroles : « reclique ici pour désarmer » ne désarme pas (mineur)
+**Étapes** : 1. Ouvrir « Paroles » sur un morceau d'accords « C, Am, F, G ». 2. Cliquer « Am » dans la réserve : il est armé (bouton « Arrêter » apparu, infobulle « Armé — clique dans le texte pour poser un exemplaire…, ou reclique ici pour désarmer »). 3. Cliquer de nouveau « Am ».
+**Attendu** : l'accord est désarmé (comme le promet l'infobulle).
+**Observé** : « Am » reste armé, « Arrêter » reste affiché. Seuls Échap et « Arrêter » désarment. Même chose sur un accord déjà posé.
+**Appareil** : Chromium (mesuré) ; même code partout. **Test** : `accords.spec.ts` « recliquer l'accord armé le désarme, comme le dit son infobulle » (`test.fail`). **Gravité** : mineure (infobulle fausse, ou geste manquant : à arbitrer).
+
+## P-03 — Paroles : « Rétablir » reste actif après une nouvelle saisie et écrase le texte neuf (gênant)
+**Étapes** : 1. Ouvrir « Paroles », écrire « Premier jet » dans une partie. 2. « Annuler » (haut de l'écran) : la zone est vide, « Rétablir » devient actif. 3. Écrire « Autre idée ». 4. Regarder « Rétablir », puis le cliquer.
+**Attendu** : « Rétablir » redevient inactif dès qu'on écrit autre chose (comme dans tout éditeur : un nouveau geste vide la pile de rétablissement).
+**Observé** : « Rétablir » reste actif ; le cliquer remplace « Autre idée » par « Premier jet » (récupérable avec « Annuler », mais on a perdu de vue le texte neuf).
+**Appareil** : Chromium (mesuré) ; même code partout. **Test** : `glisser-annuler.spec.ts` « un nouveau geste après « Annuler » vide la pile « Rétablir » » (`test.fail`). **Gravité** : gênante.
+
+## P-04 — Paroles : une pastille glissée en mode « Syllabe » devient un accord libre (mineur, à arbitrer)
+**Étapes** : 1. Ouvrir « Paroles », écrire une phrase, poser « C » en mode « Syllabe » (l'infobulle dit « les accords s'accrochent au caractère le plus proche… reste aligné même si le texte se redispose »). 2. Attraper la pastille « C » et la glisser vers la droite. 3. Lire l'enregistrement du morceau (clé `harmohub_lyrics_v1_id-…`).
+**Attendu** : le placement reste de type `char` (nouveau numéro de caractère).
+**Observé** : le placement devient `{ type: 'free', lineIndex, xPct }` : la pastille n'est plus accrochée à un caractère et ne suit plus le texte si on en ajoute avant elle.
+**Appareil** : Chromium (mesuré) ; même code partout. **Test** : `glisser-annuler.spec.ts` « en mode Syllabe, une pastille glissée reste accrochée à un caractère » (`test.fail`). **Gravité** : mineure, à arbitrer (le glissé est peut-être voulu comme « position libre »).
+
+## P-05 — Paroles : les textes sont rangés par POSITION de partie, ils ne suivent pas leur partie (grave : paroles au mauvais endroit)
+**Étapes** : 1. Morceau « Couplet » (C, Am, F, G) et « Refrain » (F, G). 2. Dans « Paroles », écrire « Texte du couplet » dans le couplet et « Texte du refrain » dans le refrain. 3. Revenir à « Grille », menu « … » du Refrain › « Monter ». 4. Rouvrir « Paroles ».
+**Attendu** : la carte « Refrain » (maintenant première) porte « Texte du refrain », la carte « Couplet » porte « Texte du couplet ».
+**Observé** : la carte « Refrain » porte « Texte du couplet » et la carte « Couplet » « Texte du refrain ». Même chose, depuis le menu de la partie : « Supprimer la partie » sur le Couplet laisse le Refrain avec « Texte du couplet » (le texte du refrain reste en réserve, invisible) ; « Dupliquer » sur le Couplet donne « Couplet / Couplet (copie) / Refrain » avec les textes « Texte du couplet / Texte du refrain / (vide) ». Les accords posés suivent le même sort (la pastille posée sur le refrain apparaît sur le couplet).
+**Appareil** : Chromium (mesuré) ; même code partout. **Tests** : `lien-grille.spec.ts`, trois tests « Les paroles suivent leur partie » (`test.fail`). **Gravité** : grave (le texte écrit se retrouve sous une autre partie dès qu'on réordonne, supprime ou duplique une partie ).
+
+## P-06 — Paroles : les accords posés sont rattachés au RANG de l'accord dans la partie, pas à l'accord (grave : accords faux)
+**Étapes** : 1. Morceau « C, Am, F, G ». 2. Dans « Paroles », poser « Am » et « F » au-dessus d'une phrase. 3. Revenir à « Grille », insérer « Dm » AVANT le premier accord (« + » devant « C »). 4. Rouvrir « Paroles ».
+**Attendu** : les pastilles disent toujours « Am » et « F » (la réserve dit « Dm, C, Am, F, G »).
+**Observé** : les pastilles disent « C » et « Am » (le même rang 1 et 2 que le nouveau morceau). Même chose en supprimant un accord qui précède : supprimer « C » change « Am » en « F » et « F » en « G » (aucun message). Ajouter un accord APRÈS les accords posés ne change rien.
+**Appareil** : Chromium (mesuré) ; même code partout. **Tests** : `lien-grille.spec.ts` « un accord inséré AVANT… » et « supprimer de la grille un accord qui précède… » (`test.fail`). **Gravité** : grave (le texte chanté et le PDF exporté portent des accords différents de ceux posés, sans que rien ne le dise).
+
+## P-07 — Paroles : l'aide sous « Versions précédentes » n'a pas le style des autres aides (mineur, cosmétique)
+**Étapes** : 1. Ouvrir « Paroles » › « Options ». 2. Comparer la phrase d'aide sous « Enchaîner les accords » et celle du bas (« Restaurer remet ces paroles en place… »).
+**Attendu** : même taille et même couleur (12 px gris).
+**Observé** : celle du bas est en 16 px, couleur du texte principal (visiblement plus grande que le reste du panneau).
+**Appareil** : Chromium (mesuré) ; même code partout. **Test** : `parties-options.spec.ts` « le texte d'aide du panneau a le même style partout » (`test.fail`). **Gravité** : mineure.
+
+## P-08 — Paroles : le ×N d'une partie est réaffiché « × 1 » après un rechargement (gênant)
+**Étapes** : 1. Ouvrir « Paroles », cliquer « + » du refrain deux fois (« × 3 »). 2. Attendre « Enregistré ». 3. Recharger la page, rouvrir « Paroles ».
+**Attendu** : « × 3 ».
+**Observé** : « × 1 », alors que l'enregistrement (`repeatCount: 3`) est bien présent. (Probablement relu depuis la grille et non depuis les paroles.) Le prochain réglage repartira de 1.
+**Appareil** : Chromium (mesuré) ; même code partout. **Test** : `parties-options.spec.ts` « le ×N d'une partie est retrouvé tel quel après rechargement » (`test.fail`). **Gravité** : gênante (le × N est « purement indicatif », mais il est perdu).
+
+## Constats du module paroles (sans test, à arbitrer)
+- Le texte exporté (fichier .txt et presse-papiers) ne contient ni les accords posés au-dessus des phrases ni les × N : seulement « Accords : C, Am, F, G » (la liste de la partie) puis les paroles. Le PDF, lui, dessine bien les accords au-dessus du texte (vérifié à la main sur une image du PDF).
+- Le PDF tient toujours sur UNE page : un texte de 70 lignes est réduit de moitié (largeur 289 pt sur 595) ; aucune coupure en deux pages. Le test vérifie que l'image reste dans les marges.
+- Dans le PDF, un accord posé sur la 2ᵉ ligne frôle le bas de la 1ʳᵉ ligne (interligne serré) ; la page à l'écran est plus aérée.
+- Après chaque export, un bandeau (« Texte exporté → dossier Téléchargements », « Texte copié dans le presse-papiers. ») s'insère dans la page et la décale d'environ 57 px vers le bas.
+- Après le dernier accord d'une partie, la chaîne repart au premier (« Enchaîner les accords ») : voulu pour reposer les accords sur un 2ᵉ vers ; le test le décrit comme une règle.
+- Le mode Syllabe / Libre n'est pas retenu après un rechargement (la page revient en « Syllabe ») ; la taille du texte et « Enchaîner » le sont.

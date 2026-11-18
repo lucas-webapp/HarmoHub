@@ -1,47 +1,34 @@
-# Rapport — module `structure` (18/11/2026)
+# Rapport du module « paroles » — 18/11/2026
 
-**Résumé**
-- Testé : l'onglet Structure (ouverture, contenu, ×N, ↑ ↓, ajouter / dupliquer / renommer / commenter / retirer une occurrence, lien avec la grille, aperçu avant impression et PDF), ordinateur et téléphone.
-- 91 tests ajoutés. Module complet sur les 7 projets : **615 réussis, 0 échoué** (dont 4 échecs attendus `test.fail` = 3 bugs). `CI=1 npm run test:e2e:envoi` : **vert** (Chromium 640 réussis / 11 ignorés ; autres projets 1239 réussis / 60 ignorés / 3 « flaky » réussis au 2ᵉ essai, tous dans `synchro`, aucun dans `structure`).
-- Suite conseillée : arbitrer R-02 (Échap) puis passer le module à ☑ ; module suivant : `paroles` (P2).
-
-Aucune requête vers la production (garde-fou : 0 requête bloquée dans les 91 tests). Aucune modification de l'appli.
+## Résumé
+- Testé : l'onglet Paroles (iframe) : ouvrir, écrire, poser les accords au-dessus des paroles (Syllabe / Libre), glisser, annuler / rétablir / réinitialiser, ×N, options, versions, export texte / copie / PDF, lien avec la grille et la bibliothèque, téléphone.
+- Résultat : 99 tests (607 exécutions sur 7 projets), tous verts, dont 11 `test.fail` = 8 bugs ouverts (P-01 à P-08). `CI=1 npm run test:e2e:envoi` entièrement vert APRÈS la dernière retouche (729 réussis / 11 ignorés sur Chromium, puis 1414 réussis / 60 ignorés sur les 6 autres projets, 0 échec, 0 relance).
+- Suite conseillée : corriger P-05, P-06 (graves) et P-08, puis `parametres`.
 
 ## Bugs (détail dans `tests/reports/bugs.md`)
+- **P-05 grave** — les textes sont rangés par position de partie : « Monter » le refrain, ou supprimer / dupliquer le couplet, met les paroles sous la mauvaise partie.
+  Étapes : paroles écrites dans Couplet et Refrain ; grille ; menu du Refrain › Monter ; Paroles. Attendu : « Refrain » porte son texte. Observé : il porte celui du couplet.
+  Appareil : tous (mesuré Chromium). Tests : `lien-grille.spec.ts` (3, `test.fail`). Avis : bug de l'appli.
+- **P-06 grave** — les accords posés sont rattachés au RANG de l'accord : insérer « Dm » avant, ou supprimer un accord qui précède, renomme les pastilles (Am devient C). Tests : `lien-grille.spec.ts` (2, `test.fail`). Avis : bug de l'appli.
+- **P-03 gênant** — « Rétablir » reste actif après une nouvelle saisie et écrase le texte neuf. `glisser-annuler.spec.ts`.
+- **P-08 gênant** — le ×N est enregistré mais réaffiché « × 1 » après rechargement. `parties-options.spec.ts`.
+- **P-02, P-04, P-01, P-07 mineurs** — infobulle « reclique pour désarmer » fausse ; glissé en Syllabe qui devient position libre ; bouton « Nommer le morceau » de 32 px au libellé débordant ; texte d'aide des versions en 16 px.
+- Constats sans test (export texte sans accords posés ni ×N, PDF toujours sur une page, mode Libre non retenu…) : voir la fin de `bugs.md`.
 
-### R-02 — Échap dans « Renommer » / « Commentaire » ferme la structure derrière (gênant)
-**Étapes** : 1. Ordinateur, ouvrir « Structure ». 2. Clic droit sur une ligne, « Renommer » (ou « Ajouter un commentaire… »). 3. Taper un texte, Échap.
-**Attendu** : seule la petite fenêtre se ferme ; la structure reste ouverte.
-**Observé** : la fenêtre Structure se ferme, la petite fenêtre reste ouverte au-dessus de la grille.
-**Appareil** : Chromium, Firefox, WebKit (même résultat), Edge, iPad. **Trace** : `test-results/structure-ajouter-retirer-…-R-02-…-chromium/` (pendant les passes ; effacé à chaque lancement).
-**Avis** : bug de l'appli (le menu du clic droit et l'aperçu, eux, ne ferment que leur propre fenêtre).
+## Instabilités, tolérances, limites
+- **Firefox : le premier clic dans l'iframe ne donne pas le focus** à la zone de texte (reproduit sur une page témoin sans l'appli : un bouton du parent actif + un `contenteditable` dans une iframe). Aide `focaliser` : on clique jusqu'à ce que la zone soit focalisée (attente d'un état). Avis : environnement du navigateur de test, pas l'appli.
+- Un test de collage (évènement `paste` fabriqué) est ignoré sur Firefox, qui n'honore pas un évènement non fiable ; couvert ailleurs. Le test du PDF long tape ses lignes (aucun collage).
+- Le glissé au doigt est ignoré sur iPhone (WebKit mobile : pas de geste composé dans Playwright) ; couvert sur Android.
+- Tolérances justifiées : pastille centrée sur son caractère à 10 px près (Syllabe : un caractère < 15 px), à 3 px près en Libre ; `sansTags` ignore la structure `<div>` propre à Firefox ; positions relatives à la zone après export (un bandeau décale la page de 57 px) ; presse-papiers lu seulement sur Chromium / Edge.
+- Accords et textes d'essai courts : sur téléphone une longue phrase passe à la ligne et fausse le point visé.
+- Sélecteurs : aucun `data-testid` dans la page des paroles ; CSS `.lyrics-text`, `.lyric-pill`, `.pill-del`, `.section-block`, `.chord-chip` (classes `armed` / `placed` / `active`), `#options-panel`, `#versions-paroles-liste`. À proposer en `data-testid` : zone de texte (`paroles-zone`), pastille posée, croix, carte de partie.
 
-### R-03 — Badge ×N de la grille périmé (mineur)
-**Étapes** : 1. Ouvrir « Structure », « + » sur la 1ʳᵉ ligne (×2). 2. Revenir à « Grille ».
-**Attendu** : badge « ×2 » à côté du titre de la partie. **Observé** : aucun badge avant rechargement (le menu « Répéter » de la partie dit pourtant ×2).
-**Appareil** : tous (mesuré Chromium, Android). **Avis** : bug de l'appli (titre non redessiné).
-
-### R-01 — « 12.0 mesures » en 3/4 (mineur)
-**Étapes** : 1. Morceau Couplet 12 temps, Refrain 16, Pont 8. 2. Mesure 3/4. 3. Ouvrir « Structure ».
-**Attendu** : « 12 mesures ». **Observé** : « 12.0 mesures » (somme de fractions non arrondie ; les parties disent « 4 mes. », « 5.3 mes. »).
-**Appareil** : tous. **Avis** : bug d'affichage.
-
-Constats sans test (à arbitrer) : boutons − + ↑ ↓ de 30 px au téléphone (cible visée : 44 px) ; gestes de la structure non annulables (documenté) ; la lecture ne suit pas la structure (documenté).
-
-## Instabilités
-Aucune dans `structure` (module complet : 615 / 615 sans relance ; envoi : aucun essai de reprise sur ce module). Trois relances dans `synchro` (hors périmètre, connues : Y-03 et assimilés).
-
-## Tolérances (aucune vérification affaiblie)
-- Les tests qui comptent des pas (« plafond ×99 ») cliquent 100 fois : 33 s sur iPad, timeout du test porté à 90 s (durée du geste, pas de tolérance sur le résultat).
-- Nom de morceau sans accent dans le test du PDF : Chromium n'affiche pas le nom accentué d'un téléchargement (limite connue, déjà notée par `fichiers`) ; le nom exact `HarmoHub - Demo - Structure - AAAA-MM-JJ HHMM.pdf` est vérifié.
-- Sélecteurs CSS (pas de `data-testid`) : `.struct-row`, `.struct-title`, `.struct-rep`, `.struct-pos`, `.struct-chords`, `.struct-note`, `.struct-somme`, `.struct-deroule`, `.struct-famille`, `.sf-*` (feuille de l'aperçu), `#struct-menu`, `#apercu-etat`. À proposer : `data-testid="struct-ligne"` et `struct-menu`.
-
-## Tests ajoutés (`tests/e2e/structure/`, tous `@structure`)
-- `ouverture.spec.ts` (13) : onglet, second clic, Échap, somme, lignes, vide, famille de couleur, tempo, 3/4 (dont R-01).
-- `repetitions-ordre.spec.ts` (8) : + / −, plafond ×99, ↑ ↓, bornes, grille intacte, rechargement et enregistrement.
-- `ajouter-retirer.spec.ts` (28) : liste « + Partie… », menu, Dupliquer, Renommer, commentaires, Supprimer (dont R-02 ×2).
-- `lien-grille.spec.ts` (13) : renommer / ajouter / supprimer / dupliquer / déplacer dans la grille, « Répéter » de la partie, états grisés (dont R-03).
-- `apercu.spec.ts` (22) : contenu, sept cases, format / orientation / colonnes, taille et zoom, mémoire des réglages, PDF, Imprimer.
-- `mise-en-page.spec.ts` (7) : sous les onglets, dans l'écran, structure longue, menu, aperçu.
-- `aide-structure.ts` : aides. Étiquettes : 27 `@critique`, 6 `@ordinateur`, 2 `@mobile` (les autres tournent partout).
-- Non couvert : appui long réel sur WebKit mobile (évènements rejoués), rendu visuel du PDF, son.
+## Tests ajoutés (`tests/e2e/paroles/`, tag `@paroles`)
+- `ecrire.spec.ts` : 15 tests (5 `@critique`).
+- `accords.spec.ts` : 25 (7 `@critique`).
+- `glisser-annuler.spec.ts` : 19 (6 `@critique`).
+- `parties-options.spec.ts` : 12 (5 `@critique`).
+- `export.spec.ts` : 9 (3 `@critique`).
+- `lien-grille.spec.ts` : 12 (5 `@critique`).
+- `telephone.spec.ts` : 7 (1 `@critique`, `@mobile` ou `@ordinateur`).
+- Aide : `aide-paroles.ts`.
