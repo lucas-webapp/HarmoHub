@@ -41,6 +41,9 @@ Gravité : **bloquant** (empêche un parcours principal), **gênant** (contourna
 | D-02 | 18/11 | diagrammes | tous (ordinateurs, iPad, téléphones) | gênant | « Afficher la guitare » alors qu'un accord est déjà choisi : le tiroir (nom, notes, touches du clavier, manche) passe sur Do, l'accord par défaut, alors que la case reste sélectionnée ; il faut cliquer un autre accord pour retrouver le bon | ouvert |
 | D-03 | 18/11 | diagrammes | tous | mineur (à arbitrer) | Éditeur de manche : le dessin d'un La mineur ouvert (x02210, notes A C E) propose « Am, C6, Am7, Am6 » ; Do ouvert (x32010) propose « C, C6, Cmaj7, C7 » : des accords dont une note (septième ou sixte) n'est pas sur le manche | ouvert, sans test |
 | D-04 | 18/11 | diagrammes | WebKit (Safari), iPad (intermittent, machine chargée) | mineur (intermittent) | Après « Annuler » / « Rétablir » du verrouillage d'un doigté, le bouton cadenas reste plusieurs secondes dans l'ancien état (le doigté fixé et le point orange sont déjà bons) | ouvert |
+| R-01 | 18/11 | structure | tous | mineur | En 3/4, le total de la fenêtre Structure s'écrit « 12.0 mesures » (avec décimale) alors que les parties s'écrivent « 4 mes. » et que le total vaut un nombre entier | ouvert |
+| R-02 | 18/11 | structure | tous les ordinateurs et l'iPad | gênant | Échap dans la fenêtre « Renommer cette occurrence » ou « Commentaire » ferme la fenêtre Structure derrière et laisse la petite fenêtre ouverte au-dessus de la grille | ouvert |
+| R-03 | 18/11 | structure | tous | mineur | Après « + » / « − » dans la fenêtre Structure, la grille n'affiche pas le badge ×N de la partie tant qu'on ne recharge pas la page | ouvert |
 
 Tests qui échouent à cause de ces bugs : marqués `test.fail()` (échec attendu, vérification intacte) pour que la CI reste verte ; ils deviendront ROUGES le jour où le bug est corrigé : retirer alors le `test.fail` :
 G-01 → `grille/selection.spec.ts` « un clic sur une case d'une autre partie la sélectionne du premier coup » et `grille/copier-coller.spec.ts` « on peut coller dans une autre partie… » (Firefox seulement) ;
@@ -402,3 +405,28 @@ Dessiner x02210 (A C E) propose « Am, C6, Am7, Am6 » ; x32010 propose « C, C6
 **Étapes** : 1. Afficher la guitare, choisir « Am7 ». 2. Cliquer le cadenas (point orange sur la case). 3. « Annuler ». 4. Lire l'état du bouton cadenas.
 **Attendu** : bouton relâché (« Verrouiller ce doigté… ») et flèches actives. **Observé** : le point orange disparaît et le doigté n'est plus fixé (données exactes), mais le bouton reste « verrouillé » plusieurs secondes (5 fois sur 8 avec 3 travailleurs en parallèle ; non reproduit à 1 ou 2). Même chose dans l'autre sens après « Rétablir ». Revenir sur l'accord (autre case puis celle-ci) corrige l'affichage.
 **Appareil** : WebKit ordinateur et iPad ; non vu sur Chromium ni Firefox. **Test** : `doigtes.spec.ts` « D-04 » (`test.fixme` sur WebKit). **Gravité** : mineure, intermittente ; à confirmer (peut être un effet de charge du navigateur de test).
+
+## R-01 — Structure : le total des mesures s'écrit « 12.0 » en 3/4 (mineur)
+**Étapes** : 1. Ordinateur ou téléphone, morceau « Couplet (12 temps), Refrain (16), Pont (8) » en 4/4. 2. Passer la mesure à « 3/4 » (puce « Mesure » ; au téléphone, résumé du morceau puis « Mesure »). 3. Ouvrir l'onglet « Structure ». 4. Lire le total en tête de fenêtre.
+**Attendu** : « 12 mesures » (36 temps ÷ 3), comme « 9 mesures » en 4/4 et comme « 4 mes. » pour le Couplet.
+**Observé** : « 12.0 mesures ». Les parties s'écrivent « 4 mes. », « 5.3 mes. », « 2.7 mes. » (décimale seulement quand la mesure est entamée) : le total additionne ces fractions sans arrondir, d'où « 12.0 » au lieu de 12.
+**Appareil** : Chromium (mesuré), Android ; même code partout. **Test** : `ouverture.spec.ts` « en 3/4 le total de 36 temps s'écrit « 12 mesures »… (R-01) » (`test.fail`). **Gravité** : mineure (cosmétique).
+
+## R-02 — Structure : Échap dans une petite fenêtre ferme la fenêtre Structure derrière elle (gênant)
+**Étapes** : 1. Ordinateur, ouvrir « Structure ». 2. Clic droit sur une ligne puis « Renommer » (ou « Ajouter un commentaire… »). 3. Taper un texte, appuyer sur Échap.
+**Attendu** : seule la petite fenêtre se ferme (comme pour le menu du clic droit et pour l'aperçu avant impression, qui se ferment seuls au premier Échap) ; la structure reste ouverte, le texte non validé est abandonné.
+**Observé** : la fenêtre Structure se ferme (on revient à la grille) et la fenêtre « Renommer cette occurrence » reste ouverte au-dessus de la grille, avec le texte tapé. « Valider » fonctionne encore (le nom est bien pris), mais on n'est plus dans la structure.
+**Appareil** : Chromium (mesuré à la main et par test) ; même code sur tous les ordinateurs et l'iPad (clavier). Pas d'Échap au téléphone. **Test** : `ajouter-retirer.spec.ts` « Échap dans la fenêtre « Renommer »… (R-02) » et « …« Commentaire »… (R-02) » (`test.fail`). **Gravité** : gênante (perte de contexte au clavier, une fenêtre orpheline).
+
+## R-03 — Structure : le badge ×N de la grille est périmé après un réglage fait dans la structure (mineur)
+**Étapes** : 1. Ordinateur ou téléphone, morceau de trois parties. 2. Ouvrir « Structure », appuyer sur « + » de la première ligne (×2 s'affiche dans la fenêtre). 3. Revenir à « Grille ». 4. Regarder le titre de la première partie.
+**Attendu** : le badge « ×2 » à côté du titre (comme après un réglage fait depuis le menu « Répéter » de la partie, qui met le badge à jour aussitôt).
+**Observé** : aucun badge. Il apparaît après un rechargement de la page. Le menu « Répéter » de la partie, ouvert ensuite, dit bien « ×2 » (il lit la structure à l'ouverture) : seul le titre n'est pas redessiné.
+**Appareil** : Chromium, Android (mesuré). **Test** : `lien-grille.spec.ts` « le badge ×N de la grille suit un réglage fait dans la structure… (R-03) » (`test.fail`). **Gravité** : mineure (affichage trompeur jusqu'au rechargement).
+
+## Constats du module structure (sans test, à arbitrer)
+- Au téléphone, les boutons « − + ↑ ↓ » d'une ligne mesurent 30 × 30 px (Pixel 7), alors que la consigne du dépôt vise 44 px pour le téléphone. Le test `mise-en-page.spec.ts` n'exige que 24 px ; à arbitrer (docs : « hors jauge »).
+- Les gestes de la structure (+, −, ↑, ↓, ajouter, dupliquer, renommer, commentaire, supprimer) ne sont pas annulables : « Annuler » reste grisé. L'appli le dit elle-même (`docs/dette-tests.md` : « Pas d'annulation pour les gestes de la structure ») ; aucun test ne le fige.
+- La lecture audio ne suit pas la structure (la barre de lecture compte 9 mesures quand la structure en annonce 16) : documenté comme « document de travail et d'impression » ; aucun test ne le fige.
+- Retirer toutes les occurrences laisse une structure vide sans message (« 0 mesures », liste « + Partie… » seule). Cohérent, mais le message « Aucun accord pour l'instant » n'apparaît que pour une grille vide.
+
