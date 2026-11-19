@@ -104,6 +104,10 @@ D-04 → `diagrammes/doigtes.spec.ts` « D-04 : juste après Annuler / Rétablir
 | D-02 | 19/11 | « Afficher la guitare » avec un accord choisi dessine cet accord, plus celui du panneau | `tiroir.spec.ts`, `telephone.spec.ts` |
 | E-02 | 19/11 | Espace sur un contrôle de la fenêtre Paramètres ne lance plus la lecture | `parametres/fenetre.spec.ts` |
 | R-02 | 19/11 | Échap dans « Renommer » / « Commentaire » de la structure ferme seulement la petite fenêtre | `structure/ajouter-retirer.spec.ts` ×2 |
+| G-02 | 19/11 | La barre de lecture met à jour son total « / N » à chaque redessin de la frise | `grille/parties.spec.ts` ×2 |
+| R-01 | 19/11 | Total de mesures arrondi avant l'affichage (« 12 » et non « 12.0 ») | `structure/ouverture.spec.ts` |
+| R-03 | 19/11 | Le badge ×N de la grille suit un réglage fait dans la structure | `structure/lien-grille.spec.ts` |
+| T-02 | 19/11 | « Suggérer » prend l'instantané d'annulation avant de changer la tonalité | `tonalite/suggestion.spec.ts` |
 | Z-07 | reporté | Demande une décision d'architecture : le tampon de travail est partagé entre onglets par le stockage local ; isoler chaque onglet change le modèle | `test.fail` conservé |
 | P-08 | reporté | Corriger le ×N oblige la grille à recharger la page Paroles à chaque clic (perte de l'historique d'annulation) : à traiter avec un message de mise à jour plutôt qu'un rechargement | `test.fail` conservé |
 

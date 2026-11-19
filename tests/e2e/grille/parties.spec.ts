@@ -134,7 +134,6 @@ test.describe('Parties — ordinateur, compteur de mesures @grille @ordinateur',
   // Défaut observé (voir bugs.md) : après la suppression d'une partie, la barre de lecture garde l'ancien total (« 1 / 6 » alors qu'il reste 4 mesures) ;
   // il ne se corrige qu'au prochain clic sur une case, ou à l'annulation.
   test('après la suppression d\'une partie, la barre de lecture affiche le bon nombre de mesures', async ({ ouvrirAppli }) => {
-    test.fail(true, 'G-02 (bugs.md) : bug connu, le test doit repasser au vert quand il sera corrigé');
     const page = await ouvrirAppli(DEUX_PARTIES());
     const mesure = page.locator('#bl-mesure');
     await expect(mesure).toContainText('/ 6');
@@ -146,7 +145,6 @@ test.describe('Parties — ordinateur, compteur de mesures @grille @ordinateur',
   });
 
   test('ajouter une partie met à jour le nombre de mesures de la barre de lecture', async ({ ouvrirAppli }) => {
-    test.fail(true, 'G-02 (bugs.md) : bug connu, le test doit repasser au vert quand il sera corrigé');
     const page = await ouvrirAppli(DEUX_PARTIES());
     const mesure = page.locator('#bl-mesure');
     await expect(mesure).toContainText('/ 6');

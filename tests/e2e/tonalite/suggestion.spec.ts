@@ -106,7 +106,6 @@ test.describe('Suggestion de tonalité @tonalite', () => {
   });
 
   test('la proposition choisie se défait avec « Annuler » (comme un choix de tonique)', async ({ ouvrirAppli }) => {
-    test.fail(true, 'T-02 (bugs.md) : une tonalité posée par « Suggérer » n\'entre pas dans l\'historique : « Annuler » reste grisé');
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await suggerer(page);
     await appuyer(page, propositions(page).filter({ hasText: 'A mineur' }));

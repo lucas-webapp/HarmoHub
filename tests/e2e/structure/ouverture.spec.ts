@@ -150,7 +150,6 @@ test.describe('Ouverture et contenu @structure', () => {
   });
 
   test('en 3/4 le total de 36 temps s\'écrit « 12 mesures », sans décimale (R-01)', async ({ ouvrirAppli }) => {
-    test.fail(true, 'R-01 (bugs.md) : le total s\'affiche « 12.0 mesures » (somme de fractions non arrondie)');
     const page = await ouvrirAppli(morceauTroisParties());
     await regler34(page);
     await ouvrirStructure(page);

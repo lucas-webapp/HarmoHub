@@ -1,6 +1,6 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 16/11/2026 au soir (tests Playwright e2e en place, phases 1 à 4 faites ; prochaine étape : phase 5). **Seul fichier où s'écrit l'état du chantier.** Volontairement COURT (chargé à chaque session) : le détail va dans `docs/dette-tests.md`, jamais ici. À lire avec `CLAUDE.md`.
+Mis à jour le 19/11/2026 (tests e2e : phase 5 terminée, 1 005 tests ; correction des bugs en cours). **Seul fichier où s'écrit l'état du chantier.** Volontairement COURT (chargé à chaque session) : le détail va dans `docs/dette-tests.md`, jamais ici. À lire avec `CLAUDE.md`.
 
 | Besoin | Fichier (ne jamais lire en entier : `grep -n` puis `sed -n`) |
 |---|---|
@@ -12,19 +12,19 @@ Mis à jour le 16/11/2026 au soir (tests Playwright e2e en place, phases 1 à 4 
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
-**PROCHAINE ÉTAPE : PHASE 5 DES TESTS E2E (couverture intégrale), demandée par l'utilisateur le 16/11 (« je ferai clear puis reprise »).**
-Tout est dans `tests/PLAN.md` (§ 3 : modules, parcours, priorités, statut ; § 7 : ce que les 288 bancs couvrent déjà, à ne pas réécrire) et dans la section
-« Tests » de `CLAUDE.md` (commandes, garde-fous, règle Git). Consignes de l'utilisateur pour cette phase :
-- traiter les modules de `tests/PLAN.md` un par un, **par priorité** (P1 d'abord ; `grille` ◐ (93 tests) et `accord` ◐ (49 tests) `lecture` ◐ (58 tests) `sequenceur` ◐ (117 tests) et `fichiers` ◐ (93 tests, 9 `@disque` en `test.fixme` sur Chromium : F-04, plantage du navigateur de la VM) et `synchro` ◐ (49 tests, Y-01 en `test.fixme`) faits les 16-18/11, bugs G-01 à G-04, A-01 à A-03, L-01 à L-06, S-01 à S-03 et F-01 à F-04 Y-01 à Y-03 et M-01 à M-02 et T-01 à T-05 et V-01 à V-02 et D-01 à D-04 et R-01 à R-03 et P-01 à P-08 et E-01 à E-07 et Z-01 à Z-07 dans `tests/reports/bugs.md`, tests de bugs en `test.fail` ; `mobile` ◐ (54 tests, M-01 en `test.fail`) fait le 18/11, **les 7 modules P1 sont faits** ; `tonalite` ◐ (47 tests, T-01 à T-05) `voicing` ◐ (57 tests, V-01 à V-02) `diagrammes` ◐ (70 tests, D-01 à D-04) `structure` ◐ (91 tests, R-01 à R-03) `paroles` ◐ (99 tests, P-01 à P-08) et `parametres` ◐ (53 tests, E-01 à E-07) faits les 18-19/11 ; `robustesse` ◐ (71 tests, Z-01 à Z-07) fait le 19/11 : **les 15 modules sont faits, phase 5 terminée** ; suite : phase 6 (compte rendu final, déjà transmis à l'utilisateur le 19/11 ; il décide des bugs de `tests/reports/bugs.md`) ; `demarrage` est ☑),
-  en confiant chacun au **sous-agent `testeur-e2e`** (« utilise testeur-e2e pour tester le module `<module>` », il tourne sur sonnet, effort élevé) ;
-- garder la conversation principale légère : ne pas recopier les journaux, **lire les rapports** (`tests/reports/latest.md`) ;
-- après chaque module : `tests/PLAN.md` à jour, commit, **push direct sur `claude/harmohub-travail-Claude`** (pas de pull request), puis un point de 3 lignes
-  à l'utilisateur (tests ajoutés, bugs trouvés, module suivant) ; **enchaîner sans attendre sa réponse**, sauf blocage ;
-- **ne pas corriger les bugs trouvés** : les lister dans `tests/reports/bugs.md` (l'utilisateur décidera) ; ne jamais affaiblir une vérification ;
-- les modifications de l'appli pour la testabilité (`data-testid`, liste proposée dans `tests/reports/2026-11-16-demarrage.md`) attendent son accord ;
-- **phase 6** à la fin : compte rendu (ce qui a été créé, subtilités de l'appli, couverture par module, limites de la matrice — appareils émulés, WebKit ≠ Safari,
-  ce qu'il doit vérifier lui-même sur Safari / iPhone —, bugs, actions à sa charge, phrase pour lancer le testeur).
-**`main` (version de secours)** : mise à jour le 16/11 au soir en avance rapide (277 commits de retard, état du 20/08), avec l'accord explicite de l'utilisateur (« pousse sur main »), sur l'état de `claude/harmohub-travail-Claude` (tests verts). Elle n'est plus touchée sans un nouvel accord. Piège : le clone de la session est PARTIEL (`git fetch --unshallow` avant tout calcul d'écart entre branches, sinon les comptes sont faux).
+**PROCHAINE ÉTAPE : CORRECTION DES BUGS TROUVÉS PAR LES TESTS E2E** (demandée par l'utilisateur le 19/11 : « établis toi-même le plan des corrections et commence »).
+La phase 5 (15 modules, 1 005 tests, 61 bugs) est terminée. Le suivi est dans `tests/reports/bugs.md` : section « Bugs corrigés » en tête, détail de chaque bug dessous.
+Méthode : corriger dans `script.js` / `paroles.js`, **retirer le `test.fail` du test concerné** (il rougit sinon : « Expected to fail, but passed »), incrémenter `?v=` dans `index.html`
+(toutes les occurrences), lancer les modules touchés sur les 7 projets (`npx firebase emulators:exec --project demo-harmohub --only auth,firestore "npx playwright test <chemins> --reporter=list"`),
+puis `CI=1 npm run test:e2e:avant-envoi`, commit, push. **Pas de balayage complet des bancs historiques sauf nécessité** (consigne de l'utilisateur du 19/11).
+- **Corrigés le 19/11** : P-03, P-05, P-06 (paroles rangées par `sid` de partie, pastilles par accord) ; Z-04, Z-05, Z-06, E-06, E-07 (démarrage tolérant, drapeau « modifié » retenu) ; F-01, F-03 (export JSON du tampon, sauvegarde sans dossier) ;
+  D-01, D-02, E-02, R-02 ; G-02, R-01, R-03, T-02.
+- **Reportés, à décider avec l'utilisateur** : P-08 (le ×N des paroles : corriger recharge la page Paroles à chaque clic), Z-07 (deux onglets : le tampon est partagé par le stockage local, isoler les onglets change le modèle),
+  Y-01 / Y-03 (synchro : `synchro-cloud.js` est un fichier partagé avec TabHub et TrainHub, ne pas y toucher sans `docs/fichiers-partages.md`).
+- **Reste à corriger (clairs)** : G-01 (Firefox, premier clic sur une autre partie), L-01 (zone sensible des numéros de mesure décalée), S-02 (téléphone : « Enregistrer la forme… » ferme la feuille), A-01, M-01, L-03, V-01, E-01 (focus au clavier),
+  Z-02 / Z-03 (stockage plein : message d'erreur), P-01, P-02, P-07, E-03 / E-04.
+- **À arbitrer avec l'utilisateur** (comportement peut-être voulu) : G-03, G-04, A-02, A-03, S-01, S-03, F-02, Y-02, T-01, T-03, T-04, T-05, V-02, P-04, E-05, M-02, Z-01, L-04.
+- Rappel des anciens points : voir plus bas « À lui faire valider » et « Questions restées ouvertes ». `main` (version de secours) n'est touchée que sur accord explicite.
 
 **À lui faire valider** (détail : `docs/dette-tests.md`, « Session du 15/11 (suite 9) » et « Session du 16/11 ») :
 1. **Plein écran du séquenceur** : il ne vient que de la poignée du haut (jamais des douze lignes de départ). La vue Voix ne masque jamais la grille. La bulle d'accord se referme à l'entrée. Le plein écran n'est pas retenu d'une session à l'autre.

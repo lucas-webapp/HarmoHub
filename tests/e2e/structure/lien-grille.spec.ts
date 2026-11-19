@@ -171,7 +171,6 @@ test.describe('Répéter, de la grille à la structure @structure', () => {
   });
 
   test('le badge ×N de la grille suit un réglage fait dans la structure, sans rechargement (R-03)', async ({ ouvrirAppli }) => {
-    test.fail(true, 'R-03 (bugs.md) : après « + » dans la structure, la grille garde l\'ancien affichage (pas de badge ×N) jusqu\'au rechargement');
     const page = await ouvrirAppli(morceauTroisParties());
     await ouvrirStructure(page);
     await appuyer(page, plus(page, 0));

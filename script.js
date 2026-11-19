@@ -12591,7 +12591,7 @@ class HarmoHubApp {
         const { items } = structureEffective(parties);
         const beatsPerBar = this.beatsPerBar();
         const bpm = parseInt(document.getElementById('bpm')?.value, 10) || 120;
-        const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+        const fmt = (n) => { const r = Math.round(n * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1); }; // arrondi AVANT le test : 4 + 5,33 + 2,67 valait 12,0000…1 et s'écrivait « 12.0 » (bug R-01)
         const partieDe = (it) => parties.find(p => p.sid === it.sid);
         const nomPartie = (p, i) => ((p.title && p.title.trim()) ? p.title.trim() : `Partie ${i + 1}`);
         const mesuresDe = (p) => (p.chords || []).reduce((sum, c) => sum + beatsFromData(c), 0) / beatsPerBar;
@@ -12735,6 +12735,7 @@ class HarmoHubApp {
         saveStructureBrute(copie);
         this.persisterStructureDansMorceau(etaitModifie);
         this.renderStructurePanel();
+        this.loadProgression(); // le badge ×N des titres de la grille suit (bug R-03 : il restait périmé jusqu'au rechargement)
     }
 
     // Retour utilisateur : « J'ai l'impression que la structure se sauvegarde mal, quand j'ai ouvert
@@ -12908,7 +12909,7 @@ class HarmoHubApp {
         const { items } = structureEffective(parties);
         const beatsPerBar = this.beatsPerBar();
         const bpm = parseInt(document.getElementById('bpm')?.value, 10) || 120;
-        const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+        const fmt = (n) => { const r = Math.round(n * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1); }; // arrondi AVANT le test : 4 + 5,33 + 2,67 valait 12,0000…1 et s'écrivait « 12.0 » (bug R-01)
         const partieDe = (it) => parties.find(p => p.sid === it.sid);
         const nomPartie = (p, i) => ((p.title && p.title.trim()) ? p.title.trim() : `Partie ${i + 1}`);
         const mesuresDe = (p) => (p.chords || []).reduce((sum, c) => sum + beatsFromData(c), 0) / beatsPerBar;
@@ -16082,8 +16083,10 @@ class HarmoHubApp {
         menu.querySelectorAll('button').forEach(btn => {
             btn.onclick = () => {
                 this.closeKeySuggestMenu();
+                this.armGlobalSettingUndo(); // l'état d'AVANT : sans lui « Annuler » restait grisé après « Suggérer » (bug T-02)
                 document.getElementById('global-root').value = btn.dataset.keyRoot;
                 document.getElementById('global-mode').value = btn.dataset.keyMode;
+                this.commitGlobalSettingUndo();
                 marquerModifie();
                 this.updateKeyLabels();
                 this.loadProgression();
@@ -19095,6 +19098,7 @@ class HarmoHubApp {
         html += '<div class="bl-frise-tete" style="left: 0%"></div>';
         frise.innerHTML = html;
         if (this.playheadIndex != null) this.majBarreLecture(this.playheadSection, this.playheadIndex, 0, 1);
+        else this.majBarreLecture(0, 0, 0, 1); // pas de lecture en cours : le TOTAL « / N » suit quand même la grille (bug G-02 : il restait périmé après supprimer / dupliquer une partie)
     }
 
     // « Mes. N » et la tête de la frise, d'après l'accord en cours (section, index) et le temps déjà joué dedans. Rien à
