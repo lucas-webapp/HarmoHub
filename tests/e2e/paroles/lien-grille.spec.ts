@@ -1,7 +1,7 @@
 // MODULE « paroles » — le lien avec la grille et la bibliothèque : la page des paroles se construit d'après les parties et les accords de la grille ;
 // les paroles sont rangées par MORCEAU (clé `harmohub_lyrics_v1_id-<morceau>`).
 // Les tests marqués P-05 et P-06 décrivent des bugs ouverts (tests/reports/bugs.md) : les paroles et les accords posés sont rattachés à la POSITION de la partie
-// et de l'accord, pas à la partie ou à l'accord eux-mêmes ; ils restent écrits comme la bonne attente (`test.fail`).
+// et de l'accord, pas à la partie ou à l'accord eux-mêmes ; ils sont corrigés depuis le 19/11 (P-05, P-06).
 import { test, expect } from '../support/fixtures';
 import type { Page } from '@playwright/test';
 import {
@@ -68,7 +68,6 @@ test.describe('La page des paroles suit la grille @paroles', () => {
   });
 
   test('un accord inséré AVANT les accords posés ne les renomme pas @critique @ordinateur', async ({ ouvrirAppli }) => {
-    test.fail(true, 'P-06 (bugs.md) : les accords posés sont rattachés au RANG de l\'accord dans la partie ; insérer un accord avant les renomme (Am devient C)');
     const page = await ouvrirAppli(morceauParoles(UNE_PARTIE));
     await ouvrirParoles(page);
     await ecrire(page, 0, PHRASE);
@@ -85,7 +84,6 @@ test.describe('La page des paroles suit la grille @paroles', () => {
   });
 
   test('supprimer de la grille un accord qui précède les accords posés ne les renomme pas', async ({ ouvrirAppli }) => {
-    test.fail(true, 'P-06 (bugs.md) : même cause, à la suppression (supprimer le C change Am en F et F en G)');
     const page = await ouvrirAppli(morceauParoles(UNE_PARTIE));
     repondreAuxConfirmations(page, true);
     await ouvrirParoles(page);
@@ -114,7 +112,6 @@ test.describe('Les paroles suivent leur partie @paroles', () => {
   }
 
   test('« Monter » le refrain dans la grille : chaque texte reste sous sa partie @critique', async ({ ouvrirAppli }) => {
-    test.fail(true, 'P-05 (bugs.md) : les paroles sont rangées par position de partie, elles ne suivent pas la partie déplacée');
     const page = await ouvrirAppli(morceauParoles(DEUX_PARTIES));
     await preparer(page);
     await actionPartie(page, 1, 'Monter');
@@ -125,7 +122,6 @@ test.describe('Les paroles suivent leur partie @paroles', () => {
   });
 
   test('supprimer le couplet dans la grille : le refrain garde SON texte', async ({ ouvrirAppli }) => {
-    test.fail(true, 'P-05 (bugs.md) : le refrain reprend le texte du couplet supprimé (rangement par position)');
     const page = await ouvrirAppli(morceauParoles(DEUX_PARTIES));
     repondreAuxConfirmations(page, true);
     await preparer(page);
@@ -136,7 +132,6 @@ test.describe('Les paroles suivent leur partie @paroles', () => {
   });
 
   test('« Dupliquer » le couplet : le refrain garde SON texte', async ({ ouvrirAppli }) => {
-    test.fail(true, 'P-05 (bugs.md) : la copie du couplet reçoit le texte du refrain, et le refrain se retrouve vide');
     const page = await ouvrirAppli(morceauParoles(DEUX_PARTIES));
     await preparer(page);
     await actionPartie(page, 0, 'Dupliquer');

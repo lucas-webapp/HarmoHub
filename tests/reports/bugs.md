@@ -87,6 +87,15 @@ D-02 → `diagrammes/tiroir.spec.ts` et `diagrammes/telephone.spec.ts` « affich
 D-03 : pas de test rouge (constat).
 D-04 → `diagrammes/doigtes.spec.ts` « D-04 : juste après Annuler / Rétablir, le bouton cadenas… » (`test.fixme` sur WebKit, iPad compris).
 
+## Bugs corrigés (suivi des corrections, à partir du 19/11)
+
+| Bug | Corrigé le | Comment | Test |
+|---|---|---|---|
+| P-05 | 19/11 | Paroles : les textes sont rangés par identifiant de partie (`sid`), plus par position ; les parties retirées restent en réserve (retour par Ctrl+Z) | `lien-grille.spec.ts`, `test.fail` retirés |
+| P-06 | 19/11 | Paroles : les pastilles sont rattachées à l'accord (plus longue suite commune des symboles), plus à son rang | idem |
+| P-03 | 19/11 | Paroles : une frappe qui rejoint un groupe encore ouvert vide aussi la pile « Rétablir » | `glisser-annuler.spec.ts`, `test.fail` retiré |
+| P-08 | reporté | Corriger le ×N oblige la grille à recharger la page Paroles à chaque clic (perte de l'historique d'annulation) : à traiter avec un message de mise à jour plutôt qu'un rechargement | `test.fail` conservé |
+
 ---
 
 ## G-01 — Firefox : le premier clic sur une case d'une autre partie ne la sélectionne pas (gênant)

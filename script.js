@@ -15618,6 +15618,8 @@ class HarmoHubApp {
             songId: getCurrentSongId(),
             beatsPerBar: this.beatsPerBar(),
             sections: sections.map(sec => ({
+                // Identifiant stable de la partie : Paroles y range les textes (et non plus à la position de la partie, voir P-05).
+                sid: sec.sid,
                 title: (sec.title || '').trim(),
                 // Répétitions et nombre de mesures voyagent avec le morceau. Paroles les RECALCULAIT
                 // de son côté, avec un arrondi différent (Math.round contre le .toFixed(1) d'ici) :

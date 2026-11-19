@@ -224,7 +224,6 @@ test.describe('Annuler et rétablir @paroles', () => {
   });
 
   test('un nouveau geste après « Annuler » vide la pile « Rétablir »', async ({ ouvrirAppli }) => {
-    test.fail(true, 'P-03 (bugs.md) : « Rétablir » reste actif après une nouvelle saisie et remplace le texte neuf par l\'ancien');
     const page = await ouvrirAppli(morceauParoles(UNE_PARTIE));
     await ouvrirParoles(page);
     await ecrire(page, 0, 'Premier jet');

@@ -226,10 +226,19 @@ function writeSessionNow() {
         // changement) vaut « très ancienne » : une version plus récente d'ailleurs l'emporte, et la sienne est alors rangée.
         savedAt: Date.now(),
         sections: state.song.sections.map(sec => ({
+            // IDENTITÉ DE LA PARTIE ET DE SES ACCORDS (bug P-05 / P-06 : « Monter », supprimer ou dupliquer une partie, ou insérer un accord avant
+            // des accords posés, décalait les paroles et les pastilles, parce qu'on les rangeait par POSITION). `sid` retrouve la partie quoi
+            // qu'il arrive à son rang ; `chordSymbols` garde la liste des accords telle qu'elle était à l'écriture, pour que le rechargement
+            // sache à quel accord chaque pastille était posée (voir rattacherPastilles).
+            sid: sec.sid || null,
             lyricsHtml: sec._lyricsHtml || '',
             placements: sec._placements || [],
             repeatCount: sec._repeatCount || 1,
+            chordSymbols: (sec.chords || []).map(c => c.symbol),
         })),
+        // Les parties qui ne sont plus dans le morceau (supprimées dans la grille) gardent leurs paroles en réserve : un Ctrl+Z qui les
+        // ramène les retrouve, au lieu de repartir d'une carte vide.
+        reserve: (state.song._reserve || []).slice(-20),
     };
     try {
         localStorage.setItem(cle, JSON.stringify(payload));
@@ -297,6 +306,33 @@ function oublierMorceauOuvert() {
     ['btn-export-pdf', 'btn-export-text', 'btn-copy-text', 'song-name'].forEach(id => { const el = document.getElementById(id); if (el) el.hidden = true; });
 }
 
+// Quelle pastille va avec quel accord après un changement de la liste des accords ? Plus longue suite commune des symboles (les accords qui
+// n'ont pas bougé de l'un à l'autre), puis, entre deux repères, accord remplacé « sur place » si les deux trous ont la même taille (un accord
+// renommé garde ses pastilles). Rend une Map ancien rang → nouveau rang ; un ancien rang absent = accord disparu, la pastille est retirée.
+function rattacherPastilles(anciens, nouveaux) {
+    const n = anciens.length, m = nouveaux.length;
+    const lcs = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) {
+        lcs[i][j] = anciens[i] === nouveaux[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+    }
+    const reperes = [[-1, -1]];
+    let i = 0, j = 0;
+    while (i < n && j < m) {
+        if (anciens[i] === nouveaux[j]) { reperes.push([i, j]); i++; j++; }
+        else if (lcs[i + 1][j] >= lcs[i][j + 1]) i++;
+        else j++;
+    }
+    reperes.push([n, m]);
+    const carte = new Map();
+    for (let k = 0; k < reperes.length - 1; k++) {
+        const [a, b] = reperes[k], [a2, b2] = reperes[k + 1];
+        if (a >= 0) carte.set(a, b);
+        const t1 = a2 - a - 1, t2 = b2 - b - 1;
+        if (t1 > 0 && t1 === t2) for (let t = 1; t <= t1; t++) carte.set(a + t, b + t);
+    }
+    return carte;
+}
+
 // ---------- Import ----------
 
 function loadSong(data) {
@@ -312,15 +348,41 @@ function loadSong(data) {
     catch (e) { console.error('Mémorisation du dernier morceau impossible :', e); }
     const saved = loadSavedSession(data);
     let droppedPlacements = 0;
+    // Quelle partie enregistrée va avec quelle partie du morceau ? Par `sid` (stable) dès que la session en porte ; sinon (session écrite avant
+    // ce changement) par rang, comme avant. Les parties enregistrées qui ne correspondent à aucune partie actuelle vont en réserve.
+    const sauvees = (saved && Array.isArray(saved.sections)) ? saved.sections : [];
+    const reserveAnc = (saved && Array.isArray(saved.reserve)) ? saved.reserve : [];
+    // Par identifiant seulement si AU MOINS UNE partie actuelle y est reconnue : un morceau rouvert depuis la bibliothèque peut avoir reçu de
+    // nouveaux identifiants (ceux de la copie de travail n'étaient pas encore enregistrés avec lui) ; on retombe alors sur le rang, comme avant,
+    // plutôt que de rendre toutes les paroles invisibles.
+    const parSid = data.sections.some(sec => sec.sid && (sauvees.some(x => x && x.sid === sec.sid) || reserveAnc.some(x => x && x.sid === sec.sid)));
+    const utilisees = new Set();
+    const trouverSauvee = (sec, si) => {
+        if (parSid && sec.sid) {
+            const i = sauvees.findIndex(x => x && x.sid === sec.sid);
+            if (i >= 0) { utilisees.add(i); return sauvees[i]; }
+            const r = reserveAnc.findIndex(x => x && x.sid === sec.sid);
+            return r >= 0 ? reserveAnc[r] : null;
+        }
+        if (parSid) return null;              // la session porte des identifiants, cette partie n'en a pas : rien à lui rattacher
+        if (sauvees[si]) utilisees.add(si);
+        return sauvees[si] || null;
+    };
     data.sections.forEach((sec, si) => {
-        const savedSec = saved && saved.sections && saved.sections[si];
+        const savedSec = trouverSauvee(sec, si);
         sec._lyricsHtml = savedSec ? (savedSec.lyricsHtml || '') : '';
-        // Défensif : ignore un emplacement dont l'accord référencé n'existe plus (le morceau a pu
-        // changer côté HarmoHub depuis le dernier export) — plutôt que de planter ou d'afficher une
-        // pastille orpheline. Compté pour prévenir l'utilisateur (voir plus bas), pas juste ignoré en
-        // silence.
+        // Défensif : un emplacement dont l'accord n'existe plus est retiré (et compté pour prévenir l'utilisateur, voir plus bas).
+        // Les pastilles sont rattachées par ACCORD et non par rang : si la liste des accords a changé depuis l'écriture, on les recale.
         const rawPlacements = savedSec ? (savedSec.placements || []) : [];
-        sec._placements = rawPlacements.filter(p => p.chordIndex < sec.chords.length);
+        const anciens = savedSec && Array.isArray(savedSec.chordSymbols) ? savedSec.chordSymbols : null;
+        const nouveaux = (sec.chords || []).map(c => c.symbol);
+        const correspondance = anciens ? rattacherPastilles(anciens, nouveaux) : null;
+        sec._placements = [];
+        rawPlacements.forEach(p => {
+            const ci = correspondance ? correspondance.get(p.chordIndex) : p.chordIndex;
+            if (ci === undefined || ci === null || ci >= sec.chords.length) return;
+            sec._placements.push(Object.assign({}, p, { chordIndex: ci }));
+        });
         // Compatibilité ascendante : une session enregistrée avant l'ajout du "tampon" (accord posé
         // plusieurs fois, voir armChord/placeArmedAt) n'a pas d'id unique par emplacement — on le
         // complète ici pour que retrait/déplacement par id fonctionnent aussi sur d'anciennes données.
@@ -336,6 +398,12 @@ function loadSong(data) {
             ? Math.min(99, Math.max(1, Math.round(sec.repeatCount)))
             : ((savedSec && savedSec.repeatCount) || 1);
     });
+    // Réserve : parties enregistrées sans correspondance (+ l'ancienne réserve, sauf ce qui vient de revenir dans le morceau).
+    const sidsActuels = new Set(data.sections.map(x => x.sid).filter(Boolean));
+    data._reserve = sauvees.filter((x, i) => x && x.sid && !utilisees.has(i))
+        .concat(reserveAnc.filter(x => x && x.sid && !sidsActuels.has(x.sid)))
+        .filter((x, i, tab) => tab.findIndex(y => y.sid === x.sid) === i)
+        .map(x => ({ sid: x.sid, lyricsHtml: x.lyricsHtml || '', placements: x.placements || [], repeatCount: x.repeatCount || 1, chordSymbols: x.chordSymbols || [] }));
     state.song = data;
     state.armed = null;
     resetUndoHistory(); // l'historique d'annulation d'un AUTRE morceau n'a pas de sens ici
@@ -632,6 +700,9 @@ function buildSectionsDOM() {
             // tel qu'il était juste avant CETTE frappe (la première du groupe).
             const now = Date.now();
             if (now - (sec._lastEditAt || 0) > UNDO_GROUP_WINDOW) pushUndoSnapshot();
+            // Une frappe qui rejoint un groupe encore ouvert (moins d'une seconde après la précédente, p. ex. juste après « Annuler »)
+            // est quand même un NOUVEAU geste : « Rétablir » ne doit plus pouvoir écraser ce texte neuf (bug P-03).
+            else if (redoStack.length) { redoStack = []; updateUndoRedoUI(); }
             sec._lastEditAt = now;
             // Recale les ancres AVANT tout le reste : le texte vient de changer sous elles, et une
             // ancre est une position de caractère (voir remapPlacementOffsets). L'instantané
