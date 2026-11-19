@@ -83,7 +83,6 @@ test.describe('Onglet Rythme @accord @ordinateur', () => {
   // A-03 (bugs.md) : un accord tenu, jamais retouché, n'est marqué « Plaqué » que quelques instants après l'ouverture du séquenceur ; séquenceur fermé,
   // aucune forme n'est marquée. Le test exige la lecture « un accord tenu est un accord Plaqué », séquenceur fermé comme ouvert.
   test('un accord tenu est marqué « Plaqué », séquenceur fermé comme ouvert', async ({ ouvrirAppli }) => {
-    test.fail(true, 'A-03 (bugs.md) : bug connu, le test doit repasser au vert quand il sera corrigé');
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     const f = await ouvrirFenetre(page, 0, 1);
     await choisirOnglet(f, 'Rythme');

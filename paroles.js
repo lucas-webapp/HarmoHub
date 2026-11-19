@@ -1069,7 +1069,17 @@ function resolvePositionAt(si, clientX, clientY) {
     const noText = text.textContent.trim().length === 0;
 
     if (!state.freeMode && !noText) {
-        const charIndex = caretOffsetFromPoint(text, clientX, clientY);
+        let charIndex = caretOffsetFromPoint(text, clientX, clientY);
+        // Une pastille se lâche AU-DESSUS du texte (là où elle s'affiche), pas sur lui : aucun caractère sous le pointeur, et elle devenait un
+        // accord « libre » qui ne suivait plus le texte (bug P-04). On vise alors la ligne de texte la plus proche, à la même abscisse.
+        if (charIndex == null) {
+            const lignes = getVisualLines(text);
+            if (lignes.length) {
+                const L = lignes[nearestLineIndex(lignes, clientY)];
+                const y = L && (L.centerY != null ? L.centerY : (L.top != null && L.bottom != null ? (L.top + L.bottom) / 2 : null));
+                if (y != null) charIndex = caretOffsetFromPoint(text, clientX, y);
+            }
+        }
         if (charIndex != null) return { type: 'char', charIndex };
     }
     // Mode libre : seule la position HORIZONTALE reste libre — la verticale se verrouille sur la ligne

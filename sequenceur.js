@@ -1513,7 +1513,12 @@
         // (les formes de l'utilisateur et les fournis masqués), pour « Autres +n ».
         rythmesPourBulle() {
             const masq = this.masques();
-            const actuel = this._i != null ? motifActuel(this.accord(this._i)) : null;
+            // Séquenceur fermé, `_i` n'est pas encore posé : on lit l'accord choisi directement (bug A-03 : aucune forme n'était marquée, puis
+            // « Plaqué » apparaissait 300 ms après l'ouverture du séquenceur).
+            let d = null;
+            if (this._i != null) d = this.accord(this._i);
+            else { const cb = this.cible(); d = cb.i != null ? cb.accords[cb.i] : null; }
+            const actuel = d ? motifActuel(d) : null;
             const liste = MOTIFS.filter(m => m.id === 'main' || !masq.has(m.id)).sort((x, y) => (y.id === 'main') - (x.id === 'main')).map(m => ({ id: m.id, nom: m.id === 'main' ? 'Libre' : m.nom, vignette: vignetteHtml(m), actif: m.id === actuel }));
             const masques = MOTIFS.filter(m => m.id !== 'main' && masq.has(m.id)).length;
             return { liste, autres: formesUtilisateur().length + masques };

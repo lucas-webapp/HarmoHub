@@ -54,3 +54,26 @@ test.describe('Glisser une case @grille @ordinateur', () => {
     expect(await noms(page)).toEqual(['C', 'F', 'G', 'Am']);
   });
 });
+
+// M-02 (décidé le 20/11) : une COPIE (Ctrl+glisser) va là où on la lâche — avant ou après la case visée selon la moitié survolée, y compris dans une
+// AUTRE partie ; l'original reste en place. (Le déplacement simple, lui, reste dans sa partie.)
+test.describe('Copier une case en la glissant (Ctrl) @grille @ordinateur', () => {
+  async function glisserCopie(page: import('@playwright/test').Page, depuis: import('@playwright/test').Locator, vers: import('@playwright/test').Locator, fraction: number) {
+    await page.keyboard.down('Control');
+    await glisserCase(page, depuis, vers, fraction);
+    await page.keyboard.up('Control');
+  }
+  test('Ctrl+glisser Am sur la moitié droite de F la copie derrière F, l\'original reste', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ accords: C_AM_F_G });
+    await glisserCopie(page, caseN(page, 0, 1), caseN(page, 0, 2), 0.75);
+    await expect.poll(() => noms(page)).toEqual(['C', 'Am', 'F', 'Am', 'G']);
+  });
+  test('Ctrl+glisser Am sur la moitié gauche de C du Refrain la copie au début du Refrain', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ reglages: reglagesMorceau([
+      { titre: 'Couplet', accords: C_AM_F_G }, { titre: 'Refrain', accords: [{ root: 'F', quality: '' }, { root: 'C', quality: '' }] },
+    ]) });
+    await glisserCopie(page, caseN(page, 0, 1), caseN(page, 1, 1), 0.25);
+    await expect.poll(() => noms(page, 1)).toEqual(['F', 'Am', 'C']);
+    expect(await noms(page, 0)).toEqual(['C', 'Am', 'F', 'G']);
+  });
+});

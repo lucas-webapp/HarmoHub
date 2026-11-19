@@ -5153,7 +5153,9 @@ class HarmoHubApp {
             // qui la remplace fait de même : on y règle un rythme pour l'ENTENDRE, Lecture et Stop ne referment pas le panneau.
             const transportSurRythme = !!(this._bulle && this._bulle.rythme) && inPath('#play-prog, #stop');
             // L7a : le bouton Séquenceur de la rangée du haut OUVRE ce panneau : son clic ne doit pas le refermer aussitôt (il passait par ici après l'ouverture).
-            if (this._bulle && this._bulle.telephone && !transportSurRythme && !inPath('#panneau-accord, .grid-cell:not(.grid-cell-add), #context-menu, #sq-menu-note, #tel-sequenceur')) this.fermerBulleAccord();
+            // Un clic dans la popover des rythmes (#sq-biblio, #sq-menu-rythme) n'est pas « à côté » ; une cible DÉTACHÉE par un redessin non plus (le menu
+            // « Tous les rythmes » se redessine en « Enregistrer la forme » entre l'appui et le clic : la feuille se fermait, bug S-02).
+            if (this._bulle && this._bulle.telephone && !transportSurRythme && e.target.isConnected && !inPath('#panneau-accord, .grid-cell:not(.grid-cell-add), #context-menu, #sq-menu-note, #tel-sequenceur, #sq-biblio, #sq-menu-rythme')) this.fermerBulleAccord();
             // .seq-zoom-modal inclus : le séquenceur (déplacé dans la loupe séquenceur,
             // ou dans sa propre vue agrandie, voir openSeqZoom) et ses boutons (Enregistrer/Annuler/
             // replier, poignée de redimensionnement...) y vivent, hors de .chord-grid ET de .col-left —
@@ -17122,6 +17124,12 @@ class HarmoHubApp {
         // On reste dans la MÊME partie : pas de glisser d'un accord d'une partie vers une autre.
         const under = document.elementFromPoint(e.clientX, e.clientY);
         const overCell = under && under.closest ? under.closest('.grid-cell') : null;
+        // COPIE d'une seule case (Ctrl+glisser, appui long + glisser) : elle va là où on la lâche, AUSSI dans une autre partie, avant ou après la case
+        // visée selon la moitié survolée (bug M-02 : elle tombait toujours juste après l'original, dans sa propre partie, ou avant la case visée).
+        if (d.copy && overCell && !(d.dragIndices && d.dragIndices.length > 1)) {
+            const ts = +overCell.dataset.section, ti = parseInt(overCell.dataset.index);
+            if (!isNaN(ts) && !isNaN(ti)) { const r = overCell.getBoundingClientRect(); d.copyCible = { section: ts, index: ti + (e.clientX > r.left + r.width / 2 ? 1 : 0) }; }
+        }
         if (overCell && +overCell.dataset.section === d.section) {
             const targetIndex = parseInt(overCell.dataset.index);
             if (!isNaN(targetIndex) && targetIndex !== d.index) {
@@ -17269,7 +17277,8 @@ class HarmoHubApp {
             // tout le groupe sélectionné d'un coup si le geste avait démarré dessus (voir
             // onGridPointerDown/dragIndices), sinon juste la case glissée comme avant.
             if (d.dragIndices.length > 1) this.duplicateChordsTo(d.section, d.dragIndices, d.index);
-            else this.duplicateChordTo(d.section, d.origIndex, d.index);
+            else if (d.copyCible && d.copyCible.section !== d.section) this.copierAccordVersPartie(d.section, d.origIndex, d.copyCible.section, d.copyCible.index);
+            else this.duplicateChordTo(d.section, d.origIndex, d.copyCible ? d.copyCible.index : d.index);
             return;
         }
         // La grille est déjà dans l'ordre final ; sélection/édition ont déjà été décalées en direct à
@@ -17283,6 +17292,24 @@ class HarmoHubApp {
     // tout le reste (y compris l'original s'il est après le point d'insertion) décale d'un cran.
     // N'appelle PAS pushUndo : cette méthode n'est utilisée qu'en fin de glisser (onGridPointerUp),
     // dont le début (onGridPointerMove) a déjà pris l'unique instantané du geste — comme moveChordLive.
+    // La copie d'un accord dans une AUTRE partie (voir onGridPointerUp, bug M-02) : l'original reste, la copie devient l'accord choisi de la partie visée.
+    // Pas de pushUndo : le début du glisser a pris l'unique instantané du geste (comme duplicateChordTo).
+    copierAccordVersPartie(section, fromIndex, versSection, toIndex) {
+        const sections = loadProgressionSections();
+        const src = sections[section] && sections[section].chords, dst = sections[versSection] && sections[versSection].chords;
+        if (!src || !dst || !src[fromIndex]) return;
+        const insertAt = Math.max(0, Math.min(toIndex, dst.length));
+        dst.splice(insertAt, 0, JSON.parse(JSON.stringify(src[fromIndex])));
+        saveProgressionSections(sections);
+        marquerModifie();
+        this.loopRange = null; // une plage à boucler repose sur des index d'accords (voir CLAUDE.md)
+        this.multiSelect = new Set();
+        if (this.editingIndex != null) this.exitEditMode();
+        this.activeSection = versSection;
+        this.selectedIndex = insertAt;
+        this.loadProgression();
+    }
+
     duplicateChordTo(section, fromIndex, toIndex) {
         const sections = loadProgressionSections();
         const history = sections[section] && sections[section].chords;

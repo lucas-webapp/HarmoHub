@@ -128,6 +128,10 @@ D-04 → `diagrammes/doigtes.spec.ts` « D-04 : juste après Annuler / Rétablir
 | L-02 | 20/11 | Maintenir un chevron du tempo fait défiler (le blur d'un champ, capté sur window, arrêtait la répétition) | `lecture/vitesse-metronome.spec.ts` |
 | L-03 | 20/11 | Curseur de vitesse : l'aimant aux repères ne vaut que pour la souris, les flèches avancent de 5 % | `lecture/vitesse-metronome.spec.ts` |
 | G-03 | 20/11 | Double-clic sur le « + » d'une case : le second clic, au même endroit, ne referme pas le panneau | `grille/ajout-au-clic.spec.ts` |
+| S-02 | 20/11 | Téléphone : « Enregistrer la forme… » ne ferme plus la feuille d'accord (clic dans la popover des rythmes, ou sur une cible détachée par un redessin, n'est pas « à côté ») | `sequenceur/formes.spec.ts` (test réécrit : il contournait le bug) |
+| A-03 | 20/11 | Onglet Rythme : la forme d'un accord est marquée séquenceur fermé comme ouvert | `accord/onglet-rythme.spec.ts` |
+| M-02 | 20/11 (décidé) | Copie par glisser (Ctrl ou appui long) : elle va là où on la lâche, avant ou après la case selon la moitié, y compris dans une autre partie | `grille/glisser.spec.ts` (2 tests ajoutés) |
+| P-04 | 20/11 | Paroles, mode Syllabe : une pastille glissée reste accrochée à un caractère (on vise la ligne de texte la plus proche) | `paroles/glisser-annuler.spec.ts` |
 | Z-07 | reporté | Demande une décision d'architecture : le tampon de travail est partagé entre onglets par le stockage local ; isoler chaque onglet change le modèle | `test.fail` conservé |
 | P-08 | reporté | Corriger le ×N oblige la grille à recharger la page Paroles à chaque clic (perte de l'historique d'annulation) : à traiter avec un message de mise à jour plutôt qu'un rechargement | `test.fail` conservé |
 

@@ -229,7 +229,6 @@ test.describe('Formes personnelles — téléphone @sequenceur @mobile', () => {
   // S-02 (bugs.md) : au téléphone, toucher « Enregistrer la forme… » dans le menu « Tous les rythmes » ferme la feuille d'accord (donc le séquenceur) ;
   // le menu, lui, reste ouvert. À l'ordinateur la grille d'accords n'est pas touchée. Le test exige que la feuille reste ouverte.
   test('« Enregistrer la forme… » laisse la feuille d\'accord et le séquenceur ouverts', async ({ ouvrirAppli }) => {
-    test.fail(true, 'S-02 (bugs.md) : bug connu, le test doit repasser au vert quand il sera corrigé');
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await ouvrirSurAccord(page, 1);
     await ouvrirBiblio(page);
@@ -247,15 +246,15 @@ test.describe('Formes personnelles — téléphone @sequenceur @mobile', () => {
     await expect.poll(() => nombreAllume(page, 1)).toBe(8);
     const modele = await notesAllumees(page, 1);
     await ouvrirBiblio(page);
-    await biblio(page).getByRole('button', { name: /Enregistrer la forme/ }).tap();   // (S-02) la feuille se ferme ici
+    await biblio(page).getByRole('button', { name: /Enregistrer la forme/ }).tap();
+    await expect(sequenceur(page)).toBeVisible();   // S-02 (corrigé le 20/11) : la feuille et le séquenceur restent ouverts
     await biblio(page).getByRole('textbox', { name: 'Nom de la forme' }).fill('Ma forme');
     await biblio(page).getByRole('button', { name: 'Enregistrer', exact: true }).tap();
     await expect(biblio(page)).toBeHidden();
     await expect.poll(() => formesStockees(page)).toEqual(['Ma forme']);
-    // on rouvre le séquenceur (il s'ouvre sur le premier accord), on va sur F et on applique la forme
-    if (!(await sequenceur(page).isVisible())) await ouvrirSequenceur(page);
-    await page.locator('#sq-portee-accord').tap();
-    await choisirAccord(page, 2);
+    await expect(sequenceur(page)).toBeVisible();
+    // on va sur F (même séquenceur, toujours ouvert, encore sur Am : un « Accord suivant ») et on applique la forme
+    await choisirAccord(page, 1);
     await forme(page, 'Ma forme').tap();
     await expect.poll(() => notesAllumees(page, 2)).toEqual(modele);
     expect(garde.bloquees).toEqual([]);

@@ -53,7 +53,6 @@ test.describe('Glisser une pastille @paroles', () => {
   });
 
   test('en mode Syllabe, une pastille glissée reste accrochée à un caractère (placement « char ») @ordinateur', async ({ ouvrirAppli }) => {
-    test.fail(true, 'P-04 (bugs.md) : un glissé en mode Syllabe enregistre la pastille en position libre (« free », en %), elle ne suit plus le texte');
     const page = await ouvrirAppli(morceauParoles(UNE_PARTIE));
     await ouvrirParoles(page);
     await ecrire(page, 0, PHRASE);
