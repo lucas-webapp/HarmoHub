@@ -44,6 +44,13 @@ Gravité : **bloquant** (empêche un parcours principal), **gênant** (contourna
 | R-01 | 18/11 | structure | tous | mineur | En 3/4, le total de la fenêtre Structure s'écrit « 12.0 mesures » (avec décimale) alors que les parties s'écrivent « 4 mes. » et que le total vaut un nombre entier | ouvert |
 | R-02 | 18/11 | structure | tous les ordinateurs et l'iPad | gênant | Échap dans la fenêtre « Renommer cette occurrence » ou « Commentaire » ferme la fenêtre Structure derrière et laisse la petite fenêtre ouverte au-dessus de la grille | ouvert |
 | R-03 | 18/11 | structure | tous | mineur | Après « + » / « − » dans la fenêtre Structure, la grille n'affiche pas le badge ×N de la partie tant qu'on ne recharge pas la page | ouvert |
+| Z-01 | 19/11 | robustesse | tous | mineur (à arbitrer) | Après « Nomme d'abord ton morceau… » (export d'un morceau sans nom), un clic à côté du champ du nom enregistre aussitôt un morceau vide « Sans titre » que l'utilisateur n'a pas demandé | ouvert |
+| Z-02 | 19/11 | robustesse | tous (mesuré sur Chromium) | gênant | Stockage plein : « Enregistrer » échoue sans aucun message (exception non interceptée « quota exceeded »), le morceau reste « Non enregistré » sans qu'on sache pourquoi | ouvert |
+| Z-03 | 19/11 | robustesse | tous (mesuré sur Chromium) | gênant | Copie de travail non écrivable (stockage plein ou refusé) : ajouter un accord ne fait rien (le texte reste dans le champ, aucun message) au lieu de travailler en mémoire | ouvert |
+| Z-04 | 19/11 | robustesse | tous (mesuré sur Chromium) | gênant (rare) | Stockage local bloqué (SecurityError : cookies bloqués, certains modes privés) : `window.app` n'existe jamais, la page est un décor mort, sans message | ouvert |
+| Z-05 | 19/11 | robustesse | tous (mesuré sur Chromium) | gênant (rare) | Données de morceau de la mauvaise forme (JSON valide) : bibliothèque qui n'est pas une liste, élément `null`, partie sans `chords`, accord `null` empêchent l'appli de démarrer (même famille que E-06) | ouvert |
+| Z-06 | 19/11 | robustesse | tous | gênant | Après rechargement, un morceau enregistré puis modifié sans enregistrer s'affiche « Enregistré à hh:mm » alors que la grille porte la modification : l'état affiché est faux (rien n'avertit en le quittant) | ouvert |
+| Z-07 | 19/11 | robustesse | tous (mesuré sur Chromium) | gênant | Deux onglets : l'onglet resté sur « Alpha » bascule en silence, au premier geste, sur le morceau ouvert par l'autre onglet (« Charlie ») et y écrit : l'accord tapé dans « Alpha » atterrit dans « Charlie » | ouvert |
 
 Tests qui échouent à cause de ces bugs : marqués `test.fail()` (échec attendu, vérification intacte) pour que la CI reste verte ; ils deviendront ROUGES le jour où le bug est corrigé : retirer alors le `test.fail` :
 G-01 → `grille/selection.spec.ts` « un clic sur une case d'une autre partie la sélectionne du premier coup » et `grille/copier-coller.spec.ts` « on peut coller dans une autre partie… » (Firefox seulement) ;
@@ -535,3 +542,58 @@ Dessiner x02210 (A C E) propose « Am, C6, Am7, Am6 » ; x32010 propose « C, C6
 - Ouvrir « Paramètres » lève la sélection de la grille (le voile vaut « clic à côté »).
 - Les interrupteurs et les pastilles de couleur ont 20 à 28 px de haut au téléphone (la jauge du téléphone est 44 px) ; l'étiquette autour est plus grande.
 - Non testé : l'effet audible des réglages (le son est factice) ; « Écouter en éditant » et « Son au déplacement » ne sont vérifiés que par leur état et leur mémoire, pas par un appel de note.
+
+Z-01 → `robustesse/etats-vides.spec.ts` « Z-01 : après « Nomme d'abord ton morceau… », un clic à côté du champ… » ;
+Z-02 → `robustesse/stockage.spec.ts` « Z-02 : l'échec de « Enregistrer » est annoncé… » et « …n'est pas une exception non interceptée de la page » ;
+Z-03 → `robustesse/stockage.spec.ts` « Z-03 : ajouter un accord alors que la copie de travail ne s'écrit plus… » ;
+Z-04 → `robustesse/stockage.spec.ts` « Z-04 : « localStorage » inaccessible… » ;
+Z-05 → `robustesse/stockage.spec.ts` « Z-05 : … l'appli démarre quand même » (4 variantes) ;
+Z-06 → `robustesse/rechargement.spec.ts` « Z-06 : après le rechargement… toujours annoncé « Non enregistré » » ;
+Z-07 → `robustesse/deux-onglets.spec.ts` « Z-07 : l'onglet resté sur « Alpha » ajoute son accord à « Alpha »… ».
+
+## Z-01 — Un clic à côté du champ du nom enregistre un morceau « Sans titre » (mineur, à arbitrer)
+**Étapes** : 1. Ouvrir l'appli (morceau neuf, sans nom). 2. « Fichier » › « Exporter en MIDI ». 3. Le toast dit « Nomme d'abord ton morceau pour exporter le MIDI » et le champ du nom prend le focus. 4. Cliquer ailleurs (la grille).
+**Attendu** : le champ se referme, rien n'est enregistré (Échap, lui, abandonne bien).
+**Observé** : un morceau vide « Sans titre » entre dans la bibliothèque (« Enregistré à hh:mm », toast « « Sans titre » enregistré »).
+**Appareil** : Chromium (mesuré) ; même code partout. **Test** : `etats-vides.spec.ts` (`test.fail`).
+
+## Z-02 — Stockage plein : « Enregistrer » échoue sans rien dire (gênant)
+**Étapes** : 1. Ouvrir un morceau enregistré. 2. Le stockage local refuse l'écriture de la bibliothèque (`QuotaExceededError`). 3. Ajouter un accord, cliquer « Enregistrer ».
+**Attendu** : un message dit que l'enregistrement a échoué (et pourquoi).
+**Observé** : aucun message ; exception JavaScript non interceptée ; l'état reste « Non enregistré » (c'est vrai, mais sans explication). Le reste de l'appli, la bibliothèque déjà enregistrée et la lecture restent intacts ; une fois la place libérée, « Enregistrer » réussit.
+**Appareil** : Chromium (mesuré, écriture refusée par un script de test). **Tests** : `stockage.spec.ts` × 2 (`test.fail`).
+
+## Z-03 — Copie de travail non écrivable : plus aucun accord ne peut être ajouté (gênant)
+**Étapes** : 1. Ouvrir un morceau. 2. Le stockage refuse l'écriture de la copie de travail (`myProgression`). 3. Taper un accord dans le « + », Entrée.
+**Attendu** : l'accord apparaît (travail en mémoire) ou un message dit que le stockage est refusé.
+**Observé** : rien : le texte reste dans le champ, aucun accord, aucun message. La lecture et l'affichage du morceau déjà chargé fonctionnent.
+**Appareil** : Chromium. **Test** : `stockage.spec.ts` « Z-03 » (`test.fail`).
+
+## Z-04 — Stockage local bloqué : l'appli ne démarre pas (gênant, rare)
+**Étapes** : 1. Navigateur dont l'accès au stockage local lève `SecurityError` (cookies bloqués, certains modes privés). 2. Ouvrir l'appli.
+**Attendu** : l'appli démarre en mémoire (ou dit pourquoi elle ne peut pas).
+**Observé** : `window.app` n'existe jamais ; la page affiche les libellés mais aucun bouton ne répond ; aucun message.
+**Appareil** : Chromium (stockage rendu inaccessible par un script de test). **Test** : `stockage.spec.ts` « Z-04 » (`test.fail`).
+
+## Z-05 — Des données de morceau de la mauvaise forme empêchent l'appli de démarrer (gênant, rare)
+**Étapes** : 1. Stockage local : `harmohubSongs` = `{"a":1}` (objet, pas liste) ou `[null,3,{"id":"z"}]`, ou `myProgression` = partie sans `chords` ou accord `null`. 2. Ouvrir l'appli.
+**Attendu** : démarrage avec un morceau vide (comme pour un JSON illisible, qui est bien toléré).
+**Observé** : `window.app` n'existe jamais (même famille que E-06) ; seul vider le stockage répare.
+**Appareil** : Chromium. **Tests** : `stockage.spec.ts` « Z-05 » × 4 (`test.fail`).
+
+## Z-06 — Après rechargement, l'état « Enregistré » est faux (gênant)
+**Étapes** : 1. Ouvrir « Alpha » (enregistré). 2. Renommer la partie (« Non enregistré »). 3. Recharger la page.
+**Attendu** : la grille garde la modification (c'est le cas) ET la barre du haut dit « Non enregistré ».
+**Observé** : la barre dit « Enregistré à hh:mm » ; la version enregistrée n'a pas la modification (vérifié dans le stockage). Plus aucun avertissement en quittant ou en changeant de morceau.
+**Appareil** : Chromium (mesuré). **Test** : `rechargement.spec.ts` « Z-06 » (`test.fail`).
+
+## Z-07 — Deux onglets : l'onglet périmé écrit dans l'autre morceau (gênant)
+**Étapes** : 1. Onglet A et onglet B ouverts sur « Alpha ». 2. Dans A, créer et enregistrer « Charlie » (un accord). 3. Dans B (affiche toujours « Alpha »), ajouter l'accord D, « Enregistrer ».
+**Attendu** : D est ajouté à « Alpha », « Charlie » est inchangé.
+**Observé** : B bascule sur « Charlie » au premier geste (rien ne l'annonce) ; D est ajouté à « Charlie » ; « Alpha » ne reçoit rien. (Si A a seulement modifié « Alpha », B reprend ses modifications et rien n'est perdu.)
+**Appareil** : Chromium (mesuré). **Test** : `deux-onglets.spec.ts` « Z-07 » (`test.fail`).
+
+## Constats du module robustesse (sans test, à arbitrer)
+- Hors ligne sans compte : une page rechargée hors ligne ne s'ouvre pas (aucun service worker) ; seul le travail dans la page déjà ouverte continue.
+- Firefox : un accord tapé dans le « + » sans Entrée puis un rechargement est validé en quittant la page (blur au déchargement) ; les autres moteurs perdent le texte. Inoffensif, noté dans le test.
+- Durées d'accord invalides dans le stockage (−3, « abc », 0, `null`) : bien tolérées ; une durée de 10⁹ temps fait planter l'onglet (mesuré, volontairement non testé : il tuerait le navigateur de test).
