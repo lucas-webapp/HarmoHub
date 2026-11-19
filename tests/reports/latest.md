@@ -1,34 +1,33 @@
-# Rapport du module « paroles » — 18/11/2026
+# Rapport du module « parametres » — 19/11/2026
 
 ## Résumé
-- Testé : l'onglet Paroles (iframe) : ouvrir, écrire, poser les accords au-dessus des paroles (Syllabe / Libre), glisser, annuler / rétablir / réinitialiser, ×N, options, versions, export texte / copie / PDF, lien avec la grille et la bibliothèque, téléphone.
-- Résultat : 99 tests (607 exécutions sur 7 projets), tous verts, dont 11 `test.fail` = 8 bugs ouverts (P-01 à P-08). `CI=1 npm run test:e2e:envoi` entièrement vert APRÈS la dernière retouche (729 réussis / 11 ignorés sur Chromium, puis 1414 réussis / 60 ignorés sur les 6 autres projets, 0 échec, 0 relance).
-- Suite conseillée : corriger P-05, P-06 (graves) et P-08, puis `parametres`.
+- Testé : la fenêtre « Paramètres » (ouverture, fermeture, clavier, valeurs d'usine, « À propos »), la section Son (volumes, décompte, son du métronome, jouer à la sélection, rythme des nouveaux accords), l'Affichage (degrés, fonction harmonique, repères de temps, position d'accord, date, noms des rythmes, barres du séquenceur), l'Apparence (verre, couleur), les étiquettes des instruments (piano, guitare, manche de dessin), la persistance après rechargement, des valeurs abîmées, et les réglages qui voyagent avec le compte.
+- Résultat : 53 tests (6 fichiers, 19 `@critique`), 53 sur les projets ordinateur, 29 au téléphone ; tout vert sur les 7 projets, dont 11 `test.fail` = 7 bugs ouverts (E-01 à E-07). `CI=1 npm run test:e2e:envoi` : voir la ligne « Envoi » ci-dessous.
+- Suite conseillée : corriger E-02 (Espace lance la lecture) et E-06 (appli qui ne démarre plus sur un volume abîmé), puis arbitrer E-03 à E-05 (noms de notes et tonalité) ; ensuite le module `robustesse`.
+
+## Envoi
+`CI=1 npm run test:e2e:envoi` lancé en entier APRÈS la dernière retouche des tests : code de sortie 0. Chromium : 782 réussis / 11 ignorés / 0 échoué. Les 6 autres projets (`@smoke` et `@critique`) : 1513 réussis / 60 ignorés / 0 échoué, 1 relancé avec succès (hors module : `fichiers/liste-morceaux.spec.ts` « la fenêtre liste chaque morceau… », iPhone, réussi au 2ᵉ essai). Aucun test de `parametres` n'a eu besoin d'une relance. Module seul sur les 7 projets (avant l'envoi) : tout vert, échecs attendus inclus. Un premier envoi (51 min) avait relancé 3 tests du module (Firefox ×2, iPhone ×1) : durcis ensuite (voir « Tolérances »), puis le tout a été relancé.
 
 ## Bugs (détail dans `tests/reports/bugs.md`)
-- **P-05 grave** — les textes sont rangés par position de partie : « Monter » le refrain, ou supprimer / dupliquer le couplet, met les paroles sous la mauvaise partie.
-  Étapes : paroles écrites dans Couplet et Refrain ; grille ; menu du Refrain › Monter ; Paroles. Attendu : « Refrain » porte son texte. Observé : il porte celui du couplet.
-  Appareil : tous (mesuré Chromium). Tests : `lien-grille.spec.ts` (3, `test.fail`). Avis : bug de l'appli.
-- **P-06 grave** — les accords posés sont rattachés au RANG de l'accord : insérer « Dm » avant, ou supprimer un accord qui précède, renomme les pastilles (Am devient C). Tests : `lien-grille.spec.ts` (2, `test.fail`). Avis : bug de l'appli.
-- **P-03 gênant** — « Rétablir » reste actif après une nouvelle saisie et écrase le texte neuf. `glisser-annuler.spec.ts`.
-- **P-08 gênant** — le ×N est enregistré mais réaffiché « × 1 » après rechargement. `parties-options.spec.ts`.
-- **P-02, P-04, P-01, P-07 mineurs** — infobulle « reclique pour désarmer » fausse ; glissé en Syllabe qui devient position libre ; bouton « Nommer le morceau » de 32 px au libellé débordant ; texte d'aide des versions en 16 px.
-- Constats sans test (export texte sans accords posés ni ×N, PDF toujours sur une page, mode Libre non retenu…) : voir la fin de `bugs.md`.
+- **E-02 gênant** — Espace sur un interrupteur de « Paramètres » lance la lecture du morceau au lieu de le basculer. Étapes : ouvrir Paramètres, Tab jusqu'à « Degrés », Espace. Attendu : l'interrupteur bascule. Observé : rien ne bascule, le morceau joue. Appareil : Chromium (même code partout). Trace : `test-results/` du test « E-02 » de `fenetre.spec.ts`. Avis : bug de l'appli (raccourci global sans garde sur les contrôles).
+- **E-06 gênant (rare)** — un volume enregistré qui n'est pas un nombre (« beaucoup », vide, « abc ») empêche l'appli de démarrer (`window.app` absent, « Invalid argument(s) to setValueAtTime: null »). Tests : `persistance.spec.ts` (3). Avis : bug de l'appli.
+- **E-03, E-04 mineurs** — pastilles de la guitare et manche de dessin écrivent D#, A#… en do majeur, alors que l'infobulle promet « les dièses ou bémols de la tonalité ». **E-05** (à arbitrer) : même chose sur les touches du piano. Tests : `instruments.spec.ts` (3).
+- **E-01 mineur (accessibilité)** — le focus n'entre pas dans la fenêtre ouverte au clavier, Tab part derrière elle. **E-07 mineur** — un volume enregistré hors de 0 à 100 (150, −5, 500) est gardé tel quel (3 tests).
+- Constats sans test : voir la fin de `bugs.md`.
 
 ## Instabilités, tolérances, limites
-- **Firefox : le premier clic dans l'iframe ne donne pas le focus** à la zone de texte (reproduit sur une page témoin sans l'appli : un bouton du parent actif + un `contenteditable` dans une iframe). Aide `focaliser` : on clique jusqu'à ce que la zone soit focalisée (attente d'un état). Avis : environnement du navigateur de test, pas l'appli.
-- Un test de collage (évènement `paste` fabriqué) est ignoré sur Firefox, qui n'honore pas un évènement non fiable ; couvert ailleurs. Le test du PDF long tape ses lignes (aucun collage).
-- Le glissé au doigt est ignoré sur iPhone (WebKit mobile : pas de geste composé dans Playwright) ; couvert sur Android.
-- Tolérances justifiées : pastille centrée sur son caractère à 10 px près (Syllabe : un caractère < 15 px), à 3 px près en Libre ; `sansTags` ignore la structure `<div>` propre à Firefox ; positions relatives à la zone après export (un bandeau décale la page de 57 px) ; presse-papiers lu seulement sur Chromium / Edge.
-- Accords et textes d'essai courts : sur téléphone une longue phrase passe à la ligne et fausse le point visé.
-- Sélecteurs : aucun `data-testid` dans la page des paroles ; CSS `.lyrics-text`, `.lyric-pill`, `.pill-del`, `.section-block`, `.chord-chip` (classes `armed` / `placed` / `active`), `#options-panel`, `#versions-paroles-liste`. À proposer en `data-testid` : zone de texte (`paroles-zone`), pastille posée, croix, carte de partie.
+- **Pastilles de la guitare** : le dessin se refait après le clic ; la vérification « toutes les pastilles sont parmi A, C, E » est faite DANS une attente (`expect.poll`) qui n'aboutit que lorsque l'état final est pur. Une pastille étrangère qui resterait ferait échouer l'attente au délai. Cause de l'écart : une lecture entre deux redessins voyait l'ancien accord (Firefox, 1 fois sur 1500).
+- **Décompte** : on attend le DÉBUT de la lecture (`isPlaying`) avant d'attendre sa fin ; sinon, sous Firefox chargé, la fin était « vue » avant le début (0 clic).
+- **Appareil neuf qui se connecte** (`synchro-reglages.spec.ts`) : la page principale se recharge d'elle-même environ une demi-seconde après la connexion (mesuré sur Chromium et WebKit). Les lectures qui tombent dessus sont refaites (`toPass`, repère posé dans la page puis attendu), et un rechargement WebKit en « internal error » est refait. Toute autre erreur remonte.
+- « Noms des rythmes » : l'état d'usine dépend de la largeur (allumé au-dessus de 1340 px) ; le test de valeurs d'usine en tient compte et le test d'effet part d'un état « allumé » forcé.
+- Sélecteur CSS sans `data-testid` : `text[fill="#fff"]` dans le dessin de la guitare (les pastilles sont les seuls textes blancs ; les numéros de cases sont gris, les « X » rouges). `data-testid` manquant : `guitar-pastille` sur ces `<text>`.
+- Non couvert : l'effet audible (son factice : « Écouter en éditant » et « Son au déplacement » ne sont vérifiés que par leur état et leur mémoire), étiquettes piano / guitare au téléphone, historique des versions (module `synchro`).
 
-## Tests ajoutés (`tests/e2e/paroles/`, tag `@paroles`)
-- `ecrire.spec.ts` : 15 tests (5 `@critique`).
-- `accords.spec.ts` : 25 (7 `@critique`).
-- `glisser-annuler.spec.ts` : 19 (6 `@critique`).
-- `parties-options.spec.ts` : 12 (5 `@critique`).
-- `export.spec.ts` : 9 (3 `@critique`).
-- `lien-grille.spec.ts` : 12 (5 `@critique`).
-- `telephone.spec.ts` : 7 (1 `@critique`, `@mobile` ou `@ordinateur`).
-- Aide : `aide-paroles.ts`.
+## Tests ajoutés (`tests/e2e/parametres/`)
+- `fenetre.spec.ts` : 10 (2 `@critique`, dont 2 `test.fail` E-01, E-02).
+- `son.spec.ts` : 9 (4 `@critique`).
+- `affichage.spec.ts` : 9 (5 `@critique`).
+- `instruments.spec.ts` : 10 (4 `@critique`, 3 `test.fail` E-03 à E-05).
+- `persistance.spec.ts` : 12 (2 `@critique`, 6 `test.fail` E-06 ×3, E-07 ×3).
+- `synchro-reglages.spec.ts` : 3 (2 `@critique`).
+- Aide : `aide-parametres.ts`.

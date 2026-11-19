@@ -486,3 +486,52 @@ Dessiner x02210 (A C E) propose « Am, C6, Am7, Am6 » ; x32010 propose « C, C6
 - Après chaque export, un bandeau (« Texte exporté → dossier Téléchargements », « Texte copié dans le presse-papiers. ») s'insère dans la page et la décale d'environ 57 px vers le bas.
 - Après le dernier accord d'une partie, la chaîne repart au premier (« Enchaîner les accords ») : voulu pour reposer les accords sur un 2ᵉ vers ; le test le décrit comme une règle.
 - Le mode Syllabe / Libre n'est pas retenu après un rechargement (la page revient en « Syllabe ») ; la taille du texte et « Enchaîner » le sont.
+
+
+## E-01 — Paramètres : le focus n'entre pas dans la fenêtre ouverte au clavier, et Tab part derrière elle (mineur, accessibilité, à arbitrer)
+**Étapes** : 1. Ordinateur. Mettre le focus sur la roue « Paramètres » (Tab) et appuyer sur Entrée. 2. Appuyer sur Tab.
+**Attendu** : le focus passe dans la fenêtre (elle se déclare modale : `aria-modal="true"`) et y reste ; à la fermeture il revient à la roue.
+**Observé** : le focus reste sur la roue ; un Tab l'envoie sur la pastille « Se connecter », cachée derrière le voile ; il faut un 2ᵉ Tab pour atteindre « Fermer ». Après « Fermer » le focus reste sur un bouton devenu invisible.
+**Appareil** : Chromium (mesuré) ; même code partout. **Test** : `fenetre.spec.ts` « E-01 » (`test.fail`). **Gravité** : mineure (même défaut que V-01).
+
+## E-02 — Paramètres : Espace sur un interrupteur lance la lecture du morceau au lieu de le basculer (gênant, accessibilité)
+**Étapes** : 1. Ouvrir « Paramètres ». 2. Mettre le focus sur un interrupteur (par exemple « Degrés ») avec Tab. 3. Appuyer sur Espace.
+**Attendu** : l'interrupteur bascule (c'est la touche d'un bouton) ; rien ne joue.
+**Observé** : l'interrupteur ne bouge pas et la lecture du morceau démarre derrière la fenêtre (le raccourci global « lecture » a pris la touche). Entrée, elle, bascule bien.
+**Appareil** : Chromium (mesuré) ; même code partout. **Test** : `fenetre.spec.ts` « E-02 » (`test.fail`). **Gravité** : gênante au clavier (on lance la musique en voulant régler).
+
+## E-03 — Pastilles de la guitare : les notes ignorent la tonalité (mineur)
+**Étapes** : 1. Morceau en do majeur avec un accord posé en « Eb » (la grille écrit E♭). 2. « Paramètres » › Pastilles de la guitare › « Notes ». 3. Afficher la guitare, choisir l'accord.
+**Attendu** : E♭, G, B♭ (l'infobulle du réglage : « le nom de la note (avec les dièses ou bémols de la tonalité) », et la fiche d'accord à côté écrit E♭ G B♭).
+**Observé** : D#, G, A#. En mi majeur (tonalité à dièses), F# donne bien F#, A#, C# : seul le côté « bémols » est ignoré.
+**Appareil** : Chromium (mesuré) ; même code partout. **Test** : `instruments.spec.ts` « E-03 » (`test.fail`). **Gravité** : mineure (même famille que T-01 et T-03).
+
+## E-04 — Manche de dessin : les noms de notes ignorent la tonalité (mineur)
+**Étapes** : 1. Morceau en do majeur. 2. « Paramètres » › « Notes du manche de dessin » allumé. 3. Guitare › crayon › onglet « Dessiner sur le manche ».
+**Attendu** : B♭, E♭, A♭, D♭, G♭ (infobulle : « avec les dièses ou bémols de la tonalité »).
+**Observé** : A#, D#, G#, C#, F# sur les 150 cases.
+**Appareil** : Chromium (mesuré). **Test** : `instruments.spec.ts` « E-04 » (`test.fail`). **Gravité** : mineure.
+
+## E-05 — Touches du piano : les notes ignorent la tonalité (mineur, à arbitrer)
+**Étapes** : comme E-03, avec « Touches du piano » › « Notes ».
+**Attendu** : E♭, G, B♭ comme la fiche d'accord affichée juste à côté (l'infobulle du piano ne promet rien sur la tonalité : à arbitrer).
+**Observé** : D#, G, A# sur les touches, E♭ G B♭ dans la fiche.
+**Appareil** : Chromium (mesuré). **Test** : `instruments.spec.ts` « E-05 » (`test.fail`). **Gravité** : mineure.
+
+## E-06 — Un volume enregistré qui n'est pas un nombre empêche l'appli de démarrer (gênant, rare)
+**Étapes** : 1. Stockage local : `harmohubGeneralVolume` = « beaucoup » (ou vide, ou « NaN »), ou `harmohubMetronomeVolume` = « abc ». 2. Ouvrir l'appli.
+**Attendu** : l'appli démarre avec la valeur d'usine (100 / 80).
+**Observé** : page sans appli (`window.app` n'existe pas ; erreur « Invalid argument(s) to setValueAtTime: null, 0.02 »). Seul vider le stockage la répare.
+**Appareil** : Chromium (mesuré) ; même code partout. **Tests** : `persistance.spec.ts` « E-06 » × 3 (`test.fail`). **Gravité** : gênante si cela arrive (valeur abîmée par une ancienne version, une extension ou une synchro), mais peu probable.
+
+## E-07 — Un volume enregistré hors de 0 à 100 est gardé tel quel (mineur)
+**Étapes** : 1. Stockage local : `harmohubGeneralVolume` = 150 (ou −5), `harmohubMetronomeVolume` = 500. 2. Ouvrir l'appli.
+**Attendu** : valeur ramenée entre 0 et 100.
+**Observé** : l'appli garde 150, −5, 500 (le curseur, lui, se bloque à ses bornes, donc la fenêtre ne le montre pas) ; la sortie peut dépasser le niveau maximal du curseur.
+**Appareil** : Chromium (mesuré). **Tests** : `persistance.spec.ts` « E-07 » × 3 (`test.fail`). **Gravité** : mineure.
+
+## Constats du module parametres (sans test, à arbitrer)
+- L'état d'usine de « Noms des rythmes » dépend de la largeur de l'écran (allumé au-dessus de 1340 px, éteint en dessous) : sur iPad en paysage (1194 px) et au téléphone, l'interrupteur apparaît éteint alors que c'est « sans réglage ». C'est dit dans l'infobulle ; le test en tient compte.
+- Ouvrir « Paramètres » lève la sélection de la grille (le voile vaut « clic à côté »).
+- Les interrupteurs et les pastilles de couleur ont 20 à 28 px de haut au téléphone (la jauge du téléphone est 44 px) ; l'étiquette autour est plus grande.
+- Non testé : l'effet audible des réglages (le son est factice) ; « Écouter en éditant » et « Son au déplacement » ne sont vérifiés que par leur état et leur mémoire, pas par un appel de note.
