@@ -89,7 +89,6 @@ test.describe('Ajout au clic @grille @ordinateur', () => {
   // À ARBITRER (voir bugs.md) : le plan du module parle d'un « double-clic sur + ». Le panneau s'ouvre au premier clic, la grille descend
   // sous le pointeur, le second clic tombe « à côté » et referme tout : l'utilisateur qui double-clique voit le panneau clignoter puis disparaître.
   test('un double-clic sur le « + » laisse le panneau d\'ajout ouvert', async ({ ouvrirAppli }) => {
-    test.fail(true, 'G-03 (bugs.md) : bug connu, le test doit repasser au vert quand il sera corrigé');
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     const c = caseN(page, 0, 2);
     await c.hover();

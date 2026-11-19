@@ -124,6 +124,10 @@ D-04 → `diagrammes/doigtes.spec.ts` « D-04 : juste après Annuler / Rétablir
 | F-02 | 20/11 (décidé) | Supprimer le morceau ouvert repart d'un morceau neuf et vide (versions gardées, Ctrl+Z rend le morceau à la liste) | `fichiers/liste-morceaux.spec.ts` |
 | Z-01 | 20/11 (décidé) | Un clic à côté du champ du nom VIDE renonce (Entrée sur un champ vide enregistre toujours « Sans titre ») | `robustesse/etats-vides.spec.ts` |
 | G-04 | 20/11 (décidé) | « C Am F G » (espaces) est compris comme une liste quand chaque mot est un accord ; « xyz » est refusé avec un message (test réécrit) | `grille/ajout-rapide.spec.ts` |
+| E-01, V-01 | 20/11 | Focus au clavier : la fenêtre Paramètres le prend, Tab y reste, il revient à la roue ; « Conduite des voix » ouverte au clavier y met le focus | `parametres/fenetre.spec.ts`, `voicing/ouverture.spec.ts` |
+| L-02 | 20/11 | Maintenir un chevron du tempo fait défiler (le blur d'un champ, capté sur window, arrêtait la répétition) | `lecture/vitesse-metronome.spec.ts` |
+| L-03 | 20/11 | Curseur de vitesse : l'aimant aux repères ne vaut que pour la souris, les flèches avancent de 5 % | `lecture/vitesse-metronome.spec.ts` |
+| G-03 | 20/11 | Double-clic sur le « + » d'une case : le second clic, au même endroit, ne referme pas le panneau | `grille/ajout-au-clic.spec.ts` |
 | Z-07 | reporté | Demande une décision d'architecture : le tampon de travail est partagé entre onglets par le stockage local ; isoler chaque onglet change le modèle | `test.fail` conservé |
 | P-08 | reporté | Corriger le ×N oblige la grille à recharger la page Paroles à chaque clic (perte de l'historique d'annulation) : à traiter avec un message de mise à jour plutôt qu'un rechargement | `test.fail` conservé |
 

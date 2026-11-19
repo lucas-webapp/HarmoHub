@@ -89,7 +89,6 @@ test.describe('Vitesse de lecture @lecture', () => {
 
   test('au clavier, les flèches font quitter un repère (100 %) @ordinateur', async ({ ouvrirAppli }) => {
     // L-03 (bugs.md) : l'accroche aux repères rend la flèche droite sans effet à 100 % (et à 50, 75, 150 %) : 105 % retombe à 100 %.
-    test.fail(true, 'L-03 (bugs.md) : l\'accroche aux repères bloque les flèches du clavier sur 100 %');
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await ouvrirTempo(page);
     await curseurVitesse(page).focus();
@@ -173,7 +172,6 @@ test.describe('Métronome @lecture', () => {
 test.describe('Chevrons maintenus @lecture @ordinateur', () => {
   test('maintenir « Plus rapide » enfoncé fait défiler le tempo, comme l\'annonce son infobulle', async ({ ouvrirAppli }) => {
     // L-02 (bugs.md) : à la souris, maintenir le chevron ne fait que +1 (le défilement ne démarre pas).
-    test.fail(true, 'L-02 (bugs.md) : maintenir un chevron du tempo ne fait pas défiler');
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await ouvrirTempo(page);
     await expect(plusRapide(page)).toHaveAttribute('title', /maintenir pour faire défiler/);

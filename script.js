@@ -804,6 +804,34 @@ function loadProgressionSections() {
     }
     return [{ title: '', chords: [] }];
 }
+// FOCUS DES FENÊTRES AU CLAVIER (bugs E-01, V-01). `pieger` : le focus entre dans la fenêtre (premier élément utilisable), Tab et Maj+Tab y
+// tournent en rond ; `liberer` le rend à l'élément qui l'avait à l'ouverture. Rien de plus : la souris et le toucher ne sont pas concernés.
+const SELECTEUR_FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+function focusablesDe(el) { return el ? [...el.querySelectorAll(SELECTEUR_FOCUSABLE)].filter(x => x.offsetParent !== null || x.getClientRects().length) : []; }
+function premierFocusable(el) { return focusablesDe(el)[0] || null; }
+function pieger(el, ouvreur) {
+    if (!el) return;
+    liberer(el, true);
+    el._retourFocus = ouvreur || document.activeElement;
+    el._piege = (e) => {
+        if (e.key !== 'Tab') return;
+        const l = focusablesDe(el);
+        if (!l.length) return;
+        const i = l.indexOf(document.activeElement);
+        if (e.shiftKey && i <= 0) { e.preventDefault(); l[l.length - 1].focus(); }
+        else if (!e.shiftKey && (i === -1 || i === l.length - 1)) { e.preventDefault(); l[0].focus(); }
+    };
+    el.addEventListener('keydown', el._piege);
+    const p = premierFocusable(el);
+    if (p) p.focus();
+}
+function liberer(el, sansRetour) {
+    if (!el || !el._piege) return;
+    el.removeEventListener('keydown', el._piege);
+    el._piege = null;
+    const r = el._retourFocus; el._retourFocus = null;
+    if (!sansRetour && r && r.isConnected && el.contains(document.activeElement)) r.focus();
+}
 function nombreOuTel(v) { const n = Number(v); return v !== '' && v !== null && Number.isFinite(n) ? n : v; }
 function accordsSains(liste) { return liste.filter(h => h && typeof h === 'object'); }
 
@@ -4282,7 +4310,7 @@ class HarmoHubApp {
         };
         document.addEventListener('pointerdown', resumeAudioIfNeeded, { passive: true });
         // Où a eu lieu le dernier appui (voir dernierGesteDansSequenceur) : Suppr ne doit pas viser la même chose selon qu'on vient du séquenceur ou de la grille.
-        document.addEventListener('pointerdown', (e) => { this._dernierAppui = e.target; }, { capture: true, passive: true });
+        document.addEventListener('pointerdown', (e) => { this._dernierAppui = e.target; this._appuiPrecedent = this._appuiCourant; this._appuiCourant = { x: e.clientX, y: e.clientY, t: performance.now() }; }, { capture: true, passive: true });
         document.addEventListener('touchend', resumeAudioIfNeeded, { passive: true });
         // Retour dans l'appli après l'avoir quittée : on tente la reprise sans attendre un geste. iOS
         // peut la refuser hors geste utilisateur — le prochain toucher s'en chargera alors — mais
@@ -9335,7 +9363,7 @@ class HarmoHubApp {
         const panneau = document.getElementById('ajout-aide');
         if (!panneau) return;
         this.remplirAideAjout();
-        panneau.hidden = false;
+        panneau.hidden = false; this._ajoutOuvertA = performance.now();
         const tel = this.ajoutTelephone();
         const input = document.getElementById('quick-add-input');
         // Au téléphone le clavier virtuel recouvrirait les accords proposés : on n'y met pas le curseur d'office, un toucher dans la saisie l'y amène.
@@ -9567,6 +9595,10 @@ class HarmoHubApp {
         // plus tard, tapé sans y penser, irait encore au milieu d'une partie choisie il y a longtemps.
         const dehors = (e) => {
             if (panneau.hidden) return;
+            // Le second clic d'un DOUBLE-clic sur le « + » d'une case tombe ailleurs (la grille descend de 60 px à l'ouverture du panneau) : il ne
+            // doit pas refermer ce qu'on vient d'ouvrir (bug G-03).
+            const p = this._appuiPrecedent, c = this._appuiCourant;
+            if (this._ajoutOuvertA && performance.now() - this._ajoutOuvertA < 450 && p && c && c.t - p.t < 450 && Math.abs(c.x - p.x) < 12 && Math.abs(c.y - p.y) < 12) return;
             if (e.target.closest('#ajout-aide, #quick-add-panel, .prog-section-ajout, .cell-ins, #section-picker-menu, #quick-add-help, .grid-cell-add')) return;
             this.fermerAideAjout();
         };
@@ -12571,6 +12603,8 @@ class HarmoHubApp {
         this.renderLookPanel();
         this.renderHistoriquePanel();
         this.renderAproposPanel();
+        // Fenêtre modale : le focus y entre, Tab y reste, et revient à la roue à la fermeture (bug E-01).
+        pieger(document.getElementById('settings-overlay'), document.getElementById('open-settings'));
     }
 
     // Le gestionnaire de fichiers a QUITTÉ les Paramètres (retour utilisateur : « enlever les options
@@ -13277,6 +13311,7 @@ class HarmoHubApp {
 
     closeSettings() {
         this.settingsOpen = false;
+        liberer(document.getElementById('settings-overlay'));
         document.getElementById('settings-overlay').hidden = true;
         document.getElementById('open-settings').classList.remove('active');
         this.unlockBodyScroll();
@@ -13624,8 +13659,15 @@ class HarmoHubApp {
         pop.hidden = !ouvrir;
         this._voicingOuvert = ouvrir;
         bouton.setAttribute('aria-expanded', String(ouvrir));
-        if (!ouvrir) { pop.innerHTML = ''; return; }
+        if (!ouvrir) {
+            const avaitFocus = pop.contains(document.activeElement);
+            pop.innerHTML = '';
+            if (avaitFocus) bouton.focus(); // le focus revient au bouton, au lieu de tomber sur la page
+            return;
+        }
         this.majVoicing();
+        // Ouverte AU CLAVIER (le bouton a le focus) : le focus entre dans la fenêtre (bug V-01 : Tab traversait toute la grille avant d'y arriver).
+        if (document.activeElement === bouton) { const premier = premierFocusable(pop); if (premier) premier.focus(); }
     }
 
     // Échelle courante d'un axe (« x » ou « y ») : lue une fois dans le stockage de l'appareil, bornée comme les autres fenêtres zoomables.
@@ -18829,7 +18871,9 @@ class HarmoHubApp {
                 attente = setTimeout(() => { cadence = setInterval(() => cran(e), 70); }, 420);
             });
             b.addEventListener('click', (e) => { if (e.detail === 0) cran(e); });
-            ['pointerup', 'pointercancel', 'blur'].forEach(t => window.addEventListener(t, arreter, true));
+            // « blur » de la FENÊTRE seulement : capturé sur window, le blur de n'importe quel élément (le champ qui perd le focus quand on appuie
+            // sur le chevron) arrêtait la répétition aussitôt — maintenir ne faisait qu'un cran (bug L-02).
+            ['pointerup', 'pointercancel', 'blur'].forEach(t => window.addEventListener(t, (ev) => { if (t === 'blur' && ev.target !== window) return; arreter(); }, true));
         };
         chevron('bl-tempo-moins', -1);
         chevron('bl-tempo-plus', 1);
@@ -18837,9 +18881,13 @@ class HarmoHubApp {
         document.getElementById('bl-tap').addEventListener('click', () => { this.handleTapTempo(); this.syncBarreLecture(); });
         // UN SEUL RÉGLAGE DE VITESSE (L5c) : la barre verte, aimantée à 50, 75, 100, 150 et 200 % (elle colle à moins de 6 points).
         const AIMANTS = [50, 75, 100, 150, 200];
-        document.getElementById('bl-vitesse').addEventListener('input', (e) => {
+        // L'aimant ne vaut que pour la SOURIS / le doigt : au clavier, → depuis 100 % retombait à 100 % et les flèches ne servaient à rien (bug L-03).
+        const vitesse = document.getElementById('bl-vitesse');
+        vitesse.addEventListener('keydown', () => { this._vitesseAuClavier = true; });
+        vitesse.addEventListener('pointerdown', () => { this._vitesseAuClavier = false; });
+        vitesse.addEventListener('input', (e) => {
             const v = +e.target.value;
-            const m = AIMANTS.find(a => Math.abs(a - v) <= 6);
+            const m = this._vitesseAuClavier ? undefined : AIMANTS.find(a => Math.abs(a - v) <= 6);
             if (m !== undefined && m !== v) e.target.value = String(m);
             this.reglerVitesse(m !== undefined ? m : v);
         });

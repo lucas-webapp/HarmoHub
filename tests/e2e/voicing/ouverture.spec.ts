@@ -60,7 +60,6 @@ test.describe('Fenêtre « Conduite des voix » @voicing @ordinateur', () => {
   });
 
   test('au clavier : après Entrée sur le bouton, la touche Tab mène dans la fenêtre (aux boutons H et V) et non dans la grille derrière', async ({ ouvrirAppli }) => {
-    test.fail(true, 'V-01 (bugs.md) : bug connu, le test doit repasser au vert quand il sera corrigé');
     const page = await ouvrirAppli({ reglages: morceauQuatreParties() });
     await bouton(page).focus();
     await page.keyboard.press('Enter');

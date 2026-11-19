@@ -18,10 +18,10 @@ Méthode : corriger dans `script.js` / `paroles.js`, **retirer le `test.fail` du
 (toutes les occurrences), lancer les modules touchés sur les 7 projets (`npx firebase emulators:exec --project demo-harmohub --only auth,firestore "npx playwright test <chemins> --reporter=list"`),
 puis `CI=1 npm run test:e2e:avant-envoi`, commit, push. **Pas de balayage complet des bancs historiques sauf nécessité** (consigne de l'utilisateur du 19/11).
 - **Corrigés les 19 et 20/11** (détail et tests : tableau « Bugs corrigés » de `tests/reports/bugs.md`) : P-01, P-02, P-03, P-05, P-06, P-07 ; Z-01 à Z-06 ; E-02 à E-07 ;
-  F-01, F-02, F-03 ; D-01, D-02 ; R-01, R-02, R-03 ; G-02, G-04 ; A-01, A-02 ; M-01 ; S-01, S-03 ; T-01 à T-04 ; V-02. L'utilisateur a délégué les arbitrages
+  F-01, F-02, F-03 ; D-01, D-02 ; R-01, R-02, R-03 ; G-02, G-03, G-04 ; L-02, L-03 ; E-01, V-01 ; A-01, A-02 ; M-01 ; S-01, S-03 ; T-01 à T-04 ; V-02. L'utilisateur a délégué les arbitrages
   le 20/11 (« je te laisse prendre les meilleures décisions pour tous ces points ») : chaque décision est notée « (décidé) » dans le tableau.
-- **Reste à corriger** : G-01 (Firefox, premier clic sur une autre partie), G-03 (double-clic sur « + »), L-01 (zone des numéros de mesure), L-02 (maintenir les chevrons du tempo),
-  L-03 (flèches du curseur de vitesse), L-04 (lecture depuis la case choisie partout), S-02 (téléphone : « Enregistrer la forme… »), A-03, M-02, P-04, V-01 et E-01 (focus au clavier).
+- **Reste à corriger** : G-01 (Firefox, premier clic sur une autre partie), L-01 (zone des numéros de mesure), L-04 (lecture depuis la case choisie partout),
+  S-02 (téléphone : « Enregistrer la forme… »), A-03, M-02, P-04.
 - **Reportés** : P-08 (×N des paroles : écrire dans la structure sans recharger la page Paroles), Z-07 (deux onglets), Y-01 / Y-02 / Y-03 (synchro, `synchro-cloud.js` partagé), T-05 (constat), D-03, D-04 (WebKit), L-05 / L-06 (intermittents).
 - **Piège appris le 20/11** : ne JAMAIS modifier un fichier servi pendant qu'un passage de tests tourne (le serveur sert le dépôt en direct) ; et ne pas remplacer `window.localStorage`
   (synchro-harmohub.js compare `this === window.localStorage`) : patcher `Storage.prototype`, comme lui.

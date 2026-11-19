@@ -140,7 +140,6 @@ test.describe('Fenêtre Paramètres @parametres', () => {
 
 test.describe('Fenêtre Paramètres : clavier @parametres @ordinateur', () => {
   test('E-01 : ouverte au clavier, la fenêtre reçoit le focus, et Tab reste dans la fenêtre', async ({ ouvrirAppli }) => {
-    test.fail(true, 'E-01 (bugs.md) : le focus reste sur la roue après l\'ouverture, Tab part vers la page cachée derrière (pastille « Se connecter ») ; au retour il n\'est pas rendu à la roue');
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await boutonParametres(page).focus();
     await page.keyboard.press('Enter');
