@@ -114,7 +114,6 @@ test.describe('États vides : un morceau sans accord @robustesse', () => {
   });
 
   test('Z-01 : après « Nomme d\'abord ton morceau… », un clic à côté du champ n\'enregistre pas un morceau vide « Sans titre »', async ({ ouvrirAppli }) => {
-    test.fail(true, 'Z-01 (bugs.md) : le clic à côté du champ du nom (vide) enregistre aussitôt un morceau « Sans titre » de la bibliothèque, que l\'utilisateur n\'a pas demandé');
     const page = await ouvrirAppli();
     await choisirDansMenuFichiers(page, /Exporter en MIDI/);
     await expect(toast(page)).toContainText('Nomme d\'abord ton morceau pour exporter le MIDI');

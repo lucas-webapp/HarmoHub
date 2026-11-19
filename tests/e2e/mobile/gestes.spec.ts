@@ -113,7 +113,6 @@ test.describe('Appui long sur une case @mobile', () => {
   });
 
   test('« Modifier » ouvre la feuille de l\'accord, comme le double-tape : onglet Accord, contenu Accord', async ({ ouvrirAppli }) => {
-    test.fail(true, 'M-01 (bugs.md) : « Modifier » ouvre la feuille avec l\'onglet « Voicing » marqué alors que le haut de la feuille montre le contenu de l\'onglet Accord.');
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await appuiLong(page, caseN(page, 0, 1));
     await actionMenu(page, 'Modifier').tap();

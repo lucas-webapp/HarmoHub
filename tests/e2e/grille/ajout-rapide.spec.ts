@@ -72,15 +72,20 @@ test.describe('Ajout rapide — ordinateur @grille @ordinateur', () => {
     expect(await noms(page)).toEqual(['C', 'Am', 'F', 'G']);
   });
 
-  // Observation (voir bugs.md) : la saisie avec des ESPACES (« C Am F G ») n'est pas comprise : rien n'est ajouté et aucun message n'explique
-  // pourquoi. Le test fige ce comportement observé (aide : « C//Am//F//G » ; séparateur « // ») sans le valider comme voulu.
-  test('« C Am F G » (séparés par des espaces) n\'ajoute rien : la grille reste intacte', async ({ ouvrirAppli }) => {
+  // G-04 (décidé le 20/11) : des accords séparés par des ESPACES sont compris comme une liste, comme « // ».
+  test('« C Am F G » (séparés par des espaces) ajoute les quatre accords, dans le « + » comme dans l\'ajout rapide', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: [{ root: 'D', quality: '' }] });
     const plus = champPlusFin(page);
     await plus.fill('C Am F G'); await plus.press('Enter');
-    expect(await noms(page)).toEqual(['D']);
-    await cliquerPlusAvant(page, 0, 0);
-    await saisirAjoutRapide(page, 'C Am F G');
+    await expect.poll(() => noms(page)).toEqual(['D', 'C', 'Am', 'F', 'G']);
+  });
+
+  test('une saisie refusée (« xyz ») est signalée par un message', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ accords: [{ root: 'D', quality: '' }] });
+    const plus = champPlusFin(page);
+    await plus.fill('xyz'); await plus.press('Enter');
+    await expect(page.locator('#toast')).toBeVisible();
+    await expect(page.locator('#toast')).toContainText(/non reconnu/i);
     expect(await noms(page)).toEqual(['D']);
   });
 

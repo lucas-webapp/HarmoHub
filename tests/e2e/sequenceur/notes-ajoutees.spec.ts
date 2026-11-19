@@ -218,7 +218,6 @@ test.describe('Notes ajoutées — ordinateur @sequenceur @ordinateur', () => {
   // S-01 (bugs.md) : ajouter une note libre qui est DÉJÀ une note de l'accord (C4 sous Am) crée une seconde ligne « C4 », identique à celle de l'accord.
   // Ajouter deux fois la même note libre (D4) n'en crée qu'une : le doublon avec l'accord devrait être traité de la même façon.
   test('ajouter une note déjà présente dans l\'accord ne crée pas une seconde ligne identique', async ({ ouvrirAppli }) => {
-    test.fail(true, 'S-01 (bugs.md) : bug connu, le test doit repasser au vert quand il sera corrigé');
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await accordSeul(page);
     await ajouterLigne(page, 'C4');

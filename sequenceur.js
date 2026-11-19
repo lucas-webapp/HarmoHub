@@ -1825,9 +1825,14 @@
         // veut ») : la partie la retient, aucun accord ne change de son. Une annulation.
         ajouterLigneLibre() {
             const midi = this.midiLibre();
+            // Une ligne À CETTE HAUTEUR existe déjà : note libre, OU voix d'un accord affiché (bug S-01 : C4 ajouté sous Am créait une seconde ligne « C4 »).
             const deja = (this._lignes || []).some(L => L.type !== 'voix' && L.midi === midi);
+            // L'accord CHOISI seulement (celui dont les noms sont écrits à gauche) : un D4 libre reste possible sous Am même si le G de la partie a un D4.
+            const ci = this.cible().i, eRef = (this._etats || [])[ci != null ? ci : 0];
+            const dansAccord = !!(eRef && eRef.info && (eRef.info.voix || []).slice(0, eRef.info.corps).some(x => x && x.midi === midi));
             this.ouvrirBandeLibre(false);
             if (deja) { this.app.flashHint && this.app.flashHint(`${this.libre.note}${this.libre.octave} est déjà une ligne du séquenceur`); return; }
+            if (dansAccord) { this.app.flashHint && this.app.flashHint(`${this.libre.note}${this.libre.octave} est déjà une note de l'accord`); return; }
             this.ecrire(new Map(), null, (sec) => { (sec.notesLibres || (sec.notesLibres = [])).push(noteDe(midi)); });
         }
         // Le × d'une ligne : la note quitte la partie ET chacun de ses accords (avec ses croches). Une annulation.

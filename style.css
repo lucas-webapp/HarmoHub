@@ -7902,3 +7902,7 @@ body.entetes-gauche #progression-sections .prog-section-menu { margin-left: 0; }
 .sq-libre-saisie.sq-libre-saisie-bande { width: 64px; height: var(--bouton-h, 32px); padding: 0 6px; background: #16191e; color: #e8e8e8; border: 1px solid var(--btn-neutral-border); border-radius: var(--rayon-bouton, 7px); font-size: 12px; text-align: center; }
 .sq-libre-saisie.sq-libre-saisie-bande:focus { border-color: var(--btn-blue-border-hover); }
 .sq-libre-saisie.sq-libre-saisie-bande.invalide { border-color: #ff6b6b; color: #ff8a80; }
+
+/* Bouton « Nommer le morceau » de la vue Paroles vide : il reprend la classe du bouton « Enregistrer » de la barre du haut, qui est un bouton-icône
+   de 32 px à l'ordinateur ; le libellé débordait du carré (bug P-01). Ici il porte un TEXTE : largeur selon le libellé. */
+#vue-paroles-nommer { display: inline-flex; width: auto; min-width: max-content; padding: 0 14px; }

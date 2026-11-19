@@ -108,6 +108,22 @@ D-04 → `diagrammes/doigtes.spec.ts` « D-04 : juste après Annuler / Rétablir
 | R-01 | 19/11 | Total de mesures arrondi avant l'affichage (« 12 » et non « 12.0 ») | `structure/ouverture.spec.ts` |
 | R-03 | 19/11 | Le badge ×N de la grille suit un réglage fait dans la structure | `structure/lien-grille.spec.ts` |
 | T-02 | 19/11 | « Suggérer » prend l'instantané d'annulation avant de changer la tonalité | `tonalite/suggestion.spec.ts` |
+| P-01, P-02, P-07 | 20/11 | Paroles : bouton « Nommer le morceau » à la largeur du libellé ; recliquer l'accord armé (par un clic) le désarme ; aide des versions au style des autres | `paroles/*.spec.ts` |
+| A-01 | 20/11 | La fenêtre d'accord enregistre durée, octave et renversement en nombres | `accord/onglet-voicing.spec.ts` |
+| M-01 | 20/11 | Téléphone : « Modifier » (appui long) ouvre le panneau comme le double toucher (onglet Accord) | `mobile/gestes.spec.ts` |
+| Z-02 | 20/11 | Stockage plein : « Enregistrer » le dit par un message, sans exception non interceptée | `robustesse/stockage.spec.ts` ×2 |
+| Z-03 | 20/11 | Stockage plein : la copie de travail continue en mémoire (prototype de Storage, message une fois) | `robustesse/stockage.spec.ts` |
+| T-01 | 20/11 (décidé) | Résumé du morceau en « F♯ majeur » comme la puce ; les noms d'accords de la grille gardent « C# » (règle du 16/11) | `tonalite/notation.spec.ts` |
+| T-03 | 20/11 (décidé) | La basse s'écrit comme une fondamentale de la tonalité (C/E♭ en do, D/F# en mi) | `tonalite/notation.spec.ts` ×2 |
+| T-04, V-02 | 20/11 (décidé) | Chiffres romains : « IVmaj7 » ≠ « IV7 », « Imaj9 », « i°7 » ≠ « i° » | `tonalite/degres.spec.ts`, `voicing/conduite-des-voix.spec.ts` |
+| E-03, E-05 | 20/11 (décidé) | Pastilles de la guitare et touches du piano : orthographe de l'accord affiché, comme sa fiche (E♭ G B♭) | `parametres/instruments.spec.ts` |
+| E-04 | 20/11 | Manche de dessin : chaque note écrite comme une fondamentale de la tonalité (B♭, E♭… en do) | `parametres/instruments.spec.ts` |
+| S-01 | 20/11 | Ajouter une note libre déjà présente dans l'accord choisi : refusée avec un message, pas de seconde ligne | `sequenceur/notes-ajoutees.spec.ts` |
+| S-03 | 20/11 (décidé) | Suppr après un geste dans le séquenceur ne supprime plus l'accord de la grille (il sert aux notes) | `sequenceur/notes.spec.ts` |
+| A-02 | 20/11 (décidé) | Une basse égale à la fondamentale ne s'écrit pas : « Am », pas « Am/A » | `accord/onglet-accord.spec.ts` |
+| F-02 | 20/11 (décidé) | Supprimer le morceau ouvert repart d'un morceau neuf et vide (versions gardées, Ctrl+Z rend le morceau à la liste) | `fichiers/liste-morceaux.spec.ts` |
+| Z-01 | 20/11 (décidé) | Un clic à côté du champ du nom VIDE renonce (Entrée sur un champ vide enregistre toujours « Sans titre ») | `robustesse/etats-vides.spec.ts` |
+| G-04 | 20/11 (décidé) | « C Am F G » (espaces) est compris comme une liste quand chaque mot est un accord ; « xyz » est refusé avec un message (test réécrit) | `grille/ajout-rapide.spec.ts` |
 | Z-07 | reporté | Demande une décision d'architecture : le tampon de travail est partagé entre onglets par le stockage local ; isoler chaque onglet change le modèle | `test.fail` conservé |
 | P-08 | reporté | Corriger le ×N oblige la grille à recharger la page Paroles à chaque clic (perte de l'historique d'annulation) : à traiter avec un message de mise à jour plutôt qu'un rechargement | `test.fail` conservé |
 

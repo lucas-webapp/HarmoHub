@@ -1021,6 +1021,8 @@ function armChord(si, ci) {
     // pour éviter un doublon — au contraire, on veut pouvoir en ajouter d'autres. Reprendre un
     // exemplaire déjà posé pour le déplacer se fait maintenant en cliquant DIRECTEMENT sur sa pastille
     // (voir pickUpPlacement), pas en ré-armant le chip de la réserve.
+    // Recliquer l'accord déjà armé le désarme, comme le promet son infobulle (« reclique ici pour désarmer », bug P-02).
+    if (state.armed && state.armed.si === si && state.armed.ci === ci && !state.armed.auto) { disarm(); return; }
     state.armed = { si, ci };
     updateModeUI();
     refreshAllPoolsAndPills();
@@ -1100,7 +1102,7 @@ function placeArmedAt(si, e) {
     //     répétant d'un couplet à l'autre.
     //   - tampon : on garde le même accord, pour en poser plusieurs exemplaires d'affilée.
     if (prefs.chain && sec.chords.length > 1) {
-        state.armed = { si, ci: (ci + 1) % sec.chords.length };
+        state.armed = { si, ci: (ci + 1) % sec.chords.length, auto: true }; // armé par « Enchaîner », pas par un clic : un clic dessus le garde armé (voir armChord)
     }
     saveSession();
     refreshAllPoolsAndPills();

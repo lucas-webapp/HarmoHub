@@ -111,7 +111,6 @@ test.describe('Onglet Accord @accord @ordinateur', () => {
 
   // À ARBITRER (A-02, bugs.md) : une basse égale à la fondamentale s'écrit « A7/A ».
   test('une basse égale à la fondamentale n\'ajoute pas « /A » au nom', async ({ ouvrirAppli }) => {
-    test.fail(true, 'A-02 (bugs.md) : bug connu (à arbitrer), le test doit repasser au vert quand il sera corrigé');
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     const f = await ouvrirFenetre(page, 0, 1);
     await basse(f, 'A').click();

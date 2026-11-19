@@ -18,6 +18,34 @@
     console.warn('Stockage local inaccessible : HarmoHub travaille en mémoire, rien ne sera retenu après la fermeture.');
 })();
 
+// ---------- Stockage plein : la copie de travail continue en mémoire (bug Z-03) ----------
+// Quand le navigateur refuse d'écrire la copie de travail (`myProgression`, stockage plein), plus aucun accord ne pouvait être ajouté : tout le
+// fichier relit le tampon depuis le stockage. On garde alors la dernière écriture EN MÉMOIRE et on la rend à la lecture ; la prochaine écriture
+// qui passe reprend la main. Seule la copie de travail est concernée : la bibliothèque, elle, ne fait jamais semblant d'être enregistrée.
+const TAMPON_EN_MEMOIRE = { cle: 'myProgression', valeur: null, prevenu: false };
+(function tamponEnMemoireSiPlein() {
+    // Sur le PROTOTYPE de Storage (comme le fait synchro-harmohub.js pour suivre les réglages), et non en remplaçant window.localStorage : une
+    // enveloppe cassait `this === window.localStorage` dans ce suivi, et affecter `localStorage.getItem = …` crée sous Firefox une ENTRÉE
+    // nommée « getItem » au lieu de remplacer la méthode.
+    try {
+        const P = Storage.prototype, lireOrig = P.getItem, ecrireOrig = P.setItem, retirerOrig = P.removeItem;
+        const estLeTampon = (st, k) => k === TAMPON_EN_MEMOIRE.cle && st === window.localStorage;
+        P.getItem = function (k) { return estLeTampon(this, k) && TAMPON_EN_MEMOIRE.valeur !== null ? TAMPON_EN_MEMOIRE.valeur : lireOrig.apply(this, arguments); };
+        P.setItem = function (k, v) {
+            try { ecrireOrig.apply(this, arguments); if (estLeTampon(this, k)) TAMPON_EN_MEMOIRE.valeur = null; }
+            catch (e) {
+                if (!estLeTampon(this, k)) throw e;
+                TAMPON_EN_MEMOIRE.valeur = String(v);
+                if (!TAMPON_EN_MEMOIRE.prevenu) {
+                    TAMPON_EN_MEMOIRE.prevenu = true;
+                    setTimeout(() => { if (window.app) window.app.flashHint('Stockage du navigateur plein : ton travail continue en mémoire — enregistre ou exporte avant de fermer', 6000); }, 0);
+                }
+            }
+        };
+        P.removeItem = function (k) { if (estLeTampon(this, k)) TAMPON_EN_MEMOIRE.valeur = null; return retirerOrig.apply(this, arguments); };
+    } catch (e) { /* pas de Storage (stockage en mémoire, voir plus haut) : rien à faire */ }
+})();
+
 // ---------- Migration ancien nom (HarmoBox -> HarmoHub) ----------
 // Une seule fois : recopie les clés localStorage de l'ancien préfixe vers 'harmohub*'
 // pour ne pas perdre les données des utilisateurs qui avaient l'app sous l'ancien nom.
@@ -239,6 +267,12 @@ const QUALITY_ALIASES = {
 function decouperSymbolesAccords(str) {
     const out = [];
     for (const g of String(str || '').split('//').map(x => x.trim()).filter(Boolean)) {
+        // « C Am F G » : séparés par des ESPACES, comme on l'écrit naturellement (bug G-04 : rien n'était ajouté, sans un mot). Seulement si
+        // CHAQUE morceau est un accord reconnu : un groupe qui ne se découpe pas proprement reste tel quel (et sera refusé avec un message).
+        if (/\s/.test(g)) {
+            const mots = g.split(/\s+/).filter(Boolean);
+            if (mots.length > 1 && mots.every(m => parseChordSymbol(m))) { mots.forEach(m => out.push(m)); continue; }
+        }
         if (/^[^/]+\/\s*[A-Ga-g](?:#|b|♭)?$/.test(g)) { out.push(g); continue; } // accord sur basse : un seul accord
         g.split('/').map(x => x.trim()).filter(Boolean).forEach(x => out.push(x));
     }
@@ -396,7 +430,8 @@ const UNNAMED_CHORD_LABEL = 'à nommer';
 function chordSymbolForData(data, useFlats) {
     if (data.unnamed) return UNNAMED_CHORD_LABEL;
     let sym = noteNameForPc(NOTES.indexOf(data.root), useFlats) + (QUALITY_LABEL[data.quality] ?? '');
-    if (data.bass) sym += '/' + noteNameForPc(NOTES.indexOf(data.bass), useFlats);
+    // Une basse égale à la fondamentale n'est pas un renversement : « Am », pas « Am/A » (bug A-02).
+    if (data.bass && data.bass !== data.root) sym += '/' + noteNameForPc(NOTES.indexOf(data.bass), bemolsPourFondamentale(NOTES.indexOf(data.bass), useFlats));
     return sym;
 }
 
@@ -492,6 +527,16 @@ Object.keys(MODE_SCALES).forEach(mode => {
     MODE_FLAT_BORROW_DEGREES[mode] = chromatic;
 });
 
+// Dièse ou bémol pour une note écrite COMME UNE FONDAMENTALE dans la tonalité du morceau (même table que useFlatsForChordRoot). Sert à la basse d'un
+// accord renversé (bug T-03 : « C/Eb » s'écrivait C/D# alors que la fondamentale Eb s'écrit E♭) et au manche de dessin (E-04). Hors page (pas de
+// tonalité lisible), on garde l'orthographe fournie.
+function bemolsPourFondamentale(pc, parDefaut) {
+    const r = typeof document !== 'undefined' && document.getElementById('global-root');
+    const m = typeof document !== 'undefined' && document.getElementById('global-mode');
+    if (!r || !m || pc < 0) return parDefaut;
+    const kp = NOTES.indexOf(r.value);
+    return useFlatsForChordRoot(pc, kp, m.value, useFlatsForKey(kp, m.value));
+}
 function useFlatsForChordRoot(chordRootPc, keyRootPc, keyMode, songUseFlats) {
     const diff = ((chordRootPc - keyRootPc) % 12 + 12) % 12;
     const borrow = MODE_FLAT_BORROW_DEGREES[keyMode] || FLAT_BORROW_DEGREES_MAJOR;
@@ -759,6 +804,7 @@ function loadProgressionSections() {
     }
     return [{ title: '', chords: [] }];
 }
+function nombreOuTel(v) { const n = Number(v); return v !== '' && v !== null && Number.isFinite(n) ? n : v; }
 function accordsSains(liste) { return liste.filter(h => h && typeof h === 'object'); }
 
 // Modifications du tampon de travail pas encore reportées dans le morceau enregistré (voir
@@ -4235,6 +4281,8 @@ class HarmoHubApp {
             } catch (e) { /* contexte pas encore créé : le prochain geste réessaiera */ }
         };
         document.addEventListener('pointerdown', resumeAudioIfNeeded, { passive: true });
+        // Où a eu lieu le dernier appui (voir dernierGesteDansSequenceur) : Suppr ne doit pas viser la même chose selon qu'on vient du séquenceur ou de la grille.
+        document.addEventListener('pointerdown', (e) => { this._dernierAppui = e.target; }, { capture: true, passive: true });
         document.addEventListener('touchend', resumeAudioIfNeeded, { passive: true });
         // Retour dans l'appli après l'avoir quittée : on tente la reprise sans attendre un geste. iOS
         // peut la refuser hors geste utilisateur — le prochain toucher s'en chargera alors — mais
@@ -4758,8 +4806,9 @@ class HarmoHubApp {
             if (!t) return;
             if (t.type === 'song') this.startInlineRenameSong(t.id);
             else if (t.type === 'folder') this.startInlineRenameFolder(t.name);
-            // Téléphone (lot 10d) : « Modifier », c'est le panneau d'accord agrandi, comme le double toucher.
-            else if (t.type === 'chord' && this.panneauAccordDisponible()) { this.selectChord(t.section, t.index); this.ouvrirPanneauAccord(t.section, t.index); this.etendrePanneauAccord(true); }
+            // Téléphone (lot 10d) : « Modifier », c'est le panneau d'accord, EXACTEMENT comme le double toucher. Il l'ouvrait agrandi, avec l'onglet
+            // « Voicing » marqué au-dessus du contenu de l'onglet Accord (bug M-01) ; « Réglages du son » reste à un toucher dans le panneau.
+            else if (t.type === 'chord' && this.panneauAccordDisponible()) { this.selectChord(t.section, t.index); this.ouvrirPanneauAccord(t.section, t.index); }
             else if (t.type === 'chord') { if (this.bulleDisponible()) { this.selectChord(t.section, t.index); this.ouvrirBulleAccord(t.section, t.index); } else this.editChord(t.section, t.index); } // L6a : « Modifier » ouvre la bulle à l'ordinateur (plus d'inspecteur)
         };
         // Retaper le nom d'un accord (refonte du séquenceur, point B) : c'était le double-clic, qui ouvre désormais le panneau de l'accord.
@@ -5915,7 +5964,7 @@ class HarmoHubApp {
                 for (let fret = 0; fret <= GUITAR_NECK_DISPLAY_FRETS; fret++) {
                     if (this.guitarDrawShape[s] === fret || this.guitarDrawGhostStrings[s] === fret) continue;
                     if (survol && survol.string === s && survol.fret === fret) continue;
-                    extra += `<text class="guitar-neck-nom" x="${xFor(fret)}" y="${stringY(s) + 3}" text-anchor="middle">${noteNameForPc(GUITAR_OPEN_MIDI[s] + fret, bemols)}</text>`;
+                    extra += `<text class="guitar-neck-nom" x="${xFor(fret)}" y="${stringY(s) + 3}" text-anchor="middle">${noteNameForPc((GUITAR_OPEN_MIDI[s] + fret) % 12, bemolsPourFondamentale((GUITAR_OPEN_MIDI[s] + fret) % 12, bemols))}</text>`;
                 }
             }
         }
@@ -7384,9 +7433,11 @@ class HarmoHubApp {
         return {
             root: document.getElementById('root').value,
             quality: document.getElementById('quality').value,
-            beats: document.getElementById('duration').value,
-            octave: document.getElementById('octave').value,
-            inversion: document.getElementById('inversion').value,
+            // En NOMBRES, comme au chargement d'un morceau (bug A-01 : la fenêtre d'accord enregistrait « "3" », et le fichier exporté comme le
+            // document envoyé au cloud portaient des chaînes). Repli sur la valeur lue telle quelle si elle n'est pas numérique.
+            beats: nombreOuTel(document.getElementById('duration').value),
+            octave: nombreOuTel(document.getElementById('octave').value),
+            inversion: nombreOuTel(document.getElementById('inversion').value),
             drop: document.getElementById('drop').value,
             bass: document.getElementById('bass').value || null,
             playStyle: document.getElementById('playStyle').value,
@@ -8031,7 +8082,10 @@ class HarmoHubApp {
         const MINOR_FAMILY = ['min', 'min7', 'm6', 'm9', 'dim', 'dim7', 'm7b5'];
         if (MINOR_FAMILY.includes(chordQuality) || chordQuality.startsWith('min')) numeral = numeral.toLowerCase();
 
-        if (chordQuality === 'dim' || chordQuality === 'dim7') numeral += '°';
+        // dim7 garde son 7 (« i°7 », distinct de « i° ») et maj7 / maj9 leur « maj » (« IVmaj7 » ≠ « IV7 ») : bugs T-04 et V-02, le chiffre perdait
+        // l'extension et deux accords différents se lisaient pareil.
+        if (chordQuality === 'dim7') numeral += '°7';
+        else if (chordQuality === 'dim') numeral += '°';
         else if (chordQuality === 'm7b5') numeral += 'ø';
         else if (chordQuality === 'aug') numeral += '+';
         else if (chordQuality === 'sus2' || chordQuality === 'sus4') numeral += chordQuality;
@@ -8039,7 +8093,7 @@ class HarmoHubApp {
             // Reprend le même chiffrage que le symbole (7, 9, 11, 13, 6...) pour maj7/dom7/min7
             // ainsi que les nouveaux types enrichis, sans re-préciser maj/m (déjà donné par la casse)
             const ROMAN_SUFFIX = {
-                maj7: '7', dom7: '7', min7: '7',
+                maj7: 'maj7', maj9: 'maj9', dom7: '7', min7: '7',
                 '6': '6', m6: '6',
                 add9: '9', m9: '9', dom9: '9',
                 add11: '11', dom11: '11', dom13: '13'
@@ -9158,7 +9212,7 @@ class HarmoHubApp {
             // Même orthographe que la grille (dièses ou bémols selon la tonalité, voir useFlatsForKey)
             // et le mode en toutes lettres : c'est le libellé que le musicien lit, pas une valeur brute.
             const pc = NOTES.indexOf(root.value);
-            const nom = noteNameForPc(pc, useFlatsForKey(pc, mode.value));
+            const nom = noteNameForPc(pc, useFlatsForKey(pc, mode.value)).replace('#', '♯'); // « F♯ majeur », comme la puce et la fenêtre (bug T-01)
             const modeLabel = (mode.options[mode.selectedIndex] || {}).text || mode.value;
             set('song-summary-key', `${nom} ${modeLabel.toLowerCase()}`);
         }
@@ -12350,12 +12404,19 @@ class HarmoHubApp {
     saveCurrentSong() {
         const id = getCurrentSongId();
         if (!id) { this.saveCurrentAsSong(); return; }
-        syncCurrentSong(this.instantaneTampon());
+        // Stockage plein : l'enregistrement échoue, on le DIT (bug Z-02 : exception non interceptée, rien à l'écran, le morceau restait
+        // « Non enregistré » sans explication). Rien n'est perdu : le travail reste à l'écran, « Enregistrer » réussira une fois la place libérée.
+        try { syncCurrentSong(this.instantaneTampon()); }
+        catch (e) { console.error('Enregistrement impossible :', e); this.signalerEchecEnregistrement(); return; }
         marquerEnregistre();
         this.gardeVersion('enregistre', 'Enregistrée'); // chaque enregistrement manuel laisse aussi sa trace dans l'historique (lot 3b)
         this.refreshSongList();
         this.flashHint('Morceau enregistré');
         this.suivreSurLeDisque(loadSongs().find(s => s.id === id));
+    }
+
+    signalerEchecEnregistrement() {
+        this.flashHint('Échec de l\'enregistrement : le stockage du navigateur est plein. Ton travail est toujours là — exporte-le, ou libère de la place puis enregistre à nouveau.', 7000);
     }
 
     // ---------- ENREGISTRER DANS L'APPLI = LE FICHIER SUIT ----------
@@ -12422,7 +12483,11 @@ class HarmoHubApp {
         if (reason) this.flashHint(reason);
 
         const finish = () => { input.remove(); select.hidden = false; };
+        let parEntree = false;
         const commit = () => {
+            // Un clic à côté d'un champ VIDE renonce, comme Échap (bug Z-01 : il enregistrait un morceau vide « Sans titre » jamais demandé).
+            // Entrée sur un champ vide, elle, reste une demande explicite d'enregistrer.
+            if (!input.value.trim() && !parEntree) { finish(); return; }
             const song = this.createNewSongFromCurrentState(input.value.trim() || 'Sans titre');
             this.flashHint(`« ${song.name} » enregistré`);
             finish();
@@ -12430,7 +12495,7 @@ class HarmoHubApp {
         input.addEventListener('blur', commit);
         input.addEventListener('keydown', (e) => {
             e.stopPropagation();
-            if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+            if (e.key === 'Enter') { e.preventDefault(); parEntree = true; input.blur(); }
             else if (e.key === 'Escape') { e.preventDefault(); input.removeEventListener('blur', commit); finish(); }
         });
     }
@@ -13527,7 +13592,11 @@ class HarmoHubApp {
     etiquetteNote(midi, mode) {
         if (mode === 'notes') {
             const gRoot = document.getElementById('global-root').value, gMode = document.getElementById('global-mode').value;
-            return noteNameForPc(((midi % 12) + 12) % 12, useFlatsForKey(NOTES.indexOf(gRoot), gMode));
+            const kp = NOTES.indexOf(gRoot), bemolsMorceau = useFlatsForKey(kp, gMode);
+            // L'orthographe de l'ACCORD affiché, comme sa fiche juste à côté (bugs E-03 / E-05 : E♭ en do s'écrivait D#, G, A#) : celle de sa fondamentale.
+            const racine = this.guitarChordRootPc;
+            const bemols = Number.isFinite(racine) ? useFlatsForChordRoot(racine, kp, gMode, bemolsMorceau) : bemolsMorceau;
+            return noteNameForPc(((midi % 12) + 12) % 12, bemols);
         }
         if (mode === 'degres') {
             const racine = this.guitarChordRootPc;
@@ -14139,7 +14208,10 @@ class HarmoHubApp {
         if (getCurrentSongId() === id && hasUnsavedChanges) this.gardeVersion('avant-suppression-morceau', `Brouillon de « ${song.name} » avant sa suppression`);
         this.pushFilesUndo();
         saveSongs(songs.filter(s => s.id !== id));
-        if (getCurrentSongId() === id) setCurrentSongId(null);
+        // Le morceau OUVERT vient d'être supprimé : on repart d'un morceau neuf et vide, comme le dit le titre (bug F-02 : « Nouveau morceau »
+        // s'affichait au-dessus des accords du morceau supprimé). Rien n'est perdu : les versions d'avant sont dans l'historique (ci-dessus) et
+        // Ctrl+Z remet le morceau dans la liste.
+        if (getCurrentSongId() === id) { setCurrentSongId(null); await this.newSong(true); }
         this.refreshSongList();
         if (this.filesOpen) this.renderFilesPanel();
 
@@ -20314,7 +20386,9 @@ class HarmoHubApp {
                 // Sélection multiple en cours : efface TOUT le groupe, comme Ctrl+C le copie déjà en
                 // entier (voir removeSelectedChords/copySelected). N'efface qu'un seul accord sinon.
                 if (this.multiSelect.size > 0) { this.removeSelectedChords(); e.preventDefault(); }
-                else if (activeGridIdx != null) { this.removeChord(this.activeSection, activeGridIdx); e.preventDefault(); }
+                // Le dernier geste était DANS le séquenceur (un rythme, le nom de l'accord, une note…) : Suppr y sert aux notes ; sans note choisie, il
+                // ne retombe pas sur l'accord de la grille (bug S-03 : l'accord disparaissait sans confirmation). Hors du séquenceur, rien ne change.
+                else if (activeGridIdx != null && !this.dernierGesteDansSequenceur()) { this.removeChord(this.activeSection, activeGridIdx); e.preventDefault(); }
             }
 
             // Entrée depuis un réglage d'accord : ajoute sans avoir à cliquer sur le bouton — seulement
@@ -20333,6 +20407,14 @@ class HarmoHubApp {
                 this.saveCurrent();
             }
         });
+    }
+
+    dernierGesteDansSequenceur() {
+        const sq = document.getElementById('sequenceur');
+        if (!sq || sq.hidden) return false;
+        const actif = document.activeElement;
+        if (actif && sq.contains(actif)) return true;
+        return !!(this._dernierAppui && sq.contains(this._dernierAppui));
     }
 
     // ---------- Copier / coller / dupliquer (au sein de la partie active) ----------

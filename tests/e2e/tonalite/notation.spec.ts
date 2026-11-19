@@ -51,14 +51,12 @@ test.describe('Notation : dièses et bémols selon la tonalité @tonalite', () =
   });
 
   test('T-03 : en do majeur, la basse s\'écrit comme la fondamentale : « C/Eb » donne C/E♭, comme « Eb » donne E♭', async ({ ouvrirAppli }) => {
-    test.fail(true, 'T-03 (bugs.md) : en do majeur une basse altérée s\'écrit avec des dièses (C/D#, C/A#, C/F#) alors que les fondamentales s\'écrivent E♭, B♭, G♭');
     const page = await ouvrirAppli({ accords: [{ root: 'D', quality: '' }] });
     await taper(page, 'C/Eb//Eb');
     await expect.poll(() => noms(page)).toEqual(['D', 'C/E♭', 'E♭']);
   });
 
   test('T-03 : en mi majeur, la basse « F# » s\'écrit comme la fondamentale F# (« D/F# »), pas D/G♭', async ({ ouvrirAppli }) => {
-    test.fail(true, 'T-03 (bugs.md) : en mi majeur la fondamentale F# s\'écrit F#, mais la basse F# de « D/F# » s\'écrit G♭ (D/G♭)');
     const page = await ouvrirAppli({ accords: [{ root: 'D', quality: '' }] });
     await choisir(page, 'E');
     await fermerFenetre(page);
@@ -106,7 +104,6 @@ test.describe('Notation : dièses et bémols selon la tonalité @tonalite', () =
   });
 
   test('T-01 : la tonalité s\'écrit pareil dans la fenêtre et dans le résumé du morceau (F♯ / F♯)', async ({ ouvrirAppli }) => {
-    test.fail(true, 'T-01 (bugs.md) : le résumé du morceau écrit « F# majeur » (dièse ASCII) là où la fenêtre et la puce écrivent « F♯ »');
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await choisir(page, 'F♯');
     expect(await libelleBrut(page)).toBe('F♯ majeur');

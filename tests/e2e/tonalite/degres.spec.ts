@@ -26,7 +26,6 @@ test.describe('Degrés au-dessus des cases @tonalite', () => {
   });
 
   test('T-04 : un accord de septième majeure et un accord de septième de dominante n\'ont pas le même chiffre (Fmaj7 ≠ F7)', async ({ ouvrirAppli }) => {
-    test.fail(true, 'T-04 (bugs.md) : « Fmaj7 » et « F7 » sont tous deux notés « IV7 » (idem « Cmaj7 » noté « I7 »)');
     const page = await ouvrirAppli({ accords: [{ root: 'F', quality: 'maj7' }, { root: 'F', quality: 'dom7' }] });
     const d = await degres(page);
     expect(d[0]).not.toBe(d[1]);

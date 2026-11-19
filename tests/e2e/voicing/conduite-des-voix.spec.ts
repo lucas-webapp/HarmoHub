@@ -260,7 +260,6 @@ test.describe('Dessin de la conduite des voix @voicing @ordinateur', () => {
   });
 
   test('le chiffre romain garde l\'extension de l\'accord : Cmaj9 « I9 » (comme G9 « V9 »), Cdim7 « i°7 » (et non « I » et « i° »)', async ({ ouvrirAppli }) => {
-    test.fail(true, 'V-02 (bugs.md) : bug connu, le test doit repasser au vert quand il sera corrigé');
     const page = await ouvrirAppli({ reglages: unePartie([{ root: 'C', quality: 'maj9' }, { root: 'C', quality: 'dim7' }, { root: 'C', quality: 'dim' }]) });
     await ouvrirVoicing(page);
     const chiffres = (await entetes(page)).filter((_, i) => i % 2 === 1);

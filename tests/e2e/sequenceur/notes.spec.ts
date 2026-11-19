@@ -169,7 +169,6 @@ test.describe('Notes — ordinateur @sequenceur @ordinateur', () => {
   // S-03 (bugs.md) : le séquenceur ouvert, appuyer sur Suppr SANS note sélectionnée supprime l'ACCORD choisi de la grille (sans confirmation), alors
   // qu'on s'attend à ne rien supprimer (la touche sert à supprimer des notes). À arbitrer : le comportement vient peut-être de la grille d'accords.
   test('Suppr sans note sélectionnée ne supprime pas l\'accord', async ({ ouvrirAppli }) => {
-    test.fail(true, 'S-03 (bugs.md) : bug connu (à arbitrer), le test doit repasser au vert quand il sera corrigé');
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await ouvrirSurAccord(page, 1);
     await rythme(page, 'pompe').click();

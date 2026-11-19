@@ -65,7 +65,6 @@ test.describe('Ouvrir l\'onglet Paroles @paroles', () => {
   });
 
   test('le bouton « Nommer le morceau » est assez large pour son libellé @ordinateur', async ({ ouvrirAppli }) => {
-    test.fail(true, 'P-01 (bugs.md) : le bouton garde la taille d\'un bouton-icône de 32 px, le libellé déborde');
     const page = await ouvrirAppli();
     await appuyer(page, ongletParoles(page));
     await expect(nommer(page)).toBeVisible();

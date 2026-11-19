@@ -129,7 +129,6 @@ test.describe('Onglet Voicing @accord @ordinateur', () => {
   });
 
   test('les valeurs enregistrées restent des nombres (durée, octave, renversement)', async ({ ouvrirAppli }) => {
-    test.fail(true, 'A-01 (bugs.md) : bug connu, le test doit repasser au vert quand il sera corrigé');
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     const f = await ouvrirFenetre(page, 0, 1);
     await f.getByRole('button', { name: 'Un temps de moins' }).click();

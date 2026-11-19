@@ -180,7 +180,6 @@ test.describe('Liste « Mes morceaux » @fichiers', () => {
   });
 
   test('F-02 : supprimer le morceau ouvert vide aussi la grille', async ({ ouvrirAppli }) => {
-    test.fail(true, 'F-02 (bugs.md) : après la suppression du morceau ouvert, ses accords restent affichés sous le titre « Nouveau morceau »');
     const page = await ouvrirAvecTrois(ouvrirAppli);
     repondreAuxBoitesNatives(page, true);
     await ouvrirMesMorceaux(page);

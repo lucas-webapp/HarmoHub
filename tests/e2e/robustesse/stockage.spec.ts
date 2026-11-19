@@ -39,7 +39,6 @@ test.describe('Stockage plein : la bibliothèque ne peut plus être écrite @rob
   });
 
   test('Z-02 : l\'échec de « Enregistrer » est annoncé à l\'utilisateur (message, pas seulement un morceau resté « Non enregistré »)', async ({ ouvrirAppli, page }) => {
-    test.fail(true, 'Z-02 (bugs.md) : stockage plein, « Enregistrer » ne dit rien (exception non interceptée, aucun message) ; l\'utilisateur ne sait pas pourquoi son morceau reste « Non enregistré »');
     await ouvrirAvecStockageQuiRefuse(ouvrirAppli, page, '^harmohubSongs$');
     await ajouterAccords(page, ['E']);
     await expect(cases(page)).toHaveCount(5);
@@ -49,7 +48,6 @@ test.describe('Stockage plein : la bibliothèque ne peut plus être écrite @rob
   });
 
   test('l\'échec de « Enregistrer » n\'est pas une exception non interceptée de la page', async ({ ouvrirAppli, page }) => {
-    test.fail(true, 'Z-02 (bugs.md) : l\'écriture refusée remonte comme une exception JavaScript non interceptée (« The quota has been exceeded. »)');
     await ouvrirAvecStockageQuiRefuse(ouvrirAppli, page, '^harmohubSongs$');
     const erreurs = collecterErreurs(page);
     await ajouterAccords(page, ['E']);
@@ -94,7 +92,6 @@ test.describe('Stockage plein : la copie de travail ne peut plus être écrite @
   });
 
   test('Z-03 : ajouter un accord alors que la copie de travail ne s\'écrit plus l\'affiche quand même', async ({ ouvrirAppli, page }) => {
-    test.fail(true, 'Z-03 (bugs.md) : stockage refusé, ajouter un accord ne fait rien (le texte reste dans le champ, aucun accord, aucun message) : l\'appli est inutilisable au lieu de travailler « en mémoire »');
     await ouvrirAvecStockageQuiRefuse(ouvrirAppli, page, '^myProgression$');
     await ajouterAccords(page, ['E']);
     await expect.poll(async () => (await refusVus(page)).ecritures).toBeGreaterThan(0);

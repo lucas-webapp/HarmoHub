@@ -747,3 +747,12 @@ html.integre main { padding-top: 12px; }
 .version-vide { font-size: 0.78rem; color: var(--text-muted); }
 .version-restaurer { flex: none; height: 32px; border-radius: 7px; }
 @media (pointer: coarse) { .version-restaurer { height: 44px; } }
+
+/* L'aide des « Versions précédentes » a le style des autres aides du panneau (12 px gris) : elle n'est pas dans une ligne à case à cocher, la
+   règle `.option-row-check .option-help` ne l'atteignait pas et elle s'affichait en 16 px, couleur du texte (bug P-07). */
+.option-versions .option-help {
+    display: block;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+}

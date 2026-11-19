@@ -128,7 +128,6 @@ test.describe('Options @paroles', () => {
   });
 
   test('le texte d\'aide du panneau a le même style partout (taille et couleur) @ordinateur', async ({ ouvrirAppli }) => {
-    test.fail(true, 'P-07 (bugs.md) : l\'aide sous « Versions précédentes » est en 16 px clair, les autres en 12 px gris');
     const page = await ouvrirAppli(morceauParoles(UNE_PARTIE));
     await ouvrirParoles(page);
     await appuyer(page, boutonOptions(page));

@@ -24,7 +24,6 @@ test.describe('Armer un accord @paroles', () => {
   });
 
   test('recliquer l\'accord armé le désarme, comme le dit son infobulle', async ({ ouvrirAppli }) => {
-    test.fail(true, 'P-02 (bugs.md) : l\'infobulle promet « reclique ici pour désarmer », le second clic laisse l\'accord armé');
     const page = await ouvrirAppli(morceauParoles(UNE_PARTIE));
     await ouvrirParoles(page);
     await armer(page, 'Am');

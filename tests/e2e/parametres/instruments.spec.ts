@@ -114,7 +114,6 @@ test.describe('Notation des noms de notes : la tonalité décide des dièses et 
   });
 
   test('E-03 : « Pastilles de la guitare » écrit les notes de la tonalité (E♭ G B♭ en do), pas D# G A#', async ({ ouvrirAppli }) => {
-    test.fail(true, 'E-03 (bugs.md) : les pastilles de la guitare en mode « Notes » écrivent D#, G, A# en do majeur, alors que l\'infobulle du réglage promet « les dièses ou bémols de la tonalité »');
     const page = await ouvrirAppli({ accords: MI_BEMOL });
     await boutonGuitare(page).click();
     await reglerEtiquettes(page, undefined, 'Notes');
@@ -124,7 +123,6 @@ test.describe('Notation des noms de notes : la tonalité décide des dièses et 
   });
 
   test('E-04 : « Notes du manche de dessin » écrit les notes de la tonalité (B♭, E♭ en do), pas A#, D#', async ({ ouvrirAppli }) => {
-    test.fail(true, 'E-04 (bugs.md) : le manche de dessin écrit A#, C#, D#, F#, G# en do majeur, alors que l\'infobulle du réglage promet « les dièses ou bémols de la tonalité »');
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await boutonGuitare(page).click();
     await ouvrir(page);
@@ -139,7 +137,6 @@ test.describe('Notation des noms de notes : la tonalité décide des dièses et 
   });
 
   test('E-05 : « Touches du piano » en mode Notes écrit les notes de la tonalité (E♭ G B♭ en do), comme la fiche de l\'accord', async ({ ouvrirAppli }) => {
-    test.fail(true, 'E-05 (bugs.md, à arbitrer) : les touches du piano écrivent D#, G, A# alors que la fiche de l\'accord juste à côté écrit E♭, G, B♭');
     const page = await ouvrirAppli({ accords: MI_BEMOL });
     await reglerEtiquettes(page, 'Notes');
     await caseN(page, 0, 0).click();
