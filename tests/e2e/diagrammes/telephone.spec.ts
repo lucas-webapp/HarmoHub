@@ -57,7 +57,6 @@ test.describe('Diagrammes au téléphone @diagrammes @mobile', () => {
   });
 
   test('afficher la guitare alors qu\'un accord est déjà touché garde cet accord (D-02)', async ({ ouvrirAppli }) => {
-    test.fail(true, 'D-02 (bugs.md) : « Afficher la guitare » avec un accord choisi remet les diagrammes sur Do (accord par défaut) jusqu\'au prochain choix');
     const page = await ouvrirAppli({ reglages: morceauDeux() });
     await toucher(page, 0, 1);
     await expect(nomAccord(page)).toHaveText('Am7');

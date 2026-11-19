@@ -5206,7 +5206,12 @@ class HarmoHubApp {
             localStorage.setItem('harmohubShowGuitar', wasOn ? '0' : '1');
             this.memoriserVuesMorceau();
             this.applyVizVisibility();
-            if (!wasOn) this.refreshPreview(); // vient d'être activée : calcule le diagramme de l'accord courant
+            if (!wasOn) {
+                // vient d'être activée : calcule le diagramme de l'accord courant. Si une case est choisie (hors modification), c'est CELLE-LÀ qu'on
+                // dessine : refreshPreview relit le panneau Accord, qui n'est pas l'accord choisi et repeignait un Do (bug D-02).
+                if (this.editingIndex == null && this.selectedIndex != null) this.redessinerMancheSelection();
+                else this.refreshPreview();
+            }
         };
         document.getElementById('guitar-prev').onclick = () => this.cycleGuitarFingering(-1);
         document.getElementById('guitar-next').onclick = () => this.cycleGuitarFingering(1);
@@ -17300,7 +17305,12 @@ class HarmoHubApp {
             // Si c'est l'accord actuellement en mode édition complète, resynchronise le panneau Accord
             // (réglages/séquenceur) avec la nouvelle racine/qualité plutôt que de le laisser périmé.
             if (this.editingIndex === index && this.activeSection === section) this.editChord(section, index);
-            else this.loadProgression();
+            else {
+                this.loadProgression();
+                // La case choisie vient de changer d'accord : le clavier et le manche du tiroir doivent le suivre aussitôt (bug D-01 : ils gardaient
+                // l'ancien accord jusqu'au prochain changement de sélection). Sans le faire entendre : on a renommé, pas choisi.
+                if (this.selectedIndex === index && this.activeSection === section) this.playSavedChord(section, index, false);
+            }
         };
         input.addEventListener('blur', commit);
         input.addEventListener('keydown', (e) => {
@@ -20168,6 +20178,9 @@ class HarmoHubApp {
             if (e.key === 'Escape' && !document.getElementById('duration-dd-menu').hidden) { this.closeDurationMenu(); return; }
             // La fenêtre Structure est un ONGLET depuis le lot 4 : Échap la referme, comme toutes les autres fenêtres (elle ne répondait qu'à la croix et au
             // clic sur le fond). L'aperçu avant impression, ouvert PAR-DESSUS, se referme d'abord — un seul niveau par appui.
+            // La petite fenêtre « Renommer » / « Commentaire » de la structure se ferme seule au premier Échap (bug R-02 : c'est la structure derrière
+            // qui se fermait, et la petite fenêtre restait orpheline sur la grille). Le texte non validé est abandonné.
+            if (e.key === 'Escape' && this._structEditAnnuler && document.getElementById('struct-edit-modal') && !document.getElementById('struct-edit-modal').hidden) { this._structEditAnnuler(); e.preventDefault(); return; }
             if (e.key === 'Escape' && document.getElementById('structure-apercu') && !document.getElementById('structure-apercu').hidden) { this.fermerApercuStructure(); return; }
             if (e.key === 'Escape' && this.fenetreStructureOuverte()) { this.closeStructureWindow(); return; }
             if (e.key === 'Escape' && this.filesOpen) { this.closeFilesWindow(); return; }
@@ -20201,7 +20214,10 @@ class HarmoHubApp {
             // itérer vite dessus sans la souris), sinon la progression entière. Volontairement PAS
             // exclu quand un bouton a le focus (ex. juste après un clic sur un préréglage du
             // séquenceur) : sinon l'espace réactive ce bouton au lieu de jouer/stopper.
-            if ((e.key === ' ' || e.code === 'Space') && !typing && !mod) {
+            // Exception : dans la fenêtre Paramètres, Espace est la touche d'un interrupteur ou d'un bouton qui a le focus (bug E-02 : il lançait la
+            // lecture derrière la fenêtre au lieu de basculer le réglage).
+            const dansReglages = this.settingsOpen && e.target && e.target.closest && e.target.closest('#settings-overlay') && e.target.closest('button, input, select, [role="switch"], [role="button"]');
+            if ((e.key === ' ' || e.code === 'Space') && !typing && !mod && !dansReglages) {
                 e.preventDefault();
                 if (this.isPlaying) this.stopAll();
                 else this.playProgression();

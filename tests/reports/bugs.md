@@ -100,6 +100,10 @@ D-04 → `diagrammes/doigtes.spec.ts` « D-04 : juste après Annuler / Rétablir
 | E-06, E-07 | 19/11 | Volumes relus du stockage : valeur d'usine si ce n'est pas un nombre, bornés à 0-100 | `persistance.spec.ts` |
 | Z-04 | 19/11 | Stockage local refusé : repli sur un stockage en mémoire (l'appli démarre, ne retient rien) | `stockage.spec.ts` |
 | Z-05 | 19/11 | Bibliothèque ou tampon de mauvaise forme : on garde ce qui est utilisable | `stockage.spec.ts` ×4 |
+| D-01 | 19/11 | Renommer l'accord choisi : le tiroir (clavier, manche) suit aussitôt | `diagrammes/doigtes.spec.ts` |
+| D-02 | 19/11 | « Afficher la guitare » avec un accord choisi dessine cet accord, plus celui du panneau | `tiroir.spec.ts`, `telephone.spec.ts` |
+| E-02 | 19/11 | Espace sur un contrôle de la fenêtre Paramètres ne lance plus la lecture | `parametres/fenetre.spec.ts` |
+| R-02 | 19/11 | Échap dans « Renommer » / « Commentaire » de la structure ferme seulement la petite fenêtre | `structure/ajouter-retirer.spec.ts` ×2 |
 | Z-07 | reporté | Demande une décision d'architecture : le tampon de travail est partagé entre onglets par le stockage local ; isoler chaque onglet change le modèle | `test.fail` conservé |
 | P-08 | reporté | Corriger le ×N oblige la grille à recharger la page Paroles à chaque clic (perte de l'historique d'annulation) : à traiter avec un message de mise à jour plutôt qu'un rechargement | `test.fail` conservé |
 

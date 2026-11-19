@@ -166,7 +166,6 @@ test.describe('Fenêtre Paramètres : clavier @parametres @ordinateur', () => {
   });
 
   test('E-02 : Espace sur un interrupteur le bascule, sans lancer la lecture du morceau', async ({ ouvrirAppli }) => {
-    test.fail(true, 'E-02 (bugs.md) : Espace sur un interrupteur ne le bascule pas ; c\'est le raccourci global « lecture » qui part (le morceau se met à jouer derrière la fenêtre)');
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await ouvrir(page);
     const degres = interrupteur(page, NOM.degres);

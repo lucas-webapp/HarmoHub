@@ -199,7 +199,6 @@ test.describe('Renommer une occurrence @structure', () => {
   });
 
   test('Échap dans la fenêtre « Renommer » ne ferme qu\'elle, la structure reste ouverte (R-02) @ordinateur', async ({ ouvrirAppli }) => {
-    test.fail(true, 'R-02 (bugs.md) : Échap ferme la fenêtre Structure derrière, et laisse « Renommer » ouverte sur la grille');
     const page = await ouvrirAppli(morceauTroisParties());
     await ouvrirStructure(page);
     await choisirAction(page, 1, /^Renommer/);
@@ -282,7 +281,6 @@ test.describe('Commentaires d\'une occurrence @structure', () => {
   });
 
   test('Échap dans la fenêtre « Commentaire » ne ferme qu\'elle, la structure reste ouverte (R-02) @ordinateur', async ({ ouvrirAppli }) => {
-    test.fail(true, 'R-02 (bugs.md) : Échap ferme la fenêtre Structure derrière, et laisse « Commentaire » ouverte sur la grille');
     const page = await ouvrirAppli(morceauTroisParties());
     await ouvrirStructure(page);
     await choisirAction(page, 0, /^Ajouter un commentaire/);

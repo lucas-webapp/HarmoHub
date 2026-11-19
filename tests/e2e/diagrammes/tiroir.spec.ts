@@ -86,7 +86,6 @@ test.describe('Tiroir clavier / guitare @diagrammes @ordinateur', () => {
   });
 
   test('afficher la guitare alors qu\'un accord est déjà choisi garde cet accord dans le tiroir (D-02)', async ({ ouvrirAppli }) => {
-    test.fail(true, 'D-02 (bugs.md) : « Afficher la guitare » avec un accord choisi remet le tiroir sur Do (accord par défaut) jusqu\'au prochain choix');
     const page = await ouvrirAppli({ reglages: morceauDeux() });
     await selectionner(page, 0, 1);
     await expect(nomAccord(page)).toHaveText('Am7');

@@ -258,7 +258,6 @@ test.describe('Doigtés de la guitare @diagrammes @ordinateur', () => {
   });
 
   test('renommer l\'accord choisi met aussitôt à jour le clavier et le manche (D-01)', async ({ ouvrirAppli }) => {
-    test.fail(true, 'D-01 (bugs.md) : après un renommage dans la case, le tiroir garde l\'ancien accord jusqu\'au prochain changement de sélection');
     const page = await ouvrirAppli({ reglages: morceauDeux() });
     await boutonGuitare(page).click();
     await selectionner(page, 0, 3);
