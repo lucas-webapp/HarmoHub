@@ -94,6 +94,13 @@ D-04 → `diagrammes/doigtes.spec.ts` « D-04 : juste après Annuler / Rétablir
 | P-05 | 19/11 | Paroles : les textes sont rangés par identifiant de partie (`sid`), plus par position ; les parties retirées restent en réserve (retour par Ctrl+Z) | `lien-grille.spec.ts`, `test.fail` retirés |
 | P-06 | 19/11 | Paroles : les pastilles sont rattachées à l'accord (plus longue suite commune des symboles), plus à son rang | idem |
 | P-03 | 19/11 | Paroles : une frappe qui rejoint un groupe encore ouvert vide aussi la pile « Rétablir » | `glisser-annuler.spec.ts`, `test.fail` retiré |
+| Z-06 | 19/11 | Le drapeau « modifié » est retenu dans le stockage (`harmohub_tampon_modifie`) et relu au démarrage | `rechargement.spec.ts`, `test.fail` retiré |
+| F-01 | 19/11 | « Exporter… › Ce morceau » et « Exporter en JSON et continuer » livrent le tampon affiché quand il est modifié (sans l'enregistrer) | `export-import-json.spec.ts`, `nouveau-enregistrer.spec.ts` |
+| F-03 | 19/11 | Export intégral sans dossier : la sauvegarde JSON se télécharge | `pdf-export.spec.ts` |
+| E-06, E-07 | 19/11 | Volumes relus du stockage : valeur d'usine si ce n'est pas un nombre, bornés à 0-100 | `persistance.spec.ts` |
+| Z-04 | 19/11 | Stockage local refusé : repli sur un stockage en mémoire (l'appli démarre, ne retient rien) | `stockage.spec.ts` |
+| Z-05 | 19/11 | Bibliothèque ou tampon de mauvaise forme : on garde ce qui est utilisable | `stockage.spec.ts` ×4 |
+| Z-07 | reporté | Demande une décision d'architecture : le tampon de travail est partagé entre onglets par le stockage local ; isoler chaque onglet change le modèle | `test.fail` conservé |
 | P-08 | reporté | Corriger le ×N oblige la grille à recharger la page Paroles à chaque clic (perte de l'historique d'annulation) : à traiter avec un message de mise à jour plutôt qu'un rechargement | `test.fail` conservé |
 
 ---

@@ -1,3 +1,23 @@
+// ---------- Stockage local inaccessible (bug Z-04) ----------
+// Certains navigateurs (cookies bloqués, modes privés stricts) lèvent une SecurityError dès qu'on touche à localStorage : tout le reste du
+// fichier s'arrêtait net, la page restait un décor sans bouton qui réponde. On sonde le stockage une fois ; s'il refuse, on installe un
+// stockage EN MÉMOIRE à sa place : l'appli démarre et fonctionne, simplement sans rien retenir d'une session à l'autre.
+(function assurerStockageLocal() {
+    try { localStorage.setItem('harmohub_sonde', '1'); localStorage.removeItem('harmohub_sonde'); return; } catch (e) { /* refusé : repli en mémoire */ }
+    const donnees = new Map();
+    const memoire = {
+        getItem: (k) => (donnees.has(String(k)) ? donnees.get(String(k)) : null),
+        setItem: (k, v) => { donnees.set(String(k), String(v)); },
+        removeItem: (k) => { donnees.delete(String(k)); },
+        clear: () => { donnees.clear(); },
+        key: (i) => (Array.from(donnees.keys())[i] ?? null),
+        get length() { return donnees.size; },
+    };
+    try { Object.defineProperty(window, 'localStorage', { value: memoire, configurable: true }); }
+    catch (e) { console.error('Stockage en mémoire impossible :', e); return; }
+    console.warn('Stockage local inaccessible : HarmoHub travaille en mémoire, rien ne sera retenu après la fermeture.');
+})();
+
 // ---------- Migration ancien nom (HarmoBox -> HarmoHub) ----------
 // Une seule fois : recopie les clés localStorage de l'ancien préfixe vers 'harmohub*'
 // pour ne pas perdre les données des utilisateurs qui avaient l'app sous l'ancien nom.
@@ -731,10 +751,15 @@ function loadProgressionSections() {
     let raw;
     try { raw = JSON.parse(localStorage.getItem('myProgression')); } catch (e) { raw = null; }
     if (!raw) return [{ title: '', chords: [] }];
-    if (Array.isArray(raw)) return [{ title: '', chords: raw }]; // migration : ancien format (tableau plat)
-    if (Array.isArray(raw.sections) && raw.sections.length) return raw.sections;
+    if (Array.isArray(raw)) return [{ title: '', chords: accordsSains(raw) }]; // migration : ancien format (tableau plat)
+    if (Array.isArray(raw.sections) && raw.sections.length) {
+        // Une partie sans liste d'accords, ou un accord nul, empêchait l'appli de démarrer (bug Z-05) : on garde ce qui est utilisable.
+        const saines = raw.sections.filter(p => p && typeof p === 'object').map(p => Array.isArray(p.chords) ? Object.assign(p, { chords: accordsSains(p.chords) }) : Object.assign(p, { chords: [] }));
+        if (saines.length) return saines;
+    }
     return [{ title: '', chords: [] }];
 }
+function accordsSains(liste) { return liste.filter(h => h && typeof h === 'object'); }
 
 // Modifications du tampon de travail pas encore reportées dans le morceau enregistré (voir
 // saveCurrentSong/Ctrl+S) — volontairement une variable de module (pas this.xxx) : les fonctions
@@ -750,9 +775,14 @@ let debutTravail = null;
 // directement ; en les faisant passer par une fonction, le garde-fou de connexion (voir
 // cloudGardeConnexion) se déclenche à la PREMIÈRE modification, quelle qu'elle soit, sans avoir à
 // retrouver chacun de ces endroits. Lecture et remise à faux restent directes.
+// Le drapeau « modifié » est aussi RETENU dans le stockage (avec l'identifiant du morceau ouvert) : un rechargement de la page le perdait, la barre
+// du haut disait alors « Enregistré » alors que le tampon portait des modifications absentes du morceau (bug Z-06), et plus aucun avertissement
+// ne se déclenchait en quittant ou en changeant de morceau. Relu au démarrage par restoreCurrentSongSettingsIfAny.
+const CLE_TAMPON_MODIFIE = 'harmohub_tampon_modifie';
 function marquerModifie() {
     const etaitModifie = hasUnsavedChanges;
     hasUnsavedChanges = true;
+    if (!etaitModifie) { try { localStorage.setItem(CLE_TAMPON_MODIFIE, getCurrentSongId() || ''); } catch (e) { /* stockage plein : sans gravité */ } }
     compteurModifs++; // lu par les versions automatiques : « y a-t-il du NEUF depuis la dernière version ? » (voir verifierVersionAuto)
     if (debutTravail === null) debutTravail = Date.now();
     // Le voyant d'Enregistrer (barre du haut) ne bouge qu'au PASSAGE enregistré → modifié : marquerModifie est appelé à chaque cran
@@ -768,6 +798,7 @@ function marquerModifie() {
 function marquerEnregistre() {
     const etaitModifie = hasUnsavedChanges;
     hasUnsavedChanges = false;
+    if (etaitModifie) { try { localStorage.removeItem(CLE_TAMPON_MODIFIE); } catch (e) { /* sans gravité */ } }
     if (etaitModifie) signalerEtatEnregistrement();
 }
 // `window.app` n'existe pas encore pendant le tout premier chargement (le drapeau y est posé avant la construction de l'appli) : rien à
@@ -1086,7 +1117,12 @@ function restaurerParolesDeSauvegarde(paroles, renum) {
 const SONG_ID_KEY = 'harmohubCurrentSongId';
 
 function loadSongs() {
-    try { return JSON.parse(localStorage.getItem('harmohubSongs')) || []; } catch (e) { return []; }
+    // Une bibliothèque de la mauvaise forme (objet au lieu d'une liste, entrées nulles ou sans identifiant) empêchait l'appli de démarrer
+    // (bug Z-05) : on ne garde que les entrées utilisables, comme pour un JSON illisible.
+    try {
+        const liste = JSON.parse(localStorage.getItem('harmohubSongs'));
+        return Array.isArray(liste) ? liste.filter(x => x && typeof x === 'object' && typeof x.id === 'string') : [];
+    } catch (e) { return []; }
 }
 
 function saveSongs(songs) {
@@ -2672,6 +2708,12 @@ const METRONOME_KEY = 'harmohubMetronomeDuringPlayback';
 const METRONOME_VOLUME_KEY = 'harmohubMetronomeVolume';
 const METRONOME_SOUND_KEY = 'harmohubMetronomeSound';
 const GENERAL_VOLUME_KEY = 'harmohubGeneralVolume';
+// Un volume relu du stockage : un texte qui n'est pas un nombre (« abc », vide, NaN) empêchait l'appli de démarrer (bug E-06), et une valeur hors de
+// 0 à 100 était gardée telle quelle (E-07). On retombe sur la valeur d'usine, et on borne.
+function volumeMemorise(brut, parDefaut) {
+    const n = parseInt(brut, 10);
+    return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : parDefaut;
+}
 const AUTOPLAY_SELECT_KEY = 'harmohubAutoplaySelect';
 const METRONOME_COUNTIN_KEY = 'harmohubMetronomeCountIn';
 const SEQ_EDIT_AUDIO_KEY = 'harmohubSeqEditAudio';
@@ -3793,7 +3835,7 @@ class HarmoHubApp {
         // sur la sortie audio globale de Tone.js — un vrai « volume maître » qui les multiplie tous
         // les deux ensemble sans changer leur équilibre relatif l'un par rapport à l'autre.
         const storedGeneralVol = localStorage.getItem(GENERAL_VOLUME_KEY);
-        this.generalVolumePercent = storedGeneralVol !== null ? parseInt(storedGeneralVol) : 100;
+        this.generalVolumePercent = volumeMemorise(storedGeneralVol, 100);
         Tone.Destination.volume.value = percentToDb(this.generalVolumePercent);
 
         // Lecture automatique d'un accord de la grille dès qu'on clique dessus pour le sélectionner
@@ -3881,7 +3923,7 @@ class HarmoHubApp {
         this.metronomeSoundKey = (storedSound && METRONOME_SOUNDS[storedSound]) ? storedSound : 'click';
         this.metronome = METRONOME_SOUNDS[this.metronomeSoundKey].build().toDestination();
         const storedMetroVol = localStorage.getItem(METRONOME_VOLUME_KEY);
-        this.metronomeVolumePercent = storedMetroVol !== null ? parseInt(storedMetroVol) : 80;
+        this.metronomeVolumePercent = volumeMemorise(storedMetroVol, 80);
         this.metronome.volume.value = percentToDb(this.metronomeVolumePercent);
 
         this.activeSection = 0;    // partie (couplet/refrain/...) ciblée par les contrôles courants
@@ -12250,6 +12292,8 @@ class HarmoHubApp {
         const song = loadSongs().find(s => s.id === id);
         if (!song) return;
         this.applySongSettingsToDom(song);
+        // Le tampon était « modifié » à la fermeture de la page (voir marquerModifie) : il l'est toujours (bug Z-06).
+        try { if (localStorage.getItem(CLE_TAMPON_MODIFIE) === id) hasUnsavedChanges = true; } catch (e) { /* sans gravité */ }
     }
 
     // Charge un morceau enregistré : il devient le morceau ouvert, mais n'est plus auto-sauvegardé en
@@ -16130,8 +16174,14 @@ class HarmoHubApp {
             dire(`${libelle}…`);
             try {
                 if (id === 'morceau') {
-                    const r = await this.enregistrerMorceauDansDossier(song, { racine });
-                    if (!r.fait) throw new Error(r.raison);
+                    if (!racine) {
+                        // Sans dossier de rangement, la sauvegarde se télécharge comme les autres fichiers (bug F-03 : elle exigeait un dossier alors
+                        // que la case est cochée par défaut et annoncée « instantané »), exactement comme « Exporter… › Ce morceau ».
+                        this.exportCurrentSong();
+                    } else {
+                        const r = await this.enregistrerMorceauDansDossier(song, { racine });
+                        if (!r.fait) throw new Error(r.raison);
+                    }
                 } else if (id === 'accords') {
                     await this.exportPdf(racine);
                 } else if (id === 'structure') {
@@ -16559,8 +16609,11 @@ class HarmoHubApp {
             this.saveCurrentAsSong('Nomme d\'abord ton morceau pour le sauvegarder');
             if (!getCurrentSongId()) return; // enregistrement annulé -> pas de sauvegarde
         }
-        const song = loadSongs().find(s => s.id === getCurrentSongId());
-        if (!song) return;
+        const enregistre = loadSongs().find(s => s.id === getCurrentSongId());
+        if (!enregistre) return;
+        // Ce que l'écran montre, pas la dernière version enregistrée (bug F-01) : « Exporter en JSON et continuer » existe pour sauver le travail
+        // avant de passer à autre chose, et livrait l'ancienne version. La copie n'est PAS écrite dans la bibliothèque : « exporter » n'enregistre pas.
+        const song = hasUnsavedChanges ? Object.assign({}, enregistre, this.instantaneTampon(), { savedAt: Date.now() }) : enregistre;
         this.downloadSongBackup(song);
     }
 

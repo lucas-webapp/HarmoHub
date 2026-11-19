@@ -81,7 +81,6 @@ test.describe('Export JSON @fichiers', () => {
   });
 
   test('« Ce morceau » exporte les modifications non enregistrées de l\'écran', async ({ ouvrirAppli }) => {
-    test.fail(true, 'F-01 (bugs.md) : le fichier contient la dernière version ENREGISTRÉE, pas ce qui est à l\'écran');
     const page = await ouvrirAvecDeux(ouvrirAppli);
     await modifierLeMorceau(page, 'Refrain');
     const s = jsonDe(await exporterDepuisLeMenu(page, 'Ce morceau')).songs[0];

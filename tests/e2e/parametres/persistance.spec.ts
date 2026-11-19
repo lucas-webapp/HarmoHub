@@ -172,7 +172,6 @@ test.describe('Persistance des réglages @parametres', () => {
 test.describe('Valeurs de volume abîmées @parametres @ordinateur', () => {
   for (const [cle, valeur] of [['harmohubGeneralVolume', 'beaucoup'], ['harmohubGeneralVolume', ''], ['harmohubMetronomeVolume', 'abc']] as const) {
     test(`E-06 : « ${cle} » vaut « ${valeur} » : l'appli démarre`, async ({ page }) => {
-      test.fail(true, 'E-06 (bugs.md) : un volume enregistré qui n\'est pas un nombre empêche l\'appli de démarrer (page vide, « Invalid argument(s) to setValueAtTime: null »)');
       await page.addInitScript(([c, v]) => { sessionStorage.setItem('cc_accueil_vu', '1'); localStorage.setItem(c, v); }, [cle, valeur]);
       await page.goto('/index.html');
       await page.waitForFunction(() => !!(window as any).app, null, { timeout: 10_000 });
@@ -182,7 +181,6 @@ test.describe('Valeurs de volume abîmées @parametres @ordinateur', () => {
 
   for (const [cle, valeur, lecture] of [['harmohubGeneralVolume', '150', 'generalVolumePercent'], ['harmohubGeneralVolume', '-5', 'generalVolumePercent'], ['harmohubMetronomeVolume', '500', 'metronomeVolumePercent']] as const) {
     test(`E-07 : « ${cle} » vaut « ${valeur} » : le volume est ramené entre 0 et 100`, async ({ ouvrirAppli }) => {
-      test.fail(true, 'E-07 (bugs.md) : un volume enregistré hors de 0 à 100 est gardé tel quel par l\'appli (150 % : la sortie dépasse le niveau maximal du curseur)');
       const page = await ouvrirAppli({ reglages: { [cle]: valeur } });
       const v = await lireEtat<number>(page, lecture);
       expect(v).toBeGreaterThanOrEqual(0);

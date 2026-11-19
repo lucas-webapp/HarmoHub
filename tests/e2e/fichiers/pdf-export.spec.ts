@@ -118,7 +118,6 @@ test.describe('Export intégral @fichiers', () => {
   });
 
   test('l\'export intégral livre aussi la sauvegarde JSON du morceau (4 fichiers) sans message d\'échec @critique', async ({ ouvrirAppli }) => {
-    test.fail(true, 'F-03 (bugs.md) : sans dossier de rangement, la « Sauvegarde du morceau » échoue (« échec : Sauvegarde du morceau », erreur « pas-de-dossier »)');
     const page = await ouvrirAppli({ reglages: MORCEAU() });
     await choisirDansMenuFichiers(page, /Export intégral/);
     const fichiers = await telechargerPlusieurs(page, 4, () => fenetreIntegral(page).getByRole('button', { name: 'Exporter' }).click());

@@ -167,7 +167,6 @@ test.describe('Modifications non enregistrées @fichiers', () => {
   });
 
   test('« Exporter en JSON et continuer » télécharge le morceau MODIFIÉ (celui de l\'écran), puis continue @critique', async ({ ouvrirAppli }) => {
-    test.fail(true, 'F-01 (bugs.md) : le fichier téléchargé contient la dernière version ENREGISTRÉE, pas les modifications de l\'écran');
     const page = await ouvrirAvecModification(ouvrirAppli);
     await ouvrirMenuMorceau(page);
     await menuMorceau(page).getByRole('menuitemradio', { name: /Bravo/ }).click();

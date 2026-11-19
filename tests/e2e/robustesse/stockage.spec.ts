@@ -104,7 +104,6 @@ test.describe('Stockage plein : la copie de travail ne peut plus être écrite @
 
 test.describe('Stockage bloqué en lecture et en écriture dès le chargement @robustesse', () => {
   test('Z-04 : « localStorage » inaccessible (SecurityError) : l\'appli démarre et propose une grille utilisable', async ({ page }) => {
-    test.fail(true, 'Z-04 (bugs.md) : avec un stockage local bloqué, window.app n\'existe jamais : la page reste un décor sans aucun bouton qui réponde (aucun message)');
     await page.addInitScript(() => {
       sessionStorage.setItem('cc_accueil_vu', '1');
       const origine: Record<string, (...a: unknown[]) => unknown> = {};
@@ -182,7 +181,6 @@ test.describe('Des données de morceau qui ne sont pas du bon format @robustesse
   ];
   for (const [nom, id, reglages] of mortelles) {
     test(`Z-05 : ${nom} : l'appli démarre quand même [${id}]`, async ({ page }) => {
-      test.fail(true, 'Z-05 (bugs.md) : des données de morceau de la mauvaise forme (JSON valide) empêchent l\'appli de démarrer : window.app n\'existe jamais, la page reste morte tant que le stockage n\'est pas vidé à la main');
       await page.addInitScript((r) => { if (sessionStorage.getItem('e2e-graine')) return; sessionStorage.setItem('e2e-graine', '1'); sessionStorage.setItem('cc_accueil_vu', '1'); for (const [k, v] of Object.entries(r)) localStorage.setItem(k, v as string); }, reglages);
       await page.goto('/index.html');
       await page.waitForFunction(() => !!(window as any).app, null, { timeout: 10_000 });

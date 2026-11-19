@@ -47,7 +47,6 @@ test.describe('Rechargement en cours d\'édition @robustesse', () => {
   });
 
   test('Z-06 : après le rechargement, un morceau modifié mais pas enregistré est toujours annoncé « Non enregistré »', async ({ ouvrirAppli }) => {
-    test.fail(true, 'Z-06 (bugs.md) : après un rechargement, la barre du haut dit « Enregistré à hh:mm » alors que la grille porte une modification non enregistrée ; fermer ou changer de morceau sans avertissement la perd');
     const page = await ouvrirAppli({ reglages: bibliotheque([{ id: 'a', nom: 'Alpha', accords: C_AM_F_G }], 'a') });
     await modifierLeMorceau(page, 'Refrain');
     await recharger(page);
