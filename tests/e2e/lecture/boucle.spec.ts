@@ -153,11 +153,10 @@ test.describe('Boucle de lecture @lecture', () => {
 });
 
 test.describe('Règle des mesures @lecture @ordinateur', () => {
-  // L-01 (bugs.md) : la zone sensible de la règle est décalée vers la droite et ce décalage grandit d'une mesure à l'autre. Appuyer au CENTRE
+  // L-01 / ES-14 (corrigés le 20/11) : la zone sensible de la règle suivait mal la position du pointeur (décalage de 10 à 24 px). Appuyer au CENTRE
   // du numéro « 3 » (ou « 4 ») puis glisser jusqu'au bout commence la plage une mesure trop tôt. Le numéro « 2 » est encore juste (contrôle).
-  for (const [numero, fail] of [[2, false], [3, true], [4, true]] as const) {
+  for (const [numero] of [[2], [3], [4]] as const) {
     test(`appuyer sur le numéro « ${numero} » de la règle et glisser jusqu'au bout commence la plage à la mesure ${numero}`, async ({ ouvrirAppli }) => {
-      test.fail(fail, 'L-01 (bugs.md) : la zone sensible de la règle des mesures est décalée vers la droite');
       const page = await ouvrirAppli({ accords: C_AM_F_G });
       const n = (await reglette(page).nth(numero - 1).boundingBox())!;
       const derniere = (await caseN(page, 0, 3).boundingBox())!;
@@ -170,6 +169,19 @@ test.describe('Règle des mesures @lecture @ordinateur', () => {
       await expect.poll(() => plage(page)).toEqual({ startSection: 0, startIndex: numero - 1, endSection: 0, endIndex: 3 });
     });
   }
+
+  // ES-14 (essai neutre du 20/11) : le tracé marche aussi de DROITE À GAUCHE, et la plage commence à la mesure sous le pointeur.
+  test('tracer la plage de droite à gauche, du « 4 » au « 2 », boucle les mesures 2 à 4', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ accords: C_AM_F_G });
+    const quatre = (await reglette(page).nth(3).boundingBox())!, deux = (await reglette(page).nth(1).boundingBox())!;
+    const y = quatre.y + quatre.height / 2;
+    await page.mouse.move(quatre.x + quatre.width / 2, y);
+    await page.mouse.down();
+    await page.mouse.move(quatre.x + quatre.width / 2 - 25, y, { steps: 3 });
+    await page.mouse.move(deux.x + deux.width / 2, y, { steps: 8 });
+    await page.mouse.up();
+    await expect.poll(() => plage(page)).toEqual({ startSection: 0, startIndex: 1, endSection: 0, endIndex: 3 });
+  });
 });
 
 test.describe('Boucle de lecture au téléphone @lecture @mobile', () => {

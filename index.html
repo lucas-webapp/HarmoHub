@@ -12,14 +12,14 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=202607252000">
     <link rel="manifest" href="manifest.json?v=202607252000">
     <meta name="theme-color" content="#0a0a0a">
-    <link rel="stylesheet" href="style.css?v=202611201900">
+    <link rel="stylesheet" href="style.css?v=202611210300">
     <!-- L'EFFET VERRE (option, Paramètres > Apparence) : verre.js pose data-glass / data-glass-bg sur <html> d'après les
          réglages de l'appareil, et il DOIT se charger ici, sans defer, pour le faire avant le premier affichage (sinon l'appli
          paraîtrait un instant sans verre, puis serait repeinte). verre.css n'a d'effet que sous html[data-glass="1"] : éteint,
          le rendu est celui d'avant. verre.js et verre.css sont PARTAGÉS avec TabHub (voir docs/verre.md) ; verre-surfaces.css
          est propre à HarmoHub. -->
     <link rel="stylesheet" href="verre.css?v=202610281900">
-    <link rel="stylesheet" href="verre-surfaces.css?v=202611201900">
+    <link rel="stylesheet" href="verre-surfaces.css?v=202611210300">
     <script src="verre.js?v=202610281900" data-app="harmohub"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Tone.js (moteur audio), vendu en local plutôt qu'hébergé sur un CDN, comme les autres
@@ -1168,6 +1168,9 @@
                             <option value="aug">Aug</option>
                             <option value="add9">Add9</option>
                             <option value="add11">Add11</option>
+                            <option value="madd9">mAdd9</option>
+                            <option value="madd11">mAdd11</option>
+                            <option value="mmaj7">m Maj 7</option>
                             <option value="maj9">Maj 9</option>
                             <option value="m9">Min 9</option>
                             <option value="dom9">9</option>
@@ -1846,7 +1849,7 @@
                 <button type="button" id="sq-coller" class="icon-btn" disabled title="Coller un rythme copié (rien de copié)" aria-label="Coller un rythme copié (rien de copié)">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9z"/></svg>
                 </button>
-                <button type="button" id="sq-effacer" class="icon-btn" title="Effacer le rythme de cet accord" aria-label="Effacer le rythme de cet accord">
+                <button type="button" id="sq-effacer" class="icon-btn" title="Effacer le rythme de cet accord : la mesure devient silencieuse (la case est barrée dans la grille)" aria-label="Effacer le rythme de cet accord">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
                 </button>
             </div>
@@ -2171,13 +2174,13 @@
     <!-- sequenceur.js AVANT script.js : l'appli (window.app) est créée à la fin de script.js et construit le séquenceur dans la foulée. -->
     <!-- Les formes du séquenceur (au compte) : AVANT sequenceur.js, qui s'y abonne à sa construction ; la connexion (SYNCHRO) n'est lue qu'à l'usage. -->
     <script src="synchro-formes.js?v=202611131800"></script>
-    <script src="synchro-doigtes.js?v=202611201900"></script>
-    <script src="sequenceur.js?v=202611201900"></script>
-    <script src="script.js?v=202611201900"></script>
+    <script src="synchro-doigtes.js?v=202611210300"></script>
+    <script src="sequenceur.js?v=202611210300"></script>
+    <script src="script.js?v=202611210300"></script>
     <!-- L'adaptateur se charge APRÈS script.js : il s'appuie sur loadSongs, saveSongs, apparierMorceau…
          qui y sont définis, et démarre la synchro dès son chargement. saveSongs, elle, l'appelle par
          `typeof` : rien ne casse s'il manque. -->
-    <script src="synchro-harmohub.js?v=202611201900"></script>
+    <script src="synchro-harmohub.js?v=202611210300"></script>
     <!-- Les versions au cloud (sous-lot « Versions au cloud ») : après l'adaptateur, dont elles réutilisent la connexion (SYNCHRO). -->
     <script src="synchro-versions.js?v=202611060400"></script>
 </body>

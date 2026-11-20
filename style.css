@@ -7906,3 +7906,7 @@ body.entetes-gauche #progression-sections .prog-section-menu { margin-left: 0; }
 /* Bouton « Nommer le morceau » de la vue Paroles vide : il reprend la classe du bouton « Enregistrer » de la barre du haut, qui est un bouton-icône
    de 32 px à l'ordinateur ; le libellé débordait du carré (bug P-01). Ici il porte un TEXTE : largeur selon le libellé. */
 #vue-paroles-nommer { display: inline-flex; width: auto; min-width: max-content; padding: 0 14px; }
+
+/* Un accord dont le rythme a été vidé ne sonne plus : sa case est barrée (essai neutre du 20/11, ES-07 : rien ne le montrait). */
+.grid-cell.grid-cell-muet .cell-sym { text-decoration: line-through; text-decoration-thickness: 1px; opacity: .6; }
+.grid-cell.grid-cell-muet::after { content: 'silence'; position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted, #9aa); pointer-events: none; }

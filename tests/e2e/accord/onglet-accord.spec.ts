@@ -39,13 +39,14 @@ test.describe('Onglet Accord @accord @ordinateur', () => {
     }
   });
 
-  test('les 20 types sont proposés et chacun produit le bon symbole', async ({ ouvrirAppli }) => {
+  test('les 23 types sont proposés et chacun produit le bon symbole', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: [{ root: 'C', quality: '' }] });
     const f = await ouvrirFenetre(page, 0, 0);
-    await expect(f.locator('[data-bulle="quality"]')).toHaveCount(20);
+    await expect(f.locator('[data-bulle="quality"]')).toHaveCount(23);
     const attendus: [string, string][] = [
       ['Majeur', 'C'], ['Mineur', 'Cm'], ['Sus2', 'Csus2'], ['Sus4', 'Csus4'], ['Maj 7', 'Cmaj7'], ['Min 7', 'Cm7'], ['Dom 7', 'C7'], ['6', 'C6'],
       ['Min 6', 'Cm6'], ['Dim', 'Cdim'], ['Dim 7', 'Cdim7'], ['m7b5', 'Cm7b5'], ['Aug', 'Caug'], ['Add9', 'Cadd9'], ['Add11', 'Cadd11'],
+      ['mAdd9', 'Cmadd9'], ['mAdd11', 'Cmadd11'], ['m Maj 7', 'Cmmaj7'],   // ajoutés le 20/11 : le séquenceur les reconnaît (Am + B, Am + D, Am + G♯)
       ['Maj 9', 'Cmaj9'], ['Min 9', 'Cm9'], ['9', 'C9'], ['11', 'C11'], ['13', 'C13'],
     ];
     for (const [bouton, symbole] of attendus) {

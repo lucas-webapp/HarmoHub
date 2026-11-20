@@ -132,6 +132,12 @@ D-04 → `diagrammes/doigtes.spec.ts` « D-04 : juste après Annuler / Rétablir
 | A-03 | 20/11 | Onglet Rythme : la forme d'un accord est marquée séquenceur fermé comme ouvert | `accord/onglet-rythme.spec.ts` |
 | M-02 | 20/11 (décidé) | Copie par glisser (Ctrl ou appui long) : elle va là où on la lâche, avant ou après la case selon la moitié, y compris dans une autre partie | `grille/glisser.spec.ts` (2 tests ajoutés) |
 | P-04 | 20/11 | Paroles, mode Syllabe : une pastille glissée reste accrochée à un caractère (on vise la ligne de texte la plus proche) | `paroles/glisser-annuler.spec.ts` |
+| L-01, ES-14 | 20/11 | Règle des mesures : la mesure est celle de la CASE la plus proche du pointeur (plus de dérive de 10 à 24 px), et le tracé marche aussi de droite à gauche | `lecture/boucle.spec.ts` (3 tests sans `test.fail`, 1 ajouté) |
+| ES-01, ES-02, ES-04, ES-05 | 20/11 | Séquenceur : l'appli propose le nom d'après TOUTES les notes qui sonnent (ajout, déplacement, retrait) ; Csus4 et non Cadd11 ; trois qualités mineures reconnues (mAdd9, mAdd11, m Maj 7) ; altérations écrites comme des fondamentales (B♭) ; le bandeau reste jusqu'à la réponse | `sequenceur/reconnaissance-accord.spec.ts` (9 tests) |
+| ES-03 | 20/11 | « Renommer » garde la hauteur de la note ajoutée : si elle est la plus grave, elle devient la basse (Am7/G) | idem |
+| ES-07 | 20/11 | Accord au rythme vidé : sa case est barrée et marquée « silence » ; l'infobulle de la corbeille le dit | `style.css`, `script.js` |
+| ES-08 | 20/11 | Arpège ↑ d'une triade : A C E C (plus de « C C » soudés) | `sequenceur/rythmes.spec.ts` |
+| ES-13 | 20/11 | Non reproduit à 1440 px (libellés gardés après l'enregistrement d'une forme) | — |
 | Z-07 | reporté | Demande une décision d'architecture : le tampon de travail est partagé entre onglets par le stockage local ; isoler chaque onglet change le modèle | `test.fail` conservé |
 | P-08 | reporté | Corriger le ×N oblige la grille à recharger la page Paroles à chaque clic (perte de l'historique d'annulation) : à traiter avec un message de mise à jour plutôt qu'un rechargement | `test.fail` conservé |
 

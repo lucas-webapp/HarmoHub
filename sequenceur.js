@@ -283,7 +283,12 @@
         if (n === 0) return out;
         if (n === 1) { out.set(ordre[0], unionPositions(...P)); return out; }
         if (n === 2) { out.set(ordre[0], unionPositions(P[0], P[1])); out.set(ordre[1], unionPositions(P[2], P[3])); return out; }
-        if (n === 3) { out.set(ordre[0], copiePosition(P[0])); out.set(ordre[1], unionPositions(P[1], P[2])); out.set(ordre[2], copiePosition(P[3])); return out; }
+        if (n === 3) {
+            // Les ARPÈGES d'une triade (essai du 20/11, ES-08 : « A C C E », la tierce doublée) : montant, A C E C — la voix du milieu joue la 2e et la 4e note, l'aiguë la
+            // 3e (chaque note dure une croche, plus de « C C » soudés). Les autres rythmes gardent la fusion des deux voix du milieu.
+            if (motif.id === 'monte') { out.set(ordre[0], copiePosition(P[0])); out.set(ordre[1], unionPositions(P[1], P[3])); out.set(ordre[2], copiePosition(P[2])); return out; }
+            out.set(ordre[0], copiePosition(P[0])); out.set(ordre[1], unionPositions(P[1], P[2])); out.set(ordre[2], copiePosition(P[3])); return out;
+        }
         out.set(ordre[0], copiePosition(P[0])); out.set(ordre[1], copiePosition(P[1])); out.set(ordre[n - 2], copiePosition(P[2])); out.set(ordre[n - 1], copiePosition(P[3]));
         if (n > 4) {
             const hautCommun = memesCroches(P[1].ks, P[2].ks) && memesCroches(P[2].ks, P[3].ks);
@@ -1164,6 +1169,8 @@
         // ---- Écriture dans le morceau ---------------------------------------------------------------------------------------------
         // Un geste = une annulation (pushUndo AVANT d'écrire, une seule fois). `modifs` reçoit les données de chaque accord touché (index → état).
         // `surPartie(sec)` : ce que le geste change à la partie elle-même (ses notes libres), dans la même annulation.
+        // Un RYTHME appliqué d'un coup (arpège, pompe, effacer…) ne change pas l'accord : pas de proposition de renommage.
+        ecrireSansProposer(...args) { this._sansProposition = true; try { this.ecrire(...args); } finally { this._sansProposition = false; } }
         ecrire(modifs, geste, surPartie) {
             const sections = loadProgressionSections();
             const sec = sections[this._s];
@@ -1194,7 +1201,10 @@
             });
             saveProgressionSections(sections);
             const s = this._s, app = this.app;
-            if ([...modifs.values()].some(m => m.extraNotes)) { clearTimeout(this._tProposition); this._tProposition = setTimeout(() => this.proposerRenommage([...modifs.keys()]), 800); }
+            // La proposition suit TOUT geste sur les notes (poser, déplacer, retirer, étirer) et plus seulement l'ajout d'une note libre : déplacer ou retirer
+            // une note laissait la case sur l'ancien nom sans un signe (essai neutre du 20/11, ES-01). Pas pour un rythme appliqué d'un coup (arpège, pompe…) :
+            // il ne change pas l'accord.
+            if (!this._sansProposition) { const touches = [...modifs.keys()]; clearTimeout(this._tProposition); this._tProposition = setTimeout(() => this.proposerRenommage(touches), 800); }
             // L'accord ouvert en modification relit ses réglages (son motif vivant est dans #arpPattern) : sans cela, refermer la fenêtre réécrirait
             // l'ancien rythme par-dessus.
             if (app.editingIndex != null && app.activeSection === s && modifs.has(app.editingIndex)) app.editionParSuivi(s, app.editingIndex);
@@ -1208,22 +1218,29 @@
         // ---- Proposer de renommer l'accord quand une note ajoutée le complète (« si j'ajoute une 9e, propose-moi un accord de 9e », 15/11) ----------------------------------------------
         // Une note ajoutée au séquenceur (voix libre) qui, TENUE assez longtemps (au moins un temps de suite, ou la moitié de l'accord : mêmes seuils que l'ancien éditeur), complète exactement
         // une AUTRE qualité d'accord sur la même fondamentale : une petite fenêtre propose « Cmaj7 + D : renommer en Cmaj9 ? ». Rien n'est jamais renommé sans le clic.
-        qualiteCompletee(d, info, etat) {
+        // Ce que SONNENT réellement les notes de l'accord (essai neutre du 20/11 : « si je déplace ou retire une note, la case garde son nom », ES-01 à ES-04).
+        // Une voix de l'accord compte dès qu'elle a UNE croche ; une note ajoutée, seulement si elle est TENUE (une croche de passage ne change pas l'accord).
+        // L'ensemble des classes de hauteur est comparé à TOUTES les qualités connues : c'est le seul moyen d'avoir Csus4 (et pas Cadd11) quand la tierce est partie.
+        qualiteProposee(d, info, etat) {
             const racine = NOTES.indexOf(d.root);
-            if (racine < 0 || !info.libres.length) return null;
+            if (racine < 0) return null;
             const pc = (m) => ((m - racine) % 12 + 12) % 12;
-            const tenues = info.libres.filter(v => {
-                let on = 0, serie = 0, max = 0;
-                for (let k = 0; k < info.croches; k++) { if (etat.on.has(cle(v, k))) { on++; serie = etat.soude.has(cle(v, k)) || serie === 0 ? serie + 1 : 1; max = Math.max(max, serie); } else serie = 0; }
-                return max >= 2 || on >= info.croches / 2;
+            const nb = (v) => { let on = 0, serie = 0, max = 0; for (let k = 0; k < info.croches; k++) { if (etat.on.has(cle(v, k))) { on++; serie = etat.soude.has(cle(v, k)) || serie === 0 ? serie + 1 : 1; max = Math.max(max, serie); } else serie = 0; } return { on, max }; };
+            const sonnantes = info.voix.filter(x => {
+                if (x.basse) return false;
+                const n = nb(x.index);
+                return x.libre ? (n.max >= 2 || n.on >= info.croches / 2) : n.on >= 1;
             });
-            if (!tenues.length) return null;
-            const ensemble = new Set(info.voix.filter(x => !x.basse && (!x.libre || tenues.includes(x.index))).map(x => pc(x.midi)));
+            const ensemble = new Set(sonnantes.map(x => pc(x.midi)));
+            if (!ensemble.has(0)) return null;   // la fondamentale ne sonne plus : ce n'est plus un accord sur cette racine
             const q = findQualityMatchingPitchClasses(ensemble);
             if (!q || q === d.quality) return null;
-            const avant = new Set(info.voix.filter(x => !x.libre && !x.basse).map(x => pc(x.midi)));
-            const absorbees = tenues.filter(v => !avant.has(pc(info.voix[v].midi)));
-            return absorbees.length ? { q, absorbees } : null;
+            const avant = pitchClassSetForQuality(d.quality);
+            const absorbees = sonnantes.filter(x => x.libre && !avant.has(pc(x.midi))).map(x => x.index);
+            const retirees = [...avant].filter(p => !ensemble.has(p));
+            const ajoutees = [...ensemble].filter(p => !avant.has(p));
+            if (!absorbees.length && !retirees.length && !ajoutees.length) return null;
+            return { q, absorbees, retirees, ajoutees };
         }
         proposerRenommage(cs) {
             const bloc = document.getElementById('proposition-nom');
@@ -1232,21 +1249,27 @@
             if (!sec) return;
             for (const c of cs) {
                 const d = sec.chords[c];
-                if (!d || !(d.extraNotes || []).length) continue;
-                const e = lireAccord(d, this.app), r = this.qualiteCompletee(d, e.info, e);
+                if (!d) continue;
+                const e = lireAccord(d, this.app), r = this.qualiteProposee(d, e.info, e);
                 if (!r) continue;
                 const flats = this.app.useFlatsForRoot(d.root);
                 const nom = (qual) => flatTight(new Chord(d.root, qual, 4, 0, 'none', 3, null).getLabel(flats));
-                const ajout = r.absorbees.map(v => midiToDisplayName(e.info.voix[v].midi, flats).replace(/-?\d+$/, '')).join(' + ');
-                document.getElementById('proposition-nom-texte').textContent = `${nom(d.quality)} + ${ajout} : renommer en ${nom(r.q)} ?`;
+                // Les notes sont écrites comme des fondamentales de la tonalité (Bb dans C7, pas A#) : essai du 20/11, ES-05.
+                const nomNote = (p) => { const n = (NOTES.indexOf(d.root) + p) % 12; return noteNameForPc(n, bemolsPourFondamentale(n, flats)); };
+                const moins = r.retirees.map(nomNote).join(' + '), plus = r.ajoutees.map(nomNote).join(' + ');
+                const diff = [moins ? `− ${moins}` : '', plus ? `+ ${plus}` : ''].filter(Boolean).join(' ');
+                document.getElementById('proposition-nom-texte').textContent = `${nom(d.quality)} ${diff} : renommer en ${nom(r.q)} ?`;
                 this._proposition = { s: this._s, c, q: r.q, absorbees: r.absorbees.map(v => e.info.voix[v].midi) };
                 bloc.hidden = false;
+                // Le bandeau reste tant que l'accord est choisi et que rien n'a changé (essai du 20/11, amélioration 13 : il disparaissait au bout de 12 s,
+                // sans laisser de trace sur la case). Il se referme au « Non, garder » / au renommage, ou quand une autre proposition le remplace.
                 clearTimeout(this._tFermeProposition);
-                this._tFermeProposition = setTimeout(() => this.fermerProposition(), 12000);
                 return;
             }
+            // Plus rien à proposer pour l'accord dont le bandeau parlait (la note est revenue, ou l'accord a été renommé à la main) : il se referme.
+            if (this._proposition && cs.includes(this._proposition.c)) this.fermerProposition();
         }
-        fermerProposition() { const b = document.getElementById('proposition-nom'); if (b) b.hidden = true; this._proposition = null; }
+        fermerProposition() { const b = document.getElementById('proposition-nom'); if (b) b.hidden = true; this._proposition = null; clearTimeout(this._tFermeProposition); }
         // Le renommage : la qualité change, la note ajoutée devient une voix de l'accord, avec SON rythme (les voix sont renumérotées par hauteur, jamais réécrites à la main). Une annulation.
         accepterRenommage() {
             const P = this._proposition;
@@ -1257,6 +1280,14 @@
             const avant = lireAccord(d, this.app);
             this.app.pushUndo(sections);
             const d2 = { ...d, quality: P.q, inversion: 0, drop: 'none', extraNotes: (d.extraNotes || []).filter(x => !P.absorbees.includes(midiDe(x.note, x.octave))) };
+            // La note ajoutée garde SA hauteur (essai du 20/11, ES-03 : G3 devenait G4 et sortait de la vue) : si elle est la plus grave de l'accord, elle en devient
+            // la BASSE (Am7/G) ; une basse déjà posée n'est pas touchée.
+            if (!d.bass && P.absorbees.length) {
+                const corps = avant.info.voix.filter(x => !x.libre && !x.basse).map(x => x.midi);
+                const basse = Math.min(...P.absorbees);
+                const racine = NOTES.indexOf(d.root);
+                if (corps.length && basse < Math.min(...corps) && ((basse % 12) + 12) % 12 !== racine) d2.bass = NOTES[((basse % 12) + 12) % 12];
+            }
             const info2 = voixDe(d2), pris = new Set(), pc = (m) => ((m % 12) + 12) % 12;
             const vers = (v) => {
                 const m = avant.info.voix[v].midi;
@@ -1661,7 +1692,7 @@
             if (!forme) return;
             // L'accord dont on vient de prendre la forme la suit désormais (ses notes sont déjà les siennes : rien n'est réécrit).
             const e = this._etats[this._i];
-            this.ecrire(new Map([[this._i, { etat: e, motif: forme.id }]]));
+            this.ecrireSansProposer(new Map([[this._i, { etat: e, motif: forme.id }]]));
             this.app.flashHint && this.app.flashHint(`Forme « ${forme.nom} » enregistrée`);
         }
         // ---- La roue des réglages du séquenceur (L3) --------------------------------------------------------------------------------------------
@@ -1757,7 +1788,7 @@
             const cibles = this.porteeEffective() === 'partie' ? this._etats.map((_, c) => c) : (this._i != null ? [this._i] : []);
             const modifs = new Map();
             cibles.forEach(c => modifs.set(c, { etat: etatAvecMotif(this._etats[c], m), motif: id }));
-            if (modifs.size) this.ecrire(modifs);
+            if (modifs.size) this.ecrireSansProposer(modifs);
             if (id === 'main' && modifs.size && this.app.flashHint) this.app.flashHint('Rythme vidé (Ctrl+Z pour annuler)');
         }
 
@@ -1792,7 +1823,7 @@
                     }
                 });
             });
-            this.ecrire(new Map([[this._i, { etat: { info: e.info, on, soude, niveaux }, motif: null }]]));
+            this.ecrireSansProposer(new Map([[this._i, { etat: { info: e.info, on, soude, niveaux }, motif: null }]]));
         }
         effacer() {
             if (this._i == null) return;
@@ -1800,7 +1831,7 @@
             const etat = { info: e.info, on: new Set(), soude: new Set(), niveaux: new Map() };
             // Les notes libres restent (comme pour un motif) : « Effacer » vide le rythme de l'accord, pas les lignes qu'on a ajoutées.
             e.info.libres.forEach(v => { for (let k = 0; k < e.info.croches; k++) { const c = cle(v, k); if (e.on.has(c)) etat.on.add(c); if (e.soude.has(c)) etat.soude.add(c); } });
-            this.ecrire(new Map([[this._i, { etat, motif: 'main' }]]));
+            this.ecrireSansProposer(new Map([[this._i, { etat, motif: 'main' }]]));
         }
 
         // ---- La bande « Note libre » : nom (C … B, dièses), octave − / +, « Ajouter C4 » --------------------------------------------------------

@@ -173,6 +173,11 @@ const CHORD_INTERVALS = {
     add11: [{ semi: 0, degree: 0, role: 'root' }, { semi: 4, degree: 2, role: 'third' }, { semi: 7, degree: 4, role: 'fifth' }, { semi: 17, degree: 3, role: 'ext' }],
     maj9: [{ semi: 0, degree: 0, role: 'root' }, { semi: 4, degree: 2, role: 'third' }, { semi: 7, degree: 4, role: 'fifth' }, { semi: 11, degree: 6, role: 'seventh' }, { semi: 14, degree: 1, role: 'ext' }],
     m9:   [{ semi: 0, degree: 0, role: 'root' }, { semi: 3, degree: 2, role: 'third' }, { semi: 7, degree: 4, role: 'fifth' }, { semi: 10, degree: 6, role: 'seventh' }, { semi: 14, degree: 1, role: 'ext' }],
+    // Les trois qualités mineures que le séquenceur sait RECONNAÎTRE quand on ajoute une note à un accord mineur (essai du 20/11, ES-04 : Am + B, Am + D et
+    // Am + G# ne proposaient rien alors que C + D donnait Cadd9) : mineur avec 9e ajoutée, avec 11e ajoutée, et mineur à septième majeure.
+    madd9:  [{ semi: 0, degree: 0, role: 'root' }, { semi: 3, degree: 2, role: 'third' }, { semi: 7, degree: 4, role: 'fifth' }, { semi: 14, degree: 1, role: 'ext' }],
+    madd11: [{ semi: 0, degree: 0, role: 'root' }, { semi: 3, degree: 2, role: 'third' }, { semi: 7, degree: 4, role: 'fifth' }, { semi: 17, degree: 3, role: 'ext' }],
+    mmaj7:  [{ semi: 0, degree: 0, role: 'root' }, { semi: 3, degree: 2, role: 'third' }, { semi: 7, degree: 4, role: 'fifth' }, { semi: 11, degree: 6, role: 'seventh' }],
     dom9: [{ semi: 0, degree: 0, role: 'root' }, { semi: 4, degree: 2, role: 'third' }, { semi: 7, degree: 4, role: 'fifth' }, { semi: 10, degree: 6, role: 'seventh' }, { semi: 14, degree: 1, role: 'ext' }],
     // dom11 : tierce omise (dissonance de seconde avec la 11e)
     dom11: [{ semi: 0, degree: 0, role: 'root' }, { semi: 7, degree: 4, role: 'fifth' }, { semi: 10, degree: 6, role: 'seventh' }, { semi: 14, degree: 1, role: 'ext' }, { semi: 17, degree: 3, role: 'ext' }],
@@ -221,7 +226,7 @@ const QUALITY_LABEL = {
     maj: '', min: 'm', maj7: 'maj7', min7: 'm7', dom7: '7',
     sus2: 'sus2', sus4: 'sus4', '6': '6', m6: 'm6',
     dim: 'dim', dim7: 'dim7', m7b5: 'm7b5', aug: 'aug',
-    add9: 'add9', add11: 'add11', maj9: 'maj9', m9: 'm9', dom9: '9', dom11: '11', dom13: '13'
+    add9: 'add9', add11: 'add11', madd9: 'madd9', madd11: 'madd11', mmaj7: 'mmaj7', maj9: 'maj9', m9: 'm9', dom9: '9', dom11: '11', dom13: '13'
 };
 
 // ---------- Saisie rapide au clavier (grille) ----------
@@ -245,6 +250,8 @@ const QUALITY_ALIASES = {
     'aug': 'aug', '+': 'aug',
     'add9': 'add9',
     'add11': 'add11',
+    'madd9': 'madd9', 'm(add9)': 'madd9', 'minadd9': 'madd9', 'madd11': 'madd11', 'm(add11)': 'madd11', 'minadd11': 'madd11',
+    'mmaj7': 'mmaj7', 'm(maj7)': 'mmaj7', 'minmaj7': 'mmaj7', 'mma7': 'mmaj7',
     'maj9': 'maj9', 'ma9': 'maj9',
     'm9': 'm9', 'min9': 'm9',
     '9': 'dom9', 'dom9': 'dom9',
@@ -8109,7 +8116,7 @@ class HarmoHubApp {
 
         let numeral = romanMapFor(globalMode)[diff];
 
-        const MINOR_FAMILY = ['min', 'min7', 'm6', 'm9', 'dim', 'dim7', 'm7b5'];
+        const MINOR_FAMILY = ['min', 'min7', 'm6', 'm9', 'madd9', 'madd11', 'mmaj7', 'dim', 'dim7', 'm7b5'];
         if (MINOR_FAMILY.includes(chordQuality) || chordQuality.startsWith('min')) numeral = numeral.toLowerCase();
 
         // dim7 garde son 7 (« i°7 », distinct de « i° ») et maj7 / maj9 leur « maj » (« IVmaj7 » ≠ « IV7 ») : bugs T-04 et V-02, le chiffre perdait
@@ -8125,7 +8132,7 @@ class HarmoHubApp {
             const ROMAN_SUFFIX = {
                 maj7: 'maj7', maj9: 'maj9', dom7: '7', min7: '7',
                 '6': '6', m6: '6',
-                add9: '9', m9: '9', dom9: '9',
+                add9: 'add9', madd9: 'add9', madd11: 'add11', mmaj7: 'maj7', m9: '9', dom9: '9',
                 add11: '11', dom11: '11', dom13: '13'
             };
             if (ROMAN_SUFFIX[chordQuality]) numeral += ROMAN_SUFFIX[chordQuality];
@@ -8543,6 +8550,9 @@ class HarmoHubApp {
                     const resizeLeftEl = (s.isFirst && s.index > 0 && notDragging)
                         ? `<div class="cell-resize cell-resize-left" data-section="${si}" data-index="${s.index}" data-edge="left" title="Glisser pour changer la durée"></div>` : '';
 
+                    // Un accord dont le rythme a été vidé (« Vider la mesure ») ne sonne plus : sa case le dit (essai du 20/11, ES-07 : elle restait « Am » sans un signe).
+                    const dataMuet = h && h.seqEdited && typeof h.arpPattern === 'string' && h.arpPattern.indexOf(';') >= 0 && parseSeqPattern(h.arpPattern).pattern.every(v => !v.length);
+                    if (dataMuet) cls += ' grid-cell-muet';
                     return `
                     <div class="${cls}" data-section="${si}" data-index="${s.index}" style="${style}" title="Toucher pour écouter · cliquer le nom pour le modifier · double-clic/double-tap pour l'édition complète · clic droit/appui long pour plus d'options · Cmd/Ctrl+clic pour sélection multiple (Cmd+clic sur Mac)">
                         <span class="cell-sym">${flatTight(sym)}${contFlag}</span>
@@ -17499,6 +17509,22 @@ class HarmoHubApp {
     // element-from-point : la ligne des numéros n'a d'élément qu'aux débuts de mesure (colonnes
     // creuses sinon), on ne peut donc pas se contenter d'un hit-test dessus.
     chordIndexAtPoint(gridEl, section, clientX, clientY) {
+        // L'accord dont la CASE est la plus proche du pointeur (bugs L-01 / ES-14 : l'ancien calcul divisait la largeur de la grille, « + » de fin compris, en
+        // colonnes de temps ; il dérivait de 10 à 24 px le long de la règle, et appuyer au centre du « 4 » donnait la mesure 3). Une case tenue sur plusieurs
+        // lignes a un segment par ligne : on garde le plus proche, la ligne comptant triple.
+        const cases = Array.from(gridEl.querySelectorAll('.grid-cell[data-index]:not(.grid-cell-add)'));
+        if (cases.length) {
+            let meilleur = null, dMin = Infinity;
+            for (const el of cases) {
+                const r = el.getBoundingClientRect();
+                const dx = clientX < r.left ? r.left - clientX : (clientX > r.right ? clientX - r.right : 0);
+                const dy = clientY < r.top ? r.top - clientY : (clientY > r.bottom ? clientY - r.bottom : 0);
+                const dist = dx + dy * 3;
+                if (dist < dMin) { dMin = dist; meilleur = el; }
+            }
+            const i = meilleur ? parseInt(meilleur.dataset.index) : NaN;
+            if (!isNaN(i)) return i;
+        }
         const rect = gridEl.getBoundingClientRect();
         const beatsPerRow = parseInt(gridEl.dataset.beatsPerRow) || 16;
         const col = Math.max(0, Math.min(beatsPerRow - 1, Math.floor((clientX - rect.left) / (rect.width / beatsPerRow))));
