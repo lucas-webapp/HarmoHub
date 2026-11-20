@@ -1051,7 +1051,7 @@
                 bi.setAttribute('aria-pressed', String(this.intensite));
                 bi.title = this.intensite
                     ? 'Intensité allumée : un clic sur une note change sa force (normal, fort, doux, enlevée). Cliquer pour l’éteindre'
-                    : 'Intensité éteinte : un clic pose ou enlève une note, toutes au même niveau. Cliquer pour régler l’intensité';
+                    : 'Intensité éteinte : un clic sur une case vide pose une note, un clic sur une note la choisit (Suppr l’efface), toutes au même niveau. Cliquer pour régler l’intensité';
             }
             const col = document.getElementById('sq-coller');
             if (col) {
@@ -1426,6 +1426,53 @@
                 if (this.schema) { e.stopPropagation(); this.fermerSchema(); }
                 else if (this.libre.ouvert) { e.stopPropagation(); this.ouvrirBandeLibre(false); }
             });
+            // Échap pendant un glisser : le geste est ANNULÉ, les notes reviennent où elles étaient (essai du 20/11, ES-11 : la note était posée au lâcher). Le geste
+            // n'a écrit que sous UNE annulation : on la défait, puis le relâchement n'écrit plus rien.
+            document.addEventListener('keydown', (e) => {
+                const g = this._geste;
+                if (e.key !== 'Escape' || !g || !this.estOuvert() || this.modeTel()) return;
+                if (g.type === 'deplace' && g.bouge) {
+                    // Un déplacement n'écrit qu'AU RELÂCHÉ : il suffit d'oublier le geste (et de ranger le fantôme).
+                    e.stopPropagation(); e.preventDefault();
+                    const f = document.getElementById('sq-fantome');
+                    if (f) { f.hidden = true; f.innerHTML = ''; }
+                    document.body.classList.remove('sq-deplace');
+                    this.grille.querySelectorAll('.sq-fantome').forEach(x => x.classList.remove('sq-fantome'));
+                    this.nettoyerCibles();
+                    this.annulerGeste();
+                    return;
+                }
+                if (!g.annulationPosee) return;
+                e.stopPropagation(); e.preventDefault();
+                this.annulerGeste();
+                this.app.undo();
+            }, true);
+            // FLÈCHES (amélioration 6) : les notes choisies bougent d'une croche (← →) ou d'une ligne (↑ ↓), comme avec la souris, sous une annulation.
+            document.addEventListener('keydown', (e) => {
+                if (!this.sel.length || !this.estOuvert() || this.modeTel() || e.ctrlKey || e.metaKey || e.altKey) return;
+                const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+                if (!dir) return;
+                const a = document.activeElement;
+                if (a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable)) return;
+                e.stopPropagation(); e.preventDefault();
+                if (!this.deplacer(dir[0], dir[1]) && this.app.flashHint) this.app.flashHint('Déplacement impossible : une autre note occupe cette place, ou elle sortirait de l’accord');
+            }, true);
+            // Ctrl / Cmd + A : toutes les notes du séquenceur sont choisies (ES-12 : il sélectionnait tout le texte de la page).
+            document.addEventListener('keydown', (e) => {
+                if (!(e.ctrlKey || e.metaKey) || (e.key !== 'a' && e.key !== 'A') || !this.estOuvert() || this.modeTel()) return;
+                const a = document.activeElement;
+                if (a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable)) return;
+                e.stopPropagation(); e.preventDefault();
+                const tous = [];
+                this.grille.querySelectorAll('.sq-case.on').forEach(el => {
+                    if (!el.querySelector('.sq-note')) return;   // le début d'une note seulement
+                    const c = +el.dataset.c, r = +el.dataset.r, k = +el.dataset.k;
+                    if (Number.isNaN(r)) return;
+                    tous.push({ c, k, midi: this.midiDeLigne(c, r) });
+                });
+                this.sel = tous;
+                this.marquerSelection();
+            }, true);
             // Suppr / Retour arrière supprime les notes choisies (L2). En capture : sinon l'appli supprimerait l'ACCORD choisi dans la grille.
             document.addEventListener('keydown', (e) => {
                 if (!this.sel.length || !this.estOuvert() || this.modeTel() || (e.key !== 'Delete' && e.key !== 'Backspace')) return;
@@ -2121,6 +2168,13 @@
             // Un écran TACTILE de largeur d'ordinateur (portable à écran tactile, tablette large) se sert comme à la souris : un toucher sélectionne la note (Suppr l'enlève), un glissé peint ou étire. L'ancien
             // comportement au doigt (toucher = enlever, glissé = défiler) reste celui du téléphone. « Maintenant que je clique sur une note, elle s'efface automatiquement » (l'utilisateur, 15/11).
             const touch = e.pointerType === 'touch' && this.modeTel();
+            // LASSO (essai du 20/11, amélioration 6) : Maj + glisser dans le VIDE trace un rectangle ; les notes qu'il touche sont choisies (Maj + clic sur une note
+            // ou une case garde son sens ordinaire quand on ne glisse pas : le clic simple n'a rien choisi, la sélection n'est donc pas touchée).
+            if (!touch && e.shiftKey && !this.modeTel() && !this.intensite && !t.closest('.sq-note')) {
+                e.preventDefault();
+                this._geste = { type: 'lasso', x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, bouge: false, ajout: e.ctrlKey || e.metaKey };
+                return;
+            }
             if (!touch) e.preventDefault(); // au doigt on laisse le navigateur défiler : c'est lui qui annule le geste (pointercancel) si le doigt glisse
             const c = +caseEl.dataset.c, k = +caseEl.dataset.k, r = +caseEl.dataset.r;
             const v = caseEl.dataset.v != null ? +caseEl.dataset.v : null;
@@ -2178,7 +2232,39 @@
             this._geste = g;
         }
 
+        // Le lasso : un rectangle suit la souris ; au relâché, toutes les notes qu'il touche sont choisies (Ctrl / Cmd : elles s'ajoutent à la sélection).
+        tracerLasso(g, e) {
+            g.x = e.clientX; g.y = e.clientY;
+            if (!g.bouge && Math.hypot(g.x - g.x0, g.y - g.y0) < 4) return;
+            g.bouge = true;
+            let r = document.getElementById('sq-lasso');
+            if (!r) { r = document.createElement('div'); r.id = 'sq-lasso'; r.className = 'sq-lasso'; document.body.appendChild(r); }
+            const x = Math.min(g.x0, g.x), y = Math.min(g.y0, g.y), w = Math.abs(g.x - g.x0), h = Math.abs(g.y - g.y0);
+            r.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
+        }
+        finLasso(g) {
+            const r = document.getElementById('sq-lasso');
+            if (r) r.remove();
+            if (!g.bouge) return;
+            const x1 = Math.min(g.x0, g.x), x2 = Math.max(g.x0, g.x), y1 = Math.min(g.y0, g.y), y2 = Math.max(g.y0, g.y);
+            const choisies = g.ajout ? this.sel.slice() : [];
+            this.grille.querySelectorAll('.sq-case.on').forEach(el => {
+                const n = el.querySelector('.sq-note');
+                if (!n) return;
+                const b = n.getBoundingClientRect();
+                if (b.right < x1 || b.left > x2 || b.bottom < y1 || b.top > y2) return;
+                const c = +el.dataset.c, rr = +el.dataset.r, k = +el.dataset.k;
+                if (Number.isNaN(rr)) return;
+                const it = { c, k, midi: this.midiDeLigne(c, rr) };
+                if (!choisies.some(x => x.c === it.c && x.midi === it.midi && x.k === it.k)) choisies.push(it);
+            });
+            this.sel = choisies;
+            this.marquerSelection();
+            if (choisies.length) this.choisirSansJouer(choisies[0].c);
+        }
+
         annulerGeste() {
+            const lasso = document.getElementById('sq-lasso'); if (lasso) lasso.remove();
             const g = this._geste;
             if (g && g.minuteur) clearTimeout(g.minuteur);
             this._geste = null;
@@ -2225,6 +2311,7 @@
             if (g.etire) { this.etirer(g, e); return; }
             if (g.type === 'etire-groupe') { this.etirerGroupe(g, e); return; }
             if (g.type === 'deplace') { this.deplacerGeste(g, e); return; }
+            if (g.type === 'lasso') { this.tracerLasso(g, e); return; }
             if (g.type === 'boucle') {
                 // elementsFromPoint : la bande orange déjà posée passe AU-DESSUS de la règle, la case visée est dessous.
                 const tp = document.elementsFromPoint(e.clientX, e.clientY).find(el => el.matches && el.matches('#sq-grille [data-c]'));
@@ -2314,6 +2401,7 @@
             if (g.type === 'retirer-boucle') { this.retirerBoucle(); return; }
             if (g.type === 'boucle') { this.app.setLoopRange(this._s, g.c0, this._s, g.c1); return; }
             if (g.type === 'deplace') { this.finDeplacement(g); return; }
+            if (g.type === 'lasso') { this.finLasso(g); return; }
             if (g.type === 'etire-groupe') return;   // tout est déjà écrit, croche par croche
             if (g.selectionSeule && !g.bouge && g.note) { this.sel = [{ c: g.note.c, k: g.note.d, midi: g.note.midi }]; this.choisirSansJouer(g.note.c); this.marquerSelection(); return; }
             if (g.bouge) return; // un glissé : tout est déjà peint
@@ -2455,7 +2543,7 @@
             const D = this.decalages();
             const dG = D.off.get(o.c) + o.k - (D.off.get(g.note.c) + g.depart.k), dr = o.r - g.note.r;
             if (dG === 0 && dr === 0) return;
-            if (!this.deplacer(dG, dr)) this.app.flashHint && this.app.flashHint('Déplacement impossible : la note ne tient pas là');
+            if (!this.deplacer(dG, dr)) this.app.flashHint && this.app.flashHint('Déplacement impossible : une autre note occupe cette place, ou elle sortirait de l’accord');
         }
         // Déplacer toutes les notes choisies du même écart, sous UNE annulation. Une note garde exactement sa longueur ; si l'une d'elles ne tient pas (hors de son accord, sur une
         // autre note), RIEN ne change.

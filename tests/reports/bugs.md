@@ -138,6 +138,11 @@ D-04 → `diagrammes/doigtes.spec.ts` « D-04 : juste après Annuler / Rétablir
 | ES-07 | 20/11 | Accord au rythme vidé : sa case est barrée et marquée « silence » ; l'infobulle de la corbeille le dit | `style.css`, `script.js` |
 | ES-08 | 20/11 | Arpège ↑ d'une triade : A C E C (plus de « C C » soudés) | `sequenceur/rythmes.spec.ts` |
 | ES-13 | 20/11 | Non reproduit à 1440 px (libellés gardés après l'enregistrement d'une forme) | — |
+| ES-09 | 20/11 | Déplacement refusé : le message dit pourquoi (« une autre note occupe cette place, ou elle sortirait de l'accord ») | `sequenceur/selection-clavier.spec.ts` |
+| ES-11 | 20/11 | Échap pendant un glisser (déplacer, peindre, étirer) le annule : la note reste ou revient à sa place | idem |
+| ES-12 | 20/11 | Ctrl+A choisit toutes les notes du séquenceur (plus de texte de page surligné) | idem |
+| ES-19 | 20/11 | Infobulle d'Intensité juste (clic sur une note = la choisir, Suppr = l'effacer) | `sequenceur.js` |
+| Améliorations 6 | 20/11 | Lasso (Maj + glisser dans le vide), flèches pour déplacer les notes choisies (← → une croche, ↑ ↓ une ligne) | idem (6 tests) |
 | Z-07 | reporté | Demande une décision d'architecture : le tampon de travail est partagé entre onglets par le stockage local ; isoler chaque onglet change le modèle | `test.fail` conservé |
 | P-08 | reporté | Corriger le ×N oblige la grille à recharger la page Paroles à chaque clic (perte de l'historique d'annulation) : à traiter avec un message de mise à jour plutôt qu'un rechargement | `test.fail` conservé |
 
