@@ -143,6 +143,10 @@ D-04 → `diagrammes/doigtes.spec.ts` « D-04 : juste après Annuler / Rétablir
 | ES-12 | 20/11 | Ctrl+A choisit toutes les notes du séquenceur (plus de texte de page surligné) | idem |
 | ES-19 | 20/11 | Infobulle d'Intensité juste (clic sur une note = la choisir, Suppr = l'effacer) | `sequenceur.js` |
 | Améliorations 6 | 20/11 | Lasso (Maj + glisser dans le vide), flèches pour déplacer les notes choisies (← → une croche, ↑ ↓ une ligne) | idem (6 tests) |
+| ES-10 | 20/11 | Pendant le déplacement d'une note, les « + » d'insertion de la grille sont masqués (plus de faux repère au lâcher) | `style.css` |
+| ES-15 | 20/11 | L'éditeur de schéma laisse 190 px à la grille d'accords (elle ne disparaît plus sous le séquenceur) | `sequenceur.js` |
+| ES-16 | 20/11 | Après Stop, le compteur de mesures revient au point de départ de la prochaine lecture | `lecture/lecture-stop.spec.ts` |
+| Améliorations | 20/11 | Alt + glisser copie la note là où on la lâche | `sequenceur/selection-clavier.spec.ts` |
 | Z-07 | reporté | Demande une décision d'architecture : le tampon de travail est partagé entre onglets par le stockage local ; isoler chaque onglet change le modèle | `test.fail` conservé |
 | P-08 | reporté | Corriger le ×N oblige la grille à recharger la page Paroles à chaque clic (perte de l'historique d'annulation) : à traiter avec un message de mise à jour plutôt qu'un rechargement | `test.fail` conservé |
 

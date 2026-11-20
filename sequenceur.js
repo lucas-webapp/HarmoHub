@@ -101,6 +101,7 @@
     // hors de C2-C7 — et douze lignes visibles au départ (le reste défile dans la grille). « Je ne peux pas tâtonner pour trouver une note aiguë qui n'est pas encore jouée ailleurs » (l'utilisateur).
     const PIANO_MIN = 24, PIANO_MAX = 108, PIANO_SOUS = 5, PIANO_AU_DESSUS = 12, VISIBLES_PIANO = 12;
     const CLE_OCT_HAUT = 'harmohubSequenceurOctavesHaut', CLE_OCT_BAS = 'harmohubSequenceurOctavesBas';   // octaves de marge de la vue Piano : au-dessus (1 au départ), en dessous (0 : cinq demi-tons)
+    const GRILLE_AVEC_BANDE = 190; // idem quand l'éditeur de schéma est ouvert : une rangée d'accords et le cadre « Ajouter section » restent entiers
     const GRILLE_MIN = 40; // ce que la poignée laisse au moins à la grille au-dessus (l'en-tête de partie reste lisible)
 
     const cle = (v, k) => v + ':' + k;
@@ -1077,7 +1078,9 @@
             const hL = lecture ? lecture.getBoundingClientRect().height : 0;
             return Math.max(120, window.innerHeight - yHaut - hT - hL);
         }
-        placeLibre() { return Math.max(120, this.placeTotale() - GRILLE_MIN); }
+        // Éditeur de schéma ouvert : la grille d'accords garde de quoi se lire (essai du 20/11, ES-15 : « Section 4 mesures » passait sous le cadre « Ajouter section » et les
+        // cases disparaissaient, le séquenceur et sa bande prenant toute la place).
+        placeLibre() { return Math.max(120, this.placeTotale() - (this.schema ? GRILLE_AVEC_BANDE : GRILLE_MIN)); }
         // Le séquenceur occupe tout l'écran sous la barre du haut : la grille d'accords est masquée (CSS : body.sequenceur-plein).
         poserPlein(oui) {
             oui = !!oui;
@@ -2209,7 +2212,7 @@
                     }
                     this.sel = [it]; this.marquerSelection();
                 } else {
-                    g.type = 'deplace';
+                    g.type = 'deplace'; g.copie = !!e.altKey;   // Alt + glisser : la note est COPIÉE là où on la lâche (l'originale reste)
                     const b0 = this.grille.querySelector(`.sq-case[data-c="${c}"][data-r="${r}"][data-k="${note.d}"]`), b1 = this.grille.querySelector(`.sq-case[data-c="${c}"][data-r="${r}"][data-k="${note.f}"]`);
                     if (b0 && b1) { const r0 = b0.getBoundingClientRect(), r1 = b1.getBoundingClientRect(); g.prise = { dx: e.clientX - r0.left, dy: e.clientY - r0.top }; g.largeur = r1.right - r0.left; g.hauteur = r0.height; }
                     this._geste = g;
@@ -2543,16 +2546,16 @@
             const D = this.decalages();
             const dG = D.off.get(o.c) + o.k - (D.off.get(g.note.c) + g.depart.k), dr = o.r - g.note.r;
             if (dG === 0 && dr === 0) return;
-            if (!this.deplacer(dG, dr)) this.app.flashHint && this.app.flashHint('Déplacement impossible : une autre note occupe cette place, ou elle sortirait de l’accord');
+            if (!this.deplacer(dG, dr, g.copie)) this.app.flashHint && this.app.flashHint('Déplacement impossible : une autre note occupe cette place, ou elle sortirait de l’accord');
         }
         // Déplacer toutes les notes choisies du même écart, sous UNE annulation. Une note garde exactement sa longueur ; si l'une d'elles ne tient pas (hors de son accord, sur une
         // autre note), RIEN ne change.
-        deplacer(dG, dr) {
+        deplacer(dG, dr, copie = false) {
             const D = this.decalages(), g = { etats: new Map(), annulationPosee: false }, liste = [];
             const ok = this.sel.every(it => { const n = this.noteDe(it), p = this.placer(it, dG, dr, D); if (!n || !p) return false; liste.push({ n, p }); return true; });
             if (!ok) return false;
             // 1) on retire toutes les notes qui bougent, en gardant leur force
-            liste.forEach(x => { const m = this.enCours(g, x.n.c); x.niveau = niveauDe(m.etat, x.n.v, x.n.d); retirerCroches(m.etat, x.n.v, x.n.d, x.n.f); });
+            liste.forEach(x => { const m = this.enCours(g, x.n.c); x.niveau = niveauDe(m.etat, x.n.v, x.n.d); if (!copie) retirerCroches(m.etat, x.n.v, x.n.d, x.n.f); });
             // 2) on les repose ; si une case est prise par une AUTRE note, on abandonne tout (rien n'est écrasé en silence)
             let pose = true;
             liste.forEach(x => {

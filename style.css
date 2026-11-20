@@ -7913,3 +7913,7 @@ body.entetes-gauche #progression-sections .prog-section-menu { margin-left: 0; }
 
 /* Le lasso du séquenceur (Maj + glisser dans le vide) : un rectangle discret qui suit la souris. */
 .sq-lasso { position: fixed; z-index: 60; pointer-events: none; border: 1px solid rgba(220, 224, 232, .9); background: rgba(220, 224, 232, .14); border-radius: 3px; }
+
+/* Pendant qu'on déplace une note du séquenceur, les petits « + » d'insertion de la grille sont masqués : au lâcher sur la grille ils laissaient croire qu'une note
+   allait s'y insérer (essai neutre du 20/11, ES-10). */
+body.sq-deplace .cell-ins { display: none !important; }

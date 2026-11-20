@@ -133,3 +133,16 @@ test.describe('Lecture et arrêt @lecture', () => {
     await boutonStop(page).click();
   });
 });
+
+// ES-16 (essai neutre du 20/11, corrigé) : après « Stop », le compteur de mesures revient au point de départ de la prochaine lecture.
+test.describe('Compteur de mesure après Stop @lecture @ordinateur', () => {
+  test('le compteur revient à la mesure 1 après Stop, comme la relance', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ accords: C_AM_F_G });
+    await vitesseMax(page);
+    await observerMesures(page);
+    await boutonLecture(page).click();
+    await expect.poll(async () => (await mesuresVues(page)).includes(2), { timeout: 15_000 }).toBe(true);
+    await boutonStop(page).click();
+    await expect(page.locator('#bl-mesure')).toHaveAccessibleName('Mesure en cours : 1 sur 4');
+  });
+});

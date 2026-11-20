@@ -90,4 +90,15 @@ test.describe('Choisir et bouger les notes au clavier et au lasso @sequenceur @o
     await expect(allumee(page, 'A3', 3)).toHaveAttribute('aria-label', /: normal$/);
     await expect(allumee(page, 'C4', 6)).toHaveAttribute('aria-label', /: vide$/);
   });
+
+  test('Alt + glisser COPIE la note là où on la lâche : l\'originale reste', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ accords: C_AM_F_G });
+    await uneNote(page);
+    const d = (await allumee(page, 'A3', 3).boundingBox())!, v = (await allumee(page, 'A3', 6).boundingBox())!;
+    await page.keyboard.down('Alt');
+    await glisser(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: v.x + v.width / 2, y: v.y + v.height / 2 }, 10);
+    await page.keyboard.up('Alt');
+    await expect(allumee(page, 'A3', 3)).toHaveAttribute('aria-label', /: normal$/);
+    await expect(allumee(page, 'A3', 6)).toHaveAttribute('aria-label', /: normal$/);
+  });
 });

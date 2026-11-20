@@ -6889,6 +6889,9 @@ class HarmoHubApp {
         this._playMode = null;
         this._progChordSlots = new Map();
         if (this.sequenceur) this.sequenceur.effacerTete();
+        // Le compteur revient au point de départ de la prochaine lecture (essai du 20/11, ES-16 : il restait sur « 2 / 4 » après Stop alors que la relance repartait
+        // de la mesure 1) : l'accord choisi s'il y en a un, sinon le début du morceau.
+        try { if (typeof this.majBarreLecture === 'function') this.majBarreLecture(this.selectedIndex != null ? this.activeSection : 0, this.selectedIndex != null ? this.selectedIndex : 0, 0, 1); } catch (e) { /* barre absente */ }
     }
 
     // Reflète un réglage tout juste changé (accord, style de jeu, séquenceur...) pendant qu'on écoute
