@@ -6891,7 +6891,14 @@ class HarmoHubApp {
         if (this.sequenceur) this.sequenceur.effacerTete();
         // Le compteur revient au point de départ de la prochaine lecture (essai du 20/11, ES-16 : il restait sur « 2 / 4 » après Stop alors que la relance repartait
         // de la mesure 1) : l'accord choisi s'il y en a un, sinon le début du morceau.
-        try { if (typeof this.majBarreLecture === 'function') this.majBarreLecture(this.selectedIndex != null ? this.activeSection : 0, this.selectedIndex != null ? this.selectedIndex : 0, 0, 1); } catch (e) { /* barre absente */ }
+        // (avec une plage à boucler : son premier accord, c'est là que repart la lecture — EB-17.)
+        try {
+            const r = this.loopRange;
+            if (typeof this.majBarreLecture === 'function') {
+                if (r) this.majBarreLecture(r.startSection, r.startIndex, 0, 1);
+                else this.majBarreLecture(this.selectedIndex != null ? this.activeSection : 0, this.selectedIndex != null ? this.selectedIndex : 0, 0, 1);
+            }
+        } catch (e) { /* barre absente */ }
     }
 
     // Reflète un réglage tout juste changé (accord, style de jeu, séquenceur...) pendant qu'on écoute
@@ -7273,6 +7280,9 @@ class HarmoHubApp {
         const beatsPerBar = this.beatsPerBar();
         const countInBeats = this.metronomeCountIn ? beatsPerBar : 0;
         const disp = document.getElementById('current-chord-display');
+        // Pendant le décompte le compteur dit déjà la mesure de DÉPART (début de la plage ou accord choisi), pas « Mesure 1 » puis « Mesure 2 » au premier accord
+        // (essai neutre du 20/11, EB-17).
+        try { const dep = flat[startPos]; if (dep) this.majBarreLecture(dep.section, dep.index, 0, 1); } catch (e) { /* barre absente */ }
         for (let b = 0; b < countInBeats; b++) {
             const clickTime = start + b * secPerBeat;
             const accent = (b === 0);
@@ -20052,6 +20062,7 @@ class HarmoHubApp {
         saveProgressionSections(prev.sections);
         this.restoreHistorySettings(prev);
         this.afterHistoryRestore(prev.sections);
+        if (this.sequenceur && this.sequenceur.apresHistorique) this.sequenceur.apresHistorique();   // EB-01 : le bandeau de renommage relit les notes restaurées
         this.flashHint('Annulé');
     }
 
@@ -20062,6 +20073,7 @@ class HarmoHubApp {
         saveProgressionSections(next.sections);
         this.restoreHistorySettings(next);
         this.afterHistoryRestore(next.sections);
+        if (this.sequenceur && this.sequenceur.apresHistorique) this.sequenceur.apresHistorique();
         this.flashHint('Rétabli');
     }
 

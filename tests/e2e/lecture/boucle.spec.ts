@@ -64,6 +64,16 @@ test.describe('Boucle de lecture @lecture', () => {
     await boutonStop(page).click();
   });
 
+  test('EB-17 : pendant le décompte, le compteur dit déjà la mesure de départ de la plage (pas « 1 » puis « 2 ») @ordinateur', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ accords: C_AM_F_G });
+    await tracerPlage(page, 2, 3);
+    await page.evaluate(() => { (window as any).app.metronomeCountIn = true; });
+    await boutonLecture(page).click();
+    await expect(page.locator('#bl-mesure .bm-val b')).toHaveText('2');
+    await boutonStop(page).click();
+    await expect(page.locator('#bl-mesure .bm-val b')).toHaveText('2');   // arrêté : il revient au début de la plage
+  });
+
   test('boucle coupée : la plage reste dessinée, elle est lue une seule fois puis la lecture s\'arrête @ordinateur', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await vitesseMax(page);

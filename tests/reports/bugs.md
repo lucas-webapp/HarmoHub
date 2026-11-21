@@ -147,6 +147,25 @@ D-04 → `diagrammes/doigtes.spec.ts` « D-04 : juste après Annuler / Rétablir
 | ES-15 | 20/11 | L'éditeur de schéma laisse 190 px à la grille d'accords (elle ne disparaît plus sous le séquenceur) | `sequenceur.js` |
 | ES-16 | 20/11 | Après Stop, le compteur de mesures revient au point de départ de la prochaine lecture | `lecture/lecture-stop.spec.ts` |
 | Améliorations | 20/11 | Alt + glisser copie la note là où on la lâche | `sequenceur/selection-clavier.spec.ts` |
+| EB-01 | 21/11 | Séquenceur : Ctrl+Z (ou Ctrl+Maj+Z) relit le bandeau de renommage : il se referme si la proposition n'a plus lieu d'être ; « Renommer » recalcule d'après les notes d'AUJOURD'HUI (plus de tierce supprimée) | `sequenceur/corrections-essai2.spec.ts` ×2 |
+| EB-02 | 21/11 | Bandeau : chaque note écrite d'après son DEGRÉ dans l'accord (G♯ dans Am maj7, F♯ dans Am6, G♯ dans Caug, B♭ dans C7) | idem |
+| EB-03 | 21/11 | Déplacement lâché entre deux lignes (interstice de 3 px) : la case la plus proche est prise, plus d'annulation silencieuse | idem |
+| EB-04 | 21/11 | Dépôt refusé : case d'arrivée rouge pendant le glisser, curseur « interdit », message qui dit pourquoi (place occupée / hors de la mesure) ; étirement bloqué : message | idem ×2 |
+| EB-05 | 21/11 | Rythme (fourni, forme), Coller et Effacer s'appliquent à TOUS les accords sélectionnés dans la grille (Ctrl / Maj + clic) ; message « Rythme appliqué à N accords » | idem |
+| EB-06 | 21/11 | Ctrl+C / Ctrl+V sur des notes choisies copie les NOTES (collées après le groupe, Ctrl+V répété enchaîne) ; la grille ne reçoit plus d'accord | idem |
+| EB-07 | 21/11 (décidé) | Arpèges / Ballade sur une triade : on garde A C E C (arpège usuel à trois sons, validé après ES-08) ; l'adaptation fine par nombre de voix est classée dans les améliorations | — |
+| EB-08 | 21/11 | Maj + clic sur une note s'ajoute à la sélection (comme Ctrl) ; Maj + glisser dans le vide reste le lasso | idem |
+| EB-09 | 21/11 | Un renversement est reconnu (A C F sur Am : « renommer en F/A ? », l'acceptation écrit F en 1er renversement, notes à leur hauteur) ; une combinaison sans nom le dit par un message | idem ×2 |
+| EB-10 | 21/11 | « Ignorer » est retenu tant que la combinaison ne change pas ; un bandeau périmé se referme au geste suivant | idem |
+| EB-11 | 21/11 | Après un renommage qui absorbe une note libre, sa ligne en pointillés disparaît (plus de ligne vide en double) | idem (G3 unique) |
+| EB-12 | 21/11 | Étiquettes de lignes de la vue Accord : l'infobulle dit de quel accord elles sont ; une ligne que l'accord choisi n'a pas porte « – » | idem |
+| EB-13 | 21/11 | « silence » prend la place du badge d'octave dans une case au rythme vidé (plus de chevauchement) | idem |
+| EB-14 | 21/11 | Barre serrée en deux temps : seules les FORMES perdent leur nom d'abord, les rythmes fournis gardent le leur (ES-13, « non reproduit », l'était en fait avec deux formes) | idem |
+| EB-15 | 21/11 (décidé) | Grille rognée par « Ajouter section » séquenceur ouvert : conforme à la décision du 15/11 (la grille garde au moins une rangée, elle défile ; le bouton est collé en bas) | — |
+| EB-16 | 21/11 | Téléphone : la proposition s'affiche (vérifié) ; poignées d'étirement élargies (12 à 18 px) | idem (@mobile) |
+| EB-17 | 21/11 | Compteur de mesures : le décompte annonce déjà la mesure de départ de la plage ; Stop revient au début de la plage | `lecture/boucle.spec.ts` |
+| EB-18 | 21/11 (décidé) | Accrochage : déplacement et étirement suivent la même règle (case sous le pointeur) ; le curseur du corps de note reste la flèche (choix de l'utilisateur du 15/11) | — |
+| EB-19 | 21/11 | Échap vide la sélection de notes (après Ctrl+A ou un lasso) | idem |
 | Z-07 | reporté | Demande une décision d'architecture : le tampon de travail est partagé entre onglets par le stockage local ; isoler chaque onglet change le modèle | `test.fail` conservé |
 | P-08 | reporté | Corriger le ×N oblige la grille à recharger la page Paroles à chaque clic (perte de l'historique d'annulation) : à traiter avec un message de mise à jour plutôt qu'un rechargement | `test.fail` conservé |
 

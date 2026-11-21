@@ -6944,7 +6944,7 @@ body.avec-barre-selection .toast { bottom: 132px; }
 .sq-case.on:hover .sq-bord::after { background: rgba(255, 255, 255, 0.4); }
 .sq-bord:hover::after { background: rgba(255, 255, 255, 0.95); }
 @media (pointer: coarse) {
-    .sq-bord { width: clamp(9px, 34%, 14px); }
+    .sq-bord { width: clamp(12px, 40%, 18px); }   /* un peu plus large au doigt (essai du 20/11, EB-16 : 12 px) ; une note d'une croche porte les deux poignées, elles se partagent la case */
     .sq-bord::after { background: rgba(255, 255, 255, 0.45); width: 3px; }
 }
 body.sq-etire, body.sq-etire * { cursor: ew-resize !important; }
@@ -7917,3 +7917,19 @@ body.entetes-gauche #progression-sections .prog-section-menu { margin-left: 0; }
 /* Pendant qu'on déplace une note du séquenceur, les petits « + » d'insertion de la grille sont masqués : au lâcher sur la grille ils laissaient croire qu'une note
    allait s'y insérer (essai neutre du 20/11, ES-10). */
 body.sq-deplace .cell-ins { display: none !important; }
+
+/* Dépôt refusé pendant qu'on déplace une note (hors de la mesure, ligne qui n'est pas à l'accord, case déjà prise) : la case d'arrivée devient rouge, le message dit
+   pourquoi au lâcher (essai neutre du 20/11, EB-04). */
+@media (min-width: 900px) {
+    #sq-grille .sq-case.sq-cible.sq-refus { background: rgba(224, 86, 86, 0.38); box-shadow: inset 0 0 0 2px rgba(224, 86, 86, 0.9); }
+    body.sq-deplace.sq-refus-curseur, body.sq-deplace.sq-refus-curseur #sq-grille .sq-case, body.sq-deplace.sq-refus-curseur #sq-grille .sq-case .sq-note { cursor: not-allowed; }
+}
+
+/* « silence » prend la place du badge d'octave (O3) dans la case d'un rythme vidé : les deux se chevauchaient (essai neutre du 20/11, EB-13). */
+.grid-cell.grid-cell-muet .cell-meta { visibility: hidden; }
+.grid-cell.grid-cell-muet::after { bottom: 5px; }
+
+/* Première étape de la barre serrée : seules les formes de l'utilisateur passent en icône seule, les rythmes fournis gardent leur nom (EB-14). */
+@media (min-width: 900px) {
+    .sequenceur.formes-courtes #sq-formes > .sq-motif > span:not(.sq-vignette) { display: none; }
+}
