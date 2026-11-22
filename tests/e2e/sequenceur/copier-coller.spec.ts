@@ -41,12 +41,12 @@ for (const [etiquette, tag] of [['ordinateur', '@ordinateur'], ['téléphone', '
       const page = await ouvrirAppli({ accords: C_AM_F_G });
       await ouvrir(page, 1);
       await appuyer(page, rythme(page, 'monte'));
-      await expect.poll(() => nombreAllume(page, 1)).toBe(14);
+      await expect.poll(() => nombreAllume(page, 1)).toBe(12);
       const modele = await notesAllumees(page, 1);
       await appuyer(page, boutonCopier(page));
       await choisirAccord(page, estMobile(page) ? 1 : 2);
       await appuyer(page, rythme(page, 'ballade'));   // la cible a déjà un rythme : « Ballade »
-      await expect.poll(() => nombreAllume(page, 2)).toBe(16);
+      await expect.poll(() => nombreAllume(page, 2)).toBe(14);
       await appuyer(page, boutonColler(page));
       await expect.poll(() => notesAllumees(page, 2)).toEqual(modele);
       await choisirAccord(page, estMobile(page) ? 1 : 3);

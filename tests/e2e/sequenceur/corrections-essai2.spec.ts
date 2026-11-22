@@ -2,7 +2,7 @@
 // Un groupe par constat, avec les gestes de l'utilisateur (souris, clavier).
 import { test, expect } from '../support/fixtures';
 import type { Page, Locator } from '@playwright/test';
-import { C_AM_F_G, celluleNote, grille, ouvrirSurAccord, glisser } from './aide-sequenceur';
+import { C_AM_F_G, celluleNote, grille, ouvrirSurAccord, glisser, rythme, croches } from './aide-sequenceur';
 
 const bande = (page: Page): Locator => page.getByRole('group', { name: 'Note libre' });
 const bandeau = (page: Page): Locator => page.locator('#proposition-nom');
@@ -292,5 +292,37 @@ test.describe('Améliorations du 2e essai neutre @sequenceur @ordinateur', () =>
     await page.mouse.up();
     await page.keyboard.up('Alt');
     await expect(page.locator('body')).not.toHaveClass(/sq-copie/);
+  });
+
+  test('EB-07 : sur une triade, les arpèges montent ou descendent vraiment et la Ballade roule (la voix absente se tait)', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ accords: C_AM_F_G });
+    await ouvrirSurAccord(page, 1);
+    // voix 0 = basse (tenue), 1 = tierce, 2 = quinte
+    await rythme(page, 'monte').click();
+    await expect.poll(async () => (await croches(page, 1, 1)).join()).toBe('1,5');
+    expect((await croches(page, 1, 2)).join()).toBe('2,6');   // la tierce, puis la quinte : ça monte
+    await rythme(page, 'descend').click();
+    await expect.poll(async () => (await croches(page, 1, 2)).join()).toBe('1,5');
+    expect((await croches(page, 1, 1)).join()).toBe('2,6');   // la quinte, puis la tierce : ça descend
+    await rythme(page, 'ballade').click();
+    await expect.poll(async () => (await croches(page, 1, 2)).join()).toBe('0,3,6');
+    expect((await croches(page, 1, 1)).join()).toBe('1,4,7');
+  });
+
+  test('EB-07 : la vignette de l\'arpège montre ce que la triade jouera (12 croches allumées, pas les 14 du modèle à quatre voix)', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ accords: C_AM_F_G });
+    await ouvrirSurAccord(page, 1);
+    await expect(page.locator('#sq-motif-monte .sq-vignette .lit')).toHaveCount(12);
+    await expect(page.locator('#sq-motif-pompe .sq-vignette .lit')).toHaveCount(10);   // la pompe garde sa fusion : le modèle à quatre voix, inchangé
+  });
+
+  test('amélioration 10 : en vue Accord, chaque ligne porte le rang de sa voix (1 = la plus grave), sans changer le texte de l\'étiquette', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ accords: C_AM_F_G });
+    await ouvrirSurAccord(page, 1);
+    await page.locator('#sq-vue-voix').click();
+    const lignes = grille(page).locator('.sq-etiq[data-voix]');
+    await expect(lignes).toHaveCount(3);
+    expect(await lignes.evaluateAll(l => l.map(e => (e as HTMLElement).dataset.voix))).toEqual(['3', '2', '1']);   // de l'aiguë (en haut) à la basse (en bas)
+    expect((await lignes.last().textContent())!.trim()).toMatch(/^A\d$/);
   });
 });

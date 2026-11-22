@@ -83,12 +83,12 @@ test.describe('Reconnaissance de l\'accord d\'après les notes @sequenceur @ordi
     await expect(texte(page)).not.toContainText('Cadd11');
   });
 
-  test('Am + B tenu : « renommer en Amadd9 ? » (les extensions mineures sont reconnues, ES-04)', async ({ ouvrirAppli }) => {
+  test('Am + B tenu : « renommer en Am(add9) ? » (les extensions mineures sont reconnues, ES-04)', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await ouvrirSurAm(page);
     await ajouterLigne(page, 'B4');
     await tracer(page, 'B4');
-    await expect(texte(page)).toContainText('Amadd9', { timeout: 5000 });
+    await expect(texte(page)).toContainText('Am(add9)', { timeout: 5000 });
   });
 
   test('un accord qui n\'existe pas (Am + D#) : aucune proposition', async ({ ouvrirAppli }) => {

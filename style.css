@@ -7938,3 +7938,8 @@ body.sq-deplace .cell-ins { display: none !important; }
 @media (min-width: 900px) {
     body.sq-deplace.sq-copie, body.sq-deplace.sq-copie #sq-grille .sq-case, body.sq-deplace.sq-copie #sq-grille .sq-case .sq-note { cursor: copy; }
 }
+
+/* Vue Accord : le rang de la voix (1 = la plus grave de l'accord choisi) en petit à gauche de l'étiquette ; en pseudo-élément, il ne fait pas partie du texte (essai neutre du 20/11, amélioration 10). */
+@media (min-width: 900px) {
+    .sq-etiq[data-voix]::before { content: attr(data-voix); margin-right: auto; padding-left: 5px; font-size: 9px; font-weight: 600; opacity: 0.55; }
+}

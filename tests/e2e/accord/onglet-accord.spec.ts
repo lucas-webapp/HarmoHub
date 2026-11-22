@@ -46,7 +46,7 @@ test.describe('Onglet Accord @accord @ordinateur', () => {
     const attendus: [string, string][] = [
       ['Majeur', 'C'], ['Mineur', 'Cm'], ['Sus2', 'Csus2'], ['Sus4', 'Csus4'], ['Maj 7', 'Cmaj7'], ['Min 7', 'Cm7'], ['Dom 7', 'C7'], ['6', 'C6'],
       ['Min 6', 'Cm6'], ['Dim', 'Cdim'], ['Dim 7', 'Cdim7'], ['m7b5', 'Cm7b5'], ['Aug', 'Caug'], ['Add9', 'Cadd9'], ['Add11', 'Cadd11'],
-      ['mAdd9', 'Cmadd9'], ['mAdd11', 'Cmadd11'], ['m Maj 7', 'Cmmaj7'],   // ajoutés le 20/11 : le séquenceur les reconnaît (Am + B, Am + D, Am + G♯)
+      ['mAdd9', 'Cm(add9)'], ['mAdd11', 'Cm(add11)'], ['m Maj 7', 'Cm(maj7)'],   // ajoutés le 20/11 : le séquenceur les reconnaît (Am + B, Am + D, Am + G♯)
       ['Maj 9', 'Cmaj9'], ['Min 9', 'Cm9'], ['9', 'C9'], ['11', 'C11'], ['13', 'C13'],
     ];
     for (const [bouton, symbole] of attendus) {

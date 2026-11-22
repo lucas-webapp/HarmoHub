@@ -89,6 +89,28 @@ test.describe('« + Accord » et « + Section » au téléphone @mobile', () => 
     expect(await noms(page)).toEqual(['Em7']);
   });
 
+  test('la saisie d\'un accord ne ferme pas le panneau : on enchaîne Am, C, F, G sans le rouvrir (amélioration 18 du 2e essai)', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli();
+    await boutonAccord(page, 0).tap();
+    await expect(panneauAjout(page)).toBeVisible();
+    for (const nom of ['Am', 'C', 'F', 'G']) {
+      await saisieAjout(page).fill(nom);
+      await page.locator('#quick-add-btn').tap();
+      await expect(panneauAjout(page)).toBeVisible();
+    }
+    expect(await noms(page)).toEqual(['Am', 'C', 'F', 'G']);
+  });
+
+  test('la saisie comprend les deux graphies Am(add9) / Amadd9 et la grille écrit « Am(add9) » (amélioration 16 du 2e essai)', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli();
+    await boutonAccord(page, 0).tap();
+    for (const saisie of ['Am(add9)', 'Amadd9', 'Am(maj7)']) {
+      await saisieAjout(page).fill(saisie);
+      await page.locator('#quick-add-btn').tap();
+    }
+    expect(await noms(page)).toEqual(['Am(add9)', 'Am(add9)', 'Am(maj7)']);
+  });
+
   test('« + Section » est sous le pli, apparaît en défilant, reste petit et pointillé @critique', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ reglages: DEUX_PARTIES });
     const b = boutonSection(page);

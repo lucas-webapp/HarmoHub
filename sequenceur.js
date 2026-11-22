@@ -49,10 +49,13 @@
     }
     const formesUtilisateur = () => { const f = magasin(); return f ? f.formes() : []; };
     // La vignette d'un rythme : quatre lignes de huit croches, dessinées comme le séquenceur (croches voisines soudées en barre).
-    function vignetteHtml(m) {
-        const p = [];
+    // Les voix que garde un rythme sur une TRIADE : [milieu, aiguë] parmi les quatre positions du motif (la troisième se tait).
+    const TRIADES = { monte: [1, 2], descend: [2, 3], ballade: [1, 3] };
+    // `triade` : la vignette montre ce que l'accord choisi jouera vraiment (trois lignes, la quatrième vide) ; sinon le modèle à quatre voix.
+    function vignetteHtml(m, triade) {
+        const p = [], T = triade ? TRIADES[m.id] : null;
         for (let pos = 3; pos >= 0; pos--) {
-            const x = positionDe(m, pos, 8);
+            const x = positionDe(m, T ? [0, T[0], T[1]][pos] ?? 99 : pos, 8);
             for (let k = 0; k < 8; k++) {
                 const lit = x.ks.has(k), av = lit && x.sd.has(k), ap = lit && x.sd.has(k + 1);
                 p.push(`<span class="${lit ? 'lit' : ''}${av ? ' g' : ''}${ap ? ' d' : ''}"></span>`);
@@ -285,9 +288,11 @@
         if (n === 1) { out.set(ordre[0], unionPositions(...P)); return out; }
         if (n === 2) { out.set(ordre[0], unionPositions(P[0], P[1])); out.set(ordre[1], unionPositions(P[2], P[3])); return out; }
         if (n === 3) {
-            // Les ARPÈGES d'une triade (essai du 20/11, ES-08 : « A C C E », la tierce doublée) : montant, A C E C — la voix du milieu joue la 2e et la 4e note, l'aiguë la
-            // 3e (chaque note dure une croche, plus de « C C » soudés). Les autres rythmes gardent la fusion des deux voix du milieu.
-            if (motif.id === 'monte') { out.set(ordre[0], copiePosition(P[0])); out.set(ordre[1], unionPositions(P[1], P[3])); out.set(ordre[2], copiePosition(P[2])); return out; }
+            // Les ARPÈGES et la BALLADE d'une triade (essais du 20/11, ES-08 puis EB-07 : « A C C E » puis « A C E C », qui ne montait pas) : un motif écrit pour QUATRE voix perd
+            // celle qu'une triade n'a pas, et la note qu'il laisse libre se tait (la basse tenue sonne). Montant : la tierce puis la quinte, deux fois par mesure ; descendant : la quinte puis la
+            // tierce ; Ballade : la quinte, la tierce, un silence. Les autres rythmes (plaqué, pompe) gardent la fusion des deux voix du milieu.
+            const TRIADE = TRIADES[motif.id];
+            if (TRIADE) { out.set(ordre[0], copiePosition(P[0])); out.set(ordre[1], copiePosition(P[TRIADE[0]])); out.set(ordre[2], copiePosition(P[TRIADE[1]])); return out; }
             out.set(ordre[0], copiePosition(P[0])); out.set(ordre[1], unionPositions(P[1], P[2])); out.set(ordre[2], copiePosition(P[3])); return out;
         }
         out.set(ordre[0], copiePosition(P[0])); out.set(ordre[1], copiePosition(P[1])); out.set(ordre[n - 2], copiePosition(P[2])); out.set(ordre[n - 1], copiePosition(P[3]));
@@ -803,7 +808,8 @@
                 // L9d : le nom d'une note ajoutée se RENOMME au clic (ordinateur) : on tape D4, Eb3…, la note change de hauteur avec toutes ses croches.
                 const nomHtml = (L.type === 'libre' && !this.modeTel())
                     ? `<span class="sq-libre-nom" data-midi="${L.midi}" role="button" tabindex="0" title="Renommer cette note : taper son nom (D4, Eb3…)">${escapeHtml(nomSel)}</span>` : escapeHtml(nomSel);
-                html.push(`<div class="sq-etiq${cl}" style="grid-row:${row};grid-column:1"${touche ? ` data-midi="${L.midi}" title="Jouer ${escapeHtml(nomSel)}"` : (L.type === 'voix' ? ` title="${escapeHtml(vSel != null ? `Note de l’accord choisi (${nomChoisi}) : les autres accords ont leurs propres notes sur cette ligne` : `L’accord choisi (${nomChoisi}) n’a pas de note sur cette ligne : un autre accord de la ligne en a une`)}"` : '')}>${retirer}${L.type === 'voix' && vSel == null ? '–' : nomHtml}</div>`);
+                const rang = L.type === 'voix' && vSel != null && !this.modeTel() ? eSel.info.positions.indexOf(vSel) + 1 : 0;   // 1 = la voix la plus grave de l'accord choisi (amélioration 10 du 2e essai)
+                html.push(`<div class="sq-etiq${cl}"${rang > 0 ? ` data-voix="${rang}"` : ''} style="grid-row:${row};grid-column:1"${touche ? ` data-midi="${L.midi}" title="Jouer ${escapeHtml(nomSel)}"` : (L.type === 'voix' ? ` title="${escapeHtml(vSel != null ? `Note de l’accord choisi (${nomChoisi}) : les autres accords ont leurs propres notes sur cette ligne` : `L’accord choisi (${nomChoisi}) n’a pas de note sur cette ligne : un autre accord de la ligne en a une`)}"` : '')}>${retirer}${L.type === 'voix' && vSel == null ? '–' : nomHtml}</div>`);
                 montres.forEach((c) => {
                     const d = accords[c];
                     const e = etats[c], v = voixLigne(e, L), col = colDebut[c];
@@ -1033,7 +1039,8 @@
                 const vg = b.querySelector('.sq-vignette');
                 if (vg) {
                     // Redessinée à chaque fois : une retouche (ici ou ailleurs) change le dessin d'un motif fourni.
-                    const html = vignetteHtml(m);
+                    const eSel = this._etats && this._i != null ? this._etats[this._i] : null;
+                    const html = vignetteHtml(m, !!eSel && eSel.info.positions.length - (eSel.info.basse != null ? 1 : 0) === 3);
                     if (vg.innerHTML !== html) vg.innerHTML = html;
                 }
             });

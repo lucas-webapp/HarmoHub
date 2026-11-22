@@ -221,12 +221,13 @@ function parseNoteNameOctave(text) {
     return { note: NOTES[pc], octave };
 }
 
-// Symboles d'accord lisibles pour l'affichage
+// Symboles d'accord lisibles pour l'affichage. Les trois qualités mineures à extension s'écrivent entre parenthèses (Am(add9), Am(maj7)) : « Amadd9 » et « Ammaj7 » se lisaient mal
+// (essai neutre du 20/11, amélioration 16) ; la saisie reconnaît les deux graphies (QUALITY_ALIASES).
 const QUALITY_LABEL = {
     maj: '', min: 'm', maj7: 'maj7', min7: 'm7', dom7: '7',
     sus2: 'sus2', sus4: 'sus4', '6': '6', m6: 'm6',
     dim: 'dim', dim7: 'dim7', m7b5: 'm7b5', aug: 'aug',
-    add9: 'add9', add11: 'add11', madd9: 'madd9', madd11: 'madd11', mmaj7: 'mmaj7', maj9: 'maj9', m9: 'm9', dom9: '9', dom11: '11', dom13: '13'
+    add9: 'add9', add11: 'add11', madd9: 'm(add9)', madd11: 'm(add11)', mmaj7: 'm(maj7)', maj9: 'maj9', m9: 'm9', dom9: '9', dom11: '11', dom13: '13'
 };
 
 // ---------- Saisie rapide au clavier (grille) ----------

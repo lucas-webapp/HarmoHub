@@ -159,7 +159,7 @@ test.describe('Formes personnelles — ordinateur @sequenceur @ordinateur', () =
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await ouvrirSurAccord(page, 1);
     await rythme(page, 'ballade').click();
-    await expect.poll(() => nombreAllume(page, 1)).toBe(16);
+    await expect.poll(() => nombreAllume(page, 1)).toBe(14);
     await enregistrerForme(page, 'Ma forme');
     await forme(page, 'Ma forme').click({ button: 'right' });
     await expect(page.getByText('Rythme « Ma forme »')).toBeVisible();
@@ -212,7 +212,7 @@ test.describe('Formes personnelles — ordinateur @sequenceur @ordinateur', () =
     repondreAuxConfirmations(page);
     await ouvrirSurAccord(page, 1);
     await rythme(page, 'ballade').click();
-    await expect.poll(() => nombreAllume(page, 1)).toBe(16);
+    await expect.poll(() => nombreAllume(page, 1)).toBe(14);
     const modele = await notesAllumees(page, 1);
     await enregistrerForme(page, 'Ma forme');
     await page.reload();

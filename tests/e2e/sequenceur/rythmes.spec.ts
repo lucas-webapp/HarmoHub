@@ -9,7 +9,7 @@ import {
 import { repondreAuxConfirmations } from '../grille/aide-grille';
 
 // Nombre de cases allumées pour chaque rythme sur un accord de trois notes, et ce qui le distingue.
-const ATTENDU: Record<string, number> = { plaque: 24, monte: 14, descend: 14, pompe: 8, ballade: 16 };
+const ATTENDU: Record<string, number> = { plaque: 24, monte: 12, descend: 12, pompe: 8, ballade: 14 };   // 12 / 12 / 14 depuis le 22/11 : les arpèges et la Ballade perdent la voix qu'une triade n'a pas (EB-07)
 
 test.describe('Rythmes prédéfinis — ordinateur @sequenceur @ordinateur', () => {
   test('chacun des cinq rythmes se marque choisi, remplit la grille de l\'accord et s\'enregistre sous son nom @critique', async ({ ouvrirAppli, garde }) => {
@@ -43,13 +43,13 @@ test.describe('Rythmes prédéfinis — ordinateur @sequenceur @ordinateur', () 
     await ouvrirSurAccord(page, 1);
     // dans les deux arpèges la voix grave (0) est tenue ; voix 1 = note du milieu, voix 2 = note aiguë
     await rythme(page, 'monte').click();
-    await expect.poll(() => nombreAllume(page, 1)).toBe(14);
+    await expect.poll(() => nombreAllume(page, 1)).toBe(12);
     expect(await croches(page, 1, 0)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
     const milieuMonte = (await croches(page, 1, 1))[0], aigueMonte = (await croches(page, 1, 2))[0];
     expect(milieuMonte, 'montant : le milieu avant l\'aigu').toBeLessThan(aigueMonte);
     await rythme(page, 'descend').click();
     await expect.poll(async () => (await croches(page, 1, 2))[0]).toBeLessThan((await croches(page, 1, 1))[0] ?? 99);
-    expect(await nombreAllume(page, 1)).toBe(14);
+    expect(await nombreAllume(page, 1)).toBe(12);
   });
 
   test('Pompe : la basse puis l\'accord, deux fois par mesure', async ({ ouvrirAppli }) => {
@@ -66,12 +66,12 @@ test.describe('Rythmes prédéfinis — ordinateur @sequenceur @ordinateur', () 
     const page = await ouvrirAppli({ accords: C_AM_F_G });
     await ouvrirSurAccord(page, 1);
     await rythme(page, 'ballade').click();
-    await expect.poll(() => nombreAllume(page, 1)).toBe(16);
+    await expect.poll(() => nombreAllume(page, 1)).toBe(14);
     await rythme(page, 'plaque').click();
     await expect.poll(() => nombreAllume(page, 1)).toBe(24);
     await expect(rythme(page, 'ballade')).toHaveAttribute('aria-pressed', 'false');
     await page.keyboard.press('Control+z');
-    await expect.poll(() => nombreAllume(page, 1)).toBe(16);
+    await expect.poll(() => nombreAllume(page, 1)).toBe(14);
     await expect(rythme(page, 'ballade')).toHaveAttribute('aria-pressed', 'true');
     await page.keyboard.press('Control+Shift+z');
     await expect.poll(() => nombreAllume(page, 1)).toBe(24);
