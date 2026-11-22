@@ -1310,6 +1310,8 @@
                 document.getElementById('proposition-nom-texte').textContent = `${nom(d.quality)} ${diff} : renommer en ${this.nomProposition(d, r, flats)} ?`;
                 this._proposition = { s: this._s, c, sig };
                 bloc.hidden = false;
+                // Ordinateur : le bandeau se pose juste AU-DESSUS du séquenceur, là où l'on regarde, et non sur le clavier du bas (essai du 20/11, amélioration 2). Téléphone : sa place du CSS.
+                if (this.estOrdinateur() && this.racine) { const h = this.racine.getBoundingClientRect(); bloc.style.bottom = Math.max(8, Math.round(window.innerHeight - h.top + 8)) + 'px'; } else bloc.style.bottom = '';
                 clearTimeout(this._tFermeProposition);
                 return;
             }
@@ -1443,6 +1445,12 @@
                 const el = e.target.closest('.sq-case.on');
                 if (el) this.ouvrirMenuNote(el, e.clientX, e.clientY);
             });
+            // Double-clic sur une note (ordinateur) : le même menu qu'au clic droit (essai du 20/11, amélioration 15).
+            this.grille.addEventListener('dblclick', (e) => {
+                if (this.modeTel()) return;
+                const el = e.target.closest && e.target.closest('.sq-case.on');
+                if (el && el.querySelector('.sq-note')) this.ouvrirMenuNote(el, e.clientX, e.clientY);
+            });
             const menu = document.getElementById('sq-menu-note');
             if (menu) menu.addEventListener('click', (e) => {
                 // Au doigt, le menu s'ouvre SOUS l'appui long (ou calé contre le bas de l'écran) : le clic fabriqué au relâchement tombait sur un de ses boutons et l'exécutait (« Scinder »
@@ -1514,7 +1522,7 @@
                     e.stopPropagation(); e.preventDefault();
                     const f = document.getElementById('sq-fantome');
                     if (f) { f.hidden = true; f.innerHTML = ''; }
-                    document.body.classList.remove('sq-deplace', 'sq-refus-curseur');
+                    document.body.classList.remove('sq-deplace', 'sq-refus-curseur', 'sq-copie');
                     this.grille.querySelectorAll('.sq-fantome').forEach(x => x.classList.remove('sq-fantome'));
                     this.nettoyerCibles();
                     this.annulerGeste();
@@ -1571,19 +1579,12 @@
                 if (k === 'c') {
                     if (!this.sel.length) return;   // aucune note choisie : Ctrl+C garde son rôle (copier l'accord de la grille)
                     e.stopPropagation(); e.preventDefault();
-                    this.presseNotes = this.sel.map(x => ({ ...x }));
-                    this._refPressePapiers = this.app.clipboard;
-                    this.app.flashHint && this.app.flashHint(`${this.sel.length > 1 ? this.sel.length + ' notes copiées' : 'Note copiée'}`);
+                    this.copierNotes();
                     return;
                 }
                 if (!this.presseNotes || !this.presseNotes.length || this.app.clipboard !== this._refPressePapiers) return;   // un accord a été copié depuis : Ctrl+V reste le sien
                 e.stopPropagation(); e.preventDefault();
-                this.sel = this.presseNotes.map(x => ({ ...x }));
-                const D = this.decalages(), notes = this.sel.map(it => this.noteDe(it));
-                if (notes.some(n => !n)) { this.app.flashHint && this.app.flashHint('Collage impossible : les notes copiées ont changé'); return; }
-                const debut = Math.min(...notes.map(n => D.off.get(n.c) + n.d)), fin = Math.max(...notes.map(n => D.off.get(n.c) + n.f + 1));
-                if (!this.deplacer(fin - debut, 0, true)) { this.app.flashHint && this.app.flashHint(this.messageRefus().replace('Déplacement impossible', 'Collage impossible')); return; }
-                this.presseNotes = this.sel.map(x => ({ ...x }));   // la copie devient la nouvelle référence : le prochain Ctrl+V se pose encore après
+                this.collerNotes();
             }, true);
             // Suppr / Retour arrière supprime les notes choisies (L2). En capture : sinon l'appli supprimerait l'ACCORD choisi dans la grille.
             document.addEventListener('keydown', (e) => {
@@ -1952,6 +1953,20 @@
             if (id === 'main' && modifs.size && this.app.flashHint) this.app.flashHint('Rythme vidé (Ctrl+Z pour annuler)');
         }
 
+        // Copier / coller des NOTES (Ctrl+C / Ctrl+V, et le menu d'une note). Le collage pose la copie juste après le groupe ; Ctrl+V répété enchaîne.
+        copierNotes() {
+            this.presseNotes = this.sel.map(x => ({ ...x }));
+            this._refPressePapiers = this.app.clipboard;
+            this.app.flashHint && this.app.flashHint(this.sel.length > 1 ? this.sel.length + ' notes copiées' : 'Note copiée');
+        }
+        collerNotes() {
+            this.sel = this.presseNotes.map(x => ({ ...x }));
+            const D = this.decalages(), notes = this.sel.map(it => this.noteDe(it));
+            if (notes.some(n => !n)) { this.app.flashHint && this.app.flashHint('Collage impossible : les notes copiées ont changé'); return; }
+            const debut = Math.min(...notes.map(n => D.off.get(n.c) + n.d)), fin = Math.max(...notes.map(n => D.off.get(n.c) + n.f + 1));
+            if (!this.deplacer(fin - debut, 0, true)) { this.app.flashHint && this.app.flashHint(this.messageRefus().replace('Déplacement impossible', 'Collage impossible')); return; }
+            this.presseNotes = this.sel.map(x => ({ ...x }));   // la copie devient la nouvelle référence : le prochain Ctrl+V se pose encore après
+        }
         // Les accords que touche un rythme (Rythmes, Coller, Effacer). Ordinateur : TOUS les accords sélectionnés dans la grille (Ctrl + clic, Maj + clic : « 4 accords sélectionnés »),
         // sinon l'accord choisi ; avant, seul le dernier changeait (essai du 20/11, EB-05).
         accordsVises() {
@@ -2637,6 +2652,7 @@
                 if (f && modele) { f.innerHTML = ''; const copie = modele.cloneNode(true); copie.querySelectorAll('.sq-bord').forEach(x => x.remove()); f.appendChild(copie); f.style.width = (g.largeur || 34) + 'px'; f.style.height = (g.hauteur || 26) + 'px'; f.hidden = false; }
                 document.body.classList.add('sq-deplace');
             }
+            document.body.classList.toggle('sq-copie', !!g.copie);   // Alt + glisser : le curseur dit « copier »
             const f = document.getElementById('sq-fantome');
             if (f) f.style.transform = `translate(${Math.round(e.clientX - (g.prise ? g.prise.dx : 0))}px, ${Math.round(e.clientY - (g.prise ? g.prise.dy : 0))}px)`;
             this.nettoyerCibles(); g.cible = null;
@@ -2648,6 +2664,9 @@
             if (!cs) return;
             const o = { c: +cs.dataset.c, k: +cs.dataset.k, r: +cs.dataset.r };
             g.cible = o;
+            // Le nom de la barre qui suit la souris dit la hauteur de la ligne survolée (essai du 20/11, amélioration 13).
+            const clone = f && f.querySelector('.sq-note'), midiO = this.midiDeLigne(o.c, o.r);
+            if (clone && clone.textContent.trim() && midiO != null && this.contenu === 'notes') clone.textContent = midiToDisplayName(midiO, this.app.useFlatsForRoot(this.accord(o.c).root));
             if (this.app.sonDeplacementSeq !== false) {
                 const id = o.r + '/' + o.c;
                 if (id !== g.derniere) { g.derniere = id; this.ecouterLigne(o.c, o.r); }
@@ -2670,7 +2689,7 @@
         finDeplacement(g) {
             const f = document.getElementById('sq-fantome');
             if (f) { f.hidden = true; f.innerHTML = ''; }
-            document.body.classList.remove('sq-deplace', 'sq-refus-curseur');
+            document.body.classList.remove('sq-deplace', 'sq-refus-curseur', 'sq-copie');
             this.grille.querySelectorAll('.sq-fantome').forEach(x => x.classList.remove('sq-fantome'));
             this.nettoyerCibles();
             if (!g.bouge) {   // un simple clic sur une note d'un groupe garde cette seule note
@@ -2759,9 +2778,9 @@
             const peut = {
                 scinder: etat.soude.has(cle(v, k)),
                 prolonger: prolongerNote(copie, v, k, etat.info.croches),
-                supprimer: true,
+                supprimer: true, copier: true, dupliquer: true,
             };
-            menu.querySelectorAll('button[data-sq-acte]').forEach(b => { b.disabled = !peut[b.dataset.sqActe]; });
+            menu.querySelectorAll('button[data-sq-acte]').forEach(b => { b.disabled = !peut[b.dataset.sqActe]; b.hidden = (b.dataset.sqActe === 'copier' || b.dataset.sqActe === 'dupliquer') && this.modeTel(); });   // copier / dupliquer : ordinateur seulement
             menu.hidden = false;
             this._menuNoteOuvertA = performance.now();
             // Posé près du doigt ou du pointeur, jamais hors de l'écran.
@@ -2786,6 +2805,15 @@
             const m = this.enCours(g, c);
             const etat = m.etat;
             let fait = false;
+            if (acte === 'copier' || acte === 'dupliquer') {
+                const n = this.noteDe({ c, k, midi: etat.info.voix[v].midi });
+                if (!n) return;
+                this.sel = [{ c, k: n.d, midi: n.midi }];
+                this.choisirSansJouer(c); this.marquerSelection();
+                this.copierNotes();
+                if (acte === 'dupliquer' && !this.deplacer(n.n, 0, true)) this.app.flashHint && this.app.flashHint(this.messageRefus().replace('Déplacement impossible', 'Duplication impossible'));
+                return;
+            }
             if (acte === 'scinder') fait = scinderNote(etat, v, k);
             else if (acte === 'prolonger') fait = prolongerNote(etat, v, k, etat.info.croches);
             else if (acte === 'supprimer') fait = poserCroche(etat, v, k, false);

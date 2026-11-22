@@ -166,6 +166,7 @@ D-04 → `diagrammes/doigtes.spec.ts` « D-04 : juste après Annuler / Rétablir
 | EB-17 | 21/11 | Compteur de mesures : le décompte annonce déjà la mesure de départ de la plage ; Stop revient au début de la plage | `lecture/boucle.spec.ts` |
 | EB-18 | 21/11 (décidé) | Accrochage : déplacement et étirement suivent la même règle (case sous le pointeur) ; le curseur du corps de note reste la flèche (choix de l'utilisateur du 15/11) | — |
 | EB-19 | 21/11 | Échap vide la sélection de notes (après Ctrl+A ou un lasso) | idem |
+| Améliorations 2, 13, 15 | 22/11 | Séquenceur : bandeau de renommage posé juste au-dessus du séquenceur ; curseur « copier » et nom de la hauteur qui suit la barre pendant un glisser (Alt = copie) ; menu d'une note avec « Copier » et « Dupliquer » (ordinateur), ouvert aussi par double-clic | `sequenceur/corrections-essai2.spec.ts` ×4 |
 | Z-07 | reporté | Demande une décision d'architecture : le tampon de travail est partagé entre onglets par le stockage local ; isoler chaque onglet change le modèle | `test.fail` conservé |
 | P-08 | reporté | Corriger le ×N oblige la grille à recharger la page Paroles à chaque clic (perte de l'historique d'annulation) : à traiter avec un message de mise à jour plutôt qu'un rechargement | `test.fail` conservé |
 

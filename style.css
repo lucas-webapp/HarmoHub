@@ -7933,3 +7933,8 @@ body.sq-deplace .cell-ins { display: none !important; }
 @media (min-width: 900px) {
     .sequenceur.formes-courtes #sq-formes > .sq-motif > span:not(.sq-vignette) { display: none; }
 }
+
+/* Alt + glisser : le curseur dit « copier » (essai neutre du 20/11, amélioration 13). */
+@media (min-width: 900px) {
+    body.sq-deplace.sq-copie, body.sq-deplace.sq-copie #sq-grille .sq-case, body.sq-deplace.sq-copie #sq-grille .sq-case .sq-note { cursor: copy; }
+}

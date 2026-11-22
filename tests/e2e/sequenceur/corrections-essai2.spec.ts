@@ -238,3 +238,59 @@ test.describe('Corrections du 2e essai neutre — téléphone @sequenceur @mobil
     expect(poignee.width).toBeGreaterThanOrEqual(12);
   });
 });
+
+// Améliorations du 2e essai neutre (21/11, amélioration 2, 13 et 15).
+test.describe('Améliorations du 2e essai neutre @sequenceur @ordinateur', () => {
+  test('le bandeau de renommage se pose juste au-dessus du séquenceur, pas sur le clavier du bas', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ accords: C_AM_F_G });
+    await ouvrirSurAccord(page, 1);
+    await ajouterLigne(page, 'G3');
+    await tracer(page, 'G3');
+    await expect(bandeau(page)).toBeVisible({ timeout: 5000 });
+    const b = (await bandeau(page).boundingBox())!, q = (await page.locator('#sequenceur').boundingBox())!;
+    expect(b.y + b.height).toBeLessThanOrEqual(q.y + 1);
+    expect(q.y - (b.y + b.height)).toBeLessThan(40);
+  });
+
+  test('double-clic sur une note : son menu ; « Dupliquer la note » la pose juste après elle', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ accords: C_AM_F_G });
+    await ouvrirSurAccord(page, 1);
+    await ajouterLigne(page, 'G4');
+    await tracer(page, 'G4', 1, 1, 2);
+    await celluleNote(page, 1, 'G4', 1).dblclick();
+    const menu = page.locator('#sq-menu-note');
+    await expect(menu).toBeVisible();
+    await menu.getByRole('menuitem', { name: 'Dupliquer la note' }).click();
+    await normal(celluleNote(page, 1, 'G4', 1));
+    await normal(celluleNote(page, 1, 'G4', 3));
+    await normal(celluleNote(page, 1, 'G4', 4));
+  });
+
+  test('« Copier la note » du menu puis Ctrl+V : la copie se pose après la note', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ accords: C_AM_F_G });
+    await ouvrirSurAccord(page, 1);
+    await ajouterLigne(page, 'G4');
+    await tracer(page, 'G4', 1, 1, 2);
+    await celluleNote(page, 1, 'G4', 1).click({ button: 'right' });
+    await page.locator('#sq-menu-note').getByRole('menuitem', { name: 'Copier la note' }).click();
+    await page.keyboard.press('Control+v');
+    await normal(celluleNote(page, 1, 'G4', 3));
+    await normal(celluleNote(page, 1, 'G4', 4));
+  });
+
+  test('Alt + glisser : le curseur dit « copier » pendant le geste', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli({ accords: C_AM_F_G });
+    await ouvrirSurAccord(page, 1);
+    await ajouterLigne(page, 'G4');
+    await tracer(page, 'G4', 1, 1, 2);
+    const d = (await celluleNote(page, 1, 'G4', 1).boundingBox())!, v = (await celluleNote(page, 1, 'G4', 5).boundingBox())!;
+    await page.keyboard.down('Alt');
+    await page.mouse.move(d.x + d.width / 2, d.y + d.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(v.x + v.width / 2, v.y + v.height / 2, { steps: 8 });
+    await expect(page.locator('body')).toHaveClass(/sq-copie/);
+    await page.mouse.up();
+    await page.keyboard.up('Alt');
+    await expect(page.locator('body')).not.toHaveClass(/sq-copie/);
+  });
+});
