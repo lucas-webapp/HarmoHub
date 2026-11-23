@@ -1,6 +1,6 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 19/11/2026 (tests e2e : phase 5 terminée, 1 005 tests ; correction des bugs en cours). **Seul fichier où s'écrit l'état du chantier.** Volontairement COURT (chargé à chaque session) : le détail va dans `docs/dette-tests.md`, jamais ici. À lire avec `CLAUDE.md`.
+Mis à jour le 23/11/2026 (tests e2e : phase 5 terminée, ~1 700 tests ; bugs et deux essais neutres du séquenceur corrigés ; nouvelle série de tests à venir). **Seul fichier où s'écrit l'état du chantier.** Volontairement COURT (chargé à chaque session) : le détail va dans `docs/dette-tests.md`, jamais ici. À lire avec `CLAUDE.md`.
 
 | Besoin | Fichier (ne jamais lire en entier : `grep -n` puis `sed -n`) |
 |---|---|
@@ -12,27 +12,26 @@ Mis à jour le 19/11/2026 (tests e2e : phase 5 terminée, 1 005 tests ; correcti
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
-**PROCHAINE ÉTAPE : CORRECTION DES BUGS TROUVÉS PAR LES TESTS E2E** (demandée par l'utilisateur le 19/11 : « établis toi-même le plan des corrections et commence »).
-La phase 5 (15 modules, 1 005 tests, 61 bugs) est terminée. Le suivi est dans `tests/reports/bugs.md` : section « Bugs corrigés » en tête, détail de chaque bug dessous.
-Méthode : corriger dans `script.js` / `paroles.js`, **retirer le `test.fail` du test concerné** (il rougit sinon : « Expected to fail, but passed »), incrémenter `?v=` dans `index.html`
-(toutes les occurrences), lancer les modules touchés sur les 7 projets (`npx firebase emulators:exec --project demo-harmohub --only auth,firestore "npx playwright test <chemins> --reporter=list"`),
-puis `CI=1 npm run test:e2e:avant-envoi`, commit, push. **Pas de balayage complet des bancs historiques sauf nécessité** (consigne de l'utilisateur du 19/11).
-- **Corrigés les 19 et 20/11** (détail et tests : tableau « Bugs corrigés » de `tests/reports/bugs.md`) : P-01, P-02, P-03, P-05, P-06, P-07 ; Z-01 à Z-06 ; E-02 à E-07 ;
-  F-01, F-02, F-03 ; D-01, D-02 ; R-01, R-02, R-03 ; G-02, G-03, G-04 ; L-02, L-03 ; E-01, V-01 ; A-01, A-02 ; M-01 ; S-01, S-03 ; T-01 à T-04 ; V-02. L'utilisateur a délégué les arbitrages
-  le 20/11 (« je te laisse prendre les meilleures décisions pour tous ces points ») : chaque décision est notée « (décidé) » dans le tableau.
-- **Reste à corriger** : G-01 (Firefox, premier clic sur une autre partie), L-01 (zone des numéros de mesure), L-04 (lecture depuis la case choisie partout). S-02, A-03, M-02, P-04 corrigés le 20/11.
-- **Essai neutre du séquenceur (20/11)** : rapport `tests/reports/2026-11-20-essai-sequenceur.md` (ES-01 à ES-20, 17 améliorations). **Corrigés le 20/11** : ES-01 à ES-05 (reconnaissance d'accord d'après TOUTES les notes, qualités mAdd9 / mAdd11 / m Maj 7,
-  Renommer garde la hauteur, bandeau persistant), ES-07 (case barrée « silence »), ES-08 (arpège ↑ des triades), ES-09, ES-11 (Échap annule un glisser), ES-12 (Ctrl+A), ES-14 + L-01 (règle des mesures), ES-19 ; améliorations : lasso (Maj + glisser), flèches.
-  **Corrigés ensuite** : ES-10, ES-15, ES-16 (compteur après Stop) ; Alt + glisser copie. **Restent** : ES-13 (non reproduit à 1440 px), ES-17 (fenêtre de connexion : `compte-cloud.js` PARTAGÉ, ne pas y toucher),
-  ES-18 (clavier sur C au chargement : risque pour les bancs), ES-20 (noms accessibles : les tests s'appuient sur le préfixe `Note, croche N`) ; améliorations non faites : vignette dessinée d'après la forme perso, décompte visible sur le séquenceur, indication « note de passage », « Ignorer » retenu par accord. **Doubles croches et triolets : écartés par l'utilisateur le 20/11 (« pas de triolets ou double croches »).**
-- **2e essai neutre du séquenceur (20/11)** : `tests/reports/2026-11-20-essai-sequenceur-2.md` (EB-01 à EB-19). **Tous les problèmes sont traités le 21/11** (tableau « Bugs corrigés » de `tests/reports/bugs.md`, spec `tests/e2e/sequenceur/corrections-essai2.spec.ts`) ; EB-07 (arpèges sur triade : on garde A C E C), EB-15 (grille rognée : conforme à la décision du 15/11) et EB-18 (curseur : flèche, choix de l'utilisateur) sont « décidés » sans changement.
-  **Améliorations du même rapport (18)** : toutes faites sauf deux, le 21 et 22/11 (le curseur « main » reste refusé). **Restent, à lui proposer** : « toute la partie » sur ordinateur (1, un bouton de plus dans une barre déjà serrée) et le décompte visible sur le séquenceur (12). Pas de doubles croches ni de triolets.
-  Intermittents vus au passage complet du 21/11 (verts seuls) : `robustesse/deux-onglets` (Z-07, rouge aussi sans les changements du 22/11), `boucle` « tout le morceau » (WebKit), `lecture-stop` « Compteur de mesure après Stop » (Chromium), `vitesse-metronome` (iPhone, sous charge).
-- **Restent des 1er essai** : ES-17 (`compte-cloud.js` PARTAGÉ), ES-18, ES-20 ; améliorations non faites : vignette d'après la forme perso, décompte visible, indication « note de passage », « Ignorer » retenu par accord (fait pour la combinaison depuis le 21/11).
-- **Reportés** : P-08 (×N des paroles : écrire dans la structure sans recharger la page Paroles), Z-07 (deux onglets), Y-01 / Y-02 / Y-03 (synchro, `synchro-cloud.js` partagé), T-05 (constat), D-03, D-04 (WebKit), L-05 / L-06 (intermittents).
-- **Piège appris le 20/11** : ne JAMAIS modifier un fichier servi pendant qu'un passage de tests tourne (le serveur sert le dépôt en direct) ; et ne pas remplacer `window.localStorage`
-  (synchro-harmohub.js compare `this === window.localStorage`) : patcher `Storage.prototype`, comme lui.
-- Rappel des anciens points : voir plus bas « À lui faire valider » et « Questions restées ouvertes ». `main` (version de secours) n'est touchée que sur accord explicite.
+**PROCHAINE ÉTAPE : NOUVELLE SÉRIE DE TESTS PLAYWRIGHT, demandée par l'utilisateur le 23/11** (il fait `/clear` puis `/reprise`). Il dira lesquels (ciblés par module, ou un nouvel essai neutre).
+État de départ : tout est poussé sur `claude/harmohub-travail-Claude` (dernier commit `98db5b2` du 22/11), arbre propre, `avant-envoi` vert (309 passés), CI « Tests e2e » à chaque envoi.
+- **Méthode d'un essai neutre** (a donné deux rapports de 19 constats chacun) : sous-agent généraliste à qui l'on INTERDIT de lire le code, les tests et les rapports ; il pilote Chromium par des scripts Playwright dans `/tmp`
+  (vrais gestes : souris, clavier, toucher), consigne ce qui ne va pas ET ce qui pourrait s'améliorer, écrit un rapport dans `tests/reports/` avec captures dans un dossier voisin. Donner à l'agent les centres d'intérêt de l'utilisateur
+  (le 20/11 : l'effet des notes ajoutées sur le nom de l'accord, déplacements / étirements / rythmes sans accrochage) et « pas besoin de son ». Ensuite : l'utilisateur tranche, on corrige, on teste, on pousse.
+- **Cycle d'une correction** : corriger, **retirer le `test.fail`** du test qui l'attendait, incrémenter `?v=` dans `index.html` (toutes les occurrences), écrire le test (vrais gestes) et un **sabotage** qui le fait rougir (puis restaurer),
+  lancer les modules touchés (7 projets si le code est partagé), `CI=1 npm run test:e2e:avant-envoi`, commit en français avec les lignes d'attribution, `git push origin HEAD:claude/harmohub-travail-Claude`, puis `tests/reports/bugs.md` (tableau « Bugs corrigés ») et cette section.
+  Lancer les gros passages en tâche de fond (`run_in_background`), les guetter avec un Monitor, **ne jamais modifier un fichier servi pendant qu'ils tournent**. Un seul `emulators:exec` à la fois (ports 8080 / 9099).
+- **Pièges de test appris** : `toContainText` lit aussi le texte CACHÉ (`display: none`) : pour « le nom est visible », cibler le `span` et `toBeVisible()` ; le son factice (Firefox) revient avec `bash scripts/setup-tests.sh` (le hook de reprise peut dire « pas de sortie audio » : le relancer) ;
+  une barre qui déborde n'a pas le même seuil sur tablette (pointeur tactile) ; un test de géométrie se vérifie par sabotage sur au moins deux moteurs. Intermittents connus (verts seuls, à ne pas confondre avec une régression) : `robustesse/deux-onglets` (Z-07, rouge aussi sans changement),
+  `lecture/boucle` « tout le morceau » (WebKit), `lecture-stop` « Compteur de mesure après Stop » (Chromium), `vitesse-metronome` (iPhone, sous charge).
+- **Fait du 19 au 22/11** (détail : `tests/reports/bugs.md`, journal : `docs/dette-tests.md` « Session du 19 au 22/11 ») : 61 bugs de la phase 5 presque tous corrigés ou décidés ; essai neutre n° 1 (`tests/reports/2026-11-20-essai-sequenceur.md`, ES-01 à ES-20) puis n° 2 (`…-2.md`, EB-01 à EB-19) ;
+  le séquenceur reconnaît l'accord d'après toutes les notes (renversements compris), propose / n'impose jamais, lasso, flèches, Alt + glisser, Ctrl+C / V de notes, menu d'une note (Copier, Dupliquer, double-clic), rythmes sur les accords sélectionnés, refus de dépôt montrés en rouge,
+  arpèges et Ballade adaptés aux triades, rang des voix, graphies Am(add9) / Am(maj7).
+- **Restent à corriger** (voir `bugs.md`) : G-01 (Firefox, premier clic sur une autre partie), L-04 (lecture depuis la case choisie, Firefox / WebKit / iOS) ; ES-18 (clavier sur C au chargement : risque pour les bancs), ES-20 (noms accessibles : les tests s'appuient sur `Note, croche N`) ;
+  ES-17 (fenêtre de connexion : `compte-cloud.js` PARTAGÉ, ne pas y toucher). **Reportés** : P-08 (×N des paroles), Z-07 (deux onglets), Y-01 / Y-02 / Y-03 (synchro, `synchro-cloud.js` partagé), T-05, D-03, D-04 (WebKit), L-05 / L-06 (intermittents).
+- **Améliorations du 2e essai** : toutes faites sauf deux, **à lui proposer** : « toute la partie » sur ordinateur (un bouton de plus dans une barre déjà serrée) et un décompte visible sur le séquenceur. Le curseur « main » sur une note est **refusé** (15/11). **Doubles croches et triolets : écartés** (20/11).
+  Restent aussi des idées du 1er essai : vignette d'après la forme perso, indication « note de passage ». Décisions « sans changement » du 21/11 : EB-15 (grille rognée par « Ajouter section » : conforme à la décision du 15/11), EB-18 (curseur : flèche).
+- **L'utilisateur a délégué les arbitrages** (20/11 : « je te laisse prendre les meilleures décisions ») : chaque décision est notée « (décidé) » dans `bugs.md`. Il a demandé de ne lancer le balayage complet des bancs historiques que si nécessaire.
+- **Piège** : ne pas remplacer `window.localStorage` (`synchro-harmohub.js` compare `this === window.localStorage`) : patcher `Storage.prototype`, comme lui. `main` (version de secours) n'est touchée que sur accord explicite.
 
 **À lui faire valider** (détail : `docs/dette-tests.md`, « Session du 15/11 (suite 9) » et « Session du 16/11 ») :
 1. **Plein écran du séquenceur** : il ne vient que de la poignée du haut (jamais des douze lignes de départ). La vue Voix ne masque jamais la grille. La bulle d'accord se referme à l'entrée. Le plein écran n'est pas retenu d'une session à l'autre.

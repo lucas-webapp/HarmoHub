@@ -1,11 +1,9 @@
 # Plan des tests Playwright (`@playwright/test`) — HarmoHub
 
-État : **phases 3 et 4 faites, phase 5 (couverture intégrale) prête à démarrer** — 16/11/2026.
-Validation (phase 4) : le smoke passe sur les 7 projets dans la VM et en CI (PR n° 1, exécution 43948088655, 7 jobs verts) ; garde-fou éprouvé (requête de
-production bloquée → test en échec, `test.fail` ; projet non `demo-` refusé) ; le sous-agent `testeur-e2e` a produit `tests/reports/latest.md` ;
-vidéos du smoke : https://claude.ai/artifact/CK7d9FvPvuPuBD2TBV72xR (et artefacts `rapport-<projet>` de la CI). Prochain module : `grille` (P1). Pull request n° 1 fermée, branche fusionnée le 16/11.
-**Reprise** : la phase 5 commence par `grille`, puis les autres P1 dans l'ordre du § 3 ; consignes dans `CLAUDE-HARMOHUB.md` (« Suite à faire »). Branche : `claude/harmohub-travail-Claude` (fusion de `tests/playwright-setup`
-le 16/11 ; elle publie le site par GitHub Pages). **Pas de pull request** (décision du 16/11) : on pousse directement, la CI tourne à chaque envoi. On ne touche pas à `main` sans accord.
+État : **phases 3, 4 et 5 faites** (15 modules, plus de 1 700 tests sur 7 projets, 61 bugs trouvés puis corrigés ou décidés) ; deux essais neutres du séquenceur faits et corrigés — 23/11/2026.
+Les modules sont dans `tests/e2e/<module>/` ; le suivi des bugs est dans `tests/reports/bugs.md` (tableau « Bugs corrigés » en tête) ; les rapports d'essais neutres sont `tests/reports/2026-11-20-essai-sequenceur*.md`.
+**Reprise** : une nouvelle série de tests Playwright est prévue (ciblée ou essai neutre) ; consignes dans `CLAUDE-HARMOHUB.md` (« Suite à faire »), méthode de l'essai neutre et pièges de test compris. Branche : `claude/harmohub-travail-Claude` (elle publie le site par GitHub Pages).
+**Pas de pull request** (décision du 16/11) : on pousse directement, la CI tourne à chaque envoi, `CI=1 npm run test:e2e:avant-envoi` d'abord. On ne touche pas à `main` sans accord.
 Ce fichier est la mémoire de ce chantier : le sous-agent `testeur-e2e` y lit l'état de chaque module ; après un `/clear`, c'est ici qu'on reprend.
 
 ### Décisions de l'utilisateur (16/11)
