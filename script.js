@@ -8305,6 +8305,7 @@ class HarmoHubApp {
         const beatsPerBar = this.beatsPerBar();
         const dragging = !!(this.drag && this.drag.moved);
 
+        this._rowsPerGroupParPartie = []; // lu par majPlageLegere : le tracé de la plage met les bandes à jour SANS redessiner toute la grille
         host.innerHTML = sections.map((sec, si) => {
             const history = sec.chords;
             const isActive = si === this.activeSection;
@@ -8342,6 +8343,7 @@ class HarmoHubApp {
                 const showExtraRow = showRoman || showFunction;
                 const rowsPerGroup = showExtraRow ? 3 : 2;
                 const chordRowOffset = showExtraRow ? 2 : 1;
+                this._rowsPerGroupParPartie[si] = rowsPerGroup;
                 const rowTemplate = showExtraRow
                     ? 'var(--roman-row-h) var(--row-h) var(--measure-row-h)'
                     : 'var(--row-h) var(--measure-row-h)';
@@ -8596,7 +8598,7 @@ class HarmoHubApp {
                     <div class="row-measure${resizeReachedBar === s.barNumber ? ' row-measure-reached' : ''}" style="grid-column: ${s.col + 1} / span 1; grid-row: ${s.row * rowsPerGroup + rowsPerGroup};">${s.barNumber}</div>`
                 ).join('') + cells.flatMap(s => s.innerBars.map(ib => `
                     <div class="row-measure${resizeReachedBar === ib.barNumber ? ' row-measure-reached' : ''}" style="grid-column: ${s.col + ib.offset + 1} / span 1; grid-row: ${s.row * rowsPerGroup + rowsPerGroup};">${ib.barNumber}</div>`)
-                ).join('') + offbeatTicksHtml + endMeasureHtml + this.buildLoopRangeBars(cells, loopRange, rowsPerGroup)
+                ).join('') + offbeatTicksHtml + endMeasureHtml + this.buildLoopRangeZones(cells, rowsPerGroup) + this.buildLoopRangeBars(cells, loopRange, rowsPerGroup)
                 + this.buildAddCellHtml(si, ligneDuPlus, colonneDuPlus - 1,
                     ligneRemplie ? 1 : plusSpan, ligneRemplie);
             }
@@ -17613,7 +17615,7 @@ class HarmoHubApp {
     onLoopRangeStart(e) {
         if (e.button != null && e.button !== 0) return; // clic gauche / toucher uniquement
         const handle = e.target.closest('.loop-range-handle');
-        if (!handle && !e.target.closest('.loop-range-bar') && !e.target.closest('.row-measure')) return;
+        if (!handle && !e.target.closest('.loop-range-bar') && !e.target.closest('.row-measure') && !e.target.closest('.row-regle')) return;
         const gridEl = e.target.closest('.chord-grid');
         if (!gridEl) return;
         e.preventDefault();
@@ -17648,11 +17650,13 @@ class HarmoHubApp {
                 this.loopRangeDrag = { mode: 'bar-tap', anchor: { section, index: anchorIndex }, moved: false };
             } else {
                 this.loopRangeDrag = { mode: 'new', anchor: { section, index: anchorIndex }, moved: false };
-                this.setLoopRange(section, anchorIndex, section, anchorIndex);
+                this.setLoopRange(section, anchorIndex, section, anchorIndex, true);
             }
         }
 
         this.loopRangeDragStart = { x: e.clientX, y: e.clientY };
+        this._loopPointeur = { x: e.clientX, y: e.clientY };
+        document.getElementById('progression-sections').classList.add('plage-en-trace');
         this._onLoopRangeMove = (ev) => this.onLoopRangeMove(ev);
         this._onLoopRangeUp = () => this.onLoopRangeEnd();
         window.addEventListener('pointermove', this._onLoopRangeMove);
@@ -17664,34 +17668,96 @@ class HarmoHubApp {
         const d = this.loopRangeDrag;
         if (!d) return;
         const start = this.loopRangeDragStart;
+        this._loopPointeur = { x: e.clientX, y: e.clientY };
         // Même seuil que la grille (voir onGridPointerMove) : 6px était trop sensible au moindre
         // tremblement, transformant un tap voulu (supprimer/attraper la bande) en un début de glisser.
         if (!d.moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 10) return;
         d.moved = true;
+        this.appliquerPointeurPlage();
+        this.defilerPendantPlage();
+    }
 
-        // Le pointeur peut maintenant survoler N'IMPORTE QUELLE grille (glisser d'une partie à une
-        // autre) : on retrouve celle du point courant par hit-test plutôt que de rester bloqué sur la
-        // section de départ. Hors de toute grille (espace entre deux cartes...) : on ignore ce
-        // déplacement, la plage reste comme avant plutôt que de sauter n'importe où.
-        const hit = document.elementFromPoint(e.clientX, e.clientY);
-        const gridEl = hit && hit.closest('.chord-grid');
-        if (!gridEl) return;
+    // Où est le pointeur, en accord ? Le pointeur peut survoler N'IMPORTE QUELLE grille (glisser d'une partie à une
+    // autre). Hors de toute grille (marge de la carte, espace entre deux parties, volet du séquenceur en dessous), il
+    // ne GÈLE plus la plage : retour de l'utilisateur (23/11), la plage « se décide » tant qu'on glisse, y compris quand
+    // la souris déborde de la carte. On prend alors la grille VISIBLE la plus proche, et on borne la hauteur à la zone
+    // qui défile (une case cachée sous le séquenceur ne doit pas être « la plus proche »).
+    positionPlageSousPointeur(x, y) {
+        const zone = this.zoneDefilantePlage();
+        const yy = Math.max(zone.top + 2, Math.min(zone.bottom - 2, y));
+        const hit = document.elementFromPoint(x, yy);
+        let gridEl = hit && hit.closest('.chord-grid');
+        if (!gridEl) {
+            let dMin = Infinity;
+            document.querySelectorAll('#progression-sections .chord-grid').forEach((g) => {
+                const r = g.getBoundingClientRect();
+                const top = Math.max(r.top, zone.top), bottom = Math.min(r.bottom, zone.bottom);
+                if (bottom <= top) return; // entièrement hors de la zone visible
+                const dx = x < r.left ? r.left - x : (x > r.right ? x - r.right : 0);
+                const dy = yy < top ? top - yy : (yy > bottom ? yy - bottom : 0);
+                const dist = dx + dy * 3;
+                if (dist < dMin) { dMin = dist; gridEl = g; }
+            });
+        }
+        if (!gridEl) return null;
         const section = +gridEl.dataset.section;
-        const index = this.chordIndexAtPoint(gridEl, section, e.clientX, e.clientY);
-        if (index == null) return;
-        const cur = { section, index };
+        const index = this.chordIndexAtPoint(gridEl, section, x, yy);
+        return index == null ? null : { section, index };
+    }
 
+    appliquerPointeurPlage() {
+        const d = this.loopRangeDrag, p = this._loopPointeur;
+        if (!d || !p) return;
+        const cur = this.positionPlageSousPointeur(p.x, p.y);
+        if (!cur) return;
         if (d.mode === 'edge-left') {
             // Bloquée au bord fixe (pas au-delà) : sinon le bord gauche glissé au-delà du droit
             // inverserait silencieusement leurs rôles (voir setLoopRange, qui réordonne les deux bords).
             const clamped = this.compareChordPos(cur, d.fixed) <= 0 ? cur : d.fixed;
-            this.setLoopRange(clamped.section, clamped.index, d.fixed.section, d.fixed.index);
+            this.setLoopRange(clamped.section, clamped.index, d.fixed.section, d.fixed.index, true);
         } else if (d.mode === 'edge-right') {
             const clamped = this.compareChordPos(cur, d.fixed) >= 0 ? cur : d.fixed;
-            this.setLoopRange(d.fixed.section, d.fixed.index, clamped.section, clamped.index);
+            this.setLoopRange(d.fixed.section, d.fixed.index, clamped.section, clamped.index, true);
         } else {
-            this.setLoopRange(d.anchor.section, d.anchor.index, cur.section, cur.index);
+            this.setLoopRange(d.anchor.section, d.anchor.index, cur.section, cur.index, true);
         }
+    }
+
+    // La zone qui défile sous la grille (en séquenceur ouvert elle se réduit à une fenêtre d'environ 400 px, qu'on ne
+    // peut plus parcourir d'un seul geste) : son rectangle visible, et l'élément à faire défiler.
+    zoneDefilantePlage() {
+        let el = document.querySelector('#progression-sections');
+        while (el && el !== document.body) {
+            const oy = getComputedStyle(el).overflowY;
+            if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight + 2) {
+                const r = el.getBoundingClientRect();
+                return { el, top: Math.max(0, r.top), bottom: Math.min(window.innerHeight, r.bottom) };
+            }
+            el = el.parentElement;
+        }
+        return { el: document.scrollingElement || document.documentElement, top: 0, bottom: window.innerHeight };
+    }
+
+    // Glisser au bord haut ou bas de la zone visible la fait défiler, tant que le bouton reste enfoncé (même au repos
+    // du pointeur : la plage est recalculée à chaque image).
+    defilerPendantPlage() {
+        if (this._loopRaf) return;
+        const pas = () => {
+            this._loopRaf = null;
+            const d = this.loopRangeDrag, p = this._loopPointeur;
+            if (!d || !d.moved || !p) return;
+            const zone = this.zoneDefilantePlage();
+            const marge = 44;
+            let v = 0;
+            if (p.y < zone.top + marge) v = -Math.min(20, (zone.top + marge - p.y) / 3 + 3);
+            else if (p.y > zone.bottom - marge) v = Math.min(20, (p.y - (zone.bottom - marge)) / 3 + 3);
+            if (!v) return;
+            const avant = zone.el.scrollTop;
+            zone.el.scrollTop = avant + v;
+            if (zone.el.scrollTop !== avant) this.appliquerPointeurPlage();
+            this._loopRaf = requestAnimationFrame(pas);
+        };
+        this._loopRaf = requestAnimationFrame(pas);
     }
 
     onLoopRangeEnd() {
@@ -17701,6 +17767,10 @@ class HarmoHubApp {
         const d = this.loopRangeDrag;
         this.loopRangeDrag = null;
         this.loopRangeDragStart = null;
+        if (this._loopRaf) { cancelAnimationFrame(this._loopRaf); this._loopRaf = null; }
+        const hote = document.getElementById('progression-sections');
+        if (hote) hote.classList.remove('plage-en-trace');
+        this.validerPlage(); // le tracé « léger » n'a touché que les bandes : un seul redessin complet, ici
         // Tap (sans glisser) pile sur une bande déjà là, pas sur une poignée : la supprime — sans ça,
         // aucun moyen tactile d'annuler une plage à boucler une fois posée.
         if (d && d.mode === 'bar-tap' && !d.moved && this.sectionInLoopRange(d.anchor.section)) {
@@ -17715,7 +17785,9 @@ class HarmoHubApp {
 
     // sectionA/indexA et sectionB/indexB sont les deux bords de la plage, dans n'importe quel ordre
     // (normalisés ici selon compareChordPos) — peuvent désigner deux parties différentes.
-    setLoopRange(sectionA, indexA, sectionB, indexB) {
+    // `leger` : pendant un glisser, la plage suit le pointeur sans redessiner la grille entière (majPlageLegere) ;
+    // le geste appelle ensuite validerPlage() UNE fois, au relâchement.
+    setLoopRange(sectionA, indexA, sectionB, indexB, leger = false) {
         const a = { section: sectionA, index: indexA }, b = { section: sectionB, index: indexB };
         const [lo, hi] = this.compareChordPos(a, b) <= 0 ? [a, b] : [b, a];
         const r = this.loopRange;
@@ -17731,10 +17803,44 @@ class HarmoHubApp {
         // plage rejoue la plage une seule fois.
         this.bouclerLecture = true;
         this.syncAnneauBoucle();
+        if (leger) {
+            this._plageEnAttente = true;
+            this.majPlageLegere();
+            return;
+        }
         this.loadProgression();
         // Une lecture de toute la chanson en cours doit se mettre à boucler cette plage tout de suite
         // (voir liveRestartForGlobalChange) plutôt que d'attendre un Stop/Lecture manuel — sans effet
         // sur l'audition d'un seul accord (playCurrent), sans rapport avec cette plage.
+        if (this._playMode === 'progression') this.liveRestartForGlobalChange();
+    }
+
+    // LA PLAGE SE DÉCIDE EN MÊME TEMPS QU'ON GLISSE. Retour de l'utilisateur (23/11) : « j'aimerais que la barre se
+    // décide en même temps que je glisse la souris. Là, elle apparaît juste à la fin. » Redessiner toute la grille à
+    // chaque mouvement (loadProgression : 40 ms mesurés sur six parties de 32 accords, davantage sur une machine
+    // modeste) faisait traîner la bande derrière le pointeur. On ne remplace donc ici que les bandes et leurs poignées,
+    // et le reste (frise de la barre de lecture, séquenceur) est rafraîchi par validerPlage() au relâchement.
+    majPlageLegere() {
+        document.querySelectorAll('#progression-sections .chord-grid').forEach((gridEl) => {
+            const section = +gridEl.dataset.section;
+            const history = loadProgressionSections()[section]?.chords;
+            gridEl.querySelectorAll('.loop-range-bar, .loop-range-handle').forEach(el => el.remove());
+            if (!history || !history.length) return;
+            const rpg = (this._rowsPerGroupParPartie || [])[section];
+            const loopRange = this.loopRangeForSection(section, history.length);
+            if (!rpg || !loopRange) return;
+            const { cells } = this.layoutProgression(history, this.beatsPerBar());
+            gridEl.insertAdjacentHTML('beforeend', this.buildLoopRangeBars(cells, loopRange, rpg));
+        });
+        this.updatePlayButtonsForLoopRange();
+        if (this.sequenceur && this.sequenceur.majBoucle) this.sequenceur.majBoucle();
+    }
+
+    // Fin d'un tracé « léger » : le redessin complet (grille, séquenceur, frise) et la relance d'une lecture en cours.
+    validerPlage() {
+        if (!this._plageEnAttente) return;
+        this._plageEnAttente = false;
+        this.loadProgression();
         if (this._playMode === 'progression') this.liveRestartForGlobalChange();
     }
 
@@ -17756,6 +17862,16 @@ class HarmoHubApp {
     // isTrueStart/isTrueEnd indiquent si son bord ici est un vrai bord de la plage globale (poignée
     // déplaçable) ou juste la coupure d'une plage qui continue dans la partie précédente/suivante
     // (pas de poignée là — rien à en déplacer, elle n'a de sens que d'un seul tenant).
+    // LA RÈGLE ENTIÈRE SE SAISIT, PAS SEULEMENT LE CHIFFRE. Retour de l'utilisateur (23/11) : « j'ai du mal à définir la
+    // barre dans la grille ». Le glisser ne démarrait que sur le numéro d'une mesure (27 × 16 px, un par mesure) ; un
+    // appui à côté tombait sur la grille. Une zone invisible couvre donc la ligne de règle sous CHAQUE accord, sur toute
+    // sa largeur (un accord tenu sur deux lignes en a une par ligne). Ordinateur seulement : le téléphone garde son geste.
+    buildLoopRangeZones(cells, rowsPerGroup) {
+        if (!window.matchMedia('(min-width: 900px)').matches) return '';
+        return cells.map(s => `
+                    <div class="row-regle" style="grid-column: ${s.col + 1} / span ${s.span}; grid-row: ${s.row * rowsPerGroup + rowsPerGroup};"></div>`).join('');
+    }
+
     buildLoopRangeBars(cells, loopRange, rowsPerGroup) {
         if (!loopRange) return '';
         const byRow = new Map();

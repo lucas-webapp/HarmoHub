@@ -1,6 +1,6 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 23/11/2026 (tests e2e : phase 5 terminée, ~1 700 tests ; bugs et deux essais neutres du séquenceur corrigés ; nouvelle série de tests à venir). **Seul fichier où s'écrit l'état du chantier.** Volontairement COURT (chargé à chaque session) : le détail va dans `docs/dette-tests.md`, jamais ici. À lire avec `CLAUDE.md`.
+Mis à jour le 23/11/2026 (tests e2e : phase 5 terminée, ~1 750 tests ; bugs et deux essais neutres du séquenceur corrigés ; plage à boucler tracée en direct). **Seul fichier où s'écrit l'état du chantier.** Volontairement COURT (chargé à chaque session) : le détail va dans `docs/dette-tests.md`, jamais ici. À lire avec `CLAUDE.md`.
 
 | Besoin | Fichier (ne jamais lire en entier : `grep -n` puis `sed -n`) |
 |---|---|
@@ -12,8 +12,9 @@ Mis à jour le 23/11/2026 (tests e2e : phase 5 terminée, ~1 700 tests ; bugs et
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
-**PROCHAINE ÉTAPE : NOUVELLE SÉRIE DE TESTS PLAYWRIGHT, demandée par l'utilisateur le 23/11** (il fait `/clear` puis `/reprise`). Il dira lesquels (ciblés par module, ou un nouvel essai neutre).
-État de départ : tout est poussé sur `claude/harmohub-travail-Claude` (dernier commit `98db5b2` du 22/11), arbre propre, `avant-envoi` vert (309 passés), CI « Tests e2e » à chaque envoi.
+**FAIT LE 23/11 : la plage à boucler (bande orange) se trace EN DIRECT** (retour de l'utilisateur : « j'ai du mal à définir la barre dans la grille, surtout avec plusieurs lignes », « la barre apparaît juste à la fin », « problèmes avec le séquenceur ouvert »). Détail : `docs/dette-tests.md` « Session du 23/11 », test `tests/e2e/lecture/plage-en-direct.spec.ts` (9 tests, 47 sur 7 projets). **À lui faire valider** : zone de règle sur toute la largeur de l'accord, défilement automatique en bordure, poignées visibles aux bouts de la bande du séquenceur, bande plus lisible pendant le tracé.
+**PROCHAINE ÉTAPE : une nouvelle série de tests Playwright, ou les bugs restants (voir plus bas)** : demander à l'utilisateur laquelle (ciblée par module, ou un nouvel essai neutre). Idée restée : la plage du séquenceur ne couvre que la ligne de grille montrée (une plage plus longue se trace dans la grille).
+État de départ : tout est poussé sur `claude/harmohub-travail-Claude`, `avant-envoi` vert, CI « Tests e2e » à chaque envoi. Bancs historiques rouges déjà là sans mes changements (vérifié sur HEAD) : `ajout_clic` (fondamentale en 12 notes / 23 boutons) et `sequenceur` (« trois sons »), en plus de la ligne de base de ce conteneur.
 - **Méthode d'un essai neutre** (a donné deux rapports de 19 constats chacun) : sous-agent généraliste à qui l'on INTERDIT de lire le code, les tests et les rapports ; il pilote Chromium par des scripts Playwright dans `/tmp`
   (vrais gestes : souris, clavier, toucher), consigne ce qui ne va pas ET ce qui pourrait s'améliorer, écrit un rapport dans `tests/reports/` avec captures dans un dossier voisin. Donner à l'agent les centres d'intérêt de l'utilisateur
   (le 20/11 : l'effet des notes ajoutées sur le nom de l'accord, déplacements / étirements / rythmes sans accrochage) et « pas besoin de son ». Ensuite : l'utilisateur tranche, on corrige, on teste, on pousse.

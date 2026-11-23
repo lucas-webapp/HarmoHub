@@ -7943,3 +7943,25 @@ body.sq-deplace .cell-ins { display: none !important; }
 @media (min-width: 900px) {
     .sq-etiq[data-voix]::before { content: attr(data-voix); margin-right: auto; padding-left: 5px; font-size: 9px; font-weight: 600; opacity: 0.55; }
 }
+
+/* ===== Plage à boucler : tracé en direct (retour de l'utilisateur du 23/11) =====
+   Bloc en FIN de fichier (cascade). Ordinateur seulement : buildLoopRangeZones ne pose les zones qu'à partir de 900 px. */
+/* La ligne de règle sous chaque accord se saisit sur toute sa largeur, pas seulement sur le chiffre de la mesure (27 × 16 px).
+   Sous les chiffres (z-index 2) et sous la bande (1) : elle ne fait que recevoir l'appui qui démarre le tracé. */
+.row-regle {
+    align-self: stretch;
+    z-index: 0;
+    cursor: pointer;
+    touch-action: none;
+}
+/* Pendant le tracé, la bande se lit nettement (au repos elle reste translucide pour laisser lire les chiffres). */
+#progression-sections.plage-en-trace .loop-range-bar { opacity: 0.85; }
+#progression-sections.plage-en-trace { cursor: ew-resize; }
+/* Séquenceur : les bouts de la bande orange de la règle sont des poignées (ordinateur), comme dans la grille. Un bout n'étire que lui-même. */
+@media (min-width: 900px) {
+    #sq-grille .sq-boucle { overflow: visible; }
+    #sq-grille .sq-boucle-bord { position: absolute; top: -1px; bottom: -1px; width: 9px; cursor: ew-resize; border-radius: 4px; background: rgba(255, 179, 0, 0.55); }
+    #sq-grille .sq-boucle-bord.gauche { left: -1px; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+    #sq-grille .sq-boucle-bord.droite { right: -1px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+    #sq-grille .sq-boucle-bord:hover { background: rgba(255, 179, 0, 0.9); }
+}

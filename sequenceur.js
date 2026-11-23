@@ -752,15 +752,8 @@
             this.racine.classList.toggle('sans-regle', !regle);
             this.grille.style.gridTemplateRows = `auto ${regle ? '20px' : '0px'} repeat(${lignes.length}, var(--sq-ligne))`;
 
-            const r = this.app.loopRange;
-            let boucle = r && r.startSection === s && r.endSection === s ? [r.startIndex, r.endIndex] : null;
-            // La bande orange ne couvre que ce qui est montré (les index de la plage sont ceux de la partie : ceux d'une autre ligne n'ont pas de colonne ici).
-            if (boucle && montres.length > 1) {
-                const a = Math.max(boucle[0], montres[0]), b = Math.min(boucle[1], montres[montres.length - 1]);
-                boucle = a <= b ? [a, b] : null;
-            }
-            // Au téléphone, la bande orange ne couvre que ce qui est montré : l'accord du panneau, s'il est dans la plage.
-            if (boucle && montres.length === 1) boucle = (montres[0] >= boucle[0] && montres[0] <= boucle[1]) ? [montres[0], montres[0]] : null;
+            this._colDebut = colDebut;
+            const boucle = this.boucleMontree(s);
             const html = [];
             // Rangée 1 : nom et degré de chaque accord (un clic le choisit) ; rangée 2 : la règle, numéros de temps seulement.
             const gRoot = (document.getElementById('global-root') || {}).value, gMode = (document.getElementById('global-mode') || {}).value;
@@ -781,10 +774,7 @@
                 }
                 tempsAvant += e.info.croches / 2;
             });
-            if (boucle) {
-                const a = colDebut[boucle[0]], fin = colDebut[boucle[1]] + etats[boucle[1]].info.croches;
-                html.push(`<div class="sq-boucle" role="button" tabindex="0" aria-label="Retirer la plage à boucler" title="Cliquer pour retirer la plage à boucler" style="grid-row:2;grid-column:${a} / ${fin}"></div>`);
-            }
+            if (boucle) html.push(this.htmlBoucle(boucle, colDebut, etats));
             // Les lignes : étiquette (le nom de la note de l'accord choisi, dessiné comme une touche de piano), puis les cases.
             // NOTE LIBRE : le bouton « note de musique » est À GAUCHE, dans la colonne des noms de notes, juste au-dessus d'eux, en face de la règle
             // (« ni en dessous, où il se déplaçait à chaque ligne ajoutée, ni dans la barre d'outils », 11/11).
@@ -2276,6 +2266,55 @@
             }).catch(err => console.warn('Note libre non jouée (instrument pas encore prêt) :', err.message));
         }
 
+        // La plage à boucler, bornée à ce qui est montré (les index de la plage sont ceux de la partie : ceux d'une autre ligne n'ont pas de colonne ici).
+        // Au téléphone, seul l'accord du panneau est montré : la bande ne le couvre que s'il est dans la plage.
+        boucleMontree(s) {
+            const r = this.app.loopRange, montres = this._montres || [];
+            let boucle = r && r.startSection === s && r.endSection === s ? [r.startIndex, r.endIndex] : null;
+            if (boucle && montres.length > 1) {
+                const a = Math.max(boucle[0], montres[0]), b = Math.min(boucle[1], montres[montres.length - 1]);
+                boucle = a <= b ? [a, b] : null;
+            }
+            if (boucle && montres.length === 1) boucle = (montres[0] >= boucle[0] && montres[0] <= boucle[1]) ? [montres[0], montres[0]] : null;
+            return boucle;
+        }
+
+        // La bande orange de la règle. Deux poignées visibles à ses bouts (ordinateur) : tirer l'une n'étire que CE bord, comme dans la grille ;
+        // tirer le corps trace une nouvelle plage depuis ce point ; un simple clic la retire.
+        htmlBoucle(boucle, colDebut, etats) {
+            const a = colDebut[boucle[0]], fin = colDebut[boucle[1]] + etats[boucle[1]].info.croches;
+            // Un bout n'a de poignée que s'il est le VRAI bord de la plage (une plage plus longue que la ligne montrée est coupée par le cadre, pas terminée).
+            const r = this.app.loopRange || {};
+            const bords = this.estOrdinateur()
+                ? (r.startIndex === boucle[0] ? '<i class="sq-boucle-bord gauche" data-bord="gauche"></i>' : '') + (r.endIndex === boucle[1] ? '<i class="sq-boucle-bord droite" data-bord="droite"></i>' : '')
+                : '';
+            return `<div class="sq-boucle" role="button" tabindex="0" aria-label="Retirer la plage à boucler" title="Cliquer pour retirer la plage à boucler ; tirer un bout pour l'étirer" style="grid-row:2;grid-column:${a} / ${fin}">${bords}</div>`;
+        }
+
+        // Met la règle à jour pendant que la plage se trace (appelée par l'appli à chaque pas du glisser) : sans redessiner le séquenceur,
+        // dont le geste en cours dépend.
+        majBoucle() {
+            if (!this.grille || !this._etats || !this._colDebut) return;
+            const s = this._s, boucle = this.boucleMontree(s);
+            const dans = (c) => !!boucle && c >= boucle[0] && c <= boucle[1];
+            this.grille.querySelectorAll('.sq-temps[data-c], .sq-case[data-c]').forEach((el) => el.classList.toggle('dans-boucle', dans(+el.dataset.c)));
+            const ancienne = this.grille.querySelector('.sq-boucle');
+            if (ancienne) ancienne.remove();
+            if (boucle && this._etats[boucle[1]]) this.grille.insertAdjacentHTML('beforeend', this.htmlBoucle(boucle, this._colDebut, this._etats));
+        }
+
+        // L'accord de la règle sous l'abscisse `x`, borné aux accords montrés : le pointeur peut quitter la règle (vers le bas, vers les côtés) sans
+        // que la plage se fige. Le plus proche gagne, les deux bouts compris.
+        accordDeRegleSous(x) {
+            let meilleur = null, dMin = Infinity;
+            this.grille.querySelectorAll('.sq-temps[data-c]').forEach((el) => {
+                const r = el.getBoundingClientRect();
+                const d = x < r.left ? r.left - x : (x > r.right ? x - r.right : 0);
+                if (d < dMin) { dMin = d; meilleur = el; }
+            });
+            return meilleur ? +meilleur.dataset.c : null;
+        }
+
         retirerBoucle() {
             this.app.loopRange = null;
             this.app.loadProgression();
@@ -2290,12 +2329,27 @@
             if (e.button !== 0) return;
             const t = e.target;
             const boucle = t.closest('.sq-boucle');
-            if (boucle) { e.preventDefault(); this._geste = { type: 'retirer-boucle', x: e.clientX }; return; }
+            if (boucle) {
+                // LA BANDE DÉJÀ POSÉE SE TIRE, elle ne fait plus que disparaître (retour de l'utilisateur, 23/11 : sur la bande, tout glisser la supprimait).
+                // Un bout : n'étire que ce bord. Le corps : un clic la retire, un glisser trace une nouvelle plage depuis ce point.
+                e.preventDefault();
+                const r = this.app.loopRange, c = this.accordDeRegleSous(e.clientX);
+                const bord = t.closest('.sq-boucle-bord');
+                if (bord && r) {
+                    const gauche = bord.dataset.bord === 'gauche';
+                    this._geste = { type: 'boucle', mode: gauche ? 'bord-gauche' : 'bord-droit', fixe: gauche ? r.endIndex : r.startIndex, c0: c, c1: c, bouge: false, x0: e.clientX };
+                } else {
+                    this._geste = { type: 'boucle', mode: 'corps', retire: true, c0: c, c1: c, bouge: false, x0: e.clientX };
+                }
+                return;
+            }
             const temps = t.closest('.sq-temps');
             if (temps) {
                 e.preventDefault();
                 const c = +temps.dataset.c;
-                this._geste = { type: 'boucle', c0: c, c1: c, bouge: false };
+                this._geste = { type: 'boucle', mode: 'nouvelle', c0: c, c1: c, bouge: false, x0: e.clientX };
+                // Dès l'appui : la plage existe, et la suite du glisser l'étire sous les yeux.
+                this.app.setLoopRange(this._s, c, this._s, c, true);
                 return;
             }
             this._dernierAppui = performance.now(); // la lecture cesse de changer de ligne sous la main qui dessine (voir tete)
@@ -2423,6 +2477,7 @@
             if (g && g.minuteur) clearTimeout(g.minuteur);
             this._geste = null;
             document.body.classList.remove('sq-etire');
+            if (g && g.type === 'boucle') this.app.validerPlage(); // un tracé interrompu (pointercancel) garde ce qui était posé, et le dit partout
         }
 
         // Le doigt est resté posé sur une note : son menu (Scinder, Prolonger, Supprimer). Sur une case vide, rien de plus qu'un appui.
@@ -2460,18 +2515,24 @@
                 const ecart = Math.hypot(e.clientX - g.x0, e.clientY - g.y0);
                 // Un doigt qui s'écarte de plus de 8 px ne fait plus d'appui long ; hors mode Dessiner, il DÉFILE : aucune note ne bouge (le navigateur enverra aussi pointercancel).
                 if (ecart > 8 && g.minuteur) { clearTimeout(g.minuteur); g.minuteur = null; }
-                if (!g.dessin && !g.etire && g.type !== 'boucle' && g.type !== 'retirer-boucle' && ecart > 8) { this.annulerGeste(); return; }
+                if (!g.dessin && !g.etire && g.type !== 'boucle' && ecart > 8) { this.annulerGeste(); return; }
             }
             if (g.etire) { this.etirer(g, e); return; }
             if (g.type === 'etire-groupe') { this.etirerGroupe(g, e); return; }
             if (g.type === 'deplace') { this.deplacerGeste(g, e); return; }
             if (g.type === 'lasso') { this.tracerLasso(g, e); return; }
             if (g.type === 'boucle') {
-                // elementsFromPoint : la bande orange déjà posée passe AU-DESSUS de la règle, la case visée est dessous.
-                const tp = document.elementsFromPoint(e.clientX, e.clientY).find(el => el.matches && el.matches('#sq-grille [data-c]'));
-                if (!tp) return;
-                const c = +tp.dataset.c;
-                if (c !== g.c1) { g.c1 = c; g.bouge = true; }
+                // Un clic sur la bande (pour la retirer) ne devient un glisser qu'au-delà de 6 px : le tremblement d'une main n'efface rien d'autre.
+                if (!g.bouge && Math.abs(e.clientX - g.x0) < 6) return;
+                const c = this.accordDeRegleSous(e.clientX);
+                if (c == null) return;
+                g.bouge = true;
+                // Le tracé suit le pointeur À CHAQUE PAS (la plage ne se posait qu'au relâchement : « elle apparaît juste à la fin », 23/11).
+                const s = this._s;
+                if (g.mode === 'bord-gauche') this.app.setLoopRange(s, Math.min(c, g.fixe), s, g.fixe, true);
+                else if (g.mode === 'bord-droit') this.app.setLoopRange(s, g.fixe, s, Math.max(c, g.fixe), true);
+                else this.app.setLoopRange(s, g.c0, s, c, true);
+                g.c1 = c;
                 return;
             }
             if (g.type !== 'peinture') return;
@@ -2552,8 +2613,11 @@
             this._geste = null;
             document.body.classList.remove('sq-etire');
             if (!g) return;
-            if (g.type === 'retirer-boucle') { this.retirerBoucle(); return; }
-            if (g.type === 'boucle') { this.app.setLoopRange(this._s, g.c0, this._s, g.c1); return; }
+            if (g.type === 'boucle') {
+                if (g.retire && !g.bouge) { this.retirerBoucle(); return; }
+                this.app.validerPlage(); // le tracé n'a touché que les bandes : un seul redessin complet, ici
+                return;
+            }
             if (g.type === 'deplace') { this.finDeplacement(g); return; }
             if (g.type === 'lasso') { this.finLasso(g); return; }
             if (g.type === 'etire-groupe') return;   // tout est déjà écrit, croche par croche
