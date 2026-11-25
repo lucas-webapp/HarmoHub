@@ -72,31 +72,38 @@ test.describe('Fenêtre d\'accueil du compte @synchro', () => {
     await expect(page.locator('#progression-sections .grid-cell[data-index]')).toHaveCount(1);   // le travail local est intact
   });
 
-  test('la fenêtre revient à chaque nouvelle session, sauf si « Ne plus me le proposer » a été coché', async ({ ouvrirAppli }) => {
+  // ES-17 (essai neutre du 20/11 : « la fenêtre revient à chaque chargement »). Refuser la fenêtre la fait taire sept jours, dans tous les onglets de l'appareil ; passé ce délai
+  // (simulé : la date retenue est reculée), elle revient ; la case « Ne plus me le proposer » la fait taire pour de bon.
+  test('« Continuer sans compte » : la fenêtre ne revient ni au rechargement ni dans un nouvel onglet pendant sept jours, puis revient @critique', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ accueil: 'garder' });
     const accueil = page.locator('#cloud-guard-modal');
     await page.locator('#cloud-guard-continue').click();
     await expect(accueil).toBeHidden();
-    // Un rechargement de la même session ne la redemande pas.
     await page.reload();
     await page.waitForFunction(() => !!(window as any).app);
     await expect(page.locator('#google-signin-btn')).toBeVisible({ timeout: 15_000 });
     await expect(accueil).toBeHidden();
-
-    // Un nouvel onglet = une nouvelle session (même stockage local, autre stockage de session) : elle revient.
+    // un nouvel onglet = une nouvelle session : avant, la fenêtre revenait ; maintenant le refus dure
     const onglet2 = await page.context().newPage();
     await onglet2.goto('/index.html');
-    await expect(onglet2.locator('#cloud-guard-modal')).toBeVisible({ timeout: 15_000 });
-    await onglet2.locator('#cloud-guard-modal').getByRole('checkbox', { name: 'Ne plus me le proposer sur cet appareil' }).check();
-    await onglet2.locator('#cloud-guard-continue').click();
+    await onglet2.waitForFunction(() => !!(window as any).app);
+    await expect(onglet2.locator('#google-signin-btn')).toBeVisible({ timeout: 15_000 });
     await expect(onglet2.locator('#cloud-guard-modal')).toBeHidden();
-
-    // Un 3ᵉ onglet : la case cochée la fait taire pour de bon.
+    // sept jours plus tard : la date retenue est dans le passé, la fenêtre revient
+    await onglet2.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.endsWith('.reporteJusqua')) localStorage.setItem(k, String(Date.now() - 1000)); });
     const onglet3 = await page.context().newPage();
     await onglet3.goto('/index.html');
-    await onglet3.waitForFunction(() => !!(window as any).app);
-    await expect(onglet3.locator('#google-signin-btn')).toBeVisible({ timeout: 15_000 });
+    await expect(onglet3.locator('#cloud-guard-modal')).toBeVisible({ timeout: 15_000 });
+    await onglet3.locator('#cloud-guard-modal').getByRole('checkbox', { name: 'Ne plus me le proposer sur cet appareil' }).check();
+    await onglet3.locator('#cloud-guard-continue').click();
     await expect(onglet3.locator('#cloud-guard-modal')).toBeHidden();
+    // la case cochée la fait taire pour de bon, même une fois le délai passé
+    await onglet3.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.endsWith('.reporteJusqua')) localStorage.setItem(k, String(Date.now() - 1000)); });
+    const onglet4 = await page.context().newPage();
+    await onglet4.goto('/index.html');
+    await onglet4.waitForFunction(() => !!(window as any).app);
+    await expect(onglet4.locator('#google-signin-btn')).toBeVisible({ timeout: 15_000 });
+    await expect(onglet4.locator('#cloud-guard-modal')).toBeHidden();
   });
 
   test('se connecter pendant que la fenêtre est ouverte la referme et affiche le compte', async ({ ouvrirAppli }, testInfo) => {

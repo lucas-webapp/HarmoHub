@@ -10,8 +10,8 @@ change d'une appli à l'autre passe par les options (`monterCompteCloud`) ou par
 
 | Fichier | Version | Empreinte SHA-256 | Utilisé par |
 |---|---|---|---|
-| `compte-cloud.js` | 1 | `1eb4aa1c9669255f8ab8e7ce5d9fb41781996a72dd830dbd37b50fd341e595a1` | HarmoHub, TabHub, TrainHub |
-| `synchro-cloud.js` | 2 | `a55d0487e718bbcf05709cd5f1be98b89e3795706dca06e47a3ea3abc6865270` | HarmoHub, TabHub (TrainHub a son propre moteur) |
+| `compte-cloud.js` | 2 | `200f9c7e5f73a78f622b681a6f78f852ed0eb89e31512a9d3d353151eb9b0c5d` | HarmoHub, TabHub, TrainHub |
+| `synchro-cloud.js` | 3 | `79af5b41ee0977871fac38efd9df9a1ae86fb66ce0e7816cacd0a6e03bf3169a` | HarmoHub, TabHub (TrainHub a son propre moteur) |
 
 Le banc `tests/compte_cloud_test.js` refuse un fichier dont l'empreinte ne correspond plus à ce tableau :
 modifier un fichier partagé oblige donc à augmenter sa version (en-tête `// VERSION N` **et** constante
@@ -75,3 +75,9 @@ fenêtre du compte cloud — c'est là, jamais dans `compte-cloud.js`, que ces t
 | HarmoHub | 1 | 2 | référence |
 | TabHub | à installer | 1 (copie du 03/10, en retard) | consigne donnée le 28/10 |
 | TrainHub | à installer | — (moteur propre) | consigne donnée le 28/10 ; son moteur n'est pas touché |
+
+## Historique des versions
+
+- **`compte-cloud.js` 2 (25/11/2026)** : la fenêtre de connexion n'est plus reproposée pendant sept jours après un refus (« Continuer sans compte », Échap, clic à côté), dans tous les onglets de l'appareil (ES-17) ; le menu du compte dit que les morceaux restent sur l'appareil à la déconnexion (Y-02). **À recopier dans TabHub et TrainHub.**
+- **`synchro-cloud.js` 3 (25/11/2026)** : la pastille repasse à « Synchronisé » au retour du réseau même sans rien à envoyer (Y-01), et un coup d'œil régulier à `navigator.onLine` rattrape les évènements `offline` / `online` manqués (Y-03). **À recopier dans TabHub** (TrainHub a son propre moteur).
+

@@ -4373,6 +4373,7 @@ class HarmoHubApp {
             e.returnValue = '';
         });
         this.restoreCurrentSongSettingsIfAny();
+        this.setupSuiviAutreOnglet();
         this.updateKeyLabels();
         this.updateDurationOptions();
         this.applyZoomLevel('classicGrid'); // pose --grid-zoom-scale-v sur .history-section + 1er rendu
@@ -12442,6 +12443,42 @@ class HarmoHubApp {
         this.applySongSettingsToDom(song);
         // Le tampon était « modifié » à la fermeture de la page (voir marquerModifie) : il l'est toujours (bug Z-06).
         try { if (localStorage.getItem(CLE_TAMPON_MODIFIE) === id) hasUnsavedChanges = true; } catch (e) { /* sans gravité */ }
+    }
+
+    // Z-07 (deux onglets). La copie de travail (`myProgression`) et le morceau ouvert (`harmohubCurrentSongId`) sont dans le stockage, PARTAGÉ entre les onglets : quand
+    // l'un ouvre ou crée un autre morceau, l'autre continuait d'afficher l'ancien et, à son premier geste, lisait et écrivait dans le nouveau, sans rien dire (l'accord tapé
+    // « dans Alpha » atterrissait dans Charlie). On ne sépare pas les onglets (ils se complètent : l'un enregistre un ajout, l'autre ajoute le sien) : on les fait SUIVRE.
+    // L'évènement `storage` ne part que vers les AUTRES onglets, jamais vers celui qui écrit : pas de boucle. L'onglet qui suit n'écrit RIEN (il relit la copie de travail et
+    // redessine ; recharger le morceau depuis la bibliothèque écraserait le travail non enregistré de l'autre onglet), et il le dit.
+    setupSuiviAutreOnglet() {
+        this._morceauAffiche = getCurrentSongId();
+        let attente = null;
+        window.addEventListener('storage', (e) => {
+            if (e.storageArea !== window.localStorage || (e.key !== SONG_ID_KEY && e.key !== 'myProgression')) return;
+            clearTimeout(attente);
+            attente = setTimeout(() => this.suivreAutreOnglet(), 120);   // l'autre onglet écrit le morceau puis la copie : on attend les deux
+        });
+    }
+
+    suivreAutreOnglet() {
+        if (this.drag || this.resize || this.loopRangeDrag) { setTimeout(() => this.suivreAutreOnglet(), 400); return; }   // pas sous la main qui glisse
+        const id = getCurrentSongId();
+        const change = id !== this._morceauAffiche;
+        this._morceauAffiche = id;
+        const song = id ? loadSongs().find(s => s.id === id) : null;
+        if (change) {
+            if (this.editingIndex != null) this.exitEditMode();
+            this.selectedIndex = null;
+            this.multiSelect = new Set();
+            this.activeSection = 0;
+            this.loopRange = null;
+            this.clearHistory();   // annuler / rétablir ne traversent pas deux morceaux
+            if (song) this.applySongSettingsToDom(song);
+            try { hasUnsavedChanges = !!id && localStorage.getItem(CLE_TAMPON_MODIFIE) === id; } catch (err) { /* stockage refusé : on garde l'état */ }
+        }
+        this.refreshSongList();
+        this.loadProgression();
+        if (change) this.flashHint('Morceau changé dans un autre onglet : ' + (song ? song.name : 'Nouveau morceau'), 4000);
     }
 
     // Charge un morceau enregistré : il devient le morceau ouvert, mais n'est plus auto-sauvegardé en

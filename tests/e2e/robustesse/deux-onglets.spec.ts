@@ -4,7 +4,7 @@
 import { test, expect } from '../support/fixtures';
 import {
   C_AM_F_G, cases, noms, collecterErreurs, ajouterAccords, ouvrirOnglet, titre, etat, boutonEnregistrer, bibliotheque, morceauxStockes, enregistrerSous,
-  ouvrirMesMorceaux, fenetreMorceaux, ligne, creerMorceau, champNomMorceau, ouvrirMenuMorceau, menuMorceau,
+  ouvrirMesMorceaux, fenetreMorceaux, ligne, creerMorceau, champNomMorceau, ouvrirMenuMorceau, menuMorceau, toast,
 } from './aide-robustesse';
 import type { Page } from '@playwright/test';
 
@@ -78,23 +78,44 @@ test.describe('Deux onglets, un appareil @robustesse', () => {
     expect(await noms(B)).toEqual(['C', 'Am', 'F', 'G', 'E', 'D']);
   });
 
-  test('Z-07 : l\'onglet resté sur « Alpha » ajoute son accord à « Alpha », même si l\'autre onglet a ouvert un autre morceau entre-temps', async ({ ouvrirAppli, context }) => {
-    test.fail(true, 'Z-07 (bugs.md) : l\'onglet B affiche « Alpha » mais, au premier geste, bascule en silence sur le morceau ouvert par l\'onglet A et y écrit : l\'accord tapé dans « Alpha » atterrit dans l\'autre morceau');
+  // Z-07 (décidé le 25/11) : on ne sépare pas les onglets (ils se complètent), on les fait SUIVRE : l'onglet resté sur « Alpha » montre aussitôt le morceau ouvert par
+  // l'autre, le dit, et ce qu'il y ajoute va dans le morceau qu'il montre — plus d'accord tapé « dans Alpha » qui atterrit en silence dans « Charlie ».
+  test('Z-07 : l\'onglet resté sur « Alpha » suit le morceau ouvert par l\'autre, et le dit, avant le moindre geste @critique', async ({ ouvrirAppli, context }) => {
     const A = await ouvrirAppli({ reglages: DEUX });
     const B = await ouvrirOnglet(context);
+    await expect(titre(B)).toHaveText('Alpha');
     await creerMorceau(A, 'Charlie');
     await ajouterAccords(A, ['E']);
     await boutonEnregistrer(A).click();
     await expect(etat(A)).toContainText('Enregistré');
     await devant(B);
-    await expect(titre(B)).toHaveText('Alpha');   // B montre toujours Alpha
+    await expect(titre(B)).toHaveText('Charlie');   // B suit, sans qu'on touche à rien
+    await expect(toast(B)).toContainText('Morceau changé dans un autre onglet');
+    expect(await noms(B)).toEqual(['E']);
+    // ce que B ajoute maintenant va dans « Charlie », qu'il montre, et « Alpha » ne reçoit rien
     await ajouterAccords(B, ['D']);
     await boutonEnregistrer(B).click();
-    await expect.poll(async () => (await morceauxStockes(B)).find((m) => m.name === 'Alpha')?.accords).toEqual(['C', 'Amin', 'F', 'G', 'Dmaj']);
-    expect((await morceauxStockes(B)).find((m) => m.name === 'Charlie')!.accords).toEqual(['Emaj']);
+    await expect(etat(B)).toContainText('Enregistré');
+    expect((await morceauxStockes(B)).find((m) => m.name === 'Charlie')!.accords).toEqual(['Emaj', 'Dmaj']);
+    expect((await morceauxStockes(B)).find((m) => m.name === 'Alpha')!.accords).toEqual(['C', 'Amin', 'F', 'G']);
   });
 
-  test('le morceau supprimé dans un onglet, encore affiché dans l\'autre : « Enregistrer » demande un nom et le morceau revient avec les modifications', async ({ ouvrirAppli, context }) => {
+  test('Z-07 : Ctrl+Z de l\'onglet qui suit ne remet pas l\'ancien morceau dans la copie de travail', async ({ ouvrirAppli, context }) => {
+    const A = await ouvrirAppli({ reglages: DEUX });
+    const B = await ouvrirOnglet(context);
+    await ajouterAccords(B, ['E']);   // B a un historique sur « Alpha »
+    await devant(A);
+    await creerMorceau(A, 'Charlie');
+    await devant(B);
+    await expect(titre(B)).toHaveText('Charlie');
+    await B.keyboard.press('Control+z');
+    await expect(titre(B)).toHaveText('Charlie');
+    expect(await noms(B)).not.toContain('Am');   // le contenu d'« Alpha » n'est pas revenu dans la copie de travail
+  });
+
+  // Supprimer le morceau ouvert vide aussi la grille (F-02) ; l'autre onglet, qui le montrait encore, suit (Z-07) : il montre « Nouveau morceau » vide, et ce qu'on y ajoute
+  // demande un nom à l'enregistrement au lieu d'être perdu ou écrit dans le vide.
+  test('le morceau supprimé dans un onglet : l\'autre le suit (« Nouveau morceau »), et « Enregistrer » y demande un nom', async ({ ouvrirAppli, context }) => {
     const A = await ouvrirAppli({ reglages: DEUX });
     const B = await ouvrirOnglet(context);
     page_confirmations(A);
@@ -102,17 +123,17 @@ test.describe('Deux onglets, un appareil @robustesse', () => {
     await ligne(A, 'Alpha').getByRole('button', { name: 'Supprimer' }).click();
     await expect.poll(async () => (await morceauxStockes(A)).map((m) => m.name)).toEqual(['Bravo']);
     await devant(B);
-    await expect(titre(B)).toHaveText('Alpha');
+    await expect(titre(B)).toHaveText('Nouveau morceau');
+    expect(await noms(B)).toEqual([]);
     await ajouterAccords(B, ['D']);
     await boutonEnregistrer(B).click();
-    // le morceau n'existe plus : l'appli demande de le nommer au lieu de perdre le travail ou d'écrire dans le vide
     await expect(champNomMorceau(B)).toBeVisible();
-    await champNomMorceau(B).fill('Alpha');
+    await champNomMorceau(B).fill('Delta');
     await champNomMorceau(B).press('Enter');
     await expect(etat(B)).toContainText('Enregistré');
     const stock = await morceauxStockes(B);
-    expect(stock.map((m) => m.name).sort()).toEqual(['Alpha', 'Bravo']);
-    expect(stock.find((m) => m.name === 'Alpha')!.accords).toEqual(['C', 'Amin', 'F', 'G', 'Dmaj']);
+    expect(stock.map((m) => m.name).sort()).toEqual(['Bravo', 'Delta']);
+    expect(stock.find((m) => m.name === 'Delta')!.accords).toEqual(['Dmaj']);
   });
 
   test('fermer un onglet qui a du travail non enregistré n\'empêche pas l\'autre de continuer et d\'enregistrer @critique', async ({ ouvrirAppli, context }) => {

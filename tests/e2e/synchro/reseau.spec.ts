@@ -98,8 +98,6 @@ test.describe('Coupure du réseau puis reprise @synchro', () => {
   });
 
   test('Y-01 : après une coupure SANS rien à envoyer, la pastille repasse à « Synchronisé » dès que le réseau revient', async ({ ouvrirAppli }, testInfo) => {
-    // INTERMITTENT (≈ 9 fois sur 10) : un `test.fail` passerait au hasard et ferait échouer la CI ; le test est donc mis de côté, vérification intacte.
-    test.fixme(true, 'Y-01 (bugs.md) : la pastille reste « Hors ligne » après le retour du réseau tant qu\'aucun enregistrement ni aucune modification venue d\'un autre appareil ne la fait bouger (≈ 9 fois sur 10)');
     const page = await ouvrirAppli({ reglages: DEUX });
     await connecter(page, emailDe(testInfo));
     await attendreSynchronise(page);
@@ -108,6 +106,29 @@ test.describe('Coupure du réseau puis reprise @synchro', () => {
     await expect.poll(() => Date.now() - debut, { timeout: 10_000, message: 'la coupure dure au moins 3 s' }).toBeGreaterThan(3_000);
     await page.context().setOffline(false);
     await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(true);
-    await attendreSynchronise(page);   // attendu : « Synchronisé » ; observé : « Hors ligne » (au moins 100 s)
+    await attendreSynchronise(page);   // « Synchronisé » dès le retour du réseau, sans rien enregistrer (corrigé le 25/11 : synchro-cloud.js v3)
+  });
+
+  // Y-03 / Y-01 : les évènements `offline` / `online` du navigateur n'arrivent pas toujours (intermittent sous WebKit et Android). Le test les RETIENT lui-même (un écouteur
+  // en capture, posé avant les nôtres, les arrête) : la pastille doit suivre quand même, grâce au coup d'œil régulier à `navigator.onLine`.
+  test('Y-03 : la coupure se voit sur la pastille même si le navigateur n\'envoie pas l\'évènement « offline »', async ({ ouvrirAppli }, testInfo) => {
+    const page = await ouvrirAppli({ reglages: DEUX });
+    await connecter(page, emailDe(testInfo));
+    await attendreSynchronise(page);
+    await page.evaluate(() => window.addEventListener('offline', (e) => e.stopImmediatePropagation(), true));
+    await page.context().setOffline(true);
+    await expect(pastille(page)).toHaveAttribute('data-etat', 'offline', { timeout: 10_000 });
+    await page.context().setOffline(false);
+    await attendreSynchronise(page);
+  });
+
+  test('Y-01 : le retour du réseau se voit sur la pastille même si le navigateur n\'envoie pas l\'évènement « online »', async ({ ouvrirAppli }, testInfo) => {
+    const page = await ouvrirAppli({ reglages: DEUX });
+    await connecter(page, emailDe(testInfo));
+    await attendreSynchronise(page);
+    await coupure(page);
+    await page.evaluate(() => window.addEventListener('online', (e) => e.stopImmediatePropagation(), true));
+    await page.context().setOffline(false);
+    await attendreSynchronise(page);
   });
 });

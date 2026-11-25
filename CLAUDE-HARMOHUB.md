@@ -1,6 +1,6 @@
 # HarmoHub — mémoire de reprise (CLAUDE-HARMOHUB.md)
 
-Mis à jour le 24/11/2026 (tests e2e : ~1 780 tests ; bugs et deux essais neutres du séquenceur corrigés ; plage à boucler tracée en direct ; bugs restants G-01, L-04, L-05/06, ES-18, ES-20, P-08, D-04 corrigés). **Seul fichier où s'écrit l'état du chantier.** Volontairement COURT (chargé à chaque session) : le détail va dans `docs/dette-tests.md`, jamais ici. À lire avec `CLAUDE.md`.
+Mis à jour le 25/11/2026 (tests e2e : ~1 800 tests ; plus aucun bug ouvert ; plage à boucler tracée en direct ; fichiers partagés `compte-cloud.js` v2 et `synchro-cloud.js` v3, à recopier dans TabHub et TrainHub). **Seul fichier où s'écrit l'état du chantier.** Volontairement COURT (chargé à chaque session) : le détail va dans `docs/dette-tests.md`, jamais ici. À lire avec `CLAUDE.md`.
 
 | Besoin | Fichier (ne jamais lire en entier : `grep -n` puis `sed -n`) |
 |---|---|
@@ -12,14 +12,13 @@ Mis à jour le 24/11/2026 (tests e2e : ~1 780 tests ; bugs et deux essais neutre
 
 ## Suite à faire (lue par `/reprise` — à réécrire à la fin de CHAQUE lot)
 
-**FAIT LES 23 ET 24/11** (détail : `docs/dette-tests.md` « Session du 23/11 » et « Session du 24/11 », `tests/reports/bugs.md`) :
+**FAIT DU 23 AU 25/11** (détail : `docs/dette-tests.md` « Session du 23/11 », « 24/11 », « 25/11 » ; `tests/reports/bugs.md`) :
 - **Plage à boucler (bande orange) tracée EN DIRECT**, grille et séquenceur (`tests/e2e/lecture/plage-en-direct.spec.ts`). **À lui faire valider** : zone de règle sur toute la largeur de l'accord, défilement automatique en bordure, poignées visibles aux bouts de la bande du séquenceur, bande plus lisible pendant le tracé.
-- **Bugs restants corrigés (24/11)** : G-01, L-04, L-05 / L-06, ES-18, ES-20, P-08, D-04. Tous leurs `test.fail` / `test.fixme` sont retirés ; sabotages faits.
-**PROCHAINE ÉTAPE : demander à l'utilisateur** : une nouvelle série de tests Playwright (par module, ou un 3e essai neutre), et trancher ce qui reste :
-- **Z-07** (deux onglets : le tampon de travail est partagé, deux onglets se « répondent » volontairement ; l'isoler change le modèle. Piste : annoncer et suivre le changement de morceau fait par l'autre onglet plutôt que le subir en silence) ;
-- **T-05** (chiffres romains hors échelle : « biii » en phrygien) et **D-03** (noms proposés par l'éditeur de manche dont une note manque) : constats sans test, laissés tels quels ;
-- **Fichiers partagés** : ES-17 (`compte-cloud.js`), Y-01 / Y-02 / Y-03 (`synchro-cloud.js`) : toute correction oblige à recopier dans TabHub et TrainHub (voir `docs/fichiers-partages.md`), donc à faire sur son accord.
-- Bancs historiques `ajout_clic` (fondamentale en 12 notes / 23 boutons) et `sequenceur` (« trois sons ») rouges aussi sans ces changements, en plus de la ligne de base de ce conteneur. Intermittents vus : `deux-onglets` ligne 97 (rouge aussi sur le code d'origine), `paroles/parties-options` « taille du texte » (iPhone, sous charge).
+- **Tous les bugs ouverts traités.** Corrigés : G-01, L-04, L-05 / L-06, ES-18, ES-20, P-08, D-04 (24/11) ; Z-07, ES-17, Y-01, Y-03 (25/11). Décidés sans changement : Y-02, T-05, D-03. Sabotages faits.
+- **À lui faire valider (25/11)** : Z-07 — l'onglet qui montre un ancien morceau SUIT l'autre onglet et le dit (« Morceau changé dans un autre onglet : … ») ; ES-17 — la fenêtre de connexion ne revient pas avant sept jours après un refus.
+**À FAIRE (dépôts hors session)** : recopier TEL QUEL dans **TabHub** `compte-cloud.js` (v2) et `synchro-cloud.js` (v3), et dans **TrainHub** `compte-cloud.js` (v2) : voir `docs/fichiers-partages.md` (« Historique des versions »). À faire sur demande (`list_repos` puis `add_repo`) : pousser dans un autre dépôt n'a pas été demandé.
+**PROCHAINE ÉTAPE : demander à l'utilisateur** : une nouvelle série de tests Playwright (par module, ou un 3e essai neutre) ; la recopie dans TabHub / TrainHub.
+- Bancs historiques `ajout_clic` (fondamentale en 12 notes / 23 boutons), `sequenceur` (« trois sons ») et `barre_haut` (« choisir un autre morceau l'ouvre », vérifié sur `6f04b19`) rouges aussi sans ces changements, en plus de la ligne de base de ce conteneur. Intermittents vus : `paroles/parties-options` « taille du texte » (iPhone, sous charge).
 État de départ : tout est poussé sur `claude/harmohub-travail-Claude`, CI « Tests e2e » à chaque envoi.
 - **Méthode d'un essai neutre** (a donné deux rapports de 19 constats chacun) : sous-agent généraliste à qui l'on INTERDIT de lire le code, les tests et les rapports ; il pilote Chromium par des scripts Playwright dans `/tmp`
   (vrais gestes : souris, clavier, toucher), consigne ce qui ne va pas ET ce qui pourrait s'améliorer, écrit un rapport dans `tests/reports/` avec captures dans un dossier voisin. Donner à l'agent les centres d'intérêt de l'utilisateur
@@ -33,7 +32,7 @@ Mis à jour le 24/11/2026 (tests e2e : ~1 780 tests ; bugs et deux essais neutre
 - **Fait du 19 au 22/11** (détail : `tests/reports/bugs.md`, journal : `docs/dette-tests.md` « Session du 19 au 22/11 ») : 61 bugs de la phase 5 presque tous corrigés ou décidés ; essai neutre n° 1 (`tests/reports/2026-11-20-essai-sequenceur.md`, ES-01 à ES-20) puis n° 2 (`…-2.md`, EB-01 à EB-19) ;
   le séquenceur reconnaît l'accord d'après toutes les notes (renversements compris), propose / n'impose jamais, lasso, flèches, Alt + glisser, Ctrl+C / V de notes, menu d'une note (Copier, Dupliquer, double-clic), rythmes sur les accords sélectionnés, refus de dépôt montrés en rouge,
   arpèges et Ballade adaptés aux triades, rang des voix, graphies Am(add9) / Am(maj7).
-- **Restent ouverts** (voir `bugs.md`) : ES-17 (fenêtre de connexion : `compte-cloud.js` PARTAGÉ, ne pas y toucher). **Reportés** : Z-07 (deux onglets), Y-01 / Y-02 / Y-03 (synchro, `synchro-cloud.js` partagé), T-05, D-03.
+- **Plus aucun bug ouvert** (25/11) : voir `bugs.md`, tableau « Bugs corrigés » (les lignes « décidé » disent pourquoi rien n'a changé).
 - **Améliorations du 2e essai** : toutes faites sauf deux, **à lui proposer** : « toute la partie » sur ordinateur (un bouton de plus dans une barre déjà serrée) et un décompte visible sur le séquenceur. Le curseur « main » sur une note est **refusé** (15/11). **Doubles croches et triolets : écartés** (20/11).
   Restent aussi des idées du 1er essai : vignette d'après la forme perso, indication « note de passage ». Décisions « sans changement » du 21/11 : EB-15 (grille rognée par « Ajouter section » : conforme à la décision du 15/11), EB-18 (curseur : flèche).
 - **L'utilisateur a délégué les arbitrages** (20/11 : « je te laisse prendre les meilleures décisions ») : chaque décision est notée « (décidé) » dans `bugs.md`. Il a demandé de ne lancer le balayage complet des bancs historiques que si nécessaire.
