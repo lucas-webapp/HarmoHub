@@ -66,14 +66,10 @@ export async function taille(page: Page) {
 export const reglageEchelle = (page: Page) => page.evaluate(() => [localStorage.getItem('harmohubVoiceLeadingZoomLevelX'), localStorage.getItem('harmohubVoiceLeadingZoomLevelY')]);
 
 // Rendre une partie « active » : on sélectionne un de ses accords (la fenêtre, ouverte, couvre la grille : on la ferme d'abord, comme l'utilisateur).
-// G-01 (bugs.md) : sous Firefox, le premier clic sur une case d'une AUTRE partie ne fait que changer la partie active sans sélectionner la case ;
-// l'utilisateur clique alors une seconde fois, et le test fait de même (la partie active, seule chose dont ce module a besoin, est déjà changée).
+// (G-01, corrigé le 24/11 : le premier clic sur une case d'une autre partie la sélectionne aussi sous Firefox ; plus de second clic.)
 export async function activerPartie(page: Page, partie: number, n = 0) {
   if (await popover(page).isVisible()) { await page.keyboard.press('Escape'); await attendreFermee(page); }
   await caseN(page, partie, n).click();
-  // la sélection est posée quelques dizaines de ms après le clic : on lui laisse 1,5 s avant de conclure que le clic n'a pas pris (G-01) et de recliquer
-  const prise = await expect(caseN(page, partie, n)).toHaveClass(/\bselected\b/, { timeout: 1_500 }).then(() => true, () => false);
-  if (!prise) await caseN(page, partie, n).click();   // G-01
   await expect(caseN(page, partie, n)).toHaveClass(/\bselected\b/);
 }
 

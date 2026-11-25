@@ -41,7 +41,6 @@ test.describe('Répétitions « × N » @paroles', () => {
   });
 
   test('le ×N d\'une partie est retrouvé tel quel après rechargement @critique', async ({ ouvrirAppli }) => {
-    test.fail(true, 'P-08 (bugs.md) : le ×N est bien enregistré mais la page le réaffiche à « × 1 » après un rechargement');
     const page = await ouvrirAppli(morceauParoles(DEUX_PARTIES));
     await ouvrirParoles(page);
     await appuyer(page, repPlus(page, 1));

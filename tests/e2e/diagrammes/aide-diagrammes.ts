@@ -11,14 +11,12 @@ import { reglagesMorceau, caseN, estMobile } from '../grille/aide-grille';
 
 export { C_AM_F_G, caseN, noms, estMobile, reglagesMorceau, cases } from '../grille/aide-grille';
 
-// Choisir un accord (clic simple) et attendre que la sélection soit posée. G-01 (bugs.md) : sous Firefox, le premier clic sur une case d'une AUTRE partie ne fait
-// que changer la partie active sans sélectionner la case ; l'utilisateur clique alors une seconde fois, et le test fait de même (1,5 s d'attente avant de recliquer).
+// Choisir un accord (clic simple) et attendre que la sélection soit posée. (G-01, corrigé le 24/11 : le premier clic sur une case d'une autre partie la
+// sélectionne aussi sous Firefox ; plus de second clic.)
 export async function selectionner(page: Page, partie: number, n: number) {
   await caseN(page, partie, n).click();
-  const prise = await expect(caseN(page, partie, n)).toHaveClass(/\bselected\b/, { timeout: 1_500 }).then(() => true, () => false);
-  if (!prise) await caseN(page, partie, n).click();   // G-01
   await expect(caseN(page, partie, n)).toHaveClass(/\bselected\b/);
-  // Le tiroir suit la sélection avec un léger retard (sous Firefox jusqu'à ~1 s, même cause que G-01) : on attend qu'il montre l'accord de la case avant d'agir dessus.
+  // Le tiroir suit la sélection avec un léger retard (sous Firefox jusqu'à ~1 s) : on attend qu'il montre l'accord de la case avant d'agir dessus.
   if (await tiroir(page).isVisible()) await expect(nomAccord(page)).toHaveText(((await caseN(page, partie, n).locator('.cell-sym').textContent()) || '').trim());
 }
 

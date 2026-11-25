@@ -94,8 +94,7 @@ test.describe('Sélection — ordinateur @grille @ordinateur', () => {
 
   // Défaut observé sous Firefox seulement (voir bugs.md) : le clic sur une case d'une AUTRE partie que la partie active ne fait que changer
   // la partie active ; il faut cliquer une seconde fois pour sélectionner la case. Chromium, Edge, WebKit et iPad : sélection du premier coup.
-  test('un clic sur une case d\'une autre partie la sélectionne du premier coup', async ({ ouvrirAppli, browserName }) => {
-    test.fail(browserName === 'firefox', 'G-01 (bugs.md) : bug connu, le test doit repasser au vert quand il sera corrigé');
+  test('un clic sur une case d\'une autre partie la sélectionne du premier coup', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ reglages: reglagesMorceau([
       { titre: 'Couplet', accords: C_AM_F_G }, { titre: 'Refrain', accords: [{ root: 'D', quality: 'min' }, { root: 'E', quality: 'min' }] },
     ]) });

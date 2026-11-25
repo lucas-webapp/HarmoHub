@@ -104,8 +104,7 @@ test.describe('Fenêtre « Conduite des voix » @voicing @ordinateur', () => {
     await expect(bouton(page)).toHaveAttribute('aria-expanded', 'true');
   });
 
-  test('la fenêtre ouverte se ferme quand on clique sur une case de la grille ; la case est alors sélectionnée', async ({ ouvrirAppli, browserName }) => {
-    test.fail(browserName === 'firefox', 'G-01 (bugs.md) : bug connu, le test doit repasser au vert quand il sera corrigé');   // le premier clic sur une autre partie ne sélectionne pas la case
+  test('la fenêtre ouverte se ferme quand on clique sur une case de la grille ; la case est alors sélectionnée', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ reglages: morceauQuatreParties() });
     await ouvrirVoicing(page);
     await caseN(page, 3, 0).click();     // « Long » : ses premières cases restent visibles sous la fenêtre
@@ -145,7 +144,7 @@ test.describe('Fenêtre « Conduite des voix » @voicing @ordinateur', () => {
 
   test('supprimer un accord redessine la fenêtre restée ouverte ; Ctrl+Z le rend @critique', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ reglages: morceauQuatreParties() });
-    await activerPartie(page, 1, 1);                              // Refrain, 2e accord (2 clics sous Firefox : G-01, voir l'aide)
+    await activerPartie(page, 1, 1);                           
     await page.keyboard.press('Delete');
     await expect(caseN(page, 1, 2)).toHaveCount(0);               // il ne reste que deux accords
     await ouvrirVoicing(page);

@@ -803,6 +803,9 @@
                 montres.forEach((c) => {
                     const d = accords[c];
                     const e = etats[c], v = voixLigne(e, L), col = colDebut[c];
+                    // ES-20 (essai neutre du 20/11) : le nom accessible d'une case dit AUSSI l'accord (« Am, E4, croche 1 »), sinon les quatre accords d'une partie portent
+                    // exactement le même nom de case pour un lecteur d'écran.
+                    const nomAcc = e.info.chord.getLabel(flats(d)).replace(/<[^>]*>/g, '');
                     for (let k = 0; k < e.info.croches; k++) {
                         const cls = ['sq-case'];
                         if (k % 2 === 0) cls.push('temps');
@@ -817,12 +820,12 @@
                         if (v == null) {
                             // Une note libre (ou une hauteur) que cet accord ne porte pas encore : case normale et cliquable (« c'est bizarre », les cases
                             // grisées) — y poser une croche ajoute la note à l'accord.
-                            html.push(`<div class="${cls.join(' ')}" role="gridcell" aria-label="${escapeHtml(`${nomSel}, croche ${k + 1} : vide`)}" data-c="${c}" data-k="${k}" data-r="${ri}" style="grid-row:${row};grid-column:${col + k}"></div>`);
+                            html.push(`<div class="${cls.join(' ')}" role="gridcell" aria-label="${escapeHtml(`${nomAcc}, ${nomSel}, croche ${k + 1} : vide`)}" data-c="${c}" data-k="${k}" data-r="${ri}" style="grid-row:${row};grid-column:${col + k}"></div>`);
                             continue;
                         }
                         const x = e.info.voix[v];
                         const allume = e.on.has(cle(v, k));
-                        let note = '', label = `${nomNote(e, v, d)}, croche ${k + 1}`;
+                        let note = '', label = `${nomAcc}, ${nomNote(e, v, d)}, croche ${k + 1}`;
                         if (allume) {
                             const g = e.soude.has(cle(v, k)), dr = e.soude.has(cle(v, k + 1)) && e.on.has(cle(v, k + 1));
                             const niv = niveauDe(e, v, k);
@@ -1025,6 +1028,8 @@
                 b.classList.toggle('retouche', !!m.retouche);
                 const nom = b.querySelector(':scope > span:not(.sq-vignette)');
                 if (nom && id !== 'main' && nom.textContent !== m.nom) nom.textContent = m.nom;   // « + » porte son propre balisage (« À la main » au téléphone, « + » à l'ordinateur)
+                // ES-20 : le nom accessible d'un rythme est son NOM, stable ; l'infobulle (qui change quand on retouche le schéma) ne le remplace plus.
+                if (id !== 'main') b.setAttribute('aria-label', m.nom);
                 if (id !== 'main') b.title = `${m.nom} — clic droit : modifier ce schéma${m.retouche ? ' (retouché)' : ''}`;
                 const vg = b.querySelector('.sq-vignette');
                 if (vg) {

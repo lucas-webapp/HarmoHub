@@ -219,8 +219,7 @@ test.describe('Doigtés de la guitare @diagrammes @ordinateur', () => {
     await expect(suivant(page)).toBeDisabled();
   });
 
-  test('D-04 : juste après Annuler / Rétablir, le bouton cadenas montre déjà le bon état', async ({ ouvrirAppli, browserName }) => {
-    test.fixme(browserName === 'webkit', 'D-04 (bugs.md) : intermittent sous WebKit (Safari, iPad) quand la machine est chargée, le cadenas reste dans l\'ancien état plusieurs secondes après Annuler / Rétablir');
+  test('D-04 : juste après Annuler / Rétablir, le bouton cadenas montre déjà le bon état', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ reglages: morceauDeux() });
     await boutonGuitare(page).click();
     await selectionner(page, 0, 1);

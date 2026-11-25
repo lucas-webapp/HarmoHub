@@ -108,8 +108,7 @@ test.describe('Un très long morceau (640 accords, 40 parties) @robustesse', () 
     expect(erreurs).toEqual([]);
   });
 
-  test('le séquenceur et le tiroir clavier restent utilisables sur un accord du milieu du morceau @ordinateur', async ({ ouvrirAppli, browserName }) => {
-    test.fail(browserName === 'firefox', 'G-01 (bugs.md) : sous Firefox, le premier clic sur une case d\'une autre partie ne la sélectionne pas');
+  test('le séquenceur et le tiroir clavier restent utilisables sur un accord du milieu du morceau @ordinateur', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ reglages: morceauLong(PARTIES, PAR_PARTIE) });
     const erreurs = collecterErreurs(page);
     await expect(cases(page)).toHaveCount(TOTAL, { timeout: 30_000 });

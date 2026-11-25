@@ -875,6 +875,7 @@ function buildSectionMeta(sec) {
             sec._repeatCount = clamp((sec._repeatCount || 1) + delta, 1, 99);
             refreshRepeatUI();
             saveSession();
+            signalerRepetitions(sec);
         };
         minusBtn.addEventListener('click', () => changeRepeat(-1));
         plusBtn.addEventListener('click', () => changeRepeat(1));
@@ -962,12 +963,22 @@ function resetUndoHistory() {
     updateUndoRedoUI();
 }
 
+// P-08 : « le morceau fait foi » pour les répétitions (voir chargerMorceau) : quand on les change ICI, la partie du morceau (côté HarmoHub) doit le savoir, sinon
+// elle réimpose sa propre valeur (1) au rechargement de cette page. HarmoHub range le nombre dans la partie SANS recharger ce cadre (l'historique d'annulation reste).
+// Page ouverte seule : pas de parent, rien à faire.
+function signalerRepetitions(sec) {
+    if (!sec || !sec.sid || !document.documentElement.classList.contains('integre')) return;
+    try { window.parent.postMessage({ type: 'harmohub:paroles-repetitions', sid: sec.sid, repeatCount: sec._repeatCount || 1 }, location.origin); }
+    catch (e) { /* page ouverte seule : pas de parent à prévenir */ }
+}
+
 function restoreSnapshot(snap) {
     state.song.sections.forEach((sec, si) => {
         const s = snap[si] || { lyricsHtml: '', placements: [], repeatCount: 1 };
         sec._lyricsHtml = s.lyricsHtml;
         sec._placements = s.placements;
         sec._repeatCount = s.repeatCount || 1;
+        signalerRepetitions(sec);
         state.sectionEls[si].text.innerHTML = sec._lyricsHtml;
         // Le texte vient d'être remplacé d'un bloc : la référence de recalage doit suivre, sinon la
         // PROCHAINE frappe se comparerait au texte d'avant l'annulation et décalerait tout (voir

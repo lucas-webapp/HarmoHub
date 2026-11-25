@@ -2,7 +2,7 @@
 // Le séquenceur est une grille « notes × croches » : une colonne par accord de la ligne affichée, huit croches par colonne (une mesure à 4 temps),
 // une ligne par note de l'accord (vue « Accord ») ou une ligne par hauteur (vue « Piano »). Le son est factice dans la VM : on vérifie l'ÉTAT.
 //
-// CASES : ce sont des `gridcell` nommés « E4, croche 3 : vide » (états : vide, normal, fort, doux). Dans une vue Accord, plusieurs colonnes
+// CASES : ce sont des `gridcell` nommés « Am, E4, croche 3 : vide » (états : vide, normal, fort, doux). Dans une vue Accord, plusieurs colonnes
 // portent la même note (C4 sous deux accords) : on cible donc la case par ses attributs `data-c` (colonne = accord), `data-v` (voix, 0 = grave)
 // et `data-k` (croche, de 0 à 7). Ces trois attributs sont stables mais ne sont pas des `data-testid` : à proposer (voir le rapport).
 // Sur ordinateur, la grille montre tous les accords de la ligne ; au téléphone, la feuille d'accord n'en montre qu'un (mais `data-c` reste le rang de l'accord).
@@ -70,7 +70,7 @@ export const cellule = (page: Page, c: number, v: number, k: number): Locator =>
   grille(page).locator(`.sq-case[data-c="${c}"][data-v="${v}"][data-k="${k}"]`);
 // Vue Piano : la case se trouve par le nom de la note (« A3 ») et la croche (1 à 8) ; la colonne `c` désigne l'accord.
 export const celluleNote = (page: Page, c: number, note: string, croche: number): Locator =>
-  grille(page).locator(`.sq-case[data-c="${c}"][aria-label^="${note}, croche ${croche} :"]`);
+  grille(page).locator(`.sq-case[data-c="${c}"][aria-label*=", ${note}, croche ${croche} :"]`);
 
 export type Niveau = 'vide' | 'normal' | 'fort' | 'doux';
 export async function niveau(cellule: Locator): Promise<Niveau> {
@@ -86,7 +86,8 @@ export async function notesAllumees(page: Page, c: number): Promise<string[]> {
   return grille(page).locator(`.sq-case.on[data-c="${c}"]`).evaluateAll(cases =>
     cases.map(e => {
       const el = e as HTMLElement;
-      const m = (el.getAttribute('aria-label') ?? '').match(/^(.*), croche (\d+) : (.*)$/)!;
+      // « Am, E4, croche 3 : normal » (ES-20 : l'accord d'abord) : on garde la note, la croche et le niveau
+      const m = (el.getAttribute('aria-label') ?? '').match(/^(?:.*), ([^,]+), croche (\d+) : (.*)$/)!;
       return `${el.dataset.v ?? m[1]}.${Number(m[2]) - 1}:${m[3]}`;
     }).sort());
 }

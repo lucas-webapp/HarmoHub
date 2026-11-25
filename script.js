@@ -4377,6 +4377,7 @@ class HarmoHubApp {
         this.updateDurationOptions();
         this.applyZoomLevel('classicGrid'); // pose --grid-zoom-scale-v sur .history-section + 1er rendu
         this.refreshPreview();       // affiche l'accord courant + cadre le clavier dès l'ouverture
+        this.montrerAccordAuRepos();   // ES-18 : rien n'est choisi, le panneau du clavier montre le premier accord du morceau (pas le « C » du formulaire)
         this.refreshSongList();      // remplit le sélecteur de morceaux enregistrés
         this.updateGlobalUndoRedoButtons();
         this.updateGlobalUndoRedoButtons();
@@ -5146,7 +5147,12 @@ class HarmoHubApp {
             // le fond vide de la grille (au-delà de la dernière rangée, entre les cases) comptait comme
             // « dans la grille » et ne désélectionnait/ne sortait jamais de l'édition — retour
             // utilisateur, voir ZONE_EDITION_SELECTEURS plus haut, même correctif.
-            const inGrid = inPath('.grid-cell, .cell-add, .section-head');
+            // G-01 (Firefox) : le premier clic sur une case d'une AUTRE partie active cette partie dès l'appui, ce qui redessine la grille ; le `click`
+            // part alors sur un élément qui n'est plus une case (le chemin ne contient plus `.grid-cell`) et ce gestionnaire désélectionnait aussitôt la
+            // case que le relâché venait de choisir. Un clic qui suit de près un appui sur la grille, et dont le POINT tombe sur une case, en fait partie.
+            const surCaseApresGeste = !!this._appuiGrilleA && performance.now() - this._appuiGrilleA < 1500
+                && (e.clientX || e.clientY) && !!(document.elementFromPoint(e.clientX, e.clientY) || document.body).closest('.grid-cell, .cell-add, .section-head');
+            const inGrid = inPath('.grid-cell, .cell-add, .section-head') || surCaseApresGeste;
             // Lot 7b : la barre de sélection agit SUR la sélection — un clic dedans ne la perd pas (l'accord d'ancrage sert au Maj+clic et au collage).
             const inMenu = inPath('#context-menu, #barre-selection, #vues-tiroir, #bl-vues, #vue-sequenceur, #sequenceur, #bl-plus, #panneau-lecture, #tel-sequenceur'); // L7a : le bouton Séquenceur de la rangée du haut ouvre l'accord CHOISI, il ne doit pas le désélectionner // L5b : #vue-sequenceur a quitté #bl-vues // le tiroir et ses boutons (lot 8) agissent SUR l'accord sélectionné
             // Retrait de l'ancien séquenceur (4c) : au téléphone, « Séquenceur » du panneau Lecture (⋯) est LA porte du séquenceur et ouvre « l'accord choisi »
@@ -6881,6 +6887,10 @@ class HarmoHubApp {
         this._playGen++;
         Tone.Transport.stop();
         Tone.Transport.cancel();
+        // L-05 / L-06 : les surbrillances de la lecture passent par Tone.Draw, qui a sa PROPRE file d'attente : Transport.cancel() ne la vide pas. Un rappel
+        // déjà programmé (la case suivante, ou la fin de la progression qui remet isPlaying à faux) s'exécutait donc APRÈS le Stop : case restée allumée,
+        // ou, pire, prise pour la lecture suivante dont il éteignait l'état. On vide cette file avant de remettre l'affichage à zéro.
+        try { Tone.Draw.cancel(0); } catch (e) { /* version de Tone sans file d'affichage : rien à vider */ }
         Tone.Transport.loop = false;
         this.instrumentCache.forEach(inst => inst.releaseAll());
         this.clearViz();
@@ -7228,6 +7238,10 @@ class HarmoHubApp {
     // Dans les deux cas, this.bouclerLecture décide si l'on repart au début à la fin (voir la fin de
     // la fonction) ou si la lecture s'arrête d'elle-même.
     async playProgression() {
+        // L-04 : l'accord choisi se lit AVANT d'attendre l'audio. `Tone.start()` met un tour d'horloge de plus quand le contexte audio dort encore
+        // (Firefox, WebKit, et le tout premier clic d'un vrai utilisateur) ; le clic sur « Lecture » remonte pendant ce temps jusqu'au gestionnaire
+        // « clic à côté », qui désélectionne : la lecture repartait alors du début du morceau au lieu de la case choisie.
+        const departChoisi = this.selectedIndex != null ? { section: this.activeSection, index: this.selectedIndex } : null;
         await Tone.start();
         this.stopAll();
         const myGen = this._playGen;
@@ -7263,8 +7277,8 @@ class HarmoHubApp {
         // Démarre depuis l'accord en surbrillance si présent, sinon depuis le tout début — non
         // pertinent en mode boucle : chaque tour rejoue la partie (ou la plage) depuis son tout début.
         let startPos = 0;
-        if (!loop && this.selectedIndex != null) {
-            const pos = flat.findIndex(c => c.section === this.activeSection && c.index === this.selectedIndex);
+        if (!loop && departChoisi) {
+            const pos = flat.findIndex(c => c.section === departChoisi.section && c.index === departChoisi.index);
             if (pos >= 0) startPos = pos;
         }
 
@@ -11500,6 +11514,21 @@ class HarmoHubApp {
         if (bl && window.ResizeObserver) new ResizeObserver(poserHauteur).observe(bl);
         poserHauteur();
         // Le cadre Paroles dit s'il y a quelque chose à annuler chez lui : annuler / rétablir de la barre du haut agissent sur lui quand sa vue est ouverte.
+        // P-08 : le ×N saisi dans Paroles est rangé dans la PARTIE du morceau (c'est elle qui fait foi au rechargement). Sans structure arrangée seulement : avec une
+        // structure faite à la main, le total vient de ses occurrences. Le cadre n'est PAS rechargé (son historique d'annulation survit) : on note simplement que ce
+        // qu'il montre est déjà à jour.
+        window.addEventListener('message', (e) => {
+            if (e.origin !== location.origin || !e.data || e.data.type !== 'harmohub:paroles-repetitions') return;
+            if (loadStructureBrute()) return;
+            const n = Math.min(99, Math.max(1, Math.round(Number(e.data.repeatCount) || 1)));
+            const sections = loadProgressionSections();
+            const sec = sections.find(x => x.sid && x.sid === e.data.sid);
+            if (!sec || repeatCountOf(sec) === n) return;
+            sec.repeatCount = n;
+            saveProgressionSections(sections);
+            this._parolesCharge = JSON.stringify(this.donneesParoles());
+            this.loadProgression();
+        });
         window.addEventListener('message', (e) => {
             if (e.origin !== location.origin || !e.data || e.data.type !== 'harmohub:paroles-annuler') return;
             this._parolesAnnulable = { annuler: !!e.data.peutAnnuler, retablir: !!e.data.peutRetablir };
@@ -12441,6 +12470,7 @@ class HarmoHubApp {
         this.applyZoomLevel('classicGrid'); // reflète l'échelle verticale DE CE MORCEAU + 1er rendu
         this.restaurerVuesMorceau(id); // le tiroir Clavier / Guitare tel qu'on l'avait laissé dans CE morceau (voir memoriserVuesMorceau)
         this.refreshPreview();
+        this.montrerAccordAuRepos();
         // Le séquenceur est une vue du panneau Accord, et rien ne le redessine tout seul : les
         // <select> viennent d'être remis à neuf en JS (voir resetChordPanel), ce qui ne déclenche
         // aucun `change`, et refreshPreview ne s'occupe que du piano et de la guitare. Sans cette
@@ -16980,6 +17010,7 @@ class HarmoHubApp {
         if (e.target.closest('.cell-sym-input')) return;
         const section = +gridEl.dataset.section;
         const cell = e.target.closest('.grid-cell');
+        this._appuiGrilleA = performance.now(); // lu par le clic « à côté » (G-01)
 
         if (cell) {
             const rect = cell.getBoundingClientRect();
@@ -19913,6 +19944,32 @@ class HarmoHubApp {
 
     // `essai` : un accord à jouer À LA PLACE de celui enregistré, sans rien écrire — le ▶ du séquenceur qui fait entendre un schéma retouché sur
     // l'accord choisi (sequenceur.js, ecouterSchema). La place (section, index) reste celle de l'accord, pour la tête de lecture et le clavier.
+    // ES-18 (essai neutre du 20/11) : au chargement, le panneau du clavier affichait « C · C E G » (le formulaire d'accord par défaut) alors que le morceau
+    // commence par Am. Quand rien n'est choisi, il montre donc le premier accord de la partie active, en silence et sans rien sélectionner.
+    // Une sélection existante, ou un morceau vide, ne change rien.
+    montrerAccordAuRepos() {
+        if (this.selectedIndex != null) return;
+        const sections = loadProgressionSections();
+        this.afficherApercuSilencieux(Math.min(this.activeSection || 0, sections.length - 1), 0);
+    }
+
+    // Montre l'accord (section, index) dans le tiroir (nom, notes, clavier, manche, cadenas) d'après les DONNÉES du morceau, sans son et sans rien sélectionner.
+    // D-04 : après Annuler / Rétablir la sélection est vidée et plus rien ne rafraîchissait le tiroir ; le cadenas gardait l'état d'avant (selon le moteur et la charge).
+    afficherApercuSilencieux(section, index) {
+        const sections = loadProgressionSections();
+        const data = sections[section] && sections[section].chords[index];
+        if (!data) return false;
+        const chord = new Chord(data.root, data.quality, beatsFromData(data), data.inversion, data.drop, octaveFromData(data), data.bass, data.guitarLock, data.extraNotes);
+        const midis = chord.getSeqMidiNotes();
+        const useFlats = this.useFlatsForRoot(chord.root);
+        document.getElementById('current-chord-display').innerHTML = `<span class="chord-chip"><span class="chord-title">${flatTight(chord.getLabel(useFlats))}</span><span class="chord-notes">${chordNotesHtml(chord, useFlats)}</span></span>`;
+        this.ensurePianoWindow(midis);
+        this.guitarPreviewPos = { section, index };
+        this.ensureGuitarDiagram(guitarChordFor(chord, data.guitarOverride), false);
+        this.updateViz(midis, chord.getRoleMap());
+        return true;
+    }
+
     async playSavedChord(section, index, play = true, essai = null) {
         await Tone.start();
         this.stopAll();
@@ -20227,6 +20284,10 @@ class HarmoHubApp {
                     this._editSessionUndoPushed = false;
                 }
             }
+        } else {
+            // Rien n'est choisi après un retour d'historique : le tiroir montre l'accord qu'il montrait (relu dans les données restaurées), ou le premier du morceau.
+            const pos = this.guitarPreviewPos;
+            if (!pos || !this.afficherApercuSilencieux(pos.section, pos.index)) this.montrerAccordAuRepos();
         }
         this.updateGlobalUndoRedoButtons();
     }

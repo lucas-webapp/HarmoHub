@@ -84,8 +84,7 @@ test.describe('Copier / coller — ordinateur @grille @ordinateur', () => {
     expect(await noms(page)).toEqual(['C', 'F', 'Am', 'F', 'G']);
   });
 
-  test('on peut coller dans une autre partie sans toucher à la première', async ({ ouvrirAppli, browserName }) => {
-    test.fail(browserName === 'firefox', 'G-01 (bugs.md) : bug connu, le test doit repasser au vert quand il sera corrigé');
+  test('on peut coller dans une autre partie sans toucher à la première', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli({ reglages: reglagesMorceau([
       { titre: 'Couplet', accords: C_AM_F_G }, { titre: 'Refrain', accords: [{ root: 'D', quality: 'min' }, { root: 'E', quality: 'min' }] },
     ]) });
