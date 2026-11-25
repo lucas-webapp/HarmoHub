@@ -865,6 +865,7 @@ function marquerModifie() {
     const etaitModifie = hasUnsavedChanges;
     hasUnsavedChanges = true;
     if (!etaitModifie) { try { localStorage.setItem(CLE_TAMPON_MODIFIE, getCurrentSongId() || ''); } catch (e) { /* stockage plein : sans gravité */ } }
+    try { if (window.app && window.app.avertirDoubleOnglet) window.app.avertirDoubleOnglet('modif'); } catch (e) { /* l'avertissement n'est jamais bloquant */ }
     compteurModifs++; // lu par les versions automatiques : « y a-t-il du NEUF depuis la dernière version ? » (voir verifierVersionAuto)
     if (debutTravail === null) debutTravail = Date.now();
     // Le voyant d'Enregistrer (barre du haut) ne bouge qu'au PASSAGE enregistré → modifié : marquerModifie est appelé à chaque cran
@@ -4374,6 +4375,7 @@ class HarmoHubApp {
         });
         this.restoreCurrentSongSettingsIfAny();
         this.setupSuiviAutreOnglet();
+        this.setupPresenceOnglets();
         this.updateKeyLabels();
         this.updateDurationOptions();
         this.applyZoomLevel('classicGrid'); // pose --grid-zoom-scale-v sur .history-section + 1er rendu
@@ -12450,6 +12452,49 @@ class HarmoHubApp {
     // « dans Alpha » atterrissait dans Charlie). On ne sépare pas les onglets (ils se complètent : l'un enregistre un ajout, l'autre ajoute le sien) : on les fait SUIVRE.
     // L'évènement `storage` ne part que vers les AUTRES onglets, jamais vers celui qui écrit : pas de boucle. L'onglet qui suit n'écrit RIEN (il relit la copie de travail et
     // redessine ; recharger le morceau depuis la bibliothèque écraserait le travail non enregistré de l'autre onglet), et il le dit.
+    // Z-07, deuxième moitié : PRÉVENIR. Le suivi ci-dessous évite l'erreur silencieuse, mais deux onglets ouverts sur le même travail restent une source d'erreurs (chacun voit
+    // ce que l'autre vient d'écrire, pas ce qu'il est en train de taper). Les onglets d'un même navigateur se repèrent par un canal de diffusion : chacun dit « je suis là » à
+    // l'ouverture puis toutes les 8 s, et « je pars » en quittant ; un onglet muet depuis 25 s (planté) n'est plus compté. Quand un autre onglet est là, on le DIT (message
+    // passager, jamais bloquant : les onglets se complètent volontairement, un test le fige) : à l'arrivée du second onglet, puis à la première modification (au plus toutes les 2 min).
+    setupPresenceOnglets() {
+        this._autresOnglets = new Map();
+        this._avertiA = {};
+        if (typeof BroadcastChannel === 'undefined') return;
+        this._ongletId = Math.random().toString(36).slice(2);
+        let canal;
+        try { canal = new BroadcastChannel('harmohub-onglets'); } catch (e) { return; }
+        const dire = (t) => { try { canal.postMessage({ t, tab: this._ongletId }); } catch (e) { /* canal fermé : sans gravité */ } };
+        canal.onmessage = (e) => {
+            const m = e.data;
+            if (!m || !m.tab || m.tab === this._ongletId) return;
+            if (m.t === 'bye') { this._autresOnglets.delete(m.tab); return; }
+            const nouveau = !this._autresOnglets.has(m.tab);
+            this._autresOnglets.set(m.tab, Date.now());
+            if (m.t === 'hello') dire('ici');   // l'arrivant apprend qui est déjà là
+            if (nouveau) this.avertirDoubleOnglet('arrivee');
+        };
+        dire('hello');
+        setInterval(() => {
+            dire('ici');
+            const limite = Date.now() - 25000;
+            this._autresOnglets.forEach((vu, id) => { if (vu < limite) this._autresOnglets.delete(id); });
+        }, 8000);
+        window.addEventListener('pagehide', () => dire('bye'));
+    }
+
+    avertirDoubleOnglet(raison) {
+        if (!this._autresOnglets || !this._autresOnglets.size) return;
+        const maintenant = Date.now();
+        if (this._avertiA[raison] && maintenant - this._avertiA[raison] < 120000) return;
+        this._avertiA[raison] = maintenant;
+        if (raison === 'arrivee') {
+            this.flashHint('Ce morceau est aussi ouvert dans un autre onglet : les deux onglets se partagent les mêmes modifications. Travaille dans un seul à la fois.', 7000);
+            return;
+        }
+        // Le geste qui vient de modifier affiche SON message (« E ajouté »…) dans la foulée : le rappel passe juste après, sinon il serait écrasé aussitôt.
+        setTimeout(() => this.flashHint('Attention : l\'autre onglet ouvert recevra aussi cette modification.', 4500), 1800);
+    }
+
     setupSuiviAutreOnglet() {
         this._morceauAffiche = getCurrentSongId();
         let attente = null;

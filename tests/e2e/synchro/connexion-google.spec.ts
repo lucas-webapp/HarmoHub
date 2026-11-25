@@ -61,6 +61,7 @@ test.describe('Fenêtre d\'accueil du compte @synchro', () => {
     await expect(accueil.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
     await expect(accueil.getByRole('button', { name: 'Continuer sans compte' })).toBeVisible();
     await expect(accueil.getByRole('checkbox', { name: 'Ne plus me le proposer sur cet appareil' })).not.toBeChecked();
+    await expect(accueil).toContainText('ne reviendra pas avant une semaine');   // ES-17 : la fenêtre dit combien de temps dure le refus
   });
 
   test('« Continuer sans compte » ferme la fenêtre : l\'appli reste en mode local, avec le bouton « Se connecter » dans la barre @critique', async ({ ouvrirAppli }) => {

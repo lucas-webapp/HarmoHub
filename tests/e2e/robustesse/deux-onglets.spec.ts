@@ -100,6 +100,29 @@ test.describe('Deux onglets, un appareil @robustesse', () => {
     expect((await morceauxStockes(B)).find((m) => m.name === 'Alpha')!.accords).toEqual(['C', 'Amin', 'F', 'G']);
   });
 
+  // Z-07, deuxième moitié (25/11) : « je veux éviter les erreurs à ce niveau-là ». Deux onglets ouverts sur le même travail se préviennent : à l'arrivée du second (dans les DEUX),
+  // puis à la première modification. Pas de blocage : les onglets se complètent volontairement (un autre test le fige).
+  test('Z-07 : un second onglet ouvert prévient les deux onglets que le morceau est ouvert à deux endroits @critique', async ({ ouvrirAppli, context }) => {
+    const A = await ouvrirAppli({ reglages: DEUX });
+    await expect(toast(A)).toHaveCount(0);   // seul : aucun avertissement
+    const B = await ouvrirOnglet(context);
+    await expect(toast(B)).toContainText('aussi ouvert dans un autre onglet', { timeout: 10_000 });
+    await expect(toast(A)).toContainText('aussi ouvert dans un autre onglet', { timeout: 10_000 });
+  });
+
+  test('Z-07 : modifier pendant que l\'autre onglet est ouvert le rappelle ; fermé, plus d\'avertissement', async ({ ouvrirAppli, context }) => {
+    const A = await ouvrirAppli({ reglages: DEUX });
+    const B = await ouvrirOnglet(context);
+    await expect(toast(A)).toContainText('aussi ouvert dans un autre onglet', { timeout: 10_000 });
+    await devant(A);
+    await ajouterAccords(A, ['E']);
+    await expect(toast(A)).toContainText('l\'autre onglet ouvert recevra aussi cette modification');
+    await B.close();
+    // l'onglet fermé a prévenu qu'il part : une nouvelle modification, deux minutes après, ne rappellera rien (ici : tout de suite, le délai n'est pas écoulé, on vérifie l'absence de rappel d'arrivée)
+    await A.waitForTimeout(500);
+    expect(await A.evaluate(() => (window as any).app._autresOnglets.size)).toBe(0);
+  });
+
   test('Z-07 : Ctrl+Z de l\'onglet qui suit ne remet pas l\'ancien morceau dans la copie de travail', async ({ ouvrirAppli, context }) => {
     const A = await ouvrirAppli({ reglages: DEUX });
     const B = await ouvrirOnglet(context);

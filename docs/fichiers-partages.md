@@ -10,7 +10,7 @@ change d'une appli à l'autre passe par les options (`monterCompteCloud`) ou par
 
 | Fichier | Version | Empreinte SHA-256 | Utilisé par |
 |---|---|---|---|
-| `compte-cloud.js` | 2 | `200f9c7e5f73a78f622b681a6f78f852ed0eb89e31512a9d3d353151eb9b0c5d` | HarmoHub, TabHub, TrainHub |
+| `compte-cloud.js` | 2 | `bf34a986880b7375481e96afbe98200841bf2b41eb88c3c26a08f2e6456b676d` | HarmoHub, TabHub, TrainHub |
 | `synchro-cloud.js` | 3 | `79af5b41ee0977871fac38efd9df9a1ae86fb66ce0e7816cacd0a6e03bf3169a` | HarmoHub, TabHub (TrainHub a son propre moteur) |
 
 Le banc `tests/compte_cloud_test.js` refuse un fichier dont l'empreinte ne correspond plus à ce tableau :
@@ -78,6 +78,6 @@ fenêtre du compte cloud — c'est là, jamais dans `compte-cloud.js`, que ces t
 
 ## Historique des versions
 
-- **`compte-cloud.js` 2 (25/11/2026)** : la fenêtre de connexion n'est plus reproposée pendant sept jours après un refus (« Continuer sans compte », Échap, clic à côté), dans tous les onglets de l'appareil (ES-17) ; le menu du compte dit que les morceaux restent sur l'appareil à la déconnexion (Y-02). **À recopier dans TabHub et TrainHub.**
+- **`compte-cloud.js` 2 (25/11/2026)** : la fenêtre de connexion n'est plus reproposée pendant sept jours après un refus (« Continuer sans compte », Échap, clic à côté), dans tous les onglets de l'appareil, et la fenêtre le dit (« cette fenêtre ne reviendra pas avant une semaine », ES-17) ; le menu du compte dit que les morceaux restent sur l'appareil à la déconnexion (Y-02). **À recopier dans TabHub et TrainHub.**
 - **`synchro-cloud.js` 3 (25/11/2026)** : la pastille repasse à « Synchronisé » au retour du réseau même sans rien à envoyer (Y-01), et un coup d'œil régulier à `navigator.onLine` rattrape les évènements `offline` / `online` manqués (Y-03). **À recopier dans TabHub** (TrainHub a son propre moteur).
 

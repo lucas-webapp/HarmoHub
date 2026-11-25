@@ -289,13 +289,13 @@ function monterCompteCloud(hote, options) {
         accueil: {
             titre: 'Retrouve ton travail partout',
             texte: 'Connecte-toi avec ton compte Google : tes ' + objets + ' sont enregistrés automatiquement dans le cloud, et tu les retrouves sur tous tes appareils.',
-            aide: 'Sans compte, ils restent seulement dans ce navigateur, et peuvent disparaître si ses données sont effacées.',
+            aide: 'Sans compte, ils restent seulement dans ce navigateur, et peuvent disparaître si ses données sont effacées. Si tu continues sans compte, cette fenêtre ne reviendra pas avant une semaine.',
             continuer: 'Continuer sans compte',
         },
         modification: {
             titre: 'Tu n\'es pas connecté',
             texte: 'Ce que tu fais maintenant ne sera pas enregistré dans le cloud : il restera seulement sur cet appareil, et un autre appareil ne le verra pas.',
-            aide: 'Tu pourras te connecter plus tard avec le bouton « Se connecter », en haut de l\'écran.',
+            aide: 'Tu pourras te connecter plus tard avec le bouton « Se connecter », en haut de l\'écran. Cette fenêtre ne reviendra pas avant une semaine.',
             continuer: 'Continuer sans synchroniser',
         },
     };

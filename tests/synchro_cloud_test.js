@@ -21,7 +21,7 @@ const { check, exiger, plan, bilan } = require('./_harness')('synchro cloud');
 const estBruitReseau = require('./_harness').estBruitReseau;
 const { creerNuage, installer } = require('./_firebase_faux');
 
-plan(126);
+plan(127);
 
 const CHEMIN = 'users/u1/apps/harmohub';
 const pause = (p, ms) => p.waitForTimeout(ms);
@@ -527,8 +527,12 @@ const pause = (p, ms) => p.waitForTimeout(ms);
     await GF.p.reload({ waitUntil: 'load' }); await pause(GF.p, 900);
     check(await GF.p.isHidden('#cloud-guard-modal'), 'ni au rechargement de la page dans le même onglet');
     check((await GF.p.evaluate(() => loadProgressionSections()))[0].title === 'B', 'le travail n\'a jamais été bloqué');
+    // ES-17 (25/11) : un refus dure sept jours, dans TOUS les onglets de l'appareil — avant, la fenêtre revenait à chaque nouvel onglet (« à chaque chargement »).
+    const GFa = await nouvelOnglet(GF);
+    check(await GFa.p.isHidden('#cloud-guard-modal'), 'un NOUVEL onglet ne la repropose PAS pendant sept jours : le refus est retenu');
+    await GFa.p.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.endsWith('.reporteJusqua')) localStorage.setItem(k, String(Date.now() - 1000)); });
     const GFb = await nouvelOnglet(GF);
-    check(await GFb.p.isVisible('#cloud-guard-modal'), 'un NOUVEL onglet (nouvelle ouverture de l\'appli) la propose de nouveau');
+    check(await GFb.p.isVisible('#cloud-guard-modal'), 'passé ce délai (date retenue reculée), un nouvel onglet la propose de nouveau');
     // Fermer sans choisir = continuer (jamais bloquer).
     await GFb.p.click('#cloud-guard-modal', { position: { x: 4, y: 4 } });
     check(await GFb.p.isHidden('#cloud-guard-modal'), 'cliquer à côté referme aussi : on ne bloque jamais le travail');
