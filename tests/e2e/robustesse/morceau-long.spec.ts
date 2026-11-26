@@ -76,7 +76,7 @@ test.describe('Un très long morceau (640 accords, 40 parties) @robustesse', () 
     await page.getByRole('button', { name: 'Voir la structure du morceau' }).click();
     const fenetre = page.getByRole('dialog').first();
     await expect(fenetre).toContainText('640 mesures');
-    await expect(fenetre).toContainText('40 partie(s)');
+    await expect(fenetre).toContainText('40 passage(s)');
     await expect(fenetre).toContainText('21 min 20 s à 120 BPM');   // 640 mesures de 4 temps à 120 BPM = 1 280 s
     expect(erreurs).toEqual([]);
   });
@@ -220,6 +220,7 @@ test.describe('Une grosse bibliothèque (150 morceaux) @robustesse', () => {
 
 test.describe('Un historique d\'annulation profond @robustesse @ordinateur', () => {
   test('30 modifications, 30 « Annuler » : on retrouve le morceau de départ, puis 30 « Rétablir » : on retrouve la fin', async ({ ouvrirAppli }) => {
+    test.slow();                                                       // 90 clics sur Annuler / Rétablir : WebKit et la tablette approchaient les 45 s sous charge (7 projets en parallèle)
     const page = await ouvrirAppli({ accords: accordsVaries(2) });
     const erreurs = collecterErreurs(page);
     const depart = await noms(page);

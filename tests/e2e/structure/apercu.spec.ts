@@ -214,14 +214,14 @@ test.describe('Mise en page @structure', () => {
     await expect(feuille(page).locator('.sf-row')).toHaveCount(12);
   });
 
-  test('si même réduite à 60 % la structure ne tient pas, l\'aperçu le dit et passe sur plusieurs pages', async ({ ouvrirAppli }) => {
+  test('si même réduite à 60 % la structure ne tient pas, l\'aperçu la coupe en pages à taille normale au lieu de la réduire pour rien (SN-17)', async ({ ouvrirAppli }) => {
     const page = await ouvrirAppli(morceauTroisParties());
     await ouvrirStructure(page);
     for (let i = 0; i < 24; i++) await ajouterPartie(page, [/^Couplet/, /^Refrain/, /^Pont/][i % 3]);
     await expect(fenetre(page).locator('.struct-row')).toHaveCount(27);
     await ouvrirApercu(page);
-    await expect(etatApercu(page)).toHaveText(/^2 pages : même réduite à 60 %, la structure ne tient pas sur une seule$/);
-    await expect(pagesApercu(page)).toHaveCount(2);
+    await expect(etatApercu(page)).toHaveText(/^\d+ pages : trop longue pour une seule, elle est coupée en gardant la taille 100 %$/);
+    expect(await pagesApercu(page).count()).toBeGreaterThanOrEqual(3);          // à 100 % : plus de pages qu'à 60 %, mais lisibles
     await expect(pagesApercu(page).first().locator('.sf-row')).toHaveCount(27);   // chaque page montre une fenêtre sur la même feuille complète
   });
 
@@ -293,10 +293,11 @@ test.describe('Sorties de l\'aperçu @structure', () => {
     await ouvrirStructure(page);
     for (let i = 0; i < 24; i++) await ajouterPartie(page, [/^Couplet/, /^Refrain/, /^Pont/][i % 3]);
     await ouvrirApercu(page);
-    await expect(pagesApercu(page)).toHaveCount(2);
+    const nb = await pagesApercu(page).count();
+    expect(nb).toBeGreaterThanOrEqual(3);                              // coupée à 100 % (SN-17), plus de pages qu'à 60 %
     const t = await telecharger(page, () => appuyer(page, apercu(page).getByRole('button', { name: 'Enregistrer en PDF' })));
     expect(estUnPdf(t.contenu)).toBe(true);
-    expect(t.contenu.toString('latin1').match(/\/Type\s*\/Page\b(?!s)/g)?.length).toBe(2);
+    expect(t.contenu.toString('latin1').match(/\/Type\s*\/Page\b(?!s)/g)?.length).toBe(nb);
   });
 
   test('« Imprimer » lance l\'impression du navigateur', async ({ ouvrirAppli }) => {

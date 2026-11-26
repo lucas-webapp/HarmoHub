@@ -42,6 +42,20 @@ test.describe('Mise en page @structure', () => {
     for (const b of boites) { expect(b.width).toBeGreaterThanOrEqual(24); expect(b.height).toBeGreaterThanOrEqual(24); }
   });
 
+  test('au téléphone, les boutons d\'une ligne font 44 px et restent dans la ligne ; à l\'ordinateur ils gardent leur taille (SN-11)', async ({ ouvrirAppli }) => {
+    const page = await ouvrirAppli(morceauTroisParties());
+    await ouvrirStructure(page);
+    const ligne1 = await boite(lignes(page).nth(1));
+    for (const b of [moins(page, 1), plus(page, 1), monter(page, 1), descendre(page, 1)]) {
+      const r = await boite(b);
+      if (estMobile(page)) { expect(r.width).toBeGreaterThanOrEqual(43.5); expect(r.height).toBeGreaterThanOrEqual(43.5); }
+      else { expect(r.width).toBeLessThan(40); }                                        // l'ordinateur ne bouge pas : 30 px
+      expect(r.x + r.width).toBeLessThanOrEqual(ligne1.x + ligne1.width + 1);
+      expect(r.x).toBeGreaterThanOrEqual(ligne1.x - 1);
+    }
+    expect(await defilementHorizontal(page)).toBeLessThanOrEqual(0);
+  });
+
   test('une structure longue : on défile dans la fenêtre jusqu\'à « + Partie… », la barre de lecture ne la cache pas', async ({ ouvrirAppli }) => {
     test.setTimeout(90_000);
     const page = await ouvrirAppli(morceauTroisParties());

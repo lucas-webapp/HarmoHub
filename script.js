@@ -12850,7 +12850,7 @@ class HarmoHubApp {
         const hote = document.getElementById('structure-panel');
         if (!hote) return;
         const parties = assurerIdentifiantsParties();
-        const { items } = structureEffective(parties);
+        const { items, materialisee } = structureEffective(parties);
         const beatsPerBar = this.beatsPerBar();
         const bpm = parseInt(document.getElementById('bpm')?.value, 10) || 120;
         const fmt = (n) => { const r = Math.round(n * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1).replace('.', ','); }; // arrondi AVANT le test : 4 + 5,33 + 2,67 valait 12,0000…1 et s'écrivait « 12.0 » (bug R-01)
@@ -12881,6 +12881,7 @@ class HarmoHubApp {
             if (!p) {
                 return `
                 <div class="struct-row struct-orpheline" data-item="${i}">
+                    <span class="struct-poignee" title="Glisser pour déplacer cette partie" aria-hidden="true">⋮⋮</span>
                     <span class="struct-famille struct-famille-0"></span>
                     <div class="struct-main"><div class="struct-head"><span class="struct-title">${escapeHtml(titre)}</span>
                         <span class="struct-measures">${it.nomPartie ? 'supprimée de la grille' : 'cette partie n\'existe plus dans la grille'}</span></div></div>
@@ -12902,6 +12903,7 @@ class HarmoHubApp {
                         </div>`).join('');
             return `
                 <div class="struct-row" data-item="${i}">
+                    <span class="struct-poignee" title="Glisser pour déplacer cette partie" aria-hidden="true">⋮⋮</span>
                     <span class="struct-famille struct-famille-${famille}" title="Parties du même nom (variations comprises)"></span>
                     <div class="struct-main">
                         <div class="struct-head">
@@ -12927,6 +12929,12 @@ class HarmoHubApp {
         const deroule = items.filter(it => { const p = partieDe(it); return p && p.chords.length; })
             .map(it => escapeHtml(titreDe(it)) + (it.rep > 1 ? ` ×${it.rep}` : '')).join(' · ');
 
+        // SN-13 : une fois l'arrangement fait à la main, il ne suit plus la grille (c'était voulu, mais silencieux). Les parties de la grille qui portent des accords et que
+        // la structure ne cite pas sont signalées, avec un bouton qui les ajoute à la fin. Sans arrangement (structure déduite), tout y est : rien à signaler.
+        const absentes = materialisee
+            ? parties.map((p, k) => ({ sid: p.sid, nom: nomPartie(p, k), accords: (p.chords || []).length })).filter(p => p.accords && !items.some(it => it.sid === p.sid))
+            : [];
+
         // Ajouter une OCCURRENCE d'une partie déjà définie : c'est le geste qui remplace « dupliquer la
         // partie dans la grille ». Toutes les parties sont proposées, utilisées ou non.
         const usages = (sid) => items.filter(it => it.sid === sid).length;
@@ -12943,9 +12951,13 @@ class HarmoHubApp {
             <div class="struct-somme">
                 <span><strong>${fmt(totalMesures)}</strong> mesures</span>
                 <span><strong>${duree}</strong> à ${bpm} BPM</span>
-                <span><strong>${items.filter(it => partieDe(it) && partieDe(it).chords.length).length}</strong> partie(s)</span>
+                <span><strong>${items.filter(it => partieDe(it) && partieDe(it).chords.length).length}</strong> passage(s)</span>
             </div>
             ${deroule ? `<div class="struct-deroule"><span class="struct-deroule-label">Déroulé</span> ${deroule}</div>` : ''}
+            ${absentes.length ? `<div class="struct-divergence" role="status">
+                <span>Pas dans la structure : <strong>${absentes.map(a => escapeHtml(a.nom)).join(', ')}</strong></span>
+                <button type="button" class="btn-sec" id="struct-ajouter-absentes" title="Ajouter à la fin de la structure ${absentes.length > 1 ? 'les parties de la grille qui n\'y sont pas' : 'la partie de la grille qui n\'y est pas'}">Ajouter</button>
+            </div>` : ''}
             <div class="struct-liste">${lignes}</div>
             ${parties.some(s => s.chords.length) ? (items.length ? '' : '<p class="struct-vide">La structure est vide — ajoute une partie avec « + Partie… » ci-dessous.</p>') : '<p class="struct-vide">Aucun accord pour l\'instant — la structure apparaîtra ici dès que la grille en contiendra.</p>'}
             ${ajout}`;
@@ -12993,6 +13005,19 @@ class HarmoHubApp {
             }, { passive: true });
             row.addEventListener('touchend', () => { if (minuteur) { clearTimeout(minuteur); minuteur = null; } });
         });
+        const ajoutAbsentes = document.getElementById('struct-ajouter-absentes');
+        if (ajoutAbsentes) ajoutAbsentes.onclick = () => {
+            const ids = absentes.map(a => a.sid);
+            this.modifierStructure((liste) => { ids.forEach(sid => liste.push({ id: nouvelIdStructure('i'), sid, rep: 1, label: '', notes: [] })); });
+        };
+        // SN-14 : glisser une ligne par sa poignée (souris, doigt, stylet) ; ↑ ↓ restent pour le clavier.
+        hote.querySelectorAll('.struct-poignee').forEach(h => {
+            h.onpointerdown = (e) => {
+                if (e.button !== undefined && e.button !== 0) return;
+                e.preventDefault();
+                this.glisserLigneStructure(e, h, +h.closest('.struct-row').dataset.item);
+            };
+        });
         const sel = document.getElementById('struct-ajout-select');
         if (sel) sel.onchange = () => {
             const sid = sel.value;
@@ -13002,6 +13027,51 @@ class HarmoHubApp {
             const derniere = document.querySelector('#structure-panel .struct-row:last-of-type');
             if (derniere && derniere.scrollIntoView) derniere.scrollIntoView({ block: 'nearest' });
         };
+    }
+
+    // GLISSER-DÉPOSER d'une ligne (SN-14, essai neutre du 25/11 : « placer un Couplet en 4e position demande + Partie… puis ↑ ×2, sans voir le résultat
+    // intermédiaire »). On attrape la poignée, un trait montre où la ligne tombera, on lâche : UN geste d'arrangement (donc une seule étape d'annulation).
+    // Échap ou un geste interrompu annule sans rien changer ; la liste défile quand on approche de son bord.
+    glisserLigneStructure(e, poignee, depuis) {
+        const liste = document.querySelector('#structure-panel .struct-liste');
+        const rows = liste ? [...liste.querySelectorAll('.struct-row')] : [];
+        if (!rows[depuis]) return;
+        let defilable = liste;
+        while (defilable && !(defilable.scrollHeight > defilable.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(defilable).overflowY))) defilable = defilable.parentElement;
+        try { poignee.setPointerCapture(e.pointerId); } catch (err) { /* pointeur déjà relâché */ }
+        rows[depuis].classList.add('struct-row-glisse');
+        document.body.classList.add('struct-glisse');
+        let creux = depuis;                                                    // 0..n : « avant la ligne k » (n = tout en bas)
+        const creuxSousLe = (y) => { for (let k = 0; k < rows.length; k++) { const r = rows[k].getBoundingClientRect(); if (y < r.top + r.height / 2) return k; } return rows.length; };
+        const marquer = () => {
+            rows.forEach(r => r.classList.remove('struct-insere-avant', 'struct-insere-fin'));
+            if (creux === depuis || creux === depuis + 1) return;                // retomberait où elle est
+            if (creux < rows.length) rows[creux].classList.add('struct-insere-avant'); else rows[rows.length - 1].classList.add('struct-insere-fin');
+        };
+        const bouger = (ev) => {
+            creux = creuxSousLe(ev.clientY);
+            marquer();
+            if (defilable) { const b = defilable.getBoundingClientRect(); if (ev.clientY < b.top + 36) defilable.scrollTop -= 14; else if (ev.clientY > b.bottom - 36) defilable.scrollTop += 14; }
+        };
+        const finir = (annule) => {
+            poignee.removeEventListener('pointermove', bouger);
+            poignee.removeEventListener('pointerup', relache);
+            poignee.removeEventListener('pointercancel', annuler);
+            document.removeEventListener('keydown', touche, true);
+            try { poignee.releasePointerCapture(e.pointerId); } catch (err) { /* déjà relâché */ }
+            document.body.classList.remove('struct-glisse');
+            rows.forEach(r => r.classList.remove('struct-row-glisse', 'struct-insere-avant', 'struct-insere-fin'));
+            if (annule || creux === depuis || creux === depuis + 1) return;
+            const vers = creux > depuis ? creux - 1 : creux;
+            this.modifierStructure((l) => { if (!l[depuis]) return; const [x] = l.splice(depuis, 1); l.splice(vers, 0, x); });
+        };
+        const relache = () => finir(false);
+        const annuler = () => finir(true);
+        const touche = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finir(true); } };
+        poignee.addEventListener('pointermove', bouger);
+        poignee.addEventListener('pointerup', relache);
+        poignee.addEventListener('pointercancel', annuler);
+        document.addEventListener('keydown', touche, true);
     }
 
     // Applique une modification à la structure : la matérialise si elle n'était que déduite de la grille,
@@ -13308,7 +13378,8 @@ class HarmoHubApp {
         const vus = new Set();
         vivantes.forEach(it => this.chordsByMeasure(partieDe(it), beatsPerBar).forEach(m => m.forEach(c => { if (c !== '%') vus.add(c); })));
         const date = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
-        const nom = this.getCurrentSongName ? (this.getCurrentSongName() || 'Morceau') : 'Morceau';
+        // SN-12 : un morceau pas encore nommé s'appelle « Nouveau morceau » partout à l'écran ; la feuille disait « Sans titre ».
+        const nom = getCurrentSongId() ? (this.getCurrentSongName() || 'Morceau') : 'Nouveau morceau';
         return `
             <div class="sf-entete">
                 <h1>${escapeHtml(nom)}</h1>
@@ -13350,7 +13421,8 @@ class HarmoHubApp {
             // varie pas linéairement (les lignes se recoupent), mais elle décroît quand la taille baisse.
             const tient = (e) => mesurer(e).offsetHeight <= geo.hauteurUtile;
             if (tient(1)) { echelle = 1; tientSurUne = true; }
-            else if (!tient(PLANCHER_ECHELLE_FEUILLE)) { echelle = PLANCHER_ECHELLE_FEUILLE; tientSurUne = false; }
+            // SN-17 : trop long même à 60 % → on ne réduit pas pour rien (« 2 pages à 60 % » : du texte minuscule sur deux pages) ; on garde la taille choisie (100 % par défaut) et on coupe.
+            else if (!tient(PLANCHER_ECHELLE_FEUILLE)) { tientSurUne = false; }
             else {
                 let bas = PLANCHER_ECHELLE_FEUILLE, haut = 1;
                 for (let k = 0; k < 12; k++) { const m = (bas + haut) / 2; if (tient(m)) bas = m; else haut = m; }
@@ -13444,7 +13516,7 @@ class HarmoHubApp {
         document.getElementById('apercu-zoom-val').textContent = `${pct} %`;
         const etat = document.getElementById('apercu-etat');
         etat.textContent = f.nbPages === 1 ? `1 page · taille ${pct} %`
-            : (reg.ajuster && f.tientSurUne === false ? `${f.nbPages} pages : même réduite à ${pct} %, la structure ne tient pas sur une seule` : `${f.nbPages} pages · taille ${pct} %`);
+            : (reg.ajuster && f.tientSurUne === false ? `${f.nbPages} pages : trop longue pour une seule, elle est coupée en gardant la taille ${pct} %` : `${f.nbPages} pages · taille ${pct} %`);
         etat.dataset.pages = String(f.nbPages);
         return f;
     }

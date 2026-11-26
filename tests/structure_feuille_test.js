@@ -206,7 +206,7 @@ plan(61);
     let ap = await lireApercu();
     // 17 cartes avec leurs accords et commentaires ne tiennent PAS sur une page lisible : l'aperçu le dit
     // franchement au lieu de réduire jusqu'à l'illisible (plancher 60 %).
-    check(ap.nb >= 2 && /même réduite à 60 %/.test(ap.etat), `trop long même réduit : l'aperçu coupe en pages et l'annonce — ${ap.etat}`);
+    check(ap.nb >= 2 && /trop longue pour une seule/.test(ap.etat) && /taille 100 %/.test(ap.etat), `trop long même réduit : l'aperçu coupe en pages à taille normale et l'annonce — ${ap.etat}`);
     await A.uncheck('[data-reglage="commentaires"]'); await A.uncheck('[data-reglage="accords"]'); await A.waitForTimeout(400);
     ap = await lireApercu();
     check(ap.nb === 1 && /^1 page · taille \d+ %/.test(ap.etat) && !/100 %/.test(ap.etat), `allégée (sans accords ni commentaires), la structure est RÉDUITE pour tenir sur 1 page — ${ap.etat}`);

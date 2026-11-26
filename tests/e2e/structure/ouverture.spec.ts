@@ -45,7 +45,7 @@ test.describe('Ouverture et contenu @structure', () => {
     // 12 + 16 + 8 temps = 36 temps = 9 mesures à 4 temps ; 9 mesures à 120 BPM : 36 × 0,5 s = 18 s.
     expect(v.mesures).toBe('9 mesures');
     expect(v.duree).toBe('0 min 18 s à 120 BPM');
-    expect(v.parties).toBe('3 partie(s)');
+    expect(v.parties).toBe('3 passage(s)');
   });
 
   test('une ligne par partie : nom, longueur, position en mesures et accords écrits en mesures @critique', async ({ ouvrirAppli }) => {
@@ -78,7 +78,7 @@ test.describe('Ouverture et contenu @structure', () => {
     const v = await lire(page);
     expect(v.mesures).toBe('0 mesures');
     expect(v.duree).toBe('0 min 00 s à 120 BPM');
-    expect(v.parties).toBe('0 partie(s)');
+    expect(v.parties).toBe('0 passage(s)');
     expect(v.lignes.map(l => l.titre)).toEqual(['Partie 1']);
     await expect(lignes(page).first()).toContainText('vide');
     await expect(fenetre(page)).toContainText('Aucun accord pour l\'instant');
@@ -91,7 +91,7 @@ test.describe('Ouverture et contenu @structure', () => {
     const v = await lire(page);
     expect(v.lignes.map(l => l.titre)).toEqual(['Couplet', 'Refrain', 'Pont', 'Outro']);
     await expect(lignes(page).nth(3)).toContainText('vide');
-    expect(v.parties).toBe('3 partie(s)');
+    expect(v.parties).toBe('3 passage(s)');
     expect(v.mesures).toBe('9 mesures');
     expect(v.deroule).toBe('Couplet · Refrain · Pont');
   });

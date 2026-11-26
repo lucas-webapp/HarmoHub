@@ -20,7 +20,7 @@ test.describe('Répéter et réordonner @structure', () => {
     expect(v.deroule).toBe('Couplet ×2 · Refrain · Pont');
     expect(v.lignes.map(l => l.position)).toEqual(['mes. 1–6', 'mes. 7–10', 'mes. 11–12']);
     expect(v.lignes.map(l => l.mesures)).toEqual(['3 mes.', '4 mes.', '2 mes.']);   // la longueur d'UNE occurrence ne change pas
-    expect(v.parties).toBe('3 partie(s)');
+    expect(v.parties).toBe('3 passage(s)');
     expect(garde.bloquees).toEqual([]);
   });
 

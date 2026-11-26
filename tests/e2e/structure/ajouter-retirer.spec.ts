@@ -28,7 +28,7 @@ test.describe('Ajouter une partie à la structure @structure', () => {
     expect(v.lignes.map(l => l.position)).toEqual(['mes. 1–3', 'mes. 4–7', 'mes. 8–9', 'mes. 10–11']);
     expect(v.mesures).toBe('11 mesures');
     expect(v.duree).toBe('0 min 22 s à 120 BPM');
-    expect(v.parties).toBe('4 partie(s)');                // compte les occurrences
+    expect(v.parties).toBe('4 passage(s)');                // compte les occurrences (« passages » : les lignes de la liste, pas les parties de la grille — SN-12)
     await expect(ajoutPartie(page).locator('option')).toHaveText(['+ Partie…', 'Couplet (déjà 1×)', 'Refrain (déjà 1×)', 'Pont (déjà 2×)']);
     await expect(ajoutPartie(page)).toHaveValue('');
     expect((await structureStockee(page)).length).toBe(4);
@@ -301,7 +301,7 @@ test.describe('Supprimer une occurrence @structure', () => {
     const v = await lire(page);
     expect(v.deroule).toBe('Couplet · Pont');
     expect(v.mesures).toBe('5 mesures');
-    expect(v.parties).toBe('2 partie(s)');
+    expect(v.parties).toBe('2 passage(s)');
     expect(v.lignes.map(l => l.position)).toEqual(['mes. 1–3', 'mes. 4–5']);
     await expect(ajoutPartie(page).locator('option')).toHaveText(['+ Partie…', 'Couplet (déjà 1×)', 'Refrain (pas encore utilisée)', 'Pont (déjà 1×)']);
     await retourGrille(page);
@@ -327,7 +327,7 @@ test.describe('Supprimer une occurrence @structure', () => {
     await expect(lignes(page)).toHaveCount(0);
     const v = await lire(page);
     expect(v.mesures).toBe('0 mesures');
-    expect(v.parties).toBe('0 partie(s)');
+    expect(v.parties).toBe('0 passage(s)');
     await expect(ajoutPartie(page).locator('option')).toHaveText(['+ Partie…', 'Couplet (pas encore utilisée)', 'Refrain (pas encore utilisée)', 'Pont (pas encore utilisée)']);
     expect(await structureStockee(page)).toEqual([]);
     await retourGrille(page);

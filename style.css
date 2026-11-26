@@ -7972,3 +7972,26 @@ body.sq-deplace .cell-ins { display: none !important; }
 /* Un nom très long et sans espace (200 caractères) passait sous les boutons et sortait du cadre : il se coupe où il faut. */
 #structure-panel .struct-title, #structure-panel .struct-deroule { overflow-wrap: anywhere; min-width: 0; }
 .sf-contenu .sf-nom, .sf-contenu .sf-note-txt { overflow-wrap: anywhere; min-width: 0; }
+
+/* ---- Structure : glisser-déposer d'une ligne par sa poignée (SN-14). La poignée ne prend pas le défilement du doigt (touch-action) ; un trait gris montre où la ligne tombera. ---- */
+#structure-panel .struct-poignee { flex: none; align-self: center; width: 16px; text-align: center; line-height: 1; letter-spacing: -2px; color: var(--text-muted); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+#structure-panel .struct-poignee:hover { color: var(--text-main); }
+body.struct-glisse, body.struct-glisse #structure-panel * { cursor: grabbing; user-select: none; -webkit-user-select: none; }
+#structure-panel .struct-row.struct-row-glisse { opacity: .45; }
+#structure-panel .struct-row.struct-insere-avant { box-shadow: 0 -3px 0 0 var(--text-muted); }
+#structure-panel .struct-row.struct-insere-fin { box-shadow: 0 3px 0 0 var(--text-muted); }
+
+/* ---- Structure : « pas dans la structure » (SN-13). Une ligne d'information, neutre : ni alerte rouge ni aplat vif. ---- */
+#structure-panel .struct-divergence { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-muted); font-size: var(--fs-sm); }
+#structure-panel .struct-divergence strong { color: var(--text-main); overflow-wrap: anywhere; }
+#structure-panel .struct-divergence .btn-sec { flex: 0 0 auto; min-width: 0; padding: 4px 14px; }
+
+/* ---- Structure au téléphone (SN-11) : les quatre boutons de la ligne passent sur leur propre rangée et prennent la cible tactile de 44 px (ils faisaient 30 px) ;
+   la poignée de glisser est plus large pour le doigt. L'ordinateur ne change pas. ---- */
+@media (max-width: 899px) {
+    #structure-panel .struct-row { flex-wrap: wrap; }
+    #structure-panel .struct-main { flex: 1 1 0; min-width: 120px; }
+    #structure-panel .struct-actions { flex: 1 0 100%; justify-content: flex-end; gap: 8px; }
+    #structure-panel .struct-actions .icon-btn { width: 44px; height: 44px; }
+    #structure-panel .struct-poignee { width: 28px; font-size: 1.25rem; }
+}

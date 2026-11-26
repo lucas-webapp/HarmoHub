@@ -79,7 +79,11 @@ export const descendre = (page: Page, n: number): Locator => ligne(page, n).getB
 
 // Menu de la ligne : clic droit (ordinateur) ou appui long (téléphone), comme l'invite la légende « Clic droit : options ».
 export async function ouvrirMenu(page: Page, n: number): Promise<Locator> {
-  if (estMobile(page)) await appuiLong(page, ligne(page, n).locator('.struct-title'));
+  if (estMobile(page)) {
+    // Au téléphone la ligne est plus haute (boutons de 44 px sur leur rangée) : on l'amène à l'écran avant l'appui, comme le ferait le doigt.
+    await ligne(page, n).locator('.struct-title').scrollIntoViewIfNeeded();
+    await appuiLong(page, ligne(page, n).locator('.struct-title'));
+  }
   else await ligne(page, n).click({ button: 'right' });
   await expect(menuLigne(page)).toBeVisible();
   return menuLigne(page);

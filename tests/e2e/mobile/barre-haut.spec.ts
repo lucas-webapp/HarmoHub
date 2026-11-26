@@ -47,7 +47,7 @@ test.describe('Barre du haut et onglets au téléphone @mobile', () => {
     await expect(ongletStructure(page)).toHaveAttribute('aria-pressed', 'true');
     await expect(ongletGrille(page)).toHaveAttribute('aria-pressed', 'false');
     await expect(structure).toContainText('6 mesures');
-    await expect(structure).toContainText('2 partie(s)');
+    await expect(structure).toContainText('2 passage(s)');
     await expect(structure).toContainText('| C | Am | F | G |');
     await expect(structure).toContainText('| F | C |');
     await expect(cases(page).first()).toBeHidden();
